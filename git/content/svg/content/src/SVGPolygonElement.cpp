@@ -14,7 +14,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGPolygonElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGPolygonElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGPolygonElementBinding::Wrap(aCx, aScope, this);
 }
@@ -39,23 +39,18 @@ void
 SVGPolygonElement::GetMarkPoints(nsTArray<nsSVGMark> *aMarks)
 {
   nsSVGPolyElement::GetMarkPoints(aMarks);
+  if (aMarks->Length() > 0) {
+    nsSVGMark *endMark = &aMarks->ElementAt(aMarks->Length()-1);
+    nsSVGMark *startMark = &aMarks->ElementAt(0);
+    float angle = atan2(startMark->y - endMark->y, startMark->x - endMark->x);
 
-  if (aMarks->IsEmpty() || aMarks->LastElement().type != nsSVGMark::eEnd) {
-    return;
+    endMark->angle = SVGContentUtils::AngleBisect(angle, endMark->angle);
+    startMark->angle = SVGContentUtils::AngleBisect(angle, startMark->angle);
+    // for a polygon (as opposed to a polyline) there's an implicit extra point
+    // co-located with the start point that nsSVGPolyElement::GetMarkPoints
+    // doesn't return
+    aMarks->AppendElement(nsSVGMark(startMark->x, startMark->y, startMark->angle));
   }
-
-  nsSVGMark *endMark = &aMarks->LastElement();
-  nsSVGMark *startMark = &aMarks->ElementAt(0);
-  float angle = atan2(startMark->y - endMark->y, startMark->x - endMark->x);
-
-  endMark->type = nsSVGMark::eMid;
-  endMark->angle = SVGContentUtils::AngleBisect(angle, endMark->angle);
-  startMark->angle = SVGContentUtils::AngleBisect(angle, startMark->angle);
-  // for a polygon (as opposed to a polyline) there's an implicit extra point
-  // co-located with the start point that nsSVGPolyElement::GetMarkPoints
-  // doesn't return
-  aMarks->AppendElement(nsSVGMark(startMark->x, startMark->y, startMark->angle,
-                                  nsSVGMark::eEnd));
 }
 
 void

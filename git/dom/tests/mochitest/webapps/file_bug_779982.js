@@ -1,7 +1,40 @@
+function makeAllAppsLaunchable() {
+  var Webapps = {};
+  SpecialPowers.Cu.import("resource://gre/modules/Webapps.jsm", Webapps);
+  var appRegistry = SpecialPowers.wrap(Webapps.DOMApplicationRegistry);
+
+  var originalValue = appRegistry.allAppsLaunchable;
+  appRegistry.allAppsLaunchable = true;
+
+  // Clean up after ourselves once tests are done so the test page is unloaded.
+  window.addEventListener("unload", function restoreAllAppsLaunchable(event) {
+    if (event.target == window.document) {
+      window.removeEventListener("unload", restoreAllAppsLaunchable, false);
+      appRegistry.allAppsLaunchable = originalValue;
+    }
+  }, false);
+}
+
 SimpleTest.waitForExplicitFinish();
-var originalAllAppsLaunchable = SpecialPowers.setAllAppsLaunchable(true);
+makeAllAppsLaunchable();
 
 var fileTestOnCurrentOrigin = 'http://example.org/tests/dom/tests/mochitest/webapps/file_bug_779982.html';
+
+var previousPrefs = {
+  mozBrowserFramesEnabled: undefined,
+  oop_by_default: undefined,
+};
+
+try {
+  previousPrefs.mozBrowserFramesEnabled = SpecialPowers.getBoolPref('dom.mozBrowserFramesEnabled');
+} catch(e)
+{
+}
+
+SpecialPowers.setBoolPref('dom.mozBrowserFramesEnabled', true);
+
+SpecialPowers.addPermission("browser", true, window.document);
+SpecialPowers.addPermission("embed-apps", true, window.document);
 
 var gData = [
   // APP 1
@@ -68,7 +101,13 @@ function runTest() {
 
         i++;
         if (i >= gData.length) {
-          SpecialPowers.setAllAppsLaunchable(originalAllAppsLaunchable);
+          if (previousPrefs.mozBrowserFramesEnabled !== undefined) {
+            SpecialPowers.setBoolPref('dom.mozBrowserFramesEnabled', previousPrefs.mozBrowserFramesEnabled);
+          }
+
+          SpecialPowers.removePermission("browser", window.document);
+          SpecialPowers.removePermission("embed-apps", window.document);
+
           SimpleTest.finish();
         } else {
           gTestRunner.next();
@@ -79,12 +118,10 @@ function runTest() {
     iframe.src = data.src + '?' + data.action + '&' + data.isnull;
     document.getElementById('content').appendChild(iframe);
 
-    yield undefined;
+    yield;
   }
 }
 
 var gTestRunner = runTest();
 
-SpecialPowers.pushPrefEnv({"set": [["dom.mozBrowserFramesEnabled", true]]}, function() {
-  SpecialPowers.pushPermissions([{'type': 'browser', 'allow': true, 'context': document}, {'type': 'embed-apps', 'allow': true, 'context': document}], function() {gTestRunner.next() });
-});
+gTestRunner.next();

@@ -7,13 +7,15 @@
 XPIDL_SOURCES += [
     'nsIDOMDeviceStorage.idl',
     'nsIDOMDeviceStorageChangeEvent.idl',
+    'nsIDOMNavigatorDeviceStorage.idl',
 ]
 
 XPIDL_MODULE = 'dom_devicestorage'
 
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/interfaces/base',
+    '-I$(topsrcdir)/dom/interfaces/events',
+]
+
 MODULE = 'dom'
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'domdevicestorage_s'
 

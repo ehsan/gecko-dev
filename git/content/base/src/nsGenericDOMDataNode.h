@@ -11,7 +11,6 @@
 #ifndef nsGenericDOMDataNode_h___
 #define nsGenericDOMDataNode_h___
 
-#include "mozilla/Attributes.h"
 #include "nsIContent.h"
 
 #include "nsTextFragment.h"
@@ -21,7 +20,6 @@
 #include "nsCycleCollectionParticipant.h"
 
 #include "nsISMILAttr.h"
-#include "nsIDocument.h"
 
 class nsIDOMAttr;
 class nsIDOMEventListener;
@@ -42,24 +40,11 @@ enum {
 
   // This bit is set to indicate that if the text node changes to
   // whitespace, we may need to reframe it (or its ancestors).
-  NS_REFRAME_IF_WHITESPACE =              DATA_NODE_FLAG_BIT(1),
-
-  // This bit is set to indicate that we have a cached
-  // TextIsOnlyWhitespace value
-  NS_CACHED_TEXT_IS_ONLY_WHITESPACE =     DATA_NODE_FLAG_BIT(2),
-
-  // This bit is only meaningful if the NS_CACHED_TEXT_IS_ONLY_WHITESPACE
-  // bit is set, and if so it indicates whether we're only whitespace or
-  // not.
-  NS_TEXT_IS_ONLY_WHITESPACE =            DATA_NODE_FLAG_BIT(3),
-
-  // This bit is set to indicate that we must create frames for this text node
-  // even if it's only whitespace next to a block boundary.
-  NS_CREATE_FRAME_FOR_IGNORABLE_WHITESPACE = DATA_NODE_FLAG_BIT(4)
+  NS_REFRAME_IF_WHITESPACE =              DATA_NODE_FLAG_BIT(1)
 };
 
 // Make sure we have enough space for those bits
-ASSERT_NODE_FLAGS_SPACE(NODE_TYPE_SPECIFIC_BITS_OFFSET + 4);
+PR_STATIC_ASSERT(NODE_TYPE_SPECIFIC_BITS_OFFSET + 1 < 32);
 
 #undef DATA_NODE_FLAG_BIT
 
@@ -73,9 +58,9 @@ public:
   nsGenericDOMDataNode(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsGenericDOMDataNode();
 
-  virtual void GetNodeValueInternal(nsAString& aNodeValue) MOZ_OVERRIDE;
+  virtual void GetNodeValueInternal(nsAString& aNodeValue);
   virtual void SetNodeValueInternal(const nsAString& aNodeValue,
-                                    mozilla::ErrorResult& aError) MOZ_OVERRIDE;
+                                    mozilla::ErrorResult& aError);
 
   // Implementation for nsIDOMCharacterData
   nsresult GetData(nsAString& aData) const;
@@ -91,19 +76,19 @@ public:
   NS_IMETHOD MozRemove();
 
   // nsINode methods
-  virtual uint32_t GetChildCount() const MOZ_OVERRIDE;
-  virtual nsIContent *GetChildAt(uint32_t aIndex) const MOZ_OVERRIDE;
-  virtual nsIContent * const * GetChildArray(uint32_t* aChildCount) const MOZ_OVERRIDE;
-  virtual int32_t IndexOf(const nsINode* aPossibleChild) const MOZ_OVERRIDE;
+  virtual uint32_t GetChildCount() const;
+  virtual nsIContent *GetChildAt(uint32_t aIndex) const;
+  virtual nsIContent * const * GetChildArray(uint32_t* aChildCount) const;
+  virtual int32_t IndexOf(const nsINode* aPossibleChild) const;
   virtual nsresult InsertChildAt(nsIContent* aKid, uint32_t aIndex,
-                                 bool aNotify) MOZ_OVERRIDE;
-  virtual void RemoveChildAt(uint32_t aIndex, bool aNotify) MOZ_OVERRIDE;
-  virtual void GetTextContentInternal(nsAString& aTextContent) MOZ_OVERRIDE
+                                 bool aNotify);
+  virtual void RemoveChildAt(uint32_t aIndex, bool aNotify);
+  virtual void GetTextContentInternal(nsAString& aTextContent)
   {
     GetNodeValue(aTextContent);
   }
   virtual void SetTextContentInternal(const nsAString& aTextContent,
-                                      mozilla::ErrorResult& aError) MOZ_OVERRIDE
+                                      mozilla::ErrorResult& aError)
   {
     // Batch possible DOMSubtreeModified events.
     mozAutoSubtreeModified subtree(OwnerDoc(), nullptr);
@@ -113,14 +98,14 @@ public:
   // Implementation for nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers) MOZ_OVERRIDE;
+                              bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true) MOZ_OVERRIDE;
+                              bool aNullParent = true);
 
-  virtual already_AddRefed<nsINodeList> GetChildren(uint32_t aFilter) MOZ_OVERRIDE;
+  virtual already_AddRefed<nsINodeList> GetChildren(uint32_t aFilter);
 
-  virtual nsIAtom *GetIDAttributeName() const MOZ_OVERRIDE;
-
+  virtual nsIAtom *GetIDAttributeName() const;
+  virtual already_AddRefed<nsINodeInfo> GetExistingAttrNameFromQName(const nsAString& aStr) const;
   nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
@@ -128,50 +113,45 @@ public:
   }
   virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
                            nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify) MOZ_OVERRIDE;
+                           bool aNotify);
   virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify) MOZ_OVERRIDE;
-  virtual const nsAttrName* GetAttrNameAt(uint32_t aIndex) const MOZ_OVERRIDE;
-  virtual uint32_t GetAttrCount() const MOZ_OVERRIDE;
-  virtual const nsTextFragment *GetText() MOZ_OVERRIDE;
-  virtual uint32_t TextLength() const MOZ_OVERRIDE;
+                             bool aNotify);
+  virtual const nsAttrName* GetAttrNameAt(uint32_t aIndex) const;
+  virtual uint32_t GetAttrCount() const;
+  virtual const nsTextFragment *GetText();
+  virtual uint32_t TextLength() const;
   virtual nsresult SetText(const PRUnichar* aBuffer, uint32_t aLength,
-                           bool aNotify) MOZ_OVERRIDE;
+                           bool aNotify);
   // Need to implement this here too to avoid hiding.
   nsresult SetText(const nsAString& aStr, bool aNotify)
   {
     return SetText(aStr.BeginReading(), aStr.Length(), aNotify);
   }
   virtual nsresult AppendText(const PRUnichar* aBuffer, uint32_t aLength,
-                              bool aNotify) MOZ_OVERRIDE;
-  virtual bool TextIsOnlyWhitespace() MOZ_OVERRIDE;
-  virtual void AppendTextTo(nsAString& aResult) MOZ_OVERRIDE;
-  virtual void DestroyContent() MOZ_OVERRIDE;
-  virtual void SaveSubtreeState() MOZ_OVERRIDE;
+                              bool aNotify);
+  virtual bool TextIsOnlyWhitespace();
+  virtual void AppendTextTo(nsAString& aResult);
+  virtual void DestroyContent();
+  virtual void SaveSubtreeState();
 
 #ifdef DEBUG
-  virtual void List(FILE* out, int32_t aIndent) const MOZ_OVERRIDE;
-  virtual void DumpContent(FILE* out, int32_t aIndent, bool aDumpAll) const MOZ_OVERRIDE;
+  virtual void List(FILE* out, int32_t aIndent) const;
+  virtual void DumpContent(FILE* out, int32_t aIndent, bool aDumpAll) const;
 #endif
 
-  virtual nsIContent *GetBindingParent() const MOZ_OVERRIDE;
-  virtual nsXBLBinding *GetXBLBinding() const MOZ_OVERRIDE;
-  virtual void SetXBLBinding(nsXBLBinding* aBinding,
-                             nsBindingManager* aOldBindingManager = nullptr) MOZ_OVERRIDE;
-  virtual nsIContent *GetXBLInsertionParent() const;
-  virtual void SetXBLInsertionParent(nsIContent* aContent);
-  virtual bool IsNodeOfType(uint32_t aFlags) const MOZ_OVERRIDE;
-  virtual bool IsLink(nsIURI** aURI) const MOZ_OVERRIDE;
+  virtual nsIContent *GetBindingParent() const;
+  virtual bool IsNodeOfType(uint32_t aFlags) const;
+  virtual bool IsLink(nsIURI** aURI) const;
 
-  virtual nsIAtom* DoGetID() const MOZ_OVERRIDE;
-  virtual const nsAttrValue* DoGetClasses() const MOZ_OVERRIDE;
-  NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker) MOZ_OVERRIDE;
+  virtual nsIAtom* DoGetID() const;
+  virtual const nsAttrValue* DoGetClasses() const;
+  NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
                                               int32_t aModType) const;
   virtual nsIAtom *GetClassAttributeName() const;
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   {
     *aResult = CloneDataNode(aNodeInfo, true);
     if (!*aResult) {
@@ -188,7 +168,7 @@ public:
 
   // WebIDL API
   // Our XPCOM GetData is just fine for WebIDL
-  virtual void SetData(const nsAString& aData, mozilla::ErrorResult& rv)
+  void SetData(const nsAString& aData, mozilla::ErrorResult& rv)
   {
     rv = SetData(aData);
   }
@@ -247,23 +227,15 @@ protected:
     {
     }
 
-    void Traverse(nsCycleCollectionTraversalCallback &cb);
-    void Unlink();
-
     /**
      * The nearest enclosing content node with a binding that created us.
      * @see nsIContent::GetBindingParent
      */
     nsIContent* mBindingParent;  // [Weak]
-
-    /**
-     * @see nsIContent::GetXBLInsertionParent
-     */
-    nsCOMPtr<nsIContent> mXBLInsertionParent;
   };
 
   // Override from nsINode
-  virtual nsINode::nsSlots* CreateSlots() MOZ_OVERRIDE;
+  virtual nsINode::nsSlots* CreateSlots();
 
   nsDataSlots* DataSlots()
   {
@@ -305,16 +277,16 @@ protected:
   nsTextFragment mText;
 
 public:
-  virtual bool OwnedOnlyByTheDOMTree() MOZ_OVERRIDE
+  virtual bool OwnedOnlyByTheDOMTree()
   {
     return GetParent() && mRefCnt.get() == 1;
   }
 
-  virtual bool IsPurple() MOZ_OVERRIDE
+  virtual bool IsPurple()
   {
     return mRefCnt.IsPurple();
   }
-  virtual void RemovePurple() MOZ_OVERRIDE
+  virtual void RemovePurple()
   {
     mRefCnt.RemovePurple();
   }

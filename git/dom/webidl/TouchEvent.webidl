@@ -4,13 +4,14 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+interface TouchList;
 interface WindowProxy;
 
 [PrefControlled]
 interface TouchEvent : UIEvent {
-  readonly attribute TouchList touches;
-  readonly attribute TouchList targetTouches;
-  readonly attribute TouchList changedTouches;
+  readonly attribute TouchList? touches;
+  readonly attribute TouchList? targetTouches;
+  readonly attribute TouchList? changedTouches;
 
   readonly attribute boolean altKey;
   readonly attribute boolean metaKey;

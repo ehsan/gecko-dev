@@ -1,22 +1,22 @@
 "use strict";
 // https://bugzilla.mozilla.org/show_bug.cgi?id=760955
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
 Cu.import("resource://testing-common/httpd.js");
 
 var httpServer = null;
 const testFileName = "test_nsHttpChannel_CacheForOfflineUse-no-store";
 const cacheClientID = testFileName + "|fake-group-id";
 const basePath = "/" + testFileName + "/";
-
-XPCOMUtils.defineLazyGetter(this, "baseURI", function() {
-  return "http://localhost:" + httpServer.identity.primaryPort + basePath;
-});
-
+const baseURI = "http://localhost:4444" + basePath;
 const normalEntry = "normal";
 const noStoreEntry = "no-store";
 
 var cacheUpdateObserver = null;
-var appCache = null;
 
 function make_channel_for_offline_use(url, callback, ctx) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
@@ -25,7 +25,7 @@ function make_channel_for_offline_use(url, callback, ctx) {
   
   var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
                      getService(Components.interfaces.nsIApplicationCacheService);
-  appCache = cacheService.getApplicationCache(cacheClientID);
+  var appCache = cacheService.getApplicationCache(cacheClientID);
   
   var appCacheChan = chan.QueryInterface(Ci.nsIApplicationCacheChannel);
   appCacheChan.applicationCacheForWrite = appCache;
@@ -49,6 +49,28 @@ CacheListener.prototype = {
 };
 
 
+function asyncCheckCacheEntryExistance(entryName, shouldExist)
+{
+  var listener = new CacheListener();
+  listener.onCacheEntryAvailable = function(descriptor, accessGranted, status) {
+    if (shouldExist) {
+      do_check_eq(status, Cr.NS_OK);
+      do_check_true(!!descriptor);
+    } else {
+      do_check_eq(status, Cr.NS_ERROR_CACHE_KEY_NOT_FOUND);
+      do_check_null(descriptor);
+    }
+    run_next_test();
+  };
+
+  var service = Cc["@mozilla.org/network/cache-service;1"]
+                          .getService(Ci.nsICacheService);
+  var session = service.createSession(cacheClientID, Ci.nsICache.STORE_OFFLINE,
+                                        true);
+  session.asyncOpenCacheEntry(baseURI + entryName, Ci.nsICache.ACCESS_READ,
+                              listener);
+}
+
 const responseBody = "response body";
 
 // A HTTP channel for updating the offline cache should normally succeed.
@@ -61,7 +83,7 @@ function normalHandler(metadata, response)
 function checkNormal(request, buffer)
 {
   do_check_eq(buffer, responseBody);
-  asyncCheckCacheEntryPresence(baseURI + normalEntry, "appcache", true, run_next_test, appCache);
+  asyncCheckCacheEntryExistance(normalEntry, true);
 }
 add_test(function test_normal() {
   var chan = make_channel_for_offline_use(baseURI + normalEntry);
@@ -80,7 +102,8 @@ function noStoreHandler(metadata, response)
 function checkNoStore(request, buffer)
 {
   do_check_eq(buffer, "");
-  asyncCheckCacheEntryPresence(baseURI + noStoreEntry, "appcache", false, run_next_test, appCache);
+  asyncCheckCacheEntryExistance(noStoreEntry, false);
+  run_next_test();
 }
 add_test(function test_noStore() {
   var chan = make_channel_for_offline_use(baseURI + noStoreEntry);
@@ -96,7 +119,7 @@ function run_test()
   httpServer = new HttpServer();
   httpServer.registerPathHandler(basePath + normalEntry, normalHandler);
   httpServer.registerPathHandler(basePath + noStoreEntry, noStoreHandler);
-  httpServer.start(-1);
+  httpServer.start(4444);
   run_next_test();
 }
 

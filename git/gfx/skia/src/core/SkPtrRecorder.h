@@ -59,8 +59,8 @@ public:
     void reset();
 
 protected:
-    virtual void incPtr(void*) {}
-    virtual void decPtr(void*) {}
+    virtual void incPtr(void* ptr) {}
+    virtual void decPtr(void* ptr) {}
 
 private:
     struct Pair {

@@ -15,7 +15,6 @@ class nsFormSubmission;
 namespace mozilla {
 namespace dom {
 class Element;
-class HTMLFieldSetElement;
 } // namespace dom
 } // namespace mozilla
 
@@ -34,7 +33,7 @@ enum FormControlsTypes {
   // Elements with different types, the value is used as a mask.
   // Adding '_ELEMENT' because NS_FORM_INPUT is used for 'oninput' event.
   // When changing the order, adding or removing elements, be sure to update
-  // the static_assert checks accordingly.
+  // the PR_STATIC_ASSERT checks accordingly.
   NS_FORM_BUTTON_ELEMENT = 0x40, // 0b01000000
   NS_FORM_INPUT_ELEMENT  = 0x80  // 0b10000000
 };
@@ -49,7 +48,6 @@ enum ButtonElementTypes {
 enum InputElementTypes {
   NS_FORM_INPUT_BUTTON = NS_FORM_INPUT_ELEMENT + 1,
   NS_FORM_INPUT_CHECKBOX,
-  NS_FORM_INPUT_COLOR,
   NS_FORM_INPUT_DATE,
   NS_FORM_INPUT_EMAIL,
   NS_FORM_INPUT_FILE,
@@ -69,14 +67,9 @@ enum InputElementTypes {
   eInputElementTypesMax
 };
 
-static_assert(static_cast<uint32_t>(eFormControlsWithoutSubTypesMax) <
-              static_cast<uint32_t>(NS_FORM_BUTTON_ELEMENT),
-              "Too many FormControlsTypes without sub-types");
-static_assert(static_cast<uint32_t>(eButtonElementTypesMax) <
-              static_cast<uint32_t>(NS_FORM_INPUT_ELEMENT),
-              "Too many ButtonElementTypes");
-static_assert(static_cast<uint32_t>(eInputElementTypesMax) < 1<<8,
-              "Too many form control types");
+PR_STATIC_ASSERT((uint32_t)eFormControlsWithoutSubTypesMax < (uint32_t)NS_FORM_BUTTON_ELEMENT);
+PR_STATIC_ASSERT((uint32_t)eButtonElementTypesMax < (uint32_t)NS_FORM_INPUT_ELEMENT);
+PR_STATIC_ASSERT((uint32_t)eInputElementTypesMax  < 1<<8);
 
 #define NS_IFORMCONTROL_IID   \
 { 0x4b89980c, 0x4dcd, 0x428f, \
@@ -92,12 +85,6 @@ class nsIFormControl : public nsISupports
 public:
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IFORMCONTROL_IID)
-
-  /**
-   * Get the fieldset for this form control.
-   * @return the fieldset
-   */
-  virtual mozilla::dom::HTMLFieldSetElement *GetFieldSet() = 0;
 
   /**
    * Get the form for this form control.

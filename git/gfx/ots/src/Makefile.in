@@ -25,8 +25,58 @@
 #
 
 
+DEPTH     = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir    = @srcdir@
+VPATH     = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME   = mozots
+FORCE_STATIC_LIB = 1
+
 ifeq (WINNT,$(OS_TARGET))
+VISIBILITY_FLAGS =
+else
+LIBXUL_LIBRARY = 1
 endif
+
+CSRCS =   \
+  $(NULL)
+
+CPPSRCS	= \
+  cff.cc  \
+  cff_type2_charstring.cc \
+  cmap.cc \
+  cvt.cc  \
+  fpgm.cc \
+  gasp.cc \
+  glyf.cc \
+  hdmx.cc \
+  head.cc \
+  hhea.cc \
+  hmtx.cc \
+  kern.cc \
+  layout.cc \
+  loca.cc \
+  ltsh.cc \
+  maxp.cc \
+  metrics.cc \
+  name.cc \
+  os2.cc  \
+  ots.cc  \
+  post.cc \
+  prep.cc \
+  vdmx.cc \
+  vhea.cc \
+  vmtx.cc \
+  vorg.cc \
+  gdef.cc \
+  gpos.cc \
+  gsub.cc \
+  graphite.cc \
+  svg.cc \
+  $(NULL)
 
 include $(topsrcdir)/config/rules.mk
 
@@ -38,3 +88,4 @@ DEFINES += -DMOZ_OTS_REPORT_ERRORS
 ifeq (WINNT,$(OS_TARGET))
 DEFINES += -DOTS_DLL -DOTS_DLL_EXPORTS
 endif
+

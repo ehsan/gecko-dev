@@ -66,10 +66,6 @@ SkWindow::~SkWindow()
     fMenus.deleteAll();
 }
 
-SkCanvas* SkWindow::createCanvas() {
-    return new SkCanvas(this->getBitmap());
-}
-
 void SkWindow::setMatrix(const SkMatrix& matrix) {
     if (fMatrix != matrix) {
         fMatrix = matrix;
@@ -160,7 +156,7 @@ void SkWindow::forceInvalAll() {
 extern bool gEnableControlledThrow;
 #endif
 
-bool SkWindow::update(SkIRect* updateArea)
+bool SkWindow::update(SkIRect* updateArea, SkCanvas* canvas)
 {
     if (!fDirtyRgn.isEmpty())
     {
@@ -177,7 +173,12 @@ bool SkWindow::update(SkIRect* updateArea)
         bm.setPixels(buffer);
 #endif
 
-        SkAutoTUnref<SkCanvas> canvas(this->createCanvas());
+        SkCanvas    rasterCanvas;
+
+        if (NULL == canvas) {
+            canvas = &rasterCanvas;
+        }
+        canvas->setBitmapDevice(bm);
 
         canvas->clipRegion(fDirtyRgn);
         if (updateArea)
@@ -348,23 +349,22 @@ bool SkWindow::onHandleChar(SkUnichar)
     return false;
 }
 
-bool SkWindow::onHandleKey(SkKey)
+bool SkWindow::onHandleKey(SkKey key)
 {
     return false;
 }
 
-bool SkWindow::onHandleKeyUp(SkKey)
+bool SkWindow::onHandleKeyUp(SkKey key)
 {
     return false;
 }
 
-bool SkWindow::handleClick(int x, int y, Click::State state, void *owner,
-                           unsigned modifierKeys) {
-    return this->onDispatchClick(x, y, state, owner, modifierKeys);
+bool SkWindow::handleClick(int x, int y, Click::State state, void *owner) {
+    return this->onDispatchClick(x, y, state, owner);
 }
 
 bool SkWindow::onDispatchClick(int x, int y, Click::State state,
-                               void* owner, unsigned modifierKeys) {
+        void* owner) {
     bool handled = false;
 
     // First, attempt to find an existing click with this owner.
@@ -383,25 +383,25 @@ bool SkWindow::onDispatchClick(int x, int y, Click::State state,
                 fClicks.remove(index);
             }
             Click* click = this->findClickHandler(SkIntToScalar(x),
-                                                  SkIntToScalar(y), modifierKeys);
+                    SkIntToScalar(y));
 
             if (click) {
                 click->fOwner = owner;
                 *fClicks.append() = click;
-                SkView::DoClickDown(click, x, y, modifierKeys);
+                SkView::DoClickDown(click, x, y);
                 handled = true;
             }
             break;
         }
         case Click::kMoved_State:
             if (index != -1) {
-                SkView::DoClickMoved(fClicks[index], x, y, modifierKeys);
+                SkView::DoClickMoved(fClicks[index], x, y);
                 handled = true;
             }
             break;
         case Click::kUp_State:
             if (index != -1) {
-                SkView::DoClickUp(fClicks[index], x, y, modifierKeys);
+                SkView::DoClickUp(fClicks[index], x, y);
                 delete fClicks[index];
                 fClicks.remove(index);
                 handled = true;
@@ -413,3 +413,4 @@ bool SkWindow::onDispatchClick(int x, int y, Click::State state,
     }
     return handled;
 }
+

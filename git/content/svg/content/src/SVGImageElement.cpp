@@ -6,7 +6,6 @@
 #include "mozilla/Util.h"
 
 #include "mozilla/dom/SVGImageElement.h"
-#include "mozilla/gfx/2D.h"
 #include "nsCOMPtr.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
@@ -17,13 +16,11 @@
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(Image)
 
-using namespace mozilla::gfx;
-
 namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGImageElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGImageElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGImageElementBinding::Wrap(aCx, aScope, this);
 }
@@ -106,7 +103,7 @@ SVGImageElement::PreserveAspectRatio()
   return ratio.forget();
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGImageElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);
@@ -237,31 +234,6 @@ SVGImageElement::ConstructPath(gfxContext *aCtx)
     return;
 
   aCtx->Rectangle(gfxRect(x, y, width, height));
-}
-
-TemporaryRef<Path>
-SVGImageElement::BuildPath()
-{
-  // We get called in order to get bounds for this element, and for
-  // hit-testing against it. For that we just pretend to be a rectangle.
-
-  float x, y, width, height;
-  GetAnimatedLengthValues(&x, &y, &width, &height, nullptr);
-
-  if (width <= 0 || height <= 0) {
-    return nullptr;
-  }
-
-  RefPtr<PathBuilder> pathBuilder = CreatePathBuilder();
-
-  Rect r(x, y, width, height);
-  pathBuilder->MoveTo(r.TopLeft());
-  pathBuilder->LineTo(r.TopRight());
-  pathBuilder->LineTo(r.BottomRight());
-  pathBuilder->LineTo(r.BottomLeft());
-  pathBuilder->Close();
-
-  return pathBuilder->Finish();
 }
 
 //----------------------------------------------------------------------

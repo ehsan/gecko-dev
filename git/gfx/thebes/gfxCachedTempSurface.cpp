@@ -66,16 +66,18 @@ gfxCachedTempSurface::~gfxCachedTempSurface()
 }
 
 already_AddRefed<gfxContext>
-gfxCachedTempSurface::Get(gfxContentType aContentType,
+gfxCachedTempSurface::Get(gfxASurface::gfxContentType aContentType,
                           const gfxRect& aRect,
                           gfxASurface* aSimilarTo)
 {
   if (mSurface) {
     /* Verify the current buffer is valid for this purpose */
     if (mSize.width < aRect.width || mSize.height < aRect.height
-        || mSurface->GetContentType() != aContentType
-        || mType != aSimilarTo->GetType()) {
+        || mSurface->GetContentType() != aContentType) {
       mSurface = nullptr;
+    } else {
+      NS_ASSERTION(mType == aSimilarTo->GetType(),
+                   "Unexpected surface type change");
     }
   }
 
@@ -87,14 +89,16 @@ gfxCachedTempSurface::Get(gfxContentType aContentType,
       return nullptr;
 
     cleared = true;
+#ifdef DEBUG
     mType = aSimilarTo->GetType();
+#endif
   }
   mSurface->SetDeviceOffset(-aRect.TopLeft());
 
   nsRefPtr<gfxContext> ctx = new gfxContext(mSurface);
   ctx->Rectangle(aRect);
   ctx->Clip();
-  if (!cleared && aContentType != GFX_CONTENT_COLOR) {
+  if (!cleared && aContentType != gfxASurface::CONTENT_COLOR) {
     ctx->SetOperator(gfxContext::OPERATOR_CLEAR);
     ctx->Paint();
     ctx->SetOperator(gfxContext::OPERATOR_OVER);

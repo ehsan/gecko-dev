@@ -6,19 +6,12 @@
 #ifndef GFX_ThebesLayerComposite_H
 #define GFX_ThebesLayerComposite_H
 
-#include "Layers.h"                     // for Layer (ptr only), etc
-#include "gfxPoint.h"                   // for gfxSize
-#include "gfxRect.h"                    // for gfxRect
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/RefPtr.h"             // for RefPtr
-#include "mozilla/layers/LayerManagerComposite.h"  // for LayerComposite, etc
-#include "mozilla/layers/LayersTypes.h"  // for LayerRenderState, etc
-#include "nsDebug.h"                    // for NS_RUNTIMEABORT
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nscore.h"                     // for nsACString
+#include "mozilla/layers/PLayers.h"
+#include "mozilla/layers/ShadowLayers.h"
 
-struct nsIntPoint;
-struct nsIntRect;
+#include "Layers.h"
+#include "LayerManagerComposite.h"
+#include "base/task.h"
 
 
 namespace mozilla {
@@ -30,11 +23,9 @@ namespace layers {
  * non-tiled Thebes layers and single or double buffering.
  */
 
-class CompositableHost;
 class ContentHost;
-class TiledLayerComposer;
 
-class ThebesLayerComposite : public ThebesLayer,
+class ThebesLayerComposite : public ShadowThebesLayer,
                              public LayerComposite
 {
 public:
@@ -42,6 +33,11 @@ public:
   virtual ~ThebesLayerComposite();
 
   virtual void Disconnect() MOZ_OVERRIDE;
+
+  virtual void SetValidRegion(const nsIntRegion& aRegion) MOZ_OVERRIDE
+  {
+    ShadowThebesLayer::SetValidRegion(aRegion);
+  }
 
   virtual LayerRenderState GetRenderState() MOZ_OVERRIDE;
 
@@ -53,7 +49,8 @@ public:
 
   virtual TiledLayerComposer* GetTiledLayerComposer() MOZ_OVERRIDE;
 
-  virtual void RenderLayer(const nsIntRect& aClipRect) MOZ_OVERRIDE;
+  virtual void RenderLayer(const nsIntPoint& aOffset,
+                           const nsIntRect& aClipRect) MOZ_OVERRIDE;
 
   virtual void CleanupResources() MOZ_OVERRIDE;
 
@@ -63,26 +60,17 @@ public:
 
   void EnsureTiled() { mRequiresTiledProperties = true; }
 
-  virtual void InvalidateRegion(const nsIntRegion& aRegion)
-  {
-    NS_RUNTIMEABORT("ThebesLayerComposites can't fill invalidated regions");
-  }
-
-  void SetValidRegion(const nsIntRegion& aRegion)
-  {
-    MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) ValidRegion", this));
-    mValidRegion = aRegion;
-    Mutated();
-  }
-
-  MOZ_LAYER_DECL_NAME("ThebesLayerComposite", TYPE_SHADOW)
+#ifdef MOZ_LAYERS_HAVE_LOG
+  virtual const char* Name() const MOZ_OVERRIDE { return "ThebesLayerComposite"; }
 
 protected:
-
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix) MOZ_OVERRIDE;
+#endif
 
 private:
+  gfxRect GetDisplayPort();
   gfxSize GetEffectiveResolution();
+  gfxRect GetCompositionBounds();
 
   RefPtr<ContentHost> mBuffer;
   bool mRequiresTiledProperties;

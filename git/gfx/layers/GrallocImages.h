@@ -10,44 +10,11 @@
 
 #include "mozilla/layers/LayersSurfaces.h"
 #include "ImageLayers.h"
-#include "ImageContainer.h"
 
 #include <ui/GraphicBuffer.h>
 
 namespace mozilla {
 namespace layers {
-
-class GrallocTextureClientOGL;
-
-/**
- * The gralloc buffer maintained by android GraphicBuffer can be
- * shared between the compositor thread and the producer thread. The
- * mGraphicBuffer is owned by the producer thread, but when it is
- * wrapped by GraphicBufferLocked and passed to the compositor, the
- * buffer content is guaranteed to not change until Unlock() is
- * called. Each producer must maintain their own buffer queue and
- * implement the GraphicBufferLocked::Unlock() interface.
- */
-class GraphicBufferLocked {
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GraphicBufferLocked)
-
-public:
-  GraphicBufferLocked(SurfaceDescriptor aGraphicBuffer)
-    : mSurfaceDescriptor(aGraphicBuffer)
-  {}
-
-  virtual ~GraphicBufferLocked() {}
-
-  virtual void Unlock() {}
-
-  SurfaceDescriptor GetSurfaceDescriptor()
-  {
-    return mSurfaceDescriptor;
-  }
-
-protected:
-  SurfaceDescriptor mSurfaceDescriptor;
-};
 
 /**
  * The YUV format supported by Android HAL
@@ -70,20 +37,13 @@ protected:
  * mPicX, mPicY and mPicSize. The size of the rendered image is
  * mPicSize, not mYSize or mCbCrSize.
  */
-class GrallocImage : public PlanarYCbCrImage
-                   , public ISharedImage
-{
-  typedef PlanarYCbCrData Data;
-  static uint32_t sColorIdMap[];
+class THEBES_API GrallocPlanarYCbCrImage : public PlanarYCbCrImage {
+  typedef PlanarYCbCrImage::Data Data;
+
 public:
-  struct GrallocData {
-    nsRefPtr<GraphicBufferLocked> mGraphicBuffer;
-    gfxIntSize mPicSize;
-  };
+  GrallocPlanarYCbCrImage();
 
-  GrallocImage();
-
-  virtual ~GrallocImage();
+  virtual ~GrallocPlanarYCbCrImage();
 
   /**
    * This makes a copy of the data buffers, in order to support functioning
@@ -91,56 +51,16 @@ public:
    */
   virtual void SetData(const Data& aData);
 
-  /**
-   *  Share the SurfaceDescriptor without making the copy, in order
-   *  to support functioning in all different layer managers.
-   */
-  virtual void SetData(const GrallocData& aData);
+  virtual uint32_t GetDataSize() { return 0; }
 
-  // From [android 4.0.4]/hardware/msm7k/libgralloc-qsd8k/gralloc_priv.h
-  enum {
-    /* OEM specific HAL formats */
-    HAL_PIXEL_FORMAT_YCbCr_422_P            = 0x102,
-    HAL_PIXEL_FORMAT_YCbCr_420_P            = 0x103,
-    HAL_PIXEL_FORMAT_YCbCr_420_SP           = 0x109,
-    HAL_PIXEL_FORMAT_YCrCb_420_SP_ADRENO    = 0x10A,
-    HAL_PIXEL_FORMAT_YCbCr_420_SP_TILED     = 0x7FA30C03,
-    HAL_PIXEL_FORMAT_YCbCr_420_SP_VENUS     = 0x7FA30C04,
-  };
-
-  virtual already_AddRefed<gfxASurface> GetAsSurface();
-
-  void* GetNativeBuffer()
-  {
-    if (IsValid()) {
-      return GrallocBufferActor::GetFrom(GetSurfaceDescriptor())->getNativeBuffer();
-    } else {
-      return nullptr;
-    }
-  }
-
-  virtual bool IsValid() { return GetSurfaceDescriptor().type() != SurfaceDescriptor::T__None; }
+  virtual bool IsValid() { return mSurfaceDescriptor.type() != SurfaceDescriptor::T__None; }
 
   SurfaceDescriptor GetSurfaceDescriptor() {
-    if (mGraphicBuffer.get()) {
-      return mGraphicBuffer->GetSurfaceDescriptor();
-    }
-    return SurfaceDescriptor();
-  }
-
-  virtual ISharedImage* AsSharedImage() MOZ_OVERRIDE { return this; }
-
-  virtual TextureClient* GetTextureClient() MOZ_OVERRIDE;
-
-  virtual uint8_t* GetBuffer()
-  {
-    return static_cast<uint8_t*>(GetNativeBuffer());
+    return mSurfaceDescriptor;
   }
 
 private:
-  bool mBufferAllocated;
-  nsRefPtr<GraphicBufferLocked> mGraphicBuffer;
-  RefPtr<GrallocTextureClientOGL> mTextureClient;
+  SurfaceDescriptor mSurfaceDescriptor;
 };
 
 } // namespace layers

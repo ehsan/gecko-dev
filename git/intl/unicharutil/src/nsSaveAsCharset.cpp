@@ -7,10 +7,14 @@
 
 #include "prmem.h"
 #include "prprf.h"
+#include "nsIServiceManager.h"
+#include "nsIComponentManager.h"
 #include "nsICharsetConverterManager.h"
 #include "nsSaveAsCharset.h"
+#include "nsCRT.h"
+#include "nsUnicharUtils.h"
+#include "nsReadableUtils.h"
 #include "nsWhitespaceTokenizer.h"
-#include "nsServiceManagerUtils.h"
 
 //
 // nsISupports methods
@@ -118,7 +122,7 @@ nsSaveAsCharset::GetCharset(char * *aCharset)
     return NS_ERROR_FAILURE;
   }
 
-  *aCharset = strdup(charset);
+  *aCharset = nsCRT::strdup(charset);
   return (*aCharset) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
@@ -139,7 +143,7 @@ nsSaveAsCharset::HandleFallBack(uint32_t character, char **outString, int32_t *b
   char fallbackStr[256];
   nsresult rv = DoConversionFallBack(character, fallbackStr, 256);
   if (NS_SUCCEEDED(rv)) {
-    int32_t tempLen = (int32_t) strlen(fallbackStr);
+    int32_t tempLen = (int32_t) PL_strlen(fallbackStr);
 
     // reallocate if the buffer is not large enough
     if ((tempLen + estimatedLength) >= (*bufferLength - *currentPos)) {

@@ -21,7 +21,6 @@
 #include "nsAppShell.h"
 #include "TaskbarPreviewButton.h"
 #include "WinUtils.h"
-#include "gfxWindowsPlatform.h"
 
 #include <nsIBaseWindow.h>
 #include <nsICanvasRenderingContextInternal.h>
@@ -42,7 +41,7 @@ namespace {
 // Shared by all TaskbarPreviews to avoid the expensive creation process.
 // Manually refcounted (see gInstCount) by the ctor and dtor of TaskbarPreview.
 // This is done because static constructors aren't allowed for perf reasons.
-dom::CanvasRenderingContext2D* gCtx = nullptr;
+dom::CanvasRenderingContext2D* gCtx = NULL;
 // Used in tracking the number of previews. Used in freeing
 // the static 2d rendering context on shutdown.
 uint32_t gInstCount = 0;
@@ -93,7 +92,7 @@ TaskbarPreview::TaskbarPreview(ITaskbarList4 *aTaskbar, nsITaskbarPreviewControl
     mDocShell(do_GetWeakReference(aShell))
 {
   // TaskbarPreview may outlive the WinTaskbar that created it
-  ::CoInitialize(nullptr);
+  ::CoInitialize(NULL);
 
   gInstCount++;
 
@@ -110,7 +109,7 @@ TaskbarPreview::~TaskbarPreview() {
   NS_ASSERTION(!mWnd, "TaskbarPreview::DetachFromNSWindow was not called before destruction");
 
   // Make sure to release before potentially uninitializing COM
-  mTaskbar = nullptr;
+  mTaskbar = NULL;
 
   if (--gInstCount == 0)
     NS_IF_RELEASE(gCtx);
@@ -170,7 +169,7 @@ TaskbarPreview::SetActive(bool active) {
   if (active)
     sActivePreview = this;
   else if (sActivePreview == this)
-    sActivePreview = nullptr;
+    sActivePreview = NULL;
 
   return CanMakeTaskbarCalls() ? ShowActive(active) : NS_OK;
 }
@@ -191,7 +190,7 @@ TaskbarPreview::Invalidate() {
     return NS_OK;
 
   HWND previewWindow = PreviewWindow();
-  return FAILED(WinUtils::dwmInvalidateIconicBitmapsPtr(previewWindow))
+  return FAILED(nsUXThemeData::dwmInvalidateIconicBitmapsPtr(previewWindow))
        ? NS_ERROR_FAILURE
        : NS_OK;
 }
@@ -250,7 +249,7 @@ void
 TaskbarPreview::DetachFromNSWindow() {
   WindowHook &hook = GetWindowHook();
   hook.RemoveMonitor(WM_DESTROY, MainWindowHook, this);
-  mWnd = nullptr;
+  mWnd = NULL;
 }
 
 LRESULT
@@ -291,11 +290,7 @@ TaskbarPreview::WndProc(UINT nMsg, WPARAM wParam, LPARAM lParam) {
         if (NS_FAILED(rv))
           break;
 
-        double scale = nsIWidget::DefaultScaleOverride();
-        if (scale <= 0.0)
-          scale = gfxWindowsPlatform::GetPlatform()->GetDPIScale();
-
-        DrawBitmap(NSToIntRound(scale * width), NSToIntRound(scale * height), true);
+        DrawBitmap(width, height, true);
       }
       break;
   }
@@ -331,13 +326,13 @@ TaskbarPreview::GetWindowHook() {
 void
 TaskbarPreview::EnableCustomDrawing(HWND aHWND, bool aEnable) {
   BOOL enabled = aEnable;
-  WinUtils::dwmSetWindowAttributePtr(
+  nsUXThemeData::dwmSetWindowAttributePtr(
       aHWND,
       DWMWA_FORCE_ICONIC_REPRESENTATION,
       &enabled,
       sizeof(enabled));
 
-  WinUtils::dwmSetWindowAttributePtr(
+  nsUXThemeData::dwmSetWindowAttributePtr(
       aHWND,
       DWMWA_HAS_ICONIC_BITMAP,
       &enabled,
@@ -357,7 +352,7 @@ TaskbarPreview::UpdateTooltip() {
 void
 TaskbarPreview::DrawBitmap(uint32_t width, uint32_t height, bool isPreview) {
   nsresult rv;
-  nsRefPtr<gfxWindowsSurface> surface = new gfxWindowsSurface(gfxIntSize(width, height), gfxImageFormatARGB32);
+  nsRefPtr<gfxWindowsSurface> surface = new gfxWindowsSurface(gfxIntSize(width, height), gfxASurface::ImageFormatARGB32);
 
   nsCOMPtr<nsIDocShell> shell = do_QueryReferent(mDocShell);
 
@@ -383,9 +378,9 @@ TaskbarPreview::DrawBitmap(uint32_t width, uint32_t height, bool isPreview) {
   DWORD flags = drawFrame ? DWM_SIT_DISPLAYFRAME : 0;
   POINT pptClient = { 0, 0 };
   if (isPreview)
-    WinUtils::dwmSetIconicLivePreviewBitmapPtr(PreviewWindow(), hBitmap, &pptClient, flags);
+    nsUXThemeData::dwmSetIconicLivePreviewBitmapPtr(PreviewWindow(), hBitmap, &pptClient, flags);
   else
-    WinUtils::dwmSetIconicThumbnailPtr(PreviewWindow(), hBitmap, flags);
+    nsUXThemeData::dwmSetIconicThumbnailPtr(PreviewWindow(), hBitmap, flags);
 
   ResetRenderingContext();
 }
@@ -407,7 +402,7 @@ TaskbarPreview::MainWindowHook(void *aContext,
   if (nMsg == WM_DESTROY) {
     // nsWindow is being destroyed
     // We can't really do anything at this point including removing hooks
-    preview->mWnd = nullptr;
+    preview->mWnd = NULL;
   } else {
     nsWindow *window = WinUtils::GetNSWindowPtr(preview->mWnd);
     if (window) {

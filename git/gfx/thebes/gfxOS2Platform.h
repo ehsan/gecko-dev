@@ -16,7 +16,7 @@
 
 class gfxFontconfigUtils;
 
-class gfxOS2Platform : public gfxPlatform {
+class THEBES_API gfxOS2Platform : public gfxPlatform {
 
 public:
     gfxOS2Platform();
@@ -28,7 +28,7 @@ public:
 
     already_AddRefed<gfxASurface>
         CreateOffscreenSurface(const gfxIntSize& size,
-                               gfxContentType contentType);
+                               gfxASurface::gfxContentType contentType);
 
     nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,

@@ -74,3 +74,5 @@ const SkRegion& SkPageFlipper::update(SkRegion* copyBits) {
     fDirty1->setEmpty();
     return *fDirty0;
 }
+
+

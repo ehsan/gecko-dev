@@ -27,22 +27,22 @@ function consoleOpened(aHud) {
 function tabLoad2(aEvent) {
   browser.removeEventListener(aEvent.type, tabLoad2, true);
 
-  waitForMessages({
-    webconsole: HUD,
-    messages: [{
-      text: "test-console.html",
-      category: CATEGORY_NETWORK,
-      severity: SEVERITY_LOG,
-    }],
-  }).then(([result]) => {
-    let msg = [...result.matched][0];
-    outputItem = msg.querySelector(".body .url");
-    ok(outputItem, "found a network message");
-    document.addEventListener("popupshown", networkPanelShown, false);
+  waitForSuccess({
+    name: "network message displayed",
+    validatorFn: function()
+    {
+      return outputNode.querySelector(".hud-networkinfo .hud-clickable");
+    },
+    successFn: function() {
+      outputItem = outputNode.querySelector(".hud-networkinfo .hud-clickable");
+      ok(outputItem, "found a network message");
+      document.addEventListener("popupshown", networkPanelShown, false);
 
-    // Send the mousedown and click events such that the network panel opens.
-    EventUtils.sendMouseEvent({type: "mousedown"}, outputItem);
-    EventUtils.sendMouseEvent({type: "click"}, outputItem);
+      // Send the mousedown and click events such that the network panel opens.
+      EventUtils.sendMouseEvent({type: "mousedown"}, outputItem);
+      EventUtils.sendMouseEvent({type: "click"}, outputItem);
+    },
+    failureFn: finishTest,
   });
 }
 
@@ -98,11 +98,12 @@ function networkPanelHidden(aEvent) {
 
     // Done with the network output. Now test the jsterm output and the property
     // panel.
-    HUD.jsterm.execute("document", (msg) => {
+    HUD.jsterm.execute("document", () => {
       info("jsterm execute 'document' callback");
 
       HUD.jsterm.once("variablesview-open", onVariablesViewOpen);
-      let outputItem = msg.querySelector(".body a");
+      let outputItem = outputNode
+                       .querySelector(".webconsole-msg-output .hud-clickable");
       ok(outputItem, "jsterm output message found");
 
       // Send the mousedown and click events such that the property panel opens.

@@ -20,12 +20,14 @@
 #include "nsWrapperCache.h"
 #include "mozilla/Attributes.h"
 
+class nsClientRect;
+class nsClientRectList;
+class nsIDOMDocumentFragment;
+
 namespace mozilla {
 class ErrorResult;
 namespace dom {
 class DocumentFragment;
-class DOMRect;
-class DOMRectList;
 }
 }
 
@@ -34,8 +36,6 @@ class nsRange MOZ_FINAL : public nsIDOMRange,
                           public nsWrapperCache
 {
   typedef mozilla::ErrorResult ErrorResult;
-  typedef mozilla::dom::DOMRect DOMRect;
-  typedef mozilla::dom::DOMRectList DOMRectList;
 
 public:
   nsRange(nsINode* aNode)
@@ -48,7 +48,6 @@ public:
     , mInSelection(false)
     , mStartOffsetWasIncremented(false)
     , mEndOffsetWasIncremented(false)
-    , mEnableGravitationOnElementRemoval(true)
 #ifdef DEBUG
     , mAssertNextInsertOrAppendIndex(-1)
     , mAssertNextInsertOrAppendNode(nullptr)
@@ -73,23 +72,9 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsRange, nsIDOMRange)
 
-  /**
-   * The DOM Range spec requires that when a node is removed from its parent,
-   * and the node's subtree contains the start or end point of a range, that
-   * start or end point is moved up to where the node was removed from its
-   * parent.
-   * For some internal uses of Ranges it's useful to disable that behavior,
-   * so that a range of children within a single parent is preserved even if
-   * that parent is removed from the document tree.
-   */
-  void SetEnableGravitationOnElementRemoval(bool aEnable)
-  {
-    mEnableGravitationOnElementRemoval = aEnable;
-  }
-
   // nsIDOMRange interface
   NS_DECL_NSIDOMRANGE
-
+  
   nsINode* GetRoot() const
   {
     return mRoot;
@@ -179,10 +164,6 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
 
   // WebIDL
-  static already_AddRefed<nsRange>
-  Constructor(const mozilla::dom::GlobalObject& global,
-              mozilla::ErrorResult& aRv);
-
   bool Collapsed() const
   {
     return mIsPositioned && mStartParent == mEndParent &&
@@ -215,12 +196,11 @@ public:
   void SetStartAfter(nsINode& aNode, ErrorResult& aErr);
   void SetStartBefore(nsINode& aNode, ErrorResult& aErr);
   void SurroundContents(nsINode& aNode, ErrorResult& aErr);
-  already_AddRefed<DOMRect> GetBoundingClientRect();
-  already_AddRefed<DOMRectList> GetClientRects();
+  already_AddRefed<nsClientRect> GetBoundingClientRect();
+  already_AddRefed<nsClientRectList> GetClientRects();
 
   nsINode* GetParentObject() const { return mOwner; }
-  virtual JSObject* WrapObject(JSContext* cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE MOZ_FINAL;
+  virtual JSObject* WrapObject(JSContext* cx, JSObject* scope) MOZ_OVERRIDE MOZ_FINAL;
 
 private:
   // no copy's or assigns
@@ -235,16 +215,16 @@ private:
    */
   nsresult CutContents(mozilla::dom::DocumentFragment** frag);
 
-  static nsresult CloneParentsBetween(nsINode* aAncestor,
-                                      nsINode* aNode,
-                                      nsINode** aClosestAncestor,
-                                      nsINode** aFarthestAncestor);
+  static nsresult CloneParentsBetween(nsIDOMNode *aAncestor,
+                                      nsIDOMNode *aNode,
+                                      nsIDOMNode **aClosestAncestor,
+                                      nsIDOMNode **aFarthestAncestor);
 
 public:
 /******************************************************************************
- *  Utility routine to detect if a content node starts before a range and/or
+ *  Utility routine to detect if a content node starts before a range and/or 
  *  ends after a range.  If neither it is contained inside the range.
- *
+ *  
  *  XXX - callers responsibility to ensure node in same doc as range!
  *
  *****************************************************************************/
@@ -314,7 +294,6 @@ protected:
   bool mInSelection;
   bool mStartOffsetWasIncremented;
   bool mEndOffsetWasIncremented;
-  bool mEnableGravitationOnElementRemoval;
 #ifdef DEBUG
   int32_t  mAssertNextInsertOrAppendIndex;
   nsINode* mAssertNextInsertOrAppendNode;

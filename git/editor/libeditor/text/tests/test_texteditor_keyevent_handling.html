@@ -35,8 +35,10 @@ const kIsLinux = navigator.platform.indexOf("Linux") == 0;
 
 function runTests()
 {
-  var fm = SpecialPowers.Cc["@mozilla.org/focus-manager;1"].
-    getService(SpecialPowers.Ci.nsIFocusManager);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  var fm = Components.classes["@mozilla.org/focus-manager;1"].
+    getService(Components.interfaces.nsIFocusManager);
 
   var capturingPhase = { fired: false, prevented: false };
   var bubblingPhase = { fired: false, prevented: false };
@@ -111,7 +113,7 @@ function runTests()
     aDescription += ": "
 
     aElement.focus();
-    is(SpecialPowers.unwrap(fm.focusedElement), aElement, aDescription + "failed to move focus");
+    is(fm.focusedElement, aElement, aDescription + "failed to move focus");
 
     // Modifier keys:
     //   Basically, modifier keys shouldn't cause keypress event.  However,
@@ -183,17 +185,15 @@ function runTests()
     reset("");
     synthesizeKey("VK_DELETE", { });
     // Linux: native handler
-    // Mac: cmd_deleteCharForward
     check(aDescription + "Delete",
-          true, true, !aIsReadonly || kIsLinux || kIsMac);
+          true, true, !aIsReadonly || kIsLinux);
 
     reset("");
     // Win: cmd_cutOrDelete
     // Linux: cmd_cut
-    // Mac: cmd_deleteCharForward
     synthesizeKey("VK_DELETE", { shiftKey: true });
     check(aDescription + "Shift+Delete",
-          true, true, true);
+          true, true, kIsWin || kIsLinux);
 
     reset("");
     synthesizeKey("VK_DELETE", { ctrlKey: true });
@@ -309,7 +309,7 @@ function runTests()
           true, true, !aIsTabbable && !aIsReadonly);
     is(aElement.value, !aIsTabbable && !aIsReadonly ? "a\t" : "a",
        aDescription + "Tab");
-    is(SpecialPowers.unwrap(fm.focusedElement), aElement,
+    is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Tab)");
 
     // If the editor is not tabbable, make sure that it accepts tab characters
@@ -320,7 +320,7 @@ function runTests()
       check(aDescription + "Tab on empty textarea",
             true, true, !aIsReadonly);
       is(aElement.value, "\t", aDescription + "Tab on empty textarea");
-      is(SpecialPowers.unwrap(fm.focusedElement), aElement,
+      is(fm.focusedElement, aElement,
          aDescription + "focus moved unexpectedly (Tab on empty textarea");
     }
 
@@ -328,7 +328,7 @@ function runTests()
     synthesizeKey("VK_TAB", { shiftKey: true });
     check(aDescription + "Shift+Tab", true, true, false);
     is(aElement.value, "a", aDescription + "Shift+Tab");
-    is(SpecialPowers.unwrap(fm.focusedElement), aElement,
+    is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Shift+Tab)");
 
     // Ctrl+Tab may be consumed by tabbrowser but editor shouldn't consume this.
@@ -336,28 +336,28 @@ function runTests()
     synthesizeKey("VK_TAB", { ctrlKey: true });
     check(aDescription + "Ctrl+Tab", true, true, false);
     is(aElement.value, "a", aDescription + "Ctrl+Tab");
-    is(SpecialPowers.unwrap(fm.focusedElement), aElement,
+    is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Ctrl+Tab)");
 
     reset("a");
     synthesizeKey("VK_TAB", { altKey: true });
     check(aDescription + "Alt+Tab", true, true, false);
     is(aElement.value, "a", aDescription + "Alt+Tab");
-    is(SpecialPowers.unwrap(fm.focusedElement), aElement,
+    is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Alt+Tab)");
 
     reset("a");
     synthesizeKey("VK_TAB", { metaKey: true });
     check(aDescription + "Meta+Tab", true, true, false);
     is(aElement.value, "a", aDescription + "Meta+Tab");
-    is(SpecialPowers.unwrap(fm.focusedElement), aElement,
+    is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Meta+Tab)");
 
     reset("a");
     synthesizeKey("VK_TAB", { osKey: true });
     check(aDescription + "OS+Tab", true, true, false);
     is(aElement.value, "a", aDescription + "OS+Tab");
-    is(SpecialPowers.unwrap(fm.focusedElement), aElement,
+    is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (OS+Tab)");
 
     // Esc key:
@@ -425,8 +425,8 @@ function runTests()
 
   // make non-tabbable plaintext editor
   textarea.removeAttribute("readonly");
-  const nsIPlaintextEditor = SpecialPowers.Ci.nsIPlaintextEditor;
-  const nsIDOMNSEditableElement = SpecialPowers.Ci.nsIDOMNSEditableElement;
+  const nsIPlaintextEditor = Components.interfaces.nsIPlaintextEditor;
+  const nsIDOMNSEditableElement = Components.interfaces.nsIDOMNSEditableElement;
   var editor = SpecialPowers.wrap(textarea).editor;
   var flags = editor.flags;
   editor.flags = flags & ~(nsIPlaintextEditor.eEditorWidgetMask |

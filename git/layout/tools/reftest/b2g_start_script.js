@@ -9,7 +9,7 @@ function setDefaultPrefs() {
     var prefs = Components.classes["@mozilla.org/preferences-service;1"].
                 getService(Components.interfaces.nsIPrefService);
     var branch = prefs.getDefaultBranch("");
-    branch.setBoolPref("dom.use_xbl_scopes_for_remote_xul", false);
+    branch.setBoolPref("dom.use_xbl_scopes_for_remote_xul", true);
     branch.setBoolPref("gfx.color_management.force_srgb", true);
     branch.setBoolPref("browser.dom.window.dump.enabled", true);
     branch.setIntPref("ui.caretBlinkTime", -1);
@@ -42,9 +42,6 @@ let win = wm.getMostRecentWindow('');
 setDefaultPrefs();
 setPermissions(args[0], args[1]);
 
-// Loading this into the global namespace causes intermittent failures.
-// See bug 882888 for more details.
-let reftest = {}; Components.utils.import("chrome://reftest/content/reftest.jsm", reftest);
-
 // Start the reftests
-reftest.OnRefTestLoad(win);
+Components.utils.import("chrome://reftest/content/reftest.jsm");
+OnRefTestLoad(win);

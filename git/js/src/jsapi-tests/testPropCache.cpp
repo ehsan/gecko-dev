@@ -5,18 +5,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsapi-tests/tests.h"
+
+#include "tests.h"
 
 static int g_counter;
 
-static bool
+static JSBool
 CounterAdd(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::MutableHandleValue vp)
 {
     g_counter++;
-    return true;
+    return JS_TRUE;
 }
 
-static const JSClass CounterClass = {
+static JSClass CounterClass = {
     "Counter",  /* name */
     0,  /* flags */
     CounterAdd, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
@@ -27,7 +28,7 @@ BEGIN_TEST(testPropCache_bug505798)
 {
     g_counter = 0;
     EXEC("var x = {};");
-    CHECK(JS_DefineObject(cx, global, "y", &CounterClass, nullptr, JSPROP_ENUMERATE));
+    CHECK(JS_DefineObject(cx, global, "y", &CounterClass, NULL, JSPROP_ENUMERATE));
     EXEC("var arr = [x, y];\n"
          "for (var i = 0; i < arr.length; i++)\n"
          "    arr[i].p = 1;\n");

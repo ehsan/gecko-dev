@@ -23,6 +23,7 @@
 #include "nsIServiceManager.h"
 #include "nsIPresShell.h"
 #include "nsIContent.h"
+#include "nsGUIEvent.h"
 #include "nsMenuBarFrame.h"
 #include "nsMenuPopupFrame.h"
 
@@ -438,7 +439,7 @@ XULMenupopupAccessible::
     mType = eMenuPopupType;
 
   // May be the anonymous <menupopup> inside <menulist> (a combobox)
-  mSelectControl = do_QueryInterface(mContent->GetFlattenedTreeParent());
+  mSelectControl = do_QueryInterface(mContent->GetParent());
   if (!mSelectControl)
     mGenericTypes &= ~eSelect;
 }
@@ -476,7 +477,7 @@ XULMenupopupAccessible::NativeName(nsString& aName)
   nsIContent* content = mContent;
   while (content && aName.IsEmpty()) {
     content->GetAttr(kNameSpaceID_None, nsGkAtoms::label, aName);
-    content = content->GetFlattenedTreeParent();
+    content = content->GetParent();
   }
 
   return eNameOK;

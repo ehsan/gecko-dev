@@ -3,8 +3,30 @@
 
 MARIONETTE_TIMEOUT = 60000;
 
+SpecialPowers.addPermission("telephony", true, document);
+
+let telephony = window.navigator.mozTelephony;
 let outNumber = "5555551111";
 let outgoingCall;
+
+function verifyInitialState() {
+  log("Verifying initial state.");
+  ok(telephony);
+  is(telephony.active, null);
+  ok(telephony.calls);
+  is(telephony.calls.length, 0);
+
+  runEmulatorCmd("gsm list", function(result) {
+    log("Initial call list: " + result);
+    is(result[0], "OK");
+    if (result[0] == "OK") {
+      dial();
+    } else {
+      log("Call exists from a previous test, failing out.");
+      cleanUp();
+    }
+  });
+}
 
 function dial() {
   log("Make an outgoing call.");
@@ -24,7 +46,7 @@ function dial() {
     is(outgoingCall, event.call);
     is(outgoingCall.state, "alerting");
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "outbound to  " + outNumber + " : ringing");
       is(result[1], "OK");
@@ -45,15 +67,15 @@ function answer() {
 
     is(outgoingCall, telephony.active);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "outbound to  " + outNumber + " : active");
       is(result[1], "OK");
       hold();
     });
   };
-  emulator.run("gsm accept " + outNumber);
-}
+  runEmulatorCmd("gsm accept " + outNumber);
+};
 
 function hold() {
   log("Holding the outgoing call.");
@@ -75,7 +97,7 @@ function hold() {
     is(telephony.calls.length, 1);
     is(telephony.calls[0], outgoingCall);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "outbound to  " + outNumber + " : held");
       is(result[1], "OK");
@@ -89,7 +111,7 @@ function hangUp() {
   log("Hanging up the outgoing call (remotely).");
 
   // We get no 'disconnecting' event when remote party hangs-up the call
-
+  
   outgoingCall.ondisconnected = function ondisconnected(event) {
     log("Received 'disconnected' call event.");
     is(outgoingCall, event.call);
@@ -98,19 +120,19 @@ function hangUp() {
     is(telephony.active, null);
     is(telephony.calls.length, 0);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "OK");
       cleanUp();
     });
   };
-  emulator.run("gsm cancel " + outNumber);
+  runEmulatorCmd("gsm cancel " + outNumber);
 }
 
 function cleanUp() {
+  SpecialPowers.removePermission("telephony", document);
   finish();
 }
 
-startTest(function() {
-  dial();
-});
+// Start the test
+verifyInitialState();

@@ -213,7 +213,7 @@ DoGrayscale(IDWriteFontFace *aDWFace, Float ppem)
   return true;
 }
 
-IDWriteFontFileLoader* DWriteFontFileLoader::mInstance = nullptr;
+IDWriteFontFileLoader* DWriteFontFileLoader::mInstance = NULL;
 
 HRESULT STDMETHODCALLTYPE
 DWriteFontFileLoader::CreateStreamFromKey(const void *fontFileReferenceKey, 
@@ -275,7 +275,7 @@ DWriteFontFileStream::ReadFileFragment(const void **fragmentStart,
 
   // We should be alive for the duration of this.
   *fragmentStart = &mData[index];
-  *fragmentContext = nullptr;
+  *fragmentContext = NULL;
   return S_OK;
 }
 
@@ -324,7 +324,7 @@ ScaledFontDWrite::GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget 
 }
 
 void
-ScaledFontDWrite::CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder, const Matrix *)
+ScaledFontDWrite::CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder)
 {
   // XXX - Check path builder type!
   PathBuilderD2D *pathBuilderD2D =

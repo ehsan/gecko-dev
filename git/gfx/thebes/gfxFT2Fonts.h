@@ -6,7 +6,6 @@
 #ifndef GFX_FT2FONTS_H
 #define GFX_FT2FONTS_H
 
-#include "mozilla/MemoryReporting.h"
 #include "cairo.h"
 #include "gfxTypes.h"
 #include "gfxFont.h"
@@ -24,6 +23,8 @@ public: // new functions
                const gfxFontStyle *aFontStyle,
                bool aNeedsBold);
     virtual ~gfxFT2Font ();
+
+    cairo_font_face_t *CairoFontFace();
 
     FT2FontEntry *GetFontEntry();
 
@@ -62,14 +63,10 @@ public: // new functions
         return &entry->mData;
     }
 
-    virtual void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontCacheSizes* aSizes) const;
-    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontCacheSizes* aSizes) const;
-
-#ifdef USE_SKIA
-    virtual mozilla::TemporaryRef<mozilla::gfx::GlyphRenderingOptions> GetGlyphRenderingOptions();
-#endif
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                                     FontCacheSizes*   aSizes) const;
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                                     FontCacheSizes*   aSizes) const;
 
 protected:
     virtual bool ShapeText(gfxContext      *aContext,
@@ -93,7 +90,7 @@ protected:
 };
 
 #ifndef ANDROID // not needed on Android, uses the standard gfxFontGroup directly
-class gfxFT2FontGroup : public gfxFontGroup {
+class THEBES_API gfxFT2FontGroup : public gfxFontGroup {
 public: // new functions
     gfxFT2FontGroup (const nsAString& families,
                     const gfxFontStyle *aStyle,

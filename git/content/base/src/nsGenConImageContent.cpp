@@ -16,10 +16,9 @@
 #include "imgIRequest.h"
 #include "nsEventStates.h"
 #include "nsEventDispatcher.h"
-#include "mozilla/BasicEvents.h"
 
-class nsGenConImageContent MOZ_FINAL : public nsXMLElement,
-                                       public nsImageLoadingContent
+class nsGenConImageContent : public nsXMLElement,
+                             public nsImageLoadingContent
 {
 public:
   nsGenConImageContent(already_AddRefed<nsINodeInfo> aNodeInfo)

@@ -29,7 +29,7 @@
 
 #ifdef linux
 # include <asm/sgidefs.h>
-#elif !defined(__OpenBSD__)
+#else
 # include <sgidefs.h>
 #endif
 #  ifndef _ABIN32

@@ -6,7 +6,6 @@
 #ifndef __NS_SVGCLIPPATHFRAME_H__
 #define __NS_SVGCLIPPATHFRAME_H__
 
-#include "mozilla/Attributes.h"
 #include "gfxMatrix.h"
 #include "nsSVGContainerFrame.h"
 #include "nsSVGUtils.h"
@@ -25,7 +24,7 @@ protected:
     : nsSVGClipPathFrameBase(aContext)
     , mInUse(false)
   {
-    AddStateBits(NS_FRAME_IS_NONDISPLAY);
+    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
   }
 
 public:
@@ -55,7 +54,7 @@ public:
   // nsIFrame interface:
   NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              int32_t         aModType) MOZ_OVERRIDE;
+                              int32_t         aModType);
 
   virtual void Init(nsIContent*      aContent,
                     nsIFrame*        aParent,
@@ -66,10 +65,10 @@ public:
    *
    * @see nsGkAtoms::svgClipPathFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGClipPath"), aResult);
   }
@@ -101,8 +100,7 @@ public:
   bool mInUse;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
-                                nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor);
 };
 
 #endif

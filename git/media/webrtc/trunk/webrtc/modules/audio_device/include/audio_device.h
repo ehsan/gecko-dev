@@ -11,8 +11,8 @@
 #ifndef MODULES_AUDIO_DEVICE_INCLUDE_AUDIO_DEVICE_H_
 #define MODULES_AUDIO_DEVICE_INCLUDE_AUDIO_DEVICE_H_
 
-#include "webrtc/modules/audio_device/include/audio_device_defines.h"
-#include "webrtc/modules/interface/module.h"
+#include "modules/audio_device/include/audio_device_defines.h"
+#include "modules/interface/module.h"
 
 namespace webrtc {
 
@@ -200,7 +200,7 @@ class AudioDeviceModule : public RefCountedModule {
 };
 
 AudioDeviceModule* CreateAudioDeviceModule(
-    int32_t id, AudioDeviceModule::AudioLayer audioLayer);
+    WebRtc_Word32 id, AudioDeviceModule::AudioLayer audioLayer);
 
 }  // namespace webrtc
 

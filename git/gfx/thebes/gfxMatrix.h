@@ -9,6 +9,7 @@
 #include "gfxPoint.h"
 #include "gfxTypes.h"
 #include "gfxRect.h"
+#include "nsMathUtils.h"
 
 // XX - I don't think this class should use gfxFloat at all,
 // but should use 'double' and be called gfxDoubleMatrix;
@@ -30,7 +31,7 @@
  *           \ tx ty 1 /   \         1          /
  *
  */
-struct gfxMatrix {
+struct THEBES_API gfxMatrix {
     double xx; double yx;
     double xy; double yy;
     double x0; double y0;

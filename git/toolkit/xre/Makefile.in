@@ -5,31 +5,95 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH     = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir    = @srcdir@
+VPATH     = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 USE_RCS_MK=1
 include $(topsrcdir)/config/makefiles/makeutils.mk
 
 milestone_txt = $(topsrcdir)/config/milestone.txt
 
+LIBRARY_NAME = xulapp_s
+LIBXUL_LIBRARY = 1
+
+FORCE_STATIC_LIB = 1
+
+CPPSRCS = \
+  nsAppRunner.cpp \
+  nsConsoleWriter.cpp \
+  nsXREDirProvider.cpp \
+  nsNativeAppSupportBase.cpp \
+  CreateAppData.cpp \
+  nsSigHandlers.cpp \
+  nsEmbedFunctions.cpp \
+  ProfileReset.cpp \
+  $(NULL)
+
 ifeq ($(MOZ_GL_DEFAULT_PROVIDER),GLX)
 DEFINES += -DUSE_GLX_TEST
+CPPSRCS += glxtest.cpp
 endif
 
-DEFINES += \
+ifdef MOZ_INSTRUMENT_EVENT_LOOP
+CPPSRCS += EventTracer.cpp
+endif
+
+DEFINES += -DIMPL_XREAPI \
   -DMOZ_APP_NAME='"$(MOZ_APP_NAME)"' \
-  -DMOZ_APP_VERSION='"$(MOZ_APP_VERSION)"' \
-  $(NULL)
+  -DMOZ_APP_VERSION='"$(MOZ_APP_VERSION)"'
 
 ifdef MOZ_UPDATER
 ifneq (android,$(MOZ_WIDGET_TOOLKIT))
+CPPSRCS += nsUpdateDriver.cpp
 DEFINES += -DMOZ_UPDATER
 endif
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
+CPPSRCS += nsNativeAppSupportWin.cpp
+CPPSRCS += nsWindowsDllBlocklist.cpp
 DEFINES += -DWIN32_LEAN_AND_MEAN -DUNICODE -D_UNICODE
+else
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+CMMSRCS = nsNativeAppSupportCocoa.mm
+else
+ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
+CPPSRCS += nsNativeAppSupportOS2.cpp
+else
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
+CPPSRCS += nsNativeAppSupportUnix.cpp
+else
+ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
+MOCSRCS += moc_nsNativeAppSupportQt.cpp
+CPPSRCS += $(MOCSRCS)
+CPPSRCS += nsNativeAppSupportQt.cpp
+CPPSRCS += nsQAppInstance.cpp
+else
+CPPSRCS += nsNativeAppSupportDefault.cpp
+endif
+endif
+endif
+endif
+endif
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+CMMSRCS += MacLaunchHelper.mm
+CMMSRCS += MacApplicationDelegate.mm
+CMMSRCS += MacAutoreleasePool.mm
+CPPSRCS += nsCommandLineServiceMac.cpp
+ENABLE_CXX_EXCEPTIONS = 1
+endif
+
+ifdef MOZ_X11
+CPPSRCS += nsX11ErrorHandler.cpp
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
+CPPSRCS += nsAndroidStartup.cpp
 DEFINES += -DANDROID_PACKAGE_NAME='"$(ANDROID_PACKAGE_NAME)"'
 endif
 
@@ -107,6 +171,8 @@ SHARED_LIBRARY_LIBS += \
 endif
 endif
 
+include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES += \
@@ -121,7 +187,7 @@ LOCAL_INCLUDES += \
 
 CXXFLAGS += $(TK_CFLAGS) $(MOZ_DBUS_CFLAGS) $(MOZ_DBUS_GLIB_CFLAGS)
 
-ifdef MOZ_WIDGET_GTK
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 CXXFLAGS += $(MOZ_PANGO_CFLAGS)
 endif
 
@@ -167,6 +233,7 @@ ifdef MOZ_SOURCE_STAMP
 
 endif # MOZ_SOURCE_STAMP
 
+GRE_MILESTONE := $(strip $(lastword $(shell cat $(milestone_txt) 2>/dev/null)))
 GRE_BUILDID   := $(strip $(firstword $(shell cat $(DEPTH)/config/buildid 2>/dev/null)))
 $(call errorIfEmpty,GRE_MILESTONE GRE_BUILDID)
 
@@ -189,3 +256,6 @@ GARBAGE += platform.ini
 
 libs:: platform.ini
 	$(INSTALL) $^ $(DIST)/bin
+
+install::
+	$(INSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)

@@ -7,7 +7,9 @@
 #include "mozilla/dom/SVGTextPathElementBinding.h"
 #include "nsSVGElement.h"
 #include "nsGkAtoms.h"
+#include "nsIFrame.h"
 #include "nsError.h"
+#include "nsContentUtils.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(TextPath)
 
@@ -17,17 +19,14 @@ namespace dom {
 class SVGAnimatedLength;
 
 JSObject*
-SVGTextPathElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGTextPathElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGTextPathElementBinding::Wrap(aCx, aScope, this);
 }
 
-nsSVGElement::LengthInfo SVGTextPathElement::sLengthInfo[2] =
+nsSVGElement::LengthInfo SVGTextPathElement::sLengthInfo[1] =
 {
-  // from SVGTextContentElement:
-  { &nsGkAtoms::textLength, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::XY },
-  // from SVGTextPathElement:
-  { &nsGkAtoms::startOffset, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::X }
+  { &nsGkAtoms::startOffset, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::X },
 };
 
 nsSVGEnumMapping SVGTextPathElement::sMethodMap[] = {
@@ -42,14 +41,8 @@ nsSVGEnumMapping SVGTextPathElement::sSpacingMap[] = {
   {nullptr, 0}
 };
 
-nsSVGElement::EnumInfo SVGTextPathElement::sEnumInfo[3] =
+nsSVGElement::EnumInfo SVGTextPathElement::sEnumInfo[2] =
 {
-  // from SVGTextContentElement:
-  { &nsGkAtoms::lengthAdjust,
-    sLengthAdjustMap,
-    SVG_LENGTHADJUST_SPACING
-  },
-  // from SVGTextPathElement:
   { &nsGkAtoms::method,
     sMethodMap,
     TEXTPATH_METHODTYPE_ALIGN
@@ -78,7 +71,7 @@ SVGTextPathElement::SVGTextPathElement(already_AddRefed<nsINodeInfo> aNodeInfo)
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGTextPathElement)
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGTextPathElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);
@@ -92,13 +85,13 @@ SVGTextPathElement::StartOffset()
   return mLengthAttributes[STARTOFFSET].ToDOMAnimatedLength(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGTextPathElement::Method()
 {
   return mEnumAttributes[METHOD].ToDOMAnimatedEnum(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGTextPathElement::Spacing()
 {
   return mEnumAttributes[SPACING].ToDOMAnimatedEnum(this);
@@ -120,6 +113,13 @@ SVGTextPathElement::IsAttributeMapped(const nsIAtom* name) const
 
   return FindAttributeDependence(name, map) ||
     SVGTextPathElementBase::IsAttributeMapped(name);
+}
+
+
+bool
+SVGTextPathElement::IsEventAttributeName(nsIAtom* aName)
+{
+  return nsContentUtils::IsEventAttributeName(aName, EventNameType_SVGGraphic);
 }
 
 //----------------------------------------------------------------------

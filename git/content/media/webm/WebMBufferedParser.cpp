@@ -12,6 +12,8 @@
 
 namespace mozilla {
 
+static const double NS_PER_S = 1e9;
+
 static uint32_t
 VIntLength(unsigned char aFirstByte, uint32_t* aMask)
 {

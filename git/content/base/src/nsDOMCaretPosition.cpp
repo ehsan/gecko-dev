@@ -3,12 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMCaretPosition.h"
-
 #include "mozilla/dom/CaretPositionBinding.h"
-#include "mozilla/dom/DOMRect.h"
-#include "nsRange.h"
-
-using namespace mozilla::dom;
+#include "nsContentUtils.h"
 
 nsDOMCaretPosition::nsDOMCaretPosition(nsINode* aNode, uint32_t aOffset)
   : mOffset(aOffset), mOffsetNode(aNode), mAnonymousContentNode(nullptr)
@@ -25,14 +21,14 @@ nsINode* nsDOMCaretPosition::GetOffsetNode() const
   return mOffsetNode;
 }
 
-already_AddRefed<DOMRect>
+already_AddRefed<nsClientRect>
 nsDOMCaretPosition::GetClientRect() const
 {
   if (!mOffsetNode) {
     return nullptr;
   }
 
-  nsRefPtr<DOMRect> rect;
+  nsRefPtr<nsClientRect> rect;
   nsRefPtr<nsRange> domRange;
   nsCOMPtr<nsINode> node;
 
@@ -57,13 +53,12 @@ nsDOMCaretPosition::GetClientRect() const
 }
 
 JSObject*
-nsDOMCaretPosition::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
+nsDOMCaretPosition::WrapObject(JSContext *aCx, JSObject *aScope)
 {
   return mozilla::dom::CaretPositionBinding::Wrap(aCx, aScope, this);
 }
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(nsDOMCaretPosition,
-                                        mOffsetNode, mAnonymousContentNode)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsDOMCaretPosition, mOffsetNode)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMCaretPosition)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMCaretPosition)

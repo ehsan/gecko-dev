@@ -136,22 +136,6 @@ bool SharedMemory::FilenameForMemoryName(const std::wstring &memname,
   return true;
 }
 
-namespace {
-
-// A class to handle auto-closing of FILE*'s.
-class ScopedFILEClose {
- public:
-  inline void operator()(FILE* x) const {
-    if (x) {
-      fclose(x);
-    }
-  }
-};
-
-typedef scoped_ptr_malloc<FILE, ScopedFILEClose> ScopedFILE;
-
-}
-
 // Chromium mostly only use the unique/private shmem as specified by
 // "name == L"". The exception is in the StatsTable.
 // TODO(jrg): there is no way to "clean up" all unused named shmem if
@@ -162,7 +146,7 @@ bool SharedMemory::CreateOrOpen(const std::wstring &name,
                                 int posix_flags, size_t size) {
   DCHECK(mapped_file_ == -1);
 
-  ScopedFILE file_closer;
+  file_util::ScopedFILE file_closer;
   FILE *fp;
 
   if (name == L"") {
@@ -210,15 +194,29 @@ bool SharedMemory::CreateOrOpen(const std::wstring &name,
   // not portable."
   if (size && (posix_flags & (O_RDWR | O_CREAT))) {
     // Get current size.
+    size_t current_size = 0;
     struct stat stat;
     if (fstat(fileno(fp), &stat) != 0)
       return false;
-    size_t current_size = stat.st_size;
-    if (current_size != size) {
-      if (ftruncate(fileno(fp), size) != 0)
+    current_size = stat.st_size;
+    // Possibly grow.
+    if (current_size < size) {
+      if (fseeko(fp, current_size, SEEK_SET) != 0)
         return false;
-      if (fseeko(fp, size, SEEK_SET) != 0)
+      size_t writesize = size - current_size;
+      scoped_array<char> buf(new char[writesize]);
+      memset(buf.get(), 0, writesize);
+      if (fwrite(buf.get(), 1, writesize, fp) != writesize) {
+          return false;
+      }
+      if (fflush(fp) != 0)
         return false;
+    } else if (current_size > size) {
+      // possibly shrink.
+      if ((ftruncate(fileno(fp), size) != 0) ||
+          (fflush(fp) != 0)) {
+        return false;
+      }
     }
   }
 

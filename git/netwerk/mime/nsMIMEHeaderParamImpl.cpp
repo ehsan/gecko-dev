@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <string.h>
+#include "prtypes.h"
 #include "prmem.h"
 #include "prprf.h"
 #include "plstr.h"
@@ -93,10 +94,7 @@ nsMIMEHeaderParamImpl::DoGetParameter(const nsACString& aHeaderVal,
     
     nsAutoCString str1;
     rv = internalDecodeParameter(med, charset.get(), nullptr, false,
-                                 // was aDecoding == MIME_FIELD_ENCODING
-                                 // see bug 875615
-                                 true,
-                                 str1);
+                                 aDecoding == MIME_FIELD_ENCODING, str1);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!aFallbackCharset.IsEmpty())
@@ -201,12 +199,12 @@ class Continuation {
 };
 
 // combine segments into a single string, returning the allocated string
-// (or nullptr) while emptying the list 
+// (or NULL) while emptying the list 
 char *combineContinuations(nsTArray<Continuation>& aArray)
 {
   // Sanity check
   if (aArray.Length() == 0)
-    return nullptr;
+    return NULL;
 
   // Get an upper bound for the length
   uint32_t length = 0;
@@ -238,7 +236,7 @@ char *combineContinuations(nsTArray<Continuation>& aArray)
     // return null if empty value
     if (*result == '\0') {
       nsMemory::Free(result);
-      result = nullptr;
+      result = NULL;
     }
   } else {
     // Handle OOM
@@ -434,9 +432,9 @@ nsMIMEHeaderParamImpl::DoParameterInternal(const char *aHeaderValue,
   // collect results for the different algorithms (plain filename,
   // RFC5987/2231-encoded filename, + continuations) separately and decide
   // which to use at the end
-  char *caseAResult = nullptr;
-  char *caseBResult = nullptr;
-  char *caseCDResult = nullptr;
+  char *caseAResult = NULL;
+  char *caseBResult = NULL;
+  char *caseCDResult = NULL;
 
   // collect continuation segments
   nsTArray<Continuation> segments;
@@ -454,9 +452,9 @@ nsMIMEHeaderParamImpl::DoParameterInternal(const char *aHeaderValue,
     // find name/value
 
     const char *nameStart = str;
-    const char *nameEnd = nullptr;
+    const char *nameEnd = NULL;
     const char *valueStart = str;
-    const char *valueEnd = nullptr;
+    const char *valueEnd = NULL;
     bool isQuotedString = false;
 
     NS_ASSERTION(!nsCRT::IsAsciiSpace(*str), "should be after whitespace.");
@@ -567,11 +565,11 @@ nsMIMEHeaderParamImpl::DoParameterInternal(const char *aHeaderValue,
           NS_WARNING("Mandatory two single quotes are missing in header parameter\n");
         }
 
-        const char *charsetStart = nullptr;
+        const char *charsetStart = NULL;
         int32_t charsetLength = 0;
-        const char *langStart = nullptr;
+        const char *langStart = NULL;
         int32_t langLength = 0;
-        const char *rawValStart = nullptr;
+        const char *rawValStart = NULL;
         int32_t rawValLength = 0;
 
         if (sQuote2 && sQuote1) {
@@ -676,31 +674,31 @@ increment_str:
     // check that the 2231/5987 result decodes properly given the
     // specified character set
     if (!IsValidOctetSequenceForCharset(charsetB, caseBResult))
-      caseBResult = nullptr;
+      caseBResult = NULL;
   }
 
   if (caseCDResult && !charsetCD.IsEmpty()) {
     // check that the 2231/5987 result decodes properly given the
     // specified character set
     if (!IsValidOctetSequenceForCharset(charsetCD, caseCDResult))
-      caseCDResult = nullptr;
+      caseCDResult = NULL;
   }
 
   if (caseBResult) {
     // prefer simple 5987 format over 2231 with continuations
     *aResult = caseBResult;
-    caseBResult = nullptr;
+    caseBResult = NULL;
     charset.Assign(charsetB);
   }
   else if (caseCDResult) {
     // prefer 2231/5987 with or without continuations over plain format
     *aResult = caseCDResult;
-    caseCDResult = nullptr;
+    caseCDResult = NULL;
     charset.Assign(charsetCD);
   }
   else if (caseAResult) {
     *aResult = caseAResult;
-    caseAResult = nullptr;
+    caseAResult = NULL;
   }
 
   // free unused stuff
@@ -747,7 +745,7 @@ internalDecodeRFC2047Header(const char* aHeaderVal, const char* aDefaultCharset,
   // to UTF-8. Otherwise, just strips away CRLF. 
   if (PL_strstr(aHeaderVal, "=?") || 
       (aDefaultCharset && (!IsUTF8(nsDependentCString(aHeaderVal)) || 
-      Is7bitNonAsciiString(aHeaderVal, strlen(aHeaderVal))))) {
+      Is7bitNonAsciiString(aHeaderVal, PL_strlen(aHeaderVal))))) {
     DecodeRFC2047Str(aHeaderVal, aDefaultCharset, aOverrideCharset, aResult);
   } else if (aEatContinuations && 
              (PL_strchr(aHeaderVal, '\n') || PL_strchr(aHeaderVal, '\r'))) {

@@ -14,7 +14,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFETileElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGFETileElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGFETileElementBinding::Wrap(aCx, aScope, this);
 }
@@ -31,7 +31,7 @@ nsSVGElement::StringInfo SVGFETileElement::sStringInfo[2] =
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFETileElement)
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFETileElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);

@@ -7,91 +7,102 @@
 #ifndef nsMimeTypeArray_h___
 #define nsMimeTypeArray_h___
 
+#include "nsIDOMMimeTypeArray.h"
+#include "nsIDOMMimeType.h"
 #include "nsString.h"
-#include "nsTArray.h"
-#include "nsWrapperCache.h"
-#include "nsAutoPtr.h"
-#include "nsPIDOMWindow.h"
+#include "nsCOMPtr.h"
+#include "nsCOMArray.h"
 
-class nsMimeType;
-class nsPluginElement;
+class nsIDOMNavigator;
 
-class nsMimeTypeArray MOZ_FINAL : public nsISupports,
-                                  public nsWrapperCache
+// NB: Due to weak references, nsNavigator has intimate knowledge of our
+// members.
+class nsMimeTypeArray : public nsIDOMMimeTypeArray
 {
 public:
-  nsMimeTypeArray(nsPIDOMWindow* aWindow);
+  nsMimeTypeArray(nsIDOMNavigator* navigator);
   virtual ~nsMimeTypeArray();
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsMimeTypeArray)
-
-  nsPIDOMWindow* GetParentObject() const;
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMMIMETYPEARRAY
 
   void Refresh();
 
-  // MimeTypeArray WebIDL methods
-  nsMimeType* Item(uint32_t index);
-  nsMimeType* NamedItem(const nsAString& name);
-  nsMimeType* IndexedGetter(uint32_t index, bool &found);
-  nsMimeType* NamedGetter(const nsAString& name, bool &found);
-  uint32_t Length();
-  void GetSupportedNames(nsTArray< nsString >& retval);
+  nsIDOMMimeType* GetItemAt(uint32_t aIndex, nsresult* aResult);
+  nsIDOMMimeType* GetNamedItem(const nsAString& aName, nsresult* aResult);
 
-protected:
-  void EnsurePluginMimeTypes();
-  void Clear();
-
-  nsCOMPtr<nsPIDOMWindow> mWindow;
-
-  // mMimeTypes contains all mime types handled by plugins followed by
-  // any other mime types that we handle internally and have been
-  // looked up before.
-  nsTArray<nsRefPtr<nsMimeType> > mMimeTypes;
-
-  // mPluginMimeTypeCount is the number of plugin mime types that we
-  // have in mMimeTypes. The plugin mime types are always at the
-  // beginning of the list.
-  uint32_t mPluginMimeTypeCount;
-};
-
-class nsMimeType MOZ_FINAL : public nsWrapperCache
-{
-public:
-  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(nsMimeType)
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(nsMimeType)
-
-  nsMimeType(nsPIDOMWindow* aWindow, nsPluginElement* aPluginElement,
-             uint32_t aPluginTagMimeIndex, const nsAString& aMimeType);
-  nsMimeType(nsPIDOMWindow* aWindow, const nsAString& aMimeType);
-  virtual ~nsMimeType();
-
-  nsPIDOMWindow* GetParentObject() const;
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-
-  const nsString& Type() const
+  static nsMimeTypeArray* FromSupports(nsISupports* aSupports)
   {
-    return mType;
+#ifdef DEBUG
+    {
+      nsCOMPtr<nsIDOMMimeTypeArray> array_qi = do_QueryInterface(aSupports);
+
+      // If this assertion fires the QI implementation for the object in
+      // question doesn't use the nsIDOMMimeTypeArray pointer as the nsISupports
+      // pointer. That must be fixed, or we'll crash...
+      NS_ASSERTION(array_qi == static_cast<nsIDOMMimeTypeArray*>(aSupports),
+                   "Uh, fix QI!");
+    }
+#endif
+
+    return static_cast<nsMimeTypeArray*>(aSupports);
   }
 
-  // MimeType WebIDL methods
-  void GetDescription(nsString& retval) const;
-  nsPluginElement *GetEnabledPlugin() const;
-  void GetSuffixes(nsString& retval) const;
-  void GetType(nsString& retval) const;
+  void Invalidate()
+  {
+    // NB: This will cause GetMimeTypes to fail from now on.
+    mNavigator = nullptr;
+    Clear();
+  }
+
+private:
+  nsresult GetMimeTypes();
+  void     Clear();
 
 protected:
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsIDOMNavigator* mNavigator;
+  // Number of mimetypes handled by plugins.
+  uint32_t mPluginMimeTypeCount;
+  // mMimeTypeArray contains all mimetypes handled by plugins
+  // (mPluginMimeTypeCount) and any mimetypes that we handle internally and
+  // have been looked up before. The number of items in mMimeTypeArray should
+  // thus always be equal to or higher than mPluginMimeTypeCount.
+  nsCOMArray<nsIDOMMimeType> mMimeTypeArray;
+  bool mInited;
+};
 
-  // Strong reference to the active plugin, if any. Note that this
-  // creates an explicit reference cycle through the plugin element's
-  // mimetype array. We rely on the cycle collector to break this
-  // cycle.
-  nsRefPtr<nsPluginElement> mPluginElement;
-  uint32_t mPluginTagMimeIndex;
+class nsMimeType : public nsIDOMMimeType
+{
+public:
+  nsMimeType(nsIDOMPlugin* aPlugin, nsIDOMMimeType* aMimeType);
+  virtual ~nsMimeType();
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMMIMETYPE
+
+  void DetachPlugin() { mPlugin = nullptr; }
+
+protected:
+  nsIDOMPlugin* mPlugin;
+  nsCOMPtr<nsIDOMMimeType> mMimeType;
+};
+
+class nsHelperMimeType : public nsIDOMMimeType
+{
+public:
+  nsHelperMimeType(const nsAString& aType)
+    : mType(aType)
+  {
+  }
+
+  virtual ~nsHelperMimeType()
+  {
+  }
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMMIMETYPE 
+  
+private:
   nsString mType;
 };
 

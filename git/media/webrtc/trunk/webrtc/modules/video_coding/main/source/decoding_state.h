@@ -11,7 +11,7 @@
 #ifndef WEBRTC_MODULES_VIDEO_CODING_DECODING_STATE_H_
 #define WEBRTC_MODULES_VIDEO_CODING_DECODING_STATE_H_
 
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
 
 namespace webrtc {
 
@@ -31,8 +31,9 @@ class VCMDecodingState {
   // possible, i.e. temporal info, picture ID or sequence number.
   bool ContinuousFrame(const VCMFrameBuffer* frame) const;
   void SetState(const VCMFrameBuffer* frame);
-  void CopyFrom(const VCMDecodingState& state);
-  bool UpdateEmptyFrame(const VCMFrameBuffer* frame);
+  // Set the decoding state one frame back.
+  void SetStateOneBack(const VCMFrameBuffer* frame);
+  void UpdateEmptyFrame(const VCMFrameBuffer* frame);
   // Update the sequence number if the timestamp matches current state and the
   // sequence number is higher than the current one. This accounts for packets
   // arriving late.
@@ -42,7 +43,7 @@ class VCMDecodingState {
   uint32_t time_stamp() const;
   uint16_t sequence_num() const;
   // Return true if at initial state.
-  bool in_initial_state() const;
+  bool init() const;
   // Return true when sync is on - decode all layers.
   bool full_sync() const;
 
@@ -62,7 +63,7 @@ class VCMDecodingState {
   int         temporal_id_;
   int         tl0_pic_id_;
   bool        full_sync_;  // Sync flag when temporal layers are used.
-  bool        in_initial_state_;
+  bool        init_;
 };
 
 }  // namespace webrtc

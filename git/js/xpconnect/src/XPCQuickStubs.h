@@ -7,14 +7,10 @@
 #ifndef xpcquickstubs_h___
 #define xpcquickstubs_h___
 
-#include "XPCForwards.h"
-
-class qsObjectHelper;
-namespace mozilla {
-namespace dom {
-class NativeProperties;
-}
-}
+#include "xpcpublic.h"
+#include "xpcprivate.h"
+#include "qsObjectHelper.h"
+#include "mozilla/dom/BindingUtils.h"
 
 /* XPCQuickStubs.h - Support functions used only by quick stubs. */
 
@@ -48,7 +44,7 @@ struct xpc_qsHashEntry {
     uint16_t chain;
 };
 
-bool
+JSBool
 xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, unsigned extraFlags,
                        uint32_t ifacec, const nsIID **interfaces,
                        uint32_t tableSize, const xpc_qsHashEntry *table,
@@ -57,7 +53,7 @@ xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, unsigned extraFlags,
                        const char *stringTable);
 
 /** Raise an exception on @a cx and return false. */
-bool
+JSBool
 xpc_qsThrow(JSContext *cx, nsresult rv);
 
 /**
@@ -73,14 +69,14 @@ xpc_qsThrow(JSContext *cx, nsresult rv);
  * receives the wrapper JSObject.  (The other reason is to help the caller keep
  * that JSObject GC-reachable.)
  */
-bool
+JSBool
 xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
                               JSObject *obj, jsid memberId);
 // And variants using strings and string tables
-bool
+JSBool
 xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
                               JSObject *obj, const char* memberName);
-bool
+JSBool
 xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
                               JSObject *obj, uint16_t memberIndex);
 
@@ -89,8 +85,16 @@ xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
  *
  * See NOTE at xpc_qsThrowGetterSetterFailed.
  */
-bool
+JSBool
 xpc_qsThrowMethodFailed(JSContext *cx, nsresult rv, jsval *vp);
+
+JSBool
+xpc_qsThrowMethodFailedWithCcx(XPCCallContext &ccx, nsresult rv);
+
+bool
+xpc_qsThrowMethodFailedWithDetails(JSContext *cx, nsresult rv,
+                                   const char *ifaceName,
+                                   const char *memberName);
 
 /**
  * Fail after converting a method argument fails.
@@ -124,26 +128,25 @@ xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv, JSObject *obj,
                           uint16_t name_index);
 
 
-bool
-xpc_qsGetterOnlyPropertyStub(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
-                             bool strict, JS::MutableHandleValue vp);
+JSBool
+xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp);
 
-bool
+JSBool
 xpc_qsGetterOnlyNativeStub(JSContext *cx, unsigned argc, jsval *vp);
 
 /* Functions for converting values between COM and JS. */
 
-inline bool
-xpc_qsInt64ToJsval(JSContext *cx, int64_t i, JS::MutableHandleValue rv)
+inline JSBool
+xpc_qsInt64ToJsval(JSContext *cx, int64_t i, jsval *rv)
 {
-    rv.setNumber(static_cast<double>(i));
+    *rv = JS_NumberValue(static_cast<double>(i));
     return true;
 }
 
-inline bool
-xpc_qsUint64ToJsval(JSContext *cx, uint64_t u, JS::MutableHandleValue rv)
+inline JSBool
+xpc_qsUint64ToJsval(JSContext *cx, uint64_t u, jsval *rv)
 {
-    rv.setNumber(static_cast<double>(u));
+    *rv = JS_NumberValue(static_cast<double>(u));
     return true;
 }
 
@@ -163,7 +166,7 @@ public:
             Ptr()->~implementation_type();
     }
 
-    bool IsValid() const { return mValid; }
+    JSBool IsValid() const { return mValid; }
 
     implementation_type *Ptr()
     {
@@ -216,7 +219,7 @@ protected:
      * stored in mBuf, if mValid is true.
      */
     void *mBuf[JS_HOWMANY(sizeof(implementation_type), sizeof(void *))];
-    bool mValid;
+    JSBool mValid;
 
     /*
      * If null is returned, then we either failed or fully initialized
@@ -227,9 +230,7 @@ protected:
      * when |v| is JSVAL_IS_NULL and JSVAL_IS_VOID respectively.
      */
     template<class traits>
-    JSString* InitOrStringify(JSContext* cx, JS::HandleValue v,
-                              JS::MutableHandleValue pval,
-                              bool notpassed,
+    JSString* InitOrStringify(JSContext* cx, jsval v, jsval* pval,
                               StringificationBehavior nullBehavior,
                               StringificationBehavior undefinedBehavior) {
         JSString *s;
@@ -246,8 +247,8 @@ protected:
             // If pval is null, that means the argument was optional and
             // not passed; turn those into void strings if they're
             // supposed to be stringified.
-            if (behavior != eStringify || notpassed) {
-                // Here behavior == eStringify implies notpassed, so both eNull and
+            if (behavior != eStringify || !pval) {
+                // Here behavior == eStringify implies !pval, so both eNull and
                 // eStringify should end up with void strings.
                 (new(mBuf) implementation_type(traits::sEmptyBuffer, uint32_t(0)))->
                     SetIsVoid(behavior != eEmpty);
@@ -255,12 +256,12 @@ protected:
                 return nullptr;
             }
 
-            s = JS::ToString(cx, v);
+            s = JS_ValueToString(cx, v);
             if (!s) {
                 mValid = false;
                 return nullptr;
             }
-            pval.setString(s);  // Root the new string.
+            *pval = STRING_TO_JSVAL(s);  // Root the new string.
         }
 
         return s;
@@ -284,8 +285,7 @@ protected:
 class xpc_qsDOMString : public xpc_qsBasicString<nsAString, nsDependentString>
 {
 public:
-    xpc_qsDOMString(JSContext *cx, JS::HandleValue v,
-                    JS::MutableHandleValue pval, bool notpassed,
+    xpc_qsDOMString(JSContext *cx, jsval v, jsval *pval,
                     StringificationBehavior nullBehavior,
                     StringificationBehavior undefinedBehavior);
 };
@@ -297,9 +297,8 @@ public:
 class xpc_qsAString : public xpc_qsDOMString
 {
 public:
-    xpc_qsAString(JSContext *cx, JS::HandleValue v,
-                  JS::MutableHandleValue pval, bool notpassed)
-        : xpc_qsDOMString(cx, v, pval, notpassed, eNull, eNull)
+    xpc_qsAString(JSContext *cx, jsval v, jsval *pval)
+        : xpc_qsDOMString(cx, v, pval, eNull, eNull)
     {}
 };
 
@@ -310,10 +309,9 @@ public:
 class xpc_qsACString : public xpc_qsBasicString<nsACString, nsCString>
 {
 public:
-    xpc_qsACString(JSContext *cx, JS::HandleValue v,
-                   JS::MutableHandleValue pval, bool notpassed,
-                   StringificationBehavior nullBehavior,
-                   StringificationBehavior undefinedBehavior);
+    xpc_qsACString(JSContext *cx, jsval v, jsval *pval,
+                   StringificationBehavior nullBehavior = eNull,
+                   StringificationBehavior undefinedBehavior = eNull);
 };
 
 /**
@@ -323,8 +321,7 @@ class xpc_qsAUTF8String :
   public xpc_qsBasicString<nsACString, NS_ConvertUTF16toUTF8>
 {
 public:
-  xpc_qsAUTF8String(JSContext* cx, JS::HandleValue v,
-                    JS::MutableHandleValue pval, bool notpassed);
+  xpc_qsAUTF8String(JSContext* cx, jsval v, jsval *pval);
 };
 
 struct xpc_qsSelfRef
@@ -347,12 +344,16 @@ struct xpc_qsSelfRef
  *     Out. On success it receives the converted string unless v is null or
  *     undefinedin which case bytes->ptr() remains null.
  */
-bool
+JSBool
 xpc_qsJsvalToCharStr(JSContext *cx, jsval v, JSAutoByteString *bytes);
 
-bool
-xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, JS::MutableHandleValue pval, const PRUnichar **pstr);
+JSBool
+xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, const PRUnichar **pstr);
 
+
+/** Convert an nsString to JSString, returning true on success. This will sometimes modify |str| to be empty. */
+JSBool
+xpc_qsStringToJsstring(JSContext *cx, nsString &str, JSString **rval);
 
 nsresult
 getWrapper(JSContext *cx,
@@ -369,7 +370,8 @@ castNative(JSContext *cx,
            const nsIID &iid,
            void **ppThis,
            nsISupports **ppThisRef,
-           JS::MutableHandleValue vp);
+           jsval *vp,
+           XPCLazyCallContext *lccx);
 
 /**
  * Search @a obj and its prototype chain for an XPCOM object that implements
@@ -388,12 +390,13 @@ castNative(JSContext *cx,
  * Requires a request on @a cx.
  */
 template <class T>
-inline bool
+inline JSBool
 xpc_qsUnwrapThis(JSContext *cx,
                  JS::HandleObject obj,
                  T **ppThis,
                  nsISupports **pThisRef,
-                 JS::MutableHandleValue pThisVal,
+                 jsval *pThisVal,
+                 XPCLazyCallContext *lccx,
                  bool failureFatal = true)
 {
     XPCWrappedNative *wrapper;
@@ -402,7 +405,8 @@ xpc_qsUnwrapThis(JSContext *cx,
     nsresult rv = getWrapper(cx, obj, &wrapper, current.address(), &tearoff);
     if (NS_SUCCEEDED(rv))
         rv = castNative(cx, wrapper, current, tearoff, NS_GET_TEMPLATE_IID(T),
-                        reinterpret_cast<void **>(ppThis), pThisRef, pThisVal);
+                        reinterpret_cast<void **>(ppThis), pThisRef, pThisVal,
+                        lccx);
 
     if (failureFatal)
         return NS_SUCCEEDED(rv) || xpc_qsThrow(cx, rv);
@@ -412,33 +416,99 @@ xpc_qsUnwrapThis(JSContext *cx,
     return true;
 }
 
-nsISupports*
+MOZ_ALWAYS_INLINE bool
+HasBitInInterfacesBitmap(JSObject *obj, uint32_t interfaceBit)
+{
+    NS_ASSERTION(IS_WRAPPER_CLASS(js::GetObjectClass(obj)), "Not a wrapper?");
+
+    XPCWrappedNativeJSClass *clasp =
+      (XPCWrappedNativeJSClass*)js::GetObjectClass(obj);
+    return (clasp->interfacesBitmap & (1 << interfaceBit)) != 0;
+}
+
+MOZ_ALWAYS_INLINE nsISupports*
 castNativeFromWrapper(JSContext *cx,
                       JSObject *obj,
                       uint32_t interfaceBit,
                       uint32_t protoID,
                       int32_t protoDepth,
                       nsISupports **pRef,
-                      JS::MutableHandleValue pVal,
-                      nsresult *rv);
+                      jsval *pVal,
+                      XPCLazyCallContext *lccx,
+                      nsresult *rv)
+{
+    XPCWrappedNative *wrapper;
+    XPCWrappedNativeTearOff *tearoff;
+    JSObject *cur;
 
-bool
+    if (IS_WRAPPER_CLASS(js::GetObjectClass(obj))) {
+        cur = obj;
+        wrapper = IS_WN_WRAPPER_OBJECT(cur) ?
+                  (XPCWrappedNative*)xpc_GetJSPrivate(obj) :
+                  nullptr;
+        tearoff = nullptr;
+    } else {
+        *rv = getWrapper(cx, obj, &wrapper, &cur, &tearoff);
+        if (NS_FAILED(*rv))
+            return nullptr;
+    }
+
+    nsISupports *native;
+    if (wrapper) {
+        native = wrapper->GetIdentityObject();
+        cur = wrapper->GetFlatJSObject();
+        if (!native || !HasBitInInterfacesBitmap(cur, interfaceBit)) {
+            native = nullptr;
+        } else if (lccx) {
+            lccx->SetWrapper(wrapper, tearoff);
+        }
+    } else if (cur && IS_SLIM_WRAPPER(cur)) {
+        native = static_cast<nsISupports*>(xpc_GetJSPrivate(cur));
+        if (!native || !HasBitInInterfacesBitmap(cur, interfaceBit)) {
+            native = nullptr;
+        } else if (lccx) {
+            lccx->SetWrapper(cur);
+        }
+    } else if (cur && protoDepth >= 0) {
+        const mozilla::dom::DOMClass* domClass =
+            mozilla::dom::GetDOMClass(cur);
+        native = mozilla::dom::UnwrapDOMObject<nsISupports>(cur);
+        if (native &&
+            (uint32_t)domClass->mInterfaceChain[protoDepth] != protoID) {
+            native = nullptr;
+        }
+    } else {
+        native = nullptr;
+    }
+
+    if (native) {
+        *pRef = nullptr;
+        *pVal = OBJECT_TO_JSVAL(cur);
+        *rv = NS_OK;
+    } else {
+        *rv = NS_ERROR_XPC_BAD_CONVERT_JS;
+    }
+
+    return native;
+}
+
+JSBool
 xpc_qsUnwrapThisFromCcxImpl(XPCCallContext &ccx,
                             const nsIID &iid,
                             void **ppThis,
                             nsISupports **pThisRef,
-                            JS::MutableHandleValue vp);
+                            jsval *vp);
 
 /**
  * Alternate implementation of xpc_qsUnwrapThis using information already
  * present in the given XPCCallContext.
  */
 template <class T>
-inline bool
+inline JSBool
 xpc_qsUnwrapThisFromCcx(XPCCallContext &ccx,
                         T **ppThis,
                         nsISupports **pThisRef,
-                        JS::MutableHandleValue pThisVal)
+                        jsval *pThisVal)
 {
     return xpc_qsUnwrapThisFromCcxImpl(ccx,
                                        NS_GET_TEMPLATE_IID(T),
@@ -466,14 +536,14 @@ xpc_qsUnwrapObj(jsval v, nsISupports **ppArgRef, nsresult *rv)
 }
 
 nsresult
-xpc_qsUnwrapArgImpl(JSContext *cx, JS::HandleValue v, const nsIID &iid, void **ppArg,
-                    nsISupports **ppArgRef, JS::MutableHandleValue vp);
+xpc_qsUnwrapArgImpl(JSContext *cx, jsval v, const nsIID &iid, void **ppArg,
+                    nsISupports **ppArgRef, jsval *vp);
 
 /** Convert a jsval to an XPCOM pointer. */
 template <class Interface, class StrongRefType>
 inline nsresult
-xpc_qsUnwrapArg(JSContext *cx, JS::HandleValue v, Interface **ppArg,
-                StrongRefType **ppArgRef, JS::MutableHandleValue vp)
+xpc_qsUnwrapArg(JSContext *cx, jsval v, Interface **ppArg,
+                StrongRefType **ppArgRef, jsval *vp)
 {
     nsISupports* argRef = *ppArgRef;
     nsresult rv = xpc_qsUnwrapArgImpl(cx, v, NS_GET_TEMPLATE_IID(Interface),
@@ -490,14 +560,15 @@ castNativeArgFromWrapper(JSContext *cx,
                          uint32_t protoID,
                          int32_t protoDepth,
                          nsISupports **pArgRef,
-                         JS::MutableHandleValue vp,
+                         jsval *vp,
                          nsresult *rv)
 {
     JSObject *src = xpc_qsUnwrapObj(v, pArgRef, rv);
     if (!src)
         return nullptr;
 
-    return castNativeFromWrapper(cx, src, bit, protoID, protoDepth, pArgRef, vp, rv);
+    return castNativeFromWrapper(cx, src, bit, protoID, protoDepth, pArgRef, vp,
+                                 nullptr, rv);
 }
 
 inline nsWrapperCache*
@@ -522,20 +593,20 @@ xpc_qsGetWrapperCache(void *p)
  * aIdentity is a performance optimization. Set it to true,
  * only if p is the identity pointer.
  */
-bool
-xpc_qsXPCOMObjectToJsval(JSContext *aCx,
+JSBool
+xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx,
                          qsObjectHelper &aHelper,
                          const nsIID *iid,
                          XPCNativeInterface **iface,
-                         JS::MutableHandleValue rval);
+                         jsval *rval);
 
 /**
  * Convert a variant to jsval. Return true on success.
  */
-bool
-xpc_qsVariantToJsval(JSContext *cx,
+JSBool
+xpc_qsVariantToJsval(XPCLazyCallContext &ccx,
                      nsIVariant *p,
-                     JS::MutableHandleValue rval);
+                     jsval *rval);
 
 #ifdef DEBUG
 void
@@ -566,27 +637,25 @@ xpc_qsSameResult(int32_t result1, int32_t result2)
 
 // Apply |op| to |obj|, |id|, and |vp|. If |op| is a setter, treat the assignment as lenient.
 template<typename Op>
-inline bool ApplyPropertyOp(JSContext *cx, Op op, JS::HandleObject obj, JS::HandleId id,
-                              JS::MutableHandleValue vp);
+inline JSBool ApplyPropertyOp(JSContext *cx, Op op, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp);
 
 template<>
-inline bool
-ApplyPropertyOp<JSPropertyOp>(JSContext *cx, JSPropertyOp op, JS::HandleObject obj, JS::HandleId id,
-                              JS::MutableHandleValue vp)
+inline JSBool
+ApplyPropertyOp<JSPropertyOp>(JSContext *cx, JSPropertyOp op, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp)
 {
     return op(cx, obj, id, vp);
 }
 
 template<>
-inline bool
-ApplyPropertyOp<JSStrictPropertyOp>(JSContext *cx, JSStrictPropertyOp op, JS::HandleObject obj,
-                                    JS::HandleId id, JS::MutableHandleValue vp)
+inline JSBool
+ApplyPropertyOp<JSStrictPropertyOp>(JSContext *cx, JSStrictPropertyOp op, JSHandleObject obj,
+                                    JSHandleId id, JSMutableHandleValue vp)
 {
     return op(cx, obj, id, true, vp);
 }
 
 template<typename Op>
-bool
+JSBool
 PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
 {
     // Layout:
@@ -596,7 +665,7 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
 
     JS::CallArgs args = CallArgsFromVp(argc, vp);
 
-    JS::RootedObject callee(cx, &args.callee());
+    JSObject *callee = &args.callee();
     JS::RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
     if (!obj)
         return false;
@@ -608,7 +677,7 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
 
     v = js::GetFunctionNativeReserved(callee, 1);
 
-    JS::RootedValue argval(cx, (argc > 0) ? args.get(0) : JSVAL_VOID);
+    jsval argval = (argc > 0) ? args[0] : JSVAL_VOID;
     JS::RootedId id(cx);
     if (!JS_ValueToId(cx, v, id.address()))
         return false;
@@ -616,11 +685,11 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
     return ApplyPropertyOp<Op>(cx, *popp, obj, id, args.rval());
 }
 
-extern const JSClass PointerHolderClass;
+extern JSClass PointerHolderClass;
 
 template<typename Op>
 JSObject *
-GeneratePropertyOp(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigned argc, Op pop)
+GeneratePropertyOp(JSContext *cx, JSObject *obj, jsid id, unsigned argc, Op pop)
 {
     // The JS engine provides two reserved slots on function objects for
     // XPConnect to use. Use them to stick the necessary info here.
@@ -629,7 +698,9 @@ GeneratePropertyOp(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigne
     if (!fun)
         return nullptr;
 
-    JS::RootedObject funobj(cx, JS_GetFunctionObject(fun));
+    JSObject *funobj = JS_GetFunctionObject(fun);
+
+    JS::AutoObjectRooter tvr(cx, funobj);
 
     // Unfortunately, we cannot guarantee that Op is aligned. Use a
     // second object to work around this.

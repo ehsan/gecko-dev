@@ -14,7 +14,7 @@
 !define URLUpdateInfo         "http://www.mozilla.org/projects/firefox"
 
 !define URLStubDownload "http://download.mozilla.org/?product=firefox-latest&os=win&lang=${AB_CD}"
-!define URLManualDownload "https://www.mozilla.org/${AB_CD}/firefox/installer-help/?channel=release&installer_lang=${AB_CD}"
+!define URLManualDownload "https://www.mozilla.org/firefox/installer-help/?channel=release"
 !define Channel "unofficial"
 
 # The installer's certificate name and issuer expected by the stub installer
@@ -26,7 +26,7 @@
 # The dialog units for the bitmap's dimensions should match exactly with the
 # bitmap's width and height in pixels.
 !define APPNAME_BMP_WIDTH_DU 159u
-!define APPNAME_BMP_HEIGHT_DU 50u
+!define APPNAME_BMP_HEIGHT_DU 26u
 !define INTRO_BLURB_WIDTH_DU "230u"
 !define INTRO_BLURB_EDGE_DU "198u"
 !define INTRO_BLURB_LTR_TOP_DU "16u"

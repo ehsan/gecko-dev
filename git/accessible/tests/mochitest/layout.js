@@ -158,8 +158,7 @@ function testTextBounds(aID, aStartOffset, aEndOffset, aRect, aCoordOrigin)
 
   var xObj = {}, yObj = {}, widthObj = {}, heightObj = {};
   var hyperText = getAccessible(aID, [nsIAccessibleText]);
-  hyperText.getRangeExtents(aStartOffset, aEndOffset,
-                            xObj, yObj, widthObj, heightObj, aCoordOrigin);
+  hyperText.getRangeExtents(0, -1, xObj, yObj, widthObj, heightObj, aCoordOrigin);
   is(xObj.value, expectedX,
      "Wrong x coordinate of text between offsets (" + aStartOffset + ", " +
      aEndOffset + ") for " + prettyName(aID));

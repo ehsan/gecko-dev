@@ -35,7 +35,6 @@
 #include "nsBoxFrame.h"
 #include "mozilla/dom/Touch.h"
 #include "nsStyleContext.h"
-#include "nsPlaceholderFrame.h"
 #include "nsPresContext.h"
 #include "nsCOMPtr.h"
 #include "nsINameSpaceManager.h"
@@ -61,14 +60,10 @@
 #include "nsIDOMEvent.h"
 #include "nsDisplayList.h"
 #include "mozilla/Preferences.h"
-#include "nsThemeConstants.h"
-#include "nsLayoutUtils.h"
 #include <algorithm>
 
 // Needed for Print Preview
 #include "nsIURI.h"
-
-#include "mozilla/TouchEvents.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -1240,13 +1235,6 @@ nsBoxFrame::AttributeChanged(int32_t aNameSpaceID,
   else if (aAttribute == nsGkAtoms::accesskey) {
     RegUnregAccessKey(true);
   }
-  else if (aAttribute == nsGkAtoms::rows &&
-           tag == nsGkAtoms::tree) {
-    // Reflow ourselves and all our children if "rows" changes, since
-    // nsTreeBodyFrame's layout reads this from its parent (this frame).
-    PresContext()->PresShell()->
-      FrameNeedsReflow(this, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
-  }
 
   return rv;
 }
@@ -1901,18 +1889,15 @@ bool
 IsBoxOrdinalLEQ(nsIFrame* aFrame1,
                 nsIFrame* aFrame2)
 {
-  // If we've got a placeholder frame, use its out-of-flow frame's ordinal val.
-  nsIFrame* aRealFrame1 = nsPlaceholderFrame::GetRealFrameFor(aFrame1);
-  nsIFrame* aRealFrame2 = nsPlaceholderFrame::GetRealFrameFor(aFrame2);
-  return aRealFrame1->GetOrdinal() <= aRealFrame2->GetOrdinal();
+  return aFrame1->GetOrdinal() <= aFrame2->GetOrdinal();
 }
 
 void 
 nsBoxFrame::CheckBoxOrder()
 {
   if (SupportsOrdinalsInChildren() &&
-      !nsIFrame::IsFrameListSorted<IsBoxOrdinalLEQ>(mFrames)) {
-    nsIFrame::SortFrameList<IsBoxOrdinalLEQ>(mFrames);
+      !nsLayoutUtils::IsFrameListSorted<IsBoxOrdinalLEQ>(mFrames)) {
+    nsLayoutUtils::SortFrameList<IsBoxOrdinalLEQ>(mFrames);
   }
 }
 
@@ -2052,7 +2037,7 @@ public:
   virtual nsDisplayItem* WrapItem(nsDisplayListBuilder* aBuilder,
                                   nsDisplayItem* aItem) {
     return new (aBuilder)
-        nsDisplayXULEventRedirector(aBuilder, aItem->Frame(), aItem,
+        nsDisplayXULEventRedirector(aBuilder, aItem->GetUnderlyingFrame(), aItem,
                                     mTargetFrame);
   }
 private:
@@ -2069,7 +2054,7 @@ nsBoxFrame::WrapListsInRedirector(nsDisplayListBuilder*   aBuilder,
 }
 
 bool
-nsBoxFrame::GetEventPoint(WidgetGUIEvent* aEvent, nsPoint &aPoint) {
+nsBoxFrame::GetEventPoint(nsGUIEvent* aEvent, nsPoint &aPoint) {
   nsIntPoint refPoint;
   bool res = GetEventPoint(aEvent, refPoint);
   aPoint = nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, refPoint, this);
@@ -2077,24 +2062,25 @@ nsBoxFrame::GetEventPoint(WidgetGUIEvent* aEvent, nsPoint &aPoint) {
 }
 
 bool
-nsBoxFrame::GetEventPoint(WidgetGUIEvent* aEvent, nsIntPoint &aPoint) {
+nsBoxFrame::GetEventPoint(nsGUIEvent* aEvent, nsIntPoint &aPoint) {
   NS_ENSURE_TRUE(aEvent, false);
 
-  WidgetTouchEvent* touchEvent = aEvent->AsTouchEvent();
-  if (touchEvent) {
+  if (aEvent->eventStructType == NS_TOUCH_EVENT) {
+    nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aEvent);
     // return false if there is more than one touch on the page, or if
     // we can't find a touch point
     if (touchEvent->touches.Length() != 1) {
       return false;
     }
 
-    dom::Touch* touch = touchEvent->touches.SafeElementAt(0);
+    nsIDOMTouch *touch = touchEvent->touches.SafeElementAt(0);
     if (!touch) {
       return false;
     }
-    aPoint = touch->mRefPoint;
+    Touch* domtouch = static_cast<Touch*>(touch);
+    aPoint = domtouch->mRefPoint;
   } else {
-    aPoint = LayoutDeviceIntPoint::ToUntyped(aEvent->refPoint);
+    aPoint = aEvent->refPoint;
   }
   return true;
 }

@@ -25,6 +25,9 @@ onconnect = function(e) {
       case "test-profile":
         apiPort.postMessage({topic: "social.user-profile", data: data});
         break;
+      case "test-pending-msg":
+        port.postMessage({topic: "test-pending-response"})
+        break;
       case "test-ambient":
         apiPort.postMessage({topic: "social.ambient-notification", data: data});
         break;
@@ -35,6 +38,8 @@ onconnect = function(e) {
         testerPort.postMessage({topic: "test.cookies-get-response", data: data});
         break;
       case "test-reload-init":
+        // browser_social_sidebar.js started test, tell the sidebar to
+        // start
         apiPort.postMessage({topic: 'social.reload-worker'});
         break;
       case "test-notification-create":
@@ -42,18 +47,11 @@ onconnect = function(e) {
                              data: data});
         testerPort.postMessage({topic: 'did-notification-create'});
         break;
-      case "test-indexeddb-create":
-        var request = indexedDB.open("workerdb", 1);
-        request.onerror = function(event) {
-          port.postMessage({topic: 'social.indexeddb-result', data: { result: "error" }});
-        };
-        request.onsuccess = function(event) {
-          // Do something with request.result!
-          var db = request.result;
-          db.close();
-          port.postMessage({topic: 'social.indexeddb-result', data: { result: "ok" }});
-        };
-        break;
     }
   }
+  // used for "test-reload-worker"
+  if (apiPort && apiPort != port) {
+    port.postMessage({topic: "worker.connected"})
+  }
+
 }

@@ -25,7 +25,7 @@ interface nsIVariant;
  * @see <http://www.whatwg.org/html/#window>
  */
 
-[scriptable, uuid(b0ebb526-ed69-43c6-8242-b381a1fe79da)]
+[scriptable, uuid(39cb59d4-fba9-48a9-b70b-570a7ec2ebfa)]
 interface nsIDOMWindow : nsISupports
 {
   // the current browsing context
@@ -49,20 +49,17 @@ interface nsIDOMWindow : nsISupports
   /* The setter that takes a string argument needs to be special cased! */
   readonly attribute nsIDOMLocation                     location;
 
-  readonly attribute nsISupports                        history;
+  readonly attribute nsIDOMHistory                      history;
 
 
   /* [replaceable] locationbar */
-  /* BarProp */
-  readonly attribute nsISupports                        locationbar;
+  readonly attribute nsIDOMBarProp                      locationbar;
 
   /* [replaceable] menubar */
-  /* BarProp */
-  readonly attribute nsISupports                        menubar;
+  readonly attribute nsIDOMBarProp                      menubar;
 
   /* [replaceable] personalbar */
-  /* BarProp */
-  readonly attribute nsISupports                        personalbar;
+  readonly attribute nsIDOMBarProp                      personalbar;
 
   /**
    * Accessor for the object that controls whether or not scrollbars
@@ -70,16 +67,13 @@ interface nsIDOMWindow : nsISupports
    *
    * This attribute is "replaceable" in JavaScript
    */
-  /* BarProp */
-  readonly attribute nsISupports                        scrollbars;
+  readonly attribute nsIDOMBarProp                      scrollbars;
 
   /* [replaceable] statusbar */
-  /* BarProp */
-  readonly attribute nsISupports                        statusbar;
+  readonly attribute nsIDOMBarProp                      statusbar;
 
   /* [replaceable] toolbar */
-  /* BarProp */
-  readonly attribute nsISupports                        toolbar;
+  readonly attribute nsIDOMBarProp                      toolbar;
 
   /* [replaceable] */
            attribute DOMString                          status;
@@ -191,8 +185,8 @@ interface nsIDOMWindow : nsISupports
 
 
   // user prompts
-  void                      alert([optional, Null(Stringify)] in DOMString text);
-  boolean                   confirm([optional] in DOMString text);
+  void                      alert(in DOMString text);
+  boolean                   confirm(in DOMString text);
 
   // prompt() should return a null string if cancel is pressed
   DOMString                 prompt([optional] in DOMString aMessage,
@@ -200,7 +194,6 @@ interface nsIDOMWindow : nsISupports
 
   void                      print();
 
-  [optional_argc]
   nsIVariant                showModalDialog(in DOMString aURI,
                                             [optional] in nsIVariant aArgs,
                                             [optional] in DOMString aOptions);
@@ -247,13 +240,6 @@ interface nsIDOMWindow : nsISupports
    * Local storage for the current browsing context.
    */
   readonly attribute nsIDOMStorage localStorage;
-
-
-  // IndexedDB
-  // https://dvcs.w3.org/hg/IndexedDB/raw-file/tip/Overview.html#requests
-  // IDBEnvironment
-  readonly attribute nsISupports indexedDB;
-  readonly attribute nsISupports mozIndexedDB;
 
 
   // DOM Range
@@ -367,7 +353,7 @@ interface nsIDOMWindow : nsISupports
   void                      sizeToContent();
 
   /* [replaceable] content */
-  [noscript] readonly attribute nsIDOMWindow            content;
+  readonly attribute nsIDOMWindow                       content;
 
   /* [replaceable] prompter */
   [noscript] readonly attribute nsIPrompt               prompter;
@@ -380,6 +366,8 @@ interface nsIDOMWindow : nsISupports
   // XXX Shouldn't this be in nsIDOMChromeWindow?
   /* [replaceable] controllers */
   readonly attribute nsIControllers                     controllers;
+
+           attribute DOMString                          defaultStatus;
 
   readonly attribute float                              mozInnerScreenX;
   readonly attribute float                              mozInnerScreenY;
@@ -457,9 +445,6 @@ interface nsIDOMWindow : nsISupports
   // Argument is optional only so we can warn when it's null
   long
     mozRequestAnimationFrame([optional] in nsIFrameRequestCallback aCallback);
-  // jsval because we want a WebIDL callback here
-  [implicit_jscontext]
-  long requestAnimationFrame(in jsval aCallback);
 
   /**
    * Cancel a refresh callback.
@@ -467,7 +452,6 @@ interface nsIDOMWindow : nsISupports
   void mozCancelAnimationFrame(in long aHandle);
   // Backwards-compat shim for now to make Google maps work
   void mozCancelRequestAnimationFrame(in long aHandle);
-  void cancelAnimationFrame(in long aHandle);
 
   /**
    * The current animation start time in milliseconds since the epoch.
@@ -522,5 +506,5 @@ interface nsIDOMWindowPerformance : nsISupports
  * Empty interface for compatibility with older versions.
  * @deprecated Use nsIDOMWindow instead
  */
-[scriptable, uuid(2ec49e81-b2ba-4633-991a-f48f1e1d8800)]
+[scriptable, uuid(a5cd0946-bac1-4606-9aaa-9e68dd0a3279)]
 interface nsIDOMWindowInternal : nsIDOMWindow {};

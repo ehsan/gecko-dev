@@ -11,7 +11,7 @@
 
 .devtools-monospace {
   font-family: monospace;
-  font-size: 80%;
+  font-size: 85%;
 }
 
 /* Toolbar and Toolbar items */
@@ -46,7 +46,7 @@
 
 .devtools-menulist:-moz-focusring,
 .devtools-toolbarbutton:-moz-focusring {
-  outline: 1px dotted hsla(210,30%,85%,0.7);
+  outline: 1px dotted hsla(210,30%,85%,0.4);
   outline-offset: -4px;
 }
 
@@ -130,7 +130,7 @@
   -moz-appearance: none !important;
   list-style-image: url("chrome://browser/skin/devtools/dropmarker.png");
   -moz-box-align: center;
-  padding: 0 3px;
+  margin: 0 3px;
 }
 
 /* Text input */
@@ -184,31 +184,15 @@
 /* Close button */
 
 .devtools-closebutton {
-  list-style-image: url("chrome://browser/skin/devtools/close.png");
-  -moz-appearance: none;
-  border: none;
-  margin: 0 4px;
-  min-width: 16px;
-  width: 16px;
-  opacity: 0.6;
+  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .devtools-closebutton > .toolbarbutton-icon {
   /* XXX Buttons have padding in widget/ that we don't want here but can't override with good CSS, so we must
      use evil CSS to give the impression of smaller content */
   margin: -4px;
-}
-
-.devtools-closebutton > .toolbarbutton-text {
-  display: none;
-}
-
-.devtools-closebutton:hover {
-  opacity: 0.8;
-}
-
-.devtools-closebutton:hover:active {
-  opacity: 1;
 }
 
 /* Splitters */
@@ -232,7 +216,6 @@
   background-color: transparent;
   -moz-margin-end: -3px;
   position: relative;
-  cursor: e-resize;
 }
 
 /* In-tools sidebar */
@@ -275,16 +258,15 @@
   -moz-appearance: none;
   /* We want to match the height of a toolbar with a toolbarbutton
    * First, we need to replicated the padding of toolbar (4px),
-   * then we need to take the border of the buttons into account (1px).
+   * then, the padding of the button itself from toolbarbutton.css (3px),
+   * Also, we need to take the border of the buttons into accout (1px).
+   * Padding-bottom is one pixel shorter because we need to include the
+   * black border.
    */
-  padding: 5px 3px;
+  padding: 8px 3px 7px;
   -moz-padding-start: 6px;
   margin: 0;
   min-width: 78px;
-  /* toolbar's min-height is button min-height (25px) + padding (2 * 4px): 33px.
-   * -1px because the parent element (<tabs>) comes with a 1px bottom border.
-   */
-  min-height: 32px;
   text-shadow: 0 -1px 0 hsla(210,8%,5%,.45);
   text-align: center;
   color: inherit;

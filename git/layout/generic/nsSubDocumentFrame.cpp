@@ -8,35 +8,54 @@
  * as <frame>, <iframe>, and some <object>s
  */
 
-#include "nsSubDocumentFrame.h"
-
 #include "mozilla/layout/RenderFrameParent.h"
 
+#include "nsSubDocumentFrame.h"
 #include "nsCOMPtr.h"
 #include "nsGenericHTMLElement.h"
 #include "nsAttrValueInlines.h"
 #include "nsIDocShell.h"
+#include "nsIDocShellLoadInfo.h"
+#include "nsIDocShellTreeItem.h"
+#include "nsIDocShellTreeNode.h"
+#include "nsIDocShellTreeOwner.h"
+#include "nsIBaseWindow.h"
 #include "nsIContentViewer.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
+#include "nsIComponentManager.h"
+#include "nsFrameManager.h"
+#include "nsIStreamListener.h"
+#include "nsIURL.h"
+#include "nsNetUtil.h"
 #include "nsIDocument.h"
 #include "nsView.h"
 #include "nsViewManager.h"
 #include "nsGkAtoms.h"
+#include "nsStyleCoord.h"
+#include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsFrameSetFrame.h"
 #include "nsIDOMHTMLFrameElement.h"
+#include "nsIDOMHTMLIFrameElement.h"
+#include "nsIDOMXULElement.h"
+#include "nsIScriptSecurityManager.h"
+#include "nsXPIDLString.h"
 #include "nsIScrollable.h"
 #include "nsINameSpaceManager.h"
+#include "nsWeakReference.h"
+#include "nsIDOMWindow.h"
 #include "nsDisplayList.h"
+#include "nsUnicharUtils.h"
 #include "nsIScrollableFrame.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsLayoutUtils.h"
 #include "FrameLayerBuilder.h"
 #include "nsObjectFrame.h"
+#include "nsIServiceManager.h"
 #include "nsContentUtils.h"
+#include "LayerTreeInvalidation.h"
 #include "nsIPermissionManager.h"
-#include "nsServiceManagerUtils.h"
 
 using namespace mozilla;
 using mozilla::layout::RenderFrameParent;
@@ -50,6 +69,8 @@ GetDocumentFromView(nsView* aView)
   nsIPresShell* ps =  f ? f->PresContext()->PresShell() : nullptr;
   return ps ? ps->GetDocument() : nullptr;
 }
+
+class AsyncFrameInit;
 
 nsSubDocumentFrame::nsSubDocumentFrame(nsStyleContext* aContext)
   : nsLeafFrame(aContext)
@@ -282,11 +303,7 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (aBuilder->IsForEventDelivery() && !PassPointerEventsToChildren())
     return;
 
-  // If we are pointer-events:none then we don't need to HitTest background
-  if (!aBuilder->IsForEventDelivery() ||
-      StyleVisibility()->mPointerEvents != NS_STYLE_POINTER_EVENTS_NONE) {
-    DisplayBorderBackgroundOutline(aBuilder, aLists);
-  }
+  DisplayBorderBackgroundOutline(aBuilder, aLists);
 
   if (!mInnerView)
     return;
@@ -372,10 +389,8 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   nsIScrollableFrame *sf = presShell->GetRootScrollFrameAsScrollable();
-  bool constructResolutionItem = subdocRootFrame &&
-    (presShell->GetXResolution() != 1.0 || presShell->GetYResolution() != 1.0);
   bool constructZoomItem = subdocRootFrame && parentAPD != subdocAPD;
-  bool needsOwnLayer = constructResolutionItem || constructZoomItem ||
+  bool needsOwnLayer = constructZoomItem ||
     presContext->IsRootContentDocument() || (sf && sf->IsScrollingActive());
 
   nsDisplayList childItems;
@@ -425,25 +440,13 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     }
   }
 
-  // Generate a resolution and/or zoom item if needed. If one or both of those is
-  // created, we don't need to create a separate nsDisplayOwnLayer.
-
-  if (constructResolutionItem) {
-    nsDisplayResolution* resolutionItem =
-      new (aBuilder) nsDisplayResolution(aBuilder, subdocRootFrame, &childItems,
-                                         nsDisplayOwnLayer::GENERATE_SUBDOC_INVALIDATIONS);
-    childItems.AppendToTop(resolutionItem);
-    needsOwnLayer = false;
-  }
   if (constructZoomItem) {
     nsDisplayZoom* zoomItem =
       new (aBuilder) nsDisplayZoom(aBuilder, subdocRootFrame, &childItems,
                                    subdocAPD, parentAPD,
                                    nsDisplayOwnLayer::GENERATE_SUBDOC_INVALIDATIONS);
     childItems.AppendToTop(zoomItem);
-    needsOwnLayer = false;
-  }
-  if (needsOwnLayer) {
+  } else if (needsOwnLayer) {
     // We always want top level content documents to be in their own layer.
     nsDisplayOwnLayer* layerItem = new (aBuilder) nsDisplayOwnLayer(
       aBuilder, subdocRootFrame ? subdocRootFrame : this,
@@ -501,19 +504,50 @@ nsSubDocumentFrame::GetIntrinsicHeight()
 }
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsSubDocumentFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
 {
-  ListGeneric(out, aIndent, aFlags);
+  IndentBy(out, aIndent);
+  ListTag(out);
+#ifdef DEBUG_waterson
+  fprintf(out, " [parent=%p]", static_cast<void*>(mParent));
+#endif
+  if (HasView()) {
+    fprintf(out, " [view=%p]", static_cast<void*>(GetView()));
+  }
+  fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
+  if (0 != mState) {
+    fprintf(out, " [state=%016llx]", (unsigned long long)mState);
+  }
+  nsIFrame* prevInFlow = GetPrevInFlow();
+  nsIFrame* nextInFlow = GetNextInFlow();
+  if (nullptr != prevInFlow) {
+    fprintf(out, " prev-in-flow=%p", static_cast<void*>(prevInFlow));
+  }
+  if (nullptr != nextInFlow) {
+    fprintf(out, " next-in-flow=%p", static_cast<void*>(nextInFlow));
+  }
+  fprintf(out, " [content=%p]", static_cast<void*>(mContent));
+  nsSubDocumentFrame* f = const_cast<nsSubDocumentFrame*>(this);
+  if (f->HasOverflowAreas()) {
+    nsRect overflowArea = f->GetVisualOverflowRect();
+    fprintf(out, " [vis-overflow=%d,%d,%d,%d]", overflowArea.x, overflowArea.y,
+            overflowArea.width, overflowArea.height);
+    overflowArea = f->GetScrollableOverflowRect();
+    fprintf(out, " [scr-overflow=%d,%d,%d,%d]", overflowArea.x, overflowArea.y,
+            overflowArea.width, overflowArea.height);
+  }
+  fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
   fputs("\n", out);
 
-  nsSubDocumentFrame* f = const_cast<nsSubDocumentFrame*>(this);
   if (aFlags & TRAVERSE_SUBDOCUMENT_FRAMES) {
     nsIFrame* subdocRootFrame = f->GetSubdocumentRootFrame();
     if (subdocRootFrame) {
       subdocRootFrame->List(out, aIndent + 1);
     }
   }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsSubDocumentFrame::GetFrameName(nsAString& aResult) const
@@ -560,7 +594,7 @@ nsSubDocumentFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
   return result;
 }
 
-/* virtual */ IntrinsicSize
+/* virtual */ nsIFrame::IntrinsicSize
 nsSubDocumentFrame::GetIntrinsicSize()
 {
   nsIFrame* subDocRoot = ObtainIntrinsicSizeFrame();

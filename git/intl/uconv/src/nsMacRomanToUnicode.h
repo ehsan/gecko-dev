@@ -6,9 +6,7 @@
 #ifndef nsMacRomanToUnicode_h___
 #define nsMacRomanToUnicode_h___
 
-#include "nsID.h"
-
-class nsISupports;
+#include "nsISupports.h"
 
 // Class ID for our MacRomanToUnicode charset converter
 // {7B8556A1-EC79-11d2-8AAC-00600811A836}

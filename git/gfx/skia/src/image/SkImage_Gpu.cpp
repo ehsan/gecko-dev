@@ -9,77 +9,65 @@
 #include "SkImagePriv.h"
 #include "SkBitmap.h"
 #include "SkCanvas.h"
-#include "GrContext.h"
-#include "GrTexture.h"
-#include "SkGrPixelRef.h"
+#include "SkData.h"
+#include "SkDataPixelRef.h"
 
 class SkImage_Gpu : public SkImage_Base {
 public:
-    SK_DECLARE_INST_COUNT(SkImage_Gpu)
+    static bool ValidArgs(GrContext* context,
+                          const GrPlatformTextureDesc& desc) {
+        if (0 == desc.fTextureHandle) {
+            return false;
+        }
+        if (desc.fWidth < 0 || desc.fHeight < 0) {
+            return false;
+        }
+        return true;
+    }
 
-    SkImage_Gpu(GrTexture*);
+    SkImage_Gpu(GrContext* context, const GrPlatformTextureDesc& desc);
     virtual ~SkImage_Gpu();
 
-    virtual void onDraw(SkCanvas*, SkScalar x, SkScalar y, const SkPaint*) SK_OVERRIDE;
-
-    GrTexture* getTexture() { return fTexture; }
-
-    void setTexture(GrTexture* texture);
+    virtual void onDraw(SkCanvas*, SkScalar, SkScalar, const SkPaint*) SK_OVERRIDE;
 
 private:
-    GrTexture*  fTexture;
     SkBitmap    fBitmap;
 
     typedef SkImage_Base INHERITED;
 };
 
-SK_DEFINE_INST_COUNT(SkImage_Gpu)
-
 ///////////////////////////////////////////////////////////////////////////////
 
-SkImage_Gpu::SkImage_Gpu(GrTexture* texture)
-    : INHERITED(texture->width(), texture->height())
-    , fTexture(texture) {
+SkImage_Gpu::SkImage_Gpu(GrContext* context, const GrPlatformTextureDesc& desc)
+        : INHERITED(desc.fWidth, desc.fHeight) {
+#if 0
+    bool isOpaque;
+    SkBitmap::Config config = SkImageInfoToBitmapConfig(info, &isOpaque);
 
-    SkASSERT(NULL != fTexture);
-    fTexture->ref();
-    fBitmap.setConfig(SkBitmap::kARGB_8888_Config, fTexture->width(), fTexture->height());
-    fBitmap.setPixelRef(new SkGrPixelRef(fTexture))->unref();
+    fBitmap.setConfig(config, info.fWidth, info.fHeight, rowBytes);
+    fBitmap.setPixelRef(SkNEW_ARGS(SkDataPixelRef, (data)))->unref();
+    fBitmap.setIsOpaque(isOpaque);
+    fBitmap.setImmutable();
+#endif
 }
 
-SkImage_Gpu::~SkImage_Gpu() {
-    SkSafeUnref(fTexture);
-}
+SkImage_Gpu::~SkImage_Gpu() {}
 
-void SkImage_Gpu::onDraw(SkCanvas* canvas, SkScalar x, SkScalar y,
-                         const SkPaint* paint) {
+void SkImage_Gpu::onDraw(SkCanvas* canvas, SkScalar x, SkScalar y, const SkPaint* paint) {
     canvas->drawBitmap(fBitmap, x, y, paint);
 }
 
-void SkImage_Gpu::setTexture(GrTexture* texture) {
-
-    if (texture == fTexture) {
-        return;
-    }
-
-    SkRefCnt_SafeAssign(fTexture, texture);
-    fBitmap.setPixelRef(new SkGrPixelRef(texture))->unref();
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 
-SkImage* SkImage::NewTexture(GrTexture* texture) {
-    if (NULL == texture) {
+SkImage* SkImage::NewRasterCopy(NewTexture(GrContext* context,
+                                           const GrPlatformTextureDesc& desc) {
+    if (NULL == context) {
+        return NULL;
+    }
+    if (!SkImage_Gpu::ValidArgs(context, desc)) {
         return NULL;
     }
 
-    return SkNEW_ARGS(SkImage_Gpu, (texture));
+    return SkNEW_ARGS(SkImage_Gpu, (context, desc));
 }
 
-GrTexture* SkTextureImageGetTexture(SkImage* image) {
-    return ((SkImage_Gpu*)image)->getTexture();
-}
-
-void SkTextureImageSetTexture(SkImage* image, GrTexture* texture) {
-    ((SkImage_Gpu*)image)->setTexture(texture);
-}

@@ -25,56 +25,80 @@
 
 namespace webrtc {
 
-struct ACMTestISACConfig {
-  int32_t currentRateBitPerSec;
-  int16_t currentFrameSizeMsec;
-  uint32_t maxRateBitPerSec;
-  int16_t maxPayloadSizeByte;
-  int16_t encodingMode;
-  uint32_t initRateBitPerSec;
-  int16_t initFrameSizeInMsec;
-  bool enforceFrameSize;
+struct ACMTestISACConfig
+{
+    WebRtc_Word32  currentRateBitPerSec;
+    WebRtc_Word16  currentFrameSizeMsec;
+    WebRtc_UWord32 maxRateBitPerSec;
+    WebRtc_Word16  maxPayloadSizeByte;
+    WebRtc_Word16  encodingMode;
+    WebRtc_UWord32 initRateBitPerSec;
+    WebRtc_Word16  initFrameSizeInMsec;
+    bool           enforceFrameSize;
 };
 
-class ISACTest : public ACMTest {
- public:
-  ISACTest(int testMode);
-  ~ISACTest();
 
-  void Perform();
- private:
-  void Setup();
 
-  void Run10ms();
+class ISACTest : public ACMTest
+{
+public:
+    ISACTest(int testMode);
+    ~ISACTest();
 
-  void EncodeDecode(int testNr, ACMTestISACConfig& wbISACConfig,
-                    ACMTestISACConfig& swbISACConfig);
+    void Perform();
+private:
+    WebRtc_Word16 Setup();
+    WebRtc_Word16 SetupConference();
+    WebRtc_Word16 RunConference();    
+    
 
-  void SwitchingSamplingRate(int testNr, int maxSampRateChange);
+    void Run10ms();
 
-  AudioCodingModule* _acmA;
-  AudioCodingModule* _acmB;
+    void EncodeDecode(
+        int                testNr,
+        ACMTestISACConfig& wbISACConfig,
+        ACMTestISACConfig& swbISACConfig);
+    
+    void TestBWE(
+        int testNr);
 
-  Channel* _channel_A2B;
-  Channel* _channel_B2A;
+    void SwitchingSamplingRate(
+        int testNr, 
+        int maxSampRateChange);
 
-  PCMFile _inFileA;
-  PCMFile _inFileB;
+    AudioCodingModule* _acmA;
+    AudioCodingModule* _acmB;
 
-  PCMFile _outFileA;
-  PCMFile _outFileB;
+    Channel* _channel_A2B;
+    Channel* _channel_B2A;
 
-  uint8_t _idISAC16kHz;
-  uint8_t _idISAC32kHz;
-  CodecInst _paramISAC16kHz;
-  CodecInst _paramISAC32kHz;
+    PCMFile _inFileA;
+    PCMFile _inFileB;
 
-  std::string file_name_swb_;
+    PCMFile _outFileA;
+    PCMFile _outFileB;
 
-  ACMTestTimer _myTimer;
-  int _testMode;
+    WebRtc_UWord8 _idISAC16kHz;
+    WebRtc_UWord8 _idISAC32kHz;
+    CodecInst _paramISAC16kHz;
+    CodecInst _paramISAC32kHz;
+
+    std::string file_name_swb_;
+
+    ACMTestTimer _myTimer;
+    int _testMode;
+    
+    AudioCodingModule* _defaultACM32;
+    AudioCodingModule* _defaultACM16;
+    
+    AudioCodingModule* _confACM[NO_OF_CLIENTS];
+    AudioCodingModule* _clientACM[NO_OF_CLIENTS];
+    Channel*               _conf2Client[NO_OF_CLIENTS];
+    Channel*               _client2Conf[NO_OF_CLIENTS];
+
+    PCMFile                _clientOutFile[NO_OF_CLIENTS];
 };
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif

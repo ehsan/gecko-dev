@@ -17,8 +17,6 @@
 #include "MPAPI.h"
 
 #define MAX_DROPPED_FRAMES 25
-// Try not to spend more than this much time in a single call to DecodeVideoFrame.
-#define MAX_VIDEO_DECODE_SECONDS 3.0
 
 using namespace android;
 
@@ -37,7 +35,6 @@ MediaOmxReader::MediaOmxReader(AbstractMediaDecoder *aDecoder) :
 MediaOmxReader::~MediaOmxReader()
 {
   ResetDecode();
-  mOmxDecoder.clear();
 }
 
 nsresult MediaOmxReader::Init(MediaDecoderReader* aCloneDonor)
@@ -45,78 +42,18 @@ nsresult MediaOmxReader::Init(MediaDecoderReader* aCloneDonor)
   return NS_OK;
 }
 
-bool MediaOmxReader::IsWaitingMediaResources()
-{
-  if (!mOmxDecoder.get()) {
-    return false;
-  }
-  return mOmxDecoder->IsWaitingMediaResources();
-}
-
-bool MediaOmxReader::IsDormantNeeded()
-{
-  if (!mOmxDecoder.get()) {
-    return false;
-  }
-  return mOmxDecoder->IsDormantNeeded();
-}
-
-void MediaOmxReader::ReleaseMediaResources()
-{
-  ResetDecode();
-  if (mOmxDecoder.get()) {
-    mOmxDecoder->ReleaseMediaResources();
-  }
-}
-
-void MediaOmxReader::ReleaseDecoder()
-{
-  if (mOmxDecoder.get()) {
-    mOmxDecoder->ReleaseDecoder();
-  }
-}
-
-nsresult MediaOmxReader::InitOmxDecoder()
-{
-  if (!mOmxDecoder.get()) {
-    //register sniffers, if they are not registered in this process.
-    DataSource::RegisterDefaultSniffers();
-    mDecoder->GetResource()->SetReadMode(MediaCacheStream::MODE_METADATA);
-
-    sp<DataSource> dataSource = new MediaStreamSource(mDecoder->GetResource(), mDecoder);
-    dataSource->initCheck();
-
-    sp<MediaExtractor> extractor = MediaExtractor::Create(dataSource);
-    if (!extractor.get()) {
-      return NS_ERROR_FAILURE;
-    }
-    mOmxDecoder = new OmxDecoder(mDecoder->GetResource(), mDecoder);
-    if (!mOmxDecoder->Init(extractor)) {
-      return NS_ERROR_FAILURE;
-    }
-  }
-  return NS_OK;
-}
-
-nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
-                                      MetadataTags** aTags)
+nsresult MediaOmxReader::ReadMetadata(VideoInfo* aInfo,
+                                        MetadataTags** aTags)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
   *aTags = nullptr;
 
-  // Initialize the internal OMX Decoder.
-  nsresult rv = InitOmxDecoder();
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  if (!mOmxDecoder->TryLoad()) {
-    return NS_ERROR_FAILURE;
-  }
-
-  if (IsWaitingMediaResources()) {
-    return NS_OK;
+  if (!mOmxDecoder.get()) {
+    mOmxDecoder = new OmxDecoder(mDecoder->GetResource(), mDecoder);
+    if (!mOmxDecoder->Init()) {
+      return NS_ERROR_FAILURE;
+    }
   }
 
   // Set the total duration (the max of the audio and video track).
@@ -141,8 +78,8 @@ nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
     }
 
     // Video track's frame sizes will not overflow. Activate the video track.
-    mHasVideo = mInfo.mVideo.mHasVideo = true;
-    mInfo.mVideo.mDisplay = displaySize;
+    mHasVideo = mInfo.mHasVideo = true;
+    mInfo.mDisplay = displaySize;
     mPicture = pictureRect;
     mInitialFrame = frameSize;
     VideoFrameContainer* container = mDecoder->GetVideoFrameContainer();
@@ -156,9 +93,9 @@ nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
   if (mOmxDecoder->HasAudio()) {
     int32_t numChannels, sampleRate;
     mOmxDecoder->GetAudioParameters(&numChannels, &sampleRate);
-    mHasAudio = mInfo.mAudio.mHasAudio = true;
-    mInfo.mAudio.mChannels = numChannels;
-    mInfo.mAudio.mRate = sampleRate;
+    mHasAudio = mInfo.mHasAudio = true;
+    mInfo.mAudioChannels = numChannels;
+    mInfo.mAudioRate = sampleRate;
   }
 
  *aInfo = mInfo;
@@ -175,11 +112,13 @@ nsresult MediaOmxReader::ResetDecode()
   if (container) {
     container->ClearCurrentFrame();
   }
+
+  mOmxDecoder.clear();
   return NS_OK;
 }
 
 bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
-                                      int64_t aTimeThreshold)
+                                        int64_t aTimeThreshold)
 {
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
@@ -191,33 +130,26 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
     aTimeThreshold = mVideoSeekTimeUs;
   }
 
-  TimeStamp start = TimeStamp::Now();
-
-  // Read next frame. Don't let this loop run for too long.
-  while ((TimeStamp::Now() - start) < TimeDuration::FromSeconds(MAX_VIDEO_DECODE_SECONDS)) {
+  // Read next frame
+  while (true) {
     MPAPI::VideoFrame frame;
     frame.mGraphicBuffer = nullptr;
     frame.mShouldSkip = false;
     if (!mOmxDecoder->ReadVideo(&frame, aTimeThreshold, aKeyframeSkip, doSeek)) {
+      mVideoQueue.Finish();
       return false;
-    }
-    doSeek = false;
-
-    // Ignore empty buffer which stagefright media read will sporadically return
-    if (frame.mSize == 0 && !frame.mGraphicBuffer) {
-      continue;
     }
 
     parsed++;
     if (frame.mShouldSkip && mSkipCount < MAX_DROPPED_FRAMES) {
       mSkipCount++;
-      continue;
+      return true;
     }
 
     mSkipCount = 0;
 
     mVideoSeekTimeUs = -1;
-    aKeyframeSkip = false;
+    doSeek = aKeyframeSkip = false;
 
     nsIntRect picture = mPicture;
     if (frame.Y.mWidth != mInitialFrame.width ||
@@ -260,21 +192,21 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
       b.mPlanes[2].mOffset = frame.Cr.mOffset;
       b.mPlanes[2].mSkip = frame.Cr.mSkip;
 
-      v = VideoData::Create(mInfo.mVideo,
+      v = VideoData::Create(mInfo,
                             mDecoder->GetImageContainer(),
                             pos,
                             frame.mTimeUs,
-                            1, // We don't know the duration.
+                            frame.mTimeUs+1, // We don't know the end time.
                             b,
                             frame.mKeyFrame,
                             -1,
                             picture);
     } else {
-      v = VideoData::Create(mInfo.mVideo,
+      v = VideoData::Create(mInfo,
                             mDecoder->GetImageContainer(),
                             pos,
                             frame.mTimeUs,
-                            1, // We don't know the duration.
+                            frame.mTimeUs+1, // We don't know the end time.
                             frame.mGraphicBuffer,
                             frame.mKeyFrame,
                             -1,
@@ -297,15 +229,6 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
   return true;
 }
 
-void MediaOmxReader::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset)
-{
-  android::OmxDecoder *omxDecoder = mOmxDecoder.get();
-
-  if (omxDecoder) {
-    omxDecoder->NotifyDataArrived(aBuffer, aLength, aOffset);
-  }
-}
-
 bool MediaOmxReader::DecodeAudioData()
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
@@ -316,6 +239,7 @@ bool MediaOmxReader::DecodeAudioData()
   // Read next frame
   MPAPI::AudioFrame frame;
   if (!mOmxDecoder->ReadAudio(&frame, mAudioSeekTimeUs)) {
+    mAudioQueue.Finish();
     return false;
   }
   mAudioSeekTimeUs = -1;
@@ -347,10 +271,6 @@ nsresult MediaOmxReader::Seek(int64_t aTarget, int64_t aStartTime, int64_t aEndT
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
-  VideoFrameContainer* container = mDecoder->GetVideoFrameContainer();
-  if (container && container->GetImageContainer()) {
-    container->GetImageContainer()->ClearAllImagesExceptFront();
-  }
   mVideoQueue.Reset();
   mAudioQueue.Reset();
 
@@ -419,7 +339,7 @@ void MediaOmxReader::OnDecodeThreadFinish() {
 
 void MediaOmxReader::OnDecodeThreadStart() {
   if (mOmxDecoder.get()) {
-    DebugOnly<nsresult> result = mOmxDecoder->Play();
+    nsresult result = mOmxDecoder->Play();
     NS_ASSERTION(result == NS_OK, "OmxDecoder should be in play state to continue decoding");
   }
 }

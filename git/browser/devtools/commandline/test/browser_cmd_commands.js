@@ -3,6 +3,8 @@
 
 // Test various GCLI commands
 
+let HUDService = (Cu.import("resource:///modules/HUDService.jsm", {})).HUDService;
+
 const TEST_URI = "data:text/html;charset=utf-8,gcli-commands";
 
 let tests = {};
@@ -13,8 +15,19 @@ function test() {
   }).then(finish);
 }
 
+tests.testEcho = function(options) {
+  return helpers.audit(options, [
+    {
+      setup: "echo message",
+      exec: {
+        output: "message",
+      }
+    }
+  ]);
+};
+
 tests.testConsole = function(options) {
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
   let hud = null;
 
   let onWebConsoleOpen = function(subject) {
@@ -22,16 +35,15 @@ tests.testConsole = function(options) {
 
     subject.QueryInterface(Ci.nsISupportsString);
     hud = HUDService.getHudReferenceById(subject.data);
-    ok(hud, "console open");
+    ok(hud.hudId in HUDService.hudReferences, "console open");
 
     hud.jsterm.execute("pprint(window)", onExecute);
   }
   Services.obs.addObserver(onWebConsoleOpen, "web-console-created", false);
 
-  function onExecute (msg) {
-    ok(msg, "output for pprint(window)");
-
-    hud.jsterm.once("messages-cleared", onClear);
+  let onExecute = function() {
+    let labels = hud.outputNode.querySelectorAll(".webconsole-msg-output");
+    ok(labels.length > 0, "output for pprint(window)");
 
     helpers.audit(options, [
       {
@@ -39,28 +51,30 @@ tests.testConsole = function(options) {
         exec: {
           output: ""
         },
-      }
-    ]);
-  }
-
-  function onClear() {
-    let labels = hud.outputNode.querySelectorAll(".message");
-    is(labels.length, 0, "no output in console");
-
-    helpers.audit(options, [
+        post: function() {
+          let labels = hud.outputNode.querySelectorAll(".webconsole-msg-output");
+          // Bug 845827 - The GCLI "console clear" command doesn't always work
+          // is(labels.length, 0, "no output in console");
+        }
+      },
       {
         setup: "console close",
         exec: {
           output: ""
         },
         post: function() {
-          ok(!HUDService.getHudReferenceById(hud.hudId), "console closed");
+          ok(!(hud.hudId in HUDService.hudReferences), "console closed");
         }
       }
     ]).then(function() {
-      deferred.resolve();
+      // FIXME: Remove this hack once bug 842347 is fixed
+      // Gak - our promises impl causes so many stack frames that we blow up the
+      // JS engine. Jumping to a new event with a truncated stack solves this.
+      executeSoon(function() {
+        deferred.resolve();
+      });
     });
-  }
+  };
 
   helpers.audit(options, [
     {

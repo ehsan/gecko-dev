@@ -1,6 +1,10 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+let tempScope = {};
+Cu.import("resource:///modules/devtools/Target.jsm", tempScope);
+let TargetFactory = tempScope.TargetFactory;
+
 let DOMUtils = Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils);
 
 let doc;
@@ -51,11 +55,11 @@ function createDocument()
 function selectNode(aInspector)
 {
   inspector = aInspector;
+  inspector.selection.setNode(div);
   inspector.sidebar.once("ruleview-ready", function() {
     ruleview = inspector.sidebar.getWindowForTab("ruleview").ruleview.view;
     inspector.sidebar.select("ruleview");
-    inspector.selection.setNode(div);
-    inspector.once("inspector-updated", performTests);
+    performTests();
   });
 }
 
@@ -64,58 +68,40 @@ function performTests()
   // toggle the class
   inspector.togglePseudoClass(pseudo);
 
-  // Wait for the "pseudoclass" event so we know the
-  // inspector has been told of the pseudoclass lock change.
-  inspector.selection.once("pseudoclass", () => {
-    // Give the rule view time to update.
-    inspector.once("rule-view-refreshed", () => {
-      testAdded();
-      // Change the pseudo class and give the rule view time to update.
-      inspector.togglePseudoClass(pseudo);
-      inspector.selection.once("pseudoclass", () => {
-        inspector.once("rule-view-refreshed", () => {
-          testRemoved();
-          testRemovedFromUI();
+  testAdded();
 
-          // toggle it back on
-          inspector.togglePseudoClass(pseudo);
-          inspector.selection.once("pseudoclass", () => {
-            testNavigate(() => {
-              // close the inspector
-              finishUp();
-            });
-          });
-        });
-      });
-    });
-  });
+  // toggle the lock off
+  inspector.togglePseudoClass(pseudo);
+
+  testRemoved();
+  testRemovedFromUI();
+
+  // toggle it back on
+  inspector.togglePseudoClass(pseudo);
+
+  testNavigate();
+
+  // close the inspector
+  finishUp();
 }
 
-function testNavigate(callback)
+function testNavigate()
 {
   inspector.selection.setNode(parentDiv);
-  inspector.once("inspector-updated", () => {
 
-    // make sure it's still on after naving to parent
-    is(DOMUtils.hasPseudoClassLock(div, pseudo), true,
-         "pseudo-class lock is still applied after inspecting ancestor");
+  // make sure it's still on after naving to parent
+  is(DOMUtils.hasPseudoClassLock(div, pseudo), true,
+       "pseudo-class lock is still applied after inspecting ancestor");
 
-    inspector.selection.setNode(div2);
-    inspector.selection.once("pseudoclass", () => {
-      // make sure it's removed after naving to a non-hierarchy node
-      is(DOMUtils.hasPseudoClassLock(div, pseudo), false,
-           "pseudo-class lock is removed after inspecting sibling node");
+  inspector.selection.setNode(div2);
 
-      // toggle it back on
-      inspector.selection.setNode(div);
-      inspector.once("inspector-updated", () => {
-        inspector.togglePseudoClass(pseudo);
-        inspector.selection.once("pseudoclass", () => {
-          callback();
-        });
-      });
-    });
-  });
+  // make sure it's removed after naving to a non-hierarchy node
+  is(DOMUtils.hasPseudoClassLock(div, pseudo), false,
+       "pseudo-class lock is removed after inspecting sibling node");
+
+  // toggle it back on
+  inspector.selection.setNode(div);
+  inspector.togglePseudoClass(pseudo);
 }
 
 function testAdded()

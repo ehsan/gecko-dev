@@ -28,30 +28,11 @@
     "n_values": 21,
     "description": "Maximum number of concurrent threads reached during a given download session"
   },
-  "COMPARTMENT_DONATED_NODE": {
-    "kind": "boolean",
-    "description": "When a compartment is destroyed, we record whether one of its nodes was ever adopted into another compartment"
-  },
-  "COMPARTMENT_ADOPTED_NODE": {
-    "kind": "boolean",
-    "description": "When a compartment is destroyed, we record whether it had ever adopted a node from another compartment"
-  },
-  "COMPARTMENT_LIVING_ADOPTERS": {
-    "kind": "enumerated",
-    "n_values": 10,
-    "description": "The number of living compartments for which COMPARTMENT_ADOPTED_NODE is true"
-  },
   "CYCLE_COLLECTOR": {
     "kind": "exponential",
     "high": "10000",
     "n_buckets": 50,
     "description": "Time spent on one cycle collection (ms)"
-  },
-  "CYCLE_COLLECTOR_WORKER": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 50,
-    "description": "Time spent on one cycle collection in a worker (ms)"
   },
   "CYCLE_COLLECTOR_FULL": {
     "kind": "exponential",
@@ -73,23 +54,11 @@
     "n_buckets": 50,
     "description": "Number of ref counted objects visited by the cycle collector"
   },
-  "CYCLE_COLLECTOR_WORKER_VISITED_REF_COUNTED": {
-    "kind": "exponential",
-    "high": "300000",
-    "n_buckets": 50,
-    "description": "Number of ref counted objects visited by the cycle collector in a worker"
-  },
   "CYCLE_COLLECTOR_VISITED_GCED": {
     "kind": "exponential",
     "high": "300000",
     "n_buckets": 50,
     "description": "Number of JS objects visited by the cycle collector"
-  },
-  "CYCLE_COLLECTOR_WORKER_VISITED_GCED": {
-    "kind": "exponential",
-    "high": "300000",
-    "n_buckets": 50,
-    "description": "Number of JS objects visited by the cycle collector in a worker"
   },
   "CYCLE_COLLECTOR_COLLECTED": {
     "kind": "exponential",
@@ -97,19 +66,9 @@
     "n_buckets": 50,
     "description": "Number of objects collected by the cycle collector"
   },
-  "CYCLE_COLLECTOR_WORKER_COLLECTED": {
-    "kind": "exponential",
-    "high": "100000",
-    "n_buckets": 50,
-    "description": "Number of objects collected by the cycle collector in a worker"
-  },
   "CYCLE_COLLECTOR_NEED_GC": {
     "kind": "boolean",
     "description": "Needed garbage collection before cycle collection."
-  },
-  "CYCLE_COLLECTOR_WORKER_NEED_GC": {
-    "kind": "boolean",
-    "description": "Needed garbage collection before cycle collection in a worker."
   },
   "CYCLE_COLLECTOR_TIME_BETWEEN": {
     "kind": "exponential",
@@ -122,20 +81,6 @@
     "high": "10000",
     "n_buckets": 50,
     "description": "Time spent on one ContentUnbinder (ms)"
-  },
-  "CYCLE_COLLECTOR_OOM": {
-    "kind": "flag",
-    "description": "Set if the cycle collector ran out of memory at some point"
-  },
-  "CYCLE_COLLECTOR_WORKER_OOM": {
-    "kind": "flag",
-    "description": "Set if the cycle collector in a worker ran out of memory at some point"
-  },
-  "CYCLE_COLLECTOR_ASYNC_SNOW_WHITE_FREEING": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 50,
-    "description": "Time spent on one asynchronous SnowWhite freeing (ms)"
   },
   "FORGET_SKIPPABLE_MAX": {
     "kind": "exponential",
@@ -750,26 +695,12 @@
     "extended_statistics_ok": true,
     "description": "HTTP page: Open -> cache read start (ms)"
   },
-  "HTTP_PAGE_OPEN_TO_FIRST_FROM_CACHE_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP page: Open -> cache read start (ms), [cache2]"
-  },
   "HTTP_PAGE_CACHE_READ_TIME": {
     "kind": "exponential",
     "high": "30000",
     "n_buckets": 50,
     "extended_statistics_ok": true,
     "description": "HTTP page: Cache read time (ms)"
-  },
-  "HTTP_PAGE_CACHE_READ_TIME_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP page: Cache read time (ms) [cache2]"
   },
   "HTTP_PAGE_REVALIDATION": {
     "kind": "exponential",
@@ -785,13 +716,6 @@
     "extended_statistics_ok": true,
     "description": "HTTP page: Overall load time - all (ms)"
   },
-  "HTTP_PAGE_COMPLETE_LOAD_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP page: Overall load time - all (ms) [cache2]"
-  },
   "HTTP_PAGE_COMPLETE_LOAD_CACHED": {
     "kind": "exponential",
     "high": "30000",
@@ -799,26 +723,12 @@
     "extended_statistics_ok": true,
     "description": "HTTP page: Overall load time - cache hits (ms)"
   },
-  "HTTP_PAGE_COMPLETE_LOAD_CACHED_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP page: Overall load time - cache hits (ms) [cache2]"
-  },
   "HTTP_PAGE_COMPLETE_LOAD_NET": {
     "kind": "exponential",
     "high": "30000",
     "n_buckets": 50,
     "extended_statistics_ok": true,
     "description": "HTTP page: Overall load time - network (ms)"
-  },
-  "HTTP_PAGE_COMPLETE_LOAD_NET_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP page: Overall load time - network (ms) [cache2]"
   },
   "HTTP_SUB_DNS_ISSUE_TIME": {
     "kind": "exponential",
@@ -869,26 +779,12 @@
     "extended_statistics_ok": true,
     "description": "HTTP subitem: Open -> cache read start (ms)"
   },
-  "HTTP_SUB_OPEN_TO_FIRST_FROM_CACHE_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP subitem: Open -> cache read start (ms) [cache2]"
-  },
   "HTTP_SUB_CACHE_READ_TIME": {
     "kind": "exponential",
     "high": "30000",
     "n_buckets": 50,
     "extended_statistics_ok": true,
     "description": "HTTP subitem: Cache read time (ms)"
-  },
-  "HTTP_SUB_CACHE_READ_TIME_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP subitem: Cache read time (ms) [cache2]"
   },
   "HTTP_SUB_REVALIDATION": {
     "kind": "exponential",
@@ -904,13 +800,6 @@
     "extended_statistics_ok": true,
     "description": "HTTP subitem: Overall load time - all (ms)"
   },
-  "HTTP_SUB_COMPLETE_LOAD_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP subitem: Overall load time - all (ms) [cache2]"
-  },
   "HTTP_SUB_COMPLETE_LOAD_CACHED": {
     "kind": "exponential",
     "high": "30000",
@@ -918,26 +807,12 @@
     "extended_statistics_ok": true,
     "description": "HTTP subitem: Overall load time - cache hits (ms)"
   },
-  "HTTP_SUB_COMPLETE_LOAD_CACHED_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP subitem: Overall load time - cache hits (ms) [cache2]"
-  },
   "HTTP_SUB_COMPLETE_LOAD_NET": {
     "kind": "exponential",
     "high": "30000",
     "n_buckets": 50,
     "extended_statistics_ok": true,
     "description": "HTTP subitem: Overall load time - network (ms)"
-  },
-  "HTTP_SUB_COMPLETE_LOAD_NET_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP subitem: Overall load time - network (ms) [cache2]"
   },
   "HTTP_PROXY_TYPE": {
     "kind": "enumerated",
@@ -952,34 +827,6 @@
     "kind": "boolean",
     "description": "Whether a HTTP base page load was over SSL or not."
   },
-  "HTTPDATA_DAILY_ETHERNET_IN": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 200,
-    "extended_statistics_ok": true,
-    "description": "MB of http ethernet data recvd in one day"
-  },
-  "HTTPDATA_DAILY_ETHERNET_OUT": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 200,
-    "extended_statistics_ok": true,
-    "description": "MB of http ethernet data sent in one day"
-  },
-  "HTTPDATA_DAILY_CELL_IN": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 200,
-    "extended_statistics_ok": true,
-    "description": "MB of http cell data recvd in one day"
-  },
-  "HTTPDATA_DAILY_CELL_OUT": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 200,
-    "extended_statistics_ok": true,
-    "description": "MB of http cell data sent in one day"
-  },
   "SSL_HANDSHAKE_VERSION": {
     "kind": "enumerated",
     "n_values": 16,
@@ -991,12 +838,6 @@
     "n_buckets": 200,
     "extended_statistics_ok": true,
     "description": "ms of SSL wait time including TCP and proxy tunneling"
-  },
-  "SSL_TIME_UNTIL_HANDSHAKE_FINISHED": {
-    "kind": "exponential",
-    "high": "60000",
-    "n_buckets": 200,
-    "description": "ms of SSL wait time for full handshake including TCP and proxy tunneling"
   },
   "SSL_BYTES_BEFORE_CERT_CALLBACK": {
     "kind": "exponential",
@@ -1201,11 +1042,6 @@
     "n_values": 5,
     "description": "HTTP Cache Hit, Reval, Failed-Reval, Miss"
   },
-  "HTTP_CACHE_DISPOSITION_2_V2": {
-    "kind": "enumerated",
-    "n_values": 5,
-    "description": "HTTP Cache v2 Hit, Reval, Failed-Reval, Miss"
-  },
   "HTTP_DISK_CACHE_DISPOSITION_2": {
     "kind": "enumerated",
     "n_values": 5,
@@ -1220,10 +1056,6 @@
     "kind": "enumerated",
     "n_values": 5,
     "description": "HTTP Offline Cache Hit, Reval, Failed-Reval, Miss"
-  },
-  "HTTP_OFFLINE_CACHE_DOCUMENT_LOAD": {
-    "kind": "boolean",
-    "description": "Rate of page load from offline cache"
   },
   "CACHE_DEVICE_SEARCH_2": {
     "kind": "exponential",
@@ -1721,11 +1553,6 @@
     "n_buckets": 50,
     "description": "Time spent waiting on the cache service lock (ms) on the main thread in NSASYNCDOOMEVENT_RUN"
   },
-  "DNT_USAGE": {
-    "kind": "enumerated",
-    "n_values": 3,
-    "description": "I want to be tracked, I do NOT want to be tracked, DNT unset"
-  },
   "DNS_LOOKUP_METHOD2": {
     "kind": "enumerated",
     "n_values": 16,
@@ -1758,126 +1585,6 @@
     "n_buckets": 50,
     "extended_statistics_ok": true,
     "description": "Time for an unsuccessful DNS OS resolution (msec)"
-  },
-  "SEER_PREDICT_ATTEMPTS": {
-      "kind": "exponential",
-      "high": "1000 * 1000",
-      "n_buckets": 50,
-      "extended_statistics_ok": true,
-      "description": "Number of times nsINetworkSeer::Predict is called and attempts to predict"
-  },
-  "SEER_LEARN_ATTEMPTS": {
-      "kind": "exponential",
-      "high": "1000 * 1000",
-      "n_buckets": 50,
-      "extended_statistics_ok": true,
-      "description": "Number of times nsINetworkSeer::Learn is called and attempts to learn"
-  },
-  "SEER_PREDICT_FULL_QUEUE": {
-      "kind": "exponential",
-      "high": "60000",
-      "n_buckets": 50,
-      "extended_statistics_ok": true,
-      "description": "Number of times nsINetworkSeer::Predict doesn't continue because the queue is full"
-  },
-  "SEER_LEARN_FULL_QUEUE": {
-      "kind": "exponential",
-      "high": "60000",
-      "n_buckets": 50,
-      "extended_statistics_ok": true,
-      "description": "Number of times nsINetworkSeer::Learn doesn't continue because the queue is full"
-  },
-  "SEER_PREDICT_WAIT_TIME": {
-      "kind": "exponential",
-      "high": "3000",
-      "n_buckets": 10,
-      "extended_statistics_ok": true,
-      "description": "Amount of time a predict event waits in the queue (ms)"
-  },
-  "SEER_PREDICT_WORK_TIME": {
-      "kind": "exponential",
-      "high": "3000",
-      "n_buckets": 10,
-      "extended_statistics_ok": true,
-      "description": "Amount of time spent doing the work for predict (ms)"
-  },
-  "SEER_LEARN_WAIT_TIME": {
-      "kind": "exponential",
-      "high": "3000",
-      "n_buckets": 10,
-      "extended_statistics_ok": true,
-      "description": "Amount of time a learn event waits in the queue (ms)"
-  },
-  "SEER_LEARN_WORK_TIME": {
-      "kind": "exponential",
-      "high": "3000",
-      "n_buckets": 10,
-      "extended_statistics_ok": true,
-      "description": "Amount of time spent doing the work for learn (ms)"
-  },
-  "SEER_TOTAL_PREDICTIONS": {
-      "kind": "exponential",
-      "high": "1000 * 1000",
-      "n_buckets": 50,
-      "extended_statistics_ok": true,
-      "description": "How many actual predictions (preresolves, preconnects, ...) happen"
-  },
-  "SEER_TOTAL_PRECONNECTS": {
-      "kind": "exponential",
-      "high": "1000 * 1000",
-      "n_buckets": 50,
-      "extended_statistics_ok": true,
-      "description": "How many actual preconnects happen"
-  },
-  "SEER_TOTAL_PRERESOLVES": {
-      "kind": "exponential",
-      "high": "1000 * 1000",
-      "n_buckets": 50,
-      "extended_statistics_ok": true,
-      "description": "How many actual preresolves happen"
-  },
-  "SEER_PREDICTIONS_CALCULATED": {
-      "kind": "exponential",
-      "high": "1000 * 1000",
-      "n_buckets": 50,
-      "extended_statistics_ok": true,
-      "description": "How many prediction calculations are performed"
-  },
-  "SEER_GLOBAL_DEGRADATION": {
-      "kind": "linear",
-      "high": "100",
-      "n_buckets": 50,
-      "description": "The global degradation calculated"
-  },
-  "SEER_SUBRESOURCE_DEGRADATION": {
-      "kind": "linear",
-      "high": "100",
-      "n_buckets": 50,
-      "description": "The degradation calculated for a subresource"
-  },
-  "SEER_BASE_CONFIDENCE": {
-      "kind": "linear",
-      "high": "100",
-      "n_buckets": 50,
-      "description": "The base confidence calculated for a subresource"
-  },
-  "SEER_CONFIDENCE": {
-      "kind": "linear",
-      "high": "100",
-      "n_buckets": 50,
-      "description": "The final confidence calculated for a subresource"
-  },
-  "SEER_PREDICT_TIME_TO_ACTION": {
-      "kind": "exponential",
-      "high": "3000",
-      "n_buckets": 10,
-      "description": "How long it takes from the time Predict() is called to the time we take action"
-  },
-  "SEER_PREDICT_TIME_TO_INACTION": {
-      "kind": "exponential",
-      "high": "3000",
-      "n_buckets": 10,
-      "description": "How long it takes from the time Predict() is called to the time we figure out there's nothing to do"
   },
   "FIND_PLUGINS": {
     "kind": "exponential",
@@ -2233,13 +1940,6 @@
     "extended_statistics_ok": true,
     "description": "Total Time spent (ms) during disk cache showdown"
   },
-  "NETWORK_DISK_CACHE_SHUTDOWN_V2": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 10,
-    "extended_statistics_ok": true,
-    "description": "Total Time spent (ms) during disk cache showdown [cache2]"
-  },
   "NETWORK_DISK_CACHE_SHUTDOWN_CLEAR_PRIVATE": {
     "kind": "exponential",
     "high": "10000",
@@ -2267,6 +1967,62 @@
     "n_buckets": 10,
     "extended_statistics_ok": true,
     "description": "Time spent in nsDiskCacheStreamIO::Close() on the main thread (ms)"
+  },
+  "HTTP_PLT_RATE_PACING_0": {
+    "kind": "exponential",
+    "low": 100,
+    "high": "30000",
+    "n_buckets": 100,
+    "extended_statistics_ok": true,
+    "description": "HTTP: Total page load time (ms) with rate pacing algorithm 0 (burst=32, hz=100, par=6)"
+  },
+  "HTTP_PLT_RATE_PACING_1": {
+    "kind": "exponential",
+    "low": 100,
+    "high": "30000",
+    "n_buckets": 100,
+    "extended_statistics_ok": true,
+    "description": "HTTP: Total page load time (ms) with rate pacing algorithm 1 (burst=16, hz=100, par=6)"
+  },
+  "HTTP_PLT_RATE_PACING_2": {
+    "kind": "exponential",
+    "low": 100,
+    "high": "30000",
+    "n_buckets": 100,
+    "extended_statistics_ok": true,
+    "description": "HTTP: Total page load time (ms) with rate pacing algorithm 2 (burst=32, hz=200, par=6)"
+  },
+  "HTTP_PLT_RATE_PACING_3": {
+    "kind": "exponential",
+    "low": 100,
+    "high": "30000",
+    "n_buckets": 100,
+    "extended_statistics_ok": true,
+    "description": "HTTP: Total page load time (ms) with rate pacing algorithm 3 (burst=32, hz=50, par=6)"
+  },
+  "HTTP_PLT_RATE_PACING_4": {
+    "kind": "exponential",
+    "low": 100,
+    "high": "30000",
+    "n_buckets": 100,
+    "extended_statistics_ok": true,
+    "description": "HTTP: Total page load time (ms) with rate pacing algorithm 4 (burst=32, hz=1, par=8)"
+  },
+  "HTTP_PLT_RATE_PACING_5": {
+    "kind": "exponential",
+    "low": 100,
+    "high": "30000",
+    "n_buckets": 100,
+    "extended_statistics_ok": true,
+    "description": "HTTP: Total page load time (ms) with rate pacing algorithm 5 (burst=32, hz=1, par=16)"
+  },
+  "HTTP_PLT_RATE_PACING_6": {
+    "kind": "exponential",
+    "low": 100,
+    "high": "30000",
+    "n_buckets": 100,
+    "extended_statistics_ok": true,
+    "description": "HTTP: Total page load time (ms) with rate pacing algorithm 6 (burst=1000, hz=1000, par=1000)"
   },
   "IDLE_NOTIFY_BACK_MS": {
     "kind": "exponential",
@@ -2526,36 +2282,6 @@
     "extended_statistics_ok": true,
     "description": "PLACES: Time to calculate frecency of a page (ms)"
   },
-  "UPDATER_BACKGROUND_CHECK_CODE_EXTERNAL": {
-    "kind": "enumerated",
-    "n_values": 50,
-    "description": "Updater: externally initiated (typically by the application) background update check result code (see PING_BGUC_* constants defined in /toolkit/mozapps/update/nsUpdateService.js)"
-  },
-  "UPDATER_BACKGROUND_CHECK_CODE_NOTIFY": {
-    "kind": "enumerated",
-    "n_values": 50,
-    "description": "Updater: timer initiated background update check result code (see PING_BGUC_* constants defined in /toolkit/mozapps/update/nsUpdateService.js)"
-  },
-  "UPDATER_INVALID_LASTUPDATETIME_EXTERNAL": {
-    "kind": "boolean",
-    "description": "Updater: Whether the last update time is invalid when a background update check was externally requested (typically by the application)"
-  },
-  "UPDATER_INVALID_LASTUPDATETIME_NOTIFY": {
-    "kind": "boolean",
-    "description": "Updater: Whether the last update time is invalid when a background update check was timer initiated"
-  },
-  "UPDATER_LAST_NOTIFY_INTERVAL_DAYS_EXTERNAL": {
-    "kind": "exponential",
-    "n_buckets": 10,
-    "high": "60",
-    "description": "Updater: The interval in days between the previous and the current background update check when the check was externally requested (typically by the application)"
-  },
-  "UPDATER_LAST_NOTIFY_INTERVAL_DAYS_NOTIFY": {
-    "kind": "exponential",
-    "n_buckets": 10,
-    "high": "60",
-    "description": "Updater: The interval in days between the previous and the current background update check when the check was timer initiated"
-  },
   "UPDATER_STATUS_CODES": {
     "kind": "enumerated",
     "n_values": 50,
@@ -2565,10 +2291,6 @@
     "kind": "boolean",
     "description": "Updater: Whether or not updates are enabled"
   },
-  "UPDATER_UPDATES_METRO_ENABLED": {
-    "kind": "boolean",
-    "description": "Updater: Whether or not Metro updates are enabled"
-  },
   "UPDATER_UPDATES_AUTOMATIC": {
     "kind": "boolean",
     "description": "Updater: Whether or not updates are automatic"
@@ -2576,11 +2298,6 @@
   "UPDATER_SERVICE_ENABLED": {
     "kind": "boolean",
     "description": "Updater: Whether or not the MozillaMaintenance service is enabled"
-  },
-  "UPDATER_SERVICE_ERROR_CODE": {
-    "kind": "enumerated",
-    "n_values": 100,
-    "description": "Updater: 0=success else SERVICE_* error code defined in /toolkit/mozapps/update/common/errors.h"
   },
   "UPDATER_SERVICE_ERRORS": {
     "kind": "enumerated",
@@ -2603,11 +2320,6 @@
     "kind": "boolean",
     "description": "Updater: Whether or not the updater has permissions"
   },
-  "UPDATER_WIZ_LAST_PAGE_CODE": {
-    "kind": "enumerated",
-    "n_values": 25,
-    "description": "Updater: The update wizard page displayed when the UI was closed (mapped in toolkit/mozapps/update/content/updates.js)"
-  },
   "THUNDERBIRD_GLODA_SIZE_MB": {
     "kind": "linear",
     "high": "1000",
@@ -2626,24 +2338,6 @@
     "high": "100",
     "n_buckets": 20,
     "description": "Gloda: indexing rate (message/s)"
-  },
-  "FX_GESTURE_TAKE_SNAPSHOT_OF_PAGE": {
-    "kind": "exponential",
-    "high": "1000",
-    "n_buckets": "30",
-    "description": "Firefox: Time taken to capture the page to a canvas, for reuse while swiping through history (ms)."
-  },
-  "FX_GESTURE_INSTALL_SNAPSHOT_OF_PAGE": {
-    "kind": "exponential",
-    "high": "1000",
-    "n_buckets": "30",
-    "description": "Firefox: Time taken to store the image capture of the page to a canvas, for reuse while swiping through history (ms)."
-  },
-  "FX_GESTURE_COMPRESS_SNAPSHOT_OF_PAGE": {
-    "kind": "exponential",
-    "high": "1000",
-    "n_buckets": "30",
-    "description": "Firefox: Time taken to kick off image compression of the canvas that will be used during swiping through history (ms)."
   },
   "FX_TAB_ANIM_OPEN_MS": {
     "kind": "exponential",
@@ -2713,6 +2407,13 @@
     "high": "1000",
     "n_buckets": 20,
     "description": "Firefox: Time in ms spent on switching tabs in response to a tab click"
+  },
+  "FX_IDENTITY_POPUP_OPEN_MS": {
+    "kind": "exponential",
+    "high": "1000",
+    "n_buckets": 10,
+    "extended_statistics_ok": true,
+    "description": "Firefox: Time taken by the identity popup to open in milliseconds"
   },
   "FX_APP_MENU_OPEN_MS": {
     "kind": "exponential",
@@ -2836,29 +2537,6 @@
     "extended_statistics_ok": true,
     "description": "Session restore: Time to make a backup copy of the session file (ms)"
   },
-  "FX_SESSION_RESTORE_RESTORE_WINDOW_MS": {
-    "kind": "exponential",
-    "high": "3000",
-    "n_buckets": 10,
-    "extended_statistics_ok": true,
-    "description": "Session restore: Time spent blocking the main thread while restoring a window state (ms)"
-  },
-  "FX_SESSION_RESTORE_SESSION_LENGTH": {
-    "kind": "exponential",
-    "high": "365",
-    "n_buckets": 15,
-    "description": "Session restore: Days elapsed since the session was first started"
-  },
-  "FX_SESSION_RESTORE_TABSTATECACHE_HIT_RATE": {
-     "kind": "enumerated",
-     "n_values": 101,
-     "description": "Session restore: Percentage of tab state cache hits in all tab state cache accesses"
-  },
-  "FX_SESSION_RESTORE_TABSTATECACHE_CLEAR_RATIO": {
-     "kind": "enumerated",
-     "n_values": 101,
-     "description": "Session restore: Number of times the tab state cache has been cleared during a session divided by number of total accesses during the session (percentage)"
-  },
   "INNERWINDOWS_WITH_MUTATION_LISTENERS": {
     "kind": "boolean",
     "description": "Deleted or to-be-reused innerwindow which has had mutation event listeners."
@@ -2871,118 +2549,6 @@
   "CHARSET_OVERRIDE_USED": {
     "kind": "flag",
     "description": "Whether the character encoding menu was used to override an encoding in this session."
-  },
-  "DECODER_INSTANTIATED_HZ": {
-    "kind": "flag",
-    "description": "Whether the decoder for HZ has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_ISO2022CN": {
-    "kind": "flag",
-    "description": "Whether the decoder for ISO-2022-CN has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_ISO2022KR": {
-    "kind": "flag",
-    "description": "Whether the decoder for ISO-2022-KR has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_ISO2022JP": {
-    "kind": "flag",
-    "description": "Whether the decoder for ISO-2022-JP has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_JOHAB": {
-    "kind": "flag",
-    "description": "Whether the decoder for JOHAB has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_T61": {
-    "kind": "flag",
-    "description": "Whether the decoder for T.61 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_IBM850": {
-    "kind": "flag",
-    "description": "Whether the decoder for IBM850 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_IBM852": {
-    "kind": "flag",
-    "description": "Whether the decoder for IBM852 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_IBM855": {
-    "kind": "flag",
-    "description": "Whether the decoder for IBM855 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_IBM857": {
-    "kind": "flag",
-    "description": "Whether the decoder for IBM857 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_IBM862": {
-    "kind": "flag",
-    "description": "Whether the decoder for IBM862 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_MACGREEK": {
-    "kind": "flag",
-    "description": "Whether the decoder for MACGREEK has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_MACICELANDIC": {
-    "kind": "flag",
-    "description": "Whether the decoder for MACICELANDIC has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_MACCE": {
-    "kind": "flag",
-    "description": "Whether the decoder for MACCE has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_MACHEBREW": {
-    "kind": "flag",
-    "description": "Whether the decoder for MACHEBREW has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_MACARABIC": {
-    "kind": "flag",
-    "description": "Whether the decoder for MACARABIC has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_MACFARSI": {
-    "kind": "flag",
-    "description": "Whether the decoder for MACFARSI has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_MACCROATIAN": {
-    "kind": "flag",
-    "description": "Whether the decoder for MACCROATIAN has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_MACROMANIAN": {
-    "kind": "flag",
-    "description": "Whether the decoder for MACROMANIAN has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_MACTURKISH": {
-    "kind": "flag",
-    "description": "Whether the decoder for MACTURKISH has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_MACDEVANAGARI": {
-    "kind": "flag",
-    "description": "Whether the decoder for MACDEVANAGARI has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_MACGUJARATI": {
-    "kind": "flag",
-    "description": "Whether the decoder for MACGUJARATI has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_MACGURMUKHI": {
-    "kind": "flag",
-    "description": "Whether the decoder for MACGURMUKHI has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_ISOIR111": {
-    "kind": "flag",
-    "description": "Whether the decoder for ISOIR111 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_ARMSCII8": {
-    "kind": "flag",
-    "description": "Whether the decoder for ARMSCII8 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_VISCII": {
-    "kind": "flag",
-    "description": "Whether the decoder for VISCII has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_VIETTCVN5712": {
-    "kind": "flag",
-    "description": "Whether the decoder for VIETTCVN5712 has been instantiated in this session."
-  },
-  "DECODER_INSTANTIATED_VIETVPS": {
-    "kind": "flag",
-    "description": "Whether the decoder for VIETVPS has been instantiated in this session."
   },
   "XUL_FOREGROUND_REFLOW_MS": {
     "kind": "exponential",
@@ -3421,6 +2987,18 @@
     "description": "The device supports touch input",
     "cpp_guard": "XP_WIN"
   },
+  "COMPONENTS_OBJECT_ACCESSED_BY_CONTENT": {
+    "kind": "flag",
+    "description": "Whether content ever accesed the Components object in this session"
+  },
+  "COMPONENTS_LOOKUPMETHOD_ACCESSED_BY_CONTENT": {
+    "kind": "flag",
+    "description": "Whether content ever accesed Components.lookupMethod in this session"
+  },
+  "COMPONENTS_INTERFACES_ACCESSED_BY_CONTENT": {
+    "kind": "flag",
+    "description": "Whether content ever accesed Components.interfaces in this session"
+  },
   "COMPONENTS_SHIM_ACCESSED_BY_CONTENT": {
     "kind": "flag",
     "description": "Whether content ever accesed the Components shim in this session"
@@ -3492,6 +3070,13 @@
     "extended_statistics_ok": true,
     "description": "Time (ms) spent to initialize Firefox Health Report service."
   },
+  "HEALTHREPORT_SHUTDOWN_DELAY_MS": {
+    "kind": "exponential",
+    "high": "20000",
+    "n_buckets": 15,
+    "extended_statistics_ok": true,
+    "description": "Time (ms) that Firefox Health Report delays application shutdown by."
+  },
   "HEALTHREPORT_GENERATE_JSON_PAYLOAD_MS": {
     "kind": "exponential",
     "high": "30000",
@@ -3524,6 +3109,13 @@
     "extended_statistics_ok": true,
     "description": "Time (ms) it takes to upload the Health Report payload."
   },
+  "HEALTHREPORT_SAVE_LAST_PAYLOAD_MS": {
+    "kind": "exponential",
+    "high": "10000",
+    "n_buckets": 10,
+    "extended_statistics_ok": true,
+    "description": "Time (ms) it takes to persist the last submitted Health Report payload to disk."
+  },
   "HEALTHREPORT_COLLECT_CONSTANT_DATA_MS": {
     "kind": "exponential",
     "high": "20000",
@@ -3548,171 +3140,12 @@
     "n_buckets": 15,
     "description": "Time (ms) for a WAL checkpoint after collecting all measurements."
   },
-  "PDF_VIEWER_USED": {
-    "kind": "boolean",
-    "description": "How many times PDF Viewer was used"
-  },
-  "PDF_VIEWER_FALLBACK_SHOWN": {
-    "kind": "boolean",
-    "description": "How many times PDF Viewer fallback bar was shown"
-  },
-  "PDF_VIEWER_PRINT": {
-    "kind": "boolean",
-    "description": "How many times PDF Viewer print functionality was used"
-  },
-  "PDF_VIEWER_DOCUMENT_VERSION": {
-    "kind": "enumerated",
-    "n_values": 20,
-    "description": "The PDF document version (1.1, 1.2, etc.)"
-  },
-  "PDF_VIEWER_DOCUMENT_GENERATOR": {
-    "kind": "enumerated",
-    "n_values": 30,
-    "description": "The PDF document generator"
-  },
-  "PDF_VIEWER_DOCUMENT_SIZE_KB": {
-    "kind": "exponential",
-    "low": "2",
-    "high": "64 * 1024",
-    "n_buckets": 20,
-    "description": "The PDF document size (KB)"
-  },
-  "PDF_VIEWER_FORM": {
-    "kind": "boolean",
-    "description": "A PDF form expected: true for AcroForm and false for XFA"
-  },
-  "PDF_VIEWER_STREAM_TYPES": {
-    "kind": "enumerated",
-    "n_values": 9,
-    "description": "The PDF document compression stream types used"
-  },
-  "PDF_VIEWER_TIME_TO_VIEW_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 50,
-    "description": "Time spent to display first page in PDF Viewer (ms)"
-  },
-  "SHUMWAY_TIME_TO_VIEW_MS": {
-    "kind": "exponential",
-    "high": "2 * 60 * 1000",
-    "n_buckets": 50,
-    "description": "Time spent to display first frame (ms)"
-  },
-  "SHUMWAY_PARSING_MS": {
-    "kind": "exponential",
-    "high": "2 * 60 * 1000",
-    "n_buckets": 50,
-    "description": "Time spent to parse SWF file (ms)"
-  },
-  "SHUMWAY_SWF_INDEX_ON_PAGE": {
-    "kind": "enumerated",
-    "n_values": 30,
-    "description": "Index of the SWF on the page (0 - full page, 1 - first, 2 - second, etc.)"
-  },
-  "SHUMWAY_SWF_SIZE_KB": {
-    "kind": "exponential",
-    "low": "1",
-    "high": "256 * 1024",
-    "n_buckets": 50,
-    "description": "The SWF file size (KB)"
-  },
-  "SHUMWAY_SWF_VERSION": {
-    "kind": "enumerated",
-    "n_values": 30,
-    "description": "The SWF file version"
-  },
-  "SHUMWAY_SWF_FRAME_RATE": {
-    "kind": "linear",
-    "high": "256",
-    "n_buckets": "50",
-    "description": "The SWF file frame rate"
-  },
-  "SHUMWAY_SWF_AREA": {
-    "kind": "exponential",
-    "low": "256",
-    "high": "16777216",
-    "n_buckets": 50,
-    "description": "The SWF file dimension: amount of pixels (width * height)"
-  },
-  "SHUMWAY_SWF_AVM2": {
-    "kind": "boolean",
-    "description": "The AVM2 is enabled in the SWF file"
-  },
-  "SHUMWAY_SWF_BANNER": {
-    "kind": "enumerated",
-    "n_values": 30,
-    "description": "The well-known banner size"
-  },
-  "SHUMWAY_ERROR": {
-    "kind": "enumerated",
-    "n_values": 3,
-    "description": "The Shumway reported error: 0 - unknown, 1 - AVM1, 2 - AVM2)"
-  },
-  "SHUMWAY_FEATURE_USED": {
-    "kind": "enumerated",
-    "n_values": 700,
-    "description": "The Shumway feature is used during movie execution"
-  },
-  "SHUMWAY_FALLBACK": {
-    "kind": "boolean",
-    "description": "The Shumway was selected to fallback to the Flash (false - by heuristics, true - by user)"
-  },
-  "PLUGINS_NOTIFICATION_SHOWN": {
-    "kind": "boolean",
-    "description": "The number of times the click-to-activate notification was shown: false: shown by in-content activation true: shown by location bar activation"
-  },
-  "PLUGINS_NOTIFICATION_PLUGIN_COUNT": {
-    "kind": "enumerated",
-    "n_values": 5,
-    "description": "The number of plugins present in the click-to-activate notification, minus one (1, 2, 3, 4, more than 4)"
-  },
-  "PLUGINS_NOTIFICATION_USER_ACTION": {
-    "kind": "enumerated",
-    "n_values": 3,
-    "description": "User actions taken in the plugin notification: 0: allownow 1: allowalways 2: block"
-  },
   "POPUP_NOTIFICATION_MAINACTION_TRIGGERED_MS": {
     "kind": "linear",
     "low": 25,
     "high": "80 * 25",
     "n_buckets": "80 + 1",
     "description": "The time (in milliseconds) after showing a PopupNotification that the mainAction was first triggered"
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_RELOAD_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'reload' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_RELOAD_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'reload' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_NAVIGATETO_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'navigateTo' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_NAVIGATETO_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'navigateTo' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_EVENTLISTENERS_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took an 'eventListeners' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_EVENTLISTENERS_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took an 'eventListeners' request to go round trip."
   },
   "DEVTOOLS_DEBUGGER_RDP_LOCAL_DETACH_MS": {
     "kind": "exponential",
@@ -3846,18 +3279,6 @@
     "n_buckets": "1000",
     "description": "The time (in milliseconds) that it took a 'prototypeAndProperties' request to go round trip."
   },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_PROTOTYPESANDPROPERTIES_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'prototypesAndProperties' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_PROTOTYPESANDPROPERTIES_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'prototypesAndProperties' request to go round trip."
-  },
   "DEVTOOLS_DEBUGGER_RDP_LOCAL_PROPERTY_MS": {
     "kind": "exponential",
     "high": "10000",
@@ -3881,18 +3302,6 @@
     "high": "10000",
     "n_buckets": "1000",
     "description": "The time (in milliseconds) that it took a 'prototype' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_DISPLAYSTRING_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'displayString' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_DISPLAYSTRING_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'displayString' request to go round trip."
   },
   "DEVTOOLS_DEBUGGER_RDP_LOCAL_SUBSTRING_MS": {
     "kind": "exponential",
@@ -3930,18 +3339,6 @@
     "n_buckets": "1000",
     "description": "The time (in milliseconds) that it took a 'listTabs' request to go round trip."
   },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_LISTADDONS_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'listAddons' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_LISTADDONS_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'listAddons' request to go round trip."
-  },
   "DEVTOOLS_DEBUGGER_RDP_LOCAL_DELETE_MS": {
     "kind": "exponential",
     "high": "10000",
@@ -3977,608 +3374,5 @@
     "high": "10000",
     "n_buckets": "1000",
     "description": "The time (in milliseconds) that it took a 'detach' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_DISPLAY_SOURCE_LOCAL_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took to display a selected source to the user."
-  },
-  "DEVTOOLS_DEBUGGER_DISPLAY_SOURCE_REMOTE_MS":{
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took to display a selected source to the user."
-  },
-  "WEBRTC_ICE_SUCCESS_RATE":{
-    "kind": "boolean",
-    "description": "The number of failed ICE Connections (0) vs. number of successful ICE connections (1)."
-  },
-  "WEBRTC_CALL_DURATION":{
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The length of time (in seconds) that a call lasted."
-  },
-  "WEBRTC_CALL_COUNT":{
-    "kind": "exponential",
-    "high": "500",
-    "n_buckets": "50",
-    "description": "The number of calls made during a session."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_TRACERDETACH_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'detach' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_TRACERDETACH_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'detach' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_STARTTRACE_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'startTrace' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_STARTTRACE_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'startTrace' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_STOPTRACE_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'stopTrace' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_STOPTRACE_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'stopTrace' request to go round trip."
-  },
-  "COOKIES_3RDPARTY_NUM_SITES_ACCEPTED": {
-    "kind": "linear",
-    "low": "5",
-    "high": "145",
-    "n_buckets": "30",
-    "description": "The number of distinct pairs (first-party site, third-party site attempting to set cookie) for which the third-party cookie has been accepted. Sites are considered identical if they have the same eTLD + 1. Measures are normalized per 24h."
-  },
-  "COOKIES_3RDPARTY_NUM_SITES_BLOCKED": {
-    "kind": "linear",
-    "low": "5",
-    "high": "145",
-    "n_buckets": "30",
-    "description": "The number of distinct pairs (first-party site, third-party site attempting to set cookie) for which the third-party cookie has been rejected. Sites are considered identical if they have the same eTLD + 1. Measures are normalized per 24h."
-  },
-  "COOKIES_3RDPARTY_NUM_ATTEMPTS_ACCEPTED": {
-    "kind": "linear",
-    "low": "10",
-    "high": "500",
-    "n_buckets": "50",
-    "description": "The total number of distinct attempts by third-party sites to place cookies which have been accepted.  Measures are normalized per 24h."
-  },
-  "COOKIES_3RDPARTY_NUM_ATTEMPTS_BLOCKED": {
-    "kind": "linear",
-    "low": "10",
-    "high": "500",
-    "n_buckets": "50",
-    "description": "The total number of distinct attempts by third-party sites to place cookies which have been rejected.  Measures are normalized per 24h."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_BLACKBOX_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'blackbox' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_BLACKBOX_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'blackbox' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_UNBLACKBOX_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took an 'ublackbox' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_UNBLACKBOX_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took an 'unblackbox' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_SCOPE_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'scope' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_SCOPE_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'scope' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_BINDINGS_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'bindings' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_BINDINGS_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'bindings' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_ASSIGN_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took an 'assign' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_ASSIGN_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took an 'assign' request to go round trip."
-  },
-  "DEVTOOLS_OPTIONS_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Options panel been opened?"
-  },
-  "DEVTOOLS_WEBCONSOLE_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Web Console been opened?"
-  },
-  "DEVTOOLS_BROWSERCONSOLE_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Browser Console been opened?"
-  },
-  "DEVTOOLS_INSPECTOR_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Inspector been opened?"
-  },
-  "DEVTOOLS_RULEVIEW_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Rule View been opened?"
-  },
-  "DEVTOOLS_COMPUTEDVIEW_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Computed View been opened?"
-  },
-  "DEVTOOLS_LAYOUTVIEW_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Layout View been opened?"
-  },
-  "DEVTOOLS_FONTINSPECTOR_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Font Inspector been opened?"
-  },
-  "DEVTOOLS_JSDEBUGGER_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Debugger been opened?"
-  },
-  "DEVTOOLS_JSBROWSERDEBUGGER_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Browser Debugger been opened?"
-  },
-  "DEVTOOLS_STYLEEDITOR_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Style Editor been opened?"
-  },
-  "DEVTOOLS_SHADEREDITOR_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Shader Editor been opened?"
-  },
-  "DEVTOOLS_JSPROFILER_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's JS Profiler been opened?"
-  },
-  "DEVTOOLS_NETMONITOR_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Network Monitor been opened?"
-  },
-  "DEVTOOLS_PAINTFLASHING_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Paint Flashing been opened via the toolbox button?"
-  },
-  "DEVTOOLS_TILT_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Tilt been opened via the toolbox button?"
-  },
-  "DEVTOOLS_SCRATCHPAD_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Scratchpad been opened via the toolbox button?"
-  },
-  "DEVTOOLS_RESPONSIVE_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Responsive View been opened via the toolbox button?"
-  },
-  "DEVTOOLS_DEVELOPERTOOLBAR_OPENED_BOOLEAN": {
-    "kind": "boolean",
-    "description": "How many times has the devtool's Developer Toolbar been opened via the toolbox button?"
-  },
-  "DEVTOOLS_OPTIONS_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many times has the devtool's Options panel been opened?"
-  },
-  "DEVTOOLS_WEBCONSOLE_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Web Console?"
-  },
-  "DEVTOOLS_BROWSERCONSOLE_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Browser Console?"
-  },
-  "DEVTOOLS_INSPECTOR_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Inspector?"
-  },
-  "DEVTOOLS_RULEVIEW_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Rule View?"
-  },
-  "DEVTOOLS_COMPUTEDVIEW_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Computed View?"
-  },
-  "DEVTOOLS_LAYOUTVIEW_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Layout View?"
-  },
-  "DEVTOOLS_FONTINSPECTOR_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Font Inspector?"
-  },
-  "DEVTOOLS_JSDEBUGGER_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Debugger?"
-  },
-  "DEVTOOLS_JSBROWSERDEBUGGER_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Browser Debugger?"
-  },
-  "DEVTOOLS_STYLEEDITOR_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Style Editor?"
-  },
-  "DEVTOOLS_SHADEREDITOR_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Shader Editor?"
-  },
-  "DEVTOOLS_JSPROFILER_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's JS Profiler?"
-  },
-  "DEVTOOLS_NETMONITOR_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Network Monitor?"
-  },
-  "DEVTOOLS_PAINTFLASHING_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Paint Flashing been opened via the toolbox button?"
-  },
-  "DEVTOOLS_TILT_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Tilt been opened via the toolbox button?"
-  },
-  "DEVTOOLS_SCRATCHPAD_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Scratchpad been opened via the toolbox button?"
-  },
-  "DEVTOOLS_RESPONSIVE_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Responsive View been opened via the toolbox button?"
-  },
-  "DEVTOOLS_DEVELOPERTOOLBAR_OPENED_PER_USER_FLAG": {
-    "kind": "flag",
-    "description": "How many users have opened the devtool's Developer Toolbar been opened via the toolbox button?"
-  },
-  "DEVTOOLS_TOOLBOX_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the toolbox been active (seconds)"
-  },
-  "DEVTOOLS_OPTIONS_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the options panel been active (seconds)"
-  },
-  "DEVTOOLS_WEBCONSOLE_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the web console been active (seconds)"
-  },
-  "DEVTOOLS_BROWSERCONSOLE_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the browser console been active (seconds)"
-  },
-  "DEVTOOLS_INSPECTOR_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the inspector been active (seconds)"
-  },
-  "DEVTOOLS_RULEVIEW_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the rule view been active (seconds)"
-  },
-  "DEVTOOLS_COMPUTEDVIEW_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the computed view been active (seconds)"
-  },
-  "DEVTOOLS_LAYOUTVIEW_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the layout view been active (seconds)"
-  },
-  "DEVTOOLS_FONTINSPECTOR_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the font inspector been active (seconds)"
-  },
-  "DEVTOOLS_JSDEBUGGER_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the JS debugger been active (seconds)"
-  },
-  "DEVTOOLS_JSBROWSERDEBUGGER_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the JS browser debugger been active (seconds)"
-  },
-  "DEVTOOLS_STYLEEDITOR_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the style editor been active (seconds)"
-  },
-  "DEVTOOLS_SHADEREDITOR_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the Shader Editor been active (seconds)"
-  },
-  "DEVTOOLS_JSPROFILER_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the JS profiler been active (seconds)"
-  },
-  "DEVTOOLS_NETMONITOR_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the network monitor been active (seconds)"
-  },
-  "DEVTOOLS_PAINTFLASHING_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has paint flashing been active (seconds)"
-  },
-  "DEVTOOLS_TILT_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has Tilt been active (seconds)"
-  },
-  "DEVTOOLS_SCRATCHPAD_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has Scratchpad been active (seconds)"
-  },
-  "DEVTOOLS_RESPONSIVE_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the responsive view been active (seconds)"
-  },
-  "DEVTOOLS_DEVELOPERTOOLBAR_TIME_ACTIVE_SECONDS": {
-    "kind": "exponential",
-    "high": "10000000",
-    "n_buckets": 100,
-    "description": "How long has the developer toolbar been active (seconds)"
-  },
-  "BROWSER_IS_USER_DEFAULT": {
-    "kind": "boolean",
-    "description": "The result of the startup default desktop browser check."
-  },
-  "MIXED_CONTENT_PAGE_LOAD": {
-    "kind": "enumerated",
-    "n_values": 4,
-    "description": "Accumulates type of content (mixed, mixed passive, unmixed) per page load"
-  },
-  "MIXED_CONTENT_UNBLOCK_COUNTER": {
-    "kind": "enumerated",
-    "n_values": 3,
-    "description": "A simple counter of daily mixed-content unblock operations and top documents loaded"
-  },
-  "NTLM_MODULE_USED_2": {
-    "kind": "enumerated",
-    "n_values": 8,
-    "description": "The module used for the NTLM protocol (Windows_API, Kerberos, Samba_auth or Generic) and whether or not the authentication was used to connect to a proxy server. This data is collected only once per session (at first NTLM authentification) ; fixed version."
-  },
-  "FX_THUMBNAILS_BG_QUEUE_SIZE_ON_CAPTURE": {
-    "kind": "exponential",
-    "high": 100,
-    "n_buckets": 15,
-    "extended_statistics_ok": true,
-    "description": "BACKGROUND THUMBNAILS: Size of capture queue when a capture request is received"
-  },
-  "FX_THUMBNAILS_BG_CAPTURE_QUEUE_TIME_MS": {
-    "kind": "exponential",
-    "high": 300000,
-    "n_buckets": 20,
-    "extended_statistics_ok": true,
-    "description": "BACKGROUND THUMBNAILS: Time the capture request spent in the queue before being serviced (ms)"
-  },
-  "FX_THUMBNAILS_BG_CAPTURE_SERVICE_TIME_MS": {
-    "kind": "exponential",
-    "high": 30000,
-    "n_buckets": 20,
-    "extended_statistics_ok": true,
-    "description": "BACKGROUND THUMBNAILS: Time the capture took once it started and successfully completed (ms)"
-  },
-  "FX_THUMBNAILS_BG_CAPTURE_DONE_REASON_2": {
-    "kind": "enumerated",
-    "n_values": 10,
-    "description": "BACKGROUND THUMBNAILS: Reason the capture completed (see TEL_CAPTURE_DONE_* constants in BackgroundPageThumbs.jsm)"
-  },
-  "FX_THUMBNAILS_BG_CAPTURE_PAGE_LOAD_TIME_MS": {
-    "kind": "exponential",
-    "high": 60000,
-    "n_buckets": 20,
-    "extended_statistics_ok": true,
-    "description": "BACKGROUND THUMBNAILS: Time the capture's page load took (ms)"
-  },
-  "FX_THUMBNAILS_BG_CAPTURE_CANVAS_DRAW_TIME_MS": {
-    "kind": "exponential",
-    "high": 500,
-    "n_buckets": 15,
-    "extended_statistics_ok": true,
-    "description": "BACKGROUND THUMBNAILS: Time it took to draw the capture's window to canvas (ms)"
-  },
-  "NETWORK_CACHE_V2_MISS_TIME_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "Time spent to find out a cache entry file is missing"
-  },
-  "NETWORK_CACHE_V2_HIT_TIME_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "Time spent to open an existing file"
-  },
-  "NETWORK_CACHE_V1_TRUNCATE_TIME_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "Time spent to reopen an entry with OPEN_TRUNCATE"
-  },
-  "NETWORK_CACHE_V1_MISS_TIME_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "Time spent to find out a cache entry is missing"
-  },
-  "NETWORK_CACHE_V1_HIT_TIME_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "Time spent to open an existing cache entry"
-  },
-  "SSL_TLS12_INTOLERANCE_REASON_PRE": {
-    "kind": "enumerated",
-    "n_values": 64,
-    "description": "detected symptom of TLS 1.2 intolerance, before considering historical info"
-  },
-  "SSL_TLS12_INTOLERANCE_REASON_POST": {
-    "kind": "enumerated",
-    "n_values": 64,
-    "description": "detected symptom of TLS 1.2 intolerance, after considering historical info"
-  },
-  "SSL_TLS11_INTOLERANCE_REASON_PRE": {
-    "kind": "enumerated",
-    "n_values": 64,
-    "description": "detected symptom of TLS 1.1 intolerance, before considering historical info"
-  },
-  "SSL_TLS11_INTOLERANCE_REASON_POST": {
-    "kind": "enumerated",
-    "n_values": 64,
-    "description": "detected symptom of TLS 1.1 intolerance, after considering historical info"
-  },
-  "SSL_TLS10_INTOLERANCE_REASON_PRE": {
-    "kind": "enumerated",
-    "n_values": 64,
-    "description": "detected symptom of TLS 1.0 intolerance, before considering historical info"
-  },
-  "SSL_TLS10_INTOLERANCE_REASON_POST": {
-    "kind": "enumerated",
-    "n_values": 64,
-    "description": "detected symptom of TLS 1.0 intolerance, after considering historical info"
-  },
-  "SSL_SSL30_INTOLERANCE_REASON_PRE": {
-    "kind": "enumerated",
-    "n_values": 64,
-    "description": "detected symptom of SSL 3.0 intolerance, before considering historical info"
-  },
-  "SSL_SSL30_INTOLERANCE_REASON_POST": {
-    "kind": "enumerated",
-    "n_values": 64,
-    "description": "detected symptom of SSL 3.0 intolerance, after considering historical info"
-  },
-  "SSL_CIPHER_SUITE": {
-    "kind": "enumerated",
-    "n_values": 128,
-    "description": "Negotiated cipher suite (see key in HandshakeCallback in nsNSSCallbacks.cpp)"
-  },
-  "SSL_KEA_RSA_KEY_SIZE": {
-    "kind": "enumerated",
-    "n_values": 24,
-    "description": "RSA KEA (TLS_RSA_*) key size"
-  },
-  "SSL_KEA_DHE_KEY_SIZE": {
-    "kind": "enumerated",
-    "n_values": 24,
-    "description": "DHE KEA (TLS_DHE_*) key size"
-  },
-  "SSL_KEA_ECDHE_CURVE": {
-    "kind": "enumerated",
-    "n_values": "36",
-    "description": "ECDHE KEA (TLS_ECDHE_*) curve (1=P-256, 2=P-384, 3=P-521)"
-  },
-  "SSL_AUTH_ALGORITHM": {
-    "kind": "enumerated",
-    "n_values": 16,
-    "description": "SSL Authentication Algorithm (null=0, rsa=1, dsa=2, ecdsa=4)"
-  },
-  "SSL_AUTH_RSA_KEY_SIZE": {
-    "kind": "enumerated",
-    "n_values": 24,
-    "description": "RSA signature key size for TLS_*_RSA_*"
-  },
-  "SSL_AUTH_DSA_KEY_SIZE": {
-    "kind": "enumerated",
-    "n_values": 24,
-    "description": "DSA signature key size for TLS_*_DSS_*"
-  },
-  "SSL_AUTH_ECDSA_CURVE": {
-    "kind": "enumerated",
-    "n_values": "36",
-    "description": "ECDSA signature curve for TLS_*_ECDSA_* (1=P-256, 2=P-384, 3=P-521)"
-  },
-  "SSL_SYMMETRIC_CIPHER": {
-    "kind": "enumerated",
-    "n_values": 32,
-    "description": "Symmetric cipher used (null=0, rc4=1, 3des=4, aes-cbc=7, camellia=8, seed=9, aes-gcm=10)"
   }
 }

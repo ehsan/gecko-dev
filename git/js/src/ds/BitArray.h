@@ -4,23 +4,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ds_BitArray_h
-#define ds_BitArray_h
+#ifndef BitArray_h__
+#define BitArray_h__
 
-#include "mozilla/TemplateLib.h"
+#include "jstypes.h" 
 
-#include <limits.h>
-
-#include "jstypes.h"
+#include "js/TemplateLib.h" 
 
 namespace js {
 
 template <size_t nbits>
 class BitArray {
   private:
-    static const size_t bitsPerElement = sizeof(uintptr_t) * CHAR_BIT;
     static const size_t numSlots =
-        nbits / bitsPerElement + (nbits % bitsPerElement == 0 ? 0 : 1);
+        nbits / JS_BITS_PER_WORD + (nbits % JS_BITS_PER_WORD == 0 ? 0 : 1);
     uintptr_t map[numSlots];
 
   public:
@@ -57,13 +54,11 @@ class BitArray {
   private:
     inline void getMarkWordAndMask(size_t offset,
                                    uintptr_t *indexp, uintptr_t *maskp) const {
-        static_assert(bitsPerElement == 32 || bitsPerElement == 64,
-                      "unexpected bitsPerElement value");
-        *indexp = offset / bitsPerElement;
-        *maskp = uintptr_t(1) << (offset % bitsPerElement);
+        *indexp = offset >> tl::FloorLog2<JS_BITS_PER_WORD>::result;
+        *maskp = uintptr_t(1) << (offset & (JS_BITS_PER_WORD - 1));
     }
 };
 
 } /* namespace js */
 
-#endif /* ds_BitArray_h */
+#endif

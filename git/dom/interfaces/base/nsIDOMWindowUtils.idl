@@ -15,8 +15,8 @@
 
 %{C++
 #include "nsColor.h"
-class gfxContext;
-class nsRect;
+#include "nsRect.h"
+#include "gfxContext.h"
 %}
 
 [ref] native nsConstRect(const nsRect);
@@ -40,10 +40,8 @@ interface nsIDOMTouch;
 interface nsIDOMClientRect;
 interface nsIURI;
 interface nsIDOMEventTarget;
-interface nsIRunnable;
-interface nsICompositionStringSynthesizer;
 
-[scriptable, uuid(928356ff-26b2-434e-a7ce-c1a660162d81)]
+[scriptable, uuid(04429978-3417-411b-882b-81cd5cec5ecd)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -195,8 +193,6 @@ interface nsIDOMWindowUtils : nsISupports {
    * Can only be accessed with chrome privileges.
    */
   attribute boolean isFirstPaint;
-
-  void getPresShellId(out uint32_t aPresShellId);
 
   /**
    * Following modifiers are for sent*Event() except sendNative*Event().
@@ -653,23 +649,11 @@ interface nsIDOMWindowUtils : nsISupports {
   void getScrollXY(in boolean aFlushLayout, out long aScrollX, out long aScrollY);
 
   /**
-   * Sets the scroll position of the root scroll frame of the window.
-   * Returns true on success, false on error (if the window didn't have a root
-   * scroll frame).
-   */
-  boolean scrollToCSSPixelsApproximate(in float aX, in float aY);
-
-  /**
    * Returns the scrollbar width of the window's scroll frame.
    *
    * @param aFlushLayout flushes layout if true. Otherwise, no flush occurs.
    */
   void getScrollbarSize(in boolean aFlushLayout, out long aWidth, out long aHeight);
-
-  /**
-   * Returns the given element's bounds without flushing pending layout changes.
-   */
-  nsIDOMClientRect getBoundsWithoutFlushing(in nsIDOMElement aElement);
 
   /**
    * Returns the bounds of the window's currently loaded document. This will
@@ -749,7 +733,7 @@ interface nsIDOMWindowUtils : nsISupports {
                                        in boolean aTrusted);
 
   /**
-   * Sets WidgetEvent::mFlags::mOnlyChromeDispatch to true to ensure that
+   * Sets nsEvent::mFlags::mOnlyChromeDispatch to true to ensure that
    * the event is propagated only to chrome.
    * Event's .target property will be aTarget.
    * Returns the same value as what EventTarget.dispatchEvent does.
@@ -795,16 +779,47 @@ interface nsIDOMWindowUtils : nsISupports {
                             in AString aLocale);
 
   /**
-   * Creating synthesizer of composition string on the window.
+   * Synthesize a text event to the window.
    *
    * Cannot be accessed from unprivileged context (not content-accessible)
    * Will throw a DOM security error if called without chrome privileges.
+   *
+   * Currently, this method doesn't support 4 or more clauses composition
+   * string.
+   *
+   * @param aCompositionString  composition string
+   * @param a*ClauseLengh       the length of nth clause, set 0 when you
+   *                            don't need second or third clause.
+   * @param a*ClauseAttr        the attribute of nth clause, uese following
+   *                            const values.
+   * @param aCaretStart         the caret position in the composition string,
+   *                            if you set negative value, this method don't
+   *                            set the caret position to the event.
+   * @param aCaretLength        the caret length, if this is one or more,
+   *                            the caret will be wide caret, otherwise,
+   *                            it's collapsed.
+   *                            XXX nsEditor doesn't support wide caret yet.
    */
-  nsICompositionStringSynthesizer createCompositionStringSynthesizer();
+
+  // NOTE: These values must be same to NS_TEXTRANGE_* in nsGUIEvent.h
+
+  const unsigned long COMPOSITION_ATTR_RAWINPUT              = 0x02;
+  const unsigned long COMPOSITION_ATTR_SELECTEDRAWTEXT       = 0x03;
+  const unsigned long COMPOSITION_ATTR_CONVERTEDTEXT         = 0x04;
+  const unsigned long COMPOSITION_ATTR_SELECTEDCONVERTEDTEXT = 0x05;
+
+  void sendTextEvent(in AString aCompositionString,
+                     in long aFirstClauseLength,
+                     in unsigned long aFirstClauseAttr,
+                     in long aSecondClauseLength,
+                     in unsigned long aSecondClauseAttr,
+                     in long aThirdClauseLength,
+                     in unsigned long aThirdClauseAttr,
+                     in long aCaretStart,
+                     in long aCaretLength);
 
   /**
-   * Synthesize a query content event. Note that the result value returned here
-   * is in LayoutDevice pixels rather than CSS pixels.
+   * Synthesize a query content event.
    *
    * @param aType  One of the following const values.  And see also each comment
    *               for the other parameters and the result.
@@ -815,7 +830,7 @@ interface nsIDOMWindowUtils : nsISupports {
                                                    in long aX,
                                                    in long aY);
 
-  // NOTE: following values are same as NS_QUERY_* in BasicEvents.h
+  // NOTE: following values are same as NS_QUERY_* in nsGUIEvent.h
 
   /**
    * QUERY_SELECTED_TEXT queries the first selection range's information.
@@ -1010,13 +1025,26 @@ interface nsIDOMWindowUtils : nsISupports {
    * Put the window into a state where scripts are frozen and events
    * suppressed, for use when the window has launched a modal prompt.
    */
-  void enterModalState();
+  [noscript] void enterModalState();
 
   /**
    * Resume normal window state, where scripts can run and events are
    * delivered.
    */
-  void leaveModalState();
+  [noscript] void leaveModalState();
+
+  /**
+   * Same as enterModalState, but returns the window associated with the
+   * current JS context.
+   */
+  nsIDOMWindow enterModalStateWithWindow();
+
+  /**
+   * Same as leaveModalState, but takes a window associated with the active
+   * context when enterModalStateWithWindow was called. The currently context
+   * might be different at the moment (see bug 621764).
+   */
+  void leaveModalStateWithWindow(in nsIDOMWindow aWindow);
 
   /**
    * Is the window is in a modal state? [See enterModalState()]
@@ -1083,15 +1111,8 @@ interface nsIDOMWindowUtils : nsISupports {
 
   /**
    * Return the outer window with the given ID, if any.  Can return null.
-   * @deprecated Use nsIWindowMediator.getOuterWindowWithId.  See bug 865664.
    */
   nsIDOMWindow getOuterWindowWithId(in unsigned long long aOuterWindowID);
-
-  /**
-   * Return this window's frame element.
-   * Ignores all chrome/content or mozbrowser boundaries.
-   */
-  readonly attribute nsIDOMElement containerElement;
 
   [noscript] void RenderDocument(in nsConstRect aRect,
                                  in uint32_t aFlags,
@@ -1160,12 +1181,6 @@ interface nsIDOMWindowUtils : nsISupports {
   nsIDOMElement findElementWithViewId(in nsViewID aId);
 
   /**
-   * Find the view ID for a given element. This is the reverse of
-   * findElementWithViewId().
-   */
-  nsViewID getViewId(in nsIDOMElement aElement);
-
-  /**
    * Checks the layer tree for this window and returns true
    * if all layers have transforms that are translations by integers,
    * no leaf layers overlap, and the union of the leaf layers is exactly
@@ -1211,9 +1226,7 @@ interface nsIDOMWindowUtils : nsISupports {
    * Get file ref count info for given database and file id.
    *
    */
-  [implicit_jscontext]
   boolean getFileReferences(in AString aDatabaseName, in long long aId,
-                            [optional] in jsval aOptions,
                             [optional] out long aRefCnt,
                             [optional] out long aDBRefCnt,
                             [optional] out long aSliceRefCnt);
@@ -1303,12 +1316,10 @@ interface nsIDOMWindowUtils : nsISupports {
                                               in float aBottom, in float aLeft);
 
   /**
-   * These are used to control whether dialogs (alert, prompt, confirm) are
-   * allowed.
+   * Prevent this window (and any child windows) from displaying any further
+   * dialogs (e.g. window.alert()).
    */
-  void disableDialogs();
-  void enableDialogs();
-  bool areDialogsEnabled();
+  void preventFurtherDialogs();
 
   const unsigned long AGENT_SHEET = 0;
   const unsigned long USER_SHEET = 1;
@@ -1346,17 +1357,6 @@ interface nsIDOMWindowUtils : nsISupports {
    */
    void allowScriptsToClose();
 
-  /**
-   * Is the parent window's main widget visible?  If it isn't, we probably
-   * don't want to display any dialogs etc it may request.  This corresponds
-   * to the visibility check in nsWindowWatcher::OpenWindowInternal().
-   *
-   * Will throw a DOM security error if called without chrome privileges or
-   * NS_ERROR_NOT_AVAILABLE in the unlikely event that the parent window's
-   * main widget can't be reached.
-   */
-  readonly attribute boolean isParentWindowMainWidgetVisible;
-
    /**
     * In certain cases the event handling of nodes, form controls in practice,
     * may be disabled. Such cases are for example the existence of disabled
@@ -1368,35 +1368,4 @@ interface nsIDOMWindowUtils : nsISupports {
     * Setting paintFlashing to true will flash newly painted area.
     */
    attribute boolean paintFlashing;
-
-   /**
-    * Allows running of a "synchronous section", in the form of an nsIRunnable
-    * once the event loop has reached a "stable state". We've reached a stable
-    * state when the currently executing task/event has finished, see:
-    * http://www.whatwg.org/specs/web-apps/current-work/multipage/webappapis.html#synchronous-section
-    * In practice this runs aRunnable once the currently executing event
-    * finishes. If called multiple times per task/event, all the runnables will
-    * be executed, in the order in which runInStableState() was called.
-    *
-    * XXX - This can wreak havoc if you're not using this for very simple
-    * purposes, eg testing or setting a flag.
-    */
-   void runInStableState(in nsIRunnable runnable);
-
-   /**
-    * Run the given runnable before the next iteration of the event loop (this
-    * includes native events too). If a nested loop is spawned within the current
-    * event then the runnable will not be run until that loop has terminated.
-    *
-    * XXX - This can wreak havoc if you're not using this for very simple
-    * purposes, eg testing or setting a flag.
-    */
-   void runBeforeNextEvent(in nsIRunnable runnable);
-
-   /*
-    * Returns the value of a given property.  If the property is animated off the
-    * main thread, this function will fetch the correct value from the compositor.
-    */
-   AString getOMTAOrComputedStyle(in nsIDOMNode aNode,
-                                  in AString aProperty);
 };

@@ -33,7 +33,7 @@ size_t RNG_FileUpdate(const char *fileName, size_t limit);
 static size_t CopyLowBits(void *dst, size_t dstlen, void *src, size_t srclen)
 {
     union endianness {
-	PRInt32 i;
+	int32 i;
 	char c[4];
     } u;
 
@@ -601,7 +601,7 @@ GiveSystemInfo(void)
 static size_t
 GetHighResClock(void *buf, size_t maxbytes)
 {
-    bigtime_t bigtime; /* Actually a int64 */
+    bigtime_t bigtime; /* Actually an int64 */
 
     bigtime = real_time_clock_usecs();
     return CopyLowBits(buf, maxbytes, &bigtime, sizeof(bigtime));
@@ -611,7 +611,7 @@ static void
 GiveSystemInfo(void)
 {
     system_info *info = NULL;
-    PRInt32 val;
+    int32 val;                     
     get_system_info(info);
     if (info) {
         val = info->boot_time;
@@ -972,12 +972,8 @@ size_t RNG_FileUpdate(const char *fileName, size_t limit)
 	return fileBytes;
     RNG_RandomUpdate(&stat_buf, sizeof(stat_buf));
     
-    file = fopen(fileName, "r");
+    file = fopen((char *)fileName, "r");
     if (file != NULL) {
-	/* Set buffering mode to unbuffered I/O to avoid reading more bytes
-	 * than we need from /dev/urandom. Moreover, we read into a buffer
-	 * of size BUFSIZ, so buffered I/O has no performance advantage. */
-	setvbuf(file, NULL, _IONBF, 0);
 	while (limit > fileBytes) {
 	    bytes = PR_MIN(sizeof buffer, limit - fileBytes);
 	    bytes = fread(buffer, 1, bytes, file);
@@ -1013,7 +1009,7 @@ void ReadSingleFile(const char *fileName)
     FILE *        file;
     unsigned char buffer[BUFSIZ];
     
-    file = fopen(fileName, "rb");
+    file = fopen((char *)fileName, "rb");
     if (file != NULL) {
 	while (fread(buffer, 1, sizeof(buffer), file) > 0)
 	    ;
@@ -1138,9 +1134,6 @@ size_t RNG_SystemRNG(void *dest, size_t maxLen)
     if (file == NULL) {
 	return rng_systemFromNoise(dest, maxLen);
     }
-    /* Set buffering mode to unbuffered I/O to avoid reading more bytes
-     * than we need from /dev/urandom. */
-    setvbuf(file, NULL, _IONBF, 0);
     while (maxLen > fileBytes) {
 	bytes = maxLen - fileBytes;
 	bytes = fread(buffer, 1, bytes, file);

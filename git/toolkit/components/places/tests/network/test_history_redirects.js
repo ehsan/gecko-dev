@@ -14,8 +14,7 @@ const TEMP_REDIR_PATH = "/tempredir";
 const FOUND_PATH = "/found";
 
 const HTTPSVR = new HttpServer();
-HTTPSVR.start(-1);
-const PORT = HTTPSVR.identity.primaryPort;
+const PORT = 4444;
 HTTPSVR.registerPathHandler(PERMA_REDIR_PATH, permaRedirHandler);
 HTTPSVR.registerPathHandler(TEMP_REDIR_PATH, tempRedirHandler);
 HTTPSVR.registerPathHandler(FOUND_PATH, foundHandler);
@@ -62,7 +61,10 @@ function PathHandler(aMeta, aResponse, aChannelEvent, aRedirURL) {
 function run_test() {
   do_test_pending();
 
-  var chan = NetUtil.ioService.newChannelFromURI(uri(PERMA_REDIR_URL));
+  HTTPSVR.start(PORT);
+
+  var chan = NetUtil.ioService
+                    .newChannelFromURI(uri("http://localhost:4444/permaredir"));
   var listener = new ChannelListener();
   chan.notificationCallbacks = listener;
   chan.asyncOpen(listener, null);

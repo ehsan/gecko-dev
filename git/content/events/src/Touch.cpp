@@ -4,138 +4,135 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/Touch.h"
-
-#include "mozilla/dom/EventTarget.h"
-#include "mozilla/dom/TouchBinding.h"
+#include "nsGUIEvent.h"
+#include "nsDOMClassInfoID.h"
+#include "nsIClassInfo.h"
+#include "nsIXPCScriptable.h"
 #include "nsContentUtils.h"
-#include "nsDOMTouchEvent.h"
-#include "nsIContent.h"
+#include "mozilla/Preferences.h"
+#include "nsPresContext.h"
+
+DOMCI_DATA(Touch, mozilla::dom::Touch)
 
 namespace mozilla {
 namespace dom {
 
-Touch::Touch(mozilla::dom::EventTarget* aTarget,
-             int32_t aIdentifier,
-             int32_t aPageX,
-             int32_t aPageY,
-             int32_t aScreenX,
-             int32_t aScreenY,
-             int32_t aClientX,
-             int32_t aClientY,
-             int32_t aRadiusX,
-             int32_t aRadiusY,
-             float aRotationAngle,
-             float aForce)
-{
-  SetIsDOMBinding();
-  mTarget = aTarget;
-  mIdentifier = aIdentifier;
-  mPagePoint = CSSIntPoint(aPageX, aPageY);
-  mScreenPoint = nsIntPoint(aScreenX, aScreenY);
-  mClientPoint = CSSIntPoint(aClientX, aClientY);
-  mRefPoint = nsIntPoint(0, 0);
-  mPointsInitialized = true;
-  mRadius.x = aRadiusX;
-  mRadius.y = aRadiusY;
-  mRotationAngle = aRotationAngle;
-  mForce = aForce;
-
-  mChanged = false;
-  mMessage = 0;
-  nsJSContext::LikelyShortLivingObjectCreated();
-}
-
-Touch::Touch(int32_t aIdentifier,
-             nsIntPoint aPoint,
-             nsIntPoint aRadius,
-             float aRotationAngle,
-             float aForce)
-{
-  SetIsDOMBinding();
-  mIdentifier = aIdentifier;
-  mPagePoint = CSSIntPoint(0, 0);
-  mScreenPoint = nsIntPoint(0, 0);
-  mClientPoint = CSSIntPoint(0, 0);
-  mRefPoint = aPoint;
-  mPointsInitialized = false;
-  mRadius = aRadius;
-  mRotationAngle = aRotationAngle;
-  mForce = aForce;
-
-  mChanged = false;
-  mMessage = 0;
-  nsJSContext::LikelyShortLivingObjectCreated();
-}
-
-Touch::~Touch()
-{
-}
-
- /* static */ bool
-Touch::PrefEnabled()
-{
-  return nsDOMTouchEvent::PrefEnabled();
-}
-
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(Touch, mTarget)
+NS_IMPL_CYCLE_COLLECTION_1(Touch, mTarget)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(Touch)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMTouch)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMTouch)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Touch)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(Touch)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(Touch)
 
-EventTarget*
-Touch::Target() const
+NS_IMETHODIMP
+Touch::GetIdentifier(int32_t* aIdentifier)
+{
+  *aIdentifier = mIdentifier;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+Touch::GetTarget(nsIDOMEventTarget** aTarget)
 {
   nsCOMPtr<nsIContent> content = do_QueryInterface(mTarget);
   if (content && content->ChromeOnlyAccess() &&
       !nsContentUtils::CanAccessNativeAnon()) {
-    return content->FindFirstNonChromeOnlyAccessContent();
+    content = content->FindFirstNonChromeOnlyAccessContent();
+    *aTarget = content.forget().get();
+    return NS_OK;
   }
-
-  return mTarget;
+  NS_IF_ADDREF(*aTarget = mTarget);
+  return NS_OK;
 }
 
-void
-Touch::InitializePoints(nsPresContext* aPresContext, WidgetEvent* aEvent)
+NS_IMETHODIMP
+Touch::GetScreenX(int32_t* aScreenX)
 {
-  if (mPointsInitialized) {
-    return;
-  }
-  mClientPoint = nsDOMEvent::GetClientCoords(
-    aPresContext, aEvent, LayoutDeviceIntPoint::FromUntyped(mRefPoint),
-    mClientPoint);
-  mPagePoint = nsDOMEvent::GetPageCoords(
-    aPresContext, aEvent, LayoutDeviceIntPoint::FromUntyped(mRefPoint),
-    mClientPoint);
-  mScreenPoint = nsDOMEvent::GetScreenCoords(aPresContext, aEvent,
-    LayoutDeviceIntPoint::FromUntyped(mRefPoint));
-  mPointsInitialized = true;
+  *aScreenX = mScreenPoint.x;
+  return NS_OK;
 }
 
-void
-Touch::SetTarget(mozilla::dom::EventTarget* aTarget)
+NS_IMETHODIMP
+Touch::GetScreenY(int32_t* aScreenY)
 {
-  mTarget = aTarget;
+  *aScreenY = mScreenPoint.y;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+Touch::GetClientX(int32_t* aClientX)
+{
+  *aClientX = mClientPoint.x;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+Touch::GetClientY(int32_t* aClientY)
+{
+  *aClientY = mClientPoint.y;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+Touch::GetPageX(int32_t* aPageX)
+{
+  *aPageX = mPagePoint.x;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+Touch::GetPageY(int32_t* aPageY)
+{
+  *aPageY = mPagePoint.y;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+Touch::GetRadiusX(int32_t* aRadiusX)
+{
+  *aRadiusX = mRadius.x;
+  return NS_OK;
+}
+                                             
+NS_IMETHODIMP
+Touch::GetRadiusY(int32_t* aRadiusY)
+{
+  *aRadiusY = mRadius.y;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+Touch::GetRotationAngle(float* aRotationAngle)
+{
+  *aRotationAngle = mRotationAngle;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+Touch::GetForce(float* aForce)
+{
+  *aForce = mForce;
+  return NS_OK;
 }
 
 bool
-Touch::Equals(Touch* aTouch)
+Touch::Equals(nsIDOMTouch* aTouch)
 {
-  return mRefPoint == aTouch->mRefPoint &&
-         mForce == aTouch->Force() &&
-         mRotationAngle == aTouch->RotationAngle() &&
-         mRadius.x == aTouch->RadiusX() &&
-         mRadius.y == aTouch->RadiusY();
-}
-
-/* virtual */ JSObject*
-Touch::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
-{
-  return TouchBinding::Wrap(aCx, aScope, this);
+  float force;
+  float orientation;
+  int32_t radiusX, radiusY;
+  aTouch->GetForce(&force);
+  aTouch->GetRotationAngle(&orientation);
+  aTouch->GetRadiusX(&radiusX);
+  aTouch->GetRadiusY(&radiusY);
+  return mRefPoint != aTouch->mRefPoint ||
+         (mForce != force) ||
+         (mRotationAngle != orientation) ||
+         (mRadius.x != radiusX) || (mRadius.y != radiusY);
 }
 
 } // namespace dom

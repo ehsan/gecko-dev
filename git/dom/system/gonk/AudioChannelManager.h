@@ -8,7 +8,6 @@
 #include "mozilla/Hal.h"
 #include "mozilla/HalTypes.h"
 #include "nsDOMEventTargetHelper.h"
-#include "AudioChannelService.h"
 
 namespace mozilla {
 namespace hal {
@@ -19,17 +18,12 @@ typedef Observer<SwitchEvent> SwitchObserver;
 namespace dom {
 namespace system {
 
-class AudioChannelManager MOZ_FINAL
-  : public nsDOMEventTargetHelper
-  , public hal::SwitchObserver
-  , public nsIDOMEventListener
+class AudioChannelManager : public nsDOMEventTargetHelper
+                          , public hal::SwitchObserver
 {
 public:
   AudioChannelManager();
   virtual ~AudioChannelManager();
-
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_NSIDOMEVENTLISTENER
 
   void Notify(const hal::SwitchEvent& aEvent);
 
@@ -44,30 +38,17 @@ public:
      return GetOwner();
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   bool Headphones() const
   {
-    // Bug 929139 - Remove the assert check for SWITCH_STATE_UNKNOWN.
-    // If any devices (ex: emulator) didn't have the corresponding sys node for
-    // headset switch state then GonkSwitch will report the unknown state.
-    // So it is possible to get unknown state here.
-    return mState != hal::SWITCH_STATE_OFF &&
-           mState != hal::SWITCH_STATE_UNKNOWN;
+    return mState == hal::SWITCH_STATE_ON;
   }
-
-  bool SetVolumeControlChannel(const nsAString& aChannel);
-
-  bool GetVolumeControlChannel(nsAString& aChannel);
 
   IMPL_EVENT_HANDLER(headphoneschange)
 
 private:
-  void NotifyVolumeControlChannelChanged();
-
   hal::SwitchState mState;
-  AudioChannelType mVolumeChannel;
 };
 
 } // namespace system

@@ -23,17 +23,16 @@ protected:
   friend nsresult (::NS_NewSVGAltGlyphElement(nsIContent **aResult,
                                               already_AddRefed<nsINodeInfo> aNodeInfo));
   SVGAltGlyphElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-  virtual JSObject* WrapNode(JSContext *cx,
-                             JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 public:
   // nsIContent interface
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // WebIDL
-  already_AddRefed<SVGAnimatedString> Href();
+  already_AddRefed<nsIDOMSVGAnimatedString> Href();
   void GetGlyphRef(nsAString & aGlyphRef);
   void SetGlyphRef(const nsAString & aGlyphRef, ErrorResult& rv);
   void GetFormat(nsAString & aFormat);
@@ -42,21 +41,14 @@ public:
 protected:
 
   // nsSVGElement overrides
-  virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;
-  virtual LengthAttributesInfo GetLengthInfo() MOZ_OVERRIDE;
-  virtual StringAttributesInfo GetStringInfo() MOZ_OVERRIDE;
+  virtual StringAttributesInfo GetStringInfo();
+
+  virtual bool IsEventName(nsIAtom* aName);
 
   enum { HREF };
   nsSVGString mStringAttributes[1];
   static StringInfo sStringInfo[1];
 
-  nsSVGEnum mEnumAttributes[1];
-  virtual nsSVGEnum* EnumAttributes() MOZ_OVERRIDE
-    { return mEnumAttributes; }
-
-  nsSVGLength2 mLengthAttributes[1];
-  virtual nsSVGLength2* LengthAttributes() MOZ_OVERRIDE
-    { return mLengthAttributes; }
 };
 
 } // namespace dom

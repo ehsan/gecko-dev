@@ -5,9 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gdb_gdb_tests_h
-#define gdb_gdb_tests_h
-
 // Support for C++ fragments to be used by Python unit tests for SpiderMonkey's
 // GDB support.
 //
@@ -20,7 +17,7 @@
 // (So the .cpp files are two steps removed from being anything one would
 // actually run.)
 
-#include "NamespaceImports.h"
+#include "jsapi.h"
 
 void breakpoint();
 
@@ -71,4 +68,3 @@ void FRAGMENT_CLASS_NAME(category, subname)::run(JSContext *cx, const char **&ar
 #define FRAGMENT_STRING_NAME(category, subname) (#category "." #subname)
 #define FRAGMENT_CLASS_NAME(category, subname) Fragment_ ## category ## _ ## subname
 
-#endif /* gdb_gdb_tests_h */

@@ -1,9 +1,11 @@
+
 /*
  * Copyright 2006 The Android Open Source Project
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
+
 
 #ifndef SkTableMaskFilter_DEFINED
 #define SkTableMaskFilter_DEFINED
@@ -16,11 +18,13 @@
     Applies a table lookup on each of the alpha values in the mask.
     Helper methods create some common tables (e.g. gamma, clipping)
  */
-class SK_API SkTableMaskFilter : public SkMaskFilter {
+class SkTableMaskFilter : public SkMaskFilter {
 public:
     SkTableMaskFilter();
     SkTableMaskFilter(const uint8_t table[256]);
     virtual ~SkTableMaskFilter();
+
+    void setTable(const uint8_t table[256]);
 
     /** Utility that sets the gamma table
      */
@@ -43,11 +47,10 @@ public:
         return SkNEW_ARGS(SkTableMaskFilter, (table));
     }
 
-    virtual SkMask::Format getFormat() const SK_OVERRIDE;
-    virtual bool filterMask(SkMask*, const SkMask&, const SkMatrix&,
-                            SkIPoint*) const SK_OVERRIDE;
+    // overrides from SkMaskFilter
+    virtual SkMask::Format getFormat();
+    virtual bool filterMask(SkMask*, const SkMask&, const SkMatrix&, SkIPoint*);
 
-    SkDEVCODE(virtual void toString(SkString* str) const SK_OVERRIDE;)
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkTableMaskFilter)
 
 protected:
@@ -61,3 +64,4 @@ private:
 };
 
 #endif
+

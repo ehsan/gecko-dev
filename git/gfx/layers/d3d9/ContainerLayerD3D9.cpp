@@ -4,44 +4,163 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ContainerLayerD3D9.h"
-
+#include "gfxUtils.h"
+#include "nsRect.h"
 #include "ThebesLayerD3D9.h"
 #include "ReadbackProcessor.h"
 
 namespace mozilla {
 namespace layers {
 
-ContainerLayerD3D9::ContainerLayerD3D9(LayerManagerD3D9 *aManager)
-  : ContainerLayer(aManager, nullptr)
-  , LayerD3D9(aManager)
+template<class Container>
+static void
+ContainerInsertAfter(Container* aContainer, Layer* aChild, Layer* aAfter)
 {
-  mImplData = static_cast<LayerD3D9*>(this);
-}
+  NS_ASSERTION(aChild->Manager() == aContainer->Manager(),
+               "Child has wrong manager");
+  NS_ASSERTION(!aChild->GetParent(),
+               "aChild already in the tree");
+  NS_ASSERTION(!aChild->GetNextSibling() && !aChild->GetPrevSibling(),
+               "aChild already has siblings?");
+  NS_ASSERTION(!aAfter ||
+               (aAfter->Manager() == aContainer->Manager() &&
+                aAfter->GetParent() == aContainer),
+               "aAfter is not our child");
 
-ContainerLayerD3D9::~ContainerLayerD3D9()
-{
-  while (mFirstChild) {
-    RemoveChild(mFirstChild);
+  aChild->SetParent(aContainer);
+  if (aAfter == aContainer->mLastChild) {
+    aContainer->mLastChild = aChild;
   }
-}
-
-Layer*
-ContainerLayerD3D9::GetLayer()
-{
-  return this;
-}
-
-LayerD3D9*
-ContainerLayerD3D9::GetFirstChildD3D9()
-{
-  if (!mFirstChild) {
-    return nullptr;
+  if (!aAfter) {
+    aChild->SetNextSibling(aContainer->mFirstChild);
+    if (aContainer->mFirstChild) {
+      aContainer->mFirstChild->SetPrevSibling(aChild);
+    }
+    aContainer->mFirstChild = aChild;
+    NS_ADDREF(aChild);
+    aContainer->DidInsertChild(aChild);
+    return;
   }
-  return static_cast<LayerD3D9*>(mFirstChild->ImplData());
+
+  Layer* next = aAfter->GetNextSibling();
+  aChild->SetNextSibling(next);
+  aChild->SetPrevSibling(aAfter);
+  if (next) {
+    next->SetPrevSibling(aChild);
+  }
+  aAfter->SetNextSibling(aChild);
+  NS_ADDREF(aChild);
+  aContainer->DidInsertChild(aChild);
 }
 
-void
-ContainerLayerD3D9::RenderLayer()
+template<class Container>
+static void
+ContainerRemoveChild(Container* aContainer, Layer* aChild)
+{
+  NS_ASSERTION(aChild->Manager() == aContainer->Manager(),
+               "Child has wrong manager");
+  NS_ASSERTION(aChild->GetParent() == aContainer,
+               "aChild not our child");
+
+  Layer* prev = aChild->GetPrevSibling();
+  Layer* next = aChild->GetNextSibling();
+  if (prev) {
+    prev->SetNextSibling(next);
+  } else {
+    aContainer->mFirstChild = next;
+  }
+  if (next) {
+    next->SetPrevSibling(prev);
+  } else {
+    aContainer->mLastChild = prev;
+  }
+
+  aChild->SetNextSibling(nullptr);
+  aChild->SetPrevSibling(nullptr);
+  aChild->SetParent(nullptr);
+
+  aContainer->DidRemoveChild(aChild);
+  NS_RELEASE(aChild);
+}
+
+template<class Container>
+static void
+ContainerRepositionChild(Container* aContainer, Layer* aChild, Layer* aAfter)
+{
+  NS_ASSERTION(aChild->Manager() == aContainer->Manager(),
+               "Child has wrong manager");
+  NS_ASSERTION(aChild->GetParent() == aContainer,
+               "aChild not our child");
+  NS_ASSERTION(!aAfter ||
+               (aAfter->Manager() == aContainer->Manager() &&
+                aAfter->GetParent() == aContainer),
+               "aAfter is not our child");
+
+  Layer* prev = aChild->GetPrevSibling();
+  Layer* next = aChild->GetNextSibling();
+  if (prev == aAfter) {
+    // aChild is already in the correct position, nothing to do.
+    return;
+  }
+  if (prev) {
+    prev->SetNextSibling(next);
+  }
+  if (next) {
+    next->SetPrevSibling(prev);
+  }
+  if (!aAfter) {
+    aChild->SetPrevSibling(nullptr);
+    aChild->SetNextSibling(aContainer->mFirstChild);
+    if (aContainer->mFirstChild) {
+      aContainer->mFirstChild->SetPrevSibling(aChild);
+    }
+    aContainer->mFirstChild = aChild;
+    return;
+  }
+
+  Layer* afterNext = aAfter->GetNextSibling();
+  if (afterNext) {
+    afterNext->SetPrevSibling(aChild);
+  } else {
+    aContainer->mLastChild = aChild;
+  }
+  aAfter->SetNextSibling(aChild);
+  aChild->SetPrevSibling(aAfter);
+  aChild->SetNextSibling(afterNext);
+}
+
+static inline LayerD3D9*
+GetNextSibling(LayerD3D9* aLayer)
+{
+   Layer* layer = aLayer->GetLayer()->GetNextSibling();
+   return layer ? static_cast<LayerD3D9*>(layer->
+                                         ImplData())
+                 : nullptr;
+}
+
+static bool
+HasOpaqueAncestorLayer(Layer* aLayer)
+{
+  for (Layer* l = aLayer->GetParent(); l; l = l->GetParent()) {
+    if (l->GetContentFlags() & Layer::CONTENT_OPAQUE)
+      return true;
+  }
+  return false;
+}
+
+static inline LayerD3D9*
+GetNextSiblingD3D9(LayerD3D9* aLayer)
+{
+   Layer* layer = aLayer->GetLayer()->GetNextSibling();
+   return layer ? static_cast<LayerD3D9*>(layer->
+                                          ImplData())
+                 : nullptr;
+}
+
+template<class Container>
+static void
+ContainerRender(Container* aContainer,
+                LayerManagerD3D9* aManager)
 {
   nsRefPtr<IDirect3DSurface9> previousRenderTarget;
   nsRefPtr<IDirect3DTexture9> renderTexture;
@@ -50,7 +169,7 @@ ContainerLayerD3D9::RenderLayer()
   float oldViewMatrix[4][4];
 
   RECT containerD3D9ClipRect; 
-  device()->GetScissorRect(&containerD3D9ClipRect);
+  aManager->device()->GetScissorRect(&containerD3D9ClipRect);
   // Convert scissor to an nsIntRect. RECT's are exclusive on the bottom and
   // right values.
   nsIntRect oldScissor(containerD3D9ClipRect.left, 
@@ -59,44 +178,44 @@ ContainerLayerD3D9::RenderLayer()
                        containerD3D9ClipRect.bottom - containerD3D9ClipRect.top);
 
   ReadbackProcessor readback;
-  readback.BuildUpdates(this);
+  readback.BuildUpdates(aContainer);
 
-  nsIntRect visibleRect = GetEffectiveVisibleRegion().GetBounds();
-  bool useIntermediate = UseIntermediateSurface();
+  nsIntRect visibleRect = aContainer->GetEffectiveVisibleRegion().GetBounds();
+  bool useIntermediate = aContainer->UseIntermediateSurface();
 
-  mSupportsComponentAlphaChildren = false;
+  aContainer->mSupportsComponentAlphaChildren = false;
   if (useIntermediate) {
     nsRefPtr<IDirect3DSurface9> renderSurface;
-    if (!mD3DManager->CompositingDisabled()) {
-      device()->GetRenderTarget(0, getter_AddRefs(previousRenderTarget));
-      HRESULT hr = device()->CreateTexture(visibleRect.width, visibleRect.height, 1,
-                                           D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8,
-                                           D3DPOOL_DEFAULT, getter_AddRefs(renderTexture),
-                                           nullptr);
+    if (!aManager->CompositingDisabled()) {
+      aManager->device()->GetRenderTarget(0, getter_AddRefs(previousRenderTarget));
+      HRESULT hr = aManager->device()->CreateTexture(visibleRect.width, visibleRect.height, 1,
+                                                     D3DUSAGE_RENDERTARGET, D3DFMT_A8R8G8B8,
+                                                     D3DPOOL_DEFAULT, getter_AddRefs(renderTexture),
+                                                     NULL);
       if (FAILED(hr)) {
-        ReportFailure(NS_LITERAL_CSTRING("ContainerLayerD3D9::ContainerRender(): Failed to create texture"),
+        aManager->ReportFailure(NS_LITERAL_CSTRING("ContainerLayerD3D9::ContainerRender(): Failed to create texture"),
                                 hr);
         return;
       }
 
       nsRefPtr<IDirect3DSurface9> renderSurface;
       renderTexture->GetSurfaceLevel(0, getter_AddRefs(renderSurface));
-      device()->SetRenderTarget(0, renderSurface);
+      aManager->device()->SetRenderTarget(0, renderSurface);
     }
 
-    if (mVisibleRegion.GetNumRects() == 1 && 
-        (GetContentFlags() & CONTENT_OPAQUE)) {
+    if (aContainer->mVisibleRegion.GetNumRects() == 1 && 
+        (aContainer->GetContentFlags() & aContainer->CONTENT_OPAQUE)) {
       // don't need a background, we're going to paint all opaque stuff
-      mSupportsComponentAlphaChildren = true;
+      aContainer->mSupportsComponentAlphaChildren = true;
     } else {
-      const gfx3DMatrix& transform3D = GetEffectiveTransform();
+      const gfx3DMatrix& transform3D = aContainer->GetEffectiveTransform();
       gfxMatrix transform;
       // If we have an opaque ancestor layer, then we can be sure that
       // all the pixels we draw into are either opaque already or will be
       // covered by something opaque. Otherwise copying up the background is
       // not safe.
       HRESULT hr = E_FAIL;
-      if (HasOpaqueAncestorLayer(this) &&
+      if (HasOpaqueAncestorLayer(aContainer) &&
           transform3D.Is2D(&transform) && !transform.HasNonIntegerTranslation()) {
         // Copy background up from below
         RECT dest = { 0, 0, visibleRect.width, visibleRect.height };
@@ -104,24 +223,24 @@ ContainerLayerD3D9::RenderLayer()
         ::OffsetRect(&src,
                      visibleRect.x + int32_t(transform.x0),
                      visibleRect.y + int32_t(transform.y0));
-        if (!mD3DManager->CompositingDisabled()) {
-          hr = device()->
+        if (!aManager->CompositingDisabled()) {
+          hr = aManager->device()->
             StretchRect(previousRenderTarget, &src, renderSurface, &dest, D3DTEXF_NONE);
         }
       }
       if (hr == S_OK) {
-        mSupportsComponentAlphaChildren = true;
-      } else if (!mD3DManager->CompositingDisabled()) {
-        device()->
+        aContainer->mSupportsComponentAlphaChildren = true;
+      } else if (!aManager->CompositingDisabled()) {
+        aManager->device()->
           Clear(0, 0, D3DCLEAR_TARGET, D3DCOLOR_RGBA(0, 0, 0, 0), 0, 0);
       }
     }
 
-    device()->
+    aManager->device()->
       GetVertexShaderConstantF(CBvRenderTargetOffset, previousRenderTargetOffset, 1);
     renderTargetOffset[0] = (float)visibleRect.x;
     renderTargetOffset[1] = (float)visibleRect.y;
-    device()->
+    aManager->device()->
       SetVertexShaderConstantF(CBvRenderTargetOffset, renderTargetOffset, 1);
 
     gfx3DMatrix viewMatrix;
@@ -134,19 +253,19 @@ ContainerLayerD3D9::RenderLayer()
     viewMatrix._41 = -1.0f;
     viewMatrix._42 = 1.0f;
 
-    device()->
+    aManager->device()->
       GetVertexShaderConstantF(CBmProjection, &oldViewMatrix[0][0], 4);
-    device()->
+    aManager->device()->
       SetVertexShaderConstantF(CBmProjection, &viewMatrix._11, 4);
   } else {
-    mSupportsComponentAlphaChildren = 
-        (GetContentFlags() & CONTENT_OPAQUE) ||
-        (mParent && 
-         mParent->SupportsComponentAlphaChildren());
+    aContainer->mSupportsComponentAlphaChildren = 
+        (aContainer->GetContentFlags() & aContainer->CONTENT_OPAQUE) ||
+        (aContainer->mParent && 
+         aContainer->mParent->SupportsComponentAlphaChildren());
   }
 
   nsAutoTArray<Layer*, 12> children;
-  SortChildrenBy3DZOrder(children);
+  aContainer->SortChildrenBy3DZOrder(children);
 
   /*
    * Render this container's contents.
@@ -169,38 +288,92 @@ ContainerLayerD3D9::RenderLayer()
     d3drect.top = scissorRect.y;
     d3drect.right = scissorRect.x + scissorRect.width;
     d3drect.bottom = scissorRect.y + scissorRect.height;
-    device()->SetScissorRect(&d3drect);
+    aManager->device()->SetScissorRect(&d3drect);
 
-    if (layerToRender->GetLayer()->GetType() == TYPE_THEBES) {
+    if (layerToRender->GetLayer()->GetType() == aContainer->TYPE_THEBES) {
       static_cast<ThebesLayerD3D9*>(layerToRender)->RenderThebesLayer(&readback);
     } else {
       layerToRender->RenderLayer();
     }
   }
     
-  if (useIntermediate && !mD3DManager->CompositingDisabled()) {
-    device()->SetRenderTarget(0, previousRenderTarget);
-    device()->SetVertexShaderConstantF(CBvRenderTargetOffset, previousRenderTargetOffset, 1);
-    device()->SetVertexShaderConstantF(CBmProjection, &oldViewMatrix[0][0], 4);
+  if (useIntermediate && !aManager->CompositingDisabled()) {
+    aManager->device()->SetRenderTarget(0, previousRenderTarget);
+    aManager->device()->SetVertexShaderConstantF(CBvRenderTargetOffset, previousRenderTargetOffset, 1);
+    aManager->device()->SetVertexShaderConstantF(CBmProjection, &oldViewMatrix[0][0], 4);
 
-    device()->SetVertexShaderConstantF(CBvLayerQuad,
+    aManager->device()->SetVertexShaderConstantF(CBvLayerQuad,
                                        ShaderConstantRect(visibleRect.x,
                                                           visibleRect.y,
                                                           visibleRect.width,
                                                           visibleRect.height),
                                        1);
 
-    SetShaderTransformAndOpacity();
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER,
-                               GetMaskLayer(),
-                               GetTransform().CanDraw2D());
+    aContainer->SetShaderTransformAndOpacity();
+    aManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER,
+                            aContainer->GetMaskLayer(),
+                            aContainer->GetTransform().CanDraw2D());
 
-    device()->SetTexture(0, renderTexture);
-    device()->SetScissorRect(&containerD3D9ClipRect);
-    device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
+    aManager->device()->SetTexture(0, renderTexture);
+    aManager->device()->SetScissorRect(&containerD3D9ClipRect);
+    aManager->device()->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
   } else {
-    device()->SetScissorRect(&containerD3D9ClipRect);
+    aManager->device()->SetScissorRect(&containerD3D9ClipRect);
   }
+}
+
+
+ContainerLayerD3D9::ContainerLayerD3D9(LayerManagerD3D9 *aManager)
+  : ContainerLayer(aManager, NULL)
+  , LayerD3D9(aManager)
+{
+  mImplData = static_cast<LayerD3D9*>(this);
+}
+
+ContainerLayerD3D9::~ContainerLayerD3D9()
+{
+  while (mFirstChild) {
+    RemoveChild(mFirstChild);
+  }
+}
+
+void
+ContainerLayerD3D9::InsertAfter(Layer* aChild, Layer* aAfter)
+{
+  ContainerInsertAfter(this, aChild, aAfter);
+}
+
+void
+ContainerLayerD3D9::RemoveChild(Layer *aChild)
+{
+  ContainerRemoveChild(this, aChild);
+}
+
+void
+ContainerLayerD3D9::RepositionChild(Layer* aChild, Layer* aAfter)
+{
+  ContainerRepositionChild(this, aChild, aAfter);
+}
+
+Layer*
+ContainerLayerD3D9::GetLayer()
+{
+  return this;
+}
+
+LayerD3D9*
+ContainerLayerD3D9::GetFirstChildD3D9()
+{
+  if (!mFirstChild) {
+    return nullptr;
+  }
+  return static_cast<LayerD3D9*>(mFirstChild->ImplData());
+}
+
+void
+ContainerLayerD3D9::RenderLayer()
+{
+  ContainerRender(this, mD3DManager);
 }
 
 void

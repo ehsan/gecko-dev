@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set sw=2 ts=8 et tw=80 : */
+/* vim: set sw=4 ts=8 et tw=80 : */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,21 +7,14 @@
 #ifndef mozilla_layers_GestureEventListener_h
 #define mozilla_layers_GestureEventListener_h
 
-#include <stdint.h>                     // for uint64_t
-#include "InputData.h"                  // for MultiTouchInput, etc
-#include "Units.h"                      // for ScreenIntPoint
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
-#include "mozilla/EventForwards.h"      // for nsEventStatus
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsISupportsImpl.h"
-#include "nsTArray.h"                   // for nsTArray
+#include "mozilla/RefPtr.h"
+#include "InputData.h"
+#include "Axis.h"
 
-class CancelableTask;
+#include "base/message_loop.h"
 
 namespace mozilla {
 namespace layers {
-
-class AsyncPanZoomController;
 
 /**
  * Platform-non-specific, generalized gesture event listener. This class
@@ -208,28 +201,22 @@ protected:
    * Task used to timeout a double tap. This gets posted to the UI thread such
    * that it runs a short time after a single tap happens. We cache it so that
    * we can cancel it if a double tap actually comes in.
-   * CancelDoubleTapTimeoutTask: Cancel the mDoubleTapTimeoutTask and also set
-   * it to null.
    */
   CancelableTask *mDoubleTapTimeoutTask;
-  inline void CancelDoubleTapTimeoutTask();
 
   /**
    * Task used to timeout a long tap. This gets posted to the UI thread such
    * that it runs a time when a single tap happens. We cache it so that
    * we can cancel it if any other touch event happens.
-   * CancelLongTapTimeoutTask: Cancel the mLongTapTimeoutTask and also set
-   * it to null.
    */
   CancelableTask *mLongTapTimeoutTask;
-  inline void CancelLongTapTimeoutTask();
 
   /**
    * Position of the last touch starting. This is only valid during an attempt
    * to determine if a touch is a tap. This means that it is used in both the
    * "GESTURE_WAITING_SINGLE_TAP" and "GESTURE_WAITING_DOUBLE_TAP" states.
    */
-  ScreenIntPoint mTouchStartPosition;
+  nsIntPoint mTouchStartPosition;
 };
 
 }

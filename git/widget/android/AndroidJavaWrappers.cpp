@@ -5,14 +5,10 @@
 
 #include "AndroidJavaWrappers.h"
 #include "AndroidBridge.h"
-#include "AndroidBridgeUtilities.h"
 #include "nsIAndroidBridge.h"
 #include "nsIDOMKeyEvent.h"
-#include "nsIWidget.h"
-#include "mozilla/TouchEvents.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 jclass AndroidGeckoEvent::jGeckoEventClass = 0;
 jfieldID AndroidGeckoEvent::jActionField = 0;
@@ -33,7 +29,6 @@ jfieldID AndroidGeckoEvent::jNativeWindowField = 0;
 
 jfieldID AndroidGeckoEvent::jCharactersField = 0;
 jfieldID AndroidGeckoEvent::jCharactersExtraField = 0;
-jfieldID AndroidGeckoEvent::jDataField = 0;
 jfieldID AndroidGeckoEvent::jKeyCodeField = 0;
 jfieldID AndroidGeckoEvent::jMetaStateField = 0;
 jfieldID AndroidGeckoEvent::jDomKeyLocationField = 0;
@@ -55,13 +50,10 @@ jfieldID AndroidGeckoEvent::jRangeLineColorField = 0;
 jfieldID AndroidGeckoEvent::jLocationField = 0;
 jfieldID AndroidGeckoEvent::jBandwidthField = 0;
 jfieldID AndroidGeckoEvent::jCanBeMeteredField = 0;
-jfieldID AndroidGeckoEvent::jIsWifiField = 0;
-jfieldID AndroidGeckoEvent::jDHCPGatewayField = 0;
 jfieldID AndroidGeckoEvent::jScreenOrientationField = 0;
 jfieldID AndroidGeckoEvent::jByteBufferField = 0;
 jfieldID AndroidGeckoEvent::jWidthField = 0;
 jfieldID AndroidGeckoEvent::jHeightField = 0;
-jfieldID AndroidGeckoEvent::jPrefNamesField = 0;
 
 jclass AndroidGeckoEvent::jDomKeyLocationClass = 0;
 jfieldID AndroidGeckoEvent::jDomKeyLocationValueField = 0;
@@ -97,13 +89,10 @@ jclass AndroidGeckoLayerClient::jDisplayportClass = 0;
 jmethodID AndroidGeckoLayerClient::jSetFirstPaintViewport = 0;
 jmethodID AndroidGeckoLayerClient::jSetPageRect = 0;
 jmethodID AndroidGeckoLayerClient::jSyncViewportInfoMethod = 0;
-jmethodID AndroidGeckoLayerClient::jSyncFrameMetricsMethod = 0;
 jmethodID AndroidGeckoLayerClient::jCreateFrameMethod = 0;
 jmethodID AndroidGeckoLayerClient::jActivateProgramMethod = 0;
 jmethodID AndroidGeckoLayerClient::jDeactivateProgramMethod = 0;
 jmethodID AndroidGeckoLayerClient::jGetDisplayPort = 0;
-jmethodID AndroidGeckoLayerClient::jContentDocumentChanged = 0;
-jmethodID AndroidGeckoLayerClient::jIsContentDocumentDisplayed = 0;
 jmethodID AndroidGeckoLayerClient::jViewportCtor = 0;
 jfieldID AndroidGeckoLayerClient::jDisplayportPosition = 0;
 jfieldID AndroidGeckoLayerClient::jDisplayportResolution = 0;
@@ -123,8 +112,6 @@ jfieldID AndroidViewTransform::jFixedLayerMarginLeft = 0;
 jfieldID AndroidViewTransform::jFixedLayerMarginTop = 0;
 jfieldID AndroidViewTransform::jFixedLayerMarginRight = 0;
 jfieldID AndroidViewTransform::jFixedLayerMarginBottom = 0;
-jfieldID AndroidViewTransform::jOffsetXField = 0;
-jfieldID AndroidViewTransform::jOffsetYField = 0;
 
 jclass AndroidProgressiveUpdateData::jProgressiveUpdateDataClass = 0;
 jfieldID AndroidProgressiveUpdateData::jXField = 0;
@@ -134,10 +121,73 @@ jfieldID AndroidProgressiveUpdateData::jHeightField = 0;
 jfieldID AndroidProgressiveUpdateData::jScaleField = 0;
 jfieldID AndroidProgressiveUpdateData::jShouldAbortField = 0;
 
+static jclass GetClassGlobalRef(JNIEnv* env, const char* className)
+{
+    jobject classLocalRef = env->FindClass(className);
+    if (!classLocalRef) {
+        ALOG(">>> FATAL JNI ERROR! FindClass(className=\"%s\") failed. Did "
+             "ProGuard optimize away a non-public class?", className);
+        env->ExceptionDescribe();
+        MOZ_CRASH();
+    }
+
+    jobject classGlobalRef = env->NewGlobalRef(classLocalRef);
+    if (!classGlobalRef) {
+        env->ExceptionDescribe();
+        MOZ_CRASH();
+    }
+
+    // Local ref no longer necessary because we have a global ref.
+    env->DeleteLocalRef(classLocalRef);
+    classLocalRef = NULL;
+
+    return static_cast<jclass>(classGlobalRef);
+}
+
+static jfieldID GetFieldID(JNIEnv* env, jclass jClass,
+                           const char* fieldName, const char* fieldType)
+{
+    jfieldID fieldID = env->GetFieldID(jClass, fieldName, fieldType);
+    if (!fieldID) {
+        ALOG(">>> FATAL JNI ERROR! GetFieldID(fieldName=\"%s\", "
+             "fieldType=\"%s\") failed. Did ProGuard optimize away a non-"
+             "public field?", fieldName, fieldType);
+        env->ExceptionDescribe();
+        MOZ_CRASH();
+    }
+    return fieldID;
+}
+
+static jmethodID GetMethodID(JNIEnv* env, jclass jClass,
+                             const char* methodName, const char* methodType)
+{
+    jmethodID methodID = env->GetMethodID(jClass, methodName, methodType);
+    if (!methodID) {
+        ALOG(">>> FATAL JNI ERROR! GetMethodID(methodName=\"%s\", "
+             "methodType=\"%s\") failed. Did ProGuard optimize away a non-"
+             "public method?", methodName, methodType);
+        env->ExceptionDescribe();
+        MOZ_CRASH();
+    }
+    return methodID;
+}
+
+#define initInit() jclass jClass
+
+// note that this also sets jClass
+#define getClassGlobalRef(cname) \
+    (jClass = GetClassGlobalRef(jEnv, cname))
+
+#define getField(fname, ftype) \
+    GetFieldID(jEnv, jClass, fname, ftype)
+
+#define getMethod(fname, ftype) \
+    GetMethodID(jEnv, jClass, fname, ftype)
+
 RefCountedJavaObject::~RefCountedJavaObject() {
     if (mObject)
         GetJNIForThread()->DeleteGlobalRef(mObject);
-    mObject = nullptr;
+    mObject = NULL;
 }
 
 void
@@ -177,7 +227,6 @@ AndroidGeckoEvent::InitGeckoEventClass(JNIEnv *jEnv)
 
     jCharactersField = getField("mCharacters", "Ljava/lang/String;");
     jCharactersExtraField = getField("mCharactersExtra", "Ljava/lang/String;");
-    jDataField = getField("mData", "Ljava/lang/String;");
     jKeyCodeField = getField("mKeyCode", "I");
     jMetaStateField = getField("mMetaState", "I");
     jDomKeyLocationField = getField("mDomKeyLocation", "Lorg/mozilla/gecko/GeckoEvent$DomKeyLocation;");
@@ -199,13 +248,10 @@ AndroidGeckoEvent::InitGeckoEventClass(JNIEnv *jEnv)
     jLocationField = getField("mLocation", "Landroid/location/Location;");
     jBandwidthField = getField("mBandwidth", "D");
     jCanBeMeteredField = getField("mCanBeMetered", "Z");
-    jIsWifiField = getField("mIsWifi", "Z");
-    jDHCPGatewayField = getField("mDHCPGateway", "I");
     jScreenOrientationField = getField("mScreenOrientation", "S");
     jByteBufferField = getField("mBuffer", "Ljava/nio/ByteBuffer;");
     jWidthField = getField("mWidth", "I");
     jHeightField = getField("mHeight", "I");
-    jPrefNamesField = getField("mPrefNames", "[Ljava/lang/String;");
 
     // Init GeckoEvent.DomKeyLocation enum
     jDomKeyLocationClass = getClassGlobalRef("org/mozilla/gecko/GeckoEvent$DomKeyLocation");
@@ -233,19 +279,19 @@ AndroidLocation::CreateGeoPosition(JNIEnv *jenv, jobject jobj)
     AutoLocalJNIFrame jniFrame(jenv);
 
     double latitude  = jenv->CallDoubleMethod(jobj, jGetLatitudeMethod);
-    if (jniFrame.CheckForException()) return nullptr;
+    if (jniFrame.CheckForException()) return NULL;
     double longitude = jenv->CallDoubleMethod(jobj, jGetLongitudeMethod);
-    if (jniFrame.CheckForException()) return nullptr;
+    if (jniFrame.CheckForException()) return NULL;
     double altitude  = jenv->CallDoubleMethod(jobj, jGetAltitudeMethod);
-    if (jniFrame.CheckForException()) return nullptr;
+    if (jniFrame.CheckForException()) return NULL;
     float  accuracy  = jenv->CallFloatMethod (jobj, jGetAccuracyMethod);
-    if (jniFrame.CheckForException()) return nullptr;
+    if (jniFrame.CheckForException()) return NULL;
     float  bearing   = jenv->CallFloatMethod (jobj, jGetBearingMethod);
-    if (jniFrame.CheckForException()) return nullptr;
+    if (jniFrame.CheckForException()) return NULL;
     float  speed     = jenv->CallFloatMethod (jobj, jGetSpeedMethod);
-    if (jniFrame.CheckForException()) return nullptr;
+    if (jniFrame.CheckForException()) return NULL;
     long long time   = jenv->CallLongMethod  (jobj, jGetTimeMethod);
-    if (jniFrame.CheckForException()) return nullptr;
+    if (jniFrame.CheckForException()) return NULL;
 
     return new nsGeoPosition(latitude, longitude,
                              altitude, accuracy,
@@ -297,27 +343,23 @@ AndroidGeckoLayerClient::InitGeckoLayerClientClass(JNIEnv *jEnv)
 
     jGeckoLayerClientClass = getClassGlobalRef("org/mozilla/gecko/gfx/GeckoLayerClient");
 
-    jProgressiveUpdateCallbackMethod = getMethod("progressiveUpdateCallback",
-                                                 "(ZFFFFFZ)Lorg/mozilla/gecko/gfx/ProgressiveUpdateData;");
-    jSetFirstPaintViewport = getMethod("setFirstPaintViewport", "(FFFFFFF)V");
+    jSetFirstPaintViewport = getMethod("setFirstPaintViewport", "(FFFFFFFFFFF)V");
     jSetPageRect = getMethod("setPageRect", "(FFFF)V");
     jSyncViewportInfoMethod = getMethod("syncViewportInfo",
                                         "(IIIIFZ)Lorg/mozilla/gecko/gfx/ViewTransform;");
-    jSyncFrameMetricsMethod = getMethod("syncFrameMetrics",
-                                        "(FFFFFFFZIIIIFZ)Lorg/mozilla/gecko/gfx/ViewTransform;");
     jCreateFrameMethod = getMethod("createFrame", "()Lorg/mozilla/gecko/gfx/LayerRenderer$Frame;");
     jActivateProgramMethod = getMethod("activateProgram", "()V");
     jDeactivateProgramMethod = getMethod("deactivateProgram", "()V");
     jGetDisplayPort = getMethod("getDisplayPort", "(ZZILorg/mozilla/gecko/gfx/ImmutableViewportMetrics;)Lorg/mozilla/gecko/gfx/DisplayPortMetrics;");
-    jContentDocumentChanged = getMethod("contentDocumentChanged", "()V");
-    jIsContentDocumentDisplayed = getMethod("isContentDocumentDisplayed", "()Z");
 
-    jViewportClass = getClassGlobalRef("org/mozilla/gecko/gfx/ImmutableViewportMetrics");
-    jViewportCtor = getMethod("<init>", "(FFFFFFFFFFFFF)V");
+    jViewportClass = GetClassGlobalRef(jEnv, "org/mozilla/gecko/gfx/ImmutableViewportMetrics");
+    jViewportCtor = GetMethodID(jEnv, jViewportClass, "<init>", "(FFFFFFFFFFFFF)V");
 
-    jDisplayportClass = getClassGlobalRef("org/mozilla/gecko/gfx/DisplayPortMetrics");
-    jDisplayportPosition = getField("mPosition", "Landroid/graphics/RectF;");
-    jDisplayportResolution = getField("resolution", "F");
+    jDisplayportClass = GetClassGlobalRef(jEnv, "org/mozilla/gecko/gfx/DisplayPortMetrics");
+    jDisplayportPosition = GetFieldID(jEnv, jDisplayportClass, "mPosition", "Landroid/graphics/RectF;");
+    jDisplayportResolution = GetFieldID(jEnv, jDisplayportClass, "resolution", "F");
+    jProgressiveUpdateCallbackMethod = getMethod("progressiveUpdateCallback",
+                                                 "(ZFFFFFZ)Lorg/mozilla/gecko/gfx/ProgressiveUpdateData;");
 }
 
 void
@@ -347,8 +389,6 @@ AndroidViewTransform::InitViewTransformClass(JNIEnv *jEnv)
     jFixedLayerMarginTop = getField("fixedLayerMarginTop", "F");
     jFixedLayerMarginRight = getField("fixedLayerMarginRight", "F");
     jFixedLayerMarginBottom = getField("fixedLayerMarginBottom", "F");
-    jOffsetXField = getField("offsetX", "F");
-    jOffsetYField = getField("offsetY", "F");
 }
 
 void
@@ -394,7 +434,7 @@ AndroidGeckoEvent::ReadIntArray(nsTArray<int> &aVals,
                                 int32_t count)
 {
     jintArray jIntArray = (jintArray)jenv->GetObjectField(wrapped_obj, field);
-    jint *vals = jenv->GetIntArrayElements(jIntArray, nullptr);
+    jint *vals = jenv->GetIntArrayElements(jIntArray, NULL);
     for (int32_t i = 0; i < count; i++) {
         aVals.AppendElement(vals[i]);
     }
@@ -408,26 +448,11 @@ AndroidGeckoEvent::ReadFloatArray(nsTArray<float> &aVals,
                                   int32_t count)
 {
     jfloatArray jFloatArray = (jfloatArray)jenv->GetObjectField(wrapped_obj, field);
-    jfloat *vals = jenv->GetFloatArrayElements(jFloatArray, nullptr);
+    jfloat *vals = jenv->GetFloatArrayElements(jFloatArray, NULL);
     for (int32_t i = 0; i < count; i++) {
         aVals.AppendElement(vals[i]);
     }
     jenv->ReleaseFloatArrayElements(jFloatArray, vals, JNI_ABORT);
-}
-
-void
-AndroidGeckoEvent::ReadStringArray(nsTArray<nsString> &array,
-                                   JNIEnv *jenv,
-                                   jfieldID field)
-{
-    jarray jArray = (jarray)jenv->GetObjectField(wrapped_obj, field);
-    jsize length = jenv->GetArrayLength(jArray);
-    jobjectArray jStringArray = (jobjectArray)jArray;
-    nsString *strings = array.AppendElements(length);
-    for (jsize i = 0; i < length; ++i) {
-        jstring javastring = (jstring) jenv->GetObjectArrayElement(jStringArray, i);
-        ReadStringFromJString(strings[i], jenv, javastring);
-    }
 }
 
 void
@@ -445,44 +470,39 @@ AndroidGeckoEvent::ReadRectField(JNIEnv *jenv)
 }
 
 void
-AndroidGeckoEvent::ReadStringFromJString(nsString &aString, JNIEnv *jenv,
-                                         jstring s)
+AndroidGeckoEvent::ReadCharactersField(JNIEnv *jenv)
 {
+    jstring s = (jstring) jenv->GetObjectField(wrapped_obj, jCharactersField);
     if (!s) {
-        aString.SetIsVoid(true);
+        mCharacters.SetIsVoid(true);
         return;
     }
 
     int len = jenv->GetStringLength(s);
-    aString.SetLength(len);
-    jenv->GetStringRegion(s, 0, len, reinterpret_cast<jchar*>(aString.BeginWriting()));
-}
-
-void
-AndroidGeckoEvent::ReadCharactersField(JNIEnv *jenv)
-{
-    jstring s = (jstring) jenv->GetObjectField(wrapped_obj, jCharactersField);
-    ReadStringFromJString(mCharacters, jenv, s);
+    mCharacters.SetLength(len);
+    jenv->GetStringRegion(s, 0, len, mCharacters.BeginWriting());
 }
 
 void
 AndroidGeckoEvent::ReadCharactersExtraField(JNIEnv *jenv)
 {
     jstring s = (jstring) jenv->GetObjectField(wrapped_obj, jCharactersExtraField);
-    ReadStringFromJString(mCharactersExtra, jenv, s);
+    if (!s) {
+        mCharactersExtra.SetIsVoid(true);
+        return;
+    }
+
+    int len = jenv->GetStringLength(s);
+    mCharactersExtra.SetLength(len);
+    jenv->GetStringRegion(s, 0, len, mCharactersExtra.BeginWriting());
 }
 
 void
-AndroidGeckoEvent::ReadDataField(JNIEnv *jenv)
+AndroidGeckoEvent::Init(int aType, nsIntRect const& aRect)
 {
-    jstring s = (jstring) jenv->GetObjectField(wrapped_obj, jDataField);
-    ReadStringFromJString(mData, jenv, s);
-}
-
-void
-AndroidGeckoEvent::UnionRect(nsIntRect const& aRect)
-{
-    mRect = aRect.Union(mRect);
+    mType = aType;
+    mAckNeeded = false;
+    mRect = aRect;
 }
 
 uint32_t
@@ -609,8 +629,6 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
         case NETWORK_CHANGED: {
             mBandwidth = jenv->GetDoubleField(jobj, jBandwidthField);
             mCanBeMetered = jenv->GetBooleanField(jobj, jCanBeMeteredField);
-            mIsWifi = jenv->GetBooleanField(jobj, jIsWifiField);
-            mDHCPGateway = jenv->GetIntField(jobj, jDHCPGatewayField);
             break;
         }
 
@@ -637,46 +655,6 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
             break;
         }
 
-        case CALL_OBSERVER: {
-            ReadCharactersField(jenv);
-            ReadCharactersExtraField(jenv);
-            ReadDataField(jenv);
-            break;
-        }
-
-        case REMOVE_OBSERVER: {
-            ReadCharactersField(jenv);
-            break;
-        }
-
-        case LOW_MEMORY: {
-            mMetaState = jenv->GetIntField(jobj, jMetaStateField);
-            break;
-        }
-
-        case NETWORK_LINK_CHANGE: {
-            ReadCharactersField(jenv);
-            break;
-        }
-
-        case TELEMETRY_HISTOGRAM_ADD: {
-            ReadCharactersField(jenv);
-            mCount = jenv->GetIntField(jobj, jCountField);
-            break;
-        }
-
-        case PREFERENCES_OBSERVE:
-        case PREFERENCES_GET: {
-            ReadStringArray(mPrefNames, jenv, jPrefNamesField);
-            mCount = jenv->GetIntField(jobj, jCountField);
-            break;
-        }
-
-        case PREFERENCES_REMOVE_OBSERVERS: {
-            mCount = jenv->GetIntField(jobj, jCountField);
-            break;
-        }
-
         default:
             break;
     }
@@ -694,6 +672,14 @@ AndroidGeckoEvent::Init(int aType)
 }
 
 void
+AndroidGeckoEvent::Init(int aType, int aAction)
+{
+    mType = aType;
+    mAckNeeded = false;
+    mAction = aAction;
+}
+
+void
 AndroidGeckoEvent::Init(AndroidGeckoEvent *aResizeEvent)
 {
     NS_ASSERTION(aResizeEvent->Type() == SIZE_CHANGED, "Init called on non-SIZE_CHANGED event");
@@ -702,182 +688,6 @@ AndroidGeckoEvent::Init(AndroidGeckoEvent *aResizeEvent)
     mAckNeeded = false;
     mTime = aResizeEvent->mTime;
     mPoints = aResizeEvent->mPoints; // x,y coordinates
-}
-
-WidgetTouchEvent
-AndroidGeckoEvent::MakeTouchEvent(nsIWidget* widget)
-{
-    int type = NS_EVENT_NULL;
-    int startIndex = 0;
-    int endIndex = Count();
-
-    switch (Action()) {
-        case AndroidMotionEvent::ACTION_DOWN:
-        case AndroidMotionEvent::ACTION_POINTER_DOWN: {
-            type = NS_TOUCH_START;
-            break;
-        }
-        case AndroidMotionEvent::ACTION_MOVE: {
-            type = NS_TOUCH_MOVE;
-            break;
-        }
-        case AndroidMotionEvent::ACTION_UP:
-        case AndroidMotionEvent::ACTION_POINTER_UP: {
-            type = NS_TOUCH_END;
-            // for pointer-up events we only want the data from
-            // the one pointer that went up
-            startIndex = PointerIndex();
-            endIndex = startIndex + 1;
-            break;
-        }
-        case AndroidMotionEvent::ACTION_OUTSIDE:
-        case AndroidMotionEvent::ACTION_CANCEL: {
-            type = NS_TOUCH_CANCEL;
-            break;
-        }
-    }
-
-    WidgetTouchEvent event(true, type, widget);
-    if (type == NS_EVENT_NULL) {
-        // An event we don't know about
-        return event;
-    }
-
-    event.modifiers = 0;
-    event.time = Time();
-    event.InitBasicModifiers(IsCtrlPressed(),
-                             IsAltPressed(),
-                             IsShiftPressed(),
-                             IsMetaPressed());
-
-    const nsIntPoint& offset = widget->WidgetToScreenOffset();
-    event.touches.SetCapacity(endIndex - startIndex);
-    for (int i = startIndex; i < endIndex; i++) {
-        // In this code branch, we are dispatching this event directly
-        // into Gecko (as opposed to going through the AsyncPanZoomController),
-        // and the Points() array has points in CSS pixels, which we need
-        // to convert.
-        CSSToLayoutDeviceScale scale = widget->GetDefaultScale();
-        nsIntPoint pt(
-            (Points()[i].x * scale.scale) - offset.x,
-            (Points()[i].y * scale.scale) - offset.y);
-        nsIntPoint radii(
-            PointRadii()[i].x * scale.scale,
-            PointRadii()[i].y * scale.scale);
-        nsRefPtr<Touch> t = new Touch(PointIndicies()[i],
-                                      pt,
-                                      radii,
-                                      Orientations()[i],
-                                      Pressures()[i]);
-        event.touches.AppendElement(t);
-    }
-
-    return event;
-}
-
-MultiTouchInput
-AndroidGeckoEvent::MakeMultiTouchInput(nsIWidget* widget)
-{
-    MultiTouchInput::MultiTouchType type = (MultiTouchInput::MultiTouchType)-1;
-    int startIndex = 0;
-    int endIndex = Count();
-
-    switch (Action()) {
-        case AndroidMotionEvent::ACTION_DOWN:
-        case AndroidMotionEvent::ACTION_POINTER_DOWN: {
-            type = MultiTouchInput::MULTITOUCH_START;
-            break;
-        }
-        case AndroidMotionEvent::ACTION_MOVE: {
-            type = MultiTouchInput::MULTITOUCH_MOVE;
-            break;
-        }
-        case AndroidMotionEvent::ACTION_UP:
-        case AndroidMotionEvent::ACTION_POINTER_UP: {
-            // for pointer-up events we only want the data from
-            // the one pointer that went up
-            startIndex = PointerIndex();
-            endIndex = startIndex + 1;
-            type = MultiTouchInput::MULTITOUCH_END;
-            break;
-        }
-        case AndroidMotionEvent::ACTION_OUTSIDE:
-        case AndroidMotionEvent::ACTION_CANCEL: {
-            type = MultiTouchInput::MULTITOUCH_CANCEL;
-            break;
-        }
-    }
-
-    MultiTouchInput event(type, Time());
-
-    if (type < 0) {
-        // An event we don't know about
-        return event;
-    }
-
-    const nsIntPoint& offset = widget->WidgetToScreenOffset();
-    event.mTouches.SetCapacity(endIndex - startIndex);
-    for (int i = startIndex; i < endIndex; i++) {
-        nsIntPoint point = Points()[i] - offset;
-        nsIntPoint radius = PointRadii()[i];
-        SingleTouchData data(PointIndicies()[i],
-                             ScreenIntPoint::FromUnknownPoint(
-                               gfx::IntPoint(point.x, point.y)),
-                             ScreenSize::FromUnknownSize(
-                               gfx::Size(radius.x, radius.y)),
-                             Orientations()[i],
-                             Pressures()[i]);
-        event.mTouches.AppendElement(data);
-    }
-
-    return event;
-}
-
-WidgetMouseEvent
-AndroidGeckoEvent::MakeMouseEvent(nsIWidget* widget)
-{
-    uint32_t msg = NS_EVENT_NULL;
-    if (Points().Length() > 0) {
-        switch (Action()) {
-            case AndroidMotionEvent::ACTION_HOVER_MOVE:
-                msg = NS_MOUSE_MOVE;
-                break;
-            case AndroidMotionEvent::ACTION_HOVER_ENTER:
-                msg = NS_MOUSEENTER;
-                break;
-            case AndroidMotionEvent::ACTION_HOVER_EXIT:
-                msg = NS_MOUSELEAVE;
-                break;
-            default:
-                break;
-        }
-    }
-
-    WidgetMouseEvent event(true, msg, widget,
-                           WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
-
-    if (msg == NS_EVENT_NULL) {
-        // unknown type, or no point data. abort
-        return event;
-    }
-
-    // XXX can we synthesize different buttons?
-    event.button = WidgetMouseEvent::eLeftButton;
-    if (msg != NS_MOUSE_MOVE) {
-        event.clickCount = 1;
-    }
-    event.modifiers = 0;
-    event.time = Time();
-
-    // We are dispatching this event directly into Gecko (as opposed to going
-    // through the AsyncPanZoomController), and the Points() array has points
-    // in CSS pixels, which we need to convert to LayoutDevice pixels.
-    const nsIntPoint& offset = widget->WidgetToScreenOffset();
-    CSSToLayoutDeviceScale scale = widget->GetDefaultScale();
-    event.refPoint = LayoutDeviceIntPoint((Points()[0].x * scale.scale) - offset.x,
-                                          (Points()[0].y * scale.scale) - offset.y);
-
-    return event;
 }
 
 void
@@ -935,7 +745,7 @@ AndroidProgressiveUpdateData::Init(jobject jobj)
 }
 
 void
-AndroidGeckoLayerClient::SetFirstPaintViewport(const LayerIntPoint& aOffset, const CSSToLayerScale& aZoom, const CSSRect& aCssPageRect)
+AndroidGeckoLayerClient::SetFirstPaintViewport(const nsIntPoint& aOffset, float aZoom, const nsIntRect& aPageRect, const gfx::Rect& aCssPageRect)
 {
     NS_ASSERTION(!isNull(), "SetFirstPaintViewport called on null layer client!");
     JNIEnv *env = GetJNIForThread();    // this is called on the compositor thread
@@ -943,12 +753,13 @@ AndroidGeckoLayerClient::SetFirstPaintViewport(const LayerIntPoint& aOffset, con
         return;
 
     AutoLocalJNIFrame jniFrame(env, 0);
-    return env->CallVoidMethod(wrapped_obj, jSetFirstPaintViewport, (float)aOffset.x, (float)aOffset.y, aZoom.scale,
+    return env->CallVoidMethod(wrapped_obj, jSetFirstPaintViewport, (float)aOffset.x, (float)aOffset.y, aZoom,
+                               (float)aPageRect.x, (float)aPageRect.y, (float)aPageRect.XMost(), (float)aPageRect.YMost(),
                                aCssPageRect.x, aCssPageRect.y, aCssPageRect.XMost(), aCssPageRect.YMost());
 }
 
 void
-AndroidGeckoLayerClient::SetPageRect(const CSSRect& aCssPageRect)
+AndroidGeckoLayerClient::SetPageRect(const gfx::Rect& aCssPageRect)
 {
     NS_ASSERTION(!isNull(), "SetPageRect called on null layer client!");
     JNIEnv *env = GetJNIForThread();    // this is called on the compositor thread
@@ -961,9 +772,9 @@ AndroidGeckoLayerClient::SetPageRect(const CSSRect& aCssPageRect)
 }
 
 void
-AndroidGeckoLayerClient::SyncViewportInfo(const LayerIntRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
-                                          bool aLayersUpdated, ScreenPoint& aScrollOffset, CSSToScreenScale& aScale,
-                                          LayerMargin& aFixedLayerMargins, ScreenPoint& aOffset)
+AndroidGeckoLayerClient::SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
+                                          nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY,
+                                          gfx::Margin& aFixedLayerMargins)
 {
     NS_ASSERTION(!isNull(), "SyncViewportInfo called on null layer client!");
     JNIEnv *env = GetJNIForThread();    // this is called on the compositor thread
@@ -975,7 +786,7 @@ AndroidGeckoLayerClient::SyncViewportInfo(const LayerIntRect& aDisplayPort, cons
     jobject viewTransformJObj = env->CallObjectMethod(wrapped_obj, jSyncViewportInfoMethod,
                                                       aDisplayPort.x, aDisplayPort.y,
                                                       aDisplayPort.width, aDisplayPort.height,
-                                                      aDisplayResolution.scale, aLayersUpdated);
+                                                      aDisplayResolution, aLayersUpdated);
     if (jniFrame.CheckForException())
         return;
 
@@ -984,52 +795,14 @@ AndroidGeckoLayerClient::SyncViewportInfo(const LayerIntRect& aDisplayPort, cons
     AndroidViewTransform viewTransform;
     viewTransform.Init(viewTransformJObj);
 
-    aScrollOffset = ScreenPoint(viewTransform.GetX(env), viewTransform.GetY(env));
-    aScale.scale = viewTransform.GetScale(env);
+    aScrollOffset = nsIntPoint(viewTransform.GetX(env), viewTransform.GetY(env));
+    aScaleX = aScaleY = viewTransform.GetScale(env);
     viewTransform.GetFixedLayerMargins(env, aFixedLayerMargins);
-
-    aOffset.x = viewTransform.GetOffsetX(env);
-    aOffset.y = viewTransform.GetOffsetY(env);
-}
-
-void
-AndroidGeckoLayerClient::SyncFrameMetrics(const ScreenPoint& aScrollOffset, float aZoom, const CSSRect& aCssPageRect,
-                                          bool aLayersUpdated, const CSSRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
-                                          bool aIsFirstPaint, LayerMargin& aFixedLayerMargins, ScreenPoint& aOffset)
-{
-    NS_ASSERTION(!isNull(), "SyncFrameMetrics called on null layer client!");
-    JNIEnv *env = GetJNIForThread();    // this is called on the compositor thread
-    if (!env)
-        return;
-
-    AutoLocalJNIFrame jniFrame(env);
-
-    // convert the displayport rect from scroll-relative CSS pixels to document-relative device pixels
-    LayerRect dpUnrounded = aDisplayPort * aDisplayResolution;
-    dpUnrounded += LayerPoint::FromUnknownPoint(aScrollOffset.ToUnknownPoint());
-    LayerIntRect dp = gfx::RoundedToInt(dpUnrounded);
-
-    jobject viewTransformJObj = env->CallObjectMethod(wrapped_obj, jSyncFrameMetricsMethod,
-            aScrollOffset.x, aScrollOffset.y, aZoom,
-            aCssPageRect.x, aCssPageRect.y, aCssPageRect.XMost(), aCssPageRect.YMost(),
-            aLayersUpdated, dp.x, dp.y, dp.width, dp.height, aDisplayResolution.scale,
-            aIsFirstPaint);
-
-    if (jniFrame.CheckForException())
-        return;
-
-    NS_ABORT_IF_FALSE(viewTransformJObj, "No view transform object!");
-
-    AndroidViewTransform viewTransform;
-    viewTransform.Init(viewTransformJObj);
-    viewTransform.GetFixedLayerMargins(env, aFixedLayerMargins);
-    aOffset.x = viewTransform.GetOffsetX(env);
-    aOffset.y = viewTransform.GetOffsetY(env);
 }
 
 bool
 AndroidGeckoLayerClient::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
-                                                   const LayerRect& aDisplayPort,
+                                                   const gfx::Rect& aDisplayPort,
                                                    float aDisplayResolution,
                                                    bool aDrawingCritical,
                                                    gfx::Rect& aViewport,
@@ -1095,7 +868,7 @@ jobject ConvertToJavaViewportMetrics(JNIEnv* env, nsIAndroidViewport* metrics) {
     return jobj;
 }
 
-class nsAndroidDisplayport MOZ_FINAL : public nsIAndroidDisplayport
+class nsAndroidDisplayport : public nsIAndroidDisplayport
 {
 public:
     NS_DECL_ISUPPORTS
@@ -1140,18 +913,6 @@ AndroidGeckoLayerClient::GetDisplayPort(AutoLocalJNIFrame *jniFrame, bool aPageS
     if (jniFrame->CheckForException()) return;
     createDisplayPort(jniFrame, jobj, displayPort);
     (*displayPort)->AddRef();
-}
-
-void
-AndroidGeckoLayerClient::ContentDocumentChanged(AutoLocalJNIFrame *jniFrame)
-{
-    jniFrame->GetEnv()->CallVoidMethod(wrapped_obj, jContentDocumentChanged);
-}
-
-bool
-AndroidGeckoLayerClient::IsContentDocumentDisplayed(AutoLocalJNIFrame *jniFrame)
-{
-    return jniFrame->GetEnv()->CallBooleanMethod(wrapped_obj, jIsContentDocumentDisplayed);
 }
 
 bool
@@ -1272,7 +1033,7 @@ AndroidViewTransform::GetScale(JNIEnv *env)
 }
 
 void
-AndroidViewTransform::GetFixedLayerMargins(JNIEnv *env, LayerMargin &aFixedLayerMargins)
+AndroidViewTransform::GetFixedLayerMargins(JNIEnv *env, gfx::Margin &aFixedLayerMargins)
 {
     if (!env)
         return;
@@ -1281,22 +1042,6 @@ AndroidViewTransform::GetFixedLayerMargins(JNIEnv *env, LayerMargin &aFixedLayer
     aFixedLayerMargins.right = env->GetFloatField(wrapped_obj, jFixedLayerMarginRight);
     aFixedLayerMargins.bottom = env->GetFloatField(wrapped_obj, jFixedLayerMarginBottom);
     aFixedLayerMargins.left = env->GetFloatField(wrapped_obj, jFixedLayerMarginLeft);
-}
-
-float
-AndroidViewTransform::GetOffsetX(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jOffsetXField);
-}
-
-float
-AndroidViewTransform::GetOffsetY(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jOffsetYField);
 }
 
 float
@@ -1401,7 +1146,7 @@ nsJNIString::nsJNIString(jstring jstr, JNIEnv *jenv)
             return;
         }
     }
-    const jchar* jCharPtr = jni->GetStringChars(jstr, nullptr);
+    const jchar* jCharPtr = jni->GetStringChars(jstr, NULL);
 
     if (!jCharPtr) {
         SetIsVoid(true);
@@ -1413,7 +1158,7 @@ nsJNIString::nsJNIString(jstring jstr, JNIEnv *jenv)
     if (len <= 0) {
         SetIsVoid(true);
     } else {
-        Assign(reinterpret_cast<const PRUnichar*>(jCharPtr), len);
+        Assign(jCharPtr, len);
     }
     jni->ReleaseStringChars(jstr, jCharPtr);
 }

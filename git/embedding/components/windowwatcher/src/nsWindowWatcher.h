@@ -11,13 +11,13 @@
  {0xa21bfa01, 0xf349, 0x4394, {0xa8, 0x4c, 0x8d, 0xe5, 0xcf, 0x7, 0x37, 0xd0}}
 
 #include "nsCOMPtr.h"
+#include "jspubtd.h"
 #include "mozilla/Mutex.h"
 #include "nsIWindowCreator.h" // for stupid compilers
 #include "nsIWindowWatcher.h"
 #include "nsIPromptFactory.h"
 #include "nsPIWindowWatcher.h"
 #include "nsTArray.h"
-#include "js/TypeDecls.h"
 
 class  nsIURI;
 class  nsIDocShellTreeItem;
@@ -27,6 +27,8 @@ class  nsString;
 class  nsWatcherWindowEnumerator;
 class  nsIScriptContext;
 class  nsPromptService;
+struct JSContext;
+class JSObject;
 struct nsWatcherWindowEntry;
 struct SizeSpec;
 
@@ -81,6 +83,7 @@ protected:
                               nsIDOMWindow **_retval);
 
   static JSContext *GetJSContextFromWindow(nsIDOMWindow *aWindow);
+  static JSContext *GetJSContextFromCallStack();
   static nsresult   URIfromURL(const char *aURL,
                                nsIDOMWindow *aParent,
                                nsIURI **aURI);

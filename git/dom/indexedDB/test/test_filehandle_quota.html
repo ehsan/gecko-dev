@@ -12,7 +12,7 @@
   <script type="text/javascript;version=1.7">
   function testSteps()
   {
-    const READ_WRITE = "readwrite";
+    const READ_WRITE = IDBTransaction.READ_WRITE;
 
     const name = window.location.pathname;
 
@@ -20,18 +20,18 @@
     request.onerror = errorHandler;
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    let event = yield undefined;
+    let event = yield;
 
     is(event.type, "upgradeneeded", "Got correct event type");
 
     let db = event.target.result;
     db.onerror = errorHandler;
 
-    event = yield undefined;
+    event = yield;
 
     request = db.mozCreateFileHandle("test.bin", "binary");
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield undefined;
+    event = yield;
 
     let fileHandle = event.target.result;
     fileHandle.onerror = errorHandler;
@@ -43,15 +43,15 @@
     request = lockedFile.write(blob);
     request.addEventListener("error", new ExpectError("UnknownError", true));
     request.onsuccess = unexpectedSuccessHandler;
-    event = yield undefined;
+    event = yield;
 
     lockedFile.oncomplete = grabEventAndContinueHandler;
-    event = yield undefined;
+    event = yield;
 
     is(event.type, "complete", "Got correct event type");
 
     finishTest();
-    yield undefined;
+    yield;
   }
   </script>
   <script type="text/javascript;version=1.7" src="file.js"></script>

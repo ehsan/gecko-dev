@@ -8,9 +8,7 @@
 #ifndef __mozilla_widget_GfxInfoCollector_h__
 #define __mozilla_widget_GfxInfoCollector_h__
 
-#include "mozilla/Attributes.h"
-#include "nsStringFwd.h"
-#include "js/RootingAPI.h"
+#include "jsapi.h"
 
 namespace mozilla {
 namespace widget {
@@ -18,23 +16,54 @@ namespace widget {
 
 /* this is handy wrapper around JSAPI to make it more pleasant to use.
  * We collect the JSAPI errors and so that callers don't need to */
-class MOZ_STACK_CLASS InfoObject
+class InfoObject
 {
   friend class GfxInfoBase;
 
   public:
-  void DefineProperty(const char *name, int value);
-  void DefineProperty(const char *name, nsAString &value);
-  void DefineProperty(const char *name, const char *value);
+  void DefineProperty(const char *name, int value)
+  {
+    if (!mOk)
+      return;
+
+    mOk = JS_DefineProperty(mCx, mObj, name, INT_TO_JSVAL(value), NULL, NULL, JSPROP_ENUMERATE);
+  }
+
+  void DefineProperty(const char *name, nsAString &value)
+  {
+    if (!mOk)
+      return;
+
+    const nsString &flat = PromiseFlatString(value);
+    JSString *string = JS_NewUCStringCopyN(mCx, static_cast<const jschar*>(flat.get()), flat.Length());
+    if (!string)
+      mOk = JS_FALSE;
+
+    if (!mOk)
+      return;
+
+    mOk = JS_DefineProperty(mCx, mObj, name, STRING_TO_JSVAL(string), NULL, NULL, JSPROP_ENUMERATE);
+  }
+
+  void DefineProperty(const char *name, const char *value)
+  { 
+    nsAutoString string = NS_ConvertASCIItoUTF16(value);
+    DefineProperty(name, string); 
+  }
 
   private:
   // We need to ensure that this object lives on the stack so that GC sees it properly
-  InfoObject(JSContext *aCx);
+  InfoObject(JSContext *aCx) : mCx(aCx), mOk(JS_TRUE)
+  {
+    mObj = JS_NewObject(mCx, NULL, NULL, NULL);
+    if (!mObj)
+      mOk = JS_FALSE;
+  }
   InfoObject(InfoObject&);
 
   JSContext *mCx;
-  JS::Rooted<JSObject*> mObj;
-  bool mOk;
+  JSObject *mObj;
+  JSBool mOk;
 };
 
 /*

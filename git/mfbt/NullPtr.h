@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,8 +8,10 @@
  * constant.
  */
 
-#ifndef mozilla_NullPtr_h
-#define mozilla_NullPtr_h
+#ifndef mozilla_NullPtr_h_
+#define mozilla_NullPtr_h_
+
+#include "mozilla/Compiler.h"
 
 #if defined(__clang__)
 #  ifndef __has_extension
@@ -21,7 +22,6 @@
 #  endif
 #elif defined(__GNUC__)
 #  if defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L
-#    include "mozilla/Compiler.h"
 #    if MOZ_GCC_VERSION_AT_LEAST(4, 6, 0)
 #      define MOZ_HAVE_CXX11_NULLPTR
 #    endif
@@ -45,4 +45,4 @@
 #  endif
 #endif
 
-#endif /* mozilla_NullPtr_h */
+#endif  /* mozilla_NullPtr_h_ */

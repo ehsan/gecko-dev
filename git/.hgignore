@@ -47,9 +47,6 @@ _OPT\.OBJ/
 \.cproject$
 \.settings/
 
-# Ignore the directory that JetBrains IDEs create
-\.idea/
-
 # Python stuff installed at build time.
 ^python/psutil/.*\.so
 ^python/psutil/.*\.pyd
@@ -57,7 +54,3 @@ _OPT\.OBJ/
 
 # Git repositories
 .git/
-
-# Ignore chrome.manifest files from the devtools loader
-^browser/devtools/chrome.manifest$
-^toolkit/devtools/chrome.manifest$

@@ -2,6 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifdef DEBUG
+static const char CVS_ID[] = "@(#) $RCSfile$ $Revision$ $Date$";
+#endif /* DEBUG */
+
 /*
  * Hacks to integrate NSS 3.4 and NSS 4.0 certificates.
  */
@@ -228,7 +232,7 @@ STAN_GetCertIdentifierFromDER(NSSArena *arenaOpt, NSSDER *der)
     SECItem secDER;
     SECItem secKey = { 0 };
     SECStatus secrv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
 
     SECITEM_FROM_NSSITEM(&secDER, der);
 
@@ -550,7 +554,7 @@ nssDecodedPKIXCertificate_Destroy (
     if (cert) {
 	PRBool freeSlot = cert->ownSlot;
 	PK11SlotInfo *slot = cert->slot;
-	PLArenaPool *arena  = cert->arena;
+	PRArenaPool *arena  = cert->arena;
 	/* zero cert before freeing. Any stale references to this cert
 	 * after this point will probably cause an exception.  */
 	PORT_Memset(cert, 0, sizeof *cert);
@@ -585,7 +589,7 @@ get_nss3trust_from_nss4trust(nssTrustLevel t)
 }
 
 static CERTCertTrust *
-cert_trust_from_stan_trust(NSSTrust *t, PLArenaPool *arena)
+cert_trust_from_stan_trust(NSSTrust *t, PRArenaPool *arena)
 {
     CERTCertTrust *rvTrust;
     unsigned int client;

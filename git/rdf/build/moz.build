@@ -10,13 +10,3 @@ EXPORTS += [
     'nsRDFCID.h',
 ]
 
-SOURCES += [
-    'nsRDFModule.cpp',
-]
-
-LIBRARY_NAME = 'rdf'
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
-

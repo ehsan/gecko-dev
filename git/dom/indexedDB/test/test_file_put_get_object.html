@@ -12,7 +12,7 @@
   <script type="text/javascript;version=1.7">
   function testSteps()
   {
-    const READ_WRITE = "readwrite";
+    const READ_WRITE = IDBTransaction.READ_WRITE;
 
     const name = window.location.pathname;
 
@@ -28,7 +28,7 @@
     request.onerror = errorHandler;
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    let event = yield undefined;
+    let event = yield;
 
     is(event.type, "upgradeneeded", "Got correct event type");
 
@@ -40,7 +40,7 @@
     objectStore.add(objectData1.object, objectData1.key);
     objectStore.add(objectData2.object, objectData2.key);
 
-    event = yield undefined;
+    event = yield;
 
     is(event.type, "success", "Got correct event type");
 
@@ -48,32 +48,32 @@
                     .objectStore(objectStoreName);
     request = objectStore.get(objectData1.key);
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield undefined;
+    event = yield;
 
     let result = event.target.result;
 
     verifyBlob(result.foo, blob, 1);
-    yield undefined;
+    yield;
 
     verifyBlob(result.bar, blob, 1);
-    yield undefined;
+    yield;
 
     objectStore = db.transaction([objectStoreName])
                     .objectStore(objectStoreName);
     request = objectStore.get(objectData2.key);
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield undefined;
+    event = yield;
 
     result = event.target.result;
 
     verifyBlob(result.foo, file, 2);
-    yield undefined;
+    yield;
 
     verifyBlob(result.bar, file, 2);
-    yield undefined;
+    yield;
 
     finishTest();
-    yield undefined;
+    yield;
   }
   </script>
   <script type="text/javascript;version=1.7" src="file.js"></script>

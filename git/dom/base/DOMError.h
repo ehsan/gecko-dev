@@ -7,72 +7,39 @@
 #ifndef mozilla_dom_domerror_h__
 #define mozilla_dom_domerror_h__
 
-#include "mozilla/Attributes.h"
-#include "nsWrapperCache.h"
+#include "nsIDOMDOMError.h"
+
 #include "nsCOMPtr.h"
-#include "nsString.h"
-#include "nsPIDOMWindow.h"
+#include "nsStringGlue.h"
 
 namespace mozilla {
-
-class ErrorResult;
-
 namespace dom {
 
-class GlobalObject;
-
-class DOMError : public nsISupports,
-                 public nsWrapperCache
+class DOMError : public nsIDOMDOMError
 {
-  nsCOMPtr<nsPIDOMWindow> mWindow;
   nsString mName;
-  nsString mMessage;
 
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMError)
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMDOMERROR
 
-  // aWindow can be null if this DOMError is not associated with a particular
-  // window.
+  static already_AddRefed<nsIDOMDOMError>
+  CreateForNSResult(nsresult rv);
 
-  DOMError(nsPIDOMWindow* aWindow);
-
-  DOMError(nsPIDOMWindow* aWindow, nsresult aValue);
-
-  DOMError(nsPIDOMWindow* aWindow, const nsAString& aName);
-
-  DOMError(nsPIDOMWindow* aWindow, const nsAString& aName,
-           const nsAString& aMessage);
-
-  virtual ~DOMError();
-
-  nsPIDOMWindow* GetParentObject() const
+  static already_AddRefed<nsIDOMDOMError>
+  CreateWithName(const nsAString& aName)
   {
-    return mWindow;
+    nsCOMPtr<nsIDOMDOMError> error = new DOMError(aName);
+    return error.forget();
   }
 
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+protected:
+  DOMError(const nsAString& aName)
+  : mName(aName)
+  { }
 
-  static already_AddRefed<DOMError>
-  Constructor(const GlobalObject& global, const nsAString& name,
-              const nsAString& message, ErrorResult& aRv);
-
-  void GetName(nsString& aRetval) const
-  {
-    aRetval = mName;
-  }
-
-  void GetMessage(nsString& aRetval) const
-  {
-    aRetval = mMessage;
-  }
-
-  void Init(const nsAString& aName, const nsAString& aMessage)
-  {
-    mName = aName;
-    mMessage = aMessage;
-  }
+  virtual ~DOMError()
+  { }
 };
 
 } // namespace dom

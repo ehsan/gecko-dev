@@ -151,6 +151,7 @@ DatabaseInfo::Put(DatabaseInfo* aInfo)
 
   if (!gDatabaseHash) {
     nsAutoPtr<DatabaseHash> databaseHash(new DatabaseHash());
+    databaseHash->Init();
     gDatabaseHash = databaseHash.forget();
   }
 
@@ -220,6 +221,7 @@ DatabaseInfo::PutObjectStore(ObjectStoreInfo* aInfo)
 
   if (!objectStoreHash) {
     nsAutoPtr<ObjectStoreInfoHash> hash(new ObjectStoreInfoHash());
+    hash->Init();
     objectStoreHash = hash.forget();
   }
 
@@ -250,10 +252,8 @@ DatabaseInfo::Clone()
 
   dbInfo->cloned = true;
   dbInfo->name = name;
-  dbInfo->group = group;
   dbInfo->origin = origin;
   dbInfo->version = version;
-  dbInfo->persistenceType = persistenceType;
   dbInfo->id = id;
   dbInfo->filePath = filePath;
   dbInfo->nextObjectStoreId = nextObjectStoreId;
@@ -261,6 +261,7 @@ DatabaseInfo::Clone()
 
   if (objectStoreHash) {
     dbInfo->objectStoreHash = new ObjectStoreInfoHash();
+    dbInfo->objectStoreHash->Init();
     objectStoreHash->EnumerateRead(CloneObjectStoreInfo,
                                    dbInfo->objectStoreHash);
   }

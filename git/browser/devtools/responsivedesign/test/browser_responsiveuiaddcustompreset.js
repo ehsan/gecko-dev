@@ -13,12 +13,7 @@ function test() {
     waitForFocus(startTest, content);
   }, true);
 
-  content.location = "data:text/html;charset=utf8,test custom presets in responsive mode";
-
-  // This test uses executeSoon() when responsive mode is initialized and when
-  // it is destroyed such that we get out of the init/destroy loops. If we try
-  // to init/destroy immediately, without waiting for the next loop, we get
-  // intermittent test failures.
+  content.location = "data:text/html,foo";
 
   function startTest() {
     // Mocking prompt
@@ -31,10 +26,6 @@ function test() {
         return this.returnBool;
       }
     };
-
-    registerCleanupFunction(() => Services.prompt = oldPrompt);
-
-    info("test started, waiting for responsive mode to activate");
 
     document.getElementById("Tools:ResponsiveUI").removeAttribute("disabled");
     mgr.once("on", onUIOpen);
@@ -76,16 +67,12 @@ function test() {
 
     instance.menulist.selectedIndex = 1;
 
-    info("waiting for responsive mode to turn off");
     mgr.once("off", restart);
-
-    // Force document reflow to avoid intermittent failures.
-    info("document height " + document.height);
 
     // We're still in the loop of initializing the responsive mode.
     // Let's wait next loop to stop it.
     executeSoon(function() {
-      instance.close();
+      EventUtils.synthesizeKey("VK_ESCAPE", {});
     });
   }
 
@@ -130,24 +117,14 @@ function test() {
     deletedPresetB = instance.menulist.selectedItem.getAttribute("label");
     instance.removebutton.doCommand();
 
-    info("waiting for responsive mode to turn off");
-    mgr.once("off", restartAgain);
-
-    // We're still in the loop of initializing the responsive mode.
-    // Let's wait next loop to stop it.
-    executeSoon(() => instance.close());
+    EventUtils.synthesizeKey("VK_ESCAPE", {});
+    executeSoon(restartAgain);
   }
 
   function restartAgain() {
-    info("waiting for responsive mode to turn on");
-    mgr.once("on", () => {
-      instance = gBrowser.selectedTab.__responsiveUI;
-      testCustomPresetsNotInListAnymore();
-    });
-
-    // We're still in the loop of destroying the responsive mode.
-    // Let's wait next loop to start it.
-    executeSoon(() => synthesizeKeyFromKeyTag("key_responsiveUI"));
+    synthesizeKeyFromKeyTag("key_responsiveUI");
+    instance = gBrowser.selectedTab.__responsiveUI;
+    executeSoon(testCustomPresetsNotInListAnymore);
   }
 
   function testCustomPresetsNotInListAnymore() {
@@ -163,6 +140,8 @@ function test() {
   function finishUp() {
     delete instance;
     gBrowser.removeCurrentTab();
+
+    Services.prompt = oldPrompt;
 
     finish();
   }
@@ -188,6 +167,8 @@ function test() {
     let key = document.getElementById(aKeyId);
     isnot(key, null, "Successfully retrieved the <key> node");
 
+    let modifiersAttr = key.getAttribute("modifiers");
+
     let name = null;
 
     if (key.getAttribute("keycode"))
@@ -197,6 +178,14 @@ function test() {
 
     isnot(name, null, "Successfully retrieved keycode/key");
 
-    key.doCommand();
+    let modifiers = {
+      shiftKey: modifiersAttr.match("shift"),
+      ctrlKey: modifiersAttr.match("ctrl"),
+      altKey: modifiersAttr.match("alt"),
+      metaKey: modifiersAttr.match("meta"),
+      accelKey: modifiersAttr.match("accel")
+    }
+
+    EventUtils.synthesizeKey(name, modifiers);
   }
 }

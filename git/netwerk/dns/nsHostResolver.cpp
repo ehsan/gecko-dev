@@ -22,9 +22,11 @@
 #include "nsISupportsBase.h"
 #include "nsISupportsUtils.h"
 #include "nsAutoPtr.h"
+#include "pratom.h"
 #include "prthread.h"
 #include "prerror.h"
 #include "prtime.h"
+#include "prlong.h"
 #include "prlog.h"
 #include "pldhash.h"
 #include "plstr.h"
@@ -131,26 +133,6 @@ private:
 
 //----------------------------------------------------------------------------
 
-static inline bool
-IsHighPriority(uint16_t flags)
-{
-    return !(flags & (nsHostResolver::RES_PRIORITY_LOW | nsHostResolver::RES_PRIORITY_MEDIUM));
-}
-
-static inline bool
-IsMediumPriority(uint16_t flags)
-{
-    return flags & nsHostResolver::RES_PRIORITY_MEDIUM;
-}
-
-static inline bool
-IsLowPriority(uint16_t flags)
-{
-    return flags & nsHostResolver::RES_PRIORITY_LOW;
-}
-
-//----------------------------------------------------------------------------
-
 // this macro filters out any flags that are not used when constructing the
 // host key.  the significant flags are those that would affect the resulting
 // host record (i.e., the flags that are passed down to PR_GetAddrInfoByName).
@@ -165,7 +147,6 @@ nsHostRecord::nsHostRecord(const nsHostKey *key)
     , resolving(false)
     , onQueue(false)
     , usingAnyThread(false)
-    , mDoomed(false)
 {
     host = ((char *) this) + sizeof(nsHostRecord);
     memcpy((char *) host, key->host, strlen(key->host) + 1);
@@ -234,9 +215,6 @@ nsHostRecord::ReportUnusable(NetAddr *aAddress)
     // must call locked
     LOG(("Adding address to blacklist for host [%s], host record [%p].\n", host, this));
 
-    if (negative)
-        mDoomed = true;
-
     char buf[kIPv6CStrBufSize];
     if (NetAddrToString(aAddress, buf, sizeof(buf))) {
         LOG(("Successfully adding address [%s] to blacklist for host [%s].\n", buf, host));
@@ -250,19 +228,6 @@ nsHostRecord::ResetBlacklist()
     // must call locked
     LOG(("Resetting blacklist for host [%s], host record [%p].\n", host, this));
     mBlacklistedItems.Clear();
-}
-
-bool
-nsHostRecord::HasUsableResult(uint16_t queryFlags) const
-{
-    if (mDoomed)
-        return false;
-
-    // don't use cached negative results for high priority queries.
-    if (negative && IsHighPriority(queryFlags))
-        return false;
-
-    return addr_info || addr || negative;
 }
 
 //----------------------------------------------------------------------------
@@ -500,6 +465,24 @@ nsHostResolver::Shutdown()
 #endif
 }
 
+static inline bool
+IsHighPriority(uint16_t flags)
+{
+    return !(flags & (nsHostResolver::RES_PRIORITY_LOW | nsHostResolver::RES_PRIORITY_MEDIUM));
+}
+
+static inline bool
+IsMediumPriority(uint16_t flags)
+{
+    return flags & nsHostResolver::RES_PRIORITY_MEDIUM;
+}
+
+static inline bool
+IsLowPriority(uint16_t flags)
+{
+    return flags & nsHostResolver::RES_PRIORITY_LOW;
+}
+
 void 
 nsHostResolver::MoveQueue(nsHostRecord *aRec, PRCList &aDestQ)
 {
@@ -556,7 +539,7 @@ nsHostResolver::ResolveHost(const char            *host,
                 rv = NS_ERROR_OUT_OF_MEMORY;
             // do we have a cached result that we can reuse?
             else if (!(flags & RES_BYPASS_CACHE) &&
-                     he->rec->HasUsableResult(flags) &&
+                     he->rec->HasResult() &&
                      TimeStamp::NowLoRes() <= (he->rec->expiration + TimeDuration::FromSeconds(mGracePeriod * 60))) {
                 LOG(("Using cached record for host [%s].\n", host));
                 // put reference to host record on stack...
@@ -564,9 +547,22 @@ nsHostResolver::ResolveHost(const char            *host,
                 Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2, METHOD_HIT);
 
                 // For entries that are in the grace period with a failed connect,
-                // or all cached negative entries, use the cache but start a new
-                // lookup in the background
-                ConditionallyRefreshRecord(he->rec, host);
+                // or all cached negative entries, use the cache but start a new lookup in
+                // the background
+                if ((((TimeStamp::NowLoRes() > he->rec->expiration) &&
+                      he->rec->mBlacklistedItems.Length()) ||
+                     he->rec->negative) && !he->rec->resolving) {
+                    LOG(("Using %s cache entry for host [%s] but starting async renewal.",
+                         he->rec->negative ? "negative" :"positive", host));
+                    IssueLookup(he->rec);
+
+                    if (!he->rec->negative) {
+                        // negative entries are constantly being refreshed, only
+                        // track positive grace period induced renewals
+                        Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
+                                              METHOD_RENEWAL);
+                    }
+                }
                 
                 if (he->rec->negative) {
                     Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
@@ -606,105 +602,35 @@ nsHostResolver::ResolveHost(const char            *host,
                 rv = NS_ERROR_OFFLINE;
             }
 
-            // If this is an IPV4 or IPV6 specific request, check if there is
-            // an AF_UNSPEC entry we can use. Otherwise, hit the resolver...
-            else if (!he->rec->resolving) {
-                if (!(flags & RES_BYPASS_CACHE) &&
-                    ((af == PR_AF_INET) || (af == PR_AF_INET6))) {
-                    // First, search for an entry with AF_UNSPEC
-                    const nsHostKey unspecKey = { host, flags, PR_AF_UNSPEC };
-                    nsHostDBEnt *unspecHe = static_cast<nsHostDBEnt *>
-                        (PL_DHashTableOperate(&mDB, &unspecKey, PL_DHASH_LOOKUP));
-                    NS_ASSERTION(PL_DHASH_ENTRY_IS_FREE(unspecHe) ||
-                                 (PL_DHASH_ENTRY_IS_BUSY(unspecHe) &&
-                                  unspecHe->rec),
-                                "Valid host entries should contain a record");
-                    if (PL_DHASH_ENTRY_IS_BUSY(unspecHe) &&
-                        unspecHe->rec &&
-                        unspecHe->rec->HasUsableResult(flags) &&
-                        TimeStamp::NowLoRes() <= (he->rec->expiration +
-                            TimeDuration::FromSeconds(mGracePeriod * 60))) {
-                        LOG(("Specific DNS request (%s) for an unspecified "
-                             "cached record",
-                            (af == PR_AF_INET) ? "AF_INET" : "AF_INET6"));
+            // otherwise, hit the resolver...
+            else {
+                // Add callback to the list of pending callbacks.
+                PR_APPEND_LINK(callback, &he->rec->callbacks);
 
-                        // Search for any valid address in the AF_UNSPEC entry
-                        // in the cache (not blacklisted and from the right
-                        // family).
-                        NetAddrElement *addrIter =
-                            unspecHe->rec->addr_info->mAddresses.getFirst();
-                        he->rec->addr_info = nullptr;
-                        while (addrIter) {
-                            if ((af == addrIter->mAddress.inet.family) &&
-                                 !unspecHe->rec->Blacklisted(&addrIter->mAddress)) {
-                                if (!he->rec->addr_info) {
-                                    he->rec->addr_info = new AddrInfo(
-                                        unspecHe->rec->addr_info->mHostName,
-                                        unspecHe->rec->addr_info->mCanonicalName);
-                                }
-                                he->rec->addr_info->AddAddress(
-                                    new NetAddrElement(*addrIter));
-                            }
-                            addrIter = addrIter->getNext();
-                        }
-                        if (he->rec->HasUsableResult(flags)) {
-                            result = he->rec;
-                            Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                                  METHOD_HIT);
-                            ConditionallyRefreshRecord(he->rec, host);
-                        }
-                        // For AF_INET6, a new lookup means another AF_UNSPEC
-                        // lookup. We have already iterated through the
-                        // AF_UNSPEC addresses, so we mark this record as
-                        // negative.
-                        else if (af == PR_AF_INET6) {
-                            result = he->rec;
-                            he->rec->negative = true;
-                            status = NS_ERROR_UNKNOWN_HOST;
-                            Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                                  METHOD_NEGATIVE_HIT);
-                        }
-                    }
-                }
-                // If no valid address was found in the cache or this is an
-                // AF_UNSPEC request, then start a new lookup.
-                if (!result) {
-                    LOG(("No valid address was found in the cache for the "
-                         "requested IP family"));
-                    // Add callback to the list of pending callbacks.
-                    PR_APPEND_LINK(callback, &he->rec->callbacks);
+                if (!he->rec->resolving) {
                     he->rec->flags = flags;
-                    IssueLookup(he->rec);
+                    rv = IssueLookup(he->rec);
                     Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
                                           METHOD_NETWORK_FIRST);
-                    if (NS_FAILED(rv)) {
+                    if (NS_FAILED(rv))
                         PR_REMOVE_AND_INIT_LINK(callback);
-                    }
-                    else {
-                        LOG(("DNS lookup for host [%s] blocking pending "
-                             "'getaddrinfo' query.", host));
-                    }
+                    else
+                        LOG(("DNS lookup for host [%s] blocking pending 'getaddrinfo' query.", host));
                 }
-            }
-            else {
-                // The record is being resolved. Append our callback.
-                PR_APPEND_LINK(callback, &he->rec->callbacks);
-                if (he->rec->onQueue) {
+                else if (he->rec->onQueue) {
                     Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
                                           METHOD_NETWORK_SHARED);
 
-                    // Consider the case where we are on a pending queue of
+                    // Consider the case where we are on a pending queue of 
                     // lower priority than the request is being made at.
                     // In that case we should upgrade to the higher queue.
 
-                    if (IsHighPriority(flags) &&
-                        !IsHighPriority(he->rec->flags)) {
+                    if (IsHighPriority(flags) && !IsHighPriority(he->rec->flags)) {
                         // Move from (low|med) to high.
                         MoveQueue(he->rec, mHighQ);
                         he->rec->flags = flags;
                         ConditionallyCreateThread(he->rec);
-                    } else if (IsMediumPriority(flags) &&
-                               IsLowPriority(he->rec->flags)) {
+                    } else if (IsMediumPriority(flags) && IsLowPriority(he->rec->flags)) {
                         // Move from low to med.
                         MoveQueue(he->rec, mMediumQ);
                         he->rec->flags = flags;
@@ -825,26 +751,6 @@ nsHostResolver::IssueLookup(nsHostRecord *rec)
           mPendingCount));
 
     return rv;
-}
-
-nsresult
-nsHostResolver::ConditionallyRefreshRecord(nsHostRecord *rec, const char *host)
-{
-    if ((((TimeStamp::NowLoRes() > rec->expiration) &&
-        rec->mBlacklistedItems.Length()) ||
-        rec->negative) && !rec->resolving) {
-        LOG(("Using %s cache entry for host [%s] but starting async renewal.",
-            rec->negative ? "negative" :"positive", host));
-        IssueLookup(rec);
-
-        if (!rec->negative) {
-            // negative entries are constantly being refreshed, only
-            // track positive grace period induced renewals
-            Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                METHOD_RENEWAL);
-        }
-    }
-    return NS_OK;
 }
 
 void
@@ -1021,7 +927,7 @@ nsHostResolver::CancelAsyncRequest(const char            *host,
     nsHostDBEnt *he = static_cast<nsHostDBEnt *>
                       (PL_DHashTableOperate(&mDB, &key, PL_DHASH_LOOKUP));
     if (he && he->rec) {
-        nsHostRecord* recPtr = nullptr;
+        nsHostRecord* recPtr = NULL;
         PRCList *node = he->rec->callbacks.next;
         // Remove the first nsDNSAsyncRequest callback which matches the
         // supplied listener object

@@ -2,6 +2,28 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH            = @DEPTH@
+topsrcdir        = @top_srcdir@
+srcdir           = @srcdir@
+VPATH            = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME     = autoconfig
+EXPORT_LIBRARY   = 1
+IS_COMPONENT     = 1
+MODULE_NAME      = nsAutoConfigModule
+LIBXUL_LIBRARY   = 1
+
+
+include $(topsrcdir)/config/config.mk
+
+CPPSRCS          = nsReadConfig.cpp    \
+                   nsAutoConfig.cpp    \
+                   nsConfigFactory.cpp \
+                   nsJSConfigTriggers.cpp \
+                   $(NULL)
+
 AUTOCFG_JS_EXPORTS = \
 		$(srcdir)/prefcalls.js \
 		$(NULL)
@@ -23,3 +45,6 @@ endif
 endif
 endif
 endif
+
+include $(topsrcdir)/config/rules.mk
+

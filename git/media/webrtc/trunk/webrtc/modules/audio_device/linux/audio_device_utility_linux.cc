@@ -8,14 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/audio_device/linux/audio_device_utility_linux.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "audio_device_utility_linux.h"
+#include "audio_device_config.h"	// DEBUG_PRINT()
+#include "critical_section_wrapper.h"
+#include "trace.h"
 
 namespace webrtc
 {
 
-AudioDeviceUtilityLinux::AudioDeviceUtilityLinux(const int32_t id) :
+AudioDeviceUtilityLinux::AudioDeviceUtilityLinux(const WebRtc_Word32 id) :
     _critSect(*CriticalSectionWrapper::CreateCriticalSection()), _id(id)
 {
     WEBRTC_TRACE(kTraceMemory, kTraceAudioDevice, id,
@@ -40,7 +41,7 @@ AudioDeviceUtilityLinux::~AudioDeviceUtilityLinux()
 // ============================================================================
 
 
-int32_t AudioDeviceUtilityLinux::Init()
+WebRtc_Word32 AudioDeviceUtilityLinux::Init()
 {
 
     WEBRTC_TRACE(kTraceStateInfo, kTraceAudioDevice, _id,
@@ -50,4 +51,4 @@ int32_t AudioDeviceUtilityLinux::Init()
 }
 
 
-}  // namespace webrtc
+} // namespace webrtc

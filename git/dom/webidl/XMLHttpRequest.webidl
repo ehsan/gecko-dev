@@ -57,6 +57,7 @@ dictionary MozXMLHttpRequestParameters
  Constructor(DOMString ignored)]
 interface XMLHttpRequest : XMLHttpRequestEventTarget {
   // event handler
+  [SetterThrows, GetterThrows=Workers]
   attribute EventHandler onreadystatechange;
 
   // states
@@ -70,12 +71,10 @@ interface XMLHttpRequest : XMLHttpRequestEventTarget {
 
   // request
   [Throws]
-  void open(ByteString method, DOMString url);
-  [Throws]
-  void open(ByteString method, DOMString url, boolean async,
+  void open(DOMString method, DOMString url, optional boolean async = true,
             optional DOMString? user, optional DOMString? password);
   [Throws]
-  void setRequestHeader(ByteString header, ByteString value);
+  void setRequestHeader(DOMString header, DOMString value);
 
   [SetterThrows]
   attribute unsigned long timeout;
@@ -110,12 +109,12 @@ interface XMLHttpRequest : XMLHttpRequestEventTarget {
   [Throws=Workers]
   readonly attribute unsigned short status;
 
-  readonly attribute ByteString statusText;
+  readonly attribute DOMString statusText;
   [Throws]
-  ByteString? getResponseHeader(ByteString header);
+  DOMString? getResponseHeader(DOMString header);
 
   [Throws=Workers]
-  ByteString getAllResponseHeaders();
+  DOMString getAllResponseHeaders();
 
   [Throws=Workers]
   void overrideMimeType(DOMString mime);

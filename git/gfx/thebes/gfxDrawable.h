@@ -6,22 +6,23 @@
 #ifndef GFX_DRAWABLE_H
 #define GFX_DRAWABLE_H
 
+#include "nsISupportsImpl.h"
 #include "nsAutoPtr.h"
+#include "gfxTypes.h"
 #include "gfxRect.h"
+#include "gfxColor.h"
 #include "gfxMatrix.h"
-#include "GraphicsFilter.h"
+#include "gfxPattern.h"
 
 class gfxASurface;
-class gfxImageSurface;
 class gfxContext;
-class gfxPattern;
 
 /**
  * gfxDrawable
  * An Interface representing something that has an intrinsic size and can draw
  * itself repeatedly.
  */
-class gfxDrawable {
+class THEBES_API gfxDrawable {
     NS_INLINE_DECL_REFCOUNTING(gfxDrawable)
 public:
     gfxDrawable(const gfxIntSize aSize)
@@ -38,9 +39,8 @@ public:
     virtual bool Draw(gfxContext* aContext,
                         const gfxRect& aFillRect,
                         bool aRepeat,
-                        const GraphicsFilter& aFilter,
+                        const gfxPattern::GraphicsFilter& aFilter,
                         const gfxMatrix& aTransform = gfxMatrix()) = 0;
-    virtual already_AddRefed<gfxImageSurface> GetAsImageSurface() { return nullptr; }
     virtual gfxIntSize Size() { return mSize; }
 
 protected:
@@ -51,7 +51,7 @@ protected:
  * gfxSurfaceDrawable
  * A convenience implementation of gfxDrawable for surfaces.
  */
-class gfxSurfaceDrawable : public gfxDrawable {
+class THEBES_API gfxSurfaceDrawable : public gfxDrawable {
 public:
     gfxSurfaceDrawable(gfxASurface* aSurface, const gfxIntSize aSize,
                        const gfxMatrix aTransform = gfxMatrix());
@@ -60,10 +60,8 @@ public:
     virtual bool Draw(gfxContext* aContext,
                         const gfxRect& aFillRect,
                         bool aRepeat,
-                        const GraphicsFilter& aFilter,
+                        const gfxPattern::GraphicsFilter& aFilter,
                         const gfxMatrix& aTransform = gfxMatrix());
-    
-    virtual already_AddRefed<gfxImageSurface> GetAsImageSurface();
 
 protected:
     nsRefPtr<gfxASurface> mSurface;
@@ -74,7 +72,7 @@ protected:
  * gfxDrawingCallback
  * A simple drawing functor.
  */
-class gfxDrawingCallback {
+class THEBES_API gfxDrawingCallback {
     NS_INLINE_DECL_REFCOUNTING(gfxDrawingCallback)
 public:
     virtual ~gfxDrawingCallback() {}
@@ -88,7 +86,7 @@ public:
      */
     virtual bool operator()(gfxContext* aContext,
                               const gfxRect& aFillRect,
-                              const GraphicsFilter& aFilter,
+                              const gfxPattern::GraphicsFilter& aFilter,
                               const gfxMatrix& aTransform = gfxMatrix()) = 0;
 
 };
@@ -97,7 +95,7 @@ public:
  * gfxCallbackDrawable
  * A convenience implementation of gfxDrawable for callbacks.
  */
-class gfxCallbackDrawable : public gfxDrawable {
+class THEBES_API gfxCallbackDrawable : public gfxDrawable {
 public:
     gfxCallbackDrawable(gfxDrawingCallback* aCallback, const gfxIntSize aSize);
     virtual ~gfxCallbackDrawable() {}
@@ -105,11 +103,11 @@ public:
     virtual bool Draw(gfxContext* aContext,
                         const gfxRect& aFillRect,
                         bool aRepeat,
-                        const GraphicsFilter& aFilter,
+                        const gfxPattern::GraphicsFilter& aFilter,
                         const gfxMatrix& aTransform = gfxMatrix());
 
 protected:
-    already_AddRefed<gfxSurfaceDrawable> MakeSurfaceDrawable(const GraphicsFilter aFilter = GraphicsFilter::FILTER_FAST);
+    already_AddRefed<gfxSurfaceDrawable> MakeSurfaceDrawable(const gfxPattern::GraphicsFilter aFilter = gfxPattern::FILTER_FAST);
 
     nsRefPtr<gfxDrawingCallback> mCallback;
     nsRefPtr<gfxSurfaceDrawable> mSurfaceDrawable;
@@ -119,16 +117,16 @@ protected:
  * gfxPatternDrawable
  * A convenience implementation of gfxDrawable for patterns.
  */
-class gfxPatternDrawable : public gfxDrawable {
+class THEBES_API gfxPatternDrawable : public gfxDrawable {
 public:
     gfxPatternDrawable(gfxPattern* aPattern,
                        const gfxIntSize aSize);
-    virtual ~gfxPatternDrawable();
+    virtual ~gfxPatternDrawable() {}
 
     virtual bool Draw(gfxContext* aContext,
                         const gfxRect& aFillRect,
                         bool aRepeat,
-                        const GraphicsFilter& aFilter,
+                        const gfxPattern::GraphicsFilter& aFilter,
                         const gfxMatrix& aTransform = gfxMatrix());
 
 protected:

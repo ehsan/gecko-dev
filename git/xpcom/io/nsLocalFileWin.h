@@ -15,7 +15,6 @@
 #include "nsILocalFileWin.h"
 #include "nsIHashable.h"
 #include "nsIClassInfoImpl.h"
-#include "prio.h"
 
 #include "mozilla/Attributes.h"
 
@@ -35,7 +34,7 @@ public:
     static nsresult nsLocalFileConstructor(nsISupports* outer, const nsIID& aIID, void* *aInstancePtr);
 
     // nsISupports interface
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     
     // nsIFile interface
     NS_DECL_NSIFILE

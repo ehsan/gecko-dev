@@ -8,18 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#if !defined(WEBRTC_GONK)
-#if defined(WEBRTC_ANDROID_OPENSLES)
-#include "webrtc/modules/audio_device/android/audio_manager_jni.h"
-#endif
-#if defined(WEBRTC_ANDROID)
-#include "webrtc/modules/audio_device/android/audio_device_jni_android.h"
-#endif
+#if defined(WEBRTC_ANDROID) && !defined(WEBRTC_ANDROID_OPENSLES)
+#include "modules/audio_device/android/audio_device_jni_android.h"
 #endif
 
-#include "webrtc/modules/audio_coding/main/interface/audio_coding_module.h"
-#include "webrtc/system_wrappers/interface/trace.h"
-#include "webrtc/voice_engine/voice_engine_impl.h"
+#include "voice_engine_impl.h"
+#include "trace.h"
 
 namespace webrtc
 {
@@ -28,35 +22,24 @@ namespace webrtc
 // methods. It is not the nicest solution, especially not since we already
 // have a counter in VoEBaseImpl. In other words, there is room for
 // improvement here.
-static int32_t gVoiceEngineInstanceCounter = 0;
+static WebRtc_Word32 gVoiceEngineInstanceCounter = 0;
 
-VoiceEngine* GetVoiceEngine(const Config* config, bool owns_config)
+extern "C"
 {
-#if (defined _WIN32)
-  HMODULE hmod = LoadLibrary(TEXT("VoiceEngineTestingDynamic.dll"));
+WEBRTC_DLLEXPORT VoiceEngine* GetVoiceEngine();
 
-  if (hmod) {
-    typedef VoiceEngine* (*PfnGetVoiceEngine)(void);
-    PfnGetVoiceEngine pfn = (PfnGetVoiceEngine)GetProcAddress(
-        hmod,"GetVoiceEngine");
-    if (pfn) {
-      VoiceEngine* self = pfn();
-      if (owns_config) {
-        delete config;
-      }
-      return (self);
-    }
-  }
-#endif
-
-    VoiceEngineImpl* self = new VoiceEngineImpl(config, owns_config);
-    if (self != NULL)
+VoiceEngine* GetVoiceEngine()
+{
+    VoiceEngineImpl* self = new VoiceEngineImpl();
+    VoiceEngine* ve = reinterpret_cast<VoiceEngine*>(self);
+    if (ve != NULL)
     {
         self->AddRef();  // First reference.  Released in VoiceEngine::Delete.
         gVoiceEngineInstanceCounter++;
     }
-    return self;
+    return ve;
 }
+} // extern "C"
 
 int VoiceEngineImpl::AddRef() {
   return ++_ref_count;
@@ -77,26 +60,39 @@ int VoiceEngineImpl::Release() {
   return new_ref;
 }
 
-VoiceEngine* VoiceEngine::Create() {
-  Config* config = new Config();
-  config->Set<AudioCodingModuleFactory>(new AudioCodingModuleFactory());
+VoiceEngine* VoiceEngine::Create()
+{
+#if (defined _WIN32)
+    HMODULE hmod_ = LoadLibrary(TEXT("VoiceEngineTestingDynamic.dll"));
 
-  return GetVoiceEngine(config, true);
+    if (hmod_)
+    {
+        typedef VoiceEngine* (*PfnGetVoiceEngine)(void);
+        PfnGetVoiceEngine pfn = (PfnGetVoiceEngine)GetProcAddress(
+                hmod_,"GetVoiceEngine");
+        if (pfn)
+        {
+            VoiceEngine* self = pfn();
+            return (self);
+        }
+    }
+#endif
+
+    return GetVoiceEngine();
 }
 
-VoiceEngine* VoiceEngine::Create(const Config& config) {
-  return GetVoiceEngine(&config, false);
-}
-
-int VoiceEngine::SetTraceFilter(unsigned int filter)
+int VoiceEngine::SetTraceFilter(const unsigned int filter)
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice,
                  VoEId(gVoiceEngineInstanceCounter, -1),
                  "SetTraceFilter(filter=0x%x)", filter);
 
     // Remember old filter
-    uint32_t oldFilter = Trace::level_filter();
-    Trace::set_level_filter(filter);
+    WebRtc_UWord32 oldFilter = 0;
+    Trace::LevelFilter(oldFilter);
+
+    // Set new filter
+    WebRtc_Word32 ret = Trace::SetLevelFilter(filter);
 
     // If previous log was ignored, log again after changing filter
     if (kTraceNone == oldFilter)
@@ -105,11 +101,11 @@ int VoiceEngine::SetTraceFilter(unsigned int filter)
                      "SetTraceFilter(filter=0x%x)", filter);
     }
 
-    return 0;
+    return (ret);
 }
 
 int VoiceEngine::SetTraceFile(const char* fileNameUTF8,
-                              bool addFileCounter)
+                              const bool addFileCounter)
 {
     int ret = Trace::SetTraceFile(fileNameUTF8, addFileCounter);
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice,
@@ -132,7 +128,7 @@ bool VoiceEngine::Delete(VoiceEngine*& voiceEngine)
     if (voiceEngine == NULL)
         return false;
 
-    VoiceEngineImpl* s = static_cast<VoiceEngineImpl*>(voiceEngine);
+    VoiceEngineImpl* s = reinterpret_cast<VoiceEngineImpl*>(voiceEngine);
     // Release the reference that was added in GetVoiceEngine.
     int ref = s->Release();
     voiceEngine = NULL;
@@ -148,17 +144,16 @@ bool VoiceEngine::Delete(VoiceEngine*& voiceEngine)
 
 int VoiceEngine::SetAndroidObjects(void* javaVM, void* env, void* context)
 {
-#if !defined(WEBRTC_GONK) && defined(ANDROID)
-#if defined(WEBRTC_ANDROID_OPENSLES)
-    // Initialize both backends. The OpenSLES one will fall back
-    // to JNI if some failure happens.
-    AudioManagerJni::SetAndroidAudioDeviceObjects(javaVM, env, context);
-#endif
-    return AudioDeviceAndroidJni::SetAndroidAudioDeviceObjects(
-         javaVM, env, context);
+#ifdef WEBRTC_ANDROID
+#ifdef WEBRTC_ANDROID_OPENSLES
+  return 0;
 #else
-    return -1;
+  return AudioDeviceAndroidJni::SetAndroidAudioDeviceObjects(
+      javaVM, env, context);
+#endif
+#else
+  return -1;
 #endif
 }
 
-}  // namespace webrtc
+} //namespace webrtc

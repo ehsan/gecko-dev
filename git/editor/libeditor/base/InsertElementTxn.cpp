@@ -19,14 +19,25 @@
 
 using namespace mozilla;
 
+#ifdef DEBUG
+static bool gNoisy = false;
+#endif
+
+
 InsertElementTxn::InsertElementTxn()
   : EditTxn()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_2(InsertElementTxn, EditTxn,
-                                     mNode,
-                                     mParent)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(InsertElementTxn, EditTxn)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mNode)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mParent)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(InsertElementTxn, EditTxn)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mNode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParent)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(InsertElementTxn, EditTxn)
 NS_IMPL_RELEASE_INHERITED(InsertElementTxn, EditTxn)
@@ -52,6 +63,24 @@ NS_IMETHODIMP InsertElementTxn::Init(nsINode *aNode,
 
 NS_IMETHODIMP InsertElementTxn::DoTransaction(void)
 {
+#ifdef DEBUG
+  if (gNoisy) 
+  { 
+    nsCOMPtr<nsIContent>nodeAsContent = do_QueryInterface(mNode);
+    nsCOMPtr<nsIContent>parentAsContent = do_QueryInterface(mParent);
+    nsString namestr;
+    mNode->GetNodeName(namestr);
+    char* nodename = ToNewCString(namestr);
+    printf("%p Do Insert Element of %p <%s> into parent %p at offset %d\n", 
+           static_cast<void*>(this),
+           static_cast<void*>(nodeAsContent.get()),
+           nodename,
+           static_cast<void*>(parentAsContent.get()),
+           mOffset); 
+    nsMemory::Free(nodename);
+  }
+#endif
+
   NS_ENSURE_TRUE(mNode && mParent, NS_ERROR_NOT_INITIALIZED);
 
   nsCOMPtr<nsINode> parent = do_QueryInterface(mParent);
@@ -93,6 +122,17 @@ NS_IMETHODIMP InsertElementTxn::DoTransaction(void)
 
 NS_IMETHODIMP InsertElementTxn::UndoTransaction(void)
 {
+#ifdef DEBUG
+  if (gNoisy)
+  {
+    printf("%p Undo Insert Element of %p into parent %p at offset %d\n",
+           static_cast<void*>(this),
+           static_cast<void*>(mNode.get()),
+           static_cast<void*>(mParent.get()),
+           mOffset);
+  }
+#endif
+
   NS_ENSURE_TRUE(mNode && mParent, NS_ERROR_NOT_INITIALIZED);
 
   ErrorResult rv;

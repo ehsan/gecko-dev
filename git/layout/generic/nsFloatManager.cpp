@@ -264,18 +264,22 @@ nsRect
 nsFloatManager::CalculateRegionFor(nsIFrame*       aFloat,
                                    const nsMargin& aMargin)
 {
-  // We consider relatively positioned frames at their original position.
-  nsRect region(aFloat->GetNormalPosition(), aFloat->GetSize());
+  nsRect region = aFloat->GetRect();
 
   // Float region includes its margin
   region.Inflate(aMargin);
+
+  // If the element is relatively positioned, then adjust x and y
+  // accordingly so that we consider relatively positioned frames
+  // at their original position.
+  const nsStyleDisplay* display = aFloat->StyleDisplay();
+  region -= aFloat->GetRelativeOffset(display);
 
   // Don't store rectangles with negative margin-box width or height in
   // the float manager; it can't deal with them.
   if (region.width < 0) {
     // Preserve the right margin-edge for left floats and the left
     // margin-edge for right floats
-    const nsStyleDisplay* display = aFloat->StyleDisplay();
     if (NS_STYLE_FLOAT_LEFT == display->mFloats) {
       region.x = region.XMost();
     }
@@ -331,8 +335,9 @@ nsFloatManager::RemoveTrailingRegions(nsIFrame* aFrameList)
   // floats given were at the end of our list, so we could just search
   // for the head of aFrameList.  (But we can't;
   // layout/reftests/bugs/421710-1.html crashes.)
-  nsTHashtable<nsPtrHashKey<nsIFrame> > frameSet(1);
+  nsTHashtable<nsPtrHashKey<nsIFrame> > frameSet;
 
+  frameSet.Init(1);
   for (nsIFrame* f = aFrameList; f; f = f->GetNextSibling()) {
     frameSet.PutEntry(f);
   }

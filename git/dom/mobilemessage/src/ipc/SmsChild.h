@@ -38,9 +38,6 @@ protected:
   RecvNotifyReceivedMessage(const MobileMessageData& aMessage) MOZ_OVERRIDE;
 
   virtual bool
-  RecvNotifyRetrievingMessage(const MobileMessageData& aMessage) MOZ_OVERRIDE;
-
-  virtual bool
   RecvNotifySendingMessage(const MobileMessageData& aMessage) MOZ_OVERRIDE;
 
   virtual bool
@@ -55,20 +52,17 @@ protected:
   virtual bool
   RecvNotifyDeliveryErrorMessage(const MobileMessageData& aMessage) MOZ_OVERRIDE;
 
-  virtual bool
-  RecvNotifyReceivedSilentMessage(const MobileMessageData& aMessage) MOZ_OVERRIDE;
-
   virtual PSmsRequestChild*
-  AllocPSmsRequestChild(const IPCSmsRequest& aRequest) MOZ_OVERRIDE;
+  AllocPSmsRequest(const IPCSmsRequest& aRequest) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPSmsRequestChild(PSmsRequestChild* aActor) MOZ_OVERRIDE;
+  DeallocPSmsRequest(PSmsRequestChild* aActor) MOZ_OVERRIDE;
 
   virtual PMobileMessageCursorChild*
-  AllocPMobileMessageCursorChild(const IPCMobileMessageCursor& aCursor) MOZ_OVERRIDE;
+  AllocPMobileMessageCursor(const IPCMobileMessageCursor& aCursor) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPMobileMessageCursorChild(PMobileMessageCursorChild* aActor) MOZ_OVERRIDE;
+  DeallocPMobileMessageCursor(PMobileMessageCursorChild* aActor) MOZ_OVERRIDE;
 };
 
 class SmsRequestChild : public PSmsRequestChild

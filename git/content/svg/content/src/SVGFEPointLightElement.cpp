@@ -12,7 +12,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEPointLightElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGFEPointLightElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGFEPointLightElementBinding::Wrap(aCx, aScope, this);
 }
@@ -44,19 +44,19 @@ SVGFEPointLightElement::AttributeAffectsRendering(int32_t aNameSpaceID,
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEPointLightElement::X()
 {
   return mNumberAttributes[ATTR_X].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEPointLightElement::Y()
 {
   return mNumberAttributes[ATTR_Y].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEPointLightElement::Z()
 {
   return mNumberAttributes[ATTR_Z].ToDOMAnimatedNumber(this);

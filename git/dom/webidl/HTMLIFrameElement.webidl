@@ -14,8 +14,7 @@
 interface HTMLIFrameElement : HTMLElement {
   [SetterThrows, Pure]
            attribute DOMString src;
-  [SetterThrows, Pure]
-           attribute DOMString srcdoc;
+           // attribute DOMString srcdoc;
   [SetterThrows, Pure]
            attribute DOMString name;
   // [PutForwards=value] readonly attribute DOMSettableTokenList sandbox;
@@ -48,7 +47,7 @@ partial interface HTMLIFrameElement {
 };
 
 partial interface HTMLIFrameElement {
-  // GetSVGDocument
+  // nsIDOMGetSVGDocument
   Document? getSVGDocument();
 };
 

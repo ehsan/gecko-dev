@@ -34,7 +34,7 @@ nsDisplayItemBoundsGeometry::nsDisplayItemBoundsGeometry(nsDisplayItem* aItem, n
   : nsDisplayItemGeometry(aItem, aBuilder)
 {
   nscoord radii[8];
-  mHasRoundedCorners = aItem->Frame()->GetBorderRadii(radii);
+  mHasRoundedCorners = aItem->GetUnderlyingFrame()->GetBorderRadii(radii);
 }
 
 void
@@ -63,20 +63,6 @@ nsDisplayBackgroundGeometry::nsDisplayBackgroundGeometry(nsDisplayBackgroundImag
 
 void
 nsDisplayBackgroundGeometry::MoveBy(const nsPoint& aOffset)
-{
-  mBounds.MoveBy(aOffset);
-  mPositioningArea.MoveBy(aOffset);
-}
-
-nsDisplayThemedBackgroundGeometry::nsDisplayThemedBackgroundGeometry(nsDisplayThemedBackground* aItem,
-                                                                     nsDisplayListBuilder* aBuilder)
-  : nsDisplayItemGeometry(aItem, aBuilder)
-  , mPositioningArea(aItem->GetPositioningArea())
-  , mWindowIsActive(aItem->IsWindowActive())
-{}
-
-void
-nsDisplayThemedBackgroundGeometry::MoveBy(const nsPoint& aOffset)
 {
   mBounds.MoveBy(aOffset);
   mPositioningArea.MoveBy(aOffset);

@@ -11,7 +11,7 @@
 #include "SkTypefaceCache.h"
 #include "SkThread.h"
 
-#define TYPEFACE_CACHE_LIMIT    1024
+#define TYPEFACE_CACHE_LIMIT    128
 
 void SkTypefaceCache::add(SkTypeface* face,
                           SkTypeface::Style requestedStyle,
@@ -145,3 +145,4 @@ void SkTypefaceCache::Dump() {
     (void)Get().findByProcAndRef(DumpProc, NULL);
 #endif
 }
+

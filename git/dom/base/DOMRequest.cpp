@@ -6,11 +6,13 @@
 
 #include "DOMRequest.h"
 
+#include "mozilla/Util.h"
 #include "DOMError.h"
-#include "nsCxPusher.h"
+#include "nsEventDispatcher.h"
+#include "nsDOMEvent.h"
+#include "nsContentUtils.h"
 #include "nsThreadUtils.h"
 #include "DOMCursor.h"
-#include "nsIDOMEvent.h"
 
 using mozilla::dom::DOMRequest;
 using mozilla::dom::DOMRequestService;
@@ -20,6 +22,7 @@ using mozilla::AutoPushJSContext;
 DOMRequest::DOMRequest(nsIDOMWindow* aWindow)
   : mResult(JSVAL_VOID)
   , mDone(false)
+  , mRooted(false)
 {
   SetIsDOMBinding();
   Init(aWindow);
@@ -30,6 +33,7 @@ DOMRequest::DOMRequest(nsIDOMWindow* aWindow)
 DOMRequest::DOMRequest()
   : mResult(JSVAL_VOID)
   , mDone(false)
+  , mRooted(false)
 {
   SetIsDOMBinding();
 }
@@ -42,8 +46,6 @@ DOMRequest::Init(nsIDOMWindow* aWindow)
                                         window->GetCurrentInnerWindow());
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(DOMRequest)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(DOMRequest,
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mError)
@@ -51,8 +53,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(DOMRequest,
                                                 nsDOMEventTargetHelper)
+  if (tmp->mRooted) {
+    tmp->UnrootResultVal();
+  }
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mError)
-  tmp->mResult = JSVAL_VOID;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(DOMRequest,
@@ -70,7 +74,7 @@ NS_IMPL_ADDREF_INHERITED(DOMRequest, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(DOMRequest, nsDOMEventTargetHelper)
 
 /* virtual */ JSObject*
-DOMRequest::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+DOMRequest::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return DOMRequestBinding::Wrap(aCx, aScope, this);
 }
@@ -83,14 +87,14 @@ DOMRequest::GetReadyState(nsAString& aReadyState)
 {
   DOMRequestReadyState readyState = ReadyState();
   switch (readyState) {
-    case DOMRequestReadyState::Pending:
+    case DOMRequestReadyStateValues::Pending:
       aReadyState.AssignLiteral("pending");
       break;
-    case DOMRequestReadyState::Done:
+    case DOMRequestReadyStateValues::Done:
       aReadyState.AssignLiteral("done");
       break;
     default:
-      MOZ_CRASH("Unrecognized readyState.");
+      MOZ_NOT_REACHED("Unrecognized readyState.");
   }
 
   return NS_OK;
@@ -104,14 +108,14 @@ DOMRequest::GetResult(JS::Value* aResult)
 }
 
 NS_IMETHODIMP
-DOMRequest::GetError(nsISupports** aError)
+DOMRequest::GetError(nsIDOMDOMError** aError)
 {
   NS_IF_ADDREF(*aError = GetError());
   return NS_OK;
 }
 
 void
-DOMRequest::FireSuccess(JS::Handle<JS::Value> aResult)
+DOMRequest::FireSuccess(JS::Value aResult)
 {
   NS_ASSERTION(!mDone, "mDone shouldn't have been set to true already!");
   NS_ASSERTION(!mError, "mError shouldn't have been set!");
@@ -134,7 +138,7 @@ DOMRequest::FireError(const nsAString& aError)
   NS_ASSERTION(mResult == JSVAL_VOID, "mResult shouldn't have been set!");
 
   mDone = true;
-  mError = new DOMError(GetOwner(), aError);
+  mError = DOMError::CreateWithName(aError);
 
   FireEvent(NS_LITERAL_STRING("error"), true, true);
 }
@@ -147,21 +151,7 @@ DOMRequest::FireError(nsresult aError)
   NS_ASSERTION(mResult == JSVAL_VOID, "mResult shouldn't have been set!");
 
   mDone = true;
-  mError = new DOMError(GetOwner(), aError);
-
-  FireEvent(NS_LITERAL_STRING("error"), true, true);
-}
-
-void
-DOMRequest::FireDetailedError(nsISupports* aError)
-{
-  NS_ASSERTION(!mDone, "mDone shouldn't have been set to true already!");
-  NS_ASSERTION(!mError, "mError shouldn't have been set!");
-  NS_ASSERTION(mResult == JSVAL_VOID, "mResult shouldn't have been set!");
-  NS_ASSERTION(aError, "No detailed error provided");
-
-  mDone = true;
-  mError = aError;
+  mError = DOMError::CreateForNSResult(aError);
 
   FireEvent(NS_LITERAL_STRING("error"), true, true);
 }
@@ -189,7 +179,21 @@ DOMRequest::FireEvent(const nsAString& aType, bool aBubble, bool aCancelable)
 void
 DOMRequest::RootResultVal()
 {
-  mozilla::HoldJSObjects(this);
+  NS_ASSERTION(!mRooted, "Don't call me if already rooted!");
+  nsXPCOMCycleCollectionParticipant *participant;
+  CallQueryInterface(this, &participant);
+  nsContentUtils::HoldJSObjects(NS_CYCLE_COLLECTION_UPCAST(this, DOMRequest),
+                                participant);
+  mRooted = true;
+}
+
+void
+DOMRequest::UnrootResultVal()
+{
+  NS_ASSERTION(mRooted, "Don't call me if not rooted!");
+  mResult = JSVAL_VOID;
+  NS_DROP_JS_OBJECTS(this, DOMRequest);
+  mRooted = false;
 }
 
 NS_IMPL_ISUPPORTS1(DOMRequestService, nsIDOMRequestService)
@@ -218,8 +222,7 @@ DOMRequestService::FireSuccess(nsIDOMDOMRequest* aRequest,
                                const JS::Value& aResult)
 {
   NS_ENSURE_STATE(aRequest);
-  static_cast<DOMRequest*>(aRequest)->
-    FireSuccess(JS::Handle<JS::Value>::fromMarkedLocation(&aResult));
+  static_cast<DOMRequest*>(aRequest)->FireSuccess(aResult);
 
   return NS_OK;
 }
@@ -230,16 +233,6 @@ DOMRequestService::FireError(nsIDOMDOMRequest* aRequest,
 {
   NS_ENSURE_STATE(aRequest);
   static_cast<DOMRequest*>(aRequest)->FireError(aError);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-DOMRequestService::FireDetailedError(nsIDOMDOMRequest* aRequest,
-                                     nsISupports* aError)
-{
-  NS_ENSURE_STATE(aRequest);
-  static_cast<DOMRequest*>(aRequest)->FireDetailedError(aError);
 
   return NS_OK;
 }
@@ -269,6 +262,7 @@ public:
     if (!cx) {
       return NS_ERROR_FAILURE;
     }
+    JSAutoRequest ar(cx);
     JS_AddValueRoot(cx, &mResult);
     mIsSetup = true;
     return NS_OK;
@@ -295,7 +289,7 @@ public:
   NS_IMETHODIMP
   Run()
   {
-    mReq->FireSuccess(JS::Handle<JS::Value>::fromMarkedLocation(&mResult));
+    mReq->FireSuccess(mResult);
     return NS_OK;
   }
 
@@ -312,6 +306,9 @@ public:
     AutoPushJSContext cx(sc->GetNativeContext());
     MOZ_ASSERT(cx);
 
+    // We need to build a new request, otherwise we assert since there won't be
+    // a request available yet.
+    JSAutoRequest ar(cx);
     JS_RemoveValueRoot(cx, &mResult);
   }
 private:

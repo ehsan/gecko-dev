@@ -25,8 +25,9 @@ var loader = Components.classes["@mozilla.org/moz/jssubscript-loader;1"]
                        .getService(Components.interfaces.mozIJSSubScriptLoader);
 loader.loadSubScript("chrome://specialpowers/content/SpecialPowersObserverAPI.js");
 
+
 /* XPCOM gunk */
-this.SpecialPowersObserver = function SpecialPowersObserver() {
+function SpecialPowersObserver() {
   this._isFrameScriptLoaded = false;
   this._messageManager = Cc["@mozilla.org/globalmessagemanager;1"].
                          getService(Ci.nsIMessageBroadcaster);
@@ -55,12 +56,8 @@ SpecialPowersObserver.prototype = new SpecialPowersObserverAPI();
           this._messageManager.addMessageListener("SPProcessCrashService", this);
           this._messageManager.addMessageListener("SPPingService", this);
           this._messageManager.addMessageListener("SpecialPowers.Quit", this);
-          this._messageManager.addMessageListener("SpecialPowers.Focus", this);
           this._messageManager.addMessageListener("SPPermissionManager", this);
           this._messageManager.addMessageListener("SPWebAppService", this);
-          this._messageManager.addMessageListener("SPObserverService", this);
-          this._messageManager.addMessageListener("SPLoadChromeScript", this);
-          this._messageManager.addMessageListener("SPChromeScriptMessage", this);
 
           this._messageManager.loadFrameScript(CHILD_LOGGER_SCRIPT, true);
           this._messageManager.loadFrameScript(CHILD_SCRIPT_API, true);
@@ -146,9 +143,6 @@ SpecialPowersObserver.prototype = new SpecialPowersObserverAPI();
       case "SpecialPowers.Quit":
         let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"].getService(Ci.nsIAppStartup);
         appStartup.quit(Ci.nsIAppStartup.eForceQuit);
-        break;
-      case "SpecialPowers.Focus":
-        aMessage.target.focus();
         break;
       default:
         return this._receiveMessage(aMessage);

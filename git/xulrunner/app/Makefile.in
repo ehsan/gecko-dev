@@ -3,10 +3,19 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 PREF_JS_EXPORTS = $(srcdir)/xulrunner.js
 GARBAGE += $(addprefix $(DIST)/bin/defaults/pref/,xulrunner.js)
 
 DEFINES += -DAB_CD=$(AB_CD)
+
+PROGRAM = xulrunner$(BIN_SUFFIX)
 
 DEFINES += -DXULRUNNER_PROGNAME=\"xulrunner\"
 
@@ -16,6 +25,8 @@ endif
 
 DEFINES += -DXPCOM_GLUE
 STL_FLAGS=
+
+CPPSRCS = nsXULRunnerApp.cpp
 
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/toolkit/xre \
@@ -29,6 +40,7 @@ TK_LIBS := -framework Cocoa $(TK_LIBS)
 endif
 
 LIBS += \
+  $(EXTRA_DSO_LIBS) \
   $(XPCOM_STANDALONE_GLUE_LDOPTS) \
   $(NULL)
 
@@ -94,7 +106,7 @@ LDFLAGS += /HEAP:0x40000
 endif
 endif
 
-ifdef MOZ_WIDGET_GTK
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 libs::
 	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default16.png $(DIST)/bin/chrome/icons/default
 	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default32.png $(DIST)/bin/chrome/icons/default
@@ -103,7 +115,7 @@ endif
 
 # XXX applications would need to supply this file
 #export:: brand.dtd.in
-#	$(call py_action,preprocessor,$(DEFINES) $(ACDEFINES) $^ -o brand.dtd)
+#	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $^ > brand.dtd
 
 export::
 	$(NSINSTALL) -D $(DIST)/branding
@@ -112,7 +124,7 @@ ifeq ($(OS_ARCH),WINNT)
 	cp $(srcdir)/xulrunner.ico   $(DIST)/branding/app.ico
 	cp $(srcdir)/document.ico  $(DIST)/branding/document.ico
 endif
-ifdef MOZ_WIDGET_GTK
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 	cp $(srcdir)/default16.png   $(DIST)/branding/default16.png
 	cp $(srcdir)/default32.png   $(DIST)/branding/default32.png
 	cp $(srcdir)/default48.png   $(DIST)/branding/default48.png
@@ -132,7 +144,7 @@ FRAMEWORK_DIR = \
 $(FRAMEWORK_DIR)/Resources:
 	$(NSINSTALL) -D $@
 
-tools:: $(PROGRAM) $(FRAMEWORK_DIR)/Resources
+libs:: $(PROGRAM) $(FRAMEWORK_DIR)/Resources
 	$(NSINSTALL) $(srcdir)/macbuild/InfoPlist.strings $(FRAMEWORK_DIR)/Resources
 	sed -e "s/APP_VERSION/$(APP_VERSION)/" $(srcdir)/macbuild/Info.plist.in > $(FRAMEWORK_DIR)/Info.plist
 	rsync -av $(DIST)/bin/ $(FRAMEWORK_DIR) --exclude mangle --exclude shlibsign

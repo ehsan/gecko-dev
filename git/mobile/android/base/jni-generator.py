@@ -67,12 +67,10 @@ class Generator:
                 paramNames = ['arg%d' % i for i in range(0, len(paramTypes))]
                 if returnType == 'void':
                     returnValue = ''
-                elif returnType in ('jobject', 'jstring'):
+                elif returnType == 'jobject':
                     returnValue = 'NULL'
-                elif returnType in ('jint', 'jfloat', 'jdouble', 'jlong'):
+                elif returnType in ('jint', 'jfloat'):
                     returnValue = '0'
-                elif returnType == 'jboolean':
-                    returnValue = 'false'
                 else:
                     raise Exception(('Unsupported JNI return type %s found; '
                                      + 'please update mobile/android/base/'

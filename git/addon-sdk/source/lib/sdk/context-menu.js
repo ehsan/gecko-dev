@@ -4,22 +4,18 @@
 "use strict";
 
 module.metadata = {
-  "stability": "stable",
-  "engines": {
-    // TODO Fennec support Bug 788334
-    "Firefox": "*"
-  }
+  "stability": "stable"
 };
 
 const { Class, mix } = require("./core/heritage");
 const { addCollectionProperty } = require("./util/collection");
 const { ns } = require("./core/namespace");
 const { validateOptions, getTypeOf } = require("./deprecated/api-utils");
-const { URL, isValidURI } = require("./url");
+const { URL } = require("./url");
 const { WindowTracker, browserWindowIterator } = require("./deprecated/window-utils");
 const { isBrowser, getInnerId } = require("./window/utils");
 const { Ci } = require("chrome");
-const { MatchPattern } = require("./util/match-pattern");
+const { MatchPattern } = require("./page-mod/match-pattern");
 const { Worker } = require("./content/worker");
 const { EventTarget } = require("./event/target");
 const { emit } = require('./event/core');
@@ -268,13 +264,7 @@ let labelledItemRules =  mix(baseItemRules, {
   },
   image: {
     map: stringOrNull,
-    is: ["string", "undefined", "null"],
-    ok: function (url) {
-      if (!url)
-        return true;
-      return isValidURI(url);
-    },
-    msg: "Image URL validation failed"
+    is: ["string", "undefined", "null"]
   }
 });
 

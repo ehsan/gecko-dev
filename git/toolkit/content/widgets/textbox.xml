@@ -15,7 +15,7 @@
    xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
    xmlns:xbl="http://www.mozilla.org/xbl">
 
-  <binding id="textbox" extends="xul:box" role="xul:textbox">
+  <binding id="textbox" extends="xul:box">
     <resources>
       <stylesheet src="chrome://global/content/textbox.css"/>
       <stylesheet src="chrome://global/skin/textbox.css"/>
@@ -29,7 +29,15 @@
       </xul:hbox>
     </content>
 
-    <implementation implements="nsIDOMXULTextBoxElement, nsIDOMXULLabeledControlElement">
+    <implementation implements="nsIAccessibleProvider, nsIDOMXULTextBoxElement, nsIDOMXULLabeledControlElement">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULTextBox;
+          ]]>
+        </getter>
+      </property>
+
       <!-- nsIDOMXULLabeledControlElement -->
       <field name="crop">""</field>
       <field name="image">""</field>
@@ -451,10 +459,8 @@
       <children/>
       <xul:menupopup anonid="input-box-contextmenu"
                      class="textbox-contextmenu"
-                     onpopupshowing="var input =
-                                       this.parentNode.getElementsByAttribute('anonid', 'input')[0];
-                                     if (document.commandDispatcher.focusedElement != input)
-                                       input.focus();
+                     onpopupshowing="if (document.commandDispatcher.focusedElement != this.parentNode.firstChild)
+                                       this.parentNode.firstChild.focus();
                                      this.parentNode._doPopupItemEnabling(this);"
                      oncommand="var cmd = event.originalTarget.getAttribute('cmd'); if(cmd) { this.parentNode.doCommand(cmd); event.stopPropagation(); }">
         <xul:menuitem label="&undoCmd.label;" accesskey="&undoCmd.accesskey;" cmd="cmd_undo"/>
@@ -515,10 +521,8 @@
       <children/>
       <xul:menupopup anonid="input-box-contextmenu"
                      class="textbox-contextmenu"
-                     onpopupshowing="var input =
-                                       this.parentNode.getElementsByAttribute('anonid', 'input')[0];
-                                     if (document.commandDispatcher.focusedElement != input)
-                                       input.focus();
+                     onpopupshowing="if (document.commandDispatcher.focusedElement != this.parentNode.firstChild)
+                                       this.parentNode.firstChild.focus();
                                      this.parentNode._doPopupItemEnablingSpell(this);"
                      onpopuphiding="this.parentNode._doPopupItemDisabling(this);"
                      oncommand="var cmd = event.originalTarget.getAttribute('cmd'); if(cmd) { this.parentNode.doCommand(cmd); event.stopPropagation(); }">

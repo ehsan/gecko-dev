@@ -21,7 +21,7 @@ void SkView::Artist::inflate(const SkDOM& dom, const SkDOM::Node* node)
     this->onInflate(dom, node);
 }
 
-void SkView::Artist::onInflate(const SkDOM&, const SkDOM::Node*)
+void SkView::Artist::onInflate(const SkDOM& dom, const SkDOM::Node* node)
 {
     // subclass should override this as needed
 }
@@ -67,7 +67,7 @@ void SkView::Layout::inflate(const SkDOM& dom, const SkDOM::Node* node)
     this->onInflate(dom, node);
 }
 
-void SkView::Layout::onInflate(const SkDOM&, const SkDOM::Node*)
+void SkView::Layout::onInflate(const SkDOM& dom, const SkDOM::Node* node)
 {
     // subclass should override this as needed
 }
@@ -101,3 +101,4 @@ SkView::Layout* SkView::setLayout(Layout* obj, bool invokeLayoutNow)
 
     return obj;
 }
+

@@ -2,6 +2,7 @@
 <html>
 
 <head>
+  <title></title>
   <meta content="text/html; charset=UTF-8" http-equiv="content-type">
   <meta name="viewport" content="width=device-width; user-scalable=0" />
 
@@ -10,8 +11,7 @@
 
 <body>
   <div id="reader-header" class="header">
-    <a id="reader-domain" class="domain"></a>
-    <div class="domain-border"></div>
+    <div id="reader-domain" class="domain"></div>
     <h1 id="reader-title"></h1>
     <div id="reader-credits" class="credits"></div>
   </div>
@@ -27,11 +27,13 @@
     <ul class="dropdown">
       <li><a class="dropdown-toggle button style-button" href="#"></a></li>
       <li class="dropdown-popup">
-        <ul id="font-type-buttons"></ul>
-        <hr></hr>
-        <ul id="font-size-buttons" class="segmented-button"></ul>
-        <hr></hr>
         <ul id="color-scheme-buttons" class="segmented-button"></ul>
+        <hr></hr>
+        <ul id="font-type-buttons" class="segmented-button"></ul>
+        <hr></hr>
+        <div id="font-size-control" class="step-control"></div>
+        <hr></hr>
+        <div id="margin-size-control" class="step-control"></div>
       </li>
     </ul>
     <li><a id="list-button" class="button list-button" href="#"></a></li>

@@ -13,25 +13,27 @@ function test() {
     openConsole(null, function(hud) {
       content.location.reload();
 
-      waitForMessages({
-        webconsole: hud,
-        messages: [{
-          text: "test-console.html",
-          category: CATEGORY_NETWORK,
-          severity: SEVERITY_LOG,
-        }],
-      }).then(performTest);
+      waitForSuccess({
+        name: "network message displayed",
+        validatorFn: function()
+        {
+          return hud.outputNode.querySelector(".webconsole-msg-network");
+        },
+        successFn: performTest,
+        failureFn: finishTest,
+      });
     });
   }, true);
 }
 
-function performTest(results) {
-  let HUD = HUDService.getHudByWindow(content);
+function performTest() {
+  let hudId = HUDService.getHudIdByWindow(content);
+  let HUD = HUDService.hudReferences[hudId];
 
-  let networkMessage = [...results[0].matched][0];
-  ok(networkMessage, "network message element");
+  let networkMessage = HUD.outputNode.querySelector(".webconsole-msg-network");
+  ok(networkMessage, "found network message");
 
-  let networkLink = networkMessage.querySelector(".url");
+  let networkLink = networkMessage.querySelector(".webconsole-msg-link");
   ok(networkLink, "found network message link");
 
   let popupset = document.getElementById("mainPopupSet");
@@ -45,7 +47,7 @@ function performTest(results) {
     popupsShown++;
 
     executeSoon(function() {
-      let popups = popupset.querySelectorAll("panel[hudId=" + HUD.hudId + "]");
+      let popups = popupset.querySelectorAll("panel[hudId=" + hudId + "]");
       is(popups.length, 1, "found one popup");
 
       document.addEventListener("popuphidden", onpopuphidden, false);
@@ -66,7 +68,7 @@ function performTest(results) {
     hiddenPopups++;
 
     executeSoon(function() {
-      let popups = popupset.querySelectorAll("panel[hudId=" + HUD.hudId + "]");
+      let popups = popupset.querySelectorAll("panel[hudId=" + hudId + "]");
       is(popups.length, 0, "no popups found");
 
       executeSoon(finishTest);

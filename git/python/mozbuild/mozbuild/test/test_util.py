@@ -21,8 +21,6 @@ from mozbuild.util import (
     resolve_target_to_make,
     MozbuildDeletionError,
     HierarchicalStringList,
-    StrictOrderingOnAppendList,
-    UnsortedError,
 )
 
 if sys.version_info[0] == 3:
@@ -121,11 +119,9 @@ class TestResolveTargetToMake(unittest.TestCase):
             target = target.replace(os.sep, '/')
         self.assertEqual((reldir, target), expected)
 
-    def test_root_path(self):
-        self.assertResolve('/test-dir', ('test-dir', None))
-        self.assertResolve('/test-dir/with', ('test-dir/with', None))
-        self.assertResolve('/test-dir/without', ('test-dir', None))
-        self.assertResolve('/test-dir/without/with', ('test-dir/without/with', None))
+    def test_absolute_path(self):
+        abspath = os.path.abspath(os.path.join(self.topobjdir, 'test-dir'))
+        self.assertResolve(abspath, (None, None))
 
     def test_dir(self):
         self.assertResolve('test-dir', ('test-dir', None))
@@ -220,70 +216,6 @@ class TestHierarchicalStringList(unittest.TestCase):
         with self.assertRaises(MozbuildDeletionError) as mde:
             self.EXPORTS.foo += ['bar.h']
             del self.EXPORTS.foo
-
-    def test_unsorted_appends(self):
-        with self.assertRaises(UnsortedError) as ee:
-            self.EXPORTS += ['foo.h', 'bar.h']
-
-
-class TestStrictOrderingOnAppendList(unittest.TestCase):
-    def test_init(self):
-        l = StrictOrderingOnAppendList()
-        self.assertEqual(len(l), 0)
-
-        l = StrictOrderingOnAppendList(['a', 'b', 'c'])
-        self.assertEqual(len(l), 3)
-
-        with self.assertRaises(UnsortedError):
-            StrictOrderingOnAppendList(['c', 'b', 'a'])
-
-        self.assertEqual(len(l), 3)
-
-    def test_extend(self):
-        l = StrictOrderingOnAppendList()
-        l.extend(['a', 'b'])
-        self.assertEqual(len(l), 2)
-        self.assertIsInstance(l, StrictOrderingOnAppendList)
-
-        with self.assertRaises(UnsortedError):
-            l.extend(['d', 'c'])
-
-        self.assertEqual(len(l), 2)
-
-    def test_slicing(self):
-        l = StrictOrderingOnAppendList()
-        l[:] = ['a', 'b']
-        self.assertEqual(len(l), 2)
-        self.assertIsInstance(l, StrictOrderingOnAppendList)
-
-        with self.assertRaises(UnsortedError):
-            l[:] = ['b', 'a']
-
-        self.assertEqual(len(l), 2)
-
-    def test_add(self):
-        l = StrictOrderingOnAppendList()
-        l2 = l + ['a', 'b']
-        self.assertEqual(len(l), 0)
-        self.assertEqual(len(l2), 2)
-        self.assertIsInstance(l2, StrictOrderingOnAppendList)
-
-        with self.assertRaises(UnsortedError):
-            l2 = l + ['b', 'a']
-
-        self.assertEqual(len(l), 0)
-
-    def test_iadd(self):
-        l = StrictOrderingOnAppendList()
-        l += ['a', 'b']
-        self.assertEqual(len(l), 2)
-        self.assertIsInstance(l, StrictOrderingOnAppendList)
-
-        with self.assertRaises(UnsortedError):
-            l += ['b', 'a']
-
-        self.assertEqual(len(l), 2)
-
 
 if __name__ == '__main__':
     main()

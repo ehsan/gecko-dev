@@ -30,9 +30,8 @@ function run_test() {
   updateAppInfo();
 
   let httpServer = new HttpServer();
-  httpServer.start(-1);
+  httpServer.start(4444);
   httpServer.registerDirectory("/", do_get_cwd());
-  let baseUrl = "http://localhost:" + httpServer.identity.primaryPort;
 
   function getSearchMetadata() {
     // Check that search-metadata.json has been created
@@ -110,12 +109,12 @@ function run_test() {
 
   do_test_pending();
 
-  search.addEngine(baseUrl + "/data/engine.xml",
+  search.addEngine("http://localhost:4444/data/engine.xml",
                    Ci.nsISearchEngine.DATA_XML,
                    null, false);
-  search.addEngine(baseUrl + "/data/engine.src",
+  search.addEngine("http://localhost:4444/data/engine.src",
                    Ci.nsISearchEngine.DATA_TEXT,
-                   baseUrl + "/data/ico-size-16x16-png.ico",
+                   "http://localhost:4444/data/ico-size-16x16-png.ico",
                    false);
 
   do_timeout(120000, function() {

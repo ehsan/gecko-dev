@@ -21,7 +21,7 @@
 !define NO_UNINSTALL_SURVEY
 
 !define CERTIFICATE_NAME      "Mozilla Corporation"
-!define CERTIFICATE_ISSUER    "DigiCert Assured ID Code Signing CA-1"
+!define CERTIFICATE_ISSUER    "Thawte Code Signing CA - G2"
 
 # LSP_CATEGORIES is the permitted LSP categories for the application. Each LSP
 # category value is ANDed together to set multiple permitted categories.
@@ -69,10 +69,6 @@
 
 #ifdef MOZ_METRO
 !define MOZ_METRO
-#endif
-
-#ifdef MOZ_CONTENT_SANDBOX
-!define MOZ_CONTENT_SANDBOX
 #endif
 
 # File details shared by both the installer and uninstaller

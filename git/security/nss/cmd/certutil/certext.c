@@ -78,7 +78,7 @@ PrintChoicesAndGetAnswer(char* str, char* rBuff, int rSize)
 }
 
 static CERTGeneralName *
-GetGeneralName(PLArenaPool *arena, CERTGeneralName *useExistingName, PRBool onlyOne)
+GetGeneralName(PRArenaPool *arena, CERTGeneralName *useExistingName, PRBool onlyOne)
 {
     CERTGeneralName *namesList = NULL;
     CERTGeneralName *current;
@@ -214,13 +214,13 @@ GetGeneralName(PLArenaPool *arena, CERTGeneralName *useExistingName, PRBool only
 }
 
 static CERTGeneralName *
-CreateGeneralName(PLArenaPool *arena)
+CreateGeneralName(PRArenaPool *arena)
 {
   return GetGeneralName(arena, NULL, PR_FALSE);
 }
 
 static SECStatus 
-GetString(PLArenaPool *arena, char *prompt, SECItem *value)
+GetString(PRArenaPool *arena, char *prompt, SECItem *value)
 {
     char buffer[251];
     char *buffPrt;
@@ -378,10 +378,10 @@ static CERTOidSequence *
 CreateOidSequence(void)
 {
     CERTOidSequence *rv = (CERTOidSequence *)NULL;
-    PLArenaPool *arena = (PLArenaPool *)NULL;
+    PRArenaPool *arena = (PRArenaPool *)NULL;
 
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-    if( (PLArenaPool *)NULL == arena ) {
+    if( (PRArenaPool *)NULL == arena ) {
         goto loser;
     }
 
@@ -399,7 +399,7 @@ CreateOidSequence(void)
     return rv;
 
 loser:
-    if( (PLArenaPool *)NULL != arena ) {
+    if( (PRArenaPool *)NULL != arena ) {
         PORT_FreeArena(arena, PR_FALSE);
     }
 
@@ -666,7 +666,7 @@ AddNscpCertType (void *extHandle, const char *userSuppliedValue)
 }
 
 static SECStatus 
-AddSubjectAltNames(PLArenaPool *arena, CERTGeneralName **existingListp,
+AddSubjectAltNames(PRArenaPool *arena, CERTGeneralName **existingListp,
                    const char *names, CERTGeneralNameType type)
 {
     CERTGeneralName *nameList = NULL;
@@ -735,7 +735,7 @@ AddSubjectAltNames(PLArenaPool *arena, CERTGeneralName **existingListp,
 }
 
 static SECStatus 
-AddEmailSubjectAlt(PLArenaPool *arena, CERTGeneralName **existingListp,
+AddEmailSubjectAlt(PRArenaPool *arena, CERTGeneralName **existingListp,
                    const char *emailAddrs)
 {
     return AddSubjectAltNames(arena, existingListp, emailAddrs, 
@@ -743,7 +743,7 @@ AddEmailSubjectAlt(PLArenaPool *arena, CERTGeneralName **existingListp,
 }
 
 static SECStatus 
-AddDNSSubjectAlt(PLArenaPool *arena, CERTGeneralName **existingListp,
+AddDNSSubjectAlt(PRArenaPool *arena, CERTGeneralName **existingListp,
                  const char *dnsNames)
 {
     return AddSubjectAltNames(arena, existingListp, dnsNames, certDNSName);
@@ -784,7 +784,7 @@ AddBasicConstraint(void *extHandle)
 static SECStatus 
 AddNameConstraints(void *extHandle)
 {
-    PLArenaPool              *arena = NULL;
+    PRArenaPool              *arena = NULL;
     CERTNameConstraints      *constraints = NULL;
 
     CERTNameConstraint       *current = NULL;
@@ -879,7 +879,7 @@ static SECStatus
 AddAuthKeyID (void *extHandle)
 {
     CERTAuthKeyID *authKeyID = NULL;    
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv = SECSuccess;
     PRBool yesNoAns;
 
@@ -932,7 +932,7 @@ static SECStatus
 AddSubjKeyID (void *extHandle)
 {
     SECItem keyID;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv = SECSuccess;
     PRBool yesNoAns;
 
@@ -968,7 +968,7 @@ AddSubjKeyID (void *extHandle)
 static SECStatus 
 AddCrlDistPoint(void *extHandle)
 {
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     CERTCrlDistributionPoints *crlDistPoints = NULL;
     CRLDistributionPoint *current;
     SECStatus rv = SECSuccess;
@@ -1109,7 +1109,7 @@ static SECStatus
 AddPolicyConstraints(void *extHandle)
 {
     CERTCertificatePolicyConstraints *policyConstr;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv = SECSuccess;
     SECItem *item, *dummy;
     char buffer[512];
@@ -1193,7 +1193,7 @@ static SECStatus
 AddInhibitAnyPolicy(void *extHandle)
 {
     CERTCertificateInhibitAny certInhibitAny;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv = SECSuccess;
     SECItem *item, *dummy;
     char buffer[10];
@@ -1242,7 +1242,7 @@ AddPolicyMappings(void *extHandle)
 {
     CERTPolicyMap **policyMapArr = NULL;
     CERTPolicyMap *current;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv = SECSuccess;
     int count = 0;
     char buffer[512];
@@ -1334,7 +1334,7 @@ enum PoliciQualifierEnum {
 
 
 static CERTPolicyQualifier **
-RequestPolicyQualifiers(PLArenaPool *arena, SECItem *policyID)
+RequestPolicyQualifiers(PRArenaPool *arena, SECItem *policyID)
 {
     CERTPolicyQualifier **policyQualifArr = NULL;
     CERTPolicyQualifier *current;
@@ -1529,7 +1529,7 @@ AddCertPolicies(void *extHandle)
 {
     CERTPolicyInfo **certPoliciesArr = NULL;
     CERTPolicyInfo *current;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv = SECSuccess;
     int count = 0;
     char buffer[512];
@@ -1626,7 +1626,7 @@ AddInfoAccess(void *extHandle, PRBool addSIAExt, PRBool isCACert)
 {
     CERTAuthInfoAccess **infoAccArr = NULL;
     CERTAuthInfoAccess *current;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv = SECSuccess;
     int count = 0;
     char buffer[512];
@@ -1865,7 +1865,7 @@ AddExtensions(void *extHandle, const char *emailAddrs, const char *dnsNames,
         }
 
         if (emailAddrs || dnsNames) {
-            PLArenaPool *arena;
+            PRArenaPool *arena;
             CERTGeneralName *namelist = NULL;
             SECItem item = { 0, NULL, 0 };
             

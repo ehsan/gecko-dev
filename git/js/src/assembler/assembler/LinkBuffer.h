@@ -27,14 +27,14 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_LinkBuffer_h
-#define assembler_assembler_LinkBuffer_h
+#ifndef LinkBuffer_h
+#define LinkBuffer_h
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE_ASSEMBLER
 
-#include "assembler/assembler/MacroAssembler.h"
+#include <assembler/MacroAssembler.h>
 
 namespace JSC {
 
@@ -192,11 +192,6 @@ public:
         return CodeLocationLabel(code());
     }
 
-    // Useful as a proxy to detect OOM.
-    void* unsafeCode() {
-        return code();
-    }
-
 protected:
     // Keep this private! - the underlying code should only be obtained externally via 
     // finalizeCode() or finalizeCodeAddendum().
@@ -235,4 +230,4 @@ protected:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_LinkBuffer_h */
+#endif // LinkBuffer_h

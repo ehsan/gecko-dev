@@ -7,6 +7,7 @@
 
 #include "nsBaseAppShell.h"
 #include <windows.h>
+#include "mozilla/TimeStamp.h"
 #include "nsWindowsHelpers.h"
 #include "nsIObserver.h"
 
@@ -15,29 +16,26 @@ class MetroAppShell : public nsBaseAppShell
 public:
   NS_DECL_NSIOBSERVER
 
-  MetroAppShell() :
-    mEventWnd(nullptr),
-    mPowerRequestCount(0)
-  {
-  }
+  MetroAppShell() : mEventWnd(NULL), mExiting(false), mPowerRequestCount(0)
+  {}
 
   nsresult Init();
   void DoProcessMoreGeckoEvents();
   void NativeCallback();
 
   static LRESULT CALLBACK EventWindowProc(HWND, UINT, WPARAM, LPARAM);
-  static bool ProcessOneNativeEventIfPresent();
-  static void MarkEventQueueForPurge();
+  static void ProcessAllNativeEventsPresent();
+  static void ProcessOneNativeEventIfPresent();
 
 protected:
-  NS_IMETHOD Run();
-
-  virtual void ScheduleNativeEventCallback();
-  virtual bool ProcessNextNativeEvent(bool mayWait);
-  static void DispatchAllGeckoEvents();
-  virtual ~MetroAppShell();
-
   HWND mEventWnd;
+  bool mExiting;
   nsAutoHandle mPowerRequest;
   ULONG mPowerRequestCount;
+
+  NS_IMETHOD Run();
+  NS_IMETHOD Exit();
+  virtual void ScheduleNativeEventCallback();
+  virtual bool ProcessNextNativeEvent(bool mayWait);
+  virtual ~MetroAppShell();
 };

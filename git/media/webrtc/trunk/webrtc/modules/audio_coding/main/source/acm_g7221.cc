@@ -11,7 +11,7 @@
 #include "webrtc/modules/audio_coding/main/source/acm_g7221.h"
 
 #include "webrtc/modules/audio_coding/main/source/acm_codec_database.h"
-#include "webrtc/modules/audio_coding/main/acm2/acm_common_defs.h"
+#include "webrtc/modules/audio_coding/main/source/acm_common_defs.h"
 #include "webrtc/modules/audio_coding/main/source/acm_neteq.h"
 #include "webrtc/modules/audio_coding/neteq/interface/webrtc_neteq.h"
 #include "webrtc/modules/audio_coding/neteq/interface/webrtc_neteq_help_macros.h"
@@ -86,11 +86,9 @@
 
 namespace webrtc {
 
-namespace acm1 {
-
 #ifndef WEBRTC_CODEC_G722_1
 
-ACMG722_1::ACMG722_1(int16_t /* codec_id */)
+ACMG722_1::ACMG722_1(WebRtc_Word16 /* codec_id */)
     : operational_rate_(-1),
       encoder_inst_ptr_(NULL),
       encoder_inst_ptr_right_(NULL),
@@ -111,32 +109,32 @@ ACMG722_1::~ACMG722_1() {
   return;
 }
 
-int16_t ACMG722_1::InternalEncode(
-    uint8_t* /* bitstream */,
-    int16_t* /* bitstream_len_byte */) {
+WebRtc_Word16 ACMG722_1::InternalEncode(
+    WebRtc_UWord8* /* bitstream */,
+    WebRtc_Word16* /* bitstream_len_byte */) {
   return -1;
 }
 
-int16_t ACMG722_1::DecodeSafe(uint8_t* /* bitstream  */,
-                              int16_t /* bitstream_len_byte */,
-                              int16_t* /* audio */,
-                              int16_t* /* audio_samples */,
-                              int8_t* /* speech_type */) {
+WebRtc_Word16 ACMG722_1::DecodeSafe(WebRtc_UWord8* /* bitstream  */,
+                                    WebRtc_Word16 /* bitstream_len_byte */,
+                                    WebRtc_Word16* /* audio */,
+                                    WebRtc_Word16* /* audio_samples */,
+                                    WebRtc_Word8* /* speech_type */) {
   return -1;
 }
 
-int16_t ACMG722_1::InternalInitEncoder(
+WebRtc_Word16 ACMG722_1::InternalInitEncoder(
     WebRtcACMCodecParams* /* codec_params */) {
   return -1;
 }
 
-int16_t ACMG722_1::InternalInitDecoder(
+WebRtc_Word16 ACMG722_1::InternalInitDecoder(
     WebRtcACMCodecParams* /* codec_params */) {
   return -1;
 }
 
-int32_t ACMG722_1::CodecDef(WebRtcNetEQ_CodecDef& /* codec_def  */,
-                            const CodecInst& /* codec_inst */) {
+WebRtc_Word32 ACMG722_1::CodecDef(WebRtcNetEQ_CodecDef& /* codec_def  */,
+                                  const CodecInst& /* codec_inst */) {
   return -1;
 }
 
@@ -144,7 +142,7 @@ ACMGenericCodec* ACMG722_1::CreateInstance(void) {
   return NULL;
 }
 
-int16_t ACMG722_1::InternalCreateEncoder() {
+WebRtc_Word16 ACMG722_1::InternalCreateEncoder() {
   return -1;
 }
 
@@ -152,7 +150,7 @@ void ACMG722_1::DestructEncoderSafe() {
   return;
 }
 
-int16_t ACMG722_1::InternalCreateDecoder() {
+WebRtc_Word16 ACMG722_1::InternalCreateDecoder() {
   return -1;
 }
 
@@ -165,7 +163,7 @@ void ACMG722_1::InternalDestructEncoderInst(void* /* ptr_inst */) {
 }
 
 #else     //===================== Actual Implementation =======================
-ACMG722_1::ACMG722_1(int16_t codec_id)
+ACMG722_1::ACMG722_1(WebRtc_Word16 codec_id)
     : encoder_inst_ptr_(NULL),
       encoder_inst_ptr_right_(NULL),
       decoder_inst_ptr_(NULL),
@@ -231,12 +229,12 @@ ACMG722_1::~ACMG722_1() {
   return;
 }
 
-int16_t ACMG722_1::InternalEncode(uint8_t* bitstream,
-                                  int16_t* bitstream_len_byte) {
-  int16_t left_channel[320];
-  int16_t right_channel[320];
-  int16_t len_in_bytes;
-  int16_t out_bits[160];
+WebRtc_Word16 ACMG722_1::InternalEncode(WebRtc_UWord8* bitstream,
+                                        WebRtc_Word16* bitstream_len_byte) {
+  WebRtc_Word16 left_channel[320];
+  WebRtc_Word16 right_channel[320];
+  WebRtc_Word16 len_in_bytes;
+  WebRtc_Word16 out_bits[160];
 
   // If stereo, split input signal in left and right channel before encoding
   if (num_channels_ == 2) {
@@ -294,17 +292,17 @@ int16_t ACMG722_1::InternalEncode(uint8_t* bitstream,
   return *bitstream_len_byte;
 }
 
-int16_t ACMG722_1::DecodeSafe(uint8_t* /* bitstream */,
-                              int16_t /* bitstream_len_byte */,
-                              int16_t* /* audio */,
-                              int16_t* /* audio_samples */,
-                              int8_t* /* speech_type */) {
+WebRtc_Word16 ACMG722_1::DecodeSafe(WebRtc_UWord8* /* bitstream */,
+                                    WebRtc_Word16 /* bitstream_len_byte */,
+                                    WebRtc_Word16* /* audio */,
+                                    WebRtc_Word16* /* audio_samples */,
+                                    WebRtc_Word8* /* speech_type */) {
   return 0;
 }
 
-int16_t ACMG722_1::InternalInitEncoder(
+WebRtc_Word16 ACMG722_1::InternalInitEncoder(
     WebRtcACMCodecParams* codec_params) {
-  int16_t ret;
+  WebRtc_Word16 ret;
 
   switch (operational_rate_) {
     case 16000: {
@@ -336,7 +334,7 @@ int16_t ACMG722_1::InternalInitEncoder(
   }
 }
 
-int16_t ACMG722_1::InternalInitDecoder(
+WebRtc_Word16 ACMG722_1::InternalInitDecoder(
     WebRtcACMCodecParams* /* codec_params */) {
   switch (operational_rate_) {
     case 16000: {
@@ -356,8 +354,8 @@ int16_t ACMG722_1::InternalInitDecoder(
   }
 }
 
-int32_t ACMG722_1::CodecDef(WebRtcNetEQ_CodecDef& codec_def,
-                            const CodecInst& codec_inst) {
+WebRtc_Word32 ACMG722_1::CodecDef(WebRtcNetEQ_CodecDef& codec_def,
+                                  const CodecInst& codec_inst) {
   if (!decoder_initialized_) {
     // Todo:
     // log error
@@ -403,7 +401,7 @@ ACMGenericCodec* ACMG722_1::CreateInstance(void) {
   return NULL;
 }
 
-int16_t ACMG722_1::InternalCreateEncoder() {
+WebRtc_Word16 ACMG722_1::InternalCreateEncoder() {
   if ((encoder_inst_ptr_ == NULL) || (encoder_inst_ptr_right_ == NULL)) {
     return -1;
   }
@@ -448,7 +446,7 @@ void ACMG722_1::DestructEncoderSafe() {
   encoder_inst32_ptr_ = NULL;
 }
 
-int16_t ACMG722_1::InternalCreateDecoder() {
+WebRtc_Word16 ACMG722_1::InternalCreateDecoder() {
   if (decoder_inst_ptr_ == NULL) {
     return -1;
   }
@@ -494,7 +492,5 @@ void ACMG722_1::InternalDestructEncoderInst(void* ptr_inst) {
 }
 
 #endif
-
-}  // namespace acm1
 
 }  // namespace webrtc

@@ -6,7 +6,9 @@
 <iframe></iframe>
 <script>
 function tripleclick(){
-var wu =  SpecialPowers.getDOMWindowUtils(window);
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+var wu =  window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                .getInterface(Components.interfaces.nsIDOMWindowUtils);
 wu.sendMouseEvent('mousedown',  100, 100, 0, 1, 0);
 setTimeout(tripleclick,20);
 }

@@ -9,13 +9,20 @@
 
 #include "nsIAccessiblePivot.h"
 
-#include "Accessible-inl.h"
 #include "nsAutoPtr.h"
 #include "nsTObserverArray.h"
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Attributes.h"
 
-class RuleCache;
+namespace mozilla {
+namespace a11y {
+
+class Accessible;
+
+} // namespace a11y
+} // namespace mozilla
+
+class nsIAccessibleTraversalRule;
 
 /**
  * Class represents an accessible pivot.
@@ -51,9 +58,9 @@ private:
                            PivotMoveReason aReason);
 
   /*
-   * Check to see that the given accessible is a descendant of given ancestor
+   * Check to see that the given accessible is in the pivot's subtree.
    */
-  bool IsDescendantOf(Accessible* aAccessible, Accessible* aAncestor);
+  bool IsRootDescendant(Accessible* aAccessible);
 
 
   /*
@@ -73,50 +80,14 @@ private:
                              nsresult* aResult);
 
   /*
-   * Search in preorder for the first text accessible.
-   */
-  mozilla::a11y::HyperTextAccessible* SearchForText(Accessible* aAccessible,
-                                                    bool aBackward);
-
-  /*
-   * Get the effective root for this pivot, either the true root or modal root.
-   */
-  Accessible* GetActiveRoot() const
-  {
-    if (mModalRoot) {
-      NS_ENSURE_FALSE(mModalRoot->IsDefunct(), mRoot);
-      return mModalRoot;
-    }
-
-    return mRoot;
-  }
-
-  /*
    * Update the pivot, and notify observers. Return true if it moved.
    */
   bool MovePivotInternal(Accessible* aPosition, PivotMoveReason aReason);
 
   /*
-   * Get initial node we should start a search from with a given rule.
-   *
-   * When we do a move operation from one position to another,
-   * the initial position can be inside of a subtree that is ignored by
-   * the given rule. We need to step out of the ignored subtree and start
-   * the search from there.
-   *
-   */
-  Accessible* AdjustStartPosition(Accessible* aAccessible, RuleCache& aCache,
-                                  uint16_t* aFilterResult, nsresult* aResult);
-
-  /*
    * The root accessible.
    */
   nsRefPtr<Accessible> mRoot;
-
-  /*
-   * The temporary modal root accessible.
-   */
-  nsRefPtr<Accessible> mModalRoot;
 
   /*
    * The current pivot position.

@@ -6,8 +6,6 @@
 #include "UIABridge.h"
 #include "MetroUtils.h"
 #include "UIABridgePrivate.h"
-#include "MetroWidget.h"
-#include "WinUtils.h"
 
 #include <wrl.h>
 #include <OAIdl.h>
@@ -16,7 +14,6 @@
 #ifdef ACCESSIBILITY
 using namespace mozilla::a11y;
 #endif
-using namespace mozilla::widget;
 using namespace Microsoft::WRL;
 using namespace Microsoft::WRL::Wrappers;
 using namespace ABI::Windows::UI;
@@ -28,16 +25,15 @@ using namespace ABI::Windows::System;
 #if !defined(DEBUG_BRIDGE)
 #undef LogThread
 #undef LogFunction
+#undef Log
 #define LogThread() 
 #define LogFunction()
-#define BridgeLog(...)
-#else
-#define BridgeLog(...) WinUtils::Log(__VA_ARGS__)
+#define Log(...)
 #endif
 
 #define MIDL_DEFINE_GUID(type,name,l,w1,w2,b1,b2,b3,b4,b5,b6,b7,b8) \
  const type name = {l,w1,w2,{b1,b2,b3,b4,b5,b6,b7,b8}}
-MIDL_DEFINE_GUID(IID, IID_IUIABridge, 0xc78b35b5, 0x5db, 0x43aa, 0xae, 0x73, 0x94, 0xc2, 0x33, 0xa9, 0x3c, 0x98);
+MIDL_DEFINE_GUID(IID, IID_IUIABridge,0x343159D8,0xB1E9,0x4464,0x82,0xFC,0xB1,0x2C,0x7A,0x47,0x3C,0xF1);
 
 namespace mozilla {
 namespace widget {
@@ -46,12 +42,13 @@ namespace winrt {
 #define ProviderOptions_UseClientCoordinates (ProviderOptions)0x100
 
 static int gIDIndex = 2;
-ComPtr<IUIABridge> gProviderRoot = nullptr;
+static ComPtr<IUIABridge> gProviderRoot = nullptr;
 static ComPtr<IUIAElement> gElement = nullptr;
 
 HRESULT
 UIABridge_CreateInstance(IInspectable **retVal)
 {
+  LogFunction();
   HRESULT hr = E_OUTOFMEMORY;
   *retVal = nullptr;
   ComPtr<UIABridge> spProvider = Make<UIABridge>();
@@ -115,8 +112,6 @@ UIABridge::Disconnect()
   mAccessible = nullptr;
 #endif
   mWindow = nullptr;
-  gElement = nullptr;
-  gProviderRoot = nullptr;
   return S_OK;
 }
 
@@ -131,14 +126,12 @@ UIABridge::Connected()
 HRESULT
 UIABridge::SetFocusInternal(LONG_PTR aAccessible)
 {
-  LogFunction();
   return S_OK;
 }
 
 HRESULT
 UIABridge::ClearFocus()
 {
-  LogFunction();
   return S_OK;
 }
 
@@ -151,9 +144,9 @@ DumpChildInfo(nsCOMPtr<nsIAccessible>& aChild)
   }
   nsString str;
   aChild->GetName(str);
-  BridgeLog("name: %ls", str.BeginReading());
+  Log("name: %ls", str.BeginReading());
   aChild->GetDescription(str);
-  BridgeLog("description: %ls", str.BeginReading());
+  Log("description: %ls", str.BeginReading());
 #endif
 }
 
@@ -161,7 +154,7 @@ static bool
 ChildHasFocus(nsCOMPtr<nsIAccessible>& aChild)
 {
   Accessible* access = (Accessible*)aChild.get();
-  BridgeLog("Focus element flags: editable:%d focusable:%d readonly:%d",
+  Log("Focus element flags: %d %d %d",
     ((access->NativeState() & mozilla::a11y::states::EDITABLE) > 0),
     ((access->NativeState() & mozilla::a11y::states::FOCUSABLE) > 0),
     ((access->NativeState() & mozilla::a11y::states::READONLY) > 0));
@@ -169,19 +162,25 @@ ChildHasFocus(nsCOMPtr<nsIAccessible>& aChild)
            ((access->NativeState() & mozilla::a11y::states::READONLY) == 0));
 }
 
+// Accessibility calls here to let us know about focus related changes.
+// The only event we are concerned with is lost focus, so that we can
+// signal UIA that the focus on our child has been lost.
 HRESULT
 UIABridge::FocusChangeEvent()
 {
   LogFunction();
+
   if (!Connected()) {
     return UIA_E_ELEMENTNOTAVAILABLE;
   }
 
   nsCOMPtr<nsIAccessible> child;
-  mAccessible->GetFocusedChild(getter_AddRefs(child));
+  nsresult rv = mAccessible->GetFocusedChild(getter_AddRefs(child));
   if (!child) {
     return S_OK;
   }
+
+  DumpChildInfo(child);
 
   if (!ChildHasFocus(child)) {
     ComPtr<IUIAElement> element;
@@ -189,6 +188,7 @@ UIABridge::FocusChangeEvent()
     if (!element) {
       return S_OK;
     }
+
     element->ClearFocus();
     UiaRaiseAutomationEvent(this, UIA_AutomationFocusChangedEventId);
   }
@@ -211,7 +211,7 @@ UIABridge::ElementProviderFromPoint(double x, double y, IRawElementProviderFragm
 }
 
 // Windows calls this looking for the current focus element. Windows
-// will call here before accessible sends us any observer events through
+// will call here before accessible sends up any observer events through
 // the accessibility bridge, so update child focus information.
 HRESULT
 UIABridge::GetFocus(IRawElementProviderFragment ** retVal)
@@ -224,7 +224,6 @@ UIABridge::GetFocus(IRawElementProviderFragment ** retVal)
   nsCOMPtr<nsIAccessible> child;
   nsresult rv = mAccessible->GetFocusedChild(getter_AddRefs(child));
   if (!child) {
-    BridgeLog("mAccessible->GetFocusedChild failed.");
     return S_OK;
   }
 
@@ -233,7 +232,6 @@ UIABridge::GetFocus(IRawElementProviderFragment ** retVal)
   ComPtr<IUIAElement> element;
   gElement.As(&element);
   if (!element) {
-    BridgeLog("gElement as IUIAElement failed.");
     return S_OK;
   }
 
@@ -260,20 +258,15 @@ UIABridge::Navigate(NavigateDirection direction, IRawElementProviderFragment ** 
 
   switch(direction) {
     case NavigateDirection_Parent:
-    BridgeLog("UIABridge::Navigate NavigateDirection_Parent");
     break;
     case NavigateDirection_NextSibling:
-    BridgeLog("UIABridge::Navigate NavigateDirection_NextSibling");
     break;
     case NavigateDirection_PreviousSibling:
-    BridgeLog("UIABridge::Navigate NavigateDirection_PreviousSibling");
     break;
     case NavigateDirection_FirstChild:
-    BridgeLog("UIABridge::Navigate NavigateDirection_FirstChild");
     gElement.Get()->QueryInterface(IID_PPV_ARGS(retVal));
     break;
     case NavigateDirection_LastChild:
-    BridgeLog("UIABridge::Navigate NavigateDirection_LastChild");
     gElement.Get()->QueryInterface(IID_PPV_ARGS(retVal));
     break;
   }
@@ -285,7 +278,6 @@ UIABridge::Navigate(NavigateDirection direction, IRawElementProviderFragment ** 
 HRESULT
 UIABridge::GetRuntimeId(SAFEARRAY ** retVal)
 {
-  LogFunction();
   if (!Connected()) {
     return UIA_E_ELEMENTNOTAVAILABLE;
   }
@@ -356,7 +348,6 @@ UIABridge::get_FragmentRoot(IRawElementProviderFragmentRoot ** retVal)
 HRESULT
 UIABridge::get_ProviderOptions(ProviderOptions * pRetVal)
 {
-  LogFunction();
   if (!Connected()) {
     return E_FAIL;
   }
@@ -370,7 +361,7 @@ HRESULT
 UIABridge::GetPatternProvider(PATTERNID patternId, IUnknown **ppRetVal)
 {
   LogFunction();
-  BridgeLog("UIABridge::GetPatternProvider=%d", patternId);
+  Log("UIABridge::GetPatternProvider=%d", patternId);
 
   // The root window doesn't support any specific pattern
   *ppRetVal = nullptr;
@@ -381,43 +372,15 @@ UIABridge::GetPatternProvider(PATTERNID patternId, IUnknown **ppRetVal)
 HRESULT
 UIABridge::GetPropertyValue(PROPERTYID idProp, VARIANT * pRetVal)
 {
+  LogFunction();
   pRetVal->vt = VT_EMPTY;
 
-  switch (idProp) {
-    case UIA_AutomationIdPropertyId:
-    BridgeLog("UIABridge::GetPropertyValue: idProp=UIA_AutomationIdPropertyId");
-    break;
-    case UIA_ControlTypePropertyId:
-    BridgeLog("UIABridge::GetPropertyValue: idProp=UIA_ControlTypePropertyId");
-    break;
-    case UIA_IsKeyboardFocusablePropertyId:
-    BridgeLog("UIABridge::GetPropertyValue: idProp=UIA_IsKeyboardFocusablePropertyId");
-    break;
-    case UIA_IsContentElementPropertyId:
-    BridgeLog("UIABridge::GetPropertyValue: idProp=UIA_IsContentElementPropertyId");
-    break;
-    case UIA_IsControlElementPropertyId:
-    BridgeLog("UIABridge::GetPropertyValue: idProp=UIA_IsControlElementPropertyId");
-    break;
-    case UIA_IsEnabledPropertyId:
-    BridgeLog("UIABridge::GetPropertyValue: idProp=UIA_IsEnabledPropertyId");
-    break;
-    case UIA_HasKeyboardFocusPropertyId:
-    BridgeLog("UIABridge::GetPropertyValue: idProp=UIA_HasKeyboardFocusPropertyId");
-    break;
-    case UIA_NamePropertyId:
-    BridgeLog("UIABridge::GetPropertyValue: idProp=UIA_NamePropertyId");
-    break;
-    case UIA_IsPasswordPropertyId:
-    BridgeLog("UIABridge::GetPropertyValue: idProp=UIA_IsPasswordPropertyId");
-    break;
-    case UIA_NativeWindowHandlePropertyId:
-    BridgeLog("UIABridge::GetPropertyValue: idProp=UIA_NativeWindowHandlePropertyId");
-    break;
-    default:
-    BridgeLog("UIABridge::GetPropertyValue: idProp=%d", idProp);
-    break;
+  // native hwnd
+  if (idProp == 30020) {
+    return S_OK;
   }
+
+  Log("UIABridge::GetPropertyValue: idProp=%d", idProp);
 
   if (!Connected()) {
     return E_FAIL;
@@ -458,12 +421,10 @@ UIABridge::GetPropertyValue(PROPERTYID idProp, VARIANT * pRetVal)
       break;
 
     case UIA_NativeWindowHandlePropertyId:
-    pRetVal->vt = VT_I4;
-    pRetVal->lVal = (LONG)MetroWidget::GetICoreWindowHWND();
     break;
 
     default:
-      BridgeLog("UIABridge: Unhandled property");
+      Log("UIABridge: Unhandled property");
       break;
   }
   return S_OK;
@@ -493,9 +454,6 @@ UIATextElement::SetFocusInternal(LONG_PTR aAccessible)
   LogFunction();
 #if defined(ACCESSIBILITY)
   NS_ASSERTION(mAccessItem, "Bad accessible pointer");
-  if (mAccessItem == (nsIAccessible*)aAccessible) {
-    return E_UNEXPECTED;
-  }
   mAccessItem = (nsIAccessible*)aAccessible;
   return S_OK;
 #endif
@@ -537,7 +495,6 @@ UIATextElement::Navigate(NavigateDirection direction, IRawElementProviderFragmen
 HRESULT
 UIATextElement::GetRuntimeId(SAFEARRAY ** retVal)
 {
-  LogFunction();
   int runtimeId[2] = { UiaAppendRuntimeId, mIndexID };
   *retVal = SafeArrayCreateVector(VT_I4, 0, ARRAYSIZE(runtimeId));
   if (*retVal != nullptr) {
@@ -562,13 +519,10 @@ UIATextElement::get_BoundingRectangle(UiaRect * retVal)
   // bounds are in physical pixels
   int32_t docX = 0, docY = 0, docWidth = 0, docHeight = 0;
   mAccessItem->GetBounds(&docX, &docY, &docWidth, &docHeight);
-  
   retVal->left = (float)docX;
   retVal->top = (float)docY;
   retVal->width = (float)docWidth;
   retVal->height = (float)docHeight;
-
-  BridgeLog("get_BoundingRectangle: left=%d top=%d right=%d bottom=%d", docX, docY, docX + docWidth, docY + docHeight);
   return S_OK;
 }
 
@@ -607,7 +561,7 @@ HRESULT
 UIATextElement::GetPatternProvider(PATTERNID patternId, IUnknown **ppRetVal)
 {
   LogFunction();
-  BridgeLog("UIATextElement::GetPatternProvider=%d", patternId);
+  Log("UIATextElement::GetPatternProvider=%d", patternId);
   
   // UIA_ValuePatternId - 10002
   // UIA_TextPatternId  - 10014
@@ -615,12 +569,12 @@ UIATextElement::GetPatternProvider(PATTERNID patternId, IUnknown **ppRetVal)
 
   *ppRetVal = nullptr;
   if (patternId == UIA_TextPatternId) {
-    BridgeLog("** TextPattern requested from element.");
+    Log("** TextPattern requested from element.");
     *ppRetVal = static_cast<ITextProvider*>(this);
     AddRef();
     return S_OK;
   } else if (patternId == UIA_ValuePatternId) {
-    BridgeLog("** ValuePattern requested from element.");
+    Log("** ValuePattern requested from element.");
     *ppRetVal = static_cast<IValueProvider*>(this);
     AddRef();
     return S_OK;
@@ -632,45 +586,15 @@ UIATextElement::GetPatternProvider(PATTERNID patternId, IUnknown **ppRetVal)
 HRESULT
 UIATextElement::GetPropertyValue(PROPERTYID idProp, VARIANT * pRetVal)
 {
+  LogFunction();
   pRetVal->vt = VT_EMPTY;
 
-  // native hwnd, we don't have one for elements
+  // native hwnd
   if (idProp == 30020) {
     return S_OK;
   }
 
-  switch (idProp) {
-    case UIA_AutomationIdPropertyId:
-    BridgeLog("UIATextElement::GetPropertyValue: idProp=UIA_AutomationIdPropertyId");
-    break;
-    case UIA_ControlTypePropertyId:
-    BridgeLog("UIATextElement::GetPropertyValue: idProp=UIA_ControlTypePropertyId");
-    break;
-    case UIA_IsKeyboardFocusablePropertyId:
-    BridgeLog("UIATextElement::GetPropertyValue: idProp=UIA_IsKeyboardFocusablePropertyId");
-    break;
-    case UIA_IsContentElementPropertyId:
-    BridgeLog("UIATextElement::GetPropertyValue: idProp=UIA_IsContentElementPropertyId");
-    break;
-    case UIA_IsControlElementPropertyId:
-    BridgeLog("UIATextElement::GetPropertyValue: idProp=UIA_IsControlElementPropertyId");
-    break;
-    case UIA_IsEnabledPropertyId:
-    BridgeLog("UIATextElement::GetPropertyValue: idProp=UIA_IsEnabledPropertyId");
-    break;
-    case UIA_HasKeyboardFocusPropertyId:
-    BridgeLog("UIATextElement::GetPropertyValue: idProp=UIA_HasKeyboardFocusPropertyId");
-    break;
-    case UIA_NamePropertyId:
-    BridgeLog("UIATextElement::GetPropertyValue: idProp=UIA_NamePropertyId");
-    break;
-    case UIA_IsPasswordPropertyId:
-    BridgeLog("UIATextElement::GetPropertyValue: idProp=UIA_IsPasswordPropertyId");
-    break;
-    default:
-    BridgeLog("UIATextElement::GetPropertyValue: idProp=%d", idProp);
-    break;
-  }
+  Log("UIATextElement::GetPropertyValue: idProp=%d", idProp);
 
   switch (idProp) {
     case UIA_AutomationIdPropertyId:
@@ -680,7 +604,7 @@ UIATextElement::GetPropertyValue(PROPERTYID idProp, VARIANT * pRetVal)
 
     case UIA_ControlTypePropertyId:
       pRetVal->vt = VT_I4;
-      pRetVal->lVal = UIA_EditControlTypeId;
+      pRetVal->lVal = UIA_DocumentControlTypeId;
       break;
 
     case UIA_IsTextPatternAvailablePropertyId:
@@ -723,7 +647,7 @@ UIATextElement::GetPropertyValue(PROPERTYID idProp, VARIANT * pRetVal)
       break;
 
     default:
-      BridgeLog("UIATextElement: Unhandled property");
+      Log("UIATextElement: Unhandled property");
       break;
   }
   return S_OK;

@@ -3,13 +3,19 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+relativesrcdir  = @relativesrcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 # Note: browserElementTestHelpers.js looks at the test's filename to determine
 # whether the test should be OOP.  "_oop_" signals OOP, "_inproc_" signals in
 # process.  Default is OOP.
 
 MOCHITEST_FILES = \
-                $(topsrcdir)/browser/base/content/test/general/audio.ogg \
-                $(topsrcdir)/content/media/test/short-video.ogv \
 		file_empty_script.js \
 		file_empty.html \
 		file_focus.html \
@@ -18,11 +24,11 @@ MOCHITEST_FILES = \
 		test_browserElement_NoPref.html \
 		test_browserElement_NoWhitelist.html \
 		browserElement_LoadEvents.js \
-		file_browserElement_LoadEvents.html \
 		test_browserElement_inproc_LoadEvents.html \
 		browserElement_DataURI.js \
 		test_browserElement_inproc_DataURI.html \
 		browserElement_ErrorSecurity.js \
+		test_browserElement_inproc_ErrorSecurity.html \
 		browserElement_Titlechange.js \
 		test_browserElement_inproc_Titlechange.html \
 		browserElement_TopBarrier.js \
@@ -34,9 +40,7 @@ MOCHITEST_FILES = \
 		test_browserElement_inproc_BrowserWindowNamespace.html \
 		file_browserElement_BrowserWindowNamespace.html \
 		browserElement_Iconchange.js \
-		browserElement_Opensearch.js \
 		test_browserElement_inproc_Iconchange.html \
-		test_browserElement_inproc_Opensearch.html \
 		browserElement_GetScreenshot.js \
 		test_browserElement_inproc_GetScreenshot.html \
 		browserElement_BadScreenshot.js \
@@ -157,25 +161,13 @@ MOCHITEST_FILES = \
 		test_browserElement_inproc_PurgeHistory.html \
 		browserElement_DocumentFirstPaint.js \
 		test_browserElement_inproc_DocumentFirstPaint.html \
-		browserElement_VisibilityChange.js \
-		test_browserElement_inproc_VisibilityChange.html \
-		browserElement_BrowserWindowResize.js \
-		test_browserElement_inproc_BrowserWindowResize.html \
 		$(NULL)
-
-# Disabled until we fix bug 906096.
-#		browserElement_SetInputMethodActive.js \
-#		test_browserElement_inproc_SetInputMethodActive.html \
-#		file_inputmethod.html \
 
 # Disabled due to https://bugzilla.mozilla.org/show_bug.cgi?id=774100
 #		test_browserElement_inproc_Reload.html \
 
 # Disabled due to focus issues (no bug that I'm aware of)
 # 		test_browserElement_oop_KeyEvents.html \
-
-# Disable due to certificate issue (no bug that I'm aware of)
-#		test_browserElement_inproc_ErrorSecurity.html \
 
 # OOP tests don't work on native-fennec (bug 774939).
 #
@@ -187,7 +179,6 @@ MOCHITEST_FILES += \
 		browserElement_OpenMixedProcess.js \
 		file_browserElement_OpenMixedProcess.html \
 		test_browserElement_inproc_OpenMixedProcess.html \
-		test_browserElement_inproc_ErrorSecurity.html \
 		test_browserElement_oop_OpenMixedProcess.html \
 		test_browserElement_oop_LoadEvents.html \
 		test_browserElement_oop_DataURI.html \
@@ -197,7 +188,6 @@ MOCHITEST_FILES += \
 		test_browserElement_oop_BrowserWindowNamespace.html \
 		test_browserElement_oop_TopBarrier.html \
 		test_browserElement_oop_Iconchange.html \
-		test_browserElement_oop_Opensearch.html \
 		test_browserElement_oop_GetScreenshot.html \
 		test_browserElement_oop_BadScreenshot.html \
 		test_browserElement_oop_XFrameOptions.html \
@@ -218,6 +208,7 @@ MOCHITEST_FILES += \
 		test_browserElement_oop_PromptConfirm.html \
 		test_browserElement_oop_CookiesNotThirdParty.html \
 		test_browserElement_oop_Close.html \
+		test_browserElement_oop_CloseFromOpener.html \
 		test_browserElement_oop_CloseApp.html \
 		test_browserElement_oop_OpenWindow.html \
 		test_browserElement_oop_OpenWindowInFrame.html \
@@ -228,6 +219,7 @@ MOCHITEST_FILES += \
 		test_browserElement_oop_BackForward.html \
 		test_browserElement_oop_Reload.html \
 		test_browserElement_oop_Stop.html \
+		test_browserElement_oop_ContextmenuEvents.html \
 		test_browserElement_oop_ScrollEvent.html \
 		test_browserElement_oop_Auth.html \
 		test_browserElement_oop_RemoveBrowserElement.html \
@@ -238,17 +230,8 @@ MOCHITEST_FILES += \
 		test_browserElement_oop_ReloadPostRequest.html \
 		test_browserElement_oop_PurgeHistory.html \
 		test_browserElement_oop_DocumentFirstPaint.html \
-		test_browserElement_oop_VisibilityChange.html \
-		test_browserElement_oop_BrowserWindowResize.html \
 	$(NULL)
 
-# Disabled until bug 930449 makes it stop timing out
-#		test_browserElement_oop_ContextmenuEvents.html \
-
-# Disabled until bug 924771 makes it stop timing out
-# 		test_browserElement_oop_CloseFromOpener.html \
-
-# Disabled until we fix bug 906096.
-#		test_browserElement_oop_SetInputMethodActive.html \
-
 endif #}
+
+include $(topsrcdir)/config/rules.mk

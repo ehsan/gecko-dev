@@ -6,55 +6,24 @@
 
 XPIDL_SOURCES += [
     'nsIDOMCameraManager.idl',
+    'nsIDOMNavigatorCamera.idl',
 ]
 
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-    TEST_DIRS += ['test']
-
 XPIDL_MODULE = 'dom_camera'
+
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/base',
+    '-I$(topsrcdir)/dom/interfaces/base',
+    '-I$(topsrcdir)/dom/interfaces/events',
+    '-I$(topsrcdir)/dom/media',
+]
 
 MODULE = 'dom'
 
 EXPORTS += [
     'CameraCommon.h',
-    'CameraPreviewMediaStream.h',
     'DOMCameraManager.h',
-    'GonkCameraControl.h',
+    'GonkNativeWindow.h',
+    'GonkNativeWindowClient.h',
 ]
 
-SOURCES += [
-    'CameraControlImpl.cpp',
-    'CameraPreviewMediaStream.cpp',
-    'CameraRecorderProfiles.cpp',
-    'DOMCameraCapabilities.cpp',
-    'DOMCameraControl.cpp',
-    'DOMCameraManager.cpp',
-    'DOMCameraPreview.cpp',
-]
-
-if CONFIG['MOZ_B2G_CAMERA']:
-    SOURCES += [
-        'GonkCameraControl.cpp',
-        'GonkCameraHwMgr.cpp',
-        'GonkCameraManager.cpp',
-        'GonkCameraSource.cpp',
-        'GonkRecorder.cpp',
-        'GonkRecorderProfiles.cpp',
-    ]
-else:
-    SOURCES += [
-        'FallbackCameraControl.cpp',
-        'FallbackCameraManager.cpp',
-    ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'domcamera_s'
-
-LOCAL_INCLUDES += [
-    '../base',
-]
-
-include('/ipc/chromium/chromium-config.mozbuild')

@@ -4,8 +4,8 @@
 
 body {
   -moz-text-size-adjust: none;
-  font-family: sans-serif;
-  font-size: 12px;
+  font-family: Roboto,"Droid Sans",helvetica,arial,clean,sans-serif;
+  font-size: 14px;
   color: #222;
   background-color: #ced7de;
   padding: 10px;
@@ -27,7 +27,6 @@ section:not([active]) {
 
 .header {
   font-size: 24px;
-  font-weight: lighter;
   text-align: center;
   margin-top: 0;
 }
@@ -66,7 +65,7 @@ section:not([active]) {
 }
 
 .fine-print {
-  font-size: 10px;
+  font-size: 12px;
   color: #666;
 }
 

@@ -8,25 +8,25 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
-#include "webrtc/modules/video_render/android/video_render_android_surface_view.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
+#include "video_render_android_surface_view.h"
+#include "critical_section_wrapper.h"
+#include "common_video/libyuv/include/webrtc_libyuv.h"
+#include "tick_util.h"
 
 #ifdef ANDROID_LOG
-#include <android/log.h>
 #include <stdio.h>
+#include <android/log.h>
 
 #undef WEBRTC_TRACE
 #define WEBRTC_TRACE(a,b,c,...)  __android_log_print(ANDROID_LOG_DEBUG, "*WEBRTC*", __VA_ARGS__)
 #else
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "trace.h"
 #endif
 
 namespace webrtc {
 
 AndroidSurfaceViewRenderer::AndroidSurfaceViewRenderer(
-    const int32_t id,
+    const WebRtc_Word32 id,
     const VideoRenderType videoRenderType,
     void* window,
     const bool fullscreen) :
@@ -77,7 +77,7 @@ AndroidSurfaceViewRenderer::~AndroidSurfaceViewRenderer() {
   }
 }
 
-int32_t AndroidSurfaceViewRenderer::Init() {
+WebRtc_Word32 AndroidSurfaceViewRenderer::Init() {
   WEBRTC_TRACE(kTraceDebug, kTraceVideoRenderer, _id, "%s", __FUNCTION__);
   if (!g_jvm) {
     WEBRTC_TRACE(kTraceError,
@@ -200,8 +200,8 @@ int32_t AndroidSurfaceViewRenderer::Init() {
 
 AndroidStream*
 AndroidSurfaceViewRenderer::CreateAndroidRenderChannel(
-    int32_t streamId,
-    int32_t zOrder,
+    WebRtc_Word32 streamId,
+    WebRtc_Word32 zOrder,
     const float left,
     const float top,
     const float right,
@@ -223,7 +223,7 @@ AndroidSurfaceViewRenderer::CreateAndroidRenderChannel(
 }
 
 AndroidSurfaceViewChannel::AndroidSurfaceViewChannel(
-    uint32_t streamId,
+    WebRtc_UWord32 streamId,
     JavaVM* jvm,
     VideoRenderAndroid& renderer,
     jobject javaRenderObj) :
@@ -284,8 +284,8 @@ AndroidSurfaceViewChannel::~AndroidSurfaceViewChannel() {
   }
 }
 
-int32_t AndroidSurfaceViewChannel::Init(
-    int32_t /*zOrder*/,
+WebRtc_Word32 AndroidSurfaceViewChannel::Init(
+    WebRtc_Word32 /*zOrder*/,
     const float left,
     const float top,
     const float right,
@@ -410,8 +410,8 @@ int32_t AndroidSurfaceViewChannel::Init(
 }
 
 
-int32_t AndroidSurfaceViewChannel::RenderFrame(
-    const uint32_t /*streamId*/,
+WebRtc_Word32 AndroidSurfaceViewChannel::RenderFrame(
+    const WebRtc_UWord32 /*streamId*/,
     I420VideoFrame& videoFrame) {
   // WEBRTC_TRACE(kTraceInfo, kTraceVideoRenderer,_id, "%s:" ,__FUNCTION__);
   _renderCritSect.Enter();

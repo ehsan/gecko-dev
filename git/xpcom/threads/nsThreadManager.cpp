@@ -10,10 +10,7 @@
 #include "nsIClassInfoImpl.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
-#ifdef MOZ_CANARY
-#include <fcntl.h>
-#include <unistd.h>
-#endif
+#include "nsCycleCollectorUtils.h"
 
 using namespace mozilla;
 
@@ -42,10 +39,14 @@ AppendAndRemoveThread(PRThread *key, nsRefPtr<nsThread> &thread, void *arg)
   return PL_DHASH_REMOVE;
 }
 
+//-----------------------------------------------------------------------------
+
+nsThreadManager nsThreadManager::sInstance;
+
 // statically allocated instance
 NS_IMETHODIMP_(nsrefcnt) nsThreadManager::AddRef() { return 2; }
 NS_IMETHODIMP_(nsrefcnt) nsThreadManager::Release() { return 1; }
-NS_IMPL_CLASSINFO(nsThreadManager, nullptr,
+NS_IMPL_CLASSINFO(nsThreadManager, NULL,
                   nsIClassInfo::THREADSAFE | nsIClassInfo::SINGLETON,
                   NS_THREADMANAGER_CID)
 NS_IMPL_QUERY_INTERFACE1_CI(nsThreadManager, nsIThreadManager)
@@ -56,19 +57,12 @@ NS_IMPL_CI_INTERFACE_GETTER1(nsThreadManager, nsIThreadManager)
 nsresult
 nsThreadManager::Init()
 {
+  mThreadsByPRThread.Init();
+
   if (PR_NewThreadPrivateIndex(&mCurThreadIndex, ReleaseObject) == PR_FAILURE)
     return NS_ERROR_FAILURE;
 
   mLock = new Mutex("nsThreadManager.mLock");
-
-#ifdef MOZ_CANARY
-  const int flags = O_WRONLY | O_APPEND | O_CREAT | O_NONBLOCK;
-  const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-  char* env_var_flag = getenv("MOZ_KILL_CANARIES");
-  sCanaryOutputFD = env_var_flag ? (env_var_flag[0] ?
-      open(env_var_flag, flags, mode) :
-      STDERR_FILENO) : 0;
-#endif
 
   // Setup "main" thread
   mMainThread = new nsThread(nsThread::MAIN_THREAD, 0);
@@ -166,11 +160,6 @@ nsThreadManager::RegisterCurrentThread(nsThread *thread)
 
   MutexAutoLock lock(*mLock);
 
-  ++mCurrentNumberOfThreads;
-  if (mCurrentNumberOfThreads > mHighestNumberOfThreads) {
-    mHighestNumberOfThreads = mCurrentNumberOfThreads;
-  }
-
   mThreadsByPRThread.Put(thread->GetPRThread(), thread);  // XXX check OOM?
 
   NS_ADDREF(thread);  // for TLS entry
@@ -184,7 +173,6 @@ nsThreadManager::UnregisterCurrentThread(nsThread *thread)
 
   MutexAutoLock lock(*mLock);
 
-  --mCurrentNumberOfThreads;
   mThreadsByPRThread.Remove(thread->GetPRThread());
 
   PR_SetThreadPrivate(mCurThreadIndex, nullptr);
@@ -285,9 +273,9 @@ nsThreadManager::GetIsMainThread(bool *result)
   return NS_OK;
 }
 
-uint32_t
-nsThreadManager::GetHighestNumberOfThreads()
+NS_IMETHODIMP
+nsThreadManager::GetIsCycleCollectorThread(bool *result)
 {
-  MutexAutoLock lock(*mLock);
-  return mHighestNumberOfThreads;
+  *result = bool(NS_IsCycleCollectorThread());
+  return NS_OK;
 }

@@ -4,6 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* $Id$ */
 #ifndef __SSL_ERR_H_
 #define __SSL_ERR_H_
 
@@ -188,10 +189,6 @@ SSL_ERROR_RX_UNEXPECTED_HELLO_VERIFY_REQUEST = (SSL_ERROR_BASE + 123),
 SSL_ERROR_FEATURE_NOT_SUPPORTED_FOR_VERSION = (SSL_ERROR_BASE + 124),
 
 SSL_ERROR_RX_UNEXPECTED_CERT_STATUS     = (SSL_ERROR_BASE + 125),
-
-SSL_ERROR_UNSUPPORTED_HASH_ALGORITHM = (SSL_ERROR_BASE + 126),
-SSL_ERROR_DIGEST_FAILURE = (SSL_ERROR_BASE + 127),
-SSL_ERROR_INCORRECT_SIGNATURE_ALGORITHM = (SSL_ERROR_BASE + 128),
 
 SSL_ERROR_END_OF_LIST	/* let the c compiler determine the value of this. */
 } SSLErrorCodes;

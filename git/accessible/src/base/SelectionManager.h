@@ -6,10 +6,15 @@
 #ifndef mozilla_a11y_SelectionManager_h__
 #define mozilla_a11y_SelectionManager_h__
 
+#include "nsAutoPtr.h"
 #include "nsIFrame.h"
 #include "nsISelectionListener.h"
 
+class nsIContent;
+class nsIntRect;
 class nsIPresShell;
+class nsIWeakReference;
+class nsIWidget;
 
 namespace mozilla {
 
@@ -19,7 +24,7 @@ class Element;
 
 namespace a11y {
 
-class AccEvent;
+class HyperTextAccessible;
 
 /**
  * This special accessibility class is for the caret and selection management.
@@ -48,7 +53,7 @@ public:
   NS_DECL_NSISELECTIONLISTENER
 
   // SelectionManager
-  void Shutdown() { ClearControlSelectionListener(); }
+  void Shutdown();
 
   /**
    * Listen to selection events on the focused control.
@@ -74,10 +79,9 @@ public:
   void RemoveDocSelectionListener(nsIPresShell* aShell);
 
   /**
-   * Process delayed event, results in caret move and text selection change
-   * events.
+   * Return the caret rect and the widget containing the caret.
    */
-  void ProcessTextSelChangeEvent(AccEvent* aEvent);
+  nsIntRect GetCaretRect(nsIWidget** aWidget);
 
 protected:
   /**
@@ -85,9 +89,27 @@ protected:
    */
   void ProcessSelectionChanged(nsISelection* aSelection);
 
+  /**
+   * Process normal selection change and fire caret move event.
+   */
+  void NormalSelectionChanged(nsISelection* aSelection);
+
+  /**
+   * Process spellcheck selection change and fire text attribute changed event
+   * for invalid text attribute.
+   */
+  void SpellcheckSelectionChanged(nsISelection* aSelection);
+
 private:
   // Currently focused control.
   nsWeakFrame mCurrCtrlFrame;
+
+  // Info for the the last selection event.
+  // If it was on a control, then its control's selection. Otherwise, it's for
+  // a document where the selection changed.
+  nsCOMPtr<nsIWeakReference> mLastUsedSelection; // Weak ref to nsISelection
+  nsRefPtr<HyperTextAccessible> mLastTextAccessible;
+  int32_t mLastCaretOffset;
 };
 
 } // namespace a11y

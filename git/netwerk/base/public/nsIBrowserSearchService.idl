@@ -7,7 +7,7 @@
 interface nsIURI;
 interface nsIInputStream;
 
-[scriptable, uuid(5799251f-5b55-4df7-a9e7-0c27812c469a)]
+[scriptable, uuid(58e4f602-a7c8-4cd1-9dca-716705e826ef)]
 interface nsISearchSubmission : nsISupports
 {
   /**
@@ -22,7 +22,7 @@ interface nsISearchSubmission : nsISupports
   readonly attribute nsIURI uri;
 };
 
-[scriptable, uuid(7914c4b8-f05b-40c9-a982-38a058cd1769)]
+[scriptable, uuid(ccf6aa20-10a9-4a0c-a81d-31b10ea846de)]
 interface nsISearchEngine : nsISupports
 {
   /**
@@ -84,25 +84,6 @@ interface nsISearchEngine : nsISupports
   boolean supportsResponseType(in AString responseType);
 
   /**
-   * Returns a string with the URL to an engine's icon matching both width and
-   * height. Returns null if icon with specified dimensions is not found.
-   *
-   * @param width
-   *        Width of the requested icon.
-   * @param height
-   *        Height of the requested icon.
-   */
-  AString getIconURLBySize(in long width, in long height);
-
-  /**
-   * Gets an array of all available icons. Each entry is an object with
-   * width, height and url properties. width and height are numeric and
-   * represent the icon's dimensions. url is a string with the URL for
-   * the icon.
-   */
-  jsval getIcons();
-
-  /**
    * Supported search engine types.
    */
   const unsigned long TYPE_MOZSEARCH     = 1;
@@ -159,30 +140,6 @@ interface nsISearchEngine : nsISupports
 
 };
 
-[scriptable, uuid(9fc39136-f08b-46d3-b232-96f4b7b0e235)]
-interface nsISearchInstallCallback : nsISupports
-{
-  const unsigned long ERROR_UNKNOWN_FAILURE = 0x1;
-  const unsigned long ERROR_DUPLICATE_ENGINE = 0x2;
-
-  /**
-   * Called to indicate that the engine addition process succeeded.
-   *
-   * @param engine
-   *        The nsISearchEngine object that was added (will not be null).
-   */
-  void onSuccess(in nsISearchEngine engine);
-
-  /**
-   * Called to indicate that the engine addition process failed.
-   *
-   * @param errorCode
-   *        One of the ERROR_* values described above indicating the cause of
-   *        the failure.
-   */
-  void onError(in unsigned long errorCode);
-};
-
 /**
  * Callback for asynchronous initialization of nsIBrowserSearchService
  */
@@ -197,7 +154,7 @@ interface nsIBrowserSearchInitObserver : nsISupports
   void onInitComplete(in nsresult aStatus);
 };
 
-[scriptable, uuid(939d74a4-5b01-463c-80c7-4301f0c0f9ef)]
+[scriptable, uuid(89beea9f-61a8-45d3-818d-b259f00195fe)]
 interface nsIBrowserSearchService : nsISupports
 {
   /**
@@ -229,7 +186,8 @@ interface nsIBrowserSearchService : nsISupports
    * Adds a new search engine from the file at the supplied URI, optionally
    * asking the user for confirmation first.  If a confirmation dialog is
    * shown, it will offer the option to begin using the newly added engine
-   * right away.
+   * right away; if no confirmation dialog is shown, the new engine will be
+   * used right away automatically.
    *
    * @param engineURL
    *        The URL to the search engine's description file.
@@ -249,16 +207,11 @@ interface nsIBrowserSearchService : nsISupports
    *        value is false, the engine will be added to the list upon successful
    *        load, but it will not be selected as the current engine.
    *
-   * @param callback
-   *        A nsISearchInstallCallback that will be notified when the
-   *        addition is complete, or if the addition fails. It will not be
-   *        called if addEngine throws an exception.
-   *
    * @throws NS_ERROR_FAILURE if the type is invalid, or if the description
    *         file cannot be successfully loaded.
    */
   void addEngine(in AString engineURL, in long dataType, in AString iconURL,
-                 in boolean confirm, [optional] in nsISearchInstallCallback callback);
+                 in boolean confirm);
 
   /**
    * Adds a new search engine, without asking the user for confirmation and

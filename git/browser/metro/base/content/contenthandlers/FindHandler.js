@@ -40,9 +40,6 @@ var FindHandler = {
       return;
     }
 
-    if (!this._fastFind.currentWindow)
-      return;
-
     let selection = this._fastFind.currentWindow.getSelection();
     if (!selection.rangeCount || selection.isCollapsed) {
       // The selection can be into an input or a textarea element
@@ -67,16 +64,6 @@ var FindHandler = {
 
     let rangeRect = selection.getRangeAt(0).getBoundingClientRect();
     let rect = new Rect(scroll.x + rangeRect.left, scroll.y + rangeRect.top, rangeRect.width, rangeRect.height);
-
-    let aNewViewHeight = content.innerHeight - Services.metro.keyboardHeight;
-
-    let position = Util.centerElementInView(aNewViewHeight, rangeRect);
-    if (position !== undefined) {
-      sendAsyncMessage("Content:RepositionInfoResponse", {
-        reposition: true,
-        raiseContent: position,
-      });
-    }
 
     // Ensure the potential "scroll" event fired during a search as already fired
     let timer = new Util.Timeout(function() {

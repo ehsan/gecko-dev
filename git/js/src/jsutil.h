@@ -8,19 +8,20 @@
  * PR assertion checker.
  */
 
-#ifndef jsutil_h
-#define jsutil_h
+#ifndef jsutil_h___
+#define jsutil_h___
 
-#include "mozilla/Compiler.h"
+#include "mozilla/Attributes.h"
 #include "mozilla/GuardObjects.h"
 
-#include <limits.h>
+#include "js/Utility.h"
 
 #ifdef USE_ZLIB
-#include <zlib.h>
+#include "zlib.h"
 #endif
 
-#include "js/Utility.h"
+/* Forward declarations. */
+struct JSContext;
 
 static JS_ALWAYS_INLINE void *
 js_memcpy(void *dst_, const void *src_, size_t len)
@@ -196,28 +197,35 @@ AlignBytes(T bytes, U alignment)
     return bytes + ComputeByteAlignment(bytes, alignment);
 }
 
-static JS_ALWAYS_INLINE size_t
+JS_ALWAYS_INLINE static size_t
 UnsignedPtrDiff(const void *bigger, const void *smaller)
 {
     return size_t(bigger) - size_t(smaller);
 }
 
+/*
+ * Ordinarily, a function taking a JSContext* 'cx' parameter reports errors on
+ * the context. In some cases, functions optionally report and indicate this by
+ * taking a nullable 'maybecx' parameter. In some cases, though, a function
+ * always needs a 'cx', but optionally reports. This option is presented by the
+ * MaybeReportError.
+ */
+enum MaybeReportError { REPORT_ERROR = true, DONT_REPORT_ERROR = false };
+
 /*****************************************************************************/
 
 /* A bit array is an array of bits represented by an array of words (size_t). */
 
-static const size_t BitArrayElementBits = sizeof(size_t) * CHAR_BIT;
-
 static inline unsigned
 NumWordsForBitArrayOfLength(size_t length)
 {
-    return (length + (BitArrayElementBits - 1)) / BitArrayElementBits;
+    return (length + (JS_BITS_PER_WORD - 1)) / JS_BITS_PER_WORD;
 }
 
 static inline unsigned
 BitArrayIndexToWordIndex(size_t length, size_t bitIndex)
 {
-    unsigned wordIndex = bitIndex / BitArrayElementBits;
+    unsigned wordIndex = bitIndex / JS_BITS_PER_WORD;
     JS_ASSERT(wordIndex < length);
     return wordIndex;
 }
@@ -225,7 +233,7 @@ BitArrayIndexToWordIndex(size_t length, size_t bitIndex)
 static inline size_t
 BitArrayIndexToWordMask(size_t i)
 {
-    return size_t(1) << (i % BitArrayElementBits);
+    return size_t(1) << (i % JS_BITS_PER_WORD);
 }
 
 static inline bool
@@ -345,13 +353,12 @@ JS_DumpHistogram(JSBasicStats *bs, FILE *fp);
 
 /* A jsbitmap_t is a long integer that can be used for bitmaps. */
 typedef size_t jsbitmap;
-#define JS_BITMAP_NBITS (sizeof(jsbitmap) * CHAR_BIT)
-#define JS_TEST_BIT(_map,_bit)  ((_map)[(_bit)/JS_BITMAP_NBITS] &             \
-                                 (jsbitmap(1)<<((_bit)%JS_BITMAP_NBITS)))
-#define JS_SET_BIT(_map,_bit)   ((_map)[(_bit)/JS_BITMAP_NBITS] |=            \
-                                 (jsbitmap(1)<<((_bit)%JS_BITMAP_NBITS)))
-#define JS_CLEAR_BIT(_map,_bit) ((_map)[(_bit)/JS_BITMAP_NBITS] &=            \
-                                 ~(jsbitmap(1)<<((_bit)%JS_BITMAP_NBITS)))
+#define JS_TEST_BIT(_map,_bit)  ((_map)[(_bit)>>JS_BITS_PER_WORD_LOG2] &      \
+                                 ((jsbitmap)1<<((_bit)&(JS_BITS_PER_WORD-1))))
+#define JS_SET_BIT(_map,_bit)   ((_map)[(_bit)>>JS_BITS_PER_WORD_LOG2] |=     \
+                                 ((jsbitmap)1<<((_bit)&(JS_BITS_PER_WORD-1))))
+#define JS_CLEAR_BIT(_map,_bit) ((_map)[(_bit)>>JS_BITS_PER_WORD_LOG2] &=     \
+                                 ~((jsbitmap)1<<((_bit)&(JS_BITS_PER_WORD-1))))
 
 /* Wrapper for various macros to stop warnings coming from their expansions. */
 #if defined(__clang__)
@@ -363,9 +370,7 @@ typedef size_t jsbitmap;
         { expr; }                                                             \
         _Pragma("clang diagnostic pop")                                       \
     JS_END_MACRO
-#elif MOZ_IS_GCC
-
-#if MOZ_GCC_VERSION_AT_LEAST(4, 6, 0)
+#elif (__GNUC__ >= 5) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
 # define JS_SILENCE_UNUSED_VALUE_IN_EXPR(expr)                                \
     JS_BEGIN_MACRO                                                            \
         _Pragma("GCC diagnostic push")                                        \
@@ -373,14 +378,11 @@ typedef size_t jsbitmap;
         expr;                                                                 \
         _Pragma("GCC diagnostic pop")                                         \
     JS_END_MACRO
-#endif
-#endif
-
-#if !defined(JS_SILENCE_UNUSED_VALUE_IN_EXPR)
+#else
 # define JS_SILENCE_UNUSED_VALUE_IN_EXPR(expr)                                \
     JS_BEGIN_MACRO                                                            \
         expr;                                                                 \
     JS_END_MACRO
 #endif
 
-#endif /* jsutil_h */
+#endif /* jsutil_h___ */

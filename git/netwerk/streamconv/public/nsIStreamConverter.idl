@@ -4,8 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsIStreamListener.idl"
-
-interface nsIInputStream;
+#include "nsIInputStream.idl"
+#include "nsIURI.idl"
 
 /**
  * nsIStreamConverter provides an interface to implement when you have code

@@ -5,12 +5,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsapi-tests/tests.h"
 
-static bool
+#include "tests.h"
+
+static JSBool
 native(JSContext *cx, unsigned argc, jsval *vp)
 {
-    return true;
+    return JS_TRUE;
 }
 
 static const char PROPERTY_NAME[] = "foo";
@@ -18,16 +19,16 @@ static const char PROPERTY_NAME[] = "foo";
 BEGIN_TEST(testDefineGetterSetterNonEnumerable)
 {
     JS::RootedValue vobj(cx);
-    JS::RootedObject obj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+    JS::RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
     CHECK(obj);
     vobj = OBJECT_TO_JSVAL(obj);
 
-    JSFunction *funGet = JS_NewFunction(cx, native, 0, 0, nullptr, "get");
+    JSFunction *funGet = JS_NewFunction(cx, native, 0, 0, NULL, "get");
     CHECK(funGet);
     JS::RootedObject funGetObj(cx, JS_GetFunctionObject(funGet));
     JS::RootedValue vget(cx, OBJECT_TO_JSVAL(funGetObj));
 
-    JSFunction *funSet = JS_NewFunction(cx, native, 1, 0, nullptr, "set");
+    JSFunction *funSet = JS_NewFunction(cx, native, 1, 0, NULL, "set");
     CHECK(funSet);
     JS::RootedObject funSetObj(cx, JS_GetFunctionObject(funSet));
     JS::RootedValue vset(cx, OBJECT_TO_JSVAL(funSetObj));
@@ -45,13 +46,14 @@ BEGIN_TEST(testDefineGetterSetterNonEnumerable)
                             JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, (JSObject*) funSetObj),
                             JSPROP_GETTER | JSPROP_SETTER | JSPROP_PERMANENT));
 
-    JS::Rooted<JSPropertyDescriptor> desc(cx);
-    CHECK(JS_GetOwnPropertyDescriptor(cx, vObject, PROPERTY_NAME, 0, &desc));
-    CHECK(desc.object());
-    CHECK(desc.hasGetterObject());
-    CHECK(desc.hasSetterObject());
-    CHECK(desc.isPermanent());
-    CHECK(!desc.isEnumerable());
+    JSBool found = JS_FALSE;
+    unsigned attrs = 0;
+    CHECK(JS_GetPropertyAttributes(cx, vObject, PROPERTY_NAME, &attrs, &found));
+    CHECK(found);
+    CHECK(attrs & JSPROP_GETTER);
+    CHECK(attrs & JSPROP_SETTER);
+    CHECK(attrs & JSPROP_PERMANENT);
+    CHECK(!(attrs & JSPROP_ENUMERATE));
 
     return true;
 }

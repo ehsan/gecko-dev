@@ -7,6 +7,7 @@
 
 #include "nsIPlatformCharset.h"
 #include "nsUConvPropertySearch.h"
+#include "pratom.h"
 #include <windows.h>
 #include "nsWin32Locale.h"
 #include "nsCOMPtr.h"

@@ -11,7 +11,7 @@
 #include "webrtc/modules/audio_coding/main/source/acm_pcm16b.h"
 
 #include "webrtc/modules/audio_coding/main/source/acm_codec_database.h"
-#include "webrtc/modules/audio_coding/main/acm2/acm_common_defs.h"
+#include "webrtc/modules/audio_coding/main/source/acm_common_defs.h"
 #include "webrtc/modules/audio_coding/main/source/acm_neteq.h"
 #include "webrtc/modules/audio_coding/neteq/interface/webrtc_neteq.h"
 #include "webrtc/modules/audio_coding/neteq/interface/webrtc_neteq_help_macros.h"
@@ -23,11 +23,9 @@
 
 namespace webrtc {
 
-namespace acm1 {
-
 #ifndef WEBRTC_CODEC_PCM16
 
-ACMPCM16B::ACMPCM16B(int16_t /* codec_id */) {
+ACMPCM16B::ACMPCM16B(WebRtc_Word16 /* codec_id */) {
   return;
 }
 
@@ -35,32 +33,32 @@ ACMPCM16B::~ACMPCM16B() {
   return;
 }
 
-int16_t ACMPCM16B::InternalEncode(
-    uint8_t* /* bitstream */,
-    int16_t* /* bitstream_len_byte */) {
+WebRtc_Word16 ACMPCM16B::InternalEncode(
+    WebRtc_UWord8* /* bitstream */,
+    WebRtc_Word16* /* bitstream_len_byte */) {
   return -1;
 }
 
-int16_t ACMPCM16B::DecodeSafe(uint8_t* /* bitstream */,
-                              int16_t /* bitstream_len_byte */,
-                              int16_t* /* audio */,
-                              int16_t* /* audio_samples */,
-                              int8_t* /* speech_type */) {
+WebRtc_Word16 ACMPCM16B::DecodeSafe(WebRtc_UWord8* /* bitstream */,
+                                    WebRtc_Word16 /* bitstream_len_byte */,
+                                    WebRtc_Word16* /* audio */,
+                                    WebRtc_Word16* /* audio_samples */,
+                                    WebRtc_Word8* /* speech_type */) {
   return -1;
 }
 
-int16_t ACMPCM16B::InternalInitEncoder(
+WebRtc_Word16 ACMPCM16B::InternalInitEncoder(
     WebRtcACMCodecParams* /* codec_params */) {
   return -1;
 }
 
-int16_t ACMPCM16B::InternalInitDecoder(
+WebRtc_Word16 ACMPCM16B::InternalInitDecoder(
     WebRtcACMCodecParams* /* codec_params */) {
   return -1;
 }
 
-int32_t ACMPCM16B::CodecDef(WebRtcNetEQ_CodecDef& /* codec_def */,
-                            const CodecInst& /* codec_inst */) {
+WebRtc_Word32 ACMPCM16B::CodecDef(WebRtcNetEQ_CodecDef& /* codec_def */,
+                                  const CodecInst& /* codec_inst */) {
   return -1;
 }
 
@@ -68,11 +66,11 @@ ACMGenericCodec* ACMPCM16B::CreateInstance(void) {
   return NULL;
 }
 
-int16_t ACMPCM16B::InternalCreateEncoder() {
+WebRtc_Word16 ACMPCM16B::InternalCreateEncoder() {
   return -1;
 }
 
-int16_t ACMPCM16B::InternalCreateDecoder() {
+WebRtc_Word16 ACMPCM16B::InternalCreateDecoder() {
   return -1;
 }
 
@@ -93,7 +91,7 @@ void ACMPCM16B::SplitStereoPacket(uint8_t* /*payload*/,
 }
 
 #else     //===================== Actual Implementation =======================
-ACMPCM16B::ACMPCM16B(int16_t codec_id) {
+ACMPCM16B::ACMPCM16B(WebRtc_Word16 codec_id) {
   codec_id_ = codec_id;
   sampling_freq_hz_ = ACMCodecDB::CodecFreq(codec_id_);
 }
@@ -102,8 +100,8 @@ ACMPCM16B::~ACMPCM16B() {
   return;
 }
 
-int16_t ACMPCM16B::InternalEncode(uint8_t* bitstream,
-                                  int16_t* bitstream_len_byte) {
+WebRtc_Word16 ACMPCM16B::InternalEncode(WebRtc_UWord8* bitstream,
+                                        WebRtc_Word16* bitstream_len_byte) {
   *bitstream_len_byte = WebRtcPcm16b_Encode(&in_audio_[in_audio_ix_read_],
                                             frame_len_smpl_ * num_channels_,
                                             bitstream);
@@ -113,28 +111,28 @@ int16_t ACMPCM16B::InternalEncode(uint8_t* bitstream,
   return *bitstream_len_byte;
 }
 
-int16_t ACMPCM16B::DecodeSafe(uint8_t* /* bitstream */,
-                              int16_t /* bitstream_len_byte */,
-                              int16_t* /* audio */,
-                              int16_t* /* audio_samples */,
-                              int8_t* /* speech_type */) {
+WebRtc_Word16 ACMPCM16B::DecodeSafe(WebRtc_UWord8* /* bitstream */,
+                                    WebRtc_Word16 /* bitstream_len_byte */,
+                                    WebRtc_Word16* /* audio */,
+                                    WebRtc_Word16* /* audio_samples */,
+                                    WebRtc_Word8* /* speech_type */) {
   return 0;
 }
 
-int16_t ACMPCM16B::InternalInitEncoder(
+WebRtc_Word16 ACMPCM16B::InternalInitEncoder(
     WebRtcACMCodecParams* /* codec_params */) {
   // This codec does not need initialization, PCM has no instance.
   return 0;
 }
 
-int16_t ACMPCM16B::InternalInitDecoder(
+WebRtc_Word16 ACMPCM16B::InternalInitDecoder(
     WebRtcACMCodecParams* /* codec_params */) {
   // This codec does not need initialization, PCM has no instance.
   return 0;
 }
 
-int32_t ACMPCM16B::CodecDef(WebRtcNetEQ_CodecDef& codec_def,
-                            const CodecInst& codec_inst) {
+WebRtc_Word32 ACMPCM16B::CodecDef(WebRtcNetEQ_CodecDef& codec_def,
+                                  const CodecInst& codec_inst) {
   // Fill up the structure by calling "SET_CODEC_PAR" & "SET_PCMU_FUNCTION".
   // Then call NetEQ to add the codec to it's database.
   if (codec_inst.channels == 1) {
@@ -192,12 +190,12 @@ ACMGenericCodec* ACMPCM16B::CreateInstance(void) {
   return NULL;
 }
 
-int16_t ACMPCM16B::InternalCreateEncoder() {
+WebRtc_Word16 ACMPCM16B::InternalCreateEncoder() {
   // PCM has no instance.
   return 0;
 }
 
-int16_t ACMPCM16B::InternalCreateDecoder() {
+WebRtc_Word16 ACMPCM16B::InternalCreateDecoder() {
   // PCM has no instance.
   return 0;
 }
@@ -245,7 +243,5 @@ void ACMPCM16B::SplitStereoPacket(uint8_t* payload, int32_t* payload_length) {
   }
 }
 #endif
-
-}  // namespace acm1
 
 }  // namespace webrtc

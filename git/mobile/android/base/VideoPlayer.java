@@ -32,29 +32,18 @@ public final class VideoPlayer extends Activity {
         MediaController mediaController = new MediaController(this);
         mediaController.setAnchorView(mVideoView);
         Intent intent = getIntent();
-        final Uri data = intent.getData();
-        if (data == null) {
+        Uri data = intent.getData();
+        if (data == null)
             return;
-        }
-
         String spec = null;
         if ("vnd.youtube".equals(data.getScheme())) {
             String ssp = data.getSchemeSpecificPart();
-            int paramIndex = ssp.indexOf('?');
-            String id;
-            if (paramIndex == -1) {
-                id = ssp;
-            } else {
-                id = ssp.substring(0, paramIndex);
-            }
+            String id = ssp.substring(0, ssp.indexOf('?'));
             spec = getSpecFromYouTubeVideoID(id);
         }
-
-        if (spec == null) {
+        if (spec == null)
             return;
-        }
-
-        final Uri video = Uri.parse(spec);
+        Uri video = Uri.parse(spec);
         mVideoView.setMediaController(mediaController);
         mVideoView.setVideoURI(video);
         mVideoView.start();

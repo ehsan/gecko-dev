@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/keys.js");
 Cu.import("resource://services-sync/service.js");
@@ -10,8 +10,8 @@ Cu.import("resource://testing-common/services/sync/fakeservices.js");
 Cu.import("resource://testing-common/services/sync/utils.js");
 
 function run_test() {
-  let logger = Log.repository.rootLogger;
-  Log.repository.rootLogger.addAppender(new Log.DumpAppender());
+  let logger = Log4Moz.repository.rootLogger;
+  Log4Moz.repository.rootLogger.addAppender(new Log4Moz.DumpAppender());
 
   let guidSvc = new FakeGUIDService();
   let clients = new ServerCollection();
@@ -65,7 +65,8 @@ function run_test() {
 
   try {
     _("Log in.");
-    Service.serverURL = server.baseURI;
+    Service.serverURL = TEST_SERVER_URL;
+    Service.clusterURL = TEST_CLUSTER_URL;
 
     _("Checking Status.sync with no credentials.");
     Service.verifyAndFetchSymmetricKeys();
@@ -80,7 +81,8 @@ function run_test() {
     let syncKey = Service.identity.syncKey;
     Service.startOver();
 
-    Service.serverURL = server.baseURI;
+    Service.serverURL = TEST_SERVER_URL;
+    Service.clusterURL = TEST_CLUSTER_URL;
     Service.login("johndoe", "ilovejane", syncKey);
     do_check_true(Service.isLoggedIn);
 

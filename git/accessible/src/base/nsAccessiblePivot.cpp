@@ -6,9 +6,15 @@
 
 #include "nsAccessiblePivot.h"
 
+#include "Accessible-inl.h"
+#include "DocAccessible.h"
 #include "HyperTextAccessible.h"
 #include "nsAccUtils.h"
 #include "States.h"
+
+#include "nsArrayUtils.h"
+#include "nsComponentManagerUtils.h"
+#include "nsISupportsPrimitives.h"
 
 using namespace mozilla::a11y;
 
@@ -39,7 +45,7 @@ private:
 // nsAccessiblePivot
 
 nsAccessiblePivot::nsAccessiblePivot(Accessible* aRoot) :
-  mRoot(aRoot), mModalRoot(nullptr), mPosition(nullptr),
+  mRoot(aRoot), mPosition(nullptr),
   mStartOffset(-1), mEndOffset(-1)
 {
   NS_ASSERTION(aRoot, "A root accessible is required");
@@ -89,7 +95,7 @@ nsAccessiblePivot::SetPosition(nsIAccessible* aPosition)
 
   if (aPosition) {
     secondPosition = do_QueryObject(aPosition);
-    if (!secondPosition || !IsDescendantOf(secondPosition, GetActiveRoot()))
+    if (!secondPosition || !IsRootDescendant(secondPosition))
       return NS_ERROR_INVALID_ARG;
   }
 
@@ -99,32 +105,6 @@ nsAccessiblePivot::SetPosition(nsIAccessible* aPosition)
   mStartOffset = mEndOffset = -1;
   NotifyOfPivotChange(secondPosition, oldStart, oldEnd,
                       nsIAccessiblePivot::REASON_NONE);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAccessiblePivot::GetModalRoot(nsIAccessible** aModalRoot)
-{
-  NS_ENSURE_ARG_POINTER(aModalRoot);
-
-  NS_IF_ADDREF(*aModalRoot = mModalRoot);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAccessiblePivot::SetModalRoot(nsIAccessible* aModalRoot)
-{
-  nsRefPtr<Accessible> modalRoot;
-
-  if (aModalRoot) {
-    modalRoot = do_QueryObject(aModalRoot);
-    if (!modalRoot || !IsDescendantOf(modalRoot, mRoot))
-      return NS_ERROR_INVALID_ARG;
-  }
-
-  mModalRoot.swap(modalRoot);
 
   return NS_OK;
 }
@@ -166,7 +146,7 @@ nsAccessiblePivot::SetTextRange(nsIAccessibleText* aTextAccessible,
     return NS_ERROR_INVALID_ARG;
 
   HyperTextAccessible* newPosition = acc->AsHyperText();
-  if (!newPosition || !IsDescendantOf(newPosition, GetActiveRoot()))
+  if (!newPosition || !IsRootDescendant(newPosition))
     return NS_ERROR_INVALID_ARG;
 
   // Make sure the given offsets don't exceed the character count.
@@ -200,10 +180,9 @@ nsAccessiblePivot::MoveNext(nsIAccessibleTraversalRule* aRule,
 
   *aResult = false;
 
-  Accessible* root = GetActiveRoot();
   nsRefPtr<Accessible> anchor =
     (aArgc > 0) ? do_QueryObject(aAnchor) : mPosition;
-  if (anchor && (anchor->IsDefunct() || !IsDescendantOf(anchor, root)))
+  if (anchor && (anchor->IsDefunct() || !IsRootDescendant(anchor)))
     return NS_ERROR_NOT_IN_TREE;
 
   nsresult rv = NS_OK;
@@ -228,10 +207,9 @@ nsAccessiblePivot::MovePrevious(nsIAccessibleTraversalRule* aRule,
 
   *aResult = false;
 
-  Accessible* root = GetActiveRoot();
   nsRefPtr<Accessible> anchor =
     (aArgc > 0) ? do_QueryObject(aAnchor) : mPosition;
-  if (anchor && (anchor->IsDefunct() || !IsDescendantOf(anchor, root)))
+  if (anchor && (anchor->IsDefunct() || !IsRootDescendant(anchor)))
     return NS_ERROR_NOT_IN_TREE;
 
   nsresult rv = NS_OK;
@@ -251,11 +229,11 @@ nsAccessiblePivot::MoveFirst(nsIAccessibleTraversalRule* aRule, bool* aResult)
   NS_ENSURE_ARG(aResult);
   NS_ENSURE_ARG(aRule);
 
-  Accessible* root = GetActiveRoot();
-  NS_ENSURE_TRUE(root && !root->IsDefunct(), NS_ERROR_NOT_IN_TREE);
+  if (mRoot && mRoot->IsDefunct())
+    return NS_ERROR_NOT_IN_TREE;
 
   nsresult rv = NS_OK;
-  Accessible* accessible = SearchForward(root, aRule, true, &rv);
+  Accessible* accessible = SearchForward(mRoot, aRule, true, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (accessible)
@@ -265,21 +243,20 @@ nsAccessiblePivot::MoveFirst(nsIAccessibleTraversalRule* aRule, bool* aResult)
 }
 
 NS_IMETHODIMP
-nsAccessiblePivot::MoveLast(nsIAccessibleTraversalRule* aRule,
-                            bool* aResult)
+nsAccessiblePivot::MoveLast(nsIAccessibleTraversalRule* aRule, bool* aResult)
 {
   NS_ENSURE_ARG(aResult);
   NS_ENSURE_ARG(aRule);
 
-  Accessible* root = GetActiveRoot();
-  NS_ENSURE_TRUE(root && !root->IsDefunct(), NS_ERROR_NOT_IN_TREE);
+  if (mRoot && mRoot->IsDefunct())
+    return NS_ERROR_NOT_IN_TREE;
 
   *aResult = false;
   nsresult rv = NS_OK;
-  Accessible* lastAccessible = root;
+  Accessible* lastAccessible = mRoot;
   Accessible* accessible = nullptr;
 
-  // First go to the last accessible in pre-order
+  // First got to the last accessible in pre-order
   while (lastAccessible->HasChildren())
     lastAccessible = lastAccessible->LastChild();
 
@@ -293,6 +270,7 @@ nsAccessiblePivot::MoveLast(nsIAccessibleTraversalRule* aRule,
   return NS_OK;
 }
 
+// TODO: Implement
 NS_IMETHODIMP
 nsAccessiblePivot::MoveNextByText(TextBoundaryType aBoundary, bool* aResult)
 {
@@ -300,116 +278,10 @@ nsAccessiblePivot::MoveNextByText(TextBoundaryType aBoundary, bool* aResult)
 
   *aResult = false;
 
-  int32_t tempStart = mStartOffset, tempEnd = mEndOffset;
-  Accessible* tempPosition = mPosition;
-  Accessible* root = GetActiveRoot();
-  while (true) {
-    Accessible* curPosition = tempPosition;
-    HyperTextAccessible* text;
-    // Find the nearest text node using a preorder traversal starting from
-    // the current node.
-    if (!(text = tempPosition->AsHyperText())) {
-      text = SearchForText(tempPosition, false);
-      if (!text)
-        return NS_OK;
-      if (text != curPosition)
-        tempStart = tempEnd = -1;
-      tempPosition = text;
-    }
-
-    // If the search led to the parent of the node we started on (e.g. when
-    // starting on a text leaf), start the text movement from the end of that
-    // node, otherwise we just default to 0.
-    if (tempEnd == -1)
-      tempEnd = text == curPosition->Parent() ?
-                text->GetChildOffset(curPosition) : 0;
-
-    // If there's no more text on the current node, try to find the next text
-    // node; if there isn't one, bail out.
-    if (tempEnd == text->CharacterCount()) {
-      if (tempPosition == root)
-        return NS_OK;
-
-      // If we're currently sitting on a link, try move to either the next
-      // sibling or the parent, whichever is closer to the current end
-      // offset. Otherwise, do a forward search for the next node to land on
-      // (we don't do this in the first case because we don't want to go to the
-      // subtree).
-      Accessible* sibling = tempPosition->NextSibling();
-      if (tempPosition->IsLink()) {
-        if (sibling && sibling->IsLink()) {
-          tempStart = tempEnd = -1;
-          tempPosition = sibling;
-        } else {
-          tempStart = tempPosition->StartOffset();
-          tempEnd = tempPosition->EndOffset();
-          tempPosition = tempPosition->Parent();
-        }
-      } else {
-        tempPosition = SearchForText(tempPosition, false);
-        if (!tempPosition)
-          return NS_OK;
-        tempStart = tempEnd = -1;
-      }
-      continue;
-    }
-
-    AccessibleTextBoundary startBoundary, endBoundary;
-    switch (aBoundary) {
-      case CHAR_BOUNDARY:
-        startBoundary = nsIAccessibleText::BOUNDARY_CHAR;
-        endBoundary = nsIAccessibleText::BOUNDARY_CHAR;
-        break;
-      case WORD_BOUNDARY:
-        startBoundary = nsIAccessibleText::BOUNDARY_WORD_START;
-        endBoundary = nsIAccessibleText::BOUNDARY_WORD_END;
-        break;
-      default:
-        return NS_ERROR_INVALID_ARG;
-    }
-
-    nsAutoString unusedText;
-    int32_t newStart = 0, newEnd = 0, currentEnd = tempEnd;
-    text->GetTextAtOffset(tempEnd, endBoundary, &newStart, &tempEnd, unusedText);
-    text->GetTextBeforeOffset(tempEnd, startBoundary, &newStart, &newEnd,
-                              unusedText);
-    int32_t potentialStart = newEnd == tempEnd ? newStart : newEnd;
-    tempStart = potentialStart > tempStart ? potentialStart : currentEnd;
-
-    // The offset range we've obtained might have embedded characters in it,
-    // limit the range to the start of the first occurrence of an embedded
-    // character.
-    Accessible* childAtOffset = nullptr;
-    for (int32_t i = tempStart; i < tempEnd; i++) {
-      childAtOffset = text->GetChildAtOffset(i);
-      if (childAtOffset && nsAccUtils::IsEmbeddedObject(childAtOffset)) {
-        tempEnd = i;
-        break;
-      }
-    }
-    // If there's an embedded character at the very start of the range, we
-    // instead want to traverse into it. So restart the movement with
-    // the child as the starting point.
-    if (childAtOffset && nsAccUtils::IsEmbeddedObject(childAtOffset) &&
-        tempStart == childAtOffset->StartOffset()) {
-      tempPosition = childAtOffset;
-      tempStart = tempEnd = -1;
-      continue;
-    }
-
-    *aResult = true;
-
-    Accessible* startPosition = mPosition;
-    int32_t oldStart = mStartOffset, oldEnd = mEndOffset;
-    mPosition = tempPosition;
-    mStartOffset = tempStart;
-    mEndOffset = tempEnd;
-    NotifyOfPivotChange(startPosition, oldStart, oldEnd,
-                        nsIAccessiblePivot::REASON_TEXT);
-    return NS_OK;
-  }
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+// TODO: Implement
 NS_IMETHODIMP
 nsAccessiblePivot::MovePreviousByText(TextBoundaryType aBoundary, bool* aResult)
 {
@@ -417,127 +289,7 @@ nsAccessiblePivot::MovePreviousByText(TextBoundaryType aBoundary, bool* aResult)
 
   *aResult = false;
 
-  int32_t tempStart = mStartOffset, tempEnd = mEndOffset;
-  Accessible* tempPosition = mPosition;
-  Accessible* root = GetActiveRoot();
-  while (true) {
-    Accessible* curPosition = tempPosition;
-    HyperTextAccessible* text;
-    // Find the nearest text node using a reverse preorder traversal starting
-    // from the current node.
-    if (!(text = tempPosition->AsHyperText())) {
-      text = SearchForText(tempPosition, true);
-      if (!text)
-        return NS_OK;
-      if (text != curPosition)
-        tempStart = tempEnd = -1;
-      tempPosition = text;
-    }
-
-    // If the search led to the parent of the node we started on (e.g. when
-    // starting on a text leaf), start the text movement from the end of that
-    // node, otherwise we just default to 0.
-    if (tempStart == -1) {
-      if (tempPosition != curPosition)
-        tempStart = text == curPosition->Parent() ?
-                    text->GetChildOffset(curPosition) : text->CharacterCount();
-      else
-        tempStart = 0;
-    }
-
-    // If there's no more text on the current node, try to find the previous
-    // text node; if there isn't one, bail out.
-    if (tempStart == 0) {
-      if (tempPosition == root)
-        return NS_OK;
-
-      // If we're currently sitting on a link, try move to either the previous
-      // sibling or the parent, whichever is closer to the current end
-      // offset. Otherwise, do a forward search for the next node to land on
-      // (we don't do this in the first case because we don't want to go to the
-      // subtree).
-      Accessible* sibling = tempPosition->PrevSibling();
-      if (tempPosition->IsLink()) {
-        if (sibling && sibling->IsLink()) {
-          HyperTextAccessible* siblingText = sibling->AsHyperText();
-          tempStart = tempEnd = siblingText ?
-                                siblingText->CharacterCount() : -1;
-          tempPosition = sibling;
-        } else {
-          tempStart = tempPosition->StartOffset();
-          tempEnd = tempPosition->EndOffset();
-          tempPosition = tempPosition->Parent();
-        }
-      } else {
-        HyperTextAccessible* tempText = SearchForText(tempPosition, true);
-        if (!tempText)
-          return NS_OK;
-        tempPosition = tempText;
-        tempStart = tempEnd = tempText->CharacterCount();
-      }
-      continue;
-    }
-
-    AccessibleTextBoundary startBoundary, endBoundary;
-    switch (aBoundary) {
-      case CHAR_BOUNDARY:
-        startBoundary = nsIAccessibleText::BOUNDARY_CHAR;
-        endBoundary = nsIAccessibleText::BOUNDARY_CHAR;
-        break;
-      case WORD_BOUNDARY:
-        startBoundary = nsIAccessibleText::BOUNDARY_WORD_START;
-        endBoundary = nsIAccessibleText::BOUNDARY_WORD_END;
-        break;
-      default:
-        return NS_ERROR_INVALID_ARG;
-    }
-
-    nsAutoString unusedText;
-    int32_t newStart = 0, newEnd = 0, currentStart = tempStart, potentialEnd = 0;
-    text->GetTextBeforeOffset(tempStart, startBoundary, &newStart, &newEnd,
-                              unusedText);
-    if (newStart < tempStart)
-      tempStart = newEnd >= currentStart ? newStart : newEnd;
-    else // XXX: In certain odd cases newStart is equal to tempStart
-      text->GetTextBeforeOffset(tempStart - 1, startBoundary, &newStart,
-                                &tempStart, unusedText);
-    text->GetTextAtOffset(tempStart, endBoundary, &newStart, &potentialEnd,
-                          unusedText);
-    tempEnd = potentialEnd < tempEnd ? potentialEnd : currentStart;
-
-    // The offset range we've obtained might have embedded characters in it,
-    // limit the range to the start of the last occurrence of an embedded
-    // character.
-    Accessible* childAtOffset = nullptr;
-    for (int32_t i = tempEnd - 1; i >= tempStart; i--) {
-      childAtOffset = text->GetChildAtOffset(i);
-      if (childAtOffset && nsAccUtils::IsEmbeddedObject(childAtOffset)) {
-        tempStart = childAtOffset->EndOffset();
-        break;
-      }
-    }
-    // If there's an embedded character at the very end of the range, we
-    // instead want to traverse into it. So restart the movement with
-    // the child as the starting point.
-    if (childAtOffset && nsAccUtils::IsEmbeddedObject(childAtOffset) &&
-        tempEnd == childAtOffset->EndOffset()) {
-      tempPosition = childAtOffset;
-      tempStart = tempEnd = childAtOffset->AsHyperText()->CharacterCount();
-      continue;
-    }
-
-    *aResult = true;
-
-    Accessible* startPosition = mPosition;
-    int32_t oldStart = mStartOffset, oldEnd = mEndOffset;
-    mPosition = tempPosition;
-    mStartOffset = tempStart;
-    mEndOffset = tempEnd;
-
-    NotifyOfPivotChange(startPosition, oldStart, oldEnd,
-                        nsIAccessiblePivot::REASON_TEXT);
-    return NS_OK;
-  }
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -550,13 +302,13 @@ nsAccessiblePivot::MoveToPoint(nsIAccessibleTraversalRule* aRule,
 
   *aResult = false;
 
-  Accessible* root = GetActiveRoot();
-  NS_ENSURE_TRUE(root && !root->IsDefunct(), NS_ERROR_NOT_IN_TREE);
+  if (mRoot && mRoot->IsDefunct())
+    return NS_ERROR_NOT_IN_TREE;
 
   RuleCache cache(aRule);
   Accessible* match = nullptr;
-  Accessible* child = root->ChildAtPoint(aX, aY, Accessible::eDeepestChild);
-  while (child && root != child) {
+  Accessible* child = mRoot->ChildAtPoint(aX, aY, Accessible::eDeepestChild);
+  while (child && mRoot != child) {
     uint16_t filtered = nsIAccessibleTraversalRule::FILTER_IGNORE;
     nsresult rv = cache.ApplyFilter(child, &filtered);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -608,15 +360,15 @@ nsAccessiblePivot::RemoveObserver(nsIAccessiblePivotObserver* aObserver)
 // Private utility methods
 
 bool
-nsAccessiblePivot::IsDescendantOf(Accessible* aAccessible, Accessible* aAncestor)
+nsAccessiblePivot::IsRootDescendant(Accessible* aAccessible)
 {
-  if (!aAncestor || aAncestor->IsDefunct())
+  if (!mRoot || mRoot->IsDefunct())
     return false;
 
   // XXX Optimize with IsInDocument() when appropriate. Blocked by bug 759875.
   Accessible* accessible = aAccessible;
   do {
-    if (accessible == aAncestor)
+    if (accessible == mRoot)
       return true;
   } while ((accessible = accessible->Parent()));
 
@@ -636,31 +388,6 @@ nsAccessiblePivot::MovePivotInternal(Accessible* aPosition,
 }
 
 Accessible*
-nsAccessiblePivot::AdjustStartPosition(Accessible* aAccessible,
-                                       RuleCache& aCache,
-                                       uint16_t* aFilterResult,
-                                       nsresult* aResult)
-{
-  Accessible* matched = aAccessible;
-  *aResult = aCache.ApplyFilter(aAccessible, aFilterResult);
-
-  if (aAccessible != mRoot && aAccessible != mModalRoot) {
-    for (Accessible* temp = aAccessible->Parent();
-         temp && temp != mRoot && temp != mModalRoot; temp = temp->Parent()) {
-      uint16_t filtered = nsIAccessibleTraversalRule::FILTER_IGNORE;
-      *aResult = aCache.ApplyFilter(temp, &filtered);
-      NS_ENSURE_SUCCESS(*aResult, nullptr);
-      if (filtered & nsIAccessibleTraversalRule::FILTER_IGNORE_SUBTREE) {
-        *aFilterResult = filtered;
-        matched = temp;
-      }
-    }
-  }
-
-  return matched;
-}
-
-Accessible*
 nsAccessiblePivot::SearchBackward(Accessible* aAccessible,
                                   nsIAccessibleTraversalRule* aRule,
                                   bool aSearchCurrent,
@@ -673,17 +400,18 @@ nsAccessiblePivot::SearchBackward(Accessible* aAccessible,
     return nullptr;
 
   RuleCache cache(aRule);
-  uint16_t filtered = nsIAccessibleTraversalRule::FILTER_IGNORE;
-  Accessible* accessible = AdjustStartPosition(aAccessible, cache,
-                                               &filtered, aResult);
-  NS_ENSURE_SUCCESS(*aResult, nullptr);
+  Accessible* accessible = aAccessible;
 
-  if (aSearchCurrent && (filtered & nsIAccessibleTraversalRule::FILTER_MATCH)) {
-    return accessible;
+  uint16_t filtered = nsIAccessibleTraversalRule::FILTER_IGNORE;
+
+  if (aSearchCurrent) {
+    *aResult = cache.ApplyFilter(accessible, &filtered);
+    NS_ENSURE_SUCCESS(*aResult, nullptr);
+    if (filtered & nsIAccessibleTraversalRule::FILTER_MATCH)
+      return accessible;
   }
 
-  Accessible* root = GetActiveRoot();
-  while (accessible != root) {
+  while (accessible != mRoot) {
     Accessible* parent = accessible->Parent();
     int32_t idxInParent = accessible->IndexInParent();
     while (idxInParent > 0) {
@@ -729,13 +457,12 @@ nsAccessiblePivot::SearchForward(Accessible* aAccessible,
   *aResult = NS_OK;
 
   // Initial position could be not set, in that case begin search from root.
-  Accessible* root = GetActiveRoot();
-  Accessible* accessible = (!aAccessible) ? root : aAccessible;
+  Accessible* accessible = (!aAccessible) ? mRoot.get() : aAccessible;
 
   RuleCache cache(aRule);
 
   uint16_t filtered = nsIAccessibleTraversalRule::FILTER_IGNORE;
-  accessible = AdjustStartPosition(accessible, cache, &filtered, aResult);
+  *aResult = cache.ApplyFilter(accessible, &filtered);
   NS_ENSURE_SUCCESS(*aResult, nullptr);
   if (aSearchCurrent && (filtered & nsIAccessibleTraversalRule::FILTER_MATCH))
     return accessible;
@@ -755,7 +482,7 @@ nsAccessiblePivot::SearchForward(Accessible* aAccessible,
     Accessible* sibling = nullptr;
     Accessible* temp = accessible;
     do {
-      if (temp == root)
+      if (temp == mRoot)
         break;
 
       sibling = temp->NextSibling();
@@ -777,48 +504,6 @@ nsAccessiblePivot::SearchForward(Accessible* aAccessible,
 
   return nullptr;
 }
-
-HyperTextAccessible*
-nsAccessiblePivot::SearchForText(Accessible* aAccessible, bool aBackward)
-{
-  Accessible* root = GetActiveRoot();
-  Accessible* accessible = aAccessible;
-  while (true) {
-    Accessible* child = nullptr;
-
-    while ((child = (aBackward ? accessible->LastChild() :
-                                 accessible->FirstChild()))) {
-      accessible = child;
-      if (child->IsHyperText())
-        return child->AsHyperText();
-    }
-
-    Accessible* sibling = nullptr;
-    Accessible* temp = accessible;
-    do {
-      if (temp == root)
-        break;
-
-      if (temp != aAccessible && temp->IsHyperText())
-        return temp->AsHyperText();
-
-      sibling = aBackward ? temp->PrevSibling() : temp->NextSibling();
-
-      if (sibling)
-        break;
-    } while ((temp = temp->Parent()));
-
-    if (!sibling)
-      break;
-
-    accessible = sibling;
-    if (accessible->IsHyperText())
-      return accessible->AsHyperText();
-  }
-
-  return nullptr;
-}
-
 
 bool
 nsAccessiblePivot::NotifyOfPivotChange(Accessible* aOldPosition,
@@ -864,26 +549,6 @@ RuleCache::ApplyFilter(Accessible* aAccessible, uint16_t* aResult)
     if ((nsIAccessibleTraversalRule::PREFILTER_NOT_FOCUSABLE & mPreFilter) &&
         !(state & states::FOCUSABLE))
       return NS_OK;
-
-    if (nsIAccessibleTraversalRule::PREFILTER_ARIA_HIDDEN & mPreFilter) {
-      nsIContent* content = aAccessible->GetContent();
-      if (content &&
-          nsAccUtils::HasDefinedARIAToken(content, nsGkAtoms::aria_hidden) &&
-          !content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::aria_hidden,
-                                nsGkAtoms::_false, eCaseMatters)) {
-        *aResult |= nsIAccessibleTraversalRule::FILTER_IGNORE_SUBTREE;
-        return NS_OK;
-      }
-    }
-
-    if ((nsIAccessibleTraversalRule::PREFILTER_TRANSPARENT & mPreFilter) &&
-        !(state & states::OPAQUE1)) {
-      nsIFrame* frame = aAccessible->GetFrame();
-      if (frame->StyleDisplay()->mOpacity == 0.0f) {
-        *aResult |= nsIAccessibleTraversalRule::FILTER_IGNORE_SUBTREE;
-        return NS_OK;
-      }
-    }
   }
 
   if (mAcceptRolesLength > 0) {

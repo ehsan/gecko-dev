@@ -32,6 +32,7 @@
 #include "gfxUtils.h"
 #include "SVGContentUtils.h"
 #include <algorithm>
+#include "nsContentUtils.h"
 #include "mozilla/dom/SVGAnimatedLength.h"
 #include "mozilla/dom/SVGComponentTransferFunctionElement.h"
 #include "mozilla/dom/SVGFEDistantLightElement.h"
@@ -50,6 +51,7 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
+static const unsigned short SVG_FECOMPONENTTRANSFER_TYPE_UNKNOWN  = 0;
 static const unsigned short SVG_FECOMPONENTTRANSFER_TYPE_IDENTITY = 1;
 static const unsigned short SVG_FECOMPONENTTRANSFER_TYPE_TABLE    = 2;
 static const unsigned short SVG_FECOMPONENTTRANSFER_TYPE_DISCRETE = 3;
@@ -155,9 +157,9 @@ nsSVGFE::SetupScalingFilter(nsSVGFilterInstance *aInstance,
                                  nsIntRect(nsIntPoint(), scaledSize));
 
   result.mSource = new gfxImageSurface(scaledSize,
-                                       gfxImageFormatARGB32);
+                                       gfxASurface::ImageFormatARGB32);
   result.mTarget = new gfxImageSurface(scaledSize,
-                                       gfxImageFormatARGB32);
+                                       gfxASurface::ImageFormatARGB32);
   if (!result.mSource || result.mSource->CairoStatus() ||
       !result.mTarget || result.mTarget->CairoStatus()) {
     result.mSource = nullptr;
@@ -271,7 +273,7 @@ nsSVGFE::Height()
   return mLengthAttributes[ATTR_HEIGHT].ToDOMAnimatedLength(this);
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 nsSVGFE::Result()
 {
   return GetResultImageName().ToDOMAnimatedString(this);
@@ -385,7 +387,7 @@ SVGComponentTransferFunctionElement::AttributeAffectsRendering(int32_t aNameSpac
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGComponentTransferFunctionElement::Type()
 {
   return mEnumAttributes[TYPE].ToDOMAnimatedEnum(this);
@@ -398,31 +400,31 @@ SVGComponentTransferFunctionElement::TableValues()
     &mNumberListAttributes[TABLEVALUES], this, TABLEVALUES);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Slope()
 {
   return mNumberAttributes[SLOPE].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Intercept()
 {
   return mNumberAttributes[INTERCEPT].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Amplitude()
 {
   return mNumberAttributes[AMPLITUDE].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Exponent()
 {
   return mNumberAttributes[EXPONENT].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGComponentTransferFunctionElement::Offset()
 {
   return mNumberAttributes[OFFSET].ToDOMAnimatedNumber(this);
@@ -533,7 +535,7 @@ SVGComponentTransferFunctionElement::GetNumberInfo()
 }
 
 /* virtual */ JSObject*
-SVGFEFuncRElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEFuncRElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEFuncRElementBinding::Wrap(aCx, aScope, this);
 }
@@ -549,7 +551,7 @@ namespace dom {
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEFuncRElement)
 
 /* virtual */ JSObject*
-SVGFEFuncGElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEFuncGElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEFuncGElementBinding::Wrap(aCx, aScope, this);
 }
@@ -565,7 +567,7 @@ namespace dom {
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEFuncGElement)
 
 /* virtual */ JSObject*
-SVGFEFuncBElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEFuncBElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEFuncBElementBinding::Wrap(aCx, aScope, this);
 }
@@ -581,7 +583,7 @@ namespace dom {
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEFuncBElement)
 
 /* virtual */ JSObject*
-SVGFEFuncAElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEFuncAElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEFuncAElementBinding::Wrap(aCx, aScope, this);
 }

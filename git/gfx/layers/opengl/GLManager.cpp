@@ -1,22 +1,8 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #include "GLManager.h"
-#include "CompositorOGL.h"              // for CompositorOGL
-#include "GLContext.h"                  // for GLContext
-#include "LayerManagerOGL.h"            // for LayerManagerOGL
-#include "Layers.h"                     // for LayerManager
-#include "mozilla/Assertions.h"         // for MOZ_CRASH
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/RefPtr.h"             // for RefPtr
-#include "mozilla/layers/Compositor.h"  // for Compositor
-#include "mozilla/layers/LayerManagerComposite.h"
-#include "mozilla/layers/LayersTypes.h"
-#include "mozilla/mozalloc.h"           // for operator new, etc
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsISupportsImpl.h"            // for LayerManager::AddRef, etc
+#include "LayerManagerOGL.h"
+#include "CompositorOGL.h"
+#include "LayerManagerComposite.h"
+#include "GLContext.h"
 
 using namespace mozilla::gl;
 
@@ -61,7 +47,7 @@ public:
     return mImpl->gl();
   }
 
-  virtual ShaderProgramOGL* GetProgram(ShaderProgramType aType) MOZ_OVERRIDE
+  virtual ShaderProgramOGL* GetProgram(gl::ShaderProgramType aType) MOZ_OVERRIDE
   {
     return mImpl->GetProgram(aType);
   }
@@ -78,21 +64,16 @@ private:
 /* static */ GLManager*
 GLManager::CreateGLManager(LayerManager* aManager)
 {
-  if (!aManager) {
-    return nullptr;
-  } else if (aManager->GetBackendType() == LAYERS_OPENGL) {
+  if (aManager->GetBackendType() == LAYERS_OPENGL) {
     return new GLManagerLayerManager(static_cast<LayerManagerOGL*>(aManager));
   }
   if (aManager->GetBackendType() == LAYERS_NONE) {
-    if (Compositor::GetBackend() == LAYERS_OPENGL) {
-      return new GLManagerCompositor(static_cast<CompositorOGL*>(
-        static_cast<LayerManagerComposite*>(aManager)->GetCompositor()));
-    } else {
-      return nullptr;
-    }
+    return new GLManagerCompositor(static_cast<CompositorOGL*>(
+      static_cast<LayerManagerComposite*>(aManager)->GetCompositor()));
   }
 
-  MOZ_CRASH("Cannot create GLManager for non-GL layer manager");
+  MOZ_NOT_REACHED("Cannot create GLManager for non-GL layer manager");
+  return nullptr;
 }
 
 }

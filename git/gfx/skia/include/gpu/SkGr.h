@@ -75,11 +75,11 @@ static inline GrColor SkColor2GrColor(SkColor c) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool GrIsBitmapInCache(const GrContext*, const SkBitmap&, const GrTextureParams*);
+GrTexture* GrLockCachedBitmapTexture(GrContext*,
+                                     const SkBitmap&,
+                                     const GrTextureParams*);
 
-GrTexture* GrLockAndRefCachedBitmapTexture(GrContext*, const SkBitmap&, const GrTextureParams*);
-
-void GrUnlockAndUnrefCachedBitmapTexture(GrTexture*);
+void GrUnlockCachedBitmapTexture(GrTexture*);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Classes

@@ -50,7 +50,6 @@ function test()
 
   function runTests(inspector)
   {
-    inspector.highlighter.unlock();
     executeSoon(function() {
       inspector.highlighter.once("highlighting", isTheIframeSelected);
       moveMouseOver(iframeNode, 1, 1);

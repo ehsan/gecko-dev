@@ -11,6 +11,7 @@ interfaces = [
     'html',
     'events',
     'devicestorage',
+    'contacts',
     'settings',
     'stylesheets',
     'sidebar',
@@ -26,6 +27,7 @@ interfaces = [
     'geolocation',
     'notification',
     'permission',
+    'push',
     'svg',
     'smil',
     'apps',
@@ -45,11 +47,9 @@ PARALLEL_DIRS += [
     'contacts',
     'phonenumberutils',
     'alarm',
-    'datastore',
     'devicestorage',
     'encoding',
     'file',
-    'fmradio',
     'media',
     'messages',
     'power',
@@ -57,6 +57,7 @@ PARALLEL_DIRS += [
     'quota',
     'settings',
     'mobilemessage',
+    'mms',
     'src',
     'time',
     'locales',
@@ -71,34 +72,25 @@ PARALLEL_DIRS += [
     'workers',
     'camera',
     'audiochannel',
-    'promise',
-    'telephony',
-    'inputmethod',
-    'webidl',
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
     PARALLEL_DIRS += ['plugins/ipc/hangui']
 
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-    PARALLEL_DIRS += ['wifi']
-
 if CONFIG['MOZ_B2G_RIL']:
     PARALLEL_DIRS += [
+        'telephony',
+        'wifi',
         'icc',
         'cellbroadcast',
         'voicemail',
-        'wappush',
     ]
+
+if CONFIG['MOZ_B2G_FM']:
+    PARALLEL_DIRS += ['fm']
 
 if CONFIG['MOZ_PAY']:
     PARALLEL_DIRS += ['payment']
-
-if CONFIG['MOZ_GAMEPAD']:
-    PARALLEL_DIRS += ['gamepad']
-
-if CONFIG['MOZ_NFC']:
-    PARALLEL_DIRS += ['nfc']
 
 # bindings/test is here, because it needs to build after bindings/, and
 # we build subdirectories before ourselves.

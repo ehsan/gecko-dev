@@ -6,19 +6,3 @@
 
 MODULE = 'jsperf'
 
-SOURCES += [
-    'PerfMeasurement.cpp',
-]
-
-LIBRARY_NAME = 'jsperf'
-
-EXTRA_JS_MODULES += [
-    'PerfMeasurement.jsm',
-]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
-

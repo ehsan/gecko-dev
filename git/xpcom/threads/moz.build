@@ -24,7 +24,6 @@ MODULE = 'xpcom'
 
 EXPORTS += [
     'nsEventQueue.h',
-    'nsMemoryPressure.h',
     'nsProcess.h',
     'nsThread.h',
 ]
@@ -35,26 +34,3 @@ EXPORTS.mozilla += [
     'SyncRunnable.h',
 ]
 
-SOURCES += [
-    'HangMonitor.cpp',
-    'LazyIdleThread.cpp',
-    'nsEnvironment.cpp',
-    'nsEventQueue.cpp',
-    'nsMemoryPressure.cpp',
-    'nsProcessCommon.cpp',
-    'nsThread.cpp',
-    'nsThreadManager.cpp',
-    'nsThreadPool.cpp',
-    'nsTimerImpl.cpp',
-    'TimerThread.cpp',
-]
-
-LIBRARY_NAME = 'xpcomthreads_s'
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LOCAL_INCLUDES += [
-    '../build',
-]

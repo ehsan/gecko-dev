@@ -36,7 +36,7 @@
  */
 
 static const hb_tag_t
-basic_features[] =
+myanmar_features[] =
 {
   /*
    * Basic features.
@@ -46,10 +46,6 @@ basic_features[] =
   HB_TAG('p','r','e','f'),
   HB_TAG('b','l','w','f'),
   HB_TAG('p','s','t','f'),
-};
-static const hb_tag_t
-other_features[] =
-{
   /*
    * Other features.
    * These features are applied all at once, after final_reordering.
@@ -60,16 +56,25 @@ other_features[] =
   HB_TAG('p','s','t','s'),
   /* Positioning features, though we don't care about the types. */
   HB_TAG('d','i','s','t'),
-  /* Pre-release version of Windows 8 Myanmar font had abvm,blwm
-   * features.  The released Windows 8 version of the font (as well
-   * as the released spec) used 'mark' instead.  The Windows 8
-   * shaper however didn't apply 'mark' but did apply 'mkmk'.
-   * Perhaps it applied abvm/blwm.  This was fixed in a Windows 8
-   * update, so now it applies mark/mkmk.  We are guessing that
-   * it still applies abvm/blwm too.
-   */
-  HB_TAG('a','b','v','m'),
-  HB_TAG('b','l','w','m'),
+};
+
+/*
+ * Must be in the same order as the myanmar_features array.
+ */
+enum {
+  _RPHF,
+  _PREF,
+  _BLWF,
+  _PSTF,
+
+  _PRES,
+  _ABVS,
+  _BLWS,
+  _PSTS,
+  _DIST,
+
+  MYANMAR_NUM_FEATURES,
+  MYANMAR_BASIC_FEATURES = _PRES /* Don't forget to update this! */
 };
 
 static void
@@ -93,27 +98,39 @@ collect_features_myanmar (hb_ot_shape_planner_t *plan)
   /* Do this before any lookups have been applied. */
   map->add_gsub_pause (setup_syllables);
 
-  map->add_global_bool_feature (HB_TAG('l','o','c','l'));
+  map->add_bool_feature (HB_TAG('l','o','c','l'));
   /* The Indic specs do not require ccmp, but we apply it here since if
    * there is a use of it, it's typically at the beginning. */
-  map->add_global_bool_feature (HB_TAG('c','c','m','p'));
+  map->add_bool_feature (HB_TAG('c','c','m','p'));
 
 
+  unsigned int i = 0;
   map->add_gsub_pause (initial_reordering);
-  for (unsigned int i = 0; i < ARRAY_LENGTH (basic_features); i++)
-  {
-    map->add_feature (basic_features[i], 1, F_GLOBAL | F_MANUAL_ZWJ);
+  for (; i < MYANMAR_BASIC_FEATURES; i++) {
+    map->add_bool_feature (myanmar_features[i]);
     map->add_gsub_pause (NULL);
   }
   map->add_gsub_pause (final_reordering);
-  for (unsigned int i = 0; i < ARRAY_LENGTH (other_features); i++)
-    map->add_feature (other_features[i], 1, F_GLOBAL | F_MANUAL_ZWJ);
+  for (; i < MYANMAR_NUM_FEATURES; i++) {
+    map->add_bool_feature (myanmar_features[i]);
+  }
 }
 
 static void
 override_features_myanmar (hb_ot_shape_planner_t *plan)
 {
-  plan->map.add_feature (HB_TAG('l','i','g','a'), 0, F_GLOBAL);
+  plan->map.add_feature (HB_TAG('l','i','g','a'), 0, true);
+
+  /*
+   * Note:
+   *
+   * Spec says 'mark' is used, and the mmrtext.ttf font from
+   * Windows 8 has lookups for it.  But testing suggests that
+   * Windows 8 Uniscribe is NOT applying it.  It *is* applying
+   * 'mkmk' however.
+   */
+  if (hb_options ().uniscribe_bug_compatible)
+    plan->map.add_feature (HB_TAG('m','a','r','k'), 0, true);
 }
 
 
@@ -151,7 +168,7 @@ static inline bool
 is_one_of (const hb_glyph_info_t &info, unsigned int flags)
 {
   /* If it ligated, all bets are off. */
-  if (_hb_glyph_info_ligated (&info)) return false;
+  if (is_a_ligature (info)) return false;
   return !!(FLAG (info.myanmar_category()) & flags);
 }
 
@@ -539,6 +556,6 @@ const hb_ot_complex_shaper_t _hb_ot_complex_shaper_myanmar =
   NULL, /* decompose */
   NULL, /* compose */
   setup_masks_myanmar,
-  HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_EARLY,
+  HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF,
   false, /* fallback_position */
 };

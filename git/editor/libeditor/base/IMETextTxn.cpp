@@ -5,14 +5,13 @@
 
 #include "IMETextTxn.h"
 #include "mozilla/mozalloc.h"           // for operator new
-#include "mozilla/TextEvents.h"         // for TextRangeStyle
 #include "nsAString.h"                  // for nsAString_internal::Length, etc
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsDebug.h"                    // for NS_ASSERTION, etc
 #include "nsError.h"                    // for NS_SUCCEEDED, NS_FAILED, etc
+#include "nsGUIEvent.h"                 // for nsTextRangeStyle
 #include "nsIDOMCharacterData.h"        // for nsIDOMCharacterData
 #include "nsIDOMRange.h"                // for nsRange::SetEnd, etc
-#include "nsIContent.h"                 // for nsIContent
 #include "nsIEditor.h"                  // for nsIEditor
 #include "nsIPresShell.h"               // for SelectionType
 #include "nsIPrivateTextRange.h"        // for nsIPrivateTextRange, etc
@@ -25,8 +24,6 @@
 #include "nsRange.h"                    // for nsRange
 #include "nsString.h"                   // for nsString
 
-using namespace mozilla;
-
 // #define DEBUG_IMETXN
 
 IMETextTxn::IMETextTxn()
@@ -34,9 +31,15 @@ IMETextTxn::IMETextTxn()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(IMETextTxn, EditTxn,
-                                     mElement)
-// mRangeList can't lead to cycles
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IMETextTxn, EditTxn)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mElement)
+  // mRangeList can't lead to cycles
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IMETextTxn, EditTxn)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mElement)
+  // mRangeList can't lead to cycles
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(IMETextTxn)
   if (aIID.Equals(IMETextTxn::GetCID())) {
@@ -335,7 +338,7 @@ NS_IMETHODIMP IMETextTxn::CollapseTextSelection(void)
              nsCOMPtr<nsISelectionPrivate> imeSelPriv(
                                              do_QueryInterface(imeSel));
              if (imeSelPriv) {
-               TextRangeStyle textRangeStyle;
+               nsTextRangeStyle textRangeStyle;
                result = textRange->GetRangeStyle(&textRangeStyle);
                NS_ASSERTION(NS_SUCCEEDED(result),
                             "nsIPrivateTextRange::GetRangeStyle failed");

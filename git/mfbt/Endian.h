@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -60,16 +59,16 @@
  * };
  */
 
-#ifndef mozilla_Endian_h
-#define mozilla_Endian_h
+#ifndef mozilla_Endian_h_
+#define mozilla_Endian_h_
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Compiler.h"
 #include "mozilla/DebugOnly.h"
+#include "mozilla/StandardInteger.h"
 #include "mozilla/TypeTraits.h"
 
-#include <stdint.h>
 #include <string.h>
 
 #if defined(_MSC_VER) && _MSC_VER >= 1300
@@ -238,9 +237,9 @@ class EndianUtils
     {
       DebugOnly<const uint8_t*> byteDestPtr = static_cast<const uint8_t*>(dest);
       DebugOnly<const uint8_t*> byteSrcPtr = static_cast<const uint8_t*>(src);
-      MOZ_ASSERT((byteDestPtr <= byteSrcPtr &&
+      MOZ_ASSERT((byteDestPtr < byteSrcPtr &&
                   byteDestPtr + count <= byteSrcPtr) ||
-                 (byteSrcPtr <= byteDestPtr &&
+                 (byteSrcPtr < byteDestPtr &&
                   byteSrcPtr + count <= byteDestPtr));
     }
 
@@ -637,4 +636,4 @@ class NativeEndian MOZ_FINAL : public detail::Endian<MOZ_NATIVE_ENDIANNESS>
 
 } /* namespace mozilla */
 
-#endif /* mozilla_Endian_h */
+#endif /* mozilla_Endian_h_ */

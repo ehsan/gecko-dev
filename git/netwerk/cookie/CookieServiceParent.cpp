@@ -4,35 +4,34 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/net/CookieServiceParent.h"
-#include "mozilla/dom/PContentParent.h"
+#include "mozilla/dom/PBrowserParent.h"
 #include "mozilla/net/NeckoParent.h"
 
 #include "mozilla/ipc/URIUtils.h"
 #include "nsCookieService.h"
 #include "nsNetUtil.h"
 #include "nsPrintfCString.h"
-#include "SerializedLoadContext.h"
 
 using namespace mozilla::ipc;
-using mozilla::dom::PContentParent;
+using mozilla::dom::PBrowserParent;
 using mozilla::net::NeckoParent;
 
 namespace mozilla {
 namespace net {
 
 MOZ_WARN_UNUSED_RESULT
-bool
-CookieServiceParent::GetAppInfoFromParams(const IPC::SerializedLoadContext &aLoadContext,
-                                          uint32_t& aAppId,
-                                          bool& aIsInBrowserElement,
-                                          bool& aIsPrivate)
+static bool
+GetAppInfoFromParams(const IPC::SerializedLoadContext &aLoadContext,
+                     PBrowserParent* aBrowser,
+                     uint32_t& aAppId,
+                     bool& aIsInBrowserElement,
+                     bool& aIsPrivate)
 {
   aAppId = NECKO_NO_APP_ID;
   aIsInBrowserElement = false;
   aIsPrivate = false;
 
-  const char* error = NeckoParent::GetValidatedAppInfo(aLoadContext,
-                                                       Manager()->Manager(),
+  const char* error = NeckoParent::GetValidatedAppInfo(aLoadContext, aBrowser,
                                                        &aAppId,
                                                        &aIsInBrowserElement);
   if (error) {
@@ -70,6 +69,7 @@ CookieServiceParent::RecvGetCookieString(const URIParams& aHost,
                                          const bool& aFromHttp,
                                          const IPC::SerializedLoadContext&
                                                aLoadContext,
+                                         PBrowserParent* aBrowser,
                                          nsCString* aResult)
 {
   if (!mCookieService)
@@ -83,7 +83,7 @@ CookieServiceParent::RecvGetCookieString(const URIParams& aHost,
 
   uint32_t appId;
   bool isInBrowserElement, isPrivate;
-  bool valid = GetAppInfoFromParams(aLoadContext, appId,
+  bool valid = GetAppInfoFromParams(aLoadContext, aBrowser, appId,
                                     isInBrowserElement, isPrivate);
   if (!valid) {
     return false;
@@ -101,7 +101,8 @@ CookieServiceParent::RecvSetCookieString(const URIParams& aHost,
                                          const nsCString& aServerTime,
                                          const bool& aFromHttp,
                                          const IPC::SerializedLoadContext&
-                                               aLoadContext)
+                                               aLoadContext,
+                                         PBrowserParent* aBrowser)
 {
   if (!mCookieService)
     return true;
@@ -114,7 +115,7 @@ CookieServiceParent::RecvSetCookieString(const URIParams& aHost,
 
   uint32_t appId;
   bool isInBrowserElement, isPrivate;
-  bool valid = GetAppInfoFromParams(aLoadContext, appId,
+  bool valid = GetAppInfoFromParams(aLoadContext, aBrowser, appId,
                                     isInBrowserElement, isPrivate);
   if (!valid) {
     return false;
@@ -126,18 +127,6 @@ CookieServiceParent::RecvSetCookieString(const URIParams& aHost,
                                           aServerTime, aFromHttp, appId,
                                           isInBrowserElement, isPrivate, nullptr);
   return true;
-}
-
-mozilla::ipc::IProtocol*
-CookieServiceParent::CloneProtocol(Channel* aChannel,
-                                   mozilla::ipc::ProtocolCloneContext* aCtx)
-{
-  NeckoParent* manager = aCtx->GetNeckoParent();
-  nsAutoPtr<PCookieServiceParent> actor(manager->AllocPCookieServiceParent());
-  if (!actor || !manager->RecvPCookieServiceConstructor(actor)) {
-    return nullptr;
-  }
-  return actor.forget();
 }
 
 }

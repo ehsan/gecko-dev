@@ -5,8 +5,14 @@
 #ifndef mozilla_dom_DesktopNotification_h
 #define mozilla_dom_DesktopNotification_h
 
+#include "PCOMContentPermissionRequestChild.h"
+
 #include "nsIPrincipal.h"
+#include "nsIJSContextStack.h"
+
 #include "nsIAlertsService.h"
+
+#include "nsIDOMEventTarget.h"
 #include "nsIContentPermissionPrompt.h"
 
 #include "nsIObserver.h"
@@ -14,7 +20,7 @@
 #include "nsWeakPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIDOMWindow.h"
-#include "nsIScriptObjectPrincipal.h"
+#include "nsThreadUtils.h"
 
 #include "nsDOMEventTargetHelper.h"
 #include "nsIDOMEvent.h"
@@ -44,14 +50,10 @@ public:
 
   DesktopNotificationCenter(nsPIDOMWindow *aWindow)
   {
-    MOZ_ASSERT(aWindow);
     mOwner = aWindow;
 
-    nsCOMPtr<nsIScriptObjectPrincipal> sop = do_QueryInterface(aWindow);
-    MOZ_ASSERT(sop);
-
-    mPrincipal = sop->GetPrincipal();
-    MOZ_ASSERT(mPrincipal);
+    // Grab the uri of the document
+    mPrincipal = mOwner->GetDoc()->NodePrincipal();
 
     SetIsDOMBinding();
   }
@@ -69,8 +71,7 @@ public:
     return mOwner;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   already_AddRefed<DesktopNotification>
   CreateNotification(const nsAString& title,
@@ -82,7 +83,6 @@ private:
   nsCOMPtr<nsIPrincipal> mPrincipal;
 };
 
-class DesktopNotificationRequest;
 
 class DesktopNotification MOZ_FINAL : public nsDOMEventTargetHelper
 {
@@ -122,8 +122,7 @@ public:
     return GetOwner();
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   void Show(ErrorResult& aRv);
 
@@ -142,6 +141,48 @@ protected:
   bool mShowHasBeenCalled;
 
   static uint32_t sCount;
+};
+
+/*
+ * Simple Request
+ */
+class DesktopNotificationRequest : public nsIContentPermissionRequest,
+                                   public nsRunnable,
+                                   public PCOMContentPermissionRequestChild
+
+{
+ public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSICONTENTPERMISSIONREQUEST
+
+  DesktopNotificationRequest(DesktopNotification* notification)
+    : mDesktopNotification(notification) {}
+
+  NS_IMETHOD Run()
+  {
+    nsCOMPtr<nsIContentPermissionPrompt> prompt =
+      do_CreateInstance(NS_CONTENT_PERMISSION_PROMPT_CONTRACTID);
+    if (prompt) {
+      prompt->Prompt(this);
+    }
+    return NS_OK;
+  }
+
+  ~DesktopNotificationRequest()
+  {
+  }
+
+ bool Recv__delete__(const bool& allow)
+ {
+   if (allow)
+     (void) Allow();
+   else
+     (void) Cancel();
+   return true;
+ }
+ void IPDLRelease() { Release(); }
+
+  nsRefPtr<DesktopNotification> mDesktopNotification;
 };
 
 class AlertServiceObserver: public nsIObserver

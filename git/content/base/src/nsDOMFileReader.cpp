@@ -28,11 +28,13 @@
 #include "nsStreamUtils.h"
 #include "nsXPCOM.h"
 #include "nsIDOMEventListener.h"
+#include "nsIJSContextStack.h"
 #include "nsJSEnvironment.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsCExternalHandlerService.h"
 #include "nsIStreamConverterService.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsLayoutStatics.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsHostObjectProtocolHandler.h"
 #include "mozilla/Base64.h"
@@ -52,8 +54,6 @@ using namespace mozilla::dom;
 #define LOAD_STR "load"
 #define LOADSTART_STR "loadstart"
 #define LOADEND_STR "loadend"
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMFileReader)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMFileReader,
                                                   FileIOObject)
@@ -94,7 +94,9 @@ NS_IMPL_FORWARD_EVENT_HANDLER(nsDOMFileReader, error, FileIOObject)
 void
 nsDOMFileReader::RootResultArrayBuffer()
 {
-  mozilla::HoldJSObjects(this);
+  nsContentUtils::PreserveWrapper(
+    static_cast<nsIDOMEventTarget*>(
+      static_cast<nsDOMEventTargetHelper*>(this)), this);
 }
 
 //nsDOMFileReader constructors/initializers
@@ -102,8 +104,9 @@ nsDOMFileReader::RootResultArrayBuffer()
 nsDOMFileReader::nsDOMFileReader()
   : mFileData(nullptr),
     mDataLen(0), mDataFormat(FILE_AS_BINARY),
-    mResultArrayBuffer(nullptr)
+    mResultArrayBuffer(nullptr)     
 {
+  nsLayoutStatics::AddRef();
   SetDOMStringToNull(mResult);
   SetIsDOMBinding();
 }
@@ -111,31 +114,24 @@ nsDOMFileReader::nsDOMFileReader()
 nsDOMFileReader::~nsDOMFileReader()
 {
   FreeFileData();
-  mResultArrayBuffer = nullptr;
-  mozilla::DropJSObjects(this);
+
+  nsLayoutStatics::Release();
 }
 
-
-/**
- * This Init method is called from the factory constructor.
- */
 nsresult
 nsDOMFileReader::Init()
 {
-  nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
-  nsCOMPtr<nsIPrincipal> principal;
-  if (secMan) {
-    secMan->GetSystemPrincipal(getter_AddRefs(principal));
-  }
-  NS_ENSURE_STATE(principal);
-  mPrincipal.swap(principal);
+  nsDOMEventTargetHelper::Init();
 
-  // Instead of grabbing some random global from the context stack,
-  // let's use the default one (junk scope) for now.
-  // We should move away from this Init...
-  nsCOMPtr<nsIGlobalObject> global = xpc::GetJunkScopeGlobal();
-  NS_ENSURE_TRUE(global, NS_ERROR_FAILURE);
-  BindToOwner(global);
+  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
+  nsCOMPtr<nsIPrincipal> subjectPrincipal;
+  if (secMan) {
+    nsresult rv = secMan->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+  NS_ENSURE_STATE(subjectPrincipal);
+  mPrincipal.swap(subjectPrincipal);
+
   return NS_OK;
 }
 
@@ -144,7 +140,7 @@ nsDOMFileReader::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
 {
   nsRefPtr<nsDOMFileReader> fileReader = new nsDOMFileReader();
 
-  nsCOMPtr<nsPIDOMWindow> owner = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> owner = do_QueryInterface(aGlobal.Get());
   if (!owner) {
     NS_WARNING("Unexpected nsIJSNativeInitializer owner");
     aRv.Throw(NS_ERROR_FAILURE);
@@ -184,38 +180,36 @@ nsDOMFileReader::GetReadyState(uint16_t *aReadyState)
 JS::Value
 nsDOMFileReader::GetResult(JSContext* aCx, ErrorResult& aRv)
 {
-  JS::Rooted<JS::Value> result(aCx);
-  aRv = GetResult(aCx, result.address());
+  JS::Value result = JS::UndefinedValue();
+  aRv = GetResult(aCx, &result);
   return result;
 }
 
 NS_IMETHODIMP
 nsDOMFileReader::GetResult(JSContext* aCx, JS::Value* aResult)
 {
-  JS::Rooted<JS::Value> result(aCx);
   if (mDataFormat == FILE_AS_ARRAYBUFFER) {
     if (mReadyState == nsIDOMFileReader::DONE && mResultArrayBuffer) {
-      result.setObject(*mResultArrayBuffer);
+      JSObject* tmp = mResultArrayBuffer;
+      *aResult = OBJECT_TO_JSVAL(tmp);
     } else {
-      result.setNull();
+      *aResult = JSVAL_NULL;
     }
-    if (!JS_WrapValue(aCx, &result)) {
+    if (!JS_WrapValue(aCx, aResult)) {
       return NS_ERROR_FAILURE;
     }
-    *aResult = result;
     return NS_OK;
   }
-
+ 
   nsString tmpResult = mResult;
-  if (!xpc::StringToJsval(aCx, tmpResult, &result)) {
+  if (!xpc::StringToJsval(aCx, tmpResult, aResult)) {
     return NS_ERROR_FAILURE;
   }
-  *aResult = result;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::GetError(nsISupports** aError)
+nsDOMFileReader::GetError(nsIDOMDOMError** aError)
 {
   NS_IF_ADDREF(*aError = GetError());
   return NS_OK;
@@ -558,7 +552,7 @@ nsDOMFileReader::ConvertStream(const char *aFileData,
 }
 
 /* virtual */ JSObject*
-nsDOMFileReader::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+nsDOMFileReader::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return FileReaderBinding::Wrap(aCx, aScope, this);
 }

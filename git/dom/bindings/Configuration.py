@@ -46,37 +46,19 @@ class Configuration:
             if not isinstance(entry, list):
                 assert isinstance(entry, dict)
                 entry = [entry]
-            elif len(entry) == 1:
-                if entry[0].get("workers", False):
-                    # List with only a workers descriptor means we should
-                    # infer a mainthread descriptor.  If you want only
-                    # workers bindings, don't use a list here.
-                    entry.append({})
-                else:
-                    raise TypeError("Don't use a single-element list for "
-                                    "non-worker-only interface " + iface.identifier.name +
-                                    " in Bindings.conf")
-            elif len(entry) == 2:
-                if entry[0].get("workers", False) == entry[1].get("workers", False):
-                    raise TypeError("The two entries for interface " + iface.identifier.name +
-                                    " in Bindings.conf should not have the same value for 'workers'")
-            else:
-                raise TypeError("Interface " + iface.identifier.name +
-                                " should have no more than two entries in Bindings.conf")
+            elif len(entry) == 1 and entry[0].get("workers", False):
+                # List with only a workers descriptor means we should
+                # infer a mainthread descriptor.  If you want only
+                # workers bindings, don't use a list here.
+                entry.append({})
             self.descriptors.extend([Descriptor(self, iface, x) for x in entry])
 
-        # Keep the descriptor list sorted for determinism.
-        self.descriptors.sort(lambda x,y: cmp(x.name, y.name))
-
-        self.descriptorsByName = {}
-        for d in self.descriptors:
-            self.descriptorsByName.setdefault(d.interface.identifier.name,
-                                              []).append(d)
-
-        self.descriptorsByFile = {}
-        for d in self.descriptors:
-            self.descriptorsByFile.setdefault(d.interface.filename(),
-                                              []).append(d)
+        # Mark the descriptors for which the nativeType corresponds to exactly
+        # one interface.
+        for descriptor in self.descriptors:
+            descriptor.unsharedImplementation = all(
+                d.nativeType != descriptor.nativeType or d == descriptor
+                for d in self.descriptors)
 
         self.enums = [e for e in parseData if e.isEnum()]
 
@@ -104,24 +86,21 @@ class Configuration:
                     item.setUserData("mainThread", True)
                 if item in worker:
                     item.setUserData("workers", True)
+        flagWorkerOrMainThread(self.dictionaries, mainDictionaries,
+                               workerDictionaries);
         flagWorkerOrMainThread(self.callbacks, mainCallbacks, workerCallbacks)
+
+        # Keep the descriptor list sorted for determinism.
+        self.descriptors.sort(lambda x,y: cmp(x.name, y.name))
 
     def getInterface(self, ifname):
         return self.interfaces[ifname]
     def getDescriptors(self, **filters):
         """Gets the descriptors that match the given filters."""
         curr = self.descriptors
-        # Collect up our filters, because we may have a webIDLFile filter that
-        # we always want to apply first.
-        tofilter = []
         for key, val in filters.iteritems():
             if key == 'webIDLFile':
-                # Special-case this part to make it fast, since most of our
-                # getDescriptors calls are conditioned on a webIDLFile.  We may
-                # not have this key, in which case we have no descriptors
-                # either.
-                curr = self.descriptorsByFile.get(val, [])
-                continue
+                getter = lambda x: x.interface.filename()
             elif key == 'hasInterfaceObject':
                 getter = lambda x: (not x.interface.isExternal() and
                                     x.interface.hasInterfaceObject())
@@ -136,15 +115,9 @@ class Configuration:
                 getter = lambda x: x.interface.isExternal()
             elif key == 'isJSImplemented':
                 getter = lambda x: x.interface.isJSImplemented()
-            elif key == 'isNavigatorProperty':
-                getter = lambda x: x.interface.getNavigatorProperty() != None
             else:
-                # Have to watch out: just closing over "key" is not enough,
-                # since we're about to mutate its value
-                getter = (lambda attrName: lambda x: getattr(x, attrName))(key)
-            tofilter.append((getter, val))
-        for f in tofilter:
-            curr = filter(lambda x: f[0](x) == f[1], curr)
+                getter = lambda x: getattr(x, key)
+            curr = filter(lambda x: getter(x) == val, curr)
         return curr
     def getEnums(self, webIDLFile):
         return filter(lambda e: e.filename() == webIDLFile, self.enums)
@@ -173,15 +146,17 @@ class Configuration:
         Gets the appropriate descriptor for the given interface name
         and the given workers boolean.
         """
-        for d in self.descriptorsByName[interfaceName]:
-            if d.workers == workers:
-                return d
+        iface = self.getInterface(interfaceName)
+        descriptors = self.getDescriptors(interface=iface)
 
-        if workers:
-            for d in self.descriptorsByName[interfaceName]:
-                return d
+        # The only filter we currently have is workers vs non-workers.
+        matches = filter(lambda x: x.workers is workers, descriptors)
 
-        raise NoSuchDescriptorError("For " + interfaceName + " found no matches");
+        # After filtering, we should have exactly one result.
+        if len(matches) is not 1:
+            raise NoSuchDescriptorError("For " + interfaceName + " found " +
+                                        str(len(matches)) + " matches");
+        return matches[0]
     def getDescriptorProvider(self, workers):
         """
         Gets a descriptor provider that can provide descriptors as needed,
@@ -225,7 +200,10 @@ class Descriptor(DescriptorProvider):
             else:
                 nativeTypeDefault = "nsIDOM" + ifaceName
         elif self.interface.isCallback():
-            nativeTypeDefault = "mozilla::dom::" + ifaceName
+            if self.workers:
+                nativeTypeDefault = "JSObject"
+            else:
+                nativeTypeDefault = "mozilla::dom::" + ifaceName
         else:
             if self.workers:
                 nativeTypeDefault = "mozilla::dom::workers::" + ifaceName
@@ -237,7 +215,7 @@ class Descriptor(DescriptorProvider):
 
         # Do something sane for JSObject
         if self.nativeType == "JSObject":
-            headerDefault = "js/TypeDecls.h"
+            headerDefault = "jsapi.h"
         elif self.interface.isCallback() or self.interface.isJSImplemented():
             # A copy of CGHeaders.getDeclarationFilename; we can't
             # import it here, sadly.
@@ -248,13 +226,10 @@ class Descriptor(DescriptorProvider):
         else:
             if self.workers:
                 headerDefault = "mozilla/dom/workers/bindings/%s.h" % ifaceName
-            elif not self.interface.isExternal() and self.interface.getExtendedAttribute("HeaderFile"):
-                headerDefault = self.interface.getExtendedAttribute("HeaderFile")[0]
             else:
                 headerDefault = self.nativeType
                 headerDefault = headerDefault.replace("::", "/") + ".h"
         self.headerFile = desc.get('headerFile', headerDefault)
-        self.headerIsDefault = self.headerFile == headerDefault
         if self.jsImplParent == self.nativeType:
             self.jsImplParentHeader = self.headerFile
         else:
@@ -282,8 +257,7 @@ class Descriptor(DescriptorProvider):
             'NamedCreator': None,
             'NamedDeleter': None,
             'Stringifier': None,
-            'LegacyCaller': None,
-            'Jsonifier': None
+            'LegacyCaller': None
             }
         if self.concrete:
             self.proxy = False
@@ -296,8 +270,6 @@ class Descriptor(DescriptorProvider):
             for m in iface.members:
                 if m.isMethod() and m.isStringifier():
                     addOperation('Stringifier', m)
-                if m.isMethod() and m.isJsonifier():
-                    addOperation('Jsonifier', m)
                 # Don't worry about inheriting legacycallers either: in
                 # practice these are on most-derived prototypes.
                 if m.isMethod() and m.isLegacycaller():
@@ -363,27 +335,24 @@ class Descriptor(DescriptorProvider):
                     iface = iface.parent
         self.operations = operations
 
-        if self.workers and desc.get('nativeOwnership', None) == 'worker':
+        if self.workers:
+            if desc.get('nativeOwnership', 'worker') != 'worker':
+                raise TypeError("Worker descriptor for %s should have 'worker' "
+                                "as value for nativeOwnership" %
+                                self.interface.identifier.name)
             self.nativeOwnership = "worker"
         else:
-            self.nativeOwnership = desc.get('nativeOwnership', 'refcounted')
-            if not self.nativeOwnership in ['owned', 'refcounted']:
+            self.nativeOwnership = desc.get('nativeOwnership', 'nsisupports')
+            if not self.nativeOwnership in ['owned', 'refcounted', 'nsisupports']:
                 raise TypeError("Descriptor for %s has unrecognized value (%s) "
                                 "for nativeOwnership" %
                                 (self.interface.identifier.name, self.nativeOwnership))
-        self.customTrace = (self.nativeOwnership == 'worker')
-        self.customFinalize = desc.get('customFinalize', self.nativeOwnership == 'worker')
-        self.customWrapperManagement = desc.get('customWrapperManagement', False)
-        if desc.get('wantsQI', None) != None:
-            self._wantsQI = desc.get('wantsQI', None)
+        self.customTrace = desc.get('customTrace', self.workers)
+        self.customFinalize = desc.get('customFinalize', self.workers)
         self.wrapperCache = (not self.interface.isCallback() and
-                             (self.nativeOwnership == 'worker' or
+                             (self.workers or
                               (self.nativeOwnership != 'owned' and
                                desc.get('wrapperCache', True))))
-        if self.customWrapperManagement and not self.wrapperCache:
-            raise TypeError("Descriptor for %s has customWrapperManagement "
-                            "but is not wrapperCached." %
-                            (self.interface.identifier.name))
 
         def make_name(name):
             return name + "_workers" if self.workers else name
@@ -430,7 +399,7 @@ class Descriptor(DescriptorProvider):
         self.prototypeChain = []
         parent = interface
         while parent:
-            self.prototypeChain.insert(0, parent.identifier.name)
+            self.prototypeChain.insert(0, make_name(parent.identifier.name))
             parent = parent.parent
         config.maxProtoChainLength = max(config.maxProtoChainLength,
                                          len(self.prototypeChain))
@@ -490,14 +459,11 @@ class Descriptor(DescriptorProvider):
     def needsHeaderInclude(self):
         """
         An interface doesn't need a header file if it is not concrete,
-        not pref-controlled, has no prototype object, and has no
-        static methods or attributes.
+        not pref-controlled, and has only consts.
         """
         return (self.interface.isExternal() or self.concrete or
             self.interface.getExtendedAttribute("PrefControlled") or
-            self.interface.hasInterfacePrototypeObject() or
-            any((m.isAttr() or m.isMethod()) and m.isStatic() for m
-                in self.interface.members))
+            self.interface.hasInterfacePrototypeObject())
 
 # Some utility methods
 def getTypesFromDescriptor(descriptor):
@@ -507,7 +473,6 @@ def getTypesFromDescriptor(descriptor):
     members = [m for m in descriptor.interface.members]
     if descriptor.interface.ctor():
         members.append(descriptor.interface.ctor())
-    members.extend(descriptor.interface.namedConstructors)
     signatures = [s for m in members if m.isMethod() for s in m.signatures()]
     types = []
     for s in signatures:

@@ -9,6 +9,7 @@
 #include "nsError.h"
 #include "SVGAnimatedLengthList.h"
 #include "nsCOMPtr.h"
+#include "nsContentUtils.h"
 #include "mozilla/dom/SVGLengthListBinding.h"
 #include <algorithm>
 
@@ -39,8 +40,6 @@ namespace mozilla {
 // clear our DOMSVGAnimatedLengthList's weak ref to us to be safe. (The other
 // option would be to not unlink and rely on the breaking of the other edges in
 // the cycle, as NS_SVG_VAL_IMPL_CYCLE_COLLECTION does.)
-NS_IMPL_CYCLE_COLLECTION_CLASS(DOMSVGLengthList)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMSVGLengthList)
   if (tmp->mAList) {
     if (tmp->IsAnimValList()) {
@@ -69,7 +68,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGLengthList)
 NS_INTERFACE_MAP_END
 
 JSObject*
-DOMSVGLengthList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+DOMSVGLengthList::WrapObject(JSContext *cx, JSObject *scope)
 {
   return mozilla::dom::SVGLengthListBinding::Wrap(cx, scope, this);
 }
@@ -177,18 +176,7 @@ DOMSVGLengthList::Initialize(nsIDOMSVGLength *newItem,
   return InsertItemBefore(newItem, 0, error);
 }
 
-already_AddRefed<nsIDOMSVGLength>
-DOMSVGLengthList::GetItem(uint32_t index, ErrorResult& error)
-{
-  bool found;
-  nsRefPtr<nsIDOMSVGLength> item = IndexedGetter(index, found, error);
-  if (!found) {
-    error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-  }
-  return item.forget();
-}
-
-already_AddRefed<nsIDOMSVGLength>
+nsIDOMSVGLength*
 DOMSVGLengthList::IndexedGetter(uint32_t index, bool& found, ErrorResult& error)
 {
   if (IsAnimValList()) {
@@ -196,7 +184,8 @@ DOMSVGLengthList::IndexedGetter(uint32_t index, bool& found, ErrorResult& error)
   }
   found = index < LengthNoFlush();
   if (found) {
-    return GetItemAt(index);
+    EnsureItemAt(index);
+    return mItems[index];
   }
   return nullptr;
 }
@@ -318,12 +307,13 @@ DOMSVGLengthList::RemoveItem(uint32_t index,
   // internal value.
   MaybeRemoveItemFromAnimValListAt(index);
 
-  // We have to return the removed item, so get it, creating it if necessary:
-  nsCOMPtr<nsIDOMSVGLength> result = GetItemAt(index);
+  // We have to return the removed item, so make sure it exists:
+  EnsureItemAt(index);
 
   // Notify the DOM item of removal *before* modifying the lists so that the
   // DOM item can copy its *old* value:
   mItems[index]->RemovingFromList();
+  nsCOMPtr<nsIDOMSVGLength> result = mItems[index];
 
   InternalList().RemoveItem(index);
   mItems.RemoveElementAt(index);
@@ -337,16 +327,12 @@ DOMSVGLengthList::RemoveItem(uint32_t index,
   return result.forget();
 }
 
-already_AddRefed<nsIDOMSVGLength>
-DOMSVGLengthList::GetItemAt(uint32_t aIndex)
+void
+DOMSVGLengthList::EnsureItemAt(uint32_t aIndex)
 {
-  MOZ_ASSERT(aIndex < mItems.Length());
-
   if (!mItems[aIndex]) {
     mItems[aIndex] = new DOMSVGLength(this, AttrEnum(), aIndex, IsAnimValList());
   }
-  nsRefPtr<nsIDOMSVGLength> result = mItems[aIndex];
-  return result.forget();
 }
 
 void

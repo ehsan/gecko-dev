@@ -83,19 +83,13 @@ XULTabAccessible::NativeState()
   // get focus and disable status from base class
   uint64_t state = AccessibleWrap::NativeState();
 
-  // Check whether the tab is selected and/or pinned
+  // Check whether the tab is selected
   nsCOMPtr<nsIDOMXULSelectControlItemElement> tab(do_QueryInterface(mContent));
   if (tab) {
     bool selected = false;
     if (NS_SUCCEEDED(tab->GetSelected(&selected)) && selected)
       state |= states::SELECTED;
-
-    if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::pinned,
-                              nsGkAtoms::_true, eCaseMatters))
-      state |= states::PINNED;
-
   }
-
   return state;
 }
 
@@ -108,10 +102,10 @@ XULTabAccessible::NativeInteractiveState() const
 
 // nsIAccessible
 Relation
-XULTabAccessible::RelationByType(RelationType aType)
+XULTabAccessible::RelationByType(uint32_t aType)
 {
   Relation rel = AccessibleWrap::RelationByType(aType);
-  if (aType != RelationType::LABEL_FOR)
+  if (aType != nsIAccessibleRelation::RELATION_LABEL_FOR)
     return rel;
 
   // Expose 'LABEL_FOR' relation on tab accessible for tabpanel accessible.
@@ -195,10 +189,10 @@ XULTabpanelAccessible::NativeRole()
 }
 
 Relation
-XULTabpanelAccessible::RelationByType(RelationType aType)
+XULTabpanelAccessible::RelationByType(uint32_t aType)
 {
   Relation rel = AccessibleWrap::RelationByType(aType);
-  if (aType != RelationType::LABELLED_BY)
+  if (aType != nsIAccessibleRelation::RELATION_LABELLED_BY)
     return rel;
 
   // Expose 'LABELLED_BY' relation on tabpanel accessible for tab accessible.

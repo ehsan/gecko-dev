@@ -4,6 +4,8 @@
 
 /*
  * Certificate handling code
+ *
+ * $Id$
  */
 
 #include "seccomon.h"
@@ -345,7 +347,7 @@ nsslowcert_IsNewer(NSSLOWCERTCertificate *certa, NSSLOWCERTCertificate *certb)
 #define SOFT_DEFAULT_CHUNKSIZE 2048
 
 static SECStatus
-nsslowcert_KeyFromIssuerAndSN(PLArenaPool *arena,
+nsslowcert_KeyFromIssuerAndSN(PRArenaPool *arena, 
 			      SECItem *issuer, SECItem *sn, SECItem *key)
 {
     unsigned int len = sn->len + issuer->len;
@@ -702,7 +704,7 @@ nsslowcert_FixupEmailAddr(char *emailAddr)
  * DER certificate.
  */
 SECStatus
-nsslowcert_KeyFromDERCert(PLArenaPool *arena, SECItem *derCert, SECItem *key)
+nsslowcert_KeyFromDERCert(PRArenaPool *arena, SECItem *derCert, SECItem *key)
 {
     int rv;
     NSSLOWCERTCertKey certkey;
@@ -730,7 +732,7 @@ nsslowcert_ExtractPublicKey(NSSLOWCERTCertificate *cert)
     NSSLOWKEYPublicKey *pubk;
     SECItem os;
     SECStatus rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     SECOidTag tag;
     SECItem newDerSubjKeyInfo;
 

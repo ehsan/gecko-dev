@@ -4,28 +4,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jspropertytree_h
-#define jspropertytree_h
-
-#include "jsalloc.h"
-#include "jspubtd.h"
+#ifndef jspropertytree_h___
+#define jspropertytree_h___
 
 #include "js/HashTable.h"
 
 namespace js {
 
-class Shape;
+ForwardDeclare(Shape);
 struct StackShape;
 
 struct ShapeHasher {
-    typedef Shape *Key;
+    typedef RawShape Key;
     typedef StackShape Lookup;
 
     static inline HashNumber hash(const Lookup &l);
     static inline bool match(Key k, const Lookup &l);
 };
 
-typedef HashSet<Shape *, ShapeHasher, SystemAllocPolicy> KidsHash;
+typedef HashSet<RawShape, ShapeHasher, SystemAllocPolicy> KidsHash;
 
 class KidsPointer {
   private:
@@ -42,14 +39,14 @@ class KidsPointer {
     void setNull() { w = 0; }
 
     bool isShape() const { return (w & TAG) == SHAPE && !isNull(); }
-    Shape *toShape() const {
+    RawShape toShape() const {
         JS_ASSERT(isShape());
-        return reinterpret_cast<Shape *>(w & ~uintptr_t(TAG));
+        return reinterpret_cast<RawShape>(w & ~uintptr_t(TAG));
     }
-    void setShape(Shape *shape) {
+    void setShape(RawShape shape) {
         JS_ASSERT(shape);
-        JS_ASSERT((reinterpret_cast<uintptr_t>(static_cast<Shape *>(shape)) & TAG) == 0);
-        w = reinterpret_cast<uintptr_t>(static_cast<Shape *>(shape)) | SHAPE;
+        JS_ASSERT((reinterpret_cast<uintptr_t>(static_cast<RawShape>(shape)) & TAG) == 0);
+        w = reinterpret_cast<uintptr_t>(static_cast<RawShape>(shape)) | SHAPE;
     }
 
     bool isHash() const { return (w & TAG) == HASH; }
@@ -64,7 +61,7 @@ class KidsPointer {
     }
 
 #ifdef DEBUG
-    void checkConsistency(Shape *aKid) const;
+    void checkConsistency(RawShape aKid) const;
 #endif
 };
 
@@ -72,33 +69,22 @@ class PropertyTree
 {
     friend class ::JSFunction;
 
-    JSCompartment *compartment_;
+    JSCompartment *compartment;
 
-    bool insertChild(ExclusiveContext *cx, Shape *parent, Shape *child);
+    bool insertChild(JSContext *cx, RawShape parent, RawShape child);
 
     PropertyTree();
 
   public:
-    /*
-     * Use a lower limit for objects that are accessed using SETELEM (o[x] = y).
-     * These objects are likely used as hashmaps and dictionary mode is more
-     * efficient in this case.
-     */
-    enum {
-        MAX_HEIGHT = 512,
-        MAX_HEIGHT_WITH_ELEMENTS_ACCESS = 128
-    };
+    enum { MAX_HEIGHT = 128 };
 
     PropertyTree(JSCompartment *comp)
-        : compartment_(comp)
+        : compartment(comp)
     {
     }
 
-    JSCompartment *compartment() { return compartment_; }
-
-    Shape *newShape(ExclusiveContext *cx);
-    Shape *getChild(ExclusiveContext *cx, Shape *parent, uint32_t nfixed, const StackShape &child);
-    Shape *lookupChild(ThreadSafeContext *cx, Shape *parent, const StackShape &child);
+    RawShape newShape(JSContext *cx);
+    RawShape getChild(JSContext *cx, Shape *parent, uint32_t nfixed, const StackShape &child);
 
 #ifdef DEBUG
     static void dumpShapes(JSRuntime *rt);
@@ -107,4 +93,4 @@ class PropertyTree
 
 } /* namespace js */
 
-#endif /* jspropertytree_h */
+#endif /* jspropertytree_h___ */

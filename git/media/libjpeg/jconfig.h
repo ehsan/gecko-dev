@@ -5,10 +5,7 @@
 #define JPEG_LIB_VERSION 62
 
 /* libjpeg-turbo version */
-#define LIBJPEG_TURBO_VERSION 1.3.0
-
-/* Support in-memory source/destination managers */
-/* #undef MEM_SRCDST_SUPPORTED */
+#define LIBJPEG_TURBO_VERSION 1.2.0
 
 /* Compiler supports function prototypes. */
 #define HAVE_PROTOTYPES 1

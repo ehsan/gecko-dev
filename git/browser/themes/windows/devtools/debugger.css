@@ -3,82 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#body {
+  background: #fff;
+}
+
 /* Sources and breakpoints pane */
 
 #sources-pane {
   min-width: 50px;
 }
 
-#sources-and-editor-splitter {
+#sources-pane + .devtools-side-splitter {
   -moz-border-start-color: transparent;
-}
-
-/* Sources toolbar */
-
-#sources-toolbar {
-  border: none; /* Remove the devtools-toolbar's black bottom border. */
-  -moz-border-end: 1px solid #222426; /* Match the sources list's dark margin. */
-}
-
-#sources-toolbar .devtools-toolbarbutton {
-  min-width: 32px;
-}
-
-#pretty-print {
-  font-weight: bold;
-}
-
-#black-box {
-  list-style-image: url(debugger-blackbox.png);
-  -moz-image-region: rect(0px,16px,16px,0px);
-}
-
-#black-box[checked] {
-  -moz-image-region: rect(0px,32px,16px,16px);
-}
-
-#sources .black-boxed {
-  color: #888;
-}
-
-#sources .black-boxed > .dbg-breakpoint {
-  display: none;
-}
-
-#sources .black-boxed + .side-menu-widget-item-arrow:-moz-locale-dir(ltr) {
-  background-image: none;
-  box-shadow: inset -1px 0 0 #222426;
-}
-
-#sources .black-boxed + .side-menu-widget-item-arrow:-moz-locale-dir(rtl) {
-  background-image: none;
-  box-shadow: inset 1px 0 0 #222426;
-}
-
-/* Black box message and source progress meter */
-
-#black-boxed-message,
-#source-progress-container {
-  background: url(background-noise-toolbar.png) rgb(61,69,76);
-  /* Prevent the container deck from aquiring the height from this message. */
-  min-height: 1px;
-  color: white;
-}
-
-#source-progress {
-  min-height: 2em;
-  min-width: 40em;
-}
-
-#black-boxed-message-label,
-#black-boxed-message-button {
-  text-align: center;
-  font-size: 120%;
-}
-
-#black-boxed-message-button {
-  margin-top: 1em;
-  padding: .25em;
 }
 
 /* ListWidget items */
@@ -126,7 +62,7 @@
 /* Sources and breakpoints view */
 
 .dbg-breakpoint {
-  -moz-margin-start: 4px;
+  font-family: monospace;
 }
 
 .dbg-breakpoint-line {
@@ -136,24 +72,6 @@
 .dbg-breakpoint-text {
   -moz-margin-start: 10px !important;
   font-style: italic;
-  font-size: 90%;
-}
-
-.dbg-breakpoint-checkbox {
-  width: 16px;
-  height: 16px;
-  margin: 2px;
-}
-
-/* Instruments pane (watch expressions, variables, event listeners...) */
-
-#instruments-pane > tabs > tab {
-  min-height: 25px !important;
-  padding: 0 !important;
-}
-
-#instruments-pane > tabpanels > tabpanel {
-  background: #fff;
 }
 
 /* Watch expressions view */
@@ -165,38 +83,18 @@
 
 .dbg-expression {
   height: 20px;
+  -moz-padding-start: 8px;
 }
 
 .dbg-expression-arrow {
-  width: 16px;
+  width: 10px;
   height: auto;
-  background: -moz-image-rect(url(commandline-icon.png), 0, 32, 16, 16);
+  background: url("chrome://browser/skin/devtools/commandline.png") 0px 4px no-repeat;
 }
 
 .dbg-expression-input {
   -moz-padding-start: 2px !important;
-}
-
-/* Event listeners view */
-
-.dbg-event-listener {
-  padding: 4px 8px;
-}
-
-.dbg-event-listener-type {
-  font-weight: 600;
-}
-
-.dbg-event-listener-separator {
-  color: #999;
-}
-
-.dbg-event-listener-targets {
-  color: #046;
-}
-
-.dbg-event-listener-location {
-  color: #666;
+  font-family: Menlo, Monaco, monospace;
 }
 
 /* Searchbox and the search operations help panel */
@@ -206,12 +104,8 @@
   -moz-margin-start: 1px;
 }
 
-#filter-label {
-  -moz-margin-start: 2px;
-}
-
-#searchbox-panel-operators {
-  margin-top: 5px;
+#searchbox-panel-description {
+  margin-top: 0;
   margin-bottom: 8px;
   -moz-margin-start: 2px;
 }
@@ -223,6 +117,7 @@
   -moz-margin-start: 2px;
   -moz-margin-end: 6px;
   text-align: center;
+  font-family: Menlo, Monaco, monospace;
 }
 
 .searchbox-panel-operator-label {
@@ -320,6 +215,7 @@
   -moz-padding-end: 4px;
   padding-top: 2px;
   text-align: end;
+  font-family: monospace;
   color: #8c8c8c;
 }
 
@@ -327,6 +223,7 @@
   -moz-padding-start: 4px;
   padding-top: 1px;
   padding-bottom: 1px;
+  font-family: monospace;
 }
 
 .dbg-results-line-contents-string {
@@ -350,7 +247,7 @@
   transform: scale(1.75, 1.75);
 }
 
-/* Toolbar controls */
+/* Toolbar Controls */
 
 #resumption-panel-desc {
   width: 200px;
@@ -381,8 +278,7 @@
   list-style-image: url("chrome://browser/skin/devtools/debugger-step-out.png");
 }
 
-#debugger-controls > toolbarbutton,
-#sources-controls > toolbarbutton {
+#debugger-controls > toolbarbutton {
   margin: 0;
   box-shadow: none;
   border-radius: 0;
@@ -391,13 +287,11 @@
   outline-offset: -3px;
 }
 
-#debugger-controls > toolbarbutton:last-of-type,
-#sources-controls > toolbarbutton:last-of-type {
+#debugger-controls > toolbarbutton:last-of-type {
   -moz-border-end-width: 0;
 }
 
-#debugger-controls,
-#sources-controls {
+#debugger-controls {
   box-shadow: 0 1px 0 hsla(209,29%,72%,.15) inset,
               0 0 0 1px hsla(209,29%,72%,.1) inset,
               0 0 0 1px hsla(209,29%,72%,.1),
@@ -425,29 +319,4 @@
 
 #instruments-pane-toggle:hover:active {
   -moz-image-region: rect(0px,48px,16px,32px);
-}
-
-/* Horizontal vs. vertical layout */
-
-#vertical-layout-panes-container {
-  min-height: 35vh;
-  max-height: 80vh;
-}
-
-#body[layout=vertical] #instruments-pane {
-  margin: 0 !important;
-  /* To prevent all the margin hacks to hide the sidebar. */
-}
-
-#body[layout=vertical] .side-menu-widget-container {
-  box-shadow: none !important;
-}
-
-#body[layout=vertical] .side-menu-widget-item-arrow {
-  background-image: none !important;
-}
-
-#body[layout=vertical] .side-menu-widget-group,
-#body[layout=vertical] .side-menu-widget-item {
-  -moz-margin-end: 0;
 }

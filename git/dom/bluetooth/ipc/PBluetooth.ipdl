@@ -12,7 +12,7 @@ include BluetoothTypes;
 
 include "mozilla/dom/bluetooth/ipc/BluetoothMessageUtils.h";
 
-using mozilla::dom::bluetooth::BluetoothObjectType from "mozilla/dom/bluetooth/BluetoothCommon.h";
+using mozilla::dom::bluetooth::BluetoothObjectType;
 
 namespace mozilla {
 namespace dom {
@@ -78,27 +78,30 @@ struct DenyPairingConfirmationRequest
   nsString path;
 };
 
-struct PairedDevicePropertiesRequest
+struct ConfirmAuthorizationRequest
 {
-  nsString[] addresses;
+  nsString path;
 };
 
-struct ConnectedDevicePropertiesRequest
+struct DenyAuthorizationRequest
 {
-  uint16_t serviceUuid;
+  nsString path;
+};
+
+struct DevicePropertiesRequest
+{
+  nsString[] addresses;
 };
 
 struct ConnectRequest
 {
   nsString address;
-  uint32_t cod;
-  uint16_t serviceUuid;
+  uint16_t profileId;
 };
 
 struct DisconnectRequest
 {
-  nsString address;
-  uint16_t serviceUuid;
+  uint16_t profileId;
 };
 
 struct SendFileRequest
@@ -122,47 +125,6 @@ struct DenyReceivingFileRequest
   nsString devicePath;
 };
 
-struct ConnectScoRequest
-{
-};
-
-struct DisconnectScoRequest
-{
-};
-
-struct IsScoConnectedRequest
-{
-};
-
-struct AnswerWaitingCallRequest
-{
-};
-
-struct IgnoreWaitingCallRequest
-{
-};
-
-struct ToggleCallsRequest
-{
-};
-
-struct SendMetaDataRequest
-{
-  nsString title;
-  nsString artist;
-  nsString album;
-  int64_t mediaNumber;
-  int64_t totalMediaCount;
-  int64_t duration;
-};
-
-struct SendPlayStatusRequest
-{
-  int64_t duration;
-  int64_t position;
-  nsString playStatus;
-};
-
 union Request
 {
   DefaultAdapterPathRequest;
@@ -176,22 +138,15 @@ union Request
   SetPasskeyRequest;
   ConfirmPairingConfirmationRequest;
   DenyPairingConfirmationRequest;
-  ConnectedDevicePropertiesRequest;
-  PairedDevicePropertiesRequest;
+  ConfirmAuthorizationRequest;
+  DenyAuthorizationRequest;
+  DevicePropertiesRequest;
   ConnectRequest;
   DisconnectRequest;
   SendFileRequest;
   StopSendingFileRequest;
   ConfirmReceivingFileRequest;
   DenyReceivingFileRequest;
-  ConnectScoRequest;
-  DisconnectScoRequest;
-  IsScoConnectedRequest;
-  AnswerWaitingCallRequest;
-  IgnoreWaitingCallRequest;
-  ToggleCallsRequest;
-  SendMetaDataRequest;
-  SendPlayStatusRequest;
 };
 
 protocol PBluetooth

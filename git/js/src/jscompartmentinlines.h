@@ -4,12 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jscompartmentinlines_h
-#define jscompartmentinlines_h
-
-#include "jscompartment.h"
-
-#include "gc/Barrier-inl.h"
+#ifndef jscompartment_inlines_h___
+#define jscompartment_inlines_h___
 
 inline void
 JSCompartment::initGlobal(js::GlobalObject &global)
@@ -26,18 +22,11 @@ JSCompartment::maybeGlobal() const
     return global_;
 }
 
-js::AutoCompartment::AutoCompartment(ExclusiveContext *cx, JSObject *target)
+js::AutoCompartment::AutoCompartment(JSContext *cx, JSObject *target)
   : cx_(cx),
-    origin_(cx->compartment_)
+    origin_(cx->compartment)
 {
     cx_->enterCompartment(target->compartment());
-}
-
-js::AutoCompartment::AutoCompartment(ExclusiveContext *cx, JSCompartment *target)
-  : cx_(cx),
-    origin_(cx_->compartment_)
-{
-    cx_->enterCompartment(target);
 }
 
 js::AutoCompartment::~AutoCompartment()
@@ -45,65 +34,58 @@ js::AutoCompartment::~AutoCompartment()
     cx_->leaveCompartment(origin_);
 }
 
-inline bool
-JSCompartment::wrap(JSContext *cx, JS::MutableHandleValue vp, JS::HandleObject existing)
+void *
+js::Allocator::onOutOfMemory(void *p, size_t nbytes)
 {
-    JS_ASSERT_IF(existing, vp.isObject());
-
-    /* Only GC things have to be wrapped or copied. */
-    if (!vp.isMarkable())
-        return true;
-
-    /* Handle strings. */
-    if (vp.isString()) {
-        JS::RootedString str(cx, vp.toString());
-        if (!wrap(cx, str.address()))
-            return false;
-        vp.setString(str);
-        return true;
-    }
-
-    JS_ASSERT(vp.isObject());
-
-    /*
-     * All that's left are objects.
-     *
-     * Object wrapping isn't the fastest thing in the world, in part because
-     * we have to unwrap and invoke the prewrap hook to find the identity
-     * object before we even start checking the cache. Neither of these
-     * operations are needed in the common case, where we're just wrapping
-     * a plain JS object from the wrappee's side of the membrane to the
-     * wrapper's side.
-     *
-     * To optimize this, we note that the cache should only ever contain
-     * identity objects - that is to say, objects that serve as the
-     * canonical representation for a unique object identity observable by
-     * script. Unwrap and prewrap are both steps that we take to get to the
-     * identity of an incoming objects, and as such, they shuld never map
-     * one identity object to another object. This means that we can safely
-     * check the cache immediately, and only risk false negatives. Do this
-     * in opt builds, and do both in debug builds so that we can assert
-     * that we get the same answer.
-     */
-#ifdef DEBUG
-    JS::RootedObject cacheResult(cx);
-#endif
-    JS::RootedValue v(cx, vp);
-    if (js::WrapperMap::Ptr p = crossCompartmentWrappers.lookup(v)) {
-#ifdef DEBUG
-        cacheResult = &p->value.get().toObject();
-#else
-        vp.set(p->value);
-        return true;
-#endif
-    }
-
-    JS::RootedObject obj(cx, &vp.toObject());
-    if (!wrap(cx, &obj, existing))
-        return false;
-    vp.setObject(*obj);
-    JS_ASSERT_IF(cacheResult, obj == cacheResult);
-    return true;
+    return zone->rt->onOutOfMemory(p, nbytes);
 }
 
-#endif /* jscompartmentinlines_h */
+void
+js::Allocator::updateMallocCounter(size_t nbytes)
+{
+    zone->rt->updateMallocCounter(zone, nbytes);
+}
+
+void
+js::Allocator::reportAllocationOverflow()
+{
+    js_ReportAllocationOverflow(NULL);
+}
+
+inline void *
+js::Allocator::parallelNewGCThing(gc::AllocKind thingKind, size_t thingSize)
+{
+    return arenas.parallelAllocate(zone, thingKind, thingSize);
+}
+
+namespace js {
+
+/*
+ * Entering the atoms comaprtment is not possible with the AutoCompartment
+ * since the atoms compartment does not have a global.
+ *
+ * Note: since most of the VM assumes that cx->global is non-null, only a
+ * restricted set of (atom creating/destroying) operations may be used from
+ * inside the atoms compartment.
+ */
+class AutoEnterAtomsCompartment
+{
+    JSContext *cx;
+    JSCompartment *oldCompartment;
+  public:
+    AutoEnterAtomsCompartment(JSContext *cx)
+      : cx(cx),
+        oldCompartment(cx->compartment)
+    {
+        cx->setCompartment(cx->runtime->atomsCompartment);
+    }
+
+    ~AutoEnterAtomsCompartment()
+    {
+        cx->setCompartment(oldCompartment);
+    }
+};
+
+} /* namespace js */
+
+#endif /* jscompartment_inlines_h___ */

@@ -6,10 +6,6 @@
 
 #include "GeckoChildProcessHost.h"
 
-#if defined(XP_WIN) && defined(MOZ_CONTENT_SANDBOX)
-#include "sandboxBroker.h"
-#endif
-
 #include "base/command_line.h"
 #include "base/path_service.h"
 #include "base/string_util.h"
@@ -24,6 +20,9 @@
 #include "prprf.h"
 #include "prenv.h"
 
+#if defined(OS_LINUX)
+#  define XP_LINUX 1
+#endif
 #include "nsExceptionHandler.h"
 
 #include "nsDirectoryServiceDefs.h"
@@ -37,10 +36,6 @@
 #include "nsIWinTaskbar.h"
 #define NS_TASKBAR_CONTRACTID "@mozilla.org/windows-taskbar;1"
 #endif
-
-#include "nsTArray.h"
-#include "nsClassHashtable.h"
-#include "nsHashKeys.h"
 
 using mozilla::MonitorAutoLock;
 using mozilla::ipc::GeckoChildProcessHost;
@@ -87,7 +82,6 @@ GeckoChildProcessHost::GeckoChildProcessHost(GeckoProcessType aProcessType,
                                              ChildPrivileges aPrivileges)
   : ChildProcessHost(RENDER_PROCESS), // FIXME/cjones: we should own this enum
     mProcessType(aProcessType),
-    mSandboxEnabled(true),
     mPrivileges(aPrivileges),
     mMonitor("mozilla.ipc.GeckChildProcessHost.mMonitor"),
     mProcessState(CREATING_CHANNEL),
@@ -98,6 +92,11 @@ GeckoChildProcessHost::GeckoChildProcessHost(GeckoProcessType aProcessType,
 #endif
 {
     MOZ_COUNT_CTOR(GeckoChildProcessHost);
+    
+    MessageLoop* ioLoop = XRE_GetIOMessageLoop();
+    ioLoop->PostTask(FROM_HERE,
+                     NewRunnableMethod(this,
+                                       &GeckoChildProcessHost::InitializeChannel));
 }
 
 GeckoChildProcessHost::~GeckoChildProcessHost()
@@ -291,7 +290,7 @@ GeckoChildProcessHost::SyncLaunch(std::vector<std::string> aExtraOpts, int aTime
 
   ioLoop->PostTask(FROM_HERE,
                    NewRunnableMethod(this,
-                                     &GeckoChildProcessHost::RunPerformAsyncLaunch,
+                                     &GeckoChildProcessHost::PerformAsyncLaunch,
                                      aExtraOpts, arch));
   // NB: this uses a different mechanism than the chromium parent
   // class.
@@ -326,7 +325,7 @@ GeckoChildProcessHost::AsyncLaunch(std::vector<std::string> aExtraOpts)
   MessageLoop* ioLoop = XRE_GetIOMessageLoop();
   ioLoop->PostTask(FROM_HERE,
                    NewRunnableMethod(this,
-                                     &GeckoChildProcessHost::RunPerformAsyncLaunch,
+                                     &GeckoChildProcessHost::PerformAsyncLaunch,
                                      aExtraOpts, base::GetCurrentProcessArchitecture()));
 
   // This may look like the sync launch wait, but we only delay as
@@ -347,7 +346,7 @@ GeckoChildProcessHost::LaunchAndWaitForProcessHandle(StringVector aExtraOpts)
   MessageLoop* ioLoop = XRE_GetIOMessageLoop();
   ioLoop->PostTask(FROM_HERE,
                    NewRunnableMethod(this,
-                                     &GeckoChildProcessHost::RunPerformAsyncLaunch,
+                                     &GeckoChildProcessHost::PerformAsyncLaunch,
                                      aExtraOpts, base::GetCurrentProcessArchitecture()));
 
   MonitorAutoLock lock(mMonitor);
@@ -429,14 +428,6 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts, b
   return retval;
 }
 
-bool
-GeckoChildProcessHost::RunPerformAsyncLaunch(std::vector<std::string> aExtraOpts,
-                                             base::ProcessArchitecture aArch)
-{
-  InitializeChannel();
-  return PerformAsyncLaunch(aExtraOpts, aArch);
-}
-
 void
 #if defined(XP_WIN)
 AddAppDirToCommandLine(CommandLine& aCmdLine)
@@ -480,7 +471,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
     return false;
   }
 
-  base::ProcessHandle process = 0;
+  base::ProcessHandle process;
 
   // send the child the PID so that it can open a ProcessHandle back to us.
   // probably don't want to do this in the long run
@@ -665,11 +656,6 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
 #endif
                   false, &process, arch);
 
-  // We're in the parent and the child was launched. Close the child FD in the
-  // parent as soon as possible, which will allow the parent to detect when the
-  // child closes its FD (either due to normal exit or due to crash).
-  GetChannel()->CloseClientFileDescriptor();
-
 #ifdef MOZ_WIDGET_COCOA
   // Wait for the child process to send us its 'task_t' data.
   const int kTimeoutMs = 10000;
@@ -740,13 +726,6 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
     }
   }
 
-#if defined(XP_WIN) && defined(MOZ_CONTENT_SANDBOX)
-  if (mSandboxEnabled) {
-    // Tell the process that it should lower its rights after initialization.
-    cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
-  }
-#endif
-
   // Add the application directory path (-appdir path)
   AddAppDirToCommandLine(cmdLine);
 
@@ -768,18 +747,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
   // Process type
   cmdLine.AppendLooseValue(UTF8ToWide(childProcessType));
 
-#if defined(XP_WIN) && defined(MOZ_CONTENT_SANDBOX)
-  if (mSandboxEnabled) {
-
-    mozilla::SandboxBroker sandboxBroker;
-    sandboxBroker.LaunchApp(cmdLine.program().c_str(),
-                            cmdLine.command_line_string().c_str(),
-                            &process);
-  } else
-#endif
-  {
-    base::LaunchApp(cmdLine, false, false, &process);
-  }
+  base::LaunchApp(cmdLine, false, false, &process);
 
 #else
 #  error Sorry
@@ -863,52 +831,3 @@ GeckoChildProcessHost::OnWaitableEventSignaled(base::WaitableEvent *event)
   }
   ChildProcessHost::OnWaitableEventSignaled(event);
 }
-
-#ifdef MOZ_NUWA_PROCESS
-
-using mozilla::ipc::GeckoExistingProcessHost;
-using mozilla::ipc::FileDescriptor;
-
-GeckoExistingProcessHost::
-GeckoExistingProcessHost(GeckoProcessType aProcessType,
-                         base::ProcessHandle aProcess,
-                         const FileDescriptor& aFileDescriptor,
-                         ChildPrivileges aPrivileges)
-  : GeckoChildProcessHost(aProcessType, aPrivileges)
-  , mExistingProcessHandle(aProcess)
-  , mExistingFileDescriptor(aFileDescriptor)
-{
-  NS_ASSERTION(aFileDescriptor.IsValid(),
-               "Expected file descriptor to be valid");
-}
-
-GeckoExistingProcessHost::~GeckoExistingProcessHost()
-{
-}
-
-bool
-GeckoExistingProcessHost::PerformAsyncLaunch(StringVector aExtraOpts,
-                                             base::ProcessArchitecture aArch)
-{
-  SetHandle(mExistingProcessHandle);
-
-  OpenPrivilegedHandle(base::GetProcId(mExistingProcessHandle));
-
-  MonitorAutoLock lock(mMonitor);
-  mProcessState = PROCESS_CREATED;
-  lock.Notify();
-
-  return true;
-}
-
-void
-GeckoExistingProcessHost::InitializeChannel()
-{
-  CreateChannel(mExistingFileDescriptor);
-
-  MonitorAutoLock lock(mMonitor);
-  mProcessState = CHANNEL_INITIALIZED;
-  lock.Notify();
-}
-
-#endif /* MOZ_NUWA_PROCESS */

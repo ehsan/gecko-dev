@@ -4,14 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
 #include "nsHttp.h"
 #include "pldhash.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/HashFunctions.h"
 #include "nsCRT.h"
+#include "prbit.h"
 
 using namespace mozilla;
 
@@ -100,7 +98,7 @@ static const PLDHashTableOps ops = {
 nsresult
 nsHttp::CreateAtomTable()
 {
-    MOZ_ASSERT(!sAtomTable.ops, "atom table already initialized");
+    NS_ASSERTION(!sAtomTable.ops, "atom table already initialized");
 
     if (!sLock) {
         sLock = new Mutex("nsHttp.sLock");
@@ -128,8 +126,8 @@ nsHttp::CreateAtomTable()
                                                  (PL_DHashTableOperate(&sAtomTable, atoms[i], PL_DHASH_ADD));
         if (!stub)
             return NS_ERROR_OUT_OF_MEMORY;
-
-        MOZ_ASSERT(!stub->key, "duplicate static atom");
+        
+        NS_ASSERTION(!stub->key, "duplicate static atom");
         stub->key = atoms[i];
     }
 

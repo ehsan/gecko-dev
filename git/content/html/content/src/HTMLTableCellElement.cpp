@@ -25,13 +25,22 @@ HTMLTableCellElement::~HTMLTableCellElement()
 }
 
 JSObject*
-HTMLTableCellElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLTableCellElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return HTMLTableCellElementBinding::Wrap(aCx, aScope, this);
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLTableCellElement, nsGenericHTMLElement,
-                             nsIDOMHTMLTableCellElement)
+NS_IMPL_ADDREF_INHERITED(HTMLTableCellElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLTableCellElement, Element)
+
+// QueryInterface implementation for HTMLTableCellElement
+NS_INTERFACE_TABLE_HEAD(HTMLTableCellElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLTableCellElement,
+                                   nsIDOMHTMLTableCellElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLTableCellElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
+
 
 NS_IMPL_ELEMENT_CLONE(HTMLTableCellElement)
 

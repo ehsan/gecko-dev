@@ -4,22 +4,19 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SVGMotionSMILAnimationFunction.h"
+#include "nsSMILParserUtils.h"
+#include "nsSVGAngle.h"
+#include "SVGMotionSMILType.h"
+#include "SVGMotionSMILPathUtils.h"
+#include "nsSVGPathDataParser.h"
 #include "mozilla/dom/SVGAnimationElement.h"
 #include "mozilla/dom/SVGPathElement.h" // for nsSVGPathList
 #include "mozilla/dom/SVGMPathElement.h"
-#include "mozilla/gfx/2D.h"
-#include "nsAttrValue.h"
 #include "nsAttrValueInlines.h"
-#include "nsSMILParserUtils.h"
-#include "nsSVGAngle.h"
-#include "nsSVGPathDataParser.h"
-#include "SVGMotionSMILType.h"
-#include "SVGMotionSMILPathUtils.h"
-
-using namespace mozilla::dom;
-using namespace mozilla::gfx;
 
 namespace mozilla {
+
+using namespace dom;
 
 SVGMotionSMILAnimationFunction::SVGMotionSMILAnimationFunction()
   : mRotateType(eRotateType_Explicit),
@@ -229,7 +226,7 @@ SVGMotionSMILAnimationFunction::
       bool ok =
         path.GetDistancesFromOriginToEndsOfVisibleSegments(&mPathVertices);
       if (ok && mPathVertices.Length()) {
-        mPath = pathElem->GetPathForLengthOrPositionMeasuring();
+        mPath = pathElem->GetFlattenedPath(gfxMatrix());
       }
     }
   }
@@ -241,20 +238,20 @@ SVGMotionSMILAnimationFunction::RebuildPathAndVerticesFromPathAttr()
   const nsAString& pathSpec = GetAttr(nsGkAtoms::path)->GetStringValue();
   mPathSourceType = ePathSourceType_PathAttr;
 
-  // Generate Path from |path| attr
+  // Generate gfxFlattenedPath from |path| attr
   SVGPathData path;
-  nsSVGPathDataParser pathParser(pathSpec, &path);
+  nsSVGPathDataParserToInternal pathParser(&path);
 
   // We ignore any failure returned from Parse() since the SVG spec says to
   // accept all segments up to the first invalid token. Instead we must
   // explicitly check that the parse produces at least one path segment (if
   // the path data doesn't begin with a valid "M", then it's invalid).
-  pathParser.Parse();
+  pathParser.Parse(pathSpec);
   if (!path.Length()) {
     return;
   }
 
-  mPath = path.ToPathForLengthOrPositionMeasuring();
+  mPath = path.ToFlattenedPath(gfxMatrix());
   bool ok = path.GetDistancesFromOriginToEndsOfVisibleSegments(&mPathVertices);
   if (!ok || !mPathVertices.Length()) {
     mPath = nullptr;
@@ -294,7 +291,7 @@ SVGMotionSMILAnimationFunction::
 
 bool
 SVGMotionSMILAnimationFunction::
-  GenerateValuesForPathAndPoints(Path* aPath,
+  GenerateValuesForPathAndPoints(gfxFlattenedPath* aPath,
                                  bool aIsKeyPoints,
                                  nsTArray<double>& aPointDistances,
                                  nsTArray<nsSMILValue>& aResult)
@@ -303,7 +300,7 @@ SVGMotionSMILAnimationFunction::
 
   // If we're using "keyPoints" as our list of input distances, then we need
   // to de-normalize from the [0, 1] scale to the [0, totalPathLen] scale.
-  double distanceMultiplier = aIsKeyPoints ? aPath->ComputeLength() : 1.0;
+  double distanceMultiplier = aIsKeyPoints ? aPath->GetLength() : 1.0;
   const uint32_t numPoints = aPointDistances.Length();
   for (uint32_t i = 0; i < numPoints; ++i) {
     double curDist = aPointDistances[i] * distanceMultiplier;

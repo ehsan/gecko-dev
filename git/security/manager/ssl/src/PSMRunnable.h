@@ -8,7 +8,6 @@
 #include "mozilla/Monitor.h"
 #include "nsThreadUtils.h"
 #include "nsIObserver.h"
-#include "nsProxyRelease.h"
 
 namespace mozilla { namespace psm {
 
@@ -32,12 +31,10 @@ class NotifyObserverRunnable : public nsRunnable
 public:
   NotifyObserverRunnable(nsIObserver * observer,
                          const char * topicStringLiteral)
-    : mObserver(), mTopic(topicStringLiteral) {
-    mObserver = new nsMainThreadPtrHolder<nsIObserver>(observer);
-  }
+    : mObserver(), mTopic(topicStringLiteral) { mObserver = observer; }
   NS_DECL_NSIRUNNABLE
 private:
-  nsMainThreadPtrHandle<nsIObserver> mObserver;
+  nsCOMPtr<nsIObserver> mObserver;
   const char * const mTopic;
 };
 

@@ -5,8 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "xpcprivate.h"
-#include "jsprf.h"
-#include "js/OldDebugAPI.h"
 
 #ifdef XP_WIN
 #include <windows.h>
@@ -32,8 +30,8 @@ static void DebugDump(const char* fmt, ...)
   printf("%s", buffer);
 }
 
-bool
-xpc_DumpJSStack(JSContext* cx, bool showArgs, bool showLocals, bool showThisProps)
+JSBool
+xpc_DumpJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals, JSBool showThisProps)
 {
     if (char* buf = xpc_PrintJSStack(cx, showArgs, showLocals, showThisProps)) {
         DebugDump("%s\n", buf);
@@ -43,8 +41,8 @@ xpc_DumpJSStack(JSContext* cx, bool showArgs, bool showLocals, bool showThisProp
 }
 
 char*
-xpc_PrintJSStack(JSContext* cx, bool showArgs, bool showLocals,
-                 bool showThisProps)
+xpc_PrintJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals,
+                 JSBool showThisProps)
 {
     char* buf;
     JSExceptionState *state = JS_SaveExceptionState(cx);
@@ -70,7 +68,7 @@ xpcDumpEvalErrorReporter(JSContext *cx, const char *message,
     DebugDump("Error: %s\n", message);
 }
 
-bool
+JSBool
 xpc_DumpEvalInJSStackFrame(JSContext* cx, uint32_t frameno, const char* text)
 {
     if (!cx || !text) {
@@ -99,6 +97,8 @@ xpc_DumpEvalInJSStackFrame(JSContext* cx, uint32_t frameno, const char* text)
         return false;
     }
 
+    JSAutoRequest ar(cx);
+
     JSExceptionState* exceptionState = JS_SaveExceptionState(cx);
     JSErrorReporter older = JS_SetErrorReporter(cx, xpcDumpEvalErrorReporter);
 
@@ -106,7 +106,7 @@ xpc_DumpEvalInJSStackFrame(JSContext* cx, uint32_t frameno, const char* text)
     JSString* str;
     JSAutoByteString bytes;
     if (frame.evaluateInStackFrame(cx, text, strlen(text), "eval", 1, &rval) &&
-        nullptr != (str = ToString(cx, rval)) &&
+        nullptr != (str = JS_ValueToString(cx, rval)) &&
         bytes.encodeLatin1(cx, str)) {
         DebugDump("%s\n", bytes.ptr());
     } else
@@ -131,7 +131,7 @@ xpc_DebuggerKeywordHandler(JSContext *cx, JSScript *script, jsbytecode *pc,
     return JSTRAP_CONTINUE;
 }
 
-bool xpc_InstallJSDebuggerKeywordHandler(JSRuntime* rt)
+JSBool xpc_InstallJSDebuggerKeywordHandler(JSRuntime* rt)
 {
     return JS_SetDebuggerHandler(rt, xpc_DebuggerKeywordHandler, nullptr);
 }

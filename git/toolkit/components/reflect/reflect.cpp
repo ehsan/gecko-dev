@@ -41,10 +41,12 @@ NS_IMETHODIMP
 Module::Call(nsIXPConnectWrappedNative* wrapper,
              JSContext* cx,
              JSObject* obj,
-             const JS::CallArgs& args,
+             uint32_t argc,
+             JS::Value* argv,
+             JS::Value* vp,
              bool* _retval)
 {
-  JSObject* global = JS::CurrentGlobalOrNull(cx);
+  JSObject* global = JS_GetGlobalForScopeChain(cx);
   if (!global)
     return NS_ERROR_NOT_AVAILABLE;
 
@@ -58,13 +60,13 @@ Module::Call(nsIXPConnectWrappedNative* wrapper,
 NS_DEFINE_NAMED_CID(JSREFLECT_CID);
 
 static const mozilla::Module::CIDEntry kReflectCIDs[] = {
-  { &kJSREFLECT_CID, false, nullptr, mozilla::reflect::ModuleConstructor },
-  { nullptr }
+  { &kJSREFLECT_CID, false, NULL, mozilla::reflect::ModuleConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kReflectContracts[] = {
   { JSREFLECT_CONTRACTID, &kJSREFLECT_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kReflectModule = {

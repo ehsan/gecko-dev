@@ -17,13 +17,6 @@ class SkData;
 
 class SK_API SkStream : public SkRefCnt {
 public:
-    /**
-     *  Attempts to open the specified file, and return a stream to it (using
-     *  mmap if available). On success, the caller must call unref() on the
-     *  returned object. On failure, returns NULL.
-     */
-    static SkStream* NewFromFile(const char path[]);
-
     SK_DECLARE_INST_COUNT(SkStream)
 
     /** Called to rewind to the beginning of the stream. If this cannot be
@@ -73,8 +66,8 @@ public:
     size_t   readPackedUInt();
 
     /**
-     *  Reconstitute an SkData object that was written to the stream
-     *  using SkWStream::writeData().
+     *  Create a new SkData from the stream contents. This balances the call
+     *  SkWStream::writeData().
      */
     SkData* readData();
 
@@ -115,14 +108,6 @@ public:
 
     bool writeStream(SkStream* input, size_t length);
 
-    /**
-     * Append an SkData object to the stream, such that it can be read
-     * out of the stream using SkStream::readData().
-     *
-     * Note that the encoding method used to write the SkData object
-     * to the stream may change over time.  This method DOES NOT
-     * just write the raw content of the SkData object to the stream.
-     */
     bool writeData(const SkData*);
 };
 
@@ -135,7 +120,7 @@ struct SkFILE;
 /** A stream that reads from a FILE*, which is opened in the constructor and
     closed in the destructor
  */
-class SK_API SkFILEStream : public SkStream {
+class SkFILEStream : public SkStream {
 public:
     SK_DECLARE_INST_COUNT(SkFILEStream)
 
@@ -166,7 +151,7 @@ private:
 
 /** A stream that reads from a file descriptor
  */
-class SK_API SkFDStream : public SkStream {
+class SkFDStream : public SkStream {
 public:
     SK_DECLARE_INST_COUNT(SkFDStream)
 
@@ -192,7 +177,7 @@ private:
     typedef SkStream INHERITED;
 };
 
-class SK_API SkMemoryStream : public SkStream {
+class SkMemoryStream : public SkStream {
 public:
     SK_DECLARE_INST_COUNT(SkMemoryStream)
 
@@ -203,13 +188,6 @@ public:
     /** if copyData is true, the stream makes a private copy of the data
     */
     SkMemoryStream(const void* data, size_t length, bool copyData = false);
-
-    /**
-     *  Use the specified data as the memory for this stream. The stream will
-     *  call ref() on the data (assuming it is not null).
-     */
-    SkMemoryStream(SkData*);
-
     virtual ~SkMemoryStream();
 
     /** Resets the stream to the specified data and length,
@@ -257,7 +235,7 @@ private:
     The caller can provide the buffer, or ask SkBufferStream to allocated/free
     it automatically.
 */
-class SK_API SkBufferStream : public SkStream {
+class SkBufferStream : public SkStream {
 public:
     SK_DECLARE_INST_COUNT(SkBufferStream)
 
@@ -379,7 +357,7 @@ private:
 };
 
 
-class SK_API SkDebugWStream : public SkWStream {
+class SkDebugWStream : public SkWStream {
 public:
     SK_DECLARE_INST_COUNT(SkDebugWStream)
 

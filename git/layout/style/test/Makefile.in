@@ -3,6 +3,20 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+relativesrcdir  = @relativesrcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+HOST_CPPSRCS	= \
+		ListCSSProperties.cpp \
+		$(NULL)
+
+HOST_SIMPLE_PROGRAMS	= $(addprefix host_, $(HOST_CPPSRCS:.cpp=$(HOST_BIN_SUFFIX)))
+
 # ParseCSS.cpp used to be built as a test program, but it was not
 # being used for anything, and recent changes to the CSS loader have
 # made it fail to link.  Further changes are planned which should make
@@ -15,7 +29,6 @@
 #LIBS += ../nsCSSKeywords.$(OBJ_SUFFIX) ../nsCSSProps.$(OBJ_SUFFIX) $(XPCOM_LIBS)
 
 MOCHITEST_FILES =	test_acid3_test46.html \
-		test_all_shorthand.html \
 		test_animations.html \
 		test_any_dynamic.html \
 		test_at_rule_parse_serialize.html \
@@ -71,39 +84,23 @@ MOCHITEST_FILES =	test_acid3_test46.html \
 		test_bug716226.html \
 		test_bug765590.html \
 		test_bug798567.html \
-		test_bug798843_pref.html \
-		test_bug829816.html \
-		file_bug829816.css \
-		test_bug887741_at-rules_in_declaration_lists.html \
-		test_bug892929.html \
 		test_cascade.html \
 		test_ch_ex_no_infloops.html \
 		test_compute_data_with_start_struct.html \
 		test_computed_style.html \
 		test_computed_style_no_pseudo.html \
-		test_computed_style_prefs.html \
 		test_condition_text.html \
 		test_condition_text_assignment.html \
 		test_default_computed_style.html \
 		test_css_cross_domain.html \
 		test_css_eof_handling.html \
-		test_css_function_mismatched_parenthesis.html \
 		test_css_supports.html \
 		test_default_bidi_css.html \
 		test_descriptor_storage.html \
 		test_descriptor_syntax_errors.html \
 		test_dont_use_document_colors.html \
-		test_flexbox_align_self_auto.html \
-		test_flexbox_child_display_values.xhtml \
-		test_flexbox_flex_grow_and_shrink.html \
-		test_flexbox_flex_shorthand.html \
-		test_flexbox_layout.html \
-		flexbox_layout_testcases.js \
-		test_flexbox_order.html \
-		test_flexbox_order_table.html \
 		test_font_face_parser.html \
 		test_font_family_parsing.html \
-		test_font_feature_values_parsing.html \
 		test_garbage_at_end_of_declarations.html \
 		test_group_insertRule.html \
 		test_html_attribute_computed_values.html \
@@ -120,19 +117,15 @@ MOCHITEST_FILES =	test_acid3_test46.html \
 		test_moz_device_pixel_ratio.html \
 		test_namespace_rule.html \
 		test_of_type_selectors.xhtml \
-		test_parse_eof.html \
 		test_parse_ident.html \
 		test_parse_rule.html \
 		test_parse_url.html \
 		test_parser_diagnostics_unprintables.html \
 		test_pixel_lengths.html \
 		test_pointer-events.html \
-		file_position_sticky.html \
-		test_position_sticky.html \
+		test_property_database.html \
 		test_priority_preservation.html \
 		test_property_syntax_errors.html \
-		test_redundant_font_download.html \
-		redundant_font_download.sjs \
 		test_rem_unit.html \
 		test_rule_insertion.html \
 		test_rule_serialization.html \
@@ -140,10 +133,6 @@ MOCHITEST_FILES =	test_acid3_test46.html \
 		test_selectors.html \
 		test_selectors_on_anonymous_content.html \
 		test_shorthand_property_getters.html \
-		test_specified_value_serialization.html \
-		test_style_attribute_quirks.html \
-		test_style_attribute_standards.html \
-		style_attribute_tests.js \
 		test_style_struct_copy_constructors.html \
 		test_supports_rules.html \
 		test_system_font_serialization.html \
@@ -172,6 +161,7 @@ MOCHITEST_FILES =	test_acid3_test46.html \
 		test_visited_pref.html \
 		test_visited_reftests.html \
 		animation_utils.js \
+		css_properties.js \
 		property_database.js \
 		descriptor_database.js \
 		unstyled.xml \
@@ -200,16 +190,36 @@ MOCHITEST_FILES =	test_acid3_test46.html \
 		visited_image_loading_frame.html \
 		visited_image_loading_frame_empty.html \
 		test_load_events_on_stylesheets.html \
+		test_bug721136.html \
 		test_page_parser.html \
 		test_bug732153.html \
 		test_bug732209.html \
 		bug732209-css.sjs \
 		test_bug795520.html \
 		viewport_units_iframe.html \
-		test_background_blend_mode.html \
 		$(NULL)
 
-VISITED_REFTEST_FILES = \
+ifdef MOZ_FLEXBOX
+MOCHITEST_FILES +=	\
+		file_flexbox_align_self_auto.html \
+		test_flexbox_align_self_auto.html \
+		file_flexbox_child_display_values.xhtml \
+		test_flexbox_child_display_values.html \
+		file_flexbox_flex_grow_and_shrink.html \
+		test_flexbox_flex_grow_and_shrink.html \
+		file_flexbox_flex_shorthand.html \
+		test_flexbox_flex_shorthand.html \
+		file_flexbox_layout.html \
+		test_flexbox_layout.html \
+		flexbox_layout_testcases.js \
+		file_flexbox_order.html \
+		test_flexbox_order.html \
+		file_flexbox_order_table.html \
+		test_flexbox_order_table.html \
+		$(NULL)
+endif
+
+_VISITED_REFTEST_FILES = \
 		$(shell find $(topsrcdir)/layout/reftests/css-visited/ -name '*.html' -o -name '*.xhtml') \
 		$(topsrcdir)/layout/reftests/svg/pseudo-classes-02.svg \
 		$(topsrcdir)/layout/reftests/svg/pseudo-classes-02-ref.svg \
@@ -217,16 +227,20 @@ VISITED_REFTEST_FILES = \
 		$(topsrcdir)/layout/reftests/svg/as-image/svg-image-visited-1-helper.svg \
 		$(topsrcdir)/layout/reftests/svg/as-image/svg-image-visited-2-helper.svg \
 		$(NULL)
-VISITED_REFTEST_DEST = $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)/css-visited/
-INSTALL_TARGETS += VISITED_REFTEST
 
-DEFINES += -DMOZILLA_INTERNAL_API
-
-ifdef COMPILE_ENVIRONMENT
-MOCHITEST_FILES += \
-		test_property_database.html \
-		css_properties.js \
+MOCHITEST_BROWSER_FILES = \
+		browser_bug453896.js \
+		bug453896_iframe.html \
+		media_queries_iframe.html \
 		$(NULL)
+
+include $(topsrcdir)/config/rules.mk
+
+DEFINES += -DMOZILLA_INTERNAL_API -D_IMPL_NS_LAYOUT
+
+# FIXME: We don't seem to do auto-generated dependencies here.
+host_ListCSSProperties.$(OBJ_SUFFIX): $(srcdir)/../nsCSSPropList.h
+TestCSSPropertyLookup.$(OBJ_SUFFIX): $(srcdir)/../nsCSSProps.h $(srcdir)/../nsCSSKeywords.h
 
 css_properties.js: host_ListCSSProperties$(HOST_BIN_SUFFIX) css_properties_like_longhand.js Makefile
 	$(RM) $@
@@ -234,4 +248,6 @@ css_properties.js: host_ListCSSProperties$(HOST_BIN_SUFFIX) css_properties_like_
 	cat $(srcdir)/css_properties_like_longhand.js >> $@
 
 GARBAGE += css_properties.js
-endif
+
+libs:: $(_VISITED_REFTEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)/css-visited/

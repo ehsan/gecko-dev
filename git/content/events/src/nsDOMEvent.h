@@ -6,29 +6,25 @@
 #ifndef nsDOMEvent_h__
 #define nsDOMEvent_h__
 
-#include "mozilla/Attributes.h"
-#include "mozilla/BasicEvents.h"
 #include "nsIDOMEvent.h"
 #include "nsISupports.h"
 #include "nsCOMPtr.h"
+#include "nsIDOMEventTarget.h"
 #include "nsPIDOMWindow.h"
 #include "nsPoint.h"
+#include "nsGUIEvent.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsAutoPtr.h"
+#include "nsIJSNativeInitializer.h"
+#include "mozilla/dom/EventTarget.h"
 #include "mozilla/dom/EventBinding.h"
+#include "mozilla/dom/BindingUtils.h"
 #include "nsIScriptGlobalObject.h"
-#include "Units.h"
-#include "js/TypeDecls.h"
 
 class nsIContent;
-class nsIDOMEventTarget;
 class nsPresContext;
-
-namespace mozilla {
-namespace dom {
-class EventTarget;
-}
-}
+struct JSContext;
+class JSObject;
 
 // Dummy class so we can cast through it to get from nsISupports to
 // nsDOMEvent subclasses with only two non-ambiguous static casts.
@@ -37,17 +33,13 @@ class nsDOMEventBase : public nsIDOMEvent
 };
 
 class nsDOMEvent : public nsDOMEventBase,
+                   public nsIJSNativeInitializer,
                    public nsWrapperCache
 {
-public:
+protected:
   nsDOMEvent(mozilla::dom::EventTarget* aOwner, nsPresContext* aPresContext,
-             mozilla::WidgetEvent* aEvent);
-  nsDOMEvent(nsPIDOMWindow* aWindow);
+             nsEvent* aEvent);
   virtual ~nsDOMEvent();
-private:
-  void ConstructorInit(mozilla::dom::EventTarget* aOwner,
-                       nsPresContext* aPresContext,
-                       mozilla::WidgetEvent* aEvent);
 public:
   void GetParentObject(nsIScriptGlobalObject** aParentObject)
   {
@@ -76,16 +68,24 @@ public:
     return static_cast<nsDOMEvent*>(event);
   }
 
+  static already_AddRefed<nsDOMEvent> CreateEvent(mozilla::dom::EventTarget* aOwner,
+                                                  nsPresContext* aPresContext,
+                                                  nsEvent* aEvent)
+  {
+    nsRefPtr<nsDOMEvent> e = new nsDOMEvent(aOwner, aPresContext, aEvent);
+    e->SetIsDOMBinding();
+    return e.forget();
+  }
+
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMEvent)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsDOMEvent, nsIDOMEvent)
 
   nsISupports* GetParentObject()
   {
     return mOwner;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE
   {
     return mozilla::dom::EventBinding::Wrap(aCx, aScope, this);
   }
@@ -93,33 +93,36 @@ public:
   // nsIDOMEvent Interface
   NS_DECL_NSIDOMEVENT
 
+  // nsIJSNativeInitializer
+  NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aCx, JSObject* aObj,
+                        uint32_t aArgc, JS::Value* aArgv);
+
+  virtual nsresult InitFromCtor(const nsAString& aType,
+                                JSContext* aCx, JS::Value* aVal);
+
   void InitPresContextData(nsPresContext* aPresContext);
 
   // Returns true if the event should be trusted.
   bool Init(mozilla::dom::EventTarget* aGlobal);
 
-  static PopupControlState GetEventPopupControlState(
-                             mozilla::WidgetEvent* aEvent);
+  static PopupControlState GetEventPopupControlState(nsEvent *aEvent);
 
   static void PopupAllowedEventsChanged();
 
   static void Shutdown();
 
   static const char* GetEventName(uint32_t aEventType);
-  static mozilla::CSSIntPoint
-  GetClientCoords(nsPresContext* aPresContext,
-                  mozilla::WidgetEvent* aEvent,
-                  mozilla::LayoutDeviceIntPoint aPoint,
-                  mozilla::CSSIntPoint aDefaultPoint);
-  static mozilla::CSSIntPoint
-  GetPageCoords(nsPresContext* aPresContext,
-                mozilla::WidgetEvent* aEvent,
-                mozilla::LayoutDeviceIntPoint aPoint,
-                mozilla::CSSIntPoint aDefaultPoint);
-  static nsIntPoint
-  GetScreenCoords(nsPresContext* aPresContext,
-                  mozilla::WidgetEvent* aEvent,
-                  mozilla::LayoutDeviceIntPoint aPoint);
+  static nsIntPoint GetClientCoords(nsPresContext* aPresContext,
+                                    nsEvent* aEvent,
+                                    nsIntPoint aPoint,
+                                    nsIntPoint aDefaultPoint);
+  static nsIntPoint GetPageCoords(nsPresContext* aPresContext,
+                                  nsEvent* aEvent,
+                                  nsIntPoint aPoint,
+                                  nsIntPoint aDefaultPoint);
+  static nsIntPoint GetScreenCoords(nsPresContext* aPresContext,
+                                    nsEvent* aEvent,
+                                    nsIntPoint aPoint);
 
   static already_AddRefed<nsDOMEvent> Constructor(const mozilla::dom::GlobalObject& aGlobal,
                                                   const nsAString& aType,
@@ -182,7 +185,10 @@ public:
   mozilla::dom::EventTarget* GetOriginalTarget() const;
   mozilla::dom::EventTarget* GetExplicitOriginalTarget() const;
 
-  bool GetPreventDefault() const;
+  bool GetPreventDefault() const
+  {
+    return DefaultPrevented();
+  }
 
 protected:
 
@@ -190,13 +196,13 @@ protected:
   void SetEventType(const nsAString& aEventTypeArg);
   already_AddRefed<nsIContent> GetTargetFromFrame();
 
-  mozilla::WidgetEvent*       mEvent;
+  nsEvent*                    mEvent;
   nsRefPtr<nsPresContext>     mPresContext;
   nsCOMPtr<mozilla::dom::EventTarget> mExplicitOriginalTarget;
   nsCOMPtr<nsPIDOMWindow>     mOwner; // nsPIDOMWindow for now.
+  nsString                    mCachedType;
   bool                        mEventIsInternal;
   bool                        mPrivateDataDuplicated;
-  bool                        mIsMainThreadEvent;
 };
 
 #define NS_FORWARD_TO_NSDOMEVENT \
@@ -217,11 +223,13 @@ protected:
   NS_IMETHOD StopImmediatePropagation(void) { return _to StopImmediatePropagation(); } \
   NS_IMETHOD GetOriginalTarget(nsIDOMEventTarget** aOriginalTarget) { return _to GetOriginalTarget(aOriginalTarget); } \
   NS_IMETHOD GetExplicitOriginalTarget(nsIDOMEventTarget** aExplicitOriginalTarget) { return _to GetExplicitOriginalTarget(aExplicitOriginalTarget); } \
+  NS_IMETHOD PreventBubble() { return _to PreventBubble(); } \
+  NS_IMETHOD PreventCapture() { return _to PreventCapture(); } \
   NS_IMETHOD GetPreventDefault(bool* aRetval) { return _to GetPreventDefault(aRetval); } \
   NS_IMETHOD GetIsTrusted(bool* aIsTrusted) { return _to GetIsTrusted(aIsTrusted); } \
   NS_IMETHOD SetTarget(nsIDOMEventTarget *aTarget) { return _to SetTarget(aTarget); } \
   NS_IMETHOD_(bool) IsDispatchStopped(void) { return _to IsDispatchStopped(); } \
-  NS_IMETHOD_(mozilla::WidgetEvent*) GetInternalNSEvent(void) { return _to GetInternalNSEvent(); } \
+  NS_IMETHOD_(nsEvent *) GetInternalNSEvent(void) { return _to GetInternalNSEvent(); } \
   NS_IMETHOD_(void) SetTrusted(bool aTrusted) { _to SetTrusted(aTrusted); } \
   NS_IMETHOD_(void) SetOwner(mozilla::dom::EventTarget* aOwner) { _to SetOwner(aOwner); } \
   NS_IMETHOD_(nsDOMEvent *) InternalDOMEvent(void) { return _to InternalDOMEvent(); }

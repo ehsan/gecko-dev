@@ -16,10 +16,6 @@
 #include "nsISimpleEnumerator.h"
 #include "mozilla/Attributes.h"
 
-namespace mozilla {
-class ObserverServiceReporter;
-} // namespace mozilla
-
 struct ObserverRef
 {
   ObserverRef(const ObserverRef& o) :
@@ -46,8 +42,6 @@ struct ObserverRef
 
 class nsObserverList : public nsCharPtrHashKey
 {
-  friend class mozilla::ObserverServiceReporter;
-
 public:
   nsObserverList(const char *key) : nsCharPtrHashKey(key)
   { MOZ_COUNT_CTOR(nsObserverList); }

@@ -6,7 +6,7 @@
 #ifndef mozilla_dom_HTMLProgressElement_h
 #define mozilla_dom_HTMLProgressElement_h
 
-#include "mozilla/Attributes.h"
+#include "nsIDOMHTMLProgressElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsAttrValue.h"
 #include "nsAttrValueInlines.h"
@@ -16,35 +16,52 @@
 namespace mozilla {
 namespace dom {
 
-class HTMLProgressElement MOZ_FINAL : public nsGenericHTMLElement
+class HTMLProgressElement : public nsGenericHTMLElement,
+                            public nsIDOMHTMLProgressElement
 {
 public:
   HTMLProgressElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~HTMLProgressElement();
 
-  nsEventStates IntrinsicState() const MOZ_OVERRIDE;
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
 
-  nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const MOZ_OVERRIDE;
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLProgressElement
+  NS_DECL_NSIDOMHTMLPROGRESSELEMENT
+
+  nsEventStates IntrinsicState() const;
+
+  nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
   bool ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
-                        const nsAString& aValue, nsAttrValue& aResult) MOZ_OVERRIDE;
+                        const nsAString& aValue, nsAttrValue& aResult);
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // WebIDL
   double Value() const;
   void SetValue(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::value, aValue, aRv);
+    aRv = SetDoubleAttr(nsGkAtoms::value, aValue);
   }
   double Max() const;
   void SetMax(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::max, aValue, aRv);
+    aRv = SetDoubleAttr(nsGkAtoms::max, aValue);
   }
   double Position() const;
 
 protected:
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
 protected:
   /**

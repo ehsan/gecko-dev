@@ -32,7 +32,7 @@
 #ifndef WEBRTC_VOICE_ENGINE_VOE_EXTERNAL_MEDIA_H
 #define WEBRTC_VOICE_ENGINE_VOE_EXTERNAL_MEDIA_H
 
-#include "webrtc/common_types.h"
+#include "common_types.h"
 
 namespace webrtc {
 
@@ -51,9 +51,9 @@ public:
     // The sampling frequency will depend upon the codec used.
     // If |isStereo| is true, audio10ms will contain 16-bit PCM data
     // samples in interleaved stereo format (L0,R0,L1,R1,...).
-    virtual void Process(int channel, ProcessingTypes type,
-                         int16_t audio10ms[], int length,
-                         int samplingFreq, bool isStereo) = 0;
+    virtual void Process(const int channel, const ProcessingTypes type,
+                         WebRtc_Word16 audio10ms[], const int length,
+                         const int samplingFreq, const bool isStereo) = 0;
 
 protected:
     virtual ~VoEMediaProcess() {}
@@ -93,23 +93,22 @@ public:
     // this method should be called at as regular an interval as possible
     // with frames of corresponding size.
     virtual int ExternalRecordingInsertData(
-        const int16_t speechData10ms[], int lengthSamples,
+        const WebRtc_Word16 speechData10ms[], int lengthSamples,
         int samplingFreqHz, int current_delay_ms) = 0;
-
 
     // This function gets audio for an external playout sink.
     // During transmission, this function should be called every ~10 ms
     // to obtain a new 10 ms frame of audio. The length of the block will
-    // be 160, 320, 440 or 480 samples (for 16000, 32000, 44100 or 48000
-    // kHz sampling rates respectively).
+    // be 160, 320, 440 or 480 samples (for 16, 32, 44 or 48 kHz sampling
+    // rates respectively).
     virtual int ExternalPlayoutGetData(
-        int16_t speechData10ms[], int samplingFreqHz,
+        WebRtc_Word16 speechData10ms[], int samplingFreqHz,
         int current_delay_ms, int& lengthSamples) = 0;
 
     // Pulls an audio frame from the specified |channel| for external mixing.
     // If the |desired_sample_rate_hz| is 0, the signal will be returned with
     // its native frequency, otherwise it will be resampled. Valid frequencies
-    // are 16000, 22050, 32000, 44100 or 48000 kHz.
+    // are 16, 22, 32, 44 or 48 kHz.
     virtual int GetAudioFrame(int channel, int desired_sample_rate_hz,
                               AudioFrame* frame) = 0;
 

@@ -1,23 +1,22 @@
 <html>
 <head>
   <title>Bug 751809</title>
-  <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
-  <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
-  <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/paint_listener.js"></script>
-  <script type="application/javascript" src="utils.js"></script>
-  <script type="application/javascript;version=1.7">
-  Components.utils.import("resource://gre/modules/Services.jsm");
-  Services.prefs.setBoolPref("plugins.click_to_play", true);
-  setTestPluginEnabledState(SpecialPowers.Ci.nsIPluginTag.STATE_CLICKTOPLAY);
+  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
+  <script type="application/javascript" src="/tests/SimpleTest/paint_listener.js"></script>
+  <script type="application/javascript">
+  SpecialPowers.setBoolPref("plugins.click_to_play", true);
   </script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
 
 <body onload="go();">
   <embed id="plugin" type="application/x-test" width="400" height="400" drawmode="solid" color="FF00FFFF"></embed>
 
-  <script type="application/javascript;version=1.7">
+  <script type="application/javascript">
 
   SimpleTest.waitForExplicitFinish();
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
   const Ci = Components.interfaces;
   const utils = window.QueryInterface(Ci.nsIInterfaceRequestor).
@@ -48,9 +47,8 @@
 
   function afterWindowFocus() {
     var plugin = document.getElementById('plugin');
-    var objLoadingContent = SpecialPowers.wrap(plugin);
 
-    objLoadingContent.playPlugin();
+    synthesizeMouseAtCenter(plugin, {});
     var condition = function() plugin.setColor !== undefined;
     waitForCondition(condition, afterPluginActivation, "Waited too long for plugin to activate");
   }
@@ -88,7 +86,7 @@
       ok(false, "plugin.getMouseUpEventCount() shouldn't throw");
     }
 
-    Services.prefs.clearUserPref("plugins.click_to_play");
+    SpecialPowers.clearUserPref("plugins.click_to_play");
     SimpleTest.finish();
   }
 

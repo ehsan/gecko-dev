@@ -34,7 +34,6 @@
 #include "hardware_legacy/uevent.h"
 #include "hardware_legacy/vibrator.h"
 #include "hardware_legacy/power.h"
-#include "libdisplay/GonkDisplay.h"
 
 #include "base/message_loop.h"
 
@@ -43,7 +42,6 @@
 #include "mozilla/dom/battery/Constants.h"
 #include "mozilla/FileUtils.h"
 #include "mozilla/Monitor.h"
-#include "mozilla/RefPtr.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/Preferences.h"
@@ -126,7 +124,7 @@ public:
     os->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
   }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
   NS_DECL_NSIOBSERVER
 
@@ -151,11 +149,11 @@ private:
   static bool sShuttingDown;
 };
 
-NS_IMPL_ISUPPORTS2(VibratorRunnable, nsIRunnable, nsIObserver);
+NS_IMPL_THREADSAFE_ISUPPORTS2(VibratorRunnable, nsIRunnable, nsIObserver);
 
 bool VibratorRunnable::sShuttingDown = false;
 
-static StaticRefPtr<VibratorRunnable> sVibratorRunnable;
+static nsRefPtr<VibratorRunnable> sVibratorRunnable;
 
 NS_IMETHODIMP
 VibratorRunnable::Run()
@@ -184,7 +182,7 @@ VibratorRunnable::Run()
       mMonitor.Wait();
     }
   }
-  sVibratorRunnable = nullptr;
+  sVibratorRunnable = NULL;
   return NS_OK;
 }
 
@@ -346,7 +344,7 @@ UnregisterBatteryObserverIOThread()
   MOZ_ASSERT(sBatteryObserver);
 
   UnregisterUeventListener(sBatteryObserver);
-  sBatteryObserver = nullptr;
+  sBatteryObserver = NULL;
 }
 
 void
@@ -436,7 +434,7 @@ GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo)
     aBatteryInfo->charging() = true;
   }
 
-  if (!aBatteryInfo->charging() || (aBatteryInfo->level() < 1.0)) {
+  if (aBatteryInfo->charging() && (aBatteryInfo->level() < 1.0)) {
     aBatteryInfo->remainingTime() = dom::battery::kUnknownRemainingTime;
   } else {
     aBatteryInfo->remainingTime() = dom::battery::kDefaultRemainingTime;
@@ -499,11 +497,6 @@ bool sScreenEnabled = true;
 // internal wake locks aren't counted here.)
 bool sCpuSleepAllowed = true;
 
-// Some CPU wake locks may be acquired internally in HAL. We use a counter to
-// keep track of these needs. Note we have to hold |sInternalLockCpuMonitor|
-// when reading or writing this variable to ensure thread-safe.
-int32_t sInternalLockCpuCount = 0;
-
 } // anonymous namespace
 
 bool
@@ -515,7 +508,7 @@ GetScreenEnabled()
 void
 SetScreenEnabled(bool enabled)
 {
-  GetGonkDisplay()->SetEnabled(enabled);
+  set_screen_state(enabled);
   sScreenEnabled = enabled;
 }
 
@@ -556,30 +549,6 @@ SetScreenBrightness(double brightness)
   hal::SetLight(hal::eHalLightID_Buttons, aConfig);
 }
 
-static Monitor* sInternalLockCpuMonitor = nullptr;
-
-static void
-UpdateCpuSleepState()
-{
-  sInternalLockCpuMonitor->AssertCurrentThreadOwns();
-  bool allowed = sCpuSleepAllowed && !sInternalLockCpuCount;
-  WriteToFile(allowed ? wakeUnlockFilename : wakeLockFilename, "gecko");
-}
-
-static void
-InternalLockCpu() {
-  MonitorAutoLock monitor(*sInternalLockCpuMonitor);
-  ++sInternalLockCpuCount;
-  UpdateCpuSleepState();
-}
-
-static void
-InternalUnlockCpu() {
-  MonitorAutoLock monitor(*sInternalLockCpuMonitor);
-  --sInternalLockCpuCount;
-  UpdateCpuSleepState();
-}
-
 bool
 GetCpuSleepAllowed()
 {
@@ -589,12 +558,11 @@ GetCpuSleepAllowed()
 void
 SetCpuSleepAllowed(bool aAllowed)
 {
-  MonitorAutoLock monitor(*sInternalLockCpuMonitor);
+  WriteToFile(aAllowed ? wakeUnlockFilename : wakeLockFilename, "gecko");
   sCpuSleepAllowed = aAllowed;
-  UpdateCpuSleepState();
 }
 
-static light_device_t* sLights[hal::eHalLightID_Count];	// will be initialized to nullptr
+static light_device_t* sLights[hal::eHalLightID_Count];	// will be initialized to NULL
 
 light_device_t* GetDevice(hw_module_t* module, char const* name)
 {
@@ -604,14 +572,14 @@ light_device_t* GetDevice(hw_module_t* module, char const* name)
   if (err == 0) {
     return (light_device_t*)device;
   } else {
-    return nullptr;
+    return NULL;
   }
 }
 
 void
 InitLights()
 {
-  // assume that if backlight is nullptr, nothing has been set yet
+  // assume that if backlight is NULL, nothing has been set yet
   // if this is not true, the initialization will occur everytime a light is read or set!
   if (!sLights[hal::eHalLightID_Backlight]) {
     int err;
@@ -652,8 +620,7 @@ SetLight(hal::LightType light, const hal::LightConfiguration& aConfig)
 
   InitLights();
 
-  if (light < 0 || light >= hal::eHalLightID_Count ||
-      sLights[light] == nullptr) {
+  if (light < 0 || light >= hal::eHalLightID_Count || sLights[light] == NULL) {
     return false;
   }
 
@@ -678,8 +645,7 @@ GetLight(hal::LightType light, hal::LightConfiguration* aConfig)
   InitLights();
 #endif
 
-  if (light < 0 || light >= hal::eHalLightID_Count ||
-      sLights[light] == nullptr) {
+  if (light < 0 || light >= hal::eHalLightID_Count || sLights[light] == NULL) {
     return false;
   }
 
@@ -737,12 +703,13 @@ AdjustSystemClock(int64_t aDeltaMilliseconds)
 
   if (ioctl(fd, ANDROID_ALARM_SET_RTC, &now) < 0) {
     HAL_LOG(("ANDROID_ALARM_SET_RTC failed: %s", strerror(errno)));
+    return;
   }
 
   hal::NotifySystemClockChange(aDeltaMilliseconds);
 }
 
-int32_t
+static int32_t
 GetTimezoneOffset()
 {
   PRExplodedTime prTime;
@@ -765,7 +732,7 @@ SetTimezone(const nsCString& aTimezoneSpec)
 
   int32_t oldTimezoneOffsetMinutes = GetTimezoneOffset();
   property_set("persist.sys.timezone", aTimezoneSpec.get());
-  // This function is automatically called by the other time conversion
+  // this function is automatically called by the other time conversion
   // functions that depend on the timezone. To be safe, we call it manually.
   tzset();
   int32_t newTimezoneOffsetMinutes = GetTimezoneOffset();
@@ -832,41 +799,38 @@ UnlockScreenOrientation()
   OrientationObserver::GetInstance()->UnlockScreenOrientation();
 }
 
-// This thread will wait for the alarm firing by a blocking IO.
+
 static pthread_t sAlarmFireWatcherThread;
 
-// If |sAlarmData| is non-null, it's owned by the alarm-watcher thread.
-struct AlarmData {
+// If |sAlarmData| is non-null, it's owned by the watcher thread.
+typedef struct AlarmData {
+
 public:
-  AlarmData(int aFd) : mFd(aFd),
-                       mGeneration(sNextGeneration++),
-                       mShuttingDown(false) {}
+  AlarmData(int aFd) : mFd(aFd), mGeneration(sNextGeneration++), mShuttingDown(false) {}
   ScopedClose mFd;
   int mGeneration;
   bool mShuttingDown;
 
   static int sNextGeneration;
 
-};
+} AlarmData;
 
 int AlarmData::sNextGeneration = 0;
 
-AlarmData* sAlarmData = nullptr;
+AlarmData* sAlarmData = NULL;
 
 class AlarmFiredEvent : public nsRunnable {
+
 public:
   AlarmFiredEvent(int aGeneration) : mGeneration(aGeneration) {}
 
   NS_IMETHOD Run() {
     // Guard against spurious notifications caused by an alarm firing
     // concurrently with it being disabled.
-    if (sAlarmData && !sAlarmData->mShuttingDown &&
-        mGeneration == sAlarmData->mGeneration) {
+    if (sAlarmData && !sAlarmData->mShuttingDown && mGeneration == sAlarmData->mGeneration) {
       hal::NotifyAlarmFired();
     }
-    // The fired alarm event has been delivered to the observer (if needed);
-    // we can now release a CPU wake lock.
-    InternalUnlockCpu();
+
     return NS_OK;
   }
 
@@ -885,7 +849,7 @@ DestroyAlarmData(void* aData)
 // Runs on alarm-watcher thread.
 void ShutDownAlarm(int aSigno)
 {
-  if (aSigno == SIGUSR1 && sAlarmData) {
+  if (aSigno == SIGUSR1) {
     sAlarmData->mShuttingDown = true;
   }
   return;
@@ -907,23 +871,16 @@ WaitForAlarm(void* aData)
     // while awaiting an alarm to be programmed.
     do {
       alarmTypeFlags = ioctl(alarmData->mFd, ANDROID_ALARM_WAIT);
-    } while (alarmTypeFlags < 0 && errno == EINTR &&
-             !alarmData->mShuttingDown);
+    } while (alarmTypeFlags < 0 && errno == EINTR && !alarmData->mShuttingDown);
 
-    if (!alarmData->mShuttingDown && alarmTypeFlags >= 0 &&
-        (alarmTypeFlags & ANDROID_ALARM_RTC_WAKEUP_MASK)) {
-      // To make sure the observer can get the alarm firing notification
-      // *on time* (the system won't sleep during the process in any way),
-      // we need to acquire a CPU wake lock before firing the alarm event.
-      InternalLockCpu();
-      nsRefPtr<AlarmFiredEvent> event =
-        new AlarmFiredEvent(alarmData->mGeneration);
-      NS_DispatchToMainThread(event);
+    if (!alarmData->mShuttingDown &&
+        alarmTypeFlags >= 0 && (alarmTypeFlags & ANDROID_ALARM_RTC_WAKEUP_MASK)) {
+      NS_DispatchToMainThread(new AlarmFiredEvent(alarmData->mGeneration));
     }
   }
 
   pthread_cleanup_pop(1);
-  return nullptr;
+  return NULL;
 }
 
 bool
@@ -944,7 +901,7 @@ EnableAlarm()
   sigemptyset(&actions.sa_mask);
   actions.sa_flags = 0;
   actions.sa_handler = ShutDownAlarm;
-  if (sigaction(SIGUSR1, &actions, nullptr)) {
+  if (sigaction(SIGUSR1, &actions, NULL)) {
     HAL_LOG(("Failed to set SIGUSR1 signal for alarm-watcher thread."));
     return false;
   }
@@ -953,15 +910,10 @@ EnableAlarm()
   pthread_attr_init(&attr);
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-  // Initialize the monitor for internally locking CPU to ensure thread-safe
-  // before running the alarm-watcher thread.
-  sInternalLockCpuMonitor = new Monitor("sInternalLockCpuMonitor");
-  int status = pthread_create(&sAlarmFireWatcherThread, &attr, WaitForAlarm,
-                              alarmData.get());
+  int status = pthread_create(&sAlarmFireWatcherThread, &attr, WaitForAlarm, alarmData.get());
   if (status) {
-    alarmData = nullptr;
-    delete sInternalLockCpuMonitor;
-    HAL_LOG(("Failed to create alarm-watcher thread. Status: %d.", status));
+    alarmData = NULL;
+    HAL_LOG(("Failed to create alarm watcher thread. Status: %d.", status));
     return false;
   }
 
@@ -978,14 +930,12 @@ DisableAlarm()
   MOZ_ASSERT(sAlarmData);
 
   // NB: this must happen-before the thread cancellation.
-  sAlarmData = nullptr;
+  sAlarmData = NULL;
 
   // The cancel will interrupt the thread and destroy it, freeing the
   // data pointed at by sAlarmData.
   DebugOnly<int> err = pthread_kill(sAlarmFireWatcherThread, SIGUSR1);
   MOZ_ASSERT(!err);
-
-  delete sInternalLockCpuMonitor;
 }
 
 bool
@@ -1000,9 +950,8 @@ SetAlarm(int32_t aSeconds, int32_t aNanoseconds)
   ts.tv_sec = aSeconds;
   ts.tv_nsec = aNanoseconds;
 
-  // Currently we only support RTC wakeup alarm type.
-  const int result = ioctl(sAlarmData->mFd,
-                           ANDROID_ALARM_SET(ANDROID_ALARM_RTC_WAKEUP), &ts);
+  // currently we only support RTC wakeup alarm type
+  const int result = ioctl(sAlarmData->mFd, ANDROID_ALARM_SET(ANDROID_ALARM_RTC_WAKEUP), &ts);
 
   if (result < 0) {
     HAL_LOG(("Unable to set alarm: %s.", strerror(errno)));
@@ -1027,15 +976,6 @@ OomAdjOfOomScoreAdj(int aOomScoreAdj)
   }
 
   return adj;
-}
-
-static void
-RoundOomScoreAdjUpWithBackroundLRU(int& aOomScoreAdj, uint32_t aBackgroundLRU)
-{
-  // We want to add minimum value to round OomScoreAdj up according to
-  // the steps by aBackgroundLRU.
-  aOomScoreAdj +=
-    ceil(((float)OOM_SCORE_ADJ_MAX / OOM_ADJUST_MAX) * aBackgroundLRU);
 }
 
 static void
@@ -1068,49 +1008,37 @@ EnsureKernelLowMemKillerParamsSet()
   nsAutoCString adjParams;
   nsAutoCString minfreeParams;
 
-  int32_t lowerBoundOfNextOomScoreAdj = OOM_SCORE_ADJ_MIN - 1;
-  int32_t lowerBoundOfNextKillUnderMB = 0;
-  int32_t countOfLowmemorykillerParametersSets = 0;
-
-  for (int i = NUM_PROCESS_PRIORITY - 1; i >= 0; i--) {
+  const char* priorityClasses[] = {
+    "master",
+    "foregroundHigh",
+    "foreground",
+    "backgroundPerceivable",
+    "backgroundHomescreen",
+    "background"
+  };
+  for (size_t i = 0; i < NS_ARRAY_LENGTH(priorityClasses); i++) {
     // The system doesn't function correctly if we're missing these prefs, so
     // crash loudly.
 
-    ProcessPriority priority = static_cast<ProcessPriority>(i);
-
     int32_t oomScoreAdj;
-    if (!NS_SUCCEEDED(Preferences::GetInt(
-          nsPrintfCString("hal.processPriorityManager.gonk.%s.OomScoreAdjust",
-                          ProcessPriorityToString(priority)).get(),
-          &oomScoreAdj))) {
+    if (!NS_SUCCEEDED(Preferences::GetInt(nsPrintfCString(
+          "hal.processPriorityManager.gonk.%sOomScoreAdjust",
+          priorityClasses[i]).get(), &oomScoreAdj))) {
       MOZ_CRASH();
     }
 
     int32_t killUnderMB;
-    if (!NS_SUCCEEDED(Preferences::GetInt(
-          nsPrintfCString("hal.processPriorityManager.gonk.%s.KillUnderMB",
-                          ProcessPriorityToString(priority)).get(),
-          &killUnderMB))) {
-      continue;
+    if (!NS_SUCCEEDED(Preferences::GetInt(nsPrintfCString(
+          "hal.processPriorityManager.gonk.%sKillUnderMB",
+          priorityClasses[i]).get(), &killUnderMB))) {
+      MOZ_CRASH();
     }
-
-    // The LMK in kernel silently malfunctions if we assign the parameters
-    // in non-increasing order, so we add this assertion here. See bug 887192.
-    MOZ_ASSERT(oomScoreAdj > lowerBoundOfNextOomScoreAdj);
-    MOZ_ASSERT(killUnderMB > lowerBoundOfNextKillUnderMB);
-
-    // The LMK in kernel only accept 6 sets of LMK parameters. See bug 914728.
-    MOZ_ASSERT(countOfLowmemorykillerParametersSets < 6);
 
     // adj is in oom_adj units.
     adjParams.AppendPrintf("%d,", OomAdjOfOomScoreAdj(oomScoreAdj));
 
     // minfree is in pages.
     minfreeParams.AppendPrintf("%d,", killUnderMB * 1024 * 1024 / PAGE_SIZE);
-
-    lowerBoundOfNextOomScoreAdj = oomScoreAdj;
-    lowerBoundOfNextKillUnderMB = killUnderMB;
-    countOfLowmemorykillerParametersSets++;
   }
 
   // Strip off trailing commas.
@@ -1133,91 +1061,10 @@ EnsureKernelLowMemKillerParamsSet()
   }
 }
 
-static void
-SetNiceForPid(int aPid, int aNice)
-{
-  errno = 0;
-  int origProcPriority = getpriority(PRIO_PROCESS, aPid);
-  if (errno) {
-    LOG("Unable to get nice for pid=%d; error %d.  SetNiceForPid bailing.",
-        aPid, errno);
-    return;
-  }
-
-  int rv = setpriority(PRIO_PROCESS, aPid, aNice);
-  if (rv) {
-    LOG("Unable to set nice for pid=%d; error %d.  SetNiceForPid bailing.",
-        aPid, errno);
-    return;
-  }
-
-  // On Linux, setpriority(aPid) modifies the priority only of the main
-  // thread of that process.  We have to modify the priorities of all of the
-  // process's threads as well, so iterate over all the threads and increase
-  // each of their priorites by aNice - origProcPriority (and also ensure that
-  // none of the tasks has a lower priority than the main thread).
-  //
-  // This is horribly racy.
-
-  DIR* tasksDir = opendir(nsPrintfCString("/proc/%d/task/", aPid).get());
-  if (!tasksDir) {
-    LOG("Unable to open /proc/%d/task.  SetNiceForPid bailing.", aPid);
-    return;
-  }
-
-  // Be careful not to leak tasksDir; after this point, we must call closedir().
-
-  while (struct dirent* de = readdir(tasksDir)) {
-    char* endptr = nullptr;
-    long tidlong = strtol(de->d_name, &endptr, /* base */ 10);
-    if (*endptr || tidlong < 0 || tidlong > INT32_MAX || tidlong == aPid) {
-      // if dp->d_name was not an integer, was negative (?!) or too large, or
-      // was the same as aPid, we're not interested.
-      //
-      // (The |tidlong == aPid| check is very important; without it, we'll
-      // renice aPid twice, and the second renice will be relative to the
-      // priority set by the first renice.)
-      continue;
-    }
-
-    int tid = static_cast<int>(tidlong);
-
-    errno = 0;
-    // Get and set the task's new priority.
-    int origtaskpriority = getpriority(PRIO_PROCESS, tid);
-    if (errno) {
-      LOG("Unable to get nice for tid=%d (pid=%d); error %d.  This isn't "
-          "necessarily a problem; it could be a benign race condition.",
-          tid, aPid, errno);
-      continue;
-    }
-
-    int newtaskpriority =
-      std::max(origtaskpriority - origProcPriority + aNice, aNice);
-    rv = setpriority(PRIO_PROCESS, tid, newtaskpriority);
-
-    if (rv) {
-      LOG("Unable to set nice for tid=%d (pid=%d); error %d.  This isn't "
-          "necessarily a problem; it could be a benign race condition.",
-          tid, aPid, errno);
-      continue;
-    }
-  }
-
-  LOG("Changed nice for pid %d from %d to %d.",
-      aPid, origProcPriority, aNice);
-
-  closedir(tasksDir);
-}
-
 void
-SetProcessPriority(int aPid,
-                   ProcessPriority aPriority,
-                   ProcessCPUPriority aCPUPriority,
-                   uint32_t aBackgroundLRU)
+SetProcessPriority(int aPid, ProcessPriority aPriority)
 {
-  HAL_LOG(("SetProcessPriority(pid=%d, priority=%d, cpuPriority=%d, LRU=%u)",
-           aPid, aPriority, aCPUPriority, aBackgroundLRU));
+  HAL_LOG(("SetProcessPriority(pid=%d, priority=%d)", aPid, aPriority));
 
   // If this is the first time SetProcessPriority was called, set the kernel's
   // OOM parameters according to our prefs.
@@ -1228,14 +1075,43 @@ SetProcessPriority(int aPid,
   // SetProcessPriority being called early in startup.
   EnsureKernelLowMemKillerParamsSet();
 
+  const char* priorityStr = NULL;
+  switch (aPriority) {
+  case PROCESS_PRIORITY_BACKGROUND:
+    priorityStr = "background";
+    break;
+  case PROCESS_PRIORITY_BACKGROUND_HOMESCREEN:
+    priorityStr = "backgroundHomescreen";
+    break;
+  case PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE:
+    priorityStr = "backgroundPerceivable";
+    break;
+  case PROCESS_PRIORITY_FOREGROUND:
+    priorityStr = "foreground";
+    break;
+  case PROCESS_PRIORITY_FOREGROUND_HIGH:
+    priorityStr = "foregroundHigh";
+    break;
+  case PROCESS_PRIORITY_MASTER:
+    priorityStr = "master";
+    break;
+  default:
+    // PROCESS_PRIORITY_UNKNOWN ends up in this branch, along with invalid enum
+    // values.
+    NS_ERROR("Invalid process priority!");
+    return;
+  }
+
+  // Notice that you can disable oom_adj and renice by deleting the prefs
+  // hal.processPriorityManager{foreground,background,master}{OomAdjust,Nice}.
+
   int32_t oomScoreAdj = 0;
   nsresult rv = Preferences::GetInt(nsPrintfCString(
-    "hal.processPriorityManager.gonk.%s.OomScoreAdjust",
-    ProcessPriorityToString(aPriority)).get(), &oomScoreAdj);
-
-  RoundOomScoreAdjUpWithBackroundLRU(oomScoreAdj, aBackgroundLRU);
+    "hal.processPriorityManager.gonk.%sOomScoreAdjust",
+    priorityStr).get(), &oomScoreAdj);
 
   if (NS_SUCCEEDED(rv)) {
+
     int clampedOomScoreAdj = clamped<int>(oomScoreAdj, OOM_SCORE_ADJ_MIN,
                                                        OOM_SCORE_ADJ_MAX);
     if(clampedOomScoreAdj != oomScoreAdj) {
@@ -1257,34 +1133,18 @@ SetProcessPriority(int aPid,
       WriteToFile(nsPrintfCString("/proc/%d/oom_adj", aPid).get(),
                   nsPrintfCString("%d", oomAdj).get());
     }
-  } else {
-    LOG("Unable to read oom_score_adj pref for priority %s; "
-        "are the prefs messed up?",
-        ProcessPriorityToString(aPriority));
-    MOZ_ASSERT(false);
   }
 
   int32_t nice = 0;
-
-  if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-    rv = Preferences::GetInt(
-      nsPrintfCString("hal.processPriorityManager.gonk.%s.Nice",
-                      ProcessPriorityToString(aPriority)).get(),
-      &nice);
-  } else if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-    rv = Preferences::GetInt("hal.processPriorityManager.gonk.LowCPUNice",
-                             &nice);
-  } else {
-    LOG("Unable to read niceness pref for priority %s; "
-        "are the prefs messed up?",
-        ProcessPriorityToString(aPriority));
-    MOZ_ASSERT(false);
-    rv = NS_ERROR_FAILURE;
-  }
-
+  rv = Preferences::GetInt(nsPrintfCString(
+    "hal.processPriorityManager.gonk.%sNice", priorityStr).get(), &nice);
   if (NS_SUCCEEDED(rv)) {
-    LOG("Setting nice for pid %d to %d", aPid, nice);
-    SetNiceForPid(aPid, nice);
+    HAL_LOG(("Setting nice for pid %d to %d", aPid, nice));
+
+    int success = setpriority(PRIO_PROCESS, aPid, nice);
+    if (success != 0) {
+      HAL_LOG(("Failed to set nice for pid %d to %d", aPid, nice));
+    }
   }
 }
 

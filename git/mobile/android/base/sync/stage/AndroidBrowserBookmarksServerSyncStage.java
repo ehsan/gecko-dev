@@ -6,12 +6,13 @@ package org.mozilla.gecko.sync.stage;
 
 import java.net.URISyntaxException;
 
+import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.JSONRecordFetcher;
 import org.mozilla.gecko.sync.MetaGlobalException;
-import org.mozilla.gecko.sync.net.AuthHeaderProvider;
 import org.mozilla.gecko.sync.repositories.RecordFactory;
 import org.mozilla.gecko.sync.repositories.Repository;
 import org.mozilla.gecko.sync.repositories.android.AndroidBrowserBookmarksRepository;
+import org.mozilla.gecko.sync.repositories.android.FennecControlHelper;
 import org.mozilla.gecko.sync.repositories.domain.BookmarkRecordFactory;
 import org.mozilla.gecko.sync.repositories.domain.VersionConstants;
 
@@ -42,13 +43,11 @@ public class AndroidBrowserBookmarksServerSyncStage extends ServerSyncStage {
   protected Repository getRemoteRepository() throws URISyntaxException {
     // If this is a first sync, we need to check server counts to make sure that we aren't
     // going to screw up. SafeConstrainedServer11Repository does this. See Bug 814331.
-    AuthHeaderProvider authHeaderProvider = session.getAuthHeaderProvider();
-    final JSONRecordFetcher countsFetcher = new JSONRecordFetcher(session.config.infoCollectionCountsURL(), authHeaderProvider);
-    String collection = getCollection();
-    return new SafeConstrainedServer11Repository(
-                                                 collection,
-                                                 session.config.storageURL(),
-                                                 session.getAuthHeaderProvider(),
+    final JSONRecordFetcher countsFetcher = new JSONRecordFetcher(session.config.infoCollectionCountsURL(), session.credentials());
+    return new SafeConstrainedServer11Repository(session.config.getClusterURLString(),
+                                                 session.config.username,
+                                                 getCollection(),
+                                                 session,
                                                  BOOKMARKS_REQUEST_LIMIT,
                                                  BOOKMARKS_SORT,
                                                  countsFetcher);
@@ -66,9 +65,13 @@ public class AndroidBrowserBookmarksServerSyncStage extends ServerSyncStage {
 
   @Override
   protected boolean isEnabled() throws MetaGlobalException {
-    if (session == null || session.getContext() == null) {
+    if (session.getContext() == null) {
       return false;
     }
-    return super.isEnabled();
+    boolean migrated = FennecControlHelper.areBookmarksMigrated(session.getContext());
+    if (!migrated) {
+      Logger.warn(LOG_TAG, "Not enabling bookmarks engine since Fennec bookmarks are not migrated.");
+    }
+    return super.isEnabled() && migrated;
   }
 }

@@ -15,9 +15,6 @@
 
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
-  <script type="application/javascript;version=1.8"
-          src="chrome://browser/content/devtools/theme-switching.js"/>
-
   <script type="application/javascript"
           src="chrome://global/content/viewSourceUtils.js"/>
 
@@ -36,10 +33,6 @@
   <popupset id="inspectorPopupSet">
     <!-- Used by the Markup Panel, the Highlighter and the Breadcrumbs -->
     <menupopup id="inspector-node-popup">
-      <menuitem id="node-menu-edithtml"
-        label="&inspectorHTMLEdit.label;"
-        accesskey="&inspectorHTMLEdit.accesskey;"
-        oncommand="inspector.editHTML()"/>
       <menuitem id="node-menu-copyinner"
         label="&inspectorHTMLCopyInner.label;"
         accesskey="&inspectorHTMLCopyInner.accesskey;"
@@ -70,7 +63,7 @@
     </menupopup>
   </popupset>
 
-  <box flex="1" class="devtools-responsive-container theme-body">
+  <hbox flex="1">
     <vbox flex="1">
       <toolbar id="inspector-toolbar"
         class="devtools-toolbar"
@@ -78,7 +71,8 @@
         <toolbarbutton id="inspector-inspect-toolbutton"
           tooltiptext="&inspector.selectButton.tooltip;"
           class="devtools-toolbarbutton"
-          oncommand="inspector.highlighter.toggleLockState()"/>
+          hidden="true"
+          oncommand="inspector.highlighter.unlockAndFocus()"/>
         <arrowscrollbox id="inspector-breadcrumbs"
           class="breadcrumbs-widget-container"
           flex="1" orient="horizontal"
@@ -97,5 +91,5 @@
       <tabs/>
       <tabpanels flex="1"/>
     </tabbox>
-  </box>
+  </hbox>
 </window>

@@ -3,16 +3,17 @@
 #include "IPDLUnitTests.h"      // fail etc.
 
 using namespace mozilla::ipc;
-typedef mozilla::ipc::MessageChannel::Message Message;
+typedef mozilla::ipc::RPCChannel::Message Message;
+typedef mozilla::ipc::RPCChannel::RacyRPCPolicy RacyRPCPolicy;
 
 namespace mozilla {
 namespace _ipdltest {
 
-static RacyInterruptPolicy
+static RacyRPCPolicy
 MediateRace(const Message& parent, const Message& child)
 {
     return (PTestRaceDeferral::Msg_Win__ID == parent.type()) ?
-        RIPParentWins : RIPChildWins;
+        RPCChannel::RRPParentWins : RPCChannel::RRPChildWins;
 }
 
 //-----------------------------------------------------------------------------
@@ -66,8 +67,8 @@ TestRaceDeferralParent::AnswerLose()
     return true;
 }
 
-RacyInterruptPolicy
-TestRaceDeferralParent::MediateInterruptRace(const Message& parent,
+RacyRPCPolicy
+TestRaceDeferralParent::MediateRPCRace(const Message& parent,
                                        const Message& child)
 {
     return MediateRace(parent, child);
@@ -106,8 +107,8 @@ TestRaceDeferralChild::AnswerRpc()
     return true;
 }
 
-RacyInterruptPolicy
-TestRaceDeferralChild::MediateInterruptRace(const Message& parent,
+RacyRPCPolicy
+TestRaceDeferralChild::MediateRPCRace(const Message& parent,
                                       const Message& child)
 {
     return MediateRace(parent, child);

@@ -35,11 +35,7 @@ function onAttrModified(event) {
   });
 }
 
-function checkModification(e, funcName, args, expectedRes, before, after, expectedException) {
-  if (!Array.isArray(args)) {
-    args = [args];
-  }
-
+function checkModification(e, funcName, argument, expectedRes, before, after, expectedException) {
   var shouldThrow = typeof(expectedException) === "string";
   if (shouldThrow) {
     // If an exception is thrown, the class attribute shouldn't change.
@@ -50,15 +46,14 @@ function checkModification(e, funcName, args, expectedRes, before, after, expect
   else
     e.setAttribute("class", before);
 
-  var contextMsg = "(checkModification: funcName=" + funcName + ",args=" +
-                   JSON.stringify(args) + ",expectedRes=" + expectedRes +
-                   ",before=" + before + ",after=" + after + ")";
+  var contextMsg = "(checkModification: funcName=" + funcName + ",argument=" +
+                   argument + ",expectedRes=" + expectedRes + ",before=" +
+                   before + ",after=" + after + ")";
 
   gMutationEvents = [];
   e.addEventListener("DOMAttrModified", onAttrModified, false);
   try {
-    var list = e.classList;
-    var res = list[funcName].apply(list, args);
+    var res = e.classList[funcName](argument);
     if (shouldThrow)
       ok(false, "classList modification didn't throw " + contextMsg);
   } catch (e) {
@@ -267,10 +262,8 @@ function testClassList(e) {
   }
 
   checkAdd(null, "", null, "SyntaxError");
-  checkAdd(null, ["a", ""], null, "SyntaxError");
   checkAdd(null, " ", null, "InvalidCharacterError");
-  checkAdd(null, ["a", " "], null, "InvalidCharacterError");
-  checkAdd(null, ["a", "aa "], null, "InvalidCharacterError");
+  checkAdd(null, "aa ", null, "InvalidCharacterError");
 
   checkAdd("a", "a", "a");
   checkAdd("aa", "AA", "aa AA");
@@ -283,14 +276,6 @@ function testClassList(e) {
   checkAdd("a", "b", "a b");
   checkAdd("a b c", "d", "a b c d");
   checkAdd("a b c ", "d", "a b c d");
-
-  // multiple add
-  checkAdd("a b c ", ["d", "e"], "a b c d e");
-  checkAdd("a b c ", ["a", "a"], "a b c ");
-  checkAdd("a b c ", ["d", "d"], "a b c d");
-  checkAdd("a b c ", [], "a b c ");
-  checkAdd(null, ["a", "b"], "a b");
-  checkAdd("", ["a", "b"], "a b");
 
   // Test for bug 530171
   checkAdd(null, null, "null");
@@ -331,16 +316,6 @@ function testClassList(e) {
 
   checkRemove("\ra\na\ta\f", "a", "");
 
-  // multiple remove
-  checkRemove("a b c ", ["d", "e"], "a b c ");
-  checkRemove("a b c ", ["a", "b"], "c ");
-  checkRemove("a b c ", ["a", "c"], "b");
-  checkRemove("a b c ", ["a", "a"], "b c ");
-  checkRemove("a b c ", ["d", "d"], "a b c ");
-  checkRemove("a b c ", [], "a b c ");
-  checkRemove(null, ["a", "b"], null);
-  checkRemove("", ["a", "b"], "");
-
   // Test for bug 530171
   checkRemove("null", null, "");
   checkRemove("undefined", undefined, "");
@@ -376,24 +351,7 @@ function testClassList(e) {
   checkToggle("", null, true, "null");
   checkToggle("undefined", undefined, false, "");
   checkToggle("", undefined, true, "undefined");
-
-
-  // tests for the force argument handling
-  
-  function checkForceToggle(before, argument, force, expectedRes, after, expectedException) {
-    checkModification(e, "toggle", [argument, force], expectedRes, before, after, expectedException);
-  }
-
-  checkForceToggle("", "a", true, true, "a");
-  checkForceToggle("a", "a", true, true, "a");
-  checkForceToggle("a", "b", true, true, "a b");
-  checkForceToggle("a b", "b", true, true, "a b");
-  checkForceToggle("", "a", false, false, "");
-  checkForceToggle("a", "a", false, false, "");
-  checkForceToggle("a", "b", false, false, "a");
-  checkForceToggle("a b", "b", false, false, "a");
 }
-
 var content = document.getElementById("content");
 
 var htmlNode = document.createElement("div");

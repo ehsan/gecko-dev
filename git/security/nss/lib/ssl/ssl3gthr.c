@@ -4,6 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* $Id$ */
 
 #include "cert.h"
 #include "ssl.h"
@@ -275,28 +276,20 @@ ssl3_GatherCompleteHandshake(sslSocket *ss, int flags)
 {
     SSL3Ciphertext cText;
     int            rv;
-    PRBool         keepGoing = PR_TRUE;
+    PRBool         canFalseStart = PR_FALSE;
 
     SSL_TRC(30, ("ssl3_GatherCompleteHandshake"));
 
-    /* ssl3_HandleRecord may end up eventually calling ssl_FinishHandshake,
-     * which requires the 1stHandshakeLock, which must be acquired before the
-     * RecvBufLock.
-     */
-    PORT_Assert( ss->opt.noLocks || ssl_Have1stHandshakeLock(ss) );
     PORT_Assert( ss->opt.noLocks || ssl_HaveRecvBufLock(ss) );
-
     do {
-	PRBool handleRecordNow = PR_FALSE;
-
-	ssl_GetSSL3HandshakeLock(ss);
-
 	/* Without this, we may end up wrongly reporting
 	 * SSL_ERROR_RX_UNEXPECTED_* errors if we receive any records from the
 	 * peer while we are waiting to be restarted.
 	 */
-	if (ss->ssl3.hs.restartTarget) {
-	    ssl_ReleaseSSL3HandshakeLock(ss);
+	ssl_GetSSL3HandshakeLock(ss);
+	rv = ss->ssl3.hs.restartTarget == NULL ? SECSuccess : SECFailure;
+	ssl_ReleaseSSL3HandshakeLock(ss);
+	if (rv != SECSuccess) {
 	    PORT_SetError(PR_WOULD_BLOCK_ERROR);
 	    return (int) SECFailure;
 	}
@@ -306,17 +299,13 @@ ssl3_GatherCompleteHandshake(sslSocket *ss, int flags)
 	 * behind a non-NULL but zero-length msgState).
 	 * Test: async_cert_restart_server_sends_hello_request_first_in_separate_record
 	 */
-	if (ss->ssl3.hs.msgState.buf) {
+	if (ss->ssl3.hs.msgState.buf != NULL) {
 	    if (ss->ssl3.hs.msgState.len == 0) {
 		ss->ssl3.hs.msgState.buf = NULL;
-	    } else {
-		handleRecordNow = PR_TRUE;
 	    }
 	}
 
-	ssl_ReleaseSSL3HandshakeLock(ss);
-
-	if (handleRecordNow) {
+	if (ss->ssl3.hs.msgState.buf != NULL) {
 	    /* ssl3_HandleHandshake previously returned SECWouldBlock and the
 	     * as-yet-unprocessed plaintext of that previous handshake record.
 	     * We need to process it now before we overwrite it with the next
@@ -370,52 +359,24 @@ ssl3_GatherCompleteHandshake(sslSocket *ss, int flags)
 
 	    cText.buf     = &ss->gs.inbuf;
 	    rv = ssl3_HandleRecord(ss, &cText, &ss->gs.buf);
-
-	    if (rv == (int) SECSuccess && ss->gs.buf.len > 0) {
-		/* We have application data to return to the application. This
-		 * prioritizes returning application data to the application over
-		 * completing any renegotiation handshake we may be doing.
-		 */
-		PORT_Assert(ss->firstHsDone);
-		PORT_Assert(cText.type == content_application_data);
-		break;
-	    }
 	}
 	if (rv < 0) {
 	    return ss->recvdCloseNotify ? 0 : rv;
 	}
 
-	PORT_Assert(keepGoing);
-	ssl_GetSSL3HandshakeLock(ss);
-	if (ss->ssl3.hs.ws == idle_handshake) {
-	    /* We are done with the current handshake so stop trying to
-	     * handshake. Note that it would be safe to test ss->firstHsDone
-	     * instead of ss->ssl3.hs.ws. By testing ss->ssl3.hs.ws instead,
-	     * we prioritize completing a renegotiation handshake over sending
-	     * application data.
-	     */
-	    PORT_Assert(ss->firstHsDone);
-	    PORT_Assert(!ss->ssl3.hs.canFalseStart);
-	    keepGoing = PR_FALSE;
-	} else if (ss->ssl3.hs.canFalseStart) {
-	    /* Prioritize sending application data over trying to complete
-	     * the handshake if we're false starting.
-	     *
-	     * If we were to do this check at the beginning of the loop instead
-	     * of here, then this function would become be a no-op after
-	     * receiving the ServerHelloDone in the false start case, and we
-	     * would never complete the handshake.
-	     */
-	    PORT_Assert(!ss->firstHsDone);
-
-	    if (ssl3_WaitingForStartOfServerSecondRound(ss)) {
-		keepGoing = PR_FALSE;
-	    } else {
-		ss->ssl3.hs.canFalseStart = PR_FALSE;
-	    }
+	/* If we kicked off a false start in ssl3_HandleServerHelloDone, break
+	 * out of this loop early without finishing the handshake.
+	 */
+	if (ss->opt.enableFalseStart) {
+	    ssl_GetSSL3HandshakeLock(ss);
+	    canFalseStart = (ss->ssl3.hs.ws == wait_change_cipher ||
+			     ss->ssl3.hs.ws == wait_new_session_ticket) &&
+		            ssl3_CanFalseStart(ss);
+	    ssl_ReleaseSSL3HandshakeLock(ss);
 	}
-	ssl_ReleaseSSL3HandshakeLock(ss);
-    } while (keepGoing);
+    } while (ss->ssl3.hs.ws != idle_handshake &&
+             !canFalseStart &&
+             ss->gs.buf.len == 0);
 
     ss->gs.readOffset = 0;
     ss->gs.writeOffset = ss->gs.buf.len;
@@ -438,10 +399,7 @@ ssl3_GatherAppDataRecord(sslSocket *ss, int flags)
 {
     int            rv;
 
-    /* ssl3_GatherCompleteHandshake requires both of these locks. */
-    PORT_Assert( ss->opt.noLocks || ssl_Have1stHandshakeLock(ss) );
     PORT_Assert( ss->opt.noLocks || ssl_HaveRecvBufLock(ss) );
-
     do {
 	rv = ssl3_GatherCompleteHandshake(ss, flags);
     } while (rv > 0 && ss->gs.buf.len == 0);

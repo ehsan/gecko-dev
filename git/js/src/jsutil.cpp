@@ -6,32 +6,37 @@
 
 /* Various JS utility functions. */
 
-#include "jsutil.h"
-
 #include "mozilla/Assertions.h"
-#include "mozilla/MathAlgorithms.h"
+#include "mozilla/Attributes.h"
 #include "mozilla/PodOperations.h"
 
 #include <stdio.h>
-
+#include <stdlib.h>
 #include "jstypes.h"
+#include "jsutil.h"
 
 #ifdef WIN32
 #    include "jswin.h"
+#else
+#    include <signal.h>
 #endif
 
+#include "js/TemplateLib.h"
 #include "js/Utility.h"
+
+#if USE_ZLIB
+#include "zlib.h"
+#endif
 
 using namespace js;
 
-using mozilla::CeilingLog2Size;
 using mozilla::PodArrayZero;
 
 #if USE_ZLIB
 static void *
 zlib_alloc(void *cx, uInt items, uInt size)
 {
-    return js_calloc(items, size);
+    return js_malloc(items * size);
 }
 
 static void
@@ -46,10 +51,10 @@ Compressor::Compressor(const unsigned char *inp, size_t inplen)
       outbytes(0)
 {
     JS_ASSERT(inplen > 0);
-    zs.opaque = nullptr;
+    zs.opaque = NULL;
     zs.next_in = (Bytef *)inp;
     zs.avail_in = 0;
-    zs.next_out = nullptr;
+    zs.next_out = NULL;
     zs.avail_out = 0;
     zs.zalloc = zlib_alloc;
     zs.zfree = zlib_free;
@@ -123,7 +128,7 @@ js::DecompressString(const unsigned char *inp, size_t inplen, unsigned char *out
     z_stream zs;
     zs.zalloc = zlib_alloc;
     zs.zfree = zlib_free;
-    zs.opaque = nullptr;
+    zs.opaque = NULL;
     zs.next_in = (Bytef *)inp;
     zs.avail_in = inplen;
     zs.next_out = out;
@@ -164,6 +169,7 @@ JS_Assert(const char *s, const char *file, int ln)
 #ifdef JS_BASIC_STATS
 
 #include <math.h>
+#include <string.h>
 
 /*
  * Histogram bins count occurrences of values <= the bin label, as follows:
@@ -197,7 +203,7 @@ ValToBin(unsigned logscale, uint32_t val)
     bin = (logscale == 10)
         ? (unsigned) ceil(log10((double) val))
         : (logscale == 2)
-        ? (unsigned) CeilingLog2Size(val)
+        ? (unsigned) JS_CEILING_LOG2W(val)
         : val;
     return Min(bin, 10U);
 }
@@ -298,7 +304,7 @@ JS_DumpHistogram(JSBasicStats *bs, FILE *fp)
             if (max > 1e6 && mean > 1e3)
                 cnt = uint32_t(ceil(log10((double) cnt)));
             else if (max > 16 && mean > 8)
-                cnt = CeilingLog2Size(cnt);
+                cnt = JS_CEILING_LOG2W(cnt);
             for (unsigned i = 0; i < cnt; i++)
                 putc('*', fp);
         }

@@ -372,6 +372,7 @@ rc4_wordconv(RC4Context *cx, unsigned char *output,
 	register Stype tmpSi, tmpSj;
 	register PRUint8 tmpi = cx->i;
 	register PRUint8 tmpj = cx->j;
+	unsigned int byteCount;
 	unsigned int bufShift, invBufShift;
 	unsigned int i;
 	const unsigned char *finalIn;
@@ -389,7 +390,7 @@ rc4_wordconv(RC4Context *cx, unsigned char *output,
 	*outputLen = inputLen;
 	pInWord = (const WORD *)(input - inOffset);
 	pOutWord = (WORD *)(output - outOffset);
-	if (inOffset <= outOffset) {
+	if (inOffset < outOffset) {
 		bufShift = 8*(outOffset - inOffset);
 		invBufShift = 8*WORDSIZE - bufShift;
 	} else {
@@ -405,7 +406,7 @@ rc4_wordconv(RC4Context *cx, unsigned char *output,
 	/* least one partial word of input should ALWAYS be loaded.      */
 	/*****************************************************************/
 	if (outOffset) {
-		unsigned int byteCount = WORDSIZE - outOffset; 
+		byteCount = WORDSIZE - outOffset; 
 		for (i = 0; i < byteCount; i++) {
 			ARCFOUR_NEXT_BYTE();
 			output[i] = cx->S[t] ^ input[i];
@@ -465,6 +466,10 @@ rc4_wordconv(RC4Context *cx, unsigned char *output,
 			inWord = 0;
 		}
 	}
+	/* Output buffer is aligned, inOffset is now measured relative to
+	 * outOffset (and not a word boundary).
+	 */
+	inOffset = (inOffset + WORDSIZE - outOffset) % WORDSIZE;
 	/*****************************************************************/
 	/* Step 2: main loop                                             */
 	/* At this point the output buffer is word-aligned.  Any unused  */
@@ -472,13 +477,8 @@ rc4_wordconv(RC4Context *cx, unsigned char *output,
 	/* the input buffer is unaligned relative to the output buffer,  */
 	/* shifting has to be done.                                      */
 	/*****************************************************************/
-	if (bufShift) {
-		/* preloadedByteCount is the number of input bytes pre-loaded
-		 * in inWord.
-		 */
-		unsigned int preloadedByteCount = bufShift/8;
-		for (; inputLen >= preloadedByteCount + WORDSIZE;
-		     inputLen -= WORDSIZE) {
+	if (inOffset) {
+		for (; inputLen >= WORDSIZE; inputLen -= WORDSIZE) {
 			nextInWord = *pInWord++;
 			inWord |= nextInWord RSH bufShift;
 			nextInWord = nextInWord LSH invBufShift;
@@ -492,7 +492,7 @@ rc4_wordconv(RC4Context *cx, unsigned char *output,
 			cx->j = tmpj;
 			return SECSuccess;
 		}
-		finalIn = (const unsigned char *)pInWord - preloadedByteCount;
+		finalIn = (const unsigned char *)pInWord - WORDSIZE + inOffset;
 	} else {
 		for (; inputLen >= WORDSIZE; inputLen -= WORDSIZE) {
 			inWord = *pInWord++;

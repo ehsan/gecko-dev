@@ -30,7 +30,7 @@ interface HTMLMediaElement : HTMLElement {
   readonly attribute unsigned short networkState;
   [SetterThrows]
            attribute DOMString preload;
-  [NewObject]
+  [Creator]
   readonly attribute TimeRanges buffered;
   void load();
   DOMString canPlayType(DOMString type);
@@ -55,9 +55,9 @@ interface HTMLMediaElement : HTMLElement {
            attribute double defaultPlaybackRate;
   [SetterThrows]
            attribute double playbackRate;
-  [NewObject]
+  [Creator]
   readonly attribute TimeRanges played;
-  [NewObject]
+  [Creator]
   readonly attribute TimeRanges seekable;
   readonly attribute boolean ended;
   [SetterThrows]
@@ -87,12 +87,8 @@ interface HTMLMediaElement : HTMLElement {
   // tracks
   //readonly attribute AudioTrackList audioTracks;
   //readonly attribute VideoTrackList videoTracks;
-  [Pref="media.webvtt.enabled"]
-  readonly attribute TextTrackList textTracks;
-  [Pref="media.webvtt.enabled"]
-  TextTrack addTextTrack(TextTrackKind kind,
-                         optional DOMString label = "",
-                         optional DOMString language = "");
+  //readonly attribute TextTrackList textTracks;
+  //TextTrack addTextTrack(DOMString kind, optional DOMString label, optional DOMString language);
 };
 
 // Mozilla extensions:
@@ -114,11 +110,11 @@ partial interface HTMLMediaElement {
   // used within MozAudioAvailable events to be changed.  The new size must
   // be between 512 and 16384.  The default size, for a  media element with
   // audio is (mozChannels * 1024).
-  [Pref="media.audio_data.enabled", GetterThrows]
+  [GetterThrows]
   readonly attribute unsigned long mozChannels;
-  [Pref="media.audio_data.enabled", GetterThrows]
+  [GetterThrows]
   readonly attribute unsigned long mozSampleRate;
-  [Pref="media.audio_data.enabled", Throws]
+  [Throws]
            attribute unsigned long mozFrameBufferLength;
 
   // Mozilla extension: return embedded metadata from the stream as a
@@ -127,15 +123,54 @@ partial interface HTMLMediaElement {
   [Throws]
   object? mozGetMetadata();
 
+  // Mozilla extension: load data from another media element. This is like
+  // load() but we don't run the resource selection algorithm; instead
+  // we just set our source to other's currentSrc. This is optimized
+  // so that this element will get access to all of other's cached/
+  // buffered data. In fact any future data downloaded by this element or
+  // other will be sharable by both elements.
+  [Throws]
+  void mozLoadFrom(HTMLMediaElement other);
+
   // Mozilla extension: provides access to the fragment end time if
   // the media element has a fragment URI for the currentSrc, otherwise
   // it is equal to the media duration.
   readonly attribute double mozFragmentEnd;
 
   // Mozilla extension: an audio channel type for media elements.
-  // Read AudioChannel.webidl for more information about this attribute.
+  // An exception is thrown if the app tries to change the audio channel type
+  // without the permission (manifest file for B2G apps).
+  // The supported values are:
+  // * normal (default value)
+  //   Automatically paused if "notification" or higher priority channel
+  //   is played
+  //   Use case: normal applications
+  // * content
+  //   Automatically paused if "notification" or higher priority channel
+  //   is played. Also paused if another app starts using "content"
+  //   channel. Using this channel never affects applications using
+  //   the "normal" channel.
+  //   Use case: video/audio players
+  // * notification
+  //   Automatically paused if "alarm" or higher priority channel is played.
+  //   Use case: New email, incoming SMS
+  // * alarm
+  //   Automatically paused if "telephony" or higher priority channel is
+  //   played.
+  //   User case: Alarm clock, calendar alarms
+  // * telephony
+  //   Automatically paused if "ringer" or higher priority
+  //   channel is played.
+  //   Use case: dialer, voip
+  // * ringer
+  //   Automatically paused if "publicnotification" or higher priority
+  //   channel is played.
+  //   Use case: dialer, voip
+  // * publicnotification
+  //   Always plays in speaker, even when headphones are plugged in.
+  //   Use case: Camera shutter sound.
   [SetterThrows]
-  attribute AudioChannel mozAudioChannelType;
+  attribute DOMString mozAudioChannelType;
 
   // In addition the media element has this new events:
   // * onmozinterruptbegin - called when the media element is interrupted

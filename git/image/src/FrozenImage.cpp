@@ -70,7 +70,7 @@ FrozenImage::GetImageContainer(layers::LayerManager* aManager,
 
 NS_IMETHODIMP
 FrozenImage::Draw(gfxContext* aContext,
-                  GraphicsFilter aFilter,
+                  gfxPattern::GraphicsFilter aFilter,
                   const gfxMatrix& aUserSpaceToImageSpace,
                   const gfxRect& aFill,
                   const nsIntRect& aSubimage,
@@ -109,13 +109,6 @@ FrozenImage::ResetAnimation()
 {
   // Do nothing.
   return NS_OK;
-}
-
-NS_IMETHODIMP_(float)
-FrozenImage::GetFrameIndex(uint32_t aWhichFrame)
-{
-  MOZ_ASSERT(aWhichFrame <= FRAME_MAX_VALUE, "Invalid argument");
-  return 0;
 }
 
 } // namespace image

@@ -8,26 +8,25 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/video_engine/test/libvietest/include/tb_external_transport.h"
-
-#include <assert.h>
+#include "video_engine/test/libvietest/include/tb_external_transport.h"
 
 #include <math.h>
 #include <stdio.h> // printf
 #include <stdlib.h> // rand
+#include <cassert>
 
 #if defined(WEBRTC_LINUX) || defined(__linux__)
 #include <string.h>
 #endif
 #if defined(WEBRTC_MAC)
-#include <string.h>
+#include <cstring>
 #endif
 
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/event_wrapper.h"
-#include "webrtc/system_wrappers/interface/thread_wrapper.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
-#include "webrtc/video_engine/include/vie_network.h"
+#include "system_wrappers/interface/critical_section_wrapper.h"
+#include "system_wrappers/interface/event_wrapper.h"
+#include "system_wrappers/interface/thread_wrapper.h"
+#include "system_wrappers/interface/tick_util.h"
+#include "video_engine/include/vie_network.h"
 
 #if defined(_WIN32)
 #pragma warning(disable: 4355) // 'this' : used in base member initializer list
@@ -54,7 +53,6 @@ TbExternalTransport::TbExternalTransport(
       _rtpCount(0),
       _rtcpCount(0),
       _dropCount(0),
-      packet_counters_(),
       _rtpPackets(),
       _rtcpPackets(),
       _send_frame_callback(NULL),
@@ -93,16 +91,6 @@ TbExternalTransport::~TbExternalTransport()
         delete &_thread;
         delete &_event;
     }
-    for (std::list<VideoPacket*>::iterator it = _rtpPackets.begin();
-         it != _rtpPackets.end(); ++it) {
-        delete *it;
-    }
-    _rtpPackets.clear();
-    for (std::list<VideoPacket*>::iterator it = _rtcpPackets.begin();
-         it != _rtcpPackets.end(); ++it) {
-        delete *it;
-    }
-    _rtcpPackets.clear();
     delete &_crit;
     delete &_statCrit;
 }
@@ -110,9 +98,8 @@ TbExternalTransport::~TbExternalTransport()
 int TbExternalTransport::SendPacket(int channel, const void *data, int len)
 {
   // Parse timestamp from RTP header according to RFC 3550, section 5.1.
-    uint8_t* ptr = (uint8_t*)data;
-    uint8_t payload_type = ptr[1] & 0x7F;
-    uint32_t rtp_timestamp = ptr[4] << 24;
+    WebRtc_UWord8* ptr = (WebRtc_UWord8*)data;
+    WebRtc_UWord32 rtp_timestamp = ptr[4] << 24;
     rtp_timestamp += ptr[5] << 16;
     rtp_timestamp += ptr[6] << 8;
     rtp_timestamp += ptr[7];
@@ -125,13 +112,12 @@ int TbExternalTransport::SendPacket(int channel, const void *data, int len)
         _lastSendRTPTimestamp != rtp_timestamp) {
       _send_frame_callback->FrameSent(rtp_timestamp);
     }
-    ++packet_counters_[payload_type];
     _lastSendRTPTimestamp = rtp_timestamp;
 
     if (_filterSSRC)
     {
-        uint8_t* ptr = (uint8_t*)data;
-        uint32_t ssrc = ptr[8] << 24;
+        WebRtc_UWord8* ptr = (WebRtc_UWord8*)data;
+        WebRtc_UWord32 ssrc = ptr[8] << 24;
         ssrc += ptr[9] << 16;
         ssrc += ptr[10] << 8;
         ssrc += ptr[11];
@@ -143,7 +129,7 @@ int TbExternalTransport::SendPacket(int channel, const void *data, int len)
     if (_temporalLayers) {
         // parse out vp8 temporal layers
         // 12 bytes RTP
-        uint8_t* ptr = (uint8_t*)data;
+        WebRtc_UWord8* ptr = (WebRtc_UWord8*)data;
 
         if (ptr[12] & 0x80 &&  // X-bit
             ptr[13] & 0x20)  // T-bit
@@ -227,7 +213,7 @@ int TbExternalTransport::SendPacket(int channel, const void *data, int len)
         _statCrit.Enter();
         _dropCount++;
         _statCrit.Leave();
-        return len;
+        return 0;
     }
 
     VideoPacket* newPacket = new VideoPacket();
@@ -314,7 +300,7 @@ void TbExternalTransport::SetNetworkParameters(
     network_parameters_ = network_parameters;
 }
 
-void TbExternalTransport::SetSSRCFilter(uint32_t ssrc)
+void TbExternalTransport::SetSSRCFilter(WebRtc_UWord32 ssrc)
 {
     webrtc::CriticalSectionScoped cs(&_crit);
     _filterSSRC = true;
@@ -327,19 +313,16 @@ void TbExternalTransport::ClearStats()
     _rtpCount = 0;
     _dropCount = 0;
     _rtcpCount = 0;
-    packet_counters_.clear();
 }
 
-void TbExternalTransport::GetStats(int32_t& numRtpPackets,
-                                   int32_t& numDroppedPackets,
-                                   int32_t& numRtcpPackets,
-                                   std::map<uint8_t, int>* packet_counters)
+void TbExternalTransport::GetStats(WebRtc_Word32& numRtpPackets,
+                                   WebRtc_Word32& numDroppedPackets,
+                                   WebRtc_Word32& numRtcpPackets)
 {
     webrtc::CriticalSectionScoped cs(&_statCrit);
     numRtpPackets = _rtpCount;
     numDroppedPackets = _dropCount;
     numRtcpPackets = _rtcpCount;
-    *packet_counters = packet_counters_;
 }
 
 void TbExternalTransport::EnableSSRCCheck()
@@ -387,7 +370,7 @@ bool TbExternalTransport::ViEExternalTransportProcess()
     {
         // Take first packet in queue
         packet = _rtpPackets.front();
-        int64_t timeToReceive = 0;
+        WebRtc_Word64 timeToReceive = 0;
         if (packet)
         {
           timeToReceive = packet->receiveTime - NowMs();
@@ -438,8 +421,8 @@ bool TbExternalTransport::ViEExternalTransportProcess()
                 }
             }
             // Signal received packet of frame
-            uint8_t* ptr = (uint8_t*)packet->packetBuffer;
-            uint32_t rtp_timestamp = ptr[4] << 24;
+            WebRtc_UWord8* ptr = (WebRtc_UWord8*)packet->packetBuffer;
+            WebRtc_UWord32 rtp_timestamp = ptr[4] << 24;
             rtp_timestamp += ptr[5] << 16;
             rtp_timestamp += ptr[6] << 8;
             rtp_timestamp += ptr[7];
@@ -470,7 +453,7 @@ bool TbExternalTransport::ViEExternalTransportProcess()
     {
         // Take first packet in queue
         packet = _rtcpPackets.front();
-        int64_t timeToReceive = 0;
+        WebRtc_Word64 timeToReceive = 0;
         if (packet)
         {
           timeToReceive = packet->receiveTime - NowMs();
@@ -527,7 +510,7 @@ bool TbExternalTransport::ViEExternalTransportProcess()
     return true;
 }
 
-int64_t TbExternalTransport::NowMs()
+WebRtc_Word64 TbExternalTransport::NowMs()
 {
     return webrtc::TickTime::MillisecondTimestamp();
 }

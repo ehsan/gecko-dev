@@ -20,11 +20,7 @@ function test() {
   let inspector;
   let {
     getInplaceEditorForSpan: inplaceEditor
-  } = devtools.require("devtools/shared/inplace-editor");
-
-  // Prevent intermittent "test exceeded the timeout threshold" since this is
-  // a slow test: https://bugzilla.mozilla.org/show_bug.cgi?id=904953.
-  requestLongerTimeout(2);
+  } = Cu.import("resource:///modules/devtools/InplaceEditor.jsm", {});
 
   waitForExplicitFinish();
 
@@ -33,15 +29,6 @@ function test() {
 
   // Holds the MarkupTool object we're testing.
   let markup;
-
-  let LONG_ATTRIBUTE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ-ABCDEFGHIJKLMNOPQRSTUVWXYZ-ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ-ABCDEFGHIJKLMNOPQRSTUVWXYZ-ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  let LONG_ATTRIBUTE_COLLAPSED = "ABCDEFGHIJKLMNOPQRSTUVWXYZ-ABCDEFGHIJKLMNOPQRSTUVWXYZ-ABCDEF\u2026UVWXYZ-ABCDEFGHIJKLMNOPQRSTUVWXYZ-ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-  let DATA_URL_INLINE_STYLE='color: red; background: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQAQMAAAAlPW0iAAAABlBMVEUAAAD///+l2Z/dAAAAM0lEQVR4nGP4/5/h/1+G/58ZDrAz3D/McH8yw83NDDeNGe4Ug9C9zwz3gVLMDA/A6P9/AFGGFyjOXZtQAAAAAElFTkSuQmCC");';
-  let DATA_URL_INLINE_STYLE_COLLAPSED="color: #F00; background: url('data:image/png;base64,iVBORw0K\u2026w83NDDeNGe4Ug9C9zwz3gVLMDA/A6P9/AFGGFyjOXZtQAAAAAElFTkSuQmCC');";
-
-  let DATA_URL_ATTRIBUTE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQAQMAAAAlPW0iAAAABlBMVEUAAAD///+l2Z/dAAAAM0lEQVR4nGP4/5/h/1+G/58ZDrAz3D/McH8yw83NDDeNGe4Ug9C9zwz3gVLMDA/A6P9/AFGGFyjOXZtQAAAAAElFTkSuQmCC";
-  let DATA_URL_ATTRIBUTE_COLLAPSED = "data:image/png;base64,iVBORw0K\u20269/AFGGFyjOXZtQAAAAAElFTkSuQmCC";
 
   /**
    * Edit a given editableField
@@ -91,7 +78,7 @@ function test() {
       },
       execute: function(after) {
         inspector.once("markupmutation", after);
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node1")).editor;
+        let editor = markup.getContainer(doc.querySelector("#node1")).editor;
         let attr = editor.attrs["class"].querySelector(".editable");
         editField(attr, 'class="changednode1"');
       },
@@ -102,6 +89,7 @@ function test() {
         });
       }
     },
+
     {
       desc: 'Try changing an attribute to a quote (") - this should result ' +
             'in it being set to an empty string',
@@ -112,10 +100,10 @@ function test() {
         });
       },
       execute: function(after) {
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node22")).editor;
+        let editor = markup.getContainer(doc.querySelector("#node22")).editor;
         let attr = editor.attrs["class"].querySelector(".editable");
         editField(attr, 'class="""');
-        inspector.once("markupmutation", after);
+        executeSoon(after);
       },
       after: function() {
         assertAttributes(doc.querySelector("#node22"), {
@@ -135,7 +123,7 @@ function test() {
       },
       execute: function(after) {
         inspector.once("markupmutation", after);
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node4")).editor;
+        let editor = markup.getContainer(doc.querySelector("#node4")).editor;
         let attr = editor.attrs["class"].querySelector(".editable");
         editField(attr, '');
       },
@@ -155,7 +143,7 @@ function test() {
       },
       execute: function(after) {
         inspector.once("markupmutation", after);
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node14")).editor;
+        let editor = markup.getContainer(doc.querySelector("#node14")).editor;
         let attr = editor.newAttr;
         editField(attr, 'class="newclass" style="color:green"');
       },
@@ -178,10 +166,10 @@ function test() {
         });
       },
       execute: function(after) {
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node23")).editor;
+        let editor = markup.getContainer(doc.querySelector("#node23")).editor;
         let attr = editor.newAttr;
         editField(attr, 'class="newclass" style="""');
-        inspector.once("markupmutation", after);
+        executeSoon(after);
       },
       after: function() {
         assertAttributes(doc.querySelector("#node23"), {
@@ -200,137 +188,15 @@ function test() {
         });
       },
       execute: function(after) {
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node24")).editor;
+        let editor = markup.getContainer(doc.querySelector("#node24")).editor;
         let attr = editor.attrs["id"].querySelector(".editable");
         editField(attr, attr.textContent + ' class="""');
-        inspector.once("markupmutation", after);
+        executeSoon(after);
       },
       after: function() {
         assertAttributes(doc.querySelector("#node24"), {
           id: "node24",
           class: ""
-        });
-      }
-    },
-
-    {
-      desc: "Try to add long attribute to make sure it is collapsed in attribute editor.",
-      before: function() {
-        assertAttributes(doc.querySelector("#node24"), {
-          id: "node24",
-          class: ""
-        });
-      },
-      execute: function(after) {
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node24")).editor;
-        let attr = editor.newAttr;
-        editField(attr, 'data-long="'+LONG_ATTRIBUTE+'"');
-        inspector.once("markupmutation", after);
-      },
-      after: function() {
-
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node24")).editor;
-        let visibleAttrText = editor.attrs["data-long"].querySelector(".attr-value").textContent;
-        is (visibleAttrText, LONG_ATTRIBUTE_COLLAPSED)
-
-        assertAttributes(doc.querySelector("#node24"), {
-          id: "node24",
-          class: "",
-          'data-long':LONG_ATTRIBUTE
-        });
-      }
-    },
-
-    {
-      desc: "Try to modify the collapsed long attribute, making sure it expands.",
-      before: function() {
-        assertAttributes(doc.querySelector("#node24"), {
-          id: "node24",
-          class: "",
-          'data-long': LONG_ATTRIBUTE
-        });
-      },
-      execute: function(after) {
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node24")).editor;
-        let attr = editor.attrs["data-long"].querySelector(".editable");
-
-        // Check to make sure it has expanded after focus
-        attr.focus();
-        EventUtils.sendKey("return", inspector.panelWin);
-        let input = inplaceEditor(attr).input;
-        is (input.value, 'data-long="'+LONG_ATTRIBUTE+'"');
-        EventUtils.sendKey("escape", inspector.panelWin);
-
-        editField(attr, input.value  + ' data-short="ABC"');
-        inspector.once("markupmutation", after);
-      },
-      after: function() {
-
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node24")).editor;
-        let visibleAttrText = editor.attrs["data-long"].querySelector(".attr-value").textContent;
-        is (visibleAttrText, LONG_ATTRIBUTE_COLLAPSED)
-
-        assertAttributes(doc.querySelector("#node24"), {
-          id: "node24",
-          class: "",
-          'data-long': LONG_ATTRIBUTE,
-          "data-short": "ABC"
-        });
-      }
-    },
-
-    {
-      desc: "Try to add long data URL to make sure it is collapsed in attribute editor.",
-      before: function() {
-        assertAttributes(doc.querySelector("#node-data-url"), {
-          id: "node-data-url"
-        });
-      },
-      execute: function(after) {
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node-data-url")).editor;
-        let attr = editor.newAttr;
-        editField(attr, 'src="'+DATA_URL_ATTRIBUTE+'"');
-        inspector.once("markupmutation", after);
-      },
-      after: function() {
-
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node-data-url")).editor;
-        let visibleAttrText = editor.attrs["src"].querySelector(".attr-value").textContent;
-        is (visibleAttrText, DATA_URL_ATTRIBUTE_COLLAPSED);
-
-        let node = doc.querySelector("#node-data-url");
-        is (node.width, 16, "Image width has been set after data url src.");
-        is (node.height, 16, "Image height has been set after data url src.");
-
-        assertAttributes(node, {
-          id: "node-data-url",
-          "src": DATA_URL_ATTRIBUTE
-        });
-      }
-    },
-
-    {
-      desc: "Try to add long data URL to make sure it is collapsed in attribute editor.",
-      before: function() {
-        assertAttributes(doc.querySelector("#node-data-url-style"), {
-          id: "node-data-url-style"
-        });
-      },
-      execute: function(after) {
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node-data-url-style")).editor;
-        let attr = editor.newAttr;
-        editField(attr, "style='"+DATA_URL_INLINE_STYLE+"'");
-        inspector.once("markupmutation", after);
-      },
-      after: function() {
-
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node-data-url-style")).editor;
-        let visibleAttrText = editor.attrs["style"].querySelector(".attr-value").textContent;
-        is (visibleAttrText, DATA_URL_INLINE_STYLE_COLLAPSED)
-
-        assertAttributes(doc.querySelector("#node-data-url-style"), {
-          id: "node-data-url-style",
-          'style':DATA_URL_INLINE_STYLE
         });
       }
     },
@@ -344,7 +210,7 @@ function test() {
       execute: function(after) {
         inspector.once("markupmutation", after);
         let node = doc.querySelector('.node6').firstChild;
-        let editor = getContainerForRawNode(markup, node).editor;
+        let editor = markup.getContainer(node).editor;
         let field = editor.elt.querySelector("pre");
         editField(field, "New text");
       },
@@ -363,222 +229,17 @@ function test() {
       },
       execute: function(after) {
         inspector.once("markupmutation", after);
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node25")).editor;
+        let editor = markup.getContainer(doc.querySelector("#node25")).editor;
         let attr = editor.newAttr;
-        editField(attr, 'src="somefile.html?param1=<a>&param2=&uuml;&param3=\'&quot;\'"');
+        editField(attr, 'src="somefile.html?param1=<a>&param2=&uuml;"bl\'ah"');
       },
       after: function() {
         assertAttributes(doc.querySelector("#node25"), {
           id: "node25",
-          src: "somefile.html?param1=<a>&param2=\xfc&param3='\"'"
+          src: "somefile.html?param1=&lt;a&gt;&param2=&uuml;&quot;bl&apos;ah"
         });
       }
     },
-
-    {
-      desc: "Modify inline style containing \"",
-      before: function() {
-        assertAttributes(doc.querySelector("#node26"), {
-          id: "node26",
-          style: 'background-image: url("moz-page-thumb://thumbnail?url=http%3A%2F%2Fwww.mozilla.org%2F");'
-        });
-      },
-      execute: function(after) {
-        inspector.once("markupmutation", after);
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node26")).editor;
-        let attr = editor.attrs["style"].querySelector(".editable");
-
-
-        attr.focus();
-        EventUtils.sendKey("return", inspector.panelWin);
-
-        let input = inplaceEditor(attr).input;
-        let value = input.value;
-
-        is (value,
-          "style='background-image: url(\"moz-page-thumb://thumbnail?url=http%3A%2F%2Fwww.mozilla.org%2F\");'",
-          "Value contains actual double quotes"
-        );
-
-        value = value.replace(/mozilla\.org/, "mozilla.com");
-        input.value = value;
-
-        EventUtils.sendKey("return", inspector.panelWin);
-      },
-      after: function() {
-        assertAttributes(doc.querySelector("#node26"), {
-          id: "node26",
-          style: 'background-image: url("moz-page-thumb://thumbnail?url=http%3A%2F%2Fwww.mozilla.com%2F");'
-        });
-      }
-    },
-
-    {
-      desc: "Modify inline style containing \" and \'",
-      before: function() {
-        assertAttributes(doc.querySelector("#node27"), {
-          id: "node27",
-          class: 'Double " and single \''
-        });
-      },
-      execute: function(after) {
-        inspector.once("markupmutation", after);
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node27")).editor;
-        let attr = editor.attrs["class"].querySelector(".editable");
-
-        attr.focus();
-        EventUtils.sendKey("return", inspector.panelWin);
-
-        let input = inplaceEditor(attr).input;
-        let value = input.value;
-
-        is (value, "class=\"Double &quot; and single '\"", "Value contains &quot;");
-
-        value = value.replace(/Double/, "&quot;").replace(/single/, "'");
-        input.value = value;
-
-        EventUtils.sendKey("return", inspector.panelWin);
-      },
-      after: function() {
-        assertAttributes(doc.querySelector("#node27"), {
-          id: "node27",
-          class: '" " and \' \''
-        });
-      }
-    },
-
-    {
-      desc: "Add an attribute value without closing \"",
-      enteredText: 'style="display: block;',
-      expectedAttributes: {
-        style: "display: block;"
-      }
-    },
-    {
-      desc: "Add an attribute value without closing '",
-      enteredText: "style='display: inline;",
-      expectedAttributes: {
-        style: "display: inline;"
-      }
-    },
-    {
-      desc: "Add an attribute wrapped with with double quotes double quote in it",
-      enteredText: 'style="display: "inline',
-      expectedAttributes: {
-        style: "display: ",
-        inline: ""
-      }
-    },
-    {
-      desc: "Add an attribute wrapped with single quotes with single quote in it",
-      enteredText: "style='display: 'inline",
-      expectedAttributes: {
-        style: "display: ",
-        inline: ""
-      }
-    },
-    {
-      desc: "Add an attribute with no value",
-      enteredText: "disabled",
-      expectedAttributes: {
-        disabled: ""
-      }
-    },
-    {
-      desc: "Add multiple attributes with no value",
-      enteredText: "disabled autofocus",
-      expectedAttributes: {
-        disabled: "",
-        autofocus: ""
-      }
-    },
-    {
-      desc: "Add multiple attributes with no value, and some with value",
-      enteredText: "disabled name='name' data-test='test' autofocus",
-      expectedAttributes: {
-        disabled: "",
-        autofocus: "",
-        name: "name",
-        'data-test': "test"
-      }
-    },
-    {
-      desc: "Add attribute with xmlns",
-      enteredText: "xmlns:edi='http://ecommerce.example.org/schema'",
-      expectedAttributes: {
-        'xmlns:edi': "http://ecommerce.example.org/schema"
-      }
-    },
-    {
-      desc: "Mixed single and double quotes",
-      enteredText: "name=\"hi\" maxlength='not a number'",
-      expectedAttributes: {
-        maxlength: "not a number",
-        name: "hi"
-      }
-    },
-    {
-      desc: "Invalid attribute name",
-      enteredText: "x='y' <why-would-you-do-this>=\"???\"",
-      expectedAttributes: {
-        x: "y"
-      }
-    },
-    {
-      desc: "Double quote wrapped in single quotes",
-      enteredText: "x='h\"i'",
-      expectedAttributes: {
-        x: "h\"i"
-      }
-    },
-    {
-      desc: "Single quote wrapped in double quotes",
-      enteredText: "x=\"h'i\"",
-      expectedAttributes: {
-        x: "h'i"
-      }
-    },
-    {
-      desc: "No quote wrapping",
-      enteredText: "a=b x=y data-test=Some spaced data",
-      expectedAttributes: {
-        a: "b",
-        x: "y",
-        "data-test": "Some",
-        spaced: "",
-        data: ""
-      }
-    },
-    {
-      desc: "Duplicate Attributes",
-      enteredText: "a=b a='c' a=\"d\"",
-      expectedAttributes: {
-        a: "b"
-      }
-    },
-    {
-      desc: "Inline styles",
-      enteredText: "style=\"font-family: 'Lucida Grande', sans-serif; font-size: 75%;\"",
-      expectedAttributes: {
-        style: "font-family: 'Lucida Grande', sans-serif; font-size: 75%;"
-      }
-    },
-    {
-      desc: "Object attribute names",
-      enteredText: "toString=\"true\" hasOwnProperty=\"false\"",
-      expectedAttributes: {
-        toString: "true",
-        hasOwnProperty: "false"
-      }
-    },
-    {
-      desc: "Add event handlers",
-      enteredText: "onclick=\"javascript: throw new Error('wont fire');\" onload=\"alert('here');\"",
-      expectedAttributes: {
-        onclick: "javascript: throw new Error('wont fire');",
-        onload: "alert('here');"
-      }
-    }
   ];
 
   // Create the helper tab for parsing...
@@ -594,81 +255,52 @@ function test() {
     var target = TargetFactory.forTab(gBrowser.selectedTab);
     gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
       inspector = toolbox.getCurrentPanel();
-      startTests();
+      runTests();
+    });
+  }
+
+  function runTests() {
+    inspector.selection.once("new-node", startTests);
+    executeSoon(function() {
+      inspector.selection.setNode(doc.body);
     });
   }
 
   function startTests() {
+    let startNode = doc.documentElement.cloneNode();
     markup = inspector.markup;
+    markup.expandAll();
 
-    // expectedAttributes - Shortcut to provide a more decalarative test when you only
-    // want to check the outcome of setting an attribute to a string.
-    edits.forEach((edit, i) => {
-      if (edit.expectedAttributes) {
-        let id = "expectedAttributes" + i;
+    let cursor = 0;
 
-        let div = doc.createElement("div");
-        div.id = id;
-        doc.body.appendChild(div);
-
-        // Attach the ID onto the object that will assert attributes
-        edit.expectedAttributes.id = id;
-
-        edit.before = () => {
-          assertAttributes(doc.querySelector("#" + id), {
-            id: id,
-          });
-        };
-
-        edit.execute = (after) =>{
-          inspector.once("markupmutation", after);
-          let editor = getContainerForRawNode(markup, doc.querySelector("#" + id)).editor;
-          editField(editor.newAttr, edit.enteredText);
-        };
-
-        edit.after = () => {
-          assertAttributes(doc.querySelector("#" + id), edit.expectedAttributes);
-        };
-      }
-    });
-
-    markup.expandAll().then(() => {
-
-      let cursor = 0;
-
-      function nextEditTest() {
-        executeSoon(function() {
-          if (cursor >= edits.length) {
-            addAttributes();
-          } else {
-            let step = edits[cursor++];
-            info("START " + step.desc);
-            if (step.setup) {
-              step.setup();
-            }
-            step.before();
-            info("before execute");
-            step.execute(function() {
-              info("after execute");
-              step.after();
-              ok(markup.undo.canUndo(), "Should be able to undo.");
-              markup.undo.undo();
-              inspector.once("markupmutation", () => {
-                step.before();
-                ok(markup.undo.canRedo(), "Should be able to redo.");
-                markup.undo.redo();
-                inspector.once("markupmutation", () => {
-                  step.after();
-                  info("END " + step.desc);
-                  nextEditTest();
-                });
-              });
-            });
+    function nextEditTest() {
+      executeSoon(function() {
+        if (cursor >= edits.length) {
+          addAttributes();
+        } else {
+          let step = edits[cursor++];
+          info("START " + step.desc);
+          if (step.setup) {
+            step.setup();
           }
-        });
-      }
-      nextEditTest();
-    });
+          step.before();
+          info("before execute");
+          step.execute(function() {
+            info("after execute");
+            step.after();
+            ok(markup.undo.canUndo(), "Should be able to undo.");
+            markup.undo.undo();
+            step.before();
+            ok(markup.undo.canRedo(), "Should be able to redo.");
+            markup.undo.redo();
+            step.after();
+            info("END " + step.desc);
+            nextEditTest();
+          });
+        }
+      });
+    }
+    nextEditTest();
   }
 
   function addAttributes() {
@@ -683,7 +315,7 @@ function test() {
         });
 
         is(inspector.highlighter.nodeInfo.classesBox.textContent, "",
-           "No classes in the infobar before edit.");
+          "No classes in the infobar before edit.");
       },
       execute: function(after) {
         inspector.once("markupmutation", function() {
@@ -691,7 +323,7 @@ function test() {
           // not just the markupview (which happens in this event loop)
           executeSoon(after);
         });
-        let editor = getContainerForRawNode(markup, doc.querySelector("#node18")).editor;
+        let editor = markup.getContainer(doc.querySelector("#node18")).editor;
         let attr = editor.attrs["id"].querySelector(".editable");
         editField(attr, attr.textContent + ' class="newclass" style="color:green"');
       },
@@ -701,9 +333,8 @@ function test() {
           class: "newclass",
           style: "color:green"
         });
-
         is(inspector.highlighter.nodeInfo.classesBox.textContent, ".newclass",
-           "Correct classes in the infobar after edit.");
+          "Correct classes in the infobar after edit.");
       }
     };
     testAsyncSetup(test, editTagName);
@@ -717,7 +348,7 @@ function test() {
       },
       before: function() {
         let node = doc.querySelector("#retag-me");
-        let container = getContainerForRawNode(markup, node);
+        let container = markup.getContainer(node);
 
         is(node.tagName, "DIV", "retag-me should be a div.");
         ok(container.selected, "retag-me should be selected.");
@@ -728,13 +359,13 @@ function test() {
       execute: function(after) {
         inspector.once("markupmutation", after);
         let node = doc.querySelector("#retag-me");
-        let editor = getContainerForRawNode(markup, node).editor;
+        let editor = markup.getContainer(node).editor;
         let field = editor.tag;
         editField(field, "p");
       },
       after: function() {
         let node = doc.querySelector("#retag-me");
-        let container = getContainerForRawNode(markup, node);
+        let container = markup.getContainer(node);
         is(node.tagName, "P", "retag-me should be a p.");
         ok(container.selected, "retag-me should be selected.");
         ok(container.expanded, "retag-me should be expanded.");
@@ -768,12 +399,10 @@ function test() {
     info("START " + test.desc);
 
     test.before();
-    inspector.once("inspector-updated", function BIMET_testAsyncExecNewNode() {
+    inspector.selection.once("new-node", function BIMET_testAsyncExecNewNode() {
       test.executeCont();
-      inspector.once("markupmutation", () => {
-        test.after();
-        undoRedo(test, callback);
-      });
+      test.after();
+      undoRedo(test, callback);
     });
     executeSoon(function BIMET_setNode1() {
       test.execute();
@@ -783,28 +412,26 @@ function test() {
   function testAsyncSetup(test, callback) {
     info("START " + test.desc);
 
-    inspector.on("inspector-updated", function BIMET_updated(event, name) {
-      if (name === "inspector-panel") {
-        inspector.off("inspector-updated", BIMET_updated);
-
-        test.before();
-        test.execute(function() {
-          test.after();
-          undoRedo(test, callback);
-        });
-      }
+    inspector.selection.once("new-node", function BIMET_testAsyncSetupNewNode() {
+      test.before();
+      test.execute(function() {
+        test.after();
+        undoRedo(test, callback);
+      });
     });
-    executeSoon(test.setup);
+    executeSoon(function BIMET_setNode2() {
+      test.setup();
+    });
   }
 
   function undoRedo(test, callback) {
     ok(markup.undo.canUndo(), "Should be able to undo.");
     markup.undo.undo();
-    inspector.once("markupmutation", () => {
+    executeSoon(function() {
       test.before();
       ok(markup.undo.canRedo(), "Should be able to redo.");
       markup.undo.redo();
-      inspector.once("markupmutation", () => {
+      executeSoon(function() {
         test.after();
         info("END " + test.desc);
         callback();

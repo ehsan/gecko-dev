@@ -9,26 +9,15 @@ from mozunit import main, MockedOpen
 
 import mozbuild.backend.configenvironment as ConfigStatus
 
-from mozbuild.util import ReadOnlyDict
-
-
 class ConfigEnvironment(ConfigStatus.ConfigEnvironment):
     def __init__(self, *args, **kwargs):
         ConfigStatus.ConfigEnvironment.__init__(self, *args, **kwargs)
         # Be helpful to unit tests
         if not 'top_srcdir' in self.substs:
             if os.path.isabs(self.topsrcdir):
-                top_srcdir = self.topsrcdir.replace(os.sep, '/')
+                self.substs['top_srcdir'] = self.topsrcdir.replace(os.sep, '/')
             else:
-                top_srcdir = os.path.relpath(self.topsrcdir, self.topobjdir).replace(os.sep, '/')
-
-            d = dict(self.substs)
-            d['top_srcdir'] = top_srcdir
-            self.substs = ReadOnlyDict(d)
-
-            d = dict(self.substs_unicode)
-            d[u'top_srcdir'] = top_srcdir.decode('utf-8')
-            self.substs_unicode = ReadOnlyDict(d)
+                self.substs['top_srcdir'] = os.path.relpath(self.topsrcdir, self.topobjdir).replace(os.sep, '/')
 
 
 class TestEnvironment(unittest.TestCase):
@@ -70,8 +59,7 @@ qux =''')
 @bar@
 '''}):
             env = ConfigEnvironment('.', '.', substs = [ ('foo', 'bar baz') ])
-            with open('file', 'w') as fh:
-                env.create_config_file(fh)
+            env.create_config_file('file')
             self.assertEqual(open('file', 'r').read(), '''#ifdef foo
 bar baz
 @bar@
@@ -98,8 +86,7 @@ bar baz
 #endif
 '''}):
             env = ConfigEnvironment('.', '.', defines = [ ('foo', 'baz qux'), ('baz', 1) ])
-            with open('file', 'w') as fh:
-                env.create_config_header(fh)
+            env.create_config_header('file')
             self.assertEqual(open('file','r').read(), '''
 /* Comment */
 #define foo

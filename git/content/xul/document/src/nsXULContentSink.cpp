@@ -14,6 +14,7 @@
 
 #include "nsXULContentSink.h"
 
+#include "jsapi.h"
 #include "jsfriendapi.h"
 
 #include "nsCOMPtr.h"
@@ -29,6 +30,7 @@
 #include "nsINodeInfo.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
+#include "nsIScriptRuntime.h"
 #include "nsIServiceManager.h"
 #include "nsIURL.h"
 #include "nsParserBase.h"
@@ -55,7 +57,6 @@
 #include "nsXMLContentSink.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
-#include "nsContentTypeParser.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gLog;
@@ -188,8 +189,6 @@ XULContentSinkImpl::~XULContentSinkImpl()
 
 //----------------------------------------------------------------------
 // nsISupports interface
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(XULContentSinkImpl)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(XULContentSinkImpl)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mNodeInfoManager)
@@ -945,9 +944,9 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
 
   // Don't process scripts that aren't known
   if (langID != nsIProgrammingLanguage::UNKNOWN) {
-      nsCOMPtr<nsIScriptGlobalObject> globalObject;
+      nsIScriptGlobalObject* globalObject = nullptr; // borrowed reference
       if (doc)
-          globalObject = do_QueryInterface(doc->GetWindow());
+          globalObject = doc->GetScriptGlobalObject();
       nsRefPtr<nsXULPrototypeScript> script =
           new nsXULPrototypeScript(aLineNumber, version);
       if (! script)
@@ -984,7 +983,8 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
           // file right away.  Otherwise we'll end up reloading the script and
           // corrupting the FastLoad file trying to serialize it, in the case
           // where it's already there.
-          script->DeserializeOutOfLine(nullptr, mPrototype);
+          if (globalObject)
+                script->DeserializeOutOfLine(nullptr, globalObject);
       }
 
       nsPrototypeArray* children = nullptr;

@@ -196,14 +196,10 @@ ContentPrefService2.prototype = {
       this._pbStore.set(group, name, value);
       this._schedule(function () {
         cbHandleCompletion(callback, Ci.nsIContentPrefCallback2.COMPLETE_OK);
-        this._cps._notifyPrefSet(group, name, value);
+        this._cps._broadcastPrefSet(group, name, value);
       });
       return;
     }
-
-    // Invalidate the cached value so consumers accessing the cache between now
-    // and when the operation finishes don't get old data.
-    this._cache.remove(group, name);
 
     let stmts = [];
 
@@ -266,7 +262,7 @@ ContentPrefService2.prototype = {
           this._cache.setWithCast(group, name, value);
         cbHandleCompletion(callback, reason);
         if (ok)
-          this._cps._notifyPrefSet(group, name, value);
+          this._cps._broadcastPrefSet(group, name, value);
       },
       onError: function onError(nsresult) {
         cbHandleError(callback, nsresult);
@@ -297,12 +293,6 @@ ContentPrefService2.prototype = {
     group = this._parseGroup(group);
     checkNameArg(name);
     checkCallbackArg(callback, false);
-
-    // Invalidate the cached values so consumers accessing the cache between now
-    // and when the operation finishes don't get old data.
-    for (let sgroup in this._cache.matchGroups(group, includeSubdomains)) {
-      this._cache.remove(sgroup, name);
-    }
 
     let stmts = [];
 
@@ -339,7 +329,7 @@ ContentPrefService2.prototype = {
     this._execStmts(stmts, {
       onRow: function onRow(row) {
         let grp = row.getResultByName("grp");
-        prefs.set(grp, name, undefined);
+        prefs.set(grp, name);
         this._cache.set(grp, name, undefined);
       },
       onDone: function onDone(reason, ok) {
@@ -348,7 +338,7 @@ ContentPrefService2.prototype = {
           if (context && context.usePrivateBrowsing) {
             for (let [sgroup, ] in
                    this._pbStore.match(group, name, includeSubdomains)) {
-              prefs.set(sgroup, name, undefined);
+              prefs.set(sgroup, name);
               this._pbStore.remove(sgroup, name);
             }
           }
@@ -356,7 +346,7 @@ ContentPrefService2.prototype = {
         cbHandleCompletion(callback, reason);
         if (ok) {
           for (let [sgroup, , ] in prefs) {
-            this._cps._notifyPrefRemoved(sgroup, name);
+            this._cps._broadcastPrefRemoved(sgroup, name);
           }
         }
       },
@@ -384,12 +374,6 @@ ContentPrefService2.prototype = {
                                                  context, callback) {
     group = this._parseGroup(group);
     checkCallbackArg(callback, false);
-
-    // Invalidate the cached values so consumers accessing the cache between now
-    // and when the operation finishes don't get old data.
-    for (let sgroup in this._cache.matchGroups(group, includeSubdomains)) {
-      this._cache.removeGroup(sgroup);
-    }
 
     let stmts = [];
 
@@ -435,20 +419,20 @@ ContentPrefService2.prototype = {
       onRow: function onRow(row) {
         let grp = row.getResultByName("grp");
         let name = row.getResultByName("name");
-        prefs.set(grp, name, undefined);
+        prefs.set(grp, name);
         this._cache.set(grp, name, undefined);
       },
       onDone: function onDone(reason, ok) {
         if (ok && context && context.usePrivateBrowsing) {
           for (let [sgroup, sname, ] in this._pbStore) {
-            prefs.set(sgroup, sname, undefined);
+            prefs.set(sgroup, sname);
             this._pbStore.remove(sgroup, sname);
           }
         }
         cbHandleCompletion(callback, reason);
         if (ok) {
           for (let [sgroup, sname, ] in prefs) {
-            this._cps._notifyPrefRemoved(sgroup, sname);
+            this._cps._broadcastPrefRemoved(sgroup, sname);
           }
         }
       },
@@ -460,11 +444,6 @@ ContentPrefService2.prototype = {
 
   removeAllDomains: function CPS2_removeAllDomains(context, callback) {
     checkCallbackArg(callback, false);
-
-    // Invalidate the cached values so consumers accessing the cache between now
-    // and when the operation finishes don't get old data.
-    this._cache.removeAllGroups();
-
     let stmts = [];
 
     // First get the matching prefs.
@@ -492,20 +471,20 @@ ContentPrefService2.prototype = {
       onRow: function onRow(row) {
         let grp = row.getResultByName("grp");
         let name = row.getResultByName("name");
-        prefs.set(grp, name, undefined);
+        prefs.set(grp, name);
         this._cache.set(grp, name, undefined);
       },
       onDone: function onDone(reason, ok) {
         if (ok && context && context.usePrivateBrowsing) {
           for (let [sgroup, sname, ] in this._pbStore) {
-            prefs.set(sgroup, sname, undefined);
+            prefs.set(sgroup, sname);
           }
-          this._pbStore.removeAllGroups();
+          this._pbStore.removeGrouped();
         }
         cbHandleCompletion(callback, reason);
         if (ok) {
           for (let [sgroup, sname, ] in prefs) {
-            this._cps._notifyPrefRemoved(sgroup, sname);
+            this._cps._broadcastPrefRemoved(sgroup, sname);
           }
         }
       },
@@ -518,13 +497,6 @@ ContentPrefService2.prototype = {
   removeByName: function CPS2_removeByName(name, context, callback) {
     checkNameArg(name);
     checkCallbackArg(callback, false);
-
-    // Invalidate the cached values so consumers accessing the cache between now
-    // and when the operation finishes don't get old data.
-    for (let [group, sname, ] in this._cache) {
-      if (sname == name)
-        this._cache.remove(group, name);
-    }
 
     let stmts = [];
 
@@ -570,14 +542,14 @@ ContentPrefService2.prototype = {
     this._execStmts(stmts, {
       onRow: function onRow(row) {
         let grp = row.getResultByName("grp");
-        prefs.set(grp, name, undefined);
+        prefs.set(grp, name);
         this._cache.set(grp, name, undefined);
       },
       onDone: function onDone(reason, ok) {
         if (ok && context && context.usePrivateBrowsing) {
           for (let [sgroup, sname, ] in this._pbStore) {
             if (sname === name) {
-              prefs.set(sgroup, name, undefined);
+              prefs.set(sgroup, name);
               this._pbStore.remove(sgroup, name);
             }
           }
@@ -585,7 +557,7 @@ ContentPrefService2.prototype = {
         cbHandleCompletion(callback, reason);
         if (ok) {
           for (let [sgroup, , ] in prefs) {
-            this._cps._notifyPrefRemoved(sgroup, name);
+            this._cps._broadcastPrefRemoved(sgroup, name);
           }
         }
       },
@@ -696,7 +668,7 @@ ContentPrefService2.prototype = {
     catch (err) {
       return groupStr;
     }
-    return this._cps._grouper.group(groupURI);
+    return this._cps.grouper.group(groupURI);
   },
 
   _schedule: function CPS2__schedule(fn) {
@@ -705,11 +677,11 @@ ContentPrefService2.prototype = {
   },
 
   addObserverForName: function CPS2_addObserverForName(name, observer) {
-    this._cps._addObserver(name, observer);
+    this._cps.addObserver(name, observer);
   },
 
   removeObserverForName: function CPS2_removeObserverForName(name, observer) {
-    this._cps._removeObserver(name, observer);
+    this._cps.removeObserver(name, observer);
   },
 
   extractDomain: function CPS2_extractDomain(str) {

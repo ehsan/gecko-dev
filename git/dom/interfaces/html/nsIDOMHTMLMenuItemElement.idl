@@ -3,28 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsIDOMHTMLElement.idl"
+#include "nsIDOMHTMLCommandElement.idl"
 
 /**
  * The nsIDOMHTMLMenuItemElement interface is the interface to a HTML
  * <menuitem> element.
+ *
+ * @status UNDER_DEVELOPMENT
  */
 
-[scriptable, uuid(979d6e44-5930-4232-b405-873939655c19)]
-interface nsIDOMHTMLMenuItemElement : nsISupports
+[scriptable, uuid(7f449325-b250-478a-bd2c-d0986256763e)]
+interface nsIDOMHTMLMenuItemElement : nsIDOMHTMLCommandElement
 {
-           attribute DOMString        type;
-           attribute DOMString        label;
-           attribute DOMString        icon;
-           attribute boolean          disabled;
-
-           // This should be 'default' but in the IDL implementation
-           // this has been renamed 'defaultChecked'.
-           attribute boolean defaultChecked;
-
-           attribute boolean          checked;
-           attribute DOMString        radiogroup;
-
-           // Currently not implemented.
-  // readonly attribute HTMLElement? command;
 };

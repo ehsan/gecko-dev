@@ -22,13 +22,22 @@ HTMLHeadingElement::~HTMLHeadingElement()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLHeadingElement, nsGenericHTMLElement,
-                             nsIDOMHTMLHeadingElement)
+NS_IMPL_ADDREF_INHERITED(HTMLHeadingElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLHeadingElement, Element)
+
+// QueryInterface implementation for HTMLHeadingElement
+NS_INTERFACE_TABLE_HEAD(HTMLHeadingElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLHeadingElement,
+                                   nsIDOMHTMLHeadingElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLHeadingElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
+
 
 NS_IMPL_ELEMENT_CLONE(HTMLHeadingElement)
 
 JSObject*
-HTMLHeadingElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLHeadingElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return HTMLHeadingElementBinding::Wrap(aCx, aScope, this);
 }

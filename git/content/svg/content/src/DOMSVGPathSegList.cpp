@@ -12,21 +12,14 @@
 #include "nsSVGAttrTearoffTable.h"
 #include "SVGPathSegUtils.h"
 #include "mozilla/dom/SVGPathSegListBinding.h"
+#include "nsContentUtils.h"
 
 // See the comment in this file's header.
 
 namespace mozilla {
 
-  static inline
-nsSVGAttrTearoffTable<void, DOMSVGPathSegList>&
-SVGPathSegListTearoffTable()
-{
-  static nsSVGAttrTearoffTable<void, DOMSVGPathSegList>
-    sSVGPathSegListTearoffTable;
-  return sSVGPathSegListTearoffTable;
-}
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(DOMSVGPathSegList)
+static nsSVGAttrTearoffTable<void, DOMSVGPathSegList>
+  sSVGPathSegListTearoffTable;
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMSVGPathSegList)
   // No unlinking of mElement, we'd need to null out the value pointer (the
@@ -56,10 +49,10 @@ DOMSVGPathSegList::GetDOMWrapper(void *aList,
                                  bool aIsAnimValList)
 {
   nsRefPtr<DOMSVGPathSegList> wrapper =
-    SVGPathSegListTearoffTable().GetTearoff(aList);
+    sSVGPathSegListTearoffTable.GetTearoff(aList);
   if (!wrapper) {
     wrapper = new DOMSVGPathSegList(aElement, aIsAnimValList);
-    SVGPathSegListTearoffTable().AddTearoff(aList, wrapper);
+    sSVGPathSegListTearoffTable.AddTearoff(aList, wrapper);
   }
   return wrapper.forget();
 }
@@ -67,7 +60,7 @@ DOMSVGPathSegList::GetDOMWrapper(void *aList,
 /* static */ DOMSVGPathSegList*
 DOMSVGPathSegList::GetDOMWrapperIfExists(void *aList)
 {
-  return SVGPathSegListTearoffTable().GetTearoff(aList);
+  return sSVGPathSegListTearoffTable.GetTearoff(aList);
 }
 
 DOMSVGPathSegList::~DOMSVGPathSegList()
@@ -77,11 +70,11 @@ DOMSVGPathSegList::~DOMSVGPathSegList()
   void *key = mIsAnimValList ?
     InternalAList().GetAnimValKey() :
     InternalAList().GetBaseValKey();
-  SVGPathSegListTearoffTable().RemoveTearoff(key);
+  sSVGPathSegListTearoffTable.RemoveTearoff(key);
 }
 
 JSObject*
-DOMSVGPathSegList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+DOMSVGPathSegList::WrapObject(JSContext *cx, JSObject *scope)
 {
   return mozilla::dom::SVGPathSegListBinding::Wrap(cx, scope, this);
 }
@@ -288,18 +281,7 @@ DOMSVGPathSegList::Initialize(DOMSVGPathSeg& aNewItem, ErrorResult& aError)
   return InsertItemBefore(*domItem, 0, aError);
 }
 
-already_AddRefed<DOMSVGPathSeg>
-DOMSVGPathSegList::GetItem(uint32_t index, ErrorResult& error)
-{
-  bool found;
-  nsRefPtr<DOMSVGPathSeg> item = IndexedGetter(index, found, error);
-  if (!found) {
-    error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-  }
-  return item.forget();
-}
-
-already_AddRefed<DOMSVGPathSeg>
+DOMSVGPathSeg*
 DOMSVGPathSegList::IndexedGetter(uint32_t aIndex, bool& aFound,
                                  ErrorResult& aError)
 {
@@ -308,7 +290,8 @@ DOMSVGPathSegList::IndexedGetter(uint32_t aIndex, bool& aFound,
   }
   aFound = aIndex < LengthNoFlush();
   if (aFound) {
-    return GetItemAt(aIndex);
+    EnsureItemAt(aIndex);
+    return ItemAt(aIndex);
   }
   return nullptr;
 }
@@ -454,13 +437,14 @@ DOMSVGPathSegList::RemoveItem(uint32_t aIndex,
     aError.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return nullptr;
   }
-  // We have to return the removed item, so get it, creating it if necessary:
-  nsRefPtr<DOMSVGPathSeg> result = GetItemAt(aIndex);
+  // We have to return the removed item, so make sure it exists:
+  EnsureItemAt(aIndex);
 
   nsAttrValue emptyOrOldValue = Element()->WillChangePathSegList();
   // Notify the DOM item of removal *before* modifying the lists so that the
   // DOM item can copy its *old* value:
   ItemAt(aIndex)->RemovingFromList();
+  nsRefPtr<DOMSVGPathSeg> result = ItemAt(aIndex);
 
   uint32_t internalIndex = mItems[aIndex].mInternalDataIndex;
   uint32_t segType = SVGPathSegUtils::DecodeType(InternalList().mData[internalIndex]);
@@ -486,16 +470,12 @@ DOMSVGPathSegList::RemoveItem(uint32_t aIndex,
   return result.forget();
 }
 
-already_AddRefed<DOMSVGPathSeg>
-DOMSVGPathSegList::GetItemAt(uint32_t aIndex)
+void
+DOMSVGPathSegList::EnsureItemAt(uint32_t aIndex)
 {
-  MOZ_ASSERT(aIndex < mItems.Length());
-
   if (!ItemAt(aIndex)) {
     ItemAt(aIndex) = DOMSVGPathSeg::CreateFor(this, aIndex, IsAnimValList());
   }
-  nsRefPtr<DOMSVGPathSeg> result = ItemAt(aIndex);
-  return result.forget();
 }
 
 void

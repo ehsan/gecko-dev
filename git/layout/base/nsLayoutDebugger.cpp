@@ -139,10 +139,12 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
         fprintf(aOutput, "  ");
       }
     }
-    nsIFrame* f = i->Frame();
+    nsIFrame* f = i->GetUnderlyingFrame();
     nsAutoString fName;
 #ifdef DEBUG
-    f->GetFrameName(fName);
+    if (f) {
+      f->GetFrameName(fName);
+    }
 #endif
     bool snap;
     nsRect rect = i->GetBounds(aBuilder, &snap);
@@ -178,13 +180,15 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
     if (aDumpHtml && i->Painted()) {
       fprintf(aOutput, "</a>");
     }
-    uint32_t key = i->GetPerFrameKey();
-    Layer* layer = mozilla::FrameLayerBuilder::GetDebugOldLayerFor(f, key);
-    if (layer) {
-      if (aDumpHtml) {
-        fprintf(aOutput, " <a href=\"#%p\">layer=%p</a>", layer, layer);
-      } else {
-        fprintf(aOutput, " layer=%p", layer);
+    if (f) {
+      uint32_t key = i->GetPerFrameKey();
+      Layer* layer = mozilla::FrameLayerBuilder::GetDebugOldLayerFor(f, key);
+      if (layer) {
+        if (aDumpHtml) {
+          fprintf(aOutput, " <a href=\"#%p\">layer=%p</a>", layer, layer);
+        } else {
+          fprintf(aOutput, " layer=%p", layer);
+        }
       }
     }
     if (i->GetType() == nsDisplayItem::TYPE_SVG_EFFECTS) {

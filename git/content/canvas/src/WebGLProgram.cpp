@@ -4,10 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGLContext.h"
-#include "WebGLShader.h"
 #include "WebGLProgram.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
-#include "GLContext.h"
+#include "nsContentUtils.h"
 
 using namespace mozilla;
 
@@ -45,7 +44,7 @@ static bool SplitLastSquareBracket(nsACString& string, nsCString& bracketPart)
 }
 
 JSObject*
-WebGLProgram::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope) {
+WebGLProgram::WrapObject(JSContext *cx, JSObject *scope) {
     return dom::WebGLProgramBinding::Wrap(cx, scope, this);
 }
 
@@ -136,6 +135,7 @@ WebGLProgram::MapIdentifier(const nsACString& name, nsCString *mappedName) {
     if (!mIdentifierMap) {
         // if the identifier map doesn't exist yet, build it now
         mIdentifierMap = new CStringMap;
+        mIdentifierMap->Init();
         for (size_t i = 0; i < mAttachedShaders.Length(); i++) {
             for (size_t j = 0; j < mAttachedShaders[i]->mAttributes.Length(); j++) {
                 const WebGLMappedIdentifier& attrib = mAttachedShaders[i]->mAttributes[j];
@@ -181,6 +181,7 @@ WebGLProgram::ReverseMapIdentifier(const nsACString& name, nsCString *reverseMap
     if (!mIdentifierReverseMap) {
         // if the identifier reverse map doesn't exist yet, build it now
         mIdentifierReverseMap = new CStringMap;
+        mIdentifierReverseMap->Init();
         for (size_t i = 0; i < mAttachedShaders.Length(); i++) {
             for (size_t j = 0; j < mAttachedShaders[i]->mAttributes.Length(); j++) {
                 const WebGLMappedIdentifier& attrib = mAttachedShaders[i]->mAttributes[j];
@@ -223,6 +224,19 @@ WebGLProgram::ReverseMapIdentifier(const nsACString& name, nsCString *reverseMap
 
 WebGLUniformInfo
 WebGLProgram::GetUniformInfoForMappedIdentifier(const nsACString& name) {
+    if (!mUniformInfoMap) {
+        // if the identifier-to-array-size map doesn't exist yet, build it now
+        mUniformInfoMap = new CStringToUniformInfoMap;
+        mUniformInfoMap->Init();
+        for (size_t i = 0; i < mAttachedShaders.Length(); i++) {
+            for (size_t j = 0; j < mAttachedShaders[i]->mUniforms.Length(); j++) {
+                const WebGLMappedIdentifier& uniform = mAttachedShaders[i]->mUniforms[j];
+                const WebGLUniformInfo& info = mAttachedShaders[i]->mUniformInfos[j];
+                mUniformInfoMap->Put(uniform.mapped, info);
+            }
+        }
+    }
+
     nsCString mutableName(name);
     nsCString bracketPart;
     bool hadBracketPart = SplitLastSquareBracket(mutableName, bracketPart);
@@ -234,10 +248,20 @@ WebGLProgram::GetUniformInfoForMappedIdentifier(const nsACString& name) {
     mUniformInfoMap->Get(mutableName, &info);
     // we don't check if that Get failed, as if it did, it left info with default values
 
+    // if there is a bracket and it's not [0], then we're not an array, we're just an entry in an array
+    if (hadBracketPart && !bracketPart.EqualsLiteral("[0]")) {
+        info.isArray = false;
+        info.arraySize = 1;
+    }
     return info;
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(WebGLProgram, mAttachedShaders)
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(WebGLProgram, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(WebGLProgram, Release)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLProgram)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(WebGLProgram)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLProgram)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END

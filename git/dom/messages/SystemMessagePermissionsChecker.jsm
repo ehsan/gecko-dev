@@ -34,13 +34,25 @@ this.SystemMessagePermissionsTable = {
   "bluetooth-dialer-command": {
     "telephony": []
   },
+  "bluetooth-requestconfirmation": {
+    "bluetooth": []
+  },
+  "bluetooth-requestpasskey": {
+    "bluetooth": []
+  },
+  "bluetooth-requestpincode": {
+    "bluetooth": []
+  },
+  "bluetooth-authorize": {
+    "bluetooth": []
+  },
   "bluetooth-cancel": {
     "bluetooth": []
   },
-  "bluetooth-hid-status-changed": {
+  "bluetooth-pairedstatuschanged": {
     "bluetooth": []
   },
-  "bluetooth-pairing-request": {
+  "bluetooth-hfp-status-changed": {
     "bluetooth": []
   },
   "bluetooth-opp-transfer-complete": {
@@ -55,13 +67,10 @@ this.SystemMessagePermissionsTable = {
   "bluetooth-opp-transfer-start": {
     "bluetooth": []
   },
-  "connection": { },
-  "dummy-system-message": { }, // for system message testing framework
   "headset-button": { },
   "icc-stkcommand": {
     "settings": ["read", "write"]
   },
-  "media-button": { },
   "notification": {
     "desktop-notification": []
   },
@@ -70,9 +79,6 @@ this.SystemMessagePermissionsTable = {
   },
   "push-register": {
   	"push": []
-  },
-  "sms-delivery-success": {
-    "sms": []
   },
   "sms-received": {
     "sms": []
@@ -88,21 +94,6 @@ this.SystemMessagePermissionsTable = {
   },
   "ussd-received": {
     "mobileconnection": []
-  },
-  "wappush-received": {
-    "wappush": []
-  },
-  "cdma-info-rec-received": {
-    "mobileconnection": []
-  },
-  "nfc-manager-tech-discovered": {
-    "nfc-manager": []
-  },
-  "nfc-manager-tech-lost": {
-    "nfc-manager": []
-  },
-  "nfc-powerlevel-change": {
-    "settings": ["read", "write"]
   }
 };
 

@@ -23,7 +23,9 @@
 // XXX add necessary include file for ftruncate (or equivalent)
 #endif
 
+#include "prtypes.h"
 #include "prthread.h"
+#include "prbit.h"
 
 #include "private/pprio.h"
 
@@ -47,7 +49,6 @@
 #include "nsISimpleEnumerator.h"
 
 #include "nsThreadUtils.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Telemetry.h"
 
 static const char DISK_CACHE_DEVICE_ID[] = { "disk" };
@@ -295,7 +296,7 @@ nsDiskCache::Hash(const char * key, PLDHashNumber initval)
   const uint8_t *k = reinterpret_cast<const uint8_t*>(key);
   uint32_t a, b, c, len, length;
 
-  length = strlen(key);
+  length = PL_strlen(key);
   /* Set up the internal state */
   len = length;
   a = b = 0x9e3779b9;  /* the golden ratio; an arbitrary value */
@@ -368,11 +369,11 @@ nsDiskCache::Truncate(PRFileDesc *  fd, uint32_t  newEOF)
  *  nsDiskCacheDevice
  *****************************************************************************/
 
-class NetworkDiskCacheReporter MOZ_FINAL : public MemoryUniReporter
+class NetworkDiskCacheReporter MOZ_FINAL : public MemoryReporterBase
 {
 public:
     NetworkDiskCacheReporter(nsDiskCacheDevice* aDevice)
-      : MemoryUniReporter(
+      : MemoryReporterBase(
             "explicit/network/disk-cache",
             KIND_HEAP,
             UNITS_BYTES,
@@ -1189,7 +1190,7 @@ nsDiskCacheDevice::SetMaxEntrySize(int32_t maxSizeInKilobytes)
 }
 
 size_t
-nsDiskCacheDevice::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+nsDiskCacheDevice::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     size_t usage = aMallocSizeOf(this);
 

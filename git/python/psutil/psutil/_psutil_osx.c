@@ -1,5 +1,7 @@
 /*
- * Copyright (c) 2009, Giampaolo Rodola'. All rights reserved.
+ * $Id: _psutil_osx.c 1501 2012-07-25 12:57:34Z g.rodola@gmail.com $
+ *
+ * Copyright (c) 2009, Jay Loden, Giampaolo Rodola'. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  *
@@ -29,7 +31,7 @@
 #include <mach/mach_host.h>
 #include <mach/mach_traps.h>
 #include <mach/mach_vm.h>
-#include <mach/shared_region.h>
+#include <mach/shared_memory_server.h>
 
 #include <mach-o/loader.h>
 
@@ -60,7 +62,6 @@ psutil_sys_vminfo(vm_statistics_data_t *vmstat)
                      "host_statistics() failed: %s", mach_error_string(ret));
         return 0;
     }
-    mach_port_deallocate(mach_task_self(), mport);
     return 1;
 }
 
@@ -78,10 +79,7 @@ get_pid_list(PyObject* self, PyObject* args)
     PyObject *pid = NULL;
     PyObject *retlist = PyList_New(0);
 
-    if (retlist == NULL)
-        return NULL;
-
-    if (psutil_get_proc_list(&proclist, &num_processes) != 0) {
+    if (get_proc_list(&proclist, &num_processes) != 0) {
         PyErr_SetString(PyExc_RuntimeError, "failed to retrieve process list.");
         goto error;
     }
@@ -122,7 +120,7 @@ get_process_name(PyObject* self, PyObject* args)
     if (! PyArg_ParseTuple(args, "l", &pid)) {
         return NULL;
     }
-    if (psutil_get_kinfo_proc(pid, &kp) == -1) {
+    if (get_kinfo_proc(pid, &kp) == -1) {
         return NULL;
     }
     return Py_BuildValue("s", kp.kp_proc.p_comm);
@@ -166,7 +164,7 @@ get_process_exe(PyObject* self, PyObject* args)
     }
     ret = proc_pidpath(pid, &buf, sizeof(buf));
     if (ret == 0) {
-        if (! psutil_pid_exists(pid)) {
+        if (! pid_exists(pid)) {
             return NoSuchProcess();
         }
         else {
@@ -190,7 +188,7 @@ get_process_cmdline(PyObject* self, PyObject* args)
     }
 
     // get the commandline, defined in arch/osx/process_info.c
-    arglist = psutil_get_arg_list(pid);
+    arglist = get_arg_list(pid);
     return arglist;
 }
 
@@ -206,7 +204,7 @@ get_process_ppid(PyObject* self, PyObject* args)
     if (! PyArg_ParseTuple(args, "l", &pid)) {
         return NULL;
     }
-    if (psutil_get_kinfo_proc(pid, &kp) == -1) {
+    if (get_kinfo_proc(pid, &kp) == -1) {
         return NULL;
     }
     return Py_BuildValue("l", (long)kp.kp_eproc.e_ppid);
@@ -224,7 +222,7 @@ get_process_uids(PyObject* self, PyObject* args)
     if (! PyArg_ParseTuple(args, "l", &pid)) {
         return NULL;
     }
-    if (psutil_get_kinfo_proc(pid, &kp) == -1) {
+    if (get_kinfo_proc(pid, &kp) == -1) {
         return NULL;
     }
     return Py_BuildValue("lll", (long)kp.kp_eproc.e_pcred.p_ruid,
@@ -244,7 +242,7 @@ get_process_gids(PyObject* self, PyObject* args)
     if (! PyArg_ParseTuple(args, "l", &pid)) {
         return NULL;
     }
-    if (psutil_get_kinfo_proc(pid, &kp) == -1) {
+    if (get_kinfo_proc(pid, &kp) == -1) {
         return NULL;
     }
     return Py_BuildValue("lll", (long)kp.kp_eproc.e_pcred.p_rgid,
@@ -264,7 +262,7 @@ get_process_tty_nr(PyObject* self, PyObject* args)
     if (! PyArg_ParseTuple(args, "l", &pid)) {
         return NULL;
     }
-    if (psutil_get_kinfo_proc(pid, &kp) == -1) {
+    if (get_kinfo_proc(pid, &kp) == -1) {
         return NULL;
     }
     return Py_BuildValue("i", kp.kp_eproc.e_tdev);
@@ -284,16 +282,13 @@ get_process_memory_maps(PyObject* self, PyObject* args)
     int pagesize = getpagesize();
     long pid;
     kern_return_t err = KERN_SUCCESS;
-    mach_port_t task = MACH_PORT_NULL;
+    mach_port_t task;
     uint32_t depth = 1;
     vm_address_t address = 0;
     vm_size_t size = 0;
 
     PyObject* py_tuple = NULL;
     PyObject* py_list = PyList_New(0);
-
-    if (py_list == NULL)
-        return NULL;
 
     if (! PyArg_ParseTuple(args, "l", &pid)) {
         goto error;
@@ -302,7 +297,7 @@ get_process_memory_maps(PyObject* self, PyObject* args)
     err = task_for_pid(mach_task_self(), pid, &task);
 
     if (err != KERN_SUCCESS) {
-        if (! psutil_pid_exists(pid)) {
+        if (! pid_exists(pid)) {
             NoSuchProcess();
         }
         else {
@@ -334,7 +329,7 @@ get_process_memory_maps(PyObject* self, PyObject* args)
             memset(addr_str, 0, sizeof(addr_str));
             memset(perms, 0, sizeof(perms));
 
-            sprintf(addr_str, "%016lx-%016lx", address, address + size);
+            sprintf(addr_str, "%016x-%016x", address, address + size);
             sprintf(perms, "%c%c%c/%c%c%c",
                     (info.protection & VM_PROT_READ) ? 'r' : '-',
                     (info.protection & VM_PROT_WRITE) ? 'w' : '-',
@@ -342,6 +337,8 @@ get_process_memory_maps(PyObject* self, PyObject* args)
                     (info.max_protection & VM_PROT_READ) ? 'r' : '-',
                     (info.max_protection & VM_PROT_WRITE) ? 'w' : '-',
                     (info.max_protection & VM_PROT_EXECUTE) ? 'x' : '-');
+
+            address += size;
 
             err = proc_regionfilename(pid, address, buf, sizeof(buf));
 
@@ -398,19 +395,11 @@ get_process_memory_maps(PyObject* self, PyObject* args)
                 goto error;
             Py_DECREF(py_tuple);
         }
-
-        //increment address for the next map/file
-        address += size;
     }
-
-    if (task != MACH_PORT_NULL)
-        mach_port_deallocate(mach_task_self(), task);
 
     return py_list;
 
 error:
-    if (task != MACH_PORT_NULL)
-        mach_port_deallocate(mach_task_self(), task);
     Py_XDECREF(py_tuple);
     Py_DECREF(py_list);
     return NULL;
@@ -474,7 +463,7 @@ get_process_create_time(PyObject* self, PyObject* args)
     if (! PyArg_ParseTuple(args, "l", &pid)) {
         return NULL;
     }
-    if (psutil_get_kinfo_proc(pid, &kp) == -1) {
+    if (get_kinfo_proc(pid, &kp) == -1) {
         return NULL;
     }
     return Py_BuildValue("d", TV2DOUBLE(kp.kp_proc.p_starttime));
@@ -634,13 +623,11 @@ get_system_cpu_times(PyObject* self, PyObject* args)
     kern_return_t error;
     host_cpu_load_info_data_t r_load;
 
-    mach_port_t host_port = mach_host_self();
-    error = host_statistics(host_port, HOST_CPU_LOAD_INFO, (host_info_t)&r_load, &count);
+    error = host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, (host_info_t)&r_load, &count);
     if (error != KERN_SUCCESS) {
         return PyErr_Format(PyExc_RuntimeError,
                 "Error in host_statistics(): %s", mach_error_string(error));
     }
-    mach_port_deallocate(mach_task_self(), host_port);
 
     return Py_BuildValue("(dddd)",
                          (double)r_load.cpu_ticks[CPU_STATE_USER] / CLK_TCK,
@@ -662,22 +649,17 @@ get_system_per_cpu_times(PyObject* self, PyObject* args)
     mach_msg_type_number_t info_count;
     kern_return_t error;
     processor_cpu_load_info_data_t* cpu_load_info = NULL;
-    int i, ret;
     PyObject* py_retlist = PyList_New(0);
     PyObject* py_cputime = NULL;
+    int i, ret;
 
-    if (py_retlist == NULL)
-        return NULL;
-
-    mach_port_t host_port = mach_host_self();
-    error = host_processor_info(host_port, PROCESSOR_CPU_LOAD_INFO,
+    error = host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO,
                                 &cpu_count, &info_array, &info_count);
     if (error != KERN_SUCCESS) {
         PyErr_Format(PyExc_RuntimeError, "Error in host_processor_info(): %s",
                      mach_error_string(error));
         goto error;
     }
-    mach_port_deallocate(mach_task_self(), host_port);
 
     cpu_load_info = (processor_cpu_load_info_data_t*) info_array;
 
@@ -754,9 +736,6 @@ get_disk_partitions(PyObject* self, PyObject* args)
     PyObject* py_retlist = PyList_New(0);
     PyObject* py_tuple = NULL;
 
-    if (py_retlist == NULL)
-        return NULL;
-
     // get the number of mount points
     Py_BEGIN_ALLOW_THREADS
     num = getfsstat(NULL, 0, MNT_NOWAIT);
@@ -768,10 +747,6 @@ get_disk_partitions(PyObject* self, PyObject* args)
 
     len = sizeof(*fs) * num;
     fs = malloc(len);
-    if (fs == NULL) {
-        PyErr_NoMemory();
-        goto error;
-    }
 
     Py_BEGIN_ALLOW_THREADS
     num = getfsstat(fs, len, MNT_NOWAIT);
@@ -871,7 +846,7 @@ get_process_status(PyObject* self, PyObject* args)
     if (! PyArg_ParseTuple(args, "l", &pid)) {
         return NULL;
     }
-    if (psutil_get_kinfo_proc(pid, &kp) == -1) {
+    if (get_kinfo_proc(pid, &kp) == -1) {
         return NULL;
     }
     return Py_BuildValue("i", (int)kp.kp_proc.p_stat);
@@ -888,18 +863,15 @@ get_process_threads(PyObject* self, PyObject* args)
     int err, j, ret;
     kern_return_t kr;
     unsigned int info_count = TASK_BASIC_INFO_COUNT;
-    mach_port_t task = MACH_PORT_NULL;
+    mach_port_t task;
     struct task_basic_info tasks_info;
     thread_act_port_array_t thread_list = NULL;
-    thread_info_data_t thinfo_basic;
+    thread_info_data_t thinfo;
     thread_basic_info_t basic_info_th;
     mach_msg_type_number_t thread_count, thread_info_count;
 
     PyObject* retList = PyList_New(0);
     PyObject* pyTuple = NULL;
-
-    if (retList == NULL)
-        return NULL;
 
     // the argument passed should be a process id
     if (! PyArg_ParseTuple(args, "l", &pid)) {
@@ -909,7 +881,7 @@ get_process_threads(PyObject* self, PyObject* args)
     // task_for_pid() requires special privileges
     err = task_for_pid(mach_task_self(), pid, &task);
     if (err != KERN_SUCCESS) {
-        if (! psutil_pid_exists(pid)) {
+        if (! pid_exists(pid)) {
             NoSuchProcess();
         }
         else {
@@ -942,15 +914,15 @@ get_process_threads(PyObject* self, PyObject* args)
         pyTuple = NULL;
         thread_info_count = THREAD_INFO_MAX;
         kr = thread_info(thread_list[j], THREAD_BASIC_INFO,
-                         (thread_info_t)thinfo_basic, &thread_info_count);
+                         (thread_info_t)thinfo, &thread_info_count);
         if (kr != KERN_SUCCESS) {
-            PyErr_Format(PyExc_RuntimeError, "thread_info() with flag THREAD_BASIC_INFO failed");
+            PyErr_Format(PyExc_RuntimeError, "thread_info() failed");
             goto error;
         }
-
-        basic_info_th = (thread_basic_info_t)thinfo_basic;
-        pyTuple = Py_BuildValue("Iff",
-                    j+1,
+        basic_info_th = (thread_basic_info_t)thinfo;
+        // XXX - thread_info structure does not provide any process id;
+        // the best we can do is assigning an incremental bogus value
+        pyTuple = Py_BuildValue("Iff", j + 1,
                     (float)basic_info_th->user_time.microseconds / 1000000.0,
                     (float)basic_info_th->system_time.microseconds / 1000000.0
                   );
@@ -967,13 +939,9 @@ get_process_threads(PyObject* self, PyObject* args)
         PyErr_WarnEx(PyExc_RuntimeWarning, "vm_deallocate() failed", 2);
     }
 
-    mach_port_deallocate(mach_task_self(), task);
-
     return retList;
 
 error:
-    if (task != MACH_PORT_NULL)
-        mach_port_deallocate(mach_task_self(), task);
     Py_XDECREF(pyTuple);
     Py_DECREF(retList);
     if (thread_list != NULL) {
@@ -1009,9 +977,6 @@ get_process_open_files(PyObject* self, PyObject* args)
     PyObject *retList = PyList_New(0);
     PyObject *tuple = NULL;
 
-    if (retList == NULL)
-        return NULL;
-
     if (! PyArg_ParseTuple(args, "l", &pid)) {
         goto error;
     }
@@ -1024,10 +989,6 @@ get_process_open_files(PyObject* self, PyObject* args)
     }
 
     fds_pointer = malloc(pidinfo_result);
-    if (fds_pointer == NULL) {
-        PyErr_NoMemory();
-        goto error;
-    }
     pidinfo_result = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, fds_pointer,
                                   pidinfo_result);
     if (pidinfo_result <= 0) {
@@ -1093,7 +1054,7 @@ error:
     if (errno != 0) {
         return PyErr_SetFromErrno(PyExc_OSError);
     }
-    else if (! psutil_pid_exists(pid)) {
+    else if (! pid_exists(pid)) {
         return NoSuchProcess();
     }
     else {
@@ -1103,8 +1064,40 @@ error:
 }
 
 
-// a signaler for connections without an actual status
-static int PSUTIL_CONN_NONE = 128;
+/*
+ * mathes Linux net/tcp_states.h:
+ * http://students.mimuw.edu.pl/lxr/source/include/net/tcp_states.h
+ */
+static char *
+get_connection_status(int st) {
+    switch (st) {
+        case TCPS_CLOSED:
+            return "CLOSE";
+        case TCPS_CLOSING:
+            return "CLOSING";
+        case TCPS_CLOSE_WAIT:
+            return "CLOSE_WAIT";
+        case TCPS_LISTEN:
+            return "LISTEN";
+        case TCPS_ESTABLISHED:
+            return "ESTABLISHED";
+        case TCPS_SYN_SENT:
+            return "SYN_SENT";
+        case TCPS_SYN_RECEIVED:
+            return "SYN_RECV";
+        case TCPS_FIN_WAIT_1:
+            return "FIN_WAIT_1";
+        case TCPS_FIN_WAIT_2:
+            return "FIN_WAIT_2";
+        case TCPS_LAST_ACK:
+            return "LAST_ACK";
+        case TCPS_TIME_WAIT:
+            return "TIME_WAIT";
+        default:
+            return "";
+    }
+}
+
 
 /*
  * Return process TCP and UDP connections as a list of tuples.
@@ -1132,9 +1125,6 @@ get_process_connections(PyObject* self, PyObject* args)
     PyObject *af_filter = NULL;
     PyObject *type_filter = NULL;
 
-    if (retList == NULL)
-        return NULL;
-
     if (! PyArg_ParseTuple(args, "lOO", &pid, &af_filter, &type_filter)) {
         goto error;
     }
@@ -1154,10 +1144,6 @@ get_process_connections(PyObject* self, PyObject* args)
     }
 
     fds_pointer = malloc(pidinfo_result);
-    if (fds_pointer == NULL) {
-        PyErr_NoMemory();
-        goto error;
-    }
     pidinfo_result = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, fds_pointer,
                                   pidinfo_result);
 
@@ -1202,8 +1188,9 @@ get_process_connections(PyObject* self, PyObject* args)
             // --- /errors checking
 
             //
-            int fd, family, type, lport, rport, state;
+            int fd, family, type, lport, rport;
             char lip[200], rip[200];
+            char *state;
             int inseq;
             PyObject* _family;
             PyObject* _type;
@@ -1260,10 +1247,11 @@ get_process_connections(PyObject* self, PyObject* args)
                 lport = ntohs(si.psi.soi_proto.pri_tcp.tcpsi_ini.insi_lport);
                 rport = ntohs(si.psi.soi_proto.pri_tcp.tcpsi_ini.insi_fport);
                 if (type == SOCK_STREAM) {
-                    state = (int)si.psi.soi_proto.pri_tcp.tcpsi_state;
+                    state = get_connection_status((int)si.psi.soi_proto.pri_tcp.tcpsi_state);
                 }
+
                 else {
-                    state = PSUTIL_CONN_NONE;
+                    state = "";
                 }
 
                 laddr = Py_BuildValue("(si)", lip, lport);
@@ -1279,7 +1267,7 @@ get_process_connections(PyObject* self, PyObject* args)
                     goto error;
 
                 // construct the python list
-                tuple = Py_BuildValue("(iiiNNi)", fd, family, type, laddr, raddr,
+                tuple = Py_BuildValue("(iiiNNs)", fd, family, type, laddr, raddr,
                                                   state);
                 if (!tuple)
                     goto error;
@@ -1289,11 +1277,11 @@ get_process_connections(PyObject* self, PyObject* args)
             }
             else if (family == AF_UNIX) {
                 // construct the python list
-                tuple = Py_BuildValue("(iiissi)",
+                tuple = Py_BuildValue("(iiisss)",
                     fd, family, type,
                     si.psi.soi_proto.pri_un.unsi_addr.ua_sun.sun_path,
                     si.psi.soi_proto.pri_un.unsi_caddr.ua_sun.sun_path,
-                    PSUTIL_CONN_NONE);
+                    "");
                 if (!tuple)
                     goto error;
                 if (PyList_Append(retList, tuple))
@@ -1318,7 +1306,7 @@ error:
     if (errno != 0) {
         return PyErr_SetFromErrno(PyExc_OSError);
     }
-    else if (! psutil_pid_exists(pid) ) {
+    else if (! pid_exists(pid) ) {
         return NoSuchProcess();
     }
     else {
@@ -1349,9 +1337,6 @@ get_process_num_fds(PyObject* self, PyObject* args)
     }
 
     fds_pointer = malloc(pidinfo_result);
-    if (fds_pointer == NULL) {
-        return PyErr_NoMemory();
-    }
     pidinfo_result = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, fds_pointer,
                                   pidinfo_result);
     if (pidinfo_result <= 0) {
@@ -1369,17 +1354,15 @@ get_process_num_fds(PyObject* self, PyObject* args)
  * Return a Python list of named tuples with overall network I/O information
  */
 static PyObject*
-get_net_io_counters(PyObject* self, PyObject* args)
+get_network_io_counters(PyObject* self, PyObject* args)
 {
+    PyObject* py_retdict = PyDict_New();
+    PyObject* py_ifc_info = NULL;
+
     char *buf = NULL, *lim, *next;
     struct if_msghdr *ifm;
     int mib[6];
     size_t len;
-    PyObject* py_retdict = PyDict_New();
-    PyObject* py_ifc_info = NULL;
-
-    if (py_retdict == NULL)
-        return NULL;
 
     mib[0] = CTL_NET;          // networking subsystem
     mib[1] = PF_ROUTE;         // type of information
@@ -1394,10 +1377,6 @@ get_net_io_counters(PyObject* self, PyObject* args)
     }
 
     buf = malloc(len);
-    if (buf == NULL) {
-        PyErr_NoMemory();
-        goto error;
-    }
 
     if (sysctl(mib, 6, buf, &len, NULL, 0) < 0) {
         PyErr_SetFromErrno(0);
@@ -1458,17 +1437,15 @@ error:
 static PyObject*
 get_disk_io_counters(PyObject* self, PyObject* args)
 {
+    PyObject* py_retdict = PyDict_New();
+    PyObject* py_disk_info = NULL;
+
     CFDictionaryRef parent_dict;
     CFDictionaryRef props_dict;
     CFDictionaryRef stats_dict;
     io_registry_entry_t parent;
     io_registry_entry_t disk;
     io_iterator_t disk_list;
-    PyObject* py_retdict = PyDict_New();
-    PyObject* py_disk_info = NULL;
-
-    if (py_retdict == NULL)
-        return NULL;
 
     /* Get list of disks */
     if (IOServiceGetMatchingServices(kIOMasterPortDefault,
@@ -1539,12 +1516,7 @@ get_disk_io_counters(PyObject* self, PyObject* args)
             }
 
             CFNumberRef number;
-            int64_t reads = 0;
-            int64_t writes = 0;
-            int64_t read_bytes = 0;
-            int64_t write_bytes = 0;
-            int64_t read_time = 0;
-            int64_t write_time = 0;
+            int64_t reads, writes, read_bytes, write_bytes, read_time, write_time = 0;
 
             /* Get disk reads/writes */
             if ((number = (CFNumberRef)CFDictionaryGetValue(
@@ -1590,10 +1562,9 @@ get_disk_io_counters(PyObject* self, PyObject* args)
             // Read/Write time on OS X comes back in nanoseconds and in psutil
             // we've standardized on milliseconds so do the conversion.
             py_disk_info = Py_BuildValue("(KKKKKK)",
-                reads, writes,
-                read_bytes, write_bytes,
-                read_time / 1000 / 1000, write_time / 1000 / 1000
-            );
+                                         reads, writes,
+                                         read_bytes, write_bytes,
+                                         read_time / 1000, write_time / 1000);
             if (!py_disk_info)
                 goto error;
             if (PyDict_SetItemString(py_retdict, disk_name, py_disk_info))
@@ -1624,38 +1595,48 @@ error:
 static PyObject*
 get_system_users(PyObject* self, PyObject* args)
 {
-    struct utmpx *utx;
     PyObject *ret_list = PyList_New(0);
     PyObject *tuple = NULL;
+    struct utmpx ut;
+    FILE *fp = NULL;
 
-    if (ret_list == NULL)
-        return NULL;
-    while ((utx = getutxent()) != NULL) {
-        if (utx->ut_type != USER_PROCESS)
+    fp = fopen(_PATH_UTMPX, "r");
+    if (fp == NULL) {
+        // man fopen says errno is set but it seems it's not (OSX 10.6)
+        PyErr_SetFromErrnoWithFilename(PyExc_OSError, _PATH_UTMPX);
+        goto error;
+    }
+
+    while (fread(&ut, sizeof(ut), 1, fp) == 1) {
+        if (*ut.ut_user == '\0') {
             continue;
+        }
+#ifdef UTMPX_USER_PROCESS
+        if (ut.ut_type != UTMPX_USER_PROCESS) {
+            continue;
+        }
+#endif
         tuple = Py_BuildValue("(sssf)",
-            utx->ut_user,             // username
-            utx->ut_line,             // tty
-            utx->ut_host,             // hostname
-            (float)utx->ut_tv.tv_sec  // start time
+            ut.ut_user,              // username
+            ut.ut_line,              // tty
+            ut.ut_host,              // hostname
+            (float)ut.ut_tv.tv_sec   // login time
         );
-        if (!tuple) {
-            endutxent();
+        if (!tuple)
             goto error;
-        }
-        if (PyList_Append(ret_list, tuple)) {
-            endutxent();
+        if (PyList_Append(ret_list, tuple))
             goto error;
-        }
         Py_DECREF(tuple);
     }
 
-    endutxent();
+    fclose(fp);
     return ret_list;
 
 error:
     Py_XDECREF(tuple);
     Py_DECREF(ret_list);
+    if (fp != NULL)
+        fclose(fp);
     return NULL;
 }
 
@@ -1723,11 +1704,12 @@ PsutilMethods[] =
      {"get_system_per_cpu_times", get_system_per_cpu_times, METH_VARARGS,
          "Return system per-cpu times as a list of tuples"},
      {"get_system_boot_time", get_system_boot_time, METH_VARARGS,
-         "Return the system boot time expressed in seconds since the epoch."},
+         "Return a float indicating the system boot time expressed in "
+         "seconds since the epoch"},
      {"get_disk_partitions", get_disk_partitions, METH_VARARGS,
          "Return a list of tuples including device, mount point and "
          "fs type for all partitions mounted on the system."},
-     {"get_net_io_counters", get_net_io_counters, METH_VARARGS,
+     {"get_network_io_counters", get_network_io_counters, METH_VARARGS,
          "Return dict of tuples of networks I/O information."},
      {"get_disk_io_counters", get_disk_io_counters, METH_VARARGS,
          "Return dict of tuples of disks I/O information."},
@@ -1800,19 +1782,6 @@ init_psutil_osx(void)
     PyModule_AddIntConstant(module, "SSLEEP", SSLEEP);
     PyModule_AddIntConstant(module, "SSTOP", SSTOP);
     PyModule_AddIntConstant(module, "SZOMB", SZOMB);
-    // connection status constants
-    PyModule_AddIntConstant(module, "TCPS_CLOSED", TCPS_CLOSED);
-    PyModule_AddIntConstant(module, "TCPS_CLOSING", TCPS_CLOSING);
-    PyModule_AddIntConstant(module, "TCPS_CLOSE_WAIT", TCPS_CLOSE_WAIT);
-    PyModule_AddIntConstant(module, "TCPS_LISTEN", TCPS_LISTEN);
-    PyModule_AddIntConstant(module, "TCPS_ESTABLISHED", TCPS_ESTABLISHED);
-    PyModule_AddIntConstant(module, "TCPS_SYN_SENT", TCPS_SYN_SENT);
-    PyModule_AddIntConstant(module, "TCPS_SYN_RECEIVED", TCPS_SYN_RECEIVED);
-    PyModule_AddIntConstant(module, "TCPS_FIN_WAIT_1", TCPS_FIN_WAIT_1);
-    PyModule_AddIntConstant(module, "TCPS_FIN_WAIT_2", TCPS_FIN_WAIT_2);
-    PyModule_AddIntConstant(module, "TCPS_LAST_ACK", TCPS_LAST_ACK);
-    PyModule_AddIntConstant(module, "TCPS_TIME_WAIT", TCPS_TIME_WAIT);
-    PyModule_AddIntConstant(module, "PSUTIL_CONN_NONE", PSUTIL_CONN_NONE);
 
     if (module == NULL) {
         INITERROR;

@@ -8,8 +8,7 @@
 #include <d3d10_1.h>
 #include <dxgi.h>
 
-#include "mozilla/layers/LayerManagerComposite.h"
-#include "mozilla/layers/PLayerTransaction.h"
+#include "mozilla/layers/PLayers.h"
 #include "ShadowLayers.h"
 
 using namespace mozilla::gl;
@@ -21,7 +20,7 @@ namespace layers {
 // D3D10 doesn't need all these yet.
 bool
 ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize&,
-                                                  gfxContentType,
+                                                  gfxASurface::gfxContentType,
                                                   uint32_t,
                                                   SurfaceDescriptor*)
 {
@@ -61,16 +60,6 @@ ShadowLayerForwarder::PlatformGetDescriptorSurfaceSize(
   return false;
 }
 
-/*static*/ bool
-ShadowLayerForwarder::PlatformGetDescriptorSurfaceImageFormat(
-  const SurfaceDescriptor&,
-  OpenMode,
-  gfxImageFormat*,
-  gfxASurface**)
-{
-  return false;
-}
-
 bool
 ShadowLayerForwarder::PlatformDestroySharedSurface(SurfaceDescriptor*)
 {
@@ -89,21 +78,21 @@ ISurfaceAllocator::PlatformDestroySharedSurface(SurfaceDescriptor*)
 }
 
 /*static*/ already_AddRefed<TextureImage>
-LayerManagerComposite::OpenDescriptorForDirectTexturing(GLContext*,
-                                                        const SurfaceDescriptor&,
-                                                        GLenum)
+ShadowLayerManager::OpenDescriptorForDirectTexturing(GLContext*,
+                                                     const SurfaceDescriptor&,
+                                                     GLenum)
 {
   return nullptr;
 }
 
 /*static*/ bool
-LayerManagerComposite::SupportsDirectTexturing()
+ShadowLayerManager::SupportsDirectTexturing()
 {
   return true;
 }
 
 /*static*/ void
-LayerManagerComposite::PlatformSyncBeforeReplyUpdate()
+ShadowLayerManager::PlatformSyncBeforeReplyUpdate()
 {
 }
 

@@ -17,8 +17,6 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsDataHashtable.h"
 #include "nsString.h"
-#include "nsINodeInfo.h"
-#include "mozilla/dom/XBLChildrenElement.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -74,10 +72,6 @@ private:
 
 class NameSpaceManagerImpl : public nsINameSpaceManager {
 public:
-  NameSpaceManagerImpl()
-    : mURIToIDTable(32)
-  {
-  }
   virtual ~NameSpaceManagerImpl()
   {
   }
@@ -106,6 +100,8 @@ NS_IMPL_ISUPPORTS1(NameSpaceManagerImpl, nsINameSpaceManager)
 
 nsresult NameSpaceManagerImpl::Init()
 {
+  mURIToIDTable.Init(32);
+
   nsresult rv;
 #define REGISTER_NAMESPACE(uri, id) \
   rv = AddNameSpace(NS_LITERAL_STRING(uri), id); \
@@ -205,10 +201,6 @@ NS_NewElement(nsIContent** aResult,
   }
   if (ns == kNameSpaceID_SVG) {
     return NS_NewSVGElement(aResult, aNodeInfo, aFromParser);
-  }
-  if (ns == kNameSpaceID_XBL && aNodeInfo.get()->Equals(nsGkAtoms::children)) {
-    NS_ADDREF(*aResult = new XBLChildrenElement(aNodeInfo));
-    return NS_OK;
   }
   return NS_NewXMLElement(aResult, aNodeInfo);
 }

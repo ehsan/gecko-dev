@@ -7,7 +7,6 @@
 TEST_DIRS += ['test']
 
 XPIDL_SOURCES += [
-    'nsIApplicationReputation.idl',
     'nsIDownload.idl',
     'nsIDownloadManager.idl',
     'nsIDownloadManagerUI.idl',
@@ -15,34 +14,4 @@ XPIDL_SOURCES += [
 ]
 
 MODULE = 'downloads'
-
-SOURCES += [
-    'nsDownloadManager.cpp',
-    'SQLFunctions.cpp',
-]
-
-if CONFIG['MOZ_URL_CLASSIFIER']:
-    SOURCES += [
-        'ApplicationReputation.cpp',
-        'csd.pb.cc'
-    ]
-
-if CONFIG['OS_ARCH'] == 'WINNT':
-    SOURCES += [
-        'nsDownloadScanner.cpp',
-    ]
-
-# XXX - Until Suite builds off XULRunner we can't guarantee our implementation
-# of nsIDownloadManagerUI overrides toolkit's.
-if not CONFIG['MOZ_SUITE']:
-    EXTRA_COMPONENTS += [
-        'nsDownloadManagerUI.js',
-        'nsDownloadManagerUI.manifest',
-    ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'download_s'
 

@@ -2,10 +2,31 @@
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
 MARIONETTE_TIMEOUT = 60000;
-MARIONETTE_HEAD_JS = 'head.js';
 
+SpecialPowers.addPermission("telephony", true, document);
+
+let telephony = window.navigator.mozTelephony;
 let inNumber = "5555551111";
 let incomingCall;
+
+function verifyInitialState() {
+  log("Verifying initial state.");
+  ok(telephony);
+  is(telephony.active, null);
+  ok(telephony.calls);
+  is(telephony.calls.length, 0);
+
+  runEmulatorCmd("gsm list", function(result) {
+    log("Initial call list: " + result);
+    is(result[0], "OK");
+    if (result[0] == "OK") {
+      simulateIncoming();
+    } else {
+      log("Call exists from a previous test, failing out.");
+      cleanUp();
+    }
+  });
+}
 
 function simulateIncoming() {
   log("Simulating an incoming call.");
@@ -20,21 +41,21 @@ function simulateIncoming() {
     is(telephony.calls.length, 1);
     is(telephony.calls[0], incomingCall);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + inNumber + " : incoming");
       is(result[1], "OK");
       answerIncoming();
     });
   };
-  emulator.run("gsm call " + inNumber);
+  runEmulatorCmd("gsm call " + inNumber);
 }
 
 function answerIncoming() {
   log("Answering the incoming call.");
 
   let gotConnecting = false;
-  incomingCall.onconnecting = function onconnectingIn(event) {
+  incomingCall.onconnecting = function onconnectingIn(event) { 
     log("Received 'connecting' call event for incoming call.");
     is(incomingCall, event.call);
     is(incomingCall.state, "connecting");
@@ -49,7 +70,7 @@ function answerIncoming() {
 
     is(incomingCall, telephony.active);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + inNumber + " : active");
       is(result[1], "OK");
@@ -65,12 +86,12 @@ function answerAlreadyConnected() {
   incomingCall.onconnecting = function onconnectingErr(event) {
     log("Received 'connecting' call event, but should not have.");
     ok(false, "Received 'connecting' event when answered already active call");
-  };
+  }
 
   incomingCall.onconnected = function onconnectedErr(event) {
     log("Received 'connected' call event, but should not have.");
     ok(false, "Received 'connected' event when answered already active call");
-  };
+  }
 
   incomingCall.answer();
 
@@ -102,7 +123,7 @@ function hold() {
     is(telephony.calls.length, 1);
     is(telephony.calls[0], incomingCall);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + inNumber + " : held");
       is(result[1], "OK");
@@ -118,12 +139,12 @@ function holdAlreadyHeld() {
   incomingCall.onholding = function onholding(event) {
     log("Received 'holding' call event, but should not have.");
     ok(false, "Received 'holding' event when held an already held call");
-  };
+  }
 
   incomingCall.onheld = function onheldErr(event) {
     log("Received 'held' call event, but should not have.");
     ok(false, "Received 'held' event when held an already held call");
-  };
+  }
 
   incomingCall.hold();
 
@@ -141,12 +162,12 @@ function answerHeld() {
   incomingCall.onconnecting = function onconnectingErr(event) {
     log("Received 'connecting' call event, but should not have.");
     ok(false, "Received 'connecting' event when answered a held call");
-  };
+  }
 
   incomingCall.onconnected = function onconnectedErr(event) {
     log("Received 'connected' call event, but should not have.");
     ok(false, "Received 'connected' event when answered a held call");
-  };
+  }
 
   incomingCall.answer();
 
@@ -179,7 +200,7 @@ function resume() {
     is(telephony.calls.length, 1);
     is(telephony.calls[0], incomingCall);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + inNumber + " : active");
       is(result[1], "OK");
@@ -195,12 +216,12 @@ function resumeNonHeld() {
   incomingCall.onresuming = function onresumingErr(event) {
     log("Received 'resuming' call event, but should not have.");
     ok(false, "Received 'resuming' event when resumed non-held call");
-  };
+  }
 
   incomingCall.onconnected = function onconnectedErr(event) {
     log("Received 'connected' call event, but should not have.");
     ok(false, "Received 'connected' event when resumed non-held call");
-  };
+  }
 
   incomingCall.resume();
 
@@ -231,7 +252,7 @@ function hangUp() {
     is(telephony.active, null);
     is(telephony.calls.length, 0);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "OK");
       answerDisconnected();
@@ -246,12 +267,12 @@ function answerDisconnected() {
   incomingCall.onconnecting = function onconnectingErr(event) {
     log("Received 'connecting' call event, but should not have.");
     ok(false, "Received 'connecting' event when answered disconnected call");
-  };
+  }
 
   incomingCall.onconnected = function onconnectedErr(event) {
     log("Received 'connected' call event, but should not have.");
     ok(false, "Received 'connected' event when answered disconnected call");
-  };
+  }
 
   incomingCall.answer();
 
@@ -266,12 +287,12 @@ function holdDisconnected() {
   incomingCall.onholding = function onholdingErr(event) {
     log("Received 'holding' call event, but should not have.");
     ok(false, "Received 'holding' event when held a disconnected call");
-  };
+  }
 
   incomingCall.onheld = function onheldErr(event) {
     log("Received 'held' call event, but should not have.");
     ok(false, "Received 'held' event when held a disconnected call");
-  };
+  }
 
   incomingCall.hold();
 
@@ -286,12 +307,12 @@ function resumeDisconnected() {
   incomingCall.onresuming = function onresumingErr(event) {
     log("Received 'resuming' call event, but should not have.");
     ok(false, "Received 'resuming' event when resumed disconnected call");
-  };
+  }
 
   incomingCall.onconnected = function onconnectedErr(event) {
     log("Received 'connected' call event, but should not have.");
     ok(false, "Received 'connected' event when resumed disconnected call");
-  };
+  }
 
   incomingCall.resume();
 
@@ -306,12 +327,12 @@ function hangUpNonConnected() {
   incomingCall.ondisconnecting = function ondisconnectingErr(event) {
     log("Received 'disconnecting' call event, but should not have.");
     ok(false, "Received 'disconnecting' event when hung-up non-active call");
-  };
+  }
 
   incomingCall.ondisconnected = function ondisconnectedErr(event) {
     log("Received 'disconnected' call event, but should not have.");
     ok(false, "Received 'disconnected' event when hung-up non-active call");
-  };
+  }
 
   incomingCall.hangUp();
 
@@ -322,9 +343,9 @@ function hangUpNonConnected() {
 
 function cleanUp() {
   telephony.onincoming = null;
+  SpecialPowers.removePermission("telephony", document);
   finish();
 }
 
-startTest(function() {
-  simulateIncoming();
-});
+// Start the test
+verifyInitialState();

@@ -197,11 +197,42 @@ const char kClassNameDialog[]        = "MozillaDialogClass";
 const char kClassNameDropShadow[]    = "MozillaDropShadowWindowClass";
 const char kClassNameTemp[]          = "MozillaTempWindowClass";
 
+static const uint32_t sModifierKeyMap[][3] = {
+  { nsIWidget::CAPS_LOCK, VK_CAPITAL, 0 },
+  { nsIWidget::NUM_LOCK,  VK_NUMLOCK, 0 },
+  { nsIWidget::SHIFT_L,   VK_SHIFT,   VK_LSHIFT },
+  { nsIWidget::SHIFT_R,   VK_SHIFT,   VK_RSHIFT },
+  { nsIWidget::CTRL_L,    VK_CONTROL, VK_LCONTROL },
+  { nsIWidget::CTRL_R,    VK_CONTROL, VK_RCONTROL },
+  { nsIWidget::ALT_L,     VK_MENU,    VK_LMENU },
+  { nsIWidget::ALT_R,     VK_MENU,    VK_RMENU }
+};
+
 /**************************************************************
  *
  * SECTION: structs
  * 
  **************************************************************/
+
+// Used in OnKeyDown
+struct nsAlternativeCharCode; // defined in nsGUIEvent.h
+struct nsFakeCharMessage {
+  UINT mCharCode;
+  UINT mScanCode;
+  bool mIsDeadKey;
+
+  MSG GetCharMessage(HWND aWnd)
+  {
+    MSG msg;
+    msg.hwnd = aWnd;
+    msg.message = mIsDeadKey ? WM_DEADCHAR : WM_CHAR;
+    msg.wParam = static_cast<WPARAM>(mCharCode);
+    msg.lParam = static_cast<LPARAM>(mScanCode);
+    msg.time = 0;
+    msg.pt.x = msg.pt.y = 0;
+    return msg;
+  }
+};
 
 // Used for synthesizing events
 struct KeyPair {
@@ -220,28 +251,6 @@ struct TITLEBARINFOEX
     RECT rgrect[CCHILDREN_TITLEBAR + 1];
 };
 #endif
-
-namespace mozilla {
-namespace widget {
-
-struct MSGResult
-{
-  // Result for the message.
-  LRESULT& mResult;
-  // If mConsumed is true, the caller shouldn't call next wndproc.
-  bool mConsumed;
-
-  MSGResult(LRESULT* aResult = nullptr) :
-    mResult(aResult ? *aResult : mDefaultResult), mConsumed(false)
-  {
-  }
-
-private:
-  LRESULT mDefaultResult;
-};
-
-} // namespace widget
-} // namespace mozilla
 
 /**************************************************************
  *

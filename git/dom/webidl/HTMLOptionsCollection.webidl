@@ -10,8 +10,12 @@
  * liability, trademark and document use rules apply.
  */
 
+interface HTMLOptionElement;
+
 interface HTMLOptionsCollection : HTMLCollection {
            attribute unsigned long length;
+  [Throws]
+  getter object? namedItem(DOMString name);
   [Throws]
   setter creator void (unsigned long index, HTMLOptionElement? option);
   [Throws]

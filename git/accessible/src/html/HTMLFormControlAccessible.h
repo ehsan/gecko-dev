@@ -26,13 +26,7 @@ class HTMLCheckboxAccessible : public LeafAccessible
 public:
   enum { eAction_Click = 0 };
 
-  HTMLCheckboxAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    LeafAccessible(aContent, aDoc)
-  {
-    // Ignore "CheckboxStateChange" DOM event in lieu of document observer
-    // state change notification.
-    mStateFlags |= eIgnoreDOMUIEvent;
-  }
+  HTMLCheckboxAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // nsIAccessible
   NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
@@ -57,13 +51,7 @@ class HTMLRadioButtonAccessible : public RadioButtonAccessible
 {
 
 public:
-  HTMLRadioButtonAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    RadioButtonAccessible(aContent, aDoc)
-  {
-    // Ignore "RadioStateChange" DOM event in lieu of document observer
-    // state change notification.
-    mStateFlags |= eIgnoreDOMUIEvent;
-  }
+  HTMLRadioButtonAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // Accessible
   virtual uint64_t NativeState();
@@ -106,8 +94,7 @@ protected:
 
 
 /**
- * Accessible for HTML input@type="text", input@type="password", textarea and
- * other HTML text controls.
+ * Accessible for HTML input@type="text" element.
  */
 class HTMLTextFieldAccessible : public HyperTextAccessibleWrap
 {
@@ -131,7 +118,6 @@ public:
   virtual void ApplyARIAState(uint64_t* aState) const;
   virtual mozilla::a11y::role NativeRole();
   virtual uint64_t NativeState();
-  virtual already_AddRefed<nsIPersistentProperties> NativeAttributes() MOZ_OVERRIDE;
 
   // ActionAccessible
   virtual uint8_t ActionCount();
@@ -159,31 +145,6 @@ public:
   virtual nsresult HandleAccEvent(AccEvent* aAccEvent);
 };
 
-
-/**
-  * Used for input@type="range" element.
-  */
-class HTMLRangeAccessible : public LeafAccessible
-{
-public:
-  HTMLRangeAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    LeafAccessible(aContent, aDoc)
-  {
-    mStateFlags |= eHasNumericValue;
-  }
-
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_NSIACCESSIBLEVALUE
-
-  // Accessible
-  virtual void Value(nsString& aValue);
-  virtual mozilla::a11y::role NativeRole();
-
-  // Widgets
-  virtual bool IsWidget() const;
-};
-
-
 /**
  * Accessible for HTML fieldset element.
  */
@@ -194,7 +155,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 
 protected:
   // Accessible
@@ -215,7 +176,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 };
 
 /**
@@ -229,7 +190,7 @@ public:
   // Accessible
   virtual already_AddRefed<nsIPersistentProperties> NativeAttributes() MOZ_OVERRIDE;
   virtual mozilla::a11y::role NativeRole();
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 
 protected:
   // Accessible
@@ -250,7 +211,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 };
 
 } // namespace a11y

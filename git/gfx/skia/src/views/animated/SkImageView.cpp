@@ -300,3 +300,4 @@ bool SkImageView::ensureUriIsLoaded()
     }
     return true;
 }
+

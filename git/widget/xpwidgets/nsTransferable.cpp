@@ -51,7 +51,10 @@ uint32_t GetDataForFlavor (const nsTArray<DataStruct>& aArray,
 //-------------------------------------------------------------------------
 DataStruct::~DataStruct() 
 { 
-  if (mCacheFileName) free(mCacheFileName); 
+  if (mCacheFileName) nsCRT::free(mCacheFileName); 
+
+    //nsIFileSpec * cacheFile = GetFileSpec(mCacheFileName);
+    //cacheFile->Remove();
 }
 
 //-------------------------------------------------------------------------
@@ -99,13 +102,13 @@ DataStruct::GetData ( nsISupports** aData, uint32_t *aDataLen )
 
 
 //-------------------------------------------------------------------------
-already_AddRefed<nsIFile>
-DataStruct::GetFileSpec(const char* aFileName)
+nsIFile*
+DataStruct::GetFileSpec(const char * aFileName)
 {
-  nsCOMPtr<nsIFile> cacheFile;
-  NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(cacheFile));
+  nsIFile* cacheFile;
+  NS_GetSpecialDirectory(NS_OS_TEMP_DIR, &cacheFile);
   
-  if (!cacheFile)
+  if (cacheFile == nullptr)
     return nullptr;
 
   // if the param aFileName contains a name we should use that
@@ -118,7 +121,7 @@ DataStruct::GetFileSpec(const char* aFileName)
     cacheFile->AppendNative(nsDependentCString(aFileName));
   }
   
-  return cacheFile.forget();
+  return cacheFile;
 }
 
 
@@ -127,13 +130,13 @@ nsresult
 DataStruct::WriteCache(nsISupports* aData, uint32_t aDataLen)
 {
   // Get a new path and file to the temp directory
-  nsCOMPtr<nsIFile> cacheFile = GetFileSpec(mCacheFileName);
+  nsCOMPtr<nsIFile> cacheFile ( getter_AddRefs(GetFileSpec(mCacheFileName)) );
   if (cacheFile) {
     // remember the file name
     if (!mCacheFileName) {
       nsXPIDLCString fName;
       cacheFile->GetNativeLeafName(fName);
-      mCacheFileName = strdup(fName);
+      mCacheFileName = nsCRT::strdup(fName);
     }
 
     // write out the contents of the clipboard
@@ -168,7 +171,7 @@ DataStruct::ReadCache(nsISupports** aData, uint32_t* aDataLen)
     return NS_ERROR_FAILURE;
 
   // get the path and file name
-  nsCOMPtr<nsIFile> cacheFile = GetFileSpec(mCacheFileName);
+  nsCOMPtr<nsIFile> cacheFile ( getter_AddRefs(GetFileSpec(mCacheFileName)) );
   bool exists;
   if ( cacheFile && NS_SUCCEEDED(cacheFile->Exists(&exists)) && exists ) {
     // get the size of the file

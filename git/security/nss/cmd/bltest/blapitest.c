@@ -25,7 +25,7 @@
 #include "ecl-curve.h"
 SECStatus EC_DecodeParams(const SECItem *encodedParams, 
 	ECParams **ecparams);
-SECStatus EC_CopyParams(PLArenaPool *arena, ECParams *dstParams,
+SECStatus EC_CopyParams(PRArenaPool *arena, ECParams *dstParams,
 	      const ECParams *srcParams);
 #endif
 
@@ -207,7 +207,7 @@ static void Usage()
 /* XXX argh */
 struct item_with_arena {
     SECItem	*item;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
 };
 
 static PRInt32
@@ -231,7 +231,7 @@ get_binary(void *arg, const unsigned char *ibuf, PRInt32 size)
 }
 
 static SECStatus
-atob(SECItem *ascii, SECItem *binary, PLArenaPool *arena)
+atob(SECItem *ascii, SECItem *binary, PRArenaPool *arena)
 {
     SECStatus status;
     NSSBase64Decoder *cx;
@@ -335,7 +335,7 @@ serialize_key(SECItem *it, int ni, PRFileDesc *file)
 }
 
 void
-key_from_filedata(PLArenaPool *arena, SECItem *it, int ns, int ni, SECItem *filedata)
+key_from_filedata(PRArenaPool *arena, SECItem *it, int ns, int ni, SECItem *filedata)
 {
     int fpos = 0;
     int i, len;
@@ -364,7 +364,7 @@ static RSAPrivateKey *
 rsakey_from_filedata(SECItem *filedata)
 {
     RSAPrivateKey *key;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     arena = PORT_NewArena(BLTEST_DEFAULT_CHUNKSIZE);
     key = (RSAPrivateKey *)PORT_ArenaZAlloc(arena, sizeof(RSAPrivateKey));
     key->arena = arena;
@@ -376,7 +376,7 @@ static PQGParams *
 pqg_from_filedata(SECItem *filedata)
 {
     PQGParams *pqg;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     arena = PORT_NewArena(BLTEST_DEFAULT_CHUNKSIZE);
     pqg = (PQGParams *)PORT_ArenaZAlloc(arena, sizeof(PQGParams));
     pqg->arena = arena;
@@ -388,7 +388,7 @@ static DSAPrivateKey *
 dsakey_from_filedata(SECItem *filedata)
 {
     DSAPrivateKey *key;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     arena = PORT_NewArena(BLTEST_DEFAULT_CHUNKSIZE);
     key = (DSAPrivateKey *)PORT_ArenaZAlloc(arena, sizeof(DSAPrivateKey));
     key->params.arena = arena;
@@ -401,7 +401,7 @@ static ECPrivateKey *
 eckey_from_filedata(SECItem *filedata)
 {
     ECPrivateKey *key;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     SECStatus rv;
     ECParams *tmpECParams = NULL;
     arena = PORT_NewArena(BLTEST_DEFAULT_CHUNKSIZE);
@@ -627,7 +627,7 @@ typedef SECStatus (* bltestPubKeyCipherFn)(void *key,
 
 typedef SECStatus (* bltestHashCipherFn)(unsigned char *dest,
 					 const unsigned char *src,
-					 PRUint32 src_length);
+					 uint32 src_length);
 
 typedef enum {
     bltestINVALID = -1,
@@ -776,7 +776,7 @@ typedef union
 typedef struct bltestCipherInfoStr bltestCipherInfo;
 
 struct  bltestCipherInfoStr {
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     /* link to next in multithreaded test */
     bltestCipherInfo *next;
     PRThread         *cipherThread;
@@ -887,7 +887,7 @@ cipher_requires_IV(bltestCipherMode mode)
 SECStatus finishIO(bltestIO *output, PRFileDesc *file);
 
 SECStatus
-setupIO(PLArenaPool *arena, bltestIO *input, PRFileDesc *file,
+setupIO(PRArenaPool *arena, bltestIO *input, PRFileDesc *file,
 	char *str, int numBytes)
 {
     SECStatus rv = SECSuccess;
@@ -899,8 +899,10 @@ setupIO(PLArenaPool *arena, bltestIO *input, PRFileDesc *file,
     if (file && (numBytes == 0 || file == PR_STDIN)) {
 	/* grabbing data from a file */
 	rv = SECU_FileToItem(&fileData, file);
-	if (rv != SECSuccess)
+	if (rv != SECSuccess) {
+	    PR_Close(file);
 	    return SECFailure;
+	}
 	in = &fileData;
     } else if (str) {
 	/* grabbing data from command line */
@@ -1014,7 +1016,7 @@ finishIO(bltestIO *output, PRFileDesc *file)
 }
 
 void
-bltestCopyIO(PLArenaPool *arena, bltestIO *dest, bltestIO *src)
+bltestCopyIO(PRArenaPool *arena, bltestIO *dest, bltestIO *src)
 {
     SECITEM_CopyItem(arena, &dest->buf, &src->buf);
     if (src->pBuf.len > 0) {
@@ -1026,12 +1028,13 @@ bltestCopyIO(PLArenaPool *arena, bltestIO *dest, bltestIO *src)
 }
 
 void
-misalignBuffer(PLArenaPool *arena, bltestIO *io, int off)
+misalignBuffer(PRArenaPool *arena, bltestIO *io, int off)
 {
     ptrdiff_t offset = (ptrdiff_t)io->buf.data % WORDSIZE;
     int length = io->buf.len;
     if (offset != off) {
-	SECITEM_ReallocItemV2(arena, &io->buf, length + 2*WORDSIZE);
+	SECITEM_ReallocItem(arena, &io->buf, length, length + 2*WORDSIZE);
+	io->buf.len = length + 2*WORDSIZE; /* why doesn't realloc do this? */
 	/* offset may have changed? */
 	offset = (ptrdiff_t)io->buf.data % WORDSIZE;
 	if (offset != off) {
@@ -1678,7 +1681,7 @@ bltest_ecdsa_init(bltestCipherInfo *cipherInfo, PRBool encrypt)
 
 /* XXX unfortunately, this is not defined in blapi.h */
 SECStatus
-md2_HashBuf(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
+md2_HashBuf(unsigned char *dest, const unsigned char *src, uint32 src_length)
 {
     unsigned int len;
     MD2Context *cx = MD2_NewContext();
@@ -1691,7 +1694,7 @@ md2_HashBuf(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
 }
 
 SECStatus
-md2_restart(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
+md2_restart(unsigned char *dest, const unsigned char *src, uint32 src_length)
 {
     MD2Context *cx, *cx_cpy;
     unsigned char *cxbytes;
@@ -1729,7 +1732,7 @@ finish:
 }
 
 SECStatus
-md5_restart(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
+md5_restart(unsigned char *dest, const unsigned char *src, uint32 src_length)
 {
     SECStatus rv = SECSuccess;
     MD5Context *cx, *cx_cpy;
@@ -1768,7 +1771,7 @@ finish:
 }
 
 SECStatus
-sha1_restart(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
+sha1_restart(unsigned char *dest, const unsigned char *src, uint32 src_length)
 {
     SECStatus rv = SECSuccess;
     SHA1Context *cx, *cx_cpy;
@@ -1807,7 +1810,7 @@ finish:
 }
 
 SECStatus
-SHA224_restart(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
+SHA224_restart(unsigned char *dest, const unsigned char *src, uint32 src_length)
 {
     SECStatus rv = SECSuccess;
     SHA224Context *cx, *cx_cpy;
@@ -1847,7 +1850,7 @@ finish:
 }
 
 SECStatus
-SHA256_restart(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
+SHA256_restart(unsigned char *dest, const unsigned char *src, uint32 src_length)
 {
     SECStatus rv = SECSuccess;
     SHA256Context *cx, *cx_cpy;
@@ -1886,7 +1889,7 @@ finish:
 }
 
 SECStatus
-SHA384_restart(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
+SHA384_restart(unsigned char *dest, const unsigned char *src, uint32 src_length)
 {
     SECStatus rv = SECSuccess;
     SHA384Context *cx, *cx_cpy;
@@ -1925,7 +1928,7 @@ finish:
 }
 
 SECStatus
-SHA512_restart(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
+SHA512_restart(unsigned char *dest, const unsigned char *src, uint32 src_length)
 {
     SECStatus rv = SECSuccess;
     SHA512Context *cx, *cx_cpy;
@@ -2865,7 +2868,7 @@ get_mode(const char *modestring)
 }
 
 void
-load_file_data(PLArenaPool *arena, bltestIO *data,
+load_file_data(PRArenaPool *arena, bltestIO *data,
 	       char *fn, bltestIOMode ioMode)
 {
     PRFileDesc *file;
@@ -2874,14 +2877,12 @@ load_file_data(PLArenaPool *arena, bltestIO *data,
     data->pBuf.data = NULL;
     data->pBuf.len = 0;
     file = PR_Open(fn, PR_RDONLY, 00660);
-    if (file) {
+    if (file)
 	setupIO(arena, data, file, NULL, 0);
-	PR_Close(file);
-    }
 }
 
 void
-get_params(PLArenaPool *arena, bltestParams *params,
+get_params(PRArenaPool *arena, bltestParams *params, 
 	   bltestCipherMode mode, int j)
 {
     char filename[256];
@@ -3051,7 +3052,7 @@ blapi_selftest(bltestCipherMode *modes, int numModes, int inoff, int outoff,
     char *modestr;
     char filename[256];
     PRFileDesc *file;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     SECItem item;
     PRBool finished;
     SECStatus rv = SECSuccess, srv;
@@ -3228,7 +3229,7 @@ SECStatus
 dump_file(bltestCipherMode mode, char *filename)
 {
     bltestIO keydata;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     arena = PORT_NewArena(BLTEST_DEFAULT_CHUNKSIZE);
     if (mode == bltestRSA) {
 	RSAPrivateKey *key;
@@ -3841,7 +3842,7 @@ int main(int argc, char **argv)
         PRFileDesc     *file = NULL, *infile;
         bltestParams   *params;
         char           *instr = NULL;
-        PLArenaPool    *arena;
+        PRArenaPool    *arena;
 
         if (curThrdNum > 0) {
             bltestCipherInfo *newCInfo = PORT_ZNew(bltestCipherInfo);

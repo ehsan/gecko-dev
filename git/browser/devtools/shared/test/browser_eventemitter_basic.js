@@ -8,7 +8,7 @@ function test() {
 
 
 function testEmitter(aObject) {
-  Cu.import("resource:///modules/devtools/shared/event-emitter.js", this);
+  Cu.import("resource:///modules/devtools/EventEmitter.jsm", this);
 
   let emitter;
 
@@ -73,23 +73,6 @@ function testEmitter(aObject) {
     emitter.on("tick", c4);
 
     emitter.emit("tick");
-
-    offAfterOnce();
-  }
-
-  function offAfterOnce() {
-    let enteredC1 = false;
-
-    function c1() {
-      enteredC1 = true;
-    }
-
-    emitter.once("oao", c1);
-    emitter.off("oao", c1);
-
-    emitter.emit("oao");
-
-    ok(!enteredC1, "c1 should not be called");
 
     delete emitter;
     finish();

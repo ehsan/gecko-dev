@@ -8,29 +8,22 @@
 #define MOZILLA_IMAGELIB_IMAGEFACTORY_H_
 
 #include "nsCOMPtr.h"
-#include "nsProxyRelease.h"
 
 class nsCString;
 class nsIRequest;
+class nsIURI;
 class imgStatusTracker;
 
 namespace mozilla {
 namespace image {
 
 class Image;
-class ImageURL;
 
 class ImageFactory
 {
 public:
   /**
-   * Registers vars with Preferences. Should only be called on the main thread.
-   */
-  static void Initialize();
-
-  /**
    * Creates a new image with the given properties.
-   * Can be called on or off the main thread.
    *
    * @param aRequest       The associated request.
    * @param aStatusTracker A status tracker for the image to use.
@@ -42,7 +35,7 @@ public:
   static already_AddRefed<Image> CreateImage(nsIRequest* aRequest,
                                              imgStatusTracker* aStatusTracker,
                                              const nsCString& aMimeType,
-                                             ImageURL* aURI,
+                                             nsIURI* aURI,
                                              bool aIsMultiPart,
                                              uint32_t aInnerWindowId);
   /**
@@ -58,14 +51,14 @@ private:
   static already_AddRefed<Image> CreateRasterImage(nsIRequest* aRequest,
                                                    imgStatusTracker* aStatusTracker,
                                                    const nsCString& aMimeType,
-                                                   ImageURL* aURI,
+                                                   nsIURI* aURI,
                                                    uint32_t aImageFlags,
                                                    uint32_t aInnerWindowId);
 
   static already_AddRefed<Image> CreateVectorImage(nsIRequest* aRequest,
                                                    imgStatusTracker* aStatusTracker,
                                                    const nsCString& aMimeType,
-                                                   ImageURL* aURI,
+                                                   nsIURI* aURI,
                                                    uint32_t aImageFlags,
                                                    uint32_t aInnerWindowId);
 

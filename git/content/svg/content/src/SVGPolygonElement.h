@@ -6,7 +6,6 @@
 #ifndef mozilla_dom_SVGPolygonElement_h
 #define mozilla_dom_SVGPolygonElement_h
 
-#include "mozilla/Attributes.h"
 #include "nsSVGPolyElement.h"
 
 nsresult NS_NewSVGPolygonElement(nsIContent **aResult,
@@ -21,15 +20,14 @@ class SVGPolygonElement MOZ_FINAL : public SVGPolygonElementBase
 {
 protected:
   SVGPolygonElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-  virtual JSObject* WrapNode(JSContext *cx,
-                             JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
   friend nsresult (::NS_NewSVGPolygonElement(nsIContent **aResult,
                                              already_AddRefed<nsINodeInfo> aNodeInfo));
 
 public:
   // nsSVGPathGeometryElement methods:
-  virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks) MOZ_OVERRIDE;
-  virtual void ConstructPath(gfxContext *aCtx) MOZ_OVERRIDE;
+  virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks);
+  virtual void ConstructPath(gfxContext *aCtx);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 };

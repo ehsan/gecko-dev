@@ -10,8 +10,6 @@
  */
 
 #include "mozilla/css/StyleRule.h"
-
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/GroupRule.h"
 #include "mozilla/css/Declaration.h"
 #include "nsCSSStyleSheet.h"
@@ -35,7 +33,7 @@
 class nsIDOMCSSStyleDeclaration;
 class nsIDOMCSSStyleSheet;
 
-using namespace mozilla;
+namespace css = mozilla::css;
 
 #define NS_IF_CLONE(member_)                                                  \
   PR_BEGIN_MACRO                                                              \
@@ -84,7 +82,7 @@ nsAtomList::Clone(bool aDeep) const
 }
 
 size_t
-nsAtomList::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsAtomList::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   const nsAtomList* a = this;
@@ -179,7 +177,7 @@ nsPseudoClassList::Clone(bool aDeep) const
 }
 
 size_t
-nsPseudoClassList::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsPseudoClassList::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   const nsPseudoClassList* p = this;
@@ -302,8 +300,8 @@ nsCSSSelector::nsCSSSelector(void)
     mPseudoType(nsCSSPseudoElements::ePseudo_NotPseudoElement)
 {
   MOZ_COUNT_CTOR(nsCSSSelector);
-  static_assert(nsCSSPseudoElements::ePseudo_MAX < INT16_MAX,
-                "nsCSSPseudoElements::Type values overflow mPseudoType");
+  MOZ_STATIC_ASSERT(nsCSSPseudoElements::ePseudo_MAX < INT16_MAX,
+                    "nsCSSPseudoElements::Type values overflow mPseudoType");
 }
 
 nsCSSSelector*
@@ -811,7 +809,7 @@ nsCSSSelector::CanBeNamespaced(bool aIsNegated) const
 }
 
 size_t
-nsCSSSelector::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSSelector::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   const nsCSSSelector* s = this;
@@ -901,7 +899,7 @@ nsCSSSelectorList::Clone(bool aDeep) const
 }
 
 size_t
-nsCSSSelectorList::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSSelectorList::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   const nsCSSSelectorList* s = this;
@@ -1162,20 +1160,18 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(DOMCSSStyleRule)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(DOMCSSStyleRule)
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(DOMCSSStyleRule)
-
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(DOMCSSStyleRule)
   // Trace the wrapper for our declaration.  This just expands out
   // NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER which we can't use
   // directly because the wrapper is on the declaration, not on us.
-  tmp->DOMDeclaration()->TraceWrapper(aCallbacks, aClosure);
+  nsContentUtils::TraceWrapper(tmp->DOMDeclaration(), aCallback, aClosure);
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMCSSStyleRule)
   // Unlink the wrapper for our declaraton.  This just expands out
   // NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER which we can't use
   // directly because the wrapper is on the declaration, not on us.
-  tmp->DOMDeclaration()->ReleaseWrapper(static_cast<nsISupports*>(p));
+  nsContentUtils::ReleaseWrapper(static_cast<nsISupports*>(p), tmp->DOMDeclaration());
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(DOMCSSStyleRule)
@@ -1390,13 +1386,12 @@ StyleRule::Clone() const
 /* virtual */ nsIDOMCSSRule*
 StyleRule::GetDOMRule()
 {
+  if (!GetStyleSheet()) {
+    // inline style rules aren't supposed to have a DOM rule object, only
+    // a declaration.
+    return nullptr;
+  }
   if (!mDOMRule) {
-    if (!GetStyleSheet()) {
-      // Inline style rules aren't supposed to have a DOM rule object, only
-      // a declaration.  But if we do have one already, from a style sheet
-      // rule that used to be in a document, we still want to return it.
-      return nullptr;
-    }
     mDOMRule = new DOMCSSStyleRule(this);
     NS_ADDREF(mDOMRule);
   }
@@ -1413,7 +1408,12 @@ StyleRule::GetExistingDOMRule()
 StyleRule::DeclarationChanged(Declaration* aDecl,
                               bool aHandleContainer)
 {
-  nsRefPtr<StyleRule> clone = new StyleRule(*this, aDecl);
+  StyleRule* clone = new StyleRule(*this, aDecl);
+  if (!clone) {
+    return nullptr;
+  }
+
+  NS_ADDREF(clone); // for return
 
   if (aHandleContainer) {
     nsCSSStyleSheet* sheet = GetStyleSheet();
@@ -1428,7 +1428,7 @@ StyleRule::DeclarationChanged(Declaration* aDecl,
     }
   }
 
-  return clone.forget();
+  return clone;
 }
 
 /* virtual */ void
@@ -1505,7 +1505,7 @@ StyleRule::SetSelectorText(const nsAString& aSelectorText)
 }
 
 /* virtual */ size_t
-StyleRule::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+StyleRule::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mSelector ? mSelector->SizeOfIncludingThis(aMallocSizeOf) : 0;

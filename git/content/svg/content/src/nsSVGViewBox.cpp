@@ -4,11 +4,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSVGViewBox.h"
-#include "nsCharSeparatedTokenizer.h"
-#include "nsSMILValue.h"
+#include "prdtoa.h"
 #include "nsTextFormatter.h"
+#include "nsCharSeparatedTokenizer.h"
+#include "nsMathUtils.h"
+#include "nsSMILValue.h"
+#include "nsSVGAttrTearoffTable.h"
 #include "SVGContentUtils.h"
 #include "SVGViewBoxSMILType.h"
+#include "nsAttrValueInlines.h"
 
 #define NUM_VIEWBOX_COMPONENTS 4
 using namespace mozilla;
@@ -31,8 +35,9 @@ nsSVGViewBoxRect::operator==(const nsSVGViewBoxRect& aOther) const
 
 /* Cycle collection macros for nsSVGViewBox */
 
-NS_SVG_VAL_IMPL_CYCLE_COLLECTION_WRAPPERCACHED(nsSVGViewBox::DOMBaseVal, mSVGElement)
-NS_SVG_VAL_IMPL_CYCLE_COLLECTION_WRAPPERCACHED(nsSVGViewBox::DOMAnimVal, mSVGElement)
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGViewBox::DOMBaseVal, mSVGElement)
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGViewBox::DOMAnimVal, mSVGElement)
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGViewBox::DOMAnimatedRect, mSVGElement)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGViewBox::DOMBaseVal)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGViewBox::DOMBaseVal)
@@ -40,22 +45,35 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGViewBox::DOMBaseVal)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGViewBox::DOMAnimVal)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGViewBox::DOMAnimVal)
 
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGViewBox::DOMAnimatedRect)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGViewBox::DOMAnimatedRect)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGViewBox::DOMBaseVal)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGRect)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGRect)
 NS_INTERFACE_MAP_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGViewBox::DOMAnimVal)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGRect)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGRect)
 NS_INTERFACE_MAP_END
 
+DOMCI_DATA(SVGAnimatedRect, nsSVGViewBox::DOMAnimatedRect)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGViewBox::DOMAnimatedRect)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedRect)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedRect)
+NS_INTERFACE_MAP_END
+
+static nsSVGAttrTearoffTable<nsSVGViewBox, nsSVGViewBox::DOMAnimatedRect>
+  sSVGAnimatedRectTearoffTable;
 static nsSVGAttrTearoffTable<nsSVGViewBox, nsSVGViewBox::DOMBaseVal>
   sBaseSVGViewBoxTearoffTable;
 static nsSVGAttrTearoffTable<nsSVGViewBox, nsSVGViewBox::DOMAnimVal>
   sAnimSVGViewBoxTearoffTable;
-nsSVGAttrTearoffTable<nsSVGViewBox, dom::SVGAnimatedRect>
-  nsSVGViewBox::sSVGAnimatedRectTearoffTable;
 
 
 /* Implementation of nsSVGViewBox methods */
@@ -121,14 +139,22 @@ ToSVGViewBoxRect(const nsAString& aStr, nsSVGViewBoxRect *aViewBox)
   float vals[NUM_VIEWBOX_COMPONENTS];
   uint32_t i;
   for (i = 0; i < NUM_VIEWBOX_COMPONENTS && tokenizer.hasMoreTokens(); ++i) {
-    if (!SVGContentUtils::ParseNumber(tokenizer.nextToken(), vals[i])) {
-      return NS_ERROR_DOM_SYNTAX_ERR;
+    NS_ConvertUTF16toUTF8 utf8Token(tokenizer.nextToken());
+    const char *token = utf8Token.get();
+    if (*token == '\0') {
+      return NS_ERROR_DOM_SYNTAX_ERR; // empty string (e.g. two commas in a row)
+    }
+
+    char *end;
+    vals[i] = float(PR_strtod(token, &end));
+    if (*end != '\0' || !NS_finite(vals[i])) {
+      return NS_ERROR_DOM_SYNTAX_ERR; // parse error
     }
   }
 
   if (i != NUM_VIEWBOX_COMPONENTS ||              // Too few values.
       tokenizer.hasMoreTokens() ||                // Too many values.
-      tokenizer.separatorAfterCurrentToken()) {   // Trailing comma.
+      tokenizer.lastTokenEndedWithSeparator()) {  // Trailing comma.
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
 
@@ -152,8 +178,7 @@ nsSVGViewBox::SetBaseValueString(const nsAString& aValue,
   if (NS_FAILED(rv)) {
     return rv;
   }
-  // Comparison against mBaseVal is only valid if we currently have a base val.
-  if (mHasBaseVal && viewBox == mBaseVal) {
+  if (viewBox == mBaseVal) {
     return NS_OK;
   }
 
@@ -188,27 +213,33 @@ nsSVGViewBox::GetBaseValueString(nsAString& aValue) const
   aValue.Assign(buf);
 }
 
-
-already_AddRefed<dom::SVGAnimatedRect>
-nsSVGViewBox::ToSVGAnimatedRect(nsSVGElement* aSVGElement)
+nsresult
+nsSVGViewBox::ToDOMAnimatedRect(nsIDOMSVGAnimatedRect **aResult,
+                                nsSVGElement* aSVGElement)
 {
-  nsRefPtr<dom::SVGAnimatedRect> domAnimatedRect =
+  nsRefPtr<DOMAnimatedRect> domAnimatedRect =
     sSVGAnimatedRectTearoffTable.GetTearoff(this);
   if (!domAnimatedRect) {
-    domAnimatedRect = new dom::SVGAnimatedRect(this, aSVGElement);
+    domAnimatedRect = new DOMAnimatedRect(this, aSVGElement);
     sSVGAnimatedRectTearoffTable.AddTearoff(this, domAnimatedRect);
   }
 
-  return domAnimatedRect.forget();
+  domAnimatedRect.forget(aResult);
+  return NS_OK;
 }
 
-already_AddRefed<dom::SVGIRect>
-nsSVGViewBox::ToDOMBaseVal(nsSVGElement *aSVGElement)
+nsSVGViewBox::DOMAnimatedRect::~DOMAnimatedRect()
+{
+  sSVGAnimatedRectTearoffTable.RemoveTearoff(mVal);
+}
+
+nsresult
+nsSVGViewBox::ToDOMBaseVal(nsIDOMSVGRect **aResult, nsSVGElement *aSVGElement)
 {
   if (!mHasBaseVal || mBaseVal.none) {
-    return nullptr;
+    *aResult = nullptr;
+    return NS_OK;
   }
-
   nsRefPtr<DOMBaseVal> domBaseVal =
     sBaseSVGViewBoxTearoffTable.GetTearoff(this);
   if (!domBaseVal) {
@@ -216,7 +247,8 @@ nsSVGViewBox::ToDOMBaseVal(nsSVGElement *aSVGElement)
     sBaseSVGViewBoxTearoffTable.AddTearoff(this, domBaseVal);
   }
 
- return domBaseVal.forget();
+  domBaseVal.forget(aResult);
+  return NS_OK;
 }
 
 nsSVGViewBox::DOMBaseVal::~DOMBaseVal()
@@ -224,14 +256,14 @@ nsSVGViewBox::DOMBaseVal::~DOMBaseVal()
   sBaseSVGViewBoxTearoffTable.RemoveTearoff(mVal);
 }
 
-already_AddRefed<dom::SVGIRect>
-nsSVGViewBox::ToDOMAnimVal(nsSVGElement *aSVGElement)
+nsresult
+nsSVGViewBox::ToDOMAnimVal(nsIDOMSVGRect **aResult, nsSVGElement *aSVGElement)
 {
   if ((mAnimVal && mAnimVal->none) ||
       (!mAnimVal && (!mHasBaseVal || mBaseVal.none))) {
-    return nullptr;
+    *aResult = nullptr;
+    return NS_OK;
   }
-
   nsRefPtr<DOMAnimVal> domAnimVal =
     sAnimSVGViewBoxTearoffTable.GetTearoff(this);
   if (!domAnimVal) {
@@ -239,7 +271,8 @@ nsSVGViewBox::ToDOMAnimVal(nsSVGElement *aSVGElement)
     sAnimSVGViewBoxTearoffTable.AddTearoff(this, domAnimVal);
   }
 
-  return domAnimVal.forget();
+  domAnimVal.forget(aResult);
+  return NS_OK;
 }
 
 nsSVGViewBox::DOMAnimVal::~DOMAnimVal()

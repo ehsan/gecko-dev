@@ -8,6 +8,7 @@
 #define nsMathMLmencloseFrame_h___
 
 #include "mozilla/Attributes.h"
+#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
 //
@@ -37,8 +38,7 @@ enum nsMencloseNotation
     NOTATION_UPDIAGONALSTRIKE = 0x100,
     NOTATION_DOWNDIAGONALSTRIKE = 0x200,
     NOTATION_VERTICALSTRIKE = 0x400,
-    NOTATION_HORIZONTALSTRIKE = 0x800,
-    NOTATION_UPDIAGONALARROW = 0x1000
+    NOTATION_HORIZONTALSTRIKE = 0x800
   };
 
 class nsMathMLmencloseFrame : public nsMathMLContainerFrame {
@@ -51,7 +51,7 @@ public:
   virtual nsresult
   Place(nsRenderingContext& aRenderingContext,
         bool                 aPlaceOrigin,
-        nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+        nsHTMLReflowMetrics& aDesiredSize);
   
   virtual nsresult
   MeasureForWidth(nsRenderingContext& aRenderingContext,
@@ -64,9 +64,9 @@ public:
   
   virtual void
   SetAdditionalStyleContext(int32_t          aIndex, 
-                            nsStyleContext*  aStyleContext) MOZ_OVERRIDE;
+                            nsStyleContext*  aStyleContext);
   virtual nsStyleContext*
-  GetAdditionalStyleContext(int32_t aIndex) const MOZ_OVERRIDE;
+  GetAdditionalStyleContext(int32_t aIndex) const;
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,

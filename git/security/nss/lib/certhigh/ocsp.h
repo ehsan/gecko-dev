@@ -4,6 +4,8 @@
 
 /*
  * Interface to the OCSP implementation.
+ *
+ * $Id$
  */
 
 #ifndef _OCSP_H_
@@ -170,15 +172,6 @@ CERT_EnableOCSPDefaultResponder(CERTCertDBHandle *handle);
  */
 extern SECStatus
 CERT_DisableOCSPDefaultResponder(CERTCertDBHandle *handle);
-
-/* If forcePost is set, OCSP requests will only be sent using the HTTP POST
- * method. When forcePost is not set, OCSP requests will be sent using the
- * HTTP GET method, with a fallback to POST when we fail to receive a response
- * and/or when we receive an uncacheable response like "Unknown." 
- *
- * The default is to use GET and fallback to POST.
- */
-extern SECStatus CERT_ForcePostMethodForOCSP(PRBool forcePost);
 
 /*
  * -------------------------------------------------------
@@ -429,7 +422,7 @@ CERT_VerifyOCSPResponseSignature(CERTOCSPResponse *response,
  *     This result should be freed (via PORT_Free) when no longer in use.
  */
 extern char *
-CERT_GetOCSPAuthorityInfoAccessLocation(const CERTCertificate *cert);
+CERT_GetOCSPAuthorityInfoAccessLocation(CERTCertificate *cert);
 
 /*
  * FUNCTION: CERT_RegisterAlternateOCSPAIAInfoCallBack
@@ -705,20 +698,6 @@ CERT_CreateEncodedOCSPSuccessResponse(
  */
 extern SECItem*
 CERT_CreateEncodedOCSPErrorResponse(PLArenaPool *arena, int error);
-
-/* Sends an OCSP request using the HTTP POST method to the location addressed
- * by the URL in |location| parameter. The request body will be
- * |encodedRequest|, which must be a valid encoded OCSP request. On success,
- * the server's response is returned and the caller must free it using
- * SECITEM_FreeItem. On failure, NULL is returned. No parsing or validation of
- * the HTTP response is done.
- *
- * If a default HTTP client has been registered with
- * SEC_RegisterDefaultHttpClient then that client is used. Otherwise, an
- * internal HTTP client is used.
- */
-SECItem* CERT_PostOCSPRequest(PLArenaPool *arena, const char *location,
-                              const SECItem *encodedRequest);
 
 /************************************************************************/
 SEC_END_PROTOS

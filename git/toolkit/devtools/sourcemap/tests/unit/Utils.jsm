@@ -127,14 +127,6 @@ define('test/source-map/util', ['require', 'exports', 'module' ,  'lib/source-ma
     sourceRoot: '/the/root',
     mappings: 'CAAC,IAAI,IAAM,SAAUA,GAClB,OAAOC,IAAID;CCDb,IAAI,IAAM,SAAUE,GAClB,OAAOA'
   };
-  exports.emptyMap = {
-    version: 3,
-    file: 'min.js',
-    names: [],
-    sources: [],
-    mappings: ''
-  };
-
 
   function assertMapping(generatedLine, generatedColumn, originalSource,
                          originalLine, originalColumn, name, map, assert,
@@ -214,8 +206,7 @@ define('test/source-map/util', ['require', 'exports', 'module' ,  'lib/source-ma
                  expectedMap.sourceRoot,
                  "sourceRoot mismatch: " +
                    actualMap.sourceRoot + " != " + expectedMap.sourceRoot);
-    assert.equal(actualMap.mappings, expectedMap.mappings,
-                 "mappings mismatch:\nActual:   " + actualMap.mappings + "\nExpected: " + expectedMap.mappings);
+    assert.equal(actualMap.mappings, expectedMap.mappings, "mappings mismatch");
     if (actualMap.sourcesContent) {
       assert.equal(actualMap.sourcesContent.length,
                    expectedMap.sourcesContent.length,
@@ -260,7 +251,6 @@ define('lib/source-map/util', ['require', 'exports', 'module' , ], function(requ
   exports.getArg = getArg;
 
   var urlRegexp = /([\w+\-.]+):\/\/((\w+:\w+)@)?([\w.]+)?(:(\d+))?(\S+)?/;
-  var dataUrlRegexp = /^data:.+\,.+/;
 
   function urlParse(aUrl) {
     var match = aUrl.match(urlRegexp);
@@ -275,36 +265,16 @@ define('lib/source-map/util', ['require', 'exports', 'module' , ], function(requ
       path: match[7]
     };
   }
-  exports.urlParse = urlParse;
-
-  function urlGenerate(aParsedUrl) {
-    var url = aParsedUrl.scheme + "://";
-    if (aParsedUrl.auth) {
-      url += aParsedUrl.auth + "@"
-    }
-    if (aParsedUrl.host) {
-      url += aParsedUrl.host;
-    }
-    if (aParsedUrl.port) {
-      url += ":" + aParsedUrl.port
-    }
-    if (aParsedUrl.path) {
-      url += aParsedUrl.path;
-    }
-    return url;
-  }
-  exports.urlGenerate = urlGenerate;
 
   function join(aRoot, aPath) {
     var url;
 
-    if (aPath.match(urlRegexp) || aPath.match(dataUrlRegexp)) {
+    if (aPath.match(urlRegexp)) {
       return aPath;
     }
 
     if (aPath.charAt(0) === '/' && (url = urlParse(aRoot))) {
-      url.path = aPath;
-      return urlGenerate(url);
+      return aRoot.replace(url.path, '') + aPath;
     }
 
     return aRoot.replace(/\/$/, '') + '/' + aPath;
@@ -332,104 +302,11 @@ define('lib/source-map/util', ['require', 'exports', 'module' , ], function(requ
 
   function relative(aRoot, aPath) {
     aRoot = aRoot.replace(/\/$/, '');
-
-    var url = urlParse(aRoot);
-    if (aPath.charAt(0) == "/" && url && url.path == "/") {
-      return aPath.slice(1);
-    }
-
     return aPath.indexOf(aRoot + '/') === 0
       ? aPath.substr(aRoot.length + 1)
       : aPath;
   }
   exports.relative = relative;
-
-  function strcmp(aStr1, aStr2) {
-    var s1 = aStr1 || "";
-    var s2 = aStr2 || "";
-    return (s1 > s2) - (s1 < s2);
-  }
-
-  /**
-   * Comparator between two mappings where the original positions are compared.
-   *
-   * Optionally pass in `true` as `onlyCompareGenerated` to consider two
-   * mappings with the same original source/line/column, but different generated
-   * line and column the same. Useful when searching for a mapping with a
-   * stubbed out mapping.
-   */
-  function compareByOriginalPositions(mappingA, mappingB, onlyCompareOriginal) {
-    var cmp;
-
-    cmp = strcmp(mappingA.source, mappingB.source);
-    if (cmp) {
-      return cmp;
-    }
-
-    cmp = mappingA.originalLine - mappingB.originalLine;
-    if (cmp) {
-      return cmp;
-    }
-
-    cmp = mappingA.originalColumn - mappingB.originalColumn;
-    if (cmp || onlyCompareOriginal) {
-      return cmp;
-    }
-
-    cmp = strcmp(mappingA.name, mappingB.name);
-    if (cmp) {
-      return cmp;
-    }
-
-    cmp = mappingA.generatedLine - mappingB.generatedLine;
-    if (cmp) {
-      return cmp;
-    }
-
-    return mappingA.generatedColumn - mappingB.generatedColumn;
-  };
-  exports.compareByOriginalPositions = compareByOriginalPositions;
-
-  /**
-   * Comparator between two mappings where the generated positions are
-   * compared.
-   *
-   * Optionally pass in `true` as `onlyCompareGenerated` to consider two
-   * mappings with the same generated line and column, but different
-   * source/name/original line and column the same. Useful when searching for a
-   * mapping with a stubbed out mapping.
-   */
-  function compareByGeneratedPositions(mappingA, mappingB, onlyCompareGenerated) {
-    var cmp;
-
-    cmp = mappingA.generatedLine - mappingB.generatedLine;
-    if (cmp) {
-      return cmp;
-    }
-
-    cmp = mappingA.generatedColumn - mappingB.generatedColumn;
-    if (cmp || onlyCompareGenerated) {
-      return cmp;
-    }
-
-    cmp = strcmp(mappingA.source, mappingB.source);
-    if (cmp) {
-      return cmp;
-    }
-
-    cmp = mappingA.originalLine - mappingB.originalLine;
-    if (cmp) {
-      return cmp;
-    }
-
-    cmp = mappingA.originalColumn - mappingB.originalColumn;
-    if (cmp) {
-      return cmp;
-    }
-
-    return strcmp(mappingA.name, mappingB.name);
-  };
-  exports.compareByGeneratedPositions = compareByGeneratedPositions;
 
 });
 /* -*- Mode: js; js-indent-level: 2; -*- */

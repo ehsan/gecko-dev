@@ -6,7 +6,6 @@
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/Preferences.h"        // for Preferences
 #include "mozilla/dom/Element.h"        // for Element
-#include "mozilla/dom/EventTarget.h"    // for EventTarget
 #include "nsAString.h"
 #include "nsCaret.h"                    // for nsCaret
 #include "nsDebug.h"                    // for NS_ENSURE_TRUE, etc
@@ -14,6 +13,7 @@
 #include "nsEditorEventListener.h"
 #include "nsEventListenerManager.h"     // for nsEventListenerManager
 #include "nsFocusManager.h"             // for nsFocusManager
+#include "nsGUIEvent.h"                 // for NS_EVENT_FLAG_BUBBLE, etc
 #include "nsGkAtoms.h"                  // for nsGkAtoms, nsGkAtoms::input
 #include "nsIClipboard.h"               // for nsIClipboard, etc
 #include "nsIContent.h"                 // for nsIContent
@@ -56,7 +56,6 @@
 class nsPresContext;
 
 using namespace mozilla;
-using mozilla::dom::EventTarget;
 
 nsEditorEventListener::nsEditorEventListener() :
   mEditor(nullptr), mCommitText(false),
@@ -105,11 +104,11 @@ nsEditorEventListener::InstallToEditor()
 {
   NS_PRECONDITION(mEditor, "The caller must set mEditor");
 
-  nsCOMPtr<EventTarget> piTarget = mEditor->GetDOMEventTarget();
+  nsCOMPtr<nsIDOMEventTarget> piTarget = mEditor->GetDOMEventTarget();
   NS_ENSURE_TRUE(piTarget, NS_ERROR_FAILURE);
 
   // register the event listeners with the listener manager
-  nsEventListenerManager* elmP = piTarget->GetOrCreateListenerManager();
+  nsEventListenerManager* elmP = piTarget->GetListenerManager(true);
   NS_ENSURE_STATE(elmP);
 
 #ifdef HANDLE_NATIVE_TEXT_DIRECTION_SWITCH
@@ -183,12 +182,13 @@ nsEditorEventListener::Disconnect()
 void
 nsEditorEventListener::UninstallFromEditor()
 {
-  nsCOMPtr<EventTarget> piTarget = mEditor->GetDOMEventTarget();
+  nsCOMPtr<nsIDOMEventTarget> piTarget = mEditor->GetDOMEventTarget();
   if (!piTarget) {
     return;
   }
 
-  nsEventListenerManager* elmP = piTarget->GetOrCreateListenerManager();
+  nsEventListenerManager* elmP =
+    piTarget->GetListenerManager(true);
   if (!elmP) {
     return;
   }
@@ -897,7 +897,45 @@ nsEditorEventListener::Blur(nsIDOMEvent* aEvent)
   if (element)
     return NS_OK;
 
-  mEditor->FinalizeSelection();
+  // turn off selection and caret
+  nsCOMPtr<nsISelectionController>selCon;
+  mEditor->GetSelectionController(getter_AddRefs(selCon));
+  if (selCon)
+  {
+    nsCOMPtr<nsISelection> selection;
+    selCon->GetSelection(nsISelectionController::SELECTION_NORMAL,
+                         getter_AddRefs(selection));
+
+    nsCOMPtr<nsISelectionPrivate> selectionPrivate =
+      do_QueryInterface(selection);
+    if (selectionPrivate) {
+      selectionPrivate->SetAncestorLimiter(nullptr);
+    }
+
+    nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+    if (presShell) {
+      nsRefPtr<nsCaret> caret = presShell->GetCaret();
+      if (caret) {
+        caret->SetIgnoreUserModify(true);
+      }
+    }
+
+    selCon->SetCaretEnabled(false);
+
+    if(mEditor->IsFormWidget() || mEditor->IsPasswordEditor() ||
+       mEditor->IsReadonly() || mEditor->IsDisabled() ||
+       mEditor->IsInputFiltered())
+    {
+      selCon->SetDisplaySelection(nsISelectionController::SELECTION_HIDDEN);//hide but do NOT turn off
+    }
+    else
+    {
+      selCon->SetDisplaySelection(nsISelectionController::SELECTION_DISABLED);
+    }
+
+    selCon->RepaintSelection(nsISelectionController::SELECTION_NORMAL);
+  }
+
   return NS_OK;
 }
 

@@ -97,7 +97,8 @@
     }
 
     // Gonna do things the right way
-    var Microformats = SpecialPowers.Cu.import("resource://gre/modules/Microformats.js").Microformats;
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    Components.utils.import("resource://gre/modules/Microformats.js");
 
     // Test Microformat frame recursion - start with counting
     var count = Microformats.count("adr",

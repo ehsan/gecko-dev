@@ -9,6 +9,7 @@
 #define nsDOMCSSRect_h_
 
 #include "mozilla/Attributes.h"
+#include "nsISupportsImpl.h"
 #include "nsIDOMRect.h"
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
@@ -38,7 +39,7 @@ public:
 
   nsISupports* GetParentObject() const { return nullptr; }
 
-  virtual JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> scope)
+  virtual JSObject* WrapObject(JSContext* cx, JSObject* scope)
     MOZ_OVERRIDE MOZ_FINAL;
 
 private:

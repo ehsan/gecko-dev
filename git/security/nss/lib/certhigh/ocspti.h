@@ -4,6 +4,8 @@
 
 /*
  * Private header defining OCSP types.
+ *
+ * $Id$
  */
 
 #ifndef _OCSPTI_H_
@@ -72,7 +74,7 @@ typedef struct ocspTBSRequestStr ocspTBSRequest;
  * An OCSPRequest; this is what is sent (encoded) to an OCSP responder.
  */
 struct CERTOCSPRequestStr {
-    PLArenaPool *arena;			/* local; not part of encoding */
+    PRArenaPool *arena;			/* local; not part of encoding */
     ocspTBSRequest *tbsRequest;
     ocspSignature *optionalSignature;
 };
@@ -144,7 +146,7 @@ struct ocspSignatureStr {
  * XXX figure out how to get rid of that arena -- there must be a way
  */
 struct ocspSingleRequestStr {
-    PLArenaPool *arena;			/* just a copy of the response arena,
+    PRArenaPool *arena;			/* just a copy of the response arena,
 					 * needed here for extension handling
 					 * routines, on creation only */
     CERTOCSPCertID *reqCert;
@@ -169,7 +171,7 @@ struct CERTOCSPCertIDStr {
     SECItem issuerSHA1KeyHash;		/* keep other hashes around when */
     SECItem issuerMD5KeyHash;              /* we have them */
     SECItem issuerMD2KeyHash;
-    PLArenaPool *poolp;
+    PRArenaPool *poolp;
 };
 
 /*
@@ -209,7 +211,7 @@ typedef enum {
  * type ocspResponseStatus.
  */
 struct CERTOCSPResponseStr {
-    PLArenaPool *arena;			/* local; not part of encoding */
+    PRArenaPool *arena;			/* local; not part of encoding */
     SECItem responseStatus;		/* an ENUMERATED, see above */
     ocspResponseStatus statusValue;	/* local; not part of encoding */
     ocspResponseBytes *responseBytes;	/* only when status is successful */
@@ -284,7 +286,7 @@ struct ocspResponderIDStr {
  * XXX figure out how to get rid of that arena -- there must be a way
  */
 struct CERTOCSPSingleResponseStr {
-    PLArenaPool *arena;			/* just a copy of the response arena,
+    PRArenaPool *arena;			/* just a copy of the response arena,
 					 * needed here for extension handling
 					 * routines, on creation only */
     CERTOCSPCertID *certID;

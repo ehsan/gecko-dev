@@ -4,12 +4,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "plstr.h"
+#include "nsComponentManagerUtils.h"
 #include "nsDeviceChannel.h"
 #include "nsDeviceCaptureProvider.h"
+#include "mozilla/Preferences.h"
 
 #ifdef MOZ_WIDGET_ANDROID
-#include "mozilla/Preferences.h"
 #include "AndroidCaptureProvider.h"
+#endif
+
+#ifdef MOZ_WIDGET_GONK
+#include "GonkCaptureProvider.h"
 #endif
 
 using namespace mozilla;
@@ -114,6 +119,9 @@ nsDeviceChannel::OpenContentStream(bool aAsync,
 #ifdef MOZ_WIDGET_ANDROID
     capture = GetAndroidCaptureProvider();
 #endif
+#ifdef MOZ_WIDGET_GONK
+    capture = GetGonkCaptureProvider();
+#endif
   } else if (kNotFound != spec.Find(NS_LITERAL_CSTRING("type=video/x-raw-yuv"),
                                     true,
                                     0,
@@ -141,6 +149,10 @@ nsDeviceChannel::OpenContentStream(bool aAsync,
     // only enable if "device.camera.enabled" is true.
     if (Preferences::GetBool("device.camera.enabled", false) == true)
       capture = GetAndroidCaptureProvider();
+#endif
+#ifdef MOZ_WIDGET_GONK
+    if (Preferences::GetBool("device.camera.enabled", false) == true)
+      capture = GetGonkCaptureProvider();
 #endif
   } else {
     return NS_ERROR_NOT_IMPLEMENTED;

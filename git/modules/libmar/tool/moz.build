@@ -6,12 +6,3 @@
 
 MODULE = 'mar'
 
-if CONFIG['MOZ_ENABLE_SIGNMAR']:
-    PROGRAM = 'signmar'
-
-SOURCES = [
-    'mar.c',
-]
-HOST_SOURCES += SOURCES
-
-HOST_PROGRAM = 'mar'

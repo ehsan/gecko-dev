@@ -7,8 +7,10 @@ const Cu = Components.utils;
 const toolId = "test-tool";
 
 let tempScope = {};
-Cu.import("resource:///modules/devtools/shared/event-emitter.js", tempScope);
+Cu.import("resource:///modules/devtools/EventEmitter.jsm", tempScope);
 let EventEmitter = tempScope.EventEmitter;
+Cu.import("resource:///modules/devtools/Target.jsm", tempScope);
+let TargetFactory = tempScope.TargetFactory;
 
 function test() {
   addTab("about:blank", function(aBrowser, aTab) {
@@ -20,7 +22,7 @@ function runTests(aTab) {
   let toolDefinition = {
     id: toolId,
     isTargetSupported: function() true,
-    visibilityswitch: "devtools.test-tool.enabled",
+    killswitch: "devtools.test-tool.enabled",
     url: "about:blank",
     label: "someLabel",
     build: function(iframeWindow, toolbox) {
@@ -97,7 +99,7 @@ function DevToolPanel(iframeWindow, toolbox) {
 
 DevToolPanel.prototype = {
   open: function() {
-    let deferred = promise.defer();
+    let deferred = Promise.defer();
 
     executeSoon(function() {
       this._isReady = true;
@@ -117,6 +119,6 @@ DevToolPanel.prototype = {
   _isReady: false,
 
   destroy: function DTI_destroy() {
-    return promise.defer(null);
+    return Promise.defer(null);
   },
 };

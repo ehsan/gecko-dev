@@ -8,26 +8,3 @@ PARALLEL_DIRS += ['test']
 
 MODULE = 'appshell'
 
-SOURCES += [
-    'nsAppShellFactory.cpp',
-    'nsAppShellService.cpp',
-    'nsAppShellWindowEnumerator.cpp',
-    'nsChromeTreeOwner.cpp',
-    'nsContentTreeOwner.cpp',
-    'nsWebShellWindow.cpp',
-    'nsWindowMediator.cpp',
-    'nsXULWindow.cpp',
-]
-
-LOCAL_INCLUDES += [
-    '/dom/base',
-]
-
-LIBRARY_NAME = 'nsappshell'
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-EXPORT_LIBRARY = True
-

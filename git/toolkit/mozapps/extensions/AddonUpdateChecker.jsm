@@ -15,7 +15,7 @@ const Cu = Components.utils;
 
 this.EXPORTED_SYMBOLS = [ "AddonUpdateChecker" ];
 
-const TIMEOUT               = 60 * 1000;
+const TIMEOUT               = 2 * 60 * 1000;
 const PREFIX_NS_RDF         = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 const PREFIX_NS_EM          = "http://www.mozilla.org/2004/em-rdf#";
 const PREFIX_ITEM           = "urn:mozilla:item:";
@@ -412,8 +412,6 @@ function UpdateParser(aId, aUpdateKey, aUrl, aObserver) {
     this.request.open("GET", this.url, true);
     this.request.channel.notificationCallbacks = new CertUtils.BadCertHandler(!requireBuiltIn);
     this.request.channel.loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE;
-    // Prevent the request from writing to cache.
-    this.request.channel.loadFlags |= Ci.nsIRequest.INHIBIT_CACHING;
     this.request.overrideMimeType("text/xml");
     var self = this;
     this.request.addEventListener("load", function loadEventListener(event) { self.onLoad() }, false);

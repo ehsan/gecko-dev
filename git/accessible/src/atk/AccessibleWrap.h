@@ -52,6 +52,7 @@ public:
   virtual ~AccessibleWrap();
   void ShutdownAtkObject();
 
+  // nsAccessNode
   virtual void Shutdown();
 
   // return the atk object for this AccessibleWrap
@@ -74,6 +75,7 @@ public:
   }
 
 protected:
+  virtual nsresult FirePlatformEvent(AccEvent* aEvent);
 
   nsresult FireAtkStateChangeEvent(AccEvent* aEvent, AtkObject *aObject);
   nsresult FireAtkTextChangedEvent(AccEvent* aEvent, AtkObject *aObject);

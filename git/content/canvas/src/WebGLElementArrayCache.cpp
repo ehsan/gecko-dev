@@ -7,7 +7,6 @@
 
 #include "nsTArray.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/MemoryReporting.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -107,8 +106,8 @@ namespace mozilla {
  * by having WebGLElementArrayCache lazily create trees for each type only upon first use.
  *
  * Another consequence of this constraint is that when invalidating the trees, we have to invalidate
- * all existing trees. So if trees for types uint8_t, uint16_t and uint32_t have ever been constructed for this buffer,
- * every subsequent invalidation will have to invalidate all trees even if one of the types is never
+ * all existing trees. So if trees for types uint8_t and uint16_t have ever been constructed for this buffer,
+ * every subsequent invalidation will have to invalidate both trees even if one of the two types is never
  * used again. This implies that it is important to minimize the cost of invalidation i.e.
  * do lazy updates upon use as opposed to immediately updating invalidated trees. This poses a problem:
  * it is nontrivial to keep track of the part of the tree that's invalidated. The current solution
@@ -307,7 +306,7 @@ public:
 
   void Update();
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
   {
     return aMallocSizeOf(this) + mTreeData.SizeOfExcludingThis(aMallocSizeOf);
   }
@@ -328,12 +327,6 @@ template<>
 struct TreeForType<uint16_t>
 {
   static WebGLElementArrayCacheTree<uint16_t>*& Run(WebGLElementArrayCache *b) { return b->mUint16Tree; }
-};
-
-template<>
-struct TreeForType<uint32_t>
-{
-  static WebGLElementArrayCacheTree<uint32_t>*& Run(WebGLElementArrayCache *b) { return b->mUint32Tree; }
 };
 
 // When the buffer gets updated from firstByte to lastByte,
@@ -448,7 +441,6 @@ void WebGLElementArrayCacheTree<T>::Update()
 WebGLElementArrayCache::~WebGLElementArrayCache() {
   delete mUint8Tree;
   delete mUint16Tree;
-  delete mUint32Tree;
   free(mUntypedData);
 }
 
@@ -459,9 +451,6 @@ bool WebGLElementArrayCache::BufferData(const void* ptr, size_t byteSize) {
       return false;
   if (mUint16Tree)
     if (!mUint16Tree->ResizeToParentSize())
-      return false;
-  if (mUint32Tree)
-    if (!mUint32Tree->ResizeToParentSize())
       return false;
   mUntypedData = realloc(mUntypedData, byteSize);
   if (!mUntypedData)
@@ -485,8 +474,6 @@ void WebGLElementArrayCache::InvalidateTrees(size_t firstByte, size_t lastByte)
     mUint8Tree->Invalidate(firstByte, lastByte);
   if (mUint16Tree)
     mUint16Tree->Invalidate(firstByte, lastByte);
-  if (mUint32Tree)
-    mUint32Tree->Invalidate(firstByte, lastByte);
 }
 
 template<typename T>
@@ -554,20 +541,16 @@ bool WebGLElementArrayCache::Validate(GLenum type, uint32_t maxAllowed, size_t f
     return Validate<uint8_t>(maxAllowed, firstElement, countElements);
   if (type == LOCAL_GL_UNSIGNED_SHORT)
     return Validate<uint16_t>(maxAllowed, firstElement, countElements);
-  if (type == LOCAL_GL_UNSIGNED_INT)
-    return Validate<uint32_t>(maxAllowed, firstElement, countElements);
   return false;
 }
 
-size_t WebGLElementArrayCache::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
+size_t WebGLElementArrayCache::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
   size_t uint8TreeSize  = mUint8Tree  ? mUint8Tree->SizeOfIncludingThis(aMallocSizeOf) : 0;
   size_t uint16TreeSize = mUint16Tree ? mUint16Tree->SizeOfIncludingThis(aMallocSizeOf) : 0;
-  size_t uint32TreeSize = mUint32Tree ? mUint32Tree->SizeOfIncludingThis(aMallocSizeOf) : 0;
   return aMallocSizeOf(this) +
           mByteSize +
           uint8TreeSize +
-          uint16TreeSize +
-          uint32TreeSize;
+          uint16TreeSize;
 }
 
 } // end namespace mozilla

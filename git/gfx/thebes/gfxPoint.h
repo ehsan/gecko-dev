@@ -14,7 +14,9 @@
 
 #include "gfxTypes.h"
 
-struct gfxSize : public mozilla::gfx::BaseSize<gfxFloat, gfxSize> {
+typedef nsIntSize gfxIntSize;
+
+struct THEBES_API gfxSize : public mozilla::gfx::BaseSize<gfxFloat, gfxSize> {
     typedef mozilla::gfx::BaseSize<gfxFloat, gfxSize> Super;
 
     gfxSize() : Super() {}
@@ -22,7 +24,7 @@ struct gfxSize : public mozilla::gfx::BaseSize<gfxFloat, gfxSize> {
     gfxSize(const nsIntSize& aSize) : Super(aSize.width, aSize.height) {}
 };
 
-struct gfxPoint : public mozilla::gfx::BasePoint<gfxFloat, gfxPoint> {
+struct THEBES_API gfxPoint : public mozilla::gfx::BasePoint<gfxFloat, gfxPoint> {
     typedef mozilla::gfx::BasePoint<gfxFloat, gfxPoint> Super;
 
     gfxPoint() : Super() {}

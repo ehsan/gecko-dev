@@ -11,7 +11,6 @@
 #include "mozilla/dom/SVGPathElement.h"
 #include "nsContentUtils.h"
 #include "mozilla/dom/SVGMPathElementBinding.h"
-#include "nsIURI.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(MPath)
 
@@ -19,7 +18,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGMPathElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGMPathElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGMPathElementBinding::Wrap(aCx, aScope, this);
 }
@@ -30,8 +29,6 @@ nsSVGElement::StringInfo SVGMPathElement::sStringInfo[1] =
 };
 
 // Cycle collection magic -- based on nsSVGUseElement
-NS_IMPL_CYCLE_COLLECTION_CLASS(SVGMPathElement)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(SVGMPathElement,
                                                 SVGMPathElementBase)
   tmp->UnlinkHrefTarget(false);
@@ -49,10 +46,10 @@ NS_IMPL_ADDREF_INHERITED(SVGMPathElement,SVGMPathElementBase)
 NS_IMPL_RELEASE_INHERITED(SVGMPathElement,SVGMPathElementBase)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(SVGMPathElement)
-  NS_INTERFACE_TABLE_INHERITED4(SVGMPathElement, nsIDOMNode, nsIDOMElement,
-                                nsIDOMSVGElement,
-                                nsIMutationObserver)
-NS_INTERFACE_TABLE_TAIL_INHERITING(SVGMPathElementBase)
+  NS_NODE_INTERFACE_TABLE4(SVGMPathElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement,
+                           nsIMutationObserver)
+NS_INTERFACE_MAP_END_INHERITING(SVGMPathElementBase)
 
 // Constructor
 #ifdef _MSC_VER
@@ -81,7 +78,7 @@ SVGMPathElement::~SVGMPathElement()
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGMPathElement)
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGMPathElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);

@@ -33,6 +33,7 @@ namespace dom {
 HTMLTemplateElement::HTMLTemplateElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 nsresult
@@ -65,29 +66,21 @@ HTMLTemplateElement::~HTMLTemplateElement()
 NS_IMPL_ADDREF_INHERITED(HTMLTemplateElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLTemplateElement, Element)
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLTemplateElement)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLTemplateElement,
-                                                nsGenericHTMLElement)
-  if (tmp->mContent) {
-    tmp->mContent->SetHost(nullptr);
-    tmp->mContent = nullptr;
-  }
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLTemplateElement,
-                                                  nsGenericHTMLElement)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mContent)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_INHERITED_1(HTMLTemplateElement,
+                                     nsGenericHTMLElement,
+                                     mContent)
 
 // QueryInterface implementation for HTMLTemplateElement
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(HTMLTemplateElement)
-NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
+NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLTemplateElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE0(HTMLTemplateElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLTemplateElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(HTMLTemplateElement)
 
 JSObject*
-HTMLTemplateElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLTemplateElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return HTMLTemplateElementBinding::Wrap(aCx, aScope, this);
 }

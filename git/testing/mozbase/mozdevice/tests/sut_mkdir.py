@@ -2,7 +2,6 @@
 # http://creativecommons.org/publicdomain/zero/1.0/
 
 import mozdevice
-import mozlog
 import unittest
 from sut import MockAgent
 
@@ -32,8 +31,8 @@ class MkDirsTest(unittest.TestCase):
 
             exceptionThrown = False
             try:
-                d = mozdevice.DroidSUT('127.0.0.1', port=a.port,
-                                       logLevel=mozlog.DEBUG)
+                mozdevice.DroidSUT.debug = 4
+                d = mozdevice.DroidSUT('127.0.0.1', port=a.port)
                 d.mkDirs('/mnt/sdcard/baz/boop/bip')
             except mozdevice.DMError:
                 exceptionThrown = True
@@ -54,18 +53,9 @@ class MkDirsTest(unittest.TestCase):
                 ('mkdr /mnt/sdcard/foo',
                  '/mnt/sdcard/foo successfully created')]
         a = MockAgent(self, commands=cmds)
-        d = mozdevice.DroidSUT('127.0.0.1', port=a.port,
-                               logLevel=mozlog.DEBUG)
+        mozdevice.DroidSUT.debug = 4
+        d = mozdevice.DroidSUT('127.0.0.1', port=a.port)
         d.mkDirs('/mnt/sdcard/foo/foo')
-        a.wait()
-
-    def test_mkdirs_on_root(self):
-        cmds = [('isdir /', 'TRUE')]
-        a = MockAgent(self, commands=cmds)
-        d = mozdevice.DroidSUT('127.0.0.1', port=a.port,
-                               logLevel=mozlog.DEBUG)
-        d.mkDirs('/foo')
-
         a.wait()
 
 

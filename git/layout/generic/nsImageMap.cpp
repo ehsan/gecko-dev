@@ -8,15 +8,22 @@
 #include "nsImageMap.h"
 
 #include "nsString.h"
-#include "nsDOMEvent.h"
 #include "nsReadableUtils.h"
 #include "nsRenderingContext.h"
 #include "nsPresContext.h"
+#include "nsIURL.h"
+#include "nsIServiceManager.h"
+#include "nsNetUtil.h"
+#include "nsTextFragment.h"
 #include "mozilla/dom/Element.h"
+#include "nsIDocument.h"
 #include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
+#include "nsIDOMEventTarget.h"
+#include "nsIPresShell.h"
 #include "nsImageFrame.h"
 #include "nsCoord.h"
+#include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsIStringBundle.h"
 #include "nsContentUtils.h"
@@ -25,7 +32,9 @@
 #include "nsAccessibilityService.h"
 #endif
 
-using namespace mozilla;
+namespace dom = mozilla::dom;
+
+static NS_DEFINE_CID(kCStringBundleServiceCID, NS_STRINGBUNDLESERVICE_CID);
 
 class Area {
 public:
@@ -82,7 +91,7 @@ static void logMessage(nsIContent*      aContent,
   nsIDocument* doc = aContent->OwnerDoc();
 
   nsContentUtils::ReportToConsole(
-     aFlags, NS_LITERAL_CSTRING("ImageMap"), doc,
+     aFlags, "ImageMap", doc,
      nsContentUtils::eLAYOUT_PROPERTIES,
      aMessageName,
      nullptr,  /* params */
@@ -819,7 +828,6 @@ nsImageMap::AddArea(nsIContent* aArea)
     area = new PolyArea(aArea);
     break;
   default:
-    area = nullptr;
     NS_NOTREACHED("FindAttrValueIn returned an unexpected value.");
     break;
   }
@@ -833,9 +841,9 @@ nsImageMap::AddArea(nsIContent* aArea)
                                 false);
 
   // This is a nasty hack.  It needs to go away: see bug 135040.  Once this is
-  // removed, the code added to RestyleManager::RestyleElement,
+  // removed, the code added to nsCSSFrameConstructor::RestyleElement,
   // nsCSSFrameConstructor::ContentRemoved (both hacks there), and
-  // RestyleManager::ProcessRestyledFrames to work around this issue can
+  // nsCSSFrameConstructor::ProcessRestyledFrames to work around this issue can
   // be removed.
   aArea->SetPrimaryFrame(mImageFrame);
 
@@ -961,22 +969,23 @@ nsImageMap::HandleEvent(nsIDOMEvent* aEvent)
                     "Unexpected event type");
 
   //Set which one of our areas changed focus
-  nsCOMPtr<nsIContent> targetContent = do_QueryInterface(
-    aEvent->InternalDOMEvent()->GetTarget());
-  if (!targetContent) {
-    return NS_OK;
-  }
-  uint32_t i, n = mAreas.Length();
-  for (i = 0; i < n; i++) {
-    Area* area = mAreas.ElementAt(i);
-    if (area->mArea == targetContent) {
-      //Set or Remove internal focus
-      area->HasFocus(focus);
-      //Now invalidate the rect
-      if (mImageFrame) {
-        mImageFrame->InvalidateFrame();
+  nsCOMPtr<nsIDOMEventTarget> target;
+  if (NS_SUCCEEDED(aEvent->GetTarget(getter_AddRefs(target))) && target) {
+    nsCOMPtr<nsIContent> targetContent(do_QueryInterface(target));
+    if (targetContent) {
+      uint32_t i, n = mAreas.Length();
+      for (i = 0; i < n; i++) {
+        Area* area = mAreas.ElementAt(i);
+        if (area->mArea == targetContent) {
+          //Set or Remove internal focus
+          area->HasFocus(focus);
+          //Now invalidate the rect
+          if (mImageFrame) {
+            mImageFrame->InvalidateFrame();
+          }
+          break;
+        }
       }
-      break;
     }
   }
   return NS_OK;

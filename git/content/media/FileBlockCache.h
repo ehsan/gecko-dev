@@ -7,14 +7,11 @@
 #ifndef FILE_BLOCK_CACHE_H_
 #define FILE_BLOCK_CACHE_H_
 
-#include "mozilla/Attributes.h"
 #include "mozilla/Monitor.h"
+#include "prio.h"
 #include "nsTArray.h"
 #include "MediaCache.h"
 #include "nsDeque.h"
-#include "nsThreadUtils.h"
-
-struct PRFileDesc;
 
 namespace mozilla {
 
@@ -68,7 +65,7 @@ public:
   nsresult WriteBlock(uint32_t aBlockIndex, const uint8_t* aData);
 
   // Performs block writes and block moves on its own thread.
-  NS_IMETHOD Run() MOZ_OVERRIDE;
+  NS_IMETHOD Run();
 
   // Synchronously reads data from file. May read from file or memory
   // depending on whether written blocks have been flushed to file yet.
@@ -143,7 +140,9 @@ public:
   private:
     int32_t ObjectAt(int32_t aIndex) {
       void* v = nsDeque::ObjectAt(aIndex);
-      return reinterpret_cast<uintptr_t>(v);
+      // Ugly hack to work around "casting 64bit void* to 32bit int loses precision"
+      // error on 64bit Linux.
+      return *(reinterpret_cast<int32_t*>(&v));
     }
   };
 

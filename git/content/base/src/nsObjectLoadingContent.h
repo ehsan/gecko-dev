@@ -13,12 +13,13 @@
 #ifndef NSOBJECTLOADINGCONTENT_H_
 #define NSOBJECTLOADINGCONTENT_H_
 
-#include "mozilla/Attributes.h"
 #include "nsImageLoadingContent.h"
 #include "nsIStreamListener.h"
+#include "nsIInterfaceRequestor.h"
 #include "nsIChannelEventSink.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsIRunnable.h"
+#include "nsPluginInstanceOwner.h"
 #include "nsIThreadInternal.h"
 #include "nsIFrame.h"
 #include "nsIFrameLoader.h"
@@ -29,18 +30,12 @@ class AutoSetInstantiatingToFalse;
 class nsObjectFrame;
 class nsFrameLoader;
 class nsXULElement;
-class nsPluginInstanceOwner;
-
-namespace mozilla {
-namespace dom {
-template<typename T> class Sequence;
-}
-}
 
 class nsObjectLoadingContent : public nsImageLoadingContent
                              , public nsIStreamListener
                              , public nsIFrameLoaderOwner
                              , public nsIObjectLoadingContent
+                             , public nsIInterfaceRequestor
                              , public nsIChannelEventSink
 {
   friend class AutoSetInstantiatingToFalse;
@@ -104,6 +99,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     NS_DECL_NSISTREAMLISTENER
     NS_DECL_NSIFRAMELOADEROWNER
     NS_DECL_NSIOBJECTLOADINGCONTENT
+    NS_DECL_NSIINTERFACEREQUESTOR
     NS_DECL_NSICHANNELEVENTSINK
 
     /**
@@ -148,18 +144,14 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * that our plug-in, if any, is instantiated.
      */
     // Helper for WebIDL node wrapping
-    void SetupProtoChain(JSContext* aCx, JS::Handle<JSObject*> aObject);
+    void SetupProtoChain(JSContext* aCx, JSObject* aObject);
 
     // Remove plugin from protochain
     void TeardownProtoChain();
 
     // Helper for WebIDL newResolve
-    bool DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
-                      JS::Handle<jsid> aId,
-                      JS::MutableHandle<JS::Value> aValue);
-    // Helper for WebIDL enumeration
-    void GetOwnPropertyNames(JSContext* aCx, nsTArray<nsString>& /* unused */,
-                             mozilla::ErrorResult& aRv);
+    bool DoNewResolve(JSContext* aCx, JSHandleObject aObject, JSHandleId aId,
+                      unsigned aFlags, JSMutableHandleObject aObjp);
 
     // WebIDL API
     nsIDocument* GetContentDocument();
@@ -179,10 +171,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     {
       aRv = PlayPlugin();
     }
-    void Reload(bool aClearActivation, mozilla::ErrorResult& aRv)
-    {
-      aRv = Reload(aClearActivation);
-    }
     bool Activated() const
     {
       return mActivated;
@@ -191,13 +179,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     {
       return mURI;
     }
-  
-    /**
-     * The default state that this plugin would be without manual activation.
-     * @returns PLUGIN_ACTIVE if the default state would be active.
-     */
-    uint32_t DefaultFallbackType();
-
     uint32_t PluginFallbackType() const
     {
       return mFallbackType;
@@ -214,7 +195,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     {
       aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
     }
-    JS::Value LegacyCall(JSContext* aCx, JS::Handle<JS::Value> aThisVal,
+    JS::Value LegacyCall(JSContext* aCx, JS::Value aThisVal,
                          const mozilla::dom::Sequence<JS::Value>& aArguments,
                          mozilla::ErrorResult& aRv);
 
@@ -358,19 +339,10 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * 
      * NOTE This function does not perform security checks, only determining the
      *      requested type and parameters of the object.
-     *
-     * @param aJavaURI Specify that the URI will be consumed by java, which
-     *                 changes codebase parsing and URI construction. Used
-     *                 internally.
-     *
+     * 
      * @return Returns a bitmask of ParameterUpdateFlags values
      */
-    ParameterUpdateFlags UpdateObjectParameters(bool aJavaURI = false);
-
-    /**
-     * Queue a CheckPluginStopEvent and track it in mPendingCheckPluginStopEvent
-     */
-    void QueueCheckPluginStopEvent();
+    ParameterUpdateFlags UpdateObjectParameters();
 
     void NotifyContentObjectWrapper();
 
@@ -388,14 +360,8 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * If this object is allowed to play plugin content, or if it would display
      * click-to-play instead.
      * NOTE that this does not actually check if the object is a loadable plugin
-     * NOTE This ignores the current activated state. The caller should check this if appropriate.
      */
-    bool ShouldPlay(FallbackType &aReason, bool aIgnoreCurrentType);
-
-    /*
-     * Helper to check if mBaseURI can be used by java as a codebase
-     */
-    bool CheckJavaCodebase();
+    bool ShouldPlay(FallbackType &aReason);
 
     /**
      * Helper to check if our current URI passes policy
@@ -477,7 +443,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
       SetupProtoChainRunner(nsIScriptContext* scriptContext,
                             nsObjectLoadingContent* aContent);
 
-      NS_IMETHOD Run() MOZ_OVERRIDE;
+      NS_IMETHOD Run();
 
     private:
       nsCOMPtr<nsIScriptContext> mContext;
@@ -491,11 +457,10 @@ class nsObjectLoadingContent : public nsImageLoadingContent
                                          nsNPAPIPluginInstance** aResult);
 
     // Utility method for getting our plugin JSObject
-    static nsresult GetPluginJSObject(JSContext *cx,
-                                      JS::Handle<JSObject*> obj,
+    static nsresult GetPluginJSObject(JSContext *cx, JSObject *obj,
                                       nsNPAPIPluginInstance *plugin_inst,
-                                      JS::MutableHandle<JSObject*> plugin_obj,
-                                      JS::MutableHandle<JSObject*> plugin_proto);
+                                      JSObject **plugin_obj,
+                                      JSObject **plugin_proto);
 
     // The final listener for mChannel (uriloader, pluginstreamlistener, etc.)
     nsCOMPtr<nsIStreamListener> mFinalListener;

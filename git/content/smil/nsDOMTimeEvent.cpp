@@ -4,20 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMTimeEvent.h"
+#include "nsGUIEvent.h"
 #include "nsPresContext.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "mozilla/BasicEvents.h"
-
-using namespace mozilla;
+#include "nsDOMClassInfoID.h"
 
 nsDOMTimeEvent::nsDOMTimeEvent(mozilla::dom::EventTarget* aOwner,
-                               nsPresContext* aPresContext,
-                               WidgetEvent* aEvent)
-  : nsDOMEvent(aOwner, aPresContext,
-               aEvent ? aEvent : new InternalUIEvent(false, 0, 0)),
+                               nsPresContext* aPresContext, nsEvent* aEvent)
+  : nsDOMEvent(aOwner, aPresContext, aEvent ? aEvent : new nsUIEvent(false, 0, 0)),
     mDetail(0)
 {
-  SetIsDOMBinding();
   if (aEvent) {
     mEventIsInternal = false;
   } else {
@@ -26,7 +22,8 @@ nsDOMTimeEvent::nsDOMTimeEvent(mozilla::dom::EventTarget* aOwner,
   }
 
   if (mEvent->eventStructType == NS_SMIL_TIME_EVENT) {
-    mDetail = mEvent->AsUIEvent()->detail;
+    nsUIEvent* event = static_cast<nsUIEvent*>(mEvent);
+    mDetail = event->detail;
   }
 
   mEvent->mFlags.mBubbles = false;
@@ -43,14 +40,22 @@ nsDOMTimeEvent::nsDOMTimeEvent(mozilla::dom::EventTarget* aOwner,
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(nsDOMTimeEvent, nsDOMEvent,
-                                     mView)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMTimeEvent, nsDOMEvent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mView)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMTimeEvent, nsDOMEvent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mView)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsDOMTimeEvent, nsDOMEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMTimeEvent, nsDOMEvent)
 
+DOMCI_DATA(TimeEvent, nsDOMTimeEvent)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMTimeEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMTimeEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TimeEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 NS_IMETHODIMP
@@ -86,7 +91,7 @@ nsDOMTimeEvent::InitTimeEvent(const nsAString& aTypeArg,
 nsresult NS_NewDOMTimeEvent(nsIDOMEvent** aInstancePtrResult,
                             mozilla::dom::EventTarget* aOwner,
                             nsPresContext* aPresContext,
-                            WidgetEvent* aEvent)
+                            nsEvent* aEvent)
 {
   nsDOMTimeEvent* it = new nsDOMTimeEvent(aOwner, aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);

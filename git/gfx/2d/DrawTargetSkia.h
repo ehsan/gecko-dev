@@ -75,10 +75,6 @@ public:
   virtual void Mask(const Pattern &aSource,
                     const Pattern &aMask,
                     const DrawOptions &aOptions = DrawOptions());
-  virtual void MaskSurface(const Pattern &aSource,
-                           SourceSurface *aMask,
-                           Point aOffset,
-                           const DrawOptions &aOptions = DrawOptions()) { MOZ_ASSERT(0); };
   virtual void PushClip(const Path *aPath);
   virtual void PushClipRect(const Rect& aRect);
   virtual void PopClip();
@@ -97,52 +93,27 @@ public:
 
   bool Init(const IntSize &aSize, SurfaceFormat aFormat);
   void Init(unsigned char* aData, const IntSize &aSize, int32_t aStride, SurfaceFormat aFormat);
-
 #ifdef USE_SKIA_GPU
-  virtual GenericRefCountedBase* GetGLContext() const MOZ_OVERRIDE { return mGLContext; }
-  void InitWithGLContextAndGrGLInterface(GenericRefCountedBase* aGLContext,
-                                         GrGLInterface* aGrGLInterface,
-                                         const IntSize &aSize,
-                                         SurfaceFormat aFormat) MOZ_OVERRIDE;
-
-  void SetCacheLimits(int aCount, int aSizeInBytes);
-  void PurgeCache();
-
-  static void SetGlobalCacheLimits(int aCount, int aSizeInBytes);
-  static void RebalanceCacheLimits();
-  static void PurgeTextureCaches();
+  void InitWithFBO(unsigned int aFBOID, GrContext* aGrContext, const IntSize &aSize, SurfaceFormat aFormat);
 #endif
-
+  
   operator std::string() const {
     std::stringstream stream;
     stream << "DrawTargetSkia(" << this << ")";
     return stream.str();
   }
-
 private:
   friend class SourceSurfaceSkia;
-  void SnapshotDestroyed();
+  void AppendSnapshot(SourceSurfaceSkia* aSnapshot);
+  void RemoveSnapshot(SourceSurfaceSkia* aSnapshot);
 
   void MarkChanged();
 
-#ifdef USE_SKIA_GPU
-  /*
-   * These members have inter-dependencies, but do not keep each other alive, so
-   * destruction order is very important here: mGrContext uses mGrGLInterface, and
-   * through it, uses mGLContext, so it is important that they be declared in the
-   * present order.
-   */
-  RefPtr<GenericRefCountedBase> mGLContext;
-  SkRefPtr<GrGLInterface> mGrGLInterface;
-  SkRefPtr<GrContext> mGrContext;
-
-  static int sTextureCacheCount;
-  static int sTextureCacheSizeInBytes;
-#endif
-
   IntSize mSize;
+  SkBitmap mBitmap;
   SkRefPtr<SkCanvas> mCanvas;
-  SourceSurfaceSkia* mSnapshot;
+  SkRefPtr<SkDevice> mDevice;
+  std::vector<SourceSurfaceSkia*> mSnapshots;
 };
 
 }

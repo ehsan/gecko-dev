@@ -57,13 +57,9 @@ ogg_page_granulepos
 ogg_page_serialno
 ogg_stream_check
 ogg_stream_clear
-ogg_stream_eos
-ogg_stream_flush
 ogg_stream_init
-ogg_stream_packetin
 ogg_stream_packetout
 ogg_stream_pagein
-ogg_stream_pageout
 ogg_stream_reset
 ogg_sync_buffer
 ogg_sync_clear
@@ -71,19 +67,11 @@ ogg_sync_init
 ogg_sync_pageseek
 ogg_sync_reset
 ogg_sync_wrote
-vorbis_analysis
-vorbis_analysis_blockout
-vorbis_analysis_buffer
-vorbis_analysis_init
-vorbis_analysis_headerout
-vorbis_analysis_wrote
 vorbis_block_clear
 vorbis_block_init
-vorbis_comment_add_tag
 vorbis_comment_clear
 vorbis_comment_init
 vorbis_dsp_clear
-vorbis_encode_init_vbr
 vorbis_info_clear
 vorbis_info_init
 vorbis_packet_blocksize
@@ -122,15 +110,11 @@ speex_resampler_strerror
 #ifdef MOZ_CUBEB
 cubeb_destroy
 cubeb_init
-cubeb_get_max_channel_count
-cubeb_get_min_latency
-cubeb_get_preferred_sample_rate
 cubeb_stream_destroy
 cubeb_stream_get_position
 cubeb_stream_init
 cubeb_stream_start
 cubeb_stream_stop
-cubeb_stream_get_latency
 #endif
 #ifdef MOZ_OGG
 th_comment_clear
@@ -175,6 +159,21 @@ ShGetInfoLog
 ShCompile
 ShGetInfo
 ShConstructCompiler
+#ifdef MOZ_WEBRTC_GKMEDIA
+#ifdef HAVE_64BIT_OS
+?GetInterface@ViERender@webrtc@@SAPEAV12@PEAVVideoEngine@2@@Z
+?GetInterface@ViECapture@webrtc@@SAPEAV12@PEAVVideoEngine@2@@Z
+?GetInterface@ViEBase@webrtc@@SAPEAV12@PEAVVideoEngine@2@@Z
+?Create@VideoEngine@webrtc@@SAPEAV12@XZ
+?Delete@VideoEngine@webrtc@@SA_NAEAPEAV12@@Z
+#else
+?GetInterface@ViERender@webrtc@@SAPAV12@PAVVideoEngine@2@@Z
+?GetInterface@ViECapture@webrtc@@SAPAV12@PAVVideoEngine@2@@Z
+?GetInterface@ViEBase@webrtc@@SAPAV12@PAVVideoEngine@2@@Z
+?Create@VideoEngine@webrtc@@SAPAV12@XZ
+?Delete@VideoEngine@webrtc@@SA_NAAPAV12@@Z
+#endif
+#endif
 ShGetActiveAttrib
 ShGetActiveUniform
 #ifndef MOZ_NATIVE_PNG
@@ -469,12 +468,9 @@ _moz_cairo_translate
 _moz_cairo_user_to_device
 _moz_cairo_user_to_device_distance
 _moz_cairo_win32_font_face_create_for_logfontw_hfont
-#ifdef NS_PRINTING
 _moz_cairo_win32_printing_surface_create
-#endif
 _moz_cairo_win32_scaled_font_select_font
 _moz_cairo_win32_surface_create
-_moz_cairo_win32_surface_create_with_d3dsurface9
 _moz_cairo_win32_surface_create_with_ddb
 _moz_cairo_win32_surface_create_with_dib
 _moz_cairo_win32_surface_get_dc
@@ -537,7 +533,6 @@ hb_buffer_set_script
 hb_buffer_set_unicode_funcs
 hb_face_create_for_tables
 hb_face_destroy
-hb_face_reference
 hb_font_create
 hb_font_destroy
 hb_font_funcs_create

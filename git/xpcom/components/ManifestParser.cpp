@@ -68,31 +68,31 @@ struct ManifestDirective
 };
 static const ManifestDirective kParsingTable[] = {
   { "manifest",         1, false, true, true, false,
-    &nsComponentManagerImpl::ManifestManifest, nullptr },
+    &nsComponentManagerImpl::ManifestManifest, NULL },
   { "binary-component", 1, true, false, false, false,
-    &nsComponentManagerImpl::ManifestBinaryComponent, nullptr },
+    &nsComponentManagerImpl::ManifestBinaryComponent, NULL },
   { "interfaces",       1, true, false, false, false,
-    &nsComponentManagerImpl::ManifestXPT, nullptr },
+    &nsComponentManagerImpl::ManifestXPT, NULL },
   { "component",        2, true, false, false, false,
-    &nsComponentManagerImpl::ManifestComponent, nullptr },
+    &nsComponentManagerImpl::ManifestComponent, NULL },
   { "contract",         2, true, false, false, false,
-    &nsComponentManagerImpl::ManifestContract, nullptr, true},
+    &nsComponentManagerImpl::ManifestContract, NULL, true},
   { "category",         3, true, false, false, false,
-    &nsComponentManagerImpl::ManifestCategory, nullptr },
+    &nsComponentManagerImpl::ManifestCategory, NULL },
   { "content",          2, true, true, true,  true,
-    nullptr, &nsChromeRegistry::ManifestContent },
+    NULL, &nsChromeRegistry::ManifestContent },
   { "locale",           3, true, true, true,  false,
-    nullptr, &nsChromeRegistry::ManifestLocale },
+    NULL, &nsChromeRegistry::ManifestLocale },
   { "skin",             3, false, true, true,  false,
-    nullptr, &nsChromeRegistry::ManifestSkin },
+    NULL, &nsChromeRegistry::ManifestSkin },
   { "overlay",          2, true, true, false,  false,
-    nullptr, &nsChromeRegistry::ManifestOverlay },
+    NULL, &nsChromeRegistry::ManifestOverlay },
   { "style",            2, false, true, false,  false,
-    nullptr, &nsChromeRegistry::ManifestStyle },
+    NULL, &nsChromeRegistry::ManifestStyle },
   { "override",         2, true, true, true,  false,
-    nullptr, &nsChromeRegistry::ManifestOverride },
+    NULL, &nsChromeRegistry::ManifestOverride },
   { "resource",         2, true, true, false,  false,
-    nullptr, &nsChromeRegistry::ManifestResource }
+    NULL, &nsChromeRegistry::ManifestResource }
 };
 
 static const char kWhitespace[] = "\t ";
@@ -464,7 +464,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
                                          majorVersion,
                                          minorVersion);
   }
-#elif defined(MOZ_WIDGET_GTK)
+#elif defined(MOZ_WIDGET_GTK2)
   nsTextFormatter::ssprintf(osVersion, NS_LITERAL_STRING("%ld.%ld").get(),
                                        gtk_major_version,
                                        gtk_minor_version);
@@ -510,7 +510,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
     token = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
     if (!token) continue;
 
-    const ManifestDirective* directive = nullptr;
+    const ManifestDirective* directive = NULL;
     for (const ManifestDirective* d = kParsingTable;
 	 d < ArrayEnd(kParsingTable);
 	 ++d) {
@@ -566,7 +566,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
     bool platform = false;
     bool contentAccessible = false;
 
-    while (nullptr != (token = nsCRT::strtok(whitespace, kWhitespace, &whitespace)) && ok) {
+    while (NULL != (token = nsCRT::strtok(whitespace, kWhitespace, &whitespace)) && ok) {
       ToLowerCase(token);
       NS_ConvertASCIItoUTF16 wtoken(token);
 

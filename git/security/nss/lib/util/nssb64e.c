@@ -4,6 +4,8 @@
 
 /*
  * Base64 encoding (binary to ascii).
+ *
+ * $Id$
  */
 
 #include "nssb64.h"
@@ -627,7 +629,7 @@ NSSBase64Encoder_Destroy (NSSBase64Encoder *data, PRBool abort_p)
  * otherwise.
  */
 char *
-NSSBase64_EncodeItem (PLArenaPool *arenaOpt, char *outStrOpt,
+NSSBase64_EncodeItem (PRArenaPool *arenaOpt, char *outStrOpt,
 		      unsigned int maxOutLen, SECItem *inItem)
 {
     char *out_string = outStrOpt;

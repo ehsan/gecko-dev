@@ -120,8 +120,9 @@ CheckQuotaHelper::GetQuotaPermission(nsIPrincipal* aPrincipal)
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aPrincipal, "Null principal!");
 
-  NS_ASSERTION(!nsContentUtils::IsSystemPrincipal(aPrincipal),
-               "Chrome windows shouldn't track quota!");
+  if (nsContentUtils::IsSystemPrincipal(aPrincipal)) {
+    return nsIPermissionManager::ALLOW_ACTION;
+  }
 
   nsCOMPtr<nsIPermissionManager> pm =
     do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
@@ -136,9 +137,9 @@ CheckQuotaHelper::GetQuotaPermission(nsIPrincipal* aPrincipal)
   return permission;
 }
 
-NS_IMPL_ISUPPORTS3(CheckQuotaHelper, nsIRunnable,
-                   nsIInterfaceRequestor,
-                   nsIObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS3(CheckQuotaHelper, nsIRunnable,
+                                                nsIInterfaceRequestor,
+                                                nsIObserver)
 
 NS_IMETHODIMP
 CheckQuotaHelper::Run()
@@ -199,7 +200,7 @@ CheckQuotaHelper::Run()
 
   NS_ASSERTION(mWaiting, "Huh?!");
 
-  // This should never be used again.
+    // This should never be used again.
   mWindow = nullptr;
 
   mWaiting = false;

@@ -1,5 +1,8 @@
 . "$topsrcdir/b2g/config/mozconfigs/common"
 
+# for pgo
+mk_add_options PROFILE_GEN_SCRIPT='$(PYTHON) $(MOZ_OBJDIR)/_profile/pgo/profileserver.py'
+
 ac_add_options --enable-update-channel=${MOZ_UPDATE_CHANNEL}
 ac_add_options --enable-update-packaging
 ac_add_options --enable-jemalloc
@@ -12,6 +15,10 @@ ac_add_options --enable-js-diagnostics
 export MOZILLA_OFFICIAL=1
 
 export MOZ_TELEMETRY_REPORTING=1
+
+if test -z "${_PYMAKE}"; then
+  mk_add_options MOZ_MAKE_FLAGS=-j1
+fi
 
 if test "$PROCESSOR_ARCHITECTURE" = "AMD64" -o "$PROCESSOR_ARCHITEW6432" = "AMD64"; then
   . $topsrcdir/build/win32/mozconfig.vs2010-win64

@@ -5,39 +5,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ShadowLayerUtilsX11.h"
-#include <X11/X.h>                      // for Drawable, XID
-#include <X11/Xlib.h>                   // for Display, Visual, etc
-#include <X11/extensions/Xrender.h>     // for XRenderPictFormat, etc
-#include <X11/extensions/render.h>      // for PictFormat
+#include "mozilla/layers/PLayers.h"
+#include "mozilla/layers/ShadowLayers.h"
+ 
+#include "gfxPlatform.h"
+
+#include "gfxXlibSurface.h"
+#include "mozilla/X11Util.h"
 #include "cairo-xlib.h"
-#include <stdint.h>                     // for uint32_t
-#include "GLDefs.h"                     // for GLenum
-#include "gfxASurface.h"                // for gfxASurface, etc
-#include "gfxPlatform.h"                // for gfxPlatform
-#include "gfxPoint.h"                   // for gfxIntSize
-#include "gfxXlibSurface.h"             // for gfxXlibSurface
-#include "mozilla/X11Util.h"            // for DefaultXDisplay, FinishX, etc
-#include "mozilla/layers/CompositableForwarder.h"
-#include "mozilla/layers/CompositorTypes.h"  // for OpenMode
-#include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator, etc
-#include "mozilla/layers/LayerManagerComposite.h"
-#include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor, etc
-#include "mozilla/layers/ShadowLayers.h"  // for ShadowLayerForwarder, etc
-#include "mozilla/mozalloc.h"           // for operator new
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsDebug.h"                    // for NS_ERROR
-#include "prenv.h"                      // for PR_GetEnv
 
 using namespace mozilla::gl;
 
 namespace mozilla {
-namespace gl {
-class GLContext;
-class TextureImage;
-}
-
 namespace layers {
 
 // Return true if we're likely compositing using X and so should use
@@ -45,10 +24,7 @@ namespace layers {
 static bool
 UsingXCompositing()
 {
-  if (!PR_GetEnv("MOZ_LAYERS_ENABLE_XLIB_SURFACES")) {
-      return false;
-  }
-  return (gfxSurfaceTypeXlib ==
+  return (gfxASurface::SurfaceTypeXlib ==
           gfxPlatform::GetPlatform()->ScreenReferenceSurface()->GetType());
 }
 
@@ -116,10 +92,13 @@ SurfaceDescriptorX11::OpenForeign() const
 
 bool
 ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
-                                                  gfxContentType aContent,
+                                                  gfxASurface::gfxContentType aContent,
                                                   uint32_t aCaps,
                                                   SurfaceDescriptor* aBuffer)
 {
+  if (!PR_GetEnv("MOZ_LAYERS_ENABLE_XLIB_SURFACES")) {
+      return false;
+  }
   if (!UsingXCompositing()) {
     // If we're not using X compositing, we're probably compositing on
     // the client side, in which case X surfaces would just slow
@@ -135,7 +114,7 @@ ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
   gfxPlatform* platform = gfxPlatform::GetPlatform();
   nsRefPtr<gfxASurface> buffer = platform->CreateOffscreenSurface(aSize, aContent);
   if (!buffer ||
-      buffer->GetType() != gfxSurfaceTypeXlib) {
+      buffer->GetType() != gfxASurface::SurfaceTypeXlib) {
     NS_ERROR("creating Xlib front/back surfaces failed!");
     return false;
   }
@@ -183,16 +162,6 @@ ShadowLayerForwarder::PlatformGetDescriptorSurfaceSize(
   return false;
 }
 
-/*static*/ bool
-ShadowLayerForwarder::PlatformGetDescriptorSurfaceImageFormat(
-  const SurfaceDescriptor&,
-  OpenMode,
-  gfxImageFormat*,
-  gfxASurface**)
-{
-  return false;
-}
-
 bool
 ShadowLayerForwarder::PlatformDestroySharedSurface(SurfaceDescriptor* aSurface)
 {
@@ -215,7 +184,7 @@ ShadowLayerForwarder::PlatformSyncBeforeUpdate()
 }
 
 /*static*/ void
-LayerManagerComposite::PlatformSyncBeforeReplyUpdate()
+ShadowLayerManager::PlatformSyncBeforeReplyUpdate()
 {
   if (UsingXCompositing()) {
     // If we're using X surfaces, we need to finish all pending
@@ -228,16 +197,16 @@ LayerManagerComposite::PlatformSyncBeforeReplyUpdate()
 }
 
 /*static*/ already_AddRefed<TextureImage>
-LayerManagerComposite::OpenDescriptorForDirectTexturing(GLContext*,
-                                                        const SurfaceDescriptor&,
-                                                        GLenum)
+ShadowLayerManager::OpenDescriptorForDirectTexturing(GLContext*,
+                                                     const SurfaceDescriptor&,
+                                                     GLenum)
 {
   // FIXME/bug XXXXXX: implement this using texture-from-pixmap
   return nullptr;
 }
 
 /*static*/ bool
-LayerManagerComposite::SupportsDirectTexturing()
+ShadowLayerManager::SupportsDirectTexturing()
 {
   return false;
 }

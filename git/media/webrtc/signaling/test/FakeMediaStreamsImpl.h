@@ -10,13 +10,10 @@
 #include "nspr.h"
 #include "nsError.h"
 
-void LogTime(AsyncLatencyLogger::LatencyLogIndex index, uint64_t b, int64_t c) {}
-void LogLatency(AsyncLatencyLogger::LatencyLogIndex index, uint64_t b, int64_t c) {}
-
 static const int AUDIO_BUFFER_SIZE = 1600;
 static const int NUM_CHANNELS      = 2;
 
-NS_IMPL_ISUPPORTS1(Fake_DOMMediaStream, nsIDOMMediaStream)
+NS_IMPL_THREADSAFE_ISUPPORTS1(Fake_DOMMediaStream, nsIDOMMediaStream)
 
 // Fake_SourceMediaStream
 nsresult Fake_SourceMediaStream::Start() {
@@ -109,7 +106,7 @@ void Fake_AudioStreamSource::Periodic() {
 
 
 // Fake_MediaPeriodic
-NS_IMPL_ISUPPORTS1(Fake_MediaPeriodic, nsITimerCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS1(Fake_MediaPeriodic, nsITimerCallback)
 
 NS_IMETHODIMP
 Fake_MediaPeriodic::Notify(nsITimer *timer) {
@@ -143,7 +140,7 @@ Fake_VideoStreamSource::Notify(nsITimer* aTimer)
   uint8_t* frame = (uint8_t*) PR_Malloc(len);
   memset(frame, 0x80, len); // Gray
 
-  mozilla::layers::PlanarYCbCrData data;
+  mozilla::layers::PlanarYCbCrImage::Data data;
   data.mYChannel = frame;
   data.mYSize = gfxIntSize(WIDTH, HEIGHT);
   data.mYStride = WIDTH * lumaBpp / 8.0;

@@ -40,6 +40,12 @@ public:
     return parent ? parent->GetGlobalJSObject() : nullptr;
   }
 
+  static IDBWrapperCache* FromSupports(nsISupports* aSupports)
+  {
+    return static_cast<IDBWrapperCache*>(
+      nsDOMEventTargetHelper::FromSupports(aSupports));
+  }
+
 #ifdef DEBUG
   void AssertIsRooted() const;
 #else
@@ -56,7 +62,7 @@ protected:
   virtual ~IDBWrapperCache();
 
 private:
-  JS::Heap<JSObject*> mScriptOwner;
+  JSObject* mScriptOwner;
 };
 
 END_INDEXEDDB_NAMESPACE

@@ -7,7 +7,7 @@
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test" +
                  "/test-bug-782653-css-errors.html";
 
-let nodes, hud, StyleEditorUI;
+let nodes, hud, SEC;
 
 function test()
 {
@@ -23,66 +23,69 @@ function testViewSource(aHud)
   hud = aHud;
 
   registerCleanupFunction(function() {
-    nodes = hud = StyleEditorUI = null;
+    nodes = hud = SEC = null;
   });
 
-  waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "'font-weight'",
-      category: CATEGORY_CSS,
-      severity: SEVERITY_WARNING,
-    },
+  let selector = ".webconsole-msg-cssparser .webconsole-location";
+
+  waitForSuccess({
+    name: "find the location node",
+    validatorFn: function()
     {
-      text: "'color'",
-      category: CATEGORY_CSS,
-      severity: SEVERITY_WARNING,
-    }],
-  }).then(([error1Rule, error2Rule]) => {
-    let error1Msg = [...error1Rule.matched][0];
-    let error2Msg = [...error2Rule.matched][0];
-    nodes = [error1Msg.querySelector(".location"),
-             error2Msg.querySelector(".location")];
-    ok(nodes[0], ".location node for the first error");
-    ok(nodes[1], ".location node for the second error");
+      return hud.outputNode.querySelector(selector);
+    },
+    successFn: function()
+    {
+      nodes = hud.outputNode.querySelectorAll(selector);
+      is(nodes.length, 2, "correct number of css messages");
 
-    let target = TargetFactory.forTab(gBrowser.selectedTab);
-    let toolbox = gDevTools.getToolbox(target);
-    toolbox.once("styleeditor-selected", (event, panel) => {
-      StyleEditorUI = panel.UI;
+      let target = TargetFactory.forTab(gBrowser.selectedTab);
+      let toolbox = gDevTools.getToolbox(target);
+      toolbox.once("styleeditor-selected", onStyleEditorReady);
 
-      let count = 0;
-      StyleEditorUI.on("editor-added", function() {
-        if (++count == 2) {
-          onStyleEditorReady(panel);
-        }
-      });
-    });
-
-    EventUtils.sendMouseEvent({ type: "click" }, nodes[0]);
+      EventUtils.sendMouseEvent({ type: "click" }, nodes[0]);
+    },
+    failureFn: finishTest,
   });
 }
 
-function onStyleEditorReady(aPanel)
+function onStyleEditorReady(aEvent, aPanel)
 {
+  info(aEvent + " event fired");
+
+  SEC = aPanel.styleEditorChrome;
   let win = aPanel.panelWindow;
   ok(win, "Style Editor Window is defined");
-  ok(StyleEditorUI, "Style Editor UI is defined");
+  ok(SEC, "Style Editor Chrome is defined");
+
+  function sheetForNode(aNode)
+  {
+    let href = aNode.getAttribute("title");
+    let sheet, i = 0;
+    while((sheet = content.document.styleSheets[i++])) {
+      if (sheet.href == href) {
+        return sheet;
+      }
+    }
+    return null;
+  }
 
   waitForFocus(function() {
     info("style editor window focused");
 
-    let href = nodes[0].getAttribute("title");
+    let sheet = sheetForNode(nodes[0]);
+    ok(sheet, "sheet found");
     let line = nodes[0].sourceLine;
     ok(line, "found source line");
 
-    checkStyleEditorForSheetAndLine(href, line - 1, function() {
+    checkStyleEditorForSheetAndLine(sheet, line - 1, function() {
       info("first check done");
 
       let target = TargetFactory.forTab(gBrowser.selectedTab);
       let toolbox = gDevTools.getToolbox(target);
 
-      let href = nodes[1].getAttribute("title");
+      let sheet = sheetForNode(nodes[1]);
+      ok(sheet, "sheet found");
       let line = nodes[1].sourceLine;
       ok(line, "found source line");
 
@@ -92,7 +95,7 @@ function onStyleEditorReady(aPanel)
         toolbox.once("styleeditor-selected", function(aEvent) {
           info(aEvent + " event fired");
 
-          checkStyleEditorForSheetAndLine(href, line - 1, function() {
+          checkStyleEditorForSheetAndLine(sheet, line - 1, function() {
             info("second check done");
             finishTest();
           });
@@ -104,15 +107,15 @@ function onStyleEditorReady(aPanel)
   }, win);
 }
 
-function checkStyleEditorForSheetAndLine(aHref, aLine, aCallback)
+function checkStyleEditorForSheetAndLine(aStyleSheet, aLine, aCallback)
 {
   let foundEditor = null;
   waitForSuccess({
     name: "style editor for stylesheet",
     validatorFn: function()
     {
-      for (let editor of StyleEditorUI.editors) {
-        if (editor.styleSheet.href == aHref) {
+      for (let editor of SEC.editors) {
+        if (editor.styleSheet == aStyleSheet) {
           foundEditor = editor;
           return true;
         }
@@ -131,9 +134,9 @@ function performLineCheck(aEditor, aLine, aCallback)
 {
   function checkForCorrectState()
   {
-    is(aEditor.sourceEditor.getCursor().line, aLine,
+    is(aEditor.sourceEditor.getCaretPosition().line, aLine,
        "correct line is selected");
-    is(StyleEditorUI.selectedStyleSheetIndex, aEditor.styleSheet.styleSheetIndex,
+    is(SEC.selectedStyleSheetIndex, aEditor.styleSheetIndex,
        "correct stylesheet is selected in the editor");
 
     aCallback && executeSoon(aCallback);
@@ -147,8 +150,7 @@ function performLineCheck(aEditor, aLine, aCallback)
     },
     successFn: checkForCorrectState,
     failureFn: function() {
-      info("selectedStyleSheetIndex " + StyleEditorUI.selectedStyleSheetIndex
-           + " expected " + aEditor.styleSheet.styleSheetIndex);
+      info("selectedStyleSheetIndex " + SEC.selectedStyleSheetIndex + " expected " + aEditor.styleSheetIndex);
       finishTest();
     },
   });

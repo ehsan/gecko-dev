@@ -59,27 +59,14 @@ typedef Scoped<ScopedCloseFDTraits> ScopedClose;
 struct ScopedClosePRFDTraits
 {
   typedef PRFileDesc* type;
-  static type empty() { return nullptr; }
+  static type empty() { return NULL; }
   static void release(type fd) {
-    if (fd != nullptr) {
+    if (fd != NULL) {
       PR_Close(fd);
     }
   }
 };
 typedef Scoped<ScopedClosePRFDTraits> AutoFDClose;
-
-/* RAII wrapper for FILE descriptors */
-struct ScopedCloseFileTraits
-{
-  typedef FILE *type;
-  static type empty() { return nullptr; }
-  static void release(type f) {
-    if (f) {
-      fclose(f);
-    }
-  }
-};
-typedef Scoped<ScopedCloseFileTraits> ScopedCloseFile;
 
 /**
  * Fallocate efficiently and continuously allocates files via fallocate-type APIs.
@@ -158,22 +145,7 @@ NS_COM_GLUE void ReadAhead(filedesc_t aFd, const size_t aOffset = 0,
                            const size_t aCount = SIZE_MAX);
 
 
-/* Define ReadSysFile() only on GONK to avoid unnecessary lubxul bloat.
-Also define it in debug builds, so that unit tests for it can be written
-and run in non-GONK builds. */
-#if (defined(MOZ_WIDGET_GONK) || defined(DEBUG)) && defined(XP_UNIX)
-
-#ifndef ReadSysFile_PRESENT
-#define ReadSysFile_PRESENT
-#endif /* ReadSysFile_PRESENT */
-
-#define MOZ_TEMP_FAILURE_RETRY(exp) (__extension__({ \
-  typeof (exp) _rc; \
-  do { \
-    _rc = (exp); \
-  } while (_rc == -1 && errno == EINTR); \
-  _rc; \
-}))
+#ifdef MOZ_WIDGET_GONK
 
 /**
  * Read the contents of a file.
@@ -212,7 +184,7 @@ ReadSysFile(
   const char* aFilename,
   bool* aVal);
 
-#endif /* (MOZ_WIDGET_GONK || DEBUG) && XP_UNIX */
+#endif /* MOZ_WIDGET_GONK */
 
 } // namespace mozilla
 #endif

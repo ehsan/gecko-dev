@@ -7,7 +7,6 @@
 #define NSTEXTRUNTRANSFORMATIONS_H_
 
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 #include "gfxFont.h"
 
 class nsTransformedTextRun;
@@ -103,8 +102,8 @@ public:
   }
 
   // override the gfxTextRun impls to account for additional members here
-  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) MOZ_MUST_OVERRIDE;
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) MOZ_MUST_OVERRIDE;
+  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) MOZ_MUST_OVERRIDE;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) MOZ_MUST_OVERRIDE;
 
   nsTransformingTextRunFactory       *mFactory;
   nsTArray<nsRefPtr<nsStyleContext> > mStyles;

@@ -76,11 +76,7 @@ RefTestCmdLineHandler.prototype =
     var prefs = Components.classes["@mozilla.org/preferences-service;1"].
                 getService(Components.interfaces.nsIPrefService);
     var branch = prefs.getDefaultBranch("");
-    // For mochitests, we're more interested in testing the behavior of in-
-    // content XBL bindings, so we set this pref to true. In reftests, we're
-    // more interested in testing the behavior of XBL as it works in chrome,
-    // so we want this pref to be false.
-    branch.setBoolPref("dom.use_xbl_scopes_for_remote_xul", false);
+    branch.setBoolPref("dom.use_xbl_scopes_for_remote_xul", true);
     branch.setBoolPref("gfx.color_management.force_srgb", true);
     branch.setBoolPref("browser.dom.window.dump.enabled", true);
     branch.setIntPref("ui.caretBlinkTime", -1);
@@ -105,38 +101,11 @@ RefTestCmdLineHandler.prototype =
     // Checking whether two files are the same is slow on Windows.
     // Setting this pref makes tests run much faster there.
     branch.setBoolPref("security.fileuri.strict_origin_policy", false);
-    // Disable the thumbnailing service
-    branch.setBoolPref("browser.pagethumbnails.capturing_disabled", true);
 
     var wwatch = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                            .getService(nsIWindowWatcher);
-
-    function loadReftests() {
-      wwatch.openWindow(null, "chrome://reftest/content/reftest.xul", "_blank",
-                        "chrome,dialog=no,all", args);
-    }
-
-    var remote = false;
-    try {
-      remote = prefs.getBoolPref("reftest.remote");
-    } catch (ex) {
-    }
-
-    // If we are running on a remote machine, assume that we can't open another
-    // window for transferring focus to when tests don't require focus.
-    if (remote) {
-      loadReftests();
-    }
-    else {
-      // This dummy window exists solely for enforcing proper focus discipline.
-      var dummy = wwatch.openWindow(null, "about:blank", "dummy",
-                                    "chrome,dialog=no,left=800,height=200,width=200,all", null);
-      dummy.onload = function dummyOnload() {
-        dummy.focus();
-        loadReftests();
-      }
-    }
-
+    wwatch.openWindow(null, "chrome://reftest/content/reftest.xul", "_blank",
+                      "chrome,dialog=no,all", args);
     cmdLine.preventDefault = true;
   },
 

@@ -6,6 +6,7 @@
 #ifndef FileIOObject_h__
 #define FileIOObject_h__
 
+#include "nsIDOMEventTarget.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsIChannel.h"
 #include "nsIFile.h"
@@ -43,7 +44,7 @@ public:
   {
     return mReadyState;
   }
-  DOMError* GetError() const
+  nsIDOMDOMError* GetError() const
   {
     return mError;
   }
@@ -92,7 +93,7 @@ protected:
   bool mProgressEventWasDelayed;
   bool mTimerIsActive;
 
-  nsRefPtr<DOMError> mError;
+  nsCOMPtr<nsIDOMDOMError> mError;
   nsCOMPtr<nsIChannel> mChannel;
 
   uint16_t mReadyState;

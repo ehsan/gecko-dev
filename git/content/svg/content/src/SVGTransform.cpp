@@ -6,20 +6,17 @@
 
 #include "mozilla/dom/SVGTransform.h"
 #include "mozilla/dom/SVGMatrix.h"
-#include "mozilla/dom/SVGTransformBinding.h"
 #include "nsError.h"
+#include "nsContentUtils.h"
+#include "nsAttrValueInlines.h"
 #include "nsSVGAnimatedTransformList.h"
 #include "nsSVGAttrTearoffTable.h"
+#include "mozilla/dom/SVGTransformBinding.h"
 
 namespace mozilla {
 namespace dom {
 
-static nsSVGAttrTearoffTable<SVGTransform, SVGMatrix>&
-SVGMatrixTearoffTable()
-{
-  static nsSVGAttrTearoffTable<SVGTransform, SVGMatrix> sSVGMatrixTearoffTable;
-  return sSVGMatrixTearoffTable;
-}
+static nsSVGAttrTearoffTable<SVGTransform, SVGMatrix> sSVGMatrixTearoffTable;
 
 //----------------------------------------------------------------------
 
@@ -27,8 +24,6 @@ SVGMatrixTearoffTable()
 // clear our list's weak ref to us to be safe. (The other option would be to
 // not unlink and rely on the breaking of the other edges in the cycle, as
 // NS_SVG_VAL_IMPL_CYCLE_COLLECTION does.)
-NS_IMPL_CYCLE_COLLECTION_CLASS(SVGTransform)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(SVGTransform)
   // We may not belong to a list, so we must null check tmp->mList.
   if (tmp->mList) {
@@ -41,7 +36,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(SVGTransform)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mList)
   SVGMatrix* matrix =
-    SVGMatrixTearoffTable().GetTearoff(tmp);
+    sSVGMatrixTearoffTable.GetTearoff(tmp);
   CycleCollectionNoteChild(cb, matrix, "matrix");
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -54,7 +49,7 @@ NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(SVGTransform, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(SVGTransform, Release)
 
 JSObject*
-SVGTransform::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGTransform::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return SVGTransformBinding::Wrap(aCx, aScope, this);
 }
@@ -109,9 +104,9 @@ SVGTransform::SVGTransform(const nsSVGTransform &aTransform)
 
 SVGTransform::~SVGTransform()
 {
-  SVGMatrix* matrix = SVGMatrixTearoffTable().GetTearoff(this);
+  SVGMatrix* matrix = sSVGMatrixTearoffTable.GetTearoff(this);
   if (matrix) {
-    SVGMatrixTearoffTable().RemoveTearoff(this);
+    sSVGMatrixTearoffTable.RemoveTearoff(this);
     NS_RELEASE(matrix);
   }
   // Our mList's weak ref to us must be nulled out when we die. If GC has
@@ -132,10 +127,10 @@ SVGMatrix*
 SVGTransform::Matrix()
 {
   SVGMatrix* wrapper =
-    SVGMatrixTearoffTable().GetTearoff(this);
+    sSVGMatrixTearoffTable.GetTearoff(this);
   if (!wrapper) {
     NS_ADDREF(wrapper = new SVGMatrix(*this));
-    SVGMatrixTearoffTable().AddTearoff(this, wrapper);
+    sSVGMatrixTearoffTable.AddTearoff(this, wrapper);
   }
   return wrapper;
 }

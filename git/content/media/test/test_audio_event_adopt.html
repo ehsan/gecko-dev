@@ -24,11 +24,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=490705
     SimpleTest.finish();
   }
   function startTest() {
-    SpecialPowers.pushPrefEnv({"set": [["media.audio_data.enabled", true]]}, function () {
-      var audio = adopt();
-      audio.addEventListener("ended", endTest, false);
-      audio.play();
-    });
+    var audio = adopt();
+    audio.addEventListener("ended", endTest, false);
+    audio.play();
   }
 
   SimpleTest.waitForExplicitFinish();

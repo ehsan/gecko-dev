@@ -17,15 +17,22 @@
 /* Definitions of functions and operators that allocate memory. */
 #if !defined(XPCOM_GLUE) && !defined(NS_NO_XPCOM) && !defined(MOZ_NO_MOZALLOC)
 #  include "mozilla/mozalloc.h"
+#  include "mozilla/mozalloc_macro_wrappers.h"
 #endif
 
 /**
  * Incorporate the integer data types which XPCOM uses.
  */
-#include <stddef.h>
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
+#include "stddef.h"
 
 #include "mozilla/NullPtr.h"
+
+/*
+ * This is for functions that are like malloc_usable_size.  Such functions are
+ * used for measuring the size of data structures.
+ */
+typedef size_t(*nsMallocSizeOfFun)(const void *p);
 
 /* Core XPCOM declarations. */
 
@@ -131,13 +138,7 @@
 #define NS_IMETHODIMP_(type) type __stdcall
 #define NS_METHOD_(type) type __stdcall
 #define NS_CALLBACK_(_type, _name) _type (__stdcall * _name)
-#ifndef _WIN64
-// Win64 has only one calling convention.  __stdcall will be ignored by the compiler.
 #define NS_STDCALL __stdcall
-#define NS_HAVE_STDCALL
-#else
-#define NS_STDCALL
-#endif
 #define NS_FROZENCALL __cdecl
 
 /*
@@ -240,7 +241,7 @@
 #define IMPORT_XPCOM_API(type) NS_EXTERN_C NS_IMPORT type NS_FROZENCALL
 #define GLUE_XPCOM_API(type) NS_EXTERN_C NS_HIDDEN_(type) NS_FROZENCALL
 
-#ifdef IMPL_LIBXUL
+#ifdef _IMPL_NS_COM
 #define XPCOM_API(type) EXPORT_XPCOM_API(type)
 #elif defined(XPCOM_GLUE)
 #define XPCOM_API(type) GLUE_XPCOM_API(type)
@@ -322,6 +323,27 @@
 typedef unsigned long nsrefcnt;
 #else
 typedef uint32_t nsrefcnt;
+#endif
+
+/* ------------------------------------------------------------------------ */
+/* Casting macros for hiding C++ features from older compilers */
+
+  /* under VC++ (Windows), we don't have autoconf yet */
+#if defined(_MSC_VER)
+  #define HAVE_CPP_2BYTE_WCHAR_T
+#endif
+
+#ifndef __PRUNICHAR__
+#define __PRUNICHAR__
+  /* For now, don't use wchar_t on Unix because it breaks the Netscape
+   * commercial build.  When this is fixed there will be no need for the
+   * |reinterpret_cast| in nsLiteralString.h either.
+   */
+  #if defined(HAVE_CPP_2BYTE_WCHAR_T) && defined(XP_WIN)
+    typedef wchar_t PRUnichar;
+  #else
+    typedef uint16_t PRUnichar;
+  #endif
 #endif
 
 /*

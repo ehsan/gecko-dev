@@ -12,12 +12,8 @@
 #include "mozilla/TimeStamp.h"
 #include "nsIThread.h"
 #include "nsIRunnable.h"
-#include "Latency.h"
 
 namespace mozilla {
-
-template <typename T>
-class LinkedList;
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaStreamGraphLog;
@@ -72,11 +68,11 @@ struct StreamUpdate {
 
 /**
  * This represents a message passed from the main thread to the graph thread.
- * A ControlMessage always has a weak reference a particular affected stream.
+ * A ControlMessage always references a particular affected stream.
  */
 class ControlMessage {
 public:
-  explicit ControlMessage(MediaStream* aStream) : mStream(aStream)
+  ControlMessage(MediaStream* aStream) : mStream(aStream)
   {
     MOZ_COUNT_CTOR(ControlMessage);
   }
@@ -107,19 +103,11 @@ protected:
  * file. It's not in the anonymous namespace because MediaStream needs to
  * be able to friend it.
  *
- * Currently we have one global instance per process, and one per each
- * OfflineAudioContext object.
+ * Currently we only have one per process.
  */
 class MediaStreamGraphImpl : public MediaStreamGraph {
 public:
-  /**
-   * Set aRealtime to true in order to create a MediaStreamGraph which provides
-   * support for real-time audio and video.  Set it to false in order to create
-   * a non-realtime instance which just churns through its inputs and produces
-   * output.  Those objects currently only support audio, and are used to
-   * implement OfflineAudioContext.  They do not support MediaStream inputs.
-   */
-  explicit MediaStreamGraphImpl(bool aRealtime);
+  MediaStreamGraphImpl();
   ~MediaStreamGraphImpl()
   {
     NS_ASSERTION(IsEmpty(),
@@ -193,13 +181,7 @@ public:
    * Generate messages to the main thread to update it for all state changes.
    * mMonitor must be held.
    */
-  void PrepareUpdatesToMainThreadState(bool aFinalUpdate);
-  /**
-   * If we are rendering in non-realtime mode, we don't want to send messages to
-   * the main thread at each iteration for performance reasons. We instead
-   * notify the main thread at the same rate
-   */
-  bool ShouldUpdateMainThread();
+  void PrepareUpdatesToMainThreadState();
   // The following methods are the various stages of RunThread processing.
   /**
    * Compute a new current time for the graph and advance all on-graph-thread
@@ -225,7 +207,7 @@ public:
    * If aStream hasn't already been ordered, push it onto aStack and order
    * its children.
    */
-  void UpdateStreamOrderForStream(mozilla::LinkedList<MediaStream>* aStack,
+  void UpdateStreamOrderForStream(nsTArray<MediaStream*>* aStack,
                                   already_AddRefed<MediaStream> aStream);
   /**
    * Mark aStream and all its inputs (recursively) as consumed.
@@ -274,7 +256,6 @@ public:
    * This is called whenever we have an AudioNodeStream in the graph.
    */
   void ProduceDataForStreamsBlockByBlock(uint32_t aStreamIndex,
-                                         TrackRate aSampleRate,
                                          GraphTime aFrom,
                                          GraphTime aTo);
   /**
@@ -348,7 +329,7 @@ public:
    */
   bool IsEmpty() { return mStreams.IsEmpty() && mPortCount == 0; }
 
-  // For use by control messages, on graph thread only.
+  // For use by control messages
   /**
    * Identify which graph update index we are currently processing.
    */
@@ -366,13 +347,6 @@ public:
    * Remove aPort from the graph and release it.
    */
   void DestroyPort(MediaInputPort* aPort);
-  /**
-   * Mark the media stream order as dirty.
-   */
-  void SetStreamOrderDirty()
-  {
-    mStreamOrderDirty = true;
-  }
 
   // Data members
 
@@ -387,11 +361,6 @@ public:
   // is not running and this state can be used from the main thread.
 
   nsTArray<nsRefPtr<MediaStream> > mStreams;
-  /**
-   * mOldStreams is used as temporary storage for streams when computing the
-   * order in which we compute them.
-   */
-  nsTArray<nsRefPtr<MediaStream> > mOldStreams;
   /**
    * The current graph time for the current iteration of the RunThread control
    * loop.
@@ -411,10 +380,6 @@ public:
    * The real timestamp of the latest run of UpdateCurrentTime.
    */
   TimeStamp mCurrentTimeStamp;
-  /**
-   * Date of the last time we updated the main thread with the graph state.
-   */
-  TimeStamp mLastMainThreadUpdate;
   /**
    * Which update batch we are currently processing.
    */
@@ -508,10 +473,6 @@ public:
   };
   WaitState mWaitState;
   /**
-   * How many non-realtime ticks the graph should process.
-   */
-  uint32_t mNonRealtimeTicksToProcess;
-  /**
    * True when another iteration of the control loop is required.
    */
   bool mNeedAnotherIteration;
@@ -524,13 +485,6 @@ public:
    * RunInStableState() and the event hasn't run yet.
    */
   bool mPostedRunInStableStateEvent;
-  /**
-   * True when the non-realtime graph thread is processing, as a result of
-   * a request from the main thread.  When processing is finished, we post
-   * a message to the main thread in order to set mNonRealtimeProcessing
-   * back to false.
-   */
-  bool mNonRealtimeIsRunning;
 
   // Main thread only
 
@@ -552,25 +506,6 @@ public:
    * RunInStableState at the next stable state.
    */
   bool mPostedRunInStableState;
-  /**
-   * True when processing real-time audio/video.  False when processing non-realtime
-   * audio.
-   */
-  bool mRealtime;
-  /**
-   * True when a non-realtime MediaStreamGraph has started to process input.  This
-   * value is only accessed on the main thread.
-   */
-  bool mNonRealtimeProcessing;
-  /**
-   * True when a change has happened which requires us to recompute the stream
-   * blocking order.
-   */
-  bool mStreamOrderDirty;
-  /**
-   * Hold a ref to the Latency logger
-   */
-  nsRefPtr<AsyncLatencyLogger> mLatencyLog;
 };
 
 }

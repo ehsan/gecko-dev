@@ -22,7 +22,8 @@ interface nsIPrefLocalizedString : nsISupports
   /**
    * Provides access to string data stored in this property.
    *
-   * @throws Error An error occurred.
+   * @return NS_OK The operation succeeded.
+   * @return Other An error occurred.
    */
   attribute wstring data;
 
@@ -44,6 +45,8 @@ interface nsIPrefLocalizedString : nsISupports
    *
    * @note
    * This makes a copy of the string argument passed in.
+   *
+   * @return NS_OK The data was successfully stored.
    */
   void setDataWithLength(in unsigned long length,
                          [size_is(length)] in wstring data);

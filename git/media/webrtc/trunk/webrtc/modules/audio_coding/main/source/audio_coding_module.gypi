@@ -11,7 +11,9 @@
     'audio_coding_dependencies': [
       'CNG',
       'NetEq',
-      '<(webrtc_root)/common_audio/common_audio.gyp:common_audio',
+      '<(webrtc_root)/common_audio/common_audio.gyp:resampler',
+      '<(webrtc_root)/common_audio/common_audio.gyp:signal_processing',
+      '<(webrtc_root)/common_audio/common_audio.gyp:vad',
       '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
     ],
     'audio_coding_defines': [],
@@ -76,17 +78,17 @@
   'targets': [
     {
       'target_name': 'audio_coding_module',
-      'type': 'static_library',
+      'type': '<(library)',
       'defines': [
         '<@(audio_coding_defines)',
       ],
       'dependencies': [
         '<@(audio_coding_dependencies)',
-        'acm2',
       ],
       'include_dirs': [
         '../interface',
         '../../../interface',
+        '../../codecs/opus/interface',
       ],
       'direct_dependent_settings': {
         'include_dirs': [
@@ -123,10 +125,9 @@
         'acm_red.h',
         'acm_resampler.cc',
         'acm_resampler.h',
+        'audio_coding_module.cc',
         'audio_coding_module_impl.cc',
         'audio_coding_module_impl.h',
-        'nack.cc',
-        'nack.h',
       ],
     },
   ],
@@ -134,41 +135,70 @@
     ['include_tests==1', {
       'targets': [
         {
-          'target_name': 'delay_test',
+          'target_name': 'audio_coding_module_test',
           'type': 'executable',
           'dependencies': [
             'audio_coding_module',
-            '<(DEPTH)/testing/gtest.gyp:gtest',
             '<(webrtc_root)/test/test.gyp:test_support_main',
+            '<(DEPTH)/testing/gtest.gyp:gtest',
             '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
-            '<(DEPTH)/third_party/gflags/gflags.gyp:gflags',
+            '<(webrtc_root)/modules/modules.gyp:webrtc_utility',
+          ],
+          'include_dirs': [
+            '<(webrtc_root)/common_audio/resampler/include',
+          ],
+          'defines': [
+            '<@(audio_coding_defines)',
           ],
           'sources': [
-             '../test/delay_test.cc',
+             '../test/ACMTest.cc',
+             '../test/APITest.cc',
              '../test/Channel.cc',
+             '../test/dual_stream_unittest.cc',
+             '../test/EncodeDecodeTest.cc',
+             '../test/iSACTest.cc',
              '../test/PCMFile.cc',
-           ],
-        }, # delay_test
+             '../test/RTPFile.cc',
+             '../test/SpatialAudio.cc',
+             '../test/TestAllCodecs.cc',
+             '../test/Tester.cc',
+             '../test/TestFEC.cc',
+             '../test/TestStereo.cc',
+             '../test/TestVADDTX.cc',
+             '../test/TimedTrace.cc',
+             '../test/TwoWayCommunication.cc',
+             '../test/utility.cc',
+          ],
+        },
         {
-          'target_name': 'insert_packet_with_timing',
+          'target_name': 'audio_coding_unittests',
           'type': 'executable',
           'dependencies': [
             'audio_coding_module',
+            'CNG',
+            'iSACFix',
+            'NetEq',
+            '<(webrtc_root)/common_audio/common_audio.gyp:vad',
             '<(DEPTH)/testing/gtest.gyp:gtest',
             '<(webrtc_root)/test/test.gyp:test_support_main',
             '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
-            '<(DEPTH)/third_party/gflags/gflags.gyp:gflags',
           ],
           'sources': [
-             '../test/insert_packet_with_timing.cc',
-             '../test/Channel.cc',
-             '../test/PCMFile.cc',
-           ],
-        }, # delay_test
+             'acm_neteq_unittest.cc',
+             '../../codecs/cng/cng_unittest.cc',
+             '../../codecs/isac/fix/source/filters_unittest.cc',
+             '../../codecs/isac/fix/source/filterbanks_unittest.cc',
+             '../../codecs/isac/fix/source/lpc_masking_model_unittest.cc',
+             '../../codecs/isac/fix/source/transform_unittest.cc',
+          ],
+        }, # audio_coding_unittests
       ],
     }],
   ],
-  'includes': [
-    '../acm2/audio_coding_module.gypi',
-  ],
 }
+
+# Local Variables:
+# tab-width:2
+# indent-tabs-mode:nil
+# End:
+# vim: set expandtab tabstop=2 shiftwidth=2:

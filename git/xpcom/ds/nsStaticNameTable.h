@@ -10,8 +10,6 @@
 #define nsStaticNameTable_h___
 
 #include "pldhash.h"
-#include "nsString.h"
-
 /* This class supports case insensitive lookup.
  *
  * It differs from atom tables:

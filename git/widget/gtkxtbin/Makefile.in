@@ -4,6 +4,23 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME	= gtkxtbin
+EXPORT_LIBRARY = 1
+LIBXUL_LIBRARY = 1
+
+ifdef MOZ_ENABLE_GTK2
+CSRCS		= \
+		gtk2xtbin.c \
+		$(NULL)
+endif
+
 include $(topsrcdir)/config/rules.mk
 
 ifdef MOZ_ENABLE_GTK2
@@ -15,3 +32,4 @@ DEFINES		+= -D_IMPL_GTKXTBIN_API
 INCLUDES	+= \
 		-I$(srcdir) \
 		$(NULL)
+

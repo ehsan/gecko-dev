@@ -3,8 +3,7 @@
 
 // Tests that the cookie commands works as they should
 
-const TEST_URI = "http://example.com/browser/browser/devtools/commandline/"+
-                 "test/browser_cmd_cookie.html";
+const TEST_URI = "data:text/html;charset=utf-8,gcli-cookie";
 
 function test() {
   helpers.addTabWithToolbar(TEST_URI, function(options) {
@@ -13,7 +12,7 @@ function test() {
         setup: 'cookie',
         check: {
           input:  'cookie',
-          hints:        ' list',
+          hints:        '',
           markup: 'IIIIII',
           status: 'ERROR'
         },
@@ -78,31 +77,16 @@ function test() {
         },
       },
       {
-        setup:    'cookie set fruit ban --path ""',
-        check: {
-          input:  'cookie set fruit ban --path ""',
-          hints:                                ' [options]',
-          markup: 'VVVVVVVVVVVVVVVVVVVVVVVVVVVVVV',
-          status: 'VALID',
-          args: {
-            name: { value: 'fruit' },
-            value: { value: 'ban' },
-            path: { value: '' },
-            secure: { value: false },
-          }
-        },
-      },
-      {
         setup: "cookie list",
         exec: {
-          output: [ /zap=zep/, /zip=zop/, /Edit/ ]
+          output: 'No cookies found for host'
         }
       },
       {
-        setup: "cookie set zup banana",
+        setup: "cookie set fruit banana",
         check: {
           args: {
-            name: { value: 'zup' },
+            name: { value: 'fruit' },
             value: { value: 'banana' },
           }
         },
@@ -113,56 +97,24 @@ function test() {
       {
         setup: "cookie list",
         exec: {
-          output: [ /zap=zep/, /zip=zop/, /zup=banana/, /Edit/ ]
+          output: [ /fruit=banana/, /Expires:/, /Edit/ ]
         }
       },
       {
-        setup: "cookie remove zip",
-        exec: { },
+        setup: "cookie remove fruit",
+        check: {
+          args: {
+            name: { value: 'fruit' },
+          }
+        },
+        exec: {
+          output: ""
+        }
       },
       {
         setup: "cookie list",
         exec: {
-          output: [ /zap=zep/, /zup=banana/, /Edit/ ]
-        },
-        post: function(output, text) {
-          ok(!text.contains("zip"), "");
-          ok(!text.contains("zop"), "");
-        }
-      },
-      {
-        setup: "cookie remove zap",
-        exec: { },
-      },
-      {
-        setup: "cookie list",
-        exec: {
-          output: [ /zup=banana/, /Edit/ ]
-        },
-        post: function(output, text) {
-          ok(!text.contains("zap"), "");
-          ok(!text.contains("zep"), "");
-          ok(!text.contains("zip"), "");
-          ok(!text.contains("zop"), "");
-        }
-      },
-      {
-        setup: "cookie remove zup",
-        exec: { }
-      },
-      {
-        setup: "cookie list",
-        exec: {
-          output: 'No cookies found for host example.com'
-        },
-        post: function(output, text) {
-          ok(!text.contains("zap"), "");
-          ok(!text.contains("zep"), "");
-          ok(!text.contains("zip"), "");
-          ok(!text.contains("zop"), "");
-          ok(!text.contains("zup"), "");
-          ok(!text.contains("banana"), "");
-          ok(!text.contains("Edit"), "");
+          output: 'No cookies found for host'
         }
       },
     ]);

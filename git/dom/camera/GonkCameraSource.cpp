@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
- * Copyright (C) 2013 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,36 +18,24 @@
 #include "nsDebug.h"
 #define DOM_CAMERA_LOG_LEVEL        3
 #include "CameraCommon.h"
-/*
-#define CS_LOGD(...) DOM_CAMERA_LOGA(__VA_ARGS__)
-#define CS_LOGV(...) DOM_CAMERA_LOGI(__VA_ARGS__)
-#define CS_LOGI(...) DOM_CAMERA_LOGI(__VA_ARGS__)
-#define CS_LOGW(...) DOM_CAMERA_LOGW(__VA_ARGS__)
-#define CS_LOGE(...) DOM_CAMERA_LOGE(__VA_ARGS__)
-*/
-
-#define CS_LOGD(fmt, ...) DOM_CAMERA_LOGA("[%s:%d]" fmt,__FILE__,__LINE__, ## __VA_ARGS__)
-#define CS_LOGV(fmt, ...) DOM_CAMERA_LOGI("[%s:%d]" fmt,__FILE__,__LINE__, ## __VA_ARGS__)
-#define CS_LOGI(fmt, ...) DOM_CAMERA_LOGI("[%s:%d]" fmt,__FILE__,__LINE__, ## __VA_ARGS__)
-#define CS_LOGW(fmt, ...) DOM_CAMERA_LOGW("[%s:%d]" fmt,__FILE__,__LINE__, ## __VA_ARGS__)
-#define CS_LOGE(fmt, ...) DOM_CAMERA_LOGE("[%s:%d]" fmt,__FILE__,__LINE__, ## __VA_ARGS__)
+#define LOGD DOM_CAMERA_LOGA
+#define LOGV DOM_CAMERA_LOGI
+#define LOGI DOM_CAMERA_LOGI
+#define LOGW DOM_CAMERA_LOGW
+#define LOGE DOM_CAMERA_LOGE
 
 #include <OMX_Component.h>
-#include <binder/IPCThreadState.h>
-#include <media/stagefright/foundation/ADebug.h>
-#include <media/stagefright/MediaDefs.h>
-#include <media/stagefright/MediaErrors.h>
-#include <media/stagefright/MetaData.h>
-#include <camera/CameraParameters.h>
-#include <utils/String8.h>
-#include <cutils/properties.h>
-
 #include "GonkCameraSource.h"
 #include "GonkCameraListener.h"
 #include "GonkCameraHwMgr.h"
+#include <media/stagefright/MediaDebug.h>
+#include <media/stagefright/MediaDefs.h>
+#include <media/stagefright/MediaErrors.h>
+#include <media/stagefright/MetaData.h>
+#include <utils/String8.h>
+#include <cutils/properties.h>
 
 using namespace mozilla;
-
 namespace android {
 
 static const int64_t CAMERA_SOURCE_TIMEOUT_NS = 3000000000LL;
@@ -81,12 +68,12 @@ GonkCameraSourceListener::~GonkCameraSourceListener() {
 }
 
 void GonkCameraSourceListener::notify(int32_t msgType, int32_t ext1, int32_t ext2) {
-    CS_LOGV("notify(%d, %d, %d)", msgType, ext1, ext2);
+    LOGV("notify(%d, %d, %d)", msgType, ext1, ext2);
 }
 
 void GonkCameraSourceListener::postData(int32_t msgType, const sp<IMemory> &dataPtr,
                                     camera_frame_metadata_t *metadata) {
-    CS_LOGV("postData(%d, ptr:%p, size:%d)",
+    LOGV("postData(%d, ptr:%p, size:%d)",
          msgType, dataPtr->pointer(), dataPtr->size());
 
     sp<GonkCameraSource> source = mSource.promote();
@@ -105,7 +92,7 @@ void GonkCameraSourceListener::postDataTimestamp(
 }
 
 static int32_t getColorFormat(const char* colorFormat) {
-    return OMX_COLOR_FormatYUV420SemiPlanar; //XXX nsGonkCameraControl uses only YUV420SemiPlanar
+    return OMX_COLOR_FormatYUV420SemiPlanar;
 
     if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_YUV420P)) {
        return OMX_COLOR_FormatYUV420Planar;
@@ -130,15 +117,11 @@ static int32_t getColorFormat(const char* colorFormat) {
     if (!strcmp(colorFormat, "OMX_TI_COLOR_FormatYUV420PackedSemiPlanar")) {
        return OMX_TI_COLOR_FormatYUV420PackedSemiPlanar;
     }
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-    if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_ANDROID_OPAQUE)) {
-        return OMX_COLOR_FormatAndroidOpaque;
-    }
-#endif
-    CS_LOGE("Uknown color format (%s), please add it to "
+
+    LOGE("Uknown color format (%s), please add it to "
          "GonkCameraSource::getColorFormat", colorFormat);
 
-    CHECK(!"Unknown color format");
+    CHECK_EQ(0, "Unknown color format");
 }
 
 GonkCameraSource *GonkCameraSource::Create(
@@ -160,7 +143,6 @@ GonkCameraSource::GonkCameraSource(
     bool storeMetaDataInVideoBuffers)
     : mCameraHw(aCameraHw),
       mCameraFlags(0),
-      mNumInputBuffers(0),
       mVideoFrameRate(-1),
       mNumFramesReceived(0),
       mLastFrameTimestampUs(0),
@@ -199,7 +181,7 @@ static bool isVideoSizeSupported(
     int32_t width, int32_t height,
     const Vector<Size>& supportedSizes) {
 
-    CS_LOGV("isVideoSizeSupported");
+    LOGV("isVideoSizeSupported");
     for (size_t i = 0; i < supportedSizes.size(); ++i) {
         if (width  == supportedSizes[i].width &&
             height == supportedSizes[i].height) {
@@ -236,7 +218,7 @@ static void getSupportedVideoSizes(
     *isSetVideoSizeSupported = true;
     params.getSupportedVideoSizes(sizes);
     if (sizes.size() == 0) {
-        CS_LOGD("Camera does not support setVideoSize()");
+        LOGD("Camera does not support setVideoSize()");
         params.getSupportedPreviewSizes(sizes);
         *isSetVideoSizeSupported = false;
     }
@@ -276,14 +258,14 @@ status_t GonkCameraSource::configureCamera(
         CameraParameters* params,
         int32_t width, int32_t height,
         int32_t frameRate) {
-    CS_LOGV("configureCamera");
+    LOGV("configureCamera");
     Vector<Size> sizes;
     bool isSetVideoSizeSupportedByCamera = true;
     getSupportedVideoSizes(*params, &isSetVideoSizeSupportedByCamera, sizes);
     bool isCameraParamChanged = false;
     if (width != -1 && height != -1) {
         if (!isVideoSizeSupported(width, height, sizes)) {
-            CS_LOGE("Video dimension (%dx%d) is unsupported", width, height);
+            LOGE("Video dimension (%dx%d) is unsupported", width, height);
             return BAD_VALUE;
         }
         if (isSetVideoSizeSupportedByCamera) {
@@ -296,7 +278,7 @@ status_t GonkCameraSource::configureCamera(
                (width != -1 && height == -1)) {
         // If one and only one of the width and height is -1
         // we reject such a request.
-        CS_LOGE("Requested video size (%dx%d) is not supported", width, height);
+        LOGE("Requested video size (%dx%d) is not supported", width, height);
         return BAD_VALUE;
     } else {  // width == -1 && height == -1
         // Do not configure the camera.
@@ -308,11 +290,11 @@ status_t GonkCameraSource::configureCamera(
         const char* supportedFrameRates =
                 params->get(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES);
         CHECK(supportedFrameRates != NULL);
-        CS_LOGV("Supported frame rates: %s", supportedFrameRates);
+        LOGV("Supported frame rates: %s", supportedFrameRates);
         char buf[4];
         snprintf(buf, 4, "%d", frameRate);
         if (strstr(supportedFrameRates, buf) == NULL) {
-            CS_LOGE("Requested frame rate (%d) is not supported: %s",
+            LOGE("Requested frame rate (%d) is not supported: %s",
                 frameRate, supportedFrameRates);
             return BAD_VALUE;
         }
@@ -328,8 +310,8 @@ status_t GonkCameraSource::configureCamera(
     if (isCameraParamChanged) {
         // Either frame rate or frame size needs to be changed.
         if (OK != mCameraHw->PushParameters(*params)) {
-            CS_LOGE("Could not change settings."
-                 " Someone else is using camera?");
+            LOGE("Could not change settings."
+                 " Someone else is using camera ?");
             return -EBUSY;
         }
     }
@@ -351,7 +333,7 @@ status_t GonkCameraSource::checkVideoSize(
         const CameraParameters& params,
         int32_t width, int32_t height) {
 
-    CS_LOGV("checkVideoSize");
+    LOGV("checkVideoSize");
     // The actual video size is the same as the preview size
     // if the camera hal does not support separate video and
     // preview output. In this case, we retrieve the video
@@ -368,7 +350,7 @@ status_t GonkCameraSource::checkVideoSize(
         params.getVideoSize(&frameWidthActual, &frameHeightActual);
     }
     if (frameWidthActual < 0 || frameHeightActual < 0) {
-        CS_LOGE("Failed to retrieve video frame size (%dx%d)",
+        LOGE("Failed to retrieve video frame size (%dx%d)",
                 frameWidthActual, frameHeightActual);
         return UNKNOWN_ERROR;
     }
@@ -377,7 +359,7 @@ status_t GonkCameraSource::checkVideoSize(
     // video frame size.
     if (width != -1 && height != -1) {
         if (frameWidthActual != width || frameHeightActual != height) {
-            CS_LOGE("Failed to set video frame size to %dx%d. "
+            LOGE("Failed to set video frame size to %dx%d. "
                     "The actual video size is %dx%d ", width, height,
                     frameWidthActual, frameHeightActual);
             return UNKNOWN_ERROR;
@@ -403,17 +385,17 @@ status_t GonkCameraSource::checkFrameRate(
         const CameraParameters& params,
         int32_t frameRate) {
 
-    CS_LOGV("checkFrameRate");
+    LOGV("checkFrameRate");
     int32_t frameRateActual = params.getPreviewFrameRate();
     if (frameRateActual < 0) {
-        CS_LOGE("Failed to retrieve preview frame rate (%d)", frameRateActual);
+        LOGE("Failed to retrieve preview frame rate (%d)", frameRateActual);
         return UNKNOWN_ERROR;
     }
 
     // Check the actual video frame rate against the target/requested
     // video frame rate.
     if (frameRate != -1 && (frameRateActual - frameRate) != 0) {
-        CS_LOGE("Failed to set preview frame rate to %d fps. The actual "
+        LOGE("Failed to set preview frame rate to %d fps. The actual "
                 "frame rate is %d", frameRate, frameRateActual);
         return UNKNOWN_ERROR;
     }
@@ -424,7 +406,7 @@ status_t GonkCameraSource::checkFrameRate(
 }
 
 /*
- * Initialize the GonkCameraSource so that it becomes
+ * Initialize the CameraSource to so that it becomes
  * ready for providing the video input streams as requested.
  * @param camera the camera object used for the video source
  * @param cameraId if camera == 0, use camera with this id
@@ -446,7 +428,7 @@ status_t GonkCameraSource::init(
         int32_t frameRate,
         bool storeMetaDataInVideoBuffers) {
 
-    CS_LOGV("init");
+    LOGV("init");
     status_t err = OK;
     //TODO: need to do something here to check the sanity of camera
 
@@ -484,10 +466,25 @@ status_t GonkCameraSource::init(
         }
     }
 
+    const char *hfr_str = params.get("video-hfr");
+    int32_t hfr = -1;
+    if ( hfr_str != NULL ) {
+      hfr = atoi(hfr_str);
+    }
+    if(hfr < 0) {
+      LOGW("Invalid hfr value(%d) set from app. Disabling HFR.", hfr);
+      hfr = 0;
+    }
+
     int64_t glitchDurationUs = (1000000LL / mVideoFrameRate);
     if (glitchDurationUs > mGlitchDurationThresholdUs) {
         mGlitchDurationThresholdUs = glitchDurationUs;
     }
+
+    const char * k3dFrameArrangement = "3d-frame-format";
+    const char * arrangement = params.get(k3dFrameArrangement);
+    // XXX: just assume left/right for now since that's all the camera supports
+    bool want3D = (arrangement != NULL && !strcmp("left-right", arrangement));
 
     // XXX: query camera for the stride and slice height
     // when the capability becomes available.
@@ -499,12 +496,13 @@ status_t GonkCameraSource::init(
     mMeta->setInt32(kKeyStride,      mVideoSize.width);
     mMeta->setInt32(kKeySliceHeight, mVideoSize.height);
     mMeta->setInt32(kKeyFrameRate,   mVideoFrameRate);
+
     return OK;
 }
 
 GonkCameraSource::~GonkCameraSource() {
     if (mStarted) {
-        reset();
+        stop();
     } else if (mInitCheck == OK) {
         // Camera is initialized but because start() is never called,
         // the lock on Camera is never released(). This makes sure
@@ -515,17 +513,17 @@ GonkCameraSource::~GonkCameraSource() {
 }
 
 int GonkCameraSource::startCameraRecording() {
-    CS_LOGV("startCameraRecording");
+    LOGV("startCameraRecording");
     return mCameraHw->StartRecording();
 }
 
 status_t GonkCameraSource::start(MetaData *meta) {
     int rv;
 
-    CS_LOGV("start");
+    LOGV("start");
     CHECK(!mStarted);
     if (mInitCheck != OK) {
-        CS_LOGE("GonkCameraSource is not initialized yet");
+        LOGE("GonkCameraSource is not initialized yet");
         return mInitCheck;
     }
 
@@ -536,19 +534,10 @@ status_t GonkCameraSource::start(MetaData *meta) {
     }
 
     mStartTimeUs = 0;
-    mNumInputBuffers = 0;
-    if (meta) {
-        int64_t startTimeUs;
-        if (meta->findInt64(kKeyTime, &startTimeUs)) {
-            mStartTimeUs = startTimeUs;
-        }
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-        int32_t nBuffers;
-        if (meta->findInt32(kKeyNumBuffers, &nBuffers)) {
-            CHECK_GT(nBuffers, 0);
-            mNumInputBuffers = nBuffers;
-        }
-#endif
+    int64_t startTimeUs;
+    if (meta && meta->findInt64(kKeyTime, &startTimeUs)) {
+        LOGV("Metadata enabled, startime: %lld us", startTimeUs);
+        mStartTimeUs = startTimeUs;
     }
 
     // Register a listener with GonkCameraHardware so that we can get callbacks
@@ -561,16 +550,16 @@ status_t GonkCameraSource::start(MetaData *meta) {
 }
 
 void GonkCameraSource::stopCameraRecording() {
-    CS_LOGV("stopCameraRecording");
+    LOGV("stopCameraRecording");
     mCameraHw->StopRecording();
 }
 
 void GonkCameraSource::releaseCamera() {
-    CS_LOGV("releaseCamera");
+    LOGV("releaseCamera");
 }
 
-status_t GonkCameraSource::reset() {
-    CS_LOGD("reset: E");
+status_t GonkCameraSource::stop() {
+    LOGV("stop: E");
     Mutex::Autolock autoLock(mLock);
     mStarted = false;
     mFrameAvailableCondition.signal();
@@ -580,30 +569,31 @@ status_t GonkCameraSource::reset() {
         if (NO_ERROR !=
             mFrameCompleteCondition.waitRelative(mLock,
                     mTimeBetweenFrameCaptureUs * 1000LL + CAMERA_SOURCE_TIMEOUT_NS)) {
-            CS_LOGW("Timed out waiting for outstanding frames being encoded: %d",
+            LOGW("Timed out waiting for outstanding frames being encoded: %d",
                 mFramesBeingEncoded.size());
         }
     }
+    LOGV("Calling stopCameraRecording");
     stopCameraRecording();
     releaseCamera();
 
     if (mCollectStats) {
-        CS_LOGI("Frames received/encoded/dropped: %d/%d/%d in %lld us",
+        LOGI("Frames received/encoded/dropped: %d/%d/%d in %lld us",
                 mNumFramesReceived, mNumFramesEncoded, mNumFramesDropped,
                 mLastFrameTimestampUs - mFirstFrameTimeUs);
     }
 
     if (mNumGlitches > 0) {
-        CS_LOGW("%d long delays between neighboring video frames", mNumGlitches);
+        LOGW("%d long delays between neighboring video frames", mNumGlitches);
     }
 
     CHECK_EQ(mNumFramesReceived, mNumFramesEncoded + mNumFramesDropped);
-    CS_LOGD("reset: X");
+    LOGV("stop: X");
     return OK;
 }
 
 void GonkCameraSource::releaseRecordingFrame(const sp<IMemory>& frame) {
-    CS_LOGV("releaseRecordingFrame");
+    LOGV("releaseRecordingFrame");
     mCameraHw->ReleaseRecordingFrame(frame);
 }
 
@@ -626,7 +616,7 @@ void GonkCameraSource::releaseOneRecordingFrame(const sp<IMemory>& frame) {
 }
 
 void GonkCameraSource::signalBufferReturned(MediaBuffer *buffer) {
-    CS_LOGV("signalBufferReturned: %p", buffer->data());
+    LOGV("signalBufferReturned: %p", buffer->data());
     Mutex::Autolock autoLock(mLock);
     for (List<sp<IMemory> >::iterator it = mFramesBeingEncoded.begin();
          it != mFramesBeingEncoded.end(); ++it) {
@@ -640,12 +630,12 @@ void GonkCameraSource::signalBufferReturned(MediaBuffer *buffer) {
             return;
         }
     }
-    CHECK(!"signalBufferReturned: bogus buffer");
+    CHECK_EQ(0, "signalBufferReturned: bogus buffer");
 }
 
 status_t GonkCameraSource::read(
         MediaBuffer **buffer, const ReadOptions *options) {
-    CS_LOGV("read");
+    LOGV("read");
 
     *buffer = NULL;
 
@@ -665,7 +655,7 @@ status_t GonkCameraSource::read(
                 mFrameAvailableCondition.waitRelative(mLock,
                     mTimeBetweenFrameCaptureUs * 1000LL + CAMERA_SOURCE_TIMEOUT_NS)) {
                 //TODO: check sanity of camera?
-                CS_LOGW("Timed out waiting for incoming camera video frames: %lld us",
+                LOGW("Timed out waiting for incoming camera video frames: %lld us",
                     mLastFrameTimestampUs);
             }
         }
@@ -688,10 +678,11 @@ status_t GonkCameraSource::read(
 
 void GonkCameraSource::dataCallbackTimestamp(int64_t timestampUs,
         int32_t msgType, const sp<IMemory> &data) {
-    CS_LOGV("dataCallbackTimestamp: timestamp %lld us", timestampUs);
+    LOGV("dataCallbackTimestamp: timestamp %lld us", timestampUs);
+    //LOGV("dataCallbackTimestamp: data %x size %d", data->pointer(), data->size());
     Mutex::Autolock autoLock(mLock);
     if (!mStarted || (mNumFramesReceived == 0 && timestampUs < mStartTimeUs)) {
-        CS_LOGV("Drop frame at %lld/%lld us", timestampUs, mStartTimeUs);
+        LOGV("Drop frame at %lld/%lld us", timestampUs, mStartTimeUs);
         releaseOneRecordingFrame(data);
         return;
     }
@@ -704,7 +695,7 @@ void GonkCameraSource::dataCallbackTimestamp(int64_t timestampUs,
     }
 
     // May need to skip frame or modify timestamp. Currently implemented
-    // by the subclass CameraSourceTimeLapse.
+    // by the subclass GonkCameraSourceTimeLapse.
     if (skipCurrentFrame(timestampUs)) {
         releaseOneRecordingFrame(data);
         return;
@@ -730,14 +721,14 @@ void GonkCameraSource::dataCallbackTimestamp(int64_t timestampUs,
     mFramesReceived.push_back(data);
     int64_t timeUs = mStartTimeUs + (timestampUs - mFirstFrameTimeUs);
     mFrameTimes.push_back(timeUs);
-    CS_LOGV("initial delay: %lld, current time stamp: %lld",
+    LOGV("initial delay: %lld, current time stamp: %lld",
         mStartTimeUs, timeUs);
     mFrameAvailableCondition.signal();
 }
 
 bool GonkCameraSource::isMetaDataStoredInVideoBuffers() const {
-    CS_LOGV("isMetaDataStoredInVideoBuffers");
+    LOGV("isMetaDataStoredInVideoBuffers");
     return mIsMetaDataStoredInVideoBuffers;
 }
 
-}  // namespace android
+} // namespace android

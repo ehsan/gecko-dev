@@ -31,9 +31,10 @@ let gBrowserThumbnails = {
   _tabEvents: ["TabClose", "TabSelect"],
 
   init: function Thumbnails_init() {
-    // Bug 863512 - Make page thumbnails work in electrolysis
-    if (gMultiProcessBrowser)
-      return;
+    try {
+      if (Services.prefs.getBoolPref("browser.pagethumbnails.capturing_disabled"))
+        return;
+    } catch (e) {}
 
     PageThumbs.addExpirationFilter(this);
     gBrowser.addTabsProgressListener(this);
@@ -50,10 +51,6 @@ let gBrowserThumbnails = {
   },
 
   uninit: function Thumbnails_uninit() {
-    // Bug 863512 - Make page thumbnails work in electrolysis
-    if (gMultiProcessBrowser)
-      return;
-
     PageThumbs.removeExpirationFilter(this);
     gBrowser.removeTabsProgressListener(this);
     Services.prefs.removeObserver(this.PREF_DISK_CACHE_SSL, this);
@@ -102,7 +99,7 @@ let gBrowserThumbnails = {
 
   _capture: function Thumbnails_capture(aBrowser) {
     if (this._shouldCapture(aBrowser))
-      PageThumbs.captureAndStoreIfStale(aBrowser);
+      PageThumbs.captureAndStore(aBrowser);
   },
 
   _delayedCapture: function Thumbnails_delayedCapture(aBrowser) {

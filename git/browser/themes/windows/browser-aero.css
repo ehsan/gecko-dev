@@ -10,8 +10,6 @@
 %define glassActiveBorderColor rgb(37, 44, 51)
 %define glassInactiveBorderColor rgb(102, 102, 102)
 
-%include downloads/indicator-aero.css
-
 @media not all and (-moz-windows-classic) {
   #main-window[sizemode="normal"] > #titlebar > #titlebar-content > #appmenu-button-container {
     margin-top: 1px;
@@ -45,8 +43,7 @@
 
 @media (-moz-windows-default-theme) {
   #navigator-toolbox > toolbar:not(:-moz-lwtheme),
-  #browser-bottombox:not(:-moz-lwtheme),
-  .browserContainer > findbar {
+  #browser-bottombox:not(:-moz-lwtheme) {
     background-color: @customToolbarColor@;
   }
 
@@ -90,18 +87,6 @@
   #navigator-toolbox[tabsontop=true] #urlbar:not(:-moz-lwtheme)[focused],
   #navigator-toolbox[tabsontop=true] .searchbar-textbox:not(:-moz-lwtheme)[focused] {
     border-color: hsla(206,100%,60%,.65) hsla(206,100%,55%,.65) hsla(206,100%,50%,.65);
-  }
-
-  #sidebar-header {
-    -moz-appearance: none;
-    color: black;
-    background-color: #EEF3FA;
-    border-bottom: none;
-    text-shadow: none;
-  }
-
-  #sidebar-title {
-    font-weight: bold;
   }
 
   .sidebar-splitter {
@@ -195,11 +180,8 @@
   }
 
   :-moz-any(#toolbar-menubar, #nav-bar[tabsontop=false]) :-moz-any(@primaryToolbarButtons@):not(:-moz-any(#alltabs-button,#tabview-button,#sync-button[status])) > .toolbarbutton-icon:not(:-moz-lwtheme),
-  :-moz-any(#toolbar-menubar, #nav-bar[tabsontop=false]) :-moz-any(@primaryToolbarButtons@) > toolbarbutton > .toolbarbutton-icon:not(:-moz-lwtheme),
   #TabsToolbar[tabsontop=true] :-moz-any(@primaryToolbarButtons@):not(:-moz-any(#alltabs-button,#tabview-button,#new-tab-button,#sync-button[status])) > .toolbarbutton-icon:not(:-moz-lwtheme),
-  #TabsToolbar[tabsontop=true] :-moz-any(@primaryToolbarButtons@) > toolbarbutton > .toolbarbutton-icon:not(:-moz-lwtheme),
-  #nav-bar + #customToolbars + #PersonalToolbar[collapsed=true] + #TabsToolbar[tabsontop=false]:last-child :-moz-any(@primaryToolbarButtons@):not(:-moz-any(#alltabs-button,#tabview-button,#new-tab-button,#sync-button[status])) > .toolbarbutton-icon:not(:-moz-lwtheme),
-  #nav-bar + #customToolbars + #PersonalToolbar[collapsed=true] + #TabsToolbar[tabsontop=false]:last-child :-moz-any(@primaryToolbarButtons@) > toolbarbutton > .toolbarbutton-icon:not(:-moz-lwtheme) {
+  #nav-bar + #customToolbars + #PersonalToolbar[collapsed=true] + #TabsToolbar[tabsontop=false]:last-child :-moz-any(@primaryToolbarButtons@):not(:-moz-any(#alltabs-button,#tabview-button,#new-tab-button,#sync-button[status])) > .toolbarbutton-icon:not(:-moz-lwtheme) {
     list-style-image: url("chrome://browser/skin/Toolbar-inverted.png");
   }
 
@@ -328,6 +310,12 @@
 
   .tabbrowser-tab:not(:-moz-lwtheme) {
     text-shadow: none;
+  }
+
+  #main-window[sizemode=normal] .statuspanel-inner {
+    /* align with the browser's side borders */
+    padding-left: 1px;
+    padding-right: 1px;
   }
 
   #ctrlTab-panel {

@@ -8,41 +8,30 @@
  */
 
 #include "nsConsoleMessage.h"
-#include "jsapi.h"
+#include "nsReadableUtils.h"
 
-NS_IMPL_ISUPPORTS1(nsConsoleMessage, nsIConsoleMessage)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsConsoleMessage, nsIConsoleMessage)
 
-nsConsoleMessage::nsConsoleMessage()
-    :  mTimeStamp(0),
-       mMessage()
+nsConsoleMessage::nsConsoleMessage() 
 {
 }
 
-nsConsoleMessage::nsConsoleMessage(const PRUnichar *message)
+nsConsoleMessage::nsConsoleMessage(const PRUnichar *message) 
 {
-  mTimeStamp = JS_Now() / 1000;
-  mMessage.Assign(message);
+	mMessage.Assign(message);
 }
 
 NS_IMETHODIMP
-nsConsoleMessage::GetMessageMoz(PRUnichar **result)
-{
-  *result = ToNewUnicode(mMessage);
+nsConsoleMessage::GetMessageMoz(PRUnichar **result) {
+    *result = ToNewUnicode(mMessage);
 
-  return NS_OK;
+    return NS_OK;
 }
 
-NS_IMETHODIMP
-nsConsoleMessage::GetTimeStamp(int64_t *aTimeStamp)
-{
-  *aTimeStamp = mTimeStamp;
-  return NS_OK;
-}
+//  NS_IMETHODIMP
+//  nsConsoleMessage::Init(const PRUnichar *message) {
+//      nsAutoString newMessage(message);
+//      mMessage = ToNewUnicode(newMessage);
+//      return NS_OK;
+//  }
 
-NS_IMETHODIMP
-nsConsoleMessage::ToString(nsACString& /*UTF8*/ aResult)
-{
-  CopyUTF16toUTF8(mMessage, aResult);
-
-  return NS_OK;
-}

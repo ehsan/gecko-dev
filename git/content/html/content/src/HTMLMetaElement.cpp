@@ -17,6 +17,7 @@ namespace dom {
 HTMLMetaElement::HTMLMetaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 HTMLMetaElement::~HTMLMetaElement()
@@ -24,8 +25,17 @@ HTMLMetaElement::~HTMLMetaElement()
 }
 
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLMetaElement, nsGenericHTMLElement,
-                             nsIDOMHTMLMetaElement)
+NS_IMPL_ADDREF_INHERITED(HTMLMetaElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLMetaElement, Element)
+
+
+// QueryInterface implementation for HTMLMetaElement
+NS_INTERFACE_TABLE_HEAD(HTMLMetaElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLMetaElement, nsIDOMHTMLMetaElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLMetaElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
+
 
 NS_IMPL_ELEMENT_CLONE(HTMLMetaElement)
 
@@ -89,7 +99,7 @@ HTMLMetaElement::CreateAndDispatchEvent(nsIDocument* aDoc,
 }
 
 JSObject*
-HTMLMetaElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLMetaElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return HTMLMetaElementBinding::Wrap(aCx, aScope, this);
 }

@@ -63,11 +63,9 @@ public:
 
   bool WidgetIsContainer(uint8_t aWidgetType);
 
-  bool ThemeDrawsFocusForWidget(uint8_t aWidgetType) MOZ_OVERRIDE;
+  bool ThemeDrawsFocusForWidget(nsPresContext* aPresContext, nsIFrame* aFrame, uint8_t aWidgetType);
 
   bool ThemeNeedsComboboxDropmarker();
-
-  virtual bool WidgetAppearanceDependsOnWindowFocus(uint8_t aWidgetType) MOZ_OVERRIDE;
 
   nsNativeThemeWin();
   virtual ~nsNativeThemeWin();

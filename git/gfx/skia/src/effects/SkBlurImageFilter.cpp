@@ -11,7 +11,6 @@
 #include "SkFlattenableBuffers.h"
 #if SK_SUPPORT_GPU
 #include "GrContext.h"
-#include "SkImageFilterUtils.h"
 #endif
 
 SkBlurImageFilter::SkBlurImageFilter(SkFlattenableReadBuffer& buffer)
@@ -137,7 +136,7 @@ static void getBox3Params(SkScalar s, int *kernelSize, int* kernelSize3, int *lo
 bool SkBlurImageFilter::onFilterImage(Proxy* proxy,
                                       const SkBitmap& source, const SkMatrix& ctm,
                                       SkBitmap* dst, SkIPoint* offset) {
-    SkBitmap src = this->getInputResult(0, proxy, source, ctm, offset);
+    SkBitmap src = this->getInputResult(proxy, source, ctm, offset);
     if (src.config() != SkBitmap::kARGB_8888_Config) {
         return false;
     }
@@ -188,20 +187,15 @@ bool SkBlurImageFilter::onFilterImage(Proxy* proxy,
     return true;
 }
 
-bool SkBlurImageFilter::filterImageGPU(Proxy* proxy, const SkBitmap& src, SkBitmap* result) {
+GrTexture* SkBlurImageFilter::onFilterImageGPU(GrTexture* src, const SkRect& rect) {
 #if SK_SUPPORT_GPU
-    SkBitmap input;
-    if (!SkImageFilterUtils::GetInputResultGPU(getInput(0), proxy, src, &input)) {
-        return false;
-    }
-    GrTexture* source = (GrTexture*) input.getTexture();
-    SkRect rect;
-    src.getBounds(&rect);
-    SkAutoTUnref<GrTexture> tex(source->getContext()->gaussianBlur(source, false, rect,
-        fSigma.width(), fSigma.height()));
-    return SkImageFilterUtils::WrapTexture(tex, src.width(), src.height(), result);
+    SkAutoTUnref<GrTexture> input(this->getInputResultAsTexture(src, rect));
+    return src->getContext()->gaussianBlur(input.get(), false, rect,
+                                           fSigma.width(), fSigma.height());
 #else
     SkDEBUGFAIL("Should not call in GPU-less build");
-    return false;
+    return NULL;
 #endif
 }
+
+SK_DEFINE_FLATTENABLE_REGISTRAR(SkBlurImageFilter)

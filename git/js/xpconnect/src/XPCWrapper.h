@@ -8,9 +8,7 @@
 #define XPC_WRAPPER_H 1
 
 #include "xpcprivate.h"
-#include "jswrapper.h"
-
-class nsIScriptSecurityManager;
+#include "xpcpublic.h"
 
 namespace XPCNativeWrapper {
 
@@ -23,7 +21,7 @@ namespace XPCNativeWrapper {
    (_wn)->GetScriptableInfo()->GetFlags()._flag())
 
 bool
-AttachNewConstructorObject(JSContext *aCx, JS::HandleObject aGlobalObject);
+AttachNewConstructorObject(XPCCallContext &ccx, JSObject *aGlobalObject);
 
 } // namespace XPCNativeWrapper
 
@@ -43,7 +41,7 @@ GetSecurityManager()
   return nsXPConnect::gScriptSecurityManager;
 }
 
-inline bool
+inline JSBool
 IsSecurityWrapper(JSObject *wrapper)
 {
   return js::IsWrapper(wrapper);

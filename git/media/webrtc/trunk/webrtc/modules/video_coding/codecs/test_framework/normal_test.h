@@ -11,14 +11,14 @@
 #ifndef WEBRTC_MODULES_VIDEO_CODING_CODECS_TEST_FRAMEWORK_NORMAL_TEST_H_
 #define WEBRTC_MODULES_VIDEO_CODING_CODECS_TEST_FRAMEWORK_NORMAL_TEST_H_
 
-#include "webrtc/modules/video_coding/codecs/test_framework/test.h"
+#include "test.h"
 
 class NormalTest : public CodecTest
 {
 public:
     NormalTest();
     NormalTest(std::string name, std::string description, unsigned int testNo);
-    NormalTest(std::string name, std::string description, uint32_t bitRate, unsigned int testNo);
+    NormalTest(std::string name, std::string description, WebRtc_UWord32 bitRate, unsigned int testNo);
     virtual ~NormalTest() {};
     virtual void Perform();
 
@@ -43,3 +43,4 @@ protected:
 };
 
 #endif // WEBRTC_MODULES_VIDEO_CODING_CODECS_TEST_FRAMEWORK_NORMAL_TEST_H_
+

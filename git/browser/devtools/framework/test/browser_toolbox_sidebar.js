@@ -3,7 +3,11 @@
 
 function test() {
   const Cu = Components.utils;
-  let {ToolSidebar} = devtools.require("devtools/framework/sidebar");
+  let tempScope = {};
+  Cu.import("resource:///modules/devtools/gDevTools.jsm", tempScope);
+  Cu.import("resource:///modules/devtools/Target.jsm", tempScope);
+  Cu.import("resource:///modules/devtools/Sidebar.jsm", tempScope);
+  let {TargetFactory: TargetFactory, gDevTools: gDevTools, ToolSidebar: ToolSidebar} = tempScope;
 
   const toolURL = "data:text/xml;charset=utf8,<?xml version='1.0'?>" +
                   "<?xml-stylesheet href='chrome://browser/skin/devtools/common.css' type='text/css'?>" +
@@ -24,12 +28,12 @@ function test() {
 
   let toolDefinition = {
     id: "fakeTool4242",
-    visibilityswitch: "devtools.fakeTool4242.enabled",
+    killswitch: "devtools.fakeTool4242.enabled",
     url: toolURL,
     label: "FAKE TOOL!!!",
     isTargetSupported: function() true,
     build: function(iframeWindow, toolbox) {
-      let deferred = promise.defer();
+      let deferred = Promise.defer();
       executeSoon(function() {
         deferred.resolve({
           target: toolbox.target,
@@ -52,7 +56,7 @@ function test() {
       ok(true, "Tool open");
 
       let tabbox = panel.panelDoc.getElementById("sidebar");
-      panel.sidebar = new ToolSidebar(tabbox, panel, "testbug865688", true);
+      panel.sidebar = new ToolSidebar(tabbox, panel, true);
 
       panel.sidebar.on("new-tab-registered", function(event, id) {
         registeredTabs[id] = true;
@@ -119,23 +123,11 @@ function test() {
         panel.sidebar.hide();
         is(panel.sidebar._tabbox.getAttribute("hidden"), "true", "Sidebar hidden");
         is(panel.sidebar.getWindowForTab("tab1").location.href, tab1URL, "Window is accessible");
-        testWidth(panel);
+        finishUp(panel);
       });
     });
 
     panel.sidebar.select("tab2");
-  }
-
-  function testWidth(panel) {
-    let tabbox = panel.panelDoc.getElementById("sidebar");
-    tabbox.width = 420;
-    panel.sidebar.destroy().then(function() {
-      tabbox.width = 0;
-      panel.sidebar = new ToolSidebar(tabbox, panel, "testbug865688", true);
-      panel.sidebar.show();
-      is(panel.panelDoc.getElementById("sidebar").width, 420, "Width restored")
-      finishUp(panel);
-    });
   }
 
   function finishUp(panel) {

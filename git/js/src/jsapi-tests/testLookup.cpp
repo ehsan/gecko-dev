@@ -5,9 +5,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsfun.h"  // for js::IsInternalFunctionObject
 
-#include "jsapi-tests/tests.h"
+#include "tests.h"
+#include "jsfun.h"  // for js::IsInternalFunctionObject
 
 #include "jsobjinlines.h"
 
@@ -27,17 +27,17 @@ BEGIN_TEST(testLookup_bug522590)
 
     // This lookup must not return an internal function object.
     JS::RootedValue r(cx);
-    CHECK(JS_LookupProperty(cx, xobj, "f", &r));
+    CHECK(JS_LookupProperty(cx, xobj, "f", r.address()));
     CHECK(r.isObject());
     JSObject *funobj = &r.toObject();
-    CHECK(funobj->is<JSFunction>());
+    CHECK(funobj->isFunction());
     CHECK(!js::IsInternalFunctionObject(funobj));
 
     return true;
 }
 END_TEST(testLookup_bug522590)
 
-static const JSClass DocumentAllClass = {
+static JSClass DocumentAllClass = {
     "DocumentAll",
     JSCLASS_EMULATES_UNDEFINED,
     JS_PropertyStub,
@@ -49,9 +49,9 @@ static const JSClass DocumentAllClass = {
     JS_ConvertStub
 };
 
-bool
-document_resolve(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigned flags,
-                 JS::MutableHandleObject objp)
+JSBool
+document_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
+                 JSMutableHandleObject objp)
 {
     // If id is "all", resolve document.all=true.
     JS::RootedValue v(cx);
@@ -63,21 +63,20 @@ document_resolve(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigned 
         if (!flatStr)
             return false;
         if (JS_FlatStringEqualsAscii(flatStr, "all")) {
-            JS::Rooted<JSObject*> docAll(cx,
-                                         JS_NewObject(cx, &DocumentAllClass, nullptr, nullptr));
+            JS::Rooted<JSObject*> docAll(cx, JS_NewObject(cx, &DocumentAllClass, NULL, NULL));
             if (!docAll)
                 return false;
             JS::Rooted<JS::Value> allValue(cx, ObjectValue(*docAll));
-            bool ok = JS_DefinePropertyById(cx, obj, id, allValue, nullptr, nullptr, 0);
-            objp.set(ok ? obj.get() : nullptr);
+            JSBool ok = JS_DefinePropertyById(cx, obj, id, allValue, NULL, NULL, 0);
+            objp.set(ok ? obj.get() : NULL);
             return ok;
         }
     }
-    objp.set(nullptr);
+    objp.set(NULL);
     return true;
 }
 
-static const JSClass document_class = {
+static JSClass document_class = {
     "document", JSCLASS_NEW_RESOLVE,
     JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, (JSResolveOp) document_resolve, JS_ConvertStub
@@ -85,9 +84,9 @@ static const JSClass document_class = {
 
 BEGIN_TEST(testLookup_bug570195)
 {
-    JS::RootedObject obj(cx, JS_NewObject(cx, &document_class, nullptr, nullptr));
+    JS::RootedObject obj(cx, JS_NewObject(cx, &document_class, NULL, NULL));
     CHECK(obj);
-    CHECK(JS_DefineProperty(cx, global, "document", OBJECT_TO_JSVAL(obj), nullptr, nullptr, 0));
+    CHECK(JS_DefineProperty(cx, global, "document", OBJECT_TO_JSVAL(obj), NULL, NULL, 0));
     JS::RootedValue v(cx);
     EVAL("document.all ? true : false", v.address());
     CHECK_SAME(v, JSVAL_FALSE);

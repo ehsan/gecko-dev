@@ -20,9 +20,7 @@
 #ifndef nsUnicodeToCP852_h___
 #define nsUnicodeToCP852_h___
 
-#include "nsID.h"
-
-class nsISupports;
+#include "nsISupports.h"
 
 /**
  * A character set converter from Unicode to CP852.

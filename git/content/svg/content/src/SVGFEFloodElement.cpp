@@ -5,8 +5,6 @@
 
 #include "mozilla/dom/SVGFEFloodElement.h"
 #include "mozilla/dom/SVGFEFloodElementBinding.h"
-#include "gfxContext.h"
-#include "gfxColor.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(FEFlood)
 
@@ -14,7 +12,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEFloodElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGFEFloodElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGFEFloodElementBinding::Wrap(aCx, aScope, this);
 }

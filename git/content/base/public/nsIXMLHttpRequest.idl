@@ -16,9 +16,21 @@ interface nsIGlobalObject;
 interface nsIInputStream;
 interface nsIDOMBlob;
 
-[scriptable, builtinclass, uuid(ac97e161-9f1d-4163-adc9-e9a59e18682c)]
+%{C++
+// for jsval
+#include "jsapi.h"
+%}
+
+[scriptable, builtinclass, uuid(5bc978f2-41e5-4349-a12d-b018092271f7)]
 interface nsIXMLHttpRequestEventTarget : nsIDOMEventTarget {
   // event handler attributes
+  [implicit_jscontext] attribute jsval onabort;
+  [implicit_jscontext] attribute jsval onerror;
+  [implicit_jscontext] attribute jsval onload;
+  [implicit_jscontext] attribute jsval onloadstart;
+  [implicit_jscontext] attribute jsval onprogress;
+  [implicit_jscontext] attribute jsval ontimeout;
+  [implicit_jscontext] attribute jsval onloadend;
 };
 
 [scriptable, builtinclass, uuid(df3796fa-d98a-4185-9dda-d2f2b56a5d38)]
@@ -67,7 +79,7 @@ interface nsIXMLHttpRequestUpload : nsIXMLHttpRequestEventTarget {
  * you're aware of all the security implications.  And then think twice about
  * it.
  */
-[scriptable, uuid(2e91e088-e9fa-4ba4-9887-2a0b7cf27a3e)]
+[scriptable, uuid(977f1406-416a-40ac-ab89-ccd7ca0622ea)]
 interface nsIXMLHttpRequest : nsISupports
 {
   /**
@@ -121,7 +133,7 @@ interface nsIXMLHttpRequest : nsISupports
    * The string representing the status of the response for
    * HTTP requests.
    */
-  readonly attribute ACString statusText;
+  readonly attribute DOMString statusText;
 
   /**
    * If the request has been sent already, this method will
@@ -136,7 +148,7 @@ interface nsIXMLHttpRequest : nsISupports
    * @returns A string containing all of the response headers.
    *          The empty string if the response has not yet been received.
    */
-  ACString getAllResponseHeaders();
+  DOMString getAllResponseHeaders();
 
   /**
    * Returns the text of the header with the specified name for
@@ -147,7 +159,7 @@ interface nsIXMLHttpRequest : nsISupports
    *          NULL if the response has not yet been received or the
    *          header does not exist in the response.
    */
-  ACString getResponseHeader(in ACString header);
+  ACString getResponseHeader(in AUTF8String header);
 
 %{C++
   // note this is NOT virtual so this won't muck with the vtable!
@@ -177,7 +189,7 @@ interface nsIXMLHttpRequest : nsISupports
    * @param password (optional) A password for authentication if necessary.
    *                 The default value is the empty string
    */
-  [optional_argc] void open(in ACString method, in AUTF8String url,
+  [optional_argc] void open(in AUTF8String method, in AUTF8String url,
                             [optional] in boolean async,
                             [optional,Undefined(Empty)] in DOMString user,
                             [optional,Undefined(Empty)] in DOMString password);
@@ -225,7 +237,7 @@ interface nsIXMLHttpRequest : nsISupports
    * @param header The name of the header to set in the request.
    * @param value The body of the header.
    */
-  void   setRequestHeader(in ACString header, in ACString value);
+  void   setRequestHeader(in AUTF8String header, in AUTF8String value);
 
   /**
    * The amount of milliseconds a request can take before being terminated.

@@ -10,6 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedRect;
+
 [NoInterfaceObject]
 interface SVGFitToViewBox {
   [Constant]

@@ -138,7 +138,7 @@ nsPKCS12Blob::ImportFromFileHelper(nsIFile *file,
                                    nsPKCS12Blob::RetryReason &aWantRetry)
 {
   nsNSSShutDownPreventionLock locker;
-  nsresult rv = NS_OK;
+  nsresult rv;
   SECStatus srv = SECSuccess;
   SEC_PKCS12DecoderContext *dcx = nullptr;
   SECItem unicodePw;
@@ -734,7 +734,7 @@ nsPKCS12Blob::nickname_collision(SECItem *oldNick, PRBool *cancel, void *wincx)
     return nullptr;
 
   newNick->type = siAsciiString;
-  newNick->data = (unsigned char*) strdup(nickname.get());
+  newNick->data = (unsigned char*) nsCRT::strdup(nickname.get());
   newNick->len  = strlen((char*)newNick->data);
   return newNick;
 }

@@ -12,7 +12,7 @@
 
 #if defined(SK_BUILD_FOR_ANDROID)
 
-#if !defined(SK_BUILD_FOR_ANDROID_FRAMEWORK)
+#if defined(SK_BUILD_FOR_ANDROID_NDK)
 
 #include <stdint.h>
 
@@ -51,7 +51,7 @@ static inline __attribute__((always_inline)) int32_t sk_atomic_conditional_inc(i
 }
 static inline __attribute__((always_inline)) void sk_membar_aquire__after_atomic_conditional_inc() { }
 
-#else // SK_BUILD_FOR_ANDROID_FRAMEWORK
+#else // !SK_BUILD_FOR_ANDROID_NDK
 
 /* The platform atomics operations are slightly more efficient than the
  * GCC built-ins, so use them.
@@ -61,14 +61,13 @@ static inline __attribute__((always_inline)) void sk_membar_aquire__after_atomic
 #define sk_atomic_inc(addr)         android_atomic_inc(addr)
 #define sk_atomic_add(addr, inc)    android_atomic_add(inc, addr)
 #define sk_atomic_dec(addr)         android_atomic_dec(addr)
-
-static inline __attribute__((always_inline)) void sk_membar_aquire__after_atomic_dec() {
+void sk_membar_aquire__after_atomic_dec() {
     //HACK: Android is actually using full memory barriers.
     //      Should this change, uncomment below.
     //int dummy;
     //android_atomic_aquire_store(0, &dummy);
 }
-static inline __attribute__((always_inline)) int32_t sk_atomic_conditional_inc(int32_t* addr) {
+int32_t sk_atomic_conditional_inc(int32_t* addr) {
     while (true) {
         int32_t value = *addr;
         if (value == 0) {
@@ -79,14 +78,14 @@ static inline __attribute__((always_inline)) int32_t sk_atomic_conditional_inc(i
         }
     }
 }
-static inline __attribute__((always_inline)) void sk_membar_aquire__after_atomic_conditional_inc() {
+void sk_membar_aquire__after_atomic_conditional_inc() {
     //HACK: Android is actually using full memory barriers.
     //      Should this change, uncomment below.
     //int dummy;
     //android_atomic_aquire_store(0, &dummy);
 }
 
-#endif // SK_BUILD_FOR_ANDROID_FRAMEWORK
+#endif // !SK_BUILD_FOR_ANDROID_NDK
 
 #else  // !SK_BUILD_FOR_ANDROID
 
@@ -158,7 +157,7 @@ struct SkBaseMutex {
 
 // A normal mutex that requires to be initialized through normal C++ construction,
 // i.e. when it's a member of another class, or allocated on the heap.
-class SK_API SkMutex : public SkBaseMutex, SkNoncopyable {
+class SkMutex : public SkBaseMutex, SkNoncopyable {
 public:
     SkMutex();
     ~SkMutex();
@@ -169,7 +168,7 @@ public:
 // In the generic case, SkBaseMutex and SkMutex are the same thing, and we
 // can't easily get rid of static initializers.
 //
-class SK_API SkMutex : SkNoncopyable {
+class SkMutex : SkNoncopyable {
 public:
     SkMutex();
     ~SkMutex();

@@ -1,5 +1,5 @@
 // |jit-test| error:123
-var g = newGlobal();
+var g = newGlobal('new-compartment');
 g.eval('function f() { var y; debugger; }');
 
 var dbg = new Debugger(g);

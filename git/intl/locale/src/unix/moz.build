@@ -6,22 +6,3 @@
 
 MODULE = 'locale'
 
-SOURCES += [
-    'nsCollationUnix.cpp',
-    'nsDateTimeFormatUnix.cpp',
-    'nsPosixLocale.cpp',
-]
-
-if CONFIG['OS_TARGET'] == 'Android':
-    SOURCES += [
-        'nsAndroidCharset.cpp',
-    ]
-else:
-    SOURCES += [
-        'nsUNIXCharset.cpp',
-    ]
-
-LIBRARY_NAME = 'platlocale_s'
-
-LIBXUL_LIBRARY = True
-

@@ -5,7 +5,9 @@
 #include "mozilla/PodOperations.h"
 #include "mozilla/Util.h"
 
-#include "jsapi-tests/tests.h"
+#include "tests.h"
+
+#include "jsutil.h"
 
 using mozilla::ArrayLength;
 using mozilla::PodEqual;

@@ -54,19 +54,11 @@
  */
 
 namespace mozilla {
-namespace layers {
-class ShadowLayerForwarder;
-}
-
 namespace ipc {
 
 class Shmem MOZ_FINAL
 {
   friend struct IPC::ParamTraits<mozilla::ipc::Shmem>;
-#ifdef DEBUG
-  // For ShadowLayerForwarder::CheckSurfaceDescriptor
-  friend class mozilla::layers::ShadowLayerForwarder;
-#endif
 
 public:
   typedef int32_t id_t;
@@ -138,7 +130,7 @@ public:
   bool
   IsWritable() const
   {
-    return mSegment != nullptr;
+    return mSegment != NULL;
   }
 
   // Returns whether this Shmem is readable by you, and thus whether you can
@@ -146,7 +138,7 @@ public:
   bool
   IsReadable() const
   {
-    return mSegment != nullptr;
+    return mSegment != NULL;
   }
 
   // Return a pointer to the user-visible data segment.
@@ -211,7 +203,7 @@ public:
   // Prepare this to be shared with |aProcess|.  Return an IPC message
   // that contains enough information for the other process to map
   // this segment in OpenExisting() below.  Return a new message if
-  // successful (owned by the caller), nullptr if not.
+  // successful (owned by the caller), NULL if not.
   IPC::Message*
   ShareTo(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
           base::ProcessHandle aProcess,
@@ -220,7 +212,7 @@ public:
   // Stop sharing this with |aProcess|.  Return an IPC message that
   // contains enough information for the other process to unmap this
   // segment.  Return a new message if successful (owned by the
-  // caller), nullptr if not.
+  // caller), NULL if not.
   IPC::Message*
   UnshareFrom(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
               base::ProcessHandle aProcess,

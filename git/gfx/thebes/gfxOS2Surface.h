@@ -12,12 +12,12 @@
 #include <os2.h>
 #include <cairo-os2.h>
 
-class gfxOS2Surface : public gfxASurface {
+class THEBES_API gfxOS2Surface : public gfxASurface {
 
 public:
     // constructor used to create a memory surface of given size
     gfxOS2Surface(const gfxIntSize& aSize,
-                  gfxImageFormat aImageFormat);
+                  gfxASurface::gfxImageFormat aImageFormat);
     // constructor for surface connected to an onscreen window
     gfxOS2Surface(HWND aWnd);
     // constructor for surface connected to a printing device context

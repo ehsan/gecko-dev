@@ -4,18 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_Monitor_h
-#define vm_Monitor_h
+#ifndef Monitor_h__
+#define Monitor_h__
 
-#ifdef JS_THREADSAFE
+#include <stdlib.h>
+
 #include "mozilla/DebugOnly.h"
-#endif
-
-#include <stddef.h>
-
-#include "jslock.h"
 
 #include "js/Utility.h"
+#include "jslock.h"
 
 namespace js {
 
@@ -35,8 +32,8 @@ class Monitor
 
   public:
     Monitor()
-      : lock_(nullptr),
-        condVar_(nullptr)
+      : lock_(NULL),
+        condVar_(NULL)
     { }
 
     ~Monitor() {
@@ -123,4 +120,4 @@ class AutoUnlockMonitor
 
 } // namespace js
 
-#endif /* vm_Monitor_h */
+#endif // Monitor_h__

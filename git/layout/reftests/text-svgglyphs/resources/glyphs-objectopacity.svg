@@ -1,58 +1,58 @@
 <svg xmlns="http://www.w3.org/2000/svg">
 <!--
     Test SVG glyphs for text object opacity inheritance
-    Covers glyph ID range 53 (R) to 60 (Y)
+    Covers glyph ID range 52 (R) to 59 (Y)
 -->
   <!-- R -->
   <rect x="100" y="-900" width="800" height="800" stroke-width="50"
-    fill="context-fill" stroke="context-stroke"
-    fill-opacity="context-fill-opacity"
-    stroke-opacity="context-stroke-opacity" id="glyph53"/>
+    fill="-moz-objectFill" stroke="-moz-objectStroke"
+    fill-opacity="-moz-objectFillOpacity"
+    stroke-opacity="-moz-objectStrokeOpacity" glyphchar="R"/>
 
   <!-- S -->
   <rect x="100" y="-900" width="800" height="800" stroke-width="50"
-    fill="context-fill" stroke="context-stroke"
-    fill-opacity="context-stroke-opacity"
-    stroke-opacity="context-fill-opacity" id="glyph54"/>
+    fill="-moz-objectFill" stroke="-moz-objectStroke"
+    fill-opacity="-moz-objectStrokeOpacity"
+    stroke-opacity="-moz-objectFillOpacity" glyphchar="S"/>
 
   <!-- T -->
   <rect x="100" y="-900" width="800" height="800" stroke-width="50"
-    fill="context-stroke" stroke="context-fill"
-    fill-opacity="context-fill-opacity"
-    stroke-opacity="context-stroke-opacity" id="glyph55"/>
+    fill="-moz-objectStroke" stroke="-moz-objectFill"
+    fill-opacity="-moz-objectFillOpacity"
+    stroke-opacity="-moz-objectStrokeOpacity" glyphchar="T"/>
 
   <!-- U -->
   <!--  Test for bug where explicit `inherit' would fail for
       *-opacity="objectStrokeOpacity" or "objectFillOpacity" -->
-  <g style="fill-opacity : context-stroke-opacity; stroke-opacity : context-fill-opacity">
+  <g style="fill-opacity : -moz-objectStrokeOpacity; stroke-opacity : -moz-objectFillOpacity">
     <rect x="100" y="-900" width="800" height="800" stroke-width="50"
-      fill="context-stroke" stroke="context-fill"
-      fill-opacity="inherit" stroke-opacity="inherit" id="glyph56"/>
+      fill="-moz-objectStroke" stroke="-moz-objectFill"
+      fill-opacity="inherit" stroke-opacity="inherit" glyphchar="U"/>
   </g>
 
   <!-- W -->
   <rect x="100" y="-900" width="800" height="800" stroke-width="50"
     fill="darkorchid" stroke="goldenrod"
-    fill-opacity="context-fill-opacity"
-    stroke-opacity="context-stroke-opacity" id="glyph58"/>
+    fill-opacity="-moz-objectFillOpacity"
+    stroke-opacity="-moz-objectStrokeOpacity" glyphchar="W"/>
 
   <!-- X -->
   <rect x="100" y="-900" width="800" height="800" stroke-width="50"
     fill="darkorchid" stroke="goldenrod"
-    fill-opacity="context-stroke-opacity"
-    stroke-opacity="context-fill-opacity" id="glyph59"/>
+    fill-opacity="-moz-objectStrokeOpacity"
+    stroke-opacity="-moz-objectFillOpacity" glyphchar="X"/>
 
   <style type="text/css"><![CDATA[
-  #glyph60 {
-    fill-opacity : context-fill-opacity;
-    stroke-opacity : context-stroke-opacity;
+  #yparent {
+    fill-opacity : -moz-objectFillOpacity;
+    stroke-opacity : -moz-objectStrokeOpacity;
   }
   #ychild {
     color-interpolation : sRGB;
   }
   ]]></style>
   <!-- Y -->
-  <g id="glyph60">
+  <g glyphchar="Y" id="yparent">
     <rect x="100" y="-900" width="800" height="300" stroke="red" stroke-width="50"/>
     <rect x="100" y="-400" width="800" height="300" stroke="red" stroke-width="50" id="ychild" />
   </g>

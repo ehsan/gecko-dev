@@ -32,7 +32,7 @@
 #include "dev.h"
 
 PRBool
-SEC_CertNicknameConflict(const char *nickname, const SECItem *derSubject,
+SEC_CertNicknameConflict(const char *nickname, SECItem *derSubject,
 			 CERTCertDBHandle *handle)
 {
     CERTCertificate *cert;
@@ -693,7 +693,7 @@ CERT_FindCertByNicknameOrEmailAddrForUsage(CERTCertDBHandle *handle,
 
 static void 
 add_to_subject_list(CERTCertList *certList, CERTCertificate *cert,
-                    PRBool validOnly, PRTime sorttime)
+                    PRBool validOnly, int64 sorttime)
 {
     SECStatus secrv;
     if (!validOnly ||
@@ -810,8 +810,8 @@ SECStatus
 certdb_SaveSingleProfile(CERTCertificate *cert, const char *emailAddr, 
 				SECItem *emailProfile, SECItem *profileTime)
 {
-    PRTime oldtime;
-    PRTime newtime;
+    int64 oldtime;
+    int64 newtime;
     SECStatus rv = SECFailure;
     PRBool saveit;
     SECItem oldprof, oldproftime;

@@ -10,7 +10,6 @@
 #include "nsIServiceManager.h"
 #include "nsISupportsArray.h"
 #include "nsISupportsPrimitives.h"
-#include "nsPIDOMWindow.h"
 #include "nsIWindowWatcher.h"
 
 #define ALERT_CHROME_URL "chrome://global/content/alerts/alert.xul"
@@ -45,6 +44,7 @@ nsXULAlerts::ShowAlertNotification(const nsAString& aImageUrl, const nsAString& 
                                    const nsAString& aLang)
 {
   nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
+  nsCOMPtr<nsIDOMWindow> newWindow;
 
   nsCOMPtr<nsISupportsArray> argsArray;
   nsresult rv = NS_NewISupportsArray(getter_AddRefs(argsArray));
@@ -121,36 +121,38 @@ nsXULAlerts::ShowAlertNotification(const nsAString& aImageUrl, const nsAString& 
   rv = argsArray->AppendElement(replacedWindow);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Add an observer (that wraps aAlertListener) to remove the window from
-  // mNamedWindows when it is closed.
-  nsCOMPtr<nsISupportsInterfacePointer> ifptr = do_CreateInstance(NS_SUPPORTS_INTERFACE_POINTER_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsRefPtr<nsXULAlertObserver> alertObserver = new nsXULAlertObserver(this, aAlertName, aAlertListener);
-  nsCOMPtr<nsISupports> iSupports(do_QueryInterface(alertObserver));
-  ifptr->SetData(iSupports);
-  ifptr->SetDataIID(&NS_GET_IID(nsIObserver));
-  rv = argsArray->AppendElement(ifptr);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsRefPtr<nsXULAlertObserver> alertObserver;
+  if (aAlertListener)
+  {
+    nsCOMPtr<nsISupportsInterfacePointer> ifptr = do_CreateInstance(NS_SUPPORTS_INTERFACE_POINTER_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIDOMWindow> newWindow;
+    alertObserver = new nsXULAlertObserver(this, aAlertName, aAlertListener);
+    nsCOMPtr<nsISupports> iSupports(do_QueryInterface(alertObserver));
+    ifptr->SetData(iSupports);
+    ifptr->SetDataIID(&NS_GET_IID(nsIObserver));
+    rv = argsArray->AppendElement(ifptr);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
   rv = wwatch->OpenWindow(0, ALERT_CHROME_URL, "_blank",
                           "chrome,dialog=yes,titlebar=no,popup=yes", argsArray,
                           getter_AddRefs(newWindow));
-  NS_ENSURE_SUCCESS(rv, rv);
 
   mNamedWindows.Put(aAlertName, newWindow);
-  alertObserver->SetAlertWindow(newWindow);
+  if (alertObserver) {
+    alertObserver->SetAlertWindow(newWindow);
+  }
 
-  return NS_OK;
+  return rv;
 }
 
 nsresult
 nsXULAlerts::CloseAlert(const nsAString& aAlertName)
 {
-  nsIDOMWindow* alert = mNamedWindows.GetWeak(aAlertName);
-  nsCOMPtr<nsPIDOMWindow> domWindow = do_QueryInterface(alert);
+  nsCOMPtr<nsIDOMWindow> domWindow = mNamedWindows.Get(aAlertName);
   if (domWindow) {
-    domWindow->DispatchCustomEvent("XULAlertClose");
+    return domWindow->Close();
   }
   return NS_OK;
 }

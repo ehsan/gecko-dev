@@ -34,6 +34,8 @@ run_for_effects := $(shell if test ! -d $(DIST); then $(NSINSTALL) -D $(DIST); f
 
 AB = $(firstword $(subst -, ,$(AB_CD)))
 
+core_abspath = $(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(CURDIR)/$(1)))
+
 # These are defaulted to be compatible with the files the wget-en-US target
 # pulls. You may override them if you provide your own files. You _must_
 # override them when MOZ_PKG_PRETTYNAMES is defined - the defaults will not
@@ -49,7 +51,7 @@ DEFINES += \
 	-DMOZ_LANGPACK_EID=$(MOZ_LANGPACK_EID) \
 	-DMOZ_APP_VERSION=$(MOZ_APP_VERSION) \
 	-DMOZ_APP_MAXVERSION=$(MOZ_APP_MAXVERSION) \
-	-DLOCALE_SRCDIR=$(abspath $(LOCALE_SRCDIR)) \
+	-DLOCALE_SRCDIR=$(call core_abspath,$(LOCALE_SRCDIR)) \
 	-DPKG_BASENAME="$(PKG_BASENAME)" \
 	-DPKG_INST_BASENAME="$(PKG_INST_BASENAME)" \
 	$(NULL)
@@ -103,7 +105,6 @@ endif
 endif
 endif
 repackage-zip: UNPACKAGE="$(ZIP_IN)"
-repackage-zip: ALREADY_SZIPPED=1
 repackage-zip:  libs-$(AB_CD)
 # call a hook for apps to put their uninstall helper.exe into the package
 	$(UNINSTALLER_PACKAGE_HOOK)
@@ -158,8 +159,8 @@ langpack-%: XPI_NAME=locale-$*
 langpack-%: libs-%
 	@echo "Making langpack $(LANGPACK_FILE)"
 	$(NSINSTALL) -D $(DIST)/$(PKG_LANGPACK_PATH)
-	$(call py_action,preprocessor,$(DEFINES) $(ACDEFINES) \
-	  -I$(TK_DEFINES) -I$(APP_DEFINES) $(srcdir)/generic/install.rdf -o $(DIST)/xpi-stage/$(XPI_NAME)/install.rdf)
+	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) \
+	  -I$(TK_DEFINES) -I$(APP_DEFINES) $(srcdir)/generic/install.rdf > $(DIST)/xpi-stage/$(XPI_NAME)/install.rdf
 	cd $(DIST)/xpi-stage/locale-$(AB_CD) && \
 	  $(ZIP) -r9D $(LANGPACK_FILE) install.rdf $(PKG_ZIP_DIRS) chrome.manifest
 

@@ -14,23 +14,23 @@ function test() {
     browser.removeEventListener("load", onLoad, true);
     openConsole(null, function(HUD) {
       content.console.log("foobarBazBug613280");
-      waitForMessages({
-        webconsole: HUD,
-        messages: [{
-          text: "foobarBazBug613280",
-          category: CATEGORY_WEBDEV,
-          severity: SEVERITY_LOG,
-        }],
-      }).then(performTest.bind(null, HUD));
+      waitForSuccess({
+        name: "a message is displayed",
+        validatorFn: function()
+        {
+          return HUD.outputNode.itemCount > 0;
+        },
+        successFn: performTest.bind(null, HUD),
+        failureFn: finishTest,
+      });
     });
   }, true);
 }
 
-function performTest(HUD, [result]) {
-  let msg = [...result.matched][0];
+function performTest(HUD) {
   let input = HUD.jsterm.inputNode;
   let selection = getSelection();
-  let contentSelection = content.getSelection();
+  let contentSelection = browser.contentWindow.wrappedJSObject.getSelection();
 
   let clipboard_setup = function() {
     goDoCommand("cmd_copy");
@@ -62,7 +62,9 @@ function performTest(HUD, [result]) {
                    getControllerForCommand("cmd_copy");
   is(controller.isCommandEnabled("cmd_copy"), false, "cmd_copy is disabled");
 
-  HUD.ui.output.selectMessage(msg);
+  HUD.jsterm.execute("'bug613280: hello world!'");
+
+  HUD.outputNode.selectedIndex = HUD.outputNode.itemCount - 1;
   HUD.outputNode.focus();
 
   goUpdateCommand("cmd_copy");
@@ -71,10 +73,13 @@ function performTest(HUD, [result]) {
                getControllerForCommand("cmd_copy");
   is(controller.isCommandEnabled("cmd_copy"), true, "cmd_copy is enabled");
 
-  let selectionText = HUD.iframeWindow.getSelection() + "";
-  isnot(selectionText.indexOf("foobarBazBug613280"), -1,
-        "selection text includes 'foobarBazBug613280'");
+  ok(HUD.outputNode.selectedItem, "we have a selected message");
 
-  waitForClipboard((str) => { return str.trim() == selectionText.trim(); },
-                   clipboard_setup, clipboard_copy_done, clipboard_copy_done);
+  waitForClipboard(getExpectedClipboardText(HUD.outputNode.selectedItem),
+    clipboard_setup, clipboard_copy_done, clipboard_copy_done);
+}
+
+function getExpectedClipboardText(aItem) {
+  return "[" + WCU_l10n.timestampString(aItem.timestamp) + "] " +
+         aItem.clipboardText;
 }

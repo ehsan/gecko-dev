@@ -3,11 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/plugins/BrowserStreamChild.h"
-
-#include "mozilla/Attributes.h"
-#include "mozilla/plugins/PluginInstanceChild.h"
-#include "mozilla/plugins/StreamNotifyChild.h"
+#include "BrowserStreamChild.h"
+#include "PluginInstanceChild.h"
+#include "StreamNotifyChild.h"
 
 namespace mozilla {
 namespace plugins {
@@ -32,7 +30,7 @@ BrowserStreamChild::BrowserStreamChild(PluginInstanceChild* instance,
   , mURL(url)
   , mHeaders(headers)
   , mStreamNotify(notifyData)
-  , mDeliveryTracker(MOZ_THIS_IN_INITIALIZER_LIST())
+  , ALLOW_THIS_IN_INITIALIZER_LIST(mDeliveryTracker(this))
 {
   PLUGIN_LOG_DEBUG(("%s (%s, %i, %i, %p, %s, %s)", FULLFUNCTION,
                     url.get(), length, lastmodified, (void*) notifyData,
@@ -64,7 +62,7 @@ BrowserStreamChild::StreamConstructed(
     &mStream, seekable, stype);
   if (rv != NPERR_NO_ERROR) {
     mState = DELETING;
-    mStreamNotify = nullptr;
+    mStreamNotify = NULL;
   }
   else {
     mState = ALIVE;
@@ -243,7 +241,7 @@ BrowserStreamChild::Deliver()
     mNotifyPending = false;
     mStreamNotify->NPP_URLNotify(mStreamStatus);
     delete mStreamNotify;
-    mStreamNotify = nullptr;
+    mStreamNotify = NULL;
   }
   if (DYING == mState && DESTROYED == mDestroyPending
       && !mStreamNotify && !mInstanceDying) {

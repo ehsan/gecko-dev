@@ -7,6 +7,7 @@
 #ifndef WEBRTC_MODULES_VIDEO_CAPTURE_MAIN_SOURCE_WINDOWS_BASEFILTER_H_
 #define WEBRTC_MODULES_VIDEO_CAPTURE_MAIN_SOURCE_WINDOWS_BASEFILTER_H_
 
+#include <assert.h>
 #include "dshow.h"
 #include <comdef.h>
 #include "DShowTools.h"
@@ -55,7 +56,7 @@ public:
   // |aClsID| is the clsid of the filter.
   BaseFilter(const wchar_t* aName, REFCLSID aClsID);
 
-  virtual ~BaseFilter() {}
+  ~BaseFilter() {}
 
   STDMETHODIMP QueryInterface(REFIID aIId, void **aInterface);
   STDMETHODIMP_(ULONG) AddRef();
@@ -150,15 +151,6 @@ protected:
   // IUnknown ref counting.
   unsigned long mRefCnt;
 };
-
-// For mingw __uuidof support
-#ifdef __CRT_UUID_DECL
-}
-}
-__CRT_UUID_DECL(mozilla::media::BaseFilter, 0x4debd354,0xb0c6,0x44ab,0x93,0xcf,0x49,0xf6,0x4e,0xd3,0x6a,0xb8);
-namespace mozilla {
-namespace media {
-#endif
 
 _COM_SMARTPTR_TYPEDEF(BaseFilter, __uuidof(BaseFilter));
 

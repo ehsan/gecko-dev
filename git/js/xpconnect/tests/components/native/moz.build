@@ -5,15 +5,4 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 MODULE = 'xpctest'
-NO_DIST_INSTALL = True
-
-SOURCES += [
-    'xpctest_attributes.cpp',
-    'xpctest_module.cpp',
-    'xpctest_params.cpp',
-]
-
-LIBRARY_NAME = 'xpctest'
-
-IS_COMPONENT = True
 

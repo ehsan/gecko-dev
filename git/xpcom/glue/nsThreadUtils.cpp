@@ -18,8 +18,7 @@
 
 #ifdef XP_WIN
 #include <windows.h>
-#include "mozilla/WindowsVersion.h"
-using mozilla::IsVistaOrLater;
+#include "nsWindowsHelpers.h"
 #elif defined(XP_MACOSX)
 #include <sys/resource.h>
 #endif
@@ -29,7 +28,7 @@ using mozilla::IsVistaOrLater;
 
 #ifndef XPCOM_GLUE_AVOID_NSPR
 
-NS_IMPL_ISUPPORTS1(nsRunnable, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsRunnable, nsIRunnable)
 
 NS_IMETHODIMP
 nsRunnable::Run()
@@ -38,7 +37,7 @@ nsRunnable::Run()
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS2(nsCancelableRunnable, nsICancelableRunnable,
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsCancelableRunnable, nsICancelableRunnable,
                               nsIRunnable)
 
 NS_IMETHODIMP
@@ -114,32 +113,7 @@ NS_GetMainThread(nsIThread **result)
 #endif
 }
 
-#if defined(MOZILLA_INTERNAL_API) && defined(XP_WIN)
-extern DWORD gTLSThreadIDIndex;
-bool
-NS_IsMainThread()
-{
-  return TlsGetValue(gTLSThreadIDIndex) == (void*) mozilla::threads::Main;
-}
-#elif defined(MOZILLA_INTERNAL_API) && defined(NS_TLS)
-#ifdef MOZ_ASAN
-// Temporary workaround, see bug 895845
-bool NS_IsMainThread()
-{
-  return gTLSThreadID == mozilla::threads::Main;
-}
-#else
-// NS_IsMainThread() is defined inline in MainThreadUtils.h
-#endif
-#else
-#ifdef MOZILLA_INTERNAL_API
-bool NS_IsMainThread()
-{
-  bool result = false;
-  nsThreadManager::get()->nsThreadManager::GetIsMainThread(&result);
-  return bool(result);
-}
-#else
+#ifndef MOZILLA_INTERNAL_API
 bool NS_IsMainThread()
 {
   bool result = false;
@@ -149,7 +123,20 @@ bool NS_IsMainThread()
     mgr->GetIsMainThread(&result);
   return bool(result);
 }
-#endif
+#elif defined(XP_WIN)
+extern DWORD gTLSThreadIDIndex;
+bool
+NS_IsMainThread()
+{
+  return TlsGetValue(gTLSThreadIDIndex) == (void*) mozilla::threads::Main;
+}
+#elif !defined(NS_TLS)
+bool NS_IsMainThread()
+{
+  bool result = false;
+  nsThreadManager::get()->nsThreadManager::GetIsMainThread(&result);
+  return bool(result);
+}
 #endif
 
 NS_METHOD
@@ -260,14 +247,14 @@ class nsNameThreadRunnable MOZ_FINAL : public nsIRunnable
 public:
   nsNameThreadRunnable(const nsACString &name) : mName(name) { }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
 protected:
   const nsCString mName;
 };
 
-NS_IMPL_ISUPPORTS1(nsNameThreadRunnable, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsNameThreadRunnable, nsIRunnable)
 
 NS_IMETHODIMP
 nsNameThreadRunnable::Run()

@@ -41,7 +41,7 @@ public:
   virtual nsresult GetResultCode() = 0;
 
   virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    JS::MutableHandle<JS::Value> aVal) = 0;
+                                    jsval* aVal) = 0;
 
   IDBRequest* GetRequest() const
   {
@@ -61,7 +61,7 @@ protected:
    */
   nsresult WrapNative(JSContext* aCx,
                       nsISupports* aNative,
-                      JS::MutableHandle<JS::Value> aResult);
+                      jsval* aResult);
 
   /**
    * Gives the subclass a chance to release any objects that must be released
@@ -90,7 +90,7 @@ class AsyncConnectionHelper : public HelperBase,
 public:
   typedef ipc::ResponseValue ResponseValue;
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
   NS_DECL_MOZISTORAGEPROGRESSHANDLER
 
@@ -115,6 +115,11 @@ public:
   IDBTransaction* GetTransaction() const
   {
     return mTransaction;
+  }
+
+  nsISupports* GetSource() const
+  {
+    return mRequest ? mRequest->Source() : nullptr;
   }
 
   virtual nsresult GetResultCode() MOZ_OVERRIDE
@@ -196,7 +201,7 @@ protected:
    * accesses the result property of the request.
    */
   virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+                                    jsval* aVal) MOZ_OVERRIDE;
 
   /**
    * Gives the subclass a chance to release any objects that must be released
@@ -211,7 +216,7 @@ protected:
   static nsresult ConvertToArrayAndCleanup(
                                 JSContext* aCx,
                                 nsTArray<StructuredCloneReadInfo>& aReadInfos,
-                                JS::MutableHandle<JS::Value> aResult);
+                                jsval* aResult);
 
   /**
    * This should only be called by AutoSetCurrentTransaction.

@@ -14,7 +14,6 @@
 #include "nsXULAppAPI.h"
 #include "mozilla/unused.h"
 #include "nsProxyRelease.h"
-#include "nsThreadUtils.h"
 
 namespace mozilla {
 namespace dom {
@@ -54,7 +53,7 @@ GetDataSetIndex(const DOMStorage* aStorage)
 
 // DOMStorageCacheBridge
 
-NS_IMPL_ADDREF(DOMStorageCacheBridge)
+NS_IMPL_THREADSAFE_ADDREF(DOMStorageCacheBridge)
 
 // Since there is no consumer of return value of Release, we can turn this 
 // method to void to make implementation of asynchronous DOMStorageCache::Release
@@ -62,7 +61,7 @@ NS_IMPL_ADDREF(DOMStorageCacheBridge)
 NS_IMETHODIMP_(void) DOMStorageCacheBridge::Release(void)
 {
   MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");
-  nsrefcnt count = --mRefCnt;
+  nsrefcnt count = NS_AtomicDecrementRefcnt(mRefCnt);
   NS_LOG_RELEASE(this, count, "DOMStorageCacheBridge");
   if (0 == count) {
     mRefCnt = 1; /* stabilize */
@@ -75,12 +74,12 @@ NS_IMETHODIMP_(void) DOMStorageCacheBridge::Release(void)
 // DOMStorageCache
 
 DOMStorageCache::DOMStorageCache(const nsACString* aScope)
-: mScope(*aScope)
+: mManager(nullptr)
+, mScope(*aScope)
 , mMonitor("DOMStorageCache")
 , mLoaded(false)
 , mLoadResult(NS_OK)
 , mInitialized(false)
-, mPersistent(false)
 , mSessionOnlyDataSetActive(false)
 , mPreloadTelemetryRecorded(false)
 {
@@ -128,17 +127,15 @@ DOMStorageCache::Init(DOMStorageManager* aManager,
     return;
   }
 
+  mManager = aManager;
   mInitialized = true;
   mPrincipal = aPrincipal;
   mPersistent = aPersistent;
   mQuotaScope = aQuotaScope.IsEmpty() ? mScope : aQuotaScope;
 
   if (mPersistent) {
-    mManager = aManager;
     Preload();
   }
-
-  mUsage = aManager->GetScopeUsage(mQuotaScope);
 }
 
 inline bool
@@ -197,11 +194,6 @@ DOMStorageCache::ProcessUsageDelta(const DOMStorage* aStorage, int64_t aDelta)
 bool
 DOMStorageCache::ProcessUsageDelta(uint32_t aGetDataSetIndex, const int64_t aDelta)
 {
-  // Check if we are in a low disk space situation
-  if (aDelta > 0 && mManager && mManager->IsLowDiskSpace()) {
-    return false;
-  }
-
   // Check limit per this origin
   Data& data = mData[aGetDataSetIndex];
   uint64_t newOriginUsage = data.mOriginQuotaUsage + aDelta;
@@ -210,8 +202,12 @@ DOMStorageCache::ProcessUsageDelta(uint32_t aGetDataSetIndex, const int64_t aDel
   }
 
   // Now check eTLD+1 limit
-  if (mUsage && !mUsage->CheckAndSetETLD1UsageDelta(aGetDataSetIndex, aDelta)) {
-    return false;
+  GetDatabase();
+  if (sDatabase) {
+    DOMStorageUsage* usage = sDatabase->GetScopeUsage(mQuotaScope);
+    if (!usage->CheckAndSetETLD1UsageDelta(aGetDataSetIndex, aDelta)) {
+      return false;
+    }
   }
 
   // Update size in our data set
@@ -233,6 +229,7 @@ DOMStorageCache::Preload()
   }
 
   sDatabase->AsyncPreload(this);
+  sDatabase->GetScopeUsage(mQuotaScope);
 }
 
 namespace { // anon

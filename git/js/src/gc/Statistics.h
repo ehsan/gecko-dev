@@ -4,17 +4,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_Statistics_h
-#define gc_Statistics_h
+#ifndef jsgc_statistics_h___
+#define jsgc_statistics_h___
+
+#include <string.h>
 
 #include "mozilla/DebugOnly.h"
+#include "mozilla/GuardObjects.h"
 #include "mozilla/PodOperations.h"
 
-#include "jsalloc.h"
+#include "jsfriendapi.h"
 #include "jspubtd.h"
+#include "jsutil.h"
 
 #include "js/GCAPI.h"
-#include "js/Vector.h"
 
 struct JSCompartment;
 
@@ -121,7 +124,7 @@ struct Statistics {
 
     struct SliceData {
         SliceData(JS::gcreason::Reason reason, int64_t start, size_t startFaults)
-          : reason(reason), resetReason(nullptr), start(start), startFaults(startFaults)
+          : reason(reason), resetReason(NULL), start(start), startFaults(startFaults)
         {
             mozilla::PodArrayZero(phaseTimes);
         }
@@ -229,4 +232,4 @@ struct AutoSCC
 } /* namespace gcstats */
 } /* namespace js */
 
-#endif /* gc_Statistics_h */
+#endif /* jsgc_statistics_h___ */

@@ -3,21 +3,32 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsMathMLContainerFrame.h"
+#include "nsCOMPtr.h"
+#include "nsHTMLParts.h"
+#include "nsFrame.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
+#include "nsCSSAnonBoxes.h"
 #include "nsStyleContext.h"
+#include "nsStyleConsts.h"
 #include "nsINameSpaceManager.h"
 #include "nsRenderingContext.h"
+
 #include "nsIDOMMutationEvent.h"
+#include "nsFrameManager.h"
+#include "nsStyleChangeList.h"
+
 #include "nsGkAtoms.h"
+#include "nsMathMLParts.h"
+#include "nsMathMLContainerFrame.h"
 #include "nsAutoPtr.h"
+#include "nsStyleSet.h"
 #include "nsDisplayList.h"
+#include "nsCSSFrameConstructor.h"
 #include "nsIReflowCallback.h"
 #include "mozilla/Likely.h"
 #include "nsIScriptError.h"
 #include "nsContentUtils.h"
-#include "nsMathMLElement.h"
 
 using namespace mozilla;
 
@@ -405,7 +416,7 @@ nsMathMLContainerFrame::Stretch(nsRenderingContext& aRenderingContext,
           aDesiredStretchSize.width = mBoundingMetrics.width;
           aDesiredStretchSize.mBoundingMetrics.width = mBoundingMetrics.width;
 
-          nscoord dx = (StyleVisibility()->mDirection ?
+          nscoord dx = (NS_MATHML_IS_RTL(mPresentationData.flags) ?
                         coreData.trailingSpace : coreData.leadingSpace);
           if (dx != 0) {
             mBoundingMetrics.leftBearing += dx;
@@ -1162,7 +1173,7 @@ public:
     mX(0),
     mCarrySpace(0),
     mFromFrameType(eMathMLFrameType_UNKNOWN),
-    mRTL(aParentFrame->StyleVisibility()->mDirection)
+    mRTL(NS_MATHML_IS_RTL(aParentFrame->mPresentationData.flags))
   {
     if (!mRTL) {
       mChildFrame = aParentFrame->mFrames.FirstChild();
@@ -1512,7 +1523,7 @@ nsMathMLContainerFrame::ReportErrorToConsole(const char*       errorMsgId,
                                              uint32_t          aParamCount)
 {
   return nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
-                                         NS_LITERAL_CSTRING("MathML"), mContent->OwnerDoc(),
+                                         "MathML", mContent->OwnerDoc(),
                                          nsContentUtils::eMATHML_PROPERTIES,
                                          errorMsgId, aParams, aParamCount);
 }
@@ -1533,14 +1544,6 @@ nsMathMLContainerFrame::ReportChildCountError()
   return ReportErrorToConsole("ChildCountIncorrect", &arg, 1);
 }
 
-nsresult
-nsMathMLContainerFrame::ReportInvalidChildError(nsIAtom* aChildTag)
-{
-  const PRUnichar* argv[] =
-    { aChildTag->GetUTF16String(), mContent->Tag()->GetUTF16String() };
-  return ReportErrorToConsole("InvalidChild", argv, 2);
-}
-
 //==========================
 
 nsIFrame*
@@ -1548,7 +1551,9 @@ NS_NewMathMLmathBlockFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
                            uint32_t aFlags)
 {
   nsMathMLmathBlockFrame* it = new (aPresShell) nsMathMLmathBlockFrame(aContext);
-  it->SetFlags(aFlags);
+  if (it) {
+    it->SetFlags(aFlags);
+  }
   return it;
 }
 

@@ -7,27 +7,25 @@
 #ifndef mozilla_dom_HTMLOptionElement_h__
 #define mozilla_dom_HTMLOptionElement_h__
 
-#include "mozilla/Attributes.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIJSNativeInitializer.h"
-#include "mozilla/dom/HTMLFormElement.h"
+#include "nsHTMLFormElement.h"
 
 namespace mozilla {
 namespace dom {
 
 class HTMLSelectElement;
 
-class HTMLOptionElement MOZ_FINAL : public nsGenericHTMLElement,
-                                    public nsIDOMHTMLOptionElement
+class HTMLOptionElement : public nsGenericHTMLElement,
+                          public nsIDOMHTMLOptionElement
 {
 public:
   HTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~HTMLOptionElement();
 
   static already_AddRefed<HTMLOptionElement>
-    Option(const GlobalObject& aGlobal,
-           const Optional<nsAString>& aText,
+    Option(const GlobalObject& aGlobal, const Optional<nsAString>& aText,
            const Optional<nsAString>& aValue,
            const Optional<bool>& aDefaultSelected,
            const Optional<bool>& aSelected, ErrorResult& aError);
@@ -36,6 +34,15 @@ public:
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
 
   // nsIDOMHTMLOptionElement
   using mozilla::dom::Element::SetText;
@@ -46,28 +53,30 @@ public:
   bool DefaultSelected() const;
 
   virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                              int32_t aModType) const MOZ_OVERRIDE;
+                                              int32_t aModType) const;
 
   virtual nsresult BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
                                  const nsAttrValueOrString* aValue,
-                                 bool aNotify) MOZ_OVERRIDE;
+                                 bool aNotify);
 
   void SetSelectedInternal(bool aValue, bool aNotify);
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers) MOZ_OVERRIDE;
+                              bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true) MOZ_OVERRIDE;
+                              bool aNullParent = true);
 
   // nsIContent
-  virtual nsEventStates IntrinsicState() const MOZ_OVERRIDE;
+  virtual nsEventStates IntrinsicState() const;
 
-  virtual nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
   nsresult CopyInnerTo(mozilla::dom::Element* aDest);
 
-  virtual bool IsDisabled() const MOZ_OVERRIDE {
+  virtual nsIDOMNode* AsDOMNode() { return this; }
+
+  virtual bool IsDisabled() const {
     return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
   }
 
@@ -81,7 +90,7 @@ public:
     SetHTMLBoolAttr(nsGkAtoms::disabled, aValue, aRv);
   }
 
-  HTMLFormElement* GetForm();
+  nsHTMLFormElement* GetForm();
 
   // The XPCOM GetLabel is OK for us
   void SetLabel(const nsAString& aLabel, ErrorResult& aError)
@@ -113,11 +122,15 @@ public:
     aRv = SetText(aValue);
   }
 
-  int32_t Index();
+  int32_t GetIndex(ErrorResult& aRv)
+  {
+    int32_t id = 0;
+    aRv = GetIndex(&id);
+    return id;
+  }
 
 protected:
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   /**
    * Get the select content element that contains this option, this

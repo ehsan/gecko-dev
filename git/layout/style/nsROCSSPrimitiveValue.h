@@ -44,11 +44,6 @@ public:
   // CSSPrimitiveValue
   uint16_t PrimitiveType()
   {
-    // New value types were introduced but not added to CSS OM.
-    // Return CSS_UNKNOWN to avoid exposing CSS_TURN to content.
-    if (mType > CSS_RGBCOLOR) {
-      return CSS_UNKNOWN;
-    }
     return mType;
   }
   void SetFloatValue(uint16_t aUnitType, float aValue,
@@ -69,10 +64,6 @@ public:
   void SetNumber(int32_t aValue);
   void SetNumber(uint32_t aValue);
   void SetPercent(float aValue);
-  void SetDegree(float aValue);
-  void SetGrad(float aValue);
-  void SetRadian(float aValue);
-  void SetTurn(float aValue);
   void SetAppUnits(nscoord aValue);
   void SetAppUnits(float aValue);
   void SetIdent(nsCSSKeyword aKeyword);
@@ -91,8 +82,7 @@ public:
     return nullptr;
   }
 
-  virtual JSObject *WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject *WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 private:
   uint16_t mType;

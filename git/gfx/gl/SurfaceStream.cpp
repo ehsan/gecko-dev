@@ -31,29 +31,21 @@ SurfaceStream::ChooseGLStreamType(SurfaceStream::OMTC omtc,
 }
 
 SurfaceStream*
-SurfaceStream::CreateForType(SurfaceStreamType type, mozilla::gl::GLContext* glContext, SurfaceStream* prevStream)
+SurfaceStream::CreateForType(SurfaceStreamType type, SurfaceStream* prevStream)
 {
-    SurfaceStream* result = nullptr;
-
     switch (type) {
         case SurfaceStreamType::SingleBuffer:
-            result = new SurfaceStream_SingleBuffer(prevStream);
-            break;
+            return new SurfaceStream_SingleBuffer(prevStream);
         case SurfaceStreamType::TripleBuffer_Copy:
-            result = new SurfaceStream_TripleBuffer_Copy(prevStream);
-            break;
+            return new SurfaceStream_TripleBuffer_Copy(prevStream);
         case SurfaceStreamType::TripleBuffer_Async:
-            result = new SurfaceStream_TripleBuffer_Async(prevStream);
-            break;
+            return new SurfaceStream_TripleBuffer_Async(prevStream);
         case SurfaceStreamType::TripleBuffer:
-            result = new SurfaceStream_TripleBuffer(prevStream);
-            break;
+            return new SurfaceStream_TripleBuffer(prevStream);
         default:
-            MOZ_CRASH("Invalid Type.");
+            MOZ_NOT_REACHED("Invalid Type.");
+            return nullptr;
     }
-
-    result->mGLContext = glContext;
-    return result;
 }
 
 void
@@ -319,20 +311,26 @@ SurfaceStream_TripleBuffer_Copy::SwapProducer(SurfaceFactory* factory,
 
     RecycleScraps(factory);
     if (mProducer) {
-        if (mStaging) {
-            // We'll re-use this for a new mProducer later on if
-            // the size remains the same
+        if (mStaging && mStaging->Type() != factory->Type())
             Recycle(factory, mStaging);
-        }
 
-        Move(mProducer, mStaging);
+        if (!mStaging)
+            New(factory, mProducer->Size(), mStaging);
+
+        if (!mStaging)
+            return nullptr;
+
+        SharedSurface::Copy(mProducer, mStaging, factory);
+        // Fence now, before we start (maybe) juggling Prod around.
         mStaging->Fence();
 
-        New(factory, size, mProducer);
-        
-        if (mProducer && mStaging->Size() == mProducer->Size())
-            SharedSurface::Copy(mStaging, mProducer, factory);
-    } else {
+        if (mProducer->Size() != size)
+            Recycle(factory, mProducer);
+    }
+
+    // The old Prod (if there every was one) was invalid,
+    // so we need a new one.
+    if (!mProducer) {
         New(factory, size, mProducer);
     }
 

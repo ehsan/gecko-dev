@@ -20,7 +20,6 @@ namespace mozilla {
 namespace dom {
 
 class DOMStorage;
-class DOMStorageUsage;
 class DOMStorageManager;
 class DOMStorageDBBridge;
 
@@ -56,8 +55,7 @@ public:
   virtual void LoadWait() = 0;
 
 protected:
-  ThreadSafeAutoRefCnt mRefCnt;
-  NS_DECL_OWNINGTHREAD
+  nsAutoRefCnt mRefCnt;
 };
 
 // Implementation of scope cache that is responsible for preloading data
@@ -123,7 +121,7 @@ public:
   class Data
   {
   public:
-    Data() : mOriginQuotaUsage(0) {}
+    Data() : mOriginQuotaUsage(0) { mKeys.Init(); }
     int64_t mOriginQuotaUsage;
     nsDataHashtable<nsStringHashKey, nsString> mKeys;
   };
@@ -170,10 +168,6 @@ private:
   // table is handled in the destructor by call to the manager.
   // Cache could potentially overlive the manager, hence the hard ref.
   nsRefPtr<DOMStorageManager> mManager;
-
-  // Reference to the usage counter object we check on for eTLD+1 quota limit.
-  // Obtained from the manager during initialization (Init method).
-  nsRefPtr<DOMStorageUsage> mUsage;
 
   // Timer that holds this cache alive for a while after it has been preloaded.
   nsCOMPtr<nsITimer> mKeepAliveTimer;
@@ -232,8 +226,6 @@ private:
 class DOMStorageUsageBridge
 {
 public:
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(DOMStorageUsageBridge)
-
   virtual ~DOMStorageUsageBridge() {}
 
   virtual const nsCString& Scope() = 0;

@@ -6,26 +6,20 @@
 #ifndef GFX_IMAGELAYEROGL_H
 #define GFX_IMAGELAYEROGL_H
 
-#include "GLContextTypes.h"             // for GLContext, GLuint
-#include "ImageContainer.h"             // for ImageBackendData, etc
-#include "ImageLayers.h"                // for ImageLayer
-#include "LayerManagerOGL.h"            // for LayerOGL
-#include "gfxPoint.h"                   // for gfxIntSize
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
-#include "mozilla/Mutex.h"              // for Mutex
-#include "mozilla/mozalloc.h"           // for operator delete
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsISupportsImpl.h"            // for TextureRecycleBin::Release, etc
-#include "nsTArray.h"                   // for nsTArray
-#include "opengl/LayerManagerOGLProgram.h"  // for ShaderProgramType, etc
+#include "mozilla/layers/PLayers.h"
 
-struct nsIntPoint;
+#include "LayerManagerOGL.h"
+#include "ImageLayers.h"
+#include "ImageContainer.h"
+#include "yuv_convert.h"
+#include "mozilla/Mutex.h"
 
 namespace mozilla {
 namespace layers {
 
-class BlobYCbCrSurface;
-class Layer;
+class CairoImage;
+class PlanarYCbCrImage;
+class ShmemYCbCrImage;
 
 /**
  * This class wraps a GL texture. It includes a GLContext reference
@@ -44,8 +38,8 @@ class GLTexture
   typedef mozilla::gl::GLContext GLContext;
 
 public:
-  GLTexture();
-  ~GLTexture();
+  GLTexture() : mTexture(0) {}
+  ~GLTexture() { Release(); }
 
   /**
    * Allocate the texture. This can only be called on the main thread.
@@ -104,8 +98,8 @@ private:
   gfxIntSize mRecycledTextureSizes[2];
 };
 
-class ImageLayerOGL : public ImageLayer,
-                      public LayerOGL
+class THEBES_API ImageLayerOGL : public ImageLayer,
+                                 public LayerOGL
 {
 public:
   ImageLayerOGL(LayerManagerOGL *aManager);
@@ -128,7 +122,7 @@ protected:
   nsRefPtr<TextureRecycleBin> mTextureRecycleBin;
 };
 
-struct PlanarYCbCrOGLBackendData : public ImageBackendData
+struct THEBES_API PlanarYCbCrOGLBackendData : public ImageBackendData
 {
   ~PlanarYCbCrOGLBackendData()
   {
@@ -153,9 +147,9 @@ struct PlanarYCbCrOGLBackendData : public ImageBackendData
 
 struct CairoOGLBackendData : public ImageBackendData
 {
-  CairoOGLBackendData() : mLayerProgram(RGBALayerProgramType) {}
+  CairoOGLBackendData() : mLayerProgram(gl::RGBALayerProgramType) {}
   GLTexture mTexture;
-  ShaderProgramType mLayerProgram;
+  gl::ShaderProgramType mLayerProgram;
   gfxIntSize mTextureSize;
 };
 

@@ -28,8 +28,8 @@ int WebRtcNetEQ_DbReset(CodecDbInst_t *inst)
 {
     int i;
 
-    WebRtcSpl_MemSetW16((int16_t*) inst, 0,
-        sizeof(CodecDbInst_t) / sizeof(int16_t));
+    WebRtcSpl_MemSetW16((WebRtc_Word16*) inst, 0,
+        sizeof(CodecDbInst_t) / sizeof(WebRtc_Word16));
 
     for (i = 0; i < NUM_TOTAL_CODECS; i++)
     {
@@ -54,13 +54,13 @@ int WebRtcNetEQ_DbReset(CodecDbInst_t *inst)
  */
 
 int WebRtcNetEQ_DbAdd(CodecDbInst_t *inst, enum WebRtcNetEQDecoder codec,
-                      int16_t payloadType, FuncDecode funcDecode,
+                      WebRtc_Word16 payloadType, FuncDecode funcDecode,
                       FuncDecode funcDecodeRCU, FuncDecodePLC funcDecodePLC,
                       FuncDecodeInit funcDecodeInit, FuncAddLatePkt funcAddLatePkt,
                       FuncGetMDinfo funcGetMDinfo, FuncGetPitchInfo funcGetPitch,
                       FuncUpdBWEst funcUpdBWEst, FuncDurationEst funcDurationEst,
                       FuncGetErrorCode funcGetErrorCode, void* codec_state,
-                      uint16_t codec_fs)
+                      WebRtc_UWord16 codec_fs)
 {
 
     int temp;
@@ -217,15 +217,6 @@ int WebRtcNetEQ_DbAdd(CodecDbInst_t *inst, enum WebRtcNetEQDecoder codec,
         /* find the appropriate insert position in CNG payload vector */
         switch (codec_fs)
         {
-            case 8000:
-            CNGpos = 0;
-            /*
-             * The 8 kHz CNG payload type is the one associated with the regular codec DB
-             * should override any other setting.
-             * Overwrite if this isn't the first CNG
-             */
-            overwriteCNGcodec = !insertCNGcodec;
-            break;
 #ifdef NETEQ_WIDEBAND
             case 16000:
             CNGpos = 1;
@@ -241,9 +232,15 @@ int WebRtcNetEQ_DbAdd(CodecDbInst_t *inst, enum WebRtcNetEQDecoder codec,
             CNGpos = 3;
             break;
 #endif
-            default:
-            /* If we get to this point, the inserted codec is not supported */
-            return CODEC_DB_UNSUPPORTED_CODEC;
+            default: /* 8000 Hz case */
+                CNGpos = 0;
+                /*
+                 * The 8 kHz CNG payload type is the one associated with the regular codec DB
+                 * should override any other setting.
+                 * Overwrite if this isn't the first CNG
+                 */
+                overwriteCNGcodec = !insertCNGcodec;
+                break;
         }
 
         /* insert CNG payload type */
@@ -336,7 +333,6 @@ int WebRtcNetEQ_DbRemove(CodecDbInst_t *inst, enum WebRtcNetEQDecoder codec)
             inst->funcDecodePLC[i] = inst->funcDecodePLC[i + 1];
             inst->funcGetMDinfo[i] = inst->funcGetMDinfo[i + 1];
             inst->funcGetPitch[i] = inst->funcGetPitch[i + 1];
-            inst->funcDurationEst[i] = inst->funcDurationEst[i + 1];
             inst->funcUpdBWEst[i] = inst->funcUpdBWEst[i + 1];
             inst->funcGetErrorCode[i] = inst->funcGetErrorCode[i + 1];
             inst->codec_fs[i] = inst->codec_fs[i + 1];
@@ -350,7 +346,6 @@ int WebRtcNetEQ_DbRemove(CodecDbInst_t *inst, enum WebRtcNetEQDecoder codec)
         inst->funcDecodePLC[i] = NULL;
         inst->funcGetMDinfo[i] = NULL;
         inst->funcGetPitch[i] = NULL;
-        inst->funcDurationEst[i] = NULL;
         inst->funcUpdBWEst[i] = NULL;
         inst->funcGetErrorCode[i] = NULL;
         inst->codec_fs[i] = 0;
@@ -407,8 +402,8 @@ int WebRtcNetEQ_DbGetPtrs(CodecDbInst_t *inst, enum WebRtcNetEQDecoder codec,
     }
     else
     {
-        WebRtcSpl_MemSetW16((int16_t*) ptr_inst, 0,
-            sizeof(CodecFuncInst_t) / sizeof(int16_t));
+        WebRtcSpl_MemSetW16((WebRtc_Word16*) ptr_inst, 0,
+            sizeof(CodecFuncInst_t) / sizeof(WebRtc_Word16));
         return CODEC_DB_NOT_EXIST1;
     }
 }
@@ -726,7 +721,7 @@ int WebRtcNetEQ_DbIsCNGPayload(const CodecDbInst_t *inst, int payloadType)
 /*
  * Return the sample rate for the codec with the given payload type, 0 if error
  */
-uint16_t WebRtcNetEQ_DbGetSampleRate(CodecDbInst_t *inst, int payloadType)
+WebRtc_UWord16 WebRtcNetEQ_DbGetSampleRate(CodecDbInst_t *inst, int payloadType)
 {
     int i;
     CodecFuncInst_t codecInst;

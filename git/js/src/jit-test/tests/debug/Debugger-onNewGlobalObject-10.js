@@ -16,12 +16,8 @@ dbg1.onNewGlobalObject = dbg2.onNewGlobalObject = dbg3.onNewGlobalObject = funct
     return { throw: "snoo" };
   return undefined;
 };
-dbg2.uncaughtExceptionHook = function (exn) {
-  assertEq(/disallowed/.test(exn), true);
-  log += 'u';
-};
 
 log = '';
 count = 0;
-assertEq(typeof newGlobal(), "object");
-assertEq(log, '12u3');
+assertThrowsValue(function () { newGlobal(); }, "snoo");
+assertEq(log, '12');

@@ -6,13 +6,7 @@
 
 /* rendering objects for replaced elements implemented by a plugin */
 
-#include "nsObjectFrame.h"
-
-#include "mozilla/BasicEvents.h"
-#ifdef XP_WIN
-// This is needed for DoublePassRenderingEvent.
 #include "mozilla/plugins/PluginMessageUtils.h"
-#endif
 
 #include "nscore.h"
 #include "nsCOMPtr.h"
@@ -21,38 +15,90 @@
 #include "nsWidgetsCID.h"
 #include "nsView.h"
 #include "nsViewManager.h"
+#include "nsIDOMEventListener.h"
+#include "nsIDOMDragEvent.h"
+#include "nsPluginHost.h"
 #include "nsString.h"
+#include "nsReadableUtils.h"
 #include "nsGkAtoms.h"
+#include "nsIAppShell.h"
+#include "nsIDocument.h"
+#include "nsINodeInfo.h"
+#include "nsIURL.h"
+#include "nsNetUtil.h"
 #include "nsIPluginInstanceOwner.h"
 #include "nsNPAPIPluginInstance.h"
+#include "nsIPluginTagInfo.h"
+#include "plstr.h"
+#include "nsILinkHandler.h"
+#include "nsIScrollPositionListener.h"
+#include "nsITimer.h"
+#include "nsIDocShellTreeItem.h"
+#include "nsIDocShellTreeOwner.h"
+#include "nsDocShellCID.h"
+#include "nsIWebBrowserChrome.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMNodeList.h"
+#include "nsIDOMHTMLObjectElement.h"
+#include "nsIDOMHTMLEmbedElement.h"
+#include "nsIDOMHTMLAppletElement.h"
+#include "nsIDOMWindow.h"
+#include "nsIDOMEventTarget.h"
+#include "nsIDocumentEncoder.h"
+#include "nsXPIDLString.h"
+#include "nsIDOMRange.h"
+#include "nsIPluginWidget.h"
+#include "nsGUIEvent.h"
 #include "nsRenderingContext.h"
 #include "npapi.h"
+#include "nsTransform2D.h"
+#include "nsIImageLoadingContent.h"
 #include "nsIObjectLoadingContent.h"
+#include "nsPIDOMWindow.h"
 #include "nsContentUtils.h"
 #include "nsDisplayList.h"
+#include "nsAttrName.h"
+#include "nsDataHashtable.h"
+#include "nsDOMClassInfo.h"
 #include "nsFocusManager.h"
 #include "nsLayoutUtils.h"
 #include "nsFrameManager.h"
+#include "nsComponentManagerUtils.h"
 #include "nsIObserverService.h"
+#include "nsIScrollableFrame.h"
+#include "mozilla/Preferences.h"
 #include "GeckoProfiler.h"
 #include <algorithm>
 
+// headers for plugin scriptability
+#include "nsIScriptGlobalObject.h"
+#include "nsIScriptContext.h"
+#include "nsIXPConnect.h"
+#include "nsIXPCScriptable.h"
+#include "nsIClassInfo.h"
+#include "nsIDOMClientRect.h"
+
+#include "nsObjectFrame.h"
 #include "nsIObjectFrame.h"
 #include "nsPluginNativeWindow.h"
+#include "nsIPluginDocument.h"
 #include "FrameLayerBuilder.h"
 
+#include "nsThreadUtils.h"
+
+#include "gfxContext.h"
+#include "gfxPlatform.h"
 #include "ImageLayers.h"
-#include "nsPluginInstanceOwner.h"
 
 #ifdef XP_WIN
 #include "gfxWindowsNativeDrawing.h"
 #include "gfxWindowsSurface.h"
 #endif
 
+#include "gfxImageSurface.h"
+#include "gfxUtils.h"
 #include "Layers.h"
 #include "ReadbackLayer.h"
-#include "ImageContainer.h"
 
 // accessibility support
 #ifdef ACCESSIBILITY
@@ -64,10 +110,22 @@
 #endif /* MOZ_LOGGING */
 #include "prlog.h"
 
+#include <errno.h>
+
+#include "nsContentCID.h"
+static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
+
 #ifdef XP_MACOSX
 #include "gfxQuartzNativeDrawing.h"
 #include "nsPluginUtilsOSX.h"
 #include "mozilla/gfx/QuartzSupport.h"
+#endif
+
+#ifdef MOZ_WIDGET_GTK2
+#include <gdk/gdk.h>
+#include <gdk/gdkx.h>
+#include <gtk/gtk.h>
+#include "gfxXlibNativeRenderer.h"
 #endif
 
 #ifdef MOZ_X11
@@ -131,8 +189,8 @@ extern "C" {
     GWorldPtr *   offscreenGWorld,
     UInt32        PixelFormat,
     const Rect *  boundsRect,
-    CTabHandle    cTable,                /* can be nullptr */
-    GDHandle      aGDevice,              /* can be nullptr */
+    CTabHandle    cTable,                /* can be NULL */
+    GDHandle      aGDevice,              /* can be NULL */
     GWorldFlags   flags,
     Ptr           newBuffer,
     SInt32        rowBytes)
@@ -145,6 +203,7 @@ extern "C" {
 #endif /* #if defined(XP_MACOSX) && !defined(__LP64__) */
 
 using namespace mozilla;
+using namespace mozilla::plugins;
 using namespace mozilla::layers;
 
 class PluginBackgroundSink : public ReadbackSink {
@@ -250,18 +309,13 @@ nsObjectFrame::DestroyFrom(nsIFrame* aDestructRoot)
   // Tell content owner of the instance to disconnect its frame.
   nsCOMPtr<nsIObjectLoadingContent> objContent(do_QueryInterface(mContent));
   NS_ASSERTION(objContent, "Why not an object loading content?");
-
-  // The content might not have a reference to the instance owner any longer in
-  // the case of re-entry during instantiation or teardown, so make sure we're
-  // dissociated.
-  if (mInstanceOwner) {
-    mInstanceOwner->SetFrame(nullptr);
-  }
   objContent->HasNewFrame(nullptr);
 
   if (mBackgroundSink) {
     mBackgroundSink->Destroy();
   }
+
+  SetInstanceOwner(nullptr);
 
   nsObjectFrameSuper::DestroyFrom(aDestructRoot);
 }
@@ -362,7 +416,8 @@ nsObjectFrame::PrepForDrawing(nsIWidget *aWidget)
     configuration->mBounds.height = NSAppUnitsToIntPixels(mRect.height, appUnitsPerDevPixel);
     parentWidget->ConfigureChildren(configurations);
 
-    nsRefPtr<nsDeviceContext> dx = viewMan->GetDeviceContext();
+    nsRefPtr<nsDeviceContext> dx;
+    viewMan->GetDeviceContext(*getter_AddRefs(dx));
     mInnerView->AttachWidgetEventHandler(mWidget);
 
 #ifdef XP_MACOSX
@@ -466,7 +521,7 @@ nsObjectFrame::GetDesiredSize(nsPresContext* aPresContext,
                                 aReflowState.mComputedMaxHeight);
     }
 
-#if defined(MOZ_WIDGET_GTK)
+#if defined (MOZ_WIDGET_GTK2)
     // We need to make sure that the size of the object frame does not
     // exceed the maximum size of X coordinates.  See bug #225357 for
     // more information.  In theory Gtk2 can handle large coordinates,
@@ -721,10 +776,6 @@ nsObjectFrame::UnregisterPluginForGeometryUpdates()
 void
 nsObjectFrame::SetInstanceOwner(nsPluginInstanceOwner* aOwner)
 {
-  // The ownership model here is historically fuzzy. This should only be called
-  // by nsPluginInstanceOwner when it is given a new frame, and
-  // nsObjectLoadingContent should be arbitrating frame-ownership via its
-  // HasNewFrame callback.
   mInstanceOwner = aOwner;
   if (mInstanceOwner) {
     return;
@@ -824,7 +875,7 @@ nsObjectFrame::DidReflow(nsPresContext*            aPresContext,
 
   // The view is created hidden; once we have reflowed it and it has been
   // positioned then we show it.
-  if (aStatus != nsDidReflowStatus::FINISHED)
+  if (aStatus != nsDidReflowStatus::FINISHED) 
     return rv;
 
   if (HasView()) {
@@ -1347,8 +1398,7 @@ nsObjectFrame::PrintPlugin(nsRenderingContext& aRenderingContext,
     return;
   }
   GWorldPtr gWorld;
-  if (::NewGWorldFromPtr(&gWorld, k32ARGBPixelFormat, &gwBounds,
-                         nullptr, nullptr, 0,
+  if (::NewGWorldFromPtr(&gWorld, k32ARGBPixelFormat, &gwBounds, NULL, NULL, 0,
                          buffer.Elements(), window.width * 4) != noErr) {
     ::CGContextRelease(cgBuffer);
     nativeDraw.EndNativeDrawing();
@@ -1560,14 +1610,14 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
     }
 #endif
 
-    imglayer->SetScaleToSize(size, SCALE_STRETCH);
+    imglayer->SetScaleToSize(size, ImageLayer::SCALE_STRETCH);
     imglayer->SetContainer(container);
-    GraphicsFilter filter =
+    gfxPattern::GraphicsFilter filter =
       nsLayoutUtils::GetGraphicsFilterForFrame(this);
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
     if (!aManager->IsCompositingCheap()) {
       // Pixman just horrible with bilinear filter scaling
-      filter = GraphicsFilter::FILTER_NEAREST;
+      filter = gfxPattern::FILTER_NEAREST;
     }
 #endif
     imglayer->SetFilter(filter);
@@ -1742,7 +1792,7 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
 
       // this rect is used only in the CoreGraphics drawing model
       gfxRect tmpRect(0, 0, 0, 0);
-      mInstanceOwner->Paint(tmpRect, nullptr);
+      mInstanceOwner->Paint(tmpRect, NULL);
     }
   }
 #elif defined(MOZ_X11)
@@ -1790,7 +1840,7 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
         // double pass render. If this plugin isn't oop, the register window message
         // will be ignored.
         NPEvent pluginEvent;
-        pluginEvent.event = plugins::DoublePassRenderingEvent();
+        pluginEvent.event = DoublePassRenderingEvent();
         pluginEvent.wParam = 0;
         pluginEvent.lParam = 0;
         if (pluginEvent.event)
@@ -1960,8 +2010,8 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
 
 NS_IMETHODIMP
 nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
-                           WidgetGUIEvent* anEvent,
-                           nsEventStatus* anEventStatus)
+                           nsGUIEvent*     anEvent,
+                           nsEventStatus*  anEventStatus)
 {
   NS_ENSURE_ARG_POINTER(anEvent);
   NS_ENSURE_ARG_POINTER(anEventStatus);
@@ -1994,7 +2044,7 @@ nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
 #endif
 
   if (mInstanceOwner->SendNativeEvents() &&
-      anEvent->IsNativeEventDelivererForPlugin()) {
+      NS_IS_PLUGIN_EVENT(anEvent)) {
     *anEventStatus = mInstanceOwner->ProcessEvent(*anEvent);
     // Due to plugin code reentering Gecko, this frame may be dead at this
     // point.
@@ -2016,29 +2066,23 @@ nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
     // point.
     return rv;
   }
-
-  // These two calls to nsIPresShell::SetCapturingContext() (on mouse-down
-  // and mouse-up) are needed to make the routing of mouse events while
-  // dragging conform to standard OS X practice, and to the Cocoa NPAPI spec.
-  // See bug 525078 and bug 909678.
-  if (anEvent->message == NS_MOUSE_BUTTON_DOWN) {
-    nsIPresShell::SetCapturingContent(GetContent(), CAPTURE_IGNOREALLOWED);
-  }
 #endif
 
-  rv = nsObjectFrameSuper::HandleEvent(aPresContext, anEvent, anEventStatus);
-
-  // We need to be careful from this point because the call to
-  // nsObjectFrameSuper::HandleEvent() might have killed us.
+  return nsObjectFrameSuper::HandleEvent(aPresContext, anEvent, anEventStatus);
+}
 
 #ifdef XP_MACOSX
-  if (anEvent->message == NS_MOUSE_BUTTON_UP) {
-    nsIPresShell::SetCapturingContent(nullptr, 0);
-  }
-#endif
-
-  return rv;
+// Needed to make the routing of mouse events while dragging conform to
+// standard OS X practice, and to the Cocoa NPAPI spec.  See bug 525078.
+NS_IMETHODIMP
+nsObjectFrame::HandlePress(nsPresContext* aPresContext,
+                           nsGUIEvent*    anEvent,
+                           nsEventStatus* anEventStatus)
+{
+  nsIPresShell::SetCapturingContent(GetContent(), CAPTURE_IGNOREALLOWED);
+  return nsObjectFrameSuper::HandlePress(aPresContext, anEvent, anEventStatus);
 }
+#endif
 
 nsresult
 nsObjectFrame::GetPluginInstance(nsNPAPIPluginInstance** aPluginInstance)

@@ -19,8 +19,6 @@
 
 #include "nsIAtom.h"
 #include "nsCRT.h"
-#include "gfxFontConstants.h"
-#include "mozilla/gfx/2D.h"
 
 using namespace mozilla;
 
@@ -310,11 +308,11 @@ gfxFontconfigUtils::NewPattern(const nsTArray<nsString>& aFamilies,
 }
 
 gfxFontconfigUtils::gfxFontconfigUtils()
-    : mFontsByFamily(50)
-    , mFontsByFullname(50)
-    , mLangSupportTable(50)
-    , mLastConfig(nullptr)
+    : mLastConfig(NULL)
 {
+    mFontsByFamily.Init(50);
+    mFontsByFullname.Init(50);
+    mLangSupportTable.Init(20);
     UpdateFontListInternal();
 }
 
@@ -479,7 +477,7 @@ gfxFontconfigUtils::GetSampleLangForGroup(nsIAtom *aLangGroup,
                 }
             }
         }
-        const char *ctype = setlocale(LC_CTYPE, nullptr);
+        const char *ctype = setlocale(LC_CTYPE, NULL);
         if (ctype &&
             TryLangForGroup(nsDependentCString(ctype), aLangGroup, aFcLang))
             return;
@@ -496,9 +494,9 @@ nsresult
 gfxFontconfigUtils::GetFontListInternal(nsTArray<nsCString>& aListOfFonts,
                                         nsIAtom *aLangGroup)
 {
-    FcPattern *pat = nullptr;
-    FcObjectSet *os = nullptr;
-    FcFontSet *fs = nullptr;
+    FcPattern *pat = NULL;
+    FcObjectSet *os = NULL;
+    FcFontSet *fs = NULL;
     nsresult rv = NS_ERROR_FAILURE;
 
     aListOfFonts.Clear();
@@ -507,7 +505,7 @@ gfxFontconfigUtils::GetFontListInternal(nsTArray<nsCString>& aListOfFonts,
     if (!pat)
         goto end;
 
-    os = FcObjectSetBuild(FC_FAMILY, nullptr);
+    os = FcObjectSetBuild(FC_FAMILY, NULL);
     if (!os)
         goto end;
 
@@ -516,7 +514,7 @@ gfxFontconfigUtils::GetFontListInternal(nsTArray<nsCString>& aListOfFonts,
         AddLangGroup(pat, aLangGroup);
     }
 
-    fs = FcFontList(nullptr, pat, os);
+    fs = FcFontList(NULL, pat, os);
     if (!fs)
         goto end;
 
@@ -566,8 +564,8 @@ gfxFontconfigUtils::UpdateFontListInternal(bool aForce)
         // This checks periodically according to fontconfig's configured
         // <rescan> interval.
         FcInitBringUptoDate();
-    } else if (!FcConfigUptoDate(nullptr)) { // check now with aForce
-        mLastConfig = nullptr;
+    } else if (!FcConfigUptoDate(NULL)) { // check now with aForce
+        mLastConfig = NULL;
         FcInitReinitialize();
     }
 
@@ -671,11 +669,11 @@ gfxFontconfigUtils::GetStandardFamilyName(const nsAString& aFontName, nsAString&
     if (!IsExistingFamily(fontname))
         return NS_OK;
 
-    FcPattern *pat = nullptr;
-    FcObjectSet *os = nullptr;
-    FcFontSet *givenFS = nullptr;
+    FcPattern *pat = NULL;
+    FcObjectSet *os = NULL;
+    FcFontSet *givenFS = NULL;
     nsTArray<nsCString> candidates;
-    FcFontSet *candidateFS = nullptr;
+    FcFontSet *candidateFS = NULL;
     rv = NS_ERROR_FAILURE;
 
     pat = FcPatternCreate();
@@ -684,11 +682,11 @@ gfxFontconfigUtils::GetStandardFamilyName(const nsAString& aFontName, nsAString&
 
     FcPatternAddString(pat, FC_FAMILY, (FcChar8 *)fontname.get());
 
-    os = FcObjectSetBuild(FC_FAMILY, FC_FILE, FC_INDEX, nullptr);
+    os = FcObjectSetBuild(FC_FAMILY, FC_FILE, FC_INDEX, NULL);
     if (!os)
         goto end;
 
-    givenFS = FcFontList(nullptr, pat, os);
+    givenFS = FcFontList(NULL, pat, os);
     if (!givenFS)
         goto end;
 
@@ -720,7 +718,7 @@ gfxFontconfigUtils::GetStandardFamilyName(const nsAString& aFontName, nsAString&
         FcPatternDel(pat, FC_FAMILY);
         FcPatternAddString(pat, FC_FAMILY, (FcChar8 *)candidates[j].get());
 
-        candidateFS = FcFontList(nullptr, pat, os);
+        candidateFS = FcFontList(NULL, pat, os);
         if (!candidateFS)
             goto end;
 
@@ -836,8 +834,7 @@ bool
 gfxFontconfigUtils::FontsByFullnameEntry::KeyEquals(KeyTypePointer aKey) const
 {
     const FcChar8 *key = mKey;
-    // If mKey is nullptr, key comes from the style and family of the first
-    // font.
+    // If mKey is NULL, key comes from the style and family of the first font.
     nsAutoCString fullname;
     if (!key) {
         NS_ASSERTION(mFonts.Length(), "No font in FontsByFullnameEntry!");
@@ -853,7 +850,7 @@ void
 gfxFontconfigUtils::AddFullnameEntries()
 {
     // This FcFontSet is owned by fontconfig
-    FcFontSet *fontSet = FcConfigGetFonts(nullptr, FcSetSystem);
+    FcFontSet *fontSet = FcConfigGetFonts(NULL, FcSetSystem);
 
     // Record the existing font families
     for (int f = 0; f < fontSet->nfont; ++f) {
@@ -869,8 +866,8 @@ gfxFontconfigUtils::AddFullnameEntries()
                 // will always succeed, and so the entry will always have a
                 // font from which to obtain the key.
                 bool added = entry->AddFont(font);
-                // The key may be nullptr either if this is the first font, or
-                // if the first font does not have a fullname property, and so
+                // The key may be NULL either if this is the first font, or if
+                // the first font does not have a fullname property, and so
                 // the key is obtained from the font.  Set the key in both
                 // cases.  The check that AddFont succeeded is required for
                 // the second case.
@@ -893,8 +890,8 @@ gfxFontconfigUtils::AddFullnameEntries()
             if (entry) {
                 entry->AddFont(font);
                 // Either entry->mKey has been set for a previous font or it
-                // remains nullptr to indicate that the key is obtained from
-                // the first font.
+                // remains NULL to indicate that the key is obtained from the
+                // first font.
             }
         }
     }
@@ -1011,7 +1008,7 @@ gfxFontconfigUtils::GetLangSupportEntry(const FcChar8 *aLang, bool aWithFonts)
     }
 
     // This FcFontSet is owned by fontconfig
-    FcFontSet *fontSet = FcConfigGetFonts(nullptr, FcSetSystem);
+    FcFontSet *fontSet = FcConfigGetFonts(NULL, FcSetSystem);
 
     nsAutoTArray<FcPattern*,100> fonts;
 
@@ -1049,7 +1046,7 @@ gfxFontconfigUtils::GetLangSupportEntry(const FcChar8 *aLang, bool aWithFonts)
             // entry->mSupport needs to be recalculated, but this is an
             // indication that the set of installed fonts has changed, so
             // update all caches.
-            mLastConfig = nullptr; // invalidates caches
+            mLastConfig = NULL; // invalidates caches
             UpdateFontListInternal(true);
             return GetLangSupportEntry(aLang, aWithFonts);
         }

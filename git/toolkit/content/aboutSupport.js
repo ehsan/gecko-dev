@@ -6,8 +6,6 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/Troubleshoot.jsm");
-Components.utils.import("resource://gre/modules/PluralForm.jsm");
-Components.utils.import("resource://gre/modules/ResetProfile.jsm");
 
 window.addEventListener("load", function onload(event) {
   window.removeEventListener("load", onload, false);
@@ -32,73 +30,6 @@ let snapshotFormatters = {
       version += " (" + data.vendor + ")";
     $("version-box").textContent = version;
   },
-
-#ifdef MOZ_CRASHREPORTER
-  crashes: function crashes(data) {
-    let strings = stringBundle();
-    let daysRange = Troubleshoot.kMaxCrashAge / (24 * 60 * 60 * 1000);
-    $("crashes-title").textContent =
-      PluralForm.get(daysRange, strings.GetStringFromName("crashesTitle"))
-                .replace("#1", daysRange);
-    let reportURL;
-    try {
-      reportURL = Services.prefs.getCharPref("breakpad.reportURL");
-      // Ignore any non http/https urls
-      if (!/^https?:/i.test(reportURL))
-        reportURL = null;
-    }
-    catch (e) { }
-    if (!reportURL) {
-      $("crashes-noConfig").style.display = "block";
-      $("crashes-noConfig").classList.remove("no-copy");
-      return;
-    }
-    else {
-      $("crashes-allReports").style.display = "block";
-      $("crashes-allReports").classList.remove("no-copy");
-    }
-
-    if (data.pending > 0) {
-      $("crashes-allReportsWithPending").textContent =
-        PluralForm.get(data.pending, strings.GetStringFromName("pendingReports"))
-                  .replace("#1", data.pending);
-    }
-
-    let dateNow = new Date();
-    $.append($("crashes-tbody"), data.submitted.map(function (crash) {
-      let date = new Date(crash.date);
-      let timePassed = dateNow - date;
-      let formattedDate;
-      if (timePassed >= 24 * 60 * 60 * 1000)
-      {
-        let daysPassed = Math.round(timePassed / (24 * 60 * 60 * 1000));
-        let daysPassedString = strings.GetStringFromName("crashesTimeDays");
-        formattedDate = PluralForm.get(daysPassed, daysPassedString)
-                                  .replace("#1", daysPassed);
-      }
-      else if (timePassed >= 60 * 60 * 1000)
-      {
-        let hoursPassed = Math.round(timePassed / (60 * 60 * 1000));
-        let hoursPassedString = strings.GetStringFromName("crashesTimeHours");
-        formattedDate = PluralForm.get(hoursPassed, hoursPassedString)
-                                  .replace("#1", hoursPassed);
-      }
-      else
-      {
-        let minutesPassed = Math.max(Math.round(timePassed / (60 * 1000)), 1);
-        let minutesPassedString = strings.GetStringFromName("crashesTimeMinutes");
-        formattedDate = PluralForm.get(minutesPassed, minutesPassedString)
-                                  .replace("#1", minutesPassed);
-      }
-      return $.new("tr", [
-        $.new("td", [
-          $.new("a", crash.id, null, {href : reportURL + crash.id})
-        ]),
-        $.new("td", formattedDate)
-      ]);
-    }));
-  },
-#endif
 
   extensions: function extensions(data) {
     $.append($("extensions-tbody"), data.map(function (extension) {
@@ -150,27 +81,11 @@ let snapshotFormatters = {
 
     function localizedMsg(msgArray) {
       let nameOrMsg = msgArray.shift();
-      if (msgArray.length) {
-        // formatStringFromName logs an NS_ASSERTION failure otherwise that says
-        // "use GetStringFromName".  Lame.
-        try {
-          return strings.formatStringFromName(nameOrMsg, msgArray,
-                                              msgArray.length);
-        }
-        catch (err) {
-          // Throws if nameOrMsg is not a name in the bundle.  This shouldn't
-          // actually happen though, since msgArray.length > 1 => nameOrMsg is a
-          // name in the bundle, not a message, and the remaining msgArray
-          // elements are parameters.
-          return nameOrMsg;
-        }
-      }
       try {
-        return strings.GetStringFromName(nameOrMsg);
+        return strings.formatStringFromName(nameOrMsg, msgArray,
+                                            msgArray.length);
       }
-      catch (err) {
-        // Throws if nameOrMsg is not a name in the bundle.
-      }
+      catch (err) {}
       return nameOrMsg;
     }
 
@@ -181,8 +96,6 @@ let snapshotFormatters = {
       data.numAcceleratedWindows + "/" + data.numTotalWindows;
     if (data.windowLayerManagerType)
       out.acceleratedWindows += " " + data.windowLayerManagerType;
-    if (data.windowLayerManagerRemote)
-      out.acceleratedWindows += " (OMTC)";
     if (data.numAcceleratedWindowsMessage)
       out.acceleratedWindows +=
         " " + localizedMsg(data.numAcceleratedWindowsMessage);
@@ -280,14 +193,10 @@ let snapshotFormatters = {
 
 let $ = document.getElementById.bind(document);
 
-$.new = function $_new(tag, textContentOrChildren, className, attributes) {
+$.new = function $_new(tag, textContentOrChildren, className) {
   let elt = document.createElement(tag);
   if (className)
     elt.className = className;
-  if (attributes) {
-    for (let attrName in attributes)
-      elt.setAttribute(attrName, attributes[attrName]);
-  }
   if (Array.isArray(textContentOrChildren))
     this.append(elt, textContentOrChildren);
   else
@@ -402,8 +311,15 @@ function copyContentsToClipboard() {
 // Return the plain text representation of an element.  Do a little bit
 // of pretty-printing to make it human-readable.
 function createTextForElement(elem) {
-  let serializer = new Serializer();
-  let text = serializer.serialize(elem);
+  // Generate the initial text.
+  let textFragmentAccumulator = [];
+  generateTextForElement(elem, "", textFragmentAccumulator);
+  let text = textFragmentAccumulator.join("");
+
+  // Trim extraneous whitespace before newlines, then squash extraneous
+  // blank lines.
+  text = text.replace(/[ \t]+\n/g, "\n");
+  text = text.replace(/\n\n\n+/g, "\n\n");
 
   // Actual CR/LF pairs are needed for some Windows text editors.
 #ifdef XP_WIN
@@ -413,160 +329,44 @@ function createTextForElement(elem) {
   return text;
 }
 
-function Serializer() {
+function generateTextForElement(elem, indent, textFragmentAccumulator) {
+  if (elem.classList.contains("no-copy"))
+    return;
+
+  // Add a little extra spacing around most elements.
+  if (elem.tagName != "td")
+    textFragmentAccumulator.push("\n");
+
+  // Generate the text representation for each child node.
+  let node = elem.firstChild;
+  while (node) {
+
+    if (node.nodeType == Node.TEXT_NODE) {
+      // Text belonging to this element uses its indentation level.
+      generateTextForTextNode(node, indent, textFragmentAccumulator);
+    }
+    else if (node.nodeType == Node.ELEMENT_NODE) {
+      // Recurse on the child element with an extra level of indentation.
+      generateTextForElement(node, indent + "  ", textFragmentAccumulator);
+    }
+
+    // Advance!
+    node = node.nextSibling;
+  }
 }
 
-Serializer.prototype = {
+function generateTextForTextNode(node, indent, textFragmentAccumulator) {
+  // If the text node is the first of a run of text nodes, then start
+  // a new line and add the initial indentation.
+  let prevNode = node.previousSibling;
+  if (!prevNode || prevNode.nodeType == Node.TEXT_NODE)
+    textFragmentAccumulator.push("\n" + indent);
 
-  serialize: function (rootElem) {
-    this._lines = [];
-    this._startNewLine();
-    this._serializeElement(rootElem);
-    this._startNewLine();
-    return this._lines.join("\n").trim() + "\n";
-  },
-
-  // The current line is always the line that writing will start at next.  When
-  // an element is serialized, the current line is updated to be the line at
-  // which the next element should be written.
-  get _currentLine() {
-    return this._lines.length ? this._lines[this._lines.length - 1] : null;
-  },
-
-  set _currentLine(val) {
-    return this._lines[this._lines.length - 1] = val;
-  },
-
-  _serializeElement: function (elem) {
-    if (this._ignoreElement(elem))
-      return;
-
-    // table
-    if (elem.localName == "table") {
-      this._serializeTable(elem);
-      return;
-    }
-
-    // all other elements
-
-    let hasText = false;
-    for (let child of elem.childNodes) {
-      if (child.nodeType == Node.TEXT_NODE) {
-        let text = this._nodeText(child);
-        this._appendText(text);
-        hasText = hasText || !!text.trim();
-      }
-      else if (child.nodeType == Node.ELEMENT_NODE)
-        this._serializeElement(child);
-    }
-
-    // For headings, draw a "line" underneath them so they stand out.
-    if (/^h[0-9]+$/.test(elem.localName)) {
-      let headerText = (this._currentLine || "").trim();
-      if (headerText) {
-        this._startNewLine();
-        this._appendText("-".repeat(headerText.length));
-      }
-    }
-
-    // Add a blank line underneath block elements but only if they contain text.
-    if (hasText) {
-      let display = window.getComputedStyle(elem).getPropertyValue("display");
-      if (display == "block") {
-        this._startNewLine();
-        this._startNewLine();
-      }
-    }
-  },
-
-  _startNewLine: function (lines) {
-    let currLine = this._currentLine;
-    if (currLine) {
-      // The current line is not empty.  Trim it.
-      this._currentLine = currLine.trim();
-      if (!this._currentLine)
-        // The current line became empty.  Discard it.
-        this._lines.pop();
-    }
-    this._lines.push("");
-  },
-
-  _appendText: function (text, lines) {
-    this._currentLine += text;
-  },
-
-  _serializeTable: function (table) {
-    // Collect the table's column headings if in fact there are any.  First
-    // check thead.  If there's no thead, check the first tr.
-    let colHeadings = {};
-    let tableHeadingElem = table.querySelector("thead");
-    if (!tableHeadingElem)
-      tableHeadingElem = table.querySelector("tr");
-    if (tableHeadingElem) {
-      let tableHeadingCols = tableHeadingElem.querySelectorAll("th,td");
-      // If there's a contiguous run of th's in the children starting from the
-      // rightmost child, then consider them to be column headings.
-      for (let i = tableHeadingCols.length - 1; i >= 0; i--) {
-        if (tableHeadingCols[i].localName != "th")
-          break;
-        colHeadings[i] = this._nodeText(tableHeadingCols[i]).trim();
-      }
-    }
-    let hasColHeadings = Object.keys(colHeadings).length > 0;
-    if (!hasColHeadings)
-      tableHeadingElem = null;
-
-    let trs = table.querySelectorAll("table > tr, tbody > tr");
-    let startRow =
-      tableHeadingElem && tableHeadingElem.localName == "tr" ? 1 : 0;
-
-    if (startRow >= trs.length)
-      // The table's empty.
-      return;
-
-    if (hasColHeadings && !this._ignoreElement(tableHeadingElem)) {
-      // Use column headings.  Print each tr as a multi-line chunk like:
-      //   Heading 1: Column 1 value
-      //   Heading 2: Column 2 value
-      for (let i = startRow; i < trs.length; i++) {
-        if (this._ignoreElement(trs[i]))
-          continue;
-        let children = trs[i].querySelectorAll("td");
-        for (let j = 0; j < children.length; j++) {
-          let text = "";
-          if (colHeadings[j])
-            text += colHeadings[j] + ": ";
-          text += this._nodeText(children[j]).trim();
-          this._appendText(text);
-          this._startNewLine();
-        }
-        this._startNewLine();
-      }
-      return;
-    }
-
-    // Don't use column headings.  Assume the table has only two columns and
-    // print each tr in a single line like:
-    //   Column 1 value: Column 2 value
-    for (let i = startRow; i < trs.length; i++) {
-      if (this._ignoreElement(trs[i]))
-        continue;
-      let children = trs[i].querySelectorAll("th,td");
-      let rowHeading = this._nodeText(children[0]).trim();
-      this._appendText(rowHeading + ": " + this._nodeText(children[1]).trim());
-      this._startNewLine();
-    }
-    this._startNewLine();
-  },
-
-  _ignoreElement: function (elem) {
-    return elem.classList.contains("no-copy");
-  },
-
-  _nodeText: function (node) {
-    return node.textContent.replace(/\s+/g, " ");
-  },
-};
+  // Trim the text node's text content and add proper indentation after
+  // any internal line breaks.
+  let text = node.textContent.trim().replace("\n", "\n" + indent, "g");
+  textFragmentAccumulator.push(text);
+}
 
 function openProfileDirectory() {
   // Get the profile directory.
@@ -579,16 +379,35 @@ function openProfileDirectory() {
   new nsLocalFile(profileDir).reveal();
 }
 
-function showUpdateHistory() {
-  var prompter = Cc["@mozilla.org/updates/update-prompt;1"]
-                   .createInstance(Ci.nsIUpdatePrompt);
-  prompter.showUpdateHistory(window);
-}
-
 /**
  * Profile reset is only supported for the default profile if the appropriate migrator exists.
  */
 function populateResetBox() {
-  if (ResetProfile.resetSupported())
+  if (resetSupported())
     $("reset-box").style.visibility = "visible";
+}
+
+/**
+ * Restart the application to reset the profile.
+ */
+function resetProfileAndRestart() {
+  let branding = Services.strings.createBundle("chrome://branding/locale/brand.properties");
+  let brandShortName = branding.GetStringFromName("brandShortName");
+
+  // Prompt the user to confirm.
+  let retVals = {
+    reset: false,
+  };
+  window.openDialog("chrome://global/content/resetProfile.xul", null,
+                    "chrome,modal,centerscreen,titlebar,dialog=yes", retVals);
+  if (!retVals.reset)
+    return;
+
+  // Set the reset profile environment variable.
+  let env = Cc["@mozilla.org/process/environment;1"]
+              .getService(Ci.nsIEnvironment);
+  env.set("MOZ_RESET_PROFILE_RESTART", "1");
+
+  let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"].getService(Ci.nsIAppStartup);
+  appStartup.quit(Ci.nsIAppStartup.eForceQuit | Ci.nsIAppStartup.eRestart);
 }

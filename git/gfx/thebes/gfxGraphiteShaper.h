@@ -6,7 +6,10 @@
 #ifndef GFX_GRAPHITESHAPER_H
 #define GFX_GRAPHITESHAPER_H
 
+#include "gfxTypes.h"
 #include "gfxFont.h"
+#include "nsDataHashtable.h"
+#include "nsHashKeys.h"
 
 struct gr_face;
 struct gr_font;
@@ -24,7 +27,21 @@ public:
                            int32_t          aScript,
                            gfxShapedText   *aShapedText);
 
+    const void* GetTable(uint32_t aTag, size_t *aLength);
+
     static void Shutdown();
+
+    struct CallbackData {
+        gfxFont           *mFont;
+        gfxGraphiteShaper *mShaper;
+        gfxContext        *mContext;
+    };
+
+    struct TableRec {
+        hb_blob_t  *mBlob;
+        const void *mData;
+        uint32_t    mLength;
+    };
 
 protected:
     nsresult SetGlyphsFromSegment(gfxContext      *aContext,
@@ -34,23 +51,16 @@ protected:
                                   const PRUnichar *aText,
                                   gr_segment      *aSegment);
 
-    static float GrGetAdvance(const void* appFontHandle, uint16_t glyphid);
-
-    gr_face *mGrFace; // owned by the font entry; shaper must call
-                      // gfxFontEntry::ReleaseGrFace when finished with it
-    gr_font *mGrFont; // owned by the shaper itself
-
-    struct CallbackData {
-        gfxFont           *mFont;
-        gfxGraphiteShaper *mShaper;
-        gfxContext        *mContext;
-    };
+    gr_face *mGrFace;
+    gr_font *mGrFont;
 
     CallbackData mCallbackData;
 
+    nsDataHashtable<nsUint32HashKey,TableRec> mTables;
+
     // Convert HTML 'lang' (BCP47) to Graphite language code
     static uint32_t GetGraphiteTagForLang(const nsCString& aLang);
-    static nsTHashtable<nsUint32HashKey> *sLanguageTags;
+    static nsTHashtable<nsUint32HashKey> sLanguageTags;
 };
 
 #endif /* GFX_GRAPHITESHAPER_H */

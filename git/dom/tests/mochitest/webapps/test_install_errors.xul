@@ -24,6 +24,7 @@ var steps = [
   invalidManifest,
   permissionDenied,
   invalidContent,
+  installPackageNotImplemented,
   invalidLaunchPath,
   invalidLaunchPath2,
   invalidEntryPoint,
@@ -166,29 +167,28 @@ function invalidMessage(next) {
   };
 }
 
+function installPackageNotImplemented(next) {
+  ok(!("installPackage" in navigator.mozApps),
+     "installPackage not in navigator.mozApps");
+  next();
+}
+
 function fileURL(next) {
   try {
-    var req = navigator.mozApps.install("file:///nonexistent");
-    req.onsuccess = function() {
-      ok(false, "Unexpected success installing non existent file");
-    };
-    req.onerror = function() {
-      is(this.error.name, "INVALID_URL", "Expected INVALID_URL");
-    };
+    navigator.mozApps.install("file:///nonexistent");
+    ok(false,
+       "attempt to install nonexistent file: URL doesn't throw exception");
   } catch(ex) {
-    ok(false, "Unexpected exception " + ex.message);
+    is(ex.message, "INVALID_URL_SCHEME: 'file'; must be 'http' or 'https'",
+       "attempt to install nonexistent file: URL throws exception");
   }
 
   try {
-    req = navigator.mozApps.install("file:///");
-    req.onsuccess = function() {
-      ok(false, "Unexpected success installing file: URL");
-    };
-    req.onerror = function() {
-      is(this.error.name, "INVALID_URL", "Expected INVALID_URL");
-    };
+    navigator.mozApps.install("file:///");
+    ok(false, "attempt to install existent file: URL doesn't throw exception");
   } catch(ex) {
-    ok(false, "Unexpected exception " + ex.message);
+    is(ex.message, "INVALID_URL_SCHEME: 'file'; must be 'http' or 'https'",
+       "attempt to install existent file: URL throws exception");
   }
 
   next();

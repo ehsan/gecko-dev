@@ -132,19 +132,17 @@ static inline unsigned int
 decompose (const hb_ot_shape_normalize_context_t *c, bool shortest, hb_codepoint_t ab)
 {
   hb_codepoint_t a, b, a_glyph, b_glyph;
-  hb_buffer_t * const buffer = c->buffer;
-  hb_font_t * const font = c->font;
 
   if (!c->decompose (c, ab, &a, &b) ||
-      (b && !font->get_glyph (b, 0, &b_glyph)))
+      (b && !c->font->get_glyph (b, 0, &b_glyph)))
     return 0;
 
-  bool has_a = font->get_glyph (a, 0, &a_glyph);
+  bool has_a = c->font->get_glyph (a, 0, &a_glyph);
   if (shortest && has_a) {
     /* Output a and b */
-    output_char (buffer, a, a_glyph);
+    output_char (c->buffer, a, a_glyph);
     if (likely (b)) {
-      output_char (buffer, b, b_glyph);
+      output_char (c->buffer, b, b_glyph);
       return 2;
     }
     return 1;
@@ -153,16 +151,16 @@ decompose (const hb_ot_shape_normalize_context_t *c, bool shortest, hb_codepoint
   unsigned int ret;
   if ((ret = decompose (c, shortest, a))) {
     if (b) {
-      output_char (buffer, b, b_glyph);
+      output_char (c->buffer, b, b_glyph);
       return ret + 1;
     }
     return ret;
   }
 
   if (has_a) {
-    output_char (buffer, a, a_glyph);
+    output_char (c->buffer, a, a_glyph);
     if (likely (b)) {
-      output_char (buffer, b, b_glyph);
+      output_char (c->buffer, b, b_glyph);
       return 2;
     }
     return 1;
@@ -172,7 +170,7 @@ decompose (const hb_ot_shape_normalize_context_t *c, bool shortest, hb_codepoint
 }
 
 /* Returns 0 if didn't decompose, number of resulting characters otherwise. */
-static inline unsigned int
+static inline bool
 decompose_compatibility (const hb_ot_shape_normalize_context_t *c, hb_codepoint_t u)
 {
   unsigned int len, i;
@@ -193,6 +191,7 @@ decompose_compatibility (const hb_ot_shape_normalize_context_t *c, hb_codepoint_
   return len;
 }
 
+/* Returns true if recomposition may be benefitial. */
 static inline void
 decompose_current_character (const hb_ot_shape_normalize_context_t *c, bool shortest)
 {
@@ -216,39 +215,23 @@ static inline void
 handle_variation_selector_cluster (const hb_ot_shape_normalize_context_t *c, unsigned int end)
 {
   hb_buffer_t * const buffer = c->buffer;
-  hb_font_t * const font = c->font;
   for (; buffer->idx < end - 1;) {
     if (unlikely (buffer->unicode->is_variation_selector (buffer->cur(+1).codepoint))) {
       /* The next two lines are some ugly lines... But work. */
-      if (font->get_glyph (buffer->cur().codepoint, buffer->cur(+1).codepoint, &buffer->cur().glyph_index()))
-      {
-	buffer->replace_glyphs (2, 1, &buffer->cur().codepoint);
-      }
-      else
-      {
-        /* Just pass on the two characters separately, let GSUB do its magic. */
-	set_glyph (buffer->cur(), font);
-	buffer->next_glyph ();
-	set_glyph (buffer->cur(), font);
-	buffer->next_glyph ();
-      }
-      /* Skip any further variation selectors. */
-      while (buffer->idx < end && unlikely (buffer->unicode->is_variation_selector (buffer->cur().codepoint)))
-      {
-	set_glyph (buffer->cur(), font);
-	buffer->next_glyph ();
-      }
+      c->font->get_glyph (buffer->cur().codepoint, buffer->cur(+1).codepoint, &buffer->cur().glyph_index());
+      buffer->replace_glyphs (2, 1, &buffer->cur().codepoint);
     } else {
-      set_glyph (buffer->cur(), font);
+      set_glyph (buffer->cur(), c->font);
       buffer->next_glyph ();
     }
   }
   if (likely (buffer->idx < end)) {
-    set_glyph (buffer->cur(), font);
+    set_glyph (buffer->cur(), c->font);
     buffer->next_glyph ();
   }
 }
 
+/* Returns true if recomposition may be benefitial. */
 static inline void
 decompose_multi_char_cluster (const hb_ot_shape_normalize_context_t *c, unsigned int end)
 {
@@ -370,11 +353,12 @@ _hb_ot_shape_normalize (const hb_ot_shape_plan_t *plan,
   while (buffer->idx < count)
   {
     hb_codepoint_t composed, glyph;
-    if (/* We don't try to compose a non-mark character with it's preceding starter.
-	 * This is both an optimization to avoid trying to compose every two neighboring
-	 * glyphs in most scripts AND a desired feature for Hangul.  Apparently Hangul
-	 * fonts are not designed to mix-and-match pre-composed syllables and Jamo. */
-	HB_UNICODE_GENERAL_CATEGORY_IS_MARK (_hb_glyph_info_get_general_category (&buffer->cur())) &&
+    if (/* If mode is NOT COMPOSED_FULL (ie. it's COMPOSED_DIACRITICS), we don't try to
+	 * compose a non-mark character with it's preceding starter.  This is just an
+	 * optimization to avoid trying to compose every two neighboring glyphs in most
+	 * scripts. */
+	(mode == HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_FULL ||
+	 HB_UNICODE_GENERAL_CATEGORY_IS_MARK (_hb_glyph_info_get_general_category (&buffer->cur()))) &&
 	/* If there's anything between the starter and this char, they should have CCC
 	 * smaller than this character's. */
 	(starter == buffer->out_len - 1 ||

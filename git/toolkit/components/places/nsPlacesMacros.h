@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "prtypes.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 
@@ -15,8 +16,7 @@
 #define NOTIFY_OBSERVERS(canFire, cache, array, type, method)                  \
   PR_BEGIN_MACRO                                                               \
   if (canFire) {                                                               \
-    nsCOMArray<type> entries;                                                  \
-    cache.GetEntries(entries);                                                 \
+    const nsCOMArray<type> &entries = cache.GetEntries();                      \
     for (int32_t idx = 0; idx < entries.Count(); ++idx)                        \
         entries[idx]->method;                                                  \
     ENUMERATE_WEAKARRAY(array, type, method)                                   \
@@ -26,22 +26,22 @@
 #define PLACES_FACTORY_SINGLETON_IMPLEMENTATION(_className, _sInstance)        \
   _className * _className::_sInstance = nullptr;                                \
                                                                                \
-  already_AddRefed<_className>                                                 \
+  _className *                                                                 \
   _className::GetSingleton()                                                   \
   {                                                                            \
     if (_sInstance) {                                                          \
-      nsRefPtr<_className> ret = _sInstance;                                   \
-      return ret.forget();                                                     \
+      NS_ADDREF(_sInstance);                                                   \
+      return _sInstance;                                                       \
     }                                                                          \
     _sInstance = new _className();                                             \
-    nsRefPtr<_className> ret = _sInstance;                                     \
-    if (NS_FAILED(_sInstance->Init())) {                                       \
-      /* Null out ret before _sInstance so the destructor doesn't assert */    \
-      ret = nullptr;                                                           \
-      _sInstance = nullptr;                                                    \
-      return nullptr;                                                          \
+    if (_sInstance) {                                                          \
+      NS_ADDREF(_sInstance);                                                   \
+      if (NS_FAILED(_sInstance->Init())) {                                     \
+        NS_RELEASE(_sInstance);                                                \
+        _sInstance = nullptr;                                                   \
+      }                                                                        \
     }                                                                          \
-    return ret.forget();                                                       \
+    return _sInstance;                                                         \
   }
 
 #define PLACES_WARN_DEPRECATED()                                               \

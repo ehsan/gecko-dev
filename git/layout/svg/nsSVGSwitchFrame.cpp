@@ -51,9 +51,7 @@ public:
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsRenderingContext* aContext,
-                      const nsIntRect *aDirtyRect,
-                      nsIFrame* aTransformRoot) MOZ_OVERRIDE;
+  NS_IMETHOD PaintSVG(nsRenderingContext* aContext, const nsIntRect *aDirtyRect);
   NS_IMETHODIMP_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHODIMP_(nsRect) GetCoveredRegion();
   virtual void ReflowSVG();
@@ -107,11 +105,10 @@ nsSVGSwitchFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 NS_IMETHODIMP
 nsSVGSwitchFrame::PaintSVG(nsRenderingContext* aContext,
-                           const nsIntRect *aDirtyRect,
-                           nsIFrame* aTransformRoot)
+                           const nsIntRect *aDirtyRect)
 {
   NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
-               (mState & NS_FRAME_IS_NONDISPLAY),
+               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
                "If display lists are enabled, only painting of non-display "
                "SVG should take this code path");
 
@@ -120,7 +117,7 @@ nsSVGSwitchFrame::PaintSVG(nsRenderingContext* aContext,
 
   nsIFrame *kid = GetActiveChildFrame();
   if (kid) {
-    nsSVGUtils::PaintFrameWithEffects(aContext, aDirtyRect, kid, aTransformRoot);
+    nsSVGUtils::PaintFrameWithEffects(aContext, aDirtyRect, kid);
   }
   return NS_OK;
 }
@@ -130,7 +127,7 @@ NS_IMETHODIMP_(nsIFrame*)
 nsSVGSwitchFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   NS_ASSERTION(!NS_SVGDisplayListHitTestingEnabled() ||
-               (mState & NS_FRAME_IS_NONDISPLAY),
+               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
                "If display lists are enabled, only hit-testing of non-display "
                "SVG should take this code path");
 
@@ -166,7 +163,7 @@ nsSVGSwitchFrame::ReflowSVG()
   NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
                "This call is probably a wasteful mistake");
 
-  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_FRAME_IS_NONDISPLAY),
+  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
                     "ReflowSVG mechanism not designed for this");
 
   if (!nsSVGUtils::NeedsReflowSVG(this)) {
@@ -179,8 +176,6 @@ nsSVGSwitchFrame::ReflowSVG()
   // recursing over our children to ensure that they know too. Otherwise, we
   // need to remove it _after_ recursing over our children so that they know
   // the initial reflow is currently underway.
-
-  bool isFirstReflow = (mState & NS_FRAME_FIRST_REFLOW);
 
   bool outerSVGHasHadFirstReflow =
     (GetParent()->GetStateBits() & NS_FRAME_FIRST_REFLOW) == 0;
@@ -195,7 +190,7 @@ nsSVGSwitchFrame::ReflowSVG()
   if (child) {
     nsISVGChildFrame* svgChild = do_QueryFrame(child);
     if (svgChild) {
-      NS_ABORT_IF_FALSE(!(child->GetStateBits() & NS_FRAME_IS_NONDISPLAY),
+      NS_ABORT_IF_FALSE(!(child->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
                         "Check for this explicitly in the |if|, then");
       svgChild->ReflowSVG();
 
@@ -206,7 +201,7 @@ nsSVGSwitchFrame::ReflowSVG()
     }
   }
 
-  if (isFirstReflow) {
+  if (mState & NS_FRAME_FIRST_REFLOW) {
     // Make sure we have our filter property (if any) before calling
     // FinishAndStoreOverflow (subsequent filter changes are handled off
     // nsChangeHint_UpdateEffects):

@@ -4,17 +4,13 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-// Test that makes sure messages are not considered repeated when coming from
+// Tests that makes sure messages are not considered repeated when coming from
 // different lines of code, or from different severities, etc.
 // See bugs 720180 and 800510.
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-repeated-messages.html";
 
 function test() {
-  const PREF = "devtools.webconsole.persistlog";
-  Services.prefs.setBoolPref(PREF, true);
-  registerCleanupFunction(() => Services.prefs.clearUserPref(PREF));
-
   addTab(TEST_URI);
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
@@ -101,11 +97,13 @@ function testConsoleRepeats(hud) {
         name: "'undefined' jsterm input message",
         text: "undefined",
         category: CATEGORY_INPUT,
+        repeats: 1,
       },
       {
         name: "'undefined' jsterm output message",
         text: "undefined",
         category: CATEGORY_OUTPUT,
+        repeats: 1,
       },
       {
         name: "'undefined' console.log message",

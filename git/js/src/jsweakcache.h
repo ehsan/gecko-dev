@@ -4,13 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsweakcache_h
-#define jsweakcache_h
+#ifndef jsweakcache_h___
+#define jsweakcache_h___
 
+#include "jsapi.h"
 #include "jscntxt.h"
+#include "jsobj.h"
 #include "gc/Marking.h"
-#include "js/HashTable.h"
-#include "vm/Runtime.h"
 
 namespace js {
 
@@ -31,7 +31,7 @@ class WeakCache : public HashMap<Key, Value, HashPolicy, AllocPolicy> {
 
   public:
     explicit WeakCache(JSRuntime *rt) : Base(rt) { }
-    explicit WeakCache(JSContext *cx) : Base(cx->runtime()) { }
+    explicit WeakCache(JSContext *cx) : Base(cx) { }
 
   public:
     // Sweep all entries which have unmarked key or value.
@@ -82,7 +82,7 @@ class WeakValueCache : public HashMap<Key, Value, HashPolicy, AllocPolicy>
     typedef typename Base::Enum Enum;
 
     explicit WeakValueCache(JSRuntime *rt) : Base(rt) { }
-    explicit WeakValueCache(JSContext *cx) : Base(cx->runtime()) { }
+    explicit WeakValueCache(JSContext *cx) : Base(cx) { }
 
   public:
     // Sweep all entries which have unmarked key or value.
@@ -104,4 +104,4 @@ class WeakValueCache : public HashMap<Key, Value, HashPolicy, AllocPolicy>
 
 } // namespace js
 
-#endif /* jsweakcache_h */
+#endif // jsweakcache_h___

@@ -7,64 +7,42 @@
 
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
+#include "nsIDOMPowerManager.h"
 #include "nsIDOMWakeLockListener.h"
 #include "nsIDOMWindow.h"
 #include "nsWeakReference.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsWrapperCache.h"
 
 class nsPIDOMWindow;
 
 namespace mozilla {
-class ErrorResult;
-
 namespace dom {
+namespace power {
 
-class PowerManager MOZ_FINAL : public nsIDOMMozWakeLockListener
-                             , public nsWrapperCache
+class PowerManager
+  : public nsIDOMMozPowerManager
+  , public nsIDOMMozWakeLockListener
 {
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(PowerManager)
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMMOZPOWERMANAGER
   NS_DECL_NSIDOMMOZWAKELOCKLISTENER
 
-  PowerManager()
-  {
-    SetIsDOMBinding();
-  }
+  PowerManager() {};
+  virtual ~PowerManager() {};
 
   nsresult Init(nsIDOMWindow *aWindow);
   nsresult Shutdown();
 
-  static bool CheckPermission(nsPIDOMWindow*);
-
-  static already_AddRefed<PowerManager> CreateInstance(nsPIDOMWindow*);
-
-  // WebIDL
-  nsIDOMWindow* GetParentObject() const
-  {
-    return mWindow;
-  }
-  virtual JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-  void Reboot(ErrorResult& aRv);
-  void FactoryReset();
-  void PowerOff(ErrorResult& aRv);
-  void AddWakeLockListener(nsIDOMMozWakeLockListener* aListener);
-  void RemoveWakeLockListener(nsIDOMMozWakeLockListener* aListener);
-  void GetWakeLockState(const nsAString& aTopic, nsAString& aState,
-                        ErrorResult& aRv);
-  bool ScreenEnabled();
-  void SetScreenEnabled(bool aEnabled);
-  double ScreenBrightness();
-  void SetScreenBrightness(double aBrightness, ErrorResult& aRv);
-  bool CpuSleepAllowed();
-  void SetCpuSleepAllowed(bool aAllowed);
+  static already_AddRefed<PowerManager>
+  CheckPermissionAndCreateInstance(nsPIDOMWindow*);
 
 private:
-  nsCOMPtr<nsIDOMWindow> mWindow;
+
+  nsWeakPtr mWindow;
   nsTArray<nsCOMPtr<nsIDOMMozWakeLockListener> > mListeners;
 };
 
+} // namespace power
 } // namespace dom
 } // namespace mozilla
 

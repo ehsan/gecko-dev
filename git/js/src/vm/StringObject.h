@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_StringObject_h
-#define vm_StringObject_h
+#ifndef StringObject_h___
+#define StringObject_h___
 
 #include "jsobj.h"
 #include "jsstr.h"
@@ -20,14 +20,11 @@ class StringObject : public JSObject
   public:
     static const unsigned RESERVED_SLOTS = 2;
 
-    static const Class class_;
-
     /*
      * Creates a new String object boxing the given string.  The object's
      * [[Prototype]] is determined from context.
      */
-    static inline StringObject *create(JSContext *cx, HandleString str,
-                                       NewObjectKind newKind = GenericObject);
+    static inline StringObject *create(JSContext *cx, HandleString str);
 
     JSString *unbox() const {
         return getFixedSlot(PRIMITIVE_VALUE_SLOT).toString();
@@ -62,9 +59,9 @@ class StringObject : public JSObject
      * encodes the initial length property. Return the shape after changing
      * this String object's last property to it.
      */
-    Shape *assignInitialShape(JSContext *cx);
+    RawShape assignInitialShape(JSContext *cx);
 };
 
 } // namespace js
 
-#endif /* vm_StringObject_h */
+#endif /* StringObject_h__ */

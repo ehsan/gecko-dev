@@ -8,7 +8,6 @@
 #define mozilla_dom_audio_channel_agent_h__
 
 #include "nsIAudioChannelAgent.h"
-#include "nsCycleCollectionParticipant.h"
 #include "nsCOMPtr.h"
 #include "nsWeakPtr.h"
 
@@ -24,10 +23,8 @@ namespace dom {
 class AudioChannelAgent : public nsIAudioChannelAgent
 {
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIAUDIOCHANNELAGENT
-
-  NS_DECL_CYCLE_COLLECTION_CLASS(AudioChannelAgent)
 
   AudioChannelAgent();
   virtual void NotifyAudioChannelStateChanged();
@@ -41,14 +38,13 @@ private:
 
   nsresult InitInternal(int32_t aAudioAgentType,
                         nsIAudioChannelAgentCallback* aCallback,
-                        bool aUseWeakRef, bool aWithVideo=false);
+                        bool aUseWeakRef);
 
   nsCOMPtr<nsIAudioChannelAgentCallback> mCallback;
   nsWeakPtr mWeakCallback;
   int32_t mAudioChannelType;
   bool mIsRegToService;
   bool mVisible;
-  bool mWithVideo;
 };
 
 } // namespace dom

@@ -2,7 +2,42 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH     = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir	  = @srcdir@
+VPATH	  = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME	= mozgnome
 FORCE_SHARED_LIB = 1
+IS_COMPONENT	= 1
+FAIL_ON_WARNINGS = 1
+
+
+CPPSRCS = \
+  nsGnomeModule.cpp \
+  $(NULL)
+
+ifdef MOZ_ENABLE_GCONF
+CPPSRCS += \
+  nsGConfService.cpp \
+  $(NULL)
+endif
+
+ifdef MOZ_ENABLE_GNOMEVFS
+CPPSRCS += \
+	nsGnomeVFSService.cpp \
+	$(NULL)
+endif
+
+ifdef MOZ_ENABLE_GIO
+CPPSRCS += \
+	nsGIOService.cpp \
+	nsGSettingsService.cpp \
+	$(NULL)
+endif
+
 EXTRA_DSO_LDOPTS += \
 		$(XPCOM_GLUE_LDOPTS) \
 		$(XPCOM_FROZEN_LDOPTS) \
@@ -11,7 +46,6 @@ EXTRA_DSO_LDOPTS += \
 		$(MOZ_GNOMEVFS_LIBS) \
 		$(GLIB_LIBS) \
 		$(MOZ_GIO_LIBS) \
-		$(MOZ_DBUS_GLIB_LIBS) \
 		$(NULL)
 
 LOCAL_INCLUDES += -I$(topsrcdir)/toolkit/components/build/
@@ -23,11 +57,5 @@ CXXFLAGS += \
 	$(MOZ_GNOMEVFS_CFLAGS) \
 	$(MOZ_GIO_CFLAGS) \
 	$(GLIB_CFLAGS) \
-	$(MOZ_DBUS_GLIB_CFLAGS) \
+	$(MOZ_GTK2_CFLAGS) \
 	$(NULL)
-
-ifdef MOZ_ENABLE_GTK
-CXXFLAGS += \
-	$(TK_CFLAGS) \
-	$(NULL)
-endif

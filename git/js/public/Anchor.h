@@ -6,12 +6,17 @@
 
 /* JS::Anchor implementation. */
 
-#ifndef js_Anchor_h
-#define js_Anchor_h
+#ifndef js_Anchor_h___
+#define js_Anchor_h___
 
 #include "mozilla/Attributes.h"
 
-#include "js/TypeDecls.h"
+class JSFunction;
+class JSObject;
+class JSScript;
+class JSString;
+
+namespace JS { class Value; }
 
 namespace JS {
 
@@ -154,4 +159,4 @@ inline Anchor<T>::~Anchor()
 
 } // namespace JS
 
-#endif /* js_Anchor_h */
+#endif /* js_Anchor_h___ */

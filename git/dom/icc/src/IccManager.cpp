@@ -2,19 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/IccManager.h"
-
-#include "GeneratedEvents.h"
-#include "mozilla/dom/MozStkCommandEvent.h"
 #include "mozilla/Services.h"
 #include "nsIDOMClassInfo.h"
-#include "nsIDOMIccInfo.h"
-#include "nsJSON.h"
+#include "IccManager.h"
 #include "SimToolKit.h"
+#include "StkCommandEvent.h"
 
 #define NS_RILCONTENTHELPER_CONTRACTID "@mozilla.org/ril/content-helper;1"
 
-using namespace mozilla::dom;
+using namespace mozilla::dom::icc;
 
 class IccManager::Listener : public nsIIccListener
 {
@@ -40,7 +36,7 @@ public:
 
 NS_IMPL_ISUPPORTS1(IccManager::Listener, nsIIccListener)
 
-DOMCI_DATA(MozIccManager, IccManager)
+DOMCI_DATA(MozIccManager, mozilla::dom::icc::IccManager)
 
 NS_INTERFACE_MAP_BEGIN(IccManager)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozIccManager)
@@ -61,15 +57,8 @@ IccManager::IccManager()
     return;
   }
 
-  // TODO: Bug 814637 - WebIccManager API: support multiple sim cards
-  // In Multi-sim, there is more than one client in iccProvider. Each client
-  // represents a icc service. To maintain the backward compatibility with
-  // single sim, we always use client 0 for now. Adding support for multiple sim
-  // will be addressed in bug 814637.
-  mClientId = 0;
-
   mListener = new Listener(this);
-  DebugOnly<nsresult> rv = mProvider->RegisterIccMsg(mClientId, mListener);
+  DebugOnly<nsresult> rv = mProvider->RegisterIccMsg(mListener);
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
                    "Failed registering icc messages with provider");
 }
@@ -85,7 +74,7 @@ IccManager::Shutdown()
 {
   if (mProvider && mListener) {
     mListener->Disconnect();
-    mProvider->UnregisterIccMsg(mClientId, mListener);
+    mProvider->UnregisterIccMsg(mListener);
     mProvider = nullptr;
     mListener = nullptr;
   }
@@ -101,7 +90,7 @@ IccManager::SendStkResponse(const JS::Value& aCommand,
     return NS_ERROR_FAILURE;
   }
 
-  mProvider->SendStkResponse(mClientId, GetOwner(), aCommand, aResponse);
+  mProvider->SendStkResponse(GetOwner(), aCommand, aResponse);
   return NS_OK;
 }
 
@@ -112,7 +101,7 @@ IccManager::SendStkMenuSelection(uint16_t aItemIdentifier, bool aHelpRequested)
     return NS_ERROR_FAILURE;
   }
 
-  mProvider->SendStkMenuSelection(mClientId, GetOwner(), aItemIdentifier, aHelpRequested);
+  mProvider->SendStkMenuSelection(GetOwner(), aItemIdentifier, aHelpRequested);
   return NS_OK;
 }
 
@@ -123,7 +112,7 @@ IccManager::SendStkTimerExpiration(const JS::Value& aTimer)
     return NS_ERROR_FAILURE;
   }
 
-  mProvider->SendStkTimerExpiration(mClientId, GetOwner(), aTimer);
+  mProvider->SendStkTimerExpiration(GetOwner(), aTimer);
   return NS_OK;
 }
 
@@ -134,72 +123,8 @@ IccManager::SendStkEventDownload(const JS::Value& aEvent)
     return NS_ERROR_FAILURE;
   }
 
-  mProvider->SendStkEventDownload(mClientId, GetOwner(), aEvent);
+  mProvider->SendStkEventDownload(GetOwner(), aEvent);
   return NS_OK;
-}
-
-NS_IMETHODIMP
-IccManager::GetIccInfo(nsIDOMMozIccInfo** aIccInfo)
-{
-  *aIccInfo = nullptr;
-
-  if (!mProvider) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return mProvider->GetIccInfo(mClientId, aIccInfo);
-}
-
-NS_IMETHODIMP
-IccManager::GetCardState(nsAString& cardState)
-{
-  cardState.SetIsVoid(true);
-
-  if (!mProvider) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return mProvider->GetCardState(mClientId, cardState);
-}
-
-NS_IMETHODIMP
-IccManager::GetCardLock(const nsAString& aLockType, nsIDOMDOMRequest** aDomRequest)
-{
-  if (!mProvider) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return mProvider->GetCardLockState(mClientId, GetOwner(), aLockType, aDomRequest);
-}
-
-NS_IMETHODIMP
-IccManager::SetCardLock(const JS::Value& aInfo, nsIDOMDOMRequest** aDomRequest)
-{
-  if (!mProvider) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return mProvider->SetCardLock(mClientId, GetOwner(), aInfo, aDomRequest);
-}
-
-NS_IMETHODIMP
-IccManager::UnlockCardLock(const JS::Value& aInfo, nsIDOMDOMRequest** aDomRequest)
-{
-  if (!mProvider) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return mProvider->UnlockCardLock(mClientId, GetOwner(), aInfo, aDomRequest);
-}
-
-NS_IMETHODIMP
-IccManager::GetCardLockRetryCount(const nsAString& aLockType, nsIDOMDOMRequest** aDomRequest)
-{
-  if (!mProvider) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return mProvider->GetCardLockRetryCount(mClientId, GetOwner(), aLockType, aDomRequest);
 }
 
 NS_IMETHODIMP
@@ -209,7 +134,7 @@ IccManager::IccOpenChannel(const nsAString& aAid, nsIDOMDOMRequest** aRequest)
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->IccOpenChannel(mClientId, GetOwner(), aAid, aRequest);
+  return mProvider->IccOpenChannel(GetOwner(), aAid, aRequest);
 }
 
 NS_IMETHODIMP
@@ -219,7 +144,7 @@ IccManager::IccExchangeAPDU(int32_t aChannel, const jsval& aApdu, nsIDOMDOMReque
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->IccExchangeAPDU(mClientId, GetOwner(), aChannel, aApdu, aRequest);
+  return mProvider->IccExchangeAPDU(GetOwner(), aChannel, aApdu, aRequest);
 }
 
 NS_IMETHODIMP
@@ -229,22 +154,12 @@ IccManager::IccCloseChannel(int32_t aChannel, nsIDOMDOMRequest** aRequest)
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->IccCloseChannel(mClientId, GetOwner(), aChannel, aRequest);
-}
-
-NS_IMETHODIMP
-IccManager::ReadContacts(const nsAString& aContactType, nsIDOMDOMRequest** aRequest)
-{
-  if (!mProvider) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return mProvider->ReadContacts(mClientId, GetOwner(), aContactType, aRequest);
+  return mProvider->IccCloseChannel(GetOwner(), aChannel, aRequest);
 }
 
 NS_IMETHODIMP
 IccManager::UpdateContact(const nsAString& aContactType,
-                          const JS::Value& aContact,
+                          nsIDOMContact* aContact,
                           const nsAString& aPin2,
                           nsIDOMDOMRequest** aRequest)
 {
@@ -252,59 +167,25 @@ IccManager::UpdateContact(const nsAString& aContactType,
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->UpdateContact(mClientId, GetOwner(), aContactType, aContact, aPin2, aRequest);
+  return mProvider->UpdateContact(GetOwner(), aContactType, aContact, aPin2, aRequest);
 }
 
 NS_IMPL_EVENT_HANDLER(IccManager, stkcommand)
 NS_IMPL_EVENT_HANDLER(IccManager, stksessionend)
-NS_IMPL_EVENT_HANDLER(IccManager, cardstatechange)
-NS_IMPL_EVENT_HANDLER(IccManager, iccinfochange)
 
 // nsIIccListener
 
 NS_IMETHODIMP
 IccManager::NotifyStkCommand(const nsAString& aMessage)
 {
-  nsresult rv;
-  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsRefPtr<StkCommandEvent> event = StkCommandEvent::Create(this, aMessage);
+  NS_ASSERTION(event, "This should never fail!");
 
-  AutoPushJSContext cx(sc->GetNativeContext());
-  JS::Rooted<JS::Value> value(cx);
-
-  if (!aMessage.IsEmpty()) {
-    nsCOMPtr<nsIJSON> json(new nsJSON());
-    nsresult rv = json->DecodeToJSVal(aMessage, cx, value.address());
-    NS_ENSURE_SUCCESS(rv, rv);
-  } else {
-    value = JSVAL_VOID;
-  }
-
-  MozStkCommandEventInit init;
-  init.mBubbles = false;
-  init.mCancelable = false;
-  init.mCommand = value;
-
-  nsRefPtr<MozStkCommandEvent> event =
-    MozStkCommandEvent::Constructor(this, NS_LITERAL_STRING("stkcommand"), init);
-
-  return DispatchTrustedEvent(event);
+  return event->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("stkcommand"));
 }
 
 NS_IMETHODIMP
 IccManager::NotifyStkSessionEnd()
 {
   return DispatchTrustedEvent(NS_LITERAL_STRING("stksessionend"));
-}
-
-NS_IMETHODIMP
-IccManager::NotifyCardStateChanged()
-{
-  return DispatchTrustedEvent(NS_LITERAL_STRING("cardstatechange"));
-}
-
-NS_IMETHODIMP
-IccManager::NotifyIccInfoChanged()
-{
-  return DispatchTrustedEvent(NS_LITERAL_STRING("iccinfochange"));
 }

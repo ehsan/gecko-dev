@@ -8,9 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/voice_engine/test/auto_test/resource_manager.h"
+#include "resource_manager.h"
 
-#include "webrtc/test/testsupport/fileutils.h"
+#include "testsupport/fileutils.h"
 
 ResourceManager::ResourceManager() {
   std::string filename = "audio_long16.pcm";
@@ -26,3 +26,4 @@ ResourceManager::ResourceManager() {
   }
 #endif
 }
+

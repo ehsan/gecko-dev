@@ -1,9 +1,16 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-let promise = devtools.require("sdk/core/promise");
-let Toolbox = devtools.Toolbox;
-let TargetFactory = devtools.TargetFactory;
+let temp = {};
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", temp);
+let Promise = temp.Promise;
+temp = {};
+Cu.import("resource:///modules/devtools/Toolbox.jsm", temp);
+let Toolbox = temp.Toolbox;
+temp = {};
+Cu.import("resource:///modules/devtools/Target.jsm", temp);
+let TargetFactory = temp.TargetFactory;
+temp = null;
 
 function test() {
   waitForExplicitFinish();
@@ -16,7 +23,7 @@ function test() {
   // open tab, load URL_1, and wait for load to finish
   let tab = gBrowser.selectedTab = gBrowser.addTab();
   let target = TargetFactory.forTab(gBrowser.selectedTab);
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
   let browser = gBrowser.getBrowserForTab(tab);
   function onTabLoad() {
     browser.removeEventListener("load", onTabLoad, true);
@@ -35,7 +42,7 @@ function test() {
 
   // navigate to URL_2
     .then(function () {
-      let deferred = promise.defer();
+      let deferred = Promise.defer();
       target.once("navigate", function () deferred.resolve());
       browser.loadURI(URL_2);
       return deferred.promise;

@@ -19,7 +19,6 @@ final class InputMethods {
     public static final String METHOD_ATOK = "com.justsystems.atokmobile.service/.AtokInputMethodService";
     public static final String METHOD_GOOGLE_JAPANESE_INPUT = "com.google.android.inputmethod.japanese/.MozcService";
     public static final String METHOD_GOOGLE_LATINIME = "com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME";
-    public static final String METHOD_HTC_TOUCH_INPUT = "com.htc.android.htcime/.HTCIMEService";
     public static final String METHOD_IWNN = "jp.co.omronsoft.iwnnime.ml/.standardcommon.IWnnLanguageSwitcher";
     public static final String METHOD_OPENWNN_PLUS = "com.owplus.ime.openwnnplus/.OpenWnnJAJP";
     public static final String METHOD_SAMSUNG = "com.sec.android.inputmethod/.SamsungKeypad";
@@ -57,16 +56,7 @@ final class InputMethods {
                                                METHOD_GOOGLE_LATINIME.equals(inputMethod));
     }
 
-    public static boolean shouldCommitCharAsKey(String inputMethod) {
-        return METHOD_HTC_TOUCH_INPUT.equals(inputMethod);
-    }
-
-    public static boolean shouldDisableUrlBarUpdate(Context context) {
-        String inputMethod = getCurrentInputMethod(context);
-        return METHOD_HTC_TOUCH_INPUT.equals(inputMethod);
-    }
-
-    public static boolean shouldDelayUrlBarUpdate(Context context) {
+    public static boolean shouldDelayAwesomebarUpdate(Context context) {
         String inputMethod = getCurrentInputMethod(context);
         return METHOD_SAMSUNG.equals(inputMethod) ||
                METHOD_SWIFTKEY.equals(inputMethod);

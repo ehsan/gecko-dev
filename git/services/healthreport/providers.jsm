@@ -21,7 +21,6 @@ this.EXPORTED_SYMBOLS = [
   "AppInfoProvider",
   "CrashDirectoryService",
   "CrashesProvider",
-  "HealthReportProvider",
   "PlacesProvider",
   "SearchesProvider",
   "SessionsProvider",
@@ -34,7 +33,7 @@ Cu.import("resource://gre/modules/Metrics.jsm");
 
 #endif
 
-Cu.import("resource://gre/modules/Promise.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -155,24 +154,6 @@ AppVersionMeasurement2.prototype = Object.freeze({
   },
 });
 
-/**
- * Holds data on the application update functionality.
- */
-function AppUpdateMeasurement1() {
-  Metrics.Measurement.call(this);
-}
-
-AppUpdateMeasurement1.prototype = Object.freeze({
-  __proto__: Metrics.Measurement.prototype,
-
-  name: "update",
-  version: 1,
-
-  fields: {
-    enabled: {type: Metrics.Storage.FIELD_DAILY_LAST_NUMERIC},
-    autoDownload: {type: Metrics.Storage.FIELD_DAILY_LAST_NUMERIC},
-  },
-});
 
 this.AppInfoProvider = function AppInfoProvider() {
   Metrics.Provider.call(this);
@@ -187,7 +168,6 @@ AppInfoProvider.prototype = Object.freeze({
   measurementTypes: [
     AppInfoMeasurement,
     AppInfoMeasurement1,
-    AppUpdateMeasurement1,
     AppVersionMeasurement1,
     AppVersionMeasurement2,
   ],
@@ -390,19 +370,6 @@ AppInfoProvider.prototype = Object.freeze({
     }
 
     return m.setDailyLastNumeric("isDefaultBrowser", isDefault);
-  },
-
-  collectDailyData: function () {
-    return this.storage.enqueueTransaction(function getDaily() {
-      let m = this.getMeasurement(AppUpdateMeasurement1.prototype.name,
-                                  AppUpdateMeasurement1.prototype.version);
-
-      let enabled = this._prefs.get("app.update.enabled", false);
-      yield m.setDailyLastNumeric("enabled", enabled ? 1 : 0);
-
-      let auto = this._prefs.get("app.update.auto", false);
-      yield m.setDailyLastNumeric("autoDownload", auto ? 1 : 0);
-    }.bind(this));
   },
 });
 
@@ -643,7 +610,7 @@ SessionsProvider.prototype = Object.freeze({
     this._log.debug("The last recorded session was #" + lastRecordedSession);
 
     for (let [index, session] in Iterator(sessions)) {
-      if (index <= lastRecordedSession) {
+      if (index < lastRecordedSession) {
         this._log.warn("Already recorded session " + index + ". Did the last " +
                        "session crash or have an issue saving the prefs file?");
         continue;
@@ -715,29 +682,6 @@ AddonCountsMeasurement.prototype = Object.freeze({
   __proto__: Metrics.Measurement.prototype,
 
   name: "counts",
-  version: 2,
-
-  fields: {
-    theme: DAILY_LAST_NUMERIC_FIELD,
-    lwtheme: DAILY_LAST_NUMERIC_FIELD,
-    plugin: DAILY_LAST_NUMERIC_FIELD,
-    extension: DAILY_LAST_NUMERIC_FIELD,
-    service: DAILY_LAST_NUMERIC_FIELD,
-  },
-});
-
-
-/**
- * Legacy version of addons counts before services was added.
- */
-function AddonCountsMeasurement1() {
-  Metrics.Measurement.call(this);
-}
-
-AddonCountsMeasurement1.prototype = Object.freeze({
-  __proto__: Metrics.Measurement.prototype,
-
-  name: "counts",
   version: 1,
 
   fields: {
@@ -775,14 +719,12 @@ AddonsProvider.prototype = Object.freeze({
   FULL_DETAIL_TYPES: [
     "plugin",
     "extension",
-    "service",
   ],
 
   name: "org.mozilla.addons",
 
   measurementTypes: [
     ActiveAddonsMeasurement,
-    AddonCountsMeasurement1,
     AddonCountsMeasurement,
   ],
 
@@ -828,8 +770,7 @@ AddonsProvider.prototype = Object.freeze({
 
       let now = new Date();
       let active = this.getMeasurement("active", 1);
-      let counts = this.getMeasurement(AddonCountsMeasurement.prototype.name,
-                                       AddonCountsMeasurement.prototype.version);
+      let counts = this.getMeasurement("counts", 1);
 
       this.enqueueStorageOperation(function storageAddons() {
         for (let type in data.counts) {
@@ -871,6 +812,13 @@ AddonsProvider.prototype = Object.freeze({
       data.counts[type] = (data.counts[type] || 0) + 1;
 
       if (this.FULL_DETAIL_TYPES.indexOf(addon.type) == -1) {
+        continue;
+      }
+
+      let optOutPref = "extensions." + addon.id + ".getAddons.cache.enabled";
+      if (!this._prefs.get(optOutPref, true)) {
+        this._log.debug("Ignoring add-on that's opted out of AMO updates: " +
+                        addon.id);
         continue;
       }
 
@@ -952,12 +900,6 @@ CrashesProvider.prototype = Object.freeze({
 
     let m = this.getMeasurement("crashes", 1);
 
-    // Aggregate counts locally to avoid excessive storage interaction.
-    let counts = {
-      pending: new Metrics.DailyValues(),
-      submitted: new Metrics.DailyValues(),
-    };
-
     // FUTURE detect mtimes in the future and react more intelligently.
     for (let filename in pending) {
       let modified = pending[filename].modified;
@@ -966,7 +908,7 @@ CrashesProvider.prototype = Object.freeze({
         continue;
       }
 
-      counts.pending.appendValue(modified, 1);
+      yield m.incrementDailyCounter("pending", modified);
     }
 
     for (let filename in submitted) {
@@ -976,15 +918,7 @@ CrashesProvider.prototype = Object.freeze({
         continue;
       }
 
-      counts.submitted.appendValue(modified, 1);
-    }
-
-    for (let [date, values] in counts.pending) {
-      yield m.incrementDailyCounter("pending", date, values.length);
-    }
-
-    for (let [date, values] in counts.submitted) {
-      yield m.incrementDailyCounter("submitted", date, values.length);
+      yield m.incrementDailyCounter("submitted", modified);
     }
 
     yield this.setState("lastCheck", "" + now.getTime());
@@ -1062,10 +996,8 @@ CrashDirectoryService.prototype = Object.freeze({
           }
 
           let info = yield OS.File.stat(entry.path);
-
           files[entry.name] = {
-            // Last modified should be adequate, because crash files aren't
-            // modified after they're first written.
+            created: info.creationDate,
             modified: info.lastModificationDate,
             size: info.size,
           };
@@ -1186,18 +1118,69 @@ SearchCountMeasurement1.prototype = Object.freeze({
  * We don't use the search engine name directly, because it is shared across
  * locales; e.g., eBay-de and eBay both share the name "eBay".
  */
-function SearchCountMeasurementBase() {
-  this._fieldSpecs = {};
+function SearchCountMeasurement2() {
+  this._fieldSpecs = null;
+  this._interestingEngines = null;   // Name -> ID. ("Amazon.com" -> "amazondotcom")
+
   Metrics.Measurement.call(this);
 }
 
-SearchCountMeasurementBase.prototype = Object.freeze({
+SearchCountMeasurement2.prototype = Object.freeze({
   __proto__: Metrics.Measurement.prototype,
 
+  name: "counts",
+  version: 2,
 
-  // Our fields are dynamic.
+  /**
+   * Default implementation; can be overridden by test helpers.
+   */
+  getDefaultEngines: function () {
+    return Services.search.getDefaultEngines();
+  },
+
+  _initialize: function () {
+    // Don't create all of these for every profile.
+    // There are 61 partner engines, translating to 244 fields.
+    // Instead, compute only those that are possible -- those for whom the
+    // provider is one of the default search engines.
+    // This set can grow over time, and change as users run different localized
+    // Firefox instances.
+    this._fieldSpecs = {};
+    this._interestingEngines = {};
+
+    for (let source of this.SOURCES) {
+      this._fieldSpecs["other." + source] = DAILY_COUNTER_FIELD;
+    }
+
+    let engines = this.getDefaultEngines();
+    for (let engine of engines) {
+      let id = engine.identifier;
+      if (!id || (this.PROVIDERS.indexOf(id) == -1)) {
+        continue;
+      }
+
+      this._interestingEngines[engine.name] = id;
+      let fieldPrefix = id + ".";
+      for (let source of this.SOURCES) {
+        this._fieldSpecs[fieldPrefix + source] = DAILY_COUNTER_FIELD;
+      }
+    }
+  },
+
+  // Our fields are dynamic, so we compute them into _fieldSpecs by looking at
+  // the current set of interesting engines.
   get fields() {
+    if (!this._fieldSpecs) {
+      this._initialize();
+    }
     return this._fieldSpecs;
+  },
+
+  get interestingEngines() {
+    if (!this._fieldSpecs) {
+      this._initialize();
+    }
+    return this._interestingEngines;
   },
 
   /**
@@ -1229,46 +1212,107 @@ SearchCountMeasurementBase.prototype = Object.freeze({
     return Metrics.Storage.FIELD_DAILY_COUNTER;
   },
 
+  // You can compute the total list of fields by unifying the entire l10n repo
+  // set with the list of partners:
+  //
+  //   sort -u */*/searchplugins/list.txt | tr -d '^M' | uniq | grep -f partners.txt
+  //
+  // where partners.txt contains
+  //
+  //   amazon
+  //   aol
+  //   bing
+  //   eBay
+  //   google
+  //   mailru
+  //   mercadolibre
+  //   seznam
+  //   twitter
+  //   yahoo
+  //   yandex
+  //
+  // Please update this list as the set of partners changes.
+  //
+  PROVIDERS: [
+    "amazon-co-uk",
+    "amazon-de",
+    "amazon-en-GB",
+    "amazon-france",
+    "amazon-it",
+    "amazon-jp",
+    "amazondotcn",
+    "amazondotcom",
+    "amazondotcom-de",
+
+    "aol-en-GB",
+    "aol-web-search",
+
+    "bing",
+
+    "eBay",
+    "eBay-de",
+    "eBay-en-GB",
+    "eBay-es",
+    "eBay-fi",
+    "eBay-france",
+    "eBay-hu",
+    "eBay-in",
+    "eBay-it",
+
+    "google",
+    "google-jp",
+    "google-ku",
+    "google-maps-zh-TW",
+
+    "mailru",
+
+    "mercadolibre-ar",
+    "mercadolibre-cl",
+    "mercadolibre-mx",
+
+    "seznam-cz",
+
+    "twitter",
+    "twitter-de",
+    "twitter-ja",
+
+    "yahoo",
+    "yahoo-NO",
+    "yahoo-answer-zh-TW",
+    "yahoo-ar",
+    "yahoo-bid-zh-TW",
+    "yahoo-br",
+    "yahoo-ch",
+    "yahoo-cl",
+    "yahoo-de",
+    "yahoo-en-GB",
+    "yahoo-es",
+    "yahoo-fi",
+    "yahoo-france",
+    "yahoo-fy-NL",
+    "yahoo-id",
+    "yahoo-in",
+    "yahoo-it",
+    "yahoo-jp",
+    "yahoo-jp-auctions",
+    "yahoo-mx",
+    "yahoo-sv-SE",
+    "yahoo-zh-TW",
+
+    "yandex",
+    "yandex-ru",
+    "yandex-slovari",
+    "yandex-tr",
+    "yandex.by",
+    "yandex.ru-be",
+  ],
+
   SOURCES: [
     "abouthome",
     "contextmenu",
     "searchbar",
     "urlbar",
   ],
-});
-
-function SearchCountMeasurement2() {
-  SearchCountMeasurementBase.call(this);
-}
-
-SearchCountMeasurement2.prototype = Object.freeze({
-  __proto__: SearchCountMeasurementBase.prototype,
-  name: "counts",
-  version: 2,
-});
-
-function SearchCountMeasurement3() {
-  SearchCountMeasurementBase.call(this);
-}
-
-SearchCountMeasurement3.prototype = Object.freeze({
-  __proto__: SearchCountMeasurementBase.prototype,
-  name: "counts",
-  version: 3,
-
-  getEngines: function () {
-    return Services.search.getEngines();
-  },
-
-  getEngineID: function (engine) {
-    if (!engine) {
-      return "other";
-    }
-    if (engine.identifier) {
-      return engine.identifier;
-    }
-    return "other-" + engine.name;
-  },
 });
 
 this.SearchesProvider = function () {
@@ -1282,7 +1326,6 @@ this.SearchesProvider.prototype = Object.freeze({
   measurementTypes: [
     SearchCountMeasurement1,
     SearchCountMeasurement2,
-    SearchCountMeasurement3,
   ],
 
   /**
@@ -1301,7 +1344,8 @@ this.SearchesProvider.prototype = Object.freeze({
    * Record that a search occurred.
    *
    * @param engine
-   *        (nsISearchEngine) The search engine used.
+   *        (string) The search engine used. If the search engine is unknown,
+   *        the search will be attributed to "other".
    * @param source
    *        (string) Where the search was initiated from. Must be one of the
    *        SearchCountMeasurement2.SOURCES values.
@@ -1310,68 +1354,17 @@ this.SearchesProvider.prototype = Object.freeze({
    *         The promise is resolved when the storage operation completes.
    */
   recordSearch: function (engine, source) {
-    let m = this.getMeasurement("counts", 3);
+    let m = this.getMeasurement("counts", 2);
 
     if (m.SOURCES.indexOf(source) == -1) {
       throw new Error("Unknown source for search: " + source);
     }
 
-    let field = m.getEngineID(engine) + "." + source;
-    if (this.storage.hasFieldFromMeasurement(m.id, field,
-                                             this.storage.FIELD_DAILY_COUNTER)) {
-      let fieldID = this.storage.fieldIDFromMeasurement(m.id, field);
-      return this.enqueueStorageOperation(function recordSearchKnownField() {
-        return this.storage.incrementDailyCounterFromFieldID(fieldID);
-      }.bind(this));
-    }
-
-    // Otherwise, we first need to create the field.
-    return this.enqueueStorageOperation(function recordFieldAndSearch() {
-      // This function has to return a promise.
-      return Task.spawn(function () {
-        let fieldID = yield this.storage.registerField(m.id, field,
-                                                       this.storage.FIELD_DAILY_COUNTER);
-        yield this.storage.incrementDailyCounterFromFieldID(fieldID);
-      }.bind(this));
-    }.bind(this));
-  },
-});
-
-function HealthReportSubmissionMeasurement1() {
-  Metrics.Measurement.call(this);
-}
-
-HealthReportSubmissionMeasurement1.prototype = Object.freeze({
-  __proto__: Metrics.Measurement.prototype,
-
-  name: "submissions",
-  version: 1,
-
-  fields: {
-    firstDocumentUploadAttempt: DAILY_COUNTER_FIELD,
-    continuationUploadAttempt: DAILY_COUNTER_FIELD,
-    uploadSuccess: DAILY_COUNTER_FIELD,
-    uploadTransportFailure: DAILY_COUNTER_FIELD,
-    uploadServerFailure: DAILY_COUNTER_FIELD,
-    uploadClientFailure: DAILY_COUNTER_FIELD,
-  },
-});
-
-this.HealthReportProvider = function () {
-  Metrics.Provider.call(this);
-}
-
-HealthReportProvider.prototype = Object.freeze({
-  __proto__: Metrics.Provider.prototype,
-
-  name: "org.mozilla.healthreport",
-
-  measurementTypes: [HealthReportSubmissionMeasurement1],
-
-  recordEvent: function (event, date=new Date()) {
-    let m = this.getMeasurement("submissions", 1);
-    return this.enqueueStorageOperation(function recordCounter() {
-      return m.incrementDailyCounter(event, date);
+    let id = m.interestingEngines[engine] || "other";
+    let field = id + "." + source;
+    return this.enqueueStorageOperation(function recordSearch() {
+      return m.incrementDailyCounter(field);
     });
   },
 });
+

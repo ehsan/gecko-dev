@@ -4,29 +4,33 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef js_HeapAPI_h
-#define js_HeapAPI_h
-
-#include <limits.h>
+#ifndef js_heap_api_h___
+#define js_heap_api_h___
 
 #include "jspubtd.h"
 
-#include "js/Utility.h"
-
 /* These values are private to the JS engine. */
 namespace js {
-
-// Whether the current thread is permitted access to any part of the specified
-// runtime or zone.
-JS_FRIEND_API(bool)
-CurrentThreadCanAccessRuntime(JSRuntime *rt);
-
-JS_FRIEND_API(bool)
-CurrentThreadCanAccessZone(JS::Zone *zone);
-
 namespace gc {
 
+/*
+ * Page size must be static to support our arena pointer optimizations, so we
+ * are forced to support each platform with non-4096 pages as a special case.
+ * Note: The freelist supports a maximum arena shift of 15.
+ * Note: Do not use JS_CPU_SPARC here, this header is used outside JS.
+ */
+#if (defined(SOLARIS) || defined(__FreeBSD__)) && \
+    (defined(__sparc) || defined(__sparcv9) || defined(__ia64))
+const size_t PageShift = 13;
+const size_t ArenaShift = PageShift;
+#elif defined(__powerpc64__)
+const size_t PageShift = 16;
 const size_t ArenaShift = 12;
+#else
+const size_t PageShift = 12;
+const size_t ArenaShift = PageShift;
+#endif
+const size_t PageSize = size_t(1) << PageShift;
 const size_t ArenaSize = size_t(1) << ArenaShift;
 const size_t ArenaMask = ArenaSize - 1;
 
@@ -63,48 +67,14 @@ namespace shadow {
 
 struct ArenaHeader
 {
-    JS::Zone *zone;
+    js::Zone *zone;
 };
 
 struct Zone
 {
-  protected:
-    JSRuntime *const runtime_;
-    JSTracer *const barrierTracer_;     // A pointer to the JSRuntime's |gcMarker|.
-
-  public:
     bool needsBarrier_;
 
-    Zone(JSRuntime *runtime, JSTracer *barrierTracerArg)
-      : runtime_(runtime),
-        barrierTracer_(barrierTracerArg),
-        needsBarrier_(false)
-    {}
-
-    bool needsBarrier() const {
-        return needsBarrier_;
-    }
-
-    JSTracer *barrierTracer() {
-        JS_ASSERT(needsBarrier_);
-        JS_ASSERT(js::CurrentThreadCanAccessRuntime(runtime_));
-        return barrierTracer_;
-    }
-
-    JSRuntime *runtimeFromMainThread() const {
-        JS_ASSERT(js::CurrentThreadCanAccessRuntime(runtime_));
-        return runtime_;
-    }
-
-    // Note: Unrestricted access to the zone's runtime from an arbitrary
-    // thread can easily lead to races. Use this method very carefully.
-    JSRuntime *runtimeFromAnyThread() const {
-        return runtime_;
-    }
-
-    static JS::shadow::Zone *asShadowZone(JS::Zone *zone) {
-        return reinterpret_cast<JS::shadow::Zone*>(zone);
-    }
+    Zone() : needsBarrier_(false) {}
 };
 
 } /* namespace shadow */
@@ -139,9 +109,8 @@ GetGCThingMarkWordAndMask(const void *thing, uint32_t color,
     size_t bit = (addr & js::gc::ChunkMask) / js::gc::CellSize + color;
     JS_ASSERT(bit < js::gc::ChunkMarkBitmapBits);
     uintptr_t *bitmap = GetGCThingMarkBitmap(thing);
-    const uintptr_t nbits = sizeof(*bitmap) * CHAR_BIT;
-    *maskp = uintptr_t(1) << (bit % nbits);
-    *wordp = &bitmap[bit / nbits];
+    *maskp = uintptr_t(1) << (bit % JS_BITS_PER_WORD);
+    *wordp = &bitmap[bit / JS_BITS_PER_WORD];
 }
 
 static JS_ALWAYS_INLINE JS::shadow::ArenaHeader *
@@ -150,16 +119,6 @@ GetGCThingArena(void *thing)
     uintptr_t addr = uintptr_t(thing);
     addr &= ~js::gc::ArenaMask;
     return reinterpret_cast<JS::shadow::ArenaHeader *>(addr);
-}
-
-JS_ALWAYS_INLINE bool
-IsInsideNursery(const JS::shadow::Runtime *runtime, const void *p)
-{
-#ifdef JSGC_GENERATIONAL
-    return uintptr_t(p) >= runtime->gcNurseryStart_ && uintptr_t(p) < runtime->gcNurseryEnd_;
-#else
-    return false;
-#endif
 }
 
 } /* namespace gc */
@@ -184,16 +143,6 @@ GetObjectZone(JSObject *obj)
 static JS_ALWAYS_INLINE bool
 GCThingIsMarkedGray(void *thing)
 {
-#ifdef JSGC_GENERATIONAL
-    /*
-     * GC things residing in the nursery cannot be gray: they have no mark bits.
-     * All live objects in the nursery are moved to tenured at the beginning of
-     * each GC slice, so the gray marker never sees nursery things.
-     */
-    JS::shadow::Runtime *rt = js::gc::GetGCThingRuntime(thing);
-    if (js::gc::IsInsideNursery(rt, thing))
-        return false;
-#endif
     uintptr_t *word, mask;
     js::gc::GetGCThingMarkWordAndMask(thing, js::gc::GRAY, &word, &mask);
     return *word & mask;
@@ -204,10 +153,10 @@ IsIncrementalBarrierNeededOnGCThing(shadow::Runtime *rt, void *thing, JSGCTraceK
 {
     if (!rt->needsBarrier_)
         return false;
-    JS::Zone *zone = GetGCThingZone(thing);
+    js::Zone *zone = GetGCThingZone(thing);
     return reinterpret_cast<shadow::Zone *>(zone)->needsBarrier_;
 }
 
 } /* namespace JS */
 
-#endif /* js_HeapAPI_h */
+#endif /* js_heap_api_h___ */

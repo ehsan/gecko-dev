@@ -53,7 +53,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=338583
   function runAllTests() {
     // these tests run asynchronously, and they will take 8000 ms
     var all_tests = [
-      doTest1, doTest1_e, doTest1_f, doTest2, doTest3, doTest3_b, doTest3_c, doTest3_d,
+      doTest1, doTest1_e, doTest2, doTest3, doTest3_b, doTest3_c, doTest3_d,
       doTest3_e, doTest3_f, doTest3_g, doTest3_h, doTest4, doTest4_b,
       doTest5, doTest5_b, doTest5_c, doTest5_e, doTest6, doTest7
     ];
@@ -89,7 +89,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=338583
       e.target.hits['fn_other_event_name']++;
   }
 
-  var gEventSourceObj1 = null, gEventSourceObj1_e, gEventSourceObj1_f;
+  var domBranch;
+  var oldPrefVal;
+
+  var gEventSourceObj1 = null, gEventSourceObj1_e;
   var gEventSourceObj2 = null;
   var gEventSourceObj3_a = null, gEventSourceObj3_b = null,
       gEventSourceObj3_c = null, gEventSourceObj3_d = null,
@@ -118,7 +121,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=338583
 //   c) the close method (we expect readyState == CLOSED)
 //   d) the close method (we expect no message events anymore)
 //   e) use the default for withCredentials when passing dictionary arguments that don't explicitly set it
-//   f) if a 204 HTTP response closes (interrupts) connections. See bug 869432.
 
   function doTest1(test_id) {
     gEventSourceObj1 = new EventSource("eventsource.resource");
@@ -179,30 +181,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=338583
     setTestHasFinished(test_id);
   }
 
-  function doTest1_f(test_id) {
-    var called_on_error = false;
-  
-    gEventSourceObj1_f = new EventSource("file_bug869432.eventsource");
-    gEventSourceObj1_f.onopen = function(e) {
-      ok(false, "Test 1.f failed: onopen was called");
-    };
-    gEventSourceObj1_f.onmessage = function(e) {
-      ok(false, "Test 1.f failed: onmessage was called");
-    };
-    gEventSourceObj1_f.onerror = function(e) {
-      if (called_on_error) {
-        ok(false, "Test 1.f failed: onerror was called twice");
-      }
-      called_on_error = true;
-      ok(gEventSourceObj1_f.readyState == 2, "Test 1.f failed: onerror was called with readyState = " + gEventSourceObj1_f.readyState);
-    };
-
-    setTimeout(function() {  // just to clean...
-      ok(called_on_error, "Test 1.f failed: onerror was not called");
-      setTestHasFinished(test_id);
-    }, parseInt(5000*stress_factor));
-  }
-
 // in order to test (2)
 //   a) set a eventsource that give the dom events messages
 //   b) expect trusted events
@@ -247,12 +225,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=338583
   }
 
   function doTest3_b(test_id) {
-    // currently no support yet for local files for b2g/Android mochitest, see bug 838726
-    if (navigator.appVersion.indexOf("Android") != -1 || SpecialPowers.Services.appinfo.name == "B2G") {
-      setTestHasFinished(test_id);
-      return;
-    }
-
     var xhr = new XMLHttpRequest;
     xhr.open("GET", "/dynamic/getMyDirectory.sjs", false);
     xhr.send();
@@ -465,7 +437,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=338583
   function doTest5_c(test_id)
   {
     // credentials using the auth cache and cookies
-    var xhr = new XMLHttpRequest({mozAnon: false, mozSystem: true});
+    var xhr = SpecialPowers.createSystemXHR();
     xhr.withCredentials = true;
     // also, test mixed mode UI
     xhr.open("GET", "https://example.com/tests/content/base/test/file_restrictedEventSource.sjs?test=user1_xhr", true, "user 1", "password 1");
@@ -494,7 +466,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=338583
 
   function doTest5_d(test_id)
   {
-    var xhr = new XMLHttpRequest({mozAnon: false, mozSystem: true});
+    var xhr = SpecialPowers.createSystemXHR();
     xhr.withCredentials = true;
     xhr.open("GET", "https://example.com/tests/content/base/test/file_restrictedEventSource.sjs?test=user2_xhr", true, "user 2", "password 2");
     xhr.send();
@@ -522,7 +494,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=338583
   function doTest5_e(test_id)
   {
     // credentials using the auth cache and cookies
-    var xhr = new XMLHttpRequest({mozAnon: false, mozSystem: true});
+    var xhr = SpecialPowers.createSystemXHR();
     xhr.withCredentials = true;
     xhr.open("GET", "http://example.org/tests/content/base/test/file_restrictedEventSource.sjs?test=user1_xhr", true, "user 1", "password 1");
     xhr.send();
@@ -550,7 +522,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=338583
 
   function doTest5_f(test_id)
   {
-    var xhr = new XMLHttpRequest({mozAnon: false, mozSystem: true});
+    var xhr = SpecialPowers.createSystemXHR();
     xhr.withCredentials = true;
     xhr.open("GET", "http://example.org/tests/content/base/test/file_restrictedEventSource.sjs?test=user2_xhr", true, "user 2", "password 2");
     xhr.send();
@@ -617,6 +589,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=338583
          gEventSourceObj7.msg_received[1] == "delayed1" &&
          gEventSourceObj7.msg_received[2] == "delayed2", "Test 7 failed");
 
+      SpecialPowers.setBoolPref("dom.server-events.enabled", oldPrefVal);
       document.getElementById('waitSpan').innerHTML = '';
       setTestHasFinished(test_id);
     }, parseInt(8000*stress_factor));
@@ -625,11 +598,13 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=338583
   function doTest()
   {
     // Allow all cookies, then run the actual test
-    SpecialPowers.pushPrefEnv({"set": [["network.cookie.cookieBehavior", 0], ["dom.server-events.enabled", true]]}, function() { SpecialPowers.pushPermissions([{'type': 'systemXHR', 'allow': true, 'context': document}], doTestCallback);});
+    SpecialPowers.pushPrefEnv({"set": [["network.cookie.cookieBehavior", 0]]}, doTestCallback);
   }
-
+  
   function doTestCallback()
   {
+    oldPrefVal = SpecialPowers.getBoolPref("dom.server-events.enabled");
+    SpecialPowers.setBoolPref("dom.server-events.enabled", true);
 
     // we get a good stress_factor by testing 10 setTimeouts and some float
     // arithmetic taking my machine as stress_factor==1 (time=589)

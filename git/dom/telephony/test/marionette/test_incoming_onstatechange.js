@@ -1,11 +1,32 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-MARIONETTE_HEAD_JS = 'head.js';
 MARIONETTE_TIMEOUT = 60000;
 
+SpecialPowers.addPermission("telephony", true, document);
+
+let telephony = window.navigator.mozTelephony;
 let incomingCall;
 let inNumber = "5555551111";
+
+function verifyInitialState() {
+  log("Verifying initial state.");
+  ok(telephony);
+  is(telephony.active, null);
+  ok(telephony.calls);
+  is(telephony.calls.length, 0);
+
+  runEmulatorCmd("gsm list", function(result) {
+    log("Initial call list: " + result);
+    is(result[0], "OK");
+    if (result[0] == "OK") {
+      simulateIncoming();
+    } else {
+      log("Call exists from a previous test, failing out.");
+      cleanUp();
+    }
+  });
+}
 
 function simulateIncoming() {
   log("Simulating an incoming call.");
@@ -20,14 +41,14 @@ function simulateIncoming() {
     is(telephony.calls.length, 1);
     is(telephony.calls[0], incomingCall);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + inNumber + " : incoming");
       is(result[1], "OK");
       answerIncoming();
     });
   };
-  emulator.run("gsm call " + inNumber);
+  runEmulatorCmd("gsm call " + inNumber);
 }
 
 function answerIncoming() {
@@ -46,16 +67,16 @@ function answerIncoming() {
       is(telephony.calls.length, 1);
       is(telephony.calls[0], incomingCall);
 
-      emulator.run("gsm list", function(result) {
+      runEmulatorCmd("gsm list", function(result) {
         log("Call list is now: " + result);
         is(result[0], "inbound from " + inNumber + " : active");
         is(result[1], "OK");
         hold();
       });
-    }
+    };
   };
   incomingCall.answer();
-}
+};
 
 function hold() {
   log("Putting the call on hold.");
@@ -73,13 +94,13 @@ function hold() {
       is(telephony.calls.length, 1);
       is(telephony.calls[0], incomingCall);
 
-      emulator.run("gsm list", function(result) {
+      runEmulatorCmd("gsm list", function(result) {
         log("Call list is now: " + result);
         is(result[0], "inbound from " + inNumber + " : held");
         is(result[1], "OK");
         resume();
       });
-    }
+    };
   };
   incomingCall.hold();
 }
@@ -100,13 +121,13 @@ function resume() {
       is(telephony.calls.length, 1);
       is(telephony.calls[0], incomingCall);
 
-      emulator.run("gsm list", function(result) {
+      runEmulatorCmd("gsm list", function(result) {
         log("Call list is now: " + result);
         is(result[0], "inbound from " + inNumber + " : active");
         is(result[1], "OK");
         hangUp();
       });
-    }
+    };
   };
   incomingCall.resume();
 }
@@ -126,21 +147,21 @@ function hangUp() {
       is(telephony.active, null);
       is(telephony.calls.length, 0);
 
-      emulator.run("gsm list", function(result) {
+      runEmulatorCmd("gsm list", function(result) {
         log("Call list is now: " + result);
         is(result[0], "OK");
         cleanUp();
       });
-    }
+    };
   };
   incomingCall.hangUp();
 }
 
 function cleanUp() {
   telephony.onincoming = null;
+  SpecialPowers.removePermission("telephony", document);
   finish();
 }
 
-startTest(function() {
-  simulateIncoming();
-});
+// Start the test
+verifyInitialState();

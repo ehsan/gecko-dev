@@ -7,11 +7,11 @@
 #include "sdnAccessible-inl.h"
 #include "ISimpleDOMNode_i.c"
 
+#include "nsAccessNodeWrap.h"
 #include "DocAccessibleWrap.h"
 
 #include "nsAttrName.h"
 #include "nsCoreUtils.h"
-#include "nsIAccessibleTypes.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsServiceManagerUtils.h"
@@ -34,7 +34,7 @@ sdnAccessible::QueryInterface(REFIID aREFIID, void** aInstancePtr)
   *aInstancePtr = nullptr;
 
   if (aREFIID == IID_ISimpleDOMNode) {
-    *aInstancePtr = static_cast<ISimpleDOMNode*>(this);
+    *aInstancePtr = this;
     AddRef();
     return S_OK;
   }
@@ -46,7 +46,7 @@ sdnAccessible::QueryInterface(REFIID aREFIID, void** aInstancePtr)
   // IUnknown* is the canonical one if and only if this accessible doesn't have
   // an accessible.
   if (aREFIID == IID_IUnknown) {
-    *aInstancePtr = static_cast<ISimpleDOMNode*>(this);
+    *aInstancePtr = this;
     AddRef();
     return S_OK;
   }
@@ -328,7 +328,7 @@ sdnAccessible::get_parentNode(ISimpleDOMNode __RPC_FAR *__RPC_FAR* aNode)
 
   nsINode* resultNode = mNode->GetParentNode();
   if (resultNode) {
-    *aNode = static_cast<ISimpleDOMNode*>(new sdnAccessible(resultNode));
+    *aNode = new sdnAccessible(resultNode);
     (*aNode)->AddRef();
   }
 
@@ -351,7 +351,7 @@ sdnAccessible::get_firstChild(ISimpleDOMNode __RPC_FAR *__RPC_FAR* aNode)
 
   nsINode* resultNode = mNode->GetFirstChild();
   if (resultNode) {
-    *aNode = static_cast<ISimpleDOMNode*>(new sdnAccessible(resultNode));
+    *aNode = new sdnAccessible(resultNode);
     (*aNode)->AddRef();
   }
 
@@ -374,7 +374,7 @@ sdnAccessible::get_lastChild(ISimpleDOMNode __RPC_FAR *__RPC_FAR* aNode)
 
   nsINode* resultNode = mNode->GetLastChild();
   if (resultNode) {
-    *aNode = static_cast<ISimpleDOMNode*>(new sdnAccessible(resultNode));
+    *aNode = new sdnAccessible(resultNode);
     (*aNode)->AddRef();
   }
 
@@ -397,7 +397,7 @@ sdnAccessible::get_previousSibling(ISimpleDOMNode __RPC_FAR *__RPC_FAR* aNode)
 
   nsINode* resultNode = mNode->GetPreviousSibling();
   if (resultNode) {
-    *aNode = static_cast<ISimpleDOMNode*>(new sdnAccessible(resultNode));
+    *aNode = new sdnAccessible(resultNode);
     (*aNode)->AddRef();
   }
 
@@ -420,7 +420,7 @@ sdnAccessible::get_nextSibling(ISimpleDOMNode __RPC_FAR *__RPC_FAR* aNode)
 
   nsINode* resultNode = mNode->GetNextSibling();
   if (resultNode) {
-    *aNode = static_cast<ISimpleDOMNode*>(new sdnAccessible(resultNode));
+    *aNode = new sdnAccessible(resultNode);
     (*aNode)->AddRef();
   }
 
@@ -444,7 +444,7 @@ sdnAccessible::get_childAt(unsigned aChildIndex,
 
   nsINode* resultNode = mNode->GetChildAt(aChildIndex);
   if (resultNode) {
-    *aNode = static_cast<ISimpleDOMNode*>(new sdnAccessible(resultNode));
+    *aNode = new sdnAccessible(resultNode);
     (*aNode)->AddRef();
   }
 
@@ -466,11 +466,12 @@ sdnAccessible::get_innerHTML(BSTR __RPC_FAR* aInnerHTML)
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-  if (!mNode->IsElement())
+  nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(mNode);
+  if (!htmlElement)
     return S_FALSE;
 
   nsAutoString innerHTML;
-  mNode->AsElement()->GetInnerHTML(innerHTML);
+  htmlElement->GetInnerHTML(innerHTML);
   if (innerHTML.IsEmpty())
     return S_FALSE;
 
@@ -516,8 +517,8 @@ sdnAccessible::get_language(BSTR __RPC_FAR* aLanguage)
     return CO_E_OBJNOTCONNECTED;
 
   nsAutoString language;
-  if (mNode->IsContent())
-    nsCoreUtils::GetLanguageFor(mNode->AsContent(), nullptr, language);
+  if (mNode->IsElement())
+    nsCoreUtils::GetLanguageFor(mNode->AsElement(), nullptr, language);
   if (language.IsEmpty()) { // Nothing found, so use document's language
     mNode->OwnerDoc()->GetHeaderData(nsGkAtoms::headerContentLanguage,
                                      language);

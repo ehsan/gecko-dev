@@ -2,10 +2,31 @@
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
 MARIONETTE_TIMEOUT = 60000;
-MARIONETTE_HEAD_JS = 'head.js';
 
+SpecialPowers.addPermission("telephony", true, document);
+
+let telephony = window.navigator.mozTelephony;
 let inNumber = "5555551111";
 let incomingCall;
+
+function verifyInitialState() {
+  log("Verifying initial state.");
+  ok(telephony);
+  is(telephony.active, null);
+  ok(telephony.calls);
+  is(telephony.calls.length, 0);
+
+  runEmulatorCmd("gsm list", function(result) {
+    log("Initial call list: " + result);
+    is(result[0], "OK");
+    if (result[0] == "OK") {
+      simulateIncoming();
+    } else {
+      log("Call exists from a previous test, failing out.");
+      cleanUp();
+    }
+  });
+}
 
 function simulateIncoming() {
   log("Simulating an incoming call.");
@@ -20,20 +41,20 @@ function simulateIncoming() {
     is(telephony.calls.length, 1);
     is(telephony.calls[0], incomingCall);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + inNumber + " : incoming");
       is(result[1], "OK");
       answerIncoming();
     });
   };
-  emulator.run("gsm call " + inNumber);
+  runEmulatorCmd("gsm call " + inNumber);
 }
 
 function answerIncoming() {
   log("Answering the incoming call.");
 
-  incomingCall.onconnecting = function onconnecting(event) {
+  incomingCall.onconnecting = function onconnecting(event) { 
     log("Received 'connecting' call event.");
     is(incomingCall, event.call);
     is(incomingCall.state, "connecting");
@@ -56,7 +77,7 @@ function answerIncoming() {
     log("Received 'connected' call event.");
   };
   incomingCall.answer();
-}
+};
 
 function hangUp() {
   log("Hanging up the incoming call before fully connected.");
@@ -78,7 +99,7 @@ function hangUp() {
     is(telephony.active, null);
     is(telephony.calls.length, 0);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "OK");
       cleanUp();
@@ -89,9 +110,9 @@ function hangUp() {
 
 function cleanUp() {
   telephony.onincoming = null;
+  SpecialPowers.removePermission("telephony", document);
   finish();
 }
 
-startTest(function() {
-  simulateIncoming();
-});
+// Start the test
+verifyInitialState();

@@ -4,6 +4,9 @@
 
 package org.mozilla.gecko.background.announcements;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+
 import org.mozilla.gecko.background.BackgroundService;
 import org.mozilla.gecko.background.common.GlobalConstants;
 import org.mozilla.gecko.background.common.log.Logger;
@@ -18,7 +21,7 @@ import android.content.SharedPreferences.Editor;
 /**
  * A service which listens to broadcast intents from the system and from the
  * browser, registering or unregistering the main
- * {@link AnnouncementsService} with the {@link AlarmManager}.
+ * {@link AnnouncementsStartReceiver} with the {@link AlarmManager}.
  */
 public class AnnouncementsBroadcastService extends BackgroundService {
   private static final String WORKER_THREAD_NAME = "AnnouncementsBroadcastServiceWorker";
@@ -28,24 +31,10 @@ public class AnnouncementsBroadcastService extends BackgroundService {
     super(WORKER_THREAD_NAME);
   }
 
-  protected static SharedPreferences getSharedPreferences(Context context) {
-    return context.getSharedPreferences(AnnouncementsConstants.PREFS_BRANCH,
-        GlobalConstants.SHARED_PREFERENCES_MODE);
-  }
-
-  protected SharedPreferences getSharedPreferences() {
-    return this.getSharedPreferences(AnnouncementsConstants.PREFS_BRANCH,
-        GlobalConstants.SHARED_PREFERENCES_MODE);
-  }
-
   private void toggleAlarm(final Context context, boolean enabled) {
-    final Class<?> serviceClass = AnnouncementsService.class;
-    Logger.info(LOG_TAG, (enabled ? "R" : "Unr") + "egistering " + serviceClass.getSimpleName() +
-        ".");
+    Logger.info(LOG_TAG, (enabled ? "R" : "Unr") + "egistering announcements broadcast receiver...");
 
-    final Intent service = new Intent(context, serviceClass);
-    final PendingIntent pending =  PendingIntent.getService(context, 0, service,
-        PendingIntent.FLAG_CANCEL_CURRENT);
+    final PendingIntent pending = createPendingIntent(context, AnnouncementsStartReceiver.class);
 
     if (!enabled) {
       cancelAlarm(pending);
@@ -65,7 +54,7 @@ public class AnnouncementsBroadcastService extends BackgroundService {
    */
   public static void recordLastLaunch(final Context context) {
     final long now = System.currentTimeMillis();
-    final SharedPreferences preferences = getSharedPreferences(context);
+    final SharedPreferences preferences = context.getSharedPreferences(AnnouncementsConstants.PREFS_BRANCH, GlobalConstants.SHARED_PREFERENCES_MODE);
 
     // One of several things might be true, according to our logs:
     //
@@ -85,15 +74,15 @@ public class AnnouncementsBroadcastService extends BackgroundService {
       Logger.debug(LOG_TAG, "No previous launch recorded.");
     }
 
-    if (now < GlobalConstants.BUILD_TIMESTAMP_MSEC) {
+    if (now < GlobalConstants.BUILD_TIMESTAMP) {
       Logger.warn(LOG_TAG, "Current time " + now + " is older than build date " +
-                           GlobalConstants.BUILD_TIMESTAMP_MSEC + ". Ignoring until clock is corrected.");
+                           GlobalConstants.BUILD_TIMESTAMP + ". Ignoring until clock is corrected.");
       return;
     }
 
-    if (now > AnnouncementsConstants.LATEST_ACCEPTED_LAUNCH_TIMESTAMP_MSEC) {
+    if (now > AnnouncementsConstants.LATEST_ACCEPTED_LAUNCH_TIMESTAMP) {
       Logger.warn(LOG_TAG, "Launch time " + now + " is later than max sane launch timestamp " +
-                           AnnouncementsConstants.LATEST_ACCEPTED_LAUNCH_TIMESTAMP_MSEC +
+                           AnnouncementsConstants.LATEST_ACCEPTED_LAUNCH_TIMESTAMP +
                            ". Ignoring until clock is corrected.");
       return;
     }
@@ -107,12 +96,12 @@ public class AnnouncementsBroadcastService extends BackgroundService {
   }
 
   public static long getPollInterval(final Context context) {
-    final SharedPreferences preferences = getSharedPreferences(context);
+    SharedPreferences preferences = context.getSharedPreferences(AnnouncementsConstants.PREFS_BRANCH, GlobalConstants.SHARED_PREFERENCES_MODE);
     return preferences.getLong(AnnouncementsConstants.PREF_ANNOUNCE_FETCH_INTERVAL_MSEC, AnnouncementsConstants.DEFAULT_ANNOUNCE_FETCH_INTERVAL_MSEC);
   }
 
   public static void setPollInterval(final Context context, long interval) {
-    final SharedPreferences preferences = getSharedPreferences(context);
+    SharedPreferences preferences = context.getSharedPreferences(AnnouncementsConstants.PREFS_BRANCH, GlobalConstants.SHARED_PREFERENCES_MODE);
     preferences.edit().putLong(AnnouncementsConstants.PREF_ANNOUNCE_FETCH_INTERVAL_MSEC, interval).commit();
   }
 
@@ -129,14 +118,46 @@ public class AnnouncementsBroadcastService extends BackgroundService {
 
     if (Intent.ACTION_BOOT_COMPLETED.equals(action) ||
         Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE.equals(action)) {
-      BackgroundService.reflectContextToFennec(this,
-          GlobalConstants.GECKO_PREFERENCES_CLASS,
-          GlobalConstants.GECKO_BROADCAST_ANNOUNCEMENTS_PREF_METHOD);
+      handleSystemLifetimeIntent();
       return;
     }
 
     // Failure case.
     Logger.warn(LOG_TAG, "Unknown intent " + action);
+  }
+
+  /**
+   * Handle one of the system intents to which we listen to launch our service
+   * without the browser being opened.
+   *
+   * To avoid tight coupling to Fennec, we use reflection to find
+   * <code>GeckoPreferences</code>, invoking the same code path that
+   * <code>GeckoApp</code> uses on startup to send the <i>other</i>
+   * notification to which we listen.
+   *
+   * All of this is neatly wrapped in <code>try…catch</code>, so this code
+   * will run safely without a Firefox build installed.
+   */
+  protected void handleSystemLifetimeIntent() {
+    // Ask the browser to tell us the current state of the preference.
+    try {
+      Class<?> geckoPreferences = Class.forName(GlobalConstants.GECKO_PREFERENCES_CLASS);
+      Method broadcastSnippetsPref = geckoPreferences.getMethod(GlobalConstants.GECKO_BROADCAST_METHOD, Context.class);
+      broadcastSnippetsPref.invoke(null, this);
+      return;
+    } catch (ClassNotFoundException e) {
+      Logger.error(LOG_TAG, "Class " + GlobalConstants.GECKO_PREFERENCES_CLASS + " not found!");
+      return;
+    } catch (NoSuchMethodException e) {
+      Logger.error(LOG_TAG, "Method " + GlobalConstants.GECKO_PREFERENCES_CLASS + "/" + GlobalConstants.GECKO_BROADCAST_METHOD + " not found!");
+      return;
+    } catch (IllegalArgumentException e) {
+      Logger.error(LOG_TAG, "Got exception invoking " + GlobalConstants.GECKO_BROADCAST_METHOD + ".");
+    } catch (IllegalAccessException e) {
+      Logger.error(LOG_TAG, "Got exception invoking " + GlobalConstants.GECKO_BROADCAST_METHOD + ".");
+    } catch (InvocationTargetException e) {
+      Logger.error(LOG_TAG, "Got exception invoking " + GlobalConstants.GECKO_BROADCAST_METHOD + ".");
+    }
   }
 
   /**
@@ -160,7 +181,8 @@ public class AnnouncementsBroadcastService extends BackgroundService {
     // Primarily intended for debugging and testing, but this doesn't do any harm.
     if (!enabled) {
       Logger.info(LOG_TAG, "!enabled: clearing last fetch.");
-      final SharedPreferences sharedPreferences = getSharedPreferences();
+      final SharedPreferences sharedPreferences = this.getSharedPreferences(AnnouncementsConstants.PREFS_BRANCH,
+                                                                            GlobalConstants.SHARED_PREFERENCES_MODE);
       final Editor editor = sharedPreferences.edit();
       editor.remove(AnnouncementsConstants.PREF_LAST_FETCH_LOCAL_TIME);
       editor.remove(AnnouncementsConstants.PREF_EARLIEST_NEXT_ANNOUNCE_FETCH);

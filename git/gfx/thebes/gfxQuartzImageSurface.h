@@ -7,11 +7,9 @@
 #define GFX_QUARTZIMAGESURFACE_H
 
 #include "gfxASurface.h"
-#include "nsSize.h"
+#include "gfxImageSurface.h"
 
-class gfxImageSurface;
-
-class gfxQuartzImageSurface : public gfxASurface {
+class THEBES_API gfxQuartzImageSurface : public gfxASurface {
 public:
     gfxQuartzImageSurface(gfxImageSurface *imageSurface);
     gfxQuartzImageSurface(cairo_surface_t *csurf);

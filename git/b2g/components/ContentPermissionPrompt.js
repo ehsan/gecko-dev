@@ -4,8 +4,13 @@
 
 "use strict"
 
-function debug(str) {
-  //dump("-*- ContentPermissionPrompt: " + s + "\n");
+let DEBUG = 0;
+let debug;
+if (DEBUG) {
+  debug = function (s) { dump("-*- ContentPermissionPrompt: " + s + "\n"); };
+}
+else {
+  debug = function (s) {};
 }
 
 const Ci = Components.interfaces;
@@ -13,11 +18,7 @@ const Cr = Components.results;
 const Cu = Components.utils;
 const Cc = Components.classes;
 
-const PROMPT_FOR_UNKNOWN    = ["geolocation", "desktop-notification",
-                               "audio-capture"];
-// Due to privary issue, permission requests like GetUserMedia should prompt
-// every time instead of providing session persistence.
-const PERMISSION_NO_SESSION = ["audio-capture"];
+const PROMPT_FOR_UNKNOWN = ['geolocation', 'desktop-notification'];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -29,17 +30,10 @@ Cu.import("resource://gre/modules/PermissionsTable.jsm");
 var permissionManager = Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
 var secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
 
-let permissionSpecificChecker = {};
-
 XPCOMUtils.defineLazyServiceGetter(this,
                                    "PermSettings",
                                    "@mozilla.org/permissionSettings;1",
                                    "nsIDOMPermissionSettings");
-
-XPCOMUtils.defineLazyServiceGetter(this,
-                                   "AudioManager",
-                                   "@mozilla.org/telephony/audiomanager;1",
-                                   "nsIAudioManager");
 
 function rememberPermission(aPermission, aPrincipal, aSession)
 {
@@ -54,7 +48,7 @@ function rememberPermission(aPermission, aPrincipal, aSession)
         permissionManager.addFromPrincipal(aPrincipal,
                                            aPerm,
                                            Ci.nsIPermissionManager.ALLOW_ACTION);
-      } else if (PERMISSION_NO_SESSION.indexOf(aPermission) < 0) {
+      } else {
         permissionManager.addFromPrincipal(aPrincipal,
                                            aPerm,
                                            Ci.nsIPermissionManager.ALLOW_ACTION,
@@ -122,130 +116,72 @@ ContentPermissionPrompt.prototype = {
     return true;
   },
 
-  handledByPermissionType: function handledByPermissionType(request) {
-    return permissionSpecificChecker.hasOwnProperty(request.type)
-             ? permissionSpecificChecker[request.type](request)
-             : false;
-  },
-
-  _id: 0,
   prompt: function(request) {
+
     if (secMan.isSystemPrincipal(request.principal)) {
       request.allow();
       return true;
     }
 
-    if (this.handledByApp(request) ||
-        this.handledByPermissionType(request)) {
-      return;
-    }
+    if (this.handledByApp(request))
+        return;
 
     // returns true if the request was handled
     if (this.handleExistingPermission(request))
        return;
 
+    // If the request was initiated from a hidden iframe
+    // we don't forward it to content and cancel it right away
     let frame = request.element;
-    let requestId = this._id++;
 
     if (!frame) {
-      this.delegatePrompt(request, requestId);
-      return;
-    }
-
-    frame = frame.wrappedJSObject;
-    var cancelRequest = function() {
-      frame.removeEventListener("mozbrowservisibilitychange", onVisibilityChange);
-      request.cancel();
+      this.delegatePrompt(request);
     }
 
     var self = this;
-    var onVisibilityChange = function(evt) {
-      if (evt.detail.visible === true)
-        return;
-
-      self.cancelPrompt(request, requestId);
-      cancelRequest();
-    }
-
-    // If the request was initiated from a hidden iframe
-    // we don't forward it to content and cancel it right away
-    let domRequest = frame.getVisible();
-    domRequest.onsuccess = function gv_success(evt) {
+    frame.wrappedJSObject.getVisible().onsuccess = function gv_success(evt) {
       if (!evt.target.result) {
-        cancelRequest();
+        request.cancel();
         return;
       }
 
-      // Monitor the frame visibility and cancel the request if the frame goes
-      // away but the request is still here.
-      frame.addEventListener("mozbrowservisibilitychange", onVisibilityChange);
-
-      self.delegatePrompt(request, requestId, function onCallback() {
-        frame.removeEventListener("mozbrowservisibilitychange", onVisibilityChange);
-      });
+      self.delegatePrompt(request);
     };
-
-    // Something went wrong. Let's cancel the request just in case.
-    domRequest.onerror = function gv_error() {
-      cancelRequest();
-    }
   },
 
-  cancelPrompt: function(request, requestId) {
-    this.sendToBrowserWindow("cancel-permission-prompt", request, requestId);
-  },
-
-  delegatePrompt: function(request, requestId, callback) {
-    let access = (request.access && request.access !== "unused") ? request.type + "-" + request.access :
-                                                                   request.type;
-    let principal = request.principal;
-
-    this._permission = access;
-    this._uri = principal.URI.spec;
-    this._origin = principal.origin;
-
-    this.sendToBrowserWindow("permission-prompt", request, requestId, function(type, remember) {
-      if (type == "permission-allow") {
-        rememberPermission(request.type, principal, !remember);
-        if (callback) {
-          callback();
-        }
-        request.allow();
-        return;
-      }
-
-      if (remember) {
-        Services.perms.addFromPrincipal(principal, access,
-                                        Ci.nsIPermissionManager.DENY_ACTION);
-      } else {
-        Services.perms.addFromPrincipal(principal, access,
-                                        Ci.nsIPermissionManager.DENY_ACTION,
-                                        Ci.nsIPermissionManager.EXPIRE_SESSION, 0);
-      }
-
-      if (callback) {
-        callback();
-      }
-      request.cancel();
-    });
-  },
-
-  sendToBrowserWindow: function(type, request, requestId, callback) {
+  _id: 0,
+  delegatePrompt: function(request) {
     let browser = Services.wm.getMostRecentWindow("navigator:browser");
     let content = browser.getContentWindow();
     if (!content)
       return;
 
-    if (callback) {
-      content.addEventListener("mozContentEvent", function contentEvent(evt) {
-        let detail = evt.detail;
-        if (detail.id != requestId)
-          return;
-        evt.target.removeEventListener(evt.type, contentEvent);
+    let access = (request.access && request.access !== "unused") ? request.type + "-" + request.access :
+                                                                   request.type;
 
-        callback(detail.type, detail.remember);
-      })
-    }
+    let requestId = this._id++;
+    content.addEventListener("mozContentEvent", function contentEvent(evt) {
+      if (evt.detail.id != requestId)
+        return;
+      evt.target.removeEventListener(evt.type, contentEvent);
+
+      if (evt.detail.type == "permission-allow") {
+        rememberPermission(request.type, request.principal, !evt.detail.remember);
+        request.allow();
+        return;
+      }
+
+      if (evt.detail.remember) {
+        Services.perms.addFromPrincipal(request.principal, access,
+                                        Ci.nsIPermissionManager.DENY_ACTION);
+      } else {
+        Services.perms.addFromPrincipal(request.principal, access,
+                                        Ci.nsIPermissionManager.DENY_ACTION,
+                                        Ci.nsIPermissionManager.EXPIRE_SESSION, 0);
+      }
+
+      request.cancel();
+    });
 
     let principal = request.principal;
     let isApp = principal.appStatus != Ci.nsIPrincipal.APP_STATUS_NOT_INSTALLED;
@@ -255,7 +191,7 @@ ContentPermissionPrompt.prototype = {
                     : request.remember;
 
     let details = {
-      type: type,
+      type: "permission-prompt",
       permission: request.type,
       id: requestId,
       origin: principal.origin,
@@ -263,31 +199,28 @@ ContentPermissionPrompt.prototype = {
       remember: remember
     };
 
+    this._permission = access;
+    this._uri = request.principal.URI.spec;
+    this._origin = request.principal.origin;
+
     if (!isApp) {
       browser.shell.sendChromeEvent(details);
       return;
     }
 
-    details.manifestURL = DOMApplicationRegistry.getManifestURLByLocalId(principal.appId);
-    browser.shell.sendChromeEvent(details);
+    // When it's an app, get the manifest to add the l10n application name.
+    let app = DOMApplicationRegistry.getAppByLocalId(principal.appId);
+    DOMApplicationRegistry.getManifestFor(app.origin, function getManifest(aManifest) {
+      let helper = new ManifestHelper(aManifest, app.origin);
+      details.appName = helper.name;
+      browser.shell.sendChromeEvent(details);
+    });
   },
 
   classID: Components.ID("{8c719f03-afe0-4aac-91ff-6c215895d467}"),
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentPermissionPrompt])
 };
-
-(function() {
-  // Do not allow GetUserMedia while in call.
-  permissionSpecificChecker["audio-capture"] = function(request) {
-    if (AudioManager.phoneState === Ci.nsIAudioManager.PHONE_STATE_IN_CALL) {
-      request.cancel();
-      return true;
-    } else {
-      return false;
-    }
-  };
-})();
 
 
 //module initialization

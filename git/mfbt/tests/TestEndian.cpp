@@ -6,8 +6,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Endian.h"
 
-#include <stddef.h>
-
 using mozilla::BigEndian;
 using mozilla::DebugOnly;
 using mozilla::LittleEndian;
@@ -53,7 +51,7 @@ TestSingleNoSwap(T value, T notSwappedValue)
 #define WRAP_COPYTO(NAME)                                       \
   template<typename T>                                          \
   void                                                          \
-  NAME(void* dst, const T* src, size_t count)                   \
+  NAME(void* dst, const T* src, unsigned int count)             \
   {                                                             \
     NativeEndian::NAME<T>(dst, src, count);                     \
   }
@@ -65,7 +63,7 @@ WRAP_COPYTO(copyAndSwapToNetworkOrder)
 #define WRAP_COPYFROM(NAME)                                     \
   template<typename T>                                          \
   void                                                          \
-  NAME(T* dst, const void* src, size_t count)                   \
+  NAME(T* dst, const void* src, unsigned int count)             \
   {                                                             \
     NativeEndian::NAME<T>(dst, src, count);                     \
   }
@@ -77,7 +75,7 @@ WRAP_COPYFROM(copyAndSwapFromNetworkOrder)
 #define WRAP_IN_PLACE(NAME)                                     \
   template<typename T>                                          \
   void                                                          \
-  NAME(T* p, size_t count)                                      \
+  NAME(T* p, unsigned int count)                                \
   {                                                             \
     NativeEndian::NAME<T>(p, count);                            \
   }
@@ -93,14 +91,14 @@ enum SwapExpectation {
   NoSwap
 };
 
-template<typename T, size_t Count>
+template<typename T, size_t count>
 void
 TestBulkSwapToSub(enum SwapExpectation expectSwap,
-                  const T (&values)[Count],
-                  void (*swapperFunc)(void*, const T*, size_t),
+                  const T (&values)[count],
+                  void (*swapperFunc)(void*, const T*, unsigned int),
                   T (*readerFunc)(const void*))
 {
-  const size_t arraySize = 2 * Count;
+  const size_t arraySize = 2 * count;
   const size_t bufferSize = arraySize * sizeof(T);
   static uint8_t buffer[bufferSize];
   const uint8_t fillValue = 0xa5;
@@ -111,7 +109,7 @@ TestBulkSwapToSub(enum SwapExpectation expectSwap,
   memset(checkBuffer, fillValue, bufferSize);
 
   for (size_t startPosition = 0; startPosition < sizeof(T); ++startPosition) {
-    for (size_t nValues = 0; nValues < Count; ++nValues) {
+    for (size_t nValues = 0; nValues < count; ++nValues) {
       memset(buffer, fillValue, bufferSize);
       swapperFunc(buffer + startPosition, values, nValues);
 
@@ -132,14 +130,14 @@ TestBulkSwapToSub(enum SwapExpectation expectSwap,
   }
 }
 
-template<typename T, size_t Count>
+template<typename T, size_t count>
 void
 TestBulkSwapFromSub(enum SwapExpectation expectSwap,
-                    const T (&values)[Count],
-                    void (*swapperFunc)(T*, const void*, size_t),
+                    const T (&values)[count],
+                    void (*swapperFunc)(T*, const void*, unsigned int),
                     T (*readerFunc)(const void*))
 {
-  const size_t arraySize = 2 * Count;
+  const size_t arraySize = 2 * count;
   const size_t bufferSize = arraySize * sizeof(T);
   static T buffer[arraySize];
   const uint8_t fillValue = 0xa5;
@@ -147,8 +145,8 @@ TestBulkSwapFromSub(enum SwapExpectation expectSwap,
 
   memset(checkBuffer, fillValue, bufferSize);
 
-  for (size_t startPosition = 0; startPosition < Count; ++startPosition) {
-    for (size_t nValues = 0; nValues < (Count - startPosition); ++nValues) {
+  for (size_t startPosition = 0; startPosition < count; ++startPosition) {
+    for (size_t nValues = 0; nValues < (count - startPosition); ++nValues) {
       memset(buffer, fillValue, bufferSize);
       swapperFunc(buffer + startPosition, values, nValues);
 
@@ -168,14 +166,14 @@ TestBulkSwapFromSub(enum SwapExpectation expectSwap,
 }
 
 
-template<typename T, size_t Count>
+template<typename T, size_t count>
 void
 TestBulkInPlaceSub(enum SwapExpectation expectSwap,
-                   const T (&values)[Count],
-                   void (*swapperFunc)(T* p, size_t),
+                   const T (&values)[count],
+                   void (*swapperFunc)(T* p, unsigned int),
                    T (*readerFunc)(const void*))
 {
-  const size_t bufferCount = 4 * Count;
+  const size_t bufferCount = 4 * count;
   const size_t bufferSize = bufferCount * sizeof(T);
   static T buffer[bufferCount];
   const T fillValue = 0xa5;
@@ -185,8 +183,8 @@ TestBulkInPlaceSub(enum SwapExpectation expectSwap,
 
   memset(checkBuffer, fillValue, bufferSize);
 
-  for (size_t startPosition = 0; startPosition < Count; ++startPosition) {
-    for (size_t nValues = 0; nValues < Count; ++nValues) {
+  for (size_t startPosition = 0; startPosition < count; ++startPosition) {
+    for (size_t nValues = 0; nValues < count; ++nValues) {
       memset(buffer, fillValue, bufferSize);
       memcpy(buffer + startPosition, values, nValues * sizeof(T));
       swapperFunc(buffer + startPosition, nValues);
@@ -226,9 +224,9 @@ SPECIALIZE_READER(int16_t, readInt16)
 SPECIALIZE_READER(int32_t, readInt32)
 SPECIALIZE_READER(int64_t, readInt64)
 
-template<typename T, size_t Count>
+template<typename T, size_t count>
 void
-TestBulkSwap(const T (&bytes)[Count])
+TestBulkSwap(const T (&bytes)[count])
 {
 #if MOZ_LITTLE_ENDIAN
   TestBulkSwapToSub(Swap, bytes, copyAndSwapToBigEndian<T>, Reader<T>::readBE);
@@ -241,9 +239,9 @@ TestBulkSwap(const T (&bytes)[Count])
 #endif
 }
 
-template<typename T, size_t Count>
+template<typename T, size_t count>
 void
-TestBulkNoSwap(const T (&bytes)[Count])
+TestBulkNoSwap(const T (&bytes)[count])
 {
 #if MOZ_LITTLE_ENDIAN
   TestBulkSwapToSub(NoSwap, bytes, copyAndSwapToLittleEndian<T>, Reader<T>::readLE);
@@ -256,9 +254,9 @@ TestBulkNoSwap(const T (&bytes)[Count])
 #endif
 }
 
-template<typename T, size_t Count>
+template<typename T, size_t count>
 void
-TestBulkInPlaceSwap(const T (&bytes)[Count])
+TestBulkInPlaceSwap(const T (&bytes)[count])
 {
 #if MOZ_LITTLE_ENDIAN
   TestBulkInPlaceSub(Swap, bytes, swapToBigEndianInPlace<T>, Reader<T>::readBE);
@@ -271,9 +269,9 @@ TestBulkInPlaceSwap(const T (&bytes)[Count])
 #endif
 }
 
-template<typename T, size_t Count>
+template<typename T, size_t count>
 void
-TestBulkInPlaceNoSwap(const T (&bytes)[Count])
+TestBulkInPlaceNoSwap(const T (&bytes)[count])
 {
 #if MOZ_LITTLE_ENDIAN
   TestBulkInPlaceSub(NoSwap, bytes, swapToLittleEndianInPlace<T>, Reader<T>::readLE);

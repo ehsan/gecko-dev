@@ -5,7 +5,7 @@
 
 const {utils: Cu} = Components;
 
-Cu.import("resource://gre/modules/Promise.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/Metrics.jsm");
 Cu.import("resource://services-common/utils.js");
 
@@ -80,7 +80,7 @@ add_task(function test_reconnect() {
 
 add_task(function test_future_schema_errors() {
   let backend = yield Metrics.Storage("future_schema_errors");
-  yield backend._connection.setSchemaVersion(2);
+  backend._connection.schemaVersion = 2;
   yield backend.close();
 
   let backend2;
@@ -444,10 +444,6 @@ add_task(function test_increment_daily_counter_basic() {
   yield backend.incrementDailyCounterFromFieldID(fieldID, now);
   count = yield backend.getDailyCounterCountFromFieldID(fieldID, now);
   do_check_eq(count, 2);
-
-  yield backend.incrementDailyCounterFromFieldID(fieldID, now, 10);
-  count = yield backend.getDailyCounterCountFromFieldID(fieldID, now);
-  do_check_eq(count, 12);
 
   yield backend.close();
 });

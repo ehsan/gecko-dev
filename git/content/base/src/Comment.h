@@ -6,21 +6,21 @@
 #ifndef mozilla_dom_Comment_h
 #define mozilla_dom_Comment_h
 
-#include "mozilla/Attributes.h"
 #include "nsIDOMComment.h"
 #include "nsGenericDOMDataNode.h"
 
 namespace mozilla {
 namespace dom {
 
-class Comment MOZ_FINAL : public nsGenericDOMDataNode,
-                          public nsIDOMComment
+class Comment : public nsGenericDOMDataNode,
+                public nsIDOMComment
 {
 private:
   void Init()
   {
     NS_ABORT_IF_FALSE(mNodeInfo->NodeType() == nsIDOMNode::COMMENT_NODE,
                       "Bad NodeType in aNodeInfo");
+    SetIsDOMBinding();
   }
 
 public:
@@ -46,7 +46,6 @@ public:
 
   // nsIDOMCharacterData
   NS_FORWARD_NSIDOMCHARACTERDATA(nsGenericDOMDataNode::)
-  using nsGenericDOMDataNode::SetData; // Prevent hiding overloaded virtual function.
 
   // nsIDOMComment
   // Empty interface
@@ -55,25 +54,20 @@ public:
   virtual bool IsNodeOfType(uint32_t aFlags) const;
 
   virtual nsGenericDOMDataNode* CloneDataNode(nsINodeInfo *aNodeInfo,
-                                              bool aCloneText) const MOZ_OVERRIDE;
+                                              bool aCloneText) const;
 
-  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 #ifdef DEBUG
-  virtual void List(FILE* out, int32_t aIndent) const MOZ_OVERRIDE;
+  virtual void List(FILE* out, int32_t aIndent) const;
   virtual void DumpContent(FILE* out = stdout, int32_t aIndent = 0,
-                           bool aDumpAll = true) const MOZ_OVERRIDE
+                           bool aDumpAll = true) const
   {
     return;
   }
 #endif
 
-  static already_AddRefed<Comment>
-  Constructor(const GlobalObject& aGlobal, const nsAString& aData,
-              ErrorResult& aRv);
-
 protected:
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 };
 
 } // namespace dom

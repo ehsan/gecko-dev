@@ -11,8 +11,7 @@
 
 namespace mozilla {
 
-typedef nsresult (*ParseItemAndAddFunc)(JSContext* aCx, JS::Handle<JSObject*> aArray,
-                                        uint32_t aIndex, const char* aStart, char** aEnd);
+typedef nsresult (*ParseItemAndAddFunc)(JSContext* aCx, JSObject* aArray, uint32_t aIndex, const char* aStart, char** aEnd);
 
 class DOMCameraCapabilities MOZ_FINAL : public nsICameraCapabilities
 {
@@ -28,7 +27,7 @@ public:
 
   nsresult ParameterListToNewArray(
     JSContext* cx,
-    JS::MutableHandle<JSObject*> aArray,
+    JSObject** aArray,
     uint32_t aKey,
     ParseItemAndAddFunc aParseItemAndAdd
   );

@@ -4,7 +4,6 @@
 
 #include "nsUConvPropertySearch.h"
 #include "nsCRT.h"
-#include "nsString.h"
 
 // static
 nsresult

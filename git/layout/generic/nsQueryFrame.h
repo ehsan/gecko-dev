@@ -24,16 +24,16 @@
 
 #define NS_QUERYFRAME_ENTRY(class)                              \
   case class::kFrameIID: {                                      \
-    static_assert(mozilla::IsSame<class, class::Has_NS_DECL_QUERYFRAME_TARGET>::value, \
-                  #class " must declare itself as a queryframe target"); \
+    MOZ_STATIC_ASSERT((mozilla::IsSame<class, class::Has_NS_DECL_QUERYFRAME_TARGET>::value), \
+                      #class " must declare itself as a queryframe target"); \
     return static_cast<class*>(this);                           \
   }
 
 #define NS_QUERYFRAME_ENTRY_CONDITIONAL(class, condition)       \
   case class::kFrameIID:                                        \
   if (condition) {                                              \
-    static_assert(mozilla::IsSame<class, class::Has_NS_DECL_QUERYFRAME_TARGET>::value, \
-                  #class " must declare itself as a queryframe target"); \
+    MOZ_STATIC_ASSERT((mozilla::IsSame<class, class::Has_NS_DECL_QUERYFRAME_TARGET>::value), \
+                      #class " must declare itself as a queryframe target"); \
     return static_cast<class*>(this);                           \
   }                                                             \
   break;
@@ -81,8 +81,8 @@ public:
 
   template<class Dest>
   operator Dest*() {
-    static_assert(mozilla::IsSame<Dest, typename Dest::Has_NS_DECL_QUERYFRAME_TARGET>::value,
-                  "Dest must declare itself as a queryframe target");
+    MOZ_STATIC_ASSERT((mozilla::IsSame<Dest, typename Dest::Has_NS_DECL_QUERYFRAME_TARGET>::value),
+                      "Dest must declare itself as a queryframe target");
     if (!mRawPtr)
       return nullptr;
 

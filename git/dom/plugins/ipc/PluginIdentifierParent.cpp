@@ -6,10 +6,10 @@
 
 #include "PluginIdentifierParent.h"
 
-#include "nsNPAPIPlugin.h"
 #include "nsServiceManagerUtils.h"
+#include "nsNPAPIPlugin.h"
+#include "nsIJSContextStack.h"
 #include "PluginScriptableObjectUtils.h"
-#include "nsCxPusher.h"
 #include "mozilla/unused.h"
 
 using namespace mozilla::plugins::parent;
@@ -23,15 +23,26 @@ PluginIdentifierParent::RecvRetain()
   mTemporaryRefs = 0;
 
   // Intern the jsid if necessary.
-  AutoSafeJSContext cx;
-  JS::Rooted<jsid> id(cx, NPIdentifierToJSId(mIdentifier));
+  jsid id = NPIdentifierToJSId(mIdentifier);
   if (JSID_IS_INT(id)) {
     return true;
   }
 
   // The following is what nsNPAPIPlugin.cpp does. Gross, but the API doesn't
   // give you a NPP to play with.
-  JS::Rooted<JSString*> str(cx, JSID_TO_STRING(id));
+  nsCOMPtr<nsIThreadJSContextStack> stack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+  if (!stack) {
+    return false;
+  }
+
+  JSContext* cx = stack->GetSafeJSContext();
+  if (!cx) {
+    return false;
+  }
+
+  JSAutoRequest ar(cx);
+  JSString* str = JSID_TO_STRING(id);
   JSString* str2 = JS_InternJSString(cx, str);
   if (!str2) {
     return false;
@@ -50,7 +61,7 @@ PluginIdentifierParent::StackIdentifier::StackIdentifier
 
 PluginIdentifierParent::StackIdentifier::StackIdentifier
     (NPObject* aObject, NPIdentifier aIdentifier)
-  : mIdentifier(nullptr)
+  : mIdentifier(NULL)
 {
   PluginInstanceParent* inst = GetInstance(aObject);
   mIdentifier = inst->Module()->GetIdentifierForNPIdentifier(inst->GetNPP(), aIdentifier);

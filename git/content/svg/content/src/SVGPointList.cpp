@@ -6,8 +6,12 @@
 #include "mozilla/Util.h"
 
 #include "SVGPointList.h"
+#include "nsError.h"
 #include "nsCharSeparatedTokenizer.h"
+#include "nsMathUtils.h"
+#include "nsString.h"
 #include "nsTextFormatter.h"
+#include "prdtoa.h"
 #include "SVGContentUtils.h"
 
 namespace mozilla {
@@ -43,6 +47,13 @@ SVGPointList::GetValueAsString(nsAString& aValue) const
   }
 }
 
+static inline char* SkipWhitespace(char* str)
+{
+  while (IsSVGWhitespace(*str))
+    ++str;
+  return str;
+}
+
 nsresult
 SVGPointList::SetValueFromString(const nsAString& aValue)
 {
@@ -58,40 +69,48 @@ SVGPointList::SetValueFromString(const nsAString& aValue)
   nsCharSeparatedTokenizerTemplate<IsSVGWhitespace>
     tokenizer(aValue, ',', nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
 
+  nsAutoCString str1, str2;  // outside loop to minimize memory churn
+
   while (tokenizer.hasMoreTokens()) {
+    CopyUTF16toUTF8(tokenizer.nextToken(), str1);
+    const char *token1 = str1.get();
+    if (*token1 == '\0') {
+      rv = NS_ERROR_DOM_SYNTAX_ERR;
+      break;
+    }
+    char *end;
+    float x = float(PR_strtod(token1, &end));
+    if (end == token1 || !NS_finite(x)) {
+      rv = NS_ERROR_DOM_SYNTAX_ERR;
+      break;
+    }
+    const char *token2;
+    if (*end == '-') {
+      // It's possible for the token to be 10-30 which has
+      // no separator but needs to be parsed as 10, -30
+      token2 = end;
+    } else {
+      if (!tokenizer.hasMoreTokens()) {
+        rv = NS_ERROR_DOM_SYNTAX_ERR;
+        break;
+      }
+      CopyUTF16toUTF8(tokenizer.nextToken(), str2);
+      token2 = str2.get();
+      if (*token2 == '\0') {
+        rv = NS_ERROR_DOM_SYNTAX_ERR;
+        break;
+      }
+    }
 
-    const nsAString& token = tokenizer.nextToken();
-
-    RangedPtr<const PRUnichar> iter =
-      SVGContentUtils::GetStartRangedPtr(token);
-    const RangedPtr<const PRUnichar> end =
-      SVGContentUtils::GetEndRangedPtr(token);
-
-    float x;
-    if (!SVGContentUtils::ParseNumber(iter, end, x)) {
+    float y = float(PR_strtod(token2, &end));
+    if (*end != '\0' || !NS_finite(y)) {
       rv = NS_ERROR_DOM_SYNTAX_ERR;
       break;
     }
 
-    float y;
-    if (iter == end) {
-      if (!tokenizer.hasMoreTokens() ||
-          !SVGContentUtils::ParseNumber(tokenizer.nextToken(), y)) {
-        rv = NS_ERROR_DOM_SYNTAX_ERR;
-        break;
-      }
-    } else {
-      // It's possible for the token to be 10-30 which has
-      // no separator but needs to be parsed as 10, -30
-      const nsAString& leftOver = Substring(iter.get(), end.get());
-      if (leftOver[0] != '-' || !SVGContentUtils::ParseNumber(leftOver, y)) {
-        rv = NS_ERROR_DOM_SYNTAX_ERR;
-        break;
-      }
-    }
     temp.AppendItem(SVGPoint(x, y));
   }
-  if (tokenizer.separatorAfterCurrentToken()) {
+  if (tokenizer.lastTokenEndedWithSeparator()) {
     rv = NS_ERROR_DOM_SYNTAX_ERR; // trailing comma
   }
   nsresult rv2 = CopyFrom(temp);

@@ -133,6 +133,7 @@ nsRDFXMLSerializer::Init(nsIRDFDataSource* aDataSource)
     prefix = do_GetAtom("NC");
     AddNameSpace(prefix, NS_LITERAL_STRING("http://home.netscape.com/NC-rdf#"));
 
+    mQNames.Init();
     mPrefixID = 0;
 
     return NS_OK;
@@ -199,7 +200,9 @@ nsRDFXMLSerializer::EnsureNewPrefix()
             ++iter;
         } 
     } while (!isNewPrefix);
-    return prefix.forget();
+    nsIAtom* outPrefix = nullptr;
+    prefix.swap(outPrefix);
+    return outPrefix;
 }
 
 // This converts a property resource (like

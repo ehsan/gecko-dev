@@ -63,3 +63,4 @@ bool SkDisplayRandom::setProperty(int index, SkScriptValue& value) {
     fRandom.setSeed(value.fOperand.fS32);
     return true;
 }
+

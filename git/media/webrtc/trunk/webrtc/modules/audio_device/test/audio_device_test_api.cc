@@ -8,19 +8,19 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <math.h>
+#include <cmath>
 #include <stdio.h>
 #include <string.h>
 
-#include "webrtc/modules/audio_device/test/audio_device_test_defines.h"
+#include "audio_device_test_defines.h"
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/test/testsupport/fileutils.h"
+#include "gtest/gtest.h"
+#include "testsupport/fileutils.h"
 
-#include "webrtc/modules/audio_device/audio_device_config.h"
-#include "webrtc/modules/audio_device/audio_device_impl.h"
-#include "webrtc/modules/audio_device/audio_device_utility.h"
-#include "webrtc/system_wrappers/interface/sleep.h"
+#include "modules/audio_device/audio_device_config.h"
+#include "modules/audio_device/audio_device_impl.h"
+#include "modules/audio_device/audio_device_utility.h"
+#include "system_wrappers/interface/sleep.h"
 
 // Helper functions
 #if defined(ANDROID)
@@ -83,17 +83,16 @@ class AudioTransportAPI: public AudioTransport {
 
   ~AudioTransportAPI() {}
 
-  virtual int32_t RecordedDataIsAvailable(
+  virtual WebRtc_Word32 RecordedDataIsAvailable(
       const void* audioSamples,
-      const uint32_t nSamples,
-      const uint8_t nBytesPerSample,
-      const uint8_t nChannels,
-      const uint32_t sampleRate,
-      const uint32_t totalDelay,
-      const int32_t clockSkew,
-      const uint32_t currentMicLevel,
-      const bool keyPressed,
-      uint32_t& newMicLevel) {
+      const WebRtc_UWord32 nSamples,
+      const WebRtc_UWord8 nBytesPerSample,
+      const WebRtc_UWord8 nChannels,
+      const WebRtc_UWord32 sampleRate,
+      const WebRtc_UWord32 totalDelay,
+      const WebRtc_Word32 clockSkew,
+      const WebRtc_UWord32 currentMicLevel,
+      WebRtc_UWord32& newMicLevel) {
     rec_count_++;
     if (rec_count_ % 100 == 0) {
       if (nChannels == 1) {
@@ -110,13 +109,13 @@ class AudioTransportAPI: public AudioTransport {
     return 0;
   }
 
-  virtual int32_t NeedMorePlayData(
-      const uint32_t nSamples,
-      const uint8_t nBytesPerSample,
-      const uint8_t nChannels,
-      const uint32_t sampleRate,
+  virtual WebRtc_Word32 NeedMorePlayData(
+      const WebRtc_UWord32 nSamples,
+      const WebRtc_UWord8 nBytesPerSample,
+      const WebRtc_UWord8 nChannels,
+      const WebRtc_UWord32 sampleRate,
       void* audioSamples,
-      uint32_t& nSamplesOut) {
+      WebRtc_UWord32& nSamplesOut) {
     play_count_++;
     if (play_count_ % 100 == 0) {
       if (nChannels == 1) {
@@ -129,22 +128,9 @@ class AudioTransportAPI: public AudioTransport {
     return 0;
   }
 
-  virtual int OnDataAvailable(const int voe_channels[],
-                              int number_of_voe_channels,
-                              const int16_t* audio_data,
-                              int sample_rate,
-                              int number_of_channels,
-                              int number_of_frames,
-                              int audio_delay_milliseconds,
-                              int current_volume,
-                              bool key_pressed,
-                              bool need_audio_processing) {
-    return 0;
-  }
-
  private:
-  uint32_t rec_count_;
-  uint32_t play_count_;
+  WebRtc_UWord32 rec_count_;
+  WebRtc_UWord32 play_count_;
 };
 
 class AudioDeviceAPITest: public testing::Test {
@@ -162,7 +148,7 @@ class AudioDeviceAPITest: public testing::Test {
     //          user can select between default (Core) or Wave
     //      else
     //          user can select between default (Wave) or Wave
-    const int32_t kId = 444;
+    const WebRtc_Word32 kId = 444;
 
 #if defined(_WIN32)
     EXPECT_TRUE((audio_device_ = AudioDeviceModuleImpl::Create(
@@ -210,7 +196,7 @@ class AudioDeviceAPITest: public testing::Test {
     // Create default implementation instance
     EXPECT_TRUE((audio_device_ = AudioDeviceModuleImpl::Create(
                 kId, AudioDeviceModule::kPlatformDefaultAudio)) != NULL);
-#elif defined(WEBRTC_LINUX) || defined(WEBRTC_BSD)
+#elif defined(WEBRTC_LINUX)
     EXPECT_TRUE((audio_device_ = AudioDeviceModuleImpl::Create(
                 kId, AudioDeviceModule::kWindowsWaveAudio)) == NULL);
     EXPECT_TRUE((audio_device_ = AudioDeviceModuleImpl::Create(
@@ -290,7 +276,7 @@ class AudioDeviceAPITest: public testing::Test {
     EXPECT_EQ(0, audio_device_->Terminate());
   }
 
-  void CheckVolume(uint32_t expected, uint32_t actual) {
+  void CheckVolume(WebRtc_UWord32 expected, WebRtc_UWord32 actual) {
     // Mac and Windows have lower resolution on the volume settings.
 #if defined(WEBRTC_MAC) || defined(_WIN32)
     int diff = abs(static_cast<int>(expected - actual));
@@ -377,7 +363,7 @@ TEST_F(AudioDeviceAPITest, RecordingDevices) {
 TEST_F(AudioDeviceAPITest, PlayoutDeviceName) {
   char name[kAdmMaxDeviceNameSize];
   char guid[kAdmMaxGuidSize];
-  int16_t no_devices = audio_device_->PlayoutDevices();
+  WebRtc_Word16 no_devices = audio_device_->PlayoutDevices();
 
   // fail tests
   EXPECT_EQ(-1, audio_device_->PlayoutDeviceName(-2, name, guid));
@@ -401,7 +387,7 @@ TEST_F(AudioDeviceAPITest, PlayoutDeviceName) {
 TEST_F(AudioDeviceAPITest, RecordingDeviceName) {
   char name[kAdmMaxDeviceNameSize];
   char guid[kAdmMaxGuidSize];
-  int16_t no_devices = audio_device_->RecordingDevices();
+  WebRtc_Word16 no_devices = audio_device_->RecordingDevices();
 
   // fail tests
   EXPECT_EQ(-1, audio_device_->RecordingDeviceName(-2, name, guid));
@@ -423,7 +409,7 @@ TEST_F(AudioDeviceAPITest, RecordingDeviceName) {
 }
 
 TEST_F(AudioDeviceAPITest, SetPlayoutDevice) {
-  int16_t no_devices = audio_device_->PlayoutDevices();
+  WebRtc_Word16 no_devices = audio_device_->PlayoutDevices();
 
   // fail tests
   EXPECT_EQ(-1, audio_device_->SetPlayoutDevice(-1));
@@ -448,7 +434,7 @@ TEST_F(AudioDeviceAPITest, SetPlayoutDevice) {
 
 TEST_F(AudioDeviceAPITest, SetRecordingDevice) {
   EXPECT_EQ(0, audio_device_->Init());
-  int16_t no_devices = audio_device_->RecordingDevices();
+  WebRtc_Word16 no_devices = audio_device_->RecordingDevices();
 
   // fail tests
   EXPECT_EQ(-1, audio_device_->SetRecordingDevice(-1));
@@ -486,7 +472,7 @@ TEST_F(AudioDeviceAPITest, PlayoutIsAvailable) {
   EXPECT_FALSE(audio_device_->PlayoutIsInitialized());
 #endif
 
-  int16_t no_devices = audio_device_->PlayoutDevices();
+  WebRtc_Word16 no_devices = audio_device_->PlayoutDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetPlayoutDevice(i));
     EXPECT_EQ(0, audio_device_->PlayoutIsAvailable(&available));
@@ -508,7 +494,7 @@ TEST_F(AudioDeviceAPITest, RecordingIsAvailable) {
   EXPECT_FALSE(audio_device_->RecordingIsInitialized());
 #endif
 
-  int16_t no_devices = audio_device_->RecordingDevices();
+  WebRtc_Word16 no_devices = audio_device_->RecordingDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetRecordingDevice(i));
     EXPECT_EQ(0, audio_device_->RecordingIsAvailable(&available));
@@ -550,7 +536,7 @@ TEST_F(AudioDeviceAPITest, InitPlayout) {
     EXPECT_TRUE(audio_device_->PlayoutIsInitialized());
   }
 
-  int16_t no_devices = audio_device_->PlayoutDevices();
+  WebRtc_Word16 no_devices = audio_device_->PlayoutDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->PlayoutIsAvailable(&available));
     if (available) {
@@ -599,7 +585,7 @@ TEST_F(AudioDeviceAPITest, InitRecording) {
     EXPECT_TRUE(audio_device_->RecordingIsInitialized());
   }
 
-  int16_t no_devices = audio_device_->RecordingDevices();
+  WebRtc_Word16 no_devices = audio_device_->RecordingDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->RecordingIsAvailable(&available));
     if (available) {
@@ -657,7 +643,7 @@ TEST_F(AudioDeviceAPITest, StartAndStopPlayout) {
   }
 
   // repeat test for all devices
-  int16_t no_devices = audio_device_->PlayoutDevices();
+  WebRtc_Word16 no_devices = audio_device_->PlayoutDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetPlayoutDevice(i));
     EXPECT_EQ(0, audio_device_->PlayoutIsAvailable(&available));
@@ -714,7 +700,7 @@ TEST_F(AudioDeviceAPITest, StartAndStopRecording) {
   }
 
   // repeat test for all devices
-  int16_t no_devices = audio_device_->RecordingDevices();
+  WebRtc_Word16 no_devices = audio_device_->RecordingDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetRecordingDevice(i));
     EXPECT_EQ(0, audio_device_->RecordingIsAvailable(&available));
@@ -732,17 +718,17 @@ TEST_F(AudioDeviceAPITest, StartAndStopRecording) {
 
 #if defined(_WIN32) && !defined(WEBRTC_WINDOWS_CORE_AUDIO_BUILD)
 TEST_F(AudioDeviceAPITest, SetAndGetWaveOutVolume) {
-  uint32_t vol(0);
+  WebRtc_UWord32 vol(0);
   // NOTE 1: Windows Wave only!
   // NOTE 2: It seems like the waveOutSetVolume API returns
   // MMSYSERR_NOTSUPPORTED on some Vista machines!
-  const uint16_t maxVol(0xFFFF);
-  uint16_t volL, volR;
+  const WebRtc_UWord16 maxVol(0xFFFF);
+  WebRtc_UWord16 volL, volR;
 
   CheckInitialPlayoutStates();
 
   // make dummy test to see if this API is supported
-  int32_t works = audio_device_->SetWaveOutVolume(vol, vol);
+  WebRtc_Word32 works = audio_device_->SetWaveOutVolume(vol, vol);
   WARNING(works == 0);
 
   if (works == 0)
@@ -802,7 +788,7 @@ TEST_F(AudioDeviceAPITest, SpeakerIsAvailable) {
   EXPECT_FALSE(audio_device_->SpeakerIsInitialized());
 
   // check all availiable devices
-  int16_t no_devices = audio_device_->PlayoutDevices();
+  WebRtc_Word16 no_devices = audio_device_->PlayoutDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetPlayoutDevice(i));
     EXPECT_EQ(0, audio_device_->SpeakerIsAvailable(&available));
@@ -843,7 +829,7 @@ TEST_F(AudioDeviceAPITest, InitSpeaker) {
   }
 
   // repeat test for all devices
-  int16_t no_devices = audio_device_->PlayoutDevices();
+  WebRtc_Word16 no_devices = audio_device_->PlayoutDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetPlayoutDevice(i));
     EXPECT_EQ(0, audio_device_->SpeakerIsAvailable(&available));
@@ -871,7 +857,7 @@ TEST_F(AudioDeviceAPITest, MicrophoneIsAvailable) {
   EXPECT_FALSE(audio_device_->MicrophoneIsInitialized());
 
   // check all availiable devices
-  int16_t no_devices = audio_device_->RecordingDevices();
+  WebRtc_Word16 no_devices = audio_device_->RecordingDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetRecordingDevice(i));
     EXPECT_EQ(0, audio_device_->MicrophoneIsAvailable(&available));
@@ -912,7 +898,7 @@ TEST_F(AudioDeviceAPITest, InitMicrophone) {
   }
 
   // repeat test for all devices
-  int16_t no_devices = audio_device_->RecordingDevices();
+  WebRtc_Word16 no_devices = audio_device_->RecordingDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetRecordingDevice(i));
     EXPECT_EQ(0, audio_device_->MicrophoneIsAvailable(&available));
@@ -941,7 +927,7 @@ TEST_F(AudioDeviceAPITest, SpeakerVolumeIsAvailable) {
   EXPECT_FALSE(audio_device_->SpeakerIsInitialized());
 
   // check all availiable devices
-  int16_t no_devices = audio_device_->PlayoutDevices();
+  WebRtc_Word16 no_devices = audio_device_->PlayoutDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetPlayoutDevice(i));
     EXPECT_EQ(0, audio_device_->SpeakerVolumeIsAvailable(&available));
@@ -957,11 +943,11 @@ TEST_F(AudioDeviceAPITest, SpeakerVolumeIsAvailable) {
 // NOTE: Disabled on mac due to issue 257.
 #ifndef WEBRTC_MAC
 TEST_F(AudioDeviceAPITest, SpeakerVolumeTests) {
-  uint32_t vol(0);
-  uint32_t volume(0);
-  uint32_t maxVolume(0);
-  uint32_t minVolume(0);
-  uint16_t stepSize(0);
+  WebRtc_UWord32 vol(0);
+  WebRtc_UWord32 volume(0);
+  WebRtc_UWord32 maxVolume(0);
+  WebRtc_UWord32 minVolume(0);
+  WebRtc_UWord16 stepSize(0);
   bool available;
   CheckInitialPlayoutStates();
 
@@ -1012,7 +998,7 @@ TEST_F(AudioDeviceAPITest, SpeakerVolumeTests) {
     EXPECT_EQ(0, audio_device_->MaxSpeakerVolume(&maxVolume));
     EXPECT_EQ(0, audio_device_->MinSpeakerVolume(&minVolume));
     EXPECT_EQ(0, audio_device_->SpeakerVolumeStepSize(&stepSize));
-    uint32_t step = (maxVolume - minVolume) / 10;
+    WebRtc_UWord32 step = (maxVolume - minVolume) / 10;
     step = (step < stepSize ? stepSize : step);
     for (vol = minVolume; vol <= maxVolume; vol += step) {
       EXPECT_EQ(0, audio_device_->SetSpeakerVolume(vol));
@@ -1022,7 +1008,7 @@ TEST_F(AudioDeviceAPITest, SpeakerVolumeTests) {
   }
 
   // use all (indexed) devices and modify/retrieve the volume
-  int16_t no_devices = audio_device_->PlayoutDevices();
+  WebRtc_Word16 no_devices = audio_device_->PlayoutDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetPlayoutDevice(i));
     EXPECT_EQ(0, audio_device_->SpeakerVolumeIsAvailable(&available));
@@ -1031,7 +1017,7 @@ TEST_F(AudioDeviceAPITest, SpeakerVolumeTests) {
       EXPECT_EQ(0, audio_device_->MaxSpeakerVolume(&maxVolume));
       EXPECT_EQ(0, audio_device_->MinSpeakerVolume(&minVolume));
       EXPECT_EQ(0, audio_device_->SpeakerVolumeStepSize(&stepSize));
-      uint32_t step = (maxVolume - minVolume) / 10;
+      WebRtc_UWord32 step = (maxVolume - minVolume) / 10;
       step = (step < stepSize ? stepSize : step);
       for (vol = minVolume; vol <= maxVolume; vol += step) {
         EXPECT_EQ(0, audio_device_->SetSpeakerVolume(vol));
@@ -1085,7 +1071,7 @@ TEST_F(AudioDeviceAPITest, MicrophoneVolumeIsAvailable) {
   EXPECT_FALSE(audio_device_->MicrophoneIsInitialized());
 
   // check all availiable devices
-  int16_t no_devices = audio_device_->RecordingDevices();
+  WebRtc_Word16 no_devices = audio_device_->RecordingDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetRecordingDevice(i));
     EXPECT_EQ(0, audio_device_->MicrophoneVolumeIsAvailable(&available));
@@ -1101,11 +1087,11 @@ TEST_F(AudioDeviceAPITest, MicrophoneVolumeIsAvailable) {
 // NOTE: Disabled on mac due to issue 257.
 #ifndef WEBRTC_MAC
 TEST_F(AudioDeviceAPITest, MicrophoneVolumeTests) {
-  uint32_t vol(0);
-  uint32_t volume(0);
-  uint32_t maxVolume(0);
-  uint32_t minVolume(0);
-  uint16_t stepSize(0);
+  WebRtc_UWord32 vol(0);
+  WebRtc_UWord32 volume(0);
+  WebRtc_UWord32 maxVolume(0);
+  WebRtc_UWord32 minVolume(0);
+  WebRtc_UWord16 stepSize(0);
   bool available;
   CheckInitialRecordingStates();
 
@@ -1167,7 +1153,7 @@ TEST_F(AudioDeviceAPITest, MicrophoneVolumeTests) {
   }
 
   // use all (indexed) devices and modify/retrieve the volume
-  int16_t no_devices = audio_device_->RecordingDevices();
+  WebRtc_Word16 no_devices = audio_device_->RecordingDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetRecordingDevice(i));
     EXPECT_EQ(0, audio_device_->MicrophoneVolumeIsAvailable(&available));
@@ -1213,7 +1199,7 @@ TEST_F(AudioDeviceAPITest, SpeakerMuteIsAvailable) {
   EXPECT_FALSE(audio_device_->SpeakerIsInitialized());
 
   // check all availiable devices
-  int16_t no_devices = audio_device_->PlayoutDevices();
+  WebRtc_Word16 no_devices = audio_device_->PlayoutDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetPlayoutDevice(i));
     EXPECT_EQ(0, audio_device_->SpeakerMuteIsAvailable(&available));
@@ -1239,7 +1225,7 @@ TEST_F(AudioDeviceAPITest, MicrophoneMuteIsAvailable) {
   EXPECT_FALSE(audio_device_->MicrophoneIsInitialized());
 
   // check all availiable devices
-  int16_t no_devices = audio_device_->RecordingDevices();
+  WebRtc_Word16 no_devices = audio_device_->RecordingDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetRecordingDevice(i));
     EXPECT_EQ(0, audio_device_->MicrophoneMuteIsAvailable(&available));
@@ -1265,7 +1251,7 @@ TEST_F(AudioDeviceAPITest, MicrophoneBoostIsAvailable) {
   EXPECT_FALSE(audio_device_->MicrophoneIsInitialized());
 
   // check all availiable devices
-  int16_t no_devices = audio_device_->RecordingDevices();
+  WebRtc_Word16 no_devices = audio_device_->RecordingDevices();
   for (int i = 0; i < no_devices; i++) {
     EXPECT_EQ(0, audio_device_->SetRecordingDevice(i));
     EXPECT_EQ(0, audio_device_->MicrophoneBoostIsAvailable(&available));
@@ -1598,7 +1584,7 @@ TEST_F(AudioDeviceAPITest, RecordingChannelTests) {
 
 TEST_F(AudioDeviceAPITest, PlayoutBufferTests) {
   AudioDeviceModule::BufferType bufferType;
-  uint16_t sizeMS(0);
+  WebRtc_UWord16 sizeMS(0);
 
   CheckInitialPlayoutStates();
   EXPECT_EQ(0, audio_device_->PlayoutBuffer(&bufferType, &sizeMS));
@@ -1671,7 +1657,7 @@ TEST_F(AudioDeviceAPITest, PlayoutBufferTests) {
 
 TEST_F(AudioDeviceAPITest, PlayoutDelay) {
   // NOTE: this API is better tested in a functional test
-  uint16_t sizeMS(0);
+  WebRtc_UWord16 sizeMS(0);
   CheckInitialPlayoutStates();
   // bulk tests
   EXPECT_EQ(0, audio_device_->PlayoutDelay(&sizeMS));
@@ -1680,7 +1666,7 @@ TEST_F(AudioDeviceAPITest, PlayoutDelay) {
 
 TEST_F(AudioDeviceAPITest, RecordingDelay) {
   // NOTE: this API is better tested in a functional test
-  uint16_t sizeMS(0);
+  WebRtc_UWord16 sizeMS(0);
   CheckInitialRecordingStates();
 
   // bulk tests
@@ -1690,7 +1676,7 @@ TEST_F(AudioDeviceAPITest, RecordingDelay) {
 
 TEST_F(AudioDeviceAPITest, CPULoad) {
   // NOTE: this API is better tested in a functional test
-  uint16_t load(0);
+  WebRtc_UWord16 load(0);
 
   // bulk tests
 #ifdef _WIN32
@@ -1703,7 +1689,7 @@ TEST_F(AudioDeviceAPITest, CPULoad) {
 
 // TODO(kjellander): Fix flakiness causing failures on Windows.
 // TODO(phoglund):  Fix flakiness causing failures on Linux.
-#if !defined(_WIN32) && !defined(WEBRTC_LINUX) && !defined(WEBRTC_BSD)
+#if !defined(_WIN32) && !defined(WEBRTC_LINUX)
 TEST_F(AudioDeviceAPITest, StartAndStopRawOutputFileRecording) {
   // NOTE: this API is better tested in a functional test
   CheckInitialPlayoutStates();
@@ -1772,10 +1758,10 @@ TEST_F(AudioDeviceAPITest, StartAndStopRawInputFileRecording) {
   // - size of raw_input_not_recording.pcm shall be 0
   // - size of raw_input_not_recording.pcm shall be > 0
 }
-#endif  // !WIN32 && !WEBRTC_LINUX && !defined(WEBRTC_BSD)
+#endif  // !WIN32 && !WEBRTC_LINUX
 
 TEST_F(AudioDeviceAPITest, RecordingSampleRate) {
-  uint32_t sampleRate(0);
+  WebRtc_UWord32 sampleRate(0);
 
   // bulk tests
   EXPECT_EQ(0, audio_device_->RecordingSampleRate(&sampleRate));
@@ -1783,10 +1769,10 @@ TEST_F(AudioDeviceAPITest, RecordingSampleRate) {
   EXPECT_EQ(48000, sampleRate);
 #elif defined(ANDROID)
   TEST_LOG("Recording sample rate is %u\n\n", sampleRate);
-  EXPECT_TRUE((sampleRate == 44100) || (sampleRate == 16000));
+  EXPECT_TRUE((sampleRate == 44000) || (sampleRate == 16000));
 #elif defined(WEBRTC_IOS)
   TEST_LOG("Recording sample rate is %u\n\n", sampleRate);
-  EXPECT_TRUE((sampleRate == 44100) || (sampleRate == 16000) ||
+  EXPECT_TRUE((sampleRate == 44000) || (sampleRate == 16000) ||
               (sampleRate == 8000));
 #endif
 
@@ -1794,7 +1780,7 @@ TEST_F(AudioDeviceAPITest, RecordingSampleRate) {
 }
 
 TEST_F(AudioDeviceAPITest, PlayoutSampleRate) {
-  uint32_t sampleRate(0);
+  WebRtc_UWord32 sampleRate(0);
 
   // bulk tests
   EXPECT_EQ(0, audio_device_->PlayoutSampleRate(&sampleRate));
@@ -1802,10 +1788,10 @@ TEST_F(AudioDeviceAPITest, PlayoutSampleRate) {
   EXPECT_EQ(48000, sampleRate);
 #elif defined(ANDROID)
   TEST_LOG("Playout sample rate is %u\n\n", sampleRate);
-  EXPECT_TRUE((sampleRate == 44100) || (sampleRate == 16000));
+  EXPECT_TRUE((sampleRate == 44000) || (sampleRate == 16000));
 #elif defined(WEBRTC_IOS)
   TEST_LOG("Playout sample rate is %u\n\n", sampleRate);
-  EXPECT_TRUE((sampleRate == 44100) || (sampleRate == 16000) ||
+  EXPECT_TRUE((sampleRate == 44000) || (sampleRate == 16000) ||
               (sampleRate == 8000));
 #endif
 }

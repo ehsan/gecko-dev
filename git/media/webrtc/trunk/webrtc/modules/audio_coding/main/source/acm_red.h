@@ -15,47 +15,41 @@
 
 namespace webrtc {
 
-namespace acm1 {
-
 class ACMRED : public ACMGenericCodec {
  public:
-  explicit ACMRED(int16_t codec_id);
-  virtual ~ACMRED();
+  explicit ACMRED(WebRtc_Word16 codec_id);
+  ~ACMRED();
 
   // for FEC
-  virtual ACMGenericCodec* CreateInstance(void) OVERRIDE;
+  ACMGenericCodec* CreateInstance(void);
 
-  virtual int16_t InternalEncode(uint8_t* bitstream,
-                                 int16_t* bitstream_len_byte) OVERRIDE;
+  WebRtc_Word16 InternalEncode(WebRtc_UWord8* bitstream,
+                               WebRtc_Word16* bitstream_len_byte);
 
-  virtual int16_t InternalInitEncoder(
-      WebRtcACMCodecParams* codec_params) OVERRIDE;
+  WebRtc_Word16 InternalInitEncoder(WebRtcACMCodecParams *codec_params);
 
-  virtual int16_t InternalInitDecoder(
-      WebRtcACMCodecParams* codec_params) OVERRIDE;
+  WebRtc_Word16 InternalInitDecoder(WebRtcACMCodecParams *codec_params);
 
  protected:
-  virtual int16_t DecodeSafe(uint8_t* bitstream,
-                             int16_t bitstream_len_byte,
-                             int16_t* audio,
-                             int16_t* audio_samples,
-                             int8_t* speech_type) OVERRIDE;
+  WebRtc_Word16 DecodeSafe(WebRtc_UWord8* bitstream,
+                           WebRtc_Word16 bitstream_len_byte,
+                           WebRtc_Word16* audio,
+                           WebRtc_Word16* audio_samples,
+                           WebRtc_Word8* speech_type);
 
-  virtual int32_t CodecDef(WebRtcNetEQ_CodecDef& codec_def,
-                           const CodecInst& codec_inst) OVERRIDE;
+  WebRtc_Word32 CodecDef(WebRtcNetEQ_CodecDef& codec_def,
+                         const CodecInst& codec_inst);
 
-  virtual void DestructEncoderSafe() OVERRIDE;
+  void DestructEncoderSafe();
 
-  virtual void DestructDecoderSafe() OVERRIDE;
+  void DestructDecoderSafe();
 
-  virtual int16_t InternalCreateEncoder() OVERRIDE;
+  WebRtc_Word16 InternalCreateEncoder();
 
-  virtual int16_t InternalCreateDecoder() OVERRIDE;
+  WebRtc_Word16 InternalCreateDecoder();
 
-  virtual void InternalDestructEncoderInst(void* ptr_inst) OVERRIDE;
+  void InternalDestructEncoderInst(void* ptr_inst);
 };
-
-}  // namespace acm1
 
 }  // namespace webrtc
 

@@ -14,9 +14,11 @@
 #include "nsString.h"
 #include "nsTArray.h"
 #include "mozilla/dom/TypedArray.h"
+#include <utility>
 
 namespace mozilla {
 
+class MediaDecoderReader;
 namespace dom {
 class AudioBuffer;
 class AudioContext;
@@ -24,19 +26,14 @@ class DecodeErrorCallback;
 class DecodeSuccessCallback;
 }
 
-struct WebAudioDecodeJob MOZ_FINAL
+struct WebAudioDecodeJob
 {
-  // You may omit both the success and failure callback, or you must pass both.
-  // The callbacks are only necessary for asynchronous operation.
   WebAudioDecodeJob(const nsACString& aContentType,
-                    dom::AudioContext* aContext,
                     const dom::ArrayBuffer& aBuffer,
-                    dom::DecodeSuccessCallback* aSuccessCallback = nullptr,
-                    dom::DecodeErrorCallback* aFailureCallback = nullptr);
+                    dom::AudioContext* aContext,
+                    dom::DecodeSuccessCallback* aSuccessCallback,
+                    dom::DecodeErrorCallback* aFailureCallback);
   ~WebAudioDecodeJob();
-
-  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebAudioDecodeJob)
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebAudioDecodeJob)
 
   enum ErrorCode {
     NoError,
@@ -47,17 +44,21 @@ struct WebAudioDecodeJob MOZ_FINAL
   };
 
   typedef void (WebAudioDecodeJob::*ResultFn)(ErrorCode);
-  typedef nsAutoArrayPtr<float> ChannelBuffer;
+  typedef std::pair<void*, float*> ChannelBuffer;
 
   void OnSuccess(ErrorCode /* ignored */);
   void OnFailure(ErrorCode aErrorCode);
 
   bool AllocateBuffer();
+  bool FinalizeBufferData();
 
-
-  JS::Heap<JSObject*> mArrayBuffer;
   nsCString mContentType;
-  uint32_t mWriteIndex;
+  uint8_t* mBuffer;
+  uint32_t mLength;
+  uint32_t mChannels;
+  uint32_t mSourceSampleRate;
+  uint32_t mFrames;
+  uint32_t mResampledFrames; // The number of frames in the resampled buffer
   nsRefPtr<dom::AudioContext> mContext;
   nsRefPtr<dom::DecodeSuccessCallback> mSuccessCallback;
   nsRefPtr<dom::DecodeErrorCallback> mFailureCallback; // can be null
@@ -76,9 +77,6 @@ class MediaBufferDecoder
 public:
   void AsyncDecodeMedia(const char* aContentType, uint8_t* aBuffer,
                         uint32_t aLength, WebAudioDecodeJob& aDecodeJob);
-
-  bool SyncDecodeMedia(const char* aContentType, uint8_t* aBuffer,
-                       uint32_t aLength, WebAudioDecodeJob& aDecodeJob);
 
   void Shutdown();
 

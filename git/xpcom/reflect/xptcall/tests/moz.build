@@ -6,10 +6,3 @@
 
 MODULE = 'TestXPTC'
 
-SIMPLE_PROGRAMS = [
-    'TestXPTCInvoke',
-]
-
-SOURCES += [
-    '%s.cpp' % s for s in SIMPLE_PROGRAMS
-]

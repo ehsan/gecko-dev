@@ -10,7 +10,7 @@
 
 #include "webrtc/system_wrappers/interface/logging.h"
 
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "webrtc/system_wrappers/interface/condition_variable_wrapper.h"
 #include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
 #include "webrtc/system_wrappers/interface/scoped_ptr.h"
@@ -20,16 +20,18 @@
 namespace webrtc {
 namespace {
 
+const size_t kBoilerplateLength = 71;
+
 class LoggingTest : public ::testing::Test, public TraceCallback {
  public:
   virtual void Print(TraceLevel level, const char* msg, int length) {
     CriticalSectionScoped cs(crit_.get());
     // We test the length here to ensure (with high likelihood) that only our
     // traces will be tested.
-    if (level_ != kTraceNone && static_cast<int>(expected_log_.str().size()) ==
-        length - Trace::kBoilerplateLength - 1) {
+    if (level_ != kTraceNone &&
+        expected_log_.str().size() == length - kBoilerplateLength - 1) {
       EXPECT_EQ(level_, level);
-      EXPECT_EQ(expected_log_.str(), &msg[Trace::kBoilerplateLength]);
+      EXPECT_EQ(expected_log_.str(), &msg[kBoilerplateLength]);
       level_ = kTraceNone;
       cv_->Wake();
     }
@@ -47,7 +49,7 @@ class LoggingTest : public ::testing::Test, public TraceCallback {
     Trace::CreateTrace();
     Trace::SetTraceCallback(this);
     // Reduce the chance that spurious traces will ruin the test.
-    Trace::set_level_filter(kTraceWarning | kTraceError);
+    Trace::SetLevelFilter(kTraceWarning | kTraceError);
   }
 
   void TearDown() {

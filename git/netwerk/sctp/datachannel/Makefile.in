@@ -3,7 +3,22 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH     = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir    = @srcdir@
+VPATH     = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME   = nkdatachan_s
+LIBXUL_LIBRARY = 1
+FORCE_STATIC_LIB = 1
 NO_PROFILE_GUIDED_OPTIMIZE = 1 # Don't PGO
+
+CPPSRCS = \
+  DataChannel.cpp \
+  $(NULL)
+
 LOCAL_INCLUDES = \
   -I$(topsrcdir)/xpcom/ds \
   -I$(srcdir)/../src \
@@ -28,4 +43,8 @@ DEFINES += -D__Userspace_os_$(OS_TARGET)=1
 endif
 
 
+include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
+
+DEFINES += -DIMPL_NS_NET

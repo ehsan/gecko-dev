@@ -12,6 +12,8 @@
 
 SimpleTest.waitForExplicitFinish();
 addLoadEvent(function() {
+  SpecialPowers.setBoolPref("media.webaudio.enabled", true);
+
   var context = new AudioContext();
   var buffer = context.createBuffer(1, 2048, context.sampleRate);
   for (var i = 0; i < 2048; ++i) {
@@ -23,9 +25,6 @@ addLoadEvent(function() {
   is(destination.context, context, "Destination node has proper context");
   is(destination.numberOfInputs, 1, "Destination node has 1 inputs");
   is(destination.numberOfOutputs, 0, "Destination node has 0 outputs");
-  is(destination.channelCount, 2, "Destination node has 2 input channels by default");
-  is(destination.channelCountMode, "explicit", "Correct channelCountMode for the destination node");
-  is(destination.channelInterpretation, "speakers", "Correct channelCountInterpretation for the destination node");
   ok(destination instanceof EventTarget, "AudioNodes must be EventTargets");
 
   testWith(context, buffer, destination, function(source) {
@@ -56,6 +55,7 @@ addLoadEvent(function() {
           }, function(source) {
             source.stop();
           }, function() {
+            SpecialPowers.clearUserPref("media.webaudio.enabled");
             SimpleTest.finish();
           });
         });
@@ -84,13 +84,6 @@ function createNode(context, buffer, destination) {
   is(source.loopStart, 0, "Correct default value for loopStart");
   is(source.loopEnd, 0, "Correct default value for loopEnd");
   ok(!source.buffer, "Source node should not have a buffer when it's created");
-  is(source.channelCount, 2, "source node has 2 input channels by default");
-  is(source.channelCountMode, "max", "Correct channelCountMode for the source node");
-  is(source.channelInterpretation, "speakers", "Correct channelCountInterpretation for the source node");
-
-  expectException(function() {
-    source.channelCount = 0;
-  }, DOMException.NOT_SUPPORTED_ERR);
 
   source.buffer = buffer;
   ok(source.buffer, "Source node should have a buffer now");

@@ -31,13 +31,13 @@ CEnumFormatEtc::~CEnumFormatEtc()
 STDMETHODIMP
 CEnumFormatEtc::QueryInterface(REFIID riid, LPVOID *ppv)
 {
-  *ppv = nullptr;
+  *ppv = NULL;
 
   if (IsEqualIID(riid, IID_IUnknown) ||
       IsEqualIID(riid, IID_IEnumFORMATETC))
       *ppv = (LPVOID)this;
 
-  if (*ppv == nullptr)
+  if (*ppv == NULL)
       return E_NOINTERFACE;
 
   // AddRef any interface we'll return.

@@ -55,7 +55,6 @@ FilePicker.prototype = {
 
   init: function(parent, title, mode) {
     this.mParent = parent;
-    this.mMode = mode;
 
     if (mode != Ci.nsIFilePicker.modeOpen &&
         mode != Ci.nsIFilePicker.modeOpenMultiple) {
@@ -75,16 +74,14 @@ FilePicker.prototype = {
     return this.mFilesEnumerator ? this.mFilesEnumerator.mFiles[0] : null;
   },
 
-  get mode() {
-    return this.mMode;
-  },
-
   appendFilters: function(filterMask) {
+    this.mFilterTypes = null;
+
     // Ci.nsIFilePicker.filterHTML is not supported
     // Ci.nsIFilePicker.filterText is not supported
 
     if (filterMask & Ci.nsIFilePicker.filterImages) {
-      this.mFilterTypes = this.mFilterTypes.concat(IMAGE_FILTERS);
+      this.mFilterTypes = IMAGE_FILTERS;
     }
 
     // Ci.nsIFilePicker.filterXML is not supported
@@ -93,11 +90,11 @@ FilePicker.prototype = {
     // Ci.nsIFilePicker.filterAllowURLs is not supported
 
     if (filterMask & Ci.nsIFilePicker.filterVideo) {
-      this.mFilterTypes = this.mFilterTypes.concat(VIDEO_FILTERS);
+      this.mFilterTypes = VIDEO_FILTERS;
     }
 
     if (filterMask & Ci.nsIFilePicker.filterAudio) {
-      this.mFilterTypes = this.mFilterTypes.concat(AUDIO_FILTERS);
+      this.mFilterTypes = AUDIO_FILTERS;
     }
 
     // Ci.nsIFilePicker.filterAll is by default

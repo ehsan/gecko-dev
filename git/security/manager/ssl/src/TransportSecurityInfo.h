@@ -38,7 +38,7 @@ public:
   TransportSecurityInfo();
   virtual ~TransportSecurityInfo();
   
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSITRANSPORTSECURITYINFO
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSISSLSTATUSPROVIDER
@@ -49,9 +49,9 @@ public:
   nsresult SetSecurityState(uint32_t aState);
   nsresult SetShortSecurityDescription(const PRUnichar *aText);
 
-  const nsACString & GetHostName() const { return mHostName; }
-  const char * GetHostNameRaw() const { return mHostName.get(); }
-
+  const char * GetHostName() const {
+    return mHostName.get();
+  }
   nsresult GetHostName(char **aHostName);
   nsresult SetHostName(const char *aHostName);
 
@@ -90,6 +90,7 @@ private:
   uint32_t mSecurityState;
   int32_t mSubRequestsBrokenSecurity;
   int32_t mSubRequestsNoSecurity;
+  nsString mShortDesc;
 
   PRErrorCode mErrorCode;
   ::mozilla::psm::SSLErrorMessageType mErrorMessageType;
@@ -134,6 +135,9 @@ public:
   static nsresult Init()
   {
     sInstance = new RememberCertErrorsTable();
+    if (!sInstance->mErrorHosts.IsInitialized())
+      return NS_ERROR_OUT_OF_MEMORY;
+
     return NS_OK;
   }
 

@@ -7,7 +7,6 @@
 #include "Hal.h"
 #include "mozilla/AppProcessChecker.h"
 #include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/ContentParent.h"
 #include "mozilla/hal_sandbox/PHalChild.h"
 #include "mozilla/hal_sandbox/PHalParent.h"
 #include "mozilla/dom/TabParent.h"
@@ -53,7 +52,7 @@ Vibrate(const nsTArray<uint32_t>& pattern, const WindowIdentifier &id)
 
   WindowIdentifier newID(id);
   newID.AppendProcessID();
-  Hal()->SendVibrate(p, newID.AsArray(), TabChild::GetFrom(newID.GetWindow()));
+  Hal()->SendVibrate(p, newID.AsArray(), GetTabChildFrom(newID.GetWindow()));
 }
 
 void
@@ -63,7 +62,7 @@ CancelVibrate(const WindowIdentifier &id)
 
   WindowIdentifier newID(id);
   newID.AppendProcessID();
-  Hal()->SendCancelVibrate(newID.AsArray(), TabChild::GetFrom(newID.GetWindow()));
+  Hal()->SendCancelVibrate(newID.AsArray(), GetTabChildFrom(newID.GetWindow()));
 }
 
 void
@@ -212,14 +211,6 @@ GetTimezone()
   return timezone;
 }
 
-int32_t
-GetTimezoneOffset()
-{
-  int32_t timezoneOffset;
-  Hal()->SendGetTimezoneOffset(&timezoneOffset);
-  return timezoneOffset;
-}
-
 void
 EnableSystemClockChangeNotifications()
 {
@@ -348,12 +339,9 @@ SetAlarm(int32_t aSeconds, int32_t aNanoseconds)
 }
 
 void
-SetProcessPriority(int aPid,
-                   ProcessPriority aPriority,
-                   ProcessCPUPriority aCPUPriority,
-                   uint32_t aBackgroundLRU)
+SetProcessPriority(int aPid, ProcessPriority aPriority)
 {
-  NS_RUNTIMEABORT("Only the main process may set processes' priorities.");
+  Hal()->SendSetProcessPriority(aPid, aPriority);
 }
 
 void
@@ -417,18 +405,6 @@ void
 FactoryReset()
 {
   Hal()->SendFactoryReset();
-}
-
-void
-StartDiskSpaceWatcher()
-{
-  NS_RUNTIMEABORT("StartDiskSpaceWatcher() can't be called from sandboxed contexts.");
-}
-
-void
-StopDiskSpaceWatcher()
-{
-  NS_RUNTIMEABORT("StopDiskSpaceWatcher() can't be called from sandboxed contexts.");
 }
 
 class HalParent : public PHalParent
@@ -693,16 +669,6 @@ public:
   }
 
   virtual bool
-  RecvGetTimezoneOffset(int32_t *aTimezoneOffset) MOZ_OVERRIDE
-  {
-    if (!AssertAppProcessPermission(this, "time")) {
-      return false;
-    }
-    *aTimezoneOffset = hal::GetTimezoneOffset();
-    return true;
-  }
-
-  virtual bool
   RecvEnableSystemClockChangeNotifications() MOZ_OVERRIDE
   {
     hal::RegisterSystemClockChangeObserver(this);
@@ -816,6 +782,15 @@ public:
     return true;
   }
 
+  virtual bool
+  RecvSetProcessPriority(const int& aPid, const ProcessPriority& aPriority)
+  {
+    // TODO As a security check, we should ensure that aPid is either the pid
+    // of our child, or the pid of one of the child's children.
+    hal::SetProcessPriority(aPid, aPriority);
+    return true;
+  }
+
   void Notify(const int64_t& aClockDeltaMS)
   {
     unused << SendNotifySystemClockChange(aClockDeltaMS);
@@ -834,18 +809,6 @@ public:
     }
     hal::FactoryReset();
     return true;
-  }
-
-  virtual mozilla::ipc::IProtocol*
-  CloneProtocol(Channel* aChannel,
-                mozilla::ipc::ProtocolCloneContext* aCtx) MOZ_OVERRIDE
-  {
-    ContentParent* contentParent = aCtx->GetContentParent();
-    nsAutoPtr<PHalParent> actor(contentParent->AllocPHalParent());
-    if (!actor || !contentParent->RecvPHalConstructor(actor)) {
-      return nullptr;
-    }
-    return actor.forget();
   }
 };
 

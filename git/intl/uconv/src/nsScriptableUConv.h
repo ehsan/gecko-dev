@@ -7,6 +7,7 @@
 #ifndef __nsScriptableUConv_h_
 #define __nsScriptableUConv_h_
 
+#include "nsICharsetConverterManager.h"
 #include "nsIScriptableUConv.h"
 
 class nsScriptableUnicodeConverter : public nsIScriptableUnicodeConverter

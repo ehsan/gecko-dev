@@ -4,15 +4,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGLContext.h"
-#include "WebGLUniformLocation.h"
-#include "WebGLShader.h"
-#include "WebGLProgram.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 
 using namespace mozilla;
 
 JSObject*
-WebGLUniformLocation::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+WebGLUniformLocation::WrapObject(JSContext *cx, JSObject *scope)
 {
     return dom::WebGLUniformLocationBinding::Wrap(cx, scope, this);
 }
@@ -29,5 +26,9 @@ WebGLUniformLocation::WebGLUniformLocation(WebGLContext *context, WebGLProgram *
 
 NS_IMPL_CYCLE_COLLECTION_1(WebGLUniformLocation, mProgram)
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(WebGLUniformLocation, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(WebGLUniformLocation, Release)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLUniformLocation)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(WebGLUniformLocation)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLUniformLocation)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END

@@ -9,9 +9,6 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyServiceGetter(this, "gUUIDGenerator",
-                                   "@mozilla.org/uuid-generator;1", "nsIUUIDGenerator");
-
 let WebProgressListener = {
   _lastLocation: null,
   _firstPaint: false,
@@ -263,7 +260,7 @@ let WebNavigation =  {
       // start might already be in use)
       let id = aIdMap[aEntry.ID] || 0;
       if (!id) {
-        id = gUUIDGenerator.generateUUID();
+        for (id = Date.now(); id in aIdMap.used; id++);
         aIdMap[aEntry.ID] = id;
         aIdMap.used[id] = true;
       }
@@ -551,15 +548,13 @@ let DOMEvents =  {
 DOMEvents.init();
 
 let ContentScroll =  {
-  // The most recent offset set by APZC for the root scroll frame
   _scrollOffset: { x: 0, y: 0 },
 
   init: function() {
+    addMessageListener("Content:SetCacheViewport", this);
     addMessageListener("Content:SetWindowSize", this);
 
-    if (Services.prefs.getBoolPref("layers.async-pan-zoom.enabled")) {
-      addEventListener("scroll", this, false);
-    }
+    addEventListener("scroll", this, false);
     addEventListener("pagehide", this, false);
     addEventListener("MozScrolledAreaChanged", this, false);
   },
@@ -577,13 +572,74 @@ let ContentScroll =  {
     return { x: aElement.scrollLeft, y: aElement.scrollTop };
   },
 
+  setScrollOffsetForElement: function(aElement, aLeft, aTop) {
+    if (aElement.parentNode == aElement.ownerDocument) {
+      aElement.ownerDocument.defaultView.scrollTo(aLeft, aTop);
+    } else {
+      aElement.scrollLeft = aLeft;
+      aElement.scrollTop = aTop;
+    }
+  },
+
   receiveMessage: function(aMessage) {
     let json = aMessage.json;
     switch (aMessage.name) {
+      case "Content:SetCacheViewport": {
+        // Set resolution for root view
+        let rootCwu = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+        if (json.id == 1) {
+          rootCwu.setResolution(json.scale, json.scale);
+          if (!WebProgressListener._firstPaint)
+            break;
+        }
+
+        let displayport = new Rect(json.x, json.y, json.w, json.h);
+        if (displayport.isEmpty())
+          break;
+
+        // Map ID to element
+        let element = null;
+        try {
+          element = rootCwu.findElementWithViewId(json.id);
+        } catch(e) {
+          // This could give NS_ERROR_NOT_AVAILABLE. In that case, the
+          // presshell is not available because the page is reloading.
+        }
+
+        if (!element)
+          break;
+
+        let binding = element.ownerDocument.getBindingParent(element);
+        if (binding instanceof Ci.nsIDOMHTMLInputElement && binding.mozIsTextField(false))
+          break;
+
+        // Set the scroll offset for this element if specified
+        if (json.scrollX >= 0 && json.scrollY >= 0) {
+          this.setScrollOffsetForElement(element, json.scrollX, json.scrollY)
+          if (json.id == 1)
+            this._scrollOffset = this.getScrollOffset(content);
+        }
+
+        // Set displayport. We want to set this after setting the scroll offset, because
+        // it is calculated based on the scroll offset.
+        let scrollOffset = this.getScrollOffsetForElement(element);
+        let x = displayport.x - scrollOffset.x;
+        let y = displayport.y - scrollOffset.y;
+
+        if (json.id == 1) {
+          x = Math.round(x * json.scale) / json.scale;
+          y = Math.round(y * json.scale) / json.scale;
+        }
+
+        let win = element.ownerDocument.defaultView;
+        let winCwu = win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+        winCwu.setDisplayPortForElement(x, y, displayport.width, displayport.height, element);
+        break;
+      }
+
       case "Content:SetWindowSize": {
         let cwu = content.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
         cwu.setCSSViewport(json.width, json.height);
-        sendAsyncMessage("Content:SetWindowSize:Complete", {});
         break;
       }
     }
@@ -596,7 +652,11 @@ let ContentScroll =  {
         break;
 
       case "scroll": {
-        this.notifyChromeAboutContentScroll(aEvent.target);
+        let doc = aEvent.target;
+        if (doc != content.document)
+          break;
+
+        this.sendScroll();
         break;
       }
 
@@ -623,45 +683,13 @@ let ContentScroll =  {
     }
   },
 
-  /*
-  * DOM scroll handler - if we receive this, content or the dom scrolled
-  * content without going through the apz. This can happen in a lot of
-  * cases, keyboard shortcuts, scroll wheel, or content script. Messages
-  * chrome via a sync call which messages the apz about the update.
-  */
-  notifyChromeAboutContentScroll: function (target) {
-    let isRoot = false;
-    if (target instanceof Ci.nsIDOMDocument) {
-      var window = target.defaultView;
-      var scrollOffset = this.getScrollOffset(window);
-      var element = target.documentElement;
+  sendScroll: function sendScroll() {
+    let scrollOffset = this.getScrollOffset(content);
+    if (this._scrollOffset.x == scrollOffset.x && this._scrollOffset.y == scrollOffset.y)
+      return;
 
-      if (target == content.document) {
-        if (this._scrollOffset.x == scrollOffset.x && this._scrollOffset.y == scrollOffset.y) {
-          // Don't send a scroll message back to APZC if it's the same as the
-          // last one.
-          return;
-        }
-        this._scrollOffset = scrollOffset;
-        isRoot = true;
-      }
-    } else {
-      var window = target.currentDoc.defaultView;
-      var scrollOffset = this.getScrollOffsetForElement(target);
-      var element = target;
-    }
-
-    let utils = window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-    let presShellId = {};
-    utils.getPresShellId(presShellId);
-    let viewId = utils.getViewId(element);
-    // Must be synchronous to prevent redraw getting out of sync from
-    // composition.
-    sendSyncMessage("Browser:ContentScroll",
-      { presShellId: presShellId.value,
-        viewId: viewId,
-        scrollOffset: scrollOffset,
-        isRoot: isRoot });
+    this._scrollOffset = scrollOffset;
+    sendAsyncMessage("scroll", scrollOffset);
   }
 };
 

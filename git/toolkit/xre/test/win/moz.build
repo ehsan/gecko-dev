@@ -6,11 +6,3 @@
 
 MODULE = 'test_xulapp'
 
-SIMPLE_PROGRAMS = [
-    'TestDllInterceptor',
-    'TestXREMakeCommandLineWin',
-]
-
-SOURCES += [
-    '%s.cpp' % s for s in SIMPLE_PROGRAMS
-]

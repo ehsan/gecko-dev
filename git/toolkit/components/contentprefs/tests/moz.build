@@ -6,4 +6,3 @@
 
 MODULE = 'test_toolkit_contentprefs'
 
-XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini', 'unit_cps2/xpcshell.ini']

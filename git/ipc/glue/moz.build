@@ -12,22 +12,23 @@ EXPORTS += [
 ]
 
 EXPORTS.mozilla.ipc += [
+    'AsyncChannel.h',
     'BrowserProcessSubThread.h',
     'CrossProcessMutex.h',
     'FileDescriptor.h',
     'FileDescriptorUtils.h',
     'GeckoChildProcessHost.h',
-    'InputStreamUtils.h',
     'IOThreadChild.h',
-    'MessageChannel.h',
-    'MessageLink.h',
+    'InputStreamUtils.h',
     'ProcessChild.h',
     'ProtocolUtils.h',
+    'RPCChannel.h',
     'ScopedXREEmbed.h',
     'SharedMemory.h',
     'SharedMemoryBasic.h',
     'SharedMemorySysV.h',
     'Shmem.h',
+    'SyncChannel.h',
     'Transport.h',
     'URIUtils.h',
 ]
@@ -36,20 +37,9 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     EXPORTS.mozilla.ipc += [
         'Transport_win.h',
     ]
-    SOURCES += [
-        'CrossProcessMutex_windows.cpp',
-        'SharedMemory_windows.cpp',
-        'Transport_win.cpp',
-        'WindowsMessageLoop.cpp',
-    ]
 else:
     EXPORTS.mozilla.ipc += [
         'Transport_posix.h',
-    ]
-    SOURCES += [
-        'CrossProcessMutex_unimplemented.cpp',
-        'SharedMemory_posix.cpp',
-        'Transport_posix.cpp',
     ]
 
 # Android has its own,
@@ -57,54 +47,10 @@ else:
 # impl.
 if CONFIG['OS_TARGET'] == 'Android':
     EXPORTS.mozilla.ipc += ['SharedMemoryBasic_android.h']
-    SOURCES += [
-        'SharedMemoryBasic_android.cpp',
-    ]
 else:
     EXPORTS.mozilla.ipc += ['SharedMemoryBasic_chromium.h']
-
-if CONFIG['OS_ARCH'] == 'Linux':
-    SOURCES += [
-        'ProcessUtils_linux.cpp',
-    ]
-else:
-    SOURCES += [
-        'ProcessUtils_none.cpp',
-    ]
 
 EXPORTS.ipc += [
     'IPCMessageUtils.h',
 ]
-
-SOURCES += [
-    'BrowserProcessSubThread.cpp',
-    'FileDescriptor.cpp',
-    'FileDescriptorUtils.cpp',
-    'GeckoChildProcessHost.cpp',
-    'InputStreamUtils.cpp',
-    'MessageChannel.cpp',
-    'MessageLink.cpp',
-    'MessagePump.cpp',
-    'ProcessChild.cpp',
-    'ProtocolUtils.cpp',
-    'ScopedXREEmbed.cpp',
-    'SharedMemory.cpp',
-    'Shmem.cpp',
-    'StringUtil.cpp',
-    'URIUtils.cpp',
-]
-
-IPDL_SOURCES = [
-    'InputStreamParams.ipdlh',
-    'ProtocolTypes.ipdlh',
-    'URIParams.ipdlh',
-]
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'mozipc_s'
-
-EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -8,8 +8,7 @@
 #define mozilla_dom_bluetooth_bluetoothcommon_h__
 
 #include "mozilla/Observer.h"
-#include "nsPrintfCString.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsTArray.h"
 
 extern bool gBluetoothDebugFlag;
@@ -19,38 +18,24 @@ extern bool gBluetoothDebugFlag;
 #undef BT_LOG
 #if defined(MOZ_WIDGET_GONK)
 #include <android/log.h>
-/**
- * Prints 'D'EBUG build logs, which show in DEBUG build only when
- * developer setting 'Bluetooth output in adb' is enabled.
- */
-#define BT_LOGD(args...)                                             \
+#define BT_LOG(args...)                                              \
   do {                                                               \
     if (gBluetoothDebugFlag) {                                       \
       __android_log_print(ANDROID_LOG_INFO, "GeckoBluetooth", args); \
     }                                                                \
   } while(0)
 
-/**
- * Prints 'R'ELEASE build logs, which show in both RELEASE and DEBUG builds.
- */
-#define BT_LOGR(args...)                                             \
-  __android_log_print(ANDROID_LOG_INFO, "GeckoBluetooth", args)      \
-
-/**
- * Prints DEBUG build warnings, which show in DEBUG build only.
- */
 #define BT_WARNING(args...)                                          \
-  NS_WARNING(nsPrintfCString(args).get())                            \
+  __android_log_print(ANDROID_LOG_WARN, "GeckoBluetooth", args)
 
 #else
-#define BT_LOGD(args, ...)                                           \
+#define BT_LOG(args, ...)                                            \
   do {                                                               \
     if (gBluetoothDebugFlag) {                                       \
       printf(args, ##__VA_ARGS__);                                   \
     }                                                                \
   } while(0)
 
-#define BT_LOGR(args, ...) printf(args, ##__VA_ARGS__)
 #define BT_WARNING(args, ...) printf(args, ##__VA_ARGS__)
 #endif
 
@@ -66,39 +51,9 @@ extern bool gBluetoothDebugFlag;
 #define KEY_MANAGER      "/B2G/bluetooth/manager"
 #define KEY_ADAPTER      "/B2G/bluetooth/adapter"
 
-/**
- * When the connection status of a Bluetooth profile is changed, we'll notify
- * observers which register the following topics.
- */
-#define BLUETOOTH_A2DP_STATUS_CHANGED_ID "bluetooth-a2dp-status-changed"
-#define BLUETOOTH_HFP_STATUS_CHANGED_ID  "bluetooth-hfp-status-changed"
-#define BLUETOOTH_HID_STATUS_CHANGED_ID  "bluetooth-hid-status-changed"
-#define BLUETOOTH_SCO_STATUS_CHANGED_ID  "bluetooth-sco-status-changed"
-
-/**
- * When the connection status of a Bluetooth profile is changed, we'll
- * dispatch one of the following events.
- */
-#define A2DP_STATUS_CHANGED_ID               "a2dpstatuschanged"
-#define HFP_STATUS_CHANGED_ID                "hfpstatuschanged"
-#define SCO_STATUS_CHANGED_ID                "scostatuschanged"
-
-/**
- * When the pair status of a Bluetooth device is changed, we'll dispatch an
- * event.
- */
-#define PAIRED_STATUS_CHANGED_ID             "pairedstatuschanged"
-
-/**
- * When receiving a query about current play status from remote device, we'll
- * dispatch an event.
- */
-#define REQUEST_MEDIA_PLAYSTATUS_ID          "requestmediaplaystatus"
-
 // Bluetooth address format: xx:xx:xx:xx:xx:xx (or xx_xx_xx_xx_xx_xx)
 #define BLUETOOTH_ADDRESS_LENGTH 17
 #define BLUETOOTH_ADDRESS_NONE   "00:00:00:00:00:00"
-#define BLUETOOTH_ADDRESS_BYTES  6
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -121,16 +76,6 @@ enum BluetoothObjectType {
   TYPE_DEVICE = 2,
 
   TYPE_INVALID
-};
-
-enum ControlPlayStatus {
-  PLAYSTATUS_STOPPED  = 0x00,
-  PLAYSTATUS_PLAYING  = 0x01,
-  PLAYSTATUS_PAUSED   = 0x02,
-  PLAYSTATUS_FWD_SEEK = 0x03,
-  PLAYSTATUS_REV_SEEK = 0x04,
-  PLAYSTATUS_UNKNOWN,
-  PLAYSTATUS_ERROR    = 0xFF,
 };
 
 END_BLUETOOTH_NAMESPACE

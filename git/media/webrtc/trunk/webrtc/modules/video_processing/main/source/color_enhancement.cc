@@ -8,24 +8,23 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <stdlib.h>  // NULL
-
-#include "webrtc/modules/video_processing/main/source/color_enhancement.h"
-#include "webrtc/modules/video_processing/main/source/color_enhancement_private.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "color_enhancement.h"
+#include "color_enhancement_private.h"
+#include "trace.h"
+#include <cstdlib>  // NULL
 
 namespace webrtc {
 
 namespace VideoProcessing
 { 
-    int32_t
+    WebRtc_Word32
     ColorEnhancement(I420VideoFrame* frame)
     {
         assert(frame);
         // pointers to U and V color pixels
-        uint8_t* ptrU;
-        uint8_t* ptrV;
-        uint8_t tempChroma;
+        WebRtc_UWord8* ptrU;
+        WebRtc_UWord8* ptrV;
+        WebRtc_UWord8 tempChroma;
 
         if (frame->IsZeroSize())
         {
@@ -60,6 +59,6 @@ namespace VideoProcessing
         return VPM_OK;
     }
 
-}  // namespace
+} //namespace
 
-}  // namespace webrtc
+} //namespace webrtc

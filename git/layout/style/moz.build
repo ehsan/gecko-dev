@@ -12,19 +12,18 @@ MODULE = 'layout'
 EXPORTS += [
     'AnimationCommon.h',
     'nsAnimationManager.h',
-    'nsComputedDOMStylePropertyList.h',
-    'nsCSSAnonBoxes.h',
     'nsCSSAnonBoxList.h',
+    'nsCSSAnonBoxes.h',
     'nsCSSFontDescList.h',
     'nsCSSKeywordList.h',
     'nsCSSKeywords.h',
     'nsCSSParser.h',
     'nsCSSPropAliasList.h',
-    'nsCSSProperty.h',
     'nsCSSPropList.h',
+    'nsCSSProperty.h',
     'nsCSSProps.h',
-    'nsCSSPseudoClasses.h',
     'nsCSSPseudoClassList.h',
+    'nsCSSPseudoClasses.h',
     'nsCSSPseudoElementList.h',
     'nsCSSPseudoElements.h',
     'nsCSSRuleProcessor.h',
@@ -48,13 +47,13 @@ EXPORTS += [
     'nsRuleProcessorData.h',
     'nsRuleWalker.h',
     'nsStyleAnimation.h',
-    'nsStyleConsts.h',
     'nsStyleContext.h',
     'nsStyleCoord.h',
     'nsStyleSet.h',
     'nsStyleStruct.h',
     'nsStyleStructFwd.h',
     'nsStyleStructInlines.h',
+    'nsStyleStructList.h',
     'nsStyleTransformMatrix.h',
     'nsStyleUtil.h',
 ]
@@ -75,65 +74,4 @@ EXPORTS.mozilla.css += [
     'Rule.h',
     'StyleRule.h',
 ]
-
-UNIFIED_SOURCES += [
-    'AnimationCommon.cpp',
-    'CSS.cpp',
-    'Declaration.cpp',
-    'ErrorReporter.cpp',
-    'ImageLoader.cpp',
-    'Loader.cpp',
-    'nsAnimationManager.cpp',
-    'nsComputedDOMStyle.cpp',
-    'nsCSSAnonBoxes.cpp',
-    'nsCSSDataBlock.cpp',
-    'nsCSSKeywords.cpp',
-    'nsCSSParser.cpp',
-    'nsCSSProps.cpp',
-    'nsCSSPseudoClasses.cpp',
-    'nsCSSPseudoElements.cpp',
-    'nsCSSRules.cpp',
-    'nsCSSScanner.cpp',
-    'nsCSSStyleSheet.cpp',
-    'nsCSSValue.cpp',
-    'nsDOMCSSAttrDeclaration.cpp',
-    'nsDOMCSSDeclaration.cpp',
-    'nsDOMCSSRect.cpp',
-    'nsDOMCSSRGBColor.cpp',
-    'nsDOMCSSValueList.cpp',
-    'nsDOMMediaQueryList.cpp',
-    'nsFontFaceLoader.cpp',
-    'nsHTMLCSSStyleSheet.cpp',
-    'nsHTMLStyleSheet.cpp',
-    'nsLayoutStylesheetCache.cpp',
-    'nsMediaFeatures.cpp',
-    'nsNthIndexCache.cpp',
-    'nsROCSSPrimitiveValue.cpp',
-    'nsRuleData.cpp',
-    'nsRuleNode.cpp',
-    'nsStyleAnimation.cpp',
-    'nsStyleContext.cpp',
-    'nsStyleCoord.cpp',
-    'nsStyleSet.cpp',
-    'nsStyleStruct.cpp',
-    'nsStyleTransformMatrix.cpp',
-    'nsStyleUtil.cpp',
-    'nsTransitionManager.cpp',
-    'StyleRule.cpp',
-]
-
-# nsCSSRuleProcessor.cpp needs to be built separately because it uses plarena.h.
-SOURCES += [
-    'nsCSSRuleProcessor.cpp',
-]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'gkstyle_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

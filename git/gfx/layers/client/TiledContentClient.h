@@ -6,36 +6,12 @@
 #ifndef MOZILLA_GFX_TILEDCONTENTCLIENT_H
 #define MOZILLA_GFX_TILEDCONTENTCLIENT_H
 
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uint16_t
-#include <algorithm>                    // for swap
-#include "Layers.h"                     // for LayerManager, etc
-#include "TiledLayerBuffer.h"           // for TiledLayerBuffer
-#include "Units.h"                      // for CSSPoint
-#include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "gfxTypes.h"
-#include "gfxPoint.h"                   // for gfxSize
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/RefPtr.h"             // for RefPtr
-#include "mozilla/layers/CompositableClient.h"  // for CompositableClient
-#include "mozilla/layers/CompositorTypes.h"  // for TextureInfo, etc
-#include "mozilla/layers/TextureClient.h"
-#include "mozilla/mozalloc.h"           // for operator delete
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsRect.h"                     // for nsIntRect
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nsTArray.h"                   // for nsTArray, nsTArray_Impl, etc
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_DTOR
-#include "mozilla/layers/ISurfaceAllocator.h"
-#include "gfxReusableSurfaceWrapper.h"
-
-class gfxImageSurface;
+#include "mozilla/layers/ContentClient.h"
+#include "TiledLayerBuffer.h"
+#include "gfxPlatform.h"
 
 namespace mozilla {
 namespace layers {
-
-class BasicTileDescriptor;
 
 /**
  * Represent a single tile in tiled buffer. The buffer keeps tiles,
@@ -47,42 +23,38 @@ class BasicTileDescriptor;
  * Ideal place to store per tile debug information.
  */
 struct BasicTiledLayerTile {
-  RefPtr<DeprecatedTextureClientTile> mDeprecatedTextureClient;
+  RefPtr<TextureClientTile> mTextureClient;
 #ifdef GFX_TILEDLAYER_DEBUG_OVERLAY
   TimeStamp        mLastUpdate;
 #endif
 
   // Placeholder
   BasicTiledLayerTile()
-    : mDeprecatedTextureClient(nullptr)
-  {}
-
-  BasicTiledLayerTile(DeprecatedTextureClientTile* aTextureClient)
-    : mDeprecatedTextureClient(aTextureClient)
+    : mTextureClient(nullptr)
   {}
 
   BasicTiledLayerTile(const BasicTiledLayerTile& o) {
-    mDeprecatedTextureClient = o.mDeprecatedTextureClient;
+    mTextureClient = o.mTextureClient;
 #ifdef GFX_TILEDLAYER_DEBUG_OVERLAY
     mLastUpdate = o.mLastUpdate;
 #endif
   }
   BasicTiledLayerTile& operator=(const BasicTiledLayerTile& o) {
     if (this == &o) return *this;
-    mDeprecatedTextureClient = o.mDeprecatedTextureClient;
+    mTextureClient = o.mTextureClient;
 #ifdef GFX_TILEDLAYER_DEBUG_OVERLAY
     mLastUpdate = o.mLastUpdate;
 #endif
     return *this;
   }
   bool operator== (const BasicTiledLayerTile& o) const {
-    return mDeprecatedTextureClient == o.mDeprecatedTextureClient;
+    return mTextureClient == o.mTextureClient;
   }
   bool operator!= (const BasicTiledLayerTile& o) const {
-    return mDeprecatedTextureClient != o.mDeprecatedTextureClient;
+    return mTextureClient != o.mTextureClient;
   }
 
-  bool IsPlaceholderTile() { return mDeprecatedTextureClient == nullptr; }
+  bool IsPlaceholderTile() { return mTextureClient == nullptr; }
 
   void ReadUnlock() {
     GetSurface()->ReadUnlock();
@@ -91,11 +63,8 @@ struct BasicTiledLayerTile {
     GetSurface()->ReadLock();
   }
 
-  TileDescriptor GetTileDescriptor();
-  static BasicTiledLayerTile OpenDescriptor(ISurfaceAllocator *aAllocator, const TileDescriptor& aDesc);
-
   gfxReusableSurfaceWrapper* GetSurface() {
-    return mDeprecatedTextureClient->GetReusableSurfaceWrapper();
+    return mTextureClient->GetReusableSurfaceWrapper();
   }
 };
 
@@ -104,8 +73,8 @@ struct BasicTiledLayerTile {
  * doesn't need to be recalculated on every repeated transaction.
  */
 struct BasicTiledLayerPaintData {
-  CSSPoint mScrollOffset;
-  CSSPoint mLastScrollOffset;
+  gfx::Point mScrollOffset;
+  gfx::Point mLastScrollOffset;
   gfx3DMatrix mTransformScreenToLayer;
   nsIntRect mLayerCriticalDisplayPort;
   gfxSize mResolution;
@@ -115,8 +84,8 @@ struct BasicTiledLayerPaintData {
   bool mPaintFinished : 1;
 };
 
-class ClientTiledThebesLayer;
-class ClientLayerManager;
+class BasicTiledThebesLayer;
+class BasicShadowLayerManager;
 
 /**
  * Provide an instance of TiledLayerBuffer backed by image surfaces.
@@ -130,36 +99,13 @@ class BasicTiledLayerBuffer
   friend class TiledLayerBuffer<BasicTiledLayerBuffer, BasicTiledLayerTile>;
 
 public:
-  BasicTiledLayerBuffer(ClientTiledThebesLayer* aThebesLayer,
-                        ClientLayerManager* aManager);
+  BasicTiledLayerBuffer(BasicTiledThebesLayer* aThebesLayer,
+                        BasicShadowLayerManager* aManager);
   BasicTiledLayerBuffer()
     : mThebesLayer(nullptr)
     , mManager(nullptr)
     , mLastPaintOpaque(false)
   {}
-
-  BasicTiledLayerBuffer(ISurfaceAllocator* aAllocator,
-                        const nsIntRegion& aValidRegion,
-                        const nsIntRegion& aPaintedRegion,
-                        const InfallibleTArray<TileDescriptor>& aTiles,
-                        int aRetainedWidth,
-                        int aRetainedHeight,
-                        float aResolution)
-  {
-    mValidRegion = aValidRegion;
-    mPaintedRegion = aPaintedRegion;
-    mRetainedWidth = aRetainedWidth;
-    mRetainedHeight = aRetainedHeight;
-    mResolution = aResolution;
-
-    for(size_t i = 0; i < aTiles.Length(); i++) {
-      if (aTiles[i].type() == TileDescriptor::TPlaceholderTileDescriptor) {
-        mRetainedTiles.AppendElement(GetPlaceholderTile());
-      } else {
-        mRetainedTiles.AppendElement(BasicTiledLayerTile::OpenDescriptor(aAllocator, aTiles[i]));
-      }
-    }
-  }
 
   void PaintThebes(const nsIntRegion& aNewValidRegion,
                    const nsIntRegion& aPaintRegion,
@@ -187,7 +133,7 @@ public:
 
   /**
    * Performs a progressive update of a given tiled buffer.
-   * See ComputeProgressiveUpdateRegion below for parameter documentation.
+   * See ComputeProgressiveUpdateRegion above for parameter documentation.
    */
   bool ProgressiveUpdate(nsIntRegion& aValidRegion,
                          nsIntRegion& aInvalidRegion,
@@ -196,10 +142,14 @@ public:
                          LayerManager::DrawThebesLayerCallback aCallback,
                          void* aCallbackData);
 
-  SurfaceDescriptorTiles GetSurfaceDescriptorTiles();
-
-  static BasicTiledLayerBuffer OpenDescriptor(ISurfaceAllocator* aAllocator,
-                                              const SurfaceDescriptorTiles& aDescriptor);
+  /**
+   * Copy this buffer duplicating the texture hosts under the tiles
+   * XXX This should go. It is a hack because we need to keep the
+   * surface wrappers alive whilst they are locked by the compositor.
+   * Once we properly implement the texture host/client architecture
+   * for tiled layers we shouldn't need this.
+   */
+  BasicTiledLayerBuffer DeepCopy() const;
 
 protected:
   BasicTiledLayerTile ValidateTile(BasicTiledLayerTile aTile,
@@ -221,9 +171,9 @@ protected:
   BasicTiledLayerTile GetPlaceholderTile() const { return BasicTiledLayerTile(); }
 
 private:
-  gfxContentType GetContentType() const;
-  ClientTiledThebesLayer* mThebesLayer;
-  ClientLayerManager* mManager;
+  gfxASurface::gfxContentType GetContentType() const;
+  BasicTiledThebesLayer* mThebesLayer;
+  BasicShadowLayerManager* mManager;
   LayerManager::DrawThebesLayerCallback mCallback;
   void* mCallbackData;
   gfxSize mFrameResolution;
@@ -231,7 +181,6 @@ private:
 
   // The buffer we use when UseSinglePaintBuffer() above is true.
   nsRefPtr<gfxImageSurface>     mSinglePaintBuffer;
-  RefPtr<gfx::DrawTarget>       mSinglePaintDrawTarget;
   nsIntPoint                    mSinglePaintBufferOffset;
 
   BasicTiledLayerTile ValidateTileInternal(BasicTiledLayerTile aTile,
@@ -249,6 +198,10 @@ private:
    * current transaction.
    * aRegionToPaint will be filled with the region to update. This may be empty,
    * which indicates that there is no more work to do.
+   * aTransform is the transform required to convert from screen-space to
+   * layer-space.
+   * aScrollOffset is the current scroll offset of the primary scrollable layer.
+   * aResolution is the render resolution of the layer.
    * aIsRepeated should be true if this function has already been called during
    * this transaction.
    *
@@ -268,11 +221,11 @@ class TiledContentClient : public CompositableClient
   // We should have a content client for each tiled buffer which manages its
   // own valid region, resolution, etc. Then we could have a much cleaner
   // interface and tidy up BasicTiledThebesLayer::PaintThebes (bug 862547).
-  friend class ClientTiledThebesLayer;
+  friend class BasicTiledThebesLayer;
 
 public:
-  TiledContentClient(ClientTiledThebesLayer* aThebesLayer,
-                     ClientLayerManager* aManager);
+  TiledContentClient(BasicTiledThebesLayer* aThebesLayer,
+                     BasicShadowLayerManager* aManager);
 
   ~TiledContentClient()
   {

@@ -62,18 +62,15 @@ public:
                                   int64_t aTimeThreshold);
 
   virtual bool HasAudio() {
-    return (mVorbisState != 0 && mVorbisState->mActive)
-#ifdef MOZ_OPUS
-      || (mOpusState != 0 && mOpusState->mActive)
-#endif /* MOZ_OPUS */
-      ;
+    return (mVorbisState != 0 && mVorbisState->mActive) ||
+           (mOpusState != 0 && mOpusState->mActive);
   }
 
   virtual bool HasVideo() {
     return mTheoraState != 0 && mTheoraState->mActive;
   }
 
-  virtual nsresult ReadMetadata(MediaInfo* aInfo,
+  virtual nsresult ReadMetadata(VideoInfo* aInfo,
                                 MetadataTags** aTags);
   virtual nsresult Seek(int64_t aTime, int64_t aStartTime, int64_t aEndTime, int64_t aCurrentTime);
   virtual nsresult GetBuffered(dom::TimeRanges* aBuffered, int64_t aStartTime);
@@ -215,20 +212,13 @@ private:
                             bool aExact);
 private:
 
-  // Decodes a packet of Vorbis data, and inserts its samples into the
+  // Decodes a packet of Vorbis data, and inserts its samples into the 
   // audio queue.
   nsresult DecodeVorbis(ogg_packet* aPacket);
 
   // Decodes a packet of Opus data, and inserts its samples into the
   // audio queue.
   nsresult DecodeOpus(ogg_packet* aPacket);
-
-  // Downmix multichannel Audio samples to Stereo.
-  // It is used from Vorbis and Opus decoders.
-  // Input are the buffer contains multichannel data,
-  // the number of channels and the number of frames.
-  void DownmixToStereo(nsAutoArrayPtr<AudioDataValue>& buffer,
-                     uint32_t& channel, int32_t frames);
 
   // Decodes a packet of Theora data, and inserts its frame into the
   // video queue. May return NS_ERROR_OUT_OF_MEMORY. Caller must have obtained
@@ -237,9 +227,9 @@ private:
   // not be enqueued.
   nsresult DecodeTheora(ogg_packet* aPacket, int64_t aTimeThreshold);
 
-  // Read a page of data from the Ogg file. Returns true if a page has been
-  // read, false if the page read failed or end of file reached.
-  bool ReadOggPage(ogg_page* aPage);
+  // Read a page of data from the Ogg file. Returns the offset of the start
+  // of the page, or -1 if the page read failed.
+  int64_t ReadOggPage(ogg_page* aPage);
 
   // Reads and decodes header packets for aState, until either header decode
   // fails, or is complete. Initializes the codec state before returning.
@@ -271,7 +261,6 @@ private:
   // Decode state of the Vorbis bitstream we're decoding, if we have audio.
   VorbisState* mVorbisState;
 
-#ifdef MOZ_OPUS
   // Decode state of the Opus bitstream we're decoding, if we have one.
   OpusState *mOpusState;
 
@@ -279,7 +268,6 @@ private:
   // contructor was called. We can't check it dynamically because
   // we're not on the main thread;
   bool mOpusEnabled;
-#endif /* MOZ_OPUS */
 
   // Decode state of the Skeleton bitstream.
   SkeletonState* mSkeletonState;
@@ -299,6 +287,10 @@ private:
   vorbis_info mVorbisInfo;
   int mOpusPreSkip;
   th_info mTheoraInfo;
+
+  // The offset of the end of the last page we've read, or the start of
+  // the page we're about to read.
+  int64_t mPageOffset;
 
   // The picture region inside Theora frame to be displayed, if we have
   // a Theora video track.

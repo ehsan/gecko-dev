@@ -22,7 +22,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=596333
 const Ci = SpecialPowers.Ci;
 
 SimpleTest.waitForExplicitFinish();
-addLoadEvent(runTest);
+addLoadEvent(function() SimpleTest.executeSoon(runTest));
 
 var gMisspeltWords;
 
@@ -37,6 +37,8 @@ function getSpellCheckSelection() {
 }
 
 function append(str) {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   var edit = document.getElementById("edit");
   edit.focus();
   edit.selectionStart = edit.selectionEnd = edit.value.length;
@@ -48,15 +50,16 @@ function append(str) {
 }
 
 function getLoadContext() {
-  return SpecialPowers.wrap(window)
-         .QueryInterface(Ci.nsIInterfaceRequestor)
-         .getInterface(Ci.nsIWebNavigation)
-         .QueryInterface(Ci.nsILoadContext);
+  return window.QueryInterface(Ci.nsIInterfaceRequestor)
+               .getInterface(Ci.nsIWebNavigation)
+               .QueryInterface(Ci.nsILoadContext);
 }
 
 function paste(str) {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   var edit = document.getElementById("edit");
-  var Cc = SpecialPowers.Cc, Ci = SpecialPowers.Ci;
+  var Cc = Components.classes, Ci = Components.interfaces;
   var trans = Cc["@mozilla.org/widget/transferable;1"].createInstance(Ci.nsITransferable);
   trans.init(getLoadContext());
   var s = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
@@ -68,39 +71,42 @@ function paste(str) {
 
 function runOnFocus() {
   var edit = document.getElementById("edit");
+  edit.removeEventListener("focus", runOnFocus, false);
+  
+  SimpleTest.executeSoon(function() {
+    gMisspeltWords = ["haz", "cheezburger"];
+    is(isSpellingCheckOk(), true, "All misspellings before editing are accounted for.");
+    append(" becaz I'm a lolcat!");
+    SimpleTest.executeSoon(function() {
+      gMisspeltWords.push("becaz");
+      gMisspeltWords.push("lolcat");
+      is(isSpellingCheckOk(), true, "All misspellings after typing are accounted for.");
 
-  gMisspeltWords = ["haz", "cheezburger"];
-  is(isSpellingCheckOk(), true, "All misspellings before editing are accounted for.");
-  append(" becaz I'm a lolcat!");
-  onSpellCheck(edit, function () {
-    gMisspeltWords.push("becaz");
-    gMisspeltWords.push("lolcat");
-    is(isSpellingCheckOk(), true, "All misspellings after typing are accounted for.");
+      // Now, type an invalid word, and instead of hitting "space" at the end, just blur
+      // the textarea and see if the spell check after the blur event catches it.
+      append(" workd");
+      edit.blur();
+      SimpleTest.executeSoon(function() {
+        gMisspeltWords.push("workd");
+        is(isSpellingCheckOk(), true, "All misspellings after blur are accounted for.");
 
-    // Now, type an invalid word, and instead of hitting "space" at the end, just blur
-    // the textarea and see if the spell check after the blur event catches it.
-    append(" workd");
-    edit.blur();
-    onSpellCheck(edit, function () {
-      gMisspeltWords.push("workd");
-      is(isSpellingCheckOk(), true, "All misspellings after blur are accounted for.");
-
-      // Also, test the case when we're entering the first word in a textarea
-      gMisspeltWords = ["workd"];
-      edit.value = "";
-      append("workd ");
-      onSpellCheck(edit, function () {
-        is(isSpellingCheckOk(), true, "Misspelling in the first entered word is accounted for.");
-
-        // Make sure that pasting would also trigger spell checking for the previous word
+        // Also, test the case when we're entering the first word in a textarea
         gMisspeltWords = ["workd"];
         edit.value = "";
-        append("workd");
-        paste("           x");
-        onSpellCheck(edit, function () {
-          is(isSpellingCheckOk(), true, "Misspelling is accounted for after pasting.");
+        append("workd ");
+        SimpleTest.executeSoon(function() {
+          is(isSpellingCheckOk(), true, "Misspelling in the first entered word is accounted for.");
 
-          SimpleTest.finish();
+          // Make sure that pasting would also trigger spell checking for the previous word
+          gMisspeltWords = ["workd"];
+          edit.value = "";
+          append("workd");
+          paste("           x");
+          SimpleTest.executeSoon(function() {
+            is(isSpellingCheckOk(), true, "Misspelling is accounted for after pasting.");
+
+            SimpleTest.finish();
+          });
         });
       });
     });
@@ -110,13 +116,13 @@ function runOnFocus() {
 function runTest()
 {
   var edit = document.getElementById("edit");
+  edit.addEventListener("focus", runOnFocus, false);
   edit.focus();
-
-  SpecialPowers.Cu.import("resource://gre/modules/AsyncSpellCheckTestHelper.jsm", window);
-  onSpellCheck(edit, runOnFocus);
 }
 
 function isSpellingCheckOk() {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   var sel = getSpellCheckSelection();
   var numWords = sel.rangeCount;
 

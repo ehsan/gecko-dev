@@ -23,7 +23,7 @@ class FontEntry;
 typedef struct FT_LibraryRec_ *FT_Library;
 #endif
 
-class gfxPlatformGtk : public gfxPlatform {
+class THEBES_API gfxPlatformGtk : public gfxPlatform {
 public:
     gfxPlatformGtk();
     virtual ~gfxPlatformGtk();
@@ -33,7 +33,7 @@ public:
     }
 
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                         gfxContentType contentType);
+                                                         gfxASurface::gfxContentType contentType);
 
     mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
       GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont);
@@ -91,15 +91,26 @@ public:
 #endif
 
 #if (MOZ_WIDGET_GTK == 2)
-    static void SetGdkDrawable(cairo_surface_t *target,
+    static void SetGdkDrawable(gfxASurface *target,
                                GdkDrawable *drawable);
-    static GdkDrawable *GetGdkDrawable(cairo_surface_t *target);
+    static GdkDrawable *GetGdkDrawable(gfxASurface *target);
 #endif
 
     static int32_t GetDPI();
 
     bool UseXRender() {
-#if defined(MOZ_X11)
+#if defined(MOZ_X11) && defined(MOZ_PLATFORM_MAEMO)
+        // XRender is not accelerated on the Maemo at the moment, and 
+        // X server pixman is out of our control; it's likely to be 
+        // older than (our) cairo's.   So fall back on software 
+        // rendering for more predictable performance.
+        // This setting will likely not be relevant when we have
+        // GL-accelerated compositing. We know of other platforms 
+        // with bad drivers where we'd like to also use client side 
+        // rendering, but until we have the ability to featuer test 
+        // this, we'll only disable this for maemo.
+        return true;
+#elif defined(MOZ_X11)
         if (GetContentBackend() != mozilla::gfx::BACKEND_NONE &&
             GetContentBackend() != mozilla::gfx::BACKEND_CAIRO)
             return false;
@@ -112,15 +123,11 @@ public:
 
     virtual gfxImageFormat GetOffscreenFormat();
 
-    virtual int GetScreenDepth() const;
-
 protected:
     static gfxFontconfigUtils *sFontconfigUtils;
 
 private:
     virtual qcms_profile *GetPlatformCMSOutputProfile();
-
-    virtual bool SupportsOffMainThreadCompositing();
 #ifdef MOZ_X11
     static bool sUseXRender;
 #endif

@@ -6,10 +6,3 @@
 
 MODULE = 'xpcom'
 
-SIMPLE_PROGRAMS = [
-    'TestMinStringAPI',
-]
-
-SOURCES += [
-    '%s.cpp' % s for s in SIMPLE_PROGRAMS
-]

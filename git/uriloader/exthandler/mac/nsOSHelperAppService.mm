@@ -132,7 +132,7 @@ NS_IMETHODIMP nsOSHelperAppService::GetApplicationDescription(const nsACString& 
               buffer.SetLength(bundleNameLength);
               ::CFStringGetCharacters(bundleName, CFRangeMake(0, bundleNameLength),
                                       buffer.Elements());
-              _retval.Assign(reinterpret_cast<PRUnichar*>(buffer.Elements()), bundleNameLength);
+              _retval.Assign(buffer.Elements(), bundleNameLength);
               rv = NS_OK;
             }
 
@@ -166,7 +166,7 @@ nsresult nsOSHelperAppService::GetFileTokenForPath(const PRUnichar * aPlatformAp
 
   CFURLRef pathAsCFURL;
   CFStringRef pathAsCFString = ::CFStringCreateWithCharacters(NULL,
-                                                              reinterpret_cast<const UniChar*>(aPlatformAppPath),
+                                                              aPlatformAppPath,
                                                               NS_strlen(aPlatformAppPath));
   if (!pathAsCFString)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -310,7 +310,10 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aMIMEType,
                               flatType.get(), flatExt.get()));
 
   // Create a Mac-specific MIME info so we can use Mac-specific members.
-  nsRefPtr<nsMIMEInfoMac> mimeInfoMac = new nsMIMEInfoMac(aMIMEType);
+  nsMIMEInfoMac* mimeInfoMac = new nsMIMEInfoMac(aMIMEType);
+  if (!mimeInfoMac)
+    return nullptr;
+  NS_ADDREF(mimeInfoMac);
 
   NSAutoreleasePool *localPool = [[NSAutoreleasePool alloc] init];
 
@@ -460,6 +463,7 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aMIMEType,
 
     nsCOMPtr<nsILocalFileMac> app(do_CreateInstance(NS_LOCAL_FILE_CONTRACTID));
     if (!app) {
+      NS_RELEASE(mimeInfoMac);
       [localPool release];
       return nullptr;
     }
@@ -481,7 +485,7 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aMIMEType,
       ::CFStringGetCharacters(cfAppName, CFRangeMake(0, appNameLength),
                               buffer.Elements());
       nsAutoString appName;
-      appName.Assign(reinterpret_cast<PRUnichar*>(buffer.Elements()), appNameLength);
+      appName.Assign(buffer.Elements(), appNameLength);
       mimeInfoMac->SetDefaultDescription(appName);
       ::CFRelease(cfAppName);
     }
@@ -507,29 +511,27 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aMIMEType,
     }
 
     CFStringRef cfType = ::CFStringCreateWithCString(NULL, mimeType.get(), kCFStringEncodingUTF8);
-    if (cfType) {
-      CFStringRef cfTypeDesc = NULL;
-      if (::LSCopyKindStringForMIMEType(cfType, &cfTypeDesc) == noErr) {
-        nsAutoTArray<UniChar, 255> buffer;
-        CFIndex typeDescLength = ::CFStringGetLength(cfTypeDesc);
-        buffer.SetLength(typeDescLength);
-        ::CFStringGetCharacters(cfTypeDesc, CFRangeMake(0, typeDescLength),
-                                buffer.Elements());
-        nsAutoString typeDesc;
-        typeDesc.Assign(reinterpret_cast<PRUnichar*>(buffer.Elements()), typeDescLength);
-        mimeInfoMac->SetDescription(typeDesc);
-      }
-      if (cfTypeDesc) {
-        ::CFRelease(cfTypeDesc);
-      }
-      ::CFRelease(cfType);
+    CFStringRef cfTypeDesc = NULL;
+    if (::LSCopyKindStringForMIMEType(cfType, &cfTypeDesc) == noErr) {
+      nsAutoTArray<UniChar, 255> buffer;
+      CFIndex typeDescLength = ::CFStringGetLength(cfTypeDesc);
+      buffer.SetLength(typeDescLength);
+      ::CFStringGetCharacters(cfTypeDesc, CFRangeMake(0, typeDescLength),
+                              buffer.Elements());
+      nsAutoString typeDesc;
+      typeDesc.Assign(buffer.Elements(), typeDescLength);
+      mimeInfoMac->SetDescription(typeDesc);
     }
+    if (cfTypeDesc) {
+      ::CFRelease(cfTypeDesc);
+    }
+    ::CFRelease(cfType);
   }
 
   PR_LOG(mLog, PR_LOG_DEBUG, ("OS gave us: type '%s' found '%i'\n", mimeType.get(), *aFound));
 
   [localPool release];
-  return mimeInfoMac.forget();
+  return mimeInfoMac;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSNULL;
 }
@@ -564,3 +566,8 @@ nsOSHelperAppService::GetProtocolHandlerInfoFromOS(const nsACString &aScheme,
   return NS_OK;
 }
 
+void
+nsOSHelperAppService::FixFilePermissions(nsIFile* aFile)
+{
+  aFile->SetPermissions(mPermissions);
+}

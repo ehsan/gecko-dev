@@ -9,11 +9,10 @@
 
 #include "nsCOMPtr.h"
 #include "nsDeque.h"
+#include "nsICancelable.h"
 #include "nsITimer.h"
 
 #include "mozilla/TimeStamp.h"
-
-class nsICancelable;
 
 namespace mozilla {
 namespace net {
@@ -70,7 +69,7 @@ class TokenBucketCancelable;
 class EventTokenBucket : public nsITimerCallback
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSITIMERCALLBACK
 
   // This should be constructed on the main thread

@@ -82,9 +82,7 @@ endif
 ####################################
 # Sanity checks
 
-# Windows checks.
 ifneq (,$(findstring mingw,$(CONFIG_GUESS)))
-
 # check for CRLF line endings
 ifneq (0,$(shell $(PERL) -e 'binmode(STDIN); while (<STDIN>) { if (/\r/) { print "1"; exit } } print "0"' < $(TOPSRCDIR)/client.mk))
 $(error This source tree appears to have Windows-style line endings. To \
@@ -107,30 +105,11 @@ endef
 
 # As $(shell) doesn't preserve newlines, use sed to replace them with an
 # unlikely sequence (||), which is then replaced back to newlines by make
-# before evaluation. $(shell) replacing newlines with spaces, || is always
-# followed by a space (since sed doesn't remove newlines), except on the
-# last line, so replace both '|| ' and '||'.
-MOZCONFIG_CONTENT := $(subst ||,$(CR),$(subst || ,$(CR),$(shell $(TOPSRCDIR)/$(MOZCONFIG_LOADER) $(TOPSRCDIR) | sed 's/$$/||/')))
-$(eval $(MOZCONFIG_CONTENT))
+# before evaluation.
+$(eval $(subst ||,$(CR),$(shell _PYMAKE=$(.PYMAKE) $(TOPSRCDIR)/$(MOZCONFIG_LOADER) $(TOPSRCDIR) 2> $(TOPSRCDIR)/.mozconfig.out | sed 's/$$/||/')))
 
-export FOUND_MOZCONFIG
-
-# As '||' was used as a newline separator, it means it's not occurring in
-# lines themselves. It can thus safely be used to replaces normal spaces,
-# to then replace newlines with normal spaces. This allows to get a list
-# of mozconfig output lines.
-MOZCONFIG_OUT_LINES := $(subst $(CR), ,$(subst $(NULL) $(NULL),||,$(MOZCONFIG_CONTENT)))
-# Filter-out comments from those lines.
-START_COMMENT = \#
-MOZCONFIG_OUT_FILTERED := $(filter-out $(START_COMMENT)%,$(MOZCONFIG_OUT_LINES))
-
-ifdef AUTOCLOBBER
-export AUTOCLOBBER=1
-endif
-
-ifdef MOZ_PARALLEL_BUILD
-  MOZ_MAKE_FLAGS := $(filter-out -j%,$(MOZ_MAKE_FLAGS))
-  MOZ_MAKE_FLAGS += -j$(MOZ_PARALLEL_BUILD)
+ifdef NO_AUTOCLOBBER
+export NO_AUTOCLOBBER=1
 endif
 
 # Automatically add -jN to make flags if not defined. N defaults to number of cores.
@@ -174,7 +153,7 @@ CONFIGURES := $(TOPSRCDIR)/configure
 CONFIGURES += $(TOPSRCDIR)/js/src/configure
 
 # Make targets that are going to be passed to the real build system
-OBJDIR_TARGETS = install export libs clean realclean distclean maybe_clobber_profiledbuild upload sdk installer package fast-package package-compare stage-package source-package l10n-check
+OBJDIR_TARGETS = install export libs clean realclean distclean alldep maybe_clobber_profiledbuild upload sdk installer package fast-package package-compare stage-package source-package l10n-check
 
 #######################################################################
 # Rules
@@ -187,39 +166,18 @@ build::
 include $(TOPSRCDIR)/config/makefiles/makeutils.mk
 include $(TOPSRCDIR)/config/makefiles/autotargets.mk
 
-# Create a makefile containing the mk_add_options values from mozconfig,
-# but only do so when OBJDIR is defined (see further above).
-ifdef MOZ_BUILD_PROJECTS
-ifdef MOZ_CURRENT_PROJECT
-WANT_MOZCONFIG_MK = 1
-else
-WANT_MOZCONFIG_MK =
-endif
-else
-WANT_MOZCONFIG_MK = 1
-endif
-
-ifdef WANT_MOZCONFIG_MK
-# For now, only output "export" lines from mozconfig2client-mk output.
-MOZCONFIG_MK_LINES := $(filter export||%,$(MOZCONFIG_OUT_LINES))
-$(OBJDIR)/.mozconfig.mk: $(FOUND_MOZCONFIG) $(call mkdir_deps,$(OBJDIR))
-	$(if $(MOZCONFIG_MK_LINES),( $(foreach line,$(MOZCONFIG_MK_LINES), echo "$(subst ||, ,$(line))";) )) > $@
-
-# Include that makefile so that it is created. This should not actually change
-# the environment since MOZCONFIG_CONTENT, which MOZCONFIG_OUT_LINES derives
-# from, has already been eval'ed.
--include $(OBJDIR)/.mozconfig.mk
-endif
-
 # Print out any options loaded from mozconfig.
-all realbuild clean distclean export libs install realclean::
-ifneq (,$(strip $(MOZCONFIG_OUT_FILTERED)))
-	$(info Adding client.mk options from $(FOUND_MOZCONFIG):)
-	$(foreach line,$(MOZCONFIG_OUT_FILTERED),$(info $(NULL) $(NULL) $(NULL) $(NULL) $(subst ||, ,$(line))))
-endif
+all realbuild clean depend distclean export libs install realclean::
+	@if test -f .mozconfig.out; then \
+	  cat .mozconfig.out; \
+	  rm -f .mozconfig.out; \
+	else true; \
+	fi
 
 # Windows equivalents
 build_all: build
+build_all_dep: alldep
+build_all_depend: alldep
 clobber clobber_all: clean
 
 # helper target for mobile
@@ -230,6 +188,12 @@ everything: clean build
 
 ####################################
 # Profile-Guided Optimization
+#  To use this, you should set the following variables in your mozconfig
+#    mk_add_options PROFILE_GEN_SCRIPT=/path/to/profile-script
+#
+#  The profile script should exercise the functionality to be included
+#  in the profile feedback.
+#
 #  This is up here, outside of the MOZ_CURRENT_PROJECT logic so that this
 #  is usable in multi-pass builds, where you might not have a runnable
 #  application until all the build passes and postflight scripts have run.
@@ -243,7 +207,7 @@ profiledbuild::
 	$(MAKE) -f $(TOPSRCDIR)/client.mk realbuild MOZ_PROFILE_GENERATE=1 MOZ_PGO_INSTRUMENTED=1
 	$(MAKE) -C $(PGO_OBJDIR) package MOZ_PGO_INSTRUMENTED=1 MOZ_INTERNAL_SIGNING_FORMAT= MOZ_EXTERNAL_SIGNING_FORMAT=
 	rm -f ${PGO_OBJDIR}/jarlog/en-US.log
-	MOZ_PGO_INSTRUMENTED=1 JARLOG_FILE=jarlog/en-US.log EXTRA_TEST_ARGS=10 $(MAKE) -C $(PGO_OBJDIR) pgo-profile-run
+	MOZ_PGO_INSTRUMENTED=1 OBJDIR=${PGO_OBJDIR} JARLOG_FILE=${PGO_OBJDIR}/jarlog/en-US.log $(PROFILE_GEN_SCRIPT)
 	$(MAKE) -f $(TOPSRCDIR)/client.mk maybe_clobber_profiledbuild
 	$(MAKE) -f $(TOPSRCDIR)/client.mk realbuild MOZ_PROFILE_USE=1
 
@@ -262,7 +226,7 @@ endif
 #####################################################
 # Preflight, before building any project
 
-realbuild preflight_all::
+realbuild alldep preflight_all::
 ifeq (,$(MOZ_CURRENT_PROJECT)$(if $(MOZ_PREFLIGHT_ALL),,1))
 # Don't run preflight_all for individual projects in multi-project builds
 # (when MOZ_CURRENT_PROJECT is set.)
@@ -286,7 +250,7 @@ endif
 # loop through them.
 
 ifeq (,$(MOZ_CURRENT_PROJECT)$(if $(MOZ_BUILD_PROJECTS),,1))
-configure realbuild preflight postflight $(OBJDIR_TARGETS)::
+configure depend realbuild preflight postflight $(OBJDIR_TARGETS)::
 	set -e; \
 	for app in $(MOZ_BUILD_PROJECTS); do \
 	  $(MAKE) -f $(TOPSRCDIR)/client.mk $@ MOZ_CURRENT_PROJECT=$$app; \
@@ -323,8 +287,8 @@ CONFIG_STATUS_DEPS := \
   $(TOPSRCDIR)/config/milestone.txt \
   $(TOPSRCDIR)/js/src/config/milestone.txt \
   $(TOPSRCDIR)/browser/config/version.txt \
-  $(TOPSRCDIR)/build/virtualenv_packages.txt \
-  $(TOPSRCDIR)/python/mozbuild/mozbuild/virtualenv.py \
+  $(TOPSRCDIR)/build/virtualenv/packages.txt \
+  $(TOPSRCDIR)/build/virtualenv/populate_virtualenv.py \
   $(TOPSRCDIR)/testing/mozbase/packages.txt \
   $(NULL)
 
@@ -382,9 +346,15 @@ endif
 
 
 ####################################
+# Depend
+
+depend:: $(OBJDIR)/Makefile $(OBJDIR)/config.status
+	$(MOZ_MAKE) export && $(MOZ_MAKE) depend
+
+####################################
 # Preflight
 
-realbuild preflight::
+realbuild alldep preflight::
 ifdef MOZ_PREFLIGHT
 	set -e; \
 	for mkfile in $(MOZ_PREFLIGHT); do \
@@ -408,7 +378,7 @@ $(OBJDIR_TARGETS):: $(OBJDIR)/Makefile $(OBJDIR)/config.status
 ####################################
 # Postflight
 
-realbuild postflight::
+realbuild alldep postflight::
 ifdef MOZ_POSTFLIGHT
 	set -e; \
 	for mkfile in $(MOZ_POSTFLIGHT); do \
@@ -421,7 +391,7 @@ endif # MOZ_CURRENT_PROJECT
 ####################################
 # Postflight, after building all projects
 
-realbuild postflight_all::
+realbuild alldep postflight_all::
 ifeq (,$(MOZ_CURRENT_PROJECT)$(if $(MOZ_POSTFLIGHT_ALL),,1))
 # Don't run postflight_all for individual projects in multi-project builds
 # (when MOZ_CURRENT_PROJECT is set.)
@@ -482,6 +452,7 @@ echo-variable-%:
 
 .PHONY: checkout \
     real_checkout \
+    depend \
     realbuild \
     build \
     profiledbuild \

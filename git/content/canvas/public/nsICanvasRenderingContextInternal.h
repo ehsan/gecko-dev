@@ -10,15 +10,16 @@
 #include "nsIInputStream.h"
 #include "nsIDocShell.h"
 #include "mozilla/dom/HTMLCanvasElement.h"
-#include "GraphicsFilter.h"
+#include "gfxPattern.h"
 #include "mozilla/RefPtr.h"
 
 #define NS_ICANVASRENDERINGCONTEXTINTERNAL_IID \
-{ 0x9a6a5bdf, 0x1261, 0x4057, \
-  { 0x85, 0xcc, 0xaf, 0x97, 0x6c, 0x36, 0x99, 0xa9 } }
+{ 0x8b8da863, 0xd151, 0x4014, \
+  { 0x8b, 0xdc, 0x62, 0xb5, 0x0d, 0xc0, 0x2b, 0x62 } }
 
 class gfxContext;
 class gfxASurface;
+class nsIPropertyBag;
 class nsDisplayListBuilder;
 
 namespace mozilla {
@@ -54,12 +55,6 @@ public:
     return mCanvasElement;
   }
 
-#ifdef DEBUG
-    // Useful for testing
-    virtual int32_t GetWidth() const = 0;
-    virtual int32_t GetHeight() const = 0;
-#endif
-
   // Sets the dimensions of the canvas, in pixels.  Called
   // whenever the size of the element changes.
   NS_IMETHOD SetDimensions(int32_t width, int32_t height) = 0;
@@ -68,11 +63,8 @@ public:
 
   // Render the canvas at the origin of the given gfxContext
   NS_IMETHOD Render(gfxContext *ctx,
-                    GraphicsFilter aFilter,
+                    gfxPattern::GraphicsFilter aFilter,
                     uint32_t aFlags = RenderFlagPremultAlpha) = 0;
-
-  // Creates an image buffer. Returns null on failure.
-  virtual void GetImageBuffer(uint8_t** aImageBuffer, int32_t* aFormat) = 0;
 
   // Gives you a stream containing the image represented by this context.
   // The format is given in aMimeTime, for example "image/png".
@@ -118,7 +110,9 @@ public:
   // Redraw the dirty rectangle of this canvas.
   NS_IMETHOD Redraw(const gfxRect &dirty) = 0;
 
-  NS_IMETHOD SetContextOptions(JSContext* aCx, JS::Handle<JS::Value> aOptions) { return NS_OK; }
+  // Passes a generic nsIPropertyBag options argument, along with the
+  // previous one, if any.  Optional.
+  NS_IMETHOD SetContextOptions(nsIPropertyBag *aNewOptions) { return NS_OK; }
 
   //
   // shmem support

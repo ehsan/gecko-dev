@@ -8,10 +8,9 @@
 #define nsTArray_h__
 
 #include "nsTArrayForwardDeclare.h"
-#include "mozilla/Alignment.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/TypeTraits.h"
+#include "mozilla/Util.h"
 
 #include <string.h>
 
@@ -21,12 +20,7 @@
 #include "nsQuickSort.h"
 #include "nsDebug.h"
 #include "nsTraceRefcnt.h"
-#include <new>
-
-namespace JS {
-template <class T>
-class Heap;
-} /* namespace JS */
+#include NEW_H
 
 //
 // nsTArray is a resizable array class, like std::vector.
@@ -61,9 +55,6 @@ class Heap;
 //   T MUST define a copy-constructor.
 //   T MAY define operator< for sorting.
 //   T MAY define operator== for searching.
-//
-// (Note that the memmove requirement may be relaxed for certain types - see
-// nsTArray_CopyChooser below.)
 //
 // For methods taking a Comparator instance, the Comparator must be a class
 // defining the following methods:
@@ -265,6 +256,7 @@ private:
   static void HandleOOM() {
     fputs("Out of memory allocating nsTArray buffer.\n", stderr);
     MOZ_CRASH();
+    MOZ_NOT_REACHED();
   }
 };
 
@@ -350,13 +342,13 @@ struct nsTArray_SafeElementAtHelper<nsRefPtr<E>, Derived> :
 // directly.  It holds common implementation code that does not depend on the
 // element type of the nsTArray.
 //
-template<class Alloc, class Copy>
+template<class Alloc>
 class nsTArray_base
 {
   // Allow swapping elements with |nsTArray_base|s created using a
   // different allocator.  This is kosher because all allocators use
   // the same free().
-  template<class Allocator, class Copier>
+  template<class Allocator>
   friend class nsTArray_base;
 
 protected:
@@ -404,7 +396,7 @@ protected:
   // @param elemSize     The size of an array element.
   // @param elemAlign    The alignment in bytes of an array element.
   void ShrinkCapacity(size_type elemSize, size_t elemAlign);
-
+    
   // This method may be called to resize a "gap" in the array by shifting
   // elements around.  It updates mLength appropriately.  If the resulting
   // array has zero elements, then the array's memory is free'd.
@@ -443,18 +435,18 @@ protected:
 protected:
   template<class Allocator>
   typename Alloc::ResultTypeProxy
-  SwapArrayElements(nsTArray_base<Allocator, Copy>& other,
+  SwapArrayElements(nsTArray_base<Allocator>& other,
                     size_type elemSize,
                     size_t elemAlign);
 
   // This is an RAII class used in SwapArrayElements.
   class IsAutoArrayRestorer {
     public:
-      IsAutoArrayRestorer(nsTArray_base<Alloc, Copy> &array, size_t elemAlign);
+      IsAutoArrayRestorer(nsTArray_base<Alloc> &array, size_t elemAlign);
       ~IsAutoArrayRestorer();
 
     private:
-      nsTArray_base<Alloc, Copy> &mArray;
+      nsTArray_base<Alloc> &mArray;
       size_t mElemAlign;
       bool mIsAuto;
   };
@@ -481,7 +473,7 @@ protected:
   // Returns a Header for the built-in buffer of this nsAutoTArray, but doesn't
   // assert that we are an nsAutoTArray.
   Header* GetAutoArrayBufferUnsafe(size_t elemAlign) {
-    return const_cast<Header*>(static_cast<const nsTArray_base<Alloc, Copy>*>(this)->
+    return const_cast<Header*>(static_cast<const nsTArray_base<Alloc>*>(this)->
                                GetAutoArrayBufferUnsafe(elemAlign));
   }
   const Header* GetAutoArrayBufferUnsafe(size_t elemAlign) const;
@@ -494,7 +486,7 @@ protected:
   // null.  If the array is empty, then this will point to sEmptyHdr.
   Header *mHdr;
 
-  Header* Hdr() const {
+  Header* Hdr() const { 
     return mHdr;
   }
 
@@ -572,143 +564,6 @@ struct AssignRangeAlgorithm<true, true> {
 };
 
 //
-// Normally elements are copied with memcpy and memmove, but for some element
-// types that is problematic.  The nsTArray_CopyChooser template class can be
-// specialized to ensure that copying calls constructors and destructors
-// instead, as is done below for JS::Heap<E> elements.
-//
-
-//
-// A class that defines how to copy elements using memcpy/memmove.
-//
-struct nsTArray_CopyWithMemutils
-{
-  const static bool allowRealloc = true;
-
-  static void CopyElements(void* dest, const void* src, size_t count, size_t elemSize) {
-    memcpy(dest, src, count * elemSize);
-  }
-
-  static void CopyHeaderAndElements(void* dest, const void* src, size_t count, size_t elemSize) {
-    memcpy(dest, src, sizeof(nsTArrayHeader) + count * elemSize);
-  }
-
-  static void MoveElements(void* dest, const void* src, size_t count, size_t elemSize) {
-    memmove(dest, src, count * elemSize);
-  }
-};
-
-//
-// A template class that defines how to copy elements calling their constructors
-// and destructors appropriately.
-//
-template <class ElemType>
-struct nsTArray_CopyWithConstructors
-{
-  typedef nsTArrayElementTraits<ElemType> traits;
-
-  const static bool allowRealloc = false;
-
-  static void CopyElements(void* dest, void* src, size_t count, size_t elemSize) {
-    ElemType* destElem = static_cast<ElemType*>(dest);
-    ElemType* srcElem = static_cast<ElemType*>(src);
-    ElemType* destElemEnd = destElem + count;
-#ifdef DEBUG
-    ElemType* srcElemEnd = srcElem + count;
-    MOZ_ASSERT(srcElemEnd <= destElem || srcElemEnd > destElemEnd);
-#endif
-    while (destElem != destElemEnd) {
-      traits::Construct(destElem, *srcElem);
-      traits::Destruct(srcElem);
-      ++destElem;
-      ++srcElem;
-    }
-  }
-
-  static void CopyHeaderAndElements(void* dest, void* src, size_t count, size_t elemSize) {
-    nsTArrayHeader* destHeader = static_cast<nsTArrayHeader*>(dest);
-    nsTArrayHeader* srcHeader = static_cast<nsTArrayHeader*>(src);
-    *destHeader = *srcHeader;
-    CopyElements(static_cast<uint8_t*>(dest) + sizeof(nsTArrayHeader),
-                 static_cast<uint8_t*>(src) + sizeof(nsTArrayHeader),
-                 count, elemSize);
-  }
-
-  static void MoveElements(void* dest, void* src, size_t count, size_t elemSize) {
-    ElemType* destElem = static_cast<ElemType*>(dest);
-    ElemType* srcElem = static_cast<ElemType*>(src);
-    ElemType* destElemEnd = destElem + count;
-    ElemType* srcElemEnd = srcElem + count;
-    if (destElem == srcElem) {
-      return;  // In practice, we don't do this.
-    } else if (srcElemEnd > destElem && srcElemEnd < destElemEnd) {
-      while (destElemEnd != destElem) {
-        --destElemEnd;
-        --srcElemEnd;
-        traits::Construct(destElemEnd, *srcElemEnd);
-        traits::Destruct(srcElem);
-      }
-    } else {
-      CopyElements(dest, src, count, elemSize);
-    }
-  }
-};
-
-//
-// The default behaviour is to use memcpy/memmove for everything.
-//
-template <class E>
-struct nsTArray_CopyChooser {
-  typedef nsTArray_CopyWithMemutils Type;
-};
-
-//
-// JS::Heap<E> elements require constructors/destructors to be called and so is
-// specialized here.
-//
-template <class E>
-struct nsTArray_CopyChooser<JS::Heap<E> > {
-  typedef nsTArray_CopyWithConstructors<E> Type;
-};
-
-//
-// Base class for nsTArray_Impl that is templated on element type and derived
-// nsTArray_Impl class, to allow extra conversions to be added for specific
-// types.
-//
-template <class E, class Derived>
-struct nsTArray_TypedBase : public nsTArray_SafeElementAtHelper<E, Derived> {};
-
-//
-// Specialization of nsTArray_TypedBase for arrays containing JS::Heap<E>
-// elements.
-//
-// These conversions are safe because JS::Heap<E> and E share the same
-// representation, and since the result of the conversions are const references
-// we won't miss any barriers.
-//
-// The static_cast is necessary to obtain the correct address for the derived
-// class since we are a base class used in multiple inheritance.
-//
-template <class E, class Derived>
-struct nsTArray_TypedBase<JS::Heap<E>, Derived>
- : public nsTArray_SafeElementAtHelper<JS::Heap<E>, Derived>
-{
-  operator const nsTArray<E>& () {
-    static_assert(sizeof(E) == sizeof(JS::Heap<E>),
-                  "JS::Heap<E> must be binary compatible with E.");
-    Derived* self = static_cast<Derived*>(this);
-    return *reinterpret_cast<nsTArray<E> *>(self);
-  }
-
-  operator const FallibleTArray<E>& () {
-    Derived* self = static_cast<Derived*>(this);
-    return *reinterpret_cast<FallibleTArray<E> *>(self);
-  }
-};
-
-
-//
 // nsTArray_Impl contains most of the guts supporting nsTArray, FallibleTArray,
 // nsAutoTArray, and AutoFallibleTArray.
 //
@@ -721,17 +576,16 @@ struct nsTArray_TypedBase<JS::Heap<E>, Derived>
 // TArrays can be cast to |const nsTArray&|.
 //
 template<class E, class Alloc>
-class nsTArray_Impl : public nsTArray_base<Alloc, typename nsTArray_CopyChooser<E>::Type>,
-                      public nsTArray_TypedBase<E, nsTArray_Impl<E, Alloc> >
+class nsTArray_Impl : public nsTArray_base<Alloc>,
+                      public nsTArray_SafeElementAtHelper<E, nsTArray_Impl<E, Alloc> >
 {
 public:
-  typedef typename nsTArray_CopyChooser<E>::Type     copy_type;
-  typedef nsTArray_base<Alloc, copy_type>            base_type;
-  typedef typename base_type::size_type              size_type;
-  typedef typename base_type::index_type             index_type;
-  typedef E                                          elem_type;
-  typedef nsTArray_Impl<E, Alloc>                    self_type;
-  typedef nsTArrayElementTraits<E>                   elem_traits;
+  typedef nsTArray_base<Alloc>           base_type;
+  typedef typename base_type::size_type  size_type;
+  typedef typename base_type::index_type index_type;
+  typedef E                              elem_type;
+  typedef nsTArray_Impl<E, Alloc>        self_type;
+  typedef nsTArrayElementTraits<E>       elem_traits;
   typedef nsTArray_SafeElementAtHelper<E, self_type> safeelementat_helper_type;
 
   using safeelementat_helper_type::SafeElementAt;
@@ -833,7 +687,7 @@ public:
 
   // @return The amount of memory used by this nsTArray_Impl, excluding
   // sizeof(*this).
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun mallocSizeOf) const {
     if (this->UsesAutoArrayBuffer() || Hdr() == EmptyHdr())
       return 0;
     return mallocSizeOf(this->Hdr());
@@ -841,7 +695,7 @@ public:
 
   // @return The amount of memory used by this nsTArray_Impl, including
   // sizeof(*this).
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf) const {
     return mallocSizeOf(this) + SizeOfExcludingThis(mallocSizeOf);
   }
 
@@ -862,7 +716,7 @@ public:
   const elem_type* Elements() const {
     return reinterpret_cast<const elem_type *>(Hdr() + 1);
   }
-
+    
   // This method provides direct access to the i'th element of the array.
   // The given index must be within the array bounds.
   // @param i  The index of an element in the array.
@@ -1046,40 +900,6 @@ public:
   //
   // Mutation methods
   //
-  // This method call the destructor on each element of the array, empties it,
-  // but does not shrink the array's capacity.
-  // See also SetLengthAndRetainStorage.
-  // Make sure to call Compact() if needed to avoid keeping a huge array
-  // around.
-  void ClearAndRetainStorage() {
-    if (base_type::mHdr == EmptyHdr()) {
-      return;
-    }
-
-    DestructRange(0, Length());
-    base_type::mHdr->mLength = 0;
-  }
-
-  // This method modifies the length of the array, but unlike SetLength
-  // it doesn't deallocate/reallocate the current internal storage.
-  // The new length MUST be shorter than or equal to the current capacity.
-  // If the new length is larger than the existing length of the array,
-  // then new elements will be constructed using elem_type's default
-  // constructor.  If shorter, elements will be destructed and removed.
-  // See also ClearAndRetainStorage.
-  // @param newLen  The desired length of this array.
-  void SetLengthAndRetainStorage(size_type newLen) {
-    MOZ_ASSERT(newLen <= base_type::Capacity());
-    size_type oldLen = Length();
-    if (newLen > oldLen) {
-      InsertElementsAt(oldLen, newLen - oldLen);
-      return;
-    }
-    if (newLen < oldLen) {
-      DestructRange(newLen, oldLen - newLen);
-      base_type::mHdr->mLength = newLen;
-    }
-  }
 
   // This method replaces a range of elements in this array.
   // @param start     The starting index of the elements to replace.
@@ -1263,7 +1083,7 @@ public:
     return AppendElements(1);
   }
 
-  // Move all elements from another array to the end of this array without
+  // Move all elements from another array to the end of this array without 
   // calling copy constructors or destructors.
   // @return A pointer to the newly appended elements, or null on OOM.
   template<class Item, class Allocator>
@@ -1273,8 +1093,8 @@ public:
     index_type otherLen = array.Length();
     if (!Alloc::Successful(this->EnsureCapacity(len + otherLen, sizeof(elem_type))))
       return nullptr;
-    copy_type::CopyElements(Elements() + len, array.Elements(), otherLen, sizeof(elem_type));
-    this->IncrementLength(otherLen);
+    memcpy(Elements() + len, array.Elements(), otherLen * sizeof(elem_type));
+    this->IncrementLength(otherLen);      
     array.ShiftData(0, otherLen, 0, sizeof(elem_type), MOZ_ALIGNOF(elem_type));
     return Elements() + len;
   }
@@ -1381,7 +1201,7 @@ public:
     if (newLen > oldLen) {
       return InsertElementsAt(oldLen, newLen - oldLen) != nullptr;
     }
-
+      
     TruncateLength(newLen);
     return true;
   }
@@ -1463,7 +1283,7 @@ typename Alloc::ResultType EnsureLengthAtLeast(size_type minLen) {
   //
   // Sorting
   //
-
+ 
   // This function is meant to be used with the NS_QuickSort function.  It
   // maps the callback API expected by NS_QuickSort to the Comparator API
   // used by nsTArray_Impl.  See nsTArray_Impl::Sort.
@@ -1576,8 +1396,8 @@ protected:
 
   // This method invokes elem_type's copy-constructor on a range of elements.
   // @param start   The index of the first element to construct.
-  // @param count   The number of elements to construct.
-  // @param values  The array of elements to copy.
+  // @param count   The number of elements to construct. 
+  // @param values  The array of elements to copy. 
   template<class Item>
   void AssignRange(index_type start, size_type count,
                    const Item *values) {
@@ -1713,13 +1533,13 @@ protected:
 private:
   // nsTArray_base casts itself as an nsAutoArrayBase in order to get a pointer
   // to mAutoBuf.
-  template<class Allocator, class Copier>
+  template<class Allocator>
   friend class nsTArray_base;
 
   void Init() {
-    static_assert(MOZ_ALIGNOF(elem_type) <= 8,
-                  "can't handle alignments greater than 8, "
-                  "see nsTArray_base::UsesAutoArrayBuffer()");
+    MOZ_STATIC_ASSERT(MOZ_ALIGNOF(elem_type) <= 8,
+                      "can't handle alignments greater than 8, "
+                      "see nsTArray_base::UsesAutoArrayBuffer()");
     // Temporary work around for VS2012 RC compiler crash
     Header** phdr = base_type::PtrToHdr();
     *phdr = reinterpret_cast<Header*>(&mAutoBuf);
@@ -1807,10 +1627,10 @@ public:
 // 64-bit system, where the compiler inserts 4 bytes of padding at the end of
 // the auto array to make its size a multiple of alignof(void*) == 8 bytes.
 
-static_assert(sizeof(nsAutoTArray<uint32_t, 2>) ==
-              sizeof(void*) + sizeof(nsTArrayHeader) + sizeof(uint32_t) * 2,
-              "nsAutoTArray shouldn't contain any extra padding, "
-              "see the comment");
+MOZ_STATIC_ASSERT(sizeof(nsAutoTArray<uint32_t, 2>) ==
+                  sizeof(void*) + sizeof(nsTArrayHeader) + sizeof(uint32_t) * 2,
+                  "nsAutoTArray shouldn't contain any extra padding, "
+                  "see the comment");
 
 // Definitions of nsTArray_Impl methods
 #include "nsTArray-inl.h"

@@ -5,9 +5,7 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.PropertyAnimator.Property;
-import org.mozilla.gecko.animation.ViewHelper;
+import org.mozilla.gecko.PropertyAnimator.Property;
 import org.mozilla.gecko.widget.TwoWayView;
 
 import android.content.Context;
@@ -49,7 +47,6 @@ public class TabsTray extends TwoWayView
     private static final int ANIMATION_DURATION = 250;
 
     private static final String ABOUT_HOME = "about:home";
-    private int mOriginalSize = 0;
 
     public TabsTray(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -202,22 +199,11 @@ public class TabsTray extends TwoWayView
         // Updates the selected position in the list so that it will be scrolled to the right place.
         private void updateSelectedPosition() {
             int selected = getPositionForTab(Tabs.getInstance().getSelectedTab());
-            if (selected != -1) {
+            for (int i=0; i < getCount(); i++)
+                 TabsTray.this.setItemChecked(i, (i == selected));
+
+            if (selected != -1)
                 TabsTray.this.setSelection(selected);
-            }
-
-            updateSelectedStyle(selected);
-        }
-
-        /**
-         * Updates the selected/unselected style for the tabs.
-         *
-         * @param selected position of the selected tab
-         */
-        private void updateSelectedStyle(int selected) {
-            for (int i = 0; i < getCount(); i++) {
-                TabsTray.this.setItemChecked(i, (i == selected));
-            }
         }
 
         public void clear() {
@@ -251,9 +237,7 @@ public class TabsTray extends TwoWayView
             if (tab.isPrivate() == mIsPrivate && mTabs != null) {
                 mTabs.remove(tab);
                 notifyDataSetChanged(); // Be sure to call this whenever mTabs changes.
-
-                int selected = getPositionForTab(Tabs.getInstance().getSelectedTab());
-                updateSelectedStyle(selected);
+                updateSelectedPosition();
             }
         }
 
@@ -275,20 +259,6 @@ public class TabsTray extends TwoWayView
             row.close.setTag(row);
         }
 
-        private void resetTransforms(View view) {
-            ViewHelper.setAlpha(view, 1);
-            if (mOriginalSize == 0)
-                return;
-
-            if (isVertical()) {
-                ViewHelper.setHeight(view, mOriginalSize);
-                ViewHelper.setTranslationX(view, 0);
-            } else {
-                ViewHelper.setWidth(view, mOriginalSize);
-                ViewHelper.setTranslationY(view, 0);
-            }
-        }
-
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             TabRow row;
@@ -300,9 +270,6 @@ public class TabsTray extends TwoWayView
                 convertView.setTag(row);
             } else {
                 row = (TabRow) convertView.getTag();
-                // If we're recycling this view, there's a chance it was transformed during
-                // the close animation. Remove any of those properties.
-                resetTransforms(convertView);
             }
 
             Tab tab = mTabs.get(position);
@@ -328,7 +295,7 @@ public class TabsTray extends TwoWayView
         mCloseAnimationCount++;
         mPendingClosedTabs.add(view);
 
-        animator.addPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
+        animator.setPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
             @Override
             public void onPropertyAnimationStart() { }
             @Override
@@ -362,15 +329,26 @@ public class TabsTray extends TwoWayView
 
         TabRow tab = (TabRow)view.getTag();
         final int tabId = tab.id;
-        // Caching this assumes that all rows are the same height
-	if (mOriginalSize == 0)
-            mOriginalSize = (isVertical ? view.getHeight() : view.getWidth());
+        final int originalSize = (isVertical ? view.getHeight() : view.getWidth());
 
-        animator.addPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
+        animator.setPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
             @Override
             public void onPropertyAnimationStart() { }
             @Override
             public void onPropertyAnimationEnd() {
+                // Reset view presentation as it will be recycled in the
+                // list view by the adapter.
+                AnimatorProxy proxy = AnimatorProxy.create(view);
+                proxy.setAlpha(1);
+
+                if (isVertical) {
+                    proxy.setHeight(originalSize);
+                    proxy.setTranslationX(0);
+                } else {
+                    proxy.setWidth(originalSize);
+                    proxy.setTranslationY(0);
+                }
+
                 Tabs tabs = Tabs.getInstance();
                 Tab tab = tabs.getTab(tabId);
                 tabs.closeTab(tab);
@@ -390,7 +368,7 @@ public class TabsTray extends TwoWayView
             animator.attach(view, Property.TRANSLATION_Y, 0);
 
 
-        animator.addPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
+        animator.setPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
             @Override
             public void onPropertyAnimationStart() { }
             @Override
@@ -418,6 +396,7 @@ public class TabsTray extends TwoWayView
         private int mListHeight = 1;
 
         private View mSwipeView;
+        private AnimatorProxy mSwipeProxy;
         private int mSwipeViewPosition;
         private Runnable mPendingCheckForTap;
 
@@ -428,6 +407,7 @@ public class TabsTray extends TwoWayView
 
         public TabSwipeGestureListener() {
             mSwipeView = null;
+            mSwipeProxy = null;
             mSwipeViewPosition = TwoWayView.INVALID_POSITION;
             mSwiping = false;
             mEnabled = true;
@@ -515,7 +495,7 @@ public class TabsTray extends TwoWayView
                     int dismissTranslation = 0;
 
                     if (isVertical()) {
-                        float deltaX = ViewHelper.getTranslationX(mSwipeView);
+                        float deltaX = mSwipeProxy.getTranslationX();
 
                         if (Math.abs(deltaX) > mListWidth / 2) {
                             dismiss = true;
@@ -528,7 +508,7 @@ public class TabsTray extends TwoWayView
 
                         dismissTranslation = (dismissDirection ? mListWidth : -mListWidth);
                     } else {
-                        float deltaY = ViewHelper.getTranslationY(mSwipeView);
+                        float deltaY = mSwipeProxy.getTranslationY();
 
                         if (Math.abs(deltaY) > mListHeight / 2) {
                             dismiss = true;
@@ -550,6 +530,7 @@ public class TabsTray extends TwoWayView
                     mVelocityTracker = null;
                     mSwipeView = null;
                     mSwipeViewPosition = TwoWayView.INVALID_POSITION;
+                    mSwipeProxy = null;
 
                     mSwipeStartX = 0;
                     mSwipeStartY = 0;
@@ -592,15 +573,17 @@ public class TabsTray extends TwoWayView
                         cancelEvent.setAction(MotionEvent.ACTION_CANCEL |
                                 (e.getActionIndex() << MotionEvent.ACTION_POINTER_INDEX_SHIFT));
                         TabsTray.this.onTouchEvent(cancelEvent);
+
+                        mSwipeProxy = AnimatorProxy.create(mSwipeView);
                     }
 
                     if (mSwiping) {
                         if (isVertical)
-                            ViewHelper.setTranslationX(mSwipeView, delta);
+                            mSwipeProxy.setTranslationX(delta);
                         else
-                            ViewHelper.setTranslationY(mSwipeView, delta);
+                            mSwipeProxy.setTranslationY(delta);
 
-                        ViewHelper.setAlpha(mSwipeView, Math.max(0.1f, Math.min(1f,
+                        mSwipeProxy.setAlpha(Math.max(0.1f, Math.min(1f,
                                 1f - 2f * Math.abs(delta) / (isVertical ? mListWidth : mListHeight))));
 
                         return true;

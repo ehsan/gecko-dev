@@ -6,8 +6,6 @@
 #ifndef mozilla_dom_SVGPathElement_h
 #define mozilla_dom_SVGPathElement_h
 
-#include "mozilla/gfx/2D.h"
-#include "mozilla/RefPtr.h"
 #include "nsSVGNumber2.h"
 #include "nsSVGPathGeometryElement.h"
 #include "SVGAnimatedPathSegList.h"
@@ -30,45 +28,35 @@ class SVGPathElement MOZ_FINAL : public SVGPathElementBase
 {
 friend class nsSVGPathFrame;
 
-  typedef mozilla::gfx::Path Path;
-
 protected:
   friend nsresult (::NS_NewSVGPathElement(nsIContent **aResult,
                                           already_AddRefed<nsINodeInfo> aNodeInfo));
-  virtual JSObject* WrapNode(JSContext *cx,
-                             JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
   SVGPathElement(already_AddRefed<nsINodeInfo> aNodeInfo);
 
 public:
   // nsIContent interface
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const MOZ_OVERRIDE;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const;
 
   // nsSVGSVGElement methods:
-  virtual bool HasValidDimensions() const MOZ_OVERRIDE;
+  virtual bool HasValidDimensions() const;
 
   // nsSVGPathGeometryElement methods:
-  virtual bool AttributeDefinesGeometry(const nsIAtom *aName) MOZ_OVERRIDE;
-  virtual bool IsMarkable() MOZ_OVERRIDE;
-  virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks) MOZ_OVERRIDE;
-  virtual void ConstructPath(gfxContext *aCtx) MOZ_OVERRIDE;
-  virtual TemporaryRef<Path> BuildPath() MOZ_OVERRIDE;
+  virtual bool AttributeDefinesGeometry(const nsIAtom *aName);
+  virtual bool IsMarkable();
+  virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks);
+  virtual void ConstructPath(gfxContext *aCtx);
 
-  /**
-   * This returns a path without the extra little line segments that
-   * ApproximateZeroLengthSubpathSquareCaps can insert if we have square-caps.
-   * See the comment for that function for more info on that.
-   */
-  virtual TemporaryRef<Path>
-    GetPathForLengthOrPositionMeasuring() MOZ_OVERRIDE;
+  virtual already_AddRefed<gfxFlattenedPath> GetFlattenedPath(const gfxMatrix &aMatrix);
 
   // nsIContent interface
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual SVGAnimatedPathSegList* GetAnimPathSegList() MOZ_OVERRIDE {
+  virtual SVGAnimatedPathSegList* GetAnimPathSegList() {
     return &mD;
   }
 
-  virtual nsIAtom* GetPathDataAttrName() const MOZ_OVERRIDE {
+  virtual nsIAtom* GetPathDataAttrName() const {
     return nsGkAtoms::d;
   }
 
@@ -85,7 +73,7 @@ public:
   gfxFloat GetPathLengthScale(PathLengthScaleForType aFor);
 
   // WebIDL
-  already_AddRefed<SVGAnimatedNumber> PathLength();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> PathLength();
   float GetTotalLength(ErrorResult& rv);
   already_AddRefed<nsISVGPoint> GetPointAtLength(float distance, ErrorResult& rv);
   uint32_t GetPathSegAtLength(float distance);
@@ -124,7 +112,7 @@ public:
 protected:
 
   // nsSVGElement method
-  virtual NumberAttributesInfo GetNumberInfo() MOZ_OVERRIDE;
+  virtual NumberAttributesInfo GetNumberInfo();
 
   SVGAnimatedPathSegList mD;
   nsSVGNumber2 mPathLength;

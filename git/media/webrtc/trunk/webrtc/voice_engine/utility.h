@@ -15,8 +15,8 @@
 #ifndef WEBRTC_VOICE_ENGINE_UTILITY_H
 #define WEBRTC_VOICE_ENGINE_UTILITY_H
 
-#include "webrtc/typedefs.h"
-#include "webrtc/voice_engine/voice_engine_defines.h"
+#include "typedefs.h"
+#include "voice_engine_defines.h"
 
 namespace webrtc
 {
@@ -29,30 +29,30 @@ namespace voe
 class Utility
 {
 public:
-    static void MixWithSat(int16_t target[],
+    static void MixWithSat(WebRtc_Word16 target[],
                            int target_channel,
-                           const int16_t source[],
+                           const WebRtc_Word16 source[],
                            int source_channel,
                            int source_len);
 
-    static void MixSubtractWithSat(int16_t target[],
-                                   const int16_t source[],
-                                   uint16_t len);
+    static void MixSubtractWithSat(WebRtc_Word16 target[],
+                                   const WebRtc_Word16 source[],
+                                   WebRtc_UWord16 len);
 
-    static void MixAndScaleWithSat(int16_t target[],
-                                   const int16_t source[],
+    static void MixAndScaleWithSat(WebRtc_Word16 target[],
+                                   const WebRtc_Word16 source[],
                                    float scale,
-                                   uint16_t len);
+                                   WebRtc_UWord16 len);
 
-    static void Scale(int16_t vector[], float scale, uint16_t len);
+    static void Scale(WebRtc_Word16 vector[], float scale, WebRtc_UWord16 len);
 
-    static void ScaleWithSat(int16_t vector[],
+    static void ScaleWithSat(WebRtc_Word16 vector[],
                              float scale,
-                             uint16_t len);
+                             WebRtc_UWord16 len);
 };
 
-}  // namespace voe
+} // namespace voe
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif  // WEBRTC_VOICE_ENGINE_UTILITY_H

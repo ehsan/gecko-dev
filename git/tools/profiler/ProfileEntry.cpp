@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <ostream>
+#include <iostream>
+#include "GeckoProfilerImpl.h"
 #include "platform.h"
 #include "nsThreadUtils.h"
-#include "nsXULAppAPI.h"
 
 // JSON
 #include "JSObjectBuilder.h"
@@ -23,18 +23,13 @@
 // BEGIN ProfileEntry
 
 ProfileEntry::ProfileEntry()
-  : mTagData(nullptr)
+  : mTagData(NULL)
   , mTagName(0)
 { }
 
 // aTagData must not need release (i.e. be a string from the text segment)
 ProfileEntry::ProfileEntry(char aTagName, const char *aTagData)
   : mTagData(aTagData)
-  , mTagName(aTagName)
-{ }
-
-ProfileEntry::ProfileEntry(char aTagName, ProfilerMarker *aTagMarker)
-  : mTagMarker(aTagMarker)
   , mTagName(aTagName)
 { }
 
@@ -90,18 +85,15 @@ void ProfileEntry::log()
   // There is no compiler enforced mapping between tag chars
   // and union variant fields, so the following was derived
   // by looking through all the use points of TableTicker.cpp.
-  //   mTagMarker (ProfilerMarker*) m
-  //   mTagData   (const char*)  c,s
-  //   mTagPtr    (void*)        d,l,L,B (immediate backtrace), S(start-of-stack)
+  //   mTagData   (const char*)  m,c,s
+  //   mTagPtr    (void*)        d,l,L, S(start-of-stack)
   //   mTagLine   (int)          n,f
   //   mTagChar   (char)         h
   //   mTagFloat  (double)       r,t
   switch (mTagName) {
-    case 'm':
-      LOGF("%c \"%s\"", mTagName, mTagMarker->GetMarkerName()); break;
-    case 'c': case 's':
+    case 'm': case 'c': case 's':
       LOGF("%c \"%s\"", mTagName, mTagData); break;
-    case 'd': case 'l': case 'L': case 'B': case 'S':
+    case 'd': case 'l': case 'L': case 'S':
       LOGF("%c %p", mTagName, mTagPtr); break;
     case 'n': case 'f':
       LOGF("%c %d", mTagName, mTagLine); break;
@@ -142,30 +134,19 @@ std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry)
 
 #define DYNAMIC_MAX_STRING 512
 
-ThreadProfile::ThreadProfile(const char* aName, int aEntrySize,
-                             PseudoStack *aStack, Thread::tid_t aThreadId,
-                             PlatformData* aPlatform,
-                             bool aIsMainThread, void *aStackTop)
+ThreadProfile::ThreadProfile(int aEntrySize, PseudoStack *aStack)
   : mWritePos(0)
   , mLastFlushPos(0)
   , mReadPos(0)
   , mEntrySize(aEntrySize)
   , mPseudoStack(aStack)
   , mMutex("ThreadProfile::mMutex")
-  , mName(strdup(aName))
-  , mThreadId(aThreadId)
-  , mIsMainThread(aIsMainThread)
-  , mPlatformData(aPlatform)
-  , mGeneration(0)
-  , mPendingGenerationFlush(0)
-  , mStackTop(aStackTop)
 {
   mEntries = new ProfileEntry[mEntrySize];
 }
 
 ThreadProfile::~ThreadProfile()
 {
-  free(mName);
   delete[] mEntries;
 }
 
@@ -173,11 +154,7 @@ void ThreadProfile::addTag(ProfileEntry aTag)
 {
   // Called from signal, call only reentrant functions
   mEntries[mWritePos] = aTag;
-  mWritePos = mWritePos + 1;
-  if (mWritePos >= mEntrySize) {
-    mPendingGenerationFlush++;
-    mWritePos = mWritePos % mEntrySize;
-  }
+  mWritePos = (mWritePos + 1) % mEntrySize;
   if (mWritePos == mReadPos) {
     // Keep one slot open
     mEntries[mReadPos] = ProfileEntry();
@@ -194,8 +171,6 @@ void ThreadProfile::addTag(ProfileEntry aTag)
 void ThreadProfile::flush()
 {
   mLastFlushPos = mWritePos;
-  mGeneration += mPendingGenerationFlush;
-  mPendingGenerationFlush = 0;
 }
 
 // discards all of the entries since the last flush()
@@ -251,7 +226,6 @@ void ThreadProfile::flush()
 void ThreadProfile::erase()
 {
   mWritePos = mLastFlushPos;
-  mPendingGenerationFlush = 0;
 }
 
 char* ThreadProfile::processDynamicTag(int readPos,
@@ -315,34 +289,22 @@ void ThreadProfile::ToStreamAsJSON(std::ostream& stream)
   b.DeleteObject(profile);
 }
 
-JSObject* ThreadProfile::ToJSObject(JSContext *aCx)
+JSCustomObject* ThreadProfile::ToJSObject(JSContext *aCx)
 {
   JSObjectBuilder b(aCx);
-  JS::RootedObject profile(aCx, b.CreateObject());
+  JSCustomObject *profile = b.CreateObject();
   BuildJSObject(b, profile);
+
   return profile;
 }
 
-template <typename Builder>
-void ThreadProfile::BuildJSObject(Builder& b,
-                                  typename Builder::ObjectHandle profile)
-{
-  // Thread meta data
-  if (XRE_GetProcessType() == GeckoProcessType_Plugin) {
-    // TODO Add the proper plugin name
-    b.DefineProperty(profile, "name", "Plugin");
-  } else {
-    b.DefineProperty(profile, "name", mName);
-  }
-
-  b.DefineProperty(profile, "tid", static_cast<int>(mThreadId));
-
-  typename Builder::RootedArray samples(b.context(), b.CreateArray());
+void ThreadProfile::BuildJSObject(JSAObjectBuilder& b, JSCustomObject* profile) {
+  JSCustomArray *samples = b.CreateArray();
   b.DefineProperty(profile, "samples", samples);
 
-  typename Builder::RootedObject sample(b.context());
-  typename Builder::RootedArray frames(b.context());
-  typename Builder::RootedArray markers(b.context());
+  JSCustomObject *sample = nullptr;
+  JSCustomArray *frames = nullptr;
+  JSCustomArray *marker = nullptr;
 
   int readPos = mReadPos;
   while (readPos != mLastFlushPos) {
@@ -370,16 +332,16 @@ void ThreadProfile::BuildJSObject(Builder& b,
         b.DefineProperty(sample, "frames", frames);
         b.ArrayPush(samples, sample);
         // Created lazily
-        markers = nullptr;
+        marker = nullptr;
         break;
       case 'm':
         {
           if (sample) {
-            if (!markers) {
-              markers = b.CreateArray();
-              b.DefineProperty(sample, "marker", markers);
+            if (!marker) {
+              marker = b.CreateArray();
+              b.DefineProperty(sample, "marker", marker);
             }
-            entry.getMarker()->BuildJSObject(b, markers);
+            b.ArrayPush(marker, tagStringData);
           }
         }
         break;
@@ -387,13 +349,6 @@ void ThreadProfile::BuildJSObject(Builder& b,
         {
           if (sample) {
             b.DefineProperty(sample, "responsiveness", entry.mTagFloat);
-          }
-        }
-        break;
-      case 'p':
-        {
-          if (sample) {
-            b.DefineProperty(sample, "power", entry.mTagFloat);
           }
         }
         break;
@@ -415,7 +370,7 @@ void ThreadProfile::BuildJSObject(Builder& b,
       case 'l':
         {
           if (sample) {
-            typename Builder::RootedObject frame(b.context(), b.CreateObject());
+            JSCustomObject *frame = b.CreateObject();
             if (entry.mTagName == 'l') {
               // Bug 753041
               // We need a double cast here to tell GCC that we don't want to sign
@@ -441,24 +396,9 @@ void ThreadProfile::BuildJSObject(Builder& b,
   }
 }
 
-template void ThreadProfile::BuildJSObject<JSObjectBuilder>(JSObjectBuilder& b,
-                                                            JS::HandleObject profile);
-template void ThreadProfile::BuildJSObject<JSCustomObjectBuilder>(JSCustomObjectBuilder& b,
-                                                                  JSCustomObject *profile);
-
 PseudoStack* ThreadProfile::GetPseudoStack()
 {
   return mPseudoStack;
-}
-
-void ThreadProfile::BeginUnwind()
-{
-  mMutex.Lock();
-}
-
-void ThreadProfile::EndUnwind()
-{
-  mMutex.Unlock();
 }
 
 mozilla::Mutex* ThreadProfile::GetMutex()

@@ -53,19 +53,3 @@ EXPORTS.gmock.internal += [
     'gmock/include/gmock/internal/gmock-port.h',
 ]
 
-SOURCES += [
-    'gmock/src/gmock-all.cc',
-    'gtest/src/gtest-all.cc',
-    'mozilla/GTestRunner.cpp',
-]
-
-LIBRARY_NAME = 'gtest'
-
-GTEST_SOURCES += [
-    'mozilla/SanityTest.cpp',
-]
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
-

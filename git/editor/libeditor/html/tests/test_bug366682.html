@@ -48,9 +48,7 @@ function runTest() {
   editDoc().body.innerHTML = "<div>errror and an other errror</div>";
   gMisspeltWords = ["errror", "errror"];
   editDoc().designMode = "on";
-
-  Components.utils.import("resource://gre/modules/AsyncSpellCheckTestHelper.jsm");
-  onSpellCheck(editDoc().documentElement, evalTest);
+  setTimeout(function() { evalTest(); }, 0);
 }
 
 function evalTest() {

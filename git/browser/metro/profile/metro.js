@@ -9,21 +9,10 @@
 pref("nglayout.debug.disable_xul_cache", true);
 pref("nglayout.debug.disable_xul_fastload", true);
 pref("devtools.errorconsole.enabled", true);
-pref("devtools.chrome.enabled", true);
-#else
-pref("devtools.errorconsole.enabled", false);
-pref("devtools.chrome.enabled", false);
 #endif
 
-// Automatically submit crash reports
-#ifdef RELEASE_BUILD
-pref("app.crashreporter.autosubmit", false);
-#else
-// For Nightly and Aurora we turn this on by default
-pref("app.crashreporter.autosubmit", true);
-#endif
-// Has the user been prompted about crash reporting?
-pref("app.crashreporter.prompted", false);
+// Enable headless crash reporting by default
+pref("app.reportCrashes", true);
 
 // Debug prefs, see input.js
 pref("metro.debug.treatmouseastouch", false);
@@ -32,25 +21,8 @@ pref("metro.debug.selection.displayRanges", false);
 pref("metro.debug.selection.dumpRanges", false);
 pref("metro.debug.selection.dumpEvents", false);
 
-// Enable tab-modal prompts
-pref("prompts.tab_modal.enabled", true);
-
-
 // Enable off main thread compositing
-pref("layers.offmainthreadcomposition.enabled", true);
-pref("layers.async-pan-zoom.enabled", true);
-pref("layers.componentalpha.enabled", false);
-
-// Prefs to control the async pan/zoom behaviour
-pref("apz.touch_start_tolerance", "0.1"); // dpi * tolerance = pixel threshold
-pref("apz.pan_repaint_interval", 50);   // prefer 20 fps
-pref("apz.fling_repaint_interval", 50); // prefer 20 fps
-pref("apz.fling_friction", "0.002");
-pref("apz.fling_stopped_threshold", "0.2");
-
-// 0 = free, 1 = standard, 2 = sticky
-pref("apz.axis_lock_mode", 2);
-pref("apz.cross_slide.enabled", true);
+pref("layers.offmainthreadcomposition.enabled", false);
 
 // Enable Microsoft TSF support by default for imes.
 pref("intl.enable_tsf_support", true);
@@ -79,9 +51,11 @@ pref("toolkit.browser.cacheRatioHeight", 3000);
 // expires.
 pref("toolkit.browser.contentViewExpire", 3000);
 
-
 pref("toolkit.defaultChromeURI", "chrome://browser/content/browser.xul");
 pref("browser.chromeURL", "chrome://browser/content/");
+
+// When true, always show the tab strip and use desktop-style tabs (no thumbnails)
+pref("browser.tabs.tabsOnly", false);
 
 pref("browser.tabs.remote", false);
 
@@ -109,11 +83,6 @@ pref("browser.offline-apps.notify", true);
 pref("network.protocol-handler.warn-external.tel", false);
 pref("network.protocol-handler.warn-external.mailto", false);
 pref("network.protocol-handler.warn-external.vnd.youtube", false);
-pref("network.protocol-handler.warn-external.ms-windows-store", false);
-pref("network.protocol-handler.external.ms-windows-store", true);
-
-// display the overlay nav buttons
-pref("browser.display.overlaynavbuttons", true);
 
 /* history max results display */
 pref("browser.display.history.maxresults", 100);
@@ -192,6 +161,7 @@ pref("browser.helperApps.deleteTempFileOnExit", false);
 
 /* password manager */
 pref("signon.rememberSignons", true);
+pref("signon.SignonFileName", "signons.txt");
 
 /* find helper */
 pref("findhelper.autozoom", true);
@@ -218,14 +188,11 @@ pref("extensions.update.enabled", false);
 pref("extensions.blocklist.enabled", true);
 pref("extensions.blocklist.interval", 86400);
 pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PING_COUNT%/%TOTAL_PING_COUNT%/%DAYS_SINCE_LAST_PING%/");
-pref("extensions.blocklist.detailsURL", "https://www.mozilla.org/%LOCALE%/blocklist/");
+pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blocklist/");
 
 /* block popups by default, and notify the user about blocked popups */
 pref("dom.disable_open_during_load", true);
 pref("privacy.popups.showBrowserMessage", true);
-
-// Metro Firefox keeps this set to -1 when donottrackheader.enabled is false.
-pref("privacy.donottrackheader.value", -1);
 
 /* disable opening windows with the dialog feature */
 pref("dom.disable_window_open_dialog_feature", true);
@@ -247,7 +214,7 @@ pref("accessibility.browsewithcaret", false);
 pref("app.update.showInstalledUI", false);
 
 // pointer to the default engine name
-pref("browser.search.defaultenginename", "chrome://browser/locale/region.properties");
+pref("browser.search.defaultenginename", "chrome://browser/locale/browser.properties");
 
 // SSL error page behaviour
 pref("browser.ssl_override_behavior", 2);
@@ -257,9 +224,9 @@ pref("browser.xul.error_pages.expert_bad_cert", false);
 pref("browser.search.log", false);
 
 // ordering of search engines in the engine list.
-pref("browser.search.order.1", "chrome://browser/locale/region.properties");
-pref("browser.search.order.2", "chrome://browser/locale/region.properties");
-pref("browser.search.order.3", "chrome://browser/locale/region.properties");
+pref("browser.search.order.1", "chrome://browser/locale/browser.properties");
+pref("browser.search.order.2", "chrome://browser/locale/browser.properties");
+pref("browser.search.order.3", "chrome://browser/locale/browser.properties");
 
 // send ping to the server to update
 pref("browser.search.update", true);
@@ -294,8 +261,6 @@ pref("places.favicons.optimizeToDimension", 25);
 
 // various and sundry awesomebar prefs (should remove/re-evaluate
 // these once bug 447900 is fixed)
-pref("browser.urlbar.trimURLs", true);
-pref("browser.urlbar.formatting.enabled", true);
 pref("browser.urlbar.clickSelectsAll", true);
 pref("browser.urlbar.doubleClickSelectsAll", true);
 pref("browser.urlbar.autoFill", false);
@@ -385,10 +350,9 @@ pref("privacy.sanitize.migrateFx3Prefs",    false);
 
 // enable geo
 pref("geo.enabled", true);
-pref("geo.wifi.uri", "https://www.googleapis.com/geolocation/v1/geolocate?key=%GOOGLE_API_KEY%");
 
-// snapped view
-pref("browser.ui.snapped.maxWidth", 600);
+// JS error console
+pref("devtools.errorconsole.enabled", false);
 
 // kinetic tweakables
 pref("browser.ui.kinetic.updateInterval", 16);
@@ -396,6 +360,11 @@ pref("browser.ui.kinetic.exponentialC", 1400);
 pref("browser.ui.kinetic.polynomialC", 100);
 pref("browser.ui.kinetic.swipeLength", 160);
 pref("browser.ui.zoom.animationDuration", 200); // ms duration of double-tap zoom animation
+
+// pinch gesture
+pref("browser.ui.pinch.maxGrowth", 150);     // max pinch distance growth
+pref("browser.ui.pinch.maxShrink", 200);     // max pinch distance shrinkage
+pref("browser.ui.pinch.scalingFactor", 500); // scaling factor for above pinch limits
 
 pref("ui.mouse.radius.enabled", true);
 pref("ui.touch.radius.enabled", true);
@@ -413,8 +382,8 @@ pref("dom.ipc.content.nice", 1);
 pref("breakpad.reportURL", "https://crash-stats.mozilla.com/report/index/");
 // TODO: This is not the correct article for metro!!!
 pref("app.sync.tutorialURL", "https://support.mozilla.org/kb/sync-firefox-between-desktop-and-mobile");
-pref("app.support.baseURL", "https://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/");
-pref("app.privacyURL", "http://www.mozilla.org/%LOCALE%/legal/privacy/firefox.html");
+pref("app.support.baseURL", "http://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/");
+pref("app.privacyURL", "http://www.mozilla.com/legal/privacy/");
 pref("app.creditsURL", "http://www.mozilla.org/credits/");
 pref("app.channelURL", "http://www.mozilla.org/%LOCALE%/firefox/channel/");
 
@@ -426,91 +395,20 @@ pref("security.warn_viewing_mixed", false); // Warning is disabled.  See Bug 616
 // Override some named colors to avoid inverse OS themes
 
 /* app update prefs */
+pref("app.update.timer", 60000); // milliseconds (1 min)
 
 #ifdef MOZ_UPDATER
-
-// Whether or not app updates are enabled
-pref("app.update.enabled", true);
-
-// This preference turns on app.update.mode and allows automatic download and
-// install to take place. We use a separate boolean toggle for this to make
-// the UI easier to construct.
-pref("app.update.auto", true);
-
-// See chart in nsUpdateService.js source for more details
-pref("app.update.mode", 0);
-
-// Enables update checking in the Metro environment.
-// add-on incompatibilities are ignored by updates in Metro.
-pref("app.update.metro.enabled", true);
-
-// If set to true, the Update Service will present no UI for any event.
-pref("app.update.silent", true);
-
-// If set to true, the Update Service will apply updates in the background
-// when it finishes downloading them.
-pref("app.update.staging.enabled", true);
-
-// Update service URL:
-#ifndef RELEASE_BUILD
-pref("app.update.url", "https://aus4.mozilla.org/update/3/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
-#else
-pref("app.update.url", "https://aus3.mozilla.org/update/3/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
-#endif
-
-// Show the Update Checking/Ready UI when the user was idle for x seconds
+// temp
+pref("app.update.enabled", false);
+pref("app.update.timerFirstInterval", 20000); // milliseconds
+pref("app.update.auto", false);
+pref("app.update.channel", "@MOZ_UPDATE_CHANNEL@");
+pref("app.update.mode", 1);
+pref("app.update.silent", false);
+pref("app.update.url", "https://aus2.mozilla.org/update/4/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%-xul/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PLATFORM_VERSION%/update.xml");
 pref("app.update.idletime", 60);
-
-// Whether or not we show a dialog box informing the user that the update was
-// successfully applied. This is off in Firefox by default since we show a
-// upgrade start page instead! Other apps may wish to show this UI, and supply
-// a whatsNewURL field in their brand.properties that contains a link to a page
-// which tells users what's new in this new update.
 pref("app.update.showInstalledUI", false);
-
-// 0 = suppress prompting for incompatibilities if there are updates available
-//     to newer versions of installed addons that resolve them.
-// 1 = suppress prompting for incompatibilities only if there are VersionInfo
-//     updates available to installed addons that resolve them, not newer
-//     versions.
 pref("app.update.incompatible.mode", 0);
-
-// Whether or not to attempt using the service for updates.
-#ifdef MOZ_MAINTENANCE_SERVICE
-pref("app.update.service.enabled", true);
-#endif
-
-// The minimum delay in seconds for the timer to fire.
-// default=2 minutes
-pref("app.update.timerMinimumDelay", 120);
-
-// Enables some extra Application Update Logging (can reduce performance)
-pref("app.update.log", false);
-
-// The number of general background check failures to allow before notifying the
-// user of the failure. User initiated update checks always notify the user of
-// the failure.
-pref("app.update.backgroundMaxErrors", 10);
-
-// The aus update xml certificate checks for application update are disabled on
-// Windows since the mar signature check which is currently only implemented on
-// Windows is sufficient for preventing us from applying a mar that is not
-// valid.
-
-// When |app.update.cert.requireBuiltIn| is true or not specified the
-// final certificate and all certificates the connection is redirected to before
-// the final certificate for the url specified in the |app.update.url|
-// preference must be built-in.
-pref("app.update.cert.requireBuiltIn", false);
-
-// When |app.update.cert.checkAttributes| is true or not specified the
-// certificate attributes specified in the |app.update.certs.| preference branch
-// are checked against the certificate for the url specified by the
-// |app.update.url| preference.
-pref("app.update.cert.checkAttributes", false);
-
-// User-settable override to app.update.url for testing purposes.
-//pref("app.update.url.override", "");
 
 // replace newlines with spaces on paste into single-line text boxes
 pref("editor.singleLine.pasteNewlines", 2);
@@ -518,6 +416,7 @@ pref("editor.singleLine.pasteNewlines", 2);
 #ifdef MOZ_SERVICES_SYNC
 // sync service
 pref("services.sync.registerEngines", "Tab,Bookmarks,Form,History,Password,Prefs");
+pref("services.sync.autoconnectDelay", 5);
 
 // prefs to sync by default
 pref("services.sync.prefs.sync.browser.startup.sessionRestore", true);
@@ -541,10 +440,10 @@ pref("browser.chrome.toolbar_tips", false);
 // Completely disable pdf.js as an option to preview pdfs within firefox.
 // Note: if this is not disabled it does not necessarily mean pdf.js is the pdf
 // handler just that it is an option.
-pref("pdfjs.disabled", true);
+pref("pdfjs.disabled", false);
 // Used by pdf.js to know the first time firefox is run with it installed so it
 // can become the default pdf viewer.
-pref("pdfjs.firstRun", false);
+pref("pdfjs.firstRun", true);
 // The values of preferredAction and alwaysAskBeforeHandling before pdf.js
 // became the default.
 pref("pdfjs.previousHandler.preferredAction", 0);
@@ -586,6 +485,7 @@ pref("browser.safebrowsing.provider.0.reportMalwareURL", "http://{moz:locale}.ma
 pref("browser.safebrowsing.provider.0.reportMalwareErrorURL", "http://{moz:locale}.malware-error.mozilla.com/?hl={moz:locale}");
 
 // FAQ URLs
+pref("browser.safebrowsing.warning.infoURL", "https://www.mozilla.org/%LOCALE%/firefox/phishing-protection/");
 pref("browser.geolocation.warning.infoURL", "https://www.mozilla.org/%LOCALE%/firefox/geolocation/");
 
 // Name of the about: page contributed by safebrowsing to handle display of error
@@ -594,6 +494,9 @@ pref("urlclassifier.alternate_error_page", "blocked");
 
 // The number of random entries to send with a gethash request.
 pref("urlclassifier.gethashnoise", 4);
+
+// The list of tables that use the gethash request to confirm partial results.
+pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 
 // If an urlclassifier table has not been updated in this number of seconds,
 // a gethash request will be forced to check that the result is still in
@@ -642,14 +545,3 @@ pref("full-screen-api.content-only", true);
 // the window, the window size doesn't change. This pref has no effect when
 // running in actual Metro mode, as the widget will already be fullscreen then.
 pref("full-screen-api.ignore-widgets", true);
-
-// image visibility prefs.
-// image visibility tries to only keep images near the viewport decoded instead
-// of keeping all images decoded.
-pref("layout.imagevisibility.enabled", true);
-pref("layout.imagevisibility.numscrollportwidths", 1);
-pref("layout.imagevisibility.numscrollportheights", 1);
-
-// Don't enable <input type=color> yet as we don't have a color picker
-// implemented for Windows Metro (bug 895464)
-pref("dom.forms.color", false);

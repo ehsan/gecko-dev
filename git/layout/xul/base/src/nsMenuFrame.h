@@ -99,8 +99,8 @@ public:
   virtual const nsFrameList& GetChildList(ChildListID aList) const MOZ_OVERRIDE;
   virtual void GetChildLists(nsTArray<ChildList>* aLists) const MOZ_OVERRIDE;
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
-                                 nsFrameList&    aChildList) MOZ_OVERRIDE;
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+                                 nsFrameList&    aChildList);
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   // Overridden to prevent events from going to children of the menu.
   virtual void BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
@@ -108,9 +108,9 @@ public:
                                            const nsDisplayListSet& aLists) MOZ_OVERRIDE;
                                          
   // this method can destroy the frame
-  NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+  NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
+                         nsGUIEvent*     aEvent,
+                         nsEventStatus*  aEventStatus) MOZ_OVERRIDE;
 
   NS_IMETHOD  AppendFrames(ChildListID     aListID,
                            nsFrameList&    aFrameList) MOZ_OVERRIDE;
@@ -126,7 +126,7 @@ public:
 
   NS_IMETHOD SelectMenu(bool aActivateFlag);
 
-  virtual nsIScrollableFrame* GetScrollTargetFrame() MOZ_OVERRIDE;
+  virtual nsIScrollableFrame* GetScrollTargetFrame();
 
   /**
    * NOTE: OpenMenu will open the menu asynchronously.
@@ -144,9 +144,9 @@ public:
   // one in its parent popup. This will carry out the command attached to
   // the menuitem. If the menu should be opened, this frame will be returned,
   // otherwise null will be returned.
-  nsMenuFrame* Enter(mozilla::WidgetGUIEvent* aEvent);
+  nsMenuFrame* Enter(nsGUIEvent* aEvent);
 
-  virtual void SetParent(nsIFrame* aParent) MOZ_OVERRIDE;
+  virtual void SetParent(nsIFrame* aParent);
 
   virtual nsMenuParent *GetMenuParent() { return mMenuParent; }
   const nsAString& GetRadioGroupName() { return mGroupName; }
@@ -234,7 +234,7 @@ protected:
   void BuildAcceleratorText(bool aNotify);
 
   // Called to execute our command handler. This method can destroy the frame.
-  void Execute(mozilla::WidgetGUIEvent *aEvent);
+  void Execute(nsGUIEvent *aEvent);
 
   // This method can destroy the frame
   NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
@@ -245,10 +245,9 @@ protected:
   bool SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize);
 
   bool ShouldBlink();
-  void StartBlinking(mozilla::WidgetGUIEvent* aEvent, bool aFlipChecked);
+  void StartBlinking(nsGUIEvent *aEvent, bool aFlipChecked);
   void StopBlinking();
-  void CreateMenuCommandEvent(mozilla::WidgetGUIEvent* aEvent,
-                              bool aFlipChecked);
+  void CreateMenuCommandEvent(nsGUIEvent *aEvent, bool aFlipChecked);
   void PassMenuCommandEventToPopupManager();
 
 protected:

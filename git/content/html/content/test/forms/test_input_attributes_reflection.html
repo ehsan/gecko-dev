@@ -8,7 +8,7 @@
 </head>
 <body>
 <p id="display"></p>
-<div id="content">
+<div id="content" style="display: none">
 </div>
 <pre id="test">
 <script type="application/javascript">
@@ -16,38 +16,6 @@
 /** Test for HTMLInputElement attributes reflection **/
 
 // TODO: maybe make those reflections be tested against all input types.
-
-function testWidthHeight(attr) {
-  var element = document.createElement('input');
-  is(element[attr], 0, attr + ' always returns 0 if not type=image');
-  element.setAttribute(attr, '42');
-  is(element[attr], 0, attr + ' always returns 0 if not type=image');
-  is(element.getAttribute(attr), '42');
-  element[attr] = 0;
-  is(element.getAttribute(attr), '0', 'setting ' + attr + ' changes the content attribute');
-  element[attr] = 12;
-  is(element.getAttribute(attr), '12', 'setting ' + attr + ' changes the content attribute');
-
-  element.removeAttribute(attr);
-  ise(element.getAttribute(attr), null);
-
-  element = document.createElement('input');
-  element.type = 'image';
-  document.getElementById('content').appendChild(element);
-  isnot(element[attr], 0, attr + ' represents the dimension of the element if type=image');
-
-  element.setAttribute(attr, '42');
-  isnot(element[attr], 0, attr + ' represents the dimension of the element if type=image');
-  isnot(element[attr], 42, attr + ' represents the dimension of the element if type=image');
-  is(element.getAttribute(attr), '42');
-  element[attr] = 0;
-  is(element.getAttribute(attr), '0', 'setting ' + attr + ' changes the content attribute');
-  element[attr] = 12;
-  is(element.getAttribute(attr), '12', 'setting ' + attr + ' changes the content attribute');
-
-  element.removeAttribute(attr);
-  ise(element.getAttribute(attr), null);
-}
 
 // .accept
 reflectString({
@@ -133,12 +101,15 @@ reflectString({
 });
 
 // .height
-testWidthHeight('height');
+reflectUnsignedInt({
+  element: document.createElement("input"),
+  attribute: "height",
+  nonZero: false
+});
 
 // .indeterminate doesn't reflect a content attribute.
 
 // .inputmode
-if (SpecialPowers.getBoolPref("dom.forms.inputmode")) {
 reflectLimitedEnumerated({
   element: document.createElement("input"),
   attribute: "inputMode",
@@ -146,7 +117,6 @@ reflectLimitedEnumerated({
   invalidValues: [ "", "foo", "tulip" ],
   defaultValue: "auto"
 });
-}
 
 // TODO: list (HTMLElement)
 
@@ -234,10 +204,11 @@ reflectLimitedEnumerated({
   attribute: "type",
   validValues: [ "hidden", "text", "search", "tel", "url", "email", "password",
                  "checkbox", "radio", "file", "submit", "image", "reset",
-                 "button", "date", "time", "number", "range", "color" ],
+                 "button", "date", "time", "number", "range" ],
   invalidValues: [ "this-is-probably-a-wrong-type", "", "tulip" ],
   defaultValue: "text",
-  unsupportedValues: [ "datetime", "month", "week", "datetime-local" ]
+  unsupportedValues: [ "datetime", "month", "week", "datetime-local",
+                       "color" ]
 });
 
 // .defaultValue
@@ -262,7 +233,11 @@ todo("selectedOption" in document.createElement("input"),
      "selectedOption isn't implemented yet");
 
 // .width
-testWidthHeight('width');
+reflectUnsignedInt({
+  element: document.createElement("input"),
+  attribute: "width",
+  nonZero: false
+});
 
 // .willValidate doesn't reflect a content attribute.
 // .validity doesn't reflect a content attribute.

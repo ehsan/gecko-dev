@@ -231,3 +231,5 @@ void SkAnimateBase::setTarget(SkAnimateMaker& maker) {
 bool SkAnimateBase::targetNeedsInitialization() const {
     return false;
 }
+
+

@@ -56,7 +56,6 @@
 
 #include "mozilla/TimeStamp.h"
 #include "mozilla/WidgetTraceEvent.h"
-#include "nsDebug.h"
 #include <limits.h>
 #include <prenv.h>
 #include <prinrval.h>
@@ -69,7 +68,7 @@ using mozilla::FireAndWaitForTracerEvent;
 
 namespace {
 
-PRThread* sTracerThread = nullptr;
+PRThread* sTracerThread = NULL;
 bool sExit = false;
 
 struct TracerStartClosure {
@@ -100,12 +99,12 @@ void TracerThread(void *arg)
   PRIntervalTime interval = PR_MillisecondsToInterval(10);
 
   sExit = false;
-  FILE* log = nullptr;
+  FILE* log = NULL;
   char* envfile = PR_GetEnv("MOZ_INSTRUMENT_EVENT_LOOP_OUTPUT");
   if (envfile) {
     log = fopen(envfile, "w");
   }
-  if (log == nullptr)
+  if (log == NULL)
     log = stdout;
 
   char* thresholdenv = PR_GetEnv("MOZ_INSTRUMENT_EVENT_LOOP_THRESHOLD");
@@ -197,7 +196,7 @@ bool InitEventTracing(bool aLog)
                                   PR_GLOBAL_THREAD,
                                   PR_JOINABLE_THREAD,
                                   0);
-  return sTracerThread != nullptr;
+  return sTracerThread != NULL;
 }
 
 void ShutdownEventTracing()
@@ -211,7 +210,7 @@ void ShutdownEventTracing()
 
   if (sTracerThread)
     PR_JoinThread(sTracerThread);
-  sTracerThread = nullptr;
+  sTracerThread = NULL;
 
   // Allow the widget backend to clean up.
   CleanUpWidgetTracing();

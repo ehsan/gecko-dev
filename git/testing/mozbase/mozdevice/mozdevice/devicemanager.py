@@ -3,10 +3,8 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import hashlib
-import mozlog
 import socket
 import os
-import posixpath
 import re
 import struct
 import StringIO
@@ -47,35 +45,6 @@ class DeviceManager(object):
     """
 
     _logcatNeedsRoot = True
-
-    def __init__(self, logLevel=mozlog.ERROR):
-        self._logger = mozlog.getLogger("DeviceManager")
-        self._logLevel = logLevel
-        self._logger.setLevel(logLevel)
-
-    @property
-    def logLevel(self):
-        return self._logLevel
-
-    @logLevel.setter
-    def logLevel_setter(self, newLogLevel):
-        self._logLevel = newLogLevel
-        self._logger.setLevel(self._logLevel)
-
-    @property
-    def debug(self):
-        self._logger.warn("dm.debug is deprecated. Use logLevel.")
-        levels = {mozlog.DEBUG: 5, mozlog.INFO: 3, mozlog.WARNING: 2,
-                  mozlog.ERROR: 1, mozlog.CRITICAL: 0}
-        return levels[self.logLevel]
-
-    @debug.setter
-    def debug_setter(self, newDebug):
-        self._logger.warn("dm.debug is deprecated. Use logLevel.")
-        newDebug = 5 if newDebug > 5 else newDebug # truncate >=5 to 5
-        levels = {5: mozlog.DEBUG, 3: mozlog.INFO, 2: mozlog.WARNING,
-                  1: mozlog.ERROR, 0: mozlog.CRITICAL}
-        self.logLevel = levels[newDebug]
 
     @abstractmethod
     def getInfo(self, directive=None):
@@ -169,25 +138,21 @@ class DeviceManager(object):
             self.removeFile(tempScreenshotFile)
 
     @abstractmethod
-    def pushFile(self, localFilename, remoteFilename, retryLimit=1, createDir=True):
+    def pushFile(self, localFilename, remoteFilename, retryLimit=1):
         """
         Copies localname from the host to destname on the device.
         """
 
     @abstractmethod
-    def pushDir(self, localDirname, remoteDirname, retryLimit=1, timeout=None):
+    def pushDir(self, localDirname, remoteDirname, retryLimit=1):
         """
         Push local directory from host to remote directory on the device,
         """
 
     @abstractmethod
-    def pullFile(self, remoteFilename, offset=None, length=None):
+    def pullFile(self, remoteFilename):
         """
         Returns contents of remoteFile using the "pull" command.
-
-        :param remoteFilename: Path to file to pull from remote device.
-        :param offset: Offset in bytes from which to begin reading (optional)
-        :param length: Number of bytes to read (optional)
         """
 
     @abstractmethod
@@ -213,7 +178,8 @@ class DeviceManager(object):
         Returns True if remoteDirname on device is same as localDirname on host.
         """
 
-        self._logger.info("validating directory: %s to %s" % (localDirname, remoteDirname))
+        if (self.debug >= 2):
+            print "validating directory: " + localDirname + " to " + remoteDirname
         for root, dirs, files in os.walk(localDirname):
             parts = root.split(localDirname)
             for f in files:
@@ -239,14 +205,15 @@ class DeviceManager(object):
         WARNING: does not create last part of the path. For example, if asked to
         create `/mnt/sdcard/foo/bar/baz`, it will only create `/mnt/sdcard/foo/bar`
         """
-        filename = posixpath.normpath(filename)
-        containing = posixpath.dirname(filename)
-        if not self.dirExists(containing):
+        dirParts = filename.rsplit('/', 1)
+        if not self.dirExists(dirParts[0]):
             parts = filename.split('/')
-            name = "/"
-            for part in parts[:-1]:
+            name = ""
+            for part in parts:
+                if part is parts[-1]:
+                    break
                 if part != "":
-                    name = posixpath.join(name, part)
+                    name += '/' + part
                     self.mkDir(name) # mkDir will check previous existence
 
     @abstractmethod
@@ -258,8 +225,7 @@ class DeviceManager(object):
     @abstractmethod
     def fileExists(self, filepath):
         """
-        Return whether filepath exists on the device file system,
-        regardless of file type.
+        Return whether filepath exists and is a file on the device file system.
         """
 
     @abstractmethod
@@ -419,13 +385,10 @@ class DeviceManager(object):
 
 
     @abstractmethod
-    def killProcess(self, processName, sig=None):
+    def killProcess(self, processName, forceKill=False):
         """
-        Kills the process named processName. If sig is not None, process is
-        killed with the specified signal.
-
-        :param processName: path or name of the process to kill
-        :param sig: signal to pass into the kill command (optional)
+        Kills the process named processName. If forceKill is True, process is
+        killed regardless of state.
         """
 
     @abstractmethod
@@ -603,11 +566,11 @@ class NetworkTools:
                     break
                 except:
                     if seed > maxportnum:
-                        self._logger.error("Automation Error: Could not find open port after checking 5000 ports")
+                        print "Automation Error: Could not find open port after checking 5000 ports"
                         raise
                 seed += 1
         except:
-            self._logger.error("Automation Error: Socket error trying to find open port")
+            print "Automation Error: Socket error trying to find open port"
 
         return seed
 
@@ -666,7 +629,7 @@ class ZeroconfListener(object):
             return
 
         ip = m.group(1).replace("_", ".")
-
+        
         if self.hwid == hwid:
             self.ip = ip
             self.evt.set()

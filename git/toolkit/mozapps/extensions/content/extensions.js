@@ -102,7 +102,7 @@ function initialize(event) {
 
   // Allow passing in a view through the window arguments
   if ("arguments" in window && window.arguments.length > 0 &&
-      window.arguments[0] !== null && "view" in window.arguments[0]) {
+      "view" in window.arguments[0]) {
     view = window.arguments[0].view;
   }
 
@@ -927,9 +927,6 @@ var gViewController = {
         var windows = Services.wm.getEnumerator(null);
         while (windows.hasMoreElements()) {
           var win = windows.getNext();
-          if (win.closed) {
-            continue;
-          }
           if (win.document.documentURI == optionsURL) {
             win.focus();
             return;
@@ -965,9 +962,7 @@ var gViewController = {
       isEnabled: function cmd_enableItem_isEnabled(aAddon) {
         if (!aAddon)
           return false;
-        let addonType = AddonManager.addonTypes[aAddon.type];
-        return (!(addonType.flags & AddonManager.TYPE_SUPPORTS_ASK_TO_ACTIVATE) &&
-                hasPermission(aAddon, "enable"));
+        return hasPermission(aAddon, "enable");
       },
       doCommand: function cmd_enableItem_doCommand(aAddon) {
         aAddon.userDisabled = false;
@@ -985,9 +980,7 @@ var gViewController = {
       isEnabled: function cmd_disableItem_isEnabled(aAddon) {
         if (!aAddon)
           return false;
-        let addonType = AddonManager.addonTypes[aAddon.type];
-        return (!(addonType.flags & AddonManager.TYPE_SUPPORTS_ASK_TO_ACTIVATE) &&
-                hasPermission(aAddon, "disable"));
+        return hasPermission(aAddon, "disable");
       },
       doCommand: function cmd_disableItem_doCommand(aAddon) {
         aAddon.userDisabled = true;
@@ -1138,46 +1131,7 @@ var gViewController = {
       doCommand: function cmd_contribute_doCommand(aAddon) {
         openURL(aAddon.contributionURL);
       }
-    },
-
-    cmd_askToActivateItem: {
-      isEnabled: function cmd_askToActivateItem_isEnabled(aAddon) {
-        if (!aAddon)
-          return false;
-        let addonType = AddonManager.addonTypes[aAddon.type];
-        return ((addonType.flags & AddonManager.TYPE_SUPPORTS_ASK_TO_ACTIVATE) &&
-                hasPermission(aAddon, "ask_to_activate"));
-      },
-      doCommand: function cmd_askToActivateItem_doCommand(aAddon) {
-        aAddon.userDisabled = AddonManager.STATE_ASK_TO_ACTIVATE;
-      }
-    },
-
-    cmd_alwaysActivateItem: {
-      isEnabled: function cmd_alwaysActivateItem_isEnabled(aAddon) {
-        if (!aAddon)
-          return false;
-        let addonType = AddonManager.addonTypes[aAddon.type];
-        return ((addonType.flags & AddonManager.TYPE_SUPPORTS_ASK_TO_ACTIVATE) &&
-                hasPermission(aAddon, "enable"));
-      },
-      doCommand: function cmd_alwaysActivateItem_doCommand(aAddon) {
-        aAddon.userDisabled = false;
-      }
-    },
-
-    cmd_neverActivateItem: {
-      isEnabled: function cmd_neverActivateItem_isEnabled(aAddon) {
-        if (!aAddon)
-          return false;
-        let addonType = AddonManager.addonTypes[aAddon.type];
-        return ((addonType.flags & AddonManager.TYPE_SUPPORTS_ASK_TO_ACTIVATE) &&
-                hasPermission(aAddon, "disable"));
-      },
-      doCommand: function cmd_neverActivateItem_doCommand(aAddon) {
-        aAddon.userDisabled = true;
-      }
-    },
+    }
   },
 
   supportsCommand: function gVC_supportsCommand(aCommand) {
@@ -2088,9 +2042,6 @@ var gSearchView = {
     this._emptyNotice = document.getElementById("search-list-empty");
     this._allResultsLink = document.getElementById("search-allresults-link");
 
-    if (!AddonManager.isInstallEnabled("application/x-xpinstall"))
-      this._filter.hidden = true;
-
     var self = this;
     this._listBox.addEventListener("keydown", function listbox_onKeydown(aEvent) {
       if (aEvent.keyCode == aEvent.DOM_VK_ENTER ||
@@ -2232,10 +2183,6 @@ var gSearchView = {
 
   updateView: function gSearchView_updateView() {
     var showLocal = this._filter.value == "local";
-
-    if (!showLocal && !AddonManager.isInstallEnabled("application/x-xpinstall"))
-      showLocal = true;
-
     this._listBox.setAttribute("local", showLocal);
     this._listBox.setAttribute("remote", !showLocal);
 
@@ -2855,8 +2802,7 @@ var gDetailView = {
         errorLink.value = gStrings.ext.GetStringFromName("details.notification.blocked.link");
         errorLink.href = this._addon.blocklistURL;
         errorLink.hidden = false;
-      } else if (!this._addon.isCompatible && (AddonManager.checkCompatibility ||
-        (this._addon.blocklistState != Ci.nsIBlocklistService.STATE_SOFTBLOCKED))) {
+      } else if (!this._addon.isCompatible) {
         this.node.setAttribute("notification", "warning");
         document.getElementById("detail-warning").textContent = gStrings.ext.formatStringFromName(
           "details.notification.incompatible",
@@ -2906,27 +2852,6 @@ var gDetailView = {
       } else {
         this.node.removeAttribute("notification");
       }
-    }
-
-    let menulist = document.getElementById("detail-state-menulist");
-    let addonType = AddonManager.addonTypes[this._addon.type];
-    if (addonType.flags & AddonManager.TYPE_SUPPORTS_ASK_TO_ACTIVATE &&
-        (hasPermission(this._addon, "ask_to_activate") ||
-         hasPermission(this._addon, "enable") ||
-         hasPermission(this._addon, "disable"))) {
-      let askItem = document.getElementById("detail-ask-to-activate-menuitem");
-      let alwaysItem = document.getElementById("detail-always-activate-menuitem");
-      let neverItem = document.getElementById("detail-never-activate-menuitem");
-      if (this._addon.userDisabled === true) {
-        menulist.selectedItem = neverItem;
-      } else if (this._addon.userDisabled == AddonManager.STATE_ASK_TO_ACTIVATE) {
-        menulist.selectedItem = askItem;
-      } else {
-        menulist.selectedItem = alwaysItem;
-      }
-      menulist.hidden = false;
-    } else {
-      menulist.hidden = true;
     }
 
     this.node.setAttribute("active", this._addon.isActive);
@@ -2983,7 +2908,7 @@ var gDetailView = {
         var settings = xml.querySelectorAll(":root > setting");
 
         var firstSetting = null;
-        for (var setting of settings) {
+        for (let setting of settings) {
 
           var desc = stripTextNodes(setting).trim();
           if (!setting.hasAttribute("desc"))
@@ -2992,13 +2917,6 @@ var gDetailView = {
           var type = setting.getAttribute("type");
           if (type == "file" || type == "directory")
             setting.setAttribute("fullpath", "true");
-
-          setting = document.importNode(setting, true);
-          var style = setting.getAttribute("style");
-          if (style) {
-            setting.removeAttribute("style");
-            setting.setAttribute("style", style);
-          }
 
           rows.appendChild(setting);
           var visible = window.getComputedStyle(setting, null).getPropertyValue("display") != "none";
@@ -3109,8 +3027,7 @@ var gDetailView = {
       document.getElementById("detail-findUpdates-btn").hidden = hideFindUpdates;
     }
 
-    if (aProperties.indexOf("appDisabled") != -1 ||
-        aProperties.indexOf("userDisabled") != -1)
+    if (aProperties.indexOf("appDisabled") != -1)
       this.updateState();
   },
 

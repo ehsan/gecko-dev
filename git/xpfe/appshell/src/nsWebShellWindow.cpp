@@ -21,12 +21,13 @@
 
 #include "nsEscape.h"
 #include "nsPIDOMWindow.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIWebNavigation.h"
 #include "nsIWindowWatcher.h"
 
 #include "nsIDOMXULElement.h"
 
-#include "nsWidgetInitData.h"
+#include "nsGUIEvent.h"
 #include "nsWidgetsCID.h"
 #include "nsIWidget.h"
 #include "nsIWidgetListener.h"
@@ -69,7 +70,6 @@
 
 #include "nsIMarkupDocumentViewer.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/MouseEvents.h"
 
 #ifdef XP_MACOSX
 #include "nsINativeMenuService.h"
@@ -77,7 +77,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 /* Define Class IDs */
 static NS_DEFINE_CID(kWindowCID,           NS_WINDOW_CID);
@@ -295,20 +294,15 @@ nsWebShellWindow::RequestWindowClose(nsIWidget* aWidget)
   nsCOMPtr<nsIXULWindow> xulWindow(this);
 
   nsCOMPtr<nsPIDOMWindow> window(do_GetInterface(mDocShell));
-  nsCOMPtr<EventTarget> eventTarget = do_QueryInterface(window);
+  nsCOMPtr<nsIDOMEventTarget> eventTarget = do_QueryInterface(window);
 
   nsCOMPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
 
-  if (!presShell) {
-    bool dying;
-    MOZ_ASSERT(NS_SUCCEEDED(mDocShell->IsBeingDestroyed(&dying)) && dying,
-               "No presShell, but window is not being destroyed");
-  } else if (eventTarget) {
+  if (eventTarget) {
     nsRefPtr<nsPresContext> presContext = presShell->GetPresContext();
 
     nsEventStatus status = nsEventStatus_eIgnore;
-    WidgetMouseEvent event(true, NS_XUL_CLOSE, nullptr,
-                           WidgetMouseEvent::eReal);
+    nsMouseEvent event(true, NS_XUL_CLOSE, nullptr, nsMouseEvent::eReal);
     if (NS_SUCCEEDED(eventTarget->DispatchDOMEvent(&event, nullptr, presContext, &status)) &&
         status == nsEventStatus_eConsumeNoDefault)
       return false;
@@ -455,7 +449,7 @@ public:
     : mWindow(aWindow)
   {}
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   NS_IMETHOD Notify(nsITimer* aTimer)
   {
@@ -471,7 +465,10 @@ private:
   nsRefPtr<nsWebShellWindow> mWindow;
 };
 
-NS_IMPL_ISUPPORTS1(WebShellWindowTimerCallback, nsITimerCallback)
+NS_IMPL_THREADSAFE_ADDREF(WebShellWindowTimerCallback)
+NS_IMPL_THREADSAFE_RELEASE(WebShellWindowTimerCallback)
+NS_IMPL_THREADSAFE_QUERY_INTERFACE1(WebShellWindowTimerCallback,
+                                    nsITimerCallback)
 
 } // namespace mozilla
 
@@ -685,7 +682,7 @@ bool nsWebShellWindow::ExecuteCloseHandler()
   nsCOMPtr<nsIXULWindow> kungFuDeathGrip(this);
 
   nsCOMPtr<nsPIDOMWindow> window(do_GetInterface(mDocShell));
-  nsCOMPtr<EventTarget> eventTarget = do_QueryInterface(window);
+  nsCOMPtr<nsIDOMEventTarget> eventTarget = do_QueryInterface(window);
 
   if (eventTarget) {
     nsCOMPtr<nsIContentViewer> contentViewer;
@@ -695,8 +692,8 @@ bool nsWebShellWindow::ExecuteCloseHandler()
       contentViewer->GetPresContext(getter_AddRefs(presContext));
 
       nsEventStatus status = nsEventStatus_eIgnore;
-      WidgetMouseEvent event(true, NS_XUL_CLOSE, nullptr,
-                             WidgetMouseEvent::eReal);
+      nsMouseEvent event(true, NS_XUL_CLOSE, nullptr,
+                         nsMouseEvent::eReal);
 
       nsresult rv =
         eventTarget->DispatchDOMEvent(&event, nullptr, presContext, &status);

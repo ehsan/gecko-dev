@@ -310,13 +310,16 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
 
   if (eventType.EqualsLiteral("RadioStateChange")) {
     uint64_t state = accessible->State();
+
+    // radiogroup in prefWindow is exposed as a list,
+    // and panebutton is exposed as XULListitem in A11y.
+    // XULListitemAccessible::GetStateInternal uses STATE_SELECTED in this case,
+    // so we need to check states::SELECTED also.
     bool isEnabled = (state & (states::CHECKED | states::SELECTED)) != 0;
 
-    if (accessible->NeedsDOMUIEvent()) {
-      nsRefPtr<AccEvent> accEvent =
-        new AccStateChangeEvent(accessible, states::CHECKED, isEnabled);
-      nsEventShell::FireEvent(accEvent);
-    }
+    nsRefPtr<AccEvent> accEvent =
+      new AccStateChangeEvent(accessible, states::CHECKED, isEnabled);
+    nsEventShell::FireEvent(accEvent);
 
     if (isEnabled) {
       FocusMgr()->ActiveItemChanged(accessible);
@@ -330,14 +333,14 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
   }
 
   if (eventType.EqualsLiteral("CheckboxStateChange")) {
-    if (accessible->NeedsDOMUIEvent()) {
-      uint64_t state = accessible->State();
-      bool isEnabled = !!(state & states::CHECKED);
+    uint64_t state = accessible->State();
 
-      nsRefPtr<AccEvent> accEvent =
-        new AccStateChangeEvent(accessible, states::CHECKED, isEnabled);
-      nsEventShell::FireEvent(accEvent);
-    }
+    bool isEnabled = !!(state & states::CHECKED);
+
+    nsRefPtr<AccEvent> accEvent =
+      new AccStateChangeEvent(accessible, states::CHECKED, isEnabled);
+
+    nsEventShell::FireEvent(accEvent);
     return;
   }
 
@@ -452,10 +455,14 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
       logging::ActiveItemChangeCausedBy("DOMMenuBarInactive", accessible);
 #endif
   }
-  else if (accessible->NeedsDOMUIEvent() &&
-           eventType.EqualsLiteral("ValueChange")) {
-     targetDocument->FireDelayedEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE,
-                                      accessible);
+  else if (eventType.EqualsLiteral("ValueChange")) {
+
+    //We don't process 'ValueChange' events for progress meters since we listen
+    //@value attribute change for them.
+    if (!accessible->IsProgress()) {
+      targetDocument->FireDelayedEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE,
+                                       accessible);
+    }
   }
 #ifdef DEBUG_DRAGDROPSTART
   else if (eventType.EqualsLiteral("mouseover")) {
@@ -467,12 +474,12 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Accessible
+// nsAccessNode
 
 void
 RootAccessible::Shutdown()
 {
-  // Called manually or by Accessible::LastRelease()
+  // Called manually or by nsAccessNode::LastRelease()
   if (!PresShell())
     return;  // Already shutdown
 
@@ -481,9 +488,9 @@ RootAccessible::Shutdown()
 
 // nsIAccessible method
 Relation
-RootAccessible::RelationByType(RelationType aType)
+RootAccessible::RelationByType(uint32_t aType)
 {
-  if (!mDocumentNode || aType != RelationType::EMBEDS)
+  if (!mDocumentNode || aType != nsIAccessibleRelation::RELATION_EMBEDS)
     return DocAccessibleWrap::RelationByType(aType);
 
   nsIDOMWindow* rootWindow = mDocumentNode->GetWindow();

@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
  
-#ifndef nsHtml5TreeOperation_h
-#define nsHtml5TreeOperation_h
+#ifndef nsHtml5TreeOperation_h__
+#define nsHtml5TreeOperation_h__
 
 #include "nsHtml5DocumentMode.h"
 #include "nsHtml5HtmlAttributes.h"
@@ -351,7 +351,7 @@ class nsHtml5TreeOperation {
 
     inline already_AddRefed<nsIAtom> Reget(nsIAtom* aAtom) {
       if (!aAtom || aAtom->IsStaticAtom()) {
-        return dont_AddRef(aAtom);
+        return aAtom;
       }
       nsAutoString str;
       aAtom->ToString(str);
@@ -394,4 +394,4 @@ class nsHtml5TreeOperation {
     }                   mOne, mTwo, mThree, mFour;
 };
 
-#endif // nsHtml5TreeOperation_h
+#endif // nsHtml5TreeOperation_h__

@@ -21,3 +21,4 @@ void ColorRect32_SSE2(SkPMColor* SK_RESTRICT dst,
 
 
 #endif
+

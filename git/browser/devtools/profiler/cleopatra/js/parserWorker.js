@@ -398,13 +398,6 @@ function parseRawProfile(requestID, params, rawProfile) {
       });
     }
 
-    if (protocol.startsWith("file")) {
-      return ensureResource("file_" + host, {
-        type: "file",
-        name: host
-      });
-    }
-
     return ensureResource("otherhost_" + host, {
       type: "otherhost",
       name: host

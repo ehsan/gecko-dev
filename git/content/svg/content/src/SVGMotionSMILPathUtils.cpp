@@ -4,13 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SVGMotionSMILPathUtils.h"
-
 #include "nsCharSeparatedTokenizer.h"
-#include "nsContentUtils.h" // for NS_ENSURE_FINITE2
+#include "nsContentUtils.h"
 #include "SVGContentUtils.h"
 #include "SVGLength.h"
-
-using namespace mozilla::gfx;
 
 namespace mozilla {
 
@@ -25,7 +22,7 @@ SVGMotionSMILPathUtils::PathGenerator::
   NS_ABORT_IF_FALSE(!mHaveReceivedCommands,
                     "Not expecting requests for mid-path MoveTo commands");
   mHaveReceivedCommands = true;
-  mPathBuilder->MoveTo(Point(0, 0));
+  mGfxContext.MoveTo(gfxPoint(0, 0));
 }
 
 // For 'from' and the first entry in 'values'.
@@ -41,7 +38,7 @@ SVGMotionSMILPathUtils::PathGenerator::
   if (!ParseCoordinatePair(aCoordPairStr, xVal, yVal)) {
     return false;
   }
-  mPathBuilder->MoveTo(Point(xVal, yVal));
+  mGfxContext.MoveTo(gfxPoint(xVal, yVal));
   return true;
 }
 
@@ -56,9 +53,9 @@ SVGMotionSMILPathUtils::PathGenerator::
   if (!ParseCoordinatePair(aCoordPairStr, xVal, yVal)) {
     return false;
   }
-  Point initialPoint = mPathBuilder->CurrentPoint();
+  gfxPoint initialPoint = mGfxContext.CurrentPoint();
 
-  mPathBuilder->LineTo(Point(xVal, yVal));
+  mGfxContext.LineTo(gfxPoint(xVal, yVal));
   aSegmentDistance = NS_hypot(initialPoint.x - xVal, initialPoint.y -yVal);
   return true;
 }
@@ -74,15 +71,15 @@ SVGMotionSMILPathUtils::PathGenerator::
   if (!ParseCoordinatePair(aCoordPairStr, xVal, yVal)) {
     return false;
   }
-  mPathBuilder->LineTo(mPathBuilder->CurrentPoint() + Point(xVal, yVal));
+  mGfxContext.LineTo(mGfxContext.CurrentPoint() + gfxPoint(xVal, yVal));
   aSegmentDistance = NS_hypot(xVal, yVal);
   return true;
 }
 
-TemporaryRef<Path>
+already_AddRefed<gfxFlattenedPath>
 SVGMotionSMILPathUtils::PathGenerator::GetResultingPath()
 {
-  return mPathBuilder->Finish();
+  return mGfxContext.GetFlattenedPath();
 }
 
 //----------------------------------------------------------------------
@@ -109,7 +106,7 @@ SVGMotionSMILPathUtils::PathGenerator::
     return false;
   }
 
-  if (tokenizer.separatorAfterCurrentToken() ||  // Trailing comma.
+  if (tokenizer.lastTokenEndedWithSeparator() || // Trailing comma.
       tokenizer.hasMoreTokens()) {               // More text remains
     return false;
   }

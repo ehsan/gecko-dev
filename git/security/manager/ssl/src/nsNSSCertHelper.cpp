@@ -5,19 +5,19 @@
 #include "prerror.h"
 #include "prprf.h"
 
-#include "ScopedNSSTypes.h"
+#include "mozilla/Scoped.h"
 #include "nsNSSCertHelper.h"
 #include "nsCOMPtr.h"
 #include "nsNSSCertificate.h"
+#include "cert.h"
+#include "keyhi.h"
 #include "secder.h"
-#include "nsComponentManagerUtils.h"
 #include "nsNSSCertValidity.h"
 #include "nsNSSASN1Object.h"
 #include "nsNSSComponent.h"
 #include "nsNSSCertTrust.h"
 #include "nsIDateTimeFormat.h"
 #include "nsDateTimeFormatCID.h"
-#include "nsServiceManagerUtils.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -942,8 +942,8 @@ ProcessName(CERTName *name, nsINSSComponent *nssComponent, PRUnichar **value)
   lastRdn = rdns;
   while (*lastRdn) lastRdn++;
   // The above whille loop will put us at the last member
-  // of the array which is a nullptr pointer.  So let's back
-  // up one spot so that we have the last non-nullptr entry in 
+  // of the array which is a NULL pointer.  So let's back
+  // up one spot so that we have the last non-NULL entry in 
   // the array in preparation for traversing the 
   // RDN's (Relative Distinguished Name) in reverse oder.
   lastRdn--;
@@ -2088,9 +2088,7 @@ nsNSSCertificate::CreateTBSCertificateASN1Struct(nsIASN1Sequence **retSequence,
 
   }
   if (mCert->extensions) {
-    SECOidTag ev_oid_tag = SEC_OID_UNKNOWN;
-
-#ifndef NSS_NO_LIBPKIX
+    SECOidTag ev_oid_tag;
     bool validEV;
     rv = hasValidEVOidTag(ev_oid_tag, validEV);
     if (NS_FAILED(rv))
@@ -2098,7 +2096,6 @@ nsNSSCertificate::CreateTBSCertificateASN1Struct(nsIASN1Sequence **retSequence,
 
     if (!validEV)
       ev_oid_tag = SEC_OID_UNKNOWN;
-#endif
 
     rv = ProcessExtensions(mCert->extensions, sequence, ev_oid_tag, nssComponent);
     if (NS_FAILED(rv))
@@ -2110,7 +2107,7 @@ nsNSSCertificate::CreateTBSCertificateASN1Struct(nsIASN1Sequence **retSequence,
 }
 
 nsresult
-nsNSSCertificate::CreateASN1Struct(nsIASN1Object** aRetVal)
+nsNSSCertificate::CreateASN1Struct()
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -2118,14 +2115,14 @@ nsNSSCertificate::CreateASN1Struct(nsIASN1Object** aRetVal)
 
   nsCOMPtr<nsIASN1Sequence> sequence = new nsNSSASN1Sequence();
 
+  mASN1Structure = sequence; 
+
   nsCOMPtr<nsIMutableArray> asn1Objects;
   sequence->GetASN1Objects(getter_AddRefs(asn1Objects));
   nsXPIDLCString title;
   GetWindowTitle(getter_Copies(title));
   
-  sequence->SetDisplayName(NS_ConvertUTF8toUTF16(title));
-  *aRetVal = sequence.forget().get();
-
+  mASN1Structure->SetDisplayName(NS_ConvertUTF8toUTF16(title));
   // This sequence will be contain the tbsCertificate, signatureAlgorithm,
   // and signatureValue.
   nsresult rv;
@@ -2213,22 +2210,4 @@ getNSSCertNicknamesFromCertList(CERTCertList *certList)
                                           const_cast<char*>(aUtf8ExpiredString.get()),
                                           const_cast<char*>(aUtf8NotYetValidString.get()));
   
-}
-
-nsresult
-GetCertFingerprintByOidTag(CERTCertificate* nsscert,
-                           SECOidTag aOidTag, 
-                           nsCString &fp)
-{
-  Digest digest;
-  nsresult rv = digest.DigestBuf(aOidTag, nsscert->derCert.data,
-                                 nsscert->derCert.len);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  char *tmpstr = CERT_Hexify(const_cast<SECItem*>(&digest.get()), 1);
-  NS_ENSURE_TRUE(tmpstr, NS_ERROR_OUT_OF_MEMORY);
-
-  fp.Assign(tmpstr);
-  PORT_Free(tmpstr);
-  return NS_OK;
 }

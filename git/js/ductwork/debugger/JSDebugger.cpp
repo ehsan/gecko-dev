@@ -8,8 +8,7 @@
 #include "nsThreadUtils.h"
 #include "jsapi.h"
 #include "jsfriendapi.h"
-#include "jswrapper.h"
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
 #include "mozilla/ModuleUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsMemory.h"
@@ -44,9 +43,9 @@ JSDebugger::AddClass(const JS::Value &global, JSContext* cx)
   if (!global.isObject()) {
     return NS_ERROR_INVALID_ARG;
   }
-
-  JS::RootedObject obj(cx, &global.toObject());
-  obj = js::UncheckedUnwrap(obj, /* stopAtOuter = */ false);
+  
+  JSObject* obj = &global.toObject();
+  obj = JS_UnwrapObjectAndInnerize(obj);
   if (!obj) {
     return NS_ERROR_FAILURE;
   }
@@ -69,13 +68,13 @@ JSDebugger::AddClass(const JS::Value &global, JSContext* cx)
 NS_DEFINE_NAMED_CID(JSDEBUGGER_CID);
 
 static const mozilla::Module::CIDEntry kJSDebuggerCIDs[] = {
-  { &kJSDEBUGGER_CID, false, nullptr, mozilla::jsdebugger::JSDebuggerConstructor },
-  { nullptr }
+  { &kJSDEBUGGER_CID, false, NULL, mozilla::jsdebugger::JSDebuggerConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kJSDebuggerContracts[] = {
   { JSDEBUGGER_CONTRACTID, &kJSDEBUGGER_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kJSDebuggerModule = {

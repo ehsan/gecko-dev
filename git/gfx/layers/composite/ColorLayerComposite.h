@@ -6,25 +6,21 @@
 #ifndef GFX_ColorLayerComposite_H
 #define GFX_ColorLayerComposite_H
 
-#include "Layers.h"                     // for ColorLayer, etc
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/layers/LayerManagerComposite.h"  // for LayerComposite, etc
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
+#include "mozilla/layers/PLayers.h"
+#include "mozilla/layers/ShadowLayers.h"
 
-struct nsIntPoint;
-struct nsIntRect;
+#include "LayerManagerComposite.h"
 
 namespace mozilla {
 namespace layers {
 
-class CompositableHost;
 
-class ColorLayerComposite : public ColorLayer,
+class ColorLayerComposite : public ShadowColorLayer,
                             public LayerComposite
 {
 public:
   ColorLayerComposite(LayerManagerComposite *aManager)
-    : ColorLayer(aManager, nullptr)
+    : ShadowColorLayer(aManager, nullptr)
     , LayerComposite(aManager)
   {
     MOZ_COUNT_CTOR(ColorLayerComposite);
@@ -41,14 +37,17 @@ public:
 
   virtual void Destroy() MOZ_OVERRIDE { mDestroyed = true; }
 
-  virtual void RenderLayer(const nsIntRect& aClipRect) MOZ_OVERRIDE;
+  virtual void RenderLayer(const nsIntPoint& aOffset,
+                           const nsIntRect& aClipRect) MOZ_OVERRIDE;
   virtual void CleanupResources() MOZ_OVERRIDE {};
 
   CompositableHost* GetCompositableHost() MOZ_OVERRIDE { return nullptr; }
 
   virtual LayerComposite* AsLayerComposite() MOZ_OVERRIDE { return this; }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() const MOZ_OVERRIDE { return "ColorLayerComposite"; }
+#endif
 };
 
 } /* layers */

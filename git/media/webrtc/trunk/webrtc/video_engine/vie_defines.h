@@ -11,7 +11,7 @@
 #ifndef WEBRTC_VIDEO_ENGINE_VIE_DEFINES_H_
 #define WEBRTC_VIDEO_ENGINE_VIE_DEFINES_H_
 
-#include "webrtc/engine_configurations.h"
+#include "engine_configurations.h"  // NOLINT
 
 // TODO(mflodman) Remove.
 #ifdef WEBRTC_ANDROID
@@ -22,9 +22,9 @@
 #include <stdio.h>  // NOLINT
 #include <stdlib.h>  // NOLINT
 #include <string.h>  // NOLINT
+#include <sys/types.h>  // NOLINT
 #include <sys/socket.h>  // NOLINT
 #include <sys/time.h>  // NOLINT
-#include <sys/types.h>  // NOLINT
 #include <time.h>  // NOLINT
 #endif
 
@@ -39,15 +39,15 @@ enum { kViEVersionMaxMessageSize = 1024 };
 enum { kViEMaxModuleVersionSize = 960 };
 
 // ViECapture
-enum { kViEMaxCaptureDevices = 256 };
+enum { kViEMaxCaptureDevices = 10 };
 enum { kViECaptureDefaultWidth = 352 };
 enum { kViECaptureDefaultHeight = 288 };
 enum { kViECaptureDefaultFramerate = 30 };
 enum { kViECaptureMaxSnapshotWaitTimeMs = 500 };
 
 // ViECodec
-enum { kViEMaxCodecWidth = 4096 };
-enum { kViEMaxCodecHeight = 3072 };
+enum { kViEMaxCodecWidth = 4048 };
+enum { kViEMaxCodecHeight = 3040 };
 enum { kViEMaxCodecFramerate = 60 };
 enum { kViEMinCodecBitrate = 30 };
 
@@ -58,6 +58,9 @@ enum { kViEMaxSrtpEncryptLength = 256 };
 enum { kViEMaxSrtpAuthSh1Length = 20 };
 enum { kViEMaxSrtpTagAuthNullLength = 12 };
 enum { kViEMaxSrtpKeyAuthNullLength = 256 };
+
+// ViEFile
+enum { kViEMaxFilePlayers = 3 };
 
 // ViENetwork
 enum { kViEMaxMtu = 1500 };
@@ -72,11 +75,7 @@ enum { kViEMinRenderTimeoutTimeMs = 33 };
 enum { kViEDefaultRenderDelayMs = 10 };
 
 // ViERTP_RTCP
-enum { kSendSidePacketHistorySize = 600 };
-
-// NACK
-enum { kMaxPacketAgeToNack = 450 };  // In sequence numbers.
-enum { kMaxNackListSize = 250 };
+enum { kNackHistorySize = 400 };
 
 // Id definitions
 enum {
@@ -84,6 +83,8 @@ enum {
   kViEChannelIdMax = 0xFF,
   kViECaptureIdBase = 0x1001,
   kViECaptureIdMax = 0x10FF,
+  kViEFileIdBase = 0x2000,
+  kViEFileIdMax = 0x200F,
   kViEDummyChannelId = 0xFFFF
 };
 
@@ -109,23 +110,24 @@ inline int ChannelId(const int moduleId) {
   return static_cast<int>(moduleId & 0xffff);
 }
 
-//  Build information macros
-#if defined(_DEBUG) || defined(DEBUG)
-#define BUILDMODE "d"
-#elif defined(NDEBUG)
-#define BUILDMODE "r"
-#else
-#define BUILDMODE "?"
-#endif
-
-#define BUILDTIME __TIME__
-#define BUILDDATE __DATE__
-
-// Example: "Oct 10 2002 12:05:30 r".
-#define BUILDINFO BUILDDATE " " BUILDTIME " " BUILDMODE
-
 // Windows specific.
 #if defined(_WIN32)
+  //  Build information macros
+  #if defined(_DEBUG)
+  #define BUILDMODE TEXT("d")
+  #elif defined(DEBUG)
+  #define BUILDMODE TEXT("d")
+  #elif defined(NDEBUG)
+  #define BUILDMODE TEXT("r")
+  #else
+  #define BUILDMODE TEXT("?")
+  #endif
+
+  #define BUILDTIME TEXT(__TIME__)
+  #define BUILDDATE TEXT(__DATE__)
+
+  // Example: "Oct 10 2002 12:05:30 r".
+  #define BUILDINFO BUILDDATE TEXT(" ") BUILDTIME TEXT(" ") BUILDMODE
   #define RENDER_MODULE_TYPE kRenderWindows
 
   // Warning pragmas.
@@ -148,13 +150,70 @@ inline int ChannelId(const int moduleId) {
 // Mac specific.
 #ifdef WEBRTC_MAC
   #define SLEEP(x) usleep(x * 1000)
+
+  //  Build information macros.
+  #define TEXT(x) x
+  #if defined(_DEBUG)
+  #define BUILDMODE TEXT("d")
+  #elif defined(DEBUG)
+  #define BUILDMODE TEXT("d")
+  #elif defined(NDEBUG)
+  #define BUILDMODE TEXT("r")
+  #else
+  #define BUILDMODE TEXT("?")
+  #endif
+
+  #define BUILDTIME TEXT(__TIME__)
+  #define BUILDDATE TEXT(__DATE__)
+
+  // Example: "Oct 10 2002 12:05:30 r".
+  #define BUILDINFO BUILDDATE TEXT(" ") BUILDTIME TEXT(" ") BUILDMODE
   #define RENDER_MODULE_TYPE kRenderWindows
 #endif
+
+// Linux specific.
+#ifndef WEBRTC_ANDROID
+#ifdef WEBRTC_LINUX
+  //  Build information macros.
+  #if defined(_DEBUG)
+  #define BUILDMODE "d"
+  #elif defined(DEBUG)
+  #define BUILDMODE "d"
+  #elif defined(NDEBUG)
+  #define BUILDMODE "r"
+  #else
+  #define BUILDMODE "?"
+  #endif
+
+  #define BUILDTIME __TIME__
+  #define BUILDDATE __DATE__
+
+  // Example: "Oct 10 2002 12:05:30 r".
+  #define BUILDINFO BUILDDATE " " BUILDTIME " " BUILDMODE
+#endif  // WEBRTC_LINUX
+#endif  // WEBRTC_ANDROID
 
 // Android specific.
 #ifdef WEBRTC_ANDROID
   #define FAR
   #define __cdecl
+
+  #if defined(_DEBUG)
+  #define BUILDMODE "d"
+  #elif defined(DEBUG)
+  #define BUILDMODE "d"
+  #elif defined(NDEBUG)
+  #define BUILDMODE "r"
+  #else
+  #define BUILDMODE "?"
+  #endif
+
+  #define BUILDTIME __TIME__
+  #define BUILDDATE __DATE__
+
+  // Example: "Oct 10 2002 12:05:30 r".
+  #define BUILDINFO BUILDDATE " " BUILDTIME " " BUILDMODE
+
 #endif  // WEBRTC_ANDROID
 
 }  // namespace webrtc

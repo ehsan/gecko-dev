@@ -7,8 +7,11 @@
 // debug.cpp: Debugging utilities.
 
 #include "common/debug.h"
-#include "common/system.h"
+
+#include <stdio.h>
+#include <stdarg.h>
 #include <d3d9.h>
+#include <windows.h>
 
 namespace gl
 {

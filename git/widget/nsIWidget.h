@@ -8,17 +8,20 @@
 
 #include "nsISupports.h"
 #include "nsColor.h"
+#include "nsCoord.h"
 #include "nsRect.h"
+#include "nsPoint.h"
 #include "nsStringGlue.h"
 
+#include "prthread.h"
+#include "nsEvent.h"
 #include "nsCOMPtr.h"
+#include "nsITheme.h"
+#include "nsNativeWidget.h"
 #include "nsWidgetInitData.h"
 #include "nsTArray.h"
 #include "nsXULAppAPI.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/layers/LayersTypes.h"
-#include "mozilla/RefPtr.h"
-#include "Units.h"
 
 // forward declarations
 class   nsFontMetrics;
@@ -26,6 +29,7 @@ class   nsRenderingContext;
 class   nsDeviceContext;
 struct  nsFont;
 class   nsIRollupListener;
+class   nsGUIEvent;
 class   imgIContainer;
 class   gfxASurface;
 class   nsIContent;
@@ -41,29 +45,21 @@ namespace layers {
 class Composer2D;
 class CompositorChild;
 class LayerManager;
-class PLayerTransactionChild;
-}
-namespace gfx {
-class DrawTarget;
+class PLayersChild;
 }
 }
 
 /**
  * Callback function that processes events.
  *
- * The argument is actually a subtype (subclass) of WidgetEvent which carries
+ * The argument is actually a subtype (subclass) of nsEvent which carries
  * platform specific information about the event. Platform specific code
  * knows how to deal with it.
  *
  * The return value determines whether or not the default action should take
  * place.
  */
-typedef nsEventStatus (* EVENT_CALLBACK)(mozilla::WidgetGUIEvent* aEvent);
-
-// Hide the native window system's real window type so as to avoid
-// including native window system types and APIs. This is necessary
-// to ensure cross-platform code.
-typedef void* nsNativeWidget;
+typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 
 /**
  * Flags for the getNativeData function.
@@ -96,8 +92,8 @@ typedef void* nsNativeWidget;
 #endif
 
 #define NS_IWIDGET_IID \
-{ 0xa1f684e6, 0x2ae1, 0x4513, \
-  { 0xb6, 0x89, 0xf4, 0xd4, 0xfe, 0x9d, 0x2c, 0xdb } }
+  { 0xdaac8d94, 0x14f3, 0x4bc4, \
+    { 0xa8, 0xc, 0xf0, 0xe6, 0x46, 0x1e, 0xad, 0x40 } }
 
 /*
  * Window shadow styles
@@ -109,17 +105,6 @@ typedef void* nsNativeWidget;
 #define NS_STYLE_WINDOW_SHADOW_MENU             2
 #define NS_STYLE_WINDOW_SHADOW_TOOLTIP          3
 #define NS_STYLE_WINDOW_SHADOW_SHEET            4
-
-/**
- * Transparency modes
- */
-
-enum nsTransparencyMode {
-  eTransparencyOpaque = 0,  // Fully opaque
-  eTransparencyTransparent, // Parts of the window may be transparent
-  eTransparencyGlass,       // Transparent parts of the window have Vista AeroGlass effect applied
-  eTransparencyBorderlessGlass // As above, but without a border around the opaque areas when there would otherwise be one with eTransparencyGlass
-};
 
 /**
  * Cursor types.
@@ -202,14 +187,13 @@ enum nsTopLevelWidgetZPlacement { // for PlaceBehind()
 /**
  * Preference for receiving IME updates
  *
- * If mWantUpdates is not NOTIFY_NOTHING, nsTextStateManager will observe text
- * change and/or selection change and call nsIWidget::NotifyIMEOfTextChange()
- * and/or nsIWidget::NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE).
- * Please note that the text change observing cost is very expensive especially
- * on an HTML editor has focus.
+ * If mWantUpdates is true, nsTextStateManager will observe text change and
+ * selection change and call nsIWidget::NotifyIMEOfTextChange() and
+ * nsIWidget::NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE). The observing cost is
+ * very expensive.
  * If the IME implementation on a particular platform doesn't care about
- * NotifyIMEOfTextChange() and/or NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE),
- * they should set mWantUpdates to NOTIFY_NOTHING to avoid the cost.
+ * NotifyIMEOfTextChange and NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE), they
+ * should set mWantUpdates to false to avoid the cost.
  *
  * If mWantHints is true, PuppetWidget will forward the content of text fields
  * to the chrome process to be cached. This way we return the cached content
@@ -220,25 +204,15 @@ enum nsTopLevelWidgetZPlacement { // for PlaceBehind()
  */
 struct nsIMEUpdatePreference {
 
-  typedef int8_t Notifications;
-
-  enum
-  {
-    NOTIFY_NOTHING           = 0x0000,
-    NOTIFY_SELECTION_CHANGE  = 0x0001,
-    NOTIFY_TEXT_CHANGE       = 0x0002
-  };
-
   nsIMEUpdatePreference()
-    : mWantUpdates(NOTIFY_NOTHING), mWantHints(false)
+    : mWantUpdates(false), mWantHints(false)
   {
   }
-  nsIMEUpdatePreference(Notifications aWantUpdates, bool aWantHints)
+  nsIMEUpdatePreference(bool aWantUpdates, bool aWantHints)
     : mWantUpdates(aWantUpdates), mWantHints(aWantHints)
   {
   }
-
-  Notifications mWantUpdates;
+  bool mWantUpdates;
   bool mWantHints;
 };
 
@@ -331,11 +305,6 @@ struct IMEState {
 
 struct InputContext {
   InputContext() : mNativeIMEContext(nullptr) {}
-
-  bool IsPasswordEditor() const
-  {
-    return mHTMLInputType.LowerCaseEqualsLiteral("password");
-  }
 
   IMEState mIMEState;
 
@@ -434,21 +403,6 @@ struct SizeConstraints {
   nsIntSize mMaxSize;
 };
 
-// NotificationToIME is shared by nsIMEStateManager and TextComposition.
-enum NotificationToIME {
-  // XXX We should replace NOTIFY_IME_OF_CURSOR_POS_CHANGED with
-  //     NOTIFY_IME_OF_SELECTION_CHANGE later.
-  NOTIFY_IME_OF_CURSOR_POS_CHANGED,
-  // An editable content is getting focus
-  NOTIFY_IME_OF_FOCUS,
-  // An editable content is losing focus
-  NOTIFY_IME_OF_BLUR,
-  // Selection in the focused editable content is changed
-  NOTIFY_IME_OF_SELECTION_CHANGE,
-  REQUEST_TO_COMMIT_COMPOSITION,
-  REQUEST_TO_CANCEL_COMPOSITION
-};
-
 } // namespace widget
 } // namespace mozilla
 
@@ -465,7 +419,7 @@ class nsIWidget : public nsISupports {
     typedef mozilla::layers::CompositorChild CompositorChild;
     typedef mozilla::layers::LayerManager LayerManager;
     typedef mozilla::layers::LayersBackend LayersBackend;
-    typedef mozilla::layers::PLayerTransactionChild PLayerTransactionChild;
+    typedef mozilla::layers::PLayersChild PLayersChild;
     typedef mozilla::widget::NotificationToIME NotificationToIME;
     typedef mozilla::widget::IMEState IMEState;
     typedef mozilla::widget::InputContext InputContext;
@@ -651,7 +605,7 @@ class nsIWidget : public nsISupports {
      * or Windows' "font DPI". This will take into account Gecko preferences
      * overriding the system setting.
      */
-    mozilla::CSSToLayoutDeviceScale GetDefaultScale();
+    double GetDefaultScale();
 
     /**
      * Return the Gecko override of the system default scale, if any;
@@ -886,15 +840,15 @@ class nsIWidget : public nsISupports {
 
     /**
      * Minimize, maximize or normalize the window size.
-     * Takes a value from nsSizeMode (see nsIWidgetListener.h)
+     * Takes a value from nsSizeMode (see nsGUIEvent.h)
      */
     NS_IMETHOD SetSizeMode(int32_t aMode) = 0;
 
     /**
      * Return size mode (minimized, maximized, normalized).
-     * Returns a value from nsSizeMode (see nsIWidgetListener.h)
+     * Returns a value from nsSizeMode (see nsGUIEvent.h)
      */
-    virtual int32_t SizeMode() = 0;
+    NS_IMETHOD GetSizeMode(int32_t* aMode) = 0;
 
     /**
      * Enable or disable this Widget
@@ -1194,85 +1148,20 @@ class nsIWidget : public nsISupports {
      * type |aBackendHint| instead of what would normally be created.
      * LAYERS_NONE means "no hint".
      */
-    virtual LayerManager* GetLayerManager(PLayerTransactionChild* aShadowManager,
+    virtual LayerManager* GetLayerManager(PLayersChild* aShadowManager,
                                           LayersBackend aBackendHint,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nullptr) = 0;
 
     /**
-     * Called before each layer manager transaction to allow any preparation
-     * for DrawWindowUnderlay/Overlay that needs to be on the main thread.
-     *
-     * Always called on the main thread.
-     */
-    virtual void PrepareWindowEffects() = 0;
-
-    /**
-     * Called when shutting down the LayerManager to clean-up any cached resources.
-     *
-     * Always called from the compositing thread, which may be the main-thread if
-     * OMTC is not enabled.
-     */
-    virtual void CleanupWindowEffects() = 0;
-
-    /**
-     * Called before rendering using OpenGL. Returns false when the widget is
-     * not ready to be rendered (for example while the window is closed).
-     *
-     * Always called from the compositing thread, which may be the main-thread if
-     * OMTC is not enabled.
-     */
-    virtual bool PreRender(LayerManager* aManager) = 0;
-
-    /**
-     * Called after rendering using OpenGL. Not called when rendering was
-     * cancelled by a negative return value from PreRender.
-     *
-     * Always called from the compositing thread, which may be the main-thread if
-     * OMTC is not enabled.
-     */
-    virtual void PostRender(LayerManager* aManager) = 0;
-
-    /**
      * Called before the LayerManager draws the layer tree.
-     *
-     * Always called from the compositing thread, which may be the main-thread if
-     * OMTC is not enabled.
      */
     virtual void DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect) = 0;
 
     /**
      * Called after the LayerManager draws the layer tree
-     *
-     * Always called from the compositing thread, which may be the main-thread if
-     * OMTC is not enabled.
      */
     virtual void DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect) = 0;
-
-    /**
-     * Return a DrawTarget for the window which can be composited into.
-     *
-     * Called by BasicCompositor on the compositor thread for OMTC drawing
-     * before each composition.
-     */
-    virtual mozilla::TemporaryRef<mozilla::gfx::DrawTarget> StartRemoteDrawing() = 0;
-
-    /**
-     * Ensure that what was painted into the DrawTarget returned from
-     * StartRemoteDrawing reaches the screen.
-     *
-     * Called by BasicCompositor on the compositor thread for OMTC drawing
-     * after each composition.
-     */
-    virtual void EndRemoteDrawing() = 0;
-
-    /**
-     * Clean up any resources used by Start/EndRemoteDrawing.
-     *
-     * Called by BasicCompositor on the compositor thread for OMTC drawing
-     * when the compositor is destroyed.
-     */
-    virtual void CleanupRemoteDrawing() = 0;
 
     /**
      * Called when Gecko knows which themed widgets exist in this window.
@@ -1349,8 +1238,7 @@ class nsIWidget : public nsISupports {
      * Dispatches an event to the widget
      *
      */
-    NS_IMETHOD DispatchEvent(mozilla::WidgetGUIEvent* event,
-                             nsEventStatus & aStatus) = 0;
+    NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) = 0;
 
     /**
      * Enables the dropping of files to a widget (XXX this is temporary)
@@ -1397,6 +1285,24 @@ class nsIWidget : public nsISupports {
      * included, including those not targeted at this nsIwidget instance.
      */
     virtual bool HasPendingInputEvent() = 0;
+
+    /**
+     * Called when when we need to begin secure keyboard input, such as when a password field
+     * gets focus.
+     *
+     * NOTE: Calls to this method may not be nested and you can only enable secure keyboard input
+     * for one widget at a time.
+     */
+    NS_IMETHOD BeginSecureKeyboardInput() = 0;
+
+    /**
+     * Called when when we need to end secure keyboard input, such as when a password field
+     * loses focus.
+     *
+     * NOTE: Calls to this method may not be nested and you can only enable secure keyboard input
+     * for one widget at a time.
+     */
+    NS_IMETHOD EndSecureKeyboardInput() = 0;
 
     /**
      * Set the background color of the window titlebar for this widget. On Mac,
@@ -1453,14 +1359,12 @@ class nsIWidget : public nsISupports {
     /**
      * Begin a window resizing drag, based on the event passed in.
      */
-    NS_IMETHOD BeginResizeDrag(mozilla::WidgetGUIEvent* aEvent,
-                               int32_t aHorizontal,
-                               int32_t aVertical) = 0;
+    NS_IMETHOD BeginResizeDrag(nsGUIEvent* aEvent, int32_t aHorizontal, int32_t aVertical) = 0;
 
     /**
      * Begin a window moving drag, based on the event passed in.
      */
-    NS_IMETHOD BeginMoveDrag(mozilla::WidgetMouseEvent* aEvent) = 0;
+    NS_IMETHOD BeginMoveDrag(nsMouseEvent* aEvent) = 0;
 
     enum Modifiers {
         CAPS_LOCK = 0x01, // when CapsLock is active
@@ -1731,6 +1635,13 @@ class nsIWidget : public nsISupports {
     }
 
     /**
+     * This function is called by nsViewManager right before the retained layer 
+     * tree for this widget is about to be updated, and any required
+     * ThebesLayer painting occurs.
+     */
+    virtual void WillPaint() { }
+
+    /**
      * Get the natural bounds of this widget.  This method is only
      * meaningful for widgets for which Gecko implements screen
      * rotation natively.  When this is the case, GetBounds() returns
@@ -1790,13 +1701,6 @@ class nsIWidget : public nsISupports {
      */
     virtual Composer2D* GetComposer2D()
     { return nullptr; }
-
-    /**
-     * Some platforms (only cocoa right now) round widget coordinates to the
-     * nearest even pixels (see bug 892994), this function allows us to
-     * determine how widget coordinates will be rounded.
-     */
-    virtual int32_t RoundsWidgetCoordinatesTo() { return 1; }
 
 protected:
     /**

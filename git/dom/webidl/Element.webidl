@@ -13,6 +13,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface MozNamedAttrMap;
+
 interface Element : Node {
 /*
   We haven't moved these from Node to Element like the spec wants.
@@ -35,7 +37,7 @@ interface Element : Node {
   [Constant]
   readonly attribute DOMTokenList? classList;
 
-  [SameObject]
+  [Constant]
   readonly attribute MozNamedAttrMap attributes;
   DOMString? getAttribute(DOMString name);
   DOMString? getAttributeNS(DOMString? namespace, DOMString localName);
@@ -55,22 +57,26 @@ interface Element : Node {
   HTMLCollection getElementsByTagNameNS(DOMString? namespace, DOMString localName);
   HTMLCollection getElementsByClassName(DOMString classNames);
 
-  /**
-   * The ratio of font-size-inflated text font size to computed font
-   * size for this element. This will query the element for its primary frame,
-   * and then use this to get font size inflation information about the frame.
-   * This will be 1.0 if font size inflation is not enabled, and -1.0 if an
-   * error occurred during the retrieval of the font size inflation.
-   *
-   * @note The font size inflation ratio that is returned is actually the
-   *       font size inflation data for the element's _primary frame_, not the
-   *       element itself, but for most purposes, this should be sufficient.
-   */
-  [ChromeOnly]
-  readonly attribute float fontSizeInflation;
+  [Constant]
+  readonly attribute HTMLCollection children;
+  [Pure]
+  readonly attribute Element? firstElementChild;
+  [Pure]
+  readonly attribute Element? lastElementChild;
+  [Pure]
+  readonly attribute Element? previousElementSibling;
+  [Pure]
+  readonly attribute Element? nextElementSibling;
+  [Pure]
+  readonly attribute unsigned long childElementCount;
 
   // Mozilla specific stuff
 
+  [SetterThrows,LenientThis]
+           attribute EventHandler onmouseenter;
+  [SetterThrows,LenientThis]
+           attribute EventHandler onmouseleave;
+  [SetterThrows]
            attribute EventHandler onwheel;
 
   // Selectors API
@@ -126,23 +132,15 @@ interface Element : Node {
   Attr? getAttributeNodeNS(DOMString? namespaceURI, DOMString localName);
   [Throws]
   Attr? setAttributeNodeNS(Attr newAttr);
-
-  [ChromeOnly]
-  /**
-   * Scrolls the element by (dx, dy) CSS pixels without doing any
-   * layout flushing.
-   */
-  boolean scrollByNoFlush(long dx, long dy);
 };
 
 // http://dev.w3.org/csswg/cssom-view/#extensions-to-the-element-interface
 partial interface Element {
-  DOMRectList getClientRects();
-  DOMRect getBoundingClientRect();
+  ClientRectList getClientRects();
+  ClientRect getBoundingClientRect();
 
   // scrolling
-  void scrollIntoView();
-  void scrollIntoView(boolean top);
+  void scrollIntoView(optional boolean top = true);
   // None of the CSSOM attributes are [Pure], because they flush
            attribute long scrollTop;   // scroll on setting
            attribute long scrollLeft;  // scroll on setting
@@ -172,9 +170,9 @@ partial interface Element {
 
 // http://domparsing.spec.whatwg.org/#extensions-to-the-element-interface
 partial interface Element {
-  [Pure,SetterThrows,TreatNullAs=EmptyString]
+  [Throws,TreatNullAs=EmptyString]
   attribute DOMString innerHTML;
-  [Pure,SetterThrows,TreatNullAs=EmptyString]
+  [Throws,TreatNullAs=EmptyString]
   attribute DOMString outerHTML;
   [Throws]
   void insertAdjacentHTML(DOMString position, DOMString text);
@@ -189,5 +187,3 @@ partial interface Element {
 };
 
 Element implements ChildNode;
-Element implements NonDocumentTypeChildNode;
-Element implements ParentNode;

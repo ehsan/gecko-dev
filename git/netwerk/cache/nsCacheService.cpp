@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Attributes.h"
-#include "mozilla/Assertions.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Util.h"
 
@@ -107,6 +106,7 @@ static const char * prefList[] = {
 
 // Cache sizes, in KB
 const int32_t DEFAULT_CACHE_SIZE = 250 * 1024;  // 250 MB
+const int32_t MIN_CACHE_SIZE = 50 * 1024;       //  50 MB
 #ifdef ANDROID
 const int32_t MAX_CACHE_SIZE = 200 * 1024;      // 200 MB
 const int32_t OLD_MAX_CACHE_SIZE = 200 * 1024;  // 200 MB
@@ -120,7 +120,7 @@ const int32_t PRE_GECKO_2_0_DEFAULT_CACHE_SIZE = 50 * 1024;
 class nsCacheProfilePrefObserver : public nsIObserver
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
 
     nsCacheProfilePrefObserver()
@@ -200,12 +200,12 @@ private:
     bool                    mClearCacheOnShutdown;
 };
 
-NS_IMPL_ISUPPORTS1(nsCacheProfilePrefObserver, nsIObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsCacheProfilePrefObserver, nsIObserver)
 
 class nsSetDiskSmartSizeCallback MOZ_FINAL : public nsITimerCallback
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
     NS_IMETHOD Notify(nsITimer* aTimer) {
         if (nsCacheService::gService) {
@@ -217,7 +217,7 @@ public:
     }
 };
 
-NS_IMPL_ISUPPORTS1(nsSetDiskSmartSizeCallback, nsITimerCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsSetDiskSmartSizeCallback, nsITimerCallback)
 
 // Runnable sent to main thread after the cache IO thread calculates available
 // disk space, so that there is no race in setting mDiskCacheCapacity.
@@ -1071,13 +1071,12 @@ private:
  *****************************************************************************/
 nsCacheService *   nsCacheService::gService = nullptr;
 
-NS_IMPL_ISUPPORTS2(nsCacheService, nsICacheService, nsICacheServiceInternal)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsCacheService, nsICacheService)
 
 nsCacheService::nsCacheService()
     : mObserver(nullptr),
       mLock("nsCacheService.mLock"),
       mCondVar(mLock, "nsCacheService.mCondVar"),
-      mTimeStampLock("nsCacheService.mTimeStampLock"),
       mInitialized(false),
       mClearingEntries(false),
       mEnableMemoryDevice(true),
@@ -1099,6 +1098,7 @@ nsCacheService::nsCacheService()
 
     // create list of cache devices
     PR_INIT_CLIST(&mDoomedEntries);
+    mCustomOfflineDevices.Init();
 }
 
 nsCacheService::~nsCacheService()
@@ -1495,31 +1495,10 @@ NS_IMETHODIMP nsCacheService::VisitEntries(nsICacheVisitor *visitor)
     return NS_OK;
 }
 
-void nsCacheService::FireClearNetworkCacheStoredAnywhereNotification()
-{
-    MOZ_ASSERT(NS_IsMainThread());
-    nsCOMPtr<nsIObserverService> obsvc = mozilla::services::GetObserverService();
-    if (obsvc) {
-        obsvc->NotifyObservers(nullptr,
-                               "network-clear-cache-stored-anywhere",
-                               nullptr);
-    }
-}
 
 NS_IMETHODIMP nsCacheService::EvictEntries(nsCacheStoragePolicy storagePolicy)
 {
-    if (storagePolicy == nsICache::STORE_ANYWHERE) {
-        // if not called on main thread, dispatch the notification to the main thread to notify observers
-        if (!NS_IsMainThread()) { 
-            nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(this,
-                                                               &nsCacheService::FireClearNetworkCacheStoredAnywhereNotification);
-            NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
-        } else {
-            // else you're already on main thread - notify observers
-            FireClearNetworkCacheStoredAnywhereNotification(); 
-        }
-    }
-    return EvictEntriesForClient(nullptr, storagePolicy);
+    return  EvictEntriesForClient(nullptr, storagePolicy);
 }
 
 NS_IMETHODIMP nsCacheService::GetCacheIOTarget(nsIEventTarget * *aCacheIOTarget)
@@ -1547,24 +1526,6 @@ NS_IMETHODIMP nsCacheService::GetCacheIOTarget(nsIEventTarget * *aCacheIOTarget)
     }
 
     return rv;
-}
-
-/* nsICacheServiceInternal
- * readonly attribute double lockHeldTime;
-*/
-NS_IMETHODIMP nsCacheService::GetLockHeldTime(double *aLockHeldTime)
-{
-    MutexAutoLock lock(mTimeStampLock);
-
-    if (mLockAcquiredTimeStamp.IsNull()) {
-        *aLockHeldTime = 0.0;
-    }
-    else {
-        *aLockHeldTime = 
-            (TimeStamp::Now() - mLockAcquiredTimeStamp).ToMilliseconds();
-    }
-
-    return NS_OK;
 }
 
 /**
@@ -1649,9 +1610,7 @@ public:
             return rv;
         }
 
-        // It is safe to call SetDiskSmartSize_Locked() without holding the lock
-        // when we are on main thread and nsCacheService is initialized.
-        nsCacheService::gService->SetDiskSmartSize_Locked();
+        nsCacheService::SetDiskSmartSize();
 
         if (nsCacheService::gService->mObserver->PermittedToSmartSize(branch, false)) {
             rv = branch->SetIntPref(DISK_CACHE_CAPACITY_PREF, MAX_CACHE_SIZE);
@@ -2637,20 +2596,6 @@ nsCacheService::OnDataSizeChange(nsCacheEntry * entry, int32_t deltaSize)
 }
 
 void
-nsCacheService::LockAcquired()
-{
-    MutexAutoLock lock(mTimeStampLock);
-    mLockAcquiredTimeStamp = TimeStamp::Now();
-}
-
-void
-nsCacheService::LockReleased()
-{
-    MutexAutoLock lock(mTimeStampLock);
-    mLockAcquiredTimeStamp = TimeStamp();
-}
-
-void
 nsCacheService::Lock(mozilla::Telemetry::ID mainThreadLockerID)
 {
     mozilla::Telemetry::ID lockerID;
@@ -2668,7 +2613,6 @@ nsCacheService::Lock(mozilla::Telemetry::ID mainThreadLockerID)
     MOZ_EVENT_TRACER_WAIT(nsCacheService::gService, "net::cache::lock");
 
     gService->mLock.Lock();
-    gService->LockAcquired();
 
     TimeStamp stop(TimeStamp::Now());
     MOZ_EVENT_TRACER_EXEC(nsCacheService::gService, "net::cache::lock");
@@ -2689,7 +2633,6 @@ nsCacheService::Unlock()
     nsTArray<nsISupports*> doomed;
     doomed.SwapElements(gService->mDoomedObjects);
 
-    gService->LockReleased();
     gService->mLock.Unlock();
 
     MOZ_EVENT_TRACER_DONE(nsCacheService::gService, "net::cache::lock");

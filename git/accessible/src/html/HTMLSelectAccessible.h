@@ -57,6 +57,13 @@ protected:
 
   // Accessible
   virtual void CacheChildren();
+
+  // HTMLSelectListAccessible
+
+  /**
+   * Recursive helper for CacheChildren().
+   */
+  void CacheOptSiblings(nsIContent* aParentContent);
 };
 
 /*
@@ -100,12 +107,8 @@ private:
    */
   Accessible* GetSelect() const
   {
-    Accessible* parent = mParent;
-    if (parent && parent->IsHTMLOptGroup())
-      parent = parent->Parent();
-
-    if (parent && parent->IsListControl()) {
-      Accessible* combobox = parent->Parent();
+    if (mParent && mParent->IsListControl()) {
+      Accessible* combobox = mParent->Parent();
       return combobox && combobox->IsCombobox() ? combobox : mParent.get();
     }
 
@@ -117,12 +120,8 @@ private:
    */
   Accessible* GetCombobox() const
   {
-    Accessible* parent = mParent;
-    if (parent && parent->IsHTMLOptGroup())
-      parent = parent->Parent();
-
-    if (parent && parent->IsListControl()) {
-      Accessible* combobox = parent->Parent();
+    if (mParent && mParent->IsListControl()) {
+      Accessible* combobox = mParent->Parent();
       return combobox && combobox->IsCombobox() ? combobox : nullptr;
     }
 
@@ -137,9 +136,7 @@ class HTMLSelectOptGroupAccessible : public HTMLSelectOptionAccessible
 {
 public:
 
-  HTMLSelectOptGroupAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    HTMLSelectOptionAccessible(aContent, aDoc)
-    { mType = eHTMLOptGroupType; }
+  HTMLSelectOptGroupAccessible(nsIContent* aContent, DocAccessible* aDoc);
   virtual ~HTMLSelectOptGroupAccessible() {}
 
   // nsIAccessible
@@ -152,6 +149,10 @@ public:
 
   // ActionAccessible
   virtual uint8_t ActionCount();
+
+protected:
+  // Accessible
+  virtual void CacheChildren();
 };
 
 /** ------------------------------------------------------ */
@@ -175,8 +176,10 @@ public:
   NS_IMETHOD DoAction(uint8_t index);
   NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
 
-  // Accessible
+  // nsAccessNode
   virtual void Shutdown();
+
+  // Accessible
   virtual void Description(nsString& aDescription);
   virtual void Value(nsString& aValue);
   virtual a11y::role NativeRole();
@@ -219,8 +222,10 @@ public:
                              DocAccessible* aDoc);
   virtual ~HTMLComboboxListAccessible() {}
 
-  // Accessible
+  // nsAccessNode
   virtual nsIFrame* GetFrame() const;
+
+  // Accessible
   virtual a11y::role NativeRole();
   virtual uint64_t NativeState();
   virtual void GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame);

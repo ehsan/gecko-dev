@@ -11,12 +11,8 @@
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsCSSValue.h"
-#ifdef XP_WIN
 #include "mozilla/LookAndFeel.h"
-#endif
 #include "nsCSSRuleProcessor.h"
-#include "nsDeviceContext.h"
-#include "nsIDocument.h"
 
 using namespace mozilla;
 
@@ -41,26 +37,12 @@ struct WindowsThemeName {
 // Windows theme identities used in the -moz-windows-theme media query.
 const WindowsThemeName themeStrings[] = {
     { LookAndFeel::eWindowsTheme_Aero,       L"aero" },
-    { LookAndFeel::eWindowsTheme_AeroLite,   L"aero-lite" },
     { LookAndFeel::eWindowsTheme_LunaBlue,   L"luna-blue" },
     { LookAndFeel::eWindowsTheme_LunaOlive,  L"luna-olive" },
     { LookAndFeel::eWindowsTheme_LunaSilver, L"luna-silver" },
     { LookAndFeel::eWindowsTheme_Royale,     L"royale" },
     { LookAndFeel::eWindowsTheme_Zune,       L"zune" },
     { LookAndFeel::eWindowsTheme_Generic,    L"generic" }
-};
-
-struct OperatingSystemVersionInfo {
-    LookAndFeel::OperatingSystemVersion id;
-    const wchar_t* name;
-};
-
-// Os version identities used in the -moz-os-version media query.
-const OperatingSystemVersionInfo osVersionStrings[] = {
-    { LookAndFeel::eOperatingSystemVersion_WindowsXP,     L"windows-xp" },
-    { LookAndFeel::eOperatingSystemVersion_WindowsVista,  L"windows-vista" },
-    { LookAndFeel::eOperatingSystemVersion_Windows7,      L"windows-win7" },
-    { LookAndFeel::eOperatingSystemVersion_Windows8,      L"windows-win8" },
 };
 #endif
 
@@ -113,18 +95,14 @@ static nsSize
 GetDeviceSize(nsPresContext* aPresContext)
 {
     nsSize size;
-
-    if (aPresContext->IsDeviceSizePageSize()) {
-        size = GetSize(aPresContext);
-    } else if (aPresContext->IsRootPaginatedDocument()) {
+    if (aPresContext->IsRootPaginatedDocument())
         // We want the page size, including unprintable areas and margins.
         // XXX The spec actually says we want the "page sheet size", but
         // how is that different?
         size = aPresContext->GetPageSize();
-    } else {
+    else
         GetDeviceContextFor(aPresContext)->
             GetDeviceSurfaceDimensions(size.width, size.height);
-    }
     return size;
 }
 
@@ -268,7 +246,15 @@ GetResolution(nsPresContext* aPresContext, const nsMediaFeature*,
 {
     // Resolution measures device pixels per CSS (inch/cm/pixel).  We
     // return it in device pixels per CSS inches.
-    float dpi = float(nsPresContext::AppUnitsPerCSSInch()) /
+    //
+    // However, on platforms where the CSS viewport is not fixed to the
+    // screen viewport, use the device resolution instead (bug 779527).
+    nsIPresShell *shell = aPresContext->PresShell();
+    float appUnitsPerInch = shell->GetIsViewportOverridden() ?
+            GetDeviceContextFor(aPresContext)->AppUnitsPerPhysicalInch() :
+            nsPresContext::AppUnitsPerCSSInch();
+
+    float dpi = appUnitsPerInch /
                 float(aPresContext->AppUnitsPerDevPixel());
     aResult.SetFloatValue(dpi, eCSSUnit_Inch);
     return NS_OK;
@@ -334,28 +320,6 @@ GetWindowsTheme(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
             aResult.SetStringValue(nsDependentString(themeStrings[i].name),
                                    eCSSUnit_Ident);
             break;
-        }
-    }
-#endif
-    return NS_OK;
-}
-
-static nsresult
-GetOperatinSystemVersion(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
-                         nsCSSValue& aResult)
-{
-    aResult.Reset();
-#ifdef XP_WIN
-    int32_t metricResult;
-    if (NS_SUCCEEDED(
-          LookAndFeel::GetInt(LookAndFeel::eIntID_OperatingSystemVersionIdentifier,
-                              &metricResult))) {
-        for (size_t i = 0; i < ArrayLength(osVersionStrings); ++i) {
-            if (metricResult == osVersionStrings[i].id) {
-                aResult.SetStringValue(nsDependentString(osVersionStrings[i].name),
-                                       eCSSUnit_Ident);
-                break;
-            }
         }
     }
 #endif
@@ -496,13 +460,6 @@ nsMediaFeatures::features[] = {
         GetIsResourceDocument
     },
     {
-        &nsGkAtoms::_moz_color_picker_available,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { &nsGkAtoms::color_picker_available },
-        GetSystemMetric
-    },
-    {
         &nsGkAtoms::_moz_scrollbar_start_backward,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,
@@ -549,13 +506,6 @@ nsMediaFeatures::features[] = {
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,
         { &nsGkAtoms::images_in_buttons },
-        GetSystemMetric
-    },
-    {
-        &nsGkAtoms::_moz_overlay_scrollbars,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { &nsGkAtoms::overlay_scrollbars },
         GetSystemMetric
     },
     {
@@ -608,6 +558,13 @@ nsMediaFeatures::features[] = {
         GetSystemMetric
     },
     {
+        &nsGkAtoms::_moz_maemo_classic,
+        nsMediaFeature::eMinMaxNotAllowed,
+        nsMediaFeature::eBoolInteger,
+        { &nsGkAtoms::maemo_classic },
+        GetSystemMetric
+    },
+    {
         &nsGkAtoms::_moz_menubar_drag,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,
@@ -621,27 +578,12 @@ nsMediaFeatures::features[] = {
         { nullptr },
         GetWindowsTheme
     },
-    {
-        &nsGkAtoms::_moz_os_version,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eIdent,
-        { nullptr },
-        GetOperatinSystemVersion
-    },
 
     {
         &nsGkAtoms::_moz_swipe_animation_enabled,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,
         { &nsGkAtoms::swipe_animation_enabled },
-        GetSystemMetric
-    },
-
-    {
-        &nsGkAtoms::_moz_physical_home_button,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { &nsGkAtoms::physical_home_button },
         GetSystemMetric
     },
 

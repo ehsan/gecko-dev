@@ -10,6 +10,7 @@
 #include "nsIPresShell.h"
 
 #ifdef IBMBIDI
+#include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
 #include "nsILineIterator.h"
 #include "nsBidiPresUtils.h"

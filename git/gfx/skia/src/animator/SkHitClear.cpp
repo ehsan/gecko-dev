@@ -19,7 +19,7 @@ const SkMemberInfo SkHitClear::fInfo[] = {
 
 DEFINE_GET_MEMBER(SkHitClear);
 
-bool SkHitClear::enable(SkAnimateMaker&) {
+bool SkHitClear::enable(SkAnimateMaker& maker) {
     for (int tIndex = 0; tIndex < targets.count(); tIndex++) {
         SkDisplayable* target = targets[tIndex];
         target->clearBounder();
@@ -30,3 +30,4 @@ bool SkHitClear::enable(SkAnimateMaker&) {
 bool SkHitClear::hasEnable() const {
     return true;
 }
+

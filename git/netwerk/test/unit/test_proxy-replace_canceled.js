@@ -1,3 +1,8 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
 Cu.import("resource://testing-common/httpd.js");
 
 var httpServer = null;
@@ -26,15 +31,14 @@ function run_test()
 {
   httpServer = new HttpServer();
   httpServer.registerPathHandler("/content", contentHandler);
-  httpServer.start(-1);
+  httpServer.start(4444);
 
   var prefserv = Cc["@mozilla.org/preferences-service;1"].
                  getService(Ci.nsIPrefService);
   var prefs = prefserv.getBranch("network.proxy.");
   prefs.setIntPref("type", 2);
   prefs.setCharPref("autoconfig_url", "data:text/plain," +
-    "function FindProxyForURL(url, host) {return 'PROXY localhost:" +
-    httpServer.identity.primaryPort + "';}"
+    "function FindProxyForURL(url, host) {return 'PROXY localhost:4444';}"
   );
 
   // this test assumed that a AsyncOnChannelRedirect query is made for
@@ -45,8 +49,7 @@ function run_test()
   // internal redirect used to setup the initial proxy/channel as that isn't
   // a redirect in any sense.
 
-  var chan = make_channel("http://localhost:" +
-                          httpServer.identity.primaryPort + "/content");
+  var chan = make_channel("http://localhost:4444/content");
   chan.asyncOpen(new ChannelListener(finish_test, null, CL_EXPECT_FAILURE), null);
   chan.cancel(Cr.NS_BINDING_ABORTED);
   do_test_pending();

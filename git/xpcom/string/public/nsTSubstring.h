@@ -3,9 +3,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-// IWYU pragma: private, include "nsString.h"
 
-#include "mozilla/MemoryReporting.h"
+// IWYU pragma: private, include "nsAString.h"
 
 #ifndef MOZILLA_INTERNAL_API
 #error Cannot use internal string classes without MOZILLA_INTERNAL_API defined. Use the frozen header nsStringAPI.h instead.
@@ -341,8 +340,8 @@ class nsTSubstring_CharT
       void NS_FASTCALL Assign( char_type c );
       bool NS_FASTCALL Assign( char_type c, const fallible_t& ) NS_WARN_UNUSED_RESULT;
 
-      void NS_FASTCALL Assign( const char_type* data );
-      void NS_FASTCALL Assign( const char_type* data, size_type length );
+      void NS_FASTCALL
+        Assign( const char_type* data, size_type length = size_type(-1) );
       bool NS_FASTCALL Assign( const char_type* data, size_type length, const fallible_t& ) NS_WARN_UNUSED_RESULT;
 
       void NS_FASTCALL Assign( const self_type& );
@@ -445,8 +444,12 @@ class nsTSubstring_CharT
       /**
        * Append the given float to this string 
        */
-      void NS_FASTCALL AppendFloat( float aFloat );
-      void NS_FASTCALL AppendFloat( double aFloat );
+      void AppendFloat( float aFloat )
+                      { DoAppendFloat(aFloat, 6); }
+      void AppendFloat( double aFloat )
+                      { DoAppendFloat(aFloat, 15); }
+  private:
+      void NS_FASTCALL DoAppendFloat( double aFloat, int digits );
   public:
 
     // AppendLiteral must ONLY be applied to an actual literal string.
@@ -623,14 +626,14 @@ class nsTSubstring_CharT
           mFlags(flags) {}
 #endif /* DEBUG || FORCE_BUILD_REFCNT_LOGGING */
 
-      size_t SizeOfExcludingThisMustBeUnshared(mozilla::MallocSizeOf mallocSizeOf)
+      size_t SizeOfExcludingThisMustBeUnshared(nsMallocSizeOfFun mallocSizeOf)
         const;
-      size_t SizeOfIncludingThisMustBeUnshared(mozilla::MallocSizeOf mallocSizeOf)
+      size_t SizeOfIncludingThisMustBeUnshared(nsMallocSizeOfFun mallocSizeOf)
         const;
 
-      size_t SizeOfExcludingThisIfUnshared(mozilla::MallocSizeOf mallocSizeOf)
+      size_t SizeOfExcludingThisIfUnshared(nsMallocSizeOfFun mallocSizeOf)
         const;
-      size_t SizeOfIncludingThisIfUnshared(mozilla::MallocSizeOf mallocSizeOf)
+      size_t SizeOfIncludingThisIfUnshared(nsMallocSizeOfFun mallocSizeOf)
         const;
 
         /**
@@ -639,9 +642,9 @@ class nsTSubstring_CharT
          * you do use them, please explain clearly in a comment why it's safe
          * and won't lead to double-counting.
          */
-      size_t SizeOfExcludingThisEvenIfShared(mozilla::MallocSizeOf mallocSizeOf)
+      size_t SizeOfExcludingThisEvenIfShared(nsMallocSizeOfFun mallocSizeOf)
         const;
-      size_t SizeOfIncludingThisEvenIfShared(mozilla::MallocSizeOf mallocSizeOf)
+      size_t SizeOfIncludingThisEvenIfShared(nsMallocSizeOfFun mallocSizeOf)
         const;
 
     protected:

@@ -8,9 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <assert.h>
+#include <cassert>
 
-#include "webrtc/modules/audio_device/audio_device_utility.h"
+#include "audio_device_utility.h"
 
 #if defined(_WIN32)
 
@@ -32,31 +32,31 @@ void AudioDeviceUtility::WaitForKey()
 	_getch();
 }
 
-uint32_t AudioDeviceUtility::GetTimeInMS()
+WebRtc_UWord32 AudioDeviceUtility::GetTimeInMS()
 {
 	return timeGetTime();
 }
 
 bool AudioDeviceUtility::StringCompare(
     const char* str1 , const char* str2,
-    const uint32_t length)
+    const WebRtc_UWord32 length)
 {
 	return ((_strnicmp(str1, str2, length) == 0) ? true : false);
 }
 
 }  // namespace webrtc
 
-#elif defined(WEBRTC_LINUX) || defined(WEBRTC_BSD) || defined(WEBRTC_MAC)
+#elif defined(WEBRTC_LINUX) || defined(WEBRTC_MAC)
 
 // ============================================================================
 //                                 Linux & Mac
 // ============================================================================
 
-#include <stdio.h>      // getchar
-#include <string.h>     // strncasecmp
 #include <sys/time.h>   // gettimeofday
-#include <termios.h>    // tcgetattr
 #include <time.h>       // gettimeofday
+#include <string.h>     // strncasecmp
+#include <stdio.h>      // getchar
+#include <termios.h>    // tcgetattr
 
 #include <unistd.h>
 
@@ -90,23 +90,25 @@ void AudioDeviceUtility::WaitForKey()
     tcsetattr( STDIN_FILENO, TCSANOW, &oldt );
 }
 
-uint32_t AudioDeviceUtility::GetTimeInMS()
+WebRtc_UWord32 AudioDeviceUtility::GetTimeInMS()
 {
     struct timeval tv;
     struct timezone tz;
-    uint32_t val;
+    WebRtc_UWord32 val;
 
     gettimeofday(&tv, &tz);
-    val = (uint32_t)(tv.tv_sec*1000 + tv.tv_usec/1000);
+    val = (WebRtc_UWord32)(tv.tv_sec*1000 + tv.tv_usec/1000);
     return val;
 }
 
 bool AudioDeviceUtility::StringCompare(
-    const char* str1 , const char* str2, const uint32_t length)
+    const char* str1 , const char* str2, const WebRtc_UWord32 length)
 {
     return (strncasecmp(str1, str2, length) == 0)?true: false;
 }
 
 }  // namespace webrtc
 
-#endif  // defined(WEBRTC_LINUX) || defined(WEBRTC_BSD) || defined(WEBRTC_MAC)
+#endif  // defined(WEBRTC_LINUX) || defined(WEBRTC_MAC)
+
+

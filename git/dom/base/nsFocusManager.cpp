@@ -7,13 +7,20 @@
 
 #include "nsFocusManager.h"
 
+#include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIServiceManager.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
 #include "nsIDocument.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMXULElement.h"
+#include "nsIDOMHTMLFrameElement.h"
+#include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMHTMLMapElement.h"
+#include "nsIDOMHTMLLegendElement.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMRange.h"
 #include "nsIHTMLDocument.h"
@@ -21,7 +28,9 @@
 #include "nsIDocShellTreeOwner.h"
 #include "nsLayoutUtils.h"
 #include "nsIPresShell.h"
+#include "nsIContentViewer.h"
 #include "nsFrameTraversal.h"
+#include "nsObjectFrame.h"
 #include "nsEventDispatcher.h"
 #include "nsEventStateManager.h"
 #include "nsIMEStateManager.h"
@@ -32,18 +41,17 @@
 #include "nsFrameSelection.h"
 #include "mozilla/Selection.h"
 #include "nsXULPopupManager.h"
+#include "nsIDOMNodeFilter.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIPrincipal.h"
+#include "mozAutoDocUpdate.h"
+#include "nsFrameLoader.h"
 #include "nsIObserverService.h"
-#include "nsIObjectFrame.h"
-#include "nsBindingManager.h"
-#include "nsStyleCoord.h"
+#include "nsIScriptError.h"
 
-#include "mozilla/ContentEvents.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Services.h"
 #include <algorithm>
 
 #ifdef MOZ_XUL
@@ -53,10 +61,6 @@
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
-#endif
-
-#ifndef XP_MACOSX
-#include "nsIScriptError.h"
 #endif
 
 using namespace mozilla;
@@ -100,7 +104,7 @@ struct nsDelayedBlurOrFocusEvent
   nsDelayedBlurOrFocusEvent(uint32_t aType,
                             nsIPresShell* aPresShell,
                             nsIDocument* aDocument,
-                            EventTarget* aTarget)
+                            nsIDOMEventTarget* aTarget)
    : mType(aType),
      mPresShell(aPresShell),
      mDocument(aDocument),
@@ -115,7 +119,7 @@ struct nsDelayedBlurOrFocusEvent
   uint32_t mType;
   nsCOMPtr<nsIPresShell> mPresShell;
   nsCOMPtr<nsIDocument> mDocument;
-  nsCOMPtr<EventTarget> mTarget;
+  nsCOMPtr<nsIDOMEventTarget> mTarget;
 };
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsFocusManager)
@@ -145,7 +149,7 @@ static const char* kObservedPrefs[] = {
   "accessibility.tabfocus_applies_to_xul",
   "accessibility.mouse_focuses_formcontrol",
   "focusmanager.testmode",
-  nullptr
+  NULL
 };
 
 nsFocusManager::nsFocusManager()
@@ -209,7 +213,7 @@ nsFocusManager::Observe(nsISupports *aSubject,
   if (!nsCRT::strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
     nsDependentString data(aData);
     if (data.EqualsLiteral("accessibility.browsewithcaret")) {
-      UpdateCaretForCaretBrowsingMode();
+      UpdateCaret(false, true, mFocusedContent);
     }
     else if (data.EqualsLiteral("accessibility.tabfocus_applies_to_xul")) {
       nsIContent::sTabFocusModelAppliesToXUL =
@@ -307,7 +311,7 @@ nsFocusManager::GetRedirectedFocus(nsIContent* aContent)
         if (!doc)
           return nullptr;
 
-        nsINodeList* children = doc->BindingManager()->GetAnonymousNodesFor(aContent);
+        nsINodeList* children = doc->BindingManager()->GetXBLChildNodesFor(aContent);
         if (children) {
           nsIContent* child = children->Item(0);
           if (child && child->Tag() == nsGkAtoms::slider)
@@ -683,9 +687,7 @@ nsFocusManager::WindowRaised(nsIDOMWindow* aWindow)
       return NS_ERROR_FAILURE;
     }
 
-    if (!sTestMode) {
-      baseWindow->SetVisibility(true);
-    }
+    baseWindow->SetVisibility(true);
   }
 
   // inform the DOM window that it has activated, so that the active attribute
@@ -997,7 +999,7 @@ nsFocusManager::FireDelayedEvents(nsIDocument* aDocument)
     if (mDelayedBlurFocusEvents[i].mDocument == aDocument &&
         !aDocument->EventHandlingSuppressed()) {
       uint32_t type = mDelayedBlurFocusEvents[i].mType;
-      nsCOMPtr<EventTarget> target = mDelayedBlurFocusEvents[i].mTarget;
+      nsCOMPtr<nsIDOMEventTarget> target = mDelayedBlurFocusEvents[i].mTarget;
       nsCOMPtr<nsIPresShell> presShell = mDelayedBlurFocusEvents[i].mPresShell;
       mDelayedBlurFocusEvents.RemoveElementAt(i);
       SendFocusOrBlurEvent(type, presShell, aDocument, target, 0, false);
@@ -1016,6 +1018,23 @@ nsFocusManager::FocusPlugin(nsIContent* aContent)
   return NS_OK;
 }
 
+/* static */ bool
+nsFocusManager::ThemeDisplaysFocusForContent(nsIContent* aContent)
+{
+  // We don't want to draw the focusring if the element is themed and
+  // the theme displays an indication of focus for the element.
+  nsIFrame* frame = aContent->GetPrimaryFrame();
+  if (frame) {
+    nsPresContext *presContext = frame->PresContext();
+    const nsStyleDisplay *disp = frame->StyleDisplay();
+    if (frame->IsThemed(disp) &&
+        presContext->GetTheme()->ThemeDrawsFocusForWidget(presContext, frame, disp->mAppearance)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /* static */
 void
 nsFocusManager::NotifyFocusStateChange(nsIContent* aContent,
@@ -1026,7 +1045,9 @@ nsFocusManager::NotifyFocusStateChange(nsIContent* aContent,
     return;
   }
   nsEventStates eventState = NS_EVENT_STATE_FOCUS;
-  if (aWindowShouldShowFocusRing) {
+  if (!aGettingFocus ||
+      (aWindowShouldShowFocusRing &&
+       !ThemeDisplaysFocusForContent(aContent))) {
     eventState |= NS_EVENT_STATE_FOCUSRING;
   }
   if (aGettingFocus) {
@@ -1161,7 +1182,7 @@ nsFocusManager::SetFocusInner(nsIContent* aNewContent, int32_t aFlags,
       (fullscreenAncestor = nsContentUtils::GetFullscreenAncestor(contentToFocus->OwnerDoc())) &&
       nsContentUtils::HasPluginWithUncontrolledEventDispatch(contentToFocus)) {
     nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                    NS_LITERAL_CSTRING("DOM"),
+                                    "DOM",
                                     contentToFocus->OwnerDoc(),
                                     nsContentUtils::eDOM_PROPERTIES,
                                     "FocusedWindowedPluginWhileFullScreen");
@@ -1853,7 +1874,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    InternalFocusEvent event(true, mType);
+    nsFocusEvent event(true, mType);
     event.mFlags.mBubbles = false;
     event.fromRaise = mWindowRaised;
     event.isRefocus = mIsRefocus;
@@ -1879,7 +1900,7 @@ nsFocusManager::SendFocusOrBlurEvent(uint32_t aType,
   NS_ASSERTION(aType == NS_FOCUS_CONTENT || aType == NS_BLUR_CONTENT,
                "Wrong event type for SendFocusOrBlurEvent");
 
-  nsCOMPtr<EventTarget> eventTarget = do_QueryInterface(aTarget);
+  nsCOMPtr<nsIDOMEventTarget> eventTarget = do_QueryInterface(aTarget);
 
   // for focus events, if this event was from a mouse or key and event
   // handling on the document is suppressed, queue the event and fire it
@@ -1990,12 +2011,6 @@ nsFocusManager::RaiseWindow(nsPIDOMWindow* aWindow)
       widget->SetFocus(true);
   }
 #endif
-}
-
-void
-nsFocusManager::UpdateCaretForCaretBrowsingMode()
-{
-  UpdateCaret(false, true, mFocusedContent);
 }
 
 void
@@ -2143,8 +2158,6 @@ nsFocusManager::SetCaretVisible(nsIPresShell* aPresShell,
       // First, hide the caret to prevent attempting to show it in SetCaretDOMSelection
       caret->SetCaretVisible(false);
 
-      // Caret must blink on non-editable elements
-      caret->SetIgnoreUserModify(true);
       // Tell the caret which selection to use
       caret->SetCaretDOMSelection(domSelection);
 
@@ -2156,7 +2169,6 @@ nsFocusManager::SetCaretVisible(nsIPresShell* aPresShell,
       if (!selCon)
         return NS_ERROR_FAILURE;
 
-      selCon->SetCaretReadOnly(false);
       selCon->SetCaretEnabled(aVisible);
       caret->SetCaretVisible(aVisible);
     }
@@ -2544,9 +2556,6 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
     ignoreTabIndex = false;
 
     if (aNoParentTraversal) {
-      if (startContent == rootContent)
-        return NS_OK;
-
       startContent = rootContent;
       tabIndex = forward ? 1 : 0;
       continue;

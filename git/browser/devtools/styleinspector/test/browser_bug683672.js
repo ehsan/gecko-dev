@@ -12,8 +12,9 @@ let computedView;
 const TEST_URI = "http://example.com/browser/browser/devtools/styleinspector/test/browser_bug683672.html";
 
 let tempScope = {};
-let {CssHtmlTree, PropertyView} = devtools.require("devtools/styleinspector/computed-view");
-let {console} = Cu.import("resource://gre/modules/devtools/Console.jsm", {});
+Cu.import("resource:///modules/devtools/CssHtmlTree.jsm", tempScope);
+let CssHtmlTree = tempScope.CssHtmlTree;
+let PropertyView = tempScope.PropertyView;
 
 function test()
 {
@@ -26,49 +27,49 @@ function tabLoaded()
 {
   browser.removeEventListener("load", tabLoaded, true);
   doc = content.document;
-  openComputedView(selectNode);
+  openInspector(selectNode);
 }
 
-function selectNode(aInspector, aComputedView)
+function selectNode(aInspector)
 {
   inspector = aInspector;
-  computedView = aComputedView;
 
   div = content.document.getElementById("test");
   ok(div, "captain, we have the div");
 
   inspector.selection.setNode(div);
-  inspector.once("inspector-updated", runTests);
+
+  inspector.sidebar.once("computedview-ready", function() {
+    computedView = getComputedView(inspector);
+
+    inspector.sidebar.select("computedview");
+    runTests();
+  });
 }
 
 function runTests()
 {
-  testMatchedSelectors().then(() => {
-    info("finishing up");
-    finishUp();
-  });
+  testMatchedSelectors();
+
+  info("finishing up");
+  finishUp();
 }
 
 function testMatchedSelectors()
 {
   info("checking selector counts, matched rules and titles");
 
-  is(div, computedView.viewedElement.rawNode(),
+  is(div, computedView.viewedElement,
       "style inspector node matches the selected node");
 
   let propertyView = new PropertyView(computedView, "color");
-  propertyView.buildMain();
-  propertyView.buildSelectorContainer();
-  propertyView.matchedExpanded = true;
-  return propertyView.refreshMatchedSelectors().then(() => {
-    let numMatchedSelectors = propertyView.matchedSelectors.length;
+  let numMatchedSelectors = propertyView.propertyInfo.matchedSelectors.length;
 
-    is(numMatchedSelectors, 6,
-        "CssLogic returns the correct number of matched selectors for div");
+  is(numMatchedSelectors, 6,
+      "CssLogic returns the correct number of matched selectors for div");
 
-    is(propertyView.hasMatchedSelectors, true,
-        "hasMatchedSelectors returns true");
-  }).then(null, (err) => console.error(err));
+  is(propertyView.hasMatchedSelectors, true,
+      "hasMatchedSelectors returns true");
 }
 
 function finishUp()

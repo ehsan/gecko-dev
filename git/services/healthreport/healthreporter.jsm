@@ -18,9 +18,9 @@ Cu.import("resource://services-common/async.js");
 Cu.import("resource://services-common/bagheeraclient.js");
 #endif
 
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/utils.js");
-Cu.import("resource://gre/modules/Promise.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -30,8 +30,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
                                   "resource://gre/modules/UpdateChannel.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "AsyncShutdown",
-                                  "resource://gre/modules/AsyncShutdown.jsm");
 
 // Oldest year to allow in date preferences. This module was implemented in
 // 2012 and no dates older than that should be encountered.
@@ -49,203 +47,13 @@ const TELEMETRY_GENERATE_PAYLOAD = "HEALTHREPORT_GENERATE_JSON_PAYLOAD_MS";
 const TELEMETRY_JSON_PAYLOAD_SERIALIZE = "HEALTHREPORT_JSON_PAYLOAD_SERIALIZE_MS";
 const TELEMETRY_PAYLOAD_SIZE_UNCOMPRESSED = "HEALTHREPORT_PAYLOAD_UNCOMPRESSED_BYTES";
 const TELEMETRY_PAYLOAD_SIZE_COMPRESSED = "HEALTHREPORT_PAYLOAD_COMPRESSED_BYTES";
+const TELEMETRY_SAVE_LAST_PAYLOAD = "HEALTHREPORT_SAVE_LAST_PAYLOAD_MS";
 const TELEMETRY_UPLOAD = "HEALTHREPORT_UPLOAD_MS";
+const TELEMETRY_SHUTDOWN_DELAY = "HEALTHREPORT_SHUTDOWN_DELAY_MS";
 const TELEMETRY_COLLECT_CONSTANT = "HEALTHREPORT_COLLECT_CONSTANT_DATA_MS";
 const TELEMETRY_COLLECT_DAILY = "HEALTHREPORT_COLLECT_DAILY_MS";
 const TELEMETRY_SHUTDOWN = "HEALTHREPORT_SHUTDOWN_MS";
 const TELEMETRY_COLLECT_CHECKPOINT = "HEALTHREPORT_POST_COLLECT_CHECKPOINT_MS";
-
-
-/**
- * Helper type to assist with management of Health Reporter state.
- *
- * Instances are not meant to be created outside of a HealthReporter instance.
- *
- * Please note that remote IDs are treated as a queue. When a new remote ID is
- * added, it goes at the back of the queue. When we look for the current ID, we
- * pop the ID at the front of the queue. This helps ensure that all IDs on the
- * server are eventually deleted. This should eventually become irrelevant once
- * the server supports multiple ID deletion.
- */
-function HealthReporterState(reporter) {
-  this._reporter = reporter;
-
-  let profD = OS.Constants.Path.profileDir;
-
-  if (!profD || !profD.length) {
-    throw new Error("Could not obtain profile directory. OS.File not " +
-                    "initialized properly?");
-  }
-
-  this._log = reporter._log;
-
-  this._stateDir = OS.Path.join(profD, "healthreport");
-
-  // To facilitate testing.
-  let leaf = reporter._stateLeaf || "state.json";
-
-  this._filename = OS.Path.join(this._stateDir, leaf);
-  this._log.debug("Storing state in " + this._filename);
-  this._s = null;
-}
-
-HealthReporterState.prototype = Object.freeze({
-  get lastPingDate() {
-    return new Date(this._s.lastPingTime);
-  },
-
-  get lastSubmitID() {
-    return this._s.remoteIDs[0];
-  },
-
-  get remoteIDs() {
-    return this._s.remoteIDs;
-  },
-
-  get _lastPayloadPath() {
-    return OS.Path.join(this._stateDir, "lastpayload.json");
-  },
-
-  init: function () {
-    return Task.spawn(function init() {
-      try {
-        OS.File.makeDir(this._stateDir);
-      } catch (ex if ex instanceof OS.FileError) {
-        if (!ex.becauseExists) {
-          throw ex;
-        }
-      }
-
-      let resetObjectState = function () {
-        this._s = {
-          v: 1,
-          remoteIDs: [],
-          lastPingTime: 0,
-          removedOutdatedLastpayload: false,
-        };
-      }.bind(this);
-
-      try {
-        this._s = yield CommonUtils.readJSON(this._filename);
-      } catch (ex if ex instanceof OS.File.Error) {
-        if (!ex.becauseNoSuchFile) {
-          throw ex;
-        }
-
-        this._log.warn("Saved state file does not exist.");
-        resetObjectState();
-      } catch (ex) {
-        this._log.error("Exception when reading state from disk: " +
-                        CommonUtils.exceptionStr(ex));
-        resetObjectState();
-
-        // Don't save in case it goes away on next run.
-      }
-
-      if (typeof(this._s) != "object") {
-        this._log.warn("Read state is not an object. Resetting state.");
-        resetObjectState();
-        yield this.save();
-      }
-
-      if (this._s.v != 1) {
-        this._log.warn("Unknown version in state file: " + this._s.v);
-        resetObjectState();
-        // We explicitly don't save here in the hopes an application re-upgrade
-        // comes along and fixes us.
-      }
-
-      // Always look for preferences. This ensures that downgrades followed
-      // by reupgrades don't result in excessive data loss.
-      for (let promise of this._migratePrefs()) {
-        yield promise;
-      }
-    }.bind(this));
-  },
-
-  save: function () {
-    this._log.info("Writing state file: " + this._filename);
-    return CommonUtils.writeJSON(this._s, this._filename);
-  },
-
-  addRemoteID: function (id) {
-    this._log.warn("Recording new remote ID: " + id);
-    this._s.remoteIDs.push(id);
-    return this.save();
-  },
-
-  removeRemoteID: function (id) {
-    return this.removeRemoteIDs(id ? [id] : []);
-  },
-
-  removeRemoteIDs: function (ids) {
-    if (!ids || !ids.length) {
-      this._log.warn("No IDs passed for removal.");
-      return Promise.resolve();
-    }
-
-    this._log.warn("Removing documents from remote ID list: " + ids);
-    let filtered = this._s.remoteIDs.filter((x) => ids.indexOf(x) === -1);
-
-    if (filtered.length == this._s.remoteIDs.length) {
-      return Promise.resolve();
-    }
-
-    this._s.remoteIDs = filtered;
-    return this.save();
-  },
-
-  setLastPingDate: function (date) {
-    this._s.lastPingTime = date.getTime();
-
-    return this.save();
-  },
-
-  updateLastPingAndRemoveRemoteID: function (date, id) {
-    return this.updateLastPingAndRemoveRemoteIDs(date, id ? [id] : []);
-  },
-
-  updateLastPingAndRemoveRemoteIDs: function (date, ids) {
-    if (!ids) {
-      return this.setLastPingDate(date);
-    }
-
-    this._log.info("Recording last ping time and deleted remote document.");
-    this._s.lastPingTime = date.getTime();
-    return this.removeRemoteIDs(ids);
-  },
-
-  _migratePrefs: function () {
-    let prefs = this._reporter._prefs;
-
-    let lastID = prefs.get("lastSubmitID", null);
-    let lastPingDate = CommonUtils.getDatePref(prefs, "lastPingTime",
-                                               0, this._log, OLDEST_ALLOWED_YEAR);
-
-    // If we have state from prefs, migrate and save it to a file then clear
-    // out old prefs.
-    if (lastID || (lastPingDate && lastPingDate.getTime() > 0)) {
-      this._log.warn("Migrating saved state from preferences.");
-
-      if (lastID) {
-        this._log.info("Migrating last saved ID: " + lastID);
-        this._s.remoteIDs.push(lastID);
-      }
-
-      let ourLast = this.lastPingDate;
-
-      if (lastPingDate && lastPingDate.getTime() > ourLast.getTime()) {
-        this._log.info("Migrating last ping time: " + lastPingDate);
-        this._s.lastPingTime = lastPingDate.getTime();
-      }
-
-      yield this.save();
-      prefs.reset(["lastSubmitID", "lastPingTime"]);
-    } else {
-      this._log.warn("No prefs data found.");
-    }
-  },
-});
 
 /**
  * This is the abstract base class of `HealthReporter`. It exists so that
@@ -261,7 +69,7 @@ function AbstractHealthReporter(branch, policy, sessionRecorder) {
     throw new Error("Must provide policy to HealthReporter constructor.");
   }
 
-  this._log = Log.repository.getLogger("Services.HealthReport.HealthReporter");
+  this._log = Log4Moz.repository.getLogger("Services.HealthReport.HealthReporter");
   this._log.info("Initializing health reporter instance against " + branch);
 
   this._branch = branch;
@@ -276,15 +84,13 @@ function AbstractHealthReporter(branch, policy, sessionRecorder) {
   this._storageInProgress = false;
   this._providerManager = null;
   this._providerManagerInProgress = false;
-  this._initializeStarted = false;
   this._initialized = false;
   this._initializeHadError = false;
   this._initializedDeferred = Promise.defer();
   this._shutdownRequested = false;
   this._shutdownInitiated = false;
   this._shutdownComplete = false;
-  this._deferredShutdown = Promise.defer();
-  this._promiseShutdown = this._deferredShutdown.promise;
+  this._shutdownCompleteCallback = null;
 
   this._errors = [];
 
@@ -294,6 +100,12 @@ function AbstractHealthReporter(branch, policy, sessionRecorder) {
   let hasFirstRun = this._prefs.get("service.firstRun", false);
   this._initHistogram = hasFirstRun ? TELEMETRY_INIT : TELEMETRY_INIT_FIRSTRUN;
   this._dbOpenHistogram = hasFirstRun ? TELEMETRY_DB_OPEN : TELEMETRY_DB_OPEN_FIRSTRUN;
+
+  TelemetryStopwatch.start(this._initHistogram, this);
+
+  this._ensureDirectoryExists(this._stateDir)
+      .then(this._onStateDirCreated.bind(this),
+            this._onInitError.bind(this));
 }
 
 AbstractHealthReporter.prototype = Object.freeze({
@@ -306,27 +118,6 @@ AbstractHealthReporter.prototype = Object.freeze({
    */
   get initialized() {
     return this._initialized;
-  },
-
-  /**
-   * Initialize the instance.
-   *
-   * This must be called once after object construction or the instance is
-   * useless.
-   */
-  init: function () {
-    if (this._initializeStarted) {
-      throw new Error("We have already started initialization.");
-    }
-
-    this._initializeStarted = true;
-
-    TelemetryStopwatch.start(this._initHistogram, this);
-
-    this._initializeState().then(this._onStateInitialized.bind(this),
-                                 this._onInitError.bind(this));
-
-    return this.onInit();
   },
 
   //----------------------------------------------------
@@ -350,60 +141,16 @@ AbstractHealthReporter.prototype = Object.freeze({
     // useful error message.
   },
 
-  _initializeState: function () {
-    return Promise.resolve();
-  },
+  _onStateDirCreated: function () {
+    // As soon as we have could storage, we need to register cleanup or
+    // else bad things happen on shutdown.
+    Services.obs.addObserver(this, "quit-application", false);
+    Services.obs.addObserver(this, "profile-before-change", false);
 
-  _onStateInitialized: function () {
-    return Task.spawn(function onStateInitialized () {
-      try {
-        if (!this._state._s.removedOutdatedLastpayload) {
-          yield this._deleteOldLastPayload();
-          this._state._s.removedOutdatedLastpayload = true;
-          // Normally we should save this to a file but it directly conflicts with
-          //  the "application re-upgrade" decision in HealthReporterState::init()
-          //  which specifically does not save the state to a file.
-        }
-      } catch (ex) {
-        this._log.error("Error deleting last payload: " +
-                        CommonUtils.exceptionStr(ex));
-      }
-      // As soon as we have could storage, we need to register cleanup or
-      // else bad things happen on shutdown.
-      Services.obs.addObserver(this, "quit-application", false);
-      // The database needs to be shut down by the end of shutdown
-      // phase profileBeforeChange.
-      AsyncShutdown.profileBeforeChange.
-        addBlocker("FHR: Flushing storage shutdown", this._promiseShutdown);
-
-      this._storageInProgress = true;
-      TelemetryStopwatch.start(this._dbOpenHistogram, this);
-
-      Metrics.Storage(this._dbName).then(this._onStorageCreated.bind(this),
-                                         this._onInitError.bind(this));
-    }.bind(this));
-  },
-
-
-  /**
-   * Removes the outdated lastpaylaod.json and lastpayload.json.tmp files
-   * @see Bug #867902
-   * @return a promise for when all the files have been deleted
-   */
-  _deleteOldLastPayload: function () {
-    let paths = [this._state._lastPayloadPath, this._state._lastPayloadPath + ".tmp"];
-    return Task.spawn(function removeAllFiles () {
-      for (let path of paths) {
-        try {
-          OS.File.remove(path);
-        } catch (ex) {
-          if (!ex.becauseNoSuchFile) {
-            this._log.error("Exception when removing outdated payload files: " +
-                            CommonUtils.exceptionStr(ex));
-          }
-        }
-      }
-    }.bind(this));
+    this._storageInProgress = true;
+    TelemetryStopwatch.start(this._dbOpenHistogram, this);
+    Metrics.Storage(this._dbName).then(this._onStorageCreated.bind(this),
+                                       this._onInitError.bind(this));
   },
 
   // Called when storage has been opened.
@@ -500,6 +247,11 @@ AbstractHealthReporter.prototype = Object.freeze({
         this._initiateShutdown();
         break;
 
+      case "profile-before-change":
+        Services.obs.removeObserver(this, "profile-before-change");
+        this._waitForShutdown();
+        break;
+
       case "idle-daily":
         this._performDailyMaintenance();
         break;
@@ -550,51 +302,80 @@ AbstractHealthReporter.prototype = Object.freeze({
       Services.obs.removeObserver(this, "idle-daily");
     } catch (ex) { }
 
-    Task.spawn(function() {
+    if (this._providerManager) {
+      let onShutdown = this._onProviderManagerShutdown.bind(this);
+      Task.spawn(this._shutdownProviderManager.bind(this))
+          .then(onShutdown, onShutdown);
+      return;
+    }
+
+    this._log.warn("Don't have provider manager. Proceeding to storage shutdown.");
+    this._shutdownStorage();
+  },
+
+  _shutdownProviderManager: function () {
+    this._log.info("Shutting down provider manager.");
+    for (let provider of this._providerManager.providers) {
       try {
-        if (this._providerManager) {
-          this._log.info("Shutting down provider manager.");
-          for (let provider of this._providerManager.providers) {
-            try {
-              yield provider.shutdown();
-            } catch (ex) {
-              this._log.warn("Error when shutting down provider: " +
-                             CommonUtils.exceptionStr(ex));
-            }
-          }
-          this._log.info("Provider manager shut down.");
-          this._providerManager = null;
-          this._onProviderManagerShutdown();
-        }
-        if (this._storage) {
-          this._log.info("Shutting down storage.");
-          try {
-            yield this._storage.close();
-            this._onStorageClose();
-          } catch (error) {
-            this._log.warn("Error when closing storage: " +
-                           CommonUtils.exceptionStr(error));
-          }
-          this._storage = null;
-        }
-
-        this._log.warn("Shutdown complete.");
-        this._shutdownComplete = true;
-      } finally {
-        this._deferredShutdown.resolve();
-        TelemetryStopwatch.finish(TELEMETRY_SHUTDOWN, this);
+        yield provider.shutdown();
+      } catch (ex) {
+        this._log.warn("Error when shutting down provider: " +
+                       CommonUtils.exceptionStr(ex));
       }
-    }.bind(this));
+    }
   },
 
-  _onStorageClose: function() {
-    // Do nothing.
-    // This method provides a hook point for the test suite.
+  _onProviderManagerShutdown: function () {
+    this._log.info("Provider manager shut down.");
+    this._providerManager = null;
+    this._shutdownStorage();
   },
 
-  _onProviderManagerShutdown: function() {
-    // Do nothing.
-    // This method provides a hook point for the test suite.
+  _shutdownStorage: function () {
+    if (!this._storage) {
+      this._onShutdownComplete();
+    }
+
+    this._log.info("Shutting down storage.");
+    let onClose = this._onStorageClose.bind(this);
+    this._storage.close().then(onClose, onClose);
+  },
+
+  _onStorageClose: function (error) {
+    this._log.info("Storage has been closed.");
+
+    if (error) {
+      this._log.warn("Error when closing storage: " +
+                     CommonUtils.exceptionStr(error));
+    }
+
+    this._storage = null;
+    this._onShutdownComplete();
+  },
+
+  _onShutdownComplete: function () {
+    this._log.warn("Shutdown complete.");
+    this._shutdownComplete = true;
+    TelemetryStopwatch.finish(TELEMETRY_SHUTDOWN, this);
+
+    if (this._shutdownCompleteCallback) {
+      this._shutdownCompleteCallback();
+    }
+  },
+
+  _waitForShutdown: function () {
+    if (this._shutdownComplete) {
+      return;
+    }
+
+    TelemetryStopwatch.start(TELEMETRY_SHUTDOWN_DELAY, this);
+    try {
+      this._shutdownCompleteCallback = Async.makeSpinningCallback();
+      this._shutdownCompleteCallback.wait();
+      this._shutdownCompleteCallback = null;
+    } finally {
+      TelemetryStopwatch.finish(TELEMETRY_SHUTDOWN_DELAY, this);
+    }
   },
 
   /**
@@ -604,7 +385,7 @@ AbstractHealthReporter.prototype = Object.freeze({
    */
   _shutdown: function () {
     this._initiateShutdown();
-    return this._promiseShutdown;
+    this._waitForShutdown();
   },
 
   /**
@@ -648,10 +429,6 @@ AbstractHealthReporter.prototype = Object.freeze({
    * will likely not return anything.
    */
   getProvider: function (name) {
-    if (!this._providerManager) {
-      return null;
-    }
-
     return this._providerManager.getProvider(name);
   },
 
@@ -727,8 +504,6 @@ AbstractHealthReporter.prototype = Object.freeze({
     }
 
     return Task.spawn(function doCollection() {
-      yield this._providerManager.ensurePullOnlyProvidersRegistered();
-
       try {
         TelemetryStopwatch.start(TELEMETRY_COLLECT_CONSTANT, this);
         yield this._providerManager.collectConstantData();
@@ -759,8 +534,6 @@ AbstractHealthReporter.prototype = Object.freeze({
                          CommonUtils.exceptionStr(ex));
         }
       }
-
-      yield this._providerManager.ensurePullOnlyProvidersUnregistered();
 
       // Flush gathered data to disk. This will incur an fsync. But, if
       // there is ever a time we want to persist data to disk, it's
@@ -860,11 +633,6 @@ AbstractHealthReporter.prototype = Object.freeze({
   _getJSONPayload: function (now, asObject=false) {
     let pingDateString = this._formatDate(now);
     this._log.info("Producing JSON payload for " + pingDateString);
-
-    // May not be present if we are generating as a result of init error.
-    if (this._providerManager) {
-      yield this._providerManager.ensurePullOnlyProvidersRegistered();
-    }
 
     let o = {
       version: 2,
@@ -994,11 +762,82 @@ AbstractHealthReporter.prototype = Object.freeze({
       TelemetryStopwatch.finish(TELEMETRY_JSON_PAYLOAD_SERIALIZE, this);
     }
 
-    if (this._providerManager) {
-      yield this._providerManager.ensurePullOnlyProvidersUnregistered();
+    throw new Task.Result(o);
+  },
+
+  get _stateDir() {
+    let profD = OS.Constants.Path.profileDir;
+
+    // Work around bug 810543 until OS.File is more resilient.
+    if (!profD || !profD.length) {
+      throw new Error("Could not obtain profile directory. OS.File not " +
+                      "initialized properly?");
     }
 
-    throw new Task.Result(o);
+    return OS.Path.join(profD, "healthreport");
+  },
+
+  _ensureDirectoryExists: function (path) {
+    let deferred = Promise.defer();
+
+    OS.File.makeDir(path).then(
+      function onResult() {
+        deferred.resolve(true);
+      },
+      function onError(error) {
+        if (error.becauseExists) {
+          deferred.resolve(true);
+          return;
+        }
+
+        deferred.reject(error);
+      }
+    );
+
+    return deferred.promise;
+  },
+
+  get _lastPayloadPath() {
+    return OS.Path.join(this._stateDir, "lastpayload.json");
+  },
+
+  _saveLastPayload: function (payload) {
+    let path = this._lastPayloadPath;
+    let pathTmp = path + ".tmp";
+
+    let encoder = new TextEncoder();
+    let buffer = encoder.encode(payload);
+
+    return OS.File.writeAtomic(path, buffer, {tmpPath: pathTmp});
+  },
+
+  /**
+   * Obtain the last uploaded payload.
+   *
+   * The promise is resolved to a JSON-decoded object on success. The promise
+   * is rejected if the last uploaded payload could not be found or there was
+   * an error reading or parsing it.
+   *
+   * This reads the last payload from disk. If you are looking for a
+   * current snapshot of the data, see `getJSONPayload` and
+   * `collectAndObtainJSONPayload`.
+   *
+   * @return Promise<object>
+   */
+  getLastPayload: function () {
+    let path = this._lastPayloadPath;
+
+    return OS.File.read(path).then(
+      function onData(buffer) {
+        let decoder = new TextDecoder();
+        let json = JSON.parse(decoder.decode(buffer));
+
+        return CommonUtils.laterTickResolvingPromise(json);
+      },
+      function onError(error) {
+        return Promise.reject(error);
+      }
+    );
   },
 
   _now: function _now() {
@@ -1113,9 +952,7 @@ AbstractHealthReporter.prototype = Object.freeze({
  * @param policy
  *        (HealthReportPolicy) Policy driving execution of HealthReporter.
  */
-this.HealthReporter = function (branch, policy, sessionRecorder, stateLeaf=null) {
-  this._stateLeaf = stateLeaf;
-
+function HealthReporter(branch, policy, sessionRecorder) {
   AbstractHealthReporter.call(this, branch, policy, sessionRecorder);
 
   if (!this.serverURI) {
@@ -1125,18 +962,12 @@ this.HealthReporter = function (branch, policy, sessionRecorder, stateLeaf=null)
   if (!this.serverNamespace) {
     throw new Error("No server namespace defined. Did you forget a pref?");
   }
-
-  this._state = new HealthReporterState(this);
 }
 
-this.HealthReporter.prototype = Object.freeze({
+HealthReporter.prototype = Object.freeze({
   __proto__: AbstractHealthReporter.prototype,
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),
-
-  get lastSubmitID() {
-    return this._state.lastSubmitID;
-  },
 
   /**
    * When we last successfully submitted data to the server.
@@ -1146,7 +977,13 @@ this.HealthReporter.prototype = Object.freeze({
    * similar data in the policy is only used for forensic purposes.
    */
   get lastPingDate() {
-    return this._state.lastPingDate;
+    return CommonUtils.getDatePref(this._prefs, "lastPingTime", 0, this._log,
+                                   OLDEST_ALLOWED_YEAR);
+  },
+
+  set lastPingDate(value) {
+    CommonUtils.setDatePref(this._prefs, "lastPingTime", value,
+                            OLDEST_ALLOWED_YEAR);
   },
 
   /**
@@ -1191,6 +1028,23 @@ this.HealthReporter.prototype = Object.freeze({
   },
 
   /**
+   * The document ID for data to be submitted to the server.
+   *
+   * This should be a UUID.
+   *
+   * We generate a new UUID when we upload data to the server. When we get a
+   * successful response for that upload, we record that UUID in this value.
+   * On the subsequent upload, this ID will be deleted from the server.
+   */
+  get lastSubmitID() {
+    return this._prefs.get("lastSubmitID", null) || null;
+  },
+
+  set lastSubmitID(value) {
+    this._prefs.set("lastSubmitID", value || "");
+  },
+
+  /**
    * Whether this instance will upload data to a server.
    */
   get willUploadData() {
@@ -1204,7 +1058,7 @@ this.HealthReporter.prototype = Object.freeze({
    * @return bool
    */
   haveRemoteData: function () {
-    return !!this._state.lastSubmitID;
+    return !!this.lastSubmitID;
   },
 
   /**
@@ -1241,15 +1095,11 @@ this.HealthReporter.prototype = Object.freeze({
    * deleted.
    */
   requestDeleteRemoteData: function (reason) {
-    if (!this.haveRemoteData()) {
+    if (!this.lastSubmitID) {
       return;
     }
 
     return this._policy.deleteRemoteData(reason);
-  },
-
-  _initializeState: function() {
-    return this._state.init();
   },
 
   /**
@@ -1290,48 +1140,43 @@ this.HealthReporter.prototype = Object.freeze({
     return result;
   },
 
-  _onBagheeraResult: function (request, isDelete, date, result) {
+  _onBagheeraResult: function (request, isDelete, result) {
     this._log.debug("Received Bagheera result.");
 
-    return Task.spawn(function onBagheeraResult() {
-      let hrProvider = this.getProvider("org.mozilla.healthreport");
+    let promise = CommonUtils.laterTickResolvingPromise(null);
 
-      if (!result.transportSuccess) {
-        // The built-in provider may not be initialized if this instance failed
-        // to initialize fully.
-        if (hrProvider && !isDelete) {
-          hrProvider.recordEvent("uploadTransportFailure", date);
-        }
+    if (!result.transportSuccess) {
+      request.onSubmissionFailureSoft("Network transport error.");
+      return promise;
+    }
 
-        request.onSubmissionFailureSoft("Network transport error.");
-        throw new Task.Result(false);
-      }
+    if (!result.serverSuccess) {
+      request.onSubmissionFailureHard("Server failure.");
+      return promise;
+    }
 
-      if (!result.serverSuccess) {
-        if (hrProvider && !isDelete) {
-          hrProvider.recordEvent("uploadServerFailure", date);
-        }
+    let now = this._now();
 
-        request.onSubmissionFailureHard("Server failure.");
-        throw new Task.Result(false);
-      }
+    if (isDelete) {
+      this.lastSubmitID = null;
+    } else {
+      this.lastSubmitID = result.id;
+      this.lastPingDate = now;
+    }
 
-      if (hrProvider && !isDelete) {
-        hrProvider.recordEvent("uploadSuccess", date);
-      }
+    request.onSubmissionSuccess(now);
 
-      if (isDelete) {
-        this._log.warn("Marking delete as successful.");
-        yield this._state.removeRemoteIDs([result.id]);
-      } else {
-        this._log.warn("Marking upload as successful.");
-        yield this._state.updateLastPingAndRemoveRemoteIDs(date, result.deleteIDs);
-      }
+#ifdef PRERELEASE_BUILD
+    // Intended to be temporary until we a) assess the impact b) bug 846133
+    // deploys more robust storage for state.
+    try {
+      Services.prefs.savePrefFile(null);
+    } catch (ex) {
+      this._log.warn("Error forcing prefs save: " + CommonUtils.exceptionStr(ex));
+    }
+#endif
 
-      request.onSubmissionSuccess(this._now());
-
-      throw new Task.Result(true);
-    }.bind(this));
+    return promise;
   },
 
   _onSubmitDataRequestFailure: function (error) {
@@ -1350,7 +1195,6 @@ this.HealthReporter.prototype = Object.freeze({
     this._log.info("Uploading data to server: " + this.serverURI + " " +
                    this.serverNamespace + ":" + id);
     let client = new BagheeraClient(this.serverURI);
-    let now = this._now();
 
     return Task.spawn(function doUpload() {
       let payload = yield this.getJSONPayload();
@@ -1358,21 +1202,20 @@ this.HealthReporter.prototype = Object.freeze({
       let histogram = Services.telemetry.getHistogramById(TELEMETRY_PAYLOAD_SIZE_UNCOMPRESSED);
       histogram.add(payload.length);
 
-      let lastID = this.lastSubmitID;
-      yield this._state.addRemoteID(id);
-
-      let hrProvider = this.getProvider("org.mozilla.healthreport");
-      if (hrProvider) {
-        let event = lastID ? "continuationUploadAttempt"
-                           : "firstDocumentUploadAttempt";
-        hrProvider.recordEvent(event, now);
+      TelemetryStopwatch.start(TELEMETRY_SAVE_LAST_PAYLOAD, this);
+      try {
+        yield this._saveLastPayload(payload);
+        TelemetryStopwatch.finish(TELEMETRY_SAVE_LAST_PAYLOAD, this);
+      } catch (ex) {
+        TelemetryStopwatch.cancel(TELEMETRY_SAVE_LAST_PAYLOAD, this);
+        throw ex;
       }
 
       TelemetryStopwatch.start(TELEMETRY_UPLOAD, this);
       let result;
       try {
         let options = {
-          deleteIDs: this._state.remoteIDs.filter((x) => { return x != id; }),
+          deleteID: this.lastSubmitID,
           telemetryCompressed: TELEMETRY_PAYLOAD_SIZE_COMPRESSED,
         };
         result = yield client.uploadJSON(this.serverNamespace, id, payload,
@@ -1380,13 +1223,10 @@ this.HealthReporter.prototype = Object.freeze({
         TelemetryStopwatch.finish(TELEMETRY_UPLOAD, this);
       } catch (ex) {
         TelemetryStopwatch.cancel(TELEMETRY_UPLOAD, this);
-        if (hrProvider) {
-          hrProvider.recordEvent("uploadClientFailure", now);
-        }
         throw ex;
       }
 
-      yield this._onBagheeraResult(request, false, now, result);
+      yield this._onBagheeraResult(request, false, result);
     }.bind(this));
   },
 
@@ -1397,7 +1237,7 @@ this.HealthReporter.prototype = Object.freeze({
    *        (DataSubmissionRequest) Tracks progress of this request.
    */
   deleteRemoteData: function (request) {
-    if (!this._state.lastSubmitID) {
+    if (!this.lastSubmitID) {
       this._log.info("Received request to delete remote data but no data stored.");
       request.onNoDataAvailable();
       return;
@@ -1407,7 +1247,7 @@ this.HealthReporter.prototype = Object.freeze({
     let client = new BagheeraClient(this.serverURI);
 
     return client.deleteDocument(this.serverNamespace, this.lastSubmitID)
-                 .then(this._onBagheeraResult.bind(this, request, true, this._now()),
+                 .then(this._onBagheeraResult.bind(this, request, true),
                        this._onSubmitDataRequestFailure.bind(this));
   },
 });

@@ -7,10 +7,10 @@
 #define nsIJSEventListener_h__
 
 #include "nsIScriptContext.h"
+#include "jsapi.h"
 #include "xpcpublic.h"
 #include "nsIDOMEventListener.h"
 #include "nsIAtom.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/EventHandlerBinding.h"
 
 #define NS_IJSEVENTLISTENER_IID \
@@ -21,8 +21,8 @@ class nsEventHandler
 {
 public:
   typedef mozilla::dom::EventHandlerNonNull EventHandlerNonNull;
-  typedef mozilla::dom::OnBeforeUnloadEventHandlerNonNull
-    OnBeforeUnloadEventHandlerNonNull;
+  typedef mozilla::dom::BeforeUnloadEventHandlerNonNull
+    BeforeUnloadEventHandlerNonNull;
   typedef mozilla::dom::OnErrorEventHandlerNonNull OnErrorEventHandlerNonNull;
   typedef mozilla::dom::CallbackFunction CallbackFunction;
 
@@ -48,7 +48,7 @@ public:
     Assign(aHandler, eOnError);
   }
 
-  nsEventHandler(OnBeforeUnloadEventHandlerNonNull* aHandler)
+  nsEventHandler(BeforeUnloadEventHandlerNonNull* aHandler)
   {
     Assign(aHandler, eOnBeforeUnload);
   }
@@ -99,13 +99,13 @@ public:
     Assign(aHandler, eNormal);
   }
 
-  OnBeforeUnloadEventHandlerNonNull* OnBeforeUnloadEventHandler() const
+  BeforeUnloadEventHandlerNonNull* BeforeUnloadEventHandler() const
   {
     MOZ_ASSERT(Type() == eOnBeforeUnload);
-    return reinterpret_cast<OnBeforeUnloadEventHandlerNonNull*>(Ptr());
+    return reinterpret_cast<BeforeUnloadEventHandlerNonNull*>(Ptr());
   }
 
-  void SetHandler(OnBeforeUnloadEventHandlerNonNull* aHandler)
+  void SetHandler(BeforeUnloadEventHandlerNonNull* aHandler)
   {
     ReleaseHandler();
     Assign(aHandler, eOnBeforeUnload);
@@ -136,12 +136,6 @@ public:
     mBits = 0;
   }
 
-  bool operator==(const nsEventHandler& aOther) const
-  {
-    return
-      Ptr() && aOther.Ptr() &&
-      Ptr()->CallbackPreserveColor() == aOther.Ptr()->CallbackPreserveColor();
-  }
 private:
   void operator=(const nsEventHandler&) MOZ_DELETE;
 
@@ -201,22 +195,12 @@ public:
   // Can return null if we already have a handler.
   JSObject* GetEventScope() const
   {
-    if (!mScopeObject) {
-      return nullptr;
-    }
-
-    JS::ExposeObjectToActiveJS(mScopeObject);
-    return mScopeObject;
+    return xpc_UnmarkGrayObject(mScopeObject);
   }
 
   const nsEventHandler& GetHandler() const
   {
     return mHandler;
-  }
-
-  void ForgetHandler()
-  {
-    mHandler.ForgetHandler();
   }
 
   nsIAtom* EventName() const
@@ -227,7 +211,7 @@ public:
   // Set a handler for this event listener.  The handler must already
   // be bound to the right target.
   void SetHandler(const nsEventHandler& aHandler, nsIScriptContext* aContext,
-                  JS::Handle<JSObject*> aScopeObject)
+                  JSObject* aScopeObject)
   {
     mHandler.SetHandler(aHandler);
     mContext = aContext;
@@ -237,7 +221,7 @@ public:
   {
     mHandler.SetHandler(aHandler);
   }
-  void SetHandler(mozilla::dom::OnBeforeUnloadEventHandlerNonNull* aHandler)
+  void SetHandler(mozilla::dom::BeforeUnloadEventHandlerNonNull* aHandler)
   {
     mHandler.SetHandler(aHandler);
   }
@@ -246,7 +230,7 @@ public:
     mHandler.SetHandler(aHandler);
   }
 
-  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
   {
     return 0;
 
@@ -262,7 +246,7 @@ public:
     // - mEventName: shared with others
   }
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
   {
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
   }
@@ -275,10 +259,10 @@ protected:
 
   // Update our mScopeObject; we have to make sure we properly handle
   // the hold/drop stuff, so have to do it in nsJSEventListener.
-  virtual void UpdateScopeObject(JS::Handle<JSObject*> aScopeObject) = 0;
+  virtual void UpdateScopeObject(JSObject* aScopeObject) = 0;
 
   nsCOMPtr<nsIScriptContext> mContext;
-  JS::Heap<JSObject*> mScopeObject;
+  JSObject* mScopeObject;
   nsISupports* mTarget;
   nsCOMPtr<nsIAtom> mEventName;
   nsEventHandler mHandler;

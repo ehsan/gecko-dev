@@ -2,12 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
 #include "nsHttpActivityDistributor.h"
+#include "nsIChannel.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
+#include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 
 using namespace mozilla;
@@ -59,9 +58,9 @@ private:
     ObserverArray mObservers;
 };
 
-NS_IMPL_ISUPPORTS2(nsHttpActivityDistributor,
-                   nsIHttpActivityDistributor,
-                   nsIHttpActivityObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsHttpActivityDistributor,
+                              nsIHttpActivityDistributor,
+                              nsIHttpActivityObserver)
 
 nsHttpActivityDistributor::nsHttpActivityDistributor()
     : mLock("nsHttpActivityDistributor.mLock")

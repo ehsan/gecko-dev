@@ -9,8 +9,6 @@
  */
 
 #include "nsNodeInfoManager.h"
-
-#include "mozilla/DebugOnly.h"
 #include "nsNodeInfo.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
@@ -47,7 +45,13 @@ nsNodeInfoManager::GetNodeInfoInnerHashValue(const void *key)
   const nsINodeInfo::nsNodeInfoInner *node =
     reinterpret_cast<const nsINodeInfo::nsNodeInfoInner *>(key);
 
-  return node->mName ? node->mName->hash() : HashString(*(node->mNameString));
+  if (node->mName) {
+    // Ideally, we'd return node->mName->hash() here.  But that doesn't work at
+    // the moment because node->mName->hash() is not the same as
+    // HashString(*(node->mNameString)).  See bug 732815.
+    return HashString(nsDependentAtomString(node->mName));
+  }
+  return HashString(*(node->mNameString));
 }
 
 
@@ -82,7 +86,7 @@ nsNodeInfoManager::NodeInfoInnerKeyCompare(const void *key1, const void *key2)
 
 
 static void* PR_CALLBACK
-AllocTable(void* pool, size_t size)
+AllocTable(void* pool, PRSize size)
 {
   return malloc(size);
 }
@@ -100,7 +104,7 @@ AllocEntry(void* pool, const void* key)
 }
 
 static void PR_CALLBACK
-FreeEntry(void* pool, PLHashEntry* he, unsigned flag)
+FreeEntry(void* pool, PLHashEntry* he, PRUintn flag)
 {
   if (flag == HT_FREE_ENTRY) {
     free(he);
@@ -154,8 +158,6 @@ nsNodeInfoManager::~nsNodeInfoManager()
 
   nsLayoutStatics::Release();
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsNodeInfoManager)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsNodeInfoManager)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsNodeInfoManager)
@@ -240,16 +242,18 @@ nsNodeInfoManager::GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix,
   void *node = PL_HashTableLookup(mNodeInfoHash, &tmpKey);
 
   if (node) {
-    nsCOMPtr<nsINodeInfo> nodeInfo = static_cast<nsINodeInfo*>(node);
+    nsINodeInfo* nodeInfo = static_cast<nsINodeInfo *>(node);
 
-    return nodeInfo.forget();
+    NS_ADDREF(nodeInfo);
+
+    return nodeInfo;
   }
 
   nsRefPtr<nsNodeInfo> newNodeInfo =
     new nsNodeInfo(aName, aPrefix, aNamespaceID, aNodeType, aExtraName, this);
 
-  DebugOnly<PLHashEntry*> he =
-    PL_HashTableAdd(mNodeInfoHash, &newNodeInfo->mInner, newNodeInfo);
+  PLHashEntry *he;
+  he = PL_HashTableAdd(mNodeInfoHash, &newNodeInfo->mInner, newNodeInfo);
   MOZ_ASSERT(he, "PL_HashTableAdd() failed");
 
   // Have to do the swap thing, because already_AddRefed<nsNodeInfo>
@@ -259,7 +263,10 @@ nsNodeInfoManager::GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix,
     NS_IF_ADDREF(mDocument);
   }
 
-  return newNodeInfo.forget();
+  nsNodeInfo *nodeInfo = nullptr;
+  newNodeInfo.swap(nodeInfo);
+
+  return nodeInfo;
 }
 
 
@@ -329,62 +336,51 @@ nsNodeInfoManager::GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
 already_AddRefed<nsINodeInfo>
 nsNodeInfoManager::GetTextNodeInfo()
 {
-  nsCOMPtr<nsINodeInfo> nodeInfo;
-
   if (!mTextNodeInfo) {
-    nodeInfo = GetNodeInfo(nsGkAtoms::textTagName, nullptr, kNameSpaceID_None,
-                           nsIDOMNode::TEXT_NODE, nullptr);
-    // Hold a weak ref; the nodeinfo will let us know when it goes away
-    mTextNodeInfo = nodeInfo;
-  } else {
-    nodeInfo = mTextNodeInfo;
+    mTextNodeInfo = GetNodeInfo(nsGkAtoms::textTagName, nullptr,
+                                kNameSpaceID_None,
+                                nsIDOMNode::TEXT_NODE, nullptr).get();
+  }
+  else {
+    NS_ADDREF(mTextNodeInfo);
   }
 
-  return nodeInfo.forget();
+  return mTextNodeInfo;
 }
 
 already_AddRefed<nsINodeInfo>
 nsNodeInfoManager::GetCommentNodeInfo()
 {
-  nsCOMPtr<nsINodeInfo> nodeInfo;
-
   if (!mCommentNodeInfo) {
-    nodeInfo = GetNodeInfo(nsGkAtoms::commentTagName, nullptr,
-                           kNameSpaceID_None, nsIDOMNode::COMMENT_NODE,
-                           nullptr);
-    // Hold a weak ref; the nodeinfo will let us know when it goes away
-    mCommentNodeInfo = nodeInfo;
+    mCommentNodeInfo = GetNodeInfo(nsGkAtoms::commentTagName, nullptr,
+                                   kNameSpaceID_None,
+                                   nsIDOMNode::COMMENT_NODE, nullptr).get();
   }
   else {
-    nodeInfo = mCommentNodeInfo;
+    NS_ADDREF(mCommentNodeInfo);
   }
 
-  return nodeInfo.forget();
+  return mCommentNodeInfo;
 }
 
 already_AddRefed<nsINodeInfo>
 nsNodeInfoManager::GetDocumentNodeInfo()
 {
-  nsCOMPtr<nsINodeInfo> nodeInfo;
-
   if (!mDocumentNodeInfo) {
     NS_ASSERTION(mDocument, "Should have mDocument!");
-    nodeInfo = GetNodeInfo(nsGkAtoms::documentNodeName, nullptr,
-                           kNameSpaceID_None, nsIDOMNode::DOCUMENT_NODE,
-                           nullptr);
-    // Hold a weak ref; the nodeinfo will let us know when it goes away
-    mDocumentNodeInfo = nodeInfo;
-
+    mDocumentNodeInfo = GetNodeInfo(nsGkAtoms::documentNodeName, nullptr,
+                                    kNameSpaceID_None,
+                                    nsIDOMNode::DOCUMENT_NODE, nullptr).get();
     --mNonDocumentNodeInfos;
     if (!mNonDocumentNodeInfos) {
       mDocument->Release(); // Don't set mDocument to null!
     }
   }
   else {
-    nodeInfo = mDocumentNodeInfo;
+    NS_ADDREF(mDocumentNodeInfo);
   }
 
-  return nodeInfo.forget();
+  return mDocumentNodeInfo;
 }
 
 void

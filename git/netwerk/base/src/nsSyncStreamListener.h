@@ -8,6 +8,7 @@
 #include "nsISyncStreamListener.h"
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
+#include "nsThreadUtils.h"
 #include "nsCOMPtr.h"
 #include "mozilla/Attributes.h"
 

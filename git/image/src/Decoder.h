@@ -10,8 +10,6 @@
 #include "imgDecoderObserver.h"
 #include "mozilla/RefPtr.h"
 #include "ImageMetadata.h"
-#include "Orientation.h"
-#include "mozilla/Telemetry.h"
 
 namespace mozilla {
 namespace image {
@@ -160,7 +158,7 @@ public:
   // will be called again with nullptr and 0 as arguments.
   void NeedNewFrame(uint32_t frameNum, uint32_t x_offset, uint32_t y_offset,
                     uint32_t width, uint32_t height,
-                    gfxImageFormat format,
+                    gfxASurface::gfxImageFormat format,
                     uint8_t palette_depth = 0);
 
   virtual bool NeedsNewFrame() const { return mNeedsNewFrame; }
@@ -191,9 +189,7 @@ protected:
 
   // Called by decoders when they determine the size of the image. Informs
   // the image of its size and sends notifications.
-  void PostSize(int32_t aWidth,
-                int32_t aHeight,
-                Orientation aOrientation = Orientation());
+  void PostSize(int32_t aWidth, int32_t aHeight);
 
   // Called by decoders when they begin a frame. Informs the image, sends
   // notifications, and does internal book-keeping.
@@ -204,10 +200,10 @@ protected:
   // Specify whether this frame is opaque as an optimization.
   // For animated images, specify the disposal, blend method and timeout for
   // this frame.
-  void PostFrameStop(FrameBlender::FrameAlpha aFrameAlpha = FrameBlender::kFrameHasAlpha,
-                     FrameBlender::FrameDisposalMethod aDisposalMethod = FrameBlender::kDisposeKeep,
+  void PostFrameStop(RasterImage::FrameAlpha aFrameAlpha = RasterImage::kFrameHasAlpha,
+                     RasterImage::FrameDisposalMethod aDisposalMethod = RasterImage::kDisposeKeep,
                      int32_t aTimeout = 0,
-                     FrameBlender::FrameBlendMethod aBlendMethod = FrameBlender::kBlendOver);
+                     RasterImage::FrameBlendMethod aBlendMethod = RasterImage::kBlendOver);
 
   // Called by the decoders when they have a region to invalidate. We may not
   // actually pass these invalidations on right away.
@@ -259,7 +255,7 @@ private:
 
     NewFrameData(uint32_t num, uint32_t offsetx, uint32_t offsety,
                  uint32_t width, uint32_t height,
-                 gfxImageFormat format, uint8_t paletteDepth)
+                 gfxASurface::gfxImageFormat format, uint8_t paletteDepth)
       : mFrameNum(num)
       , mOffsetX(offsetx)
       , mOffsetY(offsety)
@@ -273,7 +269,7 @@ private:
     uint32_t mOffsetY;
     uint32_t mWidth;
     uint32_t mHeight;
-    gfxImageFormat mFormat;
+    gfxASurface::gfxImageFormat mFormat;
     uint8_t mPaletteDepth;
   };
   NewFrameData mNewFrameData;

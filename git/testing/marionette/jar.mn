@@ -4,13 +4,13 @@
 
 marionette.jar:
 % content marionette %content/
-  content/marionette-server.js      (marionette-server.js)
+  content/marionette-actors.js      (marionette-actors.js)
   content/marionette-listener.js    (marionette-listener.js)
   content/marionette-elements.js    (marionette-elements.js)
   content/marionette-sendkeys.js    (marionette-sendkeys.js)
-  content/marionette-common.js      (marionette-common.js)
+  content/marionette-log-obj.js     (marionette-log-obj.js)
   content/marionette-simpletest.js  (marionette-simpletest.js)
-  content/marionette-frame-manager.js  (marionette-frame-manager.js)
+  content/marionette-perf.js  (marionette-perf.js)
   content/EventUtils.js  (EventUtils.js)
   content/ChromeUtils.js  (ChromeUtils.js)
 #ifdef ENABLE_TESTS
@@ -29,5 +29,4 @@ marionette.jar:
 
 % resource specialpowers %modules/
   modules/MockFilePicker.jsm (../specialpowers/content/MockFilePicker.jsm)
-  modules/MockColorPicker.jsm (../specialpowers/content/MockColorPicker.jsm)
   modules/MockPermissionPrompt.jsm (../specialpowers/content/MockPermissionPrompt.jsm)

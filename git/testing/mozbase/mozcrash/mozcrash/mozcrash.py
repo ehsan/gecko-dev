@@ -2,8 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-__all__ = ['check_for_crashes',
-           'check_for_java_exception']
+__all__ = ['check_for_crashes']
 
 import glob
 import mozlog
@@ -19,12 +18,10 @@ import zipfile
 from mozfile import extract_zip
 from mozfile import is_url
 
-
 def check_for_crashes(dump_directory, symbols_path,
                       stackwalk_binary=None,
                       dump_save_path=None,
-                      test_name=None,
-                      quiet=False):
+                      test_name=None):
     """
     Print a stack trace for minidump files left behind by a crashing program.
 
@@ -46,9 +43,6 @@ def check_for_crashes(dump_directory, symbols_path,
 
     If `test_name` is set it will be used as the test name in log output. If not set the
     filename of the calling function will be used.
-
-    If `quiet` is set, no PROCESS-CRASH message will be printed to stdout if a
-    crash is detected.
 
     Returns True if any minidumps were found, False otherwise.
     """
@@ -126,21 +120,11 @@ def check_for_crashes(dump_directory, symbols_path,
                     stackwalk_output.append("MINIDUMP_STACKWALK binary not found: %s" % stackwalk_binary)
             if not top_frame:
                 top_frame = "Unknown top frame"
-            if not quiet:
-                print "PROCESS-CRASH | %s | application crashed [%s]" % (test_name, top_frame)
-                print '\n'.join(stackwalk_output)
+            print "PROCESS-CRASH | %s | application crashed [%s]" % (test_name, top_frame)
+            print '\n'.join(stackwalk_output)
             if dump_save_path is None:
                 dump_save_path = os.environ.get('MINIDUMP_SAVE_PATH', None)
             if dump_save_path:
-                # This code did not previously create the directory,
-                # so there may be a file hanging out with its name.
-                if os.path.isfile(dump_save_path):
-                    os.unlink(dump_save_path)
-                if not os.path.isdir(dump_save_path):
-                    try:
-                        os.makedirs(dump_save_path)
-                    except OSError:
-                        pass
                 shutil.move(d, dump_save_path)
                 log.info("Saved dump as %s", os.path.join(dump_save_path,
                                                           os.path.basename(d)))
@@ -154,44 +138,3 @@ def check_for_crashes(dump_directory, symbols_path,
             shutil.rmtree(symbols_path)
 
     return True
-
-
-def check_for_java_exception(logcat):
-    """
-    Print a summary of a fatal Java exception, if present in the provided
-    logcat output.
-
-    Example:
-    PROCESS-CRASH | java-exception | java.lang.NullPointerException at org.mozilla.gecko.GeckoApp$21.run(GeckoApp.java:1833)
-
-    `logcat` should be a list of strings.
-
-    Returns True if a fatal Java exception was found, False otherwise.
-    """
-    found_exception = False
-
-    for i, line in enumerate(logcat):
-        # Logs will be of form:
-        #
-        # 01-30 20:15:41.937 E/GeckoAppShell( 1703): >>> REPORTING UNCAUGHT EXCEPTION FROM THREAD 9 ("GeckoBackgroundThread")
-        # 01-30 20:15:41.937 E/GeckoAppShell( 1703): java.lang.NullPointerException
-        # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at org.mozilla.gecko.GeckoApp$21.run(GeckoApp.java:1833)
-        # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at android.os.Handler.handleCallback(Handler.java:587)
-        if "REPORTING UNCAUGHT EXCEPTION" in line or "FATAL EXCEPTION" in line:
-            # Strip away the date, time, logcat tag and pid from the next two lines and
-            # concatenate the remainder to form a concise summary of the exception.
-            found_exception = True
-            if len(logcat) >= i + 3:
-                logre = re.compile(r".*\): \t?(.*)")
-                m = logre.search(logcat[i+1])
-                if m and m.group(1):
-                    exception_type = m.group(1)
-                m = logre.search(logcat[i+2])
-                if m and m.group(1):
-                    exception_location = m.group(1)
-                print "PROCESS-CRASH | java-exception | %s %s" % (exception_type, exception_location)
-            else:
-                print "Automation Error: Logcat is truncated!"
-            break
-
-    return found_exception

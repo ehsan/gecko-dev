@@ -115,8 +115,7 @@ static nsresult SetUpDragClipboard(nsISupportsArray* aTransferableArray)
       else if (currentKey == NSTIFFPboardType) {
         [dragPBoard setData:currentValue forType:currentKey];
       }
-      else if (currentKey == NSFilesPromisePboardType ||
-               currentKey == NSFilenamesPboardType) {
+      else if (currentKey == NSFilesPromisePboardType) {
         [dragPBoard setPropertyList:currentValue forType:currentKey];        
       }
     }
@@ -163,7 +162,7 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
   uint32_t height = aDragRect->height;
 
   nsRefPtr<gfxImageSurface> imgSurface = new gfxImageSurface(
-    gfxIntSize(width, height), gfxImageFormatARGB32);
+    gfxIntSize(width, height), gfxImageSurface::ImageFormatARGB32);
   if (!imgSurface)
     return nil;
 
@@ -374,7 +373,7 @@ nsDragService::GetData(nsITransferable* aTransferable, uint32_t aItemIndex)
       PRUnichar* clipboardDataPtr = (PRUnichar*)malloc(dataLength);
       if (!clipboardDataPtr)
         return NS_ERROR_OUT_OF_MEMORY;
-      [filePath getCharacters:reinterpret_cast<unichar*>(clipboardDataPtr)];
+      [filePath getCharacters:clipboardDataPtr];
       clipboardDataPtr[stringLength] = 0; // null terminate
 
       nsCOMPtr<nsIFile> file;
@@ -383,7 +382,9 @@ nsDragService::GetData(nsITransferable* aTransferable, uint32_t aItemIndex)
       if (NS_FAILED(rv))
         continue;
 
-      aTransferable->SetTransferData(flavorStr, file, dataLength);
+      nsCOMPtr<nsISupports> genericDataWrapper;
+      genericDataWrapper = do_QueryInterface(file);
+      aTransferable->SetTransferData(flavorStr, genericDataWrapper, dataLength);
       
       break;
     }

@@ -4,14 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/SVGFEImageElement.h"
-
 #include "mozilla/dom/SVGFEImageElementBinding.h"
 #include "mozilla/dom/SVGFilterElement.h"
-#include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
 #include "nsSVGUtils.h"
 #include "nsNetUtil.h"
-#include "imgIContainer.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(FEImage)
 
@@ -19,7 +16,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEImageElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGFEImageElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGFEImageElementBinding::Wrap(aCx, aScope, this);
 }
@@ -33,10 +30,15 @@ nsSVGElement::StringInfo SVGFEImageElement::sStringInfo[2] =
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_IMPL_ISUPPORTS_INHERITED6(SVGFEImageElement, SVGFEImageElementBase,
-                             nsIDOMNode, nsIDOMElement, nsIDOMSVGElement,
-                             imgINotificationObserver, nsIImageLoadingContent,
-                             imgIOnloadBlocker)
+NS_IMPL_ADDREF_INHERITED(SVGFEImageElement,SVGFEImageElementBase)
+NS_IMPL_RELEASE_INHERITED(SVGFEImageElement,SVGFEImageElementBase)
+
+NS_INTERFACE_TABLE_HEAD(SVGFEImageElement)
+  NS_NODE_INTERFACE_TABLE6(SVGFEImageElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement,
+                           imgINotificationObserver, nsIImageLoadingContent,
+                           imgIOnloadBlocker)
+NS_INTERFACE_MAP_END_INHERITING(SVGFEImageElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
@@ -178,7 +180,7 @@ SVGFEImageElement::IntrinsicState() const
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEImageElement)
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEImageElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);

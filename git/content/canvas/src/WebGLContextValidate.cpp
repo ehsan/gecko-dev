@@ -4,16 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGLContext.h"
-#include "WebGLBuffer.h"
-#include "WebGLVertexAttribData.h"
-#include "WebGLShader.h"
-#include "WebGLProgram.h"
-#include "WebGLUniformLocation.h"
-#include "WebGLFramebuffer.h"
-#include "WebGLRenderbuffer.h"
-#include "WebGLTexture.h"
-#include "WebGLVertexArray.h"
-#include "GLContext.h"
 
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Preferences.h"
@@ -65,7 +55,7 @@ WebGLProgram::UpdateInfo()
         mContext->gl->fGetActiveAttrib(mGLName, i, mAttribMaxNameLength, &attrnamelen, &attrsize, &attrtype, nameBuf);
         if (attrnamelen > 0) {
             GLint loc = mContext->gl->fGetAttribLocation(mGLName, nameBuf);
-            MOZ_ASSERT(loc >= 0, "major oops in managing the attributes of a WebGL program");
+            NS_ABORT_IF_FALSE(loc >= 0, "major oops in managing the attributes of a WebGL program");
             if (loc < mContext->mGLMaxVertexAttribs) {
                 mAttribsInUse[loc] = true;
             } else {
@@ -75,62 +65,123 @@ WebGLProgram::UpdateInfo()
         }
     }
 
-    if (!mUniformInfoMap) {
-        mUniformInfoMap = new CStringToUniformInfoMap;
-        for (size_t i = 0; i < mAttachedShaders.Length(); i++) {
-            for (size_t j = 0; j < mAttachedShaders[i]->mUniforms.Length(); j++) {
-	        const WebGLMappedIdentifier& uniform = mAttachedShaders[i]->mUniforms[j];
-	        const WebGLUniformInfo& info = mAttachedShaders[i]->mUniformInfos[j];
-	        mUniformInfoMap->Put(uniform.mapped, info);
+    return true;
+}
+
+/*
+ * Verify that state is consistent for drawing, and compute max number of elements (maxAllowedCount)
+ * that will be legal to be read from bound VBOs.
+ */
+
+bool
+WebGLContext::ValidateBuffers(uint32_t *maxAllowedCount, const char *info)
+{
+#ifdef DEBUG
+    GLint currentProgram = 0;
+    MakeContextCurrent();
+    gl->fGetIntegerv(LOCAL_GL_CURRENT_PROGRAM, &currentProgram);
+    NS_ASSERTION(GLuint(currentProgram) == mCurrentProgram->GLName(),
+                 "WebGL: current program doesn't agree with GL state");
+    if (GLuint(currentProgram) != mCurrentProgram->GLName())
+        return false;
+#endif
+
+    if (mMinInUseAttribArrayLengthCached) {
+        *maxAllowedCount = mMinInUseAttribArrayLength;
+        return true;
+    }
+
+    uint32_t maxAllowed = UINT32_MAX;
+    uint32_t attribs = mAttribBuffers.Length();
+    for (uint32_t i = 0; i < attribs; ++i) {
+        const WebGLVertexAttribData& vd = mAttribBuffers[i];
+
+        // If the attrib array isn't enabled, there's nothing to check;
+        // it's a static value.
+        if (!vd.enabled)
+            continue;
+
+        if (vd.buf == nullptr) {
+            ErrorInvalidOperation("%s: no VBO bound to enabled vertex attrib index %d!", info, i);
+            return false;
+        }
+
+        // If the attrib is not in use, then we don't have to validate
+        // it, just need to make sure that the binding is non-null.
+        if (!mCurrentProgram->IsAttribInUse(i))
+            continue;
+
+        // the base offset
+        CheckedUint32 checked_byteLength
+            = CheckedUint32(vd.buf->ByteLength()) - vd.byteOffset;
+        CheckedUint32 checked_sizeOfLastElement
+            = CheckedUint32(vd.componentSize()) * vd.size;
+
+        if (!checked_byteLength.isValid() ||
+            !checked_sizeOfLastElement.isValid())
+        {
+            ErrorInvalidOperation("%s: integer overflow occured while checking vertex attrib %d", info, i);
+            return false;
+        }
+
+        if (checked_byteLength.value() < checked_sizeOfLastElement.value()) {
+            maxAllowed = 0;
+            break;
+        } else {
+            CheckedUint32 checked_maxAllowedCount
+                = ((checked_byteLength - checked_sizeOfLastElement) / vd.actualStride()) + 1;
+
+            if (!checked_maxAllowedCount.isValid()) {
+                ErrorInvalidOperation("%s: integer overflow occured while checking vertex attrib %d", info, i);
+                return false;
             }
+
+            if (maxAllowed > checked_maxAllowedCount.value())
+                maxAllowed = checked_maxAllowedCount.value();
         }
     }
 
-    mActiveAttribMap.clear();
+    *maxAllowedCount = maxAllowed;
 
-    GLint numActiveAttrs = 0;
-    mContext->gl->fGetProgramiv(mGLName, LOCAL_GL_ACTIVE_ATTRIBUTES, &numActiveAttrs);
-
-    // Spec says the maximum attrib name length is 256 chars, so this is
-    // sufficient to hold any attrib name.
-    char attrName[257];
-
-    GLint dummySize;
-    GLenum dummyType;
-    for (GLint i = 0; i < numActiveAttrs; i++) {
-        mContext->gl->fGetActiveAttrib(mGLName, i, 257, nullptr, &dummySize,
-                                       &dummyType, attrName);
-        GLint attrLoc = mContext->gl->fGetAttribLocation(mGLName, attrName);
-        MOZ_ASSERT(attrLoc >= 0);
-        mActiveAttribMap.insert(std::make_pair(attrLoc, nsCString(attrName)));
-    }
+    mMinInUseAttribArrayLengthCached = true;
+    mMinInUseAttribArrayLength = *maxAllowedCount;
 
     return true;
 }
 
-bool WebGLContext::ValidateBlendEquationEnum(GLenum mode, const char *info)
+bool WebGLContext::ValidateCapabilityEnum(WebGLenum cap, const char *info)
+{
+    switch (cap) {
+        case LOCAL_GL_BLEND:
+        case LOCAL_GL_CULL_FACE:
+        case LOCAL_GL_DEPTH_TEST:
+        case LOCAL_GL_DITHER:
+        case LOCAL_GL_POLYGON_OFFSET_FILL:
+        case LOCAL_GL_SAMPLE_ALPHA_TO_COVERAGE:
+        case LOCAL_GL_SAMPLE_COVERAGE:
+        case LOCAL_GL_SCISSOR_TEST:
+        case LOCAL_GL_STENCIL_TEST:
+            return true;
+        default:
+            ErrorInvalidEnumInfo(info, cap);
+            return false;
+    }
+}
+
+bool WebGLContext::ValidateBlendEquationEnum(WebGLenum mode, const char *info)
 {
     switch (mode) {
         case LOCAL_GL_FUNC_ADD:
         case LOCAL_GL_FUNC_SUBTRACT:
         case LOCAL_GL_FUNC_REVERSE_SUBTRACT:
             return true;
-        case LOCAL_GL_MIN:
-        case LOCAL_GL_MAX:
-            if (IsWebGL2()) {
-                // http://www.opengl.org/registry/specs/EXT/blend_minmax.txt
-                return true;
-            }
-            break;
         default:
-            break;
+            ErrorInvalidEnumInfo(info, mode);
+            return false;
     }
-
-    ErrorInvalidEnumInfo(info, mode);
-    return false;
 }
 
-bool WebGLContext::ValidateBlendFuncDstEnum(GLenum factor, const char *info)
+bool WebGLContext::ValidateBlendFuncDstEnum(WebGLenum factor, const char *info)
 {
     switch (factor) {
         case LOCAL_GL_ZERO:
@@ -154,7 +205,7 @@ bool WebGLContext::ValidateBlendFuncDstEnum(GLenum factor, const char *info)
     }
 }
 
-bool WebGLContext::ValidateBlendFuncSrcEnum(GLenum factor, const char *info)
+bool WebGLContext::ValidateBlendFuncSrcEnum(WebGLenum factor, const char *info)
 {
     if (factor == LOCAL_GL_SRC_ALPHA_SATURATE)
         return true;
@@ -162,7 +213,7 @@ bool WebGLContext::ValidateBlendFuncSrcEnum(GLenum factor, const char *info)
         return ValidateBlendFuncDstEnum(factor, info);
 }
 
-bool WebGLContext::ValidateBlendFuncEnumsCompatibility(GLenum sfactor, GLenum dfactor, const char *info)
+bool WebGLContext::ValidateBlendFuncEnumsCompatibility(WebGLenum sfactor, WebGLenum dfactor, const char *info)
 {
     bool sfactorIsConstantColor = sfactor == LOCAL_GL_CONSTANT_COLOR ||
                                     sfactor == LOCAL_GL_ONE_MINUS_CONSTANT_COLOR;
@@ -181,7 +232,7 @@ bool WebGLContext::ValidateBlendFuncEnumsCompatibility(GLenum sfactor, GLenum df
     }
 }
 
-bool WebGLContext::ValidateTextureTargetEnum(GLenum target, const char *info)
+bool WebGLContext::ValidateTextureTargetEnum(WebGLenum target, const char *info)
 {
     switch (target) {
         case LOCAL_GL_TEXTURE_2D:
@@ -193,7 +244,7 @@ bool WebGLContext::ValidateTextureTargetEnum(GLenum target, const char *info)
     }
 }
 
-bool WebGLContext::ValidateComparisonEnum(GLenum target, const char *info)
+bool WebGLContext::ValidateComparisonEnum(WebGLenum target, const char *info)
 {
     switch (target) {
         case LOCAL_GL_NEVER:
@@ -211,7 +262,7 @@ bool WebGLContext::ValidateComparisonEnum(GLenum target, const char *info)
     }
 }
 
-bool WebGLContext::ValidateStencilOpEnum(GLenum action, const char *info)
+bool WebGLContext::ValidateStencilOpEnum(WebGLenum action, const char *info)
 {
     switch (action) {
         case LOCAL_GL_KEEP:
@@ -229,7 +280,7 @@ bool WebGLContext::ValidateStencilOpEnum(GLenum action, const char *info)
     }
 }
 
-bool WebGLContext::ValidateFaceEnum(GLenum face, const char *info)
+bool WebGLContext::ValidateFaceEnum(WebGLenum face, const char *info)
 {
     switch (face) {
         case LOCAL_GL_FRONT:
@@ -242,7 +293,20 @@ bool WebGLContext::ValidateFaceEnum(GLenum face, const char *info)
     }
 }
 
-bool WebGLContext::ValidateDrawModeEnum(GLenum mode, const char *info)
+bool WebGLContext::ValidateBufferUsageEnum(WebGLenum target, const char *info)
+{
+    switch (target) {
+        case LOCAL_GL_STREAM_DRAW:
+        case LOCAL_GL_STATIC_DRAW:
+        case LOCAL_GL_DYNAMIC_DRAW:
+            return true;
+        default:
+            ErrorInvalidEnumInfo(info, target);
+            return false;
+    }
+}
+
+bool WebGLContext::ValidateDrawModeEnum(WebGLenum mode, const char *info)
 {
     switch (mode) {
         case LOCAL_GL_TRIANGLES:
@@ -300,33 +364,7 @@ bool WebGLContext::ValidateGLSLString(const nsAString& string, const char *info)
     return true;
 }
 
-bool WebGLContext::ValidateTexImage2DFormat(GLenum format, const char* info)
-{
-    if (IsExtensionEnabled(EXT_sRGB)) {
-        switch (format) {
-            case LOCAL_GL_SRGB_EXT:
-            case LOCAL_GL_SRGB_ALPHA_EXT:
-                return true;
-        }
-    }
-
-    switch (format) {
-        case LOCAL_GL_RGB:
-        case LOCAL_GL_RGBA:
-        case LOCAL_GL_ALPHA:
-        case LOCAL_GL_LUMINANCE:
-        case LOCAL_GL_LUMINANCE_ALPHA:
-        case LOCAL_GL_DEPTH_COMPONENT:
-        case LOCAL_GL_DEPTH_STENCIL:
-            return true;
-            break;
-    }
-
-    ErrorInvalidEnumInfo(info, format);
-    return false;
-}
-
-bool WebGLContext::ValidateTexImage2DTarget(GLenum target, GLsizei width, GLsizei height,
+bool WebGLContext::ValidateTexImage2DTarget(WebGLenum target, WebGLsizei width, WebGLsizei height,
                                             const char* info)
 {
     switch (target) {
@@ -351,9 +389,9 @@ bool WebGLContext::ValidateTexImage2DTarget(GLenum target, GLsizei width, GLsize
     return true;
 }
 
-bool WebGLContext::ValidateCompressedTextureSize(GLenum target, GLint level,
-                                                 GLenum format,
-                                                 GLsizei width, GLsizei height, uint32_t byteLength, const char* info)
+bool WebGLContext::ValidateCompressedTextureSize(WebGLenum target, WebGLint level,
+                                                 WebGLenum format,
+                                                 WebGLsizei width, WebGLsizei height, uint32_t byteLength, const char* info)
 {
     if (!ValidateLevelWidthHeightForTarget(target, level, width, height, info)) {
         return false;
@@ -434,17 +472,17 @@ bool WebGLContext::ValidateCompressedTextureSize(GLenum target, GLint level,
     return true;
 }
 
-bool WebGLContext::ValidateLevelWidthHeightForTarget(GLenum target, GLint level, GLsizei width,
-                                                     GLsizei height, const char* info)
+bool WebGLContext::ValidateLevelWidthHeightForTarget(WebGLenum target, WebGLint level, WebGLsizei width,
+                                                     WebGLsizei height, const char* info)
 {
-    GLsizei maxTextureSize = MaxTextureSizeForTarget(target);
+    WebGLsizei maxTextureSize = MaxTextureSizeForTarget(target);
 
     if (level < 0) {
         ErrorInvalidValue("%s: level must be >= 0", info);
         return false;
     }
 
-    GLsizei maxAllowedSize = maxTextureSize >> level;
+    WebGLsizei maxAllowedSize = maxTextureSize >> level;
 
     if (!maxAllowedSize) {
         ErrorInvalidValue("%s: 2^level exceeds maximum texture size", info);
@@ -464,7 +502,7 @@ bool WebGLContext::ValidateLevelWidthHeightForTarget(GLenum target, GLint level,
     return true;
 }
 
-uint32_t WebGLContext::GetBitsPerTexel(GLenum format, GLenum type)
+uint32_t WebGLContext::GetBitsPerTexel(WebGLenum format, WebGLenum type)
 {
     // If there is no defined format or type, we're not taking up any memory
     if (!format || !type) {
@@ -490,10 +528,8 @@ uint32_t WebGLContext::GetBitsPerTexel(GLenum format, GLenum type)
             case LOCAL_GL_LUMINANCE_ALPHA:
                 return 2 * multiplier;
             case LOCAL_GL_RGB:
-            case LOCAL_GL_SRGB_EXT:
                 return 3 * multiplier;
             case LOCAL_GL_RGBA:
-            case LOCAL_GL_SRGB_ALPHA_EXT:
                 return 4 * multiplier;
             case LOCAL_GL_COMPRESSED_RGB_PVRTC_2BPPV1:
             case LOCAL_GL_COMPRESSED_RGBA_PVRTC_2BPPV1:
@@ -519,11 +555,11 @@ uint32_t WebGLContext::GetBitsPerTexel(GLenum format, GLenum type)
         return 16;
     }
 
-    MOZ_ASSERT(false);
+    NS_ABORT();
     return 0;
 }
 
-bool WebGLContext::ValidateTexFormatAndType(GLenum format, GLenum type, int jsArrayType,
+bool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type, int jsArrayType,
                                               uint32_t *texelSize, const char *info)
 {
     if (IsExtensionEnabled(WEBGL_depth_texture)) {
@@ -590,11 +626,9 @@ bool WebGLContext::ValidateTexFormatAndType(GLenum format, GLenum type, int jsAr
                 *texelSize = 2 * texMultiplier;
                 return true;
             case LOCAL_GL_RGB:
-            case LOCAL_GL_SRGB_EXT:
                 *texelSize = 3 * texMultiplier;
                 return true;
             case LOCAL_GL_RGBA:
-            case LOCAL_GL_SRGB_ALPHA_EXT:
                 *texelSize = 4 * texMultiplier;
                 return true;
             default:
@@ -665,7 +699,7 @@ WebGLContext::ValidateUniformLocation(const char* info, WebGLUniformLocation *lo
 }
 
 bool
-WebGLContext::ValidateSamplerUniformSetter(const char* info, WebGLUniformLocation *location, GLint value)
+WebGLContext::ValidateSamplerUniformSetter(const char* info, WebGLUniformLocation *location, WebGLint value)
 {
     if (location->Info().type != SH_SAMPLER_2D &&
         location->Info().type != SH_SAMPLER_CUBE)
@@ -684,7 +718,7 @@ WebGLContext::ValidateSamplerUniformSetter(const char* info, WebGLUniformLocatio
 bool
 WebGLContext::ValidateAttribArraySetter(const char* name, uint32_t cnt, uint32_t arrayLength)
 {
-    if (IsContextLost()) {
+    if (!IsContextStable()) {
         return false;
     }
     if (arrayLength < cnt) {
@@ -698,7 +732,7 @@ bool
 WebGLContext::ValidateUniformArraySetter(const char* name, uint32_t expectedElemSize, WebGLUniformLocation *location_object,
                                          GLint& location, uint32_t& numElementsToUpload, uint32_t arrayLength)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return false;
     if (!ValidateUniformLocation(name, location_object))
         return false;
@@ -741,7 +775,7 @@ WebGLContext::ValidateUniformMatrixArraySetter(const char* name, int dim, WebGLU
                                               WebGLboolean aTranspose)
 {
     uint32_t expectedElemSize = (dim)*(dim);
-    if (IsContextLost())
+    if (!IsContextStable())
         return false;
     if (!ValidateUniformLocation(name, location_object))
         return false;
@@ -786,7 +820,7 @@ WebGLContext::ValidateUniformMatrixArraySetter(const char* name, int dim, WebGLU
 bool
 WebGLContext::ValidateUniformSetter(const char* name, WebGLUniformLocation *location_object, GLint& location)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return false;
     if (!ValidateUniformLocation(name, location_object))
         return false;
@@ -794,9 +828,20 @@ WebGLContext::ValidateUniformSetter(const char* name, WebGLUniformLocation *loca
     return true;
 }
 
-bool WebGLContext::ValidateAttribIndex(GLuint index, const char *info)
+bool WebGLContext::ValidateAttribIndex(WebGLuint index, const char *info)
 {
-    return mBoundVertexArray->EnsureAttrib(index, info);
+    if (index >= mAttribBuffers.Length()) {
+        if (index == WebGLuint(-1)) {
+             ErrorInvalidValue("%s: index -1 is invalid. That probably comes from a getAttribLocation() call, "
+                               "where this return value -1 means that the passed name didn't correspond to an active attribute in "
+                               "the specified program.", info);
+        } else {
+             ErrorInvalidValue("%s: index %d is out of range", info, index);
+        }
+        return false;
+    } else {
+        return true;
+    }
 }
 
 bool WebGLContext::ValidateStencilParamsForDrawCall()
@@ -817,18 +862,6 @@ bool WebGLContext::ValidateStencilParamsForDrawCall()
   return true;
 }
 
-static inline int32_t floorPOT(int32_t x)
-{
-    MOZ_ASSERT(x > 0);
-    int32_t pot = 1;
-    while (pot < 0x40000000) {
-        if (x < pot*2)
-            break;
-        pot *= 2;
-    }
-    return pot;
-}
-
 bool
 WebGLContext::InitAndValidateGL()
 {
@@ -845,18 +878,16 @@ WebGLContext::InitAndValidateGL()
     mLoseContextOnHeapMinimize = Preferences::GetBool("webgl.lose-context-on-heap-minimize", false);
     mCanLoseContextInForeground = Preferences::GetBool("webgl.can-lose-context-in-foreground", true);
 
-    if (MinCapabilityMode()) {
-      mDisableFragHighP = true;
-    }
-
     mActiveTexture = 0;
     mWebGLError = LOCAL_GL_NO_ERROR;
+
+    mAttribBuffers.Clear();
 
     mBound2DTextures.Clear();
     mBoundCubeMapTextures.Clear();
 
     mBoundArrayBuffer = nullptr;
-    mBoundTransformFeedbackBuffer = nullptr;
+    mBoundElementArrayBuffer = nullptr;
     mCurrentProgram = nullptr;
 
     mBoundFramebuffer = nullptr;
@@ -878,6 +909,8 @@ WebGLContext::InitAndValidateGL()
         GenerateWarning("GL_MAX_VERTEX_ATTRIBS: %d is < 8!", mGLMaxVertexAttribs);
         return false;
     }
+
+    mAttribBuffers.SetLength(mGLMaxVertexAttribs);
 
     // Note: GL_MAX_TEXTURE_UNITS is fixed at 4 for most desktop hardware,
     // even though the hardware supports much more.  The
@@ -909,15 +942,12 @@ WebGLContext::InitAndValidateGL()
         gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &mGLMaxVertexTextureImageUnits);
     }
 
-    mGLMaxTextureSize = floorPOT(mGLMaxTextureSize);
-    mGLMaxRenderbufferSize = floorPOT(mGLMaxRenderbufferSize);
-
     if (MinCapabilityMode()) {
         mGLMaxFragmentUniformVectors = MINVALUE_GL_MAX_FRAGMENT_UNIFORM_VECTORS;
         mGLMaxVertexUniformVectors = MINVALUE_GL_MAX_VERTEX_UNIFORM_VECTORS;
         mGLMaxVaryingVectors = MINVALUE_GL_MAX_VARYING_VECTORS;
     } else {
-        if (gl->IsSupported(gl::GLFeature::ES2_compatibility)) {
+        if (gl->HasES2Compatibility()) {
             gl->fGetIntegerv(LOCAL_GL_MAX_FRAGMENT_UNIFORM_VECTORS, &mGLMaxFragmentUniformVectors);
             gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS, &mGLMaxVertexUniformVectors);
             gl->fGetIntegerv(LOCAL_GL_MAX_VARYING_VECTORS, &mGLMaxVaryingVectors);
@@ -956,7 +986,7 @@ WebGLContext::InitAndValidateGL()
                 default:
                     GenerateWarning("GL error 0x%x occurred during WebGL context initialization!", error);
                     return false;
-            }
+            }   
         }
     }
 
@@ -968,12 +998,22 @@ WebGLContext::InitAndValidateGL()
         // specifically enabled on desktop GLSL.
         gl->fEnable(LOCAL_GL_VERTEX_PROGRAM_POINT_SIZE);
 
-        // gl_PointCoord is always available in ES2 GLSL and in newer desktop GLSL versions, but apparently
-        // not in OpenGL 2 and apparently not (due to a driver bug) on certain NVIDIA setups. See:
-        //   http://www.opengl.org/discussion_boards/ubbthreads.php?ubb=showflat&Number=261472
-        // Note that this used to cause crashes on old ATI drivers... hopefully not a significant
-        // problem anymore. See bug 602183.
-        gl->fEnable(LOCAL_GL_POINT_SPRITE);
+        // we don't do the following glEnable(GL_POINT_SPRITE) on ATI cards on Windows, because bug 602183 shows that it causes
+        // crashes in the ATI/Windows driver; and point sprites on ATI seem like a lost cause anyway, see
+        //    http://www.gamedev.net/community/forums/topic.asp?topic_id=525643
+        // Also, if the ATI/Windows driver implements a recent GL spec version, this shouldn't be needed anyway.
+#ifdef XP_WIN
+        if (!(gl->WorkAroundDriverBugs() &&
+              gl->Vendor() == gl::GLContext::VendorATI))
+#else
+        if (true)
+#endif
+        {
+            // gl_PointCoord is always available in ES2 GLSL and in newer desktop GLSL versions, but apparently
+            // not in OpenGL 2 and apparently not (due to a driver bug) on certain NVIDIA setups. See:
+            //   http://www.opengl.org/discussion_boards/ubbthreads.php?ubb=showflat&Number=261472
+            gl->fEnable(LOCAL_GL_POINT_SPRITE);
+        }
     }
 
 #ifdef XP_MACOSX
@@ -1010,13 +1050,6 @@ WebGLContext::InitAndValidateGL()
         return false;
     }
 
-    if (IsWebGL2() &&
-        !InitWebGL2())
-    {
-        // Todo: Bug 898404: Only allow WebGL2 on GL>=3.0 on desktop GL.
-        return false;
-    }
-
     mMemoryPressureObserver
         = new WebGLMemoryPressureObserver(this);
     nsCOMPtr<nsIObserverService> observerService
@@ -1026,10 +1059,6 @@ WebGLContext::InitAndValidateGL()
                                      "memory-pressure",
                                      false);
     }
-
-    mDefaultVertexArray = new WebGLVertexArray(this);
-    mDefaultVertexArray->mAttribs.SetLength(mGLMaxVertexAttribs);
-    mBoundVertexArray = mDefaultVertexArray;
 
     return true;
 }

@@ -8,10 +8,10 @@
 
 #include "nsIContent.h"          // for use in inline function (ParentChainChanged)
 #include "nsIMutationObserver.h" // for use in inline function (ParentChainChanged)
-#include "js/TypeDecls.h"
-#include "nsCOMArray.h"
 
 struct CharacterDataChangeInfo;
+struct JSContext;
+class JSObject;
 class nsIVariant;
 class nsIDOMNode;
 class nsIDOMUserDataHandler;
@@ -153,7 +153,7 @@ public:
                         nsINode **aResult)
   {
     return CloneAndAdopt(aNode, true, aDeep, aNewNodeInfoManager,
-                         JS::NullPtr(), aNodesWithProperties, nullptr, aResult);
+                         nullptr, aNodesWithProperties, nullptr, aResult);
   }
 
   /**
@@ -162,7 +162,7 @@ public:
   static nsresult Clone(nsINode *aNode, bool aDeep, nsINode **aResult)
   {
     nsCOMArray<nsINode> dummyNodeWithProperties;
-    return CloneAndAdopt(aNode, true, aDeep, nullptr, JS::NullPtr(),
+    return CloneAndAdopt(aNode, true, aDeep, nullptr, nullptr,
                          dummyNodeWithProperties, aNode->GetParent(), aResult);
   }
 
@@ -184,7 +184,7 @@ public:
    *                             descendants) with properties.
    */
   static nsresult Adopt(nsINode *aNode, nsNodeInfoManager *aNewNodeInfoManager,
-                        JS::Handle<JSObject*> aReparentScope,
+                        JSObject *aReparentScope,
                         nsCOMArray<nsINode> &aNodesWithProperties)
   {
     nsCOMPtr<nsINode> node;
@@ -294,7 +294,7 @@ private:
    */
   static nsresult CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
                                 nsNodeInfoManager *aNewNodeInfoManager,
-                                JS::Handle<JSObject*> aReparentScope,
+                                JSObject *aReparentScope,
                                 nsCOMArray<nsINode> &aNodesWithProperties,
                                 nsINode *aParent, nsINode **aResult);
 };

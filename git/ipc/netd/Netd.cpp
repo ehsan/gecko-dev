@@ -156,7 +156,8 @@ void NetdClient::OnLineRead(int aFd, nsDependentCSubstring& aMessage)
   // integer response code followed by the rest of the line.
   // Fish out the response code.
   int responseCode = strtol(aMessage.Data(), nullptr, 10);
-  if (!errno) {
+  // TODO, Bug 783966, handle InterfaceChange(600) and BandwidthControl(601).
+  if (!errno && responseCode < 600) {
     NetdCommand* response = new NetdCommand();
     // Passing all the response message, including the line terminator.
     response->mSize = aMessage.Length();

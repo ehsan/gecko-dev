@@ -12,8 +12,7 @@
   <head>
     <title>&title;</title>
 
-    <script type="application/javascript;version=1.8"
-            src="chrome://browser/content/devtools/theme-switching.js"/>
+    <script id="script-theme" type="application/javascript;version=1.8" src="chrome://browser/content/devtools/theme-switching.js"/>
 
     <script type="application/javascript;version=1.8" src="view.js"></script>
     <script type="application/javascript;version=1.8">
@@ -66,12 +65,11 @@
     ]]>
     </script>
 
-    <link rel="stylesheet" href="chrome://browser/skin/devtools/common.css" type="text/css"/>
     <link rel="stylesheet" href="chrome://browser/skin/devtools/layoutview.css" type="text/css"/>
     <link rel="stylesheet" href="view.css" type="text/css"/>
 
   </head>
-  <body class="theme-body devtools-monospace">
+  <body class="theme-body">
 
     <p id="header">
         <span id="element-size"></span>

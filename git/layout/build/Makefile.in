@@ -3,10 +3,31 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 # Solaris sh blows
 ifeq ($(OS_ARCH),SunOS)
 SHELL := ksh
 endif
+
+LIBRARY_NAME	= gklayout
+EXPORT_LIBRARY = 1
+IS_COMPONENT	= 1
+MODULE_NAME	= nsLayoutModule
+LIBXUL_LIBRARY	= 1
+FAIL_ON_WARNINGS = 1
+
+
+CPPSRCS		= \
+		nsLayoutModule.cpp \
+		nsContentDLF.cpp \
+		nsLayoutStatics.cpp \
+		$(NULL)
 
 SHARED_LIBRARY_LIBS = \
 	../base/$(LIB_PREFIX)gkbase_s.$(LIB_SUFFIX) \
@@ -23,9 +44,7 @@ SHARED_LIBRARY_LIBS = \
 	$(DEPTH)/content/html/content/src/$(LIB_PREFIX)gkconhtmlcon_s.$(LIB_SUFFIX) \
 	$(DEPTH)/content/html/document/src/$(LIB_PREFIX)gkconhtmldoc_s.$(LIB_SUFFIX) \
 	$(DEPTH)/content/media/$(LIB_PREFIX)gkconmedia_s.$(LIB_SUFFIX) \
-	$(DEPTH)/content/media/encoder/$(LIB_PREFIX)gkconencoder_s.$(LIB_SUFFIX) \
 	$(DEPTH)/content/media/webaudio/$(LIB_PREFIX)gkconwebaudio_s.$(LIB_SUFFIX) \
-	$(DEPTH)/content/media/webaudio/blink/$(LIB_PREFIX)gkconwebaudio_blink_s.$(LIB_SUFFIX) \
 	$(DEPTH)/content/media/webrtc/$(LIB_PREFIX)gkconwebrtc_s.$(LIB_SUFFIX) \
 	$(DEPTH)/content/xml/content/src/$(LIB_PREFIX)gkconxmlcon_s.$(LIB_SUFFIX) \
 	$(DEPTH)/content/xml/document/src/$(LIB_PREFIX)gkconxmldoc_s.$(LIB_SUFFIX) \
@@ -37,7 +56,6 @@ SHARED_LIBRARY_LIBS = \
 	$(DEPTH)/content/xul/document/src/$(LIB_PREFIX)gkconxuldoc_s.$(LIB_SUFFIX) \
 	$(DEPTH)/view/src/$(LIB_PREFIX)gkview_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/activities/src/$(LIB_PREFIX)dom_activities_s.$(LIB_SUFFIX) \
-	$(DEPTH)/dom/apps/src/$(LIB_PREFIX)dom_apps_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/base/$(LIB_PREFIX)jsdombase_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/battery/$(LIB_PREFIX)dom_battery_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/alarm/$(LIB_PREFIX)domalarm_s.$(LIB_SUFFIX) \
@@ -56,10 +74,8 @@ SHARED_LIBRARY_LIBS = \
 	$(DEPTH)/dom/src/offline/$(LIB_PREFIX)jsdomoffline_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/geolocation/$(LIB_PREFIX)jsdomgeolocation_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/audiochannel/$(LIB_PREFIX)domaudiochannel_s.$(LIB_SUFFIX) \
-	$(DEPTH)/dom/promise/$(LIB_PREFIX)dompromise_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/notification/$(LIB_PREFIX)jsdomnotification_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/system/$(LIB_PREFIX)domsystem_s.$(LIB_SUFFIX) \
-	$(DEPTH)/dom/telephony/$(LIB_PREFIX)domtelephony_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/workers/$(LIB_PREFIX)domworkers_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/indexedDB/$(LIB_PREFIX)dom_indexeddb_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/indexedDB/ipc/$(LIB_PREFIX)dom_indexeddb_ipc_s.$(LIB_SUFFIX) \
@@ -74,7 +90,7 @@ SHARED_LIBRARY_LIBS = \
 	$(DEPTH)/content/mathml/content/src/$(LIB_PREFIX)gkcontentmathml_s.$(LIB_SUFFIX) \
 	$(NULL)
 
-ifneq (,$(filter qt gtk2 gtk3,$(MOZ_WIDGET_TOOLKIT)))
+ifneq (,$(filter qt gtk2,$(MOZ_WIDGET_TOOLKIT)))
 SHARED_LIBRARY_LIBS += \
 	$(DEPTH)/dom/system/unix/$(LIB_PREFIX)domsystemunix_s.$(LIB_SUFFIX) \
 	$(NULL)
@@ -88,13 +104,6 @@ SHARED_LIBRARY_LIBS += \
 LOCAL_INCLUDES	+= \
 	-I$(topsrcdir)/dom/system/windows \
 	$(NULL)
-else ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))
-SHARED_LIBRARY_LIBS += \
-	$(DEPTH)/dom/system/mac/$(LIB_PREFIX)domsystemmac_s.$(LIB_SUFFIX) \
-	$(NULL)
-LOCAL_INCLUDES	+= \
-	-I$(topsrcdir)/dom/system/mac \
-	$(NULL)
 else ifneq (,$(filter android,$(MOZ_WIDGET_TOOLKIT)))
 SHARED_LIBRARY_LIBS += \
 	$(DEPTH)/dom/system/android/$(LIB_PREFIX)domsystemandroid_s.$(LIB_SUFFIX) \
@@ -106,18 +115,16 @@ LOCAL_INCLUDES	+= \
 	$(NULL)
 endif
 
-ifdef MOZ_OMX_DECODER #{
+ifeq (gonk,$(MOZ_WIDGET_TOOLKIT)) #{
 # include OMX decoder
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/content/media/omx/$(LIB_PREFIX)gkconomx_s.$(LIB_SUFFIX) \
-	$(DEPTH)/content/media/omx/mediaresourcemanager/$(LIB_PREFIX)mediaresourcemanager.$(LIB_SUFFIX) \
 	$(NULL)
 endif #}
 
 ifdef MOZ_B2G_FM #{
 SHARED_LIBRARY_LIBS	+= \
-  $(DEPTH)/dom/fmradio/$(LIB_PREFIX)domfmradio_s.$(LIB_SUFFIX) \
-  $(DEPTH)/dom/fmradio/ipc/$(LIB_PREFIX)domfmradio_s.$(LIB_SUFFIX) \
+  $(DEPTH)/dom/fm/$(LIB_PREFIX)domfm_s.$(LIB_SUFFIX) \
   $(NULL)
 endif #}
 
@@ -127,14 +134,10 @@ endif #}
 
 SHARED_LIBRARY_LIBS	+= $(DEPTH)/dom/camera/$(LIB_PREFIX)domcamera_s.$(LIB_SUFFIX)
 
-ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
-SHARED_LIBRARY_LIBS	+= \
-  $(DEPTH)/dom/system/gonk/$(LIB_PREFIX)domsystemgonk_s.$(LIB_SUFFIX) \
-  $(NULL)
-endif #}
-
 ifdef MOZ_B2G_RIL #{
 SHARED_LIBRARY_LIBS	+= \
+  $(DEPTH)/dom/system/gonk/$(LIB_PREFIX)domsystemgonk_s.$(LIB_SUFFIX) \
+  $(DEPTH)/dom/telephony/$(LIB_PREFIX)domtelephony_s.$(LIB_SUFFIX) \
   $(DEPTH)/dom/icc/src/$(LIB_PREFIX)dom_icc_s.$(LIB_SUFFIX) \
   $(DEPTH)/dom/cellbroadcast/src/$(LIB_PREFIX)dom_cellbroadcast_s.$(LIB_SUFFIX) \
   $(DEPTH)/dom/voicemail/$(LIB_PREFIX)domvoicemail_s.$(LIB_SUFFIX) \
@@ -165,18 +168,6 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(NULL)
 endif
 
-ifdef MOZ_DIRECTSHOW
-SHARED_LIBRARY_LIBS 	+= \
-	$(DEPTH)/content/media/directshow/$(LIB_PREFIX)gkcondirectshow_s.$(LIB_SUFFIX) \
-	$(NULL)
-endif
-
-ifdef MOZ_APPLEMEDIA
-SHARED_LIBRARY_LIBS 	+= \
-	$(DEPTH)/content/media/apple/$(LIB_PREFIX)gkconapplemedia_s.$(LIB_SUFFIX) \
-	$(NULL)
-endif
-
 ifdef MOZ_WAVE
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/content/media/wave/$(LIB_PREFIX)gkconwave_s.$(LIB_SUFFIX) \
@@ -195,20 +186,16 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(NULL)
 endif
 
-SHARED_LIBRARY_LIBS 	+= \
-	$(DEPTH)/content/media/mediasource/$(LIB_PREFIX)gkconmediasource_s.$(LIB_SUFFIX) \
-	$(NULL)
+ifdef MOZ_DASH
+SHARED_LIBRARY_LIBS += \
+  $(DEPTH)/content/media/dash/$(LIB_PREFIX)gkcondash_s.$(LIB_SUFFIX) \
+  $(NULL)
+endif
 
 ifdef MOZ_WEBSPEECH
 SHARED_LIBRARY_LIBS += \
   $(DEPTH)/content/media/webspeech/recognition/$(LIB_PREFIX)gkconwebspeechrecognition_s.$(LIB_SUFFIX) \
   $(DEPTH)/content/media/webspeech/synth/$(LIB_PREFIX)gkconwebspeechsynth_s.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifdef MOZ_SYNTH_PICO
-SHARED_LIBRARY_LIBS += \
-  $(DEPTH)/content/media/webspeech/synth/pico/$(LIB_PREFIX)synthpico.$(LIB_SUFFIX) \
   $(NULL)
 endif
 
@@ -258,19 +245,19 @@ SHARED_LIBRARY_LIBS += \
 		$(DEPTH)/content/smil/$(LIB_PREFIX)gkconsmil_s.$(LIB_SUFFIX) \
 		$(NULL)
 
+ifdef ENABLE_EDITOR_API_LOG
+DEFINES += -DENABLE_EDITOR_API_LOG
+endif
+
 SHARED_LIBRARY_LIBS += \
 	$(DEPTH)/js/xpconnect/src/$(LIB_PREFIX)xpconnect_s.$(LIB_SUFFIX)
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 ifdef MOZ_GSTREAMER
 EXTRA_DSO_LDOPTS += $(GSTREAMER_LIBS)
 endif
-endif
 
-ifdef MOZ_GAMEPAD
-SHARED_LIBRARY_LIBS += \
-  $(DEPTH)/dom/gamepad/$(LIB_PREFIX)domgamepad_s.$(LIB_SUFFIX)
-endif
+include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 include $(topsrcdir)/config/rules.mk
 
@@ -325,12 +312,12 @@ ifdef MOZ_GSTREAMER
 LOCAL_INCLUDES	+= $(GSTREAMER_CFLAGS)
 endif
 
-ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
+ifdef MOZ_B2G_RIL #{
 LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/system/gonk
 endif #}
 
 ifdef MOZ_B2G_FM #{
-LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/fmradio
+LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/fm
 endif #}
 
 ifdef MOZ_B2G_BT #{
@@ -342,3 +329,5 @@ LOCAL_INCLUDES	+= -I$(topsrcdir)/content/media/webspeech/synth
 endif #}
 
 LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/camera
+
+DEFINES += -D_IMPL_NS_LAYOUT

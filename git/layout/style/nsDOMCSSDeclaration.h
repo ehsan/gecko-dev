@@ -8,10 +8,10 @@
 #ifndef nsDOMCSSDeclaration_h___
 #define nsDOMCSSDeclaration_h___
 
-#include "nsICSSDeclaration.h"
-
 #include "mozilla/Attributes.h"
+#include "nsICSSDeclaration.h"
 #include "nsCOMPtr.h"
+#include "mozilla/dom/CSS2PropertiesBinding.h"
 
 class nsIPrincipal;
 class nsIDocument;
@@ -29,20 +29,20 @@ class nsDOMCSSDeclaration : public nsICSSDeclaration
 public:
   // Only implement QueryInterface; subclasses have the responsibility
   // of implementing AddRef/Release.
-  NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr) MOZ_OVERRIDE;
+  NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
 
   // Declare addref and release so they can be called on us, but don't
   // implement them.  Our subclasses must handle their own
   // refcounting.
-  NS_IMETHOD_(nsrefcnt) AddRef() MOZ_OVERRIDE = 0;
-  NS_IMETHOD_(nsrefcnt) Release() MOZ_OVERRIDE = 0;
+  NS_IMETHOD_(nsrefcnt) AddRef() = 0;
+  NS_IMETHOD_(nsrefcnt) Release() = 0;
 
   NS_DECL_NSICSSDECLARATION
   using nsICSSDeclaration::GetLength;
 
   // Require subclasses to implement |GetParentRule|.
   //NS_DECL_NSIDOMCSSSTYLEDECLARATION
-  NS_IMETHOD GetCssText(nsAString & aCssText) MOZ_OVERRIDE;
+  NS_IMETHOD GetCssText(nsAString & aCssText);
   NS_IMETHOD SetCssText(const nsAString & aCssText) MOZ_OVERRIDE;
   NS_IMETHOD GetPropertyValue(const nsAString & propertyName,
                               nsAString & _retval) MOZ_OVERRIDE;
@@ -51,7 +51,7 @@ public:
                         mozilla::ErrorResult& aRv) MOZ_OVERRIDE;
   using nsICSSDeclaration::GetPropertyCSSValue;
   NS_IMETHOD RemoveProperty(const nsAString & propertyName,
-                            nsAString & _retval) MOZ_OVERRIDE;
+                            nsAString & _retval);
   NS_IMETHOD GetPropertyPriority(const nsAString & propertyName,
                                  nsAString & _retval) MOZ_OVERRIDE;
   NS_IMETHOD SetProperty(const nsAString & propertyName,
@@ -90,10 +90,12 @@ public:
 #undef CSS_PROP
 #undef CSS_PROP_PUBLIC_OR_PRIVATE
 
-  virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName) MOZ_OVERRIDE;
+  virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName);
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE
+  {
+    return mozilla::dom::CSS2PropertiesBinding::Wrap(cx, scope, this);
+  }
 
 protected:
   // This method can return null regardless of the value of aAllocate;

@@ -8,11 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/common_video/plane.h"
-
-#include <string.h>  // memcpy
+#include "common_video/plane.h"
 
 #include <algorithm>  // swap
+#include <cstring>  // memcpy
 
 namespace webrtc {
 

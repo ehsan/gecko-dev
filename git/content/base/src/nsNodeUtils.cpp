@@ -6,7 +6,6 @@
 
 #include "nsNodeUtils.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsINode.h"
 #include "nsIContent.h"
 #include "mozilla/dom/Element.h"
@@ -25,7 +24,6 @@
 #endif
 #include "nsBindingManager.h"
 #include "nsGenericHTMLElement.h"
-#include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsObjectLoadingContent.h"
@@ -217,12 +215,6 @@ nsNodeUtils::LastRelease(nsINode* aNode)
       // notify, since we're being destroyed in any case.
       static_cast<nsGenericHTMLFormElement*>(aNode)->ClearForm(true);
     }
-
-    if (aNode->IsElement() && aNode->AsElement()->IsHTML(nsGkAtoms::img) &&
-        aNode->HasFlag(ADDED_TO_FORM)) {
-      HTMLImageElement* imageElem = static_cast<HTMLImageElement*>(aNode);
-      imageElem->ClearForm(true);
-    }
   }
   aNode->UnsetFlags(NODE_HAS_PROPERTIES);
 
@@ -231,7 +223,7 @@ nsNodeUtils::LastRelease(nsINode* aNode)
 #ifdef DEBUG
     if (nsContentUtils::IsInitialized()) {
       nsEventListenerManager* manager =
-        nsContentUtils::GetExistingListenerManagerForNode(aNode);
+        nsContentUtils::GetListenerManager(aNode, false);
       if (!manager) {
         NS_ERROR("Huh, our bit says we have a listener manager list, "
                  "but there's nothing in the hash!?!!");
@@ -249,7 +241,8 @@ nsNodeUtils::LastRelease(nsINode* aNode)
     ownerDoc->ClearBoxObjectFor(elem);
     
     NS_ASSERTION(aNode->HasFlag(NODE_FORCE_XBL_BINDINGS) ||
-                 !elem->GetXBLBinding(),
+                 !ownerDoc->BindingManager() ||
+                 !ownerDoc->BindingManager()->GetBinding(elem),
                  "Non-forced node has binding on destruction");
 
     // if NODE_FORCE_XBL_BINDINGS is set, the node might still have a binding
@@ -260,7 +253,9 @@ nsNodeUtils::LastRelease(nsINode* aNode)
     }
   }
 
-  aNode->ReleaseWrapper(aNode);
+  nsContentUtils::ReleaseWrapper(aNode, aNode);
+
+  delete aNode;
 }
 
 struct MOZ_STACK_CLASS nsHandlerData
@@ -387,7 +382,7 @@ nsNodeUtils::CloneNodeImpl(nsINode *aNode, bool aDeep,
 nsresult
 nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
                            nsNodeInfoManager *aNewNodeInfoManager,
-                           JS::Handle<JSObject*> aReparentScope,
+                           JSObject *aReparentScope,
                            nsCOMArray<nsINode> &aNodesWithProperties,
                            nsINode *aParent, nsINode **aResult)
 {
@@ -405,6 +400,13 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
 
   AutoJSContext cx;
   nsresult rv;
+  JS::RootedObject wrapper(cx);
+  bool isDOMBinding;
+  if (aReparentScope && (wrapper = aNode->GetWrapper()) &&
+      !(isDOMBinding = IsDOMObject(wrapper))) {
+      rv = xpc_MorphSlimWrapper(cx, aNode);
+      NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   nsNodeInfoManager *nodeInfoManager = aNewNodeInfoManager;
 
@@ -480,7 +482,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
 
       nsPIDOMWindow* window = newDoc->GetInnerWindow();
       if (window) {
-        nsEventListenerManager* elm = aNode->GetExistingListenerManager();
+        nsEventListenerManager* elm = aNode->GetListenerManager(false);
         if (elm) {
           window->SetMutationListeners(elm->MutationListenerBits());
           if (elm->MayHavePaintEventListener()) {
@@ -511,7 +513,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
         olc->NotifyOwnerDocumentActivityChanged();
       }
     }
-
+ 
     if (oldDoc != newDoc && oldDoc->MayHaveDOMMutationObservers()) {
       newDoc->SetMayHaveDOMMutationObservers();
     }
@@ -520,24 +522,19 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
       elem->RecompileScriptEventListeners();
     }
 
-    if (aReparentScope) {
-      JS::Rooted<JSObject*> wrapper(cx);
-      if ((wrapper = aNode->GetWrapper())) {
-        if (IsDOMObject(wrapper)) {
-          rv = ReparentWrapper(cx, wrapper);
-        } else {
-          nsIXPConnect *xpc = nsContentUtils::XPConnect();
-          if (xpc) {
-            rv = xpc->ReparentWrappedNativeIfFound(cx, wrapper, aReparentScope, aNode);
-          } else {
-            rv = NS_ERROR_FAILURE;
-          }
+    if (aReparentScope && wrapper) {
+      if (isDOMBinding) {
+        rv = ReparentWrapper(cx, wrapper);
+      } else {
+        nsIXPConnect *xpc = nsContentUtils::XPConnect();
+        if (xpc) {
+          rv = xpc->ReparentWrappedNativeIfFound(cx, wrapper, aReparentScope, aNode);
         }
-        if (NS_FAILED(rv)) {
-          aNode->mNodeInfo.swap(nodeInfo);
+      }
+      if (NS_FAILED(rv)) {
+        aNode->mNodeInfo.swap(nodeInfo);
 
-          return rv;
-        }
+        return rv;
       }
     }
   }

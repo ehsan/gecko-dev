@@ -10,21 +10,5 @@ EXPORTS += [
     'WMF.h',
     'WMFDecoder.h',
     'WMFReader.h',
-    'WMFUtils.h',
 ]
-
-SOURCES += [
-    'DXVA2Manager.cpp',
-    'WMFByteStream.cpp',
-    'WMFDecoder.cpp',
-    'WMFReader.cpp',
-    'WMFSourceReaderCallback.cpp',
-    'WMFUtils.cpp',
-]
-
-LIBRARY_NAME = 'gkconwmf_s'
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
 

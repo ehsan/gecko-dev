@@ -6,12 +6,13 @@
 #include "mozilla/Util.h"
 
 #include "SVGAnimatedPreserveAspectRatio.h"
-#include "mozilla/dom/SVGAnimatedPreserveAspectRatioBinding.h"
+#include "nsWhitespaceTokenizer.h"
 #include "nsSMILValue.h"
 #include "nsSVGAttrTearoffTable.h"
-#include "nsWhitespaceTokenizer.h"
 #include "SMILEnumType.h"
-#include "SVGContentUtils.h"
+#include "nsAttrValueInlines.h"
+#include "mozilla/dom/SVGAnimatedPreserveAspectRatioBinding.h"
+#include "nsContentUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -29,7 +30,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGAnimatedPreserveAspectRatio)
 NS_INTERFACE_MAP_END
 
 JSObject*
-DOMSVGAnimatedPreserveAspectRatio::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+DOMSVGAnimatedPreserveAspectRatio::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return SVGAnimatedPreserveAspectRatioBinding::Wrap(aCx, aScope, this);
 }
@@ -135,9 +136,12 @@ static nsresult
 ToPreserveAspectRatio(const nsAString &aString,
                       SVGPreserveAspectRatio *aValue)
 {
-  nsWhitespaceTokenizerTemplate<IsSVGWhitespace> tokenizer(aString);
-  if (tokenizer.whitespaceBeforeFirstToken() ||
-      !tokenizer.hasMoreTokens()) {
+  if (aString.IsEmpty() || NS_IsAsciiWhitespace(aString[0])) {
+    return NS_ERROR_DOM_SYNTAX_ERR;
+  }
+
+  nsWhitespaceTokenizer tokenizer(aString);
+  if (!tokenizer.hasMoreTokens()) {
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
   const nsAString &token = tokenizer.nextToken();
@@ -169,7 +173,7 @@ ToPreserveAspectRatio(const nsAString &aString,
     val.SetMeetOrSlice(SVG_MEETORSLICE_MEET);
   }
 
-  if (tokenizer.whitespaceAfterCurrentToken()) {
+  if (tokenizer.hasMoreTokens()) {
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
 
@@ -317,7 +321,7 @@ SMILPreserveAspectRatio::ValueFromString(const nsAString& aStr,
   nsresult res = ToPreserveAspectRatio(aStr, &par);
   NS_ENSURE_SUCCESS(res, res);
 
-  nsSMILValue val(SMILEnumType::Singleton());
+  nsSMILValue val(&SMILEnumType::sSingleton);
   val.mU.mUint = PackPreserveAspectRatio(par);
   aValue = val;
   aPreventCachingOfSandwich = false;
@@ -327,7 +331,7 @@ SMILPreserveAspectRatio::ValueFromString(const nsAString& aStr,
 nsSMILValue
 SMILPreserveAspectRatio::GetBaseValue() const
 {
-  nsSMILValue val(SMILEnumType::Singleton());
+  nsSMILValue val(&SMILEnumType::sSingleton);
   val.mU.mUint = PackPreserveAspectRatio(mVal->GetBaseValue());
   return val;
 }
@@ -345,9 +349,9 @@ SMILPreserveAspectRatio::ClearAnimValue()
 nsresult
 SMILPreserveAspectRatio::SetAnimValue(const nsSMILValue& aValue)
 {
-  NS_ASSERTION(aValue.mType == SMILEnumType::Singleton(),
+  NS_ASSERTION(aValue.mType == &SMILEnumType::sSingleton,
                "Unexpected type to assign animated value");
-  if (aValue.mType == SMILEnumType::Singleton()) {
+  if (aValue.mType == &SMILEnumType::sSingleton) {
     mVal->SetAnimValue(aValue.mU.mUint, mSVGElement);
   }
   return NS_OK;

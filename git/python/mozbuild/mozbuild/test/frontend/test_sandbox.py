@@ -169,7 +169,7 @@ class TestSandbox(unittest.TestCase):
         sandbox.exec_source('add_tier_dir("t1", "foo")', 'foo.py')
 
         self.assertEqual(sandbox['TIERS']['t1'],
-            {'regular': ['foo'], 'static': [], 'external': []})
+            {'regular': ['foo'], 'static': []})
 
     def test_add_tier_dir_regular_list(self):
         sandbox = self.sandbox()
@@ -177,7 +177,7 @@ class TestSandbox(unittest.TestCase):
         sandbox.exec_source('add_tier_dir("t1", ["foo", "bar"])', 'foo.py')
 
         self.assertEqual(sandbox['TIERS']['t1'],
-            {'regular': ['foo', 'bar'], 'static': [], 'external': []})
+            {'regular': ['foo', 'bar'], 'static': []})
 
     def test_add_tier_dir_static(self):
         sandbox = self.sandbox()
@@ -185,15 +185,7 @@ class TestSandbox(unittest.TestCase):
         sandbox.exec_source('add_tier_dir("t1", "foo", static=True)', 'foo.py')
 
         self.assertEqual(sandbox['TIERS']['t1'],
-            {'regular': [], 'static': ['foo'], 'external': []})
-
-    def test_add_tier_dir_static(self):
-        sandbox = self.sandbox()
-
-        sandbox.exec_source('add_tier_dir("t1", "foo", external=True)', 'foo.py')
-
-        self.assertEqual(sandbox['TIERS']['t1'],
-            {'regular': [], 'static': [], 'external': ['foo']})
+            {'regular': [], 'static': ['foo']})
 
     def test_tier_order(self):
         sandbox = self.sandbox()
@@ -304,15 +296,16 @@ add_tier_dir('t1', 'bat', static=True)
     def test_substitute_config_files(self):
         sandbox = self.sandbox()
 
-        sandbox.exec_source('CONFIGURE_SUBST_FILES += ["bar", "foo"]',
+        sandbox.exec_source('CONFIGURE_SUBST_FILES += ["foo", "bar"]',
             'test.py')
-        self.assertEqual(sandbox['CONFIGURE_SUBST_FILES'], ['bar', 'foo'])
+        self.assertEqual(sandbox['CONFIGURE_SUBST_FILES'], ['foo', 'bar'])
 
     def test_invalid_utf8_substs(self):
         """Ensure invalid UTF-8 in substs is converted with an error."""
 
+        config = MockConfig()
         # This is really mbcs. It's a bunch of invalid UTF-8.
-        config = MockConfig(extra_substs={'BAD_UTF8': b'\x83\x81\x83\x82\x3A'})
+        config.substs['BAD_UTF8'] = b'\x83\x81\x83\x82\x3A'
 
         sandbox = MozbuildSandbox(config, '/foo/moz.build')
 

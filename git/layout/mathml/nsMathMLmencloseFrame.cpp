@@ -3,14 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsMathMLmencloseFrame.h"
+
+#include "nsCOMPtr.h"
+#include "nsFrame.h"
 #include "nsPresContext.h"
+#include "nsStyleContext.h"
+#include "nsStyleConsts.h"
 #include "nsRenderingContext.h"
 #include "nsWhitespaceTokenizer.h"
 
+#include "nsMathMLmencloseFrame.h"
 #include "nsDisplayList.h"
 #include "gfxContext.h"
-#include "nsMathMLChar.h"
 #include <algorithm>
 
 //
@@ -24,9 +28,6 @@ static const PRUnichar kLongDivChar = ')';
 
 // radical: 'SQUARE ROOT'
 static const PRUnichar kRadicalChar = 0x221A;
-
-// updiagonalstrike
-static const uint8_t kArrowHeadSize = 10;
 
 nsIFrame*
 NS_NewMathMLmencloseFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -114,8 +115,6 @@ nsresult nsMathMLmencloseFrame::AddNotation(const nsAString& aNotation)
     mNotationsToDraw |= NOTATION_BOTTOM;
   } else if (aNotation.EqualsLiteral("updiagonalstrike")) {
     mNotationsToDraw |= NOTATION_UPDIAGONALSTRIKE;
-  } else if (aNotation.EqualsLiteral("updiagonalarrow")) {
-    mNotationsToDraw |= NOTATION_UPDIAGONALARROW;
   } else if (aNotation.EqualsLiteral("downdiagonalstrike")) {
     mNotationsToDraw |= NOTATION_DOWNDIAGONALSTRIKE;
   } else if (aNotation.EqualsLiteral("verticalstrike")) {
@@ -147,14 +146,6 @@ void nsMathMLmencloseFrame::InitNotations()
 
     while (tokenizer.hasMoreTokens())
       AddNotation(tokenizer.nextToken());
-
-    if (IsToDraw(NOTATION_UPDIAGONALARROW)) {
-      // For <menclose notation="updiagonalstrike updiagonalarrow">, if
-      // the two notations are drawn then the strike line may cause the point of
-      // the arrow to be too wide. Hence we will only draw the updiagonalarrow
-      // and the arrow shaft may be thought to be the updiagonalstrike.
-      mNotationsToDraw &= ~NOTATION_UPDIAGONALSTRIKE;
-    }
   } else {
     // default: longdiv
     if (NS_FAILED(AllocateMathMLChar(NOTATION_LONGDIV)))
@@ -209,7 +200,8 @@ nsMathMLmencloseFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
     nsRect rect;
     mMathMLChar[mRadicalCharIndex].GetRect(rect);
-    rect.MoveBy(StyleVisibility()->mDirection ? -mContentWidth : rect.width, 0);
+    rect.MoveBy(NS_MATHML_IS_RTL(mPresentationData.flags) ?
+                -mContentWidth : rect.width, 0);
     rect.SizeTo(mContentWidth, mRuleThickness);
     DisplayBar(aBuilder, this, rect, aLists);
   }
@@ -258,11 +250,6 @@ nsMathMLmencloseFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (IsToDraw(NOTATION_UPDIAGONALSTRIKE)) {
     DisplayNotation(aBuilder, this, mencloseRect, aLists,
                     mRuleThickness, NOTATION_UPDIAGONALSTRIKE);
-  }
-
-  if (IsToDraw(NOTATION_UPDIAGONALARROW)) {
-    DisplayNotation(aBuilder, this, mencloseRect, aLists,
-                    mRuleThickness, NOTATION_UPDIAGONALARROW);
   }
 
   if (IsToDraw(NOTATION_DOWNDIAGONALSTRIKE)) {
@@ -384,7 +371,6 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   if (IsToDraw(NOTATION_RIGHT) ||
       IsToDraw(NOTATION_LEFT) ||
       IsToDraw(NOTATION_UPDIAGONALSTRIKE) ||
-      IsToDraw(NOTATION_UPDIAGONALARROW) ||
       IsToDraw(NOTATION_DOWNDIAGONALSTRIKE) ||
       IsToDraw(NOTATION_VERTICALSTRIKE) ||
       IsToDraw(NOTATION_CIRCLE) ||
@@ -412,21 +398,6 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       IsToDraw(NOTATION_BOTTOM) ||
       IsToDraw(NOTATION_CIRCLE))
     mBoundingMetrics.descent += padding;
-
-  ///////////////
-  // updiagonal arrow notation. We need enough space at the top right corner to
-  // draw the arrow head.
-  if (IsToDraw(NOTATION_UPDIAGONALARROW)) {
-    // This is an estimate, see nsDisplayNotation::Paint for the exact head size
-    nscoord arrowHeadSize = kArrowHeadSize * mRuleThickness;
-
-    // We want that the arrow shaft strikes the menclose content and that the
-    // arrow head does not overlap with that content. Hence we add some space
-    // on the right. We don't add space on the top but only ensure that the
-    // ascent is large enough.
-    dx_right = std::max(dx_right, arrowHeadSize);
-    mBoundingMetrics.ascent = std::max(mBoundingMetrics.ascent, arrowHeadSize);
-  }
 
   ///////////////
   // circle notation: we don't want the ellipse to overlap the enclosed
@@ -493,7 +464,8 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   ///////////////
   // radical notation:
   if (IsToDraw(NOTATION_RADICAL)) {
-    nscoord *dx_leading = StyleVisibility()->mDirection ? &dx_right : &dx_left;
+    nscoord *dx_leading =
+      NS_MATHML_IS_RTL(mPresentationData.flags) ? &dx_right : &dx_left;
     
     if (aWidthOnly) {
       nscoord radical_width = mMathMLChar[mRadicalCharIndex].
@@ -513,7 +485,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
                                              NS_STRETCH_DIRECTION_VERTICAL,
                                              contSize, bmRadicalChar,
                                              NS_STRETCH_LARGER,
-                                             StyleVisibility()->mDirection);
+                                             NS_MATHML_IS_RTL(mPresentationData.flags));
       mMathMLChar[mRadicalCharIndex].GetBoundingMetrics(bmRadicalChar);
 
       // Update horizontal parameters
@@ -598,7 +570,6 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       IsToDraw(NOTATION_RIGHT) ||
       IsToDraw(NOTATION_LEFT) ||
       IsToDraw(NOTATION_UPDIAGONALSTRIKE) ||
-      IsToDraw(NOTATION_UPDIAGONALARROW) ||
       IsToDraw(NOTATION_DOWNDIAGONALSTRIKE) ||
       IsToDraw(NOTATION_VERTICALSTRIKE) ||
       IsToDraw(NOTATION_CIRCLE) ||
@@ -609,7 +580,6 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       IsToDraw(NOTATION_RIGHT) ||
       IsToDraw(NOTATION_LEFT) ||
       IsToDraw(NOTATION_UPDIAGONALSTRIKE) ||
-      IsToDraw(NOTATION_UPDIAGONALARROW) ||
       IsToDraw(NOTATION_DOWNDIAGONALSTRIKE) ||
       IsToDraw(NOTATION_VERTICALSTRIKE) ||
       IsToDraw(NOTATION_CIRCLE) ||
@@ -634,8 +604,8 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
                                                     bmLongdivChar.descent));
 
     if (IsToDraw(NOTATION_RADICAL)) {
-      nscoord dx = (StyleVisibility()->mDirection ?
-                    dx_left + bmBase.width : dx_left - bmRadicalChar.width);
+      nscoord dx = NS_MATHML_IS_RTL(mPresentationData.flags) ?
+        dx_left + bmBase.width : dx_left - bmRadicalChar.width;
 
       mMathMLChar[mRadicalCharIndex].SetRect(nsRect(dx,
                                                     aDesiredSize.ascent -
@@ -746,63 +716,30 @@ void nsDisplayNotation::Paint(nsDisplayListBuilder* aBuilder,
 
   // change line width to mThickness
   gfxContext *gfxCtx = aCtx->ThebesContext();
+  gfxFloat currentLineWidth = gfxCtx->CurrentLineWidth();
   gfxFloat e = presContext->AppUnitsToGfxUnits(mThickness);
-  gfxCtx->Save();
   gfxCtx->SetLineWidth(e);
 
   rect.Deflate(e / 2.0);
 
+  gfxCtx->NewPath();
+
   switch(mType)
     {
     case NOTATION_CIRCLE:
-      gfxCtx->NewPath();
       gfxCtx->Ellipse(rect.Center(), rect.Size());
-      gfxCtx->Stroke();
       break;
 
     case NOTATION_ROUNDEDBOX:
-      gfxCtx->NewPath();
       gfxCtx->RoundedRectangle(rect, gfxCornerSizes(3 * e), true);
-      gfxCtx->Stroke();
       break;
 
     case NOTATION_UPDIAGONALSTRIKE:
-      gfxCtx->NewPath();
       gfxCtx->Line(rect.BottomLeft(), rect.TopRight());
-      gfxCtx->Stroke();
       break;
 
     case NOTATION_DOWNDIAGONALSTRIKE:
-      gfxCtx->NewPath();
       gfxCtx->Line(rect.TopLeft(), rect.BottomRight());
-      gfxCtx->Stroke();
-      break;
-
-    case NOTATION_UPDIAGONALARROW: {
-      // Compute some parameters to draw the updiagonalarrow. The values below
-      // are taken from MathJax's HTML-CSS output.
-      gfxFloat W = rect.Width(); gfxFloat H = rect.Height();
-      gfxFloat l = sqrt(W*W + H*H);
-      gfxFloat f = gfxFloat(kArrowHeadSize) * e / l;
-      gfxFloat w = W * f; gfxFloat h = H * f;
-
-      // Draw the arrow shaft
-      gfxCtx->NewPath();
-      gfxCtx->Line(rect.BottomLeft(), rect.TopRight() + gfxPoint(-.7*w, .7*h));
-      gfxCtx->Stroke();
-
-      // Draw the arrow head
-      gfxCtx->NewPath();
-      gfxPoint p[] = {
-        rect.TopRight(),
-        rect.TopRight() + gfxPoint(-w -.4*h, std::max(-e / 2.0, h - .4*w)),
-        rect.TopRight() + gfxPoint(-.7*w, .7*h),
-        rect.TopRight() + gfxPoint(std::min(e / 2.0, -w + .4*h), h + .4*w),
-        rect.TopRight()
-      };
-      gfxCtx->Polygon(p, sizeof(p));
-      gfxCtx->Fill();
-    }
       break;
 
     default:
@@ -810,7 +747,10 @@ void nsDisplayNotation::Paint(nsDisplayListBuilder* aBuilder,
       break;
     }
 
-  gfxCtx->Restore();
+  gfxCtx->Stroke();
+
+  // restore previous line width
+  gfxCtx->SetLineWidth(currentLineWidth);
 }
 
 void

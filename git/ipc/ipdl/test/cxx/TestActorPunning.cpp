@@ -25,26 +25,26 @@ TestActorPunningParent::RecvPun(PTestActorPunningSubParent* a, const Bad& bad)
 }
 
 PTestActorPunningPunnedParent*
-TestActorPunningParent::AllocPTestActorPunningPunnedParent()
+TestActorPunningParent::AllocPTestActorPunningPunned()
 {
     return new TestActorPunningPunnedParent();
 }
 
 bool
-TestActorPunningParent::DeallocPTestActorPunningPunnedParent(PTestActorPunningPunnedParent* a)
+TestActorPunningParent::DeallocPTestActorPunningPunned(PTestActorPunningPunnedParent* a)
 {
     delete a;
     return true;
 }
 
 PTestActorPunningSubParent*
-TestActorPunningParent::AllocPTestActorPunningSubParent()
+TestActorPunningParent::AllocPTestActorPunningSub()
 {
     return new TestActorPunningSubParent();
 }
 
 bool
-TestActorPunningParent::DeallocPTestActorPunningSubParent(PTestActorPunningSubParent* a)
+TestActorPunningParent::DeallocPTestActorPunningSub(PTestActorPunningSubParent* a)
 {
     delete a;
     return true;
@@ -54,26 +54,26 @@ TestActorPunningParent::DeallocPTestActorPunningSubParent(PTestActorPunningSubPa
 // child
 
 PTestActorPunningPunnedChild*
-TestActorPunningChild::AllocPTestActorPunningPunnedChild()
+TestActorPunningChild::AllocPTestActorPunningPunned()
 {
     return new TestActorPunningPunnedChild();
 }
 
 bool
-TestActorPunningChild::DeallocPTestActorPunningPunnedChild(PTestActorPunningPunnedChild*)
+TestActorPunningChild::DeallocPTestActorPunningPunned(PTestActorPunningPunnedChild*)
 {
     fail("should have died by now");
     return true;
 }
 
 PTestActorPunningSubChild*
-TestActorPunningChild::AllocPTestActorPunningSubChild()
+TestActorPunningChild::AllocPTestActorPunningSub()
 {
     return new TestActorPunningSubChild();
 }
 
 bool
-TestActorPunningChild::DeallocPTestActorPunningSubChild(PTestActorPunningSubChild*)
+TestActorPunningChild::DeallocPTestActorPunningSub(PTestActorPunningSubChild*)
 {
     fail("should have died by now");
     return true;

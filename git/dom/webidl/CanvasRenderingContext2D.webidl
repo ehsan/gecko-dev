@@ -11,7 +11,11 @@
  * and create derivative works of this document.
  */
 
+interface CanvasGradient;
+interface CanvasPattern;
 interface HitRegionOptions;
+interface TextMetrics;
+interface Window;
 
 enum CanvasWindingRule { "nonzero", "evenodd" };
 
@@ -45,13 +49,15 @@ interface CanvasRenderingContext2D {
            attribute DOMString globalCompositeOperation; // (default source-over)
 
   // colors and styles (see also the CanvasDrawingStyles interface)
-           attribute (DOMString or CanvasGradient or CanvasPattern) strokeStyle; // (default black)
-           attribute (DOMString or CanvasGradient or CanvasPattern) fillStyle; // (default black)
-  [NewObject]
+           [GetterThrows]
+           attribute any strokeStyle; // (default black)
+           [GetterThrows]
+           attribute any fillStyle; // (default black)
+  [Throws]
   CanvasGradient createLinearGradient(double x0, double y0, double x1, double y1);
-  [NewObject, Throws]
+  [Throws]
   CanvasGradient createRadialGradient(double x0, double y0, double r0, double x1, double y1, double r1);
-  [NewObject, Throws]
+  [Throws]
   CanvasPattern createPattern((HTMLImageElement or HTMLCanvasElement or HTMLVideoElement) image, [TreatNullAs=EmptyString] DOMString repetition);
 
   // shadows
@@ -77,10 +83,10 @@ interface CanvasRenderingContext2D {
 // NOT IMPLEMENTED  void fill(Path path);
   void stroke();
 // NOT IMPLEMENTED  void stroke(Path path);
-  [Pref="canvas.focusring.enabled"] void drawSystemFocusRing(Element element);
-// NOT IMPLEMENTED  void drawSystemFocusRing(Path path, HTMLElement element);
-  [Pref="canvas.focusring.enabled"] boolean drawCustomFocusRing(Element element);
-// NOT IMPLEMENTED  boolean drawCustomFocusRing(Path path, HTMLElement element);
+// NOT IMPLEMENTED  void drawSystemFocusRing(Element element);
+// NOT IMPLEMENTED  void drawSystemFocusRing(Path path, Element element);
+// NOT IMPLEMENTED  boolean drawCustomFocusRing(Element element);
+// NOT IMPLEMENTED  boolean drawCustomFocusRing(Path path, Element element);
 // NOT IMPLEMENTED  void scrollPathIntoView();
 // NOT IMPLEMENTED  void scrollPathIntoView(Path path);
   void clip(optional CanvasWindingRule winding = "nonzero");
@@ -95,7 +101,7 @@ interface CanvasRenderingContext2D {
   void fillText(DOMString text, double x, double y, optional double maxWidth);
   [Throws, LenientFloat]
   void strokeText(DOMString text, double x, double y, optional double maxWidth);
-  [NewObject, Throws]
+  [Throws]
   TextMetrics measureText(DOMString text);
 
   // drawing images
@@ -111,11 +117,11 @@ interface CanvasRenderingContext2D {
 // NOT IMPLEMENTED  void addHitRegion(HitRegionOptions options);
 
   // pixel manipulation
-  [NewObject, Throws]
+  [Creator, Throws]
   ImageData createImageData(double sw, double sh);
-  [NewObject, Throws]
+  [Creator, Throws]
   ImageData createImageData(ImageData imagedata);
-  [NewObject, Throws]
+  [Creator, Throws]
   ImageData getImageData(double sx, double sy, double sw, double sh);
   [Throws]
   void putImageData(ImageData imagedata, double dx, double dy);
@@ -206,12 +212,6 @@ interface CanvasRenderingContext2D {
   void asyncDrawXULElement(XULElement elem, double x, double y, double w,
                            double h, DOMString bgColor,
                            optional unsigned long flags = 0);
-  /**
-   * This causes a context that is currently using a hardware-accelerated
-   * backend to fallback to a software one. All state should be preserved.
-   */
-  [ChromeOnly]
-  void demote();
 };
 CanvasRenderingContext2D implements CanvasDrawingStyles;
 CanvasRenderingContext2D implements CanvasPathMethods;
@@ -228,9 +228,9 @@ interface CanvasDrawingStyles {
            attribute double miterLimit; // (default 10)
 
   // dashed lines
-    [LenientFloat] void setLineDash(sequence<double> segments); // default empty
-    sequence<double> getLineDash();
-    [LenientFloat] attribute double lineDashOffset;
+// NOT IMPLEMENTED    [LenientFloat] void setLineDash(sequence<double> segments); // default empty
+// NOT IMPLEMENTED    sequence<double> getLineDash();
+// NOT IMPLEMENTED             [LenientFloat] attribute double lineDashOffset;
 
   // text
            [SetterThrows]
@@ -264,41 +264,3 @@ interface CanvasPathMethods {
   void arc(double x, double y, double radius, double startAngle, double endAngle, optional boolean anticlockwise = false); 
 // NOT IMPLEMENTED  [LenientFloat] void ellipse(double x, double y, double radiusX, double radiusY, double rotation, double startAngle, double endAngle, boolean anticlockwise);
 };
-
-interface CanvasGradient {
-  // opaque object
-  [Throws]
-  // addColorStop should take a double
-  void addColorStop(float offset, DOMString color);
-};
-
-interface CanvasPattern {
-  // opaque object
-  // void setTransform(SVGMatrix transform);
-};
-
-interface TextMetrics {
-
-  // x-direction
-  readonly attribute double width; // advance width
-
-  /*
-   * NOT IMPLEMENTED YET
-
-  readonly attribute double actualBoundingBoxLeft;
-  readonly attribute double actualBoundingBoxRight;
-
-  // y-direction
-  readonly attribute double fontBoundingBoxAscent;
-  readonly attribute double fontBoundingBoxDescent;
-  readonly attribute double actualBoundingBoxAscent;
-  readonly attribute double actualBoundingBoxDescent;
-  readonly attribute double emHeightAscent;
-  readonly attribute double emHeightDescent;
-  readonly attribute double hangingBaseline;
-  readonly attribute double alphabeticBaseline;
-  readonly attribute double ideographicBaseline;
-  */
-
-};
-

@@ -9,7 +9,6 @@
 #include "nsIDOMHTMLInputElement.h"
 #include "nsEventStateManager.h"
 #include "mozilla/LookAndFeel.h"
-#include "nsDeviceContext.h"
 
 using namespace mozilla;
 
@@ -134,8 +133,8 @@ nsFormControlFrame::SetFocus(bool aOn, bool aRepaint)
 
 NS_METHOD
 nsFormControlFrame::HandleEvent(nsPresContext* aPresContext, 
-                                WidgetGUIEvent* aEvent,
-                                nsEventStatus* aEventStatus)
+                                          nsGUIEvent* aEvent,
+                                          nsEventStatus* aEventStatus)
 {
   // Check for user-input:none style
   const nsStyleUserInterface* uiStyle = StyleUserInterface();

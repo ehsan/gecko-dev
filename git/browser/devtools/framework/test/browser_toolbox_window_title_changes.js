@@ -1,8 +1,16 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-let Toolbox = devtools.Toolbox;
 let temp = {};
+Cu.import("resource:///modules/devtools/Toolbox.jsm", temp);
+let Toolbox = temp.Toolbox;
+temp = {};
+Cu.import("resource:///modules/devtools/Target.jsm", temp);
+let TargetFactory = temp.TargetFactory;
+temp = {};
+Cu.import("resource:///modules/devtools/gDevTools.jsm", temp);
+let gDevTools = temp.gDevTools;
+temp = {};
 Cu.import("resource://gre/modules/Services.jsm", temp);
 let Services = temp.Services;
 temp = null;
@@ -16,7 +24,7 @@ function test() {
   const TOOL_ID_1 = "webconsole";
   const TOOL_ID_2 = "jsdebugger";
 
-  const LABEL_1 = "Console";
+  const LABEL_1 = "Web Console";
   const LABEL_2 = "Debugger";
 
   let toolbox;
@@ -37,7 +45,7 @@ function test() {
 
     // navigate to different url and check title
       .then(function () {
-        let deferred = promise.defer();
+        let deferred = Promise.defer();
         target.once("navigate", function () deferred.resolve());
         gBrowser.loadURI(URL_2);
         return deferred.promise;

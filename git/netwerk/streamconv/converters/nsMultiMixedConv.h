@@ -7,7 +7,9 @@
 
 #include "nsIStreamConverter.h"
 #include "nsIChannel.h"
+#include "nsIURI.h"
 #include "nsString.h"
+#include "nsXPIDLString.h"
 #include "nsCOMPtr.h"
 #include "nsIByteRangeRequest.h"
 #include "nsIMultiPartChannel.h"

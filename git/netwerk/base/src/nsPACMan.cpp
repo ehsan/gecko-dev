@@ -12,8 +12,10 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsNetUtil.h"
+#include "nsCRT.h"
+#include "prmon.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
-#include "nsISystemProxySettings.h"
+#include "nsProxyRelease.h"
 
 //-----------------------------------------------------------------------------
 using namespace mozilla;
@@ -560,8 +562,8 @@ nsPACMan::ProcessPending()
   return true;
 }
 
-NS_IMPL_ISUPPORTS3(nsPACMan, nsIStreamLoaderObserver,
-                   nsIInterfaceRequestor, nsIChannelEventSink)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsPACMan, nsIStreamLoaderObserver,
+                              nsIInterfaceRequestor, nsIChannelEventSink)
 
 NS_IMETHODIMP
 nsPACMan::OnStreamComplete(nsIStreamLoader *loader,

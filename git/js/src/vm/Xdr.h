@@ -4,12 +4,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_Xdr_h
-#define vm_Xdr_h
+#ifndef Xdr_h___
+#define Xdr_h___
 
 #include "mozilla/Endian.h"
 
-#include "jsatom.h"
+#include "jsapi.h"
+#include "jsprvtd.h"
+#include "jsnum.h"
+
+#include "vm/NumericConversions.h"
 
 namespace js {
 
@@ -22,12 +26,12 @@ namespace js {
  * and saved versions. If deserialization fails, the data should be
  * invalidated if possible.
  */
-static const uint32_t XDR_BYTECODE_VERSION = uint32_t(0xb973c0de - 154);
+static const uint32_t XDR_BYTECODE_VERSION = uint32_t(0xb973c0de - 141);
 
 class XDRBuffer {
   public:
     XDRBuffer(JSContext *cx)
-      : context(cx), base(nullptr), cursor(nullptr), limit(nullptr) { }
+      : context(cx), base(NULL), cursor(NULL), limit(NULL) { }
 
     JSContext *cx() const {
         return context;
@@ -63,7 +67,7 @@ class XDRBuffer {
     uint8_t *write(size_t n) {
         if (n > size_t(limit - cursor)) {
             if (!grow(n))
-                return nullptr;
+                return NULL;
         }
         uint8_t *ptr = cursor;
         cursor += n;
@@ -94,20 +98,16 @@ class XDRState {
     XDRBuffer buf;
 
   protected:
-    JSPrincipals *principals_;
-    JSPrincipals *originPrincipals_;
+    JSPrincipals *principals;
+    JSPrincipals *originPrincipals;
 
     XDRState(JSContext *cx)
-      : buf(cx), principals_(nullptr), originPrincipals_(nullptr) {
+      : buf(cx), principals(NULL), originPrincipals(NULL) {
     }
 
   public:
     JSContext *cx() const {
         return buf.cx();
-    }
-
-    JSPrincipals *originPrincipals() const {
-        return originPrincipals_;
     }
 
     bool codeUint8(uint8_t *n) {
@@ -208,8 +208,23 @@ class XDRState {
 
     bool codeChars(jschar *chars, size_t nchars);
 
-    bool codeFunction(JS::MutableHandleObject objp);
-    bool codeScript(MutableHandleScript scriptp);
+    bool codeFunction(JSMutableHandleObject objp);
+    bool codeScript(JSMutableHandleScript scriptp);
+
+    void initScriptPrincipals(JSScript *script) {
+        JS_ASSERT(mode == XDR_DECODE);
+
+        /* The origin principals must be normalized at this point. */
+        JS_ASSERT_IF(principals, originPrincipals);
+        JS_ASSERT(!script->originPrincipals);
+        if (principals)
+            JS_ASSERT(script->principals() == principals);
+
+        if (originPrincipals) {
+            script->originPrincipals = originPrincipals;
+            JS_HoldPrincipals(originPrincipals);
+        }
+    }
 };
 
 class XDREncoder : public XDRState<XDR_ENCODE> {
@@ -228,7 +243,7 @@ class XDREncoder : public XDRState<XDR_ENCODE> {
 
     void *forgetData(uint32_t *lengthp) {
         void *data = buf.getData(lengthp);
-        buf.setData(nullptr, 0);
+        buf.setData(NULL, 0);
         return data;
     }
 };
@@ -242,4 +257,4 @@ class XDRDecoder : public XDRState<XDR_DECODE> {
 
 } /* namespace js */
 
-#endif /* vm_Xdr_h */
+#endif /* Xdr_h___ */

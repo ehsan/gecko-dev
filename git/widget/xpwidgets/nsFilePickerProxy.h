@@ -44,10 +44,11 @@ public:
 
 private:
     ~nsFilePickerProxy();
-    void InitNative(nsIWidget*, const nsAString&);
+    void InitNative(nsIWidget*, const nsAString&, short int);
 
     nsCOMArray<nsIFile> mFiles;
 
+    int16_t   mMode;
     int16_t   mSelectedType;
     nsString  mFile;
     nsString  mTitle;

@@ -5,35 +5,31 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // exercises support for mod_cern_meta-style header/status line modification
-var srv;
 
-XPCOMUtils.defineLazyGetter(this, 'PREFIX', function() {
-  return "http://localhost:" + srv.identity.primaryPort;
-});
+const PREFIX = "http://localhost:4444";
 
-XPCOMUtils.defineLazyGetter(this, 'tests', function() {
-  return [
-     new Test(PREFIX + "/test_both.html",
-              null, start_testBoth, null),
-     new Test(PREFIX + "/test_ctype_override.txt",
-              null, start_test_ctype_override_txt, null),
-     new Test(PREFIX + "/test_status_override.html",
-              null, start_test_status_override_html, null),
-     new Test(PREFIX + "/test_status_override_nodesc.txt",
-              null, start_test_status_override_nodesc_txt, null),
-     new Test(PREFIX + "/caret_test.txt^",
-              null, start_caret_test_txt_, null)
+var tests =
+  [
+   new Test(PREFIX + "/test_both.html",
+            null, start_testBoth, null),
+   new Test(PREFIX + "/test_ctype_override.txt",
+            null, start_test_ctype_override_txt, null),
+   new Test(PREFIX + "/test_status_override.html",
+            null, start_test_status_override_html, null),
+   new Test(PREFIX + "/test_status_override_nodesc.txt",
+            null, start_test_status_override_nodesc_txt, null),
+   new Test(PREFIX + "/caret_test.txt^",
+            null, start_caret_test_txt_, null)
   ];
-});
 
 function run_test()
 {
-  srv = createServer();
+  var srv = createServer();
 
   var cernDir = do_get_file("data/cern_meta/");
   srv.registerDirectory("/", cernDir);
 
-  srv.start(-1);
+  srv.start(4444);
 
   runHttpTests(tests, testComplete(srv));
 }

@@ -4,6 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* $Id$ */
 
 #ifndef _CRYPTOHI_H_
 #define _CRYPTOHI_H_
@@ -63,7 +64,7 @@ extern SGNContext *SGN_NewContext(SECOidTag alg, SECKEYPrivateKey *privKey);
 
 /*
 ** Destroy a signature-context object
-**	"cx" the object
+**	"key" the object
 **	"freeit" if PR_TRUE then free the object as well as its sub-objects
 */
 extern void SGN_DestroyContext(SGNContext *cx, PRBool freeit);
@@ -112,7 +113,7 @@ extern SECStatus SEC_SignData(SECItem *result,
 **  The given signature/hash algorithm.
 **	"result" the final signature data (memory is allocated)
 **	"digest" the digest to sign
-**	"privKey" the private key to encrypt with
+**	"pk" the private key to encrypt with
 **	"algtag" The algorithm tag to encode (need for RSA only)
 */
 extern SECStatus SGN_Digest(SECKEYPrivateKey *privKey,

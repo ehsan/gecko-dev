@@ -173,11 +173,9 @@
                 this.isDragging = isDragging;
                 if (isDragging) {
                     this.wasPausedBeforeDrag = this.Utils.video.paused;
-                    this.previousPlaybackRate = this.Utils.video.playbackRate;
                     this.Utils.video.pause();
                 } else if (!this.wasPausedBeforeDrag) {
                     // After the drag ends, resume playing.
-                    this.Utils.video.playbackRate = this.previousPlaybackRate;
                     this.Utils.video.play();
                 }
             }
@@ -240,8 +238,14 @@
                             <td class="statLabel">readyState</td> <td class="statValue"><span class="statReadyState"/></td>
                         </tr>
                         <tr>
+                            <td class="statLabel">&stats.channels;</td> <td class="statValue"><span class="statChannels"/></td>
+                        </tr>
+                        <tr>
                           <!-- Localization note: networkState is a HTML5 API MediaElement-specific attribute and should not be localized. -->
                           <td class="statLabel">networkState</td> <td class="statValue"><span class="statNetState"/></td>
+                        </tr>
+                        <tr>
+                          <td class="statLabel">&stats.sampleRate;</td> <td class="statValue"><span class="statSampleRate"/></td>
                         </tr>
                         <tr style="height: 1em;"/>
 
@@ -338,29 +342,18 @@
                 firstFrameShown : false,
                 timeUpdateCount : 0,
                 maxCurrentTimeSeen : 0,
-                _isAudioOnly : false,
-                get isAudioOnly() { return this._isAudioOnly; },
-                set isAudioOnly(val) {
-                    this._isAudioOnly = val;
-                    if (!this.isTopLevelSyntheticDocument)
-                        return;
-                    this.video.style.height = this._controlBarHeight + "px";
-                    this.video.style.width = "66%";
-                },
-                suppressError : false,
+                isAudioOnly : false,
 
                 setupStatusFader : function(immediate) {
                     // Since the play button will be showing, we don't want to
                     // show the throbber behind it. The throbber here will
                     // only show if needed after the play button has been pressed.
-                    if (!this.clickToPlay.hidden) {
-                        this.startFadeOut(this.statusOverlay, true);
+                    if (!this.clickToPlay.hidden)
                         return;
-                    }
 
                     var show = false;
                     if (this.video.seeking ||
-                        (this.video.error && !this.suppressError) ||
+                        this.video.error ||
                         this.video.networkState == this.video.NETWORK_NO_SOURCE ||
                         (this.video.networkState == this.video.NETWORK_LOADING &&
                          (this.video.paused || this.video.ended
@@ -470,26 +463,6 @@
                     this.video.addEventListener("media-showStatistics", this._handleCustomEventsBound, false, true);
                 },
 
-                setupNewLoadState : function() {
-                    // videocontrols.css hides the control bar by default, because if script
-                    // is disabled our binding's script is disabled too (bug 449358). Thus,
-                    // the controls are broken and we don't want them shown. But if script is
-                    // enabled, the code here will run and can explicitly unhide the controls.
-                    //
-                    // For videos with |autoplay| set, we'll leave the controls initially hidden,
-                    // so that they don't get in the way of the playing video. Otherwise we'll
-                    // go ahead and reveal the controls now, so they're an obvious user cue.
-                    //
-                    // (Note: the |controls| attribute is already handled via layout/style/html.css)
-                    var shouldShow = !this.dynamicControls ||
-                      (this.video.paused &&
-                       !(this.video.autoplay && this.video.mozAutoplayEnabled));
-                    // Hide the overlay if the video time is non-zero or if an error occurred to workaround bug 718107.
-                    this.startFade(this.clickToPlay, shouldShow && !this.isAudioOnly &&
-                                   this.video.currentTime == 0 && !this.hasError(), true);
-                    this.startFade(this.controlBar, shouldShow, true);
-                },
-
                 handleCustomEvents : function (e) {
                     if (!e.isTrusted)
                         return;
@@ -562,7 +535,6 @@
                                 this.isAudioOnly = true;
                                 this.clickToPlay.hidden = true;
                                 this.startFadeIn(this.controlBar);
-                                this.setFullscreenButtonState();
                             }
                             this.showDuration(Math.round(this.video.duration * 1000));
                             if (!this.isAudioOnly && !this.video.mozHasAudio) {
@@ -581,8 +553,6 @@
                             this.statusIcon.setAttribute("type", "throbber");
                             this.isAudioOnly = (this.video instanceof HTMLAudioElement);
                             this.setPlayButtonState(true);
-                            this.setupNewLoadState();
-                            this.setupStatusFader();
                             break;
                         case "progress":
                             this.statusIcon.removeAttribute("stalled");
@@ -626,7 +596,6 @@
                             break;
                         case "emptied":
                             this.bufferBar.value = 0;
-                            this.showPosition(0, 0);
                             break;
                         case "seeking":
                             this.showBuffered();
@@ -654,7 +623,6 @@
                             //    loading from child source elements, but we were unable to select
                             //    any of the child elements for playback during resource selection.
                             if (this.hasError()) {
-                                this.suppressError = false;
                                 this.clickToPlay.hidden = true;
                                 this.statusIcon.setAttribute("type", "error");
                                 this.updateErrorText();
@@ -850,10 +818,7 @@
                 },
 
                 onVolumeMouseInOut : function (event) {
-                    let doc = this.video.ownerDocument;
-                    let win = doc.defaultView;
-                    if (this.isVideoWithoutAudioTrack() ||
-                        (this.isAudioOnly && this.isTopLevelSyntheticDocument)) {
+                    if (this.isVideoWithoutAudioTrack()) {
                         return;
                     }
                     // Ignore events caused by transitions between mute button and volumeStack,
@@ -961,7 +926,7 @@
                 },
 
                 startFade : function (element, fadeIn, immediate) {
-                    if (element.classList.contains("controlBar") && fadeIn) {
+                    if (element.className == "controlBar" && fadeIn) {
                         // Bug 493523, the scrubber doesn't call valueChanged while hidden,
                         // so our dependent state (eg, timestamp in the thumb) will be stale.
                         // As a workaround, update it manually when it first becomes unhidden.
@@ -980,11 +945,11 @@
                         // when we remove the attribute.
                         element.clientTop;
                         element.removeAttribute("fadeout");
-                        if (element.classList.contains("controlBar"))
+                        if (element.className == "controlBar")
                             this.controlsSpacer.removeAttribute("hideCursor");
                     } else {
                         element.setAttribute("fadeout", true);
-                        if (element.classList.contains("controlBar") && !this.hasError() &&
+                        if (element.className == "controlBar" && !this.hasError() &&
                             document.mozFullScreenElement == this.video)
                             this.controlsSpacer.setAttribute("hideCursor", true);
 
@@ -1011,7 +976,6 @@
                     if (this.video.paused || this.video.ended) {
                         this._triggeredByControls = true;
                         this.hideClickToPlay();
-                        this.video.playbackRate = this.video.defaultPlaybackRate;
                         this.video.play();
                     } else {
                         this.video.pause();
@@ -1067,23 +1031,14 @@
 
                 onFullscreenChange: function () {
                     if (this.isVideoInFullScreen()) {
-                        Utils._hideControlsTimeout = setTimeout(this._hideControlsFn, this.HIDE_CONTROLS_TIMEOUT_MS);
+                        this.Utils._hideControlsTimeout = setTimeout(this._hideControlsFn, this.HIDE_CONTROLS_TIMEOUT_MS);
                     }
                     this.setFullscreenButtonState();
                 },
 
                 clickToPlayClickHandler : function(e) {
-                    if (e.button != 0)
+                    if (e.button != 0 || this.hasError())
                         return;
-                    if (this.hasError() && !this.suppressError) {
-                        // Errors that can be dismissed should be placed here as we discover them.
-                        if (this.video.error.code != this.video.error.MEDIA_ERR_ABORTED)
-                            return;
-                        this.statusOverlay.hidden = true;
-                        this.suppressError = true;
-                        return;
-                    }
-
                     // Read defaultPrevented asynchronously, since Web content
                     // may want to consume the "click" event but will only
                     // receive it after us.
@@ -1104,7 +1059,6 @@
                     if (this._overlayPlayButtonHeight * animationScale > (videoHeight - this._controlBarHeight)||
                         this._overlayPlayButtonWidth * animationScale > videoWidth) {
                         this.clickToPlay.setAttribute("immediate", "true");
-                        this.clickToPlay.hidden = true;
                     } else {
                         this.clickToPlay.removeAttribute("immediate");
                     }
@@ -1223,6 +1177,9 @@
                     if (v.muted)
                         volume += " (muted)";
                     s.volume.textContent = volume;
+
+                    s.channels.textContent = v.mozChannels;
+                    s.sampRate.textContent = (v.mozSampleRate / 1000).toFixed(3) + " kHz";
                 },
 
                 keyHandler : function(event) {
@@ -1346,12 +1303,6 @@
                         dump("videoctl: " + msg + "\n");
                 },
 
-                get isTopLevelSyntheticDocument() {
-                  let doc = this.video.ownerDocument;
-                  let win = doc.defaultView;
-                  return doc.mozSyntheticDocument && win === win.top;
-                },
-
                 _playButtonWidth : 0,
                 _durationLabelWidth : 0,
                 _muteButtonWidth : 0,
@@ -1360,10 +1311,14 @@
                 _overlayPlayButtonHeight : 64,
                 _overlayPlayButtonWidth : 64,
                 adjustControlSize : function adjustControlSize() {
-                    let doc = this.video.ownerDocument;
-                    let isAudioOnly = this.isAudioOnly;
-                    if (isAudioOnly && !this.isTopLevelSyntheticDocument)
+                    if (this.isAudioOnly)
                         return;
+
+                    let videoHeight = this.video.clientHeight;
+                    let videoWidth = this.video.clientWidth;
+
+                    if (this._overlayPlayButtonHeight > videoHeight || this._overlayPlayButtonWidth > videoWidth)
+                        this.clickToPlay.hidden = true;
 
                     // The scrubber has |flex=1|, therefore |minScrubberWidth|
                     // was generated by empirical testing.
@@ -1375,12 +1330,6 @@
                                               this._fullscreenButtonWidth;
                     let minHeightForControlBar = this._controlBarHeight;
                     let minWidthOnlyPlayPause = this._playButtonWidth + this._muteButtonWidth;
-
-                    let videoHeight = isAudioOnly ? minHeightForControlBar : this.video.clientHeight;
-                    let videoWidth = isAudioOnly ? minWidthAllControls : this.video.clientWidth;
-
-                    if (this._overlayPlayButtonHeight > videoHeight || this._overlayPlayButtonWidth > videoWidth)
-                        this.clickToPlay.hidden = true;
 
                     let size = "normal";
                     if (videoHeight < minHeightForControlBar)
@@ -1420,6 +1369,8 @@
                     this.stats.size       = document.getAnonymousElementByAttribute(binding, "class", "statSize");
                     this.stats.activity   = document.getAnonymousElementByAttribute(binding, "class", "statActivity");
                     this.stats.volume     = document.getAnonymousElementByAttribute(binding, "class", "statVolume");
+                    this.stats.channels   = document.getAnonymousElementByAttribute(binding, "class", "statChannels");
+                    this.stats.sampRate   = document.getAnonymousElementByAttribute(binding, "class", "statSampleRate");
                     this.stats.readyState = document.getAnonymousElementByAttribute(binding, "class", "statReadyState");
                     this.stats.netState   = document.getAnonymousElementByAttribute(binding, "class", "statNetState");
                     this.stats.framesParsed    = document.getAnonymousElementByAttribute(binding, "class", "statFramesParsed");
@@ -1428,7 +1379,23 @@
                     this.stats.framesPainted   = document.getAnonymousElementByAttribute(binding, "class", "statFramesPainted");
 
                     this.setupInitialState();
-                    this.setupNewLoadState();
+
+                    // videocontrols.css hides the control bar by default, because if script
+                    // is disabled our binding's script is disabled too (bug 449358). Thus,
+                    // the controls are broken and we don't want them shown. But if script is
+                    // enabled, the code here will run and can explicitly unhide the controls.
+                    //
+                    // For videos with |autoplay| set, we'll leave the controls initially hidden,
+                    // so that they don't get in the way of the playing video. Otherwise we'll
+                    // go ahead and reveal the controls now, so they're an obvious user cue.
+                    //
+                    // (Note: the |controls| attribute is already handled via layout/style/html.css)
+                    var shouldShow = (!(this.video.autoplay && this.video.mozAutoplayEnabled) || !this.dynamicControls);
+                    // Hide the overlay if the video time is non-zero or if the video is already playing
+                    // or if an error occurred to workaround bug 718107.
+                    this.startFade(this.clickToPlay, shouldShow && this.video.paused && !this.isAudioOnly &&
+                                   this.video.currentTime == 0 && !this.hasError(), true);
+                    this.startFade(this.controlBar, shouldShow, true);
 
                     // Use the handleEvent() callback for all media events.
                     // The "error" event listener must capture, so that it can trap error events
@@ -1452,7 +1419,6 @@
                     addListener(this.fullscreenButton, "command", this.toggleFullscreen);
                     addListener(this.clickToPlay, "click", this.clickToPlayClickHandler);
                     addListener(this.controlsSpacer, "click", this.clickToPlayClickHandler);
-                    addListener(this.controlsSpacer, "dblclick", this.toggleFullscreen);
 
                     if (this.isAudioOnly) {
                       this.controlBar.classList.add("audio");
@@ -1463,7 +1429,6 @@
                       addListener(this.volumeStack, "mouseout", this.onVolumeMouseInOut);
                     }
 
-                    addListener(this.videocontrols, "resizevideocontrols", this.adjustControlSize);
                     addListener(this.videocontrols, "transitionend", this.onTransitionEnd);
                     addListener(this.video.ownerDocument, "mozfullscreenchange", this.onFullscreenChange);
                     addListener(this.video, "keypress", this.keyHandler);
@@ -1659,8 +1624,8 @@
               // makes that happen. But because of bug 718107 this init() method
               // may be called again when we switch in or out of fullscreen
               // mode. So we only set firstShow if we're not autoplaying and
-              // if we are at the beginning of the video and not already playing
-              if (!video.autoplay && this.Utils.dynamicControls && video.paused &&
+              // if we are at the beginning of the video
+              if (!video.autoplay && this.Utils.dynamicControls &&
                   video.currentTime === 0)
                 this.firstShow = true;
 

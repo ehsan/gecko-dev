@@ -6,8 +6,6 @@
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-bug-632347-iterators-generators.html";
 
 function test() {
-  requestLongerTimeout(6);
-
   addTab(TEST_URI);
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
@@ -16,8 +14,11 @@ function test() {
 }
 
 function consoleOpened(HUD) {
-  let tools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
-  let JSPropertyProvider = tools.require("devtools/toolkit/webconsole/utils").JSPropertyProvider;
+  let tmp = {};
+  Cu.import("resource://gre/modules/devtools/WebConsoleUtils.jsm", tmp);
+  let WCU = tmp.WebConsoleUtils;
+  let JSPropertyProvider = tmp.JSPropertyProvider;
+  tmp = null;
 
   let jsterm = HUD.jsterm;
   let win = content.wrappedJSObject;
@@ -26,6 +27,8 @@ function consoleOpened(HUD) {
   let result = win.gen1.next();
   let completion = JSPropertyProvider(win, "gen1.");
   is(completion, null, "no matches for gen1");
+  ok(!WCU.isObjectInspectable(win.gen1),
+     "gen1 is not inspectable");
 
   is(result+1, win.gen1.next(), "gen1.next() did not execute");
 
@@ -33,6 +36,8 @@ function consoleOpened(HUD) {
 
   completion = JSPropertyProvider(win, "gen2.");
   is(completion, null, "no matches for gen2");
+  ok(!WCU.isObjectInspectable(win.gen2),
+     "gen2 is not inspectable");
 
   is((result/2+1)*2, win.gen2.next(),
      "gen2.next() did not execute");
@@ -43,6 +48,8 @@ function consoleOpened(HUD) {
 
   completion = JSPropertyProvider(win, "iter1.");
   is(completion, null, "no matches for iter1");
+  ok(!WCU.isObjectInspectable(win.iter1),
+     "iter1 is not inspectable");
 
   result = win.iter1.next();
   is(result[0], "baz", "iter1.next() [0] is correct");
@@ -50,17 +57,32 @@ function consoleOpened(HUD) {
 
   completion = JSPropertyProvider(content, "iter2.");
   is(completion, null, "no matches for iter2");
+  ok(!WCU.isObjectInspectable(win.iter2),
+     "iter2 is not inspectable");
 
   completion = JSPropertyProvider(win, "window.");
   ok(completion, "matches available for window");
   ok(completion.matches.length, "matches available for window (length)");
+  ok(WCU.isObjectInspectable(win),
+     "window is inspectable");
 
   jsterm.clearOutput();
 
-  jsterm.execute("window", (msg) => {
-    jsterm.once("variablesview-fetched", testVariablesView.bind(null, HUD));
-    let anchor = msg.querySelector(".body a");
-    EventUtils.synthesizeMouse(anchor, 2, 2, {}, HUD.iframeWindow);
+  jsterm.execute("window");
+
+  waitForSuccess({
+    name: "jsterm window object output",
+    validatorFn: function()
+    {
+      return HUD.outputNode.querySelector(".webconsole-msg-output");
+    },
+    successFn: function()
+    {
+      jsterm.once("variablesview-fetched", testVariablesView.bind(null, HUD));
+      let node = HUD.outputNode.querySelector(".webconsole-msg-output");
+      EventUtils.synthesizeMouse(node, 2, 2, {}, HUD.iframeWindow);
+    },
+    failureFn: finishTest,
   });
 }
 

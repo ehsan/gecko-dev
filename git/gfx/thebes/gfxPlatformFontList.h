@@ -16,7 +16,6 @@
 
 #include "nsIMemoryReporter.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 
 class CharMapHashKey : public PLDHashEntryHdr
 {
@@ -141,7 +140,7 @@ public:
 
     void AddPostscriptName(gfxFontEntry *aFontEntry, nsAString& aPostscriptName);
 
-    bool NeedFullnamePostscriptNames() { return mExtraNames != nullptr; }
+    bool NeedFullnamePostscriptNames() { return mNeedFullnamePostscriptNames; }
 
     // pure virtual functions, to be provided by concrete subclasses
 
@@ -162,10 +161,10 @@ public:
     // (platforms may override, eg Mac)
     virtual bool GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
 
-    virtual void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontListSizes* aSizes) const;
-    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontListSizes* aSizes) const;
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                                     FontListSizes*    aSizes) const;
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                                     FontListSizes*    aSizes) const;
 
     // search for existing cmap that matches the input
     // return the input if no match is found
@@ -178,12 +177,12 @@ public:
     void RemoveCmap(const gfxCharacterMap *aCharMap);
 
 protected:
-    class MemoryReporter MOZ_FINAL : public mozilla::MemoryMultiReporter
+    class MemoryReporter MOZ_FINAL
+        : public nsIMemoryMultiReporter
     {
     public:
-        MemoryReporter();
-        NS_IMETHOD CollectReports(nsIMemoryReporterCallback *aCb,
-                                  nsISupports *aClosure);
+        NS_DECL_ISUPPORTS
+        NS_DECL_NSIMEMORYMULTIREPORTER
     };
 
     gfxPlatformFontList(bool aNeedFullnamePostscriptNames = true);
@@ -246,14 +245,11 @@ protected:
     virtual bool RunLoader();
     virtual void FinishLoader();
 
-    // read the loader initialization prefs, and start it
-    void GetPrefsAndStartLoader();
-
     // used by memory reporter to accumulate sizes of family names in the hash
     static size_t
     SizeOfFamilyNameEntryExcludingThis(const nsAString&               aKey,
                                        const nsRefPtr<gfxFontFamily>& aFamily,
-                                       mozilla::MallocSizeOf          aMallocSizeOf,
+                                       nsMallocSizeOfFun              aMallocSizeOf,
                                        void*                          aUserArg);
 
     // canonical family name ==> family entry (unique, one name per family entry)
@@ -269,14 +265,14 @@ protected:
     // flag set after fullname and Postcript name lists are populated
     bool mFaceNamesInitialized;
 
-    struct ExtraNames {
-      ExtraNames() : mFullnames(100), mPostscriptNames(100) {}
-      // fullname ==> font entry (unique, one name per font entry)
-      nsRefPtrHashtable<nsStringHashKey, gfxFontEntry> mFullnames;
-      // Postscript name ==> font entry (unique, one name per font entry)
-      nsRefPtrHashtable<nsStringHashKey, gfxFontEntry> mPostscriptNames;
-    };
-    nsAutoPtr<ExtraNames> mExtraNames;
+    // whether these are needed for a given platform
+    bool mNeedFullnamePostscriptNames;
+
+    // fullname ==> font entry (unique, one name per font entry)
+    nsRefPtrHashtable<nsStringHashKey, gfxFontEntry> mFullnames;
+
+    // Postscript name ==> font entry (unique, one name per font entry)
+    nsRefPtrHashtable<nsStringHashKey, gfxFontEntry> mPostscriptNames;
 
     // cached pref font lists
     // maps list of family names ==> array of family entries, one per lang group

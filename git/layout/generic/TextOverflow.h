@@ -8,13 +8,14 @@
 #define TextOverflow_h_
 
 #include "nsDisplayList.h"
+#include "nsLineBox.h"
+#include "nsStyleStruct.h"
 #include "nsTHashtable.h"
 #include "mozilla/Likely.h"
 #include <algorithm>
 
 class nsIScrollableFrame;
 class gfxTextRun;
-class nsLineBox;
 
 namespace mozilla {
 namespace css {

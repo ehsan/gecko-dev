@@ -7,11 +7,10 @@
 #define GFX_QUAD_H
 
 #include "gfxTypes.h"
-#include "gfxRect.h"
 #include "gfxLineSegment.h"
 #include <algorithm>
 
-struct gfxQuad {
+struct THEBES_API gfxQuad {
     gfxQuad(const gfxPoint& aOne, const gfxPoint& aTwo, const gfxPoint& aThree, const gfxPoint& aFour)
     {
         mPoints[0] = aOne;

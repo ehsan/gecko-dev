@@ -21,7 +21,6 @@
 #include "nsIHashable.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
-#include "nsTArray.h"
 
 static NS_DEFINE_CID(kZipReaderCacheCID, NS_ZIPREADERCACHE_CID);
 
@@ -35,6 +34,10 @@ nsJARProtocolHandler::nsJARProtocolHandler()
 : mIsMainProcess(XRE_GetProcessType() == GeckoProcessType_Default)
 {
     MOZ_ASSERT(NS_IsMainThread());
+
+    if (!mIsMainProcess) {
+        mRemoteFileListeners.Init();
+    }
 }
 
 nsJARProtocolHandler::~nsJARProtocolHandler()
@@ -72,7 +75,8 @@ nsJARProtocolHandler::RemoteOpenFileInProgress(
     MOZ_ASSERT(aListener);
 
     if (IsMainProcess()) {
-        MOZ_CRASH("Shouldn't be called in the main process!");
+        MOZ_NOT_REACHED("Shouldn't be called in the main process!");
+        return false;
     }
 
     RemoteFileListenerArray *listeners;
@@ -95,7 +99,8 @@ nsJARProtocolHandler::RemoteOpenFileComplete(nsIHashable *aRemoteFile,
     MOZ_ASSERT(aRemoteFile);
 
     if (IsMainProcess()) {
-        MOZ_CRASH("Shouldn't be called in the main process!");
+        MOZ_NOT_REACHED("Shouldn't be called in the main process!");
+        return;
     }
 
     RemoteFileListenerArray *tempListeners;
@@ -121,7 +126,7 @@ nsJARProtocolHandler::RemoteOpenFileComplete(nsIHashable *aRemoteFile,
     }
 }
 
-NS_IMPL_ISUPPORTS3(nsJARProtocolHandler,
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsJARProtocolHandler,
                               nsIJARProtocolHandler,
                               nsIProtocolHandler,
                               nsISupportsWeakReference)

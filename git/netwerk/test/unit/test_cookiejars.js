@@ -8,9 +8,10 @@
  *  are stored in separate namespaces ("cookie jars")
  */ 
 
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + httpserver.identity.primaryPort;
-});
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
 
 Cu.import("resource://testing-common/httpd.js");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -49,7 +50,7 @@ var i = 0;
 function setupChannel(path)
 {
   var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-  var chan = ios.newChannel(URL + path, "", null);
+  var chan = ios.newChannel("http://localhost:4444" + path, "", null);
   chan.notificationCallbacks = tests[i].loadContext;
   chan.QueryInterface(Ci.nsIHttpChannel);
   return chan;
@@ -121,7 +122,7 @@ function run_test()
 
   httpserver.registerPathHandler(cookieSetPath, cookieSetHandler);
   httpserver.registerPathHandler(cookieCheckPath, cookieCheckHandler);
-  httpserver.start(-1);
+  httpserver.start(4444);
 
   setCookie();
   do_test_pending();

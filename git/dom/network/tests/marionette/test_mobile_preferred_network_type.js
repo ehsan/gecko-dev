@@ -5,6 +5,10 @@ MARIONETTE_TIMEOUT = 60000;
 
 const KEY = "ril.radio.preferredNetworkType";
 
+let gSettingsEnabled = SpecialPowers.getBoolPref("dom.mozSettings.enabled");
+if (!gSettingsEnabled) {
+  SpecialPowers.setBoolPref("dom.mozSettings.enabled", true);
+}
 SpecialPowers.addPermission("mobileconnection", true, document);
 SpecialPowers.addPermission("settings-read", true, document);
 SpecialPowers.addPermission("settings-write", true, document);
@@ -55,11 +59,12 @@ function cleanUp() {
   SpecialPowers.removePermission("mobileconnection", document);
   SpecialPowers.removePermission("settings-write", document);
   SpecialPowers.removePermission("settings-read", document);
+  SpecialPowers.clearUserPref("dom.mozSettings.enabled");
 
   finish();
 }
 
 waitFor(test_revert_previous_setting_on_invalid_value, function () {
-  return navigator.mozMobileConnections[0].voice.connected;
+  return navigator.mozMobileConnection.voice.connected;
 });
 

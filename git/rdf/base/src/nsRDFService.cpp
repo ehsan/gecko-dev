@@ -55,6 +55,7 @@
 #include "rdf.h"
 #include "nsCRT.h"
 #include "nsCRTGlue.h"
+#include "prbit.h"
 #include "mozilla/HashFunctions.h"
 
 using namespace mozilla;
@@ -397,7 +398,7 @@ public:
     Create(const PRUnichar* aValue, nsIRDFLiteral** aResult);
 
     // nsISupports
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
     // nsIRDFNode
     NS_DECL_NSIRDFNODE
@@ -453,8 +454,8 @@ LiteralImpl::~LiteralImpl()
     NS_RELEASE2(RDFServiceImpl::gRDFService, refcnt);
 }
 
-NS_IMPL_ADDREF(LiteralImpl)
-NS_IMPL_RELEASE(LiteralImpl)
+NS_IMPL_THREADSAFE_ADDREF(LiteralImpl)
+NS_IMPL_THREADSAFE_RELEASE(LiteralImpl)
 
 nsresult
 LiteralImpl::QueryInterface(REFNSIID iid, void** result)
@@ -615,7 +616,7 @@ DateImpl::EqualsDate(nsIRDFDate* date, bool* result)
     if (NS_FAILED(rv = date->GetValue(&p)))
         return rv;
 
-    *result = p == mValue;
+    *result = LL_EQ(p, mValue);
     return NS_OK;
 }
 
@@ -837,7 +838,7 @@ RDFServiceImpl::CreateSingleton(nsISupports* aOuter,
     return serv->QueryInterface(aIID, aResult);
 }
 
-NS_IMPL_ISUPPORTS2(RDFServiceImpl, nsIRDFService, nsISupportsWeakReference)
+NS_IMPL_THREADSAFE_ISUPPORTS2(RDFServiceImpl, nsIRDFService, nsISupportsWeakReference)
 
 // Per RFC2396.
 static const uint8_t

@@ -5,11 +5,9 @@
 
 #include "nsISupports.idl"
 
-interface nsIDOMDOMStringList;
 interface nsIDOMWindow;
 interface nsIDocShell;
 interface nsIContent;
-interface nsIPrincipal;
 
 /**
  * Message managers provide a way for chrome-privileged JS code to
@@ -157,16 +155,16 @@ interface nsIMessageListener : nsISupports
    * receiveMessage is called with one parameter, which has the following
    * properties:
    *   {
-   *     target:    %the target of the message. Either an element owning
-   *                 the message manager, or message manager itself if no
-   *                 element owns it%
-   *     name:      %message name%,
-   *     sync:      %true or false%.
-   *     data:      %structured clone of the sent message data%,
-   *     json:      %same as .data, deprecated%,
-   *     objects:   %named table of jsvals/objects, or null%
-   *     principal: %principal for the window app
+   *     target:  %the target of the message. Either an element owning
+   *               the message manager, or message manager itself if no
+   *               element owns it%
+   *     name:    %message name%,
+   *     sync:    %true or false%.
+   *     data:    %structured clone of the sent message data%,
+   *     json:    %same as .data, deprecated%,
+   *     objects: %array of handles or null, always null if sync is false%
    *   }
+   * @note objects property isn't implemented yet.
    *
    * Each listener is invoked with its own copy of the message
    * parameter.
@@ -182,7 +180,7 @@ interface nsIMessageListener : nsISupports
   void receiveMessage();
 };
 
-[scriptable, builtinclass, uuid(aae827bd-acf1-45fe-a556-ea545d4c0804)]
+[scriptable, builtinclass, uuid(9c37a142-3de3-4902-a1a4-133f37d5980a)]
 interface nsIMessageListenerManager : nsISupports
 {
   /**
@@ -199,30 +197,11 @@ interface nsIMessageListenerManager : nsISupports
                           in nsIMessageListener listener);
 
   /**
-   * Undo an |addMessageListener| call -- that is, calling this causes us to no
-   * longer invoke |listener| when |messageName| is received.
-   *
-   * removeMessageListener does not remove a message listener added via
-   * addWeakMessageListener; use removeWeakMessageListener for that.
+   * No longer invoke |listener| when |messageName| is received, after
+   * the first time removeMessageListener() is called.
    */
   void removeMessageListener(in AString messageName,
                              in nsIMessageListener listener);
-
-  /**
-   * This is just like addMessageListener, except the message manager holds a
-   * weak ref to |listener|.
-   *
-   * If you have two weak message listeners for the same message, they may be
-   * called in any order.
-   */
-  void addWeakMessageListener(in AString messageName,
-                              in nsIMessageListener listener);
-
-  /**
-   * This undoes an |addWeakMessageListener| call.
-   */
-  void removeWeakMessageListener(in AString messageName,
-                                 in nsIMessageListener listener);
 
   [notxpcom] boolean markForCC();
 };
@@ -233,7 +212,7 @@ interface nsIMessageListenerManager : nsISupports
  * messages that are only delivered to its one parent-process message
  * manager.
  */
-[scriptable, builtinclass, uuid(d6b0d851-43e6-426d-9f13-054bc0198175)]
+[scriptable, builtinclass, uuid(7f23767d-0f39-40c1-a22d-d3ab8a481f9d)]
 interface nsIMessageSender : nsIMessageListenerManager
 {
   /**
@@ -253,9 +232,7 @@ interface nsIMessageSender : nsIMessageListenerManager
    */
   [implicit_jscontext, optional_argc]
   void sendAsyncMessage([optional] in AString messageName,
-                        [optional] in jsval obj,
-                        [optional] in jsval objects,
-                        [optional] in nsIPrincipal principal);
+                        [optional] in jsval obj);
 };
 
 /**
@@ -278,8 +255,7 @@ interface nsIMessageBroadcaster : nsIMessageListenerManager
    */
   [implicit_jscontext, optional_argc]
   void broadcastAsyncMessage([optional] in AString messageName,
-                             [optional] in jsval obj,
-                             [optional] in jsval objects);
+                             [optional] in jsval obj);
 
   /**
    * Number of subordinate message managers.
@@ -292,7 +268,7 @@ interface nsIMessageBroadcaster : nsIMessageListenerManager
   nsIMessageListenerManager getChildAt(in unsigned long aIndex);
 };
 
-[scriptable, builtinclass, uuid(7fda0941-9dcc-448b-bd39-16373c5b4003)]
+[scriptable, builtinclass, uuid(83be5862-2996-4685-ae7d-ae25bd795d50)]
 interface nsISyncMessageSender : nsIMessageSender
 {
   /**
@@ -302,24 +278,7 @@ interface nsISyncMessageSender : nsIMessageSender
    */
   [implicit_jscontext, optional_argc]
   jsval sendSyncMessage([optional] in AString messageName,
-                        [optional] in jsval obj,
-                        [optional] in jsval objects,
-                        [optional] in nsIPrincipal principal);
-
-  /**
-   * Like |sendSyncMessage()|, except re-entrant. New RPC messages may be
-   * issued even if, earlier on the call stack, we are waiting for a reply
-   * to an earlier sendRpcMessage() call.
-   *
-   * Both sendSyncMessage and sendRpcMessage will block until a reply is
-   * received, but they may be temporarily interrupted to process an urgent
-   * incoming message (such as a CPOW request).
-   */
-  [implicit_jscontext, optional_argc]
-  jsval sendRpcMessage([optional] in AString messageName,
-                       [optional] in jsval obj,
-                       [optional] in jsval objects,
-                       [optional] in nsIPrincipal principal);
+                        [optional] in jsval obj);
 };
 
 [scriptable, builtinclass, uuid(894ff2d4-39a3-4df8-9d76-8ee329975488)]
@@ -359,7 +318,7 @@ interface nsIInProcessContentFrameMessageManager : nsIContentFrameMessageManager
   [notxpcom] nsIContent getOwnerContent();
 };
 
-[scriptable, builtinclass, uuid(ecebfb8c-ff51-11e2-9d65-7af553959281)]
+[scriptable, builtinclass, uuid(a54acd34-4141-46f5-b71b-e2ca32879b08)]
 interface nsIFrameScriptLoader : nsISupports
 {
   /**
@@ -375,15 +334,9 @@ interface nsIFrameScriptLoader : nsISupports
    * Removes aURL from the list of scripts which support delayed load.
    */
   void removeDelayedFrameScript(in AString aURL);
-
-  /**
-   * Returns a list of all delayed scripts that will be loaded once
-   * a (remote) frame becomes available.
-   */
-  nsIDOMDOMStringList getDelayedFrameScripts();
 };
 
-[scriptable, builtinclass, uuid(b37821ff-df79-44d4-821c-6d6ec4dfe1e9)]
+[scriptable, builtinclass, uuid(134ccbf0-5c08-11e2-bcfd-0800200c9a66)]
 interface nsIProcessChecker : nsISupports
 {
 
@@ -430,16 +383,5 @@ interface nsIProcessChecker : nsISupports
   boolean assertContainApp(in DOMString aManifestURL);
 
   boolean assertAppHasPermission(in DOMString aPermission);
-
-  /**
-   * Return true iff the "remote" process' principal has an appStatus equal to
-   * |aStatus|.
-   *
-   * This interface only returns meaningful data when our content is
-   * in a separate process.  If it shares the same OS process as us,
-   * then applying this permission check doesn't add any security,
-   * though it doesn't hurt anything either.
-   */
-  boolean checkAppHasStatus(in unsigned short aStatus);
 
 };

@@ -4,9 +4,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#include "nsMathMLmfencedFrame.h"
+#include "nsCOMPtr.h"
+#include "nsFrame.h"
+#include "nsPresContext.h"
+#include "nsStyleContext.h"
+#include "nsStyleConsts.h"
 #include "nsRenderingContext.h"
-#include "nsMathMLChar.h"
+
+#include "nsMathMLmfencedFrame.h"
 #include <algorithm>
 
 //
@@ -312,7 +317,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   containerSize.ascent = delta + axisHeight;
   containerSize.descent = delta - axisHeight;
 
-  bool isRTL = StyleVisibility()->mDirection;
+  bool isRTL = NS_MATHML_IS_RTL(mPresentationData.flags);
 
   /////////////////
   // opening fence ...

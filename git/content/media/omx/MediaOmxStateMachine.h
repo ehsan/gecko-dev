@@ -8,9 +8,8 @@ class MediaOmxStateMachine : public MediaDecoderStateMachine
 {
 public:
   MediaOmxStateMachine(MediaDecoder *aDecoder,
-                       MediaDecoderReader *aReader,
-                       bool aRealTime = false)
-    : MediaDecoderStateMachine(aDecoder, aReader, aRealTime) { }
+                       MediaDecoderReader *aReader)
+    : MediaDecoderStateMachine(aDecoder, aReader) { }
 
 protected:
   // Due to a bug in the OMX.qcom.video.decoder.mpeg4 decoder, we can't own too
@@ -22,7 +21,7 @@ protected:
   // OMXCodec will crash.
   // So we need few enough buffers in the queue that all buffers will be
   // returned before OMXCodec begins shutdown.
-  uint32_t GetAmpleVideoFrames() { return 3; }
+  uint32_t GetAmpleVideoFrames() { return 1; }
 };
 
 } // namespace mozilla

@@ -11,11 +11,10 @@
 #ifndef WEBRTC_TEST_TESTSUPPORT_FRAME_READER_H_
 #define WEBRTC_TEST_TESTSUPPORT_FRAME_READER_H_
 
-#include <stdio.h>
-
+#include <cstdio>
 #include <string>
 
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
 
 namespace webrtc {
 namespace test {
@@ -34,14 +33,14 @@ class FrameReader {
   // for the frame size.
   // Returns true if there are more frames to read, false if we've already
   // read the last frame (in the previous call).
-  virtual bool ReadFrame(uint8_t* source_buffer) = 0;
+  virtual bool ReadFrame(WebRtc_UWord8* source_buffer) = 0;
 
   // Closes the input file if open. Essentially makes this class impossible
   // to use anymore. Will also be invoked by the destructor.
   virtual void Close() = 0;
 
   // Frame length in bytes of a single frame image.
-  virtual size_t FrameLength() = 0;
+  virtual int FrameLength() = 0;
   // Total number of frames in the input video source.
   virtual int NumberOfFrames() = 0;
 };
@@ -53,17 +52,17 @@ class FrameReaderImpl : public FrameReader {
   //   input_filename          The file to read from.
   //   frame_length_in_bytes   The size of each frame.
   //                           For YUV this is 3 * width * height / 2
-  FrameReaderImpl(std::string input_filename, size_t frame_length_in_bytes);
+  FrameReaderImpl(std::string input_filename, int frame_length_in_bytes);
   virtual ~FrameReaderImpl();
-  virtual bool Init() OVERRIDE;
-  virtual bool ReadFrame(uint8_t* source_buffer) OVERRIDE;
-  virtual void Close() OVERRIDE;
-  virtual size_t FrameLength() OVERRIDE;
-  virtual int NumberOfFrames() OVERRIDE;
+  bool Init();
+  bool ReadFrame(WebRtc_UWord8* source_buffer);
+  void Close();
+  int FrameLength() { return frame_length_in_bytes_; }
+  int NumberOfFrames() { return number_of_frames_; }
 
  private:
   std::string input_filename_;
-  size_t frame_length_in_bytes_;
+  int frame_length_in_bytes_;
   int number_of_frames_;
   FILE* input_file_;
 };

@@ -4,8 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDeque.h"
-#include "nsTraceRefcnt.h"
-#include <string.h>
+#include "nsCRT.h"
 #ifdef DEBUG_rickg
 #include <stdio.h>
 #endif
@@ -104,29 +103,37 @@ void nsDeque::SetDeallocator(nsDequeFunctor* aDeallocator){
 
 /**
  * Remove all items from container without destroying them.
+ *
+ * @return  *this
  */
-void nsDeque::Empty() {
+nsDeque& nsDeque::Empty() {
   if (mSize && mData) {
     memset(mData, 0, mCapacity*sizeof(mData));
   }
   mSize=0;
   mOrigin=0;
+  return *this;
 }
 
 /**
  * Remove and delete all items from container
+ *
+ * @return  *this
  */
-void nsDeque::Erase() {
+nsDeque& nsDeque::Erase() {
   if (mDeallocator && mSize) {
     ForEach(*mDeallocator);
   }
-  Empty();
+  return Empty();
 }
 
 /**
  * This method quadruples the size of the deque
  * Elements in the deque are resequenced so that elements
  * in the deque are stored sequentially
+ *
+ * If the deque actually overflows, there's very little we can do.
+ * Perhaps this function should return bool/nsresult indicating success/failure.
  *
  * @return  whether growing succeeded
  */
@@ -164,14 +171,16 @@ bool nsDeque::GrowCapacity() {
  * underlying buffer to resize.
  *
  * @param   aItem: new item to be added to deque
+ * @return  *this
  */
-bool nsDeque::Push(void* aItem, const fallible_t&) {
+nsDeque& nsDeque::Push(void* aItem) {
   if (mSize==mCapacity && !GrowCapacity()) {
-    return false;
+    NS_WARNING("out of memory");
+    return *this;
   }
   mData[modulus(mOrigin + mSize, mCapacity)]=aItem;
   mSize++;
-  return true;
+  return *this;
 }
 
 /**
@@ -205,20 +214,22 @@ bool nsDeque::Push(void* aItem, const fallible_t&) {
  * and increment size: 9. (C is no longer out of bounds)
  * --
  * @param   aItem: new item to be added to deque
+ * @return  *this
  */
-bool nsDeque::PushFront(void* aItem, const fallible_t&) {
+nsDeque& nsDeque::PushFront(void* aItem) {
   mOrigin--;
   modasgn(mOrigin,mCapacity);
   if (mSize==mCapacity) {
     if (!GrowCapacity()) {
-      return false;
+      NS_WARNING("out of memory");
+      return *this;
     }
     /* Comments explaining this are above*/
     mData[mSize]=mData[mOrigin];
   }
   mData[mOrigin]=aItem;
   mSize++;
-  return true;
+  return *this;
 }
 
 /**

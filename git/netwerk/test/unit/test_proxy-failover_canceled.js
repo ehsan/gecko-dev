@@ -1,3 +1,8 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
 Cu.import("resource://testing-common/httpd.js");
 
 var httpServer = null;
@@ -26,7 +31,7 @@ function run_test()
 {
   httpServer = new HttpServer();
   httpServer.registerPathHandler("/content", contentHandler);
-  httpServer.start(-1);
+  httpServer.start(4444);
 
   // we want to cancel the failover proxy engage, so, do not allow
   // redirects from now.
@@ -39,12 +44,10 @@ function run_test()
   var prefs = prefserv.getBranch("network.proxy.");
   prefs.setIntPref("type", 2);
   prefs.setCharPref("autoconfig_url", "data:text/plain," +
-    "function FindProxyForURL(url, host) {return 'PROXY a_non_existent_domain_x7x6c572v:80; PROXY localhost:" +
-    httpServer.identity.primaryPort + "';}"
+    "function FindProxyForURL(url, host) {return 'PROXY a_non_existent_domain_x7x6c572v:80; PROXY localhost:4444';}"
   );
 
-  var chan = make_channel("http://localhost:" +
-                          httpServer.identity.primaryPort + "/content");
+  var chan = make_channel("http://localhost:4444/content");
   chan.notificationCallbacks = nc;
   chan.asyncOpen(new ChannelListener(finish_test, null, CL_EXPECT_FAILURE), null);
   do_test_pending();

@@ -40,6 +40,11 @@ jsd_InterruptHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rva
     if( ! jsdscript )
         return JSTRAP_CONTINUE;
 
+#ifdef LIVEWIRE
+    if( ! jsdlw_UserCodeAtPC(jsdc, jsdscript, (uintptr_t)pc) )
+        return JSTRAP_CONTINUE;
+#endif
+
     return jsd_CallExecutionHook(jsdc, cx, JSD_HOOK_INTERRUPTED,
                                  hook, hookData, rval);
 }
@@ -80,7 +85,7 @@ jsd_DebuggerHandler(JSContext *cx, JSScript *script, jsbytecode *pc,
 
 JSTrapStatus
 jsd_ThrowHandler(JSContext *cx, JSScript *script, jsbytecode *pc,
-                 jsval *rvalArg, void *closure)
+                 jsval *rval, void *closure)
 {
     JSDScript*      jsdscript;
     JSDContext*     jsdc = (JSDContext*) closure;
@@ -107,13 +112,10 @@ jsd_ThrowHandler(JSContext *cx, JSScript *script, jsbytecode *pc,
     if( ! jsdscript )
         return JSTRAP_CONTINUE;
 
-    JS::RootedValue rval(cx);
-    JS_GetPendingException(cx, &rval);
+    JS_GetPendingException(cx, rval);
 
-    JSTrapStatus result = jsd_CallExecutionHook(jsdc, cx, JSD_HOOK_THROW,
-                                                hook, hookData, rval.address());
-    *rvalArg = rval;
-    return result;
+    return jsd_CallExecutionHook(jsdc, cx, JSD_HOOK_THROW,
+                                 hook, hookData, rval);
 }
 
 JSTrapStatus
@@ -129,7 +131,7 @@ jsd_CallExecutionHook(JSDContext* jsdc,
                             JSD_HOOK_RETURN_CONTINUE;
     JSDThreadState* jsdthreadstate;
 
-    if(hook && nullptr != (jsdthreadstate = jsd_NewThreadState(jsdc, cx)))
+    if(hook && NULL != (jsdthreadstate = jsd_NewThreadState(jsdc,cx)))
     {
         if ((type != JSD_HOOK_THROW && type != JSD_HOOK_INTERRUPTED) ||
             jsdc->flags & JSD_MASK_TOP_FRAME_ONLY ||
@@ -168,18 +170,18 @@ jsd_CallExecutionHook(JSDContext* jsdc,
     return JSTRAP_CONTINUE;
 }
 
-bool
+JSBool
 jsd_CallCallHook (JSDContext* jsdc,
                   JSContext *cx,
                   unsigned type,
                   JSD_CallHookProc hook,
                   void* hookData)
 {
-    bool hookanswer;
+    JSBool hookanswer;
     JSDThreadState*  jsdthreadstate;
     
-    hookanswer = false;
-    if(hook && nullptr != (jsdthreadstate = jsd_NewThreadState(jsdc, cx)))
+    hookanswer = JS_FALSE;
+    if(hook && NULL != (jsdthreadstate = jsd_NewThreadState(jsdc, cx)))
     {
         hookanswer = hook(jsdc, jsdthreadstate, type, hookData);
         jsd_DestroyThreadState(jsdc, jsdthreadstate);
@@ -188,7 +190,7 @@ jsd_CallCallHook (JSDContext* jsdc,
     return hookanswer;
 }
 
-bool
+JSBool
 jsd_SetInterruptHook(JSDContext*           jsdc,
                      JSD_ExecutionHookProc hook,
                      void*                 callerdata)
@@ -199,21 +201,21 @@ jsd_SetInterruptHook(JSDContext*           jsdc,
     JS_SetInterrupt(jsdc->jsrt, jsd_InterruptHandler, (void*) jsdc);
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_ClearInterruptHook(JSDContext* jsdc)
 {
     JSD_LOCK();
-    JS_ClearInterrupt(jsdc->jsrt, nullptr, nullptr);
-    jsdc->interruptHook      = nullptr;
+    JS_ClearInterrupt(jsdc->jsrt, NULL, NULL );
+    jsdc->interruptHook      = NULL;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_SetDebugBreakHook(JSDContext*           jsdc,
                       JSD_ExecutionHookProc hook,
                       void*                 callerdata)
@@ -223,20 +225,20 @@ jsd_SetDebugBreakHook(JSDContext*           jsdc,
     jsdc->debugBreakHook      = hook;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_ClearDebugBreakHook(JSDContext* jsdc)
 {
     JSD_LOCK();
-    jsdc->debugBreakHook      = nullptr;
+    jsdc->debugBreakHook      = NULL;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_SetDebuggerHook(JSDContext*           jsdc,
                       JSD_ExecutionHookProc hook,
                       void*                 callerdata)
@@ -246,20 +248,20 @@ jsd_SetDebuggerHook(JSDContext*           jsdc,
     jsdc->debuggerHook      = hook;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_ClearDebuggerHook(JSDContext* jsdc)
 {
     JSD_LOCK();
-    jsdc->debuggerHook      = nullptr;
+    jsdc->debuggerHook      = NULL;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_SetThrowHook(JSDContext*           jsdc,
                  JSD_ExecutionHookProc hook,
                  void*                 callerdata)
@@ -269,20 +271,20 @@ jsd_SetThrowHook(JSDContext*           jsdc,
     jsdc->throwHook      = hook;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_ClearThrowHook(JSDContext* jsdc)
 {
     JSD_LOCK();
-    jsdc->throwHook      = nullptr;
+    jsdc->throwHook      = NULL;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_SetFunctionHook(JSDContext*      jsdc,
                     JSD_CallHookProc hook,
                     void*            callerdata)
@@ -292,20 +294,20 @@ jsd_SetFunctionHook(JSDContext*      jsdc,
     jsdc->functionHook      = hook;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_ClearFunctionHook(JSDContext* jsdc)
 {
     JSD_LOCK();
-    jsdc->functionHook      = nullptr;
+    jsdc->functionHook      = NULL;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_SetTopLevelHook(JSDContext*      jsdc,
                     JSD_CallHookProc hook,
                     void*            callerdata)
@@ -315,16 +317,16 @@ jsd_SetTopLevelHook(JSDContext*      jsdc,
     jsdc->toplevelHook      = hook;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 
-bool
+JSBool
 jsd_ClearTopLevelHook(JSDContext* jsdc)
 {
     JSD_LOCK();
-    jsdc->toplevelHook      = nullptr;
+    jsdc->toplevelHook      = NULL;
     JSD_UNLOCK();
 
-    return true;
+    return JS_TRUE;
 }
 

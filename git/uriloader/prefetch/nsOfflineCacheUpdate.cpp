@@ -29,7 +29,7 @@
 #include "nsIURL.h"
 #include "nsIWebProgress.h"
 #include "nsICryptoHash.h"
-#include "nsICacheEntry.h"
+#include "nsICacheEntryDescriptor.h"
 #include "nsIPermissionManager.h"
 #include "nsIPrincipal.h"
 #include "nsNetCID.h"
@@ -1049,7 +1049,7 @@ nsOfflineManifestItem::GetOldManifestContentHash(nsIRequest *aRequest)
     nsCOMPtr<nsISupports> cacheToken;
     cachingChannel->GetCacheToken(getter_AddRefs(cacheToken));
     if (cacheToken) {
-        nsCOMPtr<nsICacheEntry> cacheDescriptor(do_QueryInterface(cacheToken, &rv));
+        nsCOMPtr<nsICacheEntryDescriptor> cacheDescriptor(do_QueryInterface(cacheToken, &rv));
         NS_ENSURE_SUCCESS(rv, rv);
 
         rv = cacheDescriptor->GetMetaDataElement("offline-manifest-hash", getter_Copies(mOldManifestHashValue));
@@ -1098,7 +1098,7 @@ nsOfflineManifestItem::CheckNewManifestContentHash(nsIRequest *aRequest)
     nsCOMPtr<nsISupports> cacheToken;
     cachingChannel->GetOfflineCacheToken(getter_AddRefs(cacheToken));
     if (cacheToken) {
-        nsCOMPtr<nsICacheEntry> cacheDescriptor(do_QueryInterface(cacheToken, &rv));
+        nsCOMPtr<nsICacheEntryDescriptor> cacheDescriptor(do_QueryInterface(cacheToken, &rv));
         NS_ENSURE_SUCCESS(rv, rv);
 
         rv = cacheDescriptor->SetMetaDataElement("offline-manifest-hash", mManifestHashValue.get());
@@ -1331,7 +1331,7 @@ nsOfflineCacheUpdate::Init(nsIURI *aManifestURI,
     }
 
     rv = nsOfflineCacheUpdateService::OfflineAppPinnedForURI(aDocumentURI,
-                                                             nullptr,
+                                                             NULL,
                                                              &mPinned);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1383,7 +1383,7 @@ nsOfflineCacheUpdate::InitForUpdateCheck(nsIURI *aManifestURI,
     mApplicationCache = mPreviousApplicationCache;
 
     rv = nsOfflineCacheUpdateService::OfflineAppPinnedForURI(aManifestURI,
-                                                             nullptr,
+                                                             NULL,
                                                              &mPinned);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1442,7 +1442,7 @@ nsOfflineCacheUpdate::InitPartial(nsIURI *aManifestURI,
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = nsOfflineCacheUpdateService::OfflineAppPinnedForURI(aDocumentURI,
-                                                             nullptr,
+                                                             NULL,
                                                              &mPinned);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1778,16 +1778,6 @@ nsOfflineCacheUpdate::Begin()
 
     mItemsInProgress = 0;
 
-    if (mState == STATE_CANCELLED) {
-      nsRefPtr<nsRunnableMethod<nsOfflineCacheUpdate> > errorNotification =
-        NS_NewRunnableMethod(this,
-                             &nsOfflineCacheUpdate::AsyncFinishWithError);
-      nsresult rv = NS_DispatchToMainThread(errorNotification);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      return NS_OK;
-    }
-
     if (mPartialUpdate) {
         mState = STATE_DOWNLOADING;
         NotifyState(nsIOfflineCacheUpdateObserver::STATE_DOWNLOADING);
@@ -2005,12 +1995,6 @@ nsOfflineCacheUpdate::NotifyUpdateAvailability(bool updateAvailable)
 void
 nsOfflineCacheUpdate::AssociateDocuments(nsIApplicationCache* cache)
 {
-    if (!cache) {
-        LOG(("nsOfflineCacheUpdate::AssociateDocuments bypassed"
-             ", no cache provided [this=%p]", this));
-        return;
-    }
-
     nsCOMArray<nsIOfflineCacheUpdateObserver> observers;
     GatherObservers(observers);
 
@@ -2169,13 +2153,6 @@ nsOfflineCacheUpdate::Finish()
     return rv;
 }
 
-void
-nsOfflineCacheUpdate::AsyncFinishWithError()
-{
-    NotifyState(nsOfflineCacheUpdate::STATE_ERROR);
-    Finish();
-}
-
 static nsresult
 EvictOneOfCacheGroups(nsIApplicationCacheService *cacheService,
                       uint32_t count, const char * const *groups)
@@ -2197,7 +2174,7 @@ EvictOneOfCacheGroups(nsIApplicationCacheService *cacheService,
 
         bool pinned;
         rv = nsOfflineCacheUpdateService::OfflineAppPinnedForURI(uri,
-                                                                 nullptr,
+                                                                 NULL,
                                                                  &pinned);
         NS_ENSURE_SUCCESS(rv, rv);
 

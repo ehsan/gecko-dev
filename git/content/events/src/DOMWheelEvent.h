@@ -9,7 +9,6 @@
 
 #include "nsIDOMWheelEvent.h"
 #include "nsDOMMouseEvent.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/dom/WheelEventBinding.h"
 
 namespace mozilla {
@@ -21,7 +20,8 @@ class DOMWheelEvent : public nsDOMMouseEvent,
 public:
   DOMWheelEvent(mozilla::dom::EventTarget* aOwner,
                 nsPresContext* aPresContext,
-                WidgetWheelEvent* aWheelEvent);
+                widget::WheelEvent* aWheelEvent);
+  virtual ~DOMWheelEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -31,22 +31,39 @@ public:
   // Forward to base class
   NS_FORWARD_TO_NSDOMMOUSEEVENT
 
+  virtual nsresult InitFromCtor(const nsAString& aType,
+                                JSContext* aCx, JS::Value* aVal);
+
   static
   already_AddRefed<DOMWheelEvent> Constructor(const GlobalObject& aGlobal,
                                               const nsAString& aType,
                                               const WheelEventInit& aParam,
                                               mozilla::ErrorResult& aRv);
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::WheelEventBinding::Wrap(aCx, aScope, this);
   }
 
-  double DeltaX();
-  double DeltaY();
-  double DeltaZ();
-  uint32_t DeltaMode();
+  double DeltaX()
+  {
+    return static_cast<widget::WheelEvent*>(mEvent)->deltaX;
+  }
+
+  double DeltaY()
+  {
+    return static_cast<widget::WheelEvent*>(mEvent)->deltaY;
+  }
+
+  double DeltaZ()
+  {
+    return static_cast<widget::WheelEvent*>(mEvent)->deltaZ;
+  }
+
+  uint32_t DeltaMode()
+  {
+    return static_cast<widget::WheelEvent*>(mEvent)->deltaMode;
+  }
 };
 
 } // namespace dom

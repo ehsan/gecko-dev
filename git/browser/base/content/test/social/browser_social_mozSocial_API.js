@@ -10,7 +10,7 @@ function test() {
     origin: "https://example.com",
     sidebarURL: "https://example.com/browser/browser/base/content/test/social/social_sidebar.html",
     workerURL: "https://example.com/browser/browser/base/content/test/social/social_worker.js",
-    iconURL: "https://example.com/browser/browser/base/content/test/general/moz.png"
+    iconURL: "https://example.com/browser/browser/base/content/test/moz.png"
   };
   runSocialTestWithProvider(manifest, function (finishcb) {
     runSocialTests(tests, undefined, undefined, finishcb);
@@ -19,13 +19,6 @@ function test() {
 
 var tests = {
   testStatusIcons: function(next) {
-    let icon = {
-      name: "testIcon",
-      iconURL: "chrome://browser/skin/Info.png",
-      contentPanel: "https://example.com/browser/browser/base/content/test/social/social_panel.html",
-      counter: 1
-    };
-
     let iconsReady = false;
     let gotSidebarMessage = false;
 
@@ -35,14 +28,15 @@ var tests = {
     }
 
     function triggerIconPanel() {
-      let pButton = document.getElementById("social-provider-button");
+      let statusIcon = document.getElementById("social-provider-button").nextSibling;
+      info("status icon is " + statusIcon);
       waitForCondition(function() {
-        // wait for a new button to be inserted inbetween the provider and mark
-        // button
-        return !!pButton.nextSibling;
+        statusIcon = document.getElementById("social-provider-button").nextSibling;
+        info("status icon is " + statusIcon);
+        return !!statusIcon;
       }, function() {
         // Click the button to trigger its contentPanel
-        let statusIcon = pButton.nextSibling;
+        let panel = document.getElementById("social-notification-panel");
         EventUtils.synthesizeMouseAtCenter(statusIcon, {});
       }, "Status icon didn't become non-hidden");
     }
@@ -77,7 +71,7 @@ var tests = {
           ok(true, "got sidebar message");
           gotSidebarMessage = true;
           // load a status panel
-          port.postMessage({topic: "test-ambient-notification", data: icon});
+          port.postMessage({topic: "test-ambient-notification"});
           checkNext();
           break;
       }

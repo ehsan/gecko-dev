@@ -2,7 +2,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+DEPTH = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 LIBS = \
+  $(EXTRA_DSO_LIBS) \
   $(XPCOM_LIBS) \
   $(NSPR_LIBS) \
   $(NSS_LIBS) \
@@ -11,7 +19,6 @@ LIBS = \
   $(DEPTH)/media/mtransport/standalone/$(LIB_PREFIX)mtransport_s.$(LIB_SUFFIX) \
   $(DEPTH)/media/webrtc/signalingtest/signaling_ecc/$(LIB_PREFIX)ecc.$(LIB_SUFFIX) \
   $(DEPTH)/media/webrtc/signalingtest/signaling_sipcc/$(LIB_PREFIX)sipcc.$(LIB_SUFFIX) \
-  $(DEPTH)/layout/media/webrtc/$(LIB_PREFIX)webrtc.$(LIB_SUFFIX) \
   $(DEPTH)/layout/media/$(LIB_PREFIX)gkmedias.$(LIB_SUFFIX) \
   $(DEPTH)/media/webrtc/trunk/testing/gtest_gtest/$(LIB_PREFIX)gtest.$(LIB_SUFFIX) \
   $(DEPTH)/netwerk/srtp/src/$(LIB_PREFIX)nksrtp_s.$(LIB_SUFFIX) \
@@ -21,6 +28,11 @@ ifdef MOZ_CUBEB
 ifdef MOZ_ALSA
 LIBS += \
   $(MOZ_ALSA_LIBS) \
+  $(NULL)
+endif
+ifdef MOZ_PULSEAUDIO
+LIBS += \
+  $(MOZ_PULSEAUDIO_LIBS) \
   $(NULL)
 endif
 endif
@@ -64,13 +76,6 @@ LIBS += \
   $(NULL)
 endif
 
-ifeq (gtk3,$(MOZ_WIDGET_TOOLKIT))
-LIBS += \
-  $(MOZ_GTK3_LIBS) \
-  $(FT2_LIBS) \
-  $(NULL)
-endif
-
 ifeq (qt,$(MOZ_WIDGET_TOOLKIT))
 LIBS += \
   $(XLIBS) \
@@ -79,7 +84,7 @@ LIBS += \
   $(NULL)
 endif
 
-ifneq (,$(filter Linux DragonFly FreeBSD NetBSD OpenBSD,$(OS_TARGET)))
+ifeq ($(OS_TARGET),Linux)
 LIBS += \
   $(MOZ_CAIRO_OSLIBS) \
   $(NULL)
@@ -97,7 +102,7 @@ LIBS += \
   -framework Security \
   -framework SystemConfiguration \
   -framework IOKit \
-  -F$(MACOS_PRIVATE_FRAMEWORKS_DIR) -framework CoreUI \
+  -F/System/Library/PrivateFrameworks -framework CoreUI \
   $(TK_LIBS) \
   $(NULL)
 endif
@@ -110,9 +115,6 @@ endif
 
 DEFINES += \
   -DUSE_FAKE_MEDIA_STREAMS \
-  -DUSE_FAKE_PCOBSERVER \
-  -DNR_SOCKET_IS_VOID_PTR \
-  -DHAVE_STRDUP \
   $(NULL)
 
 ifeq ($(OS_TARGET),Darwin)
@@ -128,56 +130,30 @@ LOCAL_INCLUDES += \
  -I$(topsrcdir)/media/mtransport \
  -I$(topsrcdir)/media/mtransport/test \
  -I$(topsrcdir)/media/webrtc/signaling/include \
- -I$(topsrcdir)/media/webrtc/signaling/src/sipcc/core/sdp \
- -I$(topsrcdir)/media/webrtc/signaling/src/sipcc/cpr/include \
- -I$(topsrcdir)/media/webrtc/signaling/src/sipcc/core/includes \
- -I$(topsrcdir)/media/webrtc/signaling/src/common/browser_logging \
- -I$(topsrcdir)/media/webrtc/signaling/src/common/time_profiling \
- -I$(topsrcdir)/media/webrtc/signaling/src/media \
  -I$(topsrcdir)/media/webrtc/signaling/src/media-conduit \
  -I$(topsrcdir)/media/webrtc/signaling/src/mediapipeline \
  -I$(topsrcdir)/media/webrtc/signaling/src/sipcc/include \
  -I$(topsrcdir)/media/webrtc/signaling/src/peerconnection \
  -I$(topsrcdir)/media/webrtc/signaling/media-conduit\
  -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source/ \
- -I$(topsrcdir)/media/mtransport/third_party/nICEr/src/ice \
- -I$(topsrcdir)/media/mtransport/third_party/nICEr/src/net \
- -I$(topsrcdir)/media/mtransport/third_party/nICEr/src/stun \
- -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/share \
- -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/util/libekr \
- -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/log \
- -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/registry \
- -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/stats \
- -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/plugin \
- -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/event \
  -I$(topsrcdir)/xpcom/base/ \
- -I$(DEPTH)/dom/bindings/ \
  $(NULL)
-
-ifneq (,$(filter Darwin DragonFly FreeBSD NetBSD OpenBSD,$(OS_TARGET)))
-LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/darwin/include
-ifneq (,$(filter DragonFly FreeBSD NetBSD OpenBSD,$(OS_TARGET)))
-LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include
-endif
-endif
-
-ifeq ($(OS_TARGET), Linux)
-LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/linux/include
-endif
-
-ifeq ($(OS_TARGET), Android)
-LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/android/include
-endif
-
 
 ifneq ($(OS_TARGET),WINNT)
 ifneq (gonk,$(MOZ_WIDGET_TOOLKIT))
 ifdef JS_SHARED_LIBRARY
 LIBS += $(MOZ_ZLIB_LIBS)
 endif
+
+CPP_UNIT_TESTS = \
+  signaling_unittests.cpp \
+  mediapipeline_unittest.cpp \
+  mediaconduit_unittests.cpp \
+  $(NULL)
 endif
 endif
 
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/media/webrtc/webrtc-config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk

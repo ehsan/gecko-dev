@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsDOMDataChannel.h"
-
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG
 #endif
@@ -20,50 +18,107 @@ extern PRLogModuleInfo* GetDataChannelLog();
 #define LOG(args) PR_LOG(GetDataChannelLog(), PR_LOG_DEBUG, args)
 
 
-#include "nsDOMDataChannelDeclarations.h"
 #include "nsDOMDataChannel.h"
 #include "nsIDOMFile.h"
+#include "nsIJSNativeInitializer.h"
 #include "nsIDOMDataChannel.h"
+#include "nsIDOMRTCPeerConnection.h"
 #include "nsIDOMMessageEvent.h"
+#include "nsDOMClassInfo.h"
 #include "nsDOMEventTargetHelper.h"
+
+#include "js/Value.h"
 
 #include "nsError.h"
 #include "nsAutoPtr.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIScriptObjectPrincipal.h"
+#include "nsJSUtils.h"
 #include "nsNetUtil.h"
 #include "nsDOMFile.h"
 
 #include "DataChannel.h"
 
-// Since we've moved the windows.h include down here, we have to explicitly
-// undef GetBinaryType, otherwise we'll get really odd conflicts
 #ifdef GetBinaryType
+// Windows apparently has a #define for GetBinaryType...
 #undef GetBinaryType
 #endif
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
-nsDOMDataChannel::~nsDOMDataChannel()
+class nsDOMDataChannel : public nsDOMEventTargetHelper,
+                         public nsIDOMDataChannel,
+                         public mozilla::DataChannelListener
 {
-  // Don't call us anymore!  Likely isn't an issue (or maybe just less of
-  // one) once we block GC until all the (appropriate) onXxxx handlers
-  // are dropped. (See WebRTC spec)
-  LOG(("Close()ing %p", mDataChannel.get()));
-  mDataChannel->SetListener(nullptr, nullptr);
-  mDataChannel->Close();
-}
+public:
+  nsDOMDataChannel(already_AddRefed<mozilla::DataChannel> aDataChannel)
+    : mDataChannel(aDataChannel)
+    , mBinaryType(DC_BINARY_TYPE_BLOB)
+  {}
 
-/* virtual */ JSObject*
-nsDOMDataChannel::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
-{
-  return DataChannelBinding::Wrap(aCx, aScope, this);
-}
+  ~nsDOMDataChannel()
+  {
+    // Don't call us anymore!  Likely isn't an issue (or maybe just less of
+    // one) once we block GC until all the (appropriate) onXxxx handlers
+    // are dropped. (See WebRTC spec)
+    LOG(("Close()ing %p", mDataChannel.get()));
+    mDataChannel->SetListener(nullptr, nullptr);
+    mDataChannel->Close();
+  }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMDataChannel)
+  nsresult Init(nsPIDOMWindow* aDOMWindow);
+
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMDATACHANNEL
+
+  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
+
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMDataChannel,
+                                           nsDOMEventTargetHelper)
+
+  nsresult
+  DoOnMessageAvailable(const nsACString& aMessage, bool aBinary);
+
+  virtual nsresult
+  OnMessageAvailable(nsISupports* aContext, const nsACString& aMessage);
+
+  virtual nsresult
+  OnBinaryMessageAvailable(nsISupports* aContext, const nsACString& aMessage);
+
+  virtual nsresult OnSimpleEvent(nsISupports* aContext, const nsAString& aName);
+
+  virtual nsresult
+  OnChannelConnected(nsISupports* aContext);
+
+  virtual nsresult
+  OnChannelClosed(nsISupports* aContext);
+
+  virtual void
+  AppReady();
+
+private:
+  // Get msg info out of JS variable being sent (string, arraybuffer, blob)
+  nsresult GetSendParams(nsIVariant *aData, nsCString &aStringOut,
+                         nsCOMPtr<nsIInputStream> &aStreamOut,
+                         bool &aIsBinary, uint32_t &aOutgoingLength);
+
+  // Owning reference
+  nsRefPtr<mozilla::DataChannel> mDataChannel;
+  nsString  mOrigin;
+  enum
+  {
+    DC_BINARY_TYPE_ARRAYBUFFER,
+    DC_BINARY_TYPE_BLOB,
+  } mBinaryType;
+};
+
+DOMCI_DATA(DataChannel, nsDOMDataChannel)
+// A bit of a hack for RTCPeerConnection, since it doesn't have a .cpp file of
+// its own.  Note that it's not castable to anything in particular other than
+// nsIDOMRTCPeerConnection, so we can just use nsIDOMRTCPeerConnection as the
+// "class".
+DOMCI_DATA(RTCPeerConnection, nsIDOMRTCPeerConnection)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMDataChannel,
                                                   nsDOMEventTargetHelper)
@@ -78,20 +133,16 @@ NS_IMPL_RELEASE_INHERITED(nsDOMDataChannel, nsDOMEventTargetHelper)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMDataChannel)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDataChannel)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DataChannel)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
-
-nsDOMDataChannel::nsDOMDataChannel(already_AddRefed<mozilla::DataChannel> aDataChannel)
-  : mDataChannel(aDataChannel)
-  , mBinaryType(DC_BINARY_TYPE_BLOB)
-{
-  SetIsDOMBinding();
-}
 
 nsresult
 nsDOMDataChannel::Init(nsPIDOMWindow* aDOMWindow)
 {
   nsresult rv;
   nsAutoString urlParam;
+
+  nsDOMEventTargetHelper::Init();
 
   MOZ_ASSERT(mDataChannel);
   mDataChannel->SetListener(this, nullptr);
@@ -118,6 +169,10 @@ nsDOMDataChannel::Init(nsPIDOMWindow* aDOMWindow)
   rv = CheckInnerWindowCorrectness();
   NS_ENSURE_SUCCESS(rv,rv);
 
+  // See bug 696085
+  // We don't need to observe for window destroyed or frozen; but PeerConnection needs
+  // to not allow itself to be bfcached (and get destroyed on navigation).
+
   rv = nsContentUtils::GetUTFOrigin(principal,mOrigin);
   LOG(("%s: origin = %s\n",__FUNCTION__,NS_LossyConvertUTF16toASCII(mOrigin).get()));
   return rv;
@@ -142,65 +197,27 @@ nsDOMDataChannel::GetProtocol(nsAString& aProtocol)
   return NS_OK;
 }
 
-uint16_t
-nsDOMDataChannel::Id() const
-{
-  return mDataChannel->GetStream();
-}
-
-NS_IMETHODIMP
-nsDOMDataChannel::GetId(uint16_t *aId)
-{
-  *aId = Id();
-  return NS_OK;
-}
-
-uint16_t
-nsDOMDataChannel::Stream() const
-{
-  return mDataChannel->GetStream();
-}
-
 NS_IMETHODIMP
 nsDOMDataChannel::GetStream(uint16_t *aStream)
 {
-  *aStream = Stream();
+  mDataChannel->GetStream(aStream);
   return NS_OK;
 }
 
 // XXX should be GetType()?  Open question for the spec
-bool
-nsDOMDataChannel::Reliable() const
-{
-  return mDataChannel->GetType() == mozilla::DataChannelConnection::RELIABLE;
-}
-
 NS_IMETHODIMP
 nsDOMDataChannel::GetReliable(bool* aReliable)
 {
-  *aReliable = Reliable();
+  *aReliable = (mDataChannel->GetType() == mozilla::DataChannelConnection::RELIABLE);
   return NS_OK;
-}
-
-bool
-nsDOMDataChannel::Ordered() const
-{
-  return mDataChannel->GetOrdered();
 }
 
 NS_IMETHODIMP
 nsDOMDataChannel::GetOrdered(bool* aOrdered)
 {
-  *aOrdered = Ordered();
+  *aOrdered = mDataChannel->GetOrdered();
   return NS_OK;
 }
-
-RTCDataChannelState
-nsDOMDataChannel::ReadyState() const
-{
-  return static_cast<RTCDataChannelState>(mDataChannel->GetReadyState());
-}
-
 
 NS_IMETHODIMP
 nsDOMDataChannel::GetReadyState(nsAString& aReadyState)
@@ -220,16 +237,10 @@ nsDOMDataChannel::GetReadyState(nsAString& aReadyState)
   return NS_OK;
 }
 
-uint32_t
-nsDOMDataChannel::BufferedAmount() const
-{
-  return mDataChannel->GetBufferedAmount();
-}
-
 NS_IMETHODIMP
 nsDOMDataChannel::GetBufferedAmount(uint32_t* aBufferedAmount)
 {
-  *aBufferedAmount = BufferedAmount();
+  *aBufferedAmount = mDataChannel->GetBufferedAmount();
   return NS_OK;
 }
 
@@ -268,73 +279,9 @@ nsDOMDataChannel::Close()
   return NS_OK;
 }
 
-// All of the following is copy/pasted from WebSocket.cpp.
-void
-nsDOMDataChannel::Send(const nsAString& aData, ErrorResult& aRv)
-{
-  NS_ConvertUTF16toUTF8 msgString(aData);
-  Send(nullptr, msgString, msgString.Length(), false, aRv);
-}
-
-void
-nsDOMDataChannel::Send(nsIDOMBlob* aData, ErrorResult& aRv)
-{
-  NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
-
-  nsCOMPtr<nsIInputStream> msgStream;
-  nsresult rv = aData->GetInternalStream(getter_AddRefs(msgStream));
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return;
-  }
-
-  uint64_t msgLength;
-  rv = aData->GetSize(&msgLength);
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return;
-  }
-
-  if (msgLength > UINT32_MAX) {
-    aRv.Throw(NS_ERROR_FILE_TOO_BIG);
-    return;
-  }
-
-  Send(msgStream, EmptyCString(), msgLength, true, aRv);
-}
-
-void
-nsDOMDataChannel::Send(const ArrayBuffer& aData, ErrorResult& aRv)
-{
-  NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
-
-  MOZ_ASSERT(sizeof(*aData.Data()) == 1);
-  uint32_t len = aData.Length();
-  char* data = reinterpret_cast<char*>(aData.Data());
-
-  nsDependentCSubstring msgString(data, len);
-  Send(nullptr, msgString, len, true, aRv);
-}
-
-void
-nsDOMDataChannel::Send(const ArrayBufferView& aData, ErrorResult& aRv)
-{
-  NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
-
-  MOZ_ASSERT(sizeof(*aData.Data()) == 1);
-  uint32_t len = aData.Length();
-  char* data = reinterpret_cast<char*>(aData.Data());
-
-  nsDependentCSubstring msgString(data, len);
-  Send(nullptr, msgString, len, true, aRv);
-}
-
-void
-nsDOMDataChannel::Send(nsIInputStream* aMsgStream,
-                       const nsACString& aMsgString,
-                       uint32_t aMsgLength,
-                       bool aIsBinary,
-                       ErrorResult& aRv)
+// Almost a clone of nsWebSocketChannel::Send()
+NS_IMETHODIMP
+nsDOMDataChannel::Send(nsIVariant* aData)
 {
   MOZ_ASSERT(NS_IsMainThread());
   uint16_t state = mDataChannel->GetReadyState();
@@ -342,31 +289,109 @@ nsDOMDataChannel::Send(nsIInputStream* aMsgStream,
   // In reality, the DataChannel protocol allows this, but we want it to
   // look like WebSockets
   if (state == mozilla::DataChannel::CONNECTING) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
-    return;
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
+
+  nsCString msgString;
+  nsCOMPtr<nsIInputStream> msgStream;
+  bool isBinary;
+  uint32_t msgLen;
+  nsresult rv = GetSendParams(aData, msgString, msgStream, isBinary, msgLen);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (state == mozilla::DataChannel::CLOSING ||
       state == mozilla::DataChannel::CLOSED) {
-    return;
+    return NS_OK;
   }
 
   MOZ_ASSERT(state == mozilla::DataChannel::OPEN,
-             "Unknown state in nsDOMDataChannel::Send");
+             "Unknown state in nsWebSocket::Send");
 
   int32_t sent;
-  if (aMsgStream) {
-    sent = mDataChannel->SendBinaryStream(aMsgStream, aMsgLength);
+  if (msgStream) {
+    sent = mDataChannel->SendBinaryStream(msgStream, msgLen);
   } else {
-    if (aIsBinary) {
-      sent = mDataChannel->SendBinaryMsg(aMsgString);
+    if (isBinary) {
+      sent = mDataChannel->SendBinaryMsg(msgString);
     } else {
-      sent = mDataChannel->SendMsg(aMsgString);
+      sent = mDataChannel->SendMsg(msgString);
     }
   }
-  if (sent < 0) {
-    aRv.Throw(NS_ERROR_FAILURE);
+  return sent >= 0 ? NS_OK : NS_ERROR_FAILURE;
+}
+
+// XXX Exact clone of nsWebSocketChannel::GetSendParams() - find a way to share!
+nsresult
+nsDOMDataChannel::GetSendParams(nsIVariant* aData, nsCString& aStringOut,
+                                nsCOMPtr<nsIInputStream>& aStreamOut,
+                                bool& aIsBinary, uint32_t& aOutgoingLength)
+{
+  // Get type of data (arraybuffer, blob, or string)
+  uint16_t dataType;
+  nsresult rv = aData->GetDataType(&dataType);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (dataType == nsIDataType::VTYPE_INTERFACE ||
+      dataType == nsIDataType::VTYPE_INTERFACE_IS) {
+    nsCOMPtr<nsISupports> supports;
+    nsID* iid;
+    rv = aData->GetAsInterface(&iid, getter_AddRefs(supports));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsMemory::Free(iid);
+
+    // ArrayBuffer?
+    JS::Value realVal;
+    JSObject* obj;
+    nsresult rv = aData->GetAsJSVal(&realVal);
+    if (NS_SUCCEEDED(rv) && !JSVAL_IS_PRIMITIVE(realVal) &&
+        (obj = JSVAL_TO_OBJECT(realVal)) &&
+        (JS_IsArrayBufferObject(obj))) {
+      int32_t len = JS_GetArrayBufferByteLength(obj);
+      char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(obj));
+
+      aStringOut.Assign(data, len);
+      aIsBinary = true;
+      aOutgoingLength = len;
+      return NS_OK;
+    }
+
+    // Blob?
+    nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(supports);
+    if (blob) {
+      rv = blob->GetInternalStream(getter_AddRefs(aStreamOut));
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      // GetSize() should not perform blocking I/O (unlike Available())
+      uint64_t blobLen;
+      rv = blob->GetSize(&blobLen);
+      NS_ENSURE_SUCCESS(rv, rv);
+      if (blobLen > UINT32_MAX) {
+        return NS_ERROR_FILE_TOO_BIG;
+      }
+      aOutgoingLength = static_cast<uint32_t>(blobLen);
+
+      aIsBinary = true;
+      return NS_OK;
+    }
   }
+
+  // Text message: if not already a string, turn it into one.
+  // TODO: bug 704444: Correctly coerce any JS type to string
+  //
+  PRUnichar* data = nullptr;
+  uint32_t len = 0;
+  rv = aData->GetAsWStringWithSize(&len, &data);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsString text;
+  text.Adopt(data, len);
+
+  CopyUTF16toUTF8(text, aStringOut);
+
+  aIsBinary = false;
+  aOutgoingLength = aStringOut.Length();
+  return NS_OK;
 }
 
 nsresult
@@ -390,15 +415,16 @@ nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aData,
   AutoPushJSContext cx(sc->GetNativeContext());
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
-  JS::Rooted<JS::Value> jsData(cx);
+  JSAutoRequest ar(cx);
+  JS::Value jsData;
 
   if (aBinary) {
     if (mBinaryType == DC_BINARY_TYPE_BLOB) {
-      rv = nsContentUtils::CreateBlobBuffer(cx, aData, &jsData);
+      rv = nsContentUtils::CreateBlobBuffer(cx, aData, jsData);
       NS_ENSURE_SUCCESS(rv, rv);
     } else if (mBinaryType == DC_BINARY_TYPE_ARRAYBUFFER) {
-      JS::Rooted<JSObject*> arrayBuf(cx);
-      rv = nsContentUtils::CreateArrayBuffer(cx, aData, arrayBuf.address());
+      JSObject* arrayBuf;
+      rv = nsContentUtils::CreateArrayBuffer(cx, aData, &arrayBuf);
       NS_ENSURE_SUCCESS(rv, rv);
       jsData = OBJECT_TO_JSVAL(arrayBuf);
     } else {

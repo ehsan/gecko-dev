@@ -7,10 +7,10 @@
 
 #include "nsDOMEvent.h"
 #include "nsIDOMAnimationEvent.h"
-#include "mozilla/EventForwards.h"
+#include "nsString.h"
 #include "mozilla/dom/AnimationEventBinding.h"
 
-class nsAString;
+class nsAnimationEvent;
 
 class nsDOMAnimationEvent : public nsDOMEvent,
                             public nsIDOMAnimationEvent
@@ -18,29 +18,42 @@ class nsDOMAnimationEvent : public nsDOMEvent,
 public:
   nsDOMAnimationEvent(mozilla::dom::EventTarget* aOwner,
                       nsPresContext *aPresContext,
-                      mozilla::InternalAnimationEvent* aEvent);
+                      nsAnimationEvent *aEvent);
+  ~nsDOMAnimationEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_TO_NSDOMEVENT
   NS_DECL_NSIDOMANIMATIONEVENT
 
-  static already_AddRefed<nsDOMAnimationEvent>
-  Constructor(const mozilla::dom::GlobalObject& aGlobal,
-              const nsAString& aType,
-              const mozilla::dom::AnimationEventInit& aParam,
-              mozilla::ErrorResult& aRv);
-
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::AnimationEventBinding::Wrap(aCx, aScope, this);
   }
 
   // xpidl implementation
   // GetAnimationName(nsAString& aAnimationName);
-  // GetPseudoElement(nsAString& aPseudoElement);
 
-  float ElapsedTime();
+  float ElapsedTime()
+  {
+    return AnimationEvent()->elapsedTime;
+  }
+
+  void InitAnimationEvent(const nsAString& aType,
+                          bool aCanBubble,
+                          bool aCancelable,
+                          const nsAString& aAnimationName,
+                          float aElapsedTime,
+                          mozilla::ErrorResult& aRv)
+  {
+    aRv = InitAnimationEvent(aType, aCanBubble, aCancelable, aAnimationName,
+                             aElapsedTime);
+  }
+private:
+  nsAnimationEvent* AnimationEvent() {
+    NS_ABORT_IF_FALSE(mEvent->eventStructType == NS_ANIMATION_EVENT,
+                      "unexpected struct type");
+    return static_cast<nsAnimationEvent*>(mEvent);
+  }
 };
 
 #endif /* !defined(nsDOMAnimationEvent_h_) */

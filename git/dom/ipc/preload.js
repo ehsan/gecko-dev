@@ -30,6 +30,10 @@ const BrowserElementIsPreloaded = true;
   Cu.import("resource://gre/modules/SettingsDB.jsm");
   Cu.import("resource://gre/modules/SettingsQueue.jsm");
   Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+  if (Services.prefs.getBoolPref("general.useragent.enable_overrides")) {
+    Cu.import('resource://gre/modules/UserAgentOverrides.jsm');
+    UserAgentOverrides.init();
+  }
 
   Cc["@mozilla.org/appshell/appShellService;1"].getService(Ci["nsIAppShellService"]);
   Cc["@mozilla.org/appshell/window-mediator;1"].getService(Ci["nsIWindowMediator"]);
@@ -74,29 +78,11 @@ const BrowserElementIsPreloaded = true;
   Cc["@mozilla.org/contentsecuritypolicy;1"].createInstance(Ci["nsIContentSecurityPolicy"]);
 
   /* Applications Specific Helper */
-  try {
-    // May throw if we don't have the settings permission
-    navigator.mozSettings;
-  } catch(e) {
-  }
+  Cc["@mozilla.org/settingsManager;1"].getService(Ci["nsIDOMSettingsManager"]);
 
+  // This is a produc-specific file that's sometimes unavailable.
   try {
-    if (Services.prefs.getBoolPref("dom.sysmsg.enabled")) {
-      Cc["@mozilla.org/system-message-manager;1"].getService(Ci["nsIDOMNavigatorSystemMessages"]);
-    }
-  } catch(e) {
-  }
-
-  try {
-    if (Services.prefs.getBoolPref("dom.mozInputMethod.enabled")) {
-      Services.scriptloader.loadSubScript("chrome://global/content/forms.js", global);
-    }
-  } catch (e) {
-  }
-
-  // Those are produc-specific files that's sometimes unavailable.
-  try {
-    Services.scriptloader.loadSubScript("chrome://browser/content/ErrorPage.js", global);
+    Services.scriptloader.loadSubScript("chrome://browser/content/forms.js", global);
   } catch (e) {
   }
   Services.scriptloader.loadSubScript("chrome://global/content/BrowserElementPanning.js", global);

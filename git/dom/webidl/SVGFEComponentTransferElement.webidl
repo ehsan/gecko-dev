@@ -10,8 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedString;
+
 interface SVGFEComponentTransferElement : SVGElement {
   readonly attribute SVGAnimatedString in1;
 };
-
-SVGFEComponentTransferElement implements SVGFilterPrimitiveStandardAttributes;

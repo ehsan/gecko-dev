@@ -8,7 +8,6 @@
 #include <unistd.h>
 #include <sys/reboot.h>
 #include "nsIObserverService.h"
-#include "mozilla/Services.h"
 
 namespace mozilla {
 namespace hal_impl {
@@ -67,8 +66,10 @@ QuitHard(hal::ShutdownMode aMode)
       _exit(1);
       break;
     default:
-      MOZ_CRASH();
+      MOZ_NOT_REACHED();
+      break;
   }
+  MOZ_NOT_REACHED();
 }
 
 // Function to complusively shut down the system with a given mode when timeout.

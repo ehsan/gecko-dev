@@ -102,23 +102,23 @@ var PluginHelper = {
     if (pluginDisable)
       return "0";
 
-    let state = Services.prefs.getIntPref("plugin.default.state");
-    return state == Ci.nsIPluginTag.STATE_CLICKTOPLAY ? "2" : "1";
+    let clickToPlay = Services.prefs.getBoolPref("plugins.click_to_play");
+    return clickToPlay ? "2" : "1";
   },
 
   setPluginPreference: function setPluginPreference(aValue) {
     switch (aValue) {
       case "0": // Enable Plugins = No
         Services.prefs.setBoolPref("plugin.disable", true);
-        Services.prefs.clearUserPref("plugin.default.state");
+        Services.prefs.clearUserPref("plugins.click_to_play");
         break;
       case "1": // Enable Plugins = Yes
         Services.prefs.clearUserPref("plugin.disable");
-        Services.prefs.setIntPref("plugin.default.state", Ci.nsIPluginTag.STATE_ENABLED);
+        Services.prefs.setBoolPref("plugins.click_to_play", false);
         break;
       case "2": // Enable Plugins = Tap to Play (default)
         Services.prefs.clearUserPref("plugin.disable");
-        Services.prefs.clearUserPref("plugin.default.state");
+        Services.prefs.clearUserPref("plugins.click_to_play");
         break;
     }
   },
@@ -185,7 +185,6 @@ var PluginHelper = {
           // There's a large enough visible overlay that we don't need to show
           // the doorhanger.
           aTab.shouldShowPluginDoorhanger = false;
-          overlay.style.visibility = "visible";
         }
 
         // Add click to play listener to the overlay
@@ -200,20 +199,6 @@ var PluginHelper = {
 
           NativeWindow.doorhanger.hide("ask-to-play-plugins", tab.id);
         }, true);
-
-        // Add handlers for over- and underflow in case the plugin gets resized
-        plugin.addEventListener("overflow", function(event) {
-          overlay.style.visibility = "hidden";
-          PluginHelper.delayAndShowDoorHanger(aTab);
-        });
-        plugin.addEventListener("underflow", function(event) {
-          // This is also triggered if only one dimension underflows,
-          // the other dimension might still overflow
-          if (!PluginHelper.isTooSmall(plugin, overlay)) {
-            overlay.style.visibility = "visible";
-          }
-        });
-
         break;
       }
 
@@ -272,7 +257,6 @@ var PluginHelper = {
         let learnMoreUrl = Services.urlFormatter.formatURLPref("app.support.baseURL");
         learnMoreUrl += "why-cant-firefox-mobile-play-flash-on-my-device";
         learnMoreLink.href = learnMoreUrl;
-        overlay.style.visibility = "visible";
         break;
       }
     }

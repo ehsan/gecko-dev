@@ -8,6 +8,9 @@
  *  - Provides autocomplete box for input fields.
  */
 
+const kBrowserFormZoomLevelMin = 0.8;
+const kBrowserFormZoomLevelMax = 2.0;
+
 var FormHelperUI = {
   _debugEvents: false,
   _currentBrowser: null,
@@ -69,7 +72,7 @@ var FormHelperUI = {
     };
 
     this._updateContainerForSelect(lastElement, this._currentElement);
-    this._showAutoCompleteSuggestions(this._currentElement);
+    this._updatePopupsFor(this._currentElement);
 
     // Prevent the view to scroll automatically while typing
     this._currentBrowser.scrollSync = false;
@@ -159,72 +162,56 @@ var FormHelperUI = {
       { value: aData });
   },
 
+  _updatePopupsFor: function _formHelperUpdatePopupsFor(aElement) {
+    if (!this._updateSuggestionsFor(aElement)) {
+      AutofillMenuUI.hide();
+    }
+  },
+
   /*
-   * Retrieves autocomplete suggestions asynchronously for an element from the
-   * form autocomplete service and updates and displays the autocompletepopup.
-   *
-   * @param aElement form input element
+   * Populates the autofill menu for this element.
    */
-  _showAutoCompleteSuggestions: function (aElement) {
+  _updateSuggestionsFor: function _formHelperUpdateSuggestionsFor(aElement) {
+    let suggestions = this._getAutocompleteSuggestions(aElement);
+    if (!suggestions.length)
+      return false;
+    AutofillMenuUI.show(this._currentElementRect, suggestions);
+    return true;
+  },
+
+  /*
+   * Retrieve the autocomplete list from the autocomplete service for an element
+   */
+  _getAutocompleteSuggestions: function _formHelperGetAutocompleteSuggestions(aElement) {
     if (!aElement.isAutocomplete) {
-      return;
+      return [];
     }
 
-    let resultsAvailable = autoCompleteSuggestions => {
-      // Return false if there are no suggestions to show
-      if (!autoCompleteSuggestions.length) {
-        return;
-      }
-      AutofillMenuUI.show(this._currentElementRect, autoCompleteSuggestions);
-    };
+    let suggestions = [];
 
-    this._getAutoCompleteSuggestions(aElement.value, aElement, resultsAvailable);
-  },
-
-  /*
-   * Retrieves autocomplete suggestions for an element from the form
-   * autocomplete service. 
-   *
-   * @param aSearchString text entered into form
-   * @param aElement form input element
-   * @param aCallback(array_of_suggestions) called when results are available.
-   */
-  _getAutoCompleteSuggestions: function (aSearchString, aElement, aCallback) {
-    // Cache the form autocomplete service for future use
-    if (!this._formAutoCompleteService)
-      this._formAutoCompleteService = Cc["@mozilla.org/satchel/form-autocomplete;1"].
-                                      getService(Ci.nsIFormAutoComplete);
-
-    // results callback
-    let resultsAvailable = function (results) {
-      let suggestions = [];
-      for (let idx = 0; idx < results.matchCount; idx++) {
-        let value = results.getValueAt(idx);
+    let autocompleteService = Cc["@mozilla.org/satchel/form-autocomplete;1"].getService(Ci.nsIFormAutoComplete);
+    let results = autocompleteService.autoCompleteSearch(aElement.name || aElement.id, aElement.value, aElement, null);
+    if (results.matchCount > 0) {
+      for (let i = 0; i < results.matchCount; i++) {
+        let value = results.getValueAt(i);
 
         // Do not show the value if it is the current one in the input field
-        if (value == aSearchString)
+        if (value == aElement.value)
           continue;
 
-        // Supply a label and value, since they can differ for datalist suggestions
-        suggestions.push({ label: value, value: value });
+        suggestions.push({ "label": value, "value": value});
       }
+    }
 
-      // Add the datalist elements provided by the website, note that the
-      // displayed value can differ from the real value of the element.
-      let options = aElement.list;
-      for (let idx = 0; idx < options.length; idx++) {
-        suggestions.push(options[idx]);
-      }
+    // Add the datalist elements provided by the website, note that the
+    // displayed value can differ from the real value of the element.
+    let options = aElement.list;
+    for (let i = 0; i < options.length; i++)
+      suggestions.push(options[i]);
 
-      aCallback(suggestions);
-    };
-
-    // Send the query
-    this._formAutoCompleteService.autoCompleteSearchAsync(aElement.name || aElement.id,
-                                                          aSearchString, aElement, null,
-                                                          resultsAvailable);
+    return suggestions;
   },
-  
+
   /*
    * Setup for displaying the selection choices menu
    */

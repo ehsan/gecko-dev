@@ -6,15 +6,14 @@
 #ifndef gfxMacPlatformFontList_H_
 #define gfxMacPlatformFontList_H_
 
-#include <CoreFoundation/CoreFoundation.h>
-
-#include "mozilla/MemoryReporting.h"
 #include "nsDataHashtable.h"
 #include "nsRefPtrHashtable.h"
 
 #include "gfxPlatformFontList.h"
 #include "gfxPlatform.h"
 #include "gfxPlatformMac.h"
+
+#include <Carbon/Carbon.h>
 
 #include "nsUnicharUtils.h"
 #include "nsTArray.h"
@@ -41,12 +40,11 @@ public:
 
     virtual CGFontRef GetFontRef();
 
-    // override gfxFontEntry table access function to bypass table cache,
-    // use CGFontRef API to get direct access to system font data
-    virtual hb_blob_t *GetFontTable(uint32_t aTag) MOZ_OVERRIDE;
+    virtual nsresult GetFontTable(uint32_t aTableTag,
+                                  FallibleTArray<uint8_t>& aBuffer);
 
-    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontListSizes* aSizes) const;
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                                     FontListSizes*    aSizes) const;
 
     nsresult ReadCMAP();
 
@@ -58,8 +56,6 @@ protected:
     virtual gfxFont* CreateFontInstance(const gfxFontStyle *aFontStyle, bool aNeedsBold);
 
     virtual bool HasFontTable(uint32_t aTableTag);
-
-    static void DestroyBlobFunc(void* aUserData);
 
     CGFontRef mFontRef; // owning reference to the CGFont, released on destruction
 
@@ -101,11 +97,7 @@ private:
     // special case font faces treated as font families (set via prefs)
     void InitSingleFaceList();
 
-    static void RegisteredFontsChangedNotificationCallback(CFNotificationCenterRef center,
-                                                           void *observer,
-                                                           CFStringRef name,
-                                                           const void *object,
-                                                           CFDictionaryRef userInfo);
+    static void ATSNotification(ATSFontNotificationInfoRef aInfo, void* aUserArg);
 
     // search fonts system-wide for a given character, null otherwise
     virtual gfxFontEntry* GlobalFontFallback(const uint32_t aCh,
@@ -115,6 +107,9 @@ private:
                                              gfxFontFamily** aMatchedFamily);
 
     virtual bool UsesSystemFallback() { return true; }
+
+    // keep track of ATS generation to prevent unneeded updates when loading downloaded fonts
+    uint32_t mATSGeneration;
 
     enum {
         kATSGenerationInitial = -1

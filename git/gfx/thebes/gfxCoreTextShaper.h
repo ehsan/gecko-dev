@@ -6,9 +6,13 @@
 #ifndef GFX_CORETEXTSHAPER_H
 #define GFX_CORETEXTSHAPER_H
 
+#include "gfxTypes.h"
 #include "gfxFont.h"
+#include "gfxFontUtils.h"
+#include "gfxPlatform.h"
+#include "gfxMacPlatformFontList.h"
 
-#include <ApplicationServices/ApplicationServices.h>
+#include <Carbon/Carbon.h>
 
 class gfxMacFont;
 
@@ -43,7 +47,7 @@ protected:
     static void CreateDefaultFeaturesDescriptor();
 
     static CTFontDescriptorRef GetDefaultFeaturesDescriptor() {
-        if (sDefaultFeaturesDescriptor == nullptr) {
+        if (sDefaultFeaturesDescriptor == NULL) {
             CreateDefaultFeaturesDescriptor();
         }
         return sDefaultFeaturesDescriptor;

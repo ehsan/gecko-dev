@@ -84,8 +84,8 @@ public:
 
     bool findKey(T& value, const char** name) const
     {
-        const Pair* end = fArray.end();
-        for (const Pair* pair = fArray.begin(); pair < end; pair++) {
+        Pair* end = fArray.end();
+        for (Pair* pair = fArray.begin(); pair < end; pair++) {
             if (pair->fValue != value)
                 continue;
             *name = pair->fName;
@@ -131,8 +131,8 @@ public:
             return name;
         }
     private:
-        const Pair*   fIter;
-        const Pair*   fStop;
+        Pair*   fIter;
+        Pair*   fStop;
     };
 
 private:
@@ -159,3 +159,4 @@ private:
 };
 
 #endif
+

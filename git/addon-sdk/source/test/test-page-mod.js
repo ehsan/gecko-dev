@@ -8,28 +8,30 @@ const testPageMod = require("./pagemod-test-helpers").testPageMod;
 const { Loader } = require('sdk/test/loader');
 const tabs = require("sdk/tabs");
 const timer = require("sdk/timers");
-const { Cc, Ci, Cu } = require("chrome");
+const { Cc, Ci } = require("chrome");
 const { open, getFrames, getMostRecentBrowserWindow } = require('sdk/window/utils');
 const windowUtils = require('sdk/deprecated/window-utils');
 const { getTabContentWindow, getActiveTab, setTabURL, openTab, closeTab } = require('sdk/tabs/utils');
 const xulApp = require("sdk/system/xul-app");
-const { isPrivateBrowsingSupported } = require('sdk/self');
+const { data, isPrivateBrowsingSupported } = require('sdk/self');
 const { isPrivate } = require('sdk/private-browsing');
 const { openWebpage } = require('./private-browsing/helper');
 const { isTabPBSupported, isWindowPBSupported, isGlobalPBSupported } = require('sdk/private-browsing/utils');
 const promise = require("sdk/core/promise");
 const { pb } = require('./private-browsing/helper');
-const { URL } = require("sdk/url");
 
-const { waitUntil } = require("sdk/test/utils");
-const data = require("./fixtures");
-
-const testPageURI = data.url("test.html");
-
-// The following adds Debugger constructor to the global namespace.
-const { addDebuggerToGlobal } =
-  Cu.import('resource://gre/modules/jsdebugger.jsm', {});
-addDebuggerToGlobal(this);
+/* XXX This can be used to delay closing the test Firefox instance for interactive
+ * testing or visual inspection. This test is registered first so that it runs
+ * the last. */
+exports.delay = function(test) {
+  if (false) {
+    test.waitUntilDone(60000);
+    timer.setTimeout(function() {test.done();}, 4000);
+  }
+  else {
+    test.pass();
+  }
+}
 
 function Isolate(worker) {
   return "(" + worker + ")()";
@@ -37,19 +39,19 @@ function Isolate(worker) {
 
 /* Tests for the PageMod APIs */
 
-exports.testPageMod1 = function(assert, done) {
-  let mods = testPageMod(assert, done, "about:", [{
+exports.testPageMod1 = function(test) {
+  let mods = testPageMod(test, "about:", [{
       include: /about:/,
       contentScriptWhen: 'end',
       contentScript: 'new ' + function WorkerScope() {
         window.document.body.setAttribute("JEP-107", "worked");
       },
       onAttach: function() {
-        assert.equal(this, mods[0], "The 'this' object is the page mod.");
+        test.assertEqual(this, mods[0], "The 'this' object is the page mod.");
       }
     }],
     function(win, done) {
-      assert.equal(
+      test.assertEqual(
         win.document.body.getAttribute("JEP-107"),
         "worked",
         "PageMod.onReady test"
@@ -59,8 +61,8 @@ exports.testPageMod1 = function(assert, done) {
   );
 };
 
-exports.testPageMod2 = function(assert, done) {
-  testPageMod(assert, done, "about:", [{
+exports.testPageMod2 = function(test) {
+  testPageMod(test, "about:", [{
       include: "about:*",
       contentScript: [
         'new ' + function contentScript() {
@@ -78,25 +80,25 @@ exports.testPageMod2 = function(assert, done) {
         }
       ]
     }], function(win, done) {
-      assert.equal(win.document.documentElement.getAttribute("first"),
+      test.assertEqual(win.document.documentElement.getAttribute("first"),
                        "true",
                        "PageMod test #2: first script has run");
-      assert.equal(win.document.documentElement.getAttribute("second"),
+      test.assertEqual(win.document.documentElement.getAttribute("second"),
                        "true",
                        "PageMod test #2: second script has run");
-      assert.equal("AUQLUE" in win, false,
+      test.assertEqual("AUQLUE" in win, false,
                        "PageMod test #2: scripts get a wrapped window");
       done();
     });
 };
 
-exports.testPageModIncludes = function(assert, done) {
+exports.testPageModIncludes = function(test) {
   var asserts = [];
   function createPageModTest(include, expectedMatch) {
     // Create an 'onload' test function...
     asserts.push(function(test, win) {
       var matches = include in win.localStorage;
-      assert.ok(expectedMatch ? matches : !matches,
+      test.assert(expectedMatch ? matches : !matches,
                   "'" + include + "' match test, expected: " + expectedMatch);
     });
     // ...and corresponding PageMod options
@@ -117,19 +119,19 @@ exports.testPageModIncludes = function(assert, done) {
     };
   }
 
-  testPageMod(assert, done, testPageURI, [
+  testPageMod(test, "about:buildconfig", [
       createPageModTest("*", false),
       createPageModTest("*.google.com", false),
-      createPageModTest("resource:*", true),
-      createPageModTest("resource:", false),
-      createPageModTest(testPageURI, true)
+      createPageModTest("about:*", true),
+      createPageModTest("about:", false),
+      createPageModTest("about:buildconfig", true)
     ],
     function (win, done) {
-      waitUntil(function () win.localStorage[testPageURI],
-                     testPageURI + " page-mod to be executed")
+      test.waitUntil(function () win.localStorage["about:buildconfig"],
+                     "about:buildconfig page-mod to be executed")
           .then(function () {
             asserts.forEach(function(fn) {
-              fn(assert, win);
+              fn(test, win);
             });
             done();
           });
@@ -137,20 +139,20 @@ exports.testPageModIncludes = function(assert, done) {
     );
 };
 
-exports.testPageModErrorHandling = function(assert) {
-  assert.throws(function() {
+exports.testPageModErrorHandling = function(test) {
+  test.assertRaises(function() {
       new PageMod();
     },
-    /The `include` option must always contain atleast one rule/,
+    'pattern is undefined',
     "PageMod() throws when 'include' option is not specified.");
 };
 
 /* Tests for internal functions. */
-exports.testCommunication1 = function(assert, done) {
+exports.testCommunication1 = function(test) {
   let workerDone = false,
       callbackDone = null;
 
-  testPageMod(assert, done, "about:", [{
+  testPageMod(test, "about:", [{
       include: "about:*",
       contentScriptWhen: 'end',
       contentScript: 'new ' + function WorkerScope() {
@@ -161,10 +163,10 @@ exports.testCommunication1 = function(assert, done) {
       },
       onAttach: function(worker) {
         worker.on('error', function(e) {
-          assert.fail('Errors where reported');
+          test.fail('Errors where reported');
         });
         worker.on('message', function(value) {
-          assert.equal(
+          test.assertEqual(
             "worked",
             value,
             "test comunication"
@@ -179,7 +181,7 @@ exports.testCommunication1 = function(assert, done) {
     function(win, done) {
       (callbackDone = function() {
         if (workerDone) {
-          assert.equal(
+          test.assertEqual(
             'worked',
             win.document.body.getAttribute('JEP-107'),
             'attribute should be modified'
@@ -191,11 +193,11 @@ exports.testCommunication1 = function(assert, done) {
   );
 };
 
-exports.testCommunication2 = function(assert, done) {
+exports.testCommunication2 = function(test) {
   let callbackDone = null,
       window;
 
-  testPageMod(assert, done, "about:license", [{
+  testPageMod(test, "about:license", [{
       include: "about:*",
       contentScriptWhen: 'start',
       contentScript: 'new ' + function WorkerScope() {
@@ -209,11 +211,11 @@ exports.testCommunication2 = function(assert, done) {
       },
       onAttach: function(worker) {
         worker.on('error', function(e) {
-          assert.fail('Errors where reported');
+          test.fail('Errors where reported');
         });
         worker.on('message', function(msg) {
           if ('onload' == msg) {
-            assert.equal(
+            test.assertEqual(
               '42',
               window.document.documentElement.getAttribute('AUQLUE'),
               'PageMod scripts executed in order'
@@ -221,7 +223,7 @@ exports.testCommunication2 = function(assert, done) {
             window.document.documentElement.setAttribute('test', 'changes in window');
             worker.postMessage('get window.test')
           } else {
-            assert.equal(
+            test.assertEqual(
               'changes in window',
               msg,
               'PageMod test #2: second script has run'
@@ -238,11 +240,11 @@ exports.testCommunication2 = function(assert, done) {
   );
 };
 
-exports.testEventEmitter = function(assert, done) {
+exports.testEventEmitter = function(test) {
   let workerDone = false,
       callbackDone = null;
 
-  testPageMod(assert, done, "about:", [{
+  testPageMod(test, "about:", [{
       include: "about:*",
       contentScript: 'new ' + function WorkerScope() {
         self.port.on('addon-to-content', function(data) {
@@ -251,10 +253,10 @@ exports.testEventEmitter = function(assert, done) {
       },
       onAttach: function(worker) {
         worker.on('error', function(e) {
-          assert.fail('Errors were reported : '+e);
+          test.fail('Errors were reported : '+e);
         });
         worker.port.on('content-to-addon', function(value) {
-          assert.equal(
+          test.assertEqual(
             "worked",
             value,
             "EventEmitter API works!"
@@ -278,7 +280,7 @@ exports.testEventEmitter = function(assert, done) {
 
 // Execute two concurrent page mods on same document to ensure that their
 // JS contexts are different
-exports.testMixedContext = function(assert, done) {
+exports.testMixedContext = function(test) {
   let doneCallback = null;
   let messages = 0;
   let modObject = {
@@ -293,30 +295,30 @@ exports.testMixedContext = function(assert, done) {
     onAttach: function(w) {
       w.on("message", function (isContextShared) {
         if (isContextShared) {
-          assert.fail("Page mod contexts are mixed.");
+          test.fail("Page mod contexts are mixed.");
           doneCallback();
         }
         else if (++messages == 2) {
-          assert.pass("Page mod contexts are different.");
+          test.pass("Page mod contexts are different.");
           doneCallback();
         }
       });
     }
   };
-  testPageMod(assert, done, "data:text/html;charset=utf-8,", [modObject, modObject],
+  testPageMod(test, "data:text/html;charset=utf-8,", [modObject, modObject],
     function(win, done) {
       doneCallback = done;
     }
   );
 };
 
-exports.testHistory = function(assert, done) {
+exports.testHistory = function(test) {
   // We need a valid url in order to have a working History API.
   // (i.e do not work on data: or about: pages)
   // Test bug 679054.
-  let url = data.url("test-page-mod.html");
+  let url = require("sdk/self").data.url("test-page-mod.html");
   let callbackDone = null;
-  testPageMod(assert, done, url, [{
+  testPageMod(test, url, [{
       include: url,
       contentScriptWhen: 'end',
       contentScript: 'new ' + function WorkerScope() {
@@ -326,7 +328,7 @@ exports.testHistory = function(assert, done) {
       },
       onAttach: function(worker) {
         worker.on('message', function (data) {
-          assert.equal(JSON.stringify(data), JSON.stringify({foo: "bar"}),
+          test.assertEqual(JSON.stringify(data), JSON.stringify({foo: "bar"}),
                            "History API works!");
           callbackDone();
         });
@@ -338,15 +340,19 @@ exports.testHistory = function(assert, done) {
   );
 };
 
-exports.testRelatedTab = function(assert, done) {
+exports.testRelatedTab = function(test) {
+  test.waitUntilDone();
+
   let tab;
   let pageMod = new PageMod({
     include: "about:*",
     onAttach: function(worker) {
-      assert.ok(!!worker.tab, "Worker.tab exists");
-      assert.equal(tab, worker.tab, "Worker.tab is valid");
+      test.assert(!!worker.tab, "Worker.tab exists");
+      test.assertEqual(tab, worker.tab, "Worker.tab is valid");
       pageMod.destroy();
-      tab.close(done);
+      tab.close(function() {
+        test.done();
+      });
     }
   });
 
@@ -358,7 +364,9 @@ exports.testRelatedTab = function(assert, done) {
   });
 };
 
-exports.testRelatedTabNoRequireTab = function(assert, done) {
+exports.testRelatedTabNoRequireTab = function(test) {
+  test.waitUntilDone();
+
   let loader = Loader(module);
   let tab;
   let url = "data:text/html;charset=utf-8," + encodeURI("Test related worker tab 2");
@@ -366,30 +374,31 @@ exports.testRelatedTabNoRequireTab = function(assert, done) {
   let pageMod = new PageMod({
     include: url,
     onAttach: function(worker) {
-      assert.equal(worker.tab.url, url, "Worker.tab.url is valid");
-      worker.tab.close(function() {
-        pageMod.destroy();
-        loader.unload();
-        done();
-      });
+      test.assertEqual(worker.tab.url, url, "Worker.tab.url is valid");
+      worker.tab.close();
+      pageMod.destroy();
+      loader.unload();
+      test.done();
     }
   });
 
   tabs.open(url);
 };
 
-exports.testRelatedTabNoOtherReqs = function(assert, done) {
+exports.testRelatedTabNoOtherReqs = function(test) {
+  test.waitUntilDone();
+
   let loader = Loader(module);
   let { PageMod } = loader.require("sdk/page-mod");
   let pageMod = new PageMod({
     include: "about:blank?testRelatedTabNoOtherReqs",
     onAttach: function(worker) {
-      assert.ok(!!worker.tab, "Worker.tab exists");
+      test.assert(!!worker.tab, "Worker.tab exists");
       pageMod.destroy();
       worker.tab.close(function() {
         worker.destroy();
         loader.unload();
-        done();
+        test.done();
       });
     }
   });
@@ -399,7 +408,9 @@ exports.testRelatedTabNoOtherReqs = function(assert, done) {
   });
 };
 
-exports.testWorksWithExistingTabs = function(assert, done) {
+exports.testWorksWithExistingTabs = function(test) {
+  test.waitUntilDone();
+
   let url = "data:text/html;charset=utf-8," + encodeURI("Test unique document");
   let { PageMod } = require("sdk/page-mod");
   tabs.open({
@@ -409,13 +420,14 @@ exports.testWorksWithExistingTabs = function(assert, done) {
         include: url,
         attachTo: ["existing", "top", "frame"],
         onAttach: function(worker) {
-          assert.ok(!!worker.tab, "Worker.tab exists");
-          assert.equal(tab, worker.tab, "A worker has been created on this existing tab");
+          test.assert(!!worker.tab, "Worker.tab exists");
+          test.assertEqual(tab, worker.tab, "A worker has been created on this existing tab");
 
           timer.setTimeout(function() {
             pageModOnExisting.destroy();
             pageModOffExisting.destroy();
-            tab.close(done);
+            tab.close();
+            test.done();
           }, 0);
         }
       });
@@ -423,14 +435,16 @@ exports.testWorksWithExistingTabs = function(assert, done) {
       let pageModOffExisting = new PageMod({
         include: url,
         onAttach: function(worker) {
-          assert.fail("pageModOffExisting page-mod should not have attached to anything");
+          test.fail("pageModOffExisting page-mod should not have attached to anything");
         }
       });
     }
   });
 };
 
-exports.testTabWorkerOnMessage = function(assert, done) {
+exports.testTabWorkerOnMessage = function(test) {
+  test.waitUntilDone();
+
   let { browserWindows } = require("sdk/windows");
   let tabs = require("sdk/tabs");
   let { PageMod } = require("sdk/page-mod");
@@ -449,21 +463,19 @@ exports.testTabWorkerOnMessage = function(assert, done) {
           contentScriptWhen: "ready",
           contentScript: "self.postMessage({ url: window.location.href, title: document.title });",
           onMessage: function onMessage(data) {
-            assert.equal(this.tab.url, data.url, "location is correct");
-            assert.equal(this.tab.title, data.title, "title is correct");
+            test.assertEqual(this.tab.url, data.url, "location is correct");
+            test.assertEqual(this.tab.title, data.title, "title is correct");
             if (this.tab.url === url1) {
               worker1 = this;
               tabs.open({ url: url2, inBackground: true });
             }
             else if (this.tab.url === url2) {
               mod.destroy();
-              worker1.tab.close(function() {
-                worker1.destroy();
-                worker.tab.close(function() {
-                  worker.destroy();
-                  done();
-                });
-              });
+              worker1.tab.close();
+              worker1.destroy();
+              worker.tab.close();
+              worker.destroy();
+              test.done();
             }
           }
         });
@@ -474,14 +486,15 @@ exports.testTabWorkerOnMessage = function(assert, done) {
   tabs.open(url1);
 };
 
-exports.testAutomaticDestroy = function(assert, done) {
+exports.testAutomaticDestroy = function(test) {
+  test.waitUntilDone();
   let loader = Loader(module);
 
   let pageMod = loader.require("sdk/page-mod").PageMod({
     include: "about:*",
     contentScriptWhen: "start",
     onAttach: function(w) {
-      assert.fail("Page-mod should have been detroyed during module unload");
+      test.fail("Page-mod should have been detroyed during module unload");
     }
   });
 
@@ -493,13 +506,16 @@ exports.testAutomaticDestroy = function(assert, done) {
   tabs.open({
     url: "about:",
     onReady: function onReady(tab) {
-      assert.pass("check automatic destroy");
-      tab.close(done);
+      test.pass("check automatic destroy");
+      tab.close();
+      test.done();
     }
   });
-};
 
-exports.testAttachToTabsOnly = function(assert, done) {
+}
+
+exports.testAttachToTabsOnly = function(test) {
+  test.waitUntilDone();
 
   let { PageMod } = require('sdk/page-mod');
   let openedTab = null; // Tab opened in openTabWithIframe()
@@ -512,14 +528,16 @@ exports.testAttachToTabsOnly = function(assert, done) {
     onAttach: function onAttach(worker) {
       if (worker.tab === openedTab) {
         if (++workerCount == 3) {
-          assert.pass('Succesfully applied to tab documents and its iframe');
+          test.pass('Succesfully applied to tab documents and its iframe');
           worker.destroy();
           mod.destroy();
-          openedTab.close(done);
+          openedTab.close(function() {
+            test.done();
+          });
         }
       }
       else {
-        assert.fail('page-mod attached to a non-tab document');
+        test.fail('page-mod attached to a non-tab document');
       }
     }
   });
@@ -588,7 +606,9 @@ exports.testAttachToTabsOnly = function(assert, done) {
   openHiddenFrame();
 };
 
-exports['test111 attachTo [top]'] = function(assert, done) {
+exports['test111 attachTo [top]'] = function(test) {
+  test.waitUntilDone();
+
   let { PageMod } = require('sdk/page-mod');
 
   let subContent = '<iframe src="data:text/html;charset=utf-8,sub frame" />'
@@ -606,16 +626,18 @@ exports['test111 attachTo [top]'] = function(assert, done) {
     onAttach: function onAttach(worker) {
       if (++workerCount == 1) {
         worker.on('message', function (href) {
-          assert.equal(href, topDocumentURL,
+          test.assertEqual(href, topDocumentURL,
                            "worker on top level document only");
           let tab = worker.tab;
           worker.destroy();
           mod.destroy();
-          tab.close(done);
+          tab.close(function() {
+            test.done();
+          });
         });
       }
       else {
-        assert.fail('page-mod attached to a non-top document');
+        test.fail('page-mod attached to a non-top document');
       }
     }
   });
@@ -623,7 +645,9 @@ exports['test111 attachTo [top]'] = function(assert, done) {
   require('sdk/tabs').open(topDocumentURL);
 };
 
-exports['test111 attachTo [frame]'] = function(assert, done) {
+exports['test111 attachTo [frame]'] = function(test) {
+  test.waitUntilDone();
+
   let { PageMod } = require('sdk/page-mod');
 
   let subFrameURL = 'data:text/html;charset=utf-8,subframe';
@@ -636,15 +660,17 @@ exports['test111 attachTo [frame]'] = function(assert, done) {
 
   function onMessage(href) {
     if (href == frameURL)
-      assert.pass("worker on first frame");
+      test.pass("worker on first frame");
     else if (href == subFrameURL)
-      assert.pass("worker on second frame");
+      test.pass("worker on second frame");
     else
-      assert.fail("worker on unexpected document: " + href);
+      test.fail("worker on unexpected document: " + href);
     this.destroy();
     if (++messageCount == 2) {
       mod.destroy();
-      require('sdk/tabs').activeTab.close(done);
+      require('sdk/tabs').activeTab.close(function() {
+        test.done();
+      });
     }
   }
   let mod = PageMod({
@@ -657,7 +683,7 @@ exports['test111 attachTo [frame]'] = function(assert, done) {
         worker.on('message', onMessage);
       }
       else {
-        assert.fail('page-mod attached to a non-frame document');
+        test.fail('page-mod attached to a non-frame document');
       }
     }
   });
@@ -665,20 +691,22 @@ exports['test111 attachTo [frame]'] = function(assert, done) {
   require('sdk/tabs').open(topDocumentURL);
 };
 
-exports.testContentScriptOptionsOption = function(assert, done) {
+exports.testContentScriptOptionsOption = function(test) {
+  test.waitUntilDone();
+
   let callbackDone = null;
-  testPageMod(assert, done, "about:", [{
+  testPageMod(test, "about:", [{
       include: "about:*",
       contentScript: "self.postMessage( [typeof self.options.d, self.options] );",
       contentScriptWhen: "end",
       contentScriptOptions: {a: true, b: [1,2,3], c: "string", d: function(){ return 'test'}},
       onAttach: function(worker) {
         worker.on('message', function(msg) {
-          assert.equal( msg[0], 'undefined', 'functions are stripped from contentScriptOptions' );
-          assert.equal( typeof msg[1], 'object', 'object as contentScriptOptions' );
-          assert.equal( msg[1].a, true, 'boolean in contentScriptOptions' );
-          assert.equal( msg[1].b.join(), '1,2,3', 'array and numbers in contentScriptOptions' );
-          assert.equal( msg[1].c, 'string', 'string in contentScriptOptions' );
+          test.assertEqual( msg[0], 'undefined', 'functions are stripped from contentScriptOptions' );
+          test.assertEqual( typeof msg[1], 'object', 'object as contentScriptOptions' );
+          test.assertEqual( msg[1].a, true, 'boolean in contentScriptOptions' );
+          test.assertEqual( msg[1].b.join(), '1,2,3', 'array and numbers in contentScriptOptions' );
+          test.assertEqual( msg[1].c, 'string', 'string in contentScriptOptions' );
           callbackDone();
         });
       }
@@ -689,21 +717,22 @@ exports.testContentScriptOptionsOption = function(assert, done) {
   );
 };
 
-exports.testPageModCss = function(assert, done) {
-  let [pageMod] = testPageMod(assert, done,
+exports.testPageModCss = function(test) {
+  let [pageMod] = testPageMod(test,
     'data:text/html;charset=utf-8,<div style="background: silver">css test</div>', [{
       include: ["*", "data:*"],
       contentStyle: "div { height: 100px; }",
-      contentStyleFile: data.url("pagemod-css-include-file.css")
+      contentStyleFile:
+        require("sdk/self").data.url("pagemod-css-include-file.css")
     }],
     function(win, done) {
       let div = win.document.querySelector("div");
-      assert.equal(
+      test.assertEqual(
         div.clientHeight,
         100,
         "PageMod contentStyle worked"
       );
-      assert.equal(
+      test.assertEqual(
        div.offsetHeight,
         120,
         "PageMod contentStyleFile worked"
@@ -713,8 +742,8 @@ exports.testPageModCss = function(assert, done) {
   );
 };
 
-exports.testPageModCssList = function(assert, done) {
-  let [pageMod] = testPageMod(assert, done,
+exports.testPageModCssList = function(test) {
+  let [pageMod] = testPageMod(test,
     'data:text/html;charset=utf-8,<div style="width:320px; max-width: 480px!important">css test</div>', [{
       include: "data:*",
       contentStyleFile: [
@@ -735,25 +764,25 @@ exports.testPageModCssList = function(assert, done) {
       let div = win.document.querySelector("div"),
           style = win.getComputedStyle(div);
 
-      assert.equal(
+      test.assertEqual(
        div.clientHeight,
         100,
         "PageMod contentStyle list works and is evaluated after contentStyleFile"
       );
 
-      assert.equal(
+      test.assertEqual(
         div.offsetHeight,
         120,
         "PageMod contentStyleFile list works"
       );
 
-      assert.equal(
+      test.assertEqual(
         style.width,
         "320px",
         "PageMod add-on author/page author style sheet precedence works"
       );
 
-      assert.equal(
+      test.assertEqual(
         style.maxWidth,
         "480px",
         "PageMod add-on author/page author style sheet precedence with !important works"
@@ -764,8 +793,8 @@ exports.testPageModCssList = function(assert, done) {
   );
 };
 
-exports.testPageModCssDestroy = function(assert, done) {
-  let [pageMod] = testPageMod(assert, done,
+exports.testPageModCssDestroy = function(test) {
+  let [pageMod] = testPageMod(test,
     'data:text/html;charset=utf-8,<div style="width:200px">css test</div>', [{
       include: "data:*",
       contentStyle: "div { width: 100px!important; }"
@@ -775,14 +804,14 @@ exports.testPageModCssDestroy = function(assert, done) {
       let div = win.document.querySelector("div"),
           style = win.getComputedStyle(div);
 
-      assert.equal(
+      test.assertEqual(
         style.width,
         "100px",
         "PageMod contentStyle worked"
       );
 
       pageMod.destroy();
-      assert.equal(
+      test.assertEqual(
         style.width,
         "200px",
         "PageMod contentStyle is removed after destroy"
@@ -794,7 +823,8 @@ exports.testPageModCssDestroy = function(assert, done) {
   );
 };
 
-exports.testPageModCssAutomaticDestroy = function(assert, done) {
+exports.testPageModCssAutomaticDestroy = function(test) {
+  test.waitUntilDone();
   let loader = Loader(module);
 
   let pageMod = loader.require("sdk/page-mod").PageMod({
@@ -812,7 +842,7 @@ exports.testPageModCssAutomaticDestroy = function(assert, done) {
       let div = win.document.querySelector("div");
       let style = win.getComputedStyle(div);
 
-      assert.equal(
+      test.assertEqual(
         style.width,
         "100px",
         "PageMod contentStyle worked"
@@ -820,19 +850,21 @@ exports.testPageModCssAutomaticDestroy = function(assert, done) {
 
       loader.unload();
 
-      assert.equal(
+      test.assertEqual(
         style.width,
         "200px",
         "PageMod contentStyle is removed after loader's unload"
       );
 
-      tab.close(done);
+      tab.close();
+      test.done();
     }
   });
 };
 
 
-exports.testPageModTimeout = function(assert, done) {
+exports.testPageModTimeout = function(test) {
+  test.waitUntilDone();
   let tab = null
   let loader = Loader(module);
   let { PageMod } = loader.require("sdk/page-mod");
@@ -847,14 +879,13 @@ exports.testPageModTimeout = function(assert, done) {
     }),
     onAttach: function(worker) {
       worker.port.on("scheduled", function(id) {
-        assert.pass("timer was scheduled")
+        test.pass("timer was scheduled")
         worker.port.on("fired", function(data) {
-          assert.equal(id, data, "timer was fired")
-          tab.close(function() {
-            worker.destroy()
-            loader.unload()
-            done()
-          });
+          test.assertEqual(id, data, "timer was fired")
+          tab.close()
+          worker.destroy()
+          loader.unload()
+          test.done()
         })
       })
     }
@@ -867,7 +898,8 @@ exports.testPageModTimeout = function(assert, done) {
 }
 
 
-exports.testPageModcancelTimeout = function(assert, done) {
+exports.testPageModcancelTimeout = function(test) {
+  test.waitUntilDone();
   let tab = null
   let loader = Loader(module);
   let { PageMod } = loader.require("sdk/page-mod");
@@ -885,16 +917,15 @@ exports.testPageModcancelTimeout = function(assert, done) {
     }),
     onAttach: function(worker) {
       worker.port.on("failed", function() {
-        assert.fail("cancelled timeout fired")
+        test.fail("cancelled timeout fired")
       })
       worker.port.on("timeout", function(id) {
-        assert.pass("timer was scheduled")
-        tab.close(function() {
-          worker.destroy();
-          mod.destroy();
-          loader.unload();
-          done();
-        });
+        test.pass("timer was scheduled")
+        tab.close();
+        worker.destroy();
+        mod.destroy();
+        loader.unload();
+        test.done();
       })
     }
   });
@@ -905,7 +936,9 @@ exports.testPageModcancelTimeout = function(assert, done) {
   })
 }
 
-exports.testExistingOnFrames = function(assert, done) {
+exports.testExistingOnFrames = function(test) {
+  test.waitUntilDone();
+
   let subFrameURL = 'data:text/html;charset=utf-8,testExistingOnFrames-sub-frame';
   let subIFrame = '<iframe src="' + subFrameURL + '" />'
   let iFrameURL = 'data:text/html;charset=utf-8,' + encodeURIComponent(subIFrame)
@@ -936,26 +969,26 @@ exports.testExistingOnFrames = function(assert, done) {
         if (urls.indexOf(worker.url) == -1)
           return;
 
-        assert.notEqual(url,
+        test.assertNotEqual(url,
                             worker.url,
                             'worker should not be attached to the top window');
 
         if (++counter < 2) {
           // we can rely on this order in this case because we are sure that
           // the frames being tested have completely loaded
-          assert.equal(iFrameURL, worker.url, '1st attach is for top frame');
+          test.assertEqual(iFrameURL, worker.url, '1st attach is for top frame');
         }
         else if (counter > 2) {
-          assert.fail('applied page mod too many times');
+          test.fail('applied page mod too many times');
         }
         else {
-          assert.equal(subFrameURL, worker.url, '2nd attach is for sub frame');
+          test.assertEqual(subFrameURL, worker.url, '2nd attach is for sub frame');
           // need timeout because onAttach is called before the constructor returns
           timer.setTimeout(function() {
             pagemodOnExisting.destroy();
             pagemodOffExisting.destroy();
             closeTab(tab);
-            done();
+            test.done();
           }, 0);
         }
       }
@@ -966,7 +999,7 @@ exports.testExistingOnFrames = function(assert, done) {
       attachTo: ["frame"],
       contentScriptWhen: 'ready',
       onAttach: function(mod) {
-        assert.fail('pagemodOffExisting page-mod should not have been attached');
+        test.fail('pagemodOffExisting page-mod should not have been attached');
       }
     });
   }
@@ -974,7 +1007,8 @@ exports.testExistingOnFrames = function(assert, done) {
   window.addEventListener("load", wait4Iframes, false);
 };
 
-exports.testIFramePostMessage = function(assert, done) {
+exports.testIFramePostMessage = function(test) {
+  test.waitUntilDone();
   let count = 0;
 
   tabs.open({
@@ -984,27 +1018,27 @@ exports.testIFramePostMessage = function(assert, done) {
         contentScriptFile: data.url('test-iframe.js'),
         contentScript: 'var iframePath = \'' + data.url('test-iframe-postmessage.html') + '\'',
         onMessage: function(msg) {
-          assert.equal(++count, 1);
-          assert.equal(msg.first, 'a string');
-          assert.ok(msg.second[1], "array");
-          assert.equal(typeof msg.third, 'object');
+          test.assertEqual(++count, 1);
+          test.assertEqual(msg.first, 'a string');
+          test.assert(msg.second[1], "array");
+          test.assertEqual(typeof msg.third, 'object');
 
           worker.destroy();
-          tab.close(done);
+          tab.close(function() test.done());
         }
       });
     }
   });
 };
 
-exports.testEvents = function(assert, done) {
+exports.testEvents = function(test) {
   let content = "<script>\n new " + function DocumentScope() {
     window.addEventListener("ContentScriptEvent", function () {
       window.receivedEvent = true;
     }, false);
   } + "\n</script>";
   let url = "data:text/html;charset=utf-8," + encodeURIComponent(content);
-  testPageMod(assert, done, url, [{
+  testPageMod(test, url, [{
       include: "data:*",
       contentScript: 'new ' + function WorkerScope() {
         let evt = document.createEvent("Event");
@@ -1013,7 +1047,7 @@ exports.testEvents = function(assert, done) {
       }
     }],
     function(win, done) {
-      assert.ok(
+      test.assert(
         win.receivedEvent,
         "Content script sent an event and document received it"
       );
@@ -1022,9 +1056,8 @@ exports.testEvents = function(assert, done) {
   );
 };
 
-exports["test page-mod on private tab"] = function (assert, done) {
-  let fail = assert.fail.bind(assert);
-
+exports["test page-mod on private tab"] = function (test) {
+  test.waitUntilDone();
   let privateUri = "data:text/html;charset=utf-8," +
                    "<iframe src=\"data:text/html;charset=utf-8,frame\" />";
   let nonPrivateUri = "data:text/html;charset=utf-8,non-private";
@@ -1035,34 +1068,28 @@ exports["test page-mod on private tab"] = function (assert, done) {
       if (isTabPBSupported || isWindowPBSupported) {
         // When PB isn't supported, the page-mod will apply to all document
         // as all of them will be non-private
-        assert.equal(worker.tab.url,
+        test.assertEqual(worker.tab.url,
                          nonPrivateUri,
                          "page-mod should only attach to the non-private tab");
       }
-
-      assert.ok(!isPrivate(worker),
+      test.assert(!isPrivate(worker),
                   "The worker is really non-private");
-      assert.ok(!isPrivate(worker.tab),
+      test.assert(!isPrivate(worker.tab),
                   "The document is really non-private");
       pageMod.destroy();
-
-      page1.close().
-        then(page2.close).
-        then(done, fail);
+      page1.close().then(page2.close).then(test.done.bind(test));
     }
   });
 
-  let page1, page2;
-  page1 = openWebpage(privateUri, true);
-  page1.ready.then(function() {
-    page2 = openWebpage(nonPrivateUri, false);
-  }, fail);
+  let page1 = openWebpage(privateUri, true);
+  let page2 = openWebpage(nonPrivateUri, false);
 }
 
-exports["test page-mod on private tab in global pb"] = function (assert, done) {
+exports["test page-mod on private tab in global pb"] = function (test) {
+  test.waitUntilDone();
   if (!isGlobalPBSupported) {
-    assert.pass();
-    return done();
+    test.pass();
+    return test.done();
   }
 
   let privateUri = "data:text/html;charset=utf-8," +
@@ -1071,22 +1098,22 @@ exports["test page-mod on private tab in global pb"] = function (assert, done) {
   let pageMod = new PageMod({
     include: privateUri,
     onAttach: function(worker) {
-      assert.equal(worker.tab.url,
+      test.assertEqual(worker.tab.url,
                        privateUri,
                        "page-mod should attach");
-      assert.equal(isPrivateBrowsingSupported,
+      test.assertEqual(isPrivateBrowsingSupported,
                        false,
                        "private browsing is not supported");
-      assert.ok(isPrivate(worker),
+      test.assert(isPrivate(worker),
                   "The worker is really non-private");
-      assert.ok(isPrivate(worker.tab),
+      test.assert(isPrivate(worker.tab),
                   "The document is really non-private");
       pageMod.destroy();
 
       worker.tab.close(function() {
         pb.once('stop', function() {
-          assert.pass('global pb stop');
-          done();
+          test.pass('global pb stop');
+          test.done();
         });
         pb.deactivate();
       });
@@ -1095,64 +1122,8 @@ exports["test page-mod on private tab in global pb"] = function (assert, done) {
 
   let page1;
   pb.once('start', function() {
-    assert.pass('global pb start');
+    test.pass('global pb start');
     tabs.open({ url: privateUri });
   });
   pb.activate();
 }
-
-// Bug 699450: Calling worker.tab.close() should not lead to exception
-exports.testWorkerTabClose = function(assert, done) {
-  let callbackDone;
-  testPageMod(assert, done, "about:", [{
-      include: "about:",
-      contentScript: '',
-      onAttach: function(worker) {
-        console.log("call close");
-        worker.tab.close(function () {
-          // On Fennec, tab is completely destroyed right after close event is
-          // dispatch, so we need to wait for the next event loop cycle to
-          // check for tab nulliness.
-          timer.setTimeout(function () {
-            assert.ok(!worker.tab,
-                        "worker.tab should be null right after tab.close()");
-            callbackDone();
-          }, 0);
-        });
-      }
-    }],
-    function(win, done) {
-      callbackDone = done;
-    }
-  );
-};
-
-exports.testDebugMetadata = function(assert, done) {
-  let dbg = new Debugger;
-  let globalDebuggees = [];
-  dbg.onNewGlobalObject = function(global) {
-    globalDebuggees.push(global);
-  }
-
-  let mods = testPageMod(assert, done, "about:", [{
-      include: "about:",
-      contentScriptWhen: "start",
-      contentScript: "null;",
-    }],
-    function(win, done) {
-      assert.ok(globalDebuggees.some(function(global) {
-        try {
-          let metadata = Cu.getSandboxMetadata(global.unsafeDereference());
-          return metadata && metadata.addonID && metadata.SDKContentScript;
-        } catch(e) {
-          // Some of the globals might not be Sandbox instances and thus
-          // will cause getSandboxMetadata to fail.
-          return false;
-        }
-      }), "one of the globals is a content script");
-      done();
-    }
-  );
-};
-
-require('sdk/test').run(exports);

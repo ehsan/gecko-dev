@@ -6,24 +6,14 @@
 
 interface nsIDOMBlob;
 
-// If this is changed, change the WebIDL dictionary as well.
 dictionary MmsAttachment
 {
   DOMString? id;
   DOMString? location;
-  nsIDOMBlob content; // If the content blob is a text/plain type, the encoding
-                      // for text should always be "utf-8".
+  nsIDOMBlob content;
 };
 
-dictionary MmsDeliveryInfo
-{
-  DOMString? receiver;
-  DOMString? deliveryStatus;
-  jsval      deliveryTimestamp; // Date object; null if not available (e.g.,
-                                // |delivery| = "received" or not yet delivered).
-};
-
-[scriptable, builtinclass, uuid(3593c914-420a-11e3-a297-a3bdd768257f)]
+[scriptable, builtinclass, uuid(210654af-4cc8-42e5-81b2-051f0f393c3a)]
 interface nsIDOMMozMmsMessage : nsISupports
 {
   /**
@@ -36,19 +26,12 @@ interface nsIDOMMozMmsMessage : nsISupports
   readonly attribute unsigned long long threadId;
 
   /**
-   * Integrated Circuit Card Identifier.
-   *
-   * Will be null if ICC is not available.
-   */
-  readonly attribute DOMString iccId;
-
-  /**
    * Should be "not-downloaded", "received", "sending", "sent" or "error".
    */
   readonly attribute DOMString delivery;
 
   [implicit_jscontext]
-  readonly attribute jsval     deliveryInfo;   // MmsDeliveryInfo[]
+  readonly attribute jsval     deliveryStatus; // DOMString[]
 
   readonly attribute DOMString sender;
 
@@ -56,7 +39,7 @@ interface nsIDOMMozMmsMessage : nsISupports
   readonly attribute jsval     receivers;      // DOMString[]
 
   [implicit_jscontext]
-  readonly attribute jsval     timestamp;      // Date object
+  readonly attribute jsval     timestamp;      // Date
 
   readonly attribute boolean   read;
   readonly attribute DOMString subject;
@@ -64,12 +47,4 @@ interface nsIDOMMozMmsMessage : nsISupports
 
   [implicit_jscontext]
   readonly attribute jsval     attachments;    // MmsAttachment[]
-
-  [implicit_jscontext]
-  readonly attribute jsval     expiryDate;     // Date object
-                                               // Expiry date for an MMS to be
-                                               // manually downloaded.
-
-  // Request read report from sender or not.
-  readonly attribute boolean   isReadReportRequested;
 };

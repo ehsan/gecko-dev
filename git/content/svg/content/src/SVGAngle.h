@@ -3,8 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_SVGAngle_h
-#define mozilla_dom_SVGAngle_h
+#pragma once
 
 #include "nsWrapperCache.h"
 #include "nsSVGElement.h"
@@ -12,10 +11,21 @@
 
 class nsSVGAngle;
 
+// We make SVGAngle a pseudo-interface to allow us to QI to it in order
+// to check that the objects that scripts pass in are our our *native*
+// transform objects.
+
+// {da9670f6-6d3d-4fb3-974c-9d6bad8dcd53}
+#define MOZILLA_SVGANGLE_IID \
+{0x2cd27ef5, 0x81d8, 0x4720, \
+  {0x81, 0x42, 0x66, 0xc6, 0xa9, 0xbe, 0xc3, 0xeb } }
+
+
 namespace mozilla {
 namespace dom {
 
-class SVGAngle MOZ_FINAL : public nsWrapperCache
+class SVGAngle MOZ_FINAL : public nsISupports,
+                           public nsWrapperCache
 {
 public:
   typedef enum {
@@ -24,8 +34,9 @@ public:
     CreatedValue
   } AngleType;
 
-  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(SVGAngle)
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(SVGAngle)
+  NS_DECLARE_STATIC_IID_ACCESSOR(MOZILLA_SVGANGLE_IID)
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(SVGAngle)
 
   SVGAngle(nsSVGAngle* aVal, nsSVGElement *aSVGElement, AngleType aType)
     : mVal(aVal), mSVGElement(aSVGElement), mType(aType)
@@ -37,8 +48,7 @@ public:
 
   // WebIDL
   nsSVGElement* GetParentObject() { return mSVGElement; }
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
   uint16_t UnitType() const;
   float Value() const;
   void GetValueAsString(nsAString& aValue);
@@ -55,7 +65,8 @@ protected:
   AngleType mType;
 };
 
+NS_DEFINE_STATIC_IID_ACCESSOR(SVGAngle, MOZILLA_SVGANGLE_IID)
+
 } //namespace dom
 } //namespace mozilla
 
-#endif // mozilla_dom_SVGAngle_h

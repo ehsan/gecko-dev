@@ -7,12 +7,11 @@
 #include "prerror.h"
 #include "prprf.h"
 
-#include "nsNSSCertificate.h"
-#include "CertVerifier.h"
 #include "nsNSSComponent.h" // for PIPNSS string bundle calls.
 #include "nsNSSCleaner.h"
 #include "nsCOMPtr.h"
 #include "nsIMutableArray.h"
+#include "nsNSSCertificate.h"
 #include "nsNSSCertValidity.h"
 #include "nsPKCS12Blob.h"
 #include "nsPK11TokenDB.h"
@@ -37,7 +36,6 @@
 #include "nsIProgrammingLanguage.h"
 #include "nsXULAppAPI.h"
 #include "ScopedNSSTypes.h"
-#include "nsProxyRelease.h"
 
 #include "nspr.h"
 #include "certdb.h"
@@ -50,7 +48,6 @@
 #include "plbase64.h"
 
 using namespace mozilla;
-using namespace mozilla::psm;
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
@@ -68,25 +65,24 @@ NSSCleanupAutoPtrClass_WithParam(PLArenaPool, PORT_FreeArena, FalseParam, false)
 
 /* nsNSSCertificate */
 
-NS_IMPL_ISUPPORTS7(nsNSSCertificate,
-                   nsIX509Cert,
-                   nsIX509Cert2,
-                   nsIX509Cert3,
-                   nsIIdentityInfo,
-                   nsISMimeCert,
-                   nsISerializable,
-                   nsIClassInfo)
+NS_IMPL_THREADSAFE_ISUPPORTS7(nsNSSCertificate, nsIX509Cert,
+                                                nsIX509Cert2,
+                                                nsIX509Cert3,
+                                                nsIIdentityInfo,
+                                                nsISMimeCert,
+                                                nsISerializable,
+                                                nsIClassInfo)
 
 /* static */
 nsNSSCertificate*
-nsNSSCertificate::Create(CERTCertificate *cert, SECOidTag *evOidPolicy)
+nsNSSCertificate::Create(CERTCertificate *cert)
 {
   if (GeckoProcessType_Default != XRE_GetProcessType()) {
     NS_ERROR("Trying to initialize nsNSSCertificate in a non-chrome process!");
     return nullptr;
   }
   if (cert)
-    return new nsNSSCertificate(cert, evOidPolicy);
+    return new nsNSSCertificate(cert);
   else
     return new nsNSSCertificate();
 }
@@ -131,8 +127,7 @@ nsNSSCertificate::InitFromDER(char *certDER, int derLen)
   return true;
 }
 
-nsNSSCertificate::nsNSSCertificate(CERTCertificate *cert,
-                                   SECOidTag *evOidPolicy) :
+nsNSSCertificate::nsNSSCertificate(CERTCertificate *cert) : 
                                            mCert(nullptr),
                                            mPermDelete(false),
                                            mCertType(CERT_TYPE_NOT_YET_INITIALIZED),
@@ -147,18 +142,8 @@ nsNSSCertificate::nsNSSCertificate(CERTCertificate *cert,
   if (isAlreadyShutDown())
     return;
 
-  if (cert) {
+  if (cert) 
     mCert = CERT_DupCertificate(cert);
-    if (evOidPolicy) {
-      if ( *evOidPolicy == SEC_OID_UNKNOWN) {
-        mCachedEVStatus =  ev_status_invalid;
-      }
-      else {
-        mCachedEVStatus = ev_status_valid;
-      }
-      mCachedEVOidTag = *evOidPolicy;
-    }
-  }
 }
 
 nsNSSCertificate::nsNSSCertificate() : 
@@ -827,45 +812,8 @@ nsNSSCertificate::GetChain(nsIArray **_rvChain)
   nsresult rv;
   /* Get the cert chain from NSS */
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("Getting chain for \"%s\"\n", mCert->nickname));
-
   ScopedCERTCertList nssChain;
-  SECStatus srv;
-  nssChain = nullptr;
-  RefPtr<CertVerifier> certVerifier(GetDefaultCertVerifier());
-  NS_ENSURE_TRUE(certVerifier, NS_ERROR_UNEXPECTED);
-  CERTCertList *pkixNssChain = nullptr;
-
-  // We want to test all usages, but we start with server because most of the
-  // time Firefox users care about server certs.
-  srv = certVerifier->VerifyCert(mCert,
-                                 certificateUsageSSLServer, PR_Now(),
-                                 nullptr, /*XXX fixme*/
-                                 CertVerifier::FLAG_LOCAL_ONLY,
-                                 &pkixNssChain);
-  for (int usage = certificateUsageSSLClient;
-       usage < certificateUsageAnyCA && !pkixNssChain;
-       usage = usage << 1) {
-    if (usage == certificateUsageSSLServer) {
-      continue;
-    }
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("pipnss: PKIX attempting chain(%d) for '%s'\n",usage, mCert->nickname));
-    srv = certVerifier->VerifyCert(mCert,
-                                   certificateUsageSSLClient, PR_Now(),
-                                   nullptr, /*XXX fixme*/
-                                   CertVerifier::FLAG_LOCAL_ONLY,
-                                   &pkixNssChain);
-  }
-
-  if (!pkixNssChain) {
-    // There is not verified path for the chain, howeever we still want to 
-    // present to the user as much of a possible chain as possible, in the case
-    // where there was a problem with the cert or the issuers.
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("pipnss: getchain :CertVerify failed to get chain for '%s'\n", mCert->nickname));
-    nssChain = CERT_GetCertChainFromCert(mCert, PR_Now(), certUsageSSLClient);
-  } else {
-    nssChain = pkixNssChain;
-  }
-
+  nssChain = CERT_GetCertChainFromCert(mCert, PR_Now(), certUsageSSLClient);
   if (!nssChain)
     return NS_ERROR_FAILURE;
   /* enumerate the chain for scripting purposes */
@@ -1245,6 +1193,150 @@ nsNSSCertificate::GetValidity(nsIX509CertValidity **aValidity)
 }
 
 NS_IMETHODIMP
+nsNSSCertificate::VerifyForUsage(uint32_t usage, uint32_t *verificationResult)
+{
+  nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown())
+    return NS_ERROR_NOT_AVAILABLE;
+
+  NS_ENSURE_ARG(verificationResult);
+
+  nsresult nsrv;
+  nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
+  if (!inss)
+    return nsrv;
+  RefPtr<nsCERTValInParamWrapper> survivingParams;
+  nsrv = inss->GetDefaultCERTValInParam(survivingParams);
+  if (NS_FAILED(nsrv))
+    return nsrv;
+  
+  SECCertificateUsage nss_usage;
+  
+  switch (usage)
+  {
+    case CERT_USAGE_SSLClient:
+      nss_usage = certificateUsageSSLClient;
+      break;
+
+    case CERT_USAGE_SSLServer:
+      nss_usage = certificateUsageSSLServer;
+      break;
+
+    case CERT_USAGE_SSLServerWithStepUp:
+      nss_usage = certificateUsageSSLServerWithStepUp;
+      break;
+
+    case CERT_USAGE_SSLCA:
+      nss_usage = certificateUsageSSLCA;
+      break;
+
+    case CERT_USAGE_EmailSigner:
+      nss_usage = certificateUsageEmailSigner;
+      break;
+
+    case CERT_USAGE_EmailRecipient:
+      nss_usage = certificateUsageEmailRecipient;
+      break;
+
+    case CERT_USAGE_ObjectSigner:
+      nss_usage = certificateUsageObjectSigner;
+      break;
+
+    case CERT_USAGE_UserCertImport:
+      nss_usage = certificateUsageUserCertImport;
+      break;
+
+    case CERT_USAGE_VerifyCA:
+      nss_usage = certificateUsageVerifyCA;
+      break;
+
+    case CERT_USAGE_ProtectedObjectSigner:
+      nss_usage = certificateUsageProtectedObjectSigner;
+      break;
+
+    case CERT_USAGE_StatusResponder:
+      nss_usage = certificateUsageStatusResponder;
+      break;
+
+    case CERT_USAGE_AnyCA:
+      nss_usage = certificateUsageAnyCA;
+      break;
+
+    default:
+      return NS_ERROR_FAILURE;
+  }
+
+  SECStatus verify_result;
+  if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
+    CERTCertDBHandle *defaultcertdb = CERT_GetDefaultCertDB();
+    verify_result = CERT_VerifyCertificateNow(defaultcertdb, mCert, true, 
+                                              nss_usage, nullptr, nullptr);
+  }
+  else {
+    CERTValOutParam cvout[1];
+    cvout[0].type = cert_po_end;
+    verify_result = CERT_PKIXVerifyCert(mCert, nss_usage,
+                                        survivingParams->GetRawPointerForNSS(),
+                                        cvout, nullptr);
+  }
+  
+  if (verify_result == SECSuccess)
+  {
+    *verificationResult = VERIFIED_OK;
+  }
+  else
+  {
+    int err = PR_GetError();
+
+    // this list was cloned from verifyFailed
+
+    switch (err)
+    {
+      case SEC_ERROR_INADEQUATE_KEY_USAGE:
+      case SEC_ERROR_INADEQUATE_CERT_TYPE:
+        *verificationResult = USAGE_NOT_ALLOWED;
+        break;
+
+      case SEC_ERROR_REVOKED_CERTIFICATE:
+        *verificationResult = CERT_REVOKED;
+        break;
+
+      case SEC_ERROR_EXPIRED_CERTIFICATE:
+        *verificationResult = CERT_EXPIRED;
+        break;
+        
+      case SEC_ERROR_UNTRUSTED_CERT:
+        *verificationResult = CERT_NOT_TRUSTED;
+        break;
+        
+      case SEC_ERROR_UNTRUSTED_ISSUER:
+        *verificationResult = ISSUER_NOT_TRUSTED;
+        break;
+        
+      case SEC_ERROR_UNKNOWN_ISSUER:
+        *verificationResult = ISSUER_UNKNOWN;
+        break;
+        
+      case SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED:
+        *verificationResult = SIGNATURE_ALGORITHM_DISABLED;
+        break;
+
+      case SEC_ERROR_EXPIRED_ISSUER_CERTIFICATE:
+        *verificationResult = INVALID_CA;
+        break;
+        
+      case SEC_ERROR_CERT_USAGES_INVALID:
+      default:
+        *verificationResult = NOT_VERIFIED_UNKNOWN; 
+        break;
+    }
+  }
+  
+  return NS_OK;  
+}
+
+
+NS_IMETHODIMP
 nsNSSCertificate::GetUsagesArray(bool localOnly,
                                  uint32_t *_verified,
                                  uint32_t *_count,
@@ -1282,15 +1374,13 @@ nsNSSCertificate::GetUsagesArray(bool localOnly,
 NS_IMETHODIMP
 nsNSSCertificate::RequestUsagesArrayAsync(nsICertVerificationListener *aResultListener)
 {
-  NS_ENSURE_TRUE(NS_IsMainThread(), NS_ERROR_NOT_SAME_THREAD);
-
   if (!aResultListener)
     return NS_ERROR_FAILURE;
   
   nsCertVerificationJob *job = new nsCertVerificationJob;
 
   job->mCert = this;
-  job->mListener = new nsMainThreadPtrHolder<nsICertVerificationListener>(aResultListener);
+  job->mListener = aResultListener;
 
   nsresult rv = nsCertVerificationThread::addJob(job);
   if (NS_FAILED(rv))
@@ -1372,15 +1462,19 @@ nsNSSCertificate::GetASN1Structure(nsIASN1Object * *aASN1Structure)
   nsNSSShutDownPreventionLock locker;
   nsresult rv = NS_OK;
   NS_ENSURE_ARG_POINTER(aASN1Structure);
-  // First create the recursive structure os ASN1Objects
-  // which tells us the layout of the cert.
-  rv = CreateASN1Struct(aASN1Structure);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  if (!mASN1Structure) {
+    // First create the recursive structure os ASN1Objects
+    // which tells us the layout of the cert.
+    rv = CreateASN1Struct();
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
 #ifdef DEBUG_javi
-  DumpASN1Object(*aASN1Structure, 0);
+    DumpASN1Object(mASN1Structure, 0);
 #endif
+  }
+  *aASN1Structure = mASN1Structure;
+  NS_IF_ADDREF(*aASN1Structure);
   return rv;
 }
 
@@ -1473,7 +1567,7 @@ char* nsNSSCertificate::defaultServerNickname(CERTCertificate* cert)
   return nickname;
 }
 
-NS_IMPL_ISUPPORTS1(nsNSSCertList, nsIX509CertList)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsNSSCertList, nsIX509CertList)
 
 nsNSSCertList::nsNSSCertList(CERTCertList *certList, bool adopt)
 {
@@ -1579,7 +1673,8 @@ nsNSSCertList::GetEnumerator(nsISimpleEnumerator **_retval)
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS1(nsNSSCertListEnumerator, nsISimpleEnumerator)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsNSSCertListEnumerator, 
+                              nsISimpleEnumerator)
 
 nsNSSCertListEnumerator::nsNSSCertListEnumerator(CERTCertList *certList)
 {

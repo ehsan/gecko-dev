@@ -3,21 +3,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "WebGLObjectModel.h"
 #include "WebGLShader.h"
 #include "WebGLContext.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
-#include "GLContext.h"
+#include "nsContentUtils.h"
 
 using namespace mozilla;
 
 JSObject*
-WebGLShader::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope) {
+WebGLShader::WrapObject(JSContext *cx, JSObject *scope) {
     return dom::WebGLShaderBinding::Wrap(cx, scope, this);
 }
 
-WebGLShader::WebGLShader(WebGLContext *context, GLenum stype)
+WebGLShader::WebGLShader(WebGLContext *context, WebGLenum stype)
     : WebGLContextBoundObject(context)
     , mType(stype)
     , mNeedsTranslation(true)
@@ -40,7 +38,7 @@ WebGLShader::Delete() {
 }
 
 size_t
-WebGLShader::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const {
+WebGLShader::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
     return aMallocSizeOf(this) +
            mSource.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
            mTranslationLog.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
@@ -54,5 +52,10 @@ WebGLShader::SetTranslationSuccess() {
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(WebGLShader)
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(WebGLShader, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(WebGLShader, Release)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLShader)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(WebGLShader)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLShader)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END

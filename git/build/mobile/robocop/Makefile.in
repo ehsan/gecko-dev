@@ -2,19 +2,28 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH       = @DEPTH@
+topsrcdir   = @top_srcdir@
+srcdir      = @srcdir@
+VPATH       = @srcdir@
+
 mobile-tests := mobile/android/base/tests
 TESTPATH     := $(topsrcdir)/$(mobile-tests)
 dir-tests    := $(DEPTH)/$(mobile-tests)
 
-ANDROID_APK_NAME := robocop-debug
+include $(DEPTH)/config/autoconf.mk
 
-ANDROID_EXTRA_JARS += \
-  $(srcdir)/robotium-solo-4.3.jar \
+ROBOTIUM_PATH = $(srcdir)/robotium-solo-3.6.jar
+
+JAVAFILES = \
+  R.java \
   $(NULL)
 
-ANDROID_ASSETS_DIR := $(TESTPATH)/assets
+RES_FILES = \
+  res/values/strings.xml \
+  $(NULL)
 
-_JAVA_HARNESS := \
+_JAVA_HARNESS = \
   Actions.java \
   Assert.java \
   Driver.java \
@@ -30,18 +39,23 @@ _JAVA_HARNESS := \
   PaintedSurface.java \
   $(NULL)
 
-java-harness := $(addprefix $(srcdir)/,$(_JAVA_HARNESS))
-java-tests   := $(wildcard $(TESTPATH)/*.java)
+# pre-process harness sources
+PP_TARGETS        += java-harness
+java-harness      := $(addprefix $(srcdir)/,$(addsuffix .in,$(_JAVA_HARNESS)))
+java-harness-dep  := $(addprefix $(CURDIR)/,$(_JAVA_HARNESS))
+java-harness_PATH := $(CURDIR)
 
-# pre-process TestConstants.java.in
-PP_TARGETS         += testconstants
-testconstants-dep  := $(dir-tests)/TestConstants.java
-testconstants      := $(TESTPATH)/TestConstants.java.in
-testconstants_PATH := $(dir-tests)
+# pre-process test sources
+PP_TARGETS      += java-tests
+java-tests-src  := $(wildcard $(TESTPATH)/*.java.in)
+java-tests-dep  := $(patsubst $(TESTPATH)/%.java.in,$(dir-tests)/%.java,$(java-tests-src))
+java-tests      := $(java-tests-src)
+java-tests_PATH := $(dir-tests)
 
 PP_TARGETS        += manifest
 manifest          := $(srcdir)/AndroidManifest.xml.in
 manifest_TARGET   := AndroidManifest.xml
+
 
 # Install robocop configs and helper
 INSTALL_TARGETS += robocop
@@ -50,6 +64,7 @@ robocop_DEST    := $(CURDIR)
 robocop_FILES   := \
   $(TESTPATH)/robocop.ini \
   $(TESTPATH)/robocop_autophone.ini \
+  $(srcdir)/parse_ids.py \
   $(NULL)
 robocop-deps := $(notdir $(robocop_FILES))
 
@@ -57,30 +72,47 @@ MOCHITEST_ROBOCOP_FILES := \
   $(wildcard $(TESTPATH)/*.html) \
   $(wildcard $(TESTPATH)/*.jpg) \
   $(wildcard $(TESTPATH)/*.sjs) \
-  $(wildcard $(TESTPATH)/test*.js) \
-  $(wildcard $(TESTPATH)/robocop*.js) \
-  $(wildcard $(TESTPATH)/*.xml) \
   $(NULL)
 
 GARBAGE += \
   AndroidManifest.xml \
+  $(java-tests-dep) \
+  $(_JAVA_HARNESS) \
+  classes.dex \
+  robocop.apk \
+  robocop.ap_ \
+  robocop-unsigned-unaligned.apk \
+  robocop-unaligned.apk \
   $(robocop-deps) \
-  $(testconstants-dep) \
-  $(NULL)
-
-JAVAFILES += \
-  $(java-harness) \
-  $(java-tests) \
-  $(robocop-deps) \
-  $(testconstants-dep) \
   $(NULL)
 
 DEFINES += \
   -DANDROID_PACKAGE_NAME=$(ANDROID_PACKAGE_NAME) \
   $(NULL)
 
+JAVA_CLASSPATH = $(ANDROID_SDK)/android.jar:$(ROBOTIUM_PATH)
+
 include $(topsrcdir)/config/rules.mk
 
-tools:: $(ANDROID_APK_NAME).apk
+# Override rules.mk java flags with the android specific ones
+include $(topsrcdir)/config/android-common.mk
 
-GENERATED_DIRS += $(dir-tests)
+GENERATED_DIRS_tools = classes $(dir-tests)
+
+tools:: $(robocop-deps) robocop.apk
+
+classes.dex: robocop.ap_
+classes.dex: $(robocop-deps)
+classes.dex: $(java-harness-dep)
+classes.dex: $(java-tests-dep)
+	$(JAVAC) $(JAVAC_FLAGS) -d classes $(JAVAFILES) $(_JAVA_HARNESS) $(java-tests-dep)
+	$(DX) --dex --output=$@ classes $(ROBOTIUM_PATH) $(ANDROID_COMPT_LIB)
+
+robocop.apk: $(robocop-deps) robocop.ap_ classes.dex
+robocop.ap_: AndroidManifest.xml $(TESTPATH)/assets/*
+	$(AAPT) package -f -M $< -I $(ANDROID_SDK)/android.jar -I . -S res -A $(TESTPATH)/assets -F $@ -J ./
+
+# PP_java-tests not fully usable here
+# Intermediate step toward a library rule.
+$(dir-tests)/%.java: $(TESTPATH)/%.java.in $(call mkdir_deps,$(dir-tests))
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $< > $@

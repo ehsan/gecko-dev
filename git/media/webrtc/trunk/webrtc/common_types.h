@@ -8,10 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef WEBRTC_COMMON_TYPES_H_
-#define WEBRTC_COMMON_TYPES_H_
+#ifndef WEBRTC_COMMON_TYPES_H
+#define WEBRTC_COMMON_TYPES_H
 
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
 
 #if defined(_MSC_VER)
 // Disable "new behavior: elements of array will be default initialized"
@@ -33,19 +33,7 @@
 
 #define RTP_PAYLOAD_NAME_SIZE 32
 
-#if defined(WEBRTC_WIN)
-// Compares two strings without regard to case.
-#define STR_CASE_CMP(s1, s2) ::_stricmp(s1, s2)
-// Compares characters of two strings without regard to case.
-#define STR_NCASE_CMP(s1, s2, n) ::_strnicmp(s1, s2, n)
-#else
-#define STR_CASE_CMP(s1, s2) ::strcasecmp(s1, s2)
-#define STR_NCASE_CMP(s1, s2, n) ::strncasecmp(s1, s2, n)
-#endif
-
 namespace webrtc {
-
-class Config;
 
 class InStream
 {
@@ -148,6 +136,27 @@ enum ProcessingTypes
     kRecordingPreprocessing
 };
 
+// Encryption enums
+enum CipherTypes
+{
+    kCipherNull               = 0,
+    kCipherAes128CounterMode  = 1
+};
+
+enum AuthenticationTypes
+{
+    kAuthNull       = 0,
+    kAuthHmacSha1   = 3
+};
+
+enum SecurityLevels
+{
+    kNoProtection                    = 0,
+    kEncryption                      = 1,
+    kAuthentication                  = 2,
+    kEncryptionAndAuthentication     = 3
+};
+
 // Interface for encrypting and decrypting regular data and rtp/rtcp packets.
 // Implement this interface if you wish to provide an encryption scheme to
 // the voice or video engines.
@@ -237,7 +246,7 @@ struct CodecInst
     int plfreq;
     int pacsize;
     int channels;
-    int rate;  // bits/sec unlike {start,min,max}Bitrate elsewhere in this file!
+    int rate;
 };
 
 enum FrameType
@@ -278,23 +287,23 @@ enum VadModes                 // degree of bandwidth reduction
 struct NetworkStatistics           // NETEQ statistics
 {
     // current jitter buffer size in ms
-    uint16_t currentBufferSize;
+    WebRtc_UWord16 currentBufferSize;
     // preferred (optimal) buffer size in ms
-    uint16_t preferredBufferSize;
+    WebRtc_UWord16 preferredBufferSize;
     // adding extra delay due to "peaky jitter"
     bool jitterPeaksFound;
     // loss rate (network + late) in percent (in Q14)
-    uint16_t currentPacketLossRate;
+    WebRtc_UWord16 currentPacketLossRate;
     // late loss rate in percent (in Q14)
-    uint16_t currentDiscardRate;
+    WebRtc_UWord16 currentDiscardRate;
     // fraction (of original stream) of synthesized speech inserted through
     // expansion (in Q14)
-    uint16_t currentExpandRate;
+    WebRtc_UWord16 currentExpandRate;
     // fraction of synthesized speech inserted through pre-emptive expansion
     // (in Q14)
-    uint16_t currentPreemptiveRate;
+    WebRtc_UWord16 currentPreemptiveRate;
     // fraction of data removed through acceleration (in Q14)
-    uint16_t currentAccelerateRate;
+    WebRtc_UWord16 currentAccelerateRate;
     // clock-drift in parts-per-million (negative or positive)
     int32_t clockDriftPPM;
     // average packet waiting time in the jitter buffer (ms)
@@ -332,6 +341,13 @@ typedef struct        // All levels are reported in dB
     // Echo suppression inside EC at the point just before its NLP
     StatVal a_nlp;
 } EchoStatistics;
+
+enum TelephoneEventDetectionMethods
+{
+    kInBand = 0,
+    kOutOfBand = 1,
+    kInAndOutOfBand = 2
+};
 
 enum NsModes    // type of Noise Suppression
 {
@@ -421,6 +437,18 @@ enum NetEqModes             // NetEQ playout configurations
     kNetEqOff = 3
 };
 
+enum NetEqBgnModes          // NetEQ Background Noise (BGN) configurations
+{
+    // BGN is always on and will be generated when the incoming RTP stream
+    // stops (default).
+    kBgnOn = 0,
+    // The BGN is faded to zero (complete silence) after a few seconds.
+    kBgnFade = 1,
+    // BGN is not used at all. Silence is produced after speech extrapolation
+    // has faded.
+    kBgnOff = 2
+};
+
 enum OnHoldModes            // On Hold direction
 {
     kHoldSendAndPlay = 0,    // Put both sending and playing in on-hold state.
@@ -502,7 +530,6 @@ struct VideoCodecVP8
     bool                 errorConcealmentOn;
     bool                 automaticResizeOn;
     bool                 frameDroppingOn;
-    int                  keyFrameInterval;
 };
 
 // Unknown specific
@@ -517,7 +544,6 @@ enum VideoCodecType
     kVideoCodecI420,
     kVideoCodecRED,
     kVideoCodecULPFEC,
-    kVideoCodecGeneric,
     kVideoCodecUnknown
 };
 
@@ -535,15 +561,8 @@ struct SimulcastStream
     unsigned short      width;
     unsigned short      height;
     unsigned char       numberOfTemporalLayers;
-    unsigned int        maxBitrate;  // kilobits/sec.
-    unsigned int        targetBitrate;  // kilobits/sec.
-    unsigned int        minBitrate;  // kilobits/sec.
+    unsigned int        maxBitrate;
     unsigned int        qpMax; // minimum quality
-};
-
-enum VideoCodecMode {
-  kRealtimeVideo,
-  kScreensharing
 };
 
 // Common video codec properties
@@ -556,9 +575,9 @@ struct VideoCodec
     unsigned short      width;
     unsigned short      height;
 
-    unsigned int        startBitrate;  // kilobits/sec.
-    unsigned int        maxBitrate;  // kilobits/sec.
-    unsigned int        minBitrate;  // kilobits/sec.
+    unsigned int        startBitrate;
+    unsigned int        maxBitrate;
+    unsigned int        minBitrate;
     unsigned char       maxFramerate;
 
     VideoCodecUnion     codecSpecific;
@@ -566,12 +585,6 @@ struct VideoCodec
     unsigned int        qpMax;
     unsigned char       numberOfSimulcastStreams;
     SimulcastStream     simulcastStream[kMaxSimulcastStreams];
-
-    VideoCodecMode      mode;
-
-    // When using an external encoder/decoder this allows to pass
-    // extra options without requiring webrtc to be aware of them.
-    Config*  extra_options;
 };
 
 // Bandwidth over-use detector options.  These are used to drive
@@ -600,8 +613,5 @@ struct OverUseDetectorOptions {
   double initial_var_noise;
   double initial_threshold;
 };
-
 }  // namespace webrtc
-
-#endif  // WEBRTC_COMMON_TYPES_H_
-
+#endif  // WEBRTC_COMMON_TYPES_H

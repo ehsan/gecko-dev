@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "mozilla/dom/DesktopNotification.h"
 #include "mozilla/dom/DesktopNotificationBinding.h"
-#include "mozilla/dom/AppNotificationServiceOptionsBinding.h"
 #include "nsContentPermissionHelper.h"
 #include "nsXULAppAPI.h"
 #include "mozilla/dom/PBrowserChild.h"
@@ -12,55 +11,8 @@
 #include "mozilla/Preferences.h"
 #include "nsGlobalWindow.h"
 #include "nsIAppsService.h"
-#include "PCOMContentPermissionRequestChild.h"
-#include "nsIScriptSecurityManager.h"
-#include "nsServiceManagerUtils.h"
-
 namespace mozilla {
 namespace dom {
-
-/*
- * Simple Request
- */
-class DesktopNotificationRequest : public nsIContentPermissionRequest,
-                                   public nsRunnable,
-                                   public PCOMContentPermissionRequestChild
-
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSICONTENTPERMISSIONREQUEST
-
-  DesktopNotificationRequest(DesktopNotification* notification)
-    : mDesktopNotification(notification) {}
-
-  NS_IMETHOD Run() MOZ_OVERRIDE
-  {
-    nsCOMPtr<nsIContentPermissionPrompt> prompt =
-      do_CreateInstance(NS_CONTENT_PERMISSION_PROMPT_CONTRACTID);
-    if (prompt) {
-      prompt->Prompt(this);
-    }
-    return NS_OK;
-  }
-
-  ~DesktopNotificationRequest()
-  {
-  }
-
-  virtual bool Recv__delete__(const bool& aAllow) MOZ_OVERRIDE
-  {
-    if (aAllow) {
-      (void) Allow();
-    } else {
-     (void) Cancel();
-    }
-   return true;
-  }
-  virtual void IPDLRelease() MOZ_OVERRIDE { Release(); }
-
-  nsRefPtr<DesktopNotification> mDesktopNotification;
-};
 
 /* ------------------------------------------------------------------------ */
 /* AlertServiceObserver                                                     */
@@ -92,18 +44,10 @@ DesktopNotification::PostDesktopNotification()
       nsCOMPtr<nsIAppsService> appsService = do_GetService("@mozilla.org/AppsService;1");
       nsString manifestUrl = EmptyString();
       appsService->GetManifestURLByLocalId(appId, manifestUrl);
-      mozilla::AutoSafeJSContext cx;
-      JS::Rooted<JS::Value> val(cx);
-      AppNotificationServiceOptions ops;
-      ops.mTextClickable = true;
-      ops.mManifestURL = manifestUrl;
-
-      if (!ops.ToObject(cx, JS::NullPtr(), &val)) {
-        return NS_ERROR_FAILURE;
-      }
-
       return appNotifier->ShowAppNotification(mIconURL, mTitle, mDescription,
-                                              mObserver, val);
+                                              true,
+                                              manifestUrl,
+                                              mObserver);
     }
   }
 #endif
@@ -119,15 +63,13 @@ DesktopNotification::PostDesktopNotification()
   // to nsIObservers, thus cookies must be unique to differentiate observers.
   nsString uniqueName = NS_LITERAL_STRING("desktop-notification:");
   uniqueName.AppendInt(sCount++);
-  nsIPrincipal* principal = GetOwner()->GetDoc()->NodePrincipal();
   return alerts->ShowAlertNotification(mIconURL, mTitle, mDescription,
                                        true,
                                        uniqueName,
                                        mObserver,
                                        uniqueName,
                                        NS_LITERAL_STRING("auto"),
-                                       EmptyString(),
-                                       principal);
+                                       EmptyString());
 }
 
 DesktopNotification::DesktopNotification(const nsAString & title,
@@ -173,7 +115,7 @@ DesktopNotification::Init()
 
     // because owner implements nsITabChild, we can assume that it is
     // the one and only TabChild for this docshell.
-    TabChild* child = TabChild::GetFrom(GetOwner()->GetDocShell());
+    TabChild* child = GetTabChildFrom(GetOwner()->GetDocShell());
 
     // Retain a reference so the object isn't deleted without IPDL's knowledge.
     // Corresponding release occurs in DeallocPContentPermissionRequest.
@@ -258,7 +200,7 @@ DesktopNotification::Show(ErrorResult& aRv)
 }
 
 JSObject*
-DesktopNotification::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+DesktopNotification::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return DesktopNotificationBinding::Wrap(aCx, aScope, this);
 }
@@ -293,7 +235,7 @@ DesktopNotificationCenter::CreateNotification(const nsAString& aTitle,
 }
 
 JSObject*
-DesktopNotificationCenter::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+DesktopNotificationCenter::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return DesktopNotificationCenterBinding::Wrap(aCx, aScope, this);
 }
@@ -331,9 +273,7 @@ DesktopNotificationRequest::GetWindow(nsIDOMWindow * *aRequestingWindow)
 NS_IMETHODIMP
 DesktopNotificationRequest::GetElement(nsIDOMElement * *aElement)
 {
-  NS_ENSURE_ARG_POINTER(aElement);
-  *aElement = nullptr;
-  return NS_OK;
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP

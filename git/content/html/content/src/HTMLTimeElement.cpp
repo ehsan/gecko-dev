@@ -5,6 +5,7 @@
 
 #include "HTMLTimeElement.h"
 #include "mozilla/dom/HTMLTimeElementBinding.h"
+#include "nsContentUtils.h"
 #include "nsGenericHTMLElement.h"
 #include "nsVariant.h"
 #include "nsGkAtoms.h"
@@ -17,16 +18,26 @@ namespace dom {
 HTMLTimeElement::HTMLTimeElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 HTMLTimeElement::~HTMLTimeElement()
 {
 }
 
+NS_IMPL_ADDREF_INHERITED(HTMLTimeElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLTimeElement, Element)
+
+NS_INTERFACE_TABLE_HEAD(HTMLTimeElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE0(HTMLTimeElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLTimeElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
+
 NS_IMPL_ELEMENT_CLONE(HTMLTimeElement)
 
 JSObject*
-HTMLTimeElement::WrapNode(JSContext* cx, JS::Handle<JSObject*> scope)
+HTMLTimeElement::WrapNode(JSContext* cx, JSObject* scope)
 {
   return HTMLTimeElementBinding::Wrap(cx, scope, this);
 }

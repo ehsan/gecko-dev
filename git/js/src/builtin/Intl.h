@@ -4,11 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef builtin_Intl_h
-#define builtin_Intl_h
+#ifndef Intl_h___
+#define Intl_h___
 
-#include "NamespaceImports.h"
-#include "unicode/utypes.h"
+#include "js/RootingAPI.h"
+
+struct JSContext;
+class JSObject;
 
 /*
  * The Intl module specified by standard ECMA-402,
@@ -21,6 +23,7 @@
  */
 extern JSObject *
 js_InitIntlClass(JSContext *cx, js::HandleObject obj);
+
 
 namespace js {
 
@@ -38,7 +41,7 @@ namespace js {
  *
  * Usage: collator = intl_Collator(locales, options)
  */
-extern bool
+extern JSBool
 intl_Collator(JSContext *cx, unsigned argc, Value *vp);
 
 /**
@@ -49,7 +52,7 @@ intl_Collator(JSContext *cx, unsigned argc, Value *vp);
  *
  * Usage: availableLocales = intl_Collator_availableLocales()
  */
-extern bool
+extern JSBool
 intl_Collator_availableLocales(JSContext *cx, unsigned argc, Value *vp);
 
 /**
@@ -60,7 +63,7 @@ intl_Collator_availableLocales(JSContext *cx, unsigned argc, Value *vp);
  *
  * Usage: collations = intl_availableCollations(locale)
  */
-extern bool
+extern JSBool
 intl_availableCollations(JSContext *cx, unsigned argc, Value *vp);
 
 /**
@@ -73,7 +76,7 @@ intl_availableCollations(JSContext *cx, unsigned argc, Value *vp);
  *
  * Usage: result = intl_CompareStrings(collator, x, y)
  */
-extern bool
+extern JSBool
 intl_CompareStrings(JSContext *cx, unsigned argc, Value *vp);
 
 
@@ -86,7 +89,7 @@ intl_CompareStrings(JSContext *cx, unsigned argc, Value *vp);
  *
  * Usage: numberFormat = intl_NumberFormat(locales, options)
  */
-extern bool
+extern JSBool
 intl_NumberFormat(JSContext *cx, unsigned argc, Value *vp);
 
 /**
@@ -97,7 +100,7 @@ intl_NumberFormat(JSContext *cx, unsigned argc, Value *vp);
  *
  * Usage: availableLocales = intl_NumberFormat_availableLocales()
  */
-extern bool
+extern JSBool
 intl_NumberFormat_availableLocales(JSContext *cx, unsigned argc, Value *vp);
 
 /**
@@ -107,7 +110,7 @@ intl_NumberFormat_availableLocales(JSContext *cx, unsigned argc, Value *vp);
  *
  * Usage: defaultNumberingSystem = intl_numberingSystem(locale)
  */
-extern bool
+extern JSBool
 intl_numberingSystem(JSContext *cx, unsigned argc, Value *vp);
 
 /**
@@ -118,7 +121,7 @@ intl_numberingSystem(JSContext *cx, unsigned argc, Value *vp);
  *
  * Usage: formatted = intl_FormatNumber(numberFormat, x)
  */
-extern bool
+extern JSBool
 intl_FormatNumber(JSContext *cx, unsigned argc, Value *vp);
 
 
@@ -131,7 +134,7 @@ intl_FormatNumber(JSContext *cx, unsigned argc, Value *vp);
  *
  * Usage: dateTimeFormat = intl_DateTimeFormat(locales, options)
  */
-extern bool
+extern JSBool
 intl_DateTimeFormat(JSContext *cx, unsigned argc, Value *vp);
 
 /**
@@ -142,7 +145,7 @@ intl_DateTimeFormat(JSContext *cx, unsigned argc, Value *vp);
  *
  * Usage: availableLocales = intl_DateTimeFormat_availableLocales()
  */
-extern bool
+extern JSBool
 intl_DateTimeFormat_availableLocales(JSContext *cx, unsigned argc, Value *vp);
 
 /**
@@ -153,7 +156,7 @@ intl_DateTimeFormat_availableLocales(JSContext *cx, unsigned argc, Value *vp);
  *
  * Usage: calendars = intl_availableCalendars(locale)
  */
-extern bool
+extern JSBool
 intl_availableCalendars(JSContext *cx, unsigned argc, Value *vp);
 
 /**
@@ -164,7 +167,7 @@ intl_availableCalendars(JSContext *cx, unsigned argc, Value *vp);
  *
  * Usage: pattern = intl_patternForSkeleton(locale, skeleton)
  */
-extern bool
+extern JSBool
 intl_patternForSkeleton(JSContext *cx, unsigned argc, Value *vp);
 
 /**
@@ -176,24 +179,9 @@ intl_patternForSkeleton(JSContext *cx, unsigned argc, Value *vp);
  *
  * Usage: formatted = intl_FormatDateTime(dateTimeFormat, x)
  */
-extern bool
+extern JSBool
 intl_FormatDateTime(JSContext *cx, unsigned argc, Value *vp);
-
-/**
- * Cast jschar* strings to UChar* strings used by ICU.
- */
-inline const UChar *
-JSCharToUChar(const jschar *chars)
-{
-  return reinterpret_cast<const UChar *>(chars);
-}
-
-inline UChar *
-JSCharToUChar(jschar *chars)
-{
-  return reinterpret_cast<UChar *>(chars);
-}
 
 } // namespace js
 
-#endif /* builtin_Intl_h */
+#endif /* Intl_h___ */

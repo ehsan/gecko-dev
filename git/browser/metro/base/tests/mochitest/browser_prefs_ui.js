@@ -5,31 +5,6 @@
 
 "use strict";
 
-const Ci = Components.interfaces;
-const Cm = Components.manager;
-const Cc = Components.classes;
-
-const CONTRACT_ID = "@mozilla.org/xre/runtime;1";
-
-function MockAppInfo() {
-}
-
-MockAppInfo.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIXULRuntime]),
-}
-
-let newFactory = {
-  createInstance: function(aOuter, aIID) {
-    if (aOuter)
-      throw Components.results.NS_ERROR_NO_AGGREGATION;
-    return new MockAppInfo().QueryInterface(aIID);
-  },
-  lockFactory: function(aLock) {
-    throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
-  },
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIFactory])
-};
-
 var SanitizeHelper = {
   _originalSanitizer: null,
 
@@ -44,29 +19,10 @@ var SanitizeHelper = {
   setUp: function setUp() {
     SanitizeHelper._originalSanitizer = SanitizeUI._sanitizer;
     SanitizeUI._sanitizer = SanitizeHelper.MockSanitizer;
-
-    let registrar = Cm.QueryInterface(Ci.nsIComponentRegistrar);
-    this.gAppInfoClassID = registrar.contractIDToCID(CONTRACT_ID);
-    this.gIncOldFactory = Cm.getClassObject(Cc[CONTRACT_ID], Ci.nsIFactory);
-    registrar.unregisterFactory(this.gAppInfoClassID, this.gIncOldFactory);
-    let components = [MockAppInfo];
-    registrar.registerFactory(this.gAppInfoClassID, "", CONTRACT_ID, newFactory);
-    this.gIncOldFactory = Cm.getClassObject(Cc[CONTRACT_ID], Ci.nsIFactory);
-
-    this.oldPrompt = Services.prompt;
   },
 
   tearDown: function tearDown() {
     SanitizeUI._sanitizer = SanitizeHelper._originalSanitizer;
-
-    if (this.gIncOldFactory) {
-      var registrar = Cm.QueryInterface(Ci.nsIComponentRegistrar);
-      registrar.unregisterFactory(this.gAppInfoClassID, newFactory);
-      registrar.registerFactory(this.gAppInfoClassID, "", CONTRACT_ID, this.gIncOldFactory);
-    }
-    this.gIncOldFactory = null;
-
-    Services.prompt = this.oldPrompt;
   },
 };
 
@@ -77,25 +33,16 @@ function getAllSelected() {
 }
 
 gTests.push({
-  setUp: SanitizeHelper.setUp,
   tearDown: SanitizeHelper.tearDown,
   desc: "Test sanitizer UI",
   run: function testSanitizeUI() {
-    // We want to be able to simulate that a specific button
-    // of the 'clear private data' prompt was pressed.
-    Services.prompt = {
-      confirmEx: function() {
-        return this.retVal;
-      }
-    };
-
     // Show options flyout
-    let promise = waitForEvent(FlyoutPanelsUI.PrefsFlyoutPanel._topmostElement, "PopupChanged", 2000);
-    FlyoutPanelsUI.show('PrefsFlyoutPanel');
+    let promise = waitForEvent(Elements.prefsFlyout, "PopupChanged", 2000);
+    Elements.prefsFlyout.show();
     yield promise;
 
     // Make sure it's opened
-    yield waitForEvent(FlyoutPanelsUI.PrefsFlyoutPanel._topmostElement, "transitionend", 1000);
+    yield waitForEvent(Elements.prefsFlyout, "transitionend", 1000);
 
     SanitizeHelper.setUp();
 
@@ -125,15 +72,7 @@ gTests.push({
       }
     }
 
-    // Simulate clicking "button 1", cancel.
-    Services.prompt.retVal = 1;
     let clearButton = document.getElementById("prefs-clear-data");
-    clearButton.doCommand();
-    ok(SanitizeHelper.MockSanitizer.clearCalled.length == 0, "Nothing was cleared");
-
-    // We will simulate that "button 0" (which should be the clear button)
-    // was pressed
-    Services.prompt.retVal = 0;
     clearButton.doCommand();
 
     let clearNotificationDeck = document.getElementById("clear-notification");
@@ -151,8 +90,8 @@ gTests.push({
     });
 
     // hide options flyout
-    let promise = waitForEvent(FlyoutPanelsUI.PrefsFlyoutPanel._topmostElement, "PopupChanged", 2000);
-    FlyoutPanelsUI.hide();
+    let promise = waitForEvent(Elements.prefsFlyout, "PopupChanged", 2000);
+    Elements.prefsFlyout.hide();
     yield promise;
   }
 });
@@ -180,8 +119,8 @@ gTests.push({
     let okTrack = document.getElementById("prefs-dnt-oktrack");
 
     // Show options flyout
-    let promise = waitForEvent(FlyoutPanelsUI.PrefsFlyoutPanel._topmostElement, "PopupChanged", 2000);
-    FlyoutPanelsUI.show('PrefsFlyoutPanel');
+    let promise = waitForEvent(Elements.prefsFlyout, "PopupChanged", 2000);
+    Elements.prefsFlyout.show();
     yield promise;
 
     noPref.click();
@@ -201,8 +140,8 @@ gTests.push({
     checkDNTPrefs(true, 0);
 
     // hide options flyout
-    let promise = waitForEvent(FlyoutPanelsUI.PrefsFlyoutPanel._topmostElement, "PopupChanged", 2000);
-    FlyoutPanelsUI.hide();
+    let promise = waitForEvent(Elements.prefsFlyout, "PopupChanged", 2000);
+    Elements.prefsFlyout.hide();
     yield promise;
   }
 });

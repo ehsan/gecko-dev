@@ -8,23 +8,33 @@
 #include "nsChromeRegistryChrome.h"
 #include "nsChromeRegistryContent.h"
 
+#include <string.h>
+
+#include "prio.h"
 #include "prprf.h"
 
 #include "nsCOMPtr.h"
 #include "nsError.h"
 #include "nsEscape.h"
+#include "nsLayoutCID.h"
 #include "nsNetUtil.h"
 #include "nsString.h"
+#include "nsUnicharUtils.h"
 
 #include "nsCSSStyleSheet.h"
 #include "nsIConsoleService.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
+#include "nsIDocShell.h"
+#include "nsIDOMElement.h"
 #include "nsIDOMLocation.h"
 #include "nsIDOMWindowCollection.h"
 #include "nsIDOMWindow.h"
+#include "nsIIOService.h"
+#include "nsIJARProtocolHandler.h"
 #include "nsIObserverService.h"
 #include "nsIPresShell.h"
+#include "nsIProtocolHandler.h"
 #include "nsIScriptError.h"
 #include "nsIWindowMediator.h"
 
@@ -123,13 +133,15 @@ nsChromeRegistry::GetService()
     if (!gChromeRegistry)
       return nullptr;
   }
-  nsCOMPtr<nsIChromeRegistry> registry = gChromeRegistry;
-  return registry.forget();
+  NS_ADDREF(gChromeRegistry);
+  return gChromeRegistry;
 }
 
 nsresult
 nsChromeRegistry::Init()
 {
+  mOverrideTable.Init();
+
   // This initialization process is fairly complicated and may cause reentrant
   // getservice calls to resolve chrome URIs (especially locale files). We
   // don't want that, so we inform the protocol handler about our existence
@@ -620,8 +632,8 @@ already_AddRefed<nsChromeRegistry>
 nsChromeRegistry::GetSingleton()
 {
   if (gChromeRegistry) {
-    nsRefPtr<nsChromeRegistry> registry = gChromeRegistry;
-    return registry.forget();
+    NS_ADDREF(gChromeRegistry);
+    return gChromeRegistry;
   }
 
   nsRefPtr<nsChromeRegistry> cr;

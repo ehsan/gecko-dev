@@ -49,18 +49,6 @@ class Fake_MediaStreamListener
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Fake_MediaStreamListener)
 };
 
-class Fake_MediaStreamDirectListener : public Fake_MediaStreamListener
-{
- public:
-  virtual ~Fake_MediaStreamDirectListener() {}
-
-  virtual void NotifyRealtimeData(mozilla::MediaStreamGraph* graph, mozilla::TrackID tid,
-                                  mozilla::TrackRate rate,
-                                  mozilla::TrackTicks offset,
-                                  uint32_t events,
-                                  const mozilla::MediaSegment& media) = 0;
-};
-
 // Note: only one listener supported
 class Fake_MediaStream {
  public:
@@ -81,7 +69,6 @@ class Fake_MediaStream {
 
   virtual nsresult Start() { return NS_OK; }
   virtual nsresult Stop() { return NS_OK; }
-  virtual void StopStream() {}
 
   virtual void Periodic() {}
 
@@ -104,7 +91,7 @@ Fake_MediaPeriodic(Fake_MediaStream *aStream) : mStream(aStream),
 
   int GetTimesCalled() { return mCount; }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSITIMERCALLBACK
 
 protected:
@@ -125,11 +112,6 @@ class Fake_SourceMediaStream : public Fake_MediaStream {
                 mozilla::MediaSegment* aSegment) {}
   void EndTrack(mozilla::TrackID aID) {}
 
-  bool AppendToTrack(mozilla::TrackID aID, mozilla::MediaSegment* aSegment,
-                     mozilla::MediaSegment *aRawSegment) {
-    return AppendToTrack(aID, aSegment);
-  }
-
   bool AppendToTrack(mozilla::TrackID aID, mozilla::MediaSegment* aSegment) {
     bool nonZeroSample = false;
     MOZ_ASSERT(aSegment);
@@ -147,7 +129,7 @@ class Fake_SourceMediaStream : public Fake_MediaStream {
         for(int i=0; i<chunk.mDuration; i++) {
           if(buf[i]) {
             //atleast one non-zero sample found.
-            nonZeroSample = true;
+            nonZeroSample = true; 
             break;
           }
         }
@@ -172,11 +154,8 @@ class Fake_SourceMediaStream : public Fake_MediaStream {
   void SetPullEnabled(bool aEnabled) {
     mPullEnabled = aEnabled;
   }
-  void AddDirectListener(Fake_MediaStreamListener* aListener) {}
-  void RemoveDirectListener(Fake_MediaStreamListener* aListener) {}
-
   //Don't pull anymore data,if mStop is true.
-  virtual void StopStream() {
+  void StopStream() {
    mStop = true;
   }
 
@@ -213,31 +192,26 @@ public:
     mMediaStream->Stop();
   }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   static already_AddRefed<Fake_DOMMediaStream>
   CreateSourceStream(nsIDOMWindow* aWindow, uint32_t aHintContents) {
     Fake_SourceMediaStream *source = new Fake_SourceMediaStream();
 
-    nsRefPtr<Fake_DOMMediaStream> ds = new Fake_DOMMediaStream(source);
+    Fake_DOMMediaStream *ds = new Fake_DOMMediaStream(source);
     ds->SetHintContents(aHintContents);
+    ds->AddRef();
 
-    return ds.forget();
+    return ds;
   }
-
-  virtual void Stop() {} // Really DOMLocalMediaStream
-
-  virtual bool AddDirectListener(Fake_MediaStreamListener *aListener) { return false; }
-  virtual void RemoveDirectListener(Fake_MediaStreamListener *aListener) {}
 
   Fake_MediaStream *GetStream() { return mMediaStream; }
 
   // Hints to tell the SDP generator about whether this
   // MediaStream probably has audio and/or video
-  typedef uint8_t TrackTypeHints;
   enum {
-    HINT_CONTENTS_AUDIO = 0x01,
-    HINT_CONTENTS_VIDEO = 0x02
+    HINT_CONTENTS_AUDIO = 0x00000001U,
+    HINT_CONTENTS_VIDEO = 0x00000002U
   };
   uint32_t GetHintContents() const { return mHintContents; }
   void SetHintContents(uint32_t aHintContents) { mHintContents = aHintContents; }
@@ -264,6 +238,7 @@ class Fake_MediaStreamBase : public Fake_MediaStream {
 
   virtual nsresult Start();
   virtual nsresult Stop();
+
 
   virtual int GetSegmentsAdded() {
     return mPeriodic->GetTimesCalled();
@@ -300,9 +275,7 @@ namespace mozilla {
 typedef Fake_MediaStream MediaStream;
 typedef Fake_SourceMediaStream SourceMediaStream;
 typedef Fake_MediaStreamListener MediaStreamListener;
-typedef Fake_MediaStreamDirectListener MediaStreamDirectListener;
 typedef Fake_DOMMediaStream DOMMediaStream;
-typedef Fake_DOMMediaStream DOMLocalMediaStream;
 }
 
 #endif

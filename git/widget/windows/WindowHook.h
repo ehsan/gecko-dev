@@ -20,8 +20,6 @@ class nsWindow;
 namespace mozilla {
 namespace widget {
 
-struct MSGResult;
-
 class WindowHook {
 public:
 
@@ -62,7 +60,7 @@ private:
   };
 
   bool Notify(HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lParam,
-              MSGResult& aResult);
+                LRESULT *aResult);
 
   MessageData *Lookup(UINT nMsg);
   MessageData *LookupOrCreate(UINT nMsg);

@@ -67,8 +67,8 @@ public:
   NS_IMETHOD GetSecurityInfo(nsISupports **aSecurityInfo);
   NS_IMETHOD AsyncOpen(nsIStreamListener *listener, nsISupports *aContext);
   // HttpBaseChannel::nsIHttpChannel
-  NS_IMETHOD SetRequestHeader(const nsACString& aHeader,
-                              const nsACString& aValue,
+  NS_IMETHOD SetRequestHeader(const nsACString& aHeader, 
+                              const nsACString& aValue, 
                               bool aMerge);
   NS_IMETHOD RedirectTo(nsIURI *newURI);
   // nsIHttpChannelInternal
@@ -84,7 +84,7 @@ public:
 
   // IPDL holds a reference while the PHttpChannel protocol is live (starting at
   // AsyncOpen, and ending at either OnStopRequest or any IPDL error, either of
-  // which call NeckoChild::DeallocPHttpChannelChild()).
+  // which call NeckoChild::DeallocPHttpChannel()).
   void AddIPDLReference();
   void ReleaseIPDLReference();
 
@@ -138,7 +138,7 @@ private:
 
   bool mIPCOpen;
   bool mKeptAlive;            // IPC kept open, but only for security info
-  nsRefPtr<ChannelEventQueue> mEventQ;
+  ChannelEventQueue mEventQ;
 
   // true after successful AsyncOpen until OnStopRequest completes.
   bool RemoteChannelExists() { return mIPCOpen && !mKeptAlive; }
@@ -172,6 +172,9 @@ private:
                       const nsHttpResponseHead& responseHead);
   void Redirect3Complete();
   void DeleteSelf();
+
+  // Called asynchronously from Resume: continues any pending calls into client.
+  void CompleteResume();
 
   friend class AssociateApplicationCacheEvent;
   friend class StartRequestEvent;

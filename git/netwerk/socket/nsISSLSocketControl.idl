@@ -9,12 +9,12 @@
 interface nsIInterfaceRequestor;
 
 %{C++
-template<class T> class nsTArray;
+#include "nsTArray.h"
 class nsCString;
 %}
 [ref] native nsCStringTArrayRef(nsTArray<nsCString>);
 
-[scriptable, builtinclass, uuid(c5eb9af4-238c-4fc6-bdec-d5ab5e7dce68)]
+[scriptable, uuid(bb2bb490-3ba4-4254-b8f5-8b43c7b714ea)]
 interface nsISSLSocketControl : nsISupports {
     attribute nsIInterfaceRequestor     notificationCallbacks;
 
@@ -26,9 +26,7 @@ interface nsISSLSocketControl : nsISupports {
        tunnel during the SSL handshake. The NPNList is the list
        of offered client side protocols. setNPNList() needs to
        be called before any data is read or written (including the
-       handshake to be setup correctly. The server determines the
-       priority when multiple matches occur, but if there is no overlap
-       the first protocol in the list is used. */
+       handshake to be setup correctly. */
 
     [noscript] void setNPNList(in nsCStringTArrayRef aNPNList);
 
@@ -51,22 +49,6 @@ interface nsISSLSocketControl : nsISupports {
       in ACString npnProtocol, /* e.g. "spdy/2" */
       in ACString hostname,
       in long port);
-
-    /* The Key Exchange Algorithm and Symmetric Cipher
-       is used when determining whether or not to do false start.
-       After a handshake is complete it can be read from *Used,
-       before a handshake is started it may be set through *Expected.
-       The values correspond to the SSLKEAType and SSLCipherAlgorithm
-       enums in NSS or the *_UNKNOWN constant defined below.
-    */
-
-    [infallible] readonly attribute short KEAUsed;
-    [infallible] attribute short KEAExpected;
-    [infallible] readonly attribute short SymmetricCipherUsed;
-    [infallible] attribute short SymmetricCipherExpected;
-
-    const short KEY_EXCHANGE_UNKNOWN = -1;
-    const short SYMMETRIC_CIPHER_UNKNOWN = -1;
 
     /*
      * The original flags from the socket provider.

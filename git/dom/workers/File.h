@@ -9,6 +9,8 @@
 
 #include "Workers.h"
 
+#include "jspubtd.h"
+
 class nsIDOMFile;
 class nsIDOMBlob;
 
@@ -17,7 +19,7 @@ BEGIN_WORKERS_NAMESPACE
 namespace file {
 
 bool
-InitClasses(JSContext* aCx, JS::Handle<JSObject*> aGlobal);
+InitClasses(JSContext* aCx, JSObject* aGlobal);
 
 JSObject*
 CreateBlob(JSContext* aCx, nsIDOMBlob* aBlob);

@@ -10,7 +10,7 @@
  *
  * Each entry consists of 4 pieces of information:
  * 1) The name of the event
- * 2) The event ID (see BasicEvents.h)
+ * 2) The event ID (see nsGUIEvent.h)
  * 3) The event type (see the EventNameType enum in nsContentUtils.h)
  * 4) The event struct type for this event.
  * Items 2-4 might be empty strings for events for which they don't make sense.
@@ -154,11 +154,11 @@ EVENT(abort,
 EVENT(canplay,
       NS_CANPLAY,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(canplaythrough,
       NS_CANPLAYTHROUGH,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL )
 EVENT(change,
       NS_FORM_CHANGE,
       EventNameType_HTMLXUL,
@@ -208,15 +208,15 @@ EVENT(drop,
 EVENT(durationchange,
       NS_DURATIONCHANGE,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(emptied,
       NS_EMPTIED,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(ended,
       NS_ENDED,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(input,
       NS_FORM_INPUT,
       EventNameType_HTMLXUL,
@@ -240,15 +240,15 @@ EVENT(keyup,
 EVENT(loadeddata,
       NS_LOADEDDATA,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(loadedmetadata,
       NS_LOADEDMETADATA,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(loadstart,
       NS_LOADSTART,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(mousedown,
       NS_MOUSE_BUTTON_DOWN,
       EventNameType_All,
@@ -280,41 +280,41 @@ EVENT(mouseup,
 EVENT(mozfullscreenchange,
       NS_FULLSCREENCHANGE,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(mozfullscreenerror,
       NS_FULLSCREENERROR,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(mozpointerlockchange,
       NS_POINTERLOCKCHANGE,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(mozpointerlockerror,
       NS_POINTERLOCKERROR,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 // Not supported yet; probably never because "wheel" is a better idea.
 // EVENT(mousewheel)
 EVENT(pause,
       NS_PAUSE,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(play,
       NS_PLAY,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(playing,
       NS_PLAYING,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(progress,
       NS_PROGRESS,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(ratechange,
       NS_RATECHANGE,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(reset,
       NS_FORM_RESET,
       EventNameType_HTMLXUL,
@@ -322,11 +322,11 @@ EVENT(reset,
 EVENT(seeked,
       NS_SEEKED,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(seeking,
       NS_SEEKING,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(select,
       NS_FORM_SELECTED,
       EventNameType_HTMLXUL,
@@ -338,7 +338,7 @@ EVENT(show,
 EVENT(stalled,
       NS_STALLED,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(submit,
       NS_FORM_SUBMIT,
       EventNameType_HTMLXUL,
@@ -346,19 +346,19 @@ EVENT(submit,
 EVENT(suspend,
       NS_SUSPEND,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(timeupdate,
       NS_TIMEUPDATE,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(volumechange,
       NS_VOLUMECHANGE,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(waiting,
       NS_WAITING,
       EventNameType_HTML,
-      NS_EVENT)
+      NS_EVENT_NULL)
 EVENT(wheel,
       NS_WHEEL_WHEEL,
       EventNameType_All,
@@ -404,7 +404,7 @@ FORWARDED_EVENT(load,
 FORWARDED_EVENT(scroll,
                 NS_SCROLL_EVENT,
                 (EventNameType_HTMLXUL | EventNameType_SVGSVG),
-                NS_EVENT)
+                NS_EVENT_NULL)
 
 WINDOW_EVENT(afterprint,
              NS_AFTERPRINT,
@@ -448,7 +448,7 @@ WINDOW_EVENT(pageshow,
 WINDOW_EVENT(popstate,
              NS_POPSTATE,
              EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
-             NS_EVENT)
+             NS_EVENT_NULL)
 // Not supported yet
 // WINDOW_EVENT(redo)
 WINDOW_EVENT(resize,
@@ -530,7 +530,7 @@ TOUCH_EVENT(touchcancel,
 DOCUMENT_ONLY_EVENT(readystatechange,
                     NS_READYSTATECHANGE,
                     EventNameType_HTMLXUL,
-                    NS_EVENT)
+                    NS_EVENT_NULL)
 
 NON_IDL_EVENT(MozMouseHittest,
               NS_MOUSE_MOZHITTEST,
@@ -597,26 +597,11 @@ NON_IDL_EVENT(open,
               EventNameType_None,
               NS_EVENT)
 
-NON_IDL_EVENT(dataavailable,
-              NS_MEDIARECORDER_DATAAVAILABLE,
-              EventNameType_None,
-              NS_EVENT)
-
-NON_IDL_EVENT(stop,
-              NS_MEDIARECORDER_STOP,
-              EventNameType_None,
-              NS_EVENT)
-
-NON_IDL_EVENT(warning,
-              NS_MEDIARECORDER_WARNING,
-              EventNameType_None,
-              NS_EVENT)
-
 // Events that only have on* attributes on XUL elements
 NON_IDL_EVENT(text,
               NS_TEXT_TEXT,
               EventNameType_XUL,
-              NS_EVENT)
+              NS_EVENT_NULL)
 NON_IDL_EVENT(compositionstart,
               NS_COMPOSITION_START,
               EventNameType_XUL,
@@ -636,31 +621,31 @@ NON_IDL_EVENT(command,
 NON_IDL_EVENT(close,
               NS_XUL_CLOSE,
               EventNameType_XUL,
-              NS_EVENT)
+              NS_EVENT_NULL)
 NON_IDL_EVENT(popupshowing,
               NS_XUL_POPUP_SHOWING,
               EventNameType_XUL,
-              NS_EVENT)
+              NS_EVENT_NULL)
 NON_IDL_EVENT(popupshown,
               NS_XUL_POPUP_SHOWN,
               EventNameType_XUL,
-              NS_EVENT)
+              NS_EVENT_NULL)
 NON_IDL_EVENT(popuphiding,
               NS_XUL_POPUP_HIDING,
               EventNameType_XUL,
-              NS_EVENT)
+              NS_EVENT_NULL)
 NON_IDL_EVENT(popuphidden,
               NS_XUL_POPUP_HIDDEN,
               EventNameType_XUL,
-              NS_EVENT)
+              NS_EVENT_NULL)
 NON_IDL_EVENT(broadcast,
               NS_XUL_BROADCAST,
               EventNameType_XUL,
-              NS_EVENT)
+              NS_EVENT_NULL)
 NON_IDL_EVENT(commandupdate,
               NS_XUL_COMMAND_UPDATE,
               EventNameType_XUL,
-              NS_EVENT)
+              NS_EVENT_NULL)
 NON_IDL_EVENT(dragexit,
               NS_DRAGDROP_EXIT_SYNTH,
               EventNameType_XUL,
@@ -676,11 +661,11 @@ NON_IDL_EVENT(draggesture,
 NON_IDL_EVENT(overflow,
               NS_SCROLLPORT_OVERFLOW,
               EventNameType_XUL,
-              NS_EVENT)
+              NS_EVENT_NULL)
 NON_IDL_EVENT(underflow,
               NS_SCROLLPORT_UNDERFLOW,
               EventNameType_XUL,
-              NS_EVENT)
+              NS_EVENT_NULL)
 
 // Various SVG events
 NON_IDL_EVENT(SVGLoad,
@@ -719,14 +704,14 @@ NON_IDL_EVENT(SVGZoom,
 NON_IDL_EVENT(zoom,
               NS_SVG_ZOOM,
               EventNameType_SVGSVG,
-              NS_EVENT)
+              NS_EVENT_NULL)
 #endif
 // Only map the ID to the real event name when ID_TO_EVENT is defined.
 #ifndef ID_TO_EVENT
 NON_IDL_EVENT(begin,
               NS_SMIL_BEGIN,
               EventNameType_SMIL,
-              NS_EVENT)
+              NS_EVENT_NULL)
 #endif
 NON_IDL_EVENT(beginEvent,
               NS_SMIL_BEGIN,
@@ -737,7 +722,7 @@ NON_IDL_EVENT(beginEvent,
 NON_IDL_EVENT(end,
               NS_SMIL_END,
               EventNameType_SMIL,
-              NS_EVENT)
+              NS_EVENT_NULL)
 #endif
 NON_IDL_EVENT(endEvent,
               NS_SMIL_END,
@@ -748,7 +733,7 @@ NON_IDL_EVENT(endEvent,
 NON_IDL_EVENT(repeat,
               NS_SMIL_REPEAT,
               EventNameType_SMIL,
-              NS_EVENT)
+              NS_EVENT_NULL)
 #endif
 NON_IDL_EVENT(repeatEvent,
               NS_SMIL_REPEAT,
@@ -758,7 +743,7 @@ NON_IDL_EVENT(repeatEvent,
 NON_IDL_EVENT(MozAudioAvailable,
               NS_MOZAUDIOAVAILABLE,
               EventNameType_None,
-              NS_EVENT)
+              NS_EVENT_NULL)
 NON_IDL_EVENT(MozAfterPaint,
               NS_AFTERPAINT,
               EventNameType_None,
@@ -773,23 +758,23 @@ NON_IDL_EVENT(MozScrolledAreaChanged,
 NON_IDL_EVENT(gamepadbuttondown,
               NS_GAMEPAD_BUTTONDOWN,
               EventNameType_None,
-              NS_EVENT)
+              NS_EVENT_NULL)
 NON_IDL_EVENT(gamepadbuttonup,
               NS_GAMEPAD_BUTTONUP,
               EventNameType_None,
-              NS_EVENT)
+              NS_EVENT_NULL)
 NON_IDL_EVENT(gamepadaxismove,
               NS_GAMEPAD_AXISMOVE,
               EventNameType_None,
-              NS_EVENT)
+              NS_EVENT_NULL)
 NON_IDL_EVENT(gamepadconnected,
               NS_GAMEPAD_CONNECTED,
               EventNameType_None,
-              NS_EVENT)
+              NS_EVENT_NULL)
 NON_IDL_EVENT(gamepaddisconnected,
               NS_GAMEPAD_DISCONNECTED,
               EventNameType_None,
-              NS_EVENT)
+              NS_EVENT_NULL)
 #endif
 
 // Simple gesture events
@@ -841,16 +826,8 @@ NON_IDL_EVENT(MozPressTapGesture,
               NS_SIMPLE_GESTURE_PRESSTAP,
               EventNameType_None,
               NS_SIMPLE_GESTURE_EVENT)
-NON_IDL_EVENT(MozEdgeUIStarted,
-              NS_SIMPLE_GESTURE_EDGE_STARTED,
-              EventNameType_None,
-              NS_SIMPLE_GESTURE_EVENT)
-NON_IDL_EVENT(MozEdgeUICanceled,
-              NS_SIMPLE_GESTURE_EDGE_CANCELED,
-              EventNameType_None,
-              NS_SIMPLE_GESTURE_EVENT)
-NON_IDL_EVENT(MozEdgeUICompleted,
-              NS_SIMPLE_GESTURE_EDGE_COMPLETED,
+NON_IDL_EVENT(MozEdgeUIGesture,
+              NS_SIMPLE_GESTURE_EDGEUI,
               EventNameType_None,
               NS_SIMPLE_GESTURE_EVENT)
 
@@ -870,16 +847,6 @@ NON_IDL_EVENT(animationiteration,
               NS_ANIMATION_ITERATION,
               EventNameType_None,
               NS_ANIMATION_EVENT)
-
-NON_IDL_EVENT(audioprocess,
-              NS_AUDIO_PROCESS,
-              EventNameType_None,
-              NS_EVENT)
-
-NON_IDL_EVENT(complete,
-              NS_AUDIO_COMPLETE,
-              EventNameType_None,
-              NS_EVENT)
 
 #ifdef DEFINED_FORWARDED_EVENT
 #undef DEFINED_FORWARDED_EVENT

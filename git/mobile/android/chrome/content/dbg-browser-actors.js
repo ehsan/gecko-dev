@@ -5,59 +5,130 @@
 
 "use strict";
 /**
- * Fennec-specific actors.
+ * Fennec-specific root actor that extends BrowserRootActor and overrides some
+ * of its methods.
  */
 
 /**
- * Construct a root actor appropriate for use in a server running in a
- * browser on Android. The returned root actor:
- * - respects the factories registered with DebuggerServer.addGlobalActor,
- * - uses a MobileTabList to supply tab actors,
- * - sends all navigator:browser window documents a Debugger:Shutdown event
- *   when it exits.
- *
- * * @param aConnection DebuggerServerConnection
- *        The conection to the client.
+ * The function that creates the root actor. DebuggerServer expects to find this
+ * function in the loaded actors in order to initialize properly.
  */
-function createRootActor(aConnection)
-{
-  let parameters = {
-    tabList: new MobileTabList(aConnection),
-    globalActorFactories: DebuggerServer.globalActorFactories,
-    onShutdown: sendShutdownEvent
-  };
-  return new RootActor(aConnection, parameters);
+function createRootActor(aConnection) {
+  return new DeviceRootActor(aConnection);
 }
 
 /**
- * A live list of BrowserTabActors representing the current browser tabs,
- * to be provided to the root actor to answer 'listTabs' requests.
- *
- * This object also takes care of listening for TabClose events and
- * onCloseWindow notifications, and exiting the BrowserTabActors concerned.
- *
- * (See the documentation for RootActor for the definition of the "live
- * list" interface.)
+ * Creates the root actor that client-server communications always start with.
+ * The root actor is responsible for the initial 'hello' packet and for
+ * responding to a 'listTabs' request that produces the list of currently open
+ * tabs.
  *
  * @param aConnection DebuggerServerConnection
- *     The connection in which this list's tab actors may participate.
- *
- * @see BrowserTabList for more a extensive description of how tab list objects
- *      work.
+ *        The conection to the client.
  */
-function MobileTabList(aConnection)
-{
-  BrowserTabList.call(this, aConnection);
+function DeviceRootActor(aConnection) {
+  BrowserRootActor.call(this, aConnection);
 }
 
-MobileTabList.prototype = Object.create(BrowserTabList.prototype);
+DeviceRootActor.prototype = new BrowserRootActor();
 
-MobileTabList.prototype.constructor = MobileTabList;
+/**
+ * Handles the listTabs request.  Builds a list of actors
+ * for the tabs running in the process.  The actors will survive
+ * until at least the next listTabs request.
+ */
+DeviceRootActor.prototype.onListTabs = function DRA_onListTabs() {
+  // Get actors for all the currently-running tabs (reusing
+  // existing actors where applicable), and store them in
+  // an ActorPool.
 
-MobileTabList.prototype._getSelectedBrowser = function(aWindow) {
-  return aWindow.BrowserApp.selectedBrowser;
+  let actorPool = new ActorPool(this.conn);
+  let tabActorList = [];
+
+  // Get the chrome debugger actor.
+  let actor = this._chromeDebugger;
+  if (!actor) {
+    actor = new ChromeDebuggerActor(this);
+    actor.parentID = this.actorID;
+    this._chromeDebugger = actor;
+    actorPool.addActor(actor);
+  }
+
+  let win = windowMediator.getMostRecentWindow("navigator:browser");
+  this.browser = win.BrowserApp.selectedBrowser;
+
+  // Watch the window for tab closes so we can invalidate
+  // actors as needed.
+  this.watchWindow(win);
+
+  let tabs = win.BrowserApp.tabs;
+  let selected;
+
+  for each (let tab in tabs) {
+    let browser = tab.browser;
+
+    if (browser == this.browser) {
+      selected = tabActorList.length;
+    }
+
+    let actor = this._tabActors.get(browser);
+    if (!actor) {
+      actor = new BrowserTabActor(this.conn, browser);
+      actor.parentID = this.actorID;
+      this._tabActors.set(browser, actor);
+    }
+
+    actorPool.addActor(actor);
+    tabActorList.push(actor);
+  }
+
+  this._createExtraActors(DebuggerServer.globalActorFactories, actorPool);
+
+  // Now drop the old actorID -> actor map.  Actors that still
+  // mattered were added to the new map, others will go
+  // away.
+  if (this._tabActorPool) {
+    this.conn.removeActorPool(this._tabActorPool);
+  }
+
+  this._tabActorPool = actorPool;
+  this.conn.addActorPool(this._tabActorPool);
+
+  let response = {
+    "from": "root",
+    "selected": selected,
+    "tabs": [actor.grip() for (actor of tabActorList)],
+    "chromeDebugger": this._chromeDebugger.actorID
+  };
+  this._appendExtraActors(response);
+  return response;
 };
 
-MobileTabList.prototype._getChildren = function(aWindow) {
-  return aWindow.BrowserApp.tabs.map(tab => tab.browser);
+/**
+ * Return the tab container for the specified window.
+ */
+DeviceRootActor.prototype.getTabContainer = function DRA_getTabContainer(aWindow) {
+  return aWindow.document.getElementById("browsers");
+};
+
+/**
+ * When a tab is closed, exit its tab actor.  The actor
+ * will be dropped at the next listTabs request.
+ */
+DeviceRootActor.prototype.onTabClosed = function DRA_onTabClosed(aEvent) {
+  this.exitTabActor(aEvent.target.browser);
+};
+
+// nsIWindowMediatorListener
+DeviceRootActor.prototype.onCloseWindow = function DRA_onCloseWindow(aWindow) {
+  if (aWindow.BrowserApp) {
+    this.unwatchWindow(aWindow);
+  }
+};
+
+/**
+ * The request types this actor can handle.
+ */
+DeviceRootActor.prototype.requestTypes = {
+  "listTabs": DeviceRootActor.prototype.onListTabs
 };

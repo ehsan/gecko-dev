@@ -10,15 +10,3 @@ EXPORTS += [
     'DMD.h',
 ]
 
-SOURCES += [
-    '../../../mfbt/HashFunctions.cpp',
-    '../../../xpcom/base/nsStackWalk.cpp',
-    'DMD.cpp',
-]
-
-SOURCES += [
-    '../../../nsprpub/lib/libc/src/strcpy.c',
-]
-
-LIBRARY_NAME = 'dmd'
-

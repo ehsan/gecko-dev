@@ -4,20 +4,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "base/basictypes.h"
+#include "base/message_loop.h"
 #include "TaskThrottler.h"
 
 namespace mozilla {
 namespace layers {
 
-TaskThrottler::TaskThrottler(const TimeStamp& aTimeStamp)
+TaskThrottler::TaskThrottler()
   : mOutstanding(false)
   , mQueuedTask(nullptr)
-  , mStartTime(aTimeStamp)
 { }
 
 void
 TaskThrottler::PostTask(const tracked_objects::Location& aLocation,
-                        CancelableTask* aTask, const TimeStamp& aTimeStamp)
+                        CancelableTask* aTask)
 {
   aTask->SetBirthPlace(aLocation);
 
@@ -27,57 +28,22 @@ TaskThrottler::PostTask(const tracked_objects::Location& aLocation,
     }
     mQueuedTask = aTask;
   } else {
-    mStartTime = aTimeStamp;
     aTask->Run();
     delete aTask;
     mOutstanding = true;
   }
 }
 
-void
-TaskThrottler::TaskComplete(const TimeStamp& aTimeStamp)
+bool
+TaskThrottler::TaskComplete()
 {
-  if (!mOutstanding) {
-    return;
-  }
-
-  // Remove the oldest sample we have if adding a new sample takes us over our
-  // desired number of samples.
-  if (mMaxDurations > 0) {
-      if (mDurations.Length() >= mMaxDurations) {
-          mDurations.RemoveElementAt(0);
-      }
-      mDurations.AppendElement(aTimeStamp - mStartTime);
-  }
-
   if (mQueuedTask) {
-    mStartTime = aTimeStamp;
     mQueuedTask->Run();
     mQueuedTask = nullptr;
-  } else {
-    mOutstanding = false;
+    return true;
   }
-}
-
-TimeDuration
-TaskThrottler::AverageDuration()
-{
-  if (!mDurations.Length()) {
-    return TimeDuration();
-  }
-
-  TimeDuration durationSum;
-  for (uint32_t i = 0; i < mDurations.Length(); i++) {
-    durationSum += mDurations[i];
-  }
-
-  return durationSum / mDurations.Length();
-}
-
-TimeDuration
-TaskThrottler::TimeSinceLastRequest(const TimeStamp& aTimeStamp)
-{
-  return aTimeStamp - mStartTime;
+  mOutstanding = false;
+  return false;
 }
 
 }

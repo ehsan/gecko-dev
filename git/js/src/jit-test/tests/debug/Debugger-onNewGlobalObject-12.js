@@ -25,5 +25,5 @@ function (ex) {
 
 log = '';
 count = 0;
-assertEq(typeof newGlobal(), 'object');
+assertThrowsValue(newGlobal, 'fit');
 assertEq(log, 'nunu');

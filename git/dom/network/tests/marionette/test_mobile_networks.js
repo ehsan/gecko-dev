@@ -6,7 +6,7 @@ MARIONETTE_TIMEOUT = 60000;
  
 SpecialPowers.addPermission("mobileconnection", true, document);
 
-let connection = navigator.mozMobileConnections[0];
+let connection = navigator.mozMobileConnection;
 ok(connection instanceof MozMobileConnection,
    "connection is instanceof " + connection.constructor);
 
@@ -36,6 +36,7 @@ function testConnectionInfo() {
   is(voice.emergencyCallsOnly, false);
   is(voice.roaming, false);
   isAndroidNetwork(voice.network);
+  is(voice.lastKnownMcc, "310");
 
   let data = connection.data;
   // data.connected = true means there's an active data call which we
@@ -44,6 +45,7 @@ function testConnectionInfo() {
   is(data.emergencyCallsOnly, false);
   is(data.roaming, false);
   isAndroidNetwork(data.network);
+  is(data.lastKnownMcc, null);
 
   testGetNetworks();
 }

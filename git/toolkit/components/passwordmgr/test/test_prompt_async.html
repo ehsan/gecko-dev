@@ -24,11 +24,8 @@
          * from SpecialPowers-wrapped objects is unreliable.  Because of that,
          * `dialogMonitor` now tracks the number of open windows rather than
          * specific window objects.
-         *
-         * NB: Because the constructor (above) adds |this| directly as an observer,
-         * we need to do SpecialPowers.wrapCallbackObject directly on the prototype.
          */
-        dialogMonitor.prototype = SpecialPowers.wrapCallbackObject({
+        dialogMonitor.prototype = {
             windowsOpen : 0,
             windowsRegistered : 0,
 
@@ -43,6 +40,7 @@
             observe: function(subject, topic, data) {
                 if (topic === "domwindowopened") {
                     this.windowsOpen++;
+                    ok(this.windowsOpen == 1, "Didn't open more then one dialog at a time");
                     this.windowsRegistered++;
                     return;
                 }
@@ -63,7 +61,7 @@
                 this.windowsOpen = 0;
                 this.windowsRegistered = 0;
             }
-        });
+        }
 
         var monitor = new dialogMonitor();
 
@@ -122,7 +120,7 @@
             SimpleTest.finish();
         }
 
-	var resolveCallback = SpecialPowers.wrapCallbackObject({
+	var resolveCallback = {
 	QueryInterface : function (iid) {
 	const interfaces = [Ci.nsIProtocolProxyCallback, Ci.nsISupports];
 
@@ -135,7 +133,7 @@
           initLogins(pi);
           doTest(testNum);
 	}
-	});
+	};
 
 	function startup() {
             //need to allow for arbitrary network servers defined in PAC instead of a hardcoded moz-proxy.
@@ -361,7 +359,7 @@
 
                 case 3:
                     dialog.cancelDialog();
-                    setTimeout(onFrameLoad, 10); // there are no successful frames for test 3
+                    setTimeout(onFrameLoad(), 10); // there are no successful frames for test 3
                     break;
 
                 case 4:
@@ -373,7 +371,7 @@
 
                 case 5:
                     dialog.cancelDialog();
-                    setTimeout(onFrameLoad, 10); // there are no successful frames for test 5
+                    setTimeout(onFrameLoad(), 10); // there are no successful frames for test 5
                     break;
 
                 case 6:

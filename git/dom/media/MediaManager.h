@@ -3,6 +3,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "MediaEngine.h"
+#include "mozilla/dom/ContentChild.h"
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
 #include "nsIMediaManager.h"
@@ -20,24 +21,13 @@
 #include "nsXULAppAPI.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/StaticPtr.h"
-#include "mozilla/dom/MediaStreamTrackBinding.h"
 #include "prlog.h"
-#include "DOMMediaStream.h"
 
 #ifdef MOZ_WEBRTC
 #include "mtransport/runnable_utils.h"
 #endif
 
-#ifdef MOZ_WIDGET_GONK
-#include "DOMCameraManager.h"
-#endif
-
 namespace mozilla {
-namespace dom {
-class MediaStreamConstraints;
-class NavigatorUserMediaSuccessCallback;
-class NavigatorUserMediaErrorCallback;
-}
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* GetMediaManagerLog();
@@ -97,17 +87,16 @@ public:
     return mStream->AsSourceStream();
   }
 
-  // mVideo/AudioSource are set by Activate(), so we assume they're capturing
-  // if set and represent a real capture device.
+  // mVideo/AudioSource are set by Activate(), so we assume they're capturing if set
   bool CapturingVideo()
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-    return mVideoSource && !mVideoSource->IsFake() && !mStopped;
+    return mVideoSource && !mStopped;
   }
   bool CapturingAudio()
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-    return mAudioSource && !mAudioSource->IsFake() && !mStopped;
+    return mAudioSource && !mStopped;
   }
 
   void SetStopped()
@@ -204,32 +193,47 @@ class GetUserMediaNotificationEvent: public nsRunnable
       STOPPING
     };
     GetUserMediaNotificationEvent(GetUserMediaCallbackMediaStreamListener* aListener,
-                                  GetUserMediaStatus aStatus,
-                                  bool aIsAudio, bool aIsVideo, uint64_t aWindowID)
-    : mListener(aListener) , mStatus(aStatus) , mIsAudio(aIsAudio)
-    , mIsVideo(aIsVideo), mWindowID(aWindowID) {}
+                                  GetUserMediaStatus aStatus)
+    : mListener(aListener), mStatus(aStatus) {}
 
-    GetUserMediaNotificationEvent(GetUserMediaStatus aStatus,
-                                  already_AddRefed<DOMMediaStream> aStream,
-                                  DOMMediaStream::OnTracksAvailableCallback* aOnTracksAvailableCallback,
-                                  bool aIsAudio, bool aIsVideo, uint64_t aWindowID)
-    : mStream(aStream), mOnTracksAvailableCallback(aOnTracksAvailableCallback),
-      mStatus(aStatus), mIsAudio(aIsAudio), mIsVideo(aIsVideo), mWindowID(aWindowID) {}
-    virtual ~GetUserMediaNotificationEvent()
+    GetUserMediaNotificationEvent(GetUserMediaStatus aStatus)
+    : mListener(nullptr), mStatus(aStatus) {}
+
+    NS_IMETHOD
+    Run()
     {
-
+      NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
+      nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+      if (!obs) {
+        NS_WARNING("Could not get the Observer service for GetUserMedia recording notification.");
+        return NS_ERROR_FAILURE;
+      }
+      nsString msg;
+      switch (mStatus) {
+        case STARTING:
+          msg = NS_LITERAL_STRING("starting");
+          break;
+        case STOPPING:
+          msg = NS_LITERAL_STRING("shutdown");
+          if (mListener) {
+            mListener->SetStopped();
+          }
+          break;
+      }
+      obs->NotifyObservers(nullptr,
+                           "recording-device-events",
+                           msg.get());
+      // Forward recording events to parent process.
+      // The events are gathered in chrome process and used for recording indicator
+      if (XRE_GetProcessType() != GeckoProcessType_Default) {
+        unused << mozilla::dom::ContentChild::GetSingleton()->SendRecordingDeviceEvents(msg);
+      }
+      return NS_OK;
     }
-
-    NS_IMETHOD Run() MOZ_OVERRIDE;
 
   protected:
     nsRefPtr<GetUserMediaCallbackMediaStreamListener> mListener; // threadsafe
-    nsRefPtr<DOMMediaStream> mStream;
-    nsAutoPtr<DOMMediaStream::OnTracksAvailableCallback> mOnTracksAvailableCallback;
     GetUserMediaStatus mStatus;
-    bool mIsAudio;
-    bool mIsVideo;
-    uint64_t mWindowID;
 };
 
 typedef enum {
@@ -246,20 +250,14 @@ public:
   // so we can send Stop without AddRef()ing from the MSG thread
   MediaOperationRunnable(MediaOperation aType,
     GetUserMediaCallbackMediaStreamListener* aListener,
-    DOMMediaStream* aStream,
-    DOMMediaStream::OnTracksAvailableCallback* aOnTracksAvailableCallback,
     MediaEngineSource* aAudioSource,
     MediaEngineSource* aVideoSource,
-    bool aNeedsFinish,
-    uint64_t aWindowID)
+    bool aNeedsFinish)
     : mType(aType)
-    , mStream(aStream)
-    , mOnTracksAvailableCallback(aOnTracksAvailableCallback)
     , mAudioSource(aAudioSource)
     , mVideoSource(aVideoSource)
     , mListener(aListener)
     , mFinish(aNeedsFinish)
-    , mWindowID(aWindowID)
     {}
 
   ~MediaOperationRunnable()
@@ -268,7 +266,7 @@ public:
   }
 
   NS_IMETHOD
-  Run() MOZ_OVERRIDE
+  Run()
   {
     SourceMediaStream *source = mListener->GetSourceStream();
     // No locking between these is required as all the callbacks for the
@@ -284,37 +282,24 @@ public:
 
           source->SetPullEnabled(true);
 
-          DOMMediaStream::TrackTypeHints expectedTracks = 0;
           if (mAudioSource) {
             rv = mAudioSource->Start(source, kAudioTrack);
-            if (NS_SUCCEEDED(rv)) {
-              expectedTracks |= DOMMediaStream::HINT_CONTENTS_AUDIO;
-            } else {
+            if (NS_FAILED(rv)) {
               MM_LOG(("Starting audio failed, rv=%d",rv));
             }
           }
           if (mVideoSource) {
             rv = mVideoSource->Start(source, kVideoTrack);
-            if (NS_SUCCEEDED(rv)) {
-              expectedTracks |= DOMMediaStream::HINT_CONTENTS_VIDEO;
-            } else {
+            if (NS_FAILED(rv)) {
               MM_LOG(("Starting video failed, rv=%d",rv));
             }
           }
 
-          mOnTracksAvailableCallback->SetExpectedTracks(expectedTracks);
-
           MM_LOG(("started all sources"));
-          // Forward mOnTracksAvailableCallback to GetUserMediaNotificationEvent,
-          // because mOnTracksAvailableCallback needs to be added to mStream
-          // on the main thread.
           nsRefPtr<GetUserMediaNotificationEvent> event =
-            new GetUserMediaNotificationEvent(GetUserMediaNotificationEvent::STARTING,
-                                              mStream.forget(),
-                                              mOnTracksAvailableCallback.forget(),
-                                              mAudioSource != nullptr,
-                                              mVideoSource != nullptr,
-                                              mWindowID);
+            new GetUserMediaNotificationEvent(GetUserMediaNotificationEvent::STARTING);
+
+
           NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
         }
         break;
@@ -335,11 +320,7 @@ public:
             source->Finish();
           }
           nsRefPtr<GetUserMediaNotificationEvent> event =
-            new GetUserMediaNotificationEvent(mListener,
-                                              GetUserMediaNotificationEvent::STOPPING,
-                                              mAudioSource != nullptr,
-                                              mVideoSource != nullptr,
-                                              mWindowID);
+            new GetUserMediaNotificationEvent(mListener, GetUserMediaNotificationEvent::STOPPING);
 
           NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
         }
@@ -354,13 +335,10 @@ public:
 
 private:
   MediaOperation mType;
-  nsRefPtr<DOMMediaStream> mStream;
-  nsAutoPtr<DOMMediaStream::OnTracksAvailableCallback> mOnTracksAvailableCallback;
   nsRefPtr<MediaEngineSource> mAudioSource; // threadsafe
   nsRefPtr<MediaEngineSource> mVideoSource; // threadsafe
   nsRefPtr<GetUserMediaCallbackMediaStreamListener> mListener; // threadsafe
   bool mFinish;
-  uint64_t mWindowID;
 };
 
 typedef nsTArray<nsRefPtr<GetUserMediaCallbackMediaStreamListener> > StreamListeners;
@@ -369,11 +347,21 @@ typedef nsClassHashtable<nsUint64HashKey, StreamListeners> WindowTable;
 class MediaDevice : public nsIMediaDevice
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIMEDIADEVICE
 
-  MediaDevice(MediaEngineVideoSource* aSource);
-  MediaDevice(MediaEngineAudioSource* aSource);
+  MediaDevice(MediaEngineVideoSource* aSource) {
+    mSource = aSource;
+    mType.Assign(NS_LITERAL_STRING("video"));
+    mSource->GetName(mName);
+    mSource->GetUUID(mID);
+  }
+  MediaDevice(MediaEngineAudioSource* aSource) {
+    mSource = aSource;
+    mType.Assign(NS_LITERAL_STRING("audio"));
+    mSource->GetName(mName);
+    mSource->GetUUID(mID);
+  }
   virtual ~MediaDevice() {}
 
   MediaEngineSource* GetSource();
@@ -381,8 +369,6 @@ private:
   nsString mName;
   nsString mType;
   nsString mID;
-  bool mHasFacingMode;
-  dom::VideoFacingModeEnum mFacingMode;
   nsRefPtr<MediaEngineSource> mSource;
 };
 
@@ -401,11 +387,11 @@ public:
     return Get()->mMediaThread;
   }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIMEDIAMANAGERSERVICE
 
-  MediaEngine* GetBackend(uint64_t aWindowId = 0);
+  MediaEngine* GetBackend();
   StreamListeners *GetWindowListeners(uint64_t aWindowId) {
     NS_ASSERTION(NS_IsMainThread(), "Only access windowlist on main thread");
 
@@ -421,14 +407,11 @@ public:
   void RemoveFromWindowList(uint64_t aWindowID,
     GetUserMediaCallbackMediaStreamListener *aListener);
 
-  nsresult GetUserMedia(JSContext* aCx, bool aPrivileged,
-    nsPIDOMWindow* aWindow,
-    const dom::MediaStreamConstraints& aRawConstraints,
+  nsresult GetUserMedia(bool aPrivileged, nsPIDOMWindow* aWindow,
+    nsIMediaStreamOptions* aParams,
     nsIDOMGetUserMediaSuccessCallback* onSuccess,
     nsIDOMGetUserMediaErrorCallback* onError);
-
   nsresult GetUserMediaDevices(nsPIDOMWindow* aWindow,
-    const dom::MediaStreamConstraintsInternal& aConstraints,
     nsIGetUserMediaDevicesSuccessCallback* onSuccess,
     nsIDOMGetUserMediaErrorCallback* onError);
   void OnNavigation(uint64_t aWindowID);
@@ -455,8 +438,6 @@ private:
   nsresult MediaCaptureWindowStateInternal(nsIDOMWindow* aWindow, bool* aVideo,
                                            bool* aAudio);
 
-  void StopMediaStreams();
-
   // ONLY access from MainThread so we don't need to lock
   WindowTable mActiveWindows;
   nsRefPtrHashtable<nsStringHashKey, nsRunnable> mActiveCallbacks;
@@ -468,10 +449,6 @@ private:
   MediaEngine* mBackend;
 
   static StaticRefPtr<MediaManager> sSingleton;
-
-#ifdef MOZ_WIDGET_GONK
-  nsRefPtr<nsDOMCameraManager> mCameraManager;
-#endif
 };
 
 } // namespace mozilla

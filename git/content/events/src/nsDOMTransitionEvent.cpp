@@ -4,18 +4,18 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMTransitionEvent.h"
-#include "prtime.h"
-#include "mozilla/ContentEvents.h"
-
-using namespace mozilla;
+#include "nsGUIEvent.h"
+#include "nsDOMClassInfoID.h"
+#include "nsIClassInfo.h"
+#include "nsIXPCScriptable.h"
 
 nsDOMTransitionEvent::nsDOMTransitionEvent(mozilla::dom::EventTarget* aOwner,
                                            nsPresContext *aPresContext,
-                                           InternalTransitionEvent* aEvent)
+                                           nsTransitionEvent *aEvent)
   : nsDOMEvent(aOwner, aPresContext,
-               aEvent ? aEvent :
-                        new InternalTransitionEvent(false, 0, EmptyString(),
-                                                    0.0, EmptyString()))
+               aEvent ? aEvent : new nsTransitionEvent(false, 0,
+                                                       EmptyString(),
+                                                       0.0))
 {
   if (aEvent) {
     mEventIsInternal = false;
@@ -24,41 +24,31 @@ nsDOMTransitionEvent::nsDOMTransitionEvent(mozilla::dom::EventTarget* aOwner,
     mEventIsInternal = true;
     mEvent->time = PR_Now();
   }
+  SetIsDOMBinding();
 }
+
+nsDOMTransitionEvent::~nsDOMTransitionEvent()
+{
+  if (mEventIsInternal) {
+    delete TransitionEvent();
+    mEvent = nullptr;
+  }
+}
+
+DOMCI_DATA(TransitionEvent, nsDOMTransitionEvent)
 
 NS_INTERFACE_MAP_BEGIN(nsDOMTransitionEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMTransitionEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TransitionEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 NS_IMPL_ADDREF_INHERITED(nsDOMTransitionEvent, nsDOMEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMTransitionEvent, nsDOMEvent)
 
-//static
-already_AddRefed<nsDOMTransitionEvent>
-nsDOMTransitionEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
-                                  const nsAString& aType,
-                                  const mozilla::dom::TransitionEventInit& aParam,
-                                  mozilla::ErrorResult& aRv)
-{
-  nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.GetAsSupports());
-  nsRefPtr<nsDOMTransitionEvent> e = new nsDOMTransitionEvent(t, nullptr, nullptr);
-  bool trusted = e->Init(t);
-
-  aRv = e->InitEvent(aType, aParam.mBubbles, aParam.mCancelable);
-
-  InternalTransitionEvent* internalEvent = e->mEvent->AsTransitionEvent();
-  internalEvent->propertyName = aParam.mPropertyName;
-  internalEvent->elapsedTime = aParam.mElapsedTime;
-  internalEvent->pseudoElement = aParam.mPseudoElement;
-
-  e->SetTrusted(trusted);
-  return e.forget();
-}
-
 NS_IMETHODIMP
 nsDOMTransitionEvent::GetPropertyName(nsAString & aPropertyName)
 {
-  aPropertyName = mEvent->AsTransitionEvent()->propertyName;
+  aPropertyName = TransitionEvent()->propertyName;
   return NS_OK;
 }
 
@@ -69,16 +59,19 @@ nsDOMTransitionEvent::GetElapsedTime(float *aElapsedTime)
   return NS_OK;
 }
 
-float
-nsDOMTransitionEvent::ElapsedTime()
-{
-  return mEvent->AsTransitionEvent()->elapsedTime;
-}
-
 NS_IMETHODIMP
-nsDOMTransitionEvent::GetPseudoElement(nsAString& aPseudoElement)
+nsDOMTransitionEvent::InitTransitionEvent(const nsAString & typeArg,
+                                          bool canBubbleArg,
+                                          bool cancelableArg,
+                                          const nsAString & propertyNameArg,
+                                          float elapsedTimeArg)
 {
-  aPseudoElement = mEvent->AsTransitionEvent()->pseudoElement;
+  nsresult rv = nsDOMEvent::InitEvent(typeArg, canBubbleArg, cancelableArg);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  TransitionEvent()->propertyName = propertyNameArg;
+  TransitionEvent()->elapsedTime = elapsedTimeArg;
+
   return NS_OK;
 }
 
@@ -86,7 +79,7 @@ nsresult
 NS_NewDOMTransitionEvent(nsIDOMEvent **aInstancePtrResult,
                          mozilla::dom::EventTarget* aOwner,
                          nsPresContext *aPresContext,
-                         InternalTransitionEvent* aEvent)
+                         nsTransitionEvent *aEvent)
 {
   nsDOMTransitionEvent *it =
     new nsDOMTransitionEvent(aOwner, aPresContext, aEvent);

@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jsalloc.h"
-
 #include "jscntxt.h"
 
 using namespace js;
@@ -13,11 +12,11 @@ using namespace js;
 void *
 TempAllocPolicy::onOutOfMemory(void *p, size_t nbytes)
 {
-    return static_cast<ThreadSafeContext *>(cx_)->onOutOfMemory(p, nbytes);
+    return cx_->runtime->onOutOfMemory(p, nbytes, cx_);
 }
 
 void
 TempAllocPolicy::reportAllocOverflow() const
 {
-    js_ReportAllocationOverflow(static_cast<ThreadSafeContext *>(cx_));
+    js_ReportAllocationOverflow(cx_);
 }

@@ -6,23 +6,16 @@
 
 #include "GStreamerFormatHelper.h"
 #include "nsCharSeparatedTokenizer.h"
-#include "nsString.h"
-#include "GStreamerLoader.h"
+#include "nsXPCOMStrings.h"
 
 #define ENTRY_FORMAT(entry) entry[0]
 #define ENTRY_CAPS(entry) entry[1]
 
-namespace mozilla {
-
 GStreamerFormatHelper* GStreamerFormatHelper::gInstance = nullptr;
-bool GStreamerFormatHelper::sLoadOK = false;
 
 GStreamerFormatHelper* GStreamerFormatHelper::Instance() {
   if (!gInstance) {
-    if ((sLoadOK = load_gstreamer())) {
-      gst_init(nullptr, nullptr);
-    }
-
+    gst_init(nullptr, nullptr);
     gInstance = new GStreamerFormatHelper();
   }
 
@@ -36,16 +29,16 @@ void GStreamerFormatHelper::Shutdown() {
   }
 }
 
-static char const *const sContainers[6][2] = {
+char const *const GStreamerFormatHelper::mContainers[6][2] = {
   {"video/mp4", "video/quicktime"},
   {"video/quicktime", "video/quicktime"},
-  {"audio/mp4", "audio/x-m4a"},
+  {"audio/mp4", "audio/mpeg, mpegversion=(int)4"},
   {"audio/x-m4a", "audio/x-m4a"},
   {"audio/mpeg", "audio/mpeg, mpegversion=(int)1"},
   {"audio/mp3", "audio/mpeg, mpegversion=(int)1"},
 };
 
-static char const *const sCodecs[9][2] = {
+char const *const GStreamerFormatHelper::mCodecs[9][2] = {
   {"avc1.42E01E", "video/x-h264"},
   {"avc1.42001E", "video/x-h264"},
   {"avc1.58A01E", "video/x-h264"},
@@ -57,43 +50,26 @@ static char const *const sCodecs[9][2] = {
   {"mp3", "audio/mpeg, mpegversion=(int)1"},
 };
 
-static char const * const sDefaultCodecCaps[][2] = {
-  {"video/mp4", "video/x-h264"},
-  {"video/quicktime", "video/x-h264"},
-  {"audio/mp4", "audio/mpeg, mpegversion=(int)4"},
-  {"audio/x-m4a", "audio/mpeg, mpegversion=(int)4"},
-  {"audio/mp3", "audio/mpeg, layer=(int)3"},
-  {"audio/mpeg", "audio/mpeg, layer=(int)3"}
-};
-
 GStreamerFormatHelper::GStreamerFormatHelper()
   : mFactories(nullptr),
     mCookie(static_cast<uint32_t>(-1))
 {
-  if (!sLoadOK) {
-    return;
-  }
-
   mSupportedContainerCaps = gst_caps_new_empty();
-  for (unsigned int i = 0; i < G_N_ELEMENTS(sContainers); i++) {
-    const char* capsString = sContainers[i][1];
+  for (unsigned int i = 0; i < G_N_ELEMENTS(mContainers); i++) {
+    const char* capsString = mContainers[i][1];
     GstCaps* caps = gst_caps_from_string(capsString);
     gst_caps_append(mSupportedContainerCaps, caps);
   }
 
   mSupportedCodecCaps = gst_caps_new_empty();
-  for (unsigned int i = 0; i < G_N_ELEMENTS(sCodecs); i++) {
-    const char* capsString = sCodecs[i][1];
+  for (unsigned int i = 0; i < G_N_ELEMENTS(mCodecs); i++) {
+    const char* capsString = mCodecs[i][1];
     GstCaps* caps = gst_caps_from_string(capsString);
     gst_caps_append(mSupportedCodecCaps, caps);
   }
 }
 
 GStreamerFormatHelper::~GStreamerFormatHelper() {
-  if (!sLoadOK) {
-    return;
-  }
-
   gst_caps_unref(mSupportedContainerCaps);
   gst_caps_unref(mSupportedCodecCaps);
 
@@ -101,59 +77,12 @@ GStreamerFormatHelper::~GStreamerFormatHelper() {
     g_list_free(mFactories);
 }
 
-static GstCaps *
-GetContainerCapsFromMIMEType(const char *aType) {
-  /* convert aMIMEType to gst container caps */
-  const char* capsString = nullptr;
-  for (uint32_t i = 0; i < G_N_ELEMENTS(sContainers); i++) {
-    if (!strcmp(ENTRY_FORMAT(sContainers[i]), aType)) {
-      capsString = ENTRY_CAPS(sContainers[i]);
-      break;
-    }
-  }
-
-  if (!capsString) {
-    /* we couldn't find any matching caps */
-    return nullptr;
-  }
-
-  return gst_caps_from_string(capsString);
-}
-
-static GstCaps *
-GetDefaultCapsFromMIMEType(const char *aType) {
-  GstCaps *caps = GetContainerCapsFromMIMEType(aType);
-
-  for (uint32_t i = 0; i < G_N_ELEMENTS(sDefaultCodecCaps); i++) {
-    if (!strcmp(sDefaultCodecCaps[i][0], aType)) {
-      GstCaps *tmp = gst_caps_from_string(sDefaultCodecCaps[i][1]);
-
-      gst_caps_append(caps, tmp);
-      return caps;
-    }
-  }
-
-  return nullptr;
-}
-
 bool GStreamerFormatHelper::CanHandleMediaType(const nsACString& aMIMEType,
                                                const nsAString* aCodecs) {
-  if (!sLoadOK) {
-    return false;
-  }
-
   const char *type;
-  NS_CStringGetData(aMIMEType, &type, nullptr);
+  NS_CStringGetData(aMIMEType, &type, NULL);
 
-  GstCaps *caps;
-  if (aCodecs && !aCodecs->IsEmpty()) {
-    caps = ConvertFormatsToCaps(type, aCodecs);
-  } else {
-    // Get a minimal set of codec caps for this MIME type we should support so
-    // that we don't overreport MIME types we are able to play.
-    caps = GetDefaultCapsFromMIMEType(type);
-  }
-
+  GstCaps* caps = ConvertFormatsToCaps(type, aCodecs);
   if (!caps) {
     return false;
   }
@@ -166,15 +95,23 @@ bool GStreamerFormatHelper::CanHandleMediaType(const nsACString& aMIMEType,
 
 GstCaps* GStreamerFormatHelper::ConvertFormatsToCaps(const char* aMIMEType,
                                                      const nsAString* aCodecs) {
-  NS_ASSERTION(sLoadOK, "GStreamer library not linked");
-
   unsigned int i;
 
-  GstCaps *caps = GetContainerCapsFromMIMEType(aMIMEType);
-  if (!caps) {
+  /* convert aMIMEType to gst container caps */
+  const char* capsString = nullptr;
+  for (i = 0; i < G_N_ELEMENTS(mContainers); i++) {
+    if (!strcmp(ENTRY_FORMAT(mContainers[i]), aMIMEType)) {
+      capsString = ENTRY_CAPS(mContainers[i]);
+      break;
+    }
+  }
+
+  if (!capsString) {
+    /* we couldn't find any matching caps */
     return nullptr;
   }
 
+  GstCaps* caps = gst_caps_from_string(capsString);
   /* container only */
   if (!aCodecs) {
     return caps;
@@ -183,11 +120,11 @@ GstCaps* GStreamerFormatHelper::ConvertFormatsToCaps(const char* aMIMEType,
   nsCharSeparatedTokenizer tokenizer(*aCodecs, ',');
   while (tokenizer.hasMoreTokens()) {
     const nsSubstring& codec = tokenizer.nextToken();
-    const char *capsString = nullptr;
+    capsString = nullptr;
 
-    for (i = 0; i < G_N_ELEMENTS(sCodecs); i++) {
-      if (codec.EqualsASCII(ENTRY_FORMAT(sCodecs[i]))) {
-        capsString = ENTRY_CAPS(sCodecs[i]);
+    for (i = 0; i < G_N_ELEMENTS(mCodecs); i++) {
+      if (codec.EqualsASCII(ENTRY_FORMAT(mCodecs[i]))) {
+        capsString = ENTRY_CAPS(mCodecs[i]);
         break;
       }
     }
@@ -205,73 +142,23 @@ GstCaps* GStreamerFormatHelper::ConvertFormatsToCaps(const char* aMIMEType,
   return caps;
 }
 
-static gboolean FactoryFilter(GstPluginFeature *aFeature, gpointer)
-{
-  if (!GST_IS_ELEMENT_FACTORY(aFeature)) {
-    return FALSE;
-  }
-
-  // TODO _get_klass doesn't exist in 1.0
-  const gchar *className =
-    gst_element_factory_get_klass(GST_ELEMENT_FACTORY_CAST(aFeature));
-
-  if (!strstr(className, "Decoder") && !strstr(className, "Demux")) {
-    return FALSE;
-  }
-
-  return gst_plugin_feature_get_rank(aFeature) >= GST_RANK_MARGINAL;
-}
-
-/**
- * Returns true if any |aFactory| caps intersect with |aCaps|
- */
-static bool SupportsCaps(GstElementFactory *aFactory, GstCaps *aCaps)
-{
-  for (const GList *iter = gst_element_factory_get_static_pad_templates(aFactory); iter; iter = iter->next) {
-    GstStaticPadTemplate *templ = static_cast<GstStaticPadTemplate *>(iter->data);
-
-    if (templ->direction == GST_PAD_SRC) {
-      continue;
-    }
-
-    GstCaps *caps = gst_static_caps_get(&templ->static_caps);
-    if (!caps) {
-      continue;
-    }
-
-    if (gst_caps_can_intersect(gst_static_caps_get(&templ->static_caps), aCaps)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 bool GStreamerFormatHelper::HaveElementsToProcessCaps(GstCaps* aCaps) {
-  NS_ASSERTION(sLoadOK, "GStreamer library not linked");
 
   GList* factories = GetFactories();
 
+  GList* list;
   /* here aCaps contains [containerCaps, [codecCaps1, [codecCaps2, ...]]] so process
    * caps structures individually as we want one element for _each_
    * structure */
   for (unsigned int i = 0; i < gst_caps_get_size(aCaps); i++) {
     GstStructure* s = gst_caps_get_structure(aCaps, i);
     GstCaps* caps = gst_caps_new_full(gst_structure_copy(s), nullptr);
-
-    bool found = false;
-    for (GList *elem = factories; elem; elem = elem->next) {
-      if (SupportsCaps(GST_ELEMENT_FACTORY_CAST(elem->data), caps)) {
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
+    list = gst_element_factory_list_filter (factories, caps, GST_PAD_SINK, FALSE);
+    gst_caps_unref(caps);
+    if (!list) {
       return false;
     }
-
-    gst_caps_unref(caps);
+    g_list_free(list);
   }
 
   return true;
@@ -279,31 +166,23 @@ bool GStreamerFormatHelper::HaveElementsToProcessCaps(GstCaps* aCaps) {
 
 bool GStreamerFormatHelper::CanHandleContainerCaps(GstCaps* aCaps)
 {
-  NS_ASSERTION(sLoadOK, "GStreamer library not linked");
-
   return gst_caps_can_intersect(aCaps, mSupportedContainerCaps);
 }
 
 bool GStreamerFormatHelper::CanHandleCodecCaps(GstCaps* aCaps)
 {
-  NS_ASSERTION(sLoadOK, "GStreamer library not linked");
-
   return gst_caps_can_intersect(aCaps, mSupportedCodecCaps);
 }
 
 GList* GStreamerFormatHelper::GetFactories() {
-  NS_ASSERTION(sLoadOK, "GStreamer library not linked");
-
   uint32_t cookie = gst_default_registry_get_feature_list_cookie ();
   if (cookie != mCookie) {
     g_list_free(mFactories);
-    mFactories =
-      gst_default_registry_feature_filter((GstPluginFeatureFilter)FactoryFilter,
-                                          false, nullptr);
+    mFactories = gst_element_factory_list_get_elements
+        (GST_ELEMENT_FACTORY_TYPE_DEMUXER | GST_ELEMENT_FACTORY_TYPE_DECODER,
+         GST_RANK_MARGINAL);
     mCookie = cookie;
   }
 
   return mFactories;
 }
-
-} // namespace mozilla

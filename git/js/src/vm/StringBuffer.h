@@ -4,14 +4,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_StringBuffer_h
-#define vm_StringBuffer_h
+#ifndef StringBuffer_h___
+#define StringBuffer_h___
 
+#include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 
 #include "jscntxt.h"
 
 #include "js/Vector.h"
+
+ForwardDeclareJS(Atom);
+ForwardDeclareJS(FlatString);
 
 namespace js {
 
@@ -33,15 +37,13 @@ class StringBuffer
 
     CharBuffer cb;
 
-    ExclusiveContext *context() const {
-        return cb.allocPolicy().context()->asExclusiveContext();
-    }
+    JSContext *context() const { return cb.allocPolicy().context(); }
 
     StringBuffer(const StringBuffer &other) MOZ_DELETE;
     void operator=(const StringBuffer &other) MOZ_DELETE;
 
   public:
-    explicit StringBuffer(ExclusiveContext *cx) : cb(cx) { }
+    explicit StringBuffer(JSContext *cx) : cb(cx) { }
 
     inline bool reserve(size_t len) { return cb.reserve(len); }
     inline bool resize(size_t len) { return cb.resize(len); }
@@ -87,10 +89,10 @@ class StringBuffer
      * Creates a string from the characters in this buffer, then (regardless
      * whether string creation succeeded or failed) empties the buffer.
      */
-    JSFlatString *finishString();
+    js::RawFlatString finishString();
 
     /* Identical to finishString() except that an atom is created. */
-    JSAtom *finishAtom();
+    js::RawAtom finishAtom();
 
     /*
      * Creates a raw string from the characters in this buffer.  The string is
@@ -122,7 +124,10 @@ StringBuffer::appendInflated(const char *cstr, size_t cstrlen)
     size_t lengthBefore = length();
     if (!cb.growByUninitialized(cstrlen))
         return false;
-    InflateStringToBuffer(cstr, cstrlen, begin() + lengthBefore);
+    mozilla::DebugOnly<size_t> oldcstrlen = cstrlen;
+    mozilla::DebugOnly<bool> ok = InflateStringToBuffer(context(), cstr, cstrlen,
+                                                        begin() + lengthBefore, &cstrlen);
+    JS_ASSERT(ok && oldcstrlen == cstrlen);
     return true;
 }
 
@@ -148,4 +153,4 @@ BooleanToStringBuffer(JSContext *cx, bool b, StringBuffer &sb)
 
 }  /* namespace js */
 
-#endif /* vm_StringBuffer_h */
+#endif /* StringBuffer_h___ */

@@ -53,8 +53,8 @@
 #include "pkcs11f.h"
 
 typedef struct {
-    PRUint8 client_version[2];
-    PRUint8 random[46];
+    uint8 client_version[2];
+    uint8 random[46];
 } SSL3RSAPreMasterSecret;
 
 static void sftk_Null(void *data, PRBool freeit)
@@ -1171,22 +1171,18 @@ CK_RV NSC_DecryptUpdate(CK_SESSION_HANDLE hSession,
 		|| context->padDataLength == context->blockSize);
 
 
-    if (context->doPad) {
-	/* Check the data length for block ciphers. If we are padding,
-	 * then we must be using a block cipher. In the non-padding case
-	 * the error will be returned by the underlying decryption
-	 * function when we do the actual decrypt. We need to do the
-	 * check here to avoid returning a negative length to the caller
-	 * or reading before the beginning of the pEncryptedPart buffer.
- 	 */
-	if ((ulEncryptedPartLen == 0) ||
-	    (ulEncryptedPartLen % context->blockSize) != 0) {
-	    return CKR_ENCRYPTED_DATA_LEN_RANGE;
-	}
-    }
-
     if (!pPart) {
 	if (context->doPad) {
+	    /* we can check the data length here because if we are padding,
+	     * then we must be using a block cipher. In the non-padding case
+	     * the error will be returned by the underlying decryption
+	     * function when do do the actual decrypt. We need to do the
+	     * check here to avoid returning a negative length to the caller.
+ 	     */
+	    if ((ulEncryptedPartLen == 0) ||
+		(ulEncryptedPartLen % context->blockSize) != 0) {
+		return CKR_ENCRYPTED_DATA_LEN_RANGE;
+	    }
 	    *pulPartLen = 
 		ulEncryptedPartLen + context->padDataLength - context->blockSize;
 	    return CKR_OK;
@@ -3291,7 +3287,7 @@ nsc_SetupHMACKeyGen(CK_MECHANISM_PTR pMechanism, NSSPKCS5PBEParameter **pbe)
     SECItem  salt;
     CK_PBE_PARAMS *pbe_params = NULL;
     NSSPKCS5PBEParameter *params;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv;
 
     *pbe = NULL;
@@ -3514,7 +3510,6 @@ CK_RV NSC_GenerateKey(CK_SESSION_HANDLE hSession,
     case CKM_DES2_KEY_GEN:
     case CKM_DES3_KEY_GEN:
 	checkWeak = PR_TRUE;
-        /* fall through */
     case CKM_RC2_KEY_GEN:
     case CKM_RC4_KEY_GEN:
     case CKM_GENERIC_SECRET_KEY_GEN:
@@ -3541,7 +3536,6 @@ CK_RV NSC_GenerateKey(CK_SESSION_HANDLE hSession,
 	break;
     case CKM_NETSCAPE_PBE_SHA1_FAULTY_3DES_CBC:
 	faultyPBE3DES = PR_TRUE;
-        /* fall through */
     case CKM_NETSCAPE_PBE_SHA1_TRIPLE_DES_CBC:
     case CKM_NETSCAPE_PBE_SHA1_40_BIT_RC2_CBC:
     case CKM_NETSCAPE_PBE_SHA1_DES_CBC:
@@ -5343,11 +5337,11 @@ sftk_MapKeySize(CK_KEY_TYPE keyType)
  */
 static CK_RV sftk_compute_ANSI_X9_63_kdf(CK_BYTE **key, CK_ULONG key_len, SECItem *SharedSecret,
 		CK_BYTE_PTR SharedInfo, CK_ULONG SharedInfoLen,
-		SECStatus Hash(unsigned char *, const unsigned char *, PRUint32),
+		SECStatus Hash(unsigned char *, const unsigned char *, uint32),
 		CK_ULONG HashLen)
 {
     unsigned char *buffer = NULL, *output_buffer = NULL;
-    PRUint32 buffer_len, max_counter, i;
+    uint32 buffer_len, max_counter, i;
     SECStatus rv;
 
     /* Check that key_len isn't too long.  The maximum key length could be

@@ -6,36 +6,58 @@
 #ifndef mozilla_dom_DOMJSClass_h
 #define mozilla_dom_DOMJSClass_h
 
+#include "jsapi.h"
 #include "jsfriendapi.h"
 #include "mozilla/Assertions.h"
 
 #include "mozilla/dom/PrototypeList.h" // auto-generated
 
-#include "mozilla/dom/JSSlots.h"
-
 class nsCycleCollectionParticipant;
+
+// We use slot 0 for holding the raw object.  This is safe for both
+// globals and non-globals.
+#define DOM_OBJECT_SLOT 0
+
+// We use slot 1 for holding the expando object. This is not safe for globals
+// until bug 760095 is fixed, so that bug blocks converting Window to new
+// bindings.
+#define DOM_XRAY_EXPANDO_SLOT 1
+
+// We use slot 2 for holding either a JS::ObjectValue which points to the cached
+// SOW or JS::UndefinedValue if this class doesn't need SOWs. This is not safe
+// for globals until bug 760095 is fixed, so that bug blocks converting Window
+// to new bindings.
+#define DOM_OBJECT_SLOT_SOW 2
 
 // All DOM globals must have a slot at DOM_PROTOTYPE_SLOT.
 #define DOM_PROTOTYPE_SLOT JSCLASS_GLOBAL_SLOT_COUNT
-
-// Keep this count up to date with any extra global slots added above.
-#define DOM_GLOBAL_SLOTS 1
 
 // We use these flag bits for the new bindings.
 #define JSCLASS_DOM_GLOBAL JSCLASS_USERBIT1
 #define JSCLASS_IS_DOMIFACEANDPROTOJSCLASS JSCLASS_USERBIT2
 
+// NOTE: This is baked into the Ion JIT as 0 in codegen for LGetDOMProperty and
+// LSetDOMProperty. Those constants need to be changed accordingly if this value
+// changes.
+#define DOM_PROTO_INSTANCE_CLASS_SLOT 0
+
+// Interface objects store a number of reserved slots equal to
+// DOM_INTERFACE_BASE_SLOTS + number of named constructors.
+#define DOM_INTERFACE_SLOTS_BASE (DOM_XRAY_EXPANDO_SLOT + 1)
+
+MOZ_STATIC_ASSERT(DOM_PROTO_INSTANCE_CLASS_SLOT != DOM_XRAY_EXPANDO_SLOT,
+                  "Interface prototype object use both of these, so they must "
+                  "not be the same slot.");
+
 namespace mozilla {
 namespace dom {
 
 typedef bool
-(* ResolveOwnProperty)(JSContext* cx, JS::Handle<JSObject*> wrapper,
-                       JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                       JS::MutableHandle<JSPropertyDescriptor> desc, unsigned flags);
+(* ResolveOwnProperty)(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
+                       JSPropertyDescriptor* desc, unsigned flags);
 
 typedef bool
-(* EnumerateOwnProperties)(JSContext* cx, JS::Handle<JSObject*> wrapper,
-                           JS::Handle<JSObject*> obj,
+(* EnumerateOwnProperties)(JSContext* cx, JSObject* wrapper, JSObject* obj,
                            JS::AutoIdVector& props);
 
 struct ConstantSpec
@@ -129,15 +151,8 @@ enum DOMObjectType {
   eInterfacePrototype
 };
 
-typedef JSObject* (*ParentGetter)(JSContext* aCx, JS::Handle<JSObject*> aObj);
-/**
- * Returns a handle to the relevent WebIDL prototype object for the given global
- * (which may be a handle to null on out of memory).  Once allocated, the
- * prototype object is guaranteed to exist as long as the global does, since the
- * global traces its array of WebIDL prototypes and constructors.
- */
-typedef JS::Handle<JSObject*> (*ProtoGetter)(JSContext* aCx,
-                                             JS::Handle<JSObject*> aGlobal);
+typedef JSObject* (*ParentGetter)(JSContext* aCx, JSObject* aObj);
+typedef JSObject* (*ProtoGetter)(JSContext* aCx, JSObject* aGlobal);
 
 struct DOMClass
 {
@@ -168,20 +183,27 @@ struct DOMJSClass
   // It would be nice to just inherit from JSClass, but that precludes pure
   // compile-time initialization of the form |DOMJSClass = {...};|, since C++
   // only allows brace initialization for aggregate/POD types.
-  const JSClass mBase;
+  JSClass mBase;
 
-  const DOMClass mClass;
+  DOMClass mClass;
 
+  static DOMJSClass* FromJSClass(JSClass* base) {
+    MOZ_ASSERT(base->flags & JSCLASS_IS_DOMJSCLASS);
+    return reinterpret_cast<DOMJSClass*>(base);
+  }
   static const DOMJSClass* FromJSClass(const JSClass* base) {
     MOZ_ASSERT(base->flags & JSCLASS_IS_DOMJSCLASS);
     return reinterpret_cast<const DOMJSClass*>(base);
   }
 
+  static DOMJSClass* FromJSClass(js::Class* base) {
+    return FromJSClass(Jsvalify(base));
+  }
   static const DOMJSClass* FromJSClass(const js::Class* base) {
     return FromJSClass(Jsvalify(base));
   }
 
-  const JSClass* ToJSClass() const { return &mBase; }
+  JSClass* ToJSClass() { return &mBase; }
 };
 
 // Special JSClass for DOM interface and interface prototype objects.
@@ -191,7 +213,7 @@ struct DOMIfaceAndProtoJSClass
   // compile-time initialization of the form
   // |DOMJSInterfaceAndPrototypeClass = {...};|, since C++ only allows brace
   // initialization for aggregate/POD types.
-  const JSClass mBase;
+  JSClass mBase;
 
   // Either eInterface or eInterfacePrototype
   DOMObjectType mType;
@@ -213,7 +235,7 @@ struct DOMIfaceAndProtoJSClass
     return FromJSClass(Jsvalify(base));
   }
 
-  const JSClass* ToJSClass() const { return &mBase; }
+  JSClass* ToJSClass() { return &mBase; }
 };
 
 inline bool
@@ -224,11 +246,11 @@ HasProtoAndIfaceArray(JSObject* global)
   return !js::GetReservedSlot(global, DOM_PROTOTYPE_SLOT).isUndefined();
 }
 
-inline JS::Heap<JSObject*>*
+inline JSObject**
 GetProtoAndIfaceArray(JSObject* global)
 {
   MOZ_ASSERT(js::GetObjectClass(global)->flags & JSCLASS_DOM_GLOBAL);
-  return static_cast<JS::Heap<JSObject*>*>(
+  return static_cast<JSObject**>(
     js::GetReservedSlot(global, DOM_PROTOTYPE_SLOT).toPrivate());
 }
 

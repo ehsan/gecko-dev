@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "logging.h"
 #include "nspr.h"
 #include "cryptohi.h"
 #include "ssl.h"
@@ -13,6 +12,7 @@
 #include "sechash.h"
 #include "nsError.h"
 #include "dtlsidentity.h"
+#include "logging.h"
 
 namespace mozilla {
 
@@ -240,7 +240,7 @@ nsresult DtlsIdentity::ParseFingerprint(const std::string fp,
   for (size_t i=0; i<fp.length(); i++) {
     if (offset >= size) {
       // Note: no known way for offset to get > size
-      MOZ_MTLOG(ML_ERROR, "Fingerprint too long for buffer");
+      MOZ_MTLOG(PR_LOG_ERROR, "Fingerprint too long for buffer");
       return NS_ERROR_INVALID_ARG;
     }
 
@@ -251,7 +251,7 @@ nsresult DtlsIdentity::ParseFingerprint(const std::string fp,
     } else if ((fp[i] >= 'A') && (fp[i] <= 'F')) {
       val |= fp[i] - 'A' + 10;
     } else {
-      MOZ_MTLOG(ML_ERROR, "Invalid fingerprint value " << fp[i]);
+      MOZ_MTLOG(PR_LOG_ERROR, "Invalid fingerprint value " << fp[i]);
       return NS_ERROR_ILLEGAL_VALUE;
     }
 

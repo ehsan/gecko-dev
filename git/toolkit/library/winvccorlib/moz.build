@@ -6,10 +6,3 @@
 
 MODULE = 'dummyvccorlib'
 
-if not CONFIG['LINK_GTEST']:
-    LIBRARY_NAME = 'dummyvccorlib'
-
-SOURCES += [
-    'dummyvccorlib.cpp',
-]
-

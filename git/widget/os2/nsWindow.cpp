@@ -44,17 +44,16 @@
 #include "nsGkAtoms.h"
 #include "wdgtos2rc.h"
 #include "nsIDOMWheelEvent.h"
-#include "mozilla/MiscEvents.h"
-#include "mozilla/MouseEvents.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/TextEvents.h"
 #include <os2im.h>
-#include <algorithm>    // std::max
+
 using namespace mozilla;
 using namespace mozilla::widget;
+
 //=============================================================================
 //  Macros
 //=============================================================================
+
 // Drag and Drop
 
 // d&d flags - actions that might cause problems during d&d
@@ -125,16 +124,17 @@ using namespace mozilla::widget;
 // make these methods seem more appropriate in context
 #define PM2NS_PARENT NS2PM_PARENT
 #define PM2NS NS2PM
+
 // used to identify plugin widgets (copied from nsPluginNativeWindowOS2.cpp)
 #define NS_PLUGIN_WINDOW_PROPERTY_ASSOCIATION \
                         "MozillaPluginWindowPropertyAssociation"
+
 // name of the window class used to clip plugins
 #define kClipWndClass   "nsClipWnd"
-// IME caret not exist
-#define NO_IME_CARET    (static_cast<ULONG>(-1))
 
 //-----------------------------------------------------------------------------
 // Debug
+
 #ifdef DEBUG_FOCUS
   #define DEBUGFOCUS(what) fprintf(stderr, "[%8x]  %8lx  (%02d)  "#what"\n", \
                                    (int)this, mWnd, mWindowIdentifier)
@@ -295,23 +295,23 @@ void InitIME()
     rc = DosLoadModule(szName, sizeof(szName), "os2im", &sIm32Mod);
 
     if (!rc)
-      rc = DosQueryProcAddr(sIm32Mod, 104, nullptr,
+      rc = DosQueryProcAddr(sIm32Mod, 104, NULL,
                             (PFN *)&spfnImGetInstance);
 
     if (!rc)
-      rc = DosQueryProcAddr(sIm32Mod, 106, nullptr,
+      rc = DosQueryProcAddr(sIm32Mod, 106, NULL,
                             (PFN *)&spfnImReleaseInstance);
 
     if (!rc)
-      rc = DosQueryProcAddr(sIm32Mod, 118, nullptr,
+      rc = DosQueryProcAddr(sIm32Mod, 118, NULL,
                             (PFN *)&spfnImGetConversionString);
 
     if (!rc)
-      rc = DosQueryProcAddr(sIm32Mod, 122, nullptr,
+      rc = DosQueryProcAddr(sIm32Mod, 122, NULL,
                             (PFN *)&spfnImGetResultString);
 
     if (!rc)
-      rc = DosQueryProcAddr(sIm32Mod, 131, nullptr,
+      rc = DosQueryProcAddr(sIm32Mod, 131, NULL,
                             (PFN *)&spfnImRequestIME);
 
     if (rc) {
@@ -403,7 +403,7 @@ NS_METHOD nsWindow::Create(nsIWidget* aParent,
   SetNSWindowPtr(mWnd, this);
 
   // Finalize the widget creation process.
-  WidgetGUIEvent event(true, NS_CREATE, this);
+  nsGUIEvent event(true, NS_CREATE, this);
   InitEvent(event);
   DispatchWindowEvent(&event);
 
@@ -1194,7 +1194,6 @@ NS_METHOD nsWindow::SetCursor(nsCursor aCursor)
       break;
 
     case eCursor_standard:
-    case eCursor_context_menu: // XXX See bug 258960.
       newPointer = WinQuerySysPointer(HWND_DESKTOP, SPTR_ARROW, FALSE);
       break;
 
@@ -1252,6 +1251,10 @@ NS_METHOD nsWindow::SetCursor(nsCursor aCursor)
 
     case eCursor_spinning:
       newPointer = sPtrArray[IDC_ARROWWAIT-IDC_BASE];
+      break;
+
+    case eCursor_context_menu:
+      // XXX this CSS3 cursor needs to be implemented
       break;
 
     case eCursor_zoom_in:
@@ -1478,7 +1481,7 @@ HBITMAP nsWindow::CreateBitmapRGB(uint8_t* aImageData,
 //-----------------------------------------------------------------------------
 // Create a monochrome AND/XOR bitmap from 0, 1, or 8-bit alpha data.
 
-HBITMAP nsWindow::CreateTransparencyMask(gfxImageFormat format,
+HBITMAP nsWindow::CreateTransparencyMask(gfxASurface::gfxImageFormat format,
                                          uint8_t* aImageData,
                                          uint32_t aWidth,
                                          uint32_t aHeight)
@@ -1495,7 +1498,7 @@ HBITMAP nsWindow::CreateTransparencyMask(gfxImageFormat format,
 
   // Non-alpha formats are already taken care of
   // by initializing the XOR and AND masks to zero
-  if (format == gfxImageFormatARGB32) {
+  if (format == gfxASurface::ImageFormatARGB32) {
 
     // make the AND mask the inverse of the 8-bit alpha data
     int32_t* pSrc = (int32_t*)aImageData;
@@ -1617,7 +1620,7 @@ void nsWindow::RollupOnFocusLost(HWND aFocus)
   if (rollupListener) {
     rollupWidget = rollupListener->GetRollupWidget();
   }
-  HWND hRollup = rollupWidget ? ((nsWindow*)rollupWidget)->mWnd : nullptr;
+  HWND hRollup = rollupWidget ? ((nsWindow*)rollupWidget)->mWnd : NULL;
 
   // Exit if focus was lost to the most recent popup.
   if (hRollup == aFocus) {
@@ -1701,7 +1704,7 @@ MRESULT nsWindow::ProcessMessage(ULONG msg, MPARAM mp1, MPARAM mp2)
     case WM_CLOSE:
     case WM_QUIT: {
       mWindowState |= nsWindowState_eClosing;
-      WidgetGUIEvent event(true, NS_XUL_CLOSE, this);
+      nsGUIEvent event(true, NS_XUL_CLOSE, this);
       InitEvent(event);
       DispatchWindowEvent(&event);
       // abort window closure
@@ -1755,35 +1758,35 @@ MRESULT nsWindow::ProcessMessage(ULONG msg, MPARAM mp1, MPARAM mp2)
     case WM_BUTTON2DOWN:
       WinSetCapture(HWND_DESKTOP, mWnd);
       isDone = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, mp1, mp2, false,
-                                  WidgetMouseEvent::eRightButton);
+                                  nsMouseEvent::eRightButton);
       break;
 
     case WM_BUTTON2UP:
       WinSetCapture(HWND_DESKTOP, 0);
       isDone = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, mp1, mp2, false,
-                                  WidgetMouseEvent::eRightButton);
+                                  nsMouseEvent::eRightButton);
       break;
 
     case WM_BUTTON2DBLCLK:
       isDone = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, mp1, mp2,
-                                  false, WidgetMouseEvent::eRightButton);
+                                  false, nsMouseEvent::eRightButton);
       break;
 
     case WM_BUTTON3DOWN:
       WinSetCapture(HWND_DESKTOP, mWnd);
       isDone = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, mp1, mp2, false,
-                                  WidgetMouseEvent::eMiddleButton);
+                                  nsMouseEvent::eMiddleButton);
       break;
 
     case WM_BUTTON3UP:
       WinSetCapture(HWND_DESKTOP, 0);
       isDone = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, mp1, mp2, false,
-                                  WidgetMouseEvent::eMiddleButton);
+                                  nsMouseEvent::eMiddleButton);
       break;
 
     case WM_BUTTON3DBLCLK:
       isDone = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, mp1, mp2, false,
-                                  WidgetMouseEvent::eMiddleButton);
+                                  nsMouseEvent::eMiddleButton);
       break;
 
     case WM_CONTEXTMENU:
@@ -1793,11 +1796,11 @@ MRESULT nsWindow::ProcessMessage(ULONG msg, MPARAM mp1, MPARAM mp2)
           WinSendMsg(hFocus, msg, mp1, mp2);
         } else {
           isDone = DispatchMouseEvent(NS_CONTEXTMENU, mp1, mp2, true,
-                                      WidgetMouseEvent::eLeftButton);
+                                      nsMouseEvent::eLeftButton);
         }
       } else {
         isDone = DispatchMouseEvent(NS_CONTEXTMENU, mp1, mp2, false,
-                                    WidgetMouseEvent::eRightButton);
+                                    nsMouseEvent::eRightButton);
       }
       break;
 
@@ -2157,17 +2160,15 @@ bool nsWindow::OnMouseChord(MPARAM mp1, MPARAM mp2)
     isCopy = true;
   }
 
-  // XXX Using keypress event here is wrong approach, this should be replaced
-  //     with content command event.
-  WidgetKeyboardEvent event(true, NS_KEY_PRESS, this);
+  nsKeyEvent event(true, NS_KEY_PRESS, this);
   nsIntPoint point(0,0);
   InitEvent(event, &point);
 
   event.keyCode     = NS_VK_INSERT;
   if (isCopy) {
-    event.modifiers = MODIFIER_CONTROL;
+    event.modifiers = widget::MODIFIER_CONTROL;
   } else {
-    event.modifiers = MODIFIER_SHIFT;
+    event.modifiers = widget::MODIFIER_SHIFT;
   }
   event.eventStructType = NS_KEY_EVENT;
   event.charCode    = 0;
@@ -2176,13 +2177,13 @@ bool nsWindow::OnMouseChord(MPARAM mp1, MPARAM mp2)
   if (SHORT1FROMMP(mp1) & (KC_VIRTUALKEY | KC_KEYUP | KC_LONEKEY)) {
     USHORT usVKey = SHORT2FROMMP(mp2);
     if (usVKey == VK_SHIFT) {
-      event.modifiers |= MODIFIER_SHIFT;
+      event.modifiers |= widget::MODIFIER_SHIFT;
     }
     if (usVKey == VK_CTRL) {
-      event.modifiers |= MODIFIER_CONTROL;
+      event.modifiers |= widget::MODIFIER_CONTROL;
     }
     if (usVKey == VK_ALTGRAF || usVKey == VK_ALT) {
-      event.modifiers |= MODIFIER_ALT;
+      event.modifiers |= widget::MODIFIER_ALT;
     }
   }
 
@@ -2441,13 +2442,13 @@ bool nsWindow::OnQueryConvertPos(MPARAM mp1, MRESULT& mresult)
 
   nsIntPoint point(0, 0);
 
-  WidgetQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, this);
+  nsQueryContentEvent selection(true, NS_QUERY_SELECTED_TEXT, this);
   InitEvent(selection, &point);
   DispatchWindowEvent(&selection);
   if (!selection.mSucceeded)
     return false;
 
-  WidgetQueryContentEvent caret(true, NS_QUERY_CARET_RECT, this);
+  nsQueryContentEvent caret(true, NS_QUERY_CARET_RECT, this);
   caret.InitForQueryCaretRect(selection.mReply.mOffset);
   InitEvent(caret, &point);
   DispatchWindowEvent(&caret);
@@ -2459,212 +2460,138 @@ bool nsWindow::OnQueryConvertPos(MPARAM mp1, MRESULT& mresult)
   pCursorPos->xRight = pCursorPos->xLeft + caret.mReply.mRect.width;
   pCursorPos->yTop = pCursorPos->yBottom + caret.mReply.mRect.height;
   NS2PM(*pCursorPos);
+
   mresult = (MRESULT)QCP_CONVERT;
+
   return true;
 }
 bool nsWindow::ImeResultString(HIMI himi)
 {
+  PCHAR pBuf;
   ULONG ulBufLen;
+
   // Get a buffer size
   ulBufLen = 0;
-  if (spfnImGetResultString(himi, IMR_RESULT_RESULTSTRING, nullptr, &ulBufLen))
+  if (spfnImGetResultString(himi, IMR_RESULT_RESULTSTRING, NULL, &ulBufLen))
     return false;
-  nsAutoTArray<CHAR, 64> compositionStringA;
-  compositionStringA.SetCapacity(ulBufLen / sizeof(CHAR));
 
-  if (spfnImGetResultString(himi, IMR_RESULT_RESULTSTRING,
-                            compositionStringA.Elements(), &ulBufLen)) {
+  pBuf = new CHAR[ulBufLen];
+  if (!pBuf)
+    return false;
+
+  if (spfnImGetResultString(himi, IMR_RESULT_RESULTSTRING, pBuf,
+                            &ulBufLen)) {
+    delete pBuf;
+
     return false;
   }
+
   if (!mIsComposing) {
     mLastDispatchedCompositionString.Truncate();
-    WidgetCompositionEvent start(true, NS_COMPOSITION_START, this);
+
+    nsCompositionEvent start(true, NS_COMPOSITION_START, this);
     InitEvent(start);
     DispatchWindowEvent(&start);
+
     mIsComposing = true;
   }
+
   nsAutoChar16Buffer outBuf;
   int32_t outBufLen;
-  MultiByteToWideChar(0, compositionStringA.Elements(), ulBufLen,
-                      outBuf, outBufLen);
+  MultiByteToWideChar(0, pBuf, ulBufLen, outBuf, outBufLen);
+
+  delete pBuf;
+
   nsAutoString compositionString(outBuf.Elements());
+
   if (mLastDispatchedCompositionString != compositionString) {
-    WidgetCompositionEvent update(true, NS_COMPOSITION_UPDATE, this);
+    nsCompositionEvent update(true, NS_COMPOSITION_UPDATE, this);
     InitEvent(update);
     update.data = compositionString;
     mLastDispatchedCompositionString = compositionString;
     DispatchWindowEvent(&update);
   }
 
-  WidgetTextEvent text(true, NS_TEXT_TEXT, this);
+  nsTextEvent text(true, NS_TEXT_TEXT, this);
   InitEvent(text);
   text.theText = compositionString;
   DispatchWindowEvent(&text);
 
-  WidgetCompositionEvent end(true, NS_COMPOSITION_END, this);
+  nsCompositionEvent end(true, NS_COMPOSITION_END, this);
   InitEvent(end);
   end.data = compositionString;
   DispatchWindowEvent(&end);
   mIsComposing = false;
   mLastDispatchedCompositionString.Truncate();
+
   return true;
-}
-static uint32_t
-PlatformToNSAttr(uint8_t aAttr)
-{
-  switch (aAttr)
-  {
-    case CP_ATTR_INPUT_ERROR:
-    case CP_ATTR_INPUT:
-      return NS_TEXTRANGE_RAWINPUT;
-
-    case CP_ATTR_CONVERTED:
-      return NS_TEXTRANGE_CONVERTEDTEXT;
-
-    case CP_ATTR_TARGET_NOTCONVERTED:
-      return NS_TEXTRANGE_SELECTEDRAWTEXT;
-
-    case CP_ATTR_TARGET_CONVERTED:
-      return NS_TEXTRANGE_SELECTEDCONVERTEDTEXT;
-
-    default:
-      MOZ_CRASH("unknown attribute");
-  }
 }
 
 bool nsWindow::ImeConversionString(HIMI himi)
 {
+  PCHAR pBuf;
   ULONG ulBufLen;
+
   // Get a buffer size
   ulBufLen = 0;
-  if (spfnImGetConversionString(himi, IMR_CONV_CONVERSIONSTRING, nullptr,
+  if (spfnImGetConversionString(himi, IMR_CONV_CONVERSIONSTRING, NULL,
                                 &ulBufLen))
     return false;
-  nsAutoTArray<CHAR, 64> compositionStringA;
-  compositionStringA.SetCapacity(ulBufLen / sizeof(CHAR));
 
-  if (spfnImGetConversionString(himi, IMR_CONV_CONVERSIONSTRING,
-                                compositionStringA.Elements(), &ulBufLen)) {
+  pBuf = new CHAR[ulBufLen];
+  if (!pBuf)
+    return false;
+
+  if (spfnImGetConversionString(himi, IMR_CONV_CONVERSIONSTRING, pBuf,
+                                &ulBufLen)) {
+    delete pBuf;
+
     return false;
   }
+
   if (!mIsComposing) {
     mLastDispatchedCompositionString.Truncate();
-    WidgetCompositionEvent start(true, NS_COMPOSITION_START, this);
+
+    nsCompositionEvent start(true, NS_COMPOSITION_START, this);
     InitEvent(start);
     DispatchWindowEvent(&start);
+
     mIsComposing = true;
   }
+
   nsAutoChar16Buffer outBuf;
   int32_t outBufLen;
-  MultiByteToWideChar(0, compositionStringA.Elements(), ulBufLen,
-                      outBuf, outBufLen);
+  MultiByteToWideChar(0, pBuf, ulBufLen, outBuf, outBufLen);
+
+  delete pBuf;
+
   nsAutoString compositionString(outBuf.Elements());
+
   // Is a conversion string changed ?
   if (mLastDispatchedCompositionString != compositionString) {
-    WidgetCompositionEvent update(true, NS_COMPOSITION_UPDATE, this);
+    nsCompositionEvent update(true, NS_COMPOSITION_UPDATE, this);
     InitEvent(update);
     update.data = compositionString;
     mLastDispatchedCompositionString = compositionString;
     DispatchWindowEvent(&update);
   }
-  nsAutoTArray<TextRange, 4> textRanges;
+
+  nsAutoTArray<nsTextRange, 4> textRanges;
+
   if (!compositionString.IsEmpty()) {
-    bool oneClause = false;
+    nsTextRange newRange;
+    newRange.mStartOffset = 0;
+    newRange.mEndOffset = compositionString.Length();
+    newRange.mRangeType = NS_TEXTRANGE_SELECTEDRAWTEXT;
+    textRanges.AppendElement(newRange);
 
-    ulBufLen = 0;
-    if (spfnImGetConversionString(himi, IMR_CONV_CONVERSIONCLAUSE, 0,
-                                  &ulBufLen)) {
-      oneClause = true;  // Assume that there is only one clause
-    }
-
-    ULONG ulClauseCount = std::max(2UL, ulBufLen / sizeof(ULONG));
-    nsAutoTArray<ULONG, 4> clauseOffsets;
-    nsAutoTArray<UCHAR, 4> clauseAttr;
-    ULONG ulCursorPos;
-
-    clauseOffsets.SetCapacity(ulClauseCount);
-    clauseAttr.SetCapacity(ulClauseCount);
-
-    if (spfnImGetConversionString(himi, IMR_CONV_CONVERSIONCLAUSE,
-                                  clauseOffsets.Elements(), &ulBufLen)) {
-      oneClause = true;  // Assume that there is only one clause
-    }
-
-    // Korean IME does not provide clause and cursor infomation
-    // Or if getting a clause inforamtion was failed
-    if (ulBufLen == 0 && !oneClause) {
-      ulCursorPos = compositionString.Length();
-
-      oneClause = true;
-    } else {
-      while (!oneClause) {
-        ulBufLen = 0;
-        if (spfnImGetConversionString(himi, IMR_CONV_CONVERSIONATTR, 0,
-                                      &ulBufLen)) {
-          oneClause = true;
-          break;
-        }
-
-        nsAutoTArray<UCHAR, 64> attr;
-        attr.SetCapacity(ulBufLen / sizeof(UCHAR));
-
-        if (spfnImGetConversionString(himi, IMR_CONV_CONVERSIONATTR,
-                                      attr.Elements(), &ulBufLen)) {
-          oneClause = true;
-          break;
-        }
-
-        // Assume that all the conversion attribute in a clause are same
-        for (ULONG i = 0; i < ulClauseCount - 1; ++i) {
-          clauseAttr[i] = attr[clauseOffsets[i]];
-        }
-
-        // Convert ANSI string offsets to Unicode string offsets
-        clauseOffsets[0] = 0;
-        for (ULONG i = 1; i < ulClauseCount - 1; ++i) {
-          MultiByteToWideChar(0,
-                              compositionStringA.Elements(), clauseOffsets[i],
-                              outBuf, outBufLen);
-          clauseOffsets[i] = outBufLen;
-        }
-        break;
-      }
-
-      ulBufLen = sizeof(ULONG);
-      if (spfnImGetConversionString(himi, IMR_CONV_CURSORPOS, &ulCursorPos,
-                                    &ulBufLen)) {
-        ulCursorPos = NO_IME_CARET;
-      } else {
-        // Convert ANSI string position to Unicode string position
-        MultiByteToWideChar(0, compositionStringA.Elements(), ulCursorPos,
-                            outBuf, outBufLen);
-        ulCursorPos = outBufLen;
-      }
-    }
-
-    if (oneClause) {
-      ulClauseCount = 2;
-      clauseOffsets[0] = 0;
-      clauseOffsets[1] = compositionString.Length();
-      clauseAttr[0] = NS_TEXTRANGE_SELECTEDRAWTEXT;
-    }
-
-    TextRange newRange;
-
-    for (ULONG i = 0; i < ulClauseCount - 1; ++i) {
-      newRange.mStartOffset = clauseOffsets[i];
-      newRange.mEndOffset = clauseOffsets[i + 1];
-      newRange.mRangeType = PlatformToNSAttr(clauseAttr[i]);
-      textRanges.AppendElement(newRange);
-    }
-
-    if (ulCursorPos != NO_IME_CARET) {
-      newRange.mStartOffset = newRange.mEndOffset = ulCursorPos;
-      newRange.mRangeType = NS_TEXTRANGE_CARETPOSITION;
-      textRanges.AppendElement(newRange);
-    }
+    newRange.mStartOffset = compositionString.Length();
+    newRange.mEndOffset = newRange.mStartOffset;
+    newRange.mRangeType = NS_TEXTRANGE_CARETPOSITION;
+    textRanges.AppendElement(newRange);
   }
-  WidgetTextEvent text(true, NS_TEXT_TEXT, this);
+
+  nsTextEvent text(true, NS_TEXT_TEXT, this);
   InitEvent(text);
   text.theText = compositionString;
   text.rangeArray = textRanges.Elements();
@@ -2672,7 +2599,7 @@ bool nsWindow::ImeConversionString(HIMI himi)
   DispatchWindowEvent(&text);
 
   if (compositionString.IsEmpty()) { // IME conversion was canceled ?
-    WidgetCompositionEvent end(true, NS_COMPOSITION_END, this);
+    nsCompositionEvent end(true, NS_COMPOSITION_END, this);
     InitEvent(end);
     end.data = compositionString;
     DispatchWindowEvent(&end);
@@ -2732,7 +2659,7 @@ NS_IMETHODIMP_(InputContext) nsWindow::GetInputContext()
 
 bool nsWindow::DispatchKeyEvent(MPARAM mp1, MPARAM mp2)
 {
-  WidgetKeyboardEvent pressEvent(true, 0, nullptr);
+  nsKeyEvent pressEvent(true, 0, nullptr);
   USHORT fsFlags = SHORT1FROMMP(mp1);
   USHORT usVKey = SHORT2FROMMP(mp2);
   USHORT usChar = SHORT1FROMMP(mp2);
@@ -2760,15 +2687,13 @@ bool nsWindow::DispatchKeyEvent(MPARAM mp1, MPARAM mp2)
   // Now dispatch a keyup/keydown event.  This one is *not* meant to
   // have the unicode charcode in.
   nsIntPoint point(0,0);
-  WidgetKeyboardEvent event(true,
-                            (fsFlags & KC_KEYUP) ? NS_KEY_UP : NS_KEY_DOWN,
-                            this);
+  nsKeyEvent event(true, (fsFlags & KC_KEYUP) ? NS_KEY_UP : NS_KEY_DOWN,
+                   this);
   InitEvent(event, &point);
   event.keyCode   = WMChar2KeyCode(mp1, mp2);
   event.InitBasicModifiers(fsFlags & KC_CTRL, fsFlags & KC_ALT,
                            fsFlags & KC_SHIFT, false);
   event.charCode  = 0;
-  event.mIsRepeat = event.message == NS_KEY_DOWN && CHAR3FROMMP(mp1) != 0;
 
   // Check for a scroll mouse event vs. a keyboard event.  The way we know
   // this is that the repeat count is 0 and the key is not physically down.
@@ -2797,11 +2722,6 @@ bool nsWindow::DispatchKeyEvent(MPARAM mp1, MPARAM mp2)
     return rc;
   }
 
-  // Don't dispatch keypress event if keydown event is consumed.
-  if (rc) {
-    return rc;
-  }
-
   // Break off if we've got an "invalid composition" -- that is,
   // the user typed a deadkey last time, but has now typed something
   // that doesn't make sense in that context.
@@ -2814,6 +2734,9 @@ bool nsWindow::DispatchKeyEvent(MPARAM mp1, MPARAM mp2)
   // Now we need to dispatch a keypress event which has the unicode char.
   // If keydown default was prevented, do same for keypress
   pressEvent.message = NS_KEY_PRESS;
+  if (rc) {
+    pressEvent.mFlags.mDefaultPrevented = true;
+  }
 
   if (usChar) {
     USHORT inbuf[2];
@@ -2999,7 +2922,7 @@ uint32_t WMChar2KeyCode(MPARAM mp1, MPARAM mp2)
 
 // Initialize an event to dispatch.
 
-void nsWindow::InitEvent(WidgetGUIEvent& event, nsIntPoint* aPoint)
+void nsWindow::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
 {
   // if no point was supplied, calculate it
   if (!aPoint) {
@@ -3029,8 +2952,7 @@ void nsWindow::InitEvent(WidgetGUIEvent& event, nsIntPoint* aPoint)
 //-----------------------------------------------------------------------------
 // Invoke the Event Listener object's callback.
 
-NS_IMETHODIMP nsWindow::DispatchEvent(WidgetGUIEvent* event,
-                                      nsEventStatus& aStatus)
+NS_IMETHODIMP nsWindow::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 {
   aStatus = nsEventStatus_eIgnore;
 
@@ -3055,16 +2977,14 @@ NS_IMETHODIMP nsWindow::ReparentNativeWidget(nsIWidget* aNewParent)
 
 //-----------------------------------------------------------------------------
 
-bool nsWindow::DispatchWindowEvent(WidgetGUIEvent* event)
+bool nsWindow::DispatchWindowEvent(nsGUIEvent* event)
 {
   nsEventStatus status;
   DispatchEvent(event, status);
   return (status == nsEventStatus_eConsumeNoDefault);
 }
 
-bool nsWindow::DispatchWindowEvent(WidgetGUIEvent*event,
-                                   nsEventStatus &aStatus)
-{
+bool nsWindow::DispatchWindowEvent(nsGUIEvent*event, nsEventStatus &aStatus) {
   DispatchEvent(event, aStatus);
   return (aStatus == nsEventStatus_eConsumeNoDefault);
 }
@@ -3092,7 +3012,7 @@ bool nsWindow::DispatchCommandEvent(uint32_t aEventCommand)
       return false;
   }
 
-  WidgetCommandEvent event(true, nsGkAtoms::onAppCommand, command, this);
+  nsCommandEvent event(true, nsGkAtoms::onAppCommand, command, this);
   InitEvent(event);
   return DispatchWindowEvent(&event);
 }
@@ -3101,7 +3021,7 @@ bool nsWindow::DispatchCommandEvent(uint32_t aEventCommand)
 
 bool nsWindow::DispatchDragDropEvent(uint32_t aMsg)
 {
-  WidgetDragEvent event(true, aMsg, this);
+  nsDragEvent event(true, aMsg, this);
   InitEvent(event);
 
   event.InitBasicModifiers(isKeyDown(VK_CTRL),
@@ -3116,7 +3036,7 @@ bool nsWindow::DispatchDragDropEvent(uint32_t aMsg)
 bool nsWindow::DispatchMoveEvent(int32_t aX, int32_t aY)
 {
   // Params here are in XP-space for the desktop
-  WidgetGUIEvent event(true, NS_MOVE, this);
+  nsGUIEvent event(true, NS_MOVE, this);
   nsIntPoint point(aX, aY);
   InitEvent(event, &point);
   return DispatchWindowEvent(&event);
@@ -3145,10 +3065,10 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, MPARAM mp1, MPARAM mp2,
 {
   NS_ENSURE_TRUE(aEventType, false);
 
-  WidgetMouseEvent event(true, aEventType, this, WidgetMouseEvent::eReal,
-                         aIsContextMenuKey ?
-                           WidgetMouseEvent::eContextMenuKey :
-                           WidgetMouseEvent::eNormal);
+  nsMouseEvent event(true, aEventType, this, nsMouseEvent::eReal,
+                     aIsContextMenuKey
+                     ? nsMouseEvent::eContextMenuKey
+                     : nsMouseEvent::eNormal);
   event.button = aButton;
   if (aEventType == NS_MOUSE_BUTTON_DOWN && mIsComposing) {
     // If IME is composing, let it complete.
@@ -3182,7 +3102,7 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, MPARAM mp1, MPARAM mp2,
       // event.exit was init'ed to eChild, so we don't need an 'else'
       hTop = WinWindowFromID(hTop, FID_CLIENT);
       if (!hTop || !WinIsChild(HWNDFROMMP(mp2), hTop)) {
-        event.exit = WidgetMouseEvent::eTopLevel;
+        event.exit = nsMouseEvent::eTopLevel;
       }
     }
 
@@ -3210,12 +3130,11 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, MPARAM mp1, MPARAM mp2,
 
   // Dblclicks are used to set the click count, then changed to mousedowns
   if (aEventType == NS_MOUSE_DOUBLECLICK &&
-      (aButton == WidgetMouseEvent::eLeftButton ||
-       aButton == WidgetMouseEvent::eRightButton)) {
+      (aButton == nsMouseEvent::eLeftButton ||
+       aButton == nsMouseEvent::eRightButton)) {
     event.message = NS_MOUSE_BUTTON_DOWN;
-    event.button =
-      (aButton == WidgetMouseEvent::eLeftButton) ?
-        WidgetMouseEvent::eLeftButton : WidgetMouseEvent::eRightButton;
+    event.button = (aButton == nsMouseEvent::eLeftButton) ?
+                   nsMouseEvent::eLeftButton : nsMouseEvent::eRightButton;
     event.clickCount = 2;
   } else {
     event.clickCount = 1;
@@ -3226,13 +3145,13 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, MPARAM mp1, MPARAM mp2,
 
     case NS_MOUSE_BUTTON_DOWN:
       switch (aButton) {
-        case WidgetMouseEvent::eLeftButton:
+        case nsMouseEvent::eLeftButton:
           pluginEvent.event = WM_BUTTON1DOWN;
           break;
-        case WidgetMouseEvent::eMiddleButton:
+        case nsMouseEvent::eMiddleButton:
           pluginEvent.event = WM_BUTTON3DOWN;
           break;
-        case WidgetMouseEvent::eRightButton:
+        case nsMouseEvent::eRightButton:
           pluginEvent.event = WM_BUTTON2DOWN;
           break;
         default:
@@ -3242,13 +3161,13 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, MPARAM mp1, MPARAM mp2,
 
     case NS_MOUSE_BUTTON_UP:
       switch (aButton) {
-        case WidgetMouseEvent::eLeftButton:
+        case nsMouseEvent::eLeftButton:
           pluginEvent.event = WM_BUTTON1UP;
           break;
-        case WidgetMouseEvent::eMiddleButton:
+        case nsMouseEvent::eMiddleButton:
           pluginEvent.event = WM_BUTTON3UP;
           break;
-        case WidgetMouseEvent::eRightButton:
+        case nsMouseEvent::eRightButton:
           pluginEvent.event = WM_BUTTON2UP;
           break;
         default:
@@ -3258,13 +3177,13 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, MPARAM mp1, MPARAM mp2,
 
     case NS_MOUSE_DOUBLECLICK:
       switch (aButton) {
-        case WidgetMouseEvent::eLeftButton:
+        case nsMouseEvent::eLeftButton:
           pluginEvent.event = WM_BUTTON1DBLCLK;
           break;
-        case WidgetMouseEvent::eMiddleButton:
+        case nsMouseEvent::eMiddleButton:
           pluginEvent.event = WM_BUTTON3DBLCLK;
           break;
-        case WidgetMouseEvent::eRightButton:
+        case nsMouseEvent::eRightButton:
           pluginEvent.event = WM_BUTTON2DBLCLK;
           break;
         default:
@@ -3290,7 +3209,7 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, MPARAM mp1, MPARAM mp2,
 
 bool nsWindow::DispatchActivationEvent(uint32_t aEventType)
 {
-  WidgetGUIEvent event(true, aEventType, this);
+  nsGUIEvent event(true, aEventType, this);
 
   // These events should go to their base widget location,
   // not current mouse position.
@@ -3318,7 +3237,7 @@ bool nsWindow::DispatchActivationEvent(uint32_t aEventType)
 
 bool nsWindow::DispatchScrollEvent(ULONG msg, MPARAM mp1, MPARAM mp2)
 {
-  WidgetWheelEvent wheelEvent(true, NS_WHEEL_WHEEL, this);
+  WheelEvent wheelEvent(true, NS_WHEEL_WHEEL, this);
   InitEvent(wheelEvent);
 
   wheelEvent.InitBasicModifiers(isKeyDown(VK_CTRL),

@@ -2,12 +2,33 @@
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
 MARIONETTE_TIMEOUT = 60000;
-MARIONETTE_HEAD_JS = 'head.js';
 
+SpecialPowers.addPermission("telephony", true, document);
+
+let telephony = window.navigator.mozTelephony;
 let inNumber = "5555551111";
 let outNumber = "5555552222";
 let incomingCall;
 let outgoingCall;
+
+function verifyInitialState() {
+  log("Verifying initial state.");
+  ok(telephony);
+  is(telephony.active, null);
+  ok(telephony.calls);
+  is(telephony.calls.length, 0);
+
+  runEmulatorCmd("gsm list", function(result) {
+    log("Initial call list: " + result);
+    is(result[0], "OK");
+    if (result[0] == "OK") {
+      simulateIncoming();
+    } else {
+      log("Call exists from a previous test, failing out.");
+      cleanUp();
+    }
+  });
+}
 
 function simulateIncoming() {
   log("Simulating an incoming call.");
@@ -22,33 +43,21 @@ function simulateIncoming() {
     is(telephony.calls.length, 1);
     is(telephony.calls[0], incomingCall);
 
-    // Wait for emulator to catch up before continuing
-    waitFor(verifyCallList,function() {
-      return(rcvdEmulatorCallback);
+    runEmulatorCmd("gsm list", function(result) {
+      log("Call list is now: " + result);
+      is(result[0], "inbound from " + inNumber + " : incoming");
+      is(result[1], "OK");
+      answerIncoming();
     });
   };
-
-  let rcvdEmulatorCallback = false;
-  emulator.run("gsm call " + inNumber, function(result) {
-    is(result[0], "OK", "emulator callback");
-    rcvdEmulatorCallback = true;
-  });
-}
-
-function verifyCallList(){
-  emulator.run("gsm list", function(result) {
-    log("Call list is now: " + result);
-    is(result[0], "inbound from " + inNumber + " : incoming");
-    is(result[1], "OK");
-    answerIncoming();
-  });
+  runEmulatorCmd("gsm call " + inNumber);
 }
 
 function answerIncoming() {
   log("Answering the incoming call.");
 
   let gotConnecting = false;
-  incomingCall.onconnecting = function onconnectingIn(event) {
+  incomingCall.onconnecting = function onconnectingIn(event) { 
     log("Received 'connecting' call event for original (incoming) call.");
     is(incomingCall, event.call);
     is(incomingCall.state, "connecting");
@@ -63,7 +72,7 @@ function answerIncoming() {
 
     is(incomingCall, telephony.active);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + inNumber + " : active");
       is(result[1], "OK");
@@ -76,7 +85,7 @@ function answerIncoming() {
 // Put the original (incoming) call on hold
 function holdCall(){
   log("Putting the original (incoming) call on hold.");
-
+  
   let gotHolding = false;
   incomingCall.onholding = function onholding(event) {
     log("Received 'holding' call event");
@@ -95,10 +104,10 @@ function holdCall(){
     is(telephony.calls.length, 1);
     is(telephony.calls[0], incomingCall);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + inNumber + " : held");
-      is(result[1], "OK");
+      is(result[1], "OK");   
       dial();
     });
   };
@@ -124,7 +133,7 @@ function dial() {
     is(outgoingCall, event.call);
     is(outgoingCall.state, "alerting");
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + inNumber + " : held");
       is(result[1], "outbound to  " + outNumber + " : ringing");
@@ -146,27 +155,15 @@ function answerOutgoing() {
 
     is(outgoingCall, telephony.active);
 
-    // Wait for emulator to catch up before continuing
-    waitFor(checkCallList,function() {
-      return(rcvdEmulatorCallback);
+    runEmulatorCmd("gsm list", function(result) {
+      log("Call list is now: " + result);
+      is(result[0], "inbound from " + inNumber + " : held");
+      is(result[1], "outbound to  " + outNumber + " : active");
+      is(result[2], "OK");
+      hangUpIncoming();
     });
   };
-
-  let rcvdEmulatorCallback = false;
-  emulator.run("gsm accept " + outNumber, function(result) {
-    is(result[0], "OK", "emulator callback");
-    rcvdEmulatorCallback = true;
-  });
-}
-
-function checkCallList(){
-  emulator.run("gsm list", function(result) {
-    log("Call list is now: " + result);
-    is(result[0], "inbound from " + inNumber + " : held");
-    is(result[1], "outbound to  " + outNumber + " : active");
-    is(result[2], "OK");
-    hangUpIncoming();
-  });
+  runEmulatorCmd("gsm accept " + outNumber);
 }
 
 // Hang-up the original incoming call, which is now held
@@ -192,7 +189,7 @@ function hangUpIncoming() {
     is(telephony.calls.length, 1);
     is(telephony.calls[0], outgoingCall);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "outbound to  " + outNumber + " : active");
       is(result[1], "OK");
@@ -205,7 +202,7 @@ function hangUpIncoming() {
 // Hang-up the remaining (outgoing) call
 function hangUpOutgoing() {
   log("Hanging up the remaining (outgoing) call.");
-
+ 
   let gotDisconnecting = false;
   outgoingCall.ondisconnecting = function ondisconnectingOut(event) {
     log("Received 'disconnecting' call event for remaining (outgoing) call.");
@@ -224,20 +221,20 @@ function hangUpOutgoing() {
     is(telephony.active, null);
     is(telephony.calls.length, 0);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "OK");
       cleanUp();
     });
   };
-  outgoingCall.hangUp();
+  outgoingCall.hangUp();  
 }
 
 function cleanUp() {
   telephony.onincoming = null;
+  SpecialPowers.removePermission("telephony", document);
   finish();
 }
 
-startTest(function() {
-  simulateIncoming();
-});
+// Start the test
+verifyInitialState();

@@ -1,4 +1,5 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* vim:ts=2:sts=2:sw=2:
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -30,21 +31,6 @@ function isNull(value) {
 }
 exports.isNull = isNull;
 
-/**
- * Returns `true` if value is `null` or `undefined`.
- * It's equivalent to `== null`, but resolve the ambiguity of the writer
- * intention, makes clear that he's clearly checking both `null` and `undefined`
- * values, and it's not a typo for `=== null`.
- */
-function isNil(value) {
-  return value === null || value === undefined;
-}
-exports.isNil = isNil;
-
-function isBoolean(value) {
-  return typeof value === "boolean";
-}
-exports.isBoolean = isBoolean;
 /**
  * Returns `true` if value is a string.
  * @examples

@@ -11,7 +11,6 @@
 #include "prmem.h"
 #include "prenv.h"
 #include "prerror.h"
-#include "prio.h"
 #include <sys/stat.h>
 #include "nsString.h"
 #include "nsIFile.h"
@@ -40,7 +39,7 @@
 #define DEFAULT_X11_PATH ""
 #endif
 
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK2)
 
 #define PLUGIN_MAX_LEN_OF_TMP_ARR 512
 
@@ -62,7 +61,7 @@ static void SearchForSoname(const char* name, char** soname)
     if (!fdDir)
         return;       
 
-    int n = strlen(name);
+    int n = PL_strlen(name);
     PRDirEntry *dirEntry;
     while ((dirEntry = PR_ReadDir(fdDir, PR_SKIP_BOTH))) {
         if (!PL_strncmp(dirEntry->name, name, n)) {
@@ -93,7 +92,7 @@ static bool LoadExtraSharedLib(const char *name, char **soname, bool tryToGetSon
         if (tryToGetSoname) {
             SearchForSoname(name, soname);
             if (*soname) {
-                ret = LoadExtraSharedLib((const char *) *soname, nullptr, false);
+                ret = LoadExtraSharedLib((const char *) *soname, NULL, false);
             }
         }
     }
@@ -120,7 +119,7 @@ static void LoadExtraSharedLibs()
     nsresult res;
     nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID, &res));
     if (NS_SUCCEEDED(res) && (prefs != nullptr)) {
-        char *sonameList = nullptr;
+        char *sonameList = NULL;
         bool prefSonameListIsSet = true;
         res = prefs->GetCharPref(PREF_PLUGINS_SONAME, &sonameList);
         if (!sonameList) {
@@ -171,12 +170,12 @@ static void LoadExtraSharedLibs()
                     } else
                         tryToGetSoname = false;
                 }
-                char *soname = nullptr;
+                char *soname = NULL;
                 if (LoadExtraSharedLib(arrayOfLibs[i], &soname, tryToGetSoname)) {
                     //construct soname's list to save in prefs
                     p = soname ? soname : arrayOfLibs[i];
                     int n = PLUGIN_MAX_LEN_OF_TMP_ARR -
-                        (strlen(sonameListToSave) + strlen(p));
+                        (PL_strlen(sonameListToSave) + PL_strlen(p));
                     if (n > 0) {
                         PL_strcat(sonameListToSave, p);
                         PL_strcat(sonameListToSave,":");
@@ -185,13 +184,13 @@ static void LoadExtraSharedLibs()
                         PL_strfree(soname); // it's from strdup
                     }
                     if (numOfLibs > 1)
-                        arrayOfLibs[i][strlen(arrayOfLibs[i])] = ':'; //restore ":" in sonameList
+                        arrayOfLibs[i][PL_strlen(arrayOfLibs[i])] = ':'; //restore ":" in sonameList
                 }
             }
 
             // Check whether sonameListToSave is a empty String, Bug: 329205
             if (sonameListToSave[0]) 
-                for (p = &sonameListToSave[strlen(sonameListToSave) - 1]; *p == ':'; p--)
+                for (p = &sonameListToSave[PL_strlen(sonameListToSave) - 1]; *p == ':'; p--)
                     *p = 0; //delete tail ":" delimiters
 
             if (!prefSonameListIsSet || PL_strcmp(sonameList, sonameListToSave)) {
@@ -220,7 +219,7 @@ bool nsPluginsDir::IsPluginFile(nsIFile* file)
     // 'libstagefright_froyo.so' on honeycomb, we will abort.
     // Since these are just helper libs, we can ignore.
     const char *cFile = filename.get();
-    if (strstr(cFile, "libstagefright") != nullptr)
+    if (strstr(cFile, "libstagefright") != NULL)
         return false;
 #endif
 
@@ -266,7 +265,7 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
 
     libSpec.value.pathname = path.get();
 
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK2)
 
     // Normally, Mozilla isn't linked against libXt and libXext
     // since it's a Gtk/Gdk application.  On the other hand,
@@ -364,8 +363,8 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
         return NS_ERROR_FAILURE;
     }
 
-    const char *name = nullptr;
-    npGetValue(nullptr, NPPVpluginNameString, &name);
+    const char *name = NULL;
+    npGetValue(NULL, NPPVpluginNameString, &name);
     if (name) {
         info.fName = PL_strdup(name);
     }
@@ -373,8 +372,8 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
         info.fName = PL_strdup(fileName.get());
     }
 
-    const char *description = nullptr;
-    npGetValue(nullptr, NPPVpluginDescriptionString, &description);
+    const char *description = NULL;
+    npGetValue(NULL, NPPVpluginDescriptionString, &description);
     if (description) {
         info.fDescription = PL_strdup(description);
     }

@@ -31,7 +31,6 @@ const PREF_BLOCKLIST_INTERVAL         = "extensions.blocklist.interval";
 const PREF_BLOCKLIST_LEVEL            = "extensions.blocklist.level";
 const PREF_BLOCKLIST_PINGCOUNTTOTAL   = "extensions.blocklist.pingCountTotal";
 const PREF_BLOCKLIST_PINGCOUNTVERSION = "extensions.blocklist.pingCountVersion";
-const PREF_BLOCKLIST_SUPPRESSUI       = "extensions.blocklist.suppressUI";
 const PREF_PLUGINS_NOTIFYUSER         = "plugins.update.notifyUser";
 const PREF_GENERAL_USERAGENT_LOCALE   = "general.useragent.locale";
 const PREF_APP_DISTRIBUTION           = "distribution.id";
@@ -371,17 +370,6 @@ Blocklist.prototype = {
     return Ci.nsIBlocklistService.STATE_NOT_BLOCKED;
   },
 
-  /**
-   * Returns the set of prefs of the add-on stored in the blocklist file
-   * (probably to revert them on disabling).
-   * @param id
-   *        ID of the add-on.
-   */
-  _getAddonPrefs: function Blocklist_getAddonPrefs(id) {
-    let entry = this._findMatchingAddonEntry(this._addonEntries, id);
-    return entry.prefs.slice(0);
-  },
-
   _findMatchingAddonEntry: function Blocklist_findMatchingAddonEntry(aAddonEntries,
                                                                      aId) {
     for (let entry of aAddonEntries) {
@@ -613,10 +601,6 @@ Blocklist.prototype = {
 #    <blocklist xmlns="http://www.mozilla.org/2006/addons-blocklist">
 #      <emItems>
 #        <emItem id="item_1@domain" blockID="i1">
-#          <prefs>
-#            <pref>accessibility.accesskeycausesactivation</pref>
-#            <pref>accessibility.blockautorefresh</pref>
-#          </prefs>
 #          <versionRange minVersion="1.0" maxVersion="2.0.*">
 #            <targetApplication id="{ec8030f7-c20a-464f-9b0e-13a3a9e97384}">
 #              <versionRange minVersion="1.5" maxVersion="1.5.*"/>
@@ -736,33 +720,23 @@ Blocklist.prototype = {
     let blockEntry = {
       id: null,
       versions: [],
-      prefs: [],
       blockID: null
     };
 
-    var childNodes = blocklistElement.childNodes;
+    var versionNodes = blocklistElement.childNodes;
     var id = blocklistElement.getAttribute("id");
     // Add-on IDs cannot contain '/', so an ID starting with '/' must be a regex
     if (id.startsWith("/"))
       id = parseRegExp(id);
     blockEntry.id = id;
 
-    for (let x = 0; x < childNodes.length; x++) {
-      var childElement = childNodes.item(x);
-      if (!(childElement instanceof Ci.nsIDOMElement))
+    for (var x = 0; x < versionNodes.length; ++x) {
+      var versionRangeElement = versionNodes.item(x);
+      if (!(versionRangeElement instanceof Ci.nsIDOMElement) ||
+          versionRangeElement.localName != "versionRange")
         continue;
-      if (childElement.localName === "prefs") {
-        let prefElements = childElement.childNodes;
-        for (let i = 0; i < prefElements.length; i++) {
-          let prefElement = prefElements.item(i);
-          if (!(prefElement instanceof Ci.nsIDOMElement) ||
-              prefElement.localName !== "pref")
-            continue;
-          blockEntry.prefs.push(prefElement.textContent);
-        }
-      }
-      else if (childElement.localName === "versionRange")
-        blockEntry.versions.push(new BlocklistItemData(childElement));
+
+      blockEntry.versions.push(new BlocklistItemData(versionRangeElement));
     }
     // if only the extension ID is specified block all versions of the
     // extension for the current application.
@@ -916,13 +890,8 @@ Blocklist.prototype = {
   _blocklistUpdated: function Blocklist_blocklistUpdated(oldAddonEntries, oldPluginEntries) {
     var addonList = [];
 
-    // A helper function that reverts the prefs passed to default values.
-    function resetPrefs(prefs) {
-      for (let pref of prefs)
-        gPref.clearUserPref(pref);
-    }
     var self = this;
-    const types = ["extension", "theme", "locale", "dictionary", "service"];
+    const types = ["extension", "theme", "locale", "dictionary", "service"]
     AddonManager.getAddonsByTypes(types, function blocklistUpdated_getAddonsByTypes(addons) {
 
       for (let addon of addons) {
@@ -938,12 +907,6 @@ Blocklist.prototype = {
         // We don't want to re-warn about add-ons
         if (state == oldState)
           continue;
-
-        if (state === Ci.nsIBlocklistService.STATE_BLOCKED) {
-          // It's a hard block. We must reset certain preferences.
-          let prefs = self._getAddonPrefs(addon.id);
-          resetPrefs(prefs);
-         }
 
         // Ensure that softDisabled is false if the add-on is not soft blocked
         if (state != Ci.nsIBlocklistService.STATE_SOFTBLOCKED)
@@ -994,7 +957,7 @@ Blocklist.prototype = {
         if (state == oldState)
           continue;
 
-        if (oldState == Ci.nsIBlocklistService.STATE_BLOCKED) {
+        if (plugin.blocklisted) {
           if (state == Ci.nsIBlocklistService.STATE_SOFTBLOCKED)
             plugin.enabledState = Ci.nsIPluginTag.STATE_DISABLED;
         }
@@ -1015,6 +978,7 @@ Blocklist.prototype = {
             });
           }
         }
+        plugin.blocklisted = state == Ci.nsIBlocklistService.STATE_BLOCKED;
       }
 
       if (addonList.length == 0) {
@@ -1052,13 +1016,8 @@ Blocklist.prototype = {
 
           if (addon.item instanceof Ci.nsIPluginTag)
             addon.item.enabledState = Ci.nsIPluginTag.STATE_DISABLED;
-          else {
-            // This add-on is softblocked.
+          else
             addon.item.softDisabled = true;
-            // We must revert certain prefs.
-            let prefs = self._getAddonPrefs(addon.item.id);
-            resetPrefs(prefs);
-          }
         }
 
         if (args.restart)
@@ -1068,12 +1027,7 @@ Blocklist.prototype = {
         Services.obs.removeObserver(applyBlocklistChanges, "addon-blocklist-closed");
       }
 
-      Services.obs.addObserver(applyBlocklistChanges, "addon-blocklist-closed", false);
-
-      if (getPref("getBoolPref", PREF_BLOCKLIST_SUPPRESSUI, false)) {
-        applyBlocklistChanges();
-        return;
-      }
+      Services.obs.addObserver(applyBlocklistChanges, "addon-blocklist-closed", false)
 
       function blocklistUnloadHandler(event) {
         if (event.target.location == URI_BLOCKLIST_DIALOG) {

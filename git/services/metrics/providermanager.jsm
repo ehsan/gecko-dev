@@ -12,9 +12,9 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 Cu.import("resource://gre/modules/services/metrics/dataprovider.jsm");
 #endif
 
-Cu.import("resource://gre/modules/Promise.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/Task.jsm");
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/utils.js");
 
 
@@ -25,7 +25,7 @@ Cu.import("resource://services-common/utils.js");
  * provides APIs for bulk collection of data.
  */
 this.ProviderManager = function (storage) {
-  this._log = Log.repository.getLogger("Services.Metrics.ProviderManager");
+  this._log = Log4Moz.repository.getLogger("Services.Metrics.ProviderManager");
 
   this._providers = new Map();
   this._storage = storage;
@@ -128,9 +128,8 @@ this.ProviderManager.prototype = Object.freeze({
           promises.push(promise);
         }
       } catch (ex) {
-        this._recordProviderError(entry,
-                                  "Error registering provider from category manager",
-                                  ex);
+        this._recordError("Error registering provider from category manager : " +
+                          entry + ": ", ex);
         continue;
       }
     }
@@ -288,9 +287,7 @@ this.ProviderManager.prototype = Object.freeze({
           // and isn't worth optimizing.
           yield this.registerProvider(provider);
         } catch (ex) {
-          this._recordProviderError(providerType.prototype.name,
-                                    "Error registering pull-only provider",
-                                    ex);
+          this._recordError("Error registering pull-only provider", ex);
         }
       }
 
@@ -373,9 +370,8 @@ this.ProviderManager.prototype = Object.freeze({
         try {
           yield provider.shutdown();
         } catch (ex) {
-          this._recordProviderError(provider.name,
-                                    "Error when shutting down provider",
-                                    ex);
+          this._recordError("Error when shutting down provider: " +
+                            provider.name, ex);
         } finally {
           this.unregisterProvider(provider.name);
         }

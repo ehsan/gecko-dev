@@ -10,8 +10,6 @@
 #include "ImageAccessible.h"
 #include "mozilla/Likely.h"
 #include "nsMai.h"
-#include "nsIAccessibleTypes.h"
-#include "nsIURI.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;

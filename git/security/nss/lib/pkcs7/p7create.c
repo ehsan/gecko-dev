@@ -4,6 +4,8 @@
 
 /*
  * PKCS7 creation.
+ *
+ * $Id$
  */
 
 #include "p7local.h"
@@ -21,7 +23,7 @@
 const int NSS_PBE_DEFAULT_ITERATION_COUNT = 2000; /* used in p12e.c too */
 
 static SECStatus
-sec_pkcs7_init_content_info (SEC_PKCS7ContentInfo *cinfo, PLArenaPool *poolp,
+sec_pkcs7_init_content_info (SEC_PKCS7ContentInfo *cinfo, PRArenaPool *poolp,
 			     SECOidTag kind, PRBool detached)
 {
     void *thing;
@@ -110,7 +112,7 @@ sec_pkcs7_create_content_info (SECOidTag kind, PRBool detached,
 			       SECKEYGetPasswordKey pwfn, void *pwfn_arg)
 {
     SEC_PKCS7ContentInfo *cinfo;
-    PLArenaPool *poolp;
+    PRArenaPool *poolp;
     SECStatus rv;
 
     poolp = PORT_NewArena (1024);	/* XXX what is right value? */
@@ -404,7 +406,7 @@ SEC_PKCS7CreateSignedData (CERTCertificate *cert,
 
 
 static SEC_PKCS7Attribute *
-sec_pkcs7_create_attribute (PLArenaPool *poolp, SECOidTag oidtag,
+sec_pkcs7_create_attribute (PRArenaPool *poolp, SECOidTag oidtag,
 			    SECItem *value, PRBool encoded)
 {
     SEC_PKCS7Attribute *attr;
@@ -955,7 +957,7 @@ SEC_PKCS7AddCertificate (SEC_PKCS7ContentInfo *cinfo, CERTCertificate *cert)
 
 static SECStatus
 sec_pkcs7_init_encrypted_content_info (SEC_PKCS7EncryptedContentInfo *enccinfo,
-				       PLArenaPool *poolp,
+				       PRArenaPool *poolp,
 				       SECOidTag kind, PRBool detached,
 				       SECOidTag encalg, int keysize)
 {

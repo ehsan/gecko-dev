@@ -8,18 +8,16 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/rtp_rtcp/source/rtp_sender_audio.h"
+#include "rtp_sender_audio.h"
 
-#include <assert.h> //assert
 #include <string.h> //memcpy
-
-#include "webrtc/system_wrappers/interface/trace_event.h"
+#include <cassert> //assert
 
 namespace webrtc {
-RTPSenderAudio::RTPSenderAudio(const int32_t id, Clock* clock,
+RTPSenderAudio::RTPSenderAudio(const WebRtc_Word32 id, RtpRtcpClock* clock,
                                RTPSenderInterface* rtpSender) :
     _id(id),
-    _clock(clock),
+    _clock(*clock),
     _rtpSender(rtpSender),
     _audioFeedbackCritsect(CriticalSectionWrapper::CreateCriticalSection()),
     _audioFeedback(NULL),
@@ -53,7 +51,7 @@ RTPSenderAudio::~RTPSenderAudio()
     delete _audioFeedbackCritsect;
 }
 
-int32_t
+WebRtc_Word32
 RTPSenderAudio::RegisterAudioCallback(RtpAudioFeedback* messagesCallback)
 {
     CriticalSectionScoped cs(_audioFeedbackCritsect);
@@ -62,7 +60,7 @@ RTPSenderAudio::RegisterAudioCallback(RtpAudioFeedback* messagesCallback)
 }
 
 void
-RTPSenderAudio::SetAudioFrequency(const uint32_t f)
+RTPSenderAudio::SetAudioFrequency(const WebRtc_UWord32 f)
 {
     CriticalSectionScoped cs(_sendAudioCritsect);
     _frequency = f;
@@ -76,8 +74,8 @@ RTPSenderAudio::AudioFrequency() const
 }
 
     // set audio packet size, used to determine when it's time to send a DTMF packet in silence (CNG)
-int32_t
-RTPSenderAudio::SetAudioPacketSize(const uint16_t packetSizeSamples)
+WebRtc_Word32
+RTPSenderAudio::SetAudioPacketSize(const WebRtc_UWord16 packetSizeSamples)
 {
     CriticalSectionScoped cs(_sendAudioCritsect);
 
@@ -85,12 +83,12 @@ RTPSenderAudio::SetAudioPacketSize(const uint16_t packetSizeSamples)
     return 0;
 }
 
-int32_t RTPSenderAudio::RegisterAudioPayload(
+WebRtc_Word32 RTPSenderAudio::RegisterAudioPayload(
     const char payloadName[RTP_PAYLOAD_NAME_SIZE],
-    const int8_t payloadType,
-    const uint32_t frequency,
-    const uint8_t channels,
-    const uint32_t rate,
+    const WebRtc_Word8 payloadType,
+    const WebRtc_UWord32 frequency,
+    const WebRtc_UWord8 channels,
+    const WebRtc_UWord32 rate,
     ModuleRTPUtility::Payload*& payload) {
   CriticalSectionScoped cs(_sendAudioCritsect);
 
@@ -131,7 +129,7 @@ int32_t RTPSenderAudio::RegisterAudioPayload(
 
 bool
 RTPSenderAudio::MarkerBit(const FrameType frameType,
-                          const int8_t payloadType)
+                          const WebRtc_Word8 payloadType)
 {
     CriticalSectionScoped cs(_sendAudioCritsect);
 
@@ -212,15 +210,14 @@ RTPSenderAudio::MarkerBit(const FrameType frameType,
 }
 
 bool
-RTPSenderAudio::SendTelephoneEventActive(int8_t& telephoneEvent) const
+RTPSenderAudio::SendTelephoneEventActive(WebRtc_Word8& telephoneEvent) const
 {
     if(_dtmfEventIsOn)
     {
         telephoneEvent = _dtmfKey;
         return true;
     }
-    int64_t delaySinceLastDTMF = _clock->TimeInMilliseconds() -
-        _dtmfTimeLastSent;
+    WebRtc_Word64 delaySinceLastDTMF = _clock.GetTimeInMS() - _dtmfTimeLastSent;
     if(delaySinceLastDTMF < 100)
     {
         telephoneEvent = _dtmfKey;
@@ -230,26 +227,25 @@ RTPSenderAudio::SendTelephoneEventActive(int8_t& telephoneEvent) const
     return false;
 }
 
-int32_t RTPSenderAudio::SendAudio(
+WebRtc_Word32 RTPSenderAudio::SendAudio(
     const FrameType frameType,
-    const int8_t payloadType,
-    const uint32_t captureTimeStamp,
-    const uint8_t* payloadData,
-    const uint32_t dataSize,
+    const WebRtc_Word8 payloadType,
+    const WebRtc_UWord32 captureTimeStamp,
+    const WebRtc_UWord8* payloadData,
+    const WebRtc_UWord32 dataSize,
     const RTPFragmentationHeader* fragmentation) {
   // TODO(pwestin) Breakup function in smaller functions.
-  uint16_t payloadSize = static_cast<uint16_t>(dataSize);
-  uint16_t maxPayloadLength = _rtpSender->MaxPayloadLength();
+  WebRtc_UWord16 payloadSize = static_cast<WebRtc_UWord16>(dataSize);
+  WebRtc_UWord16 maxPayloadLength = _rtpSender->MaxPayloadLength();
   bool dtmfToneStarted = false;
-  uint16_t dtmfLengthMS = 0;
-  uint8_t key = 0;
+  WebRtc_UWord16 dtmfLengthMS = 0;
+  WebRtc_UWord8 key = 0;
 
   // Check if we have pending DTMFs to send
   if (!_dtmfEventIsOn && PendingDTMF()) {
     CriticalSectionScoped cs(_sendAudioCritsect);
 
-    int64_t delaySinceLastDTMF = _clock->TimeInMilliseconds() -
-        _dtmfTimeLastSent;
+    WebRtc_Word64 delaySinceLastDTMF = _clock.GetTimeInMS() - _dtmfTimeLastSent;
 
     if (delaySinceLastDTMF > 100) {
       // New tone to play
@@ -287,7 +283,7 @@ int32_t RTPSenderAudio::SendAudio(
         }
       }
       _dtmfTimestampLastSent = captureTimeStamp;
-      uint32_t dtmfDurationSamples = captureTimeStamp - _dtmfTimestamp;
+      WebRtc_UWord32 dtmfDurationSamples = captureTimeStamp - _dtmfTimestamp;
       bool ended = false;
       bool send = true;
 
@@ -299,7 +295,7 @@ int32_t RTPSenderAudio::SendAudio(
       } else {
         ended = true;
         _dtmfEventIsOn = false;
-        _dtmfTimeLastSent = _clock->TimeInMilliseconds();
+        _dtmfTimeLastSent = _clock.GetTimeInMS();
       }
       // don't hold the critsect while calling SendTelephoneEventPacket
       _sendAudioCritsect->Leave();
@@ -307,7 +303,7 @@ int32_t RTPSenderAudio::SendAudio(
         if (dtmfDurationSamples > 0xffff) {
           // RFC 4733 2.5.2.3 Long-Duration Events
           SendTelephoneEventPacket(ended, _dtmfTimestamp,
-                                   static_cast<uint16_t>(0xffff), false);
+                                   static_cast<WebRtc_UWord16>(0xffff), false);
 
           // set new timestap for this segment
           _dtmfTimestamp = captureTimeStamp;
@@ -317,7 +313,7 @@ int32_t RTPSenderAudio::SendAudio(
           return SendTelephoneEventPacket(
               ended,
               _dtmfTimestamp,
-              static_cast<uint16_t>(dtmfDurationSamples),
+              static_cast<WebRtc_UWord16>(dtmfDurationSamples),
               false);
         } else {
           // set markerBit on the first packet in the burst
@@ -325,7 +321,7 @@ int32_t RTPSenderAudio::SendAudio(
           return SendTelephoneEventPacket(
               ended,
               _dtmfTimestamp,
-              static_cast<uint16_t>(dtmfDurationSamples),
+              static_cast<WebRtc_UWord16>(dtmfDurationSamples),
               !_dtmfEventFirstPacketSent);
         }
       }
@@ -341,26 +337,24 @@ int32_t RTPSenderAudio::SendAudio(
     }
     return -1;
   }
-  uint8_t dataBuffer[IP_PACKET_SIZE];
+  WebRtc_UWord8 dataBuffer[IP_PACKET_SIZE];
   bool markerBit = MarkerBit(frameType, payloadType);
 
-  int32_t rtpHeaderLength = 0;
-  uint16_t timestampOffset = 0;
+  WebRtc_Word32 rtpHeaderLength = 0;
+  WebRtc_UWord16 timestampOffset = 0;
 
   if (_REDPayloadType >= 0 && fragmentation && !markerBit &&
       fragmentation->fragmentationVectorSize > 1) {
     // have we configured RED? use its payload type
     // we need to get the current timestamp to calc the diff
-    uint32_t oldTimeStamp = _rtpSender->Timestamp();
+    WebRtc_UWord32 oldTimeStamp = _rtpSender->Timestamp();
     rtpHeaderLength = _rtpSender->BuildRTPheader(dataBuffer, _REDPayloadType,
-                                                 markerBit, captureTimeStamp,
-                                                 _clock->TimeInMilliseconds());
+                                                 markerBit, captureTimeStamp);
 
-    timestampOffset = uint16_t(_rtpSender->Timestamp() - oldTimeStamp);
+    timestampOffset = WebRtc_UWord16(_rtpSender->Timestamp() - oldTimeStamp);
   } else {
     rtpHeaderLength = _rtpSender->BuildRTPheader(dataBuffer, payloadType,
-                                                 markerBit, captureTimeStamp,
-                                                 _clock->TimeInMilliseconds());
+                                                 markerBit, captureTimeStamp);
   }
   if (rtpHeaderLength <= 0) {
     return -1;
@@ -386,19 +380,19 @@ int32_t RTPSenderAudio::SendAudio(
       rtpHeaderLength += 2;
 
       // add the length (length=1) in number of word32
-      const uint8_t length = 1;
+      const WebRtc_UWord8 length = 1;
       ModuleRTPUtility::AssignUWord16ToBuffer(dataBuffer+rtpHeaderLength,
                                               length);
       rtpHeaderLength += 2;
 
       // add ID (defined by the user) and len(=0) byte
-      const uint8_t id = _audioLevelIndicationID;
-      const uint8_t len = 0;
+      const WebRtc_UWord8 id = _audioLevelIndicationID;
+      const WebRtc_UWord8 len = 0;
       dataBuffer[rtpHeaderLength++] = (id << 4) + len;
 
       // add voice-activity flag (V) bit and the audio level (in dBov)
-      const uint8_t V = (frameType == kAudioFrameSpeech);
-      uint8_t level = _audioLevel_dBov;
+      const WebRtc_UWord8 V = (frameType == kAudioFrameSpeech);
+      WebRtc_UWord8 level = _audioLevel_dBov;
       dataBuffer[rtpHeaderLength++] = (V << 7) + level;
 
       // add two bytes zero padding
@@ -423,13 +417,13 @@ int32_t RTPSenderAudio::SendAudio(
         // only 0x80 if we have multiple blocks
         dataBuffer[rtpHeaderLength++] = 0x80 +
             fragmentation->fragmentationPlType[1];
-        uint32_t blockLength = fragmentation->fragmentationLength[1];
+        WebRtc_UWord32 blockLength = fragmentation->fragmentationLength[1];
 
         // sanity blockLength
         if(blockLength > 0x3ff) {  // block length 10 bits 1023 bytes
           return -1;
         }
-        uint32_t REDheader = (timestampOffset << 10) + blockLength;
+        WebRtc_UWord32 REDheader = (timestampOffset << 10) + blockLength;
         ModuleRTPUtility::AssignUWord24ToBuffer(dataBuffer + rtpHeaderLength,
                                                 REDheader);
         rtpHeaderLength += 3;
@@ -446,7 +440,7 @@ int32_t RTPSenderAudio::SendAudio(
                payloadData + fragmentation->fragmentationOffset[0],
                fragmentation->fragmentationLength[0]);
 
-        payloadSize = static_cast<uint16_t>(
+        payloadSize = static_cast<WebRtc_UWord16>(
             fragmentation->fragmentationLength[0] +
             fragmentation->fragmentationLength[1]);
       } else {
@@ -456,7 +450,7 @@ int32_t RTPSenderAudio::SendAudio(
                payloadData + fragmentation->fragmentationOffset[0],
                fragmentation->fragmentationLength[0]);
 
-        payloadSize = static_cast<uint16_t>(
+        payloadSize = static_cast<WebRtc_UWord16>(
             fragmentation->fragmentationLength[0]);
       }
     } else {
@@ -467,30 +461,26 @@ int32_t RTPSenderAudio::SendAudio(
                 payloadData + fragmentation->fragmentationOffset[0],
                 fragmentation->fragmentationLength[0]);
 
-        payloadSize = static_cast<uint16_t>(
+        payloadSize = static_cast<WebRtc_UWord16>(
             fragmentation->fragmentationLength[0]);
       } else {
         memcpy(dataBuffer+rtpHeaderLength, payloadData, payloadSize);
       }
     }
     _lastPayloadType = payloadType;
-  }  // end critical section
-  TRACE_EVENT_ASYNC_END2("webrtc", "Audio", captureTimeStamp,
-                         "timestamp", _rtpSender->Timestamp(),
-                         "seqnum", _rtpSender->SequenceNumber());
+  }   // end critical section
   return _rtpSender->SendToNetwork(dataBuffer,
                                    payloadSize,
-                                   static_cast<uint16_t>(rtpHeaderLength),
+                                   static_cast<WebRtc_UWord16>(rtpHeaderLength),
                                    -1,
-                                   kAllowRetransmission,
-                                   PacedSender::kHighPriority);
+                                   kAllowRetransmission);
 }
 
-int32_t
+WebRtc_Word32
 RTPSenderAudio::SetAudioLevelIndicationStatus(const bool enable,
-                                              const uint8_t ID)
+                                              const WebRtc_UWord8 ID)
 {
-    if(enable && (ID < 1 || ID > 14))
+    if(ID < 1 || ID > 14)
     {
         return -1;
     }
@@ -502,9 +492,9 @@ RTPSenderAudio::SetAudioLevelIndicationStatus(const bool enable,
     return 0;
 }
 
-int32_t
+WebRtc_Word32
 RTPSenderAudio::AudioLevelIndicationStatus(bool& enable,
-                                           uint8_t& ID) const
+                                           WebRtc_UWord8& ID) const
 {
     CriticalSectionScoped cs(_sendAudioCritsect);
     enable = _includeAudioLevelIndication;
@@ -513,8 +503,8 @@ RTPSenderAudio::AudioLevelIndicationStatus(bool& enable,
 }
 
     // Audio level magnitude and voice activity flag are set for each RTP packet
-int32_t
-RTPSenderAudio::SetAudioLevel(const uint8_t level_dBov)
+WebRtc_Word32
+RTPSenderAudio::SetAudioLevel(const WebRtc_UWord8 level_dBov)
 {
     if (level_dBov > 127)
     {
@@ -526,8 +516,8 @@ RTPSenderAudio::SetAudioLevel(const uint8_t level_dBov)
 }
 
     // Set payload type for Redundant Audio Data RFC 2198
-int32_t
-RTPSenderAudio::SetRED(const int8_t payloadType)
+WebRtc_Word32
+RTPSenderAudio::SetRED(const WebRtc_Word8 payloadType)
 {
     if(payloadType < -1 )
     {
@@ -538,8 +528,8 @@ RTPSenderAudio::SetRED(const int8_t payloadType)
 }
 
     // Get payload type for Redundant Audio Data RFC 2198
-int32_t
-RTPSenderAudio::RED(int8_t& payloadType) const
+WebRtc_Word32
+RTPSenderAudio::RED(WebRtc_Word8& payloadType) const
 {
     if(_REDPayloadType == -1)
     {
@@ -551,10 +541,10 @@ RTPSenderAudio::RED(int8_t& payloadType) const
 }
 
 // Send a TelephoneEvent tone using RFC 2833 (4733)
-int32_t
-RTPSenderAudio::SendTelephoneEvent(const uint8_t key,
-                                   const uint16_t time_ms,
-                                   const uint8_t level)
+WebRtc_Word32
+RTPSenderAudio::SendTelephoneEvent(const WebRtc_UWord8 key,
+                                   const WebRtc_UWord16 time_ms,
+                                   const WebRtc_UWord8 level)
 {
     // DTMF is protected by its own critsect
     if(_dtmfPayloadType < 0)
@@ -565,15 +555,15 @@ RTPSenderAudio::SendTelephoneEvent(const uint8_t key,
     return AddDTMF(key, time_ms, level);
 }
 
-int32_t
+WebRtc_Word32
 RTPSenderAudio::SendTelephoneEventPacket(const bool ended,
-                                         const uint32_t dtmfTimeStamp,
-                                         const uint16_t duration,
+                                         const WebRtc_UWord32 dtmfTimeStamp,
+                                         const WebRtc_UWord16 duration,
                                          const bool markerBit)
 {
-    uint8_t dtmfbuffer[IP_PACKET_SIZE];
-    uint8_t sendCount = 1;
-    int32_t retVal = 0;
+    WebRtc_UWord8 dtmfbuffer[IP_PACKET_SIZE];
+    WebRtc_UWord8 sendCount = 1;
+    WebRtc_Word32 retVal = 0;
 
     if(ended)
     {
@@ -585,8 +575,7 @@ RTPSenderAudio::SendTelephoneEventPacket(const bool ended,
         _sendAudioCritsect->Enter();
 
         //Send DTMF data
-        _rtpSender->BuildRTPheader(dtmfbuffer, _dtmfPayloadType, markerBit,
-                                   dtmfTimeStamp, _clock->TimeInMilliseconds());
+        _rtpSender->BuildRTPheader(dtmfbuffer, _dtmfPayloadType, markerBit, dtmfTimeStamp);
 
         // reset CSRC and X bit
         dtmfbuffer[0] &= 0xe0;
@@ -601,11 +590,11 @@ RTPSenderAudio::SendTelephoneEventPacket(const bool ended,
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
         */
         // R bit always cleared
-        uint8_t R = 0x00;
-        uint8_t volume = _dtmfLevel;
+        WebRtc_UWord8 R = 0x00;
+        WebRtc_UWord8 volume = _dtmfLevel;
 
         // First packet un-ended
-          uint8_t E = 0x00;
+          WebRtc_UWord8 E = 0x00;
 
         if(ended)
         {
@@ -618,17 +607,12 @@ RTPSenderAudio::SendTelephoneEventPacket(const bool ended,
         ModuleRTPUtility::AssignUWord16ToBuffer(dtmfbuffer+14, duration);
 
         _sendAudioCritsect->Leave();
-        TRACE_EVENT_INSTANT2("webrtc_rtp",
-                             "Audio::SendTelephoneEvent",
-                             "timestamp", dtmfTimeStamp,
-                             "seqnum", _rtpSender->SequenceNumber());
         retVal = _rtpSender->SendToNetwork(dtmfbuffer, 4, 12, -1,
-                                           kAllowRetransmission,
-                                           PacedSender::kHighPriority);
+                                           kAllowRetransmission);
         sendCount--;
 
     }while (sendCount > 0 && retVal == 0);
 
     return retVal;
 }
-}  // namespace webrtc
+} // namespace webrtc

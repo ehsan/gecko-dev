@@ -23,15 +23,17 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef assembler_jit_ExecutableAllocator_h
-#define assembler_jit_ExecutableAllocator_h
+#ifndef ExecutableAllocator_h
+#define ExecutableAllocator_h
 
 #include <stddef.h> // for ptrdiff_t
 #include <limits>
 
 #include "jsalloc.h"
+#include "jsapi.h"
+#include "jsprvtd.h"
 
-#include "assembler/wtf/Platform.h"
+#include "assembler/wtf/Assertions.h"
 #include "js/HashTable.h"
 #include "js/Vector.h"
 
@@ -84,7 +86,7 @@ namespace JSC {
 
   class ExecutableAllocator;
 
-  enum CodeKind { ION_CODE, BASELINE_CODE, REGEXP_CODE, OTHER_CODE };
+  enum CodeKind { JAEGER_CODE, ION_CODE, BASELINE_CODE, REGEXP_CODE, ASMJS_CODE, OTHER_CODE };
 
   // These are reference-counted. A new one starts with a count of 1.
   class ExecutablePool {
@@ -108,8 +110,10 @@ private:
     unsigned m_refCount;
 
     // Number of bytes currently used for Method and Regexp JIT code.
+    size_t m_jaegerCodeBytes;
     size_t m_ionCodeBytes;
     size_t m_baselineCodeBytes;
+    size_t m_asmJSCodeBytes;
     size_t m_regexpCodeBytes;
     size_t m_otherCodeBytes;
 
@@ -132,8 +136,9 @@ public:
 
     ExecutablePool(ExecutableAllocator* allocator, Allocation a)
       : m_allocator(allocator), m_freePtr(a.pages), m_end(m_freePtr + a.size), m_allocation(a),
-        m_refCount(1), m_ionCodeBytes(0), m_baselineCodeBytes(0), m_regexpCodeBytes(0),
-        m_otherCodeBytes(0), m_destroy(false), m_gcNumber(0)
+        m_refCount(1), m_jaegerCodeBytes(0), m_ionCodeBytes(0), m_baselineCodeBytes(0),
+        m_asmJSCodeBytes(0), m_regexpCodeBytes(0), m_otherCodeBytes(0),
+        m_destroy(false), m_gcNumber(0)
     { }
 
     ~ExecutablePool();
@@ -155,11 +160,13 @@ private:
         m_freePtr += n;
 
         switch (kind) {
+          case JAEGER_CODE:   m_jaegerCodeBytes   += n;        break;
           case ION_CODE:      m_ionCodeBytes      += n;        break;
           case BASELINE_CODE: m_baselineCodeBytes += n;        break;
+          case ASMJS_CODE:    m_asmJSCodeBytes    += n;        break;
           case REGEXP_CODE:   m_regexpCodeBytes   += n;        break;
           case OTHER_CODE:    m_otherCodeBytes    += n;        break;
-          default:            MOZ_ASSUME_UNREACHABLE("bad code kind");
+          default:            JS_NOT_REACHED("bad code kind"); break;
         }
         return result;
     }
@@ -167,12 +174,6 @@ private:
     size_t available() const {
         JS_ASSERT(m_end >= m_freePtr);
         return m_end - m_freePtr;
-    }
-
-    void toggleAllCodeAsAccessible(bool accessible);
-
-    bool codeContains(char* address) {
-        return address >= m_allocation.pages && address < m_freePtr;
     }
 };
 
@@ -186,6 +187,8 @@ class ExecutableAllocator {
     typedef void (*DestroyCallback)(void* addr, size_t size);
     enum ProtectionSetting { Writable, Executable };
     DestroyCallback destroyCallback;
+
+    void initSeed();
 
 public:
     explicit ExecutableAllocator(AllocationBehavior allocBehavior)
@@ -204,6 +207,10 @@ public:
              */
             largeAllocSize = pageSize * 16;
         }
+
+#if WTF_OS_WINDOWS
+        initSeed();
+#endif
 
         JS_ASSERT(m_smallPools.empty());
     }
@@ -257,9 +264,7 @@ public:
         m_pools.remove(m_pools.lookup(pool));   // this asserts if |pool| is not in m_pools
     }
 
-    void addSizeOfCode(JS::CodeSizes *sizes) const;
-    void toggleAllCodeAsAccessible(bool accessible);
-    bool codeContains(char* address);
+    void sizeOfCode(JS::CodeSizes *sizes) const;
 
     void setDestroyCallback(DestroyCallback destroyCallback) {
         this->destroyCallback = destroyCallback;
@@ -510,4 +515,5 @@ private:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_jit_ExecutableAllocator_h */
+#endif // !defined(ExecutableAllocator)
+

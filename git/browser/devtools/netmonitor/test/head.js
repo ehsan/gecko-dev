@@ -5,34 +5,23 @@
 const { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 
 let { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
-let { Promise: promise } = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {});
+let { Promise } = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {});
+let { TargetFactory } = Cu.import("resource:///modules/devtools/Target.jsm", {});
 let { gDevTools } = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
-let { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-let TargetFactory = devtools.TargetFactory;
-let Toolbox = devtools.Toolbox;
 
 const EXAMPLE_URL = "http://example.com/browser/browser/devtools/netmonitor/test/";
 
 const SIMPLE_URL = EXAMPLE_URL + "html_simple-test-page.html";
 const NAVIGATE_URL = EXAMPLE_URL + "html_navigate-test-page.html";
 const CONTENT_TYPE_URL = EXAMPLE_URL + "html_content-type-test-page.html";
-const CYRILLIC_URL = EXAMPLE_URL + "html_cyrillic-test-page.html";
 const STATUS_CODES_URL = EXAMPLE_URL + "html_status-codes-test-page.html";
 const POST_DATA_URL = EXAMPLE_URL + "html_post-data-test-page.html";
-const POST_RAW_URL = EXAMPLE_URL + "html_post-raw-test-page.html";
 const JSONP_URL = EXAMPLE_URL + "html_jsonp-test-page.html";
 const JSON_LONG_URL = EXAMPLE_URL + "html_json-long-test-page.html";
-const JSON_MALFORMED_URL = EXAMPLE_URL + "html_json-malformed-test-page.html";
-const JSON_CUSTOM_MIME_URL = EXAMPLE_URL + "html_json-custom-mime-test-page.html";
-const SORTING_URL = EXAMPLE_URL + "html_sorting-test-page.html";
-const FILTERING_URL = EXAMPLE_URL + "html_filter-test-page.html";
-const INFINITE_GET_URL = EXAMPLE_URL + "html_infinite-get-page.html";
-const CUSTOM_GET_URL = EXAMPLE_URL + "html_custom-get-page.html";
 
 const SIMPLE_SJS = EXAMPLE_URL + "sjs_simple-test-server.sjs";
 const CONTENT_TYPE_SJS = EXAMPLE_URL + "sjs_content-type-test-server.sjs";
 const STATUS_CODES_SJS = EXAMPLE_URL + "sjs_status-codes-test-server.sjs";
-const SORTING_SJS = EXAMPLE_URL + "sjs_sorting-test-server.sjs";
 
 const TEST_IMAGE = EXAMPLE_URL + "test-image.png";
 
@@ -51,16 +40,15 @@ registerCleanupFunction(() => {
 function addTab(aUrl, aWindow) {
   info("Adding tab: " + aUrl);
 
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
   let targetWindow = aWindow || window;
   let targetBrowser = targetWindow.gBrowser;
 
   targetWindow.focus();
   let tab = targetBrowser.selectedTab = targetBrowser.addTab(aUrl);
-  let browser = tab.linkedBrowser;
 
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
+  tab.addEventListener("load", function onLoad() {
+    tab.removeEventListener("load", onLoad, true);
     deferred.resolve(tab);
   }, true);
 
@@ -82,7 +70,7 @@ function initNetMonitor(aUrl, aWindow) {
   return addTab(aUrl).then((aTab) => {
     info("Net tab added successfully: " + aUrl);
 
-    let deferred = promise.defer();
+    let deferred = Promise.defer();
     let debuggee = aTab.linkedBrowser.contentWindow.wrappedJSObject;
     let target = TargetFactory.forTab(aTab);
 
@@ -100,7 +88,7 @@ function initNetMonitor(aUrl, aWindow) {
 function restartNetMonitor(aMonitor, aNewUrl) {
   info("Restarting the specified network monitor.");
 
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
   let tab = aMonitor.target.tab;
   let url = aNewUrl || tab.linkedBrowser.contentWindow.wrappedJSObject.location.href;
 
@@ -113,7 +101,7 @@ function restartNetMonitor(aMonitor, aNewUrl) {
 function teardown(aMonitor) {
   info("Destroying the specified network monitor.");
 
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
   let tab = aMonitor.target.tab;
 
   aMonitor.once("destroyed", deferred.resolve);
@@ -123,7 +111,7 @@ function teardown(aMonitor) {
 }
 
 function waitForNetworkEvents(aMonitor, aGetRequests, aPostRequests = 0) {
-  let deferred = promise.defer();
+  let deferred = Promise.defer();
 
   let panel = aMonitor.panelWin;
   let genericEvents = 0;
@@ -149,41 +137,41 @@ function waitForNetworkEvents(aMonitor, aGetRequests, aPostRequests = 0) {
     if (genericEvents == (aGetRequests + aPostRequests) * 13 &&
         postEvents == aPostRequests * 2) {
 
-      panel.off(panel.EVENTS.UPDATING_REQUEST_HEADERS, onGenericEvent);
-      panel.off(panel.EVENTS.RECEIVED_REQUEST_HEADERS, onGenericEvent);
-      panel.off(panel.EVENTS.UPDATING_REQUEST_COOKIES, onGenericEvent);
-      panel.off(panel.EVENTS.RECEIVED_REQUEST_COOKIES, onGenericEvent);
-      panel.off(panel.EVENTS.UPDATING_REQUEST_POST_DATA, onPostEvent);
-      panel.off(panel.EVENTS.RECEIVED_REQUEST_POST_DATA, onPostEvent);
-      panel.off(panel.EVENTS.UPDATING_RESPONSE_HEADERS, onGenericEvent);
-      panel.off(panel.EVENTS.RECEIVED_RESPONSE_HEADERS, onGenericEvent);
-      panel.off(panel.EVENTS.UPDATING_RESPONSE_COOKIES, onGenericEvent);
-      panel.off(panel.EVENTS.RECEIVED_RESPONSE_COOKIES, onGenericEvent);
-      panel.off(panel.EVENTS.STARTED_RECEIVING_RESPONSE, onGenericEvent);
-      panel.off(panel.EVENTS.UPDATING_RESPONSE_CONTENT, onGenericEvent);
-      panel.off(panel.EVENTS.RECEIVED_RESPONSE_CONTENT, onGenericEvent);
-      panel.off(panel.EVENTS.UPDATING_EVENT_TIMINGS, onGenericEvent);
-      panel.off(panel.EVENTS.RECEIVED_EVENT_TIMINGS, onGenericEvent);
+      panel.off("NetMonitor:NetworkEventUpdating:RequestHeaders", onGenericEvent);
+      panel.off("NetMonitor:NetworkEventUpdated:RequestHeaders", onGenericEvent);
+      panel.off("NetMonitor:NetworkEventUpdating:RequestCookies", onGenericEvent);
+      panel.off("NetMonitor:NetworkEventUpdating:RequestPostData", onPostEvent);
+      panel.off("NetMonitor:NetworkEventUpdated:RequestPostData", onPostEvent);
+      panel.off("NetMonitor:NetworkEventUpdated:RequestCookies", onGenericEvent);
+      panel.off("NetMonitor:NetworkEventUpdating:ResponseHeaders", onGenericEvent);
+      panel.off("NetMonitor:NetworkEventUpdated:ResponseHeaders", onGenericEvent);
+      panel.off("NetMonitor:NetworkEventUpdating:ResponseCookies", onGenericEvent);
+      panel.off("NetMonitor:NetworkEventUpdated:ResponseCookies", onGenericEvent);
+      panel.off("NetMonitor:NetworkEventUpdating:ResponseStart", onGenericEvent);
+      panel.off("NetMonitor:NetworkEventUpdating:ResponseContent", onGenericEvent);
+      panel.off("NetMonitor:NetworkEventUpdated:ResponseContent", onGenericEvent);
+      panel.off("NetMonitor:NetworkEventUpdating:EventTimings", onGenericEvent);
+      panel.off("NetMonitor:NetworkEventUpdated:EventTimings", onGenericEvent);
 
       executeSoon(deferred.resolve);
     }
   }
 
-  panel.on(panel.EVENTS.UPDATING_REQUEST_HEADERS, onGenericEvent);
-  panel.on(panel.EVENTS.RECEIVED_REQUEST_HEADERS, onGenericEvent);
-  panel.on(panel.EVENTS.UPDATING_REQUEST_COOKIES, onGenericEvent);
-  panel.on(panel.EVENTS.RECEIVED_REQUEST_COOKIES, onGenericEvent);
-  panel.on(panel.EVENTS.UPDATING_REQUEST_POST_DATA, onPostEvent);
-  panel.on(panel.EVENTS.RECEIVED_REQUEST_POST_DATA, onPostEvent);
-  panel.on(panel.EVENTS.UPDATING_RESPONSE_HEADERS, onGenericEvent);
-  panel.on(panel.EVENTS.RECEIVED_RESPONSE_HEADERS, onGenericEvent);
-  panel.on(panel.EVENTS.UPDATING_RESPONSE_COOKIES, onGenericEvent);
-  panel.on(panel.EVENTS.RECEIVED_RESPONSE_COOKIES, onGenericEvent);
-  panel.on(panel.EVENTS.STARTED_RECEIVING_RESPONSE, onGenericEvent);
-  panel.on(panel.EVENTS.UPDATING_RESPONSE_CONTENT, onGenericEvent);
-  panel.on(panel.EVENTS.RECEIVED_RESPONSE_CONTENT, onGenericEvent);
-  panel.on(panel.EVENTS.UPDATING_EVENT_TIMINGS, onGenericEvent);
-  panel.on(panel.EVENTS.RECEIVED_EVENT_TIMINGS, onGenericEvent);
+  panel.on("NetMonitor:NetworkEventUpdating:RequestHeaders", onGenericEvent);
+  panel.on("NetMonitor:NetworkEventUpdated:RequestHeaders", onGenericEvent);
+  panel.on("NetMonitor:NetworkEventUpdating:RequestCookies", onGenericEvent);
+  panel.on("NetMonitor:NetworkEventUpdating:RequestPostData", onPostEvent);
+  panel.on("NetMonitor:NetworkEventUpdated:RequestPostData", onPostEvent);
+  panel.on("NetMonitor:NetworkEventUpdated:RequestCookies", onGenericEvent);
+  panel.on("NetMonitor:NetworkEventUpdating:ResponseHeaders", onGenericEvent);
+  panel.on("NetMonitor:NetworkEventUpdated:ResponseHeaders", onGenericEvent);
+  panel.on("NetMonitor:NetworkEventUpdating:ResponseCookies", onGenericEvent);
+  panel.on("NetMonitor:NetworkEventUpdated:ResponseCookies", onGenericEvent);
+  panel.on("NetMonitor:NetworkEventUpdating:ResponseStart", onGenericEvent);
+  panel.on("NetMonitor:NetworkEventUpdating:ResponseContent", onGenericEvent);
+  panel.on("NetMonitor:NetworkEventUpdated:ResponseContent", onGenericEvent);
+  panel.on("NetMonitor:NetworkEventUpdating:EventTimings", onGenericEvent);
+  panel.on("NetMonitor:NetworkEventUpdated:EventTimings", onGenericEvent);
 
   return deferred.promise;
 }
@@ -192,14 +180,7 @@ function verifyRequestItemTarget(aRequestItem, aMethod, aUrl, aData = {}) {
   info("> Verifying: " + aMethod + " " + aUrl + " " + aData.toSource());
   info("> Request: " + aRequestItem.attachment.toSource());
 
-  let requestsMenu = aRequestItem.ownerView;
-  let widgetIndex = requestsMenu.indexOfItem(aRequestItem);
-  let visibleIndex = requestsMenu.visibleItems.indexOf(aRequestItem);
-
-  info("Widget index of item: " + widgetIndex);
-  info("Visible index of item: " + visibleIndex);
-
-  let { fuzzyUrl, status, statusText, type, fullMimeType, size, time } = aData;
+  let { status, statusText, type, fullMimeType, size, time } = aData;
   let { attachment, target } = aRequestItem
 
   let uri = Services.io.newURI(aUrl, null, null).QueryInterface(Ci.nsIURL);
@@ -207,28 +188,19 @@ function verifyRequestItemTarget(aRequestItem, aMethod, aUrl, aData = {}) {
   let query = uri.query;
   let hostPort = uri.hostPort;
 
-  if (fuzzyUrl) {
-    ok(attachment.method.startsWith(aMethod), "The attached method is incorrect.");
-    ok(attachment.url.startsWith(aUrl), "The attached url is incorrect.");
-  } else {
-    is(attachment.method, aMethod, "The attached method is incorrect.");
-    is(attachment.url, aUrl, "The attached url is incorrect.");
-  }
+  is(attachment.method, aMethod,
+    "The attached method is incorrect.");
+
+  is(attachment.url, aUrl,
+    "The attached url is incorrect.");
 
   is(target.querySelector(".requests-menu-method").getAttribute("value"),
     aMethod, "The displayed method is incorrect.");
 
-  if (fuzzyUrl) {
-    ok(target.querySelector(".requests-menu-file").getAttribute("value").startsWith(
-      name + (query ? "?" + query : "")), "The displayed file is incorrect.");
-    ok(target.querySelector(".requests-menu-file").getAttribute("tooltiptext").startsWith(
-      name + (query ? "?" + query : "")), "The tooltip file is incorrect.");
-  } else {
-    is(target.querySelector(".requests-menu-file").getAttribute("value"),
-      name + (query ? "?" + query : ""), "The displayed file is incorrect.");
-    is(target.querySelector(".requests-menu-file").getAttribute("tooltiptext"),
-      name + (query ? "?" + query : ""), "The tooltip file is incorrect.");
-  }
+  is(target.querySelector(".requests-menu-file").getAttribute("value"),
+    name + (query ? "?" + query : ""), "The displayed file is incorrect.");
+  is(target.querySelector(".requests-menu-file").getAttribute("tooltiptext"),
+    name + (query ? "?" + query : ""), "The tooltip file is incorrect.");
 
   is(target.querySelector(".requests-menu-domain").getAttribute("value"),
     hostPort, "The displayed domain is incorrect.");
@@ -266,19 +238,5 @@ function verifyRequestItemTarget(aRequestItem, aMethod, aUrl, aData = {}) {
     info("Tooltip time: " + tooltip);
     ok(~~(value.match(/[0-9]+/)) >= 0, "The displayed time is incorrect.");
     ok(~~(tooltip.match(/[0-9]+/)) >= 0, "The tooltip time is incorrect.");
-  }
-
-  if (visibleIndex != -1) {
-    if (visibleIndex % 2 == 0) {
-      ok(aRequestItem.target.hasAttribute("even"),
-        "Unexpected 'even' attribute for " + aRequestItem.value);
-      ok(!aRequestItem.target.hasAttribute("odd"),
-        "Unexpected 'odd' attribute for " + aRequestItem.value);
-    } else {
-      ok(!aRequestItem.target.hasAttribute("even"),
-        "Unexpected 'even' attribute for " + aRequestItem.value);
-      ok(aRequestItem.target.hasAttribute("odd"),
-        "Unexpected 'odd' attribute for " + aRequestItem.value);
-    }
   }
 }

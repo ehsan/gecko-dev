@@ -26,7 +26,7 @@ public:
   NS_DECL_QUERYFRAME_TARGET(nsScrollbarFrame)
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE {
+  NS_IMETHOD GetFrameName(nsAString& aResult) const {
     return MakeFrameName(NS_LITERAL_STRING("ScrollbarFrame"), aResult);
   }
 #endif
@@ -40,21 +40,21 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   NS_IMETHOD HandlePress(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                         nsGUIEvent *    aEvent,
+                         nsEventStatus*  aEventStatus) MOZ_OVERRIDE;
 
   NS_IMETHOD HandleMultiplePress(nsPresContext* aPresContext,
-                                 mozilla::WidgetGUIEvent* aEvent,
-                                 nsEventStatus* aEventStatus,
+                                 nsGUIEvent *    aEvent,
+                                 nsEventStatus*  aEventStatus,
                                  bool aControlHeld) MOZ_OVERRIDE;
 
   NS_IMETHOD HandleDrag(nsPresContext* aPresContext,
-                        mozilla::WidgetGUIEvent* aEvent,
-                        nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                        nsGUIEvent *    aEvent,
+                        nsEventStatus*  aEventStatus) MOZ_OVERRIDE;
 
   NS_IMETHOD HandleRelease(nsPresContext* aPresContext,
-                           mozilla::WidgetGUIEvent* aEvent,
-                           nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                           nsGUIEvent *    aEvent,
+                           nsEventStatus*  aEventStatus) MOZ_OVERRIDE;
 
   virtual void Init(nsIContent*      aContent,
                     nsIFrame*        aParent,
@@ -80,8 +80,6 @@ public:
    * hide the children too.
    */
   virtual bool DoesClipChildren() MOZ_OVERRIDE { return true; }
-
-  NS_IMETHOD GetMargin(nsMargin& aMargin) MOZ_OVERRIDE;
 
 private:
   nsCOMPtr<nsIContent> mScrollbarMediator;

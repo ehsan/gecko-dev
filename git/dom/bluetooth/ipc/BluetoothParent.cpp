@@ -48,7 +48,7 @@ public:
       mRequest->RequestComplete();
 
       if (!mRequest->Send__delete__(mRequest, *mReply)) {
-        BT_WARNING("Failed to send response to child process!");
+        NS_WARNING("Failed to send response to child process!");
         return NS_ERROR_FAILURE;
       }
     }
@@ -65,9 +65,10 @@ public:
   }
 
   virtual bool
-  ParseSuccessfulReply(JS::MutableHandle<JS::Value> aValue) MOZ_OVERRIDE
+  ParseSuccessfulReply(JS::Value* aValue) MOZ_OVERRIDE
   {
-    MOZ_CRASH("This should never be called!");
+    MOZ_NOT_REACHED("This should never be called!");
+    return false;
   }
 };
 
@@ -196,18 +197,20 @@ BluetoothParent::RecvPBluetoothRequestConstructor(
       return actor->DoRequest(aRequest.get_PairRequest());
     case Request::TUnpairRequest:
       return actor->DoRequest(aRequest.get_UnpairRequest());
-    case Request::TPairedDevicePropertiesRequest:
-      return actor->DoRequest(aRequest.get_PairedDevicePropertiesRequest());
-    case Request::TConnectedDevicePropertiesRequest:
-      return actor->DoRequest(aRequest.get_ConnectedDevicePropertiesRequest());
+    case Request::TDevicePropertiesRequest:
+      return actor->DoRequest(aRequest.get_DevicePropertiesRequest());
     case Request::TSetPinCodeRequest:
       return actor->DoRequest(aRequest.get_SetPinCodeRequest());
     case Request::TSetPasskeyRequest:
       return actor->DoRequest(aRequest.get_SetPasskeyRequest());
     case Request::TConfirmPairingConfirmationRequest:
       return actor->DoRequest(aRequest.get_ConfirmPairingConfirmationRequest());
+    case Request::TConfirmAuthorizationRequest:
+      return actor->DoRequest(aRequest.get_ConfirmAuthorizationRequest());
     case Request::TDenyPairingConfirmationRequest:
       return actor->DoRequest(aRequest.get_DenyPairingConfirmationRequest());
+    case Request::TDenyAuthorizationRequest:
+      return actor->DoRequest(aRequest.get_DenyAuthorizationRequest());
     case Request::TConnectRequest:
       return actor->DoRequest(aRequest.get_ConnectRequest());
     case Request::TDisconnectRequest:
@@ -220,40 +223,24 @@ BluetoothParent::RecvPBluetoothRequestConstructor(
       return actor->DoRequest(aRequest.get_ConfirmReceivingFileRequest());
     case Request::TDenyReceivingFileRequest:
       return actor->DoRequest(aRequest.get_DenyReceivingFileRequest());
-    case Request::TConnectScoRequest:
-      return actor->DoRequest(aRequest.get_ConnectScoRequest());
-    case Request::TDisconnectScoRequest:
-      return actor->DoRequest(aRequest.get_DisconnectScoRequest());
-    case Request::TIsScoConnectedRequest:
-      return actor->DoRequest(aRequest.get_IsScoConnectedRequest());
-#ifdef MOZ_B2G_RIL
-    case Request::TAnswerWaitingCallRequest:
-      return actor->DoRequest(aRequest.get_AnswerWaitingCallRequest());
-    case Request::TIgnoreWaitingCallRequest:
-      return actor->DoRequest(aRequest.get_IgnoreWaitingCallRequest());
-    case Request::TToggleCallsRequest:
-      return actor->DoRequest(aRequest.get_ToggleCallsRequest());
-#endif
-    case Request::TSendMetaDataRequest:
-      return actor->DoRequest(aRequest.get_SendMetaDataRequest());
-    case Request::TSendPlayStatusRequest:
-      return actor->DoRequest(aRequest.get_SendPlayStatusRequest());
     default:
-      MOZ_CRASH("Unknown type!");
+      MOZ_NOT_REACHED("Unknown type!");
+      return false;
   }
 
-  MOZ_CRASH("Should never get here!");
+  MOZ_NOT_REACHED("Should never get here!");
+  return false;
 }
 
 PBluetoothRequestParent*
-BluetoothParent::AllocPBluetoothRequestParent(const Request& aRequest)
+BluetoothParent::AllocPBluetoothRequest(const Request& aRequest)
 {
   MOZ_ASSERT(mService);
   return new BluetoothRequestParent(mService);
 }
 
 bool
-BluetoothParent::DeallocPBluetoothRequestParent(PBluetoothRequestParent* aActor)
+BluetoothParent::DeallocPBluetoothRequest(PBluetoothRequestParent* aActor)
 {
   delete aActor;
   return true;
@@ -385,25 +372,13 @@ BluetoothRequestParent::DoRequest(const UnpairRequest& aRequest)
 }
 
 bool
-BluetoothRequestParent::DoRequest(const PairedDevicePropertiesRequest& aRequest)
+BluetoothRequestParent::DoRequest(const DevicePropertiesRequest& aRequest)
 {
   MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TPairedDevicePropertiesRequest);
+  MOZ_ASSERT(mRequestType == Request::TDevicePropertiesRequest);
 
   nsresult rv =
     mService->GetPairedDevicePropertiesInternal(aRequest.addresses(),
-                                                mReplyRunnable.get());
-  NS_ENSURE_SUCCESS(rv, false);
-  return true;
-}
-
-bool
-BluetoothRequestParent::DoRequest(const ConnectedDevicePropertiesRequest& aRequest)
-{
-  MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TConnectedDevicePropertiesRequest);
-  nsresult rv =
-    mService->GetConnectedDevicePropertiesInternal(aRequest.serviceUuid(),
                                                 mReplyRunnable.get());
   NS_ENSURE_SUCCESS(rv, false);
 
@@ -460,6 +435,22 @@ BluetoothRequestParent::DoRequest(const ConfirmPairingConfirmationRequest&
 }
 
 bool
+BluetoothRequestParent::DoRequest(const ConfirmAuthorizationRequest& aRequest)
+{
+  MOZ_ASSERT(mService);
+  MOZ_ASSERT(mRequestType == Request::TConfirmAuthorizationRequest);
+
+  bool result =
+    mService->SetAuthorizationInternal(aRequest.path(),
+                                       true,
+                                       mReplyRunnable.get());
+
+  NS_ENSURE_TRUE(result, false);
+
+  return true;
+}
+
+bool
 BluetoothRequestParent::DoRequest(const DenyPairingConfirmationRequest&
                                   aRequest)
 {
@@ -477,14 +468,29 @@ BluetoothRequestParent::DoRequest(const DenyPairingConfirmationRequest&
 }
 
 bool
+BluetoothRequestParent::DoRequest(const DenyAuthorizationRequest& aRequest)
+{
+  MOZ_ASSERT(mService);
+  MOZ_ASSERT(mRequestType == Request::TDenyAuthorizationRequest);
+
+  bool result =
+    mService->SetAuthorizationInternal(aRequest.path(),
+                                       false,
+                                       mReplyRunnable.get());
+
+  NS_ENSURE_TRUE(result, false);
+
+  return true;
+}
+
+bool
 BluetoothRequestParent::DoRequest(const ConnectRequest& aRequest)
 {
   MOZ_ASSERT(mService);
   MOZ_ASSERT(mRequestType == Request::TConnectRequest);
 
   mService->Connect(aRequest.address(),
-                    aRequest.cod(),
-                    aRequest.serviceUuid(),
+                    aRequest.profileId(),
                     mReplyRunnable.get());
 
   return true;
@@ -496,8 +502,7 @@ BluetoothRequestParent::DoRequest(const DisconnectRequest& aRequest)
   MOZ_ASSERT(mService);
   MOZ_ASSERT(mRequestType == Request::TDisconnectRequest);
 
-  mService->Disconnect(aRequest.address(),
-                       aRequest.serviceUuid(),
+  mService->Disconnect(aRequest.profileId(),
                        mReplyRunnable.get());
 
   return true;
@@ -550,99 +555,5 @@ BluetoothRequestParent::DoRequest(const DenyReceivingFileRequest& aRequest)
   mService->ConfirmReceivingFile(aRequest.devicePath(),
                                  false,
                                  mReplyRunnable.get());
-  return true;
-}
-
-bool
-BluetoothRequestParent::DoRequest(const ConnectScoRequest& aRequest)
-{
-  MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TConnectScoRequest);
-
-  mService->ConnectSco(mReplyRunnable.get());
-  return true;
-}
-
-bool
-BluetoothRequestParent::DoRequest(const DisconnectScoRequest& aRequest)
-{
-  MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TDisconnectScoRequest);
-
-  mService->DisconnectSco(mReplyRunnable.get());
-  return true;
-}
-
-bool
-BluetoothRequestParent::DoRequest(const IsScoConnectedRequest& aRequest)
-{
-  MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TIsScoConnectedRequest);
-
-  mService->IsScoConnected(mReplyRunnable.get());
-  return true;
-}
-
-#ifdef MOZ_B2G_RIL
-bool
-BluetoothRequestParent::DoRequest(const AnswerWaitingCallRequest& aRequest)
-{
-  MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TAnswerWaitingCallRequest);
-
-  mService->AnswerWaitingCall(mReplyRunnable.get());
-
-  return true;
-}
-
-bool
-BluetoothRequestParent::DoRequest(const IgnoreWaitingCallRequest& aRequest)
-{
-  MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TAnswerWaitingCallRequest);
-
-  mService->IgnoreWaitingCall(mReplyRunnable.get());
-
-  return true;
-}
-
-bool
-BluetoothRequestParent::DoRequest(const ToggleCallsRequest& aRequest)
-{
-  MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TAnswerWaitingCallRequest);
-
-  mService->ToggleCalls(mReplyRunnable.get());
-
-  return true;
-}
-#endif // MOZ_B2G_RIL
-
-bool
-BluetoothRequestParent::DoRequest(const SendMetaDataRequest& aRequest)
-{
-  MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TSendMetaDataRequest);
-
-  mService->SendMetaData(aRequest.title(),
-                         aRequest.artist(),
-                         aRequest.album(),
-                         aRequest.mediaNumber(),
-                         aRequest.totalMediaCount(),
-                         aRequest.duration(),
-                         mReplyRunnable.get());
-  return true;
-}
-
-bool
-BluetoothRequestParent::DoRequest(const SendPlayStatusRequest& aRequest)
-{
-  MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TSendPlayStatusRequest);
-
-  mService->SendPlayStatus(aRequest.duration(),
-                           aRequest.position(),
-                           aRequest.playStatus(),
-                           mReplyRunnable.get());
   return true;
 }

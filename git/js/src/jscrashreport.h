@@ -4,12 +4,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jscrashreport_h
-#define jscrashreport_h
+#ifndef jscrashreport_h___
+#define jscrashreport_h___
 
 #include "mozilla/GuardObjects.h"
-
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 namespace js {
 namespace crash {
@@ -54,4 +53,4 @@ class StackBuffer
 } /* namespace crash */
 } /* namespace js */
 
-#endif /* jscrashreport_h */
+#endif /* jscrashreport_h___ */

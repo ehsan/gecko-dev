@@ -5,10 +5,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "mozilla/dom/PCrashReporterParent.h"
 #include "mozilla/dom/TabMessageUtils.h"
+#include "nsXULAppAPI.h"
 #include "nsIFile.h"
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
-#include "nsDataHashtable.h"
 #endif
 
 namespace mozilla {
@@ -80,9 +80,6 @@ public:
   }
   virtual bool
     RecvAppendAppNotes(const nsCString& data);
-  virtual mozilla::ipc::IProtocol*
-  CloneProtocol(Channel* aChannel,
-                mozilla::ipc::ProtocolCloneContext *aCtx) MOZ_OVERRIDE;
 
 #ifdef MOZ_CRASHREPORTER
   AnnotationTable mNotes;
@@ -122,7 +119,7 @@ CrashReporterParent::GenerateCrashReport(Toplevel* t,
                                          const AnnotationTable* processNotes)
 {
   nsCOMPtr<nsIFile> crashDump;
-  if (t->TakeMinidump(getter_AddRefs(crashDump), nullptr) &&
+  if (t->TakeMinidump(getter_AddRefs(crashDump), NULL) &&
       CrashReporter::GetIDFromMinidump(crashDump, mChildDumpID)) {
     return GenerateChildData(processNotes);
   }

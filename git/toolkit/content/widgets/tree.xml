@@ -33,7 +33,7 @@
     </implementation>
   </binding>
 
-  <binding id="tree" extends="chrome://global/content/bindings/tree.xml#tree-base" role="xul:tree">
+  <binding id="tree" extends="chrome://global/content/bindings/tree.xml#tree-base">
     <content hidevscroll="true" hidehscroll="true" clickthrough="never">
       <children includes="treecols"/>
       <xul:stack class="tree-stack" flex="1">
@@ -43,12 +43,12 @@
         <xul:textbox anonid="input" class="tree-input" left="0" top="0" hidden="true"/>
       </xul:stack>
       <xul:hbox xbl:inherits="collapsed=hidehscroll">
-        <xul:scrollbar orient="horizontal" flex="1" increment="16" style="position:relative; z-index:2147483647;"/>
+        <xul:scrollbar orient="horizontal" flex="1" increment="16"/>
         <xul:scrollcorner xbl:inherits="collapsed=hidevscroll"/>
       </xul:hbox>
     </content>
     
-    <implementation implements="nsIDOMXULTreeElement, nsIDOMXULMultiSelectControlElement">
+    <implementation implements="nsIDOMXULTreeElement, nsIDOMXULMultiSelectControlElement, nsIAccessibleProvider">
 
       <!-- ///////////////// nsIDOMXULTreeElement ///////////////// -->
 
@@ -78,6 +78,16 @@
       <property name="currentIndex"
                 onget="return this.view ? this.view.selection.currentIndex: - 1;"
                 onset="if (this.view) return this.view.selection.currentIndex = val; return val;"/>
+
+      <!-- ///////////////// nsIAccessibleProvider ///////////////// -->
+
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULTree;
+          ]]>
+        </getter>
+      </property>
 
       <property name="treeBoxObject"
                 onget="return this.boxObject.QueryInterface(Components.interfaces.nsITreeBoxObject);"
@@ -921,7 +931,7 @@
     </handlers>    
   </binding>
 
-  <binding id="treecols" role="xul:treecolumns">
+  <binding id="treecols">
     <resources>
       <stylesheet src="chrome://global/skin/tree.css"/>
     </resources>
@@ -931,7 +941,14 @@
       </xul:hbox>
       <xul:treecolpicker class="treecol-image" fixed="true" xbl:inherits="tooltiptext=pickertooltiptext"/>
     </content>
-    <implementation>
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULTreeColumns;
+          ]]>
+        </getter>
+      </property>
       <constructor><![CDATA[
         // Set resizeafter="farthest" on the splitters if nothing else has been
         // specified.
@@ -948,7 +965,7 @@
       <xul:hbox flex="1" class="tree-bodybox">
         <children/>
       </xul:hbox>
-      <xul:scrollbar height="0" minwidth="0" minheight="0" orient="vertical" xbl:inherits="collapsed=hidevscroll" style="position:relative; z-index:2147483647;"/>
+      <xul:scrollbar height="0" minwidth="0" minheight="0" orient="vertical" xbl:inherits="collapsed=hidevscroll"/>
     </content>
     <handlers>
       <handler event="underflow">
@@ -1167,12 +1184,19 @@
     </handlers>
   </binding>
 
-  <binding id="treecol-base" role="xul:treecolumnitem"
-           extends="chrome://global/content/bindings/tree.xml#tree-base">
-    <implementation>
+  <binding id="treecol-base" extends="chrome://global/content/bindings/tree.xml#tree-base">
+    <implementation implements="nsIAccessibleProvider">
       <constructor>
         this.parentNode.parentNode._columnsDirty = true;
       </constructor>
+
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULTreeColumnItem;
+          ]]>
+        </getter>
+      </property>
 
       <property name="ordinal">
         <getter><![CDATA[
@@ -1385,7 +1409,7 @@
     </content>
   </binding>
 
-  <binding id="columnpicker" display="xul:button" role="xul:button"
+  <binding id="columnpicker" display="xul:button"
            extends="chrome://global/content/bindings/tree.xml#tree-base">
     <content>
       <xul:image class="tree-columnpicker-icon"/>
@@ -1395,7 +1419,13 @@
       </xul:menupopup>
     </content>
     
-    <implementation>
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          return Components.interfaces.nsIAccessibleProvider.XULButton;
+        </getter>
+      </property>
+
       <method name="buildPopup">
         <parameter name="aPopup"/>
         <body>

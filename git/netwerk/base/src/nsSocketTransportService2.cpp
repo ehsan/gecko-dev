@@ -9,20 +9,21 @@
 
 #include "nsSocketTransportService2.h"
 #include "nsSocketTransport2.h"
+#include "nsReadableUtils.h"
 #include "nsError.h"
 #include "prnetdb.h"
 #include "prerror.h"
+#include "plstr.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsServiceManagerUtils.h"
+#include "nsIOService.h"
 #include "NetworkActivityMonitor.h"
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Likely.h"
 #include "mozilla/PublicSSL.h"
-#include "nsThreadUtils.h"
-#include "nsIFile.h"
 
 using namespace mozilla;
 using namespace mozilla::net;
@@ -58,8 +59,6 @@ nsSocketTransportService::nsSocketTransportService()
     , mIdleListSize(SOCKET_LIMIT_MIN)
     , mActiveCount(0)
     , mIdleCount(0)
-    , mSentBytesCount(0)
-    , mReceivedBytesCount(0)
     , mSendBufferSize(0)
     , mProbedMaxCount(false)
 {
@@ -102,8 +101,9 @@ already_AddRefed<nsIThread>
 nsSocketTransportService::GetThreadSafely()
 {
     MutexAutoLock lock(mLock);
-    nsCOMPtr<nsIThread> result = mThread;
-    return result.forget();
+    nsIThread* result = mThread;
+    NS_IF_ADDREF(result);
+    return result;
 }
 
 NS_IMETHODIMP
@@ -151,7 +151,7 @@ nsSocketTransportService::NotifyWhenCanAttachSocket(nsIRunnable *event)
 NS_IMETHODIMP
 nsSocketTransportService::AttachSocket(PRFileDesc *fd, nsASocketHandler *handler)
 {
-    SOCKET_LOG(("nsSocketTransportService::AttachSocket [handler=%p]\n", handler));
+    SOCKET_LOG(("nsSocketTransportService::AttachSocket [handler=%x]\n", handler));
 
     NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
@@ -173,14 +173,12 @@ nsSocketTransportService::AttachSocket(PRFileDesc *fd, nsASocketHandler *handler
 nsresult
 nsSocketTransportService::DetachSocket(SocketContext *listHead, SocketContext *sock)
 {
-    SOCKET_LOG(("nsSocketTransportService::DetachSocket [handler=%p]\n", sock->mHandler));
+    SOCKET_LOG(("nsSocketTransportService::DetachSocket [handler=%x]\n", sock->mHandler));
     NS_ABORT_IF_FALSE((listHead == mActiveList) || (listHead == mIdleList),
                       "DetachSocket invalid head");
 
     // inform the handler that this socket is going away
     sock->mHandler->OnSocketDetached(sock->mFD);
-    mSentBytesCount += sock->mHandler->ByteCountSent();
-    mReceivedBytesCount += sock->mHandler->ByteCountReceived();
 
     // cleanup
     sock->mFD = nullptr;
@@ -210,7 +208,7 @@ nsSocketTransportService::AddToPollList(SocketContext *sock)
     NS_ABORT_IF_FALSE(!(((uint32_t)(sock - mActiveList)) < mActiveListSize),
                       "AddToPollList Socket Already Active");
 
-    SOCKET_LOG(("nsSocketTransportService::AddToPollList [handler=%p]\n", sock->mHandler));
+    SOCKET_LOG(("nsSocketTransportService::AddToPollList [handler=%x]\n", sock->mHandler));
     if (mActiveCount == mActiveListSize) {
         SOCKET_LOG(("  Active List size of %d met\n", mActiveCount));
         if (!GrowActiveList()) {
@@ -233,7 +231,7 @@ nsSocketTransportService::AddToPollList(SocketContext *sock)
 void
 nsSocketTransportService::RemoveFromPollList(SocketContext *sock)
 {
-    SOCKET_LOG(("nsSocketTransportService::RemoveFromPollList [handler=%p]\n", sock->mHandler));
+    SOCKET_LOG(("nsSocketTransportService::RemoveFromPollList [handler=%x]\n", sock->mHandler));
 
     uint32_t index = sock - mActiveList;
     NS_ABORT_IF_FALSE(index < mActiveListSize, "invalid index");
@@ -255,7 +253,7 @@ nsSocketTransportService::AddToIdleList(SocketContext *sock)
     NS_ABORT_IF_FALSE(!(((uint32_t)(sock - mIdleList)) < mIdleListSize),
                       "AddToIdlelList Socket Already Idle");
 
-    SOCKET_LOG(("nsSocketTransportService::AddToIdleList [handler=%p]\n", sock->mHandler));
+    SOCKET_LOG(("nsSocketTransportService::AddToIdleList [handler=%x]\n", sock->mHandler));
     if (mIdleCount == mIdleListSize) {
         SOCKET_LOG(("  Idle List size of %d met\n", mIdleCount));
         if (!GrowIdleList()) {
@@ -274,7 +272,7 @@ nsSocketTransportService::AddToIdleList(SocketContext *sock)
 void
 nsSocketTransportService::RemoveFromIdleList(SocketContext *sock)
 {
-    SOCKET_LOG(("nsSocketTransportService::RemoveFromIdleList [handler=%p]\n", sock->mHandler));
+    SOCKET_LOG(("nsSocketTransportService::RemoveFromIdleList [handler=%x]\n", sock->mHandler));
 
     uint32_t index = sock - mIdleList;
     NS_ASSERTION(index < mIdleListSize, "invalid index in idle list");
@@ -404,13 +402,13 @@ nsSocketTransportService::Poll(bool wait, uint32_t *interval)
 //-----------------------------------------------------------------------------
 // xpcom api
 
-NS_IMPL_ISUPPORTS6(nsSocketTransportService,
-                   nsISocketTransportService,
-                   nsIEventTarget,
-                   nsIThreadObserver,
-                   nsIRunnable,
-                   nsPISocketTransportService,
-                   nsIObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS6(nsSocketTransportService,
+                              nsISocketTransportService,
+                              nsIEventTarget,
+                              nsIThreadObserver,
+                              nsIRunnable,
+                              nsPISocketTransportService,
+                              nsIObserver)
 
 // called from main thread only
 NS_IMETHODIMP
@@ -573,31 +571,6 @@ nsSocketTransportService::CreateTransport(const char **types,
 }
 
 NS_IMETHODIMP
-nsSocketTransportService::CreateUnixDomainTransport(nsIFile *aPath,
-                                                    nsISocketTransport **result)
-{
-    nsresult rv;
-
-    NS_ENSURE_TRUE(mInitialized, NS_ERROR_NOT_INITIALIZED);
-
-    nsAutoCString path;
-    rv = aPath->GetNativePath(path);
-    if (NS_FAILED(rv))
-        return rv;
-
-    nsRefPtr<nsSocketTransport> trans = new nsSocketTransport();
-    if (!trans)
-        return NS_ERROR_OUT_OF_MEMORY;
-
-    rv = trans->InitWithFilename(path.get());
-    if (NS_FAILED(rv))
-        return rv;
-
-    trans.forget(result);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
 nsSocketTransportService::GetAutodialEnabled(bool *value)
 {
     *value = mAutodialEnabled;
@@ -634,22 +607,10 @@ nsSocketTransportService::AfterProcessNextEvent(nsIThreadInternal* thread,
     return NS_OK;
 }
 
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
-
 NS_IMETHODIMP
 nsSocketTransportService::Run()
 {
     PR_SetCurrentThreadName("Socket Thread");
-
-#ifdef MOZ_NUWA_PROCESS
-    if (IsNuwaProcess()) {
-        NS_ASSERTION(NuwaMarkCurrentThread != nullptr,
-                     "NuwaMarkCurrentThread is undefined!");
-        NuwaMarkCurrentThread(nullptr, nullptr);
-    }
-#endif
 
     SOCKET_LOG(("STS thread init\n"));
 
@@ -657,7 +618,7 @@ nsSocketTransportService::Run()
 
     gSocketThread = PR_GetCurrentThread();
 
-    // add thread event to poll list (mThreadEvent may be nullptr)
+    // add thread event to poll list (mThreadEvent may be NULL)
     mPollList[0].fd = mThreadEvent;
     mPollList[0].in_flags = PR_POLL_READ;
     mPollList[0].out_flags = 0;
@@ -725,30 +686,30 @@ nsSocketTransportService::Run()
 }
 
 void
-nsSocketTransportService::DetachSocketWithGuard(bool aGuardLocals,
-                                                SocketContext *socketList,
-                                                int32_t index)
-{
-    bool isGuarded = false;
-    if (aGuardLocals) {
-        socketList[index].mHandler->IsLocal(&isGuarded);
-        if (!isGuarded)
-            socketList[index].mHandler->KeepWhenOffline(&isGuarded);
-    }
-    if (!isGuarded)
-        DetachSocket(socketList, &socketList[index]);
-}
-
-void
 nsSocketTransportService::Reset(bool aGuardLocals)
 {
     // detach any sockets
     int32_t i;
+    bool isGuarded;
     for (i = mActiveCount - 1; i >= 0; --i) {
-        DetachSocketWithGuard(aGuardLocals, mActiveList, i);
+        isGuarded = false;
+        if (aGuardLocals) {
+            mActiveList[i].mHandler->IsLocal(&isGuarded);
+            if (!isGuarded)
+                mActiveList[i].mHandler->KeepWhenOffline(&isGuarded);
+        }
+        if (!isGuarded)
+            DetachSocket(mActiveList, &mActiveList[i]);
     }
     for (i = mIdleCount - 1; i >= 0; --i) {
-        DetachSocketWithGuard(aGuardLocals, mIdleList, i);
+        isGuarded = false;
+        if (aGuardLocals) {
+            mIdleList[i].mHandler->IsLocal(&isGuarded);
+            if (!isGuarded)
+                mIdleList[i].mHandler->KeepWhenOffline(&isGuarded);
+        }
+        if (!isGuarded)
+            DetachSocket(mIdleList, &mIdleList[i]);
     }
 }
 
@@ -770,7 +731,7 @@ nsSocketTransportService::DoPollIteration(bool wait)
     count = mIdleCount;
     for (i=mActiveCount-1; i>=0; --i) {
         //---
-        SOCKET_LOG(("  active [%u] { handler=%p condition=%x pollflags=%hu }\n", i,
+        SOCKET_LOG(("  active [%u] { handler=%x condition=%x pollflags=%hu }\n", i,
             mActiveList[i].mHandler,
             mActiveList[i].mHandler->mCondition,
             mActiveList[i].mHandler->mPollFlags));
@@ -790,7 +751,7 @@ nsSocketTransportService::DoPollIteration(bool wait)
     }
     for (i=count-1; i>=0; --i) {
         //---
-        SOCKET_LOG(("  idle [%u] { handler=%p condition=%x pollflags=%hu }\n", i,
+        SOCKET_LOG(("  idle [%u] { handler=%x condition=%x pollflags=%hu }\n", i,
             mIdleList[i].mHandler,
             mIdleList[i].mHandler->mCondition,
             mIdleList[i].mHandler->mPollFlags));
@@ -987,6 +948,8 @@ nsSocketTransportService::ProbeMaxCount()
         return;
     mProbedMaxCount = true;
 
+    int32_t startedMaxCount = gMaxCount;
+
     // Allocate and test a PR_Poll up to the gMaxCount number of unconnected
     // sockets. See bug 692260 - windows should be able to handle 1000 sockets
     // in select() without a problem, but LSPs have been known to balk at lower
@@ -1087,14 +1050,10 @@ nsSocketTransportService::DiscoverMaxCount()
     return PR_SUCCESS;
 }
 
-
-// Used to return connection info to Dashboard.cpp
 void
 nsSocketTransportService::AnalyzeConnection(nsTArray<SocketInfo> *data,
         struct SocketContext *context, bool aActive)
 {
-    if (context->mHandler->mIsPrivate)
-        return;
     PRFileDesc *aFD = context->mFD;
     bool tcp = (PR_GetDescType(aFD) == PR_DESC_SOCKET_TCP);
 

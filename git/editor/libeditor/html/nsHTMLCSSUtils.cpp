@@ -16,6 +16,7 @@
 #include "nsCOMPtr.h"
 #include "nsColor.h"
 #include "nsComputedDOMStyle.h"
+#include "nsContentUtils.h"
 #include "nsDebug.h"
 #include "nsDependentSubstring.h"
 #include "nsEditProperty.h"
@@ -588,6 +589,7 @@ nsHTMLCSSUtils::GetComputedStyle(dom::Element* aElement)
   NS_ENSURE_TRUE(doc, nullptr);
 
   nsIPresShell* presShell = doc->GetShell();
+  NS_ASSERTION(presShell, "Trying to compute style without PresShell");
   NS_ENSURE_TRUE(presShell, nullptr);
 
   nsRefPtr<nsComputedDOMStyle> style =
@@ -704,7 +706,7 @@ nsHTMLCSSUtils::ParseLength(const nsAString & aString, float * aValue, nsIAtom *
     i++;
   }
   *aValue = value * sign;
-  *aUnit = NS_NewAtom(StringTail(aString, j-i)).get();
+  *aUnit = NS_NewAtom(StringTail(aString, j-i)); 
 }
 
 void
@@ -1108,7 +1110,7 @@ nsHTMLCSSUtils::IsCSSEquivalentToHTMLInlineStyleSet(nsIDOMNode *aNode,
         int32_t weight = 0;
         nsresult errorCode;
         nsAutoString value(valueString);
-        weight = value.ToInteger(&errorCode);
+        weight = value.ToInteger(&errorCode, 10);
         if (400 < weight) {
           aIsSet = true;
           valueString.AssignLiteral("bold");

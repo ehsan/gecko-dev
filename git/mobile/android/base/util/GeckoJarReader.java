@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.EmptyStackException;
 import java.util.Stack;
 
 /* Reads out of a multiple level deep jar file such as
@@ -40,7 +41,7 @@ public final class GeckoJarReader {
         try {
             // Load the initial jar file as a zip
             zip = getZipFile(jarUrls.pop());
-            inputStream = getStream(zip, jarUrls, url);
+            inputStream = getStream(zip, jarUrls);
             if (inputStream != null) {
                 bitmap = new BitmapDrawable(resources, inputStream);
             }
@@ -70,7 +71,7 @@ public final class GeckoJarReader {
         String text = null;
         try {
             zip = getZipFile(jarUrls.pop());
-            InputStream input = getStream(zip, jarUrls, url);
+            InputStream input = getStream(zip, jarUrls);
             if (input != null) {
                 reader = new BufferedReader(new InputStreamReader(input));
                 text = reader.readLine();
@@ -98,45 +99,30 @@ public final class GeckoJarReader {
         return new NativeZip(fileUrl.getPath());
     }
 
-    // Public for testing only.
-    public static InputStream getStream(String url) {
-        Stack<String> jarUrls = parseUrl(url);
-        try {
-            NativeZip zip = getZipFile(jarUrls.pop());
-            return getStream(zip, jarUrls, url);
-        } catch (Exception ex) {
-            // Some JNI code throws IllegalArgumentException on a bad file name;
-            // swallow the error and return null.  We could also see legitimate
-            // IOExceptions here.
-            return null;
-        }
-    }
-
-    private static InputStream getStream(NativeZip zip, Stack<String> jarUrls, String origUrl) {
+    private static InputStream getStream(NativeZip zip, Stack<String> jarUrls) throws IOException {
         InputStream inputStream = null;
+        try {
+            // loop through children jar files until we reach the innermost one
+            while (jarUrls.peek() != null) {
+                String fileName = jarUrls.pop();
 
-        // loop through children jar files until we reach the innermost one
-        while (!jarUrls.empty()) {
-            String fileName = jarUrls.pop();
-
-            if (inputStream != null) {
-                // intermediate NativeZips and InputStreams will be garbage collected.
-                try {
+                if (inputStream != null) {
+                    // intermediate NativeZips and InputStreams will be garbage collected.
                     zip = new NativeZip(inputStream);
-                } catch (IllegalArgumentException e) {
-                    String description = "!!! BUG 849589 !!! origUrl=" + origUrl;
-                    Log.e(LOGTAG, description, e);
-                    throw new IllegalArgumentException(description);
                 }
-            }
 
-            inputStream = zip.getInputStream(fileName);
-            if (inputStream == null) {
-                Log.d(LOGTAG, "No Entry for " + fileName);
-                return null;
+                inputStream = zip.getInputStream(fileName);
+                if (inputStream == null) {
+                    Log.d(LOGTAG, "No Entry for " + fileName);
+                    return null;
+                }
+
+                // if there is nothing else on the stack, this will throw and break us out of the loop
+                jarUrls.peek();
             }
+        } catch (EmptyStackException ex) {
+            Log.d(LOGTAG, "Jar reader reached end of stack");
         }
-
         return inputStream;
     }
 

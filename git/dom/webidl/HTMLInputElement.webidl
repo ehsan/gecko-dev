@@ -12,13 +12,6 @@
  * and create derivative works of this document.
  */
 
-enum SelectionMode {
-  "select",
-  "start",
-  "end",
-  "preserve",
-};
-
 interface nsIControllers;
 
 interface HTMLInputElement : HTMLElement {
@@ -40,8 +33,6 @@ interface HTMLInputElement : HTMLElement {
   readonly attribute HTMLFormElement? form;
   [Pure]
   readonly attribute FileList? files;
-  [Throws, Pref="dom.input.dirpicker"]
-  void openDirectoryPicker();
   [Pure, SetterThrows]
            attribute DOMString formAction;
   [Pure, SetterThrows]
@@ -56,7 +47,7 @@ interface HTMLInputElement : HTMLElement {
            attribute unsigned long height;
   [Pure]
            attribute boolean indeterminate;
-  [Pure, SetterThrows, Pref="dom.forms.inputmode"]
+  [Pure, SetterThrows]
            attribute DOMString inputMode;
   [Pure]
   readonly attribute HTMLElement? list;
@@ -90,8 +81,9 @@ interface HTMLInputElement : HTMLElement {
            attribute DOMString defaultValue;
   [Pure, TreatNullAs=EmptyString, SetterThrows]
            attribute DOMString value;
-  [Throws, Pref="dom.experimental_forms"]
-           attribute Date? valueAsDate;
+           // Bug 742206 - any to Date?
+  [Throws]
+           attribute any valueAsDate;
   [Pure, SetterThrows]
            attribute unrestricted double valueAsNumber;
            attribute unsigned long width;
@@ -121,11 +113,8 @@ interface HTMLInputElement : HTMLElement {
            attribute long selectionEnd;
   [Throws]
            attribute DOMString selectionDirection;
-  [Throws]
-  void setRangeText(DOMString replacement);
-  [Throws]
-  void setRangeText(DOMString replacement, unsigned long start,
-    unsigned long end, optional SelectionMode selectionMode = "preserve");
+  // Bug 850364 void setRangeText(DOMString replacement);
+  // Bug 850364 setRangeText(DOMString replacement, unsigned long start, unsigned long end, optional SelectionMode selectionMode);
 
   // also has obsolete members
 };

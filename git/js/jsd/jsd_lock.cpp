@@ -9,7 +9,7 @@
  */
 
 /*                                                                           
-* ifdef JSD_USE_NSPR_LOCKS then you must build and run against NSPR2.       
+* ifdef JSD_USE_NSPR_LOCKS then you musat build and run against NSPR2.       
 * Otherwise, there are stubs that can be filled in with your own locking     
 * code. Also, note that these stubs include a jsd_CurrentThread()            
 * implementation that only works on Win32 - this is needed for the inprocess 
@@ -56,8 +56,7 @@ struct JSDStaticLock
 JS_BEGIN_MACRO                                                                \
     out = (void*) PR_GetCurrentThread();                                      \
     if(!out)                                                                  \
-        out = (void*) JS_AttachThread(PR_USER_THREAD, PR_PRIORITY_NORMAL,     \
-                                      nullptr);                               \
+        out = (void*) JS_AttachThread(PR_USER_THREAD,PR_PRIORITY_NORMAL,NULL);\
     JS_ASSERT(out);                                                           \
 JS_END_MACRO
 #else
@@ -86,13 +85,13 @@ jsd_CreateLock()
 {
     JSDStaticLock* lock;
 
-    if( ! (lock = js_pod_calloc<JSDStaticLock>()) ||
+    if( ! (lock = js_pod_calloc<JSDStaticLock>(1)) ||
         ! (lock->lock = PR_NewLock()) )
     {
         if(lock)
         {
             free(lock);
-            lock = nullptr;
+            lock = NULL;
         }
     }
 #ifdef DEBUG
@@ -137,22 +136,22 @@ jsd_Unlock(JSDStaticLock* lock)
 
     if(--lock->count == 0)
     {
-        lock->owner = nullptr;
+        lock->owner = NULL;
         PR_Unlock(lock->lock);
     }
 }    
 
 #ifdef DEBUG
-bool
+JSBool
 jsd_IsLocked(JSDStaticLock* lock)
 {
     void* me;
     ASSERT_VALID_LOCK(lock);
     _CURRENT_THREAD(me);
     if (lock->owner != me)
-        return false;
+        return JS_FALSE;
     JS_ASSERT(lock->count > 0);
-    return true;
+    return JS_TRUE;
 }    
 #endif /* DEBUG */
 
@@ -195,10 +194,10 @@ jsd_Unlock(void* lock)
 }    
 
 #ifdef DEBUG
-bool
+JSBool
 jsd_IsLocked(void* lock)
 {
-    return true;
+    return JS_TRUE;
 }    
 #endif /* DEBUG */
 

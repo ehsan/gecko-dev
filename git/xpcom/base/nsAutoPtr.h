@@ -91,19 +91,12 @@ class nsAutoPtr
         {
         }
 
-      // This constructor shouldn't exist; we should just use the &&
-      // constructor.
       nsAutoPtr( nsAutoPtr<T>& aSmartPtr )
             : mRawPtr( aSmartPtr.forget() )
           // Construct by transferring ownership from another smart pointer.
         {
         }
 
-      nsAutoPtr( nsAutoPtr<T>&& aSmartPtr )
-            : mRawPtr( aSmartPtr.forget() )
-          // Construct by transferring ownership from another smart pointer.
-        {
-        }
 
         // Assignment operators
 
@@ -990,7 +983,7 @@ class nsRefPtr
         {
           T* temp = 0;
           swap(temp);
-          return already_AddRefed<T>(temp);
+          return temp;
         }
 
       template <typename I>

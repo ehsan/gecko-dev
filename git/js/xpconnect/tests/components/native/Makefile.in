@@ -3,14 +3,28 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME = xpctest
+IS_COMPONENT = 1
 MODULE_NAME = xpconnect_test
+NO_DIST_INSTALL = 1
 FORCE_SHARED_LIB = 1
 
-componentdir = js/xpconnect/tests/components/native
+CPPSRCS = \
+  xpctest_module.cpp \
+  xpctest_attributes.cpp \
+  xpctest_params.cpp \
+  $(NULL)
 
-MANIFEST = xpctest.manifest
-MANIFEST_PATH = $(testxpcobjdir)/$(componentdir)
-PP_TARGETS += MANIFEST
+include $(topsrcdir)/config/config.mk
+
+MANIFEST_FILE = xpctest.manifest
 
 EXTRA_DSO_LDOPTS += \
   $(XPCOM_GLUE_LDOPTS) \
@@ -18,8 +32,15 @@ EXTRA_DSO_LDOPTS += \
   $(MOZ_JS_LIBS) \
   $(NULL)
 
+include $(topsrcdir)/config/rules.mk
+
+
 DEFINES += -DLIBRARY_FILENAME="$(SHARED_LIBRARY)"
 
-LIB_FILES = $(SHARED_LIBRARY)
-LIB_DEST = $(testxpcobjdir)/$(componentdir)
-INSTALL_TARGETS += LIB
+componentdir = js/xpconnect/tests/components/native
+
+libs:: $(SHARED_LIBRARY)
+	$(INSTALL) $^ $(testxpcobjdir)/$(componentdir)
+
+libs:: $(MANIFEST_FILE)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $< > $(testxpcobjdir)/$(componentdir)/$(<F)

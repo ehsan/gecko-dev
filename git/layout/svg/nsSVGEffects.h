@@ -124,7 +124,7 @@ protected:
   public:
     SourceReference(nsSVGIDRenderingObserver* aContainer) : mContainer(aContainer) {}
   protected:
-    virtual void ElementChanged(Element* aFrom, Element* aTo) MOZ_OVERRIDE {
+    virtual void ElementChanged(Element* aFrom, Element* aTo) {
       mContainer->StopListening();
       nsReferencedElement::ElementChanged(aFrom, aTo);
       mContainer->StartListening();
@@ -134,7 +134,7 @@ protected:
      * Override IsPersistent because we want to keep tracking the element
      * for the ID even when it changes.
      */
-    virtual bool IsPersistent() MOZ_OVERRIDE { return true; }
+    virtual bool IsPersistent() { return true; }
   private:
     nsSVGIDRenderingObserver* mContainer;
   };
@@ -166,7 +166,7 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsISVGFilterProperty
-  virtual void Invalidate() MOZ_OVERRIDE { DoUpdate(); }
+  virtual void Invalidate() { DoUpdate(); }
 
 private:
   // nsSVGRenderingObserver
@@ -229,10 +229,9 @@ protected:
  */
 class nsSVGRenderingObserverList {
 public:
-  nsSVGRenderingObserverList()
-    : mObservers(5)
-  {
+  nsSVGRenderingObserverList() {
     MOZ_COUNT_CTOR(nsSVGRenderingObserverList);
+    mObservers.Init(5);
   }
 
   ~nsSVGRenderingObserverList() {

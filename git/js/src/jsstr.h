@@ -4,64 +4,48 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsstr_h
-#define jsstr_h
+#ifndef jsstr_h___
+#define jsstr_h___
 
-#include "mozilla/HashFunctions.h"
 #include "mozilla/PodOperations.h"
 
+#include <ctype.h>
+#include "jsapi.h"
+#include "jsatom.h"
+#include "jslock.h"
 #include "jsutil.h"
-#include "NamespaceImports.h"
 
-#include "gc/Rooting.h"
-#include "js/RootingAPI.h"
+#include "js/HashTable.h"
 #include "vm/Unicode.h"
 
-class JSAutoByteString;
 class JSFlatString;
-class JSLinearString;
 class JSStableString;
 
 namespace js {
 
+/* Implemented in jsstrinlines.h */
 class StringBuffer;
 
+/*
+ * When an algorithm does not need a string represented as a single linear
+ * array of characters, this range utility may be used to traverse the string a
+ * sequence of linear arrays of characters. This avoids flattening ropes.
+ *
+ * Implemented in jsstrinlines.h.
+ */
+class StringSegmentRange;
 class MutatingRopeSegmentRange;
+
+/*
+ * Utility for building a rope (lazy concatenation) of strings.
+ */
+class RopeBuilder;
 
 template <AllowGC allowGC>
 extern JSString *
-ConcatStrings(ThreadSafeContext *cx,
+ConcatStrings(JSContext *cx,
               typename MaybeRooted<JSString*, allowGC>::HandleType left,
               typename MaybeRooted<JSString*, allowGC>::HandleType right);
-
-// Return s advanced past any Unicode white space characters.
-static inline const jschar *
-SkipSpace(const jschar *s, const jschar *end)
-{
-    JS_ASSERT(s <= end);
-
-    while (s < end && unicode::IsSpace(*s))
-        s++;
-
-    return s;
-}
-
-// Return less than, equal to, or greater than zero depending on whether
-// s1 is less than, equal to, or greater than s2.
-inline bool
-CompareChars(const jschar *s1, size_t l1, const jschar *s2, size_t l2, int32_t *result)
-{
-    size_t n = Min(l1, l2);
-    for (size_t i = 0; i < n; i++) {
-        if (int32_t cmp = s1[i] - s2[i]) {
-            *result = cmp;
-            return true;
-        }
-    }
-
-    *result = (int32_t)(l1 - l2);
-    return true;
-}
 
 }  /* namespace js */
 
@@ -76,8 +60,8 @@ struct JSSubString {
     const jschar    *chars;
 };
 
-extern const jschar js_empty_ucstr[];
-extern const JSSubString js_EmptySubString;
+extern jschar      js_empty_ucstr[];
+extern JSSubString js_EmptySubString;
 
 /*
  * Shorthands for ASCII (7-bit) decimal and hex conversion.
@@ -104,7 +88,7 @@ extern const char js_encodeURIComponent_str[];
 /* GC-allocate a string descriptor for the given malloc-allocated chars. */
 template <js::AllowGC allowGC>
 extern JSStableString *
-js_NewString(js::ThreadSafeContext *cx, jschar *chars, size_t length);
+js_NewString(JSContext *cx, jschar *chars, size_t length);
 
 extern JSLinearString *
 js_NewDependentString(JSContext *cx, JSString *base, size_t start, size_t length);
@@ -112,20 +96,20 @@ js_NewDependentString(JSContext *cx, JSString *base, size_t start, size_t length
 /* Copy a counted string and GC-allocate a descriptor for it. */
 template <js::AllowGC allowGC>
 extern JSFlatString *
-js_NewStringCopyN(js::ExclusiveContext *cx, const jschar *s, size_t n);
+js_NewStringCopyN(JSContext *cx, const jschar *s, size_t n);
 
 template <js::AllowGC allowGC>
 extern JSFlatString *
-js_NewStringCopyN(js::ThreadSafeContext *cx, const char *s, size_t n);
+js_NewStringCopyN(JSContext *cx, const char *s, size_t n);
 
 /* Copy a C string and GC-allocate a descriptor for it. */
 template <js::AllowGC allowGC>
 extern JSFlatString *
-js_NewStringCopyZ(js::ExclusiveContext *cx, const jschar *s);
+js_NewStringCopyZ(JSContext *cx, const jschar *s);
 
 template <js::AllowGC allowGC>
 extern JSFlatString *
-js_NewStringCopyZ(js::ThreadSafeContext *cx, const char *s);
+js_NewStringCopyZ(JSContext *cx, const char *s);
 
 /*
  * Convert a value to a printable C string.
@@ -142,7 +126,7 @@ namespace js {
  */
 template <AllowGC allowGC>
 extern JSString *
-ToStringSlow(ExclusiveContext *cx, typename MaybeRooted<Value, allowGC>::HandleType arg);
+ToStringSlow(JSContext *cx, const Value &v);
 
 /*
  * Convert the given value to a string.  This method includes an inline
@@ -151,7 +135,7 @@ ToStringSlow(ExclusiveContext *cx, typename MaybeRooted<Value, allowGC>::HandleT
  */
 template <AllowGC allowGC>
 static JS_ALWAYS_INLINE JSString *
-ToString(JSContext *cx, JS::HandleValue v)
+ToString(JSContext *cx, const js::Value &v)
 {
 #ifdef DEBUG
     if (allowGC) {
@@ -173,20 +157,15 @@ ToString(JSContext *cx, JS::HandleValue v)
 inline bool
 ValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb);
 
+} /* namespace js */
+
+namespace js {
 /*
  * Convert a value to its source expression, returning null after reporting
  * an error, otherwise returning a new string reference.
  */
 extern JSString *
-ValueToSource(JSContext *cx, HandleValue v);
-
-/*
- * Convert a JSString to its source expression; returns null after reporting an
- * error, otherwise returns a new string reference. No Handle needed since the
- * input is dead after the GC.
- */
-extern JSString *
-StringToSource(JSContext *cx, JSString *str);
+ValueToSource(JSContext *cx, const js::Value &v);
 
 /*
  * Test if strings are equal. The caller can call the function even if str1
@@ -227,6 +206,9 @@ extern size_t
 js_strlen(const jschar *s);
 
 extern jschar *
+js_strchr(const jschar *s, jschar c);
+
+extern jschar *
 js_strchr_limit(const jschar *s, jschar c, const jschar *limit);
 
 static JS_ALWAYS_INLINE void
@@ -236,29 +218,50 @@ js_strncpy(jschar *dst, const jschar *src, size_t nelem)
 }
 
 extern jschar *
-js_strdup(js::ThreadSafeContext *cx, const jschar *s);
+js_strdup(JSContext *cx, const jschar *s);
 
 namespace js {
 
 /*
  * Inflate bytes in ASCII encoding to jschars. Return null on error, otherwise
  * return the jschar that was malloc'ed. length is updated to the length of the
- * new string (in jschars). A null char is appended, but it is not included in
- * the length.
+ * new string (in jschars).
  */
 extern jschar *
-InflateString(ThreadSafeContext *cx, const char *bytes, size_t *length);
+InflateString(JSContext *cx, const char *bytes, size_t *length);
 
 /*
- * Inflate bytes to JS chars in an existing buffer. 'dst' must be large
- * enough for 'srclen' jschars. The buffer is NOT null-terminated.
+ * Inflate bytes in UTF-8 encoding to jschars. Return null on error, otherwise
+ * return the jschar vector that was malloc'ed. length is updated to the length
+ * of the new string (in jschars).
  */
-inline void
-InflateStringToBuffer(const char *src, size_t srclen, jschar *dst)
-{
-    for (size_t i = 0; i < srclen; i++)
-        dst[i] = (unsigned char) src[i];
-}
+extern jschar *
+InflateUTF8String(JSContext *cx, const char *bytes, size_t *length);
+
+/*
+ * Inflate bytes to JS chars in an existing buffer. 'chars' must be large
+ * enough for 'length' jschars. The buffer is NOT null-terminated.
+ *
+ * charsLength must be be initialized with the destination buffer size and, on
+ * return, will contain on return the number of copied chars.
+ */
+extern bool
+InflateStringToBuffer(JSContext *cx, const char *bytes, size_t length,
+                      jschar *chars, size_t *charsLength);
+
+extern bool
+InflateUTF8StringToBuffer(JSContext *cx, const char *bytes, size_t length,
+                          jschar *chars, size_t *charsLength);
+
+/*
+ * The same as InflateUTF8StringToBuffer(), except that any malformed UTF-8
+ * characters will be replaced by \uFFFD. No exception will be thrown for
+ * malformed UTF-8 input.
+ */
+extern bool
+InflateUTF8StringToBufferReplaceInvalid(JSContext *cx, const char *bytes,
+                                        size_t length, jschar *chars,
+                                        size_t *charsLength);
 
 /*
  * Deflate JS chars to bytes into a buffer. 'bytes' must be large enough for
@@ -267,28 +270,28 @@ InflateStringToBuffer(const char *src, size_t srclen, jschar *dst)
  * number of copied bytes.
  */
 extern bool
-DeflateStringToBuffer(JSContext *maybecx, const jschar *chars,
+DeflateStringToBuffer(JSContext *cx, const jschar *chars,
                       size_t charsLength, char *bytes, size_t *length);
 
 /*
  * The String.prototype.replace fast-native entry point is exported for joined
  * function optimization in js{interp,tracer}.cpp.
  */
-extern bool
+extern JSBool
 str_replace(JSContext *cx, unsigned argc, js::Value *vp);
 
-extern bool
+extern JSBool
 str_fromCharCode(JSContext *cx, unsigned argc, Value *vp);
 
 } /* namespace js */
 
-extern bool
+extern JSBool
 js_str_toString(JSContext *cx, unsigned argc, js::Value *vp);
 
-extern bool
+extern JSBool
 js_str_charAt(JSContext *cx, unsigned argc, js::Value *vp);
 
-extern bool
+extern JSBool
 js_str_charCodeAt(JSContext *cx, unsigned argc, js::Value *vp);
 
 /*
@@ -303,10 +306,6 @@ namespace js {
 extern size_t
 PutEscapedStringImpl(char *buffer, size_t size, FILE *fp, JSLinearString *str, uint32_t quote);
 
-extern size_t
-PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, const jschar *chars,
-                     size_t length, uint32_t quote);
-
 /*
  * Write str into buffer escaping any non-printable or non-ASCII character
  * using \escapes for JS string literals.
@@ -319,17 +318,7 @@ PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, const jschar *ch
 inline size_t
 PutEscapedString(char *buffer, size_t size, JSLinearString *str, uint32_t quote)
 {
-    size_t n = PutEscapedStringImpl(buffer, size, nullptr, str, quote);
-
-    /* PutEscapedStringImpl can only fail with a file. */
-    JS_ASSERT(n != size_t(-1));
-    return n;
-}
-
-inline size_t
-PutEscapedString(char *buffer, size_t bufferSize, const jschar *chars, size_t length, uint32_t quote)
-{
-    size_t n = PutEscapedStringImpl(buffer, bufferSize, nullptr, chars, length, quote);
+    size_t n = PutEscapedStringImpl(buffer, size, NULL, str, quote);
 
     /* PutEscapedStringImpl can only fail with a file. */
     JS_ASSERT(n != size_t(-1));
@@ -344,28 +333,21 @@ PutEscapedString(char *buffer, size_t bufferSize, const jschar *chars, size_t le
 inline bool
 FileEscapedString(FILE *fp, JSLinearString *str, uint32_t quote)
 {
-    return PutEscapedStringImpl(nullptr, 0, fp, str, quote) != size_t(-1);
+    return PutEscapedStringImpl(NULL, 0, fp, str, quote) != size_t(-1);
 }
 
-bool
+JSBool
 str_match(JSContext *cx, unsigned argc, Value *vp);
 
-bool
+JSBool
 str_search(JSContext *cx, unsigned argc, Value *vp);
 
-bool
+JSBool
 str_split(JSContext *cx, unsigned argc, Value *vp);
-
-JSObject *
-str_split_string(JSContext *cx, HandleTypeObject type, HandleString str, HandleString sep);
-
-bool
-str_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
-            MutableHandleObject objp);
 
 } /* namespace js */
 
-extern bool
+extern JSBool
 js_String(JSContext *cx, unsigned argc, js::Value *vp);
 
-#endif /* jsstr_h */
+#endif /* jsstr_h___ */

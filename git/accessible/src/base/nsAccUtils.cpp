@@ -6,8 +6,8 @@
 #include "nsAccUtils.h"
 
 #include "Accessible-inl.h"
-#include "ARIAMap.h"
 #include "nsAccessibilityService.h"
+#include "nsARIAMap.h"
 #include "nsCoreUtils.h"
 #include "DocAccessible.h"
 #include "HyperTextAccessible.h"
@@ -15,10 +15,13 @@
 #include "Role.h"
 #include "States.h"
 #include "TextLeafAccessible.h"
+#include "nsIMutableArray.h"
 
 #include "nsIDOMXULContainerElement.h"
-#include "nsIPersistentProperties2.h"
-#include "mozilla/dom/Element.h"
+#include "nsIDOMXULSelectCntrlEl.h"
+#include "nsIDOMXULSelectCntrlItemEl.h"
+#include "nsWhitespaceTokenizer.h"
+#include "nsComponentManagerUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -127,7 +130,7 @@ nsAccUtils::SetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
                                        nsIContent *aStartContent,
                                        nsIContent *aTopContent)
 {
-  nsAutoString live, relevant, busy;
+  nsAutoString atomic, live, relevant, busy;
   nsIContent *ancestor = aStartContent;
   while (ancestor) {
 
@@ -156,11 +159,10 @@ nsAccUtils::SetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
     }
 
     // container-atomic attribute
-    if (ancestor->AttrValueIs(kNameSpaceID_None, nsGkAtoms::aria_atomic,
-                              nsGkAtoms::_true, eCaseMatters)) {
-      SetAccAttr(aAttributes, nsGkAtoms::containerAtomic,
-                 NS_LITERAL_STRING("true"));
-    }
+    if (atomic.IsEmpty() &&
+        HasDefinedARIAToken(ancestor, nsGkAtoms::aria_atomic) &&
+        ancestor->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_atomic, atomic))
+      SetAccAttr(aAttributes, nsGkAtoms::containerAtomic, atomic);
 
     // container-busy attribute
     if (busy.IsEmpty() &&
@@ -211,6 +213,22 @@ nsAccUtils::GetARIAToken(dom::Element* aElement, nsIAtom* aAttr)
 }
 
 Accessible*
+nsAccUtils::GetAncestorWithRole(Accessible* aDescendant, uint32_t aRole)
+{
+  Accessible* document = aDescendant->Document();
+  Accessible* parent = aDescendant;
+  while ((parent = parent->Parent())) {
+    uint32_t testRole = parent->Role();
+    if (testRole == aRole)
+      return parent;
+
+    if (parent == document)
+      break;
+  }
+  return nullptr;
+}
+
+Accessible*
 nsAccUtils::GetSelectableContainer(Accessible* aAccessible, uint64_t aState)
 {
   if (!aAccessible)
@@ -236,15 +254,32 @@ nsAccUtils::IsARIASelected(Accessible* aAccessible)
 }
 
 HyperTextAccessible*
-nsAccUtils::GetTextContainer(nsINode* aNode)
+nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
 {
-  // Get text accessible containing the result node.
-  DocAccessible* doc =
-    GetAccService()->GetDocAccessible(aNode->OwnerDoc());
-  Accessible* accessible =
-    doc ? doc->GetAccessibleOrContainer(aNode) : nullptr;
-  if (!accessible)
+  // Get accessible from selection's focus DOM point (the DOM point where
+  // selection is ended).
+
+  nsCOMPtr<nsIDOMNode> focusDOMNode;
+  aSelection->GetFocusNode(getter_AddRefs(focusDOMNode));
+  if (!focusDOMNode)
     return nullptr;
+
+  int32_t focusOffset = 0;
+  aSelection->GetFocusOffset(&focusOffset);
+
+  nsCOMPtr<nsINode> focusNode(do_QueryInterface(focusDOMNode));
+  nsCOMPtr<nsINode> resultNode =
+    nsCoreUtils::GetDOMNodeFromDOMPoint(focusNode, focusOffset);
+
+  // Get text accessible containing the result node.
+  DocAccessible* doc = 
+    GetAccService()->GetDocAccessible(resultNode->OwnerDoc());
+  Accessible* accessible = doc ? 
+    doc->GetAccessibleOrContainer(resultNode) : nullptr;
+  if (!accessible) {
+    NS_NOTREACHED("No nsIAccessibleText for selection change event!");
+    return nullptr;
+  }
 
   do {
     HyperTextAccessible* textAcc = accessible->AsHyperText();
@@ -254,6 +289,7 @@ nsAccUtils::GetTextContainer(nsINode* aNode)
     accessible = accessible->Parent();
   } while (accessible);
 
+  NS_NOTREACHED("We must reach document accessible implementing nsIAccessibleText!");
   return nullptr;
 }
 
@@ -333,6 +369,16 @@ nsAccUtils::GetScreenCoordsForParent(Accessible* aAccessible)
     ToNearestPixels(parentFrame->PresContext()->AppUnitsPerDevPixel());
 }
 
+uint8_t
+nsAccUtils::GetAttributeCharacteristics(nsIAtom* aAtom)
+{
+    for (uint32_t i = 0; i < nsARIAMap::gWAIUnivAttrMapLength; i++)
+      if (*nsARIAMap::gWAIUnivAttrMap[i].attributeName == aAtom)
+        return nsARIAMap::gWAIUnivAttrMap[i].characteristics;
+
+    return 0;
+}
+
 bool
 nsAccUtils::GetLiveAttrValue(uint32_t aRule, nsAString& aValue)
 {
@@ -403,21 +449,18 @@ nsAccUtils::MustPrune(Accessible* aAccessible)
 { 
   roles::Role role = aAccessible->Role();
 
-  // Don't prune the tree for certain roles if the tree is more complex than
-  // a single text leaf.
-  return
-    (role == roles::MENUITEM ||
-     role == roles::COMBOBOX_OPTION ||
-     role == roles::OPTION ||
-     role == roles::ENTRY ||
-     role == roles::FLAT_EQUATION ||
-     role == roles::PASSWORD_TEXT ||
-     role == roles::PUSHBUTTON ||
-     role == roles::TOGGLE_BUTTON ||
-     role == roles::GRAPHIC ||
-     role == roles::SLIDER ||
-     role == roles::PROGRESSBAR ||
-     role == roles::SEPARATOR) &&
-    aAccessible->ContentChildCount() == 1 &&
-    aAccessible->ContentChildAt(0)->IsTextLeaf();
+  // We don't prune buttons any more however AT don't expect children inside of
+  // button in general, we allow menu buttons to have children to make them
+  // accessible.
+  return role == roles::MENUITEM || 
+    role == roles::COMBOBOX_OPTION ||
+    role == roles::OPTION ||
+    role == roles::ENTRY ||
+    role == roles::FLAT_EQUATION ||
+    role == roles::PASSWORD_TEXT ||
+    role == roles::TOGGLE_BUTTON ||
+    role == roles::GRAPHIC ||
+    role == roles::SLIDER ||
+    role == roles::PROGRESSBAR ||
+    role == roles::SEPARATOR;
 }

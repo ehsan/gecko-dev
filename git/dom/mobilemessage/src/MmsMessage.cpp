@@ -8,14 +8,12 @@
 #include "jsapi.h" // For OBJECT_TO_JSVAL and JS_NewDateObjectMsec
 #include "jsfriendapi.h" // For js_DateGetMsecSinceEpoch
 #include "nsJSUtils.h"
+#include "Constants.h"
 #include "nsContentUtils.h"
 #include "nsIDOMFile.h"
 #include "nsTArrayHelpers.h"
 #include "mozilla/dom/ContentParent.h"
-#include "mozilla/dom/mobilemessage/Constants.h" // For MessageType
 #include "mozilla/dom/mobilemessage/SmsTypes.h"
-#include "nsDOMFile.h"
-#include "nsCxPusher.h"
 
 using namespace mozilla::idl;
 using namespace mozilla::dom::mobilemessage;
@@ -34,50 +32,41 @@ NS_INTERFACE_MAP_END
 NS_IMPL_ADDREF(MmsMessage)
 NS_IMPL_RELEASE(MmsMessage)
 
-MmsMessage::MmsMessage(int32_t                          aId,
-                       uint64_t                         aThreadId,
-                       const nsAString&                 aIccId,
-                       DeliveryState                    aDelivery,
-                       const nsTArray<MmsDeliveryInfo>& aDeliveryInfo,
-                       const nsAString&                 aSender,
-                       const nsTArray<nsString>&        aReceivers,
-                       uint64_t                         aTimestamp,
-                       bool                             aRead,
-                       const nsAString&                 aSubject,
-                       const nsAString&                 aSmil,
-                       const nsTArray<MmsAttachment>&   aAttachments,
-                       uint64_t                         aExpiryDate,
-                       bool                             aIsReadReportRequested)
+MmsMessage::MmsMessage(int32_t                         aId,
+                       const uint64_t                  aThreadId,
+                       DeliveryState                   aDelivery,
+                       const nsTArray<DeliveryStatus>& aDeliveryStatus,
+                       const nsAString&                aSender,
+                       const nsTArray<nsString>&       aReceivers,
+                       uint64_t                        aTimestamp,
+                       bool                            aRead,
+                       const nsAString&                aSubject,
+                       const nsAString&                aSmil,
+                       const nsTArray<MmsAttachment>&  aAttachments)
   : mId(aId),
     mThreadId(aThreadId),
-    mIccId(aIccId),
     mDelivery(aDelivery),
-    mDeliveryInfo(aDeliveryInfo),
+    mDeliveryStatus(aDeliveryStatus),
     mSender(aSender),
     mReceivers(aReceivers),
     mTimestamp(aTimestamp),
     mRead(aRead),
     mSubject(aSubject),
     mSmil(aSmil),
-    mAttachments(aAttachments),
-    mExpiryDate(aExpiryDate),
-    mIsReadReportRequested(aIsReadReportRequested)
+    mAttachments(aAttachments)
 {
 }
 
 MmsMessage::MmsMessage(const mobilemessage::MmsMessageData& aData)
   : mId(aData.id())
-  , mThreadId(aData.threadId())
-  , mIccId(aData.iccId())
   , mDelivery(aData.delivery())
+  , mDeliveryStatus(aData.deliveryStatus())
   , mSender(aData.sender())
   , mReceivers(aData.receivers())
   , mTimestamp(aData.timestamp())
   , mRead(aData.read())
   , mSubject(aData.subject())
   , mSmil(aData.smil())
-  , mExpiryDate(aData.expiryDate())
-  , mIsReadReportRequested(aData.isReadReportRequested())
 {
   uint32_t len = aData.attachments().Length();
   mAttachments.SetCapacity(len);
@@ -95,99 +84,13 @@ MmsMessage::MmsMessage(const mobilemessage::MmsMessageData& aData)
     }
     mAttachments.AppendElement(att);
   }
-
-  len = aData.deliveryInfo().Length();
-  mDeliveryInfo.SetCapacity(len);
-  for (uint32_t i = 0; i < len; i++) {
-    MmsDeliveryInfo info;
-    const MmsDeliveryInfoData &infoData = aData.deliveryInfo()[i];
-
-    // Prepare |info.receiver|.
-    info.receiver = infoData.receiver();
-
-    // Prepare |info.deliveryStatus|.
-    nsString statusStr;
-    switch (infoData.deliveryStatus()) {
-      case eDeliveryStatus_NotApplicable:
-        statusStr = DELIVERY_STATUS_NOT_APPLICABLE;
-        break;
-      case eDeliveryStatus_Success:
-        statusStr = DELIVERY_STATUS_SUCCESS;
-        break;
-      case eDeliveryStatus_Pending:
-        statusStr = DELIVERY_STATUS_PENDING;
-        break;
-      case eDeliveryStatus_Error:
-        statusStr = DELIVERY_STATUS_ERROR;
-        break;
-      case eDeliveryStatus_Reject:
-        statusStr = DELIVERY_STATUS_REJECTED;
-        break;
-      case eDeliveryStatus_Manual:
-        statusStr = DELIVERY_STATUS_MANUAL;
-        break;
-      case eDeliveryStatus_EndGuard:
-      default:
-        MOZ_CRASH("We shouldn't get any other delivery status!");
-    }
-    info.deliveryStatus = statusStr;
-
-    // Prepare |info.deliveryTimestamp|.
-    info.deliveryTimestamp = JSVAL_NULL;
-    if (infoData.deliveryTimestamp() != 0) {
-      AutoJSContext cx;
-      JS::Rooted<JSObject*>
-        dateObj(cx, JS_NewDateObjectMsec(cx, infoData.deliveryTimestamp()));
-      if (!dateObj) {
-        NS_WARNING("MmsMessage: Unable to create Date for deliveryTimestamp.");
-      } else {
-        info.deliveryTimestamp = OBJECT_TO_JSVAL(dateObj);
-      }
-    }
-
-    mDeliveryInfo.AppendElement(info);
-  }
-}
-
-/**
- * A helper function to convert the JS value to an integer value for time.
- *
- * @params aCx
- *         The JS context.
- * @params aTime
- *         Can be an object or a number.
- * @params aReturn
- *         The integer value to return.
- * @return NS_OK if the convertion succeeds.
- */
-static nsresult
-convertTimeToInt(JSContext* aCx, const JS::Value& aTime, uint64_t& aReturn)
-{
-  if (aTime.isObject()) {
-    JS::Rooted<JSObject*> timestampObj(aCx, &aTime.toObject());
-    if (!JS_ObjectIsDate(aCx, timestampObj)) {
-      return NS_ERROR_INVALID_ARG;
-    }
-    aReturn = js_DateGetMsecSinceEpoch(timestampObj);
-  } else {
-    if (!aTime.isNumber()) {
-      return NS_ERROR_INVALID_ARG;
-    }
-    double number = aTime.toNumber();
-    if (static_cast<uint64_t>(number) != number) {
-      return NS_ERROR_INVALID_ARG;
-    }
-    aReturn = static_cast<uint64_t>(number);
-  }
-  return NS_OK;
 }
 
 /* static */ nsresult
 MmsMessage::Create(int32_t               aId,
-                   uint64_t              aThreadId,
-                   const nsAString&      aIccId,
+                   const uint64_t        aThreadId,
                    const nsAString&      aDelivery,
-                   const JS::Value&      aDeliveryInfo,
+                   const JS::Value&      aDeliveryStatus,
                    const nsAString&      aSender,
                    const JS::Value&      aReceivers,
                    const JS::Value&      aTimestamp,
@@ -195,8 +98,6 @@ MmsMessage::Create(int32_t               aId,
                    const nsAString&      aSubject,
                    const nsAString&      aSmil,
                    const JS::Value&      aAttachments,
-                   const JS::Value&      aExpiryDate,
-                   bool                  aIsReadReportRequested,
                    JSContext*            aCx,
                    nsIDOMMozMmsMessage** aMessage)
 {
@@ -218,38 +119,50 @@ MmsMessage::Create(int32_t               aId,
     return NS_ERROR_INVALID_ARG;
   }
 
-  // Set |deliveryInfo|.
-  if (!aDeliveryInfo.isObject()) {
+  // Set |deliveryStatus|.
+  if (!aDeliveryStatus.isObject()) {
     return NS_ERROR_INVALID_ARG;
   }
-  JS::Rooted<JSObject*> deliveryInfoObj(aCx, &aDeliveryInfo.toObject());
-  if (!JS_IsArrayObject(aCx, deliveryInfoObj)) {
+  JSObject* deliveryStatusObj = &aDeliveryStatus.toObject();
+  if (!JS_IsArrayObject(aCx, deliveryStatusObj)) {
     return NS_ERROR_INVALID_ARG;
   }
 
   uint32_t length;
-  JS_ALWAYS_TRUE(JS_GetArrayLength(aCx, deliveryInfoObj, &length));
+  JS_ALWAYS_TRUE(JS_GetArrayLength(aCx, deliveryStatusObj, &length));
 
-  nsTArray<MmsDeliveryInfo> deliveryInfo;
-  JS::Rooted<JS::Value> infoJsVal(aCx);
+  nsTArray<DeliveryStatus> deliveryStatus;
   for (uint32_t i = 0; i < length; ++i) {
-    if (!JS_GetElement(aCx, deliveryInfoObj, i, &infoJsVal) ||
-        !infoJsVal.isObject()) {
+    JS::Value statusJsVal;
+    if (!JS_GetElement(aCx, deliveryStatusObj, i, &statusJsVal) ||
+        !statusJsVal.isString()) {
       return NS_ERROR_INVALID_ARG;
     }
 
-    MmsDeliveryInfo info;
-    nsresult rv = info.Init(aCx, infoJsVal.address());
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsDependentJSString statusStr;
+    statusStr.init(aCx, statusJsVal.toString());
 
-    deliveryInfo.AppendElement(info);
+    DeliveryStatus status;
+    if (statusStr.Equals(DELIVERY_STATUS_NOT_APPLICABLE)) {
+      status = eDeliveryStatus_NotApplicable;
+    } else if (statusStr.Equals(DELIVERY_STATUS_SUCCESS)) {
+      status = eDeliveryStatus_Success;
+    } else if (statusStr.Equals(DELIVERY_STATUS_PENDING)) {
+      status = eDeliveryStatus_Pending;
+    } else if (statusStr.Equals(DELIVERY_STATUS_ERROR)) {
+      status = eDeliveryStatus_Error;
+    } else {
+      return NS_ERROR_INVALID_ARG;
+    }
+
+    deliveryStatus.AppendElement(status);
   }
 
   // Set |receivers|.
   if (!aReceivers.isObject()) {
     return NS_ERROR_INVALID_ARG;
   }
-  JS::Rooted<JSObject*> receiversObj(aCx, &aReceivers.toObject());
+  JSObject* receiversObj = &aReceivers.toObject();
   if (!JS_IsArrayObject(aCx, receiversObj)) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -257,8 +170,8 @@ MmsMessage::Create(int32_t               aId,
   JS_ALWAYS_TRUE(JS_GetArrayLength(aCx, receiversObj, &length));
 
   nsTArray<nsString> receivers;
-  JS::Rooted<JS::Value> receiverJsVal(aCx);
   for (uint32_t i = 0; i < length; ++i) {
+    JS::Value receiverJsVal;
     if (!JS_GetElement(aCx, receiversObj, i, &receiverJsVal) ||
         !receiverJsVal.isString()) {
       return NS_ERROR_INVALID_ARG;
@@ -271,14 +184,28 @@ MmsMessage::Create(int32_t               aId,
 
   // Set |timestamp|.
   uint64_t timestamp;
-  nsresult rv = convertTimeToInt(aCx, aTimestamp, timestamp);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (aTimestamp.isObject()) {
+    JSObject* timestampObj = &aTimestamp.toObject();
+    if (!JS_ObjectIsDate(aCx, timestampObj)) {
+      return NS_ERROR_INVALID_ARG;
+    }
+    timestamp = js_DateGetMsecSinceEpoch(timestampObj);
+  } else {
+    if (!aTimestamp.isNumber()) {
+      return NS_ERROR_INVALID_ARG;
+    }
+    double number = aTimestamp.toNumber();
+    if (static_cast<uint64_t>(number) != number) {
+      return NS_ERROR_INVALID_ARG;
+    }
+    timestamp = static_cast<uint64_t>(number);
+  }
 
   // Set |attachments|.
   if (!aAttachments.isObject()) {
     return NS_ERROR_INVALID_ARG;
   }
-  JS::Rooted<JSObject*> attachmentsObj(aCx, &aAttachments.toObject());
+  JSObject* attachmentsObj = &aAttachments.toObject();
   if (!JS_IsArrayObject(aCx, attachmentsObj)) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -286,38 +213,30 @@ MmsMessage::Create(int32_t               aId,
   nsTArray<MmsAttachment> attachments;
   JS_ALWAYS_TRUE(JS_GetArrayLength(aCx, attachmentsObj, &length));
 
-  JS::Rooted<JS::Value> attachmentJsVal(aCx);
   for (uint32_t i = 0; i < length; ++i) {
+    JS::Value attachmentJsVal;
     if (!JS_GetElement(aCx, attachmentsObj, i, &attachmentJsVal)) {
       return NS_ERROR_INVALID_ARG;
     }
 
     MmsAttachment attachment;
-    rv = attachment.Init(aCx, attachmentJsVal.address());
+    nsresult rv = attachment.Init(aCx, &attachmentJsVal);
     NS_ENSURE_SUCCESS(rv, rv);
 
     attachments.AppendElement(attachment);
   }
 
-  // Set |expiryDate|.
-  uint64_t expiryDate;
-  rv = convertTimeToInt(aCx, aExpiryDate, expiryDate);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCOMPtr<nsIDOMMozMmsMessage> message = new MmsMessage(aId,
                                                          aThreadId,
-                                                         aIccId,
                                                          delivery,
-                                                         deliveryInfo,
+                                                         deliveryStatus,
                                                          aSender,
                                                          receivers,
                                                          timestamp,
                                                          aRead,
                                                          aSubject,
                                                          aSmil,
-                                                         attachments,
-                                                         expiryDate,
-                                                         aIsReadReportRequested);
+                                                         attachments);
   message.forget(aMessage);
   return NS_OK;
 }
@@ -329,55 +248,14 @@ MmsMessage::GetData(ContentParent* aParent,
   NS_ASSERTION(aParent, "aParent is null");
 
   aData.id() = mId;
-  aData.threadId() = mThreadId;
-  aData.iccId() = mIccId;
   aData.delivery() = mDelivery;
+  aData.deliveryStatus() = mDeliveryStatus;
   aData.sender().Assign(mSender);
   aData.receivers() = mReceivers;
   aData.timestamp() = mTimestamp;
   aData.read() = mRead;
   aData.subject() = mSubject;
   aData.smil() = mSmil;
-  aData.expiryDate() = mExpiryDate;
-  aData.isReadReportRequested() = mIsReadReportRequested;
-
-  aData.deliveryInfo().SetCapacity(mDeliveryInfo.Length());
-  for (uint32_t i = 0; i < mDeliveryInfo.Length(); i++) {
-    MmsDeliveryInfoData infoData;
-    const MmsDeliveryInfo &info = mDeliveryInfo[i];
-
-    // Prepare |infoData.receiver|.
-    infoData.receiver().Assign(info.receiver);
-
-    // Prepare |infoData.deliveryStatus|.
-    DeliveryStatus status;
-    if (info.deliveryStatus.Equals(DELIVERY_STATUS_NOT_APPLICABLE)) {
-      status = eDeliveryStatus_NotApplicable;
-    } else if (info.deliveryStatus.Equals(DELIVERY_STATUS_SUCCESS)) {
-      status = eDeliveryStatus_Success;
-    } else if (info.deliveryStatus.Equals(DELIVERY_STATUS_PENDING)) {
-      status = eDeliveryStatus_Pending;
-    } else if (info.deliveryStatus.Equals(DELIVERY_STATUS_ERROR)) {
-      status = eDeliveryStatus_Error;
-    } else if (info.deliveryStatus.Equals(DELIVERY_STATUS_REJECTED)) {
-      status = eDeliveryStatus_Reject;
-    } else if (info.deliveryStatus.Equals(DELIVERY_STATUS_MANUAL)) {
-      status = eDeliveryStatus_Manual;
-    } else {
-      return false;
-    }
-    infoData.deliveryStatus() = status;
-
-    // Prepare |infoData.deliveryTimestamp|.
-    if (info.deliveryTimestamp == JSVAL_NULL) {
-      infoData.deliveryTimestamp() = 0;
-    } else {
-      AutoJSContext cx;
-      convertTimeToInt(cx, info.deliveryTimestamp, infoData.deliveryTimestamp());
-    }
-
-    aData.deliveryInfo().AppendElement(infoData);
-  }
 
   aData.attachments().SetCapacity(mAttachments.Length());
   for (uint32_t i = 0; i < mAttachments.Length(); i++) {
@@ -385,19 +263,6 @@ MmsMessage::GetData(ContentParent* aParent,
     const MmsAttachment &element = mAttachments[i];
     mma.id().Assign(element.id);
     mma.location().Assign(element.location);
-
-    // This is a workaround. Sometimes the blob we get from the database
-    // doesn't have a valid last modified date, making the ContentParent
-    // send a "Mystery Blob" to the ContentChild. Attempting to get the
-    // last modified date of blob can force that value to be initialized.
-    nsDOMFileBase* file = static_cast<nsDOMFileBase*>(element.content.get());
-    if (file->IsDateUnknown()) {
-      uint64_t date;
-      if (NS_FAILED(file->GetMozLastModifiedDate(&date))) {
-        NS_WARNING("Failed to get last modified date!");
-      }
-    }
-
     mma.contentParent() = aParent->GetOrCreateActorForBlob(element.content);
     if (!mma.contentParent()) {
       return false;
@@ -430,13 +295,6 @@ MmsMessage::GetThreadId(uint64_t* aThreadId)
 }
 
 NS_IMETHODIMP
-MmsMessage::GetIccId(nsAString& aIccId)
-{
-  aIccId = mIccId;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 MmsMessage::GetDelivery(nsAString& aDelivery)
 {
   switch (mDelivery) {
@@ -458,76 +316,54 @@ MmsMessage::GetDelivery(nsAString& aDelivery)
     case eDeliveryState_Unknown:
     case eDeliveryState_EndGuard:
     default:
-      MOZ_CRASH("We shouldn't get any other delivery state!");
+      MOZ_NOT_REACHED("We shouldn't get any other delivery state!");
+      return NS_ERROR_UNEXPECTED;
   }
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-MmsMessage::GetDeliveryInfo(JSContext* aCx, JS::Value* aDeliveryInfo)
+MmsMessage::GetDeliveryStatus(JSContext* aCx, JS::Value* aDeliveryStatus)
 {
   // TODO Bug 850525 It'd be better to depend on the delivery of MmsMessage
   // to return a more correct value. Ex, if .delivery = 'received', we should
-  // also make .deliveryInfo = null, since the .deliveryInfo is useless.
-  uint32_t length = mDeliveryInfo.Length();
+  // also make .deliveryStatus = null, since the .deliveryStatus is useless.
+  uint32_t length = mDeliveryStatus.Length();
   if (length == 0) {
-    *aDeliveryInfo = JSVAL_NULL;
+    *aDeliveryStatus = JSVAL_NULL;
     return NS_OK;
   }
 
-  JS::Rooted<JSObject*> deliveryInfo(
-    aCx, JS_NewArrayObject(aCx, length, nullptr));
-  NS_ENSURE_TRUE(deliveryInfo, NS_ERROR_OUT_OF_MEMORY);
-
+  nsTArray<nsString> tempStrArray;
   for (uint32_t i = 0; i < length; ++i) {
-    const MmsDeliveryInfo &info = mDeliveryInfo[i];
-
-    JS::Rooted<JSObject*> infoJsObj(
-      aCx, JS_NewObject(aCx, nullptr, nullptr, nullptr));
-    NS_ENSURE_TRUE(infoJsObj, NS_ERROR_OUT_OF_MEMORY);
-
-    JS::Rooted<JS::Value> tmpJsVal(aCx);
-    JSString* tmpJsStr;
-
-    // Get |info.receiver|.
-    tmpJsStr = JS_NewUCStringCopyN(aCx,
-                                   info.receiver.get(),
-                                   info.receiver.Length());
-    NS_ENSURE_TRUE(tmpJsStr, NS_ERROR_OUT_OF_MEMORY);
-
-    tmpJsVal.setString(tmpJsStr);
-    if (!JS_DefineProperty(aCx, infoJsObj, "receiver", tmpJsVal,
-                           nullptr, nullptr, JSPROP_ENUMERATE)) {
-      return NS_ERROR_FAILURE;
+    nsString statusStr;
+    switch (mDeliveryStatus[i]) {
+      case eDeliveryStatus_NotApplicable:
+        statusStr = DELIVERY_STATUS_NOT_APPLICABLE;
+        break;
+      case eDeliveryStatus_Success:
+        statusStr = DELIVERY_STATUS_SUCCESS;
+        break;
+      case eDeliveryStatus_Pending:
+        statusStr = DELIVERY_STATUS_PENDING;
+        break;
+      case eDeliveryStatus_Error:
+        statusStr = DELIVERY_STATUS_ERROR;
+        break;
+      case eDeliveryStatus_EndGuard:
+      default:
+        MOZ_NOT_REACHED("We shouldn't get any other delivery status!");
+        return NS_ERROR_UNEXPECTED;
     }
-
-    // Get |info.deliveryStatus|.
-    tmpJsStr = JS_NewUCStringCopyN(aCx,
-                                   info.deliveryStatus.get(),
-                                   info.deliveryStatus.Length());
-    NS_ENSURE_TRUE(tmpJsStr, NS_ERROR_OUT_OF_MEMORY);
-
-    tmpJsVal.setString(tmpJsStr);
-    if (!JS_DefineProperty(aCx, infoJsObj, "deliveryStatus", tmpJsVal,
-                           nullptr, nullptr, JSPROP_ENUMERATE)) {
-      return NS_ERROR_FAILURE;
-    }
-
-    // Get |info.deliveryTimestamp|.
-    if (!JS_DefineProperty(aCx, infoJsObj,
-                           "deliveryTimestamp", info.deliveryTimestamp,
-                           nullptr, nullptr, JSPROP_ENUMERATE)) {
-      return NS_ERROR_FAILURE;
-    }
-
-    tmpJsVal = OBJECT_TO_JSVAL(infoJsObj);
-    if (!JS_SetElement(aCx, deliveryInfo, i, &tmpJsVal)) {
-      return NS_ERROR_FAILURE;
-    }
+    tempStrArray.AppendElement(statusStr);
   }
 
-  aDeliveryInfo->setObject(*deliveryInfo);
+  JSObject* deliveryStatusObj = nullptr;
+  nsresult rv = nsTArrayToJSArray(aCx, tempStrArray, &deliveryStatusObj);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  aDeliveryStatus->setObject(*deliveryStatusObj);
   return NS_OK;
 }
 
@@ -541,8 +377,13 @@ MmsMessage::GetSender(nsAString& aSender)
 NS_IMETHODIMP
 MmsMessage::GetReceivers(JSContext* aCx, JS::Value* aReceivers)
 {
-  JS::Rooted<JSObject*> reveiversObj(aCx);
-  nsresult rv = nsTArrayToJSArray(aCx, mReceivers, reveiversObj.address());
+  uint32_t length = mReceivers.Length();
+  if (length == 0) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  JSObject* reveiversObj = nullptr;
+  nsresult rv = nsTArrayToJSArray(aCx, mReceivers, &reveiversObj);
   NS_ENSURE_SUCCESS(rv, rv);
 
   aReceivers->setObject(*reveiversObj);
@@ -583,20 +424,24 @@ MmsMessage::GetSmil(nsAString& aSmil)
 NS_IMETHODIMP
 MmsMessage::GetAttachments(JSContext* aCx, JS::Value* aAttachments)
 {
+  // TODO Bug 850529 We should return an empty array (or null)
+  // when it has no attachments? Need to further check this.
   uint32_t length = mAttachments.Length();
+  if (length == 0) {
+    *aAttachments = JSVAL_NULL;
+    return NS_OK;
+  }
 
-  JS::Rooted<JSObject*> attachments(
-    aCx, JS_NewArrayObject(aCx, length, nullptr));
+  JSObject* attachments = JS_NewArrayObject(aCx, length, nullptr);
   NS_ENSURE_TRUE(attachments, NS_ERROR_OUT_OF_MEMORY);
 
   for (uint32_t i = 0; i < length; ++i) {
     const MmsAttachment &attachment = mAttachments[i];
 
-    JS::Rooted<JSObject*> attachmentObj(
-      aCx, JS_NewObject(aCx, nullptr, nullptr, nullptr));
+    JSObject* attachmentObj = JS_NewObject(aCx, nullptr, nullptr, nullptr);
     NS_ENSURE_TRUE(attachmentObj, NS_ERROR_OUT_OF_MEMORY);
 
-    JS::Rooted<JS::Value> tmpJsVal(aCx);
+    JS::Value tmpJsVal;
     JSString* tmpJsStr;
 
     // Get |attachment.mId|.
@@ -607,7 +452,7 @@ MmsMessage::GetAttachments(JSContext* aCx, JS::Value* aAttachments)
 
     tmpJsVal.setString(tmpJsStr);
     if (!JS_DefineProperty(aCx, attachmentObj, "id", tmpJsVal,
-                           nullptr, nullptr, JSPROP_ENUMERATE)) {
+                           NULL, NULL, JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -619,21 +464,20 @@ MmsMessage::GetAttachments(JSContext* aCx, JS::Value* aAttachments)
 
     tmpJsVal.setString(tmpJsStr);
     if (!JS_DefineProperty(aCx, attachmentObj, "location", tmpJsVal,
-                           nullptr, nullptr, JSPROP_ENUMERATE)) {
+                           NULL, NULL, JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
 
     // Get |attachment.mContent|.
-    JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
     nsresult rv = nsContentUtils::WrapNative(aCx,
-                                             global,
+                                             JS_GetGlobalForScopeChain(aCx),
                                              attachment.content,
                                              &NS_GET_IID(nsIDOMBlob),
                                              &tmpJsVal);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!JS_DefineProperty(aCx, attachmentObj, "content", tmpJsVal,
-                           nullptr, nullptr, JSPROP_ENUMERATE)) {
+                           NULL, NULL, JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -646,24 +490,6 @@ MmsMessage::GetAttachments(JSContext* aCx, JS::Value* aAttachments)
   aAttachments->setObject(*attachments);
   return NS_OK;
 }
-
-NS_IMETHODIMP
-MmsMessage::GetExpiryDate(JSContext* cx, JS::Value* aDate)
-{
-  JSObject *obj = JS_NewDateObjectMsec(cx, mExpiryDate);
-  NS_ENSURE_TRUE(obj, NS_ERROR_FAILURE);
-
-  *aDate = OBJECT_TO_JSVAL(obj);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-MmsMessage::GetIsReadReportRequested(bool* aIsReadReportRequested)
-{
-  *aIsReadReportRequested = mIsReadReportRequested;
-  return NS_OK;
-}
-
 
 } // namespace dom
 } // namespace mozilla

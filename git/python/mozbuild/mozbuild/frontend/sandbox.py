@@ -34,14 +34,6 @@ from mozbuild.util import (
 )
 
 
-def alphabetical_sorted(iterable, cmp=None, key=lambda x: x.lower(),
-                        reverse=False):
-    """sorted() replacement for the sandbox, ordering alphabetically by
-    default.
-    """
-    return sorted(iterable, cmp, key, reverse)
-
-
 class GlobalNamespace(dict):
     """Represents the globals namespace in a sandbox.
 
@@ -82,7 +74,6 @@ class GlobalNamespace(dict):
         'None': None,
         'False': False,
         'True': True,
-        'sorted': alphabetical_sorted,
     })
 
     def __init__(self, allowed_variables=None, builtins=None):
@@ -90,8 +81,8 @@ class GlobalNamespace(dict):
 
         allowed_variables is a dict of the variables that can be queried and
         mutated. Keys in this dict are the strings representing keys in this
-        namespace which are valid. Values are tuples of stored type, assigned
-        type, default value, and a docstring describing the purpose of the variable.
+        namespace which are valid. Values are tuples of type, default value,
+        and a docstring describing the purpose of the variable.
 
         builtins is the value to use for the special __builtins__ key. If not
         defined, the BUILTINS constant attached to this class is used. The
@@ -123,14 +114,7 @@ class GlobalNamespace(dict):
             self.last_name_error = KeyError('global_ns', 'get_unknown', name)
             raise self.last_name_error
 
-        # If the default is specifically a lambda (or, rather, any function--but
-        # not a class that can be called), then it is actually a rule to
-        # generate the default that should be used.
-        default_rule = default[2]
-        if isinstance(default_rule, type(lambda: None)):
-            default_rule = default_rule(self)
-
-        dict.__setitem__(self, name, copy.deepcopy(default_rule))
+        dict.__setitem__(self, name, copy.deepcopy(default[1]))
         return dict.__getitem__(self, name)
 
     def __setitem__(self, name, value):
@@ -140,27 +124,17 @@ class GlobalNamespace(dict):
 
         # We don't need to check for name.isupper() here because LocalNamespace
         # only sends variables our way if isupper() is True.
-        stored_type, input_type, default, docs, tier = \
-            self._allowed_variables.get(name, (None, None, None, None, None))
+        default = self._allowed_variables.get(name, None)
 
-        # Variable is unknown.
-        if stored_type is None:
+        if default is None:
             self.last_name_error = KeyError('global_ns', 'set_unknown', name,
                 value)
             raise self.last_name_error
 
-        # If the incoming value is not the type we store, we try to convert
-        # it to that type. This relies on proper coercion rules existing. This
-        # is the responsibility of whoever defined the symbols: a type should
-        # not be in the allowed set if the constructor function for the stored
-        # type does not accept an instance of that type.
-        if not isinstance(value, stored_type):
-            if not isinstance(value, input_type):
-                self.last_name_error = ValueError('global_ns', 'set_type', name,
-                    value, input_type)
-                raise self.last_name_error
-
-            value = stored_type(value)
+        if not isinstance(value, default[0]):
+            self.last_name_error = ValueError('global_ns', 'set_type', name,
+                value, default[0])
+            raise self.last_name_error
 
         dict.__setitem__(self, name, value)
 
@@ -283,7 +257,6 @@ class Sandbox(object):
         """
         self._globals = GlobalNamespace(allowed_variables=allowed_variables,
             builtins=builtins)
-        self._allowed_variables = allowed_variables
         self._locals = LocalNamespace(self._globals)
         self._execution_stack = []
         self.main_path = None
@@ -380,8 +353,3 @@ class Sandbox(object):
 
     def get(self, key, default=None):
         return self._globals.get(key, default)
-
-    def get_affected_tiers(self):
-        tiers = (self._allowed_variables[key][4] for key in self
-                 if key in self._allowed_variables)
-        return set(tier for tier in tiers if tier)

@@ -1,5 +1,9 @@
 /* check resource: protocol for traversal problems */
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
+
 const specs = [
   "resource:///chrome/../plugins",
   "resource:///chrome%2f../plugins",

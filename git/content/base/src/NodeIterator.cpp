@@ -156,8 +156,6 @@ NodeIterator::~NodeIterator()
  * nsISupports and cycle collection stuff
  */
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(NodeIterator)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(NodeIterator)
     if (tmp->mRoot)
         tmp->mRoot->RemoveMutationObserver(tmp);
@@ -289,7 +287,7 @@ void NodeIterator::ContentRemoved(nsIDocument *aDocument,
 }
 
 JSObject*
-NodeIterator::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+NodeIterator::WrapObject(JSContext *cx, JSObject *scope)
 {
     return NodeIteratorBinding::Wrap(cx, scope, this);
 }

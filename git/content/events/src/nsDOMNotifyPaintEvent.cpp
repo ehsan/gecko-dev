@@ -5,18 +5,16 @@
 
 #include "base/basictypes.h"
 #include "ipc/IPCMessageUtils.h"
-#include "mozilla/GfxMessageUtils.h"
 #include "nsDOMNotifyPaintEvent.h"
 #include "nsContentUtils.h"
+#include "nsClientRect.h"
 #include "nsPaintRequest.h"
-#include "mozilla/dom/DOMRect.h"
-
-using namespace mozilla;
-using namespace mozilla::dom;
+#include "nsIFrame.h"
+#include "nsDOMClassInfoID.h"
 
 nsDOMNotifyPaintEvent::nsDOMNotifyPaintEvent(mozilla::dom::EventTarget* aOwner,
                                              nsPresContext* aPresContext,
-                                             WidgetEvent* aEvent,
+                                             nsEvent* aEvent,
                                              uint32_t aEventType,
                                              nsInvalidateRequestList* aInvalidateRequests)
 : nsDOMEvent(aOwner, aPresContext, aEvent)
@@ -27,10 +25,14 @@ nsDOMNotifyPaintEvent::nsDOMNotifyPaintEvent(mozilla::dom::EventTarget* aOwner,
   if (aInvalidateRequests) {
     mInvalidateRequests.MoveElementsFrom(aInvalidateRequests->mRequests);
   }
+  SetIsDOMBinding();
 }
+
+DOMCI_DATA(NotifyPaintEvent, nsDOMNotifyPaintEvent)
 
 NS_INTERFACE_MAP_BEGIN(nsDOMNotifyPaintEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNotifyPaintEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(NotifyPaintEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 NS_IMPL_ADDREF_INHERITED(nsDOMNotifyPaintEvent, nsDOMEvent)
@@ -57,10 +59,10 @@ nsDOMNotifyPaintEvent::GetBoundingClientRect(nsIDOMClientRect** aResult)
   return NS_OK;
 }
 
-already_AddRefed<DOMRect>
+already_AddRefed<nsClientRect>
 nsDOMNotifyPaintEvent::BoundingClientRect()
 {
-  nsRefPtr<DOMRect> rect = new DOMRect(ToSupports(this));
+  nsRefPtr<nsClientRect> rect = new nsClientRect(ToSupports(this));
 
   if (mPresContext) {
     rect->SetLayoutRect(GetRegion().GetBounds());
@@ -76,16 +78,16 @@ nsDOMNotifyPaintEvent::GetClientRects(nsIDOMClientRectList** aResult)
   return NS_OK;
 }
 
-already_AddRefed<DOMRectList>
+already_AddRefed<nsClientRectList>
 nsDOMNotifyPaintEvent::ClientRects()
 {
   nsISupports* parent = ToSupports(this);
-  nsRefPtr<DOMRectList> rectList = new DOMRectList(parent);
+  nsRefPtr<nsClientRectList> rectList = new nsClientRectList(parent);
 
   nsRegion r = GetRegion();
   nsRegionRectIterator iter(r);
   for (const nsRect* rgnRect = iter.Next(); rgnRect; rgnRect = iter.Next()) {
-    nsRefPtr<DOMRect> rect = new DOMRect(parent);
+    nsRefPtr<nsClientRect> rect = new nsClientRect(parent);
     
     rect->SetLayoutRect(*rgnRect);
     rectList->Append(rect);
@@ -95,7 +97,7 @@ nsDOMNotifyPaintEvent::ClientRects()
 }
 
 NS_IMETHODIMP
-nsDOMNotifyPaintEvent::GetPaintRequests(nsISupports** aResult)
+nsDOMNotifyPaintEvent::GetPaintRequests(nsIDOMPaintRequestList** aResult)
 {
   nsRefPtr<nsPaintRequestList> requests = PaintRequests();
   requests.forget(aResult);
@@ -158,13 +160,16 @@ nsDOMNotifyPaintEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
 nsresult NS_NewDOMNotifyPaintEvent(nsIDOMEvent** aInstancePtrResult,
                                    mozilla::dom::EventTarget* aOwner,
                                    nsPresContext* aPresContext,
-                                   WidgetEvent* aEvent,
+                                   nsEvent *aEvent,
                                    uint32_t aEventType,
                                    nsInvalidateRequestList* aInvalidateRequests) 
 {
   nsDOMNotifyPaintEvent* it =
     new nsDOMNotifyPaintEvent(aOwner, aPresContext, aEvent, aEventType,
                               aInvalidateRequests);
+  if (nullptr == it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   return CallQueryInterface(it, aInstancePtrResult);
 }

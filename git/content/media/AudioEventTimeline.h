@@ -10,7 +10,6 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/TypedEnum.h"
-#include "mozilla/PodOperations.h"
 
 #include "nsTArray.h"
 #include "math.h"
@@ -30,7 +29,7 @@ struct AudioTimelineEvent {
   };
 
   AudioTimelineEvent(Type aType, double aTime, float aValue, double aTimeConstant = 0.0,
-                     float aDuration = 0.0, const float* aCurve = nullptr, uint32_t aCurveLength = 0)
+                     float aDuration = 0.0, float* aCurve = nullptr, uint32_t aCurveLength = 0)
     : mType(aType)
     , mTimeConstant(aTimeConstant)
     , mDuration(aDuration)
@@ -38,42 +37,17 @@ struct AudioTimelineEvent {
     , mTimeIsInTicks(false)
 #endif
   {
-    mTime = aTime;
     if (aType == AudioTimelineEvent::SetValueCurve) {
-      SetCurveParams(aCurve, aCurveLength);
+      mCurve = aCurve;
+      mCurveLength = aCurveLength;
     } else {
       mValue = aValue;
-    }
-  }
-
-  AudioTimelineEvent(const AudioTimelineEvent& rhs)
-  {
-    PodCopy(this, &rhs, 1);
-    if (rhs.mType == AudioTimelineEvent::SetValueCurve) {
-      SetCurveParams(rhs.mCurve, rhs.mCurveLength);
-    }
-  }
-
-  ~AudioTimelineEvent()
-  {
-    if (mType == AudioTimelineEvent::SetValueCurve) {
-      delete[] mCurve;
+      mTime = aTime;
     }
   }
 
   bool IsValid() const
   {
-    if (mType == AudioTimelineEvent::SetValueCurve) {
-      if (!mCurve || !mCurveLength) {
-        return false;
-      }
-      for (uint32_t i = 0; i < mCurveLength; ++i) {
-        if (!IsValid(mCurve[i])) {
-          return false;
-        }
-      }
-    }
-
     return IsValid(mTime) &&
            IsValid(mValue) &&
            IsValid(mTimeConstant) &&
@@ -91,36 +65,23 @@ struct AudioTimelineEvent {
 #endif
   }
 
-  void SetCurveParams(const float* aCurve, uint32_t aCurveLength) {
-    mCurveLength = aCurveLength;
-    if (aCurveLength) {
-      mCurve = new float[aCurveLength];
-      PodCopy(mCurve, aCurve, aCurveLength);
-    } else {
-      mCurve = nullptr;
-    }
-  }
-
   Type mType;
   union {
     float mValue;
     uint32_t mCurveLength;
   };
-  // The time for an event can either be in absolute value or in ticks.
-  // Initially the time of the event is always in absolute value.
-  // In order to convert it to ticks, call SetTimeInTicks.  Once this
-  // method has been called for an event, the time cannot be converted
-  // back to absolute value.
   union {
-    double mTime;
-    int64_t mTimeInTicks;
+    // The time for an event can either be in absolute value or in ticks.
+    // Initially the time of the event is always in absolute value.
+    // In order to convert it to ticks, call SetTimeInTicks.  Once this
+    // method has been called for an event, the time cannot be converted
+    // back to absolute value.
+    union {
+      double mTime;
+      int64_t mTimeInTicks;
+    };
+    float* mCurve;
   };
-  // mCurve contains a buffer of SetValueCurve samples.  We sample the
-  // values in the buffer depending on how far along we are in time.
-  // If we're at time T and the event has started as time T0 and has a
-  // duration of D, we sample the buffer at floor(mCurveLength*(T-T0)/D)
-  // if T<T0+D, and just take the last sample in the buffer otherwise.
-  float* mCurve;
   double mTimeConstant;
   double mDuration;
 #ifdef DEBUG
@@ -130,7 +91,7 @@ struct AudioTimelineEvent {
 private:
   static bool IsValid(double value)
   {
-    return mozilla::IsFinite(value);
+    return MOZ_DOUBLE_IS_FINITE(value);
   }
 };
 
@@ -160,9 +121,7 @@ class AudioEventTimeline
 {
 public:
   explicit AudioEventTimeline(float aDefaultValue)
-    : mValue(aDefaultValue),
-      mComputedValue(aDefaultValue),
-      mLastComputedValue(aDefaultValue)
+    : mValue(aDefaultValue)
   {
   }
 
@@ -188,8 +147,14 @@ public:
   {
     // Silently don't change anything if there are any events
     if (mEvents.IsEmpty()) {
-      mLastComputedValue = mComputedValue = mValue = aValue;
+      mValue = aValue;
     }
+  }
+
+  float ComputedValue() const
+  {
+    // TODO: implement
+    return 0;
   }
 
   void SetValueAtTime(float aValue, double aStartTime, ErrorResult& aRv)
@@ -214,7 +179,9 @@ public:
 
   void SetValueCurveAtTime(const float* aValues, uint32_t aValuesLength, double aStartTime, double aDuration, ErrorResult& aRv)
   {
-    InsertEvent(AudioTimelineEvent(AudioTimelineEvent::SetValueCurve, aStartTime, 0.0f, 0.0f, aDuration, aValues, aValuesLength), aRv);
+    // TODO: implement
+    // Note that we will need to copy the buffer here.
+    // InsertEvent(AudioTimelineEvent(AudioTimelineEvent::SetValueCurve, aStartTime, 0.0f, 0.0f, aDuration, aValues, aValuesLength), aRv);
   }
 
   void CancelScheduledValues(double aStartTime)
@@ -234,34 +201,9 @@ public:
     }
   }
 
-  void CancelAllEvents()
-  {
-    mEvents.Clear();
-  }
-
-  static bool TimesEqual(int64_t aLhs, int64_t aRhs)
-  {
-    return aLhs == aRhs;
-  }
-
-  // Since we are going to accumulate error by adding 0.01 multiple time in a
-  // loop, we want to fuzz the equality check in GetValueAtTime.
-  static bool TimesEqual(double aLhs, double aRhs)
-  {
-    const float kEpsilon = 0.0000000001f;
-    return fabs(aLhs - aRhs) < kEpsilon;
-  }
-
-  template<class TimeType>
-  float GetValueAtTime(TimeType aTime)
-  {
-    mComputedValue = GetValueAtTimeHelper(aTime);
-    return mComputedValue;
-  }
-
   // This method computes the AudioParam value at a given time based on the event timeline
   template<class TimeType>
-  float GetValueAtTimeHelper(TimeType aTime)
+  float GetValueAtTime(TimeType aTime) const
   {
     const AudioTimelineEvent* previous = nullptr;
     const AudioTimelineEvent* next = nullptr;
@@ -273,33 +215,12 @@ public:
       case AudioTimelineEvent::SetTarget:
       case AudioTimelineEvent::LinearRamp:
       case AudioTimelineEvent::ExponentialRamp:
-      case AudioTimelineEvent::SetValueCurve:
-        if (TimesEqual(aTime, mEvents[i].template Time<TimeType>())) {
-          mLastComputedValue = mComputedValue;
+        if (aTime == mEvents[i].template Time<TimeType>()) {
           // Find the last event with the same time
           do {
             ++i;
           } while (i < mEvents.Length() &&
                    aTime == mEvents[i].template Time<TimeType>());
-
-          // SetTarget nodes can be handled no matter what their next node is (if they have one)
-          if (mEvents[i - 1].mType == AudioTimelineEvent::SetTarget) {
-            // Follow the curve, without regard to the next event, starting at
-            // the last value of the last event.
-            return ExponentialApproach(mEvents[i - 1].template Time<TimeType>(),
-                                       mLastComputedValue, mEvents[i - 1].mValue,
-                                       mEvents[i - 1].mTimeConstant, aTime);
-          }
-
-          // SetValueCurve events can be handled no matter what their event node is (if they have one)
-          if (mEvents[i - 1].mType == AudioTimelineEvent::SetValueCurve) {
-            return ExtractValueFromCurve(mEvents[i - 1].template Time<TimeType>(),
-                                         mEvents[i - 1].mCurve,
-                                         mEvents[i - 1].mCurveLength,
-                                         mEvents[i - 1].mDuration, aTime);
-          }
-
-          // For other event types
           return mEvents[i - 1].mValue;
         }
         previous = next;
@@ -307,6 +228,9 @@ public:
         if (aTime < mEvents[i].template Time<TimeType>()) {
           bailOut = true;
         }
+        break;
+      case AudioTimelineEvent::SetValueCurve:
+        // TODO: implement
         break;
       default:
         MOZ_ASSERT(false, "unreached");
@@ -330,16 +254,9 @@ public:
 
     // SetTarget nodes can be handled no matter what their next node is (if they have one)
     if (previous->mType == AudioTimelineEvent::SetTarget) {
-      return ExponentialApproach(previous->template Time<TimeType>(),
-                                 mLastComputedValue, previous->mValue,
+      // Follow the curve, without regard to the next node
+      return ExponentialApproach(previous->template Time<TimeType>(), mValue, previous->mValue,
                                  previous->mTimeConstant, aTime);
-    }
-
-    // SetValueCurve events can be handled no mattar what their next node is (if they have one)
-    if (previous->mType == AudioTimelineEvent::SetValueCurve) {
-      return ExtractValueFromCurve(previous->template Time<TimeType>(),
-                                   previous->mCurve, previous->mCurveLength,
-                                   previous->mDuration, aTime);
     }
 
     // If the requested time is after all of the existing events
@@ -351,9 +268,8 @@ public:
         // The value will be constant after the last event
         return previous->mValue;
       case AudioTimelineEvent::SetValueCurve:
-        return ExtractValueFromCurve(previous->template Time<TimeType>(),
-                                     previous->mCurve, previous->mCurveLength,
-                                     previous->mDuration, aTime);
+        // TODO: implement
+        return 0.0f;
       case AudioTimelineEvent::SetTarget:
         MOZ_ASSERT(false, "unreached");
       }
@@ -383,9 +299,8 @@ public:
       // value is constant.
       return previous->mValue;
     case AudioTimelineEvent::SetValueCurve:
-      return ExtractValueFromCurve(previous->template Time<TimeType>(),
-                                   previous->mCurve, previous->mCurveLength,
-                                   previous->mDuration, aTime);
+      // TODO: implement
+      return 0.0f;
     case AudioTimelineEvent::SetTarget:
       MOZ_ASSERT(false, "unreached");
     }
@@ -415,27 +330,10 @@ public:
     return v1 + (v0 - v1) * expf(-(t - t0) / timeConstant);
   }
 
-  static float ExtractValueFromCurve(double startTime, float* aCurve, uint32_t aCurveLength, double duration, double t)
-  {
-    if (t >= startTime + duration) {
-      // After the duration, return the last curve value
-      return aCurve[aCurveLength - 1];
-    }
-    double ratio = (t - startTime) / duration;
-    MOZ_ASSERT(ratio >= 0.0, "Ratio can never be negative here");
-    if (ratio >= 1.0) {
-      return aCurve[aCurveLength - 1];
-    }
-    return aCurve[uint32_t(aCurveLength * ratio)];
-  }
-
-  void ConvertEventTimesToTicks(int64_t (*aConvertor)(double aTime, void* aClosure), void* aClosure,
-                                int32_t aSampleRate)
+  void ConvertEventTimesToTicks(int64_t (*aConvertor)(double aTime, void* aClosure), void* aClosure)
   {
     for (unsigned i = 0; i < mEvents.Length(); ++i) {
       mEvents[i].SetTimeInTicks(aConvertor(mEvents[i].template Time<double>(), aClosure));
-      mEvents[i].mTimeConstant *= aSampleRate;
-      mEvents[i].mDuration *= aSampleRate;
     }
   }
 
@@ -452,7 +350,6 @@ private:
       case AudioTimelineEvent::SetTarget:
       case AudioTimelineEvent::LinearRamp:
       case AudioTimelineEvent::ExponentialRamp:
-      case AudioTimelineEvent::SetValueCurve:
         if (aTime == mEvents[i].mTime) {
           // Find the last event with the same time
           do {
@@ -466,6 +363,9 @@ private:
         if (aTime < mEvents[i].mTime) {
           bailOut = true;
         }
+        break;
+      case AudioTimelineEvent::SetValueCurve:
+        // TODO: implement
         break;
       default:
         MOZ_ASSERT(false, "unreached");
@@ -501,8 +401,8 @@ private:
     // events.
     if (aEvent.mType == AudioTimelineEvent::SetValueCurve) {
       for (unsigned i = 0; i < mEvents.Length(); ++i) {
-        if (mEvents[i].mTime > aEvent.mTime &&
-            mEvents[i].mTime < (aEvent.mTime + aEvent.mDuration)) {
+        if (mEvents[i].mTime >= aEvent.mTime &&
+            mEvents[i].mTime <= (aEvent.mTime + aEvent.mDuration)) {
           aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
           return;
         }
@@ -564,10 +464,6 @@ private:
   // being a bottleneck.
   nsTArray<AudioTimelineEvent> mEvents;
   float mValue;
-  // This is the value of this AudioParam we computed at the last call.
-  float mComputedValue;
-  // This is the value of this AudioParam at the last tick of the previous event.
-  float mLastComputedValue;
 };
 
 }

@@ -3,9 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ImageDocument.h"
-#include "mozilla/dom/ImageDocumentBinding.h"
+#include "MediaDocument.h"
 #include "nsRect.h"
+#include "nsHTMLDocument.h"
+#include "nsIImageDocument.h"
 #include "nsIImageLoadingContent.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDocumentInlines.h"
@@ -51,13 +52,105 @@
 namespace mozilla {
 namespace dom {
  
+class ImageDocument;
+
 class ImageListener : public MediaDocumentStreamListener
 {
 public:
-  NS_DECL_NSIREQUESTOBSERVER
-
   ImageListener(ImageDocument* aDocument);
   virtual ~ImageListener();
+
+  /* nsIRequestObserver */
+  NS_IMETHOD OnStartRequest(nsIRequest* request, nsISupports *ctxt);
+};
+
+class ImageDocument : public MediaDocument
+                    , public nsIImageDocument
+                    , public imgINotificationObserver
+                    , public nsIDOMEventListener
+{
+public:
+  ImageDocument();
+  virtual ~ImageDocument();
+
+  NS_DECL_ISUPPORTS_INHERITED
+
+  virtual nsresult Init();
+
+  virtual nsresult StartDocumentLoad(const char*         aCommand,
+                                     nsIChannel*         aChannel,
+                                     nsILoadGroup*       aLoadGroup,
+                                     nsISupports*        aContainer,
+                                     nsIStreamListener** aDocListener,
+                                     bool                aReset = true,
+                                     nsIContentSink*     aSink = nullptr);
+
+  virtual void SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject);
+  virtual void Destroy();
+  virtual void OnPageShow(bool aPersisted,
+                          EventTarget* aDispatchStartTarget);
+
+  NS_DECL_NSIIMAGEDOCUMENT
+  NS_DECL_IMGINOTIFICATIONOBSERVER
+
+  // nsIDOMEventListener
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
+
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(ImageDocument, MediaDocument)
+
+  friend class ImageListener;
+
+  void DefaultCheckOverflowing() { CheckOverflowing(mResizeImageByDefault); }
+
+  virtual nsXPCClassInfo* GetClassInfo();
+protected:
+  virtual nsresult CreateSyntheticDocument();
+
+  nsresult CheckOverflowing(bool changeState);
+
+  void UpdateTitleAndCharset();
+
+  nsresult ScrollImageTo(int32_t aX, int32_t aY, bool restoreImage);
+
+  float GetRatio() {
+    return std::min(mVisibleWidth / mImageWidth,
+                    mVisibleHeight / mImageHeight);
+  }
+
+  void ResetZoomLevel();
+  float GetZoomLevel();
+
+  enum eModeClasses {
+    eNone,
+    eShrinkToFit,
+    eOverflowing
+  };
+  void SetModeClass(eModeClasses mode);
+
+  nsresult OnStartContainer(imgIRequest* aRequest, imgIContainer* aImage);
+  nsresult OnStopRequest(imgIRequest *aRequest, nsresult aStatus);
+
+  nsCOMPtr<nsIContent>          mImageContent;
+
+  float                         mVisibleWidth;
+  float                         mVisibleHeight;
+  int32_t                       mImageWidth;
+  int32_t                       mImageHeight;
+
+  bool                          mResizeImageByDefault;
+  bool                          mClickResizingEnabled;
+  bool                          mImageIsOverflowing;
+  // mImageIsResized is true if the image is currently resized
+  bool                          mImageIsResized;
+  // mShouldResize is true if the image should be resized when it doesn't fit
+  // mImageIsResized cannot be true when this is false, but mImageIsResized
+  // can be false when this is true
+  bool                          mShouldResize;
+  bool                          mFirstResize;
+  // mObservingImageLoader is true while the observer is set.
+  bool                          mObservingImageLoader;
+
+  float                         mOriginalZoomLevel;
 };
 
 ImageListener::ImageListener(ImageDocument* aDocument)
@@ -80,7 +173,8 @@ ImageListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsPIDOMWindow> domWindow = imgDoc->GetWindow();
+  nsCOMPtr<nsPIDOMWindow> domWindow =
+    do_QueryInterface(imgDoc->GetScriptGlobalObject());
   NS_ENSURE_TRUE(domWindow, NS_ERROR_UNEXPECTED);
 
   // Do a ShouldProcess check to see whether to keep loading the image.
@@ -95,7 +189,7 @@ ImageListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
   if (secMan) {
     secMan->GetChannelPrincipal(channel, getter_AddRefs(channelPrincipal));
   }
-
+  
   int16_t decision = nsIContentPolicy::ACCEPT;
   nsresult rv = NS_CheckContentProcessPolicy(nsIContentPolicy::TYPE_IMAGE,
                                              channelURI,
@@ -106,7 +200,7 @@ ImageListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
                                              &decision,
                                              nsContentUtils::GetContentPolicy(),
                                              secMan);
-
+                                               
   if (NS_FAILED(rv) || NS_CP_REJECTED(decision)) {
     request->Cancel(NS_ERROR_CONTENT_BLOCKED);
     return NS_OK;
@@ -122,19 +216,8 @@ ImageListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
   return MediaDocumentStreamListener::OnStartRequest(request, ctxt);
 }
 
-NS_IMETHODIMP
-ImageListener::OnStopRequest(nsIRequest* aRequest, nsISupports* aCtxt, nsresult aStatus)
-{
-  ImageDocument* imgDoc = static_cast<ImageDocument*>(mDocument.get());
-  nsContentUtils::DispatchChromeEvent(imgDoc, static_cast<nsIDocument*>(imgDoc),
-                                      NS_LITERAL_STRING("ImageContentLoaded"),
-                                      true, true);
-  return MediaDocumentStreamListener::OnStopRequest(aRequest, aCtxt, aStatus);
-}
-
 ImageDocument::ImageDocument()
-  : MediaDocument(),
-    mOriginalZoomLevel(1.0)
+  : mOriginalZoomLevel(1.0)
 {
   // NOTE! nsDocument::operator new() zeroes out all members, so don't
   // bother initializing members to 0.
@@ -145,16 +228,28 @@ ImageDocument::~ImageDocument()
 }
 
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(ImageDocument, MediaDocument,
-                                     mImageContent)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(ImageDocument, MediaDocument)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mImageContent)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(ImageDocument, MediaDocument)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mImageContent)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(ImageDocument, MediaDocument)
 NS_IMPL_RELEASE_INHERITED(ImageDocument, MediaDocument)
 
+DOMCI_NODE_DATA(ImageDocument, ImageDocument)
+
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(ImageDocument)
-  NS_INTERFACE_TABLE_INHERITED3(ImageDocument, nsIImageDocument,
-                                imgINotificationObserver, nsIDOMEventListener)
-NS_INTERFACE_TABLE_TAIL_INHERITING(MediaDocument)
+  NS_HTML_DOCUMENT_INTERFACE_TABLE_BEGIN(ImageDocument)
+    NS_INTERFACE_TABLE_ENTRY(ImageDocument, nsIImageDocument)
+    NS_INTERFACE_TABLE_ENTRY(ImageDocument, imgINotificationObserver)
+    NS_INTERFACE_TABLE_ENTRY(ImageDocument, nsIDOMEventListener)
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ImageDocument)
+NS_INTERFACE_MAP_END_INHERITING(MediaDocument)
 
 
 nsresult
@@ -169,12 +264,6 @@ ImageDocument::Init()
   mFirstResize = true;
 
   return NS_OK;
-}
-
-JSObject*
-ImageDocument::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
-{
-  return ImageDocumentBinding::Wrap(aCx, aScope, this);
 }
 
 nsresult
@@ -215,6 +304,11 @@ ImageDocument::Destroy()
     if (mObservingImageLoader) {
       nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mImageContent);
       if (imageLoader) {
+        // Push a null JSContext on the stack so that code that
+        // nsImageLoadingContent doesn't think it's being called by JS.  See
+        // Bug 631241
+        nsCxPusher pusher;
+        pusher.PushNull();
         imageLoader->RemoveObserver(this);
       }
     }
@@ -260,12 +354,10 @@ ImageDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject)
     target->AddEventListener(NS_LITERAL_STRING("resize"), this, false);
     target->AddEventListener(NS_LITERAL_STRING("keypress"), this, false);
 
-    if (GetReadyStateEnum() != nsIDocument::READYSTATE_COMPLETE) {
-      LinkStylesheet(NS_LITERAL_STRING("resource://gre/res/ImageDocument.css"));
-      if (!nsContentUtils::IsChildOfSameType(this)) {
-        LinkStylesheet(NS_LITERAL_STRING("resource://gre/res/TopLevelImageDocument.css"));
-        LinkStylesheet(NS_LITERAL_STRING("chrome://global/skin/media/TopLevelImageDocument.css"));
-      }
+    if (!nsContentUtils::IsChildOfSameType(this) &&
+        GetReadyStateEnum() != nsIDocument::READYSTATE_COMPLETE) {
+      LinkStylesheet(NS_LITERAL_STRING("resource://gre/res/TopLevelImageDocument.css"));
+      LinkStylesheet(NS_LITERAL_STRING("chrome://global/skin/media/TopLevelImageDocument.css"));
     }
     BecomeInteractive();
   }
@@ -285,53 +377,46 @@ ImageDocument::OnPageShow(bool aPersisted,
 NS_IMETHODIMP
 ImageDocument::GetImageResizingEnabled(bool* aImageResizingEnabled)
 {
-  *aImageResizingEnabled = ImageResizingEnabled();
+  *aImageResizingEnabled = true;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 ImageDocument::GetImageIsOverflowing(bool* aImageIsOverflowing)
 {
-  *aImageIsOverflowing = ImageIsOverflowing();
+  *aImageIsOverflowing = mImageIsOverflowing;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 ImageDocument::GetImageIsResized(bool* aImageIsResized)
 {
-  *aImageIsResized = ImageIsResized();
+  *aImageIsResized = mImageIsResized;
   return NS_OK;
-}
-
-already_AddRefed<imgIRequest>
-ImageDocument::GetImageRequest(ErrorResult& aRv)
-{
-  nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mImageContent);
-  nsCOMPtr<imgIRequest> imageRequest;
-  if (imageLoader) {
-    aRv = imageLoader->GetRequest(nsIImageLoadingContent::CURRENT_REQUEST,
-                                  getter_AddRefs(imageRequest));
-  }
-  return imageRequest.forget();
 }
 
 NS_IMETHODIMP
 ImageDocument::GetImageRequest(imgIRequest** aImageRequest)
 {
-  ErrorResult rv;
-  *aImageRequest = GetImageRequest(rv).get();
-  return rv.ErrorCode();
+  nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mImageContent);
+  if (imageLoader) {
+    return imageLoader->GetRequest(nsIImageLoadingContent::CURRENT_REQUEST,
+                                   aImageRequest);
+  }
+
+  *aImageRequest = nullptr;
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 ImageDocument::ShrinkToFit()
 {
   if (!mImageContent) {
-    return;
+    return NS_OK;
   }
   if (GetZoomLevel() != mOriginalZoomLevel && mImageIsResized &&
       !nsContentUtils::IsChildOfSameType(this)) {
-    return;
+    return NS_OK;
   }
 
   // Keep image content alive while changing the attributes.
@@ -342,35 +427,24 @@ ImageDocument::ShrinkToFit()
   
   // The view might have been scrolled when zooming in, scroll back to the
   // origin now that we're showing a shrunk-to-window version.
-  ScrollImageTo(0, 0, false);
-
-  if (!mImageContent) {
-    // ScrollImageTo flush destroyed our content.
-    return;
-  }
+  (void) ScrollImageTo(0, 0, false);
 
   SetModeClass(eShrinkToFit);
   
   mImageIsResized = true;
   
   UpdateTitleAndCharset();
-}
 
-NS_IMETHODIMP
-ImageDocument::DOMShrinkToFit()
-{
-  ShrinkToFit();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-ImageDocument::DOMRestoreImageTo(int32_t aX, int32_t aY)
+ImageDocument::RestoreImageTo(int32_t aX, int32_t aY)
 {
-  RestoreImageTo(aX, aY);
-  return NS_OK;
+  return ScrollImageTo(aX, aY, true);
 }
 
-void
+nsresult
 ImageDocument::ScrollImageTo(int32_t aX, int32_t aY, bool restoreImage)
 {
   float ratio = GetRatio();
@@ -380,25 +454,26 @@ ImageDocument::ScrollImageTo(int32_t aX, int32_t aY, bool restoreImage)
     FlushPendingNotifications(Flush_Layout);
   }
 
-  nsCOMPtr<nsIPresShell> shell = GetShell();
+  nsIPresShell *shell = GetShell();
   if (!shell)
-    return;
+    return NS_OK;
 
   nsIScrollableFrame* sf = shell->GetRootScrollFrameAsScrollable();
   if (!sf)
-    return;
+    return NS_OK;
 
   nsRect portRect = sf->GetScrollPortRect();
   sf->ScrollTo(nsPoint(nsPresContext::CSSPixelsToAppUnits(aX/ratio) - portRect.width/2,
                        nsPresContext::CSSPixelsToAppUnits(aY/ratio) - portRect.height/2),
                nsIScrollableFrame::INSTANT);
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 ImageDocument::RestoreImage()
 {
   if (!mImageContent) {
-    return;
+    return NS_OK;
   }
   // Keep image content alive while changing the attributes.
   nsCOMPtr<nsIContent> imageContent = mImageContent;
@@ -415,16 +490,11 @@ ImageDocument::RestoreImage()
   mImageIsResized = false;
   
   UpdateTitleAndCharset();
-}
 
-NS_IMETHODIMP
-ImageDocument::DOMRestoreImage()
-{
-  RestoreImage();
   return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 ImageDocument::ToggleImageSize()
 {
   mShouldResize = true;
@@ -437,12 +507,7 @@ ImageDocument::ToggleImageSize()
     ResetZoomLevel();
     ShrinkToFit();
   }
-}
 
-NS_IMETHODIMP
-ImageDocument::DOMToggleImageSize()
-{
-  ToggleImageSize();
   return NS_OK;
 }
 
@@ -458,7 +523,7 @@ ImageDocument::Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect* aDa
   nsDOMTokenList* classList = mImageContent->AsElement()->GetClassList();
   mozilla::ErrorResult rv;
   if (aType == imgINotificationObserver::DECODE_COMPLETE) {
-    if (mImageContent && !nsContentUtils::IsChildOfSameType(this)) {
+    if (mImageContent) {
       // Update the background-color of the image only after the
       // image has been decoded to prevent flashes of just the
       // background-color.
@@ -469,7 +534,7 @@ ImageDocument::Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect* aDa
 
   if (aType == imgINotificationObserver::DISCARD) {
     // mImageContent can be null if the document is already destroyed
-    if (mImageContent && !nsContentUtils::IsChildOfSameType(this)) {
+    if (mImageContent) {
       // Remove any decoded-related styling when the image is unloaded.
       classList->Remove(NS_LITERAL_STRING("decoded"), rv);
       NS_ENSURE_SUCCESS(rv.ErrorCode(), rv.ErrorCode());
@@ -585,6 +650,29 @@ ImageDocument::CreateSyntheticDocument()
   nsresult rv = MediaDocument::CreateSyntheticDocument();
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // We must declare the image as a block element. If we stay as
+  // an inline element, our parent LineBox will be inline too and
+  // ignore the available height during reflow.
+  // This is bad during printing, it means tall image frames won't know
+  // the size of the paper and cannot break into continuations along
+  // multiple pages.
+  Element* head = GetHeadElement();
+  NS_ENSURE_TRUE(head, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsINodeInfo> nodeInfo;
+  if (nsContentUtils::IsChildOfSameType(this)) {
+    nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::style, nullptr,
+                                             kNameSpaceID_XHTML,
+                                             nsIDOMNode::ELEMENT_NODE);
+    nsRefPtr<nsGenericHTMLElement> styleContent = NS_NewHTMLStyleElement(nodeInfo.forget());
+    NS_ENSURE_TRUE(styleContent, NS_ERROR_OUT_OF_MEMORY);
+
+    ErrorResult error;
+    styleContent->SetTextContent(NS_LITERAL_STRING("img { display: block; }"),
+                                 error);
+    head->AppendChildTo(styleContent, false);
+  }
+
   // Add the image element
   Element* body = GetBodyElement();
   if (!body) {
@@ -592,7 +680,6 @@ ImageDocument::CreateSyntheticDocument()
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::img, nullptr,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);
@@ -606,6 +693,12 @@ ImageDocument::CreateSyntheticDocument()
 
   nsAutoCString src;
   mDocumentURI->GetSpec(src);
+
+  // Push a null JSContext on the stack so that code that runs within
+  // the below code doesn't think it's being called by JS. See bug
+  // 604262.
+  nsCxPusher pusher;
+  pusher.PushNull();
 
   NS_ConvertUTF8toUTF16 srcString(src);
   // Make sure not to start the image load from here...
@@ -713,8 +806,8 @@ ImageDocument::UpdateTitleAndCharset()
   {
     "ImageTitleWithNeitherDimensionsNorFile",
     "ImageTitleWithoutDimensions",
-    "ImageTitleWithDimensions2",
-    "ImageTitleWithDimensions2AndFile",
+    "ImageTitleWithDimensions",
+    "ImageTitleWithDimensionsAndFile",
   };
 
   MediaDocument::UpdateTitleAndCharset(typeStr, formatNames,
@@ -757,6 +850,8 @@ ImageDocument::GetZoomLevel()
 
 } // namespace dom
 } // namespace mozilla
+
+DOMCI_DATA(ImageDocument, mozilla::dom::ImageDocument)
 
 nsresult
 NS_NewImageDocument(nsIDocument** aResult)

@@ -11,19 +11,3 @@ EXPORTS += [
     'mar_cmdline.h',
 ]
 
-HOST_SOURCES += [
-    'mar_create.c',
-    'mar_extract.c',
-    'mar_read.c',
-]
-HOST_LIBRARY_NAME = 'hostmar'
-
-LIBRARY_NAME = 'mar'
-
-SOURCES += [
-    'mar_create.c',
-    'mar_extract.c',
-    'mar_read.c',
-]
-
-FORCE_STATIC_LIB = True

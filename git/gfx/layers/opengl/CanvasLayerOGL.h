@@ -6,37 +6,45 @@
 #ifndef GFX_CANVASLAYEROGL_H
 #define GFX_CANVASLAYEROGL_H
 
-#include "GLContextTypes.h"             // for GLContext
-#include "GLDefs.h"                     // for GLuint, LOCAL_GL_TEXTURE_2D
-#include "LayerManagerOGL.h"            // for LayerOGL::GLContext, etc
-#include "Layers.h"                     // for CanvasLayer, etc
-#include "gfxTypes.h"
-#include "gfxPoint.h"                   // for gfxIntSize
-#include "mozilla/Preferences.h"        // for Preferences
-#include "mozilla/RefPtr.h"             // for RefPtr
-#include "mozilla/gfx/2D.h"             // for DrawTarget
-#include "mozilla/mozalloc.h"           // for operator delete, etc
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "opengl/LayerManagerOGLProgram.h"  // for ShaderProgramType, etc
+#include "LayerManagerOGL.h"
+#include "gfxASurface.h"
+#include "GLDefs.h"
+#include "mozilla/Preferences.h"
+
 #if defined(GL_PROVIDER_GLX)
 #include "GLXLibrary.h"
 #include "mozilla/X11Util.h"
 #endif
 
-struct nsIntPoint;
-class gfxASurface;
-class gfxImageSurface;
 
 namespace mozilla {
 namespace layers {
 
-class CanvasLayerOGL :
+class THEBES_API CanvasLayerOGL :
   public CanvasLayer,
   public LayerOGL
 {
 public:
-  CanvasLayerOGL(LayerManagerOGL *aManager);
-  ~CanvasLayerOGL();
+  CanvasLayerOGL(LayerManagerOGL *aManager)
+    : CanvasLayer(aManager, NULL)
+    , LayerOGL(aManager)
+    , mLayerProgram(gl::RGBALayerProgramType)
+    , mTexture(0)
+    , mTextureTarget(LOCAL_GL_TEXTURE_2D)
+    , mDelayedUpdates(false)
+    , mIsGLAlphaPremult(false)
+    , mUploadTexture(0)
+#if defined(GL_PROVIDER_GLX)
+    , mPixmap(0)
+#endif
+  { 
+    mImplData = static_cast<LayerOGL*>(this);
+    mForceReadback = Preferences::GetBool("webgl.force-layers-readback", false);
+  }
+
+  ~CanvasLayerOGL() {
+    Destroy();
+  }
 
   // CanvasLayer implementation
   virtual void Initialize(const Data& aData);
@@ -53,7 +61,7 @@ protected:
 
   nsRefPtr<gfxASurface> mCanvasSurface;
   nsRefPtr<GLContext> mGLContext;
-  ShaderProgramType mLayerProgram;
+  gl::ShaderProgramType mLayerProgram;
   RefPtr<gfx::DrawTarget> mDrawTarget;
 
   GLuint mTexture;
@@ -70,10 +78,23 @@ protected:
 
   nsRefPtr<gfxImageSurface> mCachedTempSurface;
   gfxIntSize mCachedSize;
-  gfxImageFormat mCachedFormat;
+  gfxASurface::gfxImageFormat mCachedFormat;
 
   gfxImageSurface* GetTempSurface(const gfxIntSize& aSize,
-                                  const gfxImageFormat aFormat);
+                                  const gfxASurface::gfxImageFormat aFormat)
+  {
+    if (!mCachedTempSurface ||
+        aSize.width != mCachedSize.width ||
+        aSize.height != mCachedSize.height ||
+        aFormat != mCachedFormat)
+    {
+      mCachedTempSurface = new gfxImageSurface(aSize, aFormat);
+      mCachedSize = aSize;
+      mCachedFormat = aFormat;
+    }
+
+    return mCachedTempSurface;
+  }
 
   void DiscardTempSurface() {
     mCachedTempSurface = nullptr;

@@ -35,7 +35,6 @@
 #include "nsIErrorService.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsJSUtils.h"
-#include "nsIXPConnect.h"
 
 using namespace mozilla::dom;
 
@@ -291,8 +290,6 @@ private:
 /**
  * txMozillaXSLTProcessor
  */
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(txMozillaXSLTProcessor)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(txMozillaXSLTProcessor)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mEmbeddedStylesheetRoot)
@@ -1250,7 +1247,8 @@ txMozillaXSLTProcessor::ContentRemoved(nsIDocument* aDocument,
 
 NS_IMETHODIMP
 txMozillaXSLTProcessor::Initialize(nsISupports* aOwner, JSContext* cx,
-                                   JSObject* obj, const JS::CallArgs& args)
+                                   JSObject* obj, uint32_t argc,
+                                   JS::Value* argv)
 {
     nsCOMPtr<nsIPrincipal> prin;
     nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
@@ -1441,11 +1439,11 @@ txVariable::Convert(nsIVariant *aValue, txAExprResult** aResult)
                 JSContext* cx = nsContentUtils::GetCurrentJSContext();
                 NS_ENSURE_TRUE(cx, NS_ERROR_NOT_AVAILABLE);
 
-                JS::Rooted<JSObject*> jsobj(cx, holder->GetJSObject());
-                NS_ENSURE_STATE(jsobj);
+                JSObject *jsobj;
+                rv = holder->GetJSObject(&jsobj);
+                NS_ENSURE_SUCCESS(rv, rv);
 
-                JS::Rooted<JS::Value> v(cx, JS::ObjectValue(*jsobj));
-                JS::Rooted<JSString*> str(cx, JS::ToString(cx, v));
+                JSString *str = JS_ValueToString(cx, OBJECT_TO_JSVAL(jsobj));
                 NS_ENSURE_TRUE(str, NS_ERROR_FAILURE);
 
                 nsDependentJSString value;

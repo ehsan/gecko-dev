@@ -2,47 +2,25 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-# disabled until bug 859593 is fixed
-#MOCHITEST_FILES += \
-#  test_camera.html \
-#  $(NULL)
-ifdef MOZ_B2G
-MOCHITEST_FILES += \
-  test_keyboard.html \
-  test_wifi-manage.html \
-  $(NULL)
-endif
+DEPTH            = ../../..
+topsrcdir        = @top_srcdir@
+srcdir           = @srcdir@
+VPATH            = @srcdir@
 
-ifdef MOZ_B2G_RIL
-MOCHITEST_FILES += \
-  test_cellbroadcast.html \
-  test_mobileconnection.html \
-  test_networkstats-manage.html \
-  test_telephony.html \
-  test_voicemail.html \
-  $(NULL)
-endif
+relativesrcdir   = dom/permission/tests
 
-ifdef MOZ_B2G_FM
-MOCHITEST_FILES += \
-  test_fmradio.html \
-  $(NULL)
-endif
+include $(DEPTH)/config/autoconf.mk
 
-ifdef MOZ_B2G_BT
-MOCHITEST_FILES += \
-  test_bluetooth.html \
-  $(NULL)
-endif
+XPCSHELL_TESTS  = unit
 
-ifdef MOZ_WEBSMS_BACKEND
-MOCHITEST_FILES += \
-  test_sms.html \
-  $(NULL)
-endif
+include $(topsrcdir)/config/rules.mk
 
-ifdef MOZ_TIME_MANAGER
-MOCHITEST_FILES += \
-  test_time.html \
+_TEST_FILES = \
+  test_permission_basics.html \
   $(NULL)
-endif
+
+_CHROME_TEST_FILES = \
+  $(NULL)
+
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

@@ -72,6 +72,9 @@ BlockingResourceBase::BlockingResourceBase(
         NS_RUNTIMEABORT("can't initialize blocking resource static members");
 
     mDDEntry = new BlockingResourceBase::DeadlockDetectorEntry(aName, aType);
+    if (!mDDEntry)
+        NS_RUNTIMEABORT("can't allocated deadlock detector entry");
+
     mChainPrev = 0;
     sDeadlockDetector->Add(mDDEntry);
 }
@@ -215,9 +218,9 @@ BlockingResourceBase::PrintCycle(const DDT::ResourceAcquisitionArray* aCycle,
 
 
 //
-// Debug implementation of (OffTheBooks)Mutex
+// Debug implementation of Mutex
 void
-OffTheBooksMutex::Lock()
+Mutex::Lock()
 {
     CallStack callContext = CallStack();
 
@@ -227,7 +230,7 @@ OffTheBooksMutex::Lock()
 }
 
 void
-OffTheBooksMutex::Unlock()
+Mutex::Unlock()
 {
     Release();                  // protected by mLock
     PRStatus status = PR_Unlock(mLock);

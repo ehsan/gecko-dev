@@ -16,9 +16,9 @@
 
 XPIDL_SOURCES += [
     'nsIAudioManager.idl',
-    'nsINetworkInterfaceListService.idl',
+    'nsINavigatorAudioChannelManager.idl',
     'nsINetworkManager.idl',
-    'nsINetworkService.idl',
+    'nsIRadioInterfaceLayer.idl',
     'nsISystemWorkerManager.idl',
     'nsIVolume.idl',
     'nsIVolumeMountLock.idl',
@@ -29,93 +29,14 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'dom_system_gonk'
 
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/network/interfaces',
+]
+
 MODULE = 'dom'
 
-EXPORTS += [
-    'GonkGPSGeolocationProvider.h',
-    'nsVolume.h',
-    'nsVolumeService.h',
-]
-SOURCES += [
-    'AudioChannelManager.cpp',
-    'AudioManager.cpp',
-    'AutoMounter.cpp',
-    'AutoMounterSetting.cpp',
-    'GonkGPSGeolocationProvider.cpp',
-    'nsVolume.cpp',
-    'nsVolumeMountLock.cpp',
-    'nsVolumeService.cpp',
-    'nsVolumeStat.cpp',
-    'OpenFileFinder.cpp',
-    'SystemWorkerManager.cpp',
-    'TimeZoneSettingObserver.cpp',
-    'Volume.cpp',
-    'VolumeCommand.cpp',
-    'VolumeManager.cpp',
-    'VolumeServiceIOThread.cpp',
-    'VolumeServiceTest.cpp',
-]
-
-if CONFIG['ENABLE_TESTS']:
-    XPCSHELL_TESTS_MANIFESTS += ['tests/xpcshell.ini']
-
-EXTRA_COMPONENTS += [
-    'NetworkInterfaceListService.js',
-    'NetworkInterfaceListService.manifest',
-    'NetworkManager.manifest',
-    'NetworkService.manifest',
-]
-EXTRA_PP_COMPONENTS += [
-    'NetworkManager.js',
-    'NetworkService.js',
-]
-EXTRA_JS_MODULES += [
-    'net_worker.js',
-    'systemlibs.js',
-]
-
-if CONFIG['MOZ_B2G_RIL']:
-    XPIDL_SOURCES += [
-        'nsIRadioInterfaceLayer.idl',
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
+    EXPORTS += [
+        'GonkGPSGeolocationProvider.h',
+        'nsVolume.h',
     ]
-    EXTRA_COMPONENTS += [
-        'RadioInterfaceLayer.js',
-        'RadioInterfaceLayer.manifest',
-        'RILContentHelper.js',
-    ]
-    EXTRA_JS_MODULES += [
-        'ril_consts.js',
-        'ril_worker.js',
-    ]
-
-if CONFIG['MOZ_NFC']:
-    XPIDL_SOURCES += [
-        'nsINfcContentHelper.idl',
-    ]
-    EXTRA_COMPONENTS += [
-        'Nfc.js',
-        'Nfc.manifest',
-        'NfcContentHelper.js',
-    ]
-    EXTRA_JS_MODULES += [
-    'nfc_consts.js',
-    'nfc_worker.js',
-    ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'domsystemgonk_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
-
-LOCAL_INCLUDES += [
-    '/content/events/src',
-    '/dom/base',
-    '/dom/bluetooth',
-    '/dom/nfc',
-    '/dom/src/geolocation',
-    '/dom/wifi',
-]
-

@@ -7,10 +7,10 @@
 #ifndef mozilla_TimeStamp_h
 #define mozilla_TimeStamp_h
 
-#include <stdint.h>
 #include "mozilla/Assertions.h"
-#include "mozilla/Attributes.h"
-#include "nscore.h"
+
+#include "prinrval.h"
+#include "nsDebug.h"
 
 namespace IPC {
 template <typename T> struct ParamTraits;
@@ -44,7 +44,7 @@ class TimeDuration
 {
 public:
   // The default duration is 0.
-  MOZ_CONSTEXPR TimeDuration() : mValue(0) {}
+  TimeDuration() : mValue(0) {}
   // Allow construction using '0' as the initial value, for readability,
   // but no other numbers (so we don't have any implicit unit conversions).
   struct _SomethingVeryRandomHere;
@@ -110,9 +110,6 @@ public:
   }
   TimeDuration operator*(const int64_t aMultiplier) const {
     return TimeDuration::FromTicks(mValue * int64_t(aMultiplier));
-  }
-  TimeDuration operator/(const int64_t aDivisor) const {
-    return TimeDuration::FromTicks(mValue / aDivisor);
   }
   double operator/(const TimeDuration& aOther) {
     return static_cast<double>(mValue) / aOther.mValue;
@@ -210,7 +207,7 @@ public:
   /**
    * Initialize to the "null" moment
    */
-  MOZ_CONSTEXPR TimeStamp() : mValue(0) {}
+  TimeStamp() : mValue(0) {}
   // Default copy-constructor and assignment are OK
 
   /**
@@ -232,35 +229,13 @@ public:
    */
   static TimeStamp Now() { return Now(true); }
   static TimeStamp NowLoRes() { return Now(false); }
-
-  /**
-   * Return a timestamp representing the time when the current process was
-   * created which will be comparable with other timestamps taken with this
-   * class. If the actual process creation time is detected to be inconsistent
-   * the @a aIsInconsistent parameter will be set to true, the returned
-   * timestamp however will still be valid though inaccurate.
-   *
-   * @param aIsInconsistent Set to true if an inconsistency was detected in the
-   * process creation time
-   * @returns A timestamp representing the time when the process was created,
-   * this timestamp is always valid even when errors are reported
-   */
-  static TimeStamp ProcessCreation(bool& aIsInconsistent);
-
-  /**
-   * Records a process restart. After this call ProcessCreation() will return
-   * the time when the browser was restarted instead of the actual time when
-   * the process was created.
-   */
-  static void RecordProcessRestart();
-
   /**
    * Compute the difference between two timestamps. Both must be non-null.
    */
   TimeDuration operator-(const TimeStamp& aOther) const {
     MOZ_ASSERT(!IsNull(), "Cannot compute with a null value");
     MOZ_ASSERT(!aOther.IsNull(), "Cannot compute with aOther null value");
-    static_assert(-INT64_MAX > INT64_MIN, "int64_t sanity check");
+    PR_STATIC_ASSERT(-INT64_MAX > INT64_MIN);
     int64_t ticks = int64_t(mValue - aOther.mValue);
     // Check for overflow.
     if (mValue > aOther.mValue) {
@@ -336,21 +311,10 @@ public:
 
 private:
   friend struct IPC::ParamTraits<mozilla::TimeStamp>;
-  friend void StartupTimelineRecordExternal(int, uint64_t);
 
   TimeStamp(TimeStampValue aValue) : mValue(aValue) {}
 
   static TimeStamp Now(bool aHighResolution);
-
-  /**
-   * Computes the uptime of the current process in microseconds. The result
-   * is platform-dependent and needs to be checked against existing timestamps
-   * for consistency.
-   *
-   * @returns The number of microseconds since the calling process was started
-   *          or 0 if an error was encountered while computing the uptime
-   */
-  static uint64_t ComputeProcessUptime();
 
   /**
    * When built with PRIntervalTime, a value of 0 means this instance

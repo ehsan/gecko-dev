@@ -13,7 +13,6 @@
 #include "nsIWidget.h"
 #include "nsWindowBase.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/TextRange.h"
 
 #include <msctf.h>
 #include <textstor.h>
@@ -25,14 +24,12 @@
 #endif
 #include <inputscope.h>
 
-// TSF InputScope, for earlier SDK 8
-#define IS_SEARCH static_cast<InputScope>(50)
-
 struct ITfThreadMgr;
 struct ITfDocumentMgr;
 struct ITfDisplayAttributeMgr;
 struct ITfCategoryMgr;
 class nsWindow;
+class nsTextEvent;
 #ifdef MOZ_METRO
 class MetroWidget;
 #endif
@@ -274,7 +271,7 @@ protected:
   class Composition MOZ_FINAL
   {
   public:
-    // nullptr if no composition is active, otherwise the current composition
+    // NULL if no composition is active, otherwise the current composition
     nsRefPtr<ITfCompositionView> mView;
 
     // Current copy of the active composition string. Only mString is
@@ -466,7 +463,7 @@ protected:
     // For compositionupdate and compositionend
     nsString mData;
     // For compositionupdate
-    nsTArray<mozilla::TextRange> mRanges;
+    nsTArray<nsTextRange> mRanges;
     // For selectionset
     bool mSelectionReversed;
   };

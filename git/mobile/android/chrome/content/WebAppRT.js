@@ -8,7 +8,6 @@ let Cu = Components.utils;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
-Cu.import("resource://gre/modules/PermissionsInstaller.jsm");
 
 function pref(name, value) {
   return {
@@ -29,9 +28,7 @@ let WebAppRT = {
     pref("xpinstall.enabled", false),
     // Set a future policy version to avoid the telemetry prompt.
     pref("toolkit.telemetry.prompted", 999),
-    pref("toolkit.telemetry.notifiedOptOut", 999),
-    pref("media.useAudioChannelService", true),
-    pref("dom.mozTCPSocket.enabled", true),
+    pref("toolkit.telemetry.notifiedOptOut", 999)
   ],
 
   init: function(aStatus, aUrl, aCallback) {
@@ -45,23 +42,21 @@ let WebAppRT = {
       // prevent offering to use helper apps for things that this app handles
       // i.e. don't show the "Open in market?" popup when we're showing the market app
       let uri = Services.io.newURI(aUrl, null, null);
+      Services.perms.add(uri, "native-intent", Ci.nsIPermissionManager.DENY_ACTION);
+      Services.perms.add(uri, "offline-app", Ci.nsIPermissionManager.ALLOW_ACTION);
+      Services.perms.add(uri, "indexedDB", Ci.nsIPermissionManager.ALLOW_ACTION);
+      Services.perms.add(uri, "indexedDB-unlimited", Ci.nsIPermissionManager.ALLOW_ACTION);
 
       // update the blocklist url to use a different app id
       let blocklist = Services.prefs.getCharPref("extensions.blocklist.url");
       blocklist = blocklist.replace(/%APP_ID%/g, "webapprt-mobile@mozilla.org");
       Services.prefs.setCharPref("extensions.blocklist.url", blocklist);
-
-      this.getManifestFor(aUrl, function (aManifest, aApp) {
-        if (aManifest) {
-          PermissionsInstaller.installPermissions(aApp, true);
-        }
-      });
     }
 
     this.findManifestUrlFor(aUrl, aCallback);
   },
 
-  getManifestFor: function (aUrl, aCallback) {
+  findManifestUrlFor: function(aUrl, aCallback) {
     let request = navigator.mozApps.mgmt.getAll();
     request.onsuccess = function() {
       let apps = request.result;
@@ -69,36 +64,31 @@ let WebAppRT = {
         let app = apps[i];
         let manifest = new ManifestHelper(app.manifest, app.origin);
 
-        // if this is a path to the manifest, or the launch path, then we have a hit.
-        if (app.manifestURL == aUrl || manifest.fullLaunchPath() == aUrl) {
-          aCallback(manifest, app);
+        // First see if this url matches any manifests we have registered
+        // If so, get the launchUrl from the manifest and we'll launch with that
+        //let app = DOMApplicationRegistry.getAppByManifestURL(aUrl);
+        if (app.manifestURL == aUrl) {
+          BrowserApp.manifestUrl = aUrl;
+          aCallback(manifest.fullLaunchPath());
+          return;
+        }
+    
+        // Otherwise, see if the apps launch path is this url
+        if (manifest.fullLaunchPath() == aUrl) {
+          BrowserApp.manifestUrl = app.manifestURL;
+          aCallback(aUrl);
           return;
         }
       }
 
-      // Otherwise, once we loop through all of them, we have a miss.
-      aCallback(undefined);
+      // Finally, just attempt to open the webapp as a normal web page
+      aCallback(aUrl);
     };
 
     request.onerror = function() {
-      // Treat an error like a miss. We can't find the manifest.
-      aCallback(undefined);
+      // Attempt to open the webapp as a normal web page
+      aCallback(aUrl);
     };
-  },
-
-  findManifestUrlFor: function(aUrl, aCallback) {
-    this.getManifestFor(aUrl, function(aManifest, aApp) {
-      if (!aManifest) {
-        // we can't find the manifest, so open it like a web page
-        aCallback(aUrl);
-        return;
-      }
-
-      BrowserApp.manifest = aManifest;
-      BrowserApp.manifestUrl = aApp.manifestURL;
-
-      aCallback(aManifest.fullLaunchPath());
-    });
   },
 
   getDefaultPrefs: function() {
@@ -142,24 +132,22 @@ let WebAppRT = {
 
   handleEvent: function(event) {
     let target = event.target;
-
-    // walk up the tree to find the nearest link tag
-    while (target && !(target instanceof HTMLAnchorElement)) {
-      target = target.parentNode;
-    }
-
-    if (!target || target.getAttribute("target") != "_blank") {
+  
+    if (!(target instanceof HTMLAnchorElement) ||
+        target.getAttribute("target") != "_blank") {
       return;
     }
-
-    let uri = Services.io.newURI(target.href, target.ownerDocument.characterSet, null);
-
+  
+    let uri = Services.io.newURI(target.href,
+                                 target.ownerDocument.characterSet,
+                                 null);
+  
     // Direct the URL to the browser.
     Cc["@mozilla.org/uriloader/external-protocol-service;1"].
       getService(Ci.nsIExternalProtocolService).
       getProtocolHandlerInfo(uri.scheme).
       launchWithURI(uri);
-
+  
     // Prevent the runtime from loading the URL.  We do this after directing it
     // to the browser to give the runtime a shot at handling the URL if we fail
     // to direct it to the browser for some reason.

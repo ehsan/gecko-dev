@@ -16,16 +16,16 @@
 #include "nsIComponentManager.h"
 #include "nsString.h"
 #include "nsIPrefService.h"
+#include "nsIJSContextStack.h"
 #include "nspr.h"
 #include "mozilla/Attributes.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsJSPrincipals.h"
 #include "jswrapper.h"
 
 extern PRLogModuleInfo *MCD;
-using mozilla::AutoSafeJSContext;
+using mozilla::SafeAutoJSContext;
 
 //*****************************************************************************
 
@@ -51,14 +51,15 @@ nsresult CentralizedAdminPrefManagerInit()
 
 
     // Create a sandbox.
-    AutoSafeJSContext cx;
+    SafeAutoJSContext cx;
+    JSAutoRequest ar(cx);
     nsCOMPtr<nsIXPConnectJSObjectHolder> sandbox;
     rv = xpc->CreateSandbox(cx, principal, getter_AddRefs(sandbox));
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Unwrap, store and root the sandbox.
-    autoconfigSb = sandbox->GetJSObject();
-    NS_ENSURE_STATE(autoconfigSb);
+    rv = sandbox->GetJSObject(&autoconfigSb);
+    NS_ENSURE_SUCCESS(rv, rv);
     autoconfigSb = js::UncheckedUnwrap(autoconfigSb);
     JSAutoCompartment ac(cx, autoconfigSb);
     if (!JS_AddNamedObjectRoot(cx, &autoconfigSb, "AutoConfig Sandbox"))
@@ -70,7 +71,8 @@ nsresult CentralizedAdminPrefManagerInit()
 nsresult CentralizedAdminPrefManagerFinish()
 {
     if (autoconfigSb) {
-        AutoSafeJSContext cx;
+        SafeAutoJSContext cx;
+        JSAutoRequest ar(cx);
         JSAutoCompartment(cx, autoconfigSb);
         JS_RemoveObjectRoot(cx, &autoconfigSb);
         JS_MaybeGC(cx);
@@ -112,7 +114,8 @@ nsresult EvaluateAdminConfigScript(const char *js_buffer, size_t length,
         return rv;
     }
 
-    AutoSafeJSContext cx;
+    SafeAutoJSContext cx;
+    JSAutoRequest ar(cx);
     JSAutoCompartment ac(cx, autoconfigSb);
 
     nsAutoCString script(js_buffer, length);

@@ -1,4 +1,6 @@
 /*
+ * $Id: _psutil_mswindows.h 1498 2012-07-24 21:41:28Z g.rodola $
+ *
  * Copyright (c) 2009, Jay Loden, Giampaolo Rodola'. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
@@ -26,10 +28,6 @@ static PyObject* get_process_num_threads(PyObject* self, PyObject* args);
 static PyObject* get_process_threads(PyObject* self, PyObject* args);
 static PyObject* get_process_priority(PyObject* self, PyObject* args);
 static PyObject* set_process_priority(PyObject* self, PyObject* args);
-#if (_WIN32_WINNT >= 0x0600)  // Windows Vista
-static PyObject* get_process_io_priority(PyObject* self, PyObject* args);
-static PyObject* set_process_io_priority(PyObject* self, PyObject* args);
-#endif
 static PyObject* get_process_io_counters(PyObject* self, PyObject* args);
 static PyObject* get_process_cpu_affinity(PyObject* self, PyObject* args);
 static PyObject* set_process_cpu_affinity(PyObject* self, PyObject* args);
@@ -53,13 +51,13 @@ static PyObject* kill_process(PyObject* self, PyObject* args);
 
 static PyObject* get_pid_list(PyObject* self, PyObject* args);
 static PyObject* get_num_cpus(PyObject* self, PyObject* args);
-static PyObject* get_system_boot_time(PyObject* self, PyObject* args);
+static PyObject* get_system_uptime(PyObject* self, PyObject* args);
 static PyObject* get_virtual_mem(PyObject* self, PyObject* args);
 static PyObject* get_system_cpu_times(PyObject* self, PyObject* args);
 static PyObject* pid_exists(PyObject* self, PyObject* args);
 static PyObject* get_disk_usage(PyObject* self, PyObject* args);
 static PyObject* get_disk_partitions(PyObject* self, PyObject* args);
-static PyObject* get_net_io_counters(PyObject* self, PyObject* args);
+static PyObject* get_network_io_counters(PyObject* self, PyObject* args);
 static PyObject* get_disk_io_counters(PyObject* self, PyObject* args);
 static PyObject* get_system_users(PyObject* self, PyObject* args);
 

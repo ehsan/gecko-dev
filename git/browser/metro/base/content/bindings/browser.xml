@@ -15,7 +15,7 @@
 
   <binding id="local-browser" extends="chrome://global/content/bindings/browser.xml#browser">
     <implementation type="application/javascript"
-      implements="nsIObserver, nsIDOMEventListener, nsIMessageListener">
+      implements="nsIAccessibleProvider, nsIObserver, nsIDOMEventListener, nsIMessageListener">
 
       <constructor>
         <![CDATA[
@@ -51,10 +51,18 @@
           this.removeEventListener("pageshow", this.onPageShow, true);
           this.removeEventListener("pagehide", this.onPageHide, true);
           this.removeEventListener("DOMPopupBlocked", this.onPopupBlocked, true);
-
-          this.setAttribute("autoscrollpopup", "autoscrollerid");
         ]]>
       </constructor>
+
+      <field name="_securityUI">null</field>
+      <property name="securityUI">
+        <getter><![CDATA[
+          return this._securityUI || {};
+        ]]></getter>
+        <setter><![CDATA[
+          this._securityUI = val;
+        ]]></setter>
+      </property>
 
       <field name="_searchEngines">[]</field>
       <property name="searchEngines"
@@ -126,7 +134,7 @@
         * rectBrowserToClient
         *  Converts a rect (left, top, right, bottom).
         *
-        * @param aRect - rect to convert
+        * @param aMessage - message manager message
         * @param aIgnoreScroll ignore root frame scroll.
         * @param aIgnoreScale ignore current scale factor.
         * @return { left:, top:, right:, bottom: }
@@ -455,6 +463,10 @@
                 }
 
                 let data = this._getIdentityData(SSLStatus);
+                this._browser._securityUI = {
+                  SSLStatus: SSLStatus ? {serverCert: data} : null,
+                  state: json.state
+                }
                 this._browser.updateWindowId(json.contentWindowId);
                 break;
             }
@@ -497,11 +509,7 @@
 
               // Check whether this site is a security exception.
               let currentURI = this._browser.webNavigation._currentURI;
-	      if (currentURI) {
-                result.isException = this._overrideService.hasMatchingOverride(currentURI.asciiHost, currentURI.port, cert, {}, {});
-              } else {
-	        result.isException = false;
-	      }
+              result.isException = !!this._overrideService.hasMatchingOverride(currentURI.asciiHost, currentURI.port, cert, {}, {});
             }
 
             return result;
@@ -757,7 +765,6 @@
         <setter><![CDATA[
           // Do not change displayport on local tabs!
           this._active = val;
-          this.docShellIsActive = this._active;
         ]]></setter>
       </property>
 
@@ -782,7 +789,15 @@
   </binding>
 
   <binding id="remote-browser" extends="#local-browser">
-    <implementation type="application/javascript" implements="nsIObserver, nsIDOMEventListener, nsIMessageListener">
+    <implementation type="application/javascript" implements="nsIAccessibleProvider, nsIObserver, nsIDOMEventListener, nsIMessageListener">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            throw "accessibleType: Supports Remote?";
+          ]]>
+        </getter>
+      </property>
+
       <property name="autoscrollEnabled">
         <getter>
           <![CDATA[
@@ -851,11 +866,9 @@
 
             switch (aMessage.name) {
               case "scroll":
-	        if (!json.isRoot)
-		  return;
                 if (!self.scrollSync)
                   return;
-                this.doScroll(json.scrollOffset.x, json.scrollOffset.y, 0);
+                this.doScroll(json.x, json.y, 0);
                 break;
            }
          },

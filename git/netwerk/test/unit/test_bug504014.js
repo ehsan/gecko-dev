@@ -1,3 +1,7 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
+
 var valid_URIs = [ "http://[::]/",
                    "http://[::1]/",
                    "http://[1::]/",

@@ -11,8 +11,6 @@
 #ifndef mozilla_css_GroupRule_h__
 #define mozilla_css_GroupRule_h__
 
-#include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/Rule.h"
 #include "nsCOMArray.h"
 #include "nsAutoPtr.h"
@@ -45,7 +43,7 @@ public:
 
   // to help implement nsIStyleRule
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
 #endif
 
 public:
@@ -70,20 +68,12 @@ public:
                                     nsMediaQueryResultCacheKey& aKey) = 0;
 
   // non-virtual -- it is only called by subclasses
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const = 0;
-
-  static bool
-  CloneRuleInto(Rule* aRule, void* aArray)
-  {
-    nsRefPtr<Rule> clone = aRule->Clone();
-    static_cast<nsCOMArray<Rule>*>(aArray)->AppendObject(clone);
-    return true;
-  }
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const = 0;
 
 protected:
   // to help implement nsIDOMCSSRule
-  void AppendRulesToCssText(nsAString& aCssText);
+  nsresult AppendRulesToCssText(nsAString& aCssText);
 
   // to implement common methods on nsIDOMCSSMediaRule and
   // nsIDOMCSSMozDocumentRule

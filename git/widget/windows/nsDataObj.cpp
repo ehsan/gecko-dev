@@ -25,6 +25,7 @@
 #include "nsNetUtil.h"
 #include "nsXPCOMStrings.h"
 #include "nscore.h"
+#include "prtypes.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsITimer.h"
 #include "nsThreadUtils.h"
@@ -36,7 +37,6 @@
 
 
 using namespace mozilla;
-using namespace mozilla::widget;
 
 #define DEFAULT_THREAD_TIMEOUT_MS 30000
 
@@ -74,7 +74,7 @@ nsresult nsDataObj::CStream::Init(nsIURI *pSourceURI)
 // IUnknown and nsIStreamListener.
 STDMETHODIMP nsDataObj::CStream::QueryInterface(REFIID refiid, void** ppvResult)
 {
-  *ppvResult = nullptr;
+  *ppvResult = NULL;
   if (IID_IUnknown == refiid ||
       refiid == IID_IStream)
 
@@ -82,7 +82,7 @@ STDMETHODIMP nsDataObj::CStream::QueryInterface(REFIID refiid, void** ppvResult)
     *ppvResult = this;
   }
 
-  if (nullptr != *ppvResult)
+  if (NULL != *ppvResult)
   {
     ((LPUNKNOWN)*ppvResult)->AddRef();
     return S_OK;
@@ -101,7 +101,7 @@ nsDataObj::CStream::OnDataAvailable(nsIRequest *aRequest,
 {
     // Extend the write buffer for the incoming data.
     uint8_t* buffer = mChannelData.AppendElements(aCount);
-    if (buffer == nullptr)
+    if (buffer == NULL)
       return NS_ERROR_OUT_OF_MEMORY;
     NS_ASSERTION((mChannelData.Length() == (aOffset + aCount)),
       "stream length mismatch w/write buffer");
@@ -214,7 +214,7 @@ STDMETHODIMP nsDataObj::CStream::Seek(LARGE_INTEGER nMove,
                                       DWORD dwOrigin,
                                       ULARGE_INTEGER* nNewPos)
 {
-  if (nNewPos == nullptr)
+  if (nNewPos == NULL)
     return STG_E_INVALIDPOINTER;
 
   if (nMove.LowPart == 0 && nMove.HighPart == 0 &&
@@ -236,7 +236,7 @@ STDMETHODIMP nsDataObj::CStream::SetSize(ULARGE_INTEGER nNewSize)
 //-----------------------------------------------------------------------------
 STDMETHODIMP nsDataObj::CStream::Stat(STATSTG* statstg, DWORD dwFlags)
 {
-  if (statstg == nullptr)
+  if (statstg == NULL)
     return STG_E_INVALIDPOINTER;
 
   if (!mChannel || NS_FAILED(WaitForCompletion()))
@@ -393,7 +393,7 @@ nsDataObj::~nsDataObj()
 //-----------------------------------------------------
 STDMETHODIMP nsDataObj::QueryInterface(REFIID riid, void** ppv)
 {
-	*ppv=nullptr;
+	*ppv=NULL;
 
 	if ( (IID_IUnknown == riid) || (IID_IDataObject	== riid) ) {
 		*ppv = this;
@@ -439,7 +439,7 @@ STDMETHODIMP_(ULONG) nsDataObj::Release()
       return AddRef();
     }
     mCachedTempFile->Remove(false);
-    mCachedTempFile = nullptr;
+    mCachedTempFile = NULL;
   }
 
 	delete this;
@@ -493,7 +493,7 @@ STDMETHODIMP nsDataObj::GetData(LPFORMATETC aFormat, LPSTGMEDIUM pSTM)
          && dfInx < mDataFlavors.Length()) {
     nsCString& df = mDataFlavors.ElementAt(dfInx);
     if (FormatsMatch(fe, *aFormat)) {
-      pSTM->pUnkForRelease = nullptr;     // caller is responsible for deleting this data
+      pSTM->pUnkForRelease = NULL;        // caller is responsible for deleting this data
       CLIPFORMAT format = aFormat->cfFormat;
       switch(format) {
 
@@ -617,9 +617,9 @@ STDMETHODIMP nsDataObj::SetData(LPFORMATETC aFormat, LPSTGMEDIUM aMedium, BOOL s
 bool
 nsDataObj::LookupArbitraryFormat(FORMATETC *aFormat, LPDATAENTRY *aDataEntry, BOOL aAddorUpdate)
 {
-  *aDataEntry = nullptr;
+  *aDataEntry = NULL;
 
-  if (aFormat->ptd != nullptr)
+  if (aFormat->ptd != NULL)
     return false;
 
   // See if it's already in our list. If so return the data entry.
@@ -710,10 +710,10 @@ STDMETHODIMP nsDataObj::EnumFormatEtc(DWORD dwDir, LPENUMFORMATETC *ppEnum)
     case DATADIR_SET:
       // fall through
     default:
-      *ppEnum = nullptr;
+      *ppEnum = NULL;
   } // switch
 
-  if (nullptr == *ppEnum)
+  if (NULL == *ppEnum)
     return E_FAIL;
 
   (*ppEnum)->Reset();
@@ -948,7 +948,7 @@ CreateFilenameFromTextA(nsString & aText, const char * aExtension,
   do {
     currLen = WideCharToMultiByte(CP_ACP, 
       WC_COMPOSITECHECK|WC_DEFAULTCHAR,
-      aText.get(), textLen--, aFilename, maxUsableFilenameLen, &defaultChar, nullptr);
+      aText.get(), textLen--, aFilename, maxUsableFilenameLen, &defaultChar, NULL);
   }
   while (currLen == 0 && textLen > 0 && GetLastError() == ERROR_INSUFFICIENT_BUFFER);
   if (currLen > 0 && textLen > 0) {
@@ -1114,8 +1114,7 @@ nsDataObj :: GetFileContentsInternetShortcut ( FORMATETC& aFE, STGMEDIUM& aSTG )
   const char *shortcutFormatStr;
   int totalLen;
   nsCString path;
-  if (!Preferences::GetBool(kShellIconPref, true) ||
-      WinUtils::GetWindowsVersion() < WinUtils::VISTA_VERSION) {
+  if (!Preferences::GetBool(kShellIconPref, true)) {
     shortcutFormatStr = "[InternetShortcut]\r\nURL=%s\r\n";
     const int formatLen = strlen(shortcutFormatStr) - 2;  // don't include %s
     totalLen = formatLen + asciiUrl.Length();  // don't include null character
@@ -1205,8 +1204,8 @@ HRESULT nsDataObj::GetPreferredDropEffect ( FORMATETC& aFE, STGMEDIUM& aSTG )
 {
   HRESULT res = S_OK;
   aSTG.tymed = TYMED_HGLOBAL;
-  aSTG.pUnkForRelease = nullptr;    
-  HGLOBAL hGlobalMemory = nullptr;
+  aSTG.pUnkForRelease = NULL;    
+  HGLOBAL hGlobalMemory = NULL;
   hGlobalMemory = ::GlobalAlloc(GMEM_MOVEABLE, sizeof(DWORD));
   if (hGlobalMemory) {
     DWORD* pdw = (DWORD*) GlobalLock(hGlobalMemory);
@@ -1230,7 +1229,7 @@ HRESULT nsDataObj::GetPreferredDropEffect ( FORMATETC& aFE, STGMEDIUM& aSTG )
 //-----------------------------------------------------
 HRESULT nsDataObj::GetText(const nsACString & aDataFlavor, FORMATETC& aFE, STGMEDIUM& aSTG)
 {
-  void* data = nullptr;
+  void* data = NULL;
   uint32_t   len;
   
   // if someone asks for text/plain, look up text/unicode instead in the transferable.
@@ -1250,10 +1249,10 @@ HRESULT nsDataObj::GetText(const nsACString & aDataFlavor, FORMATETC& aFE, STGME
   if ( !data )
     return E_FAIL;
 
-  HGLOBAL     hGlobalMemory = nullptr;
+  HGLOBAL     hGlobalMemory = NULL;
 
   aSTG.tymed          = TYMED_HGLOBAL;
-  aSTG.pUnkForRelease = nullptr;
+  aSTG.pUnkForRelease = NULL;
 
   // We play games under the hood and advertise flavors that we know we
   // can support, only they require a bit of conversion or munging of the data.
@@ -1366,7 +1365,7 @@ HRESULT nsDataObj::DropFile(FORMATETC& aFE, STGMEDIUM& aSTG)
     return E_FAIL;
 
   aSTG.tymed = TYMED_HGLOBAL;
-  aSTG.pUnkForRelease = nullptr;
+  aSTG.pUnkForRelease = NULL;
 
   nsAutoString path;
   rv = file->GetPath(path);
@@ -1374,7 +1373,7 @@ HRESULT nsDataObj::DropFile(FORMATETC& aFE, STGMEDIUM& aSTG)
     return E_FAIL;
 
   uint32_t allocLen = path.Length() + 2;
-  HGLOBAL hGlobalMemory = nullptr;
+  HGLOBAL hGlobalMemory = NULL;
   PRUnichar *dest;
 
   hGlobalMemory = GlobalAlloc(GMEM_MOVEABLE, sizeof(DROPFILES) +
@@ -1511,12 +1510,12 @@ HRESULT nsDataObj::DropImage(FORMATETC& aFE, STGMEDIUM& aSTG)
     return E_FAIL;
 
   // Two null characters are needed to terminate the file name list.
-  HGLOBAL hGlobalMemory = nullptr;
+  HGLOBAL hGlobalMemory = NULL;
 
   uint32_t allocLen = path.Length() + 2;
 
   aSTG.tymed = TYMED_HGLOBAL;
-  aSTG.pUnkForRelease = nullptr;
+  aSTG.pUnkForRelease = NULL;
 
   hGlobalMemory = GlobalAlloc(GMEM_MOVEABLE, sizeof(DROPFILES) + allocLen * sizeof(PRUnichar));
   if (!hGlobalMemory)
@@ -1584,7 +1583,7 @@ HRESULT nsDataObj::DropTempFile(FORMATETC& aFE, STGMEDIUM& aSTG)
     if (NS_FAILED(rv))
       return E_FAIL;
 
-    IStream *pStream = nullptr;
+    IStream *pStream = NULL;
     nsDataObj::CreateStream(&pStream);
     NS_ENSURE_TRUE(pStream, E_FAIL);
 
@@ -1614,10 +1613,10 @@ HRESULT nsDataObj::DropTempFile(FORMATETC& aFE, STGMEDIUM& aSTG)
   uint32_t allocLen = path.Length() + 2;
 
   // Two null characters are needed to terminate the file name list.
-  HGLOBAL hGlobalMemory = nullptr;
+  HGLOBAL hGlobalMemory = NULL;
 
   aSTG.tymed = TYMED_HGLOBAL;
-  aSTG.pUnkForRelease = nullptr;
+  aSTG.pUnkForRelease = NULL;
 
   hGlobalMemory = GlobalAlloc(GMEM_MOVEABLE, sizeof(DROPFILES) + allocLen * sizeof(PRUnichar));
   if (!hGlobalMemory)
@@ -2107,14 +2106,14 @@ HRESULT nsDataObj::GetFileDescriptor_IStreamW(FORMATETC& aFE, STGMEDIUM& aSTG)
 
 HRESULT nsDataObj::GetFileContents_IStream(FORMATETC& aFE, STGMEDIUM& aSTG)
 {
-  IStream *pStream = nullptr;
+  IStream *pStream = NULL;
 
   nsDataObj::CreateStream(&pStream);
   NS_ENSURE_TRUE(pStream, E_FAIL);
 
   aSTG.tymed = TYMED_ISTREAM;
   aSTG.pstm = pStream;
-  aSTG.pUnkForRelease = nullptr;
+  aSTG.pUnkForRelease = NULL;
 
   return S_OK;
 }
@@ -2124,7 +2123,7 @@ void nsDataObj::RemoveTempFile(nsITimer* aTimer, void* aClosure)
   nsDataObj *timedDataObj = static_cast<nsDataObj *>(aClosure);
   if (timedDataObj->mCachedTempFile) {
     timedDataObj->mCachedTempFile->Remove(false);
-    timedDataObj->mCachedTempFile = nullptr;
+    timedDataObj->mCachedTempFile = NULL;
   }
   timedDataObj->Release();
 }

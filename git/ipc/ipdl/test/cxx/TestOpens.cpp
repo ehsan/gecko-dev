@@ -60,13 +60,13 @@ OpenParent(TestOpensOpenedParent* aParent,
     // Messages will be delivered to this thread's message loop
     // instead of the main thread's.
     if (!aParent->Open(aTransport, aOtherProcess,
-                       XRE_GetIOMessageLoop(), ipc::ParentSide))
+                       XRE_GetIOMessageLoop(), AsyncChannel::Parent))
         fail("opening Parent");
 }
 
 PTestOpensOpenedParent*
-TestOpensParent::AllocPTestOpensOpenedParent(Transport* transport,
-                                             ProcessId otherProcess)
+TestOpensParent::AllocPTestOpensOpened(Transport* transport,
+                                       ProcessId otherProcess)
 {
     gMainThread = MessageLoop::current();
 
@@ -169,7 +169,7 @@ OpenChild(TestOpensOpenedChild* aChild,
     // Messages will be delivered to this thread's message loop
     // instead of the main thread's.
     if (!aChild->Open(aTransport, aOtherProcess,
-                      XRE_GetIOMessageLoop(), ipc::ChildSide))
+                      XRE_GetIOMessageLoop(), AsyncChannel::Child))
         fail("opening Child");
 
     // Kick off the unit tests
@@ -178,8 +178,8 @@ OpenChild(TestOpensOpenedChild* aChild,
 }
 
 PTestOpensOpenedChild*
-TestOpensChild::AllocPTestOpensOpenedChild(Transport* transport,
-                                           ProcessId otherProcess)
+TestOpensChild::AllocPTestOpensOpened(Transport* transport,
+                                      ProcessId otherProcess)
 {
     gMainThread = MessageLoop::current();
 

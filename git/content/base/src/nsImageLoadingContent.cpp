@@ -31,6 +31,7 @@
 
 #include "nsIPresShell.h"
 #include "nsEventStates.h"
+#include "nsGUIEvent.h"
 
 #include "nsIChannel.h"
 #include "nsIStreamListener.h"
@@ -39,7 +40,6 @@
 #include "nsIDOMNode.h"
 
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsLayoutUtils.h"
 #include "nsIContentPolicy.h"
 #include "nsEventDispatcher.h"
@@ -88,7 +88,6 @@ nsImageLoadingContent::nsImageLoadingContent()
     mStateChangerDepth(0),
     mCurrentRequestRegistered(false),
     mPendingRequestRegistered(false),
-    mFrameCreateCalled(false),
     mVisibleCount(0)
 {
   if (!nsContentUtils::GetImgLoaderForChannel(nullptr)) {
@@ -236,16 +235,8 @@ nsImageLoadingContent::OnStopRequest(imgIRequest* aRequest,
   if (shell && shell->IsVisible() &&
       (!shell->DidInitialize() || shell->IsPaintingSuppressed())) {
 
-    // If we've gotten a frame and that frame has called FrameCreate and that
-    // frame has been reflowed then we know that it checked it's own visibility
-    // so we can trust our visible count and we don't start decode if we are not
-    // visible.
-    nsIFrame* f = GetOurPrimaryFrame();
-    if (!mFrameCreateCalled || !f || (f->GetStateBits() & NS_FRAME_FIRST_REFLOW) ||
-        mVisibleCount > 0 || shell->AssumeAllImagesVisible()) {
-      if (NS_SUCCEEDED(mCurrentRequest->StartDecoding())) {
-        startedDecoding = true;
-      }
+    if (NS_SUCCEEDED(mCurrentRequest->StartDecoding())) {
+      startedDecoding = true;
     }
   }
 
@@ -312,6 +303,8 @@ nsImageLoadingContent::OnImageIsAnimated(imgIRequest *aRequest)
 NS_IMETHODIMP
 nsImageLoadingContent::GetLoadingEnabled(bool *aLoadingEnabled)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   *aLoadingEnabled = mLoadingEnabled;
   return NS_OK;
 }
@@ -319,6 +312,8 @@ nsImageLoadingContent::GetLoadingEnabled(bool *aLoadingEnabled)
 NS_IMETHODIMP
 nsImageLoadingContent::SetLoadingEnabled(bool aLoadingEnabled)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   if (nsContentUtils::GetImgLoaderForChannel(nullptr)) {
     mLoadingEnabled = aLoadingEnabled;
   }
@@ -328,6 +323,8 @@ nsImageLoadingContent::SetLoadingEnabled(bool aLoadingEnabled)
 NS_IMETHODIMP
 nsImageLoadingContent::GetImageBlockingStatus(int16_t* aStatus)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   NS_PRECONDITION(aStatus, "Null out param");
   *aStatus = ImageBlockingStatus();
   return NS_OK;
@@ -336,6 +333,8 @@ nsImageLoadingContent::GetImageBlockingStatus(int16_t* aStatus)
 NS_IMETHODIMP
 nsImageLoadingContent::AddObserver(imgINotificationObserver* aObserver)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   NS_ENSURE_ARG_POINTER(aObserver);
 
   if (!mObserverList.mObserver) {
@@ -362,6 +361,8 @@ nsImageLoadingContent::AddObserver(imgINotificationObserver* aObserver)
 NS_IMETHODIMP
 nsImageLoadingContent::RemoveObserver(imgINotificationObserver* aObserver)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   NS_ENSURE_ARG_POINTER(aObserver);
 
   if (mObserverList.mObserver == aObserver) {
@@ -430,19 +431,23 @@ nsImageLoadingContent::FrameCreated(nsIFrame* aFrame)
 {
   NS_ASSERTION(aFrame, "aFrame is null");
 
-  mFrameCreateCalled = true;
-
   if (aFrame->HasAnyStateBits(NS_FRAME_IN_POPUP)) {
     // Assume all images in popups are visible.
     IncrementVisibleCount();
   }
 
-  TrackImage(mCurrentRequest);
-  TrackImage(mPendingRequest);
+  nsPresContext* presContext = aFrame->PresContext();
+  if (mVisibleCount == 0) {
+    presContext->PresShell()->EnsureImageInVisibleList(this);
+  }
+
+  // We pass the SKIP_FRAME_CHECK flag to TrackImage here because our primary
+  // frame pointer hasn't been setup yet when this is caled.
+  TrackImage(mCurrentRequest, SKIP_FRAME_CHECK);
+  TrackImage(mPendingRequest, SKIP_FRAME_CHECK);
 
   // We need to make sure that our image request is registered, if it should
   // be registered.
-  nsPresContext* presContext = aFrame->PresContext();
   if (mCurrentRequest) {
     nsLayoutUtils::RegisterImageRequestIfAnimated(presContext, mCurrentRequest,
                                                   &mCurrentRequestRegistered);
@@ -458,8 +463,6 @@ NS_IMETHODIMP_(void)
 nsImageLoadingContent::FrameDestroyed(nsIFrame* aFrame)
 {
   NS_ASSERTION(aFrame, "aFrame is null");
-
-  mFrameCreateCalled = false;
 
   // We need to make sure that our image request is deregistered.
   if (mCurrentRequest) {
@@ -505,6 +508,8 @@ NS_IMETHODIMP
 nsImageLoadingContent::GetRequestType(imgIRequest* aRequest,
                                       int32_t* aRequestType)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   NS_PRECONDITION(aRequestType, "Null out param");
 
   ErrorResult result;
@@ -586,6 +591,7 @@ NS_IMETHODIMP
 nsImageLoadingContent::LoadImageWithChannel(nsIChannel* aChannel,
                                             nsIStreamListener** aListener)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_ARG_POINTER(aListener);
 
   ErrorResult result;
@@ -611,6 +617,8 @@ nsImageLoadingContent::ForceReload(ErrorResult& aError)
 
 NS_IMETHODIMP nsImageLoadingContent::ForceReload()
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   ErrorResult result;
   ForceReload(result);
   return result.ErrorCode();
@@ -857,6 +865,8 @@ nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
 nsresult
 nsImageLoadingContent::ForceImageState(bool aForce, nsEventStates::InternalType aState)
 {
+  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
+
   mIsImageStateForced = aForce;
   mForcedImageState = nsEventStates(aState);
   return NS_OK;
@@ -1286,17 +1296,17 @@ nsImageLoadingContent::UnbindFromTree(bool aDeep, bool aNullParent)
     doc->UnblockOnload(false);
 }
 
-void
-nsImageLoadingContent::TrackImage(imgIRequest* aImage)
+nsresult
+nsImageLoadingContent::TrackImage(imgIRequest* aImage, uint32_t aFlags /* = 0 */)
 {
   if (!aImage)
-    return;
+    return NS_OK;
 
   MOZ_ASSERT(aImage == mCurrentRequest || aImage == mPendingRequest,
              "Why haven't we heard of this request?");
 
   nsIDocument* doc = GetOurCurrentDoc();
-  if (doc && (mFrameCreateCalled || GetOurPrimaryFrame()) &&
+  if (doc && ((aFlags & SKIP_FRAME_CHECK) || GetOurPrimaryFrame()) &&
       (mVisibleCount > 0)) {
     if (aImage == mCurrentRequest && !(mCurrentRequestFlags & REQUEST_IS_TRACKED)) {
       mCurrentRequestFlags |= REQUEST_IS_TRACKED;
@@ -1307,13 +1317,14 @@ nsImageLoadingContent::TrackImage(imgIRequest* aImage)
       doc->AddImage(mPendingRequest);
     }
   }
+  return NS_OK;
 }
 
-void
+nsresult
 nsImageLoadingContent::UntrackImage(imgIRequest* aImage, uint32_t aFlags /* = 0 */)
 {
   if (!aImage)
-    return;
+    return NS_OK;
 
   MOZ_ASSERT(aImage == mCurrentRequest || aImage == mPendingRequest,
              "Why haven't we heard of this request?");
@@ -1345,6 +1356,7 @@ nsImageLoadingContent::UntrackImage(imgIRequest* aImage, uint32_t aFlags /* = 0 
       aImage->RequestDiscard();
     }
   }
+  return NS_OK;
 }
 
 

@@ -27,8 +27,6 @@ MACPORTS_URL = {'8': 'https://distfiles.macports.org/MacPorts/MacPorts-2.1.3-10.
                 '7': 'https://distfiles.macports.org/MacPorts/MacPorts-2.1.3-10.7-Lion.pkg',
                 '6': 'https://distfiles.macports.org/MacPorts/MacPorts-2.1.3-10.6-SnowLeopard.pkg',}
 
-MACPORTS_CLANG_PACKAGE = 'clang-3.3'
-
 RE_CLANG_VERSION = re.compile('Apple (?:clang|LLVM) version (\d+\.\d+)')
 
 APPLE_CLANG_MINIMUM_VERSION = StrictVersion('4.0')
@@ -36,28 +34,12 @@ APPLE_CLANG_MINIMUM_VERSION = StrictVersion('4.0')
 XCODE_REQUIRED = '''
 Xcode is required to build Firefox. Please complete the install of Xcode
 through the App Store.
-
-It's possible Xcode is already installed on this machine but it isn't being
-detected. This is possible with developer preview releases of Xcode, for
-example. To correct this problem, run:
-
-  `xcode-select --switch /path/to/Xcode.app`.
-
-e.g. `sudo xcode-select --switch /Applications/Xcode.app`.
 '''
 
 XCODE_REQUIRED_LEGACY = '''
 You will need to download and install Xcode to build Firefox.
 
 Please complete the Xcode download and then relaunch this script.
-'''
-
-XCODE_NO_DEVELOPER_DIRECTORY = '''
-xcode-select says you don't have a developer directory configured. We think
-this is due to you not having Xcode installed (properly). We're going to
-attempt to install Xcode through the App Store. If the App Store thinks you
-have Xcode installed, please run xcode-select by hand until it stops
-complaining and then re-run this script.
 '''
 
 XCODE_COMMAND_LINE_TOOLS_MISSING = '''
@@ -78,10 +60,7 @@ When that has finished installing, please relaunch this script.
 
 UPGRADE_XCODE_COMMAND_LINE_TOOLS = '''
 An old version of the Xcode command line tools is installed. You will need to
-install a newer version in order to compile Firefox. If Xcode itself is old,
-its command line tools may be too old even if it claims there are no updates
-available, so if you are seeing this message multiple times, please update
-Xcode first.
+install a newer version in order to compile Firefox.
 '''
 
 PACKAGE_MANAGER_INSTALL = '''
@@ -128,32 +107,11 @@ PACKAGE_MANAGER = {'Homebrew': 'brew',
 
 PACKAGE_MANAGER_CHOICES = ['Homebrew', 'MacPorts']
 
-PACKAGE_MANAGER_BIN_MISSING = '''
-A package manager is installed. However, your current shell does
-not know where to find '%s' yet. You'll need to start a new shell
-to pick up the environment changes so it can be found.
+MACPORTS_POSTINSTALL_RESTART_REQUIRED = '''
+MacPorts was installed successfully. However, you'll need to start a new shell
+to pick up the environment changes so MacPorts can be found by your tools.
 
-Please start a new shell or terminal window and run this
-bootstrapper again.
-
-If this problem persists, you will likely want to adjust your
-shell's init script (e.g. ~/.bash_profile) to export a PATH
-environment variable containing the location of your package
-manager binary. e.g.
-
-    export PATH=/usr/local/bin:$PATH
-'''
-
-BAD_PATH_ORDER = '''
-Your environment's PATH variable lists a system path directory (%s)
-before the path to your package manager's binaries (%s).
-This means that the package manager's binaries likely won't be
-detected properly.
-
-Please modify your shell's configuration (e.g. ~/.bash_profile) to
-have %s appear in $PATH before %s. e.g.
-
-    export PATH=%s:$PATH
+Please start a new shell or terminal window and run this bootstrapper again.
 '''
 
 
@@ -172,7 +130,6 @@ class OSXBootstrapper(BaseBootstrapper):
         self.ensure_xcode()
 
         choice = self.ensure_package_manager()
-        self.package_manager = choice
         getattr(self, 'ensure_%s_packages' % choice)()
 
     def ensure_xcode(self):
@@ -183,31 +140,14 @@ class OSXBootstrapper(BaseBootstrapper):
                 subprocess.check_call(['open', XCODE_LEGACY])
                 sys.exit(1)
 
-        # OS X 10.7 have Xcode come from the app store. However, users can
-        # still install Xcode into any arbitrary location. We honor the
-        # location of Xcode as set by xcode-select. This should also pick up
-        # developer preview releases of Xcode, which can be installed into
-        # paths like /Applications/Xcode5-DP6.app.
         elif self.os_version >= StrictVersion('10.7'):
-            select = self.which('xcode-select')
-            try:
-                output = self.check_output([select, '--print-path'],
-                    stderr=subprocess.STDOUT)
-            except subprocess.CalledProcessError as e:
-                # This seems to appear on fresh OS X machines before any Xcode
-                # has been installed. It may only occur on OS X 10.9 and later.
-                if 'unable to get active developer directory' in e.output:
-                    print(XCODE_NO_DEVELOPER_DIRECTORY)
-                    self._install_xcode_app_store()
-                    assert False # Above should exit.
-
-            # This isn't the most robust check in the world. It relies on the
-            # default value not being in an application bundle, which seems to
-            # hold on at least Mavericks.
-            if '.app/' not in output:
+            if not os.path.exists('/Applications/Xcode.app'):
                 print(XCODE_REQUIRED)
-                self._install_xcode_app_store()
-                assert False # Above should exit.
+
+                subprocess.check_call(['open', XCODE_APP_STORE])
+
+                print('Once the install has finished, please relaunch this script.')
+                sys.exit(1)
 
         # Once Xcode is installed, you need to agree to the license before you can
         # use it.
@@ -217,12 +157,7 @@ class OSXBootstrapper(BaseBootstrapper):
         except subprocess.CalledProcessError as e:
             if 'license' in e.output:
                 xcodebuild = self.which('xcodebuild')
-                try:
-                    subprocess.check_call([xcodebuild, '-license'],
-                        stderr=subprocess.STDOUT)
-                except subprocess.CalledProcessError as e:
-                    if 'requires admin privileges' in e.output:
-                        self.run_as_root([xcodebuild, '-license'])
+                subprocess.check_call([xcodebuild, '-license'])
 
         # Even then we're not done! We need to install the Xcode command line tools.
         # As of Mountain Lion, apparently the only way to do this is to go through a
@@ -245,32 +180,22 @@ class OSXBootstrapper(BaseBootstrapper):
                 print(INSTALL_XCODE_COMMAND_LINE_TOOLS_STEPS)
                 sys.exit(1)
 
-    def _install_xcode_app_store(self):
-        subprocess.check_call(['open', XCODE_APP_STORE])
-        print('Once the install has finished, please relaunch this script.')
-        sys.exit(1)
-
     def ensure_homebrew_packages(self):
-        self.brew = self.which('brew')
-        assert self.brew is not None
+        brew = self.which('brew')
+        assert brew is not None
 
-        installed = self.check_output([self.brew, 'list']).split()
+        installed = self.check_output([brew, 'list']).split()
 
         packages = [
             # We need to install Python because Mercurial requires the Python
             # development headers which are missing from OS X (at least on
-            # 10.8) and because the build system wants a version newer than
-            # what Apple ships.
+            # 10.8).
             ('python', 'python'),
             ('mercurial', 'mercurial'),
             ('git', 'git'),
             ('yasm', 'yasm'),
             ('autoconf213', HOMEBREW_AUTOCONF213),
         ]
-
-        # terminal-notifier is only available in Mountain Lion or newer.
-        if self.os_version >= StrictVersion('10.8'):
-            packages.append(('terminal-notifier', 'terminal-notifier'))
 
         printed = False
 
@@ -279,22 +204,22 @@ class OSXBootstrapper(BaseBootstrapper):
                 continue
 
             if not printed:
-                print(PACKAGE_MANAGER_PACKAGES % ('Homebrew',))
+                print(PACKAGE_MANAGER_PACKAGES)
                 printed = True
 
-            subprocess.check_call([self.brew, '-v', 'install', package])
+            subprocess.check_call([brew, '-v', 'install', package])
 
         if self.os_version < StrictVersion('10.7') and 'llvm' not in installed:
-            print(PACKAGE_MANAGER_OLD_CLANG % ('Homebrew',))
+            print(HOMEBREW_OLD_CLANG)
 
-            subprocess.check_call([self.brew, '-v', 'install', 'llvm',
+            subprocess.check_call([brew, '-v', 'install', 'llvm',
                 '--with-clang', '--all-targets'])
 
     def ensure_macports_packages(self):
-        self.port = self.which('port')
-        assert self.port is not None
+        port = self.which('port')
+        assert port is not None
 
-        installed = set(self.check_output([self.port, 'installed']).split())
+        installed = set(self.check_output([port, 'installed']).split())
 
         packages = ['python27',
                     'mercurial',
@@ -304,15 +229,11 @@ class OSXBootstrapper(BaseBootstrapper):
 
         missing = [package for package in packages if package not in installed]
         if missing:
-            print(PACKAGE_MANAGER_PACKAGES % ('MacPorts',))
-            self.run_as_root([self.port, '-v', 'install'] + missing)
+            self.run_as_root([port, '-v', 'install'] + missing)
 
-        if self.os_version < StrictVersion('10.7') and MACPORTS_CLANG_PACKAGE not in installed:
-            print(PACKAGE_MANAGER_OLD_CLANG % ('MacPorts',))
-            self.run_as_root([self.port, '-v', 'install', MACPORTS_CLANG_PACKAGE])
-
-        self.run_as_root([self.port, 'select', '--set', 'python', 'python27'])
-        self.run_as_root([self.port, 'select', '--set', 'clang', 'mp-' + MACPORTS_CLANG_PACKAGE])
+        if self.os_version < StrictVersion('10.7') and 'llvm' not in installed:
+            print(MACPORTS_OLD_CLANG)
+            self.run_as_root([port, '-v', 'install', 'llvm'])
 
     def ensure_package_manager(self):
         '''
@@ -325,45 +246,18 @@ class OSXBootstrapper(BaseBootstrapper):
             if self.which(cmd) is not None:
                 installed.append(name)
 
-        active_name, active_cmd = None, None
-
         if not installed:
             print(NO_PACKAGE_MANAGER_WARNING)
             choice = self.prompt_int(prompt=PACKAGE_MANAGER_CHOICE, low=1, high=2)
-            active_name = PACKAGE_MANAGER_CHOICES[choice - 1]
-            active_cmd = PACKAGE_MANAGER[active_name]
-            getattr(self, 'install_%s' % active_name.lower())()
+            getattr(self, 'install_%s' % PACKAGE_MANAGER_CHOICES[choice - 1].lower())()
+            return PACKAGE_MANAGER_CHOICES[choice - 1].lower()
         elif len(installed) == 1:
             print(PACKAGE_MANAGER_EXISTS % (installed[0], installed[0]))
-            active_name = installed[0]
-            active_cmd = PACKAGE_MANAGER[active_name]
+            return installed[0].lower()
         else:
             print(MULTI_PACKAGE_MANAGER_EXISTS)
             choice = self.prompt_int(prompt=PACKAGE_MANAGER_CHOICE, low=1, high=2)
-
-            active_name = PACKAGE_MANAGER_CHOICES[choice - 1]
-            active_cmd = PACKAGE_MANAGER[active_name]
-
-        # Ensure the active package manager is in $PATH and it comes before
-        # /usr/bin. If it doesn't come before /usr/bin, we'll pick up system
-        # packages before package manager installed packages and the build may
-        # break.
-        p = self.which(active_cmd)
-        if not p:
-            print(PACKAGE_MANAGER_BIN_MISSING % active_cmd)
-            sys.exit(1)
-
-        p_dir = os.path.dirname(p)
-        for path in os.environ['PATH'].split(os.pathsep):
-            if path == p_dir:
-                break
-
-            for check in ('/bin', '/usr/bin'):
-                if path == check:
-                    print(BAD_PATH_ORDER % (check, p_dir, p_dir, check, p_dir))
-                    sys.exit(1)
-
-        return active_name.lower()
+            return PACKAGE_MANAGER_CHOICES[choice - 1].lower()
 
     def install_homebrew(self):
         print(PACKAGE_MANAGER_INSTALL % ('Homebrew', 'Homebrew', 'Homebrew', 'brew'))
@@ -388,34 +282,9 @@ class OSXBootstrapper(BaseBootstrapper):
 
             self.run_as_root(['installer', '-pkg', tf.name, '-target', '/'])
 
-    def _update_package_manager(self):
-        if self.package_manager == 'homebrew':
-            subprocess.check_call([self.brew, '-v', 'update'])
-        else:
-            assert self.package_manager == 'macports'
-            self.run_as_root([self.port, 'selfupdate'])
-
-    def _upgrade_package(self, package):
-        self._ensure_package_manager_updated()
-
-        if self.package_manager == 'homebrew':
-            try:
-                subprocess.check_output([self.brew, '-v', 'upgrade', package],
-                    stderr=subprocess.STDOUT)
-            except subprocess.CalledProcessError as e:
-                if 'already installed' not in e.output:
-                    raise
-        else:
-            assert self.package_manager == 'macports'
-
-            self.run_as_root([self.port, 'upgrade', package])
-
-    def upgrade_mercurial(self, current):
-        self._upgrade_package('mercurial')
-
-    def upgrade_python(self, current):
-        if self.package_manager == 'homebrew':
-            self._upgrade_package('python')
-        else:
-            self._upgrade_package('python27')
+        # MacPorts installs itself into a location likely not on the PATH. If
+        # we can't find it, prompt to restart.
+        if self.which('port') is None:
+            print(MACPORTS_POSTINSTALL_RESTART_REQUIRED)
+            sys.exit(1)
 

@@ -7,7 +7,6 @@
  */
 
 
-#include "gl/GrGLExtensions.h"
 #include "gl/GrGLInterface.h"
 #include "../GrGLUtil.h"
 
@@ -23,18 +22,9 @@
 
 const GrGLInterface* GrGLCreateNativeInterface() {
     if (NULL != glXGetCurrentContext()) {
-
         const char* versionString = (const char*) glGetString(GL_VERSION);
+        const char* extString = (const char*) glGetString(GL_EXTENSIONS);
         GrGLVersion glVer = GrGLGetVersionFromString(versionString);
-
-        // This may or may not succeed depending on the gl version.
-        GrGLGetStringiProc glGetStringi =
-            (GrGLGetStringiProc) glXGetProcAddress(reinterpret_cast<const GLubyte*>("glGetStringi"));
-
-        GrGLExtensions extensions;
-        if (!extensions.init(kDesktop_GrGLBinding, glGetString, glGetStringi, glGetIntegerv)) {
-            return NULL;
-        }
 
         if (glVer < GR_GL_VER(1,5)) {
             // We must have array and element_array buffer objects.
@@ -53,8 +43,8 @@ const GrGLInterface* GrGLCreateNativeInterface() {
         interface->fBlendFunc = glBlendFunc;
 
         if (glVer >= GR_GL_VER(1,4) ||
-            extensions.has("GL_ARB_imaging") ||
-            extensions.has("GL_EXT_blend_color")) {
+            GrGLHasExtensionFromString("GL_ARB_imaging", extString) ||
+            GrGLHasExtensionFromString("GL_EXT_blend_color", extString)) {
             GR_GL_GET_PROC(BlendColor);
         }
 
@@ -93,11 +83,12 @@ const GrGLInterface* GrGLCreateNativeInterface() {
         interface->fGetIntegerv = glGetIntegerv;
         GR_GL_GET_PROC(GetQueryObjectiv);
         GR_GL_GET_PROC(GetQueryObjectuiv);
-        if (glVer >= GR_GL_VER(3,3) || extensions.has("GL_ARB_timer_query")) {
+        if (glVer >= GR_GL_VER(3,3) ||
+            GrGLHasExtensionFromString("GL_ARB_timer_query", extString)) {
             GR_GL_GET_PROC(GetQueryObjecti64v);
             GR_GL_GET_PROC(GetQueryObjectui64v);
             GR_GL_GET_PROC(QueryCounter);
-        } else if (extensions.has("GL_EXT_timer_query")) {
+        } else if (GrGLHasExtensionFromString("GL_EXT_timer_query", extString)) {
             GR_GL_GET_PROC_SUFFIX(GetQueryObjecti64v, EXT);
             GR_GL_GET_PROC_SUFFIX(GetQueryObjectui64v, EXT);
         }
@@ -107,7 +98,6 @@ const GrGLInterface* GrGLCreateNativeInterface() {
         GR_GL_GET_PROC(GetShaderInfoLog);
         GR_GL_GET_PROC(GetShaderiv);
         interface->fGetString = glGetString;
-        GR_GL_GET_PROC(GetStringi);
         interface->fGetTexLevelParameteriv = glGetTexLevelParameteriv;
         GR_GL_GET_PROC(GenQueries);
         interface->fGenTextures = glGenTextures;
@@ -118,7 +108,8 @@ const GrGLInterface* GrGLCreateNativeInterface() {
         interface->fPixelStorei = glPixelStorei;
         interface->fReadBuffer = glReadBuffer;
         interface->fReadPixels = glReadPixels;
-        if (extensions.has("GL_NV_framebuffer_multisample_coverage")) {
+        if (GrGLHasExtensionFromString("GL_NV_framebuffer_multisample_coverage",
+                                       extString)) {
             GR_GL_GET_PROC_SUFFIX(RenderbufferStorageMultisampleCoverage, NV);
         }
         interface->fScissor = glScissor;
@@ -132,9 +123,10 @@ const GrGLInterface* GrGLCreateNativeInterface() {
         interface->fTexImage2D = glTexImage2D;
         interface->fTexParameteri = glTexParameteri;
         interface->fTexParameteriv = glTexParameteriv;
-        if (glVer >= GR_GL_VER(4,2) || extensions.has("GL_ARB_texture_storage")) {
+        if (glVer >= GR_GL_VER(4,2) ||
+            GrGLHasExtensionFromString("GL_ARB_texture_storage", extString)) {
             GR_GL_GET_PROC(TexStorage2D);
-        } else if (extensions.has("GL_EXT_texture_storage")) {
+        } else if (GrGLHasExtensionFromString("GL_EXT_texture_storage", extString)) {
             GR_GL_GET_PROC_SUFFIX(TexStorage2D, EXT);
         }
         interface->fTexSubImage2D = glTexSubImage2D;
@@ -164,16 +156,11 @@ const GrGLInterface* GrGLCreateNativeInterface() {
         interface->fViewport = glViewport;
         GR_GL_GET_PROC(BindFragDataLocationIndexed);
 
-        if (glVer >= GR_GL_VER(3,0) || extensions.has("GL_ARB_vertex_array_object")) {
-            // no ARB suffix for GL_ARB_vertex_array_object
-            GR_GL_GET_PROC(BindVertexArray);
-            GR_GL_GET_PROC(GenVertexArrays);
-            GR_GL_GET_PROC(DeleteVertexArrays);
-        }
-
         // First look for GL3.0 FBO or GL_ARB_framebuffer_object (same since
         // GL_ARB_framebuffer_object doesn't use ARB suffix.)
-        if (glVer >= GR_GL_VER(3,0) || extensions.has("GL_ARB_framebuffer_object")) {
+        if (glVer >= GR_GL_VER(3,0) ||
+            GrGLHasExtensionFromString("GL_ARB_framebuffer_object",
+                                       extString)) {
             GR_GL_GET_PROC(GenFramebuffers);
             GR_GL_GET_PROC(GetFramebufferAttachmentParameteriv);
             GR_GL_GET_PROC(GetRenderbufferParameteriv);
@@ -188,7 +175,8 @@ const GrGLInterface* GrGLCreateNativeInterface() {
             GR_GL_GET_PROC(BindRenderbuffer);
             GR_GL_GET_PROC(RenderbufferStorageMultisample);
             GR_GL_GET_PROC(BlitFramebuffer);
-        } else if (extensions.has("GL_EXT_framebuffer_object")) {
+        } else if (GrGLHasExtensionFromString("GL_EXT_framebuffer_object",
+                                              extString)) {
             GR_GL_GET_PROC_SUFFIX(GenFramebuffers, EXT);
             GR_GL_GET_PROC_SUFFIX(GetFramebufferAttachmentParameteriv, EXT);
             GR_GL_GET_PROC_SUFFIX(GetRenderbufferParameteriv, EXT);
@@ -201,10 +189,12 @@ const GrGLInterface* GrGLCreateNativeInterface() {
             GR_GL_GET_PROC_SUFFIX(DeleteRenderbuffers, EXT);
             GR_GL_GET_PROC_SUFFIX(FramebufferRenderbuffer, EXT);
             GR_GL_GET_PROC_SUFFIX(BindRenderbuffer, EXT);
-            if (extensions.has("GL_EXT_framebuffer_multisample")) {
+            if (GrGLHasExtensionFromString("GL_EXT_framebuffer_multisample",
+                                             extString)) {
                 GR_GL_GET_PROC_SUFFIX(RenderbufferStorageMultisample, EXT);
             }
-            if (extensions.has("GL_EXT_framebuffer_blit")) {
+            if (GrGLHasExtensionFromString("GL_EXT_framebuffer_blit",
+                                             extString)) {
                 GR_GL_GET_PROC_SUFFIX(BlitFramebuffer, EXT);
             }
         } else {

@@ -3,17 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsMathMLFrame.h"
 #include "nsINameSpaceManager.h"
+#include "nsMathMLFrame.h"
 #include "nsMathMLChar.h"
 #include "nsCSSPseudoElements.h"
-#include "nsMathMLElement.h"
 
 // used to map attributes into CSS rules
 #include "nsStyleSet.h"
 #include "nsAutoPtr.h"
 #include "nsDisplayList.h"
 #include "nsRenderingContext.h"
+#include "nsContentUtils.h"
+#include "nsIScriptError.h"
 
 eMathMLFrameType
 nsMathMLFrame::GetMathMLFrameType()
@@ -56,6 +57,37 @@ nsMathMLFrame::FindAttrDisplaystyle(nsIContent*         aContent,
   // no reset if the attr isn't found. so be sure to call it on inherited flags
 }
 
+// snippet of code used by the tags where the dir attribute is allowed.
+/* static */ void
+nsMathMLFrame::FindAttrDirectionality(nsIContent*         aContent,
+                                      nsPresentationData& aPresentationData)
+{
+  NS_ASSERTION(aContent->Tag() == nsGkAtoms::math ||
+               aContent->Tag() == nsGkAtoms::mrow_ ||
+               aContent->Tag() == nsGkAtoms::mstyle_ ||
+               aContent->Tag() == nsGkAtoms::mi_ ||
+               aContent->Tag() == nsGkAtoms::mn_ ||
+               aContent->Tag() == nsGkAtoms::mo_ ||
+               aContent->Tag() == nsGkAtoms::mtext_ ||
+               aContent->Tag() == nsGkAtoms::ms_, "bad caller");
+
+  static nsIContent::AttrValuesArray strings[] =
+    {&nsGkAtoms::ltr, &nsGkAtoms::rtl, nullptr};
+
+  // see if the explicit dir attribute is there
+  switch (aContent->FindAttrValueIn(kNameSpaceID_None,
+                                    nsGkAtoms::dir, strings, eCaseMatters))
+    {
+    case 0:
+      aPresentationData.flags &= ~NS_MATHML_RTL;
+      break;
+    case 1:
+      aPresentationData.flags |= NS_MATHML_RTL;
+      break;
+    }
+  // no reset if the attr isn't found. so be sure to call it on inherited flags
+}
+
 NS_IMETHODIMP
 nsMathMLFrame::InheritAutomaticData(nsIFrame* aParent) 
 {
@@ -75,6 +107,9 @@ nsMathMLFrame::InheritAutomaticData(nsIFrame* aParent)
   mPresentationData.mstyle = parentData.mstyle;
   if (NS_MATHML_IS_DISPLAYSTYLE(parentData.flags)) {
     mPresentationData.flags |= NS_MATHML_DISPLAYSTYLE;
+  }
+  if (NS_MATHML_IS_RTL(parentData.flags)) {
+    mPresentationData.flags |= NS_MATHML_RTL;
   }
 
 #if defined(DEBUG) && defined(SHOW_BOUNDING_BOX)
@@ -132,7 +167,8 @@ nsMathMLFrame::ResolveMathMLCharStyle(nsPresContext*  aPresContext,
     ResolvePseudoElementStyle(aContent->AsElement(), pseudoType,
                               aParentStyleContext);
 
-  aMathMLChar->SetStyleContext(newStyleContext);
+  if (newStyleContext)
+    aMathMLChar->SetStyleContext(newStyleContext);
 }
 
 /* static */ void
@@ -192,7 +228,8 @@ nsMathMLFrame::GetPresentationDataFrom(nsIFrame*           aFrame,
         aPresentationData.flags |= NS_MATHML_DISPLAYSTYLE;
       }
       FindAttrDisplaystyle(content, aPresentationData);
-      aPresentationData.mstyle = frame->FirstContinuation();
+      FindAttrDirectionality(content, aPresentationData);
+      aPresentationData.mstyle = frame->GetFirstContinuation();
       break;
     }
     frame = frame->GetParent();
@@ -345,6 +382,9 @@ nsMathMLFrame::ParseNumericValue(const nsString&   aString,
 // Utils to map attributes into CSS rules (work-around to bug 69409 which
 // is not scheduled to be fixed anytime soon)
 //
+
+static const int32_t kMathMLversion1 = 1;
+static const int32_t kMathMLversion2 = 2;
 
 struct
 nsCSSMapping {

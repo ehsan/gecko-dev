@@ -7,7 +7,6 @@
 
 #include "nsDBusService.h"
 #include "nsComponentManagerUtils.h"
-#include "nsAutoPtr.h"
 
 #include <glib.h>
 #include <dbus/dbus-glib-lowlevel.h>
@@ -37,8 +36,8 @@ nsDBusService::Get() {
   if (!gSingleton) {
     gSingleton = new nsDBusService();
   }
-  nsRefPtr<nsDBusService> ret = gSingleton;
-  return ret.forget();
+  NS_IF_ADDREF(gSingleton);
+  return gSingleton;
 }
   
 nsresult
@@ -128,14 +127,14 @@ void nsDBusService::HandleDBusDisconnect() {
 }
 
 nsresult nsDBusService::CreateConnection() {
-  mConnection = dbus_bus_get(DBUS_BUS_SYSTEM, nullptr);
+  mConnection = dbus_bus_get(DBUS_BUS_SYSTEM, NULL);
   if (!mConnection)
     return NS_ERROR_FAILURE;
 
   dbus_connection_set_exit_on_disconnect(mConnection, false);
-  dbus_connection_setup_with_g_main(mConnection, nullptr);
+  dbus_connection_setup_with_g_main(mConnection, NULL);
 
-  if (!dbus_connection_add_filter(mConnection, dbus_filter, this, nullptr))
+  if (!dbus_connection_add_filter(mConnection, dbus_filter, this, NULL))
     return NS_ERROR_FAILURE;
 
   mSingleClient->RegisterWithConnection(mConnection);

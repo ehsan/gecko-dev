@@ -6,6 +6,7 @@
 #include "mozilla/dom/HTMLOptGroupElement.h"
 #include "mozilla/dom/HTMLOptGroupElementBinding.h"
 #include "mozilla/dom/HTMLSelectElement.h" // SafeOptionListMutation
+#include "nsIDOMEventTarget.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsIFrame.h"
@@ -28,6 +29,8 @@ namespace dom {
 HTMLOptGroupElement::HTMLOptGroupElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
+  SetIsDOMBinding();
+
   // We start off enabled
   AddStatesSilently(NS_EVENT_STATE_ENABLED);
 }
@@ -37,8 +40,19 @@ HTMLOptGroupElement::~HTMLOptGroupElement()
 }
 
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLOptGroupElement, nsGenericHTMLElement,
-                             nsIDOMHTMLOptGroupElement)
+NS_IMPL_ADDREF_INHERITED(HTMLOptGroupElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLOptGroupElement, Element)
+
+
+
+// QueryInterface implementation for HTMLOptGroupElement
+NS_INTERFACE_TABLE_HEAD(HTMLOptGroupElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLOptGroupElement,
+                                   nsIDOMHTMLOptGroupElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLOptGroupElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
+
 
 NS_IMPL_ELEMENT_CLONE(HTMLOptGroupElement)
 
@@ -143,7 +157,7 @@ HTMLOptGroupElement::IntrinsicState() const
 }
 
 JSObject*
-HTMLOptGroupElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLOptGroupElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return HTMLOptGroupElementBinding::Wrap(aCx, aScope, this);
 }

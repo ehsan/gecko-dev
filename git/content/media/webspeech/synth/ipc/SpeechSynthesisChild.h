@@ -2,10 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_SpeechSynthesisChild_h
-#define mozilla_dom_SpeechSynthesisChild_h
+#pragma once
 
-#include "mozilla/Attributes.h"
 #include "mozilla/dom/PSpeechSynthesisChild.h"
 #include "mozilla/dom/PSpeechSynthesisRequestChild.h"
 #include "nsSpeechTask.h"
@@ -32,13 +30,13 @@ protected:
   SpeechSynthesisChild();
   virtual ~SpeechSynthesisChild();
 
-  PSpeechSynthesisRequestChild* AllocPSpeechSynthesisRequestChild(const nsString& aLang,
-                                                                  const nsString& aUri,
-                                                                  const nsString& aText,
-                                                                  const float& aVolume,
-                                                                  const float& aPitch,
-                                                                  const float& aRate);
-  bool DeallocPSpeechSynthesisRequestChild(PSpeechSynthesisRequestChild* aActor);
+  PSpeechSynthesisRequestChild* AllocPSpeechSynthesisRequest(const nsString& aLang,
+                                                             const nsString& aUri,
+                                                             const nsString& aText,
+                                                             const float& aVolume,
+                                                             const float& aPitch,
+                                                             const float& aRate);
+  bool DeallocPSpeechSynthesisRequest(PSpeechSynthesisRequestChild* aActor);
 };
 
 class SpeechSynthesisRequestChild : public PSpeechSynthesisRequestChild
@@ -77,12 +75,10 @@ public:
   SpeechTaskChild(SpeechSynthesisUtterance* aUtterance);
 
   NS_IMETHOD Setup(nsISpeechTaskCallback* aCallback,
-                   uint32_t aChannels, uint32_t aRate, uint8_t argc) MOZ_OVERRIDE;
+                   uint32_t aChannels, uint32_t aRate, uint8_t argc);
 
-  NS_IMETHOD SendAudio(const JS::Value& aData, const JS::Value& aLandmarks,
-                       JSContext* aCx) MOZ_OVERRIDE;
-
-  NS_IMETHOD SendAudioNative(int16_t* aData, uint32_t aDataLen) MOZ_OVERRIDE;
+  NS_IMETHOD SendAudio (const JS::Value& aData, const JS::Value& aLandmarks,
+                        JSContext* aCx);
 
   virtual void Pause();
 
@@ -96,5 +92,3 @@ private:
 
 } // namespace dom
 } // namespace mozilla
-
-#endif

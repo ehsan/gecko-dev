@@ -1,6 +1,6 @@
 /*
 //
-// Copyright (c) 2002-2013 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2011 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -14,7 +14,7 @@ IF YOU MODIFY THIS FILE YOU ALSO NEED TO RUN generate_parser.sh.
 
 %top{
 //
-// Copyright (c) 2011-2013 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2011 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -25,7 +25,7 @@ IF YOU MODIFY THIS FILE YOU ALSO NEED TO RUN generate_parser.sh.
 %{
 #include "Tokenizer.h"
 
-#include "DiagnosticsBase.h"
+#include "Diagnostics.h"
 #include "Token.h"
 
 #if defined(__GNUC__)
@@ -229,8 +229,6 @@ FRACTIONAL_CONSTANT  ({DIGIT}*"."{DIGIT}+)|({DIGIT}+".")
     return '\n';
 }
 
-\\{NEWLINE} { ++yylineno; }
-
 . {
     yylval->assign(1, yytext[0]);
     return pp::Token::PP_OTHER;
@@ -241,14 +239,13 @@ FRACTIONAL_CONSTANT  ({DIGIT}*"."{DIGIT}+)|({DIGIT}+".")
     // Set the location for EOF token manually.
     pp::Input* input = &yyextra->input;
     pp::Input::Location* scanLoc = &yyextra->scanLoc;
-    yy_size_t sIndexMax = input->count() ? input->count() - 1 : 0;
+    int sIndexMax = std::max(0, input->count() - 1);
     if (scanLoc->sIndex != sIndexMax)
     {
         // We can only reach here if there are empty strings at the
         // end of the input.
         scanLoc->sIndex = sIndexMax; scanLoc->cIndex = 0;
-        // FIXME: this is not 64-bit clean.
-        yyfileno = static_cast<int>(sIndexMax); yylineno = 1;
+        yyfileno = sIndexMax; yylineno = 1;
     }
     yylloc->file = yyfileno;
     yylloc->line = yylineno;
@@ -281,8 +278,9 @@ Tokenizer::~Tokenizer()
     destroyScanner();
 }
 
-bool Tokenizer::init(size_t count, const char* const string[], const int length[])
+bool Tokenizer::init(int count, const char* const string[], const int length[])
 {
+    if (count < 0) return false;
     if ((count > 0) && (string == 0)) return false;
 
     mContext.input = Input(count, string, length);

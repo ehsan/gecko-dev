@@ -10,38 +10,13 @@ if CONFIG['MOZ_ZIPWRITER']:
 TEST_TOOL_DIRS += ['test']
 
 XPIDL_SOURCES += [
-    'nsIJARChannel.idl',
-    'nsIJARProtocolHandler.idl',
-    'nsIJARURI.idl',
-    'nsIZipReader.idl',
+    '$(MODULES_LIBJAR_LXPIDLSRCS)',
 ]
 
 MODULE = 'jar'
-LIBRARY_NAME	= 'jar'
 
 EXPORTS += [
+    'zipstruct.h',
     'nsJARURI.h',
     'nsZipArchive.h',
-    'zipstruct.h',
 ]
-
-UNIFIED_SOURCES += [
-    'nsJAR.cpp',
-    'nsJARChannel.cpp',
-    'nsJARFactory.cpp',
-    'nsJARInputStream.cpp',
-    'nsJARProtocolHandler.cpp',
-    'nsJARURI.cpp',
-    'nsZipArchive.cpp',
-]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
-

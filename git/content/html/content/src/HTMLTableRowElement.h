@@ -5,29 +5,42 @@
 #ifndef mozilla_dom_HTMLTableRowElement_h
 #define mozilla_dom_HTMLTableRowElement_h
 
-#include "mozilla/Attributes.h"
 #include "nsGenericHTMLElement.h"
+#include "nsIDOMHTMLTableRowElement.h"
 
 class nsIDOMHTMLTableElement;
+class nsIDOMHTMLTableSectionElement;
 class nsContentList;
 
 namespace mozilla {
 namespace dom {
 
-class HTMLTableSectionElement;
-
-class HTMLTableRowElement MOZ_FINAL : public nsGenericHTMLElement
+class HTMLTableRowElement : public nsGenericHTMLElement,
+                            public nsIDOMHTMLTableRowElement
 {
 public:
   HTMLTableRowElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
 
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLTableRowElement, tr)
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLTableRowElement
+  NS_DECL_NSIDOMHTMLTABLEROWELEMENT
 
   int32_t RowIndex() const;
   int32_t SectionRowIndex() const;
@@ -80,20 +93,21 @@ public:
   virtual bool ParseAttribute(int32_t aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
-                                nsAttrValue& aResult) MOZ_OVERRIDE;
-  virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const MOZ_OVERRIDE;
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
+                                nsAttrValue& aResult);
+  virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(HTMLTableRowElement,
                                                      nsGenericHTMLElement)
 
 protected:
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 
-  HTMLTableSectionElement* GetSection() const;
+  already_AddRefed<nsIDOMHTMLTableSectionElement> GetSection() const;
   HTMLTableElement* GetTable() const;
   nsRefPtr<nsContentList> mCells;
 };

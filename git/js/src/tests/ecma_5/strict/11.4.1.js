@@ -25,10 +25,6 @@ assertEq(testLenientAndStrict('delete x.y;',
                               parsesSuccessfully,
                               parsesSuccessfully),
          true);
-assertEq(testLenientAndStrict('delete Object();',
-                              returns(true),
-                              returns(true)),
-         true);
 
 /* Functions should inherit the surrounding code's strictness. */
 assertEq(testLenientAndStrict('function f() { delete x; }',

@@ -6,9 +6,3 @@
 
 MODULE = 'omxpluginfroyo'
 
-SOURCES += [
-    'OmxPluginFroyo.cpp',
-]
-
-LIBRARY_NAME = 'omxpluginfroyo'
-

@@ -11,33 +11,3 @@ EXPORTS.mozilla.storage += [
     'Variant_inl.h',
 ]
 
-SOURCES += [
-    'FileSystemModule.cpp',
-    'mozStorageArgValueArray.cpp',
-    'mozStorageAsyncStatement.cpp',
-    'mozStorageAsyncStatementExecution.cpp',
-    'mozStorageAsyncStatementJSHelper.cpp',
-    'mozStorageAsyncStatementParams.cpp',
-    'mozStorageBindingParams.cpp',
-    'mozStorageBindingParamsArray.cpp',
-    'mozStorageConnection.cpp',
-    'mozStorageError.cpp',
-    'mozStoragePrivateHelpers.cpp',
-    'mozStorageResultSet.cpp',
-    'mozStorageRow.cpp',
-    'mozStorageService.cpp',
-    'mozStorageSQLFunctions.cpp',
-    'mozStorageStatement.cpp',
-    'mozStorageStatementJSHelper.cpp',
-    'mozStorageStatementParams.cpp',
-    'mozStorageStatementRow.cpp',
-    'SQLCollations.cpp',
-    'StorageBaseStatementInternal.cpp',
-    'TelemetryVFS.cpp',
-    'VacuumManager.cpp',
-]
-
-LIBRARY_NAME = 'storage_s'
-
-LIBXUL_LIBRARY = True
-

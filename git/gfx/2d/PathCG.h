@@ -48,7 +48,6 @@ public:
 
 private:
   friend class PathCG;
-  friend class ScaledFontMac;
 
   void EnsureActive(const Point &aPoint);
 
@@ -84,8 +83,6 @@ public:
   virtual Rect GetBounds(const Matrix &aTransform = Matrix()) const;
   virtual Rect GetStrokedBounds(const StrokeOptions &aStrokeOptions,
                                 const Matrix &aTransform = Matrix()) const;
-
-  virtual void StreamToSink(PathSink *aSink) const;
 
   virtual FillRule GetFillRule() const { return mFillRule; }
 

@@ -8,9 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/test/libtest/include/bit_flip_encryption.h"
+#include "test/libtest/include/bit_flip_encryption.h"
 
-#include <stdlib.h>
+#include <cstdlib>
 
 float NormalizedRand() {
   return static_cast<float>(rand()) /
@@ -38,36 +38,3 @@ void BitFlipEncryption::FlipSomeBitsInData(const unsigned char* in_data,
   }
   *bytes_out = bytes_in;
 }
-
-void BitFlipEncryption::encrypt(int channel_no,
-                                unsigned char* in_data,
-                                unsigned char* out_data,
-                                int bytes_in,
-                                int* bytes_out) {
-  FlipSomeBitsInData(in_data, out_data, bytes_in, bytes_out);
-}
-
-void BitFlipEncryption::decrypt(int channel_no,
-                                unsigned char* in_data,
-                                unsigned char* out_data,
-                                int bytes_in,
-                                int* bytes_out) {
-  FlipSomeBitsInData(in_data, out_data, bytes_in, bytes_out);
-}
-
-void BitFlipEncryption::encrypt_rtcp(int channel_no,
-                                     unsigned char* in_data,
-                                     unsigned char* out_data,
-                                     int bytes_in,
-                                     int* bytes_out) {
-  FlipSomeBitsInData(in_data, out_data, bytes_in, bytes_out);
-}
-
-void BitFlipEncryption::decrypt_rtcp(int channel_no,
-                                     unsigned char* in_data,
-                                     unsigned char* out_data,
-                                     int bytes_in,
-                                     int* bytes_out) {
-  FlipSomeBitsInData(in_data, out_data, bytes_in, bytes_out);
-}
-

@@ -10,11 +10,17 @@
 
 #include "mozilla/DebugOnly.h"
 
+#include "nsBlockReflowContext.h"
 #include "nsBlockFrame.h"
 #include "nsLineLayout.h"
 #include "nsPresContext.h"
-#include "nsIFrameInlines.h"
+#include "nsGkAtoms.h"
+#include "nsIFrame.h"
+#include "nsFrameManager.h"
 #include "mozilla/AutoRestore.h"
+#include "FrameLayerBuilder.h"
+
+#include "nsINameSpaceManager.h"
 #include <algorithm>
 
 #ifdef DEBUG
@@ -29,8 +35,7 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
                                        nsBlockFrame* aFrame,
                                        bool aTopMarginRoot,
                                        bool aBottomMarginRoot,
-                                       bool aBlockNeedsFloatManager,
-                                       nscoord aConsumedHeight)
+                                       bool aBlockNeedsFloatManager)
   : mBlock(aFrame),
     mPresContext(aPresContext),
     mReflowState(aReflowState),
@@ -39,8 +44,7 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
     mPrevBottomMargin(),
     mLineNumber(0),
     mFlags(0),
-    mFloatBreakType(NS_STYLE_CLEAR_NONE),
-    mConsumedHeight(aConsumedHeight)
+    mFloatBreakType(NS_STYLE_CLEAR_NONE)
 {
   SetFlag(BRS_ISFIRSTINFLOW, aFrame->GetPrevInFlow() == nullptr);
   SetFlag(BRS_ISOVERFLOWCONTAINER,
@@ -107,16 +111,6 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
   mCurrentLine = aFrame->end_lines();
 
   mMinLineHeight = aReflowState.CalcLineHeight();
-}
-
-nscoord
-nsBlockReflowState::GetConsumedHeight()
-{
-  if (mConsumedHeight == NS_INTRINSICSIZE) {
-    mConsumedHeight = mBlock->GetConsumedHeight();
-  }
-
-  return mConsumedHeight;
 }
 
 void
@@ -388,7 +382,8 @@ nsBlockReflowState::RecoverFloats(nsLineList::iterator aLine,
     while (fc) {
       nsIFrame* floatFrame = fc->mFloat;
       if (aDeltaY != 0) {
-        floatFrame->MovePositionBy(nsPoint(0, aDeltaY));
+        nsPoint p = floatFrame->GetPosition();
+        floatFrame->SetPosition(nsPoint(p.x, p.y + aDeltaY));
         nsContainerFrame::PositionFrameView(floatFrame);
         nsContainerFrame::PositionChildViews(floatFrame);
       }
@@ -626,7 +621,6 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
                                               aFloat, offsets);
 
   nsMargin floatMargin; // computed margin
-  nsMargin floatOffsets;
   nsReflowStatus reflowStatus;
 
   // If it's a floating first-letter, we need to reflow it before we
@@ -634,8 +628,8 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
   // of the first letter until reflow!).
   bool isLetter = aFloat->GetType() == nsGkAtoms::letterFrame;
   if (isLetter) {
-    mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat, floatMargin,
-                        floatOffsets, false, reflowStatus);
+    mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat,
+                        floatMargin, false, reflowStatus);
     floatMarginWidth = aFloat->GetSize().width + floatMargin.LeftRight();
     NS_ASSERTION(NS_FRAME_IS_COMPLETE(reflowStatus),
                  "letter frames shouldn't break, and if they do now, "
@@ -764,8 +758,8 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
   // where to break.
   if (!isLetter) {
     bool pushedDown = mY != saveY;
-    mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat, floatMargin,
-                        floatOffsets, pushedDown, reflowStatus);
+    mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat,
+                        floatMargin, pushedDown, reflowStatus);
   }
   if (aFloat->GetPrevInFlow())
     floatMargin.top = 0;
@@ -811,7 +805,7 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
                  floatMargin.top + floatY);
 
   // If float is relatively positioned, factor that in as well
-  nsHTMLReflowState::ApplyRelativePositioning(aFloat, floatOffsets, &origin);
+  origin += aFloat->GetRelativeOffset(floatDisplay);
 
   // Position the float and make sure and views are properly
   // positioned. We need to explicitly position its child views as

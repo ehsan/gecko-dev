@@ -52,7 +52,9 @@ function next_test() {
     do_test_finished();
   else {
     asyncOpenCacheEntry(URL,
-                        "disk", Ci.nsICacheStorage.OPEN_NORMALLY, null,
+                        "FTP",
+                        Components.interfaces.nsICache.STORE_ANYWHERE,
+                        Components.interfaces.nsICache.ACCESS_READ_WRITE,
                         storeData);
   }
 }

@@ -54,7 +54,7 @@ SECStatus
 outputPQGParams(PQGParams * pqgParams, PRBool output_binary, PRBool output_raw,
                 FILE * outFile)
 {
-    PLArenaPool   * arena 		= NULL;
+    PRArenaPool   * arena 		= NULL;
     char          * PQG;
     SECItem       * pItem;
     int             cc;

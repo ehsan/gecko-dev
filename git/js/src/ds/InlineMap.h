@@ -4,10 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ds_InlineMap_h
-#define ds_InlineMap_h
-
-#include "jsalloc.h"
+#ifndef InlineMap_h__
+#define InlineMap_h__
 
 #include "js/HashTable.h"
 
@@ -24,7 +22,7 @@ template <typename K, typename V, size_t InlineElems>
 class InlineMap
 {
   public:
-    typedef HashMap<K, V, DefaultHasher<K>, SystemAllocPolicy> WordMap;
+    typedef HashMap<K, V, DefaultHasher<K>, TempAllocPolicy> WordMap;
 
     struct InlineElem
     {
@@ -81,8 +79,8 @@ class InlineMap
     }
 
   public:
-    explicit InlineMap()
-      : inlNext(0), inlCount(0) {
+    explicit InlineMap(JSContext *cx)
+      : inlNext(0), inlCount(0), map(cx) {
         checkStaticInvariants(); /* Force the template to instantiate the static invariants. */
     }
 
@@ -224,7 +222,7 @@ class InlineMap
                 return Ptr(it);
         }
 
-        return Ptr(nullptr);
+        return Ptr(NULL);
     }
 
     JS_ALWAYS_INLINE
@@ -283,8 +281,8 @@ class InlineMap
         JS_ASSERT(p);
         if (p.isInlinePtr) {
             JS_ASSERT(inlCount > 0);
-            JS_ASSERT(p.inlPtr->key != nullptr);
-            p.inlPtr->key = nullptr;
+            JS_ASSERT(p.inlPtr->key != NULL);
+            p.inlPtr->key = NULL;
             --inlCount;
             return;
         }
@@ -307,7 +305,7 @@ class InlineMap
         bool            isInline;
 
         explicit Range(WordMapRange r)
-          : cur(nullptr), end(nullptr), /* Avoid GCC 4.3.3 over-warning. */
+          : cur(NULL), end(NULL), /* Avoid GCC 4.3.3 over-warning. */
             isInline(false) {
             mapRange = r;
             JS_ASSERT(!isInlineRange());
@@ -323,7 +321,7 @@ class InlineMap
 
         bool checkInlineRangeInvariants() const {
             JS_ASSERT(uintptr_t(cur) <= uintptr_t(end));
-            JS_ASSERT_IF(cur != end, cur->key != nullptr);
+            JS_ASSERT_IF(cur != end, cur->key != NULL);
             return true;
         }
 
@@ -334,7 +332,7 @@ class InlineMap
 
         void advancePastNulls(InlineElem *begin) {
             InlineElem *newCur = begin;
-            while (newCur < end && nullptr == newCur->key)
+            while (newCur < end && NULL == newCur->key)
                 ++newCur;
             JS_ASSERT(uintptr_t(newCur) <= uintptr_t(end));
             cur = newCur;
@@ -375,4 +373,4 @@ class InlineMap
 
 } /* namespace js */
 
-#endif /* ds_InlineMap_h */
+#endif

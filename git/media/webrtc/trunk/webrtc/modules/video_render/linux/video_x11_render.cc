@@ -8,11 +8,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_render/linux/video_x11_channel.h"
-#include "webrtc/modules/video_render/linux/video_x11_render.h"
+#include "video_x11_render.h"
+#include "video_x11_channel.h"
 
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "critical_section_wrapper.h"
+#include "trace.h"
 
 namespace webrtc {
 
@@ -27,7 +27,7 @@ VideoX11Render::~VideoX11Render()
     delete &_critSect;
 }
 
-int32_t VideoX11Render::Init()
+WebRtc_Word32 VideoX11Render::Init()
 {
     CriticalSectionScoped cs(&_critSect);
 
@@ -36,7 +36,7 @@ int32_t VideoX11Render::Init()
     return 0;
 }
 
-int32_t VideoX11Render::ChangeWindow(Window window)
+WebRtc_Word32 VideoX11Render::ChangeWindow(Window window)
 {
     CriticalSectionScoped cs(&_critSect);
     VideoX11Channel* renderChannel = NULL;
@@ -60,8 +60,8 @@ int32_t VideoX11Render::ChangeWindow(Window window)
 }
 
 VideoX11Channel* VideoX11Render::CreateX11RenderChannel(
-                                                                int32_t streamId,
-                                                                int32_t zOrder,
+                                                                WebRtc_Word32 streamId,
+                                                                WebRtc_Word32 zOrder,
                                                                 const float left,
                                                                 const float top,
                                                                 const float right,
@@ -99,7 +99,7 @@ VideoX11Channel* VideoX11Render::CreateX11RenderChannel(
     return renderChannel;
 }
 
-int32_t VideoX11Render::DeleteX11RenderChannel(int32_t streamId)
+WebRtc_Word32 VideoX11Render::DeleteX11RenderChannel(WebRtc_Word32 streamId)
 {
     CriticalSectionScoped cs(&_critSect);
 
@@ -123,9 +123,9 @@ int32_t VideoX11Render::DeleteX11RenderChannel(int32_t streamId)
     return -1;
 }
 
-int32_t VideoX11Render::GetIncomingStreamProperties(
-                                                              int32_t streamId,
-                                                              uint32_t& zOrder,
+WebRtc_Word32 VideoX11Render::GetIncomingStreamProperties(
+                                                              WebRtc_Word32 streamId,
+                                                              WebRtc_UWord32& zOrder,
                                                               float& left,
                                                               float& top,
                                                               float& right,
@@ -150,4 +150,5 @@ int32_t VideoX11Render::GetIncomingStreamProperties(
     return -1;
 }
 
-}  // namespace webrtc
+} //namespace webrtc
+

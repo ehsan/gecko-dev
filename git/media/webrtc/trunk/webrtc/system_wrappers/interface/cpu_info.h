@@ -11,19 +11,19 @@
 #ifndef WEBRTC_SYSTEM_WRAPPERS_INTERFACE_CPU_INFO_H_
 #define WEBRTC_SYSTEM_WRAPPERS_INTERFACE_CPU_INFO_H_
 
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
 
 namespace webrtc {
 
 class CpuInfo {
  public:
-  static uint32_t DetectNumberOfCores();
+  static WebRtc_UWord32 DetectNumberOfCores();
 
  private:
   CpuInfo() {}
-  static uint32_t number_of_cores_;
+  static WebRtc_UWord32 number_of_cores_;
 };
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif // WEBRTC_SYSTEM_WRAPPERS_INTERFACE_CPU_INFO_H_

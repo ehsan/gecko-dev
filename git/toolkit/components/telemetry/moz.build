@@ -16,35 +16,6 @@ MODULE = 'telemetry'
 EXPORTS.mozilla += [
     'ProcessedStack.h',
     'Telemetry.h',
+    'TelemetryHistogramEnums.h',
 ]
-
-SOURCES += [
-    'Telemetry.cpp',
-]
-
-EXTRA_COMPONENTS += [
-    'TelemetryPing.manifest',
-]
-
-EXTRA_PP_COMPONENTS += [
-    'TelemetryPing.js',
-]
-
-EXTRA_JS_MODULES += [
-    'TelemetryFile.jsm',
-    'TelemetryStopwatch.jsm',
-    'ThirdPartyCookieProbe.jsm',
-]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'telemetry'
-
-EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

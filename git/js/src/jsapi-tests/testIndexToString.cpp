@@ -5,12 +5,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+
+#include "tests.h"
+
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsnum.h"
 #include "jsstr.h"
-
-#include "jsapi-tests/tests.h"
 
 #include "vm/String-inl.h"
 
@@ -62,9 +63,9 @@ BEGIN_TEST(testIndexToString)
         CHECK(str);
 
         if (!js::StaticStrings::hasUint(u))
-            CHECK(cx->compartment()->dtoaCache.lookup(10, u) == str);
+            CHECK(cx->compartment->dtoaCache.lookup(10, u) == str);
 
-        bool match = false;
+        JSBool match = JS_FALSE;
         CHECK(JS_StringEqualsAscii(cx, str, tests[i].expected, &match));
         CHECK(match);
     }
@@ -97,7 +98,7 @@ BEGIN_TEST(testStringToPropertyName)
     JSFlatString *hiStr = NewString(cx, hiChars);
     CHECK(hiStr);
     CHECK(!hiStr->isIndex(&index));
-    CHECK(hiStr->toPropertyName(cx) != nullptr);
+    CHECK(hiStr->toPropertyName(cx) != NULL);
 
     static const jschar maxChars[] = { '4', '2', '9', '4', '9', '6', '7', '2', '9', '5' };
     JSFlatString *maxStr = NewString(cx, maxChars);
@@ -109,7 +110,7 @@ BEGIN_TEST(testStringToPropertyName)
     JSFlatString *maxPlusOneStr = NewString(cx, maxPlusOneChars);
     CHECK(maxPlusOneStr);
     CHECK(!maxPlusOneStr->isIndex(&index));
-    CHECK(maxPlusOneStr->toPropertyName(cx) != nullptr);
+    CHECK(maxPlusOneStr->toPropertyName(cx) != NULL);
 
     return true;
 }

@@ -131,16 +131,16 @@ nsImageToClipboard::CreateFromImage ( imgIContainer* inImage, HANDLE* outBitmap 
     uint32_t format;
     nsAutoString options;
     if (mWantDIBV5) {
-      options.AppendLiteral("version=5;bpp=");
+      options.AppendASCII("version=5;bpp=");
     } else {
-      options.AppendLiteral("version=3;bpp=");
+      options.AppendASCII("version=3;bpp=");
     }
     switch (frame->Format()) {
-    case gfxImageFormatARGB32:
+    case gfxASurface::ImageFormatARGB32:
         format = imgIEncoder::INPUT_FORMAT_HOSTARGB;
         options.AppendInt(32);
         break;
-    case gfxImageFormatRGB24:
+    case gfxASurface::ImageFormatRGB24:
         format = imgIEncoder::INPUT_FORMAT_RGB;
         options.AppendInt(24);
         break;

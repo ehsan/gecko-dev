@@ -58,7 +58,7 @@ TestDataStructuresParent::Main()
 }
 
 bool
-TestDataStructuresParent::DeallocPTestDataStructuresSubParent(PTestDataStructuresSubParent* actor)
+TestDataStructuresParent::DeallocPTestDataStructuresSub(PTestDataStructuresSubParent* actor)
 {
     test_assert(Cast(actor).mI == Cast(mKids[0]).mI,
                 "dtor sent to wrong actor");
@@ -951,7 +951,7 @@ TestDataStructuresChild::Test17()
     attrs.specific() = BarAttrs(1.0f);
 
     InfallibleTArray<Op> ops;
-    ops.AppendElement(SetAttrs(nullptr, mKids[0], attrs));
+    ops.AppendElement(SetAttrs(NULL, mKids[0], attrs));
 
     if (!SendTest17(ops))
         fail("sending Test17");

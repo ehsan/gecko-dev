@@ -50,11 +50,12 @@ function run_test() {
     do_throw("Plugin library not found");
 
   const pluginDir = file.parent;
-  const tempDir = do_get_tempdir();
+  const parentDir = pluginDir.parent;
   const suffix = get_platform_specific_plugin_suffix();
   const pluginName = file.leafName.substring(0, file.leafName.length - suffix.length).toLowerCase();
   const pluginHost = Cc["@mozilla.org/plugin/host;1"].getService(Ci.nsIPluginHost);
   const statePref = "plugin.state." + pluginName;
+  const blocklistedPref = "plugin.blocklisted." + pluginName;
 
   // write plugin registry data
   let registry = "";
@@ -82,6 +83,7 @@ function run_test() {
 
   // check that the expected plugin state was loaded correctly from the registry
   do_check_true(plugin.disabled);
+  do_check_false(plugin.blocklisted);
   do_check_false(plugin.clicktoplay);
   // ... and imported into prefs, with 0 being the disabled state
   do_check_eq(0, Services.prefs.getIntPref(statePref));
@@ -90,7 +92,7 @@ function run_test() {
   file.copyTo(null, "nptestcopy" + suffix);
   let copy = pluginDir.clone();
   copy.append("nptestcopy" + suffix);
-  file.moveTo(tempDir, null);
+  file.moveTo(parentDir, null);
 
   // test that the settings persist through a few variations of test-plugin names
   let testNames = [
@@ -109,7 +111,7 @@ function run_test() {
   });
 
   // check that the state persists even if the plugin is not always present
-  copy.moveTo(tempDir, null);
+  copy.moveTo(parentDir, null);
   pluginHost.reloadPlugins(false);
   copy.moveTo(pluginDir, null);
   pluginHost.reloadPlugins(false);

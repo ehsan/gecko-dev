@@ -7,8 +7,8 @@
 #define nsMathMLmrootFrame_h___
 
 #include "mozilla/Attributes.h"
+#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
-#include "nsMathMLChar.h"
 
 //
 // <msqrt> and <mroot> -- form a radical
@@ -22,9 +22,9 @@ public:
 
   virtual void
   SetAdditionalStyleContext(int32_t          aIndex, 
-                            nsStyleContext*  aStyleContext) MOZ_OVERRIDE;
+                            nsStyleContext*  aStyleContext);
   virtual nsStyleContext*
-  GetAdditionalStyleContext(int32_t aIndex) const MOZ_OVERRIDE;
+  GetAdditionalStyleContext(int32_t aIndex) const;
 
   virtual void
   Init(nsIContent*      aContent,

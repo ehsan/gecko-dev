@@ -7,16 +7,12 @@
 
 #include "nsAString.h"
 #include "nsGenericHTMLElement.h"
-#include "mozilla/dom/HTMLFormElement.h"
-#include "mozilla/dom/HTMLFieldSetElement.h"
+#include "nsHTMLFormElement.h"
 #include "mozilla/dom/ValidityState.h"
 #include "nsIFormControl.h"
 #include "nsContentUtils.h"
 
 const uint16_t nsIConstraintValidation::sContentSpecifiedMaxLengthMessage = 256;
-
-using namespace mozilla;
-using namespace mozilla::dom;
 
 nsIConstraintValidation::nsIConstraintValidation()
   : mValidityBitField(0)
@@ -27,6 +23,9 @@ nsIConstraintValidation::nsIConstraintValidation()
 
 nsIConstraintValidation::~nsIConstraintValidation()
 {
+  if (mValidity) {
+    mValidity->Disconnect();
+  }
 }
 
 mozilla::dom::ValidityState*
@@ -135,19 +134,15 @@ nsIConstraintValidation::SetValidityState(ValidityStateType aState,
     mValidityBitField &= ~aState;
   }
 
-  // Inform the form and fieldset elements if our validity has changed.
+  // Inform the form element if our validity has changed.
   if (previousValidity != IsValid() && IsCandidateForConstraintValidation()) {
     nsCOMPtr<nsIFormControl> formCtrl = do_QueryInterface(this);
     NS_ASSERTION(formCtrl, "This interface should be used by form elements!");
 
-    HTMLFormElement* form =
-      static_cast<HTMLFormElement*>(formCtrl->GetFormElement());
+    nsHTMLFormElement* form =
+      static_cast<nsHTMLFormElement*>(formCtrl->GetFormElement());
     if (form) {
       form->UpdateValidity(IsValid());
-    }
-    HTMLFieldSetElement* fieldSet = formCtrl->GetFieldSet();
-      if (fieldSet) {
-      fieldSet->UpdateValidity(IsValid());
     }
   }
 }
@@ -166,23 +161,19 @@ nsIConstraintValidation::SetBarredFromConstraintValidation(bool aBarred)
 
   mBarredFromConstraintValidation = aBarred;
 
-  // Inform the form and fieldset elements if our status regarding constraint
-  // validation is going to change.
+  // Inform the form element if our status regarding constraint validation
+  // is going to change.
   if (!IsValid() && previousBarred != mBarredFromConstraintValidation) {
     nsCOMPtr<nsIFormControl> formCtrl = do_QueryInterface(this);
     NS_ASSERTION(formCtrl, "This interface should be used by form elements!");
 
-    // If the element is going to be barred from constraint validation, we can
-    // inform the form and fieldset that we are now valid. Otherwise, we are now
-    // invalid.
-    HTMLFormElement* form =
-      static_cast<HTMLFormElement*>(formCtrl->GetFormElement());
+    nsHTMLFormElement* form =
+      static_cast<nsHTMLFormElement*>(formCtrl->GetFormElement());
     if (form) {
+      // If the element is going to be barred from constraint validation,
+      // we can inform the form that we are now valid.
+      // Otherwise, we are now invalid.
       form->UpdateValidity(aBarred);
-    }
-    HTMLFieldSetElement* fieldSet = formCtrl->GetFieldSet();
-    if (fieldSet) {
-      fieldSet->UpdateValidity(aBarred);
     }
   }
 }

@@ -6,17 +6,12 @@
 #ifndef nsFont_h___
 #define nsFont_h___
 
-#include <stdint.h>                     // for uint8_t, uint16_t
-#include <sys/types.h>                  // for int16_t
-#include "gfxCore.h"                    // for NS_GFX
+#include "gfxCore.h"
+#include "nsCoord.h"
+#include "nsStringGlue.h"
+#include "nsTArray.h"
+#include "gfxFontConstants.h"
 #include "gfxFontFeatures.h"
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsCoord.h"                    // for nscoord
-#include "nsStringFwd.h"                // for nsSubstring
-#include "nsString.h"               // for nsString
-#include "nsTArray.h"                   // for nsTArray
-
-struct gfxFontStyle;
 
 // XXX we need a method to enumerate all of the possible fonts on the
 // system across family, weight, style, size, etc. But not here!
@@ -38,6 +33,8 @@ const uint8_t kGenericFont_monospace    = 0x08;
 const uint8_t kGenericFont_cursive      = 0x10;
 const uint8_t kGenericFont_fantasy      = 0x20;
 
+struct gfxFontStyle;
+
 // Font structure.
 struct NS_GFX nsFont {
   // The family name of the font
@@ -48,33 +45,14 @@ struct NS_GFX nsFont {
 
   // Force this font to not be considered a 'generic' font, even if
   // the name is the same as a CSS generic font family.
-  bool systemFont;
+  uint8_t systemFont;
 
   // The variant of the font (normal, small-caps)
   uint8_t variant;
 
-  // Variant subproperties
-  // (currently -moz- versions, will replace variant above eventually)
-  uint8_t variantCaps;
-  uint8_t variantLigatures;
-  uint8_t variantNumeric;
-  uint8_t variantPosition;
-
-  uint16_t variantEastAsian;
-
-  // Some font-variant-alternates property values require
-  // font-specific settings defined via @font-feature-values rules.
-  // These are resolved *after* font matching occurs.
-
-  // -- bitmask for both enumerated and functional propvals
-  uint16_t variantAlternates;
-
   // The decorations on the font (underline, overline,
   // line-through). The decorations can be binary or'd together.
   uint8_t decorations;
-
-  // Smoothing - controls subpixel-antialiasing (currently OSX only)
-  uint8_t smoothing;
 
   // The weight of the font; see gfxFontConstants.h.
   uint16_t weight;
@@ -92,12 +70,6 @@ struct NS_GFX nsFont {
   // needs to be done.
   float sizeAdjust;
 
-  // -- list of value tags for font-specific alternate features
-  nsTArray<gfxAlternateValue> alternateValues;
-
-  // -- object used to look these up once the font is matched
-  nsRefPtr<gfxFontFeatureValueSet> featureValueLookup;
-
   // Font features from CSS font-feature-settings
   nsTArray<gfxFontFeature> fontFeatureSettings;
 
@@ -106,21 +78,17 @@ struct NS_GFX nsFont {
   // (see http://www.microsoft.com/typography/otspec/languagetags.htm).
   nsString languageOverride;
 
-  // Kerning
-  uint8_t kerning;
-
-  // Synthesis setting, controls use of fake bolding/italics
-  uint8_t synthesis;
-
   // Initialize the font struct with an ASCII name
   nsFont(const char* aName, uint8_t aStyle, uint8_t aVariant,
          uint16_t aWeight, int16_t aStretch, uint8_t aDecoration,
-         nscoord aSize);
+         nscoord aSize, float aSizeAdjust=0.0f,
+         const nsString* aLanguageOverride = nullptr);
 
   // Initialize the font struct with a (potentially) unicode name
-  nsFont(const nsSubstring& aName, uint8_t aStyle, uint8_t aVariant,
+  nsFont(const nsString& aName, uint8_t aStyle, uint8_t aVariant,
          uint16_t aWeight, int16_t aStretch, uint8_t aDecoration,
-         nscoord aSize);
+         nscoord aSize, float aSizeAdjust=0.0f,
+         const nsString* aLanguageOverride = nullptr);
 
   // Make a copy of the given font
   nsFont(const nsFont& aFont);
@@ -137,8 +105,6 @@ struct NS_GFX nsFont {
   bool BaseEquals(const nsFont& aOther) const;
 
   nsFont& operator=(const nsFont& aOther);
-
-  void CopyAlternates(const nsFont& aOther);
 
   // Add featureSettings into style
   void AddFontFeaturesToStyle(gfxFontStyle *aStyle) const;

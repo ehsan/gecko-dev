@@ -46,7 +46,7 @@
 
 .devtools-menulist:-moz-focusring,
 .devtools-toolbarbutton:-moz-focusring {
-  outline: 1px dotted hsla(210,30%,85%,0.7);
+  outline: 1px dotted hsla(210,30%,85%,0.4);
   outline-offset: -4px;
 }
 
@@ -195,13 +195,12 @@
 /* Close button */
 
 .devtools-closebutton {
-  list-style-image: url("chrome://browser/skin/devtools/close.png");
-  -moz-appearance: none;
-  border: none;
-  margin: 0 4px;
+  list-style-image: url("chrome://browser/skin/devtools/toolbarbutton-close.png");
+  -moz-image-region: rect(0, 16px, 16px, 0);
   min-width: 16px;
   width: 16px;
-  opacity: 0.6;
+  -moz-appearance: none;
+  border-style: none;
 }
 
 .devtools-closebutton > .toolbarbutton-text {
@@ -209,11 +208,11 @@
 }
 
 .devtools-closebutton:hover {
-  opacity: 0.8;
+  -moz-image-region: rect(0, 32px, 16px, 16px);
 }
 
 .devtools-closebutton:hover:active {
-  opacity: 1;
+  -moz-image-region: rect(0, 48px, 16px, 32px);
 }
 
 /* Splitters */
@@ -237,7 +236,6 @@
   background-color: transparent;
   -moz-margin-end: -3px;
   position: relative;
-  cursor: e-resize;
 }
 
 /* In-tools sidebar */
@@ -280,16 +278,15 @@
   -moz-appearance: none;
   /* We want to match the height of a toolbar with a toolbarbutton
    * First, we need to replicated the padding of toolbar (4px),
-   * then we need to take the border of the buttons into account (1px).
+   * then, the padding of the button itself from toolbarbutton.css (3px),
+   * Also, we need to take the border of the buttons into accout (1px).
+   * Padding-bottom is one pixel shorter because we need to include the
+   * black border.
    */
-  padding: 5px 3px;
+  padding: 8px 3px 7px;
   -moz-padding-start: 6px;
   margin: 0;
   min-width: 78px;
-  /* toolbar's min-height is button min-height (25px) + padding (2 * 4px): 33px.
-   * -1px because the parent element (<tabs>) comes with a 1px bottom border.
-   */
-  min-height: 32px;
   text-shadow: 0 -1px 0 hsla(210,8%,5%,.45);
   text-align: center;
   color: inherit;

@@ -33,7 +33,7 @@ function openComputedView(aInspector)
 function runTests()
 {
   Services.obs.removeObserver(runTests, "StyleInspector-populated");
-  computedView = getComputedView();
+  computedView = getComputedView(inspector);
 
   var span = doc.querySelector(".matches");
   ok(span, "captain, we have the matches span");
@@ -52,17 +52,9 @@ function runTests()
   let rulesTable = propView.matchedSelectorsContainer;
   let matchedExpander = propView.matchedExpander;
 
-  info("Adding focus event handler to search filter");
-  searchbar.addEventListener("focus", function searchbarFocused() {
-    searchbar.removeEventListener("focus", searchbarFocused);
-    info("search filter is focused");
-    info("tabbing to property expander node");
-    EventUtils.synthesizeKey("VK_TAB", {}, iframe.contentWindow);
-  });
-
   info("Adding focus event handler to property expander");
   matchedExpander.addEventListener("focus", function expanderFocused() {
-    matchedExpander.removeEventListener("focus", expanderFocused);
+    this.removeEventListener("focus", expanderFocused);
     info("property expander is focused");
     info("checking expand / collapse");
     testKey(iframe.contentWindow, "VK_SPACE", rulesTable);
@@ -71,6 +63,14 @@ function runTests()
     checkHelpLinkKeybinding();
     computedView.destroy();
     finishUp();
+  });
+
+  info("Adding focus event handler to search filter");
+  searchbar.addEventListener("focus", function searchbarFocused() {
+    this.removeEventListener("focus", searchbarFocused);
+    info("search filter is focused");
+    info("tabbing to property expander node");
+    EventUtils.synthesizeKey("VK_TAB", {}, iframe.contentWindow);
   });
 
   info("Making sure that the style inspector panel is focused");

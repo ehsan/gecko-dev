@@ -10,9 +10,8 @@
 #ifndef nsPresArena_h___
 #define nsPresArena_h___
 
-#include "mozilla/MemoryChecking.h" // Note: Do not remove this, needed for MOZ_HAVE_MEM_CHECKS below
-#include "mozilla/MemoryReporting.h"
-#include <stdint.h>
+#include "mozilla/MemoryChecking.h"
+#include "mozilla/StandardInteger.h"
 #include "nscore.h"
 #include "nsQueryFrame.h"
 #include "nsTArray.h"
@@ -82,11 +81,20 @@ public:
   }
 
   /**
-   * Increment aArenaStats with sizes of interesting objects allocated in this
-   * arena and its mOther field with the size of everything else.
+   * Fill aArenaStats with sizes of interesting objects allocated in
+   * this arena and its mOther field with the size of everything else.
    */
-  void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                              nsArenaMemoryStats* aArenaStats);
+  void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                           nsArenaMemoryStats* aArenaStats);
+
+  /**
+   * Get the poison value that can be used to fill a memory space with
+   * an address that leads to a safe crash when dereferenced.
+   *
+   * The caller is responsible for ensuring that a pres shell has been
+   * initialized before calling this.
+   */
+  static uintptr_t GetPoisonValue();
 
 private:
   NS_HIDDEN_(void*) Allocate(uint32_t aCode, size_t aSize);
@@ -126,7 +134,7 @@ private:
 #endif
   static PLDHashOperator FreeListEnumerator(FreeList* aEntry, void* aData);
   static size_t SizeOfFreeListEntryExcludingThis(FreeList* aEntry,
-                                                 mozilla::MallocSizeOf aMallocSizeOf,
+                                                 nsMallocSizeOfFun aMallocSizeOf,
                                                  void*);
 
   nsTHashtable<FreeList> mFreeLists;

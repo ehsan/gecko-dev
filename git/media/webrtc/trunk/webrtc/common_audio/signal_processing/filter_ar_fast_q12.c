@@ -9,7 +9,7 @@
  */
 #include <assert.h>
 
-#include "webrtc/common_audio/signal_processing/include/signal_processing_library.h"
+#include "signal_processing_library.h"
 
 // TODO(bjornv): Change the return type to report errors.
 
@@ -40,3 +40,4 @@ void WebRtcSpl_FilterARFastQ12(const int16_t* data_in,
     data_out[i] = (int16_t)((output + 2048) >> 12);
   }
 }
+

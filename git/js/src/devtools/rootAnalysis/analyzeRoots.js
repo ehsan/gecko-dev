@@ -2,48 +2,39 @@
 
 "use strict";
 
-loadRelativeToScript('utility.js');
-loadRelativeToScript('annotations.js');
-loadRelativeToScript('CFG.js');
+load('utility.js');
+load('annotations.js');
+load('suppressedPoints.js');
 
-var sourceRoot = (environment['SOURCE'] || '') + '/'
+var sourceRoot = null;
 
+var functionName;
 var functionBodies;
 
-if (typeof scriptArgs[0] != 'string' || typeof scriptArgs[1] != 'string')
-    throw "Usage: analyzeRoots.js <gcFunctions.lst> <gcEdges.txt> <suppressedFunctions.lst> <gcTypes.txt> [start end [tmpfile]]";
+if (typeof arguments[0] != 'string' || typeof arguments[1] != 'string')
+    throw "Usage: analyzeRoots.js <gcFunctions.txt> <gcTypes.txt> [start end [tmpfile]]";
 
-var gcFunctionsFile = scriptArgs[0];
-var gcEdgesFile = scriptArgs[1];
-var suppressedFunctionsFile = scriptArgs[2];
-var gcTypesFile = scriptArgs[3];
-var batch = (scriptArgs[4]|0) || 1;
-var numBatches = (scriptArgs[5]|0) || 1;
-var tmpfile = scriptArgs[6] || "tmp.txt";
+var gcFunctionsFile = arguments[0];
+var gcTypesFile = arguments[1];
+var batch = arguments[2]|0;
+var numBatches = (arguments[3]|0) || 1;
+var tmpfile = arguments[4] || "tmp.txt";
 
 var gcFunctions = {};
-var text = snarf("gcFunctions.lst").split("\n");
-assert(text.pop().length == 0);
-for (var line of text) {
-    gcFunctions[line] = true;
-}
-
 var suppressedFunctions = {};
-var text = snarf(suppressedFunctionsFile).split("\n");
+assert(!system("grep 'GC Function' " + gcFunctionsFile + " > tmp.txt"));
+var text = snarf("tmp.txt").split('\n');
 assert(text.pop().length == 0);
 for (var line of text) {
-    suppressedFunctions[line] = true;
+    match = /GC Function: (.*)/.exec(line);
+    gcFunctions[match[1]] = true;
 }
-text = null;
-
-var gcEdges = {};
-text = snarf(gcEdgesFile).split('\n');
+assert(!system("grep 'Suppressed Function' " + arguments[0] + " > tmp.txt"));
+text = snarf("tmp.txt").split('\n');
 assert(text.pop().length == 0);
 for (var line of text) {
-    var [ block, edge, func ] = line.split(" || ");
-    if (!(block in gcEdges))
-        gcEdges[block] = {}
-    gcEdges[block][edge] = func;
+    match = /Suppressed Function: (.*)/.exec(line);
+    suppressedFunctions[match[1]] = true;
 }
 text = null;
 
@@ -51,14 +42,14 @@ var match;
 var gcThings = {};
 var gcPointers = {};
 
-text = snarf(gcTypesFile).split("\n");
-for (var line of text) {
+var gcTypesText = snarf(gcTypesFile).split('\n');
+for (var line of gcTypesText) {
     if (match = /GCThing: (.*)/.exec(line))
         gcThings[match[1]] = true;
     if (match = /GCPointer: (.*)/.exec(line))
         gcPointers[match[1]] = true;
 }
-text = null;
+gcTypesText = null;
 
 function isUnrootedType(type)
 {
@@ -91,15 +82,12 @@ function edgeUsesVariable(edge, variable)
     if (ignoreEdgeUse(edge, variable))
         return false;
     switch (edge.Kind) {
-
     case "Assign":
         if (expressionUsesVariable(edge.Exp[0], variable))
             return true;
         return expressionUsesVariable(edge.Exp[1], variable);
-
     case "Assume":
         return expressionUsesVariable(edge.Exp[0], variable);
-
     case "Call":
         if (expressionUsesVariable(edge.Exp[0], variable))
             return true;
@@ -116,41 +104,10 @@ function edgeUsesVariable(edge, variable)
             }
         }
         return false;
-
     case "Loop":
         return false;
-
     default:
         assert(false);
-    }
-}
-
-function expressionIsVariableAddress(exp, variable)
-{
-    while (exp.Kind == "Fld")
-        exp = exp.Exp[0];
-    return exp.Kind == "Var" && sameVariable(exp.Variable, variable);
-}
-
-function edgeTakesVariableAddress(edge, variable)
-{
-    if (ignoreEdgeUse(edge, variable))
-        return false;
-    if (ignoreEdgeAddressTaken(edge))
-        return false;
-    switch (edge.Kind) {
-    case "Assign":
-        return expressionIsVariableAddress(edge.Exp[1], variable);
-    case "Call":
-        if ("PEdgeCallArguments" in edge) {
-            for (var exp of edge.PEdgeCallArguments.Exp) {
-                if (expressionIsVariableAddress(exp, variable))
-                    return true;
-            }
-        }
-        return false;
-    default:
-        return false;
     }
 }
 
@@ -218,6 +175,8 @@ function edgeKillsVariable(edge, variable)
 
 function edgeCanGC(edge)
 {
+    if (functionName in suppressedFunctions)
+        return false;
     if (edge.Kind != "Call")
         return false;
     var callee = edge.Exp[0];
@@ -236,21 +195,28 @@ function edgeCanGC(edge)
         var field = callee.Exp[0].Field;
         var csuName = field.FieldCSU.Type.Name;
         var fullFieldName = csuName + "." + field.Name[0];
-        if (fieldCallCannotGC(csuName, fullFieldName))
-            return null;
-        return (fullFieldName in suppressedFunctions) ? null : fullFieldName;
+        return fieldCallCannotGC(csuName, fullFieldName) ? null : fullFieldName;
     }
     assert(callee.Exp[0].Kind == "Var");
     var calleeName = callee.Exp[0].Variable.Name[0];
     return indirectCallCannotGC(functionName, calleeName) ? null : "*" + calleeName;
 }
 
-function variableUseFollowsGC(suppressed, variable, worklist)
+function computePredecessors(body)
 {
-    // Scan through all edges following an unrooted variable use, using an
-    // explicit worklist. A worklist contains a following edge together with a
-    // description of where one of its predecessors GC'd (if any).
+    body.predecessors = [];
+    if (!("PEdge" in body))
+        return;
+    for (var edge of body.PEdge) {
+        var target = edge.Index[1];
+        if (!(target in body.predecessors))
+            body.predecessors[target] = [];
+        body.predecessors[target].push(edge);
+    }
+}
 
+function variableUseFollowsGC(variable, worklist)
+{
     while (worklist.length) {
         var entry = worklist.pop();
         var body = entry.body, ppoint = entry.ppoint;
@@ -268,7 +234,7 @@ function variableUseFollowsGC(suppressed, variable, worklist)
 
         if (ppoint == body.Index[0]) {
             if (body.BlockId.Kind == "Loop") {
-                // propagate to parents that enter the loop body.
+                // propagate to parents which enter the loop body.
                 if ("BlockPPoint" in body) {
                     for (var parent of body.BlockPPoint) {
                         var found = false;
@@ -288,11 +254,13 @@ function variableUseFollowsGC(suppressed, variable, worklist)
             }
         }
 
-        var predecessors = getPredecessors(body);
-        if (!(ppoint in predecessors))
+        if (!body.predecessors)
+            computePredecessors(body);
+
+        if (!(ppoint in body.predecessors))
             continue;
 
-        for (var edge of predecessors[ppoint]) {
+        for (var edge of body.predecessors[ppoint]) {
             var source = edge.Index[0];
 
             if (edgeKillsVariable(edge, variable)) {
@@ -304,8 +272,8 @@ function variableUseFollowsGC(suppressed, variable, worklist)
             }
 
             var gcInfo = entry.gcInfo;
-            if (!gcInfo && !(source in body.suppressed) && !suppressed) {
-                var gcName = edgeCanGC(edge, body);
+            if (!gcInfo && !(edge.Index[0] in body.suppressed)) {
+                var gcName = edgeCanGC(edge);
                 if (gcName)
                     gcInfo = {name:gcName, body:body, ppoint:source};
             }
@@ -339,23 +307,19 @@ function variableUseFollowsGC(suppressed, variable, worklist)
     return null;
 }
 
-function variableLiveAcrossGC(suppressed, variable)
+function variableLiveAcrossGC(variable)
 {
-    // A variable is live across a GC if (1) it is used by an edge, and (2) it
-    // is used after a GC in a successor edge.
-
     for (var body of functionBodies) {
         body.seen = null;
         body.minimumUse = 0;
     }
-
     for (var body of functionBodies) {
         if (!("PEdge" in body))
             continue;
         for (var edge of body.PEdge) {
             if (edgeUsesVariable(edge, variable) && !edgeKillsVariable(edge, variable)) {
                 var worklist = [{body:body, ppoint:edge.Index[0], gcInfo:null, why:null}];
-                var call = variableUseFollowsGC(suppressed, variable, worklist);
+                var call = variableUseFollowsGC(variable, worklist);
                 if (call)
                     return call;
             }
@@ -364,22 +328,7 @@ function variableLiveAcrossGC(suppressed, variable)
     return null;
 }
 
-function unsafeVariableAddressTaken(suppressed, variable)
-{
-    for (var body of functionBodies) {
-        if (!("PEdge" in body))
-            continue;
-        for (var edge of body.PEdge) {
-            if (edgeTakesVariableAddress(edge, variable)) {
-                if (edge.Kind == "Assign" || (!suppressed && edgeCanGC(edge)))
-                    return {body:body, ppoint:edge.Index[0]};
-            }
-        }
-    }
-    return null;
-}
-
-function computePrintedLines(functionName)
+function computePrintedLines()
 {
     assert(!system("xdbfind src_body.xdb '" + functionName + "' > " + tmpfile));
     var lines = snarf(tmpfile).split('\n');
@@ -431,10 +380,10 @@ function locationLine(text)
     return 0;
 }
 
-function printEntryTrace(functionName, entry)
+function printEntryTrace(entry)
 {
     if (!functionBodies[0].lines)
-        computePrintedLines(functionName);
+        computePrintedLines();
 
     while (entry) {
         var ppoint = entry.ppoint;
@@ -490,11 +439,10 @@ function typeDesc(type)
     }
 }
 
-function processBodies(functionName)
+function processBodies()
 {
     if (!("DefineVariable" in functionBodies[0]))
         return;
-    var suppressed = (functionName in suppressedFunctions);
     for (var variable of functionBodies[0].DefineVariable) {
         if (variable.Variable.Kind == "Return")
             continue;
@@ -504,7 +452,7 @@ function processBodies(functionName)
         else
             name = variable.Variable.Name[0];
         if (isRootedType(variable.Type)) {
-            if (!variableLiveAcrossGC(suppressed, variable.Variable)) {
+            if (!variableLiveAcrossGC(variable.Variable)) {
                 // The earliest use of the variable should be its constructor.
                 var lineText;
                 for (var body of functionBodies) {
@@ -518,7 +466,7 @@ function processBodies(functionName)
                       " has unnecessary root '" + name + "' at " + lineText);
             }
         } else if (isUnrootedType(variable.Type)) {
-            var result = variableLiveAcrossGC(suppressed, variable.Variable);
+            var result = variableLiveAcrossGC(variable.Variable);
             if (result) {
                 var lineText = findLocation(result.gcInfo.body, result.gcInfo.ppoint);
                 print("\nFunction '" + functionName + "'" +
@@ -526,15 +474,7 @@ function processBodies(functionName)
                       " of type '" + typeDesc(variable.Type) + "'" +
                       " live across GC call " + result.gcInfo.name +
                       " at " + lineText);
-                printEntryTrace(functionName, result.why);
-            }
-            result = unsafeVariableAddressTaken(suppressed, variable.Variable);
-            if (result) {
-                var lineText = findLocation(result.body, result.ppoint);
-                print("\nFunction '" + functionName + "'" +
-                      " takes unsafe address of unrooted '" + name + "'" +
-                      " at " + lineText);
-                printEntryTrace(functionName, {body:result.body, ppoint:result.ppoint});
+                printEntryTrace(result.why);
             }
         }
     }
@@ -554,20 +494,34 @@ var each = Math.floor(N/numBatches);
 var start = minStream + each * (batch - 1);
 var end = Math.min(minStream + each * batch - 1, maxStream);
 
+// Find the source tree
+for (let nameIndex = minStream; nameIndex <= maxStream; nameIndex++) {
+    var name = xdb.read_key(nameIndex);
+    functionName = name.readString();
+    var data = xdb.read_entry(name);
+    functionBodies = JSON.parse(data.readString());
+    let filename = functionBodies[0].Location[0].CacheString;
+    let match = /(.*)\bjs\/src\//.exec(filename);
+    if (match) {
+        sourceRoot = match[1];
+        printErr("sourceRoot = " + sourceRoot);
+        break;
+    }
+}
+assert(typeof(sourceRoot) == "string");
+
 for (var nameIndex = start; nameIndex <= end; nameIndex++) {
     var name = xdb.read_key(nameIndex);
-    var functionName = name.readString();
+    functionName = name.readString();
     var data = xdb.read_entry(name);
-    xdb.free_string(name);
-    var json = data.readString();
-    xdb.free_string(data);
-    functionBodies = JSON.parse(json);
+    functionBodies = JSON.parse(data.readString());
 
     for (var body of functionBodies)
         body.suppressed = [];
-    for (var body of functionBodies) {
-        for (var [pbody, id] of allRAIIGuardedCallPoints(body, isSuppressConstructor))
-            pbody.suppressed[id] = true;
-    }
-    processBodies(functionName);
+    for (var body of functionBodies)
+        computeSuppressedPoints(body);
+     processBodies();
+
+    xdb.free_string(name);
+    xdb.free_string(data);
 }

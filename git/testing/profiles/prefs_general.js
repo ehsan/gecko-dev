@@ -9,8 +9,7 @@ user_pref("browser.ui.layout.tablet", 0); // force tablet UI off
 user_pref("dom.allow_scripts_to_close_windows", true);
 user_pref("dom.disable_open_during_load", false);
 user_pref("dom.experimental_forms", true); // on for testing
-user_pref("dom.forms.number", true); // on for testing
-user_pref("dom.forms.color", true); // on for testing
+user_pref("dom.experimental_forms_range", true); // on for testing
 user_pref("dom.max_script_run_time", 0); // no slow script dialogs
 user_pref("hangmonitor.timeout", 0); // no hang monitor
 user_pref("dom.max_chrome_script_run_time", 0);
@@ -58,9 +57,12 @@ user_pref("extensions.getAddons.cache.enabled", false);
 // Disable intalling any distribution add-ons
 user_pref("extensions.installDistroAddons", false);
 
+user_pref("extensions.testpilot.runStudies", false);
+user_pref("extensions.testpilot.alreadyCustomizedToolbar", true);
+
 user_pref("geo.wifi.uri", "http://%(server)s/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
 user_pref("geo.wifi.testing", true);
-user_pref("geo.wifi.logging.enabled", true);
+user_pref("geo.ignore.location_filter", true);
 
 user_pref("camino.warn_when_closing", false); // Camino-only, harmless to others
 
@@ -94,14 +96,6 @@ user_pref("security.notification_enable_delay", 0);
 // Make enablePrivilege continue to work for test code. :-(
 user_pref("security.turn_off_all_security_so_that_viruses_can_take_over_this_computer", true);
 
-// In the default configuration, we bypass XBL scopes (a security feature) for
-// domains whitelisted for remote XUL, so that intranet apps and such continue
-// to work without major rewrites. However, we also use the whitelist mechanism
-// to run our XBL tests in automation, in which case we really want to be testing
-// the configuration that we ship to users without special whitelisting. So we
-// use an additional pref here to allow automation to use the "normal" behavior.
-user_pref("dom.use_xbl_scopes_for_remote_xul", true);
-
 // Get network events.
 user_pref("network.activity.blipIntervalMilliseconds", 250);
 
@@ -114,41 +108,3 @@ user_pref("datareporting.healthreport.documentServerURI", "http://%(server)s/hea
 
 // Make sure CSS error reporting is enabled for tests
 user_pref("layout.css.report_errors", true);
-
-// Enable mozContacts
-user_pref("dom.mozContacts.enabled", true);
-user_pref("dom.navigator-property.disable.mozContacts", false);
-user_pref("dom.global-constructor.disable.mozContact", false);
-
-// Enable mozSettings
-user_pref("dom.mozSettings.enabled", true);
-
-// Make sure the disk cache doesn't get auto disabled
-user_pref("network.http.bypass-cachelock-threshold", 200000);
-
-// Enable Gamepad
-user_pref("dom.gamepad.enabled", true);
-user_pref("dom.gamepad.non_standard_events.enabled", true);
-
-// Enable Web Audio
-user_pref("media.webaudio.enabled", true);
-
-// Enable Web Audio legacy APIs
-user_pref("media.webaudio.legacy.AudioBufferSourceNode", true);
-user_pref("media.webaudio.legacy.AudioContext", true);
-user_pref("media.webaudio.legacy.AudioParam", true);
-user_pref("media.webaudio.legacy.BiquadFilterNode", true);
-user_pref("media.webaudio.legacy.PannerNode", true);
-user_pref("media.webaudio.legacy.OscillatorNode", true);
-
-// Always use network provider for geolocation tests
-// so we bypass the OSX dialog raised by the corelocation provider
-user_pref("geo.provider.testing", true);
-
-// Background thumbnails in particular cause grief, and disabling thumbnails
-// in general can't hurt - we re-enable them when tests need them.
-user_pref("browser.pagethumbnails.capturing_disabled", true);
-
-// Indicate that the download panel has been shown once so that whichever
-// download test runs first doesn't show the popup inconsistently.
-user_pref("browser.download.panel.shown", true);

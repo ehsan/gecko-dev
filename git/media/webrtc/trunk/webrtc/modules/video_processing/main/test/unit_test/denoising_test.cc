@@ -8,25 +8,24 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 
-#include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
-#include "webrtc/modules/video_processing/main/interface/video_processing.h"
-#include "webrtc/modules/video_processing/main/test/unit_test/video_processing_unittest.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
-#include "webrtc/test/testsupport/fileutils.h"
-#include "webrtc/test/testsupport/gtest_disable.h"
+#include "common_video/libyuv/include/webrtc_libyuv.h"
+#include "modules/video_processing/main/interface/video_processing.h"
+#include "modules/video_processing/main/test/unit_test/unit_test.h"
+#include "system_wrappers/interface/tick_util.h"
+#include "testsupport/fileutils.h"
 
 namespace webrtc {
 
-TEST_F(VideoProcessingModuleTest, DISABLED_ON_ANDROID(Denoising))
+TEST_F(VideoProcessingModuleTest, Denoising)
 {
     enum { NumRuns = 10 };
-    uint32_t frameNum = 0;
+    WebRtc_UWord32 frameNum = 0;
 
-    int64_t minRuntime = 0;
-    int64_t avgRuntime = 0;
+    WebRtc_Word64 minRuntime = 0;
+    WebRtc_Word64 avgRuntime = 0;
 
     const std::string denoise_filename =
         webrtc::test::OutputPath() + "denoise_testfile.yuv";
@@ -41,23 +40,26 @@ TEST_F(VideoProcessingModuleTest, DISABLED_ON_ANDROID(Denoising))
         "Could not open noisy file: " << noise_filename << "\n";
 
     printf("\nRun time [us / frame]:\n");
-    for (uint32_t runIdx = 0; runIdx < NumRuns; runIdx++)
+    for (WebRtc_UWord32 runIdx = 0; runIdx < NumRuns; runIdx++)
     {
         TickTime t0;
         TickTime t1;
         TickInterval accTicks;
-        int32_t modifiedPixels = 0;
+        WebRtc_Word32 modifiedPixels = 0;
 
         frameNum = 0;
         scoped_array<uint8_t> video_buffer(new uint8_t[_frame_length]);
         while (fread(video_buffer.get(), 1, _frame_length, _sourceFile) ==
             _frame_length)
         {
-            EXPECT_EQ(0, ConvertToI420(kI420, video_buffer.get(), 0, 0,
-                                       _width, _height,
-                                       0, kRotateNone, &_videoFrame));
+          _videoFrame.CreateFrame(_size_y, video_buffer.get(),
+                                  _size_uv, video_buffer.get() + _size_y,
+                                  _size_uv,
+                                  video_buffer.get() + _size_y + _size_uv,
+                                  _width, _height,
+                                  _width, _half_width, _half_width);
             frameNum++;
-            uint8_t* sourceBuffer = _videoFrame.buffer(kYPlane);
+            WebRtc_UWord8* sourceBuffer = _videoFrame.buffer(kYPlane);
 
             // Add noise to a part in video stream
             // Random noise
@@ -65,10 +67,10 @@ TEST_F(VideoProcessingModuleTest, DISABLED_ON_ANDROID(Denoising))
 
             for (int ir = 0; ir < _height; ir++)
             {
-                uint32_t ik = ir * _width;
+                WebRtc_UWord32 ik = ir * _width;
                 for (int ic = 0; ic < _width; ic++)
                 {
-                    uint8_t r = rand() % 16;
+                    WebRtc_UWord8 r = rand() % 16;
                     r -= 8;
                     if (ir < _height / 4)
                         r = 0;
@@ -79,7 +81,7 @@ TEST_F(VideoProcessingModuleTest, DISABLED_ON_ANDROID(Denoising))
                     if (ic >= 3 * _width / 4)
                         r = 0;
 
-                    /*uint8_t pixelValue = 0;
+                    /*WebRtc_UWord8 pixelValue = 0;
                     if (ir >= _height / 2)
                     { // Region 3 or 4
                         pixelValue = 170;

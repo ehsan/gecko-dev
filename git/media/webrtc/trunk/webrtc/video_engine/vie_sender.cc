@@ -8,13 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/video_engine/vie_sender.h"
+#include "video_engine/vie_sender.h"
 
-#include <assert.h>
+#include <cassert>
 
-#include "webrtc/modules/utility/interface/rtp_dump.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "modules/utility/interface/rtp_dump.h"
+#include "system_wrappers/interface/critical_section_wrapper.h"
+#include "system_wrappers/interface/trace.h"
 
 namespace webrtc {
 
@@ -45,7 +45,7 @@ int ViESender::RegisterExternalEncryption(Encryption* encryption) {
   if (external_encryption_) {
     return -1;
   }
-  encryption_buffer_ = new uint8_t[kViEMaxMtu];
+  encryption_buffer_ = new WebRtc_UWord8[kViEMaxMtu];
   if (encryption_buffer_ == NULL) {
     return -1;
   }
@@ -200,8 +200,7 @@ int ViESender::SendRTCPPacket(int vie_id, const void* data, int len) {
   if (bytes_sent != send_packet_length) {
     WEBRTC_TRACE(
         webrtc::kTraceWarning, webrtc::kTraceVideo, channel_id_,
-        "ViESender::SendRTCPPacket - Transport failed to send RTCP packet"
-        " (%d vs %d)", bytes_sent, send_packet_length);
+        "ViESender::SendRTCPPacket - Transport failed to send RTCP packet");
   }
   return bytes_sent;
 }

@@ -4,15 +4,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-[Constructor(DOMString type, optional USSDReceivedEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h", Pref="dom.icc.enabled"]
-interface USSDReceivedEvent : Event
-{
-  readonly attribute DOMString? message;
-  readonly attribute boolean sessionEnded;
-};
-
-dictionary USSDReceivedEventInit : EventInit
-{
+dictionary USSDReceivedEventDict {
   DOMString? message = null;
   boolean sessionEnded = false;
 };

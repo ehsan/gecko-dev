@@ -39,44 +39,48 @@ this.webrtcUI = {
     let activeStreams = [];
     for (let i = 0; i < count; i++) {
       let contentWindow = contentWindowSupportsArray.GetElementAt(i);
-      let browser = getBrowserForWindow(contentWindow);
-      let browserWindow = browser.ownerDocument.defaultView;
+      let browserWindow = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                       .getInterface(Ci.nsIWebNavigation)
+                                       .QueryInterface(Ci.nsIDocShell)
+                                       .chromeEventHandler.ownerDocument.defaultView;
       let tab = browserWindow.gBrowser &&
                 browserWindow.gBrowser._getTabForContentWindow(contentWindow.top);
-      activeStreams.push({
-        uri: contentWindow.location.href,
-        tab: tab,
-        browser: browser
-      });
+      if (tab) {
+        activeStreams.push({
+          uri: contentWindow.location.href,
+          tab: tab
+        });
+      }
     }
     return activeStreams;
   }
 }
 
 function getBrowserForWindowId(aWindowID) {
-  return getBrowserForWindow(Services.wm.getOuterWindowWithId(aWindowID));
-}
-
-function getBrowserForWindow(aContentWindow) {
-  return aContentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                       .getInterface(Ci.nsIWebNavigation)
-                       .QueryInterface(Ci.nsIDocShell)
-                       .chromeEventHandler;
+  let someWindow = Services.wm.getMostRecentWindow(null);
+  let contentWindow = someWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                .getInterface(Ci.nsIDOMWindowUtils)
+                                .getOuterWindowWithId(aWindowID);
+  return contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                      .getInterface(Ci.nsIWebNavigation)
+                      .QueryInterface(Ci.nsIDocShell)
+                      .chromeEventHandler;
 }
 
 function handleRequest(aSubject, aTopic, aData) {
-  let constraints = aSubject.getConstraints();
+  let {windowID: windowID, callID: callID} = JSON.parse(aData);
 
-  Services.wm.getMostRecentWindow(null).navigator.mozGetUserMediaDevices(
-    constraints,
+  let browser = getBrowserForWindowId(windowID);
+  let params = aSubject.QueryInterface(Ci.nsIMediaStreamOptions);
+
+  browser.ownerDocument.defaultView.navigator.mozGetUserMediaDevices(
     function (devices) {
-      prompt(aSubject.windowID, aSubject.callID, constraints.audio,
-             constraints.video || constraints.picture, devices);
+      prompt(browser, callID, params.audio, params.video || params.picture, devices);
     },
     function (error) {
       // bug 827146 -- In the future, the UI should catch NO_DEVICES_FOUND
       // and allow the user to plug in a device, instead of immediately failing.
-      denyRequest(aSubject.callID, error);
+      denyRequest(callID, error);
     }
   );
 }
@@ -90,7 +94,7 @@ function denyRequest(aCallID, aError) {
   Services.obs.notifyObservers(msg, "getUserMedia:response:deny", aCallID);
 }
 
-function prompt(aWindowID, aCallID, aAudioRequested, aVideoRequested, aDevices) {
+function prompt(aBrowser, aCallID, aAudioRequested, aVideoRequested, aDevices) {
   let audioDevices = [];
   let videoDevices = [];
   for (let device of aDevices) {
@@ -119,10 +123,8 @@ function prompt(aWindowID, aCallID, aAudioRequested, aVideoRequested, aDevices) 
     return;
   }
 
-  let contentWindow = Services.wm.getOuterWindowWithId(aWindowID);
-  let host = contentWindow.document.documentURIObject.host;
-  let browser = getBrowserForWindow(contentWindow);
-  let chromeDoc = browser.ownerDocument;
+  let host = aBrowser.contentDocument.documentURIObject.asciiHost;
+  let chromeDoc = aBrowser.ownerDocument;
   let chromeWin = chromeDoc.defaultView;
   let stringBundle = chromeWin.gNavigatorBundle;
   let message = stringBundle.getFormattedString("getUserMedia.share" + requestType + ".message",
@@ -196,7 +198,7 @@ function prompt(aWindowID, aCallID, aAudioRequested, aVideoRequested, aDevices) 
 
   let options = null;
 
-  chromeWin.PopupNotifications.show(browser, "webRTC-shareDevices", message,
+  chromeWin.PopupNotifications.show(aBrowser, "webRTC-shareDevices", message,
                                     "webRTC-shareDevices-notification-icon", mainAction,
                                     secondaryActions, options);
 }
@@ -209,8 +211,8 @@ function updateIndicators() {
   while (e.hasMoreElements())
     e.getNext().WebrtcIndicator.updateButton();
 
-  for (let {browser: browser} of webrtcUI.activeStreams)
-    showBrowserSpecificIndicator(browser);
+  for (let {tab: tab} of webrtcUI.activeStreams)
+    showBrowserSpecificIndicator(tab.linkedBrowser);
 }
 
 function showBrowserSpecificIndicator(aBrowser) {
@@ -232,8 +234,10 @@ function showBrowserSpecificIndicator(aBrowser) {
 
   let chromeWin = aBrowser.ownerDocument.defaultView;
   let stringBundle = chromeWin.gNavigatorBundle;
+  let host = aBrowser.contentDocument.documentURIObject.asciiHost;
 
-  let message = stringBundle.getString("getUserMedia.sharing" + captureState + ".message2");
+  let message = stringBundle.getFormattedString("getUserMedia.sharing" + captureState + ".message",
+                                                [ host ]);
   let mainAction = null;
   let secondaryActions = null;
   let options = {

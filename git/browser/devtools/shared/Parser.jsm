@@ -32,7 +32,7 @@ Parser.prototype = {
    * @param string aSource
    *        The source text content.
    */
-  get: function(aUrl, aSource) {
+  get: function P_get(aUrl, aSource) {
     // Try to use the cached AST nodes, to avoid useless parsing operations.
     if (this._cache.has(aUrl)) {
       return this._cache.get(aUrl);
@@ -89,18 +89,8 @@ Parser.prototype = {
   /**
    * Clears all the parsed sources from cache.
    */
-  clearCache: function() {
+  clearCache: function P_clearCache() {
     this._cache.clear();
-  },
-
-  /**
-   * Clears the AST for a particular source.
-   *
-   * @param String aUrl
-   *        The URL of the source that is being cleared.
-   */
-  clearSource: function(aUrl) {
-    this._cache.delete(aUrl);
   },
 
   _cache: null
@@ -121,8 +111,15 @@ SyntaxTreesPool.prototype = {
   /**
    * @see SyntaxTree.prototype.getNamedFunctionDefinitions
    */
-  getNamedFunctionDefinitions: function(aSubstring) {
+  getNamedFunctionDefinitions: function STP_getNamedFunctionDefinitions(aSubstring) {
     return this._call("getNamedFunctionDefinitions", aSubstring);
+  },
+
+  /**
+   * @see SyntaxTree.prototype.getFunctionAtLocation
+   */
+  getFunctionAtLocation: function STP_getFunctionAtLocation(aLine, aColumn) {
+    return this._call("getFunctionAtLocation", [aLine, aColumn]);
   },
 
   /**
@@ -134,7 +131,7 @@ SyntaxTreesPool.prototype = {
    * @return array
    *         The offset and length relative to the enclosing script.
    */
-  getScriptInfo: function(aOffset) {
+  getScriptInfo: function STP_getScriptInfo(aOffset) {
     for (let { offset, length } of this._trees) {
       if (offset <= aOffset &&  offset + length >= aOffset) {
         return [offset, length];
@@ -153,7 +150,7 @@ SyntaxTreesPool.prototype = {
    * @return array
    *         The results given by all known syntax trees.
    */
-  _call: function(aFunction, aParams) {
+  _call: function STP__call(aFunction, aParams) {
     let results = [];
     let requestId = aFunction + aParams; // Cache all the things!
 
@@ -214,7 +211,7 @@ SyntaxTree.prototype = {
    *         All the matching function declarations and expressions, as
    *         { functionName, functionLocation ... } object hashes.
    */
-  getNamedFunctionDefinitions: function(aSubstring) {
+  getNamedFunctionDefinitions: function ST_getNamedFunctionDefinitions(aSubstring) {
     let lowerCaseToken = aSubstring.toLowerCase();
     let store = [];
 
@@ -223,7 +220,7 @@ SyntaxTree.prototype = {
        * Callback invoked for each function declaration node.
        * @param Node aNode
        */
-      onFunctionDeclaration: function(aNode) {
+      onFunctionDeclaration: function STW_onFunctionDeclaration(aNode) {
         let functionName = aNode.id.name;
         if (functionName.toLowerCase().contains(lowerCaseToken)) {
           store.push({
@@ -237,27 +234,31 @@ SyntaxTree.prototype = {
        * Callback invoked for each function expression node.
        * @param Node aNode
        */
-      onFunctionExpression: function(aNode) {
+      onFunctionExpression: function STW_onFunctionExpression(aNode) {
+        let parent = aNode._parent;
+        let functionName, inferredName, inferredChain, inferredLocation;
+
         // Function expressions don't necessarily have a name.
-        let functionName = aNode.id ? aNode.id.name : "";
-        let functionLocation = aNode.loc || null;
-
+        if (aNode.id) {
+          functionName = aNode.id.name;
+        }
         // Infer the function's name from an enclosing syntax tree node.
-        let inferredInfo = ParserHelpers.inferFunctionExpressionInfo(aNode);
-        let inferredName = inferredInfo.name;
-        let inferredChain = inferredInfo.chain;
-        let inferredLocation = inferredInfo.loc;
-
+        if (parent) {
+          let inferredInfo = ParserHelpers.inferFunctionExpressionInfo(aNode);
+          inferredName = inferredInfo.name;
+          inferredChain = inferredInfo.chain;
+          inferredLocation = inferredInfo.loc;
+        }
         // Current node may be part of a larger assignment expression stack.
-        if (aNode._parent.type == "AssignmentExpression") {
-          this.onFunctionExpression(aNode._parent);
+        if (parent.type == "AssignmentExpression") {
+          this.onFunctionExpression(parent);
         }
 
         if ((functionName && functionName.toLowerCase().contains(lowerCaseToken)) ||
             (inferredName && inferredName.toLowerCase().contains(lowerCaseToken))) {
           store.push({
             functionName: functionName,
-            functionLocation: functionLocation,
+            functionLocation: aNode.loc,
             inferredName: inferredName,
             inferredChain: inferredChain,
             inferredLocation: inferredLocation
@@ -269,16 +270,19 @@ SyntaxTree.prototype = {
        * Callback invoked for each arrow expression node.
        * @param Node aNode
        */
-      onArrowExpression: function(aNode) {
+      onArrowExpression: function STW_onArrowExpression(aNode) {
+        let parent = aNode._parent;
+        let inferredName, inferredChain, inferredLocation;
+
         // Infer the function's name from an enclosing syntax tree node.
         let inferredInfo = ParserHelpers.inferFunctionExpressionInfo(aNode);
-        let inferredName = inferredInfo.name;
-        let inferredChain = inferredInfo.chain;
-        let inferredLocation = inferredInfo.loc;
+        inferredName = inferredInfo.name;
+        inferredChain = inferredInfo.chain;
+        inferredLocation = inferredInfo.loc;
 
         // Current node may be part of a larger assignment expression stack.
-        if (aNode._parent.type == "AssignmentExpression") {
-          this.onFunctionExpression(aNode._parent);
+        if (parent.type == "AssignmentExpression") {
+          this.onFunctionExpression(parent);
         }
 
         if (inferredName && inferredName.toLowerCase().contains(lowerCaseToken)) {
@@ -292,6 +296,100 @@ SyntaxTree.prototype = {
     });
 
     return store;
+  },
+
+  /**
+   * Gets the "new" or "call" expression at the specified location.
+   *
+   * @param number aLine
+   *        The line in the source.
+   * @param number aColumn
+   *        The column in the source.
+   * @return object
+   *         An { functionName, functionLocation } object hash,
+   *         or null if nothing is found at the specified location.
+   */
+  getFunctionAtLocation: function STW_getFunctionAtLocation([aLine, aColumn]) {
+    let self = this;
+    let func = null;
+
+    SyntaxTreeVisitor.walk(this.AST, {
+      /**
+       * Callback invoked for each node.
+       * @param Node aNode
+       */
+      onNode: function STW_onNode(aNode) {
+        // Make sure the node is part of a branch that's guaranteed to be
+        // hovered. Otherwise, return true to abruptly halt walking this
+        // syntax tree branch. This is a really efficient optimization.
+        return ParserHelpers.isWithinLines(aNode, aLine);
+      },
+
+      /**
+       * Callback invoked for each identifier node.
+       * @param Node aNode
+       */
+      onIdentifier: function STW_onIdentifier(aNode) {
+        // Make sure the identifier itself is hovered.
+        let hovered = ParserHelpers.isWithinBounds(aNode, aLine, aColumn);
+        if (!hovered) {
+          return;
+        }
+
+        // Make sure the identifier is part of a "new" expression or
+        // "call" expression node.
+        let expression = ParserHelpers.getEnclosingFunctionExpression(aNode);
+        if (!expression) {
+          return;
+        }
+
+        // Found an identifier node that is part of a "new" expression or
+        // "call" expression node. However, it may be an argument, not a callee.
+        if (ParserHelpers.isFunctionCalleeArgument(aNode)) {
+          // It's an argument.
+          if (self.functionIdentifiersCache.has(aNode.name)) {
+            // It's a function as an argument.
+            func = {
+              functionName: aNode.name,
+              functionLocation: aNode.loc || aNode._parent.loc
+            };
+          }
+          return;
+        }
+
+        // Found a valid "new" expression or "call" expression node.
+        func = {
+          functionName: aNode.name,
+          functionLocation: ParserHelpers.getFunctionCalleeInfo(expression).loc
+        };
+
+        // Abruptly halt walking the syntax tree.
+        this.break = true;
+      }
+    });
+
+    return func;
+  },
+
+  /**
+   * Gets all the function identifiers in this syntax tree (both the
+   * function names and their inferred names).
+   *
+   * @return array
+   *         An array of strings.
+   */
+  get functionIdentifiersCache() {
+    if (this._functionIdentifiersCache) {
+      return this._functionIdentifiersCache;
+    }
+    let functionDefinitions = this.getNamedFunctionDefinitions("");
+    let functionIdentifiers = new Set();
+
+    for (let { functionName, inferredName } of functionDefinitions) {
+      functionIdentifiers.add(functionName);
+      functionIdentifiers.add(inferredName);
+    }
+    return this._functionIdentifiersCache = functionIdentifiers;
   },
 
   AST: null,
@@ -314,7 +412,7 @@ let ParserHelpers = {
    * @return boolean
    *         True if the line and column is contained in the node's bounds.
    */
-  isWithinLines: function(aNode, aLine) {
+  isWithinLines: function PH_isWithinLines(aNode, aLine) {
     // Not all nodes have location information attached.
     if (!aNode.loc) {
       return this.isWithinLines(aNode._parent, aLine);
@@ -334,7 +432,7 @@ let ParserHelpers = {
    * @return boolean
    *         True if the line and column is contained in the node's bounds.
    */
-  isWithinBounds: function(aNode, aLine, aColumn) {
+  isWithinBounds: function PH_isWithinBounds(aNode, aLine, aColumn) {
     // Not all nodes have location information attached.
     if (!aNode.loc) {
       return this.isWithinBounds(aNode._parent, aLine, aColumn);
@@ -345,16 +443,16 @@ let ParserHelpers = {
 
   /**
    * Try to infer a function expression's name & other details based on the
-   * enclosing VariableDeclarator, AssignmentExpression or ObjectExpression.
+   * enclosing VariableDeclarator, AssignmentExpression or ObjectExpression node.
    *
    * @param Node aNode
    *        The function expression node to get the name for.
    * @return object
-   *         The inferred function name, or empty string can't infer the name,
+   *         The inferred function name, or empty string can't infer name,
    *         along with the chain (a generic "context", like a prototype chain)
    *         and location if available.
    */
-  inferFunctionExpressionInfo: function(aNode) {
+  inferFunctionExpressionInfo: function PH_inferFunctionExpressionInfo(aNode) {
     let parent = aNode._parent;
 
     // A function expression may be defined in a variable declarator,
@@ -372,11 +470,11 @@ let ParserHelpers = {
     // e.g. foo = function(){} or foo.bar = function(){}, in which case it is
     // possible to infer the assignee name ("foo" and "bar" respectively).
     if (parent.type == "AssignmentExpression") {
-      let propertyChain = this.getMemberExpressionPropertyChain(parent.left);
-      let propertyLeaf = propertyChain.pop();
+      let assigneeChain = this.getAssignmentExpressionAssigneeChain(parent);
+      let assigneeLeaf = assigneeChain.pop();
       return {
-        name: propertyLeaf,
-        chain: propertyChain,
+        name: assigneeLeaf,
+        chain: assigneeChain,
         loc: parent.left.loc
       };
     }
@@ -385,13 +483,13 @@ let ParserHelpers = {
     // e.g. { foo: function(){} }, then it is possible to infer the name
     // from the corresponding property.
     if (parent.type == "ObjectExpression") {
-      let propertyKey = this.getObjectExpressionPropertyKeyForValue(aNode);
+      let propertyDetails = this.getObjectExpressionPropertyKeyForValue(aNode);
       let propertyChain = this.getObjectExpressionPropertyChain(parent);
-      let propertyLeaf = propertyKey.name;
+      let propertyLeaf = propertyDetails.name;
       return {
         name: propertyLeaf,
         chain: propertyChain,
-        loc: propertyKey.loc
+        loc: propertyDetails.loc
       };
     }
 
@@ -404,18 +502,17 @@ let ParserHelpers = {
   },
 
   /**
-   * Gets the name of an object expression's property to which a specified
-   * value is assigned.
-   *
-   * For example, if aNode represents the "bar" identifier in a hypothetical
-   * "{ foo: bar }" object expression, the returned node is the "foo" identifier.
+   * Gets details about an object expression's property to which a specified
+   * value is assigned. For example, the node returned for the value 42 in
+   * "{ foo: { bar: 42 } }" is "bar".
    *
    * @param Node aNode
-   *        The value node in an object expression.
+   *        The value node assigned to a property in an object expression.
    * @return object
-   *         The key identifier node in the object expression.
+   *         The details about the assignee property node.
    */
-  getObjectExpressionPropertyKeyForValue: function(aNode) {
+  getObjectExpressionPropertyKeyForValue:
+  function PH_getObjectExpressionPropertyKeyForValue(aNode) {
     let parent = aNode._parent;
     if (parent.type != "ObjectExpression") {
       return null;
@@ -428,12 +525,9 @@ let ParserHelpers = {
   },
 
   /**
-   * Gets an object expression's property chain to its parent
-   * variable declarator or assignment expression, if available.
-   *
-   * For example, if aNode represents the "baz: {}" object expression in a
-   * hypothetical "foo = { bar: { baz: {} } }" assignment expression, the
-   * returned chain is ["foo", "bar", "baz"].
+   * Gets an object expression property chain to its parent variable declarator.
+   * For example, the chain to "baz" in "foo = { bar: { baz: { } } }" is
+   * ["foo", "bar", "baz"].
    *
    * @param Node aNode
    *        The object expression node to begin the scan from.
@@ -442,56 +536,59 @@ let ParserHelpers = {
    * @return array
    *         The chain to the parent variable declarator, as strings.
    */
-  getObjectExpressionPropertyChain: function(aNode, aStore = []) {
+  getObjectExpressionPropertyChain:
+  function PH_getObjectExpressionPropertyChain(aNode, aStore = []) {
     switch (aNode.type) {
       case "ObjectExpression":
         this.getObjectExpressionPropertyChain(aNode._parent, aStore);
-        let propertyKey = this.getObjectExpressionPropertyKeyForValue(aNode);
-        if (propertyKey) {
-          aStore.push(propertyKey.name);
+
+        let propertyDetails = this.getObjectExpressionPropertyKeyForValue(aNode);
+        if (propertyDetails) {
+          aStore.push(this.getObjectExpressionPropertyKeyForValue(aNode).name);
         }
         break;
-      // Handle "var foo = { ... }" variable declarators.
-      case "VariableDeclarator":
-        aStore.push(aNode.id.name);
-        break;
-      // Handle "foo.bar = { ... }" assignment expressions, since they're
-      // commonly used when defining an object's prototype methods; e.g:
-      // "Foo.prototype = { ... }".
+      // Handle "foo.bar = { ... }" since it's commonly used when defining an
+      // object's prototype methods; for example: "Foo.prototype = { ... }".
       case "AssignmentExpression":
-        this.getMemberExpressionPropertyChain(aNode.left, aStore);
+        this.getAssignmentExpressionAssigneeChain(aNode, aStore);
         break;
       // Additionally handle stuff like "foo = bar.baz({ ... })", because it's
-      // commonly used in prototype-based inheritance in many libraries; e.g:
-      // "Foo = Bar.extend({ ... })".
+      // commonly used in prototype-based inheritance in many libraries;
+      // for example: "Foo.Bar = Baz.extend({ ... })".
       case "NewExpression":
       case "CallExpression":
         this.getObjectExpressionPropertyChain(aNode._parent, aStore);
+        break;
+      // End of the chain.
+      case "VariableDeclarator":
+        aStore.push(aNode.id.name);
         break;
     }
     return aStore;
   },
 
   /**
-   * Gets a member expression's property chain.
-   *
-   * For example, if aNode represents a hypothetical "foo.bar.baz"
-   * member expression, the returned chain ["foo", "bar", "baz"].
-   *
-   * More complex expressions like foo.bar().baz are intentionally not handled.
+   * Gets the assignee property chain in an assignment expression.
+   * For example, the chain in "foo.bar.baz = 42" is ["foo", "bar", "baz"].
    *
    * @param Node aNode
-   *        The member expression node to begin the scan from.
+   *        The assignment expression node to begin the scan from.
+   * @param array aStore
+   *        The chain to store the nodes into.
    * @param array aStore [optional]
    *        The chain to store the nodes into.
    * @return array
-   *         The full member chain, as strings.
+   *         The full assignee chain, as strings.
    */
-  getMemberExpressionPropertyChain: function(aNode, aStore = []) {
+  getAssignmentExpressionAssigneeChain:
+  function PH_getAssignmentExpressionAssigneeChain(aNode, aStore = []) {
     switch (aNode.type) {
+      case "AssignmentExpression":
+        this.getAssignmentExpressionAssigneeChain(aNode.left, aStore);
+        break;
       case "MemberExpression":
-        this.getMemberExpressionPropertyChain(aNode.object, aStore);
-        this.getMemberExpressionPropertyChain(aNode.property, aStore);
+        this.getAssignmentExpressionAssigneeChain(aNode.object, aStore);
+        this.getAssignmentExpressionAssigneeChain(aNode.property, aStore);
         break;
       case "ThisExpression":
         // Such expressions may appear in an assignee chain, for example
@@ -503,6 +600,80 @@ let ParserHelpers = {
         break;
     }
     return aStore;
+  },
+
+  /**
+   * Gets the "new" expression or "call" expression containing the specified
+   * node. If the node is not enclosed in either of these expression types,
+   * null is returned.
+   *
+   * @param Node aNode
+   *        The child node of an enclosing "new" expression or "call" expression.
+   * @return Node
+   *         The enclosing "new" expression or "call" expression node, or
+   *         null if nothing is found.
+   */
+  getEnclosingFunctionExpression:
+  function PH_getEnclosingFunctionExpression(aNode) {
+    switch (aNode.type) {
+      case "NewExpression":
+      case "CallExpression":
+        return aNode;
+      case "MemberExpression":
+      case "Identifier":
+        return this.getEnclosingFunctionExpression(aNode._parent);
+      default:
+        return null;
+    }
+  },
+
+  /**
+   * Gets the name and { line, column } location of a "new" expression or
+   * "call" expression's callee node.
+   *
+   * @param Node aNode
+   *        The "new" expression or "call" expression to get the callee info for.
+   * @return object
+   *         An object containing the name and location as properties, or
+   *         null if nothing is found.
+   */
+  getFunctionCalleeInfo: function PH_getFunctionCalleeInfo(aNode) {
+    switch (aNode.type) {
+      case "NewExpression":
+      case "CallExpression":
+        return this.getFunctionCalleeInfo(aNode.callee);
+      case "MemberExpression":
+        return this.getFunctionCalleeInfo(aNode.property);
+      case "Identifier":
+        return {
+          name: aNode.name,
+          loc: aNode.loc || (aNode._parent || {}).loc
+        };
+      default:
+        return null;
+    }
+  },
+
+  /**
+   * Determines if an identifier node is part of a "new" expression or
+   * "call" expression's callee arguments.
+   *
+   * @param Node aNode
+   *        The node to determine if part of a function's arguments.
+   * @return boolean
+   *         True if the identifier is an argument, false otherwise.
+   */
+  isFunctionCalleeArgument: function PH_isFunctionCalleeArgument(aNode) {
+    if (!aNode._parent) {
+      return false;
+    }
+    switch (aNode._parent.type) {
+      case "NewExpression":
+      case "CallExpression":
+        return aNode._parent.arguments.indexOf(aNode) != -1;
+      default:
+        return this.isFunctionCalleeArgument(aNode._parent);
+    }
   }
 };
 
@@ -526,7 +697,7 @@ let SyntaxTreeVisitor = {
    *        A map of all the callbacks to invoke when passing through certain
    *        types of noes (e.g: onFunctionDeclaration, onBlockStatement etc.).
    */
-  walk: function(aTree, aCallbacks) {
+  walk: function STV_walk(aTree, aCallbacks) {
     this[aTree.type](aTree, aCallbacks);
   },
 
@@ -544,7 +715,7 @@ let SyntaxTreeVisitor = {
    *   body: [ Statement ];
    * }
    */
-  Program: function(aNode, aCallbacks) {
+  Program: function STV_Program(aNode, aCallbacks) {
     if (aCallbacks.onProgram) {
       aCallbacks.onProgram(aNode);
     }
@@ -558,7 +729,7 @@ let SyntaxTreeVisitor = {
    *
    * interface Statement <: Node { }
    */
-  Statement: function(aNode, aParent, aCallbacks) {
+  Statement: function STV_Statement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -581,7 +752,7 @@ let SyntaxTreeVisitor = {
    *   type: "EmptyStatement";
    * }
    */
-  EmptyStatement: function(aNode, aParent, aCallbacks) {
+  EmptyStatement: function STV_EmptyStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -605,7 +776,7 @@ let SyntaxTreeVisitor = {
    *   body: [ Statement ];
    * }
    */
-  BlockStatement: function(aNode, aParent, aCallbacks) {
+  BlockStatement: function STV_BlockStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -632,7 +803,7 @@ let SyntaxTreeVisitor = {
    *   expression: Expression;
    * }
    */
-  ExpressionStatement: function(aNode, aParent, aCallbacks) {
+  ExpressionStatement: function STV_ExpressionStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -659,7 +830,7 @@ let SyntaxTreeVisitor = {
    *   alternate: Statement | null;
    * }
    */
-  IfStatement: function(aNode, aParent, aCallbacks) {
+  IfStatement: function STV_IfStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -689,7 +860,7 @@ let SyntaxTreeVisitor = {
    *   body: Statement;
    * }
    */
-  LabeledStatement: function(aNode, aParent, aCallbacks) {
+  LabeledStatement: function STV_LabeledStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -715,7 +886,7 @@ let SyntaxTreeVisitor = {
    *   label: Identifier | null;
    * }
    */
-  BreakStatement: function(aNode, aParent, aCallbacks) {
+  BreakStatement: function STV_BreakStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -742,7 +913,7 @@ let SyntaxTreeVisitor = {
    *   label: Identifier | null;
    * }
    */
-  ContinueStatement: function(aNode, aParent, aCallbacks) {
+  ContinueStatement: function STV_ContinueStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -770,7 +941,7 @@ let SyntaxTreeVisitor = {
    *   body: Statement;
    * }
    */
-  WithStatement: function(aNode, aParent, aCallbacks) {
+  WithStatement: function STV_WithStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -800,7 +971,7 @@ let SyntaxTreeVisitor = {
    *   lexical: boolean;
    * }
    */
-  SwitchStatement: function(aNode, aParent, aCallbacks) {
+  SwitchStatement: function STV_SwitchStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -828,7 +999,7 @@ let SyntaxTreeVisitor = {
    *   argument: Expression | null;
    * }
    */
-  ReturnStatement: function(aNode, aParent, aCallbacks) {
+  ReturnStatement: function STV_ReturnStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -855,7 +1026,7 @@ let SyntaxTreeVisitor = {
    *   argument: Expression;
    * }
    */
-  ThrowStatement: function(aNode, aParent, aCallbacks) {
+  ThrowStatement: function STV_ThrowStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -883,7 +1054,7 @@ let SyntaxTreeVisitor = {
    *   finalizer: BlockStatement | null;
    * }
    */
-  TryStatement: function(aNode, aParent, aCallbacks) {
+  TryStatement: function STV_TryStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -918,7 +1089,7 @@ let SyntaxTreeVisitor = {
    *   body: Statement;
    * }
    */
-  WhileStatement: function(aNode, aParent, aCallbacks) {
+  WhileStatement: function STV_WhileStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -945,7 +1116,7 @@ let SyntaxTreeVisitor = {
    *   test: Expression;
    * }
    */
-  DoWhileStatement: function(aNode, aParent, aCallbacks) {
+  DoWhileStatement: function STV_DoWhileStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -974,7 +1145,7 @@ let SyntaxTreeVisitor = {
    *   body: Statement;
    * }
    */
-  ForStatement: function(aNode, aParent, aCallbacks) {
+  ForStatement: function STV_ForStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1011,7 +1182,7 @@ let SyntaxTreeVisitor = {
    *   each: boolean;
    * }
    */
-  ForInStatement: function(aNode, aParent, aCallbacks) {
+  ForInStatement: function STV_ForInStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1040,7 +1211,7 @@ let SyntaxTreeVisitor = {
    *   body: Statement;
    * }
    */
-  ForOfStatement: function(aNode, aParent, aCallbacks) {
+  ForOfStatement: function STV_ForOfStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1068,7 +1239,7 @@ let SyntaxTreeVisitor = {
    *   body: Statement;
    * }
    */
-  LetStatement: function(aNode, aParent, aCallbacks) {
+  LetStatement: function STV_LetStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1098,7 +1269,7 @@ let SyntaxTreeVisitor = {
    *   type: "DebuggerStatement";
    * }
    */
-  DebuggerStatement: function(aNode, aParent, aCallbacks) {
+  DebuggerStatement: function STV_DebuggerStatement(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1121,7 +1292,7 @@ let SyntaxTreeVisitor = {
    *
    * interface Declaration <: Statement { }
    */
-  Declaration: function(aNode, aParent, aCallbacks) {
+  Declaration: function STV_Declaration(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1151,7 +1322,7 @@ let SyntaxTreeVisitor = {
    *   expression: boolean;
    * }
    */
-  FunctionDeclaration: function(aNode, aParent, aCallbacks) {
+  FunctionDeclaration: function STV_FunctionDeclaration(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1187,7 +1358,7 @@ let SyntaxTreeVisitor = {
    *   kind: "var" | "let" | "const";
    * }
    */
-  VariableDeclaration: function(aNode, aParent, aCallbacks) {
+  VariableDeclaration: function STV_VariableDeclaration(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1215,7 +1386,7 @@ let SyntaxTreeVisitor = {
    *   init: Expression | null;
    * }
    */
-  VariableDeclarator: function(aNode, aParent, aCallbacks) {
+  VariableDeclarator: function STV_VariableDeclarator(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1241,7 +1412,7 @@ let SyntaxTreeVisitor = {
    *
    * interface Expression <: Node, Pattern { }
    */
-  Expression: function(aNode, aParent, aCallbacks) {
+  Expression: function STV_Expression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1264,7 +1435,7 @@ let SyntaxTreeVisitor = {
    *   type: "ThisExpression";
    * }
    */
-  ThisExpression: function(aNode, aParent, aCallbacks) {
+  ThisExpression: function STV_ThisExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1288,7 +1459,7 @@ let SyntaxTreeVisitor = {
    *   elements: [ Expression | null ];
    * }
    */
-  ArrayExpression: function(aNode, aParent, aCallbacks) {
+  ArrayExpression: function STV_ArrayExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1303,9 +1474,7 @@ let SyntaxTreeVisitor = {
       aCallbacks.onArrayExpression(aNode);
     }
     for (let element of aNode.elements) {
-      // TODO: remove the typeof check when support for SpreadExpression is
-      // added (bug 890913).
-      if (element && typeof this[element.type] == "function") {
+      if (element) {
         this[element.type](element, aNode, aCallbacks);
       }
     }
@@ -1324,7 +1493,7 @@ let SyntaxTreeVisitor = {
    *                   kind: "init" | "get" | "set" } ];
    * }
    */
-  ObjectExpression: function(aNode, aParent, aCallbacks) {
+  ObjectExpression: function STV_ObjectExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1358,7 +1527,7 @@ let SyntaxTreeVisitor = {
    *   expression: boolean;
    * }
    */
-  FunctionExpression: function(aNode, aParent, aCallbacks) {
+  FunctionExpression: function STV_FunctionExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1400,7 +1569,7 @@ let SyntaxTreeVisitor = {
    *   expression: boolean;
    * }
    */
-  ArrowExpression: function(aNode, aParent, aCallbacks) {
+  ArrowExpression: function STV_ArrowExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1434,7 +1603,7 @@ let SyntaxTreeVisitor = {
    *   expressions: [ Expression ];
    * }
    */
-  SequenceExpression: function(aNode, aParent, aCallbacks) {
+  SequenceExpression: function STV_SequenceExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1463,7 +1632,7 @@ let SyntaxTreeVisitor = {
    *   argument: Expression;
    * }
    */
-  UnaryExpression: function(aNode, aParent, aCallbacks) {
+  UnaryExpression: function STV_UnaryExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1490,7 +1659,7 @@ let SyntaxTreeVisitor = {
    *   right: Expression;
    * }
    */
-  BinaryExpression: function(aNode, aParent, aCallbacks) {
+  BinaryExpression: function STV_BinaryExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1518,7 +1687,7 @@ let SyntaxTreeVisitor = {
    *   right: Expression;
    * }
    */
-  AssignmentExpression: function(aNode, aParent, aCallbacks) {
+  AssignmentExpression: function STV_AssignmentExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1546,7 +1715,7 @@ let SyntaxTreeVisitor = {
    *   prefix: boolean;
    * }
    */
-  UpdateExpression: function(aNode, aParent, aCallbacks) {
+  UpdateExpression: function STV_UpdateExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1573,7 +1742,7 @@ let SyntaxTreeVisitor = {
    *   right: Expression;
    * }
    */
-  LogicalExpression: function(aNode, aParent, aCallbacks) {
+  LogicalExpression: function STV_LogicalExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1601,7 +1770,7 @@ let SyntaxTreeVisitor = {
    *   consequent: Expression;
    * }
    */
-  ConditionalExpression: function(aNode, aParent, aCallbacks) {
+  ConditionalExpression: function STV_ConditionalExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1629,7 +1798,7 @@ let SyntaxTreeVisitor = {
    *   arguments: [ Expression | null ];
    * }
    */
-  NewExpression: function(aNode, aParent, aCallbacks) {
+  NewExpression: function STV_NewExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1660,7 +1829,7 @@ let SyntaxTreeVisitor = {
    *   arguments: [ Expression | null ];
    * }
    */
-  CallExpression: function(aNode, aParent, aCallbacks) {
+  CallExpression: function STV_CallExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1695,7 +1864,7 @@ let SyntaxTreeVisitor = {
    *   computed: boolean;
    * }
    */
-  MemberExpression: function(aNode, aParent, aCallbacks) {
+  MemberExpression: function STV_MemberExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1720,7 +1889,7 @@ let SyntaxTreeVisitor = {
    *   argument: Expression | null;
    * }
    */
-  YieldExpression: function(aNode, aParent, aCallbacks) {
+  YieldExpression: function STV_YieldExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1750,7 +1919,7 @@ let SyntaxTreeVisitor = {
    *   filter: Expression | null;
    * }
    */
-  ComprehensionExpression: function(aNode, aParent, aCallbacks) {
+  ComprehensionExpression: function STV_ComprehensionExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1784,7 +1953,7 @@ let SyntaxTreeVisitor = {
    *   filter: Expression | null;
    * }
    */
-  GeneratorExpression: function(aNode, aParent, aCallbacks) {
+  GeneratorExpression: function STV_GeneratorExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1815,7 +1984,7 @@ let SyntaxTreeVisitor = {
    *   expression: Literal;
    * }
    */
-  GraphExpression: function(aNode, aParent, aCallbacks) {
+  GraphExpression: function STV_GraphExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1839,7 +2008,7 @@ let SyntaxTreeVisitor = {
    *   index: uint32;
    * }
    */
-  GraphIndexExpression: function(aNode, aParent, aCallbacks) {
+  GraphIndexExpression: function STV_GraphIndexExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1864,7 +2033,7 @@ let SyntaxTreeVisitor = {
    *   body: Expression;
    * }
    */
-  LetExpression: function(aNode, aParent, aCallbacks) {
+  LetExpression: function STV_LetExpression(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1892,7 +2061,7 @@ let SyntaxTreeVisitor = {
    *
    * interface Pattern <: Node { }
    */
-  Pattern: function(aNode, aParent, aCallbacks) {
+  Pattern: function STV_Pattern(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1917,7 +2086,7 @@ let SyntaxTreeVisitor = {
    *   properties: [ { key: Literal | Identifier, value: Pattern } ];
    * }
    */
-  ObjectPattern: function(aNode, aParent, aCallbacks) {
+  ObjectPattern: function STV_ObjectPattern(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1945,7 +2114,7 @@ let SyntaxTreeVisitor = {
    *   elements: [ Pattern | null ];
    * }
    */
-  ArrayPattern: function(aNode, aParent, aCallbacks) {
+  ArrayPattern: function STV_ArrayPattern(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -1976,7 +2145,7 @@ let SyntaxTreeVisitor = {
    *   consequent: [ Statement ];
    * }
    */
-  SwitchCase: function(aNode, aParent, aCallbacks) {
+  SwitchCase: function STV_SwitchCase(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -2009,7 +2178,7 @@ let SyntaxTreeVisitor = {
    *   body: BlockStatement;
    * }
    */
-  CatchClause: function(aNode, aParent, aCallbacks) {
+  CatchClause: function STV_CatchClause(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -2039,7 +2208,7 @@ let SyntaxTreeVisitor = {
    *   each: boolean;
    * }
    */
-  ComprehensionBlock: function(aNode, aParent, aCallbacks) {
+  ComprehensionBlock: function STV_ComprehensionBlock(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -2066,7 +2235,7 @@ let SyntaxTreeVisitor = {
    *   name: string;
    * }
    */
-  Identifier: function(aNode, aParent, aCallbacks) {
+  Identifier: function STV_Identifier(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {
@@ -2090,7 +2259,7 @@ let SyntaxTreeVisitor = {
    *   value: string | boolean | null | number | RegExp;
    * }
    */
-  Literal: function(aNode, aParent, aCallbacks) {
+  Literal: function STV_Literal(aNode, aParent, aCallbacks) {
     aNode._parent = aParent;
 
     if (this.break) {

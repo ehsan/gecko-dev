@@ -49,54 +49,38 @@ WorkerAPI.prototype = {
   },
 
   handlers: {
-    "social.manifest-get": function(data) {
-      // retreive the currently installed manifest from firefox
-      this._port.postMessage({topic: "social.manifest", data: this._provider.manifest});
-    },
-    "social.manifest-set": function(data) {
-      // the provider will get reloaded as a result of this call
-      let SocialService = Cu.import("resource://gre/modules/SocialService.jsm", {}).SocialService;
-      let origin = this._provider.origin;
-      SocialService.updateProvider(origin, data);
-    },
     "social.reload-worker": function(data) {
-      this._provider.reload();
+      getFrameWorkerHandle(this._provider.workerURL, null)._worker.reload();
+      // the frameworker is going to be reloaded, send the initialization
+      // so it can have the same startup sequence as if it were loaded
+      // the first time.  This will be queued until the frameworker is ready.
+      this._port.postMessage({topic: "social.initialize"});
     },
     "social.user-profile": function (data) {
       this._provider.updateUserProfile(data);
+      // get the info we need for 'recommend' support.
+      this._port.postMessage({topic: "social.user-recommend-prompt"});
     },
     "social.ambient-notification": function (data) {
       this._provider.setAmbientNotification(data);
     },
+    "social.user-recommend-prompt-response": function(data) {
+      this._provider.recommendInfo = data;
+    },
     "social.cookies-get": function(data) {
-      // We don't want to trust provider.origin etc, just incase the provider
-      // redirected away or something else bad is going on.  So we want to
-      // reach into the Worker's document and fetch the actual cookies it has.
-      // We need to do this via our own message dance.
-      let port = this._port;
-      let whandle = getFrameWorkerHandle(this._provider.workerURL, null);
-      whandle.port.close();
-      whandle._worker.browserPromise.then(browser => {
-        let mm = browser.messageManager;
-        mm.addMessageListener("frameworker:cookie-get-response", function _onCookieResponse(msg) {
-          mm.removeMessageListener("frameworker:cookie-get-response", _onCookieResponse);
-          let cookies = msg.json.split(";");
-          let results = [];
-          cookies.forEach(function(aCookie) {
-            let [name, value] = aCookie.split("=");
-            if (name || value) {
-              results.push({name: unescape(name.trim()),
-                            value: value ? unescape(value.trim()) : ""});
-            }
-          });
-          port.postMessage({topic: "social.cookies-get-response",
-                            data: results});
-        });
-        mm.sendAsyncMessage("frameworker:cookie-get");
+      let document = this._port._window.document;
+      let cookies = document.cookie.split(";");
+      let results = [];
+      cookies.forEach(function(aCookie) {
+        let [name, value] = aCookie.split("=");
+        results.push({name: unescape(name.trim()),
+                      value: value ? unescape(value.trim()) : ""});
       });
+      this._port.postMessage({topic: "social.cookies-get-response",
+                              data: results});
     },
     'social.request-chat': function(data) {
-      openChatWindow(null, this._provider, data);
+      openChatWindow(null, this._provider, data, null, "minimized");
     },
     'social.notification-create': function(data) {
       if (!Services.prefs.getBoolPref("social.toast-notifications.enabled"))

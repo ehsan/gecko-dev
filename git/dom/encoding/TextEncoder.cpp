@@ -12,7 +12,7 @@ namespace mozilla {
 namespace dom {
 
 void
-TextEncoder::Init(const nsAString& aEncoding, ErrorResult& aRv)
+TextEncoderBase::Init(const nsAString& aEncoding, ErrorResult& aRv)
 {
   nsAutoString label(aEncoding);
   EncodingUtils::TrimSpaceCharacters(label);
@@ -48,11 +48,10 @@ TextEncoder::Init(const nsAString& aEncoding, ErrorResult& aRv)
 }
 
 JSObject*
-TextEncoder::Encode(JSContext* aCx,
-                    JS::Handle<JSObject*> aObj,
-                    const nsAString& aString,
-                    const bool aStream,
-                    ErrorResult& aRv)
+TextEncoderBase::Encode(JSContext* aCx,
+                        const nsAString& aString,
+                        const bool aStream,
+                        ErrorResult& aRv)
 {
   // Run the steps of the encoding algorithm.
   int32_t srcLen = aString.Length();
@@ -88,8 +87,7 @@ TextEncoder::Encode(JSContext* aCx,
   JSObject* outView = nullptr;
   if (NS_SUCCEEDED(rv)) {
     buf[dstLen] = '\0';
-    outView = Uint8Array::Create(aCx, aObj, dstLen,
-                                 reinterpret_cast<uint8_t*>(buf.get()));
+    outView = CreateUint8Array(aCx, buf, dstLen);
     if (!outView) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return nullptr;
@@ -103,11 +101,16 @@ TextEncoder::Encode(JSContext* aCx,
 }
 
 void
-TextEncoder::GetEncoding(nsAString& aEncoding)
+TextEncoderBase::GetEncoding(nsAString& aEncoding)
 {
   CopyASCIItoUTF16(mEncoding, aEncoding);
   nsContentUtils::ASCIIToLower(aEncoding);
 }
+
+NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(TextEncoder, AddRef)
+NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(TextEncoder, Release)
+
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(TextEncoder, mGlobal)
 
 } // dom
 } // mozilla

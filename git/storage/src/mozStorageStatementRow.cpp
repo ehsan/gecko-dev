@@ -49,7 +49,6 @@ StatementRow::GetProperty(nsIXPConnectWrappedNative *aWrapper,
 {
   NS_ENSURE_TRUE(mStatement, NS_ERROR_NOT_INITIALIZED);
 
-  JS::RootedObject scope(aCtx, aScopeObj);
   if (JSID_IS_STRING(aId)) {
     ::JSAutoByteString idBytes(aCtx, JSID_TO_STRING(aId));
     NS_ENSURE_TRUE(!!idBytes, NS_ERROR_OUT_OF_MEMORY);
@@ -94,10 +93,9 @@ StatementRow::GetProperty(nsIXPConnectWrappedNative *aWrapper,
       *_vp = OBJECT_TO_JSVAL(obj);
 
       // Copy the blob over to the JS array.
-      JS::Rooted<JS::Value> val(aCtx);
       for (uint32_t i = 0; i < length; i++) {
-        val.setInt32(blob[i]);
-        if (!::JS_SetElement(aCtx, scope, i, &val)) {
+        jsval val = INT_TO_JSVAL(blob[i]);
+        if (!::JS_SetElement(aCtx, aScopeObj, i, &val)) {
           *_retval = false;
           return NS_OK;
         }
@@ -138,7 +136,7 @@ StatementRow::NewResolve(nsIXPConnectWrappedNative *aWrapper,
       // It's highly likely that the name doesn't exist, so let the JS engine
       // check the prototype chain and throw if that doesn't have the property
       // either.
-      *_objp = nullptr;
+      *_objp = NULL;
       return NS_OK;
     }
 

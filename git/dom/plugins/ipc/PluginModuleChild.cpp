@@ -16,7 +16,7 @@
 /* This must occur *after* plugins/PluginModuleChild.h to avoid typedefs conflicts. */
 #include "mozilla/Util.h"
 
-#include "mozilla/ipc/MessageChannel.h"
+#include "mozilla/ipc/SyncChannel.h"
 
 #ifdef MOZ_WIDGET_GTK
 #include <gtk/gtk.h>
@@ -56,8 +56,6 @@
 #include "PluginUtilsOSX.h"
 #endif
 
-#include "GeckoProfiler.h"
-
 using namespace mozilla;
 using namespace mozilla::plugins;
 using mozilla::dom::CrashReporterChild;
@@ -84,8 +82,8 @@ static bool gDelayFlashFocusReplyUntilEval = false;
 // Used to fix GetWindowInfo problems with internal flash settings dialogs
 static WindowsDllInterceptor sUser32Intercept;
 typedef BOOL (WINAPI *GetWindowInfoPtr)(HWND hwnd, PWINDOWINFO pwi);
-static GetWindowInfoPtr sGetWindowInfoPtrStub = nullptr;
-static HWND sBrowserHwnd = nullptr;
+static GetWindowInfoPtr sGetWindowInfoPtrStub = NULL;
+static HWND sBrowserHwnd = NULL;
 #endif
 
 PluginModuleChild::PluginModuleChild()
@@ -102,8 +100,8 @@ PluginModuleChild::PluginModuleChild()
   , mNestedLoopTimerObject(0)
 #endif
 #ifdef OS_WIN
-  , mNestedEventHook(nullptr)
-  , mGlobalCallWndProcHook(nullptr)
+  , mNestedEventHook(NULL)
+  , mGlobalCallWndProcHook(NULL)
 #endif
 {
     NS_ASSERTION(!gInstance, "Something terribly wrong here!");
@@ -150,6 +148,10 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
 
     NS_ASSERTION(aChannel, "need a channel");
 
+    mObjectMap.Init();
+    mStringIdentifiers.Init();
+    mIntIdentifiers.Init();
+
     if (!InitGraphics())
         return false;
 
@@ -165,12 +167,14 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
 
     nsPluginFile pluginFile(localFile);
 
-#if defined(MOZ_X11) || defined(OS_MACOSX)
+    // Maemo flash can render with any provided rectangle and so does not
+    // require this quirk.
+#if (defined(MOZ_X11) && !defined(MOZ_PLATFORM_MAEMO)) || defined(OS_MACOSX)
     nsPluginInfo info = nsPluginInfo();
     if (NS_FAILED(pluginFile.GetPluginInfo(info, &mLibrary)))
         return false;
 
-#if defined(MOZ_X11)
+#if defined(MOZ_X11) && !defined(MOZ_PLATFORM_MAEMO)
     NS_NAMED_LITERAL_CSTRING(flash10Head, "Shockwave Flash 10.");
     if (StringBeginsWith(nsDependentCString(info.fDescription), flash10Head)) {
         AddQuirk(QUIRK_FLASH_EXPOSE_COORD_TRANSLATION);
@@ -259,9 +263,9 @@ wrap_gtk_plug_dispose(GObject* object) {
     // A toggle ref is added to prevent premature deletion of the object
     // caused by Flash Player's extra unref, and to detect when there are
     // unexpectedly no other references.
-    g_object_add_toggle_ref(object, undo_bogus_unref, nullptr);
+    g_object_add_toggle_ref(object, undo_bogus_unref, NULL);
     (*real_gtk_plug_dispose)(object);
-    g_object_remove_toggle_ref(object, undo_bogus_unref, nullptr);
+    g_object_remove_toggle_ref(object, undo_bogus_unref, NULL);
 }
 
 static gboolean
@@ -354,7 +358,7 @@ static void
 wrap_gtk_plug_embedded(GtkPlug* plug) {
     GdkWindow* socket_window = gtk_plug_get_socket_window(plug);
     if (socket_window) {
-        if (gtk_check_version(2,18,7) != nullptr // older
+        if (gtk_check_version(2,18,7) != NULL // older
             && g_object_get_data(G_OBJECT(socket_window),
                                  "moz-existed-before-set-window")) {
             // Add missing reference for
@@ -405,7 +409,7 @@ PluginModuleChild::DetectNestedEventLoop(gpointer data)
                            kBrowserEventIntervalMs,
                            PluginModuleChild::ProcessBrowserEvents,
                            data,
-                           nullptr);
+                           NULL);
     // cancel the nested-loop detection timer
     return FALSE;
 }
@@ -435,7 +439,7 @@ PluginModuleChild::EnteredCxxStack()
                            kNestedLoopDetectorIntervalMs,
                            PluginModuleChild::DetectNestedEventLoop,
                            this,
-                           nullptr);
+                           NULL);
 
 #ifdef DEBUG
     mTopLoopDepth = g_main_depth();
@@ -456,7 +460,7 @@ PluginModuleChild::ExitedCxxStack()
 void
 PluginModuleChild::EnteredCxxStack()
 {
-    NS_ABORT_IF_FALSE(mNestedLoopTimerObject == nullptr,
+    NS_ABORT_IF_FALSE(mNestedLoopTimerObject == NULL,
                       "previous timer not descheduled");
     mNestedLoopTimerObject = new NestedLoopTimer(this);
     QTimer::singleShot(kNestedLoopDetectorIntervalMs,
@@ -466,10 +470,10 @@ PluginModuleChild::EnteredCxxStack()
 void
 PluginModuleChild::ExitedCxxStack()
 {
-    NS_ABORT_IF_FALSE(mNestedLoopTimerObject != nullptr,
+    NS_ABORT_IF_FALSE(mNestedLoopTimerObject != NULL,
                       "nested loop timeout not scheduled");
     delete mNestedLoopTimerObject;
-    mNestedLoopTimerObject = nullptr;
+    mNestedLoopTimerObject = NULL;
 }
 
 #endif
@@ -583,7 +587,7 @@ PluginModuleChild::AnswerNP_Shutdown(NPError *rv)
     mozilla::widget::StopAudioSession();
 #endif
 
-    // the PluginModuleParent shuts down this process after this interrupt
+    // the PluginModuleParent shuts down this process after this RPC
     // call pops off its stack
 
     *rv = mShutdownFunc ? mShutdownFunc() : NPERR_NO_ERROR;
@@ -664,14 +668,14 @@ PluginModuleChild::QuickExit()
 }
 
 PCrashReporterChild*
-PluginModuleChild::AllocPCrashReporterChild(mozilla::dom::NativeThreadId* id,
-                                            uint32_t* processType)
+PluginModuleChild::AllocPCrashReporter(mozilla::dom::NativeThreadId* id,
+                                       uint32_t* processType)
 {
     return new CrashReporterChild();
 }
 
 bool
-PluginModuleChild::DeallocPCrashReporterChild(PCrashReporterChild* actor)
+PluginModuleChild::DeallocPCrashReporter(PCrashReporterChild* actor)
 {
     delete actor;
     return true;
@@ -712,7 +716,7 @@ const char*
 PluginModuleChild::GetUserAgent()
 {
     if (mUserAgent.IsVoid() && !CallNPN_UserAgent(&mUserAgent))
-        return nullptr;
+        return NULL;
 
     return NullableStringGet(mUserAgent);
 }
@@ -722,6 +726,7 @@ PluginModuleChild::RegisterActorForNPObject(NPObject* aObject,
                                             PluginScriptableObjectChild* aActor)
 {
     AssertPluginThread();
+    NS_ASSERTION(mObjectMap.IsInitialized(), "Not initialized!");
     NS_ASSERTION(aObject && aActor, "Null pointer!");
 
     NPObjectData* d = mObjectMap.GetEntry(aObject);
@@ -738,12 +743,13 @@ void
 PluginModuleChild::UnregisterActorForNPObject(NPObject* aObject)
 {
     AssertPluginThread();
+    NS_ASSERTION(mObjectMap.IsInitialized(), "Not initialized!");
     NS_ASSERTION(aObject, "Null pointer!");
 
     NPObjectData* d = mObjectMap.GetEntry(aObject);
     NS_ASSERTION(d, "NPObject not in object table");
     if (d) {
-        d->actor = nullptr;
+        d->actor = NULL;
     }
 }
 
@@ -751,12 +757,13 @@ PluginScriptableObjectChild*
 PluginModuleChild::GetActorForNPObject(NPObject* aObject)
 {
     AssertPluginThread();
+    NS_ASSERTION(mObjectMap.IsInitialized(), "Not initialized!");
     NS_ASSERTION(aObject, "Null pointer!");
 
     NPObjectData* d = mObjectMap.GetEntry(aObject);
     if (!d) {
         NS_ERROR("Plugin using object not created with NPN_CreateObject?");
-        return nullptr;
+        return NULL;
     }
 
     return d->actor;
@@ -1000,8 +1007,8 @@ const NPNetscapeFuncs PluginModuleChild::sBrowserFuncs = {
     mozilla::plugins::child::_unscheduletimer,
     mozilla::plugins::child::_popupcontextmenu,
     mozilla::plugins::child::_convertpoint,
-    nullptr, // handleevent, unimplemented
-    nullptr, // unfocusinstance, unimplemented
+    NULL, // handleevent, unimplemented
+    NULL, // unfocusinstance, unimplemented
     mozilla::plugins::child::_urlredirectresponse,
     mozilla::plugins::child::_initasyncsurface,
     mozilla::plugins::child::_finalizeasyncsurface,
@@ -1041,7 +1048,7 @@ _geturlnotify(NPP aNPP,
     PLUGIN_LOG_DEBUG_FUNCTION;
     ENSURE_PLUGIN_THREAD(NPERR_INVALID_PARAM);
 
-    if (!aNPP) // nullptr check for nspluginwrapper (bug 561690)
+    if (!aNPP) // NULL check for nspluginwrapper (bug 561690)
         return NPERR_INVALID_INSTANCE_ERROR;
 
     nsCString url = NullableString(aRelativeURL);
@@ -1089,7 +1096,7 @@ _getvalue(NPP aNPP,
             *(NPBool*)aValue = value ? true : false;
             return result;
         }
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK)
         case NPNVxDisplay: {
             if (aNPP) {
                 return InstCast(aNPP)->NPN_GetValue(aVariable, aValue);
@@ -1284,7 +1291,7 @@ _invalidaterect(NPP aNPP,
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
     ENSURE_PLUGIN_THREAD_VOID();
-    // nullptr check for nspluginwrapper (bug 548434)
+    // NULL check for nspluginwrapper (bug 548434)
     if (aNPP) {
         InstCast(aNPP)->InvalidateRect(aInvalidRect);
     }
@@ -1546,7 +1553,7 @@ _setexception(NPObject* aNPObj,
     ENSURE_PLUGIN_THREAD_VOID();
 
     PluginModuleChild* self = PluginModuleChild::current();
-    PluginScriptableObjectChild* actor = nullptr;
+    PluginScriptableObjectChild* actor = NULL;
     if (aNPObj) {
         actor = self->GetActorForNPObject(aNPObj);
         if (!actor) {
@@ -1866,9 +1873,9 @@ PluginModuleChild::AnswerNP_Initialize(const uint32_t& aFlags, NPError* _retval)
 }
 
 PPluginIdentifierChild*
-PluginModuleChild::AllocPPluginIdentifierChild(const nsCString& aString,
-                                               const int32_t& aInt,
-                                               const bool& aTemporary)
+PluginModuleChild::AllocPPluginIdentifier(const nsCString& aString,
+                                          const int32_t& aInt,
+                                          const bool& aTemporary)
 {
     // We cannot call SetPermanent within this function because Manager() isn't
     // set up yet.
@@ -1891,7 +1898,7 @@ PluginModuleChild::RecvPPluginIdentifierConstructor(PPluginIdentifierChild* acto
 }
 
 bool
-PluginModuleChild::DeallocPPluginIdentifierChild(PPluginIdentifierChild* aActor)
+PluginModuleChild::DeallocPPluginIdentifier(PPluginIdentifierChild* aActor)
 {
     delete aActor;
     return true;
@@ -1928,11 +1935,11 @@ PMCGetWindowInfoHook(HWND hWnd, PWINDOWINFO pwi)
 #endif
 
 PPluginInstanceChild*
-PluginModuleChild::AllocPPluginInstanceChild(const nsCString& aMimeType,
-                                             const uint16_t& aMode,
-                                             const InfallibleTArray<nsCString>& aNames,
-                                             const InfallibleTArray<nsCString>& aValues,
-                                             NPError* rv)
+PluginModuleChild::AllocPPluginInstance(const nsCString& aMimeType,
+                                        const uint16_t& aMode,
+                                        const InfallibleTArray<nsCString>& aNames,
+                                        const InfallibleTArray<nsCString>& aValues,
+                                        NPError* rv)
 {
     PLUGIN_LOG_DEBUG_METHOD;
     AssertPluginThread();
@@ -2067,7 +2074,7 @@ PluginModuleChild::AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor
 }
 
 bool
-PluginModuleChild::DeallocPPluginInstanceChild(PPluginInstanceChild* aActor)
+PluginModuleChild::DeallocPPluginInstance(PPluginInstanceChild* aActor)
 {
     PLUGIN_LOG_DEBUG_METHOD;
     AssertPluginThread();
@@ -2086,7 +2093,7 @@ PluginModuleChild::NPN_CreateObject(NPP aNPP, NPClass* aClass)
     PluginInstanceChild* i = InstCast(aNPP);
     if (i->mDeletingHash) {
         NS_ERROR("Plugin used NPP after NPP_Destroy");
-        return nullptr;
+        return NULL;
     }
 
     NPObject* newObject;
@@ -2136,7 +2143,7 @@ PluginModuleChild::NPN_ReleaseObject(NPObject* aNPObj)
         return;
     }
 
-    DeletingObjectEntry* doe = nullptr;
+    DeletingObjectEntry* doe = NULL;
     if (d->instance->mDeletingHash) {
         doe = d->instance->mDeletingHash->GetEntry(aNPObj);
         if (!doe) {
@@ -2324,7 +2331,7 @@ PluginModuleChild::CallWindowProcHook(int nCode, WPARAM wParam, LPARAM lParam)
     // Trap and reply to anything we recognize as the source of a
     // potential send message deadlock.
     if (nCode >= 0 &&
-        (InSendMessageEx(nullptr)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
+        (InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
         CWPSTRUCT* pCwp = reinterpret_cast<CWPSTRUCT*>(lParam);
         if (pCwp->message == WM_KILLFOCUS) {
             // Fix for flash fullscreen window loosing focus. On single
@@ -2340,7 +2347,7 @@ PluginModuleChild::CallWindowProcHook(int nCode, WPARAM wParam, LPARAM lParam)
         }
     }
 
-    return CallNextHookEx(nullptr, nCode, wParam, lParam);
+    return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
 LRESULT CALLBACK
@@ -2350,7 +2357,7 @@ PluginModuleChild::NestedInputEventHook(int nCode, WPARAM wParam, LPARAM lParam)
     uint32_t len = self->mIncallPumpingStack.Length();
     if (nCode >= 0 && len && !self->mIncallPumpingStack[len - 1]._spinning) {
         MessageLoop* loop = MessageLoop::current();
-        self->SendProcessNativeEventsInInterruptCall();
+        self->SendProcessNativeEventsInRPCCall();
         IncallFrame& f = self->mIncallPumpingStack[len - 1];
         f._spinning = true;
         f._savedNestableTasksAllowed = loop->NestableTasksAllowed();
@@ -2358,7 +2365,7 @@ PluginModuleChild::NestedInputEventHook(int nCode, WPARAM wParam, LPARAM lParam)
         loop->set_os_modal_loop(true);
     }
 
-    return CallNextHookEx(nullptr, nCode, wParam, lParam);
+    return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
 void
@@ -2374,14 +2381,14 @@ PluginModuleChild::SetEventHooks()
     // WH_MSGFILTER event hook for detecting modal loops in the child.
     mNestedEventHook = SetWindowsHookEx(WH_MSGFILTER,
                                         NestedInputEventHook,
-                                        nullptr,
+                                        NULL,
                                         GetCurrentThreadId());
 
     // WH_CALLWNDPROC event hook for trapping sync messages sent from
     // parent that can cause deadlocks.
     mGlobalCallWndProcHook = SetWindowsHookEx(WH_CALLWNDPROC,
                                               CallWindowProcHook,
-                                              nullptr,
+                                              NULL,
                                               GetCurrentThreadId());
 }
 
@@ -2391,23 +2398,23 @@ PluginModuleChild::ResetEventHooks()
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
     if (mNestedEventHook)
         UnhookWindowsHookEx(mNestedEventHook);
-    mNestedEventHook = nullptr;
+    mNestedEventHook = NULL;
     if (mGlobalCallWndProcHook)
         UnhookWindowsHookEx(mGlobalCallWndProcHook);
-    mGlobalCallWndProcHook = nullptr;
+    mGlobalCallWndProcHook = NULL;
 }
 #endif
 
 bool
-PluginModuleChild::RecvProcessNativeEventsInInterruptCall()
+PluginModuleChild::RecvProcessNativeEventsInRPCCall()
 {
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
 #if defined(OS_WIN)
-    ProcessNativeEventsInInterruptCall();
+    ProcessNativeEventsInRPCCall();
     return true;
 #else
     NS_RUNTIMEABORT(
-        "PluginModuleChild::RecvProcessNativeEventsInInterruptCall not implemented!");
+        "PluginModuleChild::RecvProcessNativeEventsInRPCCall not implemented!");
     return false;
 #endif
 }
@@ -2418,16 +2425,3 @@ PluginModuleChild::ProcessNativeEvents() {
     CallProcessSomeEvents();    
 }
 #endif
-
-bool
-PluginModuleChild::AnswerGeckoGetProfile(nsCString* aProfile) {
-    char* profile = profiler_get_profile();
-    if (profile != nullptr) {
-        *aProfile = nsCString(profile, strlen(profile));
-        free(profile);
-    } else {
-        *aProfile = nsCString("", 0);
-    }
-    return true;
-}
-

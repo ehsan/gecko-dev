@@ -11,6 +11,8 @@
 #define nsFlexContainerFrame_h___
 
 #include "nsContainerFrame.h"
+#include "nsTArray.h"
+#include "mozilla/Types.h"
 
 nsIFrame* NS_NewFlexContainerFrame(nsIPresShell* aPresShell,
                                    nsStyleContext* aContext);
@@ -21,7 +23,6 @@ class FlexItem;
 class FlexboxAxisTracker;
 class MainAxisPositionTracker;
 class SingleLineCrossAxisPositionTracker;
-template <class T> class nsTArray;
 
 class nsFlexContainerFrame : public nsFlexContainerFrameSuper {
   NS_DECL_FRAMEARENA_HELPERS
@@ -80,18 +81,15 @@ protected:
   void SanityCheckAnonymousFlexItems() const;
 #endif // DEBUG
 
-  FlexItem GenerateFlexItemForChild(nsPresContext* aPresContext,
-                                    nsIFrame* aChildFrame,
-                                    const nsHTMLReflowState& aParentReflowState,
-                                    const FlexboxAxisTracker& aAxisTracker);
 
-  // Returns nsresult because we might have to reflow aFlexItem.Frame() (to
-  // get its vertical intrinsic size in a vertical flexbox), and if that
-  // reflow fails (returns a failure nsresult), we want to bail out.
-  nsresult ResolveFlexItemMaxContentSizing(nsPresContext* aPresContext,
-                                           FlexItem& aFlexItem,
-                                           const nsHTMLReflowState& aParentReflowState,
-                                           const FlexboxAxisTracker& aAxisTracker);
+  // Returns nsresult because we might have to reflow aChildFrame (to get its
+  // vertical intrinsic size in a vertical flexbox), and if that reflow fails
+  // (returns a failure nsresult), we want to bail out.
+  nsresult AppendFlexItemForChild(nsPresContext* aPresContext,
+                                  nsIFrame* aChildFrame,
+                                  const nsHTMLReflowState& aParentReflowState,
+                                  const FlexboxAxisTracker& aAxisTracker,
+                                  nsTArray<FlexItem>& aFlexItems);
 
   // Runs the "resolve the flexible lengths" algorithm, distributing
   // |aFlexContainerMainSize| among the |aItems| and freezing them.
@@ -121,8 +119,8 @@ protected:
     SingleLineCrossAxisPositionTracker& aLineCrossAxisPosnTracker,
     FlexItem& aItem);
 
-  bool mChildrenHaveBeenReordered; // Have we ever had to reorder our kids
-                                   // to satisfy their 'order' values?
+  bool    mChildrenHaveBeenReordered; // Have we ever had to reorder our kids
+                                      // to satisfy their 'order' values?
 };
 
 #endif /* nsFlexContainerFrame_h___ */

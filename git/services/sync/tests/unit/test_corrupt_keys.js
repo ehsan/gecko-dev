@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/engines/tabs.js");
@@ -11,7 +11,7 @@ Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/status.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://testing-common/services/sync/utils.js");
-Cu.import("resource://gre/modules/Promise.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 
 add_task(function test_locally_changed_keys() {
   let passphrase = "abcdeabcdeabcdeabcdeabcdea";
@@ -56,8 +56,8 @@ add_task(function test_locally_changed_keys() {
     };
 
     setBasicCredentials("johndoe", "password", passphrase);
-    Service.serverURL = server.baseURI;
-    Service.clusterURL = server.baseURI;
+    Service.serverURL = TEST_SERVER_URL;
+    Service.clusterURL = TEST_CLUSTER_URL;
 
     Service.engineManager.register(HistoryEngine);
 
@@ -203,8 +203,8 @@ add_task(function test_locally_changed_keys() {
 });
 
 function run_test() {
-  let logger = Log.repository.rootLogger;
-  Log.repository.rootLogger.addAppender(new Log.DumpAppender());
+  let logger = Log4Moz.repository.rootLogger;
+  Log4Moz.repository.rootLogger.addAppender(new Log4Moz.DumpAppender());
 
   run_next_test();
 }

@@ -4,7 +4,7 @@
 
 "use strict";
 
-const DEBUG = false;
+let DEBUG = false;
 function debug(s) { dump("-*- Fallback ContactService component: " + s + "\n"); }
 
 const Cu = Components.utils;
@@ -16,66 +16,57 @@ this.EXPORTED_SYMBOLS = [];
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/ContactDB.jsm");
-Cu.import("resource://gre/modules/PhoneNumberUtils.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
                                    "nsIMessageListenerManager");
+
+XPCOMUtils.defineLazyGetter(this, "mRIL", function () {
+  let telephony = Cc["@mozilla.org/ril;1"];
+  if (!telephony) {
+    // Return a mock RIL because B2G Desktop build does not support telephony.
+    return {
+      getICCContacts: function(aContactType, aCallback) {
+        aCallback("!telephony", null, null);
+      }
+    };
+  }
+  return telephony.getService(Ci.nsIRadioInterfaceLayer);
+});
+
+let myGlobal = this;
 
 let ContactService = {
   init: function() {
     if (DEBUG) debug("Init");
     this._messages = ["Contacts:Find", "Contacts:GetAll", "Contacts:GetAll:SendNow",
                       "Contacts:Clear", "Contact:Save",
-                      "Contact:Remove", "Contacts:RegisterForMessages",
-                      "child-process-shutdown", "Contacts:GetRevision",
-                      "Contacts:GetCount"];
+                      "Contact:Remove", "Contacts:GetSimContacts",
+                      "Contacts:RegisterForMessages", "child-process-shutdown"];
     this._children = [];
-    this._cursors = {};
     this._messages.forEach(function(msgName) {
       ppmm.addMessageListener(msgName, this);
     }.bind(this));
 
-    this._db = new ContactDB();
-    this._db.init();
-
-    this.configureSubstringMatching();
+    var idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"].getService(Ci.nsIIndexedDatabaseManager);
+    idbManager.initWindowless(myGlobal);
+    this._db = new ContactDB(myGlobal);
+    this._db.init(myGlobal);
 
     Services.obs.addObserver(this, "profile-before-change", false);
-    Services.prefs.addObserver("ril.lastKnownSimMcc", this, false);
   },
 
   observe: function(aSubject, aTopic, aData) {
-    if (aTopic === 'profile-before-change') {
-      this._messages.forEach(function(msgName) {
-        ppmm.removeMessageListener(msgName, this);
-      }.bind(this));
-      Services.obs.removeObserver(this, "profile-before-change");
-      Services.prefs.removeObserver("dom.phonenumber.substringmatching", this);
-      ppmm = null;
-      this._messages = null;
-      if (this._db)
-        this._db.close();
-      this._db = null;
-      this._children = null;
-      this._cursors = null;
-    } else if (aTopic === 'nsPref:changed' && aData === "ril.lastKnownSimMcc") {
-      this.configureSubstringMatching();
-    }
-  },
-
-  configureSubstringMatching: function() {
-    let countryName = PhoneNumberUtils.getCountryName();
-    if (Services.prefs.getPrefType("dom.phonenumber.substringmatching." + countryName) == Ci.nsIPrefBranch.PREF_INT) {
-      let val = Services.prefs.getIntPref("dom.phonenumber.substringmatching." + countryName);
-      if (val) {
-        this._db.enableSubstringMatching(val);
-        return;
-      }
-    }
-    // if we got here, we dont have a substring setting
-    // for this country, so disable substring matching
-    this._db.disableSubstringMatching();
+    myGlobal = null;
+    this._messages.forEach(function(msgName) {
+      ppmm.removeMessageListener(msgName, this);
+    }.bind(this));
+    Services.obs.removeObserver(this, "profile-before-change");
+    ppmm = null;
+    this._messages = null;
+    if (this._db)
+      this._db.close();
+    this._db = null;
   },
 
   assertPermission: function(aMessage, aPerm) {
@@ -100,6 +91,7 @@ let ContactService = {
 
     switch (aMessage.name) {
       case "Contacts:Find":
+        DEBUG = false;
         if (!this.assertPermission(aMessage, "contacts-read")) {
           return null;
         }
@@ -120,25 +112,11 @@ let ContactService = {
         if (!this.assertPermission(aMessage, "contacts-read")) {
           return null;
         }
-        if (!this._cursors[mm]) {
-          this._cursors[mm] = [];
-        }
-        this._cursors[mm].push(msg.cursorId);
-
         this._db.getAll(
           function(aContacts) {
-            try {
-              mm.sendAsyncMessage("Contacts:GetAll:Next", {cursorId: msg.cursorId, contacts: aContacts});
-              if (aContacts === null) {
-                let index = this._cursors[mm].indexOf(msg.cursorId);
-                this._cursors[mm].splice(index, 1);
-              }
-            } catch (e) {
-              if (DEBUG) debug("Child is dead, DB should stop sending contacts");
-              throw e;
-            }
-          }.bind(this),
-          function(aErrorMsg) { mm.sendAsyncMessage("Contacts:GetAll:Return:KO", { requestID: msg.cursorId, errorMsg: aErrorMsg }); },
+            mm.sendAsyncMessage("Contacts:GetAll:Next", {cursorId: msg.cursorId, contacts: aContacts});
+          },
+          function(aErrorMsg) { mm.sendAsyncMessage("Contacts:Find:Return:KO", { errorMsg: aErrorMsg }); },
           msg.findOptions, msg.cursorId);
         break;
       case "Contacts:GetAll:SendNow":
@@ -179,6 +157,7 @@ let ContactService = {
         );
         break;
       case "Contacts:Clear":
+        DEBUG = true;
         if (!this.assertPermission(aMessage, "contacts-write")) {
           return null;
         }
@@ -187,42 +166,26 @@ let ContactService = {
             mm.sendAsyncMessage("Contacts:Clear:Return:OK", { requestID: msg.requestID });
             this.broadcastMessage("Contact:Changed", { reason: "remove" });
           }.bind(this),
-          function(aErrorMsg) {
-            mm.sendAsyncMessage("Contacts:Clear:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg });
-          }.bind(this)
+          function(aErrorMsg) { mm.sendAsyncMessage("Contacts:Clear:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg }); }.bind(this)
         );
         break;
-      case "Contacts:GetRevision":
+      case "Contacts:GetSimContacts":
         if (!this.assertPermission(aMessage, "contacts-read")) {
           return null;
         }
-        this._db.getRevision(
-          function(revision) {
-            mm.sendAsyncMessage("Contacts:Revision", {
-              requestID: msg.requestID,
-              revision: revision
-            });
-          },
-          function(aErrorMsg) {
-            mm.sendAsyncMessage("Contacts:GetRevision:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg });
-          }.bind(this)
-        );
-        break;
-      case "Contacts:GetCount":
-        if (!this.assertPermission(aMessage, "contacts-read")) {
-          return null;
-        }
-        this._db.getCount(
-          function(count) {
-            mm.sendAsyncMessage("Contacts:Count", {
-              requestID: msg.requestID,
-              count: count
-            });
-          },
-          function(aErrorMsg) {
-            mm.sendAsyncMessage("Contacts:Count:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg });
-          }.bind(this)
-        );
+        mRIL.getICCContacts(
+          msg.options.contactType,
+          function (aErrorMsg, aType, aContacts) {
+            if (aErrorMsg !== 'undefined') {
+              mm.sendAsyncMessage("Contacts:GetSimContacts:Return:KO",
+                                  {requestID: msg.requestID,
+                                   errorMsg: aErrorMsg});
+            } else {
+              mm.sendAsyncMessage("Contacts:GetSimContacts:Return:OK",
+                                  {requestID: msg.requestID,
+                                   contacts: aContacts});
+            }
+          }.bind(this));
         break;
       case "Contacts:RegisterForMessages":
         if (!aMessage.target.assertPermission("contacts-read")) {
@@ -239,12 +202,6 @@ let ContactService = {
         if (index != -1) {
           if (DEBUG) debug("Unregister index: " + index);
           this._children.splice(index, 1);
-        }
-        if (this._cursors[mm]) {
-          for (let id of this._cursors[mm]) {
-            this._db.clearDispatcher(id);
-          }
-          delete this._cursors[mm];
         }
         break;
       default:

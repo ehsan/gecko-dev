@@ -20,6 +20,7 @@
 #include "MediaStreamList.h"
 #include "nsIScriptGlobalObject.h"
 #include "mozilla/Preferences.h"
+#include "jsapi.h"
 #endif
 
 using namespace mozilla;
@@ -82,9 +83,6 @@ void LocalSourceStreamInfo::DetachMedia_m()
        ++it) {
     it->second->ShutdownMedia_m();
   }
-  mAudioTracks.Clear();
-  mVideoTracks.Clear();
-  mMediaStream = nullptr;
 }
 
 void RemoteSourceStreamInfo::DetachTransport_s()
@@ -110,17 +108,6 @@ void RemoteSourceStreamInfo::DetachMedia_m()
        ++it) {
     it->second->ShutdownMedia_m();
   }
-  mMediaStream = nullptr;
-}
-
-already_AddRefed<PeerConnectionImpl>
-PeerConnectionImpl::Constructor(const dom::GlobalObject& aGlobal, ErrorResult& rv)
-{
-  nsRefPtr<PeerConnectionImpl> pc = new PeerConnectionImpl(&aGlobal);
-
-  CSFLogDebug(logTag, "Created PeerConnection: %p", pc.get());
-
-  return pc.forget();
 }
 
 PeerConnectionImpl* PeerConnectionImpl::CreatePeerConnection()
@@ -188,12 +175,9 @@ nsresult PeerConnectionMedia::Init(const std::vector<NrIceStunServer>& stun_serv
   // Create three streams to start with.
   // One each for audio, video and DataChannel
   // TODO: this will be re-visited
-  RefPtr<NrIceMediaStream> audioStream =
-    mIceCtx->CreateStream((mParent->GetHandle()+"/stream1/audio").c_str(), 2);
-  RefPtr<NrIceMediaStream> videoStream =
-    mIceCtx->CreateStream((mParent->GetHandle()+"/stream2/video").c_str(), 2);
-  RefPtr<NrIceMediaStream> dcStream =
-    mIceCtx->CreateStream((mParent->GetHandle()+"/stream3/data").c_str(), 2);
+  RefPtr<NrIceMediaStream> audioStream = mIceCtx->CreateStream("stream1", 2);
+  RefPtr<NrIceMediaStream> videoStream = mIceCtx->CreateStream("stream2", 2);
+  RefPtr<NrIceMediaStream> dcStream = mIceCtx->CreateStream("stream3", 2);
 
   if (!audioStream) {
     CSFLogError(logTag, "%s: audio stream is NULL", __FUNCTION__);
@@ -313,16 +297,7 @@ PeerConnectionMedia::SelfDestruct()
 
   CSFLogDebug(logTag, "%s: ", __FUNCTION__);
 
-  // Shut down the media
-  for (uint32_t i=0; i < mLocalSourceStreams.Length(); ++i) {
-    mLocalSourceStreams[i]->DetachMedia_m();
-  }
-
-  for (uint32_t i=0; i < mRemoteSourceStreams.Length(); ++i) {
-    mRemoteSourceStreams[i]->DetachMedia_m();
-  }
-
-  // Shutdown the transport (async)
+  // Shutdown the transport.
   RUN_ON_THREAD(mSTSThread, WrapRunnable(
       this, &PeerConnectionMedia::ShutdownMediaTransport_s),
                 NS_DISPATCH_NORMAL);
@@ -333,9 +308,19 @@ PeerConnectionMedia::SelfDestruct()
 void
 PeerConnectionMedia::SelfDestruct_m()
 {
+  ASSERT_ON_THREAD(mMainThread);
+
   CSFLogDebug(logTag, "%s: ", __FUNCTION__);
 
-  ASSERT_ON_THREAD(mMainThread);
+  // Shut down the media
+  for (uint32_t i=0; i < mLocalSourceStreams.Length(); ++i) {
+    mLocalSourceStreams[i]->DetachMedia_m();
+  }
+
+  for (uint32_t i=0; i < mRemoteSourceStreams.Length(); ++i) {
+    mRemoteSourceStreams[i]->DetachMedia_m();
+  }
+
   mLocalSourceStreams.Clear();
   mRemoteSourceStreams.Clear();
 
@@ -402,26 +387,6 @@ PeerConnectionMedia::AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> aInfo,
   return NS_OK;
 }
 
-nsresult
-PeerConnectionMedia::AddRemoteStreamHint(int aIndex, bool aIsVideo)
-{
-  if (aIndex < 0 ||
-      static_cast<unsigned int>(aIndex) >= mRemoteSourceStreams.Length()) {
-    return NS_ERROR_ILLEGAL_VALUE;
-  }
-
-  RemoteSourceStreamInfo *pInfo = mRemoteSourceStreams.ElementAt(aIndex);
-  MOZ_ASSERT(pInfo);
-
-  if (aIsVideo) {
-    pInfo->mTrackTypeHints |= DOMMediaStream::HINT_CONTENTS_VIDEO;
-  } else {
-    pInfo->mTrackTypeHints |= DOMMediaStream::HINT_CONTENTS_AUDIO;
-  }
-
-  return NS_OK;
-}
-
 
 void
 PeerConnectionMedia::IceGatheringCompleted(NrIceCtx *aCtx)
@@ -452,20 +417,6 @@ PeerConnectionMedia::IceStreamReady(NrIceMediaStream *aStream)
   CSFLogDebug(logTag, "%s: %s", __FUNCTION__, aStream->name().c_str());
 }
 
-// This method exists for the unittests.
-// It allows visibility into the pipelines and flows.
-// It returns NULL if no pipeline exists for this track number.
-mozilla::RefPtr<mozilla::MediaPipeline>
-SourceStreamInfo::GetPipeline(int aTrack) {
-  std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> >::iterator it =
-    mPipelines.find(aTrack);
-
-  if (it == mPipelines.end()) {
-    return NULL;
-  }
-
-  return it->second;
-}
 
 void
 LocalSourceStreamInfo::StorePipeline(int aTrack,

@@ -5,23 +5,24 @@
 #include "nsEventListenerService.h"
 #include "nsCOMArray.h"
 #include "nsEventListenerManager.h"
+#include "nsIVariant.h"
+#include "nsIServiceManager.h"
 #include "nsMemory.h"
-#include "nsCxPusher.h"
+#include "nsContentUtils.h"
 #include "nsIXPConnect.h"
+#include "nsIDOMWindow.h"
+#include "nsPIDOMWindow.h"
 #include "nsJSUtils.h"
+#include "nsIJSContextStack.h"
+#include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsIJSEventListener.h"
 #ifdef MOZ_JSDEBUGGER
 #include "jsdIDebuggerService.h"
 #endif
 #include "nsDOMClassInfoID.h"
-#include "mozilla/BasicEvents.h"
-#include "mozilla/Maybe.h"
-#include "nsServiceManagerUtils.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
-using mozilla::AutoSafeJSContext;
 
 NS_IMPL_CYCLE_COLLECTION_1(nsEventListenerInfo, mListener)
 
@@ -83,8 +84,8 @@ nsEventListenerInfo::GetJSVal(JSContext* aCx,
   *aJSVal = JSVAL_NULL;
   nsCOMPtr<nsIXPConnectWrappedJS> wrappedJS = do_QueryInterface(mListener);
   if (wrappedJS) {
-    JS::Rooted<JSObject*> object(aCx, wrappedJS->GetJSObject());
-    if (!object) {
+    JSObject* object = nullptr;
+    if (NS_FAILED(wrappedJS->GetJSObject(&object))) {
       return false;
     }
     aAc.construct(aCx, object);
@@ -94,7 +95,7 @@ nsEventListenerInfo::GetJSVal(JSContext* aCx,
 
   nsCOMPtr<nsIJSEventListener> jsl = do_QueryInterface(mListener);
   if (jsl) {
-    JS::Handle<JSObject*> handler(jsl->GetHandler().Ptr()->Callable());
+    JSObject *handler = jsl->GetHandler().Ptr()->Callable();
     if (handler) {
       aAc.construct(aCx, handler);
       *aJSVal = OBJECT_TO_JSVAL(handler);
@@ -109,18 +110,30 @@ nsEventListenerInfo::ToSource(nsAString& aResult)
 {
   aResult.SetIsVoid(true);
 
-  AutoSafeJSContext cx;
-  mozilla::Maybe<JSAutoCompartment> ac;
-  JS::Rooted<JS::Value> v(cx, JSVAL_NULL);
-  if (GetJSVal(cx, ac, v.address())) {
-    JSString* str = JS_ValueToSource(cx, v);
-    if (str) {
-      nsDependentJSString depStr;
-      if (depStr.init(cx, str)) {
-        aResult.Assign(depStr);
+  nsCOMPtr<nsIThreadJSContextStack> stack =
+    nsContentUtils::ThreadJSContextStack();
+  if (stack) {
+    JSContext* cx = stack->GetSafeJSContext();
+    if (cx && NS_SUCCEEDED(stack->Push(cx))) {
+      {
+        // Extra block to finish the auto request before calling pop
+        JSAutoRequest ar(cx);
+        mozilla::Maybe<JSAutoCompartment> ac;
+        JS::Value v = JSVAL_NULL;
+        if (GetJSVal(cx, ac, &v)) {
+          JSString* str = JS_ValueToSource(cx, v);
+          if (str) {
+            nsDependentJSString depStr;
+            if (depStr.init(cx, str)) {
+              aResult.Assign(depStr);
+            }
+          }
+        }
       }
+      stack->Pop(&cx);
     }
   }
+  
   return NS_OK;
 }
 
@@ -134,19 +147,30 @@ nsEventListenerInfo::GetDebugObject(nsISupports** aRetVal)
   nsCOMPtr<jsdIDebuggerService> jsd =
     do_GetService("@mozilla.org/js/jsd/debugger-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, NS_OK);
-
+  
   bool isOn = false;
   jsd->GetIsOn(&isOn);
   NS_ENSURE_TRUE(isOn, NS_OK);
 
-  AutoSafeJSContext cx;
-  mozilla::Maybe<JSAutoCompartment> ac;
-  JS::Rooted<JS::Value> v(cx, JSVAL_NULL);
-  if (GetJSVal(cx, ac, v.address())) {
-    nsCOMPtr<jsdIValue> jsdValue;
-    rv = jsd->WrapValue(v, getter_AddRefs(jsdValue));
-    NS_ENSURE_SUCCESS(rv, rv);
-    jsdValue.forget(aRetVal);
+  nsCOMPtr<nsIThreadJSContextStack> stack =
+    nsContentUtils::ThreadJSContextStack();
+  if (stack) {
+    JSContext* cx = stack->GetSafeJSContext();
+    if (cx && NS_SUCCEEDED(stack->Push(cx))) {
+      {
+        // Extra block to finish the auto request before calling pop
+        JSAutoRequest ar(cx);
+        mozilla::Maybe<JSAutoCompartment> ac;
+        JS::Value v = JSVAL_NULL;
+        if (GetJSVal(cx, ac, &v)) {
+          nsCOMPtr<jsdIValue> jsdValue;
+          rv = jsd->WrapValue(v, getter_AddRefs(jsdValue));
+          NS_ENSURE_SUCCESS(rv, rv);
+          jsdValue.forget(aRetVal);
+        }
+      }
+      stack->Pop(&cx);
+    }
   }
 #endif
 
@@ -162,11 +186,8 @@ nsEventListenerService::GetListenerInfoFor(nsIDOMEventTarget* aEventTarget,
   *aCount = 0;
   *aOutArray = nullptr;
   nsCOMArray<nsIEventListenerInfo> listenerInfos;
-
-  nsCOMPtr<EventTarget> eventTarget = do_QueryInterface(aEventTarget);
-  NS_ENSURE_TRUE(eventTarget, NS_ERROR_NO_INTERFACE);
-
-  nsEventListenerManager* elm = eventTarget->GetExistingListenerManager();
+  nsEventListenerManager* elm =
+    aEventTarget->GetListenerManager(false);
   if (elm) {
     elm->GetListenerInfo(&listenerInfos);
   }
@@ -196,7 +217,7 @@ nsEventListenerService::GetEventTargetChainFor(nsIDOMEventTarget* aEventTarget,
   *aCount = 0;
   *aOutArray = nullptr;
   NS_ENSURE_ARG(aEventTarget);
-  WidgetEvent event(true, NS_EVENT_NULL);
+  nsEvent event(true, NS_EVENT_TYPE_NULL);
   nsCOMArray<EventTarget> targets;
   nsresult rv = nsEventDispatcher::Dispatch(aEventTarget, nullptr, &event,
                                             nullptr, nullptr, nullptr, &targets);
@@ -224,10 +245,7 @@ nsEventListenerService::HasListenersFor(nsIDOMEventTarget* aEventTarget,
                                         const nsAString& aType,
                                         bool* aRetVal)
 {
-  nsCOMPtr<EventTarget> eventTarget = do_QueryInterface(aEventTarget);
-  NS_ENSURE_TRUE(eventTarget, NS_ERROR_NO_INTERFACE);
-
-  nsEventListenerManager* elm = eventTarget->GetExistingListenerManager();
+  nsEventListenerManager* elm = aEventTarget->GetListenerManager(false);
   *aRetVal = elm && elm->HasListenersFor(aType);
   return NS_OK;
 }
@@ -241,10 +259,7 @@ nsEventListenerService::AddSystemEventListener(nsIDOMEventTarget *aTarget,
   NS_PRECONDITION(aTarget, "Missing target");
   NS_PRECONDITION(aListener, "Missing listener");
 
-  nsCOMPtr<EventTarget> eventTarget = do_QueryInterface(aTarget);
-  NS_ENSURE_TRUE(eventTarget, NS_ERROR_NO_INTERFACE);
-
-  nsEventListenerManager* manager = eventTarget->GetOrCreateListenerManager();
+  nsEventListenerManager* manager = aTarget->GetListenerManager(true);
   NS_ENSURE_STATE(manager);
 
   EventListenerFlags flags =
@@ -263,10 +278,7 @@ nsEventListenerService::RemoveSystemEventListener(nsIDOMEventTarget *aTarget,
   NS_PRECONDITION(aTarget, "Missing target");
   NS_PRECONDITION(aListener, "Missing listener");
 
-  nsCOMPtr<EventTarget> eventTarget = do_QueryInterface(aTarget);
-  NS_ENSURE_TRUE(eventTarget, NS_ERROR_NO_INTERFACE);
-
-  nsEventListenerManager* manager = eventTarget->GetExistingListenerManager();
+  nsEventListenerManager* manager = aTarget->GetListenerManager(false);
   if (manager) {
     EventListenerFlags flags =
       aUseCapture ? TrustedEventsAtSystemGroupCapture() :
@@ -285,11 +297,7 @@ nsEventListenerService::AddListenerForAllEvents(nsIDOMEventTarget* aTarget,
                                                 bool aSystemEventGroup)
 {
   NS_ENSURE_STATE(aTarget && aListener);
-
-  nsCOMPtr<EventTarget> eventTarget = do_QueryInterface(aTarget);
-  NS_ENSURE_TRUE(eventTarget, NS_ERROR_NO_INTERFACE);
-
-  nsEventListenerManager* manager = eventTarget->GetOrCreateListenerManager();
+  nsEventListenerManager* manager = aTarget->GetListenerManager(true);
   NS_ENSURE_STATE(manager);
   manager->AddListenerForAllEvents(aListener, aUseCapture, aWantsUntrusted,
                                aSystemEventGroup);
@@ -303,11 +311,7 @@ nsEventListenerService::RemoveListenerForAllEvents(nsIDOMEventTarget* aTarget,
                                                    bool aSystemEventGroup)
 {
   NS_ENSURE_STATE(aTarget && aListener);
-
-  nsCOMPtr<EventTarget> eventTarget = do_QueryInterface(aTarget);
-  NS_ENSURE_TRUE(eventTarget, NS_ERROR_NO_INTERFACE);
-
-  nsEventListenerManager* manager = eventTarget->GetExistingListenerManager();
+  nsEventListenerManager* manager = aTarget->GetListenerManager(false);
   if (manager) {
     manager->RemoveListenerForAllEvents(aListener, aUseCapture, aSystemEventGroup);
   }
@@ -318,6 +322,7 @@ nsresult
 NS_NewEventListenerService(nsIEventListenerService** aResult)
 {
   *aResult = new nsEventListenerService();
+  NS_ENSURE_TRUE(*aResult, NS_ERROR_OUT_OF_MEMORY);
   NS_ADDREF(*aResult);
   return NS_OK;
 }

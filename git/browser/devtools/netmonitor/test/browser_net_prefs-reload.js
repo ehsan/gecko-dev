@@ -9,20 +9,13 @@ function test() {
   initNetMonitor(SIMPLE_URL).then(([aTab, aDebuggee, aMonitor]) => {
     info("Starting test... ");
 
-    // This test reopens the network monitor a bunch of times, for different
-    // hosts (bottom, side, window). This seems to be slow on debug builds.
-    requestLongerTimeout(3);
-
     let prefsToCheck = {
       networkDetailsWidth: {
         newValue: ~~(Math.random() * 200 + 100),
-        validate: ($) => ~~$("#details-pane").getAttribute("width"),
-        modifyFrontend: ($, aValue) => $("#details-pane").setAttribute("width", aValue)
-      },
-      networkDetailsHeight: {
-        newValue: ~~(Math.random() * 300 + 100),
-        validate: ($) => ~~$("#details-pane").getAttribute("height"),
-        modifyFrontend: ($, aValue) => $("#details-pane").setAttribute("height", aValue)
+        validate: () =>
+          ~~aMonitor._view._detailsPane.getAttribute("width"),
+        modifyFrontend: (aValue) =>
+          aMonitor._view._detailsPane.setAttribute("width", aValue)
       },
       /* add more prefs here... */
     };
@@ -46,7 +39,7 @@ function test() {
 
         is(currentValue, firstValue,
           "Pref " + name + " should be equal to first value: " + firstValue);
-        is(currentValue, validate(aMonitor.panelWin.$),
+        is(currentValue, validate(),
           "Pref " + name + " should validate: " + currentValue);
       }
     }
@@ -61,14 +54,14 @@ function test() {
         let validate = prefsToCheck[name].validate;
         let modifyFrontend = prefsToCheck[name].modifyFrontend;
 
-        modifyFrontend(aMonitor.panelWin.$, newValue);
+        modifyFrontend(newValue);
         info("Modified UI element affecting " + name + " to: " + newValue);
 
         is(currentValue, firstValue,
           "Pref " + name + " should still be equal to first value: " + firstValue);
         isnot(currentValue, newValue,
           "Pref " + name + " should't yet be equal to second value: " + newValue);
-        is(newValue, validate(aMonitor.panelWin.$),
+        is(newValue, validate(),
           "The UI element affecting " + name + " should validate: " + newValue);
       }
     }
@@ -81,12 +74,13 @@ function test() {
         let firstValue = prefsToCheck[name].firstValue;
         let newValue = prefsToCheck[name].newValue;
         let validate = prefsToCheck[name].validate;
+        let modifyFrontend = prefsToCheck[name].modifyFrontend;
 
         isnot(currentValue, firstValue,
           "Pref " + name + " should't be equal to first value: " + firstValue);
         is(currentValue, newValue,
           "Pref " + name + " should now be equal to second value: " + newValue);
-        is(newValue, validate(aMonitor.panelWin.$),
+        is(newValue, validate(),
           "The UI element affecting " + name + " should validate: " + newValue);
       }
     }
@@ -101,117 +95,36 @@ function test() {
         let validate = prefsToCheck[name].validate;
         let modifyFrontend = prefsToCheck[name].modifyFrontend;
 
-        modifyFrontend(aMonitor.panelWin.$, firstValue);
+        modifyFrontend(firstValue);
         info("Modified UI element affecting " + name + " to: " + firstValue);
 
         isnot(currentValue, firstValue,
           "Pref " + name + " should't yet be equal to first value: " + firstValue);
         is(currentValue, newValue,
           "Pref " + name + " should still be equal to second value: " + newValue);
-        is(firstValue, validate(aMonitor.panelWin.$),
+        is(firstValue, validate(),
           "The UI element affecting " + name + " should validate: " + firstValue);
       }
     }
 
-    function testBottom() {
-      info("Testing prefs reload for a bottom host.");
-      storeFirstPrefValues();
+    storeFirstPrefValues();
 
-      // Validate and modify while toolbox is on the bottom.
-      validateFirstPrefValues();
-      modifyFrontend();
+    // Validate and modify.
+    validateFirstPrefValues();
+    modifyFrontend();
+    restartNetMonitor(aMonitor).then(([,, aNewMonitor]) => {
+      aMonitor = aNewMonitor;
 
-      return restartNetMonitor(aMonitor)
-        .then(([,, aNewMonitor]) => {
-          aMonitor = aNewMonitor;
+      // Revalidate and reset.
+      validateNewPrefValues();
+      resetFrontend();
+      restartNetMonitor(aMonitor).then(([,, aNewMonitor]) => {
+        aMonitor = aNewMonitor;
 
-          // Revalidate and reset frontend while toolbox is on the bottom.
-          validateNewPrefValues();
-          resetFrontend();
-
-          return restartNetMonitor(aMonitor);
-        })
-        .then(([,, aNewMonitor]) => {
-          aMonitor = aNewMonitor;
-
-          // Revalidate.
-          validateFirstPrefValues();
-        });
-    }
-
-    function testSide() {
-      info("Moving toolbox to the side...");
-
-      return aMonitor._toolbox.switchHost(Toolbox.HostType.SIDE)
-        .then(() => {
-          info("Testing prefs reload for a side host.");
-          storeFirstPrefValues();
-
-          // Validate and modify frontend while toolbox is on the side.
-          validateFirstPrefValues();
-          modifyFrontend();
-
-          return restartNetMonitor(aMonitor);
-        })
-        .then(([,, aNewMonitor]) => {
-          aMonitor = aNewMonitor;
-
-          // Revalidate and reset frontend while toolbox is on the side.
-          validateNewPrefValues();
-          resetFrontend();
-
-          return restartNetMonitor(aMonitor);
-        })
-        .then(([,, aNewMonitor]) => {
-          aMonitor = aNewMonitor;
-
-          // Revalidate.
-          validateFirstPrefValues();
-        });
-    }
-
-    function testWindow() {
-      info("Moving toolbox into a window...");
-
-      return aMonitor._toolbox.switchHost(Toolbox.HostType.WINDOW)
-        .then(() => {
-          info("Testing prefs reload for a window host.");
-          storeFirstPrefValues();
-
-          // Validate and modify frontend while toolbox is in a window.
-          validateFirstPrefValues();
-          modifyFrontend();
-
-          return restartNetMonitor(aMonitor);
-        })
-        .then(([,, aNewMonitor]) => {
-          aMonitor = aNewMonitor;
-
-          // Revalidate and reset frontend while toolbox is in a window.
-          validateNewPrefValues();
-          resetFrontend();
-
-          return restartNetMonitor(aMonitor);
-        })
-        .then(([,, aNewMonitor]) => {
-          aMonitor = aNewMonitor;
-
-          // Revalidate.
-          validateFirstPrefValues();
-        });
-    }
-
-    function cleanupAndFinish() {
-      info("Moving toolbox back to the bottom...");
-
-      aMonitor._toolbox.switchHost(Toolbox.HostType.BOTTOM)
-        .then(() => teardown(aMonitor))
-        .then(finish);
-    }
-
-    testBottom()
-      .then(testSide)
-      .then(testWindow)
-      .then(cleanupAndFinish);
+        // Revalidate and finish.
+        validateFirstPrefValues();
+        teardown(aMonitor).then(finish);
+      });
+    });
   });
 }

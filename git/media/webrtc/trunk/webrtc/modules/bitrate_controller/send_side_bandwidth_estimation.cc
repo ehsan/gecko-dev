@@ -8,11 +8,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/bitrate_controller/send_side_bandwidth_estimation.h"
+#include "modules/bitrate_controller/send_side_bandwidth_estimation.h"
 
 #include <math.h>  // sqrt()
 
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "system_wrappers/interface/trace.h"
 
 namespace webrtc {
 

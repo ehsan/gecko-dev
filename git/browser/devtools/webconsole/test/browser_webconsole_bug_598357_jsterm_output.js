@@ -23,7 +23,7 @@ let initialString = longString.substring(0,
   tempScope.DebuggerServer.LONG_STRING_INITIAL_LENGTH);
 
 let inputValues = [
-  // [showsVariablesView?, input value, expected output format,
+  // [showsPropertyPanel?, input value, expected output format,
   //    print() output, console API output, optional console API test]
 
   // 0
@@ -132,7 +132,7 @@ function testNext() {
 function testGen() {
   let cpos = pos;
 
-  let showsVariablesView = inputValues[cpos][0];
+  let showsPropertyPanel = inputValues[cpos][0];
   let inputValue = inputValues[cpos][1];
   let expectedOutput = inputValues[cpos][2];
 
@@ -148,35 +148,47 @@ function testGen() {
 
   // Test the console.log() output.
 
-  let outputItem;
-  function onExecute(msg) {
-    outputItem = msg;
-    subtestNext();
-  }
-
   HUD.jsterm.execute("console.log(" + consoleTest + ")");
 
-  waitForMessages({
-    webconsole: HUD,
-    messages: [{
-      name: "console API output is correct for inputValues[" + cpos + "]",
-      text: consoleOutput,
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    }],
-  }).then(subtestNext);
+  waitForSuccess({
+    name: "console.log message for test #" + cpos,
+    validatorFn: function()
+    {
+      return HUD.outputNode.querySelector(".hud-log");
+    },
+    successFn: subtestNext,
+    failureFn: testNext,
+  });
 
-  yield undefined;
+  yield;
+
+  let outputItem = HUD.outputNode.querySelector(".hud-log:last-child");
+  ok(outputItem,
+    "found the window.console output line for inputValues[" + cpos + "]");
+  ok(outputItem.textContent.indexOf(consoleOutput) > -1,
+    "console API output is correct for inputValues[" + cpos + "]");
 
   HUD.jsterm.clearOutput();
 
   // Test jsterm print() output.
 
   HUD.jsterm.setInputValue("print(" + inputValue + ")");
-  HUD.jsterm.execute(null, onExecute);
+  HUD.jsterm.execute();
 
-  yield undefined;
+  waitForSuccess({
+    name: "jsterm print() output for test #" + cpos,
+    validatorFn: function()
+    {
+      return HUD.outputNode.querySelector(".webconsole-msg-output:last-child");
+    },
+    successFn: subtestNext,
+    failureFn: testNext,
+  });
 
+  yield;
+
+  outputItem = HUD.outputNode.querySelector(".webconsole-msg-output:" +
+                                            "last-child");
   ok(outputItem,
     "found the jsterm print() output line for inputValues[" + cpos + "]");
   ok(outputItem.textContent.indexOf(printOutput) > -1,
@@ -186,54 +198,67 @@ function testGen() {
 
   HUD.jsterm.clearOutput();
   HUD.jsterm.setInputValue(inputValue);
-  HUD.jsterm.execute(null, onExecute);
+  HUD.jsterm.execute();
 
-  yield undefined;
+  waitForSuccess({
+    name: "jsterm output for test #" + cpos,
+    validatorFn: function()
+    {
+      return HUD.outputNode.querySelector(".webconsole-msg-output:last-child");
+    },
+    successFn: subtestNext,
+    failureFn: testNext,
+  });
 
+  yield;
+
+  outputItem = HUD.outputNode.querySelector(".webconsole-msg-output:" +
+                                            "last-child");
   ok(outputItem, "found the jsterm output line for inputValues[" + cpos + "]");
   ok(outputItem.textContent.indexOf(expectedOutput) > -1,
     "jsterm output is correct for inputValues[" + cpos + "]");
 
-  let messageBody = outputItem.querySelector(".body a") ||
-                    outputItem.querySelector(".body");
+  let messageBody = outputItem.querySelector(".webconsole-msg-body");
   ok(messageBody, "we have the message body for inputValues[" + cpos + "]");
 
   // Test click on output.
   let eventHandlerID = eventHandlers.length + 1;
 
-  let variablesViewShown = function(aEvent, aView, aOptions) {
+  let propertyPanelShown = function(aEvent, aView, aOptions) {
     if (aOptions.label.indexOf(expectedOutput) == -1) {
       return;
     }
 
-    HUD.jsterm.off("variablesview-open", variablesViewShown);
+    HUD.jsterm.off("variablesview-open", propertyPanelShown);
 
     eventHandlers[eventHandlerID] = null;
 
-    ok(showsVariablesView,
-      "the variables view shown for inputValues[" + cpos + "]");
+    ok(showsPropertyPanel,
+      "the property panel shown for inputValues[" + cpos + "]");
 
     popupShown[cpos] = true;
 
-    if (showsVariablesView) {
+    if (showsPropertyPanel) {
       executeSoon(subtestNext);
     }
   };
 
-  HUD.jsterm.on("variablesview-open", variablesViewShown);
+  HUD.jsterm.on("variablesview-open", propertyPanelShown);
 
-  eventHandlers.push(variablesViewShown);
+  eventHandlers.push(propertyPanelShown);
 
-  EventUtils.synthesizeMouse(messageBody, 2, 2, {}, HUD.iframeWindow);
+  // Send the mousedown, mouseup and click events to check if the property
+  // panel opens.
+  EventUtils.sendMouseEvent({ type: "mousedown" }, messageBody, window);
+  EventUtils.sendMouseEvent({ type: "click" }, messageBody, window);
 
-  if (showsVariablesView) {
-    info("messageBody tagName '" + messageBody.tagName +  "' className '" + messageBody.className + "'");
-    yield undefined; // wait for the panel to open if we need to.
+  if (showsPropertyPanel) {
+    yield; // wait for the panel to open if we need to.
   }
 
   testNext();
 
-  yield undefined;
+  yield;
 }
 
 function testEnd() {
@@ -251,7 +276,7 @@ function testEnd() {
 
   for (let i = 0; i < inputValues.length; i++) {
     if (inputValues[i][0] && !popupShown[i]) {
-      ok(false, "the variables view failed to show for inputValues[" + i + "]");
+      ok(false, "the property panel failed to show for inputValues[" + i + "]");
     }
   }
 

@@ -64,7 +64,6 @@ static int nr_ice_fetch_stun_servers(int ct, nr_ice_stun_server **out);
 static int nr_ice_fetch_turn_servers(int ct, nr_ice_turn_server **out);
 #endif /* USE_TURN */
 static void nr_ice_ctx_destroy_cb(NR_SOCKET s, int how, void *cb_arg);
-static int nr_ice_ctx_pair_new_trickle_candidates(nr_ice_ctx *ctx, nr_ice_candidate *cand);
 
 int nr_ice_fetch_stun_servers(int ct, nr_ice_stun_server **out)
   {
@@ -157,33 +156,6 @@ int nr_ice_ctx_set_turn_servers(nr_ice_ctx *ctx,nr_ice_turn_server *servers,int 
     return(_status);
   }
 
-int nr_ice_ctx_set_local_addrs(nr_ice_ctx *ctx,nr_local_addr *addrs,int ct)
-  {
-    int _status,i,r;
-
-    if(ctx->local_addrs) {
-      RFREE(ctx->local_addrs);
-      ctx->local_addr_ct=0;
-      ctx->local_addrs=0;
-    }
-
-    if (ct) {
-      if(!(ctx->local_addrs=RCALLOC(sizeof(nr_local_addr)*ct)))
-        ABORT(R_NO_MEMORY);
-
-      for (i=0;i<ct;++i) {
-        if (r=nr_local_addr_copy(ctx->local_addrs+i,addrs+i)) {
-          ABORT(r);
-        }
-      }
-      ctx->local_addr_ct = ct;
-    }
-
-    _status=0;
-   abort:
-    return(_status);
-  }
-
 int nr_ice_ctx_set_resolver(nr_ice_ctx *ctx, nr_resolver *resolver)
   {
     int _status;
@@ -199,20 +171,6 @@ int nr_ice_ctx_set_resolver(nr_ice_ctx *ctx, nr_resolver *resolver)
     return(_status);
   }
 
-int nr_ice_ctx_set_interface_prioritizer(nr_ice_ctx *ctx, nr_interface_prioritizer *ip)
-  {
-    int _status;
-
-    if (ctx->interface_prioritizer) {
-      ABORT(R_ALREADY);
-    }
-
-    ctx->interface_prioritizer = ip;
-
-    _status=0;
-   abort:
-    return(_status);
-  }
 
 #ifdef USE_TURN
 int nr_ice_fetch_turn_servers(int ct, nr_ice_turn_server **out)
@@ -314,19 +272,19 @@ int nr_ice_ctx_create(char *label, UINT4 flags, nr_ice_ctx **ctxp)
     /* Get the STUN servers */
     if(r=NR_reg_get_child_count(NR_ICE_REG_STUN_SRV_PRFX,
       (unsigned int *)&ctx->stun_server_ct)||ctx->stun_server_ct==0) {
-      r_log(LOG_ICE,LOG_WARNING,"ICE(%s): No STUN servers specified", ctx->label);
+      r_log(LOG_ICE,LOG_NOTICE,"No STUN servers specified");
       ctx->stun_server_ct=0;
     }
 
     /* 255 is the max for our priority algorithm */
     if(ctx->stun_server_ct>255){
-      r_log(LOG_ICE,LOG_WARNING,"ICE(%s): Too many STUN servers specified: max=255", ctx->label);
+      r_log(LOG_ICE,LOG_WARNING,"Too many STUN servers specified: max=255");
       ctx->stun_server_ct=255;
     }
 
     if(ctx->stun_server_ct>0){
       if(r=nr_ice_fetch_stun_servers(ctx->stun_server_ct,&ctx->stun_servers)){
-        r_log(LOG_ICE,LOG_ERR,"ICE(%s): Couldn't load STUN servers from registry", ctx->label);
+        r_log(LOG_ICE,LOG_ERR,"Couldn't load STUN servers from registry");
         ctx->stun_server_ct=0;
         ABORT(r);
       }
@@ -336,19 +294,16 @@ int nr_ice_ctx_create(char *label, UINT4 flags, nr_ice_ctx **ctxp)
     /* Get the TURN servers */
     if(r=NR_reg_get_child_count(NR_ICE_REG_TURN_SRV_PRFX,
       (unsigned int *)&ctx->turn_server_ct)||ctx->turn_server_ct==0) {
-      r_log(LOG_ICE,LOG_NOTICE,"ICE(%s): No TURN servers specified", ctx->label);
+      r_log(LOG_ICE,LOG_NOTICE,"No TURN servers specified");
       ctx->turn_server_ct=0;
     }
 #else
     ctx->turn_server_ct=0;
 #endif /* USE_TURN */
 
-    ctx->local_addrs=0;
-    ctx->local_addr_ct=0;
-
     /* 255 is the max for our priority algorithm */
     if((ctx->stun_server_ct+ctx->turn_server_ct)>255){
-      r_log(LOG_ICE,LOG_WARNING,"ICE(%s): Too many STUN/TURN servers specified: max=255", ctx->label);
+      r_log(LOG_ICE,LOG_WARNING,"Too many STUN/TURN servers specified: max=255");
       ctx->turn_server_ct=255-ctx->stun_server_ct;
     }
 
@@ -356,7 +311,7 @@ int nr_ice_ctx_create(char *label, UINT4 flags, nr_ice_ctx **ctxp)
     if(ctx->turn_server_ct>0){
       if(r=nr_ice_fetch_turn_servers(ctx->turn_server_ct,&ctx->turn_servers)){
         ctx->turn_server_ct=0;
-        r_log(LOG_ICE,LOG_ERR,"ICE(%s): Couldn't load TURN servers from registry", ctx->label);
+        r_log(LOG_ICE,LOG_ERR,"Couldn't load TURN servers from registry");
         ABORT(r);
       }
     }
@@ -393,8 +348,6 @@ static void nr_ice_ctx_destroy_cb(NR_SOCKET s, int how, void *cb_arg)
 
     RFREE(ctx->stun_servers);
 
-    RFREE(ctx->local_addrs);
-
     for (i = 0; i < ctx->turn_server_ct; i++) {
         RFREE(ctx->turn_servers[i].username);
         r_data_destroy(&ctx->turn_servers[i].password);
@@ -421,7 +374,6 @@ static void nr_ice_ctx_destroy_cb(NR_SOCKET s, int how, void *cb_arg)
     }
 
     nr_resolver_destroy(&ctx->resolver);
-    nr_interface_prioritizer_destroy(&ctx->interface_prioritizer);
 
     RFREE(ctx);
   }
@@ -432,7 +384,6 @@ int nr_ice_ctx_destroy(nr_ice_ctx **ctxp)
       return(0);
 
     (*ctxp)->done_cb=0;
-    (*ctxp)->trickle_cb=0;
 
     NR_ASYNC_SCHEDULE(nr_ice_ctx_destroy_cb,*ctxp);
 
@@ -443,37 +394,12 @@ int nr_ice_ctx_destroy(nr_ice_ctx **ctxp)
 
 void nr_ice_initialize_finished_cb(NR_SOCKET s, int h, void *cb_arg)
   {
-    int r,_status;
-    nr_ice_candidate *cand=cb_arg;
-    nr_ice_ctx *ctx;
+    nr_ice_ctx *ctx=cb_arg;
 
-
-    assert(cb_arg);
-    if (!cb_arg)
-      return;
-    ctx = cand->ctx;
-
+/*    r_log(LOG_ICE,LOG_DEBUG,"ICE(%s): Candidate %s %s",ctx->label,
+      cand->label, cand->state==NR_ICE_CAND_STATE_INITIALIZED?"INITIALIZED":"FAILED");
+*/
     ctx->uninitialized_candidates--;
-
-    if (cand->state == NR_ICE_CAND_STATE_INITIALIZED) {
-      int was_pruned = 0;
-
-      if (r=nr_ice_component_maybe_prune_candidate(ctx, cand->component,
-                                                   cand, &was_pruned)) {
-          r_log(LOG_ICE, LOG_NOTICE, "ICE(%s): Problem pruning candidates",ctx->label);
-      }
-
-      /* If we are initialized, the candidate wasn't pruned,
-         and we have a trickle ICE callback fire the callback */
-      if (ctx->trickle_cb && !was_pruned) {
-        ctx->trickle_cb(ctx->trickle_cb_arg, ctx, cand->stream, cand->component_id, cand);
-
-        if (r=nr_ice_ctx_pair_new_trickle_candidates(ctx, cand)) {
-          r_log(LOG_ICE,LOG_ERR, "ICE(%s): All could not pair new trickle candidate",ctx->label);
-          /* But continue */
-        }
-      }
-    }
 
     if(ctx->uninitialized_candidates==0){
       r_log(LOG_ICE,LOG_DEBUG,"ICE(%s): All candidates initialized",ctx->label);
@@ -490,35 +416,10 @@ void nr_ice_initialize_finished_cb(NR_SOCKET s, int h, void *cb_arg)
     }
   }
 
-static int nr_ice_ctx_pair_new_trickle_candidates(nr_ice_ctx *ctx, nr_ice_candidate *cand)
-  {
-    int r,_status;
-    nr_ice_peer_ctx *pctx;
-
-    pctx=STAILQ_FIRST(&ctx->peers);
-    while(pctx){
-      if (pctx->state == NR_ICE_PEER_STATE_PAIRED) {
-        r = nr_ice_peer_ctx_pair_new_trickle_candidate(ctx, pctx, cand);
-        if (r)
-          ABORT(r);
-      }
-
-      pctx=STAILQ_NEXT(pctx,entry);
-    }
-
-    _status=0;
- abort:
-    return(_status);
-  }
-
-
-#define MAXADDRS 100 // Ridiculously high
 int nr_ice_initialize(nr_ice_ctx *ctx, NR_async_cb done_cb, void *cb_arg)
   {
     int r,_status;
     nr_ice_media_stream *stream;
-    nr_local_addr addrs[MAXADDRS];
-    int i,addr_ct;
 
     r_log(LOG_ICE,LOG_DEBUG,"ICE(%s): Initializing candidates",ctx->label);
     ctx->state=NR_ICE_STATE_INITIALIZING;
@@ -528,30 +429,6 @@ int nr_ice_initialize(nr_ice_ctx *ctx, NR_async_cb done_cb, void *cb_arg)
     if(STAILQ_EMPTY(&ctx->streams)) {
       r_log(LOG_ICE,LOG_ERR,"ICE(%s): Missing streams to initialize",ctx->label);
       ABORT(R_BAD_ARGS);
-    }
-
-    /* First, gather all the local addresses we have */
-    if(r=nr_stun_find_local_addresses(addrs,MAXADDRS,&addr_ct)) {
-      r_log(LOG_ICE,LOG_ERR,"ICE(%s): unable to find local addresses",ctx->label);
-      ABORT(r);
-    }
-
-    /* Sort interfaces by preference */
-    if(ctx->interface_prioritizer) {
-      for(i=0;i<addr_ct;i++){
-        if(r=nr_interface_prioritizer_add_interface(ctx->interface_prioritizer,addrs+i)) {
-          r_log(LOG_ICE,LOG_ERR,"ICE(%s): unable to add interface ",ctx->label);
-          ABORT(r);
-        }
-      }
-      if(r=nr_interface_prioritizer_sort_preference(ctx->interface_prioritizer)) {
-        r_log(LOG_ICE,LOG_ERR,"ICE(%s): unable to sort interface by preference",ctx->label);
-        ABORT(r);
-      }
-    }
-
-    if (r=nr_ice_ctx_set_local_addrs(ctx,addrs,addr_ct)) {
-      ABORT(r);
     }
 
     /* Initialize all the media stream/component pairs */
@@ -664,7 +541,7 @@ int nr_ice_ctx_deliver_packet(nr_ice_ctx *ctx, nr_ice_component *comp, nr_transp
     }
 
     if(!pctx)
-      r_log(LOG_ICE,LOG_WARNING,"ICE(%s): Packet received from %s which doesn't match any known peer",ctx->label,source_addr->as_string);
+      r_log(LOG_ICE,LOG_INFO,"ICE(%s): Packet received from %s which doesn't match any known peer",ctx->label,source_addr->as_string);
 
     return(0);
   }
@@ -738,11 +615,3 @@ int nr_ice_ctx_finalize(nr_ice_ctx *ctx, nr_ice_peer_ctx *pctx)
     return(0);
   }
 
-
-int nr_ice_ctx_set_trickle_cb(nr_ice_ctx *ctx, nr_ice_trickle_candidate_cb cb, void *cb_arg)
-{
-  ctx->trickle_cb = cb;
-  ctx->trickle_cb_arg = cb_arg;
-
-  return 0;
-}

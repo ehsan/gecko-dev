@@ -47,7 +47,7 @@ PrepareAndDispatch(
 #define PARAM_GPR_COUNT     7
 
   nsXPTCMiniVariant      paramBuffer[PARAM_BUFFER_COUNT];
-  nsXPTCMiniVariant     *dispatchParams = nullptr;
+  nsXPTCMiniVariant     *dispatchParams = NULL;
   const nsXPTMethodInfo *methodInfo;
   uint8_t                paramCount;
   uint8_t                i;

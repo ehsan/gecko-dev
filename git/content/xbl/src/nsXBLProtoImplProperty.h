@@ -6,12 +6,11 @@
 #ifndef nsXBLProtoImplProperty_h__
 #define nsXBLProtoImplProperty_h__
 
-#include "mozilla/Attributes.h"
 #include "nsIAtom.h"
 #include "nsString.h"
+#include "jsapi.h"
 #include "nsString.h"
 #include "nsXBLSerialize.h"
-#include "nsXBLMaybeCompiled.h"
 #include "nsXBLProtoImplMember.h"
 
 class nsXBLProtoImplProperty: public nsXBLProtoImplMember
@@ -34,28 +33,35 @@ public:
   void SetSetterLineNumber(uint32_t aLineNumber);
 
   virtual nsresult InstallMember(JSContext* aCx,
-                                 JS::Handle<JSObject*> aTargetClassObject) MOZ_OVERRIDE;
-  virtual nsresult CompileMember(const nsCString& aClassStr,
-                                 JS::Handle<JSObject*> aClassObject) MOZ_OVERRIDE;
+                                 JS::Handle<JSObject*> aTargetClassObject);
+  virtual nsresult CompileMember(nsIScriptContext* aContext,
+                                 const nsCString& aClassStr,
+                                 JS::Handle<JSObject*> aClassObject);
 
-  virtual void Trace(const TraceCallbacks& aCallback, void *aClosure) MOZ_OVERRIDE;
+  virtual void Trace(TraceCallback aCallback, void *aClosure) const;
 
-  nsresult Read(nsIObjectInputStream* aStream,
+  nsresult Read(nsIScriptContext* aContext,
+                nsIObjectInputStream* aStream,
                 XBLBindingSerializeDetails aType);
-  virtual nsresult Write(nsIObjectOutputStream* aStream) MOZ_OVERRIDE;
+  virtual nsresult Write(nsIScriptContext* aContext,
+                         nsIObjectOutputStream* aStream);
 
 protected:
-  typedef JS::Heap<nsXBLMaybeCompiled<nsXBLTextWithLineNumber> > PropertyOp;
+  union {
+    // The raw text for the getter (prior to compilation).
+    nsXBLTextWithLineNumber* mGetterText;
+    // The JS object for the getter (after compilation)
+    JSObject *               mJSGetterObject;
+  };
 
-  void EnsureUncompiledText(PropertyOp& aPropertyOp);
-
-  // The raw text for the getter, or the JS object (after compilation).
-  PropertyOp mGetter;
-
-  // The raw text for the setter, or the JS object (after compilation).
-  PropertyOp mSetter;
+  union {
+    // The raw text for the setter (prior to compilation).
+    nsXBLTextWithLineNumber* mSetterText;
+    // The JS object for the setter (after compilation)
+    JSObject *               mJSSetterObject;
+  };
   
-  unsigned mJSAttributes;  // A flag for all our JS properties (getter/setter/readonly/shared/enum)
+  unsigned mJSAttributes;          // A flag for all our JS properties (getter/setter/readonly/shared/enum)
 
 #ifdef DEBUG
   bool mIsCompiled;

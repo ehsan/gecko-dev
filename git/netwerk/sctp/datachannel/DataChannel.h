@@ -24,7 +24,6 @@
 #include "nsITimer.h"
 #include "mozilla/Mutex.h"
 #include "DataChannelProtocol.h"
-#include "DataChannelListener.h"
 #ifdef SCTP_DTLS_SUPPORTED
 #include "mtransport/sigslot.h"
 #include "mtransport/transportflow.h"
@@ -92,6 +91,29 @@ public:
   char     *mData;
 };
 
+// Implemented by consumers of a Channel to receive messages.
+// Can't nest it in DataChannelConnection because C++ doesn't allow forward
+// refs to embedded classes
+class DataChannelListener {
+public:
+  virtual ~DataChannelListener() {}
+
+  // Called when a DOMString message is received.
+  virtual nsresult OnMessageAvailable(nsISupports *aContext,
+                                      const nsACString& message) = 0;
+
+  // Called when a binary message is received.
+  virtual nsresult OnBinaryMessageAvailable(nsISupports *aContext,
+                                            const nsACString& message) = 0;
+
+  // Called when the channel is connected
+  virtual nsresult OnChannelConnected(nsISupports *aContext) = 0;
+
+  // Called when the channel is closed
+  virtual nsresult OnChannelClosed(nsISupports *aContext) = 0;
+};
+
+
 // One per PeerConnection
 class DataChannelConnection: public nsITimerCallback
 #ifdef SCTP_DTLS_SUPPORTED
@@ -99,7 +121,7 @@ class DataChannelConnection: public nsITimerCallback
 #endif
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSITIMERCALLBACK
 
   class DataConnectionListener : public SupportsWeakPtr<DataConnectionListener>
@@ -122,9 +144,6 @@ public:
 
   bool Init(unsigned short aPort, uint16_t aNumStreams, bool aUsingDtls);
   void Destroy(); // So we can spawn refs tied to runnables in shutdown
-  // Finish Destroy on STS to avoid SCTP race condition with ABORT from far end
-  void DestroyOnSTS(struct socket *aMasterSocket,
-                    struct socket *aSocket);
 
 #ifdef ALLOW_DIRECT_SCTP_LISTEN_CONNECT
   // These block; they require something to decide on listener/connector
@@ -207,11 +226,10 @@ private:
   DataChannel* FindChannelByStream(uint16_t stream);
   uint16_t FindFreeStream();
   bool RequestMoreStreams(int32_t aNeeded = 16);
-  int32_t SendControlMessage(void *msg, uint32_t len, uint16_t stream);
+  int32_t SendControlMessage(void *msg, uint32_t len, uint16_t streamOut);
   int32_t SendOpenRequestMessage(const nsACString& label, const nsACString& protocol,
-                                 uint16_t stream,
+                                 uint16_t streamOut,
                                  bool unordered, uint16_t prPolicy, uint32_t prValue);
-  int32_t SendOpenAckMessage(uint16_t stream);
   int32_t SendMsgInternal(DataChannel *channel, const char *data,
                           uint32_t length, uint32_t ppid);
   int32_t SendBinary(DataChannel *channel, const char *data,
@@ -225,17 +243,14 @@ private:
   void StartDefer();
   bool SendDeferredMessages();
   void ProcessQueuedOpens();
-  void ClearResets();
   void SendOutgoingStreamReset();
-  void ResetOutgoingStream(uint16_t stream);
+  void ResetOutgoingStream(uint16_t streamOut);
   void HandleOpenRequestMessage(const struct rtcweb_datachannel_open_request *req,
                                 size_t length,
-                                uint16_t stream);
-  void HandleOpenAckMessage(const struct rtcweb_datachannel_ack *ack,
-                            size_t length, uint16_t stream);
-  void HandleUnknownMessage(uint32_t ppid, size_t length, uint16_t stream);
-  void HandleDataMessage(uint32_t ppid, const void *buffer, size_t length, uint16_t stream);
-  void HandleMessage(const void *buffer, size_t length, uint32_t ppid, uint16_t stream);
+                                uint16_t streamIn);
+  void HandleUnknownMessage(uint32_t ppid, size_t length, uint16_t streamIn);
+  void HandleDataMessage(uint32_t ppid, const void *buffer, size_t length, uint16_t streamIn);
+  void HandleMessage(const void *buffer, size_t length, uint32_t ppid, uint16_t streamIn);
   void HandleAssociationChangeEvent(const struct sctp_assoc_change *sac);
   void HandlePeerAddressChangeEvent(const struct sctp_paddr_change *spc);
   void HandleRemoteErrorEvent(const struct sctp_remote_error *sre);
@@ -325,7 +340,7 @@ public:
     , mStream(stream)
     , mPrPolicy(policy)
     , mPrValue(value)
-    , mFlags(flags)
+    , mFlags(0)
     , mIsRecvBinary(false)
     {
       NS_ASSERTION(mConnection,"NULL connection");
@@ -386,18 +401,16 @@ public:
   // Find out state
   uint16_t GetReadyState()
     {
-      if (mConnection) {
-        MutexAutoLock lock(mConnection->mLock);
-        if (mState == WAITING_TO_OPEN)
-          return CONNECTING;
-        return mState;
-      }
-      return CLOSED;
+      if (mState == WAITING_TO_OPEN)
+        return CONNECTING;
+      return mState;
     }
+
+  void SetReadyState(uint16_t aState) { mState = aState; }
 
   void GetLabel(nsAString& aLabel) { CopyUTF8toUTF16(mLabel, aLabel); }
   void GetProtocol(nsAString& aProtocol) { CopyUTF8toUTF16(mProtocol, aProtocol); }
-  uint16_t GetStream() { return mStream; }
+  void GetStream(uint16_t *aStream) { *aStream = mStream; }
 
   void AppReady();
 
@@ -511,12 +524,9 @@ public:
           }
           break;
         }
-      case ON_DISCONNECTED:
-        // If we've disconnected, make sure we close all the streams - from mainthread!
-        mConnection->CloseAll();
-        // fall through
       case ON_CHANNEL_CREATED:
       case ON_CONNECTION:
+      case ON_DISCONNECTED:
         // WeakPtr - only used/modified/nulled from MainThread so we can use a WeakPtr here
         if (!mConnection->mListener) {
           DATACHANNEL_LOG(("DataChannelOnMessageAvailable (%d) with null Listener",mType));

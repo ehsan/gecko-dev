@@ -13,10 +13,11 @@ namespace mozilla {
 class WebGLBuffer;
 
 class WebGLShaderPrecisionFormat MOZ_FINAL
-    : public WebGLContextBoundObject
+    : public nsISupports
+    , public WebGLContextBoundObject
 {
 public:
-    WebGLShaderPrecisionFormat(WebGLContext *context, GLint rangeMin, GLint rangeMax, GLint precision) :
+    WebGLShaderPrecisionFormat(WebGLContext *context, WebGLint rangeMin, WebGLint rangeMax, WebGLint precision) :
         WebGLContextBoundObject(context),
         mRangeMin(rangeMin),
         mRangeMax(rangeMax),
@@ -24,25 +25,25 @@ public:
     {
     }
 
-    JSObject* WrapObject(JSContext *cx, JS::Handle<JSObject*> scope);
+    virtual JSObject* WrapObject(JSContext *cx, JSObject *scope);
+
+    NS_DECL_ISUPPORTS
 
     // WebIDL WebGLShaderPrecisionFormat API
-    GLint RangeMin() const {
+    WebGLint RangeMin() const {
         return mRangeMin;
     }
-    GLint RangeMax() const {
+    WebGLint RangeMax() const {
         return mRangeMax;
     }
-    GLint Precision() const {
+    WebGLint Precision() const {
         return mPrecision;
     }
 
-    NS_INLINE_DECL_REFCOUNTING(WebGLShaderPrecisionFormat)
-
 protected:
-    GLint mRangeMin;
-    GLint mRangeMax;
-    GLint mPrecision;
+    WebGLint mRangeMin;
+    WebGLint mRangeMax;
+    WebGLint mPrecision;
 };
 
 } // namespace mozilla

@@ -6,9 +6,9 @@
 #ifndef nsContentListDeclarations_h
 #define nsContentListDeclarations_h
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include "nsCOMPtr.h"
-#include "nsStringFwd.h"
+#include "nsStringGlue.h"
 
 class nsContentList;
 class nsIAtom;

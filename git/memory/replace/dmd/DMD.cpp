@@ -34,7 +34,6 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/HashFunctions.h"
 #include "mozilla/Likely.h"
-#include "mozilla/MemoryReporting.h"
 
 // MOZ_REPLACE_ONLY_MEMALIGN saves us from having to define
 // replace_{posix_memalign,aligned_alloc,valloc}.  It requires defining
@@ -370,7 +369,7 @@ class MutexBase
 public:
   MutexBase()
   {
-    pthread_mutex_init(&mMutex, nullptr);
+    pthread_mutex_init(&mMutex, NULL);
   }
 
   void Lock()
@@ -1259,7 +1258,7 @@ replace_realloc(void* aOldPtr, size_t aSize)
     return InfallibleAllocPolicy::realloc_(aOldPtr, aSize);
   }
 
-  // If |aOldPtr| is nullptr, the call is equivalent to |malloc(aSize)|.
+  // If |aOldPtr| is NULL, the call is equivalent to |malloc(aSize)|.
   if (!aOldPtr) {
     return replace_malloc(aSize);
   }
@@ -1993,7 +1992,7 @@ PrintSortedTraceAndFrameRecords(const Writer& aWriter,
 }
 
 // Note that, unlike most SizeOf* functions, this function does not take a
-// |mozilla::MallocSizeOf| argument.  That's because those arguments are primarily
+// |nsMallocSizeOfFun| argument.  That's because those arguments are primarily
 // to aid DMD track heap blocks... but DMD deliberately doesn't track heap
 // blocks it allocated for itself!
 //

@@ -13,7 +13,6 @@
 #include "nsIMemoryReporter.h"
 #include "nsCRT.h"
 #include "nsReadableUtils.h"
-#include "mozilla/MathAlgorithms.h"
 #include "mozilla/Telemetry.h"
 #include <algorithm>
 
@@ -30,11 +29,11 @@
 const char *gMemoryDeviceID      = "memory";
 
 class NetworkMemoryCacheReporter MOZ_FINAL :
-    public mozilla::MemoryUniReporter
+    public mozilla::MemoryReporterBase
 {
 public:
     NetworkMemoryCacheReporter(nsMemoryCacheDevice* aDevice)
-      : MemoryUniReporter(
+      : MemoryReporterBase(
             "explicit/network/memory-cache",
             KIND_HEAP,
             UNITS_BYTES,
@@ -430,7 +429,7 @@ nsMemoryCacheDevice::EvictionList(nsCacheEntry * entry, int32_t  deltaSize)
     int32_t  size       = deltaSize + (int32_t)entry->DataSize();
     int32_t  fetchCount = std::max(1, entry->FetchCount());
 
-    return std::min((int)mozilla::FloorLog2(size / fetchCount), kQueueCount - 1);
+    return std::min(PR_FloorLog2(size / fetchCount), kQueueCount - 1);
 }
 
 
@@ -529,7 +528,7 @@ nsMemoryCacheDevice::EvictEntries(const char * clientID)
 nsresult
 nsMemoryCacheDevice::EvictPrivateEntries()
 {
-    return DoEvictEntries(&IsEntryPrivate, nullptr);
+    return DoEvictEntries(&IsEntryPrivate, NULL);
 }
 
 

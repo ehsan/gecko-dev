@@ -6,4 +6,3 @@
 
 MODULE = 'test_services_sync'
 
-XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']

@@ -6,15 +6,11 @@
 #ifndef GFX_LAYERSTYPES_H
 #define GFX_LAYERSTYPES_H
 
-#include <stdint.h>                     // for uint32_t
-#include "nsPoint.h"                    // for nsIntPoint
+#include "nsPoint.h"
 
-#ifdef MOZ_WIDGET_GONK
-#include <ui/GraphicBuffer.h>
-#endif
 #if defined(DEBUG) || defined(PR_LOGGING)
 #  include <stdio.h>            // FILE
-#  include "prlog.h"            // for PR_LOG
+#  include "prlog.h"
 #  ifndef MOZ_LAYERS_HAVE_LOG
 #    define MOZ_LAYERS_HAVE_LOG
 #  endif
@@ -28,13 +24,10 @@ struct PRLogModuleInfo;
 #  define MOZ_LAYERS_LOG_IF_SHADOWABLE(layer, _args)
 #endif  // if defined(DEBUG) || defined(PR_LOGGING)
 
-namespace android {
-class GraphicBuffer;
-}
-
 namespace mozilla {
 namespace layers {
 
+class SurfaceDescriptor;
 
 typedef uint32_t TextureFlags;
 
@@ -44,8 +37,6 @@ enum LayersBackend {
   LAYERS_OPENGL,
   LAYERS_D3D9,
   LAYERS_D3D10,
-  LAYERS_D3D11,
-  LAYERS_CLIENT,
   LAYERS_LAST
 };
 
@@ -54,39 +45,36 @@ enum BufferMode {
   BUFFER_BUFFERED
 };
 
-enum DrawRegionClip {
-  CLIP_DRAW,
-  CLIP_DRAW_SNAPPED,
-  CLIP_NONE,
+// The kinds of mask layer a shader can support
+// We rely on the items in this enum being sequential
+enum MaskType {
+  MaskNone = 0,   // no mask layer
+  Mask2d,         // mask layer for layers with 2D transforms
+  Mask3d,         // mask layer for layers with 3D transforms
+  NumMaskTypes
 };
 
 // LayerRenderState for Composer2D
-// We currently only support Composer2D using gralloc. If we want to be backed
-// by other surfaces we will need a more generic LayerRenderState.
 enum LayerRenderStateFlags {
   LAYER_RENDER_STATE_Y_FLIPPED = 1 << 0,
-  LAYER_RENDER_STATE_BUFFER_ROTATION = 1 << 1,
-  // Notify Composer2D to swap the RB pixels of gralloc buffer
-  LAYER_RENDER_STATE_FORMAT_RB_SWAP = 1 << 2
+  LAYER_RENDER_STATE_BUFFER_ROTATION = 1 << 1
 };
 
-// The 'ifdef MOZ_WIDGET_GONK' sadness here is because we don't want to include
-// android::sp unless we have to.
 struct LayerRenderState {
-  LayerRenderState()
-#ifdef MOZ_WIDGET_GONK
-    : mSurface(nullptr), mFlags(0), mHasOwnOffset(false)
-#endif
+  LayerRenderState() : mSurface(nullptr), mFlags(0), mHasOwnOffset(false)
   {}
 
-#ifdef MOZ_WIDGET_GONK
-  LayerRenderState(android::GraphicBuffer* aSurface,
-                   const nsIntSize& aSize,
-                   uint32_t aFlags)
+  LayerRenderState(SurfaceDescriptor* aSurface, uint32_t aFlags = 0)
     : mSurface(aSurface)
-    , mSize(aSize)
     , mFlags(aFlags)
     , mHasOwnOffset(false)
+  {}
+
+  LayerRenderState(SurfaceDescriptor* aSurface, nsIntPoint aOffset, uint32_t aFlags = 0)
+    : mSurface(aSurface)
+    , mFlags(aFlags)
+    , mOffset(aOffset)
+    , mHasOwnOffset(true)
   {}
 
   bool YFlipped() const
@@ -95,35 +83,10 @@ struct LayerRenderState {
   bool BufferRotated() const
   { return mFlags & LAYER_RENDER_STATE_BUFFER_ROTATION; }
 
-  bool FormatRBSwapped() const
-  { return mFlags & LAYER_RENDER_STATE_FORMAT_RB_SWAP; }
-#endif
-
-  void SetOffset(const nsIntPoint& aOffset)
-  {
-    mOffset = aOffset;
-    mHasOwnOffset = true;
-  }
-
-#ifdef MOZ_WIDGET_GONK
-  // surface to render
-  android::sp<android::GraphicBuffer> mSurface;
-  // size of mSurface 
-  nsIntSize mSize;
-#endif
-  // see LayerRenderStateFlags
+  SurfaceDescriptor* mSurface;
   uint32_t mFlags;
-  // the location of the layer's origin on mSurface
   nsIntPoint mOffset;
-  // true if mOffset is applicable
   bool mHasOwnOffset;
-};
-
-enum ScaleMode {
-  SCALE_NONE,
-  SCALE_STRETCH,
-  SCALE_SENTINEL
-// Unimplemented - SCALE_PRESERVE_ASPECT_RATIO_CONTAIN
 };
 
 } // namespace

@@ -1058,7 +1058,7 @@ secmod_HandleWaitForSlotEvent(SECMODModule *mod,  unsigned long flags,
 	SECMOD_GetReadLock(moduleLock);
 	for (i=0; i < mod->slotCount; i++) {
 	    PK11SlotInfo *slot = mod->slots[i];
-	    PRUint16 series;
+	    uint16 series;
 	    PRBool present;
 
 	    /* perm modules do not change */
@@ -1495,13 +1495,6 @@ SECMOD_CloseUserDB(PK11SlotInfo *slot)
     }
     rv = secmod_UserDBOp(slot, CKO_NETSCAPE_DELSLOT, sendSpec);
     PR_smprintf_free(sendSpec);
-    /* if we are in the delay period for the "isPresent" call, reset
-     * the delay since we know things have probably changed... */
-    if (slot->nssToken && slot->nssToken->slot) {
-	nssSlot_ResetDelay(slot->nssToken->slot);
-	/* force the slot info structures to properly reset */
-	(void)PK11_IsPresent(slot);
-    }
     return rv;
 }
 

@@ -11,11 +11,10 @@
 # All configuration values have a default value; values that are commented out
 # serve to show the default value.
 
-import os
 import sys
 
 # If your extensions are in another directory, add it here.
-sys.path.insert(0, os.path.abspath(os.pardir))
+#sys.path.append('some/directory')
 
 # General configuration
 # ---------------------
@@ -29,14 +28,14 @@ extensions = ['sphinx.ext.autodoc']
 #templates_path = ['_templates']
 
 # The suffix of source filenames.
-source_suffix = '.rst'
+source_suffix = '.txt'
 
 # The master toctree document.
 master_doc = 'index'
 
 # General substitutions.
 project = 'virtualenv'
-copyright = '2007-2013, Ian Bicking, The Open Planning Project, The virtualenv developers'
+copyright = '2007-2012, Ian Bicking, The Open Planning Project, The virtualenv developers'
 
 # The default replacements for |version| and |release|, also used in various
 # other places throughout the built documents.

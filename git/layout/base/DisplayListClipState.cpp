@@ -18,18 +18,17 @@ DisplayListClipState::GetCurrentCombinedClip(nsDisplayListBuilder* aBuilder)
   if (!mClipContentDescendants && !mClipContainingBlockDescendants) {
     return nullptr;
   }
+  void* mem = aBuilder->Allocate(sizeof(DisplayItemClip));
   if (mClipContentDescendants) {
+    DisplayItemClip* newClip =
+      new (mem) DisplayItemClip(*mClipContentDescendants);
     if (mClipContainingBlockDescendants) {
-      DisplayItemClip intersection = *mClipContentDescendants;
-      intersection.IntersectWith(*mClipContainingBlockDescendants);
-      mCurrentCombinedClip = aBuilder->AllocateDisplayItemClip(intersection);
-    } else {
-      mCurrentCombinedClip =
-        aBuilder->AllocateDisplayItemClip(*mClipContentDescendants);
+      newClip->IntersectWith(*mClipContainingBlockDescendants);
     }
+    mCurrentCombinedClip = newClip;
   } else {
     mCurrentCombinedClip =
-      aBuilder->AllocateDisplayItemClip(*mClipContainingBlockDescendants);
+      new (mem) DisplayItemClip(*mClipContainingBlockDescendants);
   }
   return mCurrentCombinedClip;
 }
@@ -53,14 +52,9 @@ DisplayListClipState::ClipContainingBlockDescendants(const nsRect& aRect,
 
 void
 DisplayListClipState::ClipContentDescendants(const nsRect& aRect,
-                                             const nscoord* aRadii,
                                              DisplayItemClip& aClipOnStack)
 {
-  if (aRadii) {
-    aClipOnStack.SetTo(aRect, aRadii);
-  } else {
-    aClipOnStack.SetTo(aRect);
-  }
+  aClipOnStack.SetTo(aRect);
   if (mClipContentDescendants) {
     aClipOnStack.IntersectWith(*mClipContentDescendants);
   }

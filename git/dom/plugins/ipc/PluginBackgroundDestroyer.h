@@ -11,9 +11,8 @@
 #include "mozilla/plugins/PPluginBackgroundDestroyerChild.h"
 #include "mozilla/plugins/PPluginBackgroundDestroyerParent.h"
 
+#include "gfxASurface.h"
 #include "gfxSharedImageSurface.h"
-
-class gfxASurface;
 
 namespace mozilla {
 namespace plugins {
@@ -25,12 +24,30 @@ namespace plugins {
  */
 class PluginBackgroundDestroyerParent : public PPluginBackgroundDestroyerParent {
 public:
-    PluginBackgroundDestroyerParent(gfxASurface* aDyingBackground);
+    PluginBackgroundDestroyerParent(gfxASurface* aDyingBackground)
+      : mDyingBackground(aDyingBackground)
+    { }
 
-    virtual ~PluginBackgroundDestroyerParent();
+    virtual ~PluginBackgroundDestroyerParent() { }
 
 private:
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    {
+        switch(why) {
+        case Deletion:
+        case AncestorDeletion:
+            if (gfxSharedImageSurface::IsSharedImage(mDyingBackground)) {
+                gfxSharedImageSurface* s =
+                    static_cast<gfxSharedImageSurface*>(mDyingBackground.get());
+                DeallocShmem(s->GetShmem());
+            }
+            break;
+        default:
+            // We're shutting down or crashed, let automatic cleanup
+            // take care of our shmem, if we have one.
+            break;
+        }
+    }
 
     nsRefPtr<gfxASurface> mDyingBackground;
 };

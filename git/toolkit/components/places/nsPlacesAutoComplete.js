@@ -209,17 +209,14 @@ function safePrefGetter(aPrefBranch, aName, aDefault) {
  * Wraps a callback and ensures that handleCompletion is not dispatched if the
  * query is no longer tracked.
  *
- * @param aAutocomplete
- *        A reference to a nsPlacesAutoComplete.
  * @param aCallback
- *        A reference to a mozIStorageStatementCallback
+ *        A reference to a nsPlacesAutoComplete.
  * @param aDBConnection
  *        The database connection to execute the queries on.
  */
-function AutoCompleteStatementCallbackWrapper(aAutocomplete, aCallback,
+function AutoCompleteStatementCallbackWrapper(aCallback,
                                               aDBConnection)
 {
-  this._autocomplete = aAutocomplete;
   this._callback = aCallback;
   this._db = aDBConnection;
 }
@@ -242,9 +239,9 @@ AutoCompleteStatementCallbackWrapper.prototype = {
   {
     // Only dispatch handleCompletion if we are not done searching and are a
     // pending search.
-    if (!this._autocomplete.isSearchComplete() &&
-        this._autocomplete.isPendingSearch(this._handle)) {
-      this._callback.handleCompletion.apply(this._callback, arguments);
+    let callback = this._callback;
+    if (!callback.isSearchComplete() && callback.isPendingSearch(this._handle)) {
+      callback.handleCompletion.apply(callback, arguments);
     }
   },
 
@@ -276,7 +273,6 @@ AutoCompleteStatementCallbackWrapper.prototype = {
 
 ////////////////////////////////////////////////////////////////////////////////
 //// nsPlacesAutoComplete class
-//// @mozilla.org/autocomplete/search;1?name=history
 
 function nsPlacesAutoComplete()
 {
@@ -765,7 +761,7 @@ nsPlacesAutoComplete.prototype = {
     // handleCompletion implementation of AutoCompleteStatementCallbackWrapper).
 
     // Create our wrapper object and execute the queries.
-    let wrapper = new AutoCompleteStatementCallbackWrapper(this, this, this._db);
+    let wrapper = new AutoCompleteStatementCallbackWrapper(this, this._db);
     this._pendingQuery = wrapper.executeAsync(aQueries);
   },
 
@@ -1259,7 +1255,6 @@ nsPlacesAutoComplete.prototype = {
 
 ////////////////////////////////////////////////////////////////////////////////
 //// urlInlineComplete class
-//// component @mozilla.org/autocomplete/search;1?name=urlinline
 
 function urlInlineComplete()
 {
@@ -1282,14 +1277,14 @@ urlInlineComplete.prototype = {
     return this.__db;
   },
 
-  __hostQuery: null,
+  __syncQuery: null,
 
-  get _hostQuery()
+  get _syncQuery()
   {
-    if (!this.__hostQuery) {
+    if (!this.__syncQuery) {
       // Add a trailing slash at the end of the hostname, since we always
       // want to complete up to and including a URL separator.
-      this.__hostQuery = this._db.createAsyncStatement(
+      this.__syncQuery = this._db.createStatement(
           "/* do not warn (bug no): could index on (typed,frecency) but not worth it */ "
         + "SELECT host || '/', prefix || host || '/' "
         + "FROM moz_hosts "
@@ -1300,15 +1295,15 @@ urlInlineComplete.prototype = {
         + "LIMIT 1"
       );
     }
-    return this.__hostQuery;
+    return this.__syncQuery;
   },
 
-  __urlQuery: null,
+  __asyncQuery: null,
 
-  get _urlQuery()
+  get _asyncQuery()
   {
-    if (!this.__urlQuery) {
-      this.__urlQuery = this._db.createAsyncStatement(
+    if (!this.__asyncQuery) {
+      this.__asyncQuery = this._db.createAsyncStatement(
           "/* do not warn (bug no): can't use an index */ "
         + "SELECT h.url "
         + "FROM moz_places h "
@@ -1322,7 +1317,7 @@ urlInlineComplete.prototype = {
         + "LIMIT 1"
       );
     }
-    return this.__urlQuery;
+    return this.__asyncQuery;
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -1341,17 +1336,18 @@ urlInlineComplete.prototype = {
     this._originalSearchString = aSearchString;
     this._currentSearchString =
       fixupSearchText(this._originalSearchString.toLowerCase());
-    // The protocol and the host are lowercased by nsIURI, so it's fine to
+    // The protocol and the domain are lowercased by nsIURI, so it's fine to
     // lowercase the typed prefix to add it back to the results later.
     this._strippedPrefix = this._originalSearchString.slice(
       0, this._originalSearchString.length - this._currentSearchString.length
     ).toLowerCase();
 
-    this._result = Cc["@mozilla.org/autocomplete/simple-result;1"].
-                   createInstance(Ci.nsIAutoCompleteSimpleResult);
-    this._result.setSearchString(aSearchString);
-    this._result.setTypeAheadResult(true);
+    let result = Cc["@mozilla.org/autocomplete/simple-result;1"].
+                 createInstance(Ci.nsIAutoCompleteSimpleResult);
+    result.setSearchString(aSearchString);
+    result.setTypeAheadResult(true);
 
+    this._result = result;
     this._listener = aListener;
 
     // Don't autoFill if the search term is recognized as a keyword, otherwise
@@ -1373,65 +1369,61 @@ urlInlineComplete.prototype = {
       return;
     }
 
-    // Hosts have no "/" in them.
-    let lastSlashIndex = this._currentSearchString.lastIndexOf("/");
-
-    // Search only URLs if there's a slash in the search string...
-    if (lastSlashIndex != -1) {
-      // ...but not if it's exactly at the end of the search string.
-      if (lastSlashIndex < this._currentSearchString.length - 1)
-        this._queryURL();
-      else
-        this._finishSearch();
-      return;
-    }
-
-    // Do a synchronous search on the table of hosts.
-    let query = this._hostQuery;
+    // Do a synchronous search on the table of domains.
+    let query = this._syncQuery;
     query.params.search_string = this._currentSearchString.toLowerCase();
-    // This is just to measure the delay to reach the UI, not the query time.
-    TelemetryStopwatch.start(DOMAIN_QUERY_TELEMETRY);
-    let ac = this;
-    let wrapper = new AutoCompleteStatementCallbackWrapper(this, {
-      handleResult: function (aResultSet) {
-        let row = aResultSet.getNextRow();
-        let trimmedHost = row.getResultByIndex(0);
-        let untrimmedHost = row.getResultByIndex(1);
+
+    // Domains have no "/" in them.
+    let lastSlashIndex = this._currentSearchString.lastIndexOf("/");
+    if (lastSlashIndex == -1) {
+      var hasDomainResult = false;
+      var domain, untrimmedDomain;
+      TelemetryStopwatch.start(DOMAIN_QUERY_TELEMETRY);
+      try {
+        // Execute the query synchronously.
+        // This is by design, to avoid race conditions between the
+        // user typing and the connection searching for the result.
+        hasDomainResult = query.executeStep();
+        if (hasDomainResult) {
+          domain = query.getString(0);
+          untrimmedDomain = query.getString(1);
+        }
+      } finally {
+        query.reset();
+      }
+      TelemetryStopwatch.finish(DOMAIN_QUERY_TELEMETRY);
+
+      if (hasDomainResult) {
+        // We got a match for a domain, we can add it immediately.
         // If the untrimmed value doesn't preserve the user's input just
-        // ignore it and complete to the found host.
-        if (untrimmedHost &&
-            !untrimmedHost.toLowerCase().contains(ac._originalSearchString.toLowerCase())) {
-          untrimmedHost = null;
+        // ignore it and complete to the found domain.
+        if (untrimmedDomain &&
+            !untrimmedDomain.toLowerCase().contains(this._originalSearchString.toLowerCase())) {
+          untrimmedDomain = null;
         }
 
         // TODO (bug 754265): this is a temporary solution introduced while
         // waiting for a propert dedicated API.
-        ac._result.appendMatch(ac._strippedPrefix + trimmedHost, untrimmedHost);
+        result.appendMatch(this._strippedPrefix + domain, untrimmedDomain);
 
-        // handleCompletion() will cause the result listener to be called, and
-        // will display the result in the UI.
-      },
-
-      handleError: function (aError) {
-        Components.utils.reportError(
-          "URL Inline Complete: An async statement encountered an " +
-          "error: " + aError.result + ", '" + aError.message + "'");
-      },
-
-      handleCompletion: function (aReason) {
-        TelemetryStopwatch.finish(DOMAIN_QUERY_TELEMETRY);
-        ac._finishSearch();
+        this._finishSearch();
+        return;
       }
-    }, this._db);
-    this._pendingQuery = wrapper.executeAsync([query]);
-  },
+    }
 
-  /**
-   * Execute an asynchronous search through places, and complete
-   * up to the next URL separator.
-   */
-  _queryURL: function UIC__queryURL()
-  {
+    // We did not get a result from the synchronous domain search.
+    // We now do an asynchronous search through places, and complete
+    // up to the next URL separator.
+
+    // First, check if this is necessary.
+    // We don't need to search if we have no "/" separator, or if it's at
+    // the end of the search text.
+    if (lastSlashIndex == -1 ||
+        lastSlashIndex == this._currentSearchString.length - 1) {
+      this._finishSearch();
+      return;
+    }
+
     // The URIs in the database are fixed up, so we can match on a lowercased
     // host, but the path must be matched in a case sensitive way.
     let pathIndex =
@@ -1443,61 +1435,15 @@ urlInlineComplete.prototype = {
 
     // Within the standard autocomplete query, we only search the beginning
     // of URLs for 1 result.
-    let query = this._urlQuery;
+    let query = this._asyncQuery;
     let (params = query.params) {
       params.matchBehavior = MATCH_BEGINNING_CASE_SENSITIVE;
       params.searchBehavior = Ci.mozIPlacesAutoComplete["BEHAVIOR_URL"];
       params.searchString = this._currentSearchString;
     }
 
-    // Execute the query.
-    let ac = this;
-    let wrapper = new AutoCompleteStatementCallbackWrapper(this, {
-      handleResult: function(aResultSet) {
-        let row = aResultSet.getNextRow();
-        let value = row.getResultByIndex(0);
-        let url = fixupSearchText(value);
-
-        let prefix = value.slice(0, value.length - stripPrefix(value).length);
-
-        // We must complete the URL up to the next separator (which is /, ? or #).
-        let separatorIndex = url.slice(ac._currentSearchString.length)
-                                .search(/[\/\?\#]/);
-        if (separatorIndex != -1) {
-          separatorIndex += ac._currentSearchString.length;
-          if (url[separatorIndex] == "/") {
-            separatorIndex++; // Include the "/" separator
-          }
-          url = url.slice(0, separatorIndex);
-        }
-
-        // Add the result.
-        // If the untrimmed value doesn't preserve the user's input just
-        // ignore it and complete to the found url.
-        let untrimmedURL = prefix + url;
-        if (untrimmedURL &&
-            !untrimmedURL.toLowerCase().contains(ac._originalSearchString.toLowerCase())) {
-          untrimmedURL = null;
-         }
-
-        // TODO (bug 754265): this is a temporary solution introduced while
-        // waiting for a propert dedicated API.
-        ac._result.appendMatch(ac._strippedPrefix + url, untrimmedURL);
-
-        // handleCompletion() will cause the result listener to be called, and
-        // will display the result in the UI.
-      },
-
-      handleError: function(aError) {
-        Components.utils.reportError(
-          "URL Inline Complete: An async statement encountered an " +
-          "error: " + aError.result + ", '" + aError.message + "'");
-      },
-
-      handleCompletion: function(aReason) {
-        ac._finishSearch();
-      }
-    }, this._db);
+    // Execute the async query
+    let wrapper = new AutoCompleteStatementCallbackWrapper(this, this._db);
     this._pendingQuery = wrapper.executeAsync([query]);
   },
 
@@ -1544,6 +1490,56 @@ urlInlineComplete.prototype = {
   get searchType() Ci.nsIAutoCompleteSearchDescriptor.SEARCH_TYPE_IMMEDIATE,
 
   //////////////////////////////////////////////////////////////////////////////
+  //// mozIStorageStatementCallback
+
+  handleResult: function UIC_handleResult(aResultSet)
+  {
+    let row = aResultSet.getNextRow();
+    let value = row.getResultByIndex(0);
+    let url = fixupSearchText(value);
+
+    let prefix = value.slice(0, value.length - stripPrefix(value).length);
+
+    // We must complete the URL up to the next separator (which is /, ? or #).
+    let separatorIndex = url.slice(this._currentSearchString.length)
+                            .search(/[\/\?\#]/);
+    if (separatorIndex != -1) {
+      separatorIndex += this._currentSearchString.length;
+      if (url[separatorIndex] == "/") {
+        separatorIndex++; // Include the "/" separator
+      }
+      url = url.slice(0, separatorIndex);
+    }
+
+    // Add the result.
+    // If the untrimmed value doesn't preserve the user's input just
+    // ignore it and complete to the found url.
+    let untrimmedURL = prefix + url;
+    if (untrimmedURL &&
+        !untrimmedURL.toLowerCase().contains(this._originalSearchString.toLowerCase())) {
+      untrimmedURL = null;
+     }
+
+    // TODO (bug 754265): this is a temporary solution introduced while
+    // waiting for a propert dedicated API.
+    this._result.appendMatch(this._strippedPrefix + url, untrimmedURL);
+
+    // handleCompletion() will cause the result listener to be called, and
+    // will display the result in the UI.
+  },
+
+  handleError: function UIC_handleError(aError)
+  {
+    Components.utils.reportError("URL Inline Complete: An async statement encountered an " +
+                                 "error: " + aError.result + ", '" + aError.message + "'");
+  },
+
+  handleCompletion: function UIC_handleCompletion(aReason)
+  {
+    this._finishSearch();
+  },
+
+  //////////////////////////////////////////////////////////////////////////////
   //// nsIObserver
 
   observe: function UIC_observe(aSubject, aTopic, aData)
@@ -1575,8 +1571,8 @@ urlInlineComplete.prototype = {
   {
     // Finalize the statements that we have used.
     let stmts = [
-      "__hostQuery",
-      "__urlQuery",
+      "__syncQuery",
+      "__asyncQuery",
     ];
     for (let i = 0; i < stmts.length; i++) {
       // We do not want to create any query we haven't already created, so
@@ -1640,6 +1636,7 @@ urlInlineComplete.prototype = {
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsIAutoCompleteSearch,
     Ci.nsIAutoCompleteSearchDescriptor,
+    Ci.mozIStorageStatementCallback,
     Ci.nsIObserver,
     Ci.nsISupportsWeakReference,
   ])

@@ -8,6 +8,7 @@
 #include "nsISerializable.idl"
 
 %{C++
+struct JSContext;
 struct JSPrincipals;
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
@@ -20,7 +21,7 @@ interface nsIContentSecurityPolicy;
 [ptr] native JSPrincipals(JSPrincipals);
 [ptr] native PrincipalArray(nsTArray<nsCOMPtr<nsIPrincipal> >);
 
-[scriptable, builtinclass, uuid(551bf53d-203c-4ac4-8c0b-40aa7b5f1ad6)]
+[scriptable, builtinclass, uuid(dbda8bb0-3023-4aec-ad98-8e9931a29d70)]
 interface nsIPrincipal : nsISerializable
 {
     /**
@@ -34,18 +35,6 @@ interface nsIPrincipal : nsISerializable
      * Like equals, but doesn't take document.domain changes into account.
      */
     boolean equalsIgnoringDomain(in nsIPrincipal other);
-
-    %{C++
-    inline bool Equals(nsIPrincipal* aOther) {
-      bool equal = false;
-      return NS_SUCCEEDED(Equals(aOther, &equal)) && equal;
-    }
-
-    inline bool EqualsIgnoringDomain(nsIPrincipal* aOther) {
-      bool equal = false;
-      return NS_SUCCEEDED(EqualsIgnoringDomain(aOther, &equal)) && equal;
-    }
-    %}
 
     /**
      * Returns a hash value for the principal.
@@ -111,18 +100,6 @@ interface nsIPrincipal : nsISerializable
      */
     boolean subsumesIgnoringDomain(in nsIPrincipal other);
 
-    %{C++
-    inline bool Subsumes(nsIPrincipal* aOther) {
-      bool subsumes = false;
-      return NS_SUCCEEDED(Subsumes(aOther, &subsumes)) && subsumes;
-    }
-
-    inline bool SubsumesIgnoringDomain(nsIPrincipal* aOther) {
-      bool subsumes = false;
-      return NS_SUCCEEDED(SubsumesIgnoringDomain(aOther, &subsumes)) && subsumes;
-    }
-    %}
-
     /**
      * Checks whether this principal is allowed to load the network resource
      * located at the given URI under the same-origin policy. This means that
@@ -162,19 +139,19 @@ interface nsIPrincipal : nsISerializable
     [noscript] attribute nsIContentSecurityPolicy csp;
 
     /**
-     * Returns the jar prefix of the principal.
-     * The jar prefix is a string that can be used to isolate data or
-     * permissions between different principals while taking into account
-     * parameters like the app id or the fact that the principal is embedded in
-     * a mozbrowser.
-     * Some principals will return an empty string.
-     * Some principals will assert if you try to access the jarPrefix.
+     * Returns the extended origin of the principal.
+     * The extended origin is a string that has more information than the origin
+     * and can be used to isolate data or permissions between different
+     * principals while taking into account parameters like the app id or the
+     * fact that the principal is embedded in a mozbrowser.
+     * Some principals will return the origin for extendedOrigin.
+     * Some principals will assert if you try to access the extendedOrigin.
      *
-     * The jarPrefix is intended to be an opaque identifier. It is currently
-     * "human-readable" but no callers should assume it will stay as is and
-     * it might be crypto-hashed at some point.
+     * The extendedOrigin is intended to be an opaque identifier. It is
+     * currently "human-readable" but no callers should assume it will stay
+     * as is and it might be crypto-hashed at some point.
      */
-    readonly attribute AUTF8String jarPrefix;
+    readonly attribute AUTF8String extendedOrigin;
 
     /**
      * The base domain of the codebase URI to which this principal pertains

@@ -20,9 +20,10 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef nsHtml5NamedCharacters_h
-#define nsHtml5NamedCharacters_h
+#ifndef nsHtml5NamedCharacters_h_
+#define nsHtml5NamedCharacters_h_
 
+#include "prtypes.h"
 #include "jArray.h"
 #include "nscore.h"
 #include "nsDebug.h"
@@ -49,4 +50,4 @@ class nsHtml5NamedCharacters
     static void releaseStatics();
 };
 
-#endif // nsHtml5NamedCharacters_h
+#endif // nsHtml5NamedCharacters_h_

@@ -10,80 +10,37 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 
 const PANE_APPEARANCE_DELAY = 50;
-const PAGE_SIZE_ITEM_COUNT_RATIO = 5;
-const WIDGET_FOCUSABLE_NODES = new Set(["vbox", "hbox"]);
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Timer.jsm");
 
-this.EXPORTED_SYMBOLS = [
-  "Heritage", "ViewHelpers", "WidgetMethods",
-  "setNamedTimeout", "clearNamedTimeout"
-];
-
-/**
- * Inheritance helpers from the addon SDK's core/heritage.
- * Remove these when all devtools are loadered.
- */
-this.Heritage = {
-  /**
-   * @see extend in sdk/core/heritage.
-   */
-  extend: function(aPrototype, aProperties = {}) {
-    return Object.create(aPrototype, this.getOwnPropertyDescriptors(aProperties));
-  },
-
-  /**
-   * @see getOwnPropertyDescriptors in sdk/core/heritage.
-   */
-  getOwnPropertyDescriptors: function(aObject) {
-    return Object.getOwnPropertyNames(aObject).reduce((aDescriptor, aName) => {
-      aDescriptor[aName] = Object.getOwnPropertyDescriptor(aObject, aName);
-      return aDescriptor;
-    }, {});
-  }
-};
-
-/**
- * Helper for draining a rapid succession of events and invoking a callback
- * once everything settles down.
- *
- * @param string aId
- *        A string identifier for the named timeout.
- * @param number aWait
- *        The amount of milliseconds to wait after no more events are fired.
- * @param function aCallback
- *        Invoked when no more events are fired after the specified time.
- */
-this.setNamedTimeout = function(aId, aWait, aCallback) {
-  clearNamedTimeout(aId);
-
-  namedTimeoutsStore.set(aId, setTimeout(() =>
-    namedTimeoutsStore.delete(aId) && aCallback(), aWait));
-};
-
-/**
- * Clears a named timeout.
- * @see setNamedTimeout
- *
- * @param string aId
- *        A string identifier for the named timeout.
- */
-this.clearNamedTimeout = function(aId) {
-  if (!namedTimeoutsStore) {
-    return;
-  }
-  clearTimeout(namedTimeoutsStore.get(aId));
-  namedTimeoutsStore.delete(aId);
-};
-
-XPCOMUtils.defineLazyGetter(this, "namedTimeoutsStore", () => new Map());
+this.EXPORTED_SYMBOLS = ["ViewHelpers", "MenuItem", "MenuContainer"];
 
 /**
  * Helpers for creating and messaging between UI components.
  */
 this.ViewHelpers = {
+  /**
+   * Sugar for prototypal inheritance using Object.create.
+   * Creates a new object with the specified prototype object and properties.
+   *
+   * @param object aObject
+   *        An object containing the following properties:
+   *          - constructor: the function to configure the prototype for
+   *          - proto: the prototype to extend
+   * @param object aProperties
+   *        The properties extending the prototype.
+   */
+  create: function VH_create({ constructor, proto }, aProperties = {}) {
+    let descriptors = {
+      constructor: { value: constructor }
+    };
+    for (let name in aProperties) {
+      descriptors[name] = Object.getOwnPropertyDescriptor(aProperties, name);
+    }
+    constructor.prototype = Object.create(proto, descriptors);
+  },
+
   /**
    * Convenience method, dispatching a custom event.
    *
@@ -97,8 +54,8 @@ this.ViewHelpers = {
    *         True if the event was cancelled or a registered handler
    *         called preventDefault.
    */
-  dispatchEvent: function(aTarget, aType, aDetail) {
-    if (!(aTarget instanceof Ci.nsIDOMNode)) {
+  dispatchEvent: function VH_dispatchEvent(aTarget, aType, aDetail) {
+    if (!aTarget) {
       return true; // Event cancelled.
     }
     let document = aTarget.ownerDocument || aTarget;
@@ -111,13 +68,14 @@ this.ViewHelpers = {
 
   /**
    * Helper delegating some of the DOM attribute methods of a node to a widget.
+   * @see MenuContainer constructor
    *
    * @param object aWidget
    *        The widget to assign the methods to.
    * @param nsIDOMNode aNode
    *        A node to delegate the methods to.
    */
-  delegateWidgetAttributeMethods: function(aWidget, aNode) {
+  delegateWidgetAttributeMethods: function VH_delegateWidgetAttributeMethods(aWidget, aNode) {
     aWidget.getAttribute = aNode.getAttribute.bind(aNode);
     aWidget.setAttribute = aNode.setAttribute.bind(aNode);
     aWidget.removeAttribute = aNode.removeAttribute.bind(aNode);
@@ -125,59 +83,16 @@ this.ViewHelpers = {
 
   /**
    * Helper delegating some of the DOM event methods of a node to a widget.
+   * @see MenuContainer constructor
    *
    * @param object aWidget
    *        The widget to assign the methods to.
    * @param nsIDOMNode aNode
    *        A node to delegate the methods to.
    */
-  delegateWidgetEventMethods: function(aWidget, aNode) {
+  delegateWidgetEventMethods: function VH_delegateWidgetEventMethods(aWidget, aNode) {
     aWidget.addEventListener = aNode.addEventListener.bind(aNode);
     aWidget.removeEventListener = aNode.removeEventListener.bind(aNode);
-  },
-
-  /**
-   * Checks if the specified object looks like it's been decorated by an
-   * event emitter.
-   *
-   * @return boolean
-   *         True if it looks, walks and quacks like an event emitter.
-   */
-  isEventEmitter: function(aObject) {
-    return aObject && aObject.on && aObject.off && aObject.once && aObject.emit;
-  },
-
-  /**
-   * Checks if the specified object is an instance of a DOM node.
-   *
-   * @return boolean
-   *         True if it's a node, false otherwise.
-   */
-  isNode: function(aObject) {
-    return aObject instanceof Ci.nsIDOMNode ||
-           aObject instanceof Ci.nsIDOMElement ||
-           aObject instanceof Ci.nsIDOMDocumentFragment;
-  },
-
-  /**
-   * Prevents event propagation when navigation keys are pressed.
-   *
-   * @param Event e
-   *        The event to be prevented.
-   */
-  preventScrolling: function(e) {
-    switch (e.keyCode) {
-      case e.DOM_VK_UP:
-      case e.DOM_VK_DOWN:
-      case e.DOM_VK_LEFT:
-      case e.DOM_VK_RIGHT:
-      case e.DOM_VK_PAGE_UP:
-      case e.DOM_VK_PAGE_DOWN:
-      case e.DOM_VK_HOME:
-      case e.DOM_VK_END:
-        e.preventDefault();
-        e.stopPropagation();
-    }
   },
 
   /**
@@ -192,12 +107,7 @@ this.ViewHelpers = {
    * @param nsIDOMNode aPane
    *        The element representing the pane to toggle.
    */
-  togglePane: function(aFlags, aPane) {
-    // Make sure a pane is actually available first.
-    if (!aPane) {
-      return;
-    }
-
+  togglePane: function VH_togglePane(aFlags, aPane) {
     // Hiding is always handled via margins, not the hidden attribute.
     aPane.removeAttribute("hidden");
 
@@ -212,15 +122,8 @@ this.ViewHelpers = {
       return;
     }
 
-    // The "animated" attributes enables animated toggles (slide in-out).
-    if (aFlags.animated) {
-      aPane.setAttribute("animated", "");
-    } else {
-      aPane.removeAttribute("animated");
-    }
-
     // Computes and sets the pane margins in order to hide or show it.
-    let doToggle = () => {
+    function set() {
       if (aFlags.visible) {
         aPane.style.marginLeft = "0";
         aPane.style.marginRight = "0";
@@ -245,12 +148,19 @@ this.ViewHelpers = {
       }
     }
 
+    // The "animated" attributes enables animated toggles (slide in-out).
+    if (aFlags.animated) {
+      aPane.setAttribute("animated", "");
+    } else {
+      aPane.removeAttribute("animated");
+    }
+
     // Sometimes it's useful delaying the toggle a few ticks to ensure
     // a smoother slide in-out animation.
     if (aFlags.delayed) {
-      aPane.ownerDocument.defaultView.setTimeout(doToggle, PANE_APPEARANCE_DELAY);
+      aPane.ownerDocument.defaultView.setTimeout(set.bind(this), PANE_APPEARANCE_DELAY);
     } else {
-      doToggle();
+      set.call(this);
     }
   }
 };
@@ -261,7 +171,7 @@ this.ViewHelpers = {
  * @param string aStringBundleName
  *        The desired string bundle's name.
  */
-ViewHelpers.L10N = function(aStringBundleName) {
+ViewHelpers.L10N = function L10N(aStringBundleName) {
   XPCOMUtils.defineLazyGetter(this, "stringBundle", () =>
     Services.strings.createBundle(aStringBundleName));
 
@@ -278,7 +188,7 @@ ViewHelpers.L10N.prototype = {
    * @param string aName
    * @return string
    */
-  getStr: function(aName) {
+  getStr: function L10N_getStr(aName) {
     return this.stringBundle.GetStringFromName(aName);
   },
 
@@ -289,48 +199,8 @@ ViewHelpers.L10N.prototype = {
    * @param array aArgs
    * @return string
    */
-  getFormatStr: function(aName, ...aArgs) {
+  getFormatStr: function L10N_getFormatStr(aName, ...aArgs) {
     return this.stringBundle.formatStringFromName(aName, aArgs, aArgs.length);
-  },
-
-  /**
-   * L10N shortcut function for numeric arguments that need to be formatted.
-   * All numeric arguments will be fixed to 2 decimals and given a localized
-   * decimal separator. Other arguments will be left alone.
-   *
-   * @param string aName
-   * @param array aArgs
-   * @return string
-   */
-  getFormatStrWithNumbers: function(aName, ...aArgs) {
-    let newArgs = aArgs.map(x => typeof x == "number" ? this.numberWithDecimals(x, 2) : x);
-    return this.stringBundle.formatStringFromName(aName, newArgs, newArgs.length);
-  },
-
-  /**
-   * Converts a number to a locale-aware string format and keeps a certain
-   * number of decimals.
-   *
-   * @param number aNumber
-   *        The number to convert.
-   * @param number aDecimals [optional]
-   *        Total decimals to keep.
-   * @return string
-   *         The localized number as a string.
-   */
-  numberWithDecimals: function(aNumber, aDecimals = 0) {
-    // If this is an integer, don't do anything special.
-    if (aNumber == (aNumber | 0)) {
-      return aNumber;
-    }
-    // Remove {n} trailing decimals. Can't use toFixed(n) because
-    // toLocaleString converts the number to a string. Also can't use
-    // toLocaleString(, { maximumFractionDigits: n }) because it's not
-    // implemented on OS X (bug 368838). Gross.
-    let localized = aNumber.toLocaleString(); // localize
-    let padded = localized + new Array(aDecimals).join("0"); // pad with zeros
-    let match = padded.match("([^]*?\\d{" + aDecimals + "})\\d*$");
-    return match.pop();
   }
 };
 
@@ -351,7 +221,7 @@ ViewHelpers.L10N.prototype = {
  * @param object aPrefsObject
  *        An object containing { accessorName: [prefType, prefName] } keys.
  */
-ViewHelpers.Prefs = function(aPrefsRoot = "", aPrefsObject = {}) {
+ViewHelpers.Prefs = function Prefs(aPrefsRoot = "", aPrefsObject = {}) {
   this.root = aPrefsRoot;
 
   for (let accessorName in aPrefsObject) {
@@ -368,7 +238,7 @@ ViewHelpers.Prefs.prototype = {
    * @param string aPrefName
    * @return any
    */
-  _get: function(aType, aPrefName) {
+  _get: function P__get(aType, aPrefName) {
     if (this[aPrefName] === undefined) {
       this[aPrefName] = Services.prefs["get" + aType + "Pref"](aPrefName);
     }
@@ -382,7 +252,7 @@ ViewHelpers.Prefs.prototype = {
    * @param string aPrefName
    * @param any aValue
    */
-  _set: function(aType, aPrefName, aValue) {
+  _set: function P__set(aType, aPrefName, aValue) {
     Services.prefs["set" + aType + "Pref"](aPrefName, aValue);
     this[aPrefName] = aValue;
   },
@@ -394,7 +264,7 @@ ViewHelpers.Prefs.prototype = {
    * @param string aType
    * @param string aPrefName
    */
-  map: function(aAccessorName, aType, aPrefName) {
+  map: function P_map(aAccessorName, aType, aPrefName) {
     Object.defineProperty(this, aAccessorName, {
       get: () => this._get(aType, [this.root, aPrefName].join(".")),
       set: (aValue) => this._set(aType, [this.root, aPrefName].join("."), aValue)
@@ -403,141 +273,165 @@ ViewHelpers.Prefs.prototype = {
 };
 
 /**
- * A generic Item is used to describe children present in a Widget.
+ * A generic MenuItem is used to describe elements present in a MenuContainer.
  * The label, value and description properties are necessarily strings.
- * Iterable via "for (let childItem of parentItem) { }".
+ * Iterable via "for (let childItem in parentItem) { }".
  *
- * @param object aOwnerView
- *        The owner view creating this item.
  * @param any aAttachment
  *        Some attached primitive/object.
- * @param nsIDOMNode | nsIDOMDocumentFragment | array aContents [optional]
- *        A prebuilt node, or an array containing the following properties:
- *        - aLabel: the label displayed in the widget
- *        - aValue: the actual internal value of the item
- *        - aDescription: an optional description of the item
+ * @param string aLabel
+ *        The label displayed in the container.
+ * @param string aValue
+ *        The actual internal value of the item.
+ * @param string aDescription [optional]
+ *        An optional description of the item.
  */
-function Item(aOwnerView, aAttachment, aContents = []) {
-  this.ownerView = aOwnerView;
+this.MenuItem = function MenuItem(aAttachment, aLabel, aValue, aDescription) {
   this.attachment = aAttachment;
-
-  let [aLabel, aValue, aDescription] = aContents;
-  // Make sure the label and the value are always strings.
   this._label = aLabel + "";
   this._value = aValue + "";
-  // Make sure the description is also a string, but only if it's available.
-  if (aDescription !== undefined) {
-    this._description = aDescription + "";
-  }
-
-  // Allow the insertion of prebuilt nodes, otherwise delegate the item view
-  // creation to a widget.
-  if (ViewHelpers.isNode(aLabel)) {
-    this._prebuiltTarget = aLabel;
-  }
-
-  XPCOMUtils.defineLazyGetter(this, "_itemsByElement", () => new Map());
+  this._description = (aDescription || "") + "";
 };
 
-Item.prototype = {
+MenuItem.prototype = {
+  /**
+   * Gets the label set for this item.
+   * @return string
+   */
   get label() this._label,
-  get value() this._value,
-  get description() this._description,
-  get target() this._target,
 
   /**
-   * Immediately appends a child item to this item.
+   * Gets the value set for this item.
+   * @return string
+   */
+  get value() this._value,
+
+  /**
+   * Gets the description set for this item.
+   * @return string
+   */
+  get description() this._description,
+
+  /**
+   * Immediately appends a child item to this menu item.
    *
-   * @param nsIDOMNode aElement
+   * @param nsIDOMNode
    *        An nsIDOMNode representing the child element to append.
    * @param object aOptions [optional]
    *        Additional options or flags supported by this operation:
    *          - attachment: some attached primitive/object for the item
    *          - attributes: a batch of attributes set to the displayed element
-   *          - finalize: function invoked when the child item is removed
-   * @return Item
+   *          - finalize: function called when the child node is removed
+   * @return MenuItem
    *         The item associated with the displayed element.
    */
-  append: function(aElement, aOptions = {}) {
-    let item = new Item(this, aOptions.attachment);
+  append: function MI_append(aElement, aOptions = {}) {
+    let item = new MenuItem(aOptions.attachment);
 
-    // Entangle the item with the newly inserted child node.
-    this._entangleItem(item, this._target.appendChild(aElement));
-
-    // Handle any additional options after entangling the item.
+    // Handle any additional options before appending the child node.
     if (aOptions.attributes) {
-      aOptions.attributes.forEach(e => item._target.setAttribute(e[0], e[1]));
+      this.setAttributes(aOptions.attributes);
     }
     if (aOptions.finalize) {
       item.finalize = aOptions.finalize;
     }
+
+    // Entangle the item with the newly inserted child node.
+    this._entangleItem(item, this.target.appendChild(aElement));
 
     // Return the item associated with the displayed element.
     return item;
   },
 
   /**
-   * Immediately removes the specified child item from this item.
+   * Immediately removes the specified child item from this menu item.
    *
-   * @param Item aItem
+   * @param MenuItem aItem
    *        The item associated with the element to remove.
    */
-  remove: function(aItem) {
+  remove: function MI_remove(aItem) {
     if (!aItem) {
       return;
     }
-    this._target.removeChild(aItem._target);
+    this.target.removeChild(aItem.target);
     this._untangleItem(aItem);
+  },
+
+  /**
+   * Visually marks this menu item as selected.
+   */
+  markSelected: function MI_markSelected() {
+    if (!this.target) {
+      return;
+    }
+    this.target.classList.add("selected");
+  },
+
+  /**
+   * Visually marks this menu item as deselected.
+   */
+  markDeselected: function MI_markDeselected() {
+    if (!this.target) {
+      return;
+    }
+    this.target.classList.remove("selected");
+  },
+
+  /**
+   * Batch sets attributes on an element.
+   *
+   * @param array aAttributes
+   *        An array of [name, value] tuples representing the attributes.
+   * @param nsIDOMNode aElement [optional]
+   *        A custom element to set the attributes to.
+   */
+  setAttributes: function MI_setAttributes(aAttributes, aElement = this.target) {
+    for (let [name, value] of aAttributes) {
+      aElement.setAttribute(name, value);
+    }
   },
 
   /**
    * Entangles an item (model) with a displayed node element (view).
    *
-   * @param Item aItem
-   *        The item describing a target element.
+   * @param MenuItem aItem
+   *        The item describing the element.
    * @param nsIDOMNode aElement
    *        The element displaying the item.
    */
-  _entangleItem: function(aItem, aElement) {
+  _entangleItem: function MI__entangleItem(aItem, aElement) {
+    if (!this._itemsByElement) {
+      this._itemsByElement = new Map(); // This needs to be iterable.
+    }
+
     this._itemsByElement.set(aElement, aItem);
-    aItem._target = aElement;
+    aItem.target = aElement;
   },
 
   /**
    * Untangles an item (model) from a displayed node element (view).
    *
-   * @param Item aItem
-   *        The item describing a target element.
+   * @param MenuItem aItem
+   *        The item describing the element.
    */
-  _untangleItem: function(aItem) {
+  _untangleItem: function MI__untangleItem(aItem) {
     if (aItem.finalize) {
       aItem.finalize(aItem);
     }
-    for (let childItem of aItem) {
+    for (let childItem in aItem) {
       aItem.remove(childItem);
     }
 
-    this._unlinkItem(aItem);
-    aItem._prebuiltTarget = null;
-    aItem._target = null;
-  },
-
-  /**
-   * Deletes an item from the its parent's storage maps.
-   *
-   * @param Item aItem
-   *        The item describing a target element.
-   */
-  _unlinkItem: function(aItem) {
-    this._itemsByElement.delete(aItem._target);
+    this._itemsByElement.delete(aItem.target);
+    aItem.target = null;
   },
 
   /**
    * Returns a string representing the object.
    * @return string
    */
-  toString: function() {
-    if (this._label != "undefined" && this._value != "undefined") {
+  toString: function MI_toString() {
+    if (this._label && this._value) {
       return this._label + " -> " + this._value;
     }
     if (this.attachment) {
@@ -548,35 +442,23 @@ Item.prototype = {
 
   _label: "",
   _value: "",
-  _description: undefined,
-  _prebuiltTarget: null,
-  _target: null,
+  _description: "",
+  target: null,
   finalize: null,
   attachment: null
 };
 
 /**
- * Some generic Widget methods handling Item instances.
- * Iterable via "for (let childItem of wrappedView) { }".
- *
- * Usage:
- *   function MyView() {
- *     this.widget = new MyWidget(document.querySelector(".my-node"));
- *   }
- *
- *   MyView.prototype = Heritage.extend(WidgetMethods, {
- *     myMethod: function() {},
- *     ...
- *   });
- *
- * See https://gist.github.com/victorporof/5749386 for more details.
+ * A generic MenuContainer is used for displaying MenuItem instances.
+ * Iterable via "for (let item in menuContainer) { }".
  *
  * Language:
- *   - An "item" is an instance of an Item.
+ *   - An "item" is an instance (or compatible interface) of a MenuItem.
  *   - An "element" or "node" is a nsIDOMNode.
  *
- * The supplied element node or widget can either be a <xul:menulist>, or any
- * other object interfacing the following methods:
+ * The element node or widget supplied to all instances of this container
+ * can either be a <menulist>, or any other object interfacing the following
+ * methods:
  *   - function:nsIDOMNode insertItemAt(aIndex:number, aLabel:string, aValue:string)
  *   - function:nsIDOMNode getItemAtIndex(aIndex:number)
  *   - function removeChild(aChild:nsIDOMNode)
@@ -588,62 +470,49 @@ Item.prototype = {
  *   - function removeAttribute(aName:string)
  *   - function addEventListener(aName:string, aCallback:function, aBubbleFlag:boolean)
  *   - function removeEventListener(aName:string, aCallback:function, aBubbleFlag:boolean)
- *
- * For automagical keyboard and mouse accessibility, the element node or widget
- * should be an event emitter with the following events:
- *   - "keyPress" -> (aName:string, aEvent:KeyboardEvent)
- *   - "mousePress" -> (aName:string, aEvent:MouseEvent)
  */
-this.WidgetMethods = {
+this.MenuContainer = function MenuContainer() {
+};
+
+MenuContainer.prototype = {
   /**
    * Sets the element node or widget associated with this container.
    * @param nsIDOMNode | object aWidget
    */
-  set widget(aWidget) {
-    this._widget = aWidget;
-
-    // Can't use WeakMaps for itemsByLabel or itemsByValue because
-    // keys are strings, and itemsByElement needs to be iterable.
-    XPCOMUtils.defineLazyGetter(this, "_itemsByLabel", () => new Map());
-    XPCOMUtils.defineLazyGetter(this, "_itemsByValue", () => new Map());
-    XPCOMUtils.defineLazyGetter(this, "_itemsByElement", () => new Map());
-    XPCOMUtils.defineLazyGetter(this, "_stagedItems", () => []);
-
-    // Handle internal events emitted by the widget if necessary.
-    if (ViewHelpers.isEventEmitter(aWidget)) {
-      aWidget.on("keyPress", this._onWidgetKeyPress.bind(this));
-      aWidget.on("mousePress", this._onWidgetMousePress.bind(this));
-    }
+  set node(aWidget) {
+    this._container = aWidget;
+    this._itemsByLabel = new Map();   // Can't use a WeakMap for itemsByLabel or
+    this._itemsByValue = new Map();   // itemsByValue because keys are strings,
+    this._itemsByElement = new Map(); // and itemsByElement needs to be iterable.
+    this._stagedItems = [];
   },
 
   /**
    * Gets the element node or widget associated with this container.
    * @return nsIDOMNode | object
    */
-  get widget() this._widget,
+  get node() this._container,
 
   /**
-   * Prepares an item to be added to this container. This allows, for example,
-   * for a large number of items to be batched up before being sorted & added.
+   * Prepares an item to be added to this container. This allows for a large
+   * number of items to be batched up before alphabetically sorted and added.
    *
-   * If the "staged" flag is *not* set to true, the item will be immediately
+   * If the "staged" flag is not set to true, the item will be immediately
    * inserted at the correct position in this container, so that all the items
-   * still remain sorted. This can (possibly) be much slower than batching up
+   * remain sorted. This can (possibly) be much slower than batching up
    * multiple items.
    *
    * By default, this container assumes that all the items should be displayed
    * sorted by their label. This can be overridden with the "index" flag,
-   * specifying on which position should an item be appended. The "staged" and
-   * "index" flags are mutually exclusive, meaning that all staged items
-   * will always be appended.
+   * specifying on which position should an item be appended.
    *
    * Furthermore, this container makes sure that all the items are unique
    * (two items with the same label or value are not allowed) and non-degenerate
    * (items with "undefined" or "null" labels/values). This can, as well, be
    * overridden via the "relaxed" flag.
    *
-   * @param nsIDOMNode | nsIDOMDocumentFragment array aContents
-   *        A prebuilt node, or an array containing the following properties:
+   * @param nsIDOMNode | object aContents
+   *        An nsIDOMNode, or an array containing the following properties:
    *          - label: the label displayed in the container
    *          - value: the actual internal value of the item
    *          - description: an optional description of the item
@@ -654,23 +523,29 @@ this.WidgetMethods = {
    *          - relaxed: true if this container should allow dupes & degenerates
    *          - attachment: some attached primitive/object for the item
    *          - attributes: a batch of attributes set to the displayed element
-   *          - finalize: function invokde when the item is removed
-   * @return Item
+   *          - finalize: function called when the item is untangled (removed)
+   * @return MenuItem
    *         The item associated with the displayed element if an unstaged push,
    *         undefined if the item was staged for a later commit.
    */
-  push: function(aContents, aOptions = {}) {
-    let item = new Item(this, aOptions.attachment, aContents);
+  push: function MC_push(aContents, aOptions = {}) {
+    if (aContents instanceof Ci.nsIDOMNode ||
+        aContents instanceof Ci.nsIDOMElement) {
+      // Allow the insertion of prebuilt nodes.
+      aOptions.node = aContents;
+      aContents = ["", "", ""];
+    }
+
+    let [label, value, description] = aContents;
+    let item = new MenuItem(aOptions.attachment, label, value, description);
 
     // Batch the item to be added later.
     if (aOptions.staged) {
-      // An ulterior commit operation will ignore any specified index.
-      delete aOptions.index;
       return void this._stagedItems.push({ item: item, options: aOptions });
     }
     // Find the target position in this container and insert the item there.
     if (!("index" in aOptions)) {
-      return this._insertItemAt(this._findExpectedIndexFor(item), item, aOptions);
+      return this._insertItemAt(this._findExpectedIndex(label), item, aOptions);
     }
     // Insert the item at the specified index. If negative or out of bounds,
     // the item will be simply appended.
@@ -679,18 +554,18 @@ this.WidgetMethods = {
 
   /**
    * Flushes all the prepared items into this container.
-   * Any specified index on the items will be ignored. Everything is appended.
    *
    * @param object aOptions [optional]
    *        Additional options or flags supported by this operation:
    *          - sorted: true to sort all the items before adding them
    */
-  commit: function(aOptions = {}) {
+  commit: function MC_commit(aOptions = {}) {
     let stagedItems = this._stagedItems;
 
     // Sort the items before adding them to this container, if preferred.
     if (aOptions.sorted) {
-      stagedItems.sort((a, b) => this._currentSortPredicate(a.item, b.item));
+      stagedItems.sort(function(a, b) a.item._label.toLowerCase() >
+                                      b.item._label.toLowerCase());
     }
     // Append the prepared items to this container.
     for (let { item, options } of stagedItems) {
@@ -707,54 +582,42 @@ this.WidgetMethods = {
    * @return boolean
    *         True if a selected item was available, false otherwise.
    */
-  refresh: function() {
-    let selectedItem = this.selectedItem;
-    if (!selectedItem) {
+  refresh: function MC_refresh() {
+    let selectedValue = this.selectedValue;
+    if (!selectedValue) {
       return false;
     }
-
-    let { _label: label, _value: value, _description: desc } = selectedItem;
-    this._widget.removeAttribute("notice");
-    this._widget.setAttribute("label", label);
-    this._widget.setAttribute("tooltiptext", desc !== undefined ? desc : value);
-
+    let entangledLabel = this.getItemByValue(selectedValue)._label;
+    this._container.removeAttribute("notice");
+    this._container.setAttribute("label", entangledLabel);
+    this._container.setAttribute("tooltiptext", selectedValue);
     return true;
   },
 
   /**
    * Immediately removes the specified item from this container.
    *
-   * @param Item aItem
+   * @param MenuItem aItem
    *        The item associated with the element to remove.
    */
-  remove: function(aItem) {
+  remove: function MC_remove(aItem) {
     if (!aItem) {
       return;
     }
-    this._widget.removeChild(aItem._target);
+    this._container.removeChild(aItem.target);
     this._untangleItem(aItem);
-  },
-
-  /**
-   * Removes the item at the specified index from this container.
-   *
-   * @param number aIndex
-   *        The index of the item to remove.
-   */
-  removeAt: function(aIndex) {
-    this.remove(this.getItemAtIndex(aIndex));
   },
 
   /**
    * Removes all items from this container.
    */
-  empty: function() {
+  empty: function MC_empty() {
     this._preferredValue = this.selectedValue;
-    this._widget.selectedItem = null;
-    this._widget.removeAllItems();
-    this._widget.setAttribute("notice", this.emptyText);
-    this._widget.setAttribute("label", this.emptyText);
-    this._widget.removeAttribute("tooltiptext");
+    this._container.selectedItem = null;
+    this._container.removeAllItems();
+    this._container.setAttribute("notice", this.emptyText);
+    this._container.setAttribute("label", this.emptyText);
+    this._container.removeAttribute("tooltiptext");
 
     for (let [, item] of this._itemsByElement) {
       this._untangleItem(item);
@@ -767,127 +630,36 @@ this.WidgetMethods = {
   },
 
   /**
+   * Does not remove any item in this container. Instead, it overrides the
+   * current label to signal that it is unavailable and removes the tooltip.
+   */
+  setUnavailable: function MC_setUnavailable() {
+    this._container.setAttribute("notice", this.unavailableText);
+    this._container.setAttribute("label", this.unavailableText);
+    this._container.removeAttribute("tooltiptext");
+  },
+
+  /**
    * The label string automatically added to this container when there are
    * no child nodes present.
    */
   emptyText: "",
 
   /**
+   * The label string added to this container when it is marked as unavailable.
+   */
+  unavailableText: "",
+
+  /**
    * Toggles all the items in this container hidden or visible.
-   *
-   * This does not change the default filtering predicate, so newly inserted
-   * items will always be visible. Use WidgetMethods.filterContents if you care.
    *
    * @param boolean aVisibleFlag
    *        Specifies the intended visibility.
    */
-  toggleContents: function(aVisibleFlag) {
-    for (let [element, item] of this._itemsByElement) {
-      element.hidden = !aVisibleFlag;
+  toggleContents: function MC_toggleContents(aVisibleFlag) {
+    for (let [, item] of this._itemsByElement) {
+      item.target.hidden = !aVisibleFlag;
     }
-  },
-
-  /**
-   * Toggles all items in this container hidden or visible based on a predicate.
-   *
-   * @param function aPredicate [optional]
-   *        Items are toggled according to the return value of this function,
-   *        which will become the new default filtering predicate in this container.
-   *        If unspecified, all items will be toggled visible.
-   */
-  filterContents: function(aPredicate = this._currentFilterPredicate) {
-    this._currentFilterPredicate = aPredicate;
-
-    for (let [element, item] of this._itemsByElement) {
-      element.hidden = !aPredicate(item);
-    }
-  },
-
-  /**
-   * Sorts all the items in this container based on a predicate.
-   *
-   * @param function aPredicate [optional]
-   *        Items are sorted according to the return value of the function,
-   *        which will become the new default sorting predicate in this container.
-   *        If unspecified, all items will be sorted by their label.
-   */
-  sortContents: function(aPredicate = this._currentSortPredicate) {
-    let sortedItems = this.items.sort(this._currentSortPredicate = aPredicate);
-
-    for (let i = 0, len = sortedItems.length; i < len; i++) {
-      this.swapItems(this.getItemAtIndex(i), sortedItems[i]);
-    }
-  },
-
-  /**
-   * Visually swaps two items in this container.
-   *
-   * @param Item aFirst
-   *        The first item to be swapped.
-   * @param Item aSecond
-   *        The second item to be swapped.
-   */
-  swapItems: function(aFirst, aSecond) {
-    if (aFirst == aSecond) { // We're just dandy, thank you.
-      return;
-    }
-    let { _prebuiltTarget: firstPrebuiltTarget, target: firstTarget } = aFirst;
-    let { _prebuiltTarget: secondPrebuiltTarget, target: secondTarget } = aSecond;
-
-    // If the two items were constructed with prebuilt nodes as DocumentFragments,
-    // then those DocumentFragments are now empty and need to be reassembled.
-    if (firstPrebuiltTarget instanceof Ci.nsIDOMDocumentFragment) {
-      for (let node of firstTarget.childNodes) {
-        firstPrebuiltTarget.appendChild(node.cloneNode(true));
-      }
-    }
-    if (secondPrebuiltTarget instanceof Ci.nsIDOMDocumentFragment) {
-      for (let node of secondTarget.childNodes) {
-        secondPrebuiltTarget.appendChild(node.cloneNode(true));
-      }
-    }
-
-    // 1. Get the indices of the two items to swap.
-    let i = this._indexOfElement(firstTarget);
-    let j = this._indexOfElement(secondTarget);
-
-    // 2. Remeber the selection index, to reselect an item, if necessary.
-    let selectedTarget = this._widget.selectedItem;
-    let selectedIndex = -1;
-    if (selectedTarget == firstTarget) {
-      selectedIndex = i;
-    } else if (selectedTarget == secondTarget) {
-      selectedIndex = j;
-    }
-
-    // 3. Silently nuke both items, nobody needs to know about this.
-    this._widget.removeChild(firstTarget);
-    this._widget.removeChild(secondTarget);
-    this._unlinkItem(aFirst);
-    this._unlinkItem(aSecond);
-
-    // 4. Add the items again, but reversing their indices.
-    this._insertItemAt.apply(this, i < j ? [i, aSecond] : [j, aFirst]);
-    this._insertItemAt.apply(this, i < j ? [j, aFirst] : [i, aSecond]);
-
-    // 5. Restore the previous selection, if necessary.
-    if (selectedIndex == i) {
-      this._widget.selectedItem = aFirst._target;
-    } else if (selectedIndex == j) {
-      this._widget.selectedItem = aSecond._target;
-    }
-  },
-
-  /**
-   * Visually swaps two items in this container at specific indices.
-   *
-   * @param number aFirst
-   *        The index of the first item to be swapped.
-   * @param number aSecond
-   *        The index of the second item to be swapped.
-   */
-  swapItemsAtIndices: function(aFirst, aSecond) {
-    this.swapItems(this.getItemAtIndex(aFirst), this.getItemAtIndex(aSecond));
   },
 
   /**
@@ -899,9 +671,9 @@ this.WidgetMethods = {
    * @return boolean
    *         True if the label is known, false otherwise.
    */
-  containsLabel: function(aLabel) {
+  containsLabel: function MC_containsLabel(aLabel) {
     return this._itemsByLabel.has(aLabel) ||
-           this._stagedItems.some(({ item }) => item._label == aLabel);
+           this._stagedItems.some(function({item}) item._label == aLabel);
   },
 
   /**
@@ -913,24 +685,23 @@ this.WidgetMethods = {
    * @return boolean
    *         True if the value is known, false otherwise.
    */
-  containsValue: function(aValue) {
+  containsValue: function MC_containsValue(aValue) {
     return this._itemsByValue.has(aValue) ||
-           this._stagedItems.some(({ item }) => item._value == aValue);
+           this._stagedItems.some(function({item}) item._value == aValue);
   },
 
   /**
-   * Gets the "preferred value". This is the latest selected item's value,
-   * remembered just before emptying this container.
+   * Gets the preferred selected value to be displayed in this container.
    * @return string
    */
   get preferredValue() this._preferredValue,
 
   /**
    * Retrieves the item associated with the selected element.
-   * @return Item
+   * @return MenuItem
    */
   get selectedItem() {
-    let selectedElement = this._widget.selectedItem;
+    let selectedElement = this._container.selectedItem;
     if (selectedElement) {
       return this._itemsByElement.get(selectedElement);
     }
@@ -942,7 +713,7 @@ this.WidgetMethods = {
    * @return number
    */
   get selectedIndex() {
-    let selectedElement = this._widget.selectedItem;
+    let selectedElement = this._container.selectedItem;
     if (selectedElement) {
       return this._indexOfElement(selectedElement);
     }
@@ -954,7 +725,7 @@ this.WidgetMethods = {
    * @return string
    */
   get selectedLabel() {
-    let selectedElement = this._widget.selectedItem;
+    let selectedElement = this._container.selectedItem;
     if (selectedElement) {
       return this._itemsByElement.get(selectedElement)._label;
     }
@@ -966,7 +737,7 @@ this.WidgetMethods = {
    * @return string
    */
   get selectedValue() {
-    let selectedElement = this._widget.selectedItem;
+    let selectedElement = this._container.selectedItem;
     if (selectedElement) {
       return this._itemsByElement.get(selectedElement)._value;
     }
@@ -974,47 +745,19 @@ this.WidgetMethods = {
   },
 
   /**
-   * Retrieves the attachment of the selected element.
-   * @return string
-   */
-  get selectedAttachment() {
-    let selectedElement = this._widget.selectedItem;
-    if (selectedElement) {
-      return this._itemsByElement.get(selectedElement).attachment;
-    }
-    return null;
-  },
-
-  /**
    * Selects the element with the entangled item in this container.
-   * @param Item | function aItem
+   * @param MenuItem aItem
    */
   set selectedItem(aItem) {
-    // A predicate is allowed to select a specific item.
-    // If no item is matched, then the current selection is removed.
-    if (typeof aItem == "function") {
-      aItem = this.getItemForPredicate(aItem);
-    }
-
     // A falsy item is allowed to invalidate the current selection.
-    let targetElement = aItem ? aItem._target : null;
-    let prevElement = this._widget.selectedItem;
+    let targetNode = aItem ? aItem.target : null;
 
-    // Make sure the currently selected item's target element is also focused.
-    if (this.autoFocusOnSelection && targetElement) {
-      targetElement.focus();
+    // Prevent selecting the same item again, so return early.
+    if (this._container.selectedItem == targetNode) {
+      return;
     }
-
-    // Prevent selecting the same item again and avoid dispatching
-    // a redundant selection event, so return early.
-    if (targetElement != prevElement) {
-      this._widget.selectedItem = targetElement;
-      ViewHelpers.dispatchEvent(targetElement || prevElement, "select", aItem);
-    }
-
-    // Updates this container to reflect the information provided by the
-    // currently selected item.
-    this.refresh();
+    this._container.selectedItem = targetNode;
+    ViewHelpers.dispatchEvent(targetNode, "select", aItem);
   },
 
   /**
@@ -1022,7 +765,7 @@ this.WidgetMethods = {
    * @param number aIndex
    */
   set selectedIndex(aIndex) {
-    let targetElement = this._widget.getItemAtIndex(aIndex);
+    let targetElement = this._container.getItemAtIndex(aIndex);
     if (targetElement) {
       this.selectedItem = this._itemsByElement.get(targetElement);
       return;
@@ -1045,179 +788,15 @@ this.WidgetMethods = {
     this.selectedItem = this._itemsByValue.get(aValue),
 
   /**
-   * Focus this container the first time an element is inserted?
-   *
-   * If this flag is set to true, then when the first item is inserted in
-   * this container (and thus it's the only item available), its corresponding
-   * target element is focused as well.
-   */
-  autoFocusOnFirstItem: true,
-
-  /**
-   * Focus on selection?
-   *
-   * If this flag is set to true, then whenever an item is selected in
-   * this container (e.g. via the selectedIndex or selectedItem setters),
-   * its corresponding target element is focused as well.
-   *
-   * You can disable this flag, for example, to maintain a certain node
-   * focused but visually indicate a different selection in this container.
-   */
-  autoFocusOnSelection: true,
-
-  /**
-   * Focus on input (e.g. mouse click)?
-   *
-   * If this flag is set to true, then whenever an item receives user input in
-   * this container, its corresponding target element is focused as well.
-   */
-  autoFocusOnInput: true,
-
-  /**
-   * When focusing on input, allow right clicks?
-   * @see WidgetMethods.autoFocusOnInput
-   */
-  allowFocusOnRightClick: false,
-
-  /**
-   * The number of elements in this container to jump when Page Up or Page Down
-   * keys are pressed. If falsy, then the page size will be based on the
-   * number of visible items in the container.
-   */
-  pageSize: 0,
-
-  /**
-   * Focuses the first visible item in this container.
-   */
-  focusFirstVisibleItem: function() {
-    this.focusItemAtDelta(-this.itemCount);
-  },
-
-  /**
-   * Focuses the last visible item in this container.
-   */
-  focusLastVisibleItem: function() {
-    this.focusItemAtDelta(+this.itemCount);
-  },
-
-  /**
-   * Focuses the next item in this container.
-   */
-  focusNextItem: function() {
-    this.focusItemAtDelta(+1);
-  },
-
-  /**
-   * Focuses the previous item in this container.
-   */
-  focusPrevItem: function() {
-    this.focusItemAtDelta(-1);
-  },
-
-  /**
-   * Focuses another item in this container based on the index distance
-   * from the currently focused item.
-   *
-   * @param number aDelta
-   *        A scalar specifying by how many items should the selection change.
-   */
-  focusItemAtDelta: function(aDelta) {
-    // Make sure the currently selected item is also focused, so that the
-    // command dispatcher mechanism has a relative node to work with.
-    // If there's no selection, just select an item at a corresponding index
-    // (e.g. the first item in this container if aDelta <= 1).
-    let selectedElement = this._widget.selectedItem;
-    if (selectedElement) {
-      selectedElement.focus();
-    } else {
-      this.selectedIndex = Math.max(0, aDelta - 1);
-      return;
-    }
-
-    let direction = aDelta > 0 ? "advanceFocus" : "rewindFocus";
-    let distance = Math.abs(Math[aDelta > 0 ? "ceil" : "floor"](aDelta));
-    while (distance--) {
-      if (!this._focusChange(direction)) {
-        break; // Out of bounds.
-      }
-    }
-
-    // Synchronize the selected item as being the currently focused element.
-    this.selectedItem = this.getItemForElement(this._focusedElement);
-  },
-
-  /**
-   * Focuses the next or previous item in this container.
-   *
-   * @param string aDirection
-   *        Either "advanceFocus" or "rewindFocus".
-   * @return boolean
-   *         False if the focus went out of bounds and the first or last item
-   *         in this container was focused instead.
-   */
-  _focusChange: function(aDirection) {
-    let commandDispatcher = this._commandDispatcher;
-    let prevFocusedElement = commandDispatcher.focusedElement;
-    let currFocusedElement;
-
-    do {
-      commandDispatcher.suppressFocusScroll = true;
-      commandDispatcher[aDirection]();
-      currFocusedElement = commandDispatcher.focusedElement;
-
-      // Make sure the newly focused item is a part of this container. If the
-      // focus goes out of bounds, revert the previously focused item.
-      if (!this.getItemForElement(currFocusedElement)) {
-        prevFocusedElement.focus();
-        return false;
-      }
-    } while (!WIDGET_FOCUSABLE_NODES.has(currFocusedElement.tagName));
-
-    // Focus remained within bounds.
-    return true;
-  },
-
-  /**
-   * Gets the command dispatcher instance associated with this container's DOM.
-   * If there are no items displayed in this container, null is returned.
-   * @return nsIDOMXULCommandDispatcher | null
-   */
-  get _commandDispatcher() {
-    if (this._cachedCommandDispatcher) {
-      return this._cachedCommandDispatcher;
-    }
-    let someElement = this._widget.getItemAtIndex(0);
-    if (someElement) {
-      let commandDispatcher = someElement.ownerDocument.commandDispatcher;
-      return this._cachedCommandDispatcher = commandDispatcher;
-    }
-    return null;
-  },
-
-  /**
-   * Gets the currently focused element in this container.
-   *
-   * @return nsIDOMNode
-   *         The focused element, or null if nothing is found.
-   */
-  get _focusedElement() {
-    let commandDispatcher = this._commandDispatcher;
-    if (commandDispatcher) {
-      return commandDispatcher.focusedElement;
-    }
-    return null;
-  },
-
-  /**
    * Gets the item in the container having the specified index.
    *
    * @param number aIndex
    *        The index used to identify the element.
-   * @return Item
+   * @return MenuItem
    *         The matched item, or null if nothing is found.
    */
-  getItemAtIndex: function(aIndex) {
-    return this.getItemForElement(this._widget.getItemAtIndex(aIndex));
+  getItemAtIndex: function MC_getItemAtIndex(aIndex) {
+    return this.getItemForElement(this._container.getItemAtIndex(aIndex));
   },
 
   /**
@@ -1225,10 +804,10 @@ this.WidgetMethods = {
    *
    * @param string aLabel
    *        The label used to identify the element.
-   * @return Item
+   * @return MenuItem
    *         The matched item, or null if nothing is found.
    */
-  getItemByLabel: function(aLabel) {
+  getItemByLabel: function MC_getItemByLabel(aLabel) {
     return this._itemsByLabel.get(aLabel);
   },
 
@@ -1237,10 +816,10 @@ this.WidgetMethods = {
    *
    * @param string aValue
    *        The value used to identify the element.
-   * @return Item
+   * @return MenuItem
    *         The matched item, or null if nothing is found.
    */
-  getItemByValue: function(aValue) {
+  getItemByValue: function MC_getItemByValue(aValue) {
     return this._itemsByValue.get(aValue);
   },
 
@@ -1249,23 +828,12 @@ this.WidgetMethods = {
    *
    * @param nsIDOMNode aElement
    *        The element used to identify the item.
-   * @param object aFlags [optional]
-   *        Additional options for showing the source. Supported options:
-   *          - noSiblings: if siblings shouldn't be taken into consideration
-   *                        when searching for the associated item.
-   * @return Item
+   * @return MenuItem
    *         The matched item, or null if nothing is found.
    */
-  getItemForElement: function(aElement, aFlags = {}) {
+  getItemForElement: function MC_getItemForElement(aElement) {
     while (aElement) {
       let item = this._itemsByElement.get(aElement);
-
-      // Also search the siblings if allowed.
-      if (!aFlags.noSiblings) {
-        item = item ||
-          this._itemsByElement.get(aElement.nextElementSibling) ||
-          this._itemsByElement.get(aElement.previousElementSibling);
-      }
       if (item) {
         return item;
       }
@@ -1275,46 +843,15 @@ this.WidgetMethods = {
   },
 
   /**
-   * Gets a visible item in this container validating a specified predicate.
-   *
-   * @param function aPredicate
-   *        The first item which validates this predicate is returned
-   * @return Item
-   *         The matched item, or null if nothing is found.
-   */
-  getItemForPredicate: function(aPredicate, aOwner = this) {
-    // Recursively check the items in this widget for a predicate match.
-    for (let [element, item] of aOwner._itemsByElement) {
-      let match;
-      if (aPredicate(item) && !element.hidden) {
-        match = item;
-      } else {
-        match = this.getItemForPredicate(aPredicate, item);
-      }
-      if (match) {
-        return match;
-      }
-    }
-    // Also check the staged items. No need to do this recursively since
-    // they're not even appended to the view yet.
-    for (let { item } of this._stagedItems) {
-      if (aPredicate(item)) {
-        return item;
-      }
-    }
-    return null;
-  },
-
-  /**
    * Finds the index of an item in the container.
    *
-   * @param Item aItem
+   * @param MenuItem aItem
    *        The item get the index for.
    * @return number
    *         The index of the matched item, or -1 if nothing is found.
    */
-  indexOfItem: function(aItem) {
-    return this._indexOfElement(aItem._target);
+  indexOfItem: function MC_indexOfItem(aItem) {
+    return this._indexOfElement(aItem.target);
   },
 
   /**
@@ -1325,13 +862,40 @@ this.WidgetMethods = {
    * @return number
    *         The index of the matched element, or -1 if nothing is found.
    */
-  _indexOfElement: function(aElement) {
-    for (let i = 0; i < this._itemsByElement.size; i++) {
-      if (this._widget.getItemAtIndex(i) == aElement) {
+  _indexOfElement: function MC__indexOfElement(aElement) {
+    let container = this._container;
+    let itemCount = this._itemsByElement.size;
+
+    for (let i = 0; i < itemCount; i++) {
+      if (container.getItemAtIndex(i) == aElement) {
         return i;
       }
     }
     return -1;
+  },
+
+  /**
+   * Returns the list of labels in this container.
+   * @return array
+   */
+  get labels() {
+    let labels = [];
+    for (let [label] of this._itemsByLabel) {
+      labels.push(label);
+    }
+    return labels;
+  },
+
+  /**
+   * Returns the list of values in this container.
+   * @return array
+   */
+  get values() {
+    let values = [];
+    for (let [value] of this._itemsByValue) {
+      values.push(value);
+    }
+    return values;
   },
 
   /**
@@ -1341,49 +905,17 @@ this.WidgetMethods = {
   get itemCount() this._itemsByElement.size,
 
   /**
-   * Returns a list of items in this container, in the displayed order.
-   * @return array
-   */
-  get items() {
-    let store = [];
-    let itemCount = this.itemCount;
-    for (let i = 0; i < itemCount; i++) {
-      store.push(this.getItemAtIndex(i));
-    }
-    return store;
-  },
-
-  /**
-   * Returns a list of labels in this container, in the displayed order.
-   * @return array
-   */
-  get labels() {
-    return this.items.map(e => e._label);
-  },
-
-  /**
-   * Returns a list of values in this container, in the displayed order.
-   * @return array
-   */
-  get values() {
-    return this.items.map(e => e._value);
-  },
-
-  /**
-   * Returns a list of attachments in this container, in the displayed order.
-   * @return array
-   */
-  get attachments() {
-    return this.items.map(e => e.attachment);
-  },
-
-  /**
-   * Returns a list of all the visible (non-hidden) items in this container,
-   * in the displayed order
+   * Returns a list of all the visible (non-hidden) items in this container.
    * @return array
    */
   get visibleItems() {
-    return this.items.filter(e => !e._target.hidden);
+    let items = [];
+    for (let [element, item] of this._itemsByElement) {
+      if (!element.hidden) {
+        items.push(item);
+      }
+    }
+    return items;
   },
 
   /**
@@ -1399,12 +931,12 @@ this.WidgetMethods = {
   /**
    * Checks if an item is unique in this container.
    *
-   * @param Item aItem
-   *        The item for which to verify uniqueness.
+   * @param MenuItem aItem
+   *        An object containing a label and a value property (at least).
    * @return boolean
-   *         True if the item is unique, false otherwise.
+   *         True if the element is unique, false otherwise.
    */
-  isUnique: function(aItem) {
+  isUnique: function MC_isUnique(aItem) {
     switch (this.uniquenessQualifier) {
       case 1:
         return !this._itemsByLabel.has(aItem._label) &&
@@ -1421,36 +953,33 @@ this.WidgetMethods = {
   },
 
   /**
-   * Checks if an item is eligible for this container.
+   * Checks if an item's label and value are eligible for this container.
    *
-   * @param Item aItem
-   *        The item for which to verify eligibility.
+   * @param MenuItem aItem
+   *        An object containing a label and a value property (at least).
    * @return boolean
-   *         True if the item is eligible, false otherwise.
+   *         True if the element is eligible, false otherwise.
    */
-  isEligible: function(aItem) {
-    let isUnique = this.isUnique(aItem);
-    let isPrebuilt = !!aItem._prebuiltTarget;
-    let isDegenerate = aItem._label == "undefined" || aItem._label == "null" ||
-                       aItem._value == "undefined" || aItem._value == "null";
-
-    return isPrebuilt || (isUnique && !isDegenerate);
+  isEligible: function MC_isEligible(aItem) {
+    return this.isUnique(aItem) &&
+           aItem._label != "undefined" && aItem._label != "null" &&
+           aItem._value != "undefined" && aItem._value != "null";
   },
 
   /**
-   * Finds the expected item index in this container based on the default
-   * sort predicate.
+   * Finds the expected item index in this container based on its label.
    *
-   * @param Item aItem
-   *        The item for which to get the expected index.
+   * @param string aLabel
+   *        The label used to identify the element.
    * @return number
    *         The expected item index.
    */
-  _findExpectedIndexFor: function(aItem) {
+  _findExpectedIndex: function MC__findExpectedIndex(aLabel) {
+    let container = this._container;
     let itemCount = this.itemCount;
 
     for (let i = 0; i < itemCount; i++) {
-      if (this._currentSortPredicate(this.getItemAtIndex(i), aItem) > 0) {
+      if (this.getItemAtIndex(i)._label > aLabel) {
         return i;
       }
     }
@@ -1462,39 +991,33 @@ this.WidgetMethods = {
    *
    * @param number aIndex
    *        The position in the container intended for this item.
-   * @param Item aItem
+   * @param MenuItem aItem
    *        An object containing a label and a value property (at least).
    * @param object aOptions [optional]
    *        Additional options or flags supported by this operation:
    *          - node: allows the insertion of prebuilt nodes instead of labels
    *          - relaxed: true if this container should allow dupes & degenerates
    *          - attributes: a batch of attributes set to the displayed element
-   *          - finalize: function when the item is untangled (removed)
-   * @return Item
+   *          - finalize: function called when the item is untangled (removed)
+   * @return MenuItem
    *         The item associated with the displayed element, null if rejected.
    */
-  _insertItemAt: function(aIndex, aItem, aOptions = {}) {
+  _insertItemAt: function MC__insertItemAt(aIndex, aItem, aOptions) {
     // Relaxed nodes may be appended without verifying their eligibility.
     if (!aOptions.relaxed && !this.isEligible(aItem)) {
       return null;
     }
 
     // Entangle the item with the newly inserted node.
-    this._entangleItem(aItem, this._widget.insertItemAt(aIndex,
-      aItem._prebuiltTarget || aItem._label, // Allow the insertion of prebuilt nodes.
+    this._entangleItem(aItem, this._container.insertItemAt(aIndex,
+      aOptions.node || aItem._label,
       aItem._value,
       aItem._description,
-      aItem.attachment));
+      aOptions.attachment));
 
     // Handle any additional options after entangling the item.
-    if (!this._currentFilterPredicate(aItem)) {
-      aItem._target.hidden = true;
-    }
-    if (this.autoFocusOnFirstItem && this._itemsByElement.size == 1) {
-      aItem._target.focus();
-    }
     if (aOptions.attributes) {
-      aOptions.attributes.forEach(e => aItem._target.setAttribute(e[0], e[1]));
+      aItem.setAttributes(aOptions.attributes, aItem.target);
     }
     if (aOptions.finalize) {
       aItem.finalize = aOptions.finalize;
@@ -1507,154 +1030,55 @@ this.WidgetMethods = {
   /**
    * Entangles an item (model) with a displayed node element (view).
    *
-   * @param Item aItem
-   *        The item describing a target element.
+   * @param MenuItem aItem
+   *        The item describing the element.
    * @param nsIDOMNode aElement
    *        The element displaying the item.
    */
-  _entangleItem: function(aItem, aElement) {
+  _entangleItem: function MC__entangleItem(aItem, aElement) {
     this._itemsByLabel.set(aItem._label, aItem);
     this._itemsByValue.set(aItem._value, aItem);
     this._itemsByElement.set(aElement, aItem);
-    aItem._target = aElement;
+    aItem.target = aElement;
   },
 
   /**
    * Untangles an item (model) from a displayed node element (view).
    *
-   * @param Item aItem
-   *        The item describing a target element.
+   * @param MenuItem aItem
+   *        The item describing the element.
    */
-  _untangleItem: function(aItem) {
+  _untangleItem: function MC__untangleItem(aItem) {
     if (aItem.finalize) {
       aItem.finalize(aItem);
     }
-    for (let childItem of aItem) {
+    for (let childItem in aItem) {
       aItem.remove(childItem);
     }
 
-    this._unlinkItem(aItem);
-    aItem._prebuiltTarget = null;
-    aItem._target = null;
-  },
-
-  /**
-   * Deletes an item from the its parent's storage maps.
-   *
-   * @param Item aItem
-   *        The item describing a target element.
-   */
-  _unlinkItem: function(aItem) {
     this._itemsByLabel.delete(aItem._label);
     this._itemsByValue.delete(aItem._value);
-    this._itemsByElement.delete(aItem._target);
+    this._itemsByElement.delete(aItem.target);
+    aItem.target = null;
   },
 
-  /**
-   * The keyPress event listener for this container.
-   * @param string aName
-   * @param KeyboardEvent aEvent
-   */
-  _onWidgetKeyPress: function(aName, aEvent) {
-    // Prevent scrolling when pressing navigation keys.
-    ViewHelpers.preventScrolling(aEvent);
-
-    switch (aEvent.keyCode) {
-      case aEvent.DOM_VK_UP:
-      case aEvent.DOM_VK_LEFT:
-        this.focusPrevItem();
-        return;
-      case aEvent.DOM_VK_DOWN:
-      case aEvent.DOM_VK_RIGHT:
-        this.focusNextItem();
-        return;
-      case aEvent.DOM_VK_PAGE_UP:
-        this.focusItemAtDelta(-(this.pageSize || (this.itemCount / PAGE_SIZE_ITEM_COUNT_RATIO)));
-        return;
-      case aEvent.DOM_VK_PAGE_DOWN:
-        this.focusItemAtDelta(+(this.pageSize || (this.itemCount / PAGE_SIZE_ITEM_COUNT_RATIO)));
-        return;
-      case aEvent.DOM_VK_HOME:
-        this.focusFirstVisibleItem();
-        return;
-      case aEvent.DOM_VK_END:
-        this.focusLastVisibleItem();
-        return;
-    }
-  },
-
-  /**
-   * The mousePress event listener for this container.
-   * @param string aName
-   * @param MouseEvent aEvent
-   */
-  _onWidgetMousePress: function(aName, aEvent) {
-    if (aEvent.button != 0 && !this.allowFocusOnRightClick) {
-      // Only allow left-click to trigger this event.
-      return;
-    }
-
-    let item = this.getItemForElement(aEvent.target);
-    if (item) {
-      // The container is not empty and we clicked on an actual item.
-      this.selectedItem = item;
-      // Make sure the current event's target element is also focused.
-      this.autoFocusOnInput && item._target.focus();
-    }
-  },
-
-  /**
-   * The predicate used when filtering items. By default, all items in this
-   * view are visible.
-   *
-   * @param Item aItem
-   *        The item passing through the filter.
-   * @return boolean
-   *         True if the item should be visible, false otherwise.
-   */
-  _currentFilterPredicate: function(aItem) {
-    return true;
-  },
-
-  /**
-   * The predicate used when sorting items. By default, items in this view
-   * are sorted by their label.
-   *
-   * @param Item aFirst
-   *        The first item used in the comparison.
-   * @param Item aSecond
-   *        The second item used in the comparison.
-   * @return number
-   *         -1 to sort aFirst to a lower index than aSecond
-   *          0 to leave aFirst and aSecond unchanged with respect to each other
-   *          1 to sort aSecond to a lower index than aFirst
-   */
-  _currentSortPredicate: function(aFirst, aSecond) {
-    return +(aFirst._label.toLowerCase() > aSecond._label.toLowerCase());
-  },
-
-  /**
-   * Call a method on this widget named `aMethodName`. Any further arguments are
-   * passed on to the method. Returns the result of the method call.
-   *
-   * @param String aMethodName
-   *        The name of the method you want to call.
-   * @param aArgs
-   *        Optional. Any arguments you want to pass through to the method.
-   */
-  callMethod: function(aMethodName, ...aArgs) {
-    return this._widget[aMethodName].apply(this._widget, aArgs);
-  },
-
-  _widget: null,
-  _preferredValue: null,
-  _cachedCommandDispatcher: null
+  _container: null,
+  _stagedItems: null,
+  _itemsByLabel: null,
+  _itemsByValue: null,
+  _itemsByElement: null,
+  _preferredValue: null
 };
 
 /**
  * A generator-iterator over all the items in this container.
  */
-Item.prototype["@@iterator"] =
-WidgetMethods["@@iterator"] = function*() {
-  yield* this._itemsByElement.values();
+MenuItem.prototype.__iterator__ =
+MenuContainer.prototype.__iterator__ = function VH_iterator() {
+  if (!this._itemsByElement) {
+    return;
+  }
+  for (let [, item] of this._itemsByElement) {
+    yield item;
+  }
 };

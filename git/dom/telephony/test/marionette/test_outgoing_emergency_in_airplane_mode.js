@@ -2,36 +2,51 @@
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
 MARIONETTE_TIMEOUT = 60000;
-MARIONETTE_HEAD_JS = 'head.js';
-
-let Promise = SpecialPowers.Cu.import("resource://gre/modules/Promise.jsm").Promise;
 
 const KEY = "ril.radio.disabled";
 
-let settings;
+let gSettingsEnabled = SpecialPowers.getBoolPref("dom.mozSettings.enabled");
+if (!gSettingsEnabled) {
+  SpecialPowers.setBoolPref("dom.mozSettings.enabled", true);
+}
+SpecialPowers.addPermission("telephony", true, document);
+SpecialPowers.addPermission("settings-write", true, document);
+
+let settings = window.navigator.mozSettings;
+let telephony = window.navigator.mozTelephony;
 let number = "112";
 let outgoing;
 
-function setAirplaneMode() {
+function verifyInitialState() {
   log("Turning on airplane mode");
-
-  let deferred = Promise.defer();
 
   let setLock = settings.createLock();
   let obj = {};
   obj[KEY] = false;
-
   let setReq = setLock.set(obj);
   setReq.addEventListener("success", function onSetSuccess() {
     ok(true, "set '" + KEY + "' to " + obj[KEY]);
-    deferred.resolve();
   });
   setReq.addEventListener("error", function onSetError() {
     ok(false, "cannot set '" + KEY + "'");
-    deferred.reject();
   });
 
-  return deferred.promise;
+  log("Verifying initial state.");
+  ok(telephony);
+  is(telephony.active, null);
+  ok(telephony.calls);
+  is(telephony.calls.length, 0);
+
+  runEmulatorCmd("gsm list", function(result) {
+    log("Initial call list: " + result);
+    is(result[0], "OK");
+    if (result[0] == "OK") {
+      dial();
+    } else {
+      log("Call exists from a previous test, failing out.");
+      cleanUp();
+    }
+  });
 }
 
 function dial() {
@@ -51,7 +66,7 @@ function dial() {
     is(outgoing, event.call);
     is(outgoing.state, "alerting");
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "outbound to  " + number + "        : ringing");
       is(result[1], "OK");
@@ -72,15 +87,15 @@ function answer() {
 
     is(outgoing, telephony.active);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "outbound to  " + number + "        : active");
       is(result[1], "OK");
       hangUp();
     });
   };
-  emulator.run("gsm accept " + number);
-}
+  runEmulatorCmd("gsm accept " + number);
+};
 
 function hangUp() {
   log("Hanging up the outgoing call.");
@@ -95,23 +110,20 @@ function hangUp() {
     is(telephony.active, null);
     is(telephony.calls.length, 0);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "OK");
       cleanUp();
     });
   };
-  emulator.run("gsm cancel " + number);
+  runEmulatorCmd("gsm cancel " + number);
 }
 
 function cleanUp() {
+  SpecialPowers.removePermission("telephony", document);
+  SpecialPowers.removePermission("settings-write", document);
+  SpecialPowers.clearUserPref("dom.mozSettings.enabled");
   finish();
 }
 
-startTestWithPermissions(['settings-write'], function() {
-  settings = window.navigator.mozSettings;
-  ok(settings);
-  setAirplaneMode()
-    .then(dial)
-    .then(null, cleanUp);
-});
+verifyInitialState();

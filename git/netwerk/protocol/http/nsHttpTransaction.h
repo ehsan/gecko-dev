@@ -7,29 +7,30 @@
 #define nsHttpTransaction_h__
 
 #include "nsHttp.h"
+#include "nsHttpHeaderArray.h"
 #include "nsAHttpTransaction.h"
 #include "nsAHttpConnection.h"
 #include "EventTokenBucket.h"
 #include "nsCOMPtr.h"
-#include "nsThreadUtils.h"
-#include "nsILoadGroup.h"
-#include "nsIInterfaceRequestor.h"
-#include "TimingStruct.h"
-#include "nsProxyRelease.h"
 
-#ifdef MOZ_WIDGET_GONK
-#include "nsINetworkManager.h"
-#endif
+#include "nsIPipe.h"
+#include "nsIInputStream.h"
+#include "nsILoadGroup.h"
+#include "nsIOutputStream.h"
+#include "nsIInterfaceRequestor.h"
+#include "nsISocketTransportService.h"
+#include "nsITransport.h"
+#include "nsIEventTarget.h"
+#include "TimingStruct.h"
 
 //-----------------------------------------------------------------------------
 
+class nsHttpTransaction;
 class nsHttpRequestHead;
 class nsHttpResponseHead;
 class nsHttpChunkedDecoder;
 class nsIHttpActivityObserver;
-class nsIEventTarget;
-class nsIInputStream;
-class nsIOutputStream;
+class UpdateSecurityCallbacks;
 
 //-----------------------------------------------------------------------------
 // nsHttpTransaction represents a single HTTP transaction.  It is thread-safe,
@@ -42,7 +43,7 @@ class nsHttpTransaction : public nsAHttpTransaction
                         , public nsIOutputStreamCallback
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSAHTTPTRANSACTION
     NS_DECL_NSIINPUTSTREAMCALLBACK
     NS_DECL_NSIOUTPUTSTREAMCALLBACK
@@ -52,7 +53,7 @@ public:
 
     //
     // called to initialize the transaction
-    //
+    // 
     // @param caps
     //        the transaction capabilities (see nsHttp.h)
     // @param connInfo
@@ -114,9 +115,8 @@ public:
     const mozilla::TimeStamp GetPendingTime() { return mPendingTime; }
     bool UsesPipelining() const { return mCaps & NS_HTTP_ALLOW_PIPELINING; }
 
-    // overload of nsAHttpTransaction::LoadGroupConnectionInfo()
+    void SetLoadGroupConnectionInfo(nsILoadGroupConnectionInfo *aLoadGroupCI) { mLoadGroupCI = aLoadGroupCI; } 
     nsILoadGroupConnectionInfo *LoadGroupConnectionInfo() { return mLoadGroupCI.get(); }
-    void SetLoadGroupConnectionInfo(nsILoadGroupConnectionInfo *aLoadGroupCI) { mLoadGroupCI = aLoadGroupCI; }
     void DispatchedAsBlocking();
     void RemoveDispatchedAsBlocking();
 
@@ -250,7 +250,7 @@ private:
     // The time when the transaction was submitted to the Connection Manager
     mozilla::TimeStamp              mPendingTime;
 
-    class RestartVerifier
+    class RestartVerifier 
     {
 
         // When a idemptotent transaction has received part of its response body
@@ -269,7 +269,7 @@ private:
             , mSetup(false)
         {}
         ~RestartVerifier() {}
-
+        
         void Set(int64_t contentLength, nsHttpResponseHead *head);
         bool Verify(int64_t contentLength, nsHttpResponseHead *head);
         bool IsDiscardingContent() { return mToReadBeforeRestart != 0; }
@@ -282,8 +282,8 @@ private:
         int64_t ToReadBeforeRestart() { return mToReadBeforeRestart; }
         void HaveReadBeforeRestart(uint32_t amt)
         {
-            MOZ_ASSERT(amt <= mToReadBeforeRestart,
-                       "too large of a HaveReadBeforeRestart deduction");
+            NS_ABORT_IF_FALSE(amt <= mToReadBeforeRestart,
+                              "too large of a HaveReadBeforeRestart deduction");
             mToReadBeforeRestart -= amt;
         }
 
@@ -337,31 +337,6 @@ private:
     bool mPassedRatePacing;
     bool mSynchronousRatePaceRequest;
     nsCOMPtr<nsICancelable> mTokenBucketCancel;
-
-// These members are used for network per-app metering (bug 746073)
-// Currently, they are only available on gonk.
-public:
-    const static uint64_t NETWORK_STATS_THRESHOLD = 65536;
-
-private:
-    uint64_t                           mCountRecv;
-    uint64_t                           mCountSent;
-    uint32_t                           mAppId;
-#ifdef MOZ_WIDGET_GONK
-    nsMainThreadPtrHandle<nsINetworkInterface> mActiveNetwork;
-#endif
-    nsresult                           SaveNetworkStats(bool);
-    void                               GetActiveNetwork();
-    void                               CountRecvBytes(uint64_t recvBytes)
-    {
-        mCountRecv += recvBytes;
-        SaveNetworkStats(false);
-    }
-    void                               CountSentBytes(uint64_t sentBytes)
-    {
-        mCountSent += sentBytes;
-        SaveNetworkStats(false);
-    }
 };
 
 #endif // nsHttpTransaction_h__

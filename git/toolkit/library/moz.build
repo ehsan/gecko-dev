@@ -9,20 +9,3 @@ if CONFIG['MOZ_METRO'] and CONFIG['OS_ARCH'] == 'WINNT':
 
 MODULE = 'libxul'
 
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    # This is going to be a framework named "XUL", not an ordinary library named
-    # "libxul.dylib"
-    LIBRARY_NAME = 'XUL'
-else:
-    LIBRARY_NAME = 'xul'
-
-SOURCES += [
-    'nsStaticXULComponents.cpp',
-]
-
-if CONFIG['OS_ARCH'] == 'WINNT':
-    SOURCES += [
-        'nsDllMain.cpp',
-    ]
-
-MSVC_ENABLE_PGO = True

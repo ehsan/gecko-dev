@@ -16,7 +16,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGScriptElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGScriptElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGScriptElementBinding::Wrap(aCx, aScope, this);
 }
@@ -98,7 +98,7 @@ SVGScriptElement::SetCrossOrigin(const nsAString & aOrigin, ErrorResult& rv)
   rv = SetAttr(kNameSpaceID_None, nsGkAtoms::crossorigin, aOrigin, true);
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGScriptElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);

@@ -12,6 +12,7 @@
 
 #include "GrClipData.h"
 #include "GrResource.h"
+#include "GrCacheID.h"
 
 class GrRenderTarget;
 class GrResourceEntry;
@@ -20,6 +21,7 @@ class GrResourceKey;
 class GrStencilBuffer : public GrResource {
 public:
     SK_DECLARE_INST_COUNT(GrStencilBuffer);
+    GR_DECLARE_RESOURCE_CACHE_TYPE()
 
     virtual ~GrStencilBuffer() {
         // TODO: allow SB to be purged and detach itself from rts
@@ -31,22 +33,31 @@ public:
     int numSamples() const { return fSampleCnt; }
 
     // called to note the last clip drawn to this buffer.
-    void setLastClip(int32_t clipStackGenID,
-                     const SkIRect& clipSpaceRect,
-                     const SkIPoint clipSpaceToStencilOffset) {
-        fLastClipStackGenID = clipStackGenID;
-        fLastClipStackRect = clipSpaceRect;
-        fLastClipSpaceOffset = clipSpaceToStencilOffset;
+    void setLastClip(const GrClipData& clipData, int width, int height) {
+        // the clip stack needs to be copied separately (and deeply) since
+        // it could change beneath the stencil buffer
+        fLastClipStack = *clipData.fClipStack;
+        fLastClipData.fClipStack = &fLastClipStack;
+        fLastClipData.fOrigin = clipData.fOrigin;
+        fLastClipWidth = width;
+        fLastClipHeight = height;
+        GrAssert(width <= fWidth);
+        GrAssert(height <= fHeight);
     }
 
     // called to determine if we have to render the clip into SB.
-    bool mustRenderClip(int32_t clipStackGenID,
-                        const SkIRect& clipSpaceRect,
-                        const SkIPoint clipSpaceToStencilOffset) const {
-        return SkClipStack::kInvalidGenID == clipStackGenID ||
-               fLastClipStackGenID != clipStackGenID ||
-               fLastClipSpaceOffset != clipSpaceToStencilOffset ||
-               !fLastClipStackRect.contains(clipSpaceRect);
+    bool mustRenderClip(const GrClipData& clipData, int width, int height) const {
+        // The clip is in device space. That is it doesn't scale to fit a
+        // smaller RT. It is just truncated on the right / bottom edges.
+        // Note that this assumes that the viewport origin never moves within
+        // the stencil buffer. This is valid today.
+        return width > fLastClipWidth ||
+               height > fLastClipHeight ||
+               clipData != fLastClipData;
+    }
+
+    const GrClipData& getLastClip() const {
+        return fLastClipData;
     }
 
     // Places the sb in the cache. The cache takes a ref of the stencil buffer.
@@ -55,14 +66,16 @@ public:
     static GrResourceKey ComputeKey(int width, int height, int sampleCnt);
 
 protected:
-    GrStencilBuffer(GrGpu* gpu, bool isWrapped, int width, int height, int bits, int sampleCnt)
-        : GrResource(gpu, isWrapped)
+    GrStencilBuffer(GrGpu* gpu, int width, int height, int bits, int sampleCnt)
+        : GrResource(gpu)
         , fWidth(width)
         , fHeight(height)
         , fBits(bits)
         , fSampleCnt(sampleCnt)
-        , fLastClipStackGenID(SkClipStack::kInvalidGenID) {
-        fLastClipStackRect.setEmpty();
+        , fLastClipStack()
+        , fLastClipData()
+        , fLastClipWidth(-1)
+        , fLastClipHeight(-1) {
     }
 
 private:
@@ -72,9 +85,10 @@ private:
     int fBits;
     int fSampleCnt;
 
-    int32_t     fLastClipStackGenID;
-    SkIRect     fLastClipStackRect;
-    SkIPoint    fLastClipSpaceOffset;
+    SkClipStack fLastClipStack;
+    GrClipData  fLastClipData;
+    int         fLastClipWidth;
+    int         fLastClipHeight;
 
     typedef GrResource INHERITED;
 };

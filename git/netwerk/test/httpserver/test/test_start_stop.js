@@ -8,13 +8,8 @@
  * Tests for correct behavior of the server start() and stop() methods.
  */
 
-XPCOMUtils.defineLazyGetter(this, "PORT", function() {
-  return srv.identity.primaryPort;
-});
-
-XPCOMUtils.defineLazyGetter(this, "PREPATH", function() {
-  return "http://localhost:" + PORT;
-});
+const PORT = 4444;
+const PREPATH = "http://localhost:" + PORT;
 
 var srv, srv2;
 
@@ -30,7 +25,7 @@ function run_test()
   dumpn("*** run_test");
 
   srv = createServer();
-  srv.start(-1);
+  srv.start(PORT);
 
   try
   {

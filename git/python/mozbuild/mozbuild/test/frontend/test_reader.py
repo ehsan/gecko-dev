@@ -26,16 +26,16 @@ data_path = os.path.join(data_path, 'data')
 
 
 class TestBuildReader(unittest.TestCase):
-    def config(self, name, **kwargs):
+    def config(self, name):
         path = os.path.join(data_path, name)
 
-        return MockConfig(path, **kwargs)
+        return MockConfig(path)
 
     def reader(self, name, enable_tests=False):
-        extra = {}
+        config = self.config(name)
+
         if enable_tests:
-            extra['ENABLE_TESTS'] = '1'
-        config = self.config(name, extra_substs=extra)
+            config.substs['ENABLE_TESTS'] = '1'
 
         return BuildReader(config)
 
@@ -71,13 +71,6 @@ class TestBuildReader(unittest.TestCase):
 
         sandboxes = list(reader.read_topsrcdir())
         self.assertEqual(len(sandboxes), 4)
-
-        for sandbox in sandboxes:
-            self.assertIsInstance(sandbox.metadata, dict)
-            self.assertIn('tier', sandbox.metadata)
-
-            if sandbox['RELATIVEDIR'].startswith('foo'):
-                self.assertEqual(sandbox.metadata['tier'], 't1')
 
     def test_tier_subdir(self):
         # add_tier_dir() should fail when not in the top directory.
@@ -244,25 +237,6 @@ class TestBuildReader(unittest.TestCase):
         self.assertIn('A moz.build file called the error() function.', str(e))
         self.assertIn('    Some error.', str(e))
 
-    def test_error_traversal_tools(self):
-        reader = self.reader('reader-error-traversal-tools')
-
-        with self.assertRaises(BuildReaderError) as bre:
-            list(reader.read_topsrcdir())
-
-        e = bre.exception
-        self.assertIn('The DIRS variable is not allowed in such directories.', str(e))
-
-    def test_inheriting_variables(self):
-        reader = self.reader('inheriting-variables')
-
-        sandboxes = list(reader.read_topsrcdir())
-
-        self.assertEqual(len(sandboxes), 4)
-        self.assertEqual([sandbox['RELATIVEDIR'] for sandbox in sandboxes],
-            ['', 'foo', 'foo/baz', 'bar'])
-        self.assertEqual([sandbox['XPIDL_MODULE'] for sandbox in sandboxes],
-            ['foobar', 'foobar', 'foobar', 'bazbar'])
 
 if __name__ == '__main__':
     main()

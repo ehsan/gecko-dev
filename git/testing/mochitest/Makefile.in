@@ -3,12 +3,22 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+relativesrcdir  = @relativesrcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 NO_JS_MANIFEST = 1
 MOZ_CHROME_FILE_FORMAT = jar
 DIST_FILES = install.rdf
 
 # Used in install.rdf
 USE_EXTENSION_MANIFEST = 1
+
+XPI_NAME = mochijar
 
 # we turn this off for UNIVERSAL_BINARY
 CHROME_JAR = 1
@@ -26,20 +36,18 @@ _SERV_FILES = 	\
 		runtestsb2g.py \
 		runtestsremote.py \
 		runtestsvmware.py \
-		mochitest_options.py \
 		manifest.webapp \
 		$(topsrcdir)/testing/mozbase/mozdevice/mozdevice/devicemanager.py \
 		$(topsrcdir)/testing/mozbase/mozdevice/mozdevice/devicemanagerADB.py \
 		$(topsrcdir)/testing/mozbase/mozdevice/mozdevice/devicemanagerSUT.py \
-		$(topsrcdir)/testing/mozbase/manifestdestiny/manifestparser/manifestparser.py \
-		$(topsrcdir)/testing/mozbase/mozdevice/mozdevice/droid.py \
 		$(topsrcdir)/testing/mozbase/mozdevice/mozdevice/Zeroconf.py \
 		$(topsrcdir)/build/automationutils.py \
+		$(topsrcdir)/build/manifestparser.py \
 		$(topsrcdir)/build/mobile/remoteautomation.py \
+		$(topsrcdir)/build/mobile/b2gautomation.py \
 		gen_template.pl \
 		server.js \
-		chunkifyTests.js \
-		manifestLibrary.js \
+		harness-overlay.xul \
 		harness.xul \
 		browser-test-overlay.xul \
 		browser-test.js \
@@ -50,14 +58,9 @@ _SERV_FILES = 	\
 		$(topsrcdir)/build/pgo/server-locations.txt \
 		$(topsrcdir)/netwerk/test/httpserver/httpd.js \
 		pywebsocket_wrapper.py \
+ 	 	plain-loop.html \
 		android.json \
-		androidx86.json \
 		b2g.json \
-		b2g-desktop.json \
-		b2g-debug.json \
-		b2g_start_script.js \
-		root-ev-tester.crl \
-		intermediate-ev-tester.crl \
 		$(NULL)	
 
 ifeq ($(MOZ_BUILD_APP),mobile/android)
@@ -119,7 +122,6 @@ TEST_HARNESS_BINS := \
   ssltunnel$(BIN_SUFFIX) \
   certutil$(BIN_SUFFIX) \
   pk12util$(BIN_SUFFIX) \
-  OCSPStaplingServer$(BIN_SUFFIX) \
   fix_stack_using_bpsyms.py \
   $(NULL)
 
@@ -195,10 +197,8 @@ $(_DEST_DIR):
 
 stage-package:
 	$(NSINSTALL) -D $(PKG_STAGE)/mochitest && $(NSINSTALL) -D $(PKG_STAGE)/bin/plugins && $(NSINSTALL) -D $(DIST)/plugins
-	cp $(DEPTH)/mozinfo.json $(PKG_STAGE)/mochitest
-	(cd $(DEPTH)/_tests/testing/mochitest/ && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/mochitest && tar -xf -)
-	@cp $(DEPTH)/mozinfo.json $(PKG_STAGE)/mochitest
+	(cd $(DEPTH)/_tests/testing/mochitest/ && tar $(TAR_CREATE_FLAGS_QUIET) - *) | (cd $(PKG_STAGE)/mochitest && tar -xf -)
 	@(cd $(DIST_BIN) && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_BINS)) | (cd $(PKG_STAGE)/bin && tar -xf -)
 	@(cd $(DIST_BIN)/components && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_COMPONENTS)) | (cd $(PKG_STAGE)/bin/components && tar -xf -)
-	(cd $(topsrcdir)/build/pgo/certs && tar $(TAR_CREATE_FLAGS) - *) | (cd $(PKG_STAGE)/certs && tar -xf -)
+	(cd $(topsrcdir)/build/pgo/certs && tar $(TAR_CREATE_FLAGS_QUIET) - *) | (cd $(PKG_STAGE)/certs && tar -xf -)
 	@(cd $(DIST)/plugins && tar $(TAR_CREATE_FLAGS) - $(TEST_HARNESS_PLUGINS)) | (cd $(PKG_STAGE)/bin/plugins && tar -xf -)

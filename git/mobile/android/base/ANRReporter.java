@@ -9,10 +9,12 @@ import org.mozilla.gecko.util.ThreadUtils;
 
 import org.json.JSONObject;
 
+import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
@@ -28,10 +30,10 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Reader;
-import java.io.StringReader;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.util.UUID;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 public final class ANRReporter extends BroadcastReceiver
@@ -59,10 +61,6 @@ public final class ANRReporter extends BroadcastReceiver
     private static int sRegisteredCount;
     private Handler mHandler;
     private volatile boolean mPendingANR;
-
-    private static native boolean requestNativeStack();
-    private static native String getNativeStack();
-    private static native void releaseNativeStack();
 
     public static void register(Context context) {
         if (sRegisteredCount++ != 0) {
@@ -183,10 +181,10 @@ public final class ANRReporter extends BroadcastReceiver
     }
 
     private static File getPingFile() {
-        if (GeckoAppShell.getContext() == null) {
+        if (GeckoApp.mAppContext == null) {
             return null;
         }
-        GeckoProfile profile = GeckoAppShell.getGeckoInterface().getProfile();
+        GeckoProfile profile = GeckoApp.mAppContext.getProfile();
         if (profile == null) {
             return null;
         }
@@ -263,6 +261,30 @@ public final class ANRReporter extends BroadcastReceiver
         return 0L;
     }
 
+    private static long getTotalMem() {
+
+        if (Build.VERSION.SDK_INT >= 16 && GeckoApp.mAppContext != null) {
+            ActivityManager am = (ActivityManager)
+                GeckoApp.mAppContext.getSystemService(Context.ACTIVITY_SERVICE);
+            ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
+            am.getMemoryInfo(mi);
+            mi.totalMem /= 1024L * 1024L;
+            if (DEBUG) {
+                Log.d(LOGTAG, "totalMem " + String.valueOf(mi.totalMem));
+            }
+            return mi.totalMem;
+        } else if (DEBUG) {
+            Log.d(LOGTAG, "totalMem unavailable");
+        }
+        return 0L;
+    }
+
+    private static String getLocale() {
+        // Having a different locale than system locale is not
+        // supported right now; assume we are using the system locale
+        return Locale.getDefault().toString().replace('_', '-');
+    }
+
     /*
         a saved telemetry ping file consists of JSON in the following format,
             {
@@ -319,8 +341,8 @@ public final class ANRReporter extends BroadcastReceiver
             "}," +
             "\"info\":{" +
                 "\"reason\":\"android-anr-report\"," +
-                "\"OS\":" + JSONObject.quote(SysInfo.getName()) + "," +
-                "\"version\":\"" + String.valueOf(SysInfo.getVersion()) + "\"," +
+                "\"OS\":" + JSONObject.quote(AppConstants.OS_TARGET) + "," +
+                "\"version\":\"" + String.valueOf(Build.VERSION.SDK_INT) + "\"," +
                 "\"appID\":" + JSONObject.quote(AppConstants.MOZ_APP_ID) + "," +
                 "\"appVersion\":" + JSONObject.quote(AppConstants.MOZ_APP_VERSION)+ "," +
                 "\"appName\":" + JSONObject.quote(AppConstants.MOZ_APP_BASENAME) + "," +
@@ -328,14 +350,15 @@ public final class ANRReporter extends BroadcastReceiver
                 "\"appUpdateChannel\":" + JSONObject.quote(AppConstants.MOZ_UPDATE_CHANNEL) + "," +
                 // Technically the platform build ID may be different, but we'll never know
                 "\"platformBuildID\":" + JSONObject.quote(AppConstants.MOZ_APP_BUILDID) + "," +
-                "\"locale\":" + JSONObject.quote(SysInfo.getLocale()) + "," +
-                "\"cpucount\":" + String.valueOf(SysInfo.getCPUCount()) + "," +
-                "\"memsize\":" + String.valueOf(SysInfo.getMemSize()) + "," +
-                "\"arch\":" + JSONObject.quote(SysInfo.getArchABI()) + "," +
-                "\"kernel_version\":" + JSONObject.quote(SysInfo.getKernelVersion()) + "," +
-                "\"device\":" + JSONObject.quote(SysInfo.getDevice()) + "," +
-                "\"manufacturer\":" + JSONObject.quote(SysInfo.getManufacturer()) + "," +
-                "\"hardware\":" + JSONObject.quote(SysInfo.getHardware()) +
+                "\"locale\":" + JSONObject.quote(getLocale()) + "," +
+                "\"cpucount\":" + String.valueOf(Runtime.getRuntime().availableProcessors()) + "," +
+                "\"memsize\":" + String.valueOf(getTotalMem()) + "," +
+                "\"arch\":" + JSONObject.quote(System.getProperty("os.arch")) + "," +
+                "\"kernel_version\":" + JSONObject.quote(System.getProperty("os.version")) + "," +
+                "\"device\":" + JSONObject.quote(Build.MODEL) + "," +
+                "\"manufacturer\":" + JSONObject.quote(Build.MANUFACTURER) + "," +
+                "\"hardware\":" + JSONObject.quote(Build.VERSION.SDK_INT < 8 ? "" :
+                                                   Build.HARDWARE) +
             "}," +
             "\"androidANR\":\""));
         if (DEBUG) {
@@ -363,30 +386,31 @@ public final class ANRReporter extends BroadcastReceiver
             // Nothing to do
             return 0;
         }
-        if (prevIndex < 0) {
+        if (prevIndex == 0) {
+            // Did not find pattern in last block; see if entire pattern is inside this block
+            int index = block.indexOf(pattern);
+            if (index >= 0) {
+                // Found pattern; return index at end of the pattern
+                return index + pattern.length();
+            }
+            // Block does not contain the entire pattern, but see if the end of the block
+            // contains the start of pattern. To do that, we see if block ends with the
+            // first 1 character of pattern, the first 2 characters of pattern, first 3,
+            // and so on.
+            for (index = block.length() - 1; index > block.length() - pattern.length(); index--) {
+                // Using index as a start, see if the rest of block contains the start of pattern
+                if (block.charAt(index) == pattern.charAt(0) &&
+                    block.endsWith(pattern.substring(0, block.length() - index))) {
+                    // Found partial match; return -(number of characters matched),
+                    // i.e. -1 for 1 character matched, -2 for 2 characters matched, etc.
+                    return index - block.length();
+                }
+            }
+        } else if (prevIndex < 0) {
             // Last block ended with a partial start; now match start of block to rest of pattern
             if (block.startsWith(pattern.substring(-prevIndex, pattern.length()))) {
                 // Rest of pattern matches; return index at end of pattern
                 return pattern.length() + prevIndex;
-            }
-            // Not a match; continue with normal search
-        }
-        // Did not find pattern in last block; see if entire pattern is inside this block
-        int index = block.indexOf(pattern);
-        if (index >= 0) {
-            // Found pattern; return index at end of the pattern
-            return index + pattern.length();
-        }
-        // Block does not contain the entire pattern, but see if the end of the block
-        // contains the start of pattern. To do that, we see if block ends with the
-        // first n-1 characters of pattern, the first n-2 characters of pattern, etc.
-        for (index = block.length() - pattern.length() + 1; index < block.length(); index++) {
-            // Using index as a start, see if the rest of block contains the start of pattern
-            if (block.charAt(index) == pattern.charAt(0) &&
-                block.endsWith(pattern.substring(0, block.length() - index))) {
-                // Found partial match; return -(number of characters matched),
-                // i.e. -1 for 1 character matched, -2 for 2 characters matched, etc.
-                return index - block.length();
             }
         }
         return 0;
@@ -418,8 +442,7 @@ public final class ANRReporter extends BroadcastReceiver
         return total;
     }
 
-    private static void fillPingFooter(OutputStream ping, MessageDigest checksum,
-                                       boolean haveNativeStack)
+    private static void fillPingFooter(OutputStream ping, MessageDigest checksum)
             throws IOException {
 
         // We are at the end of ANR data
@@ -447,17 +470,6 @@ public final class ANRReporter extends BroadcastReceiver
             Log.w(LOGTAG, e);
         }
 
-        if (haveNativeStack) {
-            total += writePingPayload(ping, checksum, ("\"," +
-                    "\"androidNativeStack\":\""));
-
-            String nativeStack = String.valueOf(getNativeStack());
-            int size = fillPingBlock(ping, checksum, new StringReader(nativeStack), null);
-            if (DEBUG) {
-                Log.d(LOGTAG, "wrote native stack, size = " + String.valueOf(size));
-            }
-        }
-
         total += writePingPayload(ping, checksum, "\"}");
 
         String base64Checksum = Base64.encodeToString(checksum.digest(), Base64.NO_WRAP);
@@ -475,8 +487,6 @@ public final class ANRReporter extends BroadcastReceiver
     }
 
     private static void processTraces(Reader traces, File pingFile) {
-
-        boolean haveNativeStack = requestNativeStack();
         try {
             OutputStream ping = new BufferedOutputStream(
                 new FileOutputStream(pingFile), TRACES_BLOCK_SIZE);
@@ -498,16 +508,13 @@ public final class ANRReporter extends BroadcastReceiver
                 if (DEBUG) {
                     Log.d(LOGTAG, "wrote traces, size = " + String.valueOf(size));
                 }
-                fillPingFooter(ping, checksum, haveNativeStack);
+                fillPingFooter(ping, checksum);
                 if (DEBUG) {
                     Log.d(LOGTAG, "finished creating ping file");
                 }
                 return;
             } finally {
                 ping.close();
-                if (haveNativeStack) {
-                    releaseNativeStack();
-                }
             }
         } catch (GeneralSecurityException e) {
             Log.w(LOGTAG, e);

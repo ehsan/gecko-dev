@@ -41,7 +41,6 @@
         './src/callcontrol',
         './src/common',
         './src/common/browser_logging',
-        './src/common/time_profiling',
         './src/media',
         './src/media-conduit',
         './src/mediapipeline',
@@ -53,15 +52,15 @@
         '../../../ipc/chromium/src',
         '../../../ipc/chromium/src/base/third_party/nspr',
         '../../../xpcom/base',
+        '$(DEPTH)/dist/include',
         '../../../dom/base',
         '../../../content/media',
         '../../../media/mtransport',
-        '../trunk',
+        '../trunk/webrtc',
         '../trunk/webrtc/video_engine/include',
         '../trunk/webrtc/voice_engine/include',
         '../trunk/webrtc/modules/interface',
         '../trunk/webrtc/peerconnection',
-        '../trunk/third_party/libyuv/include/',
         '../../../netwerk/srtp/src/include',
         '../../../netwerk/srtp/src/crypto/include',
         '../../../ipc/chromium/src',
@@ -95,9 +94,6 @@
         # Browser Logging
         './src/common/browser_logging/CSFLog.cpp',
         './src/common/browser_logging/CSFLog.h',
-        # Browser Logging
-        './src/common/time_profiling/timecard.c',
-        './src/common/time_profiling/timecard.h',
         # Call Control
         './src/callcontrol/CC_CallTypes.cpp',
         './src/callcontrol/CallControlManager.cpp',
@@ -171,8 +167,8 @@
         'WEBRTC_RELATIVE_PATH',
       	'HAVE_WEBRTC_VIDEO',
         'HAVE_WEBRTC_VOICE',
-        'HAVE_STDINT_H=1',
         'HAVE_STDLIB_H=1',
+        'INTEGER_TYPES_H="\\"mozilla/StandardInteger.h\\""',
         'HAVE_UINT8_T=1',
         'HAVE_UINT16_T=1',
         'HAVE_UINT32_T=1',
@@ -199,8 +195,7 @@
           ],
           'defines' : [
             'NO_CHROMIUM_LOGGING',
-            'USE_FAKE_MEDIA_STREAMS',
-            'USE_FAKE_PCOBSERVER'
+            'USE_FAKE_MEDIA_STREAMS'
           ],
         }],
         ['(OS=="linux") or (OS=="android")', {
@@ -226,20 +221,8 @@
             'WIN32',
             'GIPS_VER=3480',
             'SIPCC_BUILD',
-            'HAVE_WINSOCK2_H'
-          ],
-
-          'cflags_mozilla': [
-          ],
-        }],
-        ['os_bsd==1', {
-          'include_dirs': [
-          ],
-          'defines': [
-            # avoiding pointless ifdef churn
-            'SIP_OS_OSX',
-            'OSX',
-            'SECLIB_OPENSSL',
+            'HAVE_WINSOCK2_H',
+            'CPR_STDINT_INCLUDE=\\"mozilla/StandardInteger.h\\"'
           ],
 
           'cflags_mozilla': [
@@ -272,7 +255,6 @@
       #
       'include_dirs': [
         './src/common/browser_logging',
-        './src/common/time_profiling',
         './src/sipcc/include',
         './src/sipcc/core/includes',
         './src/sipcc/cpr/include',
@@ -286,9 +268,9 @@
         '../../../dom/base',
         '../trunk/third_party/libsrtp/srtp/include',
         '../trunk/third_party/libsrtp/srtp/crypto/include',
+        '$(DEPTH)/dist/include',
         # Danger: this is to include config.h. This could be bad.
         '../trunk/third_party/libsrtp/config',
-        '../../../netwerk/sctp/datachannel',
       ],
 
       #
@@ -405,7 +387,6 @@
         './src/sipcc/core/includes/dns_utils.h',
         './src/sipcc/core/includes/dtmf.h',
         './src/sipcc/core/includes/embedded.h',
-        './src/sipcc/core/includes/fsmdef_states.h',
         './src/sipcc/core/includes/intelpentiumtypes.h',
         './src/sipcc/core/includes/kpml_common_util.h',
         './src/sipcc/core/includes/kpmlmap.h',
@@ -588,7 +569,6 @@
         './src/sipcc/include/ccapi_service.h',
         './src/sipcc/include/ccapi_types.h',
         './src/sipcc/include/ccsdp.h',
-        './src/sipcc/include/ccsdp_rtcp_fb.h',
         './src/sipcc/include/config_api.h',
         './src/sipcc/include/dns_util.h',
         './src/sipcc/include/plat_api.h',
@@ -779,7 +759,7 @@
           ],
 
         }],
-        ['OS=="mac" or os_bsd==1', {
+        ['OS=="mac"', {
 
           'include_dirs': [
           ],
@@ -820,34 +800,19 @@
           ],
 
 
-          'conditions': [
-            ['OS=="mac"', {
-              'defines' : [
-                'SIP_OS_OSX',
-                '_POSIX_SOURCE',
-                'CPR_MEMORY_LITTLE_ENDIAN',
-                'NO_SOCKET_POLLING',
-                'USE_TIMER_SELECT_BASED',
-                'FULL_BUILD',
-                'STUBBED_OUT',
-                'USE_PRINTF',
-                '_DARWIN_C_SOURCE',
-                'NO_NSPR_10_SUPPORT',
-              ],
-            }],
-            ['os_bsd==1', {
-              'defines' : [
-                'SIP_OS_OSX',
-                'CPR_MEMORY_LITTLE_ENDIAN',
-                'NO_SOCKET_POLLING',
-                'USE_TIMER_SELECT_BASED',
-                'FULL_BUILD',
-                'STUBBED_OUT',
-                'USE_PRINTF',
-                'NO_NSPR_10_SUPPORT',
-              ],
-            }],
+          'defines' : [
+            'SIP_OS_OSX',
+            '_POSIX_SOURCE',
+            'CPR_MEMORY_LITTLE_ENDIAN',
+            'NO_SOCKET_POLLING',
+            'USE_TIMER_SELECT_BASED',
+            'FULL_BUILD',
+            'STUBBED_OUT',
+            'USE_PRINTF',
+            '_DARWIN_C_SOURCE',
+            'NO_NSPR_10_SUPPORT',
           ],
+
           'cflags_mozilla': [
           ],
         }],

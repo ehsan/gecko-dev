@@ -13,7 +13,8 @@
 #include "nsCOMPtr.h"
 #include "mozilla/Attributes.h"
 
-class nsIUnicharInputStream;
+#include "nsIUnicharInputStream.h"
+
 
 class nsPersistentProperties MOZ_FINAL : public nsIPersistentProperties
 {
@@ -21,7 +22,7 @@ public:
   nsPersistentProperties();
   nsresult Init();
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIPROPERTIES
   NS_DECL_NSIPERSISTENTPROPERTIES
 

@@ -3,7 +3,8 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-// Check that variables view works as expected in the web console.
+// Test that makes sure web console eval happens in the user-selected stackframe
+// from the js debugger.
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-eval-in-stackframe.html";
 
@@ -25,18 +26,16 @@ function consoleOpened(hud)
   gJSTerm.execute("fooObj", onExecuteFooObj);
 }
 
-function onExecuteFooObj(msg)
+function onExecuteFooObj()
 {
+  let msg = gWebConsole.outputNode.querySelector(".webconsole-msg-output");
   ok(msg, "output message found");
   isnot(msg.textContent.indexOf("[object Object]"), -1, "message text check");
-
-  let anchor = msg.querySelector("a");
-  ok(anchor, "object link found");
 
   gJSTerm.once("variablesview-fetched", onFooObjFetch);
 
   executeSoon(() =>
-    EventUtils.synthesizeMouse(anchor, 2, 2, {}, gWebConsole.iframeWindow)
+    EventUtils.synthesizeMouse(msg, 2, 2, {}, gWebConsole.iframeWindow)
   );
 }
 
@@ -72,7 +71,7 @@ function onTestPropFound(aResults)
 function onFooObjFetchAfterUpdate(aEvent, aVar)
 {
   info("onFooObjFetchAfterUpdate");
-  let para = content.wrappedJSObject.document.querySelector("p");
+  let para = content.document.querySelector("p");
   let expectedValue = content.document.title + content.location + para;
 
   findVariableViewProperties(aVar, [
@@ -102,7 +101,7 @@ function onFooObjFetchAfterPropRename(aEvent, aVar)
 {
   info("onFooObjFetchAfterPropRename");
 
-  let para = content.wrappedJSObject.document.querySelector("p");
+  let para = content.document.querySelector("p");
   let expectedValue = content.document.title + content.location + para;
 
   // Check that the new value is in the variables view.
@@ -136,7 +135,7 @@ function onPropUpdateError(aEvent, aVar)
 {
   info("onPropUpdateError");
 
-  let para = content.wrappedJSObject.document.querySelector("p");
+  let para = content.document.querySelector("p");
   let expectedValue = content.document.title + content.location + para;
 
   // Make sure the property did not change.
@@ -152,15 +151,12 @@ function onRenamedTestPropFoundAgain(aResults)
 
   let outputNode = gWebConsole.outputNode;
 
-  waitForMessages({
-    webconsole: gWebConsole,
-    messages: [{
-      name: "exception in property update reported in the web console output",
-      text: "foobarzFailure",
-      category: CATEGORY_OUTPUT,
-      severity: SEVERITY_ERROR,
-    }],
-  }).then(testPropDelete.bind(null, prop));
+  waitForSuccess({
+    name: "exception in property update reported in the web console output",
+    validatorFn: () => outputNode.textContent.indexOf("foobarzFailure") != -1,
+    successFn: testPropDelete.bind(null, prop),
+    failureFn: testPropDelete.bind(null, prop),
+  });
 }
 
 function testPropDelete(aProp)

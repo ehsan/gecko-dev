@@ -27,8 +27,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_CodeLocation_h
-#define assembler_assembler_CodeLocation_h
+#ifndef CodeLocation_h
+#define CodeLocation_h
 
 #include "assembler/wtf/Platform.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
@@ -186,4 +186,4 @@ inline CodeLocationDataLabel32 CodeLocationCommon::dataLabel32AtOffset(int offse
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_CodeLocation_h */
+#endif // CodeLocation_h

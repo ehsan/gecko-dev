@@ -3,23 +3,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsXPCOM.h"
 #include "nsMemoryImpl.h"
 #include "nsThreadUtils.h"
 
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
+#include "nsIServiceManager.h"
 #include "nsISimpleEnumerator.h"
 
+#include "prcvar.h"
+#include "pratom.h"
+
+#include "nsAlgorithm.h"
 #include "nsCOMPtr.h"
+#include "nsString.h"
 #include "mozilla/Services.h"
 
 #ifdef ANDROID
 #include <stdio.h>
-
-// Minimum memory threshold for a device to be considered
-// a low memory platform. This value has be in sync with
-// Java's equivalent threshold, defined in
-// mobile/android/base/util/HardwareUtils.java
 #define LOW_MEMORY_THRESHOLD_KB (384 * 1024)
 #endif
 
@@ -74,7 +76,7 @@ nsMemoryImpl::IsLowMemoryPlatform(bool *result)
             return NS_OK;
         }
         uint64_t mem = 0;
-        int rv = fscanf(fd, "MemTotal: %llu kB", &mem);
+        int rv = fscanf(fd, "MemTotal: %lu kB", &mem);
         if (fclose(fd)) {
             return NS_OK;
         }
@@ -112,7 +114,7 @@ nsMemoryImpl::FlushMemory(const PRUnichar* aReason, bool aImmediate)
         }
     }
 
-    int32_t lastVal = sIsFlushing.exchange(1);
+    int32_t lastVal = PR_ATOMIC_SET(&sIsFlushing, 1);
     if (lastVal)
         return NS_OK;
 
@@ -181,8 +183,8 @@ nsMemoryImpl::FlushEvent::Run()
     return NS_OK;
 }
 
-mozilla::Atomic<int32_t>
-nsMemoryImpl::sIsFlushing;
+int32_t
+nsMemoryImpl::sIsFlushing = 0;
 
 PRIntervalTime
 nsMemoryImpl::sLastFlushTime = 0;

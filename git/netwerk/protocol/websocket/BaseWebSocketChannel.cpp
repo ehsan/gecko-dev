@@ -8,6 +8,7 @@
 #include "BaseWebSocketChannel.h"
 #include "nsILoadGroup.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsIURI.h"
 #include "nsAutoPtr.h"
 #include "nsStandardURL.h"
 

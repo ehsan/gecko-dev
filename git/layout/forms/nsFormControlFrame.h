@@ -26,9 +26,9 @@ public:
     */
   nsFormControlFrame(nsStyleContext*);
 
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const
   {
     return nsLeafFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
@@ -42,7 +42,7 @@ public:
     * @see nsIFrame::HandleEvent
     */
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
-                         mozilla::WidgetGUIEvent* aEvent,
+                         nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 
   virtual nscoord GetBaseline() const MOZ_OVERRIDE;
@@ -56,11 +56,11 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&      aStatus) MOZ_OVERRIDE;
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   // new behavior
 
-  virtual void SetFocus(bool aOn = true, bool aRepaint = false) MOZ_OVERRIDE;
+  virtual void SetFocus(bool aOn = true, bool aRepaint = false);
 
   // nsIFormControlFrame
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue) MOZ_OVERRIDE;

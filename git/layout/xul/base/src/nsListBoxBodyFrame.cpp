@@ -14,6 +14,7 @@
 #include "nsIContent.h"
 #include "nsINameSpaceManager.h"
 #include "nsIDocument.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMNodeList.h"
@@ -32,16 +33,13 @@
 #include "nsLayoutUtils.h"
 #include "nsPIListBoxObject.h"
 #include "nsContentUtils.h"
-#include "ChildIterator.h"
+#include "nsChildIterator.h"
 #include "nsRenderingContext.h"
-#include "prtime.h"
 #include <algorithm>
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
 #endif
-
-using namespace mozilla::dom;
 
 /////////////// nsListScrollSmoother //////////////////
 
@@ -538,8 +536,11 @@ nsListBoxBodyFrame::GetIndexOfItem(nsIDOMElement* aItem, int32_t* _retval)
     *_retval = 0;
     nsCOMPtr<nsIContent> itemContent(do_QueryInterface(aItem));
 
-    FlattenedChildIterator iter(mContent);
-    for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
+    ChildIterator iter, last;
+    for (ChildIterator::Init(mContent, &iter, &last);
+         iter != last;
+         ++iter) {
+      nsIContent *child = (*iter);
       // we hit a list row, count it
       if (child->Tag() == nsGkAtoms::listitem) {
         // is this it?
@@ -562,10 +563,13 @@ nsListBoxBodyFrame::GetItemAtIndex(int32_t aIndex, nsIDOMElement** aItem)
   *aItem = nullptr;
   if (aIndex < 0)
     return NS_OK;
-
+  
   int32_t itemCount = 0;
-  FlattenedChildIterator iter(mContent);
-  for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
+  ChildIterator iter, last;
+  for (ChildIterator::Init(mContent, &iter, &last);
+       iter != last;
+       ++iter) {
+    nsIContent *child = (*iter);
     // we hit a list row, check if it is the one we are looking for
     if (child->Tag() == nsGkAtoms::listitem) {
       // is this it?
@@ -667,8 +671,14 @@ nsListBoxBodyFrame::ComputeIntrinsicWidth(nsBoxLayoutState& aBoxLayoutState)
     if (styleContext->StyleMargin()->GetMargin(margin))
       width += margin.LeftRight();
 
-    FlattenedChildIterator iter(mContent);
-    for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
+
+    ChildIterator iter, last;
+    uint32_t i = 0;
+    for (ChildIterator::Init(mContent, &iter, &last);
+         iter != last && i < 100;
+         ++iter, ++i) {
+      nsIContent *child = (*iter);
+
       if (child->Tag() == nsGkAtoms::listitem) {
         nsRenderingContext* rendContext = aBoxLayoutState.GetRenderingContext();
         if (rendContext) {
@@ -705,11 +715,13 @@ void
 nsListBoxBodyFrame::ComputeTotalRowCount()
 {
   mRowCount = 0;
-  FlattenedChildIterator iter(mContent);
-  for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
-    if (child->Tag() == nsGkAtoms::listitem) {
+
+  ChildIterator iter, last;
+  for (ChildIterator::Init(mContent, &iter, &last);
+       iter != last;
+       ++iter) {
+    if ((*iter)->Tag() == nsGkAtoms::listitem)
       ++mRowCount;
-    }
   }
 }
 
@@ -924,12 +936,8 @@ nsListBoxBodyFrame::VerticalScroll(int32_t aPosition)
 
   nsPoint scrollPosition = scrollFrame->GetScrollPosition();
  
-  nsWeakFrame weakFrame(this);
   scrollFrame->ScrollTo(nsPoint(scrollPosition.x, aPosition),
                         nsIScrollableFrame::INSTANT);
-  if (!weakFrame.IsAlive()) {
-    return;
-  }
 
   mYPosition = aPosition;
 }
@@ -1362,11 +1370,7 @@ nsListBoxBodyFrame::OnContentRemoved(nsPresContext* aPresContext,
         NS_PRECONDITION(mCurrentIndex > 0, "mCurrentIndex > 0");
         --mCurrentIndex;
         mYPosition = mCurrentIndex*mRowHeight;
-        nsWeakFrame weakChildFrame(aChildFrame);
         VerticalScroll(mYPosition);
-        if (!weakChildFrame.IsAlive()) {
-          return;
-        }
       }
     } else if (mCurrentIndex > 0) {
       // At this point, we know we have a scrollbar, and we need to know 
@@ -1374,27 +1378,22 @@ nsListBoxBodyFrame::OnContentRemoved(nsPresContext* aPresContext,
       // of the scrollbar is to stay locked to the bottom.  Since we are
       // removing visible content, the first visible row will have to move
       // down by one, and we will have to insert a new frame at the top.
-
+      
       // if the last content node has a frame, we are scrolled to the bottom
-      nsIContent* lastChild = nullptr;
-      FlattenedChildIterator iter(mContent);
-      for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
-        lastChild = child;
-      }
-
-      if (lastChild) {
+      ChildIterator iter, last;
+      ChildIterator::Init(mContent, &iter, &last);
+      if (iter != last) {
+        iter = last;
+        --iter;
+        nsIContent *lastChild = *iter;
         nsIFrame* lastChildFrame = lastChild->GetPrimaryFrame();
-
+      
         if (lastChildFrame) {
           mTopFrame = nullptr;
           mRowsToPrepend = 1;
           --mCurrentIndex;
           mYPosition = mCurrentIndex*mRowHeight;
-          nsWeakFrame weakChildFrame(aChildFrame);
           VerticalScroll(mYPosition);
-          if (!weakChildFrame.IsAlive()) {
-            return;
-          }
         }
       }
     }
@@ -1421,12 +1420,15 @@ nsListBoxBodyFrame::GetListItemContentAt(int32_t aIndex, nsIContent** aContent)
   *aContent = nullptr;
 
   int32_t itemsFound = 0;
-  FlattenedChildIterator iter(mContent);
-  for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
-    if (child->Tag() == nsGkAtoms::listitem) {
+  ChildIterator iter, last;
+  for (ChildIterator::Init(mContent, &iter, &last);
+       iter != last;
+       ++iter) {
+    nsIContent *kid = (*iter);
+    if (kid->Tag() == nsGkAtoms::listitem) {
       ++itemsFound;
       if (itemsFound-1 == aIndex) {
-        *aContent = child;
+        *aContent = kid;
         NS_IF_ADDREF(*aContent);
         return;
       }
@@ -1440,17 +1442,21 @@ nsListBoxBodyFrame::GetListItemNextSibling(nsIContent* aListItem, nsIContent** a
   *aContent = nullptr;
   aSiblingIndex = -1;
   nsIContent *prevKid = nullptr;
-  FlattenedChildIterator iter(mContent);
-  for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
-    if (child->Tag() == nsGkAtoms::listitem) {
+  ChildIterator iter, last;
+  for (ChildIterator::Init(mContent, &iter, &last);
+       iter != last;
+       ++iter) {
+    nsIContent *kid = (*iter);
+
+    if (kid->Tag() == nsGkAtoms::listitem) {
       ++aSiblingIndex;
       if (prevKid == aListItem) {
-        *aContent = child;
+        *aContent = kid;
         NS_IF_ADDREF(*aContent);
         return;
       }
     }
-    prevKid = child;
+    prevKid = kid;
   }
 
   aSiblingIndex = -1; // no match, so there is no next sibling
@@ -1486,6 +1492,10 @@ nsIFrame*
 NS_NewListBoxBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   nsCOMPtr<nsBoxLayout> layout = NS_NewListBoxLayout();
+  if (!layout) {
+    return nullptr;
+  }
+
   return new (aPresShell) nsListBoxBodyFrame(aPresShell, aContext, layout);
 }
 

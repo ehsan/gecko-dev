@@ -1,24 +1,18 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
+/* vim: set ts=2 et sw=2 tw=40: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_telephony_TelephonyFactory_h
-#define mozilla_dom_telephony_TelephonyFactory_h
+#ifndef mozilla_dom_telephony_telephonyfactory_h__
+#define mozilla_dom_telephony_telephonyfactory_h__
 
-#include "nsCOMPtr.h"
-#include "mozilla/dom/telephony/TelephonyCommon.h"
+#include "nsIDOMTelephony.h"
+#include "nsPIDOMWindow.h"
 
-class nsITelephonyProvider;
+// Implemented in Telephony.cpp.
 
-BEGIN_TELEPHONY_NAMESPACE
+nsresult
+NS_NewTelephony(nsPIDOMWindow* aWindow, nsIDOMTelephony** aTelephony);
 
-class TelephonyFactory
-{
-public:
-  static already_AddRefed<nsITelephonyProvider> CreateTelephonyProvider();
-};
-
-END_TELEPHONY_NAMESPACE
-
-#endif // mozilla_dom_telephony_TelephonyFactory_h
+#endif // mozilla_dom_telephony_telephonyfactory_h__

@@ -5,7 +5,7 @@
 
 #include "necko-config.h"
 
-#define ALLOW_LATE_HTTPLOG_H_INCLUDE 1
+#define ALLOW_LATE_NSHTTP_H_INCLUDE 1
 #include "base/basictypes.h"
 
 #include "nsCOMPtr.h"
@@ -36,14 +36,15 @@
 #include "nsXULAppAPI.h"
 #include "nsCategoryCache.h"
 #include "nsIContentSniffer.h"
-#include "Seer.h"
 #include "nsNetUtil.h"
-#include "nsIThreadPool.h"
-#include "mozilla/net/NeckoChild.h"
 
 #include "nsNetCID.h"
 
-#ifndef XP_MACOSX
+#if defined(XP_MACOSX)
+#if !defined(__LP64__)
+#define BUILD_APPLEFILE_DECODER 1
+#endif
+#else
 #define BUILD_BINHEX_DECODER 1
 #endif
 
@@ -73,8 +74,8 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsSocketTransportService, Init)
 #include "nsServerSocket.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsServerSocket)
 
-#include "nsUDPSocket.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsUDPSocket)
+#include "nsUDPServerSocket.h"
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsUDPServerSocket)
 
 #include "nsUDPSocketProvider.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsUDPSocketProvider)
@@ -108,9 +109,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsFileStream)
 
 NS_GENERIC_AGGREGATED_CONSTRUCTOR_INIT(nsLoadGroup, Init)
 
-#include "ArrayBufferInputStream.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR(ArrayBufferInputStream)
-
 #include "nsEffectiveTLDService.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsEffectiveTLDService, Init)
 
@@ -120,10 +118,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsSerializationHelper)
 #include "RedirectChannelRegistrar.h"
 typedef mozilla::net::RedirectChannelRegistrar RedirectChannelRegistrar;
 NS_GENERIC_FACTORY_CONSTRUCTOR(RedirectChannelRegistrar)
-
-#include "CacheStorageService.h"
-typedef mozilla::net::CacheStorageService CacheStorageService;
-NS_GENERIC_FACTORY_CONSTRUCTOR(CacheStorageService)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -137,6 +131,15 @@ net_NewIncrementalDownload(nsISupports *, const nsIID &, void **);
     0x4896,                                          \
     {0x8a, 0xaf, 0xb1, 0x48, 0xbf, 0xce, 0x42, 0x80} \
 }
+
+///////////////////////////////////////////////////////////////////////////////
+
+#include "nsStreamConverterService.h"
+
+#ifdef BUILD_APPLEFILE_DECODER
+#include "nsAppleFileDecoder.h"
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsAppleFileDecoder)
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -244,7 +247,6 @@ namespace net {
   NS_GENERIC_FACTORY_CONSTRUCTOR(Dashboard)
 }
 }
-#include "AppProtocolHandler.h"
 
 #ifdef NECKO_PROTOCOL_res
 // resource
@@ -300,8 +302,8 @@ type##Constructor(nsISupports *aOuter, REFNSIID aIID, \
                                                       \
   BaseWebSocketChannel * inst;                        \
                                                       \
-  *aResult = nullptr;                                 \
-  if (nullptr != aOuter) {                            \
+  *aResult = NULL;                                    \
+  if (NULL != aOuter) {                               \
     rv = NS_ERROR_NO_AGGREGATION;                     \
     return rv;                                        \
   }                                                   \
@@ -315,15 +317,6 @@ type##Constructor(nsISupports *aOuter, REFNSIID aIID, \
 WEB_SOCKET_HANDLER_CONSTRUCTOR(WebSocketChannel, false)
 WEB_SOCKET_HANDLER_CONSTRUCTOR(WebSocketSSLChannel, true)
 #undef WEB_SOCKET_HANDLER_CONSTRUCTOR
-} // namespace mozilla::net
-} // namespace mozilla
-#endif
-
-#ifdef NECKO_PROTOCOL_rtsp
-#include "RtspHandler.h"
-namespace mozilla {
-namespace net {
-NS_GENERIC_FACTORY_CONSTRUCTOR(RtspHandler)
 } // namespace mozilla::net
 } // namespace mozilla
 #endif
@@ -359,6 +352,9 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsNotifyAddrListener, Init)
 #elif defined(MOZ_WIDGET_COCOA)
 #include "nsNetworkLinkService.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsNetworkLinkService, Init)
+#elif defined(MOZ_ENABLE_LIBCONIC)
+#include "nsMaemoNetworkLinkService.h"
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsMaemoNetworkLinkService, Init)
 #elif defined(MOZ_ENABLE_QTNETWORK)
 #include "nsQtNetworkLinkService.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsQtNetworkLinkService, Init)
@@ -374,7 +370,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsAndroidNetworkLinkService)
 nsresult NS_NewFTPDirListingConv(nsFTPDirListingConv** result);
 #endif
 
-#include "nsStreamConverterService.h"
 #include "nsMultiMixedConv.h"
 #include "nsHTTPCompressConv.h"
 #include "mozTXTToHTMLConv.h"
@@ -425,7 +420,7 @@ static const mozilla::Module::CategoryEntry kNeckoCategories[] = {
 #endif
     { NS_ISTREAMCONVERTER_KEY, PLAIN_TO_HTML, "" },
     NS_BINARYDETECTOR_CATEGORYENTRY,
-    { nullptr }
+    { NULL }
 };
 
 #ifdef BUILD_BINHEX_DECODER
@@ -682,7 +677,7 @@ NS_DEFINE_NAMED_CID(NS_IOSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_STREAMTRANSPORTSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_SOCKETTRANSPORTSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_SERVERSOCKET_CID);
-NS_DEFINE_NAMED_CID(NS_UDPSOCKET_CID);
+NS_DEFINE_NAMED_CID(NS_UDPSERVERSOCKET_CID);
 NS_DEFINE_NAMED_CID(NS_SOCKETPROVIDERSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_DNSSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_IDNSERVICE_CID);
@@ -713,13 +708,15 @@ NS_DEFINE_NAMED_CID(NS_STDURLPARSER_CID);
 NS_DEFINE_NAMED_CID(NS_NOAUTHURLPARSER_CID);
 NS_DEFINE_NAMED_CID(NS_AUTHURLPARSER_CID);
 NS_DEFINE_NAMED_CID(NS_STANDARDURL_CID);
-NS_DEFINE_NAMED_CID(NS_ARRAYBUFFERINPUTSTREAM_CID);
 NS_DEFINE_NAMED_CID(NS_BUFFEREDINPUTSTREAM_CID);
 NS_DEFINE_NAMED_CID(NS_BUFFEREDOUTPUTSTREAM_CID);
 NS_DEFINE_NAMED_CID(NS_MIMEINPUTSTREAM_CID);
 NS_DEFINE_NAMED_CID(NS_PROTOCOLPROXYSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_STREAMCONVERTERSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_DASHBOARD_CID);
+#ifdef BUILD_APPLEFILE_DECODER
+NS_DEFINE_NAMED_CID(NS_APPLEFILEDECODER_CID);
+#endif
 #ifdef NECKO_PROTOCOL_ftp
 NS_DEFINE_NAMED_CID(NS_FTPDIRLISTINGCONVERTER_CID);
 #endif
@@ -774,7 +771,6 @@ NS_DEFINE_NAMED_CID(NS_CACHESERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHESERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHENAMESPACE_CID);
 NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHE_CID);
-NS_DEFINE_NAMED_CID(NS_APPPROTOCOLHANDLER_CID);
 #ifdef NECKO_COOKIES
 NS_DEFINE_NAMED_CID(NS_COOKIEMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_COOKIESERVICE_CID);
@@ -798,12 +794,11 @@ NS_DEFINE_NAMED_CID(NS_WYCIWYGPROTOCOLHANDLER_CID);
 NS_DEFINE_NAMED_CID(NS_WEBSOCKETPROTOCOLHANDLER_CID);
 NS_DEFINE_NAMED_CID(NS_WEBSOCKETSSLPROTOCOLHANDLER_CID);
 #endif
-#ifdef NECKO_PROTOCOL_rtsp
-NS_DEFINE_NAMED_CID(NS_RTSPPROTOCOLHANDLER_CID);
-#endif
 #if defined(XP_WIN)
 NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
 #elif defined(MOZ_WIDGET_COCOA)
+NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
+#elif defined(MOZ_ENABLE_LIBCONIC)
 NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
 #elif defined(MOZ_ENABLE_QTNETWORK)
 NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
@@ -812,151 +807,147 @@ NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
 #endif
 NS_DEFINE_NAMED_CID(NS_SERIALIZATION_HELPER_CID);
 NS_DEFINE_NAMED_CID(NS_REDIRECTCHANNELREGISTRAR_CID);
-NS_DEFINE_NAMED_CID(NS_CACHE_STORAGE_SERVICE_CID);
-NS_DEFINE_NAMED_CID(NS_NETWORKSEER_CID);
 
 static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
-    { &kNS_IOSERVICE_CID, false, nullptr, nsIOServiceConstructor },
-    { &kNS_STREAMTRANSPORTSERVICE_CID, false, nullptr, nsStreamTransportServiceConstructor },
-    { &kNS_SOCKETTRANSPORTSERVICE_CID, false, nullptr, nsSocketTransportServiceConstructor },
-    { &kNS_SERVERSOCKET_CID, false, nullptr, nsServerSocketConstructor },
-    { &kNS_UDPSOCKET_CID, false, nullptr, nsUDPSocketConstructor },
-    { &kNS_SOCKETPROVIDERSERVICE_CID, false, nullptr, nsSocketProviderService::Create },
-    { &kNS_DNSSERVICE_CID, false, nullptr, nsDNSServiceConstructor },
-    { &kNS_IDNSERVICE_CID, false, nullptr, nsIDNServiceConstructor },
-    { &kNS_EFFECTIVETLDSERVICE_CID, false, nullptr, nsEffectiveTLDServiceConstructor },
-    { &kNS_SIMPLEURI_CID, false, nullptr, nsSimpleURIConstructor },
-    { &kNS_SIMPLENESTEDURI_CID, false, nullptr, nsSimpleNestedURIConstructor },
-    { &kNS_ASYNCSTREAMCOPIER_CID, false, nullptr, nsAsyncStreamCopierConstructor },
-    { &kNS_INPUTSTREAMPUMP_CID, false, nullptr, nsInputStreamPumpConstructor },
-    { &kNS_INPUTSTREAMCHANNEL_CID, false, nullptr, nsInputStreamChannelConstructor },
-    { &kNS_STREAMLOADER_CID, false, nullptr, nsStreamLoader::Create },
-    { &kNS_UNICHARSTREAMLOADER_CID, false, nullptr, nsUnicharStreamLoader::Create },
-    { &kNS_DOWNLOADER_CID, false, nullptr, nsDownloaderConstructor },
-    { &kNS_BACKGROUNDFILESAVEROUTPUTSTREAM_CID, false, nullptr,
+    { &kNS_IOSERVICE_CID, false, NULL, nsIOServiceConstructor },
+    { &kNS_STREAMTRANSPORTSERVICE_CID, false, NULL, nsStreamTransportServiceConstructor },
+    { &kNS_SOCKETTRANSPORTSERVICE_CID, false, NULL, nsSocketTransportServiceConstructor },
+    { &kNS_SERVERSOCKET_CID, false, NULL, nsServerSocketConstructor },
+    { &kNS_UDPSERVERSOCKET_CID, false, NULL, nsUDPServerSocketConstructor },
+    { &kNS_SOCKETPROVIDERSERVICE_CID, false, NULL, nsSocketProviderService::Create },
+    { &kNS_DNSSERVICE_CID, false, NULL, nsDNSServiceConstructor },
+    { &kNS_IDNSERVICE_CID, false, NULL, nsIDNServiceConstructor },
+    { &kNS_EFFECTIVETLDSERVICE_CID, false, NULL, nsEffectiveTLDServiceConstructor },
+    { &kNS_SIMPLEURI_CID, false, NULL, nsSimpleURIConstructor },
+    { &kNS_SIMPLENESTEDURI_CID, false, NULL, nsSimpleNestedURIConstructor },
+    { &kNS_ASYNCSTREAMCOPIER_CID, false, NULL, nsAsyncStreamCopierConstructor },
+    { &kNS_INPUTSTREAMPUMP_CID, false, NULL, nsInputStreamPumpConstructor },
+    { &kNS_INPUTSTREAMCHANNEL_CID, false, NULL, nsInputStreamChannelConstructor },
+    { &kNS_STREAMLOADER_CID, false, NULL, nsStreamLoader::Create },
+    { &kNS_UNICHARSTREAMLOADER_CID, false, NULL, nsUnicharStreamLoader::Create },
+    { &kNS_DOWNLOADER_CID, false, NULL, nsDownloaderConstructor },
+    { &kNS_BACKGROUNDFILESAVEROUTPUTSTREAM_CID, false, NULL,
       mozilla::net::BackgroundFileSaverOutputStreamConstructor },
-    { &kNS_BACKGROUNDFILESAVERSTREAMLISTENER_CID, false, nullptr,
+    { &kNS_BACKGROUNDFILESAVERSTREAMLISTENER_CID, false, NULL,
       mozilla::net::BackgroundFileSaverStreamListenerConstructor },
-    { &kNS_SYNCSTREAMLISTENER_CID, false, nullptr, nsSyncStreamListenerConstructor },
-    { &kNS_REQUESTOBSERVERPROXY_CID, false, nullptr, nsRequestObserverProxyConstructor },
-    { &kNS_SIMPLESTREAMLISTENER_CID, false, nullptr, nsSimpleStreamListenerConstructor },
-    { &kNS_STREAMLISTENERTEE_CID, false, nullptr, nsStreamListenerTeeConstructor },
-    { &kNS_LOADGROUP_CID, false, nullptr, nsLoadGroupConstructor },
-    { &kNS_LOCALFILEINPUTSTREAM_CID, false, nullptr, nsFileInputStream::Create },
-    { &kNS_LOCALFILEOUTPUTSTREAM_CID, false, nullptr, nsFileOutputStream::Create },
-    { &kNS_PARTIALLOCALFILEINPUTSTREAM_CID, false, nullptr, nsPartialFileInputStream::Create },
-    { &kNS_SAFELOCALFILEOUTPUTSTREAM_CID, false, nullptr, nsSafeFileOutputStreamConstructor },
-    { &kNS_LOCALFILESTREAM_CID, false, nullptr, nsFileStreamConstructor },
-    { &kNS_URICHECKER_CID, false, nullptr, nsURICheckerConstructor },
-    { &kNS_INCREMENTALDOWNLOAD_CID, false, nullptr, net_NewIncrementalDownload },
-    { &kNS_STDURLPARSER_CID, false, nullptr, nsStdURLParserConstructor },
-    { &kNS_NOAUTHURLPARSER_CID, false, nullptr, nsNoAuthURLParserConstructor },
-    { &kNS_AUTHURLPARSER_CID, false, nullptr, nsAuthURLParserConstructor },
-    { &kNS_STANDARDURL_CID, false, nullptr, nsStandardURLConstructor },
-    { &kNS_ARRAYBUFFERINPUTSTREAM_CID, false, nullptr, ArrayBufferInputStreamConstructor },
-    { &kNS_BUFFEREDINPUTSTREAM_CID, false, nullptr, nsBufferedInputStream::Create },
-    { &kNS_BUFFEREDOUTPUTSTREAM_CID, false, nullptr, nsBufferedOutputStream::Create },
-    { &kNS_MIMEINPUTSTREAM_CID, false, nullptr, nsMIMEInputStreamConstructor },
-    { &kNS_PROTOCOLPROXYSERVICE_CID, true, nullptr, nsProtocolProxyServiceConstructor },
-    { &kNS_STREAMCONVERTERSERVICE_CID, false, nullptr, CreateNewStreamConvServiceFactory },
-    { &kNS_DASHBOARD_CID, false, nullptr, mozilla::net::DashboardConstructor },
+    { &kNS_SYNCSTREAMLISTENER_CID, false, NULL, nsSyncStreamListenerConstructor },
+    { &kNS_REQUESTOBSERVERPROXY_CID, false, NULL, nsRequestObserverProxyConstructor },
+    { &kNS_SIMPLESTREAMLISTENER_CID, false, NULL, nsSimpleStreamListenerConstructor },
+    { &kNS_STREAMLISTENERTEE_CID, false, NULL, nsStreamListenerTeeConstructor },
+    { &kNS_LOADGROUP_CID, false, NULL, nsLoadGroupConstructor },
+    { &kNS_LOCALFILEINPUTSTREAM_CID, false, NULL, nsFileInputStream::Create },
+    { &kNS_LOCALFILEOUTPUTSTREAM_CID, false, NULL, nsFileOutputStream::Create },
+    { &kNS_PARTIALLOCALFILEINPUTSTREAM_CID, false, NULL, nsPartialFileInputStream::Create },
+    { &kNS_SAFELOCALFILEOUTPUTSTREAM_CID, false, NULL, nsSafeFileOutputStreamConstructor },
+    { &kNS_LOCALFILESTREAM_CID, false, NULL, nsFileStreamConstructor },
+    { &kNS_URICHECKER_CID, false, NULL, nsURICheckerConstructor },
+    { &kNS_INCREMENTALDOWNLOAD_CID, false, NULL, net_NewIncrementalDownload },
+    { &kNS_STDURLPARSER_CID, false, NULL, nsStdURLParserConstructor },
+    { &kNS_NOAUTHURLPARSER_CID, false, NULL, nsNoAuthURLParserConstructor },
+    { &kNS_AUTHURLPARSER_CID, false, NULL, nsAuthURLParserConstructor },
+    { &kNS_STANDARDURL_CID, false, NULL, nsStandardURLConstructor },
+    { &kNS_BUFFEREDINPUTSTREAM_CID, false, NULL, nsBufferedInputStream::Create },
+    { &kNS_BUFFEREDOUTPUTSTREAM_CID, false, NULL, nsBufferedOutputStream::Create },
+    { &kNS_MIMEINPUTSTREAM_CID, false, NULL, nsMIMEInputStreamConstructor },
+    { &kNS_PROTOCOLPROXYSERVICE_CID, true, NULL, nsProtocolProxyServiceConstructor },
+    { &kNS_STREAMCONVERTERSERVICE_CID, false, NULL, CreateNewStreamConvServiceFactory },
+    { &kNS_DASHBOARD_CID, false, NULL, mozilla::net::DashboardConstructor },
+#ifdef BUILD_APPLEFILE_DECODER
+    { &kNS_APPLEFILEDECODER_CID, false, NULL, nsAppleFileDecoderConstructor },
+#endif
 #ifdef NECKO_PROTOCOL_ftp
-    { &kNS_FTPDIRLISTINGCONVERTER_CID, false, nullptr, CreateNewFTPDirListingConv },
+    { &kNS_FTPDIRLISTINGCONVERTER_CID, false, NULL, CreateNewFTPDirListingConv },
 #endif
-    { &kNS_NSINDEXEDTOHTMLCONVERTER_CID, false, nullptr, nsIndexedToHTML::Create },
-    { &kNS_DIRINDEXPARSER_CID, false, nullptr, nsDirIndexParserConstructor },
-    { &kNS_MULTIMIXEDCONVERTER_CID, false, nullptr, CreateNewMultiMixedConvFactory },
-    { &kNS_UNKNOWNDECODER_CID, false, nullptr, CreateNewUnknownDecoderFactory },
-    { &kNS_BINARYDETECTOR_CID, false, nullptr, CreateNewBinaryDetectorFactory },
-    { &kNS_HTTPCOMPRESSCONVERTER_CID, false, nullptr, CreateNewHTTPCompressConvFactory },
-    { &kNS_NSTXTTOHTMLCONVERTER_CID, false, nullptr, CreateNewNSTXTToHTMLConvFactory },
+    { &kNS_NSINDEXEDTOHTMLCONVERTER_CID, false, NULL, nsIndexedToHTML::Create },
+    { &kNS_DIRINDEXPARSER_CID, false, NULL, nsDirIndexParserConstructor },
+    { &kNS_MULTIMIXEDCONVERTER_CID, false, NULL, CreateNewMultiMixedConvFactory },
+    { &kNS_UNKNOWNDECODER_CID, false, NULL, CreateNewUnknownDecoderFactory },
+    { &kNS_BINARYDETECTOR_CID, false, NULL, CreateNewBinaryDetectorFactory },
+    { &kNS_HTTPCOMPRESSCONVERTER_CID, false, NULL, CreateNewHTTPCompressConvFactory },
+    { &kNS_NSTXTTOHTMLCONVERTER_CID, false, NULL, CreateNewNSTXTToHTMLConvFactory },
 #ifdef BUILD_BINHEX_DECODER
-    { &kNS_BINHEXDECODER_CID, false, nullptr, nsBinHexDecoderConstructor },
+    { &kNS_BINHEXDECODER_CID, false, NULL, nsBinHexDecoderConstructor },
 #endif
-    { &kMOZITXTTOHTMLCONV_CID, false, nullptr, CreateNewTXTToHTMLConvFactory },
-    { &kNS_DIRINDEX_CID, false, nullptr, nsDirIndexConstructor },
-    { &kNS_MIMEHEADERPARAM_CID, false, nullptr, nsMIMEHeaderParamImplConstructor },
+    { &kMOZITXTTOHTMLCONV_CID, false, NULL, CreateNewTXTToHTMLConvFactory },
+    { &kNS_DIRINDEX_CID, false, NULL, nsDirIndexConstructor },
+    { &kNS_MIMEHEADERPARAM_CID, false, NULL, nsMIMEHeaderParamImplConstructor },
 #ifdef NECKO_PROTOCOL_file
-    { &kNS_FILEPROTOCOLHANDLER_CID, false, nullptr, nsFileProtocolHandlerConstructor },
+    { &kNS_FILEPROTOCOLHANDLER_CID, false, NULL, nsFileProtocolHandlerConstructor },
 #endif
 #ifdef NECKO_PROTOCOL_http
-    { &kNS_HTTPPROTOCOLHANDLER_CID, false, nullptr, nsHttpHandlerConstructor },
-    { &kNS_HTTPSPROTOCOLHANDLER_CID, false, nullptr, nsHttpsHandlerConstructor },
-    { &kNS_HTTPBASICAUTH_CID, false, nullptr, nsHttpBasicAuthConstructor },
-    { &kNS_HTTPDIGESTAUTH_CID, false, nullptr, nsHttpDigestAuthConstructor },
-    { &kNS_HTTPNTLMAUTH_CID, false, nullptr, nsHttpNTLMAuthConstructor },
-    { &kNS_HTTPAUTHMANAGER_CID, false, nullptr, nsHttpAuthManagerConstructor },
-    { &kNS_HTTPCHANNELAUTHPROVIDER_CID, false, nullptr, nsHttpChannelAuthProviderConstructor },
-    { &kNS_HTTPACTIVITYDISTRIBUTOR_CID, false, nullptr, nsHttpActivityDistributorConstructor },
+    { &kNS_HTTPPROTOCOLHANDLER_CID, false, NULL, nsHttpHandlerConstructor },
+    { &kNS_HTTPSPROTOCOLHANDLER_CID, false, NULL, nsHttpsHandlerConstructor },
+    { &kNS_HTTPBASICAUTH_CID, false, NULL, nsHttpBasicAuthConstructor },
+    { &kNS_HTTPDIGESTAUTH_CID, false, NULL, nsHttpDigestAuthConstructor },
+    { &kNS_HTTPNTLMAUTH_CID, false, NULL, nsHttpNTLMAuthConstructor },
+    { &kNS_HTTPAUTHMANAGER_CID, false, NULL, nsHttpAuthManagerConstructor },
+    { &kNS_HTTPCHANNELAUTHPROVIDER_CID, false, NULL, nsHttpChannelAuthProviderConstructor },
+    { &kNS_HTTPACTIVITYDISTRIBUTOR_CID, false, NULL, nsHttpActivityDistributorConstructor },
 #endif // !NECKO_PROTOCOL_http
 #ifdef NECKO_PROTOCOL_ftp
-    { &kNS_FTPPROTOCOLHANDLER_CID, false, nullptr, nsFtpProtocolHandlerConstructor },
+    { &kNS_FTPPROTOCOLHANDLER_CID, false, NULL, nsFtpProtocolHandlerConstructor },
 #endif
 #ifdef NECKO_PROTOCOL_res
-    { &kNS_RESPROTOCOLHANDLER_CID, false, nullptr, nsResProtocolHandlerConstructor },
-    { &kNS_RESURL_CID, false, nullptr, nsResURLConstructor },
+    { &kNS_RESPROTOCOLHANDLER_CID, false, NULL, nsResProtocolHandlerConstructor },
+    { &kNS_RESURL_CID, false, NULL, nsResURLConstructor },
 #endif
-    { &kNS_ABOUTPROTOCOLHANDLER_CID, false, nullptr, nsAboutProtocolHandlerConstructor },
-    { &kNS_SAFEABOUTPROTOCOLHANDLER_CID, false, nullptr, nsSafeAboutProtocolHandlerConstructor },
-    { &kNS_ABOUT_BLANK_MODULE_CID, false, nullptr, nsAboutBlank::Create },
-    { &kNS_NESTEDABOUTURI_CID, false, nullptr, nsNestedAboutURIConstructor },
+    { &kNS_ABOUTPROTOCOLHANDLER_CID, false, NULL, nsAboutProtocolHandlerConstructor },
+    { &kNS_SAFEABOUTPROTOCOLHANDLER_CID, false, NULL, nsSafeAboutProtocolHandlerConstructor },
+    { &kNS_ABOUT_BLANK_MODULE_CID, false, NULL, nsAboutBlank::Create },
+    { &kNS_NESTEDABOUTURI_CID, false, NULL, nsNestedAboutURIConstructor },
 #ifdef NECKO_PROTOCOL_about
 #ifdef NS_BUILD_REFCNT_LOGGING
-    { &kNS_ABOUT_BLOAT_MODULE_CID, false, nullptr, nsAboutBloat::Create },
+    { &kNS_ABOUT_BLOAT_MODULE_CID, false, NULL, nsAboutBloat::Create },
 #endif
-    { &kNS_ABOUT_CACHE_MODULE_CID, false, nullptr, nsAboutCache::Create },
-    { &kNS_ABOUT_CACHE_ENTRY_MODULE_CID, false, nullptr, nsAboutCacheEntryConstructor },
+    { &kNS_ABOUT_CACHE_MODULE_CID, false, NULL, nsAboutCache::Create },
+    { &kNS_ABOUT_CACHE_ENTRY_MODULE_CID, false, NULL, nsAboutCacheEntryConstructor },
 #endif
-    { &kNS_SOCKSSOCKETPROVIDER_CID, false, nullptr, nsSOCKSSocketProvider::CreateV5 },
-    { &kNS_SOCKS4SOCKETPROVIDER_CID, false, nullptr, nsSOCKSSocketProvider::CreateV4 },
-    { &kNS_UDPSOCKETPROVIDER_CID, false, nullptr, nsUDPSocketProviderConstructor },
-    { &kNS_CACHESERVICE_CID, false, nullptr, nsCacheService::Create },
-    { &kNS_APPLICATIONCACHESERVICE_CID, false, nullptr, nsApplicationCacheServiceConstructor },
-    { &kNS_APPLICATIONCACHENAMESPACE_CID, false, nullptr, nsApplicationCacheNamespaceConstructor },
-    { &kNS_APPLICATIONCACHE_CID, false, nullptr, nsApplicationCacheConstructor },
-    { &kNS_APPPROTOCOLHANDLER_CID, false, nullptr, AppProtocolHandler::Create },
+    { &kNS_SOCKSSOCKETPROVIDER_CID, false, NULL, nsSOCKSSocketProvider::CreateV5 },
+    { &kNS_SOCKS4SOCKETPROVIDER_CID, false, NULL, nsSOCKSSocketProvider::CreateV4 },
+    { &kNS_UDPSOCKETPROVIDER_CID, false, NULL, nsUDPSocketProviderConstructor },
+    { &kNS_CACHESERVICE_CID, false, NULL, nsCacheService::Create },
+    { &kNS_APPLICATIONCACHESERVICE_CID, false, NULL, nsApplicationCacheServiceConstructor },
+    { &kNS_APPLICATIONCACHENAMESPACE_CID, false, NULL, nsApplicationCacheNamespaceConstructor },
+    { &kNS_APPLICATIONCACHE_CID, false, NULL, nsApplicationCacheConstructor },
 #ifdef NECKO_COOKIES
-    { &kNS_COOKIEMANAGER_CID, false, nullptr, nsICookieServiceConstructor },
-    { &kNS_COOKIESERVICE_CID, false, nullptr, nsICookieServiceConstructor },
+    { &kNS_COOKIEMANAGER_CID, false, NULL, nsICookieServiceConstructor },
+    { &kNS_COOKIESERVICE_CID, false, NULL, nsICookieServiceConstructor },
 #endif
 #ifdef NECKO_WIFI
-    { &kNS_WIFI_MONITOR_COMPONENT_CID, false, nullptr, nsWifiMonitorConstructor },
+    { &kNS_WIFI_MONITOR_COMPONENT_CID, false, NULL, nsWifiMonitorConstructor },
 #endif
 #ifdef NECKO_PROTOCOL_data
-    { &kNS_DATAPROTOCOLHANDLER_CID, false, nullptr, nsDataHandler::Create },
+    { &kNS_DATAPROTOCOLHANDLER_CID, false, NULL, nsDataHandler::Create },
 #endif
 #ifdef NECKO_PROTOCOL_device
-    { &kNS_DEVICEPROTOCOLHANDLER_CID, false, nullptr, nsDeviceProtocolHandlerConstructor},
+    { &kNS_DEVICEPROTOCOLHANDLER_CID, false, NULL, nsDeviceProtocolHandlerConstructor},
 #endif
 #ifdef NECKO_PROTOCOL_viewsource
-    { &kNS_VIEWSOURCEHANDLER_CID, false, nullptr, nsViewSourceHandlerConstructor },
+    { &kNS_VIEWSOURCEHANDLER_CID, false, NULL, nsViewSourceHandlerConstructor },
 #endif
 #ifdef NECKO_PROTOCOL_wyciwyg
-    { &kNS_WYCIWYGPROTOCOLHANDLER_CID, false, nullptr, nsWyciwygProtocolHandlerConstructor },
+    { &kNS_WYCIWYGPROTOCOLHANDLER_CID, false, NULL, nsWyciwygProtocolHandlerConstructor },
 #endif
 #ifdef NECKO_PROTOCOL_websocket
-    { &kNS_WEBSOCKETPROTOCOLHANDLER_CID, false, nullptr,
+    { &kNS_WEBSOCKETPROTOCOLHANDLER_CID, false, NULL,
       mozilla::net::WebSocketChannelConstructor },
-    { &kNS_WEBSOCKETSSLPROTOCOLHANDLER_CID, false, nullptr,
+    { &kNS_WEBSOCKETSSLPROTOCOLHANDLER_CID, false, NULL,
       mozilla::net::WebSocketSSLChannelConstructor },
 #endif
-#ifdef NECKO_PROTOCOL_rtsp
-    { &kNS_RTSPPROTOCOLHANDLER_CID, false, nullptr, mozilla::net::RtspHandlerConstructor },
-#endif
 #if defined(XP_WIN)
-    { &kNS_NETWORK_LINK_SERVICE_CID, false, nullptr, nsNotifyAddrListenerConstructor },
+    { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsNotifyAddrListenerConstructor },
 #elif defined(MOZ_WIDGET_COCOA)
-    { &kNS_NETWORK_LINK_SERVICE_CID, false, nullptr, nsNetworkLinkServiceConstructor },
+    { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsNetworkLinkServiceConstructor },
+#elif defined(MOZ_ENABLE_LIBCONIC)
+    { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsMaemoNetworkLinkServiceConstructor },
 #elif defined(MOZ_ENABLE_QTNETWORK)
-    { &kNS_NETWORK_LINK_SERVICE_CID, false, nullptr, nsQtNetworkLinkServiceConstructor },
+    { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsQtNetworkLinkServiceConstructor },
 #elif defined(MOZ_WIDGET_ANDROID)
-    { &kNS_NETWORK_LINK_SERVICE_CID, false, nullptr, nsAndroidNetworkLinkServiceConstructor },
+    { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsAndroidNetworkLinkServiceConstructor },
 #endif
-    { &kNS_SERIALIZATION_HELPER_CID, false, nullptr, nsSerializationHelperConstructor },
-    { &kNS_REDIRECTCHANNELREGISTRAR_CID, false, nullptr, RedirectChannelRegistrarConstructor },
-    { &kNS_CACHE_STORAGE_SERVICE_CID, false, nullptr, CacheStorageServiceConstructor },
-    { &kNS_NETWORKSEER_CID, false, nullptr, mozilla::net::Seer::Create },
-    { nullptr }
+    { &kNS_SERIALIZATION_HELPER_CID, false, NULL, nsSerializationHelperConstructor },
+    { &kNS_REDIRECTCHANNELREGISTRAR_CID, false, NULL, RedirectChannelRegistrarConstructor },
+    { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
@@ -965,7 +956,7 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
     { NS_STREAMTRANSPORTSERVICE_CONTRACTID, &kNS_STREAMTRANSPORTSERVICE_CID },
     { NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &kNS_SOCKETTRANSPORTSERVICE_CID },
     { NS_SERVERSOCKET_CONTRACTID, &kNS_SERVERSOCKET_CID },
-    { NS_UDPSOCKET_CONTRACTID, &kNS_UDPSOCKET_CID },
+    { NS_UDPSERVERSOCKET_CONTRACTID, &kNS_UDPSERVERSOCKET_CID },
     { NS_SOCKETPROVIDERSERVICE_CONTRACTID, &kNS_SOCKETPROVIDERSERVICE_CID },
     { NS_DNSSERVICE_CONTRACTID, &kNS_DNSSERVICE_CID },
     { NS_IDNSERVICE_CONTRACTID, &kNS_IDNSERVICE_CID },
@@ -995,13 +986,15 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
     { NS_NOAUTHURLPARSER_CONTRACTID, &kNS_NOAUTHURLPARSER_CID },
     { NS_AUTHURLPARSER_CONTRACTID, &kNS_AUTHURLPARSER_CID },
     { NS_STANDARDURL_CONTRACTID, &kNS_STANDARDURL_CID },
-    { NS_ARRAYBUFFERINPUTSTREAM_CONTRACTID, &kNS_ARRAYBUFFERINPUTSTREAM_CID },
     { NS_BUFFEREDINPUTSTREAM_CONTRACTID, &kNS_BUFFEREDINPUTSTREAM_CID },
     { NS_BUFFEREDOUTPUTSTREAM_CONTRACTID, &kNS_BUFFEREDOUTPUTSTREAM_CID },
     { NS_MIMEINPUTSTREAM_CONTRACTID, &kNS_MIMEINPUTSTREAM_CID },
     { NS_PROTOCOLPROXYSERVICE_CONTRACTID, &kNS_PROTOCOLPROXYSERVICE_CID },
     { NS_STREAMCONVERTERSERVICE_CONTRACTID, &kNS_STREAMCONVERTERSERVICE_CID },
     { NS_DASHBOARD_CONTRACTID, &kNS_DASHBOARD_CID },
+#ifdef BUILD_APPLEFILE_DECODER
+    { NS_IAPPLEFILEDECODER_CONTRACTID, &kNS_APPLEFILEDECODER_CID },
+#endif
 #ifdef NECKO_PROTOCOL_ftp
     { NS_ISTREAMCONVERTER_KEY FTP_TO_INDEX, &kNS_FTPDIRLISTINGCONVERTER_CID },
 #endif
@@ -1061,7 +1054,6 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
     { NS_APPLICATIONCACHESERVICE_CONTRACTID, &kNS_APPLICATIONCACHESERVICE_CID },
     { NS_APPLICATIONCACHENAMESPACE_CONTRACTID, &kNS_APPLICATIONCACHENAMESPACE_CID },
     { NS_APPLICATIONCACHE_CONTRACTID, &kNS_APPLICATIONCACHE_CID },
-    { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "app", &kNS_APPPROTOCOLHANDLER_CID },
 #ifdef NECKO_COOKIES
     { NS_COOKIEMANAGER_CONTRACTID, &kNS_COOKIEMANAGER_CID },
     { NS_COOKIESERVICE_CONTRACTID, &kNS_COOKIESERVICE_CID },
@@ -1085,12 +1077,11 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
     { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "ws", &kNS_WEBSOCKETPROTOCOLHANDLER_CID },
     { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "wss", &kNS_WEBSOCKETSSLPROTOCOLHANDLER_CID },
 #endif
-#ifdef NECKO_PROTOCOL_rtsp
-    { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "rtsp", &kNS_RTSPPROTOCOLHANDLER_CID },
-#endif
 #if defined(XP_WIN)
     { NS_NETWORK_LINK_SERVICE_CONTRACTID, &kNS_NETWORK_LINK_SERVICE_CID },
 #elif defined(MOZ_WIDGET_COCOA)
+    { NS_NETWORK_LINK_SERVICE_CONTRACTID, &kNS_NETWORK_LINK_SERVICE_CID },
+#elif defined(MOZ_ENABLE_LIBCONIC)
     { NS_NETWORK_LINK_SERVICE_CONTRACTID, &kNS_NETWORK_LINK_SERVICE_CID },
 #elif defined(MOZ_ENABLE_QTNETWORK)
     { NS_NETWORK_LINK_SERVICE_CONTRACTID, &kNS_NETWORK_LINK_SERVICE_CID },
@@ -1099,9 +1090,7 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
 #endif
     { NS_SERIALIZATION_HELPER_CONTRACTID, &kNS_SERIALIZATION_HELPER_CID },
     { NS_REDIRECTCHANNELREGISTRAR_CONTRACTID, &kNS_REDIRECTCHANNELREGISTRAR_CID },
-    { NS_CACHE_STORAGE_SERVICE_CONTRACTID, &kNS_CACHE_STORAGE_SERVICE_CID },
-    { NS_NETWORKSEER_CONTRACTID, &kNS_NETWORKSEER_CID },
-    { nullptr }
+    { NULL }
 };
 
 static const mozilla::Module kNeckoModule = {
@@ -1109,7 +1098,7 @@ static const mozilla::Module kNeckoModule = {
     kNeckoCIDs,
     kNeckoContracts,
     kNeckoCategories,
-    nullptr,
+    NULL,
     nsNetStartup,
     nsNetShutdown
 };

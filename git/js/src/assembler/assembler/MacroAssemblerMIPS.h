@@ -24,13 +24,13 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef assembler_assembler_MacroAssemblerMIPS_h
-#define assembler_assembler_MacroAssemblerMIPS_h
+#ifndef MacroAssemblerMIPS_h
+#define MacroAssemblerMIPS_h
 
 #if ENABLE(ASSEMBLER) && CPU(MIPS)
 
-#include "assembler/assembler/AbstractMacroAssembler.h"
-#include "assembler/assembler/MIPSAssembler.h"
+#include "AbstractMacroAssembler.h"
+#include "MIPSAssembler.h"
 
 namespace JSC {
 
@@ -861,7 +861,7 @@ public:
         }
     }
 
-    void load32(const void* address, RegisterID dest)
+    void load32(void* address, RegisterID dest)
     {
         /*
             li  addrTemp, address
@@ -1389,7 +1389,7 @@ public:
 
     // Floating-point operations:
 
-    static bool supportsFloatingPoint()
+    bool supportsFloatingPoint() const
     {
 #if WTF_MIPS_DOUBLE_FLOAT
         return true;
@@ -1398,7 +1398,7 @@ public:
 #endif
     }
 
-    static bool supportsFloatingPointTruncate()
+    bool supportsFloatingPointTruncate() const
     {
 #if WTF_MIPS_DOUBLE_FLOAT && WTF_MIPS_ISA_AT_LEAST(2)
         return true;
@@ -1407,7 +1407,7 @@ public:
 #endif
     }
 
-    static bool supportsFloatingPointSqrt()
+    bool supportsFloatingPointSqrt() const
     {
 #if WTF_MIPS_DOUBLE_FLOAT && WTF_MIPS_ISA_AT_LEAST(2)
         return true;
@@ -2787,4 +2787,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER) && CPU(MIPS)
 
-#endif /* assembler_assembler_MacroAssemblerMIPS_h */
+#endif // MacroAssemblerMIPS_h

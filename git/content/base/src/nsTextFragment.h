@@ -12,7 +12,6 @@
 #define nsTextFragment_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 
 #include "nsString.h"
 #include "nsReadableUtils.h"
@@ -175,7 +174,7 @@ public:
     uint32_t mLength : 29;
   };
 
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
   void ReleaseText();

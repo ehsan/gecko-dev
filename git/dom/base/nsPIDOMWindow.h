@@ -10,35 +10,25 @@
 
 #include "nsIDOMWindow.h"
 
+#include "nsIDOMLocation.h"
+#include "nsIDOMXULCommandDispatcher.h"
+#include "nsIDOMElement.h"
+#include "nsIDOMDocument.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
+#include "nsIURI.h"
 #include "mozilla/dom/EventTarget.h"
-#include "js/TypeDecls.h"
+
+#include "js/RootingAPI.h"
 
 #define DOM_WINDOW_DESTROYED_TOPIC "dom-window-destroyed"
 #define DOM_WINDOW_FROZEN_TOPIC "dom-window-frozen"
 #define DOM_WINDOW_THAWED_TOPIC "dom-window-thawed"
 
-class nsIArray;
-class nsIContent;
-class nsIDocShell;
-class nsIDocument;
 class nsIIdleObserver;
 class nsIPrincipal;
-class nsIScriptTimeoutHandler;
-class nsIURI;
 class nsPerformance;
-class nsPIWindowRoot;
-class nsXBLPrototypeHandler;
-struct nsTimeout;
-
-namespace mozilla {
-namespace dom {
-class AudioContext;
-class Element;
-}
-}
 
 // Popup control state enum. The values in this enum must go from most
 // permissive to least permissive so that it's safe to push state in
@@ -52,16 +42,24 @@ enum PopupControlState {
   openOverridden    // disallow window open
 };
 
-enum UIStateChangeType
-{
-  UIStateChangeType_NoChange,
-  UIStateChangeType_Set,
-  UIStateChangeType_Clear
-};
+class nsIDocShell;
+class nsIContent;
+class nsIDocument;
+class nsIScriptTimeoutHandler;
+struct nsTimeout;
+class nsXBLPrototypeHandler;
+class nsIArray;
+class nsPIWindowRoot;
+
+namespace mozilla {
+namespace dom {
+class AudioContext;
+}
+}
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x4f4eadf9, 0xe795, 0x48e5, \
-  { 0x89, 0x4b, 0x04, 0x40, 0xb2, 0x5d, 0xa6, 0xfa } }
+{ 0x01decdb6, 0xd8ca, 0x401b, \
+  { 0x8b, 0xd1, 0x85, 0x83, 0x2c, 0xe9, 0x92, 0x0e } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -174,6 +172,11 @@ public:
   virtual void MaybeUpdateTouchState() {}
   virtual void UpdateTouchState() {}
 
+  // GetExtantDocument provides a backdoor to the DOM GetDocument accessor
+  nsIDOMDocument* GetExtantDocument() const
+  {
+    return mDocument;
+  }
   nsIDocument* GetExtantDoc() const
   {
     return mDoc;
@@ -189,8 +192,6 @@ public:
     return mDoc;
   }
 
-  virtual NS_HIDDEN_(bool) IsRunningTimeout() = 0;
-
 protected:
   // Lazily instantiate an about:blank document if necessary, and if
   // we have what it takes to do so.
@@ -200,8 +201,34 @@ public:
   // Internal getter/setter for the frame element, this version of the
   // getter crosses chrome boundaries whereas the public scriptable
   // one doesn't for security reasons.
-  mozilla::dom::Element* GetFrameElementInternal() const;
-  void SetFrameElementInternal(mozilla::dom::Element* aFrameElement);
+  nsIDOMElement* GetFrameElementInternal() const
+  {
+    if (mOuterWindow) {
+      return mOuterWindow->GetFrameElementInternal();
+    }
+
+    NS_ASSERTION(!IsInnerWindow(),
+                 "GetFrameElementInternal() called on orphan inner window");
+
+    return mFrameElement;
+  }
+
+  void SetFrameElementInternal(nsIDOMElement *aFrameElement)
+  {
+    if (IsOuterWindow()) {
+      mFrameElement = aFrameElement;
+
+      return;
+    }
+
+    if (!mOuterWindow) {
+      NS_ERROR("frameElement set on inner window with no outer!");
+
+      return;
+    }
+
+    mOuterWindow->SetFrameElementInternal(aFrameElement);
+  }
 
   bool IsLoadingOrRunningTimeout() const
   {
@@ -317,23 +344,15 @@ public:
   nsPIDOMWindow *EnsureInnerWindow()
   {
     NS_ASSERTION(IsOuterWindow(), "EnsureInnerWindow called on inner window");
-    // GetDoc forces inner window creation if there isn't one already
-    GetDoc();
+    // GetDocument forces inner window creation if there isn't one already
+    nsCOMPtr<nsIDOMDocument> doc;
+    GetDocument(getter_AddRefs(doc));
     return GetCurrentInnerWindow();
   }
 
   bool IsInnerWindow() const
   {
     return mIsInnerWindow;
-  }
-
-  // Returns true if this object has an outer window and it is the current inner
-  // window of that outer. Only call this on inner windows.
-  bool IsCurrentInnerWindow() const
-  {
-    MOZ_ASSERT(IsInnerWindow(),
-               "It doesn't make sense to call this on outer windows.");
-    return mOuterWindow && mOuterWindow->GetCurrentInnerWindow() == this;
   }
 
   bool IsOuterWindow() const
@@ -398,8 +417,8 @@ public:
    * Callback for notifying a window about a modal dialog being
    * opened/closed with the window as a parent.
    */
-  virtual void EnterModalState() = 0;
-  virtual void LeaveModalState() = 0;
+  virtual nsIDOMWindow *EnterModalState() = 0;
+  virtual void LeaveModalState(nsIDOMWindow *) = 0;
 
   virtual bool CanClose() = 0;
   virtual nsresult ForceClose() = 0;
@@ -589,14 +608,11 @@ public:
   /**
    * Set a arguments for this window. This will be set on the window
    * right away (if there's an existing document) and it will also be
-   * installed on the window when the next document is loaded.
-   *
-   * This function serves double-duty for passing both |arguments| and
-   * |dialogArguments| back from nsWindowWatcher to nsGlobalWindow. For the
-   * latter, the array is an array of length 0 whose only element is a
-   * DialogArgumentsHolder representing the JS value passed to showModalDialog.
+   * installed on the window when the next document is loaded. Each
+   * language impl is responsible for converting to an array of args
+   * as appropriate for that language.
    */
-  virtual nsresult SetArguments(nsIArray *aArguments) = 0;
+  virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin) = 0;
 
   /**
    * NOTE! This function *will* be called on multiple threads so the
@@ -630,27 +646,9 @@ public:
                  const nsAString& aOptions, nsIDOMWindow **_retval) = 0;
 
   void AddAudioContext(mozilla::dom::AudioContext* aAudioContext);
-  void RemoveAudioContext(mozilla::dom::AudioContext* aAudioContext);
-  void MuteAudioContexts();
-  void UnmuteAudioContexts();
-
-  // Given an inner window, return its outer if the inner is the current inner.
-  // Otherwise (argument null or not an inner or not current) return null.
-  static nsPIDOMWindow* GetOuterFromCurrentInner(nsPIDOMWindow* aInner)
-  {
-    if (!aInner) {
-      return nullptr;
-    }
-
-    nsPIDOMWindow* outer = aInner->GetOuterWindow();
-    if (!outer || outer->GetCurrentInnerWindow() != aInner) {
-      return nullptr;
-    }
-
-    return outer;
-  }
 
   // WebIDL-ish APIs
+  static bool HasPerformanceSupport();
   nsPerformance* GetPerformance();
 
 protected:
@@ -677,7 +675,8 @@ protected:
   // value on both the outer window and the current inner window. Make
   // sure you keep them in sync!
   nsCOMPtr<mozilla::dom::EventTarget> mChromeEventHandler; // strong
-  nsCOMPtr<nsIDocument> mDoc; // strong
+  nsCOMPtr<nsIDOMDocument> mDocument; // strong
+  nsCOMPtr<nsIDocument> mDoc; // strong, for fast access
   // Cache the URI when mDoc is cleared.
   nsCOMPtr<nsIURI> mDocumentURI; // strong
   nsCOMPtr<nsIURI> mDocBaseURI; // strong
@@ -685,7 +684,7 @@ protected:
   nsCOMPtr<mozilla::dom::EventTarget> mParentTarget; // strong
 
   // These members are only used on outer windows.
-  nsCOMPtr<mozilla::dom::Element> mFrameElement;
+  nsCOMPtr<nsIDOMElement> mFrameElement;
   nsIDocShell           *mDocShell;  // Weak Reference
 
   // mPerformance is only used on inner windows.
@@ -727,7 +726,7 @@ protected:
   nsCOMPtr<nsIContent> mFocusedNode;
 
   // The AudioContexts created for the current document, if any.
-  nsTArray<mozilla::dom::AudioContext*> mAudioContexts; // Weak
+  nsTArray<nsRefPtr<mozilla::dom::AudioContext> > mAudioContexts;
 
   // A unique (as long as our 64-bit counter doesn't roll over) id for
   // this window.
@@ -741,7 +740,7 @@ protected:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsPIDOMWindow, NS_PIDOMWINDOW_IID)
 
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
 PopupControlState
 PushPopupControlState(PopupControlState aState, bool aForce);
 
@@ -762,7 +761,7 @@ PopPopupControlState(PopupControlState aState);
 class NS_AUTO_POPUP_STATE_PUSHER
 {
 public:
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
   NS_AUTO_POPUP_STATE_PUSHER(PopupControlState aState, bool aForce = false)
     : mOldState(::PushPopupControlState(aState, aForce))
   {
@@ -790,7 +789,7 @@ public:
 #endif
 
 protected:
-#ifndef MOZILLA_INTERNAL_API
+#ifndef _IMPL_NS_LAYOUT
   nsCOMPtr<nsPIDOMWindow> mWindow;
 #endif
   PopupControlState mOldState;

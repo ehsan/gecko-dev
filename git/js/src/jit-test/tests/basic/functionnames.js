@@ -36,7 +36,7 @@ var Foo = function (){
     assertName(arguments.callee, 'Foo<')
     return function(){};
 }();
-assertName(Foo, 'Foo</<');
+assertName(Foo, 'Foo');
 
 /* various properties and such */
 var x = {fox: { bax: function(){} } };
@@ -94,7 +94,7 @@ a.b = function() {
     assertName(arguments.callee, 'a.b<');
     return { a: function() {} }
 }();
-assertName(a.b.a, 'a.b</<.a');
+assertName(a.b.a, 'a.b.a');
 
 a = {
     b: function(a) {
@@ -147,12 +147,3 @@ a.b = {};
 a.b.c = {};
 a.b["c"]["d e"] = { f: { 1: { "g": { "h i": function() {} } } } };
 assertName(a.b.c["d e"].f[1].g["h i"], 'a.b.c["d e"].f[1].g["h i"]');
-
-this.m = function () {};
-assertName(m, "this.m");
-
-function N() {
-  this.o = function () {}
-}
-let n = new N()
-assertName(n.o, "N/this.o");

@@ -32,10 +32,10 @@ public:
 
 protected:
   virtual bool
-  RecvAddSilentNumber(const nsString& aNumber) MOZ_OVERRIDE;
+  RecvHasSupport(bool* aHasSupport) MOZ_OVERRIDE;
 
   virtual bool
-  RecvRemoveSilentNumber(const nsString& aNumber) MOZ_OVERRIDE;
+  RecvGetSegmentInfoForText(const nsString& aText, SmsSegmentInfoData* aResult) MOZ_OVERRIDE;
 
   SmsParent();
   virtual ~SmsParent()
@@ -51,26 +51,23 @@ protected:
                              const IPCSmsRequest& aRequest) MOZ_OVERRIDE;
 
   virtual PSmsRequestParent*
-  AllocPSmsRequestParent(const IPCSmsRequest& aRequest) MOZ_OVERRIDE;
+  AllocPSmsRequest(const IPCSmsRequest& aRequest) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPSmsRequestParent(PSmsRequestParent* aActor) MOZ_OVERRIDE;
+  DeallocPSmsRequest(PSmsRequestParent* aActor) MOZ_OVERRIDE;
 
   virtual bool
   RecvPMobileMessageCursorConstructor(PMobileMessageCursorParent* aActor,
                                       const IPCMobileMessageCursor& aCursor) MOZ_OVERRIDE;
 
   virtual PMobileMessageCursorParent*
-  AllocPMobileMessageCursorParent(const IPCMobileMessageCursor& aCursor) MOZ_OVERRIDE;
+  AllocPMobileMessageCursor(const IPCMobileMessageCursor& aCursor) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPMobileMessageCursorParent(PMobileMessageCursorParent* aActor) MOZ_OVERRIDE;
+  DeallocPMobileMessageCursor(PMobileMessageCursorParent* aActor) MOZ_OVERRIDE;
 
   bool
   GetMobileMessageDataFromMessage(nsISupports* aMsg, MobileMessageData& aData);
-
-private:
-  nsTArray<nsString> mSilentNumbers;
 };
 
 class SmsRequestParent : public PSmsRequestParent
@@ -113,12 +110,6 @@ protected:
 
   bool
   DoRequest(const MarkMessageReadRequest& aRequest);
-
-  bool
-  DoRequest(const GetSegmentInfoForTextRequest& aRequest);
-
-  bool
-  DoRequest(const GetSmscAddressRequest& aRequest);
 
   nsresult
   SendReply(const MessageReply& aReply);

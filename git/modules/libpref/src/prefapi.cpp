@@ -26,7 +26,6 @@
 #include "plbase64.h"
 #include "prlog.h"
 #include "prprf.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/PContent.h"
 #include "nsQuickSort.h"
 #include "nsString.h"
@@ -76,7 +75,7 @@ PLDHashTable        gHashTable = { nullptr };
 static PLArenaPool  gPrefNameArena;
 bool                gDirty = false;
 
-static struct CallbackNode* gCallbacks = nullptr;
+static struct CallbackNode* gCallbacks = NULL;
 static bool         gIsAnyPrefLocked = false;
 // These are only used during the call to pref_DoCallback
 static bool         gCallbacksInProgress = false;
@@ -184,7 +183,7 @@ void PREF_Cleanup()
         free(node);
         node = next_node;
     }
-    gCallbacks = nullptr;
+    gCallbacks = NULL;
 
     PREF_CleanupPrefs();
 }
@@ -215,7 +214,7 @@ static void str_escape(const char * original, nsAFlatCString& aResult)
      */
     const char *p;
 
-    if (original == nullptr)
+    if (original == NULL)
         return;
 
     /* Paranoid worst case all slashes will free quickly */
@@ -293,7 +292,8 @@ SetPrefValue(const char* aPrefName, const dom::PrefValue& aValue,
         return PREF_SetBoolPref(aPrefName, aValue.get_bool(),
                                 setDefault);
     default:
-        MOZ_CRASH();
+        MOZ_NOT_REACHED();
+        return NS_ERROR_FAILURE;
     }
 }
 
@@ -425,7 +425,7 @@ GetPrefValueFromEntry(PrefHashEntry *aHashEntry, dom::PrefSetting* aPref,
         *settingValue = !!value->boolVal;
         return;
     default:
-        MOZ_CRASH();
+        MOZ_NOT_REACHED();
     }
 }
 
@@ -565,12 +565,12 @@ pref_DeleteItem(PLDHashTable *table, PLDHashEntryHdr *heh, uint32_t i, void *arg
 {
     PrefHashEntry* he = static_cast<PrefHashEntry*>(heh);
     const char *to_delete = (const char *) arg;
-    int len = strlen(to_delete);
+    int len = PL_strlen(to_delete);
 
     /* note if we're deleting "ldap" then we want to delete "ldap.xxx"
         and "ldap" (if such a leaf node exists) but not "ldap_1.xxx" */
     if (to_delete && (PL_strncmp(he->key, to_delete, (uint32_t) len) == 0 ||
-        (len-1 == (int)strlen(he->key) && PL_strncmp(he->key, to_delete, (uint32_t)(len-1)) == 0)))
+        (len-1 == (int)PL_strlen(he->key) && PL_strncmp(he->key, to_delete, (uint32_t)(len-1)) == 0)))
         return PL_DHASH_REMOVE;
 
     return PL_DHASH_NEXT;
@@ -579,7 +579,7 @@ pref_DeleteItem(PLDHashTable *table, PLDHashEntryHdr *heh, uint32_t i, void *arg
 nsresult
 PREF_DeleteBranch(const char *branch_name)
 {
-    int len = (int)strlen(branch_name);
+    int len = (int)PL_strlen(branch_name);
 
     if (!gHashTable.ops)
         return NS_ERROR_NOT_INITIALIZED;
@@ -709,7 +709,7 @@ static void pref_SetValue(PrefValue* oldValue, PrefValue newValue, PrefType type
             PR_ASSERT(newValue.stringVal);
             if (oldValue->stringVal)
                 PL_strfree(oldValue->stringVal);
-            oldValue->stringVal = newValue.stringVal ? PL_strdup(newValue.stringVal) : nullptr;
+            oldValue->stringVal = newValue.stringVal ? PL_strdup(newValue.stringVal) : NULL;
             break;
 
         default:
@@ -807,7 +807,7 @@ nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, uint32_t
 }
 
 size_t
-pref_SizeOfPrivateData(MallocSizeOf aMallocSizeOf)
+pref_SizeOfPrivateData(nsMallocSizeOfFun aMallocSizeOf)
 {
     size_t n = PL_SizeOfArenaPoolExcludingPool(&gPrefNameArena, aMallocSizeOf);
     for (struct CallbackNode* node = gCallbacks; node; node = node->next) {
@@ -902,9 +902,9 @@ PREF_UnregisterCallback(const char *pref_node,
 {
     nsresult rv = NS_ERROR_FAILURE;
     struct CallbackNode* node = gCallbacks;
-    struct CallbackNode* prev_node = nullptr;
+    struct CallbackNode* prev_node = NULL;
 
-    while (node != nullptr)
+    while (node != NULL)
     {
         if ( node->func == callback &&
              node->data == instance_data &&
@@ -946,12 +946,12 @@ static nsresult pref_DoCallback(const char* changed_pref)
     // out the |func| pointer. We release them at the end of this function
     // if we haven't reentered.
 
-    for (node = gCallbacks; node != nullptr; node = node->next)
+    for (node = gCallbacks; node != NULL; node = node->next)
     {
         if ( node->func &&
              PL_strncmp(changed_pref,
                         node->domain,
-                        strlen(node->domain)) == 0 )
+                        PL_strlen(node->domain)) == 0 )
         {
             nsresult rv2 = (*node->func) (changed_pref, node->data);
             if (NS_FAILED(rv2))
@@ -963,10 +963,10 @@ static nsresult pref_DoCallback(const char* changed_pref)
 
     if (gShouldCleanupDeadNodes && !gCallbacksInProgress)
     {
-        struct CallbackNode* prev_node = nullptr;
+        struct CallbackNode* prev_node = NULL;
         node = gCallbacks;
 
-        while (node != nullptr)
+        while (node != NULL)
         {
             if (!node->func)
             {

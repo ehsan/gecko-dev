@@ -5,18 +5,7 @@ MARIONETTE_TIMEOUT = 20000;
 
 SpecialPowers.addPermission("mobileconnection", true, document);
 
-// Permission changes can't change existing Navigator.prototype
-// objects, so grab our objects from a new Navigator
-let ifr = document.createElement("iframe");
-let mobileConnection;
-ifr.onload = function() {
-  mobileConnection = ifr.contentWindow.navigator.mozMobileConnections[0];
-
-  // Start the test
-  verifyInitialState();
-};
-document.body.appendChild(ifr);
-
+let mobileConnection = navigator.mozMobileConnection;
 let emulatorStartLac = 0;
 let emulatorStartCid = 0;
 
@@ -125,3 +114,6 @@ function cleanUp() {
   SpecialPowers.removePermission("mobileconnection", document);
   finish();
 }
+
+// Start the test
+verifyInitialState();

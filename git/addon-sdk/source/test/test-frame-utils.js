@@ -1,13 +1,16 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 'use strict';
 
+const { open } = require('sdk/window/utils');
 const { create } = require('sdk/frame/utils');
-const { open, close } = require('sdk/window/helpers');
 
 exports['test frame creation'] = function(assert, done) {
-  open('data:text/html;charset=utf-8,Window').then(function (window) {
+  let window = open('data:text/html;charset=utf-8,Window');
+  window.addEventListener('DOMContentLoaded', function windowReady() {
+
     let frame = create(window.document);
 
     assert.equal(frame.getAttribute('type'), 'content',
@@ -19,12 +22,15 @@ exports['test frame creation'] = function(assert, done) {
     assert.equal(frame.docShell.allowJavascript, false, 'js disabled by default');
     assert.equal(frame.docShell.allowPlugins, false,
                  'plugins disabled by default');
-    close(window).then(done);
-  });
+    window.close();
+    done();
+  }, false);
 };
 
 exports['test fram has js disabled by default'] = function(assert, done) {
-  open('data:text/html;charset=utf-8,window').then(function (window) {
+  let window = open('data:text/html;charset=utf-8,window');
+  window.addEventListener('DOMContentLoaded', function windowReady() {
+    window.removeEventListener('DOMContentLoaded', windowReady, false);
     let frame = create(window.document, {
       uri: 'data:text/html;charset=utf-8,<script>document.documentElement.innerHTML' +
            '= "J" + "S"</script>',
@@ -34,13 +40,17 @@ exports['test fram has js disabled by default'] = function(assert, done) {
       assert.ok(!~frame.contentDocument.documentElement.innerHTML.indexOf('JS'),
                 'JS was executed');
 
-      close(window).then(done);
+      window.close();
+      done();
     }, false);
-  });
+
+  }, false);
 };
 
 exports['test frame with js enabled'] = function(assert, done) {
-  open('data:text/html;charset=utf-8,window').then(function (window) {
+  let window = open('data:text/html;charset=utf-8,window');
+  window.addEventListener('DOMContentLoaded', function windowReady() {
+    window.removeEventListener('DOMContentLoaded', windowReady, false);
     let frame = create(window.document, {
       uri: 'data:text/html;charset=utf-8,<script>document.documentElement.innerHTML' +
            '= "J" + "S"</script>',
@@ -51,9 +61,11 @@ exports['test frame with js enabled'] = function(assert, done) {
       assert.ok(~frame.contentDocument.documentElement.innerHTML.indexOf('JS'),
                 'JS was executed');
 
-      close(window).then(done);
+      window.close();
+      done();
     }, false);
-  });
+
+  }, false);
 };
 
 require('test').run(exports);

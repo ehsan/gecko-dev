@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <prlong.h>
 #include <prprf.h>
 #include <prtime.h>
 #include "nsProfileLock.h"
@@ -230,9 +231,6 @@ nsToolkitProfile::Remove(bool removeFiles)
 
     if (mLock)
         return NS_ERROR_FILE_IS_LOCKED;
-
-    if (!mPrev && !mNext && nsToolkitProfileService::gService->mFirst != this)
-        return NS_ERROR_NOT_INITIALIZED;
 
     if (removeFiles) {
         bool equals;
@@ -673,16 +671,16 @@ nsToolkitProfileService::CreateDefaultProfileForApp(const nsACString& aProfileNa
 
     nsCString ini;
     ini.SetCapacity(512);
-    ini.AppendLiteral("[General]\n");
-    ini.AppendLiteral("StartWithLastProfile=1\n\n");
+    ini.AppendASCII("[General]\n");
+    ini.AppendASCII("StartWithLastProfile=1\n\n");
 
-    ini.AppendLiteral("[Profile0]\n");
-    ini.AppendLiteral("Name=default\n");
-    ini.AppendLiteral("IsRelative=1\n");
-    ini.AppendLiteral("Path=");
+    ini.AppendASCII("[Profile0]\n");
+    ini.AppendASCII("Name=default\n");
+    ini.AppendASCII("IsRelative=1\n");
+    ini.AppendASCII("Path=");
     ini.Append(profileDir);
-    ini.Append('\n');
-    ini.AppendLiteral("Default=1\n\n");
+    ini.AppendASCII("\n");
+    ini.AppendASCII("Default=1\n\n");
 
     FILE* writeFile;
     rv = profilesini->OpenANSIFileDesc("w", &writeFile);
@@ -861,7 +859,8 @@ nsToolkitProfileService::CreateTimesInternal(nsIFile* aProfileDir)
     NS_ENSURE_SUCCESS(rv, rv);
 
     // We don't care about microsecond resolution.
-    int64_t msec = PR_Now() / PR_USEC_PER_MSEC;
+    int64_t msec;
+    LL_DIV(msec, PR_Now(), PR_USEC_PER_MSEC);
 
     // Write it out.
     PRFileDesc *writeFile;
@@ -1026,7 +1025,7 @@ XRE_GetFileFromPath(const char *aPath, nsIFile* *aResult)
         return NS_ERROR_INVALID_ARG;
 
     CFURLRef fullPath =
-        CFURLCreateFromFileSystemRepresentation(nullptr, (const UInt8 *) aPath,
+        CFURLCreateFromFileSystemRepresentation(NULL, (const UInt8 *) aPath,
                                                 pathLen, true);
     if (!fullPath)
         return NS_ERROR_FAILURE;

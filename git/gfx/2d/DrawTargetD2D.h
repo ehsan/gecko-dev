@@ -63,11 +63,6 @@ public:
                                      Float aSigma,
                                      CompositionOp aOperator);
   virtual void ClearRect(const Rect &aRect);
-  virtual void MaskSurface(const Pattern &aSource,
-                           SourceSurface *aMask,
-                           Point aOffset,
-                           const DrawOptions &aOptions = DrawOptions());
-
 
   virtual void CopySurface(SourceSurface *aSurface,
                            const IntRect &aSourceRect,
@@ -134,6 +129,7 @@ public:
 
   static ID2D1Factory *factory();
   static void CleanupD2D();
+  static TemporaryRef<ID2D1StrokeStyle> CreateStrokeStyleForOptions(const StrokeOptions &aStrokeOptions);
   static IDWriteFactory *GetDWriteFactory();
 
   operator std::string() const {
@@ -146,9 +142,6 @@ public:
   static uint64_t mVRAMUsageSS;
 
 private:
-  TemporaryRef<ID2D1Bitmap>
-  GetBitmapForSurface(SourceSurface *aSurface,
-                      Rect &aSource);
   friend class AutoSaveRestoreClippedOut;
   friend class SourceSurfaceD2DTarget;
 
@@ -191,6 +184,9 @@ private:
                         const DrawOptions &aOptions = DrawOptions());
 
   TemporaryRef<ID2D1RenderTarget> CreateRTForTexture(ID3D10Texture2D *aTexture, SurfaceFormat aFormat);
+  TemporaryRef<ID2D1Geometry> ConvertRectToGeometry(const D2D1_RECT_F& aRect);
+  TemporaryRef<ID2D1Geometry> GetTransformedGeometry(ID2D1Geometry *aGeometry, const D2D1_MATRIX_3X2_F &aTransform);
+  TemporaryRef<ID2D1Geometry> Intersect(ID2D1Geometry *aGeometryA, ID2D1Geometry *aGeometryB);
 
   // This returns the clipped geometry, in addition it returns aClipBounds which
   // represents the intersection of all pixel-aligned rectangular clips that
@@ -203,11 +199,17 @@ private:
   TemporaryRef<ID3D10Texture2D> CreateGradientTexture(const GradientStopsD2D *aStops);
   TemporaryRef<ID3D10Texture2D> CreateTextureForAnalysis(IDWriteGlyphRunAnalysis *aAnalysis, const IntRect &aBounds);
 
+  // This creates a (partially) uploaded bitmap for a DataSourceSurface. It
+  // uploads the minimum requirement and possibly downscales. It adjusts the
+  // input Matrix to compensate.
+  TemporaryRef<ID2D1Bitmap> CreatePartialBitmapForSurface(DataSourceSurface *aSurface, Matrix &aMatrix,
+                                                          ExtendMode aExtendMode);
+
   void SetupEffectForRadialGradient(const RadialGradientPattern *aPattern);
   void SetupStateForRendering();
 
   // Set the scissor rect to a certain IntRects, resets the scissor rect to
-  // surface bounds when nullptr is specified.
+  // surface bounds when NULL is specified.
   void SetScissorToRect(IntRect *aRect);
 
   void PushD2DLayer(ID2D1RenderTarget *aRT, ID2D1Geometry *aGeometry, ID2D1Layer *aLayer, const D2D1_MATRIX_3X2_F &aTransform);
@@ -242,7 +244,7 @@ private:
     RefPtr<ID2D1Layer> mLayer;
     D2D1_RECT_F mBounds;
     union {
-      // If mPath is non-nullptr, the mTransform member will be used, otherwise
+      // If mPath is non-NULL, the mTransform member will be used, otherwise
       // the mIsPixelAligned member is valid.
       D2D1_MATRIX_3X2_F mTransform;
       bool mIsPixelAligned;

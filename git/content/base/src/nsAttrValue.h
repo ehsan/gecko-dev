@@ -12,7 +12,7 @@
 #define nsAttrValue_h___
 
 #include "nscore.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsStringBuffer.h"
 #include "nsColor.h"
 #include "nsCaseTreatment.h"
@@ -21,7 +21,6 @@
 #include "SVGAttrValueWrapper.h"
 #include "nsTArrayForwardDeclare.h"
 #include "nsIAtom.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/BindingDeclarations.h"
 
 class nsAString;
@@ -57,20 +56,13 @@ struct ImageValue;
 /**
  * A class used to construct a nsString from a nsStringBuffer (we might
  * want to move this to nsString at some point).
- *
- * WARNING: Note that nsCheapString doesn't take an explicit length -- it
- * assumes the string is maximally large, given the nsStringBuffer's storage
- * size.  This means the given string buffer *must* be sized exactly correctly
- * for the string it contains (including one byte for a null terminator).  If
- * it has any unused storage space, then that will result in bogus characters
- * at the end of our nsCheapString.
  */
 class nsCheapString : public nsString {
 public:
   nsCheapString(nsStringBuffer* aBuf)
   {
     if (aBuf)
-      aBuf->ToString(aBuf->StorageSize()/sizeof(PRUnichar) - 1, *this);
+      aBuf->ToString(aBuf->StorageSize()/2 - 1, *this);
   }
 };
 
@@ -90,26 +82,26 @@ public:
     ePercent =      0x0F, // 1111
     // Values below here won't matter, they'll be always stored in the 'misc'
     // struct.
-    eCSSStyleRule =            0x10
-    ,eURL =                    0x11
-    ,eImage =                  0x12
-    ,eAtomArray =              0x13
-    ,eDoubleValue  =           0x14
-    ,eIntMarginValue =         0x15
-    ,eSVGAngle =               0x16
-    ,eSVGTypesBegin =          eSVGAngle
-    ,eSVGIntegerPair =         0x17
-    ,eSVGLength =              0x18
-    ,eSVGLengthList =          0x19
-    ,eSVGNumberList =          0x1A
-    ,eSVGNumberPair =          0x1B
-    ,eSVGPathData =            0x1C
-    ,eSVGPointList =           0x1D
-    ,eSVGPreserveAspectRatio = 0x1E
-    ,eSVGStringList =          0x1F
-    ,eSVGTransformList =       0x20
-    ,eSVGViewBox =             0x21
-    ,eSVGTypesEnd =            eSVGViewBox
+    eCSSStyleRule =    0x10
+    ,eURL =            0x11
+    ,eImage =          0x12
+    ,eAtomArray =      0x13
+    ,eDoubleValue  =   0x14
+    ,eIntMarginValue = 0x15
+    ,eSVGTypesBegin =  0x16
+    ,eSVGAngle =       eSVGTypesBegin
+    ,eSVGIntegerPair = 0x17
+    ,eSVGLength =      0x18
+    ,eSVGLengthList =  0x19
+    ,eSVGNumberList =  0x20
+    ,eSVGNumberPair =  0x21
+    ,eSVGPathData   =  0x22
+    ,eSVGPointList  =  0x23
+    ,eSVGPreserveAspectRatio = 0x24
+    ,eSVGStringList =  0x25
+    ,eSVGTransformList = 0x26
+    ,eSVGViewBox =     0x27
+    ,eSVGTypesEnd =    0x34
   };
 
   nsAttrValue();
@@ -379,7 +371,7 @@ public:
   bool ParseStyleAttribute(const nsAString& aString,
                            nsStyledElementNotElementCSSInlineStyle* aElement);
 
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
   // These have to be the same as in ValueType
@@ -423,8 +415,7 @@ private:
   // exist already.
   MiscContainer* EnsureEmptyMiscContainer();
   bool EnsureEmptyAtomArray();
-  already_AddRefed<nsStringBuffer>
-    GetStringBuffer(const nsAString& aValue) const;
+  nsStringBuffer* GetStringBuffer(const nsAString& aValue) const;
   // aStrict is set true if stringifying the return value equals with
   // aValue.
   int32_t StringToInteger(const nsAString& aValue,

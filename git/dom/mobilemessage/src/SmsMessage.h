@@ -9,6 +9,7 @@
 #include "mozilla/dom/mobilemessage/SmsTypes.h"
 #include "nsIDOMMozSmsMessage.h"
 #include "nsString.h"
+#include "jspubtd.h"
 #include "mozilla/dom/mobilemessage/Types.h"
 #include "mozilla/Attributes.h"
 
@@ -22,8 +23,7 @@ public:
   NS_DECL_NSIDOMMOZSMSMESSAGE
 
   SmsMessage(int32_t aId,
-             uint64_t aThreadId,
-             const nsString& aIccId,
+             const uint64_t aThreadId,
              mobilemessage::DeliveryState aDelivery,
              mobilemessage::DeliveryStatus aDeliveryStatus,
              const nsString& aSender,
@@ -31,13 +31,11 @@ public:
              const nsString& aBody,
              mobilemessage::MessageClass aMessageClass,
              uint64_t aTimestamp,
-             uint64_t aDeliveryTimestamp,
              bool aRead);
   SmsMessage(const mobilemessage::SmsMessageData& aData);
 
   static nsresult Create(int32_t aId,
-                         uint64_t aThreadId,
-                         const nsAString& aIccId,
+                         const uint64_t aThreadId,
                          const nsAString& aDelivery,
                          const nsAString& aDeliveryStatus,
                          const nsAString& aSender,
@@ -45,7 +43,6 @@ public:
                          const nsAString& aBody,
                          const nsAString& aMessageClass,
                          const JS::Value& aTimestamp,
-                         const JS::Value& aDeliveryTimestamp,
                          const bool aRead,
                          JSContext* aCx,
                          nsIDOMMozSmsMessage** aMessage);

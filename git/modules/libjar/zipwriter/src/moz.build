@@ -6,20 +6,3 @@
 
 MODULE = 'zipwriter'
 
-UNIFIED_SOURCES += [
-    'nsDeflateConverter.cpp',
-    'nsZipDataStream.cpp',
-    'nsZipHeader.cpp',
-    'nsZipWriter.cpp',
-    'StreamFunctions.cpp',
-    'ZipWriterModule.cpp',
-]
-
-LIBRARY_NAME = 'zipwriter'
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-EXPORT_LIBRARY = True
-

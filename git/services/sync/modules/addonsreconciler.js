@@ -19,7 +19,7 @@
 
 const Cu = Components.utils;
 
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://gre/modules/AddonManager.jsm");
 
@@ -64,7 +64,8 @@ this.EXPORTED_SYMBOLS = ["AddonsReconciler", "CHANGE_INSTALLED",
  * When you are finished with the instance, please call:
  *
  *   reconciler.stopListening();
- *   reconciler.saveState(...);
+ *   reconciler.saveStateFile(...);
+ *
  *
  * There are 2 classes of listeners in the AddonManager: AddonListener and
  * InstallListener. This class is a listener for both (member functions just
@@ -113,9 +114,9 @@ this.EXPORTED_SYMBOLS = ["AddonsReconciler", "CHANGE_INSTALLED",
  * heed them like they were normal. In the end, the state is proper.
  */
 this.AddonsReconciler = function AddonsReconciler() {
-  this._log = Log.repository.getLogger("Sync.AddonsReconciler");
+  this._log = Log4Moz.repository.getLogger("Sync.AddonsReconciler");
   let level = Svc.Prefs.get("log.logger.addonsreconciler", "Debug");
-  this._log.level = Log.Level[level];
+  this._log.level = Log4Moz.Level[level];
 
   Svc.Obs.add("xpcom-shutdown", this.stopListening, this);
 };
@@ -123,24 +124,13 @@ AddonsReconciler.prototype = {
   /** Flag indicating whether we are listening to AddonManager events. */
   _listening: false,
 
-  /**
-   * Whether state has been loaded from a file.
+  /** Whether state has been loaded from a file.
    *
    * State is loaded on demand if an operation requires it.
    */
   _stateLoaded: false,
 
-  /**
-   * Define this as false if the reconciler should not persist state
-   * to disk when handling events.
-   *
-   * This allows test code to avoid spinning to write during observer
-   * notifications and xpcom shutdown, which appears to cause hangs on WinXP
-   * (Bug 873861).
-   */
-  _shouldPersist: true,
-
-  /** Log logger instance */
+  /** log4moz logger instance */
   _log: null,
 
   /**
@@ -394,12 +384,7 @@ AddonsReconciler.prototype = {
         }
       }
 
-      // See note for _shouldPersist.
-      if (this._shouldPersist) {
-        this.saveState(null, callback);
-      } else {
-        callback();
-      }
+      this.saveState(null, callback);
     }.bind(this));
   },
 
@@ -625,12 +610,9 @@ AddonsReconciler.prototype = {
           }
       }
 
-      // See note for _shouldPersist.
-      if (this._shouldPersist) {
-        let cb = Async.makeSpinningCallback();
-        this.saveState(null, cb);
-        cb.wait();
-      }
+      let cb = Async.makeSpinningCallback();
+      this.saveState(null, cb);
+      cb.wait();
     }
     catch (ex) {
       this._log.warn("Exception: " + Utils.exceptionStr(ex));

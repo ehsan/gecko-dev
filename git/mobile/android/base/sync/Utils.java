@@ -82,20 +82,26 @@ public class Utils {
   /**
    * Helper to convert a byte array to a hex-encoded string
    */
-  public static String byte2Hex(final byte[] b) {
-    final StringBuilder hs = new StringBuilder(b.length * 2);
+  public static String byte2hex(byte[] b) {
+    // StringBuffer should be used instead.
+    String hs = "";
     String stmp;
 
     for (int n = 0; n < b.length; n++) {
-      stmp = Integer.toHexString(b[n] & 0XFF);
+      stmp = java.lang.Integer.toHexString(b[n] & 0XFF);
 
       if (stmp.length() == 1) {
-        hs.append("0");
+        hs = hs + "0" + stmp;
+      } else {
+        hs = hs + stmp;
       }
-      hs.append(stmp);
+
+      if (n < b.length - 1) {
+        hs = hs + "";
+      }
     }
 
-    return hs.toString();
+    return hs;
   }
 
   public static byte[] concatAll(byte[] first, byte[]... rest) {
@@ -172,19 +178,11 @@ public class Utils {
     // Truncates towards 0.
     return (long)(decimal * 1000);
   }
-
   public static long decimalSecondsToMilliseconds(Long decimal) {
     return decimal * 1000;
   }
-
   public static long decimalSecondsToMilliseconds(Integer decimal) {
     return (long)(decimal * 1000);
-  }
-
-  public static byte[] sha256(byte[] in)
-      throws NoSuchAlgorithmException {
-    MessageDigest sha1 = MessageDigest.getInstance("SHA-256");
-    return sha1.digest(in);
   }
 
   protected static byte[] sha1(final String utf8)
@@ -522,12 +520,5 @@ public class Utils {
       asciiBytes[i] = (byte) in.codePointAt(i);
     }
     return new String(asciiBytes, "UTF-8");
-  }
-
-  /**
-   * Replace "foo@bar.com" with "XXX@XXX.XXX".
-   */
-  public static String obfuscateEmail(final String in) {
-    return in.replaceAll("[^@\\.]", "X");
   }
 }

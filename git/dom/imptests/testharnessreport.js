@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 var W3CTest = {
   /**
@@ -50,108 +50,28 @@ var W3CTest = {
   ],
 
   /**
-   * Prefix of the path to parent of the the failures directory.
-   */
-  "pathprefix": "/tests/dom/imptests/",
-
-  /**
    * Returns the URL of the current test, relative to the root W3C tests
    * directory. Used as a key into the expectedFailures dictionary.
    */
-  "getPath": function() {
-    var url = this.getURL();
-    if (!url.startsWith(this.pathprefix)) {
-      return "";
-    }
-    return url.substring(this.pathprefix.length);
-  },
-
-  /**
-   * Returns the root-relative URL of the current test.
-   */
   "getURL": function() {
-    return this.runner ? this.runner.currentTestURL : location.pathname;
-  },
-
-  /**
-   * Report the results in the tests array.
-   */
-  "reportResults": function() {
-    var element = function element(aLocalName) {
-      var xhtmlNS = "http://www.w3.org/1999/xhtml";
-      return document.createElementNS(xhtmlNS, aLocalName);
-    };
-
-    var stylesheet = element("link");
-    stylesheet.setAttribute("rel", "stylesheet");
-    stylesheet.setAttribute("href", "/resources/testharness.css");
-    var heads = document.getElementsByTagName("head");
-    if (heads.length) {
-      heads[0].appendChild(stylesheet);
-    }
-
-    var log = document.getElementById("log");
-    if (!log) {
-      return;
-    }
-    var section = log.appendChild(element("section"));
-    section.id = "summary";
-    section.appendChild(element("h2")).textContent = "Details";
-
-    var table = section.appendChild(element("table"));
-    table.id = "results";
-
-    var tr = table.appendChild(element("thead")).appendChild(element("tr"));
-    for (var header of ["Result", "Test Name", "Message"]) {
-      tr.appendChild(element("th")).textContent = header;
-    }
-    var statuses = [
-      ["Unexpected Fail", "Pass"],
-      ["Known Fail", "Unexpected Pass"]
-    ];
-    var tbody = table.appendChild(element("tbody"));
-    for (var test of this.tests) {
-      tr = tbody.appendChild(element("tr"));
-      tr.className = (test.result === !test.todo ? "pass" : "fail");
-      tr.appendChild(element("td")).textContent =
-        statuses[+test.todo][+test.result];
-      tr.appendChild(element("td")).textContent = test.name;
-      tr.appendChild(element("td")).textContent = test.message;
-    }
-  },
-
-  /**
-   * Returns a printable message based on aTest's 'name' and 'message'
-   * properties.
-   */
-  "formatTestMessage": function(aTest) {
-    return aTest.name + (aTest.message ? ": " + aTest.message : "");
+    return this.runner.currentTestURL.substring("/tests/dom/imptests/".length);
   },
 
   /**
    * Lets the test runner know about a test result.
    */
   "_log": function(test) {
-    var url = this.getURL();
     var msg = this.prefixes[+test.todo][+test.result] + " | ";
-    if (url) {
-      msg += url;
+    if (this.runner.currentTestURL) {
+      msg += this.runner.currentTestURL;
     }
-    msg += " | " + this.formatTestMessage(test);
-    if (this.runner) {
-      this.runner[(test.result === !test.todo) ? "log" : "error"](msg);
-    } else {
-      dump(msg + "\n");
-    }
+    msg += " | " + test.message;
+    this.runner[(test.result === !test.todo) ? "log" : "error"](msg);
   },
 
-  /**
-   * Logs a message about collapsed messages (if any), and resets the counter.
-   */
   "_logCollapsedMessages": function() {
     if (this.collapsedMessages) {
       this._log({
-        "name": document.title,
         "result": true,
         "todo": false,
         "message": "Elided " + this.collapsedMessages + " passes or known failures."
@@ -202,10 +122,9 @@ var W3CTest = {
    * finishes.
    */
   "result": function(test) {
-    var url = this.getPath();
+    var url = this.getURL();
     this.report({
-      "name": test.name,
-      "message": test.message || "",
+      "message": test.name + (test.message ? "; " + test.message : ""),
       "result": test.status === test.PASS,
       "todo": this._todo(test)
     });
@@ -219,10 +138,9 @@ var W3CTest = {
    * finishes.
    */
   "finish": function(tests, status) {
-    var url = this.getPath();
+    var url = this.getURL();
     this.report({
-      "name": "Finished test",
-      "message": "Status: " + status.status,
+      "message": "Finished test, status " + status.status,
       "result": status.status === status.OK,
       "todo":
         url in this.expectedFailures &&
@@ -235,27 +153,16 @@ var W3CTest = {
       dump("@@@ @@@ Failures\n");
       dump(url + "@@@" + JSON.stringify(this.failures) + "\n");
     }
-    if (this.runner) {
-      this.runner.testFinished(this.tests.map(function(aTest) {
-        return {
-          "message": this.formatTestMessage(aTest),
-          "result": aTest.result,
-          "todo": aTest.todo
-        };
-      }, this));
-    } else {
-      this.reportResults();
-    }
+    this.runner.testFinished(this.tests);
   },
 
   /**
    * Log an unexpected failure. Intended to be used from harness code, not
    * from tests.
    */
-  "logFailure": function(aTestName, aMessage) {
+  "logFailure": function(message) {
     this.report({
-      "name": aTestName,
-      "message": aMessage,
+      "message": message,
       "result": false,
       "todo": false
     });
@@ -266,25 +173,24 @@ var W3CTest = {
    * from tests.
    */
   "timeout": function() {
-    this.logFailure("Timeout", "Test runner timed us out.");
+    this.logFailure("Test runner timed us out.");
     timeout();
   }
 };
 (function() {
   try {
-    var path = W3CTest.getPath();
-    if (path) {
-      // Get expected fails.  If there aren't any, there will be a 404, which is
-      // fine.  Anything else is unexpected.
-      var url = W3CTest.pathprefix + "failures/" + path + ".json";
-      var request = new XMLHttpRequest();
-      request.open("GET", url, false);
-      request.send();
-      if (request.status === 200) {
-        W3CTest.expectedFailures = JSON.parse(request.responseText);
-      } else if (request.status !== 404) {
-        W3CTest.logFailure("Fetching failures file", "Request status was " + request.status);
-      }
+    if (!W3CTest.runner) {
+      return;
+    }
+    // Get expected fails.  If there aren't any, there will be a 404, which is
+    // fine.  Anything else is unexpected.
+    var request = new XMLHttpRequest();
+    request.open("GET", "/tests/dom/imptests/failures/" + W3CTest.getURL() + ".json", false);
+    request.send();
+    if (request.status === 200) {
+      W3CTest.expectedFailures = JSON.parse(request.responseText);
+    } else if (request.status !== 404) {
+      W3CTest.logFailure("Request status was " + request.status);
     }
 
     add_result_callback(W3CTest.result.bind(W3CTest));
@@ -294,6 +200,6 @@ var W3CTest = {
       "explicit_timeout": true
     });
   } catch (e) {
-    W3CTest.logFailure("Harness setup", "Unexpected exception: " + e);
+    W3CTest.logFailure("Unexpected exception: " + e);
   }
 })();

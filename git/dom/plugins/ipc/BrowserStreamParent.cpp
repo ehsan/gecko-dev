@@ -61,7 +61,7 @@ BrowserStreamParent::AnswerNPN_RequestRead(const IPCByteRanges& ranges,
     rp[i].length = ranges[i].length;
     rp[i].next = &rp[i + 1];
   }
-  rp[ranges.size() - 1].next = nullptr;
+  rp[ranges.size() - 1].next = NULL;
 
   *result = mNPP->mNPNIface->requestread(mStream, rp);
   return true;
@@ -102,7 +102,7 @@ BrowserStreamParent::RecvStreamDestroyed()
     return false;
   }
 
-  mStreamPeer = nullptr;
+  mStreamPeer = NULL;
 
   mState = DELETING;
   return Send__delete__(this);

@@ -23,13 +23,15 @@
 
 #include "pldhash.h"
 #include "nscore.h"
-#include "nsISupports.h"
+#include "nsString.h"
+#include "nsISupportsBase.h"
 #include "nsTraceRefcnt.h"
-#include "nsStringFwd.h"
 
 class nsIObjectInputStream;
 class nsIObjectOutputStream;
 
+class nsHashtable;
+class nsStringKey;
 struct PRLock;
 
 class nsHashKey {
@@ -110,9 +112,9 @@ class nsHashtable {
     void *Get(nsHashKey *aKey);
     void *Remove(nsHashKey *aKey);
     nsHashtable *Clone();
-    void Enumerate(nsHashtableEnumFunc aEnumFunc, void* aClosure = nullptr);
+    void Enumerate(nsHashtableEnumFunc aEnumFunc, void* aClosure = NULL);
     void Reset();
-    void Reset(nsHashtableEnumFunc destroyFunc, void* aClosure = nullptr);
+    void Reset(nsHashtableEnumFunc destroyFunc, void* aClosure = NULL);
 
     nsHashtable(nsIObjectInputStream* aStream,
                 nsHashtableReadEntryFunc aReadEntryFunc,
@@ -155,6 +157,8 @@ class nsObjectHashtable : public nsHashtable {
 ////////////////////////////////////////////////////////////////////////////////
 // nsSupportsHashtable: an nsHashtable where the elements are nsISupports*
 
+class nsISupports;
+
 class nsSupportsHashtable
   : private nsHashtable
 {
@@ -175,7 +179,7 @@ class nsSupportsHashtable
     nsISupports* Get(nsHashKey *aKey);
     bool Remove(nsHashKey *aKey, nsISupports **value = nullptr);
     nsHashtable *Clone();
-    void Enumerate(nsHashtableEnumFunc aEnumFunc, void* aClosure = nullptr) {
+    void Enumerate(nsHashtableEnumFunc aEnumFunc, void* aClosure = NULL) {
         nsHashtable::Enumerate(aEnumFunc, aClosure);
     }
     void Reset();
@@ -189,6 +193,8 @@ class nsSupportsHashtable
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupportsKey: Where keys are nsISupports objects that get refcounted.
+
+#include "nsISupports.h"
 
 class nsISupportsKey : public nsHashKey {
   protected:
@@ -294,6 +300,8 @@ class nsVoidKey : public nsHashKey {
 
     void* GetValue() { return mKey; }
 };
+
+#include "nsString.h"
 
 // for null-terminated c-strings
 class nsCStringKey : public nsHashKey {

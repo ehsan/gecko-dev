@@ -42,40 +42,37 @@ protected:
   friend nsresult (::NS_NewSVGTextPathElement(nsIContent **aResult,
                                               already_AddRefed<nsINodeInfo> aNodeInfo));
   SVGTextPathElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-  virtual JSObject* WrapNode(JSContext *cx,
-                             JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 public:
   // nsIContent interface
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual bool IsEventAttributeName(nsIAtom* aName) MOZ_OVERRIDE;
 
   // WebIDL
   already_AddRefed<SVGAnimatedLength> StartOffset();
-  already_AddRefed<SVGAnimatedEnumeration> Method();
-  already_AddRefed<SVGAnimatedEnumeration> Spacing();
-  already_AddRefed<SVGAnimatedString> Href();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> Method();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> Spacing();
+  already_AddRefed<nsIDOMSVGAnimatedString> Href();
 
  protected:
 
-  virtual LengthAttributesInfo GetLengthInfo() MOZ_OVERRIDE;
-  virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;
-  virtual StringAttributesInfo GetStringInfo() MOZ_OVERRIDE;
+  virtual LengthAttributesInfo GetLengthInfo();
+  virtual EnumAttributesInfo GetEnumInfo();
+  virtual StringAttributesInfo GetStringInfo();
 
-  enum { /* TEXTLENGTH, */ STARTOFFSET = 1 };
-  nsSVGLength2 mLengthAttributes[2];
-  virtual nsSVGLength2* LengthAttributes() MOZ_OVERRIDE
-    { return mLengthAttributes; }
-  static LengthInfo sLengthInfo[2];
+  enum { STARTOFFSET };
+  nsSVGLength2 mLengthAttributes[1];
+  static LengthInfo sLengthInfo[1];
 
-  enum { /* LENGTHADJUST, */ METHOD = 1, SPACING };
-  nsSVGEnum mEnumAttributes[3];
-  virtual nsSVGEnum* EnumAttributes() MOZ_OVERRIDE
-    { return mEnumAttributes; }
+  enum { METHOD, SPACING };
+  nsSVGEnum mEnumAttributes[2];
   static nsSVGEnumMapping sMethodMap[];
   static nsSVGEnumMapping sSpacingMap[];
-  static EnumInfo sEnumInfo[3];
+  static EnumInfo sEnumInfo[2];
 
   enum { HREF };
   nsSVGString mStringAttributes[1];

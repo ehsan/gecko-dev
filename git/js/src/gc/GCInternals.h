@@ -4,21 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_GCInternals_h
-#define gc_GCInternals_h
+#ifndef jsgc_internal_h___
+#define jsgc_internal_h___
 
-#include "jscntxt.h"
-#include "jsworkers.h"
-
-#include "gc/Zone.h"
-
-#include "vm/Runtime.h"
+#include "jsapi.h"
 
 namespace js {
 namespace gc {
-
-void
-MarkPersistentRootedChains(JSTracer *trc);
 
 void
 MarkRuntime(JSTracer *trc, bool useSavedRoots = false);
@@ -26,13 +18,11 @@ MarkRuntime(JSTracer *trc, bool useSavedRoots = false);
 void
 BufferGrayRoots(GCMarker *gcmarker);
 
-class AutoCopyFreeListToArenas
-{
+class AutoCopyFreeListToArenas {
     JSRuntime *runtime;
-    ZoneSelector selector;
 
   public:
-    AutoCopyFreeListToArenas(JSRuntime *rt, ZoneSelector selector);
+    AutoCopyFreeListToArenas(JSRuntime *rt);
     ~AutoCopyFreeListToArenas();
 };
 
@@ -45,21 +35,19 @@ struct AutoFinishGC
  * This class should be used by any code that needs to exclusive access to the
  * heap in order to trace through it...
  */
-class AutoTraceSession
-{
+class AutoTraceSession {
   public:
     AutoTraceSession(JSRuntime *rt, HeapState state = Tracing);
     ~AutoTraceSession();
 
   protected:
-    AutoLockForExclusiveAccess lock;
     JSRuntime *runtime;
 
   private:
     AutoTraceSession(const AutoTraceSession&) MOZ_DELETE;
     void operator=(const AutoTraceSession&) MOZ_DELETE;
 
-    HeapState prevState;
+    js::HeapState prevState;
 };
 
 struct AutoPrepareForTracing
@@ -68,7 +56,7 @@ struct AutoPrepareForTracing
     AutoTraceSession session;
     AutoCopyFreeListToArenas copy;
 
-    AutoPrepareForTracing(JSRuntime *rt, ZoneSelector selector);
+    AutoPrepareForTracing(JSRuntime *rt);
 };
 
 class IncrementalSafety
@@ -78,14 +66,14 @@ class IncrementalSafety
     IncrementalSafety(const char *reason) : reason_(reason) {}
 
   public:
-    static IncrementalSafety Safe() { return IncrementalSafety(nullptr); }
+    static IncrementalSafety Safe() { return IncrementalSafety(NULL); }
     static IncrementalSafety Unsafe(const char *reason) { return IncrementalSafety(reason); }
 
     typedef void (IncrementalSafety::* ConvertibleToBool)();
     void nonNull() {}
 
     operator ConvertibleToBool() const {
-        return reason_ == nullptr ? &IncrementalSafety::nonNull : 0;
+        return reason_ == NULL ? &IncrementalSafety::nonNull : 0;
     }
 
     const char *reason() {
@@ -117,43 +105,9 @@ EndVerifyPostBarriers(JSRuntime *rt);
 
 void
 FinishVerifier(JSRuntime *rt);
-
-class AutoStopVerifyingBarriers
-{
-    JSRuntime *runtime;
-    bool restartPreVerifier;
-    bool restartPostVerifier;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-
-  public:
-    AutoStopVerifyingBarriers(JSRuntime *rt, bool isShutdown
-                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : runtime(rt)
-    {
-        restartPreVerifier = !isShutdown && rt->gcVerifyPreData;
-        restartPostVerifier = !isShutdown && rt->gcVerifyPostData && rt->gcGenerationalEnabled;
-        if (rt->gcVerifyPreData)
-            EndVerifyPreBarriers(rt);
-        if (rt->gcVerifyPostData)
-            EndVerifyPostBarriers(rt);
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    ~AutoStopVerifyingBarriers() {
-        if (restartPreVerifier)
-            StartVerifyPreBarriers(runtime);
-        if (restartPostVerifier)
-            StartVerifyPostBarriers(runtime);
-    }
-};
-#else
-struct AutoStopVerifyingBarriers
-{
-    AutoStopVerifyingBarriers(JSRuntime *, bool) {}
-};
 #endif /* JS_GC_ZEAL */
 
 } /* namespace gc */
 } /* namespace js */
 
-#endif /* gc_GCInternals_h */
+#endif /* jsgc_internal_h___ */

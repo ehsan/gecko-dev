@@ -27,10 +27,6 @@ public:
   {
     rv = GetWholeText(aWholeText);
   }
-
-  static already_AddRefed<Text>
-  Constructor(const GlobalObject& aGlobal,
-              const nsAString& aData, ErrorResult& aRv);
 };
 
 } // namespace dom

@@ -18,7 +18,6 @@
 #include "nsRuleWalker.h"
 #include "nsNthIndexCache.h"
 #include "nsILoadContext.h"
-#include "nsIDocument.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/BloomFilter.h"
 #include "mozilla/GuardObjects.h"
@@ -139,15 +138,9 @@ struct MOZ_STACK_CLASS TreeMatchContext {
    * Initialize the ancestor filter and list of style scopes.  If aElement is
    * not null, it and all its ancestors will be passed to
    * mAncestorFilter.PushAncestor and PushStyleScope, starting from the root and
-   * going down the tree.  Must only be called for elements in a document.
+   * going down the tree.
    */
   void InitAncestors(mozilla::dom::Element *aElement);
-
-  /**
-   * Like InitAncestors, but only initializes the style scope list, not the
-   * ancestor filter.  May be called for elements outside a document.
-   */
-  void InitStyleScopes(mozilla::dom::Element* aElement);
 
   void PushStyleScope(mozilla::dom::Element* aElement)
   {
@@ -179,26 +172,9 @@ struct MOZ_STACK_CLASS TreeMatchContext {
     return true;
   }
 
-#ifdef DEBUG
-  void AssertHasAllStyleScopes(mozilla::dom::Element* aElement)
-  {
-    nsINode* cur = aElement->GetParentNode();
-    while (cur) {
-      if (cur->IsScopedStyleRoot()) {
-        MOZ_ASSERT(mStyleScopes.Contains(cur));
-      }
-      cur = cur->GetParentNode();
-    }
-  }
-#endif
-
   bool SetStyleScopeForSelectorMatching(mozilla::dom::Element* aSubject,
                                         mozilla::dom::Element* aScope)
   {
-#ifdef DEBUG
-    AssertHasAllStyleScopes(aSubject);
-#endif
-
     mForScopedStyle = !!aScope;
     if (!aScope) {
       // This is not for a scoped style sheet; return true, as we want
@@ -238,60 +214,29 @@ struct MOZ_STACK_CLASS TreeMatchContext {
   /* Helper class for maintaining the ancestor state */
   class MOZ_STACK_CLASS AutoAncestorPusher {
   public:
-    AutoAncestorPusher(TreeMatchContext& aTreeMatchContext
+    AutoAncestorPusher(bool aDoPush,
+                       TreeMatchContext &aTreeMatchContext,
+                       mozilla::dom::Element *aElement
                        MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : mPushedAncestor(false)
-      , mPushedStyleScope(false)
-      , mTreeMatchContext(aTreeMatchContext)
-      , mElement(nullptr)
+      : mPushed(aDoPush && aElement),
+        mTreeMatchContext(aTreeMatchContext),
+        mElement(aElement)
     {
       MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    void PushAncestorAndStyleScope(mozilla::dom::Element* aElement) {
-      MOZ_ASSERT(!mElement);
-      if (aElement) {
-        mElement = aElement;
-        mPushedAncestor = true;
-        mPushedStyleScope = true;
+      if (mPushed) {
         mTreeMatchContext.mAncestorFilter.PushAncestor(aElement);
         mTreeMatchContext.PushStyleScope(aElement);
       }
     }
-
-    void PushAncestorAndStyleScope(nsIContent* aContent) {
-      if (aContent && aContent->IsElement()) {
-        PushAncestorAndStyleScope(aContent->AsElement());
-      }
-    }
-
-    void PushStyleScope(mozilla::dom::Element* aElement) {
-      MOZ_ASSERT(!mElement);
-      if (aElement) {
-        mElement = aElement;
-        mPushedStyleScope = true;
-        mTreeMatchContext.PushStyleScope(aElement);
-      }
-    }
-
-    void PushStyleScope(nsIContent* aContent) {
-      if (aContent && aContent->IsElement()) {
-        PushStyleScope(aContent->AsElement());
-      }
-    }
-
     ~AutoAncestorPusher() {
-      if (mPushedAncestor) {
+      if (mPushed) {
         mTreeMatchContext.mAncestorFilter.PopAncestor();
-      }
-      if (mPushedStyleScope) {
         mTreeMatchContext.PopStyleScope(mElement);
       }
     }
 
   private:
-    bool mPushedAncestor;
-    bool mPushedStyleScope;
+    bool mPushed;
     TreeMatchContext& mTreeMatchContext;
     mozilla::dom::Element* mElement;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
@@ -479,27 +424,19 @@ struct MOZ_STACK_CLASS PseudoElementRuleProcessorData :
                                  mozilla::dom::Element* aParentElement,
                                  nsRuleWalker* aRuleWalker,
                                  nsCSSPseudoElements::Type aPseudoType,
-                                 TreeMatchContext& aTreeMatchContext,
-                                 mozilla::dom::Element* aPseudoElement)
+                                 TreeMatchContext& aTreeMatchContext)
     : ElementDependentRuleProcessorData(aPresContext, aParentElement, aRuleWalker,
                                         aTreeMatchContext),
-      mPseudoType(aPseudoType),
-      mPseudoElement(aPseudoElement)
+      mPseudoType(aPseudoType)
   {
     NS_PRECONDITION(aPseudoType <
                       nsCSSPseudoElements::ePseudo_PseudoElementCount,
                     "invalid aPseudoType value");
     NS_PRECONDITION(aTreeMatchContext.mForStyling, "Styling here!");
     NS_PRECONDITION(aRuleWalker, "Must have rule walker");
-    if (nsCSSPseudoElements::PseudoElementSupportsStyleAttribute(aPseudoType)) {
-      NS_PRECONDITION(aPseudoElement,
-          "If pseudo element is supposed to support style attribute, it must "
-          "have a pseudo element set");
-    }
   }
 
   nsCSSPseudoElements::Type mPseudoType;
-  mozilla::dom::Element* const mPseudoElement; // weak ref
 };
 
 struct MOZ_STACK_CLASS AnonBoxRuleProcessorData : public RuleProcessorData {

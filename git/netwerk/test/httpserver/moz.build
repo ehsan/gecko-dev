@@ -10,9 +10,3 @@ XPIDL_SOURCES += [
 
 MODULE = 'test_necko'
 
-XPCSHELL_TESTS_MANIFESTS += ['test/xpcshell.ini']
-
-EXTRA_COMPONENTS += [
-    'httpd.js',
-]
-

@@ -8,22 +8,18 @@
 
 #include "WMF.h"
 #include "MediaDecoderReader.h"
-#include "nsAutoPtr.h"
-#include "mozilla/RefPtr.h"
-#include "nsRect.h"
 
 namespace mozilla {
 
 class WMFByteStream;
 class WMFSourceReaderCallback;
-class DXVA2Manager;
 
 namespace dom {
 class TimeRanges;
 }
 
-// Decoder backend for reading H.264/AAC in MP4/M4A, and MP3 files using
-// Windows Media Foundation.
+// Decoder backend for reading H.264/AAC in MP4/M4A and MP3 audio files,
+// using Windows Media Foundation.
 class WMFReader : public MediaDecoderReader
 {
 public:
@@ -40,13 +36,16 @@ public:
   bool HasAudio() MOZ_OVERRIDE;
   bool HasVideo() MOZ_OVERRIDE;
 
-  nsresult ReadMetadata(MediaInfo* aInfo,
+  nsresult ReadMetadata(VideoInfo* aInfo,
                         MetadataTags** aTags) MOZ_OVERRIDE;
 
   nsresult Seek(int64_t aTime,
                 int64_t aStartTime,
                 int64_t aEndTime,
                 int64_t aCurrentTime) MOZ_OVERRIDE;
+
+  nsresult GetBuffered(mozilla::dom::TimeRanges* aBuffered,
+                       int64_t aStartTime) MOZ_OVERRIDE;
 
   void OnDecodeThreadStart() MOZ_OVERRIDE;
   void OnDecodeThreadFinish() MOZ_OVERRIDE;
@@ -56,27 +55,10 @@ private:
   HRESULT ConfigureAudioDecoder();
   HRESULT ConfigureVideoDecoder();
   HRESULT ConfigureVideoFrameGeometry(IMFMediaType* aMediaType);
-  void GetSupportedAudioCodecs(const GUID** aCodecs, uint32_t* aNumCodecs);
-
-  HRESULT CreateBasicVideoFrame(IMFSample* aSample,
-                                int64_t aTimestampUsecs,
-                                int64_t aDurationUsecs,
-                                int64_t aOffsetBytes,
-                                VideoData** aOutVideoData);
-
-  HRESULT CreateD3DVideoFrame(IMFSample* aSample,
-                              int64_t aTimestampUsecs,
-                              int64_t aDurationUsecs,
-                              int64_t aOffsetBytes,
-                              VideoData** aOutVideoData);
-
-  // Attempt to initialize DXVA. Returns true on success.
-  bool InitializeDXVA();  
 
   RefPtr<IMFSourceReader> mSourceReader;
   RefPtr<WMFByteStream> mByteStream;
   RefPtr<WMFSourceReaderCallback> mSourceReaderCallback;
-  nsAutoPtr<DXVA2Manager> mDXVA2Manager;
 
   // Region inside the video frame that makes up the picture. Pixels outside
   // of this region should not be rendered.
@@ -86,31 +68,12 @@ private:
   uint32_t mAudioBytesPerSample;
   uint32_t mAudioRate;
 
-  uint32_t mVideoWidth;
   uint32_t mVideoHeight;
   uint32_t mVideoStride;
 
-  // The offset, in audio frames, at which playback started since the
-  // last discontinuity.
-  int64_t mAudioFrameOffset;
-  // The number of audio frames that we've played since the last
-  // discontinuity.
-  int64_t mAudioFrameSum;
-  // True if we need to re-initialize mAudioFrameOffset and mAudioFrameSum
-  // from the next audio packet we decode. This happens after a seek, since
-  // WMF doesn't mark a stream as having a discontinuity after a seek(0).
-  bool mMustRecaptureAudioPosition;
-
   bool mHasAudio;
   bool mHasVideo;
-  bool mUseHwAccel;
-
-  // We can't call WMFDecoder::IsMP3Supported() on non-main threads, since it
-  // checks a pref, so we cache its value in mIsMP3Enabled and use that on
-  // the decode thread.
-  const bool mIsMP3Enabled;
-
-  bool mCOMInitialized;
+  bool mCanSeek;
 };
 
 } // namespace mozilla

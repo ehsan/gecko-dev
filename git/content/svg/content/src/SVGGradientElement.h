@@ -43,30 +43,30 @@ class SVGGradientElement : public SVGGradientElementBase
 
 protected:
   SVGGradientElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE = 0;
+  virtual JSObject*
+  WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE = 0;
 
 public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE = 0;
 
   // nsIContent
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   virtual nsSVGAnimatedTransformList*
-    GetAnimatedTransformList(uint32_t aFlags = 0) MOZ_OVERRIDE;
-  virtual nsIAtom* GetTransformListAttrName() const MOZ_OVERRIDE {
+    GetAnimatedTransformList(uint32_t aFlags = 0);
+  virtual nsIAtom* GetTransformListAttrName() const {
     return nsGkAtoms::gradientTransform;
   }
 
   // WebIDL
-  already_AddRefed<SVGAnimatedEnumeration> GradientUnits();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> GradientUnits();
   already_AddRefed<SVGAnimatedTransformList> GradientTransform();
-  already_AddRefed<SVGAnimatedEnumeration> SpreadMethod();
-  already_AddRefed<SVGAnimatedString> Href();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> SpreadMethod();
+  already_AddRefed<nsIDOMSVGAnimatedString> Href();
 
 protected:
-  virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;
-  virtual StringAttributesInfo GetStringInfo() MOZ_OVERRIDE;
+  virtual EnumAttributesInfo GetEnumInfo();
+  virtual StringAttributesInfo GetStringInfo();
 
   enum { GRADIENTUNITS, SPREADMETHOD };
   nsSVGEnum mEnumAttributes[2];
@@ -94,11 +94,11 @@ class SVGLinearGradientElement : public SVGLinearGradientElementBase
 
 protected:
   SVGLinearGradientElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject*
+  WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
 public:
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // WebIDL
   already_AddRefed<SVGAnimatedLength> X1();
@@ -108,7 +108,7 @@ public:
 
 protected:
 
-  virtual LengthAttributesInfo GetLengthInfo() MOZ_OVERRIDE;
+  virtual LengthAttributesInfo GetLengthInfo();
 
   enum { ATTR_X1, ATTR_Y1, ATTR_X2, ATTR_Y2 };
   nsSVGLength2 mLengthAttributes[4];
@@ -128,11 +128,11 @@ class SVGRadialGradientElement : public SVGRadialGradientElementBase
 
 protected:
   SVGRadialGradientElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject*
+  WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
 public:
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // WebIDL
   already_AddRefed<SVGAnimatedLength> Cx();
@@ -142,7 +142,7 @@ public:
   already_AddRefed<SVGAnimatedLength> Fy();
 protected:
 
-  virtual LengthAttributesInfo GetLengthInfo() MOZ_OVERRIDE;
+  virtual LengthAttributesInfo GetLengthInfo();
 
   enum { ATTR_CX, ATTR_CY, ATTR_R, ATTR_FX, ATTR_FY };
   nsSVGLength2 mLengthAttributes[5];

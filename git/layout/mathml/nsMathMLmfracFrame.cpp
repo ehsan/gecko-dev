@@ -4,12 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#include "nsMathMLmfracFrame.h"
+#include "nsCOMPtr.h"
+#include "nsFrame.h"
 #include "nsPresContext.h"
+#include "nsStyleContext.h"
+#include "nsStyleConsts.h"
 #include "nsRenderingContext.h"
+
+#include "nsMathMLmfracFrame.h"
 #include "nsDisplayList.h"
 #include "gfxContext.h"
-#include "nsMathMLElement.h"
 #include <algorithm>
 
 //
@@ -236,9 +240,11 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
     // container (we fetch values from the core since they may use units that
     // depend on style data, and style changes could have occurred in the
     // core since our last visit there)
-    nscoord leftSpace = std::max(onePixel, StyleVisibility()->mDirection ?
+    nscoord leftSpace = std::max(onePixel,
+                               NS_MATHML_IS_RTL(mPresentationData.flags) ?
                                coreData.trailingSpace : coreData.leadingSpace);
-    nscoord rightSpace = std::max(onePixel, StyleVisibility()->mDirection ?
+    nscoord rightSpace = std::max(onePixel,
+                                NS_MATHML_IS_RTL(mPresentationData.flags) ?
                                 coreData.leadingSpace : coreData.trailingSpace);
 
     //////////////////
@@ -450,7 +456,7 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
     }
 
     // Set horizontal bounding metrics
-    if (StyleVisibility()->mDirection) {
+    if (NS_MATHML_IS_RTL(mPresentationData.flags)) {
       mBoundingMetrics.leftBearing = trailingSpace + bmDen.leftBearing;
       mBoundingMetrics.rightBearing = trailingSpace + bmDen.width + mLineRect.width + bmNum.rightBearing;
     } else {
@@ -589,5 +595,5 @@ nsMathMLmfracFrame::DisplaySlash(nsDisplayListBuilder* aBuilder,
 
   aLists.Content()->AppendNewToTop(new (aBuilder)
     nsDisplayMathMLSlash(aBuilder, aFrame, aRect, aThickness,
-                         StyleVisibility()->mDirection));
+                         NS_MATHML_IS_RTL(mPresentationData.flags)));
 }

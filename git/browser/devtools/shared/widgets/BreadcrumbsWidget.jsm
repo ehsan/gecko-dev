@@ -11,20 +11,30 @@ const Cu = Components.utils;
 const ENSURE_SELECTION_VISIBLE_DELAY = 50; // ms
 
 Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
-Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 
 this.EXPORTED_SYMBOLS = ["BreadcrumbsWidget"];
 
 /**
  * A breadcrumb-like list of items.
- * This widget should be used in tandem with the WidgetMethods in ViewHelpers.jsm
+ *
+ * You can use this widget alone, but it works great with a MenuContainer!
+ * In that case, you should never need to access the methods in the
+ * BreadcrumbsWidget directly, use the wrapper MenuContainer instance instead.
+ *
+ * @see ViewHelpers.jsm
+ *
+ * function MyView() {
+ *   this.node = new BreadcrumbsWidget(document.querySelector(".my-node"));
+ * }
+ * ViewHelpers.create({ constructor: MyView, proto: MenuContainer.prototype }, {
+ *   myMethod: function() {},
+ *   ...
+ * });
  *
  * @param nsIDOMNode aNode
  *        The element associated with the widget.
  */
 this.BreadcrumbsWidget = function BreadcrumbsWidget(aNode) {
-  this.document = aNode.ownerDocument;
-  this.window = this.document.defaultView;
   this._parent = aNode;
 
   // Create an internal arrowscrollbox container.
@@ -33,8 +43,6 @@ this.BreadcrumbsWidget = function BreadcrumbsWidget(aNode) {
   this._list.setAttribute("flex", "1");
   this._list.setAttribute("orient", "horizontal");
   this._list.setAttribute("clicktoscroll", "true")
-  this._list.addEventListener("keypress", e => this.emit("keyPress", e), false);
-  this._list.addEventListener("mousedown", e => this.emit("mousePress", e), false);
   this._parent.appendChild(this._list);
 
   // By default, hide the arrows. We let the arrowscrollbox show them
@@ -44,9 +52,6 @@ this.BreadcrumbsWidget = function BreadcrumbsWidget(aNode) {
   this._list.addEventListener("underflow", this._onUnderflow.bind(this), false);
   this._list.addEventListener("overflow", this._onOverflow.bind(this), false);
 
-  // This widget emits events that can be handled in a MenuContainer.
-  EventEmitter.decorate(this);
-
   // Delegate some of the associated node's methods to satisfy the interface
   // required by MenuContainer instances.
   ViewHelpers.delegateWidgetAttributeMethods(this, aNode);
@@ -54,6 +59,9 @@ this.BreadcrumbsWidget = function BreadcrumbsWidget(aNode) {
 };
 
 BreadcrumbsWidget.prototype = {
+  get document() this._parent.ownerDocument,
+  get window() this.document.defaultView,
+
   /**
    * Inserts an item in this container at the specified index.
    *
@@ -64,7 +72,7 @@ BreadcrumbsWidget.prototype = {
    * @return nsIDOMNode
    *         The element associated with the displayed item.
    */
-  insertItemAt: function(aIndex, aContents) {
+  insertItemAt: function BCW_insertItemAt(aIndex, aContents) {
     let list = this._list;
     let breadcrumb = new Breadcrumb(this, aContents);
     return list.insertBefore(breadcrumb._target, list.childNodes[aIndex]);
@@ -78,7 +86,7 @@ BreadcrumbsWidget.prototype = {
    * @return nsIDOMNode
    *         The element associated with the displayed item.
    */
-  getItemAtIndex: function(aIndex) {
+  getItemAtIndex: function BCW_getItemAtIndex(aIndex) {
     return this._list.childNodes[aIndex];
   },
 
@@ -88,7 +96,7 @@ BreadcrumbsWidget.prototype = {
    * @param nsIDOMNode aChild
    *        The element associated with the displayed item.
    */
-  removeChild: function(aChild) {
+  removeChild: function BCW_removeChild(aChild) {
     this._list.removeChild(aChild);
 
     if (this._selectedItem == aChild) {
@@ -99,13 +107,14 @@ BreadcrumbsWidget.prototype = {
   /**
    * Removes all of the child nodes from this container.
    */
-  removeAllItems: function() {
+  removeAllItems: function BCW_removeAllItems() {
+    let parent = this._parent;
     let list = this._list;
+    let firstChild;
 
-    while (list.hasChildNodes()) {
-      list.firstChild.remove();
+    while (firstChild = list.firstChild) {
+      list.removeChild(firstChild);
     }
-
     this._selectedItem = null;
   },
 
@@ -136,17 +145,18 @@ BreadcrumbsWidget.prototype = {
 
     // Repeated calls to ensureElementIsVisible would interfere with each other
     // and may sometimes result in incorrect scroll positions.
-    setNamedTimeout("breadcrumb-select", ENSURE_SELECTION_VISIBLE_DELAY, () => {
+    this.window.clearTimeout(this._ensureVisibleTimeout);
+    this._ensureVisibleTimeout = this.window.setTimeout(function() {
       if (this._selectedItem) {
         this._list.ensureElementIsVisible(this._selectedItem);
       }
-    });
+    }.bind(this), ENSURE_SELECTION_VISIBLE_DELAY);
   },
 
   /**
    * The underflow and overflow listener for the arrowscrollbox container.
    */
-  _onUnderflow: function({ target }) {
+  _onUnderflow: function BCW__onUnderflow({target}) {
     if (target != this._list) {
       return;
     }
@@ -158,7 +168,7 @@ BreadcrumbsWidget.prototype = {
   /**
    * The underflow and overflow listener for the arrowscrollbox container.
    */
-  _onOverflow: function({ target }) {
+  _onOverflow: function BCW__onOverflow({target}) {
     if (target != this._list) {
       return;
     }
@@ -167,11 +177,10 @@ BreadcrumbsWidget.prototype = {
     target.setAttribute("overflows", "");
   },
 
-  window: null,
-  document: null,
   _parent: null,
   _list: null,
-  _selectedItem: null
+  _selectedItem: null,
+  _ensureVisibleTimeout: null
 };
 
 /**
@@ -183,8 +192,6 @@ BreadcrumbsWidget.prototype = {
  *        The string or node displayed in the container.
  */
 function Breadcrumb(aWidget, aContents) {
-  this.document = aWidget.document;
-  this.window = aWidget.window;
   this.ownerView = aWidget;
 
   this._target = this.document.createElement("hbox");
@@ -194,6 +201,9 @@ function Breadcrumb(aWidget, aContents) {
 }
 
 Breadcrumb.prototype = {
+  get document() this.ownerView.document,
+  get window() this.document.defaultView,
+
   /**
    * Sets the contents displayed in this item's view.
    *
@@ -218,8 +228,6 @@ Breadcrumb.prototype = {
     this._target.appendChild(aContents);
   },
 
-  window: null,
-  document: null,
   ownerView: null,
   _target: null
 };

@@ -7,18 +7,18 @@
 #ifndef nsHttpChannelAuthProvider_h__
 #define nsHttpChannelAuthProvider_h__
 
+#include "nsHttp.h"
 #include "nsIHttpChannelAuthProvider.h"
 #include "nsIAuthPromptCallback.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
+#include "nsIHttpAuthenticableChannel.h"
+#include "nsIURI.h"
 #include "nsHttpAuthCache.h"
 #include "nsProxyInfo.h"
-#include "nsCRT.h"
+#include "mozilla/Attributes.h"
 
-class nsIHttpAuthenticableChannel;
 class nsIHttpAuthenticator;
-class nsHttpHandler;
-class nsIURI;
 
 class nsHttpChannelAuthProvider : public nsIHttpChannelAuthProvider
                                 , public nsIAuthPromptCallback
@@ -100,7 +100,7 @@ private:
     nsresult DoRedirectChannelToHttps();
 
     /**
-     * A function that takes care of reading STS headers and enforcing STS
+     * A function that takes care of reading STS headers and enforcing STS 
      * load rules.  After a secure channel is erected, STS requires the channel
      * to be trusted or any STS header data on the channel is ignored.
      * This is called from ProcessResponse.
@@ -143,8 +143,6 @@ private:
     uint32_t                          mTriedProxyAuth           : 1;
     uint32_t                          mTriedHostAuth            : 1;
     uint32_t                          mSuppressDefensiveAuth    : 1;
-
-    nsRefPtr<nsHttpHandler>           mHttpHandler;  // keep gHttpHandler alive
 };
 
 #endif // nsHttpChannelAuthProvider_h__

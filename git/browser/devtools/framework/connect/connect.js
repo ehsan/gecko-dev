@@ -1,4 +1,4 @@
-/* -*- Mode: Javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,11 +7,12 @@
 "use strict";
 
 const Cu = Components.utils;
+Cu.import("resource:///modules/devtools/Target.jsm");
+Cu.import("resource:///modules/devtools/Toolbox.jsm");
+Cu.import("resource:///modules/devtools/gDevTools.jsm");
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
-let {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
-let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 
 let gClient;
 let gConnectionTimeout;
@@ -54,14 +55,7 @@ function submit() {
   Services.prefs.setIntPref("devtools.debugger.remote-port", port);
 
   // Initiate the connection
-  let transport;
-  try {
-    transport = debuggerSocketConnect(host, port);
-  } catch(e) {
-    // Bug 921850: catch rare exception from debuggerSocketConnect
-    showError("unexpected");
-    return;
-  }
+  let transport = debuggerSocketConnect(host, port);
   gClient = new DebuggerClient(transport);
   let delay = Services.prefs.getIntPref("devtools.debugger.remote-timeout");
   gConnectionTimeout = setTimeout(handleConnectionTimeout, delay);
@@ -175,13 +169,8 @@ function openToolbox(form, chrome=false) {
     client: gClient,
     chrome: chrome
   };
-  devtools.TargetFactory.forRemoteTab(options).then((target) => {
-    let hostType = devtools.Toolbox.HostType.WINDOW;
-    gDevTools.showToolbox(target, "webconsole", hostType).then((toolbox) => {
-      toolbox.once("destroyed", function() {
-        gClient.close();
-      });
-    });
+  TargetFactory.forRemoteTab(options).then((target) => {
+    gDevTools.showToolbox(target, "webconsole", Toolbox.HostType.WINDOW);
     window.close();
   });
 }

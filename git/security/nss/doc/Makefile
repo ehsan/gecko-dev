@@ -24,7 +24,6 @@ prepare: date-and-version
 	
 clean:
 	rm -f date.xml version.xml *.tar.bz2
-	rm -f html/*.proc
 	rm -fr $(name) ascii
 
 date-and-version: date.xml version.xml

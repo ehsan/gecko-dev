@@ -2,6 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifdef DEBUG
+static const char CVS_ID[] = "@(#) $RCSfile$ $Revision$ $Date$";
+#endif /* DEBUG */
+
 #ifndef PKIM_H
 #include "pkim.h"
 #endif /* PKIM_H */
@@ -697,7 +701,7 @@ merge_object_instances (
     for (ci = instances, i = 0; *ci; ci++, i++) {
 	nssCryptokiObject *instance = nssCryptokiObject_Clone(*ci);
 	if (instance) {
-	    if (nssPKIObject_AddInstance(to, instance) == PR_SUCCESS) {
+	    if (nssPKIObject_AddInstance(to, instance) == SECSuccess) {
 		continue;
 	    }
 	    nssCryptokiObject_Destroy(instance);

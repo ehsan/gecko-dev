@@ -3,20 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "gfxPlatform.h"                // for gfxPlatform
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
-#include "mozilla/Attributes.h"         // for MOZ_FINAL
-#include "mozilla/Module.h"             // for Module, Module::CIDEntry, etc
 #include "mozilla/ModuleUtils.h"
-#include "mozilla/mozalloc.h"           // for operator new
-#include "nsCOMPtr.h"                   // for nsCOMPtr
-#include "nsError.h"                    // for NS_ERROR_NO_AGGREGATION, etc
-#include "nsGfxCIID.h"                  // for NS_FONT_ENUMERATOR_CID, etc
-#include "nsID.h"                       // for NS_DEFINE_NAMED_CID, etc
-#include "nsIScriptableRegion.h"        // for nsIScriptableRegion
-#include "nsISupports.h"                // for NS_DECL_ISUPPORTS, etc
-#include "nsScriptableRegion.h"         // for nsScriptableRegion
-#include "nsThebesFontEnumerator.h"     // for nsThebesFontEnumerator
+#include "mozilla/Attributes.h"
+#include "nsCOMPtr.h"
+#include "nsGfxCIID.h"
+
+#include "nsThebesFontEnumerator.h"
+#include "nsScriptableRegion.h"
+
+#include "gfxPlatform.h"
 
 // This class doesn't do anything; its only purpose is to give
 // gfxPlatform::Init a way to force this component to be registered,
@@ -56,17 +51,17 @@ NS_DEFINE_NAMED_CID(NS_SCRIPTABLE_REGION_CID);
 NS_DEFINE_NAMED_CID(NS_GFX_INITIALIZATION_CID);
 
 static const mozilla::Module::CIDEntry kThebesCIDs[] = {
-    { &kNS_FONT_ENUMERATOR_CID, false, nullptr, nsThebesFontEnumeratorConstructor },
-    { &kNS_SCRIPTABLE_REGION_CID, false, nullptr, nsScriptableRegionConstructor },
-    { &kNS_GFX_INITIALIZATION_CID, false, nullptr, GfxInitializationConstructor },
-    { nullptr }
+    { &kNS_FONT_ENUMERATOR_CID, false, NULL, nsThebesFontEnumeratorConstructor },
+    { &kNS_SCRIPTABLE_REGION_CID, false, NULL, nsScriptableRegionConstructor },
+    { &kNS_GFX_INITIALIZATION_CID, false, NULL, GfxInitializationConstructor },
+    { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kThebesContracts[] = {
     { "@mozilla.org/gfx/fontenumerator;1", &kNS_FONT_ENUMERATOR_CID },
     { "@mozilla.org/gfx/region;1", &kNS_SCRIPTABLE_REGION_CID },
     { "@mozilla.org/gfx/init;1", &kNS_GFX_INITIALIZATION_CID },
-    { nullptr }
+    { NULL }
 };
 
 static void
@@ -79,9 +74,9 @@ static const mozilla::Module kThebesModule = {
     mozilla::Module::kVersion,
     kThebesCIDs,
     kThebesContracts,
-    nullptr,
-    nullptr,
-    nullptr,
+    NULL,
+    NULL,
+    NULL,
     nsThebesGfxModuleDtor
 };
 

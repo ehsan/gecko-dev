@@ -4,20 +4,26 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "plhash.h"
+#include "jsapi.h"
 #include "mozilla/ModuleLoader.h"
+#include "nsIJSRuntimeService.h"
+#include "nsIJSContextStack.h"
 #include "nsISupports.h"
+#include "nsIXPConnect.h"
+#include "nsIFile.h"
+#include "nsAutoPtr.h"
+#include "nsIObjectInputStream.h"
+#include "nsIObjectOutputStream.h"
+#include "nsITimer.h"
 #include "nsIObserver.h"
 #include "xpcIJSModuleLoader.h"
 #include "nsClassHashtable.h"
 #include "nsDataHashtable.h"
-#include "jsapi.h"
+#include "nsIPrincipal.h"
+#include "mozilla/scache/StartupCache.h"
 
 #include "xpcIJSGetFactory.h"
-
-class nsIFile;
-class nsIJSRuntimeService;
-class nsIPrincipal;
-class nsIXPConnectJSObjectHolder;
 
 /* 6bd13476-1dd2-11b2-bbef-f0ccb5fa64b6 (thanks, mozbot) */
 
@@ -44,12 +50,11 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
     // ModuleLoader
     const mozilla::Module* LoadModule(mozilla::FileLocation &aFile);
 
-    nsresult FindTargetObject(JSContext* aCx,
-                              JS::MutableHandleObject aTargetObject);
+    nsresult FindTargetObject(JSContext* aCx, JSObject** aTargetObject);
 
     static mozJSComponentLoader* Get() { return sSelf; }
 
-    void NoteSubScript(JS::HandleScript aScript, JS::HandleObject aThisObject);
+    void NoteSubScript(JSScript* aScript, JSObject* aThisObject);
 
  protected:
     static mozJSComponentLoader* sSelf;
@@ -67,16 +72,16 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
                                nsIURI *aComponent,
                                JSObject **aObject,
                                char **location,
-                               bool aCatchException,
-                               JS::MutableHandleValue aException);
+                               jsval *exception);
 
-    nsresult ImportInto(const nsACString &aLocation,
-                        JS::HandleObject targetObj,
-                        JSContext *callercx,
-                        JS::MutableHandleObject vp);
+    nsresult ImportInto(const nsACString & aLocation,
+                        JSObject * targetObj,
+                        JSContext * callercx,
+                        JSObject * *_retval);
 
     nsCOMPtr<nsIComponentManager> mCompMgr;
     nsCOMPtr<nsIJSRuntimeService> mRuntimeService;
+    nsCOMPtr<nsIThreadJSContextStack> mContextStack;
     nsCOMPtr<nsIPrincipal> mSystemPrincipal;
     nsCOMPtr<nsIXPConnectJSObjectHolder> mLoaderGlobal;
     JSRuntime *mRuntime;
@@ -87,12 +92,12 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
     public:
         ModuleEntry() : mozilla::Module() {
             mVersion = mozilla::Module::kVersion;
-            mCIDs = nullptr;
-            mContractIDs = nullptr;
-            mCategoryEntries = nullptr;
+            mCIDs = NULL;
+            mContractIDs = NULL;
+            mCategoryEntries = NULL;
             getFactoryProc = GetFactory;
-            loadProc = nullptr;
-            unloadProc = nullptr;
+            loadProc = NULL;
+            unloadProc = NULL;
 
             obj = nullptr;
             location = nullptr;
@@ -103,7 +108,7 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
         }
 
         void Clear() {
-            getfactoryobj = nullptr;
+            getfactoryobj = NULL;
 
             if (obj) {
                 JSAutoRequest ar(sSelf->mContext);
@@ -117,8 +122,8 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
             if (location)
                 NS_Free(location);
 
-            obj = nullptr;
-            location = nullptr;
+            obj = NULL;
+            location = NULL;
         }
 
         static already_AddRefed<nsIFactory> GetFactory(const mozilla::Module& module,

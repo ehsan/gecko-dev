@@ -1,3 +1,7 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
 
 Cu.import("resource://testing-common/httpd.js");
 
@@ -9,8 +13,7 @@ function createXHR(async)
 {
   var xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
             .createInstance(Ci.nsIXMLHttpRequest);
-  xhr.open("GET", "http://localhost:" +
-           httpserver.identity.primaryPort + testpath, async);
+  xhr.open("GET", "http://localhost:4444" + testpath, async);
   return xhr;
 }
 
@@ -30,7 +33,7 @@ function checkResults(xhr)
 function run_test()
 {
   httpserver.registerPathHandler(testpath, serverHandler);
-  httpserver.start(-1);
+  httpserver.start(4444);
 
   // Test sync XHR sending
   var sync = createXHR(false);

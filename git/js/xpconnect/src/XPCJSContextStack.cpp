@@ -9,22 +9,22 @@
 
 #include "xpcprivate.h"
 #include "XPCWrapper.h"
+#include "mozilla/Mutex.h"
 #include "nsDOMJSUtils.h"
+#include "nsIScriptGlobalObject.h"
 #include "nsNullPrincipal.h"
 #include "mozilla/dom/BindingUtils.h"
 
 using namespace mozilla;
-using namespace JS;
-using namespace xpc;
 using mozilla::dom::DestroyProtoAndIfaceCache;
 
 /***************************************************************************/
 
 XPCJSContextStack::~XPCJSContextStack()
 {
-    if (mSafeJSContext) {
-        JS_DestroyContextNoGC(mSafeJSContext);
-        mSafeJSContext = nullptr;
+    if (mOwnSafeJSContext) {
+        JS_DestroyContext(mOwnSafeJSContext);
+        mOwnSafeJSContext = nullptr;
     }
 }
 
@@ -53,6 +53,18 @@ XPCJSContextStack::Pop()
     return cx;
 }
 
+static nsIPrincipal*
+GetPrincipalFromCx(JSContext *cx)
+{
+    nsIScriptContextPrincipal* scp = GetScriptContextPrincipalFromJSContext(cx);
+    if (scp) {
+        nsIScriptObjectPrincipal* globalData = scp->GetObjectPrincipal();
+        if (globalData)
+            return globalData->GetPrincipal();
+    }
+    return nullptr;
+}
+
 bool
 XPCJSContextStack::Push(JSContext *cx)
 {
@@ -63,24 +75,18 @@ XPCJSContextStack::Push(JSContext *cx)
 
     XPCJSContextInfo &e = mStack[mStack.Length() - 1];
     if (e.cx) {
-        // The cx we're pushing is also stack-top. In general we still need to
-        // call JS_SaveFrameChain here. But if that would put us in a
-        // compartment that's same-origin with the current one, we can skip it.
-        nsIScriptSecurityManager* ssm = XPCWrapper::GetSecurityManager();
-        if ((e.cx == cx) && ssm) {
-            // DOM JSContexts don't store their default compartment object on
-            // the cx, so in those cases we need to fetch it via the scx
-            // instead.
-            RootedObject defaultScope(cx, GetDefaultScopeFromJSContext(cx));
-
-            nsIPrincipal *currentPrincipal =
-              GetCompartmentPrincipal(js::GetContextCompartment(cx));
-            nsIPrincipal *defaultPrincipal = GetObjectPrincipal(defaultScope);
-            bool equal = false;
-            currentPrincipal->Equals(defaultPrincipal, &equal);
-            if (equal) {
-                mStack.AppendElement(cx);
-                return true;
+        if (e.cx == cx) {
+            nsIScriptSecurityManager* ssm = XPCWrapper::GetSecurityManager();
+            if (ssm) {
+                if (nsIPrincipal* globalObjectPrincipal = GetPrincipalFromCx(cx)) {
+                    nsIPrincipal* subjectPrincipal = ssm->GetCxSubjectPrincipal(cx);
+                    bool equals = false;
+                    globalObjectPrincipal->Equals(subjectPrincipal, &equals);
+                    if (equals) {
+                        mStack.AppendElement(cx);
+                        return true;
+                    }
+                }
             }
         }
 
@@ -97,19 +103,21 @@ XPCJSContextStack::Push(JSContext *cx)
     return true;
 }
 
+#ifdef DEBUG
 bool
-XPCJSContextStack::HasJSContext(JSContext *cx)
+XPCJSContextStack::DEBUG_StackHasJSContext(JSContext *cx)
 {
     for (uint32_t i = 0; i < mStack.Length(); i++)
         if (cx == mStack[i].cx)
             return true;
     return false;
 }
+#endif
 
-static bool
-SafeGlobalResolve(JSContext *cx, HandleObject obj, HandleId id)
+static JSBool
+SafeGlobalResolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
 {
-    bool resolved;
+    JSBool resolved;
     return JS_ResolveStandardClass(cx, obj, id, &resolved);
 }
 
@@ -123,13 +131,18 @@ SafeFinalize(JSFreeOp *fop, JSObject* obj)
     DestroyProtoAndIfaceCache(obj);
 }
 
-const JSClass xpc::SafeJSContextGlobalClass = {
+static JSClass global_class = {
     "global_for_XPCJSContextStack_SafeJSContext",
     XPCONNECT_GLOBAL_FLAGS,
     JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, SafeGlobalResolve, JS_ConvertStub, SafeFinalize,
-    nullptr, nullptr, nullptr, nullptr, TraceXPCGlobal
+    NULL, NULL, NULL, NULL, TraceXPCGlobal
 };
+
+// We just use the same reporter as the component loader
+// XXX #include angels cry.
+extern void
+mozJSLoaderErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep);
 
 JSContext*
 XPCJSContextStack::GetSafeJSContext()
@@ -142,44 +155,103 @@ XPCJSContextStack::GetSafeJSContext()
     nsRefPtr<nsNullPrincipal> principal = new nsNullPrincipal();
     nsresult rv = principal->Init();
     if (NS_FAILED(rv))
-        MOZ_CRASH();
+        return NULL;
 
-    nsXPConnect* xpc = nsXPConnect::XPConnect();
-    JSRuntime *rt = xpc->GetRuntime()->Runtime();
+    nsRefPtr<nsXPConnect> xpc = nsXPConnect::GetXPConnect();
+    if (!xpc)
+        return NULL;
+
+    XPCJSRuntime* xpcrt = xpc->GetRuntime();
+    if (!xpcrt)
+        return NULL;
+
+    JSRuntime *rt = xpcrt->GetJSRuntime();
     if (!rt)
-        MOZ_CRASH();
+        return NULL;
 
     mSafeJSContext = JS_NewContext(rt, 8192);
     if (!mSafeJSContext)
-        MOZ_CRASH();
-    JSAutoRequest req(mSafeJSContext);
+        return NULL;
 
     JS::RootedObject glob(mSafeJSContext);
-    JS_SetErrorReporter(mSafeJSContext, xpc::SystemErrorReporter);
+    {
+        // scoped JS Request
+        JSAutoRequest req(mSafeJSContext);
 
-    JS::CompartmentOptions options;
-    options.setZone(JS::SystemZone);
-    glob = xpc::CreateGlobalObject(mSafeJSContext, &SafeJSContextGlobalClass, principal, options);
-    if (!glob)
-        MOZ_CRASH();
+        JS_SetErrorReporter(mSafeJSContext, mozJSLoaderErrorReporter);
 
-    // Make sure the context is associated with a proper compartment
-    // and not the default compartment.
-    js::SetDefaultObjectForContext(mSafeJSContext, glob);
+        glob = xpc::CreateGlobalObject(mSafeJSContext, &global_class, principal, JS::SystemZone);
 
-    // Note: make sure to set the private before calling
-    // InitClasses
-    nsRefPtr<SandboxPrivate> sp = new SandboxPrivate(principal, glob);
-    JS_SetPrivate(glob, sp.forget().get());
+        if (glob) {
+            // Make sure the context is associated with a proper compartment
+            // and not the default compartment.
+            JS_SetGlobalObject(mSafeJSContext, glob);
 
-    // After this point either glob is null and the
-    // nsIScriptObjectPrincipal ownership is either handled by the
-    // nsCOMPtr or dealt with, or we'll release in the finalize
-    // hook.
-    if (NS_FAILED(xpc->InitClasses(mSafeJSContext, glob)))
-        MOZ_CRASH();
+            // Note: make sure to set the private before calling
+            // InitClasses
+            nsCOMPtr<nsIScriptObjectPrincipal> sop = new SandboxPrivate(principal, glob);
+            JS_SetPrivate(glob, sop.forget().get());
+        }
 
-    JS_FireOnNewGlobalObject(mSafeJSContext, glob);
+        // After this point either glob is null and the
+        // nsIScriptObjectPrincipal ownership is either handled by the
+        // nsCOMPtr or dealt with, or we'll release in the finalize
+        // hook.
+        if (glob && NS_FAILED(xpc->InitClasses(mSafeJSContext, glob))) {
+            glob = nullptr;
+        }
+    }
+    if (mSafeJSContext && !glob) {
+        // Destroy the context outside the scope of JSAutoRequest that
+        // uses the context in its destructor.
+        JS_DestroyContext(mSafeJSContext);
+        mSafeJSContext = nullptr;
+    }
+
+    // Save it off so we can destroy it later.
+    mOwnSafeJSContext = mSafeJSContext;
 
     return mSafeJSContext;
 }
+
+/***************************************************************************/
+
+NS_IMPL_ISUPPORTS1(nsXPCJSContextStackIterator, nsIJSContextStackIterator)
+
+NS_IMETHODIMP
+nsXPCJSContextStackIterator::Reset(nsIJSContextStack *aStack)
+{
+    NS_ASSERTION(aStack == nsXPConnect::GetXPConnect(),
+                 "aStack must be implemented by XPConnect singleton");
+    mStack = XPCJSRuntime::Get()->GetJSContextStack()->GetStack();
+    if (mStack->IsEmpty())
+        mStack = nullptr;
+    else
+        mPosition = mStack->Length() - 1;
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXPCJSContextStackIterator::Done(bool *aDone)
+{
+    *aDone = !mStack;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXPCJSContextStackIterator::Prev(JSContext **aContext)
+{
+    if (!mStack)
+        return NS_ERROR_NOT_INITIALIZED;
+
+    *aContext = mStack->ElementAt(mPosition).cx;
+
+    if (mPosition == 0)
+        mStack = nullptr;
+    else
+        --mPosition;
+
+    return NS_OK;
+}
+

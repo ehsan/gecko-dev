@@ -73,7 +73,7 @@ static void DisplayError(void)
 
 // nsISupports Implementation
 
-NS_IMPL_ISUPPORTS2(nsReadConfig, nsIReadConfig, nsIObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsReadConfig, nsIReadConfig, nsIObserver)
 
 nsReadConfig::nsReadConfig() :
     mRead(false)
@@ -203,7 +203,7 @@ nsresult nsReadConfig::readConfigFile()
     // If vendor is not nullptr, do this check
     if (NS_SUCCEEDED(rv)) {
 
-        fileNameLen = strlen(lockFileName);
+        fileNameLen = PL_strlen(lockFileName);
     
         // lockVendor and lockFileName should be the same with the addtion of 
         // .cfg to the filename by checking this post reading of the cfg file 

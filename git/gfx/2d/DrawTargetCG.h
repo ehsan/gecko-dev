@@ -10,7 +10,6 @@
 #include "PathCG.h"
 #include "SourceSurfaceCG.h"
 #include "GLDefs.h"
-#include "Tools.h"
 
 namespace mozilla {
 namespace gfx {
@@ -35,12 +34,6 @@ CGRectToRect(CGRect rect)
               rect.origin.y,
               rect.size.width,
               rect.size.height);
-}
-
-static inline Point
-CGPointToPoint(CGPoint point)
-{
-  return Point(point.x, point.y);
 }
 
 static inline void
@@ -92,7 +85,6 @@ SetStrokeOptions(CGContextRef cg, const StrokeOptions &aStrokeOptions)
 class DrawTargetCG : public DrawTarget
 {
 public:
-  friend class BorrowedCGContext;
   DrawTargetCG();
   virtual ~DrawTargetCG();
 
@@ -103,10 +95,6 @@ public:
                            const Rect &aDest,
                            const Rect &aSource,
                            const DrawSurfaceOptions &aSurfOptions = DrawSurfaceOptions(),
-                           const DrawOptions &aOptions = DrawOptions());
-  virtual void MaskSurface(const Pattern &aSource,
-                           SourceSurface *aMask,
-                           Point aOffset,
                            const DrawOptions &aOptions = DrawOptions());
 
   virtual void FillRect(const Rect &aRect,
@@ -164,12 +152,14 @@ private:
   CGContextRef mCg;
 
   /**
-   * The image buffer, if the buffer is owned by this class.
-   * If the DrawTarget was created for a pre-existing buffer or if the buffer's
-   * lifetime is managed by CoreGraphics, mData will be null.
-   * Data owned by DrawTargetCG will be deallocated in the destructor.
+   * A pointer to the image buffer if the buffer is owned by this class (set to
+   * nullptr otherwise).
+   * The data is not considered owned by DrawTargetCG if the DrawTarget was 
+   * created for a pre-existing buffer or if the buffer's lifetime is managed
+   * by CoreGraphics.
+   * Data owned by DrawTargetCG will be deallocated in the destructor. 
    */
-  AlignedArray<uint8_t> mData;
+  void *mData;
 
   RefPtr<SourceSurfaceCGContext> mSnapshot;
 };

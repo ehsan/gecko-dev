@@ -4,10 +4,7 @@
 'use strict';
 
 const { defer } = require('../core/promise');
-const events = require('../system/events');
-const { open: openWindow, onFocus, getToplevelWindow,
-        isInteractive, getOuterId } = require('./utils');
-const { Ci } = require("chrome");
+const { open: openWindow, onFocus } = require('./utils');
 
 function open(uri, options) {
   return promise(openWindow.apply(null, arguments), 'load');
@@ -15,18 +12,11 @@ function open(uri, options) {
 exports.open = open;
 
 function close(window) {
-  let deferred = defer();
-  let toplevelWindow = getToplevelWindow(window);
-  let outerId = getOuterId(toplevelWindow);
-  events.on("outer-window-destroyed", function onclose({subject}) {
-    let id = subject.QueryInterface(Ci.nsISupportsPRUint64).data;
-    if (id == outerId) {
-      events.off("outer-window-destroyed", onclose);
-      deferred.resolve();
-    }
-  }, true);
+  // unload event could happen so fast that it is not resolved
+  // if we listen to unload after calling close()
+  let p = promise(window, 'unload');
   window.close();
-  return deferred.promise;
+  return p;
 }
 exports.close = close;
 
@@ -36,18 +26,6 @@ function focus(window) {
   return p;
 }
 exports.focus = focus;
-
-function ready(window) {
-  let { promise: result, resolve } = defer();
-
-  if (isInteractive(window))
-    resolve(window);
-  else
-    resolve(promise(window, 'DOMContentLoaded'));
-
-  return result;
-}
-exports.ready = ready;
 
 function promise(target, evt, capture) {
   let deferred = defer();

@@ -6,12 +6,14 @@
 
 interface nsIDOMEventListener;
 interface nsIDOMDOMRequest;
+interface nsIDOMMozMobileICCInfo;
 interface nsIDOMMozMobileConnectionInfo;
 interface nsIDOMMozMobileNetworkInfo;
 interface nsIDOMMozMobileCellInfo;
+interface nsIDOMMozIccManager;
 interface nsIDOMMozMobileCFInfo;
 
-[scriptable, builtinclass, uuid(052550e3-7466-4941-80d7-405c169652f9)]
+[scriptable, builtinclass, uuid(2065b3c3-e876-4be1-b373-428ee254a63e)]
 interface nsIDOMMozMobileConnection : nsIDOMEventTarget
 {
   const long ICC_SERVICE_CLASS_VOICE = (1 << 0);
@@ -25,39 +27,17 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
   const long ICC_SERVICE_CLASS_MAX = (1 << 7);
 
   /**
-   * Call barring program.
+   * Indicates the state of the device's ICC card.
    *
-   * (0) all outgoing.
-   * (1) outgoing international.
-   * (2) outgoing international except to home country.
-   * (3) all incoming.
-   * (4) incoming when roaming outside the home country.
+   * Possible values: null, 'unknown', 'absent', 'pinRequired', 'pukRequired',
+   * 'networkLocked', 'corporateLocked', 'serviceProviderLocked', 'ready'.
    */
-  const long CALL_BARRING_PROGRAM_ALL_OUTGOING                       = 0;
-  const long CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL             = 1;
-  const long CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL_EXCEPT_HOME = 2;
-  const long CALL_BARRING_PROGRAM_ALL_INCOMING                       = 3;
-  const long CALL_BARRING_PROGRAM_INCOMING_ROAMING                   = 4;
+  readonly attribute DOMString cardState;
 
   /**
-   * Calling line identification restriction constants.
-   *
-   * @see 3GPP TS 27.007 7.7 Defined values
-   *
-   * (0) Uses subscription default value.
-   * (1) Restricts CLI presentation.
-   * (2) Allows CLI presentation.
+   * Information stored in the device's ICC card.
    */
-  const long CLIR_DEFAULT     = 0;
-  const long CLIR_INVOCATION  = 1;
-  const long CLIR_SUPPRESSION = 2;
-
-  /**
-   * These two fields can be accessed by privileged applications with the
-   * 'mobilenetwork' permission.
-   */
-  readonly attribute DOMString lastKnownNetwork;
-  readonly attribute DOMString lastKnownHomeNetwork;
+  readonly attribute nsIDOMMozMobileICCInfo iccInfo;
 
   /**
    * Information about the voice connection.
@@ -70,17 +50,16 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
   readonly attribute nsIDOMMozMobileConnectionInfo data;
 
   /**
-   * Integrated Circuit Card Identifier of the SIM this
-   * mobile connection corresponds to.
-   */
-  readonly attribute DOMString iccId;
-
-  /**
    * The selection mode of the voice and data networks.
    *
    * Possible values: null (unknown), 'automatic', 'manual'
    */
   readonly attribute DOMString networkSelectionMode;
+
+  /**
+   * IccManager provides access to ICC related funcionality.
+   */
+  readonly attribute nsIDOMMozIccManager icc;
 
   /**
    * Search for available networks.
@@ -122,63 +101,133 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
   nsIDOMDOMRequest selectNetworkAutomatically();
 
   /**
-   * Set roaming preference
+   * Find out about the status of an ICC lock (e.g. the PIN lock).
    *
-   * @param mode
-   *        DOMString indicates the desired roaming preference.
-   *        Possible values: 'home', 'affiliated', or 'any'.
+   * @param lockType
+   *        Identifies the lock type, e.g. "pin" for the PIN lock, "fdn" for
+   *        the FDN lock.
    *
-   * If successful, the request's onsuccess will be called.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', 'InvalidParameter', or 'GenericFailure'
-   *
-   * TODO: param "mode" should be a WebIDL enum when this interface is converted
-   *       to WebIDL
+   * @return a DOM Request.
+   *         The request's result will be an object containing
+   *         information about the specified lock's status,
+   *         e.g. {lockType: "pin", enabled: true}.
    */
-  nsIDOMDOMRequest setRoamingPreference(in DOMString mode);
+  nsIDOMDOMRequest getCardLock(in DOMString lockType);
 
   /**
-   * Query current roaming preference
+   * Unlock a card lock.
    *
-   * If successful, the request's onsuccess will be called. And the request's
-   * result will be a string indicating the current roaming preference.
-   * The value will be either 'home', 'affiliated', or 'any'.
+   * @param info
+   *        An object containing the information necessary to unlock
+   *        the given lock. At a minimum, this object must have a
+   *        "lockType" attribute which specifies the type of lock, e.g.
+   *        "pin" for the PIN lock. Other attributes are dependent on
+   *        the lock type.
    *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', or 'GenericFailure'
+   * Examples:
+   *
+   * (1) Unlocking the PIN:
+   *
+   *   unlockCardLock({lockType: "pin",
+   *                   pin: "..."});
+   *
+   * (2) Unlocking the PUK and supplying a new PIN:
+   *
+   *   unlockCardLock({lockType: "puk",
+   *                   puk: "...",
+   *                   newPin: "..."});
+   *
+   * (3) Network depersonalization. Unlocking the network control key (NCK).
+   *
+   *   unlockCardLock({lockType: "nck",
+   *                   pin: "..."});
+   *
+   * (4) Corporate depersonalization. Unlocking the corporate control key (CCK).
+   *
+   *   unlockCardLock({lockType: "cck",
+   *                   pin: "..."});
+   *
+   * (5) Service Provider depersonalization. Unlocking the service provider
+   *     control key (SPCK).
+   *
+   *   unlockCardLock({lockType: "spck",
+   *                   pin: "..."});
+   *
+   * @return a nsIDOMDOMRequest.
+   *         The request's result will be an object containing
+   *         information about the unlock operation.
+   *
+   * Examples:
+   *
+   * (1) Unlocking failed:
+   *
+   *     {
+   *       lockType:   "pin",
+   *       success:    false,
+   *       retryCount: 2
+   *     }
+   *
+   * (2) Unlocking succeeded:
+   *
+   *     {
+   *       lockType:  "pin",
+   *       success:   true
+   *     }
    */
-  nsIDOMDOMRequest getRoamingPreference();
+  nsIDOMDOMRequest unlockCardLock(in jsval info);
 
   /**
-   * Set voice privacy preference.
+   * Modify the state of a card lock.
    *
-   * @param enabled
-   *        Boolean indicates the preferred voice privacy mode used in voice
-   *        scrambling in CDMA networks. 'True' means the enhanced voice security
-   *        is required.
+   * @param info
+   *        An object containing information about the lock and
+   *        how to modify its state. At a minimum, this object
+   *        must have a "lockType" attribute which specifies the
+   *        type of lock, e.g. "pin" for the PIN lock. Other
+   *        attributes are dependent on the lock type.
    *
-   * If successful, the request's onsuccess will be called.
+   * Examples:
    *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', 'InvalidParameter', or 'GenericFailure'
+   * (1a) Disabling the PIN lock:
+   *
+   *   setCardLock({lockType: "pin",
+   *                pin: "...",
+   *                enabled: false});
+   *
+   * (1b) Disabling the FDN lock:
+   *
+   *   setCardLock({lockType: "fdn",
+   *                pin2: "...",
+   *                enabled: false});
+   *
+   * (2) Changing the PIN:
+   *
+   *   setCardLock({lockType: "pin",
+   *                pin: "...",
+   *                newPin: "..."});
+   *
+   * @return a nsIDOMDOMRequest.
+   *         The request's result will be an object containing
+   *         information about the operation.
+   *
+   * Examples:
+   *
+   * (1) Enabling/Disabling card lock failed or change card lock failed.
+   *
+   *     {
+   *       lockType: "pin",
+   *       success: false,
+   *       retryCount: 2
+   *     }
+   *
+   * (2) Enabling/Disabling card lock succeed or change card lock succeed.
+   *
+   *     {
+   *       lockType: "pin",
+   *       success: true
+   *     }
    */
-  nsIDOMDOMRequest setVoicePrivacyMode(in bool enabled);
-
-  /**
-   * Query current voice privacy mode.
-   *
-   * If successful, the request's onsuccess will be called. And the request's
-   * result will be a boolean indicating the current voice privacy mode.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', or 'GenericFailure'
-   */
-  nsIDOMDOMRequest getVoicePrivacyMode();
+  nsIDOMDOMRequest setCardLock(in jsval info);
 
   /**
    * Send a MMI message.
@@ -205,7 +254,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    */
   nsIDOMDOMRequest cancelMMI();
 
-  /**
+   /**
    * Configures call forward options.
    *
    * @param CFInfo
@@ -215,7 +264,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    * Otherwise, the request's onerror will be called, and the request's error
    * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', 'InvalidParameter', or 'GenericFailure'
+   * 'IllegalSIMorME', or 'GenericFailure'
    */
   nsIDOMDOMRequest setCallForwardingOption(in nsIDOMMozMobileCFInfo CFInfo);
 
@@ -232,121 +281,21 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    * Otherwise, the request's onerror will be called, and the request's error
    * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'InvalidParameter', or 'GenericFailure'.
+   * or 'GenericFailure'.
    */
   nsIDOMDOMRequest getCallForwardingOption(in unsigned short reason);
 
   /**
-   * Configures call barring option.
-   *
-   * @param option
-   *        An object containing the call barring rule to set.
-   * @see MozCallBarringOption for the detail of info.
-   *
-   * If successful, the request's onsuccess will be called.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', 'InvalidParameter', or 'GenericFailure'
+   * The 'cardstatechange' event is notified when the 'cardState' attribute
+   * changes value.
    */
-  nsIDOMDOMRequest setCallBarringOption(in jsval option);
+  [implicit_jscontext] attribute jsval oncardstatechange;
 
-  /**
-   * Queries current call barring status.
-   *
-   * @param info
-   *        An object containing the call barring rule to query. No need to
-   *        specify 'enabled' property.
-   * @see MozCallBarringOption for the detail of info.
-   *
-   * If successful, the request's onsuccess will be called, and the request's
-   * result will be an object of MozCallBarringOption with correct 'enabled'
-   * property indicating the status of this rule.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'InvalidParameter', or 'GenericFailure'.
+   /**
+   * The 'iccinfochange' event is notified whenever the icc info object
+   * changes.
    */
-  nsIDOMDOMRequest getCallBarringOption(in jsval option);
-
-  /**
-   * Change call barring facility password.
-   *
-   * @param info
-   *        An object containing information about pin and newPin, and,
-   *        this object must have both "pin" and "newPin" attributes
-   *        to change the call barring facility password.
-   *
-   * Example:
-   *
-   *   changeCallBarringPassword({pin: "...",
-   *                              newPin: "..."});
-   */
-  nsIDOMDOMRequest changeCallBarringPassword(in jsval info);
-
-  /**
-   * Configures call waiting options.
-   *
-   * @param enabled
-   *        Value containing the desired call waiting status.
-   *
-   * If successful, the request's onsuccess will be called.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', or 'GenericFailure'
-   */
-  nsIDOMDOMRequest setCallWaitingOption(in bool enabled);
-
-  /**
-   * Queries current call waiting options.
-   *
-   * If successful, the request's onsuccess will be called, and the request's
-   * result will be a boolean indicating the call waiting status.
-   *
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * or 'GenericFailure'.
-   */
-  nsIDOMDOMRequest getCallWaitingOption();
-
-  /**
-   * Enables or disables the presentation of the calling line identity (CLI) to
-   * the called party when originating a call.
-   *
-   * @param clirMode
-   *        Is one of the CLIR_* constants.
-   *
-   * If successful, the request's onsuccess will be called.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   */
-  nsIDOMDOMRequest setCallingLineIdRestriction(in unsigned short clirMode);
-
-  /**
-   * Queries current CLIR status.
-   *
-   * If successful, the request's onsuccess will be called, and the request's
-   * result will be a DOMCLIRStatus dictionary containing CLIR 'n' and 'm'
-   * parameter.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * or 'GenericFailure'.
-   */
-  nsIDOMDOMRequest getCallingLineIdRestriction();
-
-  /**
-   * Exit emergency callback mode.
-   *
-   * If successful, the request's onsuccess will be called.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RequestNotSupported'  or 'GenericFailure'.
-   */
-  nsIDOMDOMRequest exitEmergencyCbMode();
+  [implicit_jscontext] attribute jsval oniccinfochange;
 
   /**
    * The 'voicechange' event is notified whenever the voice connection object
@@ -373,31 +322,19 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
   [implicit_jscontext] attribute jsval ondataerror;
 
   /**
+   * The 'icccardlockerror' event is notified whenever 'unlockCardLock' or
+   * 'setCardLock' fails.
+   */
+  [implicit_jscontext] attribute jsval onicccardlockerror;
+
+  /**
    * The 'oncfstatechange' event is notified whenever the call forwarding
    * state changes.
    */
   [implicit_jscontext] attribute jsval oncfstatechange;
-
-  /**
-   * The 'emergencycbmodechange' event is notified whenever the emergency
-   * callback mode changes.
-   */
-  [implicit_jscontext] attribute jsval onemergencycbmodechange;
-
-  /**
-   * The 'onotastatuschange' event is notified whenever the ota provision status
-   * changes.
-   */
-  [implicit_jscontext] attribute jsval onotastatuschange;
-
-  /**
-   * The 'oniccchange' event is notified whenever the iccid value
-   * changes.
-   */
-  [implicit_jscontext] attribute jsval oniccchange;
 };
 
-[scriptable, uuid(49706beb-a160-40b7-b745-50f62e389a2c)]
+[scriptable, uuid(c9d9ff61-a2f0-41cd-b478-9cefa7b31f31)]
 interface nsIDOMMozMobileConnectionInfo : nsISupports
 {
   /**
@@ -409,7 +346,7 @@ interface nsIDOMMozMobileConnectionInfo : nsISupports
   readonly attribute DOMString state;
 
   /**
-   * Indicates whether the connection is ready. This may be different
+   * Indicates whether the connection is ready. This may be different 
    */
   readonly attribute bool connected;
 
@@ -431,6 +368,11 @@ interface nsIDOMMozMobileConnectionInfo : nsISupports
    * Network operator
    */
   readonly attribute nsIDOMMozMobileNetworkInfo network;
+
+  /**
+   * Mobile Country Code (MCC) of last known network operator.
+   */
+  readonly attribute DOMString lastKnownMcc;
 
   /**
    * Type of connection.
@@ -489,68 +431,58 @@ interface nsIDOMMozMobileNetworkInfo: nsISupports
   readonly attribute DOMString state;
 };
 
-[scriptable, uuid(9750b3a7-d913-436e-95d4-7ef2973ec6a1)]
+[scriptable, uuid(aa546788-4f34-488b-8c3e-2786e02ab992)]
 interface nsIDOMMozMobileCellInfo: nsISupports
 {
   /**
    * Mobile Location Area Code (LAC) for GSM/WCDMA networks.
-   *
-   * Possible ranges from 0x0000 to 0xffff.
-   * -1 if the LAC is unknown.
    */
-  readonly attribute long gsmLocationAreaCode;
+  readonly attribute unsigned short gsmLocationAreaCode;
 
   /**
    * Mobile Cell ID for GSM/WCDMA networks.
-   *
-   * Possible ranges from 0x00000000 to 0xffffffff.
-   * -1 if the cell id is unknown.
    */
-  readonly attribute long long gsmCellId;
+  readonly attribute unsigned long gsmCellId;
+};
+
+[scriptable, uuid(10d5c5a2-d43f-4f94-8657-cf7ccabbab6e)]
+interface nsIDOMMozMobileICCInfo : nsISupports
+{
+   /**
+   * Integrated Circuit Card Identifier.
+   */
+  readonly attribute DOMString iccid;
 
   /**
-   * Base Station ID for CDMA networks.
-   *
-   * Possible ranges from 0 to 65535
-   * -1 if the base station id is unknown.
+   * Mobile Country Code (MCC) of the subscriber's home network.
    */
-  readonly attribute long cdmaBaseStationId;
+  readonly attribute DOMString mcc;
 
   /**
-   * Base Station Latitude for CDMA networks.
-   *
-   * Possible ranges from -1296000 to 1296000.
-   * -2147483648 if the latitude is unknown.
-   *
-   * @see 3GPP2 C.S0005-A v6.0.
+   * Mobile Network Code (MNC) of the subscriber's home network.
    */
-  readonly attribute long cdmaBaseStationLatitude;
+  readonly attribute DOMString mnc;
 
   /**
-   * Base Station Longitude for CDMA networks.
-   *
-   * Possible ranges from -2592000 to 2592000.
-   * -2147483648 if the longitude is unknown.
-   *
-   * @see 3GPP2 C.S0005-A v6.0.
+   * Service Provider Name (SPN) of the subscriber's home network.
    */
-  readonly attribute long cdmaBaseStationLongitude;
+  readonly attribute DOMString spn;
 
   /**
-   * System ID for CDMA networks.
-   *
-   * Possible ranges from 0 to 32767.
-   * -1 if the system id is unknown.
+   * Network name must be a part of displayed carrier name.
    */
-  readonly attribute long cdmaSystemId;
+  readonly attribute boolean isDisplayNetworkNameRequired;
 
   /**
-   * Network ID for CDMA networks.
-   *
-   * Possible ranges from 0 to 65535.
-   * -1 if the network id is unknown.
+   * Service provider name must be a part of displayed carrier name.
    */
-  readonly attribute long cdmaNetworkId;
+  readonly attribute boolean isDisplaySpnRequired;
+
+  /**
+   * Mobile Station ISDN Number (MSISDN) of the subscriber's, aka
+   * his phone number.
+   */
+  readonly attribute DOMString msisdn;
 };
 
 [scriptable, uuid(d1b35ad8-99aa-47cc-ab49-2e72b00e39df)]
@@ -616,86 +548,7 @@ interface nsIDOMMozMobileCFInfo : nsISupports
 
   /**
    * Service for which the call forward is set up. It should be one of the
-   * nsIDOMMozMobileConnection.ICC_SERVICE_CLASS_* values.
+   * nsIDOMMozMobileConnectionInfo.ICC_SERVICE_CLASS_* values.
    */
   readonly attribute unsigned short serviceClass;
-};
-
-
-dictionary MozCallBarringOption
-{
-  /**
-   * Indicates the program the call is being barred.
-   *
-   * It shall be one of the nsIDOMMozMobileConnection.CALL_BARRING_PROGRAM_*
-   * values.
-   */
-   unsigned short program;
-
-  /**
-   * Enable or disable the call barring program.
-   */
-  boolean enabled;
-
-  /**
-   * Barring password. Use "" if no password specified.
-   */
-  DOMString password;
-
-  /**
-   * Service for which the call barring is set up.
-   *
-   * It shall be one of the nsIDOMMozMobileConnection.ICC_SERVICE_CLASS_*
-   * values.
-   */
-  unsigned short serviceClass;
-};
-
-dictionary DOMMMIResult
-{
-  /**
-   * String key that identifies the service associated with the MMI code
-   * request. The UI is supposed to handle the localization of the strings
-   * associated with this string key.
-   */
-  DOMString serviceCode;
-
-  /**
-   * String key containing the status message of the associated MMI request.
-   * The UI is supposed to handle the localization of the strings associated
-   * with this string key.
-   */
-  DOMString statusMessage;
-
-  /**
-   * Some MMI requests like call forwarding or PIN/PIN2/PUK/PUK2 related
-   * requests provide extra information along with the status message, this
-   * information can be a number, a string key or an array of string keys.
-   */
-  jsval additionalInformation;
-};
-
-dictionary DOMCLIRStatus
-{
-  /**
-   * CLIR parameter 'n': parameter sets the adjustment for outgoing calls.
-   *
-   * 0 Presentation indicator is used according to the subscription of the
-   *   CLIR service (uses subscription default value).
-   * 1 CLIR invocation (restricts CLI presentation).
-   * 2 CLIR suppression (allows CLI presentation).
-   */
-  unsigned short n;
-
-  /**
-   * CLIR parameter 'm': parameter shows the subscriber CLIR service status in
-   *                     the network.
-   * 0 CLIR not provisioned.
-   * 1 CLIR provisioned in permanent mode.
-   * 2 unknown (e.g. no network, etc.).
-   * 3 CLIR temporary mode presentation restricted.
-   *
-   * @see 3GPP TS 27.007 7.7 Defined values
-   */
-  unsigned short m;
 };

@@ -1,13 +1,13 @@
-// arrow functions are not implicitly strict-mode code
+// arrow functions are implicitly strict-mode code
 
 load(libdir + "asserts.js");
 
-var f = a => { with (a) return f(); };
-assertEq(f({f: () => 7}), 7);
+assertThrowsInstanceOf(
+    function () { Function("a => { with (a) f(); }"); },
+    SyntaxError);
 
-f = a => function () { with (a) return f(); };
-assertEq(f({f: () => 7})(), 7);
+assertThrowsInstanceOf(
+    function () { Function("a => function () { with (a) f(); }"); },
+    SyntaxError);
 
-f = (a = {x: 1, x: 2}) => b => { "use strict"; return a.x; };
-assertEq(f()(0), 2);
 

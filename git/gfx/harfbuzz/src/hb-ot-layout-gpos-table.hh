@@ -1,6 +1,6 @@
 /*
  * Copyright © 2007,2008,2009,2010  Red Hat, Inc.
- * Copyright © 2010,2012,2013  Google, Inc.
+ * Copyright © 2010,2012  Google, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -390,7 +390,6 @@ struct MarkArray : ArrayOf<MarkRecord>	/* Array of MarkRecords--in Coverage orde
 		     unsigned int glyph_pos) const
   {
     TRACE_APPLY (this);
-    hb_buffer_t *buffer = c->buffer;
     const MarkRecord &record = ArrayOf<MarkRecord>::operator[](mark_index);
     unsigned int mark_class = record.klass;
 
@@ -403,15 +402,15 @@ struct MarkArray : ArrayOf<MarkRecord>	/* Array of MarkRecords--in Coverage orde
 
     hb_position_t mark_x, mark_y, base_x, base_y;
 
-    mark_anchor.get_anchor (c->font, buffer->cur().codepoint, &mark_x, &mark_y);
-    glyph_anchor.get_anchor (c->font, buffer->info[glyph_pos].codepoint, &base_x, &base_y);
+    mark_anchor.get_anchor (c->font, c->buffer->cur().codepoint, &mark_x, &mark_y);
+    glyph_anchor.get_anchor (c->font, c->buffer->info[glyph_pos].codepoint, &base_x, &base_y);
 
-    hb_glyph_position_t &o = buffer->cur_pos();
+    hb_glyph_position_t &o = c->buffer->cur_pos();
     o.x_offset = base_x - mark_x;
     o.y_offset = base_y - mark_y;
-    o.attach_lookback() = buffer->idx - glyph_pos;
+    o.attach_lookback() = c->buffer->idx - glyph_pos;
 
-    buffer->idx++;
+    c->buffer->idx++;
     return TRACE_RETURN (true);
   }
 
@@ -440,14 +439,13 @@ struct SinglePosFormat1
   inline bool apply (hb_apply_context_t *c) const
   {
     TRACE_APPLY (this);
-    hb_buffer_t *buffer = c->buffer;
-    unsigned int index = (this+coverage).get_coverage  (buffer->cur().codepoint);
+    unsigned int index = (this+coverage).get_coverage  (c->buffer->cur().codepoint);
     if (likely (index == NOT_COVERED)) return TRACE_RETURN (false);
 
     valueFormat.apply_value (c->font, c->direction, this,
-			     values, buffer->cur_pos());
+			     values, c->buffer->cur_pos());
 
-    buffer->idx++;
+    c->buffer->idx++;
     return TRACE_RETURN (true);
   }
 
@@ -486,17 +484,16 @@ struct SinglePosFormat2
   inline bool apply (hb_apply_context_t *c) const
   {
     TRACE_APPLY (this);
-    hb_buffer_t *buffer = c->buffer;
-    unsigned int index = (this+coverage).get_coverage  (buffer->cur().codepoint);
+    unsigned int index = (this+coverage).get_coverage  (c->buffer->cur().codepoint);
     if (likely (index == NOT_COVERED)) return TRACE_RETURN (false);
 
     if (likely (index >= valueCount)) return TRACE_RETURN (false);
 
     valueFormat.apply_value (c->font, c->direction, this,
 			     &values[index * valueFormat.get_len ()],
-			     buffer->cur_pos());
+			     c->buffer->cur_pos());
 
-    buffer->idx++;
+    c->buffer->idx++;
     return TRACE_RETURN (true);
   }
 
@@ -522,12 +519,12 @@ struct SinglePosFormat2
 struct SinglePos
 {
   template <typename context_t>
-  inline typename context_t::return_t dispatch (context_t *c) const
+  inline typename context_t::return_t process (context_t *c) const
   {
-    TRACE_DISPATCH (this);
+    TRACE_PROCESS (this);
     switch (u.format) {
-    case 1: return TRACE_RETURN (c->dispatch (u.format1));
-    case 2: return TRACE_RETURN (c->dispatch (u.format2));
+    case 1: return TRACE_RETURN (c->process (u.format1));
+    case 2: return TRACE_RETURN (c->process (u.format2));
     default:return TRACE_RETURN (c->default_return_value ());
     }
   }
@@ -591,7 +588,6 @@ struct PairSet
 		     unsigned int pos) const
   {
     TRACE_APPLY (this);
-    hb_buffer_t *buffer = c->buffer;
     unsigned int len1 = valueFormats[0].get_len ();
     unsigned int len2 = valueFormats[1].get_len ();
     unsigned int record_size = USHORT::static_size * (1 + len1 + len2);
@@ -600,16 +596,15 @@ struct PairSet
     unsigned int count = len;
     for (unsigned int i = 0; i < count; i++)
     {
-      /* TODO bsearch */
-      if (buffer->info[pos].codepoint == record->secondGlyph)
+      if (c->buffer->info[pos].codepoint == record->secondGlyph)
       {
 	valueFormats[0].apply_value (c->font, c->direction, this,
-				     &record->values[0], buffer->cur_pos());
+				     &record->values[0], c->buffer->cur_pos());
 	valueFormats[1].apply_value (c->font, c->direction, this,
-				     &record->values[len1], buffer->pos[pos]);
+				     &record->values[len1], c->buffer->pos[pos]);
 	if (len2)
 	  pos++;
-	buffer->idx = pos;
+	c->buffer->idx = pos;
 	return TRACE_RETURN (true);
       }
       record = &StructAtOffset<PairValueRecord> (record, record_size);
@@ -663,11 +658,10 @@ struct PairPosFormat1
   inline bool apply (hb_apply_context_t *c) const
   {
     TRACE_APPLY (this);
-    hb_buffer_t *buffer = c->buffer;
-    hb_apply_context_t::skipping_forward_iterator_t skippy_iter (c, buffer->idx, 1);
+    hb_apply_context_t::skipping_forward_iterator_t skippy_iter (c, c->buffer->idx, 1);
     if (skippy_iter.has_no_chance ()) return TRACE_RETURN (false);
 
-    unsigned int index = (this+coverage).get_coverage  (buffer->cur().codepoint);
+    unsigned int index = (this+coverage).get_coverage  (c->buffer->cur().codepoint);
     if (likely (index == NOT_COVERED)) return TRACE_RETURN (false);
 
     if (!skippy_iter.next ()) return TRACE_RETURN (false);
@@ -715,6 +709,8 @@ struct PairPosFormat2
     TRACE_COLLECT_GLYPHS (this);
     /* (this+coverage).add_coverage (c->input); // Don't need this. */
 
+    /* TODO only add values for pairs that have nonzero adjustments. */
+
     unsigned int count1 = class1Count;
     const ClassDef &klass1 = this+classDef1;
     for (unsigned int i = 0; i < count1; i++)
@@ -734,11 +730,10 @@ struct PairPosFormat2
   inline bool apply (hb_apply_context_t *c) const
   {
     TRACE_APPLY (this);
-    hb_buffer_t *buffer = c->buffer;
-    hb_apply_context_t::skipping_forward_iterator_t skippy_iter (c, buffer->idx, 1);
+    hb_apply_context_t::skipping_forward_iterator_t skippy_iter (c, c->buffer->idx, 1);
     if (skippy_iter.has_no_chance ()) return TRACE_RETURN (false);
 
-    unsigned int index = (this+coverage).get_coverage  (buffer->cur().codepoint);
+    unsigned int index = (this+coverage).get_coverage  (c->buffer->cur().codepoint);
     if (likely (index == NOT_COVERED)) return TRACE_RETURN (false);
 
     if (!skippy_iter.next ()) return TRACE_RETURN (false);
@@ -747,19 +742,19 @@ struct PairPosFormat2
     unsigned int len2 = valueFormat2.get_len ();
     unsigned int record_len = len1 + len2;
 
-    unsigned int klass1 = (this+classDef1).get_class (buffer->cur().codepoint);
-    unsigned int klass2 = (this+classDef2).get_class (buffer->info[skippy_iter.idx].codepoint);
+    unsigned int klass1 = (this+classDef1).get_class (c->buffer->cur().codepoint);
+    unsigned int klass2 = (this+classDef2).get_class (c->buffer->info[skippy_iter.idx].codepoint);
     if (unlikely (klass1 >= class1Count || klass2 >= class2Count)) return TRACE_RETURN (false);
 
     const Value *v = &values[record_len * (klass1 * class2Count + klass2)];
     valueFormat1.apply_value (c->font, c->direction, this,
-			      v, buffer->cur_pos());
+			      v, c->buffer->cur_pos());
     valueFormat2.apply_value (c->font, c->direction, this,
-			      v + len1, buffer->pos[skippy_iter.idx]);
+			      v + len1, c->buffer->pos[skippy_iter.idx]);
 
-    buffer->idx = skippy_iter.idx;
+    c->buffer->idx = skippy_iter.idx;
     if (len2)
-      buffer->idx++;
+      c->buffer->idx++;
 
     return TRACE_RETURN (true);
   }
@@ -814,12 +809,12 @@ struct PairPosFormat2
 struct PairPos
 {
   template <typename context_t>
-  inline typename context_t::return_t dispatch (context_t *c) const
+  inline typename context_t::return_t process (context_t *c) const
   {
-    TRACE_DISPATCH (this);
+    TRACE_PROCESS (this);
     switch (u.format) {
-    case 1: return TRACE_RETURN (c->dispatch (u.format1));
-    case 2: return TRACE_RETURN (c->dispatch (u.format2));
+    case 1: return TRACE_RETURN (c->process (u.format1));
+    case 2: return TRACE_RETURN (c->process (u.format2));
     default:return TRACE_RETURN (c->default_return_value ());
     }
   }
@@ -881,30 +876,29 @@ struct CursivePosFormat1
   inline bool apply (hb_apply_context_t *c) const
   {
     TRACE_APPLY (this);
-    hb_buffer_t *buffer = c->buffer;
 
     /* We don't handle mark glyphs here. */
-    if (unlikely (_hb_glyph_info_is_mark (&buffer->cur()))) return TRACE_RETURN (false);
+    if (c->property & HB_OT_LAYOUT_GLYPH_PROPS_MARK) return TRACE_RETURN (false);
 
-    hb_apply_context_t::skipping_forward_iterator_t skippy_iter (c, buffer->idx, 1);
+    hb_apply_context_t::skipping_forward_iterator_t skippy_iter (c, c->buffer->idx, 1);
     if (skippy_iter.has_no_chance ()) return TRACE_RETURN (false);
 
-    const EntryExitRecord &this_record = entryExitRecord[(this+coverage).get_coverage  (buffer->cur().codepoint)];
+    const EntryExitRecord &this_record = entryExitRecord[(this+coverage).get_coverage  (c->buffer->cur().codepoint)];
     if (!this_record.exitAnchor) return TRACE_RETURN (false);
 
     if (!skippy_iter.next ()) return TRACE_RETURN (false);
 
-    const EntryExitRecord &next_record = entryExitRecord[(this+coverage).get_coverage  (buffer->info[skippy_iter.idx].codepoint)];
+    const EntryExitRecord &next_record = entryExitRecord[(this+coverage).get_coverage  (c->buffer->info[skippy_iter.idx].codepoint)];
     if (!next_record.entryAnchor) return TRACE_RETURN (false);
 
-    unsigned int i = buffer->idx;
+    unsigned int i = c->buffer->idx;
     unsigned int j = skippy_iter.idx;
 
     hb_position_t entry_x, entry_y, exit_x, exit_y;
-    (this+this_record.exitAnchor).get_anchor (c->font, buffer->info[i].codepoint, &exit_x, &exit_y);
-    (this+next_record.entryAnchor).get_anchor (c->font, buffer->info[j].codepoint, &entry_x, &entry_y);
+    (this+this_record.exitAnchor).get_anchor (c->font, c->buffer->info[i].codepoint, &exit_x, &exit_y);
+    (this+next_record.entryAnchor).get_anchor (c->font, c->buffer->info[j].codepoint, &entry_x, &entry_y);
 
-    hb_glyph_position_t *pos = buffer->pos;
+    hb_glyph_position_t *pos = c->buffer->pos;
 
     hb_position_t d;
     /* Main-direction adjustment */
@@ -957,7 +951,7 @@ struct CursivePosFormat1
 	pos[j].x_offset = exit_x - entry_x;
     }
 
-    buffer->idx = j;
+    c->buffer->idx = j;
     return TRACE_RETURN (true);
   }
 
@@ -981,11 +975,11 @@ struct CursivePosFormat1
 struct CursivePos
 {
   template <typename context_t>
-  inline typename context_t::return_t dispatch (context_t *c) const
+  inline typename context_t::return_t process (context_t *c) const
   {
-    TRACE_DISPATCH (this);
+    TRACE_PROCESS (this);
     switch (u.format) {
-    case 1: return TRACE_RETURN (c->dispatch (u.format1));
+    case 1: return TRACE_RETURN (c->process (u.format1));
     default:return TRACE_RETURN (c->default_return_value ());
     }
   }
@@ -1019,6 +1013,7 @@ struct MarkBasePosFormat1
     TRACE_COLLECT_GLYPHS (this);
     (this+markCoverage).add_coverage (c->input);
     (this+baseCoverage).add_coverage (c->input);
+    /* TODO only add combinations that have nonzero adjustment. */
   }
 
   inline const Coverage &get_coverage (void) const
@@ -1029,24 +1024,23 @@ struct MarkBasePosFormat1
   inline bool apply (hb_apply_context_t *c) const
   {
     TRACE_APPLY (this);
-    hb_buffer_t *buffer = c->buffer;
-    unsigned int mark_index = (this+markCoverage).get_coverage  (buffer->cur().codepoint);
+    unsigned int mark_index = (this+markCoverage).get_coverage  (c->buffer->cur().codepoint);
     if (likely (mark_index == NOT_COVERED)) return TRACE_RETURN (false);
 
     /* now we search backwards for a non-mark glyph */
-    hb_apply_context_t::skipping_backward_iterator_t skippy_iter (c, buffer->idx, 1);
-    skippy_iter.set_lookup_props (LookupFlag::IgnoreMarks);
+    unsigned int property;
+    hb_apply_context_t::skipping_backward_iterator_t skippy_iter (c, c->buffer->idx, 1);
     do {
-      if (!skippy_iter.prev ()) return TRACE_RETURN (false);
+      if (!skippy_iter.prev (&property, LookupFlag::IgnoreMarks)) return TRACE_RETURN (false);
       /* We only want to attach to the first of a MultipleSubst sequence.  Reject others. */
-      if (0 == _hb_glyph_info_get_lig_comp (&buffer->info[skippy_iter.idx])) break;
+      if (0 == get_lig_comp (c->buffer->info[skippy_iter.idx])) break;
       skippy_iter.reject ();
     } while (1);
 
-    /* Checking that matched glyph is actually a base glyph by GDEF is too strong; disabled */
-    if (!_hb_glyph_info_is_base_glyph (&buffer->info[skippy_iter.idx])) { /*return TRACE_RETURN (false);*/ }
+    /* The following assertion is too strong, so we've disabled it. */
+    if (!(property & HB_OT_LAYOUT_GLYPH_PROPS_BASE_GLYPH)) {/*return TRACE_RETURN (false);*/}
 
-    unsigned int base_index = (this+baseCoverage).get_coverage  (buffer->info[skippy_iter.idx].codepoint);
+    unsigned int base_index = (this+baseCoverage).get_coverage  (c->buffer->info[skippy_iter.idx].codepoint);
     if (base_index == NOT_COVERED) return TRACE_RETURN (false);
 
     return TRACE_RETURN ((this+markArray).apply (c, mark_index, base_index, this+baseArray, classCount, skippy_iter.idx));
@@ -1080,11 +1074,11 @@ struct MarkBasePosFormat1
 struct MarkBasePos
 {
   template <typename context_t>
-  inline typename context_t::return_t dispatch (context_t *c) const
+  inline typename context_t::return_t process (context_t *c) const
   {
-    TRACE_DISPATCH (this);
+    TRACE_PROCESS (this);
     switch (u.format) {
-    case 1: return TRACE_RETURN (c->dispatch (u.format1));
+    case 1: return TRACE_RETURN (c->process (u.format1));
     default:return TRACE_RETURN (c->default_return_value ());
     }
   }
@@ -1123,6 +1117,7 @@ struct MarkLigPosFormat1
     TRACE_COLLECT_GLYPHS (this);
     (this+markCoverage).add_coverage (c->input);
     (this+ligatureCoverage).add_coverage (c->input);
+    /* TODO only add combinations that have nonzero adjustment. */
   }
 
   inline const Coverage &get_coverage (void) const
@@ -1133,20 +1128,19 @@ struct MarkLigPosFormat1
   inline bool apply (hb_apply_context_t *c) const
   {
     TRACE_APPLY (this);
-    hb_buffer_t *buffer = c->buffer;
-    unsigned int mark_index = (this+markCoverage).get_coverage  (buffer->cur().codepoint);
+    unsigned int mark_index = (this+markCoverage).get_coverage  (c->buffer->cur().codepoint);
     if (likely (mark_index == NOT_COVERED)) return TRACE_RETURN (false);
 
     /* now we search backwards for a non-mark glyph */
-    hb_apply_context_t::skipping_backward_iterator_t skippy_iter (c, buffer->idx, 1);
-    skippy_iter.set_lookup_props (LookupFlag::IgnoreMarks);
-    if (!skippy_iter.prev ()) return TRACE_RETURN (false);
+    unsigned int property;
+    hb_apply_context_t::skipping_backward_iterator_t skippy_iter (c, c->buffer->idx, 1);
+    if (!skippy_iter.prev (&property, LookupFlag::IgnoreMarks)) return TRACE_RETURN (false);
 
-    /* Checking that matched glyph is actually a ligature by GDEF is too strong; disabled */
-    if (!_hb_glyph_info_is_ligature (&buffer->info[skippy_iter.idx])) { /*return TRACE_RETURN (false);*/ }
+    /* The following assertion is too strong, so we've disabled it. */
+    if (!(property & HB_OT_LAYOUT_GLYPH_PROPS_LIGATURE)) {/*return TRACE_RETURN (false);*/}
 
     unsigned int j = skippy_iter.idx;
-    unsigned int lig_index = (this+ligatureCoverage).get_coverage  (buffer->info[j].codepoint);
+    unsigned int lig_index = (this+ligatureCoverage).get_coverage  (c->buffer->info[j].codepoint);
     if (lig_index == NOT_COVERED) return TRACE_RETURN (false);
 
     const LigatureArray& lig_array = this+ligatureArray;
@@ -1161,11 +1155,11 @@ struct MarkLigPosFormat1
      * can directly use the component index.  If not, we attach the mark
      * glyph to the last component of the ligature. */
     unsigned int comp_index;
-    unsigned int lig_id = _hb_glyph_info_get_lig_id (&buffer->info[j]);
-    unsigned int mark_id = _hb_glyph_info_get_lig_id (&buffer->cur());
-    unsigned int mark_comp = _hb_glyph_info_get_lig_comp (&buffer->cur());
+    unsigned int lig_id = get_lig_id (c->buffer->info[j]);
+    unsigned int mark_id = get_lig_id (c->buffer->cur());
+    unsigned int mark_comp = get_lig_comp (c->buffer->cur());
     if (lig_id && lig_id == mark_id && mark_comp > 0)
-      comp_index = MIN (comp_count, _hb_glyph_info_get_lig_comp (&buffer->cur())) - 1;
+      comp_index = MIN (comp_count, get_lig_comp (c->buffer->cur())) - 1;
     else
       comp_index = comp_count - 1;
 
@@ -1201,11 +1195,11 @@ struct MarkLigPosFormat1
 struct MarkLigPos
 {
   template <typename context_t>
-  inline typename context_t::return_t dispatch (context_t *c) const
+  inline typename context_t::return_t process (context_t *c) const
   {
-    TRACE_DISPATCH (this);
+    TRACE_PROCESS (this);
     switch (u.format) {
-    case 1: return TRACE_RETURN (c->dispatch (u.format1));
+    case 1: return TRACE_RETURN (c->process (u.format1));
     default:return TRACE_RETURN (c->default_return_value ());
     }
   }
@@ -1239,6 +1233,7 @@ struct MarkMarkPosFormat1
     TRACE_COLLECT_GLYPHS (this);
     (this+mark1Coverage).add_coverage (c->input);
     (this+mark2Coverage).add_coverage (c->input);
+    /* TODO only add combinations that have nonzero adjustment. */
   }
 
   inline const Coverage &get_coverage (void) const
@@ -1249,23 +1244,22 @@ struct MarkMarkPosFormat1
   inline bool apply (hb_apply_context_t *c) const
   {
     TRACE_APPLY (this);
-    hb_buffer_t *buffer = c->buffer;
-    unsigned int mark1_index = (this+mark1Coverage).get_coverage  (buffer->cur().codepoint);
+    unsigned int mark1_index = (this+mark1Coverage).get_coverage  (c->buffer->cur().codepoint);
     if (likely (mark1_index == NOT_COVERED)) return TRACE_RETURN (false);
 
     /* now we search backwards for a suitable mark glyph until a non-mark glyph */
-    hb_apply_context_t::skipping_backward_iterator_t skippy_iter (c, buffer->idx, 1);
-    skippy_iter.set_lookup_props (c->lookup_props & ~LookupFlag::IgnoreFlags);
-    if (!skippy_iter.prev ()) return TRACE_RETURN (false);
+    unsigned int property;
+    hb_apply_context_t::skipping_backward_iterator_t skippy_iter (c, c->buffer->idx, 1);
+    if (!skippy_iter.prev (&property, c->lookup_props & ~LookupFlag::IgnoreFlags)) return TRACE_RETURN (false);
 
-    if (!_hb_glyph_info_is_mark (&buffer->info[skippy_iter.idx])) { return TRACE_RETURN (false); }
+    if (!(property & HB_OT_LAYOUT_GLYPH_PROPS_MARK)) return TRACE_RETURN (false);
 
     unsigned int j = skippy_iter.idx;
 
-    unsigned int id1 = _hb_glyph_info_get_lig_id (&buffer->cur());
-    unsigned int id2 = _hb_glyph_info_get_lig_id (&buffer->info[j]);
-    unsigned int comp1 = _hb_glyph_info_get_lig_comp (&buffer->cur());
-    unsigned int comp2 = _hb_glyph_info_get_lig_comp (&buffer->info[j]);
+    unsigned int id1 = get_lig_id (c->buffer->cur());
+    unsigned int id2 = get_lig_id (c->buffer->info[j]);
+    unsigned int comp1 = get_lig_comp (c->buffer->cur());
+    unsigned int comp2 = get_lig_comp (c->buffer->info[j]);
 
     if (likely (id1 == id2)) {
       if (id1 == 0) /* Marks belonging to the same base. */
@@ -1283,7 +1277,7 @@ struct MarkMarkPosFormat1
     return TRACE_RETURN (false);
 
     good:
-    unsigned int mark2_index = (this+mark2Coverage).get_coverage  (buffer->info[j].codepoint);
+    unsigned int mark2_index = (this+mark2Coverage).get_coverage  (c->buffer->info[j].codepoint);
     if (mark2_index == NOT_COVERED) return TRACE_RETURN (false);
 
     return TRACE_RETURN ((this+mark1Array).apply (c, mark1_index, mark2_index, this+mark2Array, classCount, j));
@@ -1320,11 +1314,11 @@ struct MarkMarkPosFormat1
 struct MarkMarkPos
 {
   template <typename context_t>
-  inline typename context_t::return_t dispatch (context_t *c) const
+  inline typename context_t::return_t process (context_t *c) const
   {
-    TRACE_DISPATCH (this);
+    TRACE_PROCESS (this);
     switch (u.format) {
-    case 1: return TRACE_RETURN (c->dispatch (u.format1));
+    case 1: return TRACE_RETURN (c->process (u.format1));
     default:return TRACE_RETURN (c->default_return_value ());
     }
   }
@@ -1379,19 +1373,19 @@ struct PosLookupSubTable
   };
 
   template <typename context_t>
-  inline typename context_t::return_t dispatch (context_t *c, unsigned int lookup_type) const
+  inline typename context_t::return_t process (context_t *c, unsigned int lookup_type) const
   {
-    TRACE_DISPATCH (this);
+    TRACE_PROCESS (this);
     switch (lookup_type) {
-    case Single:		return TRACE_RETURN (u.single.dispatch (c));
-    case Pair:			return TRACE_RETURN (u.pair.dispatch (c));
-    case Cursive:		return TRACE_RETURN (u.cursive.dispatch (c));
-    case MarkBase:		return TRACE_RETURN (u.markBase.dispatch (c));
-    case MarkLig:		return TRACE_RETURN (u.markLig.dispatch (c));
-    case MarkMark:		return TRACE_RETURN (u.markMark.dispatch (c));
-    case Context:		return TRACE_RETURN (u.context.dispatch (c));
-    case ChainContext:		return TRACE_RETURN (u.chainContext.dispatch (c));
-    case Extension:		return TRACE_RETURN (u.extension.dispatch (c));
+    case Single:		return TRACE_RETURN (u.single.process (c));
+    case Pair:			return TRACE_RETURN (u.pair.process (c));
+    case Cursive:		return TRACE_RETURN (u.cursive.process (c));
+    case MarkBase:		return TRACE_RETURN (u.markBase.process (c));
+    case MarkLig:		return TRACE_RETURN (u.markLig.process (c));
+    case MarkMark:		return TRACE_RETURN (u.markMark.process (c));
+    case Context:		return TRACE_RETURN (u.context.process (c));
+    case ChainContext:		return TRACE_RETURN (u.chainContext.process (c));
+    case Extension:		return TRACE_RETURN (u.extension.process (c));
     default:			return TRACE_RETURN (c->default_return_value ());
     }
   }
@@ -1439,16 +1433,27 @@ struct PosLookup : Lookup
   inline const PosLookupSubTable& get_subtable (unsigned int i) const
   { return this+CastR<OffsetArrayOf<PosLookupSubTable> > (subTable)[i]; }
 
-  inline bool is_reverse (void) const
+  template <typename context_t>
+  inline typename context_t::return_t process (context_t *c) const
   {
-    return false;
+    TRACE_PROCESS (this);
+    unsigned int lookup_type = get_type ();
+    unsigned int count = get_subtable_count ();
+    for (unsigned int i = 0; i < count; i++) {
+      typename context_t::return_t r = get_subtable (i).process (c, lookup_type);
+      if (c->stop_sublookup_iteration (r))
+        return TRACE_RETURN (r);
+    }
+    return TRACE_RETURN (c->default_return_value ());
   }
+  template <typename context_t>
+  static inline typename context_t::return_t process_recurse_func (context_t *c, unsigned int lookup_index);
 
-  inline hb_collect_glyphs_context_t::return_t collect_glyphs (hb_collect_glyphs_context_t *c) const
+  inline hb_collect_glyphs_context_t::return_t collect_glyphs_lookup (hb_collect_glyphs_context_t *c) const
   {
     TRACE_COLLECT_GLYPHS (this);
     c->set_recurse_func (NULL);
-    return TRACE_RETURN (dispatch (c));
+    return TRACE_RETURN (process (c));
   }
 
   template <typename set_t>
@@ -1458,7 +1463,7 @@ struct PosLookup : Lookup
     const Coverage *last = NULL;
     unsigned int count = get_subtable_count ();
     for (unsigned int i = 0; i < count; i++) {
-      const Coverage *coverage = &get_subtable (i).dispatch (&c, get_type ());
+      const Coverage *coverage = &get_subtable (i).process (&c, get_type ());
       if (coverage != last) {
         coverage->add_coverage (glyphs);
         last = coverage;
@@ -1469,28 +1474,36 @@ struct PosLookup : Lookup
   inline bool apply_once (hb_apply_context_t *c) const
   {
     TRACE_APPLY (this);
-    if (!c->check_glyph_property (&c->buffer->cur(), c->lookup_props))
+    if (!c->check_glyph_property (&c->buffer->cur(), c->lookup_props, &c->property))
       return TRACE_RETURN (false);
-    return TRACE_RETURN (dispatch (c));
+    return TRACE_RETURN (process (c));
   }
 
   static bool apply_recurse_func (hb_apply_context_t *c, unsigned int lookup_index);
 
-  template <typename context_t>
-  static inline typename context_t::return_t dispatch_recurse_func (context_t *c, unsigned int lookup_index);
-
-  template <typename context_t>
-  inline typename context_t::return_t dispatch (context_t *c) const
+  inline bool apply_string (hb_apply_context_t *c, const hb_set_digest_t *digest) const
   {
-    TRACE_DISPATCH (this);
-    unsigned int lookup_type = get_type ();
-    unsigned int count = get_subtable_count ();
-    for (unsigned int i = 0; i < count; i++) {
-      typename context_t::return_t r = get_subtable (i).dispatch (c, lookup_type);
-      if (c->stop_sublookup_iteration (r))
-        return TRACE_RETURN (r);
+    bool ret = false;
+
+    if (unlikely (!c->buffer->len || !c->lookup_mask))
+      return false;
+
+    c->set_recurse_func (apply_recurse_func);
+    c->set_lookup (*this);
+
+    c->buffer->idx = 0;
+
+    while (c->buffer->idx < c->buffer->len)
+    {
+      if ((c->buffer->cur().mask & c->lookup_mask) &&
+	  digest->may_have (c->buffer->cur().codepoint) &&
+	  apply_once (c))
+	ret = true;
+      else
+	c->buffer->idx++;
     }
-    return TRACE_RETURN (c->default_return_value ());
+
+    return ret;
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) {
@@ -1509,7 +1522,7 @@ typedef OffsetListOf<PosLookup> PosLookupList;
 
 struct GPOS : GSUBGPOS
 {
-  static const hb_tag_t tableTag	= HB_OT_TAG_GPOS;
+  static const hb_tag_t Tag	= HB_OT_TAG_GPOS;
 
   inline const PosLookup& get_lookup (unsigned int i) const
   { return CastR<PosLookup> (GSUBGPOS::get_lookup (i)); }
@@ -1595,18 +1608,20 @@ GPOS::position_finish (hb_font_t *font HB_UNUSED, hb_buffer_t *buffer)
   for (unsigned int i = 0; i < len; i++)
     fix_mark_attachment (pos, i, direction);
 
-  _hb_buffer_deallocate_gsubgpos_vars (buffer);
+  HB_BUFFER_DEALLOCATE_VAR (buffer, syllable);
+  HB_BUFFER_DEALLOCATE_VAR (buffer, lig_props);
+  HB_BUFFER_DEALLOCATE_VAR (buffer, glyph_props);
 }
 
 
 /* Out-of-class implementation for methods recursing */
 
 template <typename context_t>
-inline typename context_t::return_t PosLookup::dispatch_recurse_func (context_t *c, unsigned int lookup_index)
+inline typename context_t::return_t PosLookup::process_recurse_func (context_t *c, unsigned int lookup_index)
 {
   const GPOS &gpos = *(hb_ot_layout_from_face (c->face)->gpos);
   const PosLookup &l = gpos.get_lookup (lookup_index);
-  return l.dispatch (c);
+  return l.process (c);
 }
 
 inline bool PosLookup::apply_recurse_func (hb_apply_context_t *c, unsigned int lookup_index)
@@ -1614,9 +1629,11 @@ inline bool PosLookup::apply_recurse_func (hb_apply_context_t *c, unsigned int l
   const GPOS &gpos = *(hb_ot_layout_from_face (c->face)->gpos);
   const PosLookup &l = gpos.get_lookup (lookup_index);
   unsigned int saved_lookup_props = c->lookup_props;
+  unsigned int saved_property = c->property;
   c->set_lookup (l);
   bool ret = l.apply_once (c);
   c->lookup_props = saved_lookup_props;
+  c->property = saved_property;
   return ret;
 }
 

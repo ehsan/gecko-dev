@@ -8,8 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_capture/device_info_impl.h"
-#include "webrtc/modules/video_capture/video_capture_impl.h"
+#include "../device_info_impl.h"
+#include "../video_capture_impl.h"
 
 namespace webrtc {
 
@@ -17,34 +17,34 @@ namespace videocapturemodule {
 
 class ExternalDeviceInfo : public DeviceInfoImpl {
  public:
-  ExternalDeviceInfo(const int32_t id)
+  ExternalDeviceInfo(const WebRtc_Word32 id)
       : DeviceInfoImpl(id) {
   }
   virtual ~ExternalDeviceInfo() {}
-  virtual uint32_t NumberOfDevices() { return 0; }
-  virtual int32_t DisplayCaptureSettingsDialogBox(
+  virtual WebRtc_UWord32 NumberOfDevices() { return 0; }
+  virtual WebRtc_Word32 DisplayCaptureSettingsDialogBox(
       const char* /*deviceUniqueIdUTF8*/,
       const char* /*dialogTitleUTF8*/,
       void* /*parentWindow*/,
-      uint32_t /*positionX*/,
-      uint32_t /*positionY*/) { return -1; }
-  virtual int32_t GetDeviceName(
-      uint32_t deviceNumber,
+      WebRtc_UWord32 /*positionX*/,
+      WebRtc_UWord32 /*positionY*/) { return -1; }
+  virtual WebRtc_Word32 GetDeviceName(
+      WebRtc_UWord32 deviceNumber,
       char* deviceNameUTF8,
-      uint32_t deviceNameLength,
+      WebRtc_UWord32 deviceNameLength,
       char* deviceUniqueIdUTF8,
-      uint32_t deviceUniqueIdUTF8Length,
+      WebRtc_UWord32 deviceUniqueIdUTF8Length,
       char* productUniqueIdUTF8=0,
-      uint32_t productUniqueIdUTF8Length=0) {
+      WebRtc_UWord32 productUniqueIdUTF8Length=0) {
     return -1;
   }
-  virtual int32_t CreateCapabilityMap(
+  virtual WebRtc_Word32 CreateCapabilityMap(
       const char* deviceUniqueIdUTF8) { return 0; }
-  virtual int32_t Init() { return 0; }
+  virtual WebRtc_Word32 Init() { return 0; }
 };
 
 VideoCaptureModule::DeviceInfo* VideoCaptureImpl::CreateDeviceInfo(
-    const int32_t id) {
+    const WebRtc_Word32 id) {
   return new ExternalDeviceInfo(id);
 }
 

@@ -17,13 +17,19 @@ Cu.import("resource://gre/modules/SettingsQueue.jsm");
 Cu.import("resource://gre/modules/SettingsDB.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/ObjectWrapper.jsm");
+Cu.import("resource://gre/modules/ObjectWrapper.jsm")
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
                                    "nsIMessageSender");
 
-function SettingsLock(aSettingsManager) {
+const nsIClassInfo            = Ci.nsIClassInfo;
+const SETTINGSLOCK_CONTRACTID = "@mozilla.org/settingsLock;1";
+const SETTINGSLOCK_CID        = Components.ID("{60c9357c-3ae0-4222-8f55-da01428470d5}");
+const nsIDOMSettingsLock      = Ci.nsIDOMSettingsLock;
+
+function SettingsLock(aSettingsManager)
+{
   this._open = true;
   this._isBusy = false;
   this._requests = new Queue();
@@ -32,6 +38,7 @@ function SettingsLock(aSettingsManager) {
 }
 
 SettingsLock.prototype = {
+
   get closed() {
     return !this._open;
   },
@@ -42,6 +49,7 @@ SettingsLock.prototype = {
 
   process: function process() {
     let lock = this;
+    lock._open = false;
     let store = lock._transaction.objectStore(SETTINGSSTORE_NAME);
 
     while (!lock._requests.isEmpty()) {
@@ -142,6 +150,7 @@ SettingsLock.prototype = {
           break;
       }
     }
+    lock._open = true;
   },
 
   createTransactionAndProcess: function() {
@@ -187,10 +196,8 @@ SettingsLock.prototype = {
     // parse(stringify(obj)) because that breaks things like Blobs, Files and
     // Dates, so we use stringify's replacer and parse's reviver parameters to
     // preserve binaries.
-    let manager = this._settingsManager;
     let binaries = Object.create(null);
     let stringified = JSON.stringify(aObject, function(key, value) {
-      value = manager._settingsDB.prepareValue(value);
       let kind = ObjectWrapper.getObjectKind(value);
       if (kind == "file" || kind == "blob" || kind == "date") {
         let uuid = Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator)
@@ -210,7 +217,8 @@ SettingsLock.prototype = {
 
   set: function set(aSettings) {
     if (!this._open) {
-      throw "Settings lock not open";
+      dump("Settings lock not open!\n");
+      throw Components.results.NS_ERROR_ABORT;
     }
 
     if (this._settingsManager.hasWritePrivileges) {
@@ -222,13 +230,14 @@ SettingsLock.prototype = {
       return req;
     } else {
       if (DEBUG) debug("set not allowed");
-      throw "No permission to call set";
+      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
     }
   },
 
   clear: function clear() {
     if (!this._open) {
-      throw "Settings lock not open";
+      dump("Settings lock not open!\n");
+      throw Components.results.NS_ERROR_ABORT;
     }
 
     if (this._settingsManager.hasWritePrivileges) {
@@ -238,22 +247,39 @@ SettingsLock.prototype = {
       return req;
     } else {
       if (DEBUG) debug("clear not allowed");
-      throw "No permission to call clear";
+      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
     }
   },
 
-  classID: Components.ID("{60c9357c-3ae0-4222-8f55-da01428470d5}"),
-  contractID: "@mozilla.org/settingsLock;1",
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports]),
+  classID : SETTINGSLOCK_CID,
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMSettingsLock]),
+
+  classInfo : XPCOMUtils.generateCI({classID: SETTINGSLOCK_CID,
+                                     contractID: SETTINGSLOCK_CONTRACTID,
+                                     classDescription: "SettingsLock",
+                                     interfaces: [nsIDOMSettingsLock],
+                                     flags: nsIClassInfo.DOM_OBJECT})
 };
 
-function SettingsManager() {
+const SETTINGSMANAGER_CONTRACTID = "@mozilla.org/settingsManager;1";
+const SETTINGSMANAGER_CID        = Components.ID("{c40b1c70-00fb-11e2-a21f-0800200c9a66}");
+const nsIDOMSettingsManager      = Ci.nsIDOMSettingsManager;
+
+let myGlobal = this;
+
+function SettingsManager()
+{
   this._locks = new Queue();
+  if (!("indexedDB" in myGlobal)) {
+    let idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"].getService(Ci.nsIIndexedDatabaseManager);
+    idbManager.initWindowless(myGlobal);
+  }
   this._settingsDB = new SettingsDB();
-  this._settingsDB.init();
+  this._settingsDB.init(myGlobal);
 }
 
 SettingsManager.prototype = {
+  _onsettingchange: null,
   _callbacks: null,
 
   _wrap: function _wrap(obj) {
@@ -267,12 +293,19 @@ SettingsManager.prototype = {
     Services.tm.currentThread.dispatch(aCallback, Ci.nsIThread.DISPATCH_NORMAL);
   },
 
-  set onsettingchange(aHandler) {
-    this.__DOM_IMPL__.setEventHandler("onsettingchange", aHandler);
+  set onsettingchange(aCallback) {
+    if (this.hasReadPrivileges) {
+      if (!this._onsettingchange) {
+        cpmm.sendAsyncMessage("Settings:RegisterForMessages");
+      }
+      this._onsettingchange = aCallback;
+    } else {
+      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+    }
   },
 
   get onsettingchange() {
-    return this.__DOM_IMPL__.getEventHandler("onsettingchange");
+    return this._onsettingchange;
   },
 
   createLock: function() {
@@ -281,8 +314,8 @@ SettingsManager.prototype = {
     this._locks.enqueue(lock);
     this._settingsDB.ensureDB(
       function() { lock.createTransactionAndProcess(); },
-      function() { dump("Cannot open Settings DB. Trying to open an old version?\n"); }
-    );
+      function() { dump("Cannot open Settings DB. Trying to open an old version?\n"); },
+      myGlobal );
     this.nextTick(function() { this._open = false; }, lock);
     return lock;
   },
@@ -293,19 +326,22 @@ SettingsManager.prototype = {
 
     switch (aMessage.name) {
       case "Settings:Change:Return:OK":
-        if (DEBUG) debug('data:' + msg.key + ':' + msg.value + '\n');
+        if (this._onsettingchange || this._callbacks) {
+          if (DEBUG) debug('data:' + msg.key + ':' + msg.value + '\n');
 
-        let event = new this._window.MozSettingsEvent("settingchange", this._wrap({
-          settingName: msg.key,
-          settingValue: msg.value
-        }));
-        this.__DOM_IMPL__.dispatchEvent(event);
-
-        if (this._callbacks && this._callbacks[msg.key]) {
-          if (DEBUG) debug("observe callback called! " + msg.key + " " + this._callbacks[msg.key].length);
-          this._callbacks[msg.key].forEach(function(cb) {
-            cb(this._wrap({settingName: msg.key, settingValue: msg.value}));
-          }.bind(this));
+          if (this._onsettingchange) {
+            let event = new this._window.MozSettingsEvent("settingchanged", {
+              settingName: msg.key,
+              settingValue: msg.value
+            });
+            this._onsettingchange.handleEvent(event);
+          }
+          if (this._callbacks && this._callbacks[msg.key]) {
+            if (DEBUG) debug("observe callback called! " + msg.key + " " + this._callbacks[msg.key].length);
+            this._callbacks[msg.key].forEach(function(cb) {
+              cb(this._wrap({settingName: msg.key, settingValue: msg.value}));
+            }.bind(this));
+          }
         } else {
           if (DEBUG) debug("no observers stored!");
         }
@@ -354,13 +390,9 @@ SettingsManager.prototype = {
     this.hasReadPrivileges = readPerm == Ci.nsIPermissionManager.ALLOW_ACTION;
     this.hasWritePrivileges = writePerm == Ci.nsIPermissionManager.ALLOW_ACTION;
 
-    if (this.hasReadPrivileges) {
-      cpmm.sendAsyncMessage("Settings:RegisterForMessages");
-    }
-
     if (!this.hasReadPrivileges && !this.hasWritePrivileges) {
-      dump("No settings permission for: " + aWindow.document.nodePrincipal.origin + "\n");
-      Cu.reportError("No settings permission for: " + aWindow.document.nodePrincipal.origin);
+      Cu.reportError("NO SETTINGS PERMISSION FOR: " + aWindow.document.nodePrincipal.origin + "\n");
+      return null;
     }
   },
 
@@ -374,15 +406,20 @@ SettingsManager.prototype = {
         this._requests = null;
         this._window = null;
         this._innerWindowID = null;
+        this._onsettingchange = null;
         this._settingsDB.close();
       }
     }
   },
 
-  classID: Components.ID("{c40b1c70-00fb-11e2-a21f-0800200c9a66}"),
-  contractID: "@mozilla.org/settingsManager;1",
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports,
-                                         Ci.nsIDOMGlobalPropertyInitializer]),
-};
+  classID : SETTINGSMANAGER_CID,
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMSettingsManager, Ci.nsIDOMGlobalPropertyInitializer]),
+
+  classInfo : XPCOMUtils.generateCI({classID: SETTINGSMANAGER_CID,
+                                     contractID: SETTINGSMANAGER_CONTRACTID,
+                                     classDescription: "SettingsManager",
+                                     interfaces: [nsIDOMSettingsManager],
+                                     flags: nsIClassInfo.DOM_OBJECT})
+}
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([SettingsManager, SettingsLock])

@@ -4,20 +4,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
+#include <stdlib.h>
 #include "nsHttp.h"
 #include "nsHttpDigestAuth.h"
 #include "nsIHttpAuthenticableChannel.h"
+#include "nsIServiceManager.h"
+#include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIURI.h"
 #include "nsString.h"
+#include "nsReadableUtils.h"
 #include "nsEscape.h"
 #include "nsNetCID.h"
+#include "plbase64.h"
+#include "plstr.h"
 #include "prprf.h"
 #include "nsCRT.h"
-#include "nsICryptoHash.h"
 
 //-----------------------------------------------------------------------------
 // nsHttpDigestAuth <public>
@@ -98,7 +100,7 @@ nsHttpDigestAuth::GetMethodAndPath(nsIHttpAuthenticableChannel *authChannel,
           path.AppendInt(port < 0 ? NS_HTTPS_DEFAULT_PORT : port);
         }
       }
-      else {
+      else { 
         rv = authChannel->GetRequestMethod(httpMethod);
         rv2 = uri->GetPath(path);
         if (NS_SUCCEEDED(rv) && NS_SUCCEEDED(rv2)) {
@@ -217,7 +219,7 @@ nsHttpDigestAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
     /* TODO: to support auth-int, we need to get an MD5 digest of
      * TODO: the data uploaded with this request.
      * TODO: however, i am not sure how to read in the file in without
-     * TODO: disturbing the channel''s use of it. do i need to copy it
+     * TODO: disturbing the channel''s use of it. do i need to copy it 
      * TODO: somehow?
      */
 #if 0
@@ -249,7 +251,7 @@ nsHttpDigestAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
   //
   // the following are for increasing security.  see RFC 2617 for more
   // information.
-  //
+  // 
   // nonce_count allows the server to keep track of auth challenges (to help
   // prevent spoofing). we increase this count every time.
   //
@@ -266,7 +268,7 @@ nsHttpDigestAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
   else {
     nsCOMPtr<nsISupportsPRUint32> v(
             do_CreateInstance(NS_SUPPORTS_PRUINT32_CONTRACTID));
-    if (v) {
+    if (v) {        
       v->SetData(1);
       NS_ADDREF(*sessionState = v);
     }
@@ -278,7 +280,7 @@ nsHttpDigestAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
   // returned Authentication-Info header). also used for session info.
   //
   nsAutoCString cnonce;
-  static const char hexChar[] = "0123456789abcdef";
+  static const char hexChar[] = "0123456789abcdef"; 
   for (int i=0; i<16; ++i) {
     cnonce.Append(hexChar[(int)(15.0 * rand()/(RAND_MAX + 1.0))]);
   }
@@ -537,12 +539,6 @@ nsHttpDigestAuth::ParseChallenge(const char * challenge,
                                  uint16_t * algorithm,
                                  uint16_t * qop)
 {
-  // put an absurd, but maximum, length cap on the challenge so
-  // that calculations are 32 bit safe
-  if (strlen(challenge) > 16000000) {
-    return NS_ERROR_INVALID_ARG;
-  }
-  
   const char *p = challenge + 7; // first 7 characters are "Digest "
 
   *stale = false;
@@ -556,16 +552,16 @@ nsHttpDigestAuth::ParseChallenge(const char * challenge,
       break;
 
     // name
-    int32_t nameStart = (p - challenge);
-    while (*p && !nsCRT::IsAsciiSpace(*p) && *p != '=')
+    int16_t nameStart = (p - challenge);
+    while (*p && !nsCRT::IsAsciiSpace(*p) && *p != '=') 
       ++p;
     if (!*p)
       return NS_ERROR_INVALID_ARG;
-    int32_t nameLength = (p - challenge) - nameStart;
+    int16_t nameLength = (p - challenge) - nameStart;
 
-    while (*p && (nsCRT::IsAsciiSpace(*p) || *p == '='))
+    while (*p && (nsCRT::IsAsciiSpace(*p) || *p == '=')) 
       ++p;
-    if (!*p)
+    if (!*p) 
       return NS_ERROR_INVALID_ARG;
 
     bool quoted = false;
@@ -575,18 +571,18 @@ nsHttpDigestAuth::ParseChallenge(const char * challenge,
     }
 
     // value
-    int32_t valueStart = (p - challenge);
-    int32_t valueLength = 0;
+    int16_t valueStart = (p - challenge);
+    int16_t valueLength = 0;
     if (quoted) {
-      while (*p && *p != '"')
+      while (*p && *p != '"') 
         ++p;
-      if (*p != '"')
+      if (*p != '"') 
         return NS_ERROR_INVALID_ARG;
       valueLength = (p - challenge) - valueStart;
       ++p;
     } else {
-      while (*p && !nsCRT::IsAsciiSpace(*p) && *p != ',')
-        ++p;
+      while (*p && !nsCRT::IsAsciiSpace(*p) && *p != ',') 
+        ++p; 
       valueLength = (p - challenge) - valueStart;
     }
 
@@ -634,16 +630,16 @@ nsHttpDigestAuth::ParseChallenge(const char * challenge,
     else if (nameLength == 3 &&
         nsCRT::strncasecmp(challenge+nameStart, "qop", 3) == 0)
     {
-      int32_t ipos = valueStart;
+      int16_t ipos = valueStart;
       while (ipos < valueStart+valueLength) {
         while (ipos < valueStart+valueLength &&
                (nsCRT::IsAsciiSpace(challenge[ipos]) ||
-                challenge[ipos] == ','))
+                challenge[ipos] == ',')) 
           ipos++;
-        int32_t algostart = ipos;
+        int16_t algostart = ipos;
         while (ipos < valueStart+valueLength &&
                !nsCRT::IsAsciiSpace(challenge[ipos]) &&
-               challenge[ipos] != ',')
+               challenge[ipos] != ',') 
           ipos++;
         if ((ipos - algostart) == 4 &&
             nsCRT::strncasecmp(challenge+algostart, "auth", 4) == 0)

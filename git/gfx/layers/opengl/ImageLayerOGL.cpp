@@ -3,33 +3,30 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "gfxSharedImageSurface.h"
+
+#include "ImageContainer.h" // for PlanarYCBCRImage
+#include "mozilla/layers/ShmemYCbCrImage.h"
+#include "ipc/AutoOpenSurface.h"
 #include "ImageLayerOGL.h"
-#include <stdint.h>                     // for uint32_t
-#include "mozilla-config.h"             // for GL_PROVIDER_GLX
-#include "GLContext.h"                  // for GLContext, etc
-#include "ImageContainer.h"             // for CairoImage, etc
-#include "ImageTypes.h"                 // for ImageFormat::CAIRO_SURFACE, etc
-#include "SharedTextureImage.h"         // for SharedTextureImage::Data, etc
-#include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "gfxASurface.h"                // for gfxASurface, etc
-#include "gfxImageSurface.h"            // for gfxImageSurface
-#include "gfxUtils.h"                   // for NextPowerOfTwo
-#include "mozilla/gfx/BaseSize.h"       // for BaseSize
-#include "mozilla/gfx/Types.h"          // for SurfaceFormat
-#include "mozilla/layers/LayersTypes.h"
-#include "nsAutoRef.h"                  // for nsCountedRef, nsAutoRefBase
-#include "nsCOMPtr.h"                   // for nsCOMPtr, already_AddRefed
-#include "nsDebug.h"                    // for NS_ASSERTION, NS_ERROR
-#include "nsIRunnable.h"                // for nsIRunnable
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsRect.h"                     // for nsIntRect
-#include "nsSize.h"                     // for nsIntSize
-#include "nsThreadUtils.h"              // for nsRunnable
-#include "nscore.h"                     // for NS_IMETHOD
-#include "LayerManagerOGL.h"            // for LayerOGL::GLContext, etc
+#include "gfxImageSurface.h"
+#include "gfxUtils.h"
+#include "yuv_convert.h"
+#include "GLContextProvider.h"
 #if defined(GL_PROVIDER_GLX)
 # include "GLXLibrary.h"
 # include "gfxXlibSurface.h"
+#endif
+#include "SharedTextureImage.h"
+
+#ifdef MOZ_WIDGET_ANDROID
+#include "nsSurfaceTexture.h"
+#endif
+
+#ifdef MOZ_WIDGET_GONK
+# include "GonkIOSurfaceImage.h"
+# include <ui/GraphicBuffer.h>
+using namespace android;
 #endif
 
 using namespace mozilla::gfx;
@@ -37,8 +34,6 @@ using namespace mozilla::gl;
 
 namespace mozilla {
 namespace layers {
-
-class Layer;
 
 /**
  * This is an event used to unref a GLContext on the main thread and
@@ -65,16 +60,6 @@ public:
   nsRefPtr<GLContext> mContext;
   GLuint mTexture;
 };
-
-GLTexture::GLTexture()
-  : mTexture(0)
-{
-}
-
-GLTexture::~GLTexture()
-{
-  Release();
-}
 
 void
 GLTexture::Allocate(GLContext *aContext)
@@ -122,9 +107,10 @@ GLTexture::Release()
       mContext->MakeCurrent();
       mContext->fDeleteTextures(1, &mTexture);
     } else {
-      already_AddRefed<GLContext> context = mContext.forget();
-      nsCOMPtr<nsIRunnable> runnable = new TextureDeleter(context, mTexture);
-      context.get()->DispatchToOwningThread(runnable);
+      nsCOMPtr<nsIRunnable> runnable =
+        new TextureDeleter(mContext.get(), mTexture);
+      mContext->DispatchToOwningThread(runnable);
+      mContext.forget();
     }
 
     mTexture = 0;
@@ -169,7 +155,7 @@ TextureRecycleBin::GetTexture(TextureType aType, const gfxIntSize& aSize,
   mRecycledTextures[aType].RemoveElementAt(last);
 }
 
-struct ImageOGLBackendData : public ImageBackendData
+struct THEBES_API ImageOGLBackendData : public ImageBackendData
 {
   GLTexture mTexture;
 };
@@ -190,6 +176,23 @@ AllocateTextureSharedTexture(SharedTextureImage *aTexImage, mozilla::gl::GLConte
 
   aTexImage->SetBackendData(LAYERS_OPENGL, backendData.forget());
 }
+
+#ifdef MOZ_WIDGET_GONK
+struct THEBES_API GonkIOSurfaceImageOGLBackendData : public ImageBackendData
+{
+  GLTexture mTexture;
+};
+
+void
+AllocateTextureIOSurface(GonkIOSurfaceImage *aIOImage, mozilla::gl::GLContext* aGL)
+{
+  nsAutoPtr<GonkIOSurfaceImageOGLBackendData> backendData(
+    new GonkIOSurfaceImageOGLBackendData);
+
+  backendData->mTexture.Allocate(aGL);
+  aIOImage->SetBackendData(LAYERS_OPENGL, backendData.forget());
+}
+#endif
 
 Layer*
 ImageLayerOGL::GetLayer()
@@ -256,7 +259,7 @@ ImageLayerOGL::RenderLayer(int,
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, data->mTextures[0].GetTextureID());
     gl()->ApplyFilterToBoundTexture(mFilter);
-
+    
     ShaderProgramOGL *program = mOGLManager->GetProgram(YCbCrLayerProgramType,
                                                         GetMaskLayer());
 
@@ -265,7 +268,6 @@ ImageLayerOGL::RenderLayer(int,
                                         yuvImage->GetSize().width,
                                         yuvImage->GetSize().height));
     program->SetLayerTransform(GetEffectiveTransform());
-    program->SetTextureTransform(gfx3DMatrix());
     program->SetLayerOpacity(GetEffectiveOpacity());
     program->SetRenderOffset(aOffset);
     program->SetYCbCrTextureUnits(0, 1, 2);
@@ -287,7 +289,7 @@ ImageLayerOGL::RenderLayer(int,
       return;
     }
 
-    NS_ASSERTION(cairoImage->mSurface->GetContentType() != GFX_CONTENT_ALPHA,
+    NS_ASSERTION(cairoImage->mSurface->GetContentType() != gfxASurface::CONTENT_ALPHA,
                  "Image layer has alpha image");
 
     CairoOGLBackendData *data =
@@ -315,7 +317,8 @@ ImageLayerOGL::RenderLayer(int,
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, data->mTexture.GetTextureID());
 
-    ShaderProgramOGL *program = mOGLManager->GetProgram(data->mLayerProgram, GetMaskLayer());
+    ShaderProgramOGL *program = 
+      mOGLManager->GetProgram(data->mLayerProgram, GetMaskLayer());
 
     gl()->ApplyFilterToBoundTexture(mFilter);
 
@@ -324,7 +327,6 @@ ImageLayerOGL::RenderLayer(int,
                                         cairoImage->GetSize().width, 
                                         cairoImage->GetSize().height));
     program->SetLayerTransform(GetEffectiveTransform());
-    program->SetTextureTransform(gfx3DMatrix());
     program->SetLayerOpacity(GetEffectiveOpacity());
     program->SetRenderOffset(aOffset);
     program->SetTextureUnit(0);
@@ -341,18 +343,14 @@ ImageLayerOGL::RenderLayer(int,
       return;
     }
 
-    ShaderProgramType programType =
-      ShaderProgramFromTargetAndFormat(handleDetails.mTarget,
-                                       handleDetails.mTextureFormat);
-    ShaderProgramOGL* program = mOGLManager->GetProgram(programType, GetMaskLayer());
+    ShaderProgramOGL* program = mOGLManager->GetProgram(handleDetails.mProgramType, GetMaskLayer());
 
     program->Activate();
-    if (programType == RGBARectLayerProgramType) {
+    if (handleDetails.mProgramType == gl::RGBARectLayerProgramType) {
       // 2DRect case, get the multiplier right for a sampler2DRect
       program->SetTexCoordMultiplier(data->mSize.width, data->mSize.height);
     }
     program->SetLayerTransform(GetEffectiveTransform());
-    program->SetTextureTransform(gfx3DMatrix());
     program->SetLayerOpacity(GetEffectiveOpacity());
     program->SetRenderOffset(aOffset);
     program->SetTextureUnit(0);
@@ -378,6 +376,45 @@ ImageLayerOGL::RenderLayer(int,
     mOGLManager->BindAndDrawQuad(program, data->mInverted);
     gl()->fBindTexture(handleDetails.mTarget, 0);
     gl()->DetachSharedHandle(data->mShareType, data->mHandle);
+#ifdef MOZ_WIDGET_GONK
+  } else if (image->GetFormat() == GONK_IO_SURFACE) {
+
+    GonkIOSurfaceImage *ioImage = static_cast<GonkIOSurfaceImage*>(image);
+    if (!ioImage) {
+      return;
+    }
+
+    gl()->MakeCurrent();
+    gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+
+    if (!ioImage->GetBackendData(LAYERS_OPENGL)) {
+      AllocateTextureIOSurface(ioImage, gl());
+    }
+    GonkIOSurfaceImageOGLBackendData *data =
+      static_cast<GonkIOSurfaceImageOGLBackendData*>(ioImage->GetBackendData(LAYERS_OPENGL));
+
+    gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+    gl()->BindExternalBuffer(data->mTexture.GetTextureID(), ioImage->GetNativeBuffer());
+
+    ShaderProgramOGL *program = mOGLManager->GetProgram(RGBAExternalLayerProgramType, GetMaskLayer());
+
+    gl()->ApplyFilterToBoundTexture(mFilter);
+
+    program->Activate();
+    program->SetLayerQuadRect(nsIntRect(0, 0, 
+                                        ioImage->GetSize().width, 
+                                        ioImage->GetSize().height));
+    program->SetLayerTransform(GetEffectiveTransform());
+    program->SetLayerOpacity(GetEffectiveOpacity());
+    program->SetRenderOffset(aOffset);
+    program->SetTextureUnit(0);
+    program->LoadMask(GetMaskLayer());
+
+    mOGLManager->BindAndDrawQuadWithTextureRect(program,
+                                                GetVisibleRegion().GetBounds(),
+                                                nsIntSize(ioImage->GetSize().width,
+                                                          ioImage->GetSize().height));
+#endif
   }
   GetContainer()->NotifyPaintedImage(image);
 }
@@ -391,7 +428,7 @@ SetClamping(GLContext* aGL, GLuint aTexture)
 }
 
 static void
-UploadYUVToTexture(GLContext* gl, const PlanarYCbCrData& aData, 
+UploadYUVToTexture(GLContext* gl, const PlanarYCbCrImage::Data& aData, 
                    GLTexture* aYTexture,
                    GLTexture* aUTexture,
                    GLTexture* aVTexture)
@@ -401,7 +438,7 @@ UploadYUVToTexture(GLContext* gl, const PlanarYCbCrData& aData,
   nsRefPtr<gfxASurface> surf = new gfxImageSurface(aData.mYChannel,
                                                    aData.mYSize,
                                                    aData.mYStride,
-                                                   gfxImageFormatA8);
+                                                   gfxASurface::ImageFormatA8);
   gl->UploadSurfaceToTexture(surf, size, texture, true);
   
   size = nsIntRect(0, 0, aData.mCbCrSize.width, aData.mCbCrSize.height);
@@ -409,19 +446,19 @@ UploadYUVToTexture(GLContext* gl, const PlanarYCbCrData& aData,
   surf = new gfxImageSurface(aData.mCbChannel,
                              aData.mCbCrSize,
                              aData.mCbCrStride,
-                             gfxImageFormatA8);
+                             gfxASurface::ImageFormatA8);
   gl->UploadSurfaceToTexture(surf, size, texture, true);
 
   texture = aVTexture->GetTextureID();
   surf = new gfxImageSurface(aData.mCrChannel,
                              aData.mCbCrSize,
                              aData.mCbCrStride,
-                             gfxImageFormatA8);
+                             gfxASurface::ImageFormatA8);
   gl->UploadSurfaceToTexture(surf, size, texture, true);
 }
 
 ImageLayerOGL::ImageLayerOGL(LayerManagerOGL *aManager)
-  : ImageLayer(aManager, nullptr)
+  : ImageLayer(aManager, NULL)
   , LayerOGL(aManager)
   , mTextureRecycleBin(new TextureRecycleBin())
 { 
@@ -437,7 +474,7 @@ ImageLayerOGL::AllocateTexturesYCbCr(PlanarYCbCrImage *aImage)
   nsAutoPtr<PlanarYCbCrOGLBackendData> backendData(
     new PlanarYCbCrOGLBackendData);
 
-  const PlanarYCbCrData *data = aImage->GetData();
+  const PlanarYCbCrImage::Data *data = aImage->GetData();
 
   gl()->MakeCurrent();
 
@@ -484,13 +521,18 @@ ImageLayerOGL::AllocateTexturesCairo(CairoImage *aImage)
 
   SetClamping(gl, tex);
 
-#if defined(GL_PROVIDER_GLX)
-  if (aImage->mSurface->GetType() == gfxSurfaceTypeXlib) {
+#if defined(MOZ_X11) && !defined(MOZ_PLATFORM_MAEMO)
+  if (aImage->mSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
     gfxXlibSurface *xsurf =
       static_cast<gfxXlibSurface*>(aImage->mSurface.get());
     GLXPixmap pixmap = xsurf->GetGLXPixmap();
     if (pixmap) {
-      backendData->mLayerProgram = ShaderProgramFromContentType(aImage->mSurface->GetContentType());
+      if (aImage->mSurface->GetContentType()
+          == gfxASurface::CONTENT_COLOR_ALPHA) {
+        backendData->mLayerProgram = gl::RGBALayerProgramType;
+      } else {
+        backendData->mLayerProgram = gl::RGBXLayerProgramType;
+      }
 
       aImage->SetBackendData(LAYERS_OPENGL, backendData.forget());
 
@@ -500,11 +542,10 @@ ImageLayerOGL::AllocateTexturesCairo(CairoImage *aImage)
     }
   }
 #endif
-  gfx::SurfaceFormat format =
+  backendData->mLayerProgram =
     gl->UploadSurfaceToTexture(aImage->mSurface,
                                nsIntRect(0,0, aImage->mSize.width, aImage->mSize.height),
                                tex, true);
-  backendData->mLayerProgram = ShaderProgramFromSurfaceFormat(format);
 
   aImage->SetBackendData(LAYERS_OPENGL, backendData.forget());
 }
@@ -555,7 +596,7 @@ ImageLayerOGL::LoadAsTexture(GLuint aTextureUnit, gfxIntSize* aSize)
     cairoImage->GetBackendData(LAYERS_OPENGL));
 
   if (!data) {
-    NS_ASSERTION(cairoImage->mSurface->GetContentType() == GFX_CONTENT_ALPHA,
+    NS_ASSERTION(cairoImage->mSurface->GetContentType() == gfxASurface::CONTENT_ALPHA,
                  "OpenGL mask layers must be backed by alpha surfaces");
 
     // allocate a new texture and save the details in the backend data
@@ -574,14 +615,13 @@ ImageLayerOGL::LoadAsTexture(GLuint aTextureUnit, gfxIntSize* aSize)
 
     GLuint texID = texture.GetTextureID();
 
-    gfx::SurfaceFormat format =
+    data->mLayerProgram =
       texGL->UploadSurfaceToTexture(cairoImage->mSurface,
                                     nsIntRect(0,0,
                                               data->mTextureSize.width,
                                               data->mTextureSize.height),
                                     texID, true, nsIntPoint(0,0), false,
                                     aTextureUnit);
-    data->mLayerProgram = ShaderProgramFromSurfaceFormat(format);
 
     cairoImage->SetBackendData(LAYERS_OPENGL, data);
 

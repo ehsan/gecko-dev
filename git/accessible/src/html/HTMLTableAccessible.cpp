@@ -28,7 +28,6 @@
 #include "nsIDOMHTMLCollection.h"
 #include "nsIDocument.h"
 #include "nsIMutableArray.h"
-#include "nsIPersistentProperties2.h"
 #include "nsIPresShell.h"
 #include "nsITableCellLayout.h"
 #include "nsFrameSelection.h"
@@ -49,7 +48,6 @@ HTMLTableCellAccessible::
   HTMLTableCellAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   HyperTextAccessibleWrap(aContent, aDoc), xpcAccessibleTableCell(this)
 {
-  mGenericTypes |= eTableCell;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,18 +213,9 @@ void
 HTMLTableCellAccessible::ColHeaderCells(nsTArray<Accessible*>* aCells)
 {
   IDRefsIterator itr(mDoc, mContent, nsGkAtoms::headers);
-  while (Accessible* cell = itr.Next()) {
-    a11y::role cellRole = cell->Role();
-    if (cellRole == roles::COLUMNHEADER) {
+  while (Accessible* cell = itr.Next())
+    if (cell->Role() == roles::COLUMNHEADER)
       aCells->AppendElement(cell);
-    } else if (cellRole != roles::ROWHEADER) {
-      // If referred table cell is at the same column then treat it as a column
-      // header.
-      TableCellAccessible* tableCell = cell->AsTableCell();
-      if (tableCell && tableCell->ColIdx() == ColIdx())
-        aCells->AppendElement(cell);
-    }
-  }
 
   if (aCells->IsEmpty())
     TableCellAccessible::ColHeaderCells(aCells);
@@ -236,18 +225,9 @@ void
 HTMLTableCellAccessible::RowHeaderCells(nsTArray<Accessible*>* aCells)
 {
   IDRefsIterator itr(mDoc, mContent, nsGkAtoms::headers);
-  while (Accessible* cell = itr.Next()) {
-    a11y::role cellRole = cell->Role();
-    if (cellRole == roles::ROWHEADER) {
+  while (Accessible* cell = itr.Next())
+    if (cell->Role() == roles::ROWHEADER)
       aCells->AppendElement(cell);
-    } else if (cellRole != roles::COLUMNHEADER) {
-      // If referred table cell is at the same row then treat it as a column
-      // header.
-      TableCellAccessible* tableCell = cell->AsTableCell();
-      if (tableCell && tableCell->RowIdx() == RowIdx())
-        aCells->AppendElement(cell);
-    }
-  }
 
   if (aCells->IsEmpty())
     TableCellAccessible::RowHeaderCells(aCells);
@@ -314,9 +294,8 @@ HTMLTableHeaderCellAccessible::NativeRole()
       return roles::ROWHEADER;
   }
 
-  // Assume it's columnheader if there are headers in siblings, otherwise
+  // Assume it's columnheader if there are headers in siblings, oterwise
   // rowheader.
-  // This should iterate the flattened tree
   nsIContent* parentContent = mContent->GetParent();
   if (!parentContent) {
     NS_ERROR("Deattached content on alive accessible?");
@@ -327,7 +306,7 @@ HTMLTableHeaderCellAccessible::NativeRole()
        siblingContent = siblingContent->GetPreviousSibling()) {
     if (siblingContent->IsElement()) {
       return nsCoreUtils::IsHTMLTableHeader(siblingContent) ?
-        roles::COLUMNHEADER : roles::ROWHEADER;
+	     roles::COLUMNHEADER : roles::ROWHEADER;
     }
   }
 
@@ -335,7 +314,7 @@ HTMLTableHeaderCellAccessible::NativeRole()
        siblingContent = siblingContent->GetNextSibling()) {
     if (siblingContent->IsElement()) {
       return nsCoreUtils::IsHTMLTableHeader(siblingContent) ?
-       roles::COLUMNHEADER : roles::ROWHEADER;
+	     roles::COLUMNHEADER : roles::ROWHEADER;
     }
   }
 
@@ -365,7 +344,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(HTMLTableAccessible, Accessible,
                              nsIAccessibleTable)
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLTableAccessible: Accessible
+//nsAccessNode
 
 void
 HTMLTableAccessible::Shutdown()
@@ -373,6 +352,10 @@ HTMLTableAccessible::Shutdown()
   mTable = nullptr;
   AccessibleWrap::Shutdown();
 }
+
+
+////////////////////////////////////////////////////////////////////////////////
+// HTMLTableAccessible: Accessible implementation
 
 void
 HTMLTableAccessible::CacheChildren()
@@ -447,10 +430,10 @@ HTMLTableAccessible::NativeAttributes()
 // HTMLTableAccessible: nsIAccessible implementation
 
 Relation
-HTMLTableAccessible::RelationByType(RelationType aType)
+HTMLTableAccessible::RelationByType(uint32_t aType)
 {
   Relation rel = AccessibleWrap::RelationByType(aType);
-  if (aType == RelationType::LABELLED_BY)
+  if (aType == nsIAccessibleRelation::RELATION_LABELLED_BY)
     rel.AppendTarget(Caption());
 
   return rel;
@@ -1114,10 +1097,10 @@ HTMLTableAccessible::IsProbablyLayoutTable()
 ////////////////////////////////////////////////////////////////////////////////
 
 Relation
-HTMLCaptionAccessible::RelationByType(RelationType aType)
+HTMLCaptionAccessible::RelationByType(uint32_t aType)
 {
   Relation rel = HyperTextAccessible::RelationByType(aType);
-  if (aType == RelationType::LABEL_FOR)
+  if (aType == nsIAccessibleRelation::RELATION_LABEL_FOR)
     rel.AppendTarget(Parent());
 
   return rel;

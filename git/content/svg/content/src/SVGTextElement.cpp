@@ -12,7 +12,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGTextElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGTextElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGTextElementBinding::Wrap(aCx, aScope, this);
 }
@@ -23,20 +23,6 @@ SVGTextElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 SVGTextElement::SVGTextElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : SVGTextElementBase(aNodeInfo)
 {
-}
-
-nsSVGElement::EnumAttributesInfo
-SVGTextElement::GetEnumInfo()
-{
-  return EnumAttributesInfo(mEnumAttributes, sEnumInfo,
-                            ArrayLength(sEnumInfo));
-}
-
-nsSVGElement::LengthAttributesInfo
-SVGTextElement::GetLengthInfo()
-{
-  return LengthAttributesInfo(mLengthAttributes, sLengthInfo,
-                              ArrayLength(sLengthInfo));
 }
 
 //----------------------------------------------------------------------

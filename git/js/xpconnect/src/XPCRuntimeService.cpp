@@ -4,17 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsContentUtils.h"
-#include "BackstagePass.h"
-#include "nsIProgrammingLanguage.h"
-#include "nsDOMClassInfo.h"
-#include "nsIPrincipal.h"
+#include "xpcprivate.h"
 
-#include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
 #include "mozilla/dom/workers/Workers.h"
+#include "nsIScriptSecurityManager.h"
+#include "nsContentUtils.h"
 
 using mozilla::dom::workers::ResolveWorkerClasses;
-namespace indexedDB = mozilla::dom::indexedDB;
 
 NS_INTERFACE_MAP_BEGIN(BackstagePass)
   NS_INTERFACE_MAP_ENTRY(nsIGlobalObject)
@@ -25,8 +21,8 @@ NS_INTERFACE_MAP_BEGIN(BackstagePass)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXPCScriptable)
 NS_INTERFACE_MAP_END_THREADSAFE
 
-NS_IMPL_ADDREF(BackstagePass)
-NS_IMPL_RELEASE(BackstagePass)
+NS_IMPL_THREADSAFE_ADDREF(BackstagePass)
+NS_IMPL_THREADSAFE_RELEASE(BackstagePass)
 
 // The nsIXPCScriptable map declaration that will generate stubs for us...
 #define XPC_MAP_CLASSNAME           BackstagePass
@@ -54,11 +50,13 @@ BackstagePass::NewResolve(nsIXPConnectWrappedNative *wrapper,
     JS::RootedObject obj(cx, objArg);
     JS::RootedId id(cx, idArg);
 
-    bool resolved;
-    *objpArg = nullptr;
+    JSBool resolved;
 
     *_retval = !!JS_ResolveStandardClass(cx, obj, id, &resolved);
-    NS_ENSURE_TRUE(*_retval, NS_ERROR_FAILURE);
+    if (!*_retval) {
+        *objpArg = nullptr;
+        return NS_OK;
+    }
 
     if (resolved) {
         *objpArg = obj;
@@ -66,23 +64,8 @@ BackstagePass::NewResolve(nsIXPConnectWrappedNative *wrapper,
     }
 
     JS::RootedObject objp(cx, *objpArg);
-
-    *_retval = ResolveWorkerClasses(cx, obj, id, flags, &objp);
-    NS_ENSURE_TRUE(*_retval, NS_ERROR_FAILURE);
-
-    if (objp) {
-        *objpArg = objp;
-        return NS_OK;
-    }
-
-    *_retval = indexedDB::ResolveConstructors(cx, obj, id, &objp);
-    NS_ENSURE_TRUE(*_retval, NS_ERROR_FAILURE);
-
-    if (objp) {
-        *objpArg = objp;
-        return NS_OK;
-    }
-
+    *_retval = !!ResolveWorkerClasses(cx, obj, id, flags, &objp);
+    *objpArg = objp;
     return NS_OK;
 }
 

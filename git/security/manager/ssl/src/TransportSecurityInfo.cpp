@@ -17,8 +17,6 @@
 #include "nsNSSCertHelper.h"
 #include "nsIProgrammingLanguage.h"
 #include "nsIArray.h"
-#include "nsComponentManagerUtils.h"
-#include "nsServiceManagerUtils.h"
 #include "PSMRunnable.h"
 #include "ScopedNSSTypes.h"
 
@@ -68,13 +66,13 @@ TransportSecurityInfo::virtualDestroyNSSReference()
 {
 }
 
-NS_IMPL_ISUPPORTS6(TransportSecurityInfo,
-                   nsITransportSecurityInfo,
-                   nsIInterfaceRequestor,
-                   nsISSLStatusProvider,
-                   nsIAssociatedContentSecurity,
-                   nsISerializable,
-                   nsIClassInfo)
+NS_IMPL_THREADSAFE_ISUPPORTS6(TransportSecurityInfo,
+                              nsITransportSecurityInfo,
+                              nsIInterfaceRequestor,
+                              nsISSLStatusProvider,
+                              nsIAssociatedContentSecurity,
+                              nsISerializable,
+                              nsIClassInfo)
 
 nsresult
 TransportSecurityInfo::SetHostName(const char* host)
@@ -174,6 +172,25 @@ TransportSecurityInfo::SetCountSubRequestsNoSecurity(
 NS_IMETHODIMP
 TransportSecurityInfo::Flush()
 {
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+TransportSecurityInfo::GetShortSecurityDescription(PRUnichar** aText)
+{
+  if (mShortDesc.IsEmpty())
+    *aText = nullptr;
+  else {
+    *aText = ToNewUnicode(mShortDesc);
+    NS_ENSURE_TRUE(*aText, NS_ERROR_OUT_OF_MEMORY);
+  }
+  return NS_OK;
+}
+
+nsresult
+TransportSecurityInfo::SetShortSecurityDescription(const PRUnichar* aText)
+{
+  mShortDesc.Assign(aText);
   return NS_OK;
 }
 
@@ -341,7 +358,7 @@ TransportSecurityInfo::Write(nsIObjectOutputStream* stream)
   uint32_t version = 3;
   stream->Write32(version | 0xFFFF0000);
   stream->Write32(mSecurityState);
-  stream->WriteWStringZ(EmptyString().get()); 
+  stream->WriteWStringZ(mShortDesc.get());
 
   // XXX: uses nsNSSComponent string bundles off the main thread
   nsresult rv = formatErrorMessage(lock, 
@@ -442,8 +459,7 @@ TransportSecurityInfo::Read(nsIObjectInputStream* stream)
     mSecurityState = version;
     version = 1;
   }
-  nsAutoString dummyShortDesc;
-  stream->ReadString(dummyShortDesc);
+  stream->ReadString(mShortDesc);
   stream->ReadString(mErrorMessageCached);
   mErrorCode = 0;
 
@@ -1033,9 +1049,9 @@ formatOverridableCertErrorMessage(nsISSLStatus & sslStatus,
 RememberCertErrorsTable::sInstance = nullptr;
 
 RememberCertErrorsTable::RememberCertErrorsTable()
-  : mErrorHosts(16)
-  , mMutex("RememberCertErrorsTable::mMutex")
+  : mMutex("RememberCertErrorsTable::mMutex")
 {
+  mErrorHosts.Init(16);
 }
 
 static nsresult

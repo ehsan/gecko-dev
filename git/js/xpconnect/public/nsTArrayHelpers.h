@@ -5,25 +5,21 @@
 #ifndef __NSTARRAYHELPERS_H__
 #define __NSTARRAYHELPERS_H__
 
-#include "jsapi.h"
-#include "nsContentUtils.h"
-#include "nsTArray.h"
-
 template <class T>
 inline nsresult
 nsTArrayToJSArray(JSContext* aCx, const nsTArray<T>& aSourceArray,
                   JSObject** aResultArray)
 {
   MOZ_ASSERT(aCx);
+  JSAutoRequest ar(aCx);
 
-  JS::Rooted<JSObject*> arrayObj(aCx,
-    JS_NewArrayObject(aCx, aSourceArray.Length(), nullptr));
+  JSObject* arrayObj = JS_NewArrayObject(aCx, aSourceArray.Length(), nullptr);
   if (!arrayObj) {
     NS_WARNING("JS_NewArrayObject failed!");
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+  JSObject* global = JS_GetGlobalForScopeChain(aCx);
   MOZ_ASSERT(global);
 
   for (uint32_t index = 0; index < aSourceArray.Length(); index++) {
@@ -31,9 +27,8 @@ nsTArrayToJSArray(JSContext* aCx, const nsTArray<T>& aSourceArray,
     nsresult rv = aSourceArray[index]->QueryInterface(NS_GET_IID(nsISupports), getter_AddRefs(obj));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    JS::RootedValue wrappedVal(aCx);
-    rv = nsContentUtils::WrapNative(aCx, global, obj, &wrappedVal,
-                                    nullptr, true);
+    jsval wrappedVal;
+    rv = nsContentUtils::WrapNative(aCx, global, obj, &wrappedVal, nullptr, true);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!JS_SetElement(aCx, arrayObj, index, &wrappedVal)) {
@@ -58,9 +53,9 @@ nsTArrayToJSArray<nsString>(JSContext* aCx,
                             JSObject** aResultArray)
 {
   MOZ_ASSERT(aCx);
+  JSAutoRequest ar(aCx);
 
-  JS::Rooted<JSObject*> arrayObj(aCx,
-    JS_NewArrayObject(aCx, aSourceArray.Length(), nullptr));
+  JSObject* arrayObj = JS_NewArrayObject(aCx, aSourceArray.Length(), nullptr);
   if (!arrayObj) {
     NS_WARNING("JS_NewArrayObject failed!");
     return NS_ERROR_OUT_OF_MEMORY;
@@ -75,7 +70,7 @@ nsTArrayToJSArray<nsString>(JSContext* aCx,
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    JS::Rooted<JS::Value> wrappedVal(aCx, STRING_TO_JSVAL(s));
+    jsval wrappedVal = STRING_TO_JSVAL(s);
 
     if (!JS_SetElement(aCx, arrayObj, index, &wrappedVal)) {
       NS_WARNING("JS_SetElement failed!");

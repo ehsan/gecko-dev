@@ -6,7 +6,7 @@ const observers = require("sdk/deprecated/observer-service");
 const { Cc, Ci } = require("chrome");
 const { LoaderWithHookedConsole2 } = require("sdk/test/loader");
 
-exports.testUnloadAndErrorLogging = function(assert) {
+exports.testUnloadAndErrorLogging = function(test) {
   let { loader, messages } = LoaderWithHookedConsole2(module);
   var sbobsvc = loader.require("sdk/deprecated/observer-service");
 
@@ -19,23 +19,23 @@ exports.testUnloadAndErrorLogging = function(assert) {
   };
   sbobsvc.add("blarg", cb);
   observers.notify("blarg", "yo yo");
-  assert.equal(timesCalled, 1);
+  test.assertEqual(timesCalled, 1);
   sbobsvc.add("narg", badCb);
   observers.notify("narg", "yo yo");
-
-  assert.equal(messages[0], "console.error: " + require("sdk/self").name + ": \n");
-  var lines = messages[1].split("\n");
-  assert.equal(lines[0], "  Message: Error: foo");
-  assert.equal(lines[1], "  Stack:");
+  var lines = messages[0].split("\n");
+  test.assertEqual(lines[0], "error: " + require("sdk/self").name + ": An exception occurred.");
+  test.assertEqual(lines[0], "error: " + require("sdk/self").name + ": An exception occurred.");
+  test.assertEqual(lines[1], "Error: foo");
   // Keep in mind to update "18" to the line of "throw new Error("foo")"
-  assert.ok(lines[2].indexOf(module.uri + ":18") != -1);
+  test.assertEqual(lines[2], module.uri + " 18");
+  test.assertEqual(lines[3], "Traceback (most recent call last):");
 
   loader.unload();
   observers.notify("blarg", "yo yo");
-  assert.equal(timesCalled, 1);
+  test.assertEqual(timesCalled, 1);
 };
 
-exports.testObserverService = function(assert) {
+exports.testObserverService = function(test) {
   var ios = Cc['@mozilla.org/network/io-service;1']
             .getService(Ci.nsIIOService);
   var service = Cc["@mozilla.org/observer-service;1"].
@@ -53,27 +53,25 @@ exports.testObserverService = function(assert) {
 
   observers.add("blarg", cb);
   service.notifyObservers(uri, "blarg", "some data");
-  assert.equal(timesCalled, 1,
+  test.assertEqual(timesCalled, 1,
                    "observer-service.add() should call callback");
-  assert.equal(lastSubject, uri,
+  test.assertEqual(lastSubject, uri,
                    "observer-service.add() should pass subject");
-  assert.equal(lastData, "some data",
+  test.assertEqual(lastData, "some data",
                    "observer-service.add() should pass data");
 
   function customSubject() {}
   function customData() {}
   observers.notify("blarg", customSubject, customData);
-  assert.equal(timesCalled, 2,
+  test.assertEqual(timesCalled, 2,
                    "observer-service.notify() should work");
-  assert.equal(lastSubject, customSubject,
+  test.assertEqual(lastSubject, customSubject,
                    "observer-service.notify() should pass+wrap subject");
-  assert.equal(lastData, customData,
+  test.assertEqual(lastData, customData,
                    "observer-service.notify() should pass data");
 
   observers.remove("blarg", cb);
   service.notifyObservers(null, "blarg", "some data");
-  assert.equal(timesCalled, 2,
+  test.assertEqual(timesCalled, 2,
                    "observer-service.remove() should work");
 };
-
-require('sdk/test').run(exports);

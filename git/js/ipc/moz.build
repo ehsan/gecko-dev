@@ -6,24 +6,11 @@
 
 MODULE = 'js'
 
-SOURCES += [
-    'JavaScriptChild.cpp',
-    'JavaScriptParent.cpp',
-    'JavaScriptShared.cpp',
+EXPORTS.mozilla.jsipc += [
+    'CPOWTypes.h',
+    'ContextWrapperChild.h',
+    'ContextWrapperParent.h',
+    'ObjectWrapperChild.h',
+    'ObjectWrapperParent.h',
 ]
-
-IPDL_SOURCES += [
-    'JavaScriptTypes.ipdlh',
-    'PJavaScript.ipdl',
-]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'jsipc_s'
-
-EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -26,7 +26,7 @@
 #include "nsIDocument.h"
 #include "jsfriendapi.h"
 #include "xpcprivate.h"
-#include "nsCxPusher.h"
+#include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 
@@ -46,14 +46,14 @@ nsSecurityNameSet::~nsSecurityNameSet()
 
 NS_IMPL_ISUPPORTS1(nsSecurityNameSet, nsIScriptExternalNameSet)
 
-static bool
+static JSBool
 netscape_security_enablePrivilege(JSContext *cx, unsigned argc, JS::Value *vp)
 {
     Telemetry::Accumulate(Telemetry::ENABLE_PRIVILEGE_EVER_CALLED, true);
     return xpc::EnableUniversalXPConnect(cx);
 }
 
-static const JSFunctionSpec PrivilegeManager_static_methods[] = {
+static JSFunctionSpec PrivilegeManager_static_methods[] = {
     JS_FS("enablePrivilege", netscape_security_enablePrivilege, 1, 0),
     JS_FS_END
 };
@@ -62,32 +62,32 @@ static const JSFunctionSpec PrivilegeManager_static_methods[] = {
  * "Steal" calls to netscape.security.PrivilegeManager.enablePrivilege,
  * et al. so that code that worked with 4.0 can still work.
  */
-NS_IMETHODIMP
+NS_IMETHODIMP 
 nsSecurityNameSet::InitializeNameSet(nsIScriptContext* aScriptContext)
 {
-    AutoJSContext cx;
-    JS::Rooted<JSObject*> global(cx, aScriptContext->GetWindowProxy());
-    JSAutoCompartment ac(cx, global);
+    AutoPushJSContext cx(aScriptContext->GetNativeContext());
+    JSObject *global = JS_ObjectToInnerObject(cx, JS_GetGlobalObject(cx));
 
     /*
      * Find Object.prototype's class by walking up the global object's
      * prototype chain.
      */
-    JS::Rooted<JSObject*> obj(cx, global);
-    JS::Rooted<JSObject*> proto(cx);
+    JSObject *obj = global;
+    JSObject *proto;
+    JSAutoRequest ar(cx);
     for (;;) {
         MOZ_ALWAYS_TRUE(JS_GetPrototype(cx, obj, &proto));
         if (!proto)
             break;
         obj = proto;
     }
-    const JSClass *objectClass = JS_GetClass(obj);
+    JSClass *objectClass = JS_GetClass(obj);
 
-    JS::Rooted<JS::Value> v(cx);
+    JS::Value v;
     if (!JS_GetProperty(cx, global, "netscape", &v))
         return NS_ERROR_FAILURE;
 
-    JS::Rooted<JSObject*> securityObj(cx);
+    JSObject *securityObj;
     if (v.isObject()) {
         /*
          * "netscape" property of window object exists; get the

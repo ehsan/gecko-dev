@@ -12,7 +12,6 @@
 */
 
 #include "xpt_arena.h"
-#include "mozilla/MemoryReporting.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -307,7 +306,7 @@ XPT_AssertFailed(const char *s, const char *file, uint32_t lineno)
 #endif
 
 XPT_PUBLIC_API(size_t)
-XPT_SizeOfArena(XPTArena *arena, MozMallocSizeOf mallocSizeOf)
+XPT_SizeOfArena(XPTArena *arena, xptMallocSizeOfFun mallocSizeOf)
 {
     size_t n = mallocSizeOf(arena);
 

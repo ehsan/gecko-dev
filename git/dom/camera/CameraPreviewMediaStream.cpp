@@ -10,15 +10,6 @@ using namespace mozilla::dom;
 
 namespace mozilla {
 
-CameraPreviewMediaStream::CameraPreviewMediaStream(DOMMediaStream* aWrapper)
-  : MediaStream(aWrapper)
-  , mMutex("mozilla::camera::CameraPreviewMediaStream")
-  , mFrameCallback(nullptr)
-{
-  SetGraphImpl(MediaStreamGraph::GetInstance());
-  mIsConsumed = false;
-}
-
 void
 CameraPreviewMediaStream::AddAudioOutput(void* aKey)
 {
@@ -111,24 +102,6 @@ CameraPreviewMediaStream::SetCurrentFrame(const gfxIntSize& aIntrinsicSize, Imag
   for (uint32_t i = 0; i < mVideoOutputs.Length(); ++i) {
     VideoFrameContainer* output = mVideoOutputs[i];
     output->SetCurrentFrame(aIntrinsicSize, aImage, now);
-    nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(output, &VideoFrameContainer::Invalidate);
-    NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
-  }
-
-  if (mFrameCallback) {
-    mFrameCallback->OnNewFrame(aIntrinsicSize, aImage);
-  }
-}
-
-void
-CameraPreviewMediaStream::ClearCurrentFrame()
-{
-  MutexAutoLock lock(mMutex);
-
-  for (uint32_t i = 0; i < mVideoOutputs.Length(); ++i) {
-    VideoFrameContainer* output = mVideoOutputs[i];
-    output->ClearCurrentFrame();
     nsCOMPtr<nsIRunnable> event =
       NS_NewRunnableMethod(output, &VideoFrameContainer::Invalidate);
     NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);

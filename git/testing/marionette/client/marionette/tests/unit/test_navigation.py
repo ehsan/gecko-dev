@@ -3,8 +3,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from marionette_test import MarionetteTestCase
-from marionette import MarionetteException
-from marionette import TimeoutException
+from errors import MarionetteException
+from errors import TimeoutException
 
 class TestNavigate(MarionetteTestCase):
     def test_navigate(self):
@@ -71,41 +71,15 @@ class TestNavigate(MarionetteTestCase):
 
     def test_shouldnt_error_if_nonexistent_url_used(self):
         try:
-            self.marionette.navigate("thisprotocoldoesnotexist://")
+            self.marionette.navigate("http://localhost:12345")
             self.fail("Should have thrown a MarionetteException")
         except TimeoutException: 
             self.fail("The socket shouldn't have timed out when navigating to a non-existent URL")
-        except MarionetteException as e:
-            self.assertEqual(str(e), 'Error loading page')
+        except MarionetteException:
+            pass
         except Exception as inst:
             import traceback
             print traceback.format_exc()
             self.fail("Should have thrown a MarionetteException instead of %s" % type(inst))
 
-    def test_find_element_state_complete(self):
-        test_html = self.marionette.absolute_url("test.html")
-        self.marionette.navigate(test_html)
-        state = self.marionette.execute_script("return window.document.readyState;")
-        self.assertEqual("complete", state)
-        self.assertTrue(self.marionette.find_element("id", "mozLink"))
-
-    def test_should_throw_a_timeoutexception_when_loading_page(self):
-        try:
-            self.marionette.timeouts("page load", 0)
-            test_html = self.marionette.absolute_url("test.html")
-            self.marionette.navigate(test_html)
-            self.assertTrue(self.marionette.find_element("id", "mozLink"))
-            self.fail("Should have thrown a MarionetteException")
-        except MarionetteException as e:
-            self.assertTrue("Error loading page, timed out" in str(e))
-        except Exception as inst:
-            import traceback
-            print traceback.format_exc()
-            self.fail("Should have thrown a MarionetteException instead of %s" % type(inst))
-
-    def test_navigate_iframe(self):
-        test_iframe = self.marionette.absolute_url("test_iframe.html")
-        self.marionette.navigate(test_iframe)
-        self.assertTrue('test_iframe.html' in self.marionette.get_url())
-        self.assertTrue(self.marionette.find_element("id", "test_iframe"))
 

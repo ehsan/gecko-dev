@@ -10,7 +10,6 @@ import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.gfx.Layer.RenderContext;
-import org.mozilla.gecko.gfx.RenderTask;
 import org.mozilla.gecko.mozglue.DirectBufferAllocator;
 
 import android.content.Context;
@@ -20,7 +19,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Point;
-import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.opengl.GLES20;
@@ -51,9 +49,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
     private static final int FRAME_RATE_METER_WIDTH = 128;
     private static final int FRAME_RATE_METER_HEIGHT = 32;
 
-    private static final long NANOS_PER_MS = 1000000;
-    private static final int NANOS_PER_SECOND = 1000000000;
-
     private final LayerView mView;
     private final NinePatchTileLayer mShadowLayer;
     private TextLayer mFrameRateLayer;
@@ -66,9 +61,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
     private int mMaxTextureSize;
     private int mBackgroundColor;
     private int mOverscrollColor;
-
-    private long mLastFrameTime;
-    private final CopyOnWriteArrayList<RenderTask> mTasks;
 
     private CopyOnWriteArrayList<Layer> mExtraLayers = new CopyOnWriteArrayList<Layer>();
 
@@ -145,10 +137,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         Bitmap scrollbarImage = view.getScrollbarImage();
         IntSize size = new IntSize(scrollbarImage.getWidth(), scrollbarImage.getHeight());
         scrollbarImage = expandCanvasToPowerOfTwo(scrollbarImage, size);
-
-        mTasks = new CopyOnWriteArrayList<RenderTask>();
-        mLastFrameTime = System.nanoTime();
-
         mVertScrollLayer = new ScrollbarLayer(this, scrollbarImage, size, true);
         mHorizScrollLayer = new ScrollbarLayer(this, diagonalFlip(scrollbarImage), new IntSize(size.height, size.width), false);
         mFadeRunnable = new FadeRunnable();
@@ -252,30 +240,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         return mMaxTextureSize;
     }
 
-    public void postRenderTask(RenderTask aTask) {
-        mTasks.add(aTask);
-        mView.requestRender();
-    }
-
-    public void removeRenderTask(RenderTask aTask) {
-        mTasks.remove(aTask);
-    }
-
-    private void runRenderTasks(CopyOnWriteArrayList<RenderTask> tasks, boolean after, long frameStartTime) {
-        for (RenderTask task : tasks) {
-            if (task.runAfter != after) {
-                continue;
-            }
-
-            boolean stillRunning = task.run(frameStartTime - mLastFrameTime, frameStartTime);
-
-            // Remove the task from the list if its finished
-            if (!stillRunning) {
-                tasks.remove(task);
-            }
-        }
-    }
-
     public void addLayer(Layer layer) {
         synchronized (mExtraLayers) {
             if (mExtraLayers.contains(layer)) {
@@ -313,28 +277,26 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         return pixelBuffer;
     }
 
-    private RenderContext createScreenContext(ImmutableViewportMetrics metrics, PointF offset) {
+    private RenderContext createScreenContext(ImmutableViewportMetrics metrics) {
         RectF viewport = new RectF(0.0f, 0.0f, metrics.getWidth(), metrics.getHeight());
-        RectF pageRect = metrics.getPageRect();
-
-        return createContext(viewport, pageRect, 1.0f, offset);
+        RectF pageRect = new RectF(metrics.getPageRect());
+        return createContext(viewport, pageRect, 1.0f);
     }
 
-    private RenderContext createPageContext(ImmutableViewportMetrics metrics, PointF offset) {
-        RectF viewport = metrics.getViewport();
+    private RenderContext createPageContext(ImmutableViewportMetrics metrics) {
+        Rect viewport = RectUtils.round(metrics.getViewport());
         RectF pageRect = metrics.getPageRect();
         float zoomFactor = metrics.zoomFactor;
-
-        return createContext(new RectF(RectUtils.round(viewport)), pageRect, zoomFactor, offset);
+        return createContext(new RectF(viewport), pageRect, zoomFactor);
     }
 
-    private RenderContext createContext(RectF viewport, RectF pageRect, float zoomFactor, PointF offset) {
-        return new RenderContext(viewport, pageRect, zoomFactor, offset, mPositionHandle, mTextureHandle,
+    private RenderContext createContext(RectF viewport, RectF pageRect, float zoomFactor) {
+        return new RenderContext(viewport, pageRect, zoomFactor, mPositionHandle, mTextureHandle,
                                  mCoordBuffer);
     }
 
     private void updateDroppedFrames(long frameStartTime) {
-        int frameElapsedTime = (int)((System.nanoTime() - frameStartTime) / NANOS_PER_MS);
+        int frameElapsedTime = (int)(SystemClock.uptimeMillis() - frameStartTime);
 
         /* Update the running statistics. */
         mFrameTimingsSum -= mFrameTimings[mCurrentFrame];
@@ -448,23 +410,17 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         private boolean mUpdated;
         private final Rect mPageRect;
         private final Rect mAbsolutePageRect;
-        private final PointF mRenderOffset;
 
         public Frame(ImmutableViewportMetrics metrics) {
             mFrameMetrics = metrics;
+            mPageContext = createPageContext(metrics);
+            mScreenContext = createScreenContext(metrics);
 
-            // Work out the offset due to margins
-            Layer rootLayer = mView.getLayerClient().getRoot();
-            mRenderOffset = mFrameMetrics.getMarginOffset();
-            mPageContext = createPageContext(metrics, mRenderOffset);
-            mScreenContext = createScreenContext(metrics, mRenderOffset);
-
-            RectF pageRect = mFrameMetrics.getPageRect();
-            mAbsolutePageRect = RectUtils.round(pageRect);
-
-            PointF origin = mFrameMetrics.getOrigin();
+            Point origin = PointUtils.round(mFrameMetrics.getOrigin());
+            Rect pageRect = RectUtils.round(mFrameMetrics.getPageRect());
+            mAbsolutePageRect = new Rect(pageRect);
             pageRect.offset(-origin.x, -origin.y);
-            mPageRect = RectUtils.round(pageRect);
+            mPageRect = pageRect;
         }
 
         private void setScissorRect() {
@@ -482,16 +438,13 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             int right = Math.min(screenSize.width, rect.right);
             int bottom = Math.min(screenSize.height, rect.bottom);
 
-            Rect scissorRect = new Rect(left, screenSize.height - bottom, right,
-                                        (screenSize.height - bottom) + (bottom - top));
-            scissorRect.offset(Math.round(-mRenderOffset.x), Math.round(-mRenderOffset.y));
-
-            return scissorRect;
+            return new Rect(left, screenSize.height - bottom, right,
+                            (screenSize.height - bottom) + (bottom - top));
         }
 
         /** This function is invoked via JNI; be careful when modifying signature. */
         public void beginDrawing() {
-            mFrameStartTime = System.nanoTime();
+            mFrameStartTime = SystemClock.uptimeMillis();
 
             TextureReaper.get().reap();
             TextureGenerator.get().fill();
@@ -499,9 +452,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             mUpdated = true;
 
             Layer rootLayer = mView.getLayerClient().getRoot();
-
-            // Run through pre-render tasks
-            runRenderTasks(mTasks, false, mFrameStartTime);
 
             if (!mPageContext.fuzzyEquals(mLastPageContext) && !mView.isFullScreen()) {
                 // The viewport or page changed, so show the scrollbars again
@@ -580,9 +530,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
 
         /** This function is invoked via JNI; be careful when modifying signature. */
         public void drawBackground() {
-            // Any GL state which is changed here must be restored in
-            // CompositorOGL::RestoreState
-
             GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
 
             // Draw the overscroll background area as a solid color
@@ -597,9 +544,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
 
             // Draw the drop shadow, if we need to.
-            RectF offsetAbsPageRect = new RectF(mAbsolutePageRect);
-            offsetAbsPageRect.offset(mRenderOffset.x, mRenderOffset.y);
-            if (!offsetAbsPageRect.contains(mFrameMetrics.getViewport()))
+            if (!new RectF(mAbsolutePageRect).contains(mFrameMetrics.getViewport()))
                 mShadowLayer.draw(mPageContext);
         }
 
@@ -615,9 +560,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
 
         /** This function is invoked via JNI; be careful when modifying signature. */
         public void drawForeground() {
-            // Any GL state which is changed here must be restored in
-            // CompositorOGL::RestoreState
-
             /* Draw any extra layers that were added (likely plugins) */
             if (mExtraLayers.size() > 0) {
                 for (Layer layer : mExtraLayers) {
@@ -648,13 +590,11 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
                 mCompleteFramesRendered += 1.0f - checkerboard;
                 mFramesRendered ++;
 
-                if (mFrameStartTime - mProfileOutputTime > NANOS_PER_SECOND) {
+                if (mFrameStartTime - mProfileOutputTime > 1000) {
                     mProfileOutputTime = mFrameStartTime;
                     printCheckerboardStats();
                 }
             }
-
-            runRenderTasks(mTasks, true, mFrameStartTime);
 
             /* Draw the FPS. */
             if (mFrameRateLayer != null) {
@@ -698,7 +638,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
                 });
                 mView.setPaintState(LayerView.PAINT_AFTER_FIRST);
             }
-            mLastFrameTime = mFrameStartTime;
         }
     }
 

@@ -75,35 +75,12 @@ nsBrowserStatusFilter::GetDOMWindow(nsIDOMWindow **aResult)
 }
 
 NS_IMETHODIMP
-nsBrowserStatusFilter::GetDOMWindowID(uint64_t *aResult)
-{
-    *aResult = 0;
-    NS_NOTREACHED("nsBrowserStatusFilter::GetDOMWindowID");
-    return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsBrowserStatusFilter::GetIsTopLevel(bool *aIsTopLevel)
-{
-    *aIsTopLevel = false;
-    NS_NOTREACHED("nsBrowserStatusFilter::GetIsTopLevel");
-    return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
 nsBrowserStatusFilter::GetIsLoadingDocument(bool *aIsLoadingDocument)
 {
     NS_NOTREACHED("nsBrowserStatusFilter::GetIsLoadingDocument");
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP
-nsBrowserStatusFilter::GetLoadType(uint32_t *aLoadType)
-{
-    *aLoadType = 0;
-    NS_NOTREACHED("nsBrowserStatusFilter::GetLoadType");
-    return NS_ERROR_NOT_IMPLEMENTED;
-}
 
 //-----------------------------------------------------------------------------
 // nsBrowserStatusFilter::nsIWebProgressListener

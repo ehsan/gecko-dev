@@ -281,13 +281,9 @@ bool ExceptionHandler::WriteMinidump(bool write_exception_stream) {
   if (pthread_mutex_lock(&minidump_write_mutex_) == 0) {
     // Send an empty message to the handle port so that a minidump will
     // be written
-    bool result = SendMessageToHandlerThread(write_exception_stream ?
-                                             kWriteDumpWithExceptionMessage :
-                                             kWriteDumpMessage);
-    if (!result) {
-      pthread_mutex_unlock(&minidump_write_mutex_);
-      return false;
-    }
+    SendMessageToHandlerThread(write_exception_stream ?
+                                   kWriteDumpWithExceptionMessage :
+                                   kWriteDumpMessage);
 
     // Wait for the minidump writer to complete its writing.  It will unlock
     // the mutex when completed
@@ -626,6 +622,7 @@ bool ExceptionHandler::InstallHandler() {
   if (gProtectedData.handler != NULL) {
     return false;
   }
+#if TARGET_OS_IPHONE
   if (!IsOutOfProcess()) {
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -645,6 +642,7 @@ bool ExceptionHandler::InstallHandler() {
     mprotect(gProtectedData.protected_buffer, PAGE_SIZE, PROT_READ);
 #endif
   }
+#endif
 
   try {
 #if USE_PROTECTED_ALLOCATIONS

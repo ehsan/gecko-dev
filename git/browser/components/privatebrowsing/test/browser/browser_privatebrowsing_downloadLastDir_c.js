@@ -50,6 +50,8 @@ function test() {
     whenNewWindowLoaded({private: aPrivate}, function(win) {
       let gDownloadLastDir = new DownloadLastDir(win);
       aCallback(win, gDownloadLastDir);
+      gDownloadLastDir.cleanupPrivateFile();
+      win.close();
     });
   }
 
@@ -64,7 +66,7 @@ function test() {
 
     MockFilePicker.returnFiles = [aFile];
     MockFilePicker.displayDirectory = null;
-    aWin.promiseTargetFile(params).then(function() {
+    aWin.getTargetFile(params, function() {
       // File picker should start with expected display dir.
       is(MockFilePicker.displayDirectory.path, aDisplayDir.path,
          "File picker should start with browser.download.lastDir");
@@ -75,10 +77,8 @@ function test() {
       is(gDownloadLastDir.file.path, aGlobalLastDir.path,
          "gDownloadLastDir should be the expected global last dir");
 
-      gDownloadLastDir.cleanupPrivateFile();
-      aWin.close();
       aCallback();
-    }).then(null, function() { ok(false); });
+    });
   }
 
   testOnWindow(false, function(win, downloadDir) {

@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsIOutputStream.idl"
+#include "nsrootidl.idl"
 
 /**
  * This interface allows writing of primitive data types (integers,

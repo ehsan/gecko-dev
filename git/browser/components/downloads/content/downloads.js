@@ -71,8 +71,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "DownloadUtils",
                                   "resource://gre/modules/DownloadUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadsCommon",
                                   "resource:///modules/DownloadsCommon.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "OS",
-                                  "resource://gre/modules/osfile.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
                                   "resource://gre/modules/PrivateBrowsingUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
@@ -134,9 +132,10 @@ const DownloadsPanel = {
 
     window.addEventListener("unload", this.onWindowUnload, false);
 
-    // Load and resume active downloads if required.  If there are downloads to
-    // be shown in the panel, they will be loaded asynchronously.
-    DownloadsCommon.initializeAllDataLinks();
+    // Ensure that the Download Manager service is running.  This resumes
+    // active downloads if required.  If there are downloads to be shown in the
+    // panel, starting the service will make us load their data asynchronously.
+    Services.downloads;
 
     // Now that data loading has eventually started, load the required XUL
     // elements and initialize our views.
@@ -146,8 +145,6 @@ const DownloadsPanel = {
       DownloadsViewController.initialize();
       DownloadsCommon.log("Attaching DownloadsView...");
       DownloadsCommon.getData(window).addView(DownloadsView);
-      DownloadsCommon.getSummary(window, DownloadsView.kItemCountLimit)
-                     .addView(DownloadsSummary);
       DownloadsCommon.log("DownloadsView attached - the panel for this window",
                           "should now see download items come in.");
       DownloadsPanel._attachEventListeners();
@@ -176,8 +173,6 @@ const DownloadsPanel = {
 
     DownloadsViewController.terminate();
     DownloadsCommon.getData(window).removeView(DownloadsView);
-    DownloadsCommon.getSummary(window, DownloadsView.kItemCountLimit)
-                   .removeView(DownloadsSummary);
     this._unattachEventListeners();
 
     this._state = this.kStateUninitialized;
@@ -190,19 +185,12 @@ const DownloadsPanel = {
   //// Panel interface
 
   /**
-   * Main panel element in the browser window, or null if the panel overlay
-   * hasn't been loaded yet.
+   * Main panel element in the browser window.
    */
   get panel()
   {
-    // If the downloads panel overlay hasn't loaded yet, just return null
-    // without reseting this.panel.
-    let downloadsPanel = document.getElementById("downloadsPanel");
-    if (!downloadsPanel)
-      return null;
-
     delete this.panel;
-    return this.panel = downloadsPanel;
+    return this.panel = document.getElementById("downloadsPanel");
   },
 
   /**
@@ -565,14 +553,6 @@ const DownloadsPanel = {
         return;
       }
 
-      // When the panel is opened, we check if the target files of visible items
-      // still exist, and update the allowed items interactions accordingly.  We
-      // do these checks on a background thread, and don't prevent the panel to
-      // be displayed while these checks are being performed.
-      for each (let viewItem in DownloadsView._viewItems) {
-        viewItem.verifyTargetExists();
-      }
-
       if (aAnchor) {
         DownloadsCommon.log("Opening downloads panel popup.");
         this.panel.openPopup(aAnchor, "bottomcenter topright", 0, 0, false,
@@ -782,6 +762,26 @@ const DownloadsView = {
     // Notify the panel that all the initially available downloads have been
     // loaded.  This ensures that the interface is visible, if still required.
     DownloadsPanel.onViewLoadCompleted();
+  },
+
+  /**
+   * Called when the downloads database becomes unavailable (for example,
+   * entering Private Browsing Mode).  References to existing data should be
+   * discarded.
+   */
+  onDataInvalidated: function DV_onDataInvalidated()
+  {
+    DownloadsCommon.log("Downloads data has been invalidated. Cleaning up",
+                        "DownloadsView.");
+
+    DownloadsPanel.terminate();
+
+    // Clear the list by replacing with a shallow copy.
+    let emptyView = this.richListBox.cloneNode(false);
+    this.richListBox.parentNode.replaceChild(emptyView, this.richListBox);
+    this.richListBox = emptyView;
+    this._viewItems = {};
+    this._dataItems = [];
   },
 
   /**
@@ -1074,7 +1074,6 @@ function DownloadsViewItem(aDataItem, aElement)
   // Initialize more complex attributes.
   this._updateProgress();
   this._updateStatusLine();
-  this.verifyTargetExists();
 }
 
 DownloadsViewItem.prototype = {
@@ -1112,12 +1111,6 @@ DownloadsViewItem.prototype = {
     if (aOldState != Ci.nsIDownloadManager.DOWNLOAD_FINISHED &&
         aOldState != this.dataItem.state) {
       this._element.setAttribute("image", this.image + "&state=normal");
-
-      // We assume the existence of the target of a download that just completed
-      // successfully, without checking the condition in the background.  If the
-      // panel is already open, this will take effect immediately.  If the panel
-      // is opened later, a new background existence check will be performed.
-      this._element.setAttribute("exists", "true");
     }
 
     // Update the user interface after switching states.
@@ -1259,33 +1252,7 @@ DownloadsViewItem.prototype = {
     }
     let [size, unit] = DownloadUtils.convertByteUnits(fileSize);
     return DownloadsCommon.strings.sizeWithUnits(size, unit);
-  },
-
-  //////////////////////////////////////////////////////////////////////////////
-  //// Functions called by the panel
-
-  /**
-   * Starts checking whether the target file of a finished download is still
-   * available on disk, and sets an attribute that controls how the item is
-   * presented visually.
-   *
-   * The existence check is executed on a background thread.
-   */
-  verifyTargetExists: function DVI_verifyTargetExists() {
-    // We don't need to check if the download is not finished successfully.
-    if (!this.dataItem.openable) {
-      return;
-    }
-
-    OS.File.exists(this.dataItem.localFile.path).then(
-      function DVI_RTE_onSuccess(aExists) {
-        if (aExists) {
-          this._element.setAttribute("exists", "true");
-        } else {
-          this._element.removeAttribute("exists");
-        }
-      }.bind(this), Cu.reportError);
-  },
+  }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1334,7 +1301,11 @@ const DownloadsViewController = {
   {
     // Handle commands that are not selection-specific.
     if (aCommand == "downloadsCmd_clearList") {
-      return DownloadsCommon.getData(window).canRemoveFinished;
+      if (PrivateBrowsingUtils.isWindowPrivate(window)) {
+        return Services.downloads.canCleanUpPrivate;
+      } else {
+        return Services.downloads.canCleanUp;
+      }
     }
 
     // Other commands are selection-specific.
@@ -1381,7 +1352,11 @@ const DownloadsViewController = {
   commands: {
     downloadsCmd_clearList: function DVC_downloadsCmd_clearList()
     {
-      DownloadsCommon.getData(window).removeFinished();
+      if (PrivateBrowsingUtils.isWindowPrivate(window)) {
+        Services.downloads.cleanUpPrivate();
+      } else {
+        Services.downloads.cleanUp();
+      }
     }
   }
 };
@@ -1461,8 +1436,7 @@ DownloadsViewItemController.prototype = {
 
     downloadsCmd_open: function DVIC_downloadsCmd_open()
     {
-      this.dataItem.openLocalFile();
-
+      this.dataItem.openLocalFile(window);
       // We explicitly close the panel here to give the user the feedback that
       // their click has been received, and we're handling the action.
       // Otherwise, we'd have to wait for the file-type handler to execute
@@ -1555,8 +1529,10 @@ const DownloadsSummary = {
     }
     if (aActive) {
       DownloadsCommon.getSummary(window, DownloadsView.kItemCountLimit)
-                     .refreshView(this);
+                     .addView(this);
     } else {
+      DownloadsCommon.getSummary(window, DownloadsView.kItemCountLimit)
+                     .removeView(this);
       DownloadsFooter.showingSummary = false;
     }
 

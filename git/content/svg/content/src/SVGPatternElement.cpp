@@ -17,7 +17,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGPatternElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGPatternElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGPatternElementBinding::Wrap(aCx, aScope, this);
 }
@@ -64,10 +64,12 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGPatternElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedRect>
+already_AddRefed<nsIDOMSVGAnimatedRect>
 SVGPatternElement::ViewBox()
 {
-  return mViewBox.ToSVGAnimatedRect(this);
+  nsCOMPtr<nsIDOMSVGAnimatedRect> rect;
+  mViewBox.ToDOMAnimatedRect(getter_AddRefs(rect), this);
+  return rect.forget();
 }
 
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>
@@ -80,13 +82,13 @@ SVGPatternElement::PreserveAspectRatio()
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGPatternElement::PatternUnits()
 {
   return mEnumAttributes[PATTERNUNITS].ToDOMAnimatedEnum(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGPatternElement::PatternContentUnits()
 {
   return mEnumAttributes[PATTERNCONTENTUNITS].ToDOMAnimatedEnum(this);
@@ -125,7 +127,7 @@ SVGPatternElement::Height()
   return mLengthAttributes[ATTR_HEIGHT].ToDOMAnimatedLength(this);
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGPatternElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);

@@ -23,6 +23,10 @@
 #include "nsAString.h"
 #include <algorithm>
 
+#ifdef DEBUG
+static bool gNoisy = false;
+#endif
+
 using namespace mozilla;
 
 CreateElementTxn::CreateElementTxn()
@@ -30,10 +34,17 @@ CreateElementTxn::CreateElementTxn()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_3(CreateElementTxn, EditTxn,
-                                     mParent,
-                                     mNewNode,
-                                     mRefNode)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(CreateElementTxn, EditTxn)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mParent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mNewNode)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mRefNode)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(CreateElementTxn, EditTxn)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mNewNode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRefNode)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(CreateElementTxn, EditTxn)
 NS_IMPL_RELEASE_INHERITED(CreateElementTxn, EditTxn)
@@ -57,6 +68,16 @@ NS_IMETHODIMP CreateElementTxn::Init(nsEditor      *aEditor,
 
 NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
 {
+#ifdef DEBUG
+  if (gNoisy)
+  {
+    char* nodename = ToNewCString(mTag);
+    printf("Do Create Element parent = %p <%s>, offset = %d\n", 
+           static_cast<void*>(mParent.get()), nodename, mOffsetInParent);
+    nsMemory::Free(nodename);
+  }
+#endif
+
   NS_ASSERTION(mEditor && mParent, "bad state");
   NS_ENSURE_TRUE(mEditor && mParent, NS_ERROR_NOT_INITIALIZED);
 
@@ -70,6 +91,13 @@ NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
   mNewNode = newContent;
   // Try to insert formatting whitespace for the new node:
   mEditor->MarkNodeDirty(mNewNode);
+
+#ifdef DEBUG
+  if (gNoisy)
+  {
+    printf("  newNode = %p\n", static_cast<void*>(mNewNode.get()));
+  }
+#endif
 
   // insert the new node
   if (CreateElementTxn::eAppend == int32_t(mOffsetInParent)) {
@@ -112,6 +140,15 @@ NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
 
 NS_IMETHODIMP CreateElementTxn::UndoTransaction(void)
 {
+#ifdef DEBUG
+  if (gNoisy)
+  {
+    printf("Undo Create Element, mParent = %p, node = %p\n",
+           static_cast<void*>(mParent.get()),
+           static_cast<void*>(mNewNode.get()));
+  }
+#endif
+
   NS_ASSERTION(mEditor && mParent, "bad state");
   NS_ENSURE_TRUE(mEditor && mParent, NS_ERROR_NOT_INITIALIZED);
 
@@ -122,6 +159,10 @@ NS_IMETHODIMP CreateElementTxn::UndoTransaction(void)
 
 NS_IMETHODIMP CreateElementTxn::RedoTransaction(void)
 {
+#ifdef DEBUG
+  if (gNoisy) { printf("Redo Create Element\n"); }
+#endif
+
   NS_ASSERTION(mEditor && mParent, "bad state");
   NS_ENSURE_TRUE(mEditor && mParent, NS_ERROR_NOT_INITIALIZED);
 

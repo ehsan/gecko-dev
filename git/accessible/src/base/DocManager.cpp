@@ -5,11 +5,14 @@
 
 #include "DocManager.h"
 
+#include "Accessible-inl.h"
 #include "ApplicationAccessible.h"
-#include "ARIAMap.h"
 #include "DocAccessible-inl.h"
 #include "nsAccessibilityService.h"
+#include "nsAccUtils.h"
+#include "nsARIAMap.h"
 #include "RootAccessibleWrap.h"
+#include "States.h"
 
 #ifdef A11Y_LOG
 #include "Logging.h"
@@ -17,29 +20,22 @@
 
 #include "nsCURILoader.h"
 #include "nsDocShellLoadTypes.h"
-#include "nsDOMEvent.h"
 #include "nsIChannel.h"
+#include "nsIContentViewer.h"
 #include "nsIDOMDocument.h"
 #include "nsEventListenerManager.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMWindow.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIWebNavigation.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIWebProgress.h"
-#include "nsCoreUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
-using namespace mozilla::dom;
 
 ////////////////////////////////////////////////////////////////////////////////
 // DocManager
 ////////////////////////////////////////////////////////////////////////////////
-
-DocManager::DocManager()
-  : mDocAccessibleCache(4)
-{
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // DocManager public
@@ -91,6 +87,8 @@ DocManager::IsProcessingRefreshDriverNotification() const
 bool
 DocManager::Init()
 {
+  mDocAccessibleCache.Init(4);
+
   nsCOMPtr<nsIWebProgress> progress =
     do_GetService(NS_DOCUMENTLOADER_SERVICE_CONTRACTID);
 
@@ -118,10 +116,10 @@ DocManager::Shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupports
 
-NS_IMPL_ISUPPORTS3(DocManager,
-                   nsIWebProgressListener,
-                   nsIDOMEventListener,
-                   nsISupportsWeakReference)
+NS_IMPL_THREADSAFE_ISUPPORTS3(DocManager,
+                              nsIWebProgressListener,
+                              nsIDOMEventListener,
+                              nsISupportsWeakReference)
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsIWebProgressListener
@@ -254,8 +252,10 @@ DocManager::HandleEvent(nsIDOMEvent* aEvent)
   nsAutoString type;
   aEvent->GetType(type);
 
-  nsCOMPtr<nsIDocument> document =
-    do_QueryInterface(aEvent->InternalDOMEvent()->GetTarget());
+  nsCOMPtr<nsIDOMEventTarget> target;
+  aEvent->GetTarget(getter_AddRefs(target));
+
+  nsCOMPtr<nsIDocument> document(do_QueryInterface(target));
   NS_ASSERTION(document, "pagehide or DOMContentLoaded for non document!");
   if (!document)
     return NS_OK;
@@ -327,9 +327,9 @@ void
 DocManager::AddListeners(nsIDocument* aDocument,
                          bool aAddDOMContentLoadedListener)
 {
-  nsPIDOMWindow* window = aDocument->GetWindow();
-  EventTarget* target = window->GetChromeEventHandler();
-  nsEventListenerManager* elm = target->GetOrCreateListenerManager();
+  nsPIDOMWindow *window = aDocument->GetWindow();
+  nsIDOMEventTarget *target = window->GetChromeEventHandler();
+  nsEventListenerManager* elm = target->GetListenerManager(true);
   elm->AddEventListenerByType(this, NS_LITERAL_STRING("pagehide"),
                               dom::TrustedEventsAtCapture());
 
@@ -355,11 +355,8 @@ DocManager::RemoveListeners(nsIDocument* aDocument)
   if (!window)
     return;
 
-  EventTarget* target = window->GetChromeEventHandler();
-  if (!target)
-    return;
-
-  nsEventListenerManager* elm = target->GetOrCreateListenerManager();
+  nsIDOMEventTarget* target = window->GetChromeEventHandler();
+  nsEventListenerManager* elm = target->GetListenerManager(true);
   elm->RemoveEventListenerByType(this, NS_LITERAL_STRING("pagehide"),
                                  dom::TrustedEventsAtCapture());
 

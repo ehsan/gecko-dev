@@ -68,7 +68,8 @@ function manifestUpdated()
     observe: function(subject, topic, data) {
       OfflineTest.is(topic, "offline-cache-update-unavailable", "No update avail (2)");
 
-      OfflineTest.teardownAndFinish();
+      OfflineTest.teardown();
+      OfflineTest.finish();
     }
   });
 }

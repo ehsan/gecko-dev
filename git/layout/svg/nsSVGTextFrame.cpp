@@ -10,7 +10,6 @@
 #include "nsGkAtoms.h"
 #include "mozilla/dom/SVGIRect.h"
 #include "nsISVGGlyphFragmentNode.h"
-#include "nsSVGEffects.h"
 #include "nsSVGGlyphFrame.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGTextPathFrame.h"
@@ -55,17 +54,15 @@ nsSVGTextFrame::AttributeChanged(int32_t         aNameSpaceID,
     return NS_OK;
 
   if (aAttribute == nsGkAtoms::transform) {
-    // We don't invalidate for transform changes (the layers code does that).
-    // Also note that SVGTransformableElement::GetAttributeChangeHint will
-    // return nsChangeHint_UpdateOverflow for "transform" attribute changes
-    // and cause DoApplyRenderingChangeToTree to make the SchedulePaint call.
+    nsSVGUtils::InvalidateBounds(this, false);
+    nsSVGUtils::ScheduleReflowSVG(this);
     NotifySVGChanged(TRANSFORM_CHANGED);
   } else if (aAttribute == nsGkAtoms::x ||
              aAttribute == nsGkAtoms::y ||
              aAttribute == nsGkAtoms::dx ||
              aAttribute == nsGkAtoms::dy ||
              aAttribute == nsGkAtoms::rotate) {
-    nsSVGEffects::InvalidateRenderingObservers(this);
+    nsSVGUtils::InvalidateBounds(this, false);
     nsSVGUtils::ScheduleReflowSVG(this);
     NotifyGlyphMetricsChange();
   }
@@ -203,24 +200,23 @@ nsSVGTextFrame::NotifySVGChanged(uint32_t aFlags)
 
 NS_IMETHODIMP
 nsSVGTextFrame::PaintSVG(nsRenderingContext* aContext,
-                         const nsIntRect *aDirtyRect,
-                         nsIFrame* aTransformRoot)
+                         const nsIntRect *aDirtyRect)
 {
   NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
-               (mState & NS_FRAME_IS_NONDISPLAY),
+               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
                "If display lists are enabled, only painting of non-display "
                "SVG should take this code path");
 
   UpdateGlyphPositioning(true);
   
-  return nsSVGTextFrameBase::PaintSVG(aContext, aDirtyRect, aTransformRoot);
+  return nsSVGTextFrameBase::PaintSVG(aContext, aDirtyRect);
 }
 
 NS_IMETHODIMP_(nsIFrame*)
 nsSVGTextFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   NS_ASSERTION(!NS_SVGDisplayListHitTestingEnabled() ||
-               (mState & NS_FRAME_IS_NONDISPLAY),
+               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
                "If display lists are enabled, only hit-testing of non-display "
                "SVG should take this code path");
 
@@ -235,18 +231,18 @@ nsSVGTextFrame::ReflowSVG()
   NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
                "This call is probably a wasteful mistake");
 
-  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_FRAME_IS_NONDISPLAY),
+  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
                     "ReflowSVG mechanism not designed for this");
 
   if (!nsSVGUtils::NeedsReflowSVG(this)) {
-    NS_ASSERTION(!(mState & NS_STATE_SVG_POSITIONING_DIRTY), "How did this happen?");
+    NS_ASSERTION(!mPositioningDirty, "How did this happen?");
     return;
   }
 
-  // UpdateGlyphPositioning may have been called under DOM calls and cleared
-  // NS_STATE_SVG_POSITIONING_DIRTY. We may now have better positioning, though, so
+  // UpdateGlyphPositioning may have been called under DOM calls and set
+  // mPositioningDirty to false. We may now have better positioning, though, so
   // set it to true so that UpdateGlyphPositioning will do its work.
-  AddStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
+  mPositioningDirty = true;
 
   UpdateGlyphPositioning(false);
 
@@ -269,23 +265,23 @@ nsSVGTextFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 // nsSVGContainerFrame methods:
 
 gfxMatrix
-nsSVGTextFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
+nsSVGTextFrame::GetCanvasTM(uint32_t aFor)
 {
-  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY) && !aTransformRoot) {
+  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
         (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
     }
   }
+
   if (!mCanvasTM) {
     NS_ASSERTION(mParent, "null parent");
 
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
     dom::SVGGraphicsElement *content = static_cast<dom::SVGGraphicsElement*>(mContent);
 
-    gfxMatrix tm = content->PrependLocalTransformsTo(
-        this == aTransformRoot ? gfxMatrix() :
-                                 parent->GetCanvasTM(aFor, aTransformRoot));
+    gfxMatrix tm =
+      content->PrependLocalTransformsTo(parent->GetCanvasTM(aFor));
 
     mCanvasTM = new gfxMatrix(tm);
   }
@@ -324,10 +320,10 @@ nsSVGTextFrame::NotifyGlyphMetricsChange()
   // as fully dirty to get ReflowSVG() called on them:
   MarkDirtyBitsOnDescendants(this);
 
-  nsSVGEffects::InvalidateRenderingObservers(this);
+  nsSVGUtils::InvalidateBounds(this, false);
   nsSVGUtils::ScheduleReflowSVG(this);
 
-  AddStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
+  mPositioningDirty = true;
 }
 
 void
@@ -375,10 +371,10 @@ nsSVGTextFrame::SetWhitespaceHandling(nsSVGGlyphFrame *aFrame)
 void
 nsSVGTextFrame::UpdateGlyphPositioning(bool aForceGlobalTransform)
 {
-  if (!(mState & NS_STATE_SVG_POSITIONING_DIRTY))
+  if (!mPositioningDirty)
     return;
 
-  RemoveStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
+  mPositioningDirty = false;
 
   nsISVGGlyphFragmentNode* node = GetFirstGlyphFragmentChildNode();
   if (!node)

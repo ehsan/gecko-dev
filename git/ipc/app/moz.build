@@ -6,16 +6,3 @@
 
 MODULE = 'ipc'
 
-PROGRAM = CONFIG['MOZ_CHILD_PROCESS_NAME']
-
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
-    SOURCES += [
-        'MozillaRuntimeMainAndroid.cpp',
-    ]
-    FINAL_TARGET = 'dist/bin/lib'
-else:
-    SOURCES += [
-        'MozillaRuntimeMain.cpp',
-    ]
-include('/ipc/chromium/chromium-config.mozbuild')
-

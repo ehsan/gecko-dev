@@ -9,8 +9,8 @@
  * We should endevour to keep the source in sync.
  */
 
-var promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {}).Promise;
-var template = Cu.import("resource://gre/modules/devtools/Templater.jsm", {}).template;
+var Promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {}).Promise;
+var template = Cu.import("resource:///modules/devtools/Templater.jsm", {}).template;
 
 const TEST_URI = "http://example.com/browser/browser/devtools/shared/test/browser_templater_basic.html";
 
@@ -280,7 +280,7 @@ var tests = [
 ];
 
 function delayReply(data) {
-  var d = promise.defer();
+  var d = Promise.defer();
   executeSoon(function() {
     d.resolve(data);
   });

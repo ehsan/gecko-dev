@@ -16,8 +16,6 @@
   <head>
     <title>&aboutSupport.pageTitle;</title>
 
-    <link rel="icon" type="image/png" id="favicon"
-          href="chrome://branding/content/icon32.png"/>
     <link rel="stylesheet" href="chrome://global/skin/aboutSupport.css"
           type="text/css"/>
 
@@ -32,7 +30,7 @@
     <div id="reset-box" style="visibility: hidden">
       <h3>&resetProfile.title;</h3>
       <p>&resetProfile.description;</p>
-      <button onclick="ResetProfile.openConfirmationDialog(window)">
+      <button onclick="resetProfileAndRestart()">
         &resetProfile.button.label2;
       </button>
     </div>
@@ -83,20 +81,6 @@
             </td>
           </tr>
 
-#ifndef ANDROID
-          <tr class="no-copy">
-            <th class="column">
-              &aboutSupport.appBasicsUpdateHistory;
-            </th>
-
-            <td>
-              <button onclick="showUpdateHistory()">
-                &aboutSupport.appBasicsShowUpdateHistory;
-              </button>
-            </td>
-          </tr>
-#endif
-
           <tr>
             <th class="column">
               &aboutSupport.appBasicsUserAgent;
@@ -144,13 +128,23 @@
             </td>
           </tr>
 
-          <tr class="no-copy">
+          <tr>
             <th class="column">
               &aboutSupport.appBasicsBuildConfig;
             </th>
 
             <td>
               <a href="about:buildconfig">about:buildconfig</a>
+            </td>
+          </tr>
+
+          <tr class="no-copy">
+            <th class="column">
+              &aboutSupport.appBasicsCrashIDs;
+            </th>
+
+            <td>
+              <a href="about:crashes">about:crashes</a>
             </td>
           </tr>
 
@@ -167,33 +161,6 @@
         </tbody>
       </table>
 
-      <!-- - - - - - - - - - - - - - - - - - - - - -->
-#ifdef MOZ_CRASHREPORTER
-
-      <h2 class="major-section" id="crashes-title">
-        &aboutSupport.crashes.title;
-      </h2>
-
-      <table id="crashes-table">
-        <thead>
-          <tr>
-            <th>
-              &aboutSupport.crashes.id;
-            </th>
-            <th>
-              &aboutSupport.crashes.sendDate;
-            </th>
-          </tr>
-        </thead>
-        <tbody id="crashes-tbody">
-        </tbody>
-      </table>
-      <p id="crashes-allReports" class="no-copy" style="display: none">
-        <a href="about:crashes" id="crashes-allReportsWithPending" style="display: block">&aboutSupport.crashes.allReports;</a>
-      </p>
-      <p id="crashes-noConfig" class="no-copy" style="display: none">&aboutSupport.crashes.noConfig;</p>
-
-#endif
       <!-- - - - - - - - - - - - - - - - - - - - - -->
 
       <h2 class="major-section">
@@ -228,7 +195,7 @@
       </h2>
 
       <table class="prefs-table">
-        <thead class="no-copy">
+        <thead>
           <th class="name">
             &aboutSupport.modifiedPrefsName;
           </th>

@@ -10,13 +10,17 @@
 #include "prprf.h"
 
 #include "nsDirIndexParser.h"
+#include "nsReadableUtils.h"
+#include "nsDirIndex.h"
 #include "nsEscape.h"
+#include "nsIServiceManager.h"
 #include "nsIInputStream.h"
+#include "nsIChannel.h"
+#include "nsIURI.h"
 #include "nsCRT.h"
-#include "mozilla/dom/FallbackEncoding.h"
-#include "nsITextToSubURI.h"
-#include "nsIDirIndex.h"
-#include "nsServiceManagerUtils.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefLocalizedString.h"
 
 using namespace mozilla;
 
@@ -33,7 +37,24 @@ nsDirIndexParser::Init() {
   mLineStart = 0;
   mHasDescription = false;
   mFormat = nullptr;
-  mozilla::dom::FallbackEncoding::FromLocale(mEncoding);
+
+  // get default charset to be used for directory listings (fallback to
+  // ISO-8859-1 if pref is unavailable).
+  NS_NAMED_LITERAL_CSTRING(kFallbackEncoding, "ISO-8859-1");
+  nsXPIDLString defCharset;
+  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (prefs) {
+    nsCOMPtr<nsIPrefLocalizedString> prefVal;
+    prefs->GetComplexValue("intl.charset.default",
+                           NS_GET_IID(nsIPrefLocalizedString),
+                           getter_AddRefs(prefVal));
+    if (prefVal)
+      prefVal->ToString(getter_Copies(defCharset));
+  }
+  if (!defCharset.IsEmpty())
+    LossyCopyUTF16toASCII(defCharset, mEncoding); // charset labels are always ASCII
+  else
+    mEncoding.Assign(kFallbackEncoding);
  
   nsresult rv;
   // XXX not threadsafe
@@ -150,7 +171,7 @@ nsDirIndexParser::ParseFormat(const char* aFormatStr) {
 
   delete[] mFormat;
   mFormat = new int[num+1];
-  // Prevent nullptr Deref - Bug 443299 
+  // Prevent NULL Deref - Bug 443299 
   if (mFormat == nullptr)
     return NS_ERROR_OUT_OF_MEMORY;
   mFormat[num] = -1;
@@ -333,7 +354,7 @@ nsDirIndexParser::OnDataAvailable(nsIRequest *aRequest, nsISupports *aCtxt,
   
   // Ensure that our mBuf has capacity to hold the data we're about to
   // read.
-  if (!mBuf.SetLength(len + aCount, fallible_t()))
+  if (!EnsureStringLength(mBuf, len + aCount))
     return NS_ERROR_OUT_OF_MEMORY;
 
   // Now read the data into our buffer.

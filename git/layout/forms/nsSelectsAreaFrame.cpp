@@ -3,6 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "nsSelectsAreaFrame.h"
+#include "nsCOMPtr.h"
+#include "nsIDOMHTMLOptionElement.h"
 #include "nsIContent.h"
 #include "nsListControlFrame.h"
 #include "nsDisplayList.h"
@@ -12,9 +14,11 @@ NS_NewSelectsAreaFrame(nsIPresShell* aShell, nsStyleContext* aContext, uint32_t 
 {
   nsSelectsAreaFrame* it = new (aShell) nsSelectsAreaFrame(aContext);
 
-  // We need NS_BLOCK_FLOAT_MGR to ensure that the options inside the select
-  // aren't expanded by right floats outside the select.
-  it->SetFlags(aFlags | NS_BLOCK_FLOAT_MGR);
+  if (it) {
+    // We need NS_BLOCK_FLOAT_MGR to ensure that the options inside the select
+    // aren't expanded by right floats outside the select.
+    it->SetFlags(aFlags | NS_BLOCK_FLOAT_MGR);
+  }
 
   return it;
 }
@@ -72,7 +76,7 @@ public:
   }
   virtual nsDisplayItem* WrapItem(nsDisplayListBuilder* aBuilder,
                                   nsDisplayItem* aItem) {
-    return new (aBuilder) nsDisplayOptionEventGrabber(aBuilder, aItem->Frame(), aItem);
+    return new (aBuilder) nsDisplayOptionEventGrabber(aBuilder, aItem->GetUnderlyingFrame(), aItem);
   }
 };
 
@@ -104,13 +108,13 @@ public:
     *aSnap = false;
     // override bounds because the list item focus ring may extend outside
     // the nsSelectsAreaFrame
-    nsListControlFrame* listFrame = GetEnclosingListFrame(Frame());
+    nsListControlFrame* listFrame = GetEnclosingListFrame(GetUnderlyingFrame());
     return listFrame->GetVisualOverflowRectRelativeToSelf() +
            listFrame->GetOffsetToCrossDoc(ReferenceFrame());
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx) {
-    nsListControlFrame* listFrame = GetEnclosingListFrame(Frame());
+    nsListControlFrame* listFrame = GetEnclosingListFrame(GetUnderlyingFrame());
     // listFrame must be non-null or we wouldn't get called.
     listFrame->PaintFocus(*aCtx, aBuilder->ToReferenceFrame(listFrame));
   }

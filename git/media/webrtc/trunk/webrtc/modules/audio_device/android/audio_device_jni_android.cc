@@ -18,21 +18,20 @@
 #include <android/log.h>
 #include <stdlib.h>
 
-#include "webrtc/modules/audio_device/android/audio_device_jni_android.h"
-#include "webrtc/modules/audio_device/audio_device_config.h"
-#include "webrtc/modules/audio_device/audio_device_utility.h"
+#include "audio_device_utility.h"
+#include "audio_device_jni_android.h"
+#include "audio_device_config.h"
 
-#include "webrtc/system_wrappers/interface/event_wrapper.h"
-#include "webrtc/system_wrappers/interface/thread_wrapper.h"
-#include "webrtc/system_wrappers/interface/trace.h"
-
-#include "AndroidJNIWrapper.h"
+#include "trace.h"
+#include "thread_wrapper.h"
+#include "event_wrapper.h"
 
 namespace webrtc
 {
 // TODO(leozwang): Refactor jni and the following global variables, a
 // good example is jni_helper in Chromium.
 JavaVM* AudioDeviceAndroidJni::globalJvm = NULL;
+JNIEnv* AudioDeviceAndroidJni::globalJNIEnv = NULL;
 jobject AudioDeviceAndroidJni::globalContext = NULL;
 jclass AudioDeviceAndroidJni::globalScClass = NULL;
 
@@ -44,64 +43,64 @@ jclass AudioDeviceAndroidJni::globalScClass = NULL;
 //  by the same Java application.
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetAndroidAudioDeviceObjects(
+WebRtc_Word32 AudioDeviceAndroidJni::SetAndroidAudioDeviceObjects(
     void* javaVM,
+    void* env,
     void* context) {
-  return SetAndroidAudioDeviceObjects(javaVM, NULL, context);
-}
-
-int32_t AudioDeviceAndroidJni::SetAndroidAudioDeviceObjects(
-    void* javaVM,
-    void* null_env,
-    void* context) {
-  WEBRTC_TRACE(kTraceMemory, kTraceAudioDevice, -1,
-               "%s called", __FUNCTION__);
+  __android_log_print(ANDROID_LOG_DEBUG, "WEBRTC", "JNI:%s", __FUNCTION__);
 
   // TODO(leozwang): Make this function thread-safe.
   globalJvm = reinterpret_cast<JavaVM*>(javaVM);
 
-  JNIEnv* env = NULL;
-
-  // Check if we already got a reference
-  if (globalJvm && !globalScClass) {
-      if (globalJvm->GetEnv((void**)&env, JNI_VERSION_1_4) != JNI_OK) {
-      WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceAudioDevice, -1,
-                   "%s: could not get Java environment", __FUNCTION__);
-      return -1;
-    }
-    globalJvm->AttachCurrentThread(&env, NULL);
-
+  if (env) {
+    globalJNIEnv = reinterpret_cast<JNIEnv*>(env);
     // Get java class type (note path to class packet).
-    globalScClass = jsjni_GetGlobalClassRef(AudioCaptureClass);
-    if (!globalScClass) {
+    jclass javaScClassLocal = globalJNIEnv->FindClass(
+        "org/webrtc/voiceengine/WebRTCAudioDevice");
+    if (!javaScClassLocal) {
       WEBRTC_TRACE(kTraceError, kTraceAudioDevice, -1,
                    "%s: could not find java class", __FUNCTION__);
       return -1; // exception thrown
     }
 
-    globalContext = env->NewGlobalRef(
+    // Create a global reference to the class (to tell JNI that we are
+    // referencing it after this function has returned).
+    globalScClass = reinterpret_cast<jclass> (
+        globalJNIEnv->NewGlobalRef(javaScClassLocal));
+    if (!globalScClass) {
+      WEBRTC_TRACE(kTraceError, kTraceAudioDevice, -1,
+                   "%s: could not create reference", __FUNCTION__);
+      return -1;
+    }
+
+    globalContext = globalJNIEnv->NewGlobalRef(
         reinterpret_cast<jobject>(context));
     if (!globalContext) {
       WEBRTC_TRACE(kTraceError, kTraceAudioDevice, -1,
                    "%s: could not create context reference", __FUNCTION__);
       return -1;
     }
+
+    // Delete local class ref, we only use the global ref
+    globalJNIEnv->DeleteLocalRef(javaScClassLocal);
   }
   else { // User is resetting the env variable
     WEBRTC_TRACE(kTraceStateInfo, kTraceAudioDevice, -1,
                  "%s: env is NULL, assuming deinit", __FUNCTION__);
 
-    if (!env) {
+    if (!globalJNIEnv) {
       WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, -1,
                    "%s: saved env already NULL", __FUNCTION__);
       return 0;
     }
 
-    env->DeleteGlobalRef(globalScClass);
+    globalJNIEnv->DeleteGlobalRef(globalScClass);
     globalScClass = reinterpret_cast<jclass>(NULL);
 
-    env->DeleteGlobalRef(globalContext);
+    globalJNIEnv->DeleteGlobalRef(globalContext);
     globalContext = reinterpret_cast<jobject>(NULL);
+
+    globalJNIEnv = reinterpret_cast<JNIEnv*>(NULL);
   }
 
   return 0;
@@ -115,7 +114,7 @@ int32_t AudioDeviceAndroidJni::SetAndroidAudioDeviceObjects(
 //  AudioDeviceAndroidJni - ctor
 // ----------------------------------------------------------------------------
 
-AudioDeviceAndroidJni::AudioDeviceAndroidJni(const int32_t id) :
+AudioDeviceAndroidJni::AudioDeviceAndroidJni(const WebRtc_Word32 id) :
             _ptrAudioBuffer(NULL),
             _critSect(*CriticalSectionWrapper::CreateCriticalSection()),
             _id(id),
@@ -136,13 +135,13 @@ AudioDeviceAndroidJni::AudioDeviceAndroidJni(const int32_t id) :
             _playoutDeviceIsSpecified(false), _initialized(false),
             _recording(false), _playing(false), _recIsInitialized(false),
             _playIsInitialized(false), _micIsInitialized(false),
-            _speakerIsInitialized(false), _startRec(false),
-            _startPlay(false), _playWarning(0),
+            _speakerIsInitialized(false), _startRec(false), _stopRec(false),
+            _startPlay(false), _stopPlay(false), _playWarning(0),
             _playError(0), _recWarning(0), _recError(0), _delayPlayout(0),
             _delayRecording(0),
             _AGC(false),
-            _samplingFreqIn((N_REC_SAMPLES_PER_SEC)),
-            _samplingFreqOut((N_PLAY_SAMPLES_PER_SEC)),
+            _samplingFreqIn((N_REC_SAMPLES_PER_SEC/1000)),
+            _samplingFreqOut((N_PLAY_SAMPLES_PER_SEC/1000)),
             _maxSpeakerVolume(0),
             _loudSpeakerOn(false),
             _recAudioSource(1), // 1 is AudioSource.MIC which is our default
@@ -202,7 +201,7 @@ void AudioDeviceAndroidJni::AttachAudioBuffer(AudioDeviceBuffer* audioBuffer)
 //  ActiveAudioLayer
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::ActiveAudioLayer(
+WebRtc_Word32 AudioDeviceAndroidJni::ActiveAudioLayer(
         AudioDeviceModule::AudioLayer& audioLayer) const
 {
 
@@ -215,7 +214,7 @@ int32_t AudioDeviceAndroidJni::ActiveAudioLayer(
 //  Init
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::Init()
+WebRtc_Word32 AudioDeviceAndroidJni::Init()
 {
 
     CriticalSectionScoped lock(&_critSect);
@@ -302,7 +301,7 @@ int32_t AudioDeviceAndroidJni::Init()
 //  Terminate
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::Terminate()
+WebRtc_Word32 AudioDeviceAndroidJni::Terminate()
 {
 
     CriticalSectionScoped lock(&_critSect);
@@ -473,7 +472,7 @@ bool AudioDeviceAndroidJni::Initialized() const
 //  SpeakerIsAvailable
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SpeakerIsAvailable(bool& available)
+WebRtc_Word32 AudioDeviceAndroidJni::SpeakerIsAvailable(bool& available)
 {
 
     // We always assume it's available
@@ -486,7 +485,7 @@ int32_t AudioDeviceAndroidJni::SpeakerIsAvailable(bool& available)
 //  InitSpeaker
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::InitSpeaker()
+WebRtc_Word32 AudioDeviceAndroidJni::InitSpeaker()
 {
 
     CriticalSectionScoped lock(&_critSect);
@@ -516,7 +515,7 @@ int32_t AudioDeviceAndroidJni::InitSpeaker()
 //  MicrophoneIsAvailable
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::MicrophoneIsAvailable(bool& available)
+WebRtc_Word32 AudioDeviceAndroidJni::MicrophoneIsAvailable(bool& available)
 {
 
     // We always assume it's available
@@ -529,7 +528,7 @@ int32_t AudioDeviceAndroidJni::MicrophoneIsAvailable(bool& available)
 //  InitMicrophone
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::InitMicrophone()
+WebRtc_Word32 AudioDeviceAndroidJni::InitMicrophone()
 {
 
     CriticalSectionScoped lock(&_critSect);
@@ -579,7 +578,7 @@ bool AudioDeviceAndroidJni::MicrophoneIsInitialized() const
 //  SpeakerVolumeIsAvailable
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SpeakerVolumeIsAvailable(bool& available)
+WebRtc_Word32 AudioDeviceAndroidJni::SpeakerVolumeIsAvailable(bool& available)
 {
 
     available = true; // We assume we are always be able to set/get volume
@@ -591,7 +590,7 @@ int32_t AudioDeviceAndroidJni::SpeakerVolumeIsAvailable(bool& available)
 //  SetSpeakerVolume
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetSpeakerVolume(uint32_t volume)
+WebRtc_Word32 AudioDeviceAndroidJni::SetSpeakerVolume(WebRtc_UWord32 volume)
 {
 
     if (!_speakerIsInitialized)
@@ -656,7 +655,7 @@ int32_t AudioDeviceAndroidJni::SetSpeakerVolume(uint32_t volume)
 //  SpeakerVolume
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SpeakerVolume(uint32_t& volume) const
+WebRtc_Word32 AudioDeviceAndroidJni::SpeakerVolume(WebRtc_UWord32& volume) const
 {
 
     if (!_speakerIsInitialized)
@@ -713,7 +712,7 @@ int32_t AudioDeviceAndroidJni::SpeakerVolume(uint32_t& volume) const
         }
     }
 
-    volume = static_cast<uint32_t> (level);
+    volume = static_cast<WebRtc_UWord32> (level);
 
     return 0;
 }
@@ -722,9 +721,9 @@ int32_t AudioDeviceAndroidJni::SpeakerVolume(uint32_t& volume) const
 //  SetWaveOutVolume
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetWaveOutVolume(
-    uint16_t /*volumeLeft*/,
-    uint16_t /*volumeRight*/)
+WebRtc_Word32 AudioDeviceAndroidJni::SetWaveOutVolume(
+    WebRtc_UWord16 /*volumeLeft*/,
+    WebRtc_UWord16 /*volumeRight*/)
 {
 
     WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
@@ -736,9 +735,9 @@ int32_t AudioDeviceAndroidJni::SetWaveOutVolume(
 //  WaveOutVolume
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::WaveOutVolume(
-    uint16_t& /*volumeLeft*/,
-    uint16_t& /*volumeRight*/) const
+WebRtc_Word32 AudioDeviceAndroidJni::WaveOutVolume(
+    WebRtc_UWord16& /*volumeLeft*/,
+    WebRtc_UWord16& /*volumeRight*/) const
 {
 
     WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
@@ -750,8 +749,8 @@ int32_t AudioDeviceAndroidJni::WaveOutVolume(
 //  MaxSpeakerVolume
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::MaxSpeakerVolume(
-        uint32_t& maxVolume) const
+WebRtc_Word32 AudioDeviceAndroidJni::MaxSpeakerVolume(
+        WebRtc_UWord32& maxVolume) const
 {
 
     if (!_speakerIsInitialized)
@@ -770,8 +769,8 @@ int32_t AudioDeviceAndroidJni::MaxSpeakerVolume(
 //  MinSpeakerVolume
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::MinSpeakerVolume(
-        uint32_t& minVolume) const
+WebRtc_Word32 AudioDeviceAndroidJni::MinSpeakerVolume(
+        WebRtc_UWord32& minVolume) const
 {
 
     if (!_speakerIsInitialized)
@@ -790,8 +789,8 @@ int32_t AudioDeviceAndroidJni::MinSpeakerVolume(
 //  SpeakerVolumeStepSize
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SpeakerVolumeStepSize(
-        uint16_t& stepSize) const
+WebRtc_Word32 AudioDeviceAndroidJni::SpeakerVolumeStepSize(
+        WebRtc_UWord16& stepSize) const
 {
 
     if (!_speakerIsInitialized)
@@ -810,7 +809,7 @@ int32_t AudioDeviceAndroidJni::SpeakerVolumeStepSize(
 //  SpeakerMuteIsAvailable
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SpeakerMuteIsAvailable(bool& available)
+WebRtc_Word32 AudioDeviceAndroidJni::SpeakerMuteIsAvailable(bool& available)
 {
 
     available = false; // Speaker mute not supported on Android
@@ -822,7 +821,7 @@ int32_t AudioDeviceAndroidJni::SpeakerMuteIsAvailable(bool& available)
 //  SetSpeakerMute
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetSpeakerMute(bool /*enable*/)
+WebRtc_Word32 AudioDeviceAndroidJni::SetSpeakerMute(bool /*enable*/)
 {
 
     WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
@@ -834,7 +833,7 @@ int32_t AudioDeviceAndroidJni::SetSpeakerMute(bool /*enable*/)
 //  SpeakerMute
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SpeakerMute(bool& /*enabled*/) const
+WebRtc_Word32 AudioDeviceAndroidJni::SpeakerMute(bool& /*enabled*/) const
 {
 
     WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
@@ -846,7 +845,7 @@ int32_t AudioDeviceAndroidJni::SpeakerMute(bool& /*enabled*/) const
 //  MicrophoneMuteIsAvailable
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::MicrophoneMuteIsAvailable(bool& available)
+WebRtc_Word32 AudioDeviceAndroidJni::MicrophoneMuteIsAvailable(bool& available)
 {
 
     available = false; // Mic mute not supported on Android
@@ -858,7 +857,7 @@ int32_t AudioDeviceAndroidJni::MicrophoneMuteIsAvailable(bool& available)
 //  SetMicrophoneMute
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetMicrophoneMute(bool /*enable*/)
+WebRtc_Word32 AudioDeviceAndroidJni::SetMicrophoneMute(bool /*enable*/)
 {
 
     WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
@@ -870,7 +869,7 @@ int32_t AudioDeviceAndroidJni::SetMicrophoneMute(bool /*enable*/)
 //  MicrophoneMute
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::MicrophoneMute(bool& /*enabled*/) const
+WebRtc_Word32 AudioDeviceAndroidJni::MicrophoneMute(bool& /*enabled*/) const
 {
 
     WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
@@ -882,7 +881,7 @@ int32_t AudioDeviceAndroidJni::MicrophoneMute(bool& /*enabled*/) const
 //  MicrophoneBoostIsAvailable
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::MicrophoneBoostIsAvailable(bool& available)
+WebRtc_Word32 AudioDeviceAndroidJni::MicrophoneBoostIsAvailable(bool& available)
 {
 
     available = false; // Mic boost not supported on Android
@@ -894,7 +893,7 @@ int32_t AudioDeviceAndroidJni::MicrophoneBoostIsAvailable(bool& available)
 //  SetMicrophoneBoost
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetMicrophoneBoost(bool enable)
+WebRtc_Word32 AudioDeviceAndroidJni::SetMicrophoneBoost(bool enable)
 {
 
     if (!_micIsInitialized)
@@ -918,7 +917,7 @@ int32_t AudioDeviceAndroidJni::SetMicrophoneBoost(bool enable)
 //  MicrophoneBoost
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::MicrophoneBoost(bool& enabled) const
+WebRtc_Word32 AudioDeviceAndroidJni::MicrophoneBoost(bool& enabled) const
 {
 
     if (!_micIsInitialized)
@@ -937,7 +936,7 @@ int32_t AudioDeviceAndroidJni::MicrophoneBoost(bool& enabled) const
 //  StereoRecordingIsAvailable
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::StereoRecordingIsAvailable(bool& available)
+WebRtc_Word32 AudioDeviceAndroidJni::StereoRecordingIsAvailable(bool& available)
 {
 
     available = false; // Stereo recording not supported on Android
@@ -951,7 +950,7 @@ int32_t AudioDeviceAndroidJni::StereoRecordingIsAvailable(bool& available)
 //  Specifies the number of input channels.
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetStereoRecording(bool enable)
+WebRtc_Word32 AudioDeviceAndroidJni::SetStereoRecording(bool enable)
 {
 
     if (enable)
@@ -968,7 +967,7 @@ int32_t AudioDeviceAndroidJni::SetStereoRecording(bool enable)
 //  StereoRecording
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::StereoRecording(bool& enabled) const
+WebRtc_Word32 AudioDeviceAndroidJni::StereoRecording(bool& enabled) const
 {
 
     enabled = false;
@@ -980,7 +979,7 @@ int32_t AudioDeviceAndroidJni::StereoRecording(bool& enabled) const
 //  StereoPlayoutIsAvailable
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::StereoPlayoutIsAvailable(bool& available)
+WebRtc_Word32 AudioDeviceAndroidJni::StereoPlayoutIsAvailable(bool& available)
 {
 
     available = false; // Stereo playout not supported on Android
@@ -992,7 +991,7 @@ int32_t AudioDeviceAndroidJni::StereoPlayoutIsAvailable(bool& available)
 //  SetStereoPlayout
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetStereoPlayout(bool enable)
+WebRtc_Word32 AudioDeviceAndroidJni::SetStereoPlayout(bool enable)
 {
 
     if (enable)
@@ -1009,7 +1008,7 @@ int32_t AudioDeviceAndroidJni::SetStereoPlayout(bool enable)
 //  StereoPlayout
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::StereoPlayout(bool& enabled) const
+WebRtc_Word32 AudioDeviceAndroidJni::StereoPlayout(bool& enabled) const
 {
 
     enabled = false;
@@ -1021,7 +1020,7 @@ int32_t AudioDeviceAndroidJni::StereoPlayout(bool& enabled) const
 //  SetAGC
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetAGC(bool enable)
+WebRtc_Word32 AudioDeviceAndroidJni::SetAGC(bool enable)
 {
 
     _AGC = enable;
@@ -1043,7 +1042,7 @@ bool AudioDeviceAndroidJni::AGC() const
 //  MicrophoneVolumeIsAvailable
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::MicrophoneVolumeIsAvailable(
+WebRtc_Word32 AudioDeviceAndroidJni::MicrophoneVolumeIsAvailable(
         bool& available)
 {
 
@@ -1056,8 +1055,8 @@ int32_t AudioDeviceAndroidJni::MicrophoneVolumeIsAvailable(
 //  SetMicrophoneVolume
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetMicrophoneVolume(
-        uint32_t /*volume*/)
+WebRtc_Word32 AudioDeviceAndroidJni::SetMicrophoneVolume(
+        WebRtc_UWord32 /*volume*/)
 {
 
     WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
@@ -1069,8 +1068,8 @@ int32_t AudioDeviceAndroidJni::SetMicrophoneVolume(
 //  MicrophoneVolume
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::MicrophoneVolume(
-        uint32_t& /*volume*/) const
+WebRtc_Word32 AudioDeviceAndroidJni::MicrophoneVolume(
+        WebRtc_UWord32& /*volume*/) const
 {
 
     WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
@@ -1082,8 +1081,8 @@ int32_t AudioDeviceAndroidJni::MicrophoneVolume(
 //  MaxMicrophoneVolume
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::MaxMicrophoneVolume(
-        uint32_t& /*maxVolume*/) const
+WebRtc_Word32 AudioDeviceAndroidJni::MaxMicrophoneVolume(
+        WebRtc_UWord32& /*maxVolume*/) const
 {
 
     WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
@@ -1095,8 +1094,8 @@ int32_t AudioDeviceAndroidJni::MaxMicrophoneVolume(
 //  MinMicrophoneVolume
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::MinMicrophoneVolume(
-        uint32_t& /*minVolume*/) const
+WebRtc_Word32 AudioDeviceAndroidJni::MinMicrophoneVolume(
+        WebRtc_UWord32& /*minVolume*/) const
 {
 
     WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
@@ -1108,8 +1107,8 @@ int32_t AudioDeviceAndroidJni::MinMicrophoneVolume(
 //  MicrophoneVolumeStepSize
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::MicrophoneVolumeStepSize(
-        uint16_t& /*stepSize*/) const
+WebRtc_Word32 AudioDeviceAndroidJni::MicrophoneVolumeStepSize(
+        WebRtc_UWord16& /*stepSize*/) const
 {
 
     WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
@@ -1121,7 +1120,7 @@ int32_t AudioDeviceAndroidJni::MicrophoneVolumeStepSize(
 //  PlayoutDevices
 // ----------------------------------------------------------------------------
 
-int16_t AudioDeviceAndroidJni::PlayoutDevices()
+WebRtc_Word16 AudioDeviceAndroidJni::PlayoutDevices()
 {
 
     // There is one device only
@@ -1132,7 +1131,7 @@ int16_t AudioDeviceAndroidJni::PlayoutDevices()
 //  SetPlayoutDevice I (II)
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetPlayoutDevice(uint16_t index)
+WebRtc_Word32 AudioDeviceAndroidJni::SetPlayoutDevice(WebRtc_UWord16 index)
 {
 
     if (_playIsInitialized)
@@ -1160,7 +1159,7 @@ int32_t AudioDeviceAndroidJni::SetPlayoutDevice(uint16_t index)
 //  SetPlayoutDevice II (II)
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetPlayoutDevice(
+WebRtc_Word32 AudioDeviceAndroidJni::SetPlayoutDevice(
         AudioDeviceModule::WindowsDeviceType /*device*/)
 {
 
@@ -1173,8 +1172,8 @@ int32_t AudioDeviceAndroidJni::SetPlayoutDevice(
 //  PlayoutDeviceName
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::PlayoutDeviceName(
-        uint16_t index,
+WebRtc_Word32 AudioDeviceAndroidJni::PlayoutDeviceName(
+        WebRtc_UWord16 index,
         char name[kAdmMaxDeviceNameSize],
         char guid[kAdmMaxGuidSize])
 {
@@ -1201,8 +1200,8 @@ int32_t AudioDeviceAndroidJni::PlayoutDeviceName(
 //  RecordingDeviceName
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::RecordingDeviceName(
-        uint16_t index,
+WebRtc_Word32 AudioDeviceAndroidJni::RecordingDeviceName(
+        WebRtc_UWord16 index,
         char name[kAdmMaxDeviceNameSize],
         char guid[kAdmMaxGuidSize])
 {
@@ -1229,7 +1228,7 @@ int32_t AudioDeviceAndroidJni::RecordingDeviceName(
 //  RecordingDevices
 // ----------------------------------------------------------------------------
 
-int16_t AudioDeviceAndroidJni::RecordingDevices()
+WebRtc_Word16 AudioDeviceAndroidJni::RecordingDevices()
 {
 
     // There is one device only
@@ -1240,7 +1239,7 @@ int16_t AudioDeviceAndroidJni::RecordingDevices()
 //  SetRecordingDevice I (II)
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetRecordingDevice(uint16_t index)
+WebRtc_Word32 AudioDeviceAndroidJni::SetRecordingDevice(WebRtc_UWord16 index)
 {
 
     if (_recIsInitialized)
@@ -1262,7 +1261,7 @@ int32_t AudioDeviceAndroidJni::SetRecordingDevice(uint16_t index)
 //  SetRecordingDevice II (II)
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetRecordingDevice(
+WebRtc_Word32 AudioDeviceAndroidJni::SetRecordingDevice(
         AudioDeviceModule::WindowsDeviceType /*device*/)
 {
 
@@ -1275,13 +1274,13 @@ int32_t AudioDeviceAndroidJni::SetRecordingDevice(
 //  PlayoutIsAvailable
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::PlayoutIsAvailable(bool& available)
+WebRtc_Word32 AudioDeviceAndroidJni::PlayoutIsAvailable(bool& available)
 {
 
     available = false;
 
     // Try to initialize the playout side
-    int32_t res = InitPlayout();
+    WebRtc_Word32 res = InitPlayout();
 
     // Cancel effect of initialization
     StopPlayout();
@@ -1298,13 +1297,13 @@ int32_t AudioDeviceAndroidJni::PlayoutIsAvailable(bool& available)
 //  RecordingIsAvailable
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::RecordingIsAvailable(bool& available)
+WebRtc_Word32 AudioDeviceAndroidJni::RecordingIsAvailable(bool& available)
 {
 
     available = false;
 
     // Try to initialize the playout side
-    int32_t res = InitRecording();
+    WebRtc_Word32 res = InitRecording();
 
     // Cancel effect of initialization
     StopRecording();
@@ -1321,7 +1320,7 @@ int32_t AudioDeviceAndroidJni::RecordingIsAvailable(bool& available)
 //  InitPlayout
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::InitPlayout()
+WebRtc_Word32 AudioDeviceAndroidJni::InitPlayout()
 {
 
     CriticalSectionScoped lock(&_critSect);
@@ -1386,10 +1385,17 @@ int32_t AudioDeviceAndroidJni::InitPlayout()
     // get the method ID
     jmethodID initPlaybackID = env->GetMethodID(_javaScClass, "InitPlayback",
                                                 "(I)I");
+
+    int samplingFreq = 44100;
+    if (_samplingFreqOut != 44)
+    {
+        samplingFreq = _samplingFreqOut * 1000;
+    }
+
     int retVal = -1;
 
     // Call java sc object method
-    jint res = env->CallIntMethod(_javaScObj, initPlaybackID, _samplingFreqOut);
+    jint res = env->CallIntMethod(_javaScObj, initPlaybackID, samplingFreq);
     if (res < 0)
     {
         WEBRTC_TRACE(kTraceError, kTraceAudioDevice, _id,
@@ -1398,7 +1404,7 @@ int32_t AudioDeviceAndroidJni::InitPlayout()
     else
     {
         // Set the audio device buffer sampling rate
-        _ptrAudioBuffer->SetPlayoutSampleRate(_samplingFreqOut);
+        _ptrAudioBuffer->SetPlayoutSampleRate(_samplingFreqOut * 1000);
         _playIsInitialized = true;
         retVal = 0;
     }
@@ -1422,7 +1428,7 @@ int32_t AudioDeviceAndroidJni::InitPlayout()
 //  InitRecording
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::InitRecording()
+WebRtc_Word32 AudioDeviceAndroidJni::InitRecording()
 {
 
     CriticalSectionScoped lock(&_critSect);
@@ -1484,11 +1490,18 @@ int32_t AudioDeviceAndroidJni::InitRecording()
     // get the method ID
     jmethodID initRecordingID = env->GetMethodID(_javaScClass, "InitRecording",
                                                  "(II)I");
+
+    int samplingFreq = 44100;
+    if (_samplingFreqIn != 44)
+    {
+        samplingFreq = _samplingFreqIn * 1000;
+    }
+
     int retVal = -1;
 
     // call java sc object method
     jint res = env->CallIntMethod(_javaScObj, initRecordingID, _recAudioSource,
-                                  _samplingFreqIn);
+                                  samplingFreq);
     if (res < 0)
     {
         WEBRTC_TRACE(kTraceError, kTraceAudioDevice, _id,
@@ -1497,10 +1510,10 @@ int32_t AudioDeviceAndroidJni::InitRecording()
     else
     {
         // Set the audio device buffer sampling rate
-        _ptrAudioBuffer->SetRecordingSampleRate(_samplingFreqIn);
+        _ptrAudioBuffer->SetRecordingSampleRate(_samplingFreqIn * 1000);
 
         // the init rec function returns a fixed delay
-        _delayRecording = (res * 1000) / _samplingFreqIn;
+        _delayRecording = res / _samplingFreqIn;
 
         _recIsInitialized = true;
         retVal = 0;
@@ -1523,7 +1536,7 @@ int32_t AudioDeviceAndroidJni::InitRecording()
 //  StartRecording
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::StartRecording()
+WebRtc_Word32 AudioDeviceAndroidJni::StartRecording()
 {
 
     CriticalSectionScoped lock(&_critSect);
@@ -1607,7 +1620,7 @@ int32_t AudioDeviceAndroidJni::StartRecording()
 //  StopRecording
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::StopRecording()
+WebRtc_Word32 AudioDeviceAndroidJni::StopRecording()
 
 {
 
@@ -1707,7 +1720,7 @@ bool AudioDeviceAndroidJni::PlayoutIsInitialized() const
 //  StartPlayout
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::StartPlayout()
+WebRtc_Word32 AudioDeviceAndroidJni::StartPlayout()
 {
 
     CriticalSectionScoped lock(&_critSect);
@@ -1791,7 +1804,7 @@ int32_t AudioDeviceAndroidJni::StartPlayout()
 //  StopPlayout
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::StopPlayout()
+WebRtc_Word32 AudioDeviceAndroidJni::StopPlayout()
 {
 
     CriticalSectionScoped lock(&_critSect);
@@ -1858,7 +1871,7 @@ int32_t AudioDeviceAndroidJni::StopPlayout()
 //    Remaining amount of data still in the playout buffer.
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::PlayoutDelay(uint16_t& delayMS) const
+WebRtc_Word32 AudioDeviceAndroidJni::PlayoutDelay(WebRtc_UWord16& delayMS) const
 {
     delayMS = _delayPlayout;
 
@@ -1871,8 +1884,8 @@ int32_t AudioDeviceAndroidJni::PlayoutDelay(uint16_t& delayMS) const
 //    Remaining amount of data still in the recording buffer.
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::RecordingDelay(
-        uint16_t& delayMS) const
+WebRtc_Word32 AudioDeviceAndroidJni::RecordingDelay(
+        WebRtc_UWord16& delayMS) const
 {
     delayMS = _delayRecording;
 
@@ -1893,9 +1906,9 @@ bool AudioDeviceAndroidJni::Playing() const
 //  SetPlayoutBuffer
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetPlayoutBuffer(
+WebRtc_Word32 AudioDeviceAndroidJni::SetPlayoutBuffer(
         const AudioDeviceModule::BufferType /*type*/,
-        uint16_t /*sizeMS*/)
+        WebRtc_UWord16 /*sizeMS*/)
 {
 
     WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
@@ -1907,9 +1920,9 @@ int32_t AudioDeviceAndroidJni::SetPlayoutBuffer(
 //  PlayoutBuffer
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::PlayoutBuffer(
+WebRtc_Word32 AudioDeviceAndroidJni::PlayoutBuffer(
         AudioDeviceModule::BufferType& type,
-        uint16_t& sizeMS) const
+        WebRtc_UWord16& sizeMS) const
 {
 
     type = AudioDeviceModule::kAdaptiveBufferSize;
@@ -1922,7 +1935,7 @@ int32_t AudioDeviceAndroidJni::PlayoutBuffer(
 //  CPULoad
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::CPULoad(uint16_t& /*load*/) const
+WebRtc_Word32 AudioDeviceAndroidJni::CPULoad(WebRtc_UWord16& /*load*/) const
 {
 
     WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
@@ -2006,8 +2019,8 @@ void AudioDeviceAndroidJni::ClearRecordingError()
 //  SetRecordingSampleRate
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetRecordingSampleRate(
-        const uint32_t samplesPerSec)
+WebRtc_Word32 AudioDeviceAndroidJni::SetRecordingSampleRate(
+        const WebRtc_UWord32 samplesPerSec)
 {
 
     if (samplesPerSec > 48000 || samplesPerSec < 8000)
@@ -2018,7 +2031,14 @@ int32_t AudioDeviceAndroidJni::SetRecordingSampleRate(
     }
 
     // set the recording sample rate to use
-    _samplingFreqIn = samplesPerSec;
+    if (samplesPerSec == 44100)
+    {
+        _samplingFreqIn = 44;
+    }
+    else
+    {
+        _samplingFreqIn = samplesPerSec / 1000;
+    }
 
     // Update the AudioDeviceBuffer
     _ptrAudioBuffer->SetRecordingSampleRate(samplesPerSec);
@@ -2030,8 +2050,8 @@ int32_t AudioDeviceAndroidJni::SetRecordingSampleRate(
 //  SetPlayoutSampleRate
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetPlayoutSampleRate(
-        const uint32_t samplesPerSec)
+WebRtc_Word32 AudioDeviceAndroidJni::SetPlayoutSampleRate(
+        const WebRtc_UWord32 samplesPerSec)
 {
 
     if (samplesPerSec > 48000 || samplesPerSec < 8000)
@@ -2042,7 +2062,14 @@ int32_t AudioDeviceAndroidJni::SetPlayoutSampleRate(
     }
 
     // set the playout sample rate to use
-    _samplingFreqOut = samplesPerSec;
+    if (samplesPerSec == 44100)
+    {
+        _samplingFreqOut = 44;
+    }
+    else
+    {
+        _samplingFreqOut = samplesPerSec / 1000;
+    }
 
     // Update the AudioDeviceBuffer
     _ptrAudioBuffer->SetPlayoutSampleRate(samplesPerSec);
@@ -2054,7 +2081,7 @@ int32_t AudioDeviceAndroidJni::SetPlayoutSampleRate(
 //  SetLoudspeakerStatus
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::SetLoudspeakerStatus(bool enable)
+WebRtc_Word32 AudioDeviceAndroidJni::SetLoudspeakerStatus(bool enable)
 {
 
     if (!globalContext)
@@ -2117,7 +2144,7 @@ int32_t AudioDeviceAndroidJni::SetLoudspeakerStatus(bool enable)
 //  GetLoudspeakerStatus
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::GetLoudspeakerStatus(bool& enabled) const
+WebRtc_Word32 AudioDeviceAndroidJni::GetLoudspeakerStatus(bool& enabled) const
 {
 
     enabled = _loudSpeakerOn;
@@ -2137,7 +2164,7 @@ int32_t AudioDeviceAndroidJni::GetLoudspeakerStatus(bool& enabled) const
 //  AudioDeviceAndroid.java
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::InitJavaResources()
+WebRtc_Word32 AudioDeviceAndroidJni::InitJavaResources()
 {
     // todo: Check if we already have created the java object
     _javaVM = globalJvm;
@@ -2184,7 +2211,7 @@ int32_t AudioDeviceAndroidJni::InitJavaResources()
     }
 
     WEBRTC_TRACE(kTraceDebug, kTraceAudioDevice, _id,
-                 "%s: construct object", __FUNCTION__);
+                 "construct object", __FUNCTION__);
 
     // construct the object
     jobject javaScObjLocal = env->NewObject(_javaScClass, cid);
@@ -2368,7 +2395,7 @@ int32_t AudioDeviceAndroidJni::InitJavaResources()
 //  Also stores the max playout volume returned from InitPlayout.
 // ----------------------------------------------------------------------------
 
-int32_t AudioDeviceAndroidJni::InitSampleRate()
+WebRtc_Word32 AudioDeviceAndroidJni::InitSampleRate()
 {
     int samplingFreq = 44100;
     jint res = 0;
@@ -2396,7 +2423,11 @@ int32_t AudioDeviceAndroidJni::InitSampleRate()
     if (_samplingFreqIn > 0)
     {
         // read the configured sampling rate
-        samplingFreq = _samplingFreqIn;
+        samplingFreq = 44100;
+        if (_samplingFreqIn != 44)
+        {
+            samplingFreq = _samplingFreqIn * 1000;
+        }
         WEBRTC_TRACE(kTraceStateInfo, kTraceAudioDevice, _id,
                      "  Trying configured recording sampling rate %d",
                      samplingFreq);
@@ -2437,7 +2468,14 @@ int32_t AudioDeviceAndroidJni::InitSampleRate()
     }
 
     // set the recording sample rate to use
-    _samplingFreqIn = samplingFreq;
+    if (samplingFreq == 44100)
+    {
+        _samplingFreqIn = 44;
+    }
+    else
+    {
+        _samplingFreqIn = samplingFreq / 1000;
+    }
 
     WEBRTC_TRACE(kTraceStateInfo, kTraceAudioDevice, _id,
                  "Recording sample rate set to (%d)", _samplingFreqIn);
@@ -2461,7 +2499,11 @@ int32_t AudioDeviceAndroidJni::InitSampleRate()
     if (_samplingFreqOut > 0)
     {
         // read the configured sampling rate
-        samplingFreq = _samplingFreqOut;
+        samplingFreq = 44100;
+        if (_samplingFreqOut != 44)
+        {
+            samplingFreq = _samplingFreqOut * 1000;
+        }
         WEBRTC_TRACE(kTraceStateInfo, kTraceAudioDevice, _id,
                      "  Trying configured playback sampling rate %d",
                      samplingFreq);
@@ -2506,7 +2548,7 @@ int32_t AudioDeviceAndroidJni::InitSampleRate()
     }
 
     // Store max playout volume
-    _maxSpeakerVolume = static_cast<uint32_t> (res);
+    _maxSpeakerVolume = static_cast<WebRtc_UWord32> (res);
     if (_maxSpeakerVolume < 1)
     {
         WEBRTC_TRACE(kTraceWarning, kTraceAudioDevice, _id,
@@ -2515,7 +2557,15 @@ int32_t AudioDeviceAndroidJni::InitSampleRate()
     }
 
     // set the playback sample rate to use
-    _samplingFreqOut = samplingFreq;
+    if (samplingFreq == 44100)
+    {
+        _samplingFreqOut = 44;
+    }
+    else
+    {
+        _samplingFreqOut = samplingFreq / 1000;
+    }
+
     WEBRTC_TRACE(kTraceStateInfo, kTraceAudioDevice, _id,
                  "Playback sample rate set to (%d)", _samplingFreqOut);
 
@@ -2627,14 +2677,14 @@ bool AudioDeviceAndroidJni::PlayThreadProcess()
 
     if (_playing)
     {
-        int8_t playBuffer[2 * 480]; // Max 10 ms @ 48 kHz / 16 bit
-        uint32_t samplesToPlay = _samplingFreqOut / 100;
+        WebRtc_Word8 playBuffer[2 * 480]; // Max 10 ms @ 48 kHz / 16 bit
+        WebRtc_UWord32 samplesToPlay = _samplingFreqOut * 10;
 
         // ask for new PCM data to be played out using the AudioDeviceBuffer
         // ensure that this callback is executed without taking the
         // audio-thread lock
         UnLock();
-        uint32_t nSamples =
+        WebRtc_UWord32 nSamples =
                 _ptrAudioBuffer->RequestPlayoutData(samplesToPlay);
         Lock();
 
@@ -2673,14 +2723,14 @@ bool AudioDeviceAndroidJni::PlayThreadProcess()
         else if (res > 0)
         {
             // we are not recording and have got a delay value from playback
-            _delayPlayout = (res * 1000) / _samplingFreqOut;
+            _delayPlayout = res / _samplingFreqOut;
         }
         // If 0 is returned we are recording and then play delay is updated
         // in RecordProcess
 
         Lock();
 
-    }  // _playing
+    } // _playing
 
     if (_shutdownPlayThread)
     {
@@ -2771,7 +2821,7 @@ bool AudioDeviceAndroidJni::RecThreadProcess()
 
     if (_recording)
     {
-        uint32_t samplesToRec = _samplingFreqIn / 100;
+        WebRtc_UWord32 samplesToRec = _samplingFreqIn * 10;
 
         // Call java sc object method to record data to direct buffer
         // Will block until data has been recorded (see java sc class),
@@ -2788,7 +2838,7 @@ bool AudioDeviceAndroidJni::RecThreadProcess()
         }
         else
         {
-            _delayPlayout = (playDelayInSamples * 1000) / _samplingFreqOut;
+            _delayPlayout = playDelayInSamples / _samplingFreqOut;
         }
         Lock();
 
@@ -2817,7 +2867,7 @@ bool AudioDeviceAndroidJni::RecThreadProcess()
             Lock();
         }
 
-    }  // _recording
+    } // _recording
 
     if (_shutdownRecThread)
     {
@@ -2848,4 +2898,4 @@ bool AudioDeviceAndroidJni::RecThreadProcess()
     return true;
 }
 
-}  // namespace webrtc
+} // namespace webrtc

@@ -7,7 +7,7 @@
 #define __nsCheapSets_h__
 
 #include "nsTHashtable.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 /**
  * A set that takes up minimal size when there are 0 or 1 entries in the set.
@@ -109,6 +109,10 @@ nsCheapSet<EntryType>::Put(const KeyType aVal)
   case ONE:
     {
       nsTHashtable<EntryType> *table = new nsTHashtable<EntryType>();
+      if (!table) {
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+      table->Init();
       EntryType *entry = GetSingleEntry();
       table->PutEntry(entry->GetKey());
       entry->~EntryType();

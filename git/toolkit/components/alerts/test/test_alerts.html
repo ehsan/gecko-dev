@@ -18,6 +18,7 @@
 
 <pre id="test">
 <script class="testbody" type="text/javascript">
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
 var observer = {
   alertShow: false,
@@ -36,8 +37,8 @@ var observer = {
 };
 
 function runTest() {
-  const Cc = SpecialPowers.Cc;
-  const Ci = SpecialPowers.Ci;
+  const Cc = Components.classes;
+  const Ci = Components.interfaces;
 
   if (!("@mozilla.org/alerts-service;1" in Cc)) {
     todo(false, "Alerts service does not exist in this application");
@@ -53,7 +54,7 @@ function runTest() {
     ok(true, "Alerts service is available");
   } catch (ex) {
     todo(false, 
-         "Alerts service is not available.", ex);
+         "Alerts service is not available. (Mac OS X without Growl?)", ex);
     return;
   }
 
@@ -64,7 +65,7 @@ function runTest() {
                                    false, "foobarcookie", observer);
     ok(true, "showAlertNotification() succeeded.  Waiting for notification...");
   } catch (ex) {
-    todo(false, "showAlertNotification() failed.", ex);
+    todo(false, "showAlertNotification() failed. (Mac OS X without Growl?)", ex);
     SimpleTest.finish();
   }
 }

@@ -23,12 +23,10 @@
 #include "Relation.h"
 #include "RootAccessible.h"
 #include "States.h"
-#include "nsISimpleEnumerator.h"
 
 #include "mozilla/Util.h"
 #include "nsXPCOMStrings.h"
 #include "nsComponentManagerUtils.h"
-#include "nsIPersistentProperties2.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -682,7 +680,8 @@ getRoleCB(AtkObject *aAtkObj)
   switch (accWrap->Role()) {
 #include "RoleMap.h"
     default:
-      MOZ_CRASH("Unknown role.");
+      MOZ_NOT_REACHED("Unknown role.");
+      aAtkObj->role = ATK_ROLE_UNKNOWN;
   };
 
 #undef ROLE
@@ -871,32 +870,6 @@ refStateSetCB(AtkObject *aAtkObj)
     return state_set;
 }
 
-static void
-UpdateAtkRelation(RelationType aType, Accessible* aAcc,
-                  AtkRelationType aAtkType, AtkRelationSet* aAtkSet)
-{
-  if (aAtkType == ATK_RELATION_NULL)
-    return;
-
-  AtkRelation* atkRelation =
-    atk_relation_set_get_relation_by_type(aAtkSet, aAtkType);
-  if (atkRelation)
-    atk_relation_set_remove(aAtkSet, atkRelation);
-
-  Relation rel(aAcc->RelationByType(aType));
-  nsTArray<AtkObject*> targets;
-  Accessible* tempAcc = nullptr;
-  while ((tempAcc = rel.Next()))
-    targets.AppendElement(AccessibleWrap::GetAtkObject(tempAcc));
-
-  if (targets.Length()) {
-    atkRelation = atk_relation_new(targets.Elements(),
-                                   targets.Length(), aAtkType);
-    atk_relation_set_add(aAtkSet, atkRelation);
-    g_object_unref(atkRelation);
-  }
-}
-
 AtkRelationSet *
 refRelationSetCB(AtkObject *aAtkObj)
 {
@@ -907,12 +880,46 @@ refRelationSetCB(AtkObject *aAtkObj)
   if (!accWrap)
     return relation_set;
 
-#define RELATIONTYPE(geckoType, geckoTypeName, atkType, msaaType, ia2Type) \
-  UpdateAtkRelation(RelationType::geckoType, accWrap, atkType, relation_set);
+  // Keep in sync with AtkRelationType enum.
+  static const uint32_t relationTypes[] = {
+    nsIAccessibleRelation::RELATION_CONTROLLED_BY,
+    nsIAccessibleRelation::RELATION_CONTROLLER_FOR,
+    nsIAccessibleRelation::RELATION_LABEL_FOR,
+    nsIAccessibleRelation::RELATION_LABELLED_BY,
+    nsIAccessibleRelation::RELATION_MEMBER_OF,
+    nsIAccessibleRelation::RELATION_NODE_CHILD_OF,
+    nsIAccessibleRelation::RELATION_FLOWS_TO,
+    nsIAccessibleRelation::RELATION_FLOWS_FROM,
+    nsIAccessibleRelation::RELATION_SUBWINDOW_OF,
+    nsIAccessibleRelation::RELATION_EMBEDS,
+    nsIAccessibleRelation::RELATION_EMBEDDED_BY,
+    nsIAccessibleRelation::RELATION_POPUP_FOR,
+    nsIAccessibleRelation::RELATION_PARENT_WINDOW_OF,
+    nsIAccessibleRelation::RELATION_DESCRIBED_BY,
+    nsIAccessibleRelation::RELATION_DESCRIPTION_FOR,
+    nsIAccessibleRelation::RELATION_NODE_PARENT_OF
+  };
 
-#include "RelationTypeMap.h"
+  for (uint32_t i = 0; i < ArrayLength(relationTypes); i++) {
+    // Shift to 1 to skip ATK_RELATION_NULL.
+    AtkRelationType atkType = static_cast<AtkRelationType>(i + 1);
+    AtkRelation* atkRelation =
+      atk_relation_set_get_relation_by_type(relation_set, atkType);
+    if (atkRelation)
+      atk_relation_set_remove(relation_set, atkRelation);
 
-#undef RELATIONTYPE
+    Relation rel(accWrap->RelationByType(relationTypes[i]));
+    nsTArray<AtkObject*> targets;
+    Accessible* tempAcc = nullptr;
+    while ((tempAcc = rel.Next()))
+      targets.AppendElement(AccessibleWrap::GetAtkObject(tempAcc));
+
+    if (targets.Length()) {
+      atkRelation = atk_relation_new(targets.Elements(), targets.Length(), atkType);
+      atk_relation_set_add(relation_set, atkRelation);
+      g_object_unref(atkRelation);
+    }
+  }
 
   return relation_set;
 }
@@ -944,13 +951,14 @@ AccessibleWrap::HandleAccEvent(AccEvent* aEvent)
   nsresult rv = Accessible::HandleAccEvent(aEvent);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  return FirePlatformEvent(aEvent);
+}
+
+nsresult
+AccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
+{
     Accessible* accessible = aEvent->GetAccessible();
     NS_ENSURE_TRUE(accessible, NS_ERROR_FAILURE);
-
-    // The accessible can become defunct if we have an xpcom event listener
-    // which decides it would be fun to change the DOM and flush layout.
-    if (accessible->IsDefunct())
-        return NS_OK;
 
     uint32_t type = aEvent->GetEventType();
 
@@ -982,9 +990,11 @@ AccessibleWrap::HandleAccEvent(AccEvent* aEvent)
       {
         a11y::RootAccessible* rootAccWrap = accWrap->RootAccessible();
         if (rootAccWrap && rootAccWrap->mActivated) {
+            atk_focus_tracker_notify(atkObj);
             // Fire state change event for focus
-            atk_object_notify_state_change(atkObj, ATK_STATE_FOCUSED, true);
-            return NS_OK;
+            nsRefPtr<AccEvent> stateChangeEvent =
+              new AccStateChangeEvent(accessible, states::FOCUSED, true);
+            return FireAtkStateChangeEvent(stateChangeEvent, atkObj);
         }
       } break;
 
@@ -1167,6 +1177,7 @@ AccessibleWrap::HandleAccEvent(AccEvent* aEvent)
       break;
 
     case nsIAccessibleEvent::EVENT_MENUPOPUP_START:
+        atk_focus_tracker_notify(atkObj); // fire extra focus event
         atk_object_notify_state_change(atkObj, ATK_STATE_VISIBLE, true);
         atk_object_notify_state_change(atkObj, ATK_STATE_SHOWING, true);
         break;

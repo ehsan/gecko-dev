@@ -7,36 +7,44 @@
 /* The core XPConnect public interfaces. */
 
 #include "nsISupports.idl"
+#include "nsIClassInfo.idl"
+#include "xpccomponents.idl"
+#include "xpcjsid.idl"
+#include "xpcexception.idl"
+#include "nsIInterfaceInfo.idl"
+#include "nsIInterfaceInfoManager.idl"
+#include "nsIExceptionService.idl"
+#include "nsIVariant.idl"
+#include "nsIObjectOutputStream.idl"
+#include "nsIObjectInputStream.idl"
 
 %{ C++
 #include "jspubtd.h"
-#include "js/TypeDecls.h"
-
-struct JSFreeOp;
+#include "xptinfo.h"
+#include "nsAXPCNativeCallContext.h"
 
 class nsWrapperCache;
-class nsAXPCNativeCallContext;
 %}
 
 /***************************************************************************/
 
-// NB: jsval and jsid are declared in nsrootidl.idl
+// NB: jsval and jsid are declared in nsIVariant.idl
 
 [ptr] native JSContextPtr(JSContext);
 [ptr] native JSClassPtr(JSClass);
 [ptr] native JSFreeOpPtr(JSFreeOp);
 [ptr] native JSObjectPtr(JSObject);
-[ptr] native JSValPtr(JS::Value);
-[ptr] native JSValConstPtr(const JS::Value);
+[ptr] native JSValPtr(jsval);
+[ptr] native JSValConstPtr(const jsval);
       native JSPropertyOp(JSPropertyOp);
       native JSEqualityOp(JSEqualityOp);
 [ptr] native JSScriptPtr(JSScript);
 [ptr] native voidPtrPtr(void*);
+[ptr] native nsScriptObjectTracerPtr(nsScriptObjectTracer);
+[ref] native nsCCTraversalCallbackRef(nsCycleCollectionTraversalCallback);
 [ptr] native nsAXPCNativeCallContextPtr(nsAXPCNativeCallContext);
 [ptr] native nsWrapperCachePtr(nsWrapperCache);
-[ref] native JSCompartmentOptions(JS::CompartmentOptions);
-[ref] native JSCallArgsRef(const JS::CallArgs);
-      native JSHandleId(JS::Handle<jsid>);
+      native ZoneSpecifier(uintptr_t);
 
 /***************************************************************************/
 
@@ -47,20 +55,20 @@ interface nsIXPConnectWrappedNative;
 interface nsIInterfaceInfo;
 interface nsIXPCSecurityManager;
 interface nsIPrincipal;
-interface nsIClassInfo;
-interface nsIVariant;
-interface nsIStackFrame;
-interface nsIObjectInputStream;
-interface nsIObjectOutputStream;
+
+%{C++
+class nsCycleCollectionTraversalCallback;
+class nsScriptObjectTracer;
+%}
 
 /***************************************************************************/
-[uuid(909e8641-7c54-4dff-9b94-ba631f057b33)]
+[uuid(8916a320-d118-11d3-8f3a-0010a4e73d9a)]
 interface nsIXPConnectJSObjectHolder : nsISupports
 {
-    [notxpcom, nostdcall] JSObjectPtr GetJSObject();
+    readonly attribute JSObjectPtr      JSObject;
 };
 
-[uuid(2d08015d-7556-4f12-9e89-4c756d129310)]
+[uuid(92e98688-0154-4b65-971b-0d4afe8fd7cb)]
 interface nsIXPConnectWrappedNative : nsIXPConnectJSObjectHolder
 {
     /* attribute 'JSObject' inherited from nsIXPConnectJSObjectHolder */
@@ -71,9 +79,10 @@ interface nsIXPConnectWrappedNative : nsIXPConnectJSObjectHolder
      * These are here as an aid to nsIXPCScriptable implementors
      */
 
-    nsIInterfaceInfo FindInterfaceWithMember(in JSHandleId nameID);
-    nsIInterfaceInfo FindInterfaceWithName(in JSHandleId nameID);
-    [notxpcom] bool HasNativeMember(in JSHandleId name);
+    readonly attribute nsIXPConnect XPConnect;
+    nsIInterfaceInfo FindInterfaceWithMember(in jsid nameID);
+    nsIInterfaceInfo FindInterfaceWithName(in jsid nameID);
+    [notxpcom] bool HasNativeMember(in jsid name);
 
     void debugDump(in short depth);
 
@@ -281,7 +290,7 @@ interface nsIXPCFunctionThisTranslator : nsISupports
     { 0xbd, 0xd6, 0x0, 0x0, 0x64, 0x65, 0x73, 0x74 } }
 %}
 
-[uuid(c4d0187c-6a78-4bdf-9cd9-d218644b715a)]
+[uuid(7e7a9a90-4607-4e3a-8ef1-b0f4b8de1c27)]
 interface nsIXPConnect : nsISupports
 {
 %{ C++
@@ -308,15 +317,14 @@ interface nsIXPConnect : nsISupports
      *                   compartment. Can be null if not on the main thread.
      * @param aFlags one of the flags below specifying what options this
      *               global object wants.
-     * @param aOptions JSAPI-specific options for the new compartment.
      */
     nsIXPConnectJSObjectHolder
     initClassesWithNewWrappedGlobal(
-                  in JSContextPtr         aJSContext,
-                  in nsISupports          aCOMObj,
-                  in nsIPrincipal         aPrincipal,
-                  in uint32_t             aFlags,
-                  in JSCompartmentOptions aOptions);
+                  in JSContextPtr aJSContext,
+                  in nsISupports  aCOMObj,
+                  in nsIPrincipal aPrincipal,
+                  in uint32_t     aFlags,
+                  in ZoneSpecifier aZoneSpec);
 
     const uint32_t INIT_JS_STANDARD_CLASSES  = 1 << 0;
     // Free bit here!
@@ -431,11 +439,23 @@ interface nsIXPConnect : nsISupports
     getNativeOfWrapper(in JSContextPtr aJSContext,
                        in JSObjectPtr  aJSObj);
 
+    void setSecurityManagerForJSContext(in JSContextPtr aJSContext,
+                                        in nsIXPCSecurityManager aManager,
+                                        in uint16_t flags);
+
+    void getSecurityManagerForJSContext(in JSContextPtr aJSContext,
+                                        out nsIXPCSecurityManager aManager,
+                                        out uint16_t flags);
+
     /**
     * The security manager to use when the current JSContext has no security
     * manager.
     */
-    void setDefaultSecurityManager(in nsIXPCSecurityManager aManager);
+    void setDefaultSecurityManager(in nsIXPCSecurityManager aManager,
+                                   in uint16_t flags);
+
+    void getDefaultSecurityManager(out nsIXPCSecurityManager aManager,
+                                   out uint16_t flags);
 
     nsIStackFrame
     createStackFrameLocation(in uint32_t       aLanguage,
@@ -444,9 +464,10 @@ interface nsIXPConnect : nsISupports
                              in int32_t        aLineNumber,
                              in nsIStackFrame  aCaller);
 
-
-    [noscript,notxpcom,nostdcall] JSContextPtr getCurrentJSContext();
-    [noscript,notxpcom,nostdcall] JSContextPtr getSafeJSContext();
+    /**
+    * @deprecated do-nothing function.
+    */
+    [deprecated] void syncJSContexts();
 
     readonly attribute nsIStackFrame                CurrentJSStack;
     readonly attribute nsAXPCNativeCallContextPtr   CurrentNativeCallContext;
@@ -511,6 +532,8 @@ interface nsIXPConnect : nsISupports
                               in JSObjectPtr  aScope,
                               in nsIClassInfo aClassInfo);
 
+    void releaseJSContext(in JSContextPtr aJSContext, in boolean noGC);
+
     jsval variantToJS(in JSContextPtr ctx, in JSObjectPtr scope, in nsIVariant value);
     nsIVariant JSToVariant(in JSContextPtr ctx, in jsval value);
 
@@ -548,6 +571,35 @@ interface nsIXPConnect : nsISupports
                                          in JSContextPtr cx,
                                          in JSObjectPtr sandbox,
                                          in boolean returnStringOnly);
+
+    /**
+     * Root JS objects held by aHolder.
+     * @param aHolder The object that hold the JS objects that should be rooted.
+     * @param aTrace The tracer for aHolder.
+     */
+    [noscript,notxpcom] void addJSHolder(in voidPtr aHolder,
+                                         in nsScriptObjectTracerPtr aTracer);
+
+    /**
+     * Stop rooting the JS objects held by aHolder.
+     * @param aHolder The object that hold the rooted JS objects.
+     */
+    [noscript,notxpcom] void removeJSHolder(in voidPtr aHolder);
+
+    /**
+     * Test to see if a JS holder is in our hashtable.
+     * Only available in debug builds.
+     * @param aHolder The object to test for.
+     */
+    [noscript,notxpcom] bool testJSHolder(in voidPtr aHolder);
+
+    /**
+     * Note aJSContext as a child to the cycle collector.
+     * @param aJSContext The JSContext to note.
+     * @param aCb The cycle collection traversal callback.
+     */
+    [noscript,notxpcom] void noteJSContext(in JSContextPtr aJSContext,
+                                           in nsCCTraversalCallbackRef aCb);
 
     /**
      * Whether or not XPConnect should report all JS exceptions when returning
@@ -591,6 +643,12 @@ interface nsIXPConnect : nsISupports
                                           in JSObjectPtr aObject);
 
     /**
+     * Return the caller object of the current call from JS.
+     */
+    [noscript,notxpcom] void getCaller(out JSContextPtr aJSContext,
+                                       out JSObjectPtr aObject);
+
+    /**
      * When we place the browser in JS debug mode, there can't be any
      * JS on the stack. This is because we currently activate debugMode 
      * on all scripts in the JSRuntime when the debugger is activated.
@@ -613,11 +671,4 @@ interface nsIXPConnect : nsISupports
 
     [noscript] JSObjectPtr readFunction(in nsIObjectInputStream aStream,
                                         in JSContextPtr aJSContext);
-
-    /**
-     * This function should be called in JavaScript error reporters
-     * to signal that they are ignoring the error. In this case,
-     * XPConnect can print a warning to the console.
-     */
-    [noscript] void markErrorUnreported(in JSContextPtr aJSContext);
 };

@@ -7,6 +7,9 @@
 
 #include "nsISupports.h"
 #include "nsICharsetConverterManager.h"
+#include "nsIStringBundle.h"
+#include "nsInterfaceHashtable.h"
+#include "mozilla/Mutex.h"
 
 class nsCharsetAlias;
 
@@ -14,7 +17,7 @@ class nsCharsetConverterManager : public nsICharsetConverterManager
 {
   friend class nsCharsetAlias;
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSICHARSETCONVERTERMANAGER
 
 public:

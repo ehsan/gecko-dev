@@ -37,6 +37,8 @@
 #include <errno.h>
 #include <dlfcn.h>
 
+#include "mozilla/mozalloc_undef_macro_wrappers.h"
+
 // Must define before including jprof.h
 void *moz_xmalloc(size_t size)
 {
@@ -445,7 +447,7 @@ static void startSignalCounter(unsigned long millisec)
     }
 }
 
-static long timerMilliSec = 50;
+static long timerMiliSec = 50;
 
 #if defined(linux)
 static int setupRTCSignals(int hz, struct sigaction *sap)
@@ -567,7 +569,7 @@ void *ucontext)
 #endif
 
     if (!rtcHz)
-        startSignalCounter(timerMilliSec);
+        startSignalCounter(timerMiliSec);
 }
 
 NS_EXPORT_(void) setupProfilingStuff(void)
@@ -619,12 +621,12 @@ NS_EXPORT_(void) setupProfilingStuff(void)
 	    if(delay) {
                 double tmp = strtod(delay+strlen("JP_PERIOD="), NULL);
                 if (tmp>=1e-3) {
-		    timerMilliSec = static_cast<unsigned long>(1000 * tmp);
+		    timerMiliSec = static_cast<unsigned long>(1000 * tmp);
                 } else {
                     fprintf(stderr,
                             "JP_PERIOD of %g less than 0.001 (1ms), using 1ms\n",
                             tmp);
-                    timerMilliSec = 1;
+                    timerMiliSec = 1;
                 }
 	    }
 
@@ -651,7 +653,7 @@ NS_EXPORT_(void) setupProfilingStuff(void)
             if (rtc) {
 #if defined(linux)
                 rtcHz = atol(rtc+strlen("JP_RTC_HZ="));
-                timerMilliSec = 0; /* This makes JP_FIRST work right. */
+                timerMiliSec = 0; /* This makes JP_FIRST work right. */
                 realTime = 1; /* It's the _R_TC and all.  ;) */
 
 #define IS_POWER_OF_TWO(x) (((x) & ((x) - 1)) == 0)
@@ -752,7 +754,7 @@ NS_EXPORT_(void) setupProfilingStuff(void)
                     printf("Jprof: Initialized signal handler and set "
                            "timer for %lu %s, %d s "
                            "initial delay\n",
-                           rtcHz ? rtcHz : timerMilliSec, 
+                           rtcHz ? rtcHz : timerMiliSec, 
                            rtcHz ? "Hz" : "ms",
                            firstDelay);
 
@@ -769,7 +771,7 @@ NS_EXPORT_(void) setupProfilingStuff(void)
 #endif
                         {
                             puts("Jprof: started timer");
-                            startSignalCounter(firstDelay*1000 + timerMilliSec);
+                            startSignalCounter(firstDelay*1000 + timerMiliSec);
                         }
 		    }
 		}

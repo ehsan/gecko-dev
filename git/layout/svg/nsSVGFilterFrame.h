@@ -6,9 +6,9 @@
 #ifndef __NS_SVGFILTERFRAME_H__
 #define __NS_SVGFILTERFRAME_H__
 
-#include "mozilla/Attributes.h"
 #include "nsFrame.h"
 #include "nsQueryFrame.h"
+#include "nsRect.h"
 #include "nsSVGContainerFrame.h"
 #include "nsSVGUtils.h"
 
@@ -21,8 +21,6 @@ class nsStyleContext;
 class nsSVGFilterPaintCallback;
 class nsSVGIntegerPair;
 class nsSVGLength2;
-
-struct nsRect;
 
 namespace mozilla {
 namespace dom {
@@ -42,7 +40,7 @@ protected:
       mLoopFlag(false),
       mNoHRefURI(false)
   {
-    AddStateBits(NS_FRAME_IS_NONDISPLAY);
+    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
   }
 
 public:
@@ -55,7 +53,7 @@ public:
 
   NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              int32_t         aModType) MOZ_OVERRIDE;
+                              int32_t         aModType);
 
   /**
    * Paint the given filtered frame.
@@ -66,8 +64,7 @@ public:
   nsresult PaintFilteredFrame(nsRenderingContext *aContext,
                               nsIFrame *aFilteredFrame,
                               nsSVGFilterPaintCallback *aPaintCallback,
-                              const nsRect* aDirtyArea,
-                              nsIFrame* aTransformRoot);
+                              const nsRect* aDirtyArea);
 
   /**
    * Returns the post-filter area that could be dirtied when the given
@@ -110,7 +107,7 @@ public:
    *
    * @see nsGkAtoms::svgFilterFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
 private:
   // Parse our xlink:href and set up our nsSVGPaintingProperty if we

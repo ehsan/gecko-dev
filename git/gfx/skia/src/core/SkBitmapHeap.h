@@ -47,7 +47,6 @@ private:
     size_t fBytesAllocated;
 
     friend class SkBitmapHeap;
-    friend class SkBitmapHeapTester;
 };
 
 

@@ -28,17 +28,19 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_AssemblerBufferWithConstantPool_h
-#define assembler_assembler_AssemblerBufferWithConstantPool_h
+#ifndef AssemblerBufferWithConstantPool_h
+#define AssemblerBufferWithConstantPool_h
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE_ASSEMBLER
 
-#include "assembler/assembler/AssemblerBuffer.h"
+#include "AssemblerBuffer.h"
 #include "assembler/wtf/SegmentedVector.h"
 #include "assembler/wtf/Assertions.h"
 
+#include "methodjit/Logging.h"
+#include "jsnum.h"
 #define ASSEMBLER_HAS_CONSTANT_POOL 1
 
 namespace JSC {
@@ -106,14 +108,14 @@ public:
         , m_lastConstDelta(0)
         , m_flushCount(0)
     {
-        m_pool = static_cast<uint32_t*>(js_malloc(maxPoolSize));
-        m_mask = static_cast<char*>(js_malloc(maxPoolSize / sizeof(uint32_t)));
+        m_pool = static_cast<uint32_t*>(malloc(maxPoolSize));
+        m_mask = static_cast<char*>(malloc(maxPoolSize / sizeof(uint32_t)));
     }
 
     ~AssemblerBufferWithConstantPool()
     {
-        js_free(m_mask);
-        js_free(m_pool);
+        free(m_mask);
+        free(m_pool);
     }
 
     void ensureSpace(int space)
@@ -383,4 +385,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_AssemblerBufferWithConstantPool_h */
+#endif // AssemblerBufferWithConstantPool_h

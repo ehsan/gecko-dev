@@ -445,10 +445,6 @@ function test_cookie_not_cleared_with_uri_contains_domain()
 // Download Manager
 function test_download_history_cleared_with_direct_match()
 {
-  if (oldDownloadManagerDisabled()) {
-    return;
-  }
-
   const TEST_URI = "http://mozilla.org/foo";
   add_download(TEST_URI, false);
   ForgetAboutSite.removeDataFromDomain("mozilla.org");
@@ -457,10 +453,6 @@ function test_download_history_cleared_with_direct_match()
 
 function test_download_history_cleared_with_subdomain()
 {
-  if (oldDownloadManagerDisabled()) {
-    return;
-  }
-
   const TEST_URI = "http://www.mozilla.org/foo";
   add_download(TEST_URI, false);
   ForgetAboutSite.removeDataFromDomain("mozilla.org");
@@ -469,10 +461,6 @@ function test_download_history_cleared_with_subdomain()
 
 function test_download_history_not_cleared_with_active_direct_match()
 {
-  if (oldDownloadManagerDisabled()) {
-    return;
-  }
-
   // Tests that downloads marked as active in the db are not deleted from the db
   const TEST_URI = "http://mozilla.org/foo";
   add_download(TEST_URI, true);
@@ -745,6 +733,8 @@ let tests = [
 
 function run_test()
 {
+  Services.prefs.setBoolPref("places.history.enabled", true);
+
   for (let i = 0; i < tests.length; i++)
     add_task(tests[i]);
 

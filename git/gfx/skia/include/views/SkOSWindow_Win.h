@@ -37,12 +37,7 @@ public:
 #endif // SK_SUPPORT_GPU
     };
 
-    struct AttachmentInfo {
-        int fSampleCount;
-        int fStencilBits;
-    };
-
-    bool attach(SkBackEndTypes attachType, int msaaSampleCount, AttachmentInfo*);
+    bool attach(SkBackEndTypes attachType, int msaaSampleCount);
     void detach();
     void present();
 
@@ -75,7 +70,6 @@ private:
     EGLDisplay          fDisplay;
     EGLContext          fContext;
     EGLSurface          fSurface;
-    EGLConfig           fConfig;
 #endif // SK_ANGLE
 #endif // SK_SUPPORT_GPU
 
@@ -84,12 +78,12 @@ private:
     SkBackEndTypes      fAttached;
 
 #if SK_SUPPORT_GPU
-    bool attachGL(int msaaSampleCount, AttachmentInfo* info);
+    bool attachGL(int msaaSampleCount);
     void detachGL();
     void presentGL();
 
 #if SK_ANGLE
-    bool attachANGLE(int msaaSampleCount, AttachmentInfo* info);
+    bool attachANGLE(int msaaSampleCount);
     void detachANGLE();
     void presentANGLE();
 #endif // SK_ANGLE

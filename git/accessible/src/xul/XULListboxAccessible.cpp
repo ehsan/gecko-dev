@@ -21,7 +21,6 @@
 #include "nsIDOMXULPopupElement.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
 #include "nsIMutableArray.h"
-#include "nsIPersistentProperties2.h"
 
 using namespace mozilla::a11y;
 
@@ -104,7 +103,7 @@ XULListboxAccessible::
   XULListboxAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   XULSelectControlAccessible(aContent, aDoc), xpcAccessibleTable(this)
 {
-  nsIContent* parentContent = mContent->GetFlattenedTreeParent();
+  nsIContent* parentContent = mContent->GetParent();
   if (parentContent) {
     nsCOMPtr<nsIAutoCompletePopup> autoCompletePopupElm =
       do_QueryInterface(parentContent);
@@ -133,7 +132,7 @@ XULListboxAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Accessible
+//nsAccessNode
 
 void
 XULListboxAccessible::Shutdown()
@@ -732,7 +731,6 @@ XULListCellAccessible::
   XULListCellAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   HyperTextAccessibleWrap(aContent, aDoc), xpcAccessibleTableCell(this)
 {
-  mGenericTypes |= eTableCell;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -5,9 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 #define NOMAPPING 0xfffd
 
@@ -357,7 +355,7 @@ void usage()
   fprintf(stderr, "\t-uf : generate *.uf (from unicode) table, or\n");
   fprintf(stderr, "\t-ut : generate *.ut (to unicode) table\n");
 }
-void parsearg(int argc, char* argv[])
+parsearg(int argc, char* argv[])
 {
 	int i;
 	for(i=0;i<argc;i++)
@@ -429,7 +427,7 @@ void getinput()
 {
   char buf[256];
   short c,u;
-  for (; fgets(buf,sizeof(buf),stdin);)
+  for (; gets(buf);)
   {
      if(buf[0]=='0' && buf[1] == 'x')
         {
@@ -441,12 +439,11 @@ void getinput()
         }
   }
 }
-int main(int argc, char* argv[])
+main(int argc, char* argv[])
 {
   parsearg(argc, argv);
   initmaps();
   getinput();
   gentable();
-  writetable();
-  return 0;
+  writetable();	
 }

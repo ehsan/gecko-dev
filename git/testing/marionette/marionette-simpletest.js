@@ -5,15 +5,14 @@
  * The Marionette object, passed to the script context.
  */
 
-this.Marionette = function Marionette(scope, window, context, logObj, timeout,
-                                      heartbeatCallback, testName) {
+function Marionette(scope, window, context, logObj, perfData, timeout, testName) {
   this.scope = scope;
   this.window = window;
   this.tests = [];
   this.logObj = logObj;
+  this.perfData = perfData;
   this.context = context;
   this.timeout = timeout;
-  this.heartbeatCallback = heartbeatCallback;
   this.testName = testName;
   this.TEST_UNEXPECTED_FAIL = "TEST-UNEXPECTED-FAIL";
   this.TEST_PASS = "TEST-PASS";
@@ -22,11 +21,10 @@ this.Marionette = function Marionette(scope, window, context, logObj, timeout,
 
 Marionette.prototype = {
   exports: ['ok', 'is', 'isnot', 'log', 'getLogs', 'generate_results', 'waitFor',
-            'runEmulatorCmd', 'TEST_PASS', 'TEST_KNOWN_FAIL',
-            'TEST_UNEXPECTED_FAIL'],
+            'runEmulatorCmd', 'addPerfData', 'getPerfData', 'TEST_PASS',
+            'TEST_KNOWN_FAIL', 'TEST_UNEXPECTED_FAIL'],
 
   ok: function Marionette__ok(condition, name, passString, failString, diag) {
-    this.heartbeatCallback();
     if (typeof(diag) == "undefined") {
       diag = this.repr(condition) + " was " + !!condition + ", expected true";
     }
@@ -38,7 +36,6 @@ Marionette.prototype = {
   },
 
   is: function Marionette__is(a, b, name, passString, failString) {
-    this.heartbeatCallback();
     let pass = (a == b);
     let diag = pass ? this.repr(a) + " should equal " + this.repr(b)
                     : "got " + this.repr(a) + ", expected " + this.repr(b);
@@ -46,15 +43,21 @@ Marionette.prototype = {
   },
 
   isnot: function Marionette__isnot (a, b, name, passString, failString) {
-    this.heartbeatCallback();
     let pass = (a != b);
     let diag = pass ? this.repr(a) + " should not equal " + this.repr(b)
                     : "didn't expect " + this.repr(a) + ", but got it";
     this.ok(pass, name, passString, failString, diag);
   },
 
+  addPerfData: function Marionette__addPerfData(testSuite, testName, data) {
+    this.perfData.addPerfData(testSuite, testName, data);
+  },
+
+  getPerfData: function Marionette__getPerfData() {
+    return this.perfData.perfData;
+  },
+
   log: function Marionette__log(msg, level) {
-    this.heartbeatCallback();
     dump("MARIONETTE LOG: " + (level ? level : "INFO") + ": " + msg + "\n");
     if (this.logObj != null) {
       this.logObj.log(msg, level);
@@ -62,14 +65,12 @@ Marionette.prototype = {
   },
 
   getLogs: function Marionette__getLogs() {
-    this.heartbeatCallback();
     if (this.logObj != null) {
       this.logObj.getLogs();
     }
   },
 
   generate_results: function Marionette__generate_results() {
-    this.heartbeatCallback();
     let passed = 0;
     let failed = 0;
     let failures = [];
@@ -89,12 +90,10 @@ Marionette.prototype = {
   },
 
   logToFile: function Marionette__logToFile(file) {
-    this.heartbeatCallback();
     //TODO
   },
 
   logResult: function Marionette__logResult(test, passString, failString) {
-    this.heartbeatCallback();
     //TODO: dump to file
     let resultString = test.result ? passString : failString;
     let diagnostic = test.name + (test.diag ? " - " + test.diag : "");
@@ -142,7 +141,6 @@ Marionette.prototype = {
   },
 
   waitFor: function test_waitFor(callback, test, timeout) {
-      this.heartbeatCallback();
       if (test()) {
           callback();
           return;
@@ -159,7 +157,6 @@ Marionette.prototype = {
   },
 
   runEmulatorCmd: function runEmulatorCmd(cmd, callback) {
-    this.heartbeatCallback();
     this.scope.runEmulatorCmd(cmd, callback);
   },
 

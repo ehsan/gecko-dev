@@ -16,11 +16,11 @@
 
 #include <string.h>
 #include "prlog.h"
-#include "prlock.h"
 #include "nsHashtable.h"
+#include "nsReadableUtils.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
-#include "nsCRTGlue.h"
+#include "nsCRT.h"
 #include "mozilla/HashFunctions.h"
 
 using namespace mozilla;
@@ -119,7 +119,7 @@ nsHashKey::Write(nsIObjectOutputStream* aStream) const
 }
 
 nsHashtable::nsHashtable(uint32_t aInitSize, bool threadSafe)
-  : mLock(nullptr), mEnumerating(false)
+  : mLock(NULL), mEnumerating(false)
 {
     MOZ_COUNT_CTOR(nsHashtable);
 
@@ -134,10 +134,10 @@ nsHashtable::nsHashtable(uint32_t aInitSize, bool threadSafe)
     
     if (threadSafe) {
         mLock = PR_NewLock();
-        if (mLock == nullptr) {
+        if (mLock == NULL) {
             // Cannot create a lock. If running on a multiprocessing system
             // we are sure to die.
-            PR_ASSERT(mLock != nullptr);
+            PR_ASSERT(mLock != NULL);
         }
     }
 }
@@ -171,7 +171,7 @@ bool nsHashtable::Exists(nsHashKey *aKey)
 
 void *nsHashtable::Put(nsHashKey *aKey, void *aData)
 {
-    void *res =  nullptr;
+    void *res =  NULL;
 
     if (!mHashtable.ops) return nullptr;
     
@@ -299,7 +299,7 @@ hashEnumerateRemove(PLDHashTable*, PLDHashEntryHdr* hdr, uint32_t i, void *arg)
 }
 
 void nsHashtable::Reset() {
-    Reset(nullptr);
+    Reset(NULL);
 }
 
 void nsHashtable::Reset(nsHashtableEnumFunc destroyFunc, void* aClosure)
@@ -531,8 +531,8 @@ nsCStringKey::Clone() const
 
     uint32_t len = mStrLen * sizeof(char);
     char* str = (char*)nsMemory::Alloc(len + sizeof(char));
-    if (str == nullptr)
-        return nullptr;
+    if (str == NULL)
+        return NULL;
     memcpy(str, mStr, len);
     str[len] = 0;
     return new nsCStringKey(str, mStrLen, OWN);
@@ -654,8 +654,8 @@ nsStringKey::Clone() const
 
     uint32_t len = (mStrLen+1) * sizeof(PRUnichar);
     PRUnichar* str = (PRUnichar*)nsMemory::Alloc(len);
-    if (str == nullptr)
-        return nullptr;
+    if (str == NULL)
+        return NULL;
     memcpy(str, mStr, len);
     return new nsStringKey(str, mStrLen, OWN);
 }

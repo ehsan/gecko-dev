@@ -184,7 +184,7 @@ getCert(const char *name, PRBool isAscii, const char * progName)
 	return cert;
     }
 
-    rv = SECU_ReadDERFromFile(&item, fd, isAscii, PR_FALSE);
+    rv = SECU_ReadDERFromFile(&item, fd, isAscii);
     PR_Close(fd);
     if (rv != SECSuccess) {
 	fprintf(stderr, "%s: SECU_ReadDERFromFile failed\n", progName);
@@ -232,13 +232,13 @@ getCert(const char *name, PRBool isAscii, const char * progName)
 #define REV_METHOD_INDEX_MAX  4
 
 typedef struct RevMethodsStruct {
-    unsigned int testType;
+    uint testType;
     char *testTypeStr;
-    unsigned int testFlags;
+    uint testFlags;
     char *testFlagsStr;
-    unsigned int methodType;
+    uint methodType;
     char *methodTypeStr;
-    unsigned int methodFlags;
+    uint methodFlags;
     char *methodFlagsStr;
 } RevMethods;
 
@@ -248,7 +248,7 @@ SECStatus
 parseRevMethodsAndFlags()
 {
     int i;
-    unsigned int testType = 0;
+    uint testType = 0;
 
     for(i = 0;i < REV_METHOD_INDEX_MAX;i++) {
         /* testType */
@@ -269,7 +269,7 @@ parseRevMethodsAndFlags()
         /* testFlags */
         if (revMethodsData[i].testFlagsStr) {
             char *flagStr = revMethodsData[i].testFlagsStr;
-            unsigned int testFlags = 0;
+            uint testFlags = 0;
 
             if (PORT_Strstr(flagStr, REVCONFIG_TEST_TESTLOCALINFOFIRST_STR)) {
                 testFlags |= CERT_REV_MI_TEST_ALL_LOCAL_INFORMATION_FIRST;
@@ -282,7 +282,7 @@ parseRevMethodsAndFlags()
         /* method type */
         if (revMethodsData[i].methodTypeStr) {
             char *methodStr = revMethodsData[i].methodTypeStr;
-            unsigned int methodType = 0;
+            uint methodType = 0;
             
             if (!PORT_Strcmp(methodStr, REVCONFIG_METHOD_CRL_STR)) {
                 methodType = REVCONFIG_METHOD_CRL;
@@ -301,7 +301,7 @@ parseRevMethodsAndFlags()
         /* method flags */
         if (revMethodsData[i].methodFlagsStr) {
             char *flagStr = revMethodsData[i].methodFlagsStr;
-            unsigned int methodFlags = 0;
+            uint methodFlags = 0;
 
             if (!PORT_Strstr(flagStr, REVCONFIG_METHOD_DONOTUSEMETHOD_STR)) {
                 methodFlags |= CERT_REV_M_TEST_USING_THIS_METHOD;
@@ -331,7 +331,7 @@ SECStatus
 configureRevocationParams(CERTRevocationFlags *flags)
 {
    int i;
-   unsigned int testType = REVCONFIG_TEST_UNDEFINED;
+   uint testType = REVCONFIG_TEST_UNDEFINED;
    static CERTRevocationTests *revTests = NULL;
    PRUint64 *revFlags;
 
@@ -611,7 +611,7 @@ breakout:
                 static CERTRevocationFlags rev;
                 
                 if (oidStr) {
-                    PLArenaPool *arena;
+                    PRArenaPool *arena;
                     SECOidData od;
                     memset(&od, 0, sizeof od);
                     od.offset = SEC_OID_UNKNOWN;

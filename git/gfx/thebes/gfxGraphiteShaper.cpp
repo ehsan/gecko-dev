@@ -3,14 +3,26 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "gfxGraphiteShaper.h"
 #include "nsString.h"
+#include "nsBidiUtils.h"
+#include "nsMathUtils.h"
+
+#include "gfxTypes.h"
+
 #include "gfxContext.h"
+#include "gfxPlatform.h"
+#include "gfxGraphiteShaper.h"
+#include "gfxFontUtils.h"
 
 #include "graphite2/Font.h"
 #include "graphite2/Segment.h"
 
 #include "harfbuzz/hb.h"
+
+#include "cairo.h"
+
+#include "nsUnicodeRange.h"
+#include "nsCRT.h"
 
 #define FloatToFixed(f) (65536 * (f))
 #define FixedToFloat(f) ((f) * (1.0 / 65536.0))
@@ -28,11 +40,21 @@ using namespace mozilla; // for AutoSwap_* types
 
 gfxGraphiteShaper::gfxGraphiteShaper(gfxFont *aFont)
     : gfxFontShaper(aFont),
-      mGrFace(mFont->GetFontEntry()->GetGrFace()),
+      mGrFace(nullptr),
       mGrFont(nullptr)
 {
+    mTables.Init();
     mCallbackData.mFont = aFont;
     mCallbackData.mShaper = this;
+}
+
+PLDHashOperator
+ReleaseTableFunc(const uint32_t& /* aKey */,
+                 gfxGraphiteShaper::TableRec& aData,
+                 void* /* aUserArg */)
+{
+    hb_blob_destroy(aData.mBlob);
+    return PL_DHASH_REMOVE;
 }
 
 gfxGraphiteShaper::~gfxGraphiteShaper()
@@ -40,14 +62,47 @@ gfxGraphiteShaper::~gfxGraphiteShaper()
     if (mGrFont) {
         gr_font_destroy(mGrFont);
     }
-    mFont->GetFontEntry()->ReleaseGrFace(mGrFace);
+    if (mGrFace) {
+        gr_face_destroy(mGrFace);
+    }
+    mTables.Enumerate(ReleaseTableFunc, nullptr);
 }
 
-/*static*/ float
-gfxGraphiteShaper::GrGetAdvance(const void* appFontHandle, uint16_t glyphid)
+static const void*
+GrGetTable(const void* appFaceHandle, unsigned int name, size_t *len)
 {
-    const CallbackData *cb =
-        static_cast<const CallbackData*>(appFontHandle);
+    const gfxGraphiteShaper::CallbackData *cb =
+        static_cast<const gfxGraphiteShaper::CallbackData*>(appFaceHandle);
+    return cb->mShaper->GetTable(name, len);
+}
+
+const void*
+gfxGraphiteShaper::GetTable(uint32_t aTag, size_t *aLength)
+{
+    TableRec tableRec;
+
+    if (!mTables.Get(aTag, &tableRec)) {
+        hb_blob_t *blob = mFont->GetFontTable(aTag);
+        if (blob) {
+            // mFont->GetFontTable() gives us a reference to the blob.
+            // We will destroy (release) it in our destructor.
+            tableRec.mBlob = blob;
+            tableRec.mData = hb_blob_get_data(blob, &tableRec.mLength);
+            mTables.Put(aTag, tableRec);
+        } else {
+            return nullptr;
+        }
+    }
+
+    *aLength = tableRec.mLength;
+    return tableRec.mData;
+}
+
+static float
+GrGetAdvance(const void* appFontHandle, gr_uint16 glyphid)
+{
+    const gfxGraphiteShaper::CallbackData *cb =
+        static_cast<const gfxGraphiteShaper::CallbackData*>(appFontHandle);
     return FixedToFloat(cb->mFont->GetGlyphWidth(cb->mContext, glyphid));
 }
 
@@ -97,6 +152,7 @@ gfxGraphiteShaper::ShapeText(gfxContext      *aContext,
     mCallbackData.mContext = aContext;
 
     if (!mGrFont) {
+        mGrFace = gr_make_face(&mCallbackData, GrGetTable, gr_face_default);
         if (!mGrFace) {
             return false;
         }
@@ -114,6 +170,8 @@ gfxGraphiteShaper::ShapeText(gfxContext      *aContext,
         }
 
         if (!mGrFont) {
+            gr_face_destroy(mGrFace);
+            mGrFace = nullptr;
             return false;
         }
     }
@@ -134,13 +192,8 @@ gfxGraphiteShaper::ShapeText(gfxContext      *aContext,
 
     nsDataHashtable<nsUint32HashKey,uint32_t> mergedFeatures;
 
-    // if style contains font-specific features
-    if (MergeFontFeatures(style,
-                          mFont->GetFontEntry()->mFeatureSettings,
-                          aShapedText->DisableLigatures(),
-                          mFont->GetFontEntry()->FamilyName(),
-                          mergedFeatures))
-    {
+    if (MergeFontFeatures(style->featureSettings, entry->mFeatureSettings,
+                          aShapedText->DisableLigatures(), mergedFeatures)) {
         // enumerate result and insert into Graphite feature list
         GrFontFeatures f = {mGrFace, grFeatures};
         mergedFeatures.Enumerate(AddFeature, &f);
@@ -339,7 +392,7 @@ gfxGraphiteShaper::SetGlyphsFromSegment(gfxContext      *aContext,
 // for language tag validation - include list of tags from the IANA registry
 #include "gfxLanguageTagList.cpp"
 
-nsTHashtable<nsUint32HashKey> *gfxGraphiteShaper::sLanguageTags;
+nsTHashtable<nsUint32HashKey> gfxGraphiteShaper::sLanguageTags;
 
 /*static*/ uint32_t
 gfxGraphiteShaper::GetGraphiteTagForLang(const nsCString& aLang)
@@ -374,16 +427,16 @@ gfxGraphiteShaper::GetGraphiteTagForLang(const nsCString& aLang)
         return 0;
     }
 
-    if (!sLanguageTags) {
+    if (!sLanguageTags.IsInitialized()) {
         // store the registered IANA tags in a hash for convenient validation
-        sLanguageTags = new nsTHashtable<nsUint32HashKey>(ArrayLength(sLanguageTagList));
+        sLanguageTags.Init(ArrayLength(sLanguageTagList));
         for (const uint32_t *tag = sLanguageTagList; *tag != 0; ++tag) {
-            sLanguageTags->PutEntry(*tag);
+            sLanguageTags.PutEntry(*tag);
         }
     }
 
     // only accept tags known in the IANA registry
-    if (sLanguageTags->GetEntry(grLang)) {
+    if (sLanguageTags.GetEntry(grLang)) {
         return grLang;
     }
 
@@ -394,10 +447,8 @@ gfxGraphiteShaper::GetGraphiteTagForLang(const nsCString& aLang)
 gfxGraphiteShaper::Shutdown()
 {
 #ifdef NS_FREE_PERMANENT_DATA
-    if (sLanguageTags) {
-        sLanguageTags->Clear();
-        delete sLanguageTags;
-        sLanguageTags = nullptr;
+    if (sLanguageTags.IsInitialized()) {
+        sLanguageTags.Clear();
     }
 #endif
 }

@@ -23,7 +23,7 @@ class FontFamily;
 class FontEntry;
 #endif
 
-class gfxQtPlatform : public gfxPlatform {
+class THEBES_API gfxQtPlatform : public gfxPlatform {
 public:
 
     enum RenderMode {
@@ -45,7 +45,7 @@ public:
     }
 
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                         gfxContentType contentType);
+                                                         gfxASurface::gfxContentType contentType);
 
     nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,

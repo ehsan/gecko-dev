@@ -6,7 +6,6 @@
 #ifndef NS_SVGTEXTFRAME_H
 #define NS_SVGTEXTFRAME_H
 
-#include "mozilla/Attributes.h"
 #include "gfxMatrix.h"
 #include "gfxRect.h"
 #include "nsSVGTextContainerFrame.h"
@@ -26,10 +25,9 @@ class nsSVGTextFrame : public nsSVGTextFrameBase
   friend nsIFrame*
   NS_NewSVGTextFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  nsSVGTextFrame(nsStyleContext* aContext) : nsSVGTextFrameBase(aContext)
-  {
-    AddStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
-  }
+  nsSVGTextFrame(nsStyleContext* aContext)
+    : nsSVGTextFrameBase(aContext),
+      mPositioningDirty(true) {}
 
 public:
   NS_DECL_FRAMEARENA_HELPERS
@@ -43,17 +41,17 @@ public:
 
   NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,
                                nsIAtom*        aAttribute,
-                               int32_t         aModType) MOZ_OVERRIDE;
+                               int32_t         aModType);
 
   /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::svgTextFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGText"), aResult);
   }
@@ -64,31 +62,29 @@ public:
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   // nsISVGChildFrame interface:
-  virtual void NotifySVGChanged(uint32_t aFlags) MOZ_OVERRIDE;
+  virtual void NotifySVGChanged(uint32_t aFlags);
   // Override these four to ensure that UpdateGlyphPositioning is called
   // to bring glyph positions up to date
   NS_IMETHOD PaintSVG(nsRenderingContext* aContext,
-                      const nsIntRect *aDirtyRect,
-                      nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
-  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint & aPoint) MOZ_OVERRIDE;
-  virtual void ReflowSVG() MOZ_OVERRIDE;
+                      const nsIntRect *aDirtyRect);
+  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint & aPoint);
+  virtual void ReflowSVG();
   virtual SVGBBox GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
-                                      uint32_t aFlags) MOZ_OVERRIDE;
+                                      uint32_t aFlags);
   
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
-                                nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor);
   
   // nsSVGTextContainerFrame methods:
-  virtual uint32_t GetNumberOfChars() MOZ_OVERRIDE;
-  virtual float GetComputedTextLength() MOZ_OVERRIDE;
-  virtual float GetSubStringLength(uint32_t charnum, uint32_t nchars) MOZ_OVERRIDE;
-  virtual int32_t GetCharNumAtPosition(mozilla::nsISVGPoint *point) MOZ_OVERRIDE;
+  virtual uint32_t GetNumberOfChars();
+  virtual float GetComputedTextLength();
+  virtual float GetSubStringLength(uint32_t charnum, uint32_t nchars);
+  virtual int32_t GetCharNumAtPosition(mozilla::nsISVGPoint *point);
 
-  NS_IMETHOD GetStartPositionOfChar(uint32_t charnum, nsISupports **_retval) MOZ_OVERRIDE;
-  NS_IMETHOD GetEndPositionOfChar(uint32_t charnum, nsISupports **_retval) MOZ_OVERRIDE;
-  NS_IMETHOD GetExtentOfChar(uint32_t charnum, mozilla::dom::SVGIRect **_retval) MOZ_OVERRIDE;
-  NS_IMETHOD GetRotationOfChar(uint32_t charnum, float *_retval) MOZ_OVERRIDE;
+  NS_IMETHOD GetStartPositionOfChar(uint32_t charnum, nsISupports **_retval);
+  NS_IMETHOD GetEndPositionOfChar(uint32_t charnum, nsISupports **_retval);
+  NS_IMETHOD GetExtentOfChar(uint32_t charnum, mozilla::dom::SVGIRect **_retval);
+  NS_IMETHOD GetRotationOfChar(uint32_t charnum, float *_retval);
 
   // nsSVGTextFrame
   void NotifyGlyphMetricsChange();
@@ -104,6 +100,8 @@ private:
   void SetWhitespaceHandling(nsSVGGlyphFrame *aFrame);
 
   nsAutoPtr<gfxMatrix> mCanvasTM;
+
+  bool mPositioningDirty;
 };
 
 #endif

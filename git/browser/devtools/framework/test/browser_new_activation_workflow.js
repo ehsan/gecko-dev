@@ -8,6 +8,8 @@ const Cu = Components.utils;
 let toolbox, target;
 
 let tempScope = {};
+Cu.import("resource:///modules/devtools/Target.jsm", tempScope);
+let TargetFactory = tempScope.TargetFactory;
 
 function test() {
   addTab("about:blank", function(aBrowser, aTab) {
@@ -43,7 +45,7 @@ function selectAndCheckById(id) {
 
   return toolbox.selectTool(id).then(function() {
     let tab = doc.getElementById("toolbox-tab-" + id);
-    is(tab.hasAttribute("selected"), true, "The " + id + " tab is selected");
+    is(tab.selected, true, "The " + id + " tab is selected");
   });
 }
 

@@ -4,6 +4,8 @@
 
 /*
  * p7verify -- A command to do a verification of a *detached* pkcs7 signature.
+ *
+ * $Id$
  */
 
 #include "nspr.h"
@@ -133,8 +135,7 @@ HashDecodeAndVerify(FILE *out, FILE *content, PRFileDesc *signature,
     SECItem digest;
     unsigned char buffer[32];
 
-    if (SECU_ReadDERFromFile(&derdata, signature, PR_FALSE,
-                             PR_FALSE) != SECSuccess) {
+    if (SECU_ReadDERFromFile(&derdata, signature, PR_FALSE) != SECSuccess) {
 	SECU_PrintError(progName, "error reading signature file");
 	return -1;
     }

@@ -5,6 +5,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* $Id$ */
 
 #ifndef __sslimpl_h_
 #define __sslimpl_h_
@@ -54,15 +55,12 @@ typedef SSLSignType     SSL3SignType;
 #define calg_aes	ssl_calg_aes
 #define calg_camellia	ssl_calg_camellia
 #define calg_seed	ssl_calg_seed
-#define calg_aes_gcm    ssl_calg_aes_gcm
 
 #define mac_null	ssl_mac_null
 #define mac_md5 	ssl_mac_md5
 #define mac_sha 	ssl_mac_sha
 #define hmac_md5	ssl_hmac_md5
 #define hmac_sha	ssl_hmac_sha
-#define hmac_sha256	ssl_hmac_sha256
-#define mac_aead	ssl_mac_aead
 
 #define SET_ERROR_CODE		/* reminder */
 #define SEND_ALERT		/* reminder */
@@ -143,9 +141,11 @@ typedef enum { SSLAppOpRead = 0,
 #define NUM_MIXERS                      9
 
 /* Mask of the 25 named curves we support. */
-#define SSL3_ALL_SUPPORTED_CURVES_MASK 0x3fffffe
-/* Mask of only 3 curves, suite B */
-#define SSL3_SUITE_B_SUPPORTED_CURVES_MASK 0x3800000
+#ifndef NSS_ECC_MORE_THAN_SUITE_B
+#define SSL3_SUPPORTED_CURVES_MASK 0x3800000	/* only 3 curves, suite B*/
+#else
+#define SSL3_SUPPORTED_CURVES_MASK 0x3fffffe
+#endif
 
 #ifndef BPB
 #define BPB 8 /* Bits Per Byte */
@@ -282,9 +282,9 @@ typedef struct {
 } ssl3CipherSuiteCfg;
 
 #ifdef NSS_ENABLE_ECC
-#define ssl_V3_SUITES_IMPLEMENTED 61
+#define ssl_V3_SUITES_IMPLEMENTED 50
 #else
-#define ssl_V3_SUITES_IMPLEMENTED 37
+#define ssl_V3_SUITES_IMPLEMENTED 30
 #endif /* NSS_ENABLE_ECC */
 
 #define MAX_DTLS_SRTP_CIPHER_SUITES 4
@@ -432,6 +432,20 @@ struct sslGatherStr {
 #define GS_DATA		3
 #define GS_PAD		4
 
+typedef SECStatus (*SSLCipher)(void *               context, 
+                               unsigned char *      out,
+			       int *                outlen, 
+			       int                  maxout, 
+			       const unsigned char *in,
+			       int                  inlen);
+typedef SECStatus (*SSLCompressor)(void *               context,
+                                   unsigned char *      out,
+                                   int *                outlen,
+                                   int                  maxout,
+                                   const unsigned char *in,
+                                   int                  inlen);
+typedef SECStatus (*SSLDestroy)(void *context, PRBool freeit);
+
 
 
 /*
@@ -455,12 +469,11 @@ typedef enum {
     cipher_camellia_128,
     cipher_camellia_256,
     cipher_seed,
-    cipher_aes_128_gcm,
     cipher_missing              /* reserved for no such supported cipher */
     /* This enum must match ssl3_cipherName[] in ssl3con.c.  */
 } SSL3BulkCipher;
 
-typedef enum { type_stream, type_block, type_aead } CipherType;
+typedef enum { type_stream, type_block } CipherType;
 
 #define MAX_IV_LENGTH 24
 
@@ -476,9 +489,7 @@ typedef PRUint16 DTLSEpoch;
 
 typedef void (*DTLSTimerCb)(sslSocket *);
 
-#define MAX_MAC_CONTEXT_BYTES 400  /* 400 is large enough for MD5, SHA-1, and
-                                    * SHA-256. For SHA-384 support, increase
-                                    * it to 712. */
+#define MAX_MAC_CONTEXT_BYTES 400
 #define MAX_MAC_CONTEXT_LLONGS (MAX_MAC_CONTEXT_BYTES / 8)
 
 #define MAX_CIPHER_CONTEXT_BYTES 2080
@@ -501,30 +512,6 @@ typedef struct {
     SSL3Opaque  write_iv[MAX_IV_LENGTH];
     PRUint64    cipher_context[MAX_CIPHER_CONTEXT_LLONGS];
 } ssl3KeyMaterial;
-
-typedef SECStatus (*SSLCipher)(void *               context, 
-                               unsigned char *      out,
-			       int *                outlen, 
-			       int                  maxout, 
-			       const unsigned char *in,
-			       int                  inlen);
-typedef SECStatus (*SSLAEADCipher)(
-			       ssl3KeyMaterial *    keys,
-			       PRBool               doDecrypt,
-			       unsigned char *      out,
-			       int *                outlen,
-			       int                  maxout,
-			       const unsigned char *in,
-			       int                  inlen,
-			       const unsigned char *additionalData,
-			       int                  additionalDataLen);
-typedef SECStatus (*SSLCompressor)(void *               context,
-                                   unsigned char *      out,
-                                   int *                outlen,
-                                   int                  maxout,
-                                   const unsigned char *in,
-                                   int                  inlen);
-typedef SECStatus (*SSLDestroy)(void *context, PRBool freeit);
 
 /* The DTLS anti-replay window. Defined here because we need it in
  * the cipher spec. Note that this is a ring buffer but left and
@@ -552,7 +539,6 @@ typedef struct {
     int                mac_size;
     SSLCipher          encode;
     SSLCipher          decode;
-    SSLAEADCipher      aead;
     SSLDestroy         destroy;
     void *             encodeContext;
     void *             decodeContext;
@@ -625,7 +611,7 @@ struct sslSessionIDStr {
 	} ssl2;
 	struct {
 	    /* values that are copied into the server's on-disk SID cache. */
-	    PRUint8               sessionIDLength;
+	    uint8                 sessionIDLength;
 	    SSL3Opaque            sessionID[SSL3_SESSIONID_BYTES];
 
 	    ssl3CipherSuite       cipherSuite;
@@ -699,6 +685,8 @@ typedef struct {
     PRBool                   tls_keygen;
 } ssl3KEADef;
 
+typedef enum { kg_null, kg_strong, kg_export } SSL3KeyGenMode;
+
 /*
 ** There are tables of these, all const.
 */
@@ -710,8 +698,7 @@ struct ssl3BulkCipherDefStr {
     CipherType      type;
     int             iv_size;
     int             block_size;
-    int             tag_size;  /* authentication tag size for AEAD ciphers. */
-    int             explicit_nonce_size;               /* for AEAD ciphers. */
+    SSL3KeyGenMode  keygen_mode;
 };
 
 /*
@@ -781,12 +768,6 @@ typedef struct DTLSQueuedMessageStr {
     PRUint16 len;         /* The data length */
 } DTLSQueuedMessage;
 
-typedef enum {
-    handshake_hash_unknown = 0,
-    handshake_hash_combo = 1,  /* The MD5/SHA-1 combination */
-    handshake_hash_single = 2  /* A single hash */
-} SSL3HandshakeHashType;
-
 /*
 ** This is the "hs" member of the "ssl3" struct.
 ** This entire struct is protected by ssl3HandshakeLock
@@ -795,35 +776,10 @@ typedef struct SSL3HandshakeStateStr {
     SSL3Random            server_random;
     SSL3Random            client_random;
     SSL3WaitState         ws;
-
-    /* This group of members is used for handshake running hashes. */
-    SSL3HandshakeHashType hashType;
-    sslBuffer             messages;    /* Accumulated handshake messages */
-#ifndef NO_PKCS11_BYPASS
-    /* Bypass mode:
-     * SSL 3.0 - TLS 1.1 use both |md5_cx| and |sha_cx|. |md5_cx| is used for
-     * MD5 and |sha_cx| for SHA-1.
-     * TLS 1.2 and later use only |sha_cx|, for SHA-256. NOTE: When we support
-     * SHA-384, increase MAX_MAC_CONTEXT_BYTES to 712. */
     PRUint64              md5_cx[MAX_MAC_CONTEXT_LLONGS];
     PRUint64              sha_cx[MAX_MAC_CONTEXT_LLONGS];
-    const SECHashObject * sha_obj;
-    /* The function prototype of sha_obj->clone() does not match the prototype
-     * of the freebl <HASH>_Clone functions, so we need a dedicated function
-     * pointer for the <HASH>_Clone function. */
-    void (*sha_clone)(void *dest, void *src);
-#endif
-    /* PKCS #11 mode:
-     * SSL 3.0 - TLS 1.1 use both |md5| and |sha|. |md5| is used for MD5 and
-     * |sha| for SHA-1.
-     * TLS 1.2 and later use only |sha|, for SHA-256. */
-    /* NOTE: On the client side, TLS 1.2 and later use |md5| as a backup
-     * handshake hash for generating client auth signatures. Confusingly, the
-     * backup hash function is SHA-1. */
-#define backupHash md5
-    PK11Context *         md5;
+    PK11Context *         md5;            /* handshake running hashes */
     PK11Context *         sha;
-
 const ssl3KEADef *        kea_def;
     ssl3CipherSuite       cipher_suite;
 const ssl3CipherSuiteDef *suite_def;
@@ -841,10 +797,11 @@ const ssl3CipherSuiteDef *suite_def;
     PRBool                sendingSCSV; /* instead of empty RI */
     sslBuffer             msgState;    /* current state for handshake messages*/
                                        /* protected by recvBufLock */
+    sslBuffer             messages;    /* Accumulated handshake messages */
     PRUint16              finishedBytes; /* size of single finished below */
     union {
 	TLSFinished       tFinished[2]; /* client, then server */
-	SSL3Finished      sFinished[2];
+	SSL3Hashes        sFinished[2];
 	SSL3Opaque        data[72];
     }                     finishedMsgs;
 #ifdef NSS_ENABLE_ECC
@@ -858,14 +815,6 @@ const ssl3CipherSuiteDef *suite_def;
     sslRestartTarget      restartTarget;
     /* Shared state between ssl3_HandleFinished and ssl3_FinishHandshake */
     PRBool                cacheSID;
-
-    PRBool                canFalseStart;   /* Can/did we False Start */
-
-    /* clientSigAndHash contains the contents of the signature_algorithms
-     * extension (if any) from the client. This is only valid for TLS 1.2
-     * or later. */
-    SSL3SignatureAndHashAlgorithm *clientSigAndHash;
-    unsigned int          numClientSigAndHash;
 
     /* This group of values is used for DTLS */
     PRUint16              sendMessageSeq;  /* The sending message sequence
@@ -919,7 +868,7 @@ struct ssl3StateStr {
 			/* This says what cipher suites we can do, and should 
 			 * be either SSL_ALLOWED or SSL_RESTRICTED 
 			 */
-    PLArenaPool *        peerCertArena;
+    PRArenaPool *        peerCertArena;  
 			    /* These are used to keep track of the peer CA */
     void *               peerCertChain;     
 			    /* chain while we are trying to validate it.   */
@@ -973,26 +922,26 @@ typedef struct SSLWrappedSymWrappingKeyStr {
 } SSLWrappedSymWrappingKey;
 
 typedef struct SessionTicketStr {
-    PRUint16              ticket_version;
+    uint16                ticket_version;
     SSL3ProtocolVersion   ssl_version;
     ssl3CipherSuite       cipher_suite;
     SSLCompressionMethod  compression_method;
     SSLSignType           authAlgorithm;
-    PRUint32              authKeyBits;
+    uint32                authKeyBits;
     SSLKEAType            keaType;
-    PRUint32              keaKeyBits;
+    uint32                keaKeyBits;
     /*
      * exchKeyType and msWrapMech contain meaningful values only if
      * ms_is_wrapped is true.
      */
-    PRUint8               ms_is_wrapped;
+    uint8                 ms_is_wrapped;
     SSLKEAType            exchKeyType; /* XXX(wtc): same as keaType above? */
     CK_MECHANISM_TYPE     msWrapMech;
-    PRUint16              ms_length;
+    uint16                ms_length;
     SSL3Opaque            master_secret[48];
     ClientIdentity        client_identity;
     SECItem               peer_cert;
-    PRUint32              timestamp;
+    uint32                timestamp;
     SECItem               srvName; /* negotiated server name */
 }  SessionTicket;
 
@@ -1135,10 +1084,6 @@ struct sslSocketStr {
     unsigned long    clientAuthRequested;
     unsigned long    delayDisabled;       /* Nagle delay disabled */
     unsigned long    firstHsDone;         /* first handshake is complete. */
-    unsigned long    enoughFirstHsDone;   /* enough of the first handshake is
-					   * done for callbacks to be able to
-					   * retrieve channel security
-					   * parameters from the SSL socket. */
     unsigned long    handshakeBegun;     
     unsigned long    lastWriteBlocked;   
     unsigned long    recvdCloseNotify;    /* received SSL EOF. */
@@ -1179,8 +1124,6 @@ const unsigned char *  preferredCipher;
     void                     *badCertArg;
     SSLHandshakeCallback      handshakeCallback;
     void                     *handshakeCallbackData;
-    SSLCanFalseStartCallback  canFalseStartCallback;
-    void                     *canFalseStartCallbackData;
     void                     *pkcs11PinArg;
     SSLNextProtoCallback      nextProtoCallback;
     void                     *nextProtoArg;
@@ -1235,8 +1178,7 @@ const unsigned char *  preferredCipher;
     /* Configuration state for server sockets */
     /* server cert and key for each KEA type */
     sslServerCerts        serverCerts[kt_kea_size];
-    /* each cert needs its own status */
-    SECItemArray *        certStatusArray[kt_kea_size];
+    SECItemArray *        certStatusArray;
 
     ssl3CipherSuiteCfg cipherSuites[ssl_V3_SUITES_IMPLEMENTED];
     ssl3KeyPair *         ephemeralECDHKeyPair; /* for ECDHE-* handshake */
@@ -1383,19 +1325,7 @@ extern void      ssl3_SetAlwaysBlock(sslSocket *ss);
 
 extern SECStatus ssl_EnableNagleDelay(sslSocket *ss, PRBool enabled);
 
-extern void      ssl_FinishHandshake(sslSocket *ss);
-
-/* Returns PR_TRUE if we are still waiting for the server to respond to our
- * client second round. Once we've received any part of the server's second
- * round then we don't bother trying to false start since it is almost always
- * the case that the NewSessionTicket, ChangeCipherSoec, and Finished messages
- * were sent in the same packet and we want to process them all at the same
- * time. If we were to try to false start in the middle of the server's second
- * round, then we would increase the number of I/O operations
- * (SSL_ForceHandshake/PR_Recv/PR_Send/etc.) needed to finish the handshake.
- */
-extern PRBool    ssl3_WaitingForStartOfServerSecondRound(sslSocket *ss);
-
+extern PRBool    ssl3_CanFalseStart(sslSocket *ss);
 extern SECStatus
 ssl3_CompressMACEncryptRecord(ssl3CipherSpec *   cwSpec,
 		              PRBool             isServer,
@@ -1498,7 +1428,7 @@ extern PRInt32   ssl3_SendRecord(sslSocket *ss, DTLSEpoch epoch,
  * runtime to determine which versions are supported by the version of libssl
  * in use.
  */
-#define SSL_LIBRARY_VERSION_MAX_SUPPORTED SSL_LIBRARY_VERSION_TLS_1_2
+#define SSL_LIBRARY_VERSION_MAX_SUPPORTED SSL_LIBRARY_VERSION_TLS_1_1
 
 /* Rename this macro SSL_ALL_VERSIONS_DISABLED when SSL 2.0 is removed. */
 #define SSL3_ALL_VERSIONS_DISABLED(vrange) \
@@ -1563,8 +1493,6 @@ extern void      ssl3_FilterECCipherSuitesByServerCerts(sslSocket *ss);
 extern PRBool    ssl3_IsECCEnabled(sslSocket *ss);
 extern SECStatus ssl3_DisableECCSuites(sslSocket * ss, 
                                        const ssl3CipherSuite * suite);
-extern PRUint32  ssl3_GetSupportedECCurveMask(sslSocket *ss);
-
 
 /* Macro for finding a curve equivalent in strength to RSA key's */
 #define SSL_RSASTRENGTH_TO_ECSTRENGTH(s) \
@@ -1608,7 +1536,7 @@ typedef enum { ec_noName     = 0,
 	       ec_pastLastName
 } ECName;
 
-extern SECStatus ssl3_ECName2Params(PLArenaPool *arena, ECName curve,
+extern SECStatus ssl3_ECName2Params(PRArenaPool *arena, ECName curve,
 				   SECKEYECParams *params);
 ECName	ssl3_GetCurveWithECKeyStrength(PRUint32 curvemsk, int requiredECCbits);
 
@@ -1658,12 +1586,10 @@ extern SECStatus ssl3_HandleECDHClientKeyExchange(sslSocket *ss,
 				     SSL3Opaque *b, PRUint32 length,
                                      SECKEYPublicKey *srvrPubKey,
                                      SECKEYPrivateKey *srvrPrivKey);
-extern SECStatus ssl3_SendECDHServerKeyExchange(sslSocket *ss,
-			const SSL3SignatureAndHashAlgorithm *sigAndHash);
+extern SECStatus ssl3_SendECDHServerKeyExchange(sslSocket *ss);
 #endif
 
-extern SECStatus ssl3_ComputeCommonKeyHash(SECOidTag hashAlg,
-				PRUint8 * hashBuf,
+extern SECStatus ssl3_ComputeCommonKeyHash(PRUint8 * hashBuf, 
 				unsigned int bufLen, SSL3Hashes *hashes, 
 				PRBool bypassPKCS11);
 extern void ssl3_DestroyCipherSpec(ssl3CipherSpec *spec, PRBool freeSrvName);
@@ -1676,21 +1602,12 @@ extern SECStatus ssl3_AppendHandshakeNumber(sslSocket *ss, PRInt32 num,
 			PRInt32 lenSize);
 extern SECStatus ssl3_AppendHandshakeVariable( sslSocket *ss, 
 			const SSL3Opaque *src, PRInt32 bytes, PRInt32 lenSize);
-extern SECStatus ssl3_AppendSignatureAndHashAlgorithm(sslSocket *ss,
-			const SSL3SignatureAndHashAlgorithm* sigAndHash);
 extern SECStatus ssl3_ConsumeHandshake(sslSocket *ss, void *v, PRInt32 bytes, 
 			SSL3Opaque **b, PRUint32 *length);
 extern PRInt32   ssl3_ConsumeHandshakeNumber(sslSocket *ss, PRInt32 bytes, 
 			SSL3Opaque **b, PRUint32 *length);
 extern SECStatus ssl3_ConsumeHandshakeVariable(sslSocket *ss, SECItem *i, 
 			PRInt32 bytes, SSL3Opaque **b, PRUint32 *length);
-extern SECOidTag ssl3_TLSHashAlgorithmToOID(int hashFunc);
-extern SECStatus ssl3_CheckSignatureAndHashAlgorithmConsistency(
-			const SSL3SignatureAndHashAlgorithm *sigAndHash,
-			CERTCertificate* cert);
-extern SECStatus ssl3_ConsumeSignatureAndHashAlgorithm(sslSocket *ss,
-			SSL3Opaque **b, PRUint32 *length,
-			SSL3SignatureAndHashAlgorithm *out);
 extern SECStatus ssl3_SignHashes(SSL3Hashes *hash, SECKEYPrivateKey *key, 
 			SECItem *buf, PRBool isTLS);
 extern SECStatus ssl3_VerifySignedHashes(SSL3Hashes *hash, 
@@ -1767,7 +1684,7 @@ extern SECStatus ssl3_ValidateNextProtoNego(const unsigned char* data,
 extern PRFileDesc *ssl_NewPRSocket(sslSocket *ss, PRFileDesc *fd);
 extern void ssl_FreePRSocket(PRFileDesc *fd);
 
-/* Internal config function so SSL3 can initialize the present state of
+/* Internal config function so SSL2 can initialize the present state of 
  * various ciphers */
 extern int ssl3_config_match_init(sslSocket *);
 
@@ -1849,10 +1766,6 @@ extern SSL3ProtocolVersion
 dtls_DTLSVersionToTLSVersion(SSL3ProtocolVersion dtlsv);
 
 /********************** misc calls *********************/
-
-#ifdef DEBUG
-extern void ssl3_CheckCipherSuiteOrderConsistency();
-#endif
 
 extern int ssl_MapLowLevelError(int hiLevelError);
 

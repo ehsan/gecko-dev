@@ -15,7 +15,6 @@
 #include "nsTHashtable.h"
 #include "nsWeakReference.h"
 #include "mozilla/Attributes.h"
-#include "prtime.h"
 
 class nsNavBookmarks;
 class nsIOutputStream;
@@ -105,7 +104,7 @@ public:
   /**
    * Obtains the service's object.
    */
-  static already_AddRefed<nsNavBookmarks> GetSingleton();
+  static nsNavBookmarks* GetSingleton();
 
   /**
    * Initializes the service's object.  This should only be called once.
@@ -368,6 +367,7 @@ private:
   static const int32_t kGetChildrenIndex_Position;
   static const int32_t kGetChildrenIndex_Type;
   static const int32_t kGetChildrenIndex_PlaceID;
+  static const int32_t kGetChildrenIndex_FolderTitle;
   static const int32_t kGetChildrenIndex_Guid;
 
   class RemoveFolderTransaction MOZ_FINAL : public nsITransaction {

@@ -10,28 +10,3 @@ XPIDL_SOURCES += [
 
 MODULE = 'components'
 
-# metro/components.manifest
-EXTRA_COMPONENTS += [
-    'AlertsService.js',
-    'BrowserStartup.js',
-    'ContentDispatchChooser.js',
-    'ContentPermissionPrompt.js',
-    'DirectoryProvider.js',
-    'DownloadManagerUI.js',
-    'HelperAppDialog.js',
-    'LoginManagerPrompter.js',
-    'PromptService.js',
-    'Sidebar.js',
-]
-
-if CONFIG['MOZ_SAFE_BROWSING']:
-    EXTRA_COMPONENTS += [
-        'SafeBrowsing.js',
-    ]
-
-EXTRA_PP_COMPONENTS += [
-    'AboutRedirector.js',
-    'BrowserCLH.js',
-    'components.manifest',
-    'SessionStore.js',
-]

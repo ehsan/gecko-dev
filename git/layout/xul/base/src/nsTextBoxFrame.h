@@ -5,7 +5,6 @@
 #ifndef nsTextBoxFrame_h___
 #define nsTextBoxFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsLeafBoxFrame.h"
 
 class nsAccessKeyInfo;
@@ -19,11 +18,11 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
-  virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
-  virtual nscoord GetBoxAscent(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
-  NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
-  virtual void MarkIntrinsicWidthsDirty() MOZ_OVERRIDE;
+  virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
+  virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
+  virtual nscoord GetBoxAscent(nsBoxLayoutState& aBoxLayoutState);
+  NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
+  virtual void MarkIntrinsicWidthsDirty();
 
   enum CroppingStyle { CropNone, CropLeft, CropRight, CropCenter };
 
@@ -33,14 +32,14 @@ public:
                     nsIFrame*        aParent,
                     nsIFrame*        asPrevInFlow) MOZ_OVERRIDE;
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              int32_t         aModType) MOZ_OVERRIDE;
+                              int32_t         aModType);
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
   void UpdateAttributes(nsIAtom*         aAttribute,
@@ -60,7 +59,7 @@ public:
 
   nsRect GetComponentAlphaBounds();
 
-  virtual bool ComputesOwnOverflowArea() MOZ_OVERRIDE;
+  virtual bool ComputesOwnOverflowArea();
 
   void GetCroppedTitle(nsString& aTitle) const { aTitle = mCroppedTitle; }
 

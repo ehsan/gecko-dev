@@ -49,29 +49,18 @@
 #include <assert.h>
 #include <errno.h>
 #include <string.h>  // strncpy
+#include <time.h>    // nanosleep
 #include <unistd.h>
 #ifdef WEBRTC_LINUX
-#include <linux/unistd.h>
-#include <sched.h>
-#include <sys/prctl.h>
-#include <sys/syscall.h>
 #include <sys/types.h>
-#endif
-
-#if defined(__NetBSD__)
-#include <lwp.h>
-#elif defined(__FreeBSD__)
-#include <sys/param.h>
-#include <sys/thr.h>
-#endif
-
-#if defined(WEBRTC_BSD) && !defined(__NetBSD__)
-#include <pthread_np.h>
+#include <sched.h>
+#include <sys/syscall.h>
+#include <linux/unistd.h>
+#include <sys/prctl.h>
 #endif
 
 #include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
 #include "webrtc/system_wrappers/interface/event_wrapper.h"
-#include "webrtc/system_wrappers/interface/sleep.h"
 #include "webrtc/system_wrappers/interface/trace.h"
 
 namespace webrtc {
@@ -108,7 +97,8 @@ extern "C"
   }
 }
 
-ThreadWrapper* ThreadPosix::Create(ThreadRunFunction func, ThreadObj obj,
+ThreadWrapper* ThreadPosix::Create(ThreadRunFunction func,
+                                   ThreadObj obj,
                                    ThreadPriority prio,
                                    const char* thread_name) {
   ThreadPosix* ptr = new ThreadPosix(func, obj, prio, thread_name);
@@ -151,20 +141,6 @@ uint32_t ThreadWrapper::GetThreadId() {
   return static_cast<uint32_t>(syscall(__NR_gettid));
 #elif defined(WEBRTC_MAC) || defined(WEBRTC_IOS)
   return pthread_mach_thread_np(pthread_self());
-#elif defined(__NetBSD__)
-  return _lwp_self();
-#elif defined(__DragonFly__)
-  return lwp_gettid();
-#elif defined(__OpenBSD__)
-  return reinterpret_cast<uintptr_t> (pthread_self());
-#elif defined(__FreeBSD__)
-#  if __FreeBSD_version > 900030
-    return pthread_getthreadid_np();
-#  else
-    long lwpid;
-    thr_self(&lwpid);
-    return lwpid;
-#  endif
 #else
   return reinterpret_cast<uint32_t>(pthread_self());
 #endif
@@ -196,28 +172,21 @@ ThreadPosix::~ThreadPosix() {
   delete crit_state_;
 }
 
-#define HAS_THREAD_ID !defined(WEBRTC_IOS) && !defined(WEBRTC_MAC) && !defined(WEBRTC_BSD)
+#define HAS_THREAD_ID !defined(WEBRTC_IOS) && !defined(WEBRTC_MAC)
 
 bool ThreadPosix::Start(unsigned int& thread_id)
 {
+  if (!run_function_) {
+    return false;
+  }
   int result = pthread_attr_setdetachstate(&attr_, PTHREAD_CREATE_DETACHED);
   // Set the stack stack size to 1M.
   result |= pthread_attr_setstacksize(&attr_, 1024 * 1024);
-#if 0
-// Temporarily remove the attempt to set this to real-time scheduling.
-//
-// See: https://code.google.com/p/webrtc/issues/detail?id=1956
-//
-// To be removed when upstream is fixed.
 #ifdef WEBRTC_THREAD_RR
   const int policy = SCHED_RR;
 #else
   const int policy = SCHED_FIFO;
 #endif
-#else
-  const int policy = SCHED_OTHER;
-#endif
-
   event_->Reset();
   // If pthread_create was successful, a thread was created and is running.
   // Don't return false if it was successful since if there are any other
@@ -228,17 +197,15 @@ bool ThreadPosix::Start(unsigned int& thread_id)
   if (result != 0) {
     return false;
   }
-  {
-    CriticalSectionScoped cs(crit_state_);
-    dead_ = false;
-  }
 
   // Wait up to 10 seconds for the OS to call the callback function. Prevents
   // race condition if Stop() is called too quickly after start.
   if (kEventSignaled != event_->Wait(WEBRTC_EVENT_10_SEC)) {
     WEBRTC_TRACE(kTraceError, kTraceUtility, -1,
                  "posix thread event never triggered");
+
     // Timed out. Something went wrong.
+    run_function_ = NULL;
     return true;
   }
 
@@ -270,17 +237,13 @@ bool ThreadPosix::Start(unsigned int& thread_id)
 
 // CPU_ZERO and CPU_SET are not available in NDK r7, so disable
 // SetAffinity on Android for now.
-#if defined(__FreeBSD__) || (defined(WEBRTC_LINUX) && !defined(WEBRTC_ANDROID) && !defined(WEBRTC_GONK))
+#if (defined(WEBRTC_LINUX) && (!defined(WEBRTC_ANDROID)) && (!defined(WEBRTC_GONK)))
 bool ThreadPosix::SetAffinity(const int* processor_numbers,
                               const unsigned int amount_of_processors) {
   if (!processor_numbers || (amount_of_processors == 0)) {
     return false;
   }
-#if defined(__FreeBSD__)
-  cpuset_t mask;
-#else
   cpu_set_t mask;
-#endif
   CPU_ZERO(&mask);
 
   for (unsigned int processor = 0;
@@ -288,11 +251,7 @@ bool ThreadPosix::SetAffinity(const int* processor_numbers,
        ++processor) {
     CPU_SET(processor_numbers[processor], &mask);
   }
-#if defined(__FreeBSD__)
-  const int result = pthread_setaffinity_np(thread_,
-                             sizeof(mask),
-                             &mask);
-#elif defined(WEBRTC_ANDROID) || defined(WEBRTC_GONK)
+#if defined(WEBRTC_ANDROID) || defined(WEBRTC_GONK)
   // Android.
   const int result = syscall(__NR_sched_setaffinity,
                              pid_,
@@ -334,8 +293,11 @@ bool ThreadPosix::Stop() {
 
   // TODO(hellner) why not use an event here?
   // Wait up to 10 seconds for the thread to terminate
-  for (int i = 0; i < 1000 && !dead; ++i) {
-    SleepMs(10);
+  for (int i = 0; i < 1000 && !dead; i++) {
+    timespec t;
+    t.tv_sec = 0;
+    t.tv_nsec = 10 * 1000 * 1000;
+    nanosleep(&t, NULL);
     {
       CriticalSectionScoped cs(crit_state_);
       dead = dead_;
@@ -352,6 +314,7 @@ void ThreadPosix::Run() {
   {
     CriticalSectionScoped cs(crit_state_);
     alive_ = true;
+    dead_  = false;
   }
 #if (defined(WEBRTC_LINUX) || defined(WEBRTC_ANDROID) || defined(WEBRTC_GONK))
   pid_ = GetThreadId();
@@ -362,10 +325,6 @@ void ThreadPosix::Run() {
   if (set_thread_name_) {
 #ifdef WEBRTC_LINUX
     prctl(PR_SET_NAME, (unsigned long)name_, 0, 0, 0);
-#elif defined(__NetBSD__)
-        pthread_setname_np(pthread_self(), "%s", (void *)name_);
-#elif defined(WEBRTC_BSD)
-        pthread_set_name_np(pthread_self(), name_);
 #endif
     WEBRTC_TRACE(kTraceStateInfo, kTraceUtility, -1,
                  "Thread with name:%s started ", name_);
@@ -374,15 +333,22 @@ void ThreadPosix::Run() {
                  "Thread without name started");
   }
   bool alive = true;
-  bool run = true;
-  while (alive) {
-    run = run_function_(obj_);
-    CriticalSectionScoped cs(crit_state_);
-    if (!run) {
-      alive_ = false;
+  do {
+    if (run_function_) {
+      if (!run_function_(obj_)) {
+        alive = false;
+      }
+    } else {
+      alive = false;
     }
-    alive = alive_;
-  }
+    {
+      CriticalSectionScoped cs(crit_state_);
+      if (!alive) {
+        alive_ = false;
+      }
+      alive = alive_;
+    }
+  } while (alive);
 
   if (set_thread_name_) {
     // Don't set the name for the trace thread because it may cause a
@@ -402,4 +368,4 @@ void ThreadPosix::Run() {
   }
 }
 
-}  // namespace webrtc
+} // namespace webrtc

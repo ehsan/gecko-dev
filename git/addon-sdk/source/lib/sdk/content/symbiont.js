@@ -1,3 +1,5 @@
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -15,8 +17,7 @@ const unload = require('../system/unload');
 const { getDocShell } = require("../frame/utils");
 const { ignoreWindow } = require('../private-browsing/utils');
 
-// Everything coming from add-on's xpi considered an asset.
-const assetsURI = require('../self').data.url().replace(/data\/$/, "");
+const assetsURI = require('../self').data.url();
 
 /**
  * This trait is layered on top of `Worker` and in contrast to symbiont

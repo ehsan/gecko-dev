@@ -3,16 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 'use strict';
 
-// Opening new windows in Fennec causes issues
-module.metadata = {
-  engines: {
-    'Firefox': '*'
-  }
-};
-
 const { Ci } = require('chrome');
 const { open, backgroundify, windows, isBrowser,
-        getXULWindow, getBaseWindow, getToplevelWindow, getMostRecentWindow,
+        getXULWindow, getBaseWindow, getMostRecentWindow,
         getMostRecentBrowserWindow } = require('sdk/window/utils');
 const { close } = require('sdk/window/helpers');
 const windowUtils = require('sdk/deprecated/window-utils');
@@ -33,16 +26,6 @@ exports['test get nsIXULWindow from nsIDomWindow'] = function(assert) {
             'active window is not nsIXULWindow');
   assert.ok(getXULWindow(active) instanceof Ci.nsIXULWindow,
             'base returns nsIXULWindow');
-};
-
-exports['test getToplevelWindow'] = function(assert) {
-  let active = windowUtils.activeBrowserWindow;
-  assert.equal(getToplevelWindow(active), active,
-               'getToplevelWindow of toplevel window returns the same window');
-  assert.equal(getToplevelWindow(active.content), active,
-               'getToplevelWindow of tab window returns the browser window');
-  assert.ok(getToplevelWindow(active) instanceof Ci.nsIDOMWindow,
-            'getToplevelWindow returns nsIDOMWindow');
 };
 
 exports['test top window creation'] = function(assert, done) {
@@ -68,34 +51,6 @@ exports['test new top window with options'] = function(assert, done) {
   close(window).then(done);
 };
 
-exports['test new top window with various URIs'] = function(assert, done) {
-  let msg = 'only chrome, resource and data uris are allowed';
-  assert.throws(function () {
-    open('foo');
-  }, msg);
-  assert.throws(function () {
-    open('http://foo');
-  }, msg);
-  assert.throws(function () {
-    open('https://foo');
-  }, msg); 
-  assert.throws(function () {
-    open('ftp://foo');
-  }, msg);
-  assert.throws(function () {
-    open('//foo');
-  }, msg);
-
-  let chromeWindow = open('chrome://foo/content/');
-  assert.ok(~windows().indexOf(chromeWindow), 'chrome URI works');
-  
-  let resourceWindow = open('resource://foo');
-  assert.ok(~windows().indexOf(resourceWindow), 'resource URI works');
-
-  // Wait for the window unload before ending test
-  close(chromeWindow).then(close.bind(null, resourceWindow)).then(done);
-};
-
 exports.testBackgroundify = function(assert, done) {
   let window = open('data:text/html;charset=utf-8,backgroundy');
   assert.ok(~windows().indexOf(window),
@@ -106,10 +61,7 @@ exports.testBackgroundify = function(assert, done) {
             'backgroundifyied window is in the list of windows');
 
   // Wait for the window unload before ending test
-  // backgroundified windows doesn't dispatch domwindowclosed event
-  // so that we have to manually wait for unload event
-  window.onunload = done;
-  window.close();
+  close(window).then(done);
 };
 
 exports.testIsBrowser = function(assert) {

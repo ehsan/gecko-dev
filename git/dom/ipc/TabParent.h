@@ -7,26 +7,28 @@
 #ifndef mozilla_tabs_TabParent_h
 #define mozilla_tabs_TabParent_h
 
-#include "mozilla/EventForwards.h"
+#include "base/basictypes.h"
+
+#include "jsapi.h"
 #include "mozilla/dom/PBrowserParent.h"
 #include "mozilla/dom/PContentDialogParent.h"
 #include "mozilla/dom/TabContext.h"
+#include "mozilla/ipc/GeckoChildProcessHost.h"
 #include "nsCOMPtr.h"
 #include "nsIAuthPromptProvider.h"
 #include "nsIBrowserDOMWindow.h"
 #include "nsIDialogParamBlock.h"
 #include "nsISecureBrowserUI.h"
 #include "nsITabParent.h"
-#include "Units.h"
-#include "js/TypeDecls.h"
+#include "nsWeakReference.h"
 
 struct gfxMatrix;
+struct JSContext;
+class JSObject;
+class mozIApplication;
 class nsFrameLoader;
-class nsIContent;
-class nsIPrincipal;
+class nsIDOMElement;
 class nsIURI;
-class nsIWidget;
-class CpowHolder;
 
 namespace mozilla {
 
@@ -42,8 +44,6 @@ class RenderFrameParent;
 namespace dom {
 
 class ClonedMessageData;
-class ContentParent;
-class Element;
 struct StructuredCloneData;
 
 class ContentDialogParent : public PContentDialogParent {};
@@ -58,24 +58,10 @@ class TabParent : public PBrowserParent
     typedef mozilla::layout::ScrollingBehavior ScrollingBehavior;
 
 public:
-    TabParent(ContentParent* aManager, const TabContext& aContext);
+    TabParent(const TabContext& aContext);
     virtual ~TabParent();
-    Element* GetOwnerElement() const { return mFrameElement; }
-    void SetOwnerElement(Element* aElement);
-
-    /**
-     * Get the mozapptype attribute from this TabParent's owner DOM element.
-     */
-    void GetAppType(nsAString& aOut);
-
-    /**
-     * Returns true iff this TabParent's nsIFrameLoader is visible.
-     *
-     * The frameloader's visibility can be independent of e.g. its docshell's
-     * visibility.
-     */
-    bool IsVisible();
-
+    nsIDOMElement* GetOwnerElement() { return mFrameElement; }
+    void SetOwnerElement(nsIDOMElement* aElement);
     nsIBrowserDOMWindow *GetBrowserDOMWindow() { return mBrowserDOMWindow; }
     void SetBrowserDOMWindow(nsIBrowserDOMWindow* aBrowserDOMWindow) {
         mBrowserDOMWindow = aBrowserDOMWindow;
@@ -103,7 +89,7 @@ public:
      * It's an error to call TryCapture() if this isn't the event
      * capturer.
      */
-    bool TryCapture(const WidgetGUIEvent& aEvent);
+    bool TryCapture(const nsGUIEvent& aEvent);
 
     void Destroy();
 
@@ -121,18 +107,9 @@ public:
     virtual bool AnswerCreateWindow(PBrowserParent** retval);
     virtual bool RecvSyncMessage(const nsString& aMessage,
                                  const ClonedMessageData& aData,
-                                 const InfallibleTArray<CpowEntry>& aCpows,
-                                 const IPC::Principal& aPrincipal,
                                  InfallibleTArray<nsString>* aJSONRetVal);
-    virtual bool AnswerRpcMessage(const nsString& aMessage,
-                                  const ClonedMessageData& aData,
-                                  const InfallibleTArray<CpowEntry>& aCpows,
-                                  const IPC::Principal& aPrincipal,
-                                  InfallibleTArray<nsString>* aJSONRetVal);
     virtual bool RecvAsyncMessage(const nsString& aMessage,
-                                  const ClonedMessageData& aData,
-                                  const InfallibleTArray<CpowEntry>& aCpows,
-                                  const IPC::Principal& aPrincipal);
+                                  const ClonedMessageData& aData);
     virtual bool RecvNotifyIMEFocus(const bool& aFocus,
                                     nsIMEUpdatePreference* aPreference,
                                     uint32_t* aSeqno);
@@ -155,33 +132,21 @@ public:
                                      const nsString& aActionHint,
                                      const int32_t& aCause,
                                      const int32_t& aFocusChange);
-    virtual bool RecvRequestFocus(const bool& aCanRaise);
     virtual bool RecvSetCursor(const uint32_t& aValue);
     virtual bool RecvSetBackgroundColor(const nscolor& aValue);
-    virtual bool RecvSetStatus(const uint32_t& aType, const nsString& aStatus);
     virtual bool RecvGetDPI(float* aValue);
-    virtual bool RecvGetDefaultScale(double* aValue);
     virtual bool RecvGetWidgetNativeData(WindowsHandle* aValue);
-    virtual bool RecvZoomToRect(const uint32_t& aPresShellId,
-                                const ViewID& aViewId,
-                                const CSSRect& aRect);
-    virtual bool RecvUpdateZoomConstraints(const uint32_t& aPresShellId,
-                                           const ViewID& aViewId,
-                                           const bool& aAllowZoom,
-                                           const CSSToScreenScale& aMinZoom,
-                                           const CSSToScreenScale& aMaxZoom);
-    virtual bool RecvUpdateScrollOffset(const uint32_t& aPresShellId, const ViewID& aViewId, const CSSIntPoint& aScrollOffset);
-    virtual bool RecvContentReceivedTouch(const ScrollableLayerGuid& aGuid,
-                                          const bool& aPreventDefault);
-    virtual bool RecvRecordingDeviceEvents(const nsString& aRecordingStatus,
-                                           const bool& aIsAudio,
-                                           const bool& aIsVideo);
-    virtual PContentDialogParent* AllocPContentDialogParent(const uint32_t& aType,
-                                                            const nsCString& aName,
-                                                            const nsCString& aFeatures,
-                                                            const InfallibleTArray<int>& aIntParams,
-                                                            const InfallibleTArray<nsString>& aStringParams);
-    virtual bool DeallocPContentDialogParent(PContentDialogParent* aDialog)
+    virtual bool RecvZoomToRect(const gfxRect& aRect);
+    virtual bool RecvUpdateZoomConstraints(const bool& aAllowZoom,
+                                           const float& aMinZoom,
+                                           const float& aMaxZoom);
+    virtual bool RecvContentReceivedTouch(const bool& aPreventDefault);
+    virtual PContentDialogParent* AllocPContentDialog(const uint32_t& aType,
+                                                      const nsCString& aName,
+                                                      const nsCString& aFeatures,
+                                                      const InfallibleTArray<int>& aIntParams,
+                                                      const InfallibleTArray<nsString>& aStringParams);
+    virtual bool DeallocPContentDialog(PContentDialogParent* aDialog)
     {
       delete aDialog;
       return true;
@@ -195,15 +160,11 @@ public:
     void Show(const nsIntSize& size);
     void UpdateDimensions(const nsRect& rect, const nsIntSize& size);
     void UpdateFrame(const layers::FrameMetrics& aFrameMetrics);
-    void HandleDoubleTap(const CSSIntPoint& aPoint);
-    void HandleSingleTap(const CSSIntPoint& aPoint);
-    void HandleLongTap(const CSSIntPoint& aPoint);
+    void HandleDoubleTap(const nsIntPoint& aPoint);
+    void HandleSingleTap(const nsIntPoint& aPoint);
+    void HandleLongTap(const nsIntPoint& aPoint);
     void Activate();
     void Deactivate();
-
-    bool MapEventCoordinatesForChildProcess(mozilla::WidgetEvent* aEvent);
-    void MapEventCoordinatesForChildProcess(const LayoutDeviceIntPoint& aOffset,
-                                            mozilla::WidgetEvent* aEvent);
 
     void SendMouseEvent(const nsAString& aType, float aX, float aY,
                         int32_t aButton, int32_t aClickCount,
@@ -211,29 +172,29 @@ public:
     void SendKeyEvent(const nsAString& aType, int32_t aKeyCode,
                       int32_t aCharCode, int32_t aModifiers,
                       bool aPreventDefault);
-    bool SendRealMouseEvent(mozilla::WidgetMouseEvent& event);
-    bool SendMouseWheelEvent(mozilla::WidgetWheelEvent& event);
-    bool SendRealKeyEvent(mozilla::WidgetKeyboardEvent& event);
-    bool SendRealTouchEvent(WidgetTouchEvent& event);
+    bool SendRealMouseEvent(nsMouseEvent& event);
+    bool SendMouseWheelEvent(mozilla::widget::WheelEvent& event);
+    bool SendRealKeyEvent(nsKeyEvent& event);
+    bool SendRealTouchEvent(nsTouchEvent& event);
 
     virtual PDocumentRendererParent*
-    AllocPDocumentRendererParent(const nsRect& documentRect, const gfxMatrix& transform,
-                                 const nsString& bgcolor,
-                                 const uint32_t& renderFlags, const bool& flushLayout,
-                                 const nsIntSize& renderSize);
-    virtual bool DeallocPDocumentRendererParent(PDocumentRendererParent* actor);
+    AllocPDocumentRenderer(const nsRect& documentRect, const gfxMatrix& transform,
+                           const nsString& bgcolor,
+                           const uint32_t& renderFlags, const bool& flushLayout,
+                           const nsIntSize& renderSize);
+    virtual bool DeallocPDocumentRenderer(PDocumentRendererParent* actor);
 
     virtual PContentPermissionRequestParent*
-    AllocPContentPermissionRequestParent(const nsCString& aType, const nsCString& aAccess, const IPC::Principal& aPrincipal);
-    virtual bool DeallocPContentPermissionRequestParent(PContentPermissionRequestParent* actor);
+    AllocPContentPermissionRequest(const nsCString& aType, const nsCString& aAccess, const IPC::Principal& aPrincipal);
+    virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestParent* actor);
 
-    virtual POfflineCacheUpdateParent* AllocPOfflineCacheUpdateParent(
+    virtual POfflineCacheUpdateParent* AllocPOfflineCacheUpdate(
             const URIParams& aManifestURI,
             const URIParams& aDocumentURI,
             const bool& stickDocument) MOZ_OVERRIDE;
-    virtual bool DeallocPOfflineCacheUpdateParent(POfflineCacheUpdateParent* actor);
+    virtual bool DeallocPOfflineCacheUpdate(POfflineCacheUpdateParent* actor);
 
-    bool GetGlobalJSObject(JSContext* cx, JSObject** globalp);
+    JSBool GetGlobalJSObject(JSContext* cx, JSObject** globalp);
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIAUTHPROMPTPROVIDER
@@ -242,48 +203,35 @@ public:
     void HandleDelayedDialogs();
 
     static TabParent *GetIMETabParent() { return mIMETabParent; }
-    bool HandleQueryContentEvent(mozilla::WidgetQueryContentEvent& aEvent);
-    bool SendCompositionEvent(mozilla::WidgetCompositionEvent& event);
-    bool SendTextEvent(mozilla::WidgetTextEvent& event);
-    bool SendSelectionEvent(mozilla::WidgetSelectionEvent& event);
+    bool HandleQueryContentEvent(nsQueryContentEvent& aEvent);
+    bool SendCompositionEvent(nsCompositionEvent& event);
+    bool SendTextEvent(nsTextEvent& event);
+    bool SendSelectionEvent(nsSelectionEvent& event);
 
     static TabParent* GetFrom(nsFrameLoader* aFrameLoader);
     static TabParent* GetFrom(nsIContent* aContent);
-
-    ContentParent* Manager() { return mManager; }
-
-    /**
-     * Let managees query if Destroy() is already called so they don't send out
-     * messages when the PBrowser actor is being destroyed.
-     */
-    bool IsDestroyed() const { return mIsDestroyed; }
 
 protected:
     bool ReceiveMessage(const nsString& aMessage,
                         bool aSync,
                         const StructuredCloneData* aCloneData,
-                        CpowHolder* aCpows,
-                        nsIPrincipal* aPrincipal,
                         InfallibleTArray<nsString>* aJSONRetVal = nullptr);
 
     virtual bool Recv__delete__() MOZ_OVERRIDE;
 
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
-    virtual PIndexedDBParent* AllocPIndexedDBParent(
-                                                  const nsCString& aGroup,
-                                                  const nsCString& aASCIIOrigin,
-                                                  bool* /* aAllowed */);
+    virtual PIndexedDBParent* AllocPIndexedDB(const nsCString& aASCIIOrigin,
+                                              bool* /* aAllowed */);
 
-    virtual bool DeallocPIndexedDBParent(PIndexedDBParent* aActor);
+    virtual bool DeallocPIndexedDB(PIndexedDBParent* aActor);
 
     virtual bool
     RecvPIndexedDBConstructor(PIndexedDBParent* aActor,
-                              const nsCString& aGroup,
                               const nsCString& aASCIIOrigin,
                               bool* aAllowed);
 
-    Element* mFrameElement;
+    nsIDOMElement* mFrameElement;
     nsCOMPtr<nsIBrowserDOMWindow> mBrowserDOMWindow;
 
     struct DelayedDialogData
@@ -306,10 +254,10 @@ protected:
     bool ShouldDelayDialogs();
     bool AllowContentIME();
 
-    virtual PRenderFrameParent* AllocPRenderFrameParent(ScrollingBehavior* aScrolling,
-                                                        TextureFactoryIdentifier* aTextureFactoryIdentifier,
-                                                        uint64_t* aLayersId) MOZ_OVERRIDE;
-    virtual bool DeallocPRenderFrameParent(PRenderFrameParent* aFrame) MOZ_OVERRIDE;
+    virtual PRenderFrameParent* AllocPRenderFrame(ScrollingBehavior* aScrolling,
+                                                  TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                                                  uint64_t* aLayersId) MOZ_OVERRIDE;
+    virtual bool DeallocPRenderFrame(PRenderFrameParent* aFrame) MOZ_OVERRIDE;
 
     // IME
     static TabParent *mIMETabParent;
@@ -331,7 +279,6 @@ protected:
     nsIntSize mDimensions;
     ScreenOrientation mOrientation;
     float mDPI;
-    CSSToLayoutDeviceScale mDefaultScale;
     bool mShown;
     bool mUpdatedDimensions;
 
@@ -339,8 +286,7 @@ private:
     already_AddRefed<nsFrameLoader> GetFrameLoader() const;
     already_AddRefed<nsIWidget> GetWidget() const;
     layout::RenderFrameParent* GetRenderFrame();
-    nsRefPtr<ContentParent> mManager;
-    void TryCacheDPIAndScale();
+    void TryCacheDPI();
 
     // When true, we create a pan/zoom controller for our frame and
     // notify it of input events targeting us.
@@ -348,17 +294,9 @@ private:
     // If we have a render frame currently, notify it that we're about
     // to dispatch |aEvent| to our child.  If there's a relevant
     // transform in place, |aOutEvent| is the transformed |aEvent| to
-    // dispatch to content. |aOutTargetGuid| will contain the identifier
-    // of the APZC instance that handled the event. aOutTargetGuid may be
-    // null but aOutEvent must not be.
-    void MaybeForwardEventToRenderFrame(const WidgetInputEvent& aEvent,
-                                        ScrollableLayerGuid* aOutTargetGuid,
-                                        WidgetInputEvent* aOutEvent);
-    // The offset for the child process which is sampled at touch start. This
-    // means that the touch events are relative to where the frame was at the
-    // start of the touch. We need to look for a better solution to this
-    // problem see bug 872911.
-    LayoutDeviceIntPoint mChildProcessOffsetAtTouchStart;
+    // dispatch to content.
+    void MaybeForwardEventToRenderFrame(const nsInputEvent& aEvent,
+                                        nsInputEvent* aOutEvent);
     // When true, we've initiated normal shutdown and notified our
     // managing PContent.
     bool mMarkedDestroying;

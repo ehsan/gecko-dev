@@ -6,7 +6,6 @@
 #ifndef nsEventStates_h__
 #define nsEventStates_h__
 
-#include "mozilla/Attributes.h"
 #include "nsDebug.h"
 
 /**
@@ -21,7 +20,7 @@ class nsEventStates
 public:
   typedef uint64_t InternalType;
 
-  MOZ_CONSTEXPR nsEventStates()
+  nsEventStates()
     : mStates(0)
   { }
 
@@ -30,12 +29,12 @@ public:
   // In that case, we could be sure that only macros at the end were creating
   // nsEventStates instances with mStates set to something else than 0.
   // Unfortunately, this constructor is needed at at least two places now.
-  explicit MOZ_CONSTEXPR nsEventStates(InternalType aStates)
+  explicit nsEventStates(InternalType aStates)
     : mStates(aStates)
   { }
 
-  MOZ_CONSTEXPR nsEventStates(const nsEventStates& aEventStates)
-    : mStates(aEventStates.mStates) {
+  nsEventStates(const nsEventStates& aEventStates) {
+    mStates = aEventStates.mStates;
   }
 
   nsEventStates& operator=(const nsEventStates& aEventStates) {
@@ -43,7 +42,7 @@ public:
     return *this;
   }
 
-  nsEventStates MOZ_CONSTEXPR operator|(const nsEventStates& aEventStates) const {
+  nsEventStates operator|(const nsEventStates& aEventStates) const {
     return nsEventStates(mStates | aEventStates.mStates);
   }
 
@@ -55,7 +54,7 @@ public:
   // NOTE: calling if (eventStates1 & eventStates2) will not build.
   // This might work correctly if operator bool() is defined
   // but using HasState, HasAllStates or HasAtLeastOneOfStates is recommended.
-  nsEventStates MOZ_CONSTEXPR operator&(const nsEventStates& aEventStates) const {
+  nsEventStates operator&(const nsEventStates& aEventStates) const {
     return nsEventStates(mStates & aEventStates.mStates);
   }
 
@@ -253,8 +252,6 @@ private:
 #define NS_EVENT_STATE_RTL NS_DEFINE_EVENT_STATE_MACRO(43)
 // Handler for play preview plugin
 #define NS_EVENT_STATE_TYPE_PLAY_PREVIEW NS_DEFINE_EVENT_STATE_MACRO(44)
-// Element is highlighted (devtools inspector)
-#define NS_EVENT_STATE_DEVTOOLS_HIGHLIGHTED NS_DEFINE_EVENT_STATE_MACRO(45)
 
 // Event state that is used for values that need to be parsed but do nothing.
 #define NS_EVENT_STATE_IGNORE NS_DEFINE_EVENT_STATE_MACRO(63)

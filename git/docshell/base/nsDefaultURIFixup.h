@@ -9,6 +9,10 @@
 
 #include "nsIURIFixup.h"
 
+#include "nsCOMPtr.h"
+
+#include "nsCDefaultURIFixup.h"
+
 /* Header file */
 class nsDefaultURIFixup : public nsIURIFixup
 {
@@ -25,7 +29,7 @@ private:
     /* additional members */
     nsresult FileURIFixup(const nsACString &aStringURI, nsIURI** aURI);
     nsresult ConvertFileToStringURI(const nsACString& aIn, nsCString& aOut);
-    void KeywordURIFixup(const nsACString &aStringURI, nsIInputStream** aPostData, nsIURI** aURI);
+    nsresult KeywordURIFixup(const nsACString &aStringURI, nsIURI** aURI);
     bool PossiblyByteExpandedFileName(const nsAString& aIn);
     bool PossiblyHostPortUrl(const nsACString& aUrl);
     bool MakeAlternateURI(nsIURI *aURI);

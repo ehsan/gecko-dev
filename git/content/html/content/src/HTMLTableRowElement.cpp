@@ -21,12 +21,10 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-HTMLTableRowElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLTableRowElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return HTMLTableRowElementBinding::Wrap(aCx, aScope, this);
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLTableRowElement)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLTableRowElement,
                                                   nsGenericHTMLElement)
@@ -37,24 +35,24 @@ NS_IMPL_ADDREF_INHERITED(HTMLTableRowElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLTableRowElement, Element)
 
 // QueryInterface implementation for HTMLTableRowElement
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(HTMLTableRowElement)
-NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
+NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLTableRowElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLTableRowElement,
+                                   nsIDOMHTMLTableRowElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLTableRowElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLTableRowElement)
 
 
 // protected method
-HTMLTableSectionElement*
+already_AddRefed<nsIDOMHTMLTableSectionElement>
 HTMLTableRowElement::GetSection() const
 {
-  nsIContent* parent = GetParent();
-  if (parent && parent->IsHTML() && (parent->Tag() == nsGkAtoms::thead ||
-                                     parent->Tag() == nsGkAtoms::tbody ||
-                                     parent->Tag() == nsGkAtoms::tfoot)) {
-    return static_cast<HTMLTableSectionElement*>(parent);
-  }
-  return nullptr;
+  nsCOMPtr<nsIDOMHTMLTableSectionElement> section =
+    do_QueryInterface(GetParent());
+  return section.forget();
 }
 
 // protected method
@@ -96,15 +94,25 @@ HTMLTableRowElement::RowIndex() const
   return -1;
 }
 
+NS_IMETHODIMP
+HTMLTableRowElement::GetRowIndex(int32_t* aValue)
+{
+  *aValue = RowIndex();
+  return NS_OK;
+}
+
 int32_t
 HTMLTableRowElement::SectionRowIndex() const
 {
-  HTMLTableSectionElement* section = GetSection();
+  nsCOMPtr<nsIDOMHTMLTableSectionElement> section = GetSection();
   if (!section) {
     return -1;
   }
 
-  nsCOMPtr<nsIHTMLCollection> coll = section->Rows();
+  nsCOMPtr<nsIDOMHTMLCollection> rows;
+  section->GetRows(getter_AddRefs(rows));
+
+  nsCOMPtr<nsIHTMLCollection> coll = do_QueryInterface(rows);
   uint32_t numRows = coll->Length();
   for (uint32_t i = 0; i < numRows; i++) {
     if (coll->GetElementAt(i) == this) {
@@ -113,6 +121,13 @@ HTMLTableRowElement::SectionRowIndex() const
   }
 
   return -1;
+}
+
+NS_IMETHODIMP
+HTMLTableRowElement::GetSectionRowIndex(int32_t* aValue)
+{
+  *aValue = SectionRowIndex();
+  return NS_OK;
 }
 
 static bool
@@ -140,6 +155,13 @@ HTMLTableRowElement::Cells()
   }
 
   return mCells;
+}
+
+NS_IMETHODIMP
+HTMLTableRowElement::GetCells(nsIDOMHTMLCollection** aValue)
+{
+  NS_ADDREF(*aValue = Cells());
+  return NS_OK;
 }
 
 already_AddRefed<nsGenericHTMLElement>
@@ -189,6 +211,14 @@ HTMLTableRowElement::InsertCell(int32_t aIndex,
   return cell.forget();
 }
 
+NS_IMETHODIMP
+HTMLTableRowElement::InsertCell(int32_t aIndex, nsIDOMHTMLElement** aValue)
+{
+  ErrorResult rv;
+  nsRefPtr<nsGenericHTMLElement> cell = InsertCell(aIndex, rv);
+  return rv.Failed() ? rv.ErrorCode() : CallQueryInterface(cell, aValue);
+}
+
 void
 HTMLTableRowElement::DeleteCell(int32_t aValue, ErrorResult& aError)
 {
@@ -219,6 +249,99 @@ HTMLTableRowElement::DeleteCell(int32_t aValue, ErrorResult& aError)
   }
 
   nsINode::RemoveChild(*cell, aError);
+}
+
+NS_IMETHODIMP
+HTMLTableRowElement::DeleteCell(int32_t aValue)
+{
+  ErrorResult rv;
+  DeleteCell(aValue, rv);
+  return rv.ErrorCode();
+}
+
+NS_IMETHODIMP
+HTMLTableRowElement::SetAlign(const nsAString& aAlign)
+{
+  ErrorResult rv;
+  SetAlign(aAlign, rv);
+  return rv.ErrorCode();
+}
+
+NS_IMETHODIMP
+HTMLTableRowElement::GetAlign(nsAString& aAlign)
+{
+  nsString align;
+  GetAlign(align);
+  aAlign = align;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HTMLTableRowElement::SetVAlign(const nsAString& aVAlign)
+{
+  ErrorResult rv;
+  SetVAlign(aVAlign, rv);
+  return rv.ErrorCode();
+}
+
+NS_IMETHODIMP
+HTMLTableRowElement::GetVAlign(nsAString& aVAlign)
+{
+  nsString vAlign;
+  GetVAlign(vAlign);
+  aVAlign = vAlign;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HTMLTableRowElement::SetCh(const nsAString& aCh)
+{
+  ErrorResult rv;
+  SetCh(aCh, rv);
+  return rv.ErrorCode();
+}
+
+NS_IMETHODIMP
+HTMLTableRowElement::GetCh(nsAString& aCh)
+{
+  nsString ch;
+  GetCh(ch);
+  aCh = ch;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HTMLTableRowElement::SetChOff(const nsAString& aChOff)
+{
+  ErrorResult rv;
+  SetChOff(aChOff, rv);
+  return rv.ErrorCode();
+}
+
+NS_IMETHODIMP
+HTMLTableRowElement::GetChOff(nsAString& aChOff)
+{
+  nsString chOff;
+  GetChOff(chOff);
+  aChOff = chOff;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HTMLTableRowElement::SetBgColor(const nsAString& aBgColor)
+{
+  ErrorResult rv;
+  SetBgColor(aBgColor, rv);
+  return rv.ErrorCode();
+}
+
+NS_IMETHODIMP
+HTMLTableRowElement::GetBgColor(nsAString& aBgColor)
+{
+  nsString bgColor;
+  GetBgColor(bgColor);
+  aBgColor = bgColor;
+  return NS_OK;
 }
 
 bool

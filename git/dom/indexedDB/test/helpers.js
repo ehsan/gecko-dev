@@ -49,27 +49,17 @@ function clearAllDatabases(callback) {
     comp.classes["@mozilla.org/dom/quota/manager;1"]
         .getService(comp.interfaces.nsIQuotaManager);
 
-  let uri = SpecialPowers.wrap(document).documentURIObject;
+  let uri = SpecialPowers.getDocumentURIObject(document);
 
-  // We need to pass a JS callback to getUsageForURI. However, that callback
-  // takes an XPCOM URI object, which will cause us to throw when we wrap it
-  // for the content compartment. So we need to define the function in a
-  // privileged scope, which we do using a sandbox.
-  var sysPrin = SpecialPowers.Services.scriptSecurityManager.getSystemPrincipal();
-  var sb = new SpecialPowers.Cu.Sandbox(sysPrin);
-  sb.ok = ok;
-  sb.runCallback = runCallback;
-  var cb = SpecialPowers.Cu.evalInSandbox((function(uri, usage, fileUsage) {
+  quotaManager.clearStoragesForURI(uri);
+  quotaManager.getUsageForURI(uri, function(uri, usage, fileUsage) {
     if (usage) {
       ok(false,
          "getUsageForURI returned non-zero usage after clearing all " +
          "storages!");
     }
     runCallback();
-  }).toSource(), sb);
-
-  quotaManager.clearStoragesForURI(uri);
-  quotaManager.getUsageForURI(uri, cb);
+  });
 }
 
 if (!window.runTest) {
@@ -84,7 +74,6 @@ if (!window.runTest) {
       allowUnlimitedQuota();
     }
 
-    enableExperimental();
     enableArchiveReader();
 
     clearAllDatabases(function () { testGenerator.next(); });
@@ -94,10 +83,7 @@ if (!window.runTest) {
 function finishTest()
 {
   resetUnlimitedQuota();
-  resetExperimental();
   resetArchiveReader();
-  SpecialPowers.notifyObserversInParentProcess(null, "disk-space-watcher",
-                                               "free");
 
   SimpleTest.executeSoon(function() {
     testGenerator.close();
@@ -149,16 +135,6 @@ function unexpectedSuccessHandler()
 {
   ok(false, "Got success, but did not expect it!");
   finishTest();
-}
-
-function expectedErrorHandler(name)
-{
-  return function(event) {
-    is(event.type, "error", "Got an error event");
-    is(event.target.error.name, name, "Expected error was thrown.");
-    event.preventDefault();
-    grabEventAndContinueHandler(event);
-  };
 }
 
 function ExpectError(name, preventDefault)
@@ -255,23 +231,8 @@ function resetArchiveReader()
   SpecialPowers.setBoolPref("dom.archivereader.enabled", archiveReaderEnabled);
 }
 
-function enableExperimental()
-{
-  SpecialPowers.setBoolPref("dom.indexedDB.experimental", true);
-}
-
-function resetExperimental()
-{
-  SpecialPowers.clearUserPref("dom.indexedDB.experimental");
-}
-
 function gc()
 {
   SpecialPowers.forceGC();
   SpecialPowers.forceCC();
-}
-
-function scheduleGC()
-{
-  SpecialPowers.exactGC(window, continueToNextStep);
 }

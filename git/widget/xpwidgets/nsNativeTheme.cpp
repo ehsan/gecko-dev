@@ -14,6 +14,7 @@
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMHTMLProgressElement.h"
 #include "nsIDOMXULMenuListElement.h"
 #include "nsThemeConstants.h"
 #include "nsIComponentManager.h"
@@ -22,14 +23,8 @@
 #include "nsMeterFrame.h"
 #include "nsMenuFrame.h"
 #include "nsRangeFrame.h"
-#include "nsCSSRendering.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/HTMLBodyElement.h"
-#include "mozilla/dom/HTMLProgressElement.h"
-#include "nsIDocumentInlines.h"
 #include <algorithm>
-
-using namespace mozilla::dom;
 
 nsNativeTheme::nsNativeTheme()
 : mAnimatedContentTimeout(UINT32_MAX)
@@ -152,8 +147,14 @@ nsNativeTheme::GetProgressValue(nsIFrame* aFrame)
 {
   // When we are using the HTML progress element,
   // we can get the value from the IDL property.
-  if (aFrame && aFrame->GetContent()->IsHTML(nsGkAtoms::progress)) {
-    return static_cast<HTMLProgressElement*>(aFrame->GetContent())->Value();
+  if (aFrame) {
+    nsCOMPtr<nsIDOMHTMLProgressElement> progress =
+      do_QueryInterface(aFrame->GetContent());
+    if (progress) {
+      double value;
+      progress->GetValue(&value);
+      return value;
+    }
   }
 
   return (double)nsNativeTheme::CheckIntAttr(aFrame, nsGkAtoms::value, 0);
@@ -165,8 +166,14 @@ nsNativeTheme::GetProgressMaxValue(nsIFrame* aFrame)
 {
   // When we are using the HTML progress element,
   // we can get the max from the IDL property.
-  if (aFrame && aFrame->GetContent()->IsHTML(nsGkAtoms::progress)) {
-    return static_cast<HTMLProgressElement*>(aFrame->GetContent())->Max();
+  if (aFrame) {
+    nsCOMPtr<nsIDOMHTMLProgressElement> progress =
+      do_QueryInterface(aFrame->GetContent());
+    if (progress) {
+      double max;
+      progress->GetMax(&max);
+      return max;
+    }
   }
 
   return (double)std::max(nsNativeTheme::CheckIntAttr(aFrame, nsGkAtoms::max, 100), 1);
@@ -664,67 +671,9 @@ nsNativeTheme::IsRangeHorizontal(nsIFrame* aFrame)
 {
   nsIFrame* rangeFrame = aFrame;
   if (rangeFrame->GetType() != nsGkAtoms::rangeFrame) {
-    // If the thumb's frame is passed in, get its range parent:
     rangeFrame = aFrame->GetParent();
   }
-  if (rangeFrame->GetType() == nsGkAtoms::rangeFrame) {
-    return static_cast<nsRangeFrame*>(rangeFrame)->IsHorizontal();
-  }
-  // Not actually a range frame - just use the ratio of the frame's size to
-  // decide:
-  return aFrame->GetSize().width >= aFrame->GetSize().height;
-}
+  MOZ_ASSERT(rangeFrame->GetType() == nsGkAtoms::rangeFrame);
 
-static nsIFrame*
-GetBodyFrame(nsIFrame* aCanvasFrame)
-{
-  nsIContent* content = aCanvasFrame->GetContent();
-  if (!content) {
-    return nullptr;
-  }
-  nsIDocument* document = content->OwnerDoc();
-  nsIContent* body = document->GetBodyElement();
-  if (!body) {
-    return nullptr;
-  }
-  return body->GetPrimaryFrame();
-}
-
-bool
-nsNativeTheme::IsDarkBackground(nsIFrame* aFrame)
-{
-  nsIScrollableFrame* scrollFrame = nullptr;
-  while (!scrollFrame && aFrame) {
-    scrollFrame = aFrame->GetScrollTargetFrame();
-    aFrame = aFrame->GetParent();
-  }
-  if (!scrollFrame)
-    return false;
-
-  nsIFrame* frame = scrollFrame->GetScrolledFrame();
-  if (nsCSSRendering::IsCanvasFrame(frame)) {
-    // For canvas frames, prefer to look at the body first, because the body
-    // background color is most likely what will be visible as the background
-    // color of the page, even if the html element has a different background
-    // color which prevents that of the body frame to propagate to the viewport.
-    nsIFrame* bodyFrame = GetBodyFrame(frame);
-    if (bodyFrame) {
-      frame = bodyFrame;
-    }
-  }
-  nsStyleContext* bgSC = nullptr;
-  if (!nsCSSRendering::FindBackground(frame, &bgSC) ||
-      bgSC->StyleBackground()->IsTransparent()) {
-    nsIFrame* backgroundFrame = nsCSSRendering::FindNonTransparentBackgroundFrame(frame, true);
-    nsCSSRendering::FindBackground(backgroundFrame, &bgSC);
-  }
-  if (bgSC) {
-    nscolor bgColor = bgSC->StyleBackground()->mBackgroundColor;
-    // Consider the background color dark if the sum of the r, g and b values is
-    // less than 384 in a semi-transparent document.  This heuristic matches what
-    // WebKit does, and we can improve it later if needed.
-    return NS_GET_A(bgColor) > 127 &&
-           NS_GET_R(bgColor) + NS_GET_G(bgColor) + NS_GET_B(bgColor) < 384;
-  }
-  return false;
+  return static_cast<nsRangeFrame*>(rangeFrame)->IsHorizontal();
 }

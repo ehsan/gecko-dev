@@ -119,3 +119,4 @@ const SkMemberInfo* SkMemberInfo::getInherited() const {
 }
 
 #endif
+

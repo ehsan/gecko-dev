@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef assembler_moco_MocoStubs_h
-#define assembler_moco_MocoStubs_h
+#ifndef _include_assembler_moco_stubs_h_
+#define _include_assembler_moco_stubs_h_
 
 namespace JSC {
 
@@ -35,4 +35,5 @@ private:
 
 } // namespace JSC
 
-#endif /* assembler_moco_MocoStubs_h */
+#endif /* _include_assembler_moco_stubs_h_ */
+

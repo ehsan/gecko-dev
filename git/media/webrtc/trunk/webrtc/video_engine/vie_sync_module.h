@@ -14,11 +14,11 @@
 #ifndef WEBRTC_VIDEO_ENGINE_VIE_SYNC_MODULE_H_
 #define WEBRTC_VIDEO_ENGINE_VIE_SYNC_MODULE_H_
 
-#include "webrtc/modules/interface/module.h"
-#include "webrtc/system_wrappers/interface/scoped_ptr.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
-#include "webrtc/video_engine/stream_synchronization.h"
-#include "webrtc/voice_engine/include/voe_video_sync.h"
+#include "modules/interface/module.h"
+#include "system_wrappers/interface/scoped_ptr.h"
+#include "system_wrappers/interface/tick_util.h"
+#include "video_engine/stream_synchronization.h"
+#include "voice_engine/include/voe_video_sync.h"
 
 namespace webrtc {
 
@@ -36,23 +36,18 @@ class ViESyncModule : public Module {
 
   int ConfigureSync(int voe_channel_id,
                     VoEVideoSync* voe_sync_interface,
-                    RtpRtcp* video_rtcp_module,
-                    RtpReceiver* video_receiver);
+                    RtpRtcp* video_rtcp_module);
 
   int VoiceChannel();
 
-  // Set target delay for buffering mode (0 = real-time mode).
-  int SetTargetBufferingDelay(int target_delay_ms);
-
   // Implements Module.
-  virtual int32_t TimeUntilNextProcess();
-  virtual int32_t Process();
+  virtual WebRtc_Word32 TimeUntilNextProcess();
+  virtual WebRtc_Word32 Process();
 
  private:
   scoped_ptr<CriticalSectionWrapper> data_cs_;
   VideoCodingModule* vcm_;
   ViEChannel* vie_channel_;
-  RtpReceiver* video_receiver_;
   RtpRtcp* video_rtp_rtcp_;
   int voe_channel_id_;
   VoEVideoSync* voe_sync_interface_;

@@ -8,15 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <android/log.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <string.h>
+#include <android/log.h>
+#include <pthread.h>
 #include <unistd.h>
 
-#include "webrtc/video_engine/test/auto_test/android/jni/org_webrtc_vieautotest_vie_autotest.h"
+#include "org_webrtc_vieautotest_vie_autotest.h"
 
-#include "webrtc/video_engine/test/auto_test/interface/vie_autotest_android.h"
+#include "vie_autotest_android.h"
 
 #define WEBRTC_LOG_TAG "*WEBRTCN*"
 

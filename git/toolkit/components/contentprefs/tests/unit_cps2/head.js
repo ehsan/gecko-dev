@@ -182,9 +182,6 @@ function getCachedSubdomainsOK(args, expectedGroupValPairs) {
   let len = {};
   args.push(len);
   let actualPrefs = cps.getCachedBySubdomainAndName.apply(cps, args);
-  actualPrefs = actualPrefs.sort(function (a, b) {
-    return a.domain.localeCompare(b.domain);
-  });
   do_check_eq(actualPrefs.length, len.value);
   let expectedPrefs = expectedGroupValPairs.map(function ([group, val]) {
     return { domain: group, name: args[1], value: val };

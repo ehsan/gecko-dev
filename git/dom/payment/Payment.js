@@ -16,11 +16,13 @@ const PAYMENTCONTENTHELPER_CID =
 const PAYMENT_IPC_MSG_NAMES = ["Payment:Success",
                                "Payment:Failed"];
 
-const PREF_DEBUG = "dom.payment.debug";
-
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
                                    "nsIMessageSender");
+
+function debug (s) {
+  //dump("-*- PaymentContentHelper: " + s + "\n");
+};
 
 function PaymentContentHelper() {
 };
@@ -28,19 +30,18 @@ function PaymentContentHelper() {
 PaymentContentHelper.prototype = {
   __proto__: DOMRequestIpcHelper.prototype,
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsINavigatorPayment,
-                                         Ci.nsIDOMGlobalPropertyInitializer,
-                                         Ci.nsISupportsWeakReference]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMNavigatorPayment,
+                                         Ci.nsIDOMGlobalPropertyInitializer]),
   classID:        PAYMENTCONTENTHELPER_CID,
   classInfo:      XPCOMUtils.generateCI({
     classID: PAYMENTCONTENTHELPER_CID,
     contractID: "@mozilla.org/payment/content-helper;1",
     classDescription: "Payment Content Helper",
     flags: Ci.nsIClassInfo.DOM_OBJECT,
-    interfaces: [Ci.nsINavigatorPayment]
+    interfaces: [Ci.nsIDOMNavigatorPayment]
   }),
 
-  // nsINavigatorPayment
+  // nsIDOMNavigatorPayment
 
   pay: function pay(aJwts) {
     let request = this.createRequest();
@@ -50,10 +51,8 @@ PaymentContentHelper.prototype = {
                    .getInterface(Ci.nsIWebNavigation)
                    .QueryInterface(Ci.nsIDocShell);
     if (!docShell.isActive) {
-      if (this._debug) {
-        this.LOG("The caller application is a background app. No request " +
-                  "will be sent");
-      }
+      debug("The caller application is a background app. No request " +
+            "will be sent");
       let runnable = {
         run: function run() {
           Services.DOMRequest.fireError(request, "BACKGROUND_APP");
@@ -78,25 +77,8 @@ PaymentContentHelper.prototype = {
   // nsIDOMGlobalPropertyInitializer
 
   init: function(aWindow) {
-    try {
-      if (!Services.prefs.getBoolPref("dom.mozPay.enabled")) {
-        return null;
-      }
-    } catch (e) {
-      return null;
-    }
-
     this._window = aWindow;
-    this.initDOMRequestHelper(aWindow, PAYMENT_IPC_MSG_NAMES);
-
-    try {
-      this._debug =
-        Services.prefs.getPrefType(PREF_DEBUG) == Ci.nsIPrefBranch.PREF_BOOL
-        && Services.prefs.getBoolPref(PREF_DEBUG);
-    } catch(e) {
-      this._debug = false;
-    }
-
+    this.initHelper(aWindow, PAYMENT_IPC_MSG_NAMES);
     return this.pay.bind(this);
   },
 
@@ -105,9 +87,7 @@ PaymentContentHelper.prototype = {
   receiveMessage: function receiveMessage(aMessage) {
     let name = aMessage.name;
     let msg = aMessage.json;
-    if (this._debug) {
-      this.LOG("Received message '" + name + "': " + JSON.stringify(msg));
-    }
+    debug("Received message '" + name + "': " + JSON.stringify(msg));
     let requestId = msg.requestId;
     let request = this.takeRequest(requestId);
     if (!request) {
@@ -121,13 +101,6 @@ PaymentContentHelper.prototype = {
         Services.DOMRequest.fireError(request, msg.errorMsg);
         break;
     }
-  },
-
-  LOG: function LOG(s) {
-    if (!this._debug) {
-      return;
-    }
-    dump("-*- PaymentContentHelper: " + s + "\n");
   }
 };
 

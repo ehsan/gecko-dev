@@ -14,49 +14,16 @@
 
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
-  <script type="application/javascript;version=1.8"
-          src="chrome://browser/content/devtools/theme-switching.js"/>
   <script type="application/javascript" src="chrome://global/content/globalOverlay.js"/>
 
   <commandset id="editMenuCommands"/>
   <keyset id="editMenuKeys"/>
-  <keyset id="toolbox-keyset">
-    <key id="toolbox-options-key"
-         key="&toolboxOptionsButton.key;"
-         oncommand="void(0);"
-         modifiers="shift, accel"/>
-    <key id="toolbox-next-tool-key"
-         key="&toolboxNextTool.key;"
-         oncommand="void(0);"
-         modifiers="accel"/>
-    <key id="toolbox-previous-tool-key"
-         key="&toolboxPreviousTool.key;"
-         oncommand="void(0);"
-         modifiers="accel"/>
-    <key id="toolbox-zoom-in-key"
-         key="&toolboxZoomIn.key;"
-         oncommand="void(0);"
-         modifiers="accel"/>
-    <key id="toolbox-zoom-in-key2"
-         key="&toolboxZoomIn.key2;"
-         oncommand="void(0);"
-         modifiers="accel"/>
-    <key id="toolbox-zoom-out-key"
-         key="&toolboxZoomOut.key;"
-         oncommand="void(0);"
-         modifiers="accel"/>
-    <key id="toolbox-zoom-reset-key"
-         key="&toolboxZoomReset.key;"
-         oncommand="void(0);"
-         modifiers="accel"/>
-  </keyset>
 
   <notificationbox id="toolbox-notificationbox" flex="1">
     <toolbar class="devtools-tabbar">
 #ifdef XP_MACOSX
       <hbox id="toolbox-controls">
         <toolbarbutton id="toolbox-close"
-                       class="devtools-closebutton"
                        tooltiptext="&toolboxCloseButton.tooltip;"/>
         <hbox id="toolbox-dock-buttons"/>
       </hbox>
@@ -69,7 +36,6 @@
       <hbox id="toolbox-controls">
         <hbox id="toolbox-dock-buttons"/>
         <toolbarbutton id="toolbox-close"
-                       class="devtools-closebutton"
                        tooltiptext="&toolboxCloseButton.tooltip;"/>
       </hbox>
 #endif

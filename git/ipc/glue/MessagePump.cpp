@@ -6,9 +6,10 @@
 
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
+#include "pratom.h"
 #include "prthread.h"
 
 #include "base/logging.h"
@@ -18,16 +19,12 @@
 #include "AndroidBridge.h"
 #endif
 
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
-
 using mozilla::ipc::DoWorkRunnable;
 using mozilla::ipc::MessagePump;
 using mozilla::ipc::MessagePumpForChildProcess;
 using base::TimeTicks;
 
-NS_IMPL_ISUPPORTS2(DoWorkRunnable, nsIRunnable, nsITimerCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS2(DoWorkRunnable, nsIRunnable, nsITimerCallback)
 
 NS_IMETHODIMP
 DoWorkRunnable::Run()
@@ -100,11 +97,7 @@ MessagePump::Run(MessagePump::Delegate* aDelegate)
 
     did_work |= aDelegate->DoDelayedWork(&delayed_work_time_);
 
-if (did_work && delayed_work_time_.is_null()
-#ifdef MOZ_NUWA_PROCESS
-    && (!IsNuwaReady() || !IsNuwaProcess())
-#endif
-   )
+    if (did_work && delayed_work_time_.is_null())
       mDelayedWorkTimer->Cancel();
 
     if (!keep_running_)
@@ -124,10 +117,7 @@ if (did_work && delayed_work_time_.is_null()
     NS_ProcessNextEvent(mThread, true);
   }
 
-#ifdef MOZ_NUWA_PROCESS
-  if (!IsNuwaReady() || !IsNuwaProcess())
-#endif
-    mDelayedWorkTimer->Cancel();
+  mDelayedWorkTimer->Cancel();
 
   keep_running_ = true;
 }
@@ -159,11 +149,6 @@ MessagePump::ScheduleWorkForNestedLoop()
 void
 MessagePump::ScheduleDelayedWork(const base::TimeTicks& aDelayedTime)
 {
-#ifdef MOZ_NUWA_PROCESS
-  if (IsNuwaReady() && IsNuwaProcess())
-    return;
-#endif
-
   if (!mDelayedWorkTimer) {
     mDelayedWorkTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
     if (!mDelayedWorkTimer) {
@@ -180,11 +165,7 @@ MessagePump::ScheduleDelayedWork(const base::TimeTicks& aDelayedTime)
 
   delayed_work_time_ = aDelayedTime;
 
-  // TimeDelta's constructor initializes to 0
-  base::TimeDelta delay;
-  if (aDelayedTime > base::TimeTicks::Now())
-    delay = aDelayedTime - base::TimeTicks::Now();
-
+  base::TimeDelta delay = aDelayedTime - base::TimeTicks::Now();
   uint32_t delayMS = uint32_t(delay.InMilliseconds());
   mDelayedWorkTimer->InitWithCallback(mDoWorkEvent, delayMS,
                                       nsITimer::TYPE_ONE_SHOT);

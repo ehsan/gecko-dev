@@ -5,6 +5,7 @@
  * found in the LICENSE file.
  */
 
+
 #ifndef SkBlendImageFilter_DEFINED
 #define SkBlendImageFilter_DEFINED
 
@@ -33,7 +34,7 @@ public:
                                SkIPoint* offset) SK_OVERRIDE;
 #if SK_SUPPORT_GPU
     virtual bool canFilterImageGPU() const SK_OVERRIDE { return true; }
-    virtual bool filterImageGPU(Proxy* proxy, const SkBitmap& src, SkBitmap* result) SK_OVERRIDE;
+    virtual GrTexture* onFilterImageGPU(GrTexture* src, const SkRect& rect) SK_OVERRIDE;
 #endif
 
 protected:
@@ -42,9 +43,10 @@ protected:
 
 private:
     Mode fMode;
+    SkImageFilter* fBackground;
+    SkImageFilter* fForeground;
     typedef SkImageFilter INHERITED;
-    SkImageFilter* getBackgroundInput() { return getInput(0); }
-    SkImageFilter* getForegroundInput() { return getInput(1); }
 };
 
 #endif
+

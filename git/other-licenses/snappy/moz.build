@@ -5,21 +5,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 EXPORTS.snappy += [
+    'snappy-c.h',
     'snappy-stubs-public.h',
-    'src/snappy-c.h',
-    'src/snappy.h',
+    'snappy.h',
 ]
-
-SOURCES += [
-    'src/snappy-c.cc',
-    'src/snappy-sinksource.cc',
-    'src/snappy-stubs-internal.cc',
-    'src/snappy.cc',
-]
-
-LIBRARY_NAME = 'snappy_s'
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
 

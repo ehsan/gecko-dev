@@ -39,8 +39,7 @@ protected:
                                          already_AddRefed<nsINodeInfo> aNodeInfo));
   SVGUseElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~SVGUseElement();
-  virtual JSObject* WrapNode(JSContext *cx,
-                             JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 public:
   // interfaces:
@@ -62,15 +61,15 @@ public:
 
   // nsSVGElement specializations:
   virtual gfxMatrix PrependLocalTransformsTo(const gfxMatrix &aMatrix,
-                      TransformTypes aWhich = eAllTransforms) const MOZ_OVERRIDE;
-  virtual bool HasValidDimensions() const MOZ_OVERRIDE;
+                      TransformTypes aWhich = eAllTransforms) const;
+  virtual bool HasValidDimensions() const;
 
   // nsIContent interface
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   // WebIDL
-  already_AddRefed<SVGAnimatedString> Href();
+  already_AddRefed<nsIDOMSVGAnimatedString> Href();
   already_AddRefed<SVGAnimatedLength> X();
   already_AddRefed<SVGAnimatedLength> Y();
   already_AddRefed<SVGAnimatedLength> Width();
@@ -81,7 +80,7 @@ protected:
   public:
     SourceReference(SVGUseElement* aContainer) : mContainer(aContainer) {}
   protected:
-    virtual void ElementChanged(Element* aFrom, Element* aTo) MOZ_OVERRIDE {
+    virtual void ElementChanged(Element* aFrom, Element* aTo) {
       nsReferencedElement::ElementChanged(aFrom, aTo);
       if (aFrom) {
         aFrom->RemoveMutationObserver(mContainer);
@@ -92,8 +91,8 @@ protected:
     SVGUseElement* mContainer;
   };
 
-  virtual LengthAttributesInfo GetLengthInfo() MOZ_OVERRIDE;
-  virtual StringAttributesInfo GetStringInfo() MOZ_OVERRIDE;
+  virtual LengthAttributesInfo GetLengthInfo();
+  virtual StringAttributesInfo GetStringInfo();
 
   /**
    * Returns true if our width and height should be used, or false if they

@@ -14,16 +14,8 @@ EXPORTS += [
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
     EXPORTS += [
-        'pathhash.h',
-        'uachelper.h',
-        'updatehelper.cpp',
         'updatehelper.h',
+        'updatehelper.cpp',
+        'uachelper.h',
+        'pathhash.h',
     ]
-
-LIBRARY_NAME = 'updatecommon'
-
-LIBXUL_LIBRARY = True
-
-srcdir = '.'
-
-include('sources.mozbuild')

@@ -10,6 +10,9 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedEnumeration;
+interface SVGAnimatedInteger;
+
 interface SVGFilterElement : SVGElement {
   readonly attribute SVGAnimatedEnumeration filterUnits;
   readonly attribute SVGAnimatedEnumeration primitiveUnits;

@@ -4,7 +4,6 @@
 
 #include "CertVerifier.h"
 #include "nsNSSComponent.h"
-#include "nsServiceManagerUtils.h"
 #include "cert.h"
 #include "secerr.h"
 
@@ -25,8 +24,7 @@ CertVerifier::CertVerifier(missing_cert_download_config mcdc,
                            ocsp_download_config odc,
                            ocsp_strict_config osc,
                            any_revo_fresh_config arfc,
-                           const char *firstNetworkRevocationMethod,
-                           ocsp_get_config ogc)
+                           const char *firstNetworkRevocationMethod)
   : mMissingCertDownloadEnabled(mcdc == missing_cert_download_on)
   , mCRLDownloadEnabled(cdc == crl_download_allowed)
   , mOCSPDownloadEnabled(odc == ocsp_on)
@@ -34,7 +32,6 @@ CertVerifier::CertVerifier(missing_cert_download_config mcdc,
   , mRequireRevocationInfo(arfc == any_revo_strict)
   , mCRLFirst(firstNetworkRevocationMethod != nullptr &&
               !strcmp("crl", firstNetworkRevocationMethod))
-  , mOCSPGETEnabled(ogc == ocsp_get_enabled)
 {
   MOZ_COUNT_CTOR(CertVerifier);
 }
@@ -145,10 +142,6 @@ CertVerifier::VerifyCert(CERTCertificate * cert,
   SECStatus rv;
   SECOidTag evPolicy = SEC_OID_UNKNOWN;
 
-#ifdef NSS_NO_LIBPKIX
-  return ClassicVerifyCert(cert, usage, time, pinArg, validationChain,
-                           verifyLog);
-#else
   // Do EV checking only for sslserver usage
   if (usage == certificateUsageSSLServer) {
     SECStatus srv = getFirstEVPolicy(cert, evPolicy);
@@ -217,14 +210,19 @@ CertVerifier::VerifyCert(CERTCertificate * cert,
   i = 3;
   const size_t evParamLocation = i;
 
+  // Declare dv variables here so that we can use they dont cross the goto line!
+  // after classic is gone, we can move the declaration below (and remove the
+  // goto)
+  bool strictRevocation;
+
   if (evPolicy != SEC_OID_UNKNOWN) {
     // EV setup!
-    // XXX 859872 The current flags are not quite correct. (use
-    // of ocsp flags for crl preferences).
+    // This flags are not quite correct, but it is what we have now, so keeping
+    // them identical for bug landing purposes. Should be fixed later!
     uint64_t revMethodFlags =
       CERT_REV_M_TEST_USING_THIS_METHOD
-      | ((mOCSPDownloadEnabled && !localOnly) ?
-          CERT_REV_M_ALLOW_NETWORK_FETCHING : CERT_REV_M_FORBID_NETWORK_FETCHING)
+      | (mOCSPDownloadEnabled ? CERT_REV_M_ALLOW_NETWORK_FETCHING
+                              : CERT_REV_M_FORBID_NETWORK_FETCHING)
       | CERT_REV_M_ALLOW_IMPLICIT_DEFAULT_SOURCE
       | CERT_REV_M_REQUIRE_INFO_ON_MISSING_SOURCE
       | CERT_REV_M_IGNORE_MISSING_FRESH_INFO
@@ -232,11 +230,8 @@ CertVerifier::VerifyCert(CERTCertificate * cert,
  
     rev.leafTests.cert_rev_flags_per_method[cert_revocation_method_crl] =
     rev.chainTests.cert_rev_flags_per_method[cert_revocation_method_crl] = revMethodFlags;
-
     rev.leafTests.cert_rev_flags_per_method[cert_revocation_method_ocsp] =
-    rev.chainTests.cert_rev_flags_per_method[cert_revocation_method_ocsp]
-      = revMethodFlags
-      | (mOCSPGETEnabled ? 0 : CERT_REV_M_FORCE_POST_METHOD_FOR_OCSP);
+    rev.chainTests.cert_rev_flags_per_method[cert_revocation_method_ocsp] = revMethodFlags;
 
     rev.leafTests.cert_rev_method_independent_flags =
     rev.chainTests.cert_rev_method_independent_flags =
@@ -347,8 +342,6 @@ CertVerifier::VerifyCert(CERTCertificate * cert,
     // ocsp enabled controls network fetching, too
     | ((mOCSPDownloadEnabled && !localOnly) ?
         CERT_REV_M_ALLOW_NETWORK_FETCHING : CERT_REV_M_FORBID_NETWORK_FETCHING)
-    
-    | (mOCSPGETEnabled ? 0 : CERT_REV_M_FORCE_POST_METHOD_FOR_OCSP);
     ;
 
   rev.leafTests.preferred_methods[0] =
@@ -378,7 +371,6 @@ pkix_done:
 
     if (rv == SECSuccess) {
       if (! cvout[validationChainLocation].value.pointer.chain) {
-        PR_SetError(PR_UNKNOWN_ERROR, 0);
         return SECFailure;
       }
       PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("VerifyCert: I have a chain\n"));
@@ -390,11 +382,9 @@ pkix_done:
         if (!CERT_CompareCerts(trustAnchor, cert)) {
           PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("VerifyCert:  adding issuer to tail for display\n"));
           // note: rv is reused to catch errors on cert creation!
-          ScopedCERTCertificate tempCert(CERT_DupCertificate(trustAnchor));
-          rv = CERT_AddCertToListTail(*validationChain, tempCert);
-          if (rv == SECSuccess) {
-            tempCert.forget(); // ownership traferred to validationChain
-          } else {
+          rv = CERT_AddCertToListTail(*validationChain,
+                                      CERT_DupCertificate(trustAnchor));
+          if (rv != SECSuccess) {
             CERT_DestroyCertList(*validationChain);
             *validationChain = nullptr;
           }
@@ -407,9 +397,7 @@ pkix_done:
       }
     }
   }
-
   return rv;
-#endif
 }
 
 TemporaryRef<CertVerifier>

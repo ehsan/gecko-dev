@@ -11,11 +11,8 @@
 #ifndef nsCSSDataBlock_h__
 #define nsCSSDataBlock_h__
 
-#include "mozilla/MemoryReporting.h"
 #include "nsCSSProps.h"
 #include "nsCSSPropertySet.h"
-#include "nsCSSValue.h"
-#include "imgRequestProxy.h"
 
 struct nsRuleData;
 class nsCSSExpandedDataBlock;
@@ -84,7 +81,7 @@ public:
      */
     static nsCSSCompressedDataBlock* CreateEmptyBlock();
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
     bool HasDefaultBorderImageSlice() const;
     bool HasDefaultBorderImageWidth() const;
@@ -162,17 +159,17 @@ private:
 
 // Make sure the values and properties are aligned appropriately.  (These
 // assertions are stronger than necessary to keep them simple.)
-static_assert(sizeof(nsCSSCompressedDataBlock) == 8,
-              "nsCSSCompressedDataBlock's size has changed");
-static_assert(NS_ALIGNMENT_OF(nsCSSValue) == 4 || NS_ALIGNMENT_OF(nsCSSValue) == 8,
-              "nsCSSValue doesn't align with nsCSSCompressedDataBlock"); 
-static_assert(NS_ALIGNMENT_OF(nsCSSCompressedDataBlock::CompressedCSSProperty) == 2,
-              "CompressedCSSProperty doesn't align with nsCSSValue"); 
+MOZ_STATIC_ASSERT(sizeof(nsCSSCompressedDataBlock) == 8,
+                  "nsCSSCompressedDataBlock's size has changed");
+MOZ_STATIC_ASSERT(NS_ALIGNMENT_OF(nsCSSValue) == 4 || NS_ALIGNMENT_OF(nsCSSValue) == 8,
+                  "nsCSSValue doesn't align with nsCSSCompressedDataBlock"); 
+MOZ_STATIC_ASSERT(NS_ALIGNMENT_OF(nsCSSCompressedDataBlock::CompressedCSSProperty) == 2,
+                  "CompressedCSSProperty doesn't align with nsCSSValue"); 
 
 // Make sure that sizeof(CompressedCSSProperty) is big enough.
-static_assert(eCSSProperty_COUNT_no_shorthands <=
-              nsCSSCompressedDataBlock::MaxCompressedCSSProperty,
-              "nsCSSProperty doesn't fit in StoredSizeOfCSSProperty");
+MOZ_STATIC_ASSERT(eCSSProperty_COUNT_no_shorthands <=
+                  nsCSSCompressedDataBlock::MaxCompressedCSSProperty,
+                  "nsCSSProperty doesn't fit in StoredSizeOfCSSProperty");
 
 class nsCSSExpandedDataBlock {
     friend class nsCSSCompressedDataBlock;

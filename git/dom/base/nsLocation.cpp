@@ -15,18 +15,26 @@
 #include "nsIURIFixup.h"
 #include "nsIURL.h"
 #include "nsIJARURI.h"
+#include "nsIIOService.h"
+#include "nsIServiceManager.h"
 #include "nsNetUtil.h"
 #include "nsCOMPtr.h"
 #include "nsEscape.h"
 #include "nsIDOMWindow.h"
+#include "nsIDOMDocument.h"
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
+#include "nsIJSContextStack.h"
+#include "nsXPIDLString.h"
 #include "nsError.h"
 #include "nsDOMClassInfoID.h"
+#include "nsCRT.h"
+#include "nsIProtocolHandler.h"
 #include "nsReadableUtils.h"
 #include "nsITextToSubURI.h"
 #include "nsJSUtils.h"
+#include "jsfriendapi.h"
 #include "nsContentUtils.h"
 #include "mozilla/Likely.h"
 #include "nsCycleCollectionParticipant.h"
@@ -36,13 +44,24 @@ GetDocumentCharacterSetForURI(const nsAString& aHref, nsACString& aCharset)
 {
   aCharset.Truncate();
 
+  nsresult rv;
+
+  nsCOMPtr<nsIJSContextStack> stack(do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   JSContext *cx = nsContentUtils::GetCurrentJSContext();
   if (cx) {
-    nsCOMPtr<nsPIDOMWindow> window =
+    nsCOMPtr<nsIDOMWindow> window =
       do_QueryInterface(nsJSUtils::GetDynamicScriptGlobal(cx));
     NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
-    if (nsIDocument* doc = window->GetDoc()) {
+    nsCOMPtr<nsIDOMDocument> domDoc;
+    rv = window->GetDocument(getter_AddRefs(domDoc));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
+
+    if (doc) {
       aCharset = doc->GetDocumentCharacterSet();
     }
   }
@@ -768,7 +787,7 @@ nsLocation::Reload(bool aForceget)
     // page since some sites may use this trick to work around gecko
     // reflow bugs, and this should have the same effect.
 
-    nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+    nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
 
     nsIPresShell *shell;
     nsPresContext *pcx;

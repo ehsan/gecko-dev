@@ -4,13 +4,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "RegistryMessageUtils.h"
+#include "nsChromeRegistry.h"
 #include "nsChromeRegistryContent.h"
 #include "nsString.h"
 #include "nsNetUtil.h"
-#include "nsIResProtocolHandler.h"
+#include "nsResProtocolHandler.h"
 
 nsChromeRegistryContent::nsChromeRegistryContent()
 {
+  mPackagesHash.Init();
 }
 
 void

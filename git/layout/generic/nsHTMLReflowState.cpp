@@ -5,8 +5,7 @@
 
 /* struct containing the input to nsIFrame::Reflow */
 
-#include "nsHTMLReflowState.h"
-
+#include "nsCOMPtr.h"
 #include "nsStyleConsts.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsFrame.h"
@@ -21,12 +20,12 @@
 #include "nsImageFrame.h"
 #include "nsTableFrame.h"
 #include "nsTableCellFrame.h"
+#include "nsIServiceManager.h"
 #include "nsIPercentHeightObserver.h"
 #include "nsLayoutUtils.h"
 #include "mozilla/Preferences.h"
+#include "nsBidiUtils.h"
 #include "nsFontInflationData.h"
-#include "StickyScrollContainer.h"
-#include "nsIFrameInlines.h"
 #include <algorithm>
 
 #ifdef DEBUG
@@ -36,7 +35,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::css;
 using namespace mozilla::layout;
 
 enum eNormalLineHeightControl {
@@ -52,7 +50,7 @@ static eNormalLineHeightControl sNormalLineHeightControl = eUninitialized;
 // use for measuring things.
 nsHTMLReflowState::nsHTMLReflowState(nsPresContext*       aPresContext,
                                      nsIFrame*            aFrame,
-                                     nsRenderingContext*  aRenderingContext,
+                                     nsRenderingContext* aRenderingContext,
                                      const nsSize&        aAvailableSpace,
                                      uint32_t             aFlags)
   : nsCSSOffsetState(aFrame, aRenderingContext)
@@ -75,9 +73,7 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*       aPresContext,
     mFlags.mDummyParentReflowState = true;
   }
 
-  if (!(aFlags & CALLER_WILL_INIT)) {
-    Init(aPresContext);
-  }
+  Init(aPresContext);
 }
 
 static bool CheckNextInFlowParenthood(nsIFrame* aFrame, nsIFrame* aParent)
@@ -126,8 +122,7 @@ FontSizeInflationListMarginAdjustment(const nsIFrame* aFrame)
 
   return 0;
 }
-
-// Initialize a reflow state for a child frame's reflow. Some state
+// Initialize a reflow state for a child frames reflow. Some state
 // is copied from the parent reflow state; the remaining state is
 // computed.
 nsHTMLReflowState::nsHTMLReflowState(nsPresContext*           aPresContext,
@@ -136,7 +131,7 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*           aPresContext,
                                      const nsSize&            aAvailableSpace,
                                      nscoord                  aContainingBlockWidth,
                                      nscoord                  aContainingBlockHeight,
-                                     uint32_t                 aFlags)
+                                     bool                     aInit)
   : nsCSSOffsetState(aFrame, aParentReflowState.rendContext)
   , mBlockDelta(0)
   , mReflowDepth(aParentReflowState.mReflowDepth + 1)
@@ -181,15 +176,11 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*           aPresContext,
   mFlags.mDummyParentReflowState = false;
 
   mDiscoveredClearance = nullptr;
-  mPercentHeightObserver = (aParentReflowState.mPercentHeightObserver &&
-                            aParentReflowState.mPercentHeightObserver->NeedsToObserve(*this))
+  mPercentHeightObserver = (aParentReflowState.mPercentHeightObserver && 
+                            aParentReflowState.mPercentHeightObserver->NeedsToObserve(*this)) 
                            ? aParentReflowState.mPercentHeightObserver : nullptr;
 
-  if (aFlags & DUMMY_PARENT_REFLOW_STATE) {
-    mFlags.mDummyParentReflowState = true;
-  }
-
-  if (!(aFlags & CALLER_WILL_INIT)) {
+  if (aInit) {
     Init(aPresContext, aContainingBlockWidth, aContainingBlockHeight);
   }
 }
@@ -433,9 +424,8 @@ IsQuirkContainingBlockHeight(const nsHTMLReflowState* rs, nsIAtom* aFrameType)
 void
 nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext, nsIAtom* aFrameType)
 {
-  bool isHResize = (frame->GetSize().width !=
-                     mComputedWidth + mComputedBorderPadding.LeftRight()) ||
-                     aPresContext->PresShell()->IsReflowOnZoomPending();
+  bool isHResize = frame->GetSize().width !=
+                     mComputedWidth + mComputedBorderPadding.LeftRight();
 
   if ((frame->GetStateBits() & NS_FRAME_FONT_INFLATION_FLOW_ROOT) &&
       nsLayoutUtils::FontSizeInflationEnabled(aPresContext)) {
@@ -530,7 +520,7 @@ nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext, nsIAtom* aFrameT
   // at least nsBoxFrame).
   if (IS_TABLE_CELL(aFrameType) &&
       (mFlags.mSpecialHeightReflow ||
-       (frame->FirstInFlow()->GetStateBits() &
+       (frame->GetFirstInFlow()->GetStateBits() &
          NS_TABLE_CELL_HAD_SPECIAL_REFLOW)) &&
       (frame->GetStateBits() & NS_FRAME_CONTAINS_RELATIVE_HEIGHT)) {
     // Need to set the bit on the cell so that
@@ -695,7 +685,9 @@ nsHTMLReflowState::InitFrameType(nsIAtom* aFrameType)
     case NS_STYLE_DISPLAY_LIST_ITEM:
     case NS_STYLE_DISPLAY_TABLE:
     case NS_STYLE_DISPLAY_TABLE_CAPTION:
+#ifdef MOZ_FLEXBOX
     case NS_STYLE_DISPLAY_FLEX:
+#endif // MOZ_FLEXBOX
       frameType = NS_CSS_FRAME_TYPE_BLOCK;
       break;
 
@@ -705,7 +697,9 @@ nsHTMLReflowState::InitFrameType(nsIAtom* aFrameType)
     case NS_STYLE_DISPLAY_INLINE_BOX:
     case NS_STYLE_DISPLAY_INLINE_GRID:
     case NS_STYLE_DISPLAY_INLINE_STACK:
+#ifdef MOZ_FLEXBOX
     case NS_STYLE_DISPLAY_INLINE_FLEX:
+#endif // MOZ_FLEXBOX
       frameType = NS_CSS_FRAME_TYPE_INLINE;
       break;
 
@@ -837,58 +831,13 @@ nsHTMLReflowState::ComputeRelativeOffsets(uint8_t aCBDirection,
 
   // Store the offset
   FrameProperties props = aFrame->Properties();
-  nsMargin* offsets = static_cast<nsMargin*>
+  nsPoint* offsets = static_cast<nsPoint*>
     (props.Get(nsIFrame::ComputedOffsetProperty()));
   if (offsets) {
-    *offsets = aComputedOffsets;
+    offsets->MoveTo(aComputedOffsets.left, aComputedOffsets.top);
   } else {
     props.Set(nsIFrame::ComputedOffsetProperty(),
-              new nsMargin(aComputedOffsets));
-  }
-}
-
-/* static */ void
-nsHTMLReflowState::ApplyRelativePositioning(nsIFrame* aFrame,
-                                            const nsMargin& aComputedOffsets,
-                                            nsPoint* aPosition)
-{
-  if (!aFrame->IsRelativelyPositioned()) {
-    NS_ASSERTION(!aFrame->Properties().Get(nsIFrame::NormalPositionProperty()),
-                 "We assume that changing the 'position' property causes "
-                 "frame reconstruction.  If that ever changes, this code "
-                 "should call "
-                 "props.Delete(nsIFrame::NormalPositionProperty())");
-    return;
-  }
-
-  // Store the normal position
-  FrameProperties props = aFrame->Properties();
-  nsPoint* normalPosition = static_cast<nsPoint*>
-    (props.Get(nsIFrame::NormalPositionProperty()));
-  if (normalPosition) {
-    *normalPosition = *aPosition;
-  } else {
-    props.Set(nsIFrame::NormalPositionProperty(), new nsPoint(*aPosition));
-  }
-
-  const nsStyleDisplay* display = aFrame->StyleDisplay();
-  if (NS_STYLE_POSITION_RELATIVE == display->mPosition) {
-    *aPosition += nsPoint(aComputedOffsets.left, aComputedOffsets.top);
-  } else if (NS_STYLE_POSITION_STICKY == display->mPosition &&
-             !aFrame->GetNextContinuation() &&
-             !aFrame->GetPrevContinuation() &&
-             !(aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
-    // Sticky positioning for elements with multiple frames needs to be
-    // computed all at once. We can't safely do that here because we might be
-    // partway through (re)positioning the frames, so leave it until the scroll
-    // container reflows and calls StickyScrollContainer::UpdatePositions.
-    // For single-frame sticky positioned elements, though, go ahead and apply
-    // it now to avoid unnecessary overflow updates later.
-    StickyScrollContainer* ssc =
-      StickyScrollContainer::GetStickyScrollContainerForFrame(aFrame);
-    if (ssc) {
-      *aPosition = ssc->ComputePosition(aFrame);
-    }
+              new nsPoint(aComputedOffsets.left, aComputedOffsets.top));
   }
 }
 
@@ -1655,8 +1604,8 @@ GetVerticalMarginBorderPadding(const nsHTMLReflowState* aReflowState)
 static nscoord
 CalcQuirkContainingBlockHeight(const nsHTMLReflowState* aCBReflowState)
 {
-  const nsHTMLReflowState* firstAncestorRS = nullptr; // a candidate for html frame
-  const nsHTMLReflowState* secondAncestorRS = nullptr; // a candidate for body frame
+  nsHTMLReflowState* firstAncestorRS = nullptr; // a candidate for html frame
+  nsHTMLReflowState* secondAncestorRS = nullptr; // a candidate for body frame
   
   // initialize the default to NS_AUTOHEIGHT as this is the containings block
   // computed height when this function is called. It is possible that we 
@@ -1664,7 +1613,7 @@ CalcQuirkContainingBlockHeight(const nsHTMLReflowState* aCBReflowState)
   nscoord result = NS_AUTOHEIGHT; 
                              
   const nsHTMLReflowState* rs = aCBReflowState;
-  for (; rs; rs = rs->parentReflowState) {
+  for (; rs; rs = (nsHTMLReflowState *)(rs->parentReflowState)) { 
     nsIAtom* frameType = rs->frame->GetType();
     // if the ancestor is auto height then skip it and continue up if it 
     // is the first block frame and possibly the body/html
@@ -1675,7 +1624,7 @@ CalcQuirkContainingBlockHeight(const nsHTMLReflowState* aCBReflowState)
         nsGkAtoms::scrollFrame == frameType) {
 
       secondAncestorRS = firstAncestorRS;
-      firstAncestorRS = rs;
+      firstAncestorRS = (nsHTMLReflowState*)rs;
 
       // If the current frame we're looking at is positioned, we don't want to
       // go any further (see bug 221784).  The behavior we want here is: 1) If
@@ -1830,6 +1779,7 @@ IsSideCaption(nsIFrame* aFrame, const nsStyleDisplay* aStyleDisplay)
          captionSide == NS_STYLE_CAPTION_SIDE_RIGHT;
 }
 
+#ifdef MOZ_FLEXBOX
 static nsFlexContainerFrame*
 GetFlexContainer(nsIFrame* aFrame)
 {
@@ -1841,27 +1791,7 @@ GetFlexContainer(nsIFrame* aFrame)
 
   return static_cast<nsFlexContainerFrame*>(parent);
 }
-
-// Flex items resolve percentage margin & padding against the flex
-// container's height (which is the containing block height).
-// For everything else: the CSS21 spec requires that margin and padding
-// percentage values are calculated with respect to the *width* of the
-// containing block, even for margin & padding in the vertical axis.
-static nscoord
-VerticalOffsetPercentBasis(const nsIFrame* aFrame,
-                           nscoord aContainingBlockWidth,
-                           nscoord aContainingBlockHeight)
-{
-  if (!aFrame->IsFlexItem()) {
-    return aContainingBlockWidth;
-  }
-
-  if (aContainingBlockHeight == NS_AUTOHEIGHT) {
-    return 0;
-  }
-
-  return aContainingBlockHeight;
-}
+#endif // MOZ_FLEXBOX
 
 // XXX refactor this code to have methods for each set of properties
 // we are computing: width,height,line-height; margin; offsets
@@ -1878,13 +1808,19 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
                            aContainingBlockWidth, aContainingBlockHeight,
                            aBorder, aPadding);
 
-  // If this is a reflow root, then set the computed width and
+  // If this is the root frame, then set the computed width and
   // height equal to the available space
-  if (nullptr == parentReflowState || mFlags.mDummyParentReflowState) {
+  if (nullptr == parentReflowState) {
+    MOZ_ASSERT(!frame->IsFlexItem(),
+               "the root frame can't be a flex item, since being a flex item "
+               "requires that you have a parent");
+    // Note that we pass the containing block width as the percent basis for
+    // both horizontal *and* vertical margins & padding, in our InitOffsets
+    // call here. This is correct per CSS 2.1; it'd be incorrect for e.g. flex
+    // items and grid items, but the root frame can't be either of those.
     // XXXldb This doesn't mean what it used to!
     InitOffsets(aContainingBlockWidth,
-                VerticalOffsetPercentBasis(frame, aContainingBlockWidth,
-                                           aContainingBlockHeight),
+                aContainingBlockWidth,
                 aFrameType, aBorder, aPadding);
     // Override mComputedMargin since reflow roots start from the
     // frame's boundary, which is inside the margin.
@@ -1932,11 +1868,19 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
       }
     }
 
+    // Flex containers resolve percentage margin & padding against the flex
+    // container's height (which is the containing block height).
+    // For everything else: the CSS21 spec requires that margin and padding
+    // percentage values are calculated with respect to the *width* of the
+    // containing block, even for margin & padding in the vertical axis.
     // XXX Might need to also pass the CB height (not width) for page boxes,
     // too, if we implement them.
-    InitOffsets(aContainingBlockWidth,
-                VerticalOffsetPercentBasis(frame, aContainingBlockWidth,
-                                           aContainingBlockHeight),
+    nscoord verticalPercentBasis = aContainingBlockWidth;
+    if (frame->IsFlexItem()) {
+      verticalPercentBasis =
+        aContainingBlockHeight == NS_AUTOHEIGHT ? 0 : aContainingBlockHeight;
+    }
+    InitOffsets(aContainingBlockWidth, verticalPercentBasis,
                 aFrameType, aBorder, aPadding);
 
     const nsStyleCoord &height = mStylePosition->mHeight;
@@ -1987,11 +1931,8 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
 
     // Compute our offsets if the element is relatively positioned.  We need
     // the correct containing block width and height here, which is why we need
-    // to do it after all the quirks-n-such above. (If the element is sticky
-    // positioned, we need to wait until the scroll container knows its size,
-    // so we compute offsets from StickyScrollContainer::UpdatePositions.)
-    if (mStyleDisplay->IsRelativelyPositioned(frame) &&
-        NS_STYLE_POSITION_RELATIVE == mStyleDisplay->mPosition) {
+    // to do it after all the quirks-n-such above.
+    if (mStyleDisplay->IsRelativelyPositioned(frame)) {
       uint8_t direction = NS_STYLE_DIRECTION_LTR;
       if (cbrs && NS_STYLE_DIRECTION_RTL == cbrs->mStyleVisibility->mDirection) {
         direction = NS_STYLE_DIRECTION_RTL;
@@ -2087,6 +2028,7 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
         computeSizeFlags |= nsIFrame::eShrinkWrap;
       }
 
+#ifdef MOZ_FLEXBOX
       const nsFlexContainerFrame* flexContainerFrame = GetFlexContainer(frame);
       if (flexContainerFrame) {
         computeSizeFlags |= nsIFrame::eShrinkWrap;
@@ -2101,6 +2043,7 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
                    "We're not in a flex container, so the flag "
                    "'mIsFlexContainerMeasuringHeight' shouldn't be set");
       }
+#endif // MOZ_FLEXBOX
 
       nsSize size =
         frame->ComputeSize(rendContext,
@@ -2126,10 +2069,12 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
       // Exclude inline tables and flex items from the block margin calculations
       if (isBlock &&
           !IsSideCaption(frame, mStyleDisplay) &&
-          mStyleDisplay->mDisplay != NS_STYLE_DISPLAY_INLINE_TABLE &&
-          !flexContainerFrame) {
+          mStyleDisplay->mDisplay != NS_STYLE_DISPLAY_INLINE_TABLE
+#ifdef MOZ_FLEXBOX
+          && !flexContainerFrame
+#endif // MOZ_FLEXBOX
+          )
         CalculateBlockSideMargins(availableWidth, mComputedWidth, aFrameType);
-      }
     }
   }
 }
@@ -2632,16 +2577,4 @@ nsHTMLReflowState::SetTruncated(const nsHTMLReflowMetrics& aMetrics,
   } else {
     *aStatus &= ~NS_FRAME_TRUNCATED;
   }
-}
-
-bool
-nsHTMLReflowState::IsFloating() const
-{
-  return mStyleDisplay->IsFloating(frame);
-}
-
-uint8_t
-nsHTMLReflowState::GetDisplay() const
-{
-  return mStyleDisplay->GetDisplay(frame);
 }

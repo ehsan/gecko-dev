@@ -10,7 +10,6 @@
 #include "nsIThread.h"
 #include "nsThreadUtils.h"
 #include "gfxImageSurface.h"
-#include "gfxContext.h"
 
 namespace mozilla {
 namespace layers {
@@ -39,7 +38,7 @@ struct ReadbackTask {
 // destroyed by the main thread.
 class ReadbackResultWriter MOZ_FINAL : public nsIRunnable
 {
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 public:
   ReadbackResultWriter(ReadbackTask *aTask) : mTask(aTask) {}
 
@@ -72,7 +71,7 @@ public:
       new gfxImageSurface((unsigned char*)mappedTex.pData,
                           gfxIntSize(desc.Width, desc.Height),
                           mappedTex.RowPitch,
-                          gfxImageFormatRGB24);
+                          gfxASurface::ImageFormatRGB24);
 
     nsRefPtr<gfxContext> ctx =
       update->mLayer->GetSink()->BeginUpdate(update->mUpdateRect + offset,
@@ -96,7 +95,7 @@ private:
   nsAutoPtr<ReadbackTask> mTask;
 };
 
-NS_IMPL_ISUPPORTS1(ReadbackResultWriter, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(ReadbackResultWriter, nsIRunnable)
 
 DWORD WINAPI StartTaskThread(void *aManager)
 {
@@ -109,9 +108,9 @@ ReadbackManagerD3D10::ReadbackManagerD3D10()
   : mRefCnt(0)
 {
   ::InitializeCriticalSection(&mTaskMutex);
-  mShutdownEvent = ::CreateEventA(nullptr, FALSE, FALSE, nullptr);
-  mTaskSemaphore = ::CreateSemaphoreA(nullptr, 0, 1000000, nullptr);
-  mTaskThread = ::CreateThread(nullptr, 0, StartTaskThread, this, 0, 0);
+  mShutdownEvent = ::CreateEventA(NULL, FALSE, FALSE, NULL);
+  mTaskSemaphore = ::CreateSemaphoreA(NULL, 0, 1000000, NULL);
+  mTaskThread = ::CreateThread(NULL, 0, StartTaskThread, this, 0, 0);
 }
 
 ReadbackManagerD3D10::~ReadbackManagerD3D10()
@@ -145,7 +144,7 @@ ReadbackManagerD3D10::PostTask(ID3D10Texture2D *aTexture, void *aUpdate, const g
   mPendingReadbackTasks.AppendElement(task);
   ::LeaveCriticalSection(&mTaskMutex);
 
-  ::ReleaseSemaphore(mTaskSemaphore, 1, nullptr);
+  ::ReleaseSemaphore(mTaskSemaphore, 1, NULL);
 }
 
 HRESULT

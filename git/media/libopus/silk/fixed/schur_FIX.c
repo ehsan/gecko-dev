@@ -1,5 +1,9 @@
 /***********************************************************************
-Copyright (c) 2006-2011, Skype Limited. All rights reserved.
+Copyright (c) 2006-2012 IETF Trust and Skype Limited. All rights reserved.
+
+This file is extracted from RFC6716. Please see that RFC for additional
+information.
+
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
 are met:
@@ -12,7 +16,7 @@ documentation and/or other materials provided with the distribution.
 names of specific contributors, may be used to endorse or promote
 products derived from this software without specific prior written
 permission.
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS”
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
 ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
@@ -68,16 +72,6 @@ opus_int32 silk_schur(                              /* O    Returns residual ene
     }
 
     for( k = 0; k < order; k++ ) {
-        /* Check that we won't be getting an unstable rc, otherwise stop here. */
-        if (silk_abs_int32(C[ k + 1 ][ 0 ]) >= C[ 0 ][ 1 ]) {
-           if ( C[ k + 1 ][ 0 ] > 0 ) {
-              rc_Q15[ k ] = -SILK_FIX_CONST( .99f, 15 );
-           } else {
-              rc_Q15[ k ] = SILK_FIX_CONST( .99f, 15 );
-           }
-           k++;
-           break;
-        }
 
         /* Get reflection coefficient */
         rc_tmp_Q15 = -silk_DIV32_16( C[ k + 1 ][ 0 ], silk_max_32( silk_RSHIFT( C[ 0 ][ 1 ], 15 ), 1 ) );
@@ -97,10 +91,6 @@ opus_int32 silk_schur(                              /* O    Returns residual ene
         }
     }
 
-    for(; k < order; k++ ) {
-       rc_Q15[ k ] = 0;
-    }
-
     /* return residual energy */
-    return silk_max_32( 1, C[ 0 ][ 1 ] );
+    return C[ 0 ][ 1 ];
 }

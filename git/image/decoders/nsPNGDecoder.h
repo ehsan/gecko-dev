@@ -9,7 +9,7 @@
 
 #include "Decoder.h"
 
-#include "gfxTypes.h"
+#include "gfxASurface.h"
 
 #include "nsCOMPtr.h"
 
@@ -33,7 +33,7 @@ public:
 
   void CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
                    int32_t width, int32_t height,
-                   gfxImageFormat format);
+                   gfxASurface::gfxImageFormat format);
   void EndImageFrame();
 
   // Check if PNG is valid ICO (32bpp RGBA)
@@ -57,7 +57,7 @@ public:
         png_color_type;
 
     if (png_get_IHDR(mPNG, mInfo, &png_width, &png_height, &png_bit_depth,
-                     &png_color_type, nullptr, nullptr, nullptr)) {
+                     &png_color_type, NULL, NULL, NULL)) {
 
       return ((png_color_type == PNG_COLOR_TYPE_RGB_ALPHA ||
                png_color_type == PNG_COLOR_TYPE_RGB) &&
@@ -76,33 +76,19 @@ public:
   qcms_profile *mInProfile;
   qcms_transform *mTransform;
 
-  gfxImageFormat format;
+  gfxASurface::gfxImageFormat format;
 
   // For size decodes
-  uint8_t mSizeBytes[8]; // Space for width and height, both 4 bytes
+  uint8_t *mHeaderBuf;
   uint32_t mHeaderBytesRead;
-
-  // whether CMS or premultiplied alpha are forced off
-  uint32_t mCMSMode;
 
   uint8_t mChannels;
   bool mFrameHasNoAlpha;
   bool mFrameIsHidden;
+
+  // whether CMS or premultiplied alpha are forced off
+  uint32_t mCMSMode;
   bool mDisablePremultipliedAlpha;
-
-  struct AnimFrameInfo
-  {
-    AnimFrameInfo();
-#ifdef PNG_APNG_SUPPORTED
-    AnimFrameInfo(png_structp aPNG, png_infop aInfo);
-#endif
-
-    FrameBlender::FrameDisposalMethod mDispose;
-    FrameBlender::FrameBlendMethod mBlend;
-    int32_t mTimeout;
-  };
-
-  AnimFrameInfo mAnimInfo;
 
   // The number of frames we've finished.
   uint32_t mNumFrames;

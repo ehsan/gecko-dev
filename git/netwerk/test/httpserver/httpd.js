@@ -471,15 +471,7 @@ nsHttpServer.prototype =
   onStopListening: function(socket, status)
   {
     dumpn(">>> shutting down server on port " + socket.port);
-    for (var n in this._connections) {
-      if (!this._connections[n]._requestStarted) {
-        this._connections[n].close();
-      }
-    }
     this._socketClosed = true;
-    if (this._hasOpenConnections()) {
-      dumpn("*** open connections!!!");
-    }
     if (!this._hasOpenConnections())
     {
       dumpn("*** no open connections, notifying async from onStopListening");
@@ -537,52 +529,18 @@ nsHttpServer.prototype =
         var loopback = false;
       }
 
-      // When automatically selecting a port, sometimes the chosen port is
-      // "blocked" from clients. We don't want to use these ports because
-      // tests will intermittently fail. So, we simply keep trying to to
-      // get a server socket until a valid port is obtained. We limit
-      // ourselves to finite attempts just so we don't loop forever.
-      var ios = Cc["@mozilla.org/network/io-service;1"]
-                  .getService(Ci.nsIIOService);
-      var socket;
-      for (var i = 100; i; i--)
-      {
-        var temp = new ServerSocket(this._port,
+      var socket = new ServerSocket(this._port,
                                     loopback, // true = localhost, false = everybody
                                     maxConnections);
-
-        var allowed = ios.allowPort(temp.port, "http");
-        if (!allowed)
-        {
-          dumpn(">>>Warning: obtained ServerSocket listens on a blocked " +
-                "port: " + temp.port);
-        }
-
-        if (!allowed && this._port == -1)
-        {
-          dumpn(">>>Throwing away ServerSocket with bad port.");
-          temp.close();
-          continue;
-        }
-
-        socket = temp;
-        break;
-      }
-
-      if (!socket) {
-        throw new Error("No socket server available. Are there no available ports?");
-      }
-
       dumpn(">>> listening on port " + socket.port + ", " + maxConnections +
             " pending connections");
       socket.asyncListen(this);
-      this._port = socket.port;
-      this._identity._initialize(socket.port, host, true);
+      this._identity._initialize(port, host, true);
       this._socket = socket;
     }
     catch (e)
     {
-      dump("\n!!! could not start server on port " + port + ": " + e + "\n\n");
+      dumpn("!!! could not start server on port " + port + ": " + e);
       throw Cr.NS_ERROR_NOT_AVAILABLE;
     }
   },
@@ -1174,25 +1132,14 @@ function Connection(input, output, server, port, outgoingPort, number)
    */
   this.request = null;
 
-  /** This allows a connection to disambiguate between a peer initiating a
-   *  close and the socket being forced closed on shutdown.
-   */
-  this._closed = false;
-
-  /** State variable for debugging. */
-  this._processed = false;
-
-  /** whether or not 1st line of request has been received */
-  this._requestStarted = false; 
+  /** State variables for debugging. */
+  this._closed = this._processed = false;
 }
 Connection.prototype =
 {
   /** Closes this connection's input/output streams. */
   close: function()
   {
-    if (this._closed)
-        return;
-
     dumpn("*** closing connection " + this.number +
           " on port " + this._outgoingPort);
 
@@ -1250,11 +1197,6 @@ Connection.prototype =
     return "<Connection(" + this.number +
            (this.request ? ", " + this.request.path : "") +"): " +
            (this._closed ? "closed" : "open") + ">";
-  },
-
-  requestStarted: function()
-  {
-    this._requestStarted = true;
   }
 };
 
@@ -1441,7 +1383,6 @@ RequestReader.prototype =
     {
       this._parseRequestLine(line.value);
       this._state = READER_IN_HEADERS;
-      this._connection.requestStarted();
       return true;
     }
     catch (e)
@@ -2786,7 +2727,7 @@ ServerHandler.prototype =
           // getting the line number where we evaluate the SJS file.  Don't
           // separate these two lines!
           var line = new Error().lineNumber;
-          Cu.evalInSandbox(sis.read(file.fileSize), s, "latest");
+          Cu.evalInSandbox(sis.read(file.fileSize), s);
         }
         catch (e)
         {

@@ -1,12 +1,11 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 #include "mozilla/dom/ContentChild.h"
@@ -30,12 +29,11 @@
 #include "nsNetUtil.h"
 #include "nsIXPConnect.h"
 #include "mozilla/unused.h"
-#include "nsContentUtils.h" // for nsAutoScriptBlocker
+#include "nsContentUtils.h"
 #include "nsIMemoryReporter.h"
 #include "mozilla/ipc/URIUtils.h"
 #include "nsPrintfCString.h"
 #include "nsTHashtable.h"
-#include "jsapi.h"
 
 // Initial size for the cache holding visited status observers.
 #define VISIT_OBSERVERS_INITIAL_CACHE_SIZE 128
@@ -77,14 +75,13 @@ struct VisitData {
   , visitTime(0)
   , frecency(-1)
   , titleChanged(false)
-  , shouldUpdateFrecency(true)
   {
     guid.SetIsVoid(true);
     title.SetIsVoid(true);
   }
 
   VisitData(nsIURI* aURI,
-            nsIURI* aReferrer = nullptr)
+            nsIURI* aReferrer = NULL)
   : placeId(0)
   , visitId(0)
   , hidden(true)
@@ -93,7 +90,6 @@ struct VisitData {
   , visitTime(0)
   , frecency(-1)
   , titleChanged(false)
-  , shouldUpdateFrecency(true)
   {
     (void)aURI->GetSpec(spec);
     (void)GetReversedHostname(aURI, revHost);
@@ -160,9 +156,6 @@ struct VisitData {
 
   // TODO bug 626836 hook up hidden and typed change tracking too!
   bool titleChanged;
-
-  // Indicates whether frecency should be updated for this visit.
-  bool shouldUpdateFrecency;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,68 +213,6 @@ class PlaceHashKey : public nsCStringHashKey
 namespace {
 
 /**
- * Convert the given js value to a js array.
- *
- * @param [in] aValue
- *        the JS value to convert.
- * @param [in] aCtx
- *        The JSContext for aValue.
- * @param [out] _array
- *        the JS array.
- * @param [out] _arrayLength
- *        _array's length.
- */
-nsresult
-GetJSArrayFromJSValue(const JS::Value& aValue,
-                      JSContext* aCtx,
-                      JSObject** _array,
-                      uint32_t* _arrayLength) {
-  if (aValue.isObjectOrNull()) {
-    JS::Rooted<JSObject*> val(aCtx, aValue.toObjectOrNull());
-    if (JS_IsArrayObject(aCtx, val)) {
-      *_array = val;
-      (void)JS_GetArrayLength(aCtx, *_array, _arrayLength);
-      NS_ENSURE_ARG(*_arrayLength > 0);
-      return NS_OK;
-    }
-  }
-  
-  // Build a temporary array to store this one item so the code below can
-  // just loop.
-  *_arrayLength = 1;
-  *_array = JS_NewArrayObject(aCtx, 0, nullptr);
-  NS_ENSURE_TRUE(*_array, NS_ERROR_OUT_OF_MEMORY);
-
-  bool rc = JS_DefineElement(aCtx, *_array, 0, aValue, nullptr, nullptr, 0);
-  NS_ENSURE_TRUE(rc, NS_ERROR_UNEXPECTED);
-  return NS_OK;
-}
-
-/**
- * Attemps to convert a given js value to a nsIURI object.
- * @param aCtx
- *        The JSContext for aValue.
- * @param aValue
- *        The JS value to convert.
- * @return the nsIURI object, or null if aValue is not a nsIURI object.
- */
-already_AddRefed<nsIURI>
-GetJSValueAsURI(JSContext* aCtx,
-                const JS::Value& aValue) {
-  if (!JSVAL_IS_PRIMITIVE(aValue)) {
-    nsCOMPtr<nsIXPConnect> xpc = mozilla::services::GetXPConnect();
-
-    nsCOMPtr<nsIXPConnectWrappedNative> wrappedObj;
-    nsresult rv = xpc->GetWrappedNativeOfJSObject(aCtx, JSVAL_TO_OBJECT(aValue),
-                                                  getter_AddRefs(wrappedObj));
-    NS_ENSURE_SUCCESS(rv, nullptr);
-    nsCOMPtr<nsIURI> uri = do_QueryWrappedNative(wrappedObj);
-    return uri.forget();
-  }
-  return nullptr;
-}
-
-/**
  * Obtains an nsIURI from the "uri" property of a JSObject.
  *
  * @param aCtx
@@ -297,44 +228,21 @@ GetURIFromJSObject(JSContext* aCtx,
                    JSObject* aObject,
                    const char* aProperty)
 {
-  JS::Rooted<JS::Value> uriVal(aCtx);
-  bool rc = JS_GetProperty(aCtx, aObject, aProperty, &uriVal);
+  JS::Value uriVal;
+  JSBool rc = JS_GetProperty(aCtx, aObject, aProperty, &uriVal);
   NS_ENSURE_TRUE(rc, nullptr);
-  return GetJSValueAsURI(aCtx, uriVal);
-}
 
-/**
- * Attemps to convert a JS value to a string.
- * @param aCtx
- *        The JSContext for aObject.
- * @param aValue
- *        The JS value to convert.
- * @param _string
- *        The string to populate with the value, or set it to void.
- */
-void
-GetJSValueAsString(JSContext* aCtx,
-                   const JS::Value& aValue,
-                   nsString& _string) {
-  if (JSVAL_IS_VOID(aValue) ||
-      !(JSVAL_IS_NULL(aValue) || JSVAL_IS_STRING(aValue))) {
-    _string.SetIsVoid(true);
-    return;
-  }
+  if (!JSVAL_IS_PRIMITIVE(uriVal)) {
+    nsCOMPtr<nsIXPConnect> xpc = mozilla::services::GetXPConnect();
 
-  // |null| in JS maps to the empty string.
-  if (JSVAL_IS_NULL(aValue)) {
-    _string.Truncate();
-    return;
+    nsCOMPtr<nsIXPConnectWrappedNative> wrappedObj;
+    nsresult rv = xpc->GetWrappedNativeOfJSObject(aCtx, JSVAL_TO_OBJECT(uriVal),
+                                                  getter_AddRefs(wrappedObj));
+    NS_ENSURE_SUCCESS(rv, nullptr);
+    nsCOMPtr<nsIURI> uri = do_QueryWrappedNative(wrappedObj);
+    return uri.forget();
   }
-  size_t length;
-  const jschar* chars =
-    JS_GetStringCharsZAndLength(aCtx, JSVAL_TO_STRING(aValue), &length);
-  if (!chars) {
-    _string.SetIsVoid(true);
-    return;
-  }
-  _string.Assign(static_cast<const PRUnichar*>(chars), length);
+  return nullptr;
 }
 
 /**
@@ -355,15 +263,26 @@ GetStringFromJSObject(JSContext* aCtx,
                       const char* aProperty,
                       nsString& _string)
 {
-  JS::Rooted<JS::Value> val(aCtx);
-  bool rc = JS_GetProperty(aCtx, aObject, aProperty, &val);
-  if (!rc) {
+  JS::Value val;
+  JSBool rc = JS_GetProperty(aCtx, aObject, aProperty, &val);
+  if (!rc || JSVAL_IS_VOID(val) ||
+      !(JSVAL_IS_NULL(val) || JSVAL_IS_STRING(val))) {
     _string.SetIsVoid(true);
     return;
   }
-  else {
-    GetJSValueAsString(aCtx, val, _string);
+  // |null| in JS maps to the empty string.
+  if (JSVAL_IS_NULL(val)) {
+    _string.Truncate();
+    return;
   }
+  size_t length;
+  const jschar* chars =
+    JS_GetStringCharsZAndLength(aCtx, JSVAL_TO_STRING(val), &length);
+  if (!chars) {
+    _string.SetIsVoid(true);
+    return;
+  }
+  _string.Assign(static_cast<const PRUnichar*>(chars), length);
 }
 
 /**
@@ -385,8 +304,8 @@ GetIntFromJSObject(JSContext* aCtx,
                    const char* aProperty,
                    IntType* _int)
 {
-  JS::Rooted<JS::Value> value(aCtx);
-  bool rc = JS_GetProperty(aCtx, aObject, aProperty, &value);
+  JS::Value value;
+  JSBool rc = JS_GetProperty(aCtx, aObject, aProperty, &value);
   NS_ENSURE_TRUE(rc, NS_ERROR_UNEXPECTED);
   if (JSVAL_IS_VOID(value)) {
     return NS_ERROR_INVALID_ARG;
@@ -395,7 +314,7 @@ GetIntFromJSObject(JSContext* aCtx,
   NS_ENSURE_ARG(JSVAL_IS_NUMBER(value));
 
   double num;
-  rc = JS::ToNumber(aCtx, value, &num);
+  rc = JS_ValueToNumber(aCtx, value, &num);
   NS_ENSURE_TRUE(rc, NS_ERROR_UNEXPECTED);
   NS_ENSURE_ARG(IntType(num) == num);
 
@@ -426,8 +345,8 @@ GetJSObjectFromArray(JSContext* aCtx,
   NS_PRECONDITION(JS_IsArrayObject(aCtx, aArray),
                   "Must provide an object that is an array!");
 
-  JS::Rooted<JS::Value> value(aCtx);
-  bool rc = JS_GetElement(aCtx, aArray, aIndex, &value);
+  JS::Value value;
+  JSBool rc = JS_GetElement(aCtx, aArray, aIndex, &value);
   NS_ENSURE_TRUE(rc, NS_ERROR_UNEXPECTED);
   NS_ENSURE_ARG(!JSVAL_IS_PRIMITIVE(value));
   *_rooter = JSVAL_TO_OBJECT(value);
@@ -573,8 +492,8 @@ public:
 
   NS_IMETHOD Run()
   {
-    MOZ_ASSERT(NS_IsMainThread(), "This should be called on the main thread");
-
+    NS_PRECONDITION(NS_IsMainThread(),
+                    "This should be called on the main thread");
     // We are in the main thread, no need to lock.
     if (mHistory->IsShuttingDown()) {
       // If we are shutting down, we cannot notify the observers.
@@ -644,7 +563,8 @@ public:
 
   NS_IMETHOD Run()
   {
-    MOZ_ASSERT(NS_IsMainThread(), "This should be called on the main thread");
+    NS_PRECONDITION(NS_IsMainThread(),
+                    "This should be called on the main thread");
 
     nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
     NS_ENSURE_TRUE(navHistory, NS_ERROR_OUT_OF_MEMORY);
@@ -661,57 +581,44 @@ private:
 };
 
 /**
- * Helper class for methods which notify their callers through the
- * mozIVisitInfoCallback interface.
+ * Notifies a callback object when a visit has been handled.
  */
-class NotifyPlaceInfoCallback : public nsRunnable
+class NotifyVisitInfoCallback : public nsRunnable
 {
 public:
-  NotifyPlaceInfoCallback(mozIVisitInfoCallback* aCallback,
+  NotifyVisitInfoCallback(mozIVisitInfoCallback* aCallback,
                           const VisitData& aPlace,
-                          bool aIsSingleVisit,
                           nsresult aResult)
   : mCallback(aCallback)
   , mPlace(aPlace)
   , mResult(aResult)
-  , mIsSingleVisit(aIsSingleVisit)
   {
-    MOZ_ASSERT(aCallback, "Must pass a non-null callback!");
+    NS_PRECONDITION(aCallback, "Must pass a non-null callback!");
   }
 
   NS_IMETHOD Run()
   {
-    MOZ_ASSERT(NS_IsMainThread(), "This should be called on the main thread");
+    NS_PRECONDITION(NS_IsMainThread(),
+                    "This should be called on the main thread");
 
     nsCOMPtr<nsIURI> referrerURI;
     if (!mPlace.referrerSpec.IsEmpty()) {
       (void)NS_NewURI(getter_AddRefs(referrerURI), mPlace.referrerSpec);
     }
 
+    nsCOMPtr<mozIVisitInfo> visit =
+      new VisitInfo(mPlace.visitId, mPlace.visitTime, mPlace.transitionType,
+                    referrerURI.forget());
+    PlaceInfo::VisitsArray visits;
+    (void)visits.AppendElement(visit);
+
     nsCOMPtr<nsIURI> uri;
     (void)NS_NewURI(getter_AddRefs(uri), mPlace.spec);
 
-    nsCOMPtr<mozIPlaceInfo> place;
-    if (mIsSingleVisit) {
-      nsCOMPtr<mozIVisitInfo> visit =
-        new VisitInfo(mPlace.visitId, mPlace.visitTime, mPlace.transitionType,
-                      referrerURI.forget());
-      PlaceInfo::VisitsArray visits;
-      (void)visits.AppendElement(visit);
-
-      // The frecency isn't exposed because it may not reflect the updated value
-      // in the case of InsertVisitedURIs.
-      place =
-        new PlaceInfo(mPlace.placeId, mPlace.guid, uri.forget(), mPlace.title,
-                      -1, visits);
-    }
-    else {
-      // Same as above.
-      place =
-        new PlaceInfo(mPlace.placeId, mPlace.guid, uri.forget(), mPlace.title,
-                      -1);
-    }
-
+    // We do not notify about the frecency of the place.
+    nsCOMPtr<mozIPlaceInfo> place =
+      new PlaceInfo(mPlace.placeId, mPlace.guid, uri.forget(), mPlace.title,
+                    -1, visits);
     if (NS_SUCCEEDED(mResult)) {
       (void)mCallback->HandleResult(place);
     }
@@ -731,7 +638,6 @@ private:
   mozIVisitInfoCallback* mCallback;
   VisitData mPlace;
   const nsresult mResult;
-  bool mIsSingleVisit;
 };
 
 /**
@@ -743,7 +649,7 @@ public:
   NotifyCompletion(mozIVisitInfoCallback* aCallback)
   : mCallback(aCallback)
   {
-    MOZ_ASSERT(aCallback, "Must pass a non-null callback!");
+    NS_PRECONDITION(aCallback, "Must pass a non-null callback!");
   }
 
   NS_IMETHOD Run()
@@ -787,7 +693,7 @@ private:
 bool
 CanAddURI(nsIURI* aURI,
           const nsCString& aGUID = EmptyCString(),
-          mozIVisitInfoCallback* aCallback = nullptr)
+          mozIVisitInfoCallback* aCallback = NULL)
 {
   nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
   NS_ENSURE_TRUE(navHistory, false);
@@ -800,7 +706,7 @@ CanAddURI(nsIURI* aURI,
 
   // We cannot add the URI.  Notify the callback, if we were given one.
   if (aCallback) {
-    // NotifyPlaceInfoCallback does not hold a strong reference to the callback, so we
+    // NotifyVisitInfoCallback does not hold a strong reference to the callback, so we
     // have to manage it by AddRefing now and then releasing it after the event
     // has run.
     NS_ADDREF(aCallback);
@@ -808,11 +714,11 @@ CanAddURI(nsIURI* aURI,
     VisitData place(aURI);
     place.guid = aGUID;
     nsCOMPtr<nsIRunnable> event =
-      new NotifyPlaceInfoCallback(aCallback, place, true, NS_ERROR_INVALID_ARG);
+      new NotifyVisitInfoCallback(aCallback, place, NS_ERROR_INVALID_ARG);
     (void)NS_DispatchToMainThread(event);
 
     // Also dispatch an event to release our reference to the callback after
-    // NotifyPlaceInfoCallback has run.
+    // NotifyVisitInfoCallback has run.
     nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
     (void)NS_ProxyRelease(mainThread, aCallback, true);
   }
@@ -838,10 +744,11 @@ public:
    */
   static nsresult Start(mozIStorageConnection* aConnection,
                         nsTArray<VisitData>& aPlaces,
-                        mozIVisitInfoCallback* aCallback = nullptr)
+                        mozIVisitInfoCallback* aCallback = NULL)
   {
-    MOZ_ASSERT(NS_IsMainThread(), "This should be called on the main thread");
-    MOZ_ASSERT(aPlaces.Length() > 0, "Must pass a non-empty array!");
+    NS_PRECONDITION(NS_IsMainThread(),
+                    "This should be called on the main thread");
+    NS_PRECONDITION(aPlaces.Length() > 0, "Must pass a non-empty array!");
 
     nsRefPtr<InsertVisitedURIs> event =
       new InsertVisitedURIs(aConnection, aPlaces, aCallback);
@@ -857,7 +764,8 @@ public:
 
   NS_IMETHOD Run()
   {
-    MOZ_ASSERT(!NS_IsMainThread(), "This should not be called on the main thread");
+    NS_PRECONDITION(!NS_IsMainThread(),
+                    "This should not be called on the main thread");
 
     // Prevent the main thread from shutting down while this is running.
     MutexAutoLock lockedScope(mHistory->GetShutdownMutex());
@@ -869,32 +777,22 @@ public:
     mozStorageTransaction transaction(mDBConn, false,
                                       mozIStorageConnection::TRANSACTION_IMMEDIATE);
 
-    VisitData* lastPlace = nullptr;
+    VisitData* lastPlace = NULL;
     for (nsTArray<VisitData>::size_type i = 0; i < mPlaces.Length(); i++) {
       VisitData& place = mPlaces.ElementAt(i);
       VisitData& referrer = mReferrers.ElementAt(i);
 
       // We can avoid a database lookup if it's the same place as the last
       // visit we added.
-      bool known = lastPlace && lastPlace->IsSamePlaceAs(place);
-      if (!known) {
-        nsresult rv = mHistory->FetchPageInfo(place, &known);
-        if (NS_FAILED(rv)) {
-          if (mCallback) {
-            nsCOMPtr<nsIRunnable> event =
-              new NotifyPlaceInfoCallback(mCallback, place, true, rv);
-            return NS_DispatchToMainThread(event);
-          }
-          return NS_OK;
-        }
-      }
+      bool known = (lastPlace && lastPlace->IsSamePlaceAs(place)) ||
+                   mHistory->FetchPageInfo(place);
 
       FetchReferrerInfo(referrer, place);
 
       nsresult rv = DoDatabaseInserts(known, place, referrer);
       if (mCallback) {
         nsCOMPtr<nsIRunnable> event =
-          new NotifyPlaceInfoCallback(mCallback, place, true, rv);
+          new NotifyVisitInfoCallback(mCallback, place, rv);
         nsresult rv2 = NS_DispatchToMainThread(event);
         NS_ENSURE_SUCCESS(rv2, rv2);
       }
@@ -927,7 +825,8 @@ private:
   , mCallback(aCallback)
   , mHistory(History::GetService())
   {
-    MOZ_ASSERT(NS_IsMainThread(), "This should be called on the main thread");
+    NS_PRECONDITION(NS_IsMainThread(),
+                    "This should be called on the main thread");
 
     (void)mPlaces.SwapElements(aPlaces);
     (void)mReferrers.SetLength(mPlaces.Length());
@@ -945,6 +844,9 @@ private:
                    "Passed a VisitData with a URI we cannot add to history!");
 #endif
     }
+
+    // We AddRef on the main thread, and release it when we are destroyed.
+    NS_IF_ADDREF(mCallback);
   }
 
   virtual ~InsertVisitedURIs()
@@ -971,7 +873,8 @@ private:
                              VisitData& aPlace,
                              VisitData& aReferrer)
   {
-    MOZ_ASSERT(!NS_IsMainThread(), "This should not be called on the main thread");
+    NS_PRECONDITION(!NS_IsMainThread(),
+                    "This should not be called on the main thread");
 
     // If the page was in moz_places, we need to update the entry.
     nsresult rv;
@@ -988,10 +891,7 @@ private:
       // have a callback or when the GUID isn't known.  No point in doing the
       // disk I/O if we do not need it.
       if (mCallback || aPlace.guid.IsEmpty()) {
-        bool exists;
-        rv = mHistory->FetchPageInfo(aPlace, &exists);
-        NS_ENSURE_SUCCESS(rv, rv);
-
+        bool exists = mHistory->FetchPageInfo(aPlace);
         if (!exists) {
           NS_NOTREACHED("should have an entry in moz_places");
         }
@@ -1003,12 +903,8 @@ private:
 
     // TODO (bug 623969) we shouldn't update this after each visit, but
     // rather only for each unique place to save disk I/O.
-
-    // Don't update frecency if the page should not appear in autocomplete.
-    if (aPlace.shouldUpdateFrecency) {
-      rv = UpdateFrecency(aPlace);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+    rv = UpdateFrecency(aPlace);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     return NS_OK;
   }
@@ -1178,7 +1074,10 @@ private:
    */
   nsresult UpdateFrecency(const VisitData& aPlace)
   {
-    MOZ_ASSERT(aPlace.shouldUpdateFrecency);
+    // Don't update frecency if the page should not appear in autocomplete.
+    if (aPlace.frecency == 0) {
+      return NS_OK;
+    }
 
     nsresult rv;
     { // First, set our frecency to the proper value.
@@ -1246,75 +1145,17 @@ private:
   nsTArray<VisitData> mPlaces;
   nsTArray<VisitData> mReferrers;
 
-  nsCOMPtr<mozIVisitInfoCallback> mCallback;
+  /**
+   * We own a strong reference to this, but in an indirect way.  We call AddRef
+   * in our constructor, which happens on the main thread, and proxy the relase
+   * of the object to the main thread in our destructor.
+   */
+  mozIVisitInfoCallback* mCallback;
 
   /**
    * Strong reference to the History object because we do not want it to
    * disappear out from under us.
    */
-  nsRefPtr<History> mHistory;
-};
-
-class GetPlaceInfo MOZ_FINAL : public nsRunnable {
-public:
-  /**
-   * Get the place info for a given place (by GUID or URI)  asynchronously.
-   */
-  static nsresult Start(mozIStorageConnection* aConnection,
-                        VisitData& aPlace,
-                        mozIVisitInfoCallback* aCallback) {
-    MOZ_ASSERT(NS_IsMainThread(), "This should be called on the main thread");
-
-    nsRefPtr<GetPlaceInfo> event = new GetPlaceInfo(aPlace, aCallback);
-
-    // Get the target thread, and then start the work!
-    nsCOMPtr<nsIEventTarget> target = do_GetInterface(aConnection);
-    NS_ENSURE_TRUE(target, NS_ERROR_UNEXPECTED);
-    nsresult rv = target->Dispatch(event, NS_DISPATCH_NORMAL);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return NS_OK;
-  }
-
-  NS_IMETHOD Run()
-  {
-    MOZ_ASSERT(!NS_IsMainThread(), "This should not be called on the main thread");
-
-    bool exists;
-    nsresult rv = mHistory->FetchPageInfo(mPlace, &exists);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (!exists)
-      rv = NS_ERROR_NOT_AVAILABLE;
-
-    nsCOMPtr<nsIRunnable> event =
-      new NotifyPlaceInfoCallback(mCallback, mPlace, false, rv);
-
-    rv = NS_DispatchToMainThread(event);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return NS_OK;
-  }
-private:
-  GetPlaceInfo(VisitData& aPlace,
-               mozIVisitInfoCallback* aCallback)
-  : mPlace(aPlace)
-  , mCallback(aCallback)
-  , mHistory(History::GetService())
-  {
-    MOZ_ASSERT(NS_IsMainThread(), "This should be called on the main thread");
-  }
-
-  virtual ~GetPlaceInfo()
-  {
-    if (mCallback) {
-      nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-      (void)NS_ProxyRelease(mainThread, mCallback, true);
-    }
-  }
-
-  VisitData mPlace;
-  nsCOMPtr<mozIVisitInfoCallback> mCallback;
   nsRefPtr<History> mHistory;
 };
 
@@ -1338,8 +1179,9 @@ public:
                         nsIURI* aURI,
                         const nsAString& aTitle)
   {
-    MOZ_ASSERT(NS_IsMainThread(), "This should be called on the main thread");
-    MOZ_ASSERT(aURI, "Must pass a non-null URI object!");
+    NS_PRECONDITION(NS_IsMainThread(),
+                    "This should be called on the main thread");
+    NS_PRECONDITION(aURI, "Must pass a non-null URI object!");
 
     nsCString spec;
     nsresult rv = aURI->GetSpec(spec);
@@ -1358,13 +1200,11 @@ public:
 
   NS_IMETHOD Run()
   {
-    MOZ_ASSERT(!NS_IsMainThread(), "This should not be called on the main thread");
+    NS_PRECONDITION(!NS_IsMainThread(),
+                    "This should not be called on the main thread");
 
     // First, see if the page exists in the database (we'll need its id later).
-    bool exists;
-    nsresult rv = mHistory->FetchPageInfo(mPlace, &exists);
-    NS_ENSURE_SUCCESS(rv, rv);
-
+    bool exists = mHistory->FetchPageInfo(mPlace);
     if (!exists || !mPlace.titleChanged) {
       // We have no record of this page, or we have no title change, so there
       // is no need to do any further work.
@@ -1385,7 +1225,8 @@ public:
 
     {
       mozStorageStatementScoper scoper(stmt);
-      rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("page_id"), mPlace.placeId);
+      nsresult rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("page_id"),
+                                          mPlace.placeId);
       NS_ENSURE_SUCCESS(rv, rv);
       // Empty strings should clear the title, just like
       // nsNavHistory::SetPageTitle.
@@ -1403,7 +1244,7 @@ public:
 
     nsCOMPtr<nsIRunnable> event =
       new NotifyTitleObservers(mPlace.spec, mPlace.title, mPlace.guid);
-    rv = NS_DispatchToMainThread(event);
+    nsresult rv = NS_DispatchToMainThread(event);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return NS_OK;
@@ -1581,11 +1422,11 @@ class NotifyRemoveVisits : public nsRunnable
 public:
 
   NotifyRemoveVisits(nsTHashtable<PlaceHashKey>& aPlaces)
-    : mPlaces(VISITS_REMOVAL_INITIAL_HASH_SIZE)
-    , mHistory(History::GetService())
+  : mHistory(History::GetService())
   {
     MOZ_ASSERT(!NS_IsMainThread(),
                "This should not be called on the main thread");
+    mPlaces.Init(VISITS_REMOVAL_INITIAL_HASH_SIZE);
     aPlaces.EnumerateEntries(TransferHashEntries, &mPlaces);
   }
 
@@ -1686,7 +1527,8 @@ public:
 
     // Find all the visits relative to the current filters and whether their
     // pages will be removed or not.
-    nsTHashtable<PlaceHashKey> places(VISITS_REMOVAL_INITIAL_HASH_SIZE);
+    nsTHashtable<PlaceHashKey> places;
+    places.Init(VISITS_REMOVAL_INITIAL_HASH_SIZE);
     nsresult rv = FindRemovableVisits(places);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1872,11 +1714,11 @@ private:
  */
 void
 StoreAndNotifyEmbedVisit(VisitData& aPlace,
-                         mozIVisitInfoCallback* aCallback = nullptr)
+                         mozIVisitInfoCallback* aCallback = NULL)
 {
-  MOZ_ASSERT(aPlace.transitionType == nsINavHistoryService::TRANSITION_EMBED,
-             "Must only pass TRANSITION_EMBED visits to this!");
-  MOZ_ASSERT(NS_IsMainThread(), "Must be called on the main thread!");
+  NS_PRECONDITION(aPlace.transitionType == nsINavHistoryService::TRANSITION_EMBED,
+                  "Must only pass TRANSITION_EMBED visits to this!");
+  NS_PRECONDITION(NS_IsMainThread(), "Must be called on the main thread!");
 
   nsCOMPtr<nsIURI> uri;
   (void)NS_NewURI(getter_AddRefs(uri), aPlace.spec);
@@ -1889,16 +1731,16 @@ StoreAndNotifyEmbedVisit(VisitData& aPlace,
   navHistory->registerEmbedVisit(uri, aPlace.visitTime);
 
   if (aCallback) {
-    // NotifyPlaceInfoCallback does not hold a strong reference to the callback,
+    // NotifyVisitInfoCallback does not hold a strong reference to the callback,
     // so we have to manage it by AddRefing now and then releasing it after the
     // event has run.
     NS_ADDREF(aCallback);
     nsCOMPtr<nsIRunnable> event =
-      new NotifyPlaceInfoCallback(aCallback, aPlace, true, NS_OK);
+      new NotifyVisitInfoCallback(aCallback, aPlace, NS_OK);
     (void)NS_DispatchToMainThread(event);
 
     // Also dispatch an event to release our reference to the callback after
-    // NotifyPlaceInfoCallback has run.
+    // NotifyVisitInfoCallback has run.
     nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
     (void)NS_ProxyRelease(mainThread, aCallback, true);
   }
@@ -1908,34 +1750,33 @@ StoreAndNotifyEmbedVisit(VisitData& aPlace,
   (void)NS_DispatchToMainThread(event);
 }
 
-class HistoryLinksHashtableReporter MOZ_FINAL : public MemoryUniReporter
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(HistoryLinksHashtableMallocSizeOf)
+
+int64_t GetHistoryObserversSize()
 {
-public:
-  HistoryLinksHashtableReporter()
-    : MemoryUniReporter("explicit/history-links-hashtable",
-                         KIND_HEAP, UNITS_BYTES,
-"Memory used by the hashtable that records changes to the visited state of "
-"links.")
-    {}
-private:
-  int64_t Amount() MOZ_OVERRIDE
-  {
-    History* history = History::GetService();
-    return history ? history->SizeOfIncludingThis(MallocSizeOf) : 0;
-  }
-};
+  History* history = History::GetService();
+  return history ?
+         history->SizeOfIncludingThis(HistoryLinksHashtableMallocSizeOf) : 0;
+}
+
+NS_MEMORY_REPORTER_IMPLEMENT(HistoryService,
+  "explicit/history-links-hashtable",
+  KIND_HEAP,
+  UNITS_BYTES,
+  GetHistoryObserversSize,
+  "Memory used by the hashtable of observers Places uses to notify objects of "
+  "changes to links' visited state.")
 
 } // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //// History
 
-History* History::gService = nullptr;
+History* History::gService = NULL;
 
 History::History()
   : mShuttingDown(false)
   , mShutdownMutex("History::mShutdownMutex")
-  , mObservers(VISIT_OBSERVERS_INITIAL_CACHE_SIZE)
   , mRecentlyVisitedURIsNextIndex(0)
 {
   NS_ASSERTION(!gService, "Ruh-roh!  This service has already been created!");
@@ -1947,18 +1788,19 @@ History::History()
     (void)os->AddObserver(this, TOPIC_PLACES_SHUTDOWN, false);
   }
 
-  mReporter = new HistoryLinksHashtableReporter();
-  NS_RegisterMemoryReporter(mReporter);
+  NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(HistoryService));
 }
 
 History::~History()
 {
-  NS_UnregisterMemoryReporter(mReporter);
+  gService = NULL;
 
-  gService = nullptr;
-
-  NS_ASSERTION(mObservers.Count() == 0,
-               "Not all Links were removed before we disappear!");
+#ifdef DEBUG
+  if (mObservers.IsInitialized()) {
+    NS_ASSERTION(mObservers.Count() == 0,
+                 "Not all Links were removed before we disappear!");
+  }
+#endif
 }
 
 NS_IMETHODIMP
@@ -1981,7 +1823,14 @@ History::NotifyVisited(nsIURI* aURI)
     }
   }
 
-  // If we have no observers for this URI, we have nothing to notify about.
+  // If the hash table has not been initialized, then we have nothing to notify
+  // about.
+  if (!mObservers.IsInitialized()) {
+    return NS_OK;
+  }
+
+  // Additionally, if we have no observers for this URI, we have nothing to
+  // notify about.
   KeyClass* key = mObservers.GetEntry(aURI);
   if (!key) {
     return NS_OK;
@@ -2063,10 +1912,7 @@ History::InsertPlace(const VisitData& aPlace)
   NS_ENSURE_SUCCESS(rv, rv);
   rv = stmt->BindInt32ByName(NS_LITERAL_CSTRING("typed"), aPlace.typed);
   NS_ENSURE_SUCCESS(rv, rv);
-  // When inserting a page for a first visit that should not appear in
-  // autocomplete, for example an error page, use a zero frecency.
-  int32_t frecency = aPlace.shouldUpdateFrecency ? aPlace.frecency : 0;
-  rv = stmt->BindInt32ByName(NS_LITERAL_CSTRING("frecency"), frecency);
+  rv = stmt->BindInt32ByName(NS_LITERAL_CSTRING("frecency"), aPlace.frecency);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = stmt->BindInt32ByName(NS_LITERAL_CSTRING("hidden"), aPlace.hidden);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2126,68 +1972,37 @@ History::UpdatePlace(const VisitData& aPlace)
   return NS_OK;
 }
 
-nsresult
-History::FetchPageInfo(VisitData& _place, bool* _exists)
+bool
+History::FetchPageInfo(VisitData& _place)
 {
-  NS_PRECONDITION(!_place.spec.IsEmpty() || !_place.guid.IsEmpty(), "must have either a non-empty spec or guid!");
+  NS_PRECONDITION(!_place.spec.IsEmpty(), "must have a non-empty spec!");
   NS_PRECONDITION(!NS_IsMainThread(), "must be called off of the main thread!");
 
-  nsresult rv;
-
-  // URI takes precedence.
-  nsCOMPtr<mozIStorageStatement> stmt;
-  bool selectByURI = !_place.spec.IsEmpty();
-  if (selectByURI) {
-    stmt = GetStatement(
-      "SELECT guid, id, title, hidden, typed, frecency "
+  nsCOMPtr<mozIStorageStatement> stmt = GetStatement(
+      "SELECT id, title, hidden, typed, guid "
       "FROM moz_places "
       "WHERE url = :page_url "
     );
-    NS_ENSURE_STATE(stmt);
-
-    rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), _place.spec);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-  else {
-    stmt = GetStatement(
-      "SELECT url, id, title, hidden, typed, frecency "
-      "FROM moz_places "
-      "WHERE guid = :guid "
-    );
-    NS_ENSURE_STATE(stmt);
-
-    rv = stmt->BindUTF8StringByName(NS_LITERAL_CSTRING("guid"), _place.guid);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
+  NS_ENSURE_TRUE(stmt, false);
   mozStorageStatementScoper scoper(stmt);
 
-  rv = stmt->ExecuteStep(_exists);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsresult rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"),
+                                _place.spec);
+  NS_ENSURE_SUCCESS(rv, false);
 
-  if (!*_exists) {
-    return NS_OK;
+  bool hasResult;
+  rv = stmt->ExecuteStep(&hasResult);
+  NS_ENSURE_SUCCESS(rv, false);
+  if (!hasResult) {
+    return false;
   }
 
-  if (selectByURI) {
-    if (_place.guid.IsEmpty()) {
-      rv = stmt->GetUTF8String(0, _place.guid);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  }
-  else {
-    nsAutoCString spec;
-    rv = stmt->GetUTF8String(0, spec);
-    NS_ENSURE_SUCCESS(rv, rv);
-    _place.spec = spec;
-  }
-
-  rv = stmt->GetInt64(1, &_place.placeId);
-  NS_ENSURE_SUCCESS(rv, rv);
+  rv = stmt->GetInt64(0, &_place.placeId);
+  NS_ENSURE_SUCCESS(rv, false);
 
   nsAutoString title;
-  rv = stmt->GetString(2, title);
-  NS_ENSURE_SUCCESS(rv, rv);
+  rv = stmt->GetString(1, title);
+  NS_ENSURE_SUCCESS(rv, true);
 
   // If the title we were given was void, that means we did not bother to set
   // it to anything.  As a result, ignore the fact that we may have changed the
@@ -2207,33 +2022,36 @@ History::FetchPageInfo(VisitData& _place, bool* _exists)
     // Any one visible transition makes this location visible. If database
     // has location as visible, reflect that in our data structure.
     int32_t hidden;
-    rv = stmt->GetInt32(3, &hidden);
-    NS_ENSURE_SUCCESS(rv, rv);
+    rv = stmt->GetInt32(2, &hidden);
     _place.hidden = !!hidden;
+    NS_ENSURE_SUCCESS(rv, true);
   }
 
   if (!_place.typed) {
     // If this transition wasn't typed, others might have been. If database
     // has location as typed, reflect that in our data structure.
     int32_t typed;
-    rv = stmt->GetInt32(4, &typed);
-    NS_ENSURE_SUCCESS(rv, rv);
+    rv = stmt->GetInt32(3, &typed);
     _place.typed = !!typed;
+    NS_ENSURE_SUCCESS(rv, true);
   }
 
-  rv = stmt->GetInt32(5, &_place.frecency);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return NS_OK;
+  if (_place.guid.IsVoid()) {
+    rv = stmt->GetUTF8String(4, _place.guid);
+    NS_ENSURE_SUCCESS(rv, true);
+  }
+
+  return true;
 }
 
 /* static */ size_t
-History::SizeOfEntryExcludingThis(KeyClass* aEntry, mozilla::MallocSizeOf aMallocSizeOf, void *)
+History::SizeOfEntryExcludingThis(KeyClass* aEntry, nsMallocSizeOfFun aMallocSizeOf, void *)
 {
   return aEntry->array.SizeOfExcludingThis(aMallocSizeOf);
 }
 
 size_t
-History::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOfThis)
+History::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOfThis)
 {
   return aMallocSizeOfThis(this) +
          mObservers.SizeOfExcludingThis(SizeOfEntryExcludingThis, aMallocSizeOfThis);
@@ -2399,10 +2217,7 @@ History::VisitURI(nsIURI* aURI,
   else if (aFlags & IHistory::REDIRECT_PERMANENT) {
     transitionType = nsINavHistoryService::TRANSITION_REDIRECT_PERMANENT;
   }
-  else if ((recentFlags & nsNavHistory::RECENT_TYPED) &&
-           !(aFlags & IHistory::UNRECOVERABLE_ERROR)) {
-    // Don't mark error pages as typed, even if they were actually typed by
-    // the user.  This is useful to limit their score in autocomplete.
+  else if (recentFlags & nsNavHistory::RECENT_TYPED) {
     transitionType = nsINavHistoryService::TRANSITION_TYPED;
   }
   else if (recentFlags & nsNavHistory::RECENT_BOOKMARKED) {
@@ -2419,7 +2234,7 @@ History::VisitURI(nsIURI* aURI,
 
   // Error pages should never be autocompleted.
   if (aFlags & IHistory::UNRECOVERABLE_ERROR) {
-    place.shouldUpdateFrecency = false;
+    place.frecency = 0;
   }
 
   // EMBED visits are session-persistent and should not go through the database.
@@ -2454,6 +2269,11 @@ History::RegisterVisitedCallback(nsIURI* aURI,
     NS_PRECONDITION(aLink, "Must pass a non-null Link!");
   }
 
+  // First, ensure that our hash table is setup.
+  if (!mObservers.IsInitialized()) {
+    mObservers.Init(VISIT_OBSERVERS_INITIAL_CACHE_SIZE);
+  }
+
   // Obtain our array of observers for this URI.
 #ifdef DEBUG
   bool keyAlreadyExists = !!mObservers.GetEntry(aURI);
@@ -2471,19 +2291,19 @@ History::RegisterVisitedCallback(nsIURI* aURI,
     // database now.
     nsresult rv = VisitedQuery::Start(aURI);
 
-    // In IPC builds, we are passed a nullptr Link from
-    // ContentParent::RecvStartVisitedQuery.  Since we won't be adding a
-    // nullptr entry to our list of observers, and the code after this point
-    // assumes that aLink is non-nullptr, we will need to return now.
+    // In IPC builds, we are passed a NULL Link from
+    // ContentParent::RecvStartVisitedQuery.  Since we won't be adding a NULL
+    // entry to our list of observers, and the code after this point assumes
+    // that aLink is non-NULL, we will need to return now.
     if (NS_FAILED(rv) || !aLink) {
       // Remove our array from the hashtable so we don't keep it around.
       mObservers.RemoveEntry(aURI);
       return rv;
     }
   }
-  // In IPC builds, we are passed a nullptr Link from
+  // In IPC builds, we are passed a NULL Link from
   // ContentParent::RecvStartVisitedQuery.  All of our code after this point
-  // assumes aLink is non-nullptr, so we have to return now.
+  // assumes aLink is non-NULL, so we have to return now.
   else if (!aLink) {
     NS_ASSERTION(XRE_GetProcessType() == GeckoProcessType_Default,
                  "We should only ever get a null Link in the default process!");
@@ -2678,74 +2498,6 @@ History::RemoveAllDownloads()
 //// mozIAsyncHistory
 
 NS_IMETHODIMP
-History::GetPlacesInfo(const JS::Value& aPlaceIdentifiers,
-                       mozIVisitInfoCallback* aCallback,
-                       JSContext* aCtx) {
-  nsNavHistory* navHistory = nsNavHistory::GetHistoryService();
-  NS_ABORT_IF_FALSE(navHistory, "Could not get nsNavHistory?!");
-
-  uint32_t placesIndentifiersLength;
-  JS::Rooted<JSObject*> placesIndentifiers(aCtx);
-  nsresult rv = GetJSArrayFromJSValue(aPlaceIdentifiers, aCtx,
-                                      placesIndentifiers.address(),
-                                      &placesIndentifiersLength);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsTArray<VisitData> placesInfo;
-  placesInfo.SetCapacity(placesIndentifiersLength);
-  for (uint32_t i = 0; i < placesIndentifiersLength; i++) {
-    JS::Rooted<JS::Value> placeIdentifier(aCtx);
-    bool rc = JS_GetElement(aCtx, placesIndentifiers, i, &placeIdentifier);
-    NS_ENSURE_TRUE(rc, NS_ERROR_UNEXPECTED);
-
-    // GUID
-    nsAutoString fatGUID;
-    GetJSValueAsString(aCtx, placeIdentifier, fatGUID);
-    if (!fatGUID.IsVoid()) {
-      NS_ConvertUTF16toUTF8 guid(fatGUID);
-      if (!IsValidGUID(guid))
-        return NS_ERROR_INVALID_ARG;
-
-      VisitData& placeInfo = *placesInfo.AppendElement(VisitData());
-      placeInfo.guid = guid;
-    }
-    else {
-      nsCOMPtr<nsIURI> uri = GetJSValueAsURI(aCtx, placeIdentifier);
-      if (!uri)
-        return NS_ERROR_INVALID_ARG; // neither a guid, nor a uri.
-      placesInfo.AppendElement(VisitData(uri));
-    }
-  }
-
-  mozIStorageConnection* dbConn = GetDBConn();
-  NS_ENSURE_STATE(dbConn);
-
-  for (nsTArray<VisitData>::size_type i = 0; i < placesInfo.Length(); i++) {
-    nsresult rv = GetPlaceInfo::Start(dbConn, placesInfo.ElementAt(i), aCallback);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  // Be sure to notify that all of our operations are complete.  This
-  // is dispatched to the background thread first and redirected to the
-  // main thread from there to make sure that all database notifications
-  // and all embed or canAddURI notifications have finished.
-  if (aCallback) {
-    // NotifyCompletion does not hold a strong reference to the callback,
-    // so we have to manage it by AddRefing now. NotifyCompletion will
-    // release it for us once it has dispatched the callback to the main
-    // thread.
-    NS_ADDREF(aCallback);
-
-    nsCOMPtr<nsIEventTarget> backgroundThread = do_GetInterface(dbConn);
-    NS_ENSURE_TRUE(backgroundThread, NS_ERROR_UNEXPECTED);
-    nsCOMPtr<nsIRunnable> event = new NotifyCompletion(aCallback);
-    return backgroundThread->Dispatch(event, NS_DISPATCH_NORMAL);
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 History::UpdatePlaces(const JS::Value& aPlaceInfos,
                       mozIVisitInfoCallback* aCallback,
                       JSContext* aCtx)
@@ -2753,15 +2505,27 @@ History::UpdatePlaces(const JS::Value& aPlaceInfos,
   NS_ENSURE_TRUE(NS_IsMainThread(), NS_ERROR_UNEXPECTED);
   NS_ENSURE_TRUE(!JSVAL_IS_PRIMITIVE(aPlaceInfos), NS_ERROR_INVALID_ARG);
 
-  uint32_t infosLength;
-  JS::Rooted<JSObject*> infos(aCtx);
-  nsresult rv = GetJSArrayFromJSValue(aPlaceInfos, aCtx, infos.address(), &infosLength);
-  NS_ENSURE_SUCCESS(rv, rv);
+  uint32_t infosLength = 1;
+  JSObject* infos;
+  if (JS_IsArrayObject(aCtx, JSVAL_TO_OBJECT(aPlaceInfos))) {
+    infos = JSVAL_TO_OBJECT(aPlaceInfos);
+    (void)JS_GetArrayLength(aCtx, infos, &infosLength);
+    NS_ENSURE_ARG(infosLength > 0);
+  }
+  else {
+    // Build a temporary array to store this one item so the code below can
+    // just loop.
+    infos = JS_NewArrayObject(aCtx, 0, NULL);
+    NS_ENSURE_TRUE(infos, NS_ERROR_OUT_OF_MEMORY);
+
+    JSBool rc = JS_DefineElement(aCtx, infos, 0, aPlaceInfos, NULL, NULL, 0);
+    NS_ENSURE_TRUE(rc, NS_ERROR_UNEXPECTED);
+  }
 
   nsTArray<VisitData> visitData;
   for (uint32_t i = 0; i < infosLength; i++) {
-    JS::Rooted<JSObject*> info(aCtx);
-    nsresult rv = GetJSObjectFromArray(aCtx, infos, i, info.address());
+    JSObject* info;
+    nsresult rv = GetJSObjectFromArray(aCtx, infos, i, &info);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIURI> uri = GetURIFromJSObject(aCtx, info, "uri");
@@ -2793,10 +2557,10 @@ History::UpdatePlaces(const JS::Value& aPlaceInfos,
     nsString title;
     GetStringFromJSObject(aCtx, info, "title", title);
 
-    JS::Rooted<JSObject*> visits(aCtx, nullptr);
+    JSObject* visits = NULL;
     {
-      JS::Rooted<JS::Value> visitsVal(aCtx);
-      bool rc = JS_GetProperty(aCtx, info, "visits", &visitsVal);
+      JS::Value visitsVal;
+      JSBool rc = JS_GetProperty(aCtx, info, "visits", &visitsVal);
       NS_ENSURE_TRUE(rc, NS_ERROR_UNEXPECTED);
       if (!JSVAL_IS_PRIMITIVE(visitsVal)) {
         visits = JSVAL_TO_OBJECT(visitsVal);
@@ -2814,8 +2578,8 @@ History::UpdatePlaces(const JS::Value& aPlaceInfos,
     // Check each visit, and build our array of VisitData objects.
     visitData.SetCapacity(visitData.Length() + visitsLength);
     for (uint32_t j = 0; j < visitsLength; j++) {
-      JS::Rooted<JSObject*> visit(aCtx);
-      rv = GetJSObjectFromArray(aCtx, visits, j, visit.address());
+      JSObject* visit;
+      rv = GetJSObjectFromArray(aCtx, visits, j, &visit);
       NS_ENSURE_SUCCESS(rv, rv);
 
       VisitData& data = *visitData.AppendElement(VisitData(uri));
@@ -2876,7 +2640,7 @@ History::UpdatePlaces(const JS::Value& aPlaceInfos,
     nsCOMPtr<nsIEventTarget> backgroundThread = do_GetInterface(dbConn);
     NS_ENSURE_TRUE(backgroundThread, NS_ERROR_UNEXPECTED);
     nsCOMPtr<nsIRunnable> event = new NotifyCompletion(aCallback);
-    return backgroundThread->Dispatch(event, NS_DISPATCH_NORMAL);
+    (void)backgroundThread->Dispatch(event, NS_DISPATCH_NORMAL);
   }
 
   return NS_OK;
@@ -2918,7 +2682,7 @@ History::Observe(nsISupports* aSubject, const char* aTopic,
 ////////////////////////////////////////////////////////////////////////////////
 //// nsISupports
 
-NS_IMPL_ISUPPORTS4(
+NS_IMPL_THREADSAFE_ISUPPORTS4(
   History
 , IHistory
 , nsIDownloadHistory

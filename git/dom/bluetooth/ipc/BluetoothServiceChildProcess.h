@@ -52,10 +52,6 @@ public:
                                     MOZ_OVERRIDE;
 
   virtual nsresult
-  GetConnectedDevicePropertiesInternal(uint16_t aServiceUuid,
-                                       BluetoothReplyRunnable* aRunnable)
-                                       MOZ_OVERRIDE;
-  virtual nsresult
   StopDiscoveryInternal(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual nsresult
@@ -87,13 +83,13 @@ public:
                mozilla::ipc::UnixSocketConsumer* aConsumer) MOZ_OVERRIDE;
 
   virtual nsresult
-  GetServiceChannel(const nsAString& aDeviceAddress,
-                    const nsAString& aServiceUuid,
-                    BluetoothProfileManagerBase* aManager) MOZ_OVERRIDE;
-
-  virtual bool
-  UpdateSdpRecords(const nsAString& aDeviceAddress,
-                   BluetoothProfileManagerBase* aManager) MOZ_OVERRIDE;
+  GetSocketViaService(const nsAString& aObjectPath,
+                      const nsAString& aService,
+                      BluetoothSocketType aType,
+                      bool aAuth,
+                      bool aEncrypt,
+                      mozilla::ipc::UnixSocketConsumer* aConsumer,
+                      BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual bool
   SetPinCodeInternal(const nsAString& aDeviceAddress,
@@ -111,19 +107,22 @@ public:
                                  BluetoothReplyRunnable* aRunnable)
                                  MOZ_OVERRIDE;
 
+  virtual bool
+  SetAuthorizationInternal(const nsAString& aDeviceAddress,
+                           bool aAllow,
+                           BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+
   virtual void
   Connect(const nsAString& aDeviceAddress,
-          uint32_t aCod,
-          uint16_t aServiceUuid,
+          const uint16_t aProfileId,
           BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual void
-  Disconnect(const nsAString& aDeviceAddress,
-             uint16_t aServiceUuid,
+  Disconnect(const uint16_t aProfileId,
              BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual bool
-  IsConnected(uint16_t aServiceUuid) MOZ_OVERRIDE;
+  IsConnected(uint16_t aProfileId) MOZ_OVERRIDE;
 
   virtual void
   SendFile(const nsAString& aDeviceAddress,
@@ -139,55 +138,6 @@ public:
   ConfirmReceivingFile(const nsAString& aDeviceAddress,
                        bool aConfirm,
                        BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  ConnectSco(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  DisconnectSco(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  IsScoConnected(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-#ifdef MOZ_B2G_RIL
-  virtual void
-  AnswerWaitingCall(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  IgnoreWaitingCall(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  ToggleCalls(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-#endif
-
-  virtual void
-  SendMetaData(const nsAString& aTitle,
-               const nsAString& aArtist,
-               const nsAString& aAlbum,
-               int64_t aMediaNumber,
-               int64_t aTotalMediaCount,
-               int64_t aDuration,
-               BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  SendPlayStatus(int64_t aDuration,
-                 int64_t aPosition,
-                 const nsAString& aPlayStatus,
-                 BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  UpdatePlayStatus(uint32_t aDuration,
-                   uint32_t aPosition,
-                   ControlPlayStatus aPlayStatus) MOZ_OVERRIDE;
-
-  virtual nsresult
-  SendSinkMessage(const nsAString& aDeviceAddresses,
-                  const nsAString& aMessage) MOZ_OVERRIDE;
-
-  virtual nsresult
-  SendInputMessage(const nsAString& aDeviceAddresses,
-                   const nsAString& aMessage) MOZ_OVERRIDE;
-
 protected:
   BluetoothServiceChildProcess();
   virtual ~BluetoothServiceChildProcess();
@@ -217,10 +167,13 @@ private:
   virtual bool
   IsEnabledInternal() MOZ_OVERRIDE;
 
-  bool
-  IsSignalRegistered(const nsAString& aNodeName) {
-    return !!mBluetoothSignalObserverTable.Get(aNodeName);
-  }
+  // Should never be called from the child
+  virtual nsresult
+  GetDevicePropertiesInternal(const BluetoothSignal& aSignal) MOZ_OVERRIDE;
+
+  // This method should never be called from the child.
+  virtual nsresult
+  PrepareAdapterInternal() MOZ_OVERRIDE;
 };
 
 END_BLUETOOTH_NAMESPACE

@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+//* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,18 +7,15 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
-#include "nsPrintfCString.h"
 #include "nsTArray.h"
 #include "nsString.h"
 #include "nsUrlClassifierPrefixSet.h"
 #include "nsIUrlClassifierPrefixSet.h"
 #include "nsIRandomGenerator.h"
 #include "nsIFile.h"
-#include "nsIMemoryReporter.h"
 #include "nsToolkitCompsCID.h"
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/FileUtils.h"
@@ -36,29 +33,77 @@ static const PRLogModuleInfo *gUrlClassifierPrefixSetLog = nullptr;
 #define LOG_ENABLED() (false)
 #endif
 
-class PrefixSetReporter MOZ_FINAL : public MemoryUniReporter
+class nsPrefixSetReporter : public nsIMemoryReporter
 {
 public:
-  PrefixSetReporter(nsUrlClassifierPrefixSet* aPrefixSet,
-                    const nsACString& aName)
-    : MemoryUniReporter(
-        nsPrintfCString(
-          "explicit/storage/prefix-set/%s",
-          (!aName.IsEmpty() ? PromiseFlatCString(aName).get() : "?!")
-        ).get(),
-        KIND_HEAP, UNITS_BYTES,
-        "Memory used by the prefix set for a URL classifier.")
-    , mPrefixSet(aPrefixSet)
-  {}
+  nsPrefixSetReporter(nsUrlClassifierPrefixSet* aParent, const nsACString& aName);
+  virtual ~nsPrefixSetReporter() {}
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIMEMORYREPORTER
 
 private:
-  int64_t Amount() MOZ_OVERRIDE
-  {
-    return mPrefixSet->SizeOfIncludingThis(MallocSizeOf);
-  }
-
-  nsUrlClassifierPrefixSet* mPrefixSet;
+  nsCString mPath;
+  nsUrlClassifierPrefixSet* mParent;
 };
+
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsPrefixSetReporter, nsIMemoryReporter)
+
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(StoragePrefixSetMallocSizeOf)
+
+nsPrefixSetReporter::nsPrefixSetReporter(nsUrlClassifierPrefixSet* aParent,
+                                         const nsACString& aName)
+: mParent(aParent)
+{
+  mPath.Assign(NS_LITERAL_CSTRING("explicit/storage/prefixset"));
+  if (!aName.IsEmpty()) {
+    mPath.Append("/");
+    mPath.Append(aName);
+  }
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetProcess(nsACString& aProcess)
+{
+  aProcess.Truncate();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetPath(nsACString& aPath)
+{
+  aPath.Assign(mPath);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetKind(int32_t* aKind)
+{
+  *aKind = nsIMemoryReporter::KIND_HEAP;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetUnits(int32_t* aUnits)
+{
+  *aUnits = nsIMemoryReporter::UNITS_BYTES;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetAmount(int64_t* aAmount)
+{
+  *aAmount = mParent->SizeOfIncludingThis(StoragePrefixSetMallocSizeOf);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetDescription(nsACString& aDescription)
+{
+  aDescription.Assign(NS_LITERAL_CSTRING("Memory used by a PrefixSet for "
+                                         "UrlClassifier, in bytes."));
+  return NS_OK;
+}
 
 NS_IMPL_ISUPPORTS1(nsUrlClassifierPrefixSet, nsIUrlClassifierPrefixSet)
 
@@ -74,7 +119,7 @@ nsUrlClassifierPrefixSet::nsUrlClassifierPrefixSet()
 NS_IMETHODIMP
 nsUrlClassifierPrefixSet::Init(const nsACString& aName)
 {
-  mReporter = new PrefixSetReporter(this, aName);
+  mReporter = new nsPrefixSetReporter(this, aName);
   NS_RegisterMemoryReporter(mReporter);
 
   return NS_OK;
@@ -269,7 +314,7 @@ nsUrlClassifierPrefixSet::Contains(uint32_t aPrefix, bool* aFound)
 }
 
 size_t
-nsUrlClassifierPrefixSet::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+nsUrlClassifierPrefixSet::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
   size_t n = 0;
   n += aMallocSizeOf(this);

@@ -8,7 +8,6 @@ var gID = null;
 function run_test() {
   do_test_pending();
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
-  Services.prefs.setBoolPref("plugins.click_to_play", true);
 
   startupManager();
   AddonManager.addAddonListener(AddonListener);
@@ -86,13 +85,13 @@ function run_test_1() {
       do_check_eq(p.creator, null);
       do_check_eq(p.version, "1.0.0.0");
       do_check_eq(p.type, "plugin");
-      do_check_eq(p.userDisabled, "askToActivate");
+      do_check_false(p.userDisabled);
       do_check_false(p.appDisabled);
       do_check_true(p.isActive);
       do_check_true(p.isCompatible);
       do_check_true(p.providesUpdatesSecurely);
       do_check_eq(p.blocklistState, 0);
-      do_check_eq(p.permissions, AddonManager.PERM_CAN_DISABLE | AddonManager.PERM_CAN_ENABLE);
+      do_check_eq(p.permissions, AddonManager.PERM_CAN_DISABLE);
       do_check_eq(p.pendingOperations, 0);
       do_check_true(p.size > 0);
       do_check_eq(p.size, getFileSize(testPlugin));
@@ -112,8 +111,7 @@ function run_test_2(p) {
   let test = {};
   test[gID] = [
     ["onDisabling", false],
-    "onDisabled",
-    ["onPropertyChanged", ["userDisabled"]]
+    "onDisabled"
   ];
   prepare_test(test);
 
@@ -160,7 +158,7 @@ function run_test_3(p) {
     do_check_true(p.isActive);
     do_check_eq(p.name, "Test Plug-in");
 
-    do_execute_soon(run_test_4);
+    run_test_4();
   });
 }
 
@@ -172,8 +170,6 @@ function run_test_4() {
     do_check_neq(p, null);
     do_check_eq(p.name, "Test Plug-in");
 
-    Services.prefs.clearUserPref("plugins.click_to_play");
-
-    do_execute_soon(do_test_finished);
+    do_test_finished();
   });
 }

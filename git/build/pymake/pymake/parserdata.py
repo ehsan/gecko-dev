@@ -93,7 +93,7 @@ def parsecommandlineargs(args):
                                      value=val, valueloc=Location('<command-line>', i, len(vname) + len(t)),
                                      targetexp=None, source=data.Variables.SOURCE_COMMANDLINE))
         else:
-            r.append(data.stripdotslash(a))
+            r.append(a)
 
     return stmts, r, ' '.join(overrides)
 
@@ -167,15 +167,12 @@ class Rule(Statement):
         This lets us go really fast and is generally good.
         """
         assert context.weak
+        assert len(self.targetexp.resolvesplit(makefile, makefile.variables)) == 1
+        target = self.targetexp.resolvesplit(makefile, makefile.variables)[0]
         deps = self.depexp.resolvesplit(makefile, makefile.variables)
-        # Skip targets with no rules and no dependencies
-        if not deps:
-            return
-        targets = data.stripdotslashes(self.targetexp.resolvesplit(makefile, makefile.variables))
-        rule = data.Rule(list(data.stripdotslashes(deps)), self.doublecolon, loc=self.targetexp.loc, weakdeps=True)
-        for target in targets:
-            makefile.gettarget(target).addrule(rule)
-            makefile.foundtarget(target)
+        rule = data.Rule(deps, self.doublecolon, loc=self.targetexp.loc, weakdeps=True)
+        makefile.gettarget(target).addrule(rule)
+        makefile.foundtarget(target)
         context.currule = rule
 
     def _execute(self, makefile, context):

@@ -9,16 +9,15 @@
 
 // Keep others in (case-insensitive) order:
 #include "gfxMatrix.h"
-#include "mozilla/dom/SVGSVGElement.h"
 #include "nsComputedDOMStyle.h"
 #include "nsFontMetrics.h"
 #include "nsIFrame.h"
 #include "nsIScriptError.h"
 #include "nsLayoutUtils.h"
 #include "SVGAnimationElement.h"
+#include "mozilla/dom/SVGSVGElement.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
 #include "nsContentUtils.h"
-#include "mozilla/gfx/2D.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -142,7 +141,7 @@ SVGContentUtils::ReportToConsole(nsIDocument* doc,
                                  uint32_t aParamsLength)
 {
   return nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                         NS_LITERAL_CSTRING("SVG"), doc,
+                                         "SVG", doc,
                                          nsContentUtils::eSVG_PROPERTIES,
                                          aWarning,
                                          aParams, aParamsLength);
@@ -366,224 +365,4 @@ SVGContentUtils::GetViewBoxTransform(float aViewportWidth, float aViewportHeight
   if (aViewboxY) f += -d * aViewboxY;
   
   return gfxMatrix(a, 0.0f, 0.0f, d, e, f);
-}
-
-/**
- * True if 'aCh' is a decimal digit.
- */
-static inline bool
-IsDigit(PRUnichar aCh)
-{
-  return aCh >= '0' && aCh <= '9';
-}
-
-/**
- * Assuming that 'aCh' is a decimal digit, return its numeric value.
- */
-static inline uint32_t
-DecimalDigitValue(PRUnichar aCh)
-{
-  MOZ_ASSERT(IsDigit(aCh), "Digit expected");
-  return aCh - '0';
-}
-
-template<class floatType>
-bool
-SVGContentUtils::ParseNumber(RangedPtr<const PRUnichar>& aIter,
-                             const RangedPtr<const PRUnichar>& aEnd,
-                             floatType& aValue)
-{
-  if (aIter == aEnd) {
-    return false;
-  }
-
-  RangedPtr<const PRUnichar> iter(aIter);
-
-  // Sign of the mantissa (-1 or 1).
-  int32_t sign = *iter == '-' ? -1 : 1;
-
-  if (*iter == '-' || *iter == '+') {
-    ++iter;
-    if (iter == aEnd) {
-      return false;
-    }
-  }
-
-  // Absolute value of the integer part of the mantissa.
-  floatType intPart = floatType(0);
-
-  bool gotDot = *iter == '.';
-
-  if (!gotDot) {
-    if (!IsDigit(*iter)) {
-      return false;
-    }
-    do {
-      intPart = floatType(10) * intPart + DecimalDigitValue(*iter);
-      ++iter;
-    } while (iter != aEnd && IsDigit(*iter));
-
-    if (iter != aEnd) {
-      gotDot = *iter == '.';
-    }
-  }
-
-  // Fractional part of the mantissa.
-  floatType fracPart = floatType(0);
-
-  if (gotDot) {
-    ++iter;
-    if (iter == aEnd || !IsDigit(*iter)) {
-      return false;
-    }
-    // Power of ten by which we need to divide our next digit
-    floatType divisor = floatType(10);
-    do {
-      fracPart += DecimalDigitValue(*iter) / divisor;
-      divisor *= 10;
-      ++iter;
-    } while (iter != aEnd && IsDigit(*iter));
-  }
-
-  bool gotE = false;
-  int32_t exponent = 0;
-  int32_t expSign;
-
-  if (iter != aEnd && (*iter == 'e' || *iter == 'E')) {
-
-    RangedPtr<const PRUnichar> expIter(iter);
-
-    ++expIter;
-    if (expIter != aEnd) {
-      expSign = *expIter == '-' ? -1 : 1;
-      if (*expIter == '-' || *expIter == '+') {
-        ++expIter;
-        if (expIter != aEnd && IsDigit(*expIter)) {
-          // At this point we're sure this is an exponent
-          // and not the start of a unit such as em or ex.
-          gotE = true;
-        }
-      }
-    }
-
-    if (gotE) {
-      iter = expIter;
-      do {
-        exponent = 10 * exponent + DecimalDigitValue(*iter);
-        ++iter;
-      } while (iter != aEnd && IsDigit(*iter));
-    }
-  }
-
-  // Assemble the number
-  floatType value = sign * (intPart + fracPart);
-  if (gotE) {
-    value *= pow(floatType(10), floatType(expSign * exponent));
-  }
-  if (!NS_finite(value)) {
-    return false;
-  }
-  aIter = iter;
-  aValue = value;
-  return true;
-}
-
-template bool
-SVGContentUtils::ParseNumber<float>(RangedPtr<const PRUnichar>& aIter,
-                                    const RangedPtr<const PRUnichar>& aEnd,
-                                    float& aValue);
-template bool
-SVGContentUtils::ParseNumber<double>(RangedPtr<const PRUnichar>& aIter,
-                                     const RangedPtr<const PRUnichar>& aEnd,
-                                     double& aValue);
-
-RangedPtr<const PRUnichar>
-SVGContentUtils::GetStartRangedPtr(const nsAString& aString)
-{
-  return RangedPtr<const PRUnichar>(aString.Data(), aString.Length());
-}
-
-RangedPtr<const PRUnichar>
-SVGContentUtils::GetEndRangedPtr(const nsAString& aString)
-{
-  return RangedPtr<const PRUnichar>(aString.Data() + aString.Length(),
-                                    aString.Data(), aString.Length());
-}
-
-template<class floatType>
-bool
-SVGContentUtils::ParseNumber(const nsAString& aString, 
-                             floatType& aValue)
-{
-  RangedPtr<const PRUnichar> iter = GetStartRangedPtr(aString);
-  const RangedPtr<const PRUnichar> end = GetEndRangedPtr(aString);
-
-  return ParseNumber(iter, end, aValue) && iter == end;
-}
-
-template bool
-SVGContentUtils::ParseNumber<float>(const nsAString& aString, 
-                                    float& aValue);
-template bool
-SVGContentUtils::ParseNumber<double>(const nsAString& aString, 
-                                     double& aValue);
-
-bool
-SVGContentUtils::ParseInteger(const nsAString& aString,
-                              int32_t& aValue)
-{
-  RangedPtr<const PRUnichar> iter = GetStartRangedPtr(aString);
-  const RangedPtr<const PRUnichar> end = GetEndRangedPtr(aString);
-
-  if (iter == end) {
-    return false;
-  }
-
-  int32_t sign = *iter == '-' ? -1 : 1;
-
-  if (*iter == '-' || *iter == '+') {
-    ++iter;
-    if (iter == end) {
-      return false;
-    }
-  }
-
-  int64_t value = 0;
-
-  do {
-    if (!IsDigit(*iter)) {
-      return false;
-    }
-    if (value <= std::numeric_limits<int32_t>::max()) {
-      value = 10 * value + DecimalDigitValue(*iter);
-    }
-    ++iter;
-  } while (iter != end);
-
-  aValue = int32_t(clamped(sign * value,
-                           int64_t(std::numeric_limits<int32_t>::min()),
-                           int64_t(std::numeric_limits<int32_t>::max())));
-  return true;
-}
-
-float
-SVGContentUtils::CoordToFloat(nsPresContext *aPresContext,
-                              nsSVGElement *aContent,
-                              const nsStyleCoord &aCoord)
-{
-  switch (aCoord.GetUnit()) {
-  case eStyleUnit_Factor:
-    // user units
-    return aCoord.GetFactorValue();
-
-  case eStyleUnit_Coord:
-    return nsPresContext::AppUnitsToFloatCSSPixels(aCoord.GetCoordValue());
-
-  case eStyleUnit_Percent: {
-    SVGSVGElement* ctx = aContent->GetCtx();
-    return ctx ? aCoord.GetPercentValue() * ctx->GetLength(SVGContentUtils::XY) : 0.0f;
-  }
-  default:
-    return 0.0f;
-  }
 }

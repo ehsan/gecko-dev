@@ -5,8 +5,20 @@
 
 /* rendering object for css3 multi-column layout */
 
-#include "mozilla/Attributes.h"
 #include "nsContainerFrame.h"
+#include "nsIContent.h"
+#include "nsIFrame.h"
+#include "nsISupports.h"
+#include "nsIAtom.h"
+#include "nsPresContext.h"
+#include "nsHTMLParts.h"
+#include "nsGkAtoms.h"
+#include "nsStyleConsts.h"
+#include "nsCOMPtr.h"
+#include "nsLayoutUtils.h"
+#include "nsDisplayList.h"
+#include "nsCSSRendering.h"
+#include <algorithm>
 
 class nsColumnSetFrame : public nsContainerFrame {
 public:
@@ -15,31 +27,25 @@ public:
   nsColumnSetFrame(nsStyleContext* aContext);
 
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
-                                 nsFrameList&    aChildList) MOZ_OVERRIDE;
+                                 nsFrameList&    aChildList);
 
   NS_IMETHOD Reflow(nsPresContext* aPresContext,
                     nsHTMLReflowMetrics& aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus& aStatus) MOZ_OVERRIDE;
+                    nsReflowStatus& aStatus);
 
   NS_IMETHOD  AppendFrames(ChildListID     aListID,
-                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                           nsFrameList&    aFrameList);
   NS_IMETHOD  InsertFrames(ChildListID     aListID,
                            nsIFrame*       aPrevFrame,
-                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                           nsFrameList&    aFrameList);
   NS_IMETHOD  RemoveFrame(ChildListID     aListID,
-                          nsIFrame*       aOldFrame) MOZ_OVERRIDE;
+                          nsIFrame*       aOldFrame);
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
 
-  /**
-   * Retrieve the available height for content of this frame. The available content
-   * height is the available height for the frame, minus borders and padding.
-   */
-  virtual nscoord GetAvailableContentHeight(const nsHTMLReflowState& aReflowState);
-
-  virtual nsIFrame* GetContentInsertionFrame() MOZ_OVERRIDE {
+  virtual nsIFrame* GetContentInsertionFrame() {
     nsIFrame* frame = GetFirstPrincipalChild();
 
     // if no children return nullptr
@@ -51,12 +57,12 @@ public:
 
   virtual nsresult StealFrame(nsPresContext* aPresContext,
                               nsIFrame*      aChild,
-                              bool           aForceNormal) MOZ_OVERRIDE
+                              bool           aForceNormal)
   { // nsColumnSetFrame keeps overflow containers in main child list
     return nsContainerFrame::StealFrame(aPresContext, aChild, true);
   }
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const
    {
      return nsContainerFrame::IsFrameOfType(aFlags &
               ~(nsIFrame::eCanContainOverflowContainers));
@@ -66,14 +72,14 @@ public:
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
   virtual void PaintColumnRule(nsRenderingContext* aCtx,
                                const nsRect&        aDirtyRect,
                                const nsPoint&       aPt);
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE {
+  NS_IMETHOD GetFrameName(nsAString& aResult) const {
     return MakeFrameName(NS_LITERAL_STRING("ColumnSet"), aResult);
   }
 #endif
@@ -116,14 +122,6 @@ protected:
     // The last known height that was 'infeasible'. A column height is
     // infeasible if not all child content fits within the specified height.
     nscoord mKnownInfeasibleHeight;
-
-    // Height of the column set frame
-    nscoord mComputedHeight;
-
-    // The height "consumed" by previous-in-flows.
-    // The computed height should be equal to the height of the element (i.e.
-    // the computed height itself) plus the consumed height.
-    nscoord mConsumedHeight;
   };
 
   /**
@@ -139,14 +137,13 @@ protected:
     // The maximum "content height" of all columns that overflowed
     // their available height
     nscoord mMaxOverflowingHeight;
-    // This flag determines whether the last reflow of children exceeded the
-    // computed height of the column set frame. If so, we set the height to
-    // this maximum allowable height, and continue reflow without balancing.
-    bool mHasExcessHeight;
-
+    // Whether or not we should revert back to 'auto' setting for column-fill.
+    // This happens if we overflow our columns such that we no longer have
+    // enough room to keep balancing.
+    bool mShouldRevertToAuto;
     void Reset() {
       mMaxHeight = mSumHeight = mLastHeight = mMaxOverflowingHeight = 0;
-      mHasExcessHeight = false;
+      mShouldRevertToAuto = false;
     }
   };
 
@@ -156,14 +153,6 @@ protected:
    * overflow list, and put them in our primary child list for reflowing.
    */
   void DrainOverflowColumns();
-
-  bool ReflowColumns(nsHTMLReflowMetrics& aDesiredSize,
-                     const nsHTMLReflowState& aReflowState,
-                     nsReflowStatus& aReflowStatus,
-                     ReflowConfig& aConfig,
-                     bool aLastColumnUnbounded,
-                     nsCollapsingMargin* aCarriedOutBottomMargin,
-                     ColumnBalanceData& aColData);
 
   /**
    * The basic reflow strategy is to call this function repeatedly to
@@ -176,39 +165,6 @@ protected:
                                     bool aForceAuto, nscoord aFeasibleHeight,
                                     nscoord aInfeasibleHeight);
 
-  /**
-   * Perform the binary search for the best balance height for this column set.
-   *
-   * @param aReflowState The input parameters for the current reflow iteration.
-   * @param aPresContext The presentation context in which the current reflow
-   *        iteration is occurring.
-   * @param aConfig The ReflowConfig object associated with this column set
-   *        frame, generated by ChooseColumnStrategy().
-   * @param aColData A data structure used to keep track of data needed between
-   *        successive iterations of the balancing process.
-   * @param aDesiredSize The final output size of the column set frame (output
-   *        of reflow procedure).
-   * @param aOutMargin The bottom margin of the column set frame that may be
-   *        carried out from reflow (and thus collapsed).
-   * @param aUnboundedLastColumn A boolean value indicating that the last column
-   *        can be of any height. Used during the first iteration of the
-   *        balancing procedure to measure the height of all content in
-   *        descendant frames of the column set.
-   * @param aRunWasFeasible An input/output parameter indicating whether or not
-   *        the last iteration of the balancing loop was a feasible height to
-   *        fit all content from descendant frames.
-   * @param aStatus A final reflow status of the column set frame, passed in as
-   *        an output parameter.
-   */
-  void FindBestBalanceHeight(const nsHTMLReflowState& aReflowState,
-                             nsPresContext* aPresContext,
-                             ReflowConfig& aConfig,
-                             ColumnBalanceData& aColData,
-                             nsHTMLReflowMetrics& aDesiredSize,
-                             nsCollapsingMargin& aOutMargin,
-                             bool& aUnboundedLastColumn,
-                             bool& aRunWasFeasible,
-                             nsReflowStatus& aStatus);
   /**
    * Reflow column children. Returns true iff the content that was reflowed
    * fit into the mColMaxHeight.

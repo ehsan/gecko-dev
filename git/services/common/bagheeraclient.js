@@ -22,9 +22,9 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 #endif
 
-Cu.import("resource://gre/modules/Promise.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/rest.js");
 Cu.import("resource://services-common/utils.js");
 
@@ -47,8 +47,8 @@ Object.freeze(BagheeraClientRequestResult.prototype);
 function BagheeraRequest(uri) {
   RESTRequest.call(this, uri);
 
-  this._log = Log.repository.getLogger("Services.BagheeraClient");
-  this._log.level = Log.Level.Debug;
+  this._log = Log4Moz.repository.getLogger("Services.BagheeraClient");
+  this._log.level = Log4Moz.Level.Debug;
 }
 
 BagheeraRequest.prototype = Object.freeze({
@@ -69,8 +69,8 @@ this.BagheeraClient = function BagheeraClient(baseURI) {
     throw new Error("baseURI argument must be defined.");
   }
 
-  this._log = Log.repository.getLogger("Services.BagheeraClient");
-  this._log.level = Log.Level.Debug;
+  this._log = Log4Moz.repository.getLogger("Services.BagheeraClient");
+  this._log.level = Log4Moz.Level.Debug;
 
   this.baseURI = baseURI;
 
@@ -114,9 +114,9 @@ BagheeraClient.prototype = Object.freeze({
    * @param options
    *        (object) Extra options to control behavior. Recognized properties:
    *
-   *          deleteIDs -- (array) Old document IDs to delete as part of
+   *          deleteID -- (string) Old document ID to delete as part of
    *            upload. If not specified, no old documents will be deleted as
-   *            part of upload. The array values are typically UUIDs in hex
+   *            part of upload. The string value is typically a UUID in hex
    *            form.
    *
    *          telemetryCompressed -- (string) Telemetry histogram to record
@@ -161,16 +161,8 @@ BagheeraClient.prototype = Object.freeze({
     request.loadFlags = this._loadFlags;
     request.timeout = this.DEFAULT_TIMEOUT_MSEC;
 
-    // Since API changed, throw on old API usage.
-    if ("deleteID" in options) {
-      throw new Error("API has changed, use (array) deleteIDs instead");
-    }
-
-    let deleteIDs;
-    if (options.deleteIDs && options.deleteIDs.length > 0) {
-      deleteIDs = options.deleteIDs;
-      this._log.debug("Will delete " + deleteIDs.join(", "));
-      request.setHeader("X-Obsolete-Document", deleteIDs.join(","));
+    if (options.deleteID) {
+      request.setHeader("X-Obsolete-Document", options.deleteID);
     }
 
     let deferred = Promise.defer();
@@ -194,7 +186,6 @@ BagheeraClient.prototype = Object.freeze({
     let result = new BagheeraClientRequestResult();
     result.namespace = namespace;
     result.id = id;
-    result.deleteIDs = deleteIDs ? deleteIDs.slice(0) : null;
 
     request.onComplete = this._onComplete.bind(this, request, deferred, result);
     request.post(data);

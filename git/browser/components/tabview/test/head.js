@@ -343,18 +343,15 @@ function newWindowWithState(state, callback) {
   whenDelayedStartupFinished(win, function () {
     ss.setWindowState(win, JSON.stringify(state), true);
     win.close();
-    // Give it time to close
-    executeSoon(function() {
-      win = ss.undoCloseWindow(0);
+    win = ss.undoCloseWindow(0);
 
-      whenWindowLoaded(win, function () {
-        whenWindowStateReady(win, function () {
-          afterAllTabsLoaded(check, win);
-        });
+    whenWindowLoaded(win, function () {
+      whenWindowStateReady(win, function () {
+        afterAllTabsLoaded(check, win);
       });
-
-      whenDelayedStartupFinished(win, check);
     });
+
+    whenDelayedStartupFinished(win, check);
   });
 }
 
@@ -362,7 +359,7 @@ function newWindowWithState(state, callback) {
 function restoreTab(callback, index, win) {
   win = win || window;
 
-  let tab = win.undoCloseTab(index);
+  let tab = win.undoCloseTab(index || 0);
   let tabItem = tab._tabViewTabItem;
 
   let finalize = function () {

@@ -30,13 +30,9 @@ var httpserv = null;
 var timer = null;
 function run_test()
 {
-  if (oldDownloadManagerDisabled()) {
-    return;
-  }
-
   httpserv = new HttpServer();
   httpserv.registerDirectory("/", do_get_cwd());
-  httpserv.start(-1);
+  httpserv.start(4444);
 
   // our download listener
   var listener = {
@@ -63,6 +59,6 @@ function run_test()
            getService(Ci.nsIObserverService);
   os.addObserver(observer, "dl-start", false);
 
-  addDownload(httpserv);
+  addDownload();
   do_test_pending();
 }

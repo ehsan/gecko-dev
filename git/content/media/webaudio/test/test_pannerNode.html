@@ -15,6 +15,8 @@ function near(a, b, msg) {
 
 SimpleTest.waitForExplicitFinish();
 addLoadEvent(function() {
+  SpecialPowers.setBoolPref("media.webaudio.enabled", true);
+
   var context = new AudioContext();
   var buffer = context.createBuffer(1, 2048, context.sampleRate);
   for (var i = 0; i < 2048; ++i) {
@@ -41,20 +43,6 @@ addLoadEvent(function() {
   near(panner.coneInnerAngle, 360, "Correct default value for cone inner angle");
   near(panner.coneOuterAngle, 360, "Correct default value for cone outer angle");
   near(panner.coneOuterGain, 0, "Correct default value for cone outer gain");
-  is(panner.channelCount, 2, "panner node has 2 input channels by default");
-  is(panner.channelCountMode, "clamped-max", "Correct channelCountMode for the panner node");
-  is(panner.channelInterpretation, "speakers", "Correct channelCountInterpretation for the panner node");
-
-  panner.panningModel = panner.EQUALPOWER;
-  is(panner.panningModel, "equalpower", "Correct alternate panningModel enum value");
-  panner.panningModel = panner.HRTF;
-  is(panner.panningModel, "HRTF", "Correct alternate panningModel enum value");
-  panner.distanceModel = panner.LINEAR_DISTANCE;
-  is(panner.distanceModel, "linear", "Correct alternate distanceModel enum value");
-  panner.distanceModel = panner.INVERSE_DISTANCE;
-  is(panner.distanceModel, "inverse", "Correct alternate distanceModel enum value");
-  panner.distanceModel = panner.EXPONENTIAL_DISTANCE;
-  is(panner.distanceModel, "exponential", "Correct alternate distanceModel enum value");
 
   panner.setPosition(1, 1, 1);
   panner.setOrientation(1, 1, 1);
@@ -66,6 +54,7 @@ addLoadEvent(function() {
     source.disconnect();
     panner.disconnect();
 
+    SpecialPowers.clearUserPref("media.webaudio.enabled");
     SimpleTest.finish();
   });
 });

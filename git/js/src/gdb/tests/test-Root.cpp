@@ -1,8 +1,7 @@
 #include "gdb-tests.h"
-#include "jsapi.h"
 
 FRAGMENT(Root, null) {
-  JS::Rooted<JSObject *> null(cx, nullptr);
+  JS::Rooted<JSObject *> null(cx, NULL);
 
   breakpoint();
 
@@ -18,7 +17,7 @@ void callee(JS::Handle<JSObject *> obj, JS::MutableHandle<JSObject *> mutableObj
 }
 
 FRAGMENT(Root, handle) {
-  JS::Rooted<JSObject *> global(cx, JS::CurrentGlobalOrNull(cx));
+  JS::Rooted<JSObject *> global(cx, JS_GetGlobalObject(cx));
   callee(global, &global);
   (void) global;
 }

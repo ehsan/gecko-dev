@@ -2,6 +2,29 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+STACK_FAILURE_TESTCASES = \
+  TestStack.cpp \
+  TestStackTemplate.cpp \
+  StackNoConstructor.cpp \
+  StackVector.cpp \
+  StackConditional.cpp \
+  StackAggrInit.cpp \
+  StackCondBad.cpp \
+  StackFalsePositive.cpp \
+  $(NULL)
+
+STACK_PASS_TESTCASES = \
+  StackPlacementNewOK.cpp \
+  StackCond.cpp \
+  $(NULL)
+
 OUTPARAMS_WARNING_TESTCASES = \
   e1.cpp \
   e4.cpp \
@@ -92,12 +115,14 @@ STATIC_FAILURE_TESTCASES = \
 
 STATIC_WARNING_TESTCASES = \
   $(OUTPARAMS_WARNING_TESTCASES) \
+  $(STACK_FAILURE_TESTCASES) \
   $(STATIC_INIT_WARNING_TESTCASES) \
   $(NULL)
 
 STATIC_PASS_TESTCASES = \
   $(OUTPARAMS_NS_FAILED_TESTCASES) \
   $(OUTPARAMS_PASS_TESTCASES) \
+  $(STACK_PASS_TESTCASES) \
   $(FLOW_PASS_TESTCASES) \
   $(MUST_OVERRIDE_PASS_TESTCASES) \
   $(OVERRIDE_PASS_TESTCASES) \

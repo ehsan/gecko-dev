@@ -21,7 +21,7 @@ function testSteps()
   doOpen(1, errorHandler, grabEventAndContinueHandler, grabEventAndContinueHandler);
   doOpen(2, errorHandler, unexpectedSuccessHandler, unexpectedSuccessHandler);
 
-  let event = yield undefined;
+  let event = yield;
   is(event.type, "upgradeneeded", "expect an upgradeneeded event");
   is(event.target, requests[0], "fired at the right request");
 
@@ -34,37 +34,37 @@ function testSteps()
 
   event.target.transaction.oncomplete = grabEventAndContinueHandler;
 
-  event = yield undefined;
+  event = yield;
   is(event.type, "complete", "expect a complete event");
   is(event.target, requests[0].transaction, "expect it to be fired at the transaction");
 
-  event = yield undefined;
+  event = yield;
   is(event.type, "success", "expect a success event");
   is(event.target, requests[0], "fired at the right request");
   event.target.result.close();
 
   requests[1].onupgradeneeded = grabEventAndContinueHandler;
 
-  event = yield undefined;
+  event = yield;
   is(event.type, "upgradeneeded", "expect an upgradeneeded event");
   is(event.target, requests[1], "fired at the right request");
 
   requests[1].onsuccess = grabEventAndContinueHandler;
 
-  event = yield undefined;
+  event = yield;
   is(event.type, "success", "expect a success event");
   is(event.target, requests[1], "fired at the right request");
   event.target.result.close();
 
   requests[2].onupgradeneeded = grabEventAndContinueHandler;
 
-  event = yield undefined;
+  event = yield;
   is(event.type, "upgradeneeded", "expect an upgradeneeded event");
   is(event.target, requests[2], "fired at the right request");
 
   requests[2].onsuccess = grabEventAndContinueHandler;
 
-  event = yield undefined;
+  event = yield;
   is(event.type, "success", "expect a success event");
   is(event.target, requests[2], "fired at the right request");
   event.target.result.close();
@@ -72,16 +72,16 @@ function testSteps()
   requests[3].onerror = null;
   requests[3].addEventListener("error", new ExpectError("VersionError", true));
 
-  event = yield undefined;
+  event = yield;
 
   requests[4].onsuccess = grabEventAndContinueHandler;
 
-  event = yield undefined;
+  event = yield;
   is(event.type, "success", "expect a success event");
   is(event.target, requests[4], "fired at the right request");
   event.target.result.close();
 
   finishTest();
-  yield undefined;
+  yield;
 }
 

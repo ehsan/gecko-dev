@@ -5,20 +5,49 @@
 
 #include "nsFileControlFrame.h"
 
+#include "nsIContent.h"
+#include "nsIAtom.h"
+#include "nsPresContext.h"
 #include "nsGkAtoms.h"
+#include "nsWidgetsCID.h"
+#include "nsIComponentManager.h"
+#include "nsHTMLParts.h"
+#include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMHTMLButtonElement.h"
+#include "nsIFormControl.h"
+#include "nsINameSpaceManager.h"
 #include "nsCOMPtr.h"
+#include "nsIDOMElement.h"
 #include "nsIDocument.h"
+#include "nsIPresShell.h"
+#include "nsXPCOM.h"
+#include "nsISupportsPrimitives.h"
+#include "nsPIDOMWindow.h"
+#include "nsIFilePicker.h"
+#include "nsIDOMMouseEvent.h"
 #include "nsINodeInfo.h"
-#include "mozilla/dom/HTMLButtonElement.h"
+#include "nsIDOMEventTarget.h"
+#include "nsIFile.h"
 #include "mozilla/dom/HTMLInputElement.h"
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
+#include "nsDisplayList.h"
+#include "nsEventListenerManager.h"
+
+#include "nsInterfaceHashtable.h"
+#include "nsURIHashKey.h"
+#include "nsNetCID.h"
+#include "nsWeakReference.h"
+#include "nsIVariant.h"
+#include "mozilla/Services.h"
+#include "nsDirectoryServiceDefs.h"
+#include "nsDOMFile.h"
 #include "nsEventStates.h"
-#include "nsIDOMDataTransfer.h"
+#include "nsTextControlFrame.h"
+
 #include "nsIDOMDOMStringList.h"
 #include "nsIDOMDragEvent.h"
-#include "nsIDOMFileList.h"
 #include "nsContentList.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsTextNode.h"
@@ -83,9 +112,8 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
                                                  nsIDOMNode::ELEMENT_NODE);
   NS_NewHTMLElement(getter_AddRefs(mBrowse), nodeInfo.forget(),
                     dom::NOT_FROM_PARSER);
-  // NOTE: SetIsNativeAnonymousRoot() has to be called before setting any
-  // attribute.
-  mBrowse->SetIsNativeAnonymousRoot();
+  // NOTE: SetNativeAnonymous() has to be called before setting any attribute.
+  mBrowse->SetNativeAnonymous();
   mBrowse->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
                    NS_LITERAL_STRING("button"), false);
 
@@ -106,8 +134,8 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 
   // Make sure access key and tab order for the element actually redirect to the
   // file picking button.
-  nsRefPtr<HTMLInputElement> fileContent = HTMLInputElement::FromContentOrNull(mContent);
-  nsRefPtr<HTMLButtonElement> browseControl = HTMLButtonElement::FromContentOrNull(mBrowse);
+  nsCOMPtr<nsIDOMHTMLInputElement> fileContent = do_QueryInterface(mContent);
+  nsCOMPtr<nsIDOMHTMLButtonElement> browseControl = do_QueryInterface(mBrowse);
 
   nsAutoString accessKey;
   fileContent->GetAccessKey(accessKey);
@@ -126,9 +154,8 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
                                                  kNameSpaceID_XUL,
                                                  nsIDOMNode::ELEMENT_NODE);
   NS_TrustedNewXULElement(getter_AddRefs(mTextContent), nodeInfo.forget());
-  // NOTE: SetIsNativeAnonymousRoot() has to be called before setting any
-  // attribute.
-  mTextContent->SetIsNativeAnonymousRoot();
+  // NOTE: SetNativeAnonymous() has to be called before setting any attribute.
+  mTextContent->SetNativeAnonymous();
   mTextContent->SetAttr(kNameSpaceID_None, nsGkAtoms::crop,
                         NS_LITERAL_STRING("center"), false);
 
@@ -179,7 +206,7 @@ nsFileControlFrame::DnDListener::HandleEvent(nsIDOMEvent* aEvent)
   NS_ASSERTION(mFrame, "We should have been unregistered");
 
   bool defaultPrevented = false;
-  aEvent->GetDefaultPrevented(&defaultPrevented);
+  aEvent->GetPreventDefault(&defaultPrevented);
   if (defaultPrevented) {
     return NS_OK;
   }
@@ -317,7 +344,42 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                      const nsRect&           aDirtyRect,
                                      const nsDisplayListSet& aLists)
 {
-  BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
+  // box-shadow
+  if (StyleBorder()->mBoxShadow) {
+    aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
+      nsDisplayBoxShadowOuter(aBuilder, this));
+  }
+
+  // Clip height only
+  nsRect clipRect(aBuilder->ToReferenceFrame(this), GetSize());
+  clipRect.width = GetVisualOverflowRect().XMost();
+
+  nsDisplayListCollection tempList;
+  {
+    DisplayListClipState::AutoSaveRestore clipState(aBuilder);
+    clipState.ClipContainingBlockDescendants(clipRect, nullptr);
+
+    // Our background is inherited to the text input, and we don't really want to
+    // paint it or out padding and borders (which we never have anyway, per
+    // styles in forms.css) -- doing it just makes us look ugly in some cases and
+    // has no effect in others.
+    nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, tempList);
+  }
+
+  tempList.BorderBackground()->DeleteAll();
+
+  tempList.MoveTo(aLists);
+
+  // Disabled file controls don't pass mouse events to their children, so we
+  // put an invisible item in the display list above the children
+  // just to catch events
+  nsEventStates eventStates = mContent->AsElement()->State();
+  if (eventStates.HasState(NS_EVENT_STATE_DISABLED) && IsVisibleForPainting(aBuilder)) {
+    aLists.Content()->AppendNewToTop(
+      new (aBuilder) nsDisplayEventReceiver(aBuilder, this));
+  }
+
+  DisplaySelectionOverlay(aBuilder, aLists.Content());
 }
 
 #ifdef ACCESSIBILITY

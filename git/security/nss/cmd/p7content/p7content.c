@@ -4,6 +4,8 @@
 
 /*
  * p7content -- A command to display pkcs7 content.
+ *
+ * $Id$
  */
 
 #include "nspr.h"
@@ -78,7 +80,7 @@ DecodeAndPrintFile(FILE *out, PRFileDesc *in, char *progName)
     SEC_PKCS7ContentInfo *cinfo = NULL;
     SEC_PKCS7DecoderContext *dcx;
 
-    if (SECU_ReadDERFromFile(&derdata, in, PR_FALSE, PR_FALSE)) {
+    if (SECU_ReadDERFromFile(&derdata, in, PR_FALSE)) {
         SECU_PrintError(progName, "error converting der");
 	return -1;
     }

@@ -62,7 +62,7 @@ function do_test() {
 
   try {
     var res = utils.getBindingURLs(docElement);
-    ok(SpecialPowers.call_Instanceof(res, SpecialPowers.Ci["nsIArray"]), "getBindingURLs result type");
+    is(SpecialPowers.unwrap(res) instanceof SpecialPowers.Ci["nsIArray"], true, "getBindingURLs result type");
     is(res.length, 0, "getBindingURLs array length");
   }
   catch(e) { ok(false, "got an unexpected exception:" + e); }
@@ -77,10 +77,7 @@ function do_test() {
     utils.setContentState(docElement, false);
     ok(false, "expected an exception"); 
   }
-  catch(e) {
-    e = SpecialPowers.wrap(e);
-    is(e.result, ERROR_FAILURE, "got the expected exception");
-  }
+  catch(e) { is(e.result, ERROR_FAILURE, "got the expected exception"); }
 
   SimpleTest.finish();
 }

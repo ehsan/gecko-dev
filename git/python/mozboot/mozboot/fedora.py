@@ -23,15 +23,9 @@ class FedoraBootstrapper(BaseBootstrapper):
             'alsa-lib-devel',
             'autoconf213',
             'glibc-static',
-            'gstreamer-devel',
-            'gstreamer-plugins-base-devel',
             'libstdc++-static',
             'libXt-devel',
             'mercurial',
             'mesa-libGL-devel',
-            'pulseaudio-libs-devel',
             'wireless-tools-devel',
             'yasm')
-
-    def upgrade_mercurial(self, current):
-        self.yum_update('mercurial')

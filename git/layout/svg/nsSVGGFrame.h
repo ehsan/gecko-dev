@@ -6,7 +6,6 @@
 #ifndef NSSVGGFRAME_H
 #define NSSVGGFRAME_H
 
-#include "mozilla/Attributes.h"
 #include "gfxMatrix.h"
 #include "nsSVGContainerFrame.h"
 
@@ -34,10 +33,10 @@ public:
    *
    * @see nsGkAtoms::svgGFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGG"), aResult);
   }
@@ -46,14 +45,13 @@ public:
   // nsIFrame interface:
   NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              int32_t         aModType) MOZ_OVERRIDE;
+                              int32_t         aModType);
 
   // nsISVGChildFrame interface:
-  virtual void NotifySVGChanged(uint32_t aFlags) MOZ_OVERRIDE;
+  virtual void NotifySVGChanged(uint32_t aFlags);
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
-                                nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor);
 
   nsAutoPtr<gfxMatrix> mCanvasTM;
 };

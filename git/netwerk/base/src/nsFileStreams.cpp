@@ -19,11 +19,16 @@
 #include "private/pprio.h"
 
 #include "nsFileStreams.h"
+#include "nsXPIDLString.h"
+#include "prerror.h"
+#include "nsCRT.h"
 #include "nsIFile.h"
+#include "nsDirectoryIndexStream.h"
+#include "nsMimeTypes.h"
 #include "nsReadLine.h"
+#include "nsNetUtil.h"
 #include "nsIClassInfoImpl.h"
 #include "mozilla/ipc/InputStreamUtils.h"
-#include "nsNetCID.h"
 
 #define NS_NO_INPUT_BUFFERING 1 // see http://bugzilla.mozilla.org/show_bug.cgi?id=41067
 
@@ -46,9 +51,9 @@ nsFileStreamBase::~nsFileStreamBase()
     Close();
 }
 
-NS_IMPL_ISUPPORTS2(nsFileStreamBase,
-                   nsISeekableStream,
-                   nsIFileMetadata)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsFileStreamBase,
+                              nsISeekableStream,
+                              nsIFileMetadata)
 
 NS_IMETHODIMP
 nsFileStreamBase::Seek(int32_t whence, int64_t offset)
@@ -365,7 +370,7 @@ nsFileStreamBase::DoPendingOpen()
 NS_IMPL_ADDREF_INHERITED(nsFileInputStream, nsFileStreamBase)
 NS_IMPL_RELEASE_INHERITED(nsFileInputStream, nsFileStreamBase)
 
-NS_IMPL_CLASSINFO(nsFileInputStream, nullptr, nsIClassInfo::THREADSAFE,
+NS_IMPL_CLASSINFO(nsFileInputStream, NULL, nsIClassInfo::THREADSAFE,
                   NS_LOCALFILEINPUTSTREAM_CID)
 
 NS_INTERFACE_MAP_BEGIN(nsFileInputStream)
@@ -616,7 +621,7 @@ nsFileInputStream::Deserialize(const InputStreamParams& aParams)
 NS_IMPL_ADDREF_INHERITED(nsPartialFileInputStream, nsFileStreamBase)
 NS_IMPL_RELEASE_INHERITED(nsPartialFileInputStream, nsFileStreamBase)
 
-NS_IMPL_CLASSINFO(nsPartialFileInputStream, nullptr, nsIClassInfo::THREADSAFE,
+NS_IMPL_CLASSINFO(nsPartialFileInputStream, NULL, nsIClassInfo::THREADSAFE,
                   NS_PARTIALLOCALFILEINPUTSTREAM_CID)
 
 // Don't forward to nsFileInputStream as we don't want to QI to

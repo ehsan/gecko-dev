@@ -11,6 +11,7 @@ namespace threads {
 enum ID {
   Generic = 0,
   Main = 1,
+  CycleCollector = 2
 };
 
 } /* namespace threads */

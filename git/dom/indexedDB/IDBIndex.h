@@ -8,16 +8,11 @@
 #define mozilla_dom_indexeddb_idbindex_h__
 
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
-
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/IDBCursorBinding.h"
-#include "mozilla/ErrorResult.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsWrapperCache.h"
-
-#include "mozilla/dom/indexedDB/IDBObjectStore.h"
-#include "mozilla/dom/indexedDB/IDBRequest.h"
 #include "mozilla/dom/indexedDB/KeyPath.h"
+
+#include "nsIIDBIndex.h"
+
+#include "nsCycleCollectionParticipant.h"
 
 class nsIScriptContext;
 class nsPIDOMWindow;
@@ -35,11 +30,12 @@ class Key;
 
 struct IndexInfo;
 
-class IDBIndex MOZ_FINAL : public nsISupports,
-                           public nsWrapperCache
+class IDBIndex MOZ_FINAL : public nsIIDBIndex
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_NSIIDBINDEX
+
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBIndex)
 
   static already_AddRefed<IDBIndex>
@@ -104,27 +100,27 @@ public:
     return mActorParent;
   }
 
-  already_AddRefed<IDBRequest>
-  GetInternal(IDBKeyRange* aKeyRange,
-              ErrorResult& aRv);
+  nsresult GetInternal(IDBKeyRange* aKeyRange,
+                       JSContext* aCx,
+                       IDBRequest** _retval);
 
-  already_AddRefed<IDBRequest>
-  GetKeyInternal(IDBKeyRange* aKeyRange,
-                 ErrorResult& aRv);
+  nsresult GetKeyInternal(IDBKeyRange* aKeyRange,
+                          JSContext* aCx,
+                          IDBRequest** _retval);
 
-  already_AddRefed<IDBRequest>
-  GetAllInternal(IDBKeyRange* aKeyRange,
-                 uint32_t aLimit,
-                 ErrorResult& aRv);
+  nsresult GetAllInternal(IDBKeyRange* aKeyRange,
+                          uint32_t aLimit,
+                          JSContext* aCx,
+                          IDBRequest** _retval);
 
-  already_AddRefed<IDBRequest>
-  GetAllKeysInternal(IDBKeyRange* aKeyRange,
-                     uint32_t aLimit,
-                     ErrorResult& aRv);
+  nsresult GetAllKeysInternal(IDBKeyRange* aKeyRange,
+                              uint32_t aLimit,
+                              JSContext* aCx,
+                              IDBRequest** _retval);
 
-  already_AddRefed<IDBRequest>
-  CountInternal(IDBKeyRange* aKeyRange,
-                ErrorResult& aRv);
+  nsresult CountInternal(IDBKeyRange* aKeyRange,
+                         JSContext* aCx,
+                         IDBRequest** _retval);
 
   nsresult OpenCursorFromChildProcess(
                             IDBRequest* aRequest,
@@ -133,13 +129,14 @@ public:
                             const Key& aObjectKey,
                             IDBCursor** _retval);
 
-  already_AddRefed<IDBRequest>
-  OpenKeyCursorInternal(IDBKeyRange* aKeyRange,
-                        size_t aDirection,
-                        ErrorResult& aRv);
+  nsresult OpenKeyCursorInternal(IDBKeyRange* aKeyRange,
+                                 size_t aDirection,
+                                 JSContext* aCx,
+                                 IDBRequest** _retval);
 
   nsresult OpenCursorInternal(IDBKeyRange* aKeyRange,
                               size_t aDirection,
+                              JSContext* aCx,
                               IDBRequest** _retval);
 
   nsresult OpenCursorFromChildProcess(
@@ -151,81 +148,6 @@ public:
                             nsTArray<StructuredCloneFile>& aBlobs,
                             IDBCursor** _retval);
 
-  // nsWrapperCache
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-
-  // WebIDL
-  IDBObjectStore*
-  GetParentObject() const
-  {
-    return mObjectStore;
-  }
-
-  void
-  GetName(nsString& aName) const
-  {
-    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    aName.Assign(mName);
-  }
-
-  IDBObjectStore*
-  ObjectStore() const
-  {
-    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    return mObjectStore;
-  }
-
-  JS::Value
-  GetKeyPath(JSContext* aCx, ErrorResult& aRv);
-
-  bool
-  MultiEntry() const
-  {
-    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    return mMultiEntry;
-  }
-
-  bool
-  Unique() const
-  {
-    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    return mUnique;
-  }
-
-  already_AddRefed<IDBRequest>
-  OpenCursor(JSContext* aCx, const Optional<JS::Handle<JS::Value> >& aRange,
-             IDBCursorDirection aDirection, ErrorResult& aRv);
-
-  already_AddRefed<IDBRequest>
-  OpenKeyCursor(JSContext* aCx, const Optional<JS::Handle<JS::Value> >& aRange,
-                IDBCursorDirection aDirection, ErrorResult& aRv);
-
-  already_AddRefed<IDBRequest>
-  Get(JSContext* aCx, JS::Handle<JS::Value> aKey, ErrorResult& aRv);
-
-  already_AddRefed<IDBRequest>
-  GetKey(JSContext* aCx, JS::Handle<JS::Value> aKey, ErrorResult& aRv);
-
-  already_AddRefed<IDBRequest>
-  Count(JSContext* aCx, const Optional<JS::Handle<JS::Value> >& aKey,
-         ErrorResult& aRv);
-
-  void
-  GetStoreName(nsString& aStoreName) const
-  {
-    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    mObjectStore->GetName(aStoreName);
-  }
-
-  already_AddRefed<IDBRequest>
-  GetAll(JSContext* aCx, const Optional<JS::Handle<JS::Value> >& aKey,
-         const Optional<uint32_t>& aLimit, ErrorResult& aRv);
-
-  already_AddRefed<IDBRequest>
-  GetAllKeys(JSContext* aCx, const Optional<JS::Handle<JS::Value> >& aKey,
-             const Optional<uint32_t>& aLimit, ErrorResult& aRv);
-
 private:
   IDBIndex();
   ~IDBIndex();
@@ -235,7 +157,7 @@ private:
   int64_t mId;
   nsString mName;
   KeyPath mKeyPath;
-  JS::Heap<JS::Value> mCachedKeyPath;
+  JS::Value mCachedKeyPath;
 
   IndexedDBIndexChild* mActorChild;
   IndexedDBIndexParent* mActorParent;

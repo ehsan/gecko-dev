@@ -4,7 +4,7 @@
 
 from __future__ import unicode_literals
 
-from .base import MachError
+import collections
 
 
 class MachRegistrar(object):
@@ -12,54 +12,29 @@ class MachRegistrar(object):
 
     def __init__(self):
         self.command_handlers = {}
-        self.commands_by_category = {}
         self.settings_providers = set()
-        self.categories = {}
-        self.require_conditions = False
 
     def register_command_handler(self, handler):
-        name = handler.name
-
-        if not handler.category:
-            raise MachError('Cannot register a mach command without a '
-                'category: %s' % name)
-
-        if handler.category not in self.categories:
-            raise MachError('Cannot register a command to an undefined '
-                'category: %s -> %s' % (name, handler.category))
+        name = handler.parser_args[0][0]
 
         self.command_handlers[name] = handler
-        self.commands_by_category[handler.category].add(name)
 
     def register_settings_provider(self, cls):
         self.settings_providers.add(cls)
 
-    def register_category(self, name, title, description, priority=50):
-        self.categories[name] = (title, description, priority)
-        self.commands_by_category[name] = set()
+    def populate_argument_parser(self, parser):
+        for command in sorted(self.command_handlers.keys()):
+            handler = self.command_handlers[command]
+            handler.parser = parser.add_parser(*handler.parser_args[0],
+                **handler.parser_args[1])
 
-    def dispatch(self, name, context=None, **args):
-        """Dispatch/run a command.
+            for arg in handler.arguments:
+                handler.parser.add_argument(*arg[0], **arg[1])
 
-        Commands can use this to call other commands.
-        """
-
-        # TODO The logic in this function overlaps with code in
-        # mach.main.Main._run() and should be consolidated.
-        handler = self.command_handlers[name]
-        cls = handler.cls
-
-        if handler.pass_context and not context:
-            raise Exception('mach command class requires context.')
-
-        if handler.pass_context:
-            instance = cls(context)
-        else:
-            instance = cls()
-
-        fn = getattr(instance, handler.method)
-
-        return fn(**args) or 0
+            handler.parser.set_defaults(mach_class=handler.cls,
+                mach_method=handler.method,
+                mach_pass_context=handler.pass_context)
 
 
 Registrar = MachRegistrar()
+

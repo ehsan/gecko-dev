@@ -8,7 +8,7 @@
 #include "nsCOMPtr.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsUCSupport.h"
-#include "nsGBKConvUtil.h"
+#include "gbku.h"
 
 //----------------------------------------------------------------------
 // Class nsGBKToUnicode [declaration]

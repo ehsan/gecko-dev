@@ -9,7 +9,6 @@
 #include "nsMemory.h"
 #include "mozilla/Preferences.h"
 #include "mozJSComponentLoader.h"
-#include "nsZipArchive.h"
 
 #define JSPERF_CONTRACTID \
   "@mozilla.org/jsperf;1"
@@ -39,10 +38,10 @@ Module::~Module()
 #define XPC_MAP_FLAGS nsIXPCScriptable::WANT_CALL
 #include "xpc_map_end.h"
 
-static bool
+static JSBool
 SealObjectAndPrototype(JSContext* cx, JSObject* parent, const char* name)
 {
-  JS::Rooted<JS::Value> prop(cx);
+  JS::Value prop;
   if (!JS_GetProperty(cx, parent, name, &prop))
     return false;
 
@@ -51,16 +50,16 @@ SealObjectAndPrototype(JSContext* cx, JSObject* parent, const char* name)
     return true;
   }
 
-  JS::Rooted<JSObject*> obj(cx, prop.toObjectOrNull());
+  JSObject* obj = JSVAL_TO_OBJECT(prop);
   if (!JS_GetProperty(cx, obj, "prototype", &prop))
     return false;
 
-  JS::Rooted<JSObject*> prototype(cx, prop.toObjectOrNull());
+  JSObject* prototype = JSVAL_TO_OBJECT(prop);
   return JS_FreezeObject(cx, obj) && JS_FreezeObject(cx, prototype);
 }
 
-static bool
-InitAndSealPerfMeasurementClass(JSContext* cx, JS::Handle<JSObject*> global)
+static JSBool
+InitAndSealPerfMeasurementClass(JSContext* cx, JSObject* global)
 {
   // Init the PerfMeasurement class
   if (!JS::RegisterPerfMeasurement(cx, global))
@@ -82,12 +81,14 @@ NS_IMETHODIMP
 Module::Call(nsIXPConnectWrappedNative* wrapper,
              JSContext* cx,
              JSObject* obj,
-             const JS::CallArgs& args,
+             uint32_t argc,
+             JS::Value* argv,
+             JS::Value* vp,
              bool* _retval)
 {
+  JSObject* targetObj = nullptr;
 
   mozJSComponentLoader* loader = mozJSComponentLoader::Get();
-  JS::Rooted<JSObject*> targetObj(cx);
   nsresult rv = loader->FindTargetObject(cx, &targetObj);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -101,13 +102,13 @@ Module::Call(nsIXPConnectWrappedNative* wrapper,
 NS_DEFINE_NAMED_CID(JSPERF_CID);
 
 static const mozilla::Module::CIDEntry kPerfCIDs[] = {
-  { &kJSPERF_CID, false, nullptr, mozilla::jsperf::ModuleConstructor },
-  { nullptr }
+  { &kJSPERF_CID, false, NULL, mozilla::jsperf::ModuleConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kPerfContracts[] = {
   { JSPERF_CONTRACTID, &kJSPERF_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kPerfModule = {

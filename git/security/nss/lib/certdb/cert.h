@@ -4,6 +4,8 @@
 
 /*
  * cert.h - public data structures and prototypes for the certificate library
+ *
+ * $Id$
  */
 
 #ifndef _CERT_H_
@@ -268,7 +270,7 @@ extern SECKEYPublicKey *CERT_ExtractPublicKey(CERTCertificate *cert);
 ** Retrieve the Key Type associated with the cert we're dealing with
 */
 
-extern KeyType CERT_GetCertKeyType (const CERTSubjectPublicKeyInfo *spki);
+extern KeyType CERT_GetCertKeyType (CERTSubjectPublicKeyInfo *spki);
 
 /*
 ** Initialize the certificate database.  This is called to create
@@ -1218,7 +1220,6 @@ CERT_MatchUserCert(CERTCertDBHandle *handle,
 CERTCertList *
 CERT_NewCertList(void);
 
-/* free the cert list and all the certs in the list */
 void
 CERT_DestroyCertList(CERTCertList *certs);
 
@@ -1226,26 +1227,16 @@ CERT_DestroyCertList(CERTCertList *certs);
 void
 CERT_RemoveCertListNode(CERTCertListNode *node);
 
-/* equivalent to CERT_AddCertToListTailWithData(certs, cert, NULL) */
 SECStatus
 CERT_AddCertToListTail(CERTCertList *certs, CERTCertificate *cert);
 
-/* equivalent to CERT_AddCertToListHeadWithData(certs, cert, NULL) */
 SECStatus
 CERT_AddCertToListHead(CERTCertList *certs, CERTCertificate *cert);
 
-/*
- * The new cert list node takes ownership of "cert". "cert" is freed
- * when the list node is removed.
- */
 SECStatus
 CERT_AddCertToListTailWithData(CERTCertList *certs, CERTCertificate *cert,
 							 void *appData);
 
-/*
- * The new cert list node takes ownership of "cert". "cert" is freed
- * when the list node is removed.
- */
 SECStatus
 CERT_AddCertToListHeadWithData(CERTCertList *certs, CERTCertificate *cert,
 							 void *appData);
@@ -1513,12 +1504,6 @@ extern SECItem *
 CERT_GetSPKIDigest(PLArenaPool *arena, const CERTCertificate *cert,
                    SECOidTag digestAlg, SECItem *fill);
 
-/*
- * Digest the cert's subject name using the specified algorithm.
- */
-extern SECItem *
-CERT_GetSubjectNameDigest(PLArenaPool *arena, const CERTCertificate *cert,
-                          SECOidTag digestAlg, SECItem *fill);
 
 SECStatus CERT_CheckCRL(CERTCertificate* cert, CERTCertificate* issuer,
                         const SECItem* dp, PRTime t, void* wincx);

@@ -10,33 +10,3 @@ EXPORTS.mozilla.dom += [
     'DOMStorageIPC.h',
 ]
 
-SOURCES += [
-    'DOMStorage.cpp',
-    'DOMStorageCache.cpp',
-    'DOMStorageDBThread.cpp',
-    'DOMStorageIPC.cpp',
-    'DOMStorageManager.cpp',
-    'DOMStorageObserver.cpp',
-]
-
-IPDL_SOURCES += [
-    'PStorage.ipdl',
-]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'jsdomstorage_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
-
-LOCAL_INCLUDES += [
-    '/content/events/src',
-    '/dom/base',
-]
-
-if CONFIG['ENABLE_TESTS']:
-    DEFINES['DOM_STORAGE_TESTS'] = True

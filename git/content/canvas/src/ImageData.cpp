@@ -6,7 +6,8 @@
 
 #include "mozilla/dom/ImageData.h"
 
-#include "mozilla/HoldDropJSObjects.h"
+#include "nsDOMClassInfoID.h"
+#include "nsContentUtils.h"
 #include "mozilla/dom/ImageDataBinding.h"
 
 #include "jsapi.h"
@@ -16,8 +17,6 @@ namespace dom {
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(ImageData)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(ImageData)
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(ImageData)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(ImageData)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
@@ -38,7 +37,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 void
 ImageData::HoldData()
 {
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, ImageData);
 }
 
 void
@@ -46,12 +45,12 @@ ImageData::DropData()
 {
   if (mData) {
     mData = nullptr;
-    mozilla::DropJSObjects(this);
+    NS_DROP_JS_OBJECTS(this, ImageData);
   }
 }
 
 JSObject*
-ImageData::WrapObject(JSContext* cx, JS::Handle<JSObject*> scope)
+ImageData::WrapObject(JSContext* cx, JSObject* scope)
 {
   return ImageDataBinding::Wrap(cx, scope, this);
 }

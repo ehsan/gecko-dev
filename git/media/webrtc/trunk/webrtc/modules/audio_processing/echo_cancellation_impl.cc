@@ -8,25 +8,23 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/audio_processing/echo_cancellation_impl.h"
+#include "echo_cancellation_impl.h"
 
-#include <assert.h>
+#include <cassert>
 #include <string.h>
 
-extern "C" {
-#include "webrtc/modules/audio_processing/aec/aec_core.h"
-}
-#include "webrtc/modules/audio_processing/aec/include/echo_cancellation.h"
-#include "webrtc/modules/audio_processing/audio_buffer.h"
-#include "webrtc/modules/audio_processing/audio_processing_impl.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
+#include "critical_section_wrapper.h"
+#include "echo_cancellation.h"
+
+#include "audio_processing_impl.h"
+#include "audio_buffer.h"
 
 namespace webrtc {
 
 typedef void Handle;
 
 namespace {
-int16_t MapSetting(EchoCancellation::SuppressionLevel level) {
+WebRtc_Word16 MapSetting(EchoCancellation::SuppressionLevel level) {
   switch (level) {
     case EchoCancellation::kLowSuppression:
       return kAecNlpConservative;
@@ -56,11 +54,6 @@ AudioProcessing::Error MapError(int err) {
 }
 }  // namespace
 
-EchoCancellationImplWrapper* EchoCancellationImplWrapper::Create(
-    const AudioProcessingImpl* audioproc) {
-  return new EchoCancellationImpl(audioproc);
-}
-
 EchoCancellationImpl::EchoCancellationImpl(const AudioProcessingImpl* apm)
   : ProcessingComponent(apm),
     apm_(apm),
@@ -71,8 +64,7 @@ EchoCancellationImpl::EchoCancellationImpl(const AudioProcessingImpl* apm)
     stream_drift_samples_(0),
     was_stream_drift_set_(false),
     stream_has_echo_(false),
-    delay_logging_enabled_(false),
-    delay_correction_enabled_(true) {}
+    delay_logging_enabled_(false) {}
 
 EchoCancellationImpl::~EchoCancellationImpl() {}
 
@@ -94,7 +86,7 @@ int EchoCancellationImpl::ProcessRenderAudio(const AudioBuffer* audio) {
       err = WebRtcAec_BufferFarend(
           my_handle,
           audio->low_pass_split_data(j),
-          static_cast<int16_t>(audio->samples_per_split_channel()));
+          static_cast<WebRtc_Word16>(audio->samples_per_split_channel()));
 
       if (err != apm_->kNoError) {
         return GetHandleError(my_handle);  // TODO(ajm): warning possible?
@@ -137,7 +129,7 @@ int EchoCancellationImpl::ProcessCaptureAudio(AudioBuffer* audio) {
           audio->high_pass_split_data(i),
           audio->low_pass_split_data(i),
           audio->high_pass_split_data(i),
-          static_cast<int16_t>(audio->samples_per_split_channel()),
+          static_cast<WebRtc_Word16>(audio->samples_per_split_channel()),
           apm_->stream_delay_ms(),
           stream_drift_samples_);
 
@@ -149,7 +141,7 @@ int EchoCancellationImpl::ProcessCaptureAudio(AudioBuffer* audio) {
         }
       }
 
-      int status = 0;
+      WebRtc_Word16 status = 0;
       err = WebRtcAec_get_echo_status(my_handle, &status);
       if (err != apm_->kNoError) {
         return GetHandleError(my_handle);
@@ -220,9 +212,10 @@ int EchoCancellationImpl::device_sample_rate_hz() const {
   return device_sample_rate_hz_;
 }
 
-void EchoCancellationImpl::set_stream_drift_samples(int drift) {
+int EchoCancellationImpl::set_stream_drift_samples(int drift) {
   was_stream_drift_set_ = true;
   stream_drift_samples_ = drift;
+  return apm_->kNoError;
 }
 
 int EchoCancellationImpl::stream_drift_samples() const {
@@ -321,15 +314,6 @@ int EchoCancellationImpl::GetDelayMetrics(int* median, int* std) {
   return apm_->kNoError;
 }
 
-struct AecCore* EchoCancellationImpl::aec_core() const {
-  CriticalSectionScoped crit_scoped(apm_->crit());
-  if (!is_component_enabled()) {
-    return NULL;
-  }
-  Handle* my_handle = static_cast<Handle*>(handle(0));
-  return WebRtcAec_aec_core(my_handle);
-}
-
 int EchoCancellationImpl::Initialize() {
   int err = ProcessingComponent::Initialize();
   if (err != apm_->kNoError || !is_component_enabled()) {
@@ -340,13 +324,6 @@ int EchoCancellationImpl::Initialize() {
 
   return apm_->kNoError;
 }
-
-#if 0
-void EchoCancellationImpl::SetExtraOptions(const Config& config) {
-  delay_correction_enabled_ = config.Get<DelayCorrection>().enabled;
-  Configure();
-}
-#endif
 
 void* EchoCancellationImpl::CreateHandle() const {
   Handle* handle = NULL;
@@ -379,8 +356,6 @@ int EchoCancellationImpl::ConfigureHandle(void* handle) const {
   config.skewMode = drift_compensation_enabled_;
   config.delay_logging = delay_logging_enabled_;
 
-  WebRtcAec_enable_delay_correction(WebRtcAec_aec_core(
-      static_cast<Handle*>(handle)), delay_correction_enabled_ ? 1 : 0);
   return WebRtcAec_set_config(static_cast<Handle*>(handle), config);
 }
 

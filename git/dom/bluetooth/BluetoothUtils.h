@@ -8,7 +8,9 @@
 #define mozilla_dom_bluetooth_bluetoothutils_h__
 
 #include "BluetoothCommon.h"
-#include "js/TypeDecls.h"
+
+struct JSContext;
+class JSObject;
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -19,7 +21,7 @@ class BluetoothReplyRunnable;
 bool
 SetJsObject(JSContext* aContext,
             const BluetoothValue& aValue,
-            JS::Handle<JSObject*> aObj);
+            JSObject* aObj);
 
 nsString
 GetObjectPathFromAddress(const nsAString& aAdapterPath,
@@ -40,11 +42,6 @@ DispatchBluetoothReply(BluetoothReplyRunnable* aRunnable,
 void
 ParseAtCommand(const nsACString& aAtCommand, const int aStart,
                nsTArray<nsCString>& aRetValues);
-
-void
-DispatchStatusChangedEvent(const nsAString& aType,
-                           const nsAString& aDeviceAddress,
-                           bool aStatus);
 
 END_BLUETOOTH_NAMESPACE
 

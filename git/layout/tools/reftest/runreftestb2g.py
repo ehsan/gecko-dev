@@ -24,11 +24,8 @@ from marionette import Marionette
 
 class B2GOptions(ReftestOptions):
 
-    def __init__(self, automation=None, **kwargs):
+    def __init__(self, automation, **kwargs):
         defaults = {}
-        if not automation:
-            automation = B2GRemoteAutomation(None, "fennec", context_chrome=True)
-
         ReftestOptions.__init__(self, automation)
 
         self.add_option("--b2gpath", action="store",
@@ -107,10 +104,6 @@ class B2GOptions(ReftestOptions):
                         type='string', dest='busybox',
                         help="Path to busybox binary to install on device")
         defaults['busybox'] = None
-        self.add_option("--httpd-path", action = "store",
-                    type = "string", dest = "httpdPath",
-                    help = "path to the httpd.js file")
-        defaults["httpdPath"] = None
         defaults["remoteTestRoot"] = "/data/local/tests"
         defaults["logFile"] = "reftest.log"
         defaults["autorun"] = True
@@ -170,12 +163,6 @@ class B2GOptions(ReftestOptions):
             f = open(options.pidFile, 'w')
             f.write("%s" % os.getpid())
             f.close()
-
-        # httpd-path is specified by standard makefile targets and may be specified
-        # on the command line to select a particular version of httpd.js. If not
-        # specified, try to select the one from from the xre bundle, as required in bug 882932.
-        if not options.httpdPath:
-            options.httpdPath = os.path.join(options.xrePath, "components")
 
         return options
 
@@ -395,34 +382,41 @@ class B2GReftest(RefTest):
             pass
 
 
-    def createReftestProfile(self, options, reftestlist):
-        profile = RefTest.createReftestProfile(self, options, reftestlist,
-                                               server=options.remoteWebServer,
-                                               special_powers=False)
-        profileDir = profile.profile
+    def createReftestProfile(self, options, profileDir, reftestlist):
+        print "profileDir: " + str(profileDir)
+        retVal = RefTest.createReftestProfile(self, options, profileDir, reftestlist, server=options.remoteWebServer)
 
-        prefs = {}
         # Turn off the locale picker screen
-        prefs["browser.firstrun.show.localepicker"] = False
-        prefs["browser.homescreenURL"] = "app://system.gaiamobile.org"
-        prefs["browser.manifestURL"] = "app://system.gaiamobile.org/manifest.webapp"
-        prefs["browser.tabs.remote"] = False
-        prefs["dom.ipc.browser_frames.oop_by_default"] = True
-        prefs["dom.ipc.tabs.disabled"] = False
-        prefs["dom.mozBrowserFramesEnabled"] = True
-        prefs["dom.mozBrowserFramesWhitelist"] = "app://system.gaiamobile.org"
-        prefs["network.dns.localDomains"] = "app://system.gaiamobile.org"
-        prefs["font.size.inflation.emPerLine"] = 0
-        prefs["font.size.inflation.minTwips"] = 0
-        prefs["reftest.browser.iframe.enabled"] = False
-        prefs["reftest.remote"] = True
-        prefs["reftest.uri"] = "%s" % reftestlist
-        # Set a future policy version to avoid the telemetry prompt.
-        prefs["toolkit.telemetry.prompted"] = 999
-        prefs["toolkit.telemetry.notifiedOptOut"] = 999
+        fhandle = open(os.path.join(profileDir, "user.js"), 'a')
+        fhandle.write("""
+user_pref("browser.firstrun.show.localepicker", false);
+user_pref("browser.homescreenURL","app://system.gaiamobile.org");\n
+user_pref("browser.manifestURL","app://system.gaiamobile.org/manifest.webapp");\n
+user_pref("browser.tabs.remote", false);\n
+user_pref("dom.ipc.browser_frames.oop_by_default", true);\n
+user_pref("dom.ipc.tabs.disabled", false);\n
+user_pref("dom.mozBrowserFramesEnabled", true);\n
+user_pref("dom.mozBrowserFramesWhitelist","app://system.gaiamobile.org");\n
+user_pref("network.dns.localDomains","app://system.gaiamobile.org");\n
+user_pref("font.size.inflation.emPerLine", 0);
+user_pref("font.size.inflation.minTwips", 0);
+user_pref("reftest.browser.iframe.enabled", false);
+user_pref("reftest.remote", true);
+user_pref("reftest.uri", "%s");
+// Set a future policy version to avoid the telemetry prompt.
+user_pref("toolkit.telemetry.prompted", 999);
+user_pref("toolkit.telemetry.notifiedOptOut", 999);
+""" % reftestlist)
 
-        # Set the extra prefs.
-        profile.set_preferences(prefs)
+        #workaround for jsreftests.
+        if getattr(options, 'enablePrivilege', False):
+            fhandle.write("""
+user_pref("capability.principal.codebase.p2.granted", "UniversalXPConnect");
+user_pref("capability.principal.codebase.p2.id", "http://%s:%s");
+""" % (options.remoteWebServer, options.httpPort))
+
+        # Close the file
+        fhandle.close()
 
         # Copy the profile to the device.
         self._devicemanager.removeDir(self.remoteProfile)
@@ -454,11 +448,10 @@ class B2GReftest(RefTest):
         self.updateProfilesIni(self.remoteProfile)
 
         options.profilePath = self.remoteProfile
-        return profile
+        return retVal
 
-    def copyExtraFilesToProfile(self, options, profile):
-        profileDir = profile.profile
-        RefTest.copyExtraFilesToProfile(self, options, profile)
+    def copyExtraFilesToProfile(self, options, profileDir):
+        RefTest.copyExtraFilesToProfile(self, options, profileDir)
         try:
             self._devicemanager.pushDir(profileDir, options.remoteProfile)
         except DMError:
@@ -468,8 +461,11 @@ class B2GReftest(RefTest):
     def getManifestPath(self, path):
         return path
 
-def run_remote_reftests(parser, options, args):
+
+def main(args=sys.argv[1:]):
     auto = B2GRemoteAutomation(None, "fennec", context_chrome=True)
+    parser = B2GOptions(auto)
+    options, args = parser.parse_args(args)
 
     # create our Marionette instance
     kwargs = {}
@@ -503,7 +499,6 @@ def run_remote_reftests(parser, options, args):
     if options.deviceIP:
         kwargs.update({'host': options.deviceIP,
                        'port': options.devicePort})
-
     dm = DeviceManagerADB(**kwargs)
     auto.setDeviceManager(dm)
 
@@ -534,9 +529,6 @@ def run_remote_reftests(parser, options, args):
     dm.mkDir(logParent);
     auto.setRemoteLog(options.remoteLogFile)
     auto.setServerInfo(options.webServer, options.httpPort, options.sslPort)
-
-    # Hack in a symbolic link for jsreftest
-    os.system("ln -s %s %s" % (os.path.join('..', 'jsreftest'), os.path.join(SCRIPT_DIRECTORY, 'jsreftest')))
 
     # Dynamically build the reftest URL if possible, beware that args[0] should exist 'inside' the webroot
     manifest = args[0]
@@ -576,12 +568,6 @@ def run_remote_reftests(parser, options, args):
 
     reftest.stopWebServer(options)
     return retVal
-
-def main(args=sys.argv[1:]):
-    parser = B2GOptions()
-    options, args = parser.parse_args(args)
-    return run_remote_reftests(parser, options, args)
-
 
 if __name__ == "__main__":
     sys.exit(main())

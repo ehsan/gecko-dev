@@ -18,6 +18,7 @@ HTMLFrameElement::HTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                                    FromParser aFromParser)
   : nsGenericHTMLFrameElement(aNodeInfo, aFromParser)
 {
+  SetIsDOMBinding();
 }
 
 HTMLFrameElement::~HTMLFrameElement()
@@ -25,8 +26,17 @@ HTMLFrameElement::~HTMLFrameElement()
 }
 
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLFrameElement, nsGenericHTMLFrameElement,
-                             nsIDOMHTMLFrameElement)
+NS_IMPL_ADDREF_INHERITED(HTMLFrameElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLFrameElement, Element)
+
+
+// QueryInterface implementation for HTMLFrameElement
+NS_INTERFACE_TABLE_HEAD(HTMLFrameElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLFrameElement, nsIDOMHTMLFrameElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLFrameElement,
+                                               nsGenericHTMLFrameElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
+
 
 NS_IMPL_ELEMENT_CLONE(HTMLFrameElement)
 
@@ -107,7 +117,7 @@ HTMLFrameElement::GetAttributeMappingFunction() const
 }
 
 JSObject*
-HTMLFrameElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLFrameElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return HTMLFrameElementBinding::Wrap(aCx, aScope, this);
 }

@@ -3,28 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "BasicLayersImpl.h"            // for FillWithMask, etc
-#include "ImageContainer.h"             // for AutoLockImage, etc
-#include "ImageLayers.h"                // for ImageLayer
-#include "Layers.h"                     // for Layer (ptr only), etc
-#include "basic/BasicImplData.h"        // for BasicImplData
-#include "basic/BasicLayers.h"          // for BasicLayerManager
-#include "gfxASurface.h"                // for gfxASurface, etc
-#include "gfxContext.h"                 // for gfxContext
-#include "gfxPattern.h"                 // for gfxPattern, etc
-#include "gfxPoint.h"                   // for gfxIntSize
-#include "gfxUtils.h"                   // for gfxUtils
+#include "mozilla/layers/PLayersParent.h"
+#include "BasicLayersImpl.h"
+#include "SharedTextureImage.h"
+#include "gfxUtils.h"
+#include "gfxSharedImageSurface.h"
+#include "mozilla/layers/ImageClient.h"
+#include "mozilla/layers/TextureClient.h"
 #ifdef MOZ_X11
-#include "gfxXlibSurface.h"             // for gfxXlibSurface
+#include "gfxXlibSurface.h"
 #endif
-#include "mozilla/mozalloc.h"           // for operator new
-#include "nsAutoPtr.h"                  // for nsRefPtr, getter_AddRefs, etc
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsDebug.h"                    // for NS_ASSERTION
-#include "nsISupportsImpl.h"            // for gfxPattern::Release, etc
-#include "nsRect.h"                     // for nsIntRect
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 
 using namespace mozilla::gfx;
 
@@ -34,8 +22,7 @@ namespace layers {
 class BasicImageLayer : public ImageLayer, public BasicImplData {
 public:
   BasicImageLayer(BasicLayerManager* aLayerManager) :
-    ImageLayer(aLayerManager,
-               static_cast<BasicImplData*>(MOZ_THIS_IN_INITIALIZER_LIST())),
+    ImageLayer(aLayerManager, static_cast<BasicImplData*>(this)),
     mSize(-1, -1)
   {
     MOZ_COUNT_CTOR(BasicImageLayer);
@@ -110,9 +97,7 @@ BasicImageLayer::GetAndPaintCurrentImage(gfxContext* aContext,
   // The visible region can extend outside the image, so just draw
   // within the image bounds.
   if (aContext) {
-    gfxContext::GraphicsOperator mixBlendMode = GetEffectiveMixBlendMode();
-    AutoSetOperator setOptimizedOperator(aContext, mixBlendMode != gfxContext::OPERATOR_OVER ? mixBlendMode : GetOperator());
-
+    AutoSetOperator setOperator(aContext, GetOperator());
     PaintContext(pat,
                  nsIntRegion(nsIntRect(0, 0, size.width, size.height)),
                  aOpacity, aContext, aMaskLayer);
@@ -139,7 +124,7 @@ PaintContext(gfxPattern* aPattern,
   // correctness and use NONE.
   if (aContext->IsCairo()) {
     nsRefPtr<gfxASurface> target = aContext->CurrentSurface();
-    if (target->GetType() == gfxSurfaceTypeXlib &&
+    if (target->GetType() == gfxASurface::SurfaceTypeXlib &&
         static_cast<gfxXlibSurface*>(target.get())->IsPadSlow()) {
       extend = gfxPattern::EXTEND_NONE;
     }
@@ -172,11 +157,144 @@ BasicImageLayer::GetAsSurface(gfxASurface** aSurface,
   return true;
 }
 
+class BasicShadowableImageLayer : public BasicImageLayer,
+                                  public BasicShadowableLayer
+{
+public:
+  BasicShadowableImageLayer(BasicShadowLayerManager* aManager) :
+    BasicImageLayer(aManager),
+    mImageClient(nullptr),
+    mImageClientTypeContainer(BUFFER_UNKNOWN)
+  {
+    MOZ_COUNT_CTOR(BasicShadowableImageLayer);
+  }
+  virtual ~BasicShadowableImageLayer()
+  {
+    DestroyBackBuffer();
+    MOZ_COUNT_DTOR(BasicShadowableImageLayer);
+  }
+
+  virtual void SetContainer(ImageContainer* aContainer) MOZ_OVERRIDE
+  {
+    ImageLayer::SetContainer(aContainer);
+    mImageClientTypeContainer = BUFFER_UNKNOWN;
+  }
+
+  virtual void Paint(gfxContext* aContext, Layer* aMaskLayer);
+
+  virtual void ClearCachedResources() MOZ_OVERRIDE
+  {
+    DestroyBackBuffer();
+  }
+
+  virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
+  {
+    aAttrs = ImageLayerAttributes(mFilter);
+  }
+
+  virtual Layer* AsLayer() { return this; }
+  virtual ShadowableLayer* AsShadowableLayer() { return this; }
+
+  virtual void Disconnect()
+  {
+    DestroyBackBuffer();
+    BasicShadowableLayer::Disconnect();
+  }
+
+  void DestroyBackBuffer()
+  {
+    mImageClient = nullptr;
+  }
+
+  virtual CompositableClient* GetCompositableClient() MOZ_OVERRIDE
+  {
+    return mImageClient;
+  }
+private:
+  BasicShadowLayerManager* BasicManager()
+  {
+    return static_cast<BasicShadowLayerManager*>(mManager);
+  }
+
+  CompositableType GetImageClientType()
+  {
+    if (mImageClientTypeContainer != BUFFER_UNKNOWN) {
+      return mImageClientTypeContainer;
+    }
+
+    if (mContainer->IsAsync()) {
+      mImageClientTypeContainer = BUFFER_BRIDGE;
+      return mImageClientTypeContainer;
+    }
+
+    nsRefPtr<gfxASurface> surface;
+    AutoLockImage autoLock(mContainer, getter_AddRefs(surface));
+
+    mImageClientTypeContainer = autoLock.GetImage() ?
+                                  BUFFER_IMAGE_SINGLE : BUFFER_UNKNOWN;
+    return mImageClientTypeContainer;
+  }
+
+  RefPtr<ImageClient> mImageClient;
+  CompositableType mImageClientTypeContainer;
+};
+
+void
+BasicShadowableImageLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
+{
+  if (!HasShadow()) {
+    BasicImageLayer::Paint(aContext, aMaskLayer);
+    return;
+  }
+
+  if (aMaskLayer) {
+    static_cast<BasicImplData*>(aMaskLayer->ImplData())
+      ->Paint(aContext, nullptr);
+  }
+
+  if (!mContainer) {
+     return;
+  }
+
+  if (!mImageClient ||
+      !mImageClient->UpdateImage(mContainer, GetContentFlags())) {
+    mImageClient = ImageClient::CreateImageClient(GetImageClientType(),
+                                                  BasicManager(),
+                                                  mForceSingleTile
+                                                    ? ForceSingleTile
+                                                    : 0);
+    if (GetImageClientType() == BUFFER_BRIDGE) {
+      static_cast<ImageClientBridge*>(mImageClient.get())->SetLayer(this);
+    }
+
+    if (!mImageClient) {
+      return;
+    }
+    if (HasShadow() && !mContainer->IsAsync()) {
+      mImageClient->Connect();
+      BasicManager()->Attach(mImageClient, this);
+    }
+    if (!mImageClient->UpdateImage(mContainer, GetContentFlags())) {
+      return;
+    }
+  }
+  BasicManager()->Hold(this);
+}
+
 already_AddRefed<ImageLayer>
 BasicLayerManager::CreateImageLayer()
 {
   NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
   nsRefPtr<ImageLayer> layer = new BasicImageLayer(this);
+  return layer.forget();
+}
+already_AddRefed<ImageLayer>
+BasicShadowLayerManager::CreateImageLayer()
+{
+  NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
+  nsRefPtr<BasicShadowableImageLayer> layer =
+    new BasicShadowableImageLayer(this);
+  MAYBE_CREATE_SHADOW(Image);
   return layer.forget();
 }
 

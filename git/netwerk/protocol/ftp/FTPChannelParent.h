@@ -9,12 +9,13 @@
 #define mozilla_net_FTPChannelParent_h
 
 #include "mozilla/net/PFTPChannelParent.h"
+#include "mozilla/net/NeckoCommon.h"
 #include "mozilla/net/NeckoParent.h"
 #include "nsIParentChannel.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsILoadContext.h"
 
 class nsFtpChannel;
-class nsILoadContext;
 
 namespace mozilla {
 namespace net {
@@ -33,17 +34,12 @@ public:
   FTPChannelParent(nsILoadContext* aLoadContext, PBOverrideStatus aOverrideStatus);
   virtual ~FTPChannelParent();
 
-  bool Init(const FTPChannelCreationArgs& aOpenArgs);
-
 protected:
-  bool DoAsyncOpen(const URIParams& aURI, const uint64_t& aStartPos,
-                   const nsCString& aEntityID,
-                   const OptionalInputStreamParams& aUploadStream);
-
-  // used to connect redirected-to channel in parent with just created
-  // ChildChannel.  Used during HTTP->FTP redirects.
-  bool ConnectChannel(const uint32_t& channelId);
-
+  virtual bool RecvAsyncOpen(const URIParams& uri,
+                             const uint64_t& startPos,
+                             const nsCString& entityID,
+                             const OptionalInputStreamParams& uploadStream) MOZ_OVERRIDE;
+  virtual bool RecvConnectChannel(const uint32_t& channelId) MOZ_OVERRIDE;
   virtual bool RecvCancel(const nsresult& status) MOZ_OVERRIDE;
   virtual bool RecvSuspend() MOZ_OVERRIDE;
   virtual bool RecvResume() MOZ_OVERRIDE;

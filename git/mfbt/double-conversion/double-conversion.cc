@@ -283,9 +283,7 @@ bool DoubleToStringConverter::ToExponential(
 
 bool DoubleToStringConverter::ToPrecision(double value,
                                           int precision,
-                                          bool* used_exponential_notation,
                                           StringBuilder* result_builder) const {
-  *used_exponential_notation = false;
   if (Double(value).IsSpecial()) {
     return HandleSpecialValues(value, result_builder);
   }
@@ -327,7 +325,6 @@ bool DoubleToStringConverter::ToPrecision(double value,
       decimal_rep[i] = '0';
     }
 
-    *used_exponential_notation = true;
     CreateExponentialRepresentation(decimal_rep,
                                     precision,
                                     exponent,
@@ -580,7 +577,7 @@ double StringToDoubleConverter::StringToIeee(
     const char* input,
     int length,
     int* processed_characters_count,
-    bool read_as_double) const {
+    bool read_as_double) {
   const char* current = input;
   const char* end = input + length;
 

@@ -65,21 +65,12 @@
 //#define SK_DEBUG
 //#define SK_RELEASE
 
-/*  Skia has certain debug-only code that is extremely intensive even for debug
-    builds.  This code is useful for diagnosing specific issues, but is not
-    generally applicable, therefore it must be explicitly enabled to avoid
-    the performance impact. By default these flags are undefined, but can be
-    enabled by uncommenting them below.
- */
-//#define SK_DEBUG_GLYPH_CACHE
-//#define SK_DEBUG_PATH
-
 /*  To assist debugging, Skia provides an instance counting utility in
     include/core/SkInstCount.h. This flag turns on and off that utility to
     allow instance count tracking in either debug or release builds. By
     default it is enabled in debug but disabled in release.
  */
-//#define SK_ENABLE_INST_COUNT 1
+//#define SK_ENABLE_INST_COUNT
 
 /*  If, in debugging mode, Skia needs to stop (presumably to invoke a debugger)
     it will call SK_CRASH(). If this is not defined it, it is defined in
@@ -149,12 +140,6 @@
  */
 #define SK_ALLOW_OVER_32K_BITMAPS
 
-/**
- *  To revert to int-only srcrect behavior in drawBitmapRect(ToRect),
- *  define this symbol.
- */
-//#define SK_SUPPORT_INT_SRCRECT_DRAWBITMAPRECT
-
 /*  Define this to set the upper limit for text to support LCD. Values that
     are very large increase the cost in the font cache and draw slower, without
     improving readability. If this is undefined, Skia will use its default
@@ -199,7 +184,11 @@
    directories from your include search path when you're not building the GPU
    backend. Defaults to 1 (build the GPU code).
  */
-//#define SK_SUPPORT_GPU 1
+#ifdef USE_SKIA_GPU
+    #define SK_SUPPORT_GPU 1
+#else
+    #define SK_SUPPORT_GPU 0
+#endif
 
 /*  Don't dither 32bit gradients, to match what the canvas test suite expects.
  */

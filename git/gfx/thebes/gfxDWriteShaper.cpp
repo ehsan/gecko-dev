@@ -45,7 +45,7 @@ gfxDWriteShaper::ShapeText(gfxContext      *aContext,
      */
     UINT32 length = aLength;
 
-    TextAnalysis analysis(aText, length, nullptr, readingDirection);
+    TextAnalysis analysis(aText, length, NULL, readingDirection);
     TextAnalysis::Run *runHead;
     hr = analysis.GenerateResults(analyzer, &runHead);
 
@@ -83,7 +83,7 @@ trymoreglyphs:
     hr = analyzer->GetGlyphs(aText, length,
             font->GetFontFace(), FALSE, 
             readingDirection == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT,
-            &runHead->mScript, nullptr, nullptr, nullptr, nullptr, 0,
+            &runHead->mScript, NULL, NULL, NULL, NULL, 0,
             maxGlyphs, clusters.Elements(), textProperties.Elements(),
             indices.Elements(), glyphProperties.Elements(), &actualGlyphs);
 
@@ -122,9 +122,9 @@ trymoreglyphs:
                                           FALSE,
                                           FALSE,
                                           &runHead->mScript,
-                                          nullptr,
-                                          nullptr,
-                                          nullptr,
+                                          NULL,
+                                          NULL,
+                                          NULL,
                                           0,
                                           advances.Elements(),
                                           glyphOffsets.Elements());
@@ -141,9 +141,9 @@ trymoreglyphs:
                                           FALSE,
                                           FALSE,
                                           &runHead->mScript,
-                                          nullptr,
-                                          nullptr,
-                                          nullptr,
+                                          NULL,
+                                          NULL,
+                                          NULL,
                                           0,
                                           advances.Elements(),
                                           glyphOffsets.Elements());

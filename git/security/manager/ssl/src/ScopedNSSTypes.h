@@ -20,7 +20,6 @@
 #include "sechash.h"
 #include "secpkcs7.h"
 #include "prerror.h"
-#include "ocsp.h"
 
 namespace mozilla {
 
@@ -52,7 +51,8 @@ inline nsresult
 PRErrorCode_to_nsresult(PRErrorCode error)
 {
   if (!error) {
-    MOZ_CRASH("Function failed without calling PR_GetError");
+    MOZ_NOT_REACHED("Function failed without calling PR_GetError");
+    return NS_ERROR_UNEXPECTED;
   }
 
   // From NSSErrorsService::GetXPCOMFromNSSError
@@ -96,9 +96,6 @@ MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(ScopedCERTName,
 MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(ScopedCERTCertNicknames,
                                           CERTCertNicknames,
                                           CERT_FreeNicknames)
-MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(ScopedCERTOCSPCertID,
-                                          CERTOCSPCertID,
-                                          CERT_DestroyOCSPCertID)
 MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(ScopedCERTSubjectPublicKeyInfo,
                                           CERTSubjectPublicKeyInfo,
                                           SECKEY_DestroySubjectPublicKeyInfo)
@@ -236,7 +233,7 @@ class ScopedAutoSECItem MOZ_FINAL : public SECItem
 public:
   ScopedAutoSECItem(uint32_t initialAllocatedLen = 0)
   {
-    data = nullptr;
+    data = NULL;
     len = 0;
     if (initialAllocatedLen > 0) {
       SECITEM_AllocItem(*this, initialAllocatedLen);

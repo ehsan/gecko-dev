@@ -11,41 +11,5 @@ EXPORTS += [
     'imgLoader.h',
     'imgRequest.h',
     'imgRequestProxy.h',
-    'Orientation.h',
 ]
-
-SOURCES += [
-    'ClippedImage.cpp',
-    'Decoder.cpp',
-    'DiscardTracker.cpp',
-    'FrameAnimator.cpp',
-    'FrameBlender.cpp',
-    'FrameSequence.cpp',
-    'FrozenImage.cpp',
-    'Image.cpp',
-    'ImageFactory.cpp',
-    'ImageMetadata.cpp',
-    'ImageOps.cpp',
-    'ImageWrapper.cpp',
-    'imgFrame.cpp',
-    'imgLoader.cpp',
-    'imgRequest.cpp',
-    'imgRequestProxy.cpp',
-    'imgStatusTracker.cpp',
-    'imgTools.cpp',
-    'OrientedImage.cpp',
-    'RasterImage.cpp',
-    'ScriptedNotificationObserver.cpp',
-    'SurfaceCache.cpp',
-    'SVGDocumentWrapper.cpp',
-    'VectorImage.cpp',
-]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'imglib2_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

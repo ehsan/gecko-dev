@@ -12,14 +12,14 @@
   <script type="text/javascript;version=1.7">
   function testSteps()
   {
-    const READ_WRITE = "readwrite";
+    const READ_WRITE = IDBTransaction.READ_WRITE;
 
     const name = window.location.pathname;
 
     const objectStoreName = "Blobs";
 
     getUsage(grabFileUsageAndContinueHandler);
-    let startUsage = yield undefined;
+    let startUsage = yield;
 
     const fileData = { key: 1, file: getRandomFile("random.bin", 100000) };
 
@@ -28,7 +28,7 @@
       request.onerror = errorHandler;
       request.onupgradeneeded = grabEventAndContinueHandler;
       request.onsuccess = grabEventAndContinueHandler;
-      let event = yield undefined;
+      let event = yield;
 
       is(event.type, "upgradeneeded", "Got correct event type");
 
@@ -39,24 +39,24 @@
 
       objectStore.add(fileData.file, fileData.key);
 
-      event = yield undefined;
+      event = yield;
 
       is(event.type, "success", "Got correct event type");
 
       getUsage(grabFileUsageAndContinueHandler);
-      let usage = yield undefined;
+      let usage = yield;
 
       is(usage, startUsage + fileData.file.size, "Correct file usage");
 
       let trans = db.transaction([objectStoreName], READ_WRITE);
       trans.objectStore(objectStoreName).delete(fileData.key);
       trans.oncomplete = grabEventAndContinueHandler;
-      event = yield undefined;
+      event = yield;
 
       is(event.type, "complete", "Got correct event type");
 
       getUsage(grabFileUsageAndContinueHandler);
-      usage = yield undefined;
+      usage = yield;
 
       is(usage, startUsage + fileData.file.size, "OS file exists");
 
@@ -64,15 +64,15 @@
     }
 
     scheduleGC();
-    yield undefined;
+    yield;
 
     getUsage(grabFileUsageAndContinueHandler);
-    let endUsage = yield undefined;
+    let endUsage = yield;
 
     is(endUsage, startUsage, "OS file deleted");
 
     finishTest();
-    yield undefined;
+    yield;
   }
   </script>
   <script type="text/javascript;version=1.7" src="file.js"></script>

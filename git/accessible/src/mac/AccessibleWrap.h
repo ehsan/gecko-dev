@@ -16,6 +16,7 @@
 #include "States.h"
 
 #include "nsCOMPtr.h"
+#include "nsRect.h"
 
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
@@ -71,6 +72,8 @@ public: // construction, destruction
   Accessible* GetUnignoredParent() const;
 
 protected:
+
+  virtual nsresult FirePlatformEvent(AccEvent* aEvent);
 
   /**
    * Return true if the parent doesn't have children to expose to AT.

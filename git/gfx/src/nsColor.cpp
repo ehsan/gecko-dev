@@ -5,15 +5,17 @@
 
 #include "mozilla/Util.h"
 
+#include "plstr.h"
 #include "nsColor.h"
-#include <sys/types.h>                  // for int32_t
-#include "mozilla/Util.h"               // for ArrayLength
-#include "mozilla/mozalloc.h"           // for operator delete, etc
-#include "nsColorNames.h"               // for nsColorNames
-#include "nsDebug.h"                    // for NS_ASSERTION, etc
+#include "nsColorNames.h"
+#include "nsString.h"
+#include "nscore.h"
+#include "nsCoord.h"
+#include "nsCOMPtr.h"
+#include "nsIServiceManager.h"
+#include <math.h>
+#include "prprf.h"
 #include "nsStaticNameTable.h"
-#include "nsString.h"               // for nsAutoCString, nsString, etc
-#include "nscore.h"                     // for nsAString, etc
 
 using namespace mozilla;
 
@@ -89,10 +91,10 @@ static int ComponentValue(const PRUnichar* aColorSpec, int aLen, int color, int 
   return component;
 }
 
-NS_GFX_(bool) NS_HexToRGB(const nsAString& aColorSpec,
+NS_GFX_(bool) NS_HexToRGB(const nsString& aColorSpec,
                                        nscolor* aResult)
 {
-  const PRUnichar* buffer = aColorSpec.BeginReading();
+  const PRUnichar* buffer = aColorSpec.get();
 
   int nameLen = aColorSpec.Length();
   if ((nameLen == 3) || (nameLen == 6)) {
@@ -213,14 +215,6 @@ NS_GFX_(bool) NS_ColorNameToRGB(const nsAString& aColorName, nscolor* aResult)
     return true;
   }
   return false;
-}
-
-// Returns kColorNames, an array of all possible color names, and sets
-// *aSizeArray to the size of that array. Do NOT call free() on this array.
-NS_GFX_(const char * const *) NS_AllColorNames(size_t *aSizeArray)
-{
-  *aSizeArray = ArrayLength(kColorNames);
-  return kColorNames;
 }
 
 // Macro to blend two colors

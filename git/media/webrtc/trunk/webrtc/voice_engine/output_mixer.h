@@ -11,14 +11,14 @@
 #ifndef WEBRTC_VOICE_ENGINE_OUTPUT_MIXER_H_
 #define WEBRTC_VOICE_ENGINE_OUTPUT_MIXER_H_
 
-#include "webrtc/common_audio/resampler/include/push_resampler.h"
-#include "webrtc/common_types.h"
-#include "webrtc/modules/audio_conference_mixer/interface/audio_conference_mixer.h"
-#include "webrtc/modules/audio_conference_mixer/interface/audio_conference_mixer_defines.h"
-#include "webrtc/modules/utility/interface/file_recorder.h"
-#include "webrtc/voice_engine/dtmf_inband.h"
-#include "webrtc/voice_engine/level_indicator.h"
-#include "webrtc/voice_engine/voice_engine_defines.h"
+#include "audio_conference_mixer.h"
+#include "audio_conference_mixer_defines.h"
+#include "common_types.h"
+#include "dtmf_inband.h"
+#include "file_recorder.h"
+#include "level_indicator.h"
+#include "resampler.h"
+#include "voice_engine_defines.h"
 
 namespace webrtc {
 
@@ -36,13 +36,14 @@ class OutputMixer : public AudioMixerOutputReceiver,
                     public FileCallback
 {
 public:
-    static int32_t Create(OutputMixer*& mixer, uint32_t instanceId);
+    static WebRtc_Word32 Create(OutputMixer*& mixer,
+                                const WebRtc_UWord32 instanceId);
 
     static void Destroy(OutputMixer*& mixer);
 
-    int32_t SetEngineInformation(Statistics& engineStatistics);
+    WebRtc_Word32 SetEngineInformation(Statistics& engineStatistics);
 
-    int32_t SetAudioProcessingModule(
+    WebRtc_Word32 SetAudioProcessingModule(
         AudioProcessing* audioProcessingModule);
 
     // VoEExternalMedia
@@ -52,29 +53,32 @@ public:
     int DeRegisterExternalMediaProcessing();
 
     // VoEDtmf
-    int PlayDtmfTone(uint8_t eventCode, int lengthMs, int attenuationDb);
+    int PlayDtmfTone(WebRtc_UWord8 eventCode,
+                     int lengthMs,
+                     int attenuationDb);
 
-    int StartPlayingDtmfTone(uint8_t eventCode, int attenuationDb);
+    int StartPlayingDtmfTone(WebRtc_UWord8 eventCode,
+                             int attenuationDb);
 
     int StopPlayingDtmfTone();
 
-    int32_t MixActiveChannels();
+    WebRtc_Word32 MixActiveChannels();
 
-    int32_t DoOperationsOnCombinedSignal();
+    WebRtc_Word32 DoOperationsOnCombinedSignal();
 
-    int32_t SetMixabilityStatus(MixerParticipant& participant,
-                                bool mixable);
+    WebRtc_Word32 SetMixabilityStatus(MixerParticipant& participant,
+                                      const bool mixable);
 
-    int32_t SetAnonymousMixabilityStatus(MixerParticipant& participant,
-                                         bool mixable);
+    WebRtc_Word32 SetAnonymousMixabilityStatus(MixerParticipant& participant,
+                                               const bool mixable);
 
     int GetMixedAudio(int sample_rate_hz, int num_channels,
                       AudioFrame* audioFrame);
 
     // VoEVolumeControl
-    int GetSpeechOutputLevel(uint32_t& level);
+    int GetSpeechOutputLevel(WebRtc_UWord32& level);
 
-    int GetSpeechOutputLevelFullRange(uint32_t& level);
+    int GetSpeechOutputLevelFullRange(WebRtc_UWord32& level);
 
     int SetOutputVolumePan(float left, float right);
 
@@ -92,34 +96,37 @@ public:
 
     // from AudioMixerOutputReceiver
     virtual void NewMixedAudio(
-        int32_t id,
+        const WebRtc_Word32 id,
         const AudioFrame& generalAudioFrame,
         const AudioFrame** uniqueAudioFrames,
-        uint32_t size);
+        const WebRtc_UWord32 size);
 
     // from AudioMixerStatusReceiver
     virtual void MixedParticipants(
-        int32_t id,
+        const WebRtc_Word32 id,
         const ParticipantStatistics* participantStatistics,
-        uint32_t size);
+        const WebRtc_UWord32 size);
 
     virtual void VADPositiveParticipants(
-        int32_t id,
+        const WebRtc_Word32 id,
         const ParticipantStatistics* participantStatistics,
-        uint32_t size);
+        const WebRtc_UWord32 size);
 
-    virtual void MixedAudioLevel(int32_t id, uint32_t level);
+    virtual void MixedAudioLevel(const WebRtc_Word32  id,
+                                 const WebRtc_UWord32 level);
 
     // For file recording
-    void PlayNotification(int32_t id, uint32_t durationMs);
+    void PlayNotification(const WebRtc_Word32 id,
+                          const WebRtc_UWord32 durationMs);
 
-    void RecordNotification(int32_t id, uint32_t durationMs);
+    void RecordNotification(const WebRtc_Word32 id,
+                            const WebRtc_UWord32 durationMs);
 
-    void PlayFileEnded(int32_t id);
-    void RecordFileEnded(int32_t id);
+    void PlayFileEnded(const WebRtc_Word32 id);
+    void RecordFileEnded(const WebRtc_Word32 id);
 
 private:
-    OutputMixer(uint32_t instanceId);
+    OutputMixer(const WebRtc_UWord32 instanceId);
     void APMAnalyzeReverseStream();
     int InsertInbandDtmfTone();
 
@@ -133,8 +140,8 @@ private:
     CriticalSectionWrapper& _fileCritSect;
     AudioConferenceMixer& _mixerModule;
     AudioFrame _audioFrame;
-    PushResampler resampler_;  // converts mixed audio to fit ADM format
-    PushResampler audioproc_resampler_;  // converts mixed audio to fit APM rate
+    Resampler _resampler;        // converts mixed audio to fit ADM format
+    Resampler _apmResampler;    // converts mixed audio to fit APM rate
     AudioLevel _audioLevel;    // measures audio level for the combined signal
     DtmfInband _dtmfGenerator;
     int _instanceId;
@@ -147,8 +154,8 @@ private:
     bool _outputFileRecording;
 };
 
-}  // namespace voe
+}  //  namespace voe
 
-}  // namespace werbtc
+}  //  namespace werbtc
 
 #endif  // VOICE_ENGINE_OUTPUT_MIXER_H_

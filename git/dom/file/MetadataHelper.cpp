@@ -13,7 +13,7 @@ USING_FILE_NAMESPACE
 nsresult
 MetadataHelper::DoAsyncRun(nsISupports* aStream)
 {
-  bool readWrite = mLockedFile->mMode == FileMode::Readwrite;
+  bool readWrite = mLockedFile->mMode == LockedFile::READ_WRITE;
 
   nsRefPtr<AsyncMetadataGetter> getter =
     new AsyncMetadataGetter(aStream, mParams, readWrite);
@@ -28,7 +28,7 @@ nsresult
 MetadataHelper::GetSuccessResult(JSContext* aCx,
                                  JS::Value* aVal)
 {
-  JS::Rooted<JSObject*> obj(aCx, JS_NewObject(aCx, nullptr, nullptr, nullptr));
+  JSObject* obj = JS_NewObject(aCx, nullptr, nullptr, nullptr);
   NS_ENSURE_TRUE(obj, NS_ERROR_OUT_OF_MEMORY);
 
   if (mParams->SizeRequested()) {

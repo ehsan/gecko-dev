@@ -9,8 +9,6 @@
 
 package org.mozilla.gecko;
 
-import java.util.LinkedList;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -21,24 +19,24 @@ public abstract class SessionParser {
     private static final String LOGTAG = "GeckoSessionParser";
 
     public class SessionTab {
-        final private String mTitle;
-        final private String mUrl;
-        final private JSONObject mTabObject;
-        private boolean mIsSelected;
+        String mSelectedTitle;
+        String mSelectedUrl;
+        boolean mIsSelected;
+        JSONObject mTabObject;
 
-        private SessionTab(String title, String url, boolean isSelected, JSONObject tabObject) {
-            mTitle = title;
-            mUrl = url;
+        private SessionTab(String selectedTitle, String selectedUrl, boolean isSelected, JSONObject tabObject) {
+            mSelectedTitle = selectedTitle;
+            mSelectedUrl = selectedUrl;
             mIsSelected = isSelected;
             mTabObject = tabObject;
         }
 
-        public String getTitle() {
-            return mTitle;
+        public String getSelectedTitle() {
+            return mSelectedTitle;
         }
 
-        public String getUrl() {
-            return mUrl;
+        public String getSelectedUrl() {
+            return mSelectedUrl;
         }
 
         public boolean isSelected() {
@@ -52,48 +50,41 @@ public abstract class SessionParser {
 
     abstract public void onTabRead(SessionTab tab);
 
-    public void parse(String... sessionStrings) {
-        final LinkedList<SessionTab> sessionTabs = new LinkedList<SessionTab>();
-        int totalCount = 0;
-        int selectedIndex = -1;
+    public void parse(String sessionString) {
+        final JSONArray tabs;
+        final JSONObject window;
+        int selected = -1;
         try {
-            for (String sessionString : sessionStrings) {
-                final JSONObject window = new JSONObject(sessionString).getJSONArray("windows").getJSONObject(0);
-                final JSONArray tabs = window.getJSONArray("tabs");
-                final int optSelected = window.optInt("selected", -1);
-
-                for (int i = 0; i < tabs.length(); i++) {
-                    final JSONObject tab = tabs.getJSONObject(i);
-                    final int index = tab.getInt("index");
-                    final JSONObject entry = tab.getJSONArray("entries").getJSONObject(index - 1);
-                    final String url = entry.getString("url");
-
-                    String title = entry.optString("title");
-                    if (title.length() == 0) {
-                        title = url;
-                    }
-
-                    totalCount++;
-                    boolean selected = false;
-                    if (optSelected == i+1) {
-                        selected = true;
-                        selectedIndex = totalCount;
-                    }
-                    sessionTabs.add(new SessionTab(title, url, selected, tab));
-                }
-            }
+            window = new JSONObject(sessionString).getJSONArray("windows").getJSONObject(0);
+            tabs = window.getJSONArray("tabs");
+            selected = window.optInt("selected", -1);
         } catch (JSONException e) {
             Log.e(LOGTAG, "JSON error", e);
             return;
         }
 
-        // If no selected index was found, select the first tab.
-        if (selectedIndex == -1 && sessionTabs.size() > 0) {
-            sessionTabs.getFirst().mIsSelected = true;
+        int numTabs = tabs.length();
+        if (selected < 1 || selected > numTabs) {
+            selected = 1;
         }
 
-        for (SessionTab tab : sessionTabs) {
-            onTabRead(tab);
+        for (int i = 0; i < numTabs; i++) {
+            try {
+                JSONObject tab = tabs.getJSONObject(i);
+                int index = tab.getInt("index");
+                JSONObject entry = tab.getJSONArray("entries").getJSONObject(index - 1);
+                String url = entry.getString("url");
+
+                String title = entry.optString("title");
+                if (title.length() == 0) {
+                    title = url;
+                }
+
+                onTabRead(new SessionTab(title, url, (selected == i+1), tab));
+            } catch (JSONException e) {
+                Log.e(LOGTAG, "error reading json file", e);
+                return;
+            }
         }
     }
 }

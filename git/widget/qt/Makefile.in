@@ -3,15 +3,80 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME	= widget_qt
+EXPORT_LIBRARY = 1
+IS_COMPONENT    = 1
+MODULE_NAME	= nsWidgetQtModule
+LIBXUL_LIBRARY	= 1
+
+
+MOCSRCS = \
+		moc_moziqwidget.cpp \
+		moc_mozqwidget.cpp \
+		moc_nsAppShell.cpp \
+		$(NULL)
+
+ifdef MOZ_ENABLE_CONTENTMANAGER
+MOCSRCS += moc_nsMFilePicker.cpp \
+		$(NULL)
+CPPSRCS	+= nsMFilePicker.cpp \
+		$(NULL)
+endif
+
+CPPSRCS	+= \
+		$(MOCSRCS) \
+		nsAppShell.cpp \
+		nsWidgetFactory.cpp \
+		nsWindow.cpp \
+		nsLookAndFeel.cpp \
+		nsScreenQt.cpp \
+		nsScreenManagerQt.cpp \
+		nsQtKeyUtils.cpp \
+		nsClipboard.cpp \
+		nsBidiKeyboard.cpp \
+		nsIdleServiceQt.cpp \
+		nsDragService.cpp \
+		nsNativeThemeQt.cpp \
+		mozqwidget.cpp \
+		mozSwipeGesture.cpp \
+		nsSound.cpp \
+		nsFilePicker.cpp \
+		nsPrintOptionsQt.cpp \
+		nsPrintSettingsQt.cpp \
+		nsPrintDialogQt.cpp \
+		nsDeviceContextSpecQt.cpp \
+		mozqglwidgetwrapper.cpp \
+		$(NULL)
+
+ifdef MOZ_ENABLE_QTMOBILITY
+MOCSRCS += moc_mozqorientationsensorfilter.cpp
+CPPSRCS += mozqorientationsensorfilter.cpp
+endif
+
 SHARED_LIBRARY_LIBS = ../xpwidgets/libxpwidgets_s.a
 
+# If not primary toolkit, install in secondary path
+ifneq (qt,$(MOZ_WIDGET_TOOLKIT))
+INACTIVE_COMPONENT = 1
+endif
+
+include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
 CXXFLAGS	+= $(MOZ_QT_CFLAGS) $(GLIB_CFLAGS) $(MOZ_CAIRO_CFLAGS) \
-		$(MOZ_PIXMAN_CFLAGS)
+		$(MOZ_PIXMAN_CFLAGS) $(MOZ_PLATFORM_MAEMO_CFLAGS)
 CFLAGS		+= $(MOZ_QT_CFLAGS) $(GLIB_CFLAGS) $(MOZ_CAIRO_CFLAGS) \
-		$(MOZ_PIXMAN_CFLAGS)
+		$(MOZ_PIXMAN_CFLAGS) $(MOZ_PLATFORM_MAEMO_CFLAGS)
 
+DEFINES		+= -D_IMPL_NS_WIDGET
 #DEFINES		+= -DDEBUG_WIDGETS
 
 ifeq ($(OS_ARCH), Linux)
@@ -29,7 +94,6 @@ endif
 endif
 
 LOCAL_INCLUDES	+= \
-		   -I$(topsrcdir)/widget/shared \
 		   -I$(topsrcdir)/widget/xpwidgets \
 		   -I$(topsrcdir)/widget/qt/faststartupqt \
 		   -I$(srcdir) \

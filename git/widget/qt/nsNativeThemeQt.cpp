@@ -58,18 +58,18 @@ static inline QRect qRectInPixels(const nsRect &aRect,
 }
 
 static inline QImage::Format
-_qimage_from_gfximage_format (gfxImageFormat aFormat)
+_qimage_from_gfximage_format (gfxASurface::gfxImageFormat aFormat)
 {
     switch (aFormat) {
-    case gfxImageFormatARGB32:
+    case gfxASurface::ImageFormatARGB32:
         return QImage::Format_ARGB32_Premultiplied;
-    case gfxImageFormatRGB24:
+    case gfxASurface::ImageFormatRGB24:
         return QImage::Format_RGB32;
-    case gfxImageFormatRGB16_565:
+    case gfxASurface::ImageFormatRGB16_565:
         return QImage::Format_RGB16;
-    case gfxImageFormatA8:
+    case gfxASurface::ImageFormatA8:
         return QImage::Format_Indexed8;
-    case gfxImageFormatA1:
+    case gfxASurface::ImageFormatA1:
 #ifdef WORDS_BIGENDIAN
         return QImage::Format_Mono;
 #else
@@ -93,7 +93,7 @@ nsNativeThemeQt::DrawWidgetBackground(nsRenderingContext* aContext,
     nsRefPtr<gfxASurface> surface = context->CurrentSurface();
 
 #ifdef CAIRO_HAS_QT_SURFACE
-    if (surface->GetType() == gfxSurfaceTypeQPainter) {
+    if (surface->GetType() == gfxASurface::SurfaceTypeQPainter) {
         gfxQPainterSurface* qSurface = (gfxQPainterSurface*) (surface.get());
         QPainter *painter = qSurface->GetQPainter();
         NS_ASSERTION(painter, "Where'd my QPainter go?");
@@ -104,7 +104,7 @@ nsNativeThemeQt::DrawWidgetBackground(nsRenderingContext* aContext,
                                     aRect, aClipRect);
     } else
 #endif
-    if (surface->GetType() == gfxSurfaceTypeImage) {
+    if (surface->GetType() == gfxASurface::SurfaceTypeImage) {
         gfxImageSurface* qSurface = (gfxImageSurface*) (surface.get());
         QImage tempQImage(qSurface->Data(),
                           qSurface->Width(),
@@ -117,7 +117,7 @@ nsNativeThemeQt::DrawWidgetBackground(nsRenderingContext* aContext,
                                     aRect, aClipRect);
     }
 #if defined(MOZ_X11) && defined(Q_WS_X11)
-    else if (surface->GetType() == gfxSurfaceTypeXlib) {
+    else if (surface->GetType() == gfxASurface::SurfaceTypeXlib) {
         gfxXlibSurface* qSurface = (gfxXlibSurface*) (surface.get());
         QPixmap pixmap(QPixmap::fromX11Pixmap(qSurface->XDrawable()));
         QPainter painter(&pixmap);
@@ -212,28 +212,28 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
         QStyleOptionSlider opt;
         InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)opt, QStyle::State_Horizontal);
         opt.orientation = Qt::Horizontal;
-        style->drawControl(QStyle::CE_ScrollBarSubLine, &opt, qPainter, nullptr);
+        style->drawControl(QStyle::CE_ScrollBarSubLine, &opt, qPainter, NULL);
         break;
         }
     case NS_THEME_SCROLLBAR_BUTTON_RIGHT: {
         QStyleOptionSlider opt;
         InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)opt, QStyle::State_Horizontal);
         opt.orientation = Qt::Horizontal;
-        style->drawControl(QStyle::CE_ScrollBarAddLine, &opt, qPainter, nullptr);
+        style->drawControl(QStyle::CE_ScrollBarAddLine, &opt, qPainter, NULL);
         break;
         }
     case NS_THEME_SCROLLBAR_BUTTON_UP: {
         QStyleOptionSlider opt;
         InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)opt);
         opt.orientation = Qt::Vertical;
-        style->drawControl(QStyle::CE_ScrollBarSubLine, &opt, qPainter, nullptr);
+        style->drawControl(QStyle::CE_ScrollBarSubLine, &opt, qPainter, NULL);
         break;
     }
     case NS_THEME_SCROLLBAR_BUTTON_DOWN: {
         QStyleOptionSlider opt;
         InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)opt);
         opt.orientation = Qt::Vertical;
-        style->drawControl(QStyle::CE_ScrollBarAddLine, &opt, qPainter, nullptr);
+        style->drawControl(QStyle::CE_ScrollBarAddLine, &opt, qPainter, NULL);
         break;
     }
     case NS_THEME_SCROLLBAR_THUMB_HORIZONTAL: {
@@ -241,14 +241,14 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
         QStyleOptionSlider option;
         InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)option, extraFlags);
         option.orientation = Qt::Horizontal;
-        style->drawControl(QStyle::CE_ScrollBarSlider, &option, qPainter, nullptr);
+        style->drawControl(QStyle::CE_ScrollBarSlider, &option, qPainter, NULL);
         break;
         }
     case NS_THEME_SCROLLBAR_THUMB_VERTICAL: {
         QStyleOptionSlider option;
         InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)option, extraFlags);
         option.orientation = Qt::Vertical;
-        style->drawControl(QStyle::CE_ScrollBarSlider, &option, qPainter, nullptr);
+        style->drawControl(QStyle::CE_ScrollBarSlider, &option, qPainter, NULL);
         break;
     }
     case NS_THEME_DROPDOWN: {
@@ -289,13 +289,13 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
         }
         
         frameOpt.palette = mNoBackgroundPalette;
-        style->drawPrimitive(QStyle::PE_FrameLineEdit, &frameOpt, qPainter, nullptr);
+        style->drawPrimitive(QStyle::PE_FrameLineEdit, &frameOpt, qPainter, NULL);
         break;
     }
     case NS_THEME_MENUPOPUP: {
         QStyleOptionMenuItem option;
         InitPlainStyle(aWidgetType, aFrame, r, (QStyleOption&)option, extraFlags);
-        style->drawPrimitive(QStyle::PE_FrameMenu, &option, qPainter, nullptr);
+        style->drawPrimitive(QStyle::PE_FrameMenu, &option, qPainter, NULL);
         break;
     }
     default:
@@ -373,7 +373,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aF
                 QStyle::SE_CheckBoxIndicator :
                 QStyle::SE_RadioButtonIndicator,
             &option,
-            nullptr);
+            NULL);
 
         (*aResult).width = rect.width();
         (*aResult).height = rect.height();
@@ -391,7 +391,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aF
         QRect rect = s->subElementRect(
             QStyle::SE_PushButtonFocusRect,
             &option,
-            nullptr);
+            NULL);
 
         (*aResult).width = rect.width();
         (*aResult).height = rect.height();
@@ -442,8 +442,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aF
 
         InitComboStyle(aWidgetType, aFrame, qRect, comboOpt);
 
-        QRect subRect = s->subControlRect(QStyle::CC_ComboBox, &comboOpt,
-                                          QStyle::SC_ComboBoxArrow, nullptr);
+        QRect subRect = s->subControlRect(QStyle::CC_ComboBox, &comboOpt, QStyle::SC_ComboBoxArrow, NULL);
   
         (*aResult).width = subRect.width();
         (*aResult).height = subRect.height();
@@ -462,7 +461,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aF
         QRect subRect = s->subControlRect(QStyle::CC_ComboBox, 
                                           &comboOpt, 
                                           QStyle::SC_ComboBoxFrame, 
-                                          nullptr);
+                                          NULL);
 
         (*aResult).width = subRect.width();
         (*aResult).height = subRect.height();
@@ -478,8 +477,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aF
         
         comboOpt.rect = qRect;
 
-        QRect subRect = s->subControlRect(QStyle::CC_ComboBox, &comboOpt,
-                                          QStyle::SC_ComboBoxEditField, nullptr);
+        QRect subRect = s->subControlRect(QStyle::CC_ComboBox, &comboOpt, QStyle::SC_ComboBoxEditField, NULL);
        
         (*aResult).width = subRect.width();
         (*aResult).height = subRect.height();
@@ -495,10 +493,8 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aF
 
         comboOpt.rect = qRect;
 
-        QRect subRect = s->subControlRect(QStyle::CC_ComboBox, &comboOpt,
-                                          QStyle::SC_ComboBoxArrow, nullptr);
-        QRect subRect2 = s->subControlRect(QStyle::CC_ComboBox, &comboOpt,
-                                           QStyle::SC_ComboBoxFrame, nullptr);
+        QRect subRect = s->subControlRect(QStyle::CC_ComboBox, &comboOpt, QStyle::SC_ComboBoxArrow, NULL);
+        QRect subRect2 = s->subControlRect(QStyle::CC_ComboBox, &comboOpt, QStyle::SC_ComboBoxFrame, NULL);
 
         (*aResult).width = subRect.width() + subRect2.width();
         (*aResult).height = std::max(subRect.height(), subRect2.height());
@@ -579,7 +575,7 @@ nsNativeThemeQt::WidgetIsContainer(uint8_t aWidgetType)
 }
 
 bool
-nsNativeThemeQt::ThemeDrawsFocusForWidget(uint8_t aWidgetType)
+nsNativeThemeQt::ThemeDrawsFocusForWidget(nsPresContext* aPresContext, nsIFrame* aFrame, uint8_t aWidgetType)
 {
     if (aWidgetType == NS_THEME_DROPDOWN ||
         aWidgetType == NS_THEME_BUTTON || 

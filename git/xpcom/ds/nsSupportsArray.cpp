@@ -4,9 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <string.h>
-#include "mozilla/MathAlgorithms.h"
+#include "prbit.h"
 #include "nsSupportsArray.h"
 #include "nsSupportsArrayEnumerator.h"
+#include "nsAString.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 
@@ -129,7 +130,7 @@ void nsSupportsArray::GrowArrayBy(int32_t aGrowBy)
     // Select the next power-of-two size in bytes above that if newSize is
     // not a power of two.
     if (newSize & (newSize - 1))
-      newSize = 1u << mozilla::CeilingLog2(newSize);
+      newSize = 1u << PR_CeilingLog2(newSize);
 
     newCount = newSize / sizeof(mArray[0]);
   }
@@ -173,7 +174,7 @@ nsSupportsArray::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
   return it->QueryInterface(aIID, aResult);
 }
 
-NS_IMPL_ISUPPORTS3(nsSupportsArray, nsISupportsArray, nsICollection, nsISerializable)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsSupportsArray, nsISupportsArray, nsICollection, nsISerializable)
 
 NS_IMETHODIMP
 nsSupportsArray::Read(nsIObjectInputStream *aStream)
@@ -603,7 +604,7 @@ nsresult
 NS_NewISupportsArray(nsISupportsArray** aInstancePtrResult)
 {
   nsresult rv;
-  rv = nsSupportsArray::Create(nullptr, NS_GET_IID(nsISupportsArray),
+  rv = nsSupportsArray::Create(NULL, NS_GET_IID(nsISupportsArray),
                                (void**)aInstancePtrResult);
   return rv;
 }

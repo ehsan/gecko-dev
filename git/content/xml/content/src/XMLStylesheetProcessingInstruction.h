@@ -6,16 +6,14 @@
 #ifndef mozilla_dom_XMLStylesheetProcessingInstruction_h
 #define mozilla_dom_XMLStylesheetProcessingInstruction_h
 
-#include "mozilla/Attributes.h"
 #include "mozilla/dom/ProcessingInstruction.h"
 #include "nsStyleLinkElement.h"
 
 namespace mozilla {
 namespace dom {
 
-class XMLStylesheetProcessingInstruction MOZ_FINAL
-: public ProcessingInstruction
-, public nsStyleLinkElement
+class XMLStylesheetProcessingInstruction : public ProcessingInstruction,
+                                           public nsStyleLinkElement
 {
 public:
   XMLStylesheetProcessingInstruction(already_AddRefed<nsINodeInfo> aNodeInfo,
@@ -36,8 +34,7 @@ public:
 
   virtual ~XMLStylesheetProcessingInstruction();
 
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -48,42 +45,32 @@ public:
 
   // nsIDOMNode
   virtual void SetNodeValueInternal(const nsAString& aNodeValue,
-                                    mozilla::ErrorResult& aError) MOZ_OVERRIDE;
+                                    mozilla::ErrorResult& aError);
 
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers) MOZ_OVERRIDE;
+                              bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true) MOZ_OVERRIDE;
+                              bool aNullParent = true);
 
   // nsIStyleSheetLinkingElement
-  virtual void OverrideBaseURI(nsIURI* aNewBaseURI) MOZ_OVERRIDE;
+  virtual void OverrideBaseURI(nsIURI* aNewBaseURI);
 
   // nsStyleLinkElement
-  NS_IMETHOD GetCharset(nsAString& aCharset) MOZ_OVERRIDE;
-
-  virtual void SetData(const nsAString& aData, mozilla::ErrorResult& rv) MOZ_OVERRIDE
-  {
-    nsGenericDOMDataNode::SetData(aData, rv);
-    if (rv.Failed()) {
-      return;
-    }
-    UpdateStyleSheetInternal(nullptr, true);
-  }
-  using ProcessingInstruction::SetData; // Prevent hiding overloaded virtual function.
+  NS_IMETHOD GetCharset(nsAString& aCharset);
 
 protected:
   nsCOMPtr<nsIURI> mOverriddenBaseURI;
 
-  already_AddRefed<nsIURI> GetStyleSheetURL(bool* aIsInline) MOZ_OVERRIDE;
+  already_AddRefed<nsIURI> GetStyleSheetURL(bool* aIsInline);
   void GetStyleSheetInfo(nsAString& aTitle,
                          nsAString& aType,
                          nsAString& aMedia,
                          bool* aIsScoped,
-                         bool* aIsAlternate) MOZ_OVERRIDE;
+                         bool* aIsAlternate);
   virtual nsGenericDOMDataNode* CloneDataNode(nsINodeInfo *aNodeInfo,
-                                              bool aCloneText) const MOZ_OVERRIDE;
+                                              bool aCloneText) const;
 };
 
 } // namespace dom

@@ -7,7 +7,6 @@
 #define nsCOMArray_h__
 
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 
 #include "nsCycleCollectionNoteChild.h"
 #include "nsTArray.h"
@@ -162,14 +161,14 @@ public:
     }
 
     typedef size_t (* nsBaseArraySizeOfElementIncludingThisFunc)
-        (nsISupports* aElement, mozilla::MallocSizeOf aMallocSizeOf, void *aData);
+        (nsISupports* aElement, nsMallocSizeOfFun aMallocSizeOf, void *aData);
 
     // Measures the size of the array's element storage, and if
-    // |aSizeOfElement| is non-nullptr, measures the size of things pointed to
-    // by elements.
+    // |aSizeOfElement| is non-NULL, measures the size of things pointed to by
+    // elements.
     size_t SizeOfExcludingThis(
              nsBaseArraySizeOfElementIncludingThisFunc aSizeOfElementIncludingThis,
-             mozilla::MallocSizeOf aMallocSizeOf, void* aData = nullptr) const;
+             nsMallocSizeOfFun aMallocSizeOf, void* aData = NULL) const;
 
 private:
     
@@ -377,11 +376,11 @@ class nsCOMArray : public nsCOMArray_base
     // "IncludingThis" rather than "ExcludingThis" because it needs to measure
     // the memory taken by the T itself as well as anything it points to.
     typedef size_t (* nsCOMArraySizeOfElementIncludingThisFunc)
-        (T* aElement, mozilla::MallocSizeOf aMallocSizeOf, void *aData);
+        (T* aElement, nsMallocSizeOfFun aMallocSizeOf, void *aData);
     
     size_t SizeOfExcludingThis(
              nsCOMArraySizeOfElementIncludingThisFunc aSizeOfElementIncludingThis, 
-             mozilla::MallocSizeOf aMallocSizeOf, void *aData = nullptr) const {
+             nsMallocSizeOfFun aMallocSizeOf, void *aData = NULL) const {
         return nsCOMArray_base::SizeOfExcludingThis(
                  nsBaseArraySizeOfElementIncludingThisFunc(aSizeOfElementIncludingThis),
                  aMallocSizeOf, aData);

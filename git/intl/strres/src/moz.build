@@ -6,14 +6,3 @@
 
 MODULE = 'intl'
 
-SOURCES += [
-    'nsStringBundle.cpp',
-    'nsStringBundleTextOverride.cpp',
-]
-
-LIBRARY_NAME = 'strres_s'
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-

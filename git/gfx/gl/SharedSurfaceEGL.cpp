@@ -9,7 +9,6 @@
 #include "SharedSurfaceGL.h"
 #include "SurfaceFactory.h"
 #include "GLLibraryEGL.h"
-#include "TextureGarbageBin.h"
 
 using namespace mozilla::gfx;
 
@@ -47,31 +46,6 @@ SharedSurface_EGLImage::HasExtensions(GLLibraryEGL* egl, GLContext* gl)
            egl->IsExtensionSupported(GLLibraryEGL::KHR_gl_texture_2D_image) &&
            gl->IsExtensionSupported(GLContext::OES_EGL_image);
 }
-
-SharedSurface_EGLImage::SharedSurface_EGLImage(GLContext* gl,
-                                               GLLibraryEGL* egl,
-                                               const gfxIntSize& size,
-                                               bool hasAlpha,
-                                               const GLFormats& formats,
-                                               GLuint prodTex)
-    : SharedSurface_GL(SharedSurfaceType::EGLImageShare,
-                        AttachmentType::GLTexture,
-                        gl,
-                        size,
-                        hasAlpha)
-    , mMutex("SharedSurface_EGLImage mutex")
-    , mEGL(egl)
-    , mFormats(formats)
-    , mProdTex(prodTex)
-    , mProdTexForPipe(0)
-    , mImage(0)
-    , mCurConsGL(nullptr)
-    , mConsTex(0)
-    , mSync(0)
-    , mPipeFailed(false)
-    , mPipeComplete(false)
-    , mPipeActive(false)
-{}
 
 SharedSurface_EGLImage::~SharedSurface_EGLImage()
 {
@@ -168,9 +142,9 @@ SharedSurface_EGLImage::Fence()
         }
 
         if (!mPixels) {
-            gfxImageFormat format =
-                  HasAlpha() ? gfxImageFormatARGB32
-                             : gfxImageFormatRGB24;
+            gfxASurface::gfxImageFormat format =
+                  HasAlpha() ? gfxASurface::ImageFormatARGB32
+                             : gfxASurface::ImageFormatRGB24;
             mPixels = new gfxImageSurface(Size(), format);
         }
 
@@ -213,15 +187,13 @@ SharedSurface_EGLImage::WaitSync()
     }
     MOZ_ASSERT(mEGL->IsExtensionSupported(GLLibraryEGL::KHR_fence_sync));
 
-    // Wait FOREVER, primarily because some NVIDIA (at least Tegra) drivers
-    // have ClientWaitSync returning immediately if the timeout delay is anything
-    // else than FOREVER.
-    //
-    // FIXME: should we try to use a finite timeout delay where possible?
+    EGLTime waitMS = 500;
+    const EGLTime nsPerMS = 1000 * 1000;
+    EGLTime waitNS = waitMS * nsPerMS;
     EGLint status = mEGL->fClientWaitSync(Display(),
                                           mSync,
                                           0,
-                                          LOCAL_EGL_FOREVER);
+                                          waitNS);
 
     if (status != LOCAL_EGL_CONDITION_SATISFIED) {
         return false;

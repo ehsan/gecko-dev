@@ -1,43 +1,136 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_a11y_AccessibleWrap_h_
-#define mozilla_a11y_AccessibleWrap_h_
+/* For documentation of the accessibility architecture, 
+ * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
+ */
+
+#ifndef _AccessibleWrap_H_
+#define _AccessibleWrap_H_
 
 #include "nsCOMPtr.h"
 #include "Accessible.h"
 #include "Accessible2.h"
-#include "ia2Accessible.h"
 #include "ia2AccessibleComponent.h"
 #include "ia2AccessibleHyperlink.h"
 #include "ia2AccessibleValue.h"
 
-#ifdef __GNUC__
-// Inheriting from both XPCOM and MSCOM interfaces causes a lot of warnings
-// about virtual functions being hidden by each other. This is done by
-// design, so silence the warning.
-#pragma GCC diagnostic ignored "-Woverloaded-virtual"
-#endif
+#define DECL_IUNKNOWN                                                          \
+public:                                                                        \
+  virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID, void**);            \
+  virtual ULONG STDMETHODCALLTYPE AddRef() MOZ_FINAL                           \
+    {  return ++mRefCnt; }                                                     \
+  virtual ULONG STDMETHODCALLTYPE Release() MOZ_FINAL                          \
+  {                                                                            \
+     mRefCnt--;                                                                \
+     if (mRefCnt)                                                              \
+       return mRefCnt;                                                         \
+                                                                               \
+     delete this;                                                              \
+     return 0;                                                                 \
+  }                                                                            \
+private:                                                                       \
+  ULONG mRefCnt;                                                               \
+public:
+
+#define DECL_IUNKNOWN_INHERITED                                                \
+public:                                                                        \
+virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID, void**);              \
+
+#define IMPL_IUNKNOWN_QUERY_HEAD(Class)                                        \
+STDMETHODIMP                                                                   \
+Class::QueryInterface(REFIID aIID, void** aInstancePtr)                        \
+{                                                                              \
+  A11Y_TRYBLOCK_BEGIN                                                          \
+  if (!aInstancePtr)                                                           \
+    return E_INVALIDARG;                                                       \
+  *aInstancePtr = nullptr;                                                        \
+                                                                               \
+  HRESULT hr = E_NOINTERFACE;
+
+#define IMPL_IUNKNOWN_QUERY_TAIL                                               \
+  return hr;                                                                   \
+  A11Y_TRYBLOCK_END                                                            \
+}
+
+#define IMPL_IUNKNOWN_QUERY_IFACE(Iface)                                       \
+  if (aIID == IID_##Iface) {                                                   \
+    *aInstancePtr = static_cast<Iface*>(this);                                 \
+    AddRef();                                                                  \
+    return S_OK;                                                               \
+  }
+
+#define IMPL_IUNKNOWN_QUERY_IFACE_AMBIGIOUS(Iface, aResolveIface)              \
+  if (aIID == IID_##Iface) {                                                   \
+    *aInstancePtr = static_cast<Iface*>(static_cast<aResolveIface*>(this));    \
+    AddRef();                                                                  \
+    return S_OK;                                                               \
+  }
+
+#define IMPL_IUNKNOWN_QUERY_CLASS(Class)                                       \
+  hr = Class::QueryInterface(aIID, aInstancePtr);                              \
+  if (SUCCEEDED(hr))                                                           \
+    return hr;
+
+#define IMPL_IUNKNOWN_QUERY_CLASS_COND(Class, Cond)                            \
+  if (Cond) {                                                                  \
+    hr = Class::QueryInterface(aIID, aInstancePtr);                            \
+    if (SUCCEEDED(hr))                                                         \
+      return hr;                                                               \
+  }
+
+#define IMPL_IUNKNOWN_QUERY_AGGR_COND(Member, Cond)                            \
+  if (Cond) {                                                                  \
+    hr = Member->QueryInterface(aIID, aInstancePtr);                           \
+    if (SUCCEEDED(hr))                                                         \
+      return hr;                                                               \
+  }
+
+#define IMPL_IUNKNOWN1(Class, I1)                                              \
+  IMPL_IUNKNOWN_QUERY_HEAD(Class)                                              \
+  IMPL_IUNKNOWN_QUERY_IFACE(I1);                                               \
+  IMPL_IUNKNOWN_QUERY_IFACE(IUnknown);                                         \
+  IMPL_IUNKNOWN_QUERY_TAIL                                                     \
+
+#define IMPL_IUNKNOWN2(Class, I1, I2)                                          \
+  IMPL_IUNKNOWN_QUERY_HEAD(Class)                                              \
+  IMPL_IUNKNOWN_QUERY_IFACE(I1);                                               \
+  IMPL_IUNKNOWN_QUERY_IFACE(I2);                                               \
+  IMPL_IUNKNOWN_QUERY_IFACE_AMBIGIOUS(IUnknown, I1);                           \
+  IMPL_IUNKNOWN_QUERY_TAIL                                                     \
+
+#define IMPL_IUNKNOWN_INHERITED1(Class, Super0, Super1)                        \
+  IMPL_IUNKNOWN_QUERY_HEAD(Class)                                              \
+  IMPL_IUNKNOWN_QUERY_CLASS(Super1);                                           \
+  IMPL_IUNKNOWN_QUERY_CLASS(Super0)                                            \
+  IMPL_IUNKNOWN_QUERY_TAIL                                                     \
+
+#define IMPL_IUNKNOWN_INHERITED2(Class, Super0, Super1, Super2)                \
+  IMPL_IUNKNOWN_QUERY_HEAD(Class)                                              \
+  IMPL_IUNKNOWN_QUERY_CLASS(Super1);                                           \
+  IMPL_IUNKNOWN_QUERY_CLASS(Super2);                                           \
+  IMPL_IUNKNOWN_QUERY_CLASS(Super0)                                            \
+  IMPL_IUNKNOWN_QUERY_TAIL
+
 
 namespace mozilla {
 namespace a11y {
 
 class AccessibleWrap : public Accessible,
-                       public ia2Accessible,
                        public ia2AccessibleComponent,
                        public ia2AccessibleHyperlink,
-                       public ia2AccessibleValue
+                       public ia2AccessibleValue,
+                       public IAccessible2
 {
 public: // construction, destruction
   AccessibleWrap(nsIContent* aContent, DocAccessible* aDoc) :
     Accessible(aContent, aDoc) { }
   virtual ~AccessibleWrap() { }
 
-  // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
+    // nsISupports
+    NS_DECL_ISUPPORTS_INHERITED
 
   public: // IUnknown methods - see iunknown.h for documentation
     STDMETHODIMP QueryInterface(REFIID, void**);
@@ -131,6 +224,72 @@ public: // construction, destruction
         /* [optional][in] */ VARIANT varChild,
         /* [in] */ BSTR szValue);
 
+  public: // IAccessible2
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_nRelations(
+        /* [retval][out] */ long *nRelations);
+
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_relation(
+        /* [in] */ long relationIndex,
+        /* [retval][out] */ IAccessibleRelation **relation);
+
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_relations(
+        /* [in] */ long maxRelations,
+        /* [length_is][size_is][out] */ IAccessibleRelation **relation,
+        /* [retval][out] */ long *nRelations);
+
+    virtual HRESULT STDMETHODCALLTYPE role(
+            /* [retval][out] */ long *role);
+
+    virtual HRESULT STDMETHODCALLTYPE scrollTo(
+        /* [in] */ enum IA2ScrollType scrollType);
+
+    virtual HRESULT STDMETHODCALLTYPE scrollToPoint(
+        /* [in] */ enum IA2CoordinateType coordinateType,
+	      /* [in] */ long x,
+	      /* [in] */ long y);
+
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_groupPosition(
+        /* [out] */ long *groupLevel,
+        /* [out] */ long *similarItemsInGroup,
+        /* [retval][out] */ long *positionInGroup);
+
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_states(
+        /* [retval][out] */ AccessibleStates *states);
+
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_extendedRole(
+        /* [retval][out] */ BSTR *extendedRole);
+
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_localizedExtendedRole(
+        /* [retval][out] */ BSTR *localizedExtendedRole);
+
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_nExtendedStates(
+        /* [retval][out] */ long *nExtendedStates);
+
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_extendedStates(
+        /* [in] */ long maxExtendedStates,
+        /* [length_is][length_is][size_is][size_is][out] */ BSTR **extendedStates,
+        /* [retval][out] */ long *nExtendedStates);
+
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_localizedExtendedStates(
+        /* [in] */ long maxLocalizedExtendedStates,
+        /* [length_is][length_is][size_is][size_is][out] */ BSTR **localizedExtendedStates,
+        /* [retval][out] */ long *nLocalizedExtendedStates);
+
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_uniqueID(
+        /* [retval][out] */ long *uniqueID);
+
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_windowHandle(
+        /* [retval][out] */ HWND *windowHandle);
+
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_indexInParent(
+        /* [retval][out] */ long *indexInParent);
+
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_locale(
+        /* [retval][out] */ IA2Locale *locale);
+
+    virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_attributes(
+        /* [retval][out] */ BSTR *attributes);
+
   // IDispatch (support of scripting languages like VB)
   virtual HRESULT STDMETHODCALLTYPE GetTypeInfoCount(UINT *pctinfo);
 
@@ -156,6 +315,8 @@ public: // construction, destruction
   // Helper methods
   static int32_t GetChildIDFor(Accessible* aAccessible);
   static HWND GetHWNDFor(Accessible* aAccessible);
+  static HRESULT ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
+                                        BSTR *aIA2Attributes);
 
   /**
    * System caret support: update the Windows caret position. 
@@ -164,7 +325,7 @@ public: // construction, destruction
    * We will use an invisible system caret.
    * Gecko is still responsible for drawing its own caret
    */
-  void UpdateSystemCaretFor(Accessible* aAccessible);
+  void UpdateSystemCaret();
 
   /**
    * Find an accessible by the given child ID in cached documents.
@@ -176,6 +337,7 @@ public: // construction, destruction
   static IDispatch *NativeAccessible(nsIAccessible *aXPAccessible);
 
 protected:
+  virtual nsresult FirePlatformEvent(AccEvent* aEvent);
 
   /**
    * Creates ITypeInfo for LIBID_Accessibility if it's needed and returns it.
@@ -201,11 +363,7 @@ protected:
     NAVRELATION_PARENT_WINDOW_OF = 0x100c,
     NAVRELATION_DEFAULT_BUTTON = 0x100d,
     NAVRELATION_DESCRIBED_BY = 0x100e,
-    NAVRELATION_DESCRIPTION_FOR = 0x100f,
-    NAVRELATION_NODE_PARENT_OF = 0x1010,
-    NAVRELATION_CONTAINING_DOCUMENT = 0x1011,
-    NAVRELATION_CONTAINING_TAB_PANE = 0x1012,
-    NAVRELATION_CONTAINING_APPLICATION = 0x1014
+    NAVRELATION_DESCRIPTION_FOR = 0x100f
   };
 };
 

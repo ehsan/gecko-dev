@@ -28,8 +28,8 @@
  * Please edit TreeBuilder.java instead and regenerate.
  */
 
-#ifndef nsHtml5TreeBuilder_h
-#define nsHtml5TreeBuilder_h
+#ifndef nsHtml5TreeBuilder_h__
+#define nsHtml5TreeBuilder_h__
 
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
@@ -98,7 +98,6 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     int32_t charBufferLen;
   private:
     bool quirks;
-    bool isSrcdocDocument;
   public:
     void startTokenization(nsHtml5Tokenizer* self);
     void doctype(nsIAtom* name, nsString* publicIdentifier, nsString* systemIdentifier, bool forceQuirks);
@@ -109,12 +108,10 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     void endTokenization();
     void startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes, bool selfClosing);
   private:
-    void startTagTitleInHead(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
     void startTagGenericRawText(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
     void startTagScriptInHead(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
     void startTagTemplateInHead(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
     bool isTemplateContents();
-    bool isTemplateModeStackEmpty();
     bool isSpecialParentInForeign(nsHtml5StackNode* stackNode);
   public:
     static nsString* extractCharsetFromContent(nsString* attributeValue);
@@ -123,7 +120,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
   public:
     void endTag(nsHtml5ElementName* elementName);
   private:
-    void endTagTemplateInHead();
+    void endTagTemplateInHead(nsIAtom* name);
     int32_t findLastInTableScopeOrRootTemplateTbodyTheadTfoot();
     int32_t findLast(nsIAtom* name);
     int32_t findLastInTableScope(nsIAtom* name);
@@ -156,7 +153,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     void clearTheListOfActiveFormattingElementsUpToTheLastMarker();
     inline bool isCurrent(nsIAtom* name)
     {
-      return stack[currentPtr]->ns == kNameSpaceID_XHTML && name == stack[currentPtr]->name;
+      return name == stack[currentPtr]->name;
     }
 
     void removeFromStack(int32_t pos);
@@ -238,7 +235,6 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
   public:
     bool isScriptingEnabled();
     void setScriptingEnabled(bool scriptingEnabled);
-    void setIsSrcdocDocument(bool isSrcdocDocument);
     void flushCharacters();
   private:
     bool charBufferContainsNonWhitespace();
@@ -254,7 +250,6 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     nsIContent** getDeepTreeSurrogateParent();
     jArray<nsHtml5StackNode*,int32_t> getListOfActiveFormattingElements();
     jArray<nsHtml5StackNode*,int32_t> getStack();
-    jArray<int32_t,int32_t> getTemplateModeStack();
     int32_t getMode();
     int32_t getOriginalMode();
     bool isFramesetOk();
@@ -262,7 +257,6 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     bool isQuirks();
     int32_t getListOfActiveFormattingElementsLength();
     int32_t getStackLength();
-    int32_t getTemplateModeStackLength();
     static void initializeStatics();
     static void releaseStatics();
 
@@ -316,7 +310,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
 #define NS_HTML5TREE_BUILDER_B_OR_BIG_OR_CODE_OR_EM_OR_I_OR_S_OR_SMALL_OR_STRIKE_OR_STRONG_OR_TT_OR_U 45
 #define NS_HTML5TREE_BUILDER_UL_OR_OL_OR_DL 46
 #define NS_HTML5TREE_BUILDER_IFRAME 47
-#define NS_HTML5TREE_BUILDER_EMBED 48
+#define NS_HTML5TREE_BUILDER_EMBED_OR_IMG 48
 #define NS_HTML5TREE_BUILDER_AREA_OR_WBR 49
 #define NS_HTML5TREE_BUILDER_DIV_OR_BLOCKQUOTE_OR_CENTER_OR_MENU 50
 #define NS_HTML5TREE_BUILDER_ADDRESS_OR_ARTICLE_OR_ASIDE_OR_DETAILS_OR_DIR_OR_FIGCAPTION_OR_FIGURE_OR_FOOTER_OR_HEADER_OR_HGROUP_OR_MAIN_OR_NAV_OR_SECTION_OR_SUMMARY 51
@@ -336,7 +330,6 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
 #define NS_HTML5TREE_BUILDER_KEYGEN 65
 #define NS_HTML5TREE_BUILDER_MENUITEM 66
 #define NS_HTML5TREE_BUILDER_TEMPLATE 67
-#define NS_HTML5TREE_BUILDER_IMG 68
 #define NS_HTML5TREE_BUILDER_IN_ROW 0
 #define NS_HTML5TREE_BUILDER_IN_TABLE_BODY 1
 #define NS_HTML5TREE_BUILDER_IN_TABLE 2
@@ -359,7 +352,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
 #define NS_HTML5TREE_BUILDER_AFTER_AFTER_BODY 19
 #define NS_HTML5TREE_BUILDER_AFTER_AFTER_FRAMESET 20
 #define NS_HTML5TREE_BUILDER_TEXT 21
-#define NS_HTML5TREE_BUILDER_IN_TEMPLATE 22
+#define NS_HTML5TREE_BUILDER_TEMPLATE_CONTENTS 22
 #define NS_HTML5TREE_BUILDER_CHARSET_INITIAL 0
 #define NS_HTML5TREE_BUILDER_CHARSET_C 1
 #define NS_HTML5TREE_BUILDER_CHARSET_H 2

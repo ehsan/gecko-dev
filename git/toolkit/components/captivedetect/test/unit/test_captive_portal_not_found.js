@@ -4,8 +4,17 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 'use strict';
 
+const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
+
+Cu.import('resource://gre/modules/XPCOMUtils.jsm');
+Cu.import('resource://gre/modules/Services.jsm');
+Cu.import('resource://testing-common/httpd.js');
+
 const kInterfaceName = 'wifi';
 
+XPCOMUtils.defineLazyServiceGetter(this, 'gCaptivePortalDetector',
+                                   '@mozilla.org/toolkit/captive-detector;1',
+                                   'nsICaptivePortalDetector');
 var server;
 var step = 0;
 var attempt = 0;
@@ -40,7 +49,7 @@ function test_portal_not_found() {
       do_check_eq(++step, 2);
       do_check_true(success);
       do_check_eq(attempt, 1);
-      gServer.stop(function(){dump('server stop\n'); do_test_finished(); });
+      server.stop(function(){dump('server stop\n'); do_test_finished(); });
     }
   };
 
@@ -48,5 +57,11 @@ function test_portal_not_found() {
 }
 
 function run_test() {
-  run_captivedetect_test(xhr_handler, fakeUIResponse, test_portal_not_found);
+  server = new HttpServer();
+  server.registerPathHandler(kCanonicalSitePath, xhr_handler);
+  server.start(4444);
+
+  fakeUIResponse();
+
+  test_portal_not_found();
 }

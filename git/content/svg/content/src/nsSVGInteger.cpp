@@ -8,15 +8,47 @@
 #include "nsSVGInteger.h"
 #include "nsSMILValue.h"
 #include "SMILIntegerType.h"
-#include "SVGContentUtils.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
+
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGInteger::DOMAnimatedInteger, mSVGElement)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGInteger::DOMAnimatedInteger)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGInteger::DOMAnimatedInteger)
+
+DOMCI_DATA(SVGAnimatedInteger, nsSVGInteger::DOMAnimatedInteger)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGInteger::DOMAnimatedInteger)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedInteger)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedInteger)
+NS_INTERFACE_MAP_END
 
 /* Implementation */
 
 static nsSVGAttrTearoffTable<nsSVGInteger, nsSVGInteger::DOMAnimatedInteger>
   sSVGAnimatedIntegerTearoffTable;
+
+static nsresult
+GetValueFromString(const nsAString &aValueAsString,
+                   int32_t *aValue)
+{
+  NS_ConvertUTF16toUTF8 value(aValueAsString);
+  const char *str = value.get();
+
+  if (NS_IsAsciiWhitespace(*str))
+    return NS_ERROR_DOM_SYNTAX_ERR;
+  
+  char *rest;
+  *aValue = strtol(str, &rest, 10);
+  if (rest == str || *rest != '\0') {
+    return NS_ERROR_DOM_SYNTAX_ERR;
+  }
+  if (*rest == '\0') {
+    return NS_OK;
+  }
+  return NS_ERROR_DOM_SYNTAX_ERR;
+}
 
 nsresult
 nsSVGInteger::SetBaseValueString(const nsAString &aValueAsString,
@@ -24,8 +56,9 @@ nsSVGInteger::SetBaseValueString(const nsAString &aValueAsString,
 {
   int32_t value;
 
-  if (!SVGContentUtils::ParseInteger(aValueAsString, value)) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+  nsresult rv = GetValueFromString(aValueAsString, &value);
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
   mIsBaseSet = true;
@@ -79,7 +112,15 @@ nsSVGInteger::SetAnimValue(int aValue, nsSVGElement *aSVGElement)
   aSVGElement->DidAnimateInteger(mAttrEnum);
 }
 
-already_AddRefed<SVGAnimatedInteger>
+nsresult
+nsSVGInteger::ToDOMAnimatedInteger(nsIDOMSVGAnimatedInteger **aResult,
+                                   nsSVGElement *aSVGElement)
+{
+  *aResult = ToDOMAnimatedInteger(aSVGElement).get();
+  return NS_OK;
+}
+
+already_AddRefed<nsIDOMSVGAnimatedInteger>
 nsSVGInteger::ToDOMAnimatedInteger(nsSVGElement *aSVGElement)
 {
   nsRefPtr<DOMAnimatedInteger> domAnimatedInteger =
@@ -111,11 +152,12 @@ nsSVGInteger::SMILInteger::ValueFromString(const nsAString& aStr,
 {
   int32_t val;
 
-  if (!SVGContentUtils::ParseInteger(aStr, val)) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+  nsresult rv = GetValueFromString(aStr, &val);
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
-  nsSMILValue smilVal(SMILIntegerType::Singleton());
+  nsSMILValue smilVal(&SMILIntegerType::sSingleton);
   smilVal.mU.mInt = val;
   aValue = smilVal;
   aPreventCachingOfSandwich = false;
@@ -125,7 +167,7 @@ nsSVGInteger::SMILInteger::ValueFromString(const nsAString& aStr,
 nsSMILValue
 nsSVGInteger::SMILInteger::GetBaseValue() const
 {
-  nsSMILValue val(SMILIntegerType::Singleton());
+  nsSMILValue val(&SMILIntegerType::sSingleton);
   val.mU.mInt = mVal->mBaseVal;
   return val;
 }
@@ -143,9 +185,9 @@ nsSVGInteger::SMILInteger::ClearAnimValue()
 nsresult
 nsSVGInteger::SMILInteger::SetAnimValue(const nsSMILValue& aValue)
 {
-  NS_ASSERTION(aValue.mType == SMILIntegerType::Singleton(),
+  NS_ASSERTION(aValue.mType == &SMILIntegerType::sSingleton,
                "Unexpected type to assign animated value");
-  if (aValue.mType == SMILIntegerType::Singleton()) {
+  if (aValue.mType == &SMILIntegerType::sSingleton) {
     mVal->SetAnimValue(int(aValue.mU.mInt), mSVGElement);
   }
   return NS_OK;

@@ -12,8 +12,7 @@ module.metadata = {
   "stability": "unstable"
 };
 
-const { setImmediate, setTimeout } = require("../timers");
-const { deprecateFunction } = require("../util/deprecate");
+const { setTimeout } = require("../timers");
 
 /**
  * Takes `lambda` function and returns a method. When returned method is
@@ -30,27 +29,17 @@ exports.method = method;
 /**
  * Takes a function and returns a wrapped one instead, calling which will call
  * original function in the next turn of event loop. This is basically utility
- * to do `setImmediate(function() { ... })`, with a difference that returned
+ * to do `setTimeout(function() { ... }, 0)`, with a difference that returned
  * function is reused, instead of creating a new one each time. This also allows
  * to use this functions as event listeners.
  */
 function defer(f) {
-  return function deferred() setImmediate(invoke, f, arguments, this);
+  return function deferred()
+    setTimeout(invoke, 0, f, arguments, this);
 }
 exports.defer = defer;
 // Exporting `remit` alias as `defer` may conflict with promises.
 exports.remit = defer;
-
-/*
- * Takes a funtion and returns a wrapped function that returns `this`
- */
-function chain(f) {
-  return function chainable(...args) {
-    f.apply(this, args);
-    return this;
-  };
-}
-exports.chain = chain;
 
 /**
  * Invokes `callee` by passing `params` as an arguments and `self` as `this`
@@ -66,15 +55,14 @@ function invoke(callee, params, self) callee.apply(self, params);
 exports.invoke = invoke;
 
 /**
- * Takes a function and bind values to one or more arguments, returning a new
- * function of smaller arity.
+ * Curries a function with the arguments given.
  *
  * @param {Function} fn
- *    The function to partial
+ *    The function to curry
  *
- * @returns The new function with binded values
+ * @returns The function curried
  */
-function partial(fn) {
+function curry(fn) {
   if (typeof fn !== "function")
     throw new TypeError(String(fn) + " is not a function");
 
@@ -82,41 +70,6 @@ function partial(fn) {
 
   return function() fn.apply(this, args.concat(Array.slice(arguments)));
 }
-exports.partial = partial;
-
-/**
- * Returns function with implicit currying, which will continue currying until
- * expected number of argument is collected. Expected number of arguments is
- * determined by `fn.length`. Using this with variadic functions is stupid,
- * so don't do it.
- *
- * @examples
- *
- * var sum = curry(function(a, b) {
- *   return a + b
- * })
- * console.log(sum(2, 2)) // 4
- * console.log(sum(2)(4)) // 6
- */
-var curry = new function() {
-  function currier(fn, arity, params) {
-    // Function either continues to curry arguments or executes function
-    // if desired arguments have being collected.
-    return function curried() {
-      var input = Array.slice(arguments);
-      // Prepend all curried arguments to the given arguments.
-      if (params) input.unshift.apply(input, params);
-      // If expected number of arguments has being collected invoke fn,
-      // othrewise return curried version Otherwise continue curried.
-      return (input.length >= arity) ? fn.apply(this, input) :
-             currier(fn, arity, input);
-    };
-  }
-
-  return function curry(fn) {
-    return currier(fn, fn.length);
-  }
-};
 exports.curry = curry;
 
 /**

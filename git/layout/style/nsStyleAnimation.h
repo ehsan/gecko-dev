@@ -8,7 +8,7 @@
 #ifndef nsStyleAnimation_h_
 #define nsStyleAnimation_h_
 
-#include "nsStringFwd.h"
+#include "nsAString.h"
 #include "nsCRTGlue.h"
 #include "nsStringBuffer.h"
 #include "nsCSSProperty.h"
@@ -160,6 +160,8 @@ public:
    * must keep |aComputedValue| alive longer than |aSpecifiedValue|.
    *
    * @param aProperty      The property whose value we're uncomputing.
+   * @param aPresContext   The presentation context for the document in
+   *                       which we're working.
    * @param aComputedValue The computed value to be converted.
    * @param [out] aSpecifiedValue The resulting specified value.
    * @return true on success, false on failure.
@@ -221,7 +223,6 @@ public:
     eUnit_CSSValueTriplet, // nsCSSValueTriplet* (never null)
     eUnit_CSSRect, // nsCSSRect* (never null)
     eUnit_Dasharray, // nsCSSValueList* (never null)
-    eUnit_Filter, // nsCSSValueList* (may be null)
     eUnit_Shadow, // nsCSSValueList* (may be null)
     eUnit_Transform, // nsCSSValueList* (never null)
     eUnit_BackgroundPosition, // nsCSSValueList* (never null)
@@ -381,9 +382,8 @@ public:
       return aUnit == eUnit_CSSRect;
     }
     static bool IsCSSValueListUnit(Unit aUnit) {
-      return aUnit == eUnit_Dasharray || aUnit == eUnit_Filter ||
-             aUnit == eUnit_Shadow || aUnit == eUnit_Transform ||
-             aUnit == eUnit_BackgroundPosition;
+      return aUnit == eUnit_Dasharray || aUnit == eUnit_Shadow ||
+             aUnit == eUnit_Transform || aUnit == eUnit_BackgroundPosition;
     }
     static bool IsCSSValuePairListUnit(Unit aUnit) {
       return aUnit == eUnit_CSSValuePairList;

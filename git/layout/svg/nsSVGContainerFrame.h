@@ -8,6 +8,7 @@
 
 #include "mozilla/Attributes.h"
 #include "gfxMatrix.h"
+#include "gfxRect.h"
 #include "nsContainerFrame.h"
 #include "nsFrame.h"
 #include "nsIFrame.h"
@@ -23,8 +24,6 @@ class nsRenderingContext;
 class nsStyleContext;
 
 struct nsPoint;
-struct nsRect;
-struct nsIntRect;
 
 typedef nsContainerFrame nsSVGContainerFrameBase;
 
@@ -57,8 +56,7 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // Returns the transform to our gfxContext (to device pixels, not CSS px)
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
-                                nsIFrame* aTransformRoot = nullptr) {
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor) {
     return gfxMatrix();
   }
 
@@ -93,13 +91,6 @@ public:
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE {}
 
   virtual bool UpdateOverflow() MOZ_OVERRIDE;
-
-protected:
-  /**
-   * Traverses a frame tree, marking any nsSVGTextFrame2 frames as dirty
-   * and calling InvalidateRenderingObservers() on it.
-   */
-  static void ReflowSVGNonDisplayText(nsIFrame* aContainer);
 };
 
 /**
@@ -147,8 +138,7 @@ public:
 
   // nsISVGChildFrame interface:
   NS_IMETHOD PaintSVG(nsRenderingContext* aContext,
-                      const nsIntRect *aDirtyRect,
-                      nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
+                      const nsIntRect *aDirtyRect) MOZ_OVERRIDE;
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint) MOZ_OVERRIDE;
   NS_IMETHOD_(nsRect) GetCoveredRegion() MOZ_OVERRIDE;
   virtual void ReflowSVG() MOZ_OVERRIDE;

@@ -4,10 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#include "mozilla/MemoryReporting.h"
-#if defined(HAVE_POSIX_MEMALIGN)
 #include "gfxAlphaRecovery.h"
-#endif
 #include "gfxImageSurface.h"
 
 #include "cairo.h"
@@ -20,7 +17,7 @@ using namespace mozilla::gfx;
 gfxImageSurface::gfxImageSurface()
   : mSize(0, 0),
     mOwnsData(false),
-    mFormat(gfxImageFormatUnknown),
+    mFormat(ImageFormatUnknown),
     mStride(0)
 {
 }
@@ -48,7 +45,7 @@ void
 gfxImageSurface::MakeInvalid()
 {
     mSize = gfxIntSize(-1, -1);
-    mData = nullptr;
+    mData = NULL;
     mStride = 0;
 }
 
@@ -98,26 +95,12 @@ TryAllocAlignedBytes(size_t aSize)
 #endif
 }
 
-gfxImageSurface::gfxImageSurface(const gfxIntSize& size, gfxImageFormat format, bool aClear)
- : mSize(size), mData(nullptr), mFormat(format)
+gfxImageSurface::gfxImageSurface(const gfxIntSize& size, gfxImageFormat format, bool aClear) :
+    mSize(size), mOwnsData(false), mData(nullptr), mFormat(format)
 {
-    AllocateAndInit(0, 0, aClear);
-}
+    mStride = ComputeStride();
 
-void 
-gfxImageSurface::AllocateAndInit(long aStride, int32_t aMinimalAllocation,
-                                 bool aClear)
-{
-    // The callers should set mSize and mFormat.
-    MOZ_ASSERT(!mData);
-    mData = nullptr;
-    mOwnsData = false;
-
-    mStride = aStride > 0 ? aStride : ComputeStride();
-    if (aMinimalAllocation < mSize.height * mStride)
-        aMinimalAllocation = mSize.height * mStride;
-
-    if (!CheckSurfaceSize(mSize))
+    if (!CheckSurfaceSize(size))
         MakeInvalid();
 
     // if we have a zero-sized surface, just leave mData nullptr
@@ -125,18 +108,18 @@ gfxImageSurface::AllocateAndInit(long aStride, int32_t aMinimalAllocation,
 
         // This can fail to allocate memory aligned as we requested,
         // or it can fail to allocate any memory at all.
-        mData = (unsigned char *) TryAllocAlignedBytes(aMinimalAllocation);
+        mData = (unsigned char *) TryAllocAlignedBytes(mSize.height * mStride);
         if (!mData)
             return;
         if (aClear)
-            memset(mData, 0, aMinimalAllocation);
+            memset(mData, 0, mSize.height * mStride);
     }
 
     mOwnsData = true;
 
     cairo_surface_t *surface =
         cairo_image_surface_create_for_data((unsigned char*)mData,
-                                            (cairo_format_t)mFormat,
+                                            (cairo_format_t)format,
                                             mSize.width,
                                             mSize.height,
                                             mStride);
@@ -147,13 +130,6 @@ gfxImageSurface::AllocateAndInit(long aStride, int32_t aMinimalAllocation,
         RecordMemoryUsed(mSize.height * ComputeStride() +
                          sizeof(gfxImageSurface));
     }
-}
-
-gfxImageSurface::gfxImageSurface(const gfxIntSize& size, gfxImageFormat format,
-                                 long aStride, int32_t aExtraBytes, bool aClear)
- : mSize(size), mData(nullptr), mFormat(format)
-{
-    AllocateAndInit(aStride, aExtraBytes, aClear);
 }
 
 gfxImageSurface::gfxImageSurface(cairo_surface_t *csurf)
@@ -179,15 +155,15 @@ gfxImageSurface::ComputeStride(const gfxIntSize& aSize, gfxImageFormat aFormat)
 {
     long stride;
 
-    if (aFormat == gfxImageFormatARGB32)
+    if (aFormat == ImageFormatARGB32)
         stride = aSize.width * 4;
-    else if (aFormat == gfxImageFormatRGB24)
+    else if (aFormat == ImageFormatRGB24)
         stride = aSize.width * 4;
-    else if (aFormat == gfxImageFormatRGB16_565)
+    else if (aFormat == ImageFormatRGB16_565)
         stride = aSize.width * 2;
-    else if (aFormat == gfxImageFormatA8)
+    else if (aFormat == ImageFormatA8)
         stride = aSize.width;
-    else if (aFormat == gfxImageFormatA1) {
+    else if (aFormat == ImageFormatA1) {
         stride = (aSize.width + 7) / 8;
     } else {
         NS_WARNING("Unknown format specified to gfxImageSurface!");
@@ -200,7 +176,7 @@ gfxImageSurface::ComputeStride(const gfxIntSize& aSize, gfxImageFormat aFormat)
 }
 
 size_t
-gfxImageSurface::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+gfxImageSurface::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
     size_t n = gfxASurface::SizeOfExcludingThis(aMallocSizeOf);
     if (mOwnsData) {
@@ -210,7 +186,7 @@ gfxImageSurface::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
 }
 
 size_t
-gfxImageSurface::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+gfxImageSurface::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
@@ -240,13 +216,13 @@ CopyForStride(unsigned char* aDest, unsigned char* aSrc, const gfxIntSize& aSize
 
 // helper function for the CopyFrom methods
 static bool
-FormatsAreCompatible(gfxImageFormat a1, gfxImageFormat a2)
+FormatsAreCompatible(gfxASurface::gfxImageFormat a1, gfxASurface::gfxImageFormat a2)
 {
     if (a1 != a2 &&
-        !(a1 == gfxImageFormatARGB32 &&
-          a2 == gfxImageFormatRGB24) &&
-        !(a1 == gfxImageFormatRGB24 &&
-          a2 == gfxImageFormatARGB32)) {
+        !(a1 == gfxASurface::ImageFormatARGB32 &&
+          a2 == gfxASurface::ImageFormatRGB24) &&
+        !(a1 == gfxASurface::ImageFormatRGB24 &&
+          a2 == gfxASurface::ImageFormatARGB32)) {
         return false;
     }
 
@@ -299,32 +275,21 @@ gfxImageSurface::GetSubimage(const gfxRect& aRect)
 {
     gfxRect r(aRect);
     r.Round();
-    MOZ_ASSERT(gfxRect(0, 0, mSize.width, mSize.height).Contains(r));
-
-    gfxImageFormat format = Format();
-
     unsigned char* subData = Data() +
         (Stride() * (int)r.Y()) +
         (int)r.X() * gfxASurface::BytePerPixelFromFormat(Format());
 
-    if (format == gfxImageFormatARGB32 &&
-        GetOpaqueRect().Contains(aRect)) {
-        format = gfxImageFormatRGB24;
-    }
-
     nsRefPtr<gfxSubimageSurface> image =
         new gfxSubimageSurface(this, subData,
-                               gfxIntSize((int)r.Width(), (int)r.Height()),
-                               format);
+                               gfxIntSize((int)r.Width(), (int)r.Height()));
 
-    return image.forget();
+    return image.forget().get();
 }
 
 gfxSubimageSurface::gfxSubimageSurface(gfxImageSurface* aParent,
                                        unsigned char* aData,
-                                       const gfxIntSize& aSize,
-                                       gfxImageFormat aFormat)
-  : gfxImageSurface(aData, aSize, aParent->Stride(), aFormat)
+                                       const gfxIntSize& aSize)
+  : gfxImageSurface(aData, aSize, aParent->Stride(), aParent->Format())
   , mParent(aParent)
 {
 }

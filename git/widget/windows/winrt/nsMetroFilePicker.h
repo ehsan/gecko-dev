@@ -54,10 +54,11 @@ public:
   HRESULT OnPickMultipleFiles(ABI::Windows::Foundation::IAsyncOperation<ABI::Windows::Foundation::Collections::IVectorView<StorageFile*>*>* aFileList, AsyncStatus aStatus);
 
 private:
-  void InitNative(nsIWidget*, const nsAString&) {};
+  void InitNative(nsIWidget*, const nsAString&, int16_t) {};
   nsresult ParseFiltersIntoVector(Microsoft::WRL::ComPtr<ABI::Windows::Foundation::Collections::IVector<HSTRING>>& aVector,
                                   const nsAString& aFilter,
                                   bool aAllowAll);
+  int16_t mMode;
   nsCOMArray<nsILocalFile> mFiles;
   Microsoft::WRL::ComPtr<ABI::Windows::Storage::Pickers::IFileOpenPicker> mFileOpenPicker;
   Microsoft::WRL::ComPtr<ABI::Windows::Storage::Pickers::IFileSavePicker> mFileSavePicker;

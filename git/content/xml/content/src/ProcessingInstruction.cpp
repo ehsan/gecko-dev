@@ -55,6 +55,8 @@ ProcessingInstruction::ProcessingInstruction(already_AddRefed<nsINodeInfo> aNode
   SetTextInternal(0, mText.GetLength(),
                   aData.BeginReading(), aData.Length(),
                   false);  // Don't notify (bug 420429).
+
+  SetIsDOMBinding();
 }
 
 ProcessingInstruction::~ProcessingInstruction()
@@ -66,7 +68,7 @@ NS_IMPL_ISUPPORTS_INHERITED3(ProcessingInstruction, nsGenericDOMDataNode,
                              nsIDOMProcessingInstruction)
 
 JSObject*
-ProcessingInstruction::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+ProcessingInstruction::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return ProcessingInstructionBinding::Wrap(aCx, aScope, this);
 }

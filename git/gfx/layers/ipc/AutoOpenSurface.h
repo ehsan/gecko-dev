@@ -11,7 +11,7 @@
 #include "base/basictypes.h"
 
 #include "gfxASurface.h"
-#include "mozilla/layers/PLayerTransaction.h"
+#include "mozilla/layers/PLayers.h"
 #include "ShadowLayers.h"
 
 namespace mozilla {
@@ -26,6 +26,7 @@ namespace layers {
 class MOZ_STACK_CLASS AutoOpenSurface
 {
 public:
+  typedef gfxASurface::gfxContentType gfxContentType;
 
   /** |aDescriptor| must be valid while AutoOpenSurface is
    * in scope. */
@@ -38,7 +39,6 @@ public:
    * return an answer.
    */
   gfxContentType ContentType();
-  gfxImageFormat ImageFormat();
   gfxIntSize Size();
 
   /** This can't escape the scope of AutoOpenSurface. */

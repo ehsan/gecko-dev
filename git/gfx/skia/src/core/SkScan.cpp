@@ -115,3 +115,4 @@ void SkScan::FillRect(const SkRect& r, const SkRasterClip& clip,
 }
 
 #endif
+

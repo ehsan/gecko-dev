@@ -4,47 +4,42 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "LayerManagerOGL.h"
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uint32_t, uint8_t, etc
-#include "CanvasLayerOGL.h"             // for CanvasLayerOGL
-#include "ColorLayerOGL.h"              // for ColorLayerOGL
-#include "Composer2D.h"                 // for Composer2D
-#include "ContainerLayerOGL.h"          // for ContainerLayerOGL
-#include "FPSCounter.h"                 // for FPSState, FPSCounter
-#include "GLContext.h"                  // for GLContext, etc
-#include "GLContextProvider.h"          // for GLContextProvider
-#include "GeckoProfiler.h"              // for PROFILER_LABEL
-#include "ImageLayerOGL.h"              // for ImageLayerOGL
-#include "ImageLayers.h"                // for ImageLayer
-#include "ThebesLayerOGL.h"             // for ThebesLayerOGL
-#include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "gfxASurface.h"                // for gfxASurface, etc
-#include "gfxContext.h"                 // for gfxContext, etc
-#include "gfxCrashReporterUtils.h"      // for ScopedGfxFeatureReporter
-#include "gfxImageSurface.h"            // for gfxImageSurface
-#include "gfxPlatform.h"                // for gfxPlatform
-#include "gfxRect.h"                    // for gfxRect
-#include "gfxUtils.h"                   // for NextPowerOfTwo, gfxUtils, etc
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/Preferences.h"        // for Preferences
-#include "mozilla/TimeStamp.h"          // for TimeStamp
-#include "mozilla/Util.h"               // for ArrayLength
-#include "mozilla/gfx/2D.h"             // for DrawTarget
-#include "mozilla/gfx/BasePoint.h"      // for BasePoint
-#include "mozilla/mozalloc.h"           // for operator delete, etc
-#include "nsIConsoleService.h"          // for nsIConsoleService, etc
-#include "nsIWidget.h"                  // for nsIWidget
-#include "nsLiteralString.h"            // for NS_LITERAL_STRING
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsServiceManagerUtils.h"      // for do_GetService
-#include "nsString.h"                   // for nsAutoCString, nsString, etc
-#include "LayerManagerOGLProgram.h"     // for ShaderProgramOGL, etc
-#ifdef XP_WIN
-#include "prenv.h"                      // for PR_GetEnv
-#endif
+
+#include "mozilla/layers/PLayers.h"
+#include <algorithm>
+
+/* This must occur *after* layers/PLayers.h to avoid typedefs conflicts. */
+#include "mozilla/Util.h"
+
+#include "Composer2D.h"
+#include "ThebesLayerOGL.h"
+#include "ContainerLayerOGL.h"
+#include "ImageLayerOGL.h"
+#include "ColorLayerOGL.h"
+#include "CanvasLayerOGL.h"
+#include "mozilla/TimeStamp.h"
+#include "mozilla/Preferences.h"
+#include "TexturePoolOGL.h"
+
+#include "gfxContext.h"
+#include "gfxUtils.h"
+#include "gfxPlatform.h"
+#include "nsIWidget.h"
+
+#include "GLContext.h"
+#include "GLContextProvider.h"
+#include "Composer2D.h"
+#include "FPSCounter.h"
+
+#include "nsIServiceManager.h"
+#include "nsIConsoleService.h"
+
+#include "gfxCrashReporterUtils.h"
+
+#include "GeckoProfiler.h"
+
 #ifdef MOZ_WIDGET_ANDROID
 #include <android/log.h>
-#include "TexturePoolOGL.h"
 #endif
 #ifdef XP_MACOSX
 #include "gfxPlatformMac.h"
@@ -173,8 +168,6 @@ LayerManagerOGL::Destroy()
     mRoot = nullptr;
   }
 
-  mWidget->CleanupWindowEffects();
-
   if (!mGLContext)
     return;
 
@@ -254,6 +247,7 @@ LayerManagerOGL::ReadDrawFPSPref::Run()
 {
   // NOTE: This must match the code in Initialize()'s NS_IsMainThread check.
   Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
+  Preferences::AddBoolVarCache(&sFrameCounter, "layers.acceleration.frame-counter");
   return NS_OK;
 }
 
@@ -296,7 +290,7 @@ LayerManagerOGL::Initialize(bool force)
   }
 
   // initialise a common shader to check that we can actually compile a shader
-  if (!mPrograms[RGBALayerProgramType].mVariations[MaskNone]->Initialize()) {
+  if (!mPrograms[gl::RGBALayerProgramType].mVariations[MaskNone]->Initialize()) {
 #ifdef MOZ_WIDGET_ANDROID
     NS_RUNTIMEABORT("Shader initialization failed");
 #endif
@@ -344,7 +338,7 @@ LayerManagerOGL::Initialize(bool force)
                               0,
                               LOCAL_GL_RGBA,
                               LOCAL_GL_UNSIGNED_BYTE,
-                              nullptr);
+                              NULL);
 
       // unbind this texture, in preparation for binding it to the FBO
       mGLContext->fBindTexture(target, 0);
@@ -444,6 +438,7 @@ LayerManagerOGL::Initialize(bool force)
   if (NS_IsMainThread()) {
     // NOTE: This must match the code in ReadDrawFPSPref::Run().
     Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
+    Preferences::AddBoolVarCache(&sFrameCounter, "layers.acceleration.frame-counter");
   } else {
     // We have to dispatch an event to the main thread to read the pref.
     NS_DispatchToMainThread(new ReadDrawFPSPref());
@@ -569,7 +564,7 @@ LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
     mThebesLayerCallbackData = nullptr;
   }
 
-  mTarget = nullptr;
+  mTarget = NULL;
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   Log();
@@ -581,7 +576,7 @@ already_AddRefed<gfxASurface>
 LayerManagerOGL::CreateOptimalMaskSurface(const gfxIntSize &aSize)
 {
   return gfxPlatform::GetPlatform()->
-    CreateOffscreenImageSurface(aSize, GFX_CONTENT_ALPHA);
+    CreateOffscreenImageSurface(aSize, gfxASurface::CONTENT_ALPHA);
 }
 
 already_AddRefed<ThebesLayer>
@@ -691,6 +686,8 @@ LayerManagerOGL::RootLayer() const
 }
 
 bool LayerManagerOGL::sDrawFPS = false;
+bool LayerManagerOGL::sFrameCounter = false;
+
 
 // |aTexCoordRect| is the rectangle from the texture that we want to
 // draw using the given program.  The program already has a necessary
@@ -787,7 +784,6 @@ LayerManagerOGL::Render()
       // thread, and undoes all the care we take with layers txns being
       // sent atomically with rotation changes
       mWidget->GetClientBounds(rect);
-      rect.x = rect.y = 0;
     }
   }
   WorldTransformRect(rect);
@@ -853,7 +849,6 @@ LayerManagerOGL::Render()
 #endif
 
   // Allow widget to render a custom background.
-  mWidget->PrepareWindowEffects();
   mWidget->DrawWindowUnderlay(this, rect);
 
   // Reset some state that might of been clobbered by the underlay.
@@ -875,7 +870,7 @@ LayerManagerOGL::Render()
     } else {
       mWidget->GetClientBounds(rect);
     }
-    nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(rect.Size(), GFX_CONTENT_COLOR_ALPHA);
+    nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(rect.Size(), gfxASurface::CONTENT_COLOR_ALPHA);
     nsRefPtr<gfxContext> ctx = new gfxContext(surf);
     CopyToTarget(ctx);
 
@@ -896,7 +891,9 @@ LayerManagerOGL::Render()
   }
 
   if (mFPS) {
-    mFPS->DrawFPS(TimeStamp::Now(), 0, mGLContext, GetProgram(Copy2DProgramType));
+    mFPS->DrawFPS(TimeStamp::Now(), mGLContext, GetProgram(Copy2DProgramType));
+  } else if (sFrameCounter) {
+    FPSState::DrawFrameCounter(mGLContext);
   }
 
   if (mGLContext->IsDoubleBuffered()) {
@@ -1083,7 +1080,7 @@ LayerManagerOGL::SetupBackBuffer(int aWidth, int aHeight)
                           0,
                           LOCAL_GL_RGBA,
                           LOCAL_GL_UNSIGNED_BYTE,
-                          nullptr);
+                          NULL);
   mGLContext->fBindTexture(mFBOTextureTarget, 0);
 
   mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mBackBufferFBO);
@@ -1124,7 +1121,7 @@ LayerManagerOGL::CopyToTarget(gfxContext *aTarget)
 
   nsRefPtr<gfxImageSurface> imageSurface =
     new gfxImageSurface(gfxIntSize(width, height),
-                        gfxImageFormatARGB32);
+                        gfxASurface::ImageFormatARGB32);
 
   mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER,
                                mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO);
@@ -1171,7 +1168,7 @@ LayerManagerOGL::SetLayerProgramProjectionMatrix(const gfx3DMatrix& aMatrix)
 }
 
 static GLenum
-LayerManagerOGL_GetFrameBufferInternalFormat(GLContext* gl,
+GetFrameBufferInternalFormat(GLContext* gl,
                              GLuint aCurrentFrameBuffer,
                              nsIWidget* aWidget)
 {
@@ -1181,7 +1178,7 @@ LayerManagerOGL_GetFrameBufferInternalFormat(GLContext* gl,
   return LOCAL_GL_RGBA;
 }
 
-bool
+void
 LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
                                       GLuint aCurrentFrameBuffer,
                                       GLuint *aFBO, GLuint *aTexture)
@@ -1199,7 +1196,7 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
     // check the format of the framebuffer here and take a slow path
     // if it's incompatible.
     GLenum format =
-      LayerManagerOGL_GetFrameBufferInternalFormat(gl(), aCurrentFrameBuffer, mWidget);
+      GetFrameBufferInternalFormat(gl(), aCurrentFrameBuffer, mWidget);
  
     bool isFormatCompatibleWithRGBA
         = gl()->IsGLES2() ? (format == LOCAL_GL_RGBA)
@@ -1241,7 +1238,7 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
                             0,
                             LOCAL_GL_RGBA,
                             LOCAL_GL_UNSIGNED_BYTE,
-                            nullptr);
+                            NULL);
   }
   mGLContext->fTexParameteri(mFBOTextureTarget, LOCAL_GL_TEXTURE_MIN_FILTER,
                              LOCAL_GL_LINEAR);
@@ -1274,12 +1271,7 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
     msg.AppendInt(aRect.width);
     msg.Append(", aRect.height ");
     msg.AppendInt(aRect.height);
-    NS_WARNING(msg.get());
-
-    mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
-    mGLContext->fDeleteFramebuffers(1, &fbo);
-    mGLContext->fDeleteTextures(1, &tex);
-    return false;
+    NS_RUNTIMEABORT(msg.get());
   }
 
   SetupPipeline(aRect.width, aRect.height, DontApplyWorldTransform);
@@ -1292,7 +1284,6 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
 
   *aFBO = fbo;
   *aTexture = tex;
-  return true;
 }
 
 TemporaryRef<DrawTarget>

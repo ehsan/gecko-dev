@@ -14,7 +14,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEComponentTransferElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEComponentTransferElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEComponentTransferElementBinding::Wrap(aCx, aScope, this);
 }
@@ -30,7 +30,7 @@ nsSVGElement::StringInfo SVGFEComponentTransferElement::sStringInfo[2] =
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEComponentTransferElement)
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEComponentTransferElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);

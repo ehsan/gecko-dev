@@ -10,13 +10,11 @@
 #include "mozilla/dom/Attr.h"
 #include "mozilla/dom/AttrBinding.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/MutationEvent.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsINameSpaceManager.h"
 #include "nsError.h"
 #include "nsUnicharUtils.h"
 #include "nsDOMString.h"
-#include "nsIContentInlines.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMUserDataHandler.h"
@@ -27,15 +25,11 @@
 #include "nsEventListenerManager.h"
 #include "nsTextNode.h"
 #include "mozAutoDocUpdate.h"
+#include "nsMutationEvent.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsWrapperCacheInlines.h"
 
-nsIAttribute::nsIAttribute(nsDOMAttributeMap* aAttrMap,
-                           already_AddRefed<nsINodeInfo> aNodeInfo,
-                           bool aNsAware)
-: nsINode(aNodeInfo), mAttrMap(aAttrMap), mNsAware(aNsAware)
-{
-}
+DOMCI_NODE_DATA(Attr, mozilla::dom::Attr)
 
 namespace mozilla {
 namespace dom {
@@ -58,63 +52,38 @@ Attr::Attr(nsDOMAttributeMap *aAttrMap,
   SetIsDOMBinding();
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(Attr)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Attr)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 
   if (!nsINode::Traverse(tmp, cb)) {
     return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAttrMap)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(Attr)
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(Attr)
+  nsINode::Trace(tmp, aCallback, aClosure);
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Attr)
   nsINode::Unlink(tmp);
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mAttrMap)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(Attr)
-  Element* ownerElement = tmp->GetContentInternal();
-  if (tmp->IsBlack()) {
-    if (ownerElement) {
-      // The attribute owns the element via attribute map so we can
-      // mark it when the attribute is certainly alive.
-      mozilla::dom::FragmentOrElement::MarkNodeChildren(ownerElement);
-    }
-    return true;
-  }
-  if (ownerElement &&
-      mozilla::dom::FragmentOrElement::CanSkip(ownerElement, true)) {
-    return true;
-  }
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(Attr)
-  return tmp->IsBlackAndDoesNotNeedTracing(static_cast<nsIAttribute*>(tmp));
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(Attr)
-  return tmp->IsBlack();
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
 // QueryInterface implementation for Attr
 NS_INTERFACE_TABLE_HEAD(Attr)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_TABLE6(Attr, nsINode, nsIDOMAttr, nsIAttribute, nsIDOMNode,
-                      nsIDOMEventTarget, EventTarget)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(Attr)
+  NS_NODE_INTERFACE_TABLE5(Attr, nsIDOMAttr, nsIAttribute, nsIDOMNode,
+                           nsIDOMEventTarget, EventTarget)
+  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(Attr)
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsISupportsWeakReference,
                                  new nsNodeSupportsWeakRefTearoff(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
                                  new nsNode3Tearoff(this))
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Attr)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(Attr)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_LAST_RELEASE(Attr,
-                                                   nsNodeUtils::LastRelease(this))
+NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(Attr,
+                                              nsNodeUtils::LastRelease(this))
 
 void
 Attr::SetMap(nsDOMAttributeMap *aMap)
@@ -164,6 +133,7 @@ Attr::GetName(nsAString& aName)
 already_AddRefed<nsIAtom>
 Attr::GetNameAtom(nsIContent* aContent)
 {
+  nsIAtom* result = nullptr;
   if (!mNsAware &&
       mNodeInfo->NamespaceID() == kNameSpaceID_None &&
       aContent->IsInHTMLDocument() &&
@@ -172,10 +142,13 @@ Attr::GetNameAtom(nsIContent* aContent)
     mNodeInfo->GetName(name);
     nsAutoString lowercaseName;
     nsContentUtils::ASCIIToLower(name, lowercaseName);
-    return do_GetAtom(lowercaseName);
+    nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(lowercaseName);
+    nameAtom.swap(result);
+  } else {
+    nsCOMPtr<nsIAtom> nameAtom = mNodeInfo->NameAtom();
+    nameAtom.swap(result);
   }
-  nsCOMPtr<nsIAtom> nameAtom = mNodeInfo->NameAtom();
-  return nameAtom.forget();
+  return result;
 }
 
 NS_IMETHODIMP
@@ -373,6 +346,12 @@ Attr::InsertChildAt(nsIContent* aKid, uint32_t aIndex,
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+nsresult
+Attr::AppendChildTo(nsIContent* aKid, bool aNotify)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 void
 Attr::RemoveChildAt(uint32_t aIndex, bool aNotify)
 {
@@ -398,15 +377,9 @@ Attr::Shutdown()
 }
 
 JSObject*
-Attr::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+Attr::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return AttrBinding::Wrap(aCx, aScope, this);
-}
-
-Element*
-Attr::GetContentInternal() const
-{
-  return mAttrMap ? mAttrMap->GetContent() : nullptr;
 }
 
 } // namespace dom

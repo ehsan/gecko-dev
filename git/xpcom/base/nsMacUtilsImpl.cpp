@@ -6,6 +6,7 @@
 #include "nsMacUtilsImpl.h"
 
 #include <CoreFoundation/CoreFoundation.h>
+#include <sys/sysctl.h>
 
 NS_IMPL_ISUPPORTS1(nsMacUtilsImpl, nsIMacUtils)
 
@@ -123,7 +124,7 @@ NS_IMETHODIMP nsMacUtilsImpl::GetIsTranslated(bool *aIsTranslated)
 
   if (!sInitialized) {
     size_t sz = sizeof(sIsNative);
-    sysctlbyname("sysctl.proc_native", &sIsNative, &sz, nullptr, 0);
+    sysctlbyname("sysctl.proc_native", &sIsNative, &sz, NULL, 0);
     sInitialized = true;
   }
 

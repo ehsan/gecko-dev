@@ -2,16 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "Crypto.h"
+#include "nsIDOMClassInfo.h"
+#include "DOMError.h"
+#include "nsString.h"
+#include "jsapi.h"
 #include "jsfriendapi.h"
+#include "nsIServiceManager.h"
 #include "nsCOMPtr.h"
 #include "nsIRandomGenerator.h"
-#include "nsPIDOMWindow.h"
-#include "MainThreadUtils.h"
-#include "nsXULAppAPI.h"
 
 #include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/CryptoBinding.h"
-#include "nsServiceManagerUtils.h"
 
 using mozilla::dom::ContentChild;
 
@@ -20,21 +20,18 @@ using namespace js::ArrayBufferView;
 namespace mozilla {
 namespace dom {
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(Crypto)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+NS_INTERFACE_MAP_BEGIN(Crypto)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCrypto)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Crypto)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(Crypto)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(Crypto)
-
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(Crypto, mWindow)
+NS_IMPL_ADDREF(Crypto)
+NS_IMPL_RELEASE(Crypto)
 
 Crypto::Crypto()
 {
   MOZ_COUNT_CTOR(Crypto);
-  SetIsDOMBinding();
 }
 
 Crypto::~Crypto()
@@ -42,26 +39,23 @@ Crypto::~Crypto()
   MOZ_COUNT_DTOR(Crypto);
 }
 
-void
-Crypto::Init(nsIDOMWindow* aWindow)
-{
-  mWindow = do_QueryInterface(aWindow);
-  MOZ_ASSERT(mWindow);
-}
-
-/* virtual */ JSObject*
-Crypto::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
-{
-  return CryptoBinding::Wrap(aCx, aScope, this);
-}
-
-JSObject *
-Crypto::GetRandomValues(JSContext* aCx, const ArrayBufferView& aArray,
-			ErrorResult& aRv)
+NS_IMETHODIMP
+Crypto::GetRandomValues(const JS::Value& aData, JSContext *cx,
+                        JS::Value* _retval)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Called on the wrong thread");
 
-  JS::Rooted<JSObject*> view(aCx, aArray.Obj());
+  // Make sure this is a JavaScript object
+  if (!aData.isObject()) {
+    return NS_ERROR_DOM_NOT_OBJECT_ERR;
+  }
+
+  JSObject* view = &aData.toObject();
+
+  // Make sure this object is an ArrayBufferView
+  if (!JS_IsTypedArrayObject(view)) {
+    return NS_ERROR_DOM_TYPE_MISMATCH_ERR;
+  }
 
   // Throw if the wrong type of ArrayBufferView is passed in
   // (Part of the Web Crypto API spec)
@@ -75,29 +69,29 @@ Crypto::GetRandomValues(JSContext* aCx, const ArrayBufferView& aArray,
     case TYPE_UINT32:
       break;
     default:
-      aRv.Throw(NS_ERROR_DOM_TYPE_MISMATCH_ERR);
-      return nullptr;
+      return NS_ERROR_DOM_TYPE_MISMATCH_ERR;
   }
 
-  uint32_t dataLen = aArray.Length();
+  uint32_t dataLen = JS_GetTypedArrayByteLength(view);
+
   if (dataLen == 0) {
     NS_WARNING("ArrayBufferView length is 0, cannot continue");
-    return view;
+    return NS_OK;
   } else if (dataLen > 65536) {
-    aRv.Throw(NS_ERROR_DOM_QUOTA_EXCEEDED_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_QUOTA_EXCEEDED_ERR;
   }
 
-  uint8_t* data = aArray.Data();
+  void *dataptr = JS_GetArrayBufferViewData(view);
+  NS_ENSURE_TRUE(dataptr, NS_ERROR_FAILURE);
+  unsigned char* data =
+    static_cast<unsigned char*>(dataptr);
 
   if (XRE_GetProcessType() != GeckoProcessType_Default) {
     InfallibleTArray<uint8_t> randomValues;
     // Tell the parent process to generate random values via PContent
     ContentChild* cc = ContentChild::GetSingleton();
-    if (!cc->SendGetRandomValues(dataLen, &randomValues) ||
-        randomValues.Length() == 0) {
-      aRv.Throw(NS_ERROR_FAILURE);
-      return nullptr;
+    if (!cc->SendGetRandomValues(dataLen, &randomValues)) {
+      return NS_ERROR_FAILURE;
     }
     NS_ASSERTION(dataLen == randomValues.Length(),
                  "Invalid length returned from parent process!");
@@ -106,20 +100,27 @@ Crypto::GetRandomValues(JSContext* aCx, const ArrayBufferView& aArray,
     uint8_t *buf = GetRandomValues(dataLen);
 
     if (!buf) {
-      aRv.Throw(NS_ERROR_FAILURE);
-      return nullptr;
+      return NS_ERROR_FAILURE;
     }
 
     memcpy(data, buf, dataLen);
     NS_Free(buf);
   }
 
-  return view;
+  *_retval = OBJECT_TO_JSVAL(view);
+
+  return NS_OK;
 }
 
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
 // Stub out the legacy nsIDOMCrypto methods. The actual
 // implementations are in security/manager/ssl/src/nsCrypto.{cpp,h}
+
+NS_IMETHODIMP
+Crypto::GetVersion(nsAString & aVersion)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
 
 NS_IMETHODIMP
 Crypto::GetEnableSmartCardEvents(bool *aEnableSmartCardEvents)
@@ -133,92 +134,60 @@ Crypto::SetEnableSmartCardEvents(bool aEnableSmartCardEvents)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-bool
-Crypto::EnableSmartCardEvents()
+NS_IMETHODIMP
+Crypto::GenerateCRMFRequest(nsIDOMCRMFObject * *_retval)
 {
-  return false;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-void
-Crypto::SetEnableSmartCardEvents(bool aEnable, ErrorResult& aRv)
+NS_IMETHODIMP
+Crypto::ImportUserCertificates(const nsAString & nickname,
+                               const nsAString & cmmfResponse,
+                               bool doForcedBackup, nsAString & _retval)
 {
-  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-void
-Crypto::GetVersion(nsString& aVersion)
+NS_IMETHODIMP
+Crypto::PopChallengeResponse(const nsAString & challenge,
+                             nsAString & _retval)
 {
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-already_AddRefed<nsIDOMCRMFObject>
-Crypto::GenerateCRMFRequest(JSContext* aContext,
-                            const nsCString& aReqDN,
-                            const nsCString& aRegToken,
-                            const nsCString& aAuthenticator,
-                            const nsCString& aEaCert,
-                            const nsCString& aJsCallback,
-                            const Sequence<JS::Value>& aArgs,
-                            ErrorResult& aRv)
+NS_IMETHODIMP
+Crypto::Random(int32_t numBytes, nsAString & _retval)
 {
-  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
-  return nullptr;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-void
-Crypto::ImportUserCertificates(const nsAString& aNickname,
-                               const nsAString& aCmmfResponse,
-                               bool aDoForcedBackup,
-                               nsAString& aReturn,
-                               ErrorResult& aRv)
+NS_IMETHODIMP
+Crypto::SignText(const nsAString & stringToSign, const nsAString & caOption,
+                 nsAString & _retval)
 {
-  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-void
-Crypto::PopChallengeResponse(const nsAString& aChallenge,
-                             nsAString& aReturn,
-                             ErrorResult& aRv)
+NS_IMETHODIMP
+Crypto::Logout()
 {
-  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-void
-Crypto::Random(int32_t aNumBytes, nsAString& aReturn, ErrorResult& aRv)
+NS_IMETHODIMP
+Crypto::DisableRightClick()
 {
-  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
-
-void
-Crypto::SignText(JSContext* aContext,
-                 const nsAString& aStringToSign,
-                 const nsAString& aCaOption,
-                 const Sequence<nsCString>& aArgs,
-                 nsAString& aReturn)
-
-{
-  aReturn.AssignLiteral("error:internalError");
-}
-
-void
-Crypto::Logout(ErrorResult& aRv)
-{
-  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
-}
-
-void
-Crypto::DisableRightClick(ErrorResult& aRv)
-{
-  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
-}
-
 #endif
 
-/* static */ uint8_t*
+uint8_t*
 Crypto::GetRandomValues(uint32_t aLength)
 {
   nsCOMPtr<nsIRandomGenerator> randomGenerator;
   nsresult rv;
-  randomGenerator = do_GetService("@mozilla.org/security/random-generator;1");
+  randomGenerator =
+    do_GetService("@mozilla.org/security/random-generator;1");
   NS_ENSURE_TRUE(randomGenerator, nullptr);
 
   uint8_t* buf;

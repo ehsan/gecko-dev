@@ -7,7 +7,6 @@ this.EXPORTED_SYMBOLS = [ "BookmarkJSONUtils" ];
 const Ci = Components.interfaces;
 const Cc = Components.classes;
 const Cu = Components.utils;
-const Cr = Components.results;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
@@ -66,65 +65,6 @@ this.BookmarkJSONUtils = Object.freeze({
   exportToFile: function BJU_exportToFile(aLocalFile) {
     let exporter = new BookmarkExporter();
     return exporter.exportToFile(aLocalFile);
-  },
-
-  /**
-   * Takes a JSON-serialized node and inserts it into the db.
-   *
-   * @param aData
-   *        The unwrapped data blob of dropped or pasted data.
-   * @param aContainer
-   *        The container the data was dropped or pasted into
-   * @param aIndex
-   *        The index within the container the item was dropped or pasted at
-   * @return {Promise}
-   * @resolves an array containing of maps of old folder ids to new folder ids,
-   *           and an array of saved search ids that need to be fixed up.
-   *           eg: [[[oldFolder1, newFolder1]], [search1]]
-   * @rejects JavaScript exception.
-   */
-  importJSONNode: function BJU_importJSONNode(aData, aContainer, aIndex,
-                                              aGrandParentId) {
-    let importer = new BookmarkImporter();
-    // Can't make importJSONNode a task until we have made the
-    // runInBatchMode in BI_importFromJSON to run asynchronously. Bug 890203
-    return Promise.resolve(importer.importJSONNode(aData, aContainer, aIndex, aGrandParentId));
-  },
-
-  /**
-   * Serializes the given node (and all its descendents) as JSON
-   * and writes the serialization to the given output stream.
-   *
-   * @param   aNode
-   *          An nsINavHistoryResultNode
-   * @param   aStream
-   *          An nsIOutputStream. NOTE: it only uses the write(str, len)
-   *          method of nsIOutputStream. The caller is responsible for
-   *          closing the stream.
-   * @param   aIsUICommand
-   *          Boolean - If true, modifies serialization so that each node self-contained.
-   *          For Example, tags are serialized inline with each bookmark.
-   * @param   aResolveShortcuts
-   *          Converts folder shortcuts into actual folders.
-   * @param   aExcludeItems
-   *          An array of item ids that should not be written to the backup.
-   * @return {Promise}
-   * @resolves When node have been serialized and wrote to output stream.
-   * @rejects JavaScript exception.
-   */
-  serializeNodeAsJSONToOutputStream: function BJU_serializeNodeAsJSONToOutputStream(
-    aNode, aStream, aIsUICommand, aResolveShortcuts, aExcludeItems) {
-    let deferred = Promise.defer();
-    Services.tm.mainThread.dispatch(function() {
-      try {
-        BookmarkNode.serializeAsJSONToOutputStream(
-          aNode, aStream, aIsUICommand, aResolveShortcuts, aExcludeItems);
-        deferred.resolve();
-      } catch (ex) {
-        deferred.reject(ex);
-      }
-    }, Ci.nsIThread.DISPATCH_NORMAL);
-    return deferred.promise;
   }
 });
 
@@ -271,9 +211,9 @@ BookmarkImporter.prototype = {
           let searchIds = [];
           let folderIdMap = [];
 
-          for (let node of batch.nodes) {
+          batch.nodes.forEach(function(node) {
             if (!node.children || node.children.length == 0)
-              continue; // Nothing to restore for this root
+              return; // Nothing to restore for this root
 
             if (node.root) {
               let container = PlacesUtils.placesRootId; // Default to places root
@@ -293,7 +233,7 @@ BookmarkImporter.prototype = {
               }
 
               // Insert the data into the db
-              for (let child of node.children) {
+              node.children.forEach(function(child) {
                 let index = child.index;
                 let [folders, searches] =
                   this.importJSONNode(child, container, index, 0);
@@ -302,12 +242,12 @@ BookmarkImporter.prototype = {
                     folderIdMap[i] = folders[i];
                 }
                 searchIds = searchIds.concat(searches);
-              }
+              }.bind(this));
             } else {
               this.importJSONNode(
                 node, PlacesUtils.placesRootId, node.index, 0);
             }
-          }
+          }.bind(this));
 
           // Fixup imported place: uris that contain folders
           searchIds.forEach(function(aId) {
@@ -318,12 +258,15 @@ BookmarkImporter.prototype = {
             }
           });
 
-          deferred.resolve();
+          Services.tm.mainThread.dispatch(function() {
+            deferred.resolve();
+          }, Ci.nsIThread.DISPATCH_NORMAL);
         }.bind(this)
       };
 
       PlacesUtils.bookmarks.runInBatchMode(batch, null);
     }
+
     return deferred.promise;
   },
 
@@ -396,21 +339,20 @@ BookmarkImporter.prototype = {
             });
           }
         } else {
-          id = PlacesUtils.bookmarks.createFolder(
-                 aContainer, aData.title, aIndex);
+          id =
+            PlacesUtils.bookmarks.createFolder(aContainer, aData.title, aIndex);
           folderIdMap[aData.id] = id;
           // Process children
           if (aData.children) {
-            for (let i = 0; i < aData.children.length; i++) {
-              let child = aData.children[i];
+            aData.children.forEach(function(aChild, aIndex) {
               let [folders, searches] =
-                this.importJSONNode(child, id, i, aContainer);
-              for (let j = 0; j < folders.length; j++) {
-                if (folders[j])
-                  folderIdMap[j] = folders[j];
+                this.importJSONNode(aChild, id, aIndex, aContainer);
+              for (let i = 0; i < folders.length; i++) {
+                if (folders[i])
+                  folderIdMap[i] = folders[i];
               }
               searchIds = searchIds.concat(searches);
-            }
+            }.bind(this));
           }
         }
         break;
@@ -425,9 +367,8 @@ BookmarkImporter.prototype = {
             PlacesUtils.tagging.tagURI(NetUtil.newURI(aData.uri), tags);
         }
         if (aData.charset) {
-          PlacesUtils.annotations.setPageAnnotation(
-            NetUtil.newURI(aData.uri), PlacesUtils.CHARSET_ANNO, aData.charset,
-            0, Ci.nsIAnnotationService.EXPIRE_NEVER);
+          PlacesUtils.history.setCharsetForURI(
+            NetUtil.newURI(aData.uri), aData.charset);
         }
         if (aData.uri.substr(0, 6) == "place:")
           searchIds.push(id);
@@ -514,7 +455,6 @@ BookmarkExporter.prototype = {
                       createInstance(Ci.nsIFileOutputStream);
     safeFileOut.init(aLocalFile, FileUtils.MODE_WRONLY | FileUtils.MODE_CREATE |
                      FileUtils.MODE_TRUNCATE, parseInt("0600", 8), 0);
-    let nodeCount;
 
     try {
       // We need a buffered output stream for performance.  See bug 202477.
@@ -527,7 +467,7 @@ BookmarkExporter.prototype = {
                              createInstance(Ci.nsIConverterOutputStream);
         this._converterOut.init(bufferedOut, "utf-8", 0, 0);
         try {
-          nodeCount = yield this._writeContentToFile();
+          yield this._writeContentToFile();
 
           // Flush the buffer and retain the target file on success only.
           bufferedOut.QueryInterface(Ci.nsISafeOutputStream).finish();
@@ -541,34 +481,27 @@ BookmarkExporter.prototype = {
     } finally {
       safeFileOut.close();
     }
-    throw new Task.Result(nodeCount);
   },
 
   _writeContentToFile: function BE__writeContentToFile() {
-    return Task.spawn(function() {
-      // Weep over stream interface variance.
-      let streamProxy = {
-        converter: this._converterOut,
-        write: function(aData, aLen) {
-          this.converter.writeString(aData);
-        }
-      };
+    // Weep over stream interface variance.
+    let streamProxy = {
+      converter: this._converterOut,
+      write: function(aData, aLen) {
+        this.converter.writeString(aData);
+      }
+    };
 
-      // Get list of itemIds that must be excluded from the backup.
-      let excludeItems = PlacesUtils.annotations.getItemsWithAnnotation(
-                           PlacesUtils.EXCLUDE_FROM_BACKUP_ANNO);
-      let root = PlacesUtils.getFolderContents(PlacesUtils.placesRootId, false,
-                                               false).root;
-      // Serialize to JSON and write to stream.
-      let nodeCount = yield BookmarkNode.serializeAsJSONToOutputStream(root,
-                                                                       streamProxy,
-                                                                       false,
-                                                                       false,
-                                                                       excludeItems);
-      root.containerOpen = false;
+    // Get list of itemIds that must be excluded from the backup.
+    let excludeItems = PlacesUtils.annotations.getItemsWithAnnotation(
+                         PlacesUtils.EXCLUDE_FROM_BACKUP_ANNO);
+    let root = PlacesUtils.getFolderContents(PlacesUtils.placesRootId, false,
+                                             false).root;
 
-      throw new Task.Result(nodeCount);
-    }.bind(this));
+    // Serialize to JSON and write to stream.
+    BookmarkNode.serializeAsJSONToOutputStream(root, streamProxy, false, false,
+                                               excludeItems);
+    root.containerOpen = false;
   }
 }
 
@@ -590,92 +523,75 @@ let BookmarkNode = {
    *          Converts folder shortcuts into actual folders.
    * @param   aExcludeItems
    *          An array of item ids that should not be written to the backup.
-   * @returns Task promise
-   * @resolves the number of serialized uri nodes.
    */
   serializeAsJSONToOutputStream: function BN_serializeAsJSONToOutputStream(
     aNode, aStream, aIsUICommand, aResolveShortcuts, aExcludeItems) {
 
-    return Task.spawn(function() {
-      // Serialize to stream
-      let array = [];
-      let result = yield this._appendConvertedNode(aNode, null, array,
-                                                   aIsUICommand,
-                                                   aResolveShortcuts,
-                                                   aExcludeItems);
-      if (result.appendedNode) {
-        let json = JSON.stringify(array[0]);
-        aStream.write(json, json.length);
-      } else {
-        throw Cr.NS_ERROR_UNEXPECTED;
-      }
-      throw new Task.Result(result.nodeCount);
-    }.bind(this));
+    // Serialize to stream
+    let array = [];
+    if (this._appendConvertedNode(aNode, null, array, aIsUICommand,
+                                  aResolveShortcuts, aExcludeItems)) {
+      let json = JSON.stringify(array[0]);
+      aStream.write(json, json.length);
+    } else {
+      throw Cr.NS_ERROR_UNEXPECTED;
+    }
   },
 
   _appendConvertedNode: function BN__appendConvertedNode(
     bNode, aIndex, aArray, aIsUICommand, aResolveShortcuts, aExcludeItems) {
-    return Task.spawn(function() {
-      let node = {};
-      let nodeCount = 0;
+    let node = {};
 
-      // Set index in order received
-      // XXX handy shortcut, but are there cases where we don't want
-      // to export using the sorting provided by the query?
-      if (aIndex)
-        node.index = aIndex;
+    // Set index in order received
+    // XXX handy shortcut, but are there cases where we don't want
+    // to export using the sorting provided by the query?
+    if (aIndex)
+      node.index = aIndex;
 
-      this._addGenericProperties(bNode, node, aResolveShortcuts);
+    this._addGenericProperties(bNode, node, aResolveShortcuts);
 
-      let parent = bNode.parent;
-      let grandParent = parent ? parent.parent : null;
+    let parent = bNode.parent;
+    let grandParent = parent ? parent.parent : null;
 
-      if (PlacesUtils.nodeIsURI(bNode)) {
-        // Tag root accept only folder nodes
-        if (parent && parent.itemId == PlacesUtils.tagsFolderId)
-          throw new Task.Result({ appendedNode: false, nodeCount: nodeCount });
+    if (PlacesUtils.nodeIsURI(bNode)) {
+      // Tag root accept only folder nodes
+      if (parent && parent.itemId == PlacesUtils.tagsFolderId)
+        return false;
 
-        // Check for url validity, since we can't halt while writing a backup.
-        // This will throw if we try to serialize an invalid url and it does
-        // not make sense saving a wrong or corrupt uri node.
-        try {
-          NetUtil.newURI(bNode.uri);
-        } catch (ex) {
-          throw new Task.Result({ appendedNode: false, nodeCount: nodeCount });
-        }
-
-        yield this._addURIProperties(bNode, node, aIsUICommand);
-        nodeCount++;
-      } else if (PlacesUtils.nodeIsContainer(bNode)) {
-        // Tag containers accept only uri nodes
-        if (grandParent && grandParent.itemId == PlacesUtils.tagsFolderId)
-          throw new Task.Result({ appendedNode: false, nodeCount: nodeCount });
-
-        this._addContainerProperties(bNode, node, aIsUICommand,
-                                     aResolveShortcuts);
-      } else if (PlacesUtils.nodeIsSeparator(bNode)) {
-        // Tag root accept only folder nodes
-        // Tag containers accept only uri nodes
-        if ((parent && parent.itemId == PlacesUtils.tagsFolderId) ||
-            (grandParent && grandParent.itemId == PlacesUtils.tagsFolderId))
-          throw new Task.Result({ appendedNode: false, nodeCount: nodeCount });
-
-        this._addSeparatorProperties(bNode, node);
+      // Check for url validity, since we can't halt while writing a backup.
+      // This will throw if we try to serialize an invalid url and it does
+      // not make sense saving a wrong or corrupt uri node.
+      try {
+        NetUtil.newURI(bNode.uri);
+      } catch (ex) {
+        return false;
       }
 
-      if (!node.feedURI && node.type == PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER) {
-        nodeCount += yield this._appendConvertedComplexNode(node,
-                                                           bNode,
-                                                           aArray,
-                                                           aIsUICommand,
-                                                           aResolveShortcuts,
-                                                           aExcludeItems)
-        throw new Task.Result({ appendedNode: true, nodeCount: nodeCount });
-      }
+      this._addURIProperties(bNode, node, aIsUICommand);
+    } else if (PlacesUtils.nodeIsContainer(bNode)) {
+      // Tag containers accept only uri nodes
+      if (grandParent && grandParent.itemId == PlacesUtils.tagsFolderId)
+        return false;
 
-      aArray.push(node);
-      throw new Task.Result({ appendedNode: true, nodeCount: nodeCount });
-    }.bind(this));
+      this._addContainerProperties(bNode, node, aIsUICommand,
+                                   aResolveShortcuts);
+    } else if (PlacesUtils.nodeIsSeparator(bNode)) {
+      // Tag root accept only folder nodes
+      // Tag containers accept only uri nodes
+      if ((parent && parent.itemId == PlacesUtils.tagsFolderId) ||
+          (grandParent && grandParent.itemId == PlacesUtils.tagsFolderId))
+        return false;
+
+      this._addSeparatorProperties(bNode, node);
+    }
+
+    if (!node.feedURI && node.type == PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER) {
+      return this._appendConvertedComplexNode(node, bNode, aArray, aIsUICommand,
+                                              aResolveShortcuts, aExcludeItems);
+    }
+
+    aArray.push(node);
+    return true;
   },
 
   _addGenericProperties: function BN__addGenericProperties(
@@ -719,26 +635,24 @@ let BookmarkNode = {
 
   _addURIProperties: function BN__addURIProperties(
     aPlacesNode, aJSNode, aIsUICommand) {
-    return Task.spawn(function() {
-      aJSNode.type = PlacesUtils.TYPE_X_MOZ_PLACE;
-      aJSNode.uri = aPlacesNode.uri;
-      if (aJSNode.id && aJSNode.id != -1) {
-        // Harvest bookmark-specific properties
-        let keyword = PlacesUtils.bookmarks.getKeywordForBookmark(aJSNode.id);
-        if (keyword)
-          aJSNode.keyword = keyword;
-      }
+    aJSNode.type = PlacesUtils.TYPE_X_MOZ_PLACE;
+    aJSNode.uri = aPlacesNode.uri;
+    if (aJSNode.id && aJSNode.id != -1) {
+      // Harvest bookmark-specific properties
+      let keyword = PlacesUtils.bookmarks.getKeywordForBookmark(aJSNode.id);
+      if (keyword)
+        aJSNode.keyword = keyword;
+    }
 
-      let tags = aIsUICommand ? aPlacesNode.tags : null;
-      if (tags)
-        aJSNode.tags = tags;
+    let tags = aIsUICommand ? aPlacesNode.tags : null;
+    if (tags)
+      aJSNode.tags = tags;
 
-      // Last character-set
-      let uri = NetUtil.newURI(aPlacesNode.uri);
-      let lastCharset = yield PlacesUtils.getCharsetForURI(uri)
-      if (lastCharset)
-        aJSNode.charset = lastCharset;
-    });
+    // Last character-set
+    let uri = NetUtil.newURI(aPlacesNode.uri);
+    let lastCharset = PlacesUtils.history.getCharsetForURI(uri);
+    if (lastCharset)
+      aJSNode.charset = lastCharset;
   },
 
   _addSeparatorProperties: function BN__addSeparatorProperties(
@@ -784,36 +698,32 @@ let BookmarkNode = {
   _appendConvertedComplexNode: function BN__appendConvertedComplexNode(
     aNode, aSourceNode, aArray, aIsUICommand, aResolveShortcuts,
     aExcludeItems) {
-    return Task.spawn(function() {
-      let repr = {};
-      let nodeCount = 0;
+    let repr = {};
 
-      for (let [name, value] in Iterator(aNode))
-        repr[name] = value;
+    for (let [name, value] in Iterator(aNode))
+      repr[name] = value;
 
-      // Write child nodes
-      let children = repr.children = [];
-      if (!aNode.livemark) {
-        PlacesUtils.asContainer(aSourceNode);
-        let wasOpen = aSourceNode.containerOpen;
-        if (!wasOpen)
-          aSourceNode.containerOpen = true;
-        let cc = aSourceNode.childCount;
-        for (let i = 0; i < cc; ++i) {
-          let childNode = aSourceNode.getChild(i);
-          if (aExcludeItems && aExcludeItems.indexOf(childNode.itemId) != -1)
-            continue;
-          let result = yield this._appendConvertedNode(aSourceNode.getChild(i), i, children,
-                                                       aIsUICommand, aResolveShortcuts,
-                                                       aExcludeItems);
-          nodeCount += result.nodeCount;
-        }
-        if (!wasOpen)
-          aSourceNode.containerOpen = false;
+    // Write child nodes
+    let children = repr.children = [];
+    if (!aNode.livemark) {
+      PlacesUtils.asContainer(aSourceNode);
+      let wasOpen = aSourceNode.containerOpen;
+      if (!wasOpen)
+        aSourceNode.containerOpen = true;
+      let cc = aSourceNode.childCount;
+      for (let i = 0; i < cc; ++i) {
+        let childNode = aSourceNode.getChild(i);
+        if (aExcludeItems && aExcludeItems.indexOf(childNode.itemId) != -1)
+          continue;
+        this._appendConvertedNode(aSourceNode.getChild(i), i, children,
+                                  aIsUICommand, aResolveShortcuts,
+                                  aExcludeItems);
       }
+      if (!wasOpen)
+        aSourceNode.containerOpen = false;
+    }
 
-      aArray.push(repr);
-      throw new Task.Result(nodeCount);
-    }.bind(this));
+    aArray.push(repr);
+    return true;
   }
 }

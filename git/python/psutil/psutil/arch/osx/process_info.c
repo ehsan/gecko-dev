@@ -1,4 +1,6 @@
 /*
+ * $Id: process_info.c 1460 2012-07-18 02:49:24Z g.rodola@gmail.com $
+ *
  * Copyright (c) 2009, Jay Loden, Giampaolo Rodola'. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
@@ -26,7 +28,7 @@
  * Return 1 if PID exists in the current process list, else 0.
  */
 int
-psutil_pid_exists(long pid)
+pid_exists(long pid)
 {
     int kill_ret;
 
@@ -56,7 +58,7 @@ psutil_pid_exists(long pid)
  * On error, the function returns a BSD errno value.
  */
 int
-psutil_get_proc_list(kinfo_proc **procList, size_t *procCount)
+get_proc_list(kinfo_proc **procList, size_t *procCount)
 {
     /* Declaring mib as const requires use of a cast since the
      * sysctl prototype doesn't include the const modifier. */
@@ -123,7 +125,7 @@ psutil_get_proc_list(kinfo_proc **procList, size_t *procCount)
 
 /* Read the maximum argument size for processes */
 int
-psutil_get_argmax()
+get_argmax()
 {
     int argmax;
     int mib[] = { CTL_KERN, KERN_ARGMAX };
@@ -138,7 +140,7 @@ psutil_get_argmax()
 
 /* return process args as a python list */
 PyObject*
-psutil_get_arg_list(long pid)
+get_arg_list(long pid)
 {
     int mib[3];
     int nargs;
@@ -157,7 +159,7 @@ psutil_get_arg_list(long pid)
     }
 
     /* read argmax and allocate memory for argument space. */
-    argmax = psutil_get_argmax();
+    argmax = get_argmax();
     if (! argmax) {
         PyErr_SetFromErrno(PyExc_OSError);
         goto error;
@@ -175,7 +177,7 @@ psutil_get_arg_list(long pid)
     mib[2] = pid;
     if (sysctl(mib, 3, procargs, &argmax, NULL, 0) < 0) {
         if (EINVAL == errno) { // invalid == access denied OR nonexistent PID
-            if ( psutil_pid_exists(pid) ) {
+            if ( pid_exists(pid) ) {
                 AccessDenied();
             } else {
                 NoSuchProcess();
@@ -236,7 +238,7 @@ error:
 
 
 int
-psutil_get_kinfo_proc(pid_t pid, struct kinfo_proc *kp)
+get_kinfo_proc(pid_t pid, struct kinfo_proc *kp)
 {
     int mib[4];
     size_t len;
@@ -274,7 +276,7 @@ psutil_proc_pidinfo(long pid, int flavor, void *pti, int size)
 {
     int ret = proc_pidinfo((int)pid, flavor, 0, pti, size);
     if (ret == 0) {
-        if (! psutil_pid_exists(pid)) {
+        if (! pid_exists(pid)) {
             NoSuchProcess();
             return 0;
         }

@@ -13,6 +13,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
+#include "nsGUIEvent.h"
 #include "nsObjCExceptions.h"
 #include "nsHashtable.h"
 #include "nsThreadUtils.h"
@@ -25,7 +26,7 @@
 
 #include "nsINode.h"
 
-using namespace mozilla;
+namespace dom = mozilla::dom;
 
 NS_IMPL_ISUPPORTS1(nsMenuGroupOwnerX, nsIMutationObserver)
 
@@ -34,6 +35,8 @@ nsMenuGroupOwnerX::nsMenuGroupOwnerX()
 : mCurrentCommandID(eCommand_ID_Last),
   mDocument(nullptr)
 {
+  mContentToObserverTable.Init();
+  mCommandToMenuObjectTable.Init();
 }
 
 

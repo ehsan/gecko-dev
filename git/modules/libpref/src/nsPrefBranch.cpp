@@ -29,13 +29,6 @@
 #include "nsICrashReporter.h"
 #endif
 
-#include "nsIConsoleService.h"
-
-// 1 MB should be enough for everyone.
-static const uint32_t MAX_PREF_LENGTH = 1 * 1024 * 1024;
-// Actually, 4kb should be enough for everyone.
-static const uint32_t MAX_ADVISABLE_PREF_LENGTH = 4 * 1024;
-
 // Definitions
 struct EnumerateData {
   const char  *parent;
@@ -72,6 +65,7 @@ nsPrefBranch::nsPrefBranch(const char *aPrefRoot, bool aDefaultBranch)
   mPrefRootLength = mPrefRoot.Length();
   mIsDefault = aDefaultBranch;
   mFreeingObserverList = false;
+  mObservers.Init();
 
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
@@ -98,8 +92,8 @@ nsPrefBranch::~nsPrefBranch()
  * nsISupports Implementation
  */
 
-NS_IMPL_ADDREF(nsPrefBranch)
-NS_IMPL_RELEASE(nsPrefBranch)
+NS_IMPL_THREADSAFE_ADDREF(nsPrefBranch)
+NS_IMPL_THREADSAFE_RELEASE(nsPrefBranch)
 
 NS_INTERFACE_MAP_BEGIN(nsPrefBranch)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIPrefBranch)
@@ -171,16 +165,6 @@ NS_IMETHODIMP nsPrefBranch::GetCharPref(const char *aPrefName, char **_retval)
 }
 
 NS_IMETHODIMP nsPrefBranch::SetCharPref(const char *aPrefName, const char *aValue)
-{
-  nsresult rv = CheckSanityOfStringLength(aPrefName, aValue);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  return SetCharPrefInternal(aPrefName, aValue);
-}
-
-nsresult nsPrefBranch::SetCharPrefInternal(const char *aPrefName, const char *aValue)
-
 {
   if (GetContentChild()) {
     NS_ERROR("cannot set pref from content process");
@@ -355,40 +339,6 @@ NS_IMETHODIMP nsPrefBranch::GetComplexValue(const char *aPrefName, const nsIID &
   return NS_NOINTERFACE;
 }
 
-nsresult nsPrefBranch::CheckSanityOfStringLength(const char* aPrefName, const char* aValue) {
-  if (!aValue) {
-    return NS_OK;
-  }
-  return CheckSanityOfStringLength(aPrefName, strlen(aValue));
-}
-
-nsresult nsPrefBranch::CheckSanityOfStringLength(const char* aPrefName, const nsAString& aValue) {
-  return CheckSanityOfStringLength(aPrefName, aValue.Length());
-}
-
-nsresult nsPrefBranch::CheckSanityOfStringLength(const char* aPrefName, const uint32_t aLength) {
-  if (aLength > MAX_PREF_LENGTH) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-  if (aLength <= MAX_ADVISABLE_PREF_LENGTH) {
-    return NS_OK;
-  }
-  nsresult rv;
-  nsCOMPtr<nsIConsoleService> console = do_GetService("@mozilla.org/consoleservice;1", &rv);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  nsAutoCString message(nsPrintfCString("Warning: attempting to write %d bytes to preference %s. This is bad for general performance and memory usage. Such an amount of data should rather be written to an external file.",
-                                        aLength,
-                                        aPrefName));
-  rv = console->LogStringMessage(NS_ConvertUTF8toUTF16(message).get());
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  return NS_OK;
-}
-
-
 NS_IMETHODIMP nsPrefBranch::SetComplexValue(const char *aPrefName, const nsIID & aType, nsISupports *aValue)
 {
   if (GetContentChild()) {
@@ -409,7 +359,7 @@ NS_IMETHODIMP nsPrefBranch::SetComplexValue(const char *aPrefName, const nsIID &
 
     rv = file->GetPersistentDescriptor(descriptorString);
     if (NS_SUCCEEDED(rv)) {
-      rv = SetCharPrefInternal(aPrefName, descriptorString.get());
+      rv = SetCharPref(aPrefName, descriptorString.get());
     }
     return rv;
   }
@@ -418,7 +368,7 @@ NS_IMETHODIMP nsPrefBranch::SetComplexValue(const char *aPrefName, const nsIID &
     nsCOMPtr<nsIRelativeFilePref> relFilePref = do_QueryInterface(aValue);
     if (!relFilePref)
       return NS_NOINTERFACE;
-
+    
     nsCOMPtr<nsIFile> file;
     relFilePref->GetFile(getter_AddRefs(file));
     if (!file)
@@ -438,29 +388,24 @@ NS_IMETHODIMP nsPrefBranch::SetComplexValue(const char *aPrefName, const nsIID &
     rv = file->GetRelativeDescriptor(relativeToFile, relDescriptor);
     if (NS_FAILED(rv))
       return rv;
-
+    
     nsAutoCString descriptorString;
     descriptorString.Append('[');
     descriptorString.Append(relativeToKey);
     descriptorString.Append(']');
     descriptorString.Append(relDescriptor);
-    return SetCharPrefInternal(aPrefName, descriptorString.get());
+    return SetCharPref(aPrefName, descriptorString.get());
   }
 
   if (aType.Equals(NS_GET_IID(nsISupportsString))) {
     nsCOMPtr<nsISupportsString> theString = do_QueryInterface(aValue);
 
     if (theString) {
-      nsString wideString;
+      nsAutoString wideString;
 
       rv = theString->GetData(wideString);
       if (NS_SUCCEEDED(rv)) {
-        // Check sanity of string length before any lengthy conversion
-        rv = CheckSanityOfStringLength(aPrefName, wideString);
-        if (NS_FAILED(rv)) {
-          return rv;
-        }
-        rv = SetCharPrefInternal(aPrefName, NS_ConvertUTF16toUTF8(wideString).get());
+        rv = SetCharPref(aPrefName, NS_ConvertUTF16toUTF8(wideString).get());
       }
     }
     return rv;
@@ -474,12 +419,7 @@ NS_IMETHODIMP nsPrefBranch::SetComplexValue(const char *aPrefName, const nsIID &
 
       rv = theString->GetData(getter_Copies(wideString));
       if (NS_SUCCEEDED(rv)) {
-        // Check sanity of string length before any lengthy conversion
-        rv = CheckSanityOfStringLength(aPrefName, wideString);
-        if (NS_FAILED(rv)) {
-          return rv;
-        }
-        rv = SetCharPrefInternal(aPrefName, NS_ConvertUTF16toUTF8(wideString).get());
+        rv = SetCharPref(aPrefName, NS_ConvertUTF16toUTF8(wideString).get());
       }
     }
     return rv;
@@ -832,8 +772,8 @@ nsPrefLocalizedString::~nsPrefLocalizedString()
  * nsISupports Implementation
  */
 
-NS_IMPL_ADDREF(nsPrefLocalizedString)
-NS_IMPL_RELEASE(nsPrefLocalizedString)
+NS_IMPL_THREADSAFE_ADDREF(nsPrefLocalizedString)
+NS_IMPL_THREADSAFE_RELEASE(nsPrefLocalizedString)
 
 NS_INTERFACE_MAP_BEGIN(nsPrefLocalizedString)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIPrefLocalizedString)
@@ -886,7 +826,7 @@ nsPrefLocalizedString::SetDataWithLength(uint32_t aLength,
 // nsRelativeFilePref
 //----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS1(nsRelativeFilePref, nsIRelativeFilePref)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsRelativeFilePref, nsIRelativeFilePref)
 
 nsRelativeFilePref::nsRelativeFilePref()
 {

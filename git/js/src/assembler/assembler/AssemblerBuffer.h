@@ -27,8 +27,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_AssemblerBuffer_h
-#define assembler_assembler_AssemblerBuffer_h
+#ifndef AssemblerBuffer_h
+#define AssemblerBuffer_h
 
 #include "assembler/wtf/Platform.h"
 
@@ -43,8 +43,9 @@
 #include "jsfriendapi.h"
 #include "jsopcode.h"
 
-#include "jit/IonSpewer.h"
+#include "ion/IonSpewer.h"
 #include "js/RootingAPI.h"
+#include "methodjit/Logging.h"
 
 #define PRETTY_PRINT_OFFSET(os) (((os)<0)?"-":""), (((os)<0)?-(os):(os))
 
@@ -64,13 +65,16 @@ namespace JSC {
             , m_capacity(inlineCapacity)
             , m_size(0)
             , m_oom(false)
+#if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
+            , m_skipInline(js::TlsPerThreadData.get(), &m_inlineBuffer)
+#endif
         {
         }
 
         ~AssemblerBuffer()
         {
             if (m_buffer != m_inlineBuffer)
-                js_free(m_buffer);
+                free(m_buffer);
         }
 
         void ensureSpace(int space)
@@ -222,7 +226,7 @@ namespace JSC {
             }
 
             if (m_buffer == m_inlineBuffer) {
-                newBuffer = static_cast<char*>(js_malloc(newCapacity));
+                newBuffer = static_cast<char*>(malloc(newCapacity));
                 if (!newBuffer) {
                     m_size = 0;
                     m_oom = true;
@@ -230,7 +234,7 @@ namespace JSC {
                 }
                 memcpy(newBuffer, m_buffer, m_size);
             } else {
-                newBuffer = static_cast<char*>(js_realloc(m_buffer, newCapacity));
+                newBuffer = static_cast<char*>(realloc(m_buffer, newCapacity));
                 if (!newBuffer) {
                     m_size = 0;
                     m_oom = true;
@@ -247,6 +251,17 @@ namespace JSC {
         int m_capacity;
         int m_size;
         bool m_oom;
+
+#if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
+        /*
+         * GC Pointers baked into the code can get stored on the stack here
+         * through the inline assembler buffer. We need to protect these from
+         * being poisoned by the rooting analysis, however, they do not need to
+         * actually be traced: the compiler is only allowed to bake in
+         * non-nursery-allocated pointers, such as Shapes.
+         */
+        js::SkipRoot m_skipInline;
+#endif
     };
 
     class GenericAssembler
@@ -271,9 +286,10 @@ namespace JSC {
             __attribute__ ((format (printf, 2, 3)))
 #endif
         {
-            if (printer
+            if (printer ||
+                js::IsJaegerSpewChannelActive(js::JSpew_Insns)
 #ifdef JS_ION
-                || js::jit::IonSpewEnabled(js::jit::IonSpew_Codegen)
+                || js::ion::IonSpewEnabled(js::ion::IonSpew_Codegen)
 #endif
                 )
             {
@@ -290,8 +306,14 @@ namespace JSC {
                     if (printer)
                         printer->printf("%s\n", buf);
 
+                    // The assembler doesn't know which compiler it is for, so if
+                    // both JM and Ion spew are on, just print via one channel
+                    // (Use JM to pick up isOOLPath).
+                    if (js::IsJaegerSpewChannelActive(js::JSpew_Insns))
+                        js::JaegerSpew(js::JSpew_Insns, "%s       %s\n", isOOLPath ? ">" : " ", buf);
 #ifdef JS_ION
-                    js::jit::IonSpew(js::jit::IonSpew_Codegen, "%s", buf);
+                    else
+                        js::ion::IonSpew(js::ion::IonSpew_Codegen, "%s", buf);
 #endif
                 }
             }
@@ -302,8 +324,12 @@ namespace JSC {
             __attribute__ ((format (printf, 1, 2)))
 #endif
         {
+            if (js::IsJaegerSpewChannelActive(js::JSpew_Insns)
 #ifdef JS_ION
-            if (js::jit::IonSpewEnabled(js::jit::IonSpew_Codegen)) {
+                || js::ion::IonSpewEnabled(js::ion::IonSpew_Codegen)
+#endif
+                )
+            {
                 char buf[200];
 
                 va_list va;
@@ -311,10 +337,15 @@ namespace JSC {
                 int i = vsnprintf(buf, sizeof(buf), fmt, va);
                 va_end(va);
 
-                if (i > -1)
-                    js::jit::IonSpew(js::jit::IonSpew_Codegen, "%s", buf);
-            }
+                if (i > -1) {
+                    if (js::IsJaegerSpewChannelActive(js::JSpew_Insns))
+                        js::JaegerSpew(js::JSpew_Insns, "        %s\n", buf);
+#ifdef JS_ION
+                    else
+                        js::ion::IonSpew(js::ion::IonSpew_Codegen, "%s", buf);
 #endif
+                }
+            }
         }
     };
 
@@ -322,4 +353,4 @@ namespace JSC {
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_AssemblerBuffer_h */
+#endif // AssemblerBuffer_h

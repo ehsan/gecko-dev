@@ -19,15 +19,17 @@
 #include "nsCSSRuleProcessor.h"
 #include "nsRuleProcessorData.h"
 #include <algorithm>
+#include "nsCRT.h"
 #include "nsIAtom.h"
 #include "pldhash.h"
 #include "nsICSSPseudoComparator.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/StyleRule.h"
 #include "mozilla/css/GroupRule.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
+#include "nsEventStateManager.h"
 #include "nsGkAtoms.h"
+#include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "nsError.h"
 #include "nsRuleWalker.h"
@@ -41,11 +43,17 @@
 #include "nsAttrValue.h"
 #include "nsAttrValueInlines.h"
 #include "nsAttrName.h"
+#include "nsServiceManagerUtils.h"
 #include "nsTArray.h"
 #include "nsContentUtils.h"
 #include "nsIMediaList.h"
 #include "nsCSSRules.h"
+#include "nsIPrincipal.h"
 #include "nsStyleSet.h"
+#include "prlog.h"
+#include "nsIObserverService.h"
+#include "nsNetCID.h"
+#include "mozilla/Services.h"
 #include "mozilla/dom/Element.h"
 #include "nsNthIndexCache.h"
 #include "mozilla/Preferences.h"
@@ -448,8 +456,8 @@ public:
   void EnumerateAllRules(Element* aElement, ElementDependentRuleProcessorData* aData,
                          NodeMatchContext& aNodeMatchContext);
 
-  size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const;
-  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 protected:
   typedef nsTArray<RuleValue> RuleValueList;
@@ -641,7 +649,7 @@ void RuleHash::AppendRule(const RuleSelectorPair& aRuleInfo)
     }
     AppendRuleToTagTable(&mTagTable, selector->mLowercaseTag, ruleValue);
     RULE_HASH_STAT_INCREMENT(mTagSelectors);
-    if (selector->mCasedTag &&
+    if (selector->mCasedTag && 
         selector->mCasedTag != selector->mLowercaseTag) {
       AppendRuleToTagTable(&mTagTable, selector->mCasedTag, ruleValue);
       RULE_HASH_STAT_INCREMENT(mTagSelectors);
@@ -786,14 +794,14 @@ void RuleHash::EnumerateAllRules(Element* aElement, ElementDependentRuleProcesso
 }
 
 static size_t
-SizeOfRuleHashTableEntry(PLDHashEntryHdr* aHdr, MallocSizeOf aMallocSizeOf, void *)
+SizeOfRuleHashTableEntry(PLDHashEntryHdr* aHdr, nsMallocSizeOfFun aMallocSizeOf, void *)
 {
   RuleHashTableEntry* entry = static_cast<RuleHashTableEntry*>(aHdr);
   return entry->mRules.SizeOfExcludingThis(aMallocSizeOf);
 }
 
 size_t
-RuleHash::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+RuleHash::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
 
@@ -827,7 +835,7 @@ RuleHash::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
 }
 
 size_t
-RuleHash::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+RuleHash::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
@@ -912,7 +920,6 @@ struct RuleCascadeData {
     : mRuleHash(aQuirksMode),
       mStateSelectors(),
       mSelectorDocumentStates(0),
-      mKeyframesRuleTable(16),
       mCacheKey(aMedium),
       mNext(nullptr),
       mQuirksMode(aQuirksMode)
@@ -952,7 +959,7 @@ struct RuleCascadeData {
     }
   }
 
-  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   RuleHash                 mRuleHash;
   RuleHash*
@@ -971,10 +978,7 @@ struct RuleCascadeData {
 
   nsTArray<nsFontFaceRuleContainer> mFontFaceRules;
   nsTArray<nsCSSKeyframesRule*> mKeyframesRules;
-  nsTArray<nsCSSFontFeatureValuesRule*> mFontFeatureValuesRules;
   nsTArray<nsCSSPageRule*> mPageRules;
-
-  nsDataHashtable<nsStringHashKey, nsCSSKeyframesRule*> mKeyframesRuleTable;
 
   // Looks up or creates the appropriate list in |mAttributeSelectors|.
   // Returns null only on allocation failure.
@@ -987,14 +991,14 @@ struct RuleCascadeData {
 };
 
 static size_t
-SizeOfSelectorsEntry(PLDHashEntryHdr* aHdr, MallocSizeOf aMallocSizeOf, void *)
+SizeOfSelectorsEntry(PLDHashEntryHdr* aHdr, nsMallocSizeOfFun aMallocSizeOf, void *)
 {
   AtomSelectorEntry* entry = static_cast<AtomSelectorEntry*>(aHdr);
   return entry->mSelectors.SizeOfExcludingThis(aMallocSizeOf);
 }
 
 size_t
-RuleCascadeData::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+RuleCascadeData::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
 
@@ -1025,7 +1029,6 @@ RuleCascadeData::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
 
   n += mFontFaceRules.SizeOfExcludingThis(aMallocSizeOf);
   n += mKeyframesRules.SizeOfExcludingThis(aMallocSizeOf);
-  n += mFontFeatureValuesRules.SizeOfExcludingThis(aMallocSizeOf);
   n += mPageRules.SizeOfExcludingThis(aMallocSizeOf);
 
   return n;
@@ -1131,12 +1134,6 @@ InitSystemMetrics()
   }
 
   metricResult =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars);
-  if (metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::overlay_scrollbars);
-  }
-
-  metricResult =
     LookAndFeel::GetInt(LookAndFeel::eIntID_MenuBarDrag);
   if (metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::menubar_drag);
@@ -1168,11 +1165,6 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(nsGkAtoms::windows_glass);
   }
 
-  rv = LookAndFeel::GetInt(LookAndFeel::eIntID_ColorPickerAvailable, &metricResult);
-  if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::color_picker_available);
-  }
-
   rv = LookAndFeel::GetInt(LookAndFeel::eIntID_WindowsClassic, &metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::windows_classic);
@@ -1183,16 +1175,15 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(nsGkAtoms::touch_enabled);
   }
  
+  rv = LookAndFeel::GetInt(LookAndFeel::eIntID_MaemoClassic, &metricResult);
+  if (NS_SUCCEEDED(rv) && metricResult) {
+    sSystemMetrics->AppendElement(nsGkAtoms::maemo_classic);
+  }
+
   rv = LookAndFeel::GetInt(LookAndFeel::eIntID_SwipeAnimationEnabled,
                            &metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::swipe_animation_enabled);
-  }
-
-  rv = LookAndFeel::GetInt(LookAndFeel::eIntID_PhysicalHomeButton,
-                           &metricResult);
-  if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::physical_home_button);
   }
 
 #ifdef XP_WIN
@@ -1203,9 +1194,6 @@ InitSystemMetrics()
     switch(metricResult) {
       case LookAndFeel::eWindowsTheme_Aero:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_aero);
-        break;
-      case LookAndFeel::eWindowsTheme_AeroLite:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_aero_lite);
         break;
       case LookAndFeel::eWindowsTheme_LunaBlue:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_blue);
@@ -1228,27 +1216,6 @@ InitSystemMetrics()
     }
   }
 #endif
-
-  // os version metrics, currently only defined for Windows.
-  if (NS_SUCCEEDED(
-        LookAndFeel::GetInt(LookAndFeel::eIntID_OperatingSystemVersionIdentifier,
-                            &metricResult))) {
-    switch(metricResult) {
-      case LookAndFeel::eOperatingSystemVersion_WindowsXP:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_version_xp);
-        break;
-      case LookAndFeel::eOperatingSystemVersion_WindowsVista:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_version_vista);
-        break;
-      case LookAndFeel::eOperatingSystemVersion_Windows7:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_version_win7);
-        break;
-      case LookAndFeel::eOperatingSystemVersion_Windows8:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_version_win8);
-        break;
-      // don't add anything for future versions
-    }
-  }
 
   return true;
 }
@@ -1464,11 +1431,11 @@ static bool AttrMatchesValue(const nsAttrSelector* aAttrSelector,
                 : static_cast<const nsStringComparator&>(ciComparator);
 
   switch (aAttrSelector->mFunction) {
-    case NS_ATTR_FUNC_EQUALS:
+    case NS_ATTR_FUNC_EQUALS: 
       return aValue.Equals(aAttrSelector->mValue, comparator);
-    case NS_ATTR_FUNC_INCLUDES:
+    case NS_ATTR_FUNC_INCLUDES: 
       return ValueIncludes(aValue, aAttrSelector->mValue, comparator);
-    case NS_ATTR_FUNC_DASHMATCH:
+    case NS_ATTR_FUNC_DASHMATCH: 
       return nsStyleUtil::DashMatchCompare(aValue, aAttrSelector->mValue, comparator);
     case NS_ATTR_FUNC_ENDSMATCH:
       return StringEndsWith(aValue, aAttrSelector->mValue, comparator);
@@ -1613,10 +1580,10 @@ static const nsEventStates sPseudoClassStates[] = {
   nsEventStates(),
   nsEventStates()
 };
-static_assert(NS_ARRAY_LENGTH(sPseudoClassStates) ==
-              nsCSSPseudoClasses::ePseudoClass_NotPseudoClass + 1,
-              "ePseudoClass_NotPseudoClass is no longer at the end of"
-              "sPseudoClassStates");
+MOZ_STATIC_ASSERT(NS_ARRAY_LENGTH(sPseudoClassStates) ==
+                  nsCSSPseudoClasses::ePseudoClass_NotPseudoClass + 1,
+                  "ePseudoClass_NotPseudoClass is no longer at the end of"
+                  "sPseudoClassStates");
 
 // |aDependence| has two functions:
 //  * when non-null, it indicates that we're processing a negation,
@@ -2120,7 +2087,7 @@ static bool SelectorMatches(Element* aElement,
         if (aTreeMatchContext.mForStyling &&
             statesToCheck.HasAtLeastOneOfStates(NS_EVENT_STATE_HOVER)) {
           // Mark the element as having :hover-dependent style
-          aElement->SetHasRelevantHoverRules();
+          aElement->SetFlags(NODE_HAS_RELEVANT_HOVER_RULES);
         }
         if (aNodeMatchContext.mStateMask.HasAtLeastOneOfStates(statesToCheck)) {
           if (aDependence)
@@ -2143,7 +2110,8 @@ static bool SelectorMatches(Element* aElement,
   bool result = true;
   if (aSelector->mAttrList) {
     // test for attribute match
-    if (!aElement->HasAttrs()) {
+    uint32_t attrCount = aElement->GetAttrCount();
+    if (attrCount == 0) {
       // if no attributes on the content, no match
       return false;
     } else {
@@ -2164,8 +2132,9 @@ static bool SelectorMatches(Element* aElement,
           // have a chance at matching, of course, are ones that the element
           // actually has attributes in), short-circuiting if we ever match.
           result = false;
-          const nsAttrName* attrName;
-          for (uint32_t i = 0; (attrName = aElement->GetAttrNameAt(i)); ++i) {
+          for (uint32_t i = 0; i < attrCount; ++i) {
+            const nsAttrName* attrName = aElement->GetAttrNameAt(i);
+            NS_ASSERTION(attrName, "GetAttrCount lied or GetAttrNameAt failed");
             if (attrName->LocalName() != matchAttribute) {
               continue;
             }
@@ -2299,25 +2268,6 @@ static bool SelectorMatchesTree(Element* aPrevElement,
           // traverse further up the tree.
           aTreeMatchContext.PopStyleScopeForSelectorMatching(element);
         }
-
-        // Compatibility hack: First try matching this selector as though the
-        // <xbl:children> element wasn't in the tree to allow old selectors
-        // were written before <xbl:children> participated in CSS selector
-        // matching to work.
-        if (selector->mOperator == '>' && element->IsActiveChildrenElement()) {
-          Element* styleScope = aTreeMatchContext.mCurrentStyleScope;
-          if (SelectorMatchesTree(element, selector, aTreeMatchContext,
-                                  aLookForRelevantLink)) {
-            // It matched, don't try matching on the <xbl:children> element at
-            // all.
-            return true;
-          }
-          // We want to reset mCurrentStyleScope on aTreeMatchContext
-          // back to its state before the SelectorMatchesTree call, in
-          // case that call happens to traverse past the style scope element
-          // and sets it to null.
-          aTreeMatchContext.mCurrentStyleScope = styleScope;
-        }
       }
     }
     if (!element) {
@@ -2356,16 +2306,10 @@ static bool SelectorMatchesTree(Element* aPrevElement,
         // it tests from the top of the content tree, down.  This
         // doesn't matter much for performance since most selectors
         // don't match.  (If most did, it might be faster...)
-        Element* styleScope = aTreeMatchContext.mCurrentStyleScope;
         if (SelectorMatchesTree(element, selector, aTreeMatchContext,
                                 aLookForRelevantLink)) {
           return true;
         }
-        // We want to reset mCurrentStyleScope on aTreeMatchContext
-        // back to its state before the SelectorMatchesTree call, in
-        // case that call happens to traverse past the style scope element
-        // and sets it to null.
-        aTreeMatchContext.mCurrentStyleScope = styleScope;
       }
       selector = selector->mNext;
     }
@@ -2504,10 +2448,6 @@ static inline nsRestyleHint RestyleHintForOp(PRUnichar oper)
 nsRestyleHint
 nsCSSRuleProcessor::HasStateDependentStyle(StateRuleProcessorData* aData)
 {
-  MOZ_ASSERT(!aData->mTreeMatchContext.mForScopedStyle,
-             "mCurrentStyleScope will need to be saved and restored after the "
-             "SelectorMatchesTree call");
-
   RuleCascadeData* cascade = GetRuleCascade(aData->mPresContext);
 
   // Look up the content node in the state rule list, which points to
@@ -2538,14 +2478,14 @@ nsCSSRuleProcessor::HasStateDependentStyle(StateRuleProcessorData* aData)
           states.HasAtLeastOneOfStates(aData->mStateMask) &&
           // We can optimize away testing selectors that only involve :hover, a
           // namespace, and a tag name against nodes that don't have the
-          // NodeHasRelevantHoverRules flag: such a selector didn't match
+          // NODE_HAS_RELEVANT_HOVER_RULES flag: such a selector didn't match
           // the tag name or namespace the first time around (since the :hover
-          // didn't set the NodeHasRelevantHoverRules flag), so it won't
+          // didn't set the NODE_HAS_RELEVANT_HOVER_RULES flag), so it won't
           // match it now.  Check for our selector only having :hover states, or
           // the element having the hover rules flag, or the selector having
           // some sort of non-namespace, non-tagname data in it.
           (states != NS_EVENT_STATE_HOVER ||
-           aData->mElement->HasRelevantHoverRules() ||
+           aData->mElement->HasFlag(NODE_HAS_RELEVANT_HOVER_RULES) ||
            selector->mIDList || selector->mClassList ||
            // We generally expect an mPseudoClassList, since we have a :hover.
            // The question is whether we have anything else in there.
@@ -2733,7 +2673,7 @@ nsCSSRuleProcessor::MediumFeaturesChanged(nsPresContext* aPresContext)
 }
 
 /* virtual */ size_t
-nsCSSRuleProcessor::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+nsCSSRuleProcessor::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   n += mSheets.SizeOfExcludingThis(aMallocSizeOf);
@@ -2746,7 +2686,7 @@ nsCSSRuleProcessor::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
 }
 
 /* virtual */ size_t
-nsCSSRuleProcessor::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+nsCSSRuleProcessor::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
@@ -2768,17 +2708,21 @@ nsCSSRuleProcessor::AppendFontFaceRules(
   return true;
 }
 
-nsCSSKeyframesRule*
-nsCSSRuleProcessor::KeyframesRuleForName(nsPresContext* aPresContext,
-                                         const nsString& aName)
+// Append all the currently-active keyframes rules to aArray.  Return
+// true for success and false for failure.
+bool
+nsCSSRuleProcessor::AppendKeyframesRules(
+                              nsPresContext *aPresContext,
+                              nsTArray<nsCSSKeyframesRule*>& aArray)
 {
   RuleCascadeData* cascade = GetRuleCascade(aPresContext);
 
   if (cascade) {
-    return cascade->mKeyframesRuleTable.Get(aName);
+    if (!aArray.AppendElements(cascade->mKeyframesRules))
+      return false;
   }
-
-  return nullptr;
+  
+  return true;
 }
 
 // Append all the currently-active page rules to aArray.  Return
@@ -2796,21 +2740,6 @@ nsCSSRuleProcessor::AppendPageRules(
     }
   }
   
-  return true;
-}
-
-bool
-nsCSSRuleProcessor::AppendFontFeatureValuesRules(
-                              nsPresContext *aPresContext,
-                              nsTArray<nsCSSFontFeatureValuesRule*>& aArray)
-{
-  RuleCascadeData* cascade = GetRuleCascade(aPresContext);
-
-  if (cascade) {
-    if (!aArray.AppendElements(cascade->mFontFeatureValuesRules))
-      return false;
-  }
-
   return true;
 }
 
@@ -3112,14 +3041,12 @@ struct CascadeEnumData {
   CascadeEnumData(nsPresContext* aPresContext,
                   nsTArray<nsFontFaceRuleContainer>& aFontFaceRules,
                   nsTArray<nsCSSKeyframesRule*>& aKeyframesRules,
-                  nsTArray<nsCSSFontFeatureValuesRule*>& aFontFeatureValuesRules,
                   nsTArray<nsCSSPageRule*>& aPageRules,
                   nsMediaQueryResultCacheKey& aKey,
                   uint8_t aSheetType)
     : mPresContext(aPresContext),
       mFontFaceRules(aFontFaceRules),
       mKeyframesRules(aKeyframesRules),
-      mFontFeatureValuesRules(aFontFeatureValuesRules),
       mPageRules(aPageRules),
       mCacheKey(aKey),
       mSheetType(aSheetType)
@@ -3143,7 +3070,6 @@ struct CascadeEnumData {
   nsPresContext* mPresContext;
   nsTArray<nsFontFaceRuleContainer>& mFontFaceRules;
   nsTArray<nsCSSKeyframesRule*>& mKeyframesRules;
-  nsTArray<nsCSSFontFeatureValuesRule*>& mFontFeatureValuesRules;
   nsTArray<nsCSSPageRule*>& mPageRules;
   nsMediaQueryResultCacheKey& mCacheKey;
   PLArenaPool mArena;
@@ -3161,9 +3087,7 @@ struct CascadeEnumData {
  *      but kept in order per-weight, and
  *  (2) add any @font-face rules, in order, into data->mFontFaceRules.
  *  (3) add any @keyframes rules, in order, into data->mKeyframesRules.
- *  (4) add any @font-feature-value rules, in order,
- *      into data->mFontFeatureValuesRules.
- *  (5) add any @page rules, in order, into data->mPageRules.
+ *  (4) add any @page rules, in order, into data->mPageRules.
  */
 static bool
 CascadeRuleEnumFunc(css::Rule* aRule, void* aData)
@@ -3213,13 +3137,6 @@ CascadeRuleEnumFunc(css::Rule* aRule, void* aData)
     nsCSSKeyframesRule *keyframesRule =
       static_cast<nsCSSKeyframesRule*>(aRule);
     if (!data->mKeyframesRules.AppendElement(keyframesRule)) {
-      return false;
-    }
-  }
-  else if (css::Rule::FONT_FEATURE_VALUES_RULE == type) {
-    nsCSSFontFeatureValuesRule *fontFeatureValuesRule =
-      static_cast<nsCSSFontFeatureValuesRule*>(aRule);
-    if (!data->mFontFeatureValuesRules.AppendElement(fontFeatureValuesRule)) {
       return false;
     }
   }
@@ -3286,8 +3203,6 @@ FillWeightArray(PLDHashTable *table, PLDHashEntryHdr *hdr,
 RuleCascadeData*
 nsCSSRuleProcessor::GetRuleCascade(nsPresContext* aPresContext)
 {
-  // FIXME:  Make this infallible!
-
   // If anything changes about the presentation context, we will be
   // notified.  Otherwise, our cache is valid if mLastPresContext
   // matches aPresContext.  (The only rule processors used for multiple
@@ -3331,7 +3246,6 @@ nsCSSRuleProcessor::RefreshRuleCascade(nsPresContext* aPresContext)
     if (newCascade) {
       CascadeEnumData data(aPresContext, newCascade->mFontFaceRules,
                            newCascade->mKeyframesRules,
-                           newCascade->mFontFeatureValuesRules,
                            newCascade->mPageRules,
                            newCascade->mCacheKey,
                            mSheetType);
@@ -3364,13 +3278,6 @@ nsCSSRuleProcessor::RefreshRuleCascade(nsPresContext* aPresContext)
         }
       }
 
-      // Build mKeyframesRuleTable.
-      for (nsTArray<nsCSSKeyframesRule*>::size_type i = 0,
-             iEnd = newCascade->mKeyframesRules.Length(); i < iEnd; ++i) {
-        nsCSSKeyframesRule* rule = newCascade->mKeyframesRules[i];
-        newCascade->mKeyframesRuleTable.Put(rule->GetName(), rule);
-      }
-
       // Ensure that the current one is always mRuleCascades.
       newCascade->mNext = mRuleCascades;
       mRuleCascades = newCascade.forget();
@@ -3384,10 +3291,6 @@ nsCSSRuleProcessor::SelectorListMatches(Element* aElement,
                                         TreeMatchContext& aTreeMatchContext,
                                         nsCSSSelectorList* aSelectorList)
 {
-  MOZ_ASSERT(!aTreeMatchContext.mForScopedStyle,
-             "mCurrentStyleScope will need to be saved and restored after the "
-             "SelectorMatchesTree call");
-
   while (aSelectorList) {
     nsCSSSelector* sel = aSelectorList->mSelectors;
     NS_ASSERTION(sel, "Should have *some* selectors");
@@ -3413,7 +3316,6 @@ TreeMatchContext::InitAncestors(Element *aElement)
 {
   MOZ_ASSERT(!mAncestorFilter.mFilter);
   MOZ_ASSERT(mAncestorFilter.mHashes.IsEmpty());
-  MOZ_ASSERT(mStyleScopes.IsEmpty());
 
   mAncestorFilter.mFilter = new AncestorFilter::Filter();
 
@@ -3431,39 +3333,12 @@ TreeMatchContext::InitAncestors(Element *aElement)
       if (!parent->IsElement()) {
         break;
       }
-
       cur = parent->AsElement();
     } while (true);
 
     // Now push them in reverse order.
     for (uint32_t i = ancestors.Length(); i-- != 0; ) {
       mAncestorFilter.PushAncestor(ancestors[i]);
-      PushStyleScope(ancestors[i]);
-    }
-  }
-}
-
-void
-TreeMatchContext::InitStyleScopes(Element* aElement)
-{
-  MOZ_ASSERT(mStyleScopes.IsEmpty());
-
-  if (MOZ_LIKELY(aElement)) {
-    // Collect up the ancestors
-    nsAutoTArray<Element*, 50> ancestors;
-    Element* cur = aElement;
-    do {
-      ancestors.AppendElement(cur);
-      nsINode* parent = cur->GetParentNode();
-      if (!parent || !parent->IsElement()) {
-        break;
-      }
-
-      cur = parent->AsElement();
-    } while (true);
-
-    // Now push them in reverse order.
-    for (uint32_t i = ancestors.Length(); i-- != 0; ) {
       PushStyleScope(ancestors[i]);
     }
   }

@@ -10,7 +10,6 @@
 #include "mozilla/RefPtr.h"
 #include "nsCRT.h"
 #include "nsNetUtil.h"
-#include "nsNSSCertHelper.h"
 #include "nsIObserverService.h"
 #include "nsNetUtil.h"
 #include "nsISupportsPrimitives.h"
@@ -27,9 +26,9 @@
 using namespace mozilla;
 using namespace mozilla::psm;
 
-NS_IMPL_ISUPPORTS2(nsClientAuthRememberService,
-                   nsIObserver,
-                   nsISupportsWeakReference)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsClientAuthRememberService, 
+                              nsIObserver,
+                              nsISupportsWeakReference)
 
 nsClientAuthRememberService::nsClientAuthRememberService()
   : monitor("nsClientAuthRememberService.monitor")
@@ -48,6 +47,8 @@ nsClientAuthRememberService::Init()
     NS_ERROR("nsClientAuthRememberService::Init called off the main thread");
     return NS_ERROR_NOT_SAME_THREAD;
   }
+
+  mSettingsTable.Init();
 
   nsCOMPtr<nsIObserverService> observerService =
       mozilla::services::GetObserverService();
@@ -95,6 +96,27 @@ void
 nsClientAuthRememberService::RemoveAllFromMemory()
 {
   mSettingsTable.Clear();
+}
+
+static nsresult
+GetCertFingerprintByOidTag(CERTCertificate* nsscert,
+                           SECOidTag aOidTag, 
+                           nsCString &fp)
+{
+  unsigned int hash_len = HASH_ResultLenByOidTag(aOidTag);
+  RefPtr<nsStringBuffer> fingerprint(nsStringBuffer::Alloc(hash_len));
+  if (!fingerprint)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  PK11_HashBuf(aOidTag, (unsigned char*)fingerprint->Data(), 
+               nsscert->derCert.data, nsscert->derCert.len);
+
+  SECItem fpItem;
+  fpItem.data = (unsigned char*)fingerprint->Data();
+  fpItem.len = hash_len;
+
+  fp.Adopt(CERT_Hexify(&fpItem, 1));
+  return NS_OK;
 }
 
 nsresult

@@ -42,6 +42,8 @@
 
 using namespace mozilla;
 
+#define COMPONENT_DIRECTORY     NS_LITERAL_CSTRING("components")
+
 // define home directory
 // For Windows platform, We are choosing Appdata folder as HOME
 #if defined (XP_WIN)
@@ -217,8 +219,8 @@ nsDirectoryService::GetCurrentProcessDirectory(nsIFile** aFile)
 
 nsDirectoryService* nsDirectoryService::gService = nullptr;
 
-nsDirectoryService::nsDirectoryService()
-    : mHashtable(256)
+nsDirectoryService::nsDirectoryService() :
+    mHashtable(256, true)
 {
 }
 
@@ -274,11 +276,19 @@ nsDirectoryService::RealInit()
     self.swap(gService);
 }
 
+bool
+nsDirectoryService::ReleaseValues(nsHashKey* key, void* data, void* closure)
+{
+    nsISupports* value = (nsISupports*)data;
+    NS_IF_RELEASE(value);
+    return true;
+}
+
 nsDirectoryService::~nsDirectoryService()
 {
 }
 
-NS_IMPL_ISUPPORTS4(nsDirectoryService, nsIProperties, nsIDirectoryService, nsIDirectoryServiceProvider, nsIDirectoryServiceProvider2)
+NS_IMPL_THREADSAFE_ISUPPORTS4(nsDirectoryService, nsIProperties, nsIDirectoryService, nsIDirectoryServiceProvider, nsIDirectoryServiceProvider2)
 
 
 NS_IMETHODIMP
@@ -286,11 +296,11 @@ nsDirectoryService::Undefine(const char* prop)
 {
     NS_ENSURE_ARG(prop);
 
-    nsDependentCString key(prop);
-    if (!mHashtable.Get(key, nullptr))
+    nsCStringKey key(prop);
+    if (!mHashtable.Exists(&key))
         return NS_ERROR_FAILURE;
 
-    mHashtable.Remove(key);
+    mHashtable.Remove (&key);
     return NS_OK;
  }
 
@@ -362,12 +372,17 @@ nsDirectoryService::Get(const char* prop, const nsIID & uuid, void* *result)
 {
     NS_ENSURE_ARG(prop);
 
-    nsDependentCString key(prop);
-
-    nsCOMPtr<nsIFile> cachedFile = mHashtable.Get(key);
-
-    if (cachedFile) {
+    nsCStringKey key(prop);
+    
+    nsCOMPtr<nsISupports> value = dont_AddRef(mHashtable.Get(&key));
+    
+    if (value)
+    {
         nsCOMPtr<nsIFile> cloneFile;
+        nsCOMPtr<nsIFile> cachedFile = do_QueryInterface(value);
+        NS_ASSERTION(cachedFile, 
+                     "nsDirectoryService::Get nsIFile expected");
+
         cachedFile->Clone(getter_AddRefs(cloneFile));
         return cloneFile->QueryInterface(uuid, result);
     }
@@ -411,21 +426,22 @@ nsDirectoryService::Set(const char* prop, nsISupports* value)
 {
     NS_ENSURE_ARG(prop);
 
-    nsDependentCString key(prop);
-    if (mHashtable.Get(key, nullptr) || !value) {
+    nsCStringKey key(prop);
+    if (mHashtable.Exists(&key) || value == nullptr)
         return NS_ERROR_FAILURE;
-    }
 
-    nsCOMPtr<nsIFile> ourFile = do_QueryInterface(value);
-    if (ourFile) {
+    nsCOMPtr<nsIFile> ourFile;
+    value->QueryInterface(NS_GET_IID(nsIFile), getter_AddRefs(ourFile));
+    if (ourFile)
+    {
       nsCOMPtr<nsIFile> cloneFile;
       ourFile->Clone (getter_AddRefs (cloneFile));
-      mHashtable.Put(key, cloneFile);
+      mHashtable.Put(&key, cloneFile);
 
       return NS_OK;
     }
 
-    return NS_ERROR_FAILURE;
+    return NS_ERROR_FAILURE;   
 }
 
 NS_IMETHODIMP

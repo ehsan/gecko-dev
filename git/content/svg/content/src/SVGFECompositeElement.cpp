@@ -5,7 +5,6 @@
 
 #include "mozilla/dom/SVGFECompositeElement.h"
 #include "mozilla/dom/SVGFECompositeElementBinding.h"
-#include "gfxContext.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(FEComposite)
 
@@ -13,7 +12,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFECompositeElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFECompositeElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFECompositeElementBinding::Wrap(aCx, aScope, this);
 }
@@ -56,43 +55,43 @@ nsSVGElement::StringInfo SVGFECompositeElement::sStringInfo[3] =
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFECompositeElement)
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFECompositeElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFECompositeElement::In2()
 {
   return mStringAttributes[IN2].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGFECompositeElement::Operator()
 {
   return mEnumAttributes[OPERATOR].ToDOMAnimatedEnum(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFECompositeElement::K1()
 {
   return mNumberAttributes[ATTR_K1].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFECompositeElement::K2()
 {
   return mNumberAttributes[ATTR_K2].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFECompositeElement::K3()
 {
   return mNumberAttributes[ATTR_K3].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFECompositeElement::K4()
 {
   return mNumberAttributes[ATTR_K4].ToDOMAnimatedNumber(this);

@@ -6,15 +6,16 @@
 #ifndef mozilla_dom_HTMLIFrameElement_h
 #define mozilla_dom_HTMLIFrameElement_h
 
-#include "mozilla/Attributes.h"
 #include "nsGenericHTMLFrameElement.h"
 #include "nsIDOMHTMLIFrameElement.h"
+#include "nsIDOMGetSVGDocument.h"
 
 namespace mozilla {
 namespace dom {
 
 class HTMLIFrameElement MOZ_FINAL : public nsGenericHTMLFrameElement
                                   , public nsIDOMHTMLIFrameElement
+                                  , public nsIDOMGetSVGDocument
 {
 public:
   HTMLIFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
@@ -26,32 +27,35 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+
   // nsIDOMHTMLIFrameElement
   NS_DECL_NSIDOMHTMLIFRAMEELEMENT
+
+  // nsIDOMGetSVGDocument
+  NS_DECL_NSIDOMGETSVGDOCUMENT
 
   // nsIContent
   virtual bool ParseAttribute(int32_t aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
-                                nsAttrValue& aResult) MOZ_OVERRIDE;
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
-  virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const MOZ_OVERRIDE;
+                                nsAttrValue& aResult);
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+  virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                   const nsAString& aValue, bool aNotify)
-  {
-    return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
-  }
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                           nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify) MOZ_OVERRIDE;
   virtual nsresult AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                                 const nsAttrValue* aValue,
-                                bool aNotify) MOZ_OVERRIDE;
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify) MOZ_OVERRIDE;
+                                bool aNotify);
 
   uint32_t GetSandboxFlags();
 
@@ -60,14 +64,6 @@ public:
   void SetSrc(const nsAString& aSrc, ErrorResult& aError)
   {
     SetHTMLAttr(nsGkAtoms::src, aSrc, aError);
-  }
-  void GetSrcdoc(DOMString& aSrcdoc)
-  {
-    GetHTMLAttr(nsGkAtoms::srcdoc, aSrcdoc);
-  }
-  void SetSrcdoc(const nsAString& aSrcdoc, ErrorResult& aError)
-  {
-    SetHTMLAttr(nsGkAtoms::srcdoc, aSrcdoc, aError);
   }
   void GetName(DOMString& aName)
   {
@@ -169,11 +165,10 @@ public:
   // nsGenericHTMLFrameElement::GetAppManifestURL is fine
 
 protected:
-  virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;
-  virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
+  virtual void GetItemValueText(nsAString& text);
+  virtual void SetItemValueText(const nsAString& text);
 
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 };
 
 } // namespace dom

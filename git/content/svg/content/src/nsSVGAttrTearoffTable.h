@@ -22,12 +22,11 @@ template<class SimpleType, class TearoffType>
 class nsSVGAttrTearoffTable
 {
 public:
-#ifdef DEBUG
   ~nsSVGAttrTearoffTable()
   {
-    NS_ABORT_IF_FALSE(!mTable, "Tear-off objects remain in hashtable at shutdown.");
+    NS_ABORT_IF_FALSE(mTable.Count() == 0,
+        "Tear-off objects remain in hashtable at shutdown.");
   }
-#endif
 
   TearoffType* GetTearoff(SimpleType* aSimple);
 
@@ -39,14 +38,14 @@ private:
   typedef nsPtrHashKey<SimpleType> SimpleTypePtrKey;
   typedef nsDataHashtable<SimpleTypePtrKey, TearoffType* > TearoffTable;
 
-  TearoffTable* mTable;
+  TearoffTable mTable;
 };
 
 template<class SimpleType, class TearoffType>
 TearoffType*
 nsSVGAttrTearoffTable<SimpleType, TearoffType>::GetTearoff(SimpleType* aSimple)
 {
-  if (!mTable)
+  if (!mTable.IsInitialized())
     return nullptr;
 
   TearoffType *tearoff = nullptr;
@@ -54,7 +53,7 @@ nsSVGAttrTearoffTable<SimpleType, TearoffType>::GetTearoff(SimpleType* aSimple)
 #ifdef DEBUG
   bool found =
 #endif
-    mTable->Get(aSimple, &tearoff);
+    mTable.Get(aSimple, &tearoff);
   NS_ABORT_IF_FALSE(!found || tearoff,
       "NULL pointer stored in attribute tear-off map");
 
@@ -66,18 +65,18 @@ void
 nsSVGAttrTearoffTable<SimpleType, TearoffType>::AddTearoff(SimpleType* aSimple,
                                                           TearoffType* aTearoff)
 {
-  if (!mTable) {
-    mTable = new TearoffTable;
+  if (!mTable.IsInitialized()) {
+    mTable.Init();
   }
 
   // We shouldn't be adding a tear-off if there already is one. If that happens,
   // something is wrong.
-  if (mTable->Get(aSimple, nullptr)) {
+  if (mTable.Get(aSimple, nullptr)) {
     NS_ABORT_IF_FALSE(false, "There is already a tear-off for this object.");
     return;
   }
 
-  mTable->Put(aSimple, aTearoff);
+  mTable.Put(aSimple, aTearoff);
 }
 
 template<class SimpleType, class TearoffType>
@@ -85,17 +84,13 @@ void
 nsSVGAttrTearoffTable<SimpleType, TearoffType>::RemoveTearoff(
     SimpleType* aSimple)
 {
-  if (!mTable) {
+  if (!mTable.IsInitialized()) {
     // Perhaps something happened in between creating the SimpleType object and
     // registering it
     return;
   }
 
-  mTable->Remove(aSimple);
-  if (mTable->Count() == 0) {
-    delete mTable;
-    mTable = nullptr;
-  }
+  mTable.Remove(aSimple);
 }
 
 #endif // NS_SVGATTRTEAROFFTABLE_H_

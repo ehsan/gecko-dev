@@ -1,30 +1,22 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-'use strict';
 
-Object.defineProperty(this, 'global', { value: this });
+Object.defineProperty(this, "global", { value: this });
 
-exports.testGlobals = function(assert) {
+exports.testGlobals = function(test) {
   // the only globals in module scope should be:
   //   module, exports, require, dump, console
-  assert.equal(typeof module, 'object', 'have "module", good');
-  assert.equal(typeof exports, 'object', 'have "exports", good');
-  assert.equal(typeof require, 'function', 'have "require", good');
-  assert.equal(typeof dump, 'function', 'have "dump", good');
-  assert.equal(typeof console, 'object', 'have "console", good');
+  test.assertObject(module, "have 'module', good");
+  test.assertObject(exports, "have 'exports', good");
+  test.assertFunction(require, "have 'require', good");
+  test.assertFunction(dump, "have 'dump', good");
+  test.assertObject(console, "have 'console', good");
 
   // in particular, these old globals should no longer be present
-  assert.ok(!('packaging' in global), "no 'packaging', good");
-  assert.ok(!('memory' in global), "no 'memory', good");
-  assert.ok(/test-globals\.js$/.test(module.uri),
-     'should contain filename');
-};
+  test.assert(!('packaging' in global), "no 'packaging', good");
+  test.assert(!('memory' in global), "no 'memory', good");
 
-exports.testComponent = function (assert) {
-  assert.throws(() => {
-    Components;
-  }, /`Components` is not available/, 'using `Components` throws');
+  test.assertMatches(module.uri, /test-globals\.js$/,
+                     'should contain filename');
 };
-
-require('test').run(exports);

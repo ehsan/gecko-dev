@@ -25,18 +25,18 @@ const Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/DownloadCore.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "DownloadCombinedList",
-                                  "resource://gre/modules/DownloadList.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadIntegration",
                                   "resource://gre/modules/DownloadIntegration.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadList",
                                   "resource://gre/modules/DownloadList.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "DownloadSummary",
-                                  "resource://gre/modules/DownloadList.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadStore",
+                                  "resource://gre/modules/DownloadStore.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadUIHelper",
                                   "resource://gre/modules/DownloadUIHelper.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
                                   "resource://gre/modules/commonjs/sdk/core/promise.js");
+XPCOMUtils.defineLazyModuleGetter(this, "Services",
+                                  "resource://gre/modules/Services.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
 
@@ -49,46 +49,21 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
  */
 this.Downloads = {
   /**
-   * Work on downloads that were not started from a private browsing window.
-   */
-  get PUBLIC() "{Downloads.PUBLIC}",
-  /**
-   * Work on downloads that were started from a private browsing window.
-   */
-  get PRIVATE() "{Downloads.PRIVATE}",
-  /**
-   * Work on both Downloads.PRIVATE and Downloads.PUBLIC downloads.
-   */
-  get ALL() "{Downloads.ALL}",
-
-  /**
    * Creates a new Download object.
    *
    * @param aProperties
    *        Provides the initial properties for the newly created download.
-   *        This matches the serializable representation of a Download object.
-   *        Some of the most common properties in this object include:
    *        {
-   *          source: String containing the URI for the download source.
-   *                  Alternatively, may be an nsIURI, a DownloadSource object,
-   *                  or an object with the following properties:
-   *          {
-   *            url: String containing the URI for the download source.
-   *            isPrivate: Indicates whether the download originated from a
-   *                       private window.  If omitted, the download is public.
-   *            referrer: String containing the referrer URI of the download
-   *                      source.  Can be omitted or null if no referrer should
-   *                      be sent or the download source is not HTTP.
+   *          source: {
+   *            uri: The nsIURI for the download source.
    *          },
-   *          target: String containing the path of the target file.
-   *                  Alternatively, may be an nsIFile, a DownloadTarget object,
-   *                  or an object with the following properties:
-   *          {
-   *            path: String containing the path of the target file.
+   *          target: {
+   *            file: The nsIFile for the download target.
    *          },
-   *          saver: String representing the class of the download operation.
-   *                 If omitted, defaults to "copy".  Alternatively, may be the
-   *                 serializable representation of a DownloadSaver object.
+   *          saver: {
+   *            type: String representing the class of download operation
+   *                  handled by this saver object, for example "copy".
+   *          },
    *        }
    *
    * @return {Promise}
@@ -97,198 +72,82 @@ this.Downloads = {
    */
   createDownload: function D_createDownload(aProperties)
   {
-    try {
-      return Promise.resolve(Download.fromSerializable(aProperties));
-    } catch (ex) {
-      return Promise.reject(ex);
-    }
+    return Task.spawn(function task_D_createDownload() {
+      let download = new Download();
+
+      download.source = new DownloadSource();
+      download.source.uri = aProperties.source.uri;
+      download.target = new DownloadTarget();
+      download.target.file = aProperties.target.file;
+
+      // Support for different aProperties.saver values isn't implemented yet.
+      download.saver = new DownloadCopySaver();
+      download.saver.download = download;
+
+      // This explicitly makes this function a generator for Task.jsm, so that
+      // exceptions in the above calls can be reported asynchronously.
+      yield;
+      throw new Task.Result(download);
+    });
   },
 
   /**
    * Downloads data from a remote network location to a local file.
    *
-   * This download method does not provide user interface, or the ability to
-   * cancel or restart the download programmatically.  For that, you should
-   * obtain a reference to a Download object using the createDownload function.
-   *
-   * Since the download cannot be restarted, any partially downloaded data will
-   * not be kept in case the download fails.
+   * This download method does not provide user interface or the ability to
+   * cancel the download programmatically.  For that, you should obtain a
+   * reference to a Download object using the createDownload function.
    *
    * @param aSource
-   *        String containing the URI for the download source.  Alternatively,
-   *        may be an nsIURI or a DownloadSource object.
+   *        The nsIURI for the download source, or alternative DownloadSource.
    * @param aTarget
-   *        String containing the path of the target file.  Alternatively, may
-   *        be an nsIFile or a DownloadTarget object.
-   * @param aOptions
-   *        An optional object used to control the behavior of this function.
-   *        You may pass an object with a subset of the following fields:
-   *        {
-   *          isPrivate: Indicates whether the download originated from a
-   *                     private window.
-   *        }
+   *        The nsIFile for the download target, or alternative DownloadTarget.
    *
    * @return {Promise}
    * @resolves When the download has finished successfully.
    * @rejects JavaScript exception if the download failed.
    */
-  fetch: function (aSource, aTarget, aOptions) {
+  simpleDownload: function D_simpleDownload(aSource, aTarget) {
+    // Wrap the arguments into simple objects resembling DownloadSource and
+    // DownloadTarget, if they are not objects of that type already.
+    if (aSource instanceof Ci.nsIURI) {
+      aSource = { uri: aSource };
+    }
+    if (aTarget instanceof Ci.nsIFile) {
+      aTarget = { file: aTarget };
+    }
+
+    // Create and start the actual download.
     return this.createDownload({
       source: aSource,
       target: aTarget,
+      saver: { type: "copy" },
     }).then(function D_SD_onSuccess(aDownload) {
-      if (aOptions && ("isPrivate" in aOptions)) {
-        aDownload.source.isPrivate = aOptions.isPrivate;
-      }
       return aDownload.start();
     });
   },
 
   /**
-   * Retrieves the specified type of DownloadList object.  There is one download
-   * list for each type, and this method always retrieves a reference to the
-   * same download list when called with the same argument.
+   * Retrieves the DownloadList object for downloads that were not started from
+   * a private browsing window.
    *
-   * Calling this function may cause the list of public downloads to be reloaded
-   * from the previous session, if it wasn't loaded already.
+   * Calling this function may cause the download list to be reloaded from the
+   * previous session, if it wasn't loaded already.
    *
-   * @param aType
-   *        This can be Downloads.PUBLIC, Downloads.PRIVATE, or Downloads.ALL.
-   *        Downloads added to the Downloads.PUBLIC and Downloads.PRIVATE lists
-   *        are reflected in the Downloads.ALL list, and downloads added to the
-   *        Downloads.ALL list are also added to either the Downloads.PUBLIC or
-   *        the Downloads.PRIVATE list based on their properties.
+   * This method always retrieves a reference to the same download list.
    *
    * @return {Promise}
-   * @resolves The requested DownloadList or DownloadCombinedList object.
+   * @resolves The DownloadList object for public downloads.
    * @rejects JavaScript exception.
    */
-  getList: function (aType)
+  getPublicDownloadList: function D_getPublicDownloadList()
   {
-    if (!this._promiseListsInitialized) {
-      this._promiseListsInitialized = Task.spawn(function () {
-        let publicList = new DownloadList();
-        let privateList = new DownloadList();
-        let combinedList = new DownloadCombinedList(publicList, privateList);
-
-        try {
-          yield DownloadIntegration.addListObservers(publicList, false);
-          yield DownloadIntegration.addListObservers(privateList, true);
-          yield DownloadIntegration.initializePublicDownloadList(publicList);
-        } catch (ex) {
-          Cu.reportError(ex);
-        }
-
-        let publicSummary = yield this.getSummary(Downloads.PUBLIC);
-        let privateSummary = yield this.getSummary(Downloads.PRIVATE);
-        let combinedSummary = yield this.getSummary(Downloads.ALL);
-
-        yield publicSummary.bindToList(publicList);
-        yield privateSummary.bindToList(privateList);
-        yield combinedSummary.bindToList(combinedList);
-
-        this._lists[Downloads.PUBLIC] = publicList;
-        this._lists[Downloads.PRIVATE] = privateList;
-        this._lists[Downloads.ALL] = combinedList;
-      }.bind(this));
+    if (!this._publicDownloadList) {
+      this._publicDownloadList = new DownloadList();
     }
-
-    return this._promiseListsInitialized.then(() => this._lists[aType]);
+    return Promise.resolve(this._publicDownloadList);
   },
-
-  /**
-   * Promise resolved when the initialization of the download lists has
-   * completed, or null if initialization has never been requested.
-   */
-  _promiseListsInitialized: null,
-
-  /**
-   * After initialization, this object is populated with one key for each type
-   * of download list that can be returned (Downloads.PUBLIC, Downloads.PRIVATE,
-   * or Downloads.ALL).  The values are the DownloadList objects.
-   */
-  _lists: {},
-
-  /**
-   * Retrieves the specified type of DownloadSummary object.  There is one
-   * download summary for each type, and this method always retrieves a
-   * reference to the same download summary when called with the same argument.
-   *
-   * Calling this function does not cause the list of public downloads to be
-   * reloaded from the previous session.  The summary will behave as if no
-   * downloads are present until the getList method is called.
-   *
-   * @param aType
-   *        This can be Downloads.PUBLIC, Downloads.PRIVATE, or Downloads.ALL.
-   *
-   * @return {Promise}
-   * @resolves The requested DownloadList or DownloadCombinedList object.
-   * @rejects JavaScript exception.
-   */
-  getSummary: function (aType)
-  {
-    if (aType != Downloads.PUBLIC && aType != Downloads.PRIVATE &&
-        aType != Downloads.ALL) {
-      throw new Error("Invalid aType argument.");
-    }
-
-    if (!(aType in this._summaries)) {
-      this._summaries[aType] = new DownloadSummary();
-    }
-
-    return Promise.resolve(this._summaries[aType]);
-  },
-
-  /**
-   * This object is populated by the getSummary method with one key for each
-   * type of object that can be returned (Downloads.PUBLIC, Downloads.PRIVATE,
-   * or Downloads.ALL).  The values are the DownloadSummary objects.
-   */
-  _summaries: {},
-
-  /**
-   * Returns the system downloads directory asynchronously.
-   *   Mac OSX:
-   *     User downloads directory
-   *   XP/2K:
-   *     My Documents/Downloads
-   *   Vista and others:
-   *     User downloads directory
-   *   Linux:
-   *     XDG user dir spec, with a fallback to Home/Downloads
-   *   Android:
-   *     standard downloads directory i.e. /sdcard
-   *
-   * @return {Promise}
-   * @resolves The downloads directory string path.
-   */
-  getSystemDownloadsDirectory: function D_getSystemDownloadsDirectory() {
-    return DownloadIntegration.getSystemDownloadsDirectory();
-  },
-
-  /**
-   * Returns the preferred downloads directory based on the user preferences
-   * in the current profile asynchronously.
-   *
-   * @return {Promise}
-   * @resolves The downloads directory string path.
-   */
-  getPreferredDownloadsDirectory: function D_getPreferredDownloadsDirectory() {
-    return DownloadIntegration.getPreferredDownloadsDirectory();
-  },
-
-  /**
-   * Returns the temporary directory where downloads are placed before the
-   * final location is chosen, or while the document is opened temporarily
-   * with an external application. This may or may not be the system temporary
-   * directory, based on the platform asynchronously.
-   *
-   * @return {Promise}
-   * @resolves The downloads directory string path.
-   */
-  getTemporaryDownloadsDirectory: function D_getTemporaryDownloadsDirectory() {
-    return DownloadIntegration.getTemporaryDownloadsDirectory();
-  },
+  _publicDownloadList: null,
 
   /**
    * Constructor for a DownloadError object.  When you catch an exception during

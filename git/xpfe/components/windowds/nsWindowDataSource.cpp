@@ -13,7 +13,6 @@
 #include "nsIWindowMediator.h"
 #include "nsXPCOMCID.h"
 #include "mozilla/ModuleUtils.h"
-#include "nsString.h"
 
 // just to do the reverse-lookup! sheesh.
 #include "nsIInterfaceRequestorUtils.h"
@@ -96,8 +95,6 @@ nsWindowDataSource::Observe(nsISupports *aSubject, const char* aTopic, const PRU
 
     return NS_OK;
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsWindowDataSource)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsWindowDataSource)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsWindowDataSource)
@@ -355,7 +352,7 @@ NS_IMETHODIMP nsWindowDataSource::GetTarget(nsIRDFResource *aSource, nsIRDFResou
 {
     NS_ENSURE_ARG_POINTER(_retval);
 
-    // add extra nullptr checking for top-crash bug # 146466
+    // add extra NULL checking for top-crash bug # 146466
     if (!gRDFService) return NS_RDF_NO_VALUE;
     if (!mInner) return NS_RDF_NO_VALUE;
     if (!mContainer) return NS_RDF_NO_VALUE;
@@ -548,18 +545,18 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsWindowDataSource, Init)
 NS_DEFINE_NAMED_CID(NS_WINDOWDATASOURCE_CID);
 
 static const mozilla::Module::CIDEntry kWindowDSCIDs[] = {
-    { &kNS_WINDOWDATASOURCE_CID, false, nullptr, nsWindowDataSourceConstructor },
-    { nullptr }
+    { &kNS_WINDOWDATASOURCE_CID, false, NULL, nsWindowDataSourceConstructor },
+    { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kWindowDSContracts[] = {
     { NS_RDF_DATASOURCE_CONTRACTID_PREFIX "window-mediator", &kNS_WINDOWDATASOURCE_CID },
-    { nullptr }
+    { NULL }
 };
 
 static const mozilla::Module::CategoryEntry kWindowDSCategories[] = {
     { "app-startup", "Window Data Source", "service," NS_RDF_DATASOURCE_CONTRACTID_PREFIX "window-mediator" },
-    { nullptr }
+    { NULL }
 };
         
 static const mozilla::Module kWindowDSModule = {

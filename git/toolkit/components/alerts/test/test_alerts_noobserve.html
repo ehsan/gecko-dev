@@ -18,9 +18,10 @@
 
 <pre id="test">
 <script class="testbody" type="text/javascript">
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
-const Cc = SpecialPowers.Cc;
-const Ci = SpecialPowers.Ci;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 
 var gNotificationIsAvailable;
 
@@ -35,7 +36,7 @@ if (!("@mozilla.org/alerts-service;1" in Cc)) {
                getService(Ci.nsIAlertsService);
     ok(true, "Alerts service is available");
   } catch (ex) {
-    todo(false, "Alerts service is not available.", ex);
+    todo(false, "Alerts service is not available. (Mac OS X without Growl?)", ex);
   }
 
   if (notifier) {
@@ -46,7 +47,7 @@ if (!("@mozilla.org/alerts-service;1" in Cc)) {
 
       gNotificationIsAvailable = true;
     } catch (ex) {
-      todo(false, "showAlertNotification() failed.", ex);
+      todo(false, "showAlertNotification() failed. (Mac OS X without Growl?)", ex);
     }
   }
 }

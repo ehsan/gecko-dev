@@ -10,22 +10,14 @@
  * or SpiderMonkey public headers may not work correctly.
  */
 
-#ifndef js_RequiredDefines_h
-#define js_RequiredDefines_h
+#ifndef js_RequiredDefines_h___
+#define js_RequiredDefines_h___
 
 /*
  * The c99 defining the limit macros (UINT32_MAX for example), says:
- *
- *   C++ implementations should define these macros only when
- *   __STDC_LIMIT_MACROS is defined before <stdint.h> is included.
- *
- * The same also occurs with __STDC_CONSTANT_MACROS for the constant macros
- * (INT8_C for example) used to specify a literal constant of the proper type,
- * and with __STDC_FORMAT_MACROS for the format macros (PRId32 for example) used
- * with the fprintf function family.
+ * C++ implementations should define these macros only when __STDC_LIMIT_MACROS
+ * is defined before <stdint.h> is included.
  */
 #define __STDC_LIMIT_MACROS
-#define __STDC_CONSTANT_MACROS
-#define __STDC_FORMAT_MACROS
 
-#endif /* js_RequiredDefines_h */
+#endif /* js_RequiredDefines_h___ */

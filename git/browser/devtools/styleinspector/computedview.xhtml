@@ -35,9 +35,8 @@
 
     <script type="application/javascript;version=1.8">
       window.setPanel = function(panel, iframe) {
-        let {devtools} = Components.utils.import("resource://gre/modules/devtools/Loader.jsm", {});
-        let inspector = devtools.require("devtools/styleinspector/style-inspector");
-        this.computedview = new inspector.ComputedViewTool(panel, window, iframe);
+        Components.utils.import("resource:///modules/devtools/StyleInspector.jsm");
+        this.computedview = new ComputedViewTool(panel, window, iframe);
       }
       window.onunload = function() {
         if (this.computedview) {
@@ -98,12 +97,12 @@
               <a target="_blank" class="link theme-link"
                   onclick="${selector.openStyleEditor}"
                   onkeydown="${selector.maybeOpenStyleEditor}"
-                  title="${selector.href}"
-                  tabindex="0">${selector.source}</a>
+                  title="${selector.selectorInfo.href}"
+                  tabindex="0">${selector.selectorInfo.source}</a>
             </span>
             <span dir="ltr" class="rule-text ${selector.statusClass} theme-fg-color3" title="${selector.statusText}">
-              ${selector.sourceText}
-              <span class="other-property-value theme-fg-color1">${selector.outputFragment}</span>
+              ${selector.text(__element)}
+              <span class="other-property-value theme-fg-color1">${selector.selectorInfo.value}</span>
             </span>
           </p>
         </loop>

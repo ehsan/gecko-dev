@@ -22,7 +22,7 @@ typedef struct _FcPattern FcPattern;
 typedef struct FT_FaceRec_* FT_Face;
 typedef struct FT_LibraryRec_  *FT_Library;
 
-class gfxPangoFontGroup : public gfxFontGroup {
+class THEBES_API gfxPangoFontGroup : public gfxFontGroup {
 public:
     gfxPangoFontGroup (const nsAString& families,
                        const gfxFontStyle *aStyle,
@@ -50,12 +50,17 @@ public:
                                       const uint8_t *aFontData,
                                       uint32_t aLength);
 
+    // Interfaces used internally
+    // (but public so that they can be accessed from non-member functions):
+
+    // A language guessed from the gfxFontStyle
+    PangoLanguage *GetPangoLanguage() { return mPangoLanguage; }
+
 private:
     // @param aLang [in] language to use for pref fonts and system default font
-    //        selection, or nullptr for the language guessed from the
-    //        gfxFontStyle.
+    //        selection, or NULL for the language guessed from the gfxFontStyle.
     // The FontGroup holds a reference to this set.
-    gfxFcFontSet *GetFontSet(PangoLanguage *aLang = nullptr);
+    gfxFcFontSet *GetFontSet(PangoLanguage *aLang = NULL);
 
     class FontSetByLangEntry {
     public:
@@ -74,11 +79,11 @@ private:
                        nsIAtom *aLanguage);
 
     // @param aLang [in] language to use for pref fonts and system font
-    //        resolution, or nullptr to guess a language from the gfxFontStyle.
-    // @param aMatchPattern [out] if non-nullptr, will return the pattern used.
+    //        resolution, or NULL to guess a language from the gfxFontStyle.
+    // @param aMatchPattern [out] if non-NULL, will return the pattern used.
     already_AddRefed<gfxFcFontSet>
     MakeFontSet(PangoLanguage *aLang, gfxFloat aSizeAdjustFactor,
-                nsAutoRef<FcPattern> *aMatchPattern = nullptr);
+                nsAutoRef<FcPattern> *aMatchPattern = NULL);
 
     gfxFcFontSet *GetBaseFontSet();
     gfxFcFont *GetBaseFont();
@@ -90,7 +95,6 @@ private:
         return mSizeAdjustFactor;
     }
 
-    friend class gfxSystemFcFontEntry;
     static FT_Library GetFTLibrary();
 };
 

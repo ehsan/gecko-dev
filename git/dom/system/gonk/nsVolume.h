@@ -19,25 +19,20 @@ class VolumeMountLock;
 class nsVolume : public nsIVolume
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIVOLUME
 
   // This constructor is used by the UpdateVolumeRunnable constructor
   nsVolume(const Volume* aVolume);
 
-  // This constructor is used by ContentChild::RecvFileSystemUpdate which is
-  // used to update the volume cache maintained in the child process.
+  // This constructor is used by ContentChild::RecvFileSystemUpdate
   nsVolume(const nsAString& aName, const nsAString& aMountPoint,
-           const int32_t& aState, const int32_t& aMountGeneration,
-           const bool& aIsMediaPresent, const bool& aIsSharing)
+           const int32_t& aState, const int32_t& aMountGeneration)
     : mName(aName),
       mMountPoint(aMountPoint),
       mState(aState),
       mMountGeneration(aMountGeneration),
-      mMountLocked(false),
-      mIsFake(false),
-      mIsMediaPresent(aIsMediaPresent),
-      mIsSharing(aIsSharing)
+      mMountLocked(false)
   {
   }
 
@@ -47,10 +42,7 @@ public:
     : mName(aName),
       mState(STATE_INIT),
       mMountGeneration(-1),
-      mMountLocked(true),  // Needs to agree with Volume::Volume
-      mIsFake(false),
-      mIsMediaPresent(false),
-      mIsSharing(false)
+      mMountLocked(true)  // Needs to agree with Volume::Volume
   {
   }
 
@@ -71,10 +63,6 @@ public:
   int32_t State() const               { return mState; }
   const char* StateStr() const        { return NS_VolumeStateStr(mState); }
 
-  bool IsFake() const                 { return mIsFake; }
-  bool IsMediaPresent() const         { return mIsMediaPresent; }
-  bool IsSharing() const              { return mIsSharing; }
-
   typedef nsTArray<nsRefPtr<nsVolume> > Array;
 
 private:
@@ -84,17 +72,11 @@ private:
   void UpdateMountLock(const nsAString& aMountLockState);
   void UpdateMountLock(bool aMountLocked);
 
-  void SetIsFake(bool aIsFake);
-  void SetState(int32_t aState);
-
   nsString mName;
   nsString mMountPoint;
   int32_t  mState;
   int32_t  mMountGeneration;
   bool     mMountLocked;
-  bool     mIsFake;
-  bool     mIsMediaPresent;
-  bool     mIsSharing;
 };
 
 } // system

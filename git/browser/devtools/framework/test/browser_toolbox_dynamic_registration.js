@@ -4,6 +4,10 @@
 
 let toolbox;
 
+let temp = {};
+Cu.import("resource:///modules/devtools/Target.jsm", temp);
+let TargetFactory = temp.TargetFactory;
+
 function test()
 {
   waitForExplicitFinish();
@@ -27,7 +31,6 @@ function testRegister(aToolbox)
   gDevTools.registerTool({
     id: "test-tool",
     label: "Test Tool",
-    inMenu: true,
     isTargetSupported: function() true,
     build: function() {}
   });
@@ -74,9 +77,8 @@ function testUnregister()
   gDevTools.unregisterTool("test-tool");
 }
 
-function toolUnregistered(event, toolDefinition)
+function toolUnregistered(event, toolId)
 {
-  let toolId = toolDefinition.id;
   is(toolId, "test-tool", "tool-unregistered event handler sent tool id");
 
   ok(!gDevTools.getToolDefinitionMap().has(toolId), "tool removed from map");

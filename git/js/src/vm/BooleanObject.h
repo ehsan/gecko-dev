@@ -4,11 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_BooleanObject_h
-#define vm_BooleanObject_h
+#ifndef BooleanObject_h___
+#define BooleanObject_h___
 
 #include "jsbool.h"
-#include "jsobj.h"
 
 namespace js {
 
@@ -19,8 +18,6 @@ class BooleanObject : public JSObject
 
   public:
     static const unsigned RESERVED_SLOTS = 1;
-
-    static const Class class_;
 
     /*
      * Creates a new Boolean object boxing the given primitive bool.  The
@@ -44,4 +41,4 @@ class BooleanObject : public JSObject
 
 } // namespace js
 
-#endif /* vm_BooleanObject_h */
+#endif /* BooleanObject_h__ */

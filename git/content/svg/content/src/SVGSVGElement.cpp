@@ -3,8 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stdint.h>
-#include "mozilla/BasicEvents.h"
+#include "mozilla/StandardInteger.h"
 #include "mozilla/Util.h"
 #include "mozilla/Likely.h"
 
@@ -20,11 +19,11 @@
 #include "mozilla/dom/SVGMatrix.h"
 #include "DOMSVGPoint.h"
 #include "nsIFrame.h"
-#include "nsFrameSelection.h"
 #include "nsISVGSVGFrame.h" //XXX
 #include "mozilla/dom/SVGRect.h"
 #include "nsError.h"
 #include "nsISVGChildFrame.h"
+#include "nsGUIEvent.h"
 #include "mozilla/dom/SVGSVGElement.h"
 #include "mozilla/dom/SVGSVGElementBinding.h"
 #include "nsSVGUtils.h"
@@ -38,7 +37,6 @@
 #include "nsSMILTypes.h"
 #include "SVGAngle.h"
 #include <algorithm>
-#include "prtime.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT_CHECK_PARSER(SVG)
 
@@ -48,13 +46,20 @@ namespace dom {
 class SVGAnimatedLength;
 
 JSObject*
-SVGSVGElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGSVGElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGSVGElementBinding::Wrap(aCx, aScope, this);
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(DOMSVGTranslatePoint, nsISVGPoint,
-                                     mElement)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(DOMSVGTranslatePoint,
+                                                nsISVGPoint)
+NS_IMPL_CYCLE_COLLECTION_UNLINK(mElement)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(DOMSVGTranslatePoint,
+                                                  nsISVGPoint)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mElement)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(DOMSVGTranslatePoint, nsISVGPoint)
 NS_IMPL_RELEASE_INHERITED(DOMSVGTranslatePoint, nsISVGPoint)
@@ -127,8 +132,6 @@ nsSVGElement::EnumInfo SVGSVGElement::sEnumInfo[1] =
 
 //----------------------------------------------------------------------
 // nsISupports methods
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(SVGSVGElement)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(SVGSVGElement,
                                                 SVGSVGElementBase)
@@ -368,16 +371,6 @@ SVGSVGElement::SetCurrentTime(float seconds)
   // else we're not the outermost <svg> or not bound to a tree, so silently fail
 }
 
-void
-SVGSVGElement::DeselectAll()
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  if (frame) {
-    nsRefPtr<nsFrameSelection> frameSelection = frame->GetFrameSelection();
-    frameSelection->ClearNormalSelection();
-  }
-}
-
 already_AddRefed<nsIDOMSVGNumber>
 SVGSVGElement::CreateSVGNumber()
 {
@@ -418,7 +411,9 @@ SVGSVGElement::CreateSVGMatrix()
 already_AddRefed<SVGIRect>
 SVGSVGElement::CreateSVGRect()
 {
-  return NS_NewSVGRect(this);
+  nsRefPtr<SVGRect> rect;
+  NS_NewSVGRect(getter_AddRefs(rect));
+  return rect.forget();
 }
 
 already_AddRefed<SVGTransform>
@@ -449,10 +444,12 @@ SVGSVGElement::GetElementById(const nsAString& elementId, ErrorResult& rv)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedRect>
+already_AddRefed<nsIDOMSVGAnimatedRect>
 SVGSVGElement::ViewBox()
 {
-  return mViewBox.ToSVGAnimatedRect(this);
+  nsCOMPtr<nsIDOMSVGAnimatedRect> rect;
+  mViewBox.ToDOMAnimatedRect(getter_AddRefs(rect), this);
+  return rect.forget();
 }
 
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>
@@ -525,7 +522,7 @@ SVGSVGElement::SetCurrentScaleTranslate(float s, float x, float y)
     if (presShell && IsRoot()) {
       bool scaling = (mPreviousScale != mCurrentScale);
       nsEventStatus status = nsEventStatus_eIgnore;
-      WidgetGUIEvent event(true, scaling ? NS_SVG_ZOOM : NS_SVG_SCROLL, 0);
+      nsGUIEvent event(true, scaling ? NS_SVG_ZOOM : NS_SVG_SCROLL, 0);
       event.eventStructType = scaling ? NS_SVGZOOM_EVENT : NS_EVENT;
       presShell->HandleDOMEventWithTarget(this, &event, &status);
       InvalidateTransformNotifyFrame();
@@ -696,7 +693,7 @@ SVGSVGElement::ChildrenOnlyTransformChanged(uint32_t aFlags)
 {
   // Avoid wasteful calls:
   NS_ABORT_IF_FALSE(!(GetPrimaryFrame()->GetStateBits() &
-                      NS_FRAME_IS_NONDISPLAY),
+                      NS_STATE_SVG_NONDISPLAY_CHILD),
                     "Non-display SVG frames don't maintain overflow rects");
 
   nsChangeHint changeHint;
@@ -711,8 +708,9 @@ SVGSVGElement::ChildrenOnlyTransformChanged(uint32_t aFlags)
     changeHint = nsChangeHint_ReconstructFrame;
   } else {
     // We just assume the old and new transforms are different.
-    changeHint = nsChangeHint(nsChangeHint_UpdateOverflow |
-                              nsChangeHint_ChildrenOnlyTransform);
+    changeHint = nsChangeHint(nsChangeHint_RepaintFrame |
+                   nsChangeHint_UpdateOverflow |
+                   nsChangeHint_ChildrenOnlyTransform);
   }
 
   // If we're not reconstructing the frame tree, then we only call
@@ -744,6 +742,7 @@ SVGSVGElement::BindToTree(nsIDocument* aDocument,
         // We'll be the outermost <svg> element.  We'll need a time container.
         if (!mTimedDocumentRoot) {
           mTimedDocumentRoot = new nsSMILTimeContainer();
+          NS_ENSURE_TRUE(mTimedDocumentRoot, NS_ERROR_OUT_OF_MEMORY);
         }
       } else {
         // We're a child of some other <svg> element, so we don't need our own
@@ -965,33 +964,36 @@ SVGSVGElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
   NS_ABORT_IF_FALSE(aWhich != eChildToUserSpace || aMatrix.IsIdentity(),
                     "Skipping eUserSpaceToParent transforms makes no sense");
 
-  // 'transform' attribute:
-  gfxMatrix fromUserSpace =
-    SVGSVGElementBase::PrependLocalTransformsTo(aMatrix, aWhich);
-  if (aWhich == eUserSpaceToParent) {
-    return fromUserSpace;
-  }
-
   if (IsInner()) {
     float x, y;
     const_cast<SVGSVGElement*>(this)->GetAnimatedLengthValues(&x, &y, nullptr);
     if (aWhich == eAllTransforms) {
       // the common case
-      return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y)) * fromUserSpace;
+      return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y)) * aMatrix;
+    }
+    if (aWhich == eUserSpaceToParent) {
+      return gfxMatrix().Translate(gfxPoint(x, y)) * aMatrix;
     }
     NS_ABORT_IF_FALSE(aWhich == eChildToUserSpace, "Unknown TransformTypes");
-    return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y));
+    return GetViewBoxTransform(); // no need to multiply identity aMatrix
+  }
+
+  if (aWhich == eUserSpaceToParent) {
+    // only inner-<svg> has eUserSpaceToParent transforms
+    return aMatrix;
   }
 
   if (IsRoot()) {
     gfxMatrix zoomPanTM;
     zoomPanTM.Translate(gfxPoint(mCurrentTranslate.GetX(), mCurrentTranslate.GetY()));
     zoomPanTM.Scale(mCurrentScale, mCurrentScale);
-    return GetViewBoxTransform() * zoomPanTM * fromUserSpace;
+    gfxMatrix matrix = mFragmentIdentifierTransform ? 
+                         *mFragmentIdentifierTransform * aMatrix : aMatrix;
+    return GetViewBoxTransform() * zoomPanTM * matrix;
   }
 
   // outer-<svg>, but inline in some other content:
-  return GetViewBoxTransform() * fromUserSpace;
+  return GetViewBoxTransform() * aMatrix;
 }
 
 /* virtual */ bool
@@ -1054,7 +1056,7 @@ SVGSVGElement::ShouldSynthesizeViewBox() const
 }
 
 
-// Callback function, for freeing SVGPreserveAspectRatio values stored in property table
+// Callback function, for freeing uint64_t values stored in property table
 static void
 ReleasePreserveAspectRatioPropertyValue(void*    aObject,       /* unused */
                                         nsIAtom* aPropertyName, /* unused */
@@ -1168,7 +1170,7 @@ SVGSVGElement::FlushImageTransformInvalidation()
   }
 }
 
-// Callback function, for freeing nsSVGViewBoxRect values stored in property table
+// Callback function, for freeing uint64_t values stored in property table
 static void
 ReleaseViewBoxPropertyValue(void*    aObject,       /* unused */
                             nsIAtom* aPropertyName, /* unused */
@@ -1243,53 +1245,6 @@ bool
 SVGSVGElement::ClearZoomAndPanProperty()
 {
   return UnsetProperty(nsGkAtoms::zoomAndPan);
-}
-
-// Callback function, for freeing SVGTransformList values stored in property table
-static void
-ReleaseTransformPropertyValue(void*    aObject,       /* unused */
-                              nsIAtom* aPropertyName, /* unused */
-                              void*    aPropertyValue,
-                              void*    aData          /* unused */)
-{
-  SVGTransformList* valPtr =
-    static_cast<SVGTransformList*>(aPropertyValue);
-  delete valPtr;
-}
-
-bool
-SVGSVGElement::SetTransformProperty(const SVGTransformList& aTransform)
-{
-  SVGTransformList* pTransformOverridePtr = new SVGTransformList(aTransform);
-  nsresult rv = SetProperty(nsGkAtoms::transform,
-                            pTransformOverridePtr,
-                            ReleaseTransformPropertyValue,
-                            true);
-  NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
-                    "Setting override value when it's already set...?"); 
-
-  if (MOZ_UNLIKELY(NS_FAILED(rv))) {
-    // property-insertion failed (e.g. OOM in property-table code)
-    delete pTransformOverridePtr;
-    return false;
-  }
-  return true;
-}
-
-const SVGTransformList*
-SVGSVGElement::GetTransformProperty() const
-{
-  void* valPtr = GetProperty(nsGkAtoms::transform);
-  if (valPtr) {
-    return static_cast<SVGTransformList*>(valPtr);
-  }
-  return nullptr;
-}
-
-bool
-SVGSVGElement::ClearTransformProperty()
-{
-  return UnsetProperty(nsGkAtoms::transform);
 }
 
 } // namespace dom

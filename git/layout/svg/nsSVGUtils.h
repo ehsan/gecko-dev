@@ -10,12 +10,10 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-#include "DrawMode.h"
-#include "gfx2DGlue.h"
+#include "gfxFont.h"
 #include "gfxMatrix.h"
 #include "gfxPoint.h"
 #include "gfxRect.h"
-#include "mozilla/gfx/Rect.h"
 #include "nsAlgorithm.h"
 #include "nsChangeHint.h"
 #include "nsColor.h"
@@ -23,6 +21,8 @@
 #include "nsID.h"
 #include "nsISupportsBase.h"
 #include "nsMathUtils.h"
+#include "nsPoint.h"
+#include "nsRect.h"
 #include "nsStyleStruct.h"
 #include "mozilla/Constants.h"
 #include <algorithm>
@@ -47,13 +47,10 @@ class nsSVGLength2;
 class nsSVGOuterSVGFrame;
 class nsSVGPathGeometryFrame;
 class nsTextFrame;
-class gfxTextContextPaint;
+class gfxTextObjectPaint;
 
 struct nsStyleSVG;
 struct nsStyleSVGPaint;
-struct nsRect;
-struct nsIntRect;
-struct nsPoint;
 
 namespace mozilla {
 class SVGAnimatedPreserveAspectRatio;
@@ -66,47 +63,11 @@ class Element;
 // SVG Frame state bits
 #define NS_STATE_IS_OUTER_SVG                    NS_FRAME_STATE_BIT(20)
 
+/* are we the child of a non-display container? */
+#define NS_STATE_SVG_NONDISPLAY_CHILD            NS_FRAME_STATE_BIT(22)
+
 // If this bit is set, we are a <clipPath> element or descendant.
-#define NS_STATE_SVG_CLIPPATH_CHILD              NS_FRAME_STATE_BIT(21)
-
-/**
- * For text, the NS_FRAME_IS_DIRTY and NS_FRAME_HAS_DIRTY_CHILDREN bits indicate
- * that our anonymous block child needs to be reflowed, and that mPositions
- * will likely need to be updated as a consequence. These are set, for
- * example, when the font-family changes. Sometimes we only need to
- * update mPositions though. For example if the x/y attributes change.
- * mPositioningDirty is used to indicate this latter "things are dirty" case
- * to allow us to avoid reflowing the anonymous block when it is not
- * necessary.
- */
-#define NS_STATE_SVG_POSITIONING_DIRTY           NS_FRAME_STATE_BIT(22)
-
-/**
- * For text, whether the values from x/y/dx/dy attributes have any percentage values
- * that are used in determining the positions of glyphs.  The value will
- * be true even if a positioning value is overridden by a descendant element's
- * attribute with a non-percentage length.  For example,
- * NS_STATE_SVG_POSITIONING_MAY_USE_PERCENTAGES would be set for:
- *
- *   <text x="10%"><tspan x="0">abc</tspan></text>
- *
- * Percentage values beyond the number of addressable characters, however, do
- * not influence NS_STATE_SVG_POSITIONING_MAY_USE_PERCENTAGES.  For example,
- * NS_STATE_SVG_POSITIONING_MAY_USE_PERCENTAGES would be false for:
- *
- *   <text x="10 20 30 40%">abc</text>
- *
- * NS_STATE_SVG_POSITIONING_MAY_USE_PERCENTAGES is used to determine whether
- * to recompute mPositions when the viewport size changes.  So although the 
- * first example above shows that NS_STATE_SVG_POSITIONING_MAY_USE_PERCENTAGES
- * can be true even if a viewport size change will not affect mPositions,
- * determining a completley accurate value for
- * NS_STATE_SVG_POSITIONING_MAY_USE_PERCENTAGES would require extra work that is
- * probably not worth it.
- */
-#define NS_STATE_SVG_POSITIONING_MAY_USE_PERCENTAGES NS_FRAME_STATE_BIT(23)
-
-#define NS_STATE_SVG_TEXT_IN_REFLOW              NS_FRAME_STATE_BIT(24)
+#define NS_STATE_SVG_CLIPPATH_CHILD              NS_FRAME_STATE_BIT(23)
 
 /**
  * Byte offsets of channels in a native packed gfxColor or cairo image surface.
@@ -143,20 +104,21 @@ bool NS_SVGTextCSSFramesEnabled();
  * that contains an element that has no size e.g. a point at the origin.
  */
 class SVGBBox {
-  typedef mozilla::gfx::Rect Rect;
-
 public:
   SVGBBox() 
     : mIsEmpty(true) {}
 
-  SVGBBox(const Rect& aRect)
+  SVGBBox(const gfxRect& aRect) 
     : mBBox(aRect), mIsEmpty(false) {}
 
-  SVGBBox(const gfxRect& aRect)
-    : mBBox(ToRect(aRect)), mIsEmpty(false) {}
+  SVGBBox& operator=(const gfxRect& aRect) {
+    mBBox = aRect;
+    mIsEmpty = false;
+    return *this;
+  }
 
-  gfxRect ToThebesRect() const {
-    return ThebesRect(mBBox);
+  operator const gfxRect& () const {
+    return mBBox;
   }
 
   bool IsEmpty() const {
@@ -172,8 +134,8 @@ public:
   }
 
 private:
-  Rect mBBox;
-  bool mIsEmpty;
+  gfxRect mBBox;
+  bool    mIsEmpty;
 };
 
 // GRRR WINDOWS HATE HATE HATE
@@ -292,6 +254,15 @@ public:
                                const nsIntRect &aRect,
                                float aOpacity);
 
+  /*
+   * Converts a nsStyleCoord into a userspace value.  Handles units
+   * Factor (straight userspace), Coord (dimensioned), and Percent (of
+   * the current SVG viewport)
+   */
+  static float CoordToFloat(nsPresContext *aPresContext,
+                            nsSVGElement *aContent,
+                            const nsStyleCoord &aCoord);
+
   /**
    * Gets the nearest nsSVGInnerSVGFrame or nsSVGOuterSVGFrame frame. aFrame
    * must be an SVG frame. If aFrame is of type nsGkAtoms::svgOuterSVGFrame,
@@ -308,10 +279,25 @@ public:
                                                 const nsRect &aUnfilteredRect);
 
   /**
+   * Invalidates the area that is painted by the frame without updating its
+   * bounds.
+   *
+   * This is similar to InvalidateOverflowRect(). It will go away when we
+   * support display list based invalidation of SVG.
+   *
+   * @param aBoundsSubArea If non-null, a sub-area of aFrame's pre-filter
+   *   visual overflow rect that should be invalidated instead of aFrame's
+   *   entire visual overflow rect.
+   */
+  static void InvalidateBounds(nsIFrame *aFrame, bool aDuringUpdate = false,
+                               const nsRect *aBoundsSubArea = nullptr,
+                               uint32_t aFlags = 0);
+
+  /**
    * Schedules an update of the frame's bounds (which will in turn invalidate
    * the new area that the frame should paint to).
    *
-   * This does nothing when passed an NS_FRAME_IS_NONDISPLAY frame.
+   * This does nothing when passed an NS_STATE_SVG_NONDISPLAY_CHILD frame.
    * In future we may want to allow ReflowSVG to be called on such frames,
    * but that would be better implemented as a ForceReflowSVG function to
    * be called synchronously while painting them without marking or paying
@@ -333,7 +319,7 @@ public:
    * mark descendants dirty would cause it to descend through
    * nsSVGForeignObjectFrame frames to mark their children dirty, but we want to
    * handle nsSVGForeignObjectFrame specially. It would also do unnecessary work
-   * descending into NS_FRAME_IS_NONDISPLAY frames.
+   * descending into NS_STATE_SVG_NONDISPLAY_CHILD frames.
    */
   static void ScheduleReflowSVG(nsIFrame *aFrame);
 
@@ -383,8 +369,7 @@ public:
   static void
   PaintFrameWithEffects(nsRenderingContext *aContext,
                         const nsIntRect *aDirtyRect,
-                        nsIFrame *aFrame,
-                        nsIFrame* aTransformRoot = nullptr);
+                        nsIFrame *aFrame);
 
   /* Hit testing - check if point hits the clipPath of indicated
    * frame.  Returns true if no clipPath set. */
@@ -401,8 +386,7 @@ public:
    * child SVG frame, container SVG frame, or a regular frame.
    * For regular frames, we just return an identity matrix.
    */
-  static gfxMatrix GetCanvasTM(nsIFrame* aFrame, uint32_t aFor,
-                               nsIFrame* aTransformRoot = nullptr);
+  static gfxMatrix GetCanvasTM(nsIFrame* aFrame, uint32_t aFor);
 
   /**
    * Returns the transform from aFrame's user space to canvas space. Only call
@@ -418,6 +402,12 @@ public:
   /**
    * Notify the descendants of aFrame of a change to one of their ancestors
    * that might affect them.
+   *
+   * If the changed ancestor renders and needs to be invalidated, it should
+   * call nsSVGUtils::InvalidateAndScheduleBoundsUpdate or
+   * nsSVGUtils::InvalidateBounds _before_ calling this method. That makes it
+   * cheaper when descendants schedule their own bounds update because the code
+   * that walks up the parent chain marking dirty bits can stop earlier.
    */
   static void
   NotifyChildrenOfSVGChange(nsIFrame *aFrame, uint32_t aFlags);
@@ -499,6 +489,10 @@ public:
   static bool
   CanOptimizeOpacity(nsIFrame *aFrame);
 
+  /* Calculate the maximum expansion of a matrix */
+  static float
+  MaxExpansion(const gfxMatrix &aMatrix);
+
   /**
    * Take the CTM to userspace for an element, and adjust it to a CTM to its
    * object bounding box space if aUnits is SVG_UNIT_TYPE_OBJECTBOUNDINGBOX.
@@ -548,7 +542,6 @@ public:
   static nsIFrame* GetFirstNonAAncestorFrame(nsIFrame* aStartFrame);
 
   static bool OuterSVGIsCallingReflowSVG(nsIFrame *aFrame);
-  static bool AnyOuterSVGIsCallingReflowSVG(nsIFrame *aFrame);
 
   /*
    * Get any additional transforms that apply only to stroking
@@ -596,58 +589,56 @@ public:
   /**
    * Set up cairo context with an object pattern
    */
-  static bool SetupContextPaint(gfxContext *aContext,
-                                gfxTextContextPaint *aContextPaint,
-                                const nsStyleSVGPaint& aPaint,
-                                float aOpacity);
+  static bool SetupObjectPaint(gfxContext *aContext,
+                               gfxTextObjectPaint *aObjectPaint,
+                               const nsStyleSVGPaint& aPaint,
+                               float aOpacity);
 
   /**
    * Sets the current paint on the specified gfxContent to be the SVG 'fill'
    * for the given frame.
    */
   static bool SetupCairoFillPaint(nsIFrame* aFrame, gfxContext* aContext,
-                                  gfxTextContextPaint *aContextPaint = nullptr);
+                                  gfxTextObjectPaint *aObjectPaint = nullptr);
 
   /**
    * Sets the current paint on the specified gfxContent to be the SVG 'stroke'
    * for the given frame.
    */
   static bool SetupCairoStrokePaint(nsIFrame* aFrame, gfxContext* aContext,
-                                    gfxTextContextPaint *aContextPaint = nullptr);
+                                    gfxTextObjectPaint *aObjectPaint = nullptr);
 
   static float GetOpacity(nsStyleSVGOpacitySource aOpacityType,
                           const float& aOpacity,
-                          gfxTextContextPaint *aOuterContextPaint);
+                          gfxTextObjectPaint *aOuterObjectPaint);
 
   /*
    * @return false if there is no stroke
    */
   static bool HasStroke(nsIFrame* aFrame,
-                        gfxTextContextPaint *aContextPaint = nullptr);
+                        gfxTextObjectPaint *aObjectPaint = nullptr);
 
   static float GetStrokeWidth(nsIFrame* aFrame,
-                              gfxTextContextPaint *aContextPaint = nullptr);
+                              gfxTextObjectPaint *aObjectPaint = nullptr);
 
   /*
-   * Set up a cairo context for measuring the bounding box of a stroked path.
-   */
-  static void SetupCairoStrokeBBoxGeometry(nsIFrame* aFrame,
-                                           gfxContext *aContext,
-                                           gfxTextContextPaint *aContextPaint = nullptr);
-
-  /*
-   * Set up a cairo context for a stroked path (including any dashing that
-   * applies).
+   * Set up a cairo context for measuring a stroked path
    */
   static void SetupCairoStrokeGeometry(nsIFrame* aFrame, gfxContext *aContext,
-                                       gfxTextContextPaint *aContextPaint = nullptr);
+                                       gfxTextObjectPaint *aObjectPaint = nullptr);
+
+  /*
+   * Set up a cairo context for hit testing a stroked path
+   */
+  static void SetupCairoStrokeHitGeometry(nsIFrame* aFrame, gfxContext *aContext,
+                                          gfxTextObjectPaint *aObjectPaint = nullptr);
 
   /*
    * Set up a cairo context for stroking, including setting up any stroke-related
    * properties such as dashing and setting the current paint on the gfxContext.
    */
   static bool SetupCairoStroke(nsIFrame* aFrame, gfxContext *aContext,
-                               gfxTextContextPaint *aContextPaint = nullptr);
+                               gfxTextObjectPaint *aObjectPaint = nullptr);
 
   /**
    * This function returns a set of bit flags indicating which parts of the
@@ -661,12 +652,12 @@ public:
    * Render a SVG glyph.
    * @param aElement the SVG glyph element to render
    * @param aContext the thebes aContext to draw to
-   * @param aDrawMode fill or stroke or both (see DrawMode)
+   * @param aDrawMode fill or stroke or both (see gfxFont::DrawMode)
    * @return true if rendering succeeded
    */
   static bool PaintSVGGlyph(Element* aElement, gfxContext* aContext,
-                            DrawMode aDrawMode,
-                            gfxTextContextPaint* aContextPaint);
+                            gfxFont::DrawMode aDrawMode,
+                            gfxTextObjectPaint* aObjectPaint);
   /**
    * Get the extents of a SVG glyph.
    * @param aElement the SVG glyph element

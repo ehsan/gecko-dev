@@ -5,17 +5,7 @@ MARIONETTE_TIMEOUT = 30000;
 
 SpecialPowers.addPermission("mobileconnection", true, document);
 
-// Permission changes can't change existing Navigator.prototype
-// objects, so grab our objects from a new Navigator
-let ifr = document.createElement("iframe");
-let mobileConnection;
-ifr.onload = function() {
-  mobileConnection = ifr.contentWindow.navigator.mozMobileConnections[0];
-
-  // Start the test
-  verifyInitialState();
-};
-document.body.appendChild(ifr);
+let mobileConnection = navigator.mozMobileConnection;
 
 function verifyInitialState() {
   log("Verifying initial state.");
@@ -84,8 +74,13 @@ function testOff() {
 function testSearching() {
   log("Test 4: Searching.");
   // Set emulator data state to 'searching' and verify
-  // Expect mobileConnection.data.state to be 'searching'
-  changeDataStateAndVerify("searching", "searching", testDenied);
+
+  // Bug 819533: WebMobileConnection data/voice state incorrect when emulator
+  // data state is 'searching'. So until fixed, expect 'registered'.
+
+  // changeDataStateAndVerify("searching", "searching", testDenied);
+  log("* When Bug 819533 is fixed, change this test to expect 'searching' *");
+  changeDataStateAndVerify("searching", "registered", testDenied);
 }
 
 function testDenied() {
@@ -121,3 +116,6 @@ function cleanUp() {
   SpecialPowers.removePermission("mobileconnection", document);
   finish();
 }
+
+// Start the test
+verifyInitialState();

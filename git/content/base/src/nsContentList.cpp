@@ -21,6 +21,7 @@
 #include "nsGkAtoms.h"
 #include "mozilla/dom/HTMLCollectionBinding.h"
 #include "mozilla/dom/NodeListBinding.h"
+#include "mozilla/dom/BindingUtils.h"
 #include "mozilla/Likely.h"
 #include "nsGenericHTMLElement.h"
 #include <algorithm>
@@ -37,24 +38,13 @@
 #define ASSERT_IN_SYNC PR_BEGIN_MACRO PR_END_MACRO
 #endif
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 nsBaseContentList::~nsBaseContentList()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsBaseContentList)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsBaseContentList)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mElements)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-  tmp->RemoveFromCaches();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsBaseContentList)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mElements)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(nsBaseContentList)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsBaseContentList, mElements)
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsBaseContentList)
   if (nsCCUncollectableMarker::sGeneration && tmp->IsBlack()) {
@@ -145,23 +135,33 @@ NS_IMPL_ADDREF_INHERITED(nsSimpleContentList, nsBaseContentList)
 NS_IMPL_RELEASE_INHERITED(nsSimpleContentList, nsBaseContentList)
 
 JSObject*
-nsSimpleContentList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+nsSimpleContentList::WrapObject(JSContext *cx, JSObject *scope)
 {
   return NodeListBinding::Wrap(cx, scope, this);
 }
 
+// nsFormContentList
+
+nsFormContentList::nsFormContentList(nsIContent *aForm,
+                                     nsBaseContentList& aContentList)
+  : nsSimpleContentList(aForm)
+{
+
+  // move elements that belong to mForm into this content list
+
+  uint32_t i, length = 0;
+  aContentList.GetLength(&length);
+
+  for (i = 0; i < length; i++) {
+    nsIContent *c = aContentList.Item(i);
+    if (c && nsContentUtils::BelongsInForm(aForm, c)) {
+      AppendElement(c);
+    }
+  }
+}
+
 // Hashtable for storing nsContentLists
 static PLDHashTable gContentListHashTable;
-
-#define RECENTLY_USED_CONTENT_LIST_CACHE_SIZE 31
-static nsContentList*
-  sRecentlyUsedContentLists[RECENTLY_USED_CONTENT_LIST_CACHE_SIZE] = {};
-
-static MOZ_ALWAYS_INLINE uint32_t
-RecentlyUsedCacheIndex(const nsContentListKey& aKey)
-{
-  return aKey.GetHash() % RECENTLY_USED_CONTENT_LIST_CACHE_SIZE;
-}
 
 struct ContentListHashEntry : public PLDHashEntryHdr
 {
@@ -196,14 +196,7 @@ NS_GetContentList(nsINode* aRootNode,
 {
   NS_ASSERTION(aRootNode, "content list has to have a root");
 
-  nsRefPtr<nsContentList> list;
-  nsContentListKey hashKey(aRootNode, aMatchNameSpaceId, aTagname);
-  uint32_t recentlyUsedCacheIndex = RecentlyUsedCacheIndex(hashKey);
-  nsContentList* cachedList = sRecentlyUsedContentLists[recentlyUsedCacheIndex];
-  if (cachedList && cachedList->MatchesKey(hashKey)) {
-    list = cachedList;
-    return list.forget();
-  }
+  nsContentList* list = nullptr;
 
   static PLDHashTableOps hash_table_ops =
   {
@@ -231,6 +224,7 @@ NS_GetContentList(nsINode* aRootNode,
   ContentListHashEntry *entry = nullptr;
   // First we look in our hashtable.  Then we create a content list if needed
   if (gContentListHashTable.ops) {
+    nsContentListKey hashKey(aRootNode, aMatchNameSpaceId, aTagname);
     
     // A PL_DHASH_ADD is equivalent to a PL_DHASH_LOOKUP for cases
     // when the entry is already in the hashtable.
@@ -261,8 +255,9 @@ NS_GetContentList(nsINode* aRootNode,
     }
   }
 
-  sRecentlyUsedContentLists[recentlyUsedCacheIndex] = list;
-  return list.forget();
+  NS_ADDREF(list);
+
+  return list;
 }
 
 #ifdef DEBUG
@@ -273,14 +268,14 @@ const nsCacheableFuncStringContentList::ContentListType
 #endif
 
 JSObject*
-nsCacheableFuncStringNodeList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+nsCacheableFuncStringNodeList::WrapObject(JSContext *cx, JSObject *scope)
 {
   return NodeListBinding::Wrap(cx, scope, this);
 }
 
 
 JSObject*
-nsCacheableFuncStringHTMLCollection::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+nsCacheableFuncStringHTMLCollection::WrapObject(JSContext *cx, JSObject *scope)
 {
   return HTMLCollectionBinding::Wrap(cx, scope, this);
 }
@@ -324,7 +319,7 @@ GetFuncStringContentList(nsINode* aRootNode,
 {
   NS_ASSERTION(aRootNode, "content list has to have a root");
 
-  nsRefPtr<nsCacheableFuncStringContentList> list;
+  nsCacheableFuncStringContentList* list = nullptr;
 
   static PLDHashTableOps hash_table_ops =
   {
@@ -378,9 +373,11 @@ GetFuncStringContentList(nsINode* aRootNode,
     }
   }
 
+  NS_ADDREF(list);
+
   // Don't cache these lists globally
 
-  return list.forget();
+  return list;
 }
 
 already_AddRefed<nsContentList>
@@ -496,7 +493,7 @@ nsContentList::~nsContentList()
 }
 
 JSObject*
-nsContentList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+nsContentList::WrapObject(JSContext *cx, JSObject *scope)
 {
   return HTMLCollectionBinding::Wrap(cx, scope, this);
 }
@@ -535,11 +532,11 @@ nsContentList::Item(uint32_t aIndex, bool aDoFlush)
   return mElements.SafeElementAt(aIndex);
 }
 
-Element*
+nsIContent *
 nsContentList::NamedItem(const nsAString& aName, bool aDoFlush)
 {
   BringSelfUpToDate(aDoFlush);
-
+    
   uint32_t i, count = mElements.Length();
 
   // Typically IDs and names are atomized
@@ -554,7 +551,7 @@ nsContentList::NamedItem(const nsAString& aName, bool aDoFlush)
                               name, eCaseMatters) ||
          content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::id,
                               name, eCaseMatters))) {
-      return content->AsElement();
+      return content;
     }
   }
 
@@ -670,6 +667,24 @@ nsIContent*
 nsContentList::Item(uint32_t aIndex)
 {
   return GetElementAt(aIndex);
+}
+
+JSObject*
+nsContentList::NamedItem(JSContext* cx, const nsAString& name,
+                         mozilla::ErrorResult& error)
+{
+  nsIContent *item = NamedItem(name, true);
+  if (!item) {
+    return nullptr;
+  }
+  JSObject* wrapper = GetWrapper();
+  JSAutoCompartment ac(cx, wrapper);
+  JS::Value v;
+  if (!mozilla::dom::WrapObject(cx, wrapper, item, item, nullptr, &v)) {
+    error.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+  return &v.toObject();
 }
 
 void
@@ -969,16 +984,11 @@ nsContentList::RemoveFromHashtable()
     return;
   }
   
-  nsDependentAtomString str(mXMLMatchAtom);
-  nsContentListKey key(mRootNode, mMatchNameSpaceId, str);
-  uint32_t recentlyUsedCacheIndex = RecentlyUsedCacheIndex(key);
-  if (sRecentlyUsedContentLists[recentlyUsedCacheIndex] == this) {
-    sRecentlyUsedContentLists[recentlyUsedCacheIndex] = nullptr;
-  }
-
   if (!gContentListHashTable.ops)
     return;
 
+  nsDependentAtomString str(mXMLMatchAtom);
+  nsContentListKey key(mRootNode, mMatchNameSpaceId, str);
   PL_DHashTableOperate(&gContentListHashTable,
                        &key,
                        PL_DHASH_REMOVE);

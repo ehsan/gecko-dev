@@ -36,7 +36,7 @@ XULSelectControlAccessible::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// XULSelectControlAccessible: Accessible
+// XULSelectControlAccessible: nsAccessNode
 
 void
 XULSelectControlAccessible::Shutdown()
@@ -83,7 +83,9 @@ XULSelectControlAccessible::SelectedItems()
     }
   }
 
-  return selectedItems.forget();
+  nsIMutableArray* items = nullptr;
+  selectedItems.forget(&items);
+  return items;
 }
 
 Accessible*

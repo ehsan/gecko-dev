@@ -20,7 +20,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=446483
 /** Test for Bug 446483 **/
 
 function gc() {
-  SpecialPowers.gc();
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+        .getInterface(Components.interfaces.nsIDOMWindowUtils)
+        .garbageCollect();
 }
 
 function runTest() {

@@ -5,9 +5,14 @@
 // Test that increasing/decreasing values in rule view using
 // arrow keys works correctly.
 
+let tempScope = {};
+Cu.import("resource:///modules/devtools/CssRuleView.jsm", tempScope);
+let CssRuleView = tempScope.CssRuleView;
+let _ElementStyle = tempScope._ElementStyle;
+
 let doc;
-let view;
-let inspector;
+let ruleDialog;
+let ruleView;
 
 function setUpTests()
 {
@@ -15,22 +20,25 @@ function setUpTests()
                            'margin-top:0px;' +
                            'padding-top: 0px;' +
                            'color:#000000;' +
-                           'background-color: #000000;" >'+
+                           'background-color: #000000; >"'+
                        '</div>';
-
-  openRuleView((aInspector, aRuleView) => {
-    inspector = aInspector;
-    view = aRuleView;
-    inspector.selection.setNode(doc.getElementById("test"));
-    inspector.once("inspector-updated", () => {
-      runTests();
-    })
-  });
+  let testElement = doc.getElementById("test");
+  ruleDialog = openDialog("chrome://browser/content/devtools/cssruleview.xhtml",
+                          "cssruleviewtest",
+                          "width=350,height=350");
+  ruleDialog.addEventListener("load", function onLoad(evt) {
+    ruleDialog.removeEventListener("load", onLoad, true);
+    let doc = ruleDialog.document;
+    ruleView = new CssRuleView(doc);
+    doc.documentElement.appendChild(ruleView.element);
+    ruleView.highlight(testElement);
+    waitForFocus(runTests, ruleDialog);
+  }, true);
 }
 
 function runTests()
 {
-  let idRuleEditor = view.element.children[0]._ruleEditor;
+  let idRuleEditor = ruleView.element.children[0]._ruleEditor;
   let marginPropEditor = idRuleEditor.rule.textProps[0].editor;
   let paddingPropEditor = idRuleEditor.rule.textProps[1].editor;
   let hexColorPropEditor = idRuleEditor.rule.textProps[2].editor;
@@ -49,7 +57,7 @@ function runTests()
       8: { pageDown: true, shift: true, start: "0px", end: "-100px", selectAll: true,
            nextTest: test2 }
     });
-    EventUtils.synthesizeMouse(marginPropEditor.valueSpan, 1, 1, {}, view.doc.defaultView);
+    EventUtils.synthesizeMouse(marginPropEditor.valueSpan, 1, 1, {}, ruleDialog);
   })();
 
   function test2() {
@@ -66,7 +74,7 @@ function runTests()
       9: { start: "0ex", end: "1ex", selectAll: true,
            nextTest: test3 }
     });
-    EventUtils.synthesizeMouse(paddingPropEditor.valueSpan, 1, 1, {}, view.doc.defaultView);
+    EventUtils.synthesizeMouse(paddingPropEditor.valueSpan, 1, 1, {}, ruleDialog);
   };
 
   function test3() {
@@ -80,7 +88,7 @@ function runTests()
       6: { down: true, shift: true, start: "#000000", end: "#000000", selectAll: true,
            nextTest: test4 }
     });
-    EventUtils.synthesizeMouse(hexColorPropEditor.valueSpan, 1, 1, {}, view.doc.defaultView);
+    EventUtils.synthesizeMouse(hexColorPropEditor.valueSpan, 1, 1, {}, ruleDialog);
   };
 
   function test4() {
@@ -94,7 +102,7 @@ function runTests()
       6: { down: true, shift: true, start: "rgb(0,5,0)", end: "rgb(0,0,0)", selection: [6,7],
            nextTest: test5 }
     });
-    EventUtils.synthesizeMouse(rgbColorPropEditor.valueSpan, 1, 1, {}, view.doc.defaultView);
+    EventUtils.synthesizeMouse(rgbColorPropEditor.valueSpan, 1, 1, {}, ruleDialog);
   };
 
   function test5() {
@@ -108,7 +116,7 @@ function runTests()
       6: { down: true, shift: true, start: "0px 0px 0px 0px", end: "-10px 0px 0px 0px", selectAll: true,
            nextTest: test6 }
     });
-    EventUtils.synthesizeMouse(paddingPropEditor.valueSpan, 1, 1, {}, view.doc.defaultView);
+    EventUtils.synthesizeMouse(paddingPropEditor.valueSpan, 1, 1, {}, ruleDialog);
   };
 
   function test6() {
@@ -130,7 +138,7 @@ function runTests()
       14: { alt: true, start: "url('test--0.1.png')", end: "url('test-0.png')", selection: [10,14],
            endTest: true }
     });
-    EventUtils.synthesizeMouse(marginPropEditor.valueSpan, 1, 1, {}, view.doc.defaultView);
+    EventUtils.synthesizeMouse(marginPropEditor.valueSpan, 1, 1, {}, ruleDialog);
   };
 }
 
@@ -169,12 +177,15 @@ function testIncrement( aEditor, aOptions )
   key = ( aOptions.pageDown ) ? "VK_PAGE_DOWN" : ( aOptions.pageUp ) ? "VK_PAGE_UP" : key;
   EventUtils.synthesizeKey(key,
                           {altKey: aOptions.alt, shiftKey: aOptions.shift},
-                          view.doc.defaultView);
+                          ruleDialog);
 }
 
 function finishTest()
 {
-  doc = view = inspector = null;
+  ruleView.clear();
+  ruleDialog.close();
+  ruleDialog = ruleView = null;
+  doc = null;
   gBrowser.removeCurrentTab();
   finish();
 }

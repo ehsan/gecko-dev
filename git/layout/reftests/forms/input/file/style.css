@@ -1,12 +1,12 @@
-vbox, hbox {
-  margin-top: 8px;
-  margin-left: 8px;
-  display: block;
+vbox {
+  margin: 8px;
 }
 
 .file {
+  display: inline;
+
   /* Copy of input properties that apply of forms.css below this */
-  color: inherit;
+  color: -moz-FieldText;
   font: -moz-field;
   text-rendering: optimizeLegibility;
   line-height: normal !important;
@@ -19,23 +19,22 @@ vbox, hbox {
   text-shadow: none;
 
   /* Copy of the type=file part of forms.css below this */
-  display: inline; /* this one isn't really a copy... */
-  white-space: nowrap;
-  overflow:hidden;
-
   -moz-appearance: none;
-  -moz-binding: none;
+  white-space: nowrap;
   cursor: default;
+  -moz-binding: none;
+
   border: none;
-  background-color: transparent;
-  padding: 0;
+  background-color: none;
+
+  padding: 0 !important;
 }
 
 .file > label {
   display: inline-block;
 
   /* Copy from forms.css below this */
-  min-width: 12em;
+  width: 12em;
   -moz-padding-start: 5px;
 
   color: inherit;

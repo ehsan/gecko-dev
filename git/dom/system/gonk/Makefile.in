@@ -12,12 +12,74 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO: Bug 908038, move this to moz.build
-WORKER_FILES := worker_buf.js \
+DEPTH            = @DEPTH@
+topsrcdir        = @top_srcdir@
+srcdir           = @srcdir@
+VPATH            = @srcdir@
+
+relativesrcdir   = @relativesrcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME     = domsystemgonk_s
+LIBXUL_LIBRARY   = 1
+FORCE_STATIC_LIB = 1
+FAIL_ON_WARNINGS := 1
+
+include $(topsrcdir)/dom/dom-config.mk
+
+CPPSRCS = \
+  SystemWorkerManager.cpp \
   $(NULL)
 
-INSTALL_TARGETS += WORKER
+LOCAL_INCLUDES = \
+  -I$(topsrcdir)/dom/base \
+  -I$(topsrcdir)/dom/src/geolocation \
+  -I$(topsrcdir)/dom/telephony \
+  -I$(topsrcdir)/dom/wifi \
+  -I$(topsrcdir)/dom/bluetooth \
+  -I$(topsrcdir)/content/events/src \
+  $(NULL)
 
-WORKER_DEST = $(FINAL_TARGET)/modules/workers
+ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
+CPPSRCS += \
+  AudioManager.cpp \
+  AutoMounter.cpp \
+  AutoMounterSetting.cpp \
+  GonkGPSGeolocationProvider.cpp \
+  AudioChannelManager.cpp \
+  nsVolume.cpp \
+  nsVolumeMountLock.cpp \
+  nsVolumeService.cpp \
+  nsVolumeStat.cpp \
+  TimeZoneSettingObserver.cpp \
+  Volume.cpp \
+  VolumeCommand.cpp \
+  VolumeManager.cpp \
+  VolumeServiceIOThread.cpp \
+  VolumeServiceTest.cpp \
+  $(NULL)
+endif
+
+EXTRA_COMPONENTS = \
+  NetworkManager.manifest \
+  NetworkManager.js \
+  RadioInterfaceLayer.manifest \
+  RadioInterfaceLayer.js \
+  RILContentHelper.js \
+  $(NULL)
+
+EXTRA_JS_MODULES = \
+  net_worker.js \
+  ril_consts.js \
+  ril_worker.js \
+  systemlibs.js \
+  $(NULL)
+
+ifdef ENABLE_TESTS
+XPCSHELL_TESTS = tests
+endif
 
 include $(topsrcdir)/config/rules.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
+

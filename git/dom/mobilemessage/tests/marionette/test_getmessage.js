@@ -4,13 +4,12 @@
 MARIONETTE_TIMEOUT = 60000;
 
 SpecialPowers.setBoolPref("dom.sms.enabled", true);
-SpecialPowers.setBoolPref("dom.sms.requestStatusReport", true);
 SpecialPowers.addPermission("sms", true, document);
 
 const REMOTE = "5559997777"; // the remote number
 const EMULATOR = "15555215554"; // the emulator's number
 
-let manager = window.navigator.mozMobileMessage;
+let sms = window.navigator.mozSms;
 let inText = "Incoming SMS message. Mozilla Firefox OS!";
 let outText = "Outgoing SMS message. Mozilla Firefox OS!";
 let gotSmsOnsent = false;
@@ -24,16 +23,15 @@ let outSmsTimeStamp;
 
 function verifyInitialState() {
   log("Verifying initial state.");
-  ok(manager instanceof MozMobileMessageManager,
-     "manager is instance of " + manager.constructor);
+  ok(sms, "mozSms");
   simulateIncomingSms();  
 }
 
 function simulateIncomingSms() {
   log("Simulating incoming SMS.");
 
-  manager.onreceived = function onreceived(event) {
-    log("Received 'onreceived' event.");
+  sms.onreceived = function onreceived(event) {
+    log("Received 'onreceived' smsmanager event.");
     let incomingSms = event.message;
     ok(incomingSms, "incoming sms");
     ok(incomingSms.id, "sms id");
@@ -60,8 +58,8 @@ function simulateIncomingSms() {
 
 function sendSms() {
   log("Sending an SMS.");
-  manager.onsent = function(event) {
-    log("Received 'onsent' event.");
+  sms.onsent = function(event) {
+    log("Received 'onsent' smsmanager event.");
     gotSmsOnsent = true;
     let sentSms = event.message;
     ok(sentSms, "outgoing sms");
@@ -79,12 +77,11 @@ function sendSms() {
     is(sentSms.messageClass, "normal", "messageClass");
     ok(sentSms.timestamp instanceof Date, "timestamp is instanceof date");  
     outSmsTimeStamp = sentSms.timestamp;
-    ok(sentSms.deliveryTimestamp === null, "deliveryTimestamp is null");
 
     if (gotSmsOnsent && gotReqOnsuccess) { getReceivedSms(); }
   };
 
-  let requestRet = manager.send(REMOTE, outText);
+  let requestRet = sms.send(REMOTE, outText);
   ok(requestRet, "smsrequest obj returned");
 
   requestRet.onsuccess = function(event) {
@@ -93,7 +90,7 @@ function sendSms() {
     if(event.target.result){
       if (gotSmsOnsent && gotReqOnsuccess) { getReceivedSms(); }
     } else {
-      log("smsrequest returned false for manager.send");
+      log("smsrequest returned false for sms.send");
       ok(false,"SMS send failed");
       cleanUp();
     }
@@ -102,7 +99,7 @@ function sendSms() {
   requestRet.onerror = function(event) {
     log("Received 'onerror' smsrequest event.");
     ok(event.target.error, "domerror obj");
-    ok(false, "manager.send request returned unexpected error: "
+    ok(false, "sms.send request returned unexpected error: "
         + event.target.error.name );
     cleanUp();
   };
@@ -111,7 +108,7 @@ function sendSms() {
 function getReceivedSms() {
   log("Getting the received SMS message (id: " + inSmsId + ").");
 
-  let requestRet = manager.getMessage(inSmsId);
+  let requestRet = sms.getMessage(inSmsId);
   ok(requestRet, "smsrequest obj returned");
 
   requestRet.onsuccess = function(event) {
@@ -145,7 +142,7 @@ function getReceivedSms() {
 
 function getSentSms() {
   log("Getting the sent SMS message (id: " + outSmsId + ").");
-  let requestRet = manager.getMessage(outSmsId);
+  let requestRet = sms.getMessage(outSmsId);
   ok(requestRet, "smsrequest obj returned");
 
   requestRet.onsuccess = function(event) {
@@ -179,14 +176,14 @@ function getSentSms() {
 
 function deleteMsgs() {
   log("Deleting SMS (id: " + inSmsId + ").");
-  let requestRet = manager.delete(inSmsId);
+  let requestRet = sms.delete(inSmsId);
   ok(requestRet,"smsrequest obj returned");
 
   requestRet.onsuccess = function(event) {
     log("Received 'onsuccess' smsrequest event.");
     if(event.target.result){
       log("Deleting SMS (id: " + outSmsId + ").");
-      let nextReqRet = manager.delete(outSmsId);
+      let nextReqRet = sms.delete(outSmsId);
       ok(nextReqRet,"smsrequest obj returned");
 
       nextReqRet.onsuccess = function(event) {
@@ -194,12 +191,12 @@ function deleteMsgs() {
         if(event.target.result) {
           cleanUp();
         } else {
-          log("smsrequest returned false for manager.delete");
+          log("smsrequest returned false for sms.delete");
           ok(false,"SMS delete failed");
         }
       };
     } else {
-      log("smsrequest returned false for manager.delete");
+      log("smsrequest returned false for sms.delete");
       ok(false,"SMS delete failed");
     }
   };
@@ -207,18 +204,16 @@ function deleteMsgs() {
   requestRet.onerror = function(event) {
     log("Received 'onerror' smsrequest event.");
     ok(event.target.error, "domerror obj");
-    ok(false, "manager.delete request returned unexpected error: "
+    ok(false, "sms.delete request returned unexpected error: "
         + event.target.error.name );
     cleanUp();
   };
 }
 
 function cleanUp() {
-  manager.onreceived = null;
+  sms.onreceived = null;
   SpecialPowers.removePermission("sms", document);
-  SpecialPowers.clearUserPref("dom.sms.enabled");
-  SpecialPowers.clearUserPref("dom.sms.requestStatusReport");
-
+  SpecialPowers.setBoolPref("dom.sms.enabled", false);
   finish();
 }
 

@@ -10,30 +10,3 @@ EXPORTS += [
     'bzlib.h',
 ]
 
-# Placeholder for CSRCS= conversion.
-csrcs = [
-    'blocksort.c',
-    'bzlib.c',
-    'compress.c',
-    'crctable.c',
-    'decompress.c',
-    'huffman.c',
-    'randtable.c',
-]
-
-HOST_SOURCES += csrcs
-HOST_LIBRARY_NAME = 'hostbz2'
-
-LIBRARY_NAME = 'bz2'
-
-UNIFIED_SOURCES += [
-    'blocksort.c',
-    'bzlib.c',
-    'compress.c',
-    'crctable.c',
-    'decompress.c',
-    'huffman.c',
-    'randtable.c',
-]
-
-FORCE_STATIC_LIB = True

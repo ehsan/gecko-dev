@@ -1,7 +1,12 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-MARIONETTE_HEAD_JS = "stk_helper.js";
+MARIONETTE_TIMEOUT = 30000;
+
+SpecialPowers.addPermission("mobileconnection", true, document);
+
+let icc = navigator.mozMobileConnection.icc;
+ok(icc instanceof MozIccManager, "icc is instanceof " + icc.constructor);
 
 function testSetupMenu(command, expect) {
   log("STK CMD " + JSON.stringify(command));
@@ -12,25 +17,6 @@ function testSetupMenu(command, expect) {
     is(command.options.items[index].identifier, expect.items[index].identifier, expect.name);
     is(command.options.items[index].text, expect.items[index].text, expect.name);
   }
-
-  runNextTest();
-}
-
-function isFirstMenuItemNull(command) {
-  return (command.options.items.length == 1 && !(command.options.items[0]));
-}
-
-function testInitialSetupMenu(command) {
-  log("STK CMD " + JSON.stringify(command));
-  is(command.typeOfCommand, icc.STK_CMD_SET_UP_MENU);
-  is(isFirstMenuItemNull(command), false);
-
-  runNextTest();
-}
-function testRemoveSetupMenu(command) {
-  log("STK CMD " + JSON.stringify(command));
-  is(command.typeOfCommand, icc.STK_CMD_SET_UP_MENU);
-  is(isFirstMenuItemNull(command), true);
 
   runNextTest();
 }
@@ -221,12 +207,42 @@ let tests = [
    expect: {name: "setup_menu_cmd_31",
             commandQualifier: 0x00,
             title: "80ル0",
-            items: [{identifier: 17, text: "80ル5"}, {identifier: 18, text: "80ル6"}]}},
-  {command: "D00D81030125008202818285008F00",
-   func: testRemoveSetupMenu},
-  {command:"D03B810301250082028182850C546F6F6C6B6974204D656E758F07014974656D20318F07024974656D20328F07034974656D20338F07044974656D2034",
-   func: testInitialSetupMenu},
-
+            items: [{identifier: 17, text: "80ル5"}, {identifier: 18, text: "80ル6"}]}}
 ];
+
+let pendingEmulatorCmdCount = 0;
+function sendStkPduToEmulator(command, func, expect) {
+  ++pendingEmulatorCmdCount;
+
+  runEmulatorCmd(command, function (result) {
+    --pendingEmulatorCmdCount;
+    is(result[0], "OK");
+  });
+
+  icc.onstkcommand = function (evt) {
+    func(evt.command, expect);
+  }
+}
+
+function runNextTest() {
+  let test = tests.pop();
+  if (!test) {
+    cleanUp();
+    return;
+  }
+
+  let command = "stk pdu " + test.command;
+  sendStkPduToEmulator(command, test.func, test.expect)
+}
+
+function cleanUp() {
+  if (pendingEmulatorCmdCount) {
+    window.setTimeout(cleanUp, 100);
+    return;
+  }
+
+  SpecialPowers.removePermission("mobileconnection", document);
+  finish();
+}
 
 runNextTest();

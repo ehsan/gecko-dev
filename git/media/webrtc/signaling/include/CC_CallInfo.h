@@ -9,19 +9,11 @@
 extern "C"
 {
 #include "ccapi_types.h"
-#include "fsmdef_states.h"
 }
-
 
 #include "CC_Common.h"
 #include "CC_CallTypes.h"
 #include "peer_connection_types.h"
-
-#if defined(__cplusplus) && __cplusplus >= 201103L
-typedef struct Timecard Timecard;
-#else
-#include "timecard.h"
-#endif
 
 namespace CSF
 {
@@ -52,25 +44,11 @@ namespace CSF
         virtual cc_call_state_t getCallState () = 0;
 
         /**
-           get FSM state
-           @param [in] handle - call info handle
-           @return FSM state
-         */
-        virtual fsmdef_states_t getFsmState () const = 0;
-
-        /**
            print Call state
            @param [in] handle - call info handle
            @return call state as string
          */
         virtual std::string callStateToString (cc_call_state_t state) = 0;
-
-        /**
-           print FSM state
-           @param [in] handle - call info handle
-           @return call state as string
-         */
-        virtual std::string fsmStateToString (fsmdef_states_t state) const = 0;
 
         /**
            print Call event
@@ -356,16 +334,5 @@ namespace CSF
            the caller.
          */
         virtual MediaStreamTable* getMediaStreams() const = 0;
-
-        /**
-          Get the current operation's timecard (if any), and assume ownership
-          of its memory.
-         */
-        virtual Timecard *takeTimecard() = 0;
-
-	/**
-          Get the latest candidate.
-	*/
-	virtual std::string getCandidate() = 0;
     };
 };

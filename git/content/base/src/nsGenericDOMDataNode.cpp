@@ -11,13 +11,12 @@
 #include "mozilla/DebugOnly.h"
 
 #include "nsGenericDOMDataNode.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
 #include "nsIDocument.h"
 #include "nsEventListenerManager.h"
 #include "nsIDOMDocument.h"
 #include "nsReadableUtils.h"
-#include "mozilla/MutationEvent.h"
+#include "nsMutationEvent.h"
 #include "nsINameSpaceManager.h"
 #include "nsIURI.h"
 #include "nsIDOMEvent.h"
@@ -63,9 +62,9 @@ nsGenericDOMDataNode::~nsGenericDOMDataNode()
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsGenericDOMDataNode)
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(nsGenericDOMDataNode)
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGenericDOMDataNode)
+  nsINode::Trace(tmp, aCallback, aClosure);
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsGenericDOMDataNode)
   return Element::CanSkip(tmp, aRemovingAllowed);
@@ -88,21 +87,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
     return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
 
-  nsDataSlots *slots = tmp->GetExistingDataSlots();
-  if (slots) {
-    slots->Traverse(cb);
-  }
-
   tmp->OwnerDoc()->BindingManager()->Traverse(tmp, cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericDOMDataNode)
   nsINode::Unlink(tmp);
-
-  nsDataSlots *slots = tmp->GetExistingDataSlots();
-  if (slots) {
-    slots->Unlink();
-  }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN(nsGenericDOMDataNode)
@@ -116,14 +105,16 @@ NS_INTERFACE_MAP_BEGIN(nsGenericDOMDataNode)
                                  new nsNodeSupportsWeakRefTearoff(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
                                  new nsNode3Tearoff(this))
-  // DOM bindings depend on the identity pointer being the
-  // same as nsINode (which nsIContent inherits).
+  // nsNodeSH::PreCreate() depends on the identity pointer being the
+  // same as nsINode (which nsIContent inherits), so if you change the
+  // below line, make sure nsNodeSH::PreCreate() still does the right
+  // thing!
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIContent)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsGenericDOMDataNode)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_LAST_RELEASE(nsGenericDOMDataNode,
-                                                   nsNodeUtils::LastRelease(this))
+NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(nsGenericDOMDataNode,
+                                              nsNodeUtils::LastRelease(this))
 
 
 void
@@ -343,8 +334,6 @@ nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
     delete [] to;
   }
 
-  UnsetFlags(NS_CACHED_TEXT_IS_ONLY_WHITESPACE);
-
   if (document && mText.IsBidi()) {
     // If we found bidi characters in mText.SetTo() above, indicate that the
     // document contains bidi characters.
@@ -363,7 +352,7 @@ nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
     nsNodeUtils::CharacterDataChanged(this, &info);
 
     if (haveMutationListeners) {
-      InternalMutationEvent mutation(true, NS_MUTATION_CHARACTERDATAMODIFIED);
+      nsMutationEvent mutation(true, NS_MUTATION_CHARACTERDATAMODIFIED);
 
       mutation.mPrevAttrValue = oldValue;
       if (aLength > 0) {
@@ -440,7 +429,7 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                  bool aCompileEventHandlers)
 {
   NS_PRECONDITION(aParent || aDocument, "Must have document if no parent!");
-  NS_PRECONDITION(NODE_FROM(aParent, aDocument)->OwnerDoc() == OwnerDoc(),
+  NS_PRECONDITION(HasSameOwnerDoc(NODE_FROM(aParent, aDocument)),
                   "Must have the same owner document");
   NS_PRECONDITION(!aParent || aDocument == aParent->GetCurrentDoc(),
                   "aDocument must be current doc of aParent");
@@ -574,6 +563,12 @@ nsGenericDOMDataNode::GetIDAttributeName() const
   return nullptr;
 }
 
+already_AddRefed<nsINodeInfo>
+nsGenericDOMDataNode::GetExistingAttrNameFromQName(const nsAString& aStr) const
+{
+  return nullptr;
+}
+
 nsresult
 nsGenericDOMDataNode::SetAttr(int32_t aNameSpaceID, nsIAtom* aAttr,
                               nsIAtom* aPrefix, const nsAString& aValue,
@@ -645,41 +640,6 @@ nsGenericDOMDataNode::GetBindingParent() const
   return slots ? slots->mBindingParent : nullptr;
 }
 
-nsXBLBinding *
-nsGenericDOMDataNode::GetXBLBinding() const
-{
-  return nullptr;
-}
-
-void
-nsGenericDOMDataNode::SetXBLBinding(nsXBLBinding* aBinding,
-                                    nsBindingManager* aOldBindingManager)
-{
-}
-
-nsIContent *
-nsGenericDOMDataNode::GetXBLInsertionParent() const
-{
-  if (HasFlag(NODE_MAY_BE_IN_BINDING_MNGR)) {
-    nsDataSlots *slots = GetExistingDataSlots();
-    if (slots) {
-      return slots->mXBLInsertionParent;
-    }
-  }
-
-  return nullptr;
-}
-
-void
-nsGenericDOMDataNode::SetXBLInsertionParent(nsIContent* aContent)
-{
-  nsDataSlots *slots = DataSlots();
-  if (aContent) {
-    SetFlags(NODE_MAY_BE_IN_BINDING_MNGR);
-  }
-  slots->mXBLInsertionParent = aContent;
-}
-
 bool
 nsGenericDOMDataNode::IsNodeOfType(uint32_t aFlags) const
 {
@@ -696,7 +656,7 @@ nsGenericDOMDataNode::DestroyContent()
 {
   // XXX We really should let cycle collection do this, but that currently still
   //     leaks (see https://bugzilla.mozilla.org/show_bug.cgi?id=406684).
-  ReleaseWrapper(this);
+  nsContentUtils::ReleaseWrapper(this, this);
 }
 
 #ifdef DEBUG
@@ -723,19 +683,6 @@ nsINode::nsSlots*
 nsGenericDOMDataNode::CreateSlots()
 {
   return new nsDataSlots();
-}
-
-void
-nsGenericDOMDataNode::nsDataSlots::Traverse(nsCycleCollectionTraversalCallback &cb)
-{
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mXBLInsertionParent");
-  cb.NoteXPCOMChild(mXBLInsertionParent.get());
-}
-
-void
-nsGenericDOMDataNode::nsDataSlots::Unlink()
-{
-  mXBLInsertionParent = nullptr;
 }
 
 //----------------------------------------------------------------------
@@ -905,10 +852,6 @@ nsGenericDOMDataNode::TextIsOnlyWhitespace()
     return false;
   }
 
-  if (HasFlag(NS_CACHED_TEXT_IS_ONLY_WHITESPACE)) {
-    return HasFlag(NS_TEXT_IS_ONLY_WHITESPACE);
-  }
-
   const char* cp = mText.Get1b();
   const char* end = cp + mText.GetLength();
 
@@ -916,15 +859,12 @@ nsGenericDOMDataNode::TextIsOnlyWhitespace()
     char ch = *cp;
 
     if (!dom::IsSpaceCharacter(ch)) {
-      UnsetFlags(NS_TEXT_IS_ONLY_WHITESPACE);
-      SetFlags(NS_CACHED_TEXT_IS_ONLY_WHITESPACE);
       return false;
     }
 
     ++cp;
   }
 
-  SetFlags(NS_CACHED_TEXT_IS_ONLY_WHITESPACE | NS_TEXT_IS_ONLY_WHITESPACE);
   return true;
 }
 
@@ -982,7 +922,7 @@ nsGenericDOMDataNode::GetClassAttributeName() const
 }
 
 size_t
-nsGenericDOMDataNode::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+nsGenericDOMDataNode::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = nsIContent::SizeOfExcludingThis(aMallocSizeOf);
   n += mText.SizeOfExcludingThis(aMallocSizeOf);

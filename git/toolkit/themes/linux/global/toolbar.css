@@ -56,13 +56,20 @@ toolbarspacer {
 /* ::::: toolbarpaletteitem ::::: */
 
 toolbarpaletteitem {
-  cursor: grab;
+  cursor: -moz-grab;
 }
 
 .toolbarpaletteitem-box[type="spacer"],
 .toolbarpaletteitem-box[type="spring"] {
   border: 1px solid #808080;
   background-color: #FFF !important;
+}
+
+toolbarpaletteitem[place="toolbar"] {
+  margin-left: -2px;
+  margin-right: -2px;
+  border-left: 2px solid transparent;
+  border-right: 2px solid transparent;
 }
 
 toolbarpaletteitem[place="toolbar"] > toolbarspacer {
@@ -94,13 +101,6 @@ toolbarpaletteitem[place="toolbar"] > toolbarspacer {
 }
 
 /* ..... drag and drop feedback ..... */
-
-toolbarpaletteitem[place="toolbar"] {
-  margin-left: -2px;
-  margin-right: -2px;
-  border-left: 2px solid transparent;
-  border-right: 2px solid transparent;
-}
 
 toolbarpaletteitem[dragover="left"] {
   border-left-color: #000000;

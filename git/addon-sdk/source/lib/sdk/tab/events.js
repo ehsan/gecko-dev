@@ -17,7 +17,6 @@ const { windows, isInteractive } = require("../window/utils");
 const { events } = require("../browser/events");
 const { open } = require("../event/dom");
 const { filter, map, merge, expand } = require("../event/utils");
-const isFennec = require("sdk/system/xul-app").is("Fennec");
 
 // Module provides event stream (in nodejs style) that emits data events
 // for all the tab events that happen in running firefox. At the moment
@@ -40,13 +39,13 @@ function tabEventsFor(window) {
 }
 
 // Filter DOMContentLoaded events from all the browser events.
-let readyEvents = filter(events, function(e) e.type === "DOMContentLoaded");
+let readyEvents = filter(function(e) e.type === "DOMContentLoaded", events);
 // Map DOMContentLoaded events to it's target browser windows.
-let futureWindows = map(readyEvents, function(e) e.target);
+let futureWindows = map(function(e) e.target, readyEvents);
 // Expand all browsers that will become interactive to supported tab events
 // on these windows. Result will be a tab events from all tabs of all windows
 // that will become interactive.
-let eventsFromFuture = expand(futureWindows, tabEventsFor);
+let eventsFromFuture = expand(tabEventsFor, futureWindows);
 
 // Above covers only windows that will become interactive in a future, but some
 // windows may already be interactive so we pick those and expand to supported
@@ -58,13 +57,4 @@ let eventsFromInteractive = merge(interactiveWindows.map(tabEventsFor));
 
 // Finally merge stream of tab events from future windows and current windows
 // to cover all tab events on all windows that will open.
-let allEvents = merge([eventsFromInteractive, eventsFromFuture]);
-
-// Map events to Fennec format if necessary
-exports.events = map(allEvents, function (event) {
-  return !isFennec ? event : {
-    type: event.type,
-    target: event.target.ownerDocument.defaultView.BrowserApp
-            .getTabForBrowser(event.target)
-  };
-});
+exports.events = merge([eventsFromInteractive, eventsFromFuture]);

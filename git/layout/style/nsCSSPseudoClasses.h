@@ -8,7 +8,7 @@
 #ifndef nsCSSPseudoClasses_h___
 #define nsCSSPseudoClasses_h___
 
-#include "nsStringFwd.h"
+#include "nsString.h"
 
 class nsIAtom;
 

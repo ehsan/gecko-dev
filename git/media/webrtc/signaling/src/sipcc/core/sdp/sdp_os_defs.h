@@ -13,7 +13,7 @@
 #include "phone_debug.h"
 
 
-#define SDP_PRINT(format, ...) CSFLogError("sdp" , format , ## __VA_ARGS__ )
+#define SDP_PRINT     buginf
 #define SDP_MALLOC(x) cpr_calloc(1, (x))
 #define SDP_FREE      cpr_free
 
@@ -27,8 +27,7 @@ typedef int32_t    int32;
 typedef int16_t    int16;
 typedef unsigned short ushort;
 typedef unsigned long  ulong;
-#ifndef __GNUC_STDC_INLINE__
 #define inline
-#endif
+
 
 #endif /* _SDP_OS_DEFS_H_ */

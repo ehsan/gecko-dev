@@ -5,55 +5,70 @@ function sleep(delay)
     while (Date.now() < start + delay);
 }
 
-function force_prompt(allow, callback) {
-  SpecialPowers.pushPrefEnv({"set": [["geo.prompt.testing", true], ["geo.prompt.testing.allow", allow]]}, callback);
+function force_prompt(allow) {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
+  prefs.setBoolPref("geo.prompt.testing", true);
+  prefs.setBoolPref("geo.prompt.testing.allow", allow);
 }
 
-function start_sending_garbage(callback)
-{
-  SpecialPowers.pushPrefEnv({"set": [["geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?action=respond-garbage"]]}, function() {
-    // we need to be sure that all location data has been purged/set.
-    sleep(1000);
-    callback.call();
-  });
+function reset_prompt() {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
+  prefs.setBoolPref("geo.prompt.testing", false);
+  prefs.setBoolPref("geo.prompt.testing.allow", false);
 }
 
-function stop_sending_garbage(callback)
+
+function start_sending_garbage()
 {
-  SpecialPowers.pushPrefEnv({"set": [["geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs"]]}, function() {
-    // we need to be sure that all location data has been purged/set.
-    sleep(1000);
-    callback.call();
-  });
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
+  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?action=respond-garbage");
+
+  // we need to be sure that all location data has been purged/set.
+  sleep(1000);
 }
 
-function stop_geolocationProvider(callback)
+function stop_sending_garbage()
 {
-  SpecialPowers.pushPrefEnv({"set": [["geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?action=stop-responding"]]}, function() {
-    // we need to be sure that all location data has been purged/set.
-    sleep(1000);
-    callback.call();
-  });
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
+  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
+
+  // we need to be sure that all location data has been purged/set.
+  sleep(1000);
 }
 
-function worse_geolocationProvider(callback)
+function stop_geolocationProvider()
 {
-  SpecialPowers.pushPrefEnv({"set": [["geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?action=worse-accuracy"]]}, callback);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
+  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?action=stop-responding");
+
+  // we need to be sure that all location data has been purged/set.
+  sleep(1000);
 }
 
-function resume_geolocationProvider(callback)
+function worse_geolocationProvider()
 {
-  SpecialPowers.pushPrefEnv({"set": [["geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs"]]}, callback);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
+  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?action=worse-accuracy");
 }
 
-function delay_geolocationProvider(delay, callback)
+function resume_geolocationProvider()
 {
-  SpecialPowers.pushPrefEnv({"set": [["geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?delay=" + delay]]}, callback);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
+  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
 }
 
-function send404_geolocationProvider(callback)
+function delay_geolocationProvider(delay)
 {
-  SpecialPowers.pushPrefEnv({"set": [["geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?action=send404"]]}, callback);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
+  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?delay=" + delay);
 }
 
 function check_geolocation(location) {
@@ -84,6 +99,11 @@ function check_geolocation(location) {
 
 function toggleGeolocationSetting(value, callback) {
   var mozSettings = window.navigator.mozSettings;
+  if (!mozSettings) {
+    addLoadEvent(toggleGeolocationSetting.bind(null, value, callback));
+    return;
+  }
+
   var lock = mozSettings.createLock();
 
   var geoenabled = {"geolocation.enabled": value};

@@ -306,6 +306,8 @@ RDFContentSinkImpl::RDFContentSinkImpl()
         NS_RegisterStaticAtoms(rdf_atoms);
     }
 
+    mNodeIDMap.Init();
+
 #ifdef PR_LOGGING
     if (! gLog)
         gLog = PR_NewLogModule("nsRDFContentSink");
@@ -1345,7 +1347,7 @@ RDFContentSinkImpl::SplitExpatName(const PRUnichar *aExpatName,
     }
 
     const nsDependentSubstring& nameSpaceURI = Substring(aExpatName, uriEnd);
-    *aLocalName = NS_NewAtom(Substring(nameStart, pos)).get();
+    *aLocalName = NS_NewAtom(Substring(nameStart, pos));
     return nameSpaceURI;
 }
 

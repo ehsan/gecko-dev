@@ -7,6 +7,7 @@
 #ifndef nsPrimitiveHelpers_h___
 #define nsPrimitiveHelpers_h___
 
+#include "prtypes.h"
 #include "nsError.h"
 #include "nscore.h"
 

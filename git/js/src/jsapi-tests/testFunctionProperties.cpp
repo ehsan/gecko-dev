@@ -5,7 +5,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsapi-tests/tests.h"
+
+#include "tests.h"
 
 BEGIN_TEST(testFunctionProperties)
 {
@@ -15,10 +16,10 @@ BEGIN_TEST(testFunctionProperties)
     JS::RootedObject obj(cx, JSVAL_TO_OBJECT(x));
 
     JS::RootedValue y(cx);
-    CHECK(JS_GetProperty(cx, obj, "arguments", &y));
+    CHECK(JS_GetProperty(cx, obj, "arguments", y.address()));
     CHECK_SAME(y, JSVAL_NULL);
 
-    CHECK(JS_GetProperty(cx, obj, "caller", &y));
+    CHECK(JS_GetProperty(cx, obj, "caller", y.address()));
     CHECK_SAME(y, JSVAL_NULL);
 
     return true;

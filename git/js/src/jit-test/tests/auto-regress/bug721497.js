@@ -4,7 +4,7 @@
 // Flags:
 //
 
-var g = newGlobal();
+var g = newGlobal('new-compartment');
 var dbg = new Debugger(g);
 dbg.onDebuggerStatement = function (frame) {
     assertEq(dumpStack(), true);

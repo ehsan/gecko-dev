@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "prdtoa.h"
+#include "prlong.h"
 #include "prlog.h"
 #include "prprf.h"
 #include "prmem.h"
@@ -566,7 +567,7 @@ static struct NumArgState* BuildArgArray(const PRUnichar *fmt,
 		if (c == '$') {
 		    if (i > 0) {
 			*rv = -1;
-			return nullptr;
+			return NULL;
 		    }
 		    number++;
 		    break;
@@ -575,7 +576,7 @@ static struct NumArgState* BuildArgArray(const PRUnichar *fmt,
                     /* non-numbered argument case */
 		    if (number > 0) {
 			*rv = -1;
-			return nullptr;
+			return NULL;
 		    }
 		    i = 1;
 		    break;
@@ -586,14 +587,14 @@ static struct NumArgState* BuildArgArray(const PRUnichar *fmt,
     }
 
     if (number == 0) {
-	return nullptr;
+	return NULL;
     }
     
     if (number > NAS_DEFAULT_NUM) {
 	nas = (struct NumArgState*)nsMemory::Alloc(number * sizeof(struct NumArgState));
 	if (!nas) {
 	    *rv = -1;
-	    return nullptr;
+	    return NULL;
 	}
     } else {
 	nas = nasArray;
@@ -750,7 +751,7 @@ static struct NumArgState* BuildArgArray(const PRUnichar *fmt,
 	if( nas != nasArray ) {
 	    PR_DELETE(nas);
         }
-	return nullptr;
+	return NULL;
     }
 
     cn = 0;
@@ -789,7 +790,7 @@ static struct NumArgState* BuildArgArray(const PRUnichar *fmt,
 		PR_DELETE( nas );
             }
 	    *rv = -1;
-	    return nullptr;
+	    return NULL;
 	}
 	cn++;
     }
@@ -823,7 +824,7 @@ static int dosprintf(SprintfState *ss, const PRUnichar *fmt, va_list ap)
 
     const PRUnichar *hexp;
     int rv, i;
-    struct NumArgState* nas = nullptr;
+    struct NumArgState* nas = NULL;
     struct NumArgState  nasArray[NAS_DEFAULT_NUM];
 
 
@@ -862,7 +863,7 @@ static int dosprintf(SprintfState *ss, const PRUnichar *fmt, va_list ap)
 	    continue;
 	}
 
-	if (nas != nullptr) {
+	if (nas != NULL) {
 	    /* the fmt contains the Numbered Arguments feature */
 	    i = 0;
 	    /* should imporve error check later */

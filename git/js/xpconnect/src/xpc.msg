@@ -62,7 +62,6 @@ XPC_MSG_DEF(NS_ERROR_XPC_BAD_INITIALIZER_NAME           , "Bad initializer name 
 XPC_MSG_DEF(NS_ERROR_XPC_HAS_BEEN_SHUTDOWN              , "Operation failed because the XPConnect subsystem has been shutdown")
 XPC_MSG_DEF(NS_ERROR_XPC_CANT_MODIFY_PROP_ON_WN         , "Cannot modify properties of a WrappedNative")
 XPC_MSG_DEF(NS_ERROR_XPC_BAD_CONVERT_JS_ZERO_ISNOT_NULL , "Could not convert JavaScript argument - 0 was passed, expected object. Did you mean null?")
-XPC_MSG_DEF(NS_ERROR_XPC_CANT_PASS_CPOW_TO_NATIVE       , "It's illegal to pass a CPOW to native code")
 
 
 /* common global codes (from nsError.h) */
@@ -166,8 +165,6 @@ XPC_MSG_DEF(NS_ERROR_DNS_LOOKUP_QUEUE_FULL          , "The DNS lookup queue is f
 XPC_MSG_DEF(NS_ERROR_UNKNOWN_PROXY_HOST             , "The lookup of the proxy hostname failed")
 XPC_MSG_DEF(NS_ERROR_UNKNOWN_SOCKET_TYPE            , "The specified socket type does not exist")
 XPC_MSG_DEF(NS_ERROR_SOCKET_CREATE_FAILED           , "The specified socket type could not be created")
-XPC_MSG_DEF(NS_ERROR_SOCKET_ADDRESS_NOT_SUPPORTED   , "The specified socket address type is not supported")
-XPC_MSG_DEF(NS_ERROR_SOCKET_ADDRESS_IN_USE          , "Some other socket is already using the specified address.")
 XPC_MSG_DEF(NS_ERROR_CACHE_KEY_NOT_FOUND            , "Cache key could not be found")
 XPC_MSG_DEF(NS_ERROR_CACHE_DATA_IS_STREAM           , "Cache data is a stream")
 XPC_MSG_DEF(NS_ERROR_CACHE_DATA_IS_NOT_STREAM       , "Cache data is not a stream")
@@ -211,7 +208,3 @@ XPC_MSG_DEF(NS_ERROR_GFX_PRINTER_ENDDOC               , "Printing failed while c
 XPC_MSG_DEF(NS_ERROR_GFX_PRINTER_STARTPAGE            , "Printing failed while starting a new page.")
 XPC_MSG_DEF(NS_ERROR_GFX_PRINTER_DOC_IS_BUSY          , "Cannot print this document yet, it is still being loaded.")
 XPC_MSG_DEF(NS_ERROR_GFX_PRINTER_NO_XUL               , "Printing XUL documents is not supported.") // bugs 136185 & 240490
-
-/* Codes related to content */
-XPC_MSG_DEF(NS_ERROR_CONTENT_CRASHED                  , "The process that hosted this content has crashed.")
-

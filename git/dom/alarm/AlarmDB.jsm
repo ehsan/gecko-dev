@@ -23,17 +23,18 @@ const ALARMDB_NAME    = "alarms";
 const ALARMDB_VERSION = 1;
 const ALARMSTORE_NAME = "alarms";
 
-this.AlarmDB = function AlarmDB() {
+this.AlarmDB = function AlarmDB(aGlobal) {
   debug("AlarmDB()");
+  this._global = aGlobal;
 }
 
 AlarmDB.prototype = {
   __proto__: IndexedDBHelper.prototype,
 
-  init: function init() {
+  init: function init(aGlobal) {
     debug("init()");
 
-    this.initDBHelper(ALARMDB_NAME, ALARMDB_VERSION, [ALARMSTORE_NAME]);
+    this.initDBHelper(ALARMDB_NAME, ALARMDB_VERSION, [ALARMSTORE_NAME], aGlobal);
   },
 
   upgradeSchema: function upgradeSchema(aTransaction, aDb, aOldVersion, aNewVersion) {
@@ -138,13 +139,15 @@ AlarmDB.prototype = {
       "readonly",
       ALARMSTORE_NAME,
       function txnCb(aTxn, aStore) {
-        if (!aTxn.result) {
+        if (!aTxn.result)
           aTxn.result = [];
-        }
 
-        let index = aStore.index("manifestURL");
-        index.mozGetAll(aManifestURL).onsuccess = function setTxnResult(aEvent) {
-          aTxn.result = aEvent.target.result;
+        aStore.mozGetAll().onsuccess = function setTxnResult(aEvent) {
+          aEvent.target.result.forEach(function addAlarm(aAlarm) {
+            if (!aManifestURL || aManifestURL == aAlarm.manifestURL)
+              aTxn.result.push(aAlarm);
+          });
+
           debug("Request successful. Record count: " + aTxn.result.length);
         };
       },

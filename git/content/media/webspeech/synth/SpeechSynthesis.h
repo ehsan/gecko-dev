@@ -4,19 +4,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_SpeechSynthesis_h
-#define mozilla_dom_SpeechSynthesis_h
+#pragma once
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsWrapperCache.h"
 #include "nsRefPtrHashtable.h"
-#include "js/TypeDecls.h"
 
 #include "EnableSpeechSynthesisCheck.h"
 #include "SpeechSynthesisUtterance.h"
 #include "SpeechSynthesisVoice.h"
 
+struct JSContext;
 class nsIDOMWindow;
 
 namespace mozilla {
@@ -37,8 +36,7 @@ public:
 
   nsIDOMWindow* GetParentObject() const;
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope);
 
   bool Pending() const;
 
@@ -73,5 +71,3 @@ private:
 
 } // namespace dom
 } // namespace mozilla
-
-#endif

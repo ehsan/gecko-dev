@@ -6,7 +6,6 @@
 
 #include <algorithm>
 
-#include "mozilla/Atomics.h"
 #include "base/compiler_specific.h"
 #include "base/lazy_instance.h"
 #include "base/logging.h"
@@ -21,7 +20,7 @@
 #include "base/message_pump_libevent.h"
 #endif
 #if defined(OS_LINUX) || defined(OS_BSD)
-#if defined(MOZ_WIDGET_GTK)
+#ifdef MOZ_WIDGET_GTK2
 #include "base/message_pump_glib.h"
 #endif
 #ifdef MOZ_WIDGET_QT
@@ -87,11 +86,8 @@ MessageLoop* MessageLoop::current() {
   return lazy_tls_ptr.Pointer()->Get();
 }
 
-static mozilla::Atomic<int32_t> message_loop_id_seq(0);
-
 MessageLoop::MessageLoop(Type type)
     : type_(type),
-      id_(++message_loop_id_seq),
       nestable_tasks_allowed_(true),
       exception_restoration_(false),
       state_(NULL),

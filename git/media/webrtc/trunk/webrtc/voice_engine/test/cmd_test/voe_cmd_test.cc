@@ -17,34 +17,41 @@
 
 #include <vector>
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/engine_configurations.h"
-#include "webrtc/system_wrappers/interface/scoped_ptr.h"
-#include "webrtc/test/channel_transport/include/channel_transport.h"
-#include "webrtc/test/testsupport/fileutils.h"
-#include "webrtc/voice_engine/include/voe_audio_processing.h"
-#include "webrtc/voice_engine/include/voe_base.h"
-#include "webrtc/voice_engine/include/voe_codec.h"
-#include "webrtc/voice_engine/include/voe_dtmf.h"
-#include "webrtc/voice_engine/include/voe_encryption.h"
-#include "webrtc/voice_engine/include/voe_errors.h"
-#include "webrtc/voice_engine/include/voe_external_media.h"
-#include "webrtc/voice_engine/include/voe_file.h"
-#include "webrtc/voice_engine/include/voe_hardware.h"
-#include "webrtc/voice_engine/include/voe_neteq_stats.h"
-#include "webrtc/voice_engine/include/voe_network.h"
-#include "webrtc/voice_engine/include/voe_rtp_rtcp.h"
-#include "webrtc/voice_engine/include/voe_video_sync.h"
-#include "webrtc/voice_engine/include/voe_volume_control.h"
+#include "gtest/gtest.h"
+#include "test/testsupport/fileutils.h"
+
+#include "voe_errors.h"
+#include "voe_base.h"
+#include "voe_codec.h"
+#include "voe_volume_control.h"
+#include "voe_dtmf.h"
+#include "voe_rtp_rtcp.h"
+#include "voe_audio_processing.h"
+#include "voe_file.h"
+#include "voe_video_sync.h"
+#include "voe_encryption.h"
+#include "voe_hardware.h"
+#include "voe_external_media.h"
+#include "voe_network.h"
+#include "voe_neteq_stats.h"
+#include "engine_configurations.h"
+
+// Enable this this flag to run this test with hard coded
+// IP/Port/codec and start test automatically with key input
+// it could be useful in repeat tests.
+//#define DEBUG
+
+// #define EXTERNAL_TRANSPORT
 
 using namespace webrtc;
-using namespace test;
 
-#define VALIDATE                                           \
-  if (res != 0) {                                          \
-    printf("*** Error at line %i \n", __LINE__);           \
-    printf("*** Error code = %i \n", base1->LastError());  \
-  }
+#define VALIDATE                                                        \
+  if (res != 0)                                                         \
+  {                                                                     \
+    printf("*** Error at position %i / line %i \n", cnt, __LINE__);     \
+    printf("*** Error code = %i \n", base1->LastError());               \
+  }                                                                     \
+  cnt++;
 
 VoiceEngine* m_voe = NULL;
 VoEBase* base1 = NULL;
@@ -63,12 +70,35 @@ VoENetEqStats* neteqst = NULL;
 
 void RunTest(std::string out_path);
 
-class MyObserver : public VoiceEngineObserver {
- public:
-   virtual void CallbackOnError(int channel, int err_code);
+#ifdef EXTERNAL_TRANSPORT
+
+class my_transportation : public Transport
+{
+  int SendPacket(int channel,const void *data,int len);
+  int SendRTCPPacket(int channel, const void *data, int len);
 };
 
-void MyObserver::CallbackOnError(int channel, int err_code) {
+int my_transportation::SendPacket(int channel,const void *data,int len)
+{
+  netw->ReceivedRTPPacket(channel, data, len);
+  return 0;
+}
+
+int my_transportation::SendRTCPPacket(int channel, const void *data, int len)
+{
+  netw->ReceivedRTCPPacket(channel, data, len);
+  return 0;
+}
+
+my_transportation my_transport;
+#endif
+
+class MyObserver : public VoiceEngineObserver {
+ public:
+   virtual void CallbackOnError(const int channel, const int err_code);
+};
+
+void MyObserver::CallbackOnError(const int channel, const int err_code) {
   // Add printf for other error codes here
   if (err_code == VE_TYPING_NOISE_WARNING) {
     printf("  TYPING NOISE DETECTED \n");
@@ -91,28 +121,9 @@ void MyObserver::CallbackOnError(int channel, int err_code) {
   }
 }
 
-void SetStereoIfOpus(bool use_stereo, CodecInst* codec_params) {
-  if (strncmp(codec_params->plname, "opus", 4) == 0) {
-    if (use_stereo)
-      codec_params->channels = 2;
-    else
-      codec_params->channels = 1;
-  }
-}
-
-void PrintCodecs(bool opus_stereo) {
-  CodecInst codec_params;
-  for (int i = 0; i < codec->NumOfCodecs(); ++i) {
-    int res = codec->GetCodec(i, codec_params);
-    VALIDATE;
-    SetStereoIfOpus(opus_stereo, &codec_params);
-    printf("%2d. %3d  %s/%d/%d \n", i, codec_params.pltype, codec_params.plname,
-           codec_params.plfreq, codec_params.channels);
-  }
-}
-
 int main() {
   int res = 0;
+  int cnt = 0;
 
   printf("Test started \n");
 
@@ -155,10 +166,12 @@ int main() {
   res = base1->RegisterVoiceEngineObserver(my_observer);
   VALIDATE;
 
+  cnt++;
   printf("Version\n");
   char tmp[1024];
   res = base1->GetVersion(tmp);
   VALIDATE;
+  cnt++;
   printf("%s\n", tmp);
 
   RunTest(out_path);
@@ -215,18 +228,20 @@ int main() {
 }
 
 void RunTest(std::string out_path) {
-  int chan, res;
+  int chan, cnt, res;
   CodecInst cinst;
-  bool enable_aec = false;
-  bool enable_agc = false;
-  bool enable_rx_agc = false;
-  bool enable_cng = false;
-  bool enable_ns = false;
-  bool enable_rx_ns = false;
+  cnt = 0;
+  int i;
+  int codecinput;
+  bool AEC = false;
+  bool AGC = true;
+  bool rx_agc = false;
+  bool VAD = false;
+  bool NS = false;
+  bool rx_ns = false;
   bool typing_detection = false;
   bool muted = false;
   bool on_hold = false;
-  bool opus_stereo = false;
 
 #if defined(WEBRTC_ANDROID)
   std::string resource_path = "/sdcard/";
@@ -248,73 +263,116 @@ void RunTest(std::string out_path) {
 
   chan = base1->CreateChannel();
   if (chan < 0) {
+    printf("Error at position %i\n", cnt);
     printf("************ Error code = %i\n", base1->LastError());
     fflush(NULL);
   }
+  cnt++;
 
+  int j = 0;
+#ifdef EXTERNAL_TRANSPORT
+  my_transportation ch0transport;
+  printf("Enabling external transport \n");
+  netw->RegisterExternalTransport(0, ch0transport);
+#else
   char ip[64];
+#ifdef DEBUG
+  strcpy(ip, "127.0.0.1");
+#else
+  char localip[64];
+  netw->GetLocalIP(localip);
+  printf("local IP:%s\n", localip);
+
   printf("1. 127.0.0.1 \n");
   printf("2. Specify IP \n");
-  int ip_selection;
-  ASSERT_EQ(1, scanf("%i", &ip_selection));
+  ASSERT_EQ(1, scanf("%i", &i));
 
-  if (ip_selection == 1) {
+  if (1 == i)
     strcpy(ip, "127.0.0.1");
-  } else {
+  else {
     printf("Specify remote IP: ");
     ASSERT_EQ(1, scanf("%s", ip));
   }
+#endif
+
+  int colons(0);
+  while (ip[j] != '\0' && j < 64 && !(colons = (ip[j++] == ':')))
+    ;
+  if (colons) {
+    printf("Enabling IPv6\n");
+    res = netw->EnableIPv6(0);
+    VALIDATE;
+  }
 
   int rPort;
+#ifdef DEBUG
+  rPort=8500;
+#else
   printf("Specify remote port (1=1234): ");
   ASSERT_EQ(1, scanf("%i", &rPort));
   if (1 == rPort)
     rPort = 1234;
   printf("Set Send port \n");
-
-  scoped_ptr<VoiceChannelTransport> voice_channel_transport(
-      new VoiceChannelTransport(netw, chan));
+#endif
 
   printf("Set Send IP \n");
-  res = voice_channel_transport->SetSendDestination(ip, rPort);
+  res = base1->SetSendDestination(chan, rPort, ip);
   VALIDATE;
 
   int lPort;
+#ifdef DEBUG
+  lPort=8500;
+#else
   printf("Specify local port (1=1234): ");
   ASSERT_EQ(1, scanf("%i", &lPort));
   if (1 == lPort)
     lPort = 1234;
   printf("Set Rec Port \n");
-
-  res = voice_channel_transport->SetLocalReceiver(lPort);
+#endif
+  res = base1->SetLocalReceiver(chan, lPort);
   VALIDATE;
+#endif
 
   printf("\n");
-  PrintCodecs(opus_stereo);
+  for (i = 0; i < codec->NumOfCodecs(); i++) {
+    res = codec->GetCodec(i, cinst);
+    VALIDATE;
+    if (strncmp(cinst.plname, "ISAC", 4) == 0 && cinst.plfreq == 32000) {
+      printf("%i. ISAC-swb pltype:%i plfreq:%i channels:%i\n", i, cinst.pltype,
+             cinst.plfreq, cinst.channels);
+    } else if (strncmp(cinst.plname, "ISAC", 4) == 0 && cinst.plfreq == 48000) {
+      printf("%i. ISAC-fb pltype:%i plfreq:%i channels:%i\n", i, cinst.pltype,
+                   cinst.plfreq, cinst.channels);
+    } else {
+      printf("%i. %s pltype:%i plfreq:%i channels:%i\n", i, cinst.plname,
+             cinst.pltype, cinst.plfreq, cinst.channels);
+    }
+  }
+#ifdef DEBUG
+  codecinput=0;
+#else
   printf("Select send codec: ");
-  int codec_selection;
-  ASSERT_EQ(1, scanf("%i", &codec_selection));
-  codec->GetCodec(codec_selection, cinst);
+  ASSERT_EQ(1, scanf("%i", &codecinput));
+#endif
+  codec->GetCodec(codecinput, cinst);
 
   printf("Set primary codec\n");
-  SetStereoIfOpus(opus_stereo, &cinst);
   res = codec->SetSendCodec(chan, cinst);
   VALIDATE;
 
+#ifndef WEBRTC_ANDROID
   const int kMaxNumChannels = 8;
+#else
+  const int kMaxNumChannels = 1;
+#endif
   int channel_index = 0;
   std::vector<int> channels(kMaxNumChannels);
-  std::vector<VoiceChannelTransport*> voice_channel_transports(kMaxNumChannels);
-
-  for (int i = 0; i < kMaxNumChannels; ++i) {
+  for (i = 0; i < kMaxNumChannels; ++i) {
     channels[i] = base1->CreateChannel();
     int port = rPort + (i + 1) * 2;
-
-    voice_channel_transports[i] = new VoiceChannelTransport(netw, channels[i]);
-
-    res = voice_channel_transports[i]->SetSendDestination(ip, port);
+    res = base1->SetSendDestination(channels[i], port, ip);
     VALIDATE;
-    res = voice_channel_transports[i]->SetLocalReceiver(port);
+    res = base1->SetLocalReceiver(channels[i], port);
     VALIDATE;
     res = codec->SetSendCodec(channels[i], cinst);
     VALIDATE;
@@ -324,7 +382,7 @@ void RunTest(std::string out_path) {
   bool newcall = true;
   while (newcall) {
 
-#ifndef WEBRTC_ANDROID
+#if defined(WEBRTC_LINUX) && !defined(WEBRTC_ANDROID)
     int rd(-1), pd(-1);
     res = hardware->GetNumOfRecordingDevices(rd);
     VALIDATE;
@@ -334,14 +392,14 @@ void RunTest(std::string out_path) {
     char dn[128] = { 0 };
     char guid[128] = { 0 };
     printf("\nPlayout devices (%d): \n", pd);
-    for (int j = 0; j < pd; ++j) {
+    for (j=0; j<pd; ++j) {
       res = hardware->GetPlayoutDeviceName(j, dn, guid);
       VALIDATE;
       printf("  %d: %s \n", j, dn);
     }
 
     printf("Recording devices (%d): \n", rd);
-    for (int j = 0; j < rd; ++j) {
+    for (j=0; j<rd; ++j) {
       res = hardware->GetRecordingDeviceName(j, dn, guid);
       VALIDATE;
       printf("  %d: %s \n", j, dn);
@@ -356,28 +414,31 @@ void RunTest(std::string out_path) {
     printf("Setting sound devices \n");
     res = hardware->SetRecordingDevice(rd);
     VALIDATE;
-#endif  // WEBRTC_ANDROID
 
-    res = codec->SetVADStatus(0, enable_cng);
+#endif // WEBRTC_LINUX
+    res = codec->SetVADStatus(0, VAD);
     VALIDATE;
 
-    res = apm->SetAgcStatus(enable_agc);
+    res = apm->SetAgcStatus(AGC);
     VALIDATE;
 
-    res = apm->SetEcStatus(enable_aec);
+    res = apm->SetEcStatus(AEC);
     VALIDATE;
 
-    res = apm->SetNsStatus(enable_ns);
+    res = apm->SetNsStatus(NS);
     VALIDATE;
 
+#ifdef DEBUG
+    i = 1;
+#else
     printf("\n1. Send, listen and playout \n");
     printf("2. Send only \n");
     printf("3. Listen and playout only \n");
     printf("Select transfer mode: ");
-    int call_selection;
-    ASSERT_EQ(1, scanf("%i", &call_selection));
-    const bool send = !(call_selection == 3);
-    const bool receive = !(call_selection == 2);
+    ASSERT_EQ(1, scanf("%i", &i));
+#endif
+    const bool send = !(3 == i);
+    const bool receive = !(2 == i);
 
     if (receive) {
 #ifndef EXTERNAL_TRANSPORT
@@ -409,128 +470,169 @@ void RunTest(std::string out_path) {
 
     int forever = 1;
     while (forever) {
-      printf("\nSelect codec\n");
-      PrintCodecs(opus_stereo);
-      printf("\nOther actions\n");
-      const int num_codecs = codec->NumOfCodecs();
-      int option_index = num_codecs;
-      printf("%i. Toggle CNG\n", option_index++);
-      printf("%i. Toggle AGC\n", option_index++);
-      printf("%i. Toggle NS\n", option_index++);
-      printf("%i. Toggle EC\n", option_index++);
-      printf("%i. Select AEC\n", option_index++);
-      printf("%i. Select AECM\n", option_index++);
-      printf("%i. Get speaker volume\n", option_index++);
-      printf("%i. Set speaker volume\n", option_index++);
-      printf("%i. Get microphone volume\n", option_index++);
-      printf("%i. Set microphone volume\n", option_index++);
-      printf("%i. Play local file (audio_long16.pcm) \n", option_index++);
-      printf("%i. Change playout device \n", option_index++);
-      printf("%i. Change recording device \n", option_index++);
-      printf("%i. Toggle receive-side AGC \n", option_index++);
-      printf("%i. Toggle receive-side NS \n", option_index++);
-      printf("%i. AGC status \n", option_index++);
-      printf("%i. Toggle microphone mute \n", option_index++);
-      printf("%i. Toggle on hold status \n", option_index++);
-      printf("%i. Get last error code \n", option_index++);
-      printf("%i. Toggle typing detection (for Mac/Windows only) \n",
-             option_index++);
-      printf("%i. Record a PCM file \n", option_index++);
-      printf("%i. Play a previously recorded PCM file locally \n",
-             option_index++);
-      printf("%i. Play a previously recorded PCM file as microphone \n",
-             option_index++);
-      printf("%i. Add an additional file-playing channel \n", option_index++);
-      printf("%i. Remove a file-playing channel \n", option_index++);
-      printf("%i. Toggle Opus stereo (Opus must be selected again to apply "
-             "the setting) \n", option_index++);
+      printf("\nActions\n");
 
-      printf("Select action or %i to stop the call: ", option_index);
-      int option_selection;
-      ASSERT_EQ(1, scanf("%i", &option_selection));
-
-      option_index = num_codecs;
-      if (option_selection < option_index) {
-        res = codec->GetCodec(option_selection, cinst);
+      printf("Codec Changes\n");
+      for (i = 0; i < codec->NumOfCodecs(); i++) {
+        res = codec->GetCodec(i, cinst);
         VALIDATE;
-        SetStereoIfOpus(opus_stereo, &cinst);
+        if (strncmp(cinst.plname, "ISAC", 4) == 0 && cinst.plfreq
+            == 32000) {
+          printf("\t%i. ISAC-swb pltype:%i plfreq:%i channels:%i\n", i,
+                 cinst.pltype, cinst.plfreq, cinst.channels);
+        }
+        else {
+          printf("\t%i. %s pltype:%i plfreq:%i channels:%i\n", i, cinst.plname,
+                 cinst.pltype, cinst.plfreq, cinst.channels);
+        }
+      }
+      printf("Other\n");
+      const int noCodecs = i - 1;
+      printf("\t%i. Toggle VAD\n", i);
+      i++;
+      printf("\t%i. Toggle AGC\n", i);
+      i++;
+      printf("\t%i. Toggle NS\n", i);
+      i++;
+      printf("\t%i. Toggle EC\n", i);
+      i++;
+      printf("\t%i. Select AEC\n", i);
+      i++;
+      printf("\t%i. Select AECM\n", i);
+      i++;
+      printf("\t%i. Get speaker volume\n", i);
+      i++;
+      printf("\t%i. Set speaker volume\n", i);
+      i++;
+      printf("\t%i. Get microphone volume\n", i);
+      i++;
+      printf("\t%i. Set microphone volume\n", i);
+      i++;
+      printf("\t%i. Play local file (audio_long16.pcm) \n", i);
+      i++;
+      printf("\t%i. Change playout device \n", i);
+      i++;
+      printf("\t%i. Change recording device \n", i);
+      i++;
+      printf("\t%i. Toggle receive-side AGC \n", i);
+      i++;
+      printf("\t%i. Toggle receive-side NS \n", i);
+      i++;
+      printf("\t%i. AGC status \n", i);
+      i++;
+      printf("\t%i. Toggle microphone mute \n", i);
+      i++;
+      printf("\t%i. Toggle on hold status \n", i);
+      i++;
+      printf("\t%i. Get last error code \n", i);
+      i++;
+      printf("\t%i. Toggle typing detection (for Mac/Windows only) \n", i);
+      i++;
+      printf("\t%i. Record a PCM file \n", i);
+      i++;
+      printf("\t%i. Play a previously recorded PCM file locally \n", i);
+      i++;
+      printf("\t%i. Play a previously recorded PCM file as microphone \n", i);
+      i++;
+      printf("\t%i. Add an additional file-playing channel \n", i);
+      i++;
+      printf("\t%i. Remove a file-playing channel \n", i);
+      i++;
+
+      printf("Select action or %i to stop the call: ", i);
+      ASSERT_EQ(1, scanf("%i", &codecinput));
+
+      if (codecinput < codec->NumOfCodecs()) {
+        res = codec->GetCodec(codecinput, cinst);
+        VALIDATE;
+
         printf("Set primary codec\n");
         res = codec->SetSendCodec(chan, cinst);
         VALIDATE;
-      } else if (option_selection == option_index++) {
-        enable_cng = !enable_cng;
-        res = codec->SetVADStatus(0, enable_cng);
+      }
+      else if (codecinput == (noCodecs + 1)) {
+        VAD = !VAD;
+        res = codec->SetVADStatus(0, VAD);
         VALIDATE;
-        if (enable_cng)
-          printf("\n CNG is now on! \n");
+        if (VAD)
+          printf("\n VAD is now on! \n");
         else
-          printf("\n CNG is now off! \n");
-      } else if (option_selection == option_index++) {
-        enable_agc = !enable_agc;
-        res = apm->SetAgcStatus(enable_agc);
+          printf("\n VAD is now off! \n");
+      }
+      else if (codecinput == (noCodecs + 2)) {
+        AGC = !AGC;
+        res = apm->SetAgcStatus(AGC);
         VALIDATE;
-        if (enable_agc)
+        if (AGC)
           printf("\n AGC is now on! \n");
         else
           printf("\n AGC is now off! \n");
-      } else if (option_selection == option_index++) {
-        enable_ns = !enable_ns;
-        res = apm->SetNsStatus(enable_ns);
+      }
+      else if (codecinput == (noCodecs + 3)) {
+        NS = !NS;
+        res = apm->SetNsStatus(NS);
         VALIDATE;
-        if (enable_ns)
+        if (NS)
           printf("\n NS is now on! \n");
         else
           printf("\n NS is now off! \n");
-      } else if (option_selection == option_index++) {
-        enable_aec = !enable_aec;
-        res = apm->SetEcStatus(enable_aec, kEcUnchanged);
+      }
+      else if (codecinput == (noCodecs + 4)) {
+        AEC = !AEC;
+        res = apm->SetEcStatus(AEC, kEcUnchanged);
         VALIDATE;
-        if (enable_aec)
+        if (AEC)
           printf("\n Echo control is now on! \n");
         else
           printf("\n Echo control is now off! \n");
-      } else if (option_selection == option_index++) {
-        res = apm->SetEcStatus(enable_aec, kEcAec);
+      }
+      else if (codecinput == (noCodecs + 5)) {
+        res = apm->SetEcStatus(AEC, kEcAec);
         VALIDATE;
         printf("\n AEC selected! \n");
-        if (enable_aec)
+        if (AEC)
           printf(" (Echo control is on)\n");
         else
           printf(" (Echo control is off)\n");
-      } else if (option_selection == option_index++) {
-        res = apm->SetEcStatus(enable_aec, kEcAecm);
+      }
+      else if (codecinput == (noCodecs + 6)) {
+        res = apm->SetEcStatus(AEC, kEcAecm);
         VALIDATE;
         printf("\n AECM selected! \n");
-        if (enable_aec)
+        if (AEC)
           printf(" (Echo control is on)\n");
         else
           printf(" (Echo control is off)\n");
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 7)) {
         unsigned vol(0);
         res = volume->GetSpeakerVolume(vol);
         VALIDATE;
         printf("\n Speaker Volume is %d \n", vol);
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 8)) {
         printf("Level: ");
-        int level;
-        ASSERT_EQ(1, scanf("%i", &level));
-        res = volume->SetSpeakerVolume(level);
+        ASSERT_EQ(1, scanf("%i", &i));
+        res = volume->SetSpeakerVolume(i);
         VALIDATE;
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 9)) {
         unsigned vol(0);
         res = volume->GetMicVolume(vol);
         VALIDATE;
         printf("\n Microphone Volume is %d \n", vol);
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 10)) {
         printf("Level: ");
-        int level;
-        ASSERT_EQ(1, scanf("%i", &level));
-        res = volume->SetMicVolume(level);
+        ASSERT_EQ(1, scanf("%i", &i));
+        res = volume->SetMicVolume(i);
         VALIDATE;
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 11)) {
         res = file->StartPlayingFileLocally(0, audio_filename.c_str());
         VALIDATE;
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 12)) {
         // change the playout device with current call
         int num_pd(-1);
         res = hardware->GetNumOfPlayoutDevices(num_pd);
@@ -540,17 +642,18 @@ void RunTest(std::string out_path) {
         char guid[128] = { 0 };
 
         printf("\nPlayout devices (%d): \n", num_pd);
-        for (int i = 0; i < num_pd; ++i) {
-          res = hardware->GetPlayoutDeviceName(i, dn, guid);
+        for (j = 0; j < num_pd; ++j) {
+          res = hardware->GetPlayoutDeviceName(j, dn, guid);
           VALIDATE;
-          printf("  %d: %s \n", i, dn);
+          printf("  %d: %s \n", j, dn);
         }
         printf("Select playout device: ");
         ASSERT_EQ(1, scanf("%d", &num_pd));
         // Will use plughw for hardware devices
         res = hardware->SetPlayoutDevice(num_pd);
         VALIDATE;
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 13)) {
         // change the recording device with current call
         int num_rd(-1);
 
@@ -561,10 +664,10 @@ void RunTest(std::string out_path) {
         char guid[128] = { 0 };
 
         printf("Recording devices (%d): \n", num_rd);
-        for (int i = 0; i < num_rd; ++i) {
-          res = hardware->GetRecordingDeviceName(i, dn, guid);
+        for (j = 0; j < num_rd; ++j) {
+          res = hardware->GetRecordingDeviceName(j, dn, guid);
           VALIDATE;
-          printf("  %d: %s \n", i, dn);
+          printf("  %d: %s \n", j, dn);
         }
 
         printf("Select recording device: ");
@@ -573,31 +676,35 @@ void RunTest(std::string out_path) {
         // Will use plughw for hardware devices
         res = hardware->SetRecordingDevice(num_rd);
         VALIDATE;
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 14)) {
         // Remote AGC
-        enable_rx_agc = !enable_rx_agc;
-        res = apm->SetRxAgcStatus(chan, enable_rx_agc);
+        rx_agc = !rx_agc;
+        res = apm->SetRxAgcStatus(chan, rx_agc);
         VALIDATE;
-        if (enable_rx_agc)
+        if (rx_agc)
           printf("\n Receive-side AGC is now on! \n");
         else
           printf("\n Receive-side AGC is now off! \n");
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 15)) {
         // Remote NS
-        enable_rx_ns = !enable_rx_ns;
-        res = apm->SetRxNsStatus(chan, enable_rx_ns);
+        rx_ns = !rx_ns;
+        res = apm->SetRxNsStatus(chan, rx_ns);
         VALIDATE;
-        if (enable_rx_ns)
+        if (rx_ns)
           printf("\n Receive-side NS is now on! \n");
         else
           printf("\n Receive-side NS is now off! \n");
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 16)) {
         AgcModes agcmode;
         bool enable;
         res = apm->GetAgcStatus(enable, agcmode);
         VALIDATE
             printf("\n AGC enable is %d, mode is %d \n", enable, agcmode);
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 17)) {
         // Toggle Mute on Microphone
         res = volume->GetInputMute(chan, muted);
         VALIDATE;
@@ -608,7 +715,9 @@ void RunTest(std::string out_path) {
           printf("\n Microphone is now on mute! \n");
         else
           printf("\n Microphone is no longer on mute! \n");
-      } else if (option_selection == option_index++) {
+
+      }
+      else if (codecinput == (noCodecs + 18)) {
         // Toggle the call on hold
         OnHoldModes mode;
         res = base1->GetOnHoldStatus(chan, on_hold, mode);
@@ -621,13 +730,16 @@ void RunTest(std::string out_path) {
           printf("\n Call now on hold! \n");
         else
           printf("\n Call now not on hold! \n");
-      } else if (option_selection == option_index++) {
+      }
+
+      else if (codecinput == (noCodecs + 19)) {
         // Get the last error code and print to screen
         int err_code = 0;
         err_code = base1->LastError();
         if (err_code != -1)
           printf("\n The last error code was %i.\n", err_code);
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 20)) {
         typing_detection= !typing_detection;
         res = apm->SetTypingDetectionStatus(typing_detection);
         VALIDATE;
@@ -635,7 +747,8 @@ void RunTest(std::string out_path) {
           printf("\n Typing detection is now on!\n");
         else
           printf("\n Typing detection is now off!\n");
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 21)) {
         int stop_record = 1;
         int file_source = 1;
         printf("\n Select source of recorded file. ");
@@ -648,7 +761,8 @@ void RunTest(std::string out_path) {
                  mic_filename.c_str());
           res = file->StartRecordingMicrophone(mic_filename.c_str());
           VALIDATE;
-        } else {
+        }
+        else {
           printf("\n Start recording playout as %s \n", play_filename.c_str());
           res = file->StartRecordingPlayout(chan, play_filename.c_str());
           VALIDATE;
@@ -660,12 +774,14 @@ void RunTest(std::string out_path) {
         if (file_source == 1) {
           res = file->StopRecordingMicrophone();
           VALIDATE;
-        } else {
+        }
+        else {
           res = file->StopRecordingPlayout(chan);
           VALIDATE;
         }
         printf("\n File finished recording \n");
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 22)) {
         int file_type = 1;
         int stop_play = 1;
         printf("\n Select a file to play locally in a loop.");
@@ -678,7 +794,8 @@ void RunTest(std::string out_path) {
                  mic_filename.c_str());
           res = file->StartPlayingFileLocally(chan, mic_filename.c_str(), true);
           VALIDATE;
-        } else {
+        }
+        else {
           printf("\n Start playing %s locally in a loop\n",
                  play_filename.c_str());
           res = file->StartPlayingFileLocally(chan, play_filename.c_str(),
@@ -691,7 +808,8 @@ void RunTest(std::string out_path) {
         }
         res = file->StopPlayingFileLocally(chan);
         VALIDATE;
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 23)) {
         int file_type = 1;
         int stop_play = 1;
         printf("\n Select a file to play as microphone in a loop.");
@@ -705,7 +823,8 @@ void RunTest(std::string out_path) {
           res = file->StartPlayingFileAsMicrophone(chan, mic_filename.c_str(),
                                                    true);
           VALIDATE;
-        } else {
+        }
+        else {
           printf("\n Start playing %s as mic in a loop\n",
                  play_filename.c_str());
           res = file->StartPlayingFileAsMicrophone(chan, play_filename.c_str(),
@@ -718,7 +837,8 @@ void RunTest(std::string out_path) {
         }
         res = file->StopPlayingFileAsMicrophone(chan);
         VALIDATE;
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 24)) {
         if (channel_index < kMaxNumChannels) {
           res = base1->StartReceive(channels[channel_index]);
           VALIDATE;
@@ -736,7 +856,8 @@ void RunTest(std::string out_path) {
         } else {
           printf("Max number of channels reached\n");
         }
-      } else if (option_selection == option_index++) {
+      }
+      else if (codecinput == (noCodecs + 25)) {
         if (channel_index > 0) {
           channel_index--;
           res = file->StopPlayingFileAsMicrophone(channels[channel_index]);
@@ -751,17 +872,9 @@ void RunTest(std::string out_path) {
         } else {
           printf("All additional channels stopped\n");
         }
-      } else if (option_selection == option_index++) {
-        opus_stereo = !opus_stereo;
-        if (opus_stereo)
-          printf("\n Opus stereo enabled (select Opus again to apply the "
-                 "setting). \n");
-        else
-          printf("\n Opus mono enabled (select Opus again to apply the "
-                 "setting). \n");
-      } else {
-        break;
       }
+      else
+        break;
     }
 
     if (send) {
@@ -797,21 +910,16 @@ void RunTest(std::string out_path) {
     printf("\n1. New call \n");
     printf("2. Quit \n");
     printf("Select action: ");
-    int end_option;
-    ASSERT_EQ(1, scanf("%i", &end_option));
-    newcall = (end_option == 1);
+    ASSERT_EQ(1, scanf("%i", &i));
+    newcall = (1 == i);
     // Call loop
-  }
-  for (int i = 0; i < kMaxNumChannels; ++i) {
-    delete voice_channel_transports[i];
-    voice_channel_transports[i] = NULL;
   }
 
   printf("Delete channels \n");
   res = base1->DeleteChannel(chan);
   VALIDATE;
 
-  for (int i = 0; i < kMaxNumChannels; ++i) {
+  for (i = 0; i < kMaxNumChannels; ++i) {
     channels[i] = base1->DeleteChannel(channels[i]);
     VALIDATE;
   }

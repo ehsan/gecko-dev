@@ -6,12 +6,13 @@
 #include "nsITCPSocketChild.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsCOMPtr.h"
-#include "js/TypeDecls.h"
 
 #define TCPSOCKETCHILD_CID \
   { 0xa589d96f, 0x7e09, 0x4edf, { 0xa0, 0x1a, 0xeb, 0x49, 0x51, 0xf4, 0x2f, 0x37 } }
 
 class nsITCPSocketInternal;
+struct JSContext;
+class JSObject;
 
 namespace mozilla {
 namespace dom {
@@ -44,12 +45,10 @@ public:
 
   virtual bool RecvCallback(const nsString& aType,
                             const CallbackData& aData,
-                            const nsString& aReadyState) MOZ_OVERRIDE;
-  virtual bool RecvRequestDelete() MOZ_OVERRIDE;
-  virtual bool RecvUpdateBufferedAmount(const uint32_t& aBufferred,
-                                        const uint32_t& aTrackingNumber) MOZ_OVERRIDE;
+                            const nsString& aReadyState,
+                            const uint32_t& aBuffered) MOZ_OVERRIDE;
 private:
-  JSObject* mWindowObj;
+  JSObject* mSocketObj;
 };
 
 } // namespace dom

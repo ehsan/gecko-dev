@@ -11,20 +11,23 @@
 #include "nsTArray.h"
 #include "nsCOMPtr.h"
 #include "nsITimer.h"
+#include "nsIDOMDeviceLightEvent.h"
 #include "nsIDOMDeviceOrientationEvent.h"
+#include "nsIDOMDeviceProximityEvent.h"
+#include "nsIDOMUserProximityEvent.h"
 #include "nsIDOMDeviceMotionEvent.h"
 #include "nsDOMDeviceMotionEvent.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/HalSensor.h"
 #include "nsDataHashtable.h"
 
-class nsIDOMWindow;
+#define NS_DEVICE_SENSORS_CID \
+{ 0xecba5203, 0x77da, 0x465a, \
+{ 0x86, 0x5e, 0x78, 0xb7, 0xaf, 0x10, 0xd8, 0xf7 } }
 
-namespace mozilla {
-namespace dom {
-class EventTarget;
-}
-}
+#define NS_DEVICE_SENSORS_CONTRACTID "@mozilla.org/devicesensors;1"
+
+class nsIDOMWindow;
 
 class nsDeviceSensors : public nsIDeviceSensors, public mozilla::hal::ISensorObserver
 {
@@ -53,14 +56,14 @@ private:
   void FireDOMUserProximityEvent(mozilla::dom::EventTarget* aTarget,
                                  bool aNear);
 
-  void FireDOMOrientationEvent(class nsIDOMDocument *domDoc,
-                               mozilla::dom::EventTarget* target,
+  void FireDOMOrientationEvent(class nsIDOMDocument *domDoc, 
+                               class nsIDOMEventTarget *target,
                                double alpha,
                                double beta,
                                double gamma);
 
-  void FireDOMMotionEvent(class nsIDOMDocument *domDoc,
-                          mozilla::dom::EventTarget* target,
+  void FireDOMMotionEvent(class nsIDOMDocument *domDoc, 
+                          class nsIDOMEventTarget *target,
                           uint32_t type,
                           double x,
                           double y,

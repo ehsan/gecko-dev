@@ -4,14 +4,6 @@ assertAsmTypeFail(USE_ASM + "function f(i,j) { i=i|0;j=+j; if (i) return j; retu
 assertEq(asmLink(asmCompile(USE_ASM + "function f(i,j) { i=i|0;j=+j; if (i) return j; return +~~i } return f"))(1,1.4), 1.4);
 assertAsmTypeFail(USE_ASM + "function f(i,j) { i=i|0;j=j|0; if (i) return j^0; return i^0 } return f");
 assertEq(asmLink(asmCompile(USE_ASM + "function f(i,j) { i=i|0;j=j|0; if (i) return j^0; return i|0 } return f"))(1,8), 8);
-assertEq(asmLink(asmCompile(USE_ASM + "function f(i) { i=i|0; if ((i|0) == 0) return 10; else if ((i|0) == 1) return 12; else if ((i|0) == 2) return 14; return 0} return f"))(2), 14);
-assertEq(asmLink(asmCompile(USE_ASM + "function f(i) { i=i|0; if ((i|0) == 0) return 10; else if ((i|0) == 1) return 12; else if ((i|0) == 2) return 14; else return 16; return 0} return f"))(3), 16);
-assertEq(asmLink(asmCompile(USE_ASM + "function f(i) { i=i|0; if ((i|0) == 0) i = 10; else if ((i|0) == 1) return 12; return (i|0) } return f"))(0), 10);
-
-assertAsmTypeFail(USE_ASM + "function f(i) { i=i|0; if (i) return 0; } return f");
-assertAsmTypeFail(USE_ASM + "function f(i) { i=i|0; if (i) return 0; else return 1 } return f");
-assertAsmTypeFail(USE_ASM + "function f(i) { i=i|0; if (i) return 0; return 1.0 } return f");
-assertAsmTypeFail(USE_ASM + "function f() { return 0; 1 } return f");
 
 assertEq(asmLink(asmCompile(USE_ASM + "function f() { while (0) {} return 0} return f"))(), 0);
 assertEq(asmLink(asmCompile(USE_ASM + "function f() { for (;0;) {} return 0} return f"))(), 0);
@@ -107,10 +99,6 @@ assertEq(asmLink(asmCompile(USE_ASM + "function f(i) { i=i|0; while(1) { if (i) 
 assertEq(asmLink(asmCompile(USE_ASM + "function f(i) { i=i|0; for(;;) { if (i) { return i|0 } else { return i|0 } i = 1 } return i|0 } return f"))(3), 3);
 assertEq(asmLink(asmCompile(USE_ASM + "function f(i) { i=i|0; do { if (i) { return i|0 } else { return i|0 } i = 1 } while (0); return i|0 } return f"))(3), 3);
 
-assertEq(asmLink(asmCompile(USE_ASM + "function f() {var j=1,i=0; while(j){ if(0) continue; j=i } return j|0 } return f"))(), 0);
-assertEq(asmLink(asmCompile(USE_ASM + "function f() {var j=1,i=0; for(;j;){ if(0) continue; j=i } return j|0 } return f"))(), 0);
-assertEq(asmLink(asmCompile(USE_ASM + "function f() {var j=1,i=0; do{ if(0) continue; j=i } while(j) return j|0 } return f"))(), 0);
-
 assertEq(asmLink(asmCompile(USE_ASM + "function f(i) { i=i|0; for(;;) { return i|0 } return 0 } return f"))(42), 42);
 assertEq(asmLink(asmCompile(USE_ASM + "function f(n) { n=n|0; var i=0,s=0; for(;;i=(i+1)|0) { if (~~i==~~n) return s|0; s=(s+i)|0 } return 0 } return f"))(8), 28);
 
@@ -141,15 +129,9 @@ assertEq(asmLink(asmCompile(USE_ASM + "function f() { var i=1; switch(i|0) { cas
 assertEq(asmLink(asmCompile(USE_ASM + "function f() { var i=1; switch(i|0) { case 0: case 2: break; default: i=42; break } return i|0 } return f"))(), 42);
 assertEq(asmLink(asmCompile(USE_ASM + "function f() { return 42; switch(1) { case 1: return 13 } return 14 } return f"))(), 42);
 
-var exp = asmLink(asmCompile(USE_ASM + "var x=0; function a() { return x|0 } function b(i) { i=i|0; x=i } function c(i) { i=i|0; if (i) b(i); } return {a:a,b:b,c:c}"));
+var exp = asmLink(asmCompile(USE_ASM + "var x=0; function a() { return x|0 } function b(i) { i=i|0; x=i } function c(i) { i=i|0; if (i) return b(i); } return {a:a,b:b,c:c}"));
 assertEq(exp.c(10), undefined);
 assertEq(exp.a(), 10);
-
-var f = asmLink(asmCompile(USE_ASM + "function f(i) { i=i|0; switch(i|0) { case 1: i=-1; break; case 133742: i=2; break; default: i=42; break } return i|0 } return f"));
-assertEq(f(1), -1);
-assertEq(f(2), 42);
-assertEq(f(133742), 2);
-assertEq(f(133743), 42);
 
 var f = asmLink(asmCompile(USE_ASM + "function f(i) { i=i|0; switch(i|0) { case 1: i=42; break; default: i=13 } return i|0 } return f"));
 assertEq(f(-1), 13);

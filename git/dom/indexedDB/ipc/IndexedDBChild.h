@@ -65,21 +65,17 @@ protected:
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   virtual PIndexedDBDatabaseChild*
-  AllocPIndexedDBDatabaseChild(const nsString& aName, const uint64_t& aVersion,
-                               const PersistenceType& aPersistenceType)
-                               MOZ_OVERRIDE;
+  AllocPIndexedDBDatabase(const nsString& aName, const uint64_t& aVersion)
+                          MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPIndexedDBDatabaseChild(PIndexedDBDatabaseChild* aActor) MOZ_OVERRIDE;
+  DeallocPIndexedDBDatabase(PIndexedDBDatabaseChild* aActor) MOZ_OVERRIDE;
 
   virtual PIndexedDBDeleteDatabaseRequestChild*
-  AllocPIndexedDBDeleteDatabaseRequestChild(
-                                        const nsString& aName,
-                                        const PersistenceType& aPersistenceType)
-                                        MOZ_OVERRIDE;
+  AllocPIndexedDBDeleteDatabaseRequest(const nsString& aName) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPIndexedDBDeleteDatabaseRequestChild(
+  DeallocPIndexedDBDeleteDatabaseRequest(
                                    PIndexedDBDeleteDatabaseRequestChild* aActor)
                                    MOZ_OVERRIDE;
 };
@@ -143,10 +139,10 @@ protected:
                                        MOZ_OVERRIDE;
 
   virtual PIndexedDBTransactionChild*
-  AllocPIndexedDBTransactionChild(const TransactionParams& aParams) MOZ_OVERRIDE;
+  AllocPIndexedDBTransaction(const TransactionParams& aParams) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPIndexedDBTransactionChild(PIndexedDBTransactionChild* aActor) MOZ_OVERRIDE;
+  DeallocPIndexedDBTransaction(PIndexedDBTransactionChild* aActor) MOZ_OVERRIDE;
 };
 
 /*******************************************************************************
@@ -187,11 +183,11 @@ protected:
   RecvComplete(const CompleteParams& aParams) MOZ_OVERRIDE;
 
   virtual PIndexedDBObjectStoreChild*
-  AllocPIndexedDBObjectStoreChild(const ObjectStoreConstructorParams& aParams)
-                                  MOZ_OVERRIDE;
+  AllocPIndexedDBObjectStore(const ObjectStoreConstructorParams& aParams)
+                             MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPIndexedDBObjectStoreChild(PIndexedDBObjectStoreChild* aActor) MOZ_OVERRIDE;
+  DeallocPIndexedDBObjectStore(PIndexedDBObjectStoreChild* aActor) MOZ_OVERRIDE;
 };
 
 /*******************************************************************************
@@ -220,23 +216,23 @@ protected:
                               MOZ_OVERRIDE;
 
   virtual PIndexedDBRequestChild*
-  AllocPIndexedDBRequestChild(const ObjectStoreRequestParams& aParams) MOZ_OVERRIDE;
+  AllocPIndexedDBRequest(const ObjectStoreRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPIndexedDBRequestChild(PIndexedDBRequestChild* aActor) MOZ_OVERRIDE;
+  DeallocPIndexedDBRequest(PIndexedDBRequestChild* aActor) MOZ_OVERRIDE;
 
   virtual PIndexedDBIndexChild*
-  AllocPIndexedDBIndexChild(const IndexConstructorParams& aParams) MOZ_OVERRIDE;
+  AllocPIndexedDBIndex(const IndexConstructorParams& aParams) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPIndexedDBIndexChild(PIndexedDBIndexChild* aActor) MOZ_OVERRIDE;
+  DeallocPIndexedDBIndex(PIndexedDBIndexChild* aActor) MOZ_OVERRIDE;
 
   virtual PIndexedDBCursorChild*
-  AllocPIndexedDBCursorChild(const ObjectStoreCursorConstructorParams& aParams)
-                             MOZ_OVERRIDE;
+  AllocPIndexedDBCursor(const ObjectStoreCursorConstructorParams& aParams)
+                        MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPIndexedDBCursorChild(PIndexedDBCursorChild* aActor) MOZ_OVERRIDE;
+  DeallocPIndexedDBCursor(PIndexedDBCursorChild* aActor) MOZ_OVERRIDE;
 };
 
 /*******************************************************************************
@@ -264,17 +260,17 @@ protected:
                                   MOZ_OVERRIDE;
 
   virtual PIndexedDBRequestChild*
-  AllocPIndexedDBRequestChild(const IndexRequestParams& aParams) MOZ_OVERRIDE;
+  AllocPIndexedDBRequest(const IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPIndexedDBRequestChild(PIndexedDBRequestChild* aActor) MOZ_OVERRIDE;
+  DeallocPIndexedDBRequest(PIndexedDBRequestChild* aActor) MOZ_OVERRIDE;
 
   virtual PIndexedDBCursorChild*
-  AllocPIndexedDBCursorChild(const IndexCursorConstructorParams& aParams)
-                             MOZ_OVERRIDE;
+  AllocPIndexedDBCursor(const IndexCursorConstructorParams& aParams)
+                        MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPIndexedDBCursorChild(PIndexedDBCursorChild* aActor) MOZ_OVERRIDE;
+  DeallocPIndexedDBCursor(PIndexedDBCursorChild* aActor) MOZ_OVERRIDE;
 };
 
 /*******************************************************************************
@@ -308,10 +304,10 @@ protected:
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   virtual PIndexedDBRequestChild*
-  AllocPIndexedDBRequestChild(const CursorRequestParams& aParams) MOZ_OVERRIDE;
+  AllocPIndexedDBRequest(const CursorRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPIndexedDBRequestChild(PIndexedDBRequestChild* aActor) MOZ_OVERRIDE;
+  DeallocPIndexedDBRequest(PIndexedDBRequestChild* aActor) MOZ_OVERRIDE;
 };
 
 /*******************************************************************************

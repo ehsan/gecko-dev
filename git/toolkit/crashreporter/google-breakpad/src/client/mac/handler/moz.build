@@ -6,16 +6,3 @@
 
 MODULE = 'handler'
 
-SOURCES += [
-    'breakpad_nlist_64.cc',
-    'dynamic_images.cc',
-    'exception_handler.cc',
-    'minidump_generator.cc',
-]
-
-LIBRARY_NAME = 'exception_handler_s'
-
-XPI_NAME = 'crashreporter'
-
-# need static lib
-FORCE_STATIC_LIB = True

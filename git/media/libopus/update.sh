@@ -13,7 +13,7 @@ TARGET='.'
 
 STATIC_FILES="COPYING"
 MK_FILES="opus_sources.mk celt_sources.mk silk_sources.mk \
-          opus_headers.mk celt_headers.mk silk_headers.mk"
+          opus_headers.txt celt_headers.txt silk_headers.txt"
 
 # Make sure we have a source directory
 if test -z $1 || ! test -r $1/include/opus.h; then
@@ -33,6 +33,7 @@ HDR_FILES="include/opus_custom.h"
 
 # make sure the necessary subdirectories exist
 for file in ${SRC_FILES}; do
+  echo "testing ${file}"
   base=${file##*/}
   dir="${file%"${base}"}"
   if test ! -d "${TARGET}/${dir}"; then
@@ -60,10 +61,7 @@ echo "copied from revision ${version}"
 sed -e "s/^The git tag\/revision used was .*/The git tag\/revision used was ${version}./" \
     ${TARGET}/README_MOZILLA > ${TARGET}/README_MOZILLA+ && \
     mv ${TARGET}/README_MOZILLA+ ${TARGET}/README_MOZILLA
-# update compiled-in version string
-sed -e "s/-DOPUS_VERSION='\".*\"'/-DOPUS_VERSION='\"${version}-mozilla\"'/" \
-    ${TARGET}/Makefile.in > ${TARGET}/Makefile.in+ && \
-    mv ${TARGET}/Makefile.in+ ${TARGET}/Makefile.in
 
 # apply outstanding local patches
-# ... no patches to apply ...
+patch -p3 < bug776661.patch
+patch -p1 < padding.patch

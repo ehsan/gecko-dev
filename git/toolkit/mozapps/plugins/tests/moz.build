@@ -6,11 +6,3 @@
 
 MODULE = 'test_plugins'
 
-SIMPLE_PROGRAMS = [
-    'BadPlugin',
-    'GoodPlugin',
-]
-
-SOURCES += [
-    '%s.cpp' % s for s in SIMPLE_PROGRAMS
-]

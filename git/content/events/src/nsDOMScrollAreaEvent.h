@@ -6,23 +6,21 @@
 #ifndef nsDOMScrollAreaEvent_h__
 #define nsDOMScrollAreaEvent_h__
 
-#include "mozilla/Attributes.h"
-#include "mozilla/EventForwards.h"
 #include "nsIDOMScrollAreaEvent.h"
 #include "nsDOMUIEvent.h"
 
-#include "mozilla/dom/DOMRect.h"
+#include "nsGUIEvent.h"
+#include "nsClientRect.h"
 #include "mozilla/dom/ScrollAreaEventBinding.h"
 
 class nsDOMScrollAreaEvent : public nsDOMUIEvent,
                              public nsIDOMScrollAreaEvent
 {
-  typedef mozilla::dom::DOMRect DOMRect;
-
 public:
   nsDOMScrollAreaEvent(mozilla::dom::EventTarget* aOwner,
                        nsPresContext *aPresContext,
-                       mozilla::InternalScrollAreaEvent* aEvent);
+                       nsScrollAreaEvent *aEvent);
+  virtual ~nsDOMScrollAreaEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -35,11 +33,10 @@ public:
   {
     return nsDOMEvent::DuplicatePrivateData();
   }
-  NS_IMETHOD_(void) Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType) MOZ_OVERRIDE;
-  NS_IMETHOD_(bool) Deserialize(const IPC::Message* aMsg, void** aIter) MOZ_OVERRIDE;
+  NS_IMETHOD_(void) Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType);
+  NS_IMETHOD_(bool) Deserialize(const IPC::Message* aMsg, void** aIter);
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::ScrollAreaEventBinding::Wrap(aCx, aScope, this);
   }
@@ -78,7 +75,7 @@ public:
   }
 
 protected:
-  DOMRect mClientArea;
+  nsClientRect mClientArea;
 };
 
 #endif // nsDOMScrollAreaEvent_h__

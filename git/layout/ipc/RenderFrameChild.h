@@ -19,11 +19,14 @@ public:
   RenderFrameChild() {}
   virtual ~RenderFrameChild() {}
 
+  void CancelDefaultPanZoom();
+  void DetectScrollableSubframe();
+
   void Destroy();
 
 protected:
-  virtual PLayerTransactionChild* AllocPLayerTransactionChild() MOZ_OVERRIDE;
-  virtual bool DeallocPLayerTransactionChild(PLayerTransactionChild* aLayers) MOZ_OVERRIDE;
+  virtual PLayersChild* AllocPLayers() MOZ_OVERRIDE;
+  virtual bool DeallocPLayers(PLayersChild* aLayers) MOZ_OVERRIDE;
 };
 
 } // namespace layout

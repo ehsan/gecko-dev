@@ -9,7 +9,8 @@
 
 nsresult
 gfxQtNativeRenderer::Draw(gfxContext* ctx, nsIntSize size,
-                          uint32_t flags, Screen* screen, Visual* visual)
+                          uint32_t flags, Screen* screen, Visual* visual,
+                          DrawOutput* output)
 {
     Display *dpy = DisplayOfScreen(screen);
     bool isOpaque = (flags & DRAW_IS_OPAQUE) ? true : false;
@@ -37,7 +38,7 @@ gfxQtNativeRenderer::Draw(gfxContext* ctx, nsIntSize size,
         tempCtx->Paint();
     }
 
-    nsresult rv = DrawWithXlib(xsurf.get(), nsIntPoint(0, 0), nullptr, 0);
+    nsresult rv = DrawWithXlib(xsurf.get(), nsIntPoint(0, 0), NULL, 0);
 
     if (NS_FAILED(rv))
         return rv;

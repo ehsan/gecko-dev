@@ -3,13 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Hal.h"
+#include "mozilla/ClearOnShutdown.h"
 #include "DateCacheCleaner.h"
 
-#include "jsapi.h"
-#include "mozilla/ClearOnShutdown.h"
-#include "mozilla/Hal.h"
+#include "nsIJSContextStack.h"
 #include "mozilla/StaticPtr.h"
-#include "nsCxPusher.h"
 
 using namespace mozilla::hal;
 
@@ -31,7 +30,16 @@ public:
   }
   void Notify(const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo)
   {
-    mozilla::AutoSafeJSContext cx;
+    nsCOMPtr<nsIThreadJSContextStack> stack =
+      do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+    if (!stack) {
+      NS_WARNING("Failed to get JSContextStack");
+    }
+    JSContext *cx = stack->GetSafeJSContext();
+    if (!cx) {
+      NS_WARNING("Failed to GetSafeJSContext");
+    }
+    JSAutoRequest ar(cx);
     JS_ClearDateCaches(cx);
   }
 

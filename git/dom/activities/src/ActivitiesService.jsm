@@ -17,11 +17,9 @@ XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
                                    "nsIMessageBroadcaster");
 
-XPCOMUtils.defineLazyServiceGetter(this, "NetUtil",
-                                   "@mozilla.org/network/util;1",
-                                   "nsINetUtil");
-
 this.EXPORTED_SYMBOLS = [];
+
+let idbGlobal = this;
 
 function debug(aMsg) {
   //dump("-- ActivitiesService.jsm " + Date.now() + " " + aMsg + "\n");
@@ -39,7 +37,10 @@ ActivitiesDb.prototype = {
   __proto__: IndexedDBHelper.prototype,
 
   init: function actdb_init() {
-    this.initDBHelper(DB_NAME, DB_VERSION, [STORE_NAME]);
+    let idbManager = Cc["@mozilla.org/dom/indexeddb/manager;1"]
+                       .getService(Ci.nsIIndexedDatabaseManager);
+    idbManager.initWindowless(idbGlobal);
+    this.initDBHelper(DB_NAME, DB_VERSION, [STORE_NAME], idbGlobal);
   },
 
   /**
@@ -157,7 +158,6 @@ let Activities = {
 
     "Activities:Register",
     "Activities:Unregister",
-    "Activities:GetContentTypes"
   ],
 
   init: function activities_init() {
@@ -177,11 +177,6 @@ let Activities = {
       ppmm.removeMessageListener(msgName, this);
     }, this);
     ppmm = null;
-
-    if (this.db) {
-      this.db.close();
-      this.db = null;
-    }
 
     Services.obs.removeObserver(this, "xpcom-shutdown");
   },
@@ -237,11 +232,7 @@ let Activities = {
             "target": result.description
           },
           Services.io.newURI(result.description.href, null, null),
-          Services.io.newURI(result.manifest, null, null),
-          {
-            "manifestURL": Activities.callers[aMsg.id].manifestURL,
-            "pageURL": Activities.callers[aMsg.id].pageURL
-          });
+          Services.io.newURI(result.manifest, null, null));
 
         if (!result.description.returnValue) {
           Activities.callers[aMsg.id].mm.sendAsyncMessage("Activity:FireSuccess", {
@@ -301,26 +292,19 @@ let Activities = {
 
       case "Activity:PostResult":
         caller.mm.sendAsyncMessage("Activity:FireSuccess", msg);
+        Services.obs.notifyObservers(null, "activity-done", obsData);
         delete this.callers[msg.id];
         break;
       case "Activity:PostError":
         caller.mm.sendAsyncMessage("Activity:FireError", msg);
+        Services.obs.notifyObservers(null, "activity-done", obsData);
         delete this.callers[msg.id];
         break;
 
       case "Activities:Register":
-        let self = this;
         this.db.add(msg,
           function onSuccess(aEvent) {
             mm.sendAsyncMessage("Activities:Register:OK", null);
-            let res = [];
-            msg.forEach(function(aActivity) {
-              self.updateContentTypeList(aActivity, res);
-            });
-            if (res.length) {
-              ppmm.broadcastAsyncMessage("Activities:RegisterContentTypes",
-                                         { contentTypes: res });
-            }
           },
           function onError(aEvent) {
             msg.error = "REGISTER_ERROR";
@@ -329,60 +313,8 @@ let Activities = {
         break;
       case "Activities:Unregister":
         this.db.remove(msg);
-        let res = [];
-        msg.forEach(function(aActivity) {
-          this.updateContentTypeList(aActivity, res);
-        }, this);
-        if (res.length) {
-          ppmm.broadcastAsyncMessage("Activities:UnregisterContentTypes",
-                                     { contentTypes: res });
-        }
-        break;
-      case "Activities:GetContentTypes":
-        this.sendContentTypes(mm);
         break;
     }
-  },
-
-  updateContentTypeList: function updateContentTypeList(aActivity, aResult) {
-    // Bail out if this is not a "view" activity.
-    if (aActivity.name != "view") {
-      return;
-    }
-
-    let types = aActivity.description.filters.type;
-    if (typeof types == "string") {
-      types = [types];
-    }
-
-    // Check that this is a real content type and sanitize it.
-    types.forEach(function(aContentType) {
-      let hadCharset = { };
-      let charset = { };
-      let contentType =
-        NetUtil.parseContentType(aContentType, charset, hadCharset);
-      if (contentType) {
-        aResult.push(contentType);
-      }
-    });
-  },
-
-  sendContentTypes: function sendContentTypes(aMm) {
-    let res = [];
-    let self = this;
-    this.db.find({ options: { name: "view" } },
-      function() { // Success callback.
-        if (res.length) {
-          aMm.sendAsyncMessage("Activities:RegisterContentTypes",
-                               { contentTypes: res });
-        }
-      },
-      null, // Error callback.
-      function(aActivity) { // Matching callback.
-        self.updateContentTypeList(aActivity, res)
-        return false;
-      }
-    );
   }
 }
 

@@ -8,17 +8,19 @@
  * of what nodes restyles need to happen on and so forth.
  */
 
-#ifndef mozilla_RestyleTracker_h
-#define mozilla_RestyleTracker_h
+#ifndef mozilla_css_RestyleTracker_h
+#define mozilla_css_RestyleTracker_h
 
 #include "mozilla/dom/Element.h"
 #include "nsDataHashtable.h"
 #include "nsIFrame.h"
+#include "nsTPriorityQueue.h"
 #include "mozilla/SplayTree.h"
 
-namespace mozilla {
+class nsCSSFrameConstructor;
 
-class RestyleManager;
+namespace mozilla {
+namespace css {
 
 /** 
  * Helper class that collects a list of frames that need
@@ -28,10 +30,6 @@ class RestyleManager;
 class OverflowChangedTracker
 {
 public:
-
-  OverflowChangedTracker() :
-    mSubtreeRoot(nullptr)
-  {}
 
   ~OverflowChangedTracker()
   {
@@ -72,15 +70,6 @@ public:
   }
 
   /**
-   * Set the subtree root to limit overflow updates. This must be set if and
-   * only if currently reflowing aSubtreeRoot, to ensure overflow changes will
-   * still propagate correctly.
-   */
-  void SetSubtreeRoot(const nsIFrame* aSubtreeRoot) {
-    mSubtreeRoot = aSubtreeRoot;
-  }
-
-  /**
    * Update the overflow of all added frames, and clear the entry list.
    *
    * Start from those deepest in the frame tree and works upwards. This stops 
@@ -113,7 +102,7 @@ public:
       }
       if (updateParent) {
         nsIFrame *parent = frame->GetParent();
-        if (parent && parent != mSubtreeRoot) {
+        if (parent) {
           if (!mEntryList.contains(Entry(parent, entry->mDepth - 1, false))) {
             mEntryList.insert(new Entry(parent, entry->mDepth - 1, false));
           }
@@ -178,17 +167,15 @@ private:
 
   /* A list of frames to process, sorted by their depth in the frame tree */
   SplayTree<Entry, Entry> mEntryList;
-
-  /* Don't update overflow of this frame or its ancestors. */
-  const nsIFrame* mSubtreeRoot;
 };
 
 class RestyleTracker {
 public:
   typedef mozilla::dom::Element Element;
 
-  RestyleTracker(uint32_t aRestyleBits) :
-    mRestyleBits(aRestyleBits),
+  RestyleTracker(uint32_t aRestyleBits,
+                 nsCSSFrameConstructor* aFrameConstructor) :
+    mRestyleBits(aRestyleBits), mFrameConstructor(aFrameConstructor),
     mHaveLaterSiblingRestyles(false)
   {
     NS_PRECONDITION((mRestyleBits & ~ELEMENT_ALL_RESTYLE_FLAGS) == 0,
@@ -205,8 +192,8 @@ public:
                     "Shouldn't have both root flags");
   }
 
-  void Init(RestyleManager* aRestyleManager) {
-    mRestyleManager = aRestyleManager;
+  void Init() {
+    mPendingRestyles.Init();
   }
 
   uint32_t Count() const {
@@ -289,7 +276,7 @@ private:
   // will include one flag from ELEMENT_PENDING_RESTYLE_FLAGS and one flag
   // that's not in ELEMENT_PENDING_RESTYLE_FLAGS.
   uint32_t mRestyleBits;
-  RestyleManager* mRestyleManager; // Owns us
+  nsCSSFrameConstructor* mFrameConstructor; // Owns us
   // A hashtable that maps elements to RestyleData structs.  The
   // values only make sense if the element's current document is our
   // document and it has our RestyleBit() flag set.  In particular,
@@ -372,6 +359,7 @@ inline bool RestyleTracker::AddPendingRestyle(Element* aElement,
   return hadRestyleLaterSiblings;
 }
 
+} // namespace css
 } // namespace mozilla
 
-#endif /* mozilla_RestyleTracker_h */
+#endif /* mozilla_css_RestyleTracker_h */

@@ -7,7 +7,6 @@
 #ifndef nsDOMMutationObserver_h
 #define nsDOMMutationObserver_h
 
-#include "mozilla/Attributes.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsPIDOMWindow.h"
 #include "nsIScriptContext.h"
@@ -23,10 +22,8 @@
 #include "nsIDOMMutationEvent.h"
 #include "nsWrapperCache.h"
 #include "mozilla/dom/MutationObserverBinding.h"
-#include "nsIDocument.h"
 
 class nsDOMMutationObserver;
-using mozilla::dom::MutationObservingInfo;
 
 class nsDOMMutationRecord : public nsISupports,
                             public nsWrapperCache
@@ -47,8 +44,7 @@ public:
     return mOwner;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE
   {
     return mozilla::dom::MutationRecordBinding::Wrap(aCx, aScope, this);
   }
@@ -269,6 +265,10 @@ private:
 };
 
 
+#define NS_MUTATION_OBSERVER_IID \
+{ 0xe628f313, 0x8129, 0x4f90, \
+  { 0x8e, 0xc3, 0x85, 0xe8, 0x28, 0x22, 0xe7, 0xab } }
+
 class nsMutationReceiver : public nsMutationReceiverBase
 {
 public:
@@ -313,6 +313,7 @@ public:
 
   void Disconnect(bool aRemoveFromObserver);
 
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_IMUTATION_OBSERVER_IID)
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
   NS_DECL_ISUPPORTS
 
@@ -326,7 +327,7 @@ public:
   virtual void AttributeSetToCurrentValue(nsIDocument* aDocument,
                                           mozilla::dom::Element* aElement,
                                           int32_t aNameSpaceID,
-                                          nsIAtom* aAttribute) MOZ_OVERRIDE
+                                          nsIAtom* aAttribute)
   {
     // We can reuse AttributeWillChange implementation.
     AttributeWillChange(aDocument, aElement, aNameSpaceID, aAttribute,
@@ -334,9 +335,7 @@ public:
   }
 };
 
-#define NS_DOM_MUTATION_OBSERVER_IID \
-{ 0x0c3b91f8, 0xcc3b, 0x4b08, \
-  { 0x9e, 0xab, 0x07, 0x47, 0xa9, 0xe4, 0x65, 0xb4 } }
+NS_DEFINE_STATIC_IID_ACCESSOR(nsMutationReceiver, NS_MUTATION_OBSERVER_IID)
 
 class nsDOMMutationObserver : public nsISupports,
                               public nsWrapperCache
@@ -346,20 +345,19 @@ public:
                         mozilla::dom::MutationCallback& aCb)
   : mOwner(aOwner), mCallback(&aCb), mWaitingForRun(false), mId(++sCount)
   {
+    mTransientReceivers.Init();
     SetIsDOMBinding();
   }
   virtual ~nsDOMMutationObserver();
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMMutationObserver)
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_DOM_MUTATION_OBSERVER_IID)
 
   static already_AddRefed<nsDOMMutationObserver>
   Constructor(const mozilla::dom::GlobalObject& aGlobal,
               mozilla::dom::MutationCallback& aCb,
               mozilla::ErrorResult& aRv);
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE
   {
     return mozilla::dom::MutationObserverBinding::Wrap(aCx, aScope, this);
   }
@@ -378,10 +376,6 @@ public:
   void TakeRecords(nsTArray<nsRefPtr<nsDOMMutationRecord> >& aRetVal);
 
   void HandleMutation();
-
-  void GetObservingInfo(nsTArray<Nullable<MutationObservingInfo> >& aResult);
-
-  mozilla::dom::MutationCallback* MutationCallback() { return mCallback; }
 
   // static methods
   static void HandleMutations()
@@ -414,7 +408,7 @@ protected:
   bool Suppressed()
   {
     if (mOwner) {
-      nsCOMPtr<nsIDocument> d = mOwner->GetExtantDoc();
+      nsCOMPtr<nsIDocument> d = do_QueryInterface(mOwner->GetExtantDocument());
       return d && d->IsInSyncOperation();
     }
     return false;
@@ -448,8 +442,6 @@ protected:
   static nsAutoTArray<nsTArray<nsRefPtr<nsDOMMutationObserver> >, 4>*
                                                      sCurrentlyHandlingObservers;
 };
-
-NS_DEFINE_STATIC_IID_ACCESSOR(nsDOMMutationObserver, NS_DOM_MUTATION_OBSERVER_IID)
 
 class nsAutoMutationBatch
 {

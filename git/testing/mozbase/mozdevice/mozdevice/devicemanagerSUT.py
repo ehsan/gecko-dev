@@ -2,7 +2,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import mozlog
 import select
 import socket
 import time
@@ -23,6 +22,7 @@ class DeviceManagerSUT(DeviceManager):
     app must be present and listening for connections for this to work.
     """
 
+    debug = 2
     _base_prompt = '$>'
     _base_prompt_re = '\$\>'
     _prompt_sep = '\x00'
@@ -33,9 +33,7 @@ class DeviceManagerSUT(DeviceManager):
     reboot_timeout = 600
     reboot_settling_time = 60
 
-    def __init__(self, host, port = 20701, retryLimit = 5,
-            deviceRoot = None, logLevel = mozlog.ERROR, **kwargs):
-        DeviceManager.__init__(self, logLevel)
+    def __init__(self, host, port = 20701, retryLimit = 5, deviceRoot = None, **kwargs):
         self.host = host
         self.port = port
         self.retryLimit = retryLimit
@@ -132,12 +130,13 @@ class DeviceManagerSUT(DeviceManager):
                 # couldn't execute it). retry otherwise
                 if err.fatal:
                     raise err
-                self._logger.debug(err)
+                if self.debug >= 4:
+                    print err
                 retries += 1
                 # if we lost the connection or failed to establish one, wait a bit
                 if retries < retryLimit and not self._sock:
                     sleep_time = 5 * retries
-                    self._logger.info('Could not connect; sleeping for %d seconds.' % sleep_time)
+                    print 'Could not connect; sleeping for %d seconds.' % sleep_time
                     time.sleep(sleep_time)
 
         raise DMError("Remote Device Error: unable to connect to %s after %s attempts" % (self.host, retryLimit))
@@ -163,8 +162,8 @@ class DeviceManagerSUT(DeviceManager):
 
         if not self._sock:
             try:
-                if self._everConnected:
-                    self._logger.info("reconnecting socket")
+                if self.debug >= 1 and self._everConnected:
+                    print "reconnecting socket"
                 self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             except socket.error, msg:
                 self._sock = None
@@ -203,12 +202,13 @@ class DeviceManagerSUT(DeviceManager):
                         raise DMError("Remote Device Error: we had %s bytes of data to send, but "
                                       "only sent %s" % (len(cmd['data']), sent))
 
-                self._logger.debug("sent cmd: %s" % cmd['cmd'])
+                if self.debug >= 4:
+                    print "sent cmd: " + str(cmd['cmd'])
             except socket.error, msg:
                 self._sock.close()
                 self._sock = None
-                self._logger.error("Remote Device Error: Error sending data"\
-                        " to socket. cmd=%s; err=%s" % (cmd['cmd'], msg))
+                if self.debug >= 1:
+                    print "Remote Device Error: Error sending data to socket. cmd="+str(cmd['cmd'])+"; err="+str(msg)
                 return False
 
             # Check if the command should close the socket
@@ -226,14 +226,16 @@ class DeviceManagerSUT(DeviceManager):
                     socketClosed = False
                     errStr = ''
                     temp = ''
-                    self._logger.debug("recv'ing...")
+                    if self.debug >= 4:
+                        print "recv'ing..."
 
                     # Get our response
                     try:
-                        # Wait up to a second for socket to become ready for reading...
+                          # Wait up to a second for socket to become ready for reading...
                         if select.select([self._sock], [], [], select_timeout)[0]:
                             temp = self._sock.recv(1024)
-                            self._logger.debug("response: %s" % temp)
+                            if self.debug >= 4:
+                                print "response: " + str(temp)
                             timer = 0
                             if not temp:
                                 socketClosed = True
@@ -338,10 +340,9 @@ class DeviceManagerSUT(DeviceManager):
         # woops, we couldn't find an end of line/return value
         raise DMError("Automation Error: Error finding end of line/return value when running '%s'" % cmdline)
 
-    def pushFile(self, localname, destname, retryLimit=None, createDir=True):
+    def pushFile(self, localname, destname, retryLimit = None):
         retryLimit = retryLimit or self.retryLimit
-        if createDir:
-            self.mkDirs(destname)
+        self.mkDirs(destname)
 
         try:
             filesize = os.path.getsize(localname)
@@ -351,7 +352,8 @@ class DeviceManagerSUT(DeviceManager):
         except OSError:
             raise DMError("DeviceManager: Error reading file to push")
 
-        self._logger.debug("push returned: %s" % remoteHash)
+        if (self.debug >= 3):
+            print "push returned: %s" % remoteHash
 
         localHash = self._getLocalHash(localname)
 
@@ -363,19 +365,22 @@ class DeviceManagerSUT(DeviceManager):
         if not self.dirExists(name):
             self._runCmds([{ 'cmd': 'mkdr ' + name }])
 
-    def pushDir(self, localDir, remoteDir, retryLimit=None, timeout=None):
+    def pushDir(self, localDir, remoteDir, retryLimit = None):
         retryLimit = retryLimit or self.retryLimit
-        self._logger.info("pushing directory: %s to %s" % (localDir, remoteDir))
+        if (self.debug >= 2):
+            print "pushing directory: %s to %s" % (localDir, remoteDir)
 
         existentDirectories = []
         for root, dirs, files in os.walk(localDir, followlinks=True):
-            _, subpath = root.split(localDir)
-            subpath = subpath.lstrip('/')
-            remoteRoot = posixpath.join(remoteDir, subpath)
+            parts = root.split(localDir)
             for f in files:
-                remoteName = posixpath.join(remoteRoot, f)
+                remoteRoot = remoteDir + '/' + parts[1]
+                if (remoteRoot.endswith('/')):
+                    remoteName = remoteRoot + f
+                else:
+                    remoteName = remoteRoot + '/' + f
 
-                if subpath == "":
+                if (parts[1] == ""):
                     remoteRoot = remoteDir
 
                 parent = os.path.dirname(remoteName)
@@ -383,7 +388,8 @@ class DeviceManagerSUT(DeviceManager):
                     self.mkDirs(remoteName)
                     existentDirectories.append(parent)
 
-                self.pushFile(os.path.join(root, f), remoteName, retryLimit=retryLimit, createDir=False)
+                self.pushFile(os.path.join(root, f), remoteName, retryLimit=retryLimit)
+
 
     def dirExists(self, remotePath):
         ret = self._runCmds([{ 'cmd': 'isdir ' + remotePath }]).strip()
@@ -395,29 +401,25 @@ class DeviceManagerSUT(DeviceManager):
     def fileExists(self, filepath):
         # Because we always have / style paths we make this a lot easier with some
         # assumptions
-        filepath = posixpath.normpath(filepath)
-        # / should always exist but we can use this to check for things like
-        # having access to the filesystem
-        if filepath == '/':
-            return self.dirExists(filepath)
-        (containingpath, filename) = posixpath.split(filepath)
-        return filename in self.listFiles(containingpath)
+        s = filepath.split('/')
+        containingpath = '/'.join(s[:-1])
+        return s[-1] in self.listFiles(containingpath)
 
     def listFiles(self, rootdir):
-        rootdir = posixpath.normpath(rootdir)
-        if not self.dirExists(rootdir):
+        rootdir = rootdir.rstrip('/')
+        if (self.dirExists(rootdir) == False):
             return []
         data = self._runCmds([{ 'cmd': 'cd ' + rootdir }, { 'cmd': 'ls' }])
 
         files = filter(lambda x: x, data.splitlines())
         if len(files) == 1 and files[0] == '<empty>':
-            # special case on the agent: empty directories return just the
-            # string "<empty>"
+            # special case on the agent: empty directories return just the string "<empty>"
             return []
         return files
 
     def removeFile(self, filename):
-        self._logger.info("removing file: " + filename)
+        if (self.debug>= 2):
+            print "removing file: " + filename
         if self.fileExists(filename):
             self._runCmds([{ 'cmd': 'rm ' + filename }])
 
@@ -442,8 +444,8 @@ class DeviceManagerSUT(DeviceManager):
                         # unexpected format
                         raise ValueError
                 except ValueError:
-                    self._logger.error("Unable to parse process list (bug 805969)")
-                    self._logger.error("Line: %s\nFull output of process list:\n%s" % (line, data))
+                    print "ERROR: Unable to parse process list (bug 805969)"
+                    print "Line: %s\nFull output of process list:\n%s" % (line, data)
                     raise DMError("Invalid process line: %s" % line)
 
         return processTuples
@@ -459,10 +461,11 @@ class DeviceManagerSUT(DeviceManager):
         if not appname:
             raise DMError("Automation Error: fireProcess called with no command to run")
 
-        self._logger.info("FIRE PROC: '%s'" % appname)
+        if (self.debug >= 2):
+            print "FIRE PROC: '" + appname + "'"
 
         if (self.processExist(appname) != None):
-            self._logger.warn("process %s appears to be running already\n" % appname)
+            print "WARNING: process %s appears to be running already\n" % appname
             if (failIfRunning):
                 raise DMError("Automation Error: Process is already running")
 
@@ -481,7 +484,8 @@ class DeviceManagerSUT(DeviceManager):
             time.sleep(1)
             waited += 1
 
-        self._logger.debug("got pid: %s for process: %s" % (pid, appname))
+        if (self.debug >= 4):
+            print "got pid: %s for process: %s" % (pid, appname)
         return pid
 
     def launchProcess(self, cmd, outputFile = "process.txt", cwd = '', env = '', failIfRunning=False):
@@ -496,11 +500,9 @@ class DeviceManagerSUT(DeviceManager):
         DEPRECATED: Use shell() or launchApplication() for new code
         """
         if not cmd:
-            self._logger.warn("launchProcess called without command to run")
+            if (self.debug >= 1):
+                print "WARNING: launchProcess called without command to run"
             return None
-
-        if cmd[0] == 'am' and hasattr(self, '_getExtraAmStartArgs'):
-            cmd = cmd[:2] + self._getExtraAmStartArgs() + cmd[2:] 
 
         cmdline = subprocess.list2cmdline(cmd)
         if (outputFile == "process.txt" or outputFile == None):
@@ -514,20 +516,12 @@ class DeviceManagerSUT(DeviceManager):
         cmdline = '%s %s' % (self._formatEnvString(env), cmdline)
 
         # fireProcess may trigger an exception, but we won't handle it
-        if cmd[0] == "am":
-            # Robocop tests spawn "am instrument". sutAgent's exec ensures that
-            # am has started before returning, so there is no point in having
-            # fireProcess wait for it to start. Also, since "am" does not show
-            # up in the process list while the test is running, waiting for it
-            # in fireProcess is difficult.
-            self.fireProcess(cmdline, failIfRunning, 0)
-        else:
-            self.fireProcess(cmdline, failIfRunning)
+        self.fireProcess(cmdline, failIfRunning)
         return outputFile
 
-    def killProcess(self, appname, sig=None):
-        if sig:
-            self._logger.warn("killProcess(): sig parameter unsupported on SUT")
+    def killProcess(self, appname, forceKill=False):
+        if forceKill:
+            print "WARNING: killProcess(): forceKill parameter unsupported on SUT"
         retries = 0
         while retries < self.retryLimit:
             try:
@@ -536,16 +530,17 @@ class DeviceManagerSUT(DeviceManager):
                 return
             except DMError, err:
                 retries +=1
-                self._logger.warn("try %d of %d failed to kill %s" %
+                print ("WARNING: try %d of %d failed to kill %s" %
                        (retries, self.retryLimit, appname))
-                self._logger.debug(err)
+                if self.debug >= 4:
+                    print err
                 if retries >= self.retryLimit:
                     raise err
 
     def getTempDir(self):
         return self._runCmds([{ 'cmd': 'tmpd' }]).strip()
 
-    def pullFile(self, remoteFile, offset=None, length=None):
+    def pullFile(self, remoteFile):
         # The "pull" command is different from other commands in that DeviceManager
         # has to read a certain number of bytes instead of just reading to the
         # next prompt.  This is more robust than the "cat" command, which will be
@@ -554,7 +549,7 @@ class DeviceManagerSUT(DeviceManager):
 
         def err(error_msg):
             err_str = 'DeviceManager: pull unsuccessful: %s' % error_msg
-            self._logger.error(err_str)
+            print err_str
             self._sock = None
             raise DMError(err_str)
 
@@ -562,23 +557,30 @@ class DeviceManagerSUT(DeviceManager):
         # the class level if we wanted to refactor sendCMD().  For now they are
         # only used to pull files.
 
-        def uread(to_recv, error_msg):
+        def uread(to_recv, error_msg, timeout=None):
             """ unbuffered read """
-            try:
-                data = ""
-                if select.select([self._sock], [], [], self.default_timeout)[0]:
-                    data = self._sock.recv(to_recv)
-                if not data:
-                    # timed out waiting for response or error response
-                    err(error_msg)
+            timer = 0
+            select_timeout = 1
+            if not timeout:
+                timeout = self.default_timeout
 
+            try:
+                if select.select([self._sock], [], [], select_timeout)[0]:
+                    data = self._sock.recv(to_recv)
+                    timer = 0
+                timer += select_timeout
+                if timer > timeout:
+                    err('timeout in uread while retrieving file')
+
+                if not data:
+                    err(error_msg)
                 return data
             except:
                 err(error_msg)
 
         def read_until_char(c, buf, error_msg):
             """ read until 'c' is found; buffer rest """
-            while not c in buf:
+            while not '\n' in buf:
                 data = uread(1024, error_msg)
                 buf += data
             return buf.partition(c)
@@ -600,20 +602,14 @@ class DeviceManagerSUT(DeviceManager):
         # <filename>,-1\n<error message>
 
         # just send the command first, we read the response inline below
-        if offset is not None and length is not None:
-            cmd = 'pull %s %d %d' % (remoteFile, offset, length)
-        elif offset is not None:
-            cmd = 'pull %s %d' % (remoteFile, offset)
-        else: 
-            cmd = 'pull %s' % remoteFile
-
-        self._runCmds([{ 'cmd': cmd }])
+        self._runCmds([{ 'cmd': 'pull ' + remoteFile }])
 
         # read metadata; buffer the rest
         metadata, sep, buf = read_until_char('\n', buf, 'could not find metadata')
         if not metadata:
             return None
-        self._logger.debug('metadata: %s' % metadata)
+        if self.debug >= 3:
+            print 'metadata: %s' % metadata
 
         filename, sep, filesizestr = metadata.partition(',')
         if sep == '':
@@ -652,13 +648,15 @@ class DeviceManagerSUT(DeviceManager):
                           remoteFile)
 
     def getDirectory(self, remoteDir, localDir, checkDir=True):
-        self._logger.info("getting files in '%s'" % remoteDir)
+        if (self.debug >= 2):
+            print "getting files in '" + remoteDir + "'"
         if checkDir and not self.dirExists(remoteDir):
             raise DMError("Automation Error: Error getting directory: %s not a directory" %
                           remoteDir)
 
         filelist = self.listFiles(remoteDir)
-        self._logger.debug(filelist)
+        if (self.debug >= 3):
+            print filelist
         if not os.path.exists(localDir):
             os.makedirs(localDir)
 
@@ -686,7 +684,8 @@ class DeviceManagerSUT(DeviceManager):
 
     def _getRemoteHash(self, filename):
         data = self._runCmds([{ 'cmd': 'hash ' + filename }]).strip()
-        self._logger.debug("remote hash returned: '%s'" % data)
+        if self.debug >= 3:
+            print "remote hash returned: '%s'" % data
         return data
 
     def getDeviceRoot(self):
@@ -724,7 +723,8 @@ class DeviceManagerSUT(DeviceManager):
         self._runCmds([{ 'cmd': 'unzp %s %s' % (filePath, destDir)}])
 
     def _wait_for_reboot(self, host, port):
-        self._logger.debug('Creating server with %s:%d' % (host, port))
+        if self.debug >= 3:
+            print 'Creating server with %s:%d' % (host, port)
         timeout_expires = time.time() + self.reboot_timeout
         conn = None
         data = ''
@@ -752,14 +752,15 @@ class DeviceManagerSUT(DeviceManager):
             # also up.
             time.sleep(self.reboot_settling_time)
         else:
-            self._logger.error('Timed out waiting for reboot callback.')
+            print 'Automation Error: Timed out waiting for reboot callback.'
         s.close()
         return data
 
     def reboot(self, ipAddr=None, port=30000):
         cmd = 'rebt'
 
-        self._logger.info("sending rebt command")
+        if self.debug > 3:
+            print "INFO: sending rebt command"
 
         if ipAddr is not None:
             # The update.info command tells the SUTAgent to send a TCP message
@@ -777,7 +778,8 @@ class DeviceManagerSUT(DeviceManager):
         if ipAddr is not None:
             status = self._wait_for_reboot(ipAddr, port)
 
-        self._logger.info("rebt- got status back: %s" % status)
+        if self.debug > 3:
+            print "INFO: rebt- got status back: " + str(status)
 
     def getInfo(self, directive=None):
         data = None
@@ -808,7 +810,8 @@ class DeviceManagerSUT(DeviceManager):
                     proclist.append(l.split('\t'))
             result['process'] = proclist
 
-        self._logger.debug("results: %s" % result)
+        if (self.debug >= 3):
+            print "results: " + str(result)
         return result
 
     def installApp(self, appBundlePath, destPath=None):
@@ -830,7 +833,8 @@ class DeviceManagerSUT(DeviceManager):
         data = self._runCmds([{ 'cmd': cmd }])
 
         status = data.split('\n')[0].strip()
-        self._logger.debug("uninstallApp: '%s'" % status)
+        if self.debug > 3:
+            print "uninstallApp: '%s'" % status
         if status == 'Success':
             return
         raise DMError("Remote Device Error: uninstall failed for %s" % appName)
@@ -841,7 +845,8 @@ class DeviceManagerSUT(DeviceManager):
             cmd += ' ' + installPath
         data = self._runCmds([{ 'cmd': cmd }])
 
-        self._logger.debug("uninstallAppAndReboot: %s" % data)
+        if (self.debug > 3):
+            print "uninstallAppAndReboot: " + str(data)
         return
 
     def updateApp(self, appBundlePath, processName=None, destPath=None, ipAddr=None, port=30000):
@@ -860,17 +865,19 @@ class DeviceManagerSUT(DeviceManager):
             ip, port = self._getCallbackIpAndPort(ipAddr, port)
             cmd += " %s %s" % (ip, port)
 
-        self._logger.debug("updateApp using command: " % cmd)
+        if self.debug >= 3:
+            print "INFO: updateApp using command: " + str(cmd)
 
         status = self._runCmds([{'cmd': cmd}])
 
         if ipAddr is not None:
             status = self._wait_for_reboot(ip, port)
 
-        self._logger.debug("updateApp: got status back: %s" % status)
+        if self.debug >= 3:
+            print "INFO: updateApp: got status back: %s" + str(status)
 
     def getCurrentTime(self):
-        return int(self._runCmds([{ 'cmd': 'clok' }]).strip())
+        return self._runCmds([{ 'cmd': 'clok' }]).strip()
 
     def _getCallbackIpAndPort(self, aIp, aPort):
         """
@@ -915,12 +922,14 @@ class DeviceManagerSUT(DeviceManager):
         supported resolutions: 640x480, 800x600, 1024x768, 1152x864, 1200x1024, 1440x900, 1680x1050, 1920x1080
         """
         if self.getInfo('os')['os'][0].split()[0] != 'harmony-eng':
-            self._logger.warn("unable to adjust screen resolution on non Tegra device")
+            if (self.debug >= 2):
+                print "WARNING: unable to adjust screen resolution on non Tegra device"
             return False
 
         results = self.getInfo('screen')
         parts = results['screen'][0].split(':')
-        self._logger.debug("we have a current resolution of %s, %s" % (parts[1].split()[0], parts[2].split()[0]))
+        if (self.debug >= 3):
+            print "INFO: we have a current resolution of %s, %s" % (parts[1].split()[0], parts[2].split()[0])
 
         #verify screen type is valid, and set it to the proper value (https://bugzilla.mozilla.org/show_bug.cgi?id=632895#c4)
         screentype = -1
@@ -941,7 +950,8 @@ class DeviceManagerSUT(DeviceManager):
         if (height < 100 or height > 9999):
             return False
 
-        self._logger.debug("adjusting screen resolution to %s, %s and rebooting" % (width, height))
+        if (self.debug >= 3):
+            print "INFO: adjusting screen resolution to %s, %s and rebooting" % (width, height)
 
         self._runCmds([{ 'cmd': "exec setprop persist.tegra.dpy%s.mode.width %s" % (screentype, width) }])
         self._runCmds([{ 'cmd': "exec setprop persist.tegra.dpy%s.mode.height %s" % (screentype, height) }])

@@ -8,7 +8,6 @@
 #ifndef _nsDiskCacheStreams_h_
 #define _nsDiskCacheStreams_h_
 
-#include "mozilla/MemoryReporting.h"
 #include "nsDiskCacheBinding.h"
 
 #include "nsCache.h"
@@ -16,7 +15,7 @@
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
 
-#include "mozilla/Atomics.h"
+#include "pratom.h"
 
 class nsDiskCacheInputStream;
 class nsDiskCacheDevice;
@@ -26,7 +25,7 @@ public:
              nsDiskCacheStreamIO(nsDiskCacheBinding *   binding);
     virtual ~nsDiskCacheStreamIO();
     
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIOUTPUTSTREAM
 
     nsresult    GetInputStream(uint32_t offset, nsIInputStream ** inputStream);
@@ -34,14 +33,14 @@ public:
 
     nsresult    ClearBinding();
     
-    void        IncrementInputStreamCount() { mInStreamCount++; }
+    void        IncrementInputStreamCount() { PR_ATOMIC_INCREMENT(&mInStreamCount); }
     void        DecrementInputStreamCount()
                 {
-                    mInStreamCount--;
+                    PR_ATOMIC_DECREMENT(&mInStreamCount);
                     NS_ASSERTION(mInStreamCount >= 0, "mInStreamCount has gone negative");
                 }
 
-    size_t     SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+    size_t     SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
 
     // GCC 2.95.2 requires this to be defined, although we never call it.
     // and OS/2 requires that it not be private
@@ -58,7 +57,7 @@ private:
 
     nsDiskCacheBinding *        mBinding;       // not an owning reference
     nsDiskCacheDevice *         mDevice;
-    mozilla::Atomic<int32_t>                     mInStreamCount;
+    int32_t                     mInStreamCount;
     PRFileDesc *                mFD;
 
     uint32_t                    mStreamEnd;     // current size of data

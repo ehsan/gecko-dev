@@ -9,7 +9,7 @@ function test() {
   initNetMonitor(JSONP_URL).then(([aTab, aDebuggee, aMonitor]) => {
     info("Starting test... ");
 
-    let { document, L10N, NetMonitorView } = aMonitor.panelWin;
+    let { document, L10N, SourceEditor, NetMonitorView } = aMonitor.panelWin;
     let { RequestsMenu } = NetMonitorView;
 
     RequestsMenu.lazyUpdate = false;
@@ -21,7 +21,7 @@ function test() {
           statusText: "OK",
           type: "json",
           fullMimeType: "text/json; charset=utf-8",
-          size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.04),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 0.04),
           time: true
         });
 
@@ -40,15 +40,14 @@ function test() {
         is(tab.getAttribute("selected"), "true",
           "The response tab in the network details pane should be selected.");
 
-        is(tabpanel.querySelector("#response-content-info-header")
-          .hasAttribute("hidden"), true,
-          "The response info header doesn't have the intended visibility.");
         is(tabpanel.querySelector("#response-content-json-box")
           .hasAttribute("hidden"), false,
           "The response content json box doesn't have the intended visibility.");
+
         is(tabpanel.querySelector("#response-content-textarea-box")
           .hasAttribute("hidden"), true,
           "The response content textarea box doesn't have the intended visibility.");
+
         is(tabpanel.querySelector("#response-content-image-box")
           .hasAttribute("hidden"), true,
           "The response content image box doesn't have the intended visibility.");
@@ -74,7 +73,7 @@ function test() {
         is(jsonScope.querySelectorAll(".variables-view-property .name")[1].getAttribute("value"),
           "__proto__", "The second json property name was incorrect.");
         is(jsonScope.querySelectorAll(".variables-view-property .value")[1].getAttribute("value"),
-          "Object", "The second json property value was incorrect.");
+          "[object Object]", "The second json property value was incorrect.");
       }
     });
 

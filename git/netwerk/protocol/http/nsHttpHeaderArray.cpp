@@ -4,12 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
 #include "nsHttpHeaderArray.h"
-#include "nsURLHelper.h"
-#include "nsIHttpHeaderVisitor.h"
+#include "nsHttp.h"
 
 //-----------------------------------------------------------------------------
 // nsHttpHeaderArray <public>
@@ -139,7 +135,7 @@ nsHttpHeaderArray::ParseHeaderLine(const char *line,
     //                     and consisting of either *TEXT or combinations
     //                     of token, separators, and quoted-string>
     //
-
+    
     // We skip over mal-formed headers in the hope that we'll still be able to
     // do something useful with the response.
 
@@ -154,7 +150,7 @@ nsHttpHeaderArray::ParseHeaderLine(const char *line,
         LOG(("malformed header [%s]: field-name not a token\n", line));
         return NS_OK;
     }
-
+    
     *p = 0; // null terminate field-name
 
     nsHttpAtom atom = nsHttp::ResolveAtom(line);
@@ -188,7 +184,7 @@ nsHttpHeaderArray::Flatten(nsACString &buf, bool pruneProxyHeaders)
     for (i = 0; i < count; ++i) {
         const nsEntry &entry = mHeaders[i];
         // prune proxy headers if requested
-        if (pruneProxyHeaders && ((entry.header == nsHttp::Proxy_Authorization) ||
+        if (pruneProxyHeaders && ((entry.header == nsHttp::Proxy_Authorization) || 
                                   (entry.header == nsHttp::Proxy_Connection)))
             continue;
         buf.Append(entry.header);

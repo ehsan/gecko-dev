@@ -253,7 +253,7 @@ SkAdvancedTypefaceMetrics* SkFontHost::GetAdvancedTypefaceMetrics(
     return NULL;
 }
 
-void SkFontHost::FilterRec(SkScalerContext::Rec* rec, SkTypeface*) {
+void SkFontHost::FilterRec(SkScalerContext::Rec* rec) {
 }
 
 SkScalerContext* SkFontHost::CreateScalerContext(const SkDescriptor* desc) {

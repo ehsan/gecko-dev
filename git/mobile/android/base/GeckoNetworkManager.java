@@ -10,9 +10,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
-import android.net.DhcpInfo;
 import android.net.NetworkInfo;
-import android.net.wifi.WifiManager;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
@@ -144,27 +142,6 @@ public class GeckoNetworkManager extends BroadcastReceiver {
         mApplicationContext.unregisterReceiver(sInstance);
     }
 
-    private int wifiDhcpGatewayAddress() {
-        if (mNetworkType != NetworkType.NETWORK_WIFI) {
-            return 0;
-        }
-        try {
-            WifiManager mgr = (WifiManager)sInstance.mApplicationContext.getSystemService(Context.WIFI_SERVICE);
-            DhcpInfo d = mgr.getDhcpInfo();
-            if (d == null) {
-                return 0;
-            }
-
-            return d.gateway;
-
-        } catch (Exception ex) {
-            // getDhcpInfo() is not documented to require any permissions, but on some devices
-            // requires android.permission.ACCESS_WIFI_STATE. Just catching the generic exeption
-            // here and returning 0. Not logging because this could be noisy
-            return 0;
-        }
-    }
-
     private void updateNetworkType() {
         NetworkType previousNetworkType = mNetworkType;
         mNetworkType = getNetworkType();
@@ -175,22 +152,17 @@ public class GeckoNetworkManager extends BroadcastReceiver {
 
         GeckoAppShell.sendEventToGecko(GeckoEvent.createNetworkEvent(
                                        getNetworkSpeed(mNetworkType),
-                                       isNetworkUsuallyMetered(mNetworkType),
-                                       mNetworkType == NetworkType.NETWORK_WIFI,
-                                       wifiDhcpGatewayAddress()));
+                                       isNetworkUsuallyMetered(mNetworkType)));
     }
 
     public double[] getCurrentInformation() {
         return new double[] { getNetworkSpeed(mNetworkType),
-                              isNetworkUsuallyMetered(mNetworkType) ? 1.0 : 0.0,
-                              (mNetworkType == NetworkType.NETWORK_WIFI) ? 1.0 : 0.0,
-                              wifiDhcpGatewayAddress()};
+                              isNetworkUsuallyMetered(mNetworkType) ? 1.0 : 0.0 };
     }
 
     public void enableNotifications() {
         // We set mShouldNotify *after* calling updateNetworkType() to make sure we
         // don't notify an eventual change in mNetworkType.
-        mNetworkType = NetworkType.NETWORK_NONE; // force a notification
         updateNetworkType();
         mShouldNotify = true;
 

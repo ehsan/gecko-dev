@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=8 sts=4 et sw=4 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -37,7 +36,6 @@
 #include "nsCategoryManager.h"
 #include "nsCategoryManagerUtils.h"
 #include "xptiprivate.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/XPTInterfaceInfoManager.h"
 #include "nsIConsoleService.h"
 #include "nsIMemoryReporter.h"
@@ -50,6 +48,7 @@
 #include "nsIClassInfo.h"
 #include "nsLocalFile.h"
 #include "nsReadableUtils.h"
+#include "nsStaticComponents.h"
 #include "nsString.h"
 #include "nsXPIDLString.h"
 #include "prcmon.h"
@@ -69,7 +68,7 @@
 #include "nsStringEnumerator.h"
 #include "mozilla/FileUtils.h"
 
-#include <new>     // for placement new
+#include NEW_H     // for placement new
 
 #include "mozilla/Omnijar.h"
 
@@ -78,10 +77,6 @@
 using namespace mozilla;
 
 PRLogModuleInfo* nsComponentManagerLog = nullptr;
-
-// defined in nsStaticXULComponents.cpp to contain all the components in
-// libxul.
-extern mozilla::Module const *const *const kPStaticModules[];
 
 #if 0 || defined (DEBUG_timeless)
  #define SHOW_DENIED_ON_SHUTDOWN
@@ -252,14 +247,14 @@ GetLocationFromDirectoryService(const char* prop)
                                getter_AddRefs(directoryService));
 
     if (!directoryService)
-        return nullptr;
+        return NULL;
 
     nsCOMPtr<nsIFile> file;
     nsresult rv = directoryService->Get(prop,
                                         NS_GET_IID(nsIFile),
                                         getter_AddRefs(file));
     if (NS_FAILED(rv))
-        return nullptr;
+        return NULL;
 
     return file.forget();
 }
@@ -270,7 +265,7 @@ CloneAndAppend(nsIFile* aBase, const nsACString& append)
     nsCOMPtr<nsIFile> f;
     aBase->Clone(getter_AddRefs(f));
     if (!f)
-        return nullptr;
+        return NULL;
 
     f->AppendNative(append);
     return f.forget();
@@ -280,23 +275,22 @@ CloneAndAppend(nsIFile* aBase, const nsACString& append)
 // nsComponentManagerImpl
 ////////////////////////////////////////////////////////////////////////////////
 
-class XPCOMComponentManagerReporter MOZ_FINAL : public MemoryUniReporter
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(ComponentManagerMallocSizeOf)
+
+static int64_t
+GetComponentManagerSize()
 {
-public:
-    XPCOMComponentManagerReporter()
-      : MemoryUniReporter("explicit/xpcom/component-manager",
-                           KIND_HEAP, UNITS_BYTES,
-                           "Memory used for the XPCOM component manager.")
-    {}
-private:
-    int64_t Amount() MOZ_OVERRIDE
-    {
-        return nsComponentManagerImpl::gComponentManager
-             ? nsComponentManagerImpl::gComponentManager->SizeOfIncludingThis(
-                 MallocSizeOf)
-             : 0;
-    }
-};
+  MOZ_ASSERT(nsComponentManagerImpl::gComponentManager);
+  return nsComponentManagerImpl::gComponentManager->SizeOfIncludingThis(
+           ComponentManagerMallocSizeOf);
+}
+
+NS_MEMORY_REPORTER_IMPLEMENT(ComponentManager,
+    "explicit/xpcom/component-manager",
+    KIND_HEAP,
+    nsIMemoryReporter::UNITS_BYTES,
+    GetComponentManagerSize,
+    "Memory used for the XPCOM component manager.")
 
 nsresult
 nsComponentManagerImpl::Create(nsISupports* aOuter, REFNSIID aIID, void** aResult)
@@ -310,15 +304,13 @@ nsComponentManagerImpl::Create(nsISupports* aOuter, REFNSIID aIID, void** aResul
     return gComponentManager->QueryInterface(aIID, aResult);
 }
 
-static const int CONTRACTID_HASHTABLE_INITIAL_SIZE = 2048;
-
 nsComponentManagerImpl::nsComponentManagerImpl()
-    : mFactories(CONTRACTID_HASHTABLE_INITIAL_SIZE)
-    , mContractIDs(CONTRACTID_HASHTABLE_INITIAL_SIZE)
-    , mLock("nsComponentManagerImpl.mLock")
+    : mLock("nsComponentManagerImpl.mLock")
     , mStatus(NOT_INITIALIZED)
 {
 }
+
+#define CONTRACTID_HASHTABLE_INITIAL_SIZE   2048
 
 nsTArray<const mozilla::Module*>* nsComponentManagerImpl::sStaticModules;
 
@@ -358,6 +350,11 @@ nsresult nsComponentManagerImpl::Init()
     // Initialize our arena
     PL_INIT_ARENA_POOL(&mArena, "ComponentManagerArena", NS_CM_BLOCK_SIZE);
 
+    mFactories.Init(CONTRACTID_HASHTABLE_INITIAL_SIZE);
+    mContractIDs.Init(CONTRACTID_HASHTABLE_INITIAL_SIZE);
+    mLoaderMap.Init();
+    mKnownModules.Init();
+
     nsCOMPtr<nsIFile> greDir =
         GetLocationFromDirectoryService(NS_GRE_DIR);
     nsCOMPtr<nsIFile> appDir =
@@ -389,10 +386,10 @@ nsresult nsComponentManagerImpl::Init()
 
     nsCategoryManager::GetSingleton()->SuppressNotifications(true);
 
-    RegisterModule(&kXPCOMModule, nullptr);
+    RegisterModule(&kXPCOMModule, NULL);
 
     for (uint32_t i = 0; i < sStaticModules->Length(); ++i)
-        RegisterModule((*sStaticModules)[i], nullptr);
+        RegisterModule((*sStaticModules)[i], NULL);
 
     nsRefPtr<nsZipArchive> appOmnijar = mozilla::Omnijar::GetReader(mozilla::Omnijar::APP);
     if (appOmnijar) {
@@ -411,8 +408,8 @@ nsresult nsComponentManagerImpl::Init()
 
     nsCategoryManager::GetSingleton()->SuppressNotifications(false);
 
-    mReporter = new XPCOMComponentManagerReporter();
-    NS_RegisterMemoryReporter(mReporter);
+    mReporter = new NS_MEMORY_REPORTER_NAME(ComponentManager);
+    (void)::NS_RegisterMemoryReporter(mReporter);
 
     // Unfortunately, we can't register the nsCategoryManager memory reporter
     // in its constructor (which is triggered by the GetSingleton() call
@@ -493,7 +490,7 @@ nsComponentManagerImpl::RegisterCIDEntryLocked(
             existing = f->mModule->Description();
         else
             existing = "<unknown module>";
-        SafeMutexAutoUnlock unlock(mLock);
+
         LogMessage("While registering XPCOM module %s, trying to re-register CID '%s' already registered by %s.",
                    aModule->Description().get(),
                    idstr,
@@ -797,7 +794,7 @@ nsresult nsComponentManagerImpl::Shutdown(void)
     // Shutdown the component manager
     PR_LOG(nsComponentManagerLog, PR_LOG_DEBUG, ("nsComponentManager: Beginning Shutdown."));
 
-    NS_UnregisterMemoryReporter(mReporter);
+    (void)::NS_UnregisterMemoryReporter(mReporter);
     mReporter = nullptr;
 
     // Release all cached factories
@@ -833,12 +830,12 @@ nsComponentManagerImpl::~nsComponentManagerImpl()
     PR_LOG(nsComponentManagerLog, PR_LOG_DEBUG, ("nsComponentManager: Destroyed."));
 }
 
-NS_IMPL_ISUPPORTS5(nsComponentManagerImpl,
-                   nsIComponentManager,
-                   nsIServiceManager,
-                   nsIComponentRegistrar,
-                   nsISupportsWeakReference,
-                   nsIInterfaceRequestor)
+NS_IMPL_THREADSAFE_ISUPPORTS5(nsComponentManagerImpl,
+                              nsIComponentManager,
+                              nsIServiceManager,
+                              nsIComponentRegistrar,
+                              nsISupportsWeakReference,
+                              nsIInterfaceRequestor)
 
 
 nsresult
@@ -871,7 +868,7 @@ nsComponentManagerImpl::FindFactory(const nsCID& aClass)
 {
     nsFactoryEntry* e = GetFactoryEntry(aClass);
     if (!e)
-        return nullptr;
+        return NULL;
 
     return e->GetFactory();
 }
@@ -882,7 +879,7 @@ nsComponentManagerImpl::FindFactory(const char *contractID,
 {
     nsFactoryEntry *entry = GetFactoryEntry(contractID, aContractIDLen);
     if (!entry)
-        return nullptr;
+        return NULL;
 
     return entry->GetFactory();
 }
@@ -1116,8 +1113,8 @@ FreeFactoryEntries(const nsID& aCID,
                    nsFactoryEntry* aEntry,
                    void* arg)
 {
-    aEntry->mFactory = nullptr;
-    aEntry->mServiceObject = nullptr;
+    aEntry->mFactory = NULL;
+    aEntry->mServiceObject = NULL;
     return PL_DHASH_NEXT;
 }
 
@@ -1129,7 +1126,7 @@ nsComponentManagerImpl::FreeServices()
     if (!gXPCOMShuttingDown)
         return NS_ERROR_FAILURE;
 
-    mFactories.EnumerateRead(FreeFactoryEntries, nullptr);
+    mFactories.EnumerateRead(FreeFactoryEntries, NULL);
     return NS_OK;
 }
 
@@ -1487,7 +1484,7 @@ nsComponentManagerImpl::LoaderForExtension(const nsACString& aExt)
         loader = do_GetServiceFromCategory("module-loader",
                                            PromiseFlatCString(aExt).get());
         if (!loader)
-            return nullptr;
+            return NULL;
 
         mLoaderMap.Put(aExt, loader);
     }
@@ -1676,14 +1673,14 @@ nsComponentManagerImpl::ContractIDToCID(const char *aContractID,
             return NS_OK;
         }
     }
-    *_retval = nullptr;
+    *_retval = NULL;
     return NS_ERROR_FACTORY_NOT_REGISTERED;
 }
 
 static size_t
 SizeOfFactoriesEntryExcludingThis(nsIDHashKey::KeyType aKey,
                                   nsFactoryEntry* const &aData,
-                                  MallocSizeOf aMallocSizeOf,
+                                  nsMallocSizeOfFun aMallocSizeOf,
                                   void* aUserArg)
 {
     return aData->SizeOfIncludingThis(aMallocSizeOf);
@@ -1692,7 +1689,7 @@ SizeOfFactoriesEntryExcludingThis(nsIDHashKey::KeyType aKey,
 static size_t
 SizeOfContractIDsEntryExcludingThis(nsCStringHashKey::KeyType aKey,
                                     nsFactoryEntry* const &aData,
-                                    MallocSizeOf aMallocSizeOf,
+                                    nsMallocSizeOfFun aMallocSizeOf,
                                     void* aUserArg)
 {
     // We don't measure the nsFactoryEntry data because its owned by mFactories
@@ -1701,7 +1698,7 @@ SizeOfContractIDsEntryExcludingThis(nsCStringHashKey::KeyType aKey,
 }
 
 size_t
-nsComponentManagerImpl::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+nsComponentManagerImpl::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     size_t n = aMallocSizeOf(this);
     n += mLoaderMap.SizeOfExcludingThis(nullptr, aMallocSizeOf);
@@ -1743,8 +1740,8 @@ nsFactoryEntry::nsFactoryEntry(const mozilla::Module::CIDEntry* entry,
 }
 
 nsFactoryEntry::nsFactoryEntry(const nsCID& aCID, nsIFactory* factory)
-    : mCIDEntry(nullptr)
-    , mModule(nullptr)
+    : mCIDEntry(NULL)
+    , mModule(NULL)
     , mFactory(factory)
 {
     mozilla::Module::CIDEntry* e = new mozilla::Module::CIDEntry();
@@ -1752,7 +1749,7 @@ nsFactoryEntry::nsFactoryEntry(const nsCID& aCID, nsIFactory* factory)
     *cid = aCID;
     e->cid = cid;
     mCIDEntry = e;
-}
+}        
 
 nsFactoryEntry::~nsFactoryEntry()
 {
@@ -1772,10 +1769,10 @@ nsFactoryEntry::GetFactory()
         // RegisterFactory then UnregisterFactory can leave an entry in mContractIDs
         // pointing to an unusable nsFactoryEntry.
         if (!mModule)
-            return nullptr;
+            return NULL;
 
         if (!mModule->Load())
-            return nullptr;
+            return NULL;
 
         // Don't set mFactory directly, it needs to be locked
         nsCOMPtr<nsIFactory> factory;
@@ -1792,7 +1789,7 @@ nsFactoryEntry::GetFactory()
             factory = new mozilla::GenericFactory(mCIDEntry->constructorProc);
         }
         if (!factory)
-            return nullptr;
+            return NULL;
 
         SafeMutexAutoLock lock(nsComponentManagerImpl::gComponentManager->mLock);
         // Threads can race to set mFactory
@@ -1800,12 +1797,13 @@ nsFactoryEntry::GetFactory()
             factory.swap(mFactory);
         }
     }
-    nsCOMPtr<nsIFactory> factory = mFactory;
-    return factory.forget();
+    nsIFactory* factory = mFactory;
+    factory->AddRef();
+    return factory;
 }
 
 size_t
-nsFactoryEntry::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+nsFactoryEntry::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     size_t n = aMallocSizeOf(this);
 
@@ -1862,7 +1860,7 @@ XRE_AddStaticComponent(const mozilla::Module* aComponent)
 
     if (nsComponentManagerImpl::gComponentManager &&
         nsComponentManagerImpl::NORMAL == nsComponentManagerImpl::gComponentManager->mStatus)
-        nsComponentManagerImpl::gComponentManager->RegisterModule(aComponent, nullptr);
+        nsComponentManagerImpl::gComponentManager->RegisterModule(aComponent, NULL);
 
     return NS_OK;
 }

@@ -37,7 +37,7 @@ SVGLengthListSMILType::Destroy(nsSMILValue& aValue) const
   NS_PRECONDITION(aValue.mType == this, "Unexpected SMIL value type");
   delete static_cast<SVGLengthListAndInfo*>(aValue.mU.mPtr);
   aValue.mU.mPtr = nullptr;
-  aValue.mType = nsSMILNullType::Singleton();
+  aValue.mType = &nsSMILNullType::sSingleton;
 }
 
 nsresult
@@ -92,6 +92,12 @@ SVGLengthListSMILType::Add(nsSMILValue& aDest,
   // zeros when we'd actually need to add to whatever the underlying values
   // should be, not zeros, and those values are not explicit or otherwise
   // available.
+
+  if (dest.IsEmpty() && valueToAdd.IsEmpty()) {
+    // Adding two identity values, no-op.  This occurs when performing a
+    // discrete by-animation on an attribute with no specified base value.
+    return NS_OK;
+  }
 
   if (!valueToAdd.Element()) { // Adding identity value - no-op
     NS_ABORT_IF_FALSE(valueToAdd.IsEmpty(),

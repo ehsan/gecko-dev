@@ -8,7 +8,6 @@ const Cc = Components.classes;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/Prompt.jsm");
 
 // -----------------------------------------------------------------------
 // NSS Dialog Service
@@ -38,44 +37,32 @@ NSSDialogs.prototype = {
     return this.bundle.formatStringFromName(aName, argList, 1);
   },
 
-  getPrompt: function(aTitle, aText, aButtons) {
-    return new Prompt({
+  showPrompt: function(aTitle, aText, aButtons, aInputs) {
+    let msg = {
+      type: "Prompt:Show",
       title: aTitle,
       text: aText,
       buttons: aButtons,
-    });
-  },
-
-  showPrompt: function(aPrompt) {
-    let response = null;
-    aPrompt.show(function(data) {
-      response = data;
-    });
-
-    // Spin this thread while we wait for a result
-    let thread = Services.tm.currentThread;
-    while (response === null)
-      thread.processNextEvent(true);
-
-    return response;
+      inputs: aInputs
+    };
+    let data = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge).handleGeckoMessage(JSON.stringify(msg));
+    return JSON.parse(data);
   },
 
   confirmDownloadCACert: function(aCtx, aCert, aTrust) {
     while (true) {
-      let prompt = this.getPrompt(this.getString("downloadCert.title"),
-                                  this.getString("downloadCert.message1"),
-                                  [ this.getString("nssdialogs.ok.label"),
-                                    this.getString("downloadCert.viewCert.label"),
-                                    this.getString("nssdialogs.cancel.label")
-                                  ]);
-
-      prompt.addCheckbox({ id: "trustSSL", label: this.getString("downloadCert.trustSSL"), checked: false })
-            .addCheckbox({ id: "trustEmail", label: this.getString("downloadCert.trustEmail"), checked: false })
-            .addCheckbox({ id: "trustSign", label: this.getString("downloadCert.trustObjSign"), checked: false });
-      let response = this.showPrompt(prompt);
-
-      // they hit the "view cert" button, so show the cert and try again
+      let response = this.showPrompt(this.getString("downloadCert.title"),
+                                     this.getString("downloadCert.message1"),
+                                     [ this.getString("nssdialogs.ok.label"),
+                                       this.getString("downloadCert.viewCert.label"),
+                                       this.getString("nssdialogs.cancel.label")
+                                     ],
+                                     [ { type: "checkbox", id: "trustSSL", label: this.getString("downloadCert.trustSSL"), checked: false },
+                                       { type: "checkbox", id: "trustEmail", label: this.getString("downloadCert.trustEmail"), checked: false },
+                                       { type: "checkbox", id: "trustSign", label: this.getString("downloadCert.trustObjSign"), checked: false }
+                                     ]);
       if (response.button == 1) {
+        // they hit the "view cert" button, so show the cert and try again
         this.viewCert(aCtx, aCert);
         continue;
       } else if (response.button != 0) {
@@ -91,8 +78,7 @@ NSSDialogs.prototype = {
   },
 
   notifyCACertExists: function(aCtx) {
-    let p = this.getPrompt(this.getString("caCertExists.title"), this.getString("caCertExists.message"));
-    this.showPrompt(p);
+    this.showPrompt(this.getString("caCertExists.title"), this.getString("caCertExists.message"), [], []);
   },
 
   setPKCS12FilePassword: function(aCtx, aPassword) {
@@ -102,16 +88,15 @@ NSSDialogs.prototype = {
   },
 
   getPKCS12FilePassword: function(aCtx, aPassword) {
-    let prompt = this.getPrompt(this.getString("pkcs12.getpassword.title"),
-                                this.getString("pkcs12.getpassword.message"),
-                                [ this.getString("nssdialogs.ok.label"),
-                                  this.getString("nssdialogs.cancel.label")
-                                ]).addPassword({id: "pw"});
-    let response = this.showPrompt(prompt);
+    let response = this.showPrompt(this.getString("pkcs12.getpassword.title"),
+                                   this.getString("pkcs12.getpassword.message"),
+                                   [ this.getString("nssdialogs.ok.label"),
+                                     this.getString("nssdialogs.cancel.label")
+                                   ],
+                                   [ { type: "password", id: "pw" } ]);
     if (response.button != 0) {
       return false;
     }
-
     aPassword.value = response.pw;
     return true;
   },
@@ -125,33 +110,41 @@ NSSDialogs.prototype = {
   },
 
   viewCert: function(aCtx, aCert) {
-    let p = this.getPrompt(this.getString("certmgr.title"),
+    this.showPrompt(this.getString("certmgr.title"),
                     "",
-                    [ this.getString("nssdialogs.ok.label") ])
-    p.addLabel({ label: this.certInfoSection("certmgr.subjectinfo.label",
+                    [ this.getString("nssdialogs.ok.label") ],
+                    [ { type: "label", label:
+                        this.certInfoSection("certmgr.subjectinfo.label",
                           ["certmgr.certdetail.cn", aCert.commonName,
                            "certmgr.certdetail.o", aCert.organization,
                            "certmgr.certdetail.ou", aCert.organizationalUnit,
-                           "certmgr.certdetail.serialnumber", aCert.serialNumber])})
-     .addLabel({ label: this.certInfoSection("certmgr.issuerinfo.label",
+                           "certmgr.certdetail.serialnumber", aCert.serialNumber]) +
+                        this.certInfoSection("certmgr.issuerinfo.label",
                           ["certmgr.certdetail.cn", aCert.issuerCommonName,
                            "certmgr.certdetail.o", aCert.issuerOrganization,
-                           "certmgr.certdetail.ou", aCert.issuerOrganizationUnit])})
-     .addLabel({ label: this.certInfoSection("certmgr.validity.label",
+                           "certmgr.certdetail.ou", aCert.issuerOrganizationUnit]) +
+                        this.certInfoSection("certmgr.validity.label",
                           ["certmgr.issued", aCert.validity.notBeforeLocalDay,
-                           "certmgr.expires", aCert.validity.notAfterLocalDay])})
-     .addLabel({ label: this.certInfoSection("certmgr.fingerprints.label",
+                           "certmgr.expires", aCert.validity.notAfterLocalDay]) +
+                        this.certInfoSection("certmgr.fingerprints.label",
                           ["certmgr.certdetail.sha1fingerprint", aCert.sha1Fingerprint,
-                           "certmgr.certdetail.md5fingerprint", aCert.md5Fingerprint], false) });
-    this.showPrompt(p);
+                           "certmgr.certdetail.md5fingerprint", aCert.md5Fingerprint], false) }
+                    ]);
+  },
+
+  crlImportStatusDialog: function(aCtx, aCrl) {
+    // this dialog is never shown in Fennec; in Desktop it is shown after importing a CRL
+    // via Preferences->Advanced->Encryption->Revocation Lists->Import.
+    throw "Unimplemented";
   },
 
   viewCertDetails: function(details) {
-    let p = this.getPrompt(this.getString("clientAuthAsk.message3"),
+    this.showPrompt(this.getString("clientAuthAsk.message3"),
                     '',
-                    [ this.getString("nssdialogs.ok.label") ]);
-    p.addLabel({ label: details });
-    this.showPrompt(p);
+                    [ this.getString("nssdialogs.ok.label") ],
+                    [ { type: "label", label: details
+                      }
+                    ]);
   },
 
   ChooseCertificate: function(aCtx, cn, organization, issuer, certNickList, certDetailsList, count, selectedIndex, canceled) {
@@ -175,23 +168,16 @@ NSSDialogs.prototype = {
 
     selectedIndex = 0;
     while (true) {
-      let prompt = this.getPrompt(this.getString("clientAuthAsk.title"),
+      let response = this.showPrompt(this.getString("clientAuthAsk.title"),
                                      this.getString("clientAuthAsk.message1"),
                                      [ this.getString("nssdialogs.ok.label"),
                                        this.getString("clientAuthAsk.viewCert.label"),
                                        this.getString("nssdialogs.cancel.label")
-                                     ])
-      .addLabel({ id: "requestedDetails", label: serverRequestedDetails } )
-      .addMenulist({
-        id: "nicknames",
-        label: this.getString("clientAuthAsk.message2"),
-        values: certNickList, selected: selectedIndex
-      }).addCheckbox({
-        id: "rememberBox",
-        label: this.getString("clientAuthAsk.remember.label"),
-        checked: rememberSetting
-      });
-      let response = this.showPrompt(prompt);
+                                     ],
+                                     [ { type: "label", id: "requestedDetails", label: serverRequestedDetails },
+                                       { type: "menulist", id: "nicknames", label: this.getString("clientAuthAsk.message2"), values: certNickList, selected: selectedIndex },
+                                       { type: "checkbox", id: "rememberBox", label: this.getString("clientAuthAsk.remember.label"), checked: rememberSetting },
+                                     ]);
       selectedIndex = response.nicknames;
       if (response.button == 1) {
         this.viewCertDetails(certDetailsList[selectedIndex]);

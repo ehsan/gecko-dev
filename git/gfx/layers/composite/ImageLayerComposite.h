@@ -6,37 +6,35 @@
 #ifndef GFX_ImageLayerComposite_H
 #define GFX_ImageLayerComposite_H
 
-#include "GLTextureImage.h"             // for TextureImage
-#include "ImageLayers.h"                // for ImageLayer
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/RefPtr.h"             // for RefPtr
-#include "mozilla/layers/LayerManagerComposite.h"  // for LayerComposite, etc
-#include "mozilla/layers/LayersTypes.h"  // for LayerRenderState, etc
-#include "nsISupportsImpl.h"            // for TextureImage::AddRef, etc
-#include "nscore.h"                     // for nsACString
+#include "mozilla/layers/PLayers.h"
+#include "mozilla/layers/ShadowLayers.h"
 
-class gfx3DMatrix;
-struct nsIntPoint;
-struct nsIntRect;
+#include "LayerManagerComposite.h"
+#include "ImageLayers.h"
+#include "mozilla/Mutex.h"
 
 namespace mozilla {
 namespace layers {
 
-class CompositableHost;
 class ImageHost;
-class Layer;
 
-class ImageLayerComposite : public ImageLayer,
+class ImageLayerComposite : public ShadowImageLayer,
                             public LayerComposite
 {
   typedef gl::TextureImage TextureImage;
 
 public:
   ImageLayerComposite(LayerManagerComposite* aManager);
-
   virtual ~ImageLayerComposite();
 
   virtual LayerRenderState GetRenderState() MOZ_OVERRIDE;
+
+  // ShadowImageLayer impl
+  virtual void Swap(const SurfaceDescriptor& aFront,
+                    SurfaceDescriptor* aNewBack)
+  {
+    NS_ERROR("Not implemented");
+  }
 
   virtual void Disconnect() MOZ_OVERRIDE;
 
@@ -44,9 +42,8 @@ public:
 
   virtual Layer* GetLayer() MOZ_OVERRIDE;
 
-  virtual void RenderLayer(const nsIntRect& aClipRect);
-
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface) MOZ_OVERRIDE;
+  virtual void RenderLayer(const nsIntPoint& aOffset,
+                           const nsIntRect& aClipRect);
 
   virtual void CleanupResources() MOZ_OVERRIDE;
 
@@ -54,13 +51,15 @@ public:
 
   virtual LayerComposite* AsLayerComposite() MOZ_OVERRIDE { return this; }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() const { return "ImageLayerComposite"; }
 
 protected:
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix) MOZ_OVERRIDE;
+#endif
 
 private:
-  RefPtr<CompositableHost> mImageHost;
+  RefPtr<ImageHost> mImageHost;
 };
 
 } /* layers */

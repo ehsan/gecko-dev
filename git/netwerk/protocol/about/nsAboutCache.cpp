@@ -4,8 +4,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsAboutCache.h"
+#include "nsIIOService.h"
+#include "nsIServiceManager.h"
 #include "nsIInputStream.h"
 #include "nsIStorageStream.h"
+#include "nsISimpleEnumerator.h"
+#include "nsXPIDLString.h"
 #include "nsIURI.h"
 #include "nsCOMPtr.h"
 #include "nsNetUtil.h"

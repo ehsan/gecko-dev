@@ -22,18 +22,15 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=741267
 
   /** Test for Bug 741267 **/
     function isXrayWrapper(x) {
-      return Components.utils.isXrayWrapper(x);
+      return XPCNativeWrapper.unwrap(x) != x;
     }
 
     function doTest() {
       var win = $("t").contentWindow;
       var sandbox = Components.utils.Sandbox(win, { sandboxPrototype: win });
-
-      is(sandbox._content, undefined, "_content does nothing over Xray");
-
       try {
         var css = Components.utils.evalInSandbox("CSSStyleDeclaration", sandbox);
-        is(css.prototype, "[object XrayWrapper [object CSSStyleDeclarationPrototype]]", "'CSSStyleDeclaration.prototype' in a sandbox should return the CSSStyleDeclaration interface prototype object");
+        is(css.prototype, "[object CSSStyleDeclarationPrototype]", "'CSSStyleDeclaration.prototype' in a sandbox should return the CSSStyleDeclaration interface prototype object");
       } catch (e) {
         ok(false, "'CSSStyleDeclaration' shouldn't throw in a sandbox");
       }
@@ -49,14 +46,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=741267
         ok(xhr, "'XMLHttpRequest.prototype' in a sandbox should return the XMLHttpRequest interface prototype object");
         ok(isXrayWrapper(xhr), "Getting an interface prototype object on an Xray wrapper should return an Xray wrapper");
         ok(isXrayWrapper(xhr.constructor), "Getting the constructor property on an Xray wrapper of an interface prototype object should return an Xray wrapper");
-        isnot(Object.getOwnPropertyDescriptor(xhr, "send"), undefined,
-              "We should claim to have a send() method");
-        isnot(Object.keys(xhr).indexOf("responseType"), -1,
-              "We should claim to have a responseType property");
-        isnot(Object.getOwnPropertyNames(xhr).indexOf("open"), -1,
-              "We should claim to have an open() method");
-        isnot(Object.getOwnPropertyDescriptor(xhr, "constructor"), undefined,
-              "We should claim to have a 'constructor' property");
       } catch (e) {
         ok(false, "'XMLHttpRequest.prototype' shouldn't throw in a sandbox");
       }
@@ -95,20 +84,12 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=741267
         var xhr = Components.utils.evalInSandbox("XMLHttpRequest", sandbox);
         is(xhr, "[object XrayWrapper " + XMLHttpRequest + "]", "'XMLHttpRequest' in a sandbox should return the XMLHttpRequest interface object");
         ok(isXrayWrapper(xhr.prototype), "Getting the prototype property on an Xray wrapper of an interface object should return an Xray wrapper");
-        isnot(Object.getOwnPropertyDescriptor(xhr, "UNSENT"), undefined,
-              "We should claim to have an UNSENT constant");
-        isnot(Object.keys(xhr).indexOf("OPENED"), -1,
-              "We should claim to have an OPENED constant");
-        isnot(Object.getOwnPropertyNames(xhr).indexOf("DONE"), -1,
-              "We should claim to have a DONE constant");
-        isnot(Object.getOwnPropertyDescriptor(xhr, "prototype"), undefined,
-              "We should claim to have 'prototype' property");
       } catch (e) {
         ok(false, "'XMLHttpRequest' shouldn't throw in a sandbox");
       }
       try {
         var xhr = Components.utils.evalInSandbox("XMLHttpRequest()", sandbox);
-        is("" + xhr, "[object XrayWrapper " + XMLHttpRequest() + "]", "'XMLHttpRequest()' in a sandbox should create an XMLHttpRequest object");
+        is("" + xhr, "" + XMLHttpRequest(), "'XMLHttpRequest()' in a sandbox should create an XMLHttpRequest object");
       } catch (e) {
         ok(false, "'XMLHttpRequest()' shouldn't throw in a sandbox");
       }
@@ -140,7 +121,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=741267
         Components.utils.evalInSandbox("document.defaultView.XMLHttpRequest = function() {};", sandbox);
         var win = Components.utils.evalInSandbox("document.defaultView", sandbox);
         var xhr = win.XMLHttpRequest();
-        is("" + xhr, "[object XrayWrapper " + XMLHttpRequest() + "]", "'XMLHttpRequest()' in a sandbox should create an XMLHttpRequest object");
+        is("" + xhr, "" + XMLHttpRequest(), "'XMLHttpRequest()' in a sandbox should create an XMLHttpRequest object");
       } catch (e) {
         ok(false, "'XMLHttpRequest()' shouldn't throw in a sandbox");
       }
@@ -250,27 +231,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=741267
            "Should have Xrays for callback interface objects");
       } catch (e) {
         ok(false, "Should be able to return NodeFilter from a sandbox " + e);
-      }
-
-      try {
-        var eventCtor = Components.utils.evalInSandbox("Event", sandbox);
-        var e = new eventCtor("test", { bubbles: true });
-        is(e.bubbles, true, "Dictionary argument should work");
-      } catch (e) {
-        ok(false, "Should be able to construct my event " + e);
-      }
-
-      try {
-        var elem = Components.utils.evalInSandbox('document.createElement("p")', sandbox);
-        elem.expando = 5;
-        elem.expando = 7;
-        is(elem.expando, 7, "Should be able to set expandos on Xrays for DOM bindings");
-        var doc = Components.utils.evalInSandbox('document', sandbox);
-        doc.expando = 5;
-        doc.expando = 7;
-        is(doc.expando, 7, "Should be able to set expandos on Xrays for DOM bindings with named properties");
-      } catch (e) {
-        ok(false, "Setting expandos on Xrays shouldn't throw " + e);
       }
 
       SimpleTest.finish();

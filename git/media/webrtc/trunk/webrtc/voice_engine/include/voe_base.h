@@ -14,6 +14,7 @@
 //  - Initialization and termination.
 //  - Trace information on text files or via callbacks.
 //  - Multi-channel support (mixing, sending to multiple destinations etc.).
+//  - Call setup (port and address) for receiving and sending sides.
 //
 // To support other codecs than G.711, the VoECodec sub-API must be utilized.
 //
@@ -34,13 +35,11 @@
 #ifndef WEBRTC_VOICE_ENGINE_VOE_BASE_H
 #define WEBRTC_VOICE_ENGINE_VOE_BASE_H
 
-#include "webrtc/common_types.h"
+#include "common_types.h"
 
 namespace webrtc {
 
 class AudioDeviceModule;
-class AudioProcessing;
-class Config;
 
 const int kVoEDefault = -1;
 
@@ -51,7 +50,7 @@ public:
     // This method will be called after the occurrence of any runtime error
     // code, or warning notification, when the observer interface has been
     // installed using VoEBase::RegisterVoiceEngineObserver().
-    virtual void CallbackOnError(int channel, int errCode) = 0;
+    virtual void CallbackOnError(const int channel, const int errCode) = 0;
 
 protected:
     virtual ~VoiceEngineObserver() {}
@@ -64,7 +63,6 @@ public:
     // Creates a VoiceEngine object, which can then be used to acquire
     // sub-APIs. Returns NULL on failure.
     static VoiceEngine* Create();
-    static VoiceEngine* Create(const Config& config);
 
     // Deletes a created VoiceEngine object and releases the utilized resources.
     // Note that if there are outstanding references held via other interfaces,
@@ -74,22 +72,21 @@ public:
 
     // Specifies the amount and type of trace information which will be
     // created by the VoiceEngine.
-    static int SetTraceFilter(unsigned int filter);
+    static int SetTraceFilter(const unsigned int filter);
 
     // Sets the name of the trace file and enables non-encrypted trace messages.
     static int SetTraceFile(const char* fileNameUTF8,
-                            bool addFileCounter = false);
+                            const bool addFileCounter = false);
 
     // Installs the TraceCallback implementation to ensure that the user
     // receives callbacks for generated trace messages.
     static int SetTraceCallback(TraceCallback* callback);
 
-    static int SetAndroidObjects(void* javaVM, void* context);
     static int SetAndroidObjects(void* javaVM, void* env, void* context);
 
 protected:
     VoiceEngine() {}
-    ~VoiceEngine() {}
+    virtual ~VoiceEngine() {}
 };
 
 // VoEBase
@@ -103,7 +100,7 @@ public:
 
     // Releases the VoEBase sub-API and decreases an internal reference
     // counter. Returns the new reference count. This value should be zero
-    // for all sub-APIs before the VoiceEngine object can be safely deleted.
+    // for all sub-API:s before the VoiceEngine object can be safely deleted.
     virtual int Release() = 0;
 
     // Installs the observer class to enable runtime error control and
@@ -114,30 +111,46 @@ public:
     // and warning notifications.
     virtual int DeRegisterVoiceEngineObserver() = 0;
 
-    // Initializes all common parts of the VoiceEngine; e.g. all
+    // Initiates all common parts of the VoiceEngine; e.g. all
     // encoders/decoders, the sound card and core receiving components.
-    // This method also makes it possible to install some user-defined external
-    // modules:
-    // - The Audio Device Module (ADM) which implements all the audio layer
-    // functionality in a separate (reference counted) module.
-    // - The AudioProcessing module handles capture-side processing. VoiceEngine
-    // takes ownership of this object.
-    // If NULL is passed for any of these, VoiceEngine will create its own.
-    // TODO(ajm): Remove default NULLs.
-    virtual int Init(AudioDeviceModule* external_adm = NULL,
-                     AudioProcessing* audioproc = NULL) = 0;
-
-    // Returns NULL before Init() is called.
-    virtual AudioProcessing* audio_processing() = 0;
+    // This method also makes it possible to install a user-defined
+    // external Audio Device Module (ADM) which implements all the audio
+    // layer functionality in a separate (reference counted) module.
+    virtual int Init(AudioDeviceModule* external_adm = NULL) = 0;
 
     // Terminates all VoiceEngine functions and releses allocated resources.
     virtual int Terminate() = 0;
+
+    // Retrieves the maximum number of channels that can be created.
+    virtual int MaxNumOfChannels() = 0;
 
     // Creates a new channel and allocates the required resources for it.
     virtual int CreateChannel() = 0;
 
     // Deletes an existing channel and releases the utilized resources.
     virtual int DeleteChannel(int channel) = 0;
+
+    // Sets the local receiver port and address for a specified
+    // |channel| number.
+    virtual int SetLocalReceiver(int channel, int port,
+                                 int RTCPport = kVoEDefault,
+                                 const char ipAddr[64] = NULL,
+                                 const char multiCastAddr[64] = NULL) = 0;
+
+    // Gets the local receiver port and address for a specified
+    // |channel| number.
+    virtual int GetLocalReceiver(int channel, int& port, int& RTCPport,
+                                 char ipAddr[64]) = 0;
+
+    // Sets the destination port and address for a specified |channel| number.
+    virtual int SetSendDestination(int channel, int port,
+                                   const char ipAddr[64],
+                                   int sourcePort = kVoEDefault,
+                                   int RTCPport = kVoEDefault) = 0;
+
+    // Gets the destination port and address for a specified |channel| number.
+    virtual int GetSendDestination(int channel, int& port, char ipAddr[64],
+                                   int& sourcePort, int& RTCPport) = 0;
 
     // Prepares and initiates the VoiceEngine for reception of
     // incoming RTP/RTCP packets on the specified |channel|.
@@ -167,6 +180,7 @@ public:
     // Gets the last VoiceEngine error code.
     virtual int LastError() = 0;
 
+
     // Stops or resumes playout and transmission on a temporary basis.
     virtual int SetOnHoldStatus(int channel, bool enable,
                                 OnHoldModes mode = kHoldSendAndPlay) = 0;
@@ -181,11 +195,17 @@ public:
     // Gets the NetEQ playout mode for a specified |channel| number.
     virtual int GetNetEQPlayoutMode(int channel, NetEqModes& mode) = 0;
 
+    // Sets the NetEQ background noise mode for a specified |channel| number.
+    virtual int SetNetEQBGNMode(int channel, NetEqBgnModes mode) = 0;
+
+    // Gets the NetEQ background noise mode for a specified |channel| number.
+    virtual int GetNetEQBGNMode(int channel, NetEqBgnModes& mode) = 0;
+
 protected:
     VoEBase() {}
     virtual ~VoEBase() {}
 };
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif  //  WEBRTC_VOICE_ENGINE_VOE_BASE_H

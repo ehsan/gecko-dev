@@ -29,20 +29,20 @@ WMFSourceReaderCallback::QueryInterface(REFIID aIId, void **aInterface)
     return DoGetInterface(static_cast<WMFSourceReaderCallback*>(this), aInterface);
   }
 
-  *aInterface = nullptr;
+  *aInterface = NULL;
   return E_NOINTERFACE;
 }
 
-NS_IMPL_ADDREF(WMFSourceReaderCallback)
-NS_IMPL_RELEASE(WMFSourceReaderCallback)
+NS_IMPL_THREADSAFE_ADDREF(WMFSourceReaderCallback)
+NS_IMPL_THREADSAFE_RELEASE(WMFSourceReaderCallback)
 
 WMFSourceReaderCallback::WMFSourceReaderCallback()
-  : mMonitor("WMFSourceReaderCallback")
-  , mResultStatus(S_OK)
+  : mResultStatus(S_OK)
   , mStreamFlags(0)
   , mTimestamp(0)
   , mSample(nullptr)
   , mReadFinished(false)
+  , mMonitor("WMFSourceReaderCallback")
 {
 #ifdef PR_LOGGING
   if (!gWMFSourceReaderCallbackLog) {
@@ -58,7 +58,7 @@ WMFSourceReaderCallback::NotifyReadComplete(HRESULT aReadStatus,
                                             LONGLONG aTimestamp,
                                             IMFSample *aSample)
 {
-  // Note: aSample can be nullptr on success if more data is required!
+  // Note: aSample can be NULL on success if more data is required!
   ReentrantMonitorAutoEnter mon(mMonitor);
 
   if (mSample) {

@@ -4,10 +4,12 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import mozfile
 import os
 import shutil
-import sqlite3
+try:
+    import sqlite3
+except ImportError:
+    from pysqlite2 import dbapi2 as sqlite3
 import tempfile
 import unittest
 from mozprofile.permissions import Permissions
@@ -19,9 +21,12 @@ http://127.0.0.1:80             noxul
 http://127.0.0.1:8888           privileged
 """
 
+    profile_dir = None
+    locations_file = None
+
     def setUp(self):
         self.profile_dir = tempfile.mkdtemp()
-        self.locations_file = mozfile.NamedTemporaryFile()
+        self.locations_file = tempfile.NamedTemporaryFile()
         self.locations_file.write(self.locations)
         self.locations_file.flush()
 
@@ -36,7 +41,7 @@ http://127.0.0.1:8888           privileged
         perms_db_filename = os.path.join(self.profile_dir, 'permissions.sqlite')
         perms.write_db(self.locations_file)
 
-        stmt = 'PRAGMA user_version;'
+        stmt = 'PRAGMA schema_version;'
 
         con = sqlite3.connect(perms_db_filename)
         cur = con.cursor()
@@ -44,7 +49,7 @@ http://127.0.0.1:8888           privileged
         entries = cur.fetchall()
 
         schema_version = entries[0][0]
-        self.assertEqual(schema_version, 2)
+        self.assertEqual(schema_version, 3)
 
 if __name__ == '__main__':
     unittest.main()

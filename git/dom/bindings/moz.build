@@ -11,74 +11,20 @@ EXPORTS.mozilla += [
 ]
 
 EXPORTS.mozilla.dom += [
-    'AtomList.h',
     'BindingDeclarations.h',
     'BindingUtils.h',
     'CallbackFunction.h',
     'CallbackInterface.h',
     'CallbackObject.h',
-    'Date.h',
     'DOMJSClass.h',
     'DOMJSProxyHandler.h',
-    'DOMString.h',
     'Errors.msg',
-    'Exceptions.h',
-    'JSSlots.h',
     'NonRefcountedDOMObject.h',
     'Nullable.h',
-    'OwningNonNull.h',
     'PrimitiveConversions.h',
-    'RootedDictionary.h',
+    'PrototypeList.h',
+    'RegisterBindings.h',
     'TypedArray.h',
-    'UnionMember.h',
+    'UnionConversions.h',
+    'UnionTypes.h',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'dombindings_s'
-
-EXPORT_LIBRARY = True
-
-LOCAL_INCLUDES += [
-    '/content/base/src',
-    '/content/canvas/src',
-    '/content/events/src',
-    '/content/html/content/src',
-    '/content/html/document/src',
-    '/content/media/webaudio',
-    '/content/media/webspeech/recognition',
-    '/content/svg/content/src',
-    '/content/xbl/src',
-    '/content/xml/content/src',
-    '/content/xslt/src/base',
-    '/content/xslt/src/xpath',
-    '/content/xul/content/src',
-    '/content/xul/document/src',
-    '/dom/base',
-    '/dom/battery',
-    '/dom/bluetooth',
-    '/dom/camera',
-    '/dom/file',
-    '/dom/indexedDB',
-    '/dom/src/geolocation',
-    '/dom/workers',
-    '/js/ipc',
-    '/js/xpconnect/src',
-    '/js/xpconnect/wrappers',
-    '/layout/style',
-    '/layout/xul/tree',
-    '/media/mtransport',
-    '/media/webrtc/signaling/src/common/time_profiling',
-    '/media/webrtc/signaling/src/peerconnection',
-]
-
-include('/ipc/chromium/chromium-config.mozbuild')
-
-if CONFIG['MOZ_AUDIO_CHANNEL_MANAGER']:
-    LOCAL_INCLUDES += [
-        '/dom/system/gonk',
-    ]

@@ -6,16 +6,26 @@
 #ifndef nsIOService_h__
 #define nsIOService_h__
 
-#include "nsStringFwd.h"
+#include "necko-config.h"
+
+#include "nsString.h"
 #include "nsIIOService2.h"
 #include "nsTArray.h"
+#include "nsPISocketTransportService.h" 
+#include "nsPIDNSService.h" 
+#include "nsIProtocolProxyService2.h"
 #include "nsCOMPtr.h"
+#include "nsURLHelper.h"
 #include "nsWeakPtr.h"
+#include "nsIURLParser.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
 #include "nsINetUtil.h"
 #include "nsIChannelEventSink.h"
+#include "nsIContentSniffer.h"
 #include "nsCategoryCache.h"
+#include "nsINetworkLinkService.h"
+#include "nsAsyncRedirectVerifyHelper.h"
 #include "nsISpeculativeConnect.h"
 #include "mozilla/Attributes.h"
 
@@ -29,13 +39,7 @@
 static const char gScheme[][sizeof("resource")] =
     {"chrome", "file", "http", "jar", "resource"};
 
-class nsAsyncRedirectVerifyHelper;
-class nsINetworkLinkService;
 class nsIPrefBranch;
-class nsIProtocolProxyService2;
-class nsIProxyInfo;
-class nsPIDNSService;
-class nsPISocketTransportService;
 
 class nsIOService MOZ_FINAL : public nsIIOService2
                             , public nsIObserver
@@ -44,7 +48,7 @@ class nsIOService MOZ_FINAL : public nsIIOService2
                             , public nsSupportsWeakReference
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIIOSERVICE
     NS_DECL_NSIIOSERVICE2
     NS_DECL_NSIOBSERVER

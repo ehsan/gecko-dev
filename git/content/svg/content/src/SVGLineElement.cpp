@@ -5,18 +5,15 @@
 
 #include "mozilla/dom/SVGLineElement.h"
 #include "mozilla/dom/SVGLineElementBinding.h"
-#include "mozilla/gfx/2D.h"
 #include "gfxContext.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(Line)
-
-using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGLineElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGLineElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGLineElementBinding::Wrap(aCx, aScope, this);
 }
@@ -103,8 +100,8 @@ SVGLineElement::GetMarkPoints(nsTArray<nsSVGMark> *aMarks) {
 
   float angle = atan2(y2 - y1, x2 - x1);
 
-  aMarks->AppendElement(nsSVGMark(x1, y1, angle, nsSVGMark::eStart));
-  aMarks->AppendElement(nsSVGMark(x2, y2, angle, nsSVGMark::eEnd));
+  aMarks->AppendElement(nsSVGMark(x1, y1, angle));
+  aMarks->AppendElement(nsSVGMark(x2, y2, angle));
 }
 
 void
@@ -116,20 +113,6 @@ SVGLineElement::ConstructPath(gfxContext *aCtx)
 
   aCtx->MoveTo(gfxPoint(x1, y1));
   aCtx->LineTo(gfxPoint(x2, y2));
-}
-
-TemporaryRef<Path>
-SVGLineElement::BuildPath()
-{
-  RefPtr<PathBuilder> pathBuilder = CreatePathBuilder();
-
-  float x1, y1, x2, y2;
-  GetAnimatedLengthValues(&x1, &y1, &x2, &y2, nullptr);
-
-  pathBuilder->MoveTo(Point(x1, y1));
-  pathBuilder->LineTo(Point(x2, y2));
-
-  return pathBuilder->Finish();
 }
 
 } // namespace dom

@@ -13,9 +13,6 @@ CERTUTIL_GeneratePrivateKey(KeyType keytype,
                             char *noise,
                             SECKEYPublicKey **pubkeyp,
                             char *pqgFile,
-                            PK11AttrFlags attrFlags,
-                            CK_FLAGS opFlagsOn,
-                            CK_FLAGS opFlagsOff,
                             secuPWData *pwdata);
 
 extern char *progName;

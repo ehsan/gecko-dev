@@ -11,7 +11,7 @@
 #ifndef WEBRTC_MODULES_AUDIO_CONFERENCE_MIXER_SOURCE_LEVEL_INDICATOR_H_
 #define WEBRTC_MODULES_AUDIO_CONFERENCE_MIXER_SOURCE_LEVEL_INDICATOR_H_
 
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
 
 namespace webrtc {
 class LevelIndicator
@@ -23,15 +23,15 @@ public:
     ~LevelIndicator();
 
     // Updates the level.
-    void ComputeLevel(const int16_t* speech,
-                      const uint16_t nrOfSamples);
+    void ComputeLevel(const WebRtc_Word16* speech,
+                      const WebRtc_UWord16 nrOfSamples);
 
-    int32_t GetLevel();
+    WebRtc_Word32 GetLevel();
 private:
-    int32_t  _max;
-    uint32_t _count;
-    uint32_t _currentLevel;
+    WebRtc_Word32  _max;
+    WebRtc_UWord32 _count;
+    WebRtc_UWord32 _currentLevel;
 };
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif // WEBRTC_MODULES_AUDIO_CONFERENCE_MIXER_SOURCE_LEVEL_INDICATOR_H_

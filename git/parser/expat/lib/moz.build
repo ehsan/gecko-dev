@@ -11,15 +11,3 @@ EXPORTS += [
     'expat_external.h',
 ]
 
-LIBRARY_NAME = 'mozexpat_s'
-
-SOURCES += [
-    'xmlparse.c',
-    'xmlrole.c',
-    'xmltok.c',
-]
-
-MSVC_ENABLE_PGO = True
-
-# We want only the static lib, not the shared lib
-FORCE_STATIC_LIB = True

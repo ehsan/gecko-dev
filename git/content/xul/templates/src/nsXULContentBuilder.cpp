@@ -33,6 +33,7 @@
 #include "mozAutoDocUpdate.h"
 #include "nsTextNode.h"
 
+#include "jsapi.h"
 #include "pldhash.h"
 #include "rdf.h"
 
@@ -145,7 +146,7 @@ protected:
      * @param aResult result to look up variable->value bindings in
      */
     nsresult
-    AddPersistentAttributes(Element* aTemplateNode,
+    AddPersistentAttributes(nsIContent* aTemplateNode,
                             nsIXULTemplateResult* aResult,
                             nsIContent* aRealNode);
 
@@ -512,15 +513,15 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
         bool isGenerationElement = false;
         bool isUnique = aIsUnique;
 
-        // We identify the resource element by presence of a
-        // "uri='rdf:*'" attribute. (We also support the older
-        // "uri='...'" syntax.)
-        if (tmplKid->HasAttr(kNameSpaceID_None, nsGkAtoms::uri) && aMatch->IsActive()) {
-            isGenerationElement = true;
-            isUnique = false;
+        {
+            // We identify the resource element by presence of a
+            // "uri='rdf:*'" attribute. (We also support the older
+            // "uri='...'" syntax.)
+            if (tmplKid->HasAttr(kNameSpaceID_None, nsGkAtoms::uri) && aMatch->IsActive()) {
+                isGenerationElement = true;
+                isUnique = false;
+            }
         }
-
-        MOZ_ASSERT_IF(isGenerationElement, tmplKid->IsElement());
 
         nsIAtom *tag = tmplKid->Tag();
 
@@ -678,8 +679,7 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
 
             // Add any persistent attributes
             if (isGenerationElement) {
-                rv = AddPersistentAttributes(tmplKid->AsElement(), aChild,
-                                             realKid);
+                rv = AddPersistentAttributes(tmplKid, aChild, realKid);
                 if (NS_FAILED(rv)) return rv;
             }
 
@@ -783,7 +783,7 @@ nsXULContentBuilder::CopyAttributesToElement(nsIContent* aTemplateNode,
 }
 
 nsresult
-nsXULContentBuilder::AddPersistentAttributes(Element* aTemplateNode,
+nsXULContentBuilder::AddPersistentAttributes(nsIContent* aTemplateNode,
                                              nsIXULTemplateResult* aResult,
                                              nsIContent* aRealNode)
 {

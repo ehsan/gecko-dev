@@ -10,11 +10,13 @@
 #include "nsIDOMCanvasRenderingContext2D.h"
 
 #include "mozilla/Attributes.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 #include "nsCycleCollectionParticipant.h"
 #include "nsTraceRefcnt.h"
-#include "js/GCAPI.h"
+#include "xpcpublic.h"
+
+#include "jsapi.h"
 
 namespace mozilla {
 namespace dom {
@@ -48,17 +50,17 @@ public:
   {
     return mHeight;
   }
-  JSObject* Data(JSContext* cx, JS::Handle<JSObject*> /* unused */) const
+  JSObject* Data(JSContext* cx) const
   {
     return GetDataObject();
   }
   JSObject* GetDataObject() const
   {
-    JS::ExposeObjectToActiveJS(mData);
+    xpc_UnmarkGrayObject(mData);
     return mData;
   }
 
-  JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> scope);
+  JSObject* WrapObject(JSContext* cx, JSObject* scope);
 
 private:
   void HoldData();
@@ -67,7 +69,7 @@ private:
   ImageData() MOZ_DELETE;
 
   uint32_t mWidth, mHeight;
-  JS::Heap<JSObject*> mData;
+  JSObject* mData;
 };
 
 } // namespace dom

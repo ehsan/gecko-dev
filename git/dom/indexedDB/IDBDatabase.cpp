@@ -8,12 +8,12 @@
 
 #include "IDBDatabase.h"
 
-#include "DictionaryHelpers.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/storage.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/quota/Client.h"
 #include "mozilla/dom/quota/QuotaManager.h"
+#include "nsDOMClassInfo.h"
 #include "nsDOMLists.h"
 #include "nsJSUtils.h"
 #include "nsProxyRelease.h"
@@ -28,21 +28,17 @@
 #include "IDBObjectStore.h"
 #include "IDBTransaction.h"
 #include "IDBFactory.h"
-#include "ProfilerHelpers.h"
 #include "TransactionThreadPool.h"
+#include "DictionaryHelpers.h"
+#include "nsContentUtils.h"
 
 #include "ipc/IndexedDBChild.h"
 #include "ipc/IndexedDBParent.h"
 
-#include "mozilla/dom/IDBDatabaseBinding.h"
-
 USING_INDEXEDDB_NAMESPACE
 using mozilla::dom::ContentParent;
-using mozilla::dom::quota::AssertIsOnIOThread;
 using mozilla::dom::quota::Client;
 using mozilla::dom::quota::QuotaManager;
-using mozilla::ErrorResult;
-using namespace mozilla::dom;
 
 namespace {
 
@@ -117,7 +113,7 @@ public:
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
   nsresult GetSuccessResult(JSContext* aCx,
-                            JS::MutableHandle<JS::Value> aVal);
+                            jsval* aVal);
   void ReleaseMainThreadObjects()
   {
     mFileInfo = nullptr;
@@ -135,7 +131,8 @@ public:
                                             const ResponseValue& aResponseValue)
                                             MOZ_OVERRIDE
   {
-    MOZ_CRASH("Should never get here!");
+    MOZ_NOT_REACHED("Should never get here!");
+    return NS_ERROR_UNEXPECTED;
   }
 
 private:
@@ -197,8 +194,6 @@ IDBDatabase::Create(IDBWrapperCache* aOwnerCache,
   db->mDatabaseId = databaseInfo->id;
   db->mName = databaseInfo->name;
   db->mFilePath = databaseInfo->filePath;
-  db->mPersistenceType = databaseInfo->persistenceType;
-  db->mGroup = databaseInfo->group;
   databaseInfo.swap(db->mDatabaseInfo);
   db->mASCIIOrigin = aASCIIOrigin;
   db->mFileManager = aFileManager;
@@ -229,7 +224,8 @@ IDBDatabase::FromStorage(nsIOfflineStorage* aStorage)
 }
 
 IDBDatabase::IDBDatabase()
-: mActorChild(nullptr),
+: mDatabaseId(0),
+  mActorChild(nullptr),
   mActorParent(nullptr),
   mContentParent(nullptr),
   mInvalidated(false),
@@ -238,17 +234,9 @@ IDBDatabase::IDBDatabase()
   mRunningVersionChange(false)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  SetIsDOMBinding();
 }
 
 IDBDatabase::~IDBDatabase()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-}
-
-void
-IDBDatabase::LastRelease()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -266,7 +254,6 @@ IDBDatabase::LastRelease()
     if (quotaManager) {
       quotaManager->UnregisterStorage(this);
     }
-    mRegistered = false;
   }
 }
 
@@ -403,10 +390,10 @@ IDBDatabase::OnUnlink()
   }
 }
 
-already_AddRefed<IDBObjectStore>
+nsresult
 IDBDatabase::CreateObjectStoreInternal(IDBTransaction* aTransaction,
                                        const ObjectStoreInfoGuts& aInfo,
-                                       ErrorResult& aRv)
+                                       IDBObjectStore** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aTransaction, "Null transaction!");
@@ -421,8 +408,7 @@ IDBDatabase::CreateObjectStoreInternal(IDBTransaction* aTransaction,
 
   if (!databaseInfo->PutObjectStore(newInfo)) {
     NS_WARNING("Put failed!");
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
   // Don't leave this in the hash if we fail below!
@@ -430,37 +416,21 @@ IDBDatabase::CreateObjectStoreInternal(IDBTransaction* aTransaction,
 
   nsRefPtr<IDBObjectStore> objectStore =
     aTransaction->GetOrCreateObjectStore(newInfo->name, newInfo, true);
-  if (!objectStore) {
-    NS_WARNING("Failed to get objectStore!");
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-    return nullptr;
-  }
+  NS_ENSURE_TRUE(objectStore, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   if (IndexedDatabaseManager::IsMainProcess()) {
     nsRefPtr<CreateObjectStoreHelper> helper =
       new CreateObjectStoreHelper(aTransaction, objectStore);
 
     nsresult rv = helper->DispatchToTransactionPool();
-    if (NS_FAILED(rv)) {
-      NS_WARNING("Failed to dispatch!");
-      aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-      return nullptr;
-    }
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
 
   autoRemove.forget();
+  objectStore.forget(_retval);
 
-  IDB_PROFILER_MARK("IndexedDB Pseudo-request: "
-                    "database(%s).transaction(%s).createObjectStore(%s)",
-                    "MT IDBDatabase.createObjectStore()",
-                    IDB_PROFILER_STRING(this),
-                    IDB_PROFILER_STRING(aTransaction),
-                    IDB_PROFILER_STRING(objectStore));
-
-  return objectStore.forget();
+  return NS_OK;
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(IDBDatabase)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBDatabase, IDBWrapperCache)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFactory)
@@ -474,29 +444,42 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBDatabase, IDBWrapperCache)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBDatabase)
+  NS_INTERFACE_MAP_ENTRY(nsIIDBDatabase)
   NS_INTERFACE_MAP_ENTRY(nsIFileStorage)
   NS_INTERFACE_MAP_ENTRY(nsIOfflineStorage)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBDatabase)
 NS_INTERFACE_MAP_END_INHERITING(IDBWrapperCache)
 
 NS_IMPL_ADDREF_INHERITED(IDBDatabase, IDBWrapperCache)
 NS_IMPL_RELEASE_INHERITED(IDBDatabase, IDBWrapperCache)
 
-JSObject*
-IDBDatabase::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
-{
-  return IDBDatabaseBinding::Wrap(aCx, aScope, this);
-}
+DOMCI_DATA(IDBDatabase, IDBDatabase)
 
-uint64_t
-IDBDatabase::Version() const
+NS_IMPL_EVENT_HANDLER(IDBDatabase, abort)
+NS_IMPL_EVENT_HANDLER(IDBDatabase, error)
+NS_IMPL_EVENT_HANDLER(IDBDatabase, versionchange)
+
+NS_IMETHODIMP
+IDBDatabase::GetName(nsAString& aName)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  DatabaseInfo* info = Info();
-  return info->version;
+  aName.Assign(mName);
+  return NS_OK;
 }
 
-already_AddRefed<nsIDOMDOMStringList>
-IDBDatabase::GetObjectStoreNames(ErrorResult& aRv) const
+NS_IMETHODIMP
+IDBDatabase::GetVersion(uint64_t* aVersion)
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  DatabaseInfo* info = Info();
+  *aVersion = info->version;
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+IDBDatabase::GetObjectStoreNames(nsIDOMDOMStringList** aObjectStores)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -505,28 +488,25 @@ IDBDatabase::GetObjectStoreNames(ErrorResult& aRv) const
   nsAutoTArray<nsString, 10> objectStoreNames;
   if (!info->GetObjectStoreNames(objectStoreNames)) {
     NS_WARNING("Couldn't get names!");
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
   nsRefPtr<nsDOMStringList> list(new nsDOMStringList());
   uint32_t count = objectStoreNames.Length();
   for (uint32_t index = 0; index < count; index++) {
-    if (!list->Add(objectStoreNames[index])) {
-      NS_WARNING("Failed to add element");
-      aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-      return nullptr;
-    }
+    NS_ENSURE_TRUE(list->Add(objectStoreNames[index]),
+                   NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
 
-  return list.forget();
+  list.forget(aObjectStores);
+  return NS_OK;
 }
 
-already_AddRefed<IDBObjectStore>
-IDBDatabase::CreateObjectStore(
-                            JSContext* aCx, const nsAString& aName,
-                            const IDBObjectStoreParameters& aOptionalParameters,
-                            ErrorResult& aRv)
+NS_IMETHODIMP
+IDBDatabase::CreateObjectStore(const nsAString& aName,
+                               const jsval& aOptions,
+                               JSContext* aCx,
+                               nsIIDBObjectStore** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -534,26 +514,42 @@ IDBDatabase::CreateObjectStore(
 
   if (!transaction ||
       transaction->GetMode() != IDBTransaction::VERSION_CHANGE) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
   DatabaseInfo* databaseInfo = transaction->DBInfo();
 
+  mozilla::idl::IDBObjectStoreParameters params;
   KeyPath keyPath(0);
-  if (NS_FAILED(KeyPath::Parse(aCx, aOptionalParameters.mKeyPath, &keyPath))) {
-    aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
-    return nullptr;
+
+  nsresult rv;
+
+  if (!JSVAL_IS_VOID(aOptions) && !JSVAL_IS_NULL(aOptions)) {
+    rv = params.Init(aCx, &aOptions);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+
+    // We need a default value here, which the XPIDL dictionary stuff doesn't
+    // support.  WebIDL shall save us all!
+    JSBool hasProp = false;
+    JSObject* obj = JSVAL_TO_OBJECT(aOptions);
+    if (!JS_HasProperty(aCx, obj, "keyPath", &hasProp)) {
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    }
+
+    if (NS_FAILED(KeyPath::Parse(aCx, hasProp ? params.keyPath : JSVAL_NULL,
+                                 &keyPath))) {
+      return NS_ERROR_DOM_SYNTAX_ERR;
+    }
   }
 
   if (databaseInfo->ContainsStoreName(aName)) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_CONSTRAINT_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_CONSTRAINT_ERR;
   }
 
-  if (!keyPath.IsAllowedForObjectStore(aOptionalParameters.mAutoIncrement)) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
-    return nullptr;
+  if (!keyPath.IsAllowedForObjectStore(params.autoIncrement)) {
+    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
   }
 
   ObjectStoreInfoGuts guts;
@@ -561,13 +557,19 @@ IDBDatabase::CreateObjectStore(
   guts.name = aName;
   guts.id = databaseInfo->nextObjectStoreId++;
   guts.keyPath = keyPath;
-  guts.autoIncrement = aOptionalParameters.mAutoIncrement;
+  guts.autoIncrement = params.autoIncrement;
 
-  return CreateObjectStoreInternal(transaction, guts, aRv);
+  nsRefPtr<IDBObjectStore> objectStore;
+  rv = CreateObjectStoreInternal(transaction, guts,
+                                 getter_AddRefs(objectStore));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  objectStore.forget(_retval);
+  return NS_OK;
 }
 
-void
-IDBDatabase::DeleteObjectStore(const nsAString& aName, ErrorResult& aRv)
+NS_IMETHODIMP
+IDBDatabase::DeleteObjectStore(const nsAString& aName)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -575,27 +577,23 @@ IDBDatabase::DeleteObjectStore(const nsAString& aName, ErrorResult& aRv)
 
   if (!transaction ||
       transaction->GetMode() != IDBTransaction::VERSION_CHANGE) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
-    return;
+    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
   DatabaseInfo* info = transaction->DBInfo();
   ObjectStoreInfo* objectStoreInfo = info->GetObjectStore(aName);
   if (!objectStoreInfo) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR);
-    return;
+    return NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR;
   }
+
+  nsresult rv;
 
   if (IndexedDatabaseManager::IsMainProcess()) {
     nsRefPtr<DeleteObjectStoreHelper> helper =
       new DeleteObjectStoreHelper(transaction, objectStoreInfo->id);
 
-    nsresult rv = helper->DispatchToTransactionPool();
-    if (NS_FAILED(rv)) {
-      NS_WARNING("Failed to dispatch!");
-      aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-      return;
-    }
+    rv = helper->DispatchToTransactionPool();
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
   else {
     IndexedDBTransactionChild* actor = transaction->GetActorChild();
@@ -606,120 +604,181 @@ IDBDatabase::DeleteObjectStore(const nsAString& aName, ErrorResult& aRv)
 
   transaction->RemoveObjectStore(aName);
 
-  IDB_PROFILER_MARK("IndexedDB Pseudo-request: "
-                    "database(%s).transaction(%s).deleteObjectStore(\"%s\")",
-                    "MT IDBDatabase.deleteObjectStore()",
-                    IDB_PROFILER_STRING(this),
-                    IDB_PROFILER_STRING(transaction),
-                    NS_ConvertUTF16toUTF8(aName).get());
+  return NS_OK;
 }
 
-already_AddRefed<indexedDB::IDBTransaction>
-IDBDatabase::Transaction(const Sequence<nsString>& aStoreNames,
-                         IDBTransactionMode aMode, ErrorResult& aRv)
+NS_IMETHODIMP
+IDBDatabase::Transaction(const jsval& aStoreNames,
+                         const nsAString& aMode,
+                         JSContext* aCx,
+                         uint8_t aOptionalArgCount,
+                         nsIIDBTransaction** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (QuotaManager::IsShuttingDown()) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
   if (mClosed) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
   if (mRunningVersionChange) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
-    return nullptr;
-  }
-
-  if (aStoreNames.IsEmpty()) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
   IDBTransaction::Mode transactionMode = IDBTransaction::READ_ONLY;
-  switch (aMode) {
-    case IDBTransactionMode::Readonly:
-      transactionMode = IDBTransaction::READ_ONLY;
-      break;
-    case IDBTransactionMode::Readwrite:
+  if (aOptionalArgCount) {
+    if (aMode.EqualsLiteral("readwrite")) {
       transactionMode = IDBTransaction::READ_WRITE;
-      break;
-    case IDBTransactionMode::Versionchange:
-      transactionMode = IDBTransaction::VERSION_CHANGE;
-      break;
-    default:
-      MOZ_CRASH("Unknown mode!");
+    }
+    else if (!aMode.EqualsLiteral("readonly")) {
+      return NS_ERROR_TYPE_ERR;
+    }
+  }
+
+  nsresult rv;
+  nsTArray<nsString> storesToOpen;
+
+  if (!JSVAL_IS_PRIMITIVE(aStoreNames)) {
+    JSObject* obj = JSVAL_TO_OBJECT(aStoreNames);
+
+    // See if this is a JS array.
+    if (JS_IsArrayObject(aCx, obj)) {
+      uint32_t length;
+      if (!JS_GetArrayLength(aCx, obj, &length)) {
+        return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+      }
+
+      if (!length) {
+        return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+      }
+
+      storesToOpen.SetCapacity(length);
+
+      for (uint32_t index = 0; index < length; index++) {
+        jsval val;
+        JSString* jsstr;
+        nsDependentJSString str;
+        if (!JS_GetElement(aCx, obj, index, &val) ||
+            !(jsstr = JS_ValueToString(aCx, val)) ||
+            !str.init(aCx, jsstr)) {
+          return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+        }
+
+        storesToOpen.AppendElement(str);
+      }
+
+      NS_ASSERTION(!storesToOpen.IsEmpty(),
+                   "Must have something here or else code below will "
+                   "misbehave!");
+    }
+    else {
+      // Perhaps some kind of wrapped object?
+      nsIXPConnect* xpc = nsContentUtils::XPConnect();
+      NS_ASSERTION(xpc, "This should never be null!");
+
+      nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
+      rv = xpc->GetWrappedNativeOfJSObject(aCx, obj, getter_AddRefs(wrapper));
+      NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+      if (wrapper) {
+        nsISupports* wrappedObject = wrapper->Native();
+        NS_ENSURE_TRUE(wrappedObject, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+        // We only accept DOMStringList.
+        nsCOMPtr<nsIDOMDOMStringList> list = do_QueryInterface(wrappedObject);
+        if (list) {
+          uint32_t length;
+          rv = list->GetLength(&length);
+          NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+          if (!length) {
+            return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+          }
+
+          storesToOpen.SetCapacity(length);
+
+          for (uint32_t index = 0; index < length; index++) {
+            nsString* item = storesToOpen.AppendElement();
+            NS_ASSERTION(item, "This should never fail!");
+
+            rv = list->Item(index, *item);
+            NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+          }
+
+          NS_ASSERTION(!storesToOpen.IsEmpty(),
+                       "Must have something here or else code below will "
+                       "misbehave!");
+        }
+      }
+    }
+  }
+
+  // If our list is empty here then the argument must have been an object that
+  // we don't support or a primitive. Either way we convert to a string.
+  if (storesToOpen.IsEmpty()) {
+    JSString* jsstr;
+    nsDependentJSString str;
+    if (!(jsstr = JS_ValueToString(aCx, aStoreNames)) ||
+        !str.init(aCx, jsstr)) {
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    }
+
+    storesToOpen.AppendElement(str);
   }
 
   // Now check to make sure the object store names we collected actually exist.
   DatabaseInfo* info = Info();
-  for (uint32_t index = 0; index < aStoreNames.Length(); index++) {
-    if (!info->ContainsStoreName(aStoreNames[index])) {
-      aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR);
-      return nullptr;
+  for (uint32_t index = 0; index < storesToOpen.Length(); index++) {
+    if (!info->ContainsStoreName(storesToOpen[index])) {
+      return NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR;
     }
   }
 
   nsRefPtr<IDBTransaction> transaction =
-    IDBTransaction::Create(this, aStoreNames, transactionMode, false);
-  if (!transaction) {
-    NS_WARNING("Failed to create the transaction!");
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-    return nullptr;
-  }
+    IDBTransaction::Create(this, storesToOpen, transactionMode, false);
+  NS_ENSURE_TRUE(transaction, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  IDB_PROFILER_MARK("IndexedDB Transaction %llu: database(%s).transaction(%s)",
-                    "IDBTransaction[%llu] MT Started",
-                    transaction->GetSerialNumber(), IDB_PROFILER_STRING(this),
-                    IDB_PROFILER_STRING(transaction));
-
-  return transaction.forget();
+  transaction.forget(_retval);
+  return NS_OK;
 }
 
-already_AddRefed<IDBRequest>
+NS_IMETHODIMP
 IDBDatabase::MozCreateFileHandle(const nsAString& aName,
-                                 const Optional<nsAString>& aType,
-                                 ErrorResult& aRv)
+                                 const nsAString& aType,
+                                 JSContext* aCx,
+                                 nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (!IndexedDatabaseManager::IsMainProcess()) {
     NS_WARNING("Not supported yet!");
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
   if (QuotaManager::IsShuttingDown()) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
   if (mClosed) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = IDBRequest::Create(this, nullptr);
+  nsRefPtr<IDBRequest> request = IDBRequest::Create(nullptr, this, nullptr, aCx);
 
   nsRefPtr<CreateFileHelper> helper =
-    new CreateFileHelper(this, request, aName,
-                         aType.WasPassed() ? aType.Value() : EmptyString());
+    new CreateFileHelper(this, request, aName, aType);
 
   QuotaManager* quotaManager = QuotaManager::Get();
   NS_ASSERTION(quotaManager, "We should definitely have a manager here");
 
   nsresult rv = helper->Dispatch(quotaManager->IOThread());
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to dispatch!");
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-    return nullptr;
-  }
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  return request.forget();
+  request.forget(_retval);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -730,7 +789,6 @@ IDBDatabase::Close()
   CloseInternal(false);
 
   NS_ASSERTION(mClosed, "Should have set the closed flag!");
-
   return NS_OK;
 }
 
@@ -800,7 +858,8 @@ nsresult
 NoRequestDatabaseHelper::UnpackResponseFromParentProcess(
                                             const ResponseValue& aResponseValue)
 {
-  MOZ_CRASH("Should never get here!");
+  MOZ_NOT_REACHED("Should never get here!");
+  return NS_ERROR_UNEXPECTED;
 }
 
 nsresult
@@ -820,17 +879,6 @@ NoRequestDatabaseHelper::OnError()
 nsresult
 CreateObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "CreateObjectStoreHelper::DoDatabaseWork");
-
-  if (IndexedDatabaseManager::InLowDiskSpaceMode()) {
-    NS_WARNING("Refusing to create additional objectStore because disk space "
-               "is low!");
-    return NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
-  }
-
   nsCOMPtr<mozIStorageStatement> stmt =
     mTransaction->GetCachedStatement(NS_LITERAL_CSTRING(
     "INSERT INTO object_store (id, auto_increment, name, key_path) "
@@ -880,11 +928,6 @@ CreateObjectStoreHelper::ReleaseMainThreadObjects()
 nsresult
 DeleteObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "DeleteObjectStoreHelper::DoDatabaseWork");
-
   nsCOMPtr<mozIStorageStatement> stmt =
     mTransaction->GetCachedStatement(NS_LITERAL_CSTRING(
     "DELETE FROM object_store "
@@ -906,16 +949,6 @@ DeleteObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 nsresult
 CreateFileHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
-  AssertIsOnIOThread();
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "CreateFileHelper::DoDatabaseWork");
-
-  if (IndexedDatabaseManager::InLowDiskSpaceMode()) {
-    NS_WARNING("Refusing to create file because disk space is low!");
-    return NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
-  }
-
   FileManager* fileManager = mDatabase->Manager();
 
   mFileInfo = fileManager->GetNewFileInfo();
@@ -946,7 +979,7 @@ CreateFileHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
 nsresult
 CreateFileHelper::GetSuccessResult(JSContext* aCx,
-                                   JS::MutableHandle<JS::Value> aVal)
+                                   jsval* aVal)
 {
   nsRefPtr<IDBFileHandle> fileHandle =
     IDBFileHandle::Create(mDatabase, mName, mType, mFileInfo.forget());

@@ -32,6 +32,7 @@
 #include "nsIPrincipal.h"
 #include "nsLayoutCID.h"
 #include "mozilla/dom/Attr.h"
+#include "nsGUIEvent.h"
 #include "nsCExternalHandlerService.h"
 #include "nsMimeTypes.h"
 #include "nsEventListenerManager.h"
@@ -40,6 +41,8 @@
 #include "nsJSUtils.h"
 #include "nsCRT.h"
 #include "nsIAuthPrompt.h"
+#include "nsIScriptGlobalObjectOwner.h"
+#include "nsIJSContextStack.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIDOMUserDataHandler.h"
@@ -48,8 +51,7 @@
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsIHTMLDocument.h"
-#include "mozilla/BasicEvents.h"
-#include "mozilla/dom/Element.h"
+#include "mozilla/dom/Element.h" // DOMCI_NODE_DATA
 #include "mozilla/dom/XMLDocumentBinding.h"
 
 using namespace mozilla;
@@ -172,22 +174,24 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
   return NS_OK;
 }
 
+
 nsresult
 NS_NewXMLDocument(nsIDocument** aInstancePtrResult, bool aLoadedAsData)
 {
-  nsRefPtr<XMLDocument> doc = new XMLDocument();
+  XMLDocument* doc = new XMLDocument();
+  NS_ENSURE_TRUE(doc, NS_ERROR_OUT_OF_MEMORY);
 
+  NS_ADDREF(doc);
   nsresult rv = doc->Init();
 
   if (NS_FAILED(rv)) {
-    *aInstancePtrResult = nullptr;
-    return rv;
+    NS_RELEASE(doc);
   }
 
+  *aInstancePtrResult = doc;
   doc->SetLoadedAsData(aLoadedAsData);
-  doc.forget(aInstancePtrResult);
 
-  return NS_OK;
+  return rv;
 }
 
 nsresult
@@ -220,6 +224,8 @@ XMLDocument::XMLDocument(const char* aContentType)
 {
   // NOTE! nsDocument::operator new() zeroes out all members, so don't
   // bother initializing members to 0.
+
+  SetIsDOMBinding();
 }
 
 XMLDocument::~XMLDocument()
@@ -229,7 +235,17 @@ XMLDocument::~XMLDocument()
 }
 
 // QueryInterface implementation for XMLDocument
-NS_IMPL_ISUPPORTS_INHERITED1(XMLDocument, nsDocument, nsIDOMXMLDocument)
+NS_INTERFACE_TABLE_HEAD(XMLDocument)
+  NS_DOCUMENT_INTERFACE_TABLE_BEGIN(XMLDocument)
+    NS_INTERFACE_TABLE_ENTRY(XMLDocument, nsIDOMXMLDocument)
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_INTERFACE_MAP_END_INHERITING(nsDocument)
+
+
+NS_IMPL_ADDREF_INHERITED(XMLDocument, nsDocument)
+NS_IMPL_RELEASE_INHERITED(XMLDocument, nsDocument)
+
 
 nsresult
 XMLDocument::Init()
@@ -274,6 +290,15 @@ XMLDocument::SetAsync(bool aAsync)
   return NS_OK;
 }
 
+static void
+ReportUseOfDeprecatedMethod(nsIDocument *aDoc, const char* aWarning)
+{
+  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                  "DOM3 Load", aDoc,
+                                  nsContentUtils::eDOM_PROPERTIES,
+                                  aWarning);
+}
+
 NS_IMETHODIMP
 XMLDocument::Load(const nsAString& aUrl, bool *aReturn)
 {
@@ -293,9 +318,10 @@ XMLDocument::Load(const nsAString& aUrl, ErrorResult& aRv)
     return false;
   }
 
-  WarnOnceAbout(nsIDocument::eUseOfDOM3LoadMethod);
+  ReportUseOfDeprecatedMethod(this, "UseOfDOM3LoadMethodWarning");
 
-  nsCOMPtr<nsIDocument> callingDoc = nsContentUtils::GetDocumentFromContext();
+  nsCOMPtr<nsIDocument> callingDoc =
+    do_QueryInterface(nsContentUtils::GetDocumentFromContext());
 
   nsIURI *baseURI = mDocumentURI;
   nsAutoCString charset;
@@ -571,16 +597,16 @@ XMLDocument::EndLoad()
     // Generate a document load event for the case when an XML
     // document was loaded as pure data without any presentation
     // attached to it.
-    WidgetEvent event(true, NS_LOAD);
+    nsEvent event(true, NS_LOAD);
     nsEventDispatcher::Dispatch(static_cast<nsIDocument*>(this), nullptr,
                                 &event);
-  }
+  }    
 }
-
+ 
 /* virtual */ void
-XMLDocument::DocAddSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
+XMLDocument::DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
 {
-  nsDocument::DocAddSizeOfExcludingThis(aWindowSizes);
+  nsDocument::DocSizeOfExcludingThis(aWindowSizes);
 }
 
 // nsIDOMDocument interface
@@ -592,6 +618,7 @@ XMLDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
                "Can't import this document into another document!");
 
   nsRefPtr<XMLDocument> clone = new XMLDocument();
+  NS_ENSURE_TRUE(clone, NS_ERROR_OUT_OF_MEMORY);
   nsresult rv = CloneDocHelper(clone);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -602,9 +629,13 @@ XMLDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 }
 
 JSObject*
-XMLDocument::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+XMLDocument::WrapNode(JSContext *aCx, JSObject *aScope)
 {
-  return XMLDocumentBinding::Wrap(aCx, aScope, this);
+  JSObject* obj = XMLDocumentBinding::Wrap(aCx, aScope, this);
+  if (obj && !PostCreateWrapper(aCx, obj)) {
+    return nullptr;
+  }
+  return obj;
 }
 
 } // namespace dom

@@ -15,7 +15,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGClipPathElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGClipPathElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGClipPathElementBinding::Wrap(aCx, aScope, this);
 }
@@ -36,10 +36,12 @@ SVGClipPathElement::SVGClipPathElement(already_AddRefed<nsINodeInfo> aNodeInfo)
 {
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGClipPathElement::ClipPathUnits()
 {
-  return mEnumAttributes[CLIPPATHUNITS].ToDOMAnimatedEnum(this);
+  nsCOMPtr<nsIDOMSVGAnimatedEnumeration> unit;
+  mEnumAttributes[CLIPPATHUNITS].ToDOMAnimatedEnum(getter_AddRefs(unit), this);
+  return unit.forget();
 }
 
 nsSVGElement::EnumAttributesInfo

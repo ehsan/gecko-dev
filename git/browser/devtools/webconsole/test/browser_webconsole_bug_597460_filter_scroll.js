@@ -23,41 +23,48 @@ function consoleOpened(aHud) {
   hud.ui.filterBox.value = "test message";
   hud.ui.adjustVisibilityOnSearchStringChange();
 
-  waitForMessages({
-    webconsole: hud,
-    messages: [{
-      name: "console messages displayed",
-      text: "test message 199",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    }],
-  }).then(() => {
-    waitForMessages({
-      webconsole: hud,
-      messages: [{
-        text: "test-network.html",
-        category: CATEGORY_NETWORK,
-        severity: SEVERITY_LOG,
-      }],
-    }).then(testScroll);
-    content.location.reload();
+  let waitForNetwork = {
+    name: "network message",
+    validatorFn: function()
+    {
+      return hud.outputNode.querySelector(".webconsole-msg-network");
+    },
+    successFn: testScroll,
+    failureFn: finishTest,
+  };
+
+  waitForSuccess({
+    name: "console messages displayed",
+    validatorFn: function()
+    {
+      return hud.outputNode.textContent.indexOf("test message 199") > -1;
+    },
+    successFn: function()
+    {
+      browser.addEventListener("load", function onReload() {
+        browser.removeEventListener("load", onReload, true);
+        waitForSuccess(waitForNetwork);
+      }, true);
+      content.location.reload();
+    },
+    failureFn: finishTest,
   });
 }
 
-function testScroll([result]) {
-  let scrollNode = hud.outputNode.parentNode;
-  let msgNode = [...result.matched][0];
-  ok(msgNode.classList.contains("filtered-by-type"),
+function testScroll() {
+  let msgNode = hud.outputNode.querySelector(".webconsole-msg-network");
+  ok(msgNode.classList.contains("hud-filtered-by-type"),
     "network message is filtered by type");
-  ok(msgNode.classList.contains("filtered-by-string"),
+  ok(msgNode.classList.contains("hud-filtered-by-string"),
     "network message is filtered by string");
 
-  ok(scrollNode.scrollTop > 0, "scroll location is not at the top");
+  let scrollBox = hud.outputNode.scrollBoxObject.element;
+  ok(scrollBox.scrollTop > 0, "scroll location is not at the top");
 
   // Make sure the Web Console output is scrolled as near as possible to the
   // bottom.
-  let nodeHeight = msgNode.clientHeight;
-  ok(scrollNode.scrollTop >= scrollNode.scrollHeight - scrollNode.clientHeight -
+  let nodeHeight = hud.outputNode.querySelector(".hud-log").clientHeight;
+  ok(scrollBox.scrollTop >= scrollBox.scrollHeight - scrollBox.clientHeight -
      nodeHeight * 2, "scroll location is correct");
 
   hud.setFilterState("network", true);
@@ -67,13 +74,10 @@ function testScroll([result]) {
 }
 
 function test() {
-  const PREF = "devtools.webconsole.persistlog";
-  Services.prefs.setBoolPref(PREF, true);
-  registerCleanupFunction(() => Services.prefs.clearUserPref(PREF));
-
   addTab(TEST_URI);
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
     openConsole(null, consoleOpened);
   }, true);
 }
+

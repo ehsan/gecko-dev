@@ -95,10 +95,9 @@
  */
 
 #include "SSLServerCertVerification.h"
-#include "CertVerifier.h"
 #include "nsIBadCertListener2.h"
 #include "nsICertOverrideService.h"
-#include "nsISiteSecurityService.h"
+#include "nsIStrictTransportSecurityService.h"
 #include "nsNSSComponent.h"
 #include "nsNSSCleaner.h"
 #include "nsRecentBadCerts.h"
@@ -109,19 +108,18 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/Telemetry.h"
 #include "nsIThreadPool.h"
-#include "nsNetUtil.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
+#include "nsIConsoleService.h"
 #include "PSMRunnable.h"
+#include "ScopedNSSTypes.h"
 #include "SharedSSLState.h"
-#include "nsContentUtils.h"
 
 #include "ssl.h"
 #include "secerr.h"
 #include "secport.h"
 #include "sslerr.h"
-#include "ocsp.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
@@ -133,7 +131,6 @@ namespace {
 
 NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
-NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
 NSSCleanupAutoPtrClass_WithParam(PLArenaPool, PORT_FreeArena, FalseParam, false)
 
 // do not use a nsCOMPtr to avoid static initializer/destructor
@@ -213,7 +210,11 @@ LogInvalidCertError(TransportSecurityInfo *socketInfo,
   socketInfo->GetErrorLogMessage(errorCode, errorMessageType, message);
   
   if (!message.IsEmpty()) {
-    nsContentUtils::LogSimpleConsoleError(message, "SSL");
+    nsCOMPtr<nsIConsoleService> console;
+    console = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
+    if (console) {
+      console->LogStringMessage(message.get());
+    }
   }
 }
 
@@ -299,7 +300,7 @@ CertErrorRunnable::CheckCertOverrides()
   mInfoObject->GetPort(&port);
 
   nsCString hostWithPortString;
-  hostWithPortString.AppendASCII(mInfoObject->GetHostNameRaw());
+  hostWithPortString.AppendASCII(mInfoObject->GetHostName());
   hostWithPortString.AppendLiteral(":");
   hostWithPortString.AppendInt(port);
 
@@ -311,13 +312,14 @@ CertErrorRunnable::CheckCertOverrides()
   // connections must be dropped when there are any certificate errors
   // (STS Spec section 7.3).
   bool strictTransportSecurityEnabled = false;
-  nsCOMPtr<nsISiteSecurityService> sss
-    = do_GetService(NS_SSSERVICE_CONTRACTID, &nsrv);
+  nsCOMPtr<nsIStrictTransportSecurityService> stss
+    = do_GetService(NS_STSSERVICE_CONTRACTID, &nsrv);
   if (NS_SUCCEEDED(nsrv)) {
-    nsrv = sss->IsSecureHost(nsISiteSecurityService::HEADER_HSTS,
-                             mInfoObject->GetHostNameRaw(),
-                             mProviderFlags,
-                             &strictTransportSecurityEnabled);
+    nsCOMPtr<nsISSLSocketControl> sslSocketControl = do_QueryInterface(
+      NS_ISUPPORTS_CAST(nsITransportSecurityInfo*, mInfoObject));
+    nsrv = stss->IsStsHost(mInfoObject->GetHostName(),
+                           mProviderFlags,
+                           &strictTransportSecurityEnabled);
   }
   if (NS_FAILED(nsrv)) {
     return new SSLServerCertVerificationResult(mInfoObject,
@@ -413,7 +415,7 @@ CertErrorRunnable::CheckCertOverrides()
                                         OverridableCertErrorMessage);
 
   LogInvalidCertError(mInfoObject,
-                      mInfoObject->GetHostName(),
+                      nsDependentCString(mInfoObject->GetHostName()),
                       hostWithPortString,
                       port,
                       result->mErrorCode,
@@ -440,8 +442,7 @@ CreateCertErrorRunnable(PRErrorCode defaultErrorCodeToReport,
                         TransportSecurityInfo * infoObject,
                         CERTCertificate * cert,
                         const void * fdForLogging,
-                        uint32_t providerFlags,
-                        PRTime now)
+                        uint32_t providerFlags)
 {
   MOZ_ASSERT(infoObject);
   MOZ_ASSERT(cert);
@@ -466,10 +467,19 @@ CreateCertErrorRunnable(PRErrorCode defaultErrorCodeToReport,
   }
 
   SECStatus srv;
+  nsresult nsrv;
 
-  RefPtr<CertVerifier> certVerifier(GetDefaultCertVerifier());
-  if (!certVerifier) {
-    NS_ERROR("GetDefaultCerVerifier failed");
+  nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
+  if (!inss) {
+    NS_ERROR("do_GetService(kNSSComponentCID) failed");
+    PR_SetError(defaultErrorCodeToReport, 0);
+    return nullptr;
+  }
+
+  RefPtr<nsCERTValInParamWrapper> survivingParams;
+  nsrv = inss->GetDefaultCERTValInParam(survivingParams);
+  if (NS_FAILED(nsrv)) {
+    NS_ERROR("GetDefaultCERTValInParam failed");
     PR_SetError(defaultErrorCodeToReport, 0);
     return nullptr;
   }
@@ -481,7 +491,7 @@ CreateCertErrorRunnable(PRErrorCode defaultErrorCodeToReport,
     return nullptr; // PORT_NewArena set error code
   }
 
-  CERTVerifyLog * verify_log = PORT_ArenaZNew(log_arena, CERTVerifyLog);
+  CERTVerifyLog *verify_log = PORT_ArenaZNew(log_arena, CERTVerifyLog);
   if (!verify_log) {
     NS_ERROR("PORT_ArenaZNew failed");
     return nullptr; // PORT_ArenaZNew set error code
@@ -489,8 +499,22 @@ CreateCertErrorRunnable(PRErrorCode defaultErrorCodeToReport,
   CERTVerifyLogContentsCleaner verify_log_cleaner(verify_log);
   verify_log->arena = log_arena;
 
-  srv = certVerifier->VerifyCert(cert, certificateUsageSSLServer, now,
-                                 infoObject, 0, nullptr, nullptr, verify_log);
+  if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
+    srv = CERT_VerifyCertificate(CERT_GetDefaultCertDB(), cert,
+                                true, certificateUsageSSLServer,
+                                PR_Now(), static_cast<void*>(infoObject),
+                                verify_log, nullptr);
+  }
+  else {
+    CERTValOutParam cvout[2];
+    cvout[0].type = cert_po_errorLog;
+    cvout[0].value.pointer.log = verify_log;
+    cvout[1].type = cert_po_end;
+
+    srv = CERT_PKIXVerifyCert(cert, certificateUsageSSLServer,
+                              survivingParams->GetRawPointerForNSS(),
+                              cvout, static_cast<void*>(infoObject));
+  }
 
   // We ignore the result code of the cert verification.
   // Either it is a failure, which is expected, and we'll process the
@@ -510,7 +534,7 @@ CreateCertErrorRunnable(PRErrorCode defaultErrorCodeToReport,
   }
 
   // Check the name field against the desired hostname.
-  if (CERT_VerifyCertName(cert, infoObject->GetHostNameRaw()) != SECSuccess) {
+  if (CERT_VerifyCertName(cert, infoObject->GetHostName()) != SECSuccess) {
     collected_errors |= nsICertOverrideService::ERROR_MISMATCH;
     errorCodeMismatch = SSL_ERROR_BAD_CERT_DOMAIN;
   }
@@ -609,7 +633,6 @@ public:
   static SECStatus Dispatch(const void * fdForLogging,
                             TransportSecurityInfo * infoObject,
                             CERTCertificate * serverCert,
-                            SECItem * stapledOCSPResponse,
                             uint32_t providerFlags);
 private:
   NS_DECL_NSIRUNNABLE
@@ -618,45 +641,51 @@ private:
   SSLServerCertVerificationJob(const void * fdForLogging,
                                TransportSecurityInfo * infoObject, 
                                CERTCertificate * cert,
-                               SECItem * stapledOCSPResponse,
                                uint32_t providerFlags);
   const void * const mFdForLogging;
   const RefPtr<TransportSecurityInfo> mInfoObject;
   const ScopedCERTCertificate mCert;
   const uint32_t mProviderFlags;
   const TimeStamp mJobStartTime;
-  const ScopedSECItem mStapledOCSPResponse;
 };
 
 SSLServerCertVerificationJob::SSLServerCertVerificationJob(
     const void * fdForLogging, TransportSecurityInfo * infoObject,
-    CERTCertificate * cert, SECItem * stapledOCSPResponse,
-    uint32_t providerFlags)
+    CERTCertificate * cert, uint32_t providerFlags)
   : mFdForLogging(fdForLogging)
   , mInfoObject(infoObject)
   , mCert(CERT_DupCertificate(cert))
   , mProviderFlags(providerFlags)
   , mJobStartTime(TimeStamp::Now())
-  , mStapledOCSPResponse(SECITEM_DupItem(stapledOCSPResponse))
 {
 }
 
 SECStatus
-PSM_SSL_PKIX_AuthCertificate(CERTCertificate *peerCert,
-                             nsIInterfaceRequestor * pinarg,
-                             const char * hostname,
-                             CERTCertList **validationChain,
-                             SECOidTag *evOidPolicy)
+PSM_SSL_PKIX_AuthCertificate(CERTCertificate *peerCert, void * pinarg,
+                             const char * hostname)
 {
-    RefPtr<CertVerifier> certVerifier(GetDefaultCertVerifier());
-    if (!certVerifier) {
-      PR_SetError(PR_INVALID_STATE_ERROR, 0);
-      return SECFailure;
+    SECStatus          rv;
+    
+    if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
+        rv = CERT_VerifyCertNow(CERT_GetDefaultCertDB(), peerCert, true,
+                                certUsageSSLServer, pinarg);
     }
+    else {
+        nsresult nsrv;
+        nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
+        if (!inss)
+          return SECFailure;
+        RefPtr<nsCERTValInParamWrapper> survivingParams;
+        if (NS_FAILED(inss->GetDefaultCERTValInParam(survivingParams)))
+          return SECFailure;
 
-    SECStatus rv = certVerifier->VerifyCert(peerCert,
-                                            certificateUsageSSLServer, PR_Now(),
-                                            pinarg, 0, validationChain , evOidPolicy);
+        CERTValOutParam cvout[1];
+        cvout[0].type = cert_po_end;
+
+        rv = CERT_PKIXVerifyCert(peerCert, certificateUsageSSLServer,
+                                survivingParams->GetRawPointerForNSS(),
+                                cvout, pinarg);
+    }
 
     if (rv == SECSuccess) {
         /* cert is OK.  This is the client side of an SSL connection.
@@ -746,7 +775,6 @@ PSM_SSL_BlacklistDigiNotar(CERTCertificate * serverCert,
 
     if (strstr(node->cert->issuerName, "CN=DigiNotar")) {
       isDigiNotarIssuedCert = true;
-      break;
     }
   }
 
@@ -808,11 +836,10 @@ BlockServerCertChangeForSpdy(nsNSSSocketInfo *infoObject,
     return SECSuccess;
 
   // If GetNegotiatedNPN() failed we will assume spdy for safety's safe
-  if (NS_FAILED(rv)) {
+  if (NS_FAILED(rv))
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
            ("BlockServerCertChangeForSpdy failed GetNegotiatedNPN() call."
             " Assuming spdy.\n"));
-  }
 
   // Check to see if the cert has actually changed
   ScopedCERTCertificate c(cert2->GetCert());
@@ -830,7 +857,7 @@ BlockServerCertChangeForSpdy(nsNSSSocketInfo *infoObject,
 
 SECStatus
 AuthCertificate(TransportSecurityInfo * infoObject, CERTCertificate * cert,
-                SECItem * stapledOCSPResponse, uint32_t providerFlags)
+                uint32_t providerFlags)
 {
   if (cert->serialNumber.data &&
       cert->issuerName &&
@@ -870,21 +897,8 @@ AuthCertificate(TransportSecurityInfo * infoObject, CERTCertificate * cert,
     }
   }
 
-  SECStatus rv;
-  if (stapledOCSPResponse) {
-    CERTCertDBHandle *handle = CERT_GetDefaultCertDB();
-    rv = CERT_CacheOCSPResponseFromSideChannel(handle, cert, PR_Now(),
-                                               stapledOCSPResponse,
-                                               infoObject);
-    if (rv != SECSuccess) {
-      return rv;
-    }
-  }
-
-  CERTCertList *verifyCertChain = nullptr;
-  SECOidTag evOidPolicy;
-  rv = PSM_SSL_PKIX_AuthCertificate(cert, infoObject, infoObject->GetHostNameRaw(),
-                                    &verifyCertChain, &evOidPolicy);
+  SECStatus rv = PSM_SSL_PKIX_AuthCertificate(cert, infoObject,
+                                              infoObject->GetHostName());
 
   // We want to remember the CA certs in the temp db, so that the application can find the
   // complete chain at any time it might need it.
@@ -894,16 +908,11 @@ AuthCertificate(TransportSecurityInfo * infoObject, CERTCertificate * cert,
   RefPtr<nsNSSCertificate> nsc;
 
   if (!status || !status->mServerCert) {
-    if( rv == SECSuccess ){
-      nsc = nsNSSCertificate::Create(cert, &evOidPolicy);
-    }
-    else {
-      nsc = nsNSSCertificate::Create(cert);
-    }
+    nsc = nsNSSCertificate::Create(cert);
   }
 
-  ScopedCERTCertList certList(verifyCertChain);
-
+  ScopedCERTCertList certList(CERT_GetCertChainFromCert(cert, PR_Now(),
+                                                        certUsageSSLCA));
   if (!certList) {
     rv = SECFailure;
   } else {
@@ -928,6 +937,13 @@ AuthCertificate(TransportSecurityInfo * infoObject, CERTCertificate * cert,
   }
 
   if (rv == SECSuccess) {
+    if (nsc) {
+      bool dummyIsEV;
+      nsc->GetIsExtendedValidation(&dummyIsEV); // the nsc object will cache the status
+    }
+    
+    nsCOMPtr<nsINSSComponent> nssComponent;
+
     // We want to avoid storing any intermediate cert information when browsing
     // in private, transient contexts.
     if (!(providerFlags & nsISocketProvider::NO_PERMANENT_STORAGE)) {
@@ -998,7 +1014,6 @@ AuthCertificate(TransportSecurityInfo * infoObject, CERTCertificate * cert,
 SSLServerCertVerificationJob::Dispatch(const void * fdForLogging,
                                        TransportSecurityInfo * infoObject,
                                        CERTCertificate * serverCert,
-                                       SECItem * stapledOCSPResponse,
                                        uint32_t providerFlags)
 {
   // Runs on the socket transport thread
@@ -1010,7 +1025,7 @@ SSLServerCertVerificationJob::Dispatch(const void * fdForLogging,
   
   RefPtr<SSLServerCertVerificationJob> job(
     new SSLServerCertVerificationJob(fdForLogging, infoObject, serverCert,
-                                     stapledOCSPResponse, providerFlags));
+                                     providerFlags));
 
   nsresult nrv;
   if (!gCertVerificationThreadPool) {
@@ -1053,22 +1068,17 @@ SSLServerCertVerificationJob::Run()
   } else {
     // Reset the error code here so we can detect if AuthCertificate fails to
     // set the error code if/when it fails.
-    PR_SetError(0, 0);
-    SECStatus rv = AuthCertificate(mInfoObject, mCert, mStapledOCSPResponse,
-                                   mProviderFlags);
+    PR_SetError(0, 0); 
+    SECStatus rv = AuthCertificate(mInfoObject, mCert, mProviderFlags);
     if (rv == SECSuccess) {
       uint32_t interval = (uint32_t) ((TimeStamp::Now() - mJobStartTime).ToMilliseconds());
       Telemetry::ID telemetryID;
-#ifndef NSS_NO_LIBPKIX
       if(nsNSSComponent::globalConstFlagUsePKIXVerification){
         telemetryID = Telemetry::SSL_SUCCESFUL_CERT_VALIDATION_TIME_LIBPKIX;
       }
       else{
-#endif
         telemetryID = Telemetry::SSL_SUCCESFUL_CERT_VALIDATION_TIME_CLASSIC;
-#ifndef NSS_NO_LIBPKIX
       }
-#endif
       RefPtr<SSLServerCertVerificationResult> restart(
         new SSLServerCertVerificationResult(mInfoObject, 0,
                                             telemetryID, interval));
@@ -1082,16 +1092,12 @@ SSLServerCertVerificationJob::Run()
     {
       TimeStamp now = TimeStamp::Now();
       Telemetry::ID telemetryID;
-#ifndef NSS_NO_LIBPKIX
       if(nsNSSComponent::globalConstFlagUsePKIXVerification){
         telemetryID = Telemetry::SSL_INITIAL_FAILED_CERT_VALIDATION_TIME_LIBPKIX;
       }
       else{
-#endif
         telemetryID = Telemetry::SSL_INITIAL_FAILED_CERT_VALIDATION_TIME_CLASSIC;
-#ifndef NSS_NO_LIBPKIX
       }
-#endif
       MutexAutoLock telemetryMutex(*gSSLVerificationTelemetryMutex);
       Telemetry::AccumulateTimeDelta(telemetryID,
                                      mJobStartTime,
@@ -1099,7 +1105,7 @@ SSLServerCertVerificationJob::Run()
     }
     if (error != 0) {
       RefPtr<CertErrorRunnable> runnable(CreateCertErrorRunnable(
-        error, mInfoObject, mCert, mFdForLogging, mProviderFlags, PR_Now()));
+        error, mInfoObject, mCert, mFdForLogging, mProviderFlags));
       if (!runnable) {
         // CreateCertErrorRunnable set a new error code
         error = PR_GetError(); 
@@ -1164,15 +1170,18 @@ AuthCertificateHook(void *arg, PRFileDesc *fd, PRBool checkSig, PRBool isServer)
 
   nsNSSSocketInfo *socketInfo = static_cast<nsNSSSocketInfo*>(arg);
   
+  if (socketInfo) {
+    // This is the first callback during full handshakes.
+    socketInfo->SetFirstServerHelloReceived();
+  }
+
   ScopedCERTCertificate serverCert(SSL_PeerCertificate(fd));
 
   if (!checkSig || isServer || !socketInfo || !serverCert) {
       PR_SetError(PR_INVALID_STATE_ERROR, 0);
       return SECFailure;
   }
-
-  socketInfo->SetFullHandshake();
-
+      
   if (BlockServerCertChangeForSpdy(socketInfo, serverCert) != SECSuccess)
     return SECFailure;
 
@@ -1190,17 +1199,6 @@ AuthCertificateHook(void *arg, PRFileDesc *fd, PRBool checkSig, PRBool isServer)
     return SECFailure;
   }
 
-  // SSL_PeerStapledOCSPResponses will never return a non-empty response if
-  // OCSP stapling wasn't enabled because libssl wouldn't have let the server
-  // return a stapled OCSP response.
-  // We don't own these pointers.
-  const SECItemArray *csa = SSL_PeerStapledOCSPResponses(fd);
-  SECItem *stapledOCSPResponse = nullptr;
-  // we currently only support single stapled responses
-  if (csa && csa->len == 1) {
-    stapledOCSPResponse = &csa->items[0];
-  }
-
   uint32_t providerFlags = 0;
   socketInfo->GetProviderFlags(&providerFlags);
 
@@ -1212,8 +1210,8 @@ AuthCertificateHook(void *arg, PRFileDesc *fd, PRBool checkSig, PRBool isServer)
     // because of the performance benefits of doing so.
     socketInfo->SetCertVerificationWaiting();
     SECStatus rv = SSLServerCertVerificationJob::Dispatch(
-                     static_cast<const void *>(fd), socketInfo, serverCert,
-                     stapledOCSPResponse, providerFlags);
+                           static_cast<const void *>(fd), socketInfo, serverCert,
+                           providerFlags);
     return rv;
   }
   
@@ -1221,9 +1219,7 @@ AuthCertificateHook(void *arg, PRFileDesc *fd, PRBool checkSig, PRBool isServer)
   // thread doing the network I/O may not interrupt its network I/O on receipt
   // of our SSLServerCertVerificationResult event, and/or it might not even be
   // a non-blocking socket.
-
-  SECStatus rv = AuthCertificate(socketInfo, serverCert, stapledOCSPResponse,
-                                 providerFlags);
+  SECStatus rv = AuthCertificate(socketInfo, serverCert, providerFlags);
   if (rv == SECSuccess) {
     return SECSuccess;
   }
@@ -1232,7 +1228,7 @@ AuthCertificateHook(void *arg, PRFileDesc *fd, PRBool checkSig, PRBool isServer)
   if (error != 0) {
     RefPtr<CertErrorRunnable> runnable(CreateCertErrorRunnable(
                     error, socketInfo, serverCert,
-                    static_cast<const void *>(fd), providerFlags, PR_Now()));
+                    static_cast<const void *>(fd), providerFlags));
     if (!runnable) {
       // CreateCertErrorRunnable sets a new error code when it fails
       error = PR_GetError();
@@ -1278,7 +1274,6 @@ AuthCertificateHook(void *arg, PRFileDesc *fd, PRBool checkSig, PRBool isServer)
   return SECFailure;
 }
 
-#ifndef NSS_NO_LIBPKIX
 class InitializeIdentityInfo : public nsRunnable
                              , public nsNSSShutDownObject
 {
@@ -1307,11 +1302,9 @@ private:
       shutdown(calledFromObject);
   }
 };
-#endif
 
 void EnsureServerVerificationInitialized()
 {
-#ifndef NSS_NO_LIBPKIX
   // Should only be called from socket transport thread due to the static
   // variable and the reference to gCertVerificationThreadPool
 
@@ -1323,7 +1316,6 @@ void EnsureServerVerificationInitialized()
   RefPtr<InitializeIdentityInfo> initJob = new InitializeIdentityInfo();
   if (gCertVerificationThreadPool)
     gCertVerificationThreadPool->Dispatch(initJob, NS_DISPATCH_NORMAL);
-#endif
 }
 
 SSLServerCertVerificationResult::SSLServerCertVerificationResult(

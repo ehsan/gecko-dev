@@ -9,7 +9,6 @@ const Cr = Components.results;
 const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/LoadContextInfo.jsm");
 
 // Import common head.
 let (commonFile = do_get_file("../../../../../toolkit/components/places/tests/head_common.js", false)) {

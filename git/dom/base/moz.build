@@ -8,10 +8,16 @@ TEST_DIRS += ['test']
 
 XPIDL_SOURCES += [
     'nsIDOMDOMCursor.idl',
+    'nsIDOMDOMError.idl',
     'nsIDOMDOMRequest.idl',
     'nsIEntropyCollector.idl',
     'nsIScriptChannel.idl',
     'nsISiteSpecificUserAgent.idl',
+]
+
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/interfaces/base',
+    '-I$(topsrcdir)/dom/interfaces/events',
 ]
 
 MODULE = 'dom'
@@ -23,7 +29,6 @@ EXPORTS += [
     'nsDOMClassInfoClasses.h',
     'nsDOMClassInfoID.h',
     'nsDOMJSUtils.h',
-    'nsDOMNavigationTiming.h',
     'nsDOMString.h',
     'nsFocusManager.h',
     'nsIDOMClassInfo.h',
@@ -34,12 +39,13 @@ EXPORTS += [
     'nsIScriptContext.h',
     'nsIScriptExternalNameSet.h',
     'nsIScriptGlobalObject.h',
+    'nsIScriptGlobalObjectOwner.h',
     'nsIScriptNameSpaceManager.h',
     'nsIScriptObjectPrincipal.h',
+    'nsIScriptRuntime.h',
     'nsIScriptTimeoutHandler.h',
     'nsJSEnvironment.h',
     'nsJSUtils.h',
-    'nsPerformance.h',
     'nsPIDOMWindow.h',
     'nsPIWindowRoot.h',
     'nsStructuredCloneContainer.h',
@@ -49,110 +55,11 @@ EXPORTS += [
 ]
 
 EXPORTS.mozilla.dom += [
-    'BarProps.h',
     'DOMCursor.h',
     'DOMError.h',
-    'DOMException.h',
     'DOMRequest.h',
-    'MessageChannel.h',
-    'MessagePort.h',
-    'MessagePortList.h',
     'ScreenOrientation.h',
     'StructuredCloneTags.h',
     'URL.h',
-]
-
-SOURCES += [
-    'BarProps.cpp',
-    'CompositionStringSynthesizer.cpp',
-    'Crypto.cpp',
-    'DOMCursor.cpp',
-    'DOMError.cpp',
-    'DOMException.cpp',
-    'DOMRequest.cpp',
-    'MessageChannel.cpp',
-    'MessagePort.cpp',
-    'MessagePortList.cpp',
-    'Navigator.cpp',
-    'nsContentPermissionHelper.cpp',
-    'nsDOMClassInfo.cpp',
-    'nsDOMNavigationTiming.cpp',
-    'nsDOMScriptObjectFactory.cpp',
-    'nsDOMWindowList.cpp',
-    'nsDOMWindowUtils.cpp',
-    'nsFocusManager.cpp',
-    'nsGlobalWindow.cpp',
-    'nsGlobalWindowCommands.cpp',
-    'nsHistory.cpp',
-    'nsJSEnvironment.cpp',
-    'nsJSTimeoutHandler.cpp',
-    'nsJSUtils.cpp',
-    'nsLocation.cpp',
-    'nsMimeTypeArray.cpp',
-    'nsPerformance.cpp',
-    'nsPluginArray.cpp',
-    'nsQueryContentEventResult.cpp',
-    'nsScreen.cpp',
-    'nsScriptNameSpaceManager.cpp',
-    'nsStructuredCloneContainer.cpp',
-    'nsWindowMemoryReporter.cpp',
-    'nsWindowRoot.cpp',
-    'nsWrapperCache.cpp',
-    'URL.cpp',
-    'WindowNamedPropertiesHandler.cpp',
-]
-
-EXTRA_COMPONENTS += [
-    'ConsoleAPI.js',
-    'ConsoleAPI.manifest',
-    'SiteSpecificUserAgent.js',
-    'SiteSpecificUserAgent.manifest',
-]
-
-EXTRA_JS_MODULES += [
-    'ConsoleAPIStorage.jsm',
-    'DOMRequestHelper.jsm',
-    'IndexedDBHelper.jsm',
-    'ObjectWrapper.jsm',
-]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'jsdombase_s'
-
-LOCAL_INCLUDES += [
-    '../battery',
-    '../bluetooth',
-    '../media',
-    '../network/src',
-    '../src/geolocation',
-    '../src/storage',
-    '../time',
-    '/content/base/src',
-    '/content/events/src',
-    '/content/html/document/src',
-    '/content/xbl/src',
-    '/content/xul/document/src',
-    '/layout/generic',
-    '/layout/style',
-    '/layout/xul/base/src',
-]
-
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-    LOCAL_INCLUDES += [
-        '../fmradio',
-        '../system/gonk',
-    ]
-
-include('/ipc/chromium/chromium-config.mozbuild')
-
-LOCAL_INCLUDES += [
-    '/js/xpconnect/src',
-    '/js/xpconnect/wrappers',
-    '/xpcom/ds',
 ]
 

@@ -136,18 +136,8 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
     }
   }
 
-  nsCOMPtr<nsIContent> targetContent = do_QueryInterface(target);
-  if (!targetContent) {
-    return NS_OK;
-  }
-  if (targetContent->Tag() == nsGkAtoms::browser &&
-      targetContent->IsXUL() &&
-      nsEventStateManager::IsRemoteTarget(targetContent)) {
-    return NS_OK;
-  }
-
   bool preventDefault;
-  mouseEvent->GetDefaultPrevented(&preventDefault);
+  mouseEvent->GetPreventDefault(&preventDefault);
   if (preventDefault && targetNode && mIsContext) {
     // Someone called preventDefault on a context menu.
     // Let's make sure they are allowed to do so.
@@ -190,6 +180,7 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
   // If a menu item child was clicked on that leads to a popup needing
   // to show, we know (guaranteed) that we're dealing with a menu or
   // submenu of an already-showing popup.  We don't need to do anything at all.
+  nsCOMPtr<nsIContent> targetContent = do_QueryInterface(target);
   if (!mIsContext) {
     nsIAtom *tag = targetContent ? targetContent->Tag() : nullptr;
     if (tag == nsGkAtoms::menu || tag == nsGkAtoms::menuitem)
@@ -210,9 +201,10 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
       return NS_OK;
   }
 
-  // Open the popup. LaunchPopup will call StopPropagation and PreventDefault
-  // in the right situations.
+  // Open the popup and cancel the default handling of the event.
   LaunchPopup(aEvent, targetContent);
+  aEvent->StopPropagation();
+  aEvent->PreventDefault();
 
   return NS_OK;
 }
@@ -308,8 +300,8 @@ GetImmediateChild(nsIContent* aContent, nsIAtom *aTag)
        child;
        child = child->GetNextSibling()) {
     if (child->Tag() == aTag) {
-      nsCOMPtr<nsIContent> ret = child;
-      return ret.forget();
+      NS_ADDREF(child);
+      return child;
     }
   }
 
@@ -336,23 +328,20 @@ nsXULPopupListener::LaunchPopup(nsIDOMEvent* aEvent, nsIContent* aTargetContent)
 {
   nsresult rv = NS_OK;
 
-  nsAutoString identifier;
   nsIAtom* type = mIsContext ? nsGkAtoms::context : nsGkAtoms::popup;
-  bool hasPopupAttr = mElement->GetAttr(kNameSpaceID_None, type, identifier);
+
+  nsAutoString identifier;
+  mElement->GetAttr(kNameSpaceID_None, type, identifier);
 
   if (identifier.IsEmpty()) {
-    hasPopupAttr = mElement->GetAttr(kNameSpaceID_None,
-                          mIsContext ? nsGkAtoms::contextmenu : nsGkAtoms::menu,
-                          identifier) || hasPopupAttr;
+    if (type == nsGkAtoms::popup) {
+      mElement->GetAttr(kNameSpaceID_None, nsGkAtoms::menu, identifier);
+    } else {
+      mElement->GetAttr(kNameSpaceID_None, nsGkAtoms::contextmenu, identifier);
+    }
+    if (identifier.IsEmpty())
+      return rv;
   }
-
-  if (hasPopupAttr) {
-    aEvent->StopPropagation();
-    aEvent->PreventDefault();
-  }
-
-  if (identifier.IsEmpty())
-    return rv;
 
   // Try to find the popup content and the document.
   nsCOMPtr<nsIDocument> document = mElement->GetDocument();

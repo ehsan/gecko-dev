@@ -2,10 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "js/OldDebugAPI.h"
-#include "jsapi-tests/tests.h"
+#include "tests.h"
+#include "jsdbgapi.h"
+#include "jsobjinlines.h"
 
-JSPrincipals *sOriginPrincipalsInErrorReporter = nullptr;
+JSPrincipals *sOriginPrincipalsInErrorReporter = NULL;
 
 static void
 ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
@@ -60,7 +61,7 @@ eval(const char *asciiChars, JSPrincipals *principals, JSPrincipals *originPrinc
         chars[i] = asciiChars[i];
     chars[len] = 0;
 
-    JS::RootedObject global(cx, JS_NewGlobalObject(cx, getGlobalClass(), principals, JS::FireOnNewGlobalHook));
+    JS::RootedObject global(cx, JS_NewGlobalObject(cx, getGlobalClass(), principals));
     CHECK(global);
     JSAutoCompartment ac(cx, global);
     CHECK(JS_InitStandardClasses(cx, global));
@@ -87,7 +88,7 @@ testInner(const char *asciiChars, JSPrincipals *principal, JSPrincipals *originP
     JS::RootedValue rval(cx);
     CHECK(eval(asciiChars, principal, originPrincipal, rval.address()));
 
-    JSScript *script = JS_GetFunctionScript(cx, &rval.toObject().as<JSFunction>());
+    JSScript *script = JS_GetFunctionScript(cx, JSVAL_TO_OBJECT(rval)->toFunction());
     CHECK(JS_GetScriptPrincipals(script) == principal);
     CHECK(JS_GetScriptOriginPrincipals(script) == originPrincipal);
 

@@ -235,8 +235,13 @@ NS_IMETHODIMP nsDocLoader::GetInterface(const nsIID& aIID, void** aSink)
 already_AddRefed<nsDocLoader>
 nsDocLoader::GetAsDocLoader(nsISupports* aSupports)
 {
-  nsRefPtr<nsDocLoader> ret = do_QueryObject(aSupports);
-  return ret.forget();
+  if (!aSupports) {
+    return nullptr;
+  }
+  
+  nsDocLoader* ptr;
+  CallQueryInterface(aSupports, &ptr);
+  return ptr;
 }
 
 /* static */
@@ -930,57 +935,11 @@ nsDocLoader::GetDOMWindow(nsIDOMWindow **aResult)
 }
 
 NS_IMETHODIMP
-nsDocLoader::GetDOMWindowID(uint64_t *aResult)
-{
-  *aResult = 0;
-
-  nsCOMPtr<nsIDOMWindow> window;
-  nsresult rv = GetDOMWindow(getter_AddRefs(window));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsPIDOMWindow> piwindow = do_QueryInterface(window);
-  NS_ENSURE_STATE(piwindow);
-
-  MOZ_ASSERT(piwindow->IsOuterWindow());
-  *aResult = piwindow->WindowID();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocLoader::GetIsTopLevel(bool *aResult)
-{
-  *aResult = false;
-
-  nsCOMPtr<nsIDOMWindow> window;
-  GetDOMWindow(getter_AddRefs(window));
-  if (window) {
-    nsCOMPtr<nsPIDOMWindow> piwindow = do_QueryInterface(window);
-    NS_ENSURE_STATE(piwindow);
-
-    nsCOMPtr<nsIDOMWindow> topWindow;
-    nsresult rv = piwindow->GetTop(getter_AddRefs(topWindow));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    *aResult = piwindow == topWindow;
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDocLoader::GetIsLoadingDocument(bool *aIsLoadingDocument)
 {
   *aIsLoadingDocument = mIsLoadingDocument;
 
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocLoader::GetLoadType(uint32_t *aLoadType)
-{
-  *aLoadType = 0;
-
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 int64_t nsDocLoader::GetMaxTotalProgress()

@@ -5,273 +5,332 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsMimeTypeArray.h"
-
-#include "mozilla/dom/MimeTypeArrayBinding.h"
-#include "mozilla/dom/MimeTypeBinding.h"
+#include "nsIScriptGlobalObject.h"
 #include "nsIDOMNavigator.h"
-#include "nsPluginArray.h"
+#include "nsIDOMPluginArray.h"
+#include "nsIDOMPlugin.h"
+#include "nsDOMClassInfoID.h"
 #include "nsIMIMEService.h"
 #include "nsIMIMEInfo.h"
-#include "Navigator.h"
-#include "nsServiceManagerUtils.h"
+#include "nsIFile.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsMimeTypeArray)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsMimeTypeArray)
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsMimeTypeArray)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(nsMimeTypeArray,
-                                        mWindow,
-                                        mMimeTypes)
-
-nsMimeTypeArray::nsMimeTypeArray(nsPIDOMWindow* aWindow)
-  : mWindow(aWindow),
-    mPluginMimeTypeCount(0)
+nsMimeTypeArray::nsMimeTypeArray(nsIDOMNavigator* navigator)
+  : mNavigator(navigator),
+    mPluginMimeTypeCount(0),
+    mInited(false)
 {
-  SetIsDOMBinding();
 }
 
 nsMimeTypeArray::~nsMimeTypeArray()
 {
+  Clear();
 }
 
-JSObject*
-nsMimeTypeArray::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+
+DOMCI_DATA(MimeTypeArray, nsMimeTypeArray)
+
+// QueryInterface implementation for nsMimeTypeArray
+NS_INTERFACE_MAP_BEGIN(nsMimeTypeArray)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMMimeTypeArray)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MimeTypeArray)
+NS_INTERFACE_MAP_END
+
+
+NS_IMPL_ADDREF(nsMimeTypeArray)
+NS_IMPL_RELEASE(nsMimeTypeArray)
+
+
+NS_IMETHODIMP
+nsMimeTypeArray::GetLength(uint32_t* aLength)
 {
-  return MimeTypeArrayBinding::Wrap(aCx, aScope, this);
+  if (!mInited) {
+    nsresult rv = GetMimeTypes();
+    if (rv != NS_OK)
+      return rv;
+  }
+
+  NS_ASSERTION(mPluginMimeTypeCount <= (uint32_t)mMimeTypeArray.Count(),
+               "The number of total mimetypes should be equal to or higher "
+               "than the number of plugin mimetypes.");
+ 
+  *aLength = mPluginMimeTypeCount;
+  return NS_OK;
 }
 
-void
-nsMimeTypeArray::Refresh()
+nsIDOMMimeType*
+nsMimeTypeArray::GetItemAt(uint32_t aIndex, nsresult *aResult)
 {
-  mMimeTypes.Clear();
-  mPluginMimeTypeCount = 0;
-}
+  if (!mInited) {
+    *aResult = GetMimeTypes();
+    if (*aResult != NS_OK)
+      return nullptr;
+  }
 
-nsPIDOMWindow*
-nsMimeTypeArray::GetParentObject() const
-{
-  MOZ_ASSERT(mWindow);
-  return mWindow;
-}
-
-nsMimeType*
-nsMimeTypeArray::Item(uint32_t aIndex)
-{
-  bool unused;
-  return IndexedGetter(aIndex, unused);
-}
-
-nsMimeType*
-nsMimeTypeArray::NamedItem(const nsAString& aName)
-{
-  bool unused;
-  return NamedGetter(aName, unused);
-}
-
-nsMimeType*
-nsMimeTypeArray::IndexedGetter(uint32_t aIndex, bool &aFound)
-{
-  aFound = false;
-
-  EnsurePluginMimeTypes();
-
-  MOZ_ASSERT(mMimeTypes.Length() >= mPluginMimeTypeCount);
+  NS_ASSERTION(mPluginMimeTypeCount <= (uint32_t)mMimeTypeArray.Count(),
+               "The number of total mimetypes should be equal to or higher "
+               "than the number of plugin mimetypes.");
 
   if (aIndex >= mPluginMimeTypeCount) {
+    *aResult = NS_ERROR_FAILURE;
+
     return nullptr;
   }
 
-  aFound = true;
+  *aResult = NS_OK;
 
-  return mMimeTypes[aIndex];
+  return mMimeTypeArray[aIndex];
 }
 
-nsMimeType*
-nsMimeTypeArray::NamedGetter(const nsAString& aName, bool &aFound)
+NS_IMETHODIMP
+nsMimeTypeArray::Item(uint32_t aIndex, nsIDOMMimeType** aReturn)
 {
-  aFound = false;
+  nsresult rv;
 
-  EnsurePluginMimeTypes();
+  NS_IF_ADDREF(*aReturn = GetItemAt(aIndex, &rv));
 
-  for (uint32_t i = 0; i < mMimeTypes.Length(); ++i) {
-    if (aName.Equals(mMimeTypes[i]->Type())) {
-      aFound = true;
+  return rv;
+}
 
-      return mMimeTypes[i];
+nsIDOMMimeType*
+nsMimeTypeArray::GetNamedItem(const nsAString& aName, nsresult* aResult)
+{
+  if (!mInited) {
+    *aResult = GetMimeTypes();
+    if (*aResult != NS_OK)
+      return nullptr;
+  }
+
+  NS_ASSERTION(mPluginMimeTypeCount <= (uint32_t)mMimeTypeArray.Count(),
+               "The number of total mimetypes should be equal to or higher "
+               "than the number of plugin mimetypes.");
+
+  *aResult = NS_OK;
+
+  nsAutoString type;
+
+  for (int32_t i = 0; i < mMimeTypeArray.Count(); i++) {
+    nsIDOMMimeType *mtype = mMimeTypeArray[i];
+
+    mtype->GetType(type);
+
+    if (type.Equals(aName)) {
+      return mtype;
     }
   }
 
   // Now let's check with the MIME service.
   nsCOMPtr<nsIMIMEService> mimeSrv = do_GetService("@mozilla.org/mime;1");
-  if (!mimeSrv) {
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIMIMEInfo> mimeInfo;
-  mimeSrv->GetFromTypeAndExtension(NS_ConvertUTF16toUTF8(aName), EmptyCString(),
-                                   getter_AddRefs(mimeInfo));
-  if (!mimeInfo) {
-    return nullptr;
-  }
-
-  // Now we check whether we can really claim to support this type
-  nsHandlerInfoAction action = nsIHandlerInfo::saveToDisk;
-  mimeInfo->GetPreferredAction(&action);
-  if (action != nsIMIMEInfo::handleInternally) {
-    bool hasHelper = false;
-    mimeInfo->GetHasDefaultHandler(&hasHelper);
-
-    if (!hasHelper) {
-      nsCOMPtr<nsIHandlerApp> helper;
-      mimeInfo->GetPreferredApplicationHandler(getter_AddRefs(helper));
-
-      if (!helper) {
-        // mime info from the OS may not have a PreferredApplicationHandler
-        // so just check for an empty default description
-        nsAutoString defaultDescription;
-        mimeInfo->GetDefaultDescription(defaultDescription);
-
-        if (defaultDescription.IsEmpty()) {
-          // no support; just leave
-          return nullptr;
+  if (mimeSrv) {
+    nsCOMPtr<nsIMIMEInfo> mimeInfo;
+    mimeSrv->GetFromTypeAndExtension(NS_ConvertUTF16toUTF8(aName), EmptyCString(),
+                                     getter_AddRefs(mimeInfo));
+    if (mimeInfo) {
+      // Now we check whether we can really claim to support this type
+      nsHandlerInfoAction action = nsIHandlerInfo::saveToDisk;
+      mimeInfo->GetPreferredAction(&action);
+      if (action != nsIMIMEInfo::handleInternally) {
+        bool hasHelper = false;
+        mimeInfo->GetHasDefaultHandler(&hasHelper);
+        if (!hasHelper) {
+          nsCOMPtr<nsIHandlerApp> helper;
+          mimeInfo->GetPreferredApplicationHandler(getter_AddRefs(helper));
+          if (!helper) {
+            // mime info from the OS may not have a PreferredApplicationHandler
+            // so just check for an empty default description
+            nsAutoString defaultDescription;
+            mimeInfo->GetDefaultDescription(defaultDescription);
+            if (defaultDescription.IsEmpty()) {
+              // no support; just leave
+              return nullptr;
+            }
+          }
         }
       }
+
+      // If we got here, we support this type!  Say so.
+      nsCOMPtr<nsIDOMMimeType> helper, entry;
+      if (!(helper = new nsHelperMimeType(aName)) ||
+          !(entry = new nsMimeType(nullptr, helper)) ||
+          !mMimeTypeArray.AppendObject(entry)) {
+        *aResult = NS_ERROR_OUT_OF_MEMORY;
+
+        return nullptr;
+      }
+
+      return entry;
     }
   }
 
-  // If we got here, we support this type!  Say so.
-  aFound = true;
-
-  nsMimeType *mt = new nsMimeType(mWindow, aName);
-  mMimeTypes.AppendElement(mt);
-
-  return mt;
+  return nullptr;
 }
 
-uint32_t
-nsMimeTypeArray::Length()
+NS_IMETHODIMP
+nsMimeTypeArray::NamedItem(const nsAString& aName, nsIDOMMimeType** aReturn)
 {
-  EnsurePluginMimeTypes();
+  nsresult rv;
 
-  MOZ_ASSERT(mMimeTypes.Length() >= mPluginMimeTypeCount);
+  NS_IF_ADDREF(*aReturn = GetNamedItem(aName, &rv));
 
-  return mPluginMimeTypeCount;
+  return rv;
 }
 
 void
-nsMimeTypeArray::GetSupportedNames(nsTArray< nsString >& aRetval)
+nsMimeTypeArray::Clear()
 {
-  EnsurePluginMimeTypes();
-
-  for (uint32_t i = 0; i < mMimeTypes.Length(); ++i) {
-    aRetval.AppendElement(mMimeTypes[i]->Type());
-  }
+  mInited = false;
+  mMimeTypeArray.Clear();
+  mPluginMimeTypeCount = 0;
 }
 
 void
-nsMimeTypeArray::EnsurePluginMimeTypes()
+nsMimeTypeArray::Refresh()
 {
-  if (!mMimeTypes.IsEmpty() || !mWindow) {
-    return;
-  }
-
-  nsCOMPtr<nsIDOMNavigator> navigator;
-  mWindow->GetNavigator(getter_AddRefs(navigator));
-
-  if (!navigator) {
-    return;
-  }
-
-  ErrorResult rv;
-  nsPluginArray *pluginArray =
-    static_cast<Navigator*>(navigator.get())->GetPlugins(rv);
-  if (!pluginArray) {
-    return;
-  }
-
-  pluginArray->GetMimeTypes(mMimeTypes);
-
-  mPluginMimeTypeCount = mMimeTypes.Length();
+  Clear();
+  GetMimeTypes();
 }
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsMimeType, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsMimeType, Release)
-
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(nsMimeType, mWindow, mPluginElement)
-
-nsMimeType::nsMimeType(nsPIDOMWindow* aWindow, nsPluginElement* aPluginElement,
-                       uint32_t aPluginTagMimeIndex, const nsAString& aType)
-  : mWindow(aWindow),
-    mPluginElement(aPluginElement),
-    mPluginTagMimeIndex(aPluginTagMimeIndex),
-    mType(aType)
+nsresult
+nsMimeTypeArray::GetMimeTypes()
 {
-  SetIsDOMBinding();
+  NS_PRECONDITION(!mInited && mPluginMimeTypeCount==0,
+                      "already initialized");
+
+  if (!mNavigator) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  nsIDOMPluginArray* pluginArray = nullptr;
+  nsresult rv = mNavigator->GetPlugins(&pluginArray);
+  if (rv == NS_OK) {
+    // count up all possible MimeTypes, and collect them here. Later,
+    // we'll remove duplicates.
+    uint32_t pluginMimeTypeCount = 0;
+    uint32_t pluginCount = 0;
+    rv = pluginArray->GetLength(&pluginCount);
+    if (rv == NS_OK) {
+      uint32_t i;
+      for (i = 0; i < pluginCount; i++) {
+        nsCOMPtr<nsIDOMPlugin> plugin;
+        if (NS_SUCCEEDED(pluginArray->Item(i, getter_AddRefs(plugin))) &&
+            plugin) {
+          uint32_t mimeTypeCount = 0;
+          if (plugin->GetLength(&mimeTypeCount) == NS_OK)
+            pluginMimeTypeCount += mimeTypeCount;
+        }
+      }
+      // now we know how many there are, start gathering them.
+      mMimeTypeArray.SetCapacity(pluginMimeTypeCount);
+
+      mPluginMimeTypeCount = pluginMimeTypeCount;
+      mInited = true;
+
+      uint32_t k;
+      for (k = 0; k < pluginCount; k++) {
+        nsCOMPtr<nsIDOMPlugin> plugin;
+        if (NS_SUCCEEDED(pluginArray->Item(k, getter_AddRefs(plugin))) &&
+            plugin) {
+          uint32_t mimeTypeCount = 0;
+          if (plugin->GetLength(&mimeTypeCount) == NS_OK) {
+            nsCOMPtr<nsIDOMMimeType> item;
+            for (uint32_t j = 0; j < mimeTypeCount; j++) {
+              plugin->Item(j, getter_AddRefs(item));
+              mMimeTypeArray.AppendObject(item);
+            }
+          }
+        }
+      }
+    }
+    NS_RELEASE(pluginArray);
+  }
+  return rv;
 }
 
-nsMimeType::nsMimeType(nsPIDOMWindow* aWindow, const nsAString& aType)
-  : mWindow(aWindow),
-    mPluginElement(nullptr),
-    mPluginTagMimeIndex(0),
-    mType(aType)
+nsMimeType::nsMimeType(nsIDOMPlugin* aPlugin, nsIDOMMimeType* aMimeType)
 {
-  SetIsDOMBinding();
+  mPlugin = aPlugin;
+  mMimeType = aMimeType;
 }
 
 nsMimeType::~nsMimeType()
 {
 }
 
-nsPIDOMWindow*
-nsMimeType::GetParentObject() const
+
+DOMCI_DATA(MimeType, nsMimeType)
+
+// QueryInterface implementation for nsMimeType
+NS_INTERFACE_MAP_BEGIN(nsMimeType)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMMimeType)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MimeType)
+NS_INTERFACE_MAP_END
+
+
+NS_IMPL_ADDREF(nsMimeType)
+NS_IMPL_RELEASE(nsMimeType)
+
+
+NS_IMETHODIMP
+nsMimeType::GetDescription(nsAString& aDescription)
 {
-  MOZ_ASSERT(mWindow);
-  return mWindow;
+  return mMimeType->GetDescription(aDescription);
 }
 
-JSObject*
-nsMimeType::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+NS_IMETHODIMP
+nsMimeType::GetEnabledPlugin(nsIDOMPlugin** aEnabledPlugin)
 {
-  return MimeTypeBinding::Wrap(aCx, aScope, this);
+  nsAutoString type;
+  GetType(type);
+
+  *aEnabledPlugin = mPlugin;
+
+  NS_IF_ADDREF(*aEnabledPlugin);
+
+  return NS_OK;
 }
 
-void
-nsMimeType::GetDescription(nsString& retval) const
+NS_IMETHODIMP
+nsMimeType::GetSuffixes(nsAString& aSuffixes)
 {
-  retval.Truncate();
-
-  if (mPluginElement) {
-    CopyUTF8toUTF16(mPluginElement->PluginTag()->
-                    mMimeDescriptions[mPluginTagMimeIndex], retval);
-  }
+  return mMimeType->GetSuffixes(aSuffixes);
 }
 
-nsPluginElement*
-nsMimeType::GetEnabledPlugin() const
+NS_IMETHODIMP
+nsMimeType::GetType(nsAString& aType)
 {
-  return (mPluginElement && mPluginElement->PluginTag()->IsEnabled()) ?
-    mPluginElement : nullptr;
+  return mMimeType->GetType(aType);
 }
 
-void
-nsMimeType::GetSuffixes(nsString& retval) const
-{
-  retval.Truncate();
+// QueryInterface implementation for nsHelperMimeType
+NS_IMPL_ISUPPORTS1(nsHelperMimeType, nsIDOMMimeType)
 
-  if (mPluginElement) {
-    CopyUTF8toUTF16(mPluginElement->PluginTag()->
-                    mExtensions[mPluginTagMimeIndex], retval);
-  }
+NS_IMETHODIMP
+nsHelperMimeType::GetDescription(nsAString& aDescription)
+{
+  aDescription.Truncate();
+  return NS_OK;
 }
 
-void
-nsMimeType::GetType(nsString& aRetval) const
+NS_IMETHODIMP
+nsHelperMimeType::GetEnabledPlugin(nsIDOMPlugin** aEnabledPlugin)
 {
-  aRetval = mType;
+  *aEnabledPlugin = nullptr;
+  return NS_OK;
 }
+
+NS_IMETHODIMP
+nsHelperMimeType::GetSuffixes(nsAString& aSuffixes)
+{
+  aSuffixes.Truncate();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHelperMimeType::GetType(nsAString& aType)
+{
+  aType = mType;
+  return NS_OK;
+}
+

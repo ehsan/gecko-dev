@@ -4,6 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* $Id$ */
 
 #include "cert.h"
 #include "ssl.h"
@@ -77,23 +78,27 @@ SSL_HandshakeNegotiatedExtension(PRFileDesc * socket,
 {
   /* some decisions derived from SSL_GetChannelInfo */
   sslSocket * sslsocket = NULL;
+  SECStatus rv = SECFailure;
+  PRBool enoughFirstHsDone = PR_FALSE;
 
-  if (!pYes) {
-    PORT_SetError(SEC_ERROR_INVALID_ARGS);
-    return SECFailure;
-  }
+  if (!pYes)
+    return rv;
 
   sslsocket = ssl_FindSocket(socket);
   if (!sslsocket) {
     SSL_DBG(("%d: SSL[%d]: bad socket in HandshakeNegotiatedExtension",
              SSL_GETPID(), socket));
-    return SECFailure;
+    return rv;
   }
 
-  *pYes = PR_FALSE;
+  if (sslsocket->firstHsDone) {
+    enoughFirstHsDone = PR_TRUE;
+  } else if (sslsocket->ssl3.initialized && ssl3_CanFalseStart(sslsocket)) {
+    enoughFirstHsDone = PR_TRUE;
+  }
 
   /* according to public API SSL_GetChannelInfo, this doesn't need a lock */
-  if (sslsocket->opt.useSecurity) {
+  if (sslsocket->opt.useSecurity && enoughFirstHsDone) {
     if (sslsocket->ssl3.initialized) { /* SSL3 and TLS */
       /* now we know this socket went through ssl3_InitState() and
        * ss->xtnData got initialized, which is the only member accessed by
@@ -105,8 +110,9 @@ SSL_HandshakeNegotiatedExtension(PRFileDesc * socket,
       ssl_GetSSL3HandshakeLock(sslsocket);
       *pYes = ssl3_ExtensionNegotiated(sslsocket, extId);
       ssl_ReleaseSSL3HandshakeLock(sslsocket);
+      rv = SECSuccess;
     }
   }
 
-  return SECSuccess;
+  return rv;
 }

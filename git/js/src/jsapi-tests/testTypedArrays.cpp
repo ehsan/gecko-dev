@@ -5,9 +5,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsfriendapi.h"
 
-#include "jsapi-tests/tests.h"
+#include "tests.h"
+#include "jsfriendapi.h"
 
 using namespace js;
 
@@ -31,7 +31,7 @@ BEGIN_TEST(testTypedArrays)
     CHECK(JS_IsArrayBufferObject(buffer));
 
     RootedObject proto(cx);
-    JS_GetPrototype(cx, buffer, &proto);
+    JS_GetPrototype(cx, buffer, proto.address());
     CHECK(!JS_IsArrayBufferObject(proto));
     RootedObject dummy(cx, JS_GetParent(proto));
     CHECK(!JS_IsArrayBufferObject(dummy));
@@ -59,15 +59,10 @@ template<JSObject *Create(JSContext *, uint32_t),
 bool
 TestPlainTypedArray(JSContext *cx)
 {
-    {
-        RootedObject notArray(cx, Create(cx, UINT32_MAX));
-        CHECK(!notArray);
-    }
-
     RootedObject array(cx, Create(cx, 7));
     CHECK(JS_IsTypedArrayObject(array));
     RootedObject proto(cx);
-    JS_GetPrototype(cx, array, &proto);
+    JS_GetPrototype(cx, array, proto.address());
     CHECK(!JS_IsTypedArrayObject(proto));
     RootedObject dummy(cx, JS_GetParent(proto));
     CHECK(!JS_IsTypedArrayObject(dummy));
@@ -80,7 +75,7 @@ TestPlainTypedArray(JSContext *cx)
     CHECK(data = GetData(array));
     *data = 13;
     RootedValue v(cx);
-    CHECK(JS_GetElement(cx, array, 0, &v));
+    CHECK(JS_GetElement(cx, array, 0, v.address()));
     CHECK_SAME(v, INT_TO_JSVAL(13));
 
     return true;
@@ -99,11 +94,6 @@ TestArrayFromBuffer(JSContext *cx)
     uint8_t *bufdata;
     CHECK(bufdata = JS_GetArrayBufferData(buffer));
     memset(bufdata, 1, nbytes);
-
-    {
-        RootedObject notArray(cx, CreateWithBuffer(cx, buffer, UINT32_MAX, -1));
-        CHECK(!notArray);
-    }
 
     RootedObject array(cx, CreateWithBuffer(cx, buffer, 0, -1));
     CHECK_EQUAL(JS_GetTypedArrayLength(array), elts);
@@ -131,39 +121,39 @@ TestArrayFromBuffer(JSContext *cx)
 
     // Make sure all 3 views reflect the same buffer at the expected locations
     JS::RootedValue v(cx, INT_TO_JSVAL(39));
-    JS_SetElement(cx, array, 0, &v);
+    JS_SetElement(cx, array, 0, v.address());
     JS::RootedValue v2(cx);
-    CHECK(JS_GetElement(cx, array, 0, &v2));
+    CHECK(JS_GetElement(cx, array, 0, v2.address()));
     CHECK_SAME(v, v2);
-    CHECK(JS_GetElement(cx, shortArray, 0, &v2));
+    CHECK(JS_GetElement(cx, shortArray, 0, v2.address()));
     CHECK_SAME(v, v2);
     CHECK_EQUAL(long(JSVAL_TO_INT(v)), long(reinterpret_cast<Element*>(data)[0]));
 
     v = INT_TO_JSVAL(40);
-    JS_SetElement(cx, array, elts / 2, &v);
-    CHECK(JS_GetElement(cx, array, elts / 2, &v2));
+    JS_SetElement(cx, array, elts / 2, v.address());
+    CHECK(JS_GetElement(cx, array, elts / 2, v2.address()));
     CHECK_SAME(v, v2);
-    CHECK(JS_GetElement(cx, ofsArray, 0, &v2));
+    CHECK(JS_GetElement(cx, ofsArray, 0, v2.address()));
     CHECK_SAME(v, v2);
     CHECK_EQUAL(long(JSVAL_TO_INT(v)), long(reinterpret_cast<Element*>(data)[elts / 2]));
 
     v = INT_TO_JSVAL(41);
-    JS_SetElement(cx, array, elts - 1, &v);
-    CHECK(JS_GetElement(cx, array, elts - 1, &v2));
+    JS_SetElement(cx, array, elts - 1, v.address());
+    CHECK(JS_GetElement(cx, array, elts - 1, v2.address()));
     CHECK_SAME(v, v2);
-    CHECK(JS_GetElement(cx, ofsArray, elts / 2 - 1, &v2));
+    CHECK(JS_GetElement(cx, ofsArray, elts / 2 - 1, v2.address()));
     CHECK_SAME(v, v2);
     CHECK_EQUAL(long(JSVAL_TO_INT(v)), long(reinterpret_cast<Element*>(data)[elts - 1]));
 
     JS::RootedObject copy(cx, CreateFromArray(cx, array));
-    CHECK(JS_GetElement(cx, array, 0, &v));
-    CHECK(JS_GetElement(cx, copy, 0, &v2));
+    CHECK(JS_GetElement(cx, array, 0, v.address()));
+    CHECK(JS_GetElement(cx, copy, 0, v2.address()));
     CHECK_SAME(v, v2);
 
     /* The copy should not see changes in the original */
     v2 = INT_TO_JSVAL(42);
-    JS_SetElement(cx, array, 0, &v2);
-    CHECK(JS_GetElement(cx, copy, 0, &v2));
+    JS_SetElement(cx, array, 0, v2.address());
+    CHECK(JS_GetElement(cx, copy, 0, v2.address()));
     CHECK_SAME(v2, v); /* v is still the original value from 'array' */
 
     return true;

@@ -4,22 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsFontMetrics.h"
-#include <math.h>                       // for floor, ceil
-#include <algorithm>                    // for max
-#include "gfxPlatform.h"                // for gfxPlatform
-#include "gfxPoint.h"                   // for gfxPoint
-#include "gfxRect.h"                    // for gfxRect
-#include "gfxTypes.h"                   // for gfxFloat
-#include "nsBoundingMetrics.h"          // for nsBoundingMetrics
-#include "nsDebug.h"                    // for NS_ERROR, NS_ABORT_IF_FALSE
-#include "nsDeviceContext.h"            // for nsDeviceContext
-#include "nsIAtom.h"                    // for nsIAtom
-#include "nsMathUtils.h"                // for NS_round
-#include "nsRenderingContext.h"         // for nsRenderingContext
-#include "nsString.h"               // for nsString
-#include "nsStyleConsts.h"              // for NS_STYLE_HYPHENS_NONE
-
-class gfxUserFontSet;
+#include "nsBoundingMetrics.h"
+#include "nsRenderingContext.h"
+#include "nsDeviceContext.h"
+#include "nsStyleConsts.h"
+#include <algorithm>
 
 namespace {
 
@@ -318,7 +307,7 @@ nsFontMetrics::DrawString(const char *aString, uint32_t aLength,
     if (mTextRunRTL) {
         pt.x += textRun->GetAdvanceWidth(0, aLength, &provider);
     }
-    textRun->Draw(aContext->ThebesContext(), pt, DrawMode::GLYPH_FILL, 0, aLength,
+    textRun->Draw(aContext->ThebesContext(), pt, gfxFont::GLYPH_FILL, 0, aLength,
                   &provider, nullptr, nullptr);
 }
 
@@ -340,7 +329,7 @@ nsFontMetrics::DrawString(const PRUnichar* aString, uint32_t aLength,
     if (mTextRunRTL) {
         pt.x += textRun->GetAdvanceWidth(0, aLength, &provider);
     }
-    textRun->Draw(aContext->ThebesContext(), pt, DrawMode::GLYPH_FILL, 0, aLength,
+    textRun->Draw(aContext->ThebesContext(), pt, gfxFont::GLYPH_FILL, 0, aLength,
                   &provider, nullptr, nullptr);
 }
 

@@ -6,45 +6,21 @@
 
 TEST_DIRS += ['mochitest']
 
+XPIDL_SOURCES += [
+    'nsIAsyncScrollEventDetail.idl',
+    'nsIOpenWindowEventDetail.idl',
+]
+
 XPIDL_MODULE = 'dom_browserelement'
 
 MODULE = 'dom'
 
+EXPORTS += [
+    'nsAsyncScrollEventDetail.h',
+    'nsOpenWindowEventDetail.h',
+]
+
 EXPORTS.mozilla += [
     'BrowserElementParent.h',
-]
-
-SOURCES += [
-    'BrowserElementParent.cpp',
-]
-
-EXTRA_COMPONENTS += [
-    'BrowserElementParent.js',
-    'BrowserElementParent.manifest',
-]
-
-EXTRA_JS_MODULES += [
-    'BrowserElementParent.jsm',
-    'BrowserElementPromptService.jsm',
-]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'dom_browserelement_s'
-
-LOCAL_INCLUDES += [
-    '../bluetooth',
-    '/content/html/content/src',
-]
-
-include('/ipc/chromium/chromium-config.mozbuild')
-
-LOCAL_INCLUDES += [
-    '/content/base/src',
-    '/dom/',
-    '/dom/base',
-    '/dom/ipc',
 ]
 

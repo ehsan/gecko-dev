@@ -18,11 +18,8 @@
 #define mozilla_HwcComposer2D
 
 #include "Composer2D.h"
+#include "HWComposer.h"
 #include "Layers.h"
-#include <vector>
-#include <list>
-
-#include <hardware/hwcomposer.h>
 
 namespace mozilla {
 
@@ -31,20 +28,8 @@ class ContainerLayer;
 class Layer;
 }
 
-//Holds a dynamically allocated vector of rectangles
-//used to decribe the complex visible region of a layer
-typedef std::vector<hwc_rect_t> RectVector;
-#if ANDROID_VERSION >= 18
-typedef hwc_composer_device_1_t HwcDevice;
-typedef hwc_display_contents_1_t HwcList;
-typedef hwc_layer_1_t HwcLayer;
-#else
-typedef hwc_composer_device_t HwcDevice;
-typedef hwc_layer_list_t HwcList;
-typedef hwc_layer_t HwcLayer;
-#endif
-
-class HwcComposer2D : public mozilla::layers::Composer2D {
+class HwcComposer2D : public android::HWComposer,
+                      public mozilla::layers::Composer2D {
 public:
     HwcComposer2D();
     virtual ~HwcComposer2D();
@@ -60,29 +45,15 @@ public:
     // by this composer so nothing was rendered at all
     bool TryRender(layers::Layer* aRoot, const gfxMatrix& aGLWorldTransform) MOZ_OVERRIDE;
 
-    bool Render(EGLDisplay dpy, EGLSurface sur);
-
 private:
-    void Prepare(buffer_handle_t fbHandle, int fence);
-    bool Commit();
-    bool TryHwComposition();
     bool ReallocLayerList();
     bool PrepareLayerList(layers::Layer* aContainer, const nsIntRect& aClip,
           const gfxMatrix& aParentTransform, const gfxMatrix& aGLWorldTransform);
 
-    HwcDevice*              mHwc;
-    HwcList*                mList;
-    hwc_display_t           mDpy;
-    hwc_surface_t           mSur;
+    hwc_layer_list_t*       mList;
     nsIntRect               mScreenRect;
     int                     mMaxLayerCount;
     bool                    mColorFill;
-    bool                    mRBSwapSupport;
-    //Holds all the dynamically allocated RectVectors needed
-    //to render the current frame
-    std::list<RectVector>   mVisibleRegions;
-    nsTArray<int>           mPrevReleaseFds;
-    nsTArray<layers::LayerComposite*> mHwcLayerMap;
 };
 
 } // namespace mozilla

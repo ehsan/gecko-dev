@@ -5,22 +5,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "CompositorChild.h"
-#include <stddef.h>                     // for size_t
-#include "Layers.h"                     // for LayerManager
-#include "base/message_loop.h"          // for MessageLoop
-#include "base/process_util.h"          // for OpenProcessHandle
-#include "base/task.h"                  // for NewRunnableMethod, etc
-#include "base/tracked.h"               // for FROM_HERE
-#include "mozilla/layers/LayerTransactionChild.h"
-#include "mozilla/layers/PLayerTransactionChild.h"
-#include "mozilla/mozalloc.h"           // for operator new, etc
-#include "nsDebug.h"                    // for NS_RUNTIMEABORT
-#include "nsIObserver.h"                // for nsIObserver
-#include "nsTArray.h"                   // for nsTArray, nsTArray_Impl
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
-#include "nsXULAppAPI.h"                // for XRE_GetIOMessageLoop, etc
+#include "CompositorParent.h"
+#include "LayerManagerOGL.h"
+#include "mozilla/layers/ShadowLayersChild.h"
 
-using mozilla::layers::LayerTransactionChild;
+using mozilla::layers::ShadowLayersChild;
 
 namespace mozilla {
 namespace layers {
@@ -42,10 +31,10 @@ void
 CompositorChild::Destroy()
 {
   mLayerManager->Destroy();
-  mLayerManager = nullptr;
-  while (size_t len = ManagedPLayerTransactionChild().Length()) {
-    LayerTransactionChild* layers =
-      static_cast<LayerTransactionChild*>(ManagedPLayerTransactionChild()[len - 1]);
+  mLayerManager = NULL;
+  while (size_t len = ManagedPLayersChild().Length()) {
+    ShadowLayersChild* layers =
+      static_cast<ShadowLayersChild*>(ManagedPLayersChild()[len - 1]);
     layers->Destroy();
   }
   SendStop();
@@ -64,7 +53,8 @@ CompositorChild::Create(Transport* aTransport, ProcessId aOtherProcess)
     NS_RUNTIMEABORT("Couldn't OpenProcessHandle() to parent process.");
     return nullptr;
   }
-  if (!child->Open(aTransport, handle, XRE_GetIOMessageLoop(), ipc::ChildSide)) {
+  if (!child->Open(aTransport, handle, XRE_GetIOMessageLoop(),
+                AsyncChannel::Child)) {
     NS_RUNTIMEABORT("Couldn't Open() Compositor channel.");
     return nullptr;
   }
@@ -80,17 +70,16 @@ CompositorChild::Get()
   return sCompositor;
 }
 
-PLayerTransactionChild*
-CompositorChild::AllocPLayerTransactionChild(const nsTArray<LayersBackend>& aBackendHints,
-                                             const uint64_t& aId,
-                                             TextureFactoryIdentifier*,
-                                             bool*)
+PLayersChild*
+CompositorChild::AllocPLayers(const LayersBackend& aBackendHint,
+                              const uint64_t& aId,
+                              TextureFactoryIdentifier* aTextureFactoryIdentifier)
 {
-  return new LayerTransactionChild();
+  return new ShadowLayersChild();
 }
 
 bool
-CompositorChild::DeallocPLayerTransactionChild(PLayerTransactionChild* actor)
+CompositorChild::DeallocPLayers(PLayersChild* actor)
 {
   delete actor;
   return true;
@@ -101,17 +90,11 @@ CompositorChild::ActorDestroy(ActorDestroyReason aWhy)
 {
   MOZ_ASSERT(sCompositor == this);
 
-#ifdef MOZ_B2G
-  // Due to poor lifetime management of gralloc (and possibly shmems) we will
-  // crash at some point in the future when we get destroyed due to abnormal
-  // shutdown. Its better just to crash here. On desktop though, we have a chance
-  // of recovering.
   if (aWhy == AbnormalShutdown) {
     NS_RUNTIMEABORT("ActorDestroy by IPC channel failure at CompositorChild");
   }
-#endif
 
-  sCompositor = nullptr;
+  sCompositor = NULL;
   // We don't want to release the ref to sCompositor here, during
   // cleanup, because that will cause it to be deleted while it's
   // still being used.  So defer the deletion to after it's not in

@@ -41,6 +41,7 @@
 #include "nsIURI.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
+#include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsDisplayList.h"
 #include "ImageLayers.h"
@@ -48,11 +49,8 @@
 
 #include "nsContentUtils.h"
 
-#include "mozilla/BasicEvents.h"
-
 #define ONLOAD_CALLED_TOO_EARLY 1
 
-using namespace mozilla;
 using namespace mozilla::layers;
 
 class nsImageBoxFrameEvent : public nsRunnable
@@ -82,7 +80,7 @@ nsImageBoxFrameEvent::Run()
   }
 
   nsEventStatus status = nsEventStatus_eIgnore;
-  WidgetEvent event(true, mMessage);
+  nsEvent event(true, mMessage);
 
   event.mFlags.mBubbles = false;
   nsEventDispatcher::Dispatch(mContent, pres_context, &event, nullptr, &status);
@@ -345,36 +343,11 @@ nsImageBoxFrame::PaintImage(nsRenderingContext& aRenderingContext,
 void nsDisplayXULImage::Paint(nsDisplayListBuilder* aBuilder,
                               nsRenderingContext* aCtx)
 {
-  uint32_t flags = imgIContainer::FLAG_NONE;
-  if (aBuilder->ShouldSyncDecodeImages())
-    flags |= imgIContainer::FLAG_SYNC_DECODE;
-  if (aBuilder->IsPaintingToWindow())
-    flags |= imgIContainer::FLAG_HIGH_QUALITY_SCALING;
-
   static_cast<nsImageBoxFrame*>(mFrame)->
-    PaintImage(*aCtx, mVisibleRect, ToReferenceFrame(), flags);
-}
-
-void
-nsDisplayXULImage::ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                             const nsDisplayItemGeometry* aGeometry,
-                                             nsRegion* aInvalidRegion)
-{
-
-  if (aBuilder->ShouldSyncDecodeImages()) {
-    nsImageBoxFrame* boxFrame = static_cast<nsImageBoxFrame*>(mFrame);
-    nsCOMPtr<imgIContainer> image;
-    if (boxFrame->mImageRequest) {
-      boxFrame->mImageRequest->GetImage(getter_AddRefs(image));
-    }
-
-    if  (image && !image->IsDecoded()) {
-      bool snap;
-      aInvalidRegion->Or(*aInvalidRegion, GetBounds(aBuilder, &snap));
-    }
-  }
-
-  nsDisplayImageContainer::ComputeInvalidationRegion(aBuilder, aGeometry, aInvalidRegion);
+    PaintImage(*aCtx, mVisibleRect, ToReferenceFrame(),
+               aBuilder->ShouldSyncDecodeImages()
+                 ? (uint32_t) imgIContainer::FLAG_SYNC_DECODE
+                 : (uint32_t) imgIContainer::FLAG_NONE);
 }
 
 void
@@ -498,7 +471,7 @@ nsImageBoxFrame::GetPrefSize(nsBoxLayoutState& aState)
      GetImageSize();
 
   if (!mUseSrcAttr && (mSubRect.width > 0 || mSubRect.height > 0))
-    size = mSubRect.Size();
+    size = nsSize(mSubRect.width, mSubRect.height);
   else
     size = mImageSize;
 

@@ -4,20 +4,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jsapi.h"
+#include "jscntxt.h"
 #include "jscrashreport.h"
+#include "jscrashformat.h"
 
 #include <time.h>
-
-#include "jsapi.h"
-#include "jscrashformat.h"
-#include "jsutil.h"
 
 using namespace js;
 using namespace js::crash;
 
-#if defined(XP_WIN)
+const static int stack_snapshot_max_size = 32768;
 
-static const int stack_snapshot_max_size = 32768;
+#if defined(XP_WIN)
 
 #include <windows.h>
 
@@ -46,7 +45,7 @@ GetStack(uint64_t *stack, uint64_t *stack_len, CrashRegisters *regs, char *buffe
     *stack_len = len;
 
     /* Get the register state. */
-#if defined(_MSC_VER) && defined(_M_IX86)
+#if defined(_MSC_VER) && JS_BITS_PER_WORD == 32
     /* ASM version for win2k that doesn't support RtlCaptureContext */
     uint32_t vip, vsp, vbp;
     __asm {
@@ -62,16 +61,14 @@ GetStack(uint64_t *stack, uint64_t *stack_len, CrashRegisters *regs, char *buffe
 #else
     CONTEXT context;
     RtlCaptureContext(&context);
-#if defined(_M_IX86)
+#if JS_BITS_PER_WORD == 32
     regs->ip = context.Eip;
     regs->sp = context.Esp;
     regs->bp = context.Ebp;
-#elif defined(_M_X64)
+#else
     regs->ip = context.Rip;
     regs->sp = context.Rsp;
     regs->bp = context.Rbp;
-#else
-#error unknown cpu architecture
 #endif
 #endif
 
@@ -82,9 +79,9 @@ GetStack(uint64_t *stack, uint64_t *stack_len, CrashRegisters *regs, char *buffe
 
 #elif 0
 
-#include <sys/mman.h>
-#include <ucontext.h>
 #include <unistd.h>
+#include <ucontext.h>
+#include <sys/mman.h>
 
 static bool
 GetStack(uint64_t *stack, uint64_t *stack_len, CrashRegisters *regs, char *buffer, size_t size)
@@ -116,16 +113,14 @@ GetStack(uint64_t *stack, uint64_t *stack_len, CrashRegisters *regs, char *buffe
     if (getcontext(&context) != 0)
 	return false;
 
-#if defined(__x86_64__)
+#if JS_BITS_PER_WORD == 64
     regs->sp = (uint64_t)context.uc_mcontext.gregs[REG_RSP];
     regs->bp = (uint64_t)context.uc_mcontext.gregs[REG_RBP];
     regs->ip = (uint64_t)context.uc_mcontext.gregs[REG_RIP];
-#elif defined(__i386__)
+#elif JS_BITS_PER_WORD == 32
     regs->sp = (uint64_t)context.uc_mcontext.gregs[REG_ESP];
     regs->bp = (uint64_t)context.uc_mcontext.gregs[REG_EBP];
     regs->ip = (uint64_t)context.uc_mcontext.gregs[REG_EIP];
-#else
-#error unknown cpu architecture
 #endif
 
     js_memcpy(buffer, (void *)p, len);
@@ -162,7 +157,7 @@ Stack::Stack(uint64_t id)
 bool
 Stack::snapshot()
 {
-    snaptime = time(nullptr);
+    snaptime = time(NULL);
     return GetStack(&stack_base, &stack_len, &regs, stack, sizeof(stack));
 }
 
@@ -186,7 +181,7 @@ Ring::Ring(uint64_t id)
 void
 Ring::push(uint64_t tag, void *data, size_t size)
 {
-    uint64_t t = time(nullptr);
+    uint64_t t = time(NULL);
 
     copyBytes(&tag, sizeof(uint64_t));
     copyBytes(&t, sizeof(uint64_t));

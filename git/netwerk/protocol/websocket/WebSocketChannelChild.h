@@ -8,13 +8,13 @@
 #define mozilla_net_WebSocketChannelChild_h
 
 #include "mozilla/net/PWebSocketChild.h"
+#include "mozilla/net/ChannelEventQueue.h"
 #include "mozilla/net/BaseWebSocketChannel.h"
+#include "nsCOMPtr.h"
 #include "nsString.h"
 
 namespace mozilla {
 namespace net {
-
-class ChannelEventQueue;
 
 class WebSocketChannelChild : public BaseWebSocketChannel,
                               public PWebSocketChild
@@ -55,7 +55,7 @@ class WebSocketChannelChild : public BaseWebSocketChannel,
   void OnServerClose(const uint16_t& aCode, const nsCString& aReason);
   void AsyncOpenFailed();  
 
-  nsRefPtr<ChannelEventQueue> mEventQ;
+  ChannelEventQueue mEventQ;
   bool mIPCOpen;
 
   friend class StartEvent;

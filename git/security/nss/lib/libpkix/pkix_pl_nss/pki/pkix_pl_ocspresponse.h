@@ -17,7 +17,6 @@
 #include "cryptohi.h"
 #include "ocspti.h"
 #include "ocspi.h"
-#include "plbase64.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,7 +25,7 @@ extern "C" {
 #define MAX_OCSP_RESPONSE_LEN (64*1024)
 
 struct PKIX_PL_OcspResponseStruct{
-        PLArenaPool *arena;
+        PRArenaPool *arena;
         const PKIX_PL_OcspRequest *request;
         const SEC_HttpClientFcn *httpClient;
         SEC_HTTP_SERVER_SESSION serverSession;
@@ -34,7 +33,7 @@ struct PKIX_PL_OcspResponseStruct{
         PKIX_PL_VerifyCallback verifyFcn;
         SECItem *encodedResponse;
         CERTCertDBHandle *handle;
-        PRTime producedAt;
+        int64 producedAt;
         PKIX_PL_Date *producedAtDate;
         PKIX_PL_Cert *pkixSignerCert;
         CERTOCSPResponse *nssOCSPResponse;
@@ -48,7 +47,6 @@ PKIX_Error *pkix_pl_OcspResponse_RegisterSelf(void *plContext);
 PKIX_Error *
 pkix_pl_OcspResponse_Create(
         PKIX_PL_OcspRequest *request,
-        const char *httpMechanism,
         void *responder,
         PKIX_PL_VerifyCallback verifyFcn,
         void **pNBIOContext,
@@ -82,7 +80,6 @@ PKIX_Error *
 pkix_pl_OcspResponse_GetStatusForCert(
         PKIX_PL_OcspCertID *cid,
         PKIX_PL_OcspResponse *response,
-        PKIX_Boolean allowCachingOfFailures,
         PKIX_PL_Date *validity,
         PKIX_Boolean *pPassed,
         SECErrorCodes *pReturnCode,

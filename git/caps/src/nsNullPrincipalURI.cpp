@@ -5,9 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsNullPrincipalURI.h"
-
-#include "mozilla/MemoryReporting.h"
-
 #include "nsNetUtil.h"
 #include "nsEscape.h"
 #include "nsCRT.h"
@@ -33,8 +30,8 @@ nsNullPrincipalURI::nsNullPrincipalURI(const nsCString &aSpec)
 static NS_DEFINE_CID(kNullPrincipalURIImplementationCID,
                      NS_NULLPRINCIPALURI_IMPLEMENTATION_CID);
 
-NS_IMPL_ADDREF(nsNullPrincipalURI)
-NS_IMPL_RELEASE(nsNullPrincipalURI)
+NS_IMPL_THREADSAFE_ADDREF(nsNullPrincipalURI)
+NS_IMPL_THREADSAFE_RELEASE(nsNullPrincipalURI)
 
 NS_INTERFACE_MAP_BEGIN(nsNullPrincipalURI)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIURI)
@@ -275,14 +272,14 @@ nsNullPrincipalURI::SchemeIs(const char *aScheme, bool *_schemeIs)
 //// nsISizeOf
 
 size_t
-nsNullPrincipalURI::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsNullPrincipalURI::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return mScheme.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
          mPath.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
 }
 
 size_t
-nsNullPrincipalURI::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
+nsNullPrincipalURI::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
   return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
 

@@ -13,12 +13,12 @@
 #include "nsAttrValue.h"
 #include "nsWrapperCacheInlines.h"
 #include "mozilla/dom/HTMLPropertiesCollectionBinding.h"
-#include "jsapi.h"
+
+DOMCI_DATA(HTMLPropertiesCollection, mozilla::dom::HTMLPropertiesCollection)
+DOMCI_DATA(PropertyNodeList, mozilla::dom::PropertyNodeList)
 
 namespace mozilla {
 namespace dom {
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLPropertiesCollection)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(HTMLPropertiesCollection)
   // SetDocument(nullptr) ensures that we remove ourselves as a mutation observer
@@ -51,6 +51,7 @@ HTMLPropertiesCollection::HTMLPropertiesCollection(nsGenericHTMLElement* aRoot)
   if (mDoc) {
     mDoc->AddMutationObserver(this);
   }
+  mNamedItemEntries.Init();
 }
 
 HTMLPropertiesCollection::~HTMLPropertiesCollection()
@@ -94,7 +95,7 @@ HTMLPropertiesCollection::SetDocument(nsIDocument* aDocument) {
 }
 
 JSObject*
-HTMLPropertiesCollection::WrapObject(JSContext* cx, JS::Handle<JSObject*> scope)
+HTMLPropertiesCollection::WrapObject(JSContext* cx, JSObject* scope)
 {
   return HTMLPropertiesCollectionBinding::Wrap(cx, scope, this);
 }
@@ -125,6 +126,16 @@ HTMLPropertiesCollection::NamedItem(const nsAString& aName,
 {
   *aResult = nullptr;
   return NS_OK;
+}
+
+JSObject*
+HTMLPropertiesCollection::NamedItem(JSContext* cx, const nsAString& name,
+                                    mozilla::ErrorResult& error)
+{
+  // HTMLPropertiesCollection.namedItem and the named getter call the NamedItem
+  // that returns a PropertyNodeList, calling HTMLCollection.namedItem doesn't
+  // make sense so this returns null.
+  return nullptr;
 }
 
 Element*
@@ -392,12 +403,10 @@ PropertyNodeList::GetParentObject()
 }
 
 JSObject*
-PropertyNodeList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+PropertyNodeList::WrapObject(JSContext *cx, JSObject *scope)
 {
   return PropertyNodeListBinding::Wrap(cx, scope, this);
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(PropertyNodeList)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(PropertyNodeList)
   // SetDocument(nullptr) ensures that we remove ourselves as a mutation observer
@@ -436,7 +445,7 @@ PropertyNodeList::GetValues(JSContext* aCx, nsTArray<JS::Value >& aResult,
 {
   EnsureFresh();
 
-  JS::Rooted<JSObject*> wrapper(aCx, GetWrapper());
+  JSObject* wrapper = GetWrapper();
   JSAutoCompartment ac(aCx, wrapper);
   uint32_t length = mElements.Length();
   for (uint32_t i = 0; i < length; ++i) {

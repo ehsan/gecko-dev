@@ -17,7 +17,6 @@
 #include "nsString.h"
 #include "nsIClassInfoImpl.h"
 #include "nsIScriptSecurityManager.h"
-#include "pratom.h"
 
 NS_IMPL_CLASSINFO(nsSystemPrincipal, nullptr,
                   nsIClassInfo::SINGLETON | nsIClassInfo::MAIN_THREAD_ONLY,
@@ -166,10 +165,9 @@ nsSystemPrincipal::SetSecurityPolicy(void* aSecurityPolicy)
 }
 
 NS_IMETHODIMP
-nsSystemPrincipal::GetJarPrefix(nsACString& aJarPrefix)
+nsSystemPrincipal::GetExtendedOrigin(nsACString& aExtendedOrigin)
 {
-  aJarPrefix.Truncate();
-  return NS_OK;
+  return GetOrigin(getter_Copies(aExtendedOrigin));
 }
 
 NS_IMETHODIMP

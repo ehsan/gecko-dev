@@ -19,7 +19,35 @@ HTMLLegendElement::~HTMLLegendElement()
 {
 }
 
+
+NS_IMPL_ADDREF_INHERITED(HTMLLegendElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLLegendElement, Element)
+
+
+// QueryInterface implementation for HTMLLegendElement
+NS_INTERFACE_TABLE_HEAD(HTMLLegendElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLLegendElement, nsIDOMHTMLLegendElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLLegendElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
+
+
+// nsIDOMHTMLLegendElement
+
+
 NS_IMPL_ELEMENT_CLONE(HTMLLegendElement)
+
+
+NS_IMETHODIMP
+HTMLLegendElement::GetForm(nsIDOMHTMLFormElement** aForm)
+{
+  Element* form = GetFormElement();
+
+  return form ? CallQueryInterface(form, aForm) : NS_OK;
+}
+
+
+NS_IMPL_STRING_ATTR(HTMLLegendElement, Align, align)
 
 // this contains center, because IE4 does
 static const nsAttrValue::EnumTable kAlignTable[] = {
@@ -136,17 +164,17 @@ HTMLLegendElement::PerformAccesskey(bool aKeyCausesActivation,
   Focus(rv);
 }
 
-already_AddRefed<HTMLFormElement>
+already_AddRefed<nsHTMLFormElement>
 HTMLLegendElement::GetForm()
 {
   Element* form = GetFormElement();
   MOZ_ASSERT_IF(form, form->IsHTML(nsGkAtoms::form));
-  nsRefPtr<HTMLFormElement> ret = static_cast<HTMLFormElement*>(form);
+  nsRefPtr<nsHTMLFormElement> ret = static_cast<nsHTMLFormElement*>(form);
   return ret.forget();
 }
 
 JSObject*
-HTMLLegendElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLLegendElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return HTMLLegendElementBinding::Wrap(aCx, aScope, this);
 }

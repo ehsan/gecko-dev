@@ -7,15 +7,11 @@
 #ifndef mozilla_dom_TaskThrottler_h
 #define mozilla_dom_TaskThrottler_h
 
-#include <stdint.h>                     // for uint32_t
-#include "base/task.h"                  // for CancelableTask
-#include "mozilla/TimeStamp.h"          // for TimeDuration, TimeStamp
-#include "mozilla/mozalloc.h"           // for operator delete
-#include "nsAutoPtr.h"                  // for nsAutoPtr
-#include "nsTArray.h"                   // for nsTArray
+#include "nsAutoPtr.h"
 
+class CancelableTask;
 namespace tracked_objects {
-class Location;
+  class Location;
 }
 
 namespace mozilla {
@@ -36,7 +32,7 @@ namespace layers {
 
 class TaskThrottler {
 public:
-  TaskThrottler(const TimeStamp& aTimeStamp);
+  TaskThrottler();
 
   /** Post a task to be run as soon as there are no outstanding tasks.
    *
@@ -46,50 +42,15 @@ public:
    *                  obsolete or the TaskThrottler is destructed.
    */
   void PostTask(const tracked_objects::Location& aLocation,
-                CancelableTask* aTask, const TimeStamp& aTimeStamp);
+                CancelableTask* aTask);
   /**
-   * Mark the task as complete and process the next queued task.
+   * return true if Throttler had outstanding task
    */
-  void TaskComplete(const TimeStamp& aTimeStamp);
-
-  /**
-   * Calculate the average time between processing the posted task and getting
-   * the TaskComplete() call back.
-   */
-  TimeDuration AverageDuration();
-
-  /**
-   * return true if Throttler has an outstanding task
-   */
-  bool IsOutstanding() { return mOutstanding; }
-
-  /**
-   * Return the time elapsed since the last request was processed
-   */
-  TimeDuration TimeSinceLastRequest(const TimeStamp& aTimeStamp);
-
-  /**
-   * Clear average history.
-   */
-  void ClearHistory() { mDurations.Clear(); }
-
-  /**
-   * @param aMaxDurations The maximum number of durations to measure.
-   */
-
-  void SetMaxDurations(uint32_t aMaxDurations)
-  {
-    mMaxDurations = aMaxDurations;
-  }
+  bool TaskComplete();
 
 private:
   bool mOutstanding;
   nsAutoPtr<CancelableTask> mQueuedTask;
-  TimeStamp mStartTime;
-
-  // How long it took in the past to paint after a series of previous requests.
-  nsTArray<TimeDuration> mDurations;
-  uint32_t mMaxDurations;
 };
 
 }

@@ -14,8 +14,8 @@
 
 #include "webrtc/test/testsupport/perf_test.h"
 
-#include <sstream>
 #include <stdio.h>
+#include <sstream>
 
 namespace {
 

@@ -45,7 +45,7 @@ public:
                     bool aFinish,
                     nsIRunnable* aFinishRunnable);
 
-  void WaitForDatabasesToComplete(nsTArray<nsRefPtr<IDBDatabase> >& aDatabases,
+  void WaitForDatabasesToComplete(nsTArray<IDBDatabase*>& aDatabases,
                                   nsIRunnable* aCallback);
 
   // Abort all transactions, unless they are already in the process of being
@@ -59,7 +59,7 @@ protected:
   class TransactionQueue MOZ_FINAL : public nsIRunnable
   {
   public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIRUNNABLE
 
     TransactionQueue(IDBTransaction* aTransaction);
@@ -85,6 +85,9 @@ protected:
     TransactionInfo(IDBTransaction* aTransaction)
     {
       MOZ_COUNT_CTOR(TransactionInfo);
+
+      blockedOn.Init();
+      blocking.Init();
 
       transaction = aTransaction;
       queue = new TransactionQueue(aTransaction);
@@ -124,6 +127,9 @@ protected:
     DatabaseTransactionInfo()
     {
       MOZ_COUNT_CTOR(DatabaseTransactionInfo);
+
+      transactions.Init();
+      blockingTransactions.Init();
     }
 
     ~DatabaseTransactionInfo()
@@ -153,7 +159,7 @@ protected:
 
   struct DatabasesCompleteCallback
   {
-    nsTArray<nsRefPtr<IDBDatabase> > mDatabases;
+    nsTArray<IDBDatabase*> mDatabases;
     nsCOMPtr<nsIRunnable> mCallback;
   };
 

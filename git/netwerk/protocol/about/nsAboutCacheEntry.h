@@ -10,11 +10,12 @@
 #include "nsICacheListener.h"
 #include "nsICacheEntryDescriptor.h"
 #include "nsCOMPtr.h"
+#include "nsString.h"
 
+class nsICacheEntryDescriptor;
 class nsIAsyncOutputStream;
 class nsIInputStream;
 class nsIURI;
-class nsCString;
 
 class nsAboutCacheEntry : public nsIAboutModule
                         , public nsICacheMetaDataVisitor

@@ -46,6 +46,7 @@
 
 // These are needed to load a URL in a browser window.
 #include "nsIDOMLocation.h"
+#include "nsIJSContextStack.h"
 #include "nsIWebNavigation.h"
 #include "nsIWindowMediator.h"
 
@@ -377,7 +378,7 @@ int DdeCmpStringHandles( HSZ hsz1, HSZ hsz2 )
 
   /* I am assuming that the strings will never be more that CCHMAXPATH in
    * length.  Safe bet (for now).  To find true length, call WinDdeQueryString
-   * and pass in (hsz, nullptr, 0L, 0) and it will return iLength.  Passing 0
+   * and pass in (hsz, NULL, 0L, 0) and it will return iLength.  Passing 0
    * for codepage will use the codepage of the current thread.
    */
   WinDdeQueryString( hsz1, chhsz1, sizeof( chhsz1 ), 0 );
@@ -397,16 +398,16 @@ char *GetCommandLine()
     * .exe and the second string is what followed on the command line.  Dorky,
     * but I guess it'll have to do.
     */
-   PTIB pTIB = nullptr;
-   PPIB pPIB = nullptr;
+   PTIB pTIB = NULL;
+   PPIB pPIB = NULL;
    APIRET rc = NO_ERROR;
-   char *pchParam = nullptr;
+   char *pchParam = NULL;
 
    rc = DosGetInfoBlocks( &pTIB, &pPIB );
    if( rc == NO_ERROR )
    {
       INT iLen = 0;
-      char *pchTemp = nullptr;
+      char *pchTemp = NULL;
       pchParam = pPIB->pib_pchcmd;
       strcpy( szCommandLine, pchParam );
       iLen = strlen( pchParam );
@@ -469,7 +470,7 @@ DDEMLFN ddemlfnTable[] =
    { (PFN *)&WinDdeReconnect            ,123 },
    { (PFN *)&WinDdeSetUserHandle        ,124 },
    { (PFN *)&WinDdeUninitialize         ,126 },
-   { (PFN *)nullptr                     ,  0 }
+   { (PFN *)NULL                           ,  0 }
 };
 
 /* SetupOS2ddeml makes sure that we can get pointers to all of the DDEML 
@@ -482,7 +483,7 @@ BOOL SetupOS2ddeml()
     HMODULE hmodDDEML = NULLHANDLE;
     APIRET rc = NO_ERROR;
 
-    rc = DosLoadModule( nullptr, 0, "PMDDEML", &hmodDDEML );
+    rc = DosLoadModule( NULL, 0, "PMDDEML", &hmodDDEML );
     if( rc == NO_ERROR )
     {
        int i;
@@ -490,7 +491,7 @@ BOOL SetupOS2ddeml()
        bRC = TRUE;
        for( i=0; ddemlfnTable[i].ord != 0; i++ )
        {
-          rc = DosQueryProcAddr( hmodDDEML, ddemlfnTable[i].ord, nullptr,
+          rc = DosQueryProcAddr( hmodDDEML, ddemlfnTable[i].ord, NULL,
                                  ddemlfnTable[i].fn );
           if( rc != NO_ERROR )
           {
@@ -580,15 +581,15 @@ struct MessageWindow {
         const char * pszClassName = className();
         mHandle = WinCreateWindow( HWND_OBJECT,
                                    pszClassName,
-                                   nullptr,      // name
-                                   WS_DISABLED,  // style
-                                   0,0,          // x, y
-                                   0,0,          // cx,cy
-                                   HWND_DESKTOP, // owner
+                                   NULL,        // name
+                                   WS_DISABLED, // style
+                                   0,0,     // x, y
+                                   0,0,       // cx,cy
+                                   HWND_DESKTOP,// owner
                                    HWND_BOTTOM,  // hwndbehind
                                    (USHORT)mMsgWindowAtom, // id
-                                   nullptr,      // pCtlData
-                                   nullptr );    // pres params
+                                   NULL,        // pCtlData
+                                   NULL );      // pres params
 
 #if MOZ_DEBUG_DDE
         printf( "Message window = 0x%08X\n", (int)mHandle );
@@ -609,7 +610,7 @@ struct MessageWindow {
             //  the same thread.
             BOOL desRes = WinDestroyWindow( mHandle );
             if ( FALSE != desRes ) {
-                mHandle = nullptr;
+                mHandle = NULL;
             }
             else {
                 retval = NS_ERROR_FAILURE;
@@ -632,27 +633,27 @@ struct MessageWindow {
     */
 
         COPYDATASTRUCT *pcds;
-        PVOID pvData = nullptr;
+        PVOID pvData = NULL;
 
         if (!cmd)
             return NS_ERROR_FAILURE;
 
         ULONG ulSize = sizeof(COPYDATASTRUCT)+strlen(cmd)+1+CCHMAXPATH;
 #ifdef MOZ_OS2_HIGH_MEMORY
-        APIRET rc = DosAllocSharedMem( &pvData, nullptr, ulSize,
+        APIRET rc = DosAllocSharedMem( &pvData, NULL, ulSize,
                                        PAG_COMMIT | PAG_READ | PAG_WRITE | OBJ_GETTABLE | OBJ_ANY);
         if (rc != NO_ERROR) { // Did the kernel handle OBJ_ANY?
             // Try again without OBJ_ANY and if the first failure was not caused
             // by OBJ_ANY then we will get the same failure, else we have taken
             // care of pre-FP13 systems where the kernel couldn't handle it.
-            rc = DosAllocSharedMem( &pvData, nullptr, ulSize,
+            rc = DosAllocSharedMem( &pvData, NULL, ulSize,
                                     PAG_COMMIT | PAG_READ | PAG_WRITE | OBJ_GETTABLE);
             if (rc != NO_ERROR) {
                 return NS_ERROR_OUT_OF_MEMORY;
             }
         }
 #else
-        if (DosAllocSharedMem( &pvData, nullptr, ulSize,
+        if (DosAllocSharedMem( &pvData, NULL, ulSize,
                                PAG_COMMIT | PAG_READ | PAG_WRITE | OBJ_GETTABLE | OBJ_ANY))
             return NS_ERROR_OUT_OF_MEMORY;
 #endif
@@ -1017,7 +1018,7 @@ static nsCString uTypeDesc( UINT uType ) {
 static nsCString hszValue( DWORD instance, HSZ hsz ) {
     // Extract string from HSZ.
     nsCString result("[");
-    DWORD len = WinDdeQueryString( hsz, nullptr, nullptr, CP_WINANSI );
+    DWORD len = WinDdeQueryString( hsz, NULL, NULL, CP_WINANSI );
     if ( len ) {
         char buffer[ 256 ];
         WinDdeQueryString( hsz, buffer, sizeof buffer, CP_WINANSI );
@@ -1357,7 +1358,7 @@ void nsNativeAppSupportOS2::ParseDDEArg( const char* args, int index, nsCString&
 
 // Utility to parse out argument from a DDE item string.
 void nsNativeAppSupportOS2::ParseDDEArg( HSZ args, int index, nsCString& aString) {
-    DWORD argLen = WinDdeQueryString( args, nullptr, nullptr, CP_WINANSI );
+    DWORD argLen = WinDdeQueryString( args, NULL, NULL, CP_WINANSI );
     // there wasn't any string, so return empty string
     if ( !argLen ) return;
     nsAutoCString temp;
@@ -1607,6 +1608,50 @@ HWND hwndForDOMWindow( nsISupports *window ) {
 
     return (HWND)( ppWidget->GetNativeData( NS_NATIVE_WIDGET ) );
 }
+
+static const char sJSStackContractID[] = "@mozilla.org/js/xpc/ContextStack;1";
+
+class SafeJSContext {
+public:
+  SafeJSContext();
+  ~SafeJSContext();
+
+  nsresult   Push();
+  JSContext *get() { return mContext; }
+
+protected:
+  nsCOMPtr<nsIThreadJSContextStack>  mService;
+  JSContext                         *mContext;
+};
+
+SafeJSContext::SafeJSContext() : mContext(nullptr) {
+}
+
+SafeJSContext::~SafeJSContext() {
+  JSContext *cx;
+  nsresult   rv;
+
+  if(mContext) {
+    rv = mService->Pop(&cx);
+    NS_ASSERTION(NS_SUCCEEDED(rv) && cx == mContext, "JSContext push/pop mismatch");
+  }
+}
+
+nsresult SafeJSContext::Push() {
+  if (mContext) // only once
+    return NS_ERROR_FAILURE;
+
+  mService = do_GetService(sJSStackContractID);
+  if (mService) {
+    JSContext* cx = mService->GetSafeJSContext();
+    if (cx && NS_SUCCEEDED(mService->Push(cx))) {
+      // Save cx in mContext to indicate need to pop.
+      mContext = cx;
+    }
+  }
+  return mContext ? NS_OK : NS_ERROR_FAILURE;
+}
+
 
 // As of Jan, 2005, most of the code in this method is pointless and
 // will never be used.  It is only called by ActivateLastWindow() and

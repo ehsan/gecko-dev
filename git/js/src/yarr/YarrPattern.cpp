@@ -26,17 +26,17 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#include "yarr/YarrPattern.h"
+#include "YarrPattern.h"
 
-#include "yarr/Yarr.h"
-#include "yarr/YarrCanonicalizeUCS2.h"
-#include "yarr/YarrParser.h"
+#include "Yarr.h"
+#include "YarrCanonicalizeUCS2.h"
+#include "YarrParser.h"
 
 using namespace WTF;
 
 namespace JSC { namespace Yarr {
 
-#include "yarr/RegExpJitTables.h"
+#include "RegExpJitTables.h"
 
 #if WTF_CPU_SPARC
 # define BASE_FRAME_SIZE 24
@@ -90,21 +90,21 @@ public:
         }
 
         // Add multiple matches, if necessary.
-        const UCS2CanonicalizationRange* info = rangeInfoFor(ch);
+        UCS2CanonicalizationRange* info = rangeInfoFor(ch);
         if (info->type == CanonicalizeUnique)
             addSorted(m_matchesUnicode, ch);
         else
             putUnicodeIgnoreCase(ch, info);
     }
 
-    void putUnicodeIgnoreCase(UChar ch, const UCS2CanonicalizationRange* info)
+    void putUnicodeIgnoreCase(UChar ch, UCS2CanonicalizationRange* info)
     {
         ASSERT(m_isCaseInsensitive);
         ASSERT(ch > 0x7f);
         ASSERT(ch >= info->begin && ch <= info->end);
         ASSERT(info->type != CanonicalizeUnique);
         if (info->type == CanonicalizeSet) {
-            for (const uint16_t* set = characterSetInfo[info->value]; (ch = *set); ++set)
+            for (uint16_t* set = characterSetInfo[info->value]; (ch = *set); ++set)
                 addSorted(m_matchesUnicode, ch);
         } else {
             addSorted(m_matchesUnicode, ch);
@@ -135,7 +135,7 @@ public:
         if (!m_isCaseInsensitive)
             return;
 
-        const UCS2CanonicalizationRange* info = rangeInfoFor(lo);
+        UCS2CanonicalizationRange* info = rangeInfoFor(lo);
         while (true) {
             // Handle the range [lo .. end]
             UChar end = std::min<UChar>(info->end, hi);
@@ -146,7 +146,7 @@ public:
                 break;
             case CanonicalizeSet: {
                 UChar ch;
-                for (const uint16_t* set = characterSetInfo[info->value]; (ch = *set); ++set)
+                for (uint16_t* set = characterSetInfo[info->value]; (ch = *set); ++set)
                     addSorted(m_matchesUnicode, ch);
                 break;
             }
@@ -183,7 +183,7 @@ public:
 
     CharacterClass* charClass()
     {
-        CharacterClass* characterClass = js_new<CharacterClass>();
+        CharacterClass* characterClass = js_new<CharacterClass>(PassRefPtr<CharacterClassTable>(0));
 
         characterClass->m_matches.swap(m_matches);
         characterClass->m_ranges.swap(m_ranges);
@@ -326,7 +326,7 @@ public:
             return;
         }
 
-        const UCS2CanonicalizationRange* info = rangeInfoFor(ch);
+        UCS2CanonicalizationRange* info = rangeInfoFor(ch);
         if (info->type == CanonicalizeUnique) {
             m_alternative->m_terms.append(PatternTerm(ch));
             return;
@@ -766,10 +766,7 @@ public:
             if (term.type == PatternTerm::TypeParenthesesSubpattern) {
                 PatternDisjunction* nestedDisjunction = term.parentheses.disjunction;
                 for (unsigned alt = 0; alt < nestedDisjunction->m_alternatives.size(); ++alt) {
-                    PatternAlternative *pattern = nestedDisjunction->m_alternatives[alt];
-                    if (pattern->m_terms.size() == 0)
-                        continue;
-                    if (containsCapturingTerms(pattern, 0, pattern->m_terms.size() - 1))
+                    if (containsCapturingTerms(nestedDisjunction->m_alternatives[alt], 0, nestedDisjunction->m_alternatives[alt]->m_terms.size() - 1))
                         return true;
                 }
             }

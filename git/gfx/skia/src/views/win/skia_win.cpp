@@ -7,9 +7,6 @@
  */
 #include <Windows.h>
 #include <tchar.h>
-
-#include "SkApplication.h"
-
 #define MAX_LOADSTRING 100
 
 // Global Variables:
@@ -50,8 +47,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
             DispatchMessage(&msg);
         }
     }
-
-    application_term();
 
     return (int) msg.wParam;
 }
@@ -123,12 +118,12 @@ char* tchar_to_utf8(const TCHAR* str) {
 
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow, LPTSTR lpCmdLine)
 {
-   application_init();
+   HWND hWnd;
 
    hInst = hInstance; // Store instance handle in our global variable
 
-   HWND hWnd = CreateWindow(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-                            CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, NULL, NULL, hInstance, NULL);
+   hWnd = CreateWindow(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, NULL, NULL, hInstance, NULL);
 
    if (!hWnd)
    {
@@ -138,9 +133,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow, LPTSTR lpCmdLine)
    char* argv[4096];
    int argc = 0;
    TCHAR exename[1024], *next;
-   int exenameLen = GetModuleFileName(NULL, exename, SK_ARRAY_COUNT(exename));
-   // we're ignoring the possibility that the exe name exceeds the exename buffer
-   (void) exenameLen;
+   int exenameLen = GetModuleFileName(NULL, exename, 1024);
    argv[argc++] = tchar_to_utf8(exename);
    TCHAR* arg = _tcstok_s(lpCmdLine, _T(" "), &next);
    while (arg != NULL) {
@@ -152,6 +145,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow, LPTSTR lpCmdLine)
    for (int i = 0; i < argc; ++i) {
       free(argv[i]);
    }
+
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
 

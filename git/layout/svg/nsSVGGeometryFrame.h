@@ -7,12 +7,12 @@
 #ifndef __NS_SVGGEOMETRYFRAME_H__
 #define __NS_SVGGEOMETRYFRAME_H__
 
-#include "mozilla/Attributes.h"
 #include "gfxMatrix.h"
 #include "gfxTypes.h"
 #include "nsFrame.h"
 #include "nsIFrame.h"
 #include "nsQueryFrame.h"
+#include "nsRect.h"
 
 class gfxContext;
 class nsIContent;
@@ -46,14 +46,13 @@ public:
 		    nsIFrame* aParent,
 		    nsIFrame* aPrevInFlow) MOZ_OVERRIDE;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const
   {
     return nsSVGGeometryFrameBase::IsFrameOfType(aFlags & ~(nsIFrame::eSVG | nsIFrame::eSVGGeometry));
   }
 
   // nsSVGGeometryFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
-                                nsIFrame* aTransformRoot = nullptr) = 0;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor) = 0;
   uint16_t GetClipRule();
 
 protected:

@@ -35,7 +35,7 @@ class nsAppStartup MOZ_FINAL : public nsIAppStartup,
                                public nsSupportsWeakReference
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIAPPSTARTUP
   NS_DECL_NSIWINDOWCREATOR
   NS_DECL_NSIWINDOWCREATOR2
@@ -56,7 +56,6 @@ private:
   int32_t      mConsiderQuitStopper; // if > 0, Quit(eConsiderQuit) fails
   bool mRunning;        // Have we started the main event loop?
   bool mShuttingDown;   // Quit method reentrancy check
-  bool mStartingUp;     // Have we passed final-ui-startup?
   bool mAttemptingQuit; // Quit(eAttemptQuit) still trying
   bool mRestart;        // Quit(eRestart)
   bool mInterrupted;    // Was startup interrupted by an interactive prompt?

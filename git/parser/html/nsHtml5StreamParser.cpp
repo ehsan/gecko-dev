@@ -26,9 +26,6 @@
 #include "nsINestedURI.h"
 #include "nsCharsetSource.h"
 #include "nsIWyciwygChannel.h"
-#include "nsIThreadRetargetableRequest.h"
-#include "nsPrintfCString.h"
-#include "nsNetUtil.h"
 
 #include "mozilla/dom/EncodingUtils.h"
 
@@ -76,14 +73,11 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsHtml5StreamParser)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsHtml5StreamParser)
 
 NS_INTERFACE_TABLE_HEAD(nsHtml5StreamParser)
-  NS_INTERFACE_TABLE3(nsHtml5StreamParser,
+  NS_INTERFACE_TABLE2(nsHtml5StreamParser, 
                       nsIStreamListener, 
-                      nsICharsetDetectionObserver,
-                      nsIThreadRetargetableStreamListener)
+                      nsICharsetDetectionObserver)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsHtml5StreamParser)
 NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsHtml5StreamParser)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsHtml5StreamParser)
   tmp->DropTimer();
@@ -173,6 +167,7 @@ nsHtml5StreamParser::nsHtml5StreamParser(nsHtml5TreeOpExecutor* aExecutor,
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   mFlushTimer->SetTarget(mThread);
+  mAtomTable.Init(); // we aren't checking for OOM anyway...
 #ifdef DEBUG
   mAtomTable.SetPermittedLookupThread(mThread);
 #endif
@@ -302,7 +297,7 @@ nsHtml5StreamParser::SetupDecodingAndWriteSniffingBufferAndCurrentSegment(const 
   rv = convManager->GetUnicodeDecoder(mCharset.get(), getter_AddRefs(mUnicodeDecoder));
   if (rv == NS_ERROR_UCONV_NOCONV) {
     mCharset.AssignLiteral("windows-1252"); // lower case is the raw form
-    mCharsetSource = kCharsetFromFallback;
+    mCharsetSource = kCharsetFromWeakDocTypeDefault;
     rv = convManager->GetUnicodeDecoderRaw(mCharset.get(), getter_AddRefs(mUnicodeDecoder));
     mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
   }
@@ -331,7 +326,7 @@ nsHtml5StreamParser::WriteSniffingBufferAndCurrentSegment(const uint8_t* aFromSe
 }
 
 nsresult
-nsHtml5StreamParser::SetupDecodingFromBom(const char* aDecoderCharsetName)
+nsHtml5StreamParser::SetupDecodingFromBom(const char* aCharsetName, const char* aDecoderCharsetName)
 {
   NS_ASSERTION(IsParserThread(), "Wrong thread!");
   nsresult rv = NS_OK;
@@ -339,7 +334,7 @@ nsHtml5StreamParser::SetupDecodingFromBom(const char* aDecoderCharsetName)
   NS_ENSURE_SUCCESS(rv, rv);
   rv = convManager->GetUnicodeDecoderRaw(aDecoderCharsetName, getter_AddRefs(mUnicodeDecoder));
   NS_ENSURE_SUCCESS(rv, rv);
-  mCharset.Assign(aDecoderCharsetName);
+  mCharset.Assign(aCharsetName);
   mCharsetSource = kCharsetFromByteOrderMark;
   mFeedChardet = false;
   mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
@@ -612,10 +607,10 @@ nsHtml5StreamParser::FinalizeSniffing(const uint8_t* aFromSegment, // can be nul
   if (mCharsetSource == kCharsetUninitialized) {
     // Hopefully this case is never needed, but dealing with it anyway
     mCharset.AssignLiteral("windows-1252");
-    mCharsetSource = kCharsetFromFallback;
+    mCharsetSource = kCharsetFromWeakDocTypeDefault;
     mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
   } else if (mMode == LOAD_AS_DATA &&
-             mCharsetSource == kCharsetFromFallback) {
+             mCharsetSource == kCharsetFromWeakDocTypeDefault) {
     NS_ASSERTION(mReparseForbidden, "Reparse should be forbidden for XHR");
     NS_ASSERTION(!mFeedChardet, "Should not feed chardet for XHR");
     NS_ASSERTION(mCharset.EqualsLiteral("UTF-8"),
@@ -661,7 +656,7 @@ nsHtml5StreamParser::SniffStreamBytes(const uint8_t* aFromSegment,
         break;
       case SEEN_UTF_16_LE_FIRST_BYTE:
         if (aFromSegment[i] == 0xFE) {
-          rv = SetupDecodingFromBom("UTF-16LE"); // upper case is the raw form
+          rv = SetupDecodingFromBom("UTF-16", "UTF-16LE"); // upper case is the raw form
           NS_ENSURE_SUCCESS(rv, rv);
           uint32_t count = aCount - (i + 1);
           rv = WriteStreamBytes(aFromSegment + (i + 1), count, &writeCount);
@@ -673,7 +668,7 @@ nsHtml5StreamParser::SniffStreamBytes(const uint8_t* aFromSegment,
         break;
       case SEEN_UTF_16_BE_FIRST_BYTE:
         if (aFromSegment[i] == 0xFF) {
-          rv = SetupDecodingFromBom("UTF-16BE"); // upper case is the raw form
+          rv = SetupDecodingFromBom("UTF-16", "UTF-16BE"); // upper case is the raw form
           NS_ENSURE_SUCCESS(rv, rv);
           uint32_t count = aCount - (i + 1);
           rv = WriteStreamBytes(aFromSegment + (i + 1), count, &writeCount);
@@ -692,7 +687,7 @@ nsHtml5StreamParser::SniffStreamBytes(const uint8_t* aFromSegment,
         break;
       case SEEN_UTF_8_SECOND_BYTE:
         if (aFromSegment[i] == 0xBF) {
-          rv = SetupDecodingFromBom("UTF-8"); // upper case is the raw form
+          rv = SetupDecodingFromBom("UTF-8", "UTF-8"); // upper case is the raw form
           NS_ENSURE_SUCCESS(rv, rv);
           uint32_t count = aCount - (i + 1);
           rv = WriteStreamBytes(aFromSegment + (i + 1), count, &writeCount);
@@ -731,7 +726,7 @@ nsHtml5StreamParser::SniffStreamBytes(const uint8_t* aFromSegment,
       // nsHTMLDocument is supposed to make sure this does not happen. Let's
       // deal with this anyway, since who knows how kCharsetFromOtherComponent
       // is used.
-      mCharsetSource = kCharsetFromFallback;
+      mCharsetSource = kCharsetFromWeakDocTypeDefault;
     }
   }
 
@@ -799,13 +794,8 @@ nsHtml5StreamParser::WriteStreamBytes(const uint8_t* aFromSegment,
                                       uint32_t* aWriteCount)
 {
   NS_ASSERTION(IsParserThread(), "Wrong thread!");
-  // mLastBuffer should always point to a buffer of the size
+  // mLastBuffer always points to a buffer of the size
   // NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE.
-  if (!mLastBuffer) {
-    NS_WARNING("mLastBuffer should not be null!");
-    MarkAsBroken();
-    return NS_ERROR_NULL_POINTER;
-  }
   if (mLastBuffer->getEnd() == NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE) {
     nsRefPtr<nsHtml5OwningUTF16Buffer> newBuf =
       nsHtml5OwningUTF16Buffer::FalliblyCreate(
@@ -882,14 +872,6 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   bool scriptingEnabled = mMode == LOAD_AS_DATA ?
                                    false : mExecutor->IsScriptEnabled();
   mOwner->StartTokenizer(scriptingEnabled);
-
-  bool isSrcdoc = false;
-  nsCOMPtr<nsIChannel> channel;
-  nsresult rv = GetChannel(getter_AddRefs(channel));
-  if (NS_SUCCEEDED(rv)) {
-    isSrcdoc = NS_IsSrcdocChannel(channel);
-  }
-  mTreeBuilder->setIsSrcdocDocument(isSrcdoc);
   mTreeBuilder->setScriptingEnabled(scriptingEnabled);
   mTreeBuilder->SetPreventScriptExecution(!((mMode == NORMAL) &&
                                             scriptingEnabled));
@@ -925,7 +907,7 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   NS_ASSERTION(!mLastBuffer, "How come we have the last buffer set?");
   mFirstBuffer = mLastBuffer = newBuf;
 
-  rv = NS_OK;
+  nsresult rv = NS_OK;
 
   // The line below means that the encoding can end up being wrong if
   // a view-source URL is loaded without having the encoding hint from a
@@ -943,14 +925,6 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
       // Don't reparse on POST.
       mReparseForbidden = true;
       mFeedChardet = false; // can't restart anyway
-    }
-
-    // Attempt to retarget delivery of data (via OnDataAvailable) to the parser
-    // thread, rather than through the main thread.
-    nsCOMPtr<nsIThreadRetargetableRequest> threadRetargetableRequest =
-      do_QueryInterface(mRequest);
-    if (threadRetargetableRequest) {
-      threadRetargetableRequest->RetargetDeliveryTo(mThread);
     }
   }
 
@@ -981,25 +955,9 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   // if we failed to get a decoder, there will be fallback, so don't propagate
   //  the error.
   if (NS_FAILED(rv)) {
-    mCharsetSource = kCharsetFromFallback;
+    mCharsetSource = kCharsetFromWeakDocTypeDefault;
   }
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHtml5StreamParser::CheckListenerChain()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on the main thread!");
-  if (!mObserver) {
-    return NS_OK;
-  }
-  nsresult rv;
-  nsCOMPtr<nsIThreadRetargetableStreamListener> retargetable =
-    do_QueryInterface(mObserver, &rv);
-  if (NS_SUCCEEDED(rv) && retargetable) {
-    rv = retargetable->CheckListenerChain();
-  }
-  return rv;
 }
 
 void
@@ -1067,7 +1025,7 @@ nsHtml5StreamParser::OnStopRequest(nsIRequest* aRequest,
 }
 
 void
-nsHtml5StreamParser::DoDataAvailable(const uint8_t* aBuffer, uint32_t aLength)
+nsHtml5StreamParser::DoDataAvailable(uint8_t* aBuffer, uint32_t aLength)
 {
   NS_ASSERTION(IsParserThread(), "Wrong thread!");
   NS_PRECONDITION(STREAM_BEING_READ == mStreamState,
@@ -1152,55 +1110,22 @@ nsHtml5StreamParser::OnDataAvailable(nsIRequest* aRequest,
 
   NS_ASSERTION(mRequest == aRequest, "Got data on wrong stream.");
   uint32_t totalRead;
-  // Main thread to parser thread dispatch requires copying to buffer first.
-  if (NS_IsMainThread()) {
-    const mozilla::fallible_t fallible = mozilla::fallible_t();
-    nsAutoArrayPtr<uint8_t> data(new (fallible) uint8_t[aLength]);
-    if (!data) {
-      return mExecutor->MarkAsBroken(NS_ERROR_OUT_OF_MEMORY);
-    }
-    rv = aInStream->Read(reinterpret_cast<char*>(data.get()),
-                         aLength, &totalRead);
-    NS_ENSURE_SUCCESS(rv, rv);
-    NS_ASSERTION(totalRead <= aLength, "Read more bytes than were available?");
-
-    nsCOMPtr<nsIRunnable> dataAvailable = new nsHtml5DataAvailable(this,
-                                                                   data.forget(),
-                                                                   totalRead);
-    if (NS_FAILED(mThread->Dispatch(dataAvailable, nsIThread::DISPATCH_NORMAL))) {
-      NS_WARNING("Dispatching DataAvailable event failed.");
-    }
-    return rv;
-  } else {
-    NS_ASSERTION(IsParserThread(), "Wrong thread!");
-    mozilla::MutexAutoLock autoLock(mTokenizerMutex);
-
-    // Read directly from response buffer.
-    rv = aInStream->ReadSegments(CopySegmentsToParser, this, aLength,
-                                 &totalRead);
-    if (NS_FAILED(rv)) {
-      NS_WARNING("Failed reading response data to parser");
-      return rv;
-    }
-    return NS_OK;
+  const mozilla::fallible_t fallible = mozilla::fallible_t();
+  nsAutoArrayPtr<uint8_t> data(new (fallible) uint8_t[aLength]);
+  if (!data) {
+    return mExecutor->MarkAsBroken(NS_ERROR_OUT_OF_MEMORY);
   }
-}
-
-/* static */
-NS_METHOD
-nsHtml5StreamParser::CopySegmentsToParser(nsIInputStream *aInStream,
-                                          void *aClosure,
-                                          const char *aFromSegment,
-                                          uint32_t aToOffset,
-                                          uint32_t aCount,
-                                          uint32_t *aWriteCount)
-{
-  nsHtml5StreamParser* parser = static_cast<nsHtml5StreamParser*>(aClosure);
-
-  parser->DoDataAvailable((const uint8_t*)aFromSegment, aCount);
-  // Assume DoDataAvailable consumed all available bytes.
-  *aWriteCount = aCount;
-  return NS_OK;
+  rv = aInStream->Read(reinterpret_cast<char*>(data.get()),
+  aLength, &totalRead);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ASSERTION(totalRead <= aLength, "Read more bytes than were available?");
+  nsCOMPtr<nsIRunnable> dataAvailable = new nsHtml5DataAvailable(this,
+                                                                 data.forget(),
+                                                                totalRead);
+  if (NS_FAILED(mThread->Dispatch(dataAvailable, nsIThread::DISPATCH_NORMAL))) {
+    NS_WARNING("Dispatching DataAvailable event failed.");
+  }
+  return rv;
 }
 
 bool
@@ -1505,7 +1430,7 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
       mTokenizer->setLineNumber(speculation->GetStartLineNumber());
 
       nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                      NS_LITERAL_CSTRING("DOM Events"),
+                                      "DOM Events",
                                       mExecutor->GetDocument(),
                                       nsContentUtils::eDOM_PROPERTIES,
                                       "SpeculationFailed",

@@ -38,8 +38,10 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(XULTreeAccessible, Accessible)
 
-  // Accessible
+  // nsAccessNode
   virtual void Shutdown();
+
+  // Accessible
   virtual void Value(nsString& aValue);
   virtual a11y::role NativeRole();
   virtual uint64_t NativeState();
@@ -48,7 +50,7 @@ public:
 
   virtual Accessible* GetChildAt(uint32_t aIndex);
   virtual uint32_t ChildCount() const;
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 
   // SelectAccessible
   virtual already_AddRefed<nsIArray> SelectedItems();
@@ -153,13 +155,15 @@ public:
   NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
   NS_IMETHOD DoAction(uint8_t aIndex);
 
-  // Accessible
+  // nsAccessNode
   virtual void Shutdown();
+
+  // Accessible
   virtual GroupPos GroupPosition();
   virtual uint64_t NativeState();
   virtual uint64_t NativeInteractiveState() const;
   virtual int32_t IndexInParent() const;
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
   virtual Accessible* FocusedChild();
 
   // ActionAccessible
@@ -232,8 +236,10 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(XULTreeItemAccessible,
                                            XULTreeItemAccessibleBase)
 
-  // Accessible
+  // nsAccessNode
   virtual void Shutdown();
+
+  // Accessible
   virtual ENameValueFlag Name(nsString& aName);
   virtual a11y::role NativeRole();
 

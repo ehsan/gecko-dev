@@ -4,14 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef js_GCAPI_h
-#define js_GCAPI_h
+#ifndef js_gc_api_h___
+#define js_gc_api_h___
 
-#include "mozilla/NullPtr.h"
-
-#include "js/HeapAPI.h"
-#include "js/RootingAPI.h"
-#include "js/Value.h"
+#include "HeapAPI.h"
 
 namespace JS {
 
@@ -19,7 +15,7 @@ namespace JS {
     /* Reasons internal to the JS engine */     \
     D(API)                                      \
     D(MAYBEGC)                                  \
-    D(DESTROY_RUNTIME)                          \
+    D(LAST_CONTEXT)                             \
     D(DESTROY_CONTEXT)                          \
     D(LAST_DITCH)                               \
     D(TOO_MUCH_MALLOC)                          \
@@ -28,31 +24,6 @@ namespace JS {
     D(DEBUG_MODE_GC)                            \
     D(TRANSPLANT)                               \
     D(RESET)                                    \
-    D(OUT_OF_NURSERY)                           \
-    D(EVICT_NURSERY)                            \
-    D(FULL_STORE_BUFFER)                        \
-                                                \
-    /* These are reserved for future use. */    \
-    D(RESERVED0)                                \
-    D(RESERVED1)                                \
-    D(RESERVED2)                                \
-    D(RESERVED3)                                \
-    D(RESERVED4)                                \
-    D(RESERVED5)                                \
-    D(RESERVED6)                                \
-    D(RESERVED7)                                \
-    D(RESERVED8)                                \
-    D(RESERVED9)                                \
-    D(RESERVED10)                               \
-    D(RESERVED11)                               \
-    D(RESERVED12)                               \
-    D(RESERVED13)                               \
-    D(RESERVED14)                               \
-    D(RESERVED15)                               \
-    D(RESERVED16)                               \
-    D(RESERVED17)                               \
-    D(RESERVED18)                               \
-    D(RESERVED19)                               \
                                                 \
     /* Reasons from Firefox */                  \
     D(DOM_WINDOW_UTILS)                         \
@@ -185,9 +156,6 @@ DisableIncrementalGC(JSRuntime *rt);
 extern JS_FRIEND_API(void)
 DisableGenerationalGC(JSRuntime *rt);
 
-extern JS_FRIEND_API(void)
-EnableGenerationalGC(JSRuntime *rt);
-
 extern JS_FRIEND_API(bool)
 IsIncrementalBarrierNeeded(JSRuntime *rt);
 
@@ -210,33 +178,12 @@ PokeGC(JSRuntime *rt);
 extern JS_FRIEND_API(bool)
 WasIncrementalGC(JSRuntime *rt);
 
-extern JS_FRIEND_API(size_t)
-GetGCNumber();
-
-class JS_PUBLIC_API(AutoAssertNoGC)
+class ObjectPtr
 {
-#ifdef DEBUG
-    JSRuntime *runtime;
-    size_t gcNumber;
+    JSObject *value;
 
   public:
-    AutoAssertNoGC();
-    AutoAssertNoGC(JSRuntime *rt);
-    ~AutoAssertNoGC();
-#else
-  public:
-    /* Prevent unreferenced local warnings in opt builds. */
-    AutoAssertNoGC() {}
-    AutoAssertNoGC(JSRuntime *) {}
-#endif
-};
-
-class JS_PUBLIC_API(ObjectPtr)
-{
-    Heap<JSObject *> value;
-
-  public:
-    ObjectPtr() : value(nullptr) {}
+    ObjectPtr() : value(NULL) {}
 
     ObjectPtr(JSObject *obj) : value(obj) {}
 
@@ -246,7 +193,7 @@ class JS_PUBLIC_API(ObjectPtr)
     void finalize(JSRuntime *rt) {
         if (IsIncrementalBarrierNeeded(rt))
             IncrementalObjectBarrier(value);
-        value = nullptr;
+        value = NULL;
     }
 
     void init(JSObject *obj) { value = obj; }
@@ -257,15 +204,15 @@ class JS_PUBLIC_API(ObjectPtr)
         IncrementalObjectBarrier(value);
     }
 
-    bool isAboutToBeFinalized();
+    bool isAboutToBeFinalized() {
+        return JS_IsAboutToBeFinalized(&value);
+    }
 
     ObjectPtr &operator=(JSObject *obj) {
         IncrementalObjectBarrier(value);
         value = obj;
         return *this;
     }
-
-    void trace(JSTracer *trc, const char *name);
 
     JSObject &operator*() const { return *value; }
     JSObject *operator->() const { return value; }
@@ -276,7 +223,7 @@ class JS_PUBLIC_API(ObjectPtr)
  * Unsets the gray bit for anything reachable from |thing|. |kind| should not be
  * JSTRACE_SHAPE. |thing| should be non-null.
  */
-extern JS_FRIEND_API(bool)
+extern JS_FRIEND_API(void)
 UnmarkGrayGCThingRecursively(void *thing, JSGCTraceKind kind);
 
 /*
@@ -297,7 +244,7 @@ ExposeGCThingToActiveJS(void *thing, JSGCTraceKind kind)
      * All live objects in the nursery are moved to tenured at the beginning of
      * each GC slice, so the gray marker never sees nursery things.
      */
-    if (js::gc::IsInsideNursery(rt, thing))
+    if (uintptr_t(thing) >= rt->gcNurseryStart_ && uintptr_t(thing) < rt->gcNurseryEnd_)
         return;
 #endif
     if (IsIncrementalBarrierNeededOnGCThing(rt, thing, kind))
@@ -313,37 +260,6 @@ ExposeValueToActiveJS(const Value &v)
         ExposeGCThingToActiveJS(v.toGCThing(), v.gcKind());
 }
 
-static JS_ALWAYS_INLINE void
-ExposeObjectToActiveJS(JSObject *obj)
-{
-    ExposeGCThingToActiveJS(obj, JSTRACE_OBJECT);
-}
-
-/*
- * If a GC is currently marking, mark the object black.
- */
-static JS_ALWAYS_INLINE void
-MarkGCThingAsLive(JSRuntime *rt_, void *thing, JSGCTraceKind kind)
-{
-    shadow::Runtime *rt = shadow::Runtime::asShadowRuntime(rt_);
-#ifdef JSGC_GENERATIONAL
-    /*
-     * Any object in the nursery will not be freed during any GC running at that time.
-     */
-    if (js::gc::IsInsideNursery(rt, thing))
-        return;
-#endif
-    if (IsIncrementalBarrierNeededOnGCThing(rt, thing, kind))
-        IncrementalReferenceBarrier(thing, kind);
-}
-
-static JS_ALWAYS_INLINE void
-MarkStringAsLive(Zone *zone, JSString *string)
-{
-    JSRuntime *rt = JS::shadow::Zone::asShadowZone(zone)->runtimeFromMainThread();
-    MarkGCThingAsLive(rt, string, JSTRACE_STRING);
-}
-
 } /* namespace JS */
 
-#endif /* js_GCAPI_h */
+#endif /* js_gc_api_h___ */

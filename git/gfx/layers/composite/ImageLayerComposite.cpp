@@ -3,30 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "gfxSharedImageSurface.h"
+
+#include "ipc/AutoOpenSurface.h"
 #include "ImageLayerComposite.h"
-#include "CompositableHost.h"           // for CompositableHost
-#include "Layers.h"                     // for WriteSnapshotToDumpFile, etc
-#include "gfx2DGlue.h"                  // for ToFilter, ToMatrix4x4
-#include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "gfxImageSurface.h"            // for gfxImageSurface
-#include "gfxPoint.h"                   // for gfxIntSize
-#include "gfxRect.h"                    // for gfxRect
-#include "gfxUtils.h"                   // for gfxUtils, etc
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/gfx/Matrix.h"         // for Matrix4x4
-#include "mozilla/gfx/Point.h"          // for IntSize, Point
-#include "mozilla/gfx/Rect.h"           // for Rect
-#include "mozilla/layers/Compositor.h"  // for Compositor
-#include "mozilla/layers/Effects.h"     // for EffectChain
-#include "mozilla/layers/TextureHost.h"  // for DeprecatedTextureHost, etc
-#include "mozilla/mozalloc.h"           // for operator delete
-#include "nsAString.h"
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsDebug.h"                    // for NS_ASSERTION
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsRect.h"                     // for nsIntRect
-#include "nsString.h"                   // for nsAutoCString
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
+#include "ImageHost.h"
+#include "gfxImageSurface.h"
+#include "gfx2DGlue.h"
+
+#include "mozilla/layers/Compositor.h"
+#include "mozilla/layers/CompositorTypes.h" // for TextureInfo
+#include "mozilla/layers/Effects.h"
+#include "CompositableHost.h"
 
 using namespace mozilla::gfx;
 
@@ -34,7 +22,7 @@ namespace mozilla {
 namespace layers {
 
 ImageLayerComposite::ImageLayerComposite(LayerManagerComposite* aManager)
-  : ImageLayer(aManager, nullptr)
+  : ShadowImageLayer(aManager, nullptr)
   , LayerComposite(aManager)
   , mImageHost(nullptr)
 {
@@ -53,7 +41,7 @@ ImageLayerComposite::~ImageLayerComposite()
 void
 ImageLayerComposite::SetCompositableHost(CompositableHost* aHost)
 {
-  mImageHost = aHost;
+  mImageHost = static_cast<ImageHost*>(aHost);
 }
 
 void
@@ -65,10 +53,10 @@ ImageLayerComposite::Disconnect()
 LayerRenderState
 ImageLayerComposite::GetRenderState()
 {
-  if (mImageHost && mImageHost->IsAttached()) {
-    return mImageHost->GetRenderState();
+  if (!mImageHost) {
+    return LayerRenderState();
   }
-  return LayerRenderState();
+  return mImageHost->GetRenderState();
 }
 
 Layer*
@@ -78,23 +66,17 @@ ImageLayerComposite::GetLayer()
 }
 
 void
-ImageLayerComposite::RenderLayer(const nsIntRect& aClipRect)
+ImageLayerComposite::RenderLayer(const nsIntPoint& aOffset,
+                                 const nsIntRect& aClipRect)
 {
-  if (!mImageHost || !mImageHost->IsAttached()) {
+  if (!mImageHost) {
     return;
   }
-
-#ifdef MOZ_DUMP_PAINTING
-  if (gfxUtils::sDumpPainting) {
-    nsRefPtr<gfxImageSurface> surf = mImageHost->GetAsSurface();
-    WriteSnapshotToDumpFile(this, surf);
-  }
-#endif
 
   mCompositor->MakeCurrent();
 
   EffectChain effectChain;
-  LayerManagerComposite::AutoAddMaskEffect autoMaskEffect(mMaskLayer, effectChain);
+  LayerManagerComposite::AddMaskEffect(mMaskLayer, effectChain);
 
   gfx::Matrix4x4 transform;
   ToMatrix4x4(GetEffectiveTransform(), transform);
@@ -103,73 +85,39 @@ ImageLayerComposite::RenderLayer(const nsIntRect& aClipRect)
   mImageHost->Composite(effectChain,
                         GetEffectiveOpacity(),
                         transform,
+                        gfx::Point(aOffset.x, aOffset.y),
                         gfx::ToFilter(mFilter),
                         clipRect);
 }
 
-void 
-ImageLayerComposite::ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
-{
-  gfx3DMatrix local = GetLocalTransform();
-
-  // Snap image edges to pixel boundaries
-  gfxRect sourceRect(0, 0, 0, 0);
-  if (mImageHost &&
-      mImageHost->IsAttached() &&
-      (mImageHost->GetDeprecatedTextureHost() || mImageHost->GetTextureHost())) {
-    IntSize size =
-      mImageHost->GetTextureHost() ? mImageHost->GetTextureHost()->GetSize()
-                                   : mImageHost->GetDeprecatedTextureHost()->GetSize();
-    sourceRect.SizeTo(size.width, size.height);
-    if (mScaleMode != SCALE_NONE &&
-        sourceRect.width != 0.0 && sourceRect.height != 0.0) {
-      NS_ASSERTION(mScaleMode == SCALE_STRETCH,
-                   "No other scalemodes than stretch and none supported yet.");
-      local.Scale(mScaleToSize.width / sourceRect.width,
-                  mScaleToSize.height / sourceRect.height, 1.0);
-    }
-  }
-  // Snap our local transform first, and snap the inherited transform as well.
-  // This makes our snapping equivalent to what would happen if our content
-  // was drawn into a ThebesLayer (gfxContext would snap using the local
-  // transform, then we'd snap again when compositing the ThebesLayer).
-  mEffectiveTransform =
-      SnapTransform(local, sourceRect, nullptr) *
-      SnapTransformTranslation(aTransformToSurface, nullptr);
-  ComputeEffectiveTransformForMaskLayer(aTransformToSurface);
-}
-
 CompositableHost*
-ImageLayerComposite::GetCompositableHost()
-{
-  if (mImageHost && mImageHost->IsAttached()) {
-    return mImageHost.get();
-  }
-
-  return nullptr;
+ImageLayerComposite::GetCompositableHost() {
+  return mImageHost.get();
 }
 
 void
 ImageLayerComposite::CleanupResources()
 {
   if (mImageHost) {
-    mImageHost->Detach(this);
+    mImageHost->Detach();
   }
   mImageHost = nullptr;
 }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
 nsACString&
 ImageLayerComposite::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   ImageLayer::PrintInfo(aTo, aPrefix);
   aTo += "\n";
-  if (mImageHost && mImageHost->IsAttached()) {
+  if (mImageHost) {
     nsAutoCString pfx(aPrefix);
     pfx += "  ";
     mImageHost->PrintInfo(aTo, pfx.get());
   }
   return aTo;
 }
+#endif
 
 } /* layers */
 } /* mozilla */

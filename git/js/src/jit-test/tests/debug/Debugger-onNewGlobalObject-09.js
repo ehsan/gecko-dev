@@ -1,4 +1,4 @@
-// Resumption values from onNewGlobalObject handlers are disallowed.
+// Resumption values from onNewGlobalObject handlers are respected.
 
 load(libdir + 'asserts.js');
 
@@ -10,25 +10,18 @@ log = '';
 assertEq(typeof newGlobal(), "object");
 assertEq(log, 'n');
 
-dbg.uncaughtExceptionHook = function (ex) { assertEq(/disallowed/.test(ex), true); log += 'u'; }
+// For onNewGlobalObject, { return: V } resumption values are treated like
+// 'undefined': the new global is still returned.
 dbg.onNewGlobalObject = function (g) { log += 'n'; return { return: "snoo" }; };
 log = '';
 assertEq(typeof newGlobal(), "object");
-assertEq(log, 'nu');
+assertEq(log, 'n');
 
 dbg.onNewGlobalObject = function (g) { log += 'n'; return { throw: "snoo" }; };
 log = '';
-assertEq(typeof newGlobal(), "object");
-assertEq(log, 'nu');
+assertThrowsValue(function () { newGlobal(); }, "snoo");
+assertEq(log, 'n');
 
 dbg.onNewGlobalObject = function (g) { log += 'n'; return null; };
 log = '';
-assertEq(typeof newGlobal(), "object");
-assertEq(log, 'nu');
-
-dbg.uncaughtExceptionHook = function (ex) { assertEq(/foopy/.test(ex), true); log += 'u'; }
-dbg.onNewGlobalObject = function (g) { log += 'n'; throw "foopy"; };
-log = '';
-assertEq(typeof newGlobal(), "object");
-assertEq(log, 'nu');
-
+assertEq(evaluate('newGlobal();', { catchTermination: true }), "terminated");

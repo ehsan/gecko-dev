@@ -4,12 +4,10 @@
 
 #include "mozilla/dom/DOMImplementation.h"
 
-#include "mozilla/ContentEvents.h"
 #include "mozilla/dom/DOMImplementationBinding.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
-#include "nsIDOMDocument.h"
 #include "DocumentType.h"
 #include "nsTextNode.h"
 
@@ -29,7 +27,7 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(DOMImplementation)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(DOMImplementation)
 
 JSObject*
-DOMImplementation::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+DOMImplementation::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return DOMImplementationBinding::Wrap(aCx, aScope, this);
 }

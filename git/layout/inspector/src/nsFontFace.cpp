@@ -5,10 +5,8 @@
 #include "nsFontFace.h"
 #include "nsIDOMCSSFontFaceRule.h"
 #include "nsCSSRules.h"
-#include "gfxFont.h"
 #include "gfxUserFontSet.h"
 #include "nsFontFaceLoader.h"
-#include "mozilla/gfx/2D.h"
 #include "zlib.h"
 
 nsFontFace::nsFontFace(gfxFontEntry*      aFontEntry,
@@ -146,7 +144,7 @@ static void
 AppendToFormat(nsAString & aResult, const char* aFormat)
 {
   if (!aResult.IsEmpty()) {
-    aResult.Append(',');
+    aResult.AppendASCII(",");
   }
   aResult.AppendASCII(aFormat);
 }

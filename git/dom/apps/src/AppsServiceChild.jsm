@@ -83,11 +83,6 @@ this.DOMApplicationRegistry = {
     return AppsUtils.getCSPByLocalId(this.webapps, aLocalId);
   },
 
-  getAppLocalIdByStoreId: function(aStoreId) {
-    debug("getAppLocalIdByStoreId:" + aStoreId);
-    return AppsUtils.getAppLocalIdByStoreId(this.webapps, aStoreId);
-  },
-
   getAppByLocalId: function getAppByLocalId(aLocalId) {
     debug("getAppByLocalId " + aLocalId);
     let app = this.localIdIndex[aLocalId];
@@ -102,6 +97,11 @@ this.DOMApplicationRegistry = {
   getManifestURLByLocalId: function getManifestURLByLocalId(aLocalId) {
     debug("getManifestURLByLocalId " + aLocalId);
     return AppsUtils.getManifestURLByLocalId(this.webapps, aLocalId);
+  },
+
+  getAppFromObserverMessage: function getAppFromObserverMessage(aMessage) {
+    debug("getAppFromObserverMessage " + aMessage);
+    return AppsUtils.getAppFromObserverMessage(this.webapps. aMessage);
   },
 
   getCoreAppsBasePath: function getCoreAppsBasePath() {

@@ -12,6 +12,7 @@
 #include "prlink.h"
 #include "prclist.h"
 #include "npapi.h"
+#include "nsNPAPIPluginInstance.h"
 #include "nsIPluginTag.h"
 #include "nsPluginsDir.h"
 #include "nsPluginDirServiceProvider.h"
@@ -19,7 +20,7 @@
 #include "nsWeakPtr.h"
 #include "nsIPrompt.h"
 #include "nsWeakReference.h"
-#include "MainThreadUtils.h"
+#include "nsThreadUtils.h"
 #include "nsTArray.h"
 #include "nsTObserverArray.h"
 #include "nsITimer.h"
@@ -36,11 +37,6 @@ class nsIChannel;
 class nsPluginNativeWindow;
 class nsObjectLoadingContent;
 class nsPluginInstanceOwner;
-class nsNPAPIPluginInstance;
-class nsNPAPIPluginStreamListener;
-class nsIPluginInstanceOwner;
-class nsIInputStream;
-class nsIStreamListener;
 
 class nsInvalidPluginTag : public nsISupports
 {
@@ -83,11 +79,12 @@ public:
   nsresult SetUpPluginInstance(const char *aMimeType,
                                nsIURI *aURL,
                                nsPluginInstanceOwner *aOwner);
-  bool PluginExistsForType(const char* aMimeType);
-
+  nsresult IsPluginEnabledForType(const char* aMimeType);
   nsresult IsPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
+  nsresult GetBlocklistStateForType(const char *aMimeType, uint32_t *state);
 
-  void GetPlugins(nsTArray<nsRefPtr<nsPluginTag> >& aPluginArray);
+  nsresult GetPluginCount(uint32_t* aPluginCount);
+  nsresult GetPlugins(uint32_t aPluginCount, nsIDOMPlugin** aPluginArray);
 
   nsresult GetURL(nsISupports* pluginInst,
                   const char* url,
@@ -134,13 +131,13 @@ public:
   nsresult
   GetURLWithHeaders(nsNPAPIPluginInstance *pluginInst, 
                     const char* url, 
-                    const char* target = nullptr,
-                    nsNPAPIPluginStreamListener* streamListener = nullptr,
-                    const char* altHost = nullptr,
-                    const char* referrer = nullptr,
+                    const char* target = NULL,
+                    nsNPAPIPluginStreamListener* streamListener = NULL,
+                    const char* altHost = NULL,
+                    const char* referrer = NULL,
                     bool forceJSEnabled = false,
                     uint32_t getHeadersLength = 0, 
-                    const char* getHeaders = nullptr);
+                    const char* getHeaders = NULL);
 
   nsresult
   DoURLLoadSecurityCheck(nsNPAPIPluginInstance *aInstance,
@@ -178,7 +175,7 @@ public:
 
   nsTArray< nsRefPtr<nsNPAPIPluginInstance> > *InstanceArray();
 
-  void DestroyRunningInstances(nsPluginTag* aPluginTag);
+  void DestroyRunningInstances(nsTArray<nsCOMPtr<nsIDocument> >* aReloadDocs, nsPluginTag* aPluginTag);
 
   // Return the tag for |aLibrary| if found, nullptr if not.
   nsPluginTag* FindTagForLibrary(PRLibrary* aLibrary);
@@ -189,7 +186,7 @@ public:
                                      nsObjectLoadingContent *aContent,
                                      nsPluginInstanceOwner** aOwner);
 
-  // Does not accept nullptr and should never fail.
+  // Does not accept NULL and should never fail.
   nsPluginTag* TagForPlugin(nsNPAPIPlugin* aPlugin);
 
   nsresult GetPlugin(const char *aMimeType, nsNPAPIPlugin** aPlugin);
@@ -307,9 +304,17 @@ private:
 class MOZ_STACK_CLASS PluginDestructionGuard : protected PRCList
 {
 public:
-  PluginDestructionGuard(nsNPAPIPluginInstance *aInstance);
+  PluginDestructionGuard(nsNPAPIPluginInstance *aInstance)
+    : mInstance(aInstance)
+  {
+    Init();
+  }
 
-  PluginDestructionGuard(NPP npp);
+  PluginDestructionGuard(NPP npp)
+    : mInstance(npp ? static_cast<nsNPAPIPluginInstance*>(npp->ndata) : nullptr)
+  {
+    Init();
+  }
 
   ~PluginDestructionGuard();
 

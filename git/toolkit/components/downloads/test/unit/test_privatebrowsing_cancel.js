@@ -4,7 +4,7 @@
 
 /**
   Make sure that the download manager service is given a chance to cancel the
-  private browsing mode transition.
+  private browisng mode transition.
 **/
 
 const Cm = Components.manager;
@@ -77,14 +77,10 @@ function trigger_pb_cleanup(expected)
 }
 
 function run_test() {
-  if (oldDownloadManagerDisabled()) {
-    return;
-  }
-
   function finishTest() {
-    // Cancel Download-G
-    dlG.cancel();
-    dlG.remove();
+    // Cancel Download-E
+    dlF.cancel();
+    dlF.remove();
     dm.cleanUp();
     dm.cleanUpPrivate();
     do_check_eq(dm.activeDownloadCount, 0);
@@ -112,7 +108,7 @@ function run_test() {
     response.setHeader("Accept-Ranges", "none", false);
     response.write("foo");
   });
-  httpserv.start(-1);
+  httpserv.start(4444);
 
   let tmpDir = Cc["@mozilla.org/file/directory_service;1"].
                getService(Ci.nsIProperties).
@@ -144,7 +140,7 @@ function run_test() {
             do_check_eq(dlD.state, dm.DOWNLOAD_CANCELED);
 
             // Create Download-E
-            dlE = addDownload(httpserv, {
+            dlE = addDownload({
               isPrivate: true,
               targetFile: fileE,
               sourceURI: downloadESource,
@@ -165,11 +161,11 @@ function run_test() {
             trigger_pb_cleanup(false);
             do_check_true(promptService.wasCalled());
             do_check_eq(dm.activePrivateDownloadCount, 0);
-            do_check_eq(dlE.state, dm.DOWNLOAD_CANCELED);
+            do_check_eq(dlE.state, dm.DOWNLOAD_PAUSED);
 
             // Create Download-F
-            dlF = addDownload(httpserv, {
-              isPrivate: true,
+            dlF = addDownload({
+              isPrivate: false,
               targetFile: fileF,
               sourceURI: downloadFSource,
               downloadName: downloadFName
@@ -177,40 +173,15 @@ function run_test() {
 
             // Wait for Download-F to start
           } else if (aDownload.targetFile.equals(dlF.targetFile)) {
-            // Sanity check: Download-F must be resumable
-            do_check_true(dlF.resumable);
-            dlF.pause();
-
-          } else if (aDownload.targetFile.equals(dlG.targetFile)) {
-            // Sanity check: Download-G must not be resumable
-            do_check_false(dlG.resumable);
+            // Sanity check: Download-F must not be resumable
+            do_check_false(dlF.resumable);
 
             promptService.sayCancel();
             trigger_pb_cleanup(false);
             do_check_false(promptService.wasCalled());
             do_check_eq(dm.activeDownloadCount, 1);
-            do_check_eq(dlG.state, dm.DOWNLOAD_DOWNLOADING);
+            do_check_eq(dlF.state, dm.DOWNLOAD_DOWNLOADING);
             finishTest();
-          }
-          break;
-
-        case dm.DOWNLOAD_PAUSED:
-          if (aDownload.targetFile.equals(dlF.targetFile)) {
-            promptService.sayProceed();
-            trigger_pb_cleanup(false);
-            do_check_true(promptService.wasCalled());
-            do_check_eq(dm.activePrivateDownloadCount, 0);
-            do_check_eq(dlF.state, dm.DOWNLOAD_CANCELED);
-
-            // Create Download-G
-            dlG = addDownload(httpserv, {
-              isPrivate: false,
-              targetFile: fileG,
-              sourceURI: downloadGSource,
-              downloadName: downloadGName
-            });
-
-            // Wait for Download-G to start
           }
           break;
       }
@@ -222,27 +193,20 @@ function run_test() {
 
   dm.addPrivacyAwareListener(listener);
 
-  const PORT = httpserv.identity.primaryPort;
-
   // properties of Download-D
-  const downloadDSource = "http://localhost:" + PORT + "/noresume";
+  const downloadDSource = "http://localhost:4444/noresume";
   const downloadDDest = "download-file-D";
   const downloadDName = "download-D";
 
   // properties of Download-E
-  const downloadESource = "http://localhost:" + PORT + "/file/head_download_manager.js";
+  const downloadESource = "http://localhost:4444/file/head_download_manager.js";
   const downloadEDest = "download-file-E";
   const downloadEName = "download-E";
 
   // properties of Download-F
-  const downloadFSource = "http://localhost:" + PORT + "/file/head_download_manager.js";
+  const downloadFSource = "http://localhost:4444/noresume";
   const downloadFDest = "download-file-F";
   const downloadFName = "download-F";
-
-  // properties of Download-G
-  const downloadGSource = "http://localhost:" + PORT + "/noresume";
-  const downloadGDest = "download-file-G";
-  const downloadGName = "download-G";
 
   // Create all target files
   let fileD = tmpDir.clone();
@@ -254,19 +218,16 @@ function run_test() {
   let fileF = tmpDir.clone();
   fileF.append(downloadFDest);
   fileF.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, 0666);
-  let fileG = tmpDir.clone();
-  fileG.append(downloadGDest);
-  fileG.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, 0666);
 
   // Create Download-D
-  let dlD = addDownload(httpserv, {
+  let dlD = addDownload({
     isPrivate: true,
     targetFile: fileD,
     sourceURI: downloadDSource,
     downloadName: downloadDName
   });
 
-  let dlE, dlF, dlG;
+  let dlE, dlF;
 
   // wait for Download-D to start
 }

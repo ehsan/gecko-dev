@@ -6,14 +6,3 @@
 
 MODULE = 'build'
 
-if CONFIG['MOZ_LIBSTDCXX_TARGET_VERSION']:
-    LIBRARY_NAME = 'stdc++compat'
-    SOURCES += ['stdc++compat.cpp']
-
-if CONFIG['MOZ_LIBSTDCXX_HOST_VERSION']:
-    HOST_LIBRARY_NAME = 'host_stdc++compat'
-    HOST_SOURCES += [
-        'stdc++compat.cpp',
-    ]
-
-FORCE_STATIC_LIB = True

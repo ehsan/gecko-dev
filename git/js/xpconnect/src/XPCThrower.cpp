@@ -7,15 +7,10 @@
 /* Code for throwing errors into JavaScript. */
 
 #include "xpcprivate.h"
+#include "xpcpublic.h"
 #include "XPCWrapper.h"
-#include "jsprf.h"
-#include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/Exceptions.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
-
-bool XPCThrower::sVerbose = true;
+JSBool XPCThrower::sVerbose = true;
 
 // static
 void
@@ -26,7 +21,7 @@ XPCThrower::Throw(nsresult rv, JSContext* cx)
         return;
     if (!nsXPCException::NameAndFormatForNSResult(rv, nullptr, &format))
         format = "";
-    dom::Throw(cx, rv, format);
+    BuildAndThrowException(cx, rv, format);
 }
 
 namespace xpc {
@@ -46,10 +41,11 @@ Throw(JSContext *cx, nsresult rv)
  * should be the current call context.
  */
 // static
-bool
+JSBool
 XPCThrower::CheckForPendingException(nsresult result, JSContext *cx)
 {
-    nsCOMPtr<nsIException> e = XPCJSRuntime::Get()->GetPendingException();
+    nsCOMPtr<nsIException> e;
+    XPCJSRuntime::Get()->GetPendingException(getter_AddRefs(e));
     if (!e)
         return false;
     XPCJSRuntime::Get()->SetPendingException(nullptr);
@@ -81,7 +77,7 @@ XPCThrower::Throw(nsresult rv, XPCCallContext& ccx)
     if (sz && sVerbose)
         Verbosify(ccx, &sz, false);
 
-    dom::Throw(ccx, rv, sz);
+    BuildAndThrowException(ccx, rv, sz);
 
     if (sz && sz != format)
         JS_smprintf_free(sz);
@@ -119,7 +115,7 @@ XPCThrower::ThrowBadResult(nsresult rv, nsresult result, XPCCallContext& ccx)
     if (sz && sVerbose)
         Verbosify(ccx, &sz, true);
 
-    dom::Throw(ccx, result, sz);
+    BuildAndThrowException(ccx, result, sz);
 
     if (sz)
         JS_smprintf_free(sz);
@@ -140,7 +136,7 @@ XPCThrower::ThrowBadParam(nsresult rv, unsigned paramNum, XPCCallContext& ccx)
     if (sz && sVerbose)
         Verbosify(ccx, &sz, true);
 
-    dom::Throw(ccx, rv, sz);
+    BuildAndThrowException(ccx, rv, sz);
 
     if (sz)
         JS_smprintf_free(sz);
@@ -170,4 +166,98 @@ XPCThrower::Verbosify(XPCCallContext& ccx,
             JS_smprintf_free(*psz);
         *psz = sz;
     }
+}
+
+// static
+void
+XPCThrower::BuildAndThrowException(JSContext* cx, nsresult rv, const char* sz)
+{
+    JSBool success = false;
+
+    /* no need to set an expection if the security manager already has */
+    if (rv == NS_ERROR_XPC_SECURITY_MANAGER_VETO && JS_IsExceptionPending(cx))
+        return;
+    nsCOMPtr<nsIException> finalException;
+    nsCOMPtr<nsIException> defaultException;
+    nsXPCException::NewException(sz, rv, nullptr, nullptr, getter_AddRefs(defaultException));
+
+    nsIExceptionManager * exceptionManager = XPCJSRuntime::Get()->GetExceptionManager();
+    if (exceptionManager) {
+        // Ask the provider for the exception, if there is no provider
+        // we expect it to set e to null
+        exceptionManager->GetExceptionFromProvider(rv,
+                                                   defaultException,
+                                                   getter_AddRefs(finalException));
+        // We should get at least the defaultException back,
+        // but just in case
+        if (finalException == nullptr) {
+            finalException = defaultException;
+        }
+    }
+
+    // XXX Should we put the following test and call to JS_ReportOutOfMemory
+    // inside this test?
+    if (finalException)
+        success = ThrowExceptionObject(cx, finalException);
+    // If we weren't able to build or throw an exception we're
+    // most likely out of memory
+    if (!success)
+        JS_ReportOutOfMemory(cx);
+}
+
+static bool
+IsCallerChrome(JSContext* cx)
+{
+    nsresult rv;
+
+    nsCOMPtr<nsIScriptSecurityManager> secMan;
+    secMan = XPCWrapper::GetSecurityManager();
+
+    if (!secMan)
+        return false;
+
+    bool isChrome;
+    rv = secMan->SubjectPrincipalIsSystem(&isChrome);
+    return NS_SUCCEEDED(rv) && isChrome;
+}
+
+// static
+JSBool
+XPCThrower::ThrowExceptionObject(JSContext* cx, nsIException* e)
+{
+    JSBool success = false;
+    if (e) {
+        nsCOMPtr<nsIXPCException> xpcEx;
+        JS::RootedValue thrown(cx);
+        nsXPConnect* xpc;
+
+        // If we stored the original thrown JS value in the exception
+        // (see XPCConvert::ConstructException) and we are in a web
+        // context (i.e., not chrome), rethrow the original value.
+        if (!IsCallerChrome(cx) &&
+            (xpcEx = do_QueryInterface(e)) &&
+            NS_SUCCEEDED(xpcEx->StealJSVal(thrown.address()))) {
+            if (!JS_WrapValue(cx, thrown.address()))
+                return false;
+            JS_SetPendingException(cx, thrown);
+            success = true;
+        } else if ((xpc = nsXPConnect::GetXPConnect())) {
+            JS::RootedObject glob(cx, JS_GetGlobalForScopeChain(cx));
+            if (!glob)
+                return false;
+
+            nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+            nsresult rv = xpc->WrapNative(cx, glob, e,
+                                          NS_GET_IID(nsIException),
+                                          getter_AddRefs(holder));
+            if (NS_SUCCEEDED(rv) && holder) {
+                JS::RootedObject obj(cx);
+                if (NS_SUCCEEDED(holder->GetJSObject(obj.address()))) {
+                    JS_SetPendingException(cx, OBJECT_TO_JSVAL(obj));
+                    success = true;
+                }
+            }
+        }
+    }
+    return success;
 }

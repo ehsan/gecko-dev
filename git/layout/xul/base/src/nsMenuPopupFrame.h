@@ -15,6 +15,7 @@
 #include "nsGkAtoms.h"
 #include "nsCOMPtr.h"
 #include "nsMenuFrame.h"
+#include "nsIDOMEventTarget.h"
 
 #include "nsBoxFrame.h"
 #include "nsMenuParent.h"
@@ -78,23 +79,6 @@ enum FlipStyle {
 #define POPUPALIGNMENT_TOPCENTER 17
 #define POPUPALIGNMENT_BOTTOMCENTER 18
 
-// The constants here are selected so that horizontally and vertically flipping
-// can be easily handled using the two flip macros below.
-#define POPUPPOSITION_UNKNOWN -1
-#define POPUPPOSITION_BEFORESTART 0
-#define POPUPPOSITION_BEFOREEND 1
-#define POPUPPOSITION_AFTERSTART 2
-#define POPUPPOSITION_AFTEREND 3
-#define POPUPPOSITION_STARTBEFORE 4
-#define POPUPPOSITION_ENDBEFORE 5
-#define POPUPPOSITION_STARTAFTER 6
-#define POPUPPOSITION_ENDAFTER 7
-#define POPUPPOSITION_OVERLAP 8
-#define POPUPPOSITION_AFTERPOINTER 9
-
-#define POPUPPOSITION_HFLIP(v) (v ^ 1)
-#define POPUPPOSITION_VFLIP(v) (v ^ 2)
-
 #define INC_TYP_INTERVAL  1000  // 1s. If the interval between two keypresses is shorter than this, 
                                 //   treat as a continue typing
 // XXX, kyle.yuan@sun.com, there are 4 definitions for the same purpose:
@@ -120,7 +104,7 @@ public:
   nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
   // nsMenuParent interface
-  virtual nsMenuFrame* GetCurrentMenuItem() MOZ_OVERRIDE;
+  virtual nsMenuFrame* GetCurrentMenuItem();
   NS_IMETHOD SetCurrentMenuItem(nsMenuFrame* aMenuItem) MOZ_OVERRIDE;
   virtual void CurrentMenuIsBeingDestroyed() MOZ_OVERRIDE;
   NS_IMETHOD ChangeMenuItem(nsMenuFrame* aMenuItem, bool aSelectFirstItem) MOZ_OVERRIDE;
@@ -130,7 +114,7 @@ public:
   nsPopupState PopupState() { return mPopupState; }
   void SetPopupState(nsPopupState aPopupState) { mPopupState = aPopupState; }
 
-  NS_IMETHOD SetActive(bool aActiveFlag) MOZ_OVERRIDE { return NS_OK; } // We don't care.
+  NS_IMETHOD SetActive(bool aActiveFlag) { return NS_OK; } // We don't care.
   virtual bool IsActive() MOZ_OVERRIDE { return false; }
   virtual bool IsMenuBar() MOZ_OVERRIDE { return false; }
 
@@ -192,7 +176,7 @@ public:
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList) MOZ_OVERRIDE;
 
-  virtual bool IsLeaf() const MOZ_OVERRIDE;
+  virtual bool IsLeaf() const;
 
   // layout, position and display the popup as needed
   void LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu, bool aSizedToPopup);
@@ -215,10 +199,10 @@ public:
   // that menu, or null if no menu should be opened. Also, calling Enter will
   // reset the current incremental search string, calculated in
   // FindMenuWithShortcut.
-  nsMenuFrame* Enter(mozilla::WidgetGUIEvent* aEvent);
+  nsMenuFrame* Enter(nsGUIEvent* aEvent);
 
   nsPopupType PopupType() const { return mPopupType; }
-  bool IsMenu() MOZ_OVERRIDE { return mPopupType == ePopupTypeMenu; }
+  bool IsMenu() { return mPopupType == ePopupTypeMenu; }
   bool IsOpen() MOZ_OVERRIDE { return mPopupState == ePopupOpen || mPopupState == ePopupOpenAndVisible; }
 
   bool IsDragPopup() { return mIsDragPopup; }
@@ -331,18 +315,13 @@ public:
 
   nsIntPoint GetLastClientOffset() const { return mLastClientOffset; }
 
-  // Return the alignment of the popup
-  int8_t GetAlignmentPosition() const;
-
-  // Return the offset applied to the alignment of the popup
-  nscoord GetAlignmentOffset() const { return mAlignmentOffset; }
 protected:
 
   // returns the popup's level.
   nsPopupLevel PopupLevel(bool aIsNoAutoHide) const;
 
   // redefine to tell the box system not to move the views.
-  virtual void GetLayoutFlags(uint32_t& aFlags) MOZ_OVERRIDE;
+  virtual void GetLayoutFlags(uint32_t& aFlags);
 
   void InitPositionFromAnchorAlign(const nsAString& aAnchor,
                                    const nsAString& aAlign);
@@ -374,24 +353,6 @@ protected:
                        nscoord aMarginBegin, nscoord aMarginEnd,
                        nscoord aOffsetForContextMenu, FlipStyle aFlip,
                        bool* aFlipSide);
-
-  // check if the popup can fit into the available space by "sliding" (i.e.,
-  // by having the anchor arrow slide along one axis and only resizing if that
-  // can't provide the requested size). Only one axis can be slid - the other
-  // axis is "flipped" as normal. This method can handle either axis, but is
-  // only called for the sliding axis. All coordinates are in app units
-  // relative to the screen.
-  //   aScreenPoint - the point where the popup should appear
-  //   aSize - the size of the popup
-  //   aScreenBegin - the left or top edge of the screen
-  //   aScreenEnd - the right or bottom edge of the screen
-  //   aOffset - the amount by which the arrow must be slid such that it is
-  //             still aligned with the anchor.
-  // Result is the new size of the popup, which will typically be the same
-  // as aSize, unless aSize is greater than the screen width/height.
-  nscoord SlideOrResize(nscoord& aScreenPoint, nscoord aSize,
-                        nscoord aScreenBegin, nscoord aScreenEnd,
-                        nscoord *aOffset);
 
   // Move the popup to the position specified in its |left| and |top| attributes.
   void MoveToAttributePosition();
@@ -438,12 +399,6 @@ protected:
   int32_t mYPos;
   int32_t mScreenXPos;
   int32_t mScreenYPos;
-
-  // If the panel prefers to "slide" rather than resize, then the arrow gets
-  // positioned at this offset (along either the x or y axis, depending on
-  // mPosition)
-  nscoord mAlignmentOffset;
-
   // The value of the client offset of our widget the last time we positioned
   // ourselves. We store this so that we can detect when it changes but the
   // position of our widget didn't change.
@@ -455,12 +410,9 @@ protected:
   // popup alignment relative to the anchor node
   int8_t mPopupAlignment;
   int8_t mPopupAnchor;
-  int8_t mPosition;
-
   // One of nsIPopupBoxObject::ROLLUP_DEFAULT/ROLLUP_CONSUME/ROLLUP_NO_CONSUME
   int8_t mConsumeRollupEvent;
   bool mFlipBoth; // flip in both directions
-  bool mSlide; // allow the arrow to "slide" instead of resizing
 
   bool mIsOpenChanged; // true if the open state changed since the last layout
   bool mIsContextMenu; // true for context menus

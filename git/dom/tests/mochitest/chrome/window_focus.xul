@@ -1127,17 +1127,9 @@ function otherWindowFocused(otherWindow)
 
   otherWindow.close();
 
-  getById("n2").focus();
-
   // next, check modal dialogs
-  // XXXndeakin Bug 621399 - the modal dialog test as well as later tests sometime fail
-  // on Windows 8 so just end the test here.
-  if (navigator.userAgent.indexOf("Windows NT 6.2") >= 0) {
-    done();
-  }
-  else {
-    window.openDialog("focus_window2.xul", "_blank", "chrome,modal", modalWindowOpened);
-  }
+  getById("n2").focus();
+  var nextWindow = window.openDialog("focus_window2.xul", "_blank", "chrome,modal", modalWindowOpened);
 }
 
 function modalWindowOpened(modalWindow)

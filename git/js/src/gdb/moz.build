@@ -4,15 +4,3 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-PROGRAM = 'gdb-tests'
-
-SOURCES += [
-    'gdb-tests.cpp',
-    'tests/test-jsid.cpp',
-    'tests/test-JSObject.cpp',
-    'tests/test-JSString.cpp',
-    'tests/test-jsval.cpp',
-    'tests/test-prettyprinters.cpp',
-    'tests/test-Root.cpp',
-    'tests/typedef-printers.cpp',
-]

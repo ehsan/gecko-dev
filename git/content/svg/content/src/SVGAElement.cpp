@@ -4,14 +4,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/SVGAElement.h"
-
-#include "mozilla/Attributes.h"
+#include "base/compiler_specific.h"
 #include "mozilla/dom/SVGAElementBinding.h"
-#include "nsCOMPtr.h"
-#include "nsContentUtils.h"
-#include "nsGkAtoms.h"
+#include "nsILink.h"
 #include "nsSVGString.h"
-#include "nsIURI.h"
+#include "nsCOMPtr.h"
+#include "nsGkAtoms.h"
+#include "nsContentUtils.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(A)
 
@@ -19,7 +18,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGAElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGAElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGAElementBinding::Wrap(aCx, aScope, this);
 }
@@ -34,10 +33,11 @@ nsSVGElement::StringInfo SVGAElement::sStringInfo[2] =
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_IMPL_ISUPPORTS_INHERITED4(SVGAElement, SVGAElementBase,
+NS_IMPL_ISUPPORTS_INHERITED5(SVGAElement, SVGAElementBase,
                              nsIDOMNode,
                              nsIDOMElement,
                              nsIDOMSVGElement,
+                             nsILink,
                              Link)
 
 
@@ -45,12 +45,12 @@ NS_IMPL_ISUPPORTS_INHERITED4(SVGAElement, SVGAElementBase,
 // Implementation
 
 SVGAElement::SVGAElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : SVGAElementBase(aNodeInfo)
-  , Link(MOZ_THIS_IN_INITIALIZER_LIST())
+  : SVGAElementBase(aNodeInfo),
+    ALLOW_THIS_IN_INITIALIZER_LIST(Link(this))
 {
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGAElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);
@@ -79,7 +79,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGAElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGAElement::Target()
 {
   return mStringAttributes[TARGET].ToDOMAnimatedString(this);
@@ -132,6 +132,12 @@ SVGAElement::UnbindFromTree(bool aDeep, bool aNullParent)
   }
 
   SVGAElementBase::UnbindFromTree(aDeep, aNullParent);
+}
+
+nsLinkState
+SVGAElement::GetLinkState() const
+{
+  return Link::GetLinkState();
 }
 
 already_AddRefed<nsIURI>

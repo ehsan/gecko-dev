@@ -7,6 +7,8 @@
 
 #include "nsIAccessibleTypes.h"
 
+#include "nsAccessNode.h"
+
 #include "nsIBaseWindow.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIDocument.h"
@@ -14,9 +16,10 @@
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsRange.h"
-#include "nsIBoxObject.h"
+#include "nsIDOMWindow.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDocShell.h"
+#include "nsIContentViewer.h"
 #include "nsEventListenerManager.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
@@ -24,18 +27,18 @@
 #include "nsEventStateManager.h"
 #include "nsISelectionPrivate.h"
 #include "nsISelectionController.h"
-#include "mozilla/MouseEvents.h"
-#include "mozilla/TouchEvents.h"
+#include "nsPIDOMWindow.h"
+#include "nsGUIEvent.h"
 #include "nsView.h"
+#include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
-#include "nsDOMTouchEvent.h"
 
 #include "nsComponentManagerUtils.h"
+#include "nsIInterfaceRequestorUtils.h"
+#include "mozilla/dom/Element.h"
 
 #include "nsITreeBoxObject.h"
 #include "nsITreeColumns.h"
-
-using namespace mozilla;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsCoreUtils
@@ -46,7 +49,7 @@ nsCoreUtils::HasClickListener(nsIContent *aContent)
 {
   NS_ENSURE_TRUE(aContent, false);
   nsEventListenerManager* listenerManager =
-    aContent->GetExistingListenerManager();
+    aContent->GetListenerManager(false);
 
   return listenerManager &&
     (listenerManager->HasListenersFor(nsGkAtoms::onclick) ||
@@ -69,7 +72,8 @@ nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
   if (!document)
     return;
 
-  nsCOMPtr<nsIPresShell> presShell = document->GetShell();
+  nsIPresShell *presShell = nullptr;
+  presShell = document->GetShell();
   if (!presShell)
     return;
 
@@ -95,21 +99,20 @@ nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
   tcBoxObj->GetY(&tcY);
 
   // Dispatch mouse events.
-  nsWeakFrame tcFrame = tcContent->GetPrimaryFrame();
+  nsIFrame* tcFrame = tcContent->GetPrimaryFrame();
   nsIFrame* rootFrame = presShell->GetRootFrame();
 
   nsPoint offset;
   nsIWidget *rootWidget =
     rootFrame->GetViewExternal()->GetNearestWidget(&offset);
 
-  nsRefPtr<nsPresContext> presContext = presShell->GetPresContext();
+  nsPresContext* presContext = presShell->GetPresContext();
 
   int32_t cnvdX = presContext->CSSPixelsToDevPixels(tcX + x + 1) +
     presContext->AppUnitsToDevPixels(offset.x);
   int32_t cnvdY = presContext->CSSPixelsToDevPixels(tcY + y + 1) +
     presContext->AppUnitsToDevPixels(offset.y);
 
-  // XUL is just desktop, so there is no real reason for senfing touch events.
   DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, cnvdX, cnvdY,
                      tcContent, tcFrame, presShell, rootWidget);
 
@@ -117,43 +120,47 @@ nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
                      tcContent, tcFrame, presShell, rootWidget);
 }
 
+bool
+nsCoreUtils::DispatchMouseEvent(uint32_t aEventType,
+                                nsIPresShell *aPresShell,
+                                nsIContent *aContent)
+{
+  nsIFrame *frame = aContent->GetPrimaryFrame();
+  if (!frame)
+    return false;
+
+  // Compute x and y coordinates.
+  nsPoint point;
+  nsCOMPtr<nsIWidget> widget = frame->GetNearestWidget(point);
+  if (!widget)
+    return false;
+
+  nsSize size = frame->GetSize();
+
+  nsPresContext* presContext = aPresShell->GetPresContext();
+
+  int32_t x = presContext->AppUnitsToDevPixels(point.x + size.width / 2);
+  int32_t y = presContext->AppUnitsToDevPixels(point.y + size.height / 2);
+
+  // Fire mouse event.
+  DispatchMouseEvent(aEventType, x, y, aContent, frame, aPresShell, widget);
+  return true;
+}
+
 void
 nsCoreUtils::DispatchMouseEvent(uint32_t aEventType, int32_t aX, int32_t aY,
                                 nsIContent *aContent, nsIFrame *aFrame,
                                 nsIPresShell *aPresShell, nsIWidget *aRootWidget)
 {
-  WidgetMouseEvent event(true, aEventType, aRootWidget,
-                         WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
+  nsMouseEvent event(true, aEventType, aRootWidget,
+                     nsMouseEvent::eReal, nsMouseEvent::eNormal);
 
-  event.refPoint = LayoutDeviceIntPoint(aX, aY);
+  event.refPoint = nsIntPoint(aX, aY);
 
   event.clickCount = 1;
-  event.button = WidgetMouseEvent::eLeftButton;
-  event.time = PR_IntervalNow();
-  event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
-
-  nsEventStatus status = nsEventStatus_eIgnore;
-  aPresShell->HandleEventWithTarget(&event, aFrame, aContent, &status);
-}
-
-void
-nsCoreUtils::DispatchTouchEvent(uint32_t aEventType, int32_t aX, int32_t aY,
-                                nsIContent* aContent, nsIFrame* aFrame,
-                                nsIPresShell* aPresShell, nsIWidget* aRootWidget)
-{
-  if (!nsDOMTouchEvent::PrefEnabled())
-    return;
-
-  WidgetTouchEvent event(true, aEventType, aRootWidget);
-
+  event.button = nsMouseEvent::eLeftButton;
   event.time = PR_IntervalNow();
 
-  // XXX: Touch has an identifier of -1 to hint that it is synthesized.
-  nsRefPtr<mozilla::dom::Touch> t =
-    new mozilla::dom::Touch(-1, nsIntPoint(aX, aY),
-                            nsIntPoint(1, 1), 0.0f, 1.0f);
-  t->SetTarget(aContent);
-  event.touches.AppendElement(t);
   nsEventStatus status = nsEventStatus_eIgnore;
   aPresShell->HandleEventWithTarget(&event, aFrame, aContent, &status);
 }
@@ -189,7 +196,7 @@ nsCoreUtils::GetDOMElementFor(nsIContent *aContent)
     return aContent;
 
   if (aContent->IsNodeOfType(nsINode::eTEXT))
-    return aContent->GetFlattenedTreeParent();
+    return aContent->GetParent();
 
   return nullptr;
 }
@@ -509,9 +516,9 @@ nsCoreUtils::GetTreeBodyBoxObject(nsITreeBoxObject *aTreeBoxObj)
   if (!tcXULElm)
     return nullptr;
 
-  nsCOMPtr<nsIBoxObject> boxObj;
-  tcXULElm->GetBoxObject(getter_AddRefs(boxObj));
-  return boxObj.forget();
+  nsIBoxObject *boxObj = nullptr;
+  tcXULElm->GetBoxObject(&boxObj);
+  return boxObj;
 }
 
 already_AddRefed<nsITreeBoxObject>
@@ -532,7 +539,7 @@ nsCoreUtils::GetTreeBoxObject(nsIContent *aContent)
           return treeBox.forget();
       }
     }
-    currentContent = currentContent->GetFlattenedTreeParent();
+    currentContent = currentContent->GetParent();
   }
 
   return nullptr;
@@ -644,20 +651,6 @@ nsCoreUtils::ScrollTo(nsIPresShell* aPresShell, nsIContent* aContent,
   ConvertScrollTypeToPercents(aScrollType, &vertical, &horizontal);
   aPresShell->ScrollContentIntoView(aContent, vertical, horizontal,
                                     nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
-}
-
-bool
-nsCoreUtils::IsWhitespaceString(const nsSubstring& aString)
-{
-  nsSubstring::const_char_iterator iterBegin, iterEnd;
-
-  aString.BeginReading(iterBegin);
-  aString.EndReading(iterEnd);
-
-  while (iterBegin != iterEnd && IsWhitespace(*iterBegin))
-    ++iterBegin;
-
-  return iterBegin == iterEnd;
 }
 
 

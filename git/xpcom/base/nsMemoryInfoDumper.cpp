@@ -6,23 +6,19 @@
 
 #include "mozilla/nsMemoryInfoDumper.h"
 
-#ifdef XP_LINUX
+#include "mozilla/ClearOnShutdown.h"
+#include "mozilla/FileUtils.h"
 #include "mozilla/Preferences.h"
-#endif
+#include "mozilla/StaticPtr.h"
 #include "mozilla/unused.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ContentChild.h"
 #include "nsIConsoleService.h"
 #include "nsICycleCollectorListener.h"
-#include "nsIMemoryReporter.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsGZFileWriter.h"
 #include "nsJSEnvironment.h"
 #include "nsPrintfCString.h"
-#include "nsISimpleEnumerator.h"
-#include "nsServiceManagerUtils.h"
-#include "nsIFile.h"
-#include <errno.h>
 
 #ifdef XP_WIN
 #include <process.h>
@@ -85,26 +81,21 @@ class GCAndCCLogDumpRunnable : public nsRunnable
 {
 public:
   GCAndCCLogDumpRunnable(const nsAString& aIdentifier,
-                         bool aDumpAllTraces,
                          bool aDumpChildProcesses)
     : mIdentifier(aIdentifier)
-    , mDumpAllTraces(aDumpAllTraces)
     , mDumpChildProcesses(aDumpChildProcesses)
   {}
 
   NS_IMETHOD Run()
   {
-    nsCOMPtr<nsIMemoryInfoDumper> dumper =
-      do_GetService("@mozilla.org/memory-info-dumper;1");
-
+    nsCOMPtr<nsIMemoryInfoDumper> dumper = do_GetService("@mozilla.org/memory-info-dumper;1");
     dumper->DumpGCAndCCLogsToFile(
-      mIdentifier, mDumpAllTraces, mDumpChildProcesses);
+      mIdentifier, mDumpChildProcesses);
     return NS_OK;
   }
 
 private:
   const nsString mIdentifier;
-  const bool mDumpAllTraces;
   const bool mDumpChildProcesses;
 };
 
@@ -145,7 +136,7 @@ static int sGCAndCCDumpSignum;             // SIGRTMIN + 2
 
 // This is the write-end of a pipe that we use to notice when a
 // dump-about-memory signal occurs.
-static Atomic<int> sDumpAboutMemoryPipeWriteFd(-1);
+static int sDumpAboutMemoryPipeWriteFd = -1;
 
 void
 DumpAboutMemorySignalHandler(int aSignum)
@@ -193,9 +184,9 @@ public:
    * function is also called when you're at eof (read() returns 0 in this case).
    */
   virtual void OnFileCanReadWithoutBlocking(int aFd) = 0;
-  virtual void OnFileCanWriteWithoutBlocking(int aFd) {};
+  virtual void OnFileCanWriteWithoutBlocking(int Afd) {};
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   /**
    * Initialize this object.  This should be called right after the object is
@@ -262,7 +253,7 @@ public:
   }
 };
 
-NS_IMPL_ISUPPORTS1(FdWatcher, nsIObserver);
+NS_IMPL_THREADSAFE_ISUPPORTS1(FdWatcher, nsIObserver);
 
 class SignalPipeWatcher : public FdWatcher
 {
@@ -332,7 +323,8 @@ public:
     //  2) open a new fd with the same number as sDumpAboutMemoryPipeWriteFd
     //     had.
     //  3) receive a signal, then write to the fd.
-    int pipeWriteFd = sDumpAboutMemoryPipeWriteFd.exchange(-1);
+    int pipeWriteFd = sDumpAboutMemoryPipeWriteFd;
+    PR_ATOMIC_SET(&sDumpAboutMemoryPipeWriteFd, -1);
     close(pipeWriteFd);
 
     FdWatcher::StopWatching();
@@ -365,7 +357,6 @@ public:
       nsRefPtr<GCAndCCLogDumpRunnable> runnable =
         new GCAndCCLogDumpRunnable(
             /* identifier = */ EmptyString(),
-            /* allTraces = */ true,
             /* dumpChildProcesses = */ true);
       NS_DispatchToMainThread(runnable);
     }
@@ -509,8 +500,7 @@ public:
 
     bool doMemoryReport = inputStr == NS_LITERAL_CSTRING("memory report");
     bool doMMUMemoryReport = inputStr == NS_LITERAL_CSTRING("minimize memory report");
-    bool doAllTracesGCCCDump = inputStr == NS_LITERAL_CSTRING("gc log");
-    bool doSmallGCCCDump = inputStr == NS_LITERAL_CSTRING("abbreviated gc log");
+    bool doGCCCDump = inputStr == NS_LITERAL_CSTRING("gc log");
 
     if (doMemoryReport || doMMUMemoryReport) {
       LOG("FifoWatcher dispatching memory report runnable.");
@@ -519,12 +509,11 @@ public:
                                             doMMUMemoryReport,
                                             /* dumpChildProcesses = */ true);
       NS_DispatchToMainThread(runnable);
-    } else if (doAllTracesGCCCDump || doSmallGCCCDump) {
+    } else if (doGCCCDump) {
       LOG("FifoWatcher dispatching GC/CC log runnable.");
       nsRefPtr<GCAndCCLogDumpRunnable> runnable =
         new GCAndCCLogDumpRunnable(
             /* identifier = */ EmptyString(),
-            doAllTracesGCCCDump,
             /* dumpChildProcesses = */ true);
       NS_DispatchToMainThread(runnable);
     } else {
@@ -572,7 +561,6 @@ EnsureNonEmptyIdentifier(nsAString& aIdentifier)
 NS_IMETHODIMP
 nsMemoryInfoDumper::DumpGCAndCCLogsToFile(
   const nsAString& aIdentifier,
-  bool aDumpAllTraces,
   bool aDumpChildProcesses)
 {
   nsString identifier(aIdentifier);
@@ -583,19 +571,13 @@ nsMemoryInfoDumper::DumpGCAndCCLogsToFile(
     ContentParent::GetAll(children);
     for (uint32_t i = 0; i < children.Length(); i++) {
       unused << children[i]->SendDumpGCAndCCLogsToFile(
-        identifier, aDumpAllTraces, aDumpChildProcesses);
+          identifier, aDumpChildProcesses);
     }
   }
 
   nsCOMPtr<nsICycleCollectorListener> logger =
     do_CreateInstance("@mozilla.org/cycle-collector-logger;1");
   logger->SetFilenameIdentifier(identifier);
-
-  if (aDumpAllTraces) {
-    nsCOMPtr<nsICycleCollectorListener> allTracesLogger;
-    logger->AllTraces(getter_AddRefs(allTracesLogger));
-    logger = allTracesLogger;
-  }
 
   nsJSContext::CycleCollectNow(logger);
   return NS_OK;
@@ -616,30 +598,36 @@ DumpReport(nsIGZFileWriter *aWriter, bool aIsFirst,
 {
   DUMP(aWriter, aIsFirst ? "[" : ",");
 
-  nsAutoCString process;
-  if (aProcess.IsEmpty()) {
-    // If the process is empty, the report originated with the process doing
-    // the dumping.  In that case, generate the process identifier, which is of
-    // the form "$PROCESS_NAME (pid $PID)", or just "(pid $PID)" if we don't
-    // have a process name.  If we're the main process, we let $PROCESS_NAME be
-    // "Main Process".
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
-      // We're the main process.
-      process.AssignLiteral("Main Process");
-    } else if (ContentChild *cc = ContentChild::GetSingleton()) {
-      // Try to get the process name from ContentChild.
-      cc->GetProcessName(process);
-    }
-    ContentChild::AppendProcessId(process);
-
-  } else {
-    // Otherwise, the report originated with another process and already has a
-    // process name.  Just use that.
-    process = aProcess;
+  // We only want to dump reports for this process.  If |aProcess| is
+  // non-NULL that means we've received it from another process in response
+  // to a "child-memory-reporter-request" event;  ignore such reports.
+  if (!aProcess.IsEmpty()) {
+    return NS_OK;
   }
 
+  // Generate the process identifier, which is of the form "$PROCESS_NAME
+  // (pid $PID)", or just "(pid $PID)" if we don't have a process name.  If
+  // we're the main process, we let $PROCESS_NAME be "Main Process".
+  nsAutoCString processId;
+  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    // We're the main process.
+    processId.AssignLiteral("Main Process ");
+  } else if (ContentChild *cc = ContentChild::GetSingleton()) {
+    // Try to get the process name from ContentChild.
+    nsAutoString processName;
+    cc->GetProcessName(processName);
+    processId.Assign(NS_ConvertUTF16toUTF8(processName));
+    if (!processId.IsEmpty()) {
+      processId.AppendLiteral(" ");
+    }
+  }
+
+  // Add the PID to the identifier.
+  unsigned pid = getpid();
+  processId.Append(nsPrintfCString("(pid %u)", pid));
+
   DUMP(aWriter, "\n    {\"process\": \"");
-  DUMP(aWriter, process);
+  DUMP(aWriter, processId);
 
   DUMP(aWriter, "\", \"path\": \"");
   nsCString path(aPath);
@@ -667,32 +655,32 @@ DumpReport(nsIGZFileWriter *aWriter, bool aIsFirst,
   return NS_OK;
 }
 
-class DumpReportCallback MOZ_FINAL : public nsIHandleReportCallback
+class DumpMultiReporterCallback MOZ_FINAL : public nsIMemoryMultiReporterCallback
 {
-public:
-  NS_DECL_ISUPPORTS
+  public:
+    NS_DECL_ISUPPORTS
 
-  DumpReportCallback() : mIsFirst(true) {}
+      NS_IMETHOD Callback(const nsACString &aProcess, const nsACString &aPath,
+          int32_t aKind, int32_t aUnits, int64_t aAmount,
+          const nsACString &aDescription,
+          nsISupports *aData)
+      {
+        nsCOMPtr<nsIGZFileWriter> writer = do_QueryInterface(aData);
+        NS_ENSURE_TRUE(writer, NS_ERROR_FAILURE);
 
-  NS_IMETHOD Callback(const nsACString &aProcess, const nsACString &aPath,
-      int32_t aKind, int32_t aUnits, int64_t aAmount,
-      const nsACString &aDescription,
-      nsISupports *aData)
-  {
-    nsCOMPtr<nsIGZFileWriter> writer = do_QueryInterface(aData);
-    NS_ENSURE_TRUE(writer, NS_ERROR_FAILURE);
-
-    nsresult rv = DumpReport(writer, mIsFirst, aProcess, aPath, aKind, aUnits,
-                             aAmount, aDescription);
-    mIsFirst = false;
-    return rv;
-  }
-
-private:
-  bool mIsFirst;
+        // The |isFirst = false| assumes that at least one single reporter is
+        // present and so will have been processed in
+        // DumpProcessMemoryReportsToGZFileWriter() below.
+        return DumpReport(writer, /* isFirst = */ false, aProcess, aPath,
+            aKind, aUnits, aAmount, aDescription);
+        return NS_OK;
+      }
 };
 
-NS_IMPL_ISUPPORTS1(DumpReportCallback, nsIHandleReportCallback)
+NS_IMPL_ISUPPORTS1(
+    DumpMultiReporterCallback
+    , nsIMemoryMultiReporterCallback
+    )
 
 } // namespace mozilla
 
@@ -725,44 +713,13 @@ nsMemoryInfoDumper::OpenTempFile(const nsACString &aFilename, nsIFile* *aFile)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-#ifdef ANDROID
-  // /data/local/tmp is a true tmp directory; anyone can create a file there,
-  // but only the user which created the file can remove it.  We want non-root
-  // users to be able to remove these files, so we write them into a
-  // subdirectory of the temp directory and chmod 777 that directory.
-  rv = (*aFile)->AppendNative(NS_LITERAL_CSTRING("memory-reports"));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // It's OK if this fails; that probably just means that the directory already
-  // exists.
-  (*aFile)->Create(nsIFile::DIRECTORY_TYPE, 0777);
-
-  nsAutoCString dirPath;
-  rv = (*aFile)->GetNativePath(dirPath);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  while (chmod(dirPath.get(), 0777) == -1 && errno == EINTR) {}
-#endif
-
   nsCOMPtr<nsIFile> file(*aFile);
 
   rv = file->AppendNative(aFilename);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = file->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0666);
+  rv = file->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0644);
   NS_ENSURE_SUCCESS(rv, rv);
-
-#ifdef ANDROID
-    // Make this file world-read/writable; the permissions passed to the
-    // CreateUnique call above are not sufficient on Android, which runs with a
-    // umask.
-    nsAutoCString path;
-    rv = file->GetNativePath(path);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    while (chmod(path.get(), 0666) == -1 && errno == EINTR) {}
-#endif
-
   return NS_OK;
 }
 
@@ -788,8 +745,10 @@ DMDWrite(void* aState, const char* aFmt, va_list ap)
 #endif
 
 static nsresult
-DumpHeader(nsIGZFileWriter* aWriter)
+DumpProcessMemoryReportsToGZFileWriter(nsIGZFileWriter *aWriter)
 {
+  nsresult rv;
+
   // Increment this number if the format changes.
   //
   // This is the first write to the file, and it causes |aWriter| to allocate
@@ -807,37 +766,59 @@ DumpHeader(nsIGZFileWriter* aWriter)
   DUMP(aWriter, ",\n");
   DUMP(aWriter, "  \"reports\": ");
 
-  return NS_OK;
-}
-
-static nsresult
-DumpFooter(nsIGZFileWriter* aWriter)
-{
-  DUMP(aWriter, "\n  ]\n}\n");
-
-  return NS_OK;
-}
-
-static nsresult
-DumpProcessMemoryReportsToGZFileWriter(nsIGZFileWriter* aWriter)
-{
-  nsresult rv = DumpHeader(aWriter);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Process reporters.
+  // Process single reporters.
+  bool isFirst = true;
   bool more;
   nsCOMPtr<nsISimpleEnumerator> e;
-  nsCOMPtr<nsIMemoryReporterManager> mgr =
-    do_GetService("@mozilla.org/memory-reporter-manager;1");
   mgr->EnumerateReporters(getter_AddRefs(e));
-  nsRefPtr<DumpReportCallback> dumpReport = new DumpReportCallback();
   while (NS_SUCCEEDED(e->HasMoreElements(&more)) && more) {
     nsCOMPtr<nsIMemoryReporter> r;
     e->GetNext(getter_AddRefs(r));
-    r->CollectReports(dumpReport, aWriter);
+
+    nsCString process;
+    rv = r->GetProcess(process);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCString path;
+    rv = r->GetPath(path);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    int32_t kind;
+    rv = r->GetKind(&kind);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    int32_t units;
+    rv = r->GetUnits(&units);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    int64_t amount;
+    rv = r->GetAmount(&amount);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCString description;
+    rv = r->GetDescription(description);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = DumpReport(aWriter, isFirst, process, path, kind, units, amount,
+                    description);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    isFirst = false;
   }
 
-  return DumpFooter(aWriter);
+  // Process multi-reporters.
+  nsCOMPtr<nsISimpleEnumerator> e2;
+  mgr->EnumerateMultiReporters(getter_AddRefs(e2));
+  nsRefPtr<DumpMultiReporterCallback> cb = new DumpMultiReporterCallback();
+  while (NS_SUCCEEDED(e2->HasMoreElements(&more)) && more) {
+    nsCOMPtr<nsIMemoryMultiReporter> r;
+    e2->GetNext(getter_AddRefs(r));
+    r->CollectReports(cb, aWriter);
+  }
+
+  DUMP(aWriter, "\n  ]\n}\n");
+
+  return NS_OK;
 }
 
 nsresult
@@ -925,11 +906,6 @@ DumpProcessMemoryInfoToTempDir(const nsAString& aIdentifier)
   rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(mrFinalFile));
   NS_ENSURE_SUCCESS(rv, rv);
 
-#ifdef ANDROID
-  rv = mrFinalFile->AppendNative(NS_LITERAL_CSTRING("memory-reports"));
-  NS_ENSURE_SUCCESS(rv, rv);
-#endif
-
   rv = mrFinalFile->AppendNative(mrFilename);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -997,45 +973,8 @@ nsMemoryInfoDumper::DumpMemoryInfoToTempDir(const nsAString& aIdentifier,
   return DumpProcessMemoryInfoToTempDir(identifier);
 }
 
-// This dumps the JSON footer and closes the file, and then calls the given
-// nsIFinishDumpingCallback.
-class FinishReportingCallback MOZ_FINAL : public nsIFinishReportingCallback
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  FinishReportingCallback(nsIFinishDumpingCallback* aFinishDumping,
-                          nsISupports* aFinishDumpingData)
-    : mFinishDumping(aFinishDumping)
-    , mFinishDumpingData(aFinishDumpingData)
-  {}
-
-  NS_IMETHOD Callback(nsISupports* aData)
-  {
-    nsCOMPtr<nsIGZFileWriter> writer = do_QueryInterface(aData);
-    NS_ENSURE_TRUE(writer, NS_ERROR_FAILURE);
-
-    nsresult rv = DumpFooter(writer);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = writer->Finish();
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return mFinishDumping->Callback(mFinishDumpingData);
-  }
-
-private:
-  nsCOMPtr<nsIFinishDumpingCallback> mFinishDumping;
-  nsCOMPtr<nsISupports> mFinishDumpingData;
-};
-
-NS_IMPL_ISUPPORTS1(FinishReportingCallback, nsIFinishReportingCallback)
-
 NS_IMETHODIMP
-nsMemoryInfoDumper::DumpMemoryReportsToNamedFile(
-  const nsAString& aFilename,
-  nsIFinishDumpingCallback* aFinishDumping,
-  nsISupports* aFinishDumpingData)
+nsMemoryInfoDumper::DumpMemoryReportsToNamedFile(const nsAString& aFilename)
 {
   MOZ_ASSERT(!aFilename.IsEmpty());
 
@@ -1063,16 +1002,12 @@ nsMemoryInfoDumper::DumpMemoryReportsToNamedFile(
   rv = mrWriter->Init(mrFile);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = DumpHeader(mrWriter);
+  DumpProcessMemoryReportsToGZFileWriter(mrWriter);
+
+  rv = mrWriter->Finish();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Process reports and finish up.
-  nsRefPtr<DumpReportCallback> dumpReport = new DumpReportCallback();
-  nsRefPtr<FinishReportingCallback> finishReporting =
-    new FinishReportingCallback(aFinishDumping, aFinishDumpingData);
-  nsCOMPtr<nsIMemoryReporterManager> mgr =
-    do_GetService("@mozilla.org/memory-reporter-manager;1");
-  return mgr->GetReports(dumpReport, mrWriter, finishReporting, mrWriter);
+  return NS_OK;
 }
 
 #undef DUMP

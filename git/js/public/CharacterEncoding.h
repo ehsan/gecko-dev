@@ -4,18 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef js_CharacterEncoding_h
-#define js_CharacterEncoding_h
+#ifndef js_CharacterEncoding_h___
+#define js_CharacterEncoding_h___
 
-#include "mozilla/NullPtr.h"
 #include "mozilla/Range.h"
 
-#include "js/TypeDecls.h"
 #include "js/Utility.h"
 
-namespace js {
-struct ThreadSafeContext;
-}
+#include "jspubtd.h"
 
 namespace JS {
 
@@ -45,7 +41,7 @@ class Latin1CharsZ : public mozilla::RangedPtr<unsigned char>
     typedef mozilla::RangedPtr<unsigned char> Base;
 
   public:
-    Latin1CharsZ() : Base(nullptr, 0) {}
+    Latin1CharsZ() : Base(NULL, 0) {}
 
     Latin1CharsZ(char *aBytes, size_t aLength)
       : Base(reinterpret_cast<unsigned char *>(aBytes), aLength)
@@ -62,20 +58,6 @@ class Latin1CharsZ : public mozilla::RangedPtr<unsigned char>
     char *c_str() { return reinterpret_cast<char *>(get()); }
 };
 
-class UTF8Chars : public mozilla::Range<unsigned char>
-{
-    typedef mozilla::Range<unsigned char> Base;
-
-  public:
-    UTF8Chars() : Base() {}
-    UTF8Chars(char *aBytes, size_t aLength)
-      : Base(reinterpret_cast<unsigned char *>(aBytes), aLength)
-    {}
-    UTF8Chars(const char *aBytes, size_t aLength)
-      : Base(reinterpret_cast<unsigned char *>(const_cast<char *>(aBytes)), aLength)
-    {}
-};
-
 /*
  * SpiderMonkey also deals directly with UTF-8 encoded text in some places.
  */
@@ -84,7 +66,7 @@ class UTF8CharsZ : public mozilla::RangedPtr<unsigned char>
     typedef mozilla::RangedPtr<unsigned char> Base;
 
   public:
-    UTF8CharsZ() : Base(nullptr, 0) {}
+    UTF8CharsZ() : Base(NULL, 0) {}
 
     UTF8CharsZ(char *aBytes, size_t aLength)
       : Base(reinterpret_cast<unsigned char *>(aBytes), aLength)
@@ -142,12 +124,10 @@ class TwoByteCharsZ : public mozilla::RangedPtr<jschar>
     typedef mozilla::RangedPtr<jschar> Base;
 
   public:
-    TwoByteCharsZ() : Base(nullptr, 0) {}
-
     TwoByteCharsZ(jschar *chars, size_t length)
       : Base(chars, length)
     {
-        JS_ASSERT(chars[length] == '\0');
+        JS_ASSERT(chars[length] = '\0');
     }
 };
 
@@ -158,38 +138,18 @@ class TwoByteCharsZ : public mozilla::RangedPtr<jschar>
  * output. The returned string is zero terminated. The returned string or the
  * returned string's |start()| must be freed with JS_free or js_free,
  * respectively. If allocation fails, an OOM error will be set and the method
- * will return a nullptr chars (which can be tested for with the ! operator).
+ * will return a NULL chars (which can be tested for with the ! operator).
  * This method cannot trigger GC.
  */
 extern Latin1CharsZ
-LossyTwoByteCharsToNewLatin1CharsZ(js::ThreadSafeContext *cx, TwoByteChars tbchars);
+LossyTwoByteCharsToNewLatin1CharsZ(JSContext *cx, TwoByteChars tbchars);
 
 extern UTF8CharsZ
-TwoByteCharsToNewUTF8CharsZ(js::ThreadSafeContext *cx, TwoByteChars tbchars);
-
-uint32_t
-Utf8ToOneUcs4Char(const uint8_t *utf8Buffer, int utf8Length);
-
-/*
- * Inflate bytes in UTF-8 encoding to jschars.
- * - On error, returns an empty TwoByteCharsZ.
- * - On success, returns a malloc'd TwoByteCharsZ, and updates |outlen| to hold
- *   its length;  the length value excludes the trailing null.
- */
-extern TwoByteCharsZ
-UTF8CharsToNewTwoByteCharsZ(JSContext *cx, const UTF8Chars utf8, size_t *outlen);
-
-/*
- * The same as UTF8CharsToNewTwoByteCharsZ(), except that any malformed UTF-8 characters
- * will be replaced by \uFFFD. No exception will be thrown for malformed UTF-8
- * input.
- */
-extern TwoByteCharsZ
-LossyUTF8CharsToNewTwoByteCharsZ(JSContext *cx, const UTF8Chars utf8, size_t *outlen);
+TwoByteCharsToNewUTF8CharsZ(JSContext *cx, TwoByteChars tbchars);
 
 } // namespace JS
 
 inline void JS_free(JS::Latin1CharsZ &ptr) { js_free((void*)ptr.get()); }
 inline void JS_free(JS::UTF8CharsZ &ptr) { js_free((void*)ptr.get()); }
 
-#endif /* js_CharacterEncoding_h */
+#endif // js_CharacterEncoding_h___

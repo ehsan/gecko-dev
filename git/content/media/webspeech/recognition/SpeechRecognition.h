@@ -4,19 +4,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_SpeechRecognition_h
-#define mozilla_dom_SpeechRecognition_h
+#pragma once
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsString.h"
 #include "nsWrapperCache.h"
-#include "nsTArray.h"
-#include "js/TypeDecls.h"
-
 #include "nsIDOMNavigatorUserMedia.h"
-#include "nsITimer.h"
+#include "nsTArray.h"
+
+#include "MediaManager.h"
 #include "MediaEngine.h"
 #include "MediaStreamGraph.h"
 #include "AudioSegment.h"
@@ -30,8 +27,9 @@
 #include "nsISpeechRecognitionService.h"
 #include "endpointer.h"
 
-#include "mozilla/dom/SpeechRecognitionError.h"
+#include "nsIDOMSpeechRecognitionError.h"
 
+struct JSContext;
 class nsIDOMWindow;
 
 namespace mozilla {
@@ -69,11 +67,9 @@ public:
 
   nsISupports* GetParentObject() const;
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope);
 
-  static already_AddRefed<SpeechRecognition>
-  Constructor(const GlobalObject& aGlobal, ErrorResult& aRv);
+  static already_AddRefed<SpeechRecognition> Constructor(const GlobalObject& aGlobal, ErrorResult& aRv);
 
   already_AddRefed<SpeechGrammarList> GetGrammars(ErrorResult& aRv) const;
 
@@ -125,11 +121,10 @@ public:
     EVENT_AUDIO_ERROR,
     EVENT_RECOGNITIONSERVICE_INTERMEDIATE_RESULT,
     EVENT_RECOGNITIONSERVICE_FINAL_RESULT,
-    EVENT_RECOGNITIONSERVICE_ERROR,
-    EVENT_COUNT
+    EVENT_RECOGNITIONSERVICE_ERROR
   };
 
-  void DispatchError(EventType aErrorType, SpeechRecognitionErrorCode aErrorCode, const nsAString& aMessage);
+  void DispatchError(EventType aErrorType, int aErrorCode, const nsAString& aMessage);
   uint32_t FillSamplesBuffer(const int16_t* aSamples, uint32_t aSampleCount);
   uint32_t SplitSamplesBuffer(const int16_t* aSamplesBuffer, uint32_t aSampleCount, nsTArray<already_AddRefed<SharedBuffer> >& aResult);
   AudioSegment* CreateAudioSegment(nsTArray<already_AddRefed<SharedBuffer> >& aChunks);
@@ -171,11 +166,17 @@ private:
     STATE_WAITING_FOR_SPEECH,
     STATE_RECOGNIZING,
     STATE_WAITING_FOR_RESULT,
-    STATE_COUNT
   };
 
-  void SetState(FSMState state);
-  bool StateBetween(FSMState begin, FSMState end);
+  class GetUserMediaStreamOptions : public nsIMediaStreamOptions
+  {
+  public:
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIMEDIASTREAMOPTIONS
+
+    GetUserMediaStreamOptions() {}
+    virtual ~GetUserMediaStreamOptions() {}
+  };
 
   class GetUserMediaSuccessCallback : public nsIDOMGetUserMediaSuccessCallback
   {
@@ -216,20 +217,19 @@ private:
   void NotifyError(SpeechEvent* aEvent);
 
   void ProcessEvent(SpeechEvent* aEvent);
-  void Transition(SpeechEvent* aEvent);
+  FSMState TransitionAndGetNextState(SpeechEvent* aEvent);
 
-  void Reset();
-  void ResetAndEnd();
-  void WaitForAudioData(SpeechEvent* aEvent);
-  void StartedAudioCapture(SpeechEvent* aEvent);
-  void StopRecordingAndRecognize(SpeechEvent* aEvent);
-  void WaitForEstimation(SpeechEvent* aEvent);
-  void DetectSpeech(SpeechEvent* aEvent);
-  void WaitForSpeechEnd(SpeechEvent* aEvent);
-  void NotifyFinalResult(SpeechEvent* aEvent);
-  void DoNothing(SpeechEvent* aEvent);
-  void AbortSilently(SpeechEvent* aEvent);
-  void AbortError(SpeechEvent* aEvent);
+  FSMState Reset();
+  FSMState ResetAndEnd();
+  FSMState StartedAudioCapture(SpeechEvent* aEvent);
+  FSMState StopRecordingAndRecognize(SpeechEvent* aEvent);
+  FSMState WaitForEstimation(SpeechEvent* aEvent);
+  FSMState DetectSpeech(SpeechEvent* aEvent);
+  FSMState WaitForSpeechEnd(SpeechEvent* aEvent);
+  FSMState NotifyFinalResult(SpeechEvent* aEvent);
+  FSMState DoNothing(SpeechEvent* aEvent);
+  FSMState AbortSilently(SpeechEvent* aEvent);
+  FSMState AbortError(SpeechEvent* aEvent);
 
   nsRefPtr<DOMMediaStream> mDOMStream;
   nsRefPtr<SpeechStreamListener> mSpeechListener;
@@ -238,6 +238,7 @@ private:
   void GetRecognitionServiceCID(nsACString& aResultCID);
 
   FSMState mCurrentState;
+  bool mProcessingEvent;
 
   Endpointer mEndpointer;
   uint32_t mEstimationSamples;
@@ -250,12 +251,8 @@ private:
   uint32_t mBufferedSamples;
 
   nsCOMPtr<nsITimer> mSpeechDetectionTimer;
-  bool mAborted;
 
   void ProcessTestEventRequest(nsISupports* aSubject, const nsAString& aEventName);
-
-  const char* GetName(FSMState aId);
-  const char* GetName(SpeechEvent* aId);
 };
 
 class SpeechEvent : public nsRunnable
@@ -272,10 +269,10 @@ public:
 
   ~SpeechEvent();
 
-  NS_IMETHOD Run() MOZ_OVERRIDE;
+  NS_IMETHOD Run();
   AudioSegment* mAudioSegment;
   nsRefPtr<SpeechRecognitionResultList> mRecognitionResultList; // TODO: make this a session being passed which also has index and stuff
-  nsRefPtr<SpeechRecognitionError> mError;
+  nsCOMPtr<nsIDOMSpeechRecognitionError> mError;
 
   friend class SpeechRecognition;
 private:
@@ -297,5 +294,3 @@ ToSupports(dom::SpeechRecognition* aRec)
   return ToSupports(static_cast<nsDOMEventTargetHelper*>(aRec));
 }
 } // namespace mozilla
-
-#endif

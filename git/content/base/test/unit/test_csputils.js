@@ -11,11 +11,13 @@ const Cr = Components.results;
 Cu.import('resource://gre/modules/CSPUtils.jsm');
 Cu.import('resource://gre/modules/NetUtil.jsm');
 
+// load the HTTP server
+Cu.import("resource://testing-common/httpd.js");
+
 var httpServer = new HttpServer();
-httpServer.start(-1);
 
 const POLICY_FROM_URI = "default-src 'self'; img-src *";
-const POLICY_PORT = httpServer.identity.primaryPort;
+const POLICY_PORT = 9000;
 const POLICY_URI = "http://localhost:" + POLICY_PORT + "/policy";
 const POLICY_URI_RELATIVE = "/policy";
 
@@ -141,6 +143,15 @@ test(
     do_check_true( h2.permits("a.b.c")); //"CSPHost a.b.c should allow string a.b.c"
   });
 
+test(
+    function test_CSPHost_intersectWith() {
+      var h = CSPHost.fromString("*.b.c");
+      //"*.a.b.c ^ *.b.c should be *.a.b.c"
+      do_check_eq("*.a.b.c", h.intersectWith(CSPHost.fromString("*.a.b.c")).toString());
+
+      //"*.b.c ^ *.d.e should not work (null)"
+      do_check_eq(null, h.intersectWith(CSPHost.fromString("*.d.e")));
+    });
 
 ///////////////////// Test the Source object //////////////////////
 
@@ -308,6 +319,42 @@ test(
       do_check_false(wildcardHostSourceList.permits("http://barbaz.com"));
     });
 
+test(
+    function test_CSPSourceList_intersect() {
+      // for this test, 'self' values are irrelevant
+      // policy a /\ policy b intersects policies, not context (where 'self'
+      // values come into play)
+      var nullSourceList = CSPSourceList.fromString("'none'");
+      var simpleSourceList = CSPSourceList.fromString("http://a.com");
+      var doubleSourceList = CSPSourceList.fromString("https://foo.com http://bar.com:88");
+      var singleFooSourceList = CSPSourceList.fromString("https://foo.com");
+      var allSourceList = CSPSourceList.fromString("*");
+
+      //"Intersection of one source with 'none' source list should be none.");
+      do_check_true(nullSourceList.intersectWith(simpleSourceList).isNone());
+      //"Intersection of two sources with 'none' source list should be none.");
+      do_check_true(nullSourceList.intersectWith(doubleSourceList).isNone());
+      //"Intersection of '*' with 'none' source list should be none.");
+      do_check_true(nullSourceList.intersectWith(allSourceList).isNone());
+
+      //"Intersection of one source with '*' source list should be one source.");
+      do_check_equivalent(allSourceList.intersectWith(simpleSourceList),
+                          simpleSourceList);
+      //"Intersection of two sources with '*' source list should be two sources.");
+      do_check_equivalent(allSourceList.intersectWith(doubleSourceList),
+                          doubleSourceList);
+
+      //"Non-overlapping source lists should intersect to 'none'");
+      do_check_true(simpleSourceList.intersectWith(doubleSourceList).isNone());
+
+      //"subset and superset should intersect to subset.");
+      do_check_equivalent(singleFooSourceList,
+                          doubleSourceList.intersectWith(singleFooSourceList));
+
+      //TODO: write more tests?
+
+    });
+
 ///////////////////// Test the Whole CSP rep object //////////////////////
 
 test(
@@ -325,6 +372,15 @@ test(
       // "DEFAULT_SRC directive is missing when specified in fromString"
       do_check_has_key(cspr._directives, SD.DEFAULT_SRC);
 
+      // ... and check that the other directives were auto-filled with the
+      // DEFAULT_SRC one.
+      cspr_allowval = cspr._directives[SD.DEFAULT_SRC];
+      for(var d in SD) {
+        //"Missing key " + d
+        do_check_has_key(cspr._directives, SD[d]);
+        //"Implicit directive " + d + " has non-allow value."
+        do_check_eq(cspr._directives[SD[d]].toString(), cspr_allowval.toString());
+      }
     });
 
 
@@ -338,13 +394,24 @@ test(
       // "DEFAULT_SRC directive is missing when specified in fromString"
       do_check_has_key(cspr._directives, SD.DEFAULT_SRC);
 
+      // check that the other directives were auto-filled with the
+      // DEFAULT_SRC one.
+      cspr_default_val = cspr._directives[SD.DEFAULT_SRC];
+      for (var d in SD) {
+        do_check_has_key(cspr._directives, SD[d]);
+        // "Implicit directive " + d + " has non-default-src value."
+        do_check_eq(cspr._directives[SD[d]].toString(), cspr_default_val.toString());
+      }
+
       // check that |allow *| and |default-src *| are parsed equivalently and
       // result in the same set of explicit policy directives
       cspr = CSPRep.fromString("default-src *", URI("http://self.com:80"));
       cspr_allow = CSPRep.fromString("allow *", URI("http://self.com:80"));
 
-      do_check_equivalent(cspr._directives['default-src'],
-                          cspr_allow._directives['default-src']);
+      for (var d in SD) {
+        do_check_equivalent(cspr._directives[SD[d]],
+                            cspr_allow._directives[SD[d]]);
+      }
     });
 
 
@@ -632,10 +699,10 @@ test(function test_FrameAncestor_ignores_userpass_bug779918() {
       // construct fake ancestry with CSP applied to the child.
       // [aChildUri] -> [aParentUri] -> (root/top)
       // and then test "permitsAncestry" on the child/self docshell.
-      function testPermits(aChildUri, aParentUri, aContentType) {
+      function testPermits(aChildUri, aParentUri, aContext) {
         let cspObj = Cc["@mozilla.org/contentsecuritypolicy;1"]
                        .createInstance(Ci.nsIContentSecurityPolicy);
-        cspObj.appendPolicy(testPolicy, aChildUri, false, false);
+        cspObj.refinePolicy(testPolicy, aChildUri, false);
         let docshellparent = Cc["@mozilla.org/docshell;1"]
                                .createInstance(Ci.nsIDocShell);
         let docshellchild  = Cc["@mozilla.org/docshell;1"]
@@ -864,58 +931,57 @@ test(
       do_check_false(p_none.permits("http://bar.com"));
     });
 
-
 test(
-    function test_bug764937_defaultSrcMissing() {
-      var cspObjSpecCompliant = Cc["@mozilla.org/contentsecuritypolicy;1"]
-                     .createInstance(Ci.nsIContentSecurityPolicy);
-      var cspObjOld = Cc["@mozilla.org/contentsecuritypolicy;1"]
+    function test_bug783497_refinePolicyIssues() {
+
+      const firstPolicy = "allow 'self'; img-src 'self'; script-src 'self'; options 'bogus-option'";
+      const secondPolicy = "default-src 'none'; script-src 'self'";
+      var cspObj = Cc["@mozilla.org/contentsecuritypolicy;1"]
                      .createInstance(Ci.nsIContentSecurityPolicy);
       var selfURI = URI("http://self.com/");
 
-      function testPermits(cspObj, aUri, aContentType) {
-        return cspObj.shouldLoad(aContentType, aUri, null, null, null, null)
+      function testPermits(aUri, aContext) {
+        return cspObj.shouldLoad(aContext, aUri, null, null, null, null)
                == Ci.nsIContentPolicy.ACCEPT;
       };
 
-      const policy = "script-src 'self'";
-      cspObjSpecCompliant.appendPolicy(policy, selfURI, false, true);
+      // everything is allowed by the default policy
+      do_check_true(testPermits(URI("http://self.com/foo.js"),
+                    Ci.nsIContentPolicy.TYPE_SCRIPT));
+      do_check_true(testPermits(URI("http://other.com/foo.js"),
+                    Ci.nsIContentPolicy.TYPE_SCRIPT));
+      do_check_true(testPermits(URI("http://self.com/foo.png"),
+                    Ci.nsIContentPolicy.TYPE_IMAGE));
+      do_check_true(testPermits(URI("http://other.com/foo.png"),
+                    Ci.nsIContentPolicy.TYPE_IMAGE));
 
-      // Spec-Compliant policy default-src defaults to *.
-      // This means all images are allowed, and only 'self'
-      // script is allowed.
-      do_check_true(testPermits(cspObjSpecCompliant,
-                                URI("http://bar.com/foo.png"),
-                                Ci.nsIContentPolicy.TYPE_IMAGE));
-      do_check_true(testPermits(cspObjSpecCompliant,
-                                URI("http://self.com/foo.png"),
-                                Ci.nsIContentPolicy.TYPE_IMAGE));
-      do_check_true(testPermits(cspObjSpecCompliant,
-                                URI("http://self.com/foo.js"),
-                                Ci.nsIContentPolicy.TYPE_SCRIPT));
-      do_check_false(testPermits(cspObjSpecCompliant,
-                                 URI("http://bar.com/foo.js"),
-                                 Ci.nsIContentPolicy.TYPE_SCRIPT));
+      // fold in the first policy
+      cspObj.refinePolicy(firstPolicy, selfURI, false);
 
-      cspObjOld.appendPolicy(policy, selfURI, false, false);
+      // script-src and img-src are limited to self after the first policy
+      do_check_true(testPermits(URI("http://self.com/foo.js"),
+                    Ci.nsIContentPolicy.TYPE_SCRIPT));
+      do_check_false(testPermits(URI("http://other.com/foo.js"),
+                     Ci.nsIContentPolicy.TYPE_SCRIPT));
+      do_check_true(testPermits(URI("http://self.com/foo.png"),
+                    Ci.nsIContentPolicy.TYPE_IMAGE));
+      do_check_false(testPermits(URI("http://other.com/foo.png"),
+                     Ci.nsIContentPolicy.TYPE_IMAGE));
 
-      // non-Spec-Compliant policy default-src defaults to 'none'
-      // This means all images are blocked, and so are all scripts (because the
-      // policy is ignored and fails closed).
-      do_check_false(testPermits(cspObjOld,
-                                URI("http://bar.com/foo.png"),
-                                Ci.nsIContentPolicy.TYPE_IMAGE));
-      do_check_false(testPermits(cspObjOld,
-                                URI("http://self.com/foo.png"),
-                                Ci.nsIContentPolicy.TYPE_IMAGE));
-      do_check_false(testPermits(cspObjOld,
-                                URI("http://self.com/foo.js"),
-                                Ci.nsIContentPolicy.TYPE_SCRIPT));
-      do_check_false(testPermits(cspObjOld,
-                                 URI("http://bar.com/foo.js"),
-                                 Ci.nsIContentPolicy.TYPE_SCRIPT));
+      // fold in the second policy
+      cspObj.refinePolicy(secondPolicy, selfURI, false);
 
+      // script-src is self and img-src is none after the merge
+      do_check_true(testPermits(URI("http://self.com/foo.js"),
+                    Ci.nsIContentPolicy.TYPE_SCRIPT));
+      do_check_false(testPermits(URI("http://other.com/foo.js"),
+                     Ci.nsIContentPolicy.TYPE_SCRIPT));
+      do_check_false(testPermits(URI("http://self.com/foo.png"),
+                     Ci.nsIContentPolicy.TYPE_IMAGE));
+      do_check_false(testPermits(URI("http://other.com/foo.png"),
+                     Ci.nsIContentPolicy.TYPE_IMAGE));
     });
+
 
 /*
 
@@ -951,6 +1017,7 @@ function run_test() {
   }
   //server.registerDirectory("/", nsILocalFileForBasePath);
   httpServer.registerPathHandler("/policy", policyresponder);
+  httpServer.start(POLICY_PORT);
 
   for(let i in tests) {
     tests[i]();

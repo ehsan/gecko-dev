@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.gfx.Layer;
-import org.mozilla.gecko.home.HomePager;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import org.json.JSONException;
@@ -37,29 +36,26 @@ public class Tab {
     private final int mId;
     private long mLastUsed;
     private String mUrl;
-    private String mBaseDomain;
     private String mUserSearch;
     private String mTitle;
     private Bitmap mFavicon;
     private String mFaviconUrl;
     private int mFaviconSize;
-    private boolean mHasFeeds;
-    private boolean mHasOpenSearch;
+    private boolean mFeedsEnabled;
     private JSONObject mIdentityData;
     private boolean mReaderEnabled;
     private BitmapDrawable mThumbnail;
     private int mHistoryIndex;
     private int mHistorySize;
     private int mParentId;
-    private HomePager.Page mAboutHomePage;
     private boolean mExternal;
     private boolean mBookmark;
     private boolean mReadingListItem;
-    private int mFaviconLoadId;
+    private long mFaviconLoadId;
+    private String mDocumentURI;
     private String mContentType;
     private boolean mHasTouchListeners;
     private ZoomConstraints mZoomConstraints;
-    private boolean mIsRTL;
     private ArrayList<View> mPluginViews;
     private HashMap<Object, Layer> mPluginLayers;
     private int mBackgroundColor;
@@ -67,8 +63,7 @@ public class Tab {
     private Bitmap mThumbnailBitmap;
     private boolean mDesktopMode;
     private boolean mEnteringReaderMode;
-    private Context mAppContext;
-    private ErrorType mErrorType = ErrorType.NONE;
+    private Context mContext;
     private static final int MAX_HISTORY_LIST_SIZE = 50;
 
     public static final int STATE_DELAYED = 0;
@@ -76,31 +71,19 @@ public class Tab {
     public static final int STATE_SUCCESS = 2;
     public static final int STATE_ERROR = 3;
 
-    private static final int DEFAULT_BACKGROUND_COLOR = Color.WHITE;
-
-    public enum ErrorType {
-        CERT_ERROR,  // Pages with certificate problems
-        BLOCKED,     // Pages blocked for phishing or malware warnings
-        NET_ERROR,   // All other types of error
-        NONE         // Non error pages
-    }
-
     public Tab(Context context, int id, String url, boolean external, int parentId, String title) {
-        mAppContext = context.getApplicationContext();
+        mContext = context;
         mId = id;
         mLastUsed = 0;
         mUrl = url;
-        mBaseDomain = "";
         mUserSearch = "";
         mExternal = external;
         mParentId = parentId;
-        mAboutHomePage = HomePager.Page.TOP_SITES;
         mTitle = title == null ? "" : title;
         mFavicon = null;
         mFaviconUrl = null;
         mFaviconSize = 0;
-        mHasFeeds = false;
-        mHasOpenSearch = false;
+        mFeedsEnabled = false;
         mIdentityData = null;
         mReaderEnabled = false;
         mEnteringReaderMode = false;
@@ -110,6 +93,7 @@ public class Tab {
         mBookmark = false;
         mReadingListItem = false;
         mFaviconLoadId = 0;
+        mDocumentURI = "";
         mContentType = "";
         mZoomConstraints = new ZoomConstraints(false);
         mPluginViews = new ArrayList<View>();
@@ -119,11 +103,11 @@ public class Tab {
         // At startup, the background is set to a color specified by LayerView
         // when the LayerView is created. Shortly after, this background color
         // will be used before the tab's content is shown.
-        mBackgroundColor = DEFAULT_BACKGROUND_COLOR;
+        mBackgroundColor = getBackgroundColorForUrl(url);
     }
 
     private ContentResolver getContentResolver() {
-        return mAppContext.getContentResolver();
+        return Tabs.getInstance().getContentResolver();
     }
 
     public void onDestroy() {
@@ -145,15 +129,6 @@ public class Tab {
     public int getParentId() {
         return mParentId;
     }
-
-    public HomePager.Page getAboutHomePage() {
-        return mAboutHomePage;
-    }
-
-    private void setAboutHomePage(HomePager.Page page) {
-        mAboutHomePage = page;
-    }
-
 
     // may be null if user-entered query hasn't yet been resolved to a URI
     public synchronized String getURL() {
@@ -178,15 +153,11 @@ public class Tab {
         return mUrl;
     }
 
-    public String getBaseDomain() {
-        return mBaseDomain;
-    }
-
     public Bitmap getFavicon() {
         return mFavicon;
     }
 
-    public BitmapDrawable getThumbnail() {
+    public Drawable getThumbnail() {
         return mThumbnail;
     }
 
@@ -204,9 +175,7 @@ public class Tab {
         }
 
         if (mThumbnailBitmap == null) {
-            Bitmap.Config config = (GeckoAppShell.getScreenDepth() == 24) ?
-                Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
-            mThumbnailBitmap = Bitmap.createBitmap(width, height, config);
+            mThumbnailBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
         }
 
         return mThumbnailBitmap;
@@ -238,12 +207,8 @@ public class Tab {
         return mFaviconUrl;
     }
 
-    public boolean hasFeeds() {
-        return mHasFeeds;
-    }
-
-    public boolean hasOpenSearch() {
-        return mHasOpenSearch;
+    public boolean getFeedsEnabled() {
+        return mFeedsEnabled;
     }
 
     public String getSecurityMode() {
@@ -286,23 +251,12 @@ public class Tab {
         mUserSearch = userSearch;
     }
 
-    public void setErrorType(String type) {
-        if ("blocked".equals(type))
-            setErrorType(ErrorType.BLOCKED);
-        else if ("certerror".equals(type))
-            setErrorType(ErrorType.CERT_ERROR);
-        else if ("neterror".equals(type))
-            setErrorType(ErrorType.NET_ERROR);
-        else
-            setErrorType(ErrorType.NONE);
+    public void setDocumentURI(String documentURI) {
+        mDocumentURI = documentURI;
     }
 
-    public void setErrorType(ErrorType type) {
-        mErrorType = type;
-    }
-
-    public ErrorType getErrorType() {
-        return mErrorType;
+    public String getDocumentURI() {
+        return mDocumentURI;
     }
 
     public void setContentType(String contentType) {
@@ -341,14 +295,6 @@ public class Tab {
         return mZoomConstraints;
     }
 
-    public void setIsRTL(boolean aIsRTL) {
-        mIsRTL = aIsRTL;
-    }
-
-    public boolean getIsRTL() {
-        return mIsRTL;
-    }
-
     public void setHasTouchListeners(boolean aValue) {
         mHasTouchListeners = aValue;
     }
@@ -357,23 +303,16 @@ public class Tab {
         return mHasTouchListeners;
     }
 
-    public void setFaviconLoadId(int faviconLoadId) {
+    public void setFaviconLoadId(long faviconLoadId) {
         mFaviconLoadId = faviconLoadId;
     }
 
-    public int getFaviconLoadId() {
+    public long getFaviconLoadId() {
         return mFaviconLoadId;
     }
 
-    /**
-     * Returns true if the favicon changed.
-     */
-    public boolean updateFavicon(Bitmap favicon) {
-        if (mFavicon == favicon) {
-            return false;
-        }
+    public void updateFavicon(Bitmap favicon) {
         mFavicon = favicon;
-        return true;
     }
 
     public synchronized void updateFaviconURL(String faviconUrl, int size) {
@@ -399,12 +338,8 @@ public class Tab {
         mFaviconSize = 0;
     }
 
-    public void setHasFeeds(boolean hasFeeds) {
-        mHasFeeds = hasFeeds;
-    }
-
-    public void setHasOpenSearch(boolean hasOpenSearch) {
-        mHasOpenSearch = hasOpenSearch;
+    public void setFeedsEnabled(boolean feedsEnabled) {
+        mFeedsEnabled = feedsEnabled;
     }
 
     public void updateIdentityData(JSONObject identityData) {
@@ -476,13 +411,12 @@ public class Tab {
         GeckoAppShell.sendEventToGecko(e);
     }
 
-    public void toggleReaderMode() {
-        if (ReaderModeUtils.isAboutReader(mUrl)) {
-            Tabs.getInstance().loadUrl(ReaderModeUtils.getUrlFromAboutReader(mUrl));
-        } else if (mReaderEnabled) {
-            mEnteringReaderMode = true;
-            Tabs.getInstance().loadUrl(ReaderModeUtils.getAboutReaderForUrl(mUrl, mId));
-        }
+    public void readerMode() {
+        if (!mReaderEnabled)
+            return;
+
+        mEnteringReaderMode = true;
+        Tabs.getInstance().loadUrl(ReaderModeUtils.getAboutReaderForUrl(getURL(), mId, mReadingListItem));
     }
 
     public boolean isEnteringReaderMode() {
@@ -622,7 +556,7 @@ public class Tab {
         updateURL(uri);
         updateUserSearch(message.getString("userSearch"));
 
-        mBaseDomain = message.optString("baseDomain");
+        setDocumentURI(message.getString("documentURI"));
         if (message.getBoolean("sameDocument")) {
             // We can get a location change event for the same document with an anchor tag
             // Notify listeners so that buttons like back or forward will update themselves
@@ -632,25 +566,26 @@ public class Tab {
 
         setContentType(message.getString("contentType"));
         clearFavicon();
-        setHasFeeds(false);
+        setFeedsEnabled(false);
         updateTitle(null);
         updateIdentityData(null);
         setReaderEnabled(false);
         setZoomConstraints(new ZoomConstraints(true));
         setHasTouchListeners(false);
-        setBackgroundColor(DEFAULT_BACKGROUND_COLOR);
-        setErrorType(ErrorType.NONE);
-
-        final String homePage = message.getString("aboutHomePage");
-        if (!TextUtils.isEmpty(homePage)) {
-            setAboutHomePage(HomePager.Page.valueOf(homePage));
-        }
+        setBackgroundColor(getBackgroundColorForUrl(uri));
 
         Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.LOCATION_CHANGE, uri);
     }
 
     private boolean shouldShowProgress(String url) {
         return "about:home".equals(url) || ReaderModeUtils.isAboutReader(url);
+    }
+
+    private int getBackgroundColorForUrl(String url) {
+        if ("about:home".equals(url)) {
+            return mContext.getResources().getColor(R.color.background_normal);
+        }
+        return Color.WHITE;
     }
 
     void handleDocumentStart(boolean showProgress, String url) {

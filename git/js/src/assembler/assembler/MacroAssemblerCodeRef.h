@@ -27,10 +27,9 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_MacroAssemblerCodeRef_h
-#define assembler_assembler_MacroAssemblerCodeRef_h
+#ifndef MacroAssemblerCodeRef_h
+#define MacroAssemblerCodeRef_h
 
-#include "assembler/wtf/Assertions.h"
 #include "assembler/wtf/Platform.h"
 #include "assembler/jit/ExecutableAllocator.h"
 
@@ -157,7 +156,7 @@ public:
     void* dataLocation() const { ASSERT_VALID_CODE_POINTER(m_value); return m_value; }
 #endif
 
-    bool operator!() const
+    bool operator!()
     {
         return !m_value;
     }
@@ -223,4 +222,4 @@ public:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_MacroAssemblerCodeRef_h */
+#endif // MacroAssemblerCodeRef_h

@@ -8,7 +8,6 @@
 
 #include <cmath>
 #include <mozilla/Assertions.h>
-#include <mozilla/FloatingPoint.h>
 #include <algorithm>
 
 namespace mozilla {
@@ -37,7 +36,7 @@ namespace gfx {
  * Do not use this class directly. Subclass it, pass that subclass as the
  * Sub parameter, and only use that subclass.
  */
-template <class T, class Sub, class Point, class SizeT, class MarginT>
+template <class T, class Sub, class Point, class SizeT, class Margin>
 struct BaseRect {
   T x, y, width, height;
 
@@ -56,15 +55,6 @@ struct BaseRect {
   // is <= 0
   bool IsEmpty() const { return height <= 0 || width <= 0; }
   void SetEmpty() { width = height = 0; }
-
-  // "Finite" means not inf and not NaN
-  bool IsFinite() const
-  {
-    return (mozilla::IsFinite(x) &&
-            mozilla::IsFinite(y) &&
-            mozilla::IsFinite(width) &&
-            mozilla::IsFinite(height));
-  }
 
   // Returns true if this rectangle contains the interior of aRect. Always
   // returns true if aRect is empty, and always returns false is aRect is
@@ -99,10 +89,10 @@ struct BaseRect {
   Sub Intersect(const Sub& aRect) const
   {
     Sub result;
-    result.x = std::max<T>(x, aRect.x);
-    result.y = std::max<T>(y, aRect.y);
-    result.width = std::min<T>(XMost(), aRect.XMost()) - result.x;
-    result.height = std::min<T>(YMost(), aRect.YMost()) - result.y;
+    result.x = std::max(x, aRect.x);
+    result.y = std::max(y, aRect.y);
+    result.width = std::min(XMost(), aRect.XMost()) - result.x;
+    result.height = std::min(YMost(), aRect.YMost()) - result.y;
     if (result.width < 0 || result.height < 0) {
       result.SizeTo(0, 0);
     }
@@ -190,7 +180,7 @@ struct BaseRect {
     width += 2 * aDx;
     height += 2 * aDy;
   }
-  void Inflate(const MarginT& aMargin)
+  void Inflate(const Margin& aMargin)
   {
     x -= aMargin.left;
     y -= aMargin.top;
@@ -207,7 +197,7 @@ struct BaseRect {
     width = std::max(T(0), width - 2 * aDx);
     height = std::max(T(0), height - 2 * aDy);
   }
-  void Deflate(const MarginT& aMargin)
+  void Deflate(const Margin& aMargin)
   {
     x += aMargin.left;
     y += aMargin.top;
@@ -252,12 +242,12 @@ struct BaseRect {
   }
 
   // Find difference as a Margin
-  MarginT operator-(const Sub& aRect) const
+  Margin operator-(const Sub& aRect) const
   {
-    return MarginT(aRect.y - y,
-                   XMost() - aRect.XMost(),
-                   YMost() - aRect.YMost(),
-                   aRect.x - x);
+    return Margin(aRect.y - y,
+                  XMost() - aRect.XMost(),
+                  YMost() - aRect.YMost(),
+                  aRect.x - x);
   }
 
   // Helpers for accessing the vertices
@@ -353,18 +343,6 @@ struct BaseRect {
     height = y1 - y0;
   }
 
-  // Scale 'this' by aScale without doing any rounding.
-  void Scale(T aScale) { Scale(aScale, aScale); }
-  // Scale 'this' by aXScale and aYScale, without doing any rounding.
-  void Scale(T aXScale, T aYScale)
-  {
-    T right = XMost() * aXScale;
-    T bottom = YMost() * aYScale;
-    x = x * aXScale;
-    y = y * aYScale;
-    width = right - x;
-    height = bottom - y;
-  }
   // Scale 'this' by aScale, converting coordinates to integers so that the result is
   // the smallest integer-coordinate rectangle containing the unrounded result.
   // Note: this can turn an empty rectangle into a non-empty rectangle
@@ -438,22 +416,6 @@ struct BaseRect {
   {
     return Point(std::max(x, std::min(XMost(), aPoint.x)),
                  std::max(y, std::min(YMost(), aPoint.y)));
-  }
-
-  /**
-   * Clamp aRect to this rectangle. This returns aRect after it is forced
-   * inside the bounds of this rectangle. It will attempt to retain the size
-   * but will shrink the dimensions that don't fit.
-   */
-  Sub ClampRect(const Sub& aRect) const
-  {
-    Sub rect(std::max(aRect.x, x),
-             std::max(aRect.y, y),
-             std::min(aRect.width, width),
-             std::min(aRect.height, height));
-    rect.x = std::min(rect.XMost(), XMost()) - rect.width;
-    rect.y = std::min(rect.YMost(), YMost()) - rect.height;
-    return rect;
   }
 
 private:

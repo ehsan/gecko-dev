@@ -40,6 +40,8 @@ FileService::~FileService()
 nsresult
 FileService::Init()
 {
+  mFileStorageInfos.Init();
+
   nsresult rv;
   mStreamTransportTarget =
     do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID, &rv);
@@ -156,7 +158,7 @@ FileService::Enqueue(LockedFile* aLockedFile, FileHelper* aFileHelper)
 
   nsIAtom* storageId = fileHandle->mFileStorage->Id();
   const nsAString& fileName = fileHandle->mFileName;
-  bool modeIsWrite = aLockedFile->mMode == FileMode::Readwrite;
+  bool modeIsWrite = aLockedFile->mMode == LockedFile::READ_WRITE;
 
   FileStorageInfo* fileStorageInfo;
   if (!mFileStorageInfos.Get(storageId, &fileStorageInfo)) {
@@ -341,8 +343,8 @@ FileService::LockedFileQueue::LockedFileQueue(LockedFile* aLockedFile)
   NS_ASSERTION(aLockedFile, "Null pointer!");
 }
 
-NS_IMPL_ADDREF(FileService::LockedFileQueue)
-NS_IMPL_RELEASE(FileService::LockedFileQueue)
+NS_IMPL_THREADSAFE_ADDREF(FileService::LockedFileQueue)
+NS_IMPL_THREADSAFE_RELEASE(FileService::LockedFileQueue)
 
 nsresult
 FileService::LockedFileQueue::Enqueue(FileHelper* aFileHelper)
@@ -454,7 +456,7 @@ FileService::FileStorageInfo::RemoveLockedFileQueue(LockedFile* aLockedFile)
 
     const nsAString& fileName = lockedFile->mFileHandle->mFileName;
 
-    if (lockedFile->mMode == FileMode::Readwrite) {
+    if (lockedFile->mMode == LockedFile::READ_WRITE) {
       if (!IsFileLockedForWriting(fileName)) {
         LockFileForWriting(fileName);
       }

@@ -15,11 +15,11 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsIScriptRuntime.h"
 #include "nsIServiceManager.h"
 #include "nsIArray.h"
 #include "nsIURI.h"
 #include "jsapi.h"
-#include "jsfriendapi.h"
 #include "nsString.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
@@ -27,7 +27,6 @@
 #include "nsDOMCID.h"
 #include "nsNodeInfoManager.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
 #include "xpcpublic.h"
@@ -35,38 +34,50 @@
 
 using mozilla::dom::DestroyProtoAndIfaceCache;
 using mozilla::AutoPushJSContext;
-using mozilla::AutoSafeJSContext;
 using mozilla::dom::XULDocument;
 
-class nsXULPDGlobalObject : public nsISupports
+static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
+                     NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
+
+
+class nsXULPDGlobalObject : public nsIScriptGlobalObject
 {
 public:
     nsXULPDGlobalObject(nsXULPrototypeDocument* owner);
 
     // nsISupports interface
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsXULPDGlobalObject)
 
-    JSObject* GetCompilationGlobal();
-    void UnmarkCompilationGlobal()
-    {
-        if (mJSObject) {
-            JS::ExposeObjectToActiveJS(mJSObject);
-        }
-    }
-    void Destroy();
-    nsIPrincipal* GetPrincipal();
+    // nsIGlobalJSObjectHolder methods
+    virtual JSObject* GetGlobalJSObject();
+
+    // nsIScriptGlobalObject methods
+    virtual void OnFinalize(JSObject* aObject);
+    virtual void SetScriptsEnabled(bool aEnabled, bool aFireTimeouts);
+
+    virtual nsresult EnsureScriptEnvironment();
+
+    virtual nsIScriptContext *GetScriptContext();
+
+    // nsIScriptObjectPrincipal methods
+    virtual nsIPrincipal* GetPrincipal();
+
+    NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXULPDGlobalObject,
+                                             nsIScriptGlobalObject)
+
     void ClearGlobalObjectOwner();
 
 protected:
     virtual ~nsXULPDGlobalObject();
 
-    nsCOMPtr<nsIPrincipal> mCachedPrincipal;
     nsXULPrototypeDocument* mGlobalObjectOwner; // weak reference
-    JS::Heap<JSObject*> mJSObject;
-    bool mDestroyed; // Probably not necessary, but let's be safe.
 
-    static const JSClass gSharedGlobalClass;
+    nsCOMPtr<nsIScriptContext> mContext;
+    JSObject* mJSObject;
+
+    nsCOMPtr<nsIPrincipal> mCachedPrincipal;
+
+    static JSClass gSharedGlobalClass;
 };
 
 nsIPrincipal* nsXULPrototypeDocument::gSystemPrincipal;
@@ -77,24 +88,29 @@ uint32_t nsXULPrototypeDocument::gRefCnt;
 void
 nsXULPDGlobalObject_finalize(JSFreeOp *fop, JSObject *obj)
 {
-    nsXULPDGlobalObject* nativeThis = static_cast<nsXULPDGlobalObject*>(JS_GetPrivate(obj));
-    nativeThis->Destroy();
+    nsISupports *nativeThis = (nsISupports*)JS_GetPrivate(obj);
+
+    nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(nativeThis));
+
+    if (sgo) {
+        sgo->OnFinalize(obj);
+    }
 
     // The addref was part of JSObject construction
-    nsContentUtils::DeferredFinalize(nativeThis);
+    NS_RELEASE(nativeThis);
 }
 
 
-bool
-nsXULPDGlobalObject_resolve(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id)
+JSBool
+nsXULPDGlobalObject_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
 {
-    bool did_resolve = false;
+    JSBool did_resolve = JS_FALSE;
 
     return JS_ResolveStandardClass(cx, obj, id, &did_resolve);
 }
 
 
-const JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
+JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
     "nsXULPrototypeScript compilation scope",
     JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS |
     JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(0),
@@ -146,8 +162,6 @@ nsXULPrototypeDocument::~nsXULPrototypeDocument()
     }
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULPrototypeDocument)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPrototypeDocument)
     tmp->mPrototypeWaiters.Clear();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -156,7 +170,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPrototypeDocument)
         return NS_SUCCESS_INTERRUPTED_TRAVERSE;
     }
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRoot)
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGlobalObject)
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mGlobalObject");
+    cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObject*>(tmp->mGlobalObject));
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mNodeInfoManager)
     for (uint32_t i = 0; i < tmp->mPrototypeWaiters.Length(); ++i) {
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mPrototypeWaiters[i]");
@@ -165,8 +180,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPrototypeDocument)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULPrototypeDocument)
+    NS_INTERFACE_MAP_ENTRY(nsIScriptGlobalObjectOwner)
     NS_INTERFACE_MAP_ENTRY(nsISerializable)
-    NS_INTERFACE_MAP_ENTRY(nsISupports)
+    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIScriptGlobalObjectOwner)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXULPrototypeDocument)
@@ -193,7 +209,8 @@ NS_NewXULPrototypeDocument(nsXULPrototypeDocument** aResult)
 
 // Helper method that shares a system global among all prototype documents
 // that have the system principal as their security principal.   Called by
-// nsXULPrototypeDocument::Read and nsXULPrototypeDocument::GetCompilationGlobal.
+// nsXULPrototypeDocument::Read and
+// nsXULPrototypeDocument::GetScriptGlobalObject.
 // This method greatly reduces the number of nsXULPDGlobalObjects and their
 // nsIScriptContexts in apps that load many XUL documents via chrome: URLs.
 
@@ -333,7 +350,7 @@ nsXULPrototypeDocument::Read(nsIObjectInputStream* aStream)
                break;
             }
 
-            tmp = pi->Deserialize(aStream, this, mURI, &nodeInfos);
+            tmp = pi->Deserialize(aStream, mGlobalObject, mURI, &nodeInfos);
             if (NS_FAILED(tmp)) {
               rv = tmp;
             }
@@ -342,7 +359,7 @@ nsXULPrototypeDocument::Read(nsIObjectInputStream* aStream)
               rv = tmp;
             }
         } else if ((nsXULPrototypeNode::Type)type == nsXULPrototypeNode::eType_Element) {
-            tmp = mRoot->Deserialize(aStream, this, mURI, &nodeInfos);
+            tmp = mRoot->Deserialize(aStream, mGlobalObject, mURI, &nodeInfos);
             if (NS_FAILED(tmp)) {
               rv = tmp;
             }
@@ -492,17 +509,20 @@ nsXULPrototypeDocument::Write(nsIObjectOutputStream* aStream)
     }
 
     // Now serialize the document contents
+    nsIScriptGlobalObject* globalObject = GetScriptGlobalObject();
+    NS_ENSURE_TRUE(globalObject, NS_ERROR_UNEXPECTED);
+
     count = mProcessingInstructions.Length();
     for (i = 0; i < count; ++i) {
         nsXULPrototypePI* pi = mProcessingInstructions[i];
-        tmp = pi->Serialize(aStream, this, &nodeInfos);
+        tmp = pi->Serialize(aStream, globalObject, &nodeInfos);
         if (NS_FAILED(tmp)) {
           rv = tmp;
         }
     }
 
     if (mRoot) {
-      tmp = mRoot->Serialize(aStream, this, &nodeInfos);
+      tmp = mRoot->Serialize(aStream, globalObject, &nodeInfos);
       if (NS_FAILED(tmp)) {
         rv = tmp;
       }
@@ -610,24 +630,6 @@ nsXULPrototypeDocument::SetDocumentPrincipal(nsIPrincipal* aPrincipal)
     mNodeInfoManager->SetDocumentPrincipal(aPrincipal);
 }
 
-JSObject*
-nsXULPrototypeDocument::GetCompilationGlobal()
-{
-  if (!mGlobalObject) {
-      mGlobalObject = NewXULPDGlobalObject();
-  }
-  return mGlobalObject->GetCompilationGlobal();
-}
-
-void
-nsXULPrototypeDocument::MarkInCCGeneration(uint32_t aCCGeneration)
-{
-    mCCGeneration = aCCGeneration;
-    if (mGlobalObject) {
-        mGlobalObject->UnmarkCompilationGlobal();
-    }
-}
-
 nsNodeInfoManager*
 nsXULPrototypeDocument::GetNodeInfoManager()
 {
@@ -691,79 +693,130 @@ nsXULPrototypeDocument::TraceProtos(JSTracer* aTrc, uint32_t aGCNumber)
 
 //----------------------------------------------------------------------
 //
+// nsIScriptGlobalObjectOwner methods
+//
+
+nsIScriptGlobalObject*
+nsXULPrototypeDocument::GetScriptGlobalObject()
+{
+    if (!mGlobalObject)
+        mGlobalObject = NewXULPDGlobalObject();
+
+    return mGlobalObject;
+}
+
+//----------------------------------------------------------------------
+//
 // nsXULPDGlobalObject
 //
 
 nsXULPDGlobalObject::nsXULPDGlobalObject(nsXULPrototypeDocument* owner)
   : mGlobalObjectOwner(owner)
   , mJSObject(nullptr)
-  , mDestroyed(false)
 {
 }
 
 
 nsXULPDGlobalObject::~nsXULPDGlobalObject()
 {
-  MOZ_ASSERT(!mJSObject);
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULPDGlobalObject)
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXULPDGlobalObject)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mJSObject)
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
-
+NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsXULPDGlobalObject)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPDGlobalObject)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mContext)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPDGlobalObject)
-  tmp->Destroy();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULPDGlobalObject)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_MAP_ENTRY(nsIScriptGlobalObject)
+  NS_INTERFACE_MAP_ENTRY(nsIScriptObjectPrincipal)
+  NS_INTERFACE_MAP_ENTRY(nsIGlobalObject)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIScriptGlobalObject)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXULPDGlobalObject)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXULPDGlobalObject)
 
-JSObject *
-nsXULPDGlobalObject::GetCompilationGlobal()
+//----------------------------------------------------------------------
+//
+// nsIScriptGlobalObject methods
+//
+
+nsresult
+nsXULPDGlobalObject::EnsureScriptEnvironment()
 {
-  if (mJSObject) {
-    // We've been initialized before. This is what we get.
-    JS::ExposeObjectToActiveJS(mJSObject);
-    return mJSObject;
+  if (mContext) {
+    return NS_OK;
+  }
+  NS_ASSERTION(!mJSObject, "Have global without context?");
+
+  nsCOMPtr<nsIScriptRuntime> languageRuntime;
+  nsresult rv = NS_GetJSRuntime(getter_AddRefs(languageRuntime));
+  NS_ENSURE_SUCCESS(rv, NS_OK);
+
+  nsCOMPtr<nsIScriptContext> ctxNew = languageRuntime->CreateContext(false, nullptr);
+  MOZ_ASSERT(ctxNew);
+
+  // We have to setup a special global object.  We do this then
+  // attach it as the global for this context.  Then, we
+  // will re-fetch the global and set it up in our language globals array.
+  {
+    AutoPushJSContext cx(ctxNew->GetNativeContext());
+    JSAutoRequest ar(cx);
+
+    JSObject *newGlob = JS_NewGlobalObject(cx, &gSharedGlobalClass,
+                                           nsJSPrincipals::get(GetPrincipal()),
+                                           JS::SystemZone);
+    if (!newGlob)
+        return NS_OK;
+
+    ::JS_SetGlobalObject(cx, newGlob);
+
+    // Add an owning reference from JS back to us. This'll be
+    // released when the JSObject is finalized.
+    ::JS_SetPrivate(newGlob, this);
+    NS_ADDREF(this);
   }
 
-  if (mDestroyed) {
-    return nullptr;
-  }
+  // should probably assert the context is clean???
+  ctxNew->WillInitializeContext();
+  rv = ctxNew->InitContext();
+  NS_ENSURE_SUCCESS(rv, NS_OK);
 
-  AutoSafeJSContext cx;
-  JS::CompartmentOptions options;
-  options.setZone(JS::SystemZone)
-         .setInvisibleToDebugger(true);
-  mJSObject = JS_NewGlobalObject(cx, &gSharedGlobalClass,
-                                 nsJSPrincipals::get(GetPrincipal()),
-                                 JS::DontFireOnNewGlobalHook, options);
-  NS_ENSURE_TRUE(mJSObject, nullptr);
+  ctxNew->DidInitializeContext();
 
-  mozilla::HoldJSObjects(this);
+  JSObject* global = ctxNew->GetNativeGlobal();
+  NS_ASSERTION(global, "GetNativeGlobal returned nullptr!");
 
-  // Add an owning reference from JS back to us. This'll be
-  // released when the JSObject is finalized.
-  JS_SetPrivate(mJSObject, this);
-  NS_ADDREF(this);
+  mContext = ctxNew;
+  mJSObject = global;
 
   // Set the location information for the new global, so that tools like
   // about:memory may use that information
   nsIURI *ownerURI = mGlobalObjectOwner->GetURI();
   xpc::SetLocationForGlobal(mJSObject, ownerURI);
 
-  return mJSObject;
+  return NS_OK;
 }
+
+nsIScriptContext*
+nsXULPDGlobalObject::GetScriptContext()
+{
+  // This global object creates a context on demand - do that now.
+  nsresult rv = EnsureScriptEnvironment();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Failed to setup script language");
+    return nullptr;
+  }
+
+  return mContext;
+}
+
+JSObject*
+nsXULPDGlobalObject::GetGlobalJSObject()
+{
+  return xpc_UnmarkGrayObject(mJSObject);
+}
+
 
 void
 nsXULPDGlobalObject::ClearGlobalObjectOwner()
@@ -774,19 +827,27 @@ nsXULPDGlobalObject::ClearGlobalObjectOwner()
   if (this != nsXULPrototypeDocument::gSystemGlobal)
     mCachedPrincipal = mGlobalObjectOwner->DocumentPrincipal();
 
+  mContext = nullptr;
   mGlobalObjectOwner = nullptr;
 }
 
+
 void
-nsXULPDGlobalObject::Destroy()
+nsXULPDGlobalObject::OnFinalize(JSObject* aObject)
 {
-  mDestroyed = true;
-  if (!mJSObject) {
-    return;
-  }
   mJSObject = nullptr;
-  mozilla::DropJSObjects(this);
 }
+
+void
+nsXULPDGlobalObject::SetScriptsEnabled(bool aEnabled, bool aFireTimeouts)
+{
+  // We don't care...
+}
+
+//----------------------------------------------------------------------
+//
+// nsIScriptObjectPrincipal methods
+//
 
 nsIPrincipal*
 nsXULPDGlobalObject::GetPrincipal()

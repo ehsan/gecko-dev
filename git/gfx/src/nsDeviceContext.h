@@ -6,31 +6,16 @@
 #ifndef _NS_DEVICECONTEXT_H_
 #define _NS_DEVICECONTEXT_H_
 
-#include <stdint.h>                     // for uint32_t
-#include <sys/types.h>                  // for int32_t
-#include "gfxTypes.h"                   // for gfxFloat
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsCOMPtr.h"                   // for nsCOMPtr
-#include "nsCoord.h"                    // for nscoord
-#include "nsError.h"                    // for nsresult
-#include "nsISupports.h"                // for NS_INLINE_DECL_REFCOUNTING
-#include "nsMathUtils.h"                // for NS_round
-#include "nscore.h"                     // for PRUnichar, nsAString
-#include "mozilla/AppUnits.h"           // for AppUnits
+#include "nsCOMPtr.h"
+#include "nsIDeviceContextSpec.h"
+#include "nsIScreenManager.h"
+#include "nsIWidget.h"
+#include "nsCoord.h"
+#include "gfxContext.h"
 
-class gfxASurface;
-class gfxUserFontSet;
-class nsFont;
-class nsFontCache;
-class nsFontMetrics;
 class nsIAtom;
-class nsIDeviceContextSpec;
-class nsIScreen;
-class nsIScreenManager;
-class nsIWidget;
-class nsRect;
-class nsRenderingContext;
+class nsFontCache;
+class gfxUserFontSet;
 
 class nsDeviceContext
 {
@@ -66,7 +51,7 @@ public:
      * Gets the number of app units in one CSS pixel; this number is global,
      * not unique to each device context.
      */
-    static int32_t AppUnitsPerCSSPixel() { return mozilla::AppUnitsPerCSSPixel(); }
+    static int32_t AppUnitsPerCSSPixel() { return 60; }
 
     /**
      * Gets the number of app units in one device pixel; this number
@@ -99,7 +84,7 @@ public:
      * Gets the number of app units in one CSS inch; this is
      * 96 times AppUnitsPerCSSPixel.
      */
-    static int32_t AppUnitsPerCSSInch() { return mozilla::AppUnitsPerCSSInch(); }
+    static int32_t AppUnitsPerCSSInch() { return 96 * AppUnitsPerCSSPixel(); }
 
     /**
      * Get the unscaled ratio of app units to dev pixels; useful if something
@@ -178,7 +163,7 @@ public:
      * EndDocument() or AbortDocument().
      *
      * @param aTitle - title of Document
-     * @param aPrintToFileName - name of file to print to, if nullptr
+     * @param aPrintToFileName - name of file to print to, if NULL
      * then don't print to file
      * @param aStartPage - starting page number (must be greater than zero)
      * @param aEndPage - ending page number (must be less than or
@@ -186,10 +171,10 @@ public:
      *
      * @return error status
      */
-    nsresult BeginDocument(const nsAString& aTitle,
-                           PRUnichar*       aPrintToFileName,
-                           int32_t          aStartPage,
-                           int32_t          aEndPage);
+    nsresult BeginDocument(PRUnichar  *aTitle,
+                           PRUnichar  *aPrintToFileName,
+                           int32_t     aStartPage,
+                           int32_t     aEndPage);
 
     /**
      * Inform the output device that output of a document is ending.

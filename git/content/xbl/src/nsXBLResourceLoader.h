@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsCOMArray.h"
@@ -11,11 +10,11 @@
 
 class nsIContent;
 class nsIAtom;
+class nsIScriptContext;
 class nsSupportsHashtable;
 class nsXBLPrototypeResources;
 class nsXBLPrototypeBinding;
 struct nsXBLResource;
-class nsIObjectOutputStream;
 
 // *********************************************************************/
 // The XBLResourceLoader class
@@ -28,7 +27,7 @@ public:
 
   // nsICSSLoaderObserver
   NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet, bool aWasAlternate,
-                              nsresult aStatus) MOZ_OVERRIDE;
+                              nsresult aStatus);
 
   void LoadResources(bool* aResult);
   void AddResource(nsIAtom* aResourceType, const nsAString& aSrc);

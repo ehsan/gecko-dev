@@ -10,7 +10,6 @@
 #include "nsDOMUIEvent.h"
 #include "nsIDOMCompositionEvent.h"
 #include "mozilla/dom/CompositionEventBinding.h"
-#include "mozilla/EventForwards.h"
 
 class nsDOMCompositionEvent : public nsDOMUIEvent,
                               public nsIDOMCompositionEvent
@@ -18,14 +17,14 @@ class nsDOMCompositionEvent : public nsDOMUIEvent,
 public:
   nsDOMCompositionEvent(mozilla::dom::EventTarget* aOwner,
                         nsPresContext* aPresContext,
-                        mozilla::WidgetCompositionEvent* aEvent);
+                        nsCompositionEvent* aEvent);
+  virtual ~nsDOMCompositionEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_TO_NSDOMUIEVENT
   NS_DECL_NSIDOMCOMPOSITIONEVENT
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::CompositionEventBinding::Wrap(aCx, aScope, this);
   }

@@ -21,7 +21,6 @@
 #include "nsIAccessibleRelation.h"
 #include "nsIAutoCompleteInput.h"
 #include "nsIAutoCompletePopup.h"
-#include "nsIBoxObject.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDOMXULMenuListElement.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
@@ -41,8 +40,7 @@ using namespace mozilla::a11y;
 XULTreeAccessible::
   XULTreeAccessible(nsIContent* aContent, DocAccessible* aDoc,
                     nsTreeBodyFrame* aTreeFrame) :
-  AccessibleWrap(aContent, aDoc),
-  mAccessibleCache(kDefaultTreeCacheSize)
+  AccessibleWrap(aContent, aDoc)
 {
   mType = eXULTreeType;
   mGenericTypes |= eSelect;
@@ -60,6 +58,8 @@ XULTreeAccessible::
     if (autoCompletePopupElm)
       mGenericTypes |= eAutoCompletePopup;
   }
+
+  mAccessibleCache.Init(kDefaultTreeCacheSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,7 +134,7 @@ XULTreeAccessible::Value(nsString& aValue)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// XULTreeAccessible: Accessible implementation
+// XULTreeAccessible: nsAccessNode implementation
 
 void
 XULTreeAccessible::Shutdown()
@@ -150,6 +150,9 @@ XULTreeAccessible::Shutdown()
 
   AccessibleWrap::Shutdown();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// XULTreeAccessible: Accessible implementation (put methods here)
 
 role
 XULTreeAccessible::NativeRole()
@@ -272,7 +275,9 @@ XULTreeAccessible::SelectedItems()
     }
   }
 
-  return selectedItems.forget();
+  nsIMutableArray* items = nullptr;
+  selectedItems.forget(&items);
+  return items;
 }
 
 uint32_t
@@ -439,9 +444,9 @@ XULTreeAccessible::ChildCount() const
 }
 
 Relation
-XULTreeAccessible::RelationByType(RelationType aType)
+XULTreeAccessible::RelationByType(uint32_t aType)
 {
-  if (aType == RelationType::NODE_PARENT_OF) {
+  if (aType == nsIAccessibleRelation::RELATION_NODE_PARENT_OF) {
     if (mTreeView)
       return Relation(new XULTreeItemIterator(this, mTreeView, -1));
 
@@ -540,8 +545,10 @@ XULTreeAccessible::GetTreeItemAccessible(int32_t aRow)
   nsRefPtr<Accessible> treeItem = CreateTreeItemAccessible(aRow);
   if (treeItem) {
     mAccessibleCache.Put(key, treeItem);
-    Document()->BindToDocument(treeItem, nullptr);
-    return treeItem;
+    if (Document()->BindToDocument(treeItem, nullptr))
+      return treeItem;
+
+    mAccessibleCache.Remove(key);
   }
 
   return nullptr;
@@ -774,7 +781,7 @@ XULTreeItemAccessibleBase::GetBounds(int32_t* aX, int32_t* aY,
 NS_IMETHODIMP
 XULTreeItemAccessibleBase::SetSelected(bool aSelect)
 {
-  if (IsDefunct())
+  if (IsDefunct() || !mTreeView)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsITreeSelection> selection;
@@ -792,7 +799,7 @@ XULTreeItemAccessibleBase::SetSelected(bool aSelect)
 NS_IMETHODIMP
 XULTreeItemAccessibleBase::TakeFocus()
 {
-  if (IsDefunct())
+  if (IsDefunct() || !mTreeView)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsITreeSelection> selection;
@@ -805,11 +812,13 @@ XULTreeItemAccessibleBase::TakeFocus()
 }
 
 Relation
-XULTreeItemAccessibleBase::RelationByType(RelationType aType)
+XULTreeItemAccessibleBase::RelationByType(uint32_t aType)
 {
+  if (!mTreeView)
+    return Relation();
 
   switch (aType) {
-    case RelationType::NODE_CHILD_OF: {
+    case nsIAccessibleRelation::RELATION_NODE_CHILD_OF: {
       int32_t parentIndex = -1;
       if (!NS_SUCCEEDED(mTreeView->GetParentIndex(mRow, &parentIndex)))
         return Relation();
@@ -821,7 +830,7 @@ XULTreeItemAccessibleBase::RelationByType(RelationType aType)
       return Relation(treeAcc->GetTreeItemAccessible(parentIndex));
     }
 
-    case RelationType::NODE_PARENT_OF: {
+    case nsIAccessibleRelation::RELATION_NODE_PARENT_OF: {
       bool isTrue = false;
       if (NS_FAILED(mTreeView->IsContainerEmpty(mRow, &isTrue)) || isTrue)
         return Relation();
@@ -886,7 +895,7 @@ XULTreeItemAccessibleBase::DoAction(uint8_t aIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// XULTreeItemAccessibleBase: Accessible implementation
+// XULTreeItemAccessibleBase: nsAccessNode implementation
 
 void
 XULTreeItemAccessibleBase::Shutdown()
@@ -898,6 +907,10 @@ XULTreeItemAccessibleBase::Shutdown()
   AccessibleWrap::Shutdown();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// XULTreeItemAccessibleBase: Accessible public methods
+
+// nsIAccessible::groupPosition
 GroupPos
 XULTreeItemAccessibleBase::GroupPosition()
 {
@@ -945,6 +958,8 @@ XULTreeItemAccessibleBase::GroupPosition()
 uint64_t
 XULTreeItemAccessibleBase::NativeState()
 {
+  if (!mTreeView)
+    return states::DEFUNCT;
 
   // focusable and selectable states
   uint64_t state = NativeInteractiveState();
@@ -1049,6 +1064,8 @@ XULTreeItemAccessibleBase::GetSiblingAtOffset(int32_t aOffset,
 bool
 XULTreeItemAccessibleBase::IsExpandable()
 {
+  if (!mTreeView)
+    return false;
 
   bool isContainer = false;
   mTreeView->IsContainer(mRow, &isContainer);
@@ -1074,6 +1091,8 @@ XULTreeItemAccessibleBase::IsExpandable()
 void
 XULTreeItemAccessibleBase::GetCellName(nsITreeColumn* aColumn, nsAString& aName)
 {
+  if (!mTreeView)
+    return;
 
   mTreeView->GetCellText(mRow, aColumn, aName);
 
@@ -1127,7 +1146,7 @@ XULTreeItemAccessible::Name(nsString& aName)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// XULTreeItemAccessible: Accessible implementation
+// XULTreeItemAccessible: nsAccessNode implementation
 
 void
 XULTreeItemAccessible::Shutdown()
@@ -1135,6 +1154,9 @@ XULTreeItemAccessible::Shutdown()
   mColumn = nullptr;
   XULTreeItemAccessibleBase::Shutdown();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// XULTreeItemAccessible: Accessible implementation
 
 role
 XULTreeItemAccessible::NativeRole()

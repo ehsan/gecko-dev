@@ -26,7 +26,6 @@
 #include "nsPrintfCString.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
-#include "prtime.h"
 
 // Time between corrupt database backups.
 #define RECENT_BACKUP_TIME_MICROSEC (int64_t)86400 * PR_USEC_PER_SEC // 24H
@@ -216,14 +215,14 @@ class BlockingConnectionCloseCallback MOZ_FINAL : public mozIStorageCompletionCa
   bool mDone;
 
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGECOMPLETIONCALLBACK
   BlockingConnectionCloseCallback();
   void Spin();
 };
 
 NS_IMETHODIMP
-BlockingConnectionCloseCallback::Complete(nsresult, nsISupports*)
+BlockingConnectionCloseCallback::Complete()
 {
   mDone = true;
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
@@ -250,7 +249,7 @@ void BlockingConnectionCloseCallback::Spin() {
   }
 }
 
-NS_IMPL_ISUPPORTS1(
+NS_IMPL_THREADSAFE_ISUPPORTS1(
   BlockingConnectionCloseCallback
 , mozIStorageCompletionCallback
 )
@@ -333,7 +332,7 @@ CreateRoot(nsCOMPtr<mozIStorageConnection>& aDBConn,
 
 PLACES_FACTORY_SINGLETON_IMPLEMENTATION(Database, gDatabase)
 
-NS_IMPL_ISUPPORTS2(Database
+NS_IMPL_THREADSAFE_ISUPPORTS2(Database
 , nsIObserver
 , nsISupportsWeakReference
 )
@@ -345,7 +344,6 @@ Database::Database()
   , mDBPageSize(0)
   , mDatabaseStatus(nsINavHistoryService::DATABASE_STATUS_OK)
   , mShuttingDown(false)
-  , mClosed(false)
 {
   // Attempting to create two instances of the service?
   MOZ_ASSERT(!gDatabase);
@@ -729,13 +727,6 @@ Database::InitSchema(bool* aDatabaseMigrated)
       }
 
       // Firefox 22 uses schema version 22.
-
-      if (currentSchemaVersion < 23) {
-        rv = MigrateV23Up();
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-
-      // Firefox 24 uses schema version 23.
 
       // Schema Upgrades must add migration code here.
 
@@ -1873,6 +1864,19 @@ Database::MigrateV21Up()
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
+  // Update prefixes.
+  nsCOMPtr<mozIStorageAsyncStatement> updatePrefixesStmt;
+  rv = mMainConn->CreateAsyncStatement(NS_LITERAL_CSTRING(
+    "UPDATE moz_hosts SET prefix = ( "
+      HOSTS_PREFIX_PRIORITY_FRAGMENT
+    ") "
+  ), getter_AddRefs(updatePrefixesStmt));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<mozIStoragePendingStatement> ps;
+  rv = updatePrefixesStmt->ExecuteAsync(nullptr, getter_AddRefs(ps));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   return NS_OK;
 }
 
@@ -1891,34 +1895,11 @@ Database::MigrateV22Up()
   return NS_OK;
 }
 
-
-nsresult
-Database::MigrateV23Up()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  // Recalculate hosts prefixes.
-  nsCOMPtr<mozIStorageAsyncStatement> updatePrefixesStmt;
-  nsresult rv = mMainConn->CreateAsyncStatement(NS_LITERAL_CSTRING(
-    "UPDATE moz_hosts SET prefix = ( " HOSTS_PREFIX_PRIORITY_FRAGMENT ") "
-  ), getter_AddRefs(updatePrefixesStmt));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<mozIStoragePendingStatement> ps;
-  rv = updatePrefixesStmt->ExecuteAsync(nullptr, getter_AddRefs(ps));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
 void
 Database::Shutdown()
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!mShuttingDown);
-  MOZ_ASSERT(!mClosed);
-
-  mShuttingDown = true;
 
   mMainThreadStatements.FinalizeStatements();
   mMainThreadAsyncStatements.FinalizeStatements();
@@ -1934,7 +1915,9 @@ Database::Shutdown()
   (void)mMainConn->AsyncClose(closeListener);
   closeListener->Spin();
 
-  mClosed = true;
+  // Don't set this earlier, otherwise some internal helper used on shutdown
+  // may bail out.
+  mShuttingDown = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,8 @@
 
 /*
  * CMS signedData methods.
+ *
+ * $Id$
  */
 
 #include "cmslocal.h"
@@ -1007,7 +1009,7 @@ loser:
 }
 
 SECStatus
-NSS_CMSSignedData_AddDigest(PLArenaPool *poolp,
+NSS_CMSSignedData_AddDigest(PRArenaPool *poolp,
 				NSSCMSSignedData *sigd,
 				SECOidTag digestalgtag,
 				SECItem *digest)

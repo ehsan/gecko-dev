@@ -6,10 +6,3 @@
 
 MODULE = 'fuel'
 
-EXTRA_COMPONENTS += [
-    'fuelApplication.manifest',
-]
-
-EXTRA_PP_COMPONENTS += [
-    'fuelApplication.js',
-]

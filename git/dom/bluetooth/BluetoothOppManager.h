@@ -8,35 +8,23 @@
 #define mozilla_dom_bluetooth_bluetoothoppmanager_h__
 
 #include "BluetoothCommon.h"
-#include "BluetoothProfileManagerBase.h"
 #include "BluetoothSocketObserver.h"
-#include "DeviceStorage.h"
 #include "mozilla/dom/ipc/Blob.h"
 #include "mozilla/ipc/UnixSocket.h"
-#include "nsCOMArray.h"
+#include "DeviceStorage.h"
 
 class nsIOutputStream;
 class nsIInputStream;
-class nsIVolumeMountLock;
 
 BEGIN_BLUETOOTH_NAMESPACE
 
+class BluetoothReplyRunnable;
 class BluetoothSocket;
 class ObexHeaderSet;
-class SendFileBatch;
 
 class BluetoothOppManager : public BluetoothSocketObserver
-                          , public BluetoothProfileManagerBase
 {
 public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-  BT_DECL_PROFILE_MGR_BASE
-  virtual void GetName(nsACString& aName)
-  {
-    aName.AssignLiteral("OPP");
-  }
-
   /*
    * Channel of reserved services are fixed values, please check
    * function add_reserved_service_records() in
@@ -50,9 +38,23 @@ public:
   void ClientDataHandler(mozilla::ipc::UnixSocketRawData* aMessage);
   void ServerDataHandler(mozilla::ipc::UnixSocketRawData* aMessage);
 
+  /*
+   * If a application wnats to send a file, first, it needs to
+   * call Connect() to create a valid RFCOMM connection. After
+   * that, call SendFile()/StopSendingFile() to control file-sharing
+   * process. During the file transfering process, the application
+   * will receive several system messages which contain the processed
+   * percentage of file. At the end, the application will get another
+   * system message indicating that te process is complete, then it can
+   * either call Disconnect() to close RFCOMM connection or start another
+   * file-sending thread via calling SendFile() again.
+   */
+  bool Connect(const nsAString& aDeviceObjectPath,
+               BluetoothReplyRunnable* aRunnable);
+  void Disconnect();
   bool Listen();
 
-  bool SendFile(const nsAString& aDeviceAddress, BlobParent* aActor);
+  bool SendFile(BlobParent* aBlob);
   bool StopSendingFile();
   bool ConfirmReceivingFile(bool aConfirm);
 
@@ -61,26 +63,31 @@ public:
   void SendPutRequest(uint8_t* aFileBody, int aFileBodyLength);
   void SendPutFinalRequest();
   void SendDisconnectRequest();
+  void SendAbortRequest();
 
   void ExtractPacketHeaders(const ObexHeaderSet& aHeader);
   bool ExtractBlobHeaders();
-  void CheckPutFinal(uint32_t aNumRead);
+  nsresult HandleShutdown();
 
-  // The following functions are inherited from BluetoothSocketObserver
+  // Return true if there is an ongoing file-transfer session, please see
+  // Bug 827267 for more information.
+  bool IsTransferring();
+
+  // Implement interface BluetoothSocketObserver
   void ReceiveSocketData(
     BluetoothSocket* aSocket,
     nsAutoPtr<mozilla::ipc::UnixSocketRawData>& aMessage) MOZ_OVERRIDE;
-  virtual void OnSocketConnectSuccess(BluetoothSocket* aSocket) MOZ_OVERRIDE;
-  virtual void OnSocketConnectError(BluetoothSocket* aSocket) MOZ_OVERRIDE;
-  virtual void OnSocketDisconnect(BluetoothSocket* aSocket) MOZ_OVERRIDE;
+
+  virtual void OnConnectSuccess(BluetoothSocket* aSocket) MOZ_OVERRIDE;
+  virtual void OnConnectError(BluetoothSocket* aSocket) MOZ_OVERRIDE;
+  virtual void OnDisconnect(BluetoothSocket* aSocket) MOZ_OVERRIDE;
+  void OnConnectSuccess() MOZ_OVERRIDE;
+  void OnConnectError() MOZ_OVERRIDE;
+  void OnDisconnect() MOZ_OVERRIDE;
 
 private:
   BluetoothOppManager();
-  bool Init();
-  void HandleShutdown();
-
   void StartFileTransfer();
-  void StartSendingNextFile();
   void FileTransferComplete();
   void UpdateProgress();
   void ReceivingFileConfirmation();
@@ -88,23 +95,13 @@ private:
   bool WriteToFile(const uint8_t* aData, int aDataLength);
   void DeleteReceivedFile();
   void ReplyToConnect();
-  void ReplyToDisconnectOrAbort();
+  void ReplyToDisconnect();
   void ReplyToPut(bool aFinal, bool aContinue);
-  void ReplyError(uint8_t aError);
   void AfterOppConnected();
   void AfterFirstPut();
   void AfterOppDisconnected();
   void ValidateFileName();
   bool IsReservedChar(PRUnichar c);
-  void ClearQueue();
-  void RetrieveSentFileName();
-  void NotifyAboutFileChange();
-  bool AcquireSdcardMountLock();
-  void SendObexData(uint8_t* aData, uint8_t aOpcode, int aSize);
-  void AppendBlobToSend(const nsAString& aDeviceAddress, BlobParent* aActor);
-  void DiscardBlobsToSend();
-  bool ProcessNextBatch();
-  void ConnectInternal(const nsAString& aDeviceAddress);
 
   /**
    * OBEX session status.
@@ -132,12 +129,6 @@ private:
   int mBodySegmentLength;
   int mReceivedDataBufferOffset;
   int mUpdateProgressCounter;
-
-  /**
-   * When it is true and the target service on target device couldn't be found,
-   * refreshing SDP records is necessary.
-   */
-  bool mNeedsUpdatingSdpRecords;
 
   /**
    * Set when StopSendingFile() is called.
@@ -168,7 +159,7 @@ private:
    * True: Receive file (Server)
    * False: Send file (Client)
    */
-  bool mIsServer;
+  bool mTransferMode;
 
   /**
    * Set when receiving the first PUT packet and wait for
@@ -176,27 +167,21 @@ private:
    */
   bool mWaitingForConfirmationFlag;
 
-  nsString mFileName;
-  nsString mContentType;
-  uint32_t mFileLength;
-  uint32_t mSentFileLength;
-  bool mWaitingToSendPutFinal;
-
   nsAutoArrayPtr<uint8_t> mBodySegment;
   nsAutoArrayPtr<uint8_t> mReceivedDataBuffer;
 
-  int mCurrentBlobIndex;
   nsCOMPtr<nsIDOMBlob> mBlob;
-  nsTArray<SendFileBatch> mBatches;
 
   /**
    * A seperate member thread is required because our read calls can block
    * execution, which is not allowed to happen on the IOThread.
+   * 
    */
   nsCOMPtr<nsIThread> mReadFileThread;
   nsCOMPtr<nsIOutputStream> mOutputStream;
   nsCOMPtr<nsIInputStream> mInputStream;
-  nsCOMPtr<nsIVolumeMountLock> mMountLock;
+
+  nsRefPtr<BluetoothReplyRunnable> mRunnable;
   nsRefPtr<DeviceStorageFile> mDsFile;
 
   // If a connection has been established, mSocket will be the socket

@@ -15,10 +15,6 @@
 #include "mozilla/layers/PGrallocBufferChild.h"
 #include "mozilla/layers/PGrallocBufferParent.h"
 
-// used only for hacky fix in gecko 23 for bug 862324
-// see bug 865908 about fixing this.
-#include "TextureHost.h"
-
 #define MOZ_HAVE_SURFACEDESCRIPTORGRALLOC
 #define MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS
 
@@ -64,12 +60,16 @@ class GrallocBufferActor : public PGrallocBufferChild
                          , public PGrallocBufferParent
 {
   friend class ShadowLayerForwarder;
-  friend class LayerManagerComposite;
+  friend class ShadowLayerManager;
   friend class ImageBridgeChild;
   typedef android::GraphicBuffer GraphicBuffer;
 
 public:
   virtual ~GrallocBufferActor();
+
+  static PGrallocBufferParent*
+  Create(const gfxIntSize& aSize, const gfxContentType& aContent,
+         MaybeMagicGrallocBufferHandle* aOutHandle);
 
   static PGrallocBufferParent*
   Create(const gfxIntSize& aSize, const uint32_t& aFormat, const uint32_t& aUsage,
@@ -81,31 +81,16 @@ public:
   static android::sp<GraphicBuffer>
   GetFrom(const SurfaceDescriptorGralloc& aDescriptor);
 
-  // used only for hacky fix in gecko 23 for bug 862324
-  // see bug 865908 about fixing this.
-  void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
-
-  // used only for hacky fix in gecko 23 for bug 862324
-  // see bug 865908 about fixing this.
-  void AddDeprecatedTextureHost(DeprecatedTextureHost* aDeprecatedTextureHost);
-  void RemoveDeprecatedTextureHost(DeprecatedTextureHost* aDeprecatedTextureHost);
-
-  android::GraphicBuffer* GetGraphicBuffer();
-
-  void InitFromHandle(const MagicGrallocBufferHandle& aHandle);
-
 private:
   GrallocBufferActor();
+
+  void InitFromHandle(const MagicGrallocBufferHandle& aHandle);
 
   android::sp<GraphicBuffer> mGraphicBuffer;
 
   // This value stores the number of bytes allocated in this
   // BufferActor. This will be used for the memory reporter.
   size_t mAllocBytes;
-
-  // used only for hacky fix in gecko 23 for bug 862324
-  // see bug 865908 about fixing this.
-  nsAutoTArray<DeprecatedTextureHost*, 2> mDeprecatedTextureHosts;
 
   friend class ISurfaceAllocator;
 };

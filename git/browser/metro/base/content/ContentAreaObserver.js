@@ -5,7 +5,7 @@
  /*
   * ContentAreaObserver manages tracking the viewable area within the browser.
   * It also handles certain tasks like positioning of input elements within
-  * content when the viewable area changes.
+  * content when the viewable area changes. 
   *
   * ContentAreaObserver creates styles that content can apply and also fires
   * events when things change. The 'width' and 'height' properties of the
@@ -70,18 +70,11 @@ var ContentAreaObserver = {
   },
 
   get isKeyboardOpened() {
-    return Services.metro.keyboardVisible;
+    return MetroUtils.keyboardVisible;
   },
 
   get isKeyboardTransitioning() {
     return this._deckTransitioning;
-  },
-
-  get viewstate() {
-    if (this.width < Services.prefs.getIntPref("browser.ui.snapped.maxWidth")) {
-      return "snapped";
-    }
-    return (this.height > this.width) ? "portrait" : "landscape";
   },
 
   /*
@@ -129,10 +122,8 @@ var ContentAreaObserver = {
     this.styles["window-height"].height = newHeight + "px";
     this.styles["window-height"].maxHeight = newHeight + "px";
 
-    this._updateViewState();
-
     this.updateContentArea(newWidth, this._getContentHeightForWindow(newHeight));
-    this._dispatchBrowserEvent("SizeChanged");
+    this._disatchBrowserEvent("SizeChanged");
   },
 
   updateContentArea: function cao_updateContentArea (width, height) {
@@ -141,17 +132,6 @@ var ContentAreaObserver = {
 
     let newWidth = width || this.width;
     let newHeight = height || this.contentHeight;
-
-    if (Browser.selectedBrowser) {
-      let notificationBox = Browser.getNotificationBox();
-
-      // If a notification and navbar are visible together,
-      // make the notification appear above the navbar.
-      if (ContextUI.navbarVisible && !notificationBox.notificationsHidden &&
-          notificationBox.allNotifications.length != 0) {
-        newHeight -= Elements.navbar.getBoundingClientRect().height;
-      }
-    }
 
     if (newHeight == oldHeight && newWidth == oldWidth)
       return;
@@ -162,7 +142,7 @@ var ContentAreaObserver = {
     this.styles["content-width"].maxWidth = newWidth + "px";
 
     this.updateViewableArea(newWidth, this._getViewableHeightForContent(newHeight));
-    this._dispatchBrowserEvent("ContentSizeChanged");
+    this._disatchBrowserEvent("ContentSizeChanged");
   },
 
   updateViewableArea: function cao_updateViewableArea (width, height) {
@@ -180,36 +160,12 @@ var ContentAreaObserver = {
     this.styles["viewable-width"].width = newWidth + "px";
     this.styles["viewable-width"].maxWidth = newWidth + "px";
 
-    this.updateAppBarPosition();
-
-    // Update the back/tab button states. If the keyboard is up
-    // these are hidden.
-    BrowserUI._updateButtons();
-
-    this._dispatchBrowserEvent("ViewableSizeChanged");
-  },
-
-  updateAppBarPosition: function updateAppBarPosition(aForceDown) {
-    // Adjust the app and find bar position above the soft keyboard
-    let keyboardHeight = aForceDown ? 0 : Services.metro.keyboardHeight;
-    Elements.navbar.style.bottom = keyboardHeight + "px";
-    Elements.contextappbar.style.bottom = keyboardHeight + "px";
-    Elements.findbar.style.bottom = keyboardHeight + "px";
-  },
-
-  /*
-   * Called by BrowserUI right before we blur the nav bar edit. We use
-   * this to get a head start on shuffling app bars around before the
-   * soft keyboard transitions down.
-   */
-  navBarWillBlur: function navBarWillBlur() {
-    this.updateAppBarPosition(true);
+    this._disatchBrowserEvent("ViewableSizeChanged");
   },
 
   onBrowserCreated: function onBrowserCreated(aBrowser) {
-    let notificationBox = aBrowser.parentNode.parentNode;
-    notificationBox.classList.add("content-width");
-    notificationBox.classList.add("content-height");
+    aBrowser.classList.add("content-width");
+    aBrowser.classList.add("content-height");
   },
 
   /*
@@ -217,12 +173,6 @@ var ContentAreaObserver = {
    */
 
   _onKeyboardDisplayChanging: function _onKeyboardDisplayChanging(aNewState) {
-    if (aNewState) {
-      Elements.stack.setAttribute("keyboardVisible", true);
-    } else {
-      Elements.stack.removeAttribute("keyboardVisible");
-    }
-
     this.updateViewableArea();
 
     if (!aNewState) {
@@ -232,11 +182,9 @@ var ContentAreaObserver = {
 
     // Request info about the target form element to see if we
     // need to reposition the browser above the keyboard.
-    if (SelectionHelperUI.layerMode === 2 /*kContentLayer*/) {
-      Browser.selectedBrowser.messageManager.sendAsyncMessage("Browser:RepositionInfoRequest", {
-        viewHeight: this.viewableHeight,
-      });
-    }
+    Browser.selectedBrowser.messageManager.sendAsyncMessage("Browser:RepositionInfoRequest", {
+      viewHeight: this.viewableHeight,
+    });
   },
 
   _onRepositionResponse: function _onRepositionResponse(aJsonMsg) {
@@ -291,15 +239,6 @@ var ContentAreaObserver = {
    * Internal helpers
    */
 
-  _updateViewState: function (aState) {
-    let oldViewstate = Elements.windowState.getAttribute("viewstate");
-    let viewstate = aState || this.viewstate;
-    if (viewstate != oldViewstate) {
-      Elements.windowState.setAttribute("viewstate", viewstate);
-      Services.obs.notifyObservers(null, "metro_viewstate_changed", viewstate);
-    }
-  },
-
   _shiftBrowserDeck: function _shiftBrowserDeck(aAmount) {
     if (aAmount == 0) {
       this._deckTransitioning = false;
@@ -332,7 +271,7 @@ var ContentAreaObserver = {
     window.dispatchEvent(event);
   },
 
-  _dispatchBrowserEvent: function (aName, aDetail) {
+  _disatchBrowserEvent: function (aName, aDetail) {
     setTimeout(function() {
       let event = document.createEvent("Events");
       event.initEvent(aName, true, false);
@@ -351,11 +290,12 @@ var ContentAreaObserver = {
   },
 
   _getContentHeightForWindow: function (windowHeight) {
-    return windowHeight;
+    let contextUIHeight = BrowserUI.isTabsOnly ? Elements.toolbar.getBoundingClientRect().bottom : 0;
+    return windowHeight - contextUIHeight;
   },
 
   _getViewableHeightForContent: function (contentHeight) {
-    let keyboardHeight = Services.metro.keyboardHeight;
+    let keyboardHeight = MetroUtils.keyboardHeight;
     return contentHeight - keyboardHeight;
   },
 

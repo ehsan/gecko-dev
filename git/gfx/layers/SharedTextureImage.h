@@ -6,14 +6,8 @@
 #ifndef GFX_SHAREDTEXTUREIMAGE_H
 #define GFX_SHAREDTEXTUREIMAGE_H
 
-#include "GLContextProvider.h"          // for GLContextProvider
-#include "ImageContainer.h"             // for Image
-#include "ImageTypes.h"                 // for ImageFormat::SHARED_TEXTURE
-#include "gfxPoint.h"                   // for gfxIntSize
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsSize.h"                     // for nsIntSize
-
-class gfxASurface;
+#include "ImageContainer.h"
+#include "GLContext.h"
 
 // Split into a separate header from ImageLayers.h due to GLContext.h dependence
 // Implementation remains in ImageLayers.cpp
@@ -22,11 +16,11 @@ namespace mozilla {
 
 namespace layers {
 
-class SharedTextureImage : public Image {
+class THEBES_API SharedTextureImage : public Image {
 public:
   struct Data {
     gl::SharedTextureHandle mHandle;
-    gl::SharedTextureShareType mShareType;
+    gl::GLContext::SharedTextureShareType mShareType;
     gfxIntSize mSize;
     bool mInverted;
   };
@@ -36,11 +30,9 @@ public:
 
   gfxIntSize GetSize() { return mData.mSize; }
 
-  virtual already_AddRefed<gfxASurface> GetAsSurface() {
-    return nullptr;
-  }
+  virtual already_AddRefed<gfxASurface> GetAsSurface() { return NULL; }
 
-  SharedTextureImage() : Image(nullptr, SHARED_TEXTURE) {}
+  SharedTextureImage() : Image(NULL, SHARED_TEXTURE) {}
 
 private:
   Data mData;

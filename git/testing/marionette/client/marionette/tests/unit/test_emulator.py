@@ -3,7 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from marionette_test import MarionetteTestCase
-from marionette import JavascriptException, MarionetteException
+from errors import JavascriptException, MarionetteException
 
 
 class TestEmulatorContent(MarionetteTestCase):
@@ -17,13 +17,14 @@ class TestEmulatorContent(MarionetteTestCase):
         """);
         self.assertEqual(result, expected)
 
-    def test_emulator_order(self):
-        self.marionette.set_script_timeout(10000)
-        self.assertRaises(MarionetteException,
-                          self.marionette.execute_async_script,
-        """runEmulatorCmd("gsm status", function(result) {});
-           marionetteScriptFinished(true);
-        """);
+# disabled due to bug 758329
+#     def test_emulator_order(self):
+#        self.marionette.set_script_timeout(10000)
+#        self.assertRaises(MarionetteException,
+#                          self.marionette.execute_async_script,
+#        """runEmulatorCmd("gsm status", function(result) {});
+#           marionetteScriptFinished(true);
+#        """);
 
 
 class TestEmulatorChrome(TestEmulatorContent):

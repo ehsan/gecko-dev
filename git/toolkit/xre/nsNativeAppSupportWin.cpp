@@ -33,6 +33,7 @@
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIDOMLocation.h"
+#include "nsIJSContextStack.h"
 #include "nsIWebNavigation.h"
 #include "nsIWindowMediator.h"
 #include "nsNativeCharsetUtils.h"
@@ -533,7 +534,7 @@ struct MessageWindow {
             //  the same thread.
             BOOL desRes = DestroyWindow( mHandle );
             if ( FALSE != desRes ) {
-                mHandle = nullptr;
+                mHandle = NULL;
             }
             else {
                 retval = NS_ERROR_FAILURE;
@@ -858,7 +859,7 @@ static nsCString uTypeDesc( UINT uType ) {
 static nsCString hszValue( DWORD instance, HSZ hsz ) {
     // Extract string from HSZ.
     nsCString result("[");
-    DWORD len = DdeQueryString( instance, hsz, nullptr, nullptr, CP_WINANSI );
+    DWORD len = DdeQueryString( instance, hsz, NULL, NULL, CP_WINANSI );
     if ( len ) {
         char buffer[ 256 ];
         DdeQueryString( instance, hsz, buffer, sizeof buffer, CP_WINANSI );
@@ -1211,7 +1212,7 @@ void nsNativeAppSupportWin::ParseDDEArg( const WCHAR* args, int index, nsString&
 
 // Utility to parse out argument from a DDE item string.
 void nsNativeAppSupportWin::ParseDDEArg( HSZ args, int index, nsString& aString) {
-    DWORD argLen = DdeQueryStringW( mInstance, args, nullptr, 0, CP_WINUNICODE );
+    DWORD argLen = DdeQueryStringW( mInstance, args, NULL, 0, CP_WINUNICODE );
     // there wasn't any string, so return empty string
     if ( !argLen ) return;
     nsAutoString temp;
@@ -1452,6 +1453,50 @@ HWND hwndForDOMWindow( nsISupports *window ) {
 
     return (HWND)( ppWidget->GetNativeData( NS_NATIVE_WIDGET ) );
 }
+
+static const char sJSStackContractID[] = "@mozilla.org/js/xpc/ContextStack;1";
+
+class SafeJSContext {
+public:
+  SafeJSContext();
+  ~SafeJSContext();
+
+  nsresult   Push();
+  JSContext *get() { return mContext; }
+
+protected:
+  nsCOMPtr<nsIThreadJSContextStack>  mService;
+  JSContext                         *mContext;
+};
+
+SafeJSContext::SafeJSContext() : mContext(nullptr) {
+}
+
+SafeJSContext::~SafeJSContext() {
+  JSContext *cx;
+  DebugOnly<nsresult> rv;
+
+  if(mContext) {
+    rv = mService->Pop(&cx);
+    NS_ASSERTION(NS_SUCCEEDED(rv) && cx == mContext, "JSContext push/pop mismatch");
+  }
+}
+
+nsresult SafeJSContext::Push() {
+  if (mContext) // only once
+    return NS_ERROR_FAILURE;
+
+  mService = do_GetService(sJSStackContractID);
+  if (mService) {
+    JSContext* cx = mService->GetSafeJSContext();
+    if (cx && NS_SUCCEEDED(mService->Push(cx))) {
+      // Save cx in mContext to indicate need to pop.
+      mContext = cx;
+    }
+  }
+  return mContext ? NS_OK : NS_ERROR_FAILURE;
+}
+
 
 nsresult
 nsNativeAppSupportWin::OpenBrowserWindow()

@@ -19,7 +19,6 @@
 #include "nsAttrName.h"
 #include "rdf.h"
 #include "nsArrayUtils.h"
-#include "nsIURI.h"
 
 #include "nsContentTestNode.h"
 #include "nsRDFConInstanceTestNode.h"
@@ -33,7 +32,6 @@
 #include "nsXULTemplateResultSetRDF.h"
 #include "nsXULTemplateQueryProcessorRDF.h"
 #include "nsXULSortService.h"
-#include "nsIDocument.h"
 
 //----------------------------------------------------------------------
 
@@ -47,8 +45,6 @@ nsIRDFService*            nsXULTemplateQueryProcessorRDF::gRDFService;
 nsIRDFContainerUtils*     nsXULTemplateQueryProcessorRDF::gRDFContainerUtils;
 nsIRDFResource*           nsXULTemplateQueryProcessorRDF::kNC_BookmarkSeparator;
 nsIRDFResource*           nsXULTemplateQueryProcessorRDF::kRDF_type;
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULTemplateQueryProcessorRDF)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULTemplateQueryProcessorRDF)
     tmp->Done();
@@ -100,11 +96,17 @@ RuleToBindingTraverser(nsISupports* key, RDFBindingSet* binding, void* userArg)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULTemplateQueryProcessorRDF)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDB)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLastRef)
-    tmp->mBindingDependencies.EnumerateRead(BindingDependenciesTraverser,
-                                            &cb);
-    tmp->mMemoryElementToResultMap.EnumerateRead(MemoryElementTraverser,
-                                                 &cb);
-    tmp->mRuleToBindingsMap.EnumerateRead(RuleToBindingTraverser, &cb);
+    if (tmp->mBindingDependencies.IsInitialized()) {
+        tmp->mBindingDependencies.EnumerateRead(BindingDependenciesTraverser,
+                                                &cb);
+    }
+    if (tmp->mMemoryElementToResultMap.IsInitialized()) {
+        tmp->mMemoryElementToResultMap.EnumerateRead(MemoryElementTraverser,
+                                                     &cb);
+    }
+    if (tmp->mRuleToBindingsMap.IsInitialized()) {
+        tmp->mRuleToBindingsMap.EnumerateRead(RuleToBindingTraverser, &cb);
+    }
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mQueries)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -299,6 +301,13 @@ nsXULTemplateQueryProcessorRDF::InitializeForBuilding(nsISupports* aDatasource,
         nsresult rv = InitGlobals();
         if (NS_FAILED(rv))
             return rv;
+
+        if (!mMemoryElementToResultMap.IsInitialized())
+            mMemoryElementToResultMap.Init();
+        if (!mBindingDependencies.IsInitialized())
+            mBindingDependencies.Init();
+        if (!mRuleToBindingsMap.IsInitialized())
+            mRuleToBindingsMap.Init();
 
         mQueryProcessorRDFInited = true;
     }

@@ -13,10 +13,10 @@
 
 #ifdef WEBRTC_MODULE_UTILITY_VIDEO
 
-#include "webrtc/common_video/interface/i420_video_frame.h"
-#include "webrtc/engine_configurations.h"
-#include "webrtc/system_wrappers/interface/list_wrapper.h"
-#include "webrtc/typedefs.h"
+#include "common_video/interface/i420_video_frame.h"
+#include "engine_configurations.h"
+#include "list_wrapper.h"
+#include "typedefs.h"
 
 namespace webrtc {
 
@@ -26,7 +26,7 @@ class VideoFramesQueue {
   ~VideoFramesQueue();
 
   // Put newFrame (last) in the queue.
-  int32_t AddFrame(const I420VideoFrame& newFrame);
+  WebRtc_Word32 AddFrame(const I420VideoFrame& newFrame);
 
   // Return the most current frame. I.e. the frame with the highest
   // VideoFrame::RenderTimeMs() that is lower than
@@ -34,12 +34,12 @@ class VideoFramesQueue {
   I420VideoFrame* FrameToRecord();
 
   // Set the render delay estimate to renderDelay ms.
-  int32_t SetRenderDelay(uint32_t renderDelay);
+  WebRtc_Word32 SetRenderDelay(WebRtc_UWord32 renderDelay);
 
  protected:
   // Make ptrOldFrame available for re-use. I.e. put it in the empty frames
   // queue.
-  int32_t ReturnFrame(I420VideoFrame* ptrOldFrame);
+  WebRtc_Word32 ReturnFrame(I420VideoFrame* ptrOldFrame);
 
  private:
   // Don't allow the buffer to expand beyond KMaxNumberOfFrames VideoFrames.
@@ -54,8 +54,8 @@ class VideoFramesQueue {
   ListWrapper    _emptyFrames;
 
   // Estimated render delay.
-  uint32_t _renderDelayMs;
+  WebRtc_UWord32 _renderDelayMs;
 };
-}  // namespace webrtc
+} // namespace webrtc
 #endif // WEBRTC_MODULE_UTILITY_VIDEO
 #endif  // WEBRTC_MODULES_UTILITY_SOURCE_VIDEO_FRAMES_QUEUE_H_

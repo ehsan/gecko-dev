@@ -6,7 +6,6 @@
 #include "mozilla/dom/SVGFEOffsetElement.h"
 #include "mozilla/dom/SVGFEOffsetElementBinding.h"
 #include "nsSVGFilterInstance.h"
-#include "gfxContext.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(FEOffset)
 
@@ -14,7 +13,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEOffsetElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEOffsetElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEOffsetElementBinding::Wrap(aCx, aScope, this);
 }
@@ -40,19 +39,19 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEOffsetElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEOffsetElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEOffsetElement::Dx()
 {
   return mNumberAttributes[DX].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEOffsetElement::Dy()
 {
   return mNumberAttributes[DY].ToDOMAnimatedNumber(this);

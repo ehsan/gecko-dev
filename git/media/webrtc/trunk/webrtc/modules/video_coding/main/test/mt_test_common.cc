@@ -8,19 +8,16 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_coding/main/test/mt_test_common.h"
+#include "mt_test_common.h"
 
-#include <math.h>
+#include <cmath>
 
-#include "webrtc/modules/rtp_rtcp/interface/rtp_header_parser.h"
-#include "webrtc/modules/rtp_rtcp/interface/rtp_payload_registry.h"
-#include "webrtc/modules/rtp_rtcp/interface/rtp_receiver.h"
-#include "webrtc/modules/utility/interface/rtp_dump.h"
-#include "webrtc/system_wrappers/interface/clock.h"
+#include "modules/video_coding/main/source/tick_time_base.h"
+#include "rtp_dump.h"
 
 namespace webrtc {
 
-TransportCallback::TransportCallback(Clock* clock, const char* filename)
+TransportCallback::TransportCallback(TickTimeBase* clock, const char* filename)
     : RTPSendCompleteCallback(clock, filename) {
 }
 
@@ -37,7 +34,7 @@ TransportCallback::SendPacket(int channel, const void *data, int len)
 
     if (_rtpDump != NULL)
     {
-        if (_rtpDump->DumpPacket((const uint8_t*)data, len) != 0)
+        if (_rtpDump->DumpPacket((const WebRtc_UWord8*)data, len) != 0)
         {
             return -1;
         }
@@ -50,8 +47,8 @@ TransportCallback::SendPacket(int channel, const void *data, int len)
         transmitPacket = PacketLoss();
     }
 
-    Clock* clock = Clock::GetRealTimeClock();
-    int64_t now = clock->TimeInMilliseconds();
+    TickTimeBase clock;
+    int64_t now = clock.MillisecondTimestamp();
     // Insert outgoing packet into list
     if (transmitPacket)
     {
@@ -61,8 +58,8 @@ TransportCallback::SendPacket(int channel, const void *data, int len)
         // Simulate receive time = network delay + packet jitter
         // simulated as a Normal distribution random variable with
         // mean = networkDelay and variance = jitterVar
-        int32_t
-        simulatedDelay = (int32_t)NormalDist(_networkDelayMs,
+        WebRtc_Word32
+        simulatedDelay = (WebRtc_Word32)NormalDist(_networkDelayMs,
                                                    sqrt(_jitterVar));
         newPacket->receiveTime = now + simulatedDelay;
         _rtpPackets.push_back(newPacket);
@@ -75,14 +72,14 @@ TransportCallback::TransportPackets()
 {
     // Are we ready to send packets to the receiver?
     RtpPacket* packet = NULL;
-    Clock* clock = Clock::GetRealTimeClock();
-    int64_t now = clock->TimeInMilliseconds();
+    TickTimeBase clock;
+    int64_t now = clock.MillisecondTimestamp();
 
     while (!_rtpPackets.empty())
     {
         // Take first packet in list
         packet = _rtpPackets.front();
-        int64_t timeToReceive = packet->receiveTime - now;
+        WebRtc_Word64 timeToReceive = packet->receiveTime - now;
         if (timeToReceive > 0)
         {
             // No available packets to send
@@ -91,22 +88,12 @@ TransportCallback::TransportPackets()
 
         _rtpPackets.pop_front();
         // Send to receive side
-        RTPHeader header;
-        scoped_ptr<RtpHeaderParser> parser(RtpHeaderParser::Create());
-        if (!parser->Parse(packet->data, packet->length, &header)) {
-          delete packet;
-          return -1;
-        }
-        PayloadUnion payload_specific;
-        if (!rtp_payload_registry_->GetPayloadSpecifics(
-            header.payloadType, &payload_specific)) {
-          return -1;
-        }
-        if (!rtp_receiver_->IncomingRtpPacket(header, packet->data,
-                                              packet->length, payload_specific,
-                                              true))
+        if (_rtp->IncomingPacket((const WebRtc_UWord8*)packet->data,
+                                     packet->length) < 0)
         {
             delete packet;
+            packet = NULL;
+            // Will return an error after the first packet that goes wrong
             return -1;
         }
         delete packet;

@@ -515,7 +515,7 @@ LookupCache::GetLookupFragments(const nsACString& aSpec,
       key.Assign(hosts[hostIndex]);
       key.Append('/');
       key.Append(paths[pathIndex]);
-      LOG(("Checking fragment %s", key.get()));
+      LOG(("Chking %s", key.get()));
 
       aFragments->AppendElement(key);
     }

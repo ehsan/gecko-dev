@@ -79,19 +79,16 @@ function is_download_available(aGUID, aSrc, aDst, aName, aPrivate, present) {
 }
 
 function run_test() {
-  if (oldDownloadManagerDisabled()) {
-    return;
-  }
-
   let prefBranch = Cc["@mozilla.org/preferences-service;1"].
                    getService(Ci.nsIPrefBranch);
 
   do_test_pending();
   let httpserv = new HttpServer();
   httpserv.registerDirectory("/", do_get_cwd());
-  httpserv.start(-1);
 
-  let tmpDir = do_get_tempdir();
+  let tmpDir = Cc["@mozilla.org/file/directory_service;1"].
+               getService(Ci.nsIProperties).
+               get("TmpD", Ci.nsIFile);
   const nsIWBP = Ci.nsIWebBrowserPersist;
 
   // make sure we're starting with an empty DB
@@ -156,7 +153,7 @@ function run_test() {
           do_check_eq(dm.activeDownloadCount, 0);
 
           // Create Download-B
-          let dlB = addDownload(httpserv, {
+          let dlB = addDownload({
             isPrivate: true,
             targetFile: fileB,
             sourceURI: downloadBSource,
@@ -185,7 +182,8 @@ function run_test() {
           Services.obs.notifyObservers(null, "last-pb-context-exited", null);
 
           // Create Download-C
-          dlC = addDownload(httpserv, {
+          httpserv.start(4444);
+          dlC = addDownload({
             isPrivate: false,
             targetFile: fileC,
             sourceURI: downloadCSource,
@@ -259,9 +257,7 @@ function run_test() {
 
   // properties of Download-C
   let downloadC = -1;
-  const downloadCSource = "http://localhost:" +
-                          httpserv.identity.primaryPort +
-                          "/head_download_manager.js";
+  const downloadCSource = "http://localhost:4444/head_download_manager.js";
   const downloadCDest = "download-file-C";
   const downloadCName = "download-C";
 
@@ -280,7 +276,7 @@ function run_test() {
   let dlC;
 
   // Create Download-A
-  let dlA = addDownload(httpserv, {
+  let dlA = addDownload({
     isPrivate: false,
     targetFile: fileA,
     sourceURI: downloadASource,

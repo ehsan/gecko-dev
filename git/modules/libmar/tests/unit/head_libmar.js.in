@@ -11,7 +11,6 @@ const Ci = Components.interfaces;
   let refMARPrefix = "";
 #endif
 
-let tempDir = do_get_tempdir();
 
 /**
  * Compares binary data of 2 arrays and throws if they aren't the same.

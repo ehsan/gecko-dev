@@ -4,23 +4,28 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsPrincipal.h"
-
 #include "mozIThirdPartyUtil.h"
 #include "nscore.h"
 #include "nsScriptSecurityManager.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
-#include "pratom.h"
+#include "plstr.h"
+#include "nsCRT.h"
 #include "nsIURI.h"
+#include "nsIFileURL.h"
+#include "nsIProtocolHandler.h"
+#include "nsNetUtil.h"
 #include "nsJSPrincipals.h"
+#include "nsVoidArray.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsIClassInfoImpl.h"
 #include "nsError.h"
 #include "nsIContentSecurityPolicy.h"
-#include "nsCxPusher.h"
+#include "nsContentUtils.h"
 #include "jswrapper.h"
+
+#include "nsPrincipal.h"
 
 #include "mozilla/Preferences.h"
 #include "mozilla/HashFunctions.h"
@@ -40,7 +45,7 @@ static bool URIIsImmutable(nsIURI* aURI)
   return
     mutableObj &&
     NS_SUCCEEDED(mutableObj->GetMutable(&isMutable)) &&
-    !isMutable;
+    !isMutable;                               
 }
 
 // Static member variables
@@ -338,6 +343,18 @@ nsPrincipal::GetURI(nsIURI** aURI)
   return NS_EnsureSafeToReturn(mCodebase, aURI);
 }
 
+static bool
+URIIsLocalFile(nsIURI *aURI)
+{
+  bool isFile;
+  nsCOMPtr<nsINetUtil> util = do_GetNetUtil();
+
+  return util && NS_SUCCEEDED(util->ProtocolHasFlags(aURI,
+                                nsIProtocolHandler::URI_IS_LOCAL_FILE,
+                                &isFile)) &&
+         isFile;
+}
+
 NS_IMETHODIMP
 nsPrincipal::CheckMayLoad(nsIURI* aURI, bool aReport, bool aAllowIfInheritsPrincipal)
 {
@@ -349,23 +366,86 @@ nsPrincipal::CheckMayLoad(nsIURI* aURI, bool aReport, bool aAllowIfInheritsPrinc
     }
   }
 
-  if (nsScriptSecurityManager::SecurityCompareURIs(mCodebase, aURI)) {
-    return NS_OK;
+  if (!nsScriptSecurityManager::SecurityCompareURIs(mCodebase, aURI)) {
+    if (nsScriptSecurityManager::GetStrictFileOriginPolicy() &&
+        URIIsLocalFile(aURI)) {
+      nsCOMPtr<nsIFileURL> fileURL(do_QueryInterface(aURI));
+
+      if (!URIIsLocalFile(mCodebase)) {
+        // If the codebase is not also a file: uri then forget it
+        // (don't want resource: principals in a file: doc)
+        //
+        // note: we're not de-nesting jar: uris here, we want to
+        // keep archive content bottled up in its own little island
+
+        if (aReport) {
+          nsScriptSecurityManager::ReportError(
+            nullptr, NS_LITERAL_STRING("CheckSameOriginError"), mCodebase, aURI);
+        }
+
+        return NS_ERROR_DOM_BAD_URI;
+      }
+
+      //
+      // pull out the internal files
+      //
+      nsCOMPtr<nsIFileURL> codebaseFileURL(do_QueryInterface(mCodebase));
+      nsCOMPtr<nsIFile> targetFile;
+      nsCOMPtr<nsIFile> codebaseFile;
+      bool targetIsDir;
+
+      // Make sure targetFile is not a directory (bug 209234)
+      // and that it exists w/out unescaping (bug 395343)
+
+      if (!codebaseFileURL || !fileURL ||
+          NS_FAILED(fileURL->GetFile(getter_AddRefs(targetFile))) ||
+          NS_FAILED(codebaseFileURL->GetFile(getter_AddRefs(codebaseFile))) ||
+          !targetFile || !codebaseFile ||
+          NS_FAILED(targetFile->Normalize()) ||
+          NS_FAILED(codebaseFile->Normalize()) ||
+          NS_FAILED(targetFile->IsDirectory(&targetIsDir)) ||
+          targetIsDir) {
+        if (aReport) {
+          nsScriptSecurityManager::ReportError(
+            nullptr, NS_LITERAL_STRING("CheckSameOriginError"), mCodebase, aURI);
+        }
+
+        return NS_ERROR_DOM_BAD_URI;
+      }
+
+      //
+      // If the file to be loaded is in a subdirectory of the codebase
+      // (or same-dir if codebase is not a directory) then it will
+      // inherit its codebase principal and be scriptable by that codebase.
+      //
+      bool codebaseIsDir;
+      bool contained = false;
+      nsresult rv = codebaseFile->IsDirectory(&codebaseIsDir);
+      if (NS_SUCCEEDED(rv) && codebaseIsDir) {
+        rv = codebaseFile->Contains(targetFile, true, &contained);
+      }
+      else {
+        nsCOMPtr<nsIFile> codebaseParent;
+        rv = codebaseFile->GetParent(getter_AddRefs(codebaseParent));
+        if (NS_SUCCEEDED(rv) && codebaseParent) {
+          rv = codebaseParent->Contains(targetFile, true, &contained);
+        }
+      }
+
+      if (NS_SUCCEEDED(rv) && contained) {
+        return NS_OK;
+      }
+    }
+
+    if (aReport) {
+      nsScriptSecurityManager::ReportError(
+        nullptr, NS_LITERAL_STRING("CheckSameOriginError"), mCodebase, aURI);
+    }
+
+    return NS_ERROR_DOM_BAD_URI;
   }
 
-  // If strict file origin policy is in effect, local files will always fail
-  // SecurityCompareURIs unless they are identical. Explicitly check file origin
-  // policy, in that case.
-  if (nsScriptSecurityManager::GetStrictFileOriginPolicy() &&
-      NS_URIIsLocalFile(aURI) &&
-      NS_RelaxStrictFileOriginPolicy(aURI, mCodebase)) {
-    return NS_OK;
-  }
-
-  if (aReport) {
-    nsScriptSecurityManager::ReportError(nullptr, NS_LITERAL_STRING("CheckSameOriginError"), mCodebase, aURI);
-  }
-  return NS_ERROR_DOM_BAD_URI;
+  return NS_OK;
 }
 
 void
@@ -411,7 +491,7 @@ nsPrincipal::SetDomain(nsIURI* aDomain)
 
   // Recompute all wrappers between compartments using this principal and other
   // non-chrome compartments.
-  AutoSafeJSContext cx;
+  SafeAutoJSContext cx;
   JSPrincipals *principals = nsJSPrincipals::get(static_cast<nsIPrincipal*>(this));
   bool success = js::RecomputeWrappers(cx, js::ContentCompartmentsOnly(),
                                        js::CompartmentsWithPrincipals(principals));
@@ -424,17 +504,19 @@ nsPrincipal::SetDomain(nsIURI* aDomain)
 }
 
 NS_IMETHODIMP
-nsPrincipal::GetJarPrefix(nsACString& aJarPrefix)
+nsPrincipal::GetExtendedOrigin(nsACString& aExtendedOrigin)
 {
   MOZ_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
 
-  mozilla::GetJarPrefix(mAppId, mInMozBrowser, aJarPrefix);
+  mozilla::GetExtendedOrigin(mCodebase, mAppId, mInMozBrowser, aExtendedOrigin);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsPrincipal::GetAppStatus(uint16_t* aAppStatus)
 {
+  MOZ_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
+
   *aAppStatus = GetAppStatus();
   return NS_OK;
 }
@@ -477,7 +559,7 @@ NS_IMETHODIMP
 nsPrincipal::GetBaseDomain(nsACString& aBaseDomain)
 {
   // For a file URI, we return the file path.
-  if (NS_URIIsLocalFile(mCodebase)) {
+  if (URIIsLocalFile(mCodebase)) {
     nsCOMPtr<nsIURL> url = do_QueryInterface(mCodebase);
 
     if (url) {
@@ -560,8 +642,8 @@ nsPrincipal::Write(nsIObjectOutputStream* aStream)
 uint16_t
 nsPrincipal::GetAppStatus()
 {
-  NS_WARN_IF_FALSE(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID,
-                   "Asking for app status on a principal with an unknown app id");
+  MOZ_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
+
   // Installed apps have a valid app id (not NO_APP_ID or UNKNOWN_APP_ID)
   // and they are not inside a mozbrowser.
   if (mAppId == nsIScriptSecurityManager::NO_APP_ID ||
@@ -572,8 +654,9 @@ nsPrincipal::GetAppStatus()
   nsCOMPtr<nsIAppsService> appsService = do_GetService(APPS_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(appsService, nsIPrincipal::APP_STATUS_NOT_INSTALLED);
 
-  nsCOMPtr<mozIApplication> app;
-  appsService->GetAppByLocalId(mAppId, getter_AddRefs(app));
+  nsCOMPtr<mozIDOMApplication> domApp;
+  appsService->GetAppByLocalId(mAppId, getter_AddRefs(domApp));
+  nsCOMPtr<mozIApplication> app = do_QueryInterface(domApp);
   NS_ENSURE_TRUE(app, nsIPrincipal::APP_STATUS_NOT_INSTALLED);
 
   uint16_t status = nsIPrincipal::APP_STATUS_INSTALLED;
@@ -754,7 +837,8 @@ nsExpandedPrincipal::CheckMayLoad(nsIURI* uri, bool aReport, bool aAllowIfInheri
 NS_IMETHODIMP
 nsExpandedPrincipal::GetHashValue(uint32_t* result)
 {
-  MOZ_CRASH("extended principal should never be used as key in a hash map");
+  MOZ_NOT_REACHED("extended principal should never be used as key in a hash map");
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
@@ -772,10 +856,9 @@ nsExpandedPrincipal::GetWhiteList(nsTArray<nsCOMPtr<nsIPrincipal> >** aWhiteList
 }
 
 NS_IMETHODIMP
-nsExpandedPrincipal::GetJarPrefix(nsACString& aJarPrefix)
+nsExpandedPrincipal::GetExtendedOrigin(nsACString& aExtendedOrigin)
 {
-  aJarPrefix.Truncate();
-  return NS_OK;
+  return GetOrigin(getter_Copies(aExtendedOrigin));
 }
 
 NS_IMETHODIMP

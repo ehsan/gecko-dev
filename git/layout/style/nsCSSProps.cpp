@@ -19,10 +19,8 @@
 #include "mozilla/LookAndFeel.h" // for system colors
 
 #include "nsString.h"
+#include "nsReadableUtils.h"
 #include "nsStaticNameTable.h"
-#include "nsStyleConsts.h"
-#include "gfxFontConstants.h"
-#include "nsStyleStruct.h"
 
 #include "mozilla/Preferences.h"
 
@@ -48,7 +46,7 @@ const char* const kCSSRawProperties[eCSSProperty_COUNT_with_aliases] = {
 
 using namespace mozilla;
 
-static int32_t gPropertyTableRefCount;
+static int32_t gTableRefCount;
 static nsStaticCaseInsensitiveNameTable* gPropertyTable;
 static nsStaticCaseInsensitiveNameTable* gFontDescTable;
 
@@ -96,7 +94,7 @@ static nsCSSProperty gAliases[eCSSAliasCount != 0 ? eCSSAliasCount : 1] = {
 void
 nsCSSProps::AddRefTable(void)
 {
-  if (0 == gPropertyTableRefCount++) {
+  if (0 == gTableRefCount++) {
     NS_ABORT_IF_FALSE(!gPropertyTable, "pre existing array!");
     NS_ABORT_IF_FALSE(!gFontDescTable, "pre existing array!");
 
@@ -197,7 +195,7 @@ nsCSSProps::BuildShorthandsContainingTable()
     for (const nsCSSProperty* subprops = SubpropertyEntryFor(shorthand);
          *subprops != eCSSProperty_UNKNOWN;
          ++subprops) {
-      NS_ABORT_IF_FALSE(0 <= *subprops &&
+      NS_ABORT_IF_FALSE(0 < *subprops &&
                         *subprops < eCSSProperty_COUNT_no_shorthands,
                         "subproperty must be a longhand");
       ++occurrenceCounts[*subprops];
@@ -336,7 +334,7 @@ nsCSSProps::BuildShorthandsContainingTable()
 void
 nsCSSProps::ReleaseTable(void)
 {
-  if (0 == --gPropertyTableRefCount) {
+  if (0 == --gTableRefCount) {
     delete gPropertyTable;
     gPropertyTable = nullptr;
 
@@ -358,8 +356,8 @@ nsCSSProps::LookupProperty(const nsACString& aProperty,
   // Check eCSSAliasCount against 0 to make it easy for the
   // compiler to optimize away the 0-aliases case.
   if (eCSSAliasCount != 0 && res >= eCSSProperty_COUNT) {
-    static_assert(eCSSProperty_UNKNOWN < eCSSProperty_COUNT,
-                  "assuming eCSSProperty_UNKNOWN doesn't hit this code");
+    MOZ_STATIC_ASSERT(eCSSProperty_UNKNOWN < eCSSProperty_COUNT,
+                      "assuming eCSSProperty_UNKNOWN doesn't hit this code");
     if (IsEnabled(res) || aEnabled == eAny) {
       res = gAliases[res - eCSSProperty_COUNT];
       NS_ABORT_IF_FALSE(0 <= res && res < eCSSProperty_COUNT,
@@ -385,8 +383,8 @@ nsCSSProps::LookupProperty(const nsAString& aProperty, EnabledState aEnabled)
   // Check eCSSAliasCount against 0 to make it easy for the
   // compiler to optimize away the 0-aliases case.
   if (eCSSAliasCount != 0 && res >= eCSSProperty_COUNT) {
-    static_assert(eCSSProperty_UNKNOWN < eCSSProperty_COUNT,
-                  "assuming eCSSProperty_UNKNOWN doesn't hit this code");
+    MOZ_STATIC_ASSERT(eCSSProperty_UNKNOWN < eCSSProperty_COUNT,
+                      "assuming eCSSProperty_UNKNOWN doesn't hit this code");
     if (IsEnabled(res) || aEnabled == eAny) {
       res = gAliases[res - eCSSProperty_COUNT];
       NS_ABORT_IF_FALSE(0 <= res && res < eCSSProperty_COUNT,
@@ -412,20 +410,7 @@ nsCSSFontDesc
 nsCSSProps::LookupFontDesc(const nsAString& aFontDesc)
 {
   NS_ABORT_IF_FALSE(gFontDescTable, "no lookup table, needs addref");
-  nsCSSFontDesc which = nsCSSFontDesc(gFontDescTable->Lookup(aFontDesc));
-
-  // font-variant-alternates enabled ==> layout.css.font-features.enabled is true
-  bool fontFeaturesEnabled =
-    nsCSSProps::IsEnabled(eCSSProperty_font_variant_alternates);
-
-  // check for unprefixed font-feature-settings/font-language-override
-  if (which == eCSSFontDesc_UNKNOWN && fontFeaturesEnabled) {
-    nsAutoString prefixedProp;
-    prefixedProp.AppendLiteral("-moz-");
-    prefixedProp.Append(aFontDesc);
-    which = nsCSSFontDesc(gFontDescTable->Lookup(prefixedProp));
-  }
-  return which;
+  return nsCSSFontDesc(gFontDescTable->Lookup(aFontDesc));
 }
 
 const nsAFlatCString&
@@ -641,7 +626,6 @@ const int32_t nsCSSProps::kTransformStyleKTable[] = {
 const int32_t nsCSSProps::kBackgroundAttachmentKTable[] = {
   eCSSKeyword_fixed, NS_STYLE_BG_ATTACHMENT_FIXED,
   eCSSKeyword_scroll, NS_STYLE_BG_ATTACHMENT_SCROLL,
-  eCSSKeyword_local, NS_STYLE_BG_ATTACHMENT_LOCAL,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -652,10 +636,10 @@ const int32_t nsCSSProps::kBackgroundInlinePolicyKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-static_assert(NS_STYLE_BG_CLIP_BORDER == NS_STYLE_BG_ORIGIN_BORDER &&
-              NS_STYLE_BG_CLIP_PADDING == NS_STYLE_BG_ORIGIN_PADDING &&
-              NS_STYLE_BG_CLIP_CONTENT == NS_STYLE_BG_ORIGIN_CONTENT,
-              "bg-clip and bg-origin style constants must agree");
+MOZ_STATIC_ASSERT(NS_STYLE_BG_CLIP_BORDER == NS_STYLE_BG_ORIGIN_BORDER &&
+                  NS_STYLE_BG_CLIP_PADDING == NS_STYLE_BG_ORIGIN_PADDING &&
+                  NS_STYLE_BG_CLIP_CONTENT == NS_STYLE_BG_ORIGIN_CONTENT,
+                  "bg-clip and bg-origin style constants must agree");
 const int32_t nsCSSProps::kBackgroundOriginKTable[] = {
   eCSSKeyword_border_box, NS_STYLE_BG_ORIGIN_BORDER,
   eCSSKeyword_padding_box, NS_STYLE_BG_ORIGIN_PADDING,
@@ -693,26 +677,6 @@ const int32_t nsCSSProps::kBackgroundSizeKTable[] = {
   eCSSKeyword_contain, NS_STYLE_BG_SIZE_CONTAIN,
   eCSSKeyword_cover,   NS_STYLE_BG_SIZE_COVER,
   eCSSKeyword_UNKNOWN,-1
-};
-
-const int32_t nsCSSProps::kBlendModeKTable[] = {
-    eCSSKeyword_normal,      NS_STYLE_BLEND_NORMAL,
-    eCSSKeyword_multiply,    NS_STYLE_BLEND_MULTIPLY,
-    eCSSKeyword_screen,      NS_STYLE_BLEND_SCREEN,
-    eCSSKeyword_overlay,     NS_STYLE_BLEND_OVERLAY,
-    eCSSKeyword_darken,      NS_STYLE_BLEND_DARKEN,
-    eCSSKeyword_lighten,     NS_STYLE_BLEND_LIGHTEN,
-    eCSSKeyword_color_dodge, NS_STYLE_BLEND_COLOR_DODGE,
-    eCSSKeyword_color_burn,  NS_STYLE_BLEND_COLOR_BURN,
-    eCSSKeyword_hard_light,  NS_STYLE_BLEND_HARD_LIGHT,
-    eCSSKeyword_soft_light,  NS_STYLE_BLEND_SOFT_LIGHT,
-    eCSSKeyword_difference,  NS_STYLE_BLEND_DIFFERENCE,
-    eCSSKeyword_exclusion,   NS_STYLE_BLEND_EXCLUSION,
-    eCSSKeyword_hue,         NS_STYLE_BLEND_HUE,
-    eCSSKeyword_saturation,  NS_STYLE_BLEND_SATURATION,
-    eCSSKeyword_color,       NS_STYLE_BLEND_COLOR,
-    eCSSKeyword_luminosity,  NS_STYLE_BLEND_LUMINOSITY,
-    eCSSKeyword_UNKNOWN,-1
 };
 
 const int32_t nsCSSProps::kBorderCollapseKTable[] = {
@@ -795,7 +759,7 @@ const int32_t nsCSSProps::kClearKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-// See also kContextPatternKTable for SVG paint-specific values
+// See also kObjectPatternKTable for SVG paint-specific values
 const int32_t nsCSSProps::kColorKTable[] = {
   eCSSKeyword_activeborder, LookAndFeel::eColorID_activeborder,
   eCSSKeyword_activecaption, LookAndFeel::eColorID_activecaption,
@@ -850,6 +814,7 @@ const int32_t nsCSSProps::kColorKTable[] = {
   eCSSKeyword__moz_mac_menutextdisable, LookAndFeel::eColorID__moz_mac_menutextdisable,
   eCSSKeyword__moz_mac_menutextselect, LookAndFeel::eColorID__moz_mac_menutextselect,
   eCSSKeyword__moz_mac_disabledtoolbartext, LookAndFeel::eColorID__moz_mac_disabledtoolbartext,
+  eCSSKeyword__moz_mac_alternateprimaryhighlight, LookAndFeel::eColorID__moz_mac_alternateprimaryhighlight,
   eCSSKeyword__moz_mac_secondaryhighlight, LookAndFeel::eColorID__moz_mac_secondaryhighlight,
   eCSSKeyword__moz_menuhover, LookAndFeel::eColorID__moz_menuhover,
   eCSSKeyword__moz_menuhovertext, LookAndFeel::eColorID__moz_menuhovertext,
@@ -911,15 +876,11 @@ const int32_t nsCSSProps::kCursorKTable[] = {
   eCSSKeyword_ns_resize, NS_STYLE_CURSOR_NS_RESIZE,
   eCSSKeyword_ew_resize, NS_STYLE_CURSOR_EW_RESIZE,
   eCSSKeyword_none, NS_STYLE_CURSOR_NONE,
-  eCSSKeyword_grab, NS_STYLE_CURSOR_GRAB,
-  eCSSKeyword_grabbing, NS_STYLE_CURSOR_GRABBING,
-  eCSSKeyword_zoom_in, NS_STYLE_CURSOR_ZOOM_IN,
-  eCSSKeyword_zoom_out, NS_STYLE_CURSOR_ZOOM_OUT,
   // -moz- prefixed vendor specific
   eCSSKeyword__moz_grab, NS_STYLE_CURSOR_GRAB,
   eCSSKeyword__moz_grabbing, NS_STYLE_CURSOR_GRABBING,
-  eCSSKeyword__moz_zoom_in, NS_STYLE_CURSOR_ZOOM_IN,
-  eCSSKeyword__moz_zoom_out, NS_STYLE_CURSOR_ZOOM_OUT,
+  eCSSKeyword__moz_zoom_in, NS_STYLE_CURSOR_MOZ_ZOOM_IN,
+  eCSSKeyword__moz_zoom_out, NS_STYLE_CURSOR_MOZ_ZOOM_OUT,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -929,7 +890,7 @@ const int32_t nsCSSProps::kDirectionKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const int32_t nsCSSProps::kDisplayKTable[] = {
+int32_t nsCSSProps::kDisplayKTable[] = {
   eCSSKeyword_none,               NS_STYLE_DISPLAY_NONE,
   eCSSKeyword_inline,             NS_STYLE_DISPLAY_INLINE,
   eCSSKeyword_block,              NS_STYLE_DISPLAY_BLOCK,
@@ -960,8 +921,13 @@ const int32_t nsCSSProps::kDisplayKTable[] = {
   eCSSKeyword__moz_popup,         NS_STYLE_DISPLAY_POPUP,
   eCSSKeyword__moz_groupbox,      NS_STYLE_DISPLAY_GROUPBOX,
 #endif
+#ifdef MOZ_FLEXBOX
+  // XXXdholbert NOTE: These currently need to be the last entries in the
+  // table, because the "is flexbox enabled" pref that disables these will
+  // disable all the entries after them, too.
   eCSSKeyword_flex,               NS_STYLE_DISPLAY_FLEX,
   eCSSKeyword_inline_flex,        NS_STYLE_DISPLAY_INLINE_FLEX,
+#endif // MOZ_FLEXBOX
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -972,6 +938,7 @@ const int32_t nsCSSProps::kEmptyCellsKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
+#ifdef MOZ_FLEXBOX
 const int32_t nsCSSProps::kAlignItemsKTable[] = {
   eCSSKeyword_flex_start, NS_STYLE_ALIGN_ITEMS_FLEX_START,
   eCSSKeyword_flex_end,   NS_STYLE_ALIGN_ITEMS_FLEX_END,
@@ -1008,6 +975,7 @@ const int32_t nsCSSProps::kJustifyContentKTable[] = {
   eCSSKeyword_space_around,  NS_STYLE_JUSTIFY_CONTENT_SPACE_AROUND,
   eCSSKeyword_UNKNOWN,-1
 };
+#endif // MOZ_FLEXBOX
 
 const int32_t nsCSSProps::kFloatKTable[] = {
   eCSSKeyword_none,  NS_STYLE_FLOAT_NONE,
@@ -1045,13 +1013,6 @@ const int32_t nsCSSProps::kFontKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const int32_t nsCSSProps::kFontKerningKTable[] = {
-  eCSSKeyword_auto, NS_FONT_KERNING_AUTO,
-  eCSSKeyword_none, NS_FONT_KERNING_NONE,
-  eCSSKeyword_normal, NS_FONT_KERNING_NORMAL,
-  eCSSKeyword_UNKNOWN,-1
-};
-
 const int32_t nsCSSProps::kFontSizeKTable[] = {
   eCSSKeyword_xx_small, NS_STYLE_FONT_SIZE_XXSMALL,
   eCSSKeyword_x_small, NS_STYLE_FONT_SIZE_XSMALL,
@@ -1062,12 +1023,6 @@ const int32_t nsCSSProps::kFontSizeKTable[] = {
   eCSSKeyword_xx_large, NS_STYLE_FONT_SIZE_XXLARGE,
   eCSSKeyword_larger, NS_STYLE_FONT_SIZE_LARGER,
   eCSSKeyword_smaller, NS_STYLE_FONT_SIZE_SMALLER,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const int32_t nsCSSProps::kFontSmoothingKTable[] = {
-  eCSSKeyword_auto, NS_FONT_SMOOTHING_AUTO,
-  eCSSKeyword_grayscale, NS_FONT_SMOOTHING_GRAYSCALE,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1091,84 +1046,9 @@ const int32_t nsCSSProps::kFontStyleKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const int32_t nsCSSProps::kFontSynthesisKTable[] = {
-  eCSSKeyword_weight, NS_FONT_SYNTHESIS_WEIGHT,
-  eCSSKeyword_style, NS_FONT_SYNTHESIS_STYLE,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-
 const int32_t nsCSSProps::kFontVariantKTable[] = {
   eCSSKeyword_normal, NS_STYLE_FONT_VARIANT_NORMAL,
   eCSSKeyword_small_caps, NS_STYLE_FONT_VARIANT_SMALL_CAPS,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const int32_t nsCSSProps::kFontVariantAlternatesKTable[] = {
-  eCSSKeyword_historical_forms, NS_FONT_VARIANT_ALTERNATES_HISTORICAL,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const int32_t nsCSSProps::kFontVariantAlternatesFuncsKTable[] = {
-  eCSSKeyword_stylistic, NS_FONT_VARIANT_ALTERNATES_STYLISTIC,
-  eCSSKeyword_styleset, NS_FONT_VARIANT_ALTERNATES_STYLESET,
-  eCSSKeyword_character_variant, NS_FONT_VARIANT_ALTERNATES_CHARACTER_VARIANT,
-  eCSSKeyword_swash, NS_FONT_VARIANT_ALTERNATES_SWASH,
-  eCSSKeyword_ornaments, NS_FONT_VARIANT_ALTERNATES_ORNAMENTS,
-  eCSSKeyword_annotation, NS_FONT_VARIANT_ALTERNATES_ANNOTATION,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const int32_t nsCSSProps::kFontVariantCapsKTable[] = {
-  eCSSKeyword_small_caps, NS_FONT_VARIANT_CAPS_SMALLCAPS,
-  eCSSKeyword_all_small_caps, NS_FONT_VARIANT_CAPS_ALLSMALL,
-  eCSSKeyword_petite_caps, NS_FONT_VARIANT_CAPS_PETITECAPS,
-  eCSSKeyword_all_petite_caps, NS_FONT_VARIANT_CAPS_ALLPETITE,
-  eCSSKeyword_titling_caps, NS_FONT_VARIANT_CAPS_TITLING,
-  eCSSKeyword_unicase, NS_FONT_VARIANT_CAPS_UNICASE,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const int32_t nsCSSProps::kFontVariantEastAsianKTable[] = {
-  eCSSKeyword_jis78, NS_FONT_VARIANT_EAST_ASIAN_JIS78,
-  eCSSKeyword_jis83, NS_FONT_VARIANT_EAST_ASIAN_JIS83,
-  eCSSKeyword_jis90, NS_FONT_VARIANT_EAST_ASIAN_JIS90,
-  eCSSKeyword_jis04, NS_FONT_VARIANT_EAST_ASIAN_JIS04,
-  eCSSKeyword_simplified, NS_FONT_VARIANT_EAST_ASIAN_SIMPLIFIED,
-  eCSSKeyword_traditional, NS_FONT_VARIANT_EAST_ASIAN_TRADITIONAL,
-  eCSSKeyword_full_width, NS_FONT_VARIANT_EAST_ASIAN_FULL_WIDTH,
-  eCSSKeyword_proportional_width, NS_FONT_VARIANT_EAST_ASIAN_PROP_WIDTH,
-  eCSSKeyword_ruby, NS_FONT_VARIANT_EAST_ASIAN_RUBY,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const int32_t nsCSSProps::kFontVariantLigaturesKTable[] = {
-  eCSSKeyword_common_ligatures, NS_FONT_VARIANT_LIGATURES_COMMON,
-  eCSSKeyword_no_common_ligatures, NS_FONT_VARIANT_LIGATURES_NO_COMMON,
-  eCSSKeyword_discretionary_ligatures, NS_FONT_VARIANT_LIGATURES_DISCRETIONARY,
-  eCSSKeyword_no_discretionary_ligatures, NS_FONT_VARIANT_LIGATURES_NO_DISCRETIONARY,
-  eCSSKeyword_historical_ligatures, NS_FONT_VARIANT_LIGATURES_HISTORICAL,
-  eCSSKeyword_no_historical_ligatures, NS_FONT_VARIANT_LIGATURES_NO_HISTORICAL,
-  eCSSKeyword_contextual, NS_FONT_VARIANT_LIGATURES_CONTEXTUAL,
-  eCSSKeyword_no_contextual, NS_FONT_VARIANT_LIGATURES_NO_CONTEXTUAL,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const int32_t nsCSSProps::kFontVariantNumericKTable[] = {
-  eCSSKeyword_lining_nums, NS_FONT_VARIANT_NUMERIC_LINING,
-  eCSSKeyword_oldstyle_nums, NS_FONT_VARIANT_NUMERIC_OLDSTYLE,
-  eCSSKeyword_proportional_nums, NS_FONT_VARIANT_NUMERIC_PROPORTIONAL,
-  eCSSKeyword_tabular_nums, NS_FONT_VARIANT_NUMERIC_TABULAR,
-  eCSSKeyword_diagonal_fractions, NS_FONT_VARIANT_NUMERIC_DIAGONAL_FRACTIONS,
-  eCSSKeyword_stacked_fractions, NS_FONT_VARIANT_NUMERIC_STACKED_FRACTIONS,
-  eCSSKeyword_slashed_zero, NS_FONT_VARIANT_NUMERIC_SLASHZERO,
-  eCSSKeyword_ordinal, NS_FONT_VARIANT_NUMERIC_ORDINAL,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const int32_t nsCSSProps::kFontVariantPositionKTable[] = {
-  eCSSKeyword_super, NS_FONT_VARIANT_POSITION_SUPER,
-  eCSSKeyword_sub, NS_FONT_VARIANT_POSITION_SUB,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1177,17 +1057,6 @@ const int32_t nsCSSProps::kFontWeightKTable[] = {
   eCSSKeyword_bold, NS_STYLE_FONT_WEIGHT_BOLD,
   eCSSKeyword_bolder, NS_STYLE_FONT_WEIGHT_BOLDER,
   eCSSKeyword_lighter, NS_STYLE_FONT_WEIGHT_LIGHTER,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const int32_t nsCSSProps::kImageOrientationKTable[] = {
-  eCSSKeyword_flip, NS_STYLE_IMAGE_ORIENTATION_FLIP,
-  eCSSKeyword_from_image, NS_STYLE_IMAGE_ORIENTATION_FROM_IMAGE,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const int32_t nsCSSProps::kImageOrientationFlipKTable[] = {
-  eCSSKeyword_flip, NS_STYLE_IMAGE_ORIENTATION_FLIP,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1268,15 +1137,15 @@ const int32_t nsCSSProps::kListStyleKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const int32_t nsCSSProps::kContextOpacityKTable[] = {
-  eCSSKeyword_context_fill_opacity, NS_STYLE_CONTEXT_FILL_OPACITY,
-  eCSSKeyword_context_stroke_opacity, NS_STYLE_CONTEXT_STROKE_OPACITY,
+const int32_t nsCSSProps::kObjectOpacityKTable[] = {
+  eCSSKeyword__moz_objectfillopacity, NS_STYLE_OBJECT_FILL_OPACITY,
+  eCSSKeyword__moz_objectstrokeopacity, NS_STYLE_OBJECT_STROKE_OPACITY,
   eCSSKeyword_UNKNOWN,-1
 };
 
-const int32_t nsCSSProps::kContextPatternKTable[] = {
-  eCSSKeyword_context_fill, NS_COLOR_CONTEXT_FILL,
-  eCSSKeyword_context_stroke, NS_COLOR_CONTEXT_STROKE,
+const int32_t nsCSSProps::kObjectPatternKTable[] = {
+  eCSSKeyword__moz_objectfill, NS_COLOR_OBJECTFILL,
+  eCSSKeyword__moz_objectstroke, NS_COLOR_OBJECTSTROKE,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1372,13 +1241,11 @@ const int32_t nsCSSProps::kPointerEventsKTable[] = {
   eCSSKeyword_UNKNOWN, -1
 };
 
-int32_t nsCSSProps::kPositionKTable[] = {
+const int32_t nsCSSProps::kPositionKTable[] = {
   eCSSKeyword_static, NS_STYLE_POSITION_STATIC,
   eCSSKeyword_relative, NS_STYLE_POSITION_RELATIVE,
   eCSSKeyword_absolute, NS_STYLE_POSITION_ABSOLUTE,
   eCSSKeyword_fixed, NS_STYLE_POSITION_FIXED,
-  // The next entry is controlled by the layout.css.sticky.enabled pref.
-  eCSSKeyword_sticky, NS_STYLE_POSITION_STICKY,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1427,7 +1294,7 @@ const int32_t nsCSSProps::kTableLayoutKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-int32_t nsCSSProps::kTextAlignKTable[] = {
+const int32_t nsCSSProps::kTextAlignKTable[] = {
   eCSSKeyword_left, NS_STYLE_TEXT_ALIGN_LEFT,
   eCSSKeyword_right, NS_STYLE_TEXT_ALIGN_RIGHT,
   eCSSKeyword_center, NS_STYLE_TEXT_ALIGN_CENTER,
@@ -1437,11 +1304,10 @@ int32_t nsCSSProps::kTextAlignKTable[] = {
   eCSSKeyword__moz_left, NS_STYLE_TEXT_ALIGN_MOZ_LEFT,
   eCSSKeyword_start, NS_STYLE_TEXT_ALIGN_DEFAULT,
   eCSSKeyword_end, NS_STYLE_TEXT_ALIGN_END,
-  eCSSKeyword_true, NS_STYLE_TEXT_ALIGN_TRUE,
   eCSSKeyword_UNKNOWN,-1
 };
 
-int32_t nsCSSProps::kTextAlignLastKTable[] = {
+const int32_t nsCSSProps::kTextAlignLastKTable[] = {
   eCSSKeyword_auto, NS_STYLE_TEXT_ALIGN_AUTO,
   eCSSKeyword_left, NS_STYLE_TEXT_ALIGN_LEFT,
   eCSSKeyword_right, NS_STYLE_TEXT_ALIGN_RIGHT,
@@ -1449,14 +1315,12 @@ int32_t nsCSSProps::kTextAlignLastKTable[] = {
   eCSSKeyword_justify, NS_STYLE_TEXT_ALIGN_JUSTIFY,
   eCSSKeyword_start, NS_STYLE_TEXT_ALIGN_DEFAULT,
   eCSSKeyword_end, NS_STYLE_TEXT_ALIGN_END,
-  eCSSKeyword_true, NS_STYLE_TEXT_ALIGN_TRUE,
   eCSSKeyword_UNKNOWN,-1
 };
 
-const int32_t nsCSSProps::kTextCombineHorizontalKTable[] = {
-  eCSSKeyword_none, NS_STYLE_TEXT_COMBINE_HORIZ_NONE,
-  eCSSKeyword_all, NS_STYLE_TEXT_COMBINE_HORIZ_ALL,
-  eCSSKeyword_digits, NS_STYLE_TEXT_COMBINE_HORIZ_DIGITS_2,  // w/o number ==> 2
+const int32_t nsCSSProps::kTextBlinkKTable[] = {
+  eCSSKeyword_none, NS_STYLE_TEXT_BLINK_NONE,
+  eCSSKeyword_blink, NS_STYLE_TEXT_BLINK_BLINK,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1465,7 +1329,6 @@ const int32_t nsCSSProps::kTextDecorationLineKTable[] = {
   eCSSKeyword_underline, NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE,
   eCSSKeyword_overline, NS_STYLE_TEXT_DECORATION_LINE_OVERLINE,
   eCSSKeyword_line_through, NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH,
-  eCSSKeyword_blink, NS_STYLE_TEXT_DECORATION_LINE_BLINK,
   eCSSKeyword__moz_anchor_decoration, NS_STYLE_TEXT_DECORATION_LINE_PREF_ANCHORS,
   eCSSKeyword_UNKNOWN,-1
 };
@@ -1478,13 +1341,6 @@ const int32_t nsCSSProps::kTextDecorationStyleKTable[] = {
   eCSSKeyword_dashed, NS_STYLE_TEXT_DECORATION_STYLE_DASHED,
   eCSSKeyword_wavy, NS_STYLE_TEXT_DECORATION_STYLE_WAVY,
   eCSSKeyword_UNKNOWN,-1
-};
-
-const int32_t nsCSSProps::kTextOrientationKTable[] = {
-  eCSSKeyword_auto, NS_STYLE_TEXT_ORIENTATION_AUTO,
-  eCSSKeyword_upright, NS_STYLE_TEXT_ORIENTATION_UPRIGHT,
-  eCSSKeyword_sideways, NS_STYLE_TEXT_ORIENTATION_SIDEWAYS,
-  eCSSKeyword_UNKNOWN, -1
 };
 
 const int32_t nsCSSProps::kTextOverflowKTable[] = {
@@ -1624,13 +1480,6 @@ const int32_t nsCSSProps::kWordWrapKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const int32_t nsCSSProps::kWritingModeKTable[] = {
-  eCSSKeyword_horizontal_tb, NS_STYLE_WRITING_MODE_HORIZONTAL_TB,
-  eCSSKeyword_vertical_lr, NS_STYLE_WRITING_MODE_VERTICAL_LR,
-  eCSSKeyword_vertical_rl, NS_STYLE_WRITING_MODE_VERTICAL_RL,
-  eCSSKeyword_UNKNOWN, -1
-};
-
 const int32_t nsCSSProps::kHyphensKTable[] = {
   eCSSKeyword_none, NS_STYLE_HYPHENS_NONE,
   eCSSKeyword_manual, NS_STYLE_HYPHENS_MANUAL,
@@ -1694,20 +1543,6 @@ const int32_t nsCSSProps::kFillRuleKTable[] = {
   eCSSKeyword_UNKNOWN, -1
 };
 
-const int32_t nsCSSProps::kFilterFunctionKTable[] = {
-  eCSSKeyword_blur, NS_STYLE_FILTER_BLUR,
-  eCSSKeyword_brightness, NS_STYLE_FILTER_BRIGHTNESS,
-  eCSSKeyword_contrast, NS_STYLE_FILTER_CONTRAST,
-  eCSSKeyword_grayscale, NS_STYLE_FILTER_GRAYSCALE,
-  eCSSKeyword_invert, NS_STYLE_FILTER_INVERT,
-  eCSSKeyword_opacity, NS_STYLE_FILTER_OPACITY,
-  eCSSKeyword_saturate, NS_STYLE_FILTER_SATURATE,
-  eCSSKeyword_sepia, NS_STYLE_FILTER_SEPIA,
-  eCSSKeyword_hue_rotate, NS_STYLE_FILTER_HUE_ROTATE,
-  eCSSKeyword_drop_shadow, NS_STYLE_FILTER_DROP_SHADOW,
-  eCSSKeyword_UNKNOWN, -1
-};
-
 const int32_t nsCSSProps::kImageRenderingKTable[] = {
   eCSSKeyword_auto, NS_STYLE_IMAGE_RENDERING_AUTO,
   eCSSKeyword_optimizespeed, NS_STYLE_IMAGE_RENDERING_OPTIMIZESPEED,
@@ -1746,8 +1581,8 @@ const int32_t nsCSSProps::kStrokeLinejoinKTable[] = {
 
 // Lookup table to store the sole objectValue keyword to let SVG glyphs inherit
 // certain stroke-* properties from the outer text object
-const int32_t nsCSSProps::kStrokeContextValueKTable[] = {
-  eCSSKeyword_context_value, NS_STYLE_STROKE_PROP_CONTEXT_VALUE,
+const int32_t nsCSSProps::kStrokeObjectValueKTable[] = {
+  eCSSKeyword__moz_objectvalue, NS_STYLE_STROKE_PROP_OBJECTVALUE,
   eCSSKeyword_UNKNOWN, -1
 };
 
@@ -1785,33 +1620,15 @@ const int32_t nsCSSProps::kColumnFillKTable[] = {
   eCSSKeyword_UNKNOWN, -1
 };
 
-static bool IsKeyValSentinel(nsCSSKeyword aKey, int32_t aValue)
-{
-  return aKey == eCSSKeyword_UNKNOWN && aValue == -1;
-}
-
 int32_t
 nsCSSProps::FindIndexOfKeyword(nsCSSKeyword aKeyword, const int32_t aTable[])
 {
-  if (eCSSKeyword_UNKNOWN == aKeyword) {
-    // NOTE: we can have keyword tables where eCSSKeyword_UNKNOWN is used
-    // not only for the sentinel, but also in the middle of the table to
-    // knock out values that have been disabled by prefs, e.g. kDisplayKTable.
-    // So we deal with eCSSKeyword_UNKNOWN up front to avoid returning a valid
-    // index in the loop below.
-    return -1;
-  }
-  int32_t i = 0;
-  for (;;) {
-    nsCSSKeyword key = nsCSSKeyword(aTable[i]);
-    int32_t val = aTable[i + 1];
-    if (::IsKeyValSentinel(key, val)) {
-      break;
+  int32_t index = 0;
+  while (eCSSKeyword_UNKNOWN != nsCSSKeyword(aTable[index])) {
+    if (aKeyword == nsCSSKeyword(aTable[index])) {
+      return index;
     }
-    if (aKeyword == key) {
-      return i;
-    }
-    i += 2;
+    index += 2;
   }
   return -1;
 }
@@ -1833,13 +1650,11 @@ nsCSSProps::ValueToKeywordEnum(int32_t aValue, const int32_t aTable[])
 {
   int32_t i = 1;
   for (;;) {
-    int32_t val = aTable[i];
-    nsCSSKeyword key = nsCSSKeyword(aTable[i - 1]);
-    if (::IsKeyValSentinel(key, val)) {
+    if (aTable[i] == -1 && aTable[i-1] == eCSSKeyword_UNKNOWN) {
       break;
     }
-    if (aValue == val) {
-      return key;
+    if (aValue == aTable[i]) {
+      return nsCSSKeyword(aTable[i-1]);
     }
     i += 2;
   }
@@ -1943,17 +1758,6 @@ const uint32_t nsCSSProps::kFlagsTable[eCSSProperty_COUNT] = {
 #undef CSS_PROP_SHORTHAND
 };
 
-static const nsCSSProperty gAllSubpropTable[] = {
-#define CSS_PROP_LIST_ONLY_COMPONENTS_OF_ALL_SHORTHAND
-#define CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, \
-                 stylestruct_, stylestructoffset_, animtype_)                 \
-  eCSSProperty_##id_,
-#include "nsCSSPropList.h"
-#undef CSS_PROP
-#undef CSS_PROP_LIST_ONLY_COMPONENTS_OF_ALL_SHORTHAND
-  eCSSProperty_UNKNOWN
-};
-
 static const nsCSSProperty gAnimationSubpropTable[] = {
   eCSSProperty_animation_duration,
   eCSSProperty_animation_timing_function,
@@ -2046,9 +1850,9 @@ static const nsCSSProperty gBorderBottomSubpropTable[] = {
   eCSSProperty_UNKNOWN
 };
 
-static_assert(NS_SIDE_TOP == 0 && NS_SIDE_RIGHT == 1 &&
-              NS_SIDE_BOTTOM == 2 && NS_SIDE_LEFT == 3,
-              "box side constants not top/right/bottom/left == 0/1/2/3");
+MOZ_STATIC_ASSERT(NS_SIDE_TOP == 0 && NS_SIDE_RIGHT == 1 &&
+                  NS_SIDE_BOTTOM == 2 && NS_SIDE_LEFT == 3,
+                  "box side constants not top/right/bottom/left == 0/1/2/3");
 static const nsCSSProperty gBorderColorSubpropTable[] = {
   // Code relies on these being in top-right-bottom-left order.
   // Code relies on these matching the NS_SIDE_* constants.
@@ -2268,19 +2072,11 @@ static const nsCSSProperty gFontSubpropTable[] = {
   eCSSProperty_font_weight,
   eCSSProperty_font_size,
   eCSSProperty_line_height,
-  eCSSProperty_font_size_adjust,
-  eCSSProperty_font_stretch,
+  eCSSProperty_font_size_adjust, // XXX Added LDB.
+  eCSSProperty_font_stretch, // XXX Added LDB.
   eCSSProperty__x_system_font,
   eCSSProperty_font_feature_settings,
   eCSSProperty_font_language_override,
-  eCSSProperty_font_kerning,
-  eCSSProperty_font_synthesis,
-  eCSSProperty_font_variant_alternates,
-  eCSSProperty_font_variant_caps,
-  eCSSProperty_font_variant_east_asian,
-  eCSSProperty_font_variant_ligatures,
-  eCSSProperty_font_variant_numeric,
-  eCSSProperty_font_variant_position,
   eCSSProperty_UNKNOWN
 };
 
@@ -2362,12 +2158,14 @@ static const nsCSSProperty gColumnRuleSubpropTable[] = {
   eCSSProperty_UNKNOWN
 };
 
+#ifdef MOZ_FLEXBOX
 static const nsCSSProperty gFlexSubpropTable[] = {
   eCSSProperty_flex_grow,
   eCSSProperty_flex_shrink,
   eCSSProperty_flex_basis,
   eCSSProperty_UNKNOWN
 };
+#endif // MOZ_FLEXBOX
 
 static const nsCSSProperty gOverflowSubpropTable[] = {
   eCSSProperty_overflow_x,
@@ -2422,6 +2220,7 @@ static const nsCSSProperty gPaddingEndSubpropTable[] = {
 };
 
 static const nsCSSProperty gTextDecorationSubpropTable[] = {
+  eCSSProperty_text_blink,
   eCSSProperty_text_decoration_color,
   eCSSProperty_text_decoration_line,
   eCSSProperty_text_decoration_style,

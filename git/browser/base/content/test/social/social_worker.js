@@ -84,8 +84,6 @@ onconnect = function(e) {
         // For multiprovider tests, we support acting like different providers
         // based on the domain we load from.
         apiPort = port;
-        // purposely fall through and set the profile on initialization
-      case "test-set-profile":
         let profile;
         if (location.href.indexOf("https://test1.example.com") == 0) {
           profile = {
@@ -101,10 +99,16 @@ onconnect = function(e) {
             profileURL: "http://en.wikipedia.org/wiki/Kuma_Lisa"
           };
         }
-        apiPort.postMessage({topic: "social.user-profile", data: profile});
+        port.postMessage({topic: "social.user-profile", data: profile});
         break;
       case "test-ambient-notification":
-        apiPort.postMessage({topic: "social.ambient-notification", data: event.data.data});
+        let icon = {
+          name: "testIcon",
+          iconURL: "chrome://browser/skin/Info.png",
+          contentPanel: "https://example.com/browser/browser/base/content/test/social/social_panel.html",
+          counter: 1
+        };
+        apiPort.postMessage({topic: "social.ambient-notification", data: icon});
         break;
       case "test-isVisible":
         sidebarPort.postMessage({topic: "test-isVisible"});
@@ -112,16 +116,30 @@ onconnect = function(e) {
       case "test-isVisible-response":
         testPort.postMessage({topic: "got-isVisible-response", result: event.data.result});
         break;
-      case "share-data-message":
-        if (testPort)
-          testPort.postMessage({topic:"got-share-data-message", result: event.data.result});
-        break;
-      case "worker.update":
-        apiPort.postMessage({topic: 'social.manifest-get'});
-        break;
-      case "social.manifest":
-        event.data.data.version = 2;
-        apiPort.postMessage({topic: 'social.manifest-set', data: event.data.data});
+      case "social.user-recommend-prompt":
+        port.postMessage({
+          topic: "social.user-recommend-prompt-response",
+          data: {
+            images: {
+              // this one is relative to test we handle relative ones.
+              share: "browser/browser/base/content/test/social/social_share_image.png",
+              // absolute to check we handle them too.
+              unshare: "https://example.com/browser/browser/base/content/test/social/social_share_image.png"
+            },
+            messages: {
+              shareTooltip: "Share this page",
+              unshareTooltip: "Unshare this page",
+              sharedLabel: "This page has been shared",
+              unsharedLabel: "This page is no longer shared",
+              unshareLabel: "You have already shared this page",
+              portraitLabel: "Your pretty face",
+              unshareConfirmLabel: "Unshare it!",
+              unshareConfirmAccessKey: "U",
+              unshareCancelLabel: "Got it!",
+              unshareCancelAccessKey: "G"
+            }
+          }
+        });
         break;
     }
   }

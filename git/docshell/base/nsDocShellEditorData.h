@@ -10,11 +10,19 @@
 #include "nsCOMPtr.h"
 #endif
 
-#include "nsIHTMLDocument.h"
+#ifndef __gen_nsIDocShell_h__
+#include "nsIDocShell.h"
+#endif
 
-class nsIDocShell;
-class nsIEditingSession;
-class nsIEditor;
+#ifndef __gen_nsIEditingSession_h__
+#include "nsIEditingSession.h"
+#endif
+
+
+#include "nsIHTMLDocument.h"
+#include "nsIEditor.h"
+
+class nsIDOMWindow;
 
 class nsDocShellEditorData
 {

@@ -40,10 +40,7 @@ function cbError() {
 function go() {
   ok(true, "Launched app");
   var request = window.navigator.mozApps.getSelf();
-  request.onsuccess = function() {
-    var app = request.result;
-    checkApp(app);
-  }
+  request.onsuccess = function() { var app = request.result; checkApp(app); }
   request.onerror = cbError;
 }
 
@@ -52,8 +49,7 @@ function checkApp(app) {
   installed(!!app);
   if (app) {
     var appName = "Really Rapid Release (APPTYPETOKEN)";
-    var manifest = SpecialPowers.wrap(app.manifest);
-    is(manifest.name, appName, "Manifest name should be correct");
+    is(app.manifest.name, appName, "Manifest name should be correct");
     is(app.origin, "http://test", "App origin should be correct");
     is(app.installOrigin, "http://mochi.test:8888", "Install origin should be correct");
   }

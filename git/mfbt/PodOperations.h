@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -15,7 +14,6 @@
 #ifndef mozilla_PodOperations_h
 #define mozilla_PodOperations_h
 
-#include "mozilla/Array.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Util.h"
 
@@ -25,7 +23,7 @@ namespace mozilla {
 
 /** Set the contents of |t| to 0. */
 template<typename T>
-static MOZ_ALWAYS_INLINE void
+static void
 PodZero(T* t)
 {
   memset(t, 0, sizeof(T));
@@ -33,7 +31,7 @@ PodZero(T* t)
 
 /** Set the contents of |nelem| elements starting at |t| to 0. */
 template<typename T>
-static MOZ_ALWAYS_INLINE void
+static void
 PodZero(T* t, size_t nelem)
 {
   /*
@@ -59,17 +57,10 @@ static void PodZero(T (&t)[N], size_t nelem) MOZ_DELETE;
 
 /** Set the contents of the array |t| to zero. */
 template <class T, size_t N>
-static MOZ_ALWAYS_INLINE void
+static void
 PodArrayZero(T (&t)[N])
 {
   memset(t, 0, N * sizeof(T));
-}
-
-template <typename T, size_t N>
-static MOZ_ALWAYS_INLINE void
-PodArrayZero(Array<T, N>& arr)
-{
-  memset(&arr[0], 0, N * sizeof(T));
 }
 
 /**
@@ -77,7 +68,7 @@ PodArrayZero(Array<T, N>& arr)
  * overlap.
  */
 template<typename T>
-static MOZ_ALWAYS_INLINE void
+static void
 PodAssign(T* dst, const T* src)
 {
   MOZ_ASSERT(dst != src);
@@ -91,7 +82,7 @@ PodAssign(T* dst, const T* src)
  * overlap!
  */
 template<typename T>
-static MOZ_ALWAYS_INLINE void
+MOZ_ALWAYS_INLINE static void
 PodCopy(T* dst, const T* src, size_t nelem)
 {
   MOZ_ASSERT(dst != src);
@@ -110,58 +101,12 @@ PodCopy(T* dst, const T* src, size_t nelem)
   }
 }
 
-template<typename T>
-static MOZ_ALWAYS_INLINE void
-PodCopy(volatile T* dst, const volatile T* src, size_t nelem)
-{
-  MOZ_ASSERT(dst != src);
-  MOZ_ASSERT_IF(src < dst,
-                PointerRangeSize(src, static_cast<const volatile T*>(dst)) >= nelem);
-  MOZ_ASSERT_IF(dst < src,
-                PointerRangeSize(static_cast<const volatile T*>(dst), src) >= nelem);
-
-  /*
-   * Volatile |dst| requires extra work, because it's undefined behavior to
-   * modify volatile objects using the mem* functions.  Just write out the
-   * loops manually, using operator= rather than memcpy for the same reason,
-   * and let the compiler optimize to the extent it can.
-   */
-  for (const volatile T* srcend = src + nelem; src < srcend; src++, dst++)
-    *dst = *src;
-}
-
-/*
- * Copy the contents of the array |src| into the array |dst|, both of size N.
- * The arrays must not overlap!
- */
-template <class T, size_t N>
-static MOZ_ALWAYS_INLINE void
-PodArrayCopy(T (&dst)[N], const T (&src)[N])
-{
-  PodCopy(dst, src, N);
-}
-
-/**
- * Copy the memory for |nelem| T elements from |src| to |dst|.  If the two
- * memory ranges overlap, then the effect is as if the |nelem| elements are
- * first copied from |src| to a temporary array, and then from the temporary
- * array to |dst|.
- */
-template<typename T>
-static MOZ_ALWAYS_INLINE void
-PodMove(T* dst, const T* src, size_t nelem)
-{
-  MOZ_ASSERT(nelem <= SIZE_MAX / sizeof(T),
-             "trying to move an impossible number of elements");
-  memmove(dst, src, nelem * sizeof(T));
-}
-
 /**
  * Determine whether the |len| elements at |one| are memory-identical to the
  * |len| elements at |two|.
  */
 template<typename T>
-static MOZ_ALWAYS_INLINE bool
+MOZ_ALWAYS_INLINE static bool
 PodEqual(const T* one, const T* two, size_t len)
 {
   if (len < 128) {
@@ -180,4 +125,4 @@ PodEqual(const T* one, const T* two, size_t len)
 
 } // namespace mozilla
 
-#endif /* mozilla_PodOperations_h */
+#endif // mozilla_PodOperations_h_

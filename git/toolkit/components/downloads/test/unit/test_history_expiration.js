@@ -26,10 +26,6 @@ function getExpirablePRTime() {
 
 function run_test()
 {
-  if (oldDownloadManagerDisabled()) {
-    return;
-  }
-
   run_next_test();
 }
 
@@ -39,6 +35,9 @@ add_task(function test_execute()
   // (i.e MOZ_PLACES is enabled), so that we don't run this test if it doesn't.
   if (!("@mozilla.org/browser/nav-history-service;1" in Cc))
     return;
+
+  // Ensure places is enabled.
+  Services.prefs.setBoolPref("places.history.enabled", true);
 
   let dm = Cc["@mozilla.org/download-manager;1"].
            getService(Ci.nsIDownloadManager);

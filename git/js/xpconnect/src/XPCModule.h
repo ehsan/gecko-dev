@@ -12,6 +12,8 @@
 /* Module implementation for the xpconnect library. */
 
 #define XPCVARIANT_CONTRACTID "@mozilla.org/xpcvariant;1"
+#define XPC_JSCONTEXT_STACK_ITERATOR_CONTRACTID                               \
+    "@mozilla.org/js/xpc/ContextStackIterator;1"
 
 // {FE4F7592-C1FC-4662-AC83-538841318803}
 #define SCRIPTABLE_INTERFACES_CID                                             \
@@ -21,6 +23,8 @@
 #define MOZJSSUBSCRIPTLOADER_CONTRACTID "@mozilla.org/moz/jssubscript-loader;1"
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsJSID)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsXPCException)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsXPCJSContextStackIterator)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIXPConnect,
                                          nsXPConnect::GetSingleton)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsScriptError)
@@ -32,22 +36,27 @@ NS_DEFINE_NAMED_CID(NS_JS_ID_CID);
 NS_DEFINE_NAMED_CID(NS_XPCONNECT_CID);
 NS_DEFINE_NAMED_CID(NS_XPCEXCEPTION_CID);
 NS_DEFINE_NAMED_CID(NS_SCRIPTERROR_CID);
+NS_DEFINE_NAMED_CID(NS_XPC_JSCONTEXT_STACK_ITERATOR_CID);
 NS_DEFINE_NAMED_CID(MOZJSCOMPONENTLOADER_CID);
 NS_DEFINE_NAMED_CID(MOZ_JSSUBSCRIPTLOADER_CID);
 
 #define XPCONNECT_CIDENTRIES                                                  \
-  { &kNS_JS_ID_CID, false, nullptr,  nsJSIDConstructor },                     \
-  { &kNS_XPCONNECT_CID, false, nullptr,  nsIXPConnectConstructor },           \
-  { &kNS_SCRIPTERROR_CID, false, nullptr, nsScriptErrorConstructor },         \
-  { &kMOZJSCOMPONENTLOADER_CID, false, nullptr, mozJSComponentLoaderConstructor },\
-  { &kMOZ_JSSUBSCRIPTLOADER_CID, false, nullptr, mozJSSubScriptLoaderConstructor },
+  { &kNS_JS_ID_CID, false, NULL,  nsJSIDConstructor },                        \
+  { &kNS_XPCONNECT_CID, false, NULL,  nsIXPConnectConstructor },              \
+  { &kNS_XPCEXCEPTION_CID, false, NULL, nsXPCExceptionConstructor },          \
+  { &kNS_SCRIPTERROR_CID, false, NULL, nsScriptErrorConstructor },            \
+  { &kNS_XPC_JSCONTEXT_STACK_ITERATOR_CID, false, NULL, nsXPCJSContextStackIteratorConstructor }, \
+  { &kMOZJSCOMPONENTLOADER_CID, false, NULL, mozJSComponentLoaderConstructor },\
+  { &kMOZ_JSSUBSCRIPTLOADER_CID, false, NULL, mozJSSubScriptLoaderConstructor },
 
 #define XPCONNECT_CONTRACTS                                                   \
   { XPC_ID_CONTRACTID, &kNS_JS_ID_CID },                                      \
   { XPC_XPCONNECT_CONTRACTID, &kNS_XPCONNECT_CID },                           \
   { XPC_CONTEXT_STACK_CONTRACTID, &kNS_XPCONNECT_CID },                       \
   { XPC_RUNTIME_CONTRACTID, &kNS_XPCONNECT_CID },                             \
+  { XPC_EXCEPTION_CONTRACTID, &kNS_XPCEXCEPTION_CID },                        \
   { NS_SCRIPTERROR_CONTRACTID, &kNS_SCRIPTERROR_CID },                        \
+  { XPC_JSCONTEXT_STACK_ITERATOR_CONTRACTID, &kNS_XPC_JSCONTEXT_STACK_ITERATOR_CID }, \
   { MOZJSCOMPONENTLOADER_CONTRACTID, &kMOZJSCOMPONENTLOADER_CID },            \
   { MOZJSSUBSCRIPTLOADER_CONTRACTID, &kMOZ_JSSUBSCRIPTLOADER_CID },
 

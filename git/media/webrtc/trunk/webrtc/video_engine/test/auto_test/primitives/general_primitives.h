@@ -13,7 +13,7 @@
 
 class ViEToFileRenderer;
 
-#include "webrtc/common_types.h"
+#include "common_types.h"
 
 namespace webrtc {
 class VideoCaptureModule;

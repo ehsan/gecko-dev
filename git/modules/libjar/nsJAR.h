@@ -8,9 +8,11 @@
 #define nsJAR_h__
 
 #include "nscore.h"
+#include "pratom.h"
 #include "prio.h"
 #include "plstr.h"
 #include "prlog.h"
+#include "prtypes.h"
 #include "prinrval.h"
 
 #include "mozilla/Mutex.h"
@@ -65,7 +67,7 @@ class nsJAR : public nsIZipReader
     
     NS_DEFINE_STATIC_CID_ACCESSOR( NS_ZIPREADER_CID )
   
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
 
     NS_DECL_NSIZIPREADER
 
@@ -129,7 +131,7 @@ class nsJAR : public nsIZipReader
 class nsJARItem : public nsIZipEntry
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIZIPENTRY
     
     nsJARItem(nsZipItem* aZipItem);
@@ -141,7 +143,6 @@ private:
     uint32_t     mCrc32;
     PRTime       mLastModTime;
     uint16_t     mCompression;
-    uint32_t     mPermissions;
     bool mIsDirectory; 
     bool mIsSynthetic;
 };
@@ -155,7 +156,7 @@ private:
 class nsJAREnumerator MOZ_FINAL : public nsIUTF8StringEnumerator
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIUTF8STRINGENUMERATOR
 
     nsJAREnumerator(nsZipFind *aFind) : mFind(aFind), mName(nullptr) { 
@@ -180,7 +181,7 @@ class nsZipReaderCache : public nsIZipReaderCache, public nsIObserver,
                          public nsSupportsWeakReference
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIZIPREADERCACHE
   NS_DECL_NSIOBSERVER
 

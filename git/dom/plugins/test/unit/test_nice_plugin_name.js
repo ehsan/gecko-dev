@@ -60,6 +60,9 @@ let gDirSvc = Cc["@mozilla.org/file/directory_service;1"]
                 .getService(Ci.nsIProperties);
 
 let gPluginHost = null;
+let gIsWindows = null;
+let gIsOSX = null;
+let gIsLinux = null;
 
 function test_expected_permission_string(aPermString) {
   gPluginHost.reloadPlugins(false);
@@ -89,8 +92,7 @@ function run_test() {
   pluginFile.copyTo(null, "npblah235" + suffix);
   let pluginCopy = pluginDir.clone();
   pluginCopy.append("npblah235" + suffix);
-  let tempDir = do_get_tempdir();
-  pluginFile.moveTo(tempDir, null);
+  pluginFile.moveTo(pluginDir.parent, null);
   test_expected_permission_string("plugin:npblah");
 
   pluginCopy.moveTo(null, "npasdf-3.2.2" + suffix);

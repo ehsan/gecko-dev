@@ -12,7 +12,6 @@
 #include "States.h"
 
 #include "nsIMutableArray.h"
-#include "nsIPersistentProperties2.h"
 #include "nsComponentManagerUtils.h"
 
 using namespace mozilla;
@@ -40,7 +39,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(ARIAGridAccessible,
                              nsIAccessibleTable)
 
 ////////////////////////////////////////////////////////////////////////////////
-// Accessible
+//nsAccessNode
 
 void
 ARIAGridAccessible::Shutdown()
@@ -466,8 +465,8 @@ ARIAGridAccessible::SetARIASelected(Accessible* aAccessible,
     rv = content->SetAttr(kNameSpaceID_None, nsGkAtoms::aria_selected,
                           NS_LITERAL_STRING("true"), aNotify);
   else
-    rv = content->SetAttr(kNameSpaceID_None, nsGkAtoms::aria_selected,
-                          NS_LITERAL_STRING("false"), aNotify);
+    rv = content->UnsetAttr(kNameSpaceID_None,
+                            nsGkAtoms::aria_selected, aNotify);
 
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -534,7 +533,6 @@ ARIAGridCellAccessible::
   ARIAGridCellAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   HyperTextAccessibleWrap(aContent, aDoc), xpcAccessibleTableCell(this)
 {
-  mGenericTypes |= eTableCell;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

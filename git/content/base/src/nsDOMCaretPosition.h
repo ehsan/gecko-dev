@@ -8,13 +8,10 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsCOMPtr.h"
 #include "nsINode.h"
+#include "nsRange.h"
 #include "nsWrapperCache.h"
-
-namespace mozilla {
-namespace dom {
-class DOMRect;
-}
-}
+#include "nsRect.h"
+#include "nsClientRect.h"
 
 /**
  * Implementation of a DOM Caret Position, which is a node and offset within
@@ -27,8 +24,6 @@ class DOMRect;
 class nsDOMCaretPosition : public nsISupports,
                            public nsWrapperCache
 {
-  typedef mozilla::dom::DOMRect DOMRect;
-
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMCaretPosition)
@@ -61,7 +56,7 @@ public:
    *          CaretPosition, if one can be successfully determined, otherwise
    *          nullptr.
    */
-  already_AddRefed<DOMRect> GetClientRect() const;
+  already_AddRefed<nsClientRect> GetClientRect() const;
 
   /**
    * Set the anonymous content node that is the actual parent of this
@@ -85,7 +80,7 @@ public:
     return GetOffsetNode();
   }
 
-  virtual JSObject* WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
+  virtual JSObject* WrapObject(JSContext *aCx, JSObject *aScope)
     MOZ_OVERRIDE MOZ_FINAL;
 
 protected:

@@ -7,16 +7,14 @@
 #define NSSVGINTEGRATIONUTILS_H_
 
 #include "gfxMatrix.h"
-#include "GraphicsFilter.h"
+#include "gfxPattern.h"
 #include "gfxRect.h"
+#include "nsRect.h"
 
 class nsDisplayList;
 class nsDisplayListBuilder;
 class nsIFrame;
 class nsRenderingContext;
-
-struct nsRect;
-struct nsIntRect;
 
 namespace mozilla {
 namespace layers {
@@ -178,23 +176,17 @@ public:
    * background-repeat:no-repeat and background-size:auto. For normal background
    * images, this would be the intrinsic size of the image; for gradients and
    * patterns this would be the whole target frame fill area.
-   * @param aFlags pass FLAG_SYNC_DECODE_IMAGES and any images in the paint
-   * server will be decoding synchronously if they are not decoded already.
    */
-  enum {
-    FLAG_SYNC_DECODE_IMAGES = 0x01,
-  };
   static void
   DrawPaintServer(nsRenderingContext* aRenderingContext,
                   nsIFrame*            aTarget,
                   nsIFrame*            aPaintServer,
-                  GraphicsFilter aFilter,
+                  gfxPattern::GraphicsFilter aFilter,
                   const nsRect&        aDest,
                   const nsRect&        aFill,
                   const nsPoint&       aAnchor,
                   const nsRect&        aDirty,
-                  const nsSize&        aPaintServerSize,
-                  uint32_t             aFlags);
+                  const nsSize&        aPaintServerSize);
 };
 
 #endif /*NSSVGINTEGRATIONUTILS_H_*/

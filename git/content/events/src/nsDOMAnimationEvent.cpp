@@ -4,18 +4,18 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMAnimationEvent.h"
-#include "prtime.h"
-#include "mozilla/ContentEvents.h"
-
-using namespace mozilla;
+#include "nsGUIEvent.h"
+#include "nsDOMClassInfoID.h"
+#include "nsIClassInfo.h"
+#include "nsIXPCScriptable.h"
 
 nsDOMAnimationEvent::nsDOMAnimationEvent(mozilla::dom::EventTarget* aOwner,
                                          nsPresContext *aPresContext,
-                                         InternalAnimationEvent* aEvent)
+                                         nsAnimationEvent *aEvent)
   : nsDOMEvent(aOwner, aPresContext,
-               aEvent ? aEvent :
-                        new InternalAnimationEvent(false, 0, EmptyString(),
-                                                   0.0, EmptyString()))
+               aEvent ? aEvent : new nsAnimationEvent(false, 0,
+                                                      EmptyString(),
+                                                      0.0))
 {
   if (aEvent) {
     mEventIsInternal = false;
@@ -24,41 +24,31 @@ nsDOMAnimationEvent::nsDOMAnimationEvent(mozilla::dom::EventTarget* aOwner,
     mEventIsInternal = true;
     mEvent->time = PR_Now();
   }
+  SetIsDOMBinding();
 }
+
+nsDOMAnimationEvent::~nsDOMAnimationEvent()
+{
+  if (mEventIsInternal) {
+    delete AnimationEvent();
+    mEvent = nullptr;
+  }
+}
+
+DOMCI_DATA(AnimationEvent, nsDOMAnimationEvent)
 
 NS_INTERFACE_MAP_BEGIN(nsDOMAnimationEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMAnimationEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(AnimationEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 NS_IMPL_ADDREF_INHERITED(nsDOMAnimationEvent, nsDOMEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMAnimationEvent, nsDOMEvent)
 
-//static
-already_AddRefed<nsDOMAnimationEvent>
-nsDOMAnimationEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
-                                 const nsAString& aType,
-                                 const mozilla::dom::AnimationEventInit& aParam,
-                                 mozilla::ErrorResult& aRv)
-{
-  nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.GetAsSupports());
-  nsRefPtr<nsDOMAnimationEvent> e = new nsDOMAnimationEvent(t, nullptr, nullptr);
-  bool trusted = e->Init(t);
-
-  aRv = e->InitEvent(aType, aParam.mBubbles, aParam.mCancelable);
-
-  InternalAnimationEvent* internalEvent = e->mEvent->AsAnimationEvent();
-  internalEvent->animationName = aParam.mAnimationName;
-  internalEvent->elapsedTime = aParam.mElapsedTime;
-  internalEvent->pseudoElement = aParam.mPseudoElement;
-
-  e->SetTrusted(trusted);
-  return e.forget();
-}
-
 NS_IMETHODIMP
 nsDOMAnimationEvent::GetAnimationName(nsAString & aAnimationName)
 {
-  aAnimationName = mEvent->AsAnimationEvent()->animationName;
+  aAnimationName = AnimationEvent()->animationName;
   return NS_OK;
 }
 
@@ -69,16 +59,19 @@ nsDOMAnimationEvent::GetElapsedTime(float *aElapsedTime)
   return NS_OK;
 }
 
-float
-nsDOMAnimationEvent::ElapsedTime()
-{
-  return mEvent->AsAnimationEvent()->elapsedTime;
-}
-
 NS_IMETHODIMP
-nsDOMAnimationEvent::GetPseudoElement(nsAString& aPseudoElement)
+nsDOMAnimationEvent::InitAnimationEvent(const nsAString & typeArg,
+                                        bool canBubbleArg,
+                                        bool cancelableArg,
+                                        const nsAString & animationNameArg,
+                                        float elapsedTimeArg)
 {
-  aPseudoElement = mEvent->AsAnimationEvent()->pseudoElement;
+  nsresult rv = nsDOMEvent::InitEvent(typeArg, canBubbleArg, cancelableArg);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  AnimationEvent()->animationName = animationNameArg;
+  AnimationEvent()->elapsedTime = elapsedTimeArg;
+
   return NS_OK;
 }
 
@@ -86,7 +79,7 @@ nsresult
 NS_NewDOMAnimationEvent(nsIDOMEvent **aInstancePtrResult,
                         mozilla::dom::EventTarget* aOwner,
                         nsPresContext *aPresContext,
-                        InternalAnimationEvent *aEvent)
+                        nsAnimationEvent *aEvent)
 {
   nsDOMAnimationEvent* it =
     new nsDOMAnimationEvent(aOwner, aPresContext, aEvent);

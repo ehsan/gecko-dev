@@ -6,9 +6,8 @@
 #ifndef nsHttpAuthManager_h__
 #define nsHttpAuthManager_h__
 
+#include "nsHttpAuthCache.h"
 #include "nsIHttpAuthManager.h"
-
-class nsHttpAuthCache;
 
 class nsHttpAuthManager : public nsIHttpAuthManager
 {

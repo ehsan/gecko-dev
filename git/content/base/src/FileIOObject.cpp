@@ -29,8 +29,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(FileIOObject)
   NS_INTERFACE_MAP_ENTRY(nsIRequestObserver)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(FileIOObject)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(FileIOObject,
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mProgressNotifier)
@@ -87,13 +85,13 @@ FileIOObject::DispatchError(nsresult rv, nsAString& finalEvent)
   // Set the status attribute, and dispatch the error event
   switch (rv) {
   case NS_ERROR_FILE_NOT_FOUND:
-    mError = new DOMError(GetOwner(), NS_LITERAL_STRING("NotFoundError"));
+    mError = DOMError::CreateWithName(NS_LITERAL_STRING("NotFoundError"));
     break;
   case NS_ERROR_FILE_ACCESS_DENIED:
-    mError = new DOMError(GetOwner(), NS_LITERAL_STRING("SecurityError"));
+    mError = DOMError::CreateWithName(NS_LITERAL_STRING("SecurityError"));
     break;
   default:
-    mError = new DOMError(GetOwner(), NS_LITERAL_STRING("NotReadableError"));
+    mError = DOMError::CreateWithName(NS_LITERAL_STRING("NotReadableError"));
     break;
   }
 
@@ -233,7 +231,7 @@ FileIOObject::Abort(ErrorResult& aRv)
   mReadyState = 2; // There are DONE constants on multiple interfaces,
                    // but they all have value 2.
   // XXX The spec doesn't say this
-  mError = new DOMError(GetOwner(), NS_LITERAL_STRING("AbortError"));
+  mError = DOMError::CreateWithName(NS_LITERAL_STRING("AbortError"));
 
   nsString finalEvent;
   DoAbort(finalEvent);

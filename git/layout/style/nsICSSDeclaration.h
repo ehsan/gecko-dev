@@ -19,23 +19,22 @@
  * consumers should continue to use nsIDOMCSSStyleDeclaration.
  */
 
-#include "mozilla/Attributes.h"
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsCSSProperty.h"
 #include "CSSValue.h"
 #include "nsWrapperCache.h"
+#include "mozilla/dom/BindingUtils.h"
 #include "nsString.h"
 #include "nsIDOMCSSRule.h"
 #include "nsIDOMCSSValue.h"
 #include "mozilla/ErrorResult.h"
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsINode.h"
 
 // dbeabbfa-6cb3-4f5c-aec2-dd558d9d681f
 #define NS_ICSSDECLARATION_IID \
 { 0xdbeabbfa, 0x6cb3, 0x4f5c, \
  { 0xae, 0xc2, 0xdd, 0x55, 0x8d, 0x9d, 0x68, 0x1f } }
+
+class nsINode;
 
 class nsICSSDeclaration : public nsIDOMCSSStyleDeclaration,
                           public nsWrapperCache
@@ -62,34 +61,34 @@ public:
 
   // Also have to declare all the nsIDOMCSSStyleDeclaration methods,
   // since we want to be able to call them from the WebIDL versions.
-  NS_IMETHOD GetCssText(nsAString& aCssText) MOZ_OVERRIDE = 0;
-  NS_IMETHOD SetCssText(const nsAString& aCssText) MOZ_OVERRIDE = 0;
+  NS_IMETHOD GetCssText(nsAString& aCssText) = 0;
+  NS_IMETHOD SetCssText(const nsAString& aCssText) = 0;
   NS_IMETHOD GetPropertyValue(const nsAString& aPropName,
-                              nsAString& aValue) MOZ_OVERRIDE = 0;
+                              nsAString& aValue) = 0;
   virtual already_AddRefed<mozilla::dom::CSSValue>
     GetPropertyCSSValue(const nsAString& aPropertyName,
                         mozilla::ErrorResult& aRv) = 0;
-  NS_IMETHOD GetPropertyCSSValue(const nsAString& aProp, nsIDOMCSSValue** aVal) MOZ_OVERRIDE
+  NS_IMETHOD GetPropertyCSSValue(const nsAString& aProp, nsIDOMCSSValue** aVal)
   {
     mozilla::ErrorResult error;
     nsRefPtr<mozilla::dom::CSSValue> val = GetPropertyCSSValue(aProp, error);
     if (error.Failed()) {
       return error.ErrorCode();
-    }
+  }
 
     nsCOMPtr<nsIDOMCSSValue> xpVal = do_QueryInterface(val);
     xpVal.forget(aVal);
     return NS_OK;
   }
   NS_IMETHOD RemoveProperty(const nsAString& aPropertyName,
-                            nsAString& aReturn) MOZ_OVERRIDE = 0;
+                            nsAString& aReturn) = 0;
   NS_IMETHOD GetPropertyPriority(const nsAString& aPropertyName,
-                                 nsAString& aReturn) MOZ_OVERRIDE = 0;
+                                 nsAString& aReturn) = 0;
   NS_IMETHOD SetProperty(const nsAString& aPropertyName,
                          const nsAString& aValue,
-                         const nsAString& aPriority) MOZ_OVERRIDE = 0;
-  NS_IMETHOD GetLength(uint32_t* aLength) MOZ_OVERRIDE = 0;
-  NS_IMETHOD Item(uint32_t aIndex, nsAString& aReturn) MOZ_OVERRIDE
+                         const nsAString& aPriority) = 0;
+  NS_IMETHOD GetLength(uint32_t* aLength) = 0;
+  NS_IMETHOD Item(uint32_t aIndex, nsAString& aReturn)
   {
     bool found;
     IndexedGetter(aIndex, found, aReturn);
@@ -98,7 +97,7 @@ public:
     }
     return NS_OK;
   }
-  NS_IMETHOD GetParentRule(nsIDOMCSSRule * *aParentRule) MOZ_OVERRIDE = 0;
+  NS_IMETHOD GetParentRule(nsIDOMCSSRule * *aParentRule) = 0;
 
   // WebIDL interface for CSSStyleDeclaration
   void SetCssText(const nsAString& aString, mozilla::ErrorResult& rv) {
@@ -128,9 +127,15 @@ public:
   void GetPropertyPriority(const nsAString& aPropName, nsString& aPriority) {
     GetPropertyPriority(aPropName, static_cast<nsAString&>(aPriority));
   }
+  // XXXbz we should nix the Optional thing once bug 759622 is fixed.
   void SetProperty(const nsAString& aPropName, const nsAString& aValue,
-                   const nsAString& aPriority, mozilla::ErrorResult& rv) {
-    rv = SetProperty(aPropName, aValue, aPriority);
+                   const mozilla::dom::Optional<nsAString>& aPriority,
+                   mozilla::ErrorResult& rv) {
+    if (aPriority.WasPassed()) {
+      rv = SetProperty(aPropName, aValue, aPriority.Value());
+    } else {
+      rv = SetProperty(aPropName, aValue, EmptyString());
+    }
   }
   void RemoveProperty(const nsAString& aPropName, nsString& aRetval,
                       mozilla::ErrorResult& rv) {

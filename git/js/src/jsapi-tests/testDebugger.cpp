@@ -5,16 +5,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jscntxt.h"
 
-#include "js/OldDebugAPI.h"
-#include "jsapi-tests/tests.h"
+#include "tests.h"
+#include "jsdbgapi.h"
+#include "jscntxt.h"
 
 static int callCount[2] = {0, 0};
 
 static void *
-callCountHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing, bool before,
-              bool *ok, void *closure)
+callCountHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing, JSBool before,
+              JSBool *ok, void *closure)
 {
     callCount[before]++;
 
@@ -26,8 +26,8 @@ callCountHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing, bool
 
 BEGIN_TEST(testDebugger_bug519719)
 {
-    CHECK(JS_SetDebugMode(cx, true));
-    JS_SetCallHook(rt, callCountHook, nullptr);
+    CHECK(JS_SetDebugMode(cx, JS_TRUE));
+    JS_SetCallHook(rt, callCountHook, NULL);
     EXEC("function call(fn) { fn(0); }\n"
          "function f(g) { for (var i = 0; i < 9; i++) call(g); }\n"
          "f(Math.sin);\n"    // record loop, starting in f
@@ -39,8 +39,8 @@ BEGIN_TEST(testDebugger_bug519719)
 END_TEST(testDebugger_bug519719)
 
 static void *
-nonStrictThisHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing, bool before,
-                  bool *ok, void *closure)
+nonStrictThisHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing, JSBool before,
+                  JSBool *ok, void *closure)
 {
     if (before) {
         bool *allWrapped = (bool *) closure;
@@ -48,13 +48,13 @@ nonStrictThisHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing, 
         frame.getThisValue(cx, &thisv);
         *allWrapped = *allWrapped && !JSVAL_IS_PRIMITIVE(thisv);
     }
-    return nullptr;
+    return NULL;
 }
 
 BEGIN_TEST(testDebugger_getThisNonStrict)
 {
     bool allWrapped = true;
-    CHECK(JS_SetDebugMode(cx, true));
+    CHECK(JS_SetDebugMode(cx, JS_TRUE));
     JS_SetCallHook(rt, nonStrictThisHook, (void *) &allWrapped);
     EXEC("function nonstrict() { }\n"
          "Boolean.prototype.nonstrict = nonstrict;\n"
@@ -78,8 +78,8 @@ BEGIN_TEST(testDebugger_getThisNonStrict)
 END_TEST(testDebugger_getThisNonStrict)
 
 static void *
-strictThisHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing, bool before,
-               bool *ok, void *closure)
+strictThisHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing, JSBool before,
+               JSBool *ok, void *closure)
 {
     if (before) {
         bool *anyWrapped = (bool *) closure;
@@ -87,13 +87,13 @@ strictThisHook(JSContext *cx, JSAbstractFramePtr frame, bool isConstructing, boo
         frame.getThisValue(cx, &thisv);
         *anyWrapped = *anyWrapped || !JSVAL_IS_PRIMITIVE(thisv);
     }
-    return nullptr;
+    return NULL;
 }
 
 BEGIN_TEST(testDebugger_getThisStrict)
 {
     bool anyWrapped = false;
-    CHECK(JS_SetDebugMode(cx, true));
+    CHECK(JS_SetDebugMode(cx, JS_TRUE));
     JS_SetCallHook(rt, strictThisHook, (void *) &anyWrapped);
     EXEC("function strict() { 'use strict'; }\n"
          "Boolean.prototype.strict = strict;\n"
@@ -120,7 +120,7 @@ ThrowHook(JSContext *cx, JSScript *, jsbytecode *, jsval *rval, void *closure)
     JS_ASSERT(!closure);
     called = true;
 
-    JS::RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
+    JS::RootedObject global(cx, JS_GetGlobalForScopeChain(cx));
 
     char text[] = "new Error()";
     jsval _;
@@ -131,8 +131,11 @@ ThrowHook(JSContext *cx, JSScript *, jsbytecode *, jsval *rval, void *closure)
 
 BEGIN_TEST(testDebugger_throwHook)
 {
-    CHECK(JS_SetDebugMode(cx, true));
-    CHECK(JS_SetThrowHook(rt, ThrowHook, nullptr));
+    uint32_t newopts =
+        JS_GetOptions(cx) | JSOPTION_METHODJIT | JSOPTION_METHODJIT_ALWAYS;
+    uint32_t oldopts = JS_SetOptions(cx, newopts);
+
+    CHECK(JS_SetThrowHook(rt, ThrowHook, NULL));
     EXEC("function foo() { throw 3 };\n"
          "for (var i = 0; i < 10; ++i) { \n"
          "  var x = {}\n"
@@ -141,7 +144,8 @@ BEGIN_TEST(testDebugger_throwHook)
          "  } catch(e) {}\n"
          "}\n");
     CHECK(called);
-    CHECK(JS_SetThrowHook(rt, nullptr, nullptr));
+    CHECK(JS_SetThrowHook(rt, NULL, NULL));
+    JS_SetOptions(cx, oldopts);
     return true;
 }
 END_TEST(testDebugger_throwHook)
@@ -149,7 +153,7 @@ END_TEST(testDebugger_throwHook)
 BEGIN_TEST(testDebugger_debuggerObjectVsDebugMode)
 {
     CHECK(JS_DefineDebuggerObject(cx, global));
-    JS::RootedObject debuggee(cx, JS_NewGlobalObject(cx, getGlobalClass(), nullptr, JS::FireOnNewGlobalHook));
+    JS::RootedObject debuggee(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL));
     CHECK(debuggee);
 
     {
@@ -159,9 +163,9 @@ BEGIN_TEST(testDebugger_debuggerObjectVsDebugMode)
     }
 
     JS::RootedObject debuggeeWrapper(cx, debuggee);
-    CHECK(JS_WrapObject(cx, &debuggeeWrapper));
+    CHECK(JS_WrapObject(cx, debuggeeWrapper.address()));
     JS::RootedValue v(cx, JS::ObjectValue(*debuggeeWrapper));
-    CHECK(JS_SetProperty(cx, global, "debuggee", v));
+    CHECK(JS_SetProperty(cx, global, "debuggee", v.address()));
 
     EVAL("var dbg = new Debugger(debuggee);\n"
          "var hits = 0;\n"
@@ -189,7 +193,7 @@ BEGIN_TEST(testDebugger_newScriptHook)
 {
     // Test that top-level indirect eval fires the newScript hook.
     CHECK(JS_DefineDebuggerObject(cx, global));
-    JS::RootedObject g(cx, JS_NewGlobalObject(cx, getGlobalClass(), nullptr, JS::FireOnNewGlobalHook));
+    JS::RootedObject g(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL));
     CHECK(g);
     {
         JSAutoCompartment ae(cx, g);
@@ -197,9 +201,9 @@ BEGIN_TEST(testDebugger_newScriptHook)
     }
 
     JS::RootedObject gWrapper(cx, g);
-    CHECK(JS_WrapObject(cx, &gWrapper));
+    CHECK(JS_WrapObject(cx, gWrapper.address()));
     JS::RootedValue v(cx, JS::ObjectValue(*gWrapper));
-    CHECK(JS_SetProperty(cx, global, "g", v));
+    CHECK(JS_SetProperty(cx, global, "g", v.address()));
 
     EXEC("var dbg = Debugger(g);\n"
          "var hits = 0;\n"
@@ -239,8 +243,12 @@ END_TEST(testDebugger_newScriptHook)
 
 BEGIN_TEST(testDebugger_singleStepThrow)
     {
-        CHECK(JS_SetDebugModeForCompartment(cx, cx->compartment(), true));
-        CHECK(JS_SetInterrupt(rt, onStep, nullptr));
+        CHECK(JS_SetDebugModeForCompartment(cx, cx->compartment, true));
+        CHECK(JS_SetInterrupt(rt, onStep, NULL));
+
+        uint32_t opts = JS_GetOptions(cx);
+        opts |= JSOPTION_METHODJIT | JSOPTION_METHODJIT_ALWAYS;
+        JS_SetOptions(cx, opts);
 
         CHECK(JS_DefineFunction(cx, global, "setStepMode", setStepMode, 0, 0));
         EXEC("var e;\n"
@@ -251,11 +259,11 @@ BEGIN_TEST(testDebugger_singleStepThrow)
         return true;
     }
 
-    static bool
+    static JSBool
     setStepMode(JSContext *cx, unsigned argc, jsval *vp)
     {
-        JS::RootedScript script(cx);
-        JS_DescribeScriptedCaller(cx, &script, nullptr);
+        JSScript *script;
+        JS_DescribeScriptedCaller(cx, &script, NULL);
         JS_ASSERT(script);
 
         if (!JS_SetSingleStepMode(cx, script, true))

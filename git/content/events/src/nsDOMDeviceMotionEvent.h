@@ -46,10 +46,10 @@ class nsDOMDeviceMotionEvent MOZ_FINAL : public nsDOMEvent,
 public:
 
   nsDOMDeviceMotionEvent(mozilla::dom::EventTarget* aOwner,
-                         nsPresContext* aPresContext,
-                         mozilla::WidgetEvent* aEvent)
+                         nsPresContext* aPresContext, nsEvent* aEvent)
   : nsDOMEvent(aOwner, aPresContext, aEvent)
   {
+    SetIsDOMBinding();
   }
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -62,8 +62,7 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMDeviceMotionEvent, nsDOMEvent)
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-			       JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::DeviceMotionEventBinding::Wrap(aCx, aScope, this);
   }

@@ -9,7 +9,7 @@
 #ifndef NSTRACEMALLOCCALLBACKS_H
 #define NSTRACEMALLOCCALLBACKS_H
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include <stdlib.h>
 
 #ifdef __cplusplus

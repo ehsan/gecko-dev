@@ -9,7 +9,6 @@
 #include "phone_types.h"
 #include "string_lib.h"
 #include "vcm.h"
-#include "fsm.h"
 #include "ccapi.h"
 
 #include "sessionConstants.h"
@@ -32,20 +31,18 @@ typedef enum {
     evHoldRevert = HOLDREVERT,
     evWhisper = WHISPER,
     evWaitingForDigits = WAITINGFORDIGITS,
-    evCreateOfferSuccess = CREATEOFFERSUCCESS,
-    evCreateAnswerSuccess = CREATEANSWERSUCCESS,
+    evCreateOffer = CREATEOFFER,
+    evCreateAnswer = CREATEANSWER,
     evCreateOfferError = CREATEOFFERERROR,
     evCreateAnswerError = CREATEANSWERERROR,
-    evSetLocalDescSuccess = SETLOCALDESCSUCCESS,
-    evSetRemoteDescSuccess = SETREMOTEDESCSUCCESS,
+    evSetLocalDesc = SETLOCALDESC,
+    evSetRemoteDesc = SETREMOTEDESC,
     evUpdateLocalDesc = UPDATELOCALDESC,
     evSetLocalDescError = SETLOCALDESCERROR,
     evSetRemoteDescError = SETREMOTEDESCERROR,
     evOnRemoteStreamAdd = REMOTESTREAMADD,
     evAddIceCandidate = ADDICECANDIDATE,
     evAddIceCandidateError = ADDICECANDIDATEERROR,
-    evFoundIceCandidate = FOUNDICECANDIDATE,
-    evFoundIceCandidateError = FOUNDICECANDIDATEERROR,
     evMaxEvent
 } call_events;
 
@@ -183,78 +180,54 @@ void ui_update_media_interface_change(line_t line, callid_t call_id, group_call_
 /* WebRTC upcalls for PeerConnectionImpl */
 
 void ui_create_offer(call_events event,
-                     fsmdef_states_t new_state,
                      line_t nLine,
                      callid_t nCallID,
                      uint16_t call_instance_id,
                      string_t sdp,
-                     Timecard *timecard,
                      pc_error error,
                      const char *format, ...);
 
 void ui_create_answer(call_events event,
-                      fsmdef_states_t new_state,
                       line_t nLine,
                       callid_t nCallID,
                       uint16_t call_instance_id,
                       string_t sdp,
-                      Timecard *timecard,
                       pc_error error,
                       const char *format, ...);
 
 void ui_set_local_description(call_events event,
-                              fsmdef_states_t new_state,
                               line_t nLine,
                               callid_t nCallID,
                               uint16_t call_instance_id,
                               string_t sdp,
-                              Timecard *timecard,
                               pc_error error,
                               const char *format, ...);
 
 void ui_set_remote_description(call_events event,
-                               fsmdef_states_t new_state,
                                line_t nLine,
                                callid_t nCallID,
                                uint16_t call_instance_id,
                                string_t sdp,
-                               Timecard *timecard,
                                pc_error error,
                                const char *format, ...);
 
 void ui_update_local_description(call_events event,
-                                 fsmdef_states_t new_state,
                                  line_t nLine,
                                  callid_t nCallID,
                                  uint16_t call_instance_id,
                                  string_t sdp,
-                                 Timecard *timecard,
                                  pc_error error,
                                  const char *format, ...);
 
 void ui_ice_candidate_add(call_events event,
-                          fsmdef_states_t new_state,
                           line_t nLine,
                           callid_t nCallID,
                           uint16_t call_instance_id,
                           string_t sdp,
-                          Timecard *timecard,
                           pc_error error,
                           const char *format, ...);
 
-void ui_ice_candidate_found(call_events event,
-                            fsmdef_states_t new_state,
-                            line_t nLine,
-                            callid_t nCallID,
-                            uint16_t call_instance_id,
-                            string_t sdp,
-                            string_t candidate,
-                            Timecard *timecard,
-                            pc_error error,
-                            const char *format, ...);
-
 void ui_on_remote_stream_added(call_events event,
-                               fsmdef_states_t new_state,
                                line_t nLine,
                                callid_t nCallID,
                                uint16_t call_instance_id,

@@ -8,7 +8,7 @@ const {utils: Cu} = Components;
 
 this.EXPORTED_SYMBOLS = ["BagheeraServer"];
 
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/utils.js");
 Cu.import("resource://testing-common/httpd.js");
 
@@ -22,10 +22,12 @@ Cu.import("resource://testing-common/httpd.js");
  *
  * The Bagheera server is essentially a glorified document store.
  */
-this.BagheeraServer = function BagheeraServer() {
-  this._log = Log.repository.getLogger("metrics.BagheeraServer");
+this.BagheeraServer = function BagheeraServer(serverURI="http://localhost") {
+  this._log = Log4Moz.repository.getLogger("metrics.BagheeraServer");
 
+  this.serverURI = serverURI;
   this.server = new HttpServer();
+  this.port = 8080;
   this.namespaces = {};
 
   this.allowAllNamespaces = false;
@@ -124,14 +126,15 @@ BagheeraServer.prototype = {
     this.namespaces[ns] = {};
   },
 
-  start: function start(port=-1) {
+  start: function start(port) {
+    if (!port) {
+      throw new Error("port argument must be specified.");
+    }
+
+    this.port = port;
+
     this.server.registerPrefixHandler("/", this._handleRequest.bind(this));
     this.server.start(port);
-    let i = this.server.identity;
-
-    this.serverURI = i.primaryScheme + "://" + i.primaryHost + ":" +
-                     i.primaryPort + "/";
-    this.port = i.primaryPort;
   },
 
   stop: function stop(cb) {
@@ -271,9 +274,7 @@ BagheeraServer.prototype = {
     if (request.hasHeader("X-Obsolete-Document")) {
       let obsolete = request.getHeader("X-Obsolete-Document");
       this._log.info("Deleting from X-Obsolete-Document header: " + obsolete);
-      for (let obsolete_id of obsolete.split(",")) {
-        delete this.namespaces[namespace][obsolete_id];
-      }
+      delete this.namespaces[namespace][obsolete];
     }
 
     response.setStatusLine(request.httpVersion, 201, "Created");

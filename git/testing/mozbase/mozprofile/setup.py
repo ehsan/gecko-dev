@@ -5,13 +5,22 @@
 import sys
 from setuptools import setup
 
-PACKAGE_VERSION = '0.16'
+PACKAGE_VERSION = '0.5'
 
 # we only support python 2 right now
 assert sys.version_info[0] == 2
 
-deps = ["ManifestDestiny >= 0.5.4",
-        "mozfile >= 0.12"]
+deps = ["ManifestDestiny >= 0.5.4"]
+# version-dependent dependencies
+try:
+    import json
+except ImportError:
+    deps.append('simplejson')
+try:
+    import sqlite3
+except ImportError:
+    deps.append('pysqlite')
+
 
 setup(name='mozprofile',
       version=PACKAGE_VERSION,
@@ -28,18 +37,15 @@ setup(name='mozprofile',
       keywords='mozilla',
       author='Mozilla Automation and Tools team',
       author_email='tools@lists.mozilla.org',
-      url='https://wiki.mozilla.org/Auto-tools/Projects/Mozbase',
+      url='https://wiki.mozilla.org/Auto-tools/Projects/MozBase',
       license='MPL 2.0',
       packages=['mozprofile'],
       include_package_data=True,
       zip_safe=False,
       install_requires=deps,
-      tests_require=['mozhttpd', 'mozfile'],
       entry_points="""
       # -*- Entry points: -*-
       [console_scripts]
       mozprofile = mozprofile:cli
-      view-profile = mozprofile:view_profile
-      diff-profiles = mozprofile:diff_profiles
       """,
     )

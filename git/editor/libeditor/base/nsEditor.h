@@ -63,6 +63,7 @@ class nsISelection;
 class nsISupports;
 class nsITransaction;
 class nsIWidget;
+class nsKeyEvent;
 class nsRange;
 class nsString;
 class nsTransactionManager;
@@ -72,7 +73,6 @@ class Selection;
 
 namespace dom {
 class Element;
-class EventTarget;
 }  // namespace dom
 }  // namespace mozilla
 
@@ -230,7 +230,7 @@ public:
                                 const nsAString *aAttribute = nullptr,
                                 const nsAString *aValue = nullptr);
   nsresult JoinNodes(nsINode* aNodeToKeep, nsIContent* aNodeToMove);
-  nsresult MoveNode(nsINode* aNode, nsINode* aParent, int32_t aOffset);
+  nsresult MoveNode(nsIContent* aNode, nsINode* aParent, int32_t aOffset);
   nsresult MoveNode(nsIDOMNode *aNode, nsIDOMNode *aParent, int32_t aOffset);
 
   /* Method to replace certain CreateElementNS() calls. 
@@ -405,6 +405,8 @@ protected:
    */
   bool GetDesiredSpellCheckState();
 
+  nsKeyEvent* GetNativeKeyEvent(nsIDOMKeyEvent* aDOMKeyEvent);
+
   bool CanEnableSpellCheck()
   {
     // Check for password/readonly/disabled, which are not spellchecked
@@ -448,10 +450,13 @@ public:
    * @param aNodeToJoin   The node that will be joined with aNodeToKeep.
    *                      There is no requirement that the two nodes be of the same type.
    * @param aParent       The parent of aNodeToKeep
+   * @param aNodeToKeepIsFirst  if true, the contents|children of aNodeToKeep come before the
+   *                            contents|children of aNodeToJoin, otherwise their positions are switched.
    */
-  nsresult JoinNodesImpl(nsINode* aNodeToKeep,
-                         nsINode* aNodeToJoin,
-                         nsINode* aParent);
+  nsresult JoinNodesImpl(nsIDOMNode *aNodeToKeep,
+                         nsIDOMNode *aNodeToJoin,
+                         nsIDOMNode *aParent,
+                         bool        aNodeToKeepIsFirst);
 
   /**
    * Return the offset of aChild in aParent.  Asserts fatally if parent or
@@ -466,7 +471,6 @@ public:
    */
   static already_AddRefed<nsIDOMNode> GetNodeLocation(nsIDOMNode* aChild,
                                                       int32_t* outOffset);
-  static nsINode* GetNodeLocation(nsINode* aChild, int32_t* aOffset);
 
   /** returns the number of things inside aNode in the out-param aCount.  
     * @param  aNode is the node to get the length of.  
@@ -609,13 +613,7 @@ public:
   static nsCOMPtr<nsIDOMNode> GetNodeAtRangeOffsetPoint(nsIDOMNode* aParentOrNode, int32_t aOffset);
 
   static nsresult GetStartNodeAndOffset(nsISelection *aSelection, nsIDOMNode **outStartNode, int32_t *outStartOffset);
-  static nsresult GetStartNodeAndOffset(mozilla::Selection* aSelection,
-                                        nsINode** aStartNode,
-                                        int32_t* aStartOffset);
   static nsresult GetEndNodeAndOffset(nsISelection *aSelection, nsIDOMNode **outEndNode, int32_t *outEndOffset);
-  static nsresult GetEndNodeAndOffset(mozilla::Selection* aSelection,
-                                      nsINode** aEndNode,
-                                      int32_t* aEndOffset);
 #if DEBUG_JOE
   static void DumpNode(nsIDOMNode *aNode, int32_t indent=0);
 #endif
@@ -661,7 +659,7 @@ public:
                                     nsIDOMNode *aEndNode,
                                     int32_t aEndOffset);
 
-  virtual already_AddRefed<mozilla::dom::EventTarget> GetDOMEventTarget() = 0;
+  virtual already_AddRefed<nsIDOMEventTarget> GetDOMEventTarget() = 0;
 
   // Fast non-refcounting editor root element accessor
   mozilla::dom::Element *GetRoot();
@@ -742,11 +740,6 @@ public:
            IsInteractionAllowed();
   }
 
-  bool HasIndependentSelection() const
-  {
-    return !!mSelConWeak;
-  }
-
   // Get the input event target. This might return null.
   virtual already_AddRefed<nsIContent> GetInputEventTargetContent() = 0;
 
@@ -779,9 +772,6 @@ public:
   // a host of the editor, i.e., the editor doesn't get focus, this does
   // nothing.
   nsresult InitializeSelection(nsIDOMEventTarget* aFocusEventTarget);
-
-  // Finalizes selection and caret for the editor.
-  void FinalizeSelection();
 
   // This method has to be called by nsEditorEventListener::Focus.
   // All actions that have to be done when the editor is focused needs to be
@@ -817,7 +807,7 @@ protected:
   nsCOMPtr<mozilla::dom::Element> mRootElement; // cached root node
   nsCOMPtr<nsIPrivateTextRangeList> mIMETextRangeList; // IME special selection ranges
   nsCOMPtr<nsIDOMCharacterData>     mIMETextNode;      // current IME text node
-  nsCOMPtr<mozilla::dom::EventTarget> mEventTarget; // The form field as an event receiver
+  nsCOMPtr<nsIDOMEventTarget> mEventTarget; // The form field as an event receiver
   nsCOMPtr<nsIDOMEventListener> mEventListener;
   nsWeakPtr        mSelConWeak;          // weak reference to the nsISelectionController
   nsWeakPtr        mPlaceHolderTxn;      // weak reference to placeholder for begin/end batch purposes

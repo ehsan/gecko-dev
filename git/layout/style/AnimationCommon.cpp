@@ -6,6 +6,7 @@
 #include "gfxPlatform.h"
 #include "AnimationCommon.h"
 #include "nsRuleData.h"
+#include "nsCSSFrameConstructor.h"
 #include "nsCSSValue.h"
 #include "nsStyleContext.h"
 #include "nsIFrame.h"
@@ -14,8 +15,7 @@
 #include "Layers.h"
 #include "FrameLayerBuilder.h"
 #include "nsDisplayList.h"
-#include "mozilla/MemoryReporting.h"
-#include "RestyleManager.h"
+#include "mozilla/Preferences.h"
 
 using namespace mozilla::layers;
 
@@ -59,6 +59,28 @@ CommonAnimationManager::Disconnect()
 }
 
 void
+CommonAnimationManager::AddElementData(CommonElementAnimationData* aData)
+{
+  if (PR_CLIST_IS_EMPTY(&mElementData)) {
+    // We need to observe the refresh driver.
+    nsRefreshDriver *rd = mPresContext->RefreshDriver();
+    rd->AddRefreshObserver(this, Flush_Style);
+  }
+
+  PR_INSERT_BEFORE(aData, &mElementData);
+}
+
+void
+CommonAnimationManager::ElementDataRemoved()
+{
+  // If we have no transitions or animations left, remove ourselves from
+  // the refresh driver.
+  if (PR_CLIST_IS_EMPTY(&mElementData)) {
+    mPresContext->RefreshDriver()->RemoveRefreshObserver(this, Flush_Style);
+  }
+}
+
+void
 CommonAnimationManager::RemoveAllElementData()
 {
   while (!PR_CLIST_IS_EMPTY(&mElementData)) {
@@ -99,7 +121,7 @@ CommonAnimationManager::MediumFeaturesChanged(nsPresContext* aPresContext)
 }
 
 /* virtual */ size_t
-CommonAnimationManager::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+CommonAnimationManager::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   // Measurement of the following members may be added later if DMD finds it is
   // worthwhile:
@@ -112,7 +134,7 @@ CommonAnimationManager::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf)
 }
 
 /* virtual */ size_t
-CommonAnimationManager::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+CommonAnimationManager::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
@@ -135,6 +157,22 @@ CommonAnimationManager::ExtractComputedValueForTransition(
   }
   return result;
 }
+
+/* static */ bool
+CommonAnimationManager::ThrottlingEnabled()
+{
+  static bool sThrottlePref = false;
+  static bool sThrottlePrefCached = false;
+
+  if (!sThrottlePrefCached) {
+    Preferences::AddBoolVarCache(&sThrottlePref,
+      "layers.offmainthreadcomposition.throttle-animations", false);
+    sThrottlePrefCached = true;
+  }
+
+  return sThrottlePref;
+}
+
 
 NS_IMPL_ISUPPORTS1(AnimValuesStyleRule, nsIStyleRule)
 
@@ -238,7 +276,7 @@ CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *a
     return false;
   }
 
-  nsIFrame* frame = nsLayoutUtils::GetStyleFrame(aElement);
+  nsIFrame* frame = aElement->GetPrimaryFrame();
   if (IsGeometricProperty(aProperty)) {
     if (shouldLog) {
       nsCString message;
@@ -248,6 +286,15 @@ CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *a
       LogAsyncAnimationFailure(message, aElement);
     }
     return false;
+  }
+  if (aProperty == eCSSProperty_opacity) {
+    bool enabled = nsLayoutUtils::AreOpacityAnimationsEnabled();
+    if (!enabled && shouldLog) {
+      nsCString message;
+      message.AppendLiteral("Performance warning: Async animation of 'opacity' is disabled");
+      LogAsyncAnimationFailure(message);
+    }
+    return enabled;
   }
   if (aProperty == eCSSProperty_transform) {
     if (frame->Preserves3D() &&
@@ -275,24 +322,15 @@ CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *a
       }
       return false;
     }
+    bool enabled = nsLayoutUtils::AreTransformAnimationsEnabled();
+    if (!enabled && shouldLog) {
+      nsCString message;
+      message.AppendLiteral("Performance warning: Async animation of 'transform' is disabled");
+      LogAsyncAnimationFailure(message);
+    }
+    return enabled;
   }
-  bool enabled = nsLayoutUtils::AreAsyncAnimationsEnabled();
-  if (!enabled && shouldLog) {
-    nsCString message;
-    message.AppendLiteral("Performance warning: Async animations are disabled");
-    LogAsyncAnimationFailure(message);
-  }
-  bool propertyAllowed = (aProperty == eCSSProperty_transform) ||
-                         (aProperty == eCSSProperty_opacity) ||
-                         (aFlags & CanAnimate_AllowPartial);
-  return enabled && propertyAllowed;
-}
-
-/* static */ bool
-CommonElementAnimationData::IsCompositorAnimationDisabledForFrame(nsIFrame* aFrame)
-{
-  void* prop = aFrame->Properties().Get(nsIFrame::RefusedAsyncAnimation());
-  return bool(reinterpret_cast<intptr_t>(prop));
+  return aFlags & CanAnimate_AllowPartial;
 }
 
 /* static */ void
@@ -318,7 +356,7 @@ CommonElementAnimationData::LogAsyncAnimationFailure(nsCString& aMessage,
 bool
 CommonElementAnimationData::CanThrottleTransformChanges(TimeStamp aTime)
 {
-  if (!nsLayoutUtils::AreAsyncAnimationsEnabled()) {
+  if (!CommonAnimationManager::ThrottlingEnabled()) {
     return false;
   }
 
@@ -337,13 +375,13 @@ CommonElementAnimationData::CanThrottleTransformChanges(TimeStamp aTime)
 
   // If the nearest scrollable ancestor has overflow:hidden,
   // we don't care about overflow.
-  nsIScrollableFrame* scrollable = nsLayoutUtils::GetNearestScrollableFrame(
-                                     nsLayoutUtils::GetStyleFrame(mElement));
+  nsIScrollableFrame* scrollable =
+    nsLayoutUtils::GetNearestScrollableFrame(mElement->GetPrimaryFrame());
   if (!scrollable) {
     return true;
   }
 
-  ScrollbarStyles ss = scrollable->GetScrollbarStyles();
+  nsPresContext::ScrollbarStyles ss = scrollable->GetScrollbarStyles();
   if (ss.mVertical == NS_STYLE_OVERFLOW_HIDDEN &&
       ss.mHorizontal == NS_STYLE_OVERFLOW_HIDDEN &&
       scrollable->GetLogicalScrollPosition() == nsPoint(0, 0)) {
@@ -356,7 +394,7 @@ CommonElementAnimationData::CanThrottleTransformChanges(TimeStamp aTime)
 bool
 CommonElementAnimationData::CanThrottleAnimation(TimeStamp aTime)
 {
-  nsIFrame* frame = nsLayoutUtils::GetStyleFrame(mElement);
+  nsIFrame* frame = mElement->GetPrimaryFrame();
   if (!frame) {
     return false;
   }
@@ -388,7 +426,7 @@ void
 CommonElementAnimationData::UpdateAnimationGeneration(nsPresContext* aPresContext)
 {
   mAnimationGeneration =
-    aPresContext->RestyleManager()->GetAnimationGeneration();
+    aPresContext->PresShell()->FrameConstructor()->GetAnimationGeneration();
 }
 
 }

@@ -10,20 +10,17 @@
  * created by XPConnect.
  */
 
-XPCOMUtils.defineLazyGetter(this, "tests", function() {
-  return [
-    new Test("http://localhost:" + srv.identity.primaryPort + "/test",
-        null, start_test, null),
-    new Test("http://localhost:" + srv.identity.primaryPort + "/sjs/qi.sjs",
-        null, start_sjs_qi, null),
+var tests =
+  [
+   new Test("http://localhost:4444/test",
+            null, start_test, null),
+   new Test("http://localhost:4444/sjs/qi.sjs",
+            null, start_sjs_qi, null),
   ];
-});
-
-var srv;
 
 function run_test()
 {
-  srv = createServer();
+  var srv = createServer();
 
   var qi;
   try
@@ -40,7 +37,7 @@ function run_test()
   srv.registerPathHandler("/test", testHandler);
   srv.registerDirectory("/", do_get_file("data/"));
   srv.registerContentType("sjs", "sjs");
-  srv.start(-1);
+  srv.start(4444);
 
   runHttpTests(tests, testComplete(srv));
 }

@@ -16,13 +16,16 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/Likely.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/gfx/2D.h"
 
 using namespace mozilla;
+
+// font info loader constants
+static const uint32_t kDelayBeforeLoadingCmaps = 8 * 1000; // 8secs
+static const uint32_t kIntervalBetweenLoadingCmaps = 150; // 150ms
+static const uint32_t kNumFontsPerSlice = 10; // read in info 10 fonts at a time
 
 #ifdef PR_LOGGING
 
@@ -36,10 +39,6 @@ using namespace mozilla;
 
 gfxPlatformFontList *gfxPlatformFontList::sPlatformFontList = nullptr;
 
-// prefs for the font info loader
-#define FONT_LOADER_FAMILIES_PER_SLICE_PREF "gfx.font_loader.families_per_slice"
-#define FONT_LOADER_DELAY_PREF              "gfx.font_loader.delay"
-#define FONT_LOADER_INTERVAL_PREF           "gfx.font_loader.interval"
 
 static const char* kObservedPrefs[] = {
     "font.",
@@ -71,15 +70,20 @@ gfxFontListPrefObserver::Observe(nsISupports     *aSubject,
     return NS_OK;
 }
 
+NS_IMPL_ISUPPORTS1(gfxPlatformFontList::MemoryReporter, nsIMemoryMultiReporter)
+
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(FontListMallocSizeOf)
 
-gfxPlatformFontList::MemoryReporter::MemoryReporter()
-    : MemoryMultiReporter("font-list")
-{}
+NS_IMETHODIMP
+gfxPlatformFontList::MemoryReporter::GetName(nsACString &aName)
+{
+    aName.AssignLiteral("font-list");
+    return NS_OK;
+}
 
 NS_IMETHODIMP
 gfxPlatformFontList::MemoryReporter::CollectReports
-    (nsIMemoryReporterCallback* aCb,
+    (nsIMemoryMultiReporterCallback* aCb,
      nsISupports* aClosure)
 {
     FontListSizes sizes;
@@ -87,8 +91,8 @@ gfxPlatformFontList::MemoryReporter::CollectReports
     sizes.mFontTableCacheSize = 0;
     sizes.mCharMapsSize = 0;
 
-    gfxPlatformFontList::PlatformFontList()->AddSizeOfIncludingThis(&FontListMallocSizeOf,
-                                                                    &sizes);
+    gfxPlatformFontList::PlatformFontList()->SizeOfIncludingThis(&FontListMallocSizeOf,
+                                                                 &sizes);
 
     aCb->Callback(EmptyCString(),
                   NS_LITERAL_CSTRING("explicit/gfx/font-list"),
@@ -117,17 +121,22 @@ gfxPlatformFontList::MemoryReporter::CollectReports
 }
 
 gfxPlatformFontList::gfxPlatformFontList(bool aNeedFullnamePostscriptNames)
-    : mFontFamilies(100), mOtherFamilyNames(30),
-      mPrefFonts(10), mBadUnderlineFamilyNames(10), mSharedCmaps(16),
-      mStartIndex(0), mIncrement(1), mNumFamilies(0)
+    : mNeedFullnamePostscriptNames(aNeedFullnamePostscriptNames),
+      mStartIndex(0), mIncrement(kNumFontsPerSlice), mNumFamilies(0)
 {
+    mFontFamilies.Init(100);
+    mOtherFamilyNames.Init(30);
     mOtherFamilyNamesInitialized = false;
 
-    if (aNeedFullnamePostscriptNames) {
-        mExtraNames = new ExtraNames();
+    if (mNeedFullnamePostscriptNames) {
+        mFullnames.Init(100);
+        mPostscriptNames.Init(100);
     }
     mFaceNamesInitialized = false;
 
+    mPrefFonts.Init(10);
+
+    mBadUnderlineFamilyNames.Init(10);
     LoadBadUnderlineList();
 
     // pref changes notification setup
@@ -137,7 +146,9 @@ gfxPlatformFontList::gfxPlatformFontList(bool aNeedFullnamePostscriptNames)
     NS_ADDREF(gFontListPrefObserver);
     Preferences::AddStrongObservers(gFontListPrefObserver, kObservedPrefs);
 
-    NS_RegisterMemoryReporter(new MemoryReporter);
+    mSharedCmaps.Init(16);
+
+    NS_RegisterMemoryMultiReporter(new MemoryReporter);
 }
 
 gfxPlatformFontList::~gfxPlatformFontList()
@@ -154,9 +165,9 @@ gfxPlatformFontList::InitFontList()
     mFontFamilies.Clear();
     mOtherFamilyNames.Clear();
     mOtherFamilyNamesInitialized = false;
-    if (mExtraNames) {
-        mExtraNames->mFullnames.Clear();
-        mExtraNames->mPostscriptNames.Clear();
+    if (mNeedFullnamePostscriptNames) {
+        mFullnames.Clear();
+        mPostscriptNames.Clear();
     }
     mFaceNamesInitialized = false;
     mPrefFonts.Clear();
@@ -410,14 +421,15 @@ gfxPlatformFontList::SystemFindFontForChar(const uint32_t aCh,
     PRLogModuleInfo *log = gfxPlatform::GetLog(eGfxLog_textrun);
 
     if (MOZ_UNLIKELY(log)) {
+        uint32_t charRange = gfxFontUtils::CharRangeBit(aCh);
         uint32_t unicodeRange = FindCharUnicodeRange(aCh);
         int32_t script = mozilla::unicode::GetScriptCode(aCh);
         PR_LOG(log, PR_LOG_WARNING,\
                ("(textrun-systemfallback-%s) char: u+%6.6x "
-                 "unicode-range: %d script: %d match: [%s]"
+                 "char-range: %d unicode-range: %d script: %d match: [%s]"
                 " time: %dus cmaps: %d\n",
                 (common ? "common" : "global"), aCh,
-                 unicodeRange, script,
+                 charRange, unicodeRange, script,
                 (fontEntry ? NS_ConvertUTF16toUTF8(fontEntry->Name()).get() :
                     "<none>"),
                 int32_t(elapsed.ToMicroseconds()),
@@ -616,8 +628,8 @@ gfxPlatformFontList::AddOtherFamilyName(gfxFontFamily *aFamilyEntry, nsAString& 
 void
 gfxPlatformFontList::AddFullname(gfxFontEntry *aFontEntry, nsAString& aFullname)
 {
-    if (!mExtraNames->mFullnames.GetWeak(aFullname)) {
-        mExtraNames->mFullnames.Put(aFullname, aFontEntry);
+    if (!mFullnames.GetWeak(aFullname)) {
+        mFullnames.Put(aFullname, aFontEntry);
 #ifdef PR_LOGGING
         LOG_FONTLIST(("(fontlist-fullname) name: %s, fullname: %s\n",
                       NS_ConvertUTF16toUTF8(aFontEntry->Name()).get(),
@@ -629,8 +641,8 @@ gfxPlatformFontList::AddFullname(gfxFontEntry *aFontEntry, nsAString& aFullname)
 void
 gfxPlatformFontList::AddPostscriptName(gfxFontEntry *aFontEntry, nsAString& aPostscriptName)
 {
-    if (!mExtraNames->mPostscriptNames.GetWeak(aPostscriptName)) {
-        mExtraNames->mPostscriptNames.Put(aPostscriptName, aFontEntry);
+    if (!mPostscriptNames.GetWeak(aPostscriptName)) {
+        mPostscriptNames.Put(aPostscriptName, aFontEntry);
 #ifdef PR_LOGGING
         LOG_FONTLIST(("(fontlist-postscript) name: %s, psname: %s\n",
                       NS_ConvertUTF16toUTF8(aFontEntry->Name()).get(),
@@ -717,7 +729,7 @@ gfxPlatformFontList::RunLoader()
         }
 
         // read in face names
-        familyEntry->ReadFaceNames(this, NeedFullnamePostscriptNames());
+        familyEntry->ReadFaceNames(this, mNeedFullnamePostscriptNames);
 
         // check whether the family can be considered "simple" for style matching
         familyEntry->CheckForSimpleFamily();
@@ -735,30 +747,16 @@ gfxPlatformFontList::FinishLoader()
     mNumFamilies = 0;
 }
 
-void
-gfxPlatformFontList::GetPrefsAndStartLoader()
-{
-    mIncrement =
-        std::max(1u, Preferences::GetUint(FONT_LOADER_FAMILIES_PER_SLICE_PREF));
-
-    uint32_t delay =
-        std::max(1u, Preferences::GetUint(FONT_LOADER_DELAY_PREF));
-    uint32_t interval =
-        std::max(1u, Preferences::GetUint(FONT_LOADER_INTERVAL_PREF));
-
-    StartLoader(delay, interval);
-}
-
 // Support for memory reporting
 
 static size_t
 SizeOfFamilyEntryExcludingThis(const nsAString&               aKey,
                                const nsRefPtr<gfxFontFamily>& aFamily,
-                               MallocSizeOf                   aMallocSizeOf,
+                               nsMallocSizeOfFun              aMallocSizeOf,
                                void*                          aUserArg)
 {
     FontListSizes *sizes = static_cast<FontListSizes*>(aUserArg);
-    aFamily->AddSizeOfExcludingThis(aMallocSizeOf, sizes);
+    aFamily->SizeOfExcludingThis(aMallocSizeOf, sizes);
 
     sizes->mFontListSize += aKey.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
 
@@ -772,7 +770,7 @@ SizeOfFamilyEntryExcludingThis(const nsAString&               aKey,
 gfxPlatformFontList::SizeOfFamilyNameEntryExcludingThis
     (const nsAString&               aKey,
      const nsRefPtr<gfxFontFamily>& aFamily,
-     MallocSizeOf                   aMallocSizeOf,
+     nsMallocSizeOfFun              aMallocSizeOf,
      void*                          aUserArg)
 {
     // we don't count the size of the family here, because this is an *extra*
@@ -783,7 +781,7 @@ gfxPlatformFontList::SizeOfFamilyNameEntryExcludingThis
 static size_t
 SizeOfFontNameEntryExcludingThis(const nsAString&              aKey,
                                  const nsRefPtr<gfxFontEntry>& aFont,
-                                 MallocSizeOf                  aMallocSizeOf,
+                                 nsMallocSizeOfFun             aMallocSizeOf,
                                  void*                         aUserArg)
 {
     // the font itself is counted by its owning family; here we only care about
@@ -795,7 +793,7 @@ static size_t
 SizeOfPrefFontEntryExcludingThis
     (const uint32_t&                           aKey,
      const nsTArray<nsRefPtr<gfxFontFamily> >& aList,
-     MallocSizeOf                              aMallocSizeOf,
+     nsMallocSizeOfFun                         aMallocSizeOf,
      void*                                     aUserArg)
 {
     // again, we only care about the size of the array itself; we don't follow
@@ -806,7 +804,7 @@ SizeOfPrefFontEntryExcludingThis
 
 static size_t
 SizeOfStringEntryExcludingThis(nsStringHashKey*  aHashEntry,
-                               MallocSizeOf      aMallocSizeOf,
+                               nsMallocSizeOfFun aMallocSizeOf,
                                void*             aUserArg)
 {
     return aHashEntry->GetKey().SizeOfExcludingThisIfUnshared(aMallocSizeOf);
@@ -814,7 +812,7 @@ SizeOfStringEntryExcludingThis(nsStringHashKey*  aHashEntry,
 
 static size_t
 SizeOfSharedCmapExcludingThis(CharMapHashKey*   aHashEntry,
-                              MallocSizeOf      aMallocSizeOf,
+                              nsMallocSizeOfFun aMallocSizeOf,
                               void*             aUserArg)
 {
     FontListSizes *sizes = static_cast<FontListSizes*>(aUserArg);
@@ -828,8 +826,8 @@ SizeOfSharedCmapExcludingThis(CharMapHashKey*   aHashEntry,
 }
 
 void
-gfxPlatformFontList::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
-                                            FontListSizes* aSizes) const
+gfxPlatformFontList::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                                         FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize +=
         mFontFamilies.SizeOfExcludingThis(SizeOfFamilyEntryExcludingThis,
@@ -839,13 +837,13 @@ gfxPlatformFontList::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
         mOtherFamilyNames.SizeOfExcludingThis(SizeOfFamilyNameEntryExcludingThis,
                                               aMallocSizeOf);
 
-    if (mExtraNames) {
+    if (mNeedFullnamePostscriptNames) {
         aSizes->mFontListSize +=
-            mExtraNames->mFullnames.SizeOfExcludingThis(SizeOfFontNameEntryExcludingThis,
-                                                        aMallocSizeOf);
+            mFullnames.SizeOfExcludingThis(SizeOfFontNameEntryExcludingThis,
+                                           aMallocSizeOf);
         aSizes->mFontListSize +=
-            mExtraNames->mPostscriptNames.SizeOfExcludingThis(SizeOfFontNameEntryExcludingThis,
-                                                              aMallocSizeOf);
+            mPostscriptNames.SizeOfExcludingThis(SizeOfFontNameEntryExcludingThis,
+                                                 aMallocSizeOf);
     }
 
     aSizes->mFontListSize +=
@@ -867,9 +865,9 @@ gfxPlatformFontList::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
 }
 
 void
-gfxPlatformFontList::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                            FontListSizes* aSizes) const
+gfxPlatformFontList::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                                         FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
-    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }

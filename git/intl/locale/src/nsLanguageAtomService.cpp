@@ -3,18 +3,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsIComponentManager.h"
 #include "nsLanguageAtomService.h"
 #include "nsICharsetConverterManager.h"
 #include "nsILocaleService.h"
+#include "nsXPIDLString.h"
 #include "nsUnicharUtils.h"
+#include "nsIServiceManager.h"
 #include "nsIAtom.h"
 #include "mozilla/Services.h"
-#include "nsServiceManagerUtils.h"
 
 NS_IMPL_ISUPPORTS1(nsLanguageAtomService, nsILanguageAtomService)
 
 nsLanguageAtomService::nsLanguageAtomService()
 {
+  mLangToGroup.Init();
 }
 
 nsresult
@@ -65,10 +68,14 @@ nsLanguageAtomService::LookupCharSet(const char *aCharSet, nsresult *aError)
     return nullptr;
   }
 
+  // transfer reference to raw pointer
+  nsIAtom *raw = nullptr;
+  langGroup.swap(raw);
+
   if (aError)
     *aError = NS_OK;
 
-  return langGroup.forget();
+  return raw;
 }
 
 nsIAtom*

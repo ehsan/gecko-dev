@@ -23,10 +23,11 @@
 #include "nsIWindowWatcher.h"
 #include "nsNetUtil.h"
 #include "nsRect.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsWeakReference.h"
 #include "nsIWebBrowser.h"
 #include "nsIObserverService.h"
+#include "nsIDOMEventTarget.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMCompositionListener.h"
@@ -34,12 +35,12 @@
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMWheelEvent.h"
 #include "nsView.h"
+#include "nsGUIEvent.h"
 #include "nsViewManager.h"
 #include "nsIContentPolicy.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIContent.h"
 #include "nsITimer.h"
-#include "mozilla/MouseEvents.h"
 
 using namespace mozilla;
 
@@ -76,7 +77,7 @@ public:
 private:
   nsresult Init(void);
   void RemoveWindowListeners(nsIDOMWindow *aDOMWin);
-  EventTarget* GetChromeEventHandler(nsIDOMWindow *aDOMWin);
+  void GetChromeEventHandler(nsIDOMWindow *aDOMWin, nsIDOMEventTarget **aChromeTarget);
   void AttachWindowListeners(nsIDOMWindow *aDOMWin);
   bool IsXULNode(nsIDOMNode *aNode, uint32_t *aType = 0);
   nsresult GetDOMWindowByNode(nsIDOMNode *aNode, nsIDOMWindow * *aDOMWindow);
@@ -127,10 +128,10 @@ nsWidgetUtils::UpdateFromEvent(nsIDOMEvent *aDOMEvent)
   nsCOMPtr<nsIDOMNode> mOrigNode;
 
   uint32_t type = 0;
-  nsDOMEvent* event = aDOMEvent->InternalDOMEvent();
   bool isXul = false;
   {
-    nsCOMPtr<EventTarget> eventOrigTarget = event->GetOriginalTarget();
+    nsCOMPtr<nsIDOMEventTarget> eventOrigTarget;
+    aDOMEvent->GetOriginalTarget(getter_AddRefs(eventOrigTarget));
     if (eventOrigTarget)
       mOrigNode = do_QueryInterface(eventOrigTarget);
     isXul = IsXULNode(mOrigNode, &type);
@@ -139,7 +140,8 @@ nsWidgetUtils::UpdateFromEvent(nsIDOMEvent *aDOMEvent)
   if (isXul)
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<EventTarget> eventTarget = event->GetTarget();
+  nsCOMPtr<nsIDOMEventTarget> eventTarget;
+  aDOMEvent->GetTarget(getter_AddRefs(eventTarget));
   if (eventTarget)
     mNode = do_QueryInterface(eventTarget);
 
@@ -234,7 +236,7 @@ nsWidgetUtils::MouseMove(nsIDOMEvent* aDOMEvent)
       return NS_OK;
 
   nsEventStatus status;
-  WidgetWheelEvent wheelEvent(true, NS_WHEEL_WHEEL, mWidget);
+  widget::WheelEvent wheelEvent(true, NS_WHEEL_WHEEL, mWidget);
   wheelEvent.deltaMode = nsIDOMWheelEvent::DOM_DELTA_LINE;
   wheelEvent.deltaX = wheelEvent.lineOrPageDeltaX = dx;
   wheelEvent.deltaY = wheelEvent.lineOrPageDeltaY = dy;
@@ -362,18 +364,25 @@ nsWidgetUtils::GetDOMWindowByNode(nsIDOMNode* aNode, nsIDOMWindow** aDOMWindow)
   return rv;
 }
 
-EventTarget*
-nsWidgetUtils::GetChromeEventHandler(nsIDOMWindow* aDOMWin)
+void
+nsWidgetUtils::GetChromeEventHandler(nsIDOMWindow *aDOMWin,
+                                     nsIDOMEventTarget **aChromeTarget)
 {
-  nsCOMPtr<nsPIDOMWindow> privateDOMWindow = do_QueryInterface(aDOMWin);
-  return privateDOMWindow ? privateDOMWindow->GetChromeEventHandler() : nullptr;
+    nsCOMPtr<nsPIDOMWindow> privateDOMWindow(do_QueryInterface(aDOMWin));
+    nsIDOMEventTarget* chromeEventHandler = nullptr;
+    if (privateDOMWindow) {
+        chromeEventHandler = privateDOMWindow->GetChromeEventHandler();
+    }
+
+    NS_IF_ADDREF(*aChromeTarget = chromeEventHandler);
 }
 
 void
 nsWidgetUtils::RemoveWindowListeners(nsIDOMWindow *aDOMWin)
 {
     nsresult rv;
-    EventTarget* chromeEventHandler = GetChromeEventHandler(aDOMWin);
+    nsCOMPtr<nsIDOMEventTarget> chromeEventHandler;
+    GetChromeEventHandler(aDOMWin, getter_AddRefs(chromeEventHandler));
     if (!chromeEventHandler) {
         return;
     }
@@ -393,7 +402,8 @@ void
 nsWidgetUtils::AttachWindowListeners(nsIDOMWindow *aDOMWin)
 {
     nsresult rv;
-    EventHandler* chromeEventHandler = GetChromeEventHandler(aDOMWin);
+    nsCOMPtr<nsIDOMEventTarget> chromeEventHandler;
+    GetChromeEventHandler(aDOMWin, getter_AddRefs(chromeEventHandler));
     if (!chromeEventHandler) {
         return;
     }

@@ -2,7 +2,7 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 Cu.import("resource://gre/modules/PlacesUtils.jsm");
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/engines/bookmarks.js");
 Cu.import("resource://services-sync/service.js");
@@ -21,6 +21,8 @@ let store = engine._store;
 
 // Clean up after other tests. Only necessary in XULRunner.
 store.wipe();
+
+var syncTesting = new SyncTestingInfrastructure();
 
 function newSmartBookmark(parent, uri, position, title, queryID) {
   let id = PlacesUtils.bookmarks.insertBookmark(parent, uri, position, title);
@@ -58,8 +60,7 @@ function serverForFoo(engine) {
 // Verify that Places smart bookmarks have their annotation uploaded and
 // handled locally.
 add_test(function test_annotation_uploaded() {
-  let server = serverForFoo(engine);
-  new SyncTestingInfrastructure(server.server);
+  new SyncTestingInfrastructure();
 
   let startCount = smartBookmarkCount();
 
@@ -107,6 +108,7 @@ add_test(function test_annotation_uploaded() {
   do_check_eq(smartBookmarkCount(), startCount + 1);
 
   _("Sync record to the server.");
+  let server = serverForFoo(engine);
   let collection = server.user("foo").collection("bookmarks");
 
   try {
@@ -173,8 +175,7 @@ add_test(function test_annotation_uploaded() {
 });
 
 add_test(function test_smart_bookmarks_duped() {
-  let server = serverForFoo(engine);
-  new SyncTestingInfrastructure(server.server);
+  new SyncTestingInfrastructure();
 
   let parent = PlacesUtils.toolbarFolderId;
   let uri =
@@ -188,6 +189,7 @@ add_test(function test_smart_bookmarks_duped() {
   let record = store.createRecord(mostVisitedGUID);
 
   _("Prepare sync.");
+  let server = serverForFoo(engine);
   let collection = server.user("foo").collection("bookmarks");
 
   try {
@@ -227,7 +229,7 @@ add_test(function test_smart_bookmarks_duped() {
 
 function run_test() {
   initTestLogging("Trace");
-  Log.repository.getLogger("Sync.Engine.Bookmarks").level = Log.Level.Trace;
+  Log4Moz.repository.getLogger("Sync.Engine.Bookmarks").level = Log4Moz.Level.Trace;
 
   generateNewKeys(Service.collectionKeys);
 

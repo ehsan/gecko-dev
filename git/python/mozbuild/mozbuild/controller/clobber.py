@@ -10,32 +10,34 @@ import os
 import sys
 
 from mozfile.mozfile import rmtree
-from textwrap import TextWrapper
 
 
-CLOBBER_MESSAGE = ''.join([TextWrapper().fill(line) + '\n' for line in
-'''
-The CLOBBER file has been updated, indicating that an incremental build since \
-your last build will probably not work. A full/clobber build is required.
-
-The reason for the clobber is:
-
+CLOBBER_MESSAGE = '''
+***
+* The CLOBBER file has been updated, indicating that an incremental build since
+* your last build will probably not work. A full/clobber build is required.
+*
+* The reason for the clobber is:
+*
 {clobber_reason}
+*
+* Clobbering can be performed automatically. However, we didn't automatically
+* clobber this time because:
+*
+*   {no_reason}
+*
+* The easiest and fastest way to clobber is to run:
+*
+*  $ mach clobber
+*
+* If you know this clobber doesn't apply to you or you're feeling lucky - well
+* do ya? - you can ignore this clobber requirement by running:
+*
+*  $ touch {clobber_file}
+*
+***
+'''.strip()
 
-Clobbering can be performed automatically. However, we didn't automatically \
-clobber this time because:
-
-{no_reason}
-
-The easiest and fastest way to clobber is to run:
-
- $ mach clobber
-
-If you know this clobber doesn't apply to you or you're feeling lucky -- \
-Well, are ya? -- you can ignore this clobber requirement by running:
-
- $ touch {clobber_file}
-'''.splitlines()])
 
 class Clobberer(object):
     def __init__(self, topsrcdir, topobjdir):
@@ -95,7 +97,7 @@ class Clobberer(object):
             with open(self.obj_clobber, 'a'):
                 pass
 
-    def maybe_do_clobber(self, cwd, allow_auto=False, fh=sys.stderr):
+    def maybe_do_clobber(self, cwd, allow_auto=True, fh=sys.stderr):
         """Perform a clobber if it is required. Maybe.
 
         This is the API the build system invokes to determine if a clobber
@@ -118,17 +120,15 @@ class Clobberer(object):
             return False, False, None
 
         # So a clobber is needed. We only perform a clobber if we are
-        # allowed to perform an automatic clobber (off by default) and if the
+        # allowed to perform an automatic clobber (the default) and if the
         # current directory is not under the object directory. The latter is
         # because operating systems, filesystems, and shell can throw fits
         # if the current working directory is deleted from under you. While it
         # can work in some scenarios, we take the conservative approach and
         # never try.
         if not allow_auto:
-            return True, False, \
-               self._message('Automatic clobbering is not enabled\n'
-                              '  (add "mk_add_options AUTOCLOBBER=1" to your '
-                              'mozconfig).')
+            return True, False, self._message(
+                'Automatic clobbering has been disabled.')
 
         if cwd.startswith(self.topobjdir) and cwd != self.topobjdir:
             return True, False, self._message(
@@ -156,10 +156,10 @@ class Clobberer(object):
                 'Error when automatically clobbering: ' + str(error))
 
     def _message(self, reason):
-        lines = [' ' + line for line in self.clobber_cause()]
+        lines = ['*  ' + line for line in self.clobber_cause()]
 
         return CLOBBER_MESSAGE.format(clobber_reason='\n'.join(lines),
-            no_reason='  ' + reason, clobber_file=self.obj_clobber)
+            no_reason=reason, clobber_file=self.obj_clobber)
 
 
 def main(args, env, cwd, fh=sys.stderr):
@@ -175,7 +175,7 @@ def main(args, env, cwd, fh=sys.stderr):
     if not os.path.isabs(topobjdir):
         topobjdir = os.path.abspath(topobjdir)
 
-    auto = True if env.get('AUTOCLOBBER', False) else False
+    auto = False if env.get('NO_AUTOCLOBBER', False) else True
     clobber = Clobberer(topsrcdir, topobjdir)
     required, performed, message = clobber.maybe_do_clobber(cwd, auto, fh)
 

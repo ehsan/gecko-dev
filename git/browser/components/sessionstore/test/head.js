@@ -19,13 +19,6 @@ registerCleanupFunction(function () {
   Services.prefs.clearUserPref("browser.sessionstore.restore_on_demand");
 });
 
-// Obtain access to internals
-Services.prefs.setBoolPref("browser.sessionstore.debug", true);
-registerCleanupFunction(function () {
-  Services.prefs.clearUserPref("browser.sessionstore.debug");
-});
-
-
 // This kicks off the search service used on about:home and allows the
 // session restore tests to be run standalone without triggering errors.
 Cc["@mozilla.org/browser/clh;1"].getService(Ci.nsIBrowserHandler).defaultArgs;
@@ -156,143 +149,52 @@ function waitForTabState(aTab, aState, aCallback) {
   ss.setTabState(aTab, JSON.stringify(aState));
 }
 
-/**
- * Wait for a content -> chrome message.
- */
-function waitForContentMessage(aBrowser, aTopic, aTimeout, aCallback) {
-  let mm = aBrowser.messageManager;
+// waitForSaveState waits for a state write but not necessarily for the state to
+// turn dirty.
+function waitForSaveState(aSaveStateCallback) {
   let observing = false;
-  function removeObserver() {
-    if (!observing)
-      return;
-    mm.removeMessageListener(aTopic, observer);
-    observing = false;
-  }
+  let topic = "sessionstore-state-write";
 
-  let timeout = setTimeout(function () {
-    removeObserver();
-    aCallback(false);
-  }, aTimeout);
-
-  function observer(aSubject, aTopic, aData) {
-    removeObserver();
-    timeout = clearTimeout(timeout);
-    executeSoon(() => aCallback(true));
-  }
-
-  registerCleanupFunction(function() {
-    removeObserver();
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-  });
-
-  observing = true;
-  mm.addMessageListener(aTopic, observer);
-}
-
-function waitForTopic(aTopic, aTimeout, aCallback) {
-  let observing = false;
-  function removeObserver() {
-    if (!observing)
-      return;
-    Services.obs.removeObserver(observer, aTopic);
-    observing = false;
-  }
-
-  let timeout = setTimeout(function () {
-    removeObserver();
-    aCallback(false);
-  }, aTimeout);
-
-  function observer(aSubject, aTopic, aData) {
-    removeObserver();
-    timeout = clearTimeout(timeout);
-    executeSoon(() => aCallback(true));
-  }
-
-  registerCleanupFunction(function() {
-    removeObserver();
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-  });
-
-  observing = true;
-  Services.obs.addObserver(observer, aTopic, false);
-}
-
-/**
- * Wait until session restore has finished collecting its data and is
- * getting ready to write that data ("sessionstore-state-write").
- *
- * This function is meant to be called immediately after the code
- * that will trigger the saving.
- *
- * Note that this does not wait for the disk write to be complete.
- *
- * @param {function} aCallback If sessionstore-state-write is sent
- * within buffering interval + 100 ms, the callback is passed |true|,
- * otherwise, it is passed |false|.
- */
-function waitForSaveState(aCallback) {
-  let timeout = 100 +
+  let sessionSaveTimeout = 1000 +
     Services.prefs.getIntPref("browser.sessionstore.interval");
-  return waitForTopic("sessionstore-state-write", timeout, aCallback);
-}
-function promiseSaveState() {
-  let deferred = Promise.defer();
-  waitForSaveState(isSuccessful => {
-    if (isSuccessful) {
-      deferred.resolve();
-    } else {
-      deferred.reject(new Error("timeout"));
-    }});
-  return deferred.promise;
-}
-function forceSaveState() {
-  let promise = promiseSaveState();
-  const PREF = "browser.sessionstore.interval";
-  // Set interval to an arbitrary non-0 duration
-  // to ensure that setting it to 0 will notify observers
-  Services.prefs.setIntPref(PREF, 1000);
-  Services.prefs.setIntPref(PREF, 0);
-  return promise.then(
-    function onSuccess(x) {
-      Services.prefs.clearUserPref(PREF);
-      return x;
-    },
-    function onError(x) {
-      Services.prefs.clearUserPref(PREF);
-      throw x;
-    }
-  );
-}
 
-function whenBrowserLoaded(aBrowser, aCallback = next) {
+  function removeObserver() {
+    if (!observing)
+      return;
+    Services.obs.removeObserver(observer, topic);
+    observing = false;
+  }
+
+  let timeout = setTimeout(function () {
+    removeObserver();
+    aSaveStateCallback();
+  }, sessionSaveTimeout);
+
+  function observer(aSubject, aTopic, aData) {
+    removeObserver();
+    timeout = clearTimeout(timeout);
+    executeSoon(aSaveStateCallback);
+  }
+
+  registerCleanupFunction(function() {
+    removeObserver();
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  });
+
+  observing = true;
+  Services.obs.addObserver(observer, topic, false);
+};
+
+function whenBrowserLoaded(aBrowser, aCallback) {
   aBrowser.addEventListener("load", function onLoad() {
     aBrowser.removeEventListener("load", onLoad, true);
     executeSoon(aCallback);
   }, true);
 }
-function promiseBrowserLoaded(aBrowser) {
-  let deferred = Promise.defer();
-  whenBrowserLoaded(aBrowser, deferred.resolve);
-  return deferred.promise;
-}
-function whenBrowserUnloaded(aBrowser, aContainer, aCallback = next) {
-  aBrowser.addEventListener("unload", function onUnload() {
-    aBrowser.removeEventListener("unload", onUnload, true);
-    executeSoon(aCallback);
-  }, true);
-}
-function promiseBrowserUnloaded(aBrowser, aContainer) {
-  let deferred = Promise.defer();
-  whenBrowserUnloaded(aBrowser, aContainer, deferred.resolve);
-  return deferred.promise;
-}
 
-function whenWindowLoaded(aWindow, aCallback = next) {
+function whenWindowLoaded(aWindow, aCallback) {
   aWindow.addEventListener("load", function windowLoadListener() {
     aWindow.removeEventListener("load", windowLoadListener, false);
     executeSoon(function executeWhenWindowLoaded() {
@@ -380,32 +282,12 @@ function closeAllButPrimaryWindow() {
   }
 }
 
-/**
- * When opening a new window it is not sufficient to wait for its load event.
- * We need to use whenDelayedStartupFinshed() here as the browser window's
- * delayedStartup() routine is executed one tick after the window's load event
- * has been dispatched. browser-delayed-startup-finished might be deferred even
- * further if parts of the window's initialization process take more time than
- * expected (e.g. reading a big session state from disk).
- */
-function whenNewWindowLoaded(aOptions, aCallback) {
-  let win = OpenBrowserWindow(aOptions);
-  whenDelayedStartupFinished(win, () => aCallback(win));
-  return win;
-}
-
-/**
- * This waits for the browser-delayed-startup-finished notification of a given
- * window. It indicates that the windows has loaded completely and is ready to
- * be used for testing.
- */
-function whenDelayedStartupFinished(aWindow, aCallback) {
-  Services.obs.addObserver(function observer(aSubject, aTopic) {
-    if (aWindow == aSubject) {
-      Services.obs.removeObserver(observer, aTopic);
-      executeSoon(aCallback);
-    }
-  }, "browser-delayed-startup-finished", false);
+function whenNewWindowLoaded(aIsPrivate, aCallback) {
+  let win = OpenBrowserWindow({private: aIsPrivate});
+  win.addEventListener("load", function onLoad() {
+    win.removeEventListener("load", onLoad, false);
+    aCallback(win);
+  }, false);
 }
 
 /**
@@ -426,11 +308,13 @@ let TestRunner = {
   run: function () {
     waitForExplicitFinish();
 
-    SessionStore.promiseInitialized.then(() => {
-      this.backupState = JSON.parse(ss.getBrowserState());
-      this._iter = runTests();
-      this.next();
-    });
+    SessionStore.promiseInitialized.then(function () {
+      executeSoon(function () {
+        this.backupState = JSON.parse(ss.getBrowserState());
+        this._iter = runTests();
+        this.next();
+      }.bind(this));
+    }.bind(this));
   },
 
   /**

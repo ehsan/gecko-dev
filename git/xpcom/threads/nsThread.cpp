@@ -5,25 +5,24 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/ReentrantMonitor.h"
-#include "nsMemoryPressure.h"
 #include "nsThread.h"
 #include "nsThreadManager.h"
 #include "nsIClassInfoImpl.h"
 #include "nsIProgrammingLanguage.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
-#include "pratom.h"
 #include "prlog.h"
 #include "nsIObserverService.h"
 #include "mozilla/HangMonitor.h"
 #include "mozilla/Services.h"
-#include "nsXPCOMPrivate.h"
 
 #define HAVE_UALARM _BSD_SOURCE || (_XOPEN_SOURCE >= 500 ||                 \
                       _XOPEN_SOURCE && _XOPEN_SOURCE_EXTENDED) &&           \
                       !(_POSIX_C_SOURCE >= 200809L || _XOPEN_SOURCE >= 700)
 
-#ifdef MOZ_CANARY
+#if defined(XP_UNIX) && !defined(ANDROID) && !defined(DEBUG) && HAVE_UALARM \
+  && defined(_GNU_SOURCE)
+# define MOZ_CANARY
 # include <unistd.h>
 # include <execinfo.h>
 # include <signal.h>
@@ -57,6 +56,23 @@ NS_DECL_CI_INTERFACE_GETTER(nsThread)
 
 nsIThreadObserver* nsThread::sMainThreadObserver = nullptr;
 
+namespace mozilla {
+
+// Fun fact: Android's GCC won't convert bool* to int32_t*, so we can't
+// PR_ATOMIC_SET a bool.
+static int32_t sMemoryPressurePending = 0;
+
+/*
+ * It's important that this function not acquire any locks, nor do anything
+ * which might cause malloc to run.
+ */
+void ScheduleMemoryPressureEvent()
+{
+  PR_ATOMIC_SET(&sMemoryPressurePending, 1);
+}
+
+} // namespace mozilla
+
 //-----------------------------------------------------------------------------
 // Because we do not have our own nsIFactory, we have to implement nsIClassInfo
 // somewhat manually.
@@ -68,6 +84,8 @@ public:
 
   nsThreadClassInfo() {}
 };
+
+static nsThreadClassInfo sThreadClassInfo;
 
 NS_IMETHODIMP_(nsrefcnt) nsThreadClassInfo::AddRef() { return 2; }
 NS_IMETHODIMP_(nsrefcnt) nsThreadClassInfo::Release() { return 1; }
@@ -129,8 +147,8 @@ nsThreadClassInfo::GetClassIDNoAlloc(nsCID *result)
 
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ADDREF(nsThread)
-NS_IMPL_RELEASE(nsThread)
+NS_IMPL_THREADSAFE_ADDREF(nsThread)
+NS_IMPL_THREADSAFE_RELEASE(nsThread)
 NS_INTERFACE_MAP_BEGIN(nsThread)
   NS_INTERFACE_MAP_ENTRY(nsIThread)
   NS_INTERFACE_MAP_ENTRY(nsIThreadInternal)
@@ -138,7 +156,6 @@ NS_INTERFACE_MAP_BEGIN(nsThread)
   NS_INTERFACE_MAP_ENTRY(nsISupportsPriority)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIThread)
   if (aIID.Equals(NS_GET_IID(nsIClassInfo))) {
-    static nsThreadClassInfo sThreadClassInfo;
     foundInterface = static_cast<nsIClassInfo*>(&sThreadClassInfo);
   } else
 NS_INTERFACE_MAP_END
@@ -282,10 +299,6 @@ nsThread::ThreadFunc(void *arg)
 
 //-----------------------------------------------------------------------------
 
-#ifdef MOZ_CANARY
-int sCanaryOutputFD = -1;
-#endif
-
 nsThread::nsThread(MainThreadFlag aMainThread, uint32_t aStackSize)
   : mLock("nsThread.mLock")
   , mPriority(PRIORITY_NORMAL)
@@ -375,10 +388,6 @@ nsThread::Dispatch(nsIRunnable *event, uint32_t flags)
   LOG(("THRD(%p) Dispatch [%p %x]\n", this, event, flags));
 
   NS_ENSURE_ARG_POINTER(event);
-
-  if (gXPCOMThreadsShutDown && MAIN_THREAD != mIsMainThread) {
-    return NS_ERROR_ILLEGAL_DURING_SHUTDOWN;
-  }
 
   if (flags & DISPATCH_SYNC) {
     nsThread *thread = nsThreadManager::get()->GetCurrentThread();
@@ -500,29 +509,43 @@ class Canary {
 //XXX ToDo: support nested loops
 public:
   Canary() {
-    if (sCanaryOutputFD > 0 && EventLatencyIsImportant()) {
+    if (sOutputFD != 0 && EventLatencyIsImportant()) {
+      if (sOutputFD == -1) {
+        const int flags = O_WRONLY | O_APPEND | O_CREAT | O_NONBLOCK;
+        const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+        char* env_var_flag = getenv("MOZ_KILL_CANARIES");
+        sOutputFD = env_var_flag ? (env_var_flag[0] ?
+                                    open(env_var_flag, flags, mode) :
+                                    STDERR_FILENO) : 0;
+        if (sOutputFD == 0)
+          return;
+      }
       signal(SIGALRM, canary_alarm_handler);
       ualarm(15000, 0);      
     }
   }
 
   ~Canary() {
-    if (sCanaryOutputFD != 0 && EventLatencyIsImportant())
+    if (sOutputFD != 0 && EventLatencyIsImportant())
       ualarm(0, 0);
   }
 
   static bool EventLatencyIsImportant() {
     return NS_IsMainThread() && XRE_GetProcessType() == GeckoProcessType_Default;
   }
+
+  static int sOutputFD;
 };
+
+int Canary::sOutputFD = -1;
 
 void canary_alarm_handler (int signum)
 {
   void *array[30];
   const char msg[29] = "event took too long to run:\n";
   // use write to be safe in the signal handler
-  write(sCanaryOutputFD, msg, sizeof(msg)); 
-  backtrace_symbols_fd(array, backtrace(array, 30), sCanaryOutputFD);
+  write(Canary::sOutputFD, msg, sizeof(msg)); 
+  backtrace_symbols_fd(array, backtrace(array, 30), Canary::sOutputFD);
 }
 
 #endif
@@ -553,20 +576,14 @@ nsThread::ProcessNextEvent(bool mayWait, bool *result)
   // Fire a memory pressure notification, if we're the main thread and one is
   // pending.
   if (MAIN_THREAD == mIsMainThread && !ShuttingDown()) {
-    MemoryPressureState mpPending = NS_GetPendingMemoryPressure();
-    if (mpPending != MemPressure_None) {
+    bool mpPending = PR_ATOMIC_SET(&sMemoryPressurePending, 0);
+    if (mpPending) {
       nsCOMPtr<nsIObserverService> os = services::GetObserverService();
-
-      // Use no-forward to prevent the notifications from being transferred to
-      // the children of this process.
-      NS_NAMED_LITERAL_STRING(lowMem, "low-memory-no-forward");
-      NS_NAMED_LITERAL_STRING(lowMemOngoing, "low-memory-ongoing-no-forward");
-
       if (os) {
         os->NotifyObservers(nullptr, "memory-pressure",
-                            mpPending == MemPressure_New ? lowMem.get() :
-                                                           lowMemOngoing.get());
-      } else {
+                            NS_LITERAL_STRING("low-memory").get());
+      }
+      else {
         NS_WARNING("Can't get observer service!");
       }
     }

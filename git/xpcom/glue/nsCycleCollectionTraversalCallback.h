@@ -19,10 +19,12 @@ public:
   // WANT_DEBUG_INFO in mFlags.
   NS_IMETHOD_(void) DescribeRefCountedNode(nsrefcnt refcount,
                                            const char* objname) = 0;
-  // Note, aCompartmentAddress is 0 if it is unknown.
   NS_IMETHOD_(void) DescribeGCedNode(bool ismarked,
-                                     const char* objname,
-                                     uint64_t aCompartmentAddress = 0) = 0;
+                                     const char* objname) = 0;
+
+  NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root) = 0;
+  NS_IMETHOD_(void) NoteJSRoot(void *root) = 0;
+  NS_IMETHOD_(void) NoteNativeRoot(void *root, nsCycleCollectionParticipant *participant) = 0;
 
   NS_IMETHOD_(void) NoteXPCOMChild(nsISupports *child) = 0;
   NS_IMETHOD_(void) NoteJSChild(void *child) = 0;
@@ -34,6 +36,8 @@ public:
   // Callbacks who care about this should set WANT_DEBUG_INFO in the
   // flags.
   NS_IMETHOD_(void) NoteNextEdgeName(const char* name) = 0;
+
+  NS_IMETHOD_(void) NoteWeakMapping(void *map, void *key, void *kdelegate, void *val) = 0;
 
   enum {
     // Values for flags:

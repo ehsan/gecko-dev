@@ -6,12 +6,9 @@
 #ifndef __nsUCConstructors_h
 #define __nsUCConstructors_h
 
-#include <stdint.h>
-#include "nscore.h"
-#include "nsID.h"
+#include "nsIUnicodeEncoder.h"
+#include "nsIUnicodeDecoder.h"
 #include "uconvutil.h"
-
-class nsISupports;
 
 // all the useful constructors
 NS_METHOD

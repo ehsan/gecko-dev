@@ -12,9 +12,27 @@
  * implementation of this interface for non-Windows systems, for testing and
  * development purposes only.
  */
-[scriptable, uuid(496b4450-5757-40f7-aeb9-a958ae86dbd1)]
+[scriptable, uuid(ac813696-3b0a-4259-bce1-1d078021ebbe)]
 interface nsIWinMetroUtils : nsISupports
 {
+  /* Fullscreen landscape orientation */
+  const long fullScreenLandscape = 0;
+  /* Larger snapped state */
+  const long filled = 1;
+  /* Smaller snapped state */
+  const long snapped = 2;
+  /* Fullscreen portrait orientation */
+  const long fullScreenPortrait = 3;
+
+  /* return constants for the handPreference property */
+  const long handPreferenceLeft = 0;
+  const long handPreferenceRight = 1;
+
+  /**
+   * Determines the current snapped state.
+   */
+  readonly attribute long snappedState;
+
   /**
    * Determine if the current browser is running in the metro immersive
    * environment.
@@ -22,9 +40,20 @@ interface nsIWinMetroUtils : nsISupports
   readonly attribute boolean immersive;
 
   /**
+   * Determine if the user prefers left handed or right handed input.
+   */
+  readonly attribute long handPreference;
+
+  /**
    * Determine the activation URI
    */
   readonly attribute AString activationURI;
+
+  /**
+   * Attempts to unsnap the application from snapped state to filled state
+   */
+   void unsnap();
+
 
    /**
     * Show the settings flyout
@@ -38,11 +67,6 @@ interface nsIWinMetroUtils : nsISupports
    void launchInDesktop(in AString aPath, in AString aArguments); 
 
   /**
-   * Displays a native Windows 8 toast.
-   */
-   void showNativeToast(in AString aTitle, in AString aMessage, in AString anImage, in AString aCookie);
-
-  /**
    * Secondary tiles are a Windows 8 specific feature for pinning new tiles
    * to the start screen.   Tiles can later be activated whether the browser is
    * already opened or not. 
@@ -52,7 +76,6 @@ interface nsIWinMetroUtils : nsISupports
    * Pins a new tile to the Windows 8 start screen.
    * 
    * @param aTileID         An ID which can later be used to remove the tile
-   *                        ID must only contain valid filesystem characters
    * @param aShortName      A short name for the tile
    * @param aDiplayName     The name that will be displayed on the tile
    * @param aActivationArgs The arguments to pass to the browser upon 
@@ -71,7 +94,6 @@ interface nsIWinMetroUtils : nsISupports
    * Unpins a tile from the Windows 8 start screen.
    * 
    * @param aTileID An existing ID which was previously pinned
-   *                ID must only contain valid filesystem characters
    */
   void unpinTileAsync(in AString aTileID);
 
@@ -79,7 +101,6 @@ interface nsIWinMetroUtils : nsISupports
    * Determines if a tile is pinned to the Windows 8 start screen.
    * 
    * @param aTileID An ID which may have been pinned with pinTileAsync
-   *                ID must only contain valid filesystem characters
    * @return true if the tile is pinned
    */
   bool isTilePinned(in AString aTileID);

@@ -27,15 +27,15 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_MacroAssemblerX86Common_h
-#define assembler_assembler_MacroAssemblerX86Common_h
+#ifndef MacroAssemblerX86Common_h
+#define MacroAssemblerX86Common_h
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE_ASSEMBLER
 
-#include "assembler/assembler/X86Assembler.h"
-#include "assembler/assembler/AbstractMacroAssembler.h"
+#include "X86Assembler.h"
+#include "AbstractMacroAssembler.h"
 
 #if WTF_COMPILER_MSVC
 #if WTF_CPU_X86_64
@@ -431,22 +431,22 @@ public:
 
     void load8SignExtend(BaseIndex address, RegisterID dest)
     {
-        m_assembler.movsbl_mr(address.offset, address.base, address.index, address.scale, dest);
+        m_assembler.movxbl_mr(address.offset, address.base, address.index, address.scale, dest);
     }
     
     void load8SignExtend(Address address, RegisterID dest)
     {
-        m_assembler.movsbl_mr(address.offset, address.base, dest);
+        m_assembler.movxbl_mr(address.offset, address.base, dest);
     }
 
     void load16SignExtend(BaseIndex address, RegisterID dest)
     {
-        m_assembler.movswl_mr(address.offset, address.base, address.index, address.scale, dest);
+        m_assembler.movxwl_mr(address.offset, address.base, address.index, address.scale, dest);
     }
     
     void load16SignExtend(Address address, RegisterID dest)
     {
-        m_assembler.movswl_mr(address.offset, address.base, dest);
+        m_assembler.movxwl_mr(address.offset, address.base, dest);
     }
 
     void load16(BaseIndex address, RegisterID dest)
@@ -1403,13 +1403,6 @@ private:
             s_sseCheckState = HasSSE;
         else
             s_sseCheckState = NoSSE;
-
-#ifdef DEBUG
-        if (s_sseCheckState >= HasSSE4_1 && s_SSE4Disabled)
-            s_sseCheckState = HasSSE3;
-        if (s_sseCheckState >= HasSSE3 && s_SSE3Disabled)
-            s_sseCheckState = HasSSE2;
-#endif
     }
 
 #if WTF_CPU_X86
@@ -1512,18 +1505,10 @@ private:
 
 #ifdef DEBUG
     static bool s_floatingPointDisabled;
-    static bool s_SSE3Disabled;
-    static bool s_SSE4Disabled;
 
   public:
     static void SetFloatingPointDisabled() {
         s_floatingPointDisabled = true;
-    }
-    static void SetSSE3Disabled() {
-        s_SSE3Disabled = true;
-    }
-    static void SetSSE4Disabled() {
-        s_SSE4Disabled = true;
     }
 #endif
 };
@@ -1532,4 +1517,4 @@ private:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_MacroAssemblerX86Common_h */
+#endif // MacroAssemblerX86Common_h

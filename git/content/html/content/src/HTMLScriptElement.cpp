@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsIDOMEventTarget.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsIDocument.h"
@@ -11,6 +12,7 @@
 #include "nsNetUtil.h"
 #include "nsContentUtils.h"
 #include "nsUnicharUtils.h"  // for nsCaseInsensitiveStringComparator()
+#include "jsapi.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIXPConnect.h"
@@ -19,7 +21,6 @@
 #include "nsIArray.h"
 #include "nsTArray.h"
 #include "nsDOMJSUtils.h"
-#include "nsISupportsImpl.h"
 #include "mozilla/dom/HTMLScriptElement.h"
 #include "mozilla/dom/HTMLScriptElementBinding.h"
 
@@ -29,7 +30,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-HTMLScriptElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLScriptElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return HTMLScriptElementBinding::Wrap(aCx, aScope, this);
 }
@@ -39,6 +40,7 @@ HTMLScriptElement::HTMLScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
   : nsGenericHTMLElement(aNodeInfo)
   , nsScriptElement(aFromParser)
 {
+  SetIsDOMBinding();
   AddMutationObserver(this);
 }
 
@@ -46,11 +48,21 @@ HTMLScriptElement::~HTMLScriptElement()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED4(HTMLScriptElement, nsGenericHTMLElement,
-                             nsIDOMHTMLScriptElement,
-                             nsIScriptLoaderObserver,
-                             nsIScriptElement,
-                             nsIMutationObserver)
+
+NS_IMPL_ADDREF_INHERITED(HTMLScriptElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLScriptElement, Element)
+
+// QueryInterface implementation for HTMLScriptElement
+NS_INTERFACE_TABLE_HEAD(HTMLScriptElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE4(HTMLScriptElement,
+                                   nsIDOMHTMLScriptElement,
+                                   nsIScriptLoaderObserver,
+                                   nsIScriptElement,
+                                   nsIMutationObserver)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLScriptElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
+
 
 nsresult
 HTMLScriptElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -225,11 +237,10 @@ HTMLScriptElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
                                             aNotify);
 }
 
-NS_IMETHODIMP
-HTMLScriptElement::GetInnerHTML(nsAString& aInnerHTML)
+void
+HTMLScriptElement::GetInnerHTML(nsAString& aInnerHTML, ErrorResult& aError)
 {
   nsContentUtils::GetNodeTextContent(this, false, aInnerHTML);
-  return NS_OK;
 }
 
 void

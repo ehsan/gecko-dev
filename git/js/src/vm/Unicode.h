@@ -4,10 +4,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_Unicode_h
-#define vm_Unicode_h
+#ifndef Unicode_h__
+#define Unicode_h__
+
+#include "mozilla/StandardInteger.h"
 
 #include "jspubtd.h"
+
+#ifdef DEBUG
+#include <stdio.h> /* For EOF */
+#endif
 
 extern const bool js_isidstart[];
 extern const bool js_isident[];
@@ -54,6 +60,8 @@ namespace unicode {
  *   if GetFlag(char) & (FLAG_IDENTIFIER_PART | FLAG_LETTER):
  *      return True
  *
+ * NO_DELTA
+ *   See comment in CharacterInfo
  */
 
 struct CharFlag {
@@ -61,6 +69,7 @@ struct CharFlag {
         SPACE  = 1 << 0,
         LETTER = 1 << 1,
         IDENTIFIER_PART = 1 << 2,
+        NO_DELTA = 1 << 3
     };
 };
 
@@ -78,6 +87,10 @@ class CharacterInfo {
      * unsigned overflow with identical mathematical behavior.
      * For upper case alpha, we would store 0 in upperCase and 32 in
      * lowerCase (65 + 32 = 97).
+     *
+     * If the delta between the chars wouldn't fit in a T, the flag
+     * FLAG_NO_DELTA is set, and you can just use upperCase and lowerCase
+     * without adding them the base char. See CharInfo.toUpperCase().
      *
      * We use deltas to reuse information for multiple characters. For
      * example the whole lower case latin alphabet fits into one entry,
@@ -193,6 +206,13 @@ ToUpperCase(jschar ch)
 {
     const CharacterInfo &info = CharInfo(ch);
 
+    /*
+     * The delta didn't fit into T, so we had to store the
+     * actual char code.
+     */
+    if (info.flags & CharFlag::NO_DELTA)
+        return info.upperCase;
+
     return uint16_t(ch) + info.upperCase;
 }
 
@@ -201,10 +221,13 @@ ToLowerCase(jschar ch)
 {
     const CharacterInfo &info = CharInfo(ch);
 
+    if (info.flags & CharFlag::NO_DELTA)
+        return info.lowerCase;
+
     return uint16_t(ch) + info.lowerCase;
 }
 
 } /* namespace unicode */
 } /* namespace js */
 
-#endif /* vm_Unicode_h */
+#endif /* Unicode_h__ */

@@ -8,10 +8,6 @@
 #ifndef mozilla_AppProcessChecker_h
 #define mozilla_AppProcessChecker_h
 
-#include <stdint.h>
-
-class nsIPrincipal;
-
 namespace mozilla {
 
 namespace dom {
@@ -39,10 +35,6 @@ AssertAppProcess(mozilla::dom::PBrowserParent* aActor,
                  AssertAppProcessType aType,
                  const char* aCapability);
 
-bool
-AssertAppStatus(mozilla::dom::PBrowserParent* aActor,
-                unsigned short aStatus);
-
 /**
  * Return true iff any of the PBrowsers loaded in this content process
  * has the specified capability.  If this returns false, the process
@@ -52,10 +44,6 @@ bool
 AssertAppProcess(mozilla::dom::PContentParent* aActor,
                  AssertAppProcessType aType,
                  const char* aCapability);
-
-bool
-AssertAppStatus(mozilla::dom::PContentParent* aActor,
-                unsigned short aStatus);
 
 bool
 AssertAppProcess(mozilla::hal_sandbox::PHalParent* aActor,
@@ -69,21 +57,6 @@ AssertAppProcess(mozilla::hal_sandbox::PHalParent* aActor,
 //   bool AppProcessHasCapability(PNeckoParent* aActor, AssertAppProcessType aType) {
 //     return AssertAppProcess(aActor->Manager(), aType);
 //   }
-
-bool
-AssertAppPrincipal(mozilla::dom::PContentParent* aParent,
-                   nsIPrincipal* aPrincipal);
-
-/**
- * Check if the specified principal is valid, and return the saved permission
- * value for permission `aPermission' on that principal.
- * See nsIPermissionManager.idl for possible return values.
- *
- * nsIPermissionManager::UNKNOWN_ACTION is retuned if the principal is invalid.
- */
-uint32_t
-CheckPermission(mozilla::dom::PContentParent* aParent,
-                nsIPrincipal* aPrincipal, const char* aPermission);
 
 /**
  * Inline function for asserting the process's permission.
@@ -119,13 +92,6 @@ AssertAppHasPermission(T* aActor,
   return AssertAppProcess(aActor,
                           ASSERT_APP_HAS_PERMISSION,
                           aPermission);
-}
-
-template<typename T>
-inline bool
-AssertAppHasStatus(T* aActor,
-                   unsigned short aStatus) {
-  return AssertAppStatus(aActor, aStatus);
 }
 
 } // namespace mozilla

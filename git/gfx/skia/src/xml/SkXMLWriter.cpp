@@ -331,3 +331,4 @@ void SkXMLStreamWriter::UnitTest()
 }
 
 #endif
+

@@ -26,8 +26,8 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 #endif
 
-Cu.import("resource://gre/modules/Promise.jsm");
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/utils.js");
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -69,12 +69,12 @@ const OLDEST_ALLOWED_YEAR = 2012;
  *
  * @param policy
  *        (DataReportingPolicy) The policy instance this request came from.
- * @param deferred
+ * @param promise
  *        (deferred) The promise that will be fulfilled when display occurs.
  */
-function NotifyPolicyRequest(policy, deferred) {
+function NotifyPolicyRequest(policy, promise) {
   this.policy = policy;
-  this.deferred = deferred;
+  this.promise = promise;
 }
 NotifyPolicyRequest.prototype = {
   /**
@@ -84,8 +84,7 @@ NotifyPolicyRequest.prototype = {
    * acceptance of the data policy.
    */
   onUserNotifyComplete: function onUserNotified() {
-    this.deferred.resolve();
-    return this.deferred.promise;
+    this.promise.resolve();
   },
 
   /**
@@ -95,7 +94,7 @@ NotifyPolicyRequest.prototype = {
    *        (Error) Explains what went wrong.
    */
   onUserNotifyFailed: function onUserNotifyFailed(error) {
-    this.deferred.reject(error);
+    this.promise.reject(error);
   },
 
   /**
@@ -134,7 +133,7 @@ Object.freeze(NotifyPolicyRequest.prototype);
  * Receivers of instances of this type should not attempt to do anything with
  * the instance except call one of the on* methods.
  */
-this.DataSubmissionRequest = function (promise, expiresDate, isDelete) {
+function DataSubmissionRequest(promise, expiresDate, isDelete) {
   this.promise = promise;
   this.expiresDate = expiresDate;
   this.isDelete = isDelete;
@@ -143,7 +142,7 @@ this.DataSubmissionRequest = function (promise, expiresDate, isDelete) {
   this.reason = null;
 }
 
-this.DataSubmissionRequest.prototype = Object.freeze({
+DataSubmissionRequest.prototype = {
   NO_DATA_AVAILABLE: "no-data-available",
   SUBMISSION_SUCCESS: "success",
   SUBMISSION_FAILURE_SOFT: "failure-soft",
@@ -159,7 +158,6 @@ this.DataSubmissionRequest.prototype = Object.freeze({
   onNoDataAvailable: function onNoDataAvailable() {
     this.state = this.NO_DATA_AVAILABLE;
     this.promise.resolve(this);
-    return this.promise.promise;
   },
 
   /**
@@ -175,7 +173,6 @@ this.DataSubmissionRequest.prototype = Object.freeze({
     this.state = this.SUBMISSION_SUCCESS;
     this.submissionDate = date;
     this.promise.resolve(this);
-    return this.promise.promise;
   },
 
   /**
@@ -191,7 +188,6 @@ this.DataSubmissionRequest.prototype = Object.freeze({
     this.state = this.SUBMISSION_FAILURE_SOFT;
     this.reason = reason;
     this.promise.resolve(this);
-    return this.promise.promise;
   },
 
   /**
@@ -208,9 +204,10 @@ this.DataSubmissionRequest.prototype = Object.freeze({
     this.state = this.SUBMISSION_FAILURE_HARD;
     this.reason = reason;
     this.promise.resolve(this);
-    return this.promise.promise;
   },
-});
+};
+
+Object.freeze(DataSubmissionRequest.prototype);
 
 /**
  * Manages scheduling of Firefox Health Report data submission.
@@ -263,8 +260,8 @@ this.DataSubmissionRequest.prototype = Object.freeze({
  *        events.
  */
 this.DataReportingPolicy = function (prefs, healthReportPrefs, listener) {
-  this._log = Log.repository.getLogger("Services.DataReporting.Policy");
-  this._log.level = Log.Level["Debug"];
+  this._log = Log4Moz.repository.getLogger("Services.DataReporting.Policy");
+  this._log.level = Log4Moz.Level["Debug"];
 
   for (let handler of this.REQUIRED_LISTENERS) {
     if (!listener[handler]) {
@@ -315,7 +312,7 @@ this.DataReportingPolicy = function (prefs, healthReportPrefs, listener) {
   this._inProgressSubmissionRequest = null;
 };
 
-this.DataReportingPolicy.prototype = Object.freeze({
+DataReportingPolicy.prototype = Object.freeze({
   /**
    * How long after first run we should notify about data submission.
    */
@@ -646,13 +643,6 @@ this.DataReportingPolicy.prototype = Object.freeze({
   // to ensure appropriate side-effects are performed.
   set healthReportUploadEnabled(value) {
     this._healthReportPrefs.set("uploadEnabled", !!value);
-  },
-
-  /**
-   * Whether the FHR upload enabled setting is locked and can't be changed.
-   */
-  get healthReportUploadLocked() {
-    return this._healthReportPrefs.locked("uploadEnabled");
   },
 
   /**

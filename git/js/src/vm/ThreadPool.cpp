@@ -4,12 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/ThreadPool.h"
-
+#include "jscntxt.h"
 #include "jslock.h"
 
 #include "vm/Monitor.h"
-#include "vm/Runtime.h"
+#include "vm/ThreadPool.h"
+
+#ifdef JS_THREADSAFE
+#  include "prthread.h"
+#endif
 
 using namespace js;
 
@@ -21,7 +24,7 @@ using namespace js;
 // Once the worker's state is set to |TERMINATING|, the worker will
 // exit as soon as its queue is empty.
 
-static const size_t WORKER_THREAD_STACK_SIZE = 1*1024*1024;
+const size_t WORKER_THREAD_STACK_SIZE = 1*1024*1024;
 
 class js::ThreadPoolWorker : public Monitor
 {
@@ -183,19 +186,38 @@ ThreadPoolWorker::terminate()
 // them down when requested.
 
 ThreadPool::ThreadPool(JSRuntime *rt)
-  : runtime_(rt)
+  : runtime_(rt),
+    numWorkers_(0), // updated during init()
+    nextId_(0)
 {
+}
+
+bool
+ThreadPool::init()
+{
+    // Compute the number of worker threads (which may legally
+    // be zero, as described in ThreadPool.h).  This is not
+    // done in the constructor because runtime_->useHelperThreads()
+    // doesn't return the right thing then.
+
+#ifdef JS_THREADSAFE
+    if (runtime_->useHelperThreads())
+        numWorkers_ = GetCPUCount() - 1;
+    else
+        numWorkers_ = 0;
+
+# ifdef DEBUG
+    if (char *jsthreads = getenv("JS_THREADPOOL_SIZE"))
+        numWorkers_ = strtol(jsthreads, NULL, 10);
+# endif
+#endif
+
+    return true;
 }
 
 ThreadPool::~ThreadPool()
 {
     terminateWorkers();
-}
-
-size_t
-ThreadPool::numWorkers() const
-{
-    return runtime_->helperThreadCount();
 }
 
 bool
@@ -216,7 +238,7 @@ ThreadPool::lazyStartWorkers(JSContext *cx)
     }
 
     // Allocate workers array and then start the worker threads.
-    // Note that numWorkers() is the number of *desired* workers,
+    // Note that numWorkers_ is the number of *desired* workers,
     // but workers_.length() is the number of *successfully
     // initialized* workers.
     for (size_t workerId = 0; workerId < numWorkers(); workerId++) {
@@ -262,9 +284,24 @@ ThreadPool::terminateWorkers()
 }
 
 bool
+ThreadPool::submitOne(JSContext *cx, TaskExecutor *executor)
+{
+    JS_ASSERT(numWorkers() > 0);
+
+    runtime_->assertValidThread();
+
+    if (!lazyStartWorkers(cx))
+        return false;
+
+    // Find next worker in round-robin fashion.
+    size_t id = JS_ATOMIC_INCREMENT(&nextId_) % numWorkers();
+    return workers_[id]->submit(executor);
+}
+
+bool
 ThreadPool::submitAll(JSContext *cx, TaskExecutor *executor)
 {
-    JS_ASSERT(CurrentThreadCanAccessRuntime(runtime_));
+    runtime_->assertValidThread();
 
     if (!lazyStartWorkers(cx))
         return false;

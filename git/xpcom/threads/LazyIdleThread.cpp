@@ -8,7 +8,6 @@
 
 #include "nsIObserverService.h"
 
-#include "GeckoProfiler.h"
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
@@ -169,10 +168,7 @@ LazyIdleThread::EnsureThread()
 void
 LazyIdleThread::InitThread()
 {
-  char aLocal;
-  profiler_register_thread(mName.get(), &aLocal);
-
-  PR_SetCurrentThreadName(mName.get());
+  PR_SetCurrentThreadName(mName.BeginReading());
 
   // Happens on mThread but mThread may not be set yet...
 
@@ -194,14 +190,10 @@ LazyIdleThread::CleanupThread()
     NS_WARNING("Failed to set thread observer!");
   }
 
-  {
-    MutexAutoLock lock(mMutex);
+  MutexAutoLock lock(mMutex);
 
-    MOZ_ASSERT(!mThreadIsShuttingDown, "Shouldn't be true ever!");
-    mThreadIsShuttingDown = true;
-  }
-
-  profiler_unregister_thread();
+  MOZ_ASSERT(!mThreadIsShuttingDown, "Shouldn't be true ever!");
+  mThreadIsShuttingDown = true;
 }
 
 void
@@ -334,12 +326,12 @@ LazyIdleThread::SelfDestruct()
   delete this;
 }
 
-NS_IMPL_ADDREF(LazyIdleThread)
+NS_IMPL_THREADSAFE_ADDREF(LazyIdleThread)
 
 NS_IMETHODIMP_(nsrefcnt)
 LazyIdleThread::Release()
 {
-  nsrefcnt count = --mRefCnt;
+  nsrefcnt count = NS_AtomicDecrementRefcnt(mRefCnt);
   NS_LOG_RELEASE(this, count, "LazyIdleThread");
 
   if (!count) {
@@ -363,11 +355,11 @@ LazyIdleThread::Release()
   return count;
 }
 
-NS_IMPL_QUERY_INTERFACE5(LazyIdleThread, nsIThread,
-                         nsIEventTarget,
-                         nsITimerCallback,
-                         nsIThreadObserver,
-                         nsIObserver)
+NS_IMPL_THREADSAFE_QUERY_INTERFACE5(LazyIdleThread, nsIThread,
+                                                    nsIEventTarget,
+                                                    nsITimerCallback,
+                                                    nsIThreadObserver,
+                                                    nsIObserver)
 
 NS_IMETHODIMP
 LazyIdleThread::Dispatch(nsIRunnable* aEvent,

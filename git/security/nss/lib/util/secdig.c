@@ -1,6 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* $Id$ */
 #include "secdig.h"
 
 #include "secoid.h"
@@ -23,7 +24,7 @@
  */
 
 SECItem *
-SGN_EncodeDigestInfo(PLArenaPool *poolp, SECItem *dest, SGNDigestInfo *diginfo)
+SGN_EncodeDigestInfo(PRArenaPool *poolp, SECItem *dest, SGNDigestInfo *diginfo)
 {
     return SEC_ASN1EncodeItem (poolp, dest, diginfo, sgn_DigestInfoTemplate);
 }
@@ -33,7 +34,7 @@ SGN_CreateDigestInfo(SECOidTag algorithm, unsigned char *sig, unsigned len)
 {
     SGNDigestInfo *di;
     SECStatus rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     SECItem *null_param;
     SECItem dummy_value;
 
@@ -101,7 +102,7 @@ SGN_CreateDigestInfo(SECOidTag algorithm, unsigned char *sig, unsigned len)
 SGNDigestInfo *
 SGN_DecodeDigestInfo(SECItem *didata)
 {
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     SGNDigestInfo *di;
     SECStatus rv = SECFailure;
     SECItem      diCopy   = {siBuffer, NULL, 0};
@@ -141,7 +142,7 @@ SGN_DestroyDigestInfo(SGNDigestInfo *di)
 }
 
 SECStatus 
-SGN_CopyDigestInfo(PLArenaPool *poolp, SGNDigestInfo *a, SGNDigestInfo *b)
+SGN_CopyDigestInfo(PRArenaPool *poolp, SGNDigestInfo *a, SGNDigestInfo *b)
 {
     SECStatus rv;
     void *mark;

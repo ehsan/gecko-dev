@@ -11,8 +11,8 @@
 #ifndef WEBRTC_MODULES_AUDIO_PROCESSING_NOISE_SUPPRESSION_IMPL_H_
 #define WEBRTC_MODULES_AUDIO_PROCESSING_NOISE_SUPPRESSION_IMPL_H_
 
-#include "webrtc/modules/audio_processing/include/audio_processing.h"
-#include "webrtc/modules/audio_processing/processing_component.h"
+#include "audio_processing.h"
+#include "processing_component.h"
 
 namespace webrtc {
 class AudioProcessingImpl;
@@ -27,22 +27,22 @@ class NoiseSuppressionImpl : public NoiseSuppression,
   int ProcessCaptureAudio(AudioBuffer* audio);
 
   // NoiseSuppression implementation.
-  virtual bool is_enabled() const OVERRIDE;
-  virtual float speech_probability() const OVERRIDE;
+  virtual bool is_enabled() const;
+  float speech_probability() const;
 
  private:
   // NoiseSuppression implementation.
-  virtual int Enable(bool enable) OVERRIDE;
-  virtual int set_level(Level level) OVERRIDE;
-  virtual Level level() const OVERRIDE;
+  virtual int Enable(bool enable);
+  virtual int set_level(Level level);
+  virtual Level level() const;
 
   // ProcessingComponent implementation.
-  virtual void* CreateHandle() const OVERRIDE;
-  virtual int InitializeHandle(void* handle) const OVERRIDE;
-  virtual int ConfigureHandle(void* handle) const OVERRIDE;
-  virtual int DestroyHandle(void* handle) const OVERRIDE;
-  virtual int num_handles_required() const OVERRIDE;
-  virtual int GetHandleError(void* handle) const OVERRIDE;
+  virtual void* CreateHandle() const;
+  virtual int InitializeHandle(void* handle) const;
+  virtual int ConfigureHandle(void* handle) const;
+  virtual int DestroyHandle(void* handle) const;
+  virtual int num_handles_required() const;
+  virtual int GetHandleError(void* handle) const;
 
   const AudioProcessingImpl* apm_;
   Level level_;

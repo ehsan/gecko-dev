@@ -10,21 +10,17 @@ this.EXPORTED_SYMBOLS = [
   "makeFakeAppDir",
   "createFakeCrash",
   "InspectedHealthReporter",
-  "getHealthReporter",
 ];
 
 
 const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
 
-Cu.import("resource://gre/modules/Preferences.jsm");
-Cu.import("resource://gre/modules/Promise.jsm");
+Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/services-common/utils.js");
-Cu.import("resource://gre/modules/services/datareporting/policy.jsm");
-Cu.import("resource://gre/modules/services/healthreport/healthreporter.jsm");
-Cu.import("resource://gre/modules/services/healthreport/providers.jsm");
+Cu.import("resource://gre/modules/HealthReport.jsm");
 
 
 let APP_INFO = {
@@ -220,8 +216,8 @@ this.createFakeCrash = function (submitted=false, date=new Date()) {
  *
  * The purpose of this type is to aid testing of startup and shutdown.
  */
-this.InspectedHealthReporter = function (branch, policy, recorder, stateLeaf) {
-  HealthReporter.call(this, branch, policy, recorder, stateLeaf);
+this.InspectedHealthReporter = function (branch, policy) {
+  HealthReporter.call(this, branch, policy);
 
   this.onStorageCreated = null;
   this.onProviderManagerInitialized = null;
@@ -271,33 +267,3 @@ InspectedHealthReporter.prototype = {
   },
 };
 
-const DUMMY_URI="http://localhost:62013/";
-
-this.getHealthReporter = function (name, uri=DUMMY_URI, inspected=false) {
-  let branch = "healthreport.testing." + name + ".";
-
-  let prefs = new Preferences(branch + "healthreport.");
-  prefs.set("documentServerURI", uri);
-  prefs.set("dbName", name);
-
-  let reporter;
-
-  let policyPrefs = new Preferences(branch + "policy.");
-  let policy = new DataReportingPolicy(policyPrefs, prefs, {
-    onRequestDataUpload: function (request) {
-      reporter.requestDataUpload(request);
-    },
-
-    onNotifyDataPolicy: function (request) { },
-
-    onRequestRemoteDelete: function (request) {
-      reporter.deleteRemoteData(request);
-    },
-  });
-
-  let type = inspected ? InspectedHealthReporter : HealthReporter;
-  reporter = new type(branch + "healthreport.", policy, null,
-                      "state-" + name + ".json");
-
-  return reporter;
-};

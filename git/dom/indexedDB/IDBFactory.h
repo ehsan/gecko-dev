@@ -7,30 +7,27 @@
 #ifndef mozilla_dom_indexeddb_idbfactory_h__
 #define mozilla_dom_indexeddb_idbfactory_h__
 
-#include "mozilla/dom/BindingDeclarations.h" // for Optional
-#include "mozilla/dom/StorageTypeBinding.h"
-#include "mozilla/dom/quota/PersistenceType.h"
-#include "mozilla/dom/quota/StoragePrivilege.h"
-#include "nsCOMPtr.h"
+#include "mozilla/dom/indexedDB/IndexedDatabase.h"
+
+#include "mozIStorageConnection.h"
+
+#include "mozilla/dom/BindingUtils.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"
 
-class mozIStorageConnection;
 class nsIAtom;
 class nsIFile;
 class nsIFileURL;
-class nsIPrincipal;
+class nsIIDBOpenDBRequest;
 class nsPIDOMWindow;
-template<typename> class nsRefPtr;
 
 namespace mozilla {
-class ErrorResult;
-
 namespace dom {
 class ContentParent;
-class IDBOpenDBOptions;
+}
+}
 
-namespace indexedDB {
+BEGIN_INDEXEDDB_NAMESPACE
 
 struct DatabaseInfo;
 class IDBDatabase;
@@ -44,9 +41,7 @@ class IDBFactory MOZ_FINAL : public nsISupports,
                              public nsWrapperCache
 {
   typedef mozilla::dom::ContentParent ContentParent;
-  typedef mozilla::dom::quota::PersistenceType PersistenceType;
   typedef nsTArray<nsRefPtr<ObjectStoreInfo> > ObjectStoreInfoArray;
-  typedef mozilla::dom::quota::StoragePrivilege StoragePrivilege;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -54,7 +49,6 @@ public:
 
   // Called when using IndexedDB from a window in a different process.
   static nsresult Create(nsPIDOMWindow* aWindow,
-                         const nsACString& aGroup,
                          const nsACString& aASCIIOrigin,
                          ContentParent* aContentParent,
                          IDBFactory** aFactory);
@@ -64,14 +58,13 @@ public:
                          ContentParent* aContentParent,
                          IDBFactory** aFactory)
   {
-    return Create(aWindow, EmptyCString(), EmptyCString(), aContentParent,
-                  aFactory);
+    return Create(aWindow, EmptyCString(), aContentParent, aFactory);
   }
 
   // Called when using IndexedDB from a JS component or a JSM in the current
   // process.
   static nsresult Create(JSContext* aCx,
-                         JS::Handle<JSObject*> aOwningObject,
+                         JSObject* aOwningObject,
                          ContentParent* aContentParent,
                          IDBFactory** aFactory);
 
@@ -81,15 +74,10 @@ public:
                          IDBFactory** aFactory);
 
   static already_AddRefed<nsIFileURL>
-  GetDatabaseFileURL(nsIFile* aDatabaseFile,
-                     PersistenceType aPersistenceType,
-                     const nsACString& aGroup,
-                     const nsACString& aOrigin);
+  GetDatabaseFileURL(nsIFile* aDatabaseFile, const nsACString& aOrigin);
 
   static already_AddRefed<mozIStorageConnection>
   GetConnection(const nsAString& aDatabaseFilePath,
-                PersistenceType aPersistenceType,
-                const nsACString& aGroup,
                 const nsACString& aOrigin);
 
   static nsresult
@@ -109,22 +97,20 @@ public:
   nsresult
   OpenInternal(const nsAString& aName,
                int64_t aVersion,
-               PersistenceType aPersistenceType,
-               const nsACString& aGroup,
                const nsACString& aASCIIOrigin,
-               StoragePrivilege aStoragePrivilege,
                bool aDeleting,
+               JSContext* aCallingCx,
                IDBOpenDBRequest** _retval);
 
   nsresult
   OpenInternal(const nsAString& aName,
                int64_t aVersion,
-               PersistenceType aPersistenceType,
                bool aDeleting,
+               JSContext* aCallingCx,
                IDBOpenDBRequest** _retval)
   {
-    return OpenInternal(aName, aVersion, aPersistenceType, mGroup, mASCIIOrigin,
-                        mPrivilege, aDeleting, _retval);
+    return OpenInternal(aName, aVersion, mASCIIOrigin, aDeleting, aCallingCx,
+                        _retval);
   }
 
   void
@@ -147,73 +133,56 @@ public:
     return mASCIIOrigin;
   }
 
-  bool
-  FromIPC()
-  {
-    return !!mContentParent;
-  }
-
-  // nsWrapperCache
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-
-  // WebIDL
-  nsPIDOMWindow*
-  GetParentObject() const
+  // WrapperCache
+  nsPIDOMWindow* GetParentObject() const
   {
     return mWindow;
   }
 
-  already_AddRefed<IDBOpenDBRequest>
-  Open(const nsAString& aName, uint64_t aVersion, ErrorResult& aRv)
+  virtual JSObject*
+  WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
+
+  // WebIDL
+  already_AddRefed<nsIIDBOpenDBRequest>
+  Open(JSContext* aCx, const NonNull<nsAString>& aName,
+       const Optional<uint64_t>& aVersion, ErrorResult& aRv)
   {
-    return Open(nullptr, aName, Optional<uint64_t>(aVersion),
-                Optional<mozilla::dom::StorageType>(), false, aRv);
+    return Open(aCx, nullptr, aName, aVersion, false, aRv);
   }
 
-  already_AddRefed<IDBOpenDBRequest>
-  Open(const nsAString& aName, const IDBOpenDBOptions& aOptions,
-       ErrorResult& aRv);
-
-  already_AddRefed<IDBOpenDBRequest>
-  DeleteDatabase(const nsAString& aName, const IDBOpenDBOptions& aOptions,
-                 ErrorResult& aRv);
+  already_AddRefed<nsIIDBOpenDBRequest>
+  DeleteDatabase(JSContext* aCx, const NonNull<nsAString>& aName,
+                 ErrorResult& aRv)
+  {
+    return Open(aCx, nullptr, aName, Optional<uint64_t>(), true, aRv);
+  }
 
   int16_t
-  Cmp(JSContext* aCx, JS::Handle<JS::Value> aFirst,
-      JS::Handle<JS::Value> aSecond, ErrorResult& aRv);
+  Cmp(JSContext* aCx, JS::Value aFirst, JS::Value aSecond, ErrorResult& aRv);
 
-  already_AddRefed<IDBOpenDBRequest>
-  OpenForPrincipal(nsIPrincipal* aPrincipal, const nsAString& aName,
-                   uint64_t aVersion, ErrorResult& aRv);
+  already_AddRefed<nsIIDBOpenDBRequest>
+  OpenForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,
+                   const NonNull<nsAString>& aName,
+                   const Optional<uint64_t>& aVersion, ErrorResult& aRv);
 
-  already_AddRefed<IDBOpenDBRequest>
-  OpenForPrincipal(nsIPrincipal* aPrincipal, const nsAString& aName,
-                   const IDBOpenDBOptions& aOptions, ErrorResult& aRv);
-
-  already_AddRefed<IDBOpenDBRequest>
-  DeleteForPrincipal(nsIPrincipal* aPrincipal, const nsAString& aName,
-                     const IDBOpenDBOptions& aOptions, ErrorResult& aRv);
+  already_AddRefed<nsIIDBOpenDBRequest>
+  DeleteForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,
+                     const NonNull<nsAString>& aName, ErrorResult& aRv);
 
 private:
   IDBFactory();
   ~IDBFactory();
 
-  already_AddRefed<IDBOpenDBRequest>
-  Open(nsIPrincipal* aPrincipal, const nsAString& aName,
-       const Optional<uint64_t>& aVersion,
-       const Optional<mozilla::dom::StorageType>& aStorageType, bool aDelete,
-       ErrorResult& aRv);
+  already_AddRefed<nsIIDBOpenDBRequest>
+  Open(JSContext* aCx, nsIPrincipal* aPrincipal, const nsAString& aName,
+       const Optional<uint64_t>& aVersion, bool aDelete, ErrorResult& aRv);
 
-  nsCString mGroup;
   nsCString mASCIIOrigin;
-  StoragePrivilege mPrivilege;
-  PersistenceType mDefaultPersistenceType;
 
   // If this factory lives on a window then mWindow must be non-null. Otherwise
   // mOwningObject must be non-null.
   nsCOMPtr<nsPIDOMWindow> mWindow;
-  JS::Heap<JSObject*> mOwningObject;
+  JSObject* mOwningObject;
 
   IndexedDBChild* mActorChild;
   IndexedDBParent* mActorParent;
@@ -223,8 +192,6 @@ private:
   bool mRootedOwningObject;
 };
 
-} // namespace indexedDB
-} // namespace dom
-} // namespace mozilla
+END_INDEXEDDB_NAMESPACE
 
 #endif // mozilla_dom_indexeddb_idbfactory_h__

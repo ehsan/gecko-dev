@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsAHtml5TreeBuilderState_h
-#define nsAHtml5TreeBuilderState_h
+#ifndef nsAHtml5TreeBuilderState_h___
+#define nsAHtml5TreeBuilderState_h___
 
 /**
  * Interface for exposing the internal state of the HTML5 tree builder.
@@ -16,14 +16,10 @@ class nsAHtml5TreeBuilderState {
     virtual jArray<nsHtml5StackNode*,int32_t> getStack() = 0;
     
     virtual jArray<nsHtml5StackNode*,int32_t> getListOfActiveFormattingElements() = 0;
-
-    virtual jArray<int32_t,int32_t> getTemplateModeStack() = 0;
-
+    
     virtual int32_t getStackLength() = 0;
 
     virtual int32_t getListOfActiveFormattingElementsLength() = 0;
-
-    virtual int32_t getTemplateModeStackLength() = 0;
 
     virtual nsIContent** getFormPointer() = 0;
     
@@ -45,4 +41,4 @@ class nsAHtml5TreeBuilderState {
     }
 };
 
-#endif /* nsAHtml5TreeBuilderState_h */
+#endif /* nsAHtml5TreeBuilderState_h___ */

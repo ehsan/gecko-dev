@@ -2,11 +2,19 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
-<!-- ## Sync Flyout Panel ## -->
-<!-- see sync.dtd -->
+<!-- ## About Flyout Panel ## -->
+<!ENTITY aboutHeader.title                                       "About">
+<!ENTITY aboutHeader.product.label                               "&brandShortName;">
+<!ENTITY aboutHeader.company.label                               "By &vendorShortName;">
+<!ENTITY aboutHeader.policy.label                                "Read the &brandShortName; privacy policy online">
 
 <!-- ## Options Flyout Panel ## -->
 <!ENTITY optionsHeader.title                                     "Options">
+<!ENTITY optionsHeader.startup.title                             "Startup">
+<!ENTITY optionsHeader.homepage.title                            "When &brandShortName; starts, show">
+<!ENTITY optionsHeader.homepage.startPage.button                 "start page">
+<!ENTITY optionsHeader.homepage.sessionRestore.button            "tabs from last time">
+<!ENTITY optionsHeader.tabs.title                                "Always Show Tabs">
 <!ENTITY optionsHeader.char.title                                "Character Encoding">
 <!ENTITY optionsHeader.char.autodetect.label                     "Auto-detect">
 <!ENTITY optionsHeader.char.options.label                        "Show encoding options on the App Bar">
@@ -28,12 +36,11 @@
 
 <!ENTITY optionsHeader.privacy.passwords.label                   "Remember Passwords">
 <!ENTITY doNotTrack.title                                        "Do Not Track">
-<!ENTITY doNotTrack.options.doNotTrack                           "Tell websites that I do not want to be tracked">
-<!ENTITY doNotTrack.options.doTrack                              "Tell websites that I want to be tracked">
-<!ENTITY doNotTrack.options.default                              "Do not tell websites anything about my tracking preferences">
-<!ENTITY doNotTrack.learnMoreLink                                "Learn more&#x2026;">
+<!ENTITY doNotTrack.desc                                         "Tell sites:">
+<!ENTITY doNotTrack.options.trackingNotOkay                      "I do not want to be tracked">
+<!ENTITY doNotTrack.options.noPreference                         "Nothing about my tracking preferences">
+<!ENTITY doNotTrack.options.trackingOkay                         "I want to be tracked">
 
-<!ENTITY optionsHeader.reporting.title                           "Crash Reporter">
-<!ENTITY optionsHeader.reporting.crashes.label                   "&brandShortName; submits crash reports to help Mozilla make your browser more stable and secure">
-<!ENTITY optionsHeader.telemetry.title                            "Telemetry">
-<!ENTITY optionsHeader.telemetry.label                            "Shares usage statistics about &brandShortName; with Mozilla to help us make your browser better">
+
+  <!-- ## Sync Flyout Panel ## -->
+<!-- see sync.dtd -->

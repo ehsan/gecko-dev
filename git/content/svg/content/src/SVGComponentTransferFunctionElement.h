@@ -39,26 +39,26 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   virtual bool AttributeAffectsRendering(
-          int32_t aNameSpaceID, nsIAtom* aAttribute) const MOZ_OVERRIDE;
+          int32_t aNameSpaceID, nsIAtom* aAttribute) const;
 
   virtual int32_t GetChannel() = 0;
   bool GenerateLookupTable(uint8_t* aTable);
 
   // WebIDL
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE = 0;
-  already_AddRefed<SVGAnimatedEnumeration> Type();
+  virtual JSObject*
+  WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE = 0;
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> Type();
   already_AddRefed<DOMSVGAnimatedNumberList> TableValues();
-  already_AddRefed<SVGAnimatedNumber> Slope();
-  already_AddRefed<SVGAnimatedNumber> Intercept();
-  already_AddRefed<SVGAnimatedNumber> Amplitude();
-  already_AddRefed<SVGAnimatedNumber> Exponent();
-  already_AddRefed<SVGAnimatedNumber> Offset();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> Slope();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> Intercept();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> Amplitude();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> Exponent();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> Offset();
 
 protected:
-  virtual NumberAttributesInfo GetNumberInfo() MOZ_OVERRIDE;
-  virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;
-  virtual NumberListAttributesInfo GetNumberListInfo() MOZ_OVERRIDE;
+  virtual NumberAttributesInfo GetNumberInfo();
+  virtual EnumAttributesInfo GetEnumInfo();
+  virtual NumberListAttributesInfo GetNumberListInfo();
 
   enum { TABLEVALUES };
   SVGAnimatedNumberList mNumberListAttributes[1];
@@ -92,12 +92,12 @@ protected:
     : SVGComponentTransferFunctionElement(aNodeInfo) {}
 
 public:
-  virtual int32_t GetChannel() MOZ_OVERRIDE { return 0; }
+  virtual int32_t GetChannel() { return 0; }
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject*
+  WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 };
 
 } // namespace dom
@@ -118,12 +118,12 @@ protected:
     : SVGComponentTransferFunctionElement(aNodeInfo) {}
 
 public:
-  virtual int32_t GetChannel() MOZ_OVERRIDE { return 1; }
+  virtual int32_t GetChannel() { return 1; }
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject*
+  WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 };
 
 } // namespace dom
@@ -144,12 +144,12 @@ protected:
     : SVGComponentTransferFunctionElement(aNodeInfo) {}
 
 public:
-  virtual int32_t GetChannel() MOZ_OVERRIDE { return 2; }
+  virtual int32_t GetChannel() { return 2; }
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject*
+  WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 };
 
 } // namespace dom
@@ -170,12 +170,12 @@ protected:
     : SVGComponentTransferFunctionElement(aNodeInfo) {}
 
 public:
-  virtual int32_t GetChannel() MOZ_OVERRIDE { return 3; }
+  virtual int32_t GetChannel() { return 3; }
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject*
+  WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 };
 
 } // namespace dom

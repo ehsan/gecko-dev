@@ -42,7 +42,7 @@ interface Node : EventTarget {
   [Pure]
   readonly attribute Element? parentElement;
   boolean hasChildNodes();
-  [SameObject]
+  [Constant]
   readonly attribute NodeList childNodes;
   [Pure]
   readonly attribute Node? firstChild;
@@ -68,9 +68,7 @@ interface Node : EventTarget {
   void normalize();
 
   [Throws]
-  Node cloneNode();
-  [Throws]
-  Node cloneNode(boolean deep);
+  Node cloneNode(optional boolean deep = true);
   boolean isEqualNode(Node? node);
 
   const unsigned short DOCUMENT_POSITION_DISCONNECTED = 0x01;
@@ -98,14 +96,12 @@ interface Node : EventTarget {
   readonly attribute DOMString? localName;
 
   boolean hasAttributes();
-  [Throws, Func="IsChromeOrXBL"]
+  [Throws, Func="nsINode::ShouldExposeUserData"]
   any setUserData(DOMString key, any data, UserDataHandler? handler);
-  [Throws, Func="IsChromeOrXBL"]
+  [Throws, Func="nsINode::ShouldExposeUserData"]
   any getUserData(DOMString key);
   [ChromeOnly]
   readonly attribute Principal nodePrincipal;
   [ChromeOnly]
   readonly attribute URI? baseURIObject;
-  [ChromeOnly]
-  sequence<MutationObserver> getBoundMutationObservers();
 };

@@ -25,29 +25,28 @@ protected:
     : SVGFEComponentTransferElementBase(aNodeInfo)
   {
   }
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
 public:
   virtual nsresult Filter(nsSVGFilterInstance* aInstance,
                           const nsTArray<const Image*>& aSources,
                           const Image* aTarget,
-                          const nsIntRect& aDataRect) MOZ_OVERRIDE;
+                          const nsIntRect& aDataRect);
   virtual bool AttributeAffectsRendering(
-          int32_t aNameSpaceID, nsIAtom* aAttribute) const MOZ_OVERRIDE;
-  virtual nsSVGString& GetResultImageName() MOZ_OVERRIDE { return mStringAttributes[RESULT]; }
-  virtual void GetSourceImageNames(nsTArray<nsSVGStringInfo>& aSources) MOZ_OVERRIDE;
+          int32_t aNameSpaceID, nsIAtom* aAttribute) const;
+  virtual nsSVGString& GetResultImageName() { return mStringAttributes[RESULT]; }
+  virtual void GetSourceImageNames(nsTArray<nsSVGStringInfo>& aSources);
 
   // nsIContent
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // WebIDL
-  already_AddRefed<SVGAnimatedString> In1();
+  already_AddRefed<nsIDOMSVGAnimatedString> In1();
 
 protected:
-  virtual bool OperatesOnPremultipledAlpha(int32_t) MOZ_OVERRIDE { return false; }
+  virtual bool OperatesOnPremultipledAlpha(int32_t) { return false; }
 
-  virtual StringAttributesInfo GetStringInfo() MOZ_OVERRIDE;
+  virtual StringAttributesInfo GetStringInfo();
 
   enum { RESULT, IN1 };
   nsSVGString mStringAttributes[2];

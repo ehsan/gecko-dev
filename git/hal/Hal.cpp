@@ -11,9 +11,7 @@
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
 #include "mozilla/Observer.h"
-#include "nsIDocument.h"
 #include "nsIDOMDocument.h"
-#include "nsPIDOMWindow.h"
 #include "nsIDOMWindow.h"
 #include "mozilla/Services.h"
 #include "nsIWebNavigation.h"
@@ -91,15 +89,17 @@ AssertMainProcess()
 }
 
 bool
-WindowIsActive(nsIDOMWindow* aWindow)
+WindowIsActive(nsIDOMWindow *window)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWindow);
   NS_ENSURE_TRUE(window, false);
 
-  nsIDocument* document = window->GetDoc();
-  NS_ENSURE_TRUE(document, false);
+  nsCOMPtr<nsIDOMDocument> doc;
+  window->GetDocument(getter_AddRefs(doc));
+  NS_ENSURE_TRUE(doc, false);
 
-  return !document->Hidden();
+  bool hidden = true;
+  doc->GetHidden(&hidden);
+  return !hidden;
 }
 
 StaticAutoPtr<WindowIdentifier::IDArrayType> gLastIDToVibrate;
@@ -217,7 +217,7 @@ public:
   }
 
   void BroadcastInformation(const InfoType& aInfo) {
-    // It is possible for mObservers to be nullptr here on some platforms,
+    // It is possible for mObservers to be NULL here on some platforms,
     // because a call to BroadcastInformation gets queued up asynchronously
     // while RemoveObserver is running (and before the notifications are
     // disabled). The queued call can then get run after mObservers has
@@ -503,13 +503,6 @@ SetTimezone(const nsCString& aTimezoneSpec)
   PROXY_IF_SANDBOXED(SetTimezone(aTimezoneSpec));
 }
 
-int32_t
-GetTimezoneOffset()
-{
-  AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetTimezoneOffset(), 0);
-}
-
 nsCString
 GetTimezone()
 {
@@ -753,12 +746,12 @@ SwitchState GetCurrentSwitchState(SwitchDevice aDevice)
 
 typedef mozilla::ObserverList<SwitchEvent> SwitchObserverList;
 
-static SwitchObserverList *sSwitchObserverLists = nullptr;
+static SwitchObserverList *sSwitchObserverLists = NULL;
 
 static SwitchObserverList&
 GetSwitchObserverList(SwitchDevice aDevice) {
   MOZ_ASSERT(0 <= aDevice && aDevice < NUM_SWITCH_DEVICE); 
-  if (sSwitchObserverLists == nullptr) {
+  if (sSwitchObserverLists == NULL) {
     sSwitchObserverLists = new SwitchObserverList[NUM_SWITCH_DEVICE];
   }
   return sSwitchObserverLists[aDevice];
@@ -773,7 +766,7 @@ ReleaseObserversIfNeeded() {
 
   //The length of every list is 0, no observer in the list.
   delete [] sSwitchObserverLists;
-  sSwitchObserverLists = nullptr;
+  sSwitchObserverLists = NULL;
 }
 
 void
@@ -855,16 +848,9 @@ SetAlarm(int32_t aSeconds, int32_t aNanoseconds)
 }
 
 void
-SetProcessPriority(int aPid,
-                   ProcessPriority aPriority,
-                   ProcessCPUPriority aCPUPriority,
-                   uint32_t aBackgroundLRU)
+SetProcessPriority(int aPid, ProcessPriority aPriority)
 {
-  // n.b. The sandboxed implementation crashes; SetProcessPriority works only
-  // from the main process.
-  MOZ_ASSERT(aBackgroundLRU == 0 || aPriority == PROCESS_PRIORITY_BACKGROUND);
-  PROXY_IF_SANDBOXED(SetProcessPriority(aPid, aPriority, aCPUPriority,
-                                        aBackgroundLRU));
+  PROXY_IF_SANDBOXED(SetProcessPriority(aPid, aPriority));
 }
 
 // From HalTypes.h.
@@ -878,8 +864,6 @@ ProcessPriorityToString(ProcessPriority aPriority)
     return "FOREGROUND_HIGH";
   case PROCESS_PRIORITY_FOREGROUND:
     return "FOREGROUND";
-  case PROCESS_PRIORITY_FOREGROUND_KEYBOARD:
-    return "FOREGROUND_KEYBOARD";
   case PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE:
     return "BACKGROUND_PERCEIVABLE";
   case PROCESS_PRIORITY_BACKGROUND_HOMESCREEN:
@@ -892,82 +876,6 @@ ProcessPriorityToString(ProcessPriority aPriority)
     MOZ_ASSERT(false);
     return "???";
   }
-}
-
-// From HalTypes.h.
-const char*
-ProcessPriorityToString(ProcessPriority aPriority,
-                        ProcessCPUPriority aCPUPriority)
-{
-  // Sorry this is ugly.  At least it's all in one place.
-  //
-  // We intentionally fall through if aCPUPriority is invalid; we won't hit any
-  // of the if statements further down, so it's OK.
-
-  switch (aPriority) {
-  case PROCESS_PRIORITY_MASTER:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "MASTER:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "MASTER:CPU_LOW";
-    }
-  case PROCESS_PRIORITY_FOREGROUND_HIGH:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "FOREGROUND_HIGH:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "FOREGROUND_HIGH:CPU_LOW";
-    }
-  case PROCESS_PRIORITY_FOREGROUND:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "FOREGROUND:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "FOREGROUND:CPU_LOW";
-    }
-  case PROCESS_PRIORITY_FOREGROUND_KEYBOARD:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "FOREGROUND_KEYBOARD:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "FOREGROUND_KEYBOARD:CPU_LOW";
-    }
-  case PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "BACKGROUND_PERCEIVABLE:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "BACKGROUND_PERCEIVABLE:CPU_LOW";
-    }
-  case PROCESS_PRIORITY_BACKGROUND_HOMESCREEN:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "BACKGROUND_HOMESCREEN:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "BACKGROUND_HOMESCREEN:CPU_LOW";
-    }
-  case PROCESS_PRIORITY_BACKGROUND:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "BACKGROUND:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "BACKGROUND:CPU_LOW";
-    }
-  case PROCESS_PRIORITY_UNKNOWN:
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_NORMAL) {
-      return "UNKNOWN:CPU_NORMAL";
-    }
-    if (aCPUPriority == PROCESS_CPU_PRIORITY_LOW) {
-      return "UNKNOWN:CPU_LOW";
-    }
-  default:
-    // Fall through.  (|default| is here to silence warnings.)
-    break;
-  }
-
-  MOZ_ASSERT(false);
-  return "???";
 }
 
 static StaticAutoPtr<ObserverList<FMRadioOperationInformation> > sFMRadioObservers;
@@ -1178,29 +1086,6 @@ void FactoryReset()
   AssertMainThread();
   PROXY_IF_SANDBOXED(FactoryReset());
 }
-
-void
-StartDiskSpaceWatcher()
-{
-  AssertMainProcess();
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(StartDiskSpaceWatcher());
-}
-
-void
-StopDiskSpaceWatcher()
-{
-  AssertMainProcess();
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(StopDiskSpaceWatcher());
-}
-
-uint32_t
-GetTotalSystemMemory()
-{
-  return hal_impl::GetTotalSystemMemory();
-}
-
 
 } // namespace hal
 } // namespace mozilla

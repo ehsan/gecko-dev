@@ -10,6 +10,7 @@
 #include <shlwapi.h>
 #include <cderr.h>
 
+#include "nsGUIEvent.h"
 #include "nsReadableUtils.h"
 #include "nsNetUtil.h"
 #include "nsWindow.h"
@@ -69,10 +70,10 @@ class AutoRestoreWorkingPath
 {
 public:
   AutoRestoreWorkingPath() {
-    DWORD bufferLength = GetCurrentDirectoryW(0, nullptr);
+    DWORD bufferLength = GetCurrentDirectoryW(0, NULL);
     mWorkingPath = new PRUnichar[bufferLength];
     if (GetCurrentDirectoryW(bufferLength, mWorkingPath) == 0) {
-      mWorkingPath = nullptr;
+      mWorkingPath = NULL;
     }
   }
 
@@ -83,7 +84,7 @@ public:
   }
 
   inline bool HasWorkingPath() const {
-    return mWorkingPath != nullptr;
+    return mWorkingPath != NULL;
   }
 private:
   nsAutoArrayPtr<PRUnichar> mWorkingPath;
@@ -170,10 +171,10 @@ private:
 
 nsFilePicker::nsFilePicker() :
   mSelectedType(1)
-  , mDlgWnd(nullptr)
+  , mDlgWnd(NULL)
   , mFDECookie(0)
 {
-   CoInitialize(nullptr);
+   CoInitialize(NULL);
 }
 
 nsFilePicker::~nsFilePicker()
@@ -190,7 +191,7 @@ NS_IMPL_ISUPPORTS1(nsFilePicker, nsIFilePicker)
 NS_IMETHODIMP nsFilePicker::Init(nsIDOMWindow *aParent, const nsAString& aTitle, int16_t aMode)
 {
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aParent);
-  nsIDocShell* docShell = window ? window->GetDocShell() : nullptr;  
+  nsIDocShell* docShell = window ? window->GetDocShell() : NULL;  
   mLoadContext = do_QueryInterface(docShell);
   
   return nsBaseFilePicker::Init(aParent, aTitle, aMode);
@@ -198,13 +199,13 @@ NS_IMETHODIMP nsFilePicker::Init(nsIDOMWindow *aParent, const nsAString& aTitle,
 
 STDMETHODIMP nsFilePicker::QueryInterface(REFIID refiid, void** ppvResult)
 {
-  *ppvResult = nullptr;
+  *ppvResult = NULL;
   if (IID_IUnknown == refiid ||
       refiid == IID_IFileDialogEvents) {
     *ppvResult = this;
   }
 
-  if (nullptr != *ppvResult) {
+  if (NULL != *ppvResult) {
     ((LPUNKNOWN)*ppvResult)->AddRef();
     return S_OK;
   }
@@ -235,15 +236,17 @@ static void
 EnsureWindowVisible(HWND hwnd) 
 {
   // Obtain the monitor which has the largest area of intersection 
-  // with the window, or nullptr if there is no intersection.
+  // with the window, or NULL if there is no intersection.
   HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL);
   if (!monitor) {
     // The window is not visible, we should reposition it to the same place as its parent
     HWND parentHwnd = GetParent(hwnd);
     RECT parentRect;
     GetWindowRect(parentHwnd, &parentRect);
-    SetWindowPos(hwnd, nullptr, parentRect.left, parentRect.top, 0, 0,
-                 SWP_NOACTIVATE | SWP_NOSIZE | SWP_NOZORDER);
+    BOOL b = SetWindowPos(hwnd, NULL, 
+                          parentRect.left, 
+                          parentRect.top, 0, 0, 
+                          SWP_NOACTIVATE | SWP_NOSIZE | SWP_NOZORDER);
   }
 }
 
@@ -281,7 +284,7 @@ nsFilePicker::FilePickerHook(HWND hwnd,
         nsFilePicker* picker = reinterpret_cast<nsFilePicker*>(pofn->lCustData);
         if (picker) {
           picker->SetDialogHandle(hwnd);
-          SetTimer(hwnd, kDialogTimerID, kDialogTimerTimeout, nullptr);
+          SetTimer(hwnd, kDialogTimerID, kDialogTimerTimeout, NULL);
         }
       }
       break;
@@ -316,8 +319,8 @@ nsFilePicker::MultiFilePickerHook(HWND hwnd,
         // Finds the child drop down of a File Picker dialog and sets the 
         // maximum amount of text it can hold when typed in manually.
         // A wParam of 0 mean 0x7FFFFFFE characters.
-        HWND comboBox = FindWindowEx(GetParent(hwnd), nullptr, 
-                                     L"ComboBoxEx32", nullptr );
+        HWND comboBox = FindWindowEx(GetParent(hwnd), NULL, 
+                                     L"ComboBoxEx32", NULL );
         if(comboBox)
           SendMessage(comboBox, CB_LIMITTEXT, 0, 0);
         // Store our nsFilePicker ptr for future use
@@ -327,7 +330,7 @@ nsFilePicker::MultiFilePickerHook(HWND hwnd,
           reinterpret_cast<nsFilePicker*>(pofn->lCustData);
         if (picker) {
           picker->SetDialogHandle(hwnd);
-          SetTimer(hwnd, kDialogTimerID, kDialogTimerTimeout, nullptr);
+          SetTimer(hwnd, kDialogTimerID, kDialogTimerTimeout, NULL);
         }
       }
       break;
@@ -345,7 +348,7 @@ nsFilePicker::MultiFilePickerHook(HWND hwnd,
           // Get the required size for the selected files buffer
           UINT newBufLength = 0; 
           int requiredBufLength = CommDlg_OpenSave_GetSpecW(parentHWND, 
-                                                            nullptr, 0);
+                                                            NULL, 0);
           if(requiredBufLength >= 0)
             newBufLength += requiredBufLength;
           else
@@ -356,7 +359,7 @@ nsFilePicker::MultiFilePickerHook(HWND hwnd,
           // files. So make room for the directory path.  If the user
           // selects a single file, it is no harm to add extra space.
           requiredBufLength = CommDlg_OpenSave_GetFolderPathW(parentHWND, 
-                                                              nullptr, 0);
+                                                              NULL, 0);
           if(requiredBufLength >= 0)
             newBufLength += requiredBufLength;
           else
@@ -445,7 +448,7 @@ nsFilePicker::OnTypeChange(IFileDialog *pfd)
     NS_ERROR("Could not retrieve the IOleWindow interface for IFileDialog.");
     return S_OK;
   }
-  HWND hwnd = nullptr;
+  HWND hwnd = NULL;
   win->GetWindow(&hwnd);
   if (!hwnd) {
     NS_ERROR("Could not retrieve the HWND for IFileDialog.");
@@ -488,7 +491,7 @@ nsFilePicker::ClosePickerIfNeeded(bool aIsXPDialog)
     if (GetClassNameW(dlgWnd, className, mozilla::ArrayLength(className)) &&
         !wcscmp(className, L"#32770") &&
         DestroyWindow(dlgWnd)) {
-      mDlgWnd = nullptr;
+      mDlgWnd = NULL;
       return true;
     }
   }
@@ -528,7 +531,7 @@ nsFilePicker::ShowXPFolderPicker(const nsString& aInitialDir)
   dirBuffer[FILE_BUFFER_SIZE-1] = '\0';
 
   AutoDestroyTmpWindow adtw((HWND)(mParentWidget.get() ?
-    mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : nullptr));
+    mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : NULL));
 
   BROWSEINFOW browserInfo = {0};
   browserInfo.pidlRoot       = nullptr;
@@ -546,7 +549,7 @@ nsFilePicker::ShowXPFolderPicker(const nsString& aInitialDir)
     browserInfo.lpfn   = &BrowseCallbackProc;
   } else {
     browserInfo.lParam = 0;
-    browserInfo.lpfn   = nullptr;
+    browserInfo.lpfn   = NULL;
   }
 
   LPITEMIDLIST list = ::SHBrowseForFolderW(&browserInfo);
@@ -574,7 +577,7 @@ bool
 nsFilePicker::ShowFolderPicker(const nsString& aInitialDir, bool &aWasInitError)
 {
   nsRefPtr<IFileOpenDialog> dialog;
-  if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC,
+  if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC,
                               IID_IFileOpenDialog,
                               getter_AddRefs(dialog)))) {
     aWasInitError = true;
@@ -594,7 +597,7 @@ nsFilePicker::ShowFolderPicker(const nsString& aInitialDir, bool &aWasInitError)
   if (!aInitialDir.IsEmpty()) {
     nsRefPtr<IShellItem> folder;
     if (SUCCEEDED(
-          WinUtils::SHCreateItemFromParsingName(aInitialDir.get(), nullptr,
+          WinUtils::SHCreateItemFromParsingName(aInitialDir.get(), NULL,
                                                 IID_IShellItem,
                                                 getter_AddRefs(folder)))) {
       dialog->SetFolder(folder);
@@ -602,7 +605,7 @@ nsFilePicker::ShowFolderPicker(const nsString& aInitialDir, bool &aWasInitError)
   }
 
   AutoDestroyTmpWindow adtw((HWND)(mParentWidget.get() ?
-    mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : nullptr));
+    mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : NULL));
  
   // display
   nsRefPtr<IShellItem> item;
@@ -620,8 +623,8 @@ nsFilePicker::ShowFolderPicker(const nsString& aInitialDir, bool &aWasInitError)
   // default save folder.
   nsRefPtr<IShellItem> folderPath;
   nsRefPtr<IShellLibrary> shellLib;
-  CoCreateInstance(CLSID_ShellLibrary, nullptr, CLSCTX_INPROC,
-                   IID_IShellLibrary, getter_AddRefs(shellLib));
+  CoCreateInstance(CLSID_ShellLibrary, NULL, CLSCTX_INPROC, IID_IShellLibrary,
+                   getter_AddRefs(shellLib));
   if (shellLib &&
       SUCCEEDED(shellLib->LoadLibraryFromItem(item, STGM_READ)) &&
       SUCCEEDED(shellLib->GetDefaultSaveFolder(DSFT_DETECT, IID_IShellItem,
@@ -672,7 +675,7 @@ nsFilePicker::ShowXPFilePicker(const nsString& aInitialDir)
   }
 
   AutoDestroyTmpWindow adtw((HWND) (mParentWidget.get() ?
-    mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : nullptr));
+    mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : NULL));
 
   ofn.lpstrTitle   = (LPCWSTR)mTitle.get();
   ofn.lpstrFilter  = (LPCWSTR)filterBuffer.get();
@@ -800,8 +803,8 @@ nsFilePicker::ShowXPFilePicker(const nsString& aInitialDir)
 
   // Set user-selected location of file or directory.  From msdn's "Open and
   // Save As Dialog Boxes" section:
-  // If you specify OFN_EXPLORER, the directory and file name strings are '\0'
-  // separated, with an extra '\0' character after the last file name. This
+  // If you specify OFN_EXPLORER, the directory and file name strings are NULL
+  // separated, with an extra NULL character after the last file name. This
   // format enables the Explorer-style dialog boxes to return long file names
   // that include spaces. 
   PRUnichar *current = fileBuffer;
@@ -863,14 +866,14 @@ nsFilePicker::ShowFilePicker(const nsString& aInitialDir, bool &aWasInitError)
 {
   nsRefPtr<IFileDialog> dialog;
   if (mMode != modeSave) {
-    if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC,
+    if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC,
                                 IID_IFileOpenDialog,
                                 getter_AddRefs(dialog)))) {
       aWasInitError = true;
       return false;
     }
   } else {
-    if (FAILED(CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC,
+    if (FAILED(CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_INPROC,
                                 IID_IFileSaveDialog,
                                 getter_AddRefs(dialog)))) {
       aWasInitError = true;
@@ -941,7 +944,7 @@ nsFilePicker::ShowFilePicker(const nsString& aInitialDir, bool &aWasInitError)
   if (!aInitialDir.IsEmpty()) {
     nsRefPtr<IShellItem> folder;
     if (SUCCEEDED(
-          WinUtils::SHCreateItemFromParsingName(aInitialDir.get(), nullptr,
+          WinUtils::SHCreateItemFromParsingName(aInitialDir.get(), NULL,
                                                 IID_IShellItem,
                                                 getter_AddRefs(folder)))) {
       dialog->SetFolder(folder);
@@ -958,7 +961,7 @@ nsFilePicker::ShowFilePicker(const nsString& aInitialDir, bool &aWasInitError)
 
   {
     AutoDestroyTmpWindow adtw((HWND)(mParentWidget.get() ?
-      mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : nullptr));
+      mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : NULL));
     AutoTimerCallbackCancel atcc(this, PickerCallbackTimerFunc);
     AutoWidgetPickerState awps(mParentWidget);
 
@@ -1156,7 +1159,6 @@ nsBaseWinFilePicker::SetDefaultString(const nsAString& aString)
   // Then, we need to replace illegal characters. At this stage, we cannot
   // replace the backslash as the string might represent a file path.
   mDefaultFilePath.ReplaceChar(FILE_ILLEGAL_CHARACTERS, '-');
-  mDefaultFilename.ReplaceChar(FILE_ILLEGAL_CHARACTERS, '-');
 
   return NS_OK;
 }
@@ -1201,10 +1203,12 @@ nsFilePicker::SetFilterIndex(int32_t aFilterIndex)
 
 void
 nsFilePicker::InitNative(nsIWidget *aParent,
-                         const nsAString& aTitle)
+                         const nsAString& aTitle,
+                         int16_t aMode)
 {
   mParentWidget = aParent;
   mTitle.Assign(aTitle);
+  mMode = aMode;
 }
 
 void 

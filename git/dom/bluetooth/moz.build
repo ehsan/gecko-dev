@@ -15,79 +15,21 @@
 # limitations under the License.
 
 if CONFIG['MOZ_B2G_BT']:
-    LIBXUL_LIBRARY = True
     MODULE = 'dom'
-    LIBRARY_NAME = 'dombluetooth_s'
     XPIDL_MODULE = 'dom_bluetooth'
     XPIDL_SOURCES += [
+        'nsIDOMNavigatorBluetooth.idl',
+        'nsIDOMBluetoothManager.idl',
+        'nsIDOMBluetoothAdapter.idl',
         'nsIDOMBluetoothDevice.idl',
-        'nsIDOMBluetoothDeviceEvent.idl',
-        'nsIDOMBluetoothStatusChangedEvent.idl',
+        'nsIDOMBluetoothDeviceEvent.idl'
     ]
-
-    SOURCES += [
-        'BluetoothA2dpManager.cpp',
-        'BluetoothAdapter.cpp',
-        'BluetoothDevice.cpp',
-        'BluetoothHfpManager.cpp',
-        'BluetoothHidManager.cpp',
-        'BluetoothManager.cpp',
-        'BluetoothOppManager.cpp',
-        'BluetoothProfileController.cpp',
-        'BluetoothPropertyContainer.cpp',
-        'BluetoothReplyRunnable.cpp',
-        'BluetoothService.cpp',
-        'BluetoothSocket.cpp',
-        'BluetoothUnixSocketConnector.cpp',
-        'BluetoothUtils.cpp',
-        'BluetoothUuid.cpp',
-        'ipc/BluetoothChild.cpp',
-        'ipc/BluetoothParent.cpp',
-        'ipc/BluetoothServiceChildProcess.cpp',
-        'ObexBase.cpp'
-    ]
-
-    if CONFIG['MOZ_B2G_RIL']:
-        SOURCES += [
-            'BluetoothRilListener.cpp',
-        ]
-
-    if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-        if CONFIG['MOZ_B2G_BT_BLUEZ']:
-            SOURCES += [
-               'gonk/BluetoothGonkService.cpp',
-               'linux/BluetoothDBusService.cpp',
-            ]
-        if CONFIG['MOZ_B2G_BT_BLUEDROID']:
-            SOURCES += [
-                'BluetoothServiceBluedroid.cpp',
-            ]
-    else:
-        if CONFIG['MOZ_ENABLE_DBUS']:
-            SOURCES += [
-                 'linux/BluetoothDBusService.cpp',
-            ]
 
 EXPORTS.mozilla.dom.bluetooth.ipc += [
-    'ipc/BluetoothMessageUtils.h',
+    'BluetoothMessageUtils.h',
 ]
 
 EXPORTS.mozilla.dom.bluetooth += [
     'BluetoothCommon.h',
 ]
 
-IPDL_SOURCES += [
-    'ipc/BluetoothTypes.ipdlh',
-    'ipc/PBluetooth.ipdl',
-    'ipc/PBluetoothRequest.ipdl',
-]
-
-FAIL_ON_WARNINGS = True
-
-LOCAL_INCLUDES += [
-    '../base',
-    '../network/src',
-    '../system/gonk',
-]
-
-include('/ipc/chromium/chromium-config.mozbuild')

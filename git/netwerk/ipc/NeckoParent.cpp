@@ -5,7 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "necko-config.h"
 #include "nsHttp.h"
 #include "mozilla/net/NeckoParent.h"
 #include "mozilla/net/HttpChannelParent.h"
@@ -13,15 +12,9 @@
 #include "mozilla/net/WyciwygChannelParent.h"
 #include "mozilla/net/FTPChannelParent.h"
 #include "mozilla/net/WebSocketChannelParent.h"
-#ifdef NECKO_PROTOCOL_rtsp
-#include "mozilla/net/RtspControllerParent.h"
-#endif
 #include "mozilla/net/RemoteOpenFileParent.h"
-#include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/dom/network/TCPSocketParent.h"
-#include "mozilla/dom/network/TCPServerSocketParent.h"
-#include "mozilla/dom/network/UDPSocketParent.h"
 #include "mozilla/ipc/URIUtils.h"
 #include "mozilla/LoadContext.h"
 #include "mozilla/AppProcessChecker.h"
@@ -30,16 +23,10 @@
 #include "nsIAppsService.h"
 #include "nsEscape.h"
 #include "RemoteOpenFileParent.h"
-#include "SerializedLoadContext.h"
 
-using mozilla::dom::ContentParent;
 using mozilla::dom::TabParent;
 using mozilla::net::PTCPSocketParent;
 using mozilla::dom::TCPSocketParent;
-using mozilla::net::PTCPServerSocketParent;
-using mozilla::dom::TCPServerSocketParent;
-using mozilla::net::PUDPSocketParent;
-using mozilla::dom::UDPSocketParent;
 using IPC::SerializedLoadContext;
 
 namespace mozilla {
@@ -48,12 +35,6 @@ namespace net {
 // C++ file contents
 NeckoParent::NeckoParent()
 {
-  // Init HTTP protocol handler now since we need atomTable up and running very
-  // early (IPDL argument handling for PHttpChannel constructor needs it) so
-  // normal init (during 1st Http channel request) isn't early enough.
-  nsCOMPtr<nsIProtocolHandler> proto =
-    do_GetService("@mozilla.org/network/protocol;1?name=http");
-
   if (UsingNeckoIPCSecurity()) {
     // cache values for core/packaged apps basepaths
     nsAutoString corePath, webPath;
@@ -87,75 +68,70 @@ PBOverrideStatusFromLoadContext(const SerializedLoadContext& aSerialized)
 
 const char*
 NeckoParent::GetValidatedAppInfo(const SerializedLoadContext& aSerialized,
-                                 PContentParent* aContent,
+                                 PBrowserParent* aBrowser,
                                  uint32_t* aAppId,
                                  bool* aInBrowserElement)
 {
-  *aAppId = NECKO_UNKNOWN_APP_ID;
-  *aInBrowserElement = false;
-
   if (UsingNeckoIPCSecurity()) {
+    if (!aBrowser) {
+      return "missing required PBrowser argument";
+    }
     if (!aSerialized.IsNotNull()) {
       return "SerializedLoadContext from child is null";
     }
   }
 
-  const InfallibleTArray<PBrowserParent*>& browsers = aContent->ManagedPBrowserParent();
-  for (uint32_t i = 0; i < browsers.Length(); i++) {
-    nsRefPtr<TabParent> tabParent = static_cast<TabParent*>(browsers[i]);
-    uint32_t appId = tabParent->OwnOrContainingAppId();
-    bool inBrowserElement = aSerialized.IsNotNull() ? aSerialized.mIsInBrowserElement
-                                                    : tabParent->IsBrowserElement();
+  *aAppId = NECKO_UNKNOWN_APP_ID;
+  *aInBrowserElement = false;
 
-    if (appId == NECKO_UNKNOWN_APP_ID) {
-      continue;
+  if (aBrowser) {
+    nsRefPtr<TabParent> tabParent = static_cast<TabParent*>(aBrowser);
+
+    *aAppId = tabParent->OwnOrContainingAppId();
+    *aInBrowserElement = tabParent->IsBrowserElement();
+
+    if (*aAppId == NECKO_UNKNOWN_APP_ID) {
+      return "TabParent reports appId=NECKO_UNKNOWN_APP_ID!";
     }
     // We may get appID=NO_APP if child frame is neither a browser nor an app
-    if (appId == NECKO_NO_APP_ID) {
+    if (*aAppId == NECKO_NO_APP_ID) {
       if (tabParent->HasOwnApp()) {
-        continue;
+        return "TabParent reports NECKO_NO_APP_ID but also is an app";
       }
       if (UsingNeckoIPCSecurity() && tabParent->IsBrowserElement()) {
         // <iframe mozbrowser> which doesn't have an <iframe mozapp> above it.
         // This is not supported now, and we'll need to do a code audit to make
         // sure we can handle it (i.e don't short-circuit using separate
         // namespace if just appID==0)
-        continue;
+        return "TabParent reports appId=NECKO_NO_APP_ID but is a mozbrowser";
       }
     }
-    *aAppId = appId;
-    *aInBrowserElement = inBrowserElement;
-    return nullptr;
-  }
-
-  if (browsers.Length() != 0) {
-    return "App does not have permission";
-  }
-
-  if (!UsingNeckoIPCSecurity()) {
-    // We are running xpcshell tests
+  } else {
+    // Only trust appId/inBrowser from child-side loadcontext if we're in
+    // testing mode: allows xpcshell tests to masquerade as apps
+    MOZ_ASSERT(!UsingNeckoIPCSecurity());
+    if (UsingNeckoIPCSecurity()) {
+      return "internal error";
+    }
     if (aSerialized.IsNotNull()) {
       *aAppId = aSerialized.mAppId;
       *aInBrowserElement = aSerialized.mIsInBrowserElement;
     } else {
       *aAppId = NECKO_NO_APP_ID;
     }
-    return nullptr;
   }
-
-  return "ContentParent does not have any PBrowsers";
+  return nullptr;
 }
 
 const char *
 NeckoParent::CreateChannelLoadContext(PBrowserParent* aBrowser,
-                                      PContentParent* aContent,
                                       const SerializedLoadContext& aSerialized,
                                       nsCOMPtr<nsILoadContext> &aResult)
 {
   uint32_t appId = NECKO_UNKNOWN_APP_ID;
   bool inBrowser = false;
-  dom::Element* topFrameElement = nullptr;
-  const char* error = GetValidatedAppInfo(aSerialized, aContent, &appId, &inBrowser);
+  nsIDOMElement* topFrameElement = nullptr;
+  const char* error = GetValidatedAppInfo(aSerialized, aBrowser, &appId, &inBrowser);
   if (error) {
     return error;
   }
@@ -175,15 +151,14 @@ NeckoParent::CreateChannelLoadContext(PBrowserParent* aBrowser,
 }
 
 PHttpChannelParent*
-NeckoParent::AllocPHttpChannelParent(PBrowserParent* aBrowser,
-                                     const SerializedLoadContext& aSerialized,
-                                     const HttpChannelCreationArgs& aOpenArgs)
+NeckoParent::AllocPHttpChannel(PBrowserParent* aBrowser,
+                               const SerializedLoadContext& aSerialized)
 {
   nsCOMPtr<nsILoadContext> loadContext;
-  const char *error = CreateChannelLoadContext(aBrowser, Manager(),
-                                               aSerialized, loadContext);
+  const char *error = CreateChannelLoadContext(aBrowser, aSerialized,
+                                               loadContext);
   if (error) {
-    printf_stderr("NeckoParent::AllocPHttpChannelParent: "
+    printf_stderr("NeckoParent::AllocPHttpChannel: "
                   "FATAL error: %s: KILLING CHILD PROCESS\n",
                   error);
     return nullptr;
@@ -195,34 +170,22 @@ NeckoParent::AllocPHttpChannelParent(PBrowserParent* aBrowser,
 }
 
 bool
-NeckoParent::DeallocPHttpChannelParent(PHttpChannelParent* channel)
+NeckoParent::DeallocPHttpChannel(PHttpChannelParent* channel)
 {
   HttpChannelParent *p = static_cast<HttpChannelParent *>(channel);
   p->Release();
   return true;
 }
 
-bool
-NeckoParent::RecvPHttpChannelConstructor(
-                      PHttpChannelParent* aActor,
-                      PBrowserParent* aBrowser,
-                      const SerializedLoadContext& aSerialized,
-                      const HttpChannelCreationArgs& aOpenArgs)
-{
-  HttpChannelParent* p = static_cast<HttpChannelParent*>(aActor);
-  return p->Init(aOpenArgs);
-}
-
 PFTPChannelParent*
-NeckoParent::AllocPFTPChannelParent(PBrowserParent* aBrowser,
-                                    const SerializedLoadContext& aSerialized,
-                                    const FTPChannelCreationArgs& aOpenArgs)
+NeckoParent::AllocPFTPChannel(PBrowserParent* aBrowser,
+                              const SerializedLoadContext& aSerialized)
 {
   nsCOMPtr<nsILoadContext> loadContext;
-  const char *error = CreateChannelLoadContext(aBrowser, Manager(),
-                                               aSerialized, loadContext);
+  const char *error = CreateChannelLoadContext(aBrowser, aSerialized,
+                                               loadContext);
   if (error) {
-    printf_stderr("NeckoParent::AllocPFTPChannelParent: "
+    printf_stderr("NeckoParent::AllocPFTPChannel: "
                   "FATAL error: %s: KILLING CHILD PROCESS\n",
                   error);
     return nullptr;
@@ -234,39 +197,28 @@ NeckoParent::AllocPFTPChannelParent(PBrowserParent* aBrowser,
 }
 
 bool
-NeckoParent::DeallocPFTPChannelParent(PFTPChannelParent* channel)
+NeckoParent::DeallocPFTPChannel(PFTPChannelParent* channel)
 {
   FTPChannelParent *p = static_cast<FTPChannelParent *>(channel);
   p->Release();
   return true;
 }
 
-bool
-NeckoParent::RecvPFTPChannelConstructor(
-                      PFTPChannelParent* aActor,
-                      PBrowserParent* aBrowser,
-                      const SerializedLoadContext& aSerialized,
-                      const FTPChannelCreationArgs& aOpenArgs)
-{
-  FTPChannelParent* p = static_cast<FTPChannelParent*>(aActor);
-  return p->Init(aOpenArgs);
-}
-
-PCookieServiceParent*
-NeckoParent::AllocPCookieServiceParent()
+PCookieServiceParent* 
+NeckoParent::AllocPCookieService()
 {
   return new CookieServiceParent();
 }
 
 bool 
-NeckoParent::DeallocPCookieServiceParent(PCookieServiceParent* cs)
+NeckoParent::DeallocPCookieService(PCookieServiceParent* cs)
 {
   delete cs;
   return true;
 }
 
 PWyciwygChannelParent*
-NeckoParent::AllocPWyciwygChannelParent()
+NeckoParent::AllocPWyciwygChannel()
 {
   WyciwygChannelParent *p = new WyciwygChannelParent();
   p->AddRef();
@@ -274,7 +226,7 @@ NeckoParent::AllocPWyciwygChannelParent()
 }
 
 bool
-NeckoParent::DeallocPWyciwygChannelParent(PWyciwygChannelParent* channel)
+NeckoParent::DeallocPWyciwygChannel(PWyciwygChannelParent* channel)
 {
   WyciwygChannelParent *p = static_cast<WyciwygChannelParent *>(channel);
   p->Release();
@@ -282,14 +234,14 @@ NeckoParent::DeallocPWyciwygChannelParent(PWyciwygChannelParent* channel)
 }
 
 PWebSocketParent*
-NeckoParent::AllocPWebSocketParent(PBrowserParent* browser,
-                                   const SerializedLoadContext& serialized)
+NeckoParent::AllocPWebSocket(PBrowserParent* browser,
+                             const SerializedLoadContext& serialized)
 {
   nsCOMPtr<nsILoadContext> loadContext;
-  const char *error = CreateChannelLoadContext(browser, Manager(),
-                                               serialized, loadContext);
+  const char *error = CreateChannelLoadContext(browser, serialized,
+                                               loadContext);
   if (error) {
-    printf_stderr("NeckoParent::AllocPWebSocketParent: "
+    printf_stderr("NeckoParent::AllocPWebSocket: "
                   "FATAL error: %s: KILLING CHILD PROCESS\n",
                   error);
     return nullptr;
@@ -304,113 +256,58 @@ NeckoParent::AllocPWebSocketParent(PBrowserParent* browser,
 }
 
 bool
-NeckoParent::DeallocPWebSocketParent(PWebSocketParent* actor)
+NeckoParent::DeallocPWebSocket(PWebSocketParent* actor)
 {
   WebSocketChannelParent* p = static_cast<WebSocketChannelParent*>(actor);
   p->Release();
   return true;
 }
 
-PRtspControllerParent*
-NeckoParent::AllocPRtspControllerParent()
-{
-#ifdef NECKO_PROTOCOL_rtsp
-  RtspControllerParent* p = new RtspControllerParent();
-  p->AddRef();
-  return p;
-#else
-  return nullptr;
-#endif
-}
-
-bool
-NeckoParent::DeallocPRtspControllerParent(PRtspControllerParent* actor)
-{
-#ifdef NECKO_PROTOCOL_rtsp
-  RtspControllerParent* p = static_cast<RtspControllerParent*>(actor);
-  p->Release();
-#endif
-  return true;
-}
-
 PTCPSocketParent*
-NeckoParent::AllocPTCPSocketParent()
+NeckoParent::AllocPTCPSocket(const nsString& aHost,
+                             const uint16_t& aPort,
+                             const bool& useSSL,
+                             const nsString& aBinaryType,
+                             PBrowserParent* aBrowser)
 {
-  TCPSocketParent* p = new TCPSocketParent();
-  p->AddIPDLReference();
-  return p;
-}
-
-bool
-NeckoParent::DeallocPTCPSocketParent(PTCPSocketParent* actor)
-{
-  TCPSocketParent* p = static_cast<TCPSocketParent*>(actor);
-  p->ReleaseIPDLReference();
-  return true;
-}
-
-PTCPServerSocketParent*
-NeckoParent::AllocPTCPServerSocketParent(const uint16_t& aLocalPort,
-                                   const uint16_t& aBacklog,
-                                   const nsString& aBinaryType)
-{
-  TCPServerSocketParent* p = new TCPServerSocketParent();
-  p->AddIPDLReference();
-  return p;
-}
-
-bool
-NeckoParent::RecvPTCPServerSocketConstructor(PTCPServerSocketParent* aActor,
-                                             const uint16_t& aLocalPort,
-                                             const uint16_t& aBacklog,
-                                             const nsString& aBinaryType)
-{
-  return static_cast<TCPServerSocketParent*>(aActor)->
-      Init(this, aLocalPort, aBacklog, aBinaryType);
-}
-
-bool
-NeckoParent::DeallocPTCPServerSocketParent(PTCPServerSocketParent* actor)
-{
-  TCPServerSocketParent* p = static_cast<TCPServerSocketParent*>(actor);
-   p->ReleaseIPDLReference();
-  return true;
-}
-
-PUDPSocketParent*
-NeckoParent::AllocPUDPSocketParent(const nsCString& aHost,
-                                   const uint16_t& aPort)
-{
-  bool enabled = Preferences::GetBool("media.peerconnection.ipc.enabled", false);
-  if (!enabled) {
-    NS_WARNING("Not support UDP socket in content process, aborting subprocess");
+  if (UsingNeckoIPCSecurity() && !aBrowser) {
+    printf_stderr("NeckoParent::AllocPTCPSocket: FATAL error: no browser present \
+                   KILLING CHILD PROCESS\n");
     return nullptr;
   }
-  UDPSocketParent* p = new UDPSocketParent();
+  if (aBrowser && !AssertAppProcessPermission(aBrowser, "tcp-socket")) {
+    printf_stderr("NeckoParent::AllocPTCPSocket: FATAL error: app doesn't permit tcp-socket connections \
+                   KILLING CHILD PROCESS\n");
+    return nullptr;
+  }
+  TCPSocketParent* p = new TCPSocketParent();
   p->AddRef();
   return p;
-
 }
 
 bool
-NeckoParent::RecvPUDPSocketConstructor(PUDPSocketParent* aActor,
-                                       const nsCString& aHost,
-                                       const uint16_t& aPort)
+NeckoParent::RecvPTCPSocketConstructor(PTCPSocketParent* aActor,
+                                       const nsString& aHost,
+                                       const uint16_t& aPort,
+                                       const bool& useSSL,
+                                       const nsString& aBinaryType,
+                                       PBrowserParent* aBrowser)
 {
-  return static_cast<UDPSocketParent*>(aActor)->Init(aHost, aPort);
+  return static_cast<TCPSocketParent*>(aActor)->
+      Init(aHost, aPort, useSSL, aBinaryType);
 }
 
 bool
-NeckoParent::DeallocPUDPSocketParent(PUDPSocketParent* actor)
+NeckoParent::DeallocPTCPSocket(PTCPSocketParent* actor)
 {
-  UDPSocketParent* p = static_cast<UDPSocketParent*>(actor);
+  TCPSocketParent* p = static_cast<TCPSocketParent*>(actor);
   p->Release();
   return true;
 }
 
 PRemoteOpenFileParent*
-NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
-                                        const OptionalURIParams& aAppURI)
+NeckoParent::AllocPRemoteOpenFile(const URIParams& aURI,
+                                  PBrowserParent* aBrowser)
 {
   nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
   nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(uri);
@@ -420,32 +317,30 @@ NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
 
   // security checks
   if (UsingNeckoIPCSecurity()) {
+    if (!aBrowser) {
+      printf_stderr("NeckoParent::AllocPRemoteOpenFile: "
+                    "FATAL error: missing TabParent: KILLING CHILD PROCESS\n");
+      return nullptr;
+    }
+    nsRefPtr<TabParent> tabParent = static_cast<TabParent*>(aBrowser);
+    uint32_t appId = tabParent->OwnOrContainingAppId();
     nsCOMPtr<nsIAppsService> appsService =
       do_GetService(APPS_SERVICE_CONTRACTID);
     if (!appsService) {
       return nullptr;
     }
-    bool haveValidBrowser = false;
-    bool hasManage = false;
-    nsCOMPtr<mozIApplication> mozApp;
-    for (uint32_t i = 0; i < Manager()->ManagedPBrowserParent().Length(); i++) {
-      nsRefPtr<TabParent> tabParent =
-        static_cast<TabParent*>(Manager()->ManagedPBrowserParent()[i]);
-      uint32_t appId = tabParent->OwnOrContainingAppId();
-      nsresult rv = appsService->GetAppByLocalId(appId, getter_AddRefs(mozApp));
-      if (NS_FAILED(rv) || !mozApp) {
-        continue;
-      }
-      hasManage = false;
-      rv = mozApp->HasPermission("webapps-manage", &hasManage);
-      if (NS_FAILED(rv)) {
-        continue;
-      }
-      haveValidBrowser = true;
-      break;
+    nsCOMPtr<mozIDOMApplication> domApp;
+    nsresult rv = appsService->GetAppByLocalId(appId, getter_AddRefs(domApp));
+    if (!domApp) {
+      return nullptr;
     }
-
-    if (!haveValidBrowser) {
+    nsCOMPtr<mozIApplication> mozApp = do_QueryInterface(domApp);
+    if (!mozApp) {
+      return nullptr;
+    }
+    bool hasManage = false;
+    rv = mozApp->HasPermission("webapps-manage", &hasManage);
+    if (NS_FAILED(rv)) {
       return nullptr;
     }
 
@@ -453,21 +348,7 @@ NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
     fileURL->GetPath(requestedPath);
     NS_UnescapeURL(requestedPath);
 
-    // Check if we load the whitelisted app uri for the neterror page.
-    bool netErrorWhiteList = false;
-
-    nsCOMPtr<nsIURI> appUri = DeserializeURI(aAppURI);
-    if (appUri) {
-      nsAdoptingString netErrorURI;
-      netErrorURI = Preferences::GetString("b2g.neterror.url");
-      if (netErrorURI) {
-        nsAutoCString spec;
-        appUri->GetSpec(spec);
-        netErrorWhiteList = spec.Equals(NS_ConvertUTF16toUTF8(netErrorURI).get());
-      }
-    }
-
-    if (hasManage || netErrorWhiteList) {
+    if (hasManage) {
       // webapps-manage permission means allow reading any application.zip file
       // in either the regular webapps directory, or the core apps directory (if
       // we're using one).
@@ -502,7 +383,7 @@ NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
     } else {
       // regular packaged apps can only access their own application.zip file
       nsAutoString basePath;
-      nsresult rv = mozApp->GetBasePath(basePath);
+      rv = mozApp->GetBasePath(basePath);
       if (NS_FAILED(rv)) {
         return nullptr;
       }
@@ -518,8 +399,8 @@ NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
         printf_stderr("NeckoParent::AllocPRemoteOpenFile: "
                       "FATAL error: app without webapps-manage permission is "
                       "requesting file '%s' but is only allowed to open its "
-                      "own application.zip at %s: KILLING CHILD PROCESS\n",
-                      requestedPath.get(), mustMatch.get());
+                      "own application.zip: KILLING CHILD PROCESS\n",
+                      requestedPath.get());
         return nullptr;
       }
     }
@@ -532,13 +413,13 @@ NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
 bool
 NeckoParent::RecvPRemoteOpenFileConstructor(PRemoteOpenFileParent* aActor,
                                             const URIParams& aFileURI,
-                                            const OptionalURIParams& aAppURI)
+                                            PBrowserParent* aBrowser)
 {
   return static_cast<RemoteOpenFileParent*>(aActor)->OpenSendCloseDelete();
 }
 
 bool
-NeckoParent::DeallocPRemoteOpenFileParent(PRemoteOpenFileParent* actor)
+NeckoParent::DeallocPRemoteOpenFile(PRemoteOpenFileParent* actor)
 {
   delete actor;
   return true;
@@ -559,26 +440,6 @@ NeckoParent::RecvCancelHTMLDNSPrefetch(const nsString& hostname,
 {
   nsHTMLDNSPrefetch::CancelPrefetch(hostname, flags, reason);
   return true;
-}
-
-void
-NeckoParent::CloneManagees(ProtocolBase* aSource,
-                         mozilla::ipc::ProtocolCloneContext* aCtx)
-{
-  aCtx->SetNeckoParent(this); // For cloning protocols managed by this.
-  PNeckoParent::CloneManagees(aSource, aCtx);
-}
-
-mozilla::ipc::IProtocol*
-NeckoParent::CloneProtocol(Channel* aChannel,
-                           mozilla::ipc::ProtocolCloneContext* aCtx)
-{
-  ContentParent* contentParent = aCtx->GetContentParent();
-  nsAutoPtr<PNeckoParent> actor(contentParent->AllocPNeckoParent());
-  if (!actor || !contentParent->RecvPNeckoConstructor(actor)) {
-    return nullptr;
-  }
-  return actor.forget();
 }
 
 }} // mozilla::net

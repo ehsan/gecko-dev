@@ -4,32 +4,27 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "GonkIOSurfaceImage.h"
 #include "MediaDecoderReader.h"
-#ifdef MOZ_OMX_DECODER
-#include "GrallocImages.h"
-#endif
 #include "AbstractMediaDecoder.h"
+#include "MediaDecoderStateMachine.h"
 #include "VideoUtils.h"
 #include "ImageContainer.h"
 
 #include "mozilla/mozalloc.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include <algorithm>
 
 namespace mozilla {
 
 using layers::ImageContainer;
 using layers::PlanarYCbCrImage;
-using layers::PlanarYCbCrData;
 
 // Verify these values are sane. Once we've checked the frame sizes, we then
 // can do less integer overflow checking.
-static_assert(MAX_VIDEO_WIDTH < PlanarYCbCrImage::MAX_DIMENSION,
-              "MAX_VIDEO_WIDTH is too large");
-static_assert(MAX_VIDEO_HEIGHT < PlanarYCbCrImage::MAX_DIMENSION,
-              "MAX_VIDEO_HEIGHT is too large");
-static_assert(PlanarYCbCrImage::MAX_DIMENSION < UINT32_MAX / PlanarYCbCrImage::MAX_DIMENSION,
-              "MAX_DIMENSION*MAX_DIMENSION doesn't fit in 32 bits");
+PR_STATIC_ASSERT(MAX_VIDEO_WIDTH < PlanarYCbCrImage::MAX_DIMENSION);
+PR_STATIC_ASSERT(MAX_VIDEO_HEIGHT < PlanarYCbCrImage::MAX_DIMENSION);
+PR_STATIC_ASSERT(PlanarYCbCrImage::MAX_DIMENSION < UINT32_MAX / PlanarYCbCrImage::MAX_DIMENSION);
 
 // Un-comment to enable logging of seek bisections.
 //#define SEEK_LOGGING
@@ -87,8 +82,8 @@ IsYV12Format(const VideoData::YCbCrBuffer::Plane& aYPlane,
 
 bool
 VideoInfo::ValidateVideoRegion(const nsIntSize& aFrame,
-                               const nsIntRect& aPicture,
-                               const nsIntSize& aDisplay)
+                                 const nsIntRect& aPicture,
+                                 const nsIntSize& aDisplay)
 {
   return
     aFrame.width <= PlanarYCbCrImage::MAX_DIMENSION &&
@@ -109,30 +104,34 @@ VideoInfo::ValidateVideoRegion(const nsIntSize& aFrame,
     aDisplay.width * aDisplay.height != 0;
 }
 
-VideoData::VideoData(int64_t aOffset, int64_t aTime, int64_t aDuration, int64_t aTimecode)
-  : MediaData(VIDEO_FRAME, aOffset, aTime, aDuration),
+VideoData::  VideoData(int64_t aOffset, int64_t aTime, int64_t aEndTime, int64_t aTimecode)
+  : mOffset(aOffset),
+    mTime(aTime),
+    mEndTime(aEndTime),
     mTimecode(aTimecode),
     mDuplicate(true),
     mKeyframe(false)
 {
   MOZ_COUNT_CTOR(VideoData);
-  NS_ASSERTION(mDuration >= 0, "Frame must have non-negative duration.");
+  NS_ASSERTION(aEndTime >= aTime, "Frame must start before it ends.");
 }
 
 VideoData::VideoData(int64_t aOffset,
-                     int64_t aTime,
-                     int64_t aDuration,
-                     bool aKeyframe,
-                     int64_t aTimecode,
-                     nsIntSize aDisplay)
-  : MediaData(VIDEO_FRAME, aOffset, aTime, aDuration),
-    mDisplay(aDisplay),
+          int64_t aTime,
+          int64_t aEndTime,
+          bool aKeyframe,
+          int64_t aTimecode,
+          nsIntSize aDisplay)
+  : mDisplay(aDisplay),
+    mOffset(aOffset),
+    mTime(aTime),
+    mEndTime(aEndTime),
     mTimecode(aTimecode),
     mDuplicate(false),
     mKeyframe(aKeyframe)
 {
   MOZ_COUNT_CTOR(VideoData);
-  NS_ASSERTION(mDuration >= 0, "Frame must have non-negative duration.");
+  NS_ASSERTION(aEndTime >= aTime, "Frame must start before it ends.");
 }
 
 VideoData::~VideoData()
@@ -140,26 +139,13 @@ VideoData::~VideoData()
   MOZ_COUNT_DTOR(VideoData);
 }
 
-/* static */
-VideoData* VideoData::ShallowCopyUpdateDuration(VideoData* aOther,
-                                                int64_t aDuration)
-{
-  VideoData* v = new VideoData(aOther->mOffset,
-                               aOther->mTime,
-                               aDuration,
-                               aOther->mKeyframe,
-                               aOther->mTimecode,
-                               aOther->mDisplay);
-  v->mImage = aOther->mImage;
-  return v;
-}
 
 VideoData* VideoData::Create(VideoInfo& aInfo,
                              ImageContainer* aContainer,
                              Image* aImage,
                              int64_t aOffset,
                              int64_t aTime,
-                             int64_t aDuration,
+                             int64_t aEndTime,
                              const YCbCrBuffer& aBuffer,
                              bool aKeyframe,
                              int64_t aTimecode,
@@ -170,7 +156,7 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
     // send to media streams if necessary.
     nsAutoPtr<VideoData> v(new VideoData(aOffset,
                                          aTime,
-                                         aDuration,
+                                         aEndTime,
                                          aKeyframe,
                                          aTimecode,
                                          aInfo.mDisplay));
@@ -211,7 +197,7 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
 
   nsAutoPtr<VideoData> v(new VideoData(aOffset,
                                        aTime,
-                                       aDuration,
+                                       aEndTime,
                                        aKeyframe,
                                        aTimecode,
                                        aInfo.mDisplay));
@@ -240,7 +226,7 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
                "Wrong format?");
   PlanarYCbCrImage* videoImage = static_cast<PlanarYCbCrImage*>(v->mImage.get());
 
-  PlanarYCbCrData data;
+  PlanarYCbCrImage::Data data;
   data.mYChannel = Y.mData + Y.mOffset;
   data.mYSize = gfxIntSize(Y.mWidth, Y.mHeight);
   data.mYStride = Y.mStride;
@@ -270,13 +256,13 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
                              ImageContainer* aContainer,
                              int64_t aOffset,
                              int64_t aTime,
-                             int64_t aDuration,
+                             int64_t aEndTime,
                              const YCbCrBuffer& aBuffer,
                              bool aKeyframe,
                              int64_t aTimecode,
                              nsIntRect aPicture)
 {
-  return Create(aInfo, aContainer, nullptr, aOffset, aTime, aDuration, aBuffer,
+  return Create(aInfo, aContainer, nullptr, aOffset, aTime, aEndTime, aBuffer,
                 aKeyframe, aTimecode, aPicture);
 }
 
@@ -284,13 +270,13 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
                              Image* aImage,
                              int64_t aOffset,
                              int64_t aTime,
-                             int64_t aDuration,
+                             int64_t aEndTime,
                              const YCbCrBuffer& aBuffer,
                              bool aKeyframe,
                              int64_t aTimecode,
                              nsIntRect aPicture)
 {
-  return Create(aInfo, nullptr, aImage, aOffset, aTime, aDuration, aBuffer,
+  return Create(aInfo, nullptr, aImage, aOffset, aTime, aEndTime, aBuffer,
                 aKeyframe, aTimecode, aPicture);
 }
 
@@ -298,7 +284,7 @@ VideoData* VideoData::CreateFromImage(VideoInfo& aInfo,
                                       ImageContainer* aContainer,
                                       int64_t aOffset,
                                       int64_t aTime,
-                                      int64_t aDuration,
+                                      int64_t aEndTime,
                                       const nsRefPtr<Image>& aImage,
                                       bool aKeyframe,
                                       int64_t aTimecode,
@@ -306,7 +292,7 @@ VideoData* VideoData::CreateFromImage(VideoInfo& aInfo,
 {
   nsAutoPtr<VideoData> v(new VideoData(aOffset,
                                        aTime,
-                                       aDuration,
+                                       aEndTime,
                                        aKeyframe,
                                        aTimecode,
                                        aInfo.mDisplay));
@@ -314,12 +300,12 @@ VideoData* VideoData::CreateFromImage(VideoInfo& aInfo,
   return v.forget();
 }
 
-#ifdef MOZ_OMX_DECODER
+#ifdef MOZ_WIDGET_GONK
 VideoData* VideoData::Create(VideoInfo& aInfo,
                              ImageContainer* aContainer,
                              int64_t aOffset,
                              int64_t aTime,
-                             int64_t aDuration,
+                             int64_t aEndTime,
                              mozilla::layers::GraphicBufferLocked* aBuffer,
                              bool aKeyframe,
                              int64_t aTimecode,
@@ -330,7 +316,7 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
     // send to media streams if necessary.
     nsAutoPtr<VideoData> v(new VideoData(aOffset,
                                          aTime,
-                                         aDuration,
+                                         aEndTime,
                                          aKeyframe,
                                          aTimecode,
                                          aInfo.mDisplay));
@@ -357,21 +343,21 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
 
   nsAutoPtr<VideoData> v(new VideoData(aOffset,
                                        aTime,
-                                       aDuration,
+                                       aEndTime,
                                        aKeyframe,
                                        aTimecode,
                                        aInfo.mDisplay));
 
-  ImageFormat format = GRALLOC_PLANAR_YCBCR;
+  ImageFormat format = GONK_IO_SURFACE;
   v->mImage = aContainer->CreateImage(&format, 1);
   if (!v->mImage) {
     return nullptr;
   }
-  NS_ASSERTION(v->mImage->GetFormat() == GRALLOC_PLANAR_YCBCR,
+  NS_ASSERTION(v->mImage->GetFormat() == GONK_IO_SURFACE,
                "Wrong format?");
-  typedef mozilla::layers::GrallocImage GrallocImage;
-  GrallocImage* videoImage = static_cast<GrallocImage*>(v->mImage.get());
-  GrallocImage::GrallocData data;
+  typedef mozilla::layers::GonkIOSurfaceImage GonkIOSurfaceImage;
+  GonkIOSurfaceImage* videoImage = static_cast<GonkIOSurfaceImage*>(v->mImage.get());
+  GonkIOSurfaceImage::Data data;
 
   data.mPicSize = gfxIntSize(aPicture.width, aPicture.height);
   data.mGraphicBuffer = aBuffer;
@@ -380,24 +366,23 @@ VideoData* VideoData::Create(VideoInfo& aInfo,
 
   return v.forget();
 }
-#endif  // MOZ_OMX_DECODER
+#endif  // MOZ_WIDGET_GONK
 
 void* MediaDecoderReader::VideoQueueMemoryFunctor::operator()(void* anObject) {
   const VideoData* v = static_cast<const VideoData*>(anObject);
   if (!v->mImage) {
     return nullptr;
   }
+  NS_ASSERTION(v->mImage->GetFormat() == PLANAR_YCBCR,
+               "Wrong format?");
+  mozilla::layers::PlanarYCbCrImage* vi = static_cast<mozilla::layers::PlanarYCbCrImage*>(v->mImage.get());
 
-  if (v->mImage->GetFormat() == PLANAR_YCBCR) {
-    mozilla::layers::PlanarYCbCrImage* vi = static_cast<mozilla::layers::PlanarYCbCrImage*>(v->mImage.get());
-    mResult += vi->GetDataSize();
-  }
+  mResult += vi->GetDataSize();
   return nullptr;
 }
 
 MediaDecoderReader::MediaDecoderReader(AbstractMediaDecoder* aDecoder)
-  : mDecoder(aDecoder),
-    mIgnoreAudioOutputFormat(false)
+  : mDecoder(aDecoder)
 {
   MOZ_COUNT_CTOR(MediaDecoderReader);
 }
@@ -485,8 +470,6 @@ VideoData* MediaDecoderReader::FindStartTime(int64_t& aOutStartTime)
 
 nsresult MediaDecoderReader::DecodeToTarget(int64_t aTarget)
 {
-  LOG(PR_LOG_DEBUG, ("MediaDecoderReader::DecodeToTarget(%lld) Begin", aTarget));
-
   // Decode forward to the target frame. Start with video, if we have it.
   if (HasVideo()) {
     bool eof = false;
@@ -513,7 +496,7 @@ nsresult MediaDecoderReader::DecodeToTarget(int64_t aTarget)
       video = VideoQueue().PeekFront();
       // If the frame end time is less than the seek target, we won't want
       // to display this frame after the seek, so discard it.
-      if (video && video->GetEndTime() <= aTarget) {
+      if (video && video->mEndTime <= aTarget) {
         if (startTime == -1) {
           startTime = video->mTime;
         }
@@ -548,8 +531,8 @@ nsresult MediaDecoderReader::DecodeToTarget(int64_t aTarget)
       const AudioData* audio = AudioQueue().PeekFront();
       if (!audio)
         break;
-      CheckedInt64 startFrame = UsecsToFrames(audio->mTime, mInfo.mAudio.mRate);
-      CheckedInt64 targetFrame = UsecsToFrames(aTarget, mInfo.mAudio.mRate);
+      CheckedInt64 startFrame = UsecsToFrames(audio->mTime, mInfo.mAudioRate);
+      CheckedInt64 targetFrame = UsecsToFrames(aTarget, mInfo.mAudioRate);
       if (!startFrame.isValid() || !targetFrame.isValid()) {
         return NS_ERROR_FAILURE;
       }
@@ -593,7 +576,7 @@ nsresult MediaDecoderReader::DecodeToTarget(int64_t aTarget)
       memcpy(audioData.get(),
              audio->mAudioData.get() + (framesToPrune * channels),
              frames * channels * sizeof(AudioDataValue));
-      CheckedInt64 duration = FramesToUsecs(frames, mInfo.mAudio.mRate);
+      CheckedInt64 duration = FramesToUsecs(frames, mInfo.mAudioRate);
       if (!duration.isValid()) {
         return NS_ERROR_FAILURE;
       }
@@ -608,23 +591,6 @@ nsresult MediaDecoderReader::DecodeToTarget(int64_t aTarget)
       break;
     }
   }
-
-  LOG(PR_LOG_DEBUG, ("MediaDecoderReader::DecodeToTarget(%lld) End", aTarget));
-
-  return NS_OK;
-}
-
-nsresult
-MediaDecoderReader::GetBuffered(mozilla::dom::TimeRanges* aBuffered,
-                                int64_t aStartTime)
-{
-  MediaResource* stream = mDecoder->GetResource();
-  int64_t durationUs = 0;
-  {
-    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    durationUs = mDecoder->GetMediaDuration();
-  }
-  GetEstimatedBufferedTimeRanges(stream, durationUs, aBuffered);
   return NS_OK;
 }
 

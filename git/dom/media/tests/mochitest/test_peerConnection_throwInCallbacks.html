@@ -18,14 +18,13 @@
   let oldOnError = window.onerror;
   window.onerror = function (errorMsg, url, lineNumber) {
     if (errorMsg.indexOf("Expected") == -1) {
-      getFail()(errorMsg);
+      getFail(new Error)(errorMsg);
     }
     error_count += 1;
     info("onerror " + error_count + ": " + errorMsg);
     if (error_count == 7) {
       finish();
     }
-    throw new Error("window.onerror may throw");
     return false;
   }
 
@@ -36,7 +35,7 @@
 
     // Test failure callbacks (limited to 1 for now)
     pc0 = new mozRTCPeerConnection();
-    pc0.createOffer(getFail(), function(err) {
+    pc0.createOffer(getFail(new Error), function(err) {
       pc1 = new mozRTCPeerConnection();
       pc2 = new mozRTCPeerConnection();
 
@@ -50,32 +49,32 @@
                 pc2.setLocalDescription(answer, function() {
                   pc1.setRemoteDescription(answer, function() {
                     throw new Error("Expected");
-                  }, getFail());
+                  }, getFail(new Error));
                   throw new Error("Expected");
-                }, getFail());
+                }, getFail(new Error));
                 throw new Error("Expected");
-              }, getFail());
+              }, getFail(new Error));
               throw new Error("Expected");
-            }, getFail());
+            }, getFail(new Error));
             throw new Error("Expected");
-          }, getFail());
+          }, getFail(new Error));
           throw new Error("Expected");
-        }, getFail());
-      }, getFail());
+        });
+      }, getFail(new Error));
       throw new Error("Expected");
     });
-  });
+  }, 1);
 
   function finish() {
     window.onerror = oldOnError;
-    is(error_count, 7, "Seven expected errors verified.");
+    ok(error_count == 7, "Seven expected errors verified.");
     SimpleTest.finish();
   }
 
-  function getFail() {
+  function getFail(where) {
     return function (err) {
-      window.onerror = oldOnError;
-      unexpectedCallbackAndFinish()(err);
+      window.onerror = onOldError;
+      unexpectedCallbackAndFinish(where)(err);
     };
   }
 </script>

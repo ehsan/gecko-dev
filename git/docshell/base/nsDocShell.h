@@ -8,16 +8,31 @@
 #ifndef nsDocShell_h__
 #define nsDocShell_h__
 
+#include "nsIDOMNode.h"
+#include "nsIDOMNodeList.h"
+#include "nsIContentViewer.h"
+#include "nsInterfaceHashtable.h"
+#include "nsIScriptContext.h"
 #include "nsITimer.h"
+
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeNode.h"
 #include "nsIBaseWindow.h"
 #include "nsIScrollable.h"
 #include "nsITextScroll.h"
+#include "nsIDocShellTreeOwner.h"
 #include "nsIContentViewerContainer.h"
 #include "nsIDOMStorageManager.h"
+
 #include "nsDocLoader.h"
+#include "nsIURILoader.h"
+
+#include "nsWeakReference.h"
+
+// Local Includes
+#include "nsDSURIContentListener.h"
+#include "nsDocShellEditorData.h"
 
 // Helper Classes
 #include "nsCOMPtr.h"
@@ -31,26 +46,38 @@
 
 // Interfaces Needed
 #include "nsIDocCharset.h"
+#include "nsIGlobalHistory2.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsIInterfaceRequestorUtils.h"
+#include "nsIPrompt.h"
 #include "nsIRefreshURI.h"
+#include "nsIScriptGlobalObjectOwner.h"
+#include "nsISHistory.h"
+#include "nsILayoutHistoryState.h"
+#include "nsIStringBundle.h"
+#include "nsISupportsArray.h"
 #include "nsIWebNavigation.h"
 #include "nsIWebPageDescriptor.h"
 #include "nsIWebProgressListener.h"
+#include "nsISHContainer.h"
 #include "nsIDocShellLoadInfo.h"
+#include "nsIDocShellHistory.h"
+#include "nsIURIFixup.h"
+#include "nsIWebBrowserFind.h"
+#include "nsIHttpChannel.h"
+#include "nsDocShellTransferableHooks.h"
 #include "nsIAuthPromptProvider.h"
+#include "nsISecureBrowserUI.h"
+#include "nsIObserver.h"
+#include "nsDocShellLoadTypes.h"
+#include "nsIDOMEventTarget.h"
 #include "nsILoadContext.h"
+#include "nsIWidget.h"
 #include "nsIWebShellServices.h"
 #include "nsILinkHandler.h"
 #include "nsIClipboardCommands.h"
+#include "nsICommandManager.h"
 #include "nsCRT.h"
-#include "prtime.h"
-#include "nsRect.h"
-
-namespace mozilla {
-namespace dom {
-class EventTarget;
-}
-}
 
 class nsDocShell;
 class nsDOMNavigationTiming;
@@ -58,25 +85,6 @@ class nsGlobalWindow;
 class nsIController;
 class nsIScrollableFrame;
 class OnLinkClickEvent;
-class nsDSURIContentListener;
-class nsDocShellEditorData;
-class nsIClipboardDragDropHookList;
-class nsICommandManager;
-class nsIContentViewer;
-class nsIDocument;
-class nsIDOMNode;
-class nsIDocShellTreeOwner;
-class nsIGlobalHistory2;
-class nsIHttpChannel;
-class nsIPrompt;
-class nsISHistory;
-class nsISecureBrowserUI;
-class nsIStringBundle;
-class nsISupportsArray;
-class nsIURIFixup;
-class nsIURILoader;
-class nsIWebBrowserFind;
-class nsIWidget;
 
 /* load commands were moved to nsIDocShell.h */
 /* load types were moved to nsDocShellLoadTypes.h */
@@ -96,7 +104,7 @@ class nsRefreshTimer : public nsITimerCallback
 public:
     nsRefreshTimer();
 
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSITIMERCALLBACK
 
     int32_t GetDelay() { return mDelay ;}
@@ -123,16 +131,19 @@ typedef enum {
 
 class nsDocShell : public nsDocLoader,
                    public nsIDocShell,
+                   public nsIDocShellHistory,
                    public nsIWebNavigation,
                    public nsIBaseWindow, 
                    public nsIScrollable, 
                    public nsITextScroll, 
                    public nsIDocCharset, 
                    public nsIContentViewerContainer,
+                   public nsIScriptGlobalObjectOwner,
                    public nsIRefreshURI,
                    public nsIWebProgressListener,
                    public nsIWebPageDescriptor,
                    public nsIAuthPromptProvider,
+                   public nsIObserver,
                    public nsILoadContext,
                    public nsIWebShellServices,
                    public nsILinkHandler,
@@ -154,6 +165,7 @@ public:
     NS_DECL_NSIDOCSHELL
     NS_DECL_NSIDOCSHELLTREEITEM
     NS_DECL_NSIDOCSHELLTREENODE
+    NS_DECL_NSIDOCSHELLHISTORY
     NS_DECL_NSIWEBNAVIGATION
     NS_DECL_NSIBASEWINDOW
     NS_DECL_NSISCROLLABLE
@@ -165,6 +177,7 @@ public:
     NS_DECL_NSICONTENTVIEWERCONTAINER
     NS_DECL_NSIWEBPAGEDESCRIPTOR
     NS_DECL_NSIAUTHPROMPTPROVIDER
+    NS_DECL_NSIOBSERVER
     NS_DECL_NSICLIPBOARDCOMMANDS
     NS_DECL_NSIWEBSHELLSERVICES
     NS_FORWARD_SAFE_NSIDOMSTORAGEMANAGER(TopSessionStorageManager())
@@ -202,6 +215,9 @@ public:
 
     nsDocShellInfoLoadType ConvertLoadTypeToDocShellLoadInfo(uint32_t aLoadType);
     uint32_t ConvertDocShellLoadInfoToLoadType(nsDocShellInfoLoadType aDocShellLoadType);
+
+    // nsIScriptGlobalObjectOwner methods
+    virtual nsIScriptGlobalObject* GetScriptGlobalObject();
 
     // Don't use NS_DECL_NSILOADCONTEXT because some of nsILoadContext's methods
     // are shared with nsIDocShell (appID, etc.) and can't be declared twice.
@@ -271,8 +287,6 @@ protected:
     // Actually open a channel and perform a URI load.  Note: whatever owner is
     // passed to this function will be set on the channel.  Callers who wish to
     // not have an owner on the channel should just pass null.
-    // If aSrcdoc is not void, the load will be considered as a srcdoc load,
-    // and the contents of aSrcdoc will be loaded instead of aURI.
     virtual nsresult DoURILoad(nsIURI * aURI,
                                nsIURI * aReferrer,
                                bool aSendReferrer,
@@ -286,8 +300,7 @@ protected:
                                nsIRequest ** aRequest,
                                bool aIsNewWindowTarget,
                                bool aBypassClassifier,
-                               bool aForceAllowCookies,
-                               const nsAString &aSrcdoc);
+                               bool aForceAllowCookies);
     NS_IMETHOD AddHeadersToChannel(nsIInputStream * aHeadersData, 
                                   nsIChannel * aChannel);
     virtual nsresult DoChannelLoad(nsIChannel * aChannel,
@@ -501,6 +514,9 @@ protected:
     nsresult   EnsureTransferableHookData();
     NS_IMETHOD EnsureFind();
     nsresult   RefreshURIFromQueue();
+    NS_IMETHOD DisplayLoadError(nsresult aError, nsIURI *aURI,
+                                const PRUnichar *aURL,
+                                nsIChannel* aFailedChannel = nullptr);
     NS_IMETHOD LoadErrorPage(nsIURI *aURI, const PRUnichar *aURL,
                              const char *aErrorPage,
                              const PRUnichar *aErrorType,
@@ -517,11 +533,6 @@ protected:
     {
       PRTime usec_per_sec = PR_USEC_PER_SEC;
       return  uint32_t(t_usec /= usec_per_sec);
-    }
-
-    inline bool UseErrorPages()
-    {
-      return (mObserveErrorPages ? sUseErrorPages : mUseErrorPages);
     }
 
     bool IsFrame();
@@ -626,6 +637,8 @@ protected:
     // helpers for executing commands
     nsresult GetControllerForCommand(const char *inCommand,
                                      nsIController** outController);
+    nsresult IsCommandEnabled(const char * inCommand, bool* outEnabled);
+    nsresult DoCommand(const char * inCommand);
     nsresult EnsureCommandHandler();
 
     nsIChannel* GetCurrentDocChannel();
@@ -640,11 +653,7 @@ protected:
 
     void ClearFrameHistory(nsISHEntry* aEntry);
 
-    /**
-     * Initializes mTiming if it isn't yet.
-     * After calling this, mTiming is non-null.
-     */
-    void MaybeInitTiming();
+    nsresult MaybeInitTiming();
 
     // Event type dispatched by RestorePresentation
     class RestorePresentationEvent : public nsRunnable {
@@ -733,8 +742,7 @@ protected:
     nsCOMPtr<nsIChannel>       mFailedChannel;
     uint32_t                   mFailedLoadType;
 
-    // Set in DoURILoad when either the LOAD_RELOAD_ALLOW_MIXED_CONTENT flag or
-    // the LOAD_NORMAL_ALLOW_MIXED_CONTENT flag is set.
+    // Set in DoURILoad when the LOAD_RELOAD_ALLOW_MIXED_CONTENT flag is set.
     // Checked in nsMixedContentBlocker, to see if the channels match.
     nsCOMPtr<nsIChannel>       mMixedContentChannel;
 
@@ -743,7 +751,7 @@ protected:
     // For that reasons don't use nsCOMPtr.
 
     nsIDocShellTreeOwner *     mTreeOwner; // Weak Reference
-    mozilla::dom::EventTarget* mChromeEventHandler; //Weak Reference
+    nsIDOMEventTarget *        mChromeEventHandler; //Weak Reference
 
     eCharsetReloadState        mCharsetReloadState;
 
@@ -767,7 +775,6 @@ protected:
     int32_t                    mLoadedTransIndex;
 
     uint32_t                   mSandboxFlags;
-    nsWeakPtr                  mOnePermittedSandboxedNavigator;
 
     // mFullscreenAllowed stores how we determine whether fullscreen is allowed
     // when GetFullscreenAllowed() is called. Fullscreen is allowed in a
@@ -788,19 +795,14 @@ protected:
     };
     FullscreenAllowedState     mFullscreenAllowed;
 
-    // Cached value of the "browser.xul.error_pages.enabled" preference.
-    static bool                sUseErrorPages;
-
     bool                       mCreated;
     bool                       mAllowSubframes;
     bool                       mAllowPlugins;
     bool                       mAllowJavascript;
     bool                       mAllowMetaRedirects;
     bool                       mAllowImages;
-    bool                       mAllowMedia;
     bool                       mAllowDNSPrefetch;
     bool                       mAllowWindowControl;
-    bool                       mAllowContentRetargeting;
     bool                       mCreatingDocument; // (should be) debugging only
     bool                       mUseErrorPages;
     bool                       mObserveErrorPages;
@@ -811,13 +813,6 @@ protected:
     bool                       mIsAppTab;
     bool                       mUseGlobalHistory;
     bool                       mInPrivateBrowsing;
-    bool                       mDeviceSizeIsPageSize;
-
-    // Because scriptability depends on the mAllowJavascript values of our
-    // ancestors, we cache the effective scriptability and recompute it when
-    // it might have changed;
-    bool                       mCanExecuteScripts;
-    void RecomputeCanExecuteScripts();
 
     // This boolean is set to true right before we fire pagehide and generally
     // unset when we embed a new content viewer.  While it's true no navigation
@@ -849,9 +844,7 @@ protected:
     bool                       mInEnsureScriptEnv;
 #endif
     bool                       mAffectPrivateSessionLifetime;
-    bool                       mInvisible;
     uint64_t                   mHistoryID;
-    uint32_t                   mDefaultLoadFlags;
 
     static nsIURIFixup *sURIFixup;
 
@@ -871,24 +864,11 @@ protected:
     uint32_t mOwnOrContainingAppId;
 
 private:
-    nsCString         mForcedCharset;
-    nsCString         mParentCharset;
-    int32_t           mParentCharsetSource;
-    nsCOMPtr<nsIPrincipal> mParentCharsetPrincipal;
+    nsCOMPtr<nsIAtom> mForcedCharset;
+    nsCOMPtr<nsIAtom> mParentCharset;
     nsTObserverArray<nsWeakPtr> mPrivacyObservers;
-    nsTObserverArray<nsWeakPtr> mReflowObservers;
+    int32_t           mParentCharsetSource;
     nsCString         mOriginalUriString;
-
-    // Separate function to do the actual name (i.e. not _top, _self etc.)
-    // searching for FindItemWithName.
-    nsresult DoFindItemWithName(const PRUnichar* aName,
-                                nsISupports* aRequestor,
-                                nsIDocShellTreeItem* aOriginalRequestor,
-                                nsIDocShellTreeItem** _retval);
-
-    // Check whether accessing item is sandboxed from the target item.
-    static bool IsSandboxedFrom(nsIDocShellTreeItem* aTargetItem,
-                                nsIDocShellTreeItem* aAccessingItem);
 
 #ifdef DEBUG
     // We're counting the number of |nsDocShells| to help find leaks
@@ -900,7 +880,7 @@ public:
     public:
         InterfaceRequestorProxy(nsIInterfaceRequestor* p);
         virtual ~InterfaceRequestorProxy();
-        NS_DECL_THREADSAFE_ISUPPORTS
+        NS_DECL_ISUPPORTS
         NS_DECL_NSIINTERFACEREQUESTOR
  
     protected:

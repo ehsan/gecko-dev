@@ -15,7 +15,6 @@
 #include "nsAttrValueInlines.h"
 #include "nsIAtom.h"
 #include "nsUnicharUtils.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/StyleRule.h"
 #include "mozilla/css/Declaration.h"
 #include "nsContentUtils.h"
@@ -24,8 +23,6 @@
 #include "nsHTMLCSSStyleSheet.h"
 #include "nsCSSParser.h"
 #include "nsStyledElement.h"
-#include "nsIURI.h"
-#include "nsIDocument.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -310,7 +307,8 @@ nsAttrValue::SetTo(const nsAttrValue& aOther)
     }
     case eCSSStyleRule:
     {
-      MOZ_CRASH("These should be refcounted!");
+      MOZ_NOT_REACHED("These should be refcounted!");
+      break;
     }
     case eURL:
     {
@@ -375,7 +373,7 @@ void
 nsAttrValue::SetTo(const nsAString& aValue)
 {
   ResetIfSet();
-  nsStringBuffer* buf = GetStringBuffer(aValue).get();
+  nsStringBuffer* buf = GetStringBuffer(aValue);
   if (buf) {
     SetPtrValueAndType(buf, eStringBase);
   }
@@ -741,8 +739,9 @@ nsAttrValue::GetAsAtom() const
 
     case eAtom:
       {
-        nsCOMPtr<nsIAtom> atom = GetAtomValue();
-        return atom.forget();
+        nsIAtom* atom = GetAtomValue();
+        NS_ADDREF(atom);
+        return atom;
       }
 
     default:
@@ -1230,9 +1229,9 @@ nsAttrValue::ParseAtom(const nsAString& aValue)
 {
   ResetIfSet();
 
-  nsCOMPtr<nsIAtom> atom = NS_NewAtom(aValue);
+  nsIAtom* atom = NS_NewAtom(aValue);
   if (atom) {
-    SetPtrValueAndType(atom.forget().get(), eAtomBase);
+    SetPtrValueAndType(atom, eAtomBase);
   }
 }
 
@@ -1528,7 +1527,7 @@ nsAttrValue::ParsePositiveIntValue(const nsAString& aString)
 void
 nsAttrValue::SetColorValue(nscolor aColor, const nsAString& aString)
 {
-  nsStringBuffer* buf = GetStringBuffer(aString).get();
+  nsStringBuffer* buf = GetStringBuffer(aString);
   if (!buf) {
     return;
   }
@@ -1713,13 +1712,12 @@ nsAttrValue::SetMiscAtomOrString(const nsAString* aValue)
                  "Empty string?");
     MiscContainer* cont = GetMiscContainer();
     if (len <= NS_ATTRVALUE_MAX_STRINGLENGTH_ATOM) {
-      nsCOMPtr<nsIAtom> atom = NS_NewAtom(*aValue);
+      nsIAtom* atom = NS_NewAtom(*aValue);
       if (atom) {
-        cont->mStringBits =
-          reinterpret_cast<uintptr_t>(atom.forget().get()) | eAtomBase;
+        cont->mStringBits = reinterpret_cast<uintptr_t>(atom) | eAtomBase;
       }
     } else {
-      nsStringBuffer* buf = GetStringBuffer(*aValue).get();
+      nsStringBuffer* buf = GetStringBuffer(*aValue);
       if (buf) {
         cont->mStringBits = reinterpret_cast<uintptr_t>(buf) | eStringBase;
       }
@@ -1855,7 +1853,7 @@ nsAttrValue::EnsureEmptyAtomArray()
   return true;
 }
 
-already_AddRefed<nsStringBuffer>
+nsStringBuffer*
 nsAttrValue::GetStringBuffer(const nsAString& aValue) const
 {
   uint32_t len = aValue.Length();
@@ -1863,9 +1861,10 @@ nsAttrValue::GetStringBuffer(const nsAString& aValue) const
     return nullptr;
   }
 
-  nsRefPtr<nsStringBuffer> buf = nsStringBuffer::FromString(aValue);
+  nsStringBuffer* buf = nsStringBuffer::FromString(aValue);
   if (buf && (buf->StorageSize()/sizeof(PRUnichar) - 1) == len) {
-    return buf.forget();
+    buf->AddRef();
+    return buf;
   }
 
   buf = nsStringBuffer::Alloc((len + 1) * sizeof(PRUnichar));
@@ -1875,7 +1874,7 @@ nsAttrValue::GetStringBuffer(const nsAString& aValue) const
   PRUnichar *data = static_cast<PRUnichar*>(buf->Data());
   CopyUnicodeTo(aValue, 0, data, len);
   data[len] = PRUnichar(0);
-  return buf.forget();
+  return buf;
 }
 
 int32_t
@@ -1951,7 +1950,7 @@ nsAttrValue::StringToInteger(const nsAString& aValue, bool* aStrict,
 }
 
 size_t
-nsAttrValue::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+nsAttrValue::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
 

@@ -4,14 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "PluginScriptableObjectParent.h"
-
 #include "mozilla/DebugOnly.h"
-#include "mozilla/plugins/PluginIdentifierParent.h"
-#include "mozilla/unused.h"
-#include "nsCxPusher.h"
-#include "nsNPAPIPlugin.h"
+
+#include "PluginScriptableObjectParent.h"
 #include "PluginScriptableObjectUtils.h"
+
+#include "nsNPAPIPlugin.h"
+#include "mozilla/unused.h"
 
 using namespace mozilla::plugins;
 using namespace mozilla::plugins::parent;
@@ -1041,12 +1040,14 @@ PluginScriptableObjectParent::AnswerEnumerate(InfallibleTArray<PPluginIdentifier
 
   aProperties->SetCapacity(idCount);
 
-  mozilla::AutoSafeJSContext cx;
+  JSContext* cx = GetJSContext(instance->GetNPP());
+  JSAutoRequest ar(cx);
+
   for (uint32_t index = 0; index < idCount; index++) {
     // Because of GC hazards, all identifiers returned from enumerate
     // must be made permanent.
     if (_identifierisstring(ids[index])) {
-      JS::Rooted<JSString*> str(cx, NPIdentifierToString(ids[index]));
+      JSString* str = NPIdentifierToString(ids[index]);
       if (!JS_StringHasBeenInterned(cx, str)) {
         DebugOnly<JSString*> str2 = JS_InternJSString(cx, str);
         NS_ASSERTION(str2 == str, "Interning a JS string which is currently an ID should return itself.");
@@ -1212,7 +1213,7 @@ PluginScriptableObjectParent::AnswerNPN_Evaluate(const nsCString& aScript,
   return true;
 }
 
-bool
+JSBool
 PluginScriptableObjectParent::GetPropertyHelper(NPIdentifier aName,
                                                 bool* aHasProperty,
                                                 bool* aHasMethod,
@@ -1223,31 +1224,31 @@ PluginScriptableObjectParent::GetPropertyHelper(NPIdentifier aName,
   ParentNPObject* object = static_cast<ParentNPObject*>(mObject);
   if (object->invalidated) {
     NS_WARNING("Calling method on an invalidated object!");
-    return false;
+    return JS_FALSE;
   }
 
   StackIdentifier identifier(GetInstance(), aName);
   if (!identifier) {
-    return false;
+    return JS_FALSE;
   }
 
   bool hasProperty, hasMethod, success;
   Variant result;
   if (!CallGetChildProperty(identifier, &hasProperty, &hasMethod, &result,
                             &success)) {
-    return false;
+    return JS_FALSE;
   }
 
   if (!success) {
-    return false;
+    return JS_FALSE;
   }
 
   if (!ConvertToVariant(result, *aResult, GetInstance())) {
     NS_WARNING("Failed to convert result!");
-    return false;
+    return JS_FALSE;
   }
 
   *aHasProperty = hasProperty;
   *aHasMethod = hasMethod;
-  return true;
+  return JS_TRUE;
 }

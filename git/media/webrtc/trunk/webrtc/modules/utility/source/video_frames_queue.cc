@@ -8,16 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/utility/source/video_frames_queue.h"
+#include "video_frames_queue.h"
 
 #ifdef WEBRTC_MODULE_UTILITY_VIDEO
 
-#include <assert.h>
+#include <cassert>
 
-#include "webrtc/common_video/interface/texture_video_frame.h"
-#include "webrtc/modules/interface/module_common_types.h"
-#include "webrtc/system_wrappers/interface/tick_util.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "module_common_types.h"
+#include "tick_util.h"
+#include "trace.h"
 
 namespace webrtc {
 VideoFramesQueue::VideoFramesQueue()
@@ -48,17 +47,7 @@ VideoFramesQueue::~VideoFramesQueue() {
   }
 }
 
-int32_t VideoFramesQueue::AddFrame(const I420VideoFrame& newFrame) {
-  if (newFrame.native_handle() != NULL) {
-    _incomingFrames.PushBack(new TextureVideoFrame(
-        static_cast<NativeHandle*>(newFrame.native_handle()),
-        newFrame.width(),
-        newFrame.height(),
-        newFrame.timestamp(),
-        newFrame.render_time_ms()));
-    return 0;
-  }
-
+WebRtc_Word32 VideoFramesQueue::AddFrame(const I420VideoFrame& newFrame) {
   I420VideoFrame* ptrFrameToAdd = NULL;
   // Try to re-use a VideoFrame. Only allocate new memory if it is necessary.
   if (!_emptyFrames.Empty()) {
@@ -123,24 +112,19 @@ I420VideoFrame* VideoFramesQueue::FrameToRecord() {
   return ptrRenderFrame;
 }
 
-int32_t VideoFramesQueue::ReturnFrame(I420VideoFrame* ptrOldFrame) {
-  // No need to reuse texture frames because they do not allocate memory.
-  if (ptrOldFrame->native_handle() == NULL) {
-    ptrOldFrame->set_timestamp(0);
-    ptrOldFrame->set_width(0);
-    ptrOldFrame->set_height(0);
-    ptrOldFrame->set_render_time_ms(0);
-    ptrOldFrame->ResetSize();
-    _emptyFrames.PushBack(ptrOldFrame);
-  } else {
-    delete ptrOldFrame;
-  }
+WebRtc_Word32 VideoFramesQueue::ReturnFrame(I420VideoFrame* ptrOldFrame) {
+  ptrOldFrame->set_timestamp(0);
+  ptrOldFrame->set_width(0);
+  ptrOldFrame->set_height(0);
+  ptrOldFrame->set_render_time_ms(0);
+  ptrOldFrame->ResetSize();
+  _emptyFrames.PushBack(ptrOldFrame);
   return 0;
 }
 
-int32_t VideoFramesQueue::SetRenderDelay(uint32_t renderDelay) {
+WebRtc_Word32 VideoFramesQueue::SetRenderDelay(WebRtc_UWord32 renderDelay) {
   _renderDelayMs = renderDelay;
   return 0;
 }
-}  // namespace webrtc
+} // namespace webrtc
 #endif // WEBRTC_MODULE_UTILITY_VIDEO

@@ -92,7 +92,7 @@ nsUserInfo::GetUsername(char * *aUsername)
     printf("username = %s\n", pw->pw_name);
 #endif
 
-    *aUsername = strdup(pw->pw_name);
+    *aUsername = nsCRT::strdup(pw->pw_name);
 
     return NS_OK;
 }
@@ -110,12 +110,14 @@ nsUserInfo::GetDomain(char * *aDomain)
         return rv;
     }
 
-#if defined(__linux__)
+#if defined(HAVE_UNAME_DOMAINNAME_FIELD)
     domainname = buf.domainname;
+#elif defined(HAVE_UNAME_US_DOMAINNAME_FIELD)
+    domainname = buf.__domainname;
 #endif
 
     if (domainname && domainname[0]) {   
-        *aDomain = strdup(domainname);
+        *aDomain = nsCRT::strdup(domainname);
         rv = NS_OK;
     }
     else {
@@ -126,7 +128,7 @@ nsUserInfo::GetDomain(char * *aDomain)
             // if the nodename is foo.bar.org, use bar.org as the domain
             char *pos = strchr(buf.nodename,'.');
             if (pos) {
-                *aDomain = strdup(pos+1);
+                *aDomain = nsCRT::strdup(pos+1);
                 rv = NS_OK;
             }
         }

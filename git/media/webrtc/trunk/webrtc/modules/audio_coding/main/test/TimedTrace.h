@@ -13,23 +13,25 @@
 
 #include "typedefs.h"
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 
-class TimedTrace {
- public:
-  TimedTrace();
-  ~TimedTrace();
 
-  void SetTimeEllapsed(double myTime);
-  double TimeEllapsed();
-  void Tick10Msec();
-  int16_t SetUp(char* fileName);
-  void TimedLogg(char* message);
+class TimedTrace
+{
+public:
+    TimedTrace();
+    ~TimedTrace();
 
- private:
-  static double _timeEllapsedSec;
-  static FILE* _timedTraceFile;
+    void SetTimeEllapsed(double myTime);
+    double TimeEllapsed();
+    void Tick10Msec();
+    WebRtc_Word16 SetUp(char* fileName);
+    void TimedLogg(char* message);
+
+private:
+    static double _timeEllapsedSec;
+    static FILE*  _timedTraceFile;
 
 };
 

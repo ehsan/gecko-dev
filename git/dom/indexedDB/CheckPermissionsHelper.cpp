@@ -19,11 +19,14 @@
 #include "nsContentUtils.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
+#include "mozilla/dom/quota/QuotaManager.h"
+#include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 
 #include "IndexedDatabaseManager.h"
 
 #define PERMISSION_INDEXEDDB "indexedDB"
+#define PREF_INDEXEDDB_ENABLED "dom.indexedDB.enabled"
 #define TOPIC_PERMISSIONS_PROMPT "indexedDB-permissions-prompt"
 #define TOPIC_PERMISSIONS_RESPONSE "indexedDB-permissions-response"
 
@@ -38,6 +41,7 @@
 USING_INDEXEDDB_NAMESPACE
 using namespace mozilla::services;
 using mozilla::dom::quota::CheckQuotaHelper;
+using mozilla::Preferences;
 
 namespace {
 
@@ -47,13 +51,21 @@ GetIndexedDBPermissions(nsIDOMWindow* aWindow)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  NS_ASSERTION(aWindow, "Chrome shouldn't check the permission!");
+  if (!Preferences::GetBool(PREF_INDEXEDDB_ENABLED)) {
+    return PERMISSION_DENIED;
+  }
+
+  // No window here means chrome access.
+  if (!aWindow) {
+    return PERMISSION_ALLOWED;
+  }
 
   nsCOMPtr<nsIScriptObjectPrincipal> sop(do_QueryInterface(aWindow));
   NS_ENSURE_TRUE(sop, nsIPermissionManager::DENY_ACTION);
 
-  NS_ASSERTION(!nsContentUtils::IsSystemPrincipal(sop->GetPrincipal()),
-               "Chrome windows shouldn't check the permission!");
+  if (nsContentUtils::IsSystemPrincipal(sop->GetPrincipal())) {
+    return PERMISSION_ALLOWED;
+  }
 
   nsCOMPtr<nsIWebNavigation> webNav = do_GetInterface(aWindow);
   nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(webNav);
@@ -79,9 +91,9 @@ GetIndexedDBPermissions(nsIDOMWindow* aWindow)
 
 } // anonymous namespace
 
-NS_IMPL_ISUPPORTS3(CheckPermissionsHelper, nsIRunnable,
-                   nsIInterfaceRequestor,
-                   nsIObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS3(CheckPermissionsHelper, nsIRunnable,
+                                                      nsIInterfaceRequestor,
+                                                      nsIObserver)
 
 NS_IMETHODIMP
 CheckPermissionsHelper::Run()
@@ -153,7 +165,10 @@ CheckPermissionsHelper::Run()
       }
     }
 
-    return helper->DispatchToIOThread();
+    quota::QuotaManager* quotaManager = quota::QuotaManager::Get();
+    NS_ASSERTION(quotaManager, "This should never be null!");
+
+    return helper->Dispatch(quotaManager->IOThread());
   }
 
   NS_ASSERTION(permission == PERMISSION_PROMPT ||

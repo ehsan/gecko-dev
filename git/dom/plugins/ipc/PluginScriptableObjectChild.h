@@ -8,7 +8,6 @@
 #define dom_plugins_PluginScriptableObjectChild_h 1
 
 #include "mozilla/plugins/PPluginScriptableObjectChild.h"
-#include "mozilla/plugins/PluginMessageUtils.h"
 
 #include "npruntime.h"
 
@@ -22,7 +21,7 @@ class PPluginIdentifierChild;
 struct ChildNPObject : NPObject
 {
   ChildNPObject()
-    : NPObject(), parent(nullptr), invalidated(false)
+    : NPObject(), parent(NULL), invalidated(false)
   {
     MOZ_COUNT_CTOR(ChildNPObject);
   }

@@ -2,4 +2,4 @@
 var target = function (x, y) {
     return x + y;
 }
-assertEq(Proxy(target, {})(2, 3), 5);
+assertEq(new Proxy(target, {})(2, 3), 5);

@@ -2,8 +2,8 @@
 
 "use strict";
 
-loadRelativeToScript('utility.js');
-loadRelativeToScript('annotations.js');
+load('utility.js');
+load('annotations.js');
 
 function processCSU(csu, body)
 {
@@ -19,7 +19,7 @@ function processCSU(csu, body)
         if (type.Kind == "CSU") {
             // Ignore nesting in classes which are AutoGCRooters. We only consider
             // types with fields that may not be properly rooted.
-            if (type.Name == "JS::AutoGCRooter" || type.Name == "JS::CustomAutoRooter")
+            if (type.Name == "JS::AutoGCRooter")
                 return;
             addNestedStructure(csu, type.Name);
         }
@@ -67,12 +67,12 @@ function addGCType(name)
 
     print("GCThing: " + name);
     if (name in structureParents) {
-        for (var holder of structureParents[name])
-            addGCType(holder);
+        for (var nested of structureParents[name])
+            addGCType(nested);
     }
     if (name in pointerParents) {
-        for (var holder of pointerParents[name])
-            addGCPointer(holder);
+        for (var nested of pointerParents[name])
+            addGCPointer(nested);
     }
 }
 
@@ -84,8 +84,8 @@ function addGCPointer(name)
 
     print("GCPointer: " + name);
     if (name in structureParents) {
-        for (var holder of structureParents[name])
-            addGCPointer(holder);
+        for (var nested of structureParents[name])
+            addGCPointer(nested);
     }
 }
 
@@ -94,7 +94,6 @@ addGCType('JSString');
 addGCType('js::Shape');
 addGCType('js::BaseShape');
 addGCType('JSScript');
-addGCType('js::LazyScript');
 addGCType('js::ion::IonCode');
 addGCPointer('JS::Value');
 addGCPointer('jsid');

@@ -36,6 +36,9 @@
 #include "ocsp.h"
 #include "ocspti.h"     /* internals for pretty-printing routines *only* */
 
+#define VERSIONSTRING "$Revision$ ($Date$) $Author$"
+
+
 struct _DataBufferList;
 struct _DataBuffer;
 
@@ -399,8 +402,6 @@ const char * V2CipherString(int cs_int)
   case 0x000099:    cs_str = "TLS/DHE-DSS/SEED-CBC/SHA";	break;     
   case 0x00009A:    cs_str = "TLS/DHE-RSA/SEED-CBC/SHA";	break;     
   case 0x00009B:    cs_str = "TLS/DH-ANON/SEED-CBC/SHA";	break;     
-  case 0x00009C:    cs_str = "TLS/RSA/AES128-GCM/SHA256";	break;     
-  case 0x00009E:    cs_str = "TLS/DHE-RSA/AES128-GCM/SHA256";	break;     
 
   case 0x0000FF:    cs_str = "TLS_EMPTY_RENEGOTIATION_INFO_SCSV"; break;
 
@@ -440,7 +441,6 @@ const char * V2CipherString(int cs_int)
   case 0x00C02A:    cs_str = "TLS/ECDH-RSA/AES256-CBC/SHA384"; break;
   case 0x00C02B:    cs_str = "TLS/ECDHE-ECDSA/AES128-GCM/SHA256"; break;
   case 0x00C02C:    cs_str = "TLS/ECDHE-ECDSA/AES256-GCM/SHA384"; break;
-  case 0x00C02F:    cs_str = "TLS/ECDHE-RSA/AES128-GCM/SHA256"; break;
 
   case 0x00FEFF:    cs_str = "SSL3/RSA-FIPS/3DESEDE-CBC/SHA";	break;
   case 0x00FEFE:    cs_str = "SSL3/RSA-FIPS/DES-CBC/SHA";	break;
@@ -1023,7 +1023,7 @@ void print_ssl3_handshake(unsigned char *recordBuf,
     case 15: PR_FPUTS("certificate_verify)\n"          ); break;
     case 16: PR_FPUTS("client_key_exchange)\n"         ); break;
     case 20: PR_FPUTS("finished)\n"                    ); break;
-    case 22: PR_FPUTS("certificate_status)\n"          ); break;
+    case 22: PR_FPUTS("certificate_status_request)\n"  ); break;
     default: PR_FPUTS("unknown)\n"                     ); break;
     }
 
@@ -1321,7 +1321,7 @@ void print_ssl3_handshake(unsigned char *recordBuf,
       }
       break;
 
-    case 22: /* certificate_status */
+    case 22: /*certificate_status_request*/
       {
         SECItem data;
         PRFileDesc *ofd;
@@ -1765,7 +1765,7 @@ int main(int argc,  char *argv[])
   SECStatus   rv;
 
   progName = argv[0];
-  optstate = PL_CreateOptState(argc,argv,"fxhslp:");
+  optstate = PL_CreateOptState(argc,argv,"fvxhslp:");
     while ((status = PL_GetNextOpt(optstate)) == PL_OPT_OK) {
     switch (optstate->option) {
     case 'f':
@@ -1773,6 +1773,9 @@ int main(int argc,  char *argv[])
       break;
     case 'h':
       hexparse++;
+      break;
+    case 'v':
+      PR_fprintf(PR_STDOUT,"Version: %s\n",VERSIONSTRING);
       break;
     case 's':
       sslparse++;

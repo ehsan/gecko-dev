@@ -19,8 +19,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
                                   "resource://gre/modules/PlacesUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
-                                  "resource://gre/modules/FormHistory.jsm");
 
 function Bookmarks(aBookmarksFile) {
   this._file = aBookmarksFile;
@@ -212,17 +210,10 @@ History.prototype = {
         for (let entry of entries) {
           if (entry.has("lastVisitedDate")) {
             let visitDate = this._parseCocoaDate(entry.get("lastVisitedDate"));
-            try {
-              places.push({ uri: NetUtil.newURI(entry.get("")),
-                            title: entry.get("title"),
-                            visits: [{ transitionType: transType,
-                                       visitDate: visitDate }] });
-            }
-            catch(ex) {
-              // Safari's History file may contain malformed URIs which
-              // will be ignored.
-              Cu.reportError(ex)
-            }
+            places.push({ uri: NetUtil.newURI(entry.get("")),
+                          title: entry.get("title"),
+                          visits: [{ transitionType: transType,
+                                     visitDate: visitDate }] });
           }
         }
         if (places.length > 0) {
@@ -341,6 +332,29 @@ Preferences.prototype = {
         // Allowed, originating site only   --        3
         this._set("WebKitDisplayImagesKey", "permissions.default.image",
                   function(webkitVal) webkitVal ? 1 : 2);
+
+        // Default charset migration
+        this._set("WebKitDefaultTextEncodingName", "intl.charset.default",
+          function(webkitCharset) {
+            // We don't support x-mac-korean (see bug 713516), but it mostly matches
+            // EUC-KR.
+            if (webkitCharset == "x-mac-korean")
+              return "EUC-KR";
+
+            // getCharsetAlias throws if an invalid value is passed in.
+            try {
+              return Cc["@mozilla.org/charset-converter-manager;1"].
+                     getService(Ci.nsICharsetConverterManager).
+                     getCharsetAlias(webkitCharset);
+            }
+            catch(ex) {
+              Cu.reportError("Could not convert webkit charset '" + webkitCharset +
+                             "' to a supported charset");
+            }
+            // Don't set the preference if we could not get the corresponding
+            // charset.
+            return undefined;
+          });
 
 #ifdef XP_WIN
         // Cookie-accept policy.
@@ -526,11 +540,11 @@ SearchStrings.prototype = {
         if (aDict.has("RecentSearchStrings")) {
           let recentSearchStrings = aDict.get("RecentSearchStrings");
           if (recentSearchStrings && recentSearchStrings.length > 0) {
-            let changes = [{op: "add",
-                            fieldname: "searchbar-history",
-                            value: searchString}
-                           for (searchString of recentSearchStrings)];
-            FormHistory.update(changes);
+            let formHistory = Cc["@mozilla.org/satchel/form-history;1"].
+                              getService(Ci.nsIFormHistory2);
+            for (let searchString of recentSearchStrings) {
+              formHistory.addEntry("searchbar-history", searchString);
+            }
           }
         }
       }.bind(this), aCallback));

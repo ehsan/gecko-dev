@@ -25,7 +25,7 @@ protected:
   SVGFEImageFrame(nsStyleContext* aContext)
     : SVGFEImageFrameBase(aContext)
   {
-    AddStateBits(NS_FRAME_SVG_LAYOUT | NS_FRAME_IS_NONDISPLAY);
+    AddStateBits(NS_FRAME_SVG_LAYOUT | NS_STATE_SVG_NONDISPLAY_CHILD);
   }
 
 public:
@@ -47,6 +47,8 @@ public:
     return MakeFrameName(NS_LITERAL_STRING("SVGFEImage"), aResult);
   }
 #endif
+
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
   /**
    * Get the "type" of the frame
@@ -72,6 +74,13 @@ NS_NewSVGFEImageFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(SVGFEImageFrame)
+
+/* virtual */ void
+SVGFEImageFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+{
+  SVGFEImageFrameBase::DidSetStyleContext(aOldStyleContext);
+  nsSVGEffects::InvalidateRenderingObservers(this);
+}
 
 /* virtual */ void
 SVGFEImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
@@ -101,11 +110,9 @@ SVGFEImageFrame::Init(nsIContent* aContent,
     do_QueryInterface(SVGFEImageFrameBase::mContent);
 
   if (imageLoader) {
-    // We assume that feImage's are always visible.
-    // Increment the visible count before calling FrameCreated so that
-    // FrameCreated will actually track the image correctly.
-    imageLoader->IncrementVisibleCount();
     imageLoader->FrameCreated(this);
+    // We assume that feImage's are always visible.
+    imageLoader->IncrementVisibleCount();
   }
 }
 

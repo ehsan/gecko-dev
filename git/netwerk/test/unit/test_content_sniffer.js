@@ -1,5 +1,10 @@
 // This file tests nsIContentSniffer, introduced in bug 324985
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
 Cu.import("resource://testing-common/httpd.js");
 
 const unknownType = "application/x-unknown-content-type";
@@ -79,21 +84,20 @@ function makeChan(url) {
   return chan;
 }
 
-var httpserv = null;
-var urls = null;
-
-function run_test() {
-  httpserv = new HttpServer();
-  httpserv.start(-1);
-
-  urls = [
+var urls = [
   // NOTE: First URL here runs without our content sniffer
   "data:" + unknownType + ", Some text",
   "data:" + unknownType + ", Text", // Make sure sniffing works even if we
                                     // used the unknown content sniffer too
   "data:text/plain, Some more text",
-    "http://localhost:" + httpserv.identity.primaryPort
+  "http://localhost:4444"
 ];
+
+var httpserv = null;
+
+function run_test() {
+  httpserv = new HttpServer();
+  httpserv.start(4444);
 
   Components.manager.nsIComponentRegistrar.registerFactory(snifferCID,
     "Unit test content sniffer", snifferContract, sniffer);

@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-Cu.import("resource://gre/modules/Log.jsm");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/utils.js");
 Cu.import("resource://testing-common/httpd.js");
 Cu.import("resource://testing-common/services-common/logging.js");
 
-let btoa = Cu.import("resource://gre/modules/Log.jsm").btoa;
-let atob = Cu.import("resource://gre/modules/Log.jsm").atob;
+let btoa = Cu.import("resource://services-common/log4moz.js").btoa;
+let atob = Cu.import("resource://services-common/log4moz.js").atob;
 
 function do_check_empty(obj) {
   do_check_attribute_count(obj, 0);
@@ -46,7 +46,18 @@ function do_check_throws(aFunc, aResult, aStack) {
  */
 let _ = function(some, debug, text, to) print(Array.slice(arguments).join(" "));
 
-function httpd_setup (handlers, port=-1) {
+/**
+ * Obtain a port number to run a server on.
+ *
+ * In the ideal world, this would be dynamic so multiple servers could be run
+ * in parallel.
+ */
+function get_server_port() {
+  return 8080;
+}
+
+function httpd_setup (handlers, port) {
+  let port   = port || 8080;
   let server = new HttpServer();
   for (let path in handlers) {
     server.registerPathHandler(path, handlers[path]);
@@ -61,10 +72,6 @@ function httpd_setup (handlers, port=-1) {
     _("==========================================");
     do_throw(ex);
   }
-
-  // Set the base URI for convenience.
-  let i = server.identity;
-  server.baseURI = i.primaryScheme + "://" + i.primaryHost + ":" + i.primaryPort;
 
   return server;
 }

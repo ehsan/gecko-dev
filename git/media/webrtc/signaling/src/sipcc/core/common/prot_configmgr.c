@@ -364,7 +364,7 @@ sip_config_check_line (line_t line)
 
     if ((line < 1) || (line > max_lines_allowed)) {
         if (line != 0) {
-            PLAT_ERROR(PLAT_COMMON_F_PREFIX"Invalid Line: %d", fname, line);
+            PLAT_ERROR(PLAT_COMMON_F_PREFIX"Invalid Line: %d\n", fname, line);
         }
         return FALSE;
     }
@@ -422,12 +422,12 @@ sip_config_get_keepalive_expires()
 
     if (keepalive_interval < MIN_KEEPALIVE_EXPIRES) {
         keepalive_interval = MIN_KEEPALIVE_EXPIRES;
-        TNP_DEBUG(DEB_F_PREFIX"Keepalive interval less than minimum acceptable.Resetting it to %d",
+        TNP_DEBUG(DEB_F_PREFIX"Keepalive interval less than minimum acceptable.Resetting it to %d\n",
             DEB_F_PREFIX_ARGS(SIP_KA, "sip_config_get_keepalive_expires"),
             keepalive_interval);
     } else if (keepalive_interval > MAX_KEEPALIVE_EXPIRES) {
         keepalive_interval = MAX_KEEPALIVE_EXPIRES;
-        TNP_DEBUG(DEB_F_PREFIX"Keepalive interval more than maximum acceptable.Resetting it to %d",
+        TNP_DEBUG(DEB_F_PREFIX"Keepalive interval more than maximum acceptable.Resetting it to %d\n",
             DEB_F_PREFIX_ARGS(SIP_KA, "sip_config_get_keepalive_expires"),
             keepalive_interval);
     }
@@ -569,28 +569,6 @@ sip_config_local_supported_codecs_get (rtp_ptype aSupportedCodecs[],
         codec++;
     }
     return count;
-}
-
-uint32_t
-config_get_video_max_fs(const rtp_ptype codec)
-{
-  uint32_t max_fs;
-
-  if(vcmGetVideoMaxFs(codec, (int32_t *) &max_fs) == 0) {
-    return max_fs;
-  }
-  return 0;
-}
-
-uint32_t
-config_get_video_max_fr(const rtp_ptype codec)
-{
-  uint32_t max_fr;
-
-  if(vcmGetVideoMaxFr(codec, (int32_t *) &max_fr) == 0) {
-    return max_fr;
-  }
-  return 0;
 }
 
 /*

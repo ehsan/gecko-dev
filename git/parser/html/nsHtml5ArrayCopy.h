@@ -20,9 +20,10 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef nsHtml5ArrayCopy_h
-#define nsHtml5ArrayCopy_h
+#ifndef nsHtml5ArrayCopy_h__
+#define nsHtml5ArrayCopy_h__
 
+#include "prtypes.h"
 
 class nsString;
 class nsHtml5StackNode;
@@ -75,4 +76,4 @@ class nsHtml5ArrayCopy {
       memmove(&(arr[targetOffset]), &(arr[sourceOffset]), length * sizeof(nsHtml5StackNode*));
     }
 };
-#endif // nsHtml5ArrayCopy_h
+#endif // nsHtml5ArrayCopy_h__

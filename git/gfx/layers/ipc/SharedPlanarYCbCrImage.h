@@ -3,43 +3,32 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stdint.h>                     // for uint8_t, uint32_t
-#include "ImageContainer.h"             // for PlanarYCbCrImage, etc
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/RefPtr.h"             // for RefPtr
-#include "mozilla/ipc/Shmem.h"          // for Shmem
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsDebug.h"                    // for NS_WARNING
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR
+#include "ImageContainer.h"
+#include "mozilla/ipc/Shmem.h"
+#include "mozilla/ipc/SharedMemory.h"
+#include "mozilla/layers/ISurfaceAllocator.h"
 
-class gfxASurface;
-
-#ifndef MOZILLA_LAYERS_DeprecatedSharedPlanarYCbCrImage_H
-#define MOZILLA_LAYERS_DeprecatedSharedPlanarYCbCrImage_H
+#ifndef MOZILLA_LAYERS_SHAREDPLANARYCBCRIMAGE_H
+#define MOZILLA_LAYERS_SHAREDPLANARYCBCRIMAGE_H
 
 namespace mozilla {
 namespace layers {
 
-class BufferTextureClient;
 class ImageClient;
-class ISurfaceAllocator;
-class SurfaceDescriptor;
-class TextureClient;
 
-// XXX - This class will be removed along with DeprecatedImageClient
-class DeprecatedSharedPlanarYCbCrImage : public PlanarYCbCrImage
+class SharedPlanarYCbCrImage : public PlanarYCbCrImage
 {
 public:
-  DeprecatedSharedPlanarYCbCrImage(ISurfaceAllocator* aAllocator)
+  SharedPlanarYCbCrImage(ISurfaceAllocator* aAllocator)
   : PlanarYCbCrImage(nullptr)
   , mSurfaceAllocator(aAllocator), mAllocated(false)
   {
-    MOZ_COUNT_CTOR(DeprecatedSharedPlanarYCbCrImage);
+    MOZ_COUNT_CTOR(SharedPlanarYCbCrImage);
   }
 
-  ~DeprecatedSharedPlanarYCbCrImage();
+  ~SharedPlanarYCbCrImage();
 
-  virtual DeprecatedSharedPlanarYCbCrImage* AsDeprecatedSharedPlanarYCbCrImage() MOZ_OVERRIDE
+  virtual SharedPlanarYCbCrImage* AsSharedPlanarYCbCrImage() MOZ_OVERRIDE
   {
     return this;
   }
@@ -53,10 +42,10 @@ public:
     return PlanarYCbCrImage::GetAsSurface();
   }
 
-  virtual void SetData(const PlanarYCbCrData& aData) MOZ_OVERRIDE;
+  virtual void SetData(const PlanarYCbCrImage::Data& aData) MOZ_OVERRIDE;
   virtual void SetDataNoCopy(const Data &aData) MOZ_OVERRIDE;
 
-  virtual bool Allocate(PlanarYCbCrData& aData);
+  virtual bool Allocate(PlanarYCbCrImage::Data& aData);
   virtual uint8_t* AllocateBuffer(uint32_t aSize) MOZ_OVERRIDE;
   // needs to be overriden because the parent class sets mBuffer which we
   // do not want to happen.
@@ -69,7 +58,7 @@ public:
   /**
    * Setup the Surface descriptor to contain this image's shmem, while keeping
    * ownership of the shmem.
-   * if the operation succeeds, return true and AddRef this DeprecatedSharedPlanarYCbCrImage.
+   * if the operation succeeds, return true and AddRef this SharedPlanarYCbCrImage.
    */
   bool ToSurfaceDescriptor(SurfaceDescriptor& aResult);
 
@@ -77,49 +66,20 @@ public:
    * Setup the Surface descriptor to contain this image's shmem, and loose
    * ownership of the shmem.
    * if the operation succeeds, return true (and does _not_ AddRef this
-   * DeprecatedSharedPlanarYCbCrImage).
+   * SharedPlanarYCbCrImage).
    */
   bool DropToSurfaceDescriptor(SurfaceDescriptor& aResult);
 
   /**
-   * Returns a DeprecatedSharedPlanarYCbCrImage* iff the descriptor was initialized with
+   * Returns a SharedPlanarYCbCrImage* iff the descriptor was initialized with
    * ToSurfaceDescriptor.
    */
-  static DeprecatedSharedPlanarYCbCrImage* FromSurfaceDescriptor(const SurfaceDescriptor& aDesc);
+  static SharedPlanarYCbCrImage* FromSurfaceDescriptor(const SurfaceDescriptor& aDesc);
 
 private:
   ipc::Shmem mShmem;
   ISurfaceAllocator* mSurfaceAllocator;
   bool mAllocated;
-};
-
-
-class SharedPlanarYCbCrImage : public PlanarYCbCrImage
-                             , public ISharedImage
-{
-public:
-  SharedPlanarYCbCrImage(ImageClient* aCompositable);
-  ~SharedPlanarYCbCrImage();
-
-  virtual ISharedImage* AsSharedImage() MOZ_OVERRIDE { return this; }
-  virtual TextureClient* GetTextureClient() MOZ_OVERRIDE;
-  virtual uint8_t* GetBuffer() MOZ_OVERRIDE;
-
-  virtual already_AddRefed<gfxASurface> GetAsSurface() MOZ_OVERRIDE;
-  virtual void SetData(const PlanarYCbCrData& aData) MOZ_OVERRIDE;
-  virtual void SetDataNoCopy(const Data &aData) MOZ_OVERRIDE;
-
-  virtual bool Allocate(PlanarYCbCrData& aData);
-  virtual uint8_t* AllocateBuffer(uint32_t aSize) MOZ_OVERRIDE;
-  // needs to be overriden because the parent class sets mBuffer which we
-  // do not want to happen.
-  virtual uint8_t* AllocateAndGetNewBuffer(uint32_t aSize) MOZ_OVERRIDE;
-
-  virtual bool IsValid() MOZ_OVERRIDE;
-
-private:
-  RefPtr<BufferTextureClient> mTextureClient;
-  RefPtr<ImageClient> mCompositable;
 };
 
 } // namespace

@@ -11,7 +11,6 @@
 #include "mozilla/RefPtr.h"
 #include "Zip.h"
 #include "Elfxx.h"
-#include "Mappable.h"
 
 /**
  * dlfcn.h replacement functions
@@ -32,6 +31,10 @@ extern "C" {
 #endif
   int __wrap_dladdr(void *addr, Dl_info *info);
 
+  sighandler_t __wrap_signal(int signum, sighandler_t handler);
+  int __wrap_sigaction(int signum, const struct sigaction *act,
+                       struct sigaction *oldact);
+
   struct dl_phdr_info {
     Elf::Addr dlpi_addr;
     const char *dlpi_name;
@@ -41,10 +44,6 @@ extern "C" {
 
   typedef int (*dl_phdr_cb)(struct dl_phdr_info *, size_t, void *);
   int __wrap_dl_iterate_phdr(dl_phdr_cb callback, void *data);
-
-#ifdef __ARM_EABI__
-  const void *__wrap___gnu_Unwind_Find_exidx(void *pc, int *pcount);
-#endif
 
 /**
  * faulty.lib public API
@@ -58,9 +57,6 @@ __dl_mmap(void *handle, void *addr, size_t length, off_t offset);
 MFBT_API void
 __dl_munmap(void *handle, void *addr, size_t length);
 
-MFBT_API bool
-IsSignalHandlingBroken();
-
 }
 
 /**
@@ -72,23 +68,24 @@ IsSignalHandlingBroken();
 class LibHandle;
 
 namespace mozilla {
-namespace detail {
 
-template <> inline void RefCounted<LibHandle, AtomicRefCount>::Release() const;
+template <> inline void RefCounted<LibHandle>::Release();
 
-template <> inline RefCounted<LibHandle, AtomicRefCount>::~RefCounted()
+template <> inline RefCounted<LibHandle>::~RefCounted()
 {
   MOZ_ASSERT(refCnt == 0x7fffdead);
 }
 
-} /* namespace detail */
 } /* namespace mozilla */
+
+/* Forward declaration */
+class Mappable;
 
 /**
  * Abstract class for loaded libraries. Libraries may be loaded through the
  * system linker or this linker, both cases will be derived from this class.
  */
-class LibHandle: public mozilla::AtomicRefCounted<LibHandle>
+class LibHandle: public mozilla::RefCounted<LibHandle>
 {
 public:
   /**
@@ -96,7 +93,7 @@ public:
    * of the leaf name.
    */
   LibHandle(const char *path)
-  : directRefCnt(0), path(path ? strdup(path) : nullptr), mappable(nullptr) { }
+  : directRefCnt(0), path(path ? strdup(path) : NULL), mappable(NULL) { }
 
   /**
    * Destructor.
@@ -139,7 +136,7 @@ public:
   void AddDirectRef()
   {
     ++directRefCnt;
-    mozilla::AtomicRefCounted<LibHandle>::AddRef();
+    mozilla::RefCounted<LibHandle>::AddRef();
   }
 
   /**
@@ -150,11 +147,10 @@ public:
   {
     bool ret = false;
     if (directRefCnt) {
-      MOZ_ASSERT(directRefCnt <=
-                 mozilla::AtomicRefCounted<LibHandle>::refCount());
+      MOZ_ASSERT(directRefCnt <= mozilla::RefCounted<LibHandle>::refCount());
       if (--directRefCnt)
         ret = true;
-      mozilla::AtomicRefCounted<LibHandle>::Release();
+      mozilla::RefCounted<LibHandle>::Release();
     }
     return ret;
   }
@@ -185,14 +181,6 @@ public:
    */
   void MappableMUnmap(void *addr, size_t length) const;
 
-#ifdef __ARM_EABI__
-  /**
-   * Find the address and entry count of the ARM.exidx section
-   * associated with the library
-   */
-  virtual const void *FindExidx(int *pcount) const = 0;
-#endif
-
 protected:
   /**
    * Returns a mappable object for use by MappableMMap and related functions.
@@ -213,7 +201,7 @@ private:
   char *path;
 
   /* Mappable object keeping the result of GetMappable() */
-  mutable mozilla::RefPtr<Mappable> mappable;
+  mutable Mappable *mappable;
 };
 
 /**
@@ -225,9 +213,8 @@ private:
  * would mean too many Releases from within the destructor.
  */
 namespace mozilla {
-namespace detail {
 
-template <> inline void RefCounted<LibHandle, AtomicRefCount>::Release() const {
+template <> inline void RefCounted<LibHandle>::Release() {
 #ifdef DEBUG
   if (refCnt > 0x7fff0000)
     MOZ_ASSERT(refCnt > 0x7fffdead);
@@ -240,12 +227,11 @@ template <> inline void RefCounted<LibHandle, AtomicRefCount>::Release() const {
 #else
       refCnt = 1;
 #endif
-      delete static_cast<const LibHandle*>(this);
+      delete static_cast<LibHandle*>(this);
     }
   }
 }
 
-} /* namespace detail */
 } /* namespace mozilla */
 
 /**
@@ -267,10 +253,6 @@ public:
   virtual void *GetSymbolPtr(const char *symbol) const;
   virtual bool Contains(void *addr) const { return false; /* UNIMPLEMENTED */ }
 
-#ifdef __ARM_EABI__
-  virtual const void *FindExidx(int *pcount) const;
-#endif
-
 protected:
   virtual Mappable *GetMappable() const;
 
@@ -287,7 +269,7 @@ protected:
    */
   void Forget()
   {
-    dlhandle = nullptr;
+    dlhandle = NULL;
   }
 
 private:
@@ -305,25 +287,19 @@ private:
  * The ElfLoader registers its own SIGSEGV handler to handle segmentation
  * faults within the address space of the loaded libraries. It however
  * allows a handler to be set for faults in other places, and redispatches
- * to the handler set through signal() or sigaction().
+ * to the handler set through signal() or sigaction(). We assume no system
+ * library loaded with system dlopen is going to call signal or sigaction
+ * for SIGSEGV.
  */
 class SEGVHandler
 {
-public:
-  bool hasRegisteredHandler() {
-    return registeredHandler;
-  }
-
-  bool isSignalHandlingBroken() {
-    return signalHandlingBroken;
-  }
-
 protected:
   SEGVHandler();
   ~SEGVHandler();
 
 private:
-  static int __wrap_sigaction(int signum, const struct sigaction *act,
+  friend sighandler_t __wrap_signal(int signum, sighandler_t handler);
+  friend int __wrap_sigaction(int signum, const struct sigaction *act,
                               struct sigaction *oldact);
 
   /**
@@ -335,11 +311,6 @@ private:
    * ElfLoader SIGSEGV handler.
    */
   static void handler(int signum, siginfo_t *info, void *context);
-
-  /**
-   * Temporary test handler.
-   */
-  static void test_handler(int signum, siginfo_t *info, void *context);
 
   /**
    * Size of the alternative stack. The printf family requires more than 8KB
@@ -357,10 +328,6 @@ private:
    * not set or not big enough.
    */
   MappedPtr stackPtr;
-
-  bool registeredHandler;
-  bool signalHandlingBroken;
-  bool signalHandlingSlow;
 };
 
 /**
@@ -381,7 +348,7 @@ public:
    * directory containing that parent library for the library to load.
    */
   mozilla::TemporaryRef<LibHandle> Load(const char *path, int flags,
-                                        LibHandle *parent = nullptr);
+                                        LibHandle *parent = NULL);
 
   /**
    * Returns the handle of the library containing the given address in
@@ -575,9 +542,9 @@ private:
 
       bool operator<(const iterator &other) const
       {
-        if (other.item == nullptr)
+        if (other.item == NULL)
           return item ? true : false;
-        MOZ_CRASH("DebuggerHelper::iterator::operator< called with something else than DebuggerHelper::end()");
+        MOZ_NOT_REACHED("DebuggerHelper::iterator::operator< called with something else than DebuggerHelper::end()");
       }
     protected:
       friend class DebuggerHelper;
@@ -589,12 +556,12 @@ private:
 
     iterator begin() const
     {
-      return iterator(dbg ? dbg->r_map : nullptr);
+      return iterator(dbg ? dbg->r_map : NULL);
     }
 
     iterator end() const
     {
-      return iterator(nullptr);
+      return iterator(NULL);
     }
 
   private:

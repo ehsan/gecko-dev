@@ -11,8 +11,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
 const kEntities = { "geolocation": "geolocation",
-                    "desktop-notification": "desktopNotification",
-                    "contacts": "contacts" };
+                    "desktop-notification": "desktopNotification" };
 
 function ContentPermissionPrompt() {}
 
@@ -21,7 +20,7 @@ ContentPermissionPrompt.prototype = {
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentPermissionPrompt]),
 
-  handleExistingPermission: function handleExistingPermission(request, isApp) {
+  handleExistingPermission: function handleExistingPermission(request) {
     let result = Services.perms.testExactPermissionFromPrincipal(request.principal, request.type);
     if (result == Ci.nsIPermissionManager.ALLOW_ACTION) {
       request.allow();
@@ -31,12 +30,6 @@ ContentPermissionPrompt.prototype = {
       request.cancel();
       return true;
     }
-
-    if (isApp && (result == Ci.nsIPermissionManager.UNKNOWN_ACTION && !!kEntities[request.type])) {
-      request.cancel();
-      return true;
-    }
-
     return false;
   },
 
@@ -60,14 +53,12 @@ ContentPermissionPrompt.prototype = {
   },
 
   prompt: function(request) {
-    let isApp = request.principal.appId !== Ci.nsIScriptSecurityManager.NO_APP_ID && request.principal.appId !== Ci.nsIScriptSecurityManager.UNKNOWN_APP_ID;
-
     // Returns true if the request was handled
-    if (this.handleExistingPermission(request, isApp))
+    if (this.handleExistingPermission(request))
        return;
 
     let chromeWin = this.getChromeForRequest(request);
-    let tab = chromeWin.BrowserApp.getTabForWindow(request.window.top);
+    let tab = chromeWin.BrowserApp.getTabForWindow(request.window);
     if (!tab)
       return;
 
@@ -80,9 +71,11 @@ ContentPermissionPrompt.prototype = {
         // If the user checked "Don't ask again", make a permanent exception
         if (aChecked) {
           Services.perms.addFromPrincipal(request.principal, request.type, Ci.nsIPermissionManager.ALLOW_ACTION);
-        } else if (isApp || entityName == "desktopNotification") {
-          // Otherwise allow the permission for the current session (if the request comes from an app or if it's a desktop-notification request)
-          Services.perms.addFromPrincipal(request.principal, request.type, Ci.nsIPermissionManager.ALLOW_ACTION, Ci.nsIPermissionManager.EXPIRE_SESSION);
+        } else if (entityName == "desktopNotification") {
+          // For notifications, it doesn't make sense to grant permission once. So when the user clicks allow,
+          // we let the requestor create notifications for the session.
+          Services.perms.addFromPrincipal(request.principal, request.type, Ci.nsIPermissionManager.ALLOW_ACTION,
+                                          Ci.nsIPermissionManager.EXPIRE_SESSION);
         }
 
         request.allow();
@@ -99,11 +92,13 @@ ContentPermissionPrompt.prototype = {
       }
     }];
 
-    let requestor = chromeWin.BrowserApp.manifest ? "'" + chromeWin.BrowserApp.manifest.name + "'" : request.principal.URI.host;
-    let message = browserBundle.formatStringFromName(entityName + ".ask", [requestor], 1);
+    let message = browserBundle.formatStringFromName(entityName + ".ask",
+                                                     [request.principal.URI.host], 1);
     let options = { checkbox: browserBundle.GetStringFromName(entityName + ".dontAskAgain") };
 
-    chromeWin.NativeWindow.doorhanger.show(message, entityName + request.principal.URI.host, buttons, tab.id, options);
+    chromeWin.NativeWindow.doorhanger.show(message,
+                                           entityName + request.principal.URI.host,
+                                           buttons, tab.id, options);
   }
 };
 

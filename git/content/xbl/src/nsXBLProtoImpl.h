@@ -19,35 +19,34 @@ class nsXBLProtoImplAnonymousMethod;
 class nsXBLProtoImpl
 {
 public:
-  nsXBLProtoImpl()
+  nsXBLProtoImpl() 
     : mClassObject(nullptr),
       mMembers(nullptr),
       mFields(nullptr),
       mConstructor(nullptr),
       mDestructor(nullptr)
-  {
-    MOZ_COUNT_CTOR(nsXBLProtoImpl);
+  { 
+    MOZ_COUNT_CTOR(nsXBLProtoImpl); 
   }
-  ~nsXBLProtoImpl()
-  {
+  ~nsXBLProtoImpl() 
+  { 
     MOZ_COUNT_DTOR(nsXBLProtoImpl);
     // Note: the constructor and destructor are in mMembers, so we'll
     // clean them up automatically.
     delete mMembers;
     delete mFields;
   }
-
+  
   nsresult InstallImplementation(nsXBLPrototypeBinding* aPrototypeBinding, nsXBLBinding* aBinding);
-  nsresult InitTargetObjects(nsXBLPrototypeBinding* aBinding,
-                             nsIContent* aBoundElement,
+  nsresult InitTargetObjects(nsXBLPrototypeBinding* aBinding, nsIScriptContext* aContext, 
+                             nsIContent* aBoundElement, 
                              nsIXPConnectJSObjectHolder** aScriptObjectHolder,
                              JS::MutableHandle<JSObject*> aTargetClassObject,
                              bool* aTargetIsNew);
   nsresult CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding);
 
-  bool LookupMember(JSContext* aCx, nsString& aName, JS::Handle<jsid> aNameAsId,
-                    JS::MutableHandle<JSPropertyDescriptor> aDesc,
-                    JSObject* aClassObject);
+  bool LookupMember(JSContext* aCx, nsString& aName, JS::HandleId aNameAsId,
+                    JSPropertyDescriptor* aDesc, JSObject* aClassObject);
 
   void SetMemberList(nsXBLProtoImplMember* aMemberList)
   {
@@ -61,7 +60,7 @@ public:
     mFields = aFieldList;
   }
 
-  void Trace(const TraceCallbacks& aCallbacks, void *aClosure);
+  void Trace(TraceCallback aCallback, void *aClosure) const;
   void UnlinkJSObjects();
 
   nsXBLProtoImplField* FindField(const nsString& aFieldName) const;
@@ -78,9 +77,12 @@ public:
     return mClassObject != nullptr;
   }
 
-  nsresult Read(nsIObjectInputStream* aStream,
-                nsXBLPrototypeBinding* aBinding);
-  nsresult Write(nsIObjectOutputStream* aStream,
+  nsresult Read(nsIScriptContext* aContext,
+                nsIObjectInputStream* aStream,
+                nsXBLPrototypeBinding* aBinding,
+                nsIScriptGlobalObject* aGlobal);
+  nsresult Write(nsIScriptContext* aContext,
+                 nsIObjectOutputStream* aStream,
                  nsXBLPrototypeBinding* aBinding);
 
 protected:
@@ -96,9 +98,9 @@ protected:
   }
 
   void DestroyMembers();
-
+  
 public:
-  nsCString mClassName; // The name of the class.
+  nsCString mClassName; // The name of the class. 
 
 protected:
   JSObject* mClassObject; // The class object for the binding. We'll use this to pre-compile properties
@@ -107,15 +109,15 @@ protected:
   nsXBLProtoImplMember* mMembers; // The members of an implementation are chained in this singly-linked list.
 
   nsXBLProtoImplField* mFields; // Our fields
-
+  
 public:
   nsXBLProtoImplAnonymousMethod* mConstructor; // Our class constructor.
   nsXBLProtoImplAnonymousMethod* mDestructor;  // Our class destructor.
 };
 
 nsresult
-NS_NewXBLProtoImpl(nsXBLPrototypeBinding* aBinding,
-                   const PRUnichar* aClassName,
+NS_NewXBLProtoImpl(nsXBLPrototypeBinding* aBinding, 
+                   const PRUnichar* aClassName, 
                    nsXBLProtoImpl** aResult);
 
 #endif // nsXBLProtoImpl_h__

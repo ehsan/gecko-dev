@@ -1,22 +1,28 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* mfbt foundational types and macros. */
 
-#ifndef mozilla_Types_h
-#define mozilla_Types_h
+#ifndef mozilla_Types_h_
+#define mozilla_Types_h_
 
 /*
  * This header must be valid C and C++, includable by code embedding either
  * SpiderMonkey or Gecko.
  */
 
-/* Expose all <stdint.h> types and size_t. */
+/*
+ * Expose all the integer types defined in C99's <stdint.h> (and the integer
+ * limit and constant macros, if compiling C code or if compiling C++ code and
+ * the right __STDC_*_MACRO has been defined for each).  These are all usable
+ * throughout mfbt code, and throughout Mozilla code more generally.
+ */
+#include "mozilla/StandardInteger.h"
+
+/* Also expose size_t. */
 #include <stddef.h>
-#include <stdint.h>
 
 /* Implement compiler and linker macros needed for APIs. */
 
@@ -127,12 +133,4 @@
 #  define MOZ_END_EXTERN_C
 #endif
 
-/*
- * GCC's typeof is available when decltype is not.
- */
-#if defined(__GNUC__) && defined(__cplusplus) && \
-  !defined(__GXX_EXPERIMENTAL_CXX0X__) && __cplusplus < 201103L
-#  define decltype __typeof__
-#endif
-
-#endif /* mozilla_Types_h */
+#endif  /* mozilla_Types_h_ */

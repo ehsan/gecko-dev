@@ -8,7 +8,7 @@ browser_path := \"$(browser_path)\"
 
 _PROFILE_DIR = $(TARGET_DEPTH)/_profile/pgo
 
-ABSOLUTE_TOPSRCDIR = $(abspath $(MOZILLA_DIR))
+ABSOLUTE_TOPSRCDIR = $(call core_abspath,$(MOZILLA_DIR))
 _CERTS_SRC_DIR = $(ABSOLUTE_TOPSRCDIR)/build/pgo/certs
 
 AUTOMATION_PPARGS = 	\
@@ -67,7 +67,7 @@ AUTOMATION_PPARGS += -DIS_ASAN=0
 endif
 
 automation.py: $(MOZILLA_DIR)/build/automation.py.in $(MOZILLA_DIR)/build/automation-build.mk
-	$(call py_action,preprocessor, \
-	$(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $< -o $@)
+	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py \
+	$(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $< > $@
 
 GARBAGE += automation.py automation.pyc

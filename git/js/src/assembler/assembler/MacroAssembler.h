@@ -27,35 +27,35 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_MacroAssembler_h
-#define assembler_assembler_MacroAssembler_h
+#ifndef MacroAssembler_h
+#define MacroAssembler_h
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE_ASSEMBLER
 
 #if WTF_CPU_ARM_THUMB2
-#include "assembler/assembler/MacroAssemblerARMv7.h"
+#include "MacroAssemblerARMv7.h"
 namespace JSC { typedef MacroAssemblerARMv7 MacroAssemblerBase; }
 
 #elif WTF_CPU_ARM_TRADITIONAL
-#include "assembler/assembler/MacroAssemblerARM.h"
+#include "MacroAssemblerARM.h"
 namespace JSC { typedef MacroAssemblerARM MacroAssemblerBase; }
 
 #elif WTF_CPU_MIPS
-#include "assembler/assembler/MacroAssemblerMIPS.h"
+#include "MacroAssemblerMIPS.h"
 namespace JSC { typedef MacroAssemblerMIPS MacroAssemblerBase; }
 
 #elif WTF_CPU_X86
-#include "assembler/assembler/MacroAssemblerX86.h"
+#include "MacroAssemblerX86.h"
 namespace JSC { typedef MacroAssemblerX86 MacroAssemblerBase; }
 
 #elif WTF_CPU_X86_64
-#include "assembler/assembler/MacroAssemblerX86_64.h"
+#include "MacroAssemblerX86_64.h"
 namespace JSC { typedef MacroAssemblerX86_64 MacroAssemblerBase; }
 
 #elif WTF_CPU_SPARC
-#include "assembler/assembler/MacroAssemblerSparc.h"
+#include "MacroAssemblerSparc.h"
 namespace JSC { typedef MacroAssemblerSparc MacroAssemblerBase; }
 
 #else
@@ -393,4 +393,4 @@ public:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_MacroAssembler_h */
+#endif // MacroAssembler_h

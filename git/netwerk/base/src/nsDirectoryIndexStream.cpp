@@ -16,21 +16,24 @@
 
 #include "nsEscape.h"
 #include "nsDirectoryIndexStream.h"
+#include "nsXPIDLString.h"
+#include "prio.h"
 #include "prlog.h"
-#include "prtime.h"
+#include "prlong.h"
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gLog;
 #endif
 
 #include "nsISimpleEnumerator.h"
-#ifdef THREADSAFE_I18N
-#include "nsCollationCID.h"
 #include "nsICollation.h"
 #include "nsILocale.h"
 #include "nsILocaleService.h"
-#endif
-#include "nsIFile.h"
+#include "nsCollationCID.h"
+#include "nsIPlatformCharset.h"
+#include "nsReadableUtils.h"
 #include "nsURLHelper.h"
+#include "nsNetUtil.h"
+#include "nsCRT.h"
 #include "nsNativeCharsetUtils.h"
 
 // NOTE: This runs on the _file transport_ thread.
@@ -186,7 +189,7 @@ nsDirectoryIndexStream::Create(nsIFile* aDir, nsIInputStream** aResult)
     return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS1(nsDirectoryIndexStream, nsIInputStream)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsDirectoryIndexStream, nsIInputStream)
 
 // The below routines are proxied to the UI thread!
 NS_IMETHODIMP

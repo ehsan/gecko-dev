@@ -225,7 +225,6 @@ SimpleTest.testPluginIsOOP = function () {
 
 SimpleTest._tests = [];
 SimpleTest._stopOnLoad = true;
-SimpleTest._cleanupFunctions = [];
 
 /**
  * Something like assert.
@@ -245,12 +244,6 @@ SimpleTest.is = function (a, b, name) {
     SimpleTest.ok(pass, name, diag);
 };
 
-SimpleTest.isfuzzy = function (a, b, epsilon, name) {
-  var pass = (a > b - epsilon) && (a < b + epsilon);
-  var diag = pass ? "" : "got " + repr(a) + ", expected " + repr(b) + " epsilon: +/- " + repr(epsilon)
-  SimpleTest.ok(pass, name, diag);
-};
-
 SimpleTest.isnot = function (a, b, name) {
     var pass = (a != b);
     var diag = pass ? "" : "didn't expect " + repr(a) + ", but got it";
@@ -266,42 +259,12 @@ SimpleTest.ise = function (a, b, name) {
     SimpleTest.ok(pass, name, diag);
 };
 
-/**
- * Check that the function call throws an exception.
- */
-SimpleTest.doesThrow = function(fn, name) {
-    var gotException = false;
-    try {
-      fn();
-    } catch (ex) { gotException = true; }
-    ok(gotException, name);
-};
-
 //  --------------- Test.Builder/Test.More todo() -----------------
 
 SimpleTest.todo = function(condition, name, diag) {
     var test = {'result': !!condition, 'name': name, 'diag': diag, todo: true};
     SimpleTest._logResult(test, "TEST-UNEXPECTED-PASS", "TEST-KNOWN-FAIL");
     SimpleTest._tests.push(test);
-};
-
-/*
- * Returns the absolute URL to a test data file from where tests
- * are served. i.e. the file doesn't necessarely exists where tests
- * are executed.
- * (For b2g and android, mochitest are executed on the device, while
- * all mochitest html (and others) files are served from the test runner
- * slave)
- */
-SimpleTest.getTestFileURL = function(path) {
-  var lastSlashIdx = path.lastIndexOf("/") + 1;
-  var filename = path.substr(lastSlashIdx);
-  var location = window.location;
-  // Remove mochitest html file name from the path
-  var remotePath = location.pathname.replace(/\/[^\/]+?$/,"");
-  var url = location.origin +
-            remotePath + "/" + path;
-  return url;
 };
 
 SimpleTest._getCurrentTestURL = function() {
@@ -730,11 +693,7 @@ SimpleTest.executeSoon = function(aFunc) {
         return SpecialPowers.executeSoon(aFunc, window);
     }
     setTimeout(aFunc, 0);
-};
-
-SimpleTest.registerCleanupFunction = function(aFunc) {
-    SimpleTest._cleanupFunctions.push(aFunc);
-};
+}
 
 /**
  * Finishes the tests. This is automatically called, except when
@@ -746,17 +705,6 @@ SimpleTest.finish = function () {
     }
 
     SimpleTest._alreadyFinished = true;
-
-    // Execute all of our cleanup functions.
-    var func;
-    while ((func = SimpleTest._cleanupFunctions.pop())) {
-      try {
-        func();
-      }
-      catch (ex) {
-        SimpleTest.ok(false, "Cleanup function threw exception: " + ex);
-      }
-    }
 
     if (SpecialPowers.DOMWindowUtils.isTestControllingRefreshes) {
         SimpleTest.ok(false, "test left refresh driver under test control");
@@ -785,11 +733,7 @@ SimpleTest.finish = function () {
         /* We're running in an iframe, and the parent has a TestRunner */
         parentRunner.testFinished(SimpleTest._tests);
     } else {
-        SpecialPowers.flushPermissions(function () {
-          SpecialPowers.flushPrefEnv(function() {
-            SimpleTest.showReport();
-          });
-        });
+        SimpleTest.showReport();
     }
 };
 
@@ -1142,7 +1086,6 @@ SimpleTest.isa = function (object, clas) {
 // Global symbols:
 var ok = SimpleTest.ok;
 var is = SimpleTest.is;
-var isfuzzy = SimpleTest.isfuzzy;
 var isnot = SimpleTest.isnot;
 var ise = SimpleTest.ise;
 var todo = SimpleTest.todo;

@@ -3,46 +3,87 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsSVGNumber2.h"
-#include "mozilla/Attributes.h"
-#include "nsContentUtils.h" // NS_ENSURE_FINITE
-#include "nsIDOMSVGNumber.h"
-#include "nsSMILFloatType.h"
-#include "nsSMILValue.h"
+#include "nsError.h"
 #include "nsSVGAttrTearoffTable.h"
-#include "SVGContentUtils.h"
+#include "nsSVGNumber2.h"
+#include "prdtoa.h"
+#include "nsMathUtils.h"
+#include "nsContentUtils.h" // NS_ENSURE_FINITE
+#include "nsSMILValue.h"
+#include "nsSMILFloatType.h"
+#include "nsIDOMSVGNumber.h"
+#include "mozilla/Attributes.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
+class DOMSVGNumber MOZ_FINAL : public nsIDOMSVGNumber
+{
+public:
+  NS_DECL_ISUPPORTS
+
+  DOMSVGNumber() 
+    : mVal(0) {}
+    
+  NS_IMETHOD GetValue(float* aResult)
+    { *aResult = mVal; return NS_OK; }
+  NS_IMETHOD SetValue(float aValue)
+    { NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
+      mVal = aValue;
+      return NS_OK; }
+
+private:
+  float mVal;
+};
+
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGNumber2::DOMAnimatedNumber, mSVGElement)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGNumber2::DOMAnimatedNumber)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGNumber2::DOMAnimatedNumber)
+
+NS_IMPL_ADDREF(DOMSVGNumber)
+NS_IMPL_RELEASE(DOMSVGNumber)
+
+DOMCI_DATA(SVGAnimatedNumber, nsSVGNumber2::DOMAnimatedNumber)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGNumber2::DOMAnimatedNumber)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedNumber)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedNumber)
+NS_INTERFACE_MAP_END
+
+NS_INTERFACE_MAP_BEGIN(DOMSVGNumber)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGNumber)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGNumber)
+NS_INTERFACE_MAP_END
 
 /* Implementation */
 
 static nsSVGAttrTearoffTable<nsSVGNumber2, nsSVGNumber2::DOMAnimatedNumber>
   sSVGAnimatedNumberTearoffTable;
 
-static bool
-GetValueFromString(const nsAString& aString,
+static nsresult
+GetValueFromString(const nsAString &aValueAsString,
                    bool aPercentagesAllowed,
-                   float& aValue)
+                   float *aValue)
 {
-  RangedPtr<const PRUnichar> iter =
-    SVGContentUtils::GetStartRangedPtr(aString);
-  const RangedPtr<const PRUnichar> end =
-    SVGContentUtils::GetEndRangedPtr(aString);
+  NS_ConvertUTF16toUTF8 value(aValueAsString);
+  const char *str = value.get();
 
-  if (!SVGContentUtils::ParseNumber(iter, end, aValue)) {
-    return false;
+  if (NS_IsAsciiWhitespace(*str))
+    return NS_ERROR_DOM_SYNTAX_ERR;
+  
+  char *rest;
+  *aValue = float(PR_strtod(str, &rest));
+  if (rest == str || !NS_finite(*aValue)) {
+    return NS_ERROR_DOM_SYNTAX_ERR;
   }
-
-  if (aPercentagesAllowed) {
-    const nsAString& units = Substring(iter.get(), end.get());
-    if (units.EqualsLiteral("%")) {
-      aValue /= 100;
-      return true;
-    }
+  if (*rest == '%' && aPercentagesAllowed) {
+    *aValue /= 100;
+    ++rest;
   }
-
-  return iter == end;
+  if (*rest == '\0') {
+    return NS_OK;
+  }
+  return NS_ERROR_DOM_SYNTAX_ERR;
 }
 
 nsresult
@@ -51,10 +92,11 @@ nsSVGNumber2::SetBaseValueString(const nsAString &aValueAsString,
 {
   float val;
 
-  if (!GetValueFromString(aValueAsString,
-                          aSVGElement->NumberAttrAllowsPercentage(mAttrEnum),
-                          val)) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+  nsresult rv = GetValueFromString(
+    aValueAsString, aSVGElement->NumberAttrAllowsPercentage(mAttrEnum), &val);
+
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
   mBaseVal = val;
@@ -108,7 +150,7 @@ nsSVGNumber2::SetAnimValue(float aValue, nsSVGElement *aSVGElement)
   aSVGElement->DidAnimateNumber(mAttrEnum);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 nsSVGNumber2::ToDOMAnimatedNumber(nsSVGElement* aSVGElement)
 {
   nsRefPtr<DOMAnimatedNumber> domAnimatedNumber =
@@ -119,6 +161,14 @@ nsSVGNumber2::ToDOMAnimatedNumber(nsSVGElement* aSVGElement)
   }
 
   return domAnimatedNumber.forget();
+}
+
+nsresult
+nsSVGNumber2::ToDOMAnimatedNumber(nsIDOMSVGAnimatedNumber **aResult,
+                                  nsSVGElement *aSVGElement)
+{
+  *aResult = ToDOMAnimatedNumber(aSVGElement).get();
+  return NS_OK;
 }
 
 nsSVGNumber2::DOMAnimatedNumber::~DOMAnimatedNumber()
@@ -140,13 +190,14 @@ nsSVGNumber2::SMILNumber::ValueFromString(const nsAString& aStr,
 {
   float value;
 
-  if (!GetValueFromString(aStr,
-                          mSVGElement->NumberAttrAllowsPercentage(mVal->mAttrEnum),
-                          value)) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+  nsresult rv = GetValueFromString(
+    aStr, mSVGElement->NumberAttrAllowsPercentage(mVal->mAttrEnum), &value);
+
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
-  nsSMILValue val(nsSMILFloatType::Singleton());
+  nsSMILValue val(&nsSMILFloatType::sSingleton);
   val.mU.mDouble = value;
   aValue = val;
   aPreventCachingOfSandwich = false;
@@ -157,7 +208,7 @@ nsSVGNumber2::SMILNumber::ValueFromString(const nsAString& aStr,
 nsSMILValue
 nsSVGNumber2::SMILNumber::GetBaseValue() const
 {
-  nsSMILValue val(nsSMILFloatType::Singleton());
+  nsSMILValue val(&nsSMILFloatType::sSingleton);
   val.mU.mDouble = mVal->mBaseVal;
   return val;
 }
@@ -175,9 +226,9 @@ nsSVGNumber2::SMILNumber::ClearAnimValue()
 nsresult
 nsSVGNumber2::SMILNumber::SetAnimValue(const nsSMILValue& aValue)
 {
-  NS_ASSERTION(aValue.mType == nsSMILFloatType::Singleton(),
+  NS_ASSERTION(aValue.mType == &nsSMILFloatType::sSingleton,
                "Unexpected type to assign animated value");
-  if (aValue.mType == nsSMILFloatType::Singleton()) {
+  if (aValue.mType == &nsSMILFloatType::sSingleton) {
     mVal->SetAnimValue(float(aValue.mU.mDouble), mSVGElement);
   }
   return NS_OK;

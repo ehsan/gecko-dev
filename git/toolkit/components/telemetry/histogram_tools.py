@@ -2,10 +2,16 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import json
 import math
 
-from collections import OrderedDict
+# For compatibility with Python 2.6
+try:
+    from collections import OrderedDict
+except ImportError:
+    from simplejson import OrderedDict
+    import simplejson as json
+else:
+    import json
 
 def table_dispatch(kind, table, body):
     """Call body with table[kind] if it exists.  Raise an error otherwise."""

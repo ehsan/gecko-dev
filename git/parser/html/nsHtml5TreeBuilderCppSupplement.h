@@ -6,6 +6,8 @@
 
 #include "nsError.h"
 #include "nsIPresShell.h"
+#include "nsEvent.h"
+#include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsNodeUtils.h"
 #include "nsIFrame.h"
@@ -821,7 +823,7 @@ nsHtml5TreeBuilder::errStrayDoctype()
 void
 nsHtml5TreeBuilder::errAlmostStandardsDoctype()
 {
-  if (MOZ_UNLIKELY(mViewSource) && !isSrcdocDocument) {
+  if (MOZ_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errAlmostStandardsDoctype");
   }
 }
@@ -829,7 +831,7 @@ nsHtml5TreeBuilder::errAlmostStandardsDoctype()
 void
 nsHtml5TreeBuilder::errQuirkyDoctype()
 {
-  if (MOZ_UNLIKELY(mViewSource) && !isSrcdocDocument) {
+  if (MOZ_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errQuirkyDoctype");
   }
 }
@@ -893,7 +895,7 @@ nsHtml5TreeBuilder::errFooBetweenHeadAndBody(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errStartTagWithoutDoctype()
 {
-  if (MOZ_UNLIKELY(mViewSource) && !isSrcdocDocument) {
+  if (MOZ_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errStartTagWithoutDoctype");
   }
 }
@@ -1014,7 +1016,7 @@ nsHtml5TreeBuilder::errStartTagInTableBody(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errEndTagSeenWithoutDoctype()
 {
-  if (MOZ_UNLIKELY(mViewSource) && !isSrcdocDocument) {
+  if (MOZ_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errEndTagSeenWithoutDoctype");
   }
 }

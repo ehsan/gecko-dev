@@ -11,9 +11,6 @@
 #ifndef WEBRTC_MODULES_AUDIO_CODING_MAIN_INTERFACE_AUDIO_CODING_MODULE_TYPEDEFS_H_
 #define WEBRTC_MODULES_AUDIO_CODING_MAIN_INTERFACE_AUDIO_CODING_MODULE_TYPEDEFS_H_
 
-#include <map>
-
-#include "webrtc/modules/interface/module_common_types.h"
 #include "webrtc/typedefs.h"
 
 namespace webrtc {
@@ -170,14 +167,14 @@ enum ACMAMRPackingFormat {
 // -maxWaitingTimeMs       : max packet waiting time in the buffer
 // -addedSamples           : samples inserted because of packet loss in off mode
 typedef struct {
-  uint16_t currentBufferSize;
-  uint16_t preferredBufferSize;
+  WebRtc_UWord16 currentBufferSize;
+  WebRtc_UWord16 preferredBufferSize;
   bool jitterPeaksFound;
-  uint16_t currentPacketLossRate;
-  uint16_t currentDiscardRate;
-  uint16_t currentExpandRate;
-  uint16_t currentPreemptiveRate;
-  uint16_t currentAccelerateRate;
+  WebRtc_UWord16 currentPacketLossRate;
+  WebRtc_UWord16 currentDiscardRate;
+  WebRtc_UWord16 currentExpandRate;
+  WebRtc_UWord16 currentPreemptiveRate;
+  WebRtc_UWord16 currentAccelerateRate;
   int32_t clockDriftPPM;
   int meanWaitingTimeMs;
   int medianWaitingTimeMs;

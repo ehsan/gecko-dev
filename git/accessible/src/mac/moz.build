@@ -8,38 +8,11 @@ MODULE = 'accessibility'
 
 EXPORTS += [
     'mozAccessibleProtocol.h',
+    'nsAccessNodeWrap.h',
 ]
 
 EXPORTS.mozilla.a11y += [
     'AccessibleWrap.h',
     'HyperTextAccessibleWrap.h',
-]
-
-LIBRARY_NAME = 'accessibility_toolkit_s'
-
-SOURCES += [
-    'AccessibleWrap.mm',
-    'DocAccessibleWrap.mm',
-    'MacUtils.mm',
-    'mozAccessible.mm',
-    'mozActionElements.mm',
-    'mozDocAccessible.mm',
-    'mozHTMLAccessible.mm',
-    'mozTextAccessible.mm',
-    'Platform.mm',
-    'RootAccessibleWrap.mm',
-]
-
-LIBXUL_LIBRARY = True
-
-LOCAL_INCLUDES += [
-    '../base',
-    '../generic',
-    '../html',
-    '../xul',
-    '/layout/generic',
-    '/layout/xul/base/src',
-    '/widget/cocoa',
-    '/widget/xpwidgets',
 ]
 

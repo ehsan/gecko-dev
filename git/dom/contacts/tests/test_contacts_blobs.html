@@ -21,21 +21,21 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=674720
 
 "use strict";
 
-if (SpecialPowers.isMainProcess()) {
-  SpecialPowers.Cu.import("resource://gre/modules/ContactService.jsm");
-  SpecialPowers.Cu.import("resource://gre/modules/PermissionPromptHelper.jsm");
+// this shouldn't be necessary when bug 792594 is fixed
+if (!SpecialPowers.getBoolPref("dom.mozContacts.enabled")) {
+  var comp = SpecialPowers.wrap(SpecialPowers.Components);
+  comp.utils.import("resource://gre/modules/ContactService.jsm");
+  comp.utils.import("resource://gre/modules/PermissionPromptHelper.jsm");
+  SpecialPowers.setBoolPref("dom.mozContacts.enabled", true);
 }
 
 SpecialPowers.addPermission("contacts-write", true, document);
 SpecialPowers.addPermission("contacts-read", true, document);
 SpecialPowers.addPermission("contacts-create", true, document);
 
-var isAndroid = (navigator.userAgent.indexOf("Android") !== -1);
-var androidVersion = SpecialPowers.Cc['@mozilla.org/system-info;1']
-                                  .getService(SpecialPowers.Ci.nsIPropertyBag2)
-                                  .getProperty('version');
-
 var utils = SpecialPowers.getDOMWindowUtils(window);
+
+function tests() {
 
 function getView(size)
 {
@@ -90,14 +90,12 @@ var randomBlob = getRandomBlob(1024);
 var randomBlob2 = getRandomBlob(1024);
 
 var properties1 = {
-  name: ["xTestname1"],
-  givenName: ["xTestname1"],
+  givenName: "xTestname1",
   photo: [randomBlob]
 };
 
 var properties2 = {
-  name: ["yTestname2"],
-  givenName: ["yTestname2"],
+  givenName: "yTestname2",
   photo: [randomBlob, randomBlob2]
 };
 
@@ -111,7 +109,6 @@ function onUnwantedSuccess() {
 
 function onFailure() {
   ok(false, "in on Failure!");
-  next();
 }
 
 function verifyBlob(blob1, blob2, isLast)
@@ -177,7 +174,8 @@ var steps = [
   },
   function () {
     ok(true, "Adding contact with photo");
-    createResult1 = new mozContact(properties1);
+    createResult1 = new mozContact();
+    createResult1.init(properties1);
     req = navigator.mozContacts.save(createResult1);
     req.onsuccess = function () {
       ok(createResult1.id, "The contact now has an ID.");
@@ -189,8 +187,8 @@ var steps = [
   function () {
     ok(true, "Retrieving by substring");
     var options = {filterBy: ["givenName"],
-                   filterOp: "startsWith",
-                   filterValue: properties1.givenName[0].substring(0,3)};
+                   filterOp: "contains",
+                   filterValue: properties1.givenName.substring(0,3)};
     req = mozContacts.find(options);
     req.onsuccess = function () {
       ok(req.result.length == 1, "Found exactly 1 contact.");
@@ -202,7 +200,8 @@ var steps = [
   },
   function () {
     ok(true, "Adding contact with 2 photos");
-    createResult1 = new mozContact(properties2);
+    createResult1 = new mozContact();
+    createResult1.init(properties2);
     req = navigator.mozContacts.save(createResult1);
     req.onsuccess = function () {
       ok(createResult1.id, "The contact now has an ID.");
@@ -214,14 +213,66 @@ var steps = [
   function () {
     ok(true, "Retrieving by substring");
     var options = {filterBy: ["givenName"],
-                   filterOp: "startsWith",
-                   filterValue: properties2.givenName[0].substring(0,3)};
+                   filterOp: "contains",
+                   filterValue: properties2.givenName.substring(0,3)};
     req = mozContacts.find(options);
     req.onsuccess = function () {
       ok(req.result.length == 1, "Found exactly 1 contact.");
       findResult1 = req.result[0];
       ok(findResult1.id == sample_id1, "Same ID");
       verifyBlobArray(createResult1.photo, properties2.photo);
+    };
+    req.onerror = onFailure;
+  },
+  function () {
+    ok(true, "Adding photo as String");
+    createResult1 = new mozContact();
+    createResult1.init({givenName: "asdf", photo: ["xyz"]});
+    req = navigator.mozContacts.save(createResult1);
+    req.onsuccess = function () {
+      ok(createResult1.id, "The contact now has an ID.");
+      sample_id1 = createResult1.id;
+      is(createResult1.photo, null, "No photo")
+      next();
+    };
+    req.onerror = onFailure;
+  },
+  function () {
+    ok(true, "Adding photo as String");
+    createResult1 = new mozContact();
+    createResult1.init({givenName: "jkl", photo: "xyz"});
+    req = navigator.mozContacts.save(createResult1);
+    req.onsuccess = function () {
+      ok(createResult1.id, "The contact now has an ID.");
+      is(createResult1.photo, null, "No photo")
+      next();
+    };
+    req.onerror = onFailure;
+  },
+  function () {
+    ok(true, "Retrieving by substring");
+    var options = {filterBy: ["givenName"],
+                   filterOp: "contains",
+                   filterValue: "asdf"};
+    req = mozContacts.find(options);
+    req.onsuccess = function () {
+      ok(req.result.length == 1, "Found exactly 1 contact.");
+      findResult1 = req.result[0];
+      ok(findResult1.id == sample_id1, "Same ID");
+      is(findResult1.photo, null, "No photo");
+      next();
+    };
+    req.onerror = onFailure;
+  },
+  function () {
+    ok(true, "Adding photo as Object");
+    createResult1 = new mozContact();
+    createResult1.init({photo: [{}]});
+    req = navigator.mozContacts.save(createResult1);
+    req.onsuccess = function () {
+      ok(createResult1.id, "The contact now has an ID.");
+      is(createResult1.photo, null, "No photo")
+      next();
     };
     req.onerror = onFailure;
   },
@@ -255,14 +306,23 @@ function next() {
   index += 1;
 }
 
-// Skip tests on Android < 4.0 due to test failures on tbpl (see bugs 897924 & 888891)
-if (!isAndroid || androidVersion >= 14) {
-  SimpleTest.waitForExplicitFinish();
-  addLoadEvent(next);
-} else {
-  ok(true, "Skip tests on Android < 4.0 (bugs 897924 & 888891");
+function permissionTest() {
+  if (gContactsEnabled) {
+    next();
+  } else {
+    is(mozContacts, null, "mozContacts is null when not enabled.");
+    SimpleTest.finish();
+  }
 }
 
+permissionTest();
+}
+
+var gContactsEnabled = SpecialPowers.getBoolPref("dom.mozContacts.enabled");
+addLoadEvent(tests);
+SimpleTest.waitForExplicitFinish();
+
+ok(true, "test passed");
 </script>
 </pre>
 </body>

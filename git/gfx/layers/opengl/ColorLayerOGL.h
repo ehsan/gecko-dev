@@ -6,20 +6,20 @@
 #ifndef GFX_COLORLAYEROGL_H
 #define GFX_COLORLAYEROGL_H
 
-#include "LayerManagerOGL.h"            // for LayerOGL, LayerManagerOGL
-#include "Layers.h"                     // for ColorLayer, etc
+#include "mozilla/layers/PLayers.h"
+#include "mozilla/layers/ShadowLayers.h"
 
-struct nsIntPoint;
+#include "LayerManagerOGL.h"
 
 namespace mozilla {
 namespace layers {
 
-class ColorLayerOGL : public ColorLayer,
-                      public LayerOGL
+class THEBES_API ColorLayerOGL : public ColorLayer,
+                                 public LayerOGL
 {
 public:
   ColorLayerOGL(LayerManagerOGL *aManager)
-    : ColorLayer(aManager, nullptr)
+    : ColorLayer(aManager, NULL)
     , LayerOGL(aManager)
   { 
     mImplData = static_cast<LayerOGL*>(this);

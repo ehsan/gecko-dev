@@ -8,10 +8,12 @@
 #define PannerNode_h_
 
 #include "AudioNode.h"
+#include "AudioParam.h"
+#include "mozilla/ErrorResult.h"
+#include "mozilla/TypedEnum.h"
 #include "mozilla/dom/PannerNodeBinding.h"
 #include "ThreeDPoint.h"
 #include "mozilla/WeakPtr.h"
-#include "mozilla/Preferences.h"
 #include "WebAudioUtils.h"
 #include <set>
 
@@ -28,31 +30,12 @@ public:
   explicit PannerNode(AudioContext* aContext);
   virtual ~PannerNode();
 
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope);
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-
-  virtual void DestroyMediaStream() MOZ_OVERRIDE;
-
-  virtual void SetChannelCount(uint32_t aChannelCount, ErrorResult& aRv) MOZ_OVERRIDE
+  virtual bool SupportsMediaStreams() const MOZ_OVERRIDE
   {
-    if (aChannelCount > 2) {
-      aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-      return;
-    }
-    AudioNode::SetChannelCount(aChannelCount, aRv);
+    return true;
   }
-  virtual void SetChannelCountModeValue(ChannelCountMode aMode, ErrorResult& aRv) MOZ_OVERRIDE
-  {
-    if (aMode == ChannelCountMode::Max) {
-      aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-      return;
-    }
-    AudioNode::SetChannelCountModeValue(aMode, aRv);
-  }
-
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(PannerNode, AudioNode)
 
   PanningModelType PanningModel() const
   {
@@ -60,29 +43,6 @@ public:
   }
   void SetPanningModel(PanningModelType aPanningModel)
   {
-    if (!Preferences::GetBool("media.webaudio.legacy.PannerNode")) {
-      // Do not accept the alternate enum values unless the legacy pref
-      // has been turned on.
-      switch (aPanningModel) {
-      case PanningModelType::_0:
-      case PanningModelType::_1:
-        // Do nothing in order to emulate setting an invalid enum value.
-        return;
-      default:
-        // Shut up the compiler warning
-        break;
-      }
-    }
-
-    // Handle the alternate enum values
-    switch (aPanningModel) {
-    case PanningModelType::_0: aPanningModel = PanningModelType::Equalpower; break;
-    case PanningModelType::_1: aPanningModel = PanningModelType::HRTF; break;
-    default:
-      // Shut up the compiler warning
-      break;
-    }
-
     mPanningModel = aPanningModel;
     SendInt32ParameterToStream(PANNING_MODEL, int32_t(mPanningModel));
   }
@@ -93,31 +53,6 @@ public:
   }
   void SetDistanceModel(DistanceModelType aDistanceModel)
   {
-    if (!Preferences::GetBool("media.webaudio.legacy.PannerNode")) {
-      // Do not accept the alternate enum values unless the legacy pref
-      // has been turned on.
-      switch (aDistanceModel) {
-      case DistanceModelType::_0:
-      case DistanceModelType::_1:
-      case DistanceModelType::_2:
-        // Do nothing in order to emulate setting an invalid enum value.
-        return;
-      default:
-        // Shut up the compiler warning
-        break;
-      }
-    }
-
-    // Handle the alternate enum values
-    switch (aDistanceModel) {
-    case DistanceModelType::_0: aDistanceModel = DistanceModelType::Linear; break;
-    case DistanceModelType::_1: aDistanceModel = DistanceModelType::Inverse; break;
-    case DistanceModelType::_2: aDistanceModel = DistanceModelType::Exponential; break;
-    default:
-      // Shut up the compiler warning
-      break;
-    }
-
     mDistanceModel = aDistanceModel;
     SendInt32ParameterToStream(DISTANCE_MODEL, int32_t(mDistanceModel));
   }
@@ -137,14 +72,14 @@ public:
 
   void SetOrientation(double aX, double aY, double aZ)
   {
-    ThreeDPoint orientation(aX, aY, aZ);
-    if (!orientation.IsZero()) {
-      orientation.Normalize();
-    }
-    if (mOrientation.FuzzyEqual(orientation)) {
+    if (WebAudioUtils::FuzzyEqual(mOrientation.x, aX) &&
+        WebAudioUtils::FuzzyEqual(mOrientation.y, aY) &&
+        WebAudioUtils::FuzzyEqual(mOrientation.z, aZ)) {
       return;
     }
-    mOrientation = orientation;
+    mOrientation.x = aX;
+    mOrientation.y = aY;
+    mOrientation.z = aZ;
     SendThreeDPointParameterToStream(ORIENTATION, mOrientation);
   }
 
@@ -250,15 +185,15 @@ private:
   friend class PannerNodeEngine;
   enum EngineParameters {
     LISTENER_POSITION,
-    LISTENER_FRONT_VECTOR, // unit length
-    LISTENER_RIGHT_VECTOR, // unit length, orthogonal to LISTENER_FRONT_VECTOR
+    LISTENER_ORIENTATION,
+    LISTENER_UPVECTOR,
     LISTENER_VELOCITY,
     LISTENER_DOPPLER_FACTOR,
     LISTENER_SPEED_OF_SOUND,
     PANNING_MODEL,
     DISTANCE_MODEL,
     POSITION,
-    ORIENTATION, // unit length or zero
+    ORIENTATION,
     VELOCITY,
     REF_DISTANCE,
     MAX_DISTANCE,

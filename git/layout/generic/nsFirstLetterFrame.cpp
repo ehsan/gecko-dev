@@ -5,6 +5,7 @@
 
 /* rendering object for CSS :first-letter pseudo-element */
 
+#include "nsCOMPtr.h"
 #include "nsFirstLetterFrame.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
@@ -14,7 +15,6 @@
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
 #include "nsFrameManager.h"
-#include "RestyleManager.h"
 #include "nsPlaceholderFrame.h"
 #include "nsCSSFrameConstructor.h"
 
@@ -69,7 +69,8 @@ nsFirstLetterFrame::Init(nsIContent*      aContent,
     if (parentStyleContext) {
       newSC = PresContext()->StyleSet()->
         ResolveStyleForNonElement(parentStyleContext);
-      SetStyleContextWithoutNotification(newSC);
+      if (newSC)
+        SetStyleContextWithoutNotification(newSC);
     }
   }
 
@@ -80,11 +81,11 @@ NS_IMETHODIMP
 nsFirstLetterFrame::SetInitialChildList(ChildListID  aListID,
                                         nsFrameList& aChildList)
 {
-  RestyleManager* restyleManager = PresContext()->RestyleManager();
+  nsFrameManager *frameManager = PresContext()->FrameManager();
 
   for (nsFrameList::Enumerator e(aChildList); !e.AtEnd(); e.Next()) {
     NS_ASSERTION(e.get()->GetParent() == this, "Unexpected parent");
-    restyleManager->ReparentStyleContext(e.get());
+    frameManager->ReparentStyleContext(e.get());
   }
 
   mFrames.SetFrames(aChildList);
@@ -193,7 +194,7 @@ nsFirstLetterFrame::Reflow(nsPresContext*          aPresContext,
     // because the block frame could be split by hard line breaks into
     // multiple paragraphs with different base direction
     uint8_t direction;
-    nsIFrame* containerFrame = ll.LineContainerFrame();
+    nsIFrame* containerFrame = ll.GetLineContainerFrame();
     if (containerFrame->StyleTextReset()->mUnicodeBidi &
         NS_STYLE_UNICODE_BIDI_PLAINTEXT) {
       FramePropertyTable *propTable = aPresContext->PropertyTable();
@@ -326,7 +327,9 @@ nsFirstLetterFrame::CreateContinuationForFloatingParent(nsPresContext* aPresCont
   if (parentSC) {
     nsRefPtr<nsStyleContext> newSC;
     newSC = presShell->StyleSet()->ResolveStyleForNonElement(parentSC);
-    continuation->SetStyleContext(newSC);
+    if (newSC) {
+      continuation->SetStyleContext(newSC);
+    }
   }
 
   //XXX Bidi may not be involved but we have to use the list name
@@ -377,7 +380,9 @@ nsFirstLetterFrame::DrainOverflowFrames(nsPresContext* aPresContext)
       NS_ASSERTION(kidContent->IsNodeOfType(nsINode::eTEXT),
                    "should contain only text nodes");
       sc = aPresContext->StyleSet()->ResolveStyleForNonElement(mStyleContext);
-      kid->SetStyleContext(sc);
+      if (sc) {
+        kid->SetStyleContext(sc);
+      }
     }
   }
 }

@@ -21,7 +21,7 @@ class nsThread MOZ_FINAL : public nsIThreadInternal,
                            public nsISupportsPriority
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIEVENTTARGET
   NS_DECL_NSITHREAD
   NS_DECL_NSITHREADINTERNAL
@@ -128,11 +128,16 @@ private:
   nsresult mResult;
 };
 
-#if defined(XP_UNIX) && !defined(ANDROID) && !defined(DEBUG) && HAVE_UALARM \
-  && defined(_GNU_SOURCE)
-# define MOZ_CANARY
+namespace mozilla {
 
-extern int sCanaryOutputFD;
-#endif
+/**
+ * This function causes the main thread to fire a memory pressure event at its
+ * next available opportunity.
+ *
+ * You may call this function from any thread.
+ */
+void ScheduleMemoryPressureEvent();
+
+} // namespace mozilla
 
 #endif  // nsThread_h__

@@ -77,7 +77,7 @@ GetGradientStops(GradientStops *aStops)
 struct AdjustedPattern
 {
   AdjustedPattern(const Pattern &aPattern)
-    : mPattern(nullptr)
+    : mPattern(NULL)
   {
     mOrigPattern = const_cast<Pattern*>(&aPattern);
   }
@@ -186,7 +186,7 @@ Path*
 DrawTargetRecording::GetPathForPathRecording(const Path *aPath) const
 {
   if (aPath->GetBackendType() != BACKEND_RECORDING) {
-    return nullptr;
+    return NULL;
   }
 
   return static_cast<const PathRecording*>(aPath)->mPath;
@@ -214,10 +214,7 @@ void RecordingFontUserDataDestroyFunc(void *aUserData)
   RecordingFontUserData *userData =
     static_cast<RecordingFontUserData*>(aUserData);
 
-  // TODO support font in b2g recordings
-#ifndef MOZ_WIDGET_GONK
   userData->recorder->RecordEvent(RecordedScaledFontDestruction(userData->refPtr));
-#endif
 
   delete userData;
 }
@@ -230,10 +227,7 @@ DrawTargetRecording::FillGlyphs(ScaledFont *aFont,
                                 const GlyphRenderingOptions *aRenderingOptions)
 {
   if (!aFont->GetUserData(reinterpret_cast<UserDataKey*>(mRecorder.get()))) {
-  // TODO support font in b2g recordings
-#ifndef MOZ_WIDGET_GONK
     mRecorder->RecordEvent(RecordedScaledFontCreation(aFont, aFont));
-#endif
     RecordingFontUserData *userData = new RecordingFontUserData;
     userData->refPtr = aFont;
     userData->recorder = mRecorder;
@@ -241,10 +235,7 @@ DrawTargetRecording::FillGlyphs(ScaledFont *aFont,
                        &RecordingFontUserDataDestroyFunc);
   }
 
-  // TODO support font in b2g recordings
-#ifndef MOZ_WIDGET_GONK
   mRecorder->RecordEvent(RecordedFillGlyphs(this, aFont, aPattern, aOptions, aBuffer.mGlyphs, aBuffer.mNumGlyphs));
-#endif
   mFinalDT->FillGlyphs(aFont, aBuffer, aPattern, aOptions, aRenderingOptions);
 }
 
@@ -255,16 +246,6 @@ DrawTargetRecording::Mask(const Pattern &aSource,
 {
   mRecorder->RecordEvent(RecordedMask(this, aSource, aMask, aOptions));
   mFinalDT->Mask(*AdjustedPattern(aSource), *AdjustedPattern(aMask), aOptions);
-}
-
-void
-DrawTargetRecording::MaskSurface(const Pattern &aSource,
-                                 SourceSurface *aMask,
-                                 Point aOffset,
-                                 const DrawOptions &aOptions)
-{
-  mRecorder->RecordEvent(RecordedMaskSurface(this, aSource, aMask, aOffset, aOptions));
-  mFinalDT->MaskSurface(*AdjustedPattern(aSource), GetSourceSurface(aMask), aOffset, aOptions);
 }
 
 void

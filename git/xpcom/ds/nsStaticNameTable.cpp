@@ -9,8 +9,10 @@
 #include "nsCRT.h"
 
 #include "nscore.h"
+#include "nsString.h"
+#include "nsReadableUtils.h"
+#include "prbit.h"
 #include "mozilla/HashFunctions.h"
-#include "nsTraceRefcnt.h"
 
 #define PL_ARENA_CONST_ALIGN_MASK 3
 #include "nsStaticNameTable.h"
@@ -24,7 +26,7 @@ struct NameTableKey
     {
         mKeyStr.m1b = aKeyStr;
     }
-
+        
     NameTableKey(const nsAFlatString* aKeyStr)
         : mIsUnichar(true)
     {
@@ -54,7 +56,7 @@ matchNameKeysCaseInsensitive(PLDHashTable*, const PLDHashEntryHdr* aHdr,
     const NameTableKey *keyValue = static_cast<const NameTableKey*>(key);
 
     const nsAFlatCString* entryKey = entry->mString;
-
+    
     if (keyValue->mIsUnichar) {
         return keyValue->mKeyStr.m2b->
             LowerCaseEqualsASCII(entryKey->get(), entryKey->Length());
@@ -125,7 +127,7 @@ nsStaticCaseInsensitiveNameTable::~nsStaticCaseInsensitiveNameTable()
     MOZ_COUNT_DTOR(nsStaticCaseInsensitiveNameTable);
 }
 
-bool
+bool 
 nsStaticCaseInsensitiveNameTable::Init(const char* const aNames[], int32_t Count)
 {
     NS_ASSERTION(!mNameArray, "double Init");
@@ -177,9 +179,6 @@ nsStaticCaseInsensitiveNameTable::Init(const char* const aNames[], int32_t Count
         entry->mString = strPtr;      // not owned!
         entry->mIndex = index;
     }
-#ifdef DEBUG
-    PL_DHashMarkTableImmutable(&mNameTable);
-#endif
     return true;
 }
 

@@ -214,7 +214,7 @@ let UI = {
       });
 
       // ___ setup event listener to save canvas images
-      let onWindowClosing = function () {
+      gWindow.addEventListener("SSWindowClosing", function onWindowClosing() {
         gWindow.removeEventListener("SSWindowClosing", onWindowClosing, false);
 
         // XXX bug #635975 - don't unlink the tab if the dom window is closing.
@@ -226,12 +226,7 @@ let UI = {
         TabItems.saveAll();
 
         self._save();
-      };
-
-      gWindow.addEventListener("SSWindowClosing", onWindowClosing);
-      this._cleanupFunctions.push(function () {
-        gWindow.removeEventListener("SSWindowClosing", onWindowClosing);
-      });
+      }, false);
 
       // ___ load frame script
       let frameScript = "chrome://browser/content/tabview-content.js";

@@ -30,19 +30,13 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=435441
 <div style="height: 50px; width: 300px; font-size: 20px; line-height: 20px">
 
 <div id="display">
-</div>
 
-<div id="transformTest" style="height:100px; width:200px; background-color:blue;">
 </div>
-
 </div>
 <pre id="test">
 <script type="application/javascript">
 
 /** Test for Bug 435441 **/
-
-SimpleTest.requestLongerTimeout(2);
-SimpleTest.waitForExplicitFinish();
 
 function has_num(str)
 {
@@ -122,13 +116,6 @@ var supported_properties = {
                        // opacity is clamped in computed style
                        // (not parsing/interpolation)
                        test_float_zeroToOne_clamped ],
-    "filter" : [ test_filter_transition ],
-    "flex-basis": [ test_length_transition, test_percent_transition,
-                    test_length_clamped, test_percent_clamped ],
-    "flex-grow": [ test_float_zeroToOne_transition,
-                   test_float_aboveOne_transition ],
-    "flex-shrink": [ test_float_zeroToOne_transition,
-                     test_float_aboveOne_transition ],
     "flood-color": [ test_color_transition ],
     "flood-opacity" : [ test_float_zeroToOne_transition,
                         // opacity is clamped in computed style
@@ -185,7 +172,6 @@ var supported_properties = {
                   // opacity is clamped in computed style
                   // (not parsing/interpolation)
                   test_float_zeroToOne_clamped ],
-    "order": [ test_integer_transition ],
     "outline-color": [ test_color_transition ],
     "outline-offset": [ test_length_transition, test_length_unclamped ],
     "outline-width": [ test_length_transition, test_length_clamped ],
@@ -251,471 +237,25 @@ var supported_properties = {
     "z-index": [ test_integer_transition, test_pos_integer_or_auto_transition ],
 };
 
-var div = document.getElementById("display");
-var OMTAdiv = document.getElementById("transformTest");
-var cs = getComputedStyle(div, "");
-var OMTACs = getComputedStyle(OMTAdiv, "");
-var winUtils = SpecialPowers.getDOMWindowUtils(window);
-
-function computeMatrix(v) {
-  div.style.setProperty("transform", v, "");
-  var result = cs.getPropertyValue("transform");
-  div.style.removeProperty("transform");
-  return result;
+// Automatically add pref-controlled CSS properties & keywords
+// to supported_properties, if the flexbox pref is enabled.
+if (SpecialPowers.getBoolPref("layout.css.flexbox.enabled")) {
+    var flexbox_properties = {
+        "flex-basis": [ test_length_transition, test_percent_transition,
+                        test_length_clamped, test_percent_clamped ],
+        "flex-grow": [ test_float_zeroToOne_transition,
+                       test_float_aboveOne_transition ],
+        "flex-shrink": [ test_float_zeroToOne_transition,
+                         test_float_aboveOne_transition ],
+        "order": [ test_integer_transition ]
+    };
+    for (var prop in flexbox_properties) {
+      supported_properties[prop] = flexbox_properties[prop];
+    }
 }
-var c_rot_15 = computeMatrix("rotate(15deg)");
-is(c_rot_15.substring(0,6), "matrix", "should compute to matrix value");
-var c_rot_60 = computeMatrix("rotate(60deg)");
-is(c_rot_60.substring(0,6), "matrix", "should compute to matrix value");
 
-var transformTestIndex = 0;
-var transformTests = [
-  // rotate
-  { start: 'none', end: 'rotate(60deg)',
-    expected_uncomputed: 'rotate(15deg)',
-    expected: c_rot_15 },
-  { start: 'rotate(0)', end: 'rotate(60deg)',
-    expected_uncomputed: 'rotate(15deg)',
-    expected: c_rot_15 },
-  { start: 'rotate(0deg)', end: 'rotate(60deg)',
-    expected_uncomputed: 'rotate(15deg)',
-    expected: c_rot_15 },
-  { start: 'none', end: c_rot_60,
-    expected: c_rot_15 },
-  { start: 'none', end: 'rotate(360deg)',
-    expected_uncomputed: 'rotate(90deg)',
-    expected: computeMatrix('rotate(90deg)') },
-  { start: 'none', end: 'rotatez(360deg)',
-    expected_uncomputed: 'rotate(90deg)',
-    expected: computeMatrix('rotate(90deg)') },
-  { start: 'none', end: 'rotate(720deg)',
-    expected_uncomputed: 'rotate(180deg)',
-    expected: computeMatrix('rotate(180deg)') },
-  { start: 'none', end: 'rotate(720deg)',
-    expected_uncomputed: 'rotatez(180deg)',
-    expected: computeMatrix('rotate(180deg)') },
-  { start: 'none', end: 'rotate(1080deg)',
-    expected_uncomputed: 'rotate(270deg)',
-    expected: computeMatrix('rotate(270deg)') },
-  { start: 'none', end: 'rotate(1080deg)',
-    expected_uncomputed: 'rotate(270deg)',
-    expected: computeMatrix('rotatez(270deg)') },
-  { start: 'none', end: 'rotate(1440deg)',
-    expected_uncomputed: 'rotate(360deg)',
-    expected: computeMatrix('scale(1)'),
-    round_error_ok: true },
-  { start: 'none', end: 'rotatey(60deg)',
-    expected_uncomputed: 'rotatey(15deg)',
-    expected: computeMatrix('rotatey(15deg)') },
-  { start: 'none', end: 'rotatey(720deg)',
-    expected_uncomputed: 'rotatey(180deg)',
-    expected: computeMatrix('rotatey(180deg)') },
-  { start: 'none', end: 'rotatex(60deg)',
-    expected_uncomputed: 'rotatex(15deg)',
-    expected: computeMatrix('rotatex(15deg)') },
-  { start: 'none', end: 'rotatex(720deg)',
-    expected_uncomputed: 'rotatex(180deg)',
-    expected: computeMatrix('rotatex(180deg)') },
-
-  // translate
-  { start: 'translate(20px)', end: 'none',
-    expected_uncomputed: 'translate(15px)',
-    expected: 'matrix(1, 0, 0, 1, 15, 0)' },
-  { start: 'translate(20px, 12px)', end: 'none',
-    expected_uncomputed: 'translate(15px, 9px)',
-    expected: 'matrix(1, 0, 0, 1, 15, 9)' },
-  { start: 'translateX(-20px)', end: 'none',
-    expected_uncomputed: 'translateX(-15px)',
-    expected: 'matrix(1, 0, 0, 1, -15, 0)' },
-  { start: 'translateY(-40px)', end: 'none',
-    expected_uncomputed: 'translateY(-30px)',
-    expected: 'matrix(1, 0, 0, 1, 0, -30)' },
-  { start: 'translateZ(40px)', end: 'none',
-    expected_uncomputed: 'translateZ(30px)',
-    expected: 'matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 30, 1)' },
-  { start: 'none', end: 'translate3D(40px, 60px, -40px)',
-    expected_uncomputed: 'translate3D(10px, 15px, -10px)',
-    expected: 'matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 10, 15, -10, 1)' },
-  // percentages are relative to 300px (width) and 50px (height)
-  // per the prerequisites in property_database.js
-  { start: 'translate(20%)', end: 'none',
-    expected_uncomputed: 'translate(15%)',
-    expected: 'matrix(1, 0, 0, 1, 45, 0)',
-    round_error_ok: true },
-  { start: 'translate(20%, 12%)', end: 'none',
-    expected_uncomputed: 'translate(15%, 9%)',
-    expected: 'matrix(1, 0, 0, 1, 45, 4.5)',
-    round_error_ok: true },
-  { start: 'translateX(-20%)', end: 'none',
-    expected_uncomputed: 'translateX(-15%)',
-    expected: 'matrix(1, 0, 0, 1, -45, 0)',
-    round_error_ok: true },
-  { start: 'translateY(-40%)', end: 'none',
-    expected_uncomputed: 'translateY(-30%)',
-    expected: 'matrix(1, 0, 0, 1, 0, -15)',
-    round_error_ok: true,
-    big_omta_round_error: true },
-  { start: 'none', end: 'rotate(90deg) translate(20%, 20%) rotate(-90deg)',
-    expected_uncomputed: 'rotate(22.5deg) translate(5%, 5%) rotate(-22.5deg)',
-    round_error_ok: true },
-  { start: 'none', end: 'rotate(-90deg) translate(20%, 20%) rotate(90deg)',
-    expected_uncomputed: 'rotate(-22.5deg) translate(5%, 5%) rotate(22.5deg)',
-    round_error_ok: true },
-  // test percent translation using matrix decomposition
-  { start: 'rotate(45deg) rotate(-45deg)',
-    end: 'rotate(90deg) translate(20%, 20%) rotate(-90deg)',
-    expected: 'matrix(1, 0, 0, 1, -2.5, 15)',
-    round_error_ok: true },
-  { start: 'rotate(45deg) rotate(-45deg)',
-    end: 'rotate(-90deg) translate(20%, 20%) rotate(90deg)',
-    expected: 'matrix(1, 0, 0, 1, 2.5, -15)',
-    round_error_ok: true },
-  // test calc() in translate
-  // Note that font-size: is 20px, and that percentages are relative
-  // to 300px (width) and 50px (height) per the prerequisites in
-  // property_database.js
-  { start: 'translateX(20%)', /* 60px */
-    end: 'translateX(calc(10% + 1em))', /* 30px + 20px = 50px */
-    expected_uncomputed: 'translateX(calc(17.5% + 0.25em))',
-    expected: 'matrix(1, 0, 0, 1, 57.5, 0)',
-    big_omta_round_error: true },
-  { start: 'translate(calc(0.75 * 3em + 1.5 * 10%), calc(0.5 * 5em + 0.5 * 8%))', /* 90px, 52px */
-    end: 'rotate(90deg) translateY(20%) rotate(90deg) translateY(calc(10% + 0.5em)) rotate(180deg)', /* -10px, -15px */
-    expected: 'matrix(1, 0, 0, 1, 65, 35.25)',
-    big_omta_round_error: true },
-
-  // scale
-  { start: 'scale(2)', end: 'none',
-    expected_uncomputed: 'scale(1.75)',
-    expected: 'matrix(1.75, 0, 0, 1.75, 0, 0)' },
-  { start: 'none', end: 'scale(0.4)',
-    expected_uncomputed: 'scale(0.85)',
-    expected: 'matrix(0.85, 0, 0, 0.85, 0, 0)',
-    round_error_ok: true },
-  { start: 'scale(2)', end: 'scale(-2)',
-    expected_uncomputed: 'scale(1)',
-    expected: 'matrix(1, 0, 0, 1, 0, 0)' },
-  { start: 'scale(2)', end: 'scale(-6)',
-    expected_uncomputed: 'scale(0)',
-    expected: 'matrix(0, 0, 0, 0, 0, 0)' },
-  { start: 'scale(2, 0.4)', end: 'none',
-    expected_uncomputed: 'scale(1.75, 0.55)',
-    expected: 'matrix(1.75, 0, 0, 0.55, 0, 0)',
-    round_error_ok: true },
-  { start: 'scaleX(3)', end: 'none',
-    expected_uncomputed: 'scaleX(2.5)',
-    expected: 'matrix(2.5, 0, 0, 1, 0, 0)' },
-  { start: 'scaleY(5)', end: 'none',
-    expected_uncomputed: 'scaleY(4)',
-    expected: 'matrix(1, 0, 0, 4, 0, 0)' },
-  { start: 'scaleZ(5)', end: 'none',
-    expected_uncomputed: 'scaleZ(4)',
-    expected: 'matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 1)' },
-  { start: 'none', end: 'scale3D(5, 5, 5)',
-    expected_uncomputed: 'scale3D(2, 2, 2)',
-    expected: 'matrix3d(2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1)' },
-
-  // skew
-  { start: 'skewX(45deg)', end: 'none',
-    expected_uncomputed: 'skewX(33.75deg)' },
-  { start: 'skewY(45deg)', end: 'none',
-    expected_uncomputed: 'skewY(33.75deg)' },
-  { start: 'skew(45deg)', end: 'none',
-    expected_uncomputed: 'skew(33.75deg)' },
-  { start: 'skew(45deg, 45deg)', end: 'none',
-    expected_uncomputed: 'skew(33.75deg, 33.75deg)' },
-  { start: 'skewX(45deg)', end: 'skewX(-45deg)',
-    expected_uncomputed: 'skewX(22.5deg)' },
-  { start: 'skewX(0)', end: 'skewX(-45deg)',
-    expected_uncomputed: 'skewX(-11.25deg)' },
-  { start: 'skewY(45deg)', end: 'skewY(-45deg)',
-    expected_uncomputed: 'skewY(22.5deg)' },
-
-  // matrix : skewX
-  { start: 'matrix(1, 0, 3, 1, 0, 0)', end: 'none',
-    expected: 'matrix(1, 0, ' + 3 * 0.75 + ', 1, 0, 0)',
-    round_error_ok: true },
-  { start: 'skewX(0)', end: 'skewX(-45deg) translate(0)',
-    expected: 'matrix(1, 0, -0.25, 1, 0, 0)',
-    round_error_ok: true },
-  // matrix : rotate
-  { start: 'rotate(-30deg)', end: 'matrix(0, 1, -1, 0, 0, 0)',
-    expected: 'matrix(1, 0, 0, 1, 0, 0)',
-    round_error_ok: true },
-  { start: 'rotate(-30deg) translateX(0)',
-    end: 'translateX(0) rotate(-90deg)',
-    expected: computeMatrix('rotate(-45deg)'),
-    round_error_ok: true },
-  // matrix decomposition of skewY
-  { start: 'skewY(60deg)', end: 'skewY(-60deg) translateX(0)',
-    /* rotate(30deg) skewX(60deg)/2 scale(2, 0.5) */
-    expected: computeMatrix('rotate(30deg) skewX(' + Math.atan(Math.tan(Math.PI * 60/180) / 2) + 'rad) scale(2, 0.5)'),
-    round_error_ok: true },
-
-  // matrix decomposition
-
-  // Four pairs of the same matrix expressed different ways.
-  { start: 'matrix(-1, 0, 0, -1, 0, 0)', /* rotate(180deg) */
-    end: 'matrix(1, 0, 0, 1, 0, 0)',
-    expected: computeMatrix('rotate(135deg)') },
-  { start: 'scale(-1)', end: 'none',
-    expected_uncomputed: 'scale(-0.5)',
-    expected: 'matrix(-0.5, 0, 0, -0.5, 0, 0)' },
-  { start: 'rotate(180deg)', end: 'none',
-    expected_uncomputed: 'rotate(135deg)' },
-  { start: 'rotate(-180deg)', end: 'none',
-    expected_uncomputed: 'rotate(-135deg)',
-    expected: computeMatrix('rotate(225deg)') },
-
-  // matrix followed by scale
-  { start: 'matrix(2, 0, 0, 2, 10, 20) scale(2)',
-    end: 'none',
-    expected: 'matrix(3.0625, 0, 0, 3.0625, 7.5, 15)' },
-
-  // ... and a bunch of similar possibilities.  The spec isn't settled
-  // here; there are multiple options.  See:
-  // http://lists.w3.org/Archives/Public/www-style/2010Jun/0602.html
-  { start: 'matrix(-1, 0, 0, 1, 0, 0)', /* scaleX(-1) */
-    end: 'matrix(1, 0, 0, 1, 0, 0)',
-    expected: computeMatrix('scaleX(-0.5)') },
-
-  { start: 'matrix(1, 0, 0, -1, 0, 0)', /* rotate(-180deg) scaleX(-1) */
-    end: 'matrix(1, 0, 0, 1, 0, 0)',
-    expected: computeMatrix('rotate(-135deg) scaleX(-0.5)') },
-
-  { start: 'matrix(0, 1, 1, 0, 0, 0)', /* rotate(-90deg) scaleX(-1) */
-    end: 'matrix(1, 0, 0, 1, 0, 0)',
-    expected: computeMatrix('rotate(-67.5deg) scaleX(-0.5)') },
-
-  { start: 'matrix(0, -1, 1, 0, 0, 0)', /* rotate(-90deg) */
-    end: 'matrix(1, 0, 0, 1, 0, 0)',
-    expected: computeMatrix('rotate(-67.5deg)') },
-
-  { start: 'matrix(0, 1, -1, 0, 0, 0)', /* rotate(90deg) */
-    end: 'matrix(1, 0, 0, 1, 0, 0)',
-    expected: computeMatrix('rotate(67.5deg)') },
-
-  { start: 'matrix(0, -1, -1, 0, 0, 0)', /* rotate(90deg) scaleX(-1) */
-    end: 'matrix(1, 0, 0, 1, 0, 0)',
-    expected: computeMatrix('rotate(67.5deg) scaleX(-0.5)') },
-
-  // Similar decomposition tests, but with skewX.  I checked visually
-  // that the sign of the skew was correct by checking visually that
-  // the animations in
-  // http://dbaron.org/css/test/2010/transition-negative-determinant
-  // don't flip when they finish, and then wrote tests corresponding
-  // to the current code's behavior.
-  // ... start with four with positive determinants
-  { start: 'none',
-    end: 'matrix(1, 0, 1.5, 1, 0, 0)',
-    /* skewX(atan(1.5)) */
-    expected: 'matrix(1, 0, ' + 1.5 * 0.25 + ', 1, 0, 0)',
-    round_error_ok: true },
-  { start: 'none',
-    end: 'matrix(-1, 0, 2, -1, 0, 0)',
-            /* rotate(180deg) skewX(atan(-2)) */
-    expected: computeMatrix('rotate(45deg) matrix(1, 0, ' + -2 * 0.25 + ', 1, 0, 0)'),
-    round_error_ok: true },
-  { start: 'none',
-    end: 'matrix(0, -1, 1, -3, 0, 0)',
-            /* rotate(-90deg) skewX(atan(3)) */
-    expected: computeMatrix('rotate(-22.5deg) matrix(1, 0, ' + 3 * 0.25 + ', 1, 0, 0)'),
-    round_error_ok: true },
-  { start: 'none',
-    end: 'matrix(0, 1, -1, 4, 0, 0)',
-            /* rotate(90deg) skewX(atan(4)) */
-    expected: computeMatrix('rotate(22.5deg) matrix(1, 0, ' + 4 * 0.25 + ', 1, 0, 0)'),
-    round_error_ok: true },
-  // and then four with negative determinants
-  { start: 'none',
-    end: 'matrix(1, 0, 1, -1, 0, 0)',
-            /* rotate(-180deg) skewX(atan(-1)) scaleX(-1) */
-    expected: computeMatrix('rotate(-45deg) matrix(1, 0, ' + -1 * 0.25 + ', 1, 0, 0) scaleX(0.5)'),
-    round_error_ok: true },
-  { start: 'none',
-    end: 'matrix(-1, 0, -1, 1, 0, 0)',
-            /* skewX(atan(-1)) scaleX(-1) */
-    expected: computeMatrix('matrix(1, 0, ' + -1 * 0.25 + ', 1, 0, 0) scaleX(0.5)') },
-  { start: 'none',
-    end: 'matrix(0, 1, 1, -2, 0, 0)',
-            /* rotate(-90deg) skewX(atan(2)) scaleX(-1) */
-    expected: computeMatrix('rotate(-22.5deg) matrix(1, 0, ' + 2 * 0.25 + ', 1, 0, 0) scaleX(0.5)'),
-    round_error_ok: true },
-  { start: 'none',
-    end: 'matrix(0, -1, -1, 0.5, 0, 0)',
-            /* rotate(90deg) skewX(atan(0.5)) scaleX(-1) */
-    expected: computeMatrix('rotate(22.5deg) matrix(1, 0, ' + 0.5 * 0.25 + ', 1, 0, 0) scaleX(0.5)'),
-    round_error_ok: true },
-
-  // lists vs. matrix decomposition
-  { start: 'translate(10px) skewY(45deg)',
-    end: 'translate(30px) skewY(-45deg)',
-    expected_uncomputed: 'translate(15px) skewY(22.5deg)' },
-  { start: 'skewY(45deg) rotate(90deg)',
-    end: 'skewY(-45deg) rotate(90deg)',
-    expected_uncomputed: 'skewY(22.5deg) rotate(90deg)' },
-  { start: 'skewY(45deg) rotate(90deg) translate(0)',
-    end: 'skewY(-45deg) rotate(90deg)',
-    expected: 'matrix(0, 1, -1, -0.5, 0, 0)',
-    round_error_ok: true },
-  { start: 'skewX(45deg) rotate(90deg)',
-    end: 'skewX(-45deg) rotate(90deg)',
-    expected_uncomputed: 'skewX(22.5deg) rotate(90deg)' },
-  { start: 'skewX(-60deg) rotate(90deg) translate(0)',
-    end: 'skewX(60deg) rotate(90deg)',
-    expected: computeMatrix('rotate(120deg) skewX(' + Math.atan(Math.tan(Math.PI * 60/180) / 2) + 'rad) scale(2, 0.5)'),
-    round_error_ok: true },
-];
-
-var filterTests = [
-  { start: "none", end: "none",
-    expected: ["none"] },
-  // function from none (number/length)
-  { start: "none", end: "brightness(0.5)",
-    expected: ["brightness", 0.875] },
-  { start: "none", end: "contrast(0.5)",
-    expected: ["contrast", 0.875] },
-  { start: "none", end: "grayscale(0.5)",
-    expected: ["grayscale", 0.125] },
-  { start: "none", end: "invert(0.5)",
-    expected: ["invert", 0.125] },
-  { start: "none", end: "opacity(0.5)",
-    expected: ["opacity", 0.875] },
-  { start: "none", end: "saturate(0.5)",
-    expected: ["saturate", 0.875] },
-  { start: "none", end: "sepia(0.5)",
-    expected: ["sepia", 0.125] },
-  { start: "none", end: "blur(50px)",
-    expected: ["blur", 12.5] },
-  // function to none (number/length)
-  { start: "brightness(0.5)", end: "none",
-    expected: ["brightness", 0.625] },
-  { start: "contrast(0.5)", end: "none",
-    expected: ["contrast", 0.625] },
-  { start: "grayscale(0.5)", end: "none",
-    expected: ["grayscale", 0.375] },
-  { start: "invert(0.5)", end: "none",
-    expected: ["invert", 0.375] },
-  { start: "opacity(0.5)", end: "none",
-    expected: ["opacity", 0.625] },
-  { start: "saturate(0.5)", end: "none",
-    expected: ["saturate", 0.625] },
-  { start: "sepia(0.5)", end: "none",
-    expected: ["sepia", 0.375] },
-  { start: "blur(50px)", end: "none",
-    expected: ["blur", 37.5] },
-  // function to same function (number/length)
-  { start: "brightness(0.25)", end: "brightness(0.75)",
-    expected: ["brightness", 0.375] },
-  { start: "contrast(0.25)", end: "contrast(0.75)",
-    expected: ["contrast", 0.375] },
-  { start: "grayscale(0.25)", end: "grayscale(0.75)",
-    expected: ["grayscale", 0.375] },
-  { start: "invert(0.25)", end: "invert(0.75)",
-    expected: ["invert", 0.375] },
-  { start: "opacity(0.25)", end: "opacity(0.75)",
-    expected: ["opacity", 0.375] },
-  { start: "saturate(0.25)", end: "saturate(0.75)",
-    expected: ["saturate", 0.375] },
-  { start: "sepia(0.25)", end: "sepia(0.75)",
-    expected: ["sepia", 0.375] },
-  { start: "blur(25px)", end: "blur(75px)",
-    expected: ["blur", 37.5] },
-  // function to same function (percent)
-  { start: "brightness(25%)", end: "brightness(75%)",
-    expected: ["brightness", 0.375] },
-  { start: "contrast(25%)", end: "contrast(75%)",
-    expected: ["contrast", 0.375] },
-  { start: "grayscale(25%)", end: "grayscale(75%)",
-    expected: ["grayscale", 0.375] },
-  { start: "invert(25%)", end: "invert(75%)",
-    expected: ["invert", 0.375] },
-  { start: "opacity(25%)", end: "opacity(75%)",
-    expected: ["opacity", 0.375] },
-  { start: "saturate(25%)", end: "saturate(75%)",
-    expected: ["saturate", 0.375] },
-  { start: "sepia(25%)", end: "sepia(75%)",
-    expected: ["sepia", 0.375] },
-  // function to same function (percent, number/length)
-  { start: "brightness(0.25)", end: "brightness(75%)",
-    expected: ["brightness", 0.375] },
-  { start: "contrast(25%)", end: "contrast(0.75)",
-    expected: ["contrast", 0.375] },
-  // hue-rotate with different angle values
-  { start: "hue-rotate(0deg)", end: "hue-rotate(720deg)",
-    expected: ["hue-rotate", Math.PI.toFixed(5)] },
-  { start: "hue-rotate(0rad)", end: "hue-rotate("+4*Math.PI+"rad)",
-    expected: ["hue-rotate", Math.PI.toFixed(5)] },
-  { start: "hue-rotate(0grad)", end: "hue-rotate(800grad)",
-    expected: ["hue-rotate", Math.PI.toFixed(5)] },
-  { start: "hue-rotate(0turn)", end: "hue-rotate(2turn)",
-    expected: ["hue-rotate", Math.PI.toFixed(5)] },
-  { start: "hue-rotate(0deg)", end: "hue-rotate("+4*Math.PI+"rad)",
-    expected: ["hue-rotate", Math.PI.toFixed(5)] },
-  { start: "hue-rotate(0turn)", end: "hue-rotate(800grad)",
-    expected: ["hue-rotate", Math.PI.toFixed(5)] },
-  { start: "hue-rotate(0grad)", end: "hue-rotate("+4*Math.PI+"rad)",
-    expected: ["hue-rotate", Math.PI.toFixed(5)] },
-  { start: "hue-rotate(0grad)", end: "hue-rotate(0turn)",
-    expected: ["hue-rotate", 0] },
-  // multiple matching functions, same length
-  { start: "contrast(25%) brightness(0.25) blur(25px) sepia(75%)",
-    end: "contrast(75%) brightness(0.75) blur(75px) sepia(25%)",
-    expected: ["contrast", 0.375, "brightness", 0.375, "blur", 37.5, "sepia", 0.625] },
-  { start: "invert(25%) brightness(0.25) blur(25px) invert(50%) brightness(0.5) blur(50px)",
-    end: "invert(75%) brightness(0.75) blur(75px)",
-    expected: ["invert", 0.375, "brightness", 0.375, "blur", 37.5, "invert", 0.375, "brightness", 0.625, "blur", 37.5] },
-  // multiple matching functions, different length
-  { start: "contrast(25%) brightness(0.5) blur(50px)",
-    end: "contrast(75%)",
-    expected: ["contrast", 0.375, "brightness", 0.625, "blur", 37.5] },
-  // mismatching filter functions
-  { start: "contrast(0%)", end: "blur(10px)",
-    expected: ["blur", 10] },
-  // not supported interpolations
-  { start: "none", end: "url('#b')",
-    expected: ["url", "\""+document.URL+"#b\""] },
-  { start: "url('#a')", end: "none",
-    expected: ["none"] },
-  { start: "url('#a')", end: "url('#b')",
-    expected: ["url", "\""+document.URL+"#b\""] },
-  { start: "url('#a')", end: "blur(10px)",
-    expected: ["blur", 10] },
-  { start: "blur(10px)", end: "url('#a')",
-    expected: ["url", "\""+document.URL+"#a\""] },
-  { start: "blur(0px) url('#a')", end: "blur(20px)",
-    expected: ["blur", 20] },
-  { start: "blur(0px)", end: "blur(20px) url('#a')",
-    expected: ["blur", 20, "url", "\""+document.URL+"#a\""] },
-  { start: "contrast(0.25) brightness(0.25) blur(25px)",
-    end: "contrast(0.75) url('#a')",
-    expected: ["contrast", 0.75, "url", "\""+document.URL+"#a\""] },
-  { start: "contrast(0.25) brightness(0.25) blur(75px)",
-    end: "brightness(0.75) contrast(0.75) blur(25px)",
-    expected: ["brightness", 0.75, "contrast", 0.75, "blur", 25] },
-  { start: "contrast(0.25) brightness(0.25) blur(25px)",
-    end: "contrast(0.75) brightness(0.75) contrast(0.75)",
-    expected: ["contrast", 0.75, "brightness", 0.75, "contrast", 0.75] },
-  // drop-shadow animation
-  { start: "none",
-    end: "drop-shadow(rgb(0, 0, 0) 4px 4px 0px)",
-    expected: ["drop-shadow", "rgba(0, 0, 0, 0.25) 1px 1px 0px"] },
-  { start: "drop-shadow(rgb(0, 0, 0) 0px 0px 0px)",
-    end: "drop-shadow(rgb(0, 0, 0) 4px 4px 0px)",
-    expected: ["drop-shadow", "rgb(0, 0, 0) 1px 1px 0px"] },
-  { start: "drop-shadow(#038000 4px 4px)",
-    end: "drop-shadow(8px 8px 8px red)",
-    expected: ["drop-shadow", "rgb(66, 96, 0) 5px 5px 2px"] },
-  { start: "blur(25px) drop-shadow(8px 8px)",
-    end: "blur(75px)",
-    expected: ["blur", 37.5, "drop-shadow", "rgb(0, 0, 0) 6px 6px 0px"] },
-  { start: "blur(75px)",
-    end: "blur(25px) drop-shadow(8px 8px)",
-    expected: ["blur", 62.5, "drop-shadow", "rgb(0, 0, 0) 2px 2px 0px"] },
-  { start: "drop-shadow(2px 2px blue)",
-    end: "none",
-    expected: ["drop-shadow", "rgba(0, 0, 255, 0.75) 1.5px 1.5px 0px"] },
-];
+var div = document.getElementById("display");
+var cs = getComputedStyle(div, "");
 
 var prop;
 for (prop in supported_properties) {
@@ -725,23 +265,6 @@ for (prop in supported_properties) {
   // Test that the entry has at least one test function.
   ok(supported_properties[prop].length > 0,
      "property " + prop + " must have at least one test function");
-}
-
-// Return a consistent sampling of |count| values out of |array|.
-function sample_array(array, count) {
-  if (count <= 0) {
-    ok(false, "unexpected count");
-    return [];
-  }
-  var ratio = array.length / count;
-  if (ratio <= 1) {
-    return array;
-  }
-  var result = new Array(count);
-  for (var i = 0; i < count; ++i) {
-    result[i] = array[Math.floor(i * ratio)];
-  }
-  return result;
 }
 
 // Test that transitions don't do anything (i.e., aren't supported) on
@@ -764,26 +287,6 @@ for (prop in gCSSProperties) {
     }
 
     var all_values = info.initial_values.concat(info.other_values);
-
-    if (all_values.length > 50) {
-      // Since we're using an O(N^2) algorithm here, reduce the list of
-      // values that we want to test.  (This test is really only testing
-      // that somebody didn't make a property animatable without
-      // modifying this test.  The odds of somebody doing that without
-      // making at least one of the many pairs of values we have left
-      // animatable seems pretty low, at least relative to the chance
-      // that any pair of the values listed in property_database.js is
-      // animatable.)
-      //
-      // That said, we still try to use all of the start of the list on
-      // the assumption that the more basic values are likely to be at
-      // the beginning of the list.
-      all_values = [].concat(info.initial_values.slice(0,2),
-                             sample_array(info.initial_values.slice(2), 6),
-                             info.other_values.slice(0, 10),
-                             sample_array(info.other_values.slice(10), 40));
-    }
-
     var all_computed = [];
     for (var idx in all_values) {
       var val = all_values[idx];
@@ -863,6 +366,11 @@ function get_distance(prop, v1, v2)
 {
   return SpecialPowers.DOMWindowUtils
            .computeAnimationDistance(div, prop, v1, v2);
+}
+
+function transform3D_enabled()
+{
+  return SpecialPowers.getBoolPref("layout.3d-transforms.enabled");
 }
 
 function check_distance(prop, start, quarter, end)
@@ -1136,88 +644,6 @@ function test_border_color_transition(prop) {
   div.style.removeProperty("color");
 }
 
-function filter_function_list_equals(computedValStr, expectedList)
-{
-  // Check simple case "none"
-  if (computedValStr == "none" && computedValStr == expectedList[0]) {
-    return true;
-  }
-
-  // The regular expression does not filter out the last parenthesis.
-  // Remove last character for now.
-  is(computedValStr.substring(computedValStr.length - 1, computedValStr.length),
-                              ')', "Check if last character is close-paren");
-  computedValStr = computedValStr.substring(0, computedValStr.length - 1);
-
-  var reg = /\)*\s*(blur|brightness|contrast|grayscale|hue\-rotate|invert|opacity|saturate|sepia|drop\-shadow|url)\(/
-  var matches = computedValStr.split(reg);
-  // First item must be empty. All other items are of functionName, functionValue.
-  if (!matches || matches.shift() != "") {
-    ok(false, "computed style of 'filter' isn't in the format we expect");
-    return false;
-  }
-
-  // Odd items are the function name, even items the function value.
-  if (!matches.length || matches.length % 2 ||
-      expectedList.length != matches.length) {
-    ok(false, "computed style of 'filter' isn't in the format we expect");
-    return false;
-  }
-  for (var i = 0; i < matches.length; i += 2) {
-    var functionName = matches[i];
-    var functionValue = matches[i+1];
-    var expected = expectedList[i+1]
-    var tolerance = 0;
-    // Check if we have the expected function.
-    if (functionName != expectedList[i]) {
-      return false;
-    }
-    if (functionName == "blur") {
-      // Last two characters must be "px".
-      if (functionValue.search("px") != functionValue.length - 2) {
-        return false;
-      }
-      functionValue = functionValue.substring(0, functionValue.length - 2);
-    } else if (functionName == "hue-rotate") {
-      // Last two characters must be "rad".
-      if (functionValue.search("rad") != functionValue.length - 3) {
-        return false;
-      }
-      tolerance = 0.001;
-      functionValue = functionValue.substring(0, functionValue.length - 3);
-    } else if (functionName == "drop-shadow" || functionName == "url") {
-      if (functionValue != expected) {
-        return false;
-      }
-      continue;
-    }
-    // Check if string is not a number or difference is not in tolerance level.
-    if (isNaN(functionValue) ||
-      Math.abs(parseFloat(functionValue) - expected) > tolerance) {
-      return false;
-    }
-  }
-  return true;
-}
-
-function test_filter_transition(prop) {
-  if (!SpecialPowers.getBoolPref("layout.css.filters.enabled")) {
-    return;
-  }
-  for (var i in filterTests) {
-    var test = filterTests[i];
-    div.style.setProperty("transition-property", "none", "");
-    div.style.setProperty(prop, test.start, "");
-    cs.getPropertyValue(prop);
-    div.style.setProperty("transition-property", prop, "");
-    div.style.setProperty(prop, test.end, "");
-    var actual = cs.getPropertyValue(prop);
-    ok(filter_function_list_equals(actual, test.expected),
-                                   "Filter property is " + actual + " expected values of " +
-                                   test.expected);
-  }
-}
-
 function test_shadow_transition(prop) {
   var spreadStr = (prop == "box-shadow") ? " 0px" : "";
 
@@ -1422,15 +848,6 @@ function test_radius_transition(prop) {
   check_distance(prop, "6.25% 12.5%",
                  "calc(4.6875% + 16px) calc(9.375% + 4px)",
                  "64px 16px");
-
-  div.style.setProperty("transition-property", "none", "");
-  div.style.setProperty(prop, "calc(5px) 10px", "");
-  is(cs.getPropertyValue(prop), "5px 10px",
-     "radius-valued property " + prop + ": computed value before transition");
-  div.style.setProperty("transition-property", prop, "");
-  div.style.setProperty(prop, "calc(25px) calc(50px)", "");
-  is(cs.getPropertyValue(prop), "10px 20px",
-     "radius-valued property " + prop + ": interpolation of radius with calc() units");
 
   div.style.setProperty("transition-timing-function", FUNC_NEGATIVE, "");
   div.style.setProperty("transition-property", "none", "");
@@ -1884,22 +1301,341 @@ function test_background_position_size_common(prop) {
 }
 
 function test_transform_transition(prop) {
-  is(prop, "transform", "Unexpected transform property!  Test needs to be fixed");
+  function c(v) {
+    div.style.setProperty(prop, v, "");
+    var result = cs.getPropertyValue(prop);
+    div.style.removeProperty(prop);
+    return result;
+  }
+  var c_rot_15 = c("rotate(15deg)");
+  is(c_rot_15.substring(0,6), "matrix", "should compute to matrix value");
+  var c_rot_60 = c("rotate(60deg)");
+  is(c_rot_60.substring(0,6), "matrix", "should compute to matrix value");
+
+  var tests = [
+    // rotate
+    { start: 'none', end: 'rotate(60deg)',
+      expected_uncomputed: 'rotate(15deg)',
+      expected: c_rot_15 },
+    { start: 'rotate(0)', end: 'rotate(60deg)',
+      expected_uncomputed: 'rotate(15deg)',
+      expected: c_rot_15 },
+    { start: 'rotate(0deg)', end: 'rotate(60deg)',
+      expected_uncomputed: 'rotate(15deg)',
+      expected: c_rot_15 },
+    { start: 'none', end: c_rot_60,
+      expected: c_rot_15 },
+    { start: 'none', end: 'rotate(360deg)',
+      expected_uncomputed: 'rotate(90deg)',
+      expected: c('rotate(90deg)') },
+    { start: 'none', end: 'rotatez(360deg)',
+      expected_uncomputed: 'rotate(90deg)',
+      expected: c('rotate(90deg)'),
+      requires_3d: true },
+    { start: 'none', end: 'rotate(720deg)',
+      expected_uncomputed: 'rotate(180deg)',
+      expected: c('rotate(180deg)') },
+    { start: 'none', end: 'rotate(720deg)',
+      expected_uncomputed: 'rotatez(180deg)',
+      expected: c('rotate(180deg)'),
+      requires_3d: true },
+    { start: 'none', end: 'rotate(1080deg)',
+      expected_uncomputed: 'rotate(270deg)',
+      expected: c('rotate(270deg)') },
+    { start: 'none', end: 'rotate(1080deg)',
+      expected_uncomputed: 'rotate(270deg)',
+      expected: c('rotatez(270deg)'),
+      requires_3d: true },
+    { start: 'none', end: 'rotate(1440deg)',
+      expected_uncomputed: 'rotate(360deg)',
+      expected: c('scale(1)'),
+      round_error_ok: true },
+    { start: 'none', end: 'rotatey(60deg)',
+      expected_uncomputed: 'rotatey(15deg)',
+      expected: c('rotatey(15deg)'),
+      requires_3d: true },
+    { start: 'none', end: 'rotatey(720deg)',
+      expected_uncomputed: 'rotatey(180deg)',
+      expected: c('rotatey(180deg)'),
+      requires_3d: true },
+    { start: 'none', end: 'rotatex(60deg)',
+      expected_uncomputed: 'rotatex(15deg)',
+      expected: c('rotatex(15deg)'),
+      requires_3d: true },
+    { start: 'none', end: 'rotatex(720deg)',
+      expected_uncomputed: 'rotatex(180deg)',
+      expected: c('rotatex(180deg)'),
+      requires_3d: true },
+
+    // translate
+    { start: 'translate(20px)', end: 'none',
+      expected_uncomputed: 'translate(15px)',
+      expected: 'matrix(1, 0, 0, 1, 15, 0)' },
+    { start: 'translate(20px, 12px)', end: 'none',
+      expected_uncomputed: 'translate(15px, 9px)',
+      expected: 'matrix(1, 0, 0, 1, 15, 9)' },
+    { start: 'translateX(-20px)', end: 'none',
+      expected_uncomputed: 'translateX(-15px)',
+      expected: 'matrix(1, 0, 0, 1, -15, 0)' },
+    { start: 'translateY(-40px)', end: 'none',
+      expected_uncomputed: 'translateY(-30px)',
+      expected: 'matrix(1, 0, 0, 1, 0, -30)' },
+    { start: 'translateZ(40px)', end: 'none',
+      expected_uncomputed: 'translateZ(30px)',
+      expected: 'matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 30, 1)',
+      requires_3d: true },
+    { start: 'none', end: 'translate3D(40px, 60px, -40px)',
+      expected_uncomputed: 'translate3D(10px, 15px, -10px)',
+      expected: 'matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 10, 15, -10, 1)',
+      requires_3d: true },
+    // percentages are relative to 300px (width) and 50px (height)
+    // per the prerequisites in property_database.js
+    { start: 'translate(20%)', end: 'none',
+      expected_uncomputed: 'translate(15%)',
+      expected: 'matrix(1, 0, 0, 1, 45, 0)',
+      round_error_ok: true },
+    { start: 'translate(20%, 12%)', end: 'none',
+      expected_uncomputed: 'translate(15%, 9%)',
+      expected: 'matrix(1, 0, 0, 1, 45, 4.5)',
+      round_error_ok: true },
+    { start: 'translateX(-20%)', end: 'none',
+      expected_uncomputed: 'translateX(-15%)',
+      expected: 'matrix(1, 0, 0, 1, -45, 0)',
+      round_error_ok: true },
+    { start: 'translateY(-40%)', end: 'none',
+      expected_uncomputed: 'translateY(-30%)',
+      expected: 'matrix(1, 0, 0, 1, 0, -15)',
+      round_error_ok: true },
+    { start: 'none', end: 'rotate(90deg) translate(20%, 20%) rotate(-90deg)',
+      expected_uncomputed: 'rotate(22.5deg) translate(5%, 5%) rotate(-22.5deg)',
+      round_error_ok: true },
+    { start: 'none', end: 'rotate(-90deg) translate(20%, 20%) rotate(90deg)',
+      expected_uncomputed: 'rotate(-22.5deg) translate(5%, 5%) rotate(22.5deg)',
+      round_error_ok: true },
+    // test percent translation using matrix decomposition
+    { start: 'rotate(45deg) rotate(-45deg)',
+      end: 'rotate(90deg) translate(20%, 20%) rotate(-90deg)',
+      expected: 'matrix(1, 0, 0, 1, -2.5, 15)',
+      round_error_ok: true },
+    { start: 'rotate(45deg) rotate(-45deg)',
+      end: 'rotate(-90deg) translate(20%, 20%) rotate(90deg)',
+      expected: 'matrix(1, 0, 0, 1, 2.5, -15)',
+      round_error_ok: true },
+    // test calc() in translate
+    // Note that font-size: is 20px, and that percentages are relative
+    // to 300px (width) and 50px (height) per the prerequisites in
+    // property_database.js
+    { start: 'translateX(20%)', /* 60px */
+      end: 'translateX(calc(10% + 1em))', /* 30px + 20px = 50px */
+      expected_uncomputed: 'translateX(calc(17.5% + 0.25em))',
+      expected: 'matrix(1, 0, 0, 1, 57.5, 0)' },
+    { start: 'translate(calc(0.75 * 3em + 1.5 * 10%), calc(0.5 * 5em + 0.5 * 8%))', /* 90px, 52px */
+      end: 'rotate(90deg) translateY(20%) rotate(90deg) translateY(calc(10% + 0.5em)) rotate(180deg)', /* -10px, -15px */
+      expected: 'matrix(1, 0, 0, 1, 65, 35.25)' },
+
+    // scale
+    { start: 'scale(2)', end: 'none',
+      expected_uncomputed: 'scale(1.75)',
+      expected: 'matrix(1.75, 0, 0, 1.75, 0, 0)' },
+    { start: 'none', end: 'scale(0.4)',
+      expected_uncomputed: 'scale(0.85)',
+      expected: 'matrix(0.85, 0, 0, 0.85, 0, 0)',
+      round_error_ok: true },
+    { start: 'scale(2)', end: 'scale(-2)',
+      expected_uncomputed: 'scale(1)',
+      expected: 'matrix(1, 0, 0, 1, 0, 0)' },
+    { start: 'scale(2)', end: 'scale(-6)',
+      expected_uncomputed: 'scale(0)',
+      expected: 'matrix(0, 0, 0, 0, 0, 0)' },
+    { start: 'scale(2, 0.4)', end: 'none',
+      expected_uncomputed: 'scale(1.75, 0.55)',
+      expected: 'matrix(1.75, 0, 0, 0.55, 0, 0)',
+      round_error_ok: true },
+    { start: 'scaleX(3)', end: 'none',
+      expected_uncomputed: 'scaleX(2.5)',
+      expected: 'matrix(2.5, 0, 0, 1, 0, 0)' },
+    { start: 'scaleY(5)', end: 'none',
+      expected_uncomputed: 'scaleY(4)',
+      expected: 'matrix(1, 0, 0, 4, 0, 0)' },
+    { start: 'scaleZ(5)', end: 'none',
+      expected_uncomputed: 'scaleZ(4)',
+      expected: 'matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 1)',
+      requires_3d: true },
+    { start: 'none', end: 'scale3D(5, 5, 5)',
+      expected_uncomputed: 'scale3D(2, 2, 2)',
+      expected: 'matrix3d(2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1)',
+      requires_3d: true },
+
+    // skew
+    { start: 'skewX(45deg)', end: 'none',
+      expected_uncomputed: 'skewX(33.75deg)' },
+    { start: 'skewY(45deg)', end: 'none',
+      expected_uncomputed: 'skewY(33.75deg)' },
+    { start: 'skew(45deg)', end: 'none',
+      expected_uncomputed: 'skew(33.75deg)' },
+    { start: 'skew(45deg, 45deg)', end: 'none',
+      expected_uncomputed: 'skew(33.75deg, 33.75deg)' },
+    { start: 'skewX(45deg)', end: 'skewX(-45deg)',
+      expected_uncomputed: 'skewX(22.5deg)' },
+    { start: 'skewX(0)', end: 'skewX(-45deg)',
+      expected_uncomputed: 'skewX(-11.25deg)' },
+    { start: 'skewY(45deg)', end: 'skewY(-45deg)',
+      expected_uncomputed: 'skewY(22.5deg)' },
+
+    // matrix : skewX
+    { start: 'matrix(1, 0, 3, 1, 0, 0)', end: 'none',
+      expected: 'matrix(1, 0, ' + 3 * 0.75 + ', 1, 0, 0)',
+      round_error_ok: true },
+    { start: 'skewX(0)', end: 'skewX(-45deg) translate(0)',
+      expected: 'matrix(1, 0, -0.25, 1, 0, 0)',
+      round_error_ok: true },
+    // matrix : rotate
+    { start: 'rotate(-30deg)', end: 'matrix(0, 1, -1, 0, 0, 0)',
+      expected: 'matrix(1, 0, 0, 1, 0, 0)',
+      round_error_ok: true },
+    { start: 'rotate(-30deg) translateX(0)',
+      end: 'translateX(0) rotate(-90deg)',
+      expected: c('rotate(-45deg)'),
+      round_error_ok: true },
+    // matrix decomposition of skewY
+    { start: 'skewY(60deg)', end: 'skewY(-60deg) translateX(0)',
+      /* rotate(30deg) skewX(60deg)/2 scale(2, 0.5) */
+      expected: c('rotate(30deg) skewX(' + Math.atan(Math.tan(Math.PI * 60/180) / 2) + 'rad) scale(2, 0.5)'),
+      round_error_ok: true },
+
+    // matrix decomposition
+
+    // Four pairs of the same matrix expressed different ways.
+    { start: 'matrix(-1, 0, 0, -1, 0, 0)', /* rotate(180deg) */
+      end: 'matrix(1, 0, 0, 1, 0, 0)',
+      expected: c('rotate(135deg)') },
+    { start: 'scale(-1)', end: 'none',
+      expected_uncomputed: 'scale(-0.5)',
+      expected: 'matrix(-0.5, 0, 0, -0.5, 0, 0)' },
+    { start: 'rotate(180deg)', end: 'none',
+      expected_uncomputed: 'rotate(135deg)' },
+    { start: 'rotate(-180deg)', end: 'none',
+      expected_uncomputed: 'rotate(-135deg)',
+      expected: c('rotate(225deg)') },
+
+    // matrix followed by scale
+    { start: 'matrix(2, 0, 0, 2, 10, 20) scale(2)',
+      end: 'none',
+      expected: 'matrix(3.0625, 0, 0, 3.0625, 7.5, 15)' },
+
+    // ... and a bunch of similar possibilities.  The spec isn't settled
+    // here; there are multiple options.  See:
+    // http://lists.w3.org/Archives/Public/www-style/2010Jun/0602.html
+    { start: 'matrix(-1, 0, 0, 1, 0, 0)', /* scaleX(-1) */
+      end: 'matrix(1, 0, 0, 1, 0, 0)',
+      expected: c('scaleX(-0.5)') },
+
+    { start: 'matrix(1, 0, 0, -1, 0, 0)', /* rotate(-180deg) scaleX(-1) */
+      end: 'matrix(1, 0, 0, 1, 0, 0)',
+      expected: c('rotate(-135deg) scaleX(-0.5)') },
+
+    { start: 'matrix(0, 1, 1, 0, 0, 0)', /* rotate(-90deg) scaleX(-1) */
+      end: 'matrix(1, 0, 0, 1, 0, 0)',
+      expected: c('rotate(-67.5deg) scaleX(-0.5)') },
+
+    { start: 'matrix(0, -1, 1, 0, 0, 0)', /* rotate(-90deg) */
+      end: 'matrix(1, 0, 0, 1, 0, 0)',
+      expected: c('rotate(-67.5deg)') },
+
+    { start: 'matrix(0, 1, -1, 0, 0, 0)', /* rotate(90deg) */
+      end: 'matrix(1, 0, 0, 1, 0, 0)',
+      expected: c('rotate(67.5deg)') },
+
+    { start: 'matrix(0, -1, -1, 0, 0, 0)', /* rotate(90deg) scaleX(-1) */
+      end: 'matrix(1, 0, 0, 1, 0, 0)',
+      expected: c('rotate(67.5deg) scaleX(-0.5)') },
+
+    // Similar decomposition tests, but with skewX.  I checked visually
+    // that the sign of the skew was correct by checking visually that
+    // the animations in
+    // http://dbaron.org/css/test/2010/transition-negative-determinant
+    // don't flip when they finish, and then wrote tests corresponding
+    // to the current code's behavior.
+    // ... start with four with positive determinants
+    { start: 'none',
+      end: 'matrix(1, 0, 1.5, 1, 0, 0)',
+      /* skewX(atan(1.5)) */
+      expected: 'matrix(1, 0, ' + 1.5 * 0.25 + ', 1, 0, 0)',
+      round_error_ok: true },       
+    { start: 'none',
+      end: 'matrix(-1, 0, 2, -1, 0, 0)',
+              /* rotate(180deg) skewX(atan(-2)) */
+      expected: c('rotate(45deg) matrix(1, 0, ' + -2 * 0.25 + ', 1, 0, 0)'),
+      round_error_ok: true },
+    { start: 'none',
+      end: 'matrix(0, -1, 1, -3, 0, 0)',
+              /* rotate(-90deg) skewX(atan(3)) */
+      expected: c('rotate(-22.5deg) matrix(1, 0, ' + 3 * 0.25 + ', 1, 0, 0)'),
+      round_error_ok: true },
+    { start: 'none',
+      end: 'matrix(0, 1, -1, 4, 0, 0)',
+              /* rotate(90deg) skewX(atan(4)) */
+      expected: c('rotate(22.5deg) matrix(1, 0, ' + 4 * 0.25 + ', 1, 0, 0)'),
+      round_error_ok: true },
+    // and then four with negative determinants
+    { start: 'none',
+      end: 'matrix(1, 0, 1, -1, 0, 0)',
+              /* rotate(-180deg) skewX(atan(-1)) scaleX(-1) */
+      expected: c('rotate(-45deg) matrix(1, 0, ' + -1 * 0.25 + ', 1, 0, 0) scaleX(0.5)'),
+      round_error_ok: true },
+    { start: 'none',
+      end: 'matrix(-1, 0, -1, 1, 0, 0)',
+              /* skewX(atan(-1)) scaleX(-1) */
+      expected: c('matrix(1, 0, ' + -1 * 0.25 + ', 1, 0, 0) scaleX(0.5)') },
+    { start: 'none',
+      end: 'matrix(0, 1, 1, -2, 0, 0)',
+              /* rotate(-90deg) skewX(atan(2)) scaleX(-1) */
+      expected: c('rotate(-22.5deg) matrix(1, 0, ' + 2 * 0.25 + ', 1, 0, 0) scaleX(0.5)'),
+      round_error_ok: true },
+    { start: 'none',
+      end: 'matrix(0, -1, -1, 0.5, 0, 0)',
+              /* rotate(90deg) skewX(atan(0.5)) scaleX(-1) */
+      expected: c('rotate(22.5deg) matrix(1, 0, ' + 0.5 * 0.25 + ', 1, 0, 0) scaleX(0.5)'),
+      round_error_ok: true },
+
+    // lists vs. matrix decomposition
+    { start: 'translate(10px) skewY(45deg)',
+      end: 'translate(30px) skewY(-45deg)',
+      expected_uncomputed: 'translate(15px) skewY(22.5deg)' },
+    { start: 'skewY(45deg) rotate(90deg)',
+      end: 'skewY(-45deg) rotate(90deg)',
+      expected_uncomputed: 'skewY(22.5deg) rotate(90deg)' },
+    { start: 'skewY(45deg) rotate(90deg) translate(0)',
+      end: 'skewY(-45deg) rotate(90deg)',
+      expected: 'matrix(0, 1, -1, -0.5, 0, 0)',
+      round_error_ok: true },
+    { start: 'skewX(45deg) rotate(90deg)',
+      end: 'skewX(-45deg) rotate(90deg)',
+      expected_uncomputed: 'skewX(22.5deg) rotate(90deg)' },
+    { start: 'skewX(-60deg) rotate(90deg) translate(0)',
+      end: 'skewX(60deg) rotate(90deg)',
+      expected: c('rotate(120deg) skewX(' + Math.atan(Math.tan(Math.PI * 60/180) / 2) + 'rad) scale(2, 0.5)'),
+      round_error_ok: true },
+  ];
+
   var matrix_re = /^matrix\(([^,]*), ([^,]*), ([^,]*), ([^,]*), ([^,]*), ([^,]*)\)$/;
-  for (var i in transformTests) {
-    var test = transformTests[i];
+  for (var i in tests) {
+    var test = tests[i];
     if (!("expected" in test)) {
       var v = test.expected_uncomputed;
       if (v.match(matrix_re) && !test.force_compute) {
         test.expected = v;
       } else {
-        test.expected = computeMatrix(v);
+        test.expected = c(v);
       }
     }
   }
 
-  for (var i in transformTests) {
-    var test = transformTests[i];
+  for (var i in tests) {
+    var test = tests[i];
+    if (test.requires_3d && !transform3D_enabled()) {
+      continue;
+    }
     div.style.setProperty("transition-property", "none", "");
     div.style.setProperty(prop, test.start, "");
     cs.getPropertyValue(prop);
@@ -1933,77 +1669,6 @@ function test_transform_transition(prop) {
   }
 
   // FIXME: should perhaps test that no clamping occurs
-
-  // These tests check the computed value 2/3 of the way through the transition
-  OMTAdiv.style.setProperty("transition-duration", "300s", "");
-  OMTAdiv.style.setProperty("transition-timing-function", "linear", "");
-  window.requestAnimationFrame(nextAsyncTransformTest);
-}
-
-function nextAsyncTransformTest()
-{
-  var test = transformTests[transformTestIndex];
-
-  if (transformTestIndex >= transformTests.length) {
-    window.requestAnimationFrame(asyncOpacityTest);
-    return;
-  }
-
-  OMTAdiv.style.setProperty("transition-property", "none", "");
-  OMTAdiv.style.setProperty("transform", test.start, "");
-  OMTACs.getPropertyValue("transform");
-  OMTAdiv.style.setProperty("transition-property", "transform", "");
-  OMTAdiv.style.setProperty("transform", test.end, "");
-  OMTACs.getPropertyValue("transform");
-
-  window.requestAnimationFrame(checkAsyncTransformTest);
-}
-
-function checkAsyncTransformTest() {
-  function s(matrix) {
-    return matrix.replace(/^\w*\(/, '').replace(')','').split(/\s*,\s*/);
-  }
-  winUtils.advanceTimeAndRefresh(200000);
-  var test = transformTests[transformTestIndex];
-  var async_transform = winUtils.getOMTAOrComputedStyle(OMTAdiv, "transform");
-  var computed_transform = OMTACs.getPropertyValue("transform");
-  var async_split = s(async_transform);
-  var cs_split = s(computed_transform);
-  var pass = true;
-  for (var j = 0; j < 16; ++j) {
-    var epsilon = test.big_omta_round_error ? 0.1 : 0.0001;
-    if (Math.abs(Number(async_split[j]) - Number(cs_split[j])) > epsilon) {
-      pass = false;
-    }
-  }
-  ok(pass,
-     "interpolation of transitions: " + test.start + " to " + test.end +
-     ": OMTA - " + async_transform + ", computed style - " + computed_transform);
-  transformTestIndex++;
-  winUtils.restoreNormalRefresh();
-  window.requestAnimationFrame(nextAsyncTransformTest);
-}
-
-function asyncOpacityTest() {
-  OMTAdiv.style.setProperty("transition-property", "none", "");
-  OMTAdiv.style.setProperty("opacity", 0, "");
-  OMTACs.getPropertyValue("opacity");
-  OMTAdiv.style.setProperty("transition-property", "opacity", "");
-  OMTAdiv.style.setProperty("opacity", 1, "");
-  OMTACs.getPropertyValue("opacity");
-
-  window.requestAnimationFrame(checkAsyncOpacityTest);
-}
-
-function checkAsyncOpacityTest() {
-  winUtils.advanceTimeAndRefresh(200000);
-  var async_opacity = winUtils.getOMTAOrComputedStyle(OMTAdiv, "opacity");
-  var computed_opacity = OMTACs.getPropertyValue("opacity");
-  is(async_opacity, computed_opacity,
-     "Async animated opacity should match computed opacity");
-  winUtils.restoreNormalRefresh();
-  OMTAdiv.style.removeProperty("transition");
-  SimpleTest.finish();
 }
 
 </script>

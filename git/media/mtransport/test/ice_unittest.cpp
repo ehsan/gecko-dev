@@ -6,17 +6,13 @@
 
 // Original author: ekr@rtfm.com
 
-#include <algorithm>
-#include <deque>
 #include <iostream>
-#include <limits>
 #include <map>
 #include <string>
 #include <vector>
 
 #include "sigslot.h"
 
-#include "logging.h"
 #include "nspr.h"
 #include "nss.h"
 #include "ssl.h"
@@ -25,18 +21,13 @@
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"
 
+#include "logging.h"
 #include "nricectx.h"
 #include "nricemediastream.h"
 #include "nriceresolverfake.h"
 #include "nriceresolver.h"
-#include "nrinterfaceprioritizer.h"
 #include "mtransport_test_utils.h"
-#include "rlogringbuffer.h"
 #include "runnable_utils.h"
-#include "stunserver.h"
-// TODO(bcampen@mozilla.com): Big fat hack since the build system doesn't give
-// us a clean way to add object files to a single executable.
-#include "stunserver.cpp"
 
 #define GTEST_HAS_RTTI 0
 #include "gtest/gtest.h"
@@ -56,71 +47,18 @@ const uint16_t kDefaultStunServerPort=3478;
 const std::string kBogusIceCandidate(
     (char *)"candidate:0 2 UDP 2113601790 192.168.178.20 50769 typ");
 
-std::string g_stun_server_address(kDefaultStunServerAddress);
-std::string g_stun_server_hostname(kDefaultStunServerHostname);
 std::string g_turn_server;
 std::string g_turn_user;
 std::string g_turn_password;
 
 namespace {
 
-enum TrickleMode { TRICKLE_NONE, TRICKLE_SIMULATE, TRICKLE_REAL };
-
+enum TrickleMode { TRICKLE_NONE, TRICKLE_DEFERRED };
 typedef bool (*CandidateFilter)(const std::string& candidate);
 
 static bool IsRelayCandidate(const std::string& candidate) {
   return candidate.find("typ relay") != std::string::npos;
 }
-
-bool ContainsSucceededPair(const std::vector<NrIceCandidatePair>& pairs) {
-  for (size_t i = 0; i < pairs.size(); ++i) {
-    if (pairs[i].state == NrIceCandidatePair::STATE_SUCCEEDED) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Note: Does not correspond to any notion of prioritization; this is just
-// so we can use stl containers/algorithms that need a comparator
-bool operator<(const NrIceCandidate& lhs,
-               const NrIceCandidate& rhs) {
-  if (lhs.host == rhs.host) {
-    if (lhs.port == rhs.port) {
-      if (lhs.type == rhs.type) {
-        return lhs.codeword < rhs.codeword;
-      }
-      return lhs.type < rhs.type;
-    }
-    return lhs.port < rhs.port;
-  }
-  return lhs.host < rhs.host;
-}
-
-bool operator==(const NrIceCandidate& lhs,
-                const NrIceCandidate& rhs) {
-  return lhs.host == rhs.host &&
-         lhs.port == rhs.port &&
-         lhs.type == rhs.type &&
-         lhs.codeword == rhs.codeword;
-}
-
-class IceCandidatePairCompare {
-  public:
-    bool operator()(const NrIceCandidatePair& lhs,
-                    const NrIceCandidatePair& rhs) const {
-      if (lhs.priority == rhs.priority) {
-        if (lhs.local == rhs.local) {
-          if (lhs.remote == rhs.remote) {
-            return lhs.codeword < rhs.codeword;
-          }
-          return lhs.remote < rhs.remote;
-        }
-        return lhs.local < rhs.local;
-      }
-      return lhs.priority < rhs.priority;
-    }
-};
 
 class IceTestPeer : public sigslot::has_slots<> {
  public:
@@ -138,11 +76,7 @@ class IceTestPeer : public sigslot::has_slots<> {
       fake_resolver_(),
       dns_resolver_(new NrIceResolver()),
       remote_(nullptr),
-      candidate_filter_(nullptr),
-      expected_local_type_(NrIceCandidate::ICE_HOST),
-      expected_remote_type_(NrIceCandidate::ICE_HOST),
-      trickle_mode_(TRICKLE_NONE),
-      trickled_(0) {
+      candidate_filter_(nullptr) {
     ice_ctx_->SignalGatheringCompleted.connect(this,
                                                &IceTestPeer::GatheringComplete);
     ice_ctx_->SignalCompleted.connect(this, &IceTestPeer::IceCompleted);
@@ -168,9 +102,8 @@ class IceTestPeer : public sigslot::has_slots<> {
 
     ASSERT_TRUE(stream);
     streams_.push_back(stream);
-    stream->SignalCandidate.connect(this, &IceTestPeer::CandidateInitialized);
+    stream->SignalCandidate.connect(this, &IceTestPeer::GotCandidate);
     stream->SignalReady.connect(this, &IceTestPeer::StreamReady);
-    stream->SignalFailed.connect(this, &IceTestPeer::StreamFailed);
     stream->SignalPacketReceived.connect(this, &IceTestPeer::PacketReceived);
   }
 
@@ -203,11 +136,10 @@ class IceTestPeer : public sigslot::has_slots<> {
   void SetFakeResolver() {
     ASSERT_TRUE(NS_SUCCEEDED(dns_resolver_->Init()));
     PRNetAddr addr;
-    PRStatus status = PR_StringToNetAddr(g_stun_server_address.c_str(),
-                                          &addr);
-    addr.inet.port = kDefaultStunServerPort;
+    PRStatus status = PR_StringToNetAddr(kDefaultStunServerAddress.c_str(),
+                                         &addr);
     ASSERT_EQ(PR_SUCCESS, status);
-    fake_resolver_.SetAddr(g_stun_server_hostname, addr);
+    fake_resolver_.SetAddr(kDefaultStunServerHostname, addr);
     ASSERT_TRUE(NS_SUCCEEDED(ice_ctx_->SetResolver(
         fake_resolver_.AllocateResolver())));
   }
@@ -233,26 +165,9 @@ class IceTestPeer : public sigslot::has_slots<> {
     return ice_ctx_->GetGlobalAttributes();
   }
 
-   std::vector<std::string> GetCandidates(size_t stream) {
-    std::vector<std::string> v;
-
-    RUN_ON_THREAD(
-        test_utils->sts_target(),
-        WrapRunnableRet(this, &IceTestPeer::GetCandidates_s, stream, &v),
-        NS_DISPATCH_SYNC);
-
-    return v;
-  }
-
-  std::vector<std::string> GetCandidates_s(size_t stream) {
+  std::vector<std::string> GetCandidates(const std::string &name) {
+    std::vector<std::string> candidates_in = candidates_[name];
     std::vector<std::string> candidates;
-
-    if (stream >= streams_.size())
-      return candidates;
-
-    std::vector<std::string> candidates_in =
-      streams_[stream]->GetCandidates();
-
 
     for (size_t i=0; i < candidates_in.size(); i++) {
       if ((!candidate_filter_) || candidate_filter_(candidates_in[i])) {
@@ -262,12 +177,6 @@ class IceTestPeer : public sigslot::has_slots<> {
     }
 
     return candidates;
-  }
-
-  void SetExpectedTypes(NrIceCandidate::Type local,
-                        NrIceCandidate::Type remote) {
-    expected_local_type_ = local;
-    expected_remote_type_ = remote;
   }
 
   bool gathering_complete() { return gathering_complete_; }
@@ -280,53 +189,50 @@ class IceTestPeer : public sigslot::has_slots<> {
   size_t sent() { return sent_; }
 
   // Start connecting to another peer
-  void Connect_s(IceTestPeer *remote, TrickleMode trickle_mode,
-                 bool start = true) {
+  void Connect(IceTestPeer *remote, TrickleMode trickle_mode,
+               bool start = true) {
     nsresult res;
 
     remote_ = remote;
 
-    trickle_mode_ = trickle_mode;
-    res = ice_ctx_->ParseGlobalAttributes(remote->GetGlobalAttributes());
+    test_utils->sts_target()->Dispatch(
+      WrapRunnableRet(ice_ctx_,
+        &NrIceCtx::ParseGlobalAttributes, remote->GetGlobalAttributes(), &res),
+      NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(res));
 
-    if (trickle_mode == TRICKLE_NONE ||
-        trickle_mode == TRICKLE_REAL) {
+    if (trickle_mode == TRICKLE_NONE) {
       for (size_t i=0; i<streams_.size(); ++i) {
-        std::vector<std::string> candidates =
-            remote->GetCandidates(i);
+        test_utils->sts_target()->Dispatch(
+            WrapRunnableRet(streams_[i], &NrIceMediaStream::ParseAttributes,
+                            remote->GetCandidates(remote->streams_[i]->name()),
+                            &res), NS_DISPATCH_SYNC);
 
-        for (size_t j=0; j<candidates.size(); ++j) {
-          std::cerr << "Candidate: " + candidates[j] << std::endl;
-        }
-        res = streams_[i]->ParseAttributes(candidates);
         ASSERT_TRUE(NS_SUCCEEDED(res));
       }
     } else {
       // Parse empty attributes and then trickle them out later
       for (size_t i=0; i<streams_.size(); ++i) {
         std::vector<std::string> empty_attrs;
-        res = streams_[i]->ParseAttributes(empty_attrs);
+        test_utils->sts_target()->Dispatch(
+            WrapRunnableRet(streams_[i], &NrIceMediaStream::ParseAttributes,
+                            empty_attrs,
+                            &res), NS_DISPATCH_SYNC);
+
         ASSERT_TRUE(NS_SUCCEEDED(res));
       }
     }
 
     if (start) {
       // Now start checks
-      res = ice_ctx_->StartChecks();
+      test_utils->sts_target()->Dispatch(
+        WrapRunnableRet(ice_ctx_, &NrIceCtx::StartChecks, &res),
+        NS_DISPATCH_SYNC);
       ASSERT_TRUE(NS_SUCCEEDED(res));
     }
   }
 
-  void Connect(IceTestPeer *remote, TrickleMode trickle_mode,
-               bool start = true) {
-    test_utils->sts_target()->Dispatch(
-        WrapRunnable(
-            this, &IceTestPeer::Connect_s, remote, trickle_mode, start),
-        NS_DISPATCH_SYNC);
-  }
-
-  void SimulateTrickle(size_t stream) {
+  void DoTrickle(size_t stream) {
     std::cerr << "Doing trickle for stream " << stream << std::endl;
     // If we are in trickle deferred mode, now trickle in the candidates
     // for |stream}
@@ -335,7 +241,7 @@ class IceTestPeer : public sigslot::has_slots<> {
     ASSERT_GT(remote_->streams_.size(), stream);
 
     std::vector<std::string> candidates =
-      remote_->GetCandidates(stream);
+      remote_->GetCandidates(remote_->streams_[stream]->name());
 
     for (size_t j=0; j<candidates.size(); j++) {
       test_utils->sts_target()->Dispatch(
@@ -345,63 +251,6 @@ class IceTestPeer : public sigslot::has_slots<> {
                         &res), NS_DISPATCH_SYNC);
 
       ASSERT_TRUE(NS_SUCCEEDED(res));
-    }
-  }
-
-  void DumpCandidate(std::string which, const NrIceCandidate& cand) {
-    std::string type;
-
-    switch(cand.type) {
-      case NrIceCandidate::ICE_HOST:
-        type = "host";
-        break;
-      case NrIceCandidate::ICE_SERVER_REFLEXIVE:
-        type = "srflx";
-        break;
-      case NrIceCandidate::ICE_PEER_REFLEXIVE:
-        type = "prflx";
-        break;
-      case NrIceCandidate::ICE_RELAYED:
-        type = "relay";
-        break;
-      default:
-        FAIL();
-    };
-
-    std::cerr << which
-              << " --> "
-              << type
-              << " "
-              << cand.host
-              << ":"
-              << cand.port
-              << " codeword="
-              << cand.codeword
-              << std::endl;
-  }
-
-  void DumpAndCheckActiveCandidates() {
-    std::cerr << "Active candidates:" << std::endl;
-    for (size_t i=0; i < streams_.size(); ++i) {
-      for (int j=0; j < streams_[i]->components(); ++j) {
-        std::cerr << "Stream " << i << " component " << j+1 << std::endl;
-
-        NrIceCandidate *local;
-        NrIceCandidate *remote;
-
-        nsresult res = streams_[i]->GetActivePair(j+1, &local, &remote);
-        if (res == NS_ERROR_NOT_AVAILABLE) {
-          std::cerr << "Component unpaired or disabled." << std::endl;
-        } else {
-          ASSERT_TRUE(NS_SUCCEEDED(res));
-          DumpCandidate("Local  ", *local);
-          ASSERT_EQ(expected_local_type_, local->type);
-          DumpCandidate("Remote ", *remote);
-          ASSERT_EQ(expected_remote_type_, remote->type);
-          delete local;
-          delete remote;
-        }
-      }
     }
   }
 
@@ -427,179 +276,21 @@ class IceTestPeer : public sigslot::has_slots<> {
 
   // Handle events
   void GatheringComplete(NrIceCtx *ctx) {
-    std::cerr << "Gathering complete for " <<  name_ << std::endl;
     gathering_complete_ = true;
-
-    std::cerr << "CANDIDATES:" << std::endl;
-    for (size_t i=0; i<streams_.size(); ++i) {
-      std::cerr << "Stream " << name_ << std::endl;
-      std::vector<std::string> candidates =
-          streams_[i]->GetCandidates();
-
-      for(size_t j=0; j<candidates.size(); ++j) {
-        std::cerr << candidates[j] << std::endl;
-      }
-    }
-    std::cerr << std::endl;
-
   }
 
-  void CandidateInitialized(NrIceMediaStream *stream, const std::string &candidate) {
-    std::cerr << "Candidate initialized: " << candidate << std::endl;
+  void GotCandidate(NrIceMediaStream *stream, const std::string &candidate) {
+    std::cout << "Got candidate " << candidate << std::endl;
     candidates_[stream->name()].push_back(candidate);
-
-    // If we are connected, then try to trickle to the
-    // other side.
-    if (remote_ && remote_->remote_) {
-      std::vector<mozilla::RefPtr<NrIceMediaStream> >::iterator it =
-          std::find(streams_.begin(), streams_.end(), stream);
-      ASSERT_NE(streams_.end(), it);
-      size_t index = it - streams_.begin();
-
-      ASSERT_GT(remote_->streams_.size(), index);
-      nsresult res = remote_->streams_[index]->ParseTrickleCandidate(
-          candidate);
-      ASSERT_TRUE(NS_SUCCEEDED(res));
-      ++trickled_;
-    }
-  }
-
-  nsresult GetCandidatePairs(size_t stream_index,
-                             std::vector<NrIceCandidatePair>* pairs) {
-    MOZ_ASSERT(pairs);
-    if (stream_index >= streams_.size()) {
-      // Is there a better error for "no such index"?
-      ADD_FAILURE() << "No such media stream index: " << stream_index;
-      return NS_ERROR_INVALID_ARG;
-    }
-
-    nsresult res;
-    test_utils->sts_target()->Dispatch(
-        WrapRunnableRet(streams_[stream_index],
-                        &NrIceMediaStream::GetCandidatePairs,
-                        pairs,
-                        &res),
-        NS_DISPATCH_SYNC);
-    return res;
-  }
-
-  void DumpCandidatePair(const NrIceCandidatePair& pair) {
-      std::cerr << std::endl;
-      DumpCandidate("Local", pair.local);
-      DumpCandidate("Remote", pair.remote);
-      std::cerr << "state = " << pair.state
-                << " priority = " << pair.priority
-                << " nominated = " << pair.nominated
-                << " selected = " << pair.selected
-                << " codeword = " << pair.codeword << std::endl;
-  }
-
-  void DumpCandidatePairs(NrIceMediaStream *stream) {
-    std::vector<NrIceCandidatePair> pairs;
-    nsresult res = stream->GetCandidatePairs(&pairs);
-    ASSERT_TRUE(NS_SUCCEEDED(res));
-
-    std::cerr << "Begin list of candidate pairs [" << std::endl;
-
-    for (std::vector<NrIceCandidatePair>::iterator p = pairs.begin();
-         p != pairs.end(); ++p) {
-      DumpCandidatePair(*p);
-    }
-    std::cerr << "]" << std::endl;
-  }
-
-  void DumpCandidatePairs() {
-    std::cerr << "Dumping candidate pairs for all streams [" << std::endl;
-    for (size_t s = 0; s < streams_.size(); ++s) {
-      DumpCandidatePairs(streams_[s]);
-    }
-    std::cerr << "]" << std::endl;
-  }
-
-  bool CandidatePairsPriorityDescending(const std::vector<NrIceCandidatePair>&
-                                        pairs) {
-    // Verify that priority is descending
-    uint64_t priority = std::numeric_limits<uint64_t>::max();
-
-    for (size_t p = 0; p < pairs.size(); ++p) {
-      if (priority < pairs[p].priority) {
-        std::cerr << "Priority increased in subsequent pairs:" << std::endl;
-        DumpCandidatePair(pairs[p-1]);
-        DumpCandidatePair(pairs[p]);
-        return false;
-      } else if (priority == pairs[p].priority) {
-        std::cerr << "Duplicate priority in subseqent pairs:" << std::endl;
-        DumpCandidatePair(pairs[p-1]);
-        DumpCandidatePair(pairs[p]);
-        return false;
-      }
-      priority = pairs[p].priority;
-    }
-    return true;
-  }
-
-  void UpdateAndValidateCandidatePairs(size_t stream_index,
-                                       std::vector<NrIceCandidatePair>*
-                                       new_pairs) {
-    std::vector<NrIceCandidatePair> old_pairs = *new_pairs;
-    GetCandidatePairs(stream_index, new_pairs);
-    ASSERT_TRUE(CandidatePairsPriorityDescending(*new_pairs)) << "New list of "
-            "candidate pairs is either not sorted in priority order, or has "
-            "duplicate priorities.";
-    ASSERT_TRUE(CandidatePairsPriorityDescending(old_pairs)) << "Old list of "
-            "candidate pairs is either not sorted in priority order, or has "
-            "duplicate priorities. This indicates some bug in the test case.";
-    std::vector<NrIceCandidatePair> added_pairs;
-    std::vector<NrIceCandidatePair> removed_pairs;
-
-    // set_difference computes the set of elements that are present in the
-    // first set, but not the second
-    // NrIceCandidatePair::operator< compares based on the priority, local
-    // candidate, and remote candidate in that order. This means this will
-    // catch cases where the priority has remained the same, but one of the
-    // candidates has changed.
-    std::set_difference((*new_pairs).begin(),
-                        (*new_pairs).end(),
-                        old_pairs.begin(),
-                        old_pairs.end(),
-                        std::inserter(added_pairs, added_pairs.begin()),
-                        IceCandidatePairCompare());
-
-    std::set_difference(old_pairs.begin(),
-                        old_pairs.end(),
-                        (*new_pairs).begin(),
-                        (*new_pairs).end(),
-                        std::inserter(removed_pairs, removed_pairs.begin()),
-                        IceCandidatePairCompare());
-
-    for (std::vector<NrIceCandidatePair>::iterator a = added_pairs.begin();
-         a != added_pairs.end(); ++a) {
-        std::cerr << "Found new candidate pair." << std::endl;
-        DumpCandidatePair(*a);
-    }
-
-    for (std::vector<NrIceCandidatePair>::iterator r = removed_pairs.begin();
-         r != removed_pairs.end(); ++r) {
-        std::cerr << "Pre-existing candidate pair is now missing:" << std::endl;
-        DumpCandidatePair(*r);
-    }
-
-    ASSERT_TRUE(removed_pairs.empty()) << "At least one candidate pair has "
-                                          "gone missing.";
   }
 
   void StreamReady(NrIceMediaStream *stream) {
+    std::cout << "Stream ready " << stream->name() << std::endl;
     ++ready_ct_;
-    std::cerr << "Stream ready " << stream->name() << " ct=" << ready_ct_ << std::endl;
-    DumpCandidatePairs(stream);
-  }
-  void StreamFailed(NrIceMediaStream *stream) {
-    std::cerr << "Stream failed " << stream->name() << " ct=" << ready_ct_ << std::endl;
-    DumpCandidatePairs(stream);
   }
 
   void IceCompleted(NrIceCtx *ctx) {
-    std::cerr << "ICE completed " << name_ << std::endl;
+    std::cout << "ICE completed " << name_ << std::endl;
     ice_complete_ = true;
   }
 
@@ -629,14 +320,6 @@ class IceTestPeer : public sigslot::has_slots<> {
     streams_[i]->ParseAttributes(attributes);
   }
 
-  void DisableComponent(size_t stream, int component_id) {
-    ASSERT_LT(stream, streams_.size());
-    nsresult res = streams_[stream]->DisableComponent(component_id);
-    ASSERT_TRUE(NS_SUCCEEDED(res));
-  }
-
-  int trickled() { return trickled_; }
-
  private:
   std::string name_;
   nsRefPtr<NrIceCtx> ice_ctx_;
@@ -651,55 +334,20 @@ class IceTestPeer : public sigslot::has_slots<> {
   nsRefPtr<NrIceResolver> dns_resolver_;
   IceTestPeer *remote_;
   CandidateFilter candidate_filter_;
-  NrIceCandidate::Type expected_local_type_;
-  NrIceCandidate::Type expected_remote_type_;
-  TrickleMode trickle_mode_;
-  int trickled_;
 };
 
 class IceGatherTest : public ::testing::Test {
  public:
   void SetUp() {
-    test_utils->sts_target()->Dispatch(WrapRunnable(TestStunServer::GetInstance(),
-                                                    &TestStunServer::Reset),
-                                       NS_DISPATCH_SYNC);
     peer_ = new IceTestPeer("P1", true, false);
     peer_->AddStream(1);
   }
 
-  void Gather(bool wait = true) {
-     peer_->Gather();
+  void Gather() {
+    peer_->Gather();
 
-    if (wait) {
-      WaitForGather();
-    }
-  }
-
-  void WaitForGather() {
     ASSERT_TRUE_WAIT(peer_->gathering_complete(), 10000);
   }
-
-  void UseFakeStunServerWithResponse(const std::string& fake_addr,
-                                     uint16_t fake_port) {
-    TestStunServer::GetInstance()->SetResponseAddr(fake_addr, fake_port);
-    // Sets an additional stun server
-    peer_->SetStunServer(TestStunServer::GetInstance()->addr(),
-                         TestStunServer::GetInstance()->port());
-  }
-
-  // NB: Only does substring matching, watch out for stuff like "1.2.3.4"
-  // matching "21.2.3.47". " 1.2.3.4 " should not have false positives.
-  bool StreamHasMatchingCandidate(unsigned int stream,
-                                  const std::string& match) {
-    std::vector<std::string> candidates = peer_->GetCandidates(stream);
-    for (size_t c = 0; c < candidates.size(); ++c) {
-      if (std::string::npos != candidates[c].find(match)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
  protected:
   mozilla::ScopedDeletePtr<IceTestPeer> peer_;
 };
@@ -730,19 +378,18 @@ class IceConnectTest : public ::testing::Test {
 
   bool Gather(bool wait) {
     Init(false);
-    p1_->SetStunServer(g_stun_server_address, kDefaultStunServerPort);
-    p2_->SetStunServer(g_stun_server_address, kDefaultStunServerPort);
+    p1_->SetStunServer(kDefaultStunServerAddress, kDefaultStunServerPort);
+    p2_->SetStunServer(kDefaultStunServerAddress, kDefaultStunServerPort);
     p1_->Gather();
     p2_->Gather();
 
-    if (wait) {
-      EXPECT_TRUE_WAIT(p1_->gathering_complete(), 10000);
-      if (!p1_->gathering_complete())
-        return false;
-      EXPECT_TRUE_WAIT(p2_->gathering_complete(), 10000);
-      if (!p2_->gathering_complete())
-        return false;
-    }
+    EXPECT_TRUE_WAIT(p1_->gathering_complete(), 10000);
+    if (!p1_->gathering_complete())
+      return false;
+    EXPECT_TRUE_WAIT(p2_->gathering_complete(), 10000);
+    if (!p2_->gathering_complete())
+      return false;
+
     return true;
   }
 
@@ -753,11 +400,9 @@ class IceConnectTest : public ::testing::Test {
     p2_->SetTurnServer(addr, port, username, password);
   }
 
-  void SetCandidateFilter(CandidateFilter filter, bool both=true) {
+  void SetCandidateFilter(CandidateFilter filter) {
     p1_->SetCandidateFilter(filter);
-    if (both) {
-      p2_->SetCandidateFilter(filter);
-    }
+    p2_->SetCandidateFilter(filter);
   }
 
   void Connect() {
@@ -766,59 +411,18 @@ class IceConnectTest : public ::testing::Test {
 
     ASSERT_TRUE_WAIT(p1_->ready_ct() == 1 && p2_->ready_ct() == 1, 5000);
     ASSERT_TRUE_WAIT(p1_->ice_complete() && p2_->ice_complete(), 5000);
-
-    p1_->DumpAndCheckActiveCandidates();
-    p2_->DumpAndCheckActiveCandidates();
   }
 
-  void SetExpectedTypes(NrIceCandidate::Type local, NrIceCandidate::Type remote) {
-    p1_->SetExpectedTypes(local, remote);
-    p2_->SetExpectedTypes(local, remote);
+  void ConnectTrickle() {
+    p1_->Connect(p2_, TRICKLE_DEFERRED);
+    p2_->Connect(p1_, TRICKLE_DEFERRED);
   }
 
-  void SetExpectedTypes(NrIceCandidate::Type local1, NrIceCandidate::Type remote1,
-                        NrIceCandidate::Type local2, NrIceCandidate::Type remote2) {
-    p1_->SetExpectedTypes(local1, remote1);
-    p2_->SetExpectedTypes(local2, remote2);
-  }
-
-  void ConnectP1(TrickleMode mode = TRICKLE_NONE) {
-    p1_->Connect(p2_, mode);
-  }
-
-  void ConnectP2(TrickleMode mode = TRICKLE_NONE) {
-    p2_->Connect(p1_, mode);
-  }
-
-  void WaitForComplete(int expected_streams = 1) {
-    ASSERT_TRUE_WAIT(p1_->ready_ct() == expected_streams &&
-                     p2_->ready_ct() == expected_streams, 5000);
-    ASSERT_TRUE_WAIT(p1_->ice_complete() && p2_->ice_complete(), 5000);
-  }
-
-  void WaitForGather() {
-    ASSERT_TRUE_WAIT(p1_->gathering_complete(), 10000);
-    ASSERT_TRUE_WAIT(p2_->gathering_complete(), 10000);
-  }
-
-  void ConnectTrickle(TrickleMode trickle = TRICKLE_SIMULATE) {
-    p1_->Connect(p2_, trickle);
-    p2_->Connect(p1_, trickle);
-  }
-
-  void SimulateTrickle(size_t stream) {
-    p1_->SimulateTrickle(stream);
-    p2_->SimulateTrickle(stream);
+  void DoTrickle(size_t stream) {
+    p1_->DoTrickle(stream);
+    p2_->DoTrickle(stream);
     ASSERT_TRUE_WAIT(p1_->is_ready(stream), 5000);
     ASSERT_TRUE_WAIT(p2_->is_ready(stream), 5000);
-  }
-
-  void SimulateTrickleP1(size_t stream) {
-    p1_->SimulateTrickle(stream);
-  }
-
-  void SimulateTrickleP2(size_t stream) {
-    p2_->SimulateTrickle(stream);
   }
 
   void VerifyConnected() {
@@ -858,69 +462,21 @@ class IceConnectTest : public ::testing::Test {
   mozilla::ScopedDeletePtr<IceTestPeer> p2_;
 };
 
-class PrioritizerTest : public ::testing::Test {
- public:
-  PrioritizerTest():
-    prioritizer_(nullptr) {}
-
-  ~PrioritizerTest() {
-    if (prioritizer_) {
-      nr_interface_prioritizer_destroy(&prioritizer_);
-    }
-  }
-
-  void SetPriorizer(nr_interface_prioritizer *prioritizer) {
-    prioritizer_ = prioritizer;
-  }
-
-  void AddInterface(const std::string& num, int type, int estimated_speed) {
-    std::string str_addr = "10.0.0." + num;
-    std::string ifname = "eth" + num;
-    nr_local_addr local_addr;
-    local_addr.interface.type = type;
-    local_addr.interface.estimated_speed = estimated_speed;
-
-    int r = nr_ip4_str_port_to_transport_addr(str_addr.c_str(), 0,
-                                              IPPROTO_UDP, &(local_addr.addr));
-    ASSERT_EQ(0, r);
-    strncpy(local_addr.addr.ifname, ifname.c_str(), MAXIFNAME);
-
-    r = nr_interface_prioritizer_add_interface(prioritizer_, &local_addr);
-    ASSERT_EQ(0, r);
-    r = nr_interface_prioritizer_sort_preference(prioritizer_);
-    ASSERT_EQ(0, r);
-  }
-
-  void HasLowerPreference(const std::string& num1, const std::string& num2) {
-    std::string key1 = "eth" + num1 + ":10.0.0." + num1;
-    std::string key2 = "eth" + num2 + ":10.0.0." + num2;
-    UCHAR pref1, pref2;
-    int r = nr_interface_prioritizer_get_priority(prioritizer_, key1.c_str(), &pref1);
-    ASSERT_EQ(0, r);
-    r = nr_interface_prioritizer_get_priority(prioritizer_, key2.c_str(), &pref2);
-    ASSERT_EQ(0, r);
-    ASSERT_LE(pref1, pref2);
-  }
-
- private:
-  nr_interface_prioritizer *prioritizer_;
-};
-
 }  // end namespace
 
 TEST_F(IceGatherTest, TestGatherFakeStunServerHostnameNoResolver) {
-  peer_->SetStunServer(g_stun_server_hostname, kDefaultStunServerPort);
+  peer_->SetStunServer(kDefaultStunServerHostname, kDefaultStunServerPort);
   Gather();
 }
 
 TEST_F(IceGatherTest, TestGatherFakeStunServerIpAddress) {
-  peer_->SetStunServer(g_stun_server_address, kDefaultStunServerPort);
+  peer_->SetStunServer(kDefaultStunServerAddress, kDefaultStunServerPort);
   peer_->SetFakeResolver();
   Gather();
 }
 
 TEST_F(IceGatherTest, TestGatherFakeStunServerHostname) {
-  peer_->SetStunServer(g_stun_server_hostname, kDefaultStunServerPort);
+  peer_->SetStunServer(kDefaultStunServerHostname, kDefaultStunServerPort);
   peer_->SetFakeResolver();
   Gather();
 }
@@ -932,14 +488,14 @@ TEST_F(IceGatherTest, TestGatherFakeStunBogusHostname) {
 }
 
 TEST_F(IceGatherTest, TestGatherDNSStunServerIpAddress) {
-  peer_->SetStunServer(g_stun_server_address, kDefaultStunServerPort);
+  peer_->SetStunServer(kDefaultStunServerAddress, kDefaultStunServerPort);
   peer_->SetDNSResolver();
   Gather();
   // TODO(jib@mozilla.com): ensure we get server reflexive candidates Bug 848094
 }
 
 TEST_F(IceGatherTest, TestGatherDNSStunServerHostname) {
-  peer_->SetStunServer(g_stun_server_hostname, kDefaultStunServerPort);
+  peer_->SetStunServer(kDefaultStunServerHostname, kDefaultStunServerPort);
   peer_->SetDNSResolver();
   Gather();
 }
@@ -958,60 +514,11 @@ TEST_F(IceGatherTest, TestGatherTurn) {
   Gather();
 }
 
-TEST_F(IceGatherTest, TestGatherDisableComponent) {
-  peer_->SetStunServer(kDefaultStunServerHostname, kDefaultStunServerPort);
-  peer_->AddStream(2);
-  peer_->DisableComponent(1, 2);
-  Gather();
-  std::vector<std::string> candidates =
-    peer_->GetCandidates(1);
-
-  for (size_t i=0; i<candidates.size(); ++i) {
-    size_t sp1 = candidates[i].find(' ');
-    ASSERT_EQ(0, candidates[i].compare(sp1+1, 1, "1", 1));
-  }
-}
-
-
 // Verify that a bogus candidate doesn't cause crashes on the
 // main thread. See bug 856433.
 TEST_F(IceGatherTest, TestBogusCandidate) {
   Gather();
   peer_->ParseCandidate(0, kBogusIceCandidate);
-}
-
-TEST_F(IceGatherTest, VerifyTestStunServer) {
-  UseFakeStunServerWithResponse("192.0.2.133", 3333);
-  Gather();
-  ASSERT_TRUE(StreamHasMatchingCandidate(0, " 192.0.2.133 3333 "));
-}
-
-TEST_F(IceGatherTest, TestStunServerReturnsWildcardAddr) {
-  UseFakeStunServerWithResponse("0.0.0.0", 3333);
-  Gather();
-  ASSERT_FALSE(StreamHasMatchingCandidate(0, " 0.0.0.0 "));
-}
-
-TEST_F(IceGatherTest, TestStunServerReturnsPort0) {
-  UseFakeStunServerWithResponse("192.0.2.133", 0);
-  Gather();
-  ASSERT_FALSE(StreamHasMatchingCandidate(0, " 192.0.2.133 0 "));
-}
-
-TEST_F(IceGatherTest, TestStunServerReturnsLoopbackAddr) {
-  UseFakeStunServerWithResponse("127.0.0.133", 3333);
-  Gather();
-  ASSERT_FALSE(StreamHasMatchingCandidate(0, " 127.0.0.133 "));
-}
-
-TEST_F(IceGatherTest, TestStunServerTrickle) {
-  UseFakeStunServerWithResponse("192.0.2.1", 3333);
-  TestStunServer::GetInstance()->SetActive(false);
-  Gather(false);
-  ASSERT_FALSE(StreamHasMatchingCandidate(0, "192.0.2.1"));
-  TestStunServer::GetInstance()->SetActive(true);
-  WaitForGather();
-  ASSERT_TRUE(StreamHasMatchingCandidate(0, "192.0.2.1"));
 }
 
 TEST_F(IceConnectTest, TestGather) {
@@ -1032,55 +539,6 @@ TEST_F(IceConnectTest, TestConnect) {
   Connect();
 }
 
-TEST_F(IceConnectTest, TestConnectTwoComponents) {
-  AddStream("first", 2);
-  ASSERT_TRUE(Gather(true));
-  Connect();
-}
-
-TEST_F(IceConnectTest, TestConnectTwoComponentsDisableSecond) {
-  AddStream("first", 2);
-  ASSERT_TRUE(Gather(true));
-  p1_->DisableComponent(0, 2);
-  p2_->DisableComponent(0, 2);
-  Connect();
-}
-
-
-TEST_F(IceConnectTest, TestConnectP2ThenP1) {
-  AddStream("first", 1);
-  ASSERT_TRUE(Gather(true));
-  ConnectP2();
-  PR_Sleep(1000);
-  ConnectP1();
-  WaitForComplete();
-}
-
-TEST_F(IceConnectTest, TestConnectP2ThenP1Trickle) {
-  AddStream("first", 1);
-  ASSERT_TRUE(Gather(true));
-  ConnectP2();
-  PR_Sleep(1000);
-  ConnectP1(TRICKLE_SIMULATE);
-  SimulateTrickleP1(0);
-  WaitForComplete();
-}
-
-TEST_F(IceConnectTest, TestConnectP2ThenP1TrickleTwoComponents) {
-  AddStream("first", 1);
-  AddStream("second", 2);
-  ASSERT_TRUE(Gather(true));
-  ConnectP2();
-  PR_Sleep(1000);
-  ConnectP1(TRICKLE_SIMULATE);
-  SimulateTrickleP1(0);
-  std::cerr << "Sleeping between trickle streams" << std::endl;
-  PR_Sleep(1000);  // Give this some time to settle but not complete
-                   // all of ICE.
-  SimulateTrickleP1(1);
-  WaitForComplete(2);
-}
-
 TEST_F(IceConnectTest, TestConnectAutoPrioritize) {
   Init(false);
   AddStream("first", 1);
@@ -1092,7 +550,7 @@ TEST_F(IceConnectTest, TestConnectTrickleOneStreamOneComponent) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather(true));
   ConnectTrickle();
-  SimulateTrickle(0);
+  DoTrickle(0);
   ASSERT_TRUE_WAIT(p1_->ice_complete(), 1000);
   ASSERT_TRUE_WAIT(p2_->ice_complete(), 1000);
 }
@@ -1102,21 +560,12 @@ TEST_F(IceConnectTest, TestConnectTrickleTwoStreamsOneComponent) {
   AddStream("second", 1);
   ASSERT_TRUE(Gather(true));
   ConnectTrickle();
-  SimulateTrickle(0);
-  SimulateTrickle(1);
+  DoTrickle(0);
+  DoTrickle(1);
   ASSERT_TRUE_WAIT(p1_->ice_complete(), 1000);
   ASSERT_TRUE_WAIT(p2_->ice_complete(), 1000);
 }
 
-TEST_F(IceConnectTest, TestConnectRealTrickleOneStreamOneComponent) {
-  AddStream("first", 1);
-  AddStream("second", 1);
-  ASSERT_TRUE(Gather(false));
-  ConnectTrickle(TRICKLE_REAL);
-  ASSERT_TRUE_WAIT(p1_->ice_complete(), 5000);
-  ASSERT_TRUE_WAIT(p2_->ice_complete(), 5000);
-  WaitForGather();  // ICE can complete before we finish gathering.
-}
 
 TEST_F(IceConnectTest, TestSendReceive) {
   AddStream("first", 1);
@@ -1145,8 +594,6 @@ TEST_F(IceConnectTest, TestConnectTurnOnly) {
                 g_turn_user, g_turn_password);
   ASSERT_TRUE(Gather(true));
   SetCandidateFilter(IsRelayCandidate);
-  SetExpectedTypes(NrIceCandidate::Type::ICE_RELAYED,
-                   NrIceCandidate::Type::ICE_RELAYED);
   Connect();
 }
 
@@ -1159,8 +606,6 @@ TEST_F(IceConnectTest, TestSendReceiveTurnOnly) {
                 g_turn_user, g_turn_password);
   ASSERT_TRUE(Gather(true));
   SetCandidateFilter(IsRelayCandidate);
-  SetExpectedTypes(NrIceCandidate::Type::ICE_RELAYED,
-                   NrIceCandidate::Type::ICE_RELAYED);
   Connect();
   SendReceive();
 }
@@ -1169,144 +614,6 @@ TEST_F(IceConnectTest, TestConnectShutdownOneSide) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather(true));
   ConnectThenDelete();
-}
-
-TEST_F(IceConnectTest, TestPollCandPairsBeforeConnect) {
-  AddStream("first", 1);
-  ASSERT_TRUE(Gather(true));
-
-  std::vector<NrIceCandidatePair> pairs;
-  nsresult res = p1_->GetCandidatePairs(0, &pairs);
-  // There should be no candidate pairs prior to calling Connect()
-  ASSERT_TRUE(NS_FAILED(res));
-  ASSERT_EQ(0U, pairs.size());
-
-  res = p2_->GetCandidatePairs(0, &pairs);
-  ASSERT_TRUE(NS_FAILED(res));
-  ASSERT_EQ(0U, pairs.size());
-}
-
-TEST_F(IceConnectTest, TestPollCandPairsAfterConnect) {
-  AddStream("first", 1);
-  ASSERT_TRUE(Gather(true));
-  Connect();
-
-  std::vector<NrIceCandidatePair> pairs;
-  nsresult r = p1_->GetCandidatePairs(0, &pairs);
-  ASSERT_EQ(NS_OK, r);
-  // How detailed of a check do we want to do here? If the turn server is
-  // functioning, we'll get at least two pairs, but this is probably not
-  // something we should assume.
-  ASSERT_NE(0U, pairs.size());
-  ASSERT_TRUE(p1_->CandidatePairsPriorityDescending(pairs));
-  ASSERT_TRUE(ContainsSucceededPair(pairs));
-  pairs.clear();
-
-  r = p2_->GetCandidatePairs(0, &pairs);
-  ASSERT_EQ(NS_OK, r);
-  ASSERT_NE(0U, pairs.size());
-  ASSERT_TRUE(p2_->CandidatePairsPriorityDescending(pairs));
-  ASSERT_TRUE(ContainsSucceededPair(pairs));
-}
-
-TEST_F(IceConnectTest, TestPollCandPairsDuringConnect) {
-  AddStream("first", 1);
-  ASSERT_TRUE(Gather(true));
-
-  p1_->Connect(p2_, TRICKLE_NONE, false);
-  p2_->Connect(p1_, TRICKLE_NONE, false);
-
-  std::vector<NrIceCandidatePair> pairs1;
-  std::vector<NrIceCandidatePair> pairs2;
-
-  p1_->StartChecks();
-  p1_->UpdateAndValidateCandidatePairs(0, &pairs1);
-  p2_->UpdateAndValidateCandidatePairs(0, &pairs2);
-
-  p2_->StartChecks();
-  p1_->UpdateAndValidateCandidatePairs(0, &pairs1);
-  p2_->UpdateAndValidateCandidatePairs(0, &pairs2);
-
-  WaitForComplete();
-  p1_->UpdateAndValidateCandidatePairs(0, &pairs1);
-  p2_->UpdateAndValidateCandidatePairs(0, &pairs2);
-  ASSERT_TRUE(ContainsSucceededPair(pairs1));
-  ASSERT_TRUE(ContainsSucceededPair(pairs2));
-}
-
-TEST_F(IceConnectTest, TestRLogRingBuffer) {
-  RLogRingBuffer::CreateInstance();
-  AddStream("first", 1);
-  ASSERT_TRUE(Gather(true));
-
-  p1_->Connect(p2_, TRICKLE_NONE, false);
-  p2_->Connect(p1_, TRICKLE_NONE, false);
-
-  std::vector<NrIceCandidatePair> pairs1;
-  std::vector<NrIceCandidatePair> pairs2;
-
-  p1_->StartChecks();
-  p1_->UpdateAndValidateCandidatePairs(0, &pairs1);
-  p2_->UpdateAndValidateCandidatePairs(0, &pairs2);
-
-  p2_->StartChecks();
-  p1_->UpdateAndValidateCandidatePairs(0, &pairs1);
-  p2_->UpdateAndValidateCandidatePairs(0, &pairs2);
-
-  WaitForComplete();
-  p1_->UpdateAndValidateCandidatePairs(0, &pairs1);
-  p2_->UpdateAndValidateCandidatePairs(0, &pairs2);
-  ASSERT_TRUE(ContainsSucceededPair(pairs1));
-  ASSERT_TRUE(ContainsSucceededPair(pairs2));
-
-  for (auto p = pairs1.begin(); p != pairs1.end(); ++p) {
-    std::deque<std::string> logs;
-    std::string substring("CAND-PAIR(");
-    substring += p->codeword;
-    RLogRingBuffer::GetInstance()->Filter(substring, 0, &logs);
-    ASSERT_NE(0U, logs.size());
-  }
-
-  for (auto p = pairs2.begin(); p != pairs2.end(); ++p) {
-    std::deque<std::string> logs;
-    std::string substring("CAND-PAIR(");
-    substring += p->codeword;
-    RLogRingBuffer::GetInstance()->Filter(substring, 0, &logs);
-    ASSERT_NE(0U, logs.size());
-  }
-
-  RLogRingBuffer::DestroyInstance();
-}
-
-TEST_F(PrioritizerTest, TestPrioritizer) {
-  SetPriorizer(::mozilla::CreateInterfacePrioritizer());
-
-  AddInterface("0", NR_INTERFACE_TYPE_VPN, 100); // unknown vpn
-  AddInterface("1", NR_INTERFACE_TYPE_VPN | NR_INTERFACE_TYPE_WIRED, 100); // wired vpn
-  AddInterface("2", NR_INTERFACE_TYPE_VPN | NR_INTERFACE_TYPE_WIFI, 100); // wifi vpn
-  AddInterface("3", NR_INTERFACE_TYPE_VPN | NR_INTERFACE_TYPE_MOBILE, 100); // wifi vpn
-  AddInterface("4", NR_INTERFACE_TYPE_WIRED, 1000); // wired, high speed
-  AddInterface("5", NR_INTERFACE_TYPE_WIRED, 10); // wired, low speed
-  AddInterface("6", NR_INTERFACE_TYPE_WIFI, 10); // wifi, low speed
-  AddInterface("7", NR_INTERFACE_TYPE_WIFI, 1000); // wifi, high speed
-  AddInterface("8", NR_INTERFACE_TYPE_MOBILE, 10); // mobile, low speed
-  AddInterface("9", NR_INTERFACE_TYPE_MOBILE, 1000); // mobile, high speed
-  AddInterface("10", NR_INTERFACE_TYPE_UNKNOWN, 10); // unknown, low speed
-  AddInterface("11", NR_INTERFACE_TYPE_UNKNOWN, 1000); // unknown, high speed
-
-  // expected preference "4" > "5" > "1" > "7" > "6" > "2" > "9" > "8" > "3" > "11" > "10" > "0"
-
-  HasLowerPreference("0", "10");
-  HasLowerPreference("10", "11");
-  HasLowerPreference("11", "3");
-  HasLowerPreference("3", "8");
-  HasLowerPreference("8", "9");
-  HasLowerPreference("9", "2");
-  HasLowerPreference("2", "6");
-  HasLowerPreference("6", "7");
-  HasLowerPreference("7", "1");
-  HasLowerPreference("1", "5");
-  HasLowerPreference("5", "4");
 }
 
 static std::string get_environment(const char *name) {
@@ -1338,15 +645,6 @@ int main(int argc, char **argv)
     g_turn_server="";
   }
 
-  std::string tmp = get_environment("STUN_SERVER_ADDRESS");
-  if (tmp != "")
-    g_stun_server_address = tmp;
-
-
-  tmp = get_environment("STUN_SERVER_HOSTNAME");
-  if (tmp != "")
-    g_stun_server_hostname = tmp;
-
   test_utils = new MtransportTestUtils();
   NSS_NoDB_Init(nullptr);
   NSS_SetDomesticPolicy();
@@ -1354,14 +652,7 @@ int main(int argc, char **argv)
   // Start the tests
   ::testing::InitGoogleTest(&argc, argv);
 
-  test_utils->sts_target()->Dispatch(
-    WrapRunnableNM(&TestStunServer::GetInstance), NS_DISPATCH_SYNC);
-
   int rv = RUN_ALL_TESTS();
-
-  test_utils->sts_target()->Dispatch(
-    WrapRunnableNM(&TestStunServer::ShutdownInstance), NS_DISPATCH_SYNC);
-
   delete test_utils;
   return rv;
 }

@@ -16,7 +16,6 @@ var SelectionHandler = {
   // stored here are relative to the _contentWindow window.
   _cache: null,
   _activeType: 0, // TYPE_NONE
-  _ignoreSelectionChanges: false, // True while user drags text selection handles
 
   // The window that holds the selection (can be a sub-frame)
   get _contentWindow() {
@@ -75,17 +74,13 @@ var SelectionHandler = {
             this.copySelection();
           else
             this._closeSelection();
-        } else if (this._activeType == this.TYPE_CURSOR) {
-          // attachCaret() is called in the "Gesture:SingleTap" handler in BrowserEventHandler
-          // We're guaranteed to call this first, because this observer was added last
-          this._deactivate();
         }
         break;
       }
       case "Tab:Selected":
         this._closeSelection();
         break;
-
+  
       case "Window:Resize": {
         if (this._activeType == this.TYPE_SELECTION) {
           // Knowing when the page is done drawing is hard, so let's just cancel
@@ -103,11 +98,9 @@ var SelectionHandler = {
       }
       case "TextSelection:Move": {
         let data = JSON.parse(aData);
-        if (this._activeType == this.TYPE_SELECTION) {
-          // Ignore selectionChange notifications when handle movement starts
-          this._ignoreSelectionChanges = true;
+        if (this._activeType == this.TYPE_SELECTION)
           this._moveSelection(data.handleType == this.HANDLE_TYPE_START, data.x, data.y);
-        } else if (this._activeType == this.TYPE_CURSOR) {
+        else if (this._activeType == this.TYPE_CURSOR) {
           // Send a click event to the text box, which positions the caret
           this._sendMouseEvents(data.x, data.y);
 
@@ -118,33 +111,28 @@ var SelectionHandler = {
       }
       case "TextSelection:Position": {
         if (this._activeType == this.TYPE_SELECTION) {
-          // Ignore selectionChange notifications when handle movement starts
-          this._ignoreSelectionChanges = true;
-          // Check to see if the handles should be reversed.
-          let isStartHandle = JSON.parse(aData).handleType == this.HANDLE_TYPE_START;
-          let selectionReversed = this._updateCacheForSelection(isStartHandle);
+          let data = JSON.parse(aData);
+
+          // Reverse the handles if necessary.
+          let selectionReversed = this._updateCacheForSelection(data.handleType == this.HANDLE_TYPE_START);
           if (selectionReversed) {
-            // Reverse the anchor and focus to correspond to the new start and end handles.
-            let selection = this._getSelection();
-            let anchorNode = selection.anchorNode;
-            let anchorOffset = selection.anchorOffset;
-            selection.collapse(selection.focusNode, selection.focusOffset);
-            selection.extend(anchorNode, anchorOffset);
+            // Re-send mouse events to update the selection corresponding to the new handles.
+            if (this._isRTL) {
+              this._sendMouseEvents(this._cache.end.x, this._cache.end.y, false);
+              this._sendMouseEvents(this._cache.start.x, this._cache.start.y, true);
+            } else {
+              this._sendMouseEvents(this._cache.start.x, this._cache.start.y, false);
+              this._sendMouseEvents(this._cache.end.x, this._cache.end.y, true);
+            }
           }
-          // Act on selectionChange notifications after handle movement ends
-          this._ignoreSelectionChanges = false;
+
+          // Position the handles to align with the edges of the selection.
+          this._positionHandles();
+        } else if (this._activeType == this.TYPE_CURSOR) {
+          this._positionHandles();
         }
-        this._positionHandles();
         break;
       }
-
-      case "TextSelection:Get":
-        sendMessageToJava({
-          type: "TextSelection:Data",
-          requestId: aData,
-          text: this._getSelectedText()
-        });
-        break;
     }
   },
 
@@ -159,10 +147,32 @@ var SelectionHandler = {
 
       case "compositionend":
         if (this._activeType == this.TYPE_CURSOR) {
-          this._deactivate();
+          this._closeSelection();
         }
         break;
     }
+  },
+
+  _ignoreCollapsedSelection: false,
+
+  notifySelectionChanged: function sh_notifySelectionChanged(aDoc, aSel, aReason) {
+    if (aSel.isCollapsed) {
+      // Bail if we're ignoring events for a collapsed selection.
+      if (this._ignoreCollapsedSelection)
+        return;
+
+      // If the selection is collapsed because of one of the mouse events we
+      // sent while moving the handle, don't get rid of the selection handles.
+      if (aReason & Ci.nsISelectionListener.MOUSEDOWN_REASON) {
+        this._ignoreCollapsedSelection = true;
+        return;
+      }
+
+      // Otherwise, we do want to close the selection.
+      this._closeSelection();
+    }
+
+    this._ignoreCollapsedSelection = false;
   },
 
   /** Returns true if the provided element can be selected in text selection, false otherwise. */
@@ -172,36 +182,6 @@ var SelectionHandler = {
              aElement instanceof Ci.nsIDOMHTMLImageElement ||
              aElement instanceof Ci.nsIDOMHTMLMediaElement) &&
              aElement.style.MozUserSelect != 'none';
-  },
-
-  _getScrollPos: function sh_getScrollPos() {
-    // Get the current display position
-    let scrollX = {}, scrollY = {};
-    this._contentWindow.top.QueryInterface(Ci.nsIInterfaceRequestor).
-                            getInterface(Ci.nsIDOMWindowUtils).getScrollXY(false, scrollX, scrollY);
-    return {
-      X: scrollX.value,
-      Y: scrollY.value
-    };
-  },
-
-  notifySelectionChanged: function sh_notifySelectionChanged(aDocument, aSelection, aReason) {
-    // Ignore selectionChange notifications during handle movements
-    if (this._ignoreSelectionChanges) {
-      return;
-    }
-
-    // If the selection was collapsed to Start or to End, always close it
-    if ((aReason & Ci.nsISelectionListener.COLLAPSETOSTART_REASON) ||
-        (aReason & Ci.nsISelectionListener.COLLAPSETOEND_REASON)) {
-      this._closeSelection();
-      return;
-    }
-
-    // If selected text no longer exists, close
-    if (!aSelection.toString()) {
-      this._closeSelection();
-    }
   },
 
   /*
@@ -221,54 +201,26 @@ var SelectionHandler = {
     this._contentWindow.getSelection().removeAllRanges();
 
     if (!this._domWinUtils.selectAtPoint(aX, aY, Ci.nsIDOMWindowUtils.SELECT_WORDNOSPACE)) {
-      this._deactivate();
+      this._onFail("failed to set selection at point");
       return;
     }
 
     let selection = this._getSelection();
     // If the range didn't have any text, let's bail
-    if (!selection || selection.rangeCount == 0) {
-      this._deactivate();
+    if (!selection) {
+      this._onFail("no selection was present");
       return;
     }
 
     // Add a listener to end the selection if it's removed programatically
     selection.QueryInterface(Ci.nsISelectionPrivate).addSelectionListener(this);
-    this._activeType = this.TYPE_SELECTION;
 
     // Initialize the cache
     this._cache = { start: {}, end: {}};
     this._updateCacheForSelection();
 
-    let scroll = this._getScrollPos();
-    // Figure out the distance between the selection and the click
-    let positions = this._getHandlePositions(scroll);
-    let clickX = scroll.X + aX;
-    let clickY = scroll.Y + aY;
-    let distance = 0;
-
-    // Check if the click was in the bounding box of the selection handles
-    if (positions[0].left < clickX && clickX < positions[1].left
-        && positions[0].top < clickY && clickY < positions[1].top) {
-      distance = 0;
-    } else {
-      // If it was outside, check the distance to the center of the selection
-      let selectposX = (positions[0].left + positions[1].left) / 2;
-      let selectposY = (positions[0].top + positions[1].top) / 2;
-
-      let dx = Math.abs(selectposX - clickX);
-      let dy = Math.abs(selectposY - clickY);
-      distance = dx + dy;
-    }
-
-    let maxSelectionDistance = Services.prefs.getIntPref("browser.ui.selection.distance");
-    // Do not select text far away from where the user clicked
-    if (distance > maxSelectionDistance) {
-      this._closeSelection();
-      return;
-    }
-
-    this._positionHandles(positions);
+    this._activeType = this.TYPE_SELECTION;
+    this._positionHandles();
 
     sendMessageToJava({
       type: "TextSelection:ShowHandles",
@@ -286,7 +238,7 @@ var SelectionHandler = {
     this._initTargetInfo(aElement);
 
     this._contentWindow.addEventListener("keydown", this, false);
-    this._contentWindow.addEventListener("blur", this, true);
+    this._contentWindow.addEventListener("blur", this, false);
 
     this._activeType = this.TYPE_CURSOR;
     this._positionHandles();
@@ -318,9 +270,6 @@ var SelectionHandler = {
   },
 
   _getSelectedText: function sh_getSelectedText() {
-    if (!this._contentWindow)
-      return "";
-
     let selection = this._getSelection();
     if (selection)
       return selection.toString().trim();
@@ -353,25 +302,10 @@ var SelectionHandler = {
     this._positionHandles();
   },
 
-  /*
-   * Moves the selection as the user drags a selection handle.
-   *
-   * @param aIsStartHandle whether the user is moving the start handle (as opposed to the end handle)
-   * @param aX, aY selection point in client coordinates
-   */
+  // Moves the ends of the selection in the page. aX/aY are in top-level window
+  // browser coordinates.
   _moveSelection: function sh_moveSelection(aIsStartHandle, aX, aY) {
-    // XXX We should be smarter about the coordinates we pass to caretPositionFromPoint, especially
-    // in editable targets. We should factor out the logic that's currently in _sendMouseEvents.
-    let viewOffset = this._getViewOffset();
-    let caretPos = this._contentWindow.document.caretPositionFromPoint(aX - viewOffset.x, aY - viewOffset.y);
-
-    // Constrain text selection within editable elements.
-    let targetIsEditable = this._targetElement instanceof Ci.nsIDOMNSEditableElement;
-    if (targetIsEditable && (caretPos.offsetNode != this._targetElement)) {
-      return;
-    }
-
-    // Update the cache as the handle is dragged (keep the cache in client coordinates).
+    // Update the handle position as it's dragged.
     if (aIsStartHandle) {
       this._cache.start.x = aX;
       this._cache.start.y = aY;
@@ -380,27 +314,22 @@ var SelectionHandler = {
       this._cache.end.y = aY;
     }
 
-    let selection = this._getSelection();
+    // The handles work the same on both LTR and RTL pages, but the underlying selection
+    // works differently, so we need to reverse how we send mouse events on RTL pages.
+    if (this._isRTL) {
+      // Position the caret at the end handle using a fake mouse click
+      if (!aIsStartHandle)
+        this._sendMouseEvents(this._cache.end.x, this._cache.end.y, false);
 
-    // The handles work the same on both LTR and RTL pages, but the anchor/focus nodes
-    // are reversed, so we need to reverse the logic to extend the selection.
-    if ((aIsStartHandle && !this._isRTL) || (!aIsStartHandle && this._isRTL)) {
-      if (targetIsEditable) {
-        // XXX This will just collapse the selection if the start handle goes past the end handle.
-        this._targetElement.selectionStart = caretPos.offset;
-      } else {
-        let focusNode = selection.focusNode;
-        let focusOffset = selection.focusOffset;
-        selection.collapse(caretPos.offsetNode, caretPos.offset);
-        selection.extend(focusNode, focusOffset);
-      }
+      // Selects text between the carat and the start handle using a fake shift+click
+      this._sendMouseEvents(this._cache.start.x, this._cache.start.y, true);
     } else {
-      if (targetIsEditable) {
-        // XXX This will just collapse the selection if the end handle goes past the start handle.
-        this._targetElement.selectionEnd = caretPos.offset;
-      } else {
-        selection.extend(caretPos.offsetNode, caretPos.offset);
-      }
+      // Position the caret at the start handle using a fake mouse click
+      if (aIsStartHandle)
+        this._sendMouseEvents(this._cache.start.x, this._cache.start.y, false);
+
+      // Selects text between the carat and the end handle using a fake shift+click
+      this._sendMouseEvents( this._cache.end.x, this._cache.end.y, true);
     }
   },
 
@@ -415,12 +344,7 @@ var SelectionHandler = {
 
       // Get rect of editor
       let editorBounds = this._domWinUtils.sendQueryContentEvent(this._domWinUtils.QUERY_EDITOR_RECT, 0, 0, 0, 0);
-      // the return value from sendQueryContentEvent is in LayoutDevice pixels and we want CSS pixels, so
-      // divide by the pixel ratio
-      let editorRect = new Rect(editorBounds.left / window.devicePixelRatio,
-                                editorBounds.top / window.devicePixelRatio,
-                                editorBounds.width / window.devicePixelRatio,
-                                editorBounds.height / window.devicePixelRatio);
+      let editorRect = new Rect(editorBounds.left, editorBounds.top, editorBounds.width, editorBounds.height);
 
       // Use intersection of the text rect and the editor rect
       let rect = new Rect(textBounds.left, textBounds.top, textBounds.width, textBounds.height);
@@ -476,17 +400,13 @@ var SelectionHandler = {
     this._closeSelection();
   },
 
-  searchSelection: function sh_searchSelection() {
-    let selectedText = this._getSelectedText();
-    if (selectedText.length) {
-      let req = Services.search.defaultEngine.getSubmission(selectedText);
-      let parent = BrowserApp.selectedTab;
-      let isPrivate = PrivateBrowsingUtils.isWindowPrivate(parent.browser.contentWindow);
-      // Set current tab as parent of new tab, and set new tab as private if the parent is.
-      BrowserApp.addTab(req.uri.spec, {parentId: parent.id,
-                                       selected: true,
-                                       isPrivate: isPrivate});
-    }
+  /*
+   * Called if for any reason we fail during the selection
+   * process. Cancels the selection.
+   */
+  _onFail: function sh_onFail(aDbgMessage) {
+    if (aDbgMessage && aDbgMessage.length > 0)
+      Cu.reportError("SelectionHandler - " + aDbgMessage);
     this._closeSelection();
   },
 
@@ -498,25 +418,16 @@ var SelectionHandler = {
     if (this._activeType == this.TYPE_NONE)
       return;
 
-    if (this._activeType == this.TYPE_SELECTION)
-      this._clearSelection();
-
-    this._deactivate();
-  },
-
-  _clearSelection: function sh_clearSelection() {
-    let selection = this._getSelection();
-    if (selection) {
-      // Remove our listener before we clear the selection
-      selection.QueryInterface(Ci.nsISelectionPrivate).removeSelectionListener(this);
-      // Clear selection without clearing the anchorNode or focusNode
-      if (selection.rangeCount != 0) {
-        selection.collapseToStart();
+    if (this._activeType == this.TYPE_SELECTION) {
+      let selection = this._getSelection();
+      if (selection) {
+        // Remove the listener before calling removeAllRanges() to avoid
+        // recursively notifying the listener.
+        selection.QueryInterface(Ci.nsISelectionPrivate).removeSelectionListener(this);
+        selection.removeAllRanges();
       }
     }
-  },
 
-  _deactivate: function sh_deactivate() {
     this._activeType = this.TYPE_NONE;
 
     sendMessageToJava({ type: "TextSelection:HideHandles" });
@@ -529,7 +440,6 @@ var SelectionHandler = {
     this._targetElement = null;
     this._isRTL = false;
     this._cache = null;
-    this._ignoreSelectionChanges = false;
   },
 
   _getViewOffset: function sh_getViewOffset() {
@@ -579,7 +489,11 @@ var SelectionHandler = {
     return selectionReversed;
   },
 
-  _getHandlePositions: function sh_getHandlePositions(scroll) {
+  _positionHandles: function sh_positionHandles() {
+    let scrollX = {}, scrollY = {};
+    this._contentWindow.top.QueryInterface(Ci.nsIInterfaceRequestor).
+                            getInterface(Ci.nsIDOMWindowUtils).getScrollXY(false, scrollX, scrollY);
+
     // the checkHidden function tests to see if the given point is hidden inside an
     // iframe/subdocument. this is so that if we select some text inside an iframe and
     // scroll the iframe so the selection is out of view, we hide the handles rather
@@ -591,7 +505,7 @@ var SelectionHandler = {
       let bounds = this._contentWindow.frameElement.getBoundingClientRect();
       checkHidden = function(x, y) {
         return x < 0 || y < 0 || x > bounds.width || y > bounds.height;
-      };
+      }
     }
 
     let positions = null;
@@ -599,14 +513,12 @@ var SelectionHandler = {
       // The left and top properties returned are relative to the client area
       // of the window, so we don't need to account for a sub-frame offset.
       let cursor = this._domWinUtils.sendQueryContentEvent(this._domWinUtils.QUERY_CARET_RECT, this._targetElement.selectionEnd, 0, 0, 0);
-      // the return value from sendQueryContentEvent is in LayoutDevice pixels and we want CSS pixels, so
-      // divide by the pixel ratio
-      let x = cursor.left / window.devicePixelRatio;
-      let y = (cursor.top + cursor.height) / window.devicePixelRatio;
-      return [{ handle: this.HANDLE_TYPE_MIDDLE,
-                left: x + scroll.X,
-                top: y + scroll.Y,
-                hidden: checkHidden(x, y) }];
+      let x = cursor.left;
+      let y = cursor.top + cursor.height;
+      positions = [{ handle: this.HANDLE_TYPE_MIDDLE,
+                     left: x + scrollX.value,
+                     top: y + scrollY.value,
+                     hidden: checkHidden(x, y) }];
     } else {
       let sx = this._cache.start.x;
       let sy = this._cache.start.y;
@@ -617,23 +529,16 @@ var SelectionHandler = {
       // this because the top-level page may have scrolled since selection started.
       let offset = this._getViewOffset();
 
-      return  [{ handle: this.HANDLE_TYPE_START,
-                 left: sx + offset.x + scroll.X,
-                 top: sy + offset.y + scroll.Y,
-                 hidden: checkHidden(sx, sy) },
-               { handle: this.HANDLE_TYPE_END,
-                 left: ex + offset.x + scroll.X,
-                 top: ey + offset.y + scroll.Y,
-                 hidden: checkHidden(ex, ey) }];
+      positions = [{ handle: this.HANDLE_TYPE_START,
+                     left: sx + offset.x + scrollX.value,
+                     top: sy + offset.y + scrollY.value,
+                     hidden: checkHidden(sx, sy) },
+                   { handle: this.HANDLE_TYPE_END,
+                     left: ex + offset.x + scrollX.value,
+                     top: ey + offset.y + scrollY.value,
+                     hidden: checkHidden(ex, ey) }];
     }
-  },
 
-  // positions is an array of objects with data about handle positions,
-  // which we get from _getHandlePositions.
-  _positionHandles: function sh_positionHandles(positions) {
-    if (!positions) {
-      positions = this._getHandlePositions(this._getScrollPos());
-    }
     sendMessageToJava({
       type: "TextSelection:PositionHandles",
       positions: positions,

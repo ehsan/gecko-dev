@@ -5,7 +5,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsapi-tests/tests.h"
+
+#include "tests.h"
 
 struct ScriptObjectFixture : public JSAPITest {
     static const int code_size;
@@ -54,7 +55,7 @@ END_FIXTURE_TEST(ScriptObjectFixture, bug438633_CompileScript_empty)
 
 BEGIN_FIXTURE_TEST(ScriptObjectFixture, bug438633_CompileScriptForPrincipals)
 {
-    return tryScript(global, JS_CompileScriptForPrincipals(cx, global, nullptr,
+    return tryScript(global, JS_CompileScriptForPrincipals(cx, global, NULL,
                                                            code, code_size,
                                                            __FILE__, __LINE__));
 }
@@ -78,7 +79,7 @@ END_FIXTURE_TEST(ScriptObjectFixture, bug438633_JS_CompileUCScript_empty)
 
 BEGIN_FIXTURE_TEST(ScriptObjectFixture, bug438633_JS_CompileUCScriptForPrincipals)
 {
-    return tryScript(global, JS_CompileUCScriptForPrincipals(cx, global, nullptr,
+    return tryScript(global, JS_CompileUCScriptForPrincipals(cx, global, NULL,
                                                              uc_code, code_size,
                                                              __FILE__, __LINE__));
 }
@@ -145,7 +146,7 @@ BEGIN_FIXTURE_TEST(ScriptObjectFixture, bug438633_JS_CompileFileHandleForPrincip
     CHECK(fseek(script_stream, 0, SEEK_SET) != EOF);
     JS::CompileOptions options(cx);
     options.setFileAndLine("temporary file", 1)
-           .setPrincipals(nullptr);
+           .setPrincipals(NULL);
     return tryScript(global, JS::Compile(cx, global, options, script_stream));
 }
 END_FIXTURE_TEST(ScriptObjectFixture, bug438633_JS_CompileFileHandleForPrincipals)

@@ -9,8 +9,6 @@
 #define nsCSSValue_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/FloatingPoint.h"
-#include "mozilla/MemoryReporting.h"
 
 #include "nsCOMPtr.h"
 #include "nsCRTGlue.h"
@@ -23,12 +21,15 @@
 #include "nsStringBuffer.h"
 #include "nsTArray.h"
 #include "nsStyleConsts.h"
+#include "mozilla/FloatingPoint.h"
 
 class imgRequestProxy;
 class nsIDocument;
 class nsIPrincipal;
 class nsPresContext;
 class nsIURI;
+template <class T>
+class nsPtrHashKey;
 
 // Deletes a linked list iteratively to avoid blowing up the stack (bug 456196).
 #define NS_CSS_DELETE_LIST_MEMBER(type_, ptr_, member_)                        \
@@ -91,7 +92,7 @@ struct URLValue {
 
   nsIURI* GetURI() const;
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
   // If mURIResolved is false, mURI stores the base URI.
@@ -139,14 +140,13 @@ enum nsCSSUnit {
   eCSSUnit_Auto         = 1,      // (n/a) value is algorithmic
   eCSSUnit_Inherit      = 2,      // (n/a) value is inherited
   eCSSUnit_Initial      = 3,      // (n/a) value is default UA value
-  eCSSUnit_Unset        = 4,      // (n/a) value equivalent to 'initial' if on a reset property, 'inherit' otherwise
-  eCSSUnit_None         = 5,      // (n/a) value is none
-  eCSSUnit_Normal       = 6,      // (n/a) value is normal (algorithmic, different than auto)
-  eCSSUnit_System_Font  = 7,      // (n/a) value is -moz-use-system-font
-  eCSSUnit_All          = 8,      // (n/a) value is all
-  eCSSUnit_Dummy        = 9,      // (n/a) a fake but specified value, used
+  eCSSUnit_None         = 4,      // (n/a) value is none
+  eCSSUnit_Normal       = 5,      // (n/a) value is normal (algorithmic, different than auto)
+  eCSSUnit_System_Font  = 6,      // (n/a) value is -moz-use-system-font
+  eCSSUnit_All          = 7,      // (n/a) value is all
+  eCSSUnit_Dummy        = 8,      // (n/a) a fake but specified value, used
                                   //       only in temporary values
-  eCSSUnit_DummyInherit = 10,     // (n/a) a fake but specified value, used
+  eCSSUnit_DummyInherit = 9,      // (n/a) a fake but specified value, used
                                   //       only in temporary values
 
   eCSSUnit_String       = 11,     // (PRUnichar*) a string value
@@ -164,7 +164,6 @@ enum nsCSSUnit {
   eCSSUnit_Steps        = 24,     // (nsCSSValue::Array*) a list of (integer, enumerated)
   eCSSUnit_Function     = 25,     // (nsCSSValue::Array*) a function with
                                   //  parameters.  First elem of array is name,
-                                  //  an nsCSSKeyword as eCSSUnit_Enumerated,
                                   //  the rest of the values are arguments.
 
   // The top level of a calc() expression is eCSSUnit_Calc.  All
@@ -347,12 +346,6 @@ public:
     return mValue.mInt;
   }
 
-  nsCSSKeyword GetKeywordValue() const
-  {
-    NS_ABORT_IF_FALSE(mUnit == eCSSUnit_Enumerated, "not a keyword value");
-    return static_cast<nsCSSKeyword>(mValue.mInt);
-  }
-
   float GetPercentValue() const
   {
     NS_ABORT_IF_FALSE(mUnit == eCSSUnit_Percent, "not a percent value");
@@ -362,7 +355,7 @@ public:
   float GetFloatValue() const
   {
     NS_ABORT_IF_FALSE(eCSSUnit_Number <= mUnit, "not a float value");
-    MOZ_ASSERT(!mozilla::IsNaN(mValue.mFloat));
+    MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(mValue.mFloat));
     return mValue.mFloat;
   }
 
@@ -493,7 +486,6 @@ public:
   void SetAutoValue();
   void SetInheritValue();
   void SetInitialValue();
-  void SetUnsetValue();
   void SetNoneValue();
   void SetAllValue();
   void SetNormalValue();
@@ -514,12 +506,12 @@ public:
   // Checks if this is a function value with the specified function id.
   bool EqualsFunction(nsCSSKeyword aFunctionId) const;
 
-  // Returns an already addrefed buffer.  Guaranteed to return non-null.
-  // (Will abort on allocation failure.)
+  // Returns an already addrefed buffer.  Can return null on allocation
+  // failure.
   static already_AddRefed<nsStringBuffer>
     BufferFromString(const nsString& aValue);
 
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
   static const PRUnichar* GetBufferValue(nsStringBuffer* aBuffer) {
@@ -644,7 +636,7 @@ private:
     }
   }
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 #undef CSSVALUE_LIST_FOR_EXTRA_VALUES
 
@@ -666,7 +658,7 @@ struct nsCSSValueList {
   bool operator!=(const nsCSSValueList& aOther) const
   { return !(*this == aOther); }
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   nsCSSValue      mValue;
   nsCSSValueList* mNext;
@@ -685,7 +677,7 @@ private:
 struct nsCSSValueList_heap : public nsCSSValueList {
   NS_INLINE_DECL_REFCOUNTING(nsCSSValueList_heap)
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 };
 
 // This has to be here so that the relationship between nsCSSValueList
@@ -772,7 +764,7 @@ struct nsCSSRect {
 struct nsCSSRect_heap : public nsCSSRect {
   NS_INLINE_DECL_REFCOUNTING(nsCSSRect_heap)
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 };
 
 // This has to be here so that the relationship between nsCSSRect
@@ -848,7 +840,7 @@ struct nsCSSValuePair {
 
   void AppendToString(nsCSSProperty aProperty, nsAString& aResult) const;
 
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   nsCSSValue mXValue;
   nsCSSValue mYValue;
@@ -865,7 +857,7 @@ struct nsCSSValuePair_heap : public nsCSSValuePair {
 
   NS_INLINE_DECL_REFCOUNTING(nsCSSValuePair_heap)
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 };
 
 struct nsCSSValueTriplet {
@@ -949,7 +941,7 @@ struct nsCSSValueTriplet_heap : public nsCSSValueTriplet {
 
   NS_INLINE_DECL_REFCOUNTING(nsCSSValueTriplet_heap)
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 };
 
 // This has to be here so that the relationship between nsCSSValuePair
@@ -994,7 +986,7 @@ struct nsCSSValuePairList {
   bool operator!=(const nsCSSValuePairList& aOther) const
   { return !(*this == aOther); }
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   nsCSSValue          mXValue;
   nsCSSValue          mYValue;
@@ -1014,7 +1006,7 @@ private:
 struct nsCSSValuePairList_heap : public nsCSSValuePairList {
   NS_INLINE_DECL_REFCOUNTING(nsCSSValuePairList_heap)
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 };
 
 // This has to be here so that the relationship between nsCSSValuePairList
@@ -1063,7 +1055,7 @@ public:
     return !(*this == aOther);
   }
 
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 };
 
 struct nsCSSValueGradient {
@@ -1123,7 +1115,7 @@ public:
 
   NS_INLINE_DECL_REFCOUNTING(nsCSSValueGradient)
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
   nsCSSValueGradient(const nsCSSValueGradient& aOther) MOZ_DELETE;

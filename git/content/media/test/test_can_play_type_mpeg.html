@@ -26,31 +26,27 @@ function IsWindowsVistaOrLater() {
   return winver && winver.length == 2 && parseFloat(winver[1]) >= 6.0;
 }
 
-function IsWindows() {
-  return navigator.userAgent.match(/Windows/) != null;
-}
-
-function getPref(name) {
+function getMediaPref(name) {
+  // Can't use SpecialPowers.getBoolPref because it throws when pref isn't
+  // present, and for example on non-Windows systems the WMF prefs won't be
+  // present.
   var pref = false;
+  var prefService = SpecialPowers.wrap(SpecialPowers.Components)
+                                 .classes["@mozilla.org/preferences-service;1"]
+                                 .getService(SpecialPowers.Ci.nsIPrefService);
+  var branch = prefService.getBranch("media.");
   try {
-    pref = SpecialPowers.getBoolPref(name);
+    pref = branch.getBoolPref(name);
   } catch(ex) { }
   return pref;
 }
 
-var haveMp4 = (getPref("media.windows-media-foundation.enabled") && IsWindowsVistaOrLater()) ||
-               getPref("media.omx.enabled") ||
-               getPref("media.gstreamer.enabled");
-// TODO:  Add "getPref("media.plugins.enabled")" once MP4 works on Gingerbread.
+var haveMp4 = (getMediaPref("windows-media-foundation.enabled") && IsWindowsVistaOrLater()) ||
+               getMediaPref("omx.enabled") ||
+               getMediaPref("gstreamer.enabled");
+// TODO:  Add "getMediaPref("plugins.enabled")" once MP4 works on Gingerbread.
              
 check_mp4(document.getElementById('v'), haveMp4);
-
-var haveMp3 = getPref("media.directshow.enabled") ||
-              (getPref("media.windows-media-foundation.enabled") && IsWindowsVistaOrLater()) ||
-               getPref("media.omx.enabled") ||
-               getPref("media.gstreamer.enabled") ||
-               getPref("media.apple.mp3.enabled");
-check_mp3(document.getElementById('v'), haveMp3);
 
 mediaTestCleanup();
 </script>

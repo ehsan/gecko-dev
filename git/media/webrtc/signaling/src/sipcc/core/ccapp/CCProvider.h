@@ -5,12 +5,6 @@
 #ifndef __CCPROVIDER_H__
 #define __CCPROVIDER_H__
 
-#if defined(__cplusplus) && __cplusplus >= 201103L
-typedef struct Timecard Timecard;
-#else
-#include "timecard.h"
-#endif
-
 #include "cpr_types.h"
 #include "cpr_ipc.h"
 #include "cpr_socket.h"
@@ -22,7 +16,6 @@ typedef struct Timecard Timecard;
 #include "cpr_threads.h"
 #include "phone_types.h"
 #include "session.h"
-#include "fsmdef_states.h"
 
 #include "cc_constants.h"
 #include "ccapi_types.h"
@@ -67,7 +60,6 @@ typedef struct cc_call_info_t_{
     callid_t      id;
     uint16_t      inst;
     cc_call_state_t    state;
-    fsmdef_states_t    fsm_state;
     cc_call_attr_t     attr;
     cc_call_type_t     type;
     cc_call_security_t security;
@@ -107,8 +99,6 @@ typedef struct cc_call_info_t_{
     unsigned int  media_stream_track_id;
     unsigned int  media_stream_id;
     cc_media_constraints_t* cc_constraints;
-    string_t      candidate;
-    Timecard *    timecard;
 } session_data_t;
 
 typedef enum {

@@ -8,14 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_coding/codecs/test_framework/test.h"
+#include "test.h"
 
-#include <string.h>
-
+#include <cstring>
 #include <iostream>
 
-#include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
-#include "webrtc/test/testsupport/metrics/video_metrics.h"
+#include "testsupport/metrics/video_metrics.h"
+#include "common_video/libyuv/include/webrtc_libyuv.h"
 
 using namespace webrtc;
 
@@ -32,11 +31,11 @@ _description(description)
 {
     memset(&_inst, 0, sizeof(_inst));
     unsigned int seed = static_cast<unsigned int>(0);
-    srand(seed);
+    std::srand(seed);
 }
 
 CodecTest::CodecTest(std::string name, std::string description,
-                     uint32_t bitRate)
+                     WebRtc_UWord32 bitRate)
 :
 _bitRate(bitRate),
 _inname(""),
@@ -47,7 +46,7 @@ _description(description)
 {
     memset(&_inst, 0, sizeof(_inst));
     unsigned int seed = static_cast<unsigned int>(0);
-    srand(seed);
+    std::srand(seed);
 }
 
 void
@@ -89,8 +88,8 @@ CodecTest::Setup()
 
 void
 CodecTest::CodecSettings(int width, int height,
-                         uint32_t frameRate /*=30*/,
-                         uint32_t bitRate /*=0*/)
+                         WebRtc_UWord32 frameRate /*=30*/,
+                         WebRtc_UWord32 bitRate /*=0*/)
 {
     if (bitRate > 0)
     {
@@ -150,8 +149,8 @@ CodecTest::VideoEncodedBufferToEncodedImage(VideoFrame& videoBuffer,
     image._buffer = videoBuffer.Buffer();
     image._length = videoBuffer.Length();
     image._size = videoBuffer.Size();
-    // image._frameType = static_cast<VideoFrameType>
-    //     (videoBuffer.GetFrameType());
+    //image._frameType = static_cast<VideoFrameType>
+    //  (videoBuffer.GetFrameType());
     image._timeStamp = videoBuffer.TimeStamp();
     image._encodedWidth = videoBuffer.Width();
     image._encodedHeight = videoBuffer.Height();

@@ -37,11 +37,7 @@
 #endif
 
 #ifndef USE__BUILTIN___CLEAR_CACHE
-#  if defined(__OpenBSD__)
-#    include <mips64/sysarch.h>
-#  else
-#    include <sys/cachectl.h>
-#  endif
+#include <sys/cachectl.h>
 #endif
 
 #ifdef FFI_DEBUG

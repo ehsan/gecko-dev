@@ -3,8 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#define XPCOM_TRANSLATE_NSGM_ENTRY_POINT 1
+
 #include "mozilla/Module.h"
 #include "nsXPCOM.h"
+#include "nsStaticComponents.h"
 #include "nsMemory.h"
 
 #ifdef MOZ_AUTH_EXTENSION
@@ -49,6 +52,12 @@
 #define ICON_MODULE MODULE(nsIconDecoderModule)
 #else
 #define ICON_MODULE
+#endif
+
+#ifdef ACCESSIBILITY
+#define ACCESS_MODULES MODULE(nsAccessibilityModule)
+#else
+#define ACCESS_MODULES
 #endif
 
 #ifdef MOZ_ENABLE_XREMOTE
@@ -173,12 +182,6 @@
 #define GIO_MODULE
 #endif
 
-#if defined(MOZ_SYNTH_PICO)
-#define SYNTH_PICO_MODULE MODULE(synthpico)
-#else
-#define SYNTH_PICO_MODULE
-#endif
-
 #define XUL_MODULES                          \
     MODULE(nsUConvModule)                    \
     MODULE(nsI18nModule)                     \
@@ -205,6 +208,7 @@
     MODULE(docshell_provider)                \
     MODULE(embedcomponents)                  \
     MODULE(Browser_Embedding_Module)         \
+    ACCESS_MODULES                           \
     MODULE(appshell)                         \
     MODULE(nsTransactionManagerModule)       \
     MODULE(nsComposerModule)                 \
@@ -238,8 +242,6 @@
     MODULE(jsdebugger)                       \
     PEERCONNECTION_MODULE                    \
     GIO_MODULE                               \
-    SYNTH_PICO_MODULE                        \
-    MODULE(DiskSpaceWatcherModule)           \
     /* end of list */
 
 #define MODULE(_name) \
@@ -247,21 +249,14 @@
 
 XUL_MODULES
 
-#ifdef MOZ_WIDGET_GONK
-MODULE(WifiProxyServiceModule)
-#endif
-
 #undef MODULE
 
 #define MODULE(_name) \
     &NSMODULE_NAME(_name),
 
-extern const mozilla::Module *const *const kPStaticModules[] = {
+const mozilla::Module *const *const kPStaticModules[] = {
   XUL_MODULES
-#ifdef MOZ_WIDGET_GONK
-MODULE(WifiProxyServiceModule)
-#endif
-  nullptr
+  NULL
 };
 
 #undef MODULE

@@ -30,20 +30,19 @@ protected:
   friend nsresult (::NS_NewSVGMaskElement(nsIContent **aResult,
                                           already_AddRefed<nsINodeInfo> aNodeInfo));
   SVGMaskElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-  virtual JSObject* WrapNode(JSContext *cx,
-                             JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 public:
   // nsIContent interface
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   // nsSVGSVGElement methods:
-  virtual bool HasValidDimensions() const MOZ_OVERRIDE;
+  virtual bool HasValidDimensions() const;
 
   // WebIDL
-  already_AddRefed<SVGAnimatedEnumeration> MaskUnits();
-  already_AddRefed<SVGAnimatedEnumeration> MaskContentUnits();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> MaskUnits();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> MaskContentUnits();
   already_AddRefed<SVGAnimatedLength> X();
   already_AddRefed<SVGAnimatedLength> Y();
   already_AddRefed<SVGAnimatedLength> Width();
@@ -51,8 +50,8 @@ public:
 
 protected:
 
-  virtual LengthAttributesInfo GetLengthInfo() MOZ_OVERRIDE;
-  virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;
+  virtual LengthAttributesInfo GetLengthInfo();
+  virtual EnumAttributesInfo GetEnumInfo();
 
   enum { ATTR_X, ATTR_Y, ATTR_WIDTH, ATTR_HEIGHT };
   nsSVGLength2 mLengthAttributes[4];

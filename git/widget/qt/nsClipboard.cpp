@@ -53,14 +53,14 @@ nsClipboard::~nsClipboard()
 }
 
 static inline QImage::Format
-_gfximage_to_qformat(gfxImageFormat aFormat)
+_gfximage_to_qformat(gfxASurface::gfxImageFormat aFormat)
 {
     switch (aFormat) {
-    case gfxImageFormatARGB32:
+    case gfxASurface::ImageFormatARGB32:
         return QImage::Format_ARGB32_Premultiplied;
-    case gfxImageFormatRGB24:
+    case gfxASurface::ImageFormatRGB24:
         return QImage::Format_ARGB32;
-    case gfxImageFormatRGB16_565:
+    case gfxASurface::ImageFormatRGB16_565:
         return QImage::Format_RGB16;
     default:
         return QImage::Format_Invalid;
@@ -408,7 +408,7 @@ nsClipboard::HasDataMatchingFlavors(const char** aFlavorList, uint32_t aLength,
     // Which kind of data in the clipboard
     QClipboard *cb = QApplication::clipboard();
     const QMimeData *mimeData = cb->mimeData();
-    const char *flavor=nullptr;
+    const char *flavor=NULL;
     QStringList formats = mimeData->formats();
     for (uint32_t i = 0; i < aLength; ++i)
     {

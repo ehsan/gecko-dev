@@ -45,77 +45,52 @@ function highlightNode()
   // Highlight a node.
   let div = content.document.getElementsByTagName("div")[0];
 
-  inspector.once("inspector-updated", function() {
+  inspector.selection.once("new-node", function() {
     is(inspector.selection.node, div, "selection matches the div element");
     executeSoon(checkCopySelection);
   });
-
-  inspector.selection.setNode(div);
+  executeSoon(function() {
+    inspector.selection.setNode(div);
+  });
 }
 
 function checkCopySelection()
 {
   let contentDoc = win.document;
-  let prop = contentDoc.querySelector(".ruleview-property");
+  let props = contentDoc.querySelectorAll(".ruleview-property");
   let values = contentDoc.querySelectorAll(".ruleview-propertycontainer");
 
-  let range = contentDoc.createRange();
-  range.setStart(prop, 0);
+  let range = document.createRange();
+  range.setStart(props[0], 0);
   range.setEnd(values[4], 2);
 
   let selection = win.getSelection();
   selection.addRange(range);
 
-  info("Checking that _Copy() returns the correct clipboard value");
+  info("Checking that _boundCopy() returns the correct " +
+    "clipboard value");
   let expectedPattern = "    margin: 10em;[\\r\\n]+" +
                         "    font-size: 14pt;[\\r\\n]+" +
                         "    font-family: helvetica,sans-serif;[\\r\\n]+" +
-                        "    color: #AAA;[\\r\\n]+" +
+                        "    color: rgb\\(170, 170, 170\\);[\\r\\n]+" +
                         "}[\\r\\n]+" +
                         "html {[\\r\\n]+" +
-                        "    color: #000;[\\r\\n]*";
+                        "    color: rgb\\(0, 0, 0\\);[\\r\\n]*";
 
-  SimpleTest.waitForClipboard(function() {
+  SimpleTest.waitForClipboard(function IUI_boundCopyCheck() {
     return checkClipboardData(expectedPattern);
-  },
-  function() {
-    fireCopyEvent(prop);
-  },
-  checkSelectAll,
-  function() {
-    failedClipboard(expectedPattern, checkSelectAll);
+  },function() {fireCopyEvent(props[0])}, finishup, function() {
+    failedClipboard(expectedPattern, finishup);
   });
 }
 
-function checkSelectAll()
-{
-  let contentDoc = win.document;
-  let _ruleView = ruleView();
-  let prop = contentDoc.querySelector(".ruleview-property");
+function selectNode(aNode) {
+  let doc = aNode.ownerDocument;
+  let win = doc.defaultView;
+  let range = doc.createRange();
 
-  info("Checking that _SelectAll() then copy returns the correct clipboard value");
-  _ruleView._onSelectAll();
-  let expectedPattern = "[\\r\\n]+" +
-                        "element {[\\r\\n]+" +
-                        "    margin: 10em;[\\r\\n]+" +
-                        "    font-size: 14pt;[\\r\\n]+" +
-                        "    font-family: helvetica,sans-serif;[\\r\\n]+" +
-                        "    color: #AAA;[\\r\\n]+" +
-                        "}[\\r\\n]+" +
-                        "html {[\\r\\n]+" +
-                        "    color: #000;[\\r\\n]+" +
-                        "}[\\r\\n]*";
-
-  SimpleTest.waitForClipboard(function() {
-    return checkClipboardData(expectedPattern);
-  },
-  function() {
-    fireCopyEvent(prop);
-  },
-  finishup,
-  function() {
-    failedClipboard(expectedPattern, finishup);
-  });
+  range.selectNode(aNode);
+  win.getSelection().addRange(range);
 }
 
 function checkClipboardData(aExpectedPattern)
@@ -150,7 +125,7 @@ function failedClipboard(aExpectedPattern, aCallback)
 function finishup()
 {
   gBrowser.removeCurrentTab();
-  doc = inspector = win = null;
+  doc = inspector = null;
   finish();
 }
 

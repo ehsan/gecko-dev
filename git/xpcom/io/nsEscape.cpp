@@ -128,8 +128,8 @@ char* nsEscape(const char * str, nsEscapeMask flags)
 //----------------------------------------------------------------------------------------
 {
     if(!str)
-        return nullptr;
-    return nsEscapeCount(str, flags, nullptr);
+        return NULL;
+    return nsEscapeCount(str, flags, NULL);
 }
 
 //----------------------------------------------------------------------------------------
@@ -192,7 +192,7 @@ nsEscapeHTML(const char * string)
 {
     char *rv = nullptr;
     /* XXX Hardcoded max entity len. The +1 is for the trailing null. */
-    uint32_t len = strlen(string);
+    uint32_t len = PL_strlen(string);
     if (len >= (UINT32_MAX / 6))
       return nullptr;
 

@@ -73,50 +73,45 @@ define('source-map/source-map-consumer', ['require', 'exports', 'module' ,  'sou
     var sourceRoot = util.getArg(sourceMap, 'sourceRoot', null);
     var sourcesContent = util.getArg(sourceMap, 'sourcesContent', null);
     var mappings = util.getArg(sourceMap, 'mappings');
-    var file = util.getArg(sourceMap, 'file', null);
+    var file = util.getArg(sourceMap, 'file');
 
     if (version !== this._version) {
       throw new Error('Unsupported version: ' + version);
     }
 
-    // Pass `true` below to allow duplicate names and sources. While source maps
-    // are intended to be compressed and deduplicated, the TypeScript compiler
-    // sometimes generates source maps with duplicates in them. See Github issue
-    // #72 and bugzil.la/889492.
-    this._names = ArraySet.fromArray(names, true);
-    this._sources = ArraySet.fromArray(sources, true);
-
+    this._names = ArraySet.fromArray(names);
+    this._sources = ArraySet.fromArray(sources);
     this.sourceRoot = sourceRoot;
     this.sourcesContent = sourcesContent;
-    this._mappings = mappings;
     this.file = file;
+
+    // `this._generatedMappings` and `this._originalMappings` hold the parsed
+    // mapping coordinates from the source map's "mappings" attribute. Each
+    // object in the array is of the form
+    //
+    //     {
+    //       generatedLine: The line number in the generated code,
+    //       generatedColumn: The column number in the generated code,
+    //       source: The path to the original source file that generated this
+    //               chunk of code,
+    //       originalLine: The line number in the original source that
+    //                     corresponds to this chunk of generated code,
+    //       originalColumn: The column number in the original source that
+    //                       corresponds to this chunk of generated code,
+    //       name: The name of the original symbol which generated this chunk of
+    //             code.
+    //     }
+    //
+    // All properties except for `generatedLine` and `generatedColumn` can be
+    // `null`.
+    //
+    // `this._generatedMappings` is ordered by the generated positions.
+    //
+    // `this._originalMappings` is ordered by the original positions.
+    this._generatedMappings = [];
+    this._originalMappings = [];
+    this._parseMappings(mappings, sourceRoot);
   }
-
-  /**
-   * Create a SourceMapConsumer from a SourceMapGenerator.
-   *
-   * @param SourceMapGenerator aSourceMap
-   *        The source map that will be consumed.
-   * @returns SourceMapConsumer
-   */
-  SourceMapConsumer.fromSourceMap =
-    function SourceMapConsumer_fromSourceMap(aSourceMap) {
-      var smc = Object.create(SourceMapConsumer.prototype);
-
-      smc._names = ArraySet.fromArray(aSourceMap._names.toArray(), true);
-      smc._sources = ArraySet.fromArray(aSourceMap._sources.toArray(), true);
-      smc.sourceRoot = aSourceMap._sourceRoot;
-      smc.sourcesContent = aSourceMap._generateSourcesContent(smc._sources.toArray(),
-                                                              smc.sourceRoot);
-      smc.file = aSourceMap._file;
-
-      smc.__generatedMappings = aSourceMap._mappings.slice()
-        .sort(util.compareByGeneratedPositions);
-      smc.__originalMappings = aSourceMap._mappings.slice()
-        .sort(util.compareByOriginalPositions);
-
-      return smc;
-    };
 
   /**
    * The version of the source mapping spec that we are consuming.
@@ -134,66 +129,9 @@ define('source-map/source-map-consumer', ['require', 'exports', 'module' ,  'sou
     }
   });
 
-  // `__generatedMappings` and `__originalMappings` are arrays that hold the
-  // parsed mapping coordinates from the source map's "mappings" attribute. They
-  // are lazily instantiated, accessed via the `_generatedMappings` and
-  // `_originalMappings` getters respectively, and we only parse the mappings
-  // and create these arrays once queried for a source location. We jump through
-  // these hoops because there can be many thousands of mappings, and parsing
-  // them is expensive, so we only want to do it if we must.
-  //
-  // Each object in the arrays is of the form:
-  //
-  //     {
-  //       generatedLine: The line number in the generated code,
-  //       generatedColumn: The column number in the generated code,
-  //       source: The path to the original source file that generated this
-  //               chunk of code,
-  //       originalLine: The line number in the original source that
-  //                     corresponds to this chunk of generated code,
-  //       originalColumn: The column number in the original source that
-  //                       corresponds to this chunk of generated code,
-  //       name: The name of the original symbol which generated this chunk of
-  //             code.
-  //     }
-  //
-  // All properties except for `generatedLine` and `generatedColumn` can be
-  // `null`.
-  //
-  // `_generatedMappings` is ordered by the generated positions.
-  //
-  // `_originalMappings` is ordered by the original positions.
-
-  SourceMapConsumer.prototype.__generatedMappings = null;
-  Object.defineProperty(SourceMapConsumer.prototype, '_generatedMappings', {
-    get: function () {
-      if (!this.__generatedMappings) {
-        this.__generatedMappings = [];
-        this.__originalMappings = [];
-        this._parseMappings(this._mappings, this.sourceRoot);
-      }
-
-      return this.__generatedMappings;
-    }
-  });
-
-  SourceMapConsumer.prototype.__originalMappings = null;
-  Object.defineProperty(SourceMapConsumer.prototype, '_originalMappings', {
-    get: function () {
-      if (!this.__originalMappings) {
-        this.__generatedMappings = [];
-        this.__originalMappings = [];
-        this._parseMappings(this._mappings, this.sourceRoot);
-      }
-
-      return this.__originalMappings;
-    }
-  });
-
   /**
    * Parse the mappings in a string in to a data structure which we can easily
-   * query (the ordered arrays in the `this.__generatedMappings` and
-   * `this.__originalMappings` properties).
+   * query (an ordered list in this._generatedMappings).
    */
   SourceMapConsumer.prototype._parseMappings =
     function SourceMapConsumer_parseMappings(aStr, aSourceRoot) {
@@ -263,14 +201,44 @@ define('source-map/source-map-consumer', ['require', 'exports', 'module' ,  'sou
             }
           }
 
-          this.__generatedMappings.push(mapping);
+          this._generatedMappings.push(mapping);
           if (typeof mapping.originalLine === 'number') {
-            this.__originalMappings.push(mapping);
+            this._originalMappings.push(mapping);
           }
         }
       }
 
-      this.__originalMappings.sort(util.compareByOriginalPositions);
+      this._originalMappings.sort(this._compareOriginalPositions);
+    };
+
+  /**
+   * Comparator between two mappings where the original positions are compared.
+   */
+  SourceMapConsumer.prototype._compareOriginalPositions =
+    function SourceMapConsumer_compareOriginalPositions(mappingA, mappingB) {
+      if (mappingA.source > mappingB.source) {
+        return 1;
+      }
+      else if (mappingA.source < mappingB.source) {
+        return -1;
+      }
+      else {
+        var cmp = mappingA.originalLine - mappingB.originalLine;
+        return cmp === 0
+          ? mappingA.originalColumn - mappingB.originalColumn
+          : cmp;
+      }
+    };
+
+  /**
+   * Comparator between two mappings where the generated positions are compared.
+   */
+  SourceMapConsumer.prototype._compareGeneratedPositions =
+    function SourceMapConsumer_compareGeneratedPositions(mappingA, mappingB) {
+      var cmp = mappingA.generatedLine - mappingB.generatedLine;
+      return cmp === 0
+        ? mappingA.generatedColumn - mappingB.generatedColumn
+        : cmp;
     };
 
   /**
@@ -323,7 +291,7 @@ define('source-map/source-map-consumer', ['require', 'exports', 'module' ,  'sou
                                       this._generatedMappings,
                                       "generatedLine",
                                       "generatedColumn",
-                                      util.compareByGeneratedPositions);
+                                      this._compareGeneratedPositions);
 
       if (mapping) {
         var source = util.getArg(mapping, 'source', null);
@@ -347,9 +315,9 @@ define('source-map/source-map-consumer', ['require', 'exports', 'module' ,  'sou
     };
 
   /**
-   * Returns the original source content. The only argument is the url of the
-   * original source file. Returns null if no original source content is
-   * availible.
+   * Returns the original source content. The only argument is
+   * the url of the original source file. Returns null if no
+   * original source content is availible.
    */
   SourceMapConsumer.prototype.sourceContentFor =
     function SourceMapConsumer_sourceContentFor(aSource) {
@@ -358,30 +326,15 @@ define('source-map/source-map-consumer', ['require', 'exports', 'module' ,  'sou
       }
 
       if (this.sourceRoot) {
-        aSource = util.relative(this.sourceRoot, aSource);
+        // Try to remove the sourceRoot
+        var relativeUrl = util.relative(this.sourceRoot, aSource);
+        if (this._sources.has(relativeUrl)) {
+          return this.sourcesContent[this._sources.indexOf(relativeUrl)];
+        }
       }
 
       if (this._sources.has(aSource)) {
         return this.sourcesContent[this._sources.indexOf(aSource)];
-      }
-
-      var url;
-      if (this.sourceRoot
-          && (url = util.urlParse(this.sourceRoot))) {
-        // XXX: file:// URIs and absolute paths lead to unexpected behavior for
-        // many users. We can help them out when they expect file:// URIs to
-        // behave like it would if they were running a local HTTP server. See
-        // https://bugzilla.mozilla.org/show_bug.cgi?id=885597.
-        var fileUriAbsPath = aSource.replace(/^file:\/\//, "");
-        if (url.scheme == "file"
-            && this._sources.has(fileUriAbsPath)) {
-          return this.sourcesContent[this._sources.indexOf(fileUriAbsPath)]
-        }
-
-        if ((!url.path || url.path == "/")
-            && this._sources.has("/" + aSource)) {
-          return this.sourcesContent[this._sources.indexOf("/" + aSource)];
-        }
       }
 
       throw new Error('"' + aSource + '" is not in the SourceMap.');
@@ -417,7 +370,7 @@ define('source-map/source-map-consumer', ['require', 'exports', 'module' ,  'sou
                                       this._originalMappings,
                                       "originalLine",
                                       "originalColumn",
-                                      util.compareByOriginalPositions);
+                                      this._compareOriginalPositions);
 
       if (mapping) {
         return {
@@ -518,7 +471,6 @@ define('source-map/util', ['require', 'exports', 'module' , ], function(require,
   exports.getArg = getArg;
 
   var urlRegexp = /([\w+\-.]+):\/\/((\w+:\w+)@)?([\w.]+)?(:(\d+))?(\S+)?/;
-  var dataUrlRegexp = /^data:.+\,.+/;
 
   function urlParse(aUrl) {
     var match = aUrl.match(urlRegexp);
@@ -533,36 +485,16 @@ define('source-map/util', ['require', 'exports', 'module' , ], function(require,
       path: match[7]
     };
   }
-  exports.urlParse = urlParse;
-
-  function urlGenerate(aParsedUrl) {
-    var url = aParsedUrl.scheme + "://";
-    if (aParsedUrl.auth) {
-      url += aParsedUrl.auth + "@"
-    }
-    if (aParsedUrl.host) {
-      url += aParsedUrl.host;
-    }
-    if (aParsedUrl.port) {
-      url += ":" + aParsedUrl.port
-    }
-    if (aParsedUrl.path) {
-      url += aParsedUrl.path;
-    }
-    return url;
-  }
-  exports.urlGenerate = urlGenerate;
 
   function join(aRoot, aPath) {
     var url;
 
-    if (aPath.match(urlRegexp) || aPath.match(dataUrlRegexp)) {
+    if (aPath.match(urlRegexp)) {
       return aPath;
     }
 
     if (aPath.charAt(0) === '/' && (url = urlParse(aRoot))) {
-      url.path = aPath;
-      return urlGenerate(url);
+      return aRoot.replace(url.path, '') + aPath;
     }
 
     return aRoot.replace(/\/$/, '') + '/' + aPath;
@@ -590,104 +522,11 @@ define('source-map/util', ['require', 'exports', 'module' , ], function(require,
 
   function relative(aRoot, aPath) {
     aRoot = aRoot.replace(/\/$/, '');
-
-    var url = urlParse(aRoot);
-    if (aPath.charAt(0) == "/" && url && url.path == "/") {
-      return aPath.slice(1);
-    }
-
     return aPath.indexOf(aRoot + '/') === 0
       ? aPath.substr(aRoot.length + 1)
       : aPath;
   }
   exports.relative = relative;
-
-  function strcmp(aStr1, aStr2) {
-    var s1 = aStr1 || "";
-    var s2 = aStr2 || "";
-    return (s1 > s2) - (s1 < s2);
-  }
-
-  /**
-   * Comparator between two mappings where the original positions are compared.
-   *
-   * Optionally pass in `true` as `onlyCompareGenerated` to consider two
-   * mappings with the same original source/line/column, but different generated
-   * line and column the same. Useful when searching for a mapping with a
-   * stubbed out mapping.
-   */
-  function compareByOriginalPositions(mappingA, mappingB, onlyCompareOriginal) {
-    var cmp;
-
-    cmp = strcmp(mappingA.source, mappingB.source);
-    if (cmp) {
-      return cmp;
-    }
-
-    cmp = mappingA.originalLine - mappingB.originalLine;
-    if (cmp) {
-      return cmp;
-    }
-
-    cmp = mappingA.originalColumn - mappingB.originalColumn;
-    if (cmp || onlyCompareOriginal) {
-      return cmp;
-    }
-
-    cmp = strcmp(mappingA.name, mappingB.name);
-    if (cmp) {
-      return cmp;
-    }
-
-    cmp = mappingA.generatedLine - mappingB.generatedLine;
-    if (cmp) {
-      return cmp;
-    }
-
-    return mappingA.generatedColumn - mappingB.generatedColumn;
-  };
-  exports.compareByOriginalPositions = compareByOriginalPositions;
-
-  /**
-   * Comparator between two mappings where the generated positions are
-   * compared.
-   *
-   * Optionally pass in `true` as `onlyCompareGenerated` to consider two
-   * mappings with the same generated line and column, but different
-   * source/name/original line and column the same. Useful when searching for a
-   * mapping with a stubbed out mapping.
-   */
-  function compareByGeneratedPositions(mappingA, mappingB, onlyCompareGenerated) {
-    var cmp;
-
-    cmp = mappingA.generatedLine - mappingB.generatedLine;
-    if (cmp) {
-      return cmp;
-    }
-
-    cmp = mappingA.generatedColumn - mappingB.generatedColumn;
-    if (cmp || onlyCompareGenerated) {
-      return cmp;
-    }
-
-    cmp = strcmp(mappingA.source, mappingB.source);
-    if (cmp) {
-      return cmp;
-    }
-
-    cmp = mappingA.originalLine - mappingB.originalLine;
-    if (cmp) {
-      return cmp;
-    }
-
-    cmp = mappingA.originalColumn - mappingB.originalColumn;
-    if (cmp) {
-      return cmp;
-    }
-
-    return strcmp(mappingA.name, mappingB.name);
-  };
-  exports.compareByGeneratedPositions = compareByGeneratedPositions;
 
 });
 /* -*- Mode: js; js-indent-level: 2; -*- */
@@ -719,7 +558,7 @@ define('source-map/binary-search', ['require', 'exports', 'module' , ], function
     //      element which is less than the one we are searching for, so we
     //      return null.
     var mid = Math.floor((aHigh - aLow) / 2) + aLow;
-    var cmp = aCompare(aNeedle, aHaystack[mid], true);
+    var cmp = aCompare(aNeedle, aHaystack[mid]);
     if (cmp === 0) {
       // Found the element we are looking for.
       return aHaystack[mid];
@@ -792,10 +631,10 @@ define('source-map/array-set', ['require', 'exports', 'module' ,  'source-map/ut
   /**
    * Static method for creating ArraySet instances from an existing array.
    */
-  ArraySet.fromArray = function ArraySet_fromArray(aArray, aAllowDuplicates) {
+  ArraySet.fromArray = function ArraySet_fromArray(aArray) {
     var set = new ArraySet();
     for (var i = 0, len = aArray.length; i < len; i++) {
-      set.add(aArray[i], aAllowDuplicates);
+      set.add(aArray[i]);
     }
     return set;
   };
@@ -805,15 +644,14 @@ define('source-map/array-set', ['require', 'exports', 'module' ,  'source-map/ut
    *
    * @param String aStr
    */
-  ArraySet.prototype.add = function ArraySet_add(aStr, aAllowDuplicates) {
-    var isDuplicate = this.has(aStr);
+  ArraySet.prototype.add = function ArraySet_add(aStr) {
+    if (this.has(aStr)) {
+      // Already a member; nothing to do.
+      return;
+    }
     var idx = this._array.length;
-    if (!isDuplicate || aAllowDuplicates) {
-      this._array.push(aStr);
-    }
-    if (!isDuplicate) {
-      this._set[util.toSetString(aStr)] = idx;
-    }
+    this._array.push(aStr);
+    this._set[util.toSetString(aStr)] = idx;
   };
 
   /**
@@ -1148,10 +986,8 @@ define('source-map/source-map-generator', ['require', 'exports', 'module' ,  'so
       }
 
       this._mappings.push({
-        generatedLine: generated.line,
-        generatedColumn: generated.column,
-        originalLine: original != null && original.line,
-        originalColumn: original != null && original.column,
+        generated: generated,
+        original: original,
         source: source,
         name: name
       });
@@ -1212,11 +1048,11 @@ define('source-map/source-map-generator', ['require', 'exports', 'module' ,  'so
 
       // Find mappings for the "aSourceFile"
       this._mappings.forEach(function (mapping) {
-        if (mapping.source === aSourceFile && mapping.originalLine) {
+        if (mapping.source === aSourceFile && mapping.original) {
           // Check if it can be mapped by the source map, then update the mapping.
           var original = aSourceMapConsumer.originalPositionFor({
-            line: mapping.originalLine,
-            column: mapping.originalColumn
+            line: mapping.original.line,
+            column: mapping.original.column
           });
           if (original.source !== null) {
             // Copy mapping
@@ -1225,8 +1061,8 @@ define('source-map/source-map-generator', ['require', 'exports', 'module' ,  'so
             } else {
               mapping.source = original.source;
             }
-            mapping.originalLine = original.line;
-            mapping.originalColumn = original.column;
+            mapping.original.line = original.line;
+            mapping.original.column = original.column;
             if (original.name !== null && mapping.name !== null) {
               // Only use the identifier name if it's an identifier
               // in both SourceMaps
@@ -1290,12 +1126,7 @@ define('source-map/source-map-generator', ['require', 'exports', 'module' ,  'so
         return;
       }
       else {
-        throw new Error('Invalid mapping: ' + JSON.stringify({
-          generated: aGenerated,
-          source: aSource,
-          orginal: aOriginal,
-          name: aName
-        }));
+        throw new Error('Invalid mapping.');
       }
     };
 
@@ -1314,49 +1145,51 @@ define('source-map/source-map-generator', ['require', 'exports', 'module' ,  'so
       var result = '';
       var mapping;
 
-      // The mappings must be guaranteed to be in sorted order before we start
+      // The mappings must be guarenteed to be in sorted order before we start
       // serializing them or else the generated line numbers (which are defined
       // via the ';' separators) will be all messed up. Note: it might be more
       // performant to maintain the sorting as we insert them, rather than as we
       // serialize them, but the big O is the same either way.
-      this._mappings.sort(util.compareByGeneratedPositions);
+      this._mappings.sort(function (mappingA, mappingB) {
+        var cmp = mappingA.generated.line - mappingB.generated.line;
+        return cmp === 0
+          ? mappingA.generated.column - mappingB.generated.column
+          : cmp;
+      });
 
       for (var i = 0, len = this._mappings.length; i < len; i++) {
         mapping = this._mappings[i];
 
-        if (mapping.generatedLine !== previousGeneratedLine) {
+        if (mapping.generated.line !== previousGeneratedLine) {
           previousGeneratedColumn = 0;
-          while (mapping.generatedLine !== previousGeneratedLine) {
+          while (mapping.generated.line !== previousGeneratedLine) {
             result += ';';
             previousGeneratedLine++;
           }
         }
         else {
           if (i > 0) {
-            if (!util.compareByGeneratedPositions(mapping, this._mappings[i - 1])) {
-              continue;
-            }
             result += ',';
           }
         }
 
-        result += base64VLQ.encode(mapping.generatedColumn
+        result += base64VLQ.encode(mapping.generated.column
                                    - previousGeneratedColumn);
-        previousGeneratedColumn = mapping.generatedColumn;
+        previousGeneratedColumn = mapping.generated.column;
 
-        if (mapping.source) {
+        if (mapping.source && mapping.original) {
           result += base64VLQ.encode(this._sources.indexOf(mapping.source)
                                      - previousSource);
           previousSource = this._sources.indexOf(mapping.source);
 
           // lines are stored 0-based in SourceMap spec version 3
-          result += base64VLQ.encode(mapping.originalLine - 1
+          result += base64VLQ.encode(mapping.original.line - 1
                                      - previousOriginalLine);
-          previousOriginalLine = mapping.originalLine - 1;
+          previousOriginalLine = mapping.original.line - 1;
 
-          result += base64VLQ.encode(mapping.originalColumn
+          result += base64VLQ.encode(mapping.original.column
                                      - previousOriginalColumn);
-          previousOriginalColumn = mapping.originalColumn;
+          previousOriginalColumn = mapping.original.column;
 
           if (mapping.name) {
             result += base64VLQ.encode(this._names.indexOf(mapping.name)
@@ -1367,23 +1200,6 @@ define('source-map/source-map-generator', ['require', 'exports', 'module' ,  'so
       }
 
       return result;
-    };
-
-  SourceMapGenerator.prototype._generateSourcesContent =
-    function SourceMapGenerator_generateSourcesContent(aSources, aSourceRoot) {
-      return aSources.map(function (source) {
-        if (!this._sourcesContents) {
-          return null;
-        }
-        if (aSourceRoot) {
-          source = util.relative(aSourceRoot, source);
-        }
-        var key = util.toSetString(source);
-        return Object.prototype.hasOwnProperty.call(this._sourcesContents,
-                                                    key)
-          ? this._sourcesContents[key]
-          : null;
-      }, this);
     };
 
   /**
@@ -1402,9 +1218,16 @@ define('source-map/source-map-generator', ['require', 'exports', 'module' ,  'so
         map.sourceRoot = this._sourceRoot;
       }
       if (this._sourcesContents) {
-        map.sourcesContent = this._generateSourcesContent(map.sources, map.sourceRoot);
+        map.sourcesContent = map.sources.map(function (source) {
+          if (map.sourceRoot) {
+            source = util.relative(map.sourceRoot, source);
+          }
+          return Object.prototype.hasOwnProperty.call(
+            this._sourcesContents, util.toSetString(source))
+            ? this._sourcesContents[util.toSetString(source)]
+            : null;
+        }, this);
       }
-
       return map;
     };
 
@@ -1543,7 +1366,7 @@ define('source-map/source-node', ['require', 'exports', 'module' ,  'source-map/
       return node;
 
       function addMappingWithCode(mapping, code) {
-        if (mapping === null || mapping.source === undefined) {
+        if (mapping.source === undefined) {
           node.add(code);
         } else {
           node.add(new SourceNode(mapping.originalLine,
@@ -1611,9 +1434,7 @@ define('source-map/source-node', ['require', 'exports', 'module' ,  'source-map/
    * @param aFn The traversal function.
    */
   SourceNode.prototype.walk = function SourceNode_walk(aFn) {
-    var chunk;
-    for (var i = 0, len = this.children.length; i < len; i++) {
-      chunk = this.children[i];
+    this.children.forEach(function (chunk) {
       if (chunk instanceof SourceNode) {
         chunk.walk(aFn);
       }
@@ -1625,7 +1446,7 @@ define('source-map/source-node', ['require', 'exports', 'module' ,  'source-map/
                        name: this.name });
         }
       }
-    }
+    }, this);
   };
 
   /**
@@ -1691,16 +1512,14 @@ define('source-map/source-node', ['require', 'exports', 'module' ,  'source-map/
    */
   SourceNode.prototype.walkSourceContents =
     function SourceNode_walkSourceContents(aFn) {
-      for (var i = 0, len = this.children.length; i < len; i++) {
-        if (this.children[i] instanceof SourceNode) {
-          this.children[i].walkSourceContents(aFn);
+      this.children.forEach(function (chunk) {
+        if (chunk instanceof SourceNode) {
+          chunk.walkSourceContents(aFn);
         }
-      }
-
-      var sources = Object.keys(this.sourceContents);
-      for (var i = 0, len = sources.length; i < len; i++) {
-        aFn(util.fromSetString(sources[i]), this.sourceContents[sources[i]]);
-      }
+      }, this);
+      Object.keys(this.sourceContents).forEach(function (sourceFileKey) {
+        aFn(util.fromSetString(sourceFileKey), this.sourceContents[sourceFileKey]);
+      }, this);
     };
 
   /**
@@ -1727,36 +1546,23 @@ define('source-map/source-node', ['require', 'exports', 'module' ,  'source-map/
     };
     var map = new SourceMapGenerator(aArgs);
     var sourceMappingActive = false;
-    var lastOriginalSource = null;
-    var lastOriginalLine = null;
-    var lastOriginalColumn = null;
-    var lastOriginalName = null;
     this.walk(function (chunk, original) {
       generated.code += chunk;
       if (original.source !== null
           && original.line !== null
           && original.column !== null) {
-        if(lastOriginalSource !== original.source
-           || lastOriginalLine !== original.line
-           || lastOriginalColumn !== original.column
-           || lastOriginalName !== original.name) {
-          map.addMapping({
-            source: original.source,
-            original: {
-              line: original.line,
-              column: original.column
-            },
-            generated: {
-              line: generated.line,
-              column: generated.column
-            },
-            name: original.name
-          });
-        }
-        lastOriginalSource = original.source;
-        lastOriginalLine = original.line;
-        lastOriginalColumn = original.column;
-        lastOriginalName = original.name;
+        map.addMapping({
+          source: original.source,
+          original: {
+            line: original.line,
+            column: original.column
+          },
+          generated: {
+            line: generated.line,
+            column: generated.column
+          },
+          name: original.name
+        });
         sourceMappingActive = true;
       } else if (sourceMappingActive) {
         map.addMapping({
@@ -1765,7 +1571,6 @@ define('source-map/source-node', ['require', 'exports', 'module' ,  'source-map/
             column: generated.column
           }
         });
-        lastOriginalSource = null;
         sourceMappingActive = false;
       }
       chunk.split('').forEach(function (ch) {

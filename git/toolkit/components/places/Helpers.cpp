@@ -210,8 +210,8 @@ Base64urlEncode(const uint8_t* aBytes,
                 uint32_t aNumBytes,
                 nsCString& _result)
 {
-  // SetLength does not set aside space for null termination.  PL_Base64Encode
-  // will not null terminate, however, nsCStrings must be null terminated.  As a
+  // SetLength does not set aside space for NULL termination.  PL_Base64Encode
+  // will not NULL terminate, however, nsCStrings must be NULL terminated.  As a
   // result, we set the capacity to be one greater than what we need, and the
   // length to our desired length.
   uint32_t length = (aNumBytes + 2) / 3 * 4; // +2 due to integer math.
@@ -300,7 +300,7 @@ GenerateGUID(nsCString& _guid)
 }
 
 bool
-IsValidGUID(const nsACString& aGUID)
+IsValidGUID(const nsCString& aGUID)
 {
   nsCString::size_type len = aGUID.Length();
   if (len != GUID_LENGTH) {
@@ -378,7 +378,7 @@ PlacesEvent::Notify()
   }
 }
 
-NS_IMPL_ISUPPORTS1(
+NS_IMPL_THREADSAFE_ISUPPORTS1(
   PlacesEvent
 , nsIRunnable
 )

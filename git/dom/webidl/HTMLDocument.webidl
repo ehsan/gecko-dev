@@ -6,30 +6,21 @@
 
 interface Selection;
 
-[OverrideBuiltins]
 interface HTMLDocument : Document {
            [Throws]
            attribute DOMString? domain;
            [Throws]
            attribute DOMString cookie;
   // DOM tree accessors
-  [Throws]
-  getter object (DOMString name);
-  [Pure, SetterThrows]
+  //(Not proxy yet)getter object (DOMString name);
+           [SetterThrows]
            attribute HTMLElement? body;
-  [Pure]
   readonly attribute HTMLHeadElement? head;
-  [Pure]
   readonly attribute HTMLCollection images;
-  [Pure]
   readonly attribute HTMLCollection embeds;
-  [Pure]
   readonly attribute HTMLCollection plugins;
-  [Pure]
   readonly attribute HTMLCollection links;
-  [Pure]
   readonly attribute HTMLCollection forms;
-  [Pure]
   readonly attribute HTMLCollection scripts;
   NodeList getElementsByName(DOMString elementName);
   NodeList getItems(optional DOMString typeNames = ""); // microdata
@@ -67,15 +58,10 @@ interface HTMLDocument : Document {
   [TreatNullAs=EmptyString] attribute DOMString alinkColor;
   [TreatNullAs=EmptyString] attribute DOMString bgColor;
 
-  [Pure]
   readonly attribute HTMLCollection anchors;
-  [Pure]
   readonly attribute HTMLCollection applets;
 
   void clear();
-
-  [Throws]
-  readonly attribute object all;
 
   // https://dvcs.w3.org/hg/editing/raw-file/tip/editing.html#selections
   [Throws]
@@ -86,4 +72,5 @@ interface HTMLDocument : Document {
   // XXXbz do we actually need these anymore?
   void                      captureEvents(long eventFlags);
   void                      releaseEvents(long eventFlags);
+  void                      routeEvent(Event evt);
 };

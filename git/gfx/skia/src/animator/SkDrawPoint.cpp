@@ -42,3 +42,5 @@ void SkDrawPoint::getBounds(SkRect* rect ) {
     rect->fLeft = rect->fRight = fPoint.fX;
     rect->fTop = rect->fBottom = fPoint.fY;
 }
+
+

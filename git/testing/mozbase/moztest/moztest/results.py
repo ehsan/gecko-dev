@@ -100,12 +100,6 @@ class TestResult(object):
         self.output = []
         self.reason = None
 
-    @property
-    def test_name(self):
-        return '%s.py %s.%s' % (self.test_class.split('.')[0],
-                                self.test_class,
-                                self.name)
-
     def __str__(self):
         return '%s | %s (%s) | %s' % (self.result or 'PENDING',
                                       self.name, self.test_class, self.reason)
@@ -196,14 +190,10 @@ class TestResult(object):
 class TestResultCollection(list):
     """ Container class that stores test results """
 
-    resultClass = TestResult
-
-    def __init__(self, suite_name, time_taken=0, resultClass=None):
+    def __init__(self, suite_name, time_taken=0):
         list.__init__(self)
         self.suite_name = suite_name
         self.time_taken = time_taken
-        if resultClass is not None:
-            self.resultClass = resultClass
 
     def __str__(self):
         return "%s (%.2fs)\n%s" % (self.suite_name, self.time_taken,
@@ -232,8 +222,8 @@ class TestResultCollection(list):
     def tests_with_result(self, result):
         """ Returns a generator of TestResults with the given result """
         msg = "Result '%s' not in possible results: %s" %\
-                    (result, ', '.join(self.resultClass.COMPUTED_RESULTS))
-        assert result in self.resultClass.COMPUTED_RESULTS, msg
+                    (result, ', '.join(TestResult.COMPUTED_RESULTS))
+        assert result in TestResult.COMPUTED_RESULTS, msg
         return self.filter(lambda t: t.result == result)
 
     @property
@@ -241,57 +231,58 @@ class TestResultCollection(list):
         """ Generator of all tests in the collection """
         return (t for t in self)
 
-    def add_result(self, test, result_expected='PASS',
-                        result_actual='PASS', output='', context=None):
-        def get_class(test):
-            return test.__class__.__module__ + '.' + test.__class__.__name__
-
-        t = self.resultClass(name=str(test).split()[0], test_class=get_class(test),
-                       time_start=0, result_expected=result_expected,
-                       context=context)
-        t.finish(result_actual, time_end=0, reason=relevant_line(output),
-                 output=output)
-        self.append(t)
-
     @property
     def num_failures(self):
         fails = 0
         for t in self:
-            if t.result in self.resultClass.FAIL_RESULTS:
+            if t.result in TestResult.FAIL_RESULTS:
                 fails += 1
         return fails
 
     def add_unittest_result(self, result, context=None):
         """ Adds the python unittest result provided to the collection"""
+
+        def get_class(test):
+            return test.__class__.__module__ + '.' + test.__class__.__name__
+
+        def add_test_result(test, result_expected='PASS',
+                            result_actual='PASS', output=''):
+            t = TestResult(name=str(test).split()[0], test_class=get_class(test),
+                           time_start=0, result_expected=result_expected,
+                           context=context)
+            t.finish(result_actual, time_end=0, reason=relevant_line(output),
+                     output=output)
+            self.append(t)
+
         if hasattr(result, 'time_taken'):
             self.time_taken += result.time_taken
 
         for test, output in result.errors:
-            self.add_result(test, result_actual='ERROR', output=output)
+            add_test_result(test, result_actual='ERROR', output=output)
 
         for test, output in result.failures:
-            self.add_result(test, result_actual='FAIL',
+            add_test_result(test, result_actual='FAIL',
                             output=output)
 
         if hasattr(result, 'unexpectedSuccesses'):
             for test in result.unexpectedSuccesses:
-                self.add_result(test, result_expected='FAIL',
+                add_test_result(test, result_expected='FAIL',
                                 result_actual='PASS')
 
         if hasattr(result, 'skipped'):
             for test, output in result.skipped:
-                self.add_result(test, result_expected='SKIP',
+                add_test_result(test, result_expected='SKIP',
                                 result_actual='SKIP', output=output)
 
         if hasattr(result, 'expectedFailures'):
             for test, output in result.expectedFailures:
-                self.add_result(test, result_expected='FAIL',
+                add_test_result(test, result_expected='FAIL',
                                 result_actual='FAIL', output=output)
 
         # unittest does not store these by default
         if hasattr(result, 'tests_passed'):
             for test in result.tests_passed:
-                self.add_result(test)
+                add_test_result(test)
 
     @classmethod
     def from_unittest_results(cls, context, *results):

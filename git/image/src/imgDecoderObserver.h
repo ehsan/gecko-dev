@@ -7,9 +7,8 @@
 #define MOZILLA_IMAGELIB_IMGDECODEROBSERVER_H_
 
 #include "nsRect.h"
+#include "mozilla/RefPtr.h"
 #include "mozilla/WeakPtr.h"
-
-struct nsIntRect;
 
 /**
  * imgDecoderObserver interface

@@ -11,25 +11,25 @@
 #include "nsObjCExceptions.h"
 #include "nsCocoaUtils.h"
 #include "nsCocoaWindow.h"
-#include "nsDOMEvent.h"
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMXULCommandEvent.h"
 #include "nsPIDOMWindow.h"
-
-using namespace mozilla;
 
 void nsMenuUtilsX::DispatchCommandTo(nsIContent* aTargetContent)
 {
   NS_PRECONDITION(aTargetContent, "null ptr");
 
   nsIDocument* doc = aTargetContent->OwnerDoc();
-  if (doc) {
-    ErrorResult rv;
-    nsRefPtr<nsDOMEvent> event =
-      doc->CreateEvent(NS_LITERAL_STRING("xulcommandevent"), rv);
-    nsCOMPtr<nsIDOMXULCommandEvent> command = do_QueryObject(event);
+  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(doc);
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aTargetContent);
+  if (domDoc && target) {
+    nsCOMPtr<nsIDOMEvent> event;
+    domDoc->CreateEvent(NS_LITERAL_STRING("xulcommandevent"),
+                        getter_AddRefs(event));
+    nsCOMPtr<nsIDOMXULCommandEvent> command = do_QueryInterface(event);
 
     // FIXME: Should probably figure out how to init this with the actual
     // pressed keys, but this is a big old edge case anyway. -dwh
@@ -41,7 +41,7 @@ void nsMenuUtilsX::DispatchCommandTo(nsIContent* aTargetContent)
                                                false, nullptr))) {
       event->SetTrusted(true);
       bool dummy;
-      aTargetContent->DispatchEvent(event, &dummy);
+      target->DispatchEvent(event, &dummy);
     }
   }
 }
@@ -54,8 +54,7 @@ NSString* nsMenuUtilsX::GetTruncatedCocoaLabel(const nsString& itemLabel)
   // good API for doing that which works for all OS versions and architectures. For now
   // we'll do nothing for consistency and depend on good user interface design to limit
   // string lengths.
-  return [NSString stringWithCharacters:reinterpret_cast<const unichar*>(itemLabel.get())
-                                 length:itemLabel.Length()];
+  return [NSString stringWithCharacters:itemLabel.get() length:itemLabel.Length()];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }

@@ -11,7 +11,6 @@
 #include "yuv_convert.h"
 #include "ycbcr_to_rgb565.h"
 #include "GeckoProfiler.h"
-#include "ImageContainer.h"
 
 #ifdef XP_WIN
 #include "gfxWindowsPlatform.h"
@@ -48,7 +47,7 @@ gfxUtils::PremultiplyImageSurface(gfxImageSurface *aSourceSurface,
                "Source surface stride isn't tightly packed");
 
     // Only premultiply ARGB32
-    if (aSourceSurface->Format() != gfxImageFormatARGB32) {
+    if (aSourceSurface->Format() != gfxASurface::ImageFormatARGB32) {
         if (aDestSurface != aSourceSurface) {
             memcpy(aDestSurface->Data(), aSourceSurface->Data(),
                    aSourceSurface->Stride() * aSourceSurface->Height());
@@ -102,7 +101,7 @@ gfxUtils::UnpremultiplyImageSurface(gfxImageSurface *aSourceSurface,
                "Source surface stride isn't tightly packed");
 
     // Only premultiply ARGB32
-    if (aSourceSurface->Format() != gfxImageFormatARGB32) {
+    if (aSourceSurface->Format() != gfxASurface::ImageFormatARGB32) {
         if (aDestSurface != aSourceSurface) {
             memcpy(aDestSurface->Data(), aSourceSurface->Data(),
                    aSourceSurface->Stride() * aSourceSurface->Height());
@@ -154,8 +153,8 @@ gfxUtils::ConvertBGRAtoRGBA(gfxImageSurface *aSourceSurface,
     MOZ_ASSERT(aSourceSurface->Stride() == aSourceSurface->Width() * 4,
                "Source surface stride isn't tightly packed");
 
-    MOZ_ASSERT(aSourceSurface->Format() == gfxImageFormatARGB32 || aSourceSurface->Format() == gfxImageFormatRGB24,
-               "Surfaces must be ARGB32 or RGB24");
+    MOZ_ASSERT(aSourceSurface->Format() == gfxASurface::ImageFormatARGB32,
+               "Surfaces must be ARGB32");
 
     uint8_t *src = aSourceSurface->Data();
     uint8_t *dst = aDestSurface->Data();
@@ -190,7 +189,6 @@ IsSafeImageTransformComponent(gfxFloat aValue)
   return aValue >= -32768 && aValue <= 32767;
 }
 
-#ifndef MOZ_GFX_OPTIMIZE_MOBILE
 /**
  * This returns the fastest operator to use for solid surfaces which have no
  * alpha channel or their alpha channel is uniformly opaque.
@@ -212,6 +210,7 @@ OptimalFillOperator()
 #endif
 }
 
+#ifndef MOZ_GFX_OPTIMIZE_MOBILE
 // EXTEND_PAD won't help us here; we have to create a temporary surface to hold
 // the subimage of pixels we're allowed to sample.
 static already_AddRefed<gfxDrawable>
@@ -220,7 +219,7 @@ CreateSamplingRestrictedDrawable(gfxDrawable* aDrawable,
                                  const gfxMatrix& aUserSpaceToImageSpace,
                                  const gfxRect& aSourceRect,
                                  const gfxRect& aSubimage,
-                                 const gfxImageFormat aFormat)
+                                 const gfxImageSurface::gfxImageFormat aFormat)
 {
     PROFILER_LABEL("gfxUtils", "CreateSamplingRestricedDrawable");
     gfxRect userSpaceClipExtents = aContext->GetClipExtents();
@@ -246,23 +245,16 @@ CreateSamplingRestrictedDrawable(gfxDrawable* aDrawable,
     if (needed.IsEmpty())
         return nullptr;
 
-    nsRefPtr<gfxASurface> temp;
     gfxIntSize size(int32_t(needed.Width()), int32_t(needed.Height()));
+    nsRefPtr<gfxASurface> temp =
+        gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, gfxASurface::ContentFromFormat(aFormat));
+    if (!temp || temp->CairoStatus())
+        return nullptr;
 
-    nsRefPtr<gfxImageSurface> image = aDrawable->GetAsImageSurface();
-    if (image && gfxRect(0, 0, image->GetSize().width, image->GetSize().height).Contains(needed)) {
-      temp = image->GetSubimage(needed);
-    } else {
-      temp =
-          gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, gfxASurface::ContentFromFormat(aFormat));
-      if (!temp || temp->CairoStatus())
-          return nullptr;
-
-      nsRefPtr<gfxContext> tmpCtx = new gfxContext(temp);
-      tmpCtx->SetOperator(OptimalFillOperator());
-      aDrawable->Draw(tmpCtx, needed - needed.TopLeft(), true,
-                      GraphicsFilter::FILTER_FAST, gfxMatrix().Translate(needed.TopLeft()));
-    }
+    nsRefPtr<gfxContext> tmpCtx = new gfxContext(temp);
+    tmpCtx->SetOperator(OptimalFillOperator());
+    aDrawable->Draw(tmpCtx, needed - needed.TopLeft(), true,
+                    gfxPattern::FILTER_FAST, gfxMatrix().Translate(needed.TopLeft()));
 
     nsRefPtr<gfxDrawable> drawable = 
         new gfxSurfaceDrawable(temp, size, gfxMatrix().Translate(-needed.TopLeft()));
@@ -281,7 +273,7 @@ struct MOZ_STACK_CLASS AutoCairoPixmanBugWorkaround
      : mContext(aContext), mSucceeded(true), mPushedGroup(false)
     {
         // Quartz's limits for matrix are much larger than pixman
-        if (!aSurface || aSurface->GetType() == gfxSurfaceTypeQuartz)
+        if (!aSurface || aSurface->GetType() == gfxASurface::SurfaceTypeQuartz)
             return;
 
         if (!IsSafeImageTransformComponent(aDeviceSpaceToImageSpace.xx) ||
@@ -310,7 +302,7 @@ struct MOZ_STACK_CLASS AutoCairoPixmanBugWorkaround
         bounds.RoundOut();
         mContext->Clip(bounds);
         mContext->SetMatrix(currentMatrix);
-        mContext->PushGroup(GFX_CONTENT_COLOR_ALPHA);
+        mContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
         mContext->SetOperator(gfxContext::OPERATOR_OVER);
 
         mPushedGroup = true;
@@ -349,9 +341,9 @@ DeviceToImageTransform(gfxContext* aContext,
 
 /* These heuristics are based on Source/WebCore/platform/graphics/skia/ImageSkia.cpp:computeResamplingMode() */
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
-static GraphicsFilter ReduceResamplingFilter(GraphicsFilter aFilter,
-                                             int aImgWidth, int aImgHeight,
-                                             float aSourceWidth, float aSourceHeight)
+static gfxPattern::GraphicsFilter ReduceResamplingFilter(gfxPattern::GraphicsFilter aFilter,
+                                                         int aImgWidth, int aImgHeight,
+                                                         float aSourceWidth, float aSourceHeight)
 {
     // Images smaller than this in either direction are considered "small" and
     // are not resampled ever (see below).
@@ -366,7 +358,7 @@ static GraphicsFilter ReduceResamplingFilter(GraphicsFilter aFilter,
         || aImgHeight <= kSmallImageSizeThreshold) {
         // Never resample small images. These are often used for borders and
         // rules (think 1x1 images used to make lines).
-        return GraphicsFilter::FILTER_NEAREST;
+        return gfxPattern::FILTER_NEAREST;
     }
 
     if (aImgHeight * kLargeStretch <= aSourceHeight || aImgWidth * kLargeStretch <= aSourceWidth) {
@@ -377,7 +369,7 @@ static GraphicsFilter ReduceResamplingFilter(GraphicsFilter aFilter,
         // (which might be large) and then is stretching it to fill some part
         // of the page.
         if (fabs(aSourceWidth - aImgWidth)/aImgWidth < 0.5 || fabs(aSourceHeight - aImgHeight)/aImgHeight < 0.5)
-            return GraphicsFilter::FILTER_NEAREST;
+            return gfxPattern::FILTER_NEAREST;
 
         // The image is growing a lot and in more than one direction. Resampling
         // is slow and doesn't give us very much when growing a lot.
@@ -405,9 +397,9 @@ static GraphicsFilter ReduceResamplingFilter(GraphicsFilter aFilter,
     return aFilter;
 }
 #else
-static GraphicsFilter ReduceResamplingFilter(GraphicsFilter aFilter,
-                                             int aImgWidth, int aImgHeight,
-                                             int aSourceWidth, int aSourceHeight)
+static gfxPattern::GraphicsFilter ReduceResamplingFilter(gfxPattern::GraphicsFilter aFilter,
+                                                          int aImgWidth, int aImgHeight,
+                                                          int aSourceWidth, int aSourceHeight)
 {
     // Just pass the filter through unchanged
     return aFilter;
@@ -422,8 +414,8 @@ gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
                            const gfxRect&   aSourceRect,
                            const gfxRect&   aImageRect,
                            const gfxRect&   aFill,
-                           const gfxImageFormat aFormat,
-                           GraphicsFilter aFilter,
+                           const gfxImageSurface::gfxImageFormat aFormat,
+                           gfxPattern::GraphicsFilter aFilter,
                            uint32_t         aImageFlags)
 {
     PROFILER_LABEL("gfxUtils", "DrawPixelSnapped");
@@ -482,18 +474,26 @@ gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
     }
 #endif
 
+    gfxContext::GraphicsOperator op = aContext->CurrentOperator();
+    if ((op == gfxContext::OPERATOR_OVER || workaround.PushedGroup()) &&
+        aFormat == gfxASurface::ImageFormatRGB24) {
+        aContext->SetOperator(OptimalFillOperator());
+    }
+
     drawable->Draw(aContext, aFill, doTile, aFilter, userSpaceToImageSpace);
+
+    aContext->SetOperator(op);
 }
 
 /* static */ int
-gfxUtils::ImageFormatToDepth(gfxImageFormat aFormat)
+gfxUtils::ImageFormatToDepth(gfxASurface::gfxImageFormat aFormat)
 {
     switch (aFormat) {
-        case gfxImageFormatARGB32:
+        case gfxASurface::ImageFormatARGB32:
             return 32;
-        case gfxImageFormatRGB24:
+        case gfxASurface::ImageFormatRGB24:
             return 24;
-        case gfxImageFormatRGB16_565:
+        case gfxASurface::ImageFormatRGB16_565:
             return 16;
         default:
             break;
@@ -575,12 +575,6 @@ ClipToRegionInternal(gfx::DrawTarget* aTarget, const nsIntRegion& aRegion,
 gfxUtils::ClipToRegion(gfxContext* aContext, const nsIntRegion& aRegion)
 {
   ClipToRegionInternal(aContext, aRegion, false);
-}
-
-/*static*/ void
-gfxUtils::ClipToRegion(DrawTarget* aTarget, const nsIntRegion& aRegion)
-{
-  ClipToRegionInternal(aTarget, aRegion, false);
 }
 
 /*static*/ void
@@ -683,8 +677,8 @@ gfxUtils::GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut)
 }
 
 void
-gfxUtils::GetYCbCrToRGBDestFormatAndSize(const PlanarYCbCrData& aData,
-                                         gfxImageFormat& aSuggestedFormat,
+gfxUtils::GetYCbCrToRGBDestFormatAndSize(const PlanarYCbCrImage::Data& aData,
+                                         gfxASurface::gfxImageFormat& aSuggestedFormat,
                                          gfxIntSize& aSuggestedSize)
 {
   gfx::YUVType yuvtype =
@@ -698,7 +692,7 @@ gfxUtils::GetYCbCrToRGBDestFormatAndSize(const PlanarYCbCrData& aData,
   bool prescale = aSuggestedSize.width > 0 && aSuggestedSize.height > 0 &&
                     aSuggestedSize != aData.mPicSize;
 
-  if (aSuggestedFormat == gfxImageFormatRGB16_565) {
+  if (aSuggestedFormat == gfxASurface::ImageFormatRGB16_565) {
 #if defined(HAVE_YCBCR_TO_RGB565)
     if (prescale &&
         !gfx::IsScaleYCbCrToRGB565Fast(aData.mPicX,
@@ -718,14 +712,14 @@ gfxUtils::GetYCbCrToRGBDestFormatAndSize(const PlanarYCbCrData& aData,
     }
 #else
     // yuv2rgb16 function not available
-    aSuggestedFormat = gfxImageFormatRGB24;
+    aSuggestedFormat = gfxASurface::ImageFormatRGB24;
 #endif
   }
-  else if (aSuggestedFormat != gfxImageFormatRGB24) {
+  else if (aSuggestedFormat != gfxASurface::ImageFormatRGB24) {
     // No other formats are currently supported.
-    aSuggestedFormat = gfxImageFormatRGB24;
+    aSuggestedFormat = gfxASurface::ImageFormatRGB24;
   }
-  if (aSuggestedFormat == gfxImageFormatRGB24) {
+  if (aSuggestedFormat == gfxASurface::ImageFormatRGB24) {
     /* ScaleYCbCrToRGB32 does not support a picture offset, nor 4:4:4 data.
        See bugs 639415 and 640073. */
     if (aData.mPicX != 0 || aData.mPicY != 0 || yuvtype == gfx::YV24)
@@ -737,8 +731,8 @@ gfxUtils::GetYCbCrToRGBDestFormatAndSize(const PlanarYCbCrData& aData,
 }
 
 void
-gfxUtils::ConvertYCbCrToRGB(const PlanarYCbCrData& aData,
-                            const gfxImageFormat& aDestFormat,
+gfxUtils::ConvertYCbCrToRGB(const PlanarYCbCrImage::Data& aData,
+                            const gfxASurface::gfxImageFormat& aDestFormat,
                             const gfxIntSize& aDestSize,
                             unsigned char* aDestBuffer,
                             int32_t aStride)
@@ -758,7 +752,7 @@ gfxUtils::ConvertYCbCrToRGB(const PlanarYCbCrData& aData,
   // Convert from YCbCr to RGB now, scaling the image if needed.
   if (aDestSize != aData.mPicSize) {
 #if defined(HAVE_YCBCR_TO_RGB565)
-    if (aDestFormat == gfxImageFormatRGB16_565) {
+    if (aDestFormat == gfxASurface::ImageFormatRGB16_565) {
       gfx::ScaleYCbCrToRGB565(aData.mYChannel,
                               aData.mCbChannel,
                               aData.mCrChannel,
@@ -792,7 +786,7 @@ gfxUtils::ConvertYCbCrToRGB(const PlanarYCbCrData& aData,
                              gfx::FILTER_BILINEAR);
   } else { // no prescale
 #if defined(HAVE_YCBCR_TO_RGB565)
-    if (aDestFormat == gfxImageFormatRGB16_565) {
+    if (aDestFormat == gfxASurface::ImageFormatRGB16_565) {
       gfx::ConvertYCbCrToRGB565(aData.mYChannel,
                                 aData.mCbChannel,
                                 aData.mCrChannel,
@@ -805,7 +799,7 @@ gfxUtils::ConvertYCbCrToRGB(const PlanarYCbCrData& aData,
                                 aData.mCbCrStride,
                                 aStride,
                                 yuvtype);
-    } else // aDestFormat != gfxImageFormatRGB16_565
+    } else // aDestFormat != gfxASurface::ImageFormatRGB16_565
 #endif
       gfx::ConvertYCbCrToRGB32(aData.mYChannel,
                                aData.mCbChannel,
@@ -862,5 +856,5 @@ gfxUtils::CopyAsDataURL(DrawTarget* aDT)
 bool gfxUtils::sDumpPaintList = getenv("MOZ_DUMP_PAINT_LIST") != 0;
 bool gfxUtils::sDumpPainting = getenv("MOZ_DUMP_PAINT") != 0;
 bool gfxUtils::sDumpPaintingToFile = getenv("MOZ_DUMP_PAINT_TO_FILE") != 0;
-FILE *gfxUtils::sDumpPaintFile = nullptr;
+FILE *gfxUtils::sDumpPaintFile = NULL;
 #endif

@@ -77,7 +77,7 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsRenderingContext *aContext,
     return nullptr;
 
   nsRefPtr<gfxImageSurface> image =
-    new gfxImageSurface(surfaceSize, gfxImageFormatARGB32);
+    new gfxImageSurface(surfaceSize, gfxASurface::ImageFormatARGB32);
   if (!image || image->CairoStatus())
     return nullptr;
 
@@ -126,9 +126,17 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsRenderingContext *aContext,
     nsSVGUtils::ComputeAlphaMask(data, stride, rect, aOpacity);
   }
 
-  nsRefPtr<gfxPattern> retval = new gfxPattern(image);
+  gfxPattern *retval = new gfxPattern(image);
   retval->SetMatrix(matrix);
-  return retval.forget();
+  NS_IF_ADDREF(retval);
+  return retval;
+}
+
+/* virtual */ void
+nsSVGMaskFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+{
+  nsSVGEffects::InvalidateDirectRenderingObservers(this);
+  nsSVGMaskFrameBase::DidSetStyleContext(aOldStyleContext);
 }
 
 NS_IMETHODIMP
@@ -170,7 +178,7 @@ nsSVGMaskFrame::GetType() const
 }
 
 gfxMatrix
-nsSVGMaskFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
+nsSVGMaskFrame::GetCanvasTM(uint32_t aFor)
 {
   NS_ASSERTION(mMaskParentMatrix, "null parent matrix");
 

@@ -15,7 +15,6 @@
 
 #ifdef XP_WIN
 #include <objbase.h>
-bool ShouldProtectPluginCurrentDirectory(LPCWSTR pluginFilePath);
 #endif
 
 using mozilla::ipc::IOThreadChild;
@@ -37,7 +36,6 @@ std::size_t caseInsensitiveFind(std::string aHaystack, std::string aNeedle) {
 
 namespace mozilla {
 namespace plugins {
-
 
 bool
 PluginProcessChild::Init()
@@ -81,7 +79,7 @@ PluginProcessChild::Init()
 #ifdef XP_WIN
     // Drag-and-drop needs OleInitialize to be called, and Silverlight depends
     // on the host calling CoInitialize (which is called by OleInitialize).
-    ::OleInitialize(nullptr);
+    ::OleInitialize(NULL);
 #endif
 
     // Certain plugins, such as flash, steal the unhandled exception filter
@@ -104,12 +102,21 @@ PluginProcessChild::Init()
         CommandLine::ForCurrentProcess()->GetLooseValues();
     NS_ABORT_IF_FALSE(values.size() >= 1, "not enough loose args");
 
-    if (ShouldProtectPluginCurrentDirectory(values[0].c_str())) {
+    pluginFilename = WideToUTF8(values[0]);
+
+    bool protectCurrentDirectory = true;
+    // Don't use SetDllDirectory for Shockwave Director
+    const std::string shockwaveDirectorPluginFilename("\\np32dsw.dll");
+    std::size_t index = caseInsensitiveFind(pluginFilename, shockwaveDirectorPluginFilename);
+    if (index != std::string::npos &&
+        index + shockwaveDirectorPluginFilename.length() == pluginFilename.length()) {
+        protectCurrentDirectory = false;
+    }
+    if (protectCurrentDirectory) {
         SanitizeEnvironmentVariables();
         SetDllDirectory(L"");
     }
 
-    pluginFilename = WideToUTF8(values[0]);
 #else
 #  error Sorry
 #endif

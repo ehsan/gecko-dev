@@ -9,6 +9,8 @@
 
 /*
  * secoid.h - public data structures and prototypes for ASN.1 OID functions
+ *
+ * $Id$
  */
 
 #include "plarena.h"
@@ -54,12 +56,12 @@ extern SECStatus SECOID_SetAlgorithmID(PLArenaPool *arena, SECAlgorithmID *aid,
 ** to do that).
 */
 extern SECStatus SECOID_CopyAlgorithmID(PLArenaPool *arena, SECAlgorithmID *dest,
-				        const SECAlgorithmID *src);
+				    SECAlgorithmID *src);
 
 /*
 ** Get the tag number for the given algorithm-id object.
 */
-extern SECOidTag SECOID_GetAlgorithmTag(const SECAlgorithmID *aid);
+extern SECOidTag SECOID_GetAlgorithmTag(SECAlgorithmID *aid);
 
 /*
 ** Destroy an algorithm-id object.

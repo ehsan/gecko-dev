@@ -8,6 +8,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
     TEST_DIRS += ['test']
 
 XPIDL_SOURCES += [
+    'nsIDOMPowerManager.idl',
     'nsIDOMWakeLock.idl',
     'nsIDOMWakeLockListener.idl',
     'nsIPowerManagerService.idl',
@@ -15,26 +16,8 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'dom_power'
 
-EXPORTS.mozilla.dom += [
-    'PowerManager.h',
-]
-
 EXPORTS.mozilla.dom.power += [
     'PowerManagerService.h',
     'Types.h',
 ]
-
-SOURCES += [
-    'PowerManager.cpp',
-    'PowerManagerService.cpp',
-    'WakeLock.cpp',
-]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'dom_power_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

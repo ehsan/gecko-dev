@@ -13,7 +13,7 @@ var InputWidgetHelper = {
   handleClick: function(aTarget) {
     // if we're busy looking at a InputWidget we want to eat any clicks that
     // come to us, but not to process them
-    if (this._uiBusy || !this.hasInputWidget(aTarget))
+    if (this._uiBusy || !this._isValidInput(aTarget))
       return;
 
     this._uiBusy = true;
@@ -23,44 +23,47 @@ var InputWidgetHelper = {
 
   show: function(aElement) {
     let type = aElement.getAttribute('type');
-    let p = new Prompt({
-      window: aElement.ownerDocument.defaultView,
+    let msg = {
+      type: "Prompt:Show",
       title: Strings.browser.GetStringFromName("inputWidgetHelper." + aElement.getAttribute('type')),
       buttons: [
         Strings.browser.GetStringFromName("inputWidgetHelper.set"),
         Strings.browser.GetStringFromName("inputWidgetHelper.clear"),
         Strings.browser.GetStringFromName("inputWidgetHelper.cancel")
       ],
-    }).addDatePicker({
-      value: aElement.value,
-      type: type,
-    }).show((function(data) {
-      let changed = false;
-      if (data.button == -1) {
-        // This type is not supported with this android version.
-        return;
-      }
-      if (data.button == 1) {
-        // The user cleared the value.
-        if (aElement.value != "") {
-          aElement.value = "";
-          changed = true;
-        }
-      } else if (data.button == 0) {
-        // Commit the new value.
-        if (aElement.value != data[type]) {
-          aElement.value = data[type + "0"];
-          changed = true;
-        }
-      }
-      // Else the user canceled the input.
+      inputs: [
+        { type: type, value: aElement.value }
+      ]
+    };
 
-      if (changed)
-        this.fireOnChange(aElement);
-    }).bind(this));
+    let data = JSON.parse(sendMessageToJava(msg));
+
+    let changed = false;
+    if (data.button == -1) {
+      // This type is not supported with this android version.
+      return;
+    }
+    if (data.button == 1) {
+      // The user cleared the value.
+      if (aElement.value != "") {
+        aElement.value = "";
+        changed = true;
+      }
+    } else if (data.button == 0) {
+      // Commit the new value.
+      if (aElement.value != data[type]) {
+        aElement.value = data[type];
+        changed = true;
+      }
+    }
+    // Else the user canceled the input.
+
+    if (changed)
+      this.fireOnChange(aElement);
+
   },
 
-  hasInputWidget: function(aElement) {
+  _isValidInput: function(aElement) {
     if (!aElement instanceof HTMLInputElement)
       return false;
 

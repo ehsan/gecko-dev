@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -46,20 +45,18 @@
  *       }
  *
  *       void notifyObservers(char* topic) {
- *         for (Observer* o = list.getFirst(); o != nullptr; o = o->getNext())
- *           o->observe(topic);
+ *         for (Observer* o = list.getFirst(); o != NULL; o = o->getNext())
+ *           o->Observe(topic);
  *       }
  *   };
  *
  */
 
-#ifndef mozilla_LinkedList_h
-#define mozilla_LinkedList_h
+#ifndef mozilla_LinkedList_h_
+#define mozilla_LinkedList_h_
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Move.h"
-#include "mozilla/NullPtr.h"
 
 #ifdef __cplusplus
 
@@ -72,10 +69,10 @@ template<typename T>
 class LinkedListElement
 {
     /*
-     * It's convenient that we return nullptr when getNext() or getPrevious()
-     * hits the end of the list, but doing so costs an extra word of storage in
-     * each linked list node (to keep track of whether |this| is the sentinel
-     * node) and a branch on this value in getNext/getPrevious.
+     * It's convenient that we return NULL when getNext() or getPrevious() hits
+     * the end of the list, but doing so costs an extra word of storage in each
+     * linked list node (to keep track of whether |this| is the sentinel node)
+     * and a branch on this value in getNext/getPrevious.
      *
      * We could get rid of the extra word of storage by shoving the "is
      * sentinel" bit into one of the pointers, although this would, of course,
@@ -110,42 +107,14 @@ class LinkedListElement
     LinkedListElement* prev;
     const bool isSentinel;
 
+    LinkedListElement* thisDuringConstruction() { return this; }
+
   public:
     LinkedListElement()
-      : next(MOZ_THIS_IN_INITIALIZER_LIST()),
-        prev(MOZ_THIS_IN_INITIALIZER_LIST()),
+      : next(thisDuringConstruction()),
+        prev(thisDuringConstruction()),
         isSentinel(false)
     { }
-
-    LinkedListElement(LinkedListElement<T>&& other)
-      : isSentinel(other.isSentinel)
-    {
-      if (!other.isInList()) {
-        next = this;
-        prev = this;
-        return;
-      }
-
-      MOZ_ASSERT(other.next->prev == &other);
-      MOZ_ASSERT(other.prev->next == &other);
-
-      /*
-       * Initialize |this| with |other|'s prev/next pointers, and adjust those
-       * element to point to this one.
-       */
-      next = other.next;
-      prev = other.prev;
-
-      next->prev = this;
-      prev->next = this;
-
-      /*
-       * Adjust |other| so it doesn't think it's in a list.  This makes it
-       * safely destructable.
-       */
-      other.next = &other;
-      other.prev = &other;
-    }
 
     ~LinkedListElement() {
       if (!isSentinel && isInList())
@@ -153,8 +122,8 @@ class LinkedListElement
     }
 
     /*
-     * Get the next element in the list, or nullptr if this is the last element
-     * in the list.
+     * Get the next element in the list, or NULL if this is the last element in
+     * the list.
      */
     T* getNext() {
       return next->asT();
@@ -164,8 +133,8 @@ class LinkedListElement
     }
 
     /*
-     * Get the previous element in the list, or nullptr if this is the first
-     * element in the list.
+     * Get the previous element in the list, or NULL if this is the first element
+     * in the list.
      */
     T* getPrevious() {
       return prev->asT();
@@ -179,8 +148,8 @@ class LinkedListElement
      * linked list when you call setNext(); otherwise, this method will assert.
      */
     void setNext(T* elem) {
-      MOZ_ASSERT(isInList());
-      setNextUnsafe(elem);
+        MOZ_ASSERT(isInList());
+        setNextUnsafe(elem);
     }
 
     /*
@@ -232,24 +201,24 @@ class LinkedListElement
     };
 
     LinkedListElement(NodeKind nodeKind)
-      : next(MOZ_THIS_IN_INITIALIZER_LIST()),
-        prev(MOZ_THIS_IN_INITIALIZER_LIST()),
+      : next(thisDuringConstruction()),
+        prev(thisDuringConstruction()),
         isSentinel(nodeKind == NODE_KIND_SENTINEL)
     { }
 
     /*
-     * Return |this| cast to T* if we're a normal node, or return nullptr if
-     * we're a sentinel node.
+     * Return |this| cast to T* if we're a normal node, or return NULL if we're
+     * a sentinel node.
      */
     T* asT() {
       if (isSentinel)
-        return nullptr;
+        return NULL;
 
       return static_cast<T*>(this);
     }
     const T* asT() const {
       if (isSentinel)
-        return nullptr;
+        return NULL;
 
       return static_cast<const T*>(this);
     }
@@ -283,8 +252,8 @@ class LinkedListElement
     }
 
   private:
-    LinkedListElement& operator=(const LinkedListElement<T>& other) MOZ_DELETE;
-    LinkedListElement(const LinkedListElement<T>& other) MOZ_DELETE;
+    LinkedListElement& operator=(const LinkedList<T>& other) MOZ_DELETE;
+    LinkedListElement(const LinkedList<T>& other) MOZ_DELETE;
 };
 
 template<typename T>
@@ -295,10 +264,6 @@ class LinkedList
 
   public:
     LinkedList() : sentinel(LinkedListElement<T>::NODE_KIND_SENTINEL) { }
-
-    LinkedList(LinkedList<T>&& other)
-      : sentinel(mozilla::Move(other.sentinel))
-    { }
 
     ~LinkedList() {
       MOZ_ASSERT(isEmpty());
@@ -320,7 +285,7 @@ class LinkedList
     }
 
     /*
-     * Get the first element of the list, or nullptr if the list is empty.
+     * Get the first element of the list, or NULL if the list is empty.
      */
     T* getFirst() {
       return sentinel.getNext();
@@ -330,7 +295,7 @@ class LinkedList
     }
 
     /*
-     * Get the last element of the list, or nullptr if the list is empty.
+     * Get the last element of the list, or NULL if the list is empty.
      */
     T* getLast() {
       return sentinel.getPrevious();
@@ -341,7 +306,7 @@ class LinkedList
 
     /*
      * Get and remove the first element of the list.  If the list is empty,
-     * return nullptr.
+     * return NULL.
      */
     T* popFirst() {
       T* ret = sentinel.getNext();
@@ -352,7 +317,7 @@ class LinkedList
 
     /*
      * Get and remove the last element of the list.  If the list is empty,
-     * return nullptr.
+     * return NULL.
      */
     T* popLast() {
       T* ret = sentinel.getPrevious();
@@ -396,7 +361,7 @@ class LinkedList
       for (slow = sentinel.next,
            fast1 = sentinel.next->next,
            fast2 = sentinel.next->next->next;
-           slow != &sentinel && fast1 != &sentinel && fast2 != &sentinel;
+           slow != sentinel && fast1 != sentinel && fast2 != sentinel;
            slow = slow->next, fast1 = fast2->next, fast2 = fast1->next)
       {
         MOZ_ASSERT(slow != fast1);
@@ -407,7 +372,7 @@ class LinkedList
       for (slow = sentinel.prev,
            fast1 = sentinel.prev->prev,
            fast2 = sentinel.prev->prev->prev;
-           slow != &sentinel && fast1 != &sentinel && fast2 != &sentinel;
+           slow != sentinel && fast1 != sentinel && fast2 != sentinel;
            slow = slow->prev, fast1 = fast2->prev, fast2 = fast1->prev)
       {
         MOZ_ASSERT(slow != fast1);
@@ -419,14 +384,14 @@ class LinkedList
        * isSentinel == true.
        */
       for (const LinkedListElement<T>* elem = sentinel.next;
-           elem != &sentinel;
+           elem != sentinel;
            elem = elem->next)
       {
         MOZ_ASSERT(!elem->isSentinel);
       }
 
       /* Check that the next/prev pointers match up. */
-      const LinkedListElement<T>* prev = &sentinel;
+      const LinkedListElement<T>* prev = sentinel;
       const LinkedListElement<T>* cur = sentinel.next;
       do {
           MOZ_ASSERT(cur->prev == prev);
@@ -434,7 +399,7 @@ class LinkedList
 
           prev = cur;
           cur = cur->next;
-      } while (cur != &sentinel);
+      } while (cur != sentinel);
 #endif /* ifdef DEBUG */
     }
 
@@ -450,7 +415,7 @@ class LinkedList
         if (elem == t)
           return;
       }
-      MOZ_CRASH("element wasn't found in this list!");
+      MOZ_NOT_REACHED("element wasn't found in this list!");
 #endif
     }
 
@@ -460,6 +425,5 @@ class LinkedList
 
 } /* namespace mozilla */
 
-#endif /* __cplusplus */
-
-#endif /* mozilla_LinkedList_h */
+#endif /* ifdef __cplusplus */
+#endif /* ifdef mozilla_LinkedList_h_ */

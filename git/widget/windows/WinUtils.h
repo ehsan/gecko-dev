@@ -9,56 +9,25 @@
 #include "nscore.h"
 #include <windows.h>
 #include <shobjidl.h>
-#include <uxtheme.h>
-#include <dwmapi.h>
 #include "nsAutoPtr.h"
 #include "nsString.h"
 #include "nsRegion.h"
+#include "nsRect.h"
 
-#include "nsIRunnable.h"
+#include "nsThreadUtils.h"
 #include "nsICryptoHash.h"
 #ifdef MOZ_PLACES
 #include "nsIFaviconService.h"
 #endif
 #include "nsIDownloader.h"
 #include "nsIURI.h"
-#include "nsIWidget.h"
 
 #include "mozilla/Attributes.h"
 
 class nsWindow;
-class nsWindowBase;
-struct KeyPair;
-struct nsIntRect;
-class nsIThread;
 
 namespace mozilla {
 namespace widget {
-
-// More complete QS definitions for MsgWaitForMultipleObjects() and
-// GetQueueStatus() that include newer win8 specific defines.
-
-#ifndef QS_RAWINPUT
-#define QS_RAWINPUT 0x0400
-#endif
-
-#ifndef QS_TOUCH
-#define QS_TOUCH    0x0800
-#define QS_POINTER  0x1000
-#endif
-
-#define MOZ_QS_ALLEVENT (QS_KEY | QS_MOUSEMOVE | QS_MOUSEBUTTON | \
-                         QS_POSTMESSAGE | QS_TIMER | QS_PAINT |   \
-                         QS_SENDMESSAGE | QS_HOTKEY |             \
-                         QS_ALLPOSTMESSAGE | QS_RAWINPUT |        \
-                         QS_TOUCH | QS_POINTER)
-
-// Logging macros
-#define LogFunction() mozilla::widget::WinUtils::Log(__FUNCTION__)
-#define LogThread() mozilla::widget::WinUtils::Log("%s: IsMainThread:%d ThreadId:%X", __FUNCTION__, NS_IsMainThread(), GetCurrentThreadId())
-#define LogThis() mozilla::widget::WinUtils::Log("[%X] %s", this, __FUNCTION__)
-#define LogException(e) mozilla::widget::WinUtils::Log("%s Exception:%s", __FUNCTION__, e->ToString()->Data())
-#define LogHRESULT(hr) mozilla::widget::WinUtils::Log("%s hr=%X", __FUNCTION__, hr)
 
 class myDownloadObserver MOZ_FINAL : public nsIDownloadObserver
 {
@@ -73,22 +42,12 @@ public:
     WINXP_VERSION     = 0x501,
     WIN2K3_VERSION    = 0x502,
     VISTA_VERSION     = 0x600,
+    // WIN2K8_VERSION    = VISTA_VERSION,
     WIN7_VERSION      = 0x601,
-    WIN8_VERSION      = 0x602,
-    WIN8_1_VERSION    = 0x603
+    // WIN2K8R2_VERSION  = WIN7_VERSION
+    WIN8_VERSION      = 0x602
   };
   static WinVersion GetWindowsVersion();
-
-  // Retrieves the Service Pack version number.
-  // Returns true on success, false on failure.
-  static bool GetWindowsServicePackVersion(UINT& aOutMajor, UINT& aOutMinor);
-
-  /**
-   * Logging helpers that dump output to prlog module 'Widget', console, and
-   * OutputDebugString. Note these output in both debug and release builds.
-   */
-  static void Log(const char *fmt, ...);
-  static void LogW(const wchar_t *fmt, ...);
 
   /**
    * PeekMessage() and GetMessage() are wrapper methods for PeekMessageW(),
@@ -100,19 +59,6 @@ public:
                           UINT aLastMessage, UINT aOption);
   static bool GetMessage(LPMSG aMsg, HWND aWnd, UINT aFirstMessage,
                          UINT aLastMessage);
-
-  /**
-   * Wait until a message is ready to be processed.
-   * Prefer using this method to directly calling ::WaitMessage since
-   * ::WaitMessage will wait if there is an unread message in the queue.
-   * That can cause freezes until another message enters the queue if the
-   * message is marked read by a call to PeekMessage which the caller is
-   * not aware of (e.g., from a different thread).
-   * Note that this method may cause sync dispatch of sent (as opposed to
-   * posted) messages.
-   */
-  static void WaitForMessage();
-
   /**
    * Gets the value of a string-typed registry value.
    *
@@ -170,15 +116,12 @@ public:
                               bool aStopIfNotPopup = true);
 
   /**
-   * SetNSWindowBasePtr() associates an nsWindowBase to aWnd.  If aWidget is
-   * nullptr, it dissociate any nsBaseWidget pointer from aWnd.
-   * GetNSWindowBasePtr() returns an nsWindowBase pointer which was associated by
-   * SetNSWindowBasePtr().
-   * GetNSWindowPtr() is a legacy api for win32 nsWindow and should be avoided
-   * outside of nsWindow src.
+   * SetNSWindowPtr() associates an nsWindow to aWnd.  If aWindow is NULL,
+   * it dissociate any nsWindow pointer from aWnd.
+   * GetNSWindowPtr() returns an nsWindow pointer which was associated by
+   * SetNSWindowPtr().
    */
-  static bool SetNSWindowBasePtr(HWND aWnd, nsWindowBase* aWidget);
-  static nsWindowBase* GetNSWindowBasePtr(HWND aWnd);
+  static bool SetNSWindowPtr(HWND aWnd, nsWindow* aWindow);
   static nsWindow* GetNSWindowPtr(HWND aWnd);
 
   /**
@@ -195,9 +138,9 @@ public:
   /**
    * FindOurProcessWindow() returns the nearest ancestor window which
    * belongs to our process.  If it fails to find our process's window by the
-   * top level window, returns nullptr.  And note that this is using
-   * ::GetParent() for climbing the window hierarchy, therefore, it gives
-   * up at an owned top level window except popup window (e.g., dialog).
+   * top level window, returns NULL.  And note that this is using ::GetParent()
+   * for climbing the window hierarchy, therefore, it gives up at an owned top
+   * level window except popup window (e.g., dialog).
    */
   static HWND FindOurProcessWindow(HWND aWnd);
 
@@ -214,7 +157,7 @@ public:
    * InitMSG() returns an MSG struct which was initialized by the params.
    * Don't trust the other members in the result.
    */
-  static MSG InitMSG(UINT aMessage, WPARAM wParam, LPARAM lParam, HWND aWnd);
+  static MSG InitMSG(UINT aMessage, WPARAM wParam, LPARAM lParam);
 
   /**
    * GetScanCode() returns a scan code for the LPARAM of WM_KEYDOWN, WM_KEYUP,
@@ -297,42 +240,6 @@ public:
    */
   static nsIntRect ToIntRect(const RECT& aRect);
 
-  /**
-   * Returns true if the context or IME state is enabled.  Otherwise, false.
-   */
-  static bool IsIMEEnabled(const InputContext& aInputContext);
-  static bool IsIMEEnabled(IMEState::Enabled aIMEState);
-
-  /**
-   * Returns modifier key array for aModifiers.  This is for
-   * nsIWidget::SynthethizeNative*Event().
-   */
-  static void SetupKeyModifiersSequence(nsTArray<KeyPair>* aArray,
-                                        uint32_t aModifiers);
-
-  // dwmapi.dll function typedefs and declarations
-  typedef HRESULT (WINAPI*DwmExtendFrameIntoClientAreaProc)(HWND hWnd, const MARGINS *pMarInset);
-  typedef HRESULT (WINAPI*DwmIsCompositionEnabledProc)(BOOL *pfEnabled);
-  typedef HRESULT (WINAPI*DwmSetIconicThumbnailProc)(HWND hWnd, HBITMAP hBitmap, DWORD dwSITFlags);
-  typedef HRESULT (WINAPI*DwmSetIconicLivePreviewBitmapProc)(HWND hWnd, HBITMAP hBitmap, POINT *pptClient, DWORD dwSITFlags);
-  typedef HRESULT (WINAPI*DwmGetWindowAttributeProc)(HWND hWnd, DWORD dwAttribute, LPCVOID pvAttribute, DWORD cbAttribute);
-  typedef HRESULT (WINAPI*DwmSetWindowAttributeProc)(HWND hWnd, DWORD dwAttribute, LPCVOID pvAttribute, DWORD cbAttribute);
-  typedef HRESULT (WINAPI*DwmInvalidateIconicBitmapsProc)(HWND hWnd);
-  typedef HRESULT (WINAPI*DwmDefWindowProcProc)(HWND hWnd, UINT msg, LPARAM lParam, WPARAM wParam, LRESULT *aRetValue);
-  typedef HRESULT (WINAPI*DwmGetCompositionTimingInfoProc)(HWND hWnd, DWM_TIMING_INFO *info);
-
-  static DwmExtendFrameIntoClientAreaProc dwmExtendFrameIntoClientAreaPtr;
-  static DwmIsCompositionEnabledProc dwmIsCompositionEnabledPtr;
-  static DwmSetIconicThumbnailProc dwmSetIconicThumbnailPtr;
-  static DwmSetIconicLivePreviewBitmapProc dwmSetIconicLivePreviewBitmapPtr;
-  static DwmGetWindowAttributeProc dwmGetWindowAttributePtr;
-  static DwmSetWindowAttributeProc dwmSetWindowAttributePtr;
-  static DwmInvalidateIconicBitmapsProc dwmInvalidateIconicBitmapsPtr;
-  static DwmDefWindowProcProc dwmDwmDefWindowProcPtr;
-  static DwmGetCompositionTimingInfoProc dwmGetCompositionTimingInfoPtr;
-
-  static void Initialize();
-
 private:
   typedef HRESULT (WINAPI * SHCreateItemFromParsingNamePtr)(PCWSTR pszPath,
                                                             IBindCtx *pbc,
@@ -367,36 +274,32 @@ private:
 /**
   * Asynchronously tries add the list to the build
   */
-class AsyncEncodeAndWriteIcon : public nsIRunnable
+class AsyncWriteIconToDisk : public nsIRunnable
 {
 public:
   const bool mURLShortcut;
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
-  // Warning: AsyncEncodeAndWriteIcon assumes ownership of the aData buffer passed in
-  AsyncEncodeAndWriteIcon(const nsAString &aIconPath,
-                          uint8_t *aData, uint32_t aDataLen, uint32_t aStride,
-                          uint32_t aWidth, uint32_t aHeight,
-                          const bool aURLShortcut);
-  virtual ~AsyncEncodeAndWriteIcon();
+  // Warning: AsyncWriteIconToDisk assumes ownership of the aData buffer passed in
+  AsyncWriteIconToDisk(const nsAString &aIconPath,
+                       const nsACString &aMimeTypeOfInputData,
+                       uint8_t *aData, 
+                       uint32_t aDataLen,
+                       const bool aURLShortcut);
+  virtual ~AsyncWriteIconToDisk();
 
 private:
   nsAutoString mIconPath;
   nsAutoCString mMimeTypeOfInputData;
   nsAutoArrayPtr<uint8_t> mBuffer;
-  HMODULE sDwmDLL;
   uint32_t mBufferLength;
-  uint32_t mStride;
-  uint32_t mWidth;
-  uint32_t mHeight;
 };
-
 
 class AsyncDeleteIconFromDisk : public nsIRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
   AsyncDeleteIconFromDisk(const nsAString &aIconPath);
@@ -409,7 +312,7 @@ private:
 class AsyncDeleteAllFaviconsFromDisk : public nsIRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
   AsyncDeleteAllFaviconsFromDisk();

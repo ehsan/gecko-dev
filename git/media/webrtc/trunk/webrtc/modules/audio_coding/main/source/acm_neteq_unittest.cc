@@ -24,8 +24,6 @@
 
 namespace webrtc {
 
-namespace acm1 {
-
 class AcmNetEqTest : public ::testing::Test {
  protected:
   static const size_t kMaxPayloadLen = 5760;  // 60 ms, 48 kHz, 16 bit samples.
@@ -70,9 +68,8 @@ void AcmNetEqTest::InsertZeroPacket(uint16_t sequence_number,
   rtp_header.header.payloadType = payload_type;
   rtp_header.header.markerBit = marker_bit;
   rtp_header.type.Audio.channel = 1;
-  // Receive timestamp can be set to send timestamp in this test.
-  ASSERT_EQ(0, neteq_.RecIn(reinterpret_cast<uint8_t*>(payload),
-                            len_payload_bytes, rtp_header, timestamp));
+  ASSERT_EQ(0, neteq_.RecIn(reinterpret_cast<WebRtc_UWord8*>(payload),
+                            len_payload_bytes, rtp_header));
 }
 
 void AcmNetEqTest::PullData(int expected_num_samples) {
@@ -148,6 +145,4 @@ TEST_F(AcmNetEqTest, TestZeroLengthWaitingTimesVector) {
   EXPECT_EQ(-1, stats.medianWaitingTimeMs);
 }
 
-}  // namespace acm1
-
-}  // namespace webrtc
+}  // namespace

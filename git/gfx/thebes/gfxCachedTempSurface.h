@@ -8,7 +8,6 @@
 
 #include "gfxASurface.h"
 #include "nsExpirationTracker.h"
-#include "nsSize.h"
 
 class gfxContext;
 
@@ -23,7 +22,7 @@ class gfxContext;
  * unncessarily, these surfaces are released on a timer.
  */
 
-class gfxCachedTempSurface {
+class THEBES_API gfxCachedTempSurface {
 public:
   /**
    * Returns a context for a surface that can be efficiently copied to
@@ -34,11 +33,12 @@ public:
    * When |aContentType| differs in different invocations this is handled
    * appropriately, creating a new surface if necessary.
    * 
+   * |aSimilarTo| should be of the same gfxSurfaceType in each invocation.
    * Because the cached surface may have been created during a previous
    * invocation, this will not be efficient if the new |aSimilarTo| has a
-   * different format, size, or gfxSurfaceType.
+   * different format.
    */
-  already_AddRefed<gfxContext> Get(gfxContentType aContentType,
+  already_AddRefed<gfxContext> Get(gfxASurface::gfxContentType aContentType,
                                    const gfxRect& aRect,
                                    gfxASurface* aSimilarTo);
 
@@ -52,7 +52,9 @@ private:
   nsRefPtr<gfxASurface> mSurface;
   gfxIntSize mSize;
   nsExpirationState mExpirationState;
-  gfxSurfaceType mType;
+#ifdef DEBUG
+  gfxASurface::gfxSurfaceType mType;
+#endif 
 };
 
 #endif /* GFX_CACHED_TEMP_SURFACE_H */

@@ -51,7 +51,7 @@ ifneq ($(EXPORTS_LIST),)
   APINAMES_EXE := $(subst /,$(SEP),$(OBJ_DIR)/apinames$(E_BUILD))
 
   $(APINAMES_EXE): $(APINAMES_SRC)
-	  $(CCexe) $(CCexe_CFLAGS) $(TE)$@ $< $(CCexe_LDFLAGS)
+	  $(CCexe) $(TE)$@ $<
 
   .PHONY: symbols_list
 

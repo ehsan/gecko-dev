@@ -8,7 +8,9 @@
 #include "nscore.h"
 #include "nsRequestObserverProxy.h"
 #include "nsIRequest.h"
+#include "nsIServiceManager.h"
 #include "nsAutoPtr.h"
+#include "nsString.h"
 #include "prlog.h"
 
 using namespace mozilla;
@@ -113,9 +115,9 @@ public:
 // nsRequestObserverProxy::nsISupports implementation...
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS2(nsRequestObserverProxy,
-                   nsIRequestObserver,
-                   nsIRequestObserverProxy)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsRequestObserverProxy,
+                              nsIRequestObserver,
+                              nsIRequestObserverProxy)
 
 //-----------------------------------------------------------------------------
 // nsRequestObserverProxy::nsIRequestObserver implementation...
@@ -126,7 +128,7 @@ nsRequestObserverProxy::OnStartRequest(nsIRequest *request,
                                        nsISupports *context)
 {
     MOZ_ASSERT(!context || context == mContext);
-    LOG(("nsRequestObserverProxy::OnStartRequest [this=%p req=%x]\n", this, request));
+    LOG(("nsRequestObserverProxy::OnStartRequest [this=%x req=%x]\n", this, request));
 
     nsOnStartRequestEvent *ev = 
         new nsOnStartRequestEvent(this, request);
@@ -146,7 +148,7 @@ nsRequestObserverProxy::OnStopRequest(nsIRequest *request,
                                       nsresult status)
 {
     MOZ_ASSERT(!context || context == mContext);
-    LOG(("nsRequestObserverProxy: OnStopRequest [this=%p req=%x status=%x]\n",
+    LOG(("nsRequestObserverProxy: OnStopRequest [this=%x req=%x status=%x]\n",
         this, request, status));
 
     // The status argument is ignored because, by the time the OnStopRequestEvent

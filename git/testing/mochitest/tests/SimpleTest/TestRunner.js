@@ -73,7 +73,6 @@ var TestRunner = {};
 TestRunner.logEnabled = false;
 TestRunner._currentTest = 0;
 TestRunner._lastTestFinished = -1;
-TestRunner._loopIsRestarting = false;
 TestRunner.currentTestURL = "";
 TestRunner.originalTestURL = "";
 TestRunner._urls = [];
@@ -84,8 +83,6 @@ TestRunner._expectedMaxAsserts = 0;
 TestRunner.timeout = 5 * 60 * 1000; // 5 minutes.
 TestRunner.maxTimeouts = 4; // halt testing after too many timeouts
 TestRunner.runSlower = false;
-TestRunner.slowestTestTime = 0;
-TestRunner.slowestTestURL = "";
 
 TestRunner._expectingProcessCrash = false;
 
@@ -151,7 +148,7 @@ TestRunner.requestLongerTimeout = function(factor) {
  * This is used to loop tests
 **/
 TestRunner.repeat = 0;
-TestRunner._currentLoop = 1;
+TestRunner._currentLoop = 0;
 
 TestRunner.expectAssertions = function(min, max) {
     if (typeof(max) == "undefined") {
@@ -213,16 +210,6 @@ TestRunner.error = function(msg) {
     } else {
         dump(msg + "\n");
     }
-
-    if (TestRunner.runUntilFailure) {
-      TestRunner._haltTests = true;
-    }
-
-    if (TestRunner.debugOnFailure) {
-      // You've hit this line because you requested to break into the
-      // debugger upon a testcase failure on your test run.
-      debugger;
-    }
 };
 
 /**
@@ -246,10 +233,11 @@ TestRunner._makeIframe = function (url, retry) {
     if (url != "about:blank" &&
         (("hasFocus" in document && !document.hasFocus()) ||
          ("activeElement" in document && document.activeElement != iframe))) {
+        // typically calling ourselves from setTimeout is sufficient
+        // but we'll try focus() just in case that's needed
 
         contentAsyncEvent("Focus");
         window.focus();
-        SpecialPowers.focus();
         iframe.focus();
         if (retry < 3) {
             window.setTimeout('TestRunner._makeIframe("'+url+'", '+(retry+1)+')', 1000);
@@ -294,6 +282,8 @@ TestRunner.runTests = function (/*url...*/) {
     TestRunner._urls = flattenArguments(arguments);
     $('testframe').src="";
     TestRunner._checkForHangs();
+    window.focus();
+    $('testframe').focus();
     TestRunner.runNextTest();
 };
 
@@ -311,7 +301,42 @@ TestRunner.resetTests = function(listURLs) {
   TestRunner._urls = listURLs;
   $('testframe').src="";
   TestRunner._checkForHangs();
+  window.focus();
+  $('testframe').focus();
   TestRunner.runNextTest();
+}
+
+/*
+ * Used to run a single test in a loop and update the UI with the results
+ */
+TestRunner.loopTest = function(testPath) {
+  //must set the following line so that TestHarness.updateUI finds the right div to update
+  document.getElementById("current-test-path").innerHTML = testPath;
+  var numLoops = TestRunner.repeat;
+  var completed = 0; // keep track of how many tests have finished
+
+  // function to kick off the test and to check when the test is complete
+  function checkComplete() {
+    var testWindow = window.open(testPath, 'test window'); // kick off the test or find the active window
+    if (testWindow.document.readyState == "complete") {
+      // the test is complete -> mark as complete
+      TestRunner.currentTestURL = testPath;
+      TestRunner.updateUI(testWindow.SimpleTest._tests);
+      testWindow.close();
+      if (TestRunner.repeat == completed  && TestRunner.onComplete) {
+        TestRunner.onComplete();
+      }
+      completed++;
+    }
+    else {
+      // wait and check later
+      setTimeout(checkComplete, 1000);
+    }
+  }
+  while (numLoops >= 0) {
+    checkComplete();
+    numLoops--;
+  }
 }
 
 /**
@@ -357,10 +382,9 @@ TestRunner.runNextTest = function() {
         SpecialPowers.unregisterProcessCrashObservers();
 
         TestRunner.log("TEST-START | Shutdown"); // used by automation.py
-        TestRunner.log("Passed:  " + $("pass-count").innerHTML);
-        TestRunner.log("Failed:  " + $("fail-count").innerHTML);
-        TestRunner.log("Todo:    " + $("todo-count").innerHTML);
-        TestRunner.log("Slowest: " + TestRunner.slowestTestTime + 'ms - ' + TestRunner.slowestTestURL);
+        TestRunner.log("Passed: " + $("pass-count").innerHTML);
+        TestRunner.log("Failed: " + $("fail-count").innerHTML);
+        TestRunner.log("Todo:   " + $("todo-count").innerHTML);
         // If we are looping, don't send this cause it closes the log file
         if (TestRunner.repeat == 0) {
           TestRunner.log("SimpleTest FINISHED");
@@ -370,10 +394,9 @@ TestRunner.runNextTest = function() {
              TestRunner.onComplete();
          }
 
-        if (TestRunner._currentLoop <= TestRunner.repeat && !TestRunner._haltTests) {
+        if (TestRunner._currentLoop < TestRunner.repeat) {
           TestRunner._currentLoop++;
           TestRunner.resetTests(TestRunner._urls);
-          TestRunner._loopIsRestarting = true;
         } else {
           // Loops are finished
           if (TestRunner.logEnabled) {
@@ -393,29 +416,12 @@ TestRunner.expectChildProcessCrash = function() {
 };
 
 /**
- * Statistics that we want to retrieve and display after every test is
- * done.  The keys of this table are intended to be identical to the
- * relevant attributes of nsIMemoryReporterManager.  However, since
- * nsIMemoryReporterManager doesn't necessarily support all these
- * statistics in all build configurations, we also use this table to
- * tell us whether statistics are supported or not.
- */
-var MEM_STAT_UNKNOWN = 0;
-var MEM_STAT_UNSUPPORTED = 1;
-var MEM_STAT_SUPPORTED = 2;
-TestRunner._hasMemoryStatistics = {}
-TestRunner._hasMemoryStatistics.vsize = MEM_STAT_UNKNOWN;
-TestRunner._hasMemoryStatistics.heapAllocated = MEM_STAT_UNKNOWN;
-TestRunner._hasMemoryStatistics.largestContiguousVMBlock = MEM_STAT_UNKNOWN;
-
-/**
  * This stub is called by SimpleTest when a test is finished.
 **/
 TestRunner.testFinished = function(tests) {
     // Prevent a test from calling finish() multiple times before we
     // have a chance to unload it.
-    if (TestRunner._currentTest == TestRunner._lastTestFinished &&
-        !TestRunner._loopIsRestarting) {
+    if (TestRunner._currentTest == TestRunner._lastTestFinished) {
         TestRunner.error("TEST-UNEXPECTED-FAIL | " +
                          TestRunner.currentTestURL +
                          " | called finish() multiple times");
@@ -423,35 +429,6 @@ TestRunner.testFinished = function(tests) {
         return;
     }
     TestRunner._lastTestFinished = TestRunner._currentTest;
-    TestRunner._loopIsRestarting = false;
-
-    var mrm;
-    try {
-	mrm = Cc["@mozilla.org/memory-reporter-manager;1"]
-	    .getService(Ci.nsIMemoryReporterManager);
-    } catch (e) {
-	mrm = SpecialPowers.Cc["@mozilla.org/memory-reporter-manager;1"]
-	                   .getService(SpecialPowers.Ci.nsIMemoryReporterManager);
-    }
-    for (stat in TestRunner._hasMemoryStatistics) {
-        var supported = TestRunner._hasMemoryStatistics[stat];
-        var firstAccess = false;
-        if (supported == MEM_STAT_UNKNOWN) {
-            firstAccess = true;
-            try {
-                var value = mrm[stat];
-                supported = MEM_STAT_SUPPORTED;
-            } catch (e) {
-                supported = MEM_STAT_UNSUPPORTED;
-            }
-            TestRunner._hasMemoryStatistics[stat] = supported;
-        }
-        if (supported == MEM_STAT_SUPPORTED) {
-            TestRunner.log("TEST-INFO | MEMORY STAT " + stat + " after test: " + mrm[stat]);
-        } else if (firstAccess) {
-            TestRunner.log("TEST-INFO | MEMORY STAT " + stat + " not supported in this build configuration.");
-        }
-    }
 
     function cleanUpCrashDumpFiles() {
         if (!SpecialPowers.removeExpectedCrashDumpFiles(TestRunner._expectingProcessCrash)) {
@@ -490,10 +467,6 @@ TestRunner.testFinished = function(tests) {
         TestRunner.log("TEST-END | " +
                        TestRunner.currentTestURL +
                        " | finished in " + runtime + "ms");
-        if (TestRunner.slowestTestTime < runtime && TestRunner._timeoutFactor == 1) {
-          TestRunner.slowestTestTime = runtime;
-          TestRunner.slowestTestURL = TestRunner.currentTestURL;
-        }
 
         TestRunner.updateUI(tests);
 
@@ -513,9 +486,6 @@ TestRunner.testFinished = function(tests) {
 };
 
 TestRunner.testUnloaded = function() {
-    // If we're in a debug build, check assertion counts.  This code is
-    // similar to the code in Tester_nextTest in browser-test.js used
-    // for browser-chrome mochitests.
     if (SpecialPowers.isDebugBuild) {
         var newAssertionCount = SpecialPowers.assertionCount();
         var numAsserts = newAssertionCount - TestRunner._lastAssertionCount;

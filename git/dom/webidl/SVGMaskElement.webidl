@@ -10,6 +10,9 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedEnumeration;
+interface SVGAnimatedLength;
+
 interface SVGMaskElement : SVGElement {
 
   // Mask Types

@@ -113,6 +113,20 @@ def WebIDLTest(parser, harness):
     try:
         parser.parse("""
             dictionary A {
+              [TreatUndefinedAs=EmptyString] DOMString foo;
+            };
+        """)
+        results = parser.finish()
+    except:
+        threw = True
+
+    harness.ok(threw, "Should not allow [TreatUndefinedAs] on dictionary members");
+
+    parser = parser.reset()
+    threw = False
+    try:
+        parser.parse("""
+            dictionary A {
             };
             interface X {
               void doFoo(A arg);
@@ -156,23 +170,6 @@ def WebIDLTest(parser, harness):
         threw = True
 
     harness.ok(threw, "Dictionary arg followed by optional arg must be optional")
-
-    parser = parser.reset()
-    threw = False
-    try:
-        parser.parse("""
-            dictionary A {
-            };
-            interface X {
-              void doFoo(A arg1, optional long arg2, long arg3);
-            };
-        """)
-        results = parser.finish()
-    except:
-        threw = True
-
-    harness.ok(not threw,
-               "Dictionary arg followed by non-optional arg doesn't have to be optional")
 
     parser = parser.reset()
     threw = False
@@ -445,111 +442,3 @@ def WebIDLTest(parser, harness):
         threw = True
 
     harness.ok(threw, "Member type must not be a nullable dictionary")
-
-    parser = parser.reset();
-    parser.parse("""
-        dictionary Foo {
-          unrestricted float  urFloat = 0;
-          unrestricted float  urFloat2 = 1.1;
-          unrestricted float  urFloat3 = -1.1;
-          unrestricted float? urFloat4 = null;
-          unrestricted float  infUrFloat = Infinity;
-          unrestricted float  negativeInfUrFloat = -Infinity;
-          unrestricted float  nanUrFloat = NaN;
-
-          unrestricted double  urDouble = 0;
-          unrestricted double  urDouble2 = 1.1;
-          unrestricted double  urDouble3 = -1.1;
-          unrestricted double? urDouble4 = null;
-          unrestricted double  infUrDouble = Infinity;
-          unrestricted double  negativeInfUrDouble = -Infinity;
-          unrestricted double  nanUrDouble = NaN;
-        };
-    """)
-    results = parser.finish()
-    harness.ok(True, "Parsing default values for unrestricted types succeeded.")
-
-    parser = parser.reset();
-    threw = False
-    try:
-        parser.parse("""
-            dictionary Foo {
-              double f = Infinity;
-            };
-        """)
-        results = parser.finish()
-    except:
-        threw = True
-
-    harness.ok(threw, "Only unrestricted values can be initialized to Infinity")
-
-    parser = parser.reset();
-    threw = False
-    try:
-        parser.parse("""
-            dictionary Foo {
-              double f = -Infinity;
-            };
-        """)
-        results = parser.finish()
-    except:
-        threw = True
-
-    harness.ok(threw, "Only unrestricted values can be initialized to -Infinity")
-
-    parser = parser.reset();
-    threw = False
-    try:
-        parser.parse("""
-            dictionary Foo {
-              double f = NaN;
-            };
-        """)
-        results = parser.finish()
-    except:
-        threw = True
-
-    harness.ok(threw, "Only unrestricted values can be initialized to NaN")
-
-    parser = parser.reset();
-    threw = False
-    try:
-        parser.parse("""
-            dictionary Foo {
-              float f = Infinity;
-            };
-        """)
-        results = parser.finish()
-    except:
-        threw = True
-
-    harness.ok(threw, "Only unrestricted values can be initialized to Infinity")
-
-
-    parser = parser.reset();
-    threw = False
-    try:
-        parser.parse("""
-            dictionary Foo {
-              float f = -Infinity;
-            };
-        """)
-        results = parser.finish()
-    except:
-        threw = True
-
-    harness.ok(threw, "Only unrestricted values can be initialized to -Infinity")
-
-    parser = parser.reset();
-    threw = False
-    try:
-        parser.parse("""
-            dictionary Foo {
-              float f = NaN;
-            };
-        """)
-        results = parser.finish()
-    except:
-        threw = True
-
-    harness.ok(threw, "Only unrestricted values can be initialized to NaN")

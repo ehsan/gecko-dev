@@ -11,9 +11,9 @@
 #ifndef WEBRTC_SYSTEM_WRAPPERS_SOURCE_CRITICAL_SECTION_WIN_H_
 #define WEBRTC_SYSTEM_WRAPPERS_SOURCE_CRITICAL_SECTION_WIN_H_
 
-#include <windows.h>
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
 #include "webrtc/typedefs.h"
+#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
+#include <windows.h>
 
 namespace webrtc {
 
@@ -29,10 +29,9 @@ class CriticalSectionWindows : public CriticalSectionWrapper {
  private:
   CRITICAL_SECTION crit;
 
-  friend class ConditionVariableEventWin;
-  friend class ConditionVariableNativeWin;
+  friend class ConditionVariableWindows;
 };
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif  // WEBRTC_SYSTEM_WRAPPERS_SOURCE_CRITICAL_SECTION_WIN_H_

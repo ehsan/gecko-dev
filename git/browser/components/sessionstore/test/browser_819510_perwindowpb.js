@@ -6,6 +6,11 @@ const originalState = ss.getBrowserState();
 /** Private Browsing Test for Bug 819510 **/
 function test() {
   waitForExplicitFinish();
+
+  registerCleanupFunction(function() {
+    ss.setBrowserState(originalState);
+  });
+
   runNextTest();
 }
 
@@ -28,13 +33,7 @@ function runNextTest() {
     let currentTest = tests.shift();
     waitForBrowserState(testState, currentTest);
   } else {
-    Services.obs.addObserver(
-      function observe(aSubject, aTopic, aData) {
-        Services.obs.removeObserver(observe, aTopic);
-        finish();
-      },
-      "sessionstore-browser-state-restored", false);
-    ss.setBrowserState(originalState);
+    finish();
   }
 }
 
@@ -89,11 +88,11 @@ function test_2() {
 
       forceWriteState(function(state) {
         is(state.windows.length, 1,
-           "sessionstore state: 1 windows in data being written to disk");
+           "sessionstore state: 1 windows in data being writted to disk");
         is (state.selectedWindow, 1,
            "Selected window is updated to match one of the saved windows");
         is(state._closedWindows.length, 0,
-           "sessionstore state: no closed windows in data being written to disk");
+           "sessionstore state: no closed windows in data being writted to disk");
         runNextTest();
       });
     });
@@ -115,25 +114,20 @@ function test_3() {
               is(curState.selectedWindow, 4, "Last window opened is the one selected");
 
               waitForWindowClose(normalWindow, function() {
-                // Load another tab before checking the written state so that
-                // the list of restoring windows gets cleared. Otherwise the
-                // window we just closed would be marked as not closed.
-                waitForTabLoad(aWindow, "http://www.example.com/", function() {
-                  forceWriteState(function(state) {
-                    is(state.windows.length, 2,
-                       "sessionstore state: 2 windows in data being written to disk");
-                    is(state.selectedWindow, 2,
-                       "Selected window is updated to match one of the saved windows");
-                    state.windows.forEach(function(win) {
-                      is(!win.isPrivate, true, "Saved window is not private");
-                    });
-                    is(state._closedWindows.length, 1,
-                       "sessionstore state: 1 closed window in data being written to disk");
-                    state._closedWindows.forEach(function(win) {
-                      is(!win.isPrivate, true, "Closed window is not private");
-                    });
-                    runNextTest();
+                forceWriteState(function(state) {
+                  is(state.windows.length, 2,
+                     "sessionstore state: 2 windows in data being writted to disk");
+                  is(state.selectedWindow, 2,
+                     "Selected window is updated to match one of the saved windows");
+                  state.windows.forEach(function(win) {
+                    is(!win.isPrivate, true, "Saved window is not private");
                   });
+                  is(state._closedWindows.length, 1,
+                     "sessionstore state: 1 closed window in data being writted to disk");
+                  state._closedWindows.forEach(function(win) {
+                    is(!win.isPrivate, true, "Closed window is not private");
+                  });
+                  runNextTest();
                 });
               });
             });
@@ -174,13 +168,17 @@ function forceWriteState(aCallback) {
 }
 
 function testOnWindow(aIsPrivate, aCallback) {
-  whenNewWindowLoaded({private: aIsPrivate}, aCallback);
+  let win = OpenBrowserWindow({private: aIsPrivate});
+  win.addEventListener("load", function onLoad() {
+    win.removeEventListener("load", onLoad, false);
+    executeSoon(function() { aCallback(win); });
+  }, false);
 }
 
 function waitForTabLoad(aWin, aURL, aCallback) {
   aWin.gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
     aWin.gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
-    executeSoon(aCallback);
+    aCallback();
   }, true);
   aWin.gBrowser.selectedBrowser.loadURI(aURL);
 }

@@ -5,7 +5,6 @@
 #ifndef nsBaseWidget_h__
 #define nsBaseWidget_h__
 
-#include "mozilla/EventForwards.h"
 #include "mozilla/WidgetUtils.h"
 #include "nsRect.h"
 #include "nsIWidget.h"
@@ -13,11 +12,9 @@
 #include "nsIFile.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
+#include "nsGUIEvent.h"
 #include "nsAutoPtr.h"
 #include "nsIRollupListener.h"
-#include "nsIObserver.h"
-#include "nsIWidgetListener.h"
-#include "nsPIDOMWindow.h"
 #include <algorithm>
 class nsIContent;
 class nsAutoRollup;
@@ -40,21 +37,6 @@ class CompositorParent;
 namespace base {
 class Thread;
 }
-
-class nsBaseWidget;
-
-class WidgetShutdownObserver MOZ_FINAL : public nsIObserver
-{
-public:
-  WidgetShutdownObserver(nsBaseWidget* aWidget)
-    : mWidget(aWidget)
-  { }
-
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
-  nsBaseWidget *mWidget;
-};
 
 /**
  * Common widget implementation used as base class for native
@@ -102,10 +84,7 @@ public:
                                       nsIWidget *aWidget, bool aActivate);
 
   NS_IMETHOD              SetSizeMode(int32_t aMode);
-  virtual int32_t         SizeMode() MOZ_OVERRIDE
-  {
-    return mSizeMode;
-  }
+  NS_IMETHOD              GetSizeMode(int32_t* aMode);
 
   virtual nscolor         GetForegroundColor(void);
   NS_IMETHOD              SetForegroundColor(const nscolor &aColor);
@@ -126,23 +105,15 @@ public:
   NS_IMETHOD              HideWindowChrome(bool aShouldHide);
   NS_IMETHOD              MakeFullScreen(bool aFullScreen);
   virtual nsDeviceContext* GetDeviceContext();
-  virtual LayerManager*   GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
+  virtual LayerManager*   GetLayerManager(PLayersChild* aShadowManager = nullptr,
                                           LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nullptr);
 
-  virtual CompositorParent* NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight);
   virtual void            CreateCompositor();
   virtual void            CreateCompositor(int aWidth, int aHeight);
-  virtual void            PrepareWindowEffects() {}
-  virtual void            CleanupWindowEffects() {}
-  virtual bool            PreRender(LayerManager* aManager) { return true; }
-  virtual void            PostRender(LayerManager* aManager) {}
   virtual void            DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect) {}
   virtual void            DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect) {}
-  virtual mozilla::TemporaryRef<mozilla::gfx::DrawTarget> StartRemoteDrawing();
-  virtual void            EndRemoteDrawing() { };
-  virtual void            CleanupRemoteDrawing() { };
   virtual void            UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) {}
   virtual gfxASurface*    GetThebesSurface();
   NS_IMETHOD              SetModal(bool aModal); 
@@ -170,14 +141,14 @@ public:
   NS_IMETHOD              GetAttention(int32_t aCycleCount);
   virtual bool            HasPendingInputEvent();
   NS_IMETHOD              SetIcon(const nsAString &anIconSpec);
+  NS_IMETHOD              BeginSecureKeyboardInput();
+  NS_IMETHOD              EndSecureKeyboardInput();
   NS_IMETHOD              SetWindowTitlebarColor(nscolor aColor, bool aActive);
   virtual void            SetDrawsInTitlebar(bool aState) {}
   virtual bool            ShowsResizeIndicator(nsIntRect* aResizerRect);
   virtual void            FreeNativeData(void * data, uint32_t aDataType) {}
-  NS_IMETHOD              BeginResizeDrag(mozilla::WidgetGUIEvent* aEvent,
-                                          int32_t aHorizontal,
-                                          int32_t aVertical);
-  NS_IMETHOD              BeginMoveDrag(mozilla::WidgetMouseEvent* aEvent);
+  NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, int32_t aHorizontal, int32_t aVertical);
+  NS_IMETHOD              BeginMoveDrag(nsMouseEvent* aEvent);
   virtual nsresult        ActivateNativeMenuItemAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
   virtual nsresult        ForceUpdateNativeMenuAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              NotifyIME(NotificationToIME aNotification) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
@@ -186,7 +157,7 @@ public:
   virtual bool            ComputeShouldAccelerate(bool aDefault);
   NS_IMETHOD              GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              NotifyIMEOfTextChange(uint32_t aStart, uint32_t aOldEnd, uint32_t aNewEnd) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
-  virtual nsIMEUpdatePreference GetIMEUpdatePreference() MOZ_OVERRIDE { return nsIMEUpdatePreference(); }
+  virtual nsIMEUpdatePreference GetIMEUpdatePreference() { return nsIMEUpdatePreference(false, false); }
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(double aOriginalDeltaX,
                                                          double aOriginalDeltaY,
@@ -215,7 +186,7 @@ public:
 
 #ifdef ACCESSIBILITY
   // Get the accessible for the window.
-  mozilla::a11y::Accessible* GetRootAccessible();
+  mozilla::a11y::Accessible* GetAccessible();
 #endif
 
   nsPopupLevel PopupLevel() { return mPopupLevel; }
@@ -278,8 +249,6 @@ public:
 
   static nsIRollupListener* GetActiveRollupListener();
 
-  void Shutdown();
-
 protected:
 
   virtual void            ResolveIconName(const nsAString &aIconName,
@@ -324,11 +293,6 @@ protected:
   // if the new rectangles are different from the old rectangles.
   bool StoreWindowClipRegion(const nsTArray<nsIntRect>& aRects);
 
-  // We don't want to accelerate small popup windows like menu, but we still
-  // want to accelerate xul panels that may contain arbitrarily complex content.
-  bool IsSmallPopup();
-
-
   virtual already_AddRefed<nsIWidget>
   AllocateChildPopupWidget()
   {
@@ -337,7 +301,7 @@ protected:
     return widget.forget();
   }
 
-  LayerManager* CreateBasicLayerManager();
+  BasicLayerManager* CreateBasicLayerManager();
 
   nsPopupType PopupType() const { return mPopupType; }
 
@@ -366,13 +330,6 @@ protected:
 
   virtual CompositorChild* GetRemoteRenderer() MOZ_OVERRIDE;
 
-  virtual void GetPreferredCompositorBackends(nsTArray<mozilla::layers::LayersBackend>& aHints);
-
-  /**
-   * Notify the widget that this window is being used with OMTC.
-   */
-  virtual void WindowUsesOMTC() {}
-
 protected:
   /**
    * Starts the OMTC compositor destruction sequence.
@@ -392,7 +349,6 @@ protected:
   nsRefPtr<LayerManager> mBasicLayerManager;
   nsRefPtr<CompositorChild> mCompositorChild;
   nsRefPtr<CompositorParent> mCompositorParent;
-  nsCOMPtr<WidgetShutdownObserver> mShutdownObserver;
   nscolor           mBackground;
   nscolor           mForeground;
   nsCursor          mCursor;
@@ -422,7 +378,7 @@ protected:
 
 #ifdef DEBUG
 protected:
-  static nsAutoString debug_GuiEventToString(mozilla::WidgetGUIEvent* aGuiEvent);
+  static nsAutoString debug_GuiEventToString(nsGUIEvent * aGuiEvent);
   static bool debug_WantPaintFlashing();
 
   static void debug_DumpInvalidate(FILE *                aFileOut,
@@ -431,11 +387,11 @@ protected:
                                    const nsAutoCString & aWidgetName,
                                    int32_t               aWindowID);
 
-  static void debug_DumpEvent(FILE* aFileOut,
-                              nsIWidget* aWidget,
-                              mozilla::WidgetGUIEvent* aGuiEvent,
-                              const nsAutoCString& aWidgetName,
-                              int32_t aWindowID);
+  static void debug_DumpEvent(FILE *                aFileOut,
+                              nsIWidget *           aWidget,
+                              nsGUIEvent *          aGuiEvent,
+                              const nsAutoCString & aWidgetName,
+                              int32_t               aWindowID);
 
   static void debug_DumpPaintEvent(FILE *                aFileOut,
                                    nsIWidget *           aWidget,

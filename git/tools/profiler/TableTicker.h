@@ -5,8 +5,6 @@
 
 #include "platform.h"
 #include "ProfileEntry.h"
-#include "mozilla/Mutex.h"
-#include "IntelPowerGadget.h"
 
 static bool
 hasFeature(const char** aFeatures, uint32_t aFeatureCount, const char* aFeature) {
@@ -14,22 +12,6 @@ hasFeature(const char** aFeatures, uint32_t aFeatureCount, const char* aFeature)
     if (strcmp(aFeatures[i], aFeature) == 0)
       return true;
   }
-  return false;
-}
-
-static bool
-threadSelected(ThreadInfo* aInfo, char** aThreadNameFilters, uint32_t aFeatureCount) {
-  if (aFeatureCount == 0) {
-    return true;
-  }
-
-  for (uint32_t i = 0; i < aFeatureCount; ++i) {
-    const char* filterPrefix = aThreadNameFilters[i];
-    if (strncmp(aInfo->Name(), filterPrefix, strlen(filterPrefix)) == 0) {
-      return true;
-    }
-  }
-
   return false;
 }
 
@@ -43,108 +25,28 @@ class BreakpadSampler;
 
 class TableTicker: public Sampler {
  public:
-  TableTicker(double aInterval, int aEntrySize,
-              const char** aFeatures, uint32_t aFeatureCount,
-              const char** aThreadNameFilters, uint32_t aFilterCount)
-    : Sampler(aInterval, true, aEntrySize)
-    , mPrimaryThreadProfile(nullptr)
+  TableTicker(int aInterval, int aEntrySize, PseudoStack *aStack,
+              const char** aFeatures, uint32_t aFeatureCount)
+    : Sampler(aInterval, true)
+    , mPrimaryThreadProfile(aEntrySize, aStack)
+    , mStartTime(TimeStamp::Now())
     , mSaveRequested(false)
-    , mUnwinderThread(false)
-    , mFilterCount(aFilterCount)
-#if defined(XP_WIN)
-    , mIntelPowerGadget(nullptr)
-#endif
   {
     mUseStackWalk = hasFeature(aFeatures, aFeatureCount, "stackwalk");
 
     //XXX: It's probably worth splitting the jank profiler out from the regular profiler at some point
     mJankOnly = hasFeature(aFeatures, aFeatureCount, "jank");
     mProfileJS = hasFeature(aFeatures, aFeatureCount, "js");
-    mProfileJava = hasFeature(aFeatures, aFeatureCount, "java");
-    mProfilePower = hasFeature(aFeatures, aFeatureCount, "power");
-    mProfileThreads = hasFeature(aFeatures, aFeatureCount, "threads");
-    mUnwinderThread = hasFeature(aFeatures, aFeatureCount, "unwinder") || sps_version2();
     mAddLeafAddresses = hasFeature(aFeatures, aFeatureCount, "leaf");
-    mPrivacyMode = hasFeature(aFeatures, aFeatureCount, "privacy");
-    mAddMainThreadIO = hasFeature(aFeatures, aFeatureCount, "mainthreadio");
-
-#if defined(XP_WIN)
-    if (mProfilePower) {
-      mIntelPowerGadget = new IntelPowerGadget();
-      mProfilePower = mIntelPowerGadget->Init();
-    }
-#endif
-
-    // Deep copy aThreadNameFilters
-    mThreadNameFilters = new char*[aFilterCount];
-    for (uint32_t i = 0; i < aFilterCount; ++i) {
-      mThreadNameFilters[i] = strdup(aThreadNameFilters[i]);
-    }
-
-    sStartTime = TimeStamp::Now();
-
-    {
-      mozilla::MutexAutoLock lock(*sRegisteredThreadsMutex);
-
-      // Create ThreadProfile for each registered thread
-      for (uint32_t i = 0; i < sRegisteredThreads->size(); i++) {
-        ThreadInfo* info = sRegisteredThreads->at(i);
-
-        RegisterThread(info);
-      }
-
-      SetActiveSampler(this);
-    }
+    mPrimaryThreadProfile.addTag(ProfileEntry('m', "Start"));
   }
 
-  ~TableTicker() {
-    if (IsActive())
-      Stop();
+  ~TableTicker() { if (IsActive()) Stop(); }
 
-    SetActiveSampler(nullptr);
-
-    // Destroy ThreadProfile for all threads
-    {
-      mozilla::MutexAutoLock lock(*sRegisteredThreadsMutex);
-
-      for (uint32_t i = 0; i < sRegisteredThreads->size(); i++) {
-        ThreadInfo* info = sRegisteredThreads->at(i);
-        ThreadProfile* profile = info->Profile();
-        if (profile) {
-          delete profile;
-          info->SetProfile(nullptr);
-        }
-      }
-    }
-#if defined(XP_WIN)
-    delete mIntelPowerGadget;
-#endif
-  }
-
-  void RegisterThread(ThreadInfo* aInfo) {
-    if (!aInfo->IsMainThread() && !mProfileThreads) {
-      return;
-    }
-
-    if (!threadSelected(aInfo, mThreadNameFilters, mFilterCount)) {
-      return;
-    }
-
-    ThreadProfile* profile = new ThreadProfile(aInfo->Name(),
-                                               EntrySize(),
-                                               aInfo->Stack(),
-                                               aInfo->ThreadId(),
-                                               aInfo->GetPlatformData(),
-                                               aInfo->IsMainThread(),
-                                               aInfo->StackTop());
-    aInfo->SetProfile(profile);
-  }
+  virtual void SampleStack(TickSample* sample) {}
 
   // Called within a signal. This function must be reentrant
   virtual void Tick(TickSample* sample);
-
-  // Immediately captures the calling thread's call stack and returns it.
-  virtual SyncProfile* GetBacktrace();
 
   // Called within a signal. This function must be reentrant
   virtual void RequestSave()
@@ -156,65 +58,43 @@ class TableTicker: public Sampler {
 
   ThreadProfile* GetPrimaryThreadProfile()
   {
-    if (!mPrimaryThreadProfile) {
-      mozilla::MutexAutoLock lock(*sRegisteredThreadsMutex);
-
-      for (uint32_t i = 0; i < sRegisteredThreads->size(); i++) {
-        ThreadInfo* info = sRegisteredThreads->at(i);
-        if (info->IsMainThread()) {
-          mPrimaryThreadProfile = info->Profile();
-          break;
-        }
-      }
-    }
-
-    return mPrimaryThreadProfile;
+    return &mPrimaryThreadProfile;
   }
 
   void ToStreamAsJSON(std::ostream& stream);
   virtual JSObject *ToJSObject(JSContext *aCx);
-  template <typename Builder> typename Builder::Object GetMetaJSCustomObject(Builder& b);
+  JSCustomObject *GetMetaJSCustomObject(JSAObjectBuilder& b);
 
-  bool HasUnwinderThread() const { return mUnwinderThread; }
-  bool ProfileJS() const { return mProfileJS; }
-  bool ProfileJava() const { return mProfileJava; }
-  bool ProfilePower() const { return mProfilePower; }
-  bool ProfileThreads() const { return mProfileThreads; }
-  bool InPrivacyMode() const { return mPrivacyMode; }
-  bool AddMainThreadIO() const { return mAddMainThreadIO; }
+  const bool ProfileJS() { return mProfileJS; }
+
+  virtual BreakpadSampler* AsBreakpadSampler() { return nullptr; }
 
 protected:
-  // Called within a signal. This function must be reentrant
-  virtual void UnwinderTick(TickSample* sample);
-
-  // Called within a signal. This function must be reentrant
-  virtual void InplaceTick(TickSample* sample);
-
   // Not implemented on platforms which do not support backtracing
   void doNativeBacktrace(ThreadProfile &aProfile, TickSample* aSample);
 
-  template <typename Builder> void BuildJSObject(Builder& b, typename Builder::ObjectHandle profile);
+  void BuildJSObject(JSAObjectBuilder& b, JSCustomObject* profile);
 
   // This represent the application's main thread (SAMPLER_INIT)
-  ThreadProfile* mPrimaryThreadProfile;
+  ThreadProfile mPrimaryThreadProfile;
+  TimeStamp mStartTime;
   bool mSaveRequested;
   bool mAddLeafAddresses;
   bool mUseStackWalk;
   bool mJankOnly;
   bool mProfileJS;
-  bool mProfileThreads;
-  bool mUnwinderThread;
-  bool mProfileJava;
-  bool mProfilePower;
+};
 
-  // Keep the thread filter to check against new thread that
-  // are started while profiling
-  char** mThreadNameFilters;
-  uint32_t mFilterCount;
-  bool mPrivacyMode;
-  bool mAddMainThreadIO;
-#if defined(XP_WIN)
-  IntelPowerGadget* mIntelPowerGadget;
-#endif
+class BreakpadSampler: public TableTicker {
+ public:
+  BreakpadSampler(int aInterval, int aEntrySize, PseudoStack *aStack,
+              const char** aFeatures, uint32_t aFeatureCount)
+    : TableTicker(aInterval, aEntrySize, aStack, aFeatures, aFeatureCount)
+  {}
+
+  // Called within a signal. This function must be reentrant
+  virtual void Tick(TickSample* sample);
+
+  virtual BreakpadSampler* AsBreakpadSampler() { return this; }
 };
 

@@ -35,7 +35,7 @@ var data = [
   { type: 'datetime-local', apply: true, todo: true },
   { type: 'number', apply: true },
   { type: 'range', apply: true },
-  { type: 'color', apply: false },
+  { type: 'color', apply: false, todo: true },
   { type: 'checkbox', apply: false },
   { type: 'radio', apply: false },
   { type: 'file', apply: false },
@@ -111,7 +111,6 @@ for (var test of data) {
     case 'button':
     case 'submit':
     case 'image':
-    case 'color':
       input.value = '0';
       checkValidity(input, true, apply);
       break;
@@ -124,18 +123,21 @@ for (var test of data) {
       checkValidity(input, true, apply);
       break;
     case 'file':
-      var dirSvc = SpecialPowers.Cc["@mozilla.org/file/directory_service;1"]
-                                .getService(SpecialPowers.Ci.nsIProperties);
-      var file = dirSvc.get("ProfD", SpecialPowers.Ci.nsIFile);
+      // Need privileges to set a filename with .value.
+      netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+      var dirSvc = Components.classes["@mozilla.org/file/directory_service;1"]
+                             .getService(Components.interfaces.nsIProperties);
+      var file = dirSvc.get("ProfD", Components.interfaces.nsIFile);
       file.append('635499_file');
-      var outStream = SpecialPowers.Cc["@mozilla.org/network/file-output-stream;1"].
-                      createInstance(SpecialPowers.Ci.nsIFileOutputStream);
+      var outStream = Components.classes["@mozilla.org/network/file-output-stream;1"].
+                      createInstance(Components.interfaces.nsIFileOutputStream);
       outStream.init(file, 0x02 | 0x08 | 0x20, // write, create, truncate
                      0666, 0);
       outStream.write("foo", 3);
       outStream.close();
 
-      SpecialPowers.wrap(input).value = file.path;
+      input.value = file.path;
       checkValidity(input, true, apply);
 
       file.remove(false);
@@ -403,13 +405,6 @@ for (var test of data) {
 
       input.value = 2;
       checkValidity(input, false, apply, {low: 1, high: 3});
-
-      // Rounding issues.
-      input = getFreshElement(test.type);
-      input.min = 0.1;
-      input.step = 0.2;
-      input.value = 0.3;
-      checkValidity(input, true, apply);
 
       // Check that when the higher value is higher than max, we don't show it.
       input = getFreshElement(test.type);
@@ -686,7 +681,8 @@ for (var test of data) {
         { step: '0.001', value: '15:05:05', min: '00:00', result: true },
         { step: '0.000001', value: '15:05:05', min: '00:00', result: true },
         // This value has conversion to double issues.
-        { step: '0.0000001', value: '15:05:05', min: '00:00', result: true },
+        { step: '0.0000001', value: '15:05:05', min: '00:00', result: true,
+          todo: true },
         // Some random values.
         { step: '100', value: '15:06:40', min: '00:00', result: true },
         { step: '100', value: '15:05:05.010', min: '00:00', result: false,

@@ -8,28 +8,15 @@
 #define WebAudioUtils_h_
 
 #include <cmath>
-#include <limits>
-#include "mozilla/TypeTraits.h"
-#include "mozilla/FloatingPoint.h"
-#include "MediaSegment.h"
-
-// Forward declaration
-typedef struct SpeexResamplerState_ SpeexResamplerState;
+#include "AudioParamTimeline.h"
 
 namespace mozilla {
 
 class AudioNodeStream;
-class MediaStream;
 
 namespace dom {
 
-class AudioParamTimeline;
-
 struct WebAudioUtils {
-  // This is an arbitrary large number used to protect against OOMs.
-  // We can adjust it later if needed.
-  static const uint32_t MaxChannelCount = 32;
-
   static bool FuzzyEqual(float v1, float v2)
   {
     using namespace std;
@@ -49,15 +36,6 @@ struct WebAudioUtils {
   {
     return 1.0 - std::exp(-1.0 / (aDuration * aSampleRate));
   }
-
-  /**
-   * Convert a time in second relative to the destination stream to
-   * TrackTicks relative to the source stream.
-   */
-  static TrackTicks
-  ConvertDestinationStreamTimeToSourceStreamTime(double aTime,
-                                                 AudioNodeStream* aSource,
-                                                 MediaStream* aDestination);
 
   /**
    * Converts AudioParamTimeline floating point time values to tick values
@@ -82,14 +60,6 @@ struct WebAudioUtils {
   }
 
   /**
-   * Converts a decibel value to a linear value.
-   */
-  static float ConvertDecibelsToLinear(float aDecibels)
-  {
-    return std::pow(10.0f, 0.05f * aDecibels);
-  }
-
-  /**
    * Converts a decibel to a linear value.
    */
   static float ConvertDecibelToLinear(float aDecibel)
@@ -99,136 +69,10 @@ struct WebAudioUtils {
 
   static void FixNaN(double& aDouble)
   {
-    if (IsNaN(aDouble) || IsInfinite(aDouble)) {
+    if (MOZ_DOUBLE_IS_NaN(aDouble) || MOZ_DOUBLE_IS_INFINITE(aDouble)) {
       aDouble = 0.0;
     }
   }
-
-  static double DiscreteTimeConstantForSampleRate(double timeConstant, double sampleRate)
-  {
-    return 1.0 - std::exp(-1.0 / (sampleRate * timeConstant));
-  }
-
-  static bool IsTimeValid(double aTime)
-  {
-    return aTime >= 0 &&  aTime <= (MEDIA_TIME_MAX >> MEDIA_TIME_FRAC_BITS);
-  }
-
-  /**
-   * Convert a stream position into the time coordinate of the destination
-   * stream.
-   */
-  static double StreamPositionToDestinationTime(TrackTicks aSourcePosition,
-                                                AudioNodeStream* aSource,
-                                                AudioNodeStream* aDestination);
-
-  /**
-   * Converts a floating point value to an integral type in a safe and
-   * platform agnostic way.  The following program demonstrates the kinds
-   * of ways things can go wrong depending on the CPU architecture you're
-   * compiling for:
-   *
-   * #include <stdio.h>
-   * volatile float r;
-   * int main()
-   * {
-   *   unsigned int q;
-   *   r = 1e100;
-   *   q = r;
-   *   printf("%f %d\n", r, q);
-   *   r = -1e100;
-   *   q = r;
-   *   printf("%f %d\n", r, q);
-   *   r = 1e15;
-   *   q = r;
-   *   printf("%f %x\n", r, q);
-   *   r = 0/0.;
-   *   q = r;
-   *   printf("%f %d\n", r, q);
-   * }
-   *
-   * This program, when compiled for unsigned int, generates the following
-   * results depending on the architecture:
-   *
-   * x86 and x86-64
-   * ---
-   *  inf 0
-   *  -inf 0
-   *  999999995904.000000 -727384064 d4a50000
-   *  nan 0
-   *
-   * ARM
-   * ---
-   *  inf -1
-   *  -inf 0
-   *  999999995904.000000 -1
-   *  nan 0
-   *
-   * When compiled for int, this program generates the following results:
-   *
-   * x86 and x86-64
-   * ---
-   *  inf -2147483648
-   *  -inf -2147483648
-   *  999999995904.000000 -2147483648
-   *  nan -2147483648
-   *
-   * ARM
-   * ---
-   *  inf 2147483647
-   *  -inf -2147483648
-   *  999999995904.000000 2147483647
-   *  nan 0
-   *
-   * Note that the caller is responsible to make sure that the value
-   * passed to this function is not a NaN.  This function will abort if
-   * it sees a NaN.
-   */
-  template <typename IntType, typename FloatType>
-  static IntType TruncateFloatToInt(FloatType f)
-  {
-    using namespace std;
-
-    static_assert(mozilla::IsIntegral<IntType>::value == true,
-                  "IntType must be an integral type");
-    static_assert(mozilla::IsFloatingPoint<FloatType>::value == true,
-                  "FloatType must be a floating point type");
-
-    if (f != f) {
-      // It is the responsibility of the caller to deal with NaN values.
-      // If we ever get to this point, we have a serious bug to fix.
-      NS_RUNTIMEABORT("We should never see a NaN here");
-    }
-
-    if (f > FloatType(numeric_limits<IntType>::max())) {
-      // If the floating point value is outside of the range of maximum
-      // integral value for this type, just clamp to the maximum value.
-      return numeric_limits<IntType>::max();
-    }
-
-    if (f < FloatType(numeric_limits<IntType>::min())) {
-      // If the floating point value is outside of the range of minimum
-      // integral value for this type, just clamp to the minimum value.
-      return numeric_limits<IntType>::min();
-    }
-
-    // Otherwise, this conversion must be well defined.
-    return IntType(f);
-  }
-
-  static void Shutdown();
-
-  static int
-  SpeexResamplerProcess(SpeexResamplerState* aResampler,
-                        uint32_t aChannel,
-                        const float* aIn, uint32_t* aInLen,
-                        float* aOut, uint32_t* aOutLen);
-
-  static int
-  SpeexResamplerProcess(SpeexResamplerState* aResampler,
-                        uint32_t aChannel,
-                        const int16_t* aIn, uint32_t* aInLen,
-                        float* aOut, uint32_t* aOutLen);
 };
 
 }

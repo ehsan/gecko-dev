@@ -8,8 +8,9 @@
 
 #include "nsIDOMHTMLCollection.h"
 #include "nsWrapperCache.h"
-#include "js/TypeDecls.h"
 
+struct JSContext;
+class JSObject;
 class nsINode;
 class nsString;
 template<class> class nsTArray;
@@ -24,8 +25,8 @@ class Element;
 
 // IID for the nsIHTMLCollection interface
 #define NS_IHTMLCOLLECTION_IID \
-{ 0x4e169191, 0x5196, 0x4e17, \
-  { 0xa4, 0x79, 0xd5, 0x35, 0x0b, 0x5b, 0x0a, 0xcd } }
+{ 0x5643235d, 0x9a72, 0x4b6a, \
+ { 0xa6, 0x0c, 0x64, 0x63, 0x72, 0xb7, 0x53, 0x4a } }
 
 /**
  * An internal interface
@@ -60,27 +61,25 @@ public:
     aFound = !!item;
     return item;
   }
-  mozilla::dom::Element* NamedItem(const nsAString& aName)
+  virtual JSObject* NamedItem(JSContext* cx, const nsAString& name,
+                              mozilla::ErrorResult& error) = 0;
+  JSObject* NamedGetter(JSContext* cx, const nsAString& name,
+                        bool& found, mozilla::ErrorResult& error)
   {
-    bool dummy;
-    return NamedGetter(aName, dummy);
+    JSObject* namedItem = NamedItem(cx, name, error);
+    found = !!namedItem;
+    return namedItem;
   }
-  mozilla::dom::Element* NamedGetter(const nsAString& aName, bool& aFound)
-  {
-    return GetFirstNamedElement(aName, aFound);
-  }
-  virtual mozilla::dom::Element*
-  GetFirstNamedElement(const nsAString& aName, bool& aFound) = 0;
 
   virtual void GetSupportedNames(nsTArray<nsString>& aNames) = 0;
 
   JSObject* GetWrapperPreserveColor()
   {
-    return GetWrapperPreserveColorInternal();
+    nsWrapperCache* cache;
+    CallQueryInterface(this, &cache);
+    return cache->GetWrapperPreserveColor();
   }
-  virtual JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) = 0;
-protected:
-  virtual JSObject* GetWrapperPreserveColorInternal() = 0;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIHTMLCollection, NS_IHTMLCOLLECTION_IID)

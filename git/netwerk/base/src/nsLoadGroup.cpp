@@ -10,22 +10,21 @@
 
 #include "nsArrayEnumerator.h"
 #include "nsCOMArray.h"
+#include "nsEnumeratorUtils.h"
+#include "nsIServiceManager.h"
 #include "nsCOMPtr.h"
+#include "nsIURI.h"
 #include "prlog.h"
+#include "nsCRT.h"
+#include "netCore.h"
+#include "nsXPIDLString.h"
+#include "nsReadableUtils.h"
 #include "nsString.h"
 #include "nsTArray.h"
-#include "mozilla/Atomics.h"
+#include "nsIHttpChannelInternal.h"
 #include "mozilla/Telemetry.h"
-#include "nsAutoPtr.h"
-#include "mozilla/net/PSpdyPush.h"
-#include "nsITimedChannel.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsIRequestObserver.h"
-#include "CacheObserver.h"
-#include "MainThreadUtils.h"
 
 using namespace mozilla;
-using namespace mozilla::net;
 
 #if defined(PR_LOGGING)
 //
@@ -113,7 +112,6 @@ RescheduleRequests(PLDHashTable *table, PLDHashEntryHdr *hdr,
 nsLoadGroup::nsLoadGroup(nsISupports* outer)
     : mForegroundCount(0)
     , mLoadFlags(LOAD_NORMAL)
-    , mDefaultLoadFlags(0)
     , mStatus(NS_OK)
     , mPriority(PRIORITY_NORMAL)
     , mIsCanceling(false)
@@ -225,8 +223,6 @@ AppendRequestsToArray(PLDHashTable *table, PLDHashEntryHdr *hdr,
 NS_IMETHODIMP
 nsLoadGroup::Cancel(nsresult status)
 {
-    MOZ_ASSERT(NS_IsMainThread());
-
     NS_ASSERTION(NS_FAILED(status), "shouldn't cancel with a success code");
     nsresult rv;
     uint32_t count = mRequests.entryCount;
@@ -829,7 +825,43 @@ nsLoadGroup::GetRootLoadGroup(nsILoadGroup * *aRootLoadGroup)
 NS_IMETHODIMP
 nsLoadGroup::OnEndPageLoad(nsIChannel *aDefaultChannel)
 {
-    // for the moment, nothing to do here.
+    // On page load of a page with at least 32 resources we want to record
+    // telemetry on which rate pacing algorithm was used to load the page and
+    // the page load time.
+    uint32_t requests = mTimedNonCachedRequestsUntilOnEndPageLoad;
+    mTimedNonCachedRequestsUntilOnEndPageLoad = 0;
+
+    nsCOMPtr<nsITimedChannel> timedChannel =
+        do_QueryInterface(aDefaultChannel);
+    if (!timedChannel)
+        return NS_OK;
+
+    nsCOMPtr<nsIHttpChannelInternal> internalHttpChannel =
+        do_QueryInterface(timedChannel);
+    if (!internalHttpChannel)
+        return NS_OK;
+
+    TimeStamp cacheReadStart;
+    TimeStamp asyncOpen;
+    uint32_t telemetryID;
+    nsresult rv = timedChannel->GetCacheReadStart(&cacheReadStart);
+    if (NS_SUCCEEDED(rv))
+        rv = timedChannel->GetAsyncOpen(&asyncOpen);
+    if (NS_SUCCEEDED(rv))
+        rv = internalHttpChannel->GetPacingTelemetryID(&telemetryID);
+    if (NS_FAILED(rv))
+        return NS_OK;
+
+    // Nothing to do if we don't have a start time or this was
+    // from the cache or we don't know what profile was used
+    if (asyncOpen.IsNull() || !cacheReadStart.IsNull() || !telemetryID)
+        return NS_OK;
+
+    if (requests < 32)
+        return NS_OK;
+
+    Telemetry::AccumulateTimeDelta(static_cast<Telemetry::ID>(telemetryID),
+                                   asyncOpen);
     return NS_OK;
 }
 
@@ -859,21 +891,6 @@ nsLoadGroup::AdjustPriority(int32_t aDelta)
     }
     return NS_OK;
 }
-
-NS_IMETHODIMP
-nsLoadGroup::GetDefaultLoadFlags(uint32_t *aFlags)
-{
-    *aFlags = mDefaultLoadFlags;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsLoadGroup::SetDefaultLoadFlags(uint32_t aFlags)
-{
-    mDefaultLoadFlags = aFlags;
-    return NS_OK;
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -996,25 +1013,13 @@ nsLoadGroup::TelemetryReportChannel(nsITimedChannel *aTimedChannel,
     }                                                                          \
                                                                                \
     if (!cacheReadStart.IsNull() && !cacheReadEnd.IsNull()) {                  \
-        if (!CacheObserver::UseNewCache()) {                                   \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_OPEN_TO_FIRST_FROM_CACHE,           \
-                asyncOpen, cacheReadStart);                                    \
-        } else {                                                               \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_OPEN_TO_FIRST_FROM_CACHE_V2,        \
-                asyncOpen, cacheReadStart);                                    \
-        }                                                                      \
+        Telemetry::AccumulateTimeDelta(                                        \
+            Telemetry::HTTP_##prefix##_OPEN_TO_FIRST_FROM_CACHE,               \
+            asyncOpen, cacheReadStart);                                        \
                                                                                \
-        if (!CacheObserver::UseNewCache()) {                                   \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_CACHE_READ_TIME,                    \
-                cacheReadStart, cacheReadEnd);                                 \
-        } else {                                                               \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_CACHE_READ_TIME_V2,                 \
-                cacheReadStart, cacheReadEnd);                                 \
-        }                                                                      \
+        Telemetry::AccumulateTimeDelta(                                        \
+            Telemetry::HTTP_##prefix##_CACHE_READ_TIME,                        \
+            cacheReadStart, cacheReadEnd);                                     \
                                                                                \
         if (!requestStart.IsNull() && !responseEnd.IsNull()) {                 \
             Telemetry::AccumulateTimeDelta(                                    \
@@ -1027,33 +1032,17 @@ nsLoadGroup::TelemetryReportChannel(nsITimedChannel *aTimedChannel,
         Telemetry::AccumulateTimeDelta(                                        \
             Telemetry::HTTP_##prefix##_COMPLETE_LOAD,                          \
             asyncOpen, cacheReadEnd);                                          \
-                                                                               \
-        if (!CacheObserver::UseNewCache()) {                                   \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_CACHED,               \
-                asyncOpen, cacheReadEnd);                                      \
-        } else {                                                               \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_CACHED_V2,            \
-                asyncOpen, cacheReadEnd);                                      \
-        }                                                                      \
+        Telemetry::AccumulateTimeDelta(                                        \
+            Telemetry::HTTP_##prefix##_COMPLETE_LOAD_CACHED,                   \
+            asyncOpen, cacheReadEnd);                                          \
     }                                                                          \
     else if (!responseEnd.IsNull()) {                                          \
-        if (!CacheObserver::UseNewCache()) {                                   \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD,                      \
-                asyncOpen, responseEnd);                                       \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_NET,                  \
-                asyncOpen, responseEnd);                                       \
-        } else {                                                               \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_V2,                   \
-                asyncOpen, responseEnd);                                       \
-            Telemetry::AccumulateTimeDelta(                                    \
-                Telemetry::HTTP_##prefix##_COMPLETE_LOAD_NET_V2,               \
-                asyncOpen, responseEnd);                                       \
-        }                                                                      \
+        Telemetry::AccumulateTimeDelta(                                        \
+            Telemetry::HTTP_##prefix##_COMPLETE_LOAD,                          \
+            asyncOpen, responseEnd);                                           \
+        Telemetry::AccumulateTimeDelta(                                        \
+            Telemetry::HTTP_##prefix##_COMPLETE_LOAD_NET,                      \
+            asyncOpen, responseEnd);                                           \
     }
 
     if (aDefaultRequest) {
@@ -1083,9 +1072,6 @@ nsresult nsLoadGroup::MergeLoadFlags(nsIRequest *aRequest, nsLoadFlags& outFlags
                             VALIDATE_ONCE_PER_SESSION |
                             VALIDATE_NEVER));
 
-    // ... and force the default flags.
-    flags |= mDefaultLoadFlags;
-
     if (flags != oldFlags)
         rv = aRequest->SetLoadFlags(flags);
 
@@ -1098,16 +1084,15 @@ nsresult nsLoadGroup::MergeLoadFlags(nsIRequest *aRequest, nsLoadFlags& outFlags
 class nsLoadGroupConnectionInfo MOZ_FINAL : public nsILoadGroupConnectionInfo
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSILOADGROUPCONNECTIONINFO
 
     nsLoadGroupConnectionInfo();
 private:
-    Atomic<uint32_t>       mBlockingTransactionCount;
-    nsAutoPtr<mozilla::net::SpdyPushCache> mSpdyCache;
+    int32_t       mBlockingTransactionCount; // signed for PR_ATOMIC_*
 };
 
-NS_IMPL_ISUPPORTS1(nsLoadGroupConnectionInfo, nsILoadGroupConnectionInfo)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsLoadGroupConnectionInfo, nsILoadGroupConnectionInfo)
 
 nsLoadGroupConnectionInfo::nsLoadGroupConnectionInfo()
     : mBlockingTransactionCount(0)
@@ -1118,14 +1103,14 @@ NS_IMETHODIMP
 nsLoadGroupConnectionInfo::GetBlockingTransactionCount(uint32_t *aBlockingTransactionCount)
 {
     NS_ENSURE_ARG_POINTER(aBlockingTransactionCount);
-    *aBlockingTransactionCount = mBlockingTransactionCount;
+    *aBlockingTransactionCount = static_cast<uint32_t>(mBlockingTransactionCount);
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsLoadGroupConnectionInfo::AddBlockingTransaction()
 {
-    mBlockingTransactionCount++;
+    PR_ATOMIC_INCREMENT(&mBlockingTransactionCount);
     return NS_OK;
 }
 
@@ -1133,23 +1118,8 @@ NS_IMETHODIMP
 nsLoadGroupConnectionInfo::RemoveBlockingTransaction(uint32_t *_retval)
 {
     NS_ENSURE_ARG_POINTER(_retval);
-        mBlockingTransactionCount--;
-        *_retval = mBlockingTransactionCount;
-    return NS_OK;
-}
-
-/* [noscript] attribute SpdyPushCachePtr spdyPushCache; */
-NS_IMETHODIMP
-nsLoadGroupConnectionInfo::GetSpdyPushCache(mozilla::net::SpdyPushCache **aSpdyPushCache)
-{
-    *aSpdyPushCache = mSpdyCache.get();
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsLoadGroupConnectionInfo::SetSpdyPushCache(mozilla::net::SpdyPushCache *aSpdyPushCache)
-{
-    mSpdyCache = aSpdyPushCache;
+    *_retval =
+        static_cast<uint32_t>(PR_ATOMIC_DECREMENT(&mBlockingTransactionCount));
     return NS_OK;
 }
 

@@ -1195,18 +1195,6 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
             break;
         }
     }
-
-    /* TODO(ehugg): Remove this next block when backward
-       compatibility with versions earlier than FF24
-       is no longer required.  See Bug 886134 */
-#define DATACHANNEL_OLD_TRANSPORT "SCTP/DTLS"
-    if (mca_p->transport == SDP_TRANSPORT_UNSUPPORTED) {
-        if (cpr_strncasecmp(tmp, DATACHANNEL_OLD_TRANSPORT,
-            strlen(DATACHANNEL_OLD_TRANSPORT)) == 0) {
-            mca_p->transport = SDP_TRANSPORT_DTLSSCTP;
-        }
-    }
-
     if (mca_p->transport == SDP_TRANSPORT_UNSUPPORTED) {
         /* If we don't recognize or don't support the transport type,
          * just store the first num as the port.
@@ -1231,7 +1219,7 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
             (mca_p->transport == SDP_TRANSPORT_UDPTL) ||
             (mca_p->transport == SDP_TRANSPORT_UDPSPRT) ||
             (mca_p->transport == SDP_TRANSPORT_LOCAL) ||
-            (mca_p->transport == SDP_TRANSPORT_DTLSSCTP)) {
+            (mca_p->transport == SDP_TRANSPORT_SCTPDTLS)) {
             /* Port format is simply <port>.  Make sure that either
              * the choose param is allowed or that the choose value
              * wasn't specified.
@@ -1383,8 +1371,8 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
         sdp_parse_payload_types(sdp_p, mca_p, ptr);
     }
 
-    /* Parse DTLS/SCTP port */
-    if (mca_p->transport == SDP_TRANSPORT_DTLSSCTP) {
+    /* Parse SCTP/DTLS port */
+    if (mca_p->transport == SDP_TRANSPORT_SCTPDTLS) {
         ptr = sdp_getnextstrtok(ptr, port, sizeof(port), " \t", &result);
         if (result != SDP_SUCCESS) {
             sdp_parse_error(sdp_p->peerconnection,
@@ -1426,28 +1414,28 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
                   sdp_get_media_name(mca_p->media));
         switch (mca_p->port_format) {
         case SDP_PORT_NUM_ONLY:
-            SDP_PRINT("Port num %d, ", mca_p->port);
+            SDP_PRINT("Port num %ld, ", mca_p->port);
             break;
 
         case SDP_PORT_NUM_COUNT:
-            SDP_PRINT("Port num %d, count %d, ",
+            SDP_PRINT("Port num %ld, count %ld, ",
                       mca_p->port, mca_p->num_ports);
             break;
         case SDP_PORT_VPI_VCI:
-            SDP_PRINT("VPI/VCI %d/%u, ", mca_p->vpi, mca_p->vci);
+            SDP_PRINT("VPI/VCI %ld/%lu, ", mca_p->vpi, mca_p->vci);
             break;
         case SDP_PORT_VCCI:
-            SDP_PRINT("VCCI %d, ", mca_p->vcci);
+            SDP_PRINT("VCCI %ld, ", mca_p->vcci);
             break;
         case SDP_PORT_NUM_VPI_VCI:
-            SDP_PRINT("Port %d, VPI/VCI %d/%u, ", mca_p->port,
+            SDP_PRINT("Port %ld, VPI/VCI %ld/%lu, ", mca_p->port,
                       mca_p->vpi, mca_p->vci);
             break;
         case SDP_PORT_VCCI_CID:
-            SDP_PRINT("VCCI %d, CID %d, ", mca_p->vcci, mca_p->cid);
+            SDP_PRINT("VCCI %ld, CID %ld, ", mca_p->vcci, mca_p->cid);
             break;
         case SDP_PORT_NUM_VPI_VCI_CID:
-            SDP_PRINT("Port %d, VPI/VCI %d/%u, CID %d, ", mca_p->port,
+            SDP_PRINT("Port %ld, VPI/VCI %ld/%lu, CID %ld, ", mca_p->port,
                       mca_p->vpi, mca_p->vci, mca_p->cid);
             break;
         default:
@@ -1565,7 +1553,7 @@ sdp_result_e sdp_build_media (sdp_t *sdp_p, u16 level, flex_string *fs)
     flex_string_sprintf(fs, "%s",
                      sdp_get_transport_name(mca_p->transport));
 
-    if(mca_p->transport != SDP_TRANSPORT_DTLSSCTP) {
+    if(mca_p->transport != SDP_TRANSPORT_SCTPDTLS) {
 
         /* Build the format lists */
         for (i=0; i < mca_p->num_payloads; i++) {
@@ -1577,7 +1565,7 @@ sdp_result_e sdp_build_media (sdp_t *sdp_p, u16 level, flex_string *fs)
             }
         }
     } else {
-        /* Add port to SDP if transport is DTLS/SCTP */
+        /* Add port to SDP if transport is SCTP/DTLS */
     	flex_string_sprintf(fs, " %u ", (u32)mca_p->sctpport);
     }
 

@@ -13,24 +13,6 @@ EXPORTS += [
 
 if CONFIG['MOZ_REPLACE_MALLOC']:
     EXPORTS += [
-        'malloc_decls.h',
         'replace_malloc.h',
+        'malloc_decls.h',
     ]
-SOURCES += [
-    'jemalloc_config.c',
-    'mozmemory_wrap.c',
-]
-
-if CONFIG['MOZ_JEMALLOC3']:
-    SOURCES += [
-        'mozjemalloc_compat.c',
-    ]
-
-if CONFIG['MOZ_REPLACE_MALLOC']:
-    SOURCES += [
-        'replace_malloc.c',
-    ]
-
-LIBRARY_NAME = 'memory'
-
-FORCE_STATIC_LIB = True

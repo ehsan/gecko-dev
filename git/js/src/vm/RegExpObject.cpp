@@ -4,18 +4,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/RegExpObject.h"
-
-#include "mozilla/MemoryReporting.h"
-
 #include "frontend/TokenStream.h"
 #include "vm/MatchPairs.h"
 #include "vm/RegExpStatics.h"
 #include "vm/StringBuffer.h"
 #include "vm/Xdr.h"
-#include "yarr/YarrSyntaxChecker.h"
 
 #include "jsobjinlines.h"
+
+#include "vm/RegExpObject-inl.h"
+#include "vm/RegExpStatics-inl.h"
 
 using namespace js;
 using js::frontend::TokenStream;
@@ -27,7 +25,7 @@ JS_STATIC_ASSERT(StickyFlag == JSREG_STICKY);
 
 /* RegExpObjectBuilder */
 
-RegExpObjectBuilder::RegExpObjectBuilder(ExclusiveContext *cx, RegExpObject *reobj)
+RegExpObjectBuilder::RegExpObjectBuilder(JSContext *cx, RegExpObject *reobj)
   : cx(cx), reobj_(cx, reobj)
 {}
 
@@ -37,14 +35,12 @@ RegExpObjectBuilder::getOrCreate()
     if (reobj_)
         return true;
 
-    // Note: RegExp objects are always allocated in the tenured heap. This is
-    // not strictly required, but simplifies embedding them in jitcode.
-    JSObject *obj = NewBuiltinClassInstance(cx, &RegExpObject::class_, TenuredObject);
+    JSObject *obj = NewBuiltinClassInstance(cx, &RegExpClass);
     if (!obj)
         return false;
-    obj->initPrivate(nullptr);
+    obj->initPrivate(NULL);
 
-    reobj_ = &obj->as<RegExpObject>();
+    reobj_ = &obj->asRegExp();
     return true;
 }
 
@@ -53,15 +49,12 @@ RegExpObjectBuilder::getOrCreateClone(RegExpObject *proto)
 {
     JS_ASSERT(!reobj_);
 
-    // Note: RegExp objects are always allocated in the tenured heap. This is
-    // not strictly required, but simplifies embedding them in jitcode.
-    JSObject *clone = NewObjectWithGivenProto(cx, &RegExpObject::class_, proto, proto->getParent(),
-                                              TenuredObject);
+    JSObject *clone = NewObjectWithGivenProto(cx, &RegExpClass, proto, proto->getParent());
     if (!clone)
         return false;
-    clone->initPrivate(nullptr);
+    clone->initPrivate(NULL);
 
-    reobj_ = &clone->as<RegExpObject>();
+    reobj_ = &clone->asRegExp();
     return true;
 }
 
@@ -69,10 +62,10 @@ RegExpObject *
 RegExpObjectBuilder::build(HandleAtom source, RegExpShared &shared)
 {
     if (!getOrCreate())
-        return nullptr;
+        return NULL;
 
     if (!reobj_->init(cx, source, shared.getFlags()))
-        return nullptr;
+        return NULL;
 
     reobj_->setShared(cx, shared);
     return reobj_;
@@ -82,23 +75,23 @@ RegExpObject *
 RegExpObjectBuilder::build(HandleAtom source, RegExpFlag flags)
 {
     if (!getOrCreate())
-        return nullptr;
+        return NULL;
 
-    return reobj_->init(cx, source, flags) ? reobj_.get() : nullptr;
+    return reobj_->init(cx, source, flags) ? reobj_.get() : NULL;
 }
 
 RegExpObject *
 RegExpObjectBuilder::clone(Handle<RegExpObject *> other, Handle<RegExpObject *> proto)
 {
     if (!getOrCreateClone(proto))
-        return nullptr;
+        return NULL;
 
     /*
      * Check that the RegExpShared for the original is okay to use in
      * the clone -- if the |RegExpStatics| provides more flags we'll
      * need a different |RegExpShared|.
      */
-    RegExpStatics *res = proto->getParent()->as<GlobalObject>().getRegExpStatics();
+    RegExpStatics *res = proto->getParent()->asGlobal().getRegExpStatics();
     RegExpFlag origFlags = other->getFlags();
     RegExpFlag staticsFlags = res->getFlags();
     if ((origFlags & staticsFlags) != staticsFlags) {
@@ -109,7 +102,7 @@ RegExpObjectBuilder::clone(Handle<RegExpObject *> other, Handle<RegExpObject *> 
 
     RegExpGuard g(cx);
     if (!other->getShared(cx, &g))
-        return nullptr;
+        return NULL;
 
     Rooted<JSAtom *> source(cx, other->getSource());
     return build(source, *g);
@@ -176,7 +169,7 @@ ScopedMatchPairs::allocOrExpandArray(size_t pairCount)
     }
 
     JS_ASSERT(!pairs_);
-    pairs_ = (MatchPair *)lifoScope_.alloc().alloc(sizeof(MatchPair) * pairCount);
+    pairs_ = (MatchPair *)lifoAlloc_->alloc(sizeof(MatchPair) * pairCount);
     if (!pairs_)
         return false;
 
@@ -198,7 +191,7 @@ VectorMatchPairs::allocOrExpandArray(size_t pairCount)
 /* RegExpObject */
 
 static void
-regexp_trace(JSTracer *trc, JSObject *obj)
+regexp_trace(JSTracer *trc, RawObject obj)
 {
      /*
       * We have to check both conditions, since:
@@ -206,10 +199,10 @@ regexp_trace(JSTracer *trc, JSObject *obj)
       *   2. When a write barrier executes, IS_GC_MARKING_TRACER is true.
       */
     if (trc->runtime->isHeapBusy() && IS_GC_MARKING_TRACER(trc))
-        obj->setPrivate(nullptr);
+        obj->setPrivate(NULL);
 }
 
-const Class RegExpObject::class_ = {
+Class js::RegExpClass = {
     js_RegExp_str,
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(RegExpObject::RESERVED_SLOTS) |
@@ -221,16 +214,16 @@ const Class RegExpObject::class_ = {
     JS_EnumerateStub,        /* enumerate */
     JS_ResolveStub,
     JS_ConvertStub,
-    nullptr,                 /* finalize */
-    nullptr,                 /* checkAccess */
-    nullptr,                 /* call */
-    nullptr,                 /* hasInstance */
-    nullptr,                 /* construct */
+    NULL,                    /* finalize */
+    NULL,                    /* checkAccess */
+    NULL,                    /* call */
+    NULL,                    /* construct */
+    NULL,                    /* hasInstance */
     regexp_trace
 };
 
 RegExpObject *
-RegExpObject::create(ExclusiveContext *cx, RegExpStatics *res, const jschar *chars, size_t length,
+RegExpObject::create(JSContext *cx, RegExpStatics *res, const jschar *chars, size_t length,
                      RegExpFlag flags, TokenStream *tokenStream)
 {
     RegExpFlag staticsFlags = res->getFlags();
@@ -238,44 +231,44 @@ RegExpObject::create(ExclusiveContext *cx, RegExpStatics *res, const jschar *cha
 }
 
 RegExpObject *
-RegExpObject::createNoStatics(ExclusiveContext *cx, const jschar *chars, size_t length, RegExpFlag flags,
+RegExpObject::createNoStatics(JSContext *cx, const jschar *chars, size_t length, RegExpFlag flags,
                               TokenStream *tokenStream)
 {
-    RootedAtom source(cx, AtomizeChars(cx, chars, length));
+    RootedAtom source(cx, AtomizeChars<CanGC>(cx, chars, length));
     if (!source)
-        return nullptr;
+        return NULL;
 
     return createNoStatics(cx, source, flags, tokenStream);
 }
 
 RegExpObject *
-RegExpObject::createNoStatics(ExclusiveContext *cx, HandleAtom source, RegExpFlag flags,
+RegExpObject::createNoStatics(JSContext *cx, HandleAtom source, RegExpFlag flags,
                               TokenStream *tokenStream)
 {
     if (!RegExpShared::checkSyntax(cx, tokenStream, source))
-        return nullptr;
+        return NULL;
 
     RegExpObjectBuilder builder(cx);
     return builder.build(source, flags);
 }
 
 bool
-RegExpObject::createShared(ExclusiveContext *cx, RegExpGuard *g)
+RegExpObject::createShared(JSContext *cx, RegExpGuard *g)
 {
     Rooted<RegExpObject*> self(cx, this);
 
     JS_ASSERT(!maybeShared());
-    if (!cx->compartment()->regExps.get(cx, getSource(), getFlags(), g))
+    if (!cx->compartment->regExps.get(cx, getSource(), getFlags(), g))
         return false;
 
     self->setShared(cx, **g);
     return true;
 }
 
-Shape *
-RegExpObject::assignInitialShape(ExclusiveContext *cx)
+RawShape
+RegExpObject::assignInitialShape(JSContext *cx)
 {
-    JS_ASSERT(is<RegExpObject>());
+    JS_ASSERT(isRegExp());
     JS_ASSERT(nativeEmpty());
 
     JS_STATIC_ASSERT(LAST_INDEX_SLOT == 0);
@@ -289,23 +282,23 @@ RegExpObject::assignInitialShape(ExclusiveContext *cx)
 
     /* The lastIndex property alone is writable but non-configurable. */
     if (!addDataProperty(cx, cx->names().lastIndex, LAST_INDEX_SLOT, JSPROP_PERMANENT))
-        return nullptr;
+        return NULL;
 
     /* Remaining instance properties are non-writable and non-configurable. */
     unsigned attrs = JSPROP_PERMANENT | JSPROP_READONLY;
     if (!self->addDataProperty(cx, cx->names().source, SOURCE_SLOT, attrs))
-        return nullptr;
+        return NULL;
     if (!self->addDataProperty(cx, cx->names().global, GLOBAL_FLAG_SLOT, attrs))
-        return nullptr;
+        return NULL;
     if (!self->addDataProperty(cx, cx->names().ignoreCase, IGNORE_CASE_FLAG_SLOT, attrs))
-        return nullptr;
+        return NULL;
     if (!self->addDataProperty(cx, cx->names().multiline, MULTILINE_FLAG_SLOT, attrs))
-        return nullptr;
+        return NULL;
     return self->addDataProperty(cx, cx->names().sticky, STICKY_FLAG_SLOT, attrs);
 }
 
 bool
-RegExpObject::init(ExclusiveContext *cx, HandleAtom source, RegExpFlag flags)
+RegExpObject::init(JSContext *cx, HandleAtom source, RegExpFlag flags)
 {
     Rooted<RegExpObject *> self(cx, this);
 
@@ -340,7 +333,7 @@ RegExpObject::init(ExclusiveContext *cx, HandleAtom source, RegExpFlag flags)
      * If this is a re-initialization with an existing RegExpShared, 'flags'
      * may not match getShared()->flags, so forget the RegExpShared.
      */
-    self->JSObject::setPrivate(nullptr);
+    self->JSObject::setPrivate(NULL);
 
     self->zeroLastIndex();
     self->setSource(source);
@@ -358,34 +351,34 @@ RegExpObject::toString(JSContext *cx) const
     StringBuffer sb(cx);
     if (size_t len = src->length()) {
         if (!sb.reserve(len + 2))
-            return nullptr;
+            return NULL;
         sb.infallibleAppend('/');
         sb.infallibleAppend(src->chars(), len);
         sb.infallibleAppend('/');
     } else {
         if (!sb.append("/(?:)/"))
-            return nullptr;
+            return NULL;
     }
     if (global() && !sb.append('g'))
-        return nullptr;
+        return NULL;
     if (ignoreCase() && !sb.append('i'))
-        return nullptr;
+        return NULL;
     if (multiline() && !sb.append('m'))
-        return nullptr;
+        return NULL;
     if (sticky() && !sb.append('y'))
-        return nullptr;
+        return NULL;
 
     return sb.finishString();
 }
 
 /* RegExpShared */
 
-RegExpShared::RegExpShared(JSAtom *source, RegExpFlag flags, uint64_t gcNumber)
+RegExpShared::RegExpShared(JSRuntime *rt, JSAtom *source, RegExpFlag flags)
   : source(source), flags(flags), parenCount(0),
 #if ENABLE_YARR_JIT
     codeBlock(),
 #endif
-    bytecode(nullptr), activeUseCount(0), gcNumberWhenUsed(gcNumber)
+    bytecode(NULL), activeUseCount(0), gcNumberWhenUsed(rt->gcNumber)
 {}
 
 RegExpShared::~RegExpShared()
@@ -393,22 +386,23 @@ RegExpShared::~RegExpShared()
 #if ENABLE_YARR_JIT
     codeBlock.release();
 #endif
-    js_delete<BytecodePattern>(bytecode);
+    if (bytecode)
+        js_delete<BytecodePattern>(bytecode);
 }
 
 void
-RegExpShared::reportYarrError(ExclusiveContext *cx, TokenStream *ts, ErrorCode error)
+RegExpShared::reportYarrError(JSContext *cx, TokenStream *ts, ErrorCode error)
 {
     switch (error) {
       case JSC::Yarr::NoError:
-        MOZ_ASSUME_UNREACHABLE("Called reportYarrError with value for no error");
+        JS_NOT_REACHED("Called reportYarrError with value for no error");
+        return;
 #define COMPILE_EMSG(__code, __msg)                                                              \
       case JSC::Yarr::__code:                                                                    \
         if (ts)                                                                                  \
             ts->reportError(__msg);                                                              \
         else                                                                                     \
-            JS_ReportErrorFlagsAndNumberUC(cx->asJSContext(),                                    \
-                                           JSREPORT_ERROR, js_GetErrorMessage, nullptr, __msg);     \
+            JS_ReportErrorFlagsAndNumberUC(cx, JSREPORT_ERROR, js_GetErrorMessage, NULL, __msg); \
         return
       COMPILE_EMSG(PatternTooLarge, JSMSG_REGEXP_TOO_COMPLEX);
       COMPILE_EMSG(QuantifierOutOfOrder, JSMSG_BAD_QUANTIFIER);
@@ -423,12 +417,12 @@ RegExpShared::reportYarrError(ExclusiveContext *cx, TokenStream *ts, ErrorCode e
       COMPILE_EMSG(EscapeUnterminated, JSMSG_TRAILING_SLASH);
 #undef COMPILE_EMSG
       default:
-        MOZ_ASSUME_UNREACHABLE("Unknown Yarr error code");
+        JS_NOT_REACHED("Unknown Yarr error code");
     }
 }
 
 bool
-RegExpShared::checkSyntax(ExclusiveContext *cx, TokenStream *tokenStream, JSLinearString *source)
+RegExpShared::checkSyntax(JSContext *cx, TokenStream *tokenStream, JSLinearString *source)
 {
     ErrorCode error = JSC::Yarr::checkSyntax(*source);
     if (error == JSC::Yarr::NoError)
@@ -473,14 +467,14 @@ RegExpShared::compile(JSContext *cx, JSLinearString &pattern, bool matchOnly)
     ErrorCode yarrError;
     YarrPattern yarrPattern(pattern, ignoreCase(), multiline(), &yarrError);
     if (yarrError) {
-        reportYarrError(cx, nullptr, yarrError);
+        reportYarrError(cx, NULL, yarrError);
         return false;
     }
     this->parenCount = yarrPattern.m_numSubpatterns;
 
 #if ENABLE_YARR_JIT
     if (isJITRuntimeEnabled(cx) && !yarrPattern.m_containsBackreferences) {
-        JSC::ExecutableAllocator *execAlloc = cx->runtime()->getExecAlloc(cx);
+        JSC::ExecutableAllocator *execAlloc = cx->runtime->getExecAlloc(cx);
         if (!execAlloc)
             return false;
 
@@ -497,7 +491,7 @@ RegExpShared::compile(JSContext *cx, JSLinearString &pattern, bool matchOnly)
     codeBlock.setFallBack(true);
 #endif
 
-    WTF::BumpPointerAllocator *bumpAlloc = cx->runtime()->getBumpPointerAllocator(cx);
+    WTF::BumpPointerAllocator *bumpAlloc = cx->runtime->getBumpPointerAllocator(cx);
     if (!bumpAlloc) {
         js_ReportOutOfMemory(cx);
         return false;
@@ -527,9 +521,6 @@ RegExpRunStatus
 RegExpShared::execute(JSContext *cx, const jschar *chars, size_t length,
                       size_t *lastIndex, MatchPairs &matches)
 {
-    /* Protect inlined chars from root analysis poisoning. */
-    SkipRoot skip(cx, &chars);
-
     /* Compile the code at point-of-use. */
     if (!compileIfNecessary(cx))
         return RegExpRunStatus_Error;
@@ -585,9 +576,7 @@ RegExpShared::executeMatchOnly(JSContext *cx, const jschar *chars, size_t length
     if (!compileMatchOnlyIfNecessary(cx))
         return RegExpRunStatus_Error;
 
-#ifdef DEBUG
     const size_t origLength = length;
-#endif
     size_t start = *lastIndex;
     size_t displacement = 0;
 
@@ -627,15 +616,11 @@ RegExpShared::executeMatchOnly(JSContext *cx, const jschar *chars, size_t length
     if (result == JSC::Yarr::offsetNoMatch)
         return RegExpRunStatus_Success_NotFound;
 
-    match = MatchPair(result, matches[0].limit);
-    match.displace(displacement);
-
-#ifdef DEBUG
     matches.displace(displacement);
     matches.checkAgainst(origLength);
-#endif
 
-    *lastIndex = match.limit;
+    *lastIndex = matches[0].limit;
+    match = MatchPair(result, matches[0].limit);
     return RegExpRunStatus_Success;
 }
 
@@ -683,15 +668,8 @@ RegExpCompartment::sweep(JSRuntime *rt)
     }
 }
 
-void
-RegExpCompartment::clearTables()
-{
-    JS_ASSERT(inUse_.empty());
-    map_.clear();
-}
-
 bool
-RegExpCompartment::get(ExclusiveContext *cx, JSAtom *source, RegExpFlag flags, RegExpGuard *g)
+RegExpCompartment::get(JSContext *cx, JSAtom *source, RegExpFlag flags, RegExpGuard *g)
 {
     Key key(source, flags);
     Map::AddPtr p = map_.lookupForAdd(key);
@@ -700,8 +678,7 @@ RegExpCompartment::get(ExclusiveContext *cx, JSAtom *source, RegExpFlag flags, R
         return true;
     }
 
-    uint64_t gcNumber = cx->zone()->gcNumber();
-    ScopedJSDeletePtr<RegExpShared> shared(cx->new_<RegExpShared>(source, flags, gcNumber));
+    ScopedJSDeletePtr<RegExpShared> shared(cx->new_<RegExpShared>(cx->runtime, source, flags));
     if (!shared)
         return false;
 
@@ -734,7 +711,7 @@ RegExpCompartment::get(JSContext *cx, HandleAtom atom, JSString *opt, RegExpGuar
 }
 
 size_t
-RegExpCompartment::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
+RegExpCompartment::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
     n += map_.sizeOfExcludingThis(mallocSizeOf);
@@ -748,8 +725,8 @@ JSObject *
 js::CloneRegExpObject(JSContext *cx, JSObject *obj_, JSObject *proto_)
 {
     RegExpObjectBuilder builder(cx);
-    Rooted<RegExpObject*> regex(cx, &obj_->as<RegExpObject>());
-    Rooted<RegExpObject*> proto(cx, &proto_->as<RegExpObject>());
+    Rooted<RegExpObject*> regex(cx, &obj_->asRegExp());
+    Rooted<RegExpObject*> proto(cx, &proto_->asRegExp());
     return builder.clone(regex, proto);
 }
 
@@ -780,7 +757,7 @@ js::ParseRegExpFlags(JSContext *cx, JSString *flagStr, RegExpFlag *flagsOut)
             char charBuf[2];
             charBuf[0] = char(s[i]);
             charBuf[1] = '\0';
-            JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage, nullptr,
+            JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage, NULL,
                                          JSMSG_BAD_REGEXP_FLAG, charBuf);
             return false;
           }
@@ -801,7 +778,7 @@ js::XDRScriptRegExpObject(XDRState<mode> *xdr, HeapPtrObject *objp)
 
     if (mode == XDR_ENCODE) {
         JS_ASSERT(objp);
-        RegExpObject &reobj = (*objp)->as<RegExpObject>();
+        RegExpObject &reobj = (*objp)->asRegExp();
         source = reobj.getSource();
         flagsword = reobj.getFlags();
     }
@@ -809,7 +786,7 @@ js::XDRScriptRegExpObject(XDRState<mode> *xdr, HeapPtrObject *objp)
         return false;
     if (mode == XDR_DECODE) {
         RegExpFlag flags = RegExpFlag(flagsword);
-        RegExpObject *reobj = RegExpObject::createNoStatics(xdr->cx(), source, flags, nullptr);
+        RegExpObject *reobj = RegExpObject::createNoStatics(xdr->cx(), source, flags, NULL);
         if (!reobj)
             return false;
 
@@ -830,5 +807,5 @@ js::CloneScriptRegExpObject(JSContext *cx, RegExpObject &reobj)
     /* NB: Keep this in sync with XDRScriptRegExpObject. */
 
     RootedAtom source(cx, reobj.getSource());
-    return RegExpObject::createNoStatics(cx, source, reobj.getFlags(), nullptr);
+    return RegExpObject::createNoStatics(cx, source, reobj.getFlags(), NULL);
 }

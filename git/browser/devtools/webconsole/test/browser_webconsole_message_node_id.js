@@ -15,17 +15,15 @@ function onLoad() {
   openConsole(null, function(hud) {
     content.console.log("a log message");
 
-    waitForMessages({
-      webconsole: hud,
-      messages: [{
-        text: "a log message",
-        category: CATEGORY_WEBDEV,
-        severity: SEVERITY_LOG,
-      }],
-    }).then(([result]) => {
-      let msg = [...result.matched][0];
-      ok(msg.getAttribute("id"), "log message has an ID");
-      finishTest();
+    waitForSuccess({
+      name: "console.log message shown with an ID attribute",
+      validatorFn: function()
+      {
+        let node = hud.outputNode.querySelector(".hud-msg-node");
+        return node && node.getAttribute("id");
+      },
+      successFn: finishTest,
+      failureFn: finishTest,
     });
   });
 }

@@ -10,23 +10,29 @@
 
 #include "nsITimer.h"
 
+#include "nsIComponentManager.h"
+#include "nsIServiceManager.h"
 #include "nsFrameSelection.h"
 #include "nsIFrame.h"
 #include "nsIScrollableFrame.h"
 #include "nsIDOMNode.h"
+#include "nsIDOMRange.h"
 #include "nsISelection.h"
 #include "nsISelectionPrivate.h"
+#include "nsIDOMCharacterData.h"
 #include "nsIContent.h"
 #include "nsIPresShell.h"
 #include "nsRenderingContext.h"
 #include "nsPresContext.h"
 #include "nsBlockFrame.h"
 #include "nsISelectionController.h"
+#include "nsDisplayList.h"
 #include "nsCaret.h"
 #include "nsTextFrame.h"
 #include "nsXULPopupManager.h"
 #include "nsMenuPopupFrame.h"
 #include "nsTextFragment.h"
+#include "nsThemeConstants.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/Selection.h"
@@ -520,6 +526,26 @@ void nsCaret::PaintCaret(nsDisplayListBuilder *aBuilder,
     return;
   }
   nscolor foregroundColor = aForFrame->GetCaretColorAt(contentOffset);
+
+  // Only draw the native caret if the foreground color matches that of
+  // -moz-fieldtext (the color of the text in a textbox). If it doesn't match
+  // we are likely in contenteditable or a custom widget and we risk being hard to see
+  // against the background. In that case, fall back to the CSS color.
+  nsPresContext* presContext = aForFrame->PresContext();
+
+  if (GetHookRect().IsEmpty() && presContext) {
+    nsITheme *theme = presContext->GetTheme();
+    if (theme && theme->ThemeSupportsWidget(presContext, aForFrame, NS_THEME_TEXTFIELD_CARET)) {
+      nscolor fieldText;
+      nsresult rv = LookAndFeel::GetColor(LookAndFeel::eColorID__moz_fieldtext,
+                                          &fieldText);
+      if (NS_SUCCEEDED(rv) && fieldText == foregroundColor) {
+        theme->DrawWidgetBackground(aCtx, aForFrame, NS_THEME_TEXTFIELD_CARET,
+                                    drawCaretRect, drawCaretRect);
+        return;
+      }
+    }
+  }
 
   aCtx->SetColor(foregroundColor);
   aCtx->FillRect(drawCaretRect);

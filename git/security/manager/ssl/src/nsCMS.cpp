@@ -5,7 +5,6 @@
 
 #include "nsISupports.h"
 #include "nsCMS.h"
-#include "CertVerifier.h"
 #include "nsNSSHelper.h"
 #include "nsNSSCertificate.h"
 #include "smime.h"
@@ -14,12 +13,12 @@
 #include "nsIArray.h"
 #include "nsArrayUtils.h"
 #include "nsCertVerificationThread.h"
+#include "nsCERTValInParamWrapper.h"
 #include "ScopedNSSTypes.h"
 
 #include "prlog.h"
 
-using namespace mozilla;
-using namespace mozilla::psm;
+#include "nsNSSComponent.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
@@ -29,7 +28,8 @@ using namespace mozilla;
 
 static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
-NS_IMPL_ISUPPORTS2(nsCMSMessage, nsICMSMessage, nsICMSMessage2)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsCMSMessage, nsICMSMessage, 
+                                            nsICMSMessage2)
 
 nsCMSMessage::nsCMSMessage()
 {
@@ -218,8 +218,9 @@ nsresult nsCMSMessage::CommonVerifySignature(unsigned char* aDigestData, uint32_
   NSSCMSSignedData *sigd = nullptr;
   NSSCMSSignerInfo *si;
   int32_t nsigners;
-  RefPtr<CertVerifier> certVerifier;
   nsresult rv = NS_ERROR_FAILURE;
+  RefPtr<nsCERTValInParamWrapper> survivingParams;
+  nsCOMPtr<nsINSSComponent> inss;
 
   if (!NSS_CMSMessage_IsSigned(m_cmsMsg)) {
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsCMSMessage::CommonVerifySignature - not signed\n"));
@@ -258,22 +259,37 @@ nsresult nsCMSMessage::CommonVerifySignature(unsigned char* aDigestData, uint32_
 
   nsigners = NSS_CMSSignedData_SignerInfoCount(sigd);
   PR_ASSERT(nsigners > 0);
-  NS_ENSURE_TRUE(nsigners > 0, NS_ERROR_UNEXPECTED);
   si = NSS_CMSSignedData_GetSignerInfo(sigd, 0);
 
   // See bug 324474. We want to make sure the signing cert is 
   // still valid at the current time.
 
-  certVerifier = GetDefaultCertVerifier();
-  NS_ENSURE_TRUE(certVerifier, NS_ERROR_UNEXPECTED);
+  if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
+    if (CERT_VerifyCertificateNow(CERT_GetDefaultCertDB(), si->cert, true, 
+                                  certificateUsageEmailSigner,
+                                  si->cmsg->pwfn_arg, nullptr) != SECSuccess) {
+      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsCMSMessage::CommonVerifySignature - signing cert not trusted now\n"));
+      rv = NS_ERROR_CMS_VERIFY_UNTRUSTED;
+      goto loser;
+    }
+  }
+  else {
+    CERTValOutParam cvout[1];
+    cvout[0].type = cert_po_end;
 
-  {
-    SECStatus srv = certVerifier->VerifyCert(si->cert,
-                                             certificateUsageEmailSigner,
-                                             PR_Now(), nullptr /*XXX pinarg*/);
-    if (srv != SECSuccess) {
-      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-             ("nsCMSMessage::CommonVerifySignature - signing cert not trusted now\n"));
+    inss = do_GetService(kNSSComponentCID, &rv);
+    if (!inss) {
+      goto loser;
+    }
+
+    if (NS_FAILED(inss->GetDefaultCERTValInParam(survivingParams))) {
+      goto loser;
+    }
+    SECStatus stat = CERT_PKIXVerifyCert(si->cert, certificateUsageEmailSigner,
+			    survivingParams->GetRawPointerForNSS(),
+			    cvout, si->cmsg->pwfn_arg);
+    if (stat != SECSuccess) {
+      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsCMSMessage::CommonVerifySignature - signing cert not trusted now\n"));
       rv = NS_ERROR_CMS_VERIFY_UNTRUSTED;
       goto loser;
     }
@@ -725,7 +741,7 @@ loser:
   return rv;
 }
 
-NS_IMPL_ISUPPORTS1(nsCMSDecoder, nsICMSDecoder)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsCMSDecoder, nsICMSDecoder)
 
 nsCMSDecoder::nsCMSDecoder()
 : m_dcx(nullptr)
@@ -811,7 +827,7 @@ NS_IMETHODIMP nsCMSDecoder::Finish(nsICMSMessage ** aCMSMsg)
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS1(nsCMSEncoder, nsICMSEncoder)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsCMSEncoder, nsICMSEncoder)
 
 nsCMSEncoder::nsCMSEncoder()
 : m_ecx(nullptr)

@@ -4,18 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsDOMNotifyAudioAvailableEvent.h"
-
 #include "nsError.h"
-#include "mozilla/HoldDropJSObjects.h"
+#include "nsDOMNotifyAudioAvailableEvent.h"
+#include "nsDOMClassInfoID.h" // DOMCI_DATA, NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO
+#include "nsContentUtils.h" // NS_DROP_JS_OBJECTS
 #include "jsfriendapi.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
-
-nsDOMNotifyAudioAvailableEvent::nsDOMNotifyAudioAvailableEvent(EventTarget* aOwner,
+nsDOMNotifyAudioAvailableEvent::nsDOMNotifyAudioAvailableEvent(mozilla::dom::EventTarget* aOwner,
                                                                nsPresContext* aPresContext,
-                                                               WidgetEvent* aEvent,
+                                                               nsEvent* aEvent,
                                                                uint32_t aEventType,
                                                                float* aFrameBuffer,
                                                                uint32_t aFrameBufferLength,
@@ -33,15 +30,15 @@ nsDOMNotifyAudioAvailableEvent::nsDOMNotifyAudioAvailableEvent(EventTarget* aOwn
   }
 }
 
+DOMCI_DATA(NotifyAudioAvailableEvent, nsDOMNotifyAudioAvailableEvent)
+
 NS_IMPL_ADDREF_INHERITED(nsDOMNotifyAudioAvailableEvent, nsDOMEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMNotifyAudioAvailableEvent, nsDOMEvent)
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMNotifyAudioAvailableEvent)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMNotifyAudioAvailableEvent, nsDOMEvent)
   if (tmp->mCachedArray) {
     tmp->mCachedArray = nullptr;
-    mozilla::DropJSObjects(tmp);
+    NS_DROP_JS_OBJECTS(tmp, nsDOMNotifyAudioAvailableEvent);
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -54,6 +51,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMNotifyAudioAvailableEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNotifyAudioAvailableEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(NotifyAudioAvailableEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 nsDOMNotifyAudioAvailableEvent::~nsDOMNotifyAudioAvailableEvent()
@@ -61,7 +59,7 @@ nsDOMNotifyAudioAvailableEvent::~nsDOMNotifyAudioAvailableEvent()
   MOZ_COUNT_DTOR(nsDOMNotifyAudioAvailableEvent);
   if (mCachedArray) {
     mCachedArray = nullptr;
-    mozilla::DropJSObjects(this);
+    NS_DROP_JS_OBJECTS(this, nsDOMNotifyAudioAvailableEvent);
   }
 }
 
@@ -79,11 +77,11 @@ nsDOMNotifyAudioAvailableEvent::GetFrameBuffer(JSContext* aCx, JS::Value* aResul
   }
 
   // Cache this array so we don't recreate on next call.
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, nsDOMNotifyAudioAvailableEvent);
 
   mCachedArray = JS_NewFloat32Array(aCx, mFrameBufferLength);
   if (!mCachedArray) {
-    mozilla::DropJSObjects(this);
+    NS_DROP_JS_OBJECTS(this, nsDOMNotifyAudioAvailableEvent);
     return NS_ERROR_FAILURE;
   }
   memcpy(JS_GetFloat32ArrayData(mCachedArray), mFrameBuffer.get(), mFrameBufferLength * sizeof(float));
@@ -95,7 +93,7 @@ nsDOMNotifyAudioAvailableEvent::GetFrameBuffer(JSContext* aCx, JS::Value* aResul
 NS_IMETHODIMP
 nsDOMNotifyAudioAvailableEvent::GetTime(float *aRetVal)
 {
-  *aRetVal = Time();
+  *aRetVal = mTime;
   return NS_OK;
 }
 
@@ -119,44 +117,13 @@ nsDOMNotifyAudioAvailableEvent::InitAudioAvailableEvent(const nsAString& aType,
   mFrameBufferLength = aFrameBufferLength;
   mTime = aTime;
   mAllowAudioData = aAllowAudioData;
-  mCachedArray = nullptr;
   return NS_OK;
 }
 
-void
-nsDOMNotifyAudioAvailableEvent::InitAudioAvailableEvent(const nsAString& aType,
-                                                        bool aCanBubble,
-                                                        bool aCancelable,
-                                                        const Nullable<Sequence<float> >& aFrameBuffer,
-                                                        uint32_t aFrameBufferLength,
-                                                        float aTime,
-                                                        bool aAllowAudioData,
-                                                        ErrorResult& aRv)
-{
-  if ((aFrameBuffer.IsNull() && aFrameBufferLength > 0) ||
-      (!aFrameBuffer.IsNull() &&
-       aFrameBuffer.Value().Length() < aFrameBufferLength)) {
-    aRv = NS_ERROR_UNEXPECTED;
-    return;
-  }
-
-  nsAutoArrayPtr<float> buffer;
-  if (!aFrameBuffer.IsNull()) {
-    buffer = new float[aFrameBufferLength];
-    memcpy(buffer.get(), aFrameBuffer.Value().Elements(),
-           aFrameBufferLength * sizeof(float));
-  }
-
-  aRv = InitAudioAvailableEvent(aType, aCanBubble, aCancelable,
-                                buffer.forget(),
-                                aFrameBufferLength,
-                                aTime, aAllowAudioData);
-}
-
 nsresult NS_NewDOMAudioAvailableEvent(nsIDOMEvent** aInstancePtrResult,
-                                      EventTarget* aOwner,
+                                      mozilla::dom::EventTarget* aOwner,
                                       nsPresContext* aPresContext,
-                                      WidgetEvent* aEvent,
+                                      nsEvent *aEvent,
                                       uint32_t aEventType,
                                       float* aFrameBuffer,
                                       uint32_t aFrameBufferLength,

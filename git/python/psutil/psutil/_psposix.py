@@ -1,6 +1,8 @@
 #!/usr/bin/env python
-
-# Copyright (c) 2009, Giampaolo Rodola'. All rights reserved.
+#
+# $Id: _psposix.py 1409 2012-07-04 08:21:06Z g.rodola $
+#
+# Copyright (c) 2009, Jay Loden, Giampaolo Rodola'. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -13,12 +15,14 @@ import sys
 import time
 import glob
 
-from psutil._error import TimeoutExpired
-from psutil._common import nt_diskinfo, usage_percent, memoize
+from psutil.error import TimeoutExpired
+from psutil._common import nt_diskinfo, usage_percent
 
 
 def pid_exists(pid):
     """Check whether pid exists in the current process table."""
+    if not isinstance(pid, int):
+        raise TypeError('an integer is required')
     if pid < 0:
         return False
     try:
@@ -42,15 +46,14 @@ def wait_pid(pid, timeout=None):
     """
     def check_timeout(delay):
         if timeout is not None:
-            if timer() >= stop_at:
+            if time.time() >= stop_at:
                 raise TimeoutExpired(pid)
         time.sleep(delay)
         return min(delay * 2, 0.04)
 
-    timer = getattr(time, 'monotonic', time.time)
     if timeout is not None:
         waitcall = lambda: os.waitpid(pid, os.WNOHANG)
-        stop_at = timer() + timeout
+        stop_at = time.time() + timeout
     else:
         waitcall = lambda: os.waitpid(pid, 0)
 
@@ -106,16 +109,10 @@ def get_disk_usage(path):
     # http://goo.gl/sWGbH
     return nt_diskinfo(total, used, free, percent)
 
-@memoize
 def _get_terminal_map():
     ret = {}
     ls = glob.glob('/dev/tty*') + glob.glob('/dev/pts/*')
     for name in ls:
         assert name not in ret
-        try:
-            ret[os.stat(name).st_rdev] = name
-        except OSError:
-            err = sys.exc_info()[1]
-            if err.errno != errno.ENOENT:
-                raise
+        ret[os.stat(name).st_rdev] = name
     return ret

@@ -11,7 +11,6 @@
 #ifndef TWO_WAY_COMMUNICATION_H
 #define TWO_WAY_COMMUNICATION_H
 
-#include "webrtc/system_wrappers/interface/scoped_ptr.h"
 #include "ACMTest.h"
 #include "Channel.h"
 #include "PCMFile.h"
@@ -20,41 +19,42 @@
 
 namespace webrtc {
 
-class TwoWayCommunication : public ACMTest {
- public:
-  TwoWayCommunication(int testMode = 1);
-  ~TwoWayCommunication();
+class TwoWayCommunication : public ACMTest
+{
+public:
+    TwoWayCommunication(int testMode = 1);
+    ~TwoWayCommunication();
 
-  void Perform();
- private:
-  void ChooseCodec(uint8_t* codecID_A, uint8_t* codecID_B);
-  void SetUp();
-  void SetUpAutotest();
+    void Perform();
+private:
+    WebRtc_UWord8 ChooseCodec(WebRtc_UWord8* codecID_A, WebRtc_UWord8* codecID_B);
+    WebRtc_Word16 SetUp();
+    WebRtc_Word16 SetUpAutotest();
 
-  scoped_ptr<AudioCodingModule> _acmA;
-  scoped_ptr<AudioCodingModule> _acmB;
+    AudioCodingModule* _acmA;
+    AudioCodingModule* _acmB;
 
-  scoped_ptr<AudioCodingModule> _acmRefA;
-  scoped_ptr<AudioCodingModule> _acmRefB;
+    AudioCodingModule* _acmRefA;
+    AudioCodingModule* _acmRefB;
 
-  Channel* _channel_A2B;
-  Channel* _channel_B2A;
+    Channel* _channel_A2B;
+    Channel* _channel_B2A;
 
-  Channel* _channelRef_A2B;
-  Channel* _channelRef_B2A;
+    Channel* _channelRef_A2B;
+    Channel* _channelRef_B2A;
 
-  PCMFile _inFileA;
-  PCMFile _inFileB;
+    PCMFile _inFileA;
+    PCMFile _inFileB;
 
-  PCMFile _outFileA;
-  PCMFile _outFileB;
+    PCMFile _outFileA;
+    PCMFile _outFileB;
 
-  PCMFile _outFileRefA;
-  PCMFile _outFileRefB;
+    PCMFile _outFileRefA;
+    PCMFile _outFileRefB;
 
-  int _testMode;
+    int _testMode;
 };
 
-}  // namespace webrtc
+} // namespace webrtc
 
 #endif

@@ -4,6 +4,8 @@
 
 /*
  * Test program for client-side OCSP.
+ *
+ * $Id$
  */
 
 #include "secutil.h"
@@ -254,7 +256,7 @@ create_request (FILE *out_file, CERTCertDBHandle *handle, CERTCertificate *cert,
     CERTCertList *certs = NULL;
     CERTCertificate *myCert = NULL;
     CERTOCSPRequest *request = NULL;
-    PRTime now = PR_Now();
+    int64 now = PR_Now();
     SECItem *encoding = NULL;
     SECStatus rv = SECFailure;
 
@@ -329,7 +331,7 @@ dump_response (FILE *out_file, CERTCertDBHandle *handle, CERTCertificate *cert,
     CERTCertList *certs = NULL;
     CERTCertificate *myCert = NULL;
     char *loc = NULL;
-    PRTime now = PR_Now();
+    int64 now = PR_Now();
     SECItem *response = NULL;
     SECStatus rv = SECFailure;
     PRBool includeServiceLocator;
@@ -400,7 +402,7 @@ loser:
 static SECStatus
 get_cert_status (FILE *out_file, CERTCertDBHandle *handle,
 		 CERTCertificate *cert, const char *cert_name,
-		 PRTime verify_time)
+                 int64 verify_time)
 {
     SECStatus rv = SECFailure;
 
@@ -436,7 +438,7 @@ loser:
  */
 static SECStatus
 verify_cert (FILE *out_file, CERTCertDBHandle *handle, CERTCertificate *cert,
-	     const char *cert_name, SECCertUsage cert_usage, PRTime verify_time)
+	     const char *cert_name, SECCertUsage cert_usage, int64 verify_time)
 {
     SECStatus rv = SECFailure;
 
@@ -485,7 +487,7 @@ find_certificate(CERTCertDBHandle *handle, const char *name, PRBool ascii)
         return NULL;
     }
 
-    if (SECU_ReadDERFromFile(&der, certFile, ascii, PR_FALSE) == SECSuccess) {
+    if (SECU_ReadDERFromFile(&der, certFile, ascii) == SECSuccess) {
         cert = CERT_DecodeCertFromPackage((char*)der.data, der.len);
         SECITEM_FreeItem(&der, PR_FALSE);
     }
@@ -965,7 +967,7 @@ main (int argc, char **argv)
     SECStatus	 rv;
     CERTCertDBHandle *handle = NULL;
     SECCertUsage cert_usage;
-    PRTime	 verify_time;
+    int64	 verify_time;
     CERTCertificate *cert = NULL;
     PRBool ascii = PR_FALSE;
 

@@ -12,67 +12,18 @@ const { Cc, Ci } = require("chrome");
 const { setTimeout } = require("../timers");
 const { platform } = require("../system");
 const { getMostRecentBrowserWindow, getOwnerBrowserWindow,
-        getHiddenWindow, getScreenPixelsPerCSSPixel } = require("../window/utils");
-
+        getHiddenWindow } = require("../window/utils");
 const { create: createFrame, swapFrameLoaders } = require("../frame/utils");
 const { window: addonWindow } = require("../addon/window");
-const { isNil } = require("../lang/type");
 const events = require("../system/events");
 
 
 const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
-function calculateRegion({ position, width, height, defaultWidth, defaultHeight }, rect) {
-  let x, y;
-
-  let hasTop = !isNil(position.top);
-  let hasRight = !isNil(position.right);
-  let hasBottom = !isNil(position.bottom);
-  let hasLeft = !isNil(position.left);
-  let hasWidth = !isNil(width);
-  let hasHeight = !isNil(height);
-
-  // if width is not specified by constructor or show's options, then get
-  // the default width
-  if (!hasWidth)
-    width = defaultWidth;
-
-  // if height is not specified by constructor or show's options, then get
-  // the default height
-  if (!hasHeight)
-    height = defaultHeight;
-
-  // default position is centered
-  x = (rect.right - width) / 2;
-  y = (rect.top + rect.bottom - height) / 2;
-
-  if (hasTop) {
-    y = rect.top + position.top;
-
-    if (hasBottom && !hasHeight)
-      height = rect.bottom - position.bottom - y;
-  }
-  else if (hasBottom) {
-    y = rect.bottom - position.bottom - height;
-  }
-
-  if (hasLeft) {
-    x = position.left;
-
-    if (hasRight && !hasWidth)
-      width = rect.right - position.right - x;
-  }
-  else if (hasRight) {
-    x = rect.right - width - position.right;
-  }
-
-  return {x: x, y: y, width: width, height: height};
-}
-
-function open(panel, options, anchor) {
+function open(panel, width, height, anchor) {
   // Wait for the XBL binding to be constructed
-  if (!panel.openPopup) setTimeout(open, 50, panel, options, anchor);
-  else display(panel, options, anchor);
+  if (!panel.openPopup) setTimeout(open, 50, panel, width, height, anchor);
+  else display(panel, width, height, anchor);
 }
 exports.open = open;
 
@@ -81,10 +32,6 @@ function isOpen(panel) {
 }
 exports.isOpen = isOpen;
 
-function isOpening(panel) {
-  return panel.state === "showing"
-}
-exports.isOpening = isOpening
 
 function close(panel) {
   // Sometimes "TypeError: panel.hidePopup is not a function" is thrown
@@ -105,37 +52,29 @@ function resize(panel, width, height) {
 }
 exports.resize = resize
 
-function display(panel, options, anchor) {
+function display(panel, width, height, anchor) {
   let document = panel.ownerDocument;
-
-  let x, y;
-  let { width, height, defaultWidth, defaultHeight } = options;
-
-  let popupPosition = null;
+  let x = null;
+  let y = null;
+  let position = null;
 
   // Panel XBL has some SDK incompatible styling decisions. We shim panel
   // instances until proper fix for Bug 859504 is shipped.
   shimDefaultStyle(panel);
 
   if (!anchor) {
-    // The XUL Panel doesn't have an arrow, so the margin needs to be reset
-    // in order to, be positioned properly
-    panel.style.margin = "0";
-
-    let viewportRect = document.defaultView.gBrowser.getBoundingClientRect();
-
-    ({x, y, width, height}) = calculateRegion(options, viewportRect);
+    // Open the popup in the middle of the window.
+    x = document.documentElement.clientWidth / 2 - width / 2;
+    y = document.documentElement.clientHeight / 2 - height / 2;
+    position = null;
   }
   else {
-    width = width || defaultWidth;
-    height = height || defaultHeight;
-
     // Open the popup by the anchor.
     let rect = anchor.getBoundingClientRect();
 
     let window = anchor.ownerDocument.defaultView;
 
-    let zoom = getScreenPixelsPerCSSPixel(window);
+    let zoom = window.mozScreenPixelsPerCSSPixel;
     let screenX = rect.left + window.mozInnerScreenX * zoom;
     let screenY = rect.top + window.mozInnerScreenY * zoom;
 
@@ -153,7 +92,7 @@ function display(panel, options, anchor) {
       horizontal = "right";
 
     let verticalInverse = vertical == "top" ? "bottom" : "top";
-    popupPosition = vertical + "center " + verticalInverse + horizontal;
+    position = vertical + "center " + verticalInverse + horizontal;
 
     // Allow panel to flip itself if the panel can't be displayed at the
     // specified position (useful if we compute a bad position or if the
@@ -166,7 +105,7 @@ function display(panel, options, anchor) {
   panel.firstChild.style.width = width + "px";
   panel.firstChild.style.height = height + "px";
 
-  panel.openPopup(anchor, popupPosition, x, y);
+  panel.openPopup(anchor, position, x, y);
 }
 exports.display = display;
 
@@ -185,16 +124,16 @@ function shimDefaultStyle(panel) {
   });
 }
 
-function show(panel, options, anchor) {
+function show(panel, width, height, focus, anchor) {
   // Prevent the panel from getting focus when showing up
   // if focus is set to false
-  panel.setAttribute("noautofocus", !options.focus);
+  panel.setAttribute("noautofocus", !focus);
+
 
   let window = anchor && getOwnerBrowserWindow(anchor);
   let { document } = window ? window : getMostRecentBrowserWindow();
   attach(panel, document);
-
-  open(panel, options, anchor);
+  open(panel, width, height, anchor);
 }
 exports.show = show
 
@@ -208,6 +147,16 @@ function setupPanelFrame(frame) {
     frame.style.padding = "1px";
   }
 }
+
+let EVENT_NAMES = {
+  "popupshowing": "sdk-panel-show",
+  "popuphiding": "sdk-panel-hide",
+  "popupshown": "sdk-panel-shown",
+  "popuphidden": "sdk-panel-hidden",
+  "document-element-inserted": "sdk-panel-content-changed",
+  "DOMContentLoaded": "sdk-panel-content-loaded",
+  "load": "sdk-panel-document-loaded"
+};
 
 function make(document) {
   document = document || getMostRecentBrowserWindow().document;
@@ -240,37 +189,32 @@ function make(document) {
   let viewFrame = createFrame(panel, frameOptions);
   setupPanelFrame(viewFrame);
 
-  function onDisplayChange({type, target}) {
-    // Events from child element like <select /> may propagate (dropdowns are
-    // popups too), in which case frame loader shouldn't be swapped.
-    // See Bug 886329
-    if (target !== this) return;
-
+  function onDisplayChange({type}) {
     try { swapFrameLoaders(backgroundFrame, viewFrame); }
     catch(error) { console.exception(error); }
-    events.emit(type, { subject: panel });
+    events.emit(EVENT_NAMES[type], { subject: panel });
   }
 
   function onContentReady({target, type}) {
     if (target === getContentDocument(panel)) {
       style(panel);
-      events.emit(type, { subject: panel });
+      events.emit(EVENT_NAMES[type], { subject: panel });
     }
   }
 
   function onContentLoad({target, type}) {
     if (target === getContentDocument(panel))
-      events.emit(type, { subject: panel });
+      events.emit(EVENT_NAMES[type], { subject: panel });
   }
 
   function onContentChange({subject, type}) {
     let document = subject;
     if (document === getContentDocument(panel) && document.defaultView)
-      events.emit(type, { subject: panel });
+      events.emit(EVENT_NAMES[type], { subject: panel });
   }
 
   function onPanelStateChange({type}) {
-    events.emit(type, { subject: panel })
+    events.emit(EVENT_NAMES[type], { subject: panel })
   }
 
   panel.addEventListener("popupshowing", onDisplayChange, false);
@@ -367,10 +311,8 @@ function style(panel) {
 }
 exports.style = style;
 
-let getContentFrame = panel =>
-    (isOpen(panel) || isOpening(panel)) ?
-    panel.firstChild :
-    panel.backgroundFrame
+function getContentFrame(panel) isOpen(panel) ? panel.firstChild :
+                                                panel.backgroundFrame
 exports.getContentFrame = getContentFrame;
 
 function getContentDocument(panel) getContentFrame(panel).contentDocument

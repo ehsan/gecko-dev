@@ -325,3 +325,5 @@ bool SkTouchGesture::handleDblTap(float x, float y) {
     fLastUpP.set(x, y);
     return found;
 }
+
+

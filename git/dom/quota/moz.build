@@ -24,33 +24,11 @@ EXPORTS.mozilla.dom.quota += [
     'Client.h',
     'FileStreams.h',
     'OriginOrPatternString.h',
-    'PersistenceType.h',
     'QuotaCommon.h',
     'QuotaManager.h',
     'QuotaObject.h',
     'StoragePrivilege.h',
-    'UsageInfo.h',
+    'UsageRunnable.h',
     'Utilities.h',
-]
-
-SOURCES += [
-    'CheckQuotaHelper.cpp',
-    'FileStreams.cpp',
-    'QuotaManager.cpp',
-    'QuotaObject.cpp',
-]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'domquota_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
-
-LOCAL_INCLUDES += [
-    '/caps/include',
 ]
 

@@ -16,16 +16,19 @@ class SkICOImageDecoder : public SkImageDecoder {
 public:
     SkICOImageDecoder();
 
-    virtual Format getFormat() const SK_OVERRIDE {
+    virtual Format getFormat() const {
         return kICO_Format;
     }
 
 protected:
-    virtual bool onDecode(SkStream* stream, SkBitmap* bm, Mode) SK_OVERRIDE;
-
-private:
-    typedef SkImageDecoder INHERITED;
+    virtual bool onDecode(SkStream* stream, SkBitmap* bm, Mode);
 };
+
+#if 0 // UNUSED
+SkImageDecoder* SkCreateICOImageDecoder() {
+    return new SkICOImageDecoder;
+}
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
@@ -75,7 +78,7 @@ static int calculateRowBytesFor8888(int w, int bitCount)
 
 bool SkICOImageDecoder::onDecode(SkStream* stream, SkBitmap* bm, Mode mode)
 {
-    size_t length = stream->getLength();
+    size_t length = stream->read(NULL, 0);
     SkAutoMalloc autoMal(length);
     unsigned char* buf = (unsigned char*)autoMal.get();
     if (stream->read((void*)buf, length) != length) {
@@ -232,16 +235,12 @@ bool SkICOImageDecoder::onDecode(SkStream* stream, SkBitmap* bm, Mode mode)
     //if the andbitmap (mask) is all zeroes, then we can easily do an index bitmap
     //however, with small images with large colortables, maybe it's better to still do argb_8888
 
+    bm->setConfig(SkBitmap::kARGB_8888_Config, w, h, calculateRowBytesFor8888(w, bitCount));
+
     if (SkImageDecoder::kDecodeBounds_Mode == mode) {
-        bm->setConfig(SkBitmap::kARGB_8888_Config, w, h, calculateRowBytesFor8888(w, bitCount));
         delete[] colors;
         return true;
     }
-    // No Bitmap reuse supported for this format
-    if (!bm->isNull()) {
-        return false;
-    }
-    bm->setConfig(SkBitmap::kARGB_8888_Config, w, h, calculateRowBytesFor8888(w, bitCount));
 
     if (!this->allocPixelRef(bm, NULL))
     {
@@ -391,3 +390,4 @@ static SkImageDecoder* sk_libico_dfactory(SkStream* stream) {
 }
 
 static SkTRegistry<SkImageDecoder*, SkStream*> gReg(sk_libico_dfactory);
+

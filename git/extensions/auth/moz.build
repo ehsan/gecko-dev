@@ -6,26 +6,3 @@
 
 MODULE = 'auth'
 
-SOURCES += [
-    'nsAuthFactory.cpp',
-    'nsAuthGSSAPI.cpp',
-    'nsAuthSASL.cpp',
-    'nsHttpNegotiateAuth.cpp',
-]
-
-if CONFIG['OS_ARCH'] == 'WINNT':
-    SOURCES += [
-        'nsAuthSSPI.cpp',
-    ]
-    DEFINES['USE_SSPI'] = True
-else:
-    SOURCES += [
-        'nsAuthSambaNTLM.cpp',
-    ]
-
-LIBRARY_NAME = 'auth'
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
-

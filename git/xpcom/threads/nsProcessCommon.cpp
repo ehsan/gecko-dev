@@ -17,6 +17,7 @@
 #include "nsAutoPtr.h"
 #include "nsMemory.h"
 #include "nsProcess.h"
+#include "prtypes.h"
 #include "prio.h"
 #include "prenv.h"
 #include "nsCRT.h"
@@ -58,8 +59,8 @@ cpu_type_t pref_cpu_types[2] = {
 //-------------------------------------------------------------------//
 // nsIProcess implementation
 //-------------------------------------------------------------------//
-NS_IMPL_ISUPPORTS2(nsProcess, nsIProcess,
-                   nsIObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsProcess, nsIProcess,
+                                         nsIObserver)
 
 //Constructor
 nsProcess::nsProcess()
@@ -139,7 +140,7 @@ static int assembleCmdLine(char *const *argv, PRUnichar **wideCmdLine,
                 + 1;                     /* space in between, or final null */
     }
     p = cmdLine = (char *) PR_MALLOC(cmdLineSize*sizeof(char));
-    if (p == nullptr) {
+    if (p == NULL) {
         return -1;
     }
 
@@ -212,7 +213,7 @@ static int assembleCmdLine(char *const *argv, PRUnichar **wideCmdLine,
     } 
 
     *p = '\0';
-    int32_t numChars = MultiByteToWideChar(codePage, 0, cmdLine, -1, nullptr, 0);
+    int32_t numChars = MultiByteToWideChar(codePage, 0, cmdLine, -1, NULL, 0); 
     *wideCmdLine = (PRUnichar *) PR_MALLOC(numChars*sizeof(PRUnichar));
     MultiByteToWideChar(codePage, 0, cmdLine, -1, *wideCmdLine, numChars); 
     PR_Free(cmdLine);
@@ -241,7 +242,7 @@ void nsProcess::Monitor(void *arg)
     {
         MutexAutoLock lock(process->mLock);
         CloseHandle(process->mProcess);
-        process->mProcess = nullptr;
+        process->mProcess = NULL;
         process->mExitValue = exitCode;
         if (process->mShutdown)
             return;
@@ -338,8 +339,8 @@ nsProcess::CopyArgsAndRunProcess(bool blocking, const char** args,
                                  uint32_t count, nsIObserver* observer,
                                  bool holdWeak)
 {
-    // Add one to the count for the program name and one for null termination.
-    char **my_argv = nullptr;
+    // Add one to the count for the program name and one for NULL termination.
+    char **my_argv = NULL;
     my_argv = (char**)NS_Alloc(sizeof(char*) * (count + 2));
     if (!my_argv) {
         return NS_ERROR_OUT_OF_MEMORY;
@@ -351,7 +352,7 @@ nsProcess::CopyArgsAndRunProcess(bool blocking, const char** args,
         my_argv[i + 1] = const_cast<char*>(args[i]);
     }
 
-    my_argv[count + 1] = nullptr;
+    my_argv[count + 1] = NULL;
 
     nsresult rv = RunProcess(blocking, my_argv, observer, holdWeak, false);
 
@@ -380,8 +381,8 @@ nsProcess::CopyArgsAndRunProcessw(bool blocking, const PRUnichar** args,
                                   uint32_t count, nsIObserver* observer,
                                   bool holdWeak)
 {
-    // Add one to the count for the program name and one for null termination.
-    char **my_argv = nullptr;
+    // Add one to the count for the program name and one for NULL termination.
+    char **my_argv = NULL;
     my_argv = (char**)NS_Alloc(sizeof(char*) * (count + 2));
     if (!my_argv) {
         return NS_ERROR_OUT_OF_MEMORY;
@@ -393,7 +394,7 @@ nsProcess::CopyArgsAndRunProcessw(bool blocking, const PRUnichar** args,
         my_argv[i + 1] = ToNewUTF8String(nsDependentString(args[i]));
     }
 
-    my_argv[count + 1] = nullptr;
+    my_argv[count + 1] = NULL;
 
     nsresult rv = RunProcess(blocking, my_argv, observer, holdWeak, true);
 
@@ -427,11 +428,11 @@ nsProcess::RunProcess(bool blocking, char **my_argv, nsIObserver* observer,
 
 #if defined(PROCESSMODEL_WINAPI)
     BOOL retVal;
-    PRUnichar *cmdLine = nullptr;
+    PRUnichar *cmdLine = NULL;
 
     // The 'argv' array is null-terminated and always starts with the program path.
     // If the second slot is non-null then arguments are being passed.
-    if (my_argv[1] != nullptr &&
+    if (my_argv[1] != NULL &&
         assembleCmdLine(my_argv + 1, &cmdLine, argsUTF8 ? CP_UTF8 : CP_ACP) == -1) {
         return NS_ERROR_FILE_EXECUTION_FAILED;    
     }
@@ -447,7 +448,7 @@ nsProcess::RunProcess(bool blocking, char **my_argv, nsIObserver* observer,
     SHELLEXECUTEINFOW sinfo;
     memset(&sinfo, 0, sizeof(SHELLEXECUTEINFOW));
     sinfo.cbSize = sizeof(SHELLEXECUTEINFOW);
-    sinfo.hwnd   = nullptr;
+    sinfo.hwnd   = NULL;
     sinfo.lpFile = wideFile.get();
     sinfo.nShow  = SW_SHOWNORMAL;
     sinfo.fMask  = SEE_MASK_FLAG_DDEWAIT |
@@ -486,7 +487,7 @@ nsProcess::RunProcess(bool blocking, char **my_argv, nsIObserver* observer,
 
     // Note that the 'argv' array is already null-terminated, which 'posix_spawnp' requires.
     pid_t newPid = 0;
-    int result = posix_spawnp(&newPid, my_argv[0], nullptr, &spawnattr, my_argv, *_NSGetEnviron());
+    int result = posix_spawnp(&newPid, my_argv[0], NULL, &spawnattr, my_argv, *_NSGetEnviron());
     mPid = static_cast<int32_t>(newPid);
 
     posix_spawnattr_destroy(&spawnattr);
@@ -495,7 +496,7 @@ nsProcess::RunProcess(bool blocking, char **my_argv, nsIObserver* observer,
         return NS_ERROR_FAILURE;
     }
 #else
-    mProcess = PR_CreateProcess(my_argv[0], my_argv, nullptr, nullptr);
+    mProcess = PR_CreateProcess(my_argv[0], my_argv, NULL, NULL);
     if (!mProcess)
         return NS_ERROR_FAILURE;
     struct MYProcess {

@@ -39,26 +39,19 @@
 "use strict";
 
 importScripts("ril_consts.js", "systemlibs.js");
-importScripts("resource://gre/modules/workers/require.js");
 
 // set to true in ril_consts.js to see debug messages
 let DEBUG = DEBUG_WORKER;
-let CLIENT_ID = -1;
-let GLOBAL = this;
 
-if (!this.debug) {
-  // Debugging stub that goes nowhere.
-  this.debug = function debug(message) {
-    dump("RIL Worker[" + CLIENT_ID + "]: " + message + "\n");
-  };
-}
+const INT32_MAX   = 2147483647;
+const UINT8_SIZE  = 1;
+const UINT16_SIZE = 2;
+const UINT32_SIZE = 4;
+const PARCEL_SIZE_SIZE = UINT32_SIZE;
+
+const PDU_HEX_OCTET_SIZE = 4;
 
 const DEFAULT_EMERGENCY_NUMBERS = ["112", "911"];
-
-// Timeout value for emergency callback mode.
-const EMERGENCY_CB_MODE_TIMEOUT_MS = 300000;  // 5 mins = 300000 ms.
-
-const ICC_MAX_LINEAR_FIXED_RECORDS = 0xfe;
 
 // MMI match groups
 const MMI_MATCH_GROUP_FULL_MMI = 1;
@@ -83,46 +76,557 @@ let RILQUIRKS_MODEM_DEFAULTS_TO_EMERGENCY_MODE = libcutils.property_get("ro.moz.
 let RILQUIRKS_SIM_APP_STATE_EXTRA_FIELDS = libcutils.property_get("ro.moz.ril.simstate_extra_field", "false") === "true";
 // Needed for call-waiting on Peak device
 let RILQUIRKS_EXTRA_UINT32_2ND_CALL = libcutils.property_get("ro.moz.ril.extra_int_2nd_call", "false") == "true";
-// On the emulator we support querying the number of lock retries
-let RILQUIRKS_HAVE_QUERY_ICC_LOCK_RETRY_COUNT = libcutils.property_get("ro.moz.ril.query_icc_count", "false") == "true";
-
-// Ril quirk to Send STK Profile Download
-let RILQUIRKS_SEND_STK_PROFILE_DOWNLOAD = libcutils.property_get("ro.moz.ril.send_stk_profile_dl", "false") == "true";
 
 // Marker object.
 let PENDING_NETWORK_TYPE = {};
 
+/**
+ * This object contains helpers buffering incoming data & deconstructing it
+ * into parcels as well as buffering outgoing data & constructing parcels.
+ * For that it maintains two buffers and corresponding uint8 views, indexes.
+ *
+ * The incoming buffer is a circular buffer where we store incoming data.
+ * As soon as a complete parcel is received, it is processed right away, so
+ * the buffer only needs to be large enough to hold one parcel.
+ *
+ * The outgoing buffer is to prepare outgoing parcels. The index is reset
+ * every time a parcel is sent.
+ */
 let Buf = {
-  __proto__: (function(){
-    return require("resource://gre/modules/workers/worker_buf.js").Buf;
-  })(),
 
-  mToken: 0,
-  mTokenRequestMap: null,
+  INCOMING_BUFFER_LENGTH: 1024,
+  OUTGOING_BUFFER_LENGTH: 1024,
 
   init: function init() {
-    this._init();
+    this.incomingBuffer = new ArrayBuffer(this.INCOMING_BUFFER_LENGTH);
+    this.outgoingBuffer = new ArrayBuffer(this.OUTGOING_BUFFER_LENGTH);
+
+    this.incomingBytes = new Uint8Array(this.incomingBuffer);
+    this.outgoingBytes = new Uint8Array(this.outgoingBuffer);
+
+    // Track where incoming data is read from and written to.
+    this.incomingWriteIndex = 0;
+    this.incomingReadIndex = 0;
+
+    // Leave room for the parcel size for outgoing parcels.
+    this.outgoingIndex = PARCEL_SIZE_SIZE;
+
+    // How many bytes we've read for this parcel so far.
+    this.readIncoming = 0;
+
+    // How many bytes available as parcel data.
+    this.readAvailable = 0;
+
+    // Size of the incoming parcel. If this is zero, we're expecting a new
+    // parcel.
+    this.currentParcelSize = 0;
 
     // This gets incremented each time we send out a parcel.
-    this.mToken = 1;
+    this.token = 1;
 
     // Maps tokens we send out with requests to the request type, so that
     // when we get a response parcel back, we know what request it was for.
-    this.mTokenRequestMap = {};
+    this.tokenRequestMap = {};
+
+    // This is the token of last solicited response.
+    this.lastSolicitedToken = 0;
+
+    // Queue for storing outgoing override points
+    this.outgoingBufferCalSizeQueue = [];
+  },
+
+  /**
+   * Mark current outgoingIndex as start point for calculation length of data
+   * written to outgoingBuffer.
+   * Mark can be nested for here uses queue to remember marks.
+   *
+   * @param writeFunction
+   *        Function to write data length into outgoingBuffer, this function is
+   *        also used to allocate buffer for data length.
+   *        Raw data size(in Uint8) is provided as parameter calling writeFunction.
+   *        If raw data size is not in proper unit for writing, user can adjust
+   *        the length value in writeFunction before writing.
+   **/
+  startCalOutgoingSize: function startCalOutgoingSize(writeFunction) {
+    let sizeInfo = {index: this.outgoingIndex,
+                    write: writeFunction};
+
+    // Allocate buffer for data lemgtj.
+    writeFunction.call(0);
+
+    // Get size of data length buffer for it is not counted into data size.
+    sizeInfo.size = this.outgoingIndex - sizeInfo.index;
+
+    // Enqueue size calculation information.
+    this.outgoingBufferCalSizeQueue.push(sizeInfo);
+  },
+
+  /**
+   * Calculate data length since last mark, and write it into mark position.
+   **/
+  stopCalOutgoingSize: function stopCalOutgoingSize() {
+    let sizeInfo = this.outgoingBufferCalSizeQueue.pop();
+
+    // Remember current outgoingIndex.
+    let currentOutgoingIndex = this.outgoingIndex;
+    // Calculate data length, in uint8.
+    let writeSize = this.outgoingIndex - sizeInfo.index - sizeInfo.size;
+
+    // Write data length to mark, use same function for allocating buffer to make
+    // sure there is no buffer overloading.
+    this.outgoingIndex = sizeInfo.index;
+    sizeInfo.write(writeSize);
+
+    // Restore outgoingIndex.
+    this.outgoingIndex = currentOutgoingIndex;
+  },
+
+  /**
+   * Grow the incoming buffer.
+   *
+   * @param min_size
+   *        Minimum new size. The actual new size will be the the smallest
+   *        power of 2 that's larger than this number.
+   */
+  growIncomingBuffer: function growIncomingBuffer(min_size) {
+    if (DEBUG) {
+      debug("Current buffer of " + this.INCOMING_BUFFER_LENGTH +
+            " can't handle incoming " + min_size + " bytes.");
+    }
+    let oldBytes = this.incomingBytes;
+    this.INCOMING_BUFFER_LENGTH =
+      2 << Math.floor(Math.log(min_size)/Math.log(2));
+    if (DEBUG) debug("New incoming buffer size: " + this.INCOMING_BUFFER_LENGTH);
+    this.incomingBuffer = new ArrayBuffer(this.INCOMING_BUFFER_LENGTH);
+    this.incomingBytes = new Uint8Array(this.incomingBuffer);
+    if (this.incomingReadIndex <= this.incomingWriteIndex) {
+      // Read and write index are in natural order, so we can just copy
+      // the old buffer over to the bigger one without having to worry
+      // about the indexes.
+      this.incomingBytes.set(oldBytes, 0);
+    } else {
+      // The write index has wrapped around but the read index hasn't yet.
+      // Write whatever the read index has left to read until it would
+      // circle around to the beginning of the new buffer, and the rest
+      // behind that.
+      let head = oldBytes.subarray(this.incomingReadIndex);
+      let tail = oldBytes.subarray(0, this.incomingReadIndex);
+      this.incomingBytes.set(head, 0);
+      this.incomingBytes.set(tail, head.length);
+      this.incomingReadIndex = 0;
+      this.incomingWriteIndex += head.length;
+    }
+    if (DEBUG) {
+      debug("New incoming buffer size is " + this.INCOMING_BUFFER_LENGTH);
+    }
+  },
+
+  /**
+   * Grow the outgoing buffer.
+   *
+   * @param min_size
+   *        Minimum new size. The actual new size will be the the smallest
+   *        power of 2 that's larger than this number.
+   */
+  growOutgoingBuffer: function growOutgoingBuffer(min_size) {
+    if (DEBUG) {
+      debug("Current buffer of " + this.OUTGOING_BUFFER_LENGTH +
+            " is too small.");
+    }
+    let oldBytes = this.outgoingBytes;
+    this.OUTGOING_BUFFER_LENGTH =
+      2 << Math.floor(Math.log(min_size)/Math.log(2));
+    this.outgoingBuffer = new ArrayBuffer(this.OUTGOING_BUFFER_LENGTH);
+    this.outgoingBytes = new Uint8Array(this.outgoingBuffer);
+    this.outgoingBytes.set(oldBytes, 0);
+    if (DEBUG) {
+      debug("New outgoing buffer size is " + this.OUTGOING_BUFFER_LENGTH);
+    }
+  },
+
+  /**
+   * Functions for reading data from the incoming buffer.
+   *
+   * These are all little endian, apart from readParcelSize();
+   */
+
+  /**
+   * Ensure position specified is readable.
+   *
+   * @param index
+   *        Data position in incoming parcel, valid from 0 to
+   *        this.currentParcelSize.
+   */
+  ensureIncomingAvailable: function ensureIncomingAvailable(index) {
+    if (index >= this.currentParcelSize) {
+      throw new Error("Trying to read data beyond the parcel end!");
+    } else if (index < 0) {
+      throw new Error("Trying to read data before the parcel begin!");
+    }
+  },
+
+  /**
+   * Seek in current incoming parcel.
+   *
+   * @param offset
+   *        Seek offset in relative to current position.
+   */
+  seekIncoming: function seekIncoming(offset) {
+    // Translate to 0..currentParcelSize
+    let cur = this.currentParcelSize - this.readAvailable;
+
+    let newIndex = cur + offset;
+    this.ensureIncomingAvailable(newIndex);
+
+    // ... incomingReadIndex -->|
+    // 0               new     cur           currentParcelSize
+    // |================|=======|===================|
+    // |<--        cur       -->|<- readAvailable ->|
+    // |<-- newIndex -->|<--  new readAvailable  -->|
+    this.readAvailable = this.currentParcelSize - newIndex;
+
+    // Translate back:
+    if (this.incomingReadIndex < cur) {
+      // The incomingReadIndex is wrapped.
+      newIndex += this.INCOMING_BUFFER_LENGTH;
+    }
+    newIndex += (this.incomingReadIndex - cur);
+    newIndex %= this.INCOMING_BUFFER_LENGTH;
+    this.incomingReadIndex = newIndex;
+  },
+
+  readUint8Unchecked: function readUint8Unchecked() {
+    let value = this.incomingBytes[this.incomingReadIndex];
+    this.incomingReadIndex = (this.incomingReadIndex + 1) %
+                             this.INCOMING_BUFFER_LENGTH;
+    return value;
+  },
+
+  readUint8: function readUint8() {
+    // Translate to 0..currentParcelSize
+    let cur = this.currentParcelSize - this.readAvailable;
+    this.ensureIncomingAvailable(cur);
+
+    this.readAvailable--;
+    return this.readUint8Unchecked();
+  },
+
+  readUint8Array: function readUint8Array(length) {
+    // Translate to 0..currentParcelSize
+    let last = this.currentParcelSize - this.readAvailable;
+    last += (length - 1);
+    this.ensureIncomingAvailable(last);
+
+    let array = new Uint8Array(length);
+    for (let i = 0; i < length; i++) {
+      array[i] = this.readUint8Unchecked();
+    }
+
+    this.readAvailable -= length;
+    return array;
+  },
+
+  readUint16: function readUint16() {
+    return this.readUint8() | this.readUint8() << 8;
+  },
+
+  readUint32: function readUint32() {
+    return this.readUint8()       | this.readUint8() <<  8 |
+           this.readUint8() << 16 | this.readUint8() << 24;
+  },
+
+  readUint32List: function readUint32List() {
+    let length = this.readUint32();
+    let ints = [];
+    for (let i = 0; i < length; i++) {
+      ints.push(this.readUint32());
+    }
+    return ints;
+  },
+
+  readString: function readString() {
+    let string_len = this.readUint32();
+    if (string_len < 0 || string_len >= INT32_MAX) {
+      return null;
+    }
+    let s = "";
+    for (let i = 0; i < string_len; i++) {
+      s += String.fromCharCode(this.readUint16());
+    }
+    // Strings are \0\0 delimited, but that isn't part of the length. And
+    // if the string length is even, the delimiter is two characters wide.
+    // It's insane, I know.
+    this.readStringDelimiter(string_len);
+    return s;
+  },
+
+  readStringList: function readStringList() {
+    let num_strings = this.readUint32();
+    let strings = [];
+    for (let i = 0; i < num_strings; i++) {
+      strings.push(this.readString());
+    }
+    return strings;
+  },
+
+  readStringDelimiter: function readStringDelimiter(length) {
+    let delimiter = this.readUint16();
+    if (!(length & 1)) {
+      delimiter |= this.readUint16();
+    }
+    if (DEBUG) {
+      if (delimiter != 0) {
+        debug("Something's wrong, found string delimiter: " + delimiter);
+      }
+    }
+  },
+
+  readParcelSize: function readParcelSize() {
+    return this.readUint8Unchecked() << 24 |
+           this.readUint8Unchecked() << 16 |
+           this.readUint8Unchecked() <<  8 |
+           this.readUint8Unchecked();
+  },
+
+  /**
+   * Functions for writing data to the outgoing buffer.
+   */
+
+  /**
+   * Ensure position specified is writable.
+   *
+   * @param index
+   *        Data position in outgoing parcel, valid from 0 to
+   *        this.OUTGOING_BUFFER_LENGTH.
+   */
+  ensureOutgoingAvailable: function ensureOutgoingAvailable(index) {
+    if (index >= this.OUTGOING_BUFFER_LENGTH) {
+      this.growOutgoingBuffer(index + 1);
+    }
+  },
+
+  writeUint8: function writeUint8(value) {
+    this.ensureOutgoingAvailable(this.outgoingIndex);
+
+    this.outgoingBytes[this.outgoingIndex] = value;
+    this.outgoingIndex++;
+  },
+
+  writeUint16: function writeUint16(value) {
+    this.writeUint8(value & 0xff);
+    this.writeUint8((value >> 8) & 0xff);
+  },
+
+  writeUint32: function writeUint32(value) {
+    this.writeUint8(value & 0xff);
+    this.writeUint8((value >> 8) & 0xff);
+    this.writeUint8((value >> 16) & 0xff);
+    this.writeUint8((value >> 24) & 0xff);
+  },
+
+  writeString: function writeString(value) {
+    if (value == null) {
+      this.writeUint32(-1);
+      return;
+    }
+    this.writeUint32(value.length);
+    for (let i = 0; i < value.length; i++) {
+      this.writeUint16(value.charCodeAt(i));
+    }
+    // Strings are \0\0 delimited, but that isn't part of the length. And
+    // if the string length is even, the delimiter is two characters wide.
+    // It's insane, I know.
+    this.writeStringDelimiter(value.length);
+  },
+
+  writeStringList: function writeStringList(strings) {
+    this.writeUint32(strings.length);
+    for (let i = 0; i < strings.length; i++) {
+      this.writeString(strings[i]);
+    }
+  },
+
+  writeStringDelimiter: function writeStringDelimiter(length) {
+    this.writeUint16(0);
+    if (!(length & 1)) {
+      this.writeUint16(0);
+    }
+  },
+
+  writeParcelSize: function writeParcelSize(value) {
+    /**
+     *  Parcel size will always be the first thing in the parcel byte
+     *  array, but the last thing written. Store the current index off
+     *  to a temporary to be reset after we write the size.
+     */
+    let currentIndex = this.outgoingIndex;
+    this.outgoingIndex = 0;
+    this.writeUint8((value >> 24) & 0xff);
+    this.writeUint8((value >> 16) & 0xff);
+    this.writeUint8((value >> 8) & 0xff);
+    this.writeUint8(value & 0xff);
+    this.outgoingIndex = currentIndex;
+  },
+
+  copyIncomingToOutgoing: function copyIncomingToOutgoing(length) {
+    if (!length || (length < 0)) {
+      return;
+    }
+
+    let translatedReadIndexEnd = this.currentParcelSize - this.readAvailable + length - 1;
+    this.ensureIncomingAvailable(translatedReadIndexEnd);
+
+    let translatedWriteIndexEnd = this.outgoingIndex + length - 1
+    this.ensureOutgoingAvailable(translatedWriteIndexEnd);
+
+    let newIncomingReadIndex = this.incomingReadIndex + length;
+    if (newIncomingReadIndex < this.INCOMING_BUFFER_LENGTH) {
+      // Reading won't cause wrapping, go ahead with builtin copy.
+      this.outgoingBytes.set(this.incomingBytes.subarray(this.incomingReadIndex, newIncomingReadIndex),
+                             this.outgoingIndex);
+    } else {
+      // Not so lucky.
+      newIncomingReadIndex %= this.INCOMING_BUFFER_LENGTH;
+      this.outgoingBytes.set(this.incomingBytes.subarray(this.incomingReadIndex, this.INCOMING_BUFFER_LENGTH),
+                             this.outgoingIndex);
+      if (newIncomingReadIndex) {
+        let firstPartLength = this.INCOMING_BUFFER_LENGTH - this.incomingReadIndex;
+        this.outgoingBytes.set(this.incomingBytes.subarray(0, newIncomingReadIndex),
+                               this.outgoingIndex + firstPartLength);
+      }
+    }
+
+    this.incomingReadIndex = newIncomingReadIndex;
+    this.readAvailable -= length;
+    this.outgoingIndex += length;
+  },
+
+  /**
+   * Parcel management
+   */
+
+  /**
+   * Write incoming data to the circular buffer.
+   *
+   * @param incoming
+   *        Uint8Array containing the incoming data.
+   */
+  writeToIncoming: function writeToIncoming(incoming) {
+    // We don't have to worry about the head catching the tail since
+    // we process any backlog in parcels immediately, before writing
+    // new data to the buffer. So the only edge case we need to handle
+    // is when the incoming data is larger than the buffer size.
+    let minMustAvailableSize = incoming.length + this.readIncoming;
+    if (minMustAvailableSize > this.INCOMING_BUFFER_LENGTH) {
+      this.growIncomingBuffer(minMustAvailableSize);
+    }
+
+    // We can let the typed arrays do the copying if the incoming data won't
+    // wrap around the edges of the circular buffer.
+    let remaining = this.INCOMING_BUFFER_LENGTH - this.incomingWriteIndex;
+    if (remaining >= incoming.length) {
+      this.incomingBytes.set(incoming, this.incomingWriteIndex);
+    } else {
+      // The incoming data would wrap around it.
+      let head = incoming.subarray(0, remaining);
+      let tail = incoming.subarray(remaining);
+      this.incomingBytes.set(head, this.incomingWriteIndex);
+      this.incomingBytes.set(tail, 0);
+    }
+    this.incomingWriteIndex = (this.incomingWriteIndex + incoming.length) %
+                              this.INCOMING_BUFFER_LENGTH;
+  },
+
+  /**
+   * Process incoming data.
+   *
+   * @param incoming
+   *        Uint8Array containing the incoming data.
+   */
+  processIncoming: function processIncoming(incoming) {
+    if (DEBUG) {
+      debug("Received " + incoming.length + " bytes.");
+      debug("Already read " + this.readIncoming);
+    }
+
+    this.writeToIncoming(incoming);
+    this.readIncoming += incoming.length;
+    while (true) {
+      if (!this.currentParcelSize) {
+        // We're expecting a new parcel.
+        if (this.readIncoming < PARCEL_SIZE_SIZE) {
+          // We don't know how big the next parcel is going to be, need more
+          // data.
+          if (DEBUG) debug("Next parcel size unknown, going to sleep.");
+          return;
+        }
+        this.currentParcelSize = this.readParcelSize();
+        if (DEBUG) debug("New incoming parcel of size " +
+                         this.currentParcelSize);
+        // The size itself is not included in the size.
+        this.readIncoming -= PARCEL_SIZE_SIZE;
+      }
+
+      if (this.readIncoming < this.currentParcelSize) {
+        // We haven't read enough yet in order to be able to process a parcel.
+        if (DEBUG) debug("Read " + this.readIncoming + ", but parcel size is "
+                         + this.currentParcelSize + ". Going to sleep.");
+        return;
+      }
+
+      // Alright, we have enough data to process at least one whole parcel.
+      // Let's do that.
+      let expectedAfterIndex = (this.incomingReadIndex + this.currentParcelSize)
+                               % this.INCOMING_BUFFER_LENGTH;
+
+      if (DEBUG) {
+        let parcel;
+        if (expectedAfterIndex < this.incomingReadIndex) {
+          let head = this.incomingBytes.subarray(this.incomingReadIndex);
+          let tail = this.incomingBytes.subarray(0, expectedAfterIndex);
+          parcel = Array.slice(head).concat(Array.slice(tail));
+        } else {
+          parcel = Array.slice(this.incomingBytes.subarray(
+            this.incomingReadIndex, expectedAfterIndex));
+        }
+        debug("Parcel (size " + this.currentParcelSize + "): " + parcel);
+      }
+
+      if (DEBUG) debug("We have at least one complete parcel.");
+      try {
+        this.readAvailable = this.currentParcelSize;
+        this.processParcel();
+      } catch (ex) {
+        if (DEBUG) debug("Parcel handling threw " + ex + "\n" + ex.stack);
+      }
+
+      // Ensure that the whole parcel was consumed.
+      if (this.incomingReadIndex != expectedAfterIndex) {
+        if (DEBUG) {
+          debug("Parcel handler didn't consume whole parcel, " +
+                Math.abs(expectedAfterIndex - this.incomingReadIndex) +
+                " bytes left over");
+        }
+        this.incomingReadIndex = expectedAfterIndex;
+      }
+      this.readIncoming -= this.currentParcelSize;
+      this.readAvailable = 0;
+      this.currentParcelSize = 0;
+    }
   },
 
   /**
    * Process one parcel.
    */
   processParcel: function processParcel() {
-    let response_type = this.readInt32();
+    let response_type = this.readUint32();
 
     let request_type, options;
     if (response_type == RESPONSE_TYPE_SOLICITED) {
-      let token = this.readInt32();
-      let error = this.readInt32();
+      let token = this.readUint32();
+      let error = this.readUint32();
 
-      options = this.mTokenRequestMap[token];
+      options = this.tokenRequestMap[token];
       if (!options) {
         if (DEBUG) {
           debug("Suspicious uninvited request found: " + token + ". Ignored!");
@@ -130,7 +634,7 @@ let Buf = {
         return;
       }
 
-      delete this.mTokenRequestMap[token];
+      delete this.tokenRequestMap[token];
       request_type = options.rilRequestType;
 
       options.rilRequestError = error;
@@ -139,7 +643,7 @@ let Buf = {
               ", token " + token + ", error " + error);
       }
     } else if (response_type == RESPONSE_TYPE_UNSOLICITED) {
-      request_type = this.readInt32();
+      request_type = this.readUint32();
       if (DEBUG) debug("Unsolicited response for request type " + request_type);
     } else {
       if (DEBUG) debug("Unknown response type: " + response_type);
@@ -162,29 +666,45 @@ let Buf = {
     if (DEBUG) debug("New outgoing parcel of type " + type);
 
     // We're going to leave room for the parcel size at the beginning.
-    this.outgoingIndex = this.PARCEL_SIZE_SIZE;
-    this.writeInt32(type);
-    this.writeInt32(this.mToken);
+    this.outgoingIndex = PARCEL_SIZE_SIZE;
+    this.writeUint32(type);
+    let token = this.token;
+    this.writeUint32(token);
 
     if (!options) {
       options = {};
     }
     options.rilRequestType = type;
     options.rilRequestError = null;
-    this.mTokenRequestMap[this.mToken] = options;
-    this.mToken++;
-    return this.mToken;
+    this.tokenRequestMap[token] = options;
+    this.token++;
+    return token;
+  },
+
+  /**
+   * Communicate with the RIL IPC thread.
+   */
+  sendParcel: function sendParcel() {
+    // Compute the size of the parcel and write it to the front of the parcel
+    // where we left room for it. Note that he parcel size does not include
+    // the size itself.
+    let parcelSize = this.outgoingIndex - PARCEL_SIZE_SIZE;
+    this.writeParcelSize(parcelSize);
+
+    // This assumes that postRILMessage will make a copy of the ArrayBufferView
+    // right away!
+    let parcel = this.outgoingBytes.subarray(0, this.outgoingIndex);
+    if (DEBUG) debug("Outgoing parcel: " + Array.slice(parcel));
+    postRILMessage(CLIENT_ID, parcel);
+    this.outgoingIndex = PARCEL_SIZE_SIZE;
   },
 
   simpleRequest: function simpleRequest(type, options) {
     this.newParcel(type, options);
     this.sendParcel();
-  },
-
-  onSendParcel: function onSendParcel(parcel) {
-    postRILMessage(CLIENT_ID, parcel);
   }
 };
+
 
 /**
  * The RIL state machine.
@@ -198,11 +718,6 @@ let RIL = {
    * Valid calls.
    */
   currentCalls: {},
-
-  /**
-   * Existing conference call and its participants.
-   */
-  currentConference: {state: null, participants: {}},
 
   /**
    * Existing data calls.
@@ -228,16 +743,6 @@ let RIL = {
   preferredNetworkType: null,
 
   /**
-   * Global Cell Broadcast switch.
-   */
-  cellBroadcastDisabled: false,
-
-  /**
-   * Global CLIR mode settings.
-   */
-  clirMode: CLIR_DEFAULT,
-
-  /**
    * Parsed Cell Broadcast search lists.
    * cellBroadcastConfigs.MMI should be preserved over rild reset.
    */
@@ -257,11 +762,6 @@ let RIL = {
      * True if we are on CDMA network.
      */
     this._isCdma = false;
-
-    /**
-     * True if we are in emergency callback mode.
-     */
-    this._isInEmergencyCbMode = false;
 
     /**
      * Set when radio is ready but radio tech is unknown. That is, we are
@@ -305,6 +805,11 @@ let RIL = {
     this.cdmaHome = null;
 
     /**
+     * CDMA Subscription information.
+     */
+    this.cdmaSubscription = {};
+
+    /**
      * Application identification for apps in ICC.
      */
     this.aid = null;
@@ -312,7 +817,7 @@ let RIL = {
     /**
      * Application type for apps in ICC.
      */
-    this.appType = null;
+    this.appType = null,
 
     this.networkSelectionMode = null;
 
@@ -350,14 +855,6 @@ let RIL = {
     this._processingNetworkInfo = false;
 
     /**
-     * Multiple requestNetworkInfo() in a row before finishing the first
-     * request, hence we need to fire requestNetworkInfo() again after
-     * gathering all necessary stuffs. This is to make sure that ril_worker
-     * gets precise network information.
-     */
-    this._needRepollNetworkInfo = false;
-
-    /**
      * Pending messages to be send in batch from requestNetworkInfo()
      */
     this._pendingNetworkInfo = {rilMessageType: "networkinfochanged"};
@@ -389,7 +886,6 @@ let RIL = {
     this.cellBroadcastConfigs = {
       MMI: cbmmi || null
     };
-    this.mergedCellBroadcastConfig = null;
   },
 
   get muted() {
@@ -452,36 +948,34 @@ let RIL = {
    */
   iccUnlockCardLock: function iccUnlockCardLock(options) {
     switch (options.lockType) {
-      case GECKO_CARDLOCK_PIN:
+      case "pin":
         this.enterICCPIN(options);
         break;
-      case GECKO_CARDLOCK_PIN2:
+      case "pin2":
         this.enterICCPIN2(options);
         break;
-      case GECKO_CARDLOCK_PUK:
+      case "puk":
         this.enterICCPUK(options);
         break;
-      case GECKO_CARDLOCK_PUK2:
+      case "puk2":
         this.enterICCPUK2(options);
         break;
-      case GECKO_CARDLOCK_NCK:
-      case GECKO_CARDLOCK_CCK: // Fall through.
-      case GECKO_CARDLOCK_SPCK: {
-        let type = GECKO_PERSO_LOCK_TO_CARD_PERSO_LOCK[options.lockType];
-        this.enterDepersonalization(type, options.pin, options);
+      case "nck":
+        options.type = CARD_PERSOSUBSTATE_SIM_NETWORK;
+        this.enterDepersonalization(options);
         break;
-      }
-      case GECKO_CARDLOCK_NCK_PUK:
-      case GECKO_CARDLOCK_CCK_PUK: // Fall through.
-      case GECKO_CARDLOCK_SPCK_PUK: {
-        let type = GECKO_PERSO_LOCK_TO_CARD_PERSO_LOCK[options.lockType];
-        this.enterDepersonalization(type, options.puk, options);
+      case "cck":
+        options.type = CARD_PERSOSUBSTATE_SIM_CORPORATE;
+        this.enterDepersonalization(options);
         break;
-      }
+      case "spck":
+        options.type = CARD_PERSOSUBSTATE_SIM_SERVICE_PROVIDER;
+        this.enterDepersonalization(options);
+        break;
       default:
         options.errorMsg = "Unsupported Card Lock.";
         options.success = false;
-        this.sendChromeMessage(options);
+        this.sendDOMMessage(options);
     }
   },
 
@@ -495,7 +989,7 @@ let RIL = {
    */
   enterICCPIN: function enterICCPIN(options) {
     Buf.newParcel(REQUEST_ENTER_SIM_PIN, options);
-    Buf.writeInt32(RILQUIRKS_V5_LEGACY ? 1 : 2);
+    Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 1 : 2);
     Buf.writeString(options.pin);
     if (!RILQUIRKS_V5_LEGACY) {
       Buf.writeString(options.aid || this.aid);
@@ -513,7 +1007,7 @@ let RIL = {
    */
   enterICCPIN2: function enterICCPIN2(options) {
     Buf.newParcel(REQUEST_ENTER_SIM_PIN2, options);
-    Buf.writeInt32(RILQUIRKS_V5_LEGACY ? 1 : 2);
+    Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 1 : 2);
     Buf.writeString(options.pin);
     if (!RILQUIRKS_V5_LEGACY) {
       Buf.writeString(options.aid || this.aid);
@@ -526,13 +1020,13 @@ let RIL = {
    *
    * @param type
    *        Integer indicating the network personalization be deactivated.
-   * @param password
-   *        String containing the password.
+   * @param pin
+   *        String containing the pin.
    */
-  enterDepersonalization: function enterDepersonalization(type, password, options) {
+  enterDepersonalization: function enterDepersonalization(options) {
     Buf.newParcel(REQUEST_ENTER_NETWORK_DEPERSONALIZATION_CODE, options);
-    Buf.writeInt32(type);
-    Buf.writeString(password);
+    Buf.writeUint32(options.type);
+    Buf.writeString(options.pin);
     Buf.sendParcel();
   },
 
@@ -542,31 +1036,31 @@ let RIL = {
   iccSetCardLock: function iccSetCardLock(options) {
     if (options.newPin !== undefined) { // Change PIN lock.
       switch (options.lockType) {
-        case GECKO_CARDLOCK_PIN:
+        case "pin":
           this.changeICCPIN(options);
           break;
-        case GECKO_CARDLOCK_PIN2:
+        case "pin2":
           this.changeICCPIN2(options);
           break;
         default:
           options.errorMsg = "Unsupported Card Lock.";
           options.success = false;
-          this.sendChromeMessage(options);
+          this.sendDOMMessage(options);
       }
     } else { // Enable/Disable lock.
       switch (options.lockType) {
-        case GECKO_CARDLOCK_PIN:
+        case "pin":
           options.facility = ICC_CB_FACILITY_SIM;
           options.password = options.pin;
           break;
-        case GECKO_CARDLOCK_FDN:
+        case "fdn":
           options.facility = ICC_CB_FACILITY_FDN;
           options.password = options.pin2;
           break;
         default:
           options.errorMsg = "Unsupported Card Lock.";
           options.success = false;
-          this.sendChromeMessage(options);
+          this.sendDOMMessage(options);
           return;
       }
       options.enabled = options.enabled;
@@ -589,7 +1083,7 @@ let RIL = {
    */
   changeICCPIN: function changeICCPIN(options) {
     Buf.newParcel(REQUEST_CHANGE_SIM_PIN, options);
-    Buf.writeInt32(RILQUIRKS_V5_LEGACY ? 2 : 3);
+    Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 2 : 3);
     Buf.writeString(options.pin);
     Buf.writeString(options.newPin);
     if (!RILQUIRKS_V5_LEGACY) {
@@ -610,7 +1104,7 @@ let RIL = {
    */
   changeICCPIN2: function changeICCPIN2(options) {
     Buf.newParcel(REQUEST_CHANGE_SIM_PIN2, options);
-    Buf.writeInt32(RILQUIRKS_V5_LEGACY ? 2 : 3);
+    Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 2 : 3);
     Buf.writeString(options.pin);
     Buf.writeString(options.newPin);
     if (!RILQUIRKS_V5_LEGACY) {
@@ -630,7 +1124,7 @@ let RIL = {
    */
    enterICCPUK: function enterICCPUK(options) {
      Buf.newParcel(REQUEST_ENTER_SIM_PUK, options);
-     Buf.writeInt32(RILQUIRKS_V5_LEGACY ? 2 : 3);
+     Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 2 : 3);
      Buf.writeString(options.puk);
      Buf.writeString(options.newPin);
      if (!RILQUIRKS_V5_LEGACY) {
@@ -651,7 +1145,7 @@ let RIL = {
    */
    enterICCPUK2: function enterICCPUK2(options) {
      Buf.newParcel(REQUEST_ENTER_SIM_PUK2, options);
-     Buf.writeInt32(RILQUIRKS_V5_LEGACY ? 2 : 3);
+     Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 2 : 3);
      Buf.writeString(options.puk);
      Buf.writeString(options.newPin);
      if (!RILQUIRKS_V5_LEGACY) {
@@ -663,18 +1157,18 @@ let RIL = {
   /**
    * Helper function for fetching the state of ICC locks.
    */
-  iccGetCardLockState: function iccGetCardLockState(options) {
+  iccGetCardLock: function iccGetCardLock(options) {
     switch (options.lockType) {
-      case GECKO_CARDLOCK_PIN:
+      case "pin":
         options.facility = ICC_CB_FACILITY_SIM;
         break;
-      case GECKO_CARDLOCK_FDN:
+      case "fdn":
         options.facility = ICC_CB_FACILITY_FDN;
         break;
       default:
         options.errorMsg = "Unsupported Card Lock.";
         options.success = false;
-        this.sendChromeMessage(options);
+        this.sendDOMMessage(options);
         return;
     }
 
@@ -683,58 +1177,6 @@ let RIL = {
                            ICC_SERVICE_CLASS_DATA  |
                            ICC_SERVICE_CLASS_FAX;
     this.queryICCFacilityLock(options);
-  },
-
-  /**
-   * Helper function for fetching the number of unlock retries of ICC locks.
-   *
-   * We only query the retry count when we're on the emulator. The phones do
-   * not support the request id and their rild doesn't return an error.
-   */
-  iccGetCardLockRetryCount: function iccGetCardLockRetryCount(options) {
-    var selCode = {
-      pin: ICC_SEL_CODE_SIM_PIN,
-      puk: ICC_SEL_CODE_SIM_PUK,
-      pin2: ICC_SEL_CODE_SIM_PIN2,
-      puk2: ICC_SEL_CODE_SIM_PUK2,
-      nck: ICC_SEL_CODE_PH_NET_PIN,
-      cck: ICC_SEL_CODE_PH_CORP_PIN,
-      spck: ICC_SEL_CODE_PH_SP_PIN
-    };
-
-    if (typeof(selCode[options.lockType]) === 'undefined') {
-      /* unknown lock type */
-      options.errorMsg = GECKO_ERROR_GENERIC_FAILURE;
-      options.success = false;
-      this.sendChromeMessage(options);
-      return;
-    }
-
-    if (RILQUIRKS_HAVE_QUERY_ICC_LOCK_RETRY_COUNT) {
-      /* Only the emulator supports this request, ... */
-      options.selCode = selCode[options.lockType];
-      this.queryICCLockRetryCount(options);
-    } else {
-      /* ... while the phones do not. */
-      options.errorMsg = GECKO_ERROR_REQUEST_NOT_SUPPORTED;
-      options.success = false;
-      this.sendChromeMessage(options);
-    }
-  },
-
-  /**
-   * Query ICC lock retry count.
-   *
-   * @param selCode
-   *        One of ICC_SEL_CODE_*.
-   * @param serviceClass
-   *        One of ICC_SERVICE_CLASS_*.
-   */
-  queryICCLockRetryCount: function queryICCLockRetryCount(options) {
-    Buf.newParcel(REQUEST_GET_UNLOCK_RETRY_COUNT, options);
-    Buf.writeInt32(1);
-    Buf.writeString(options.selCode);
-    Buf.sendParcel();
   },
 
   /**
@@ -751,7 +1193,7 @@ let RIL = {
    */
   queryICCFacilityLock: function queryICCFacilityLock(options) {
     Buf.newParcel(REQUEST_QUERY_FACILITY_LOCK, options);
-    Buf.writeInt32(RILQUIRKS_V5_LEGACY ? 3 : 4);
+    Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 3 : 4);
     Buf.writeString(options.facility);
     Buf.writeString(options.password);
     Buf.writeString(options.serviceClass.toString());
@@ -777,7 +1219,7 @@ let RIL = {
    */
   setICCFacilityLock: function setICCFacilityLock(options) {
     Buf.newParcel(REQUEST_SET_FACILITY_LOCK, options);
-    Buf.writeInt32(RILQUIRKS_V5_LEGACY ? 4 : 5);
+    Buf.writeUint32(RILQUIRKS_V5_LEGACY ? 3 : 4);
     Buf.writeString(options.facility);
     Buf.writeString(options.enabled ? "1" : "0");
     Buf.writeString(options.password);
@@ -811,13 +1253,13 @@ let RIL = {
    *         AID value.
    */
   iccIO: function iccIO(options) {
-    Buf.newParcel(REQUEST_SIM_IO, options);
-    Buf.writeInt32(options.command);
-    Buf.writeInt32(options.fileId);
+    let token = Buf.newParcel(REQUEST_SIM_IO, options);
+    Buf.writeUint32(options.command);
+    Buf.writeUint32(options.fileId);
     Buf.writeString(options.pathId);
-    Buf.writeInt32(options.p1);
-    Buf.writeInt32(options.p2);
-    Buf.writeInt32(options.p3);
+    Buf.writeUint32(options.p1);
+    Buf.writeUint32(options.p2);
+    Buf.writeUint32(options.p3);
 
     // Write data.
     if (options.command == ICC_COMMAND_UPDATE_RECORD &&
@@ -829,7 +1271,7 @@ let RIL = {
 
     // Write pin2.
     if (options.command == ICC_COMMAND_UPDATE_RECORD &&
-        options.pin2) {
+        options.p2) {
       Buf.writeString(options.pin2);
     } else {
       Buf.writeString(null);
@@ -852,51 +1294,47 @@ let RIL = {
       Buf.simpleRequest(REQUEST_GET_IMSI);
       return;
     }
-    Buf.newParcel(REQUEST_GET_IMSI);
-    Buf.writeInt32(1);
+    let token = Buf.newParcel(REQUEST_GET_IMSI);
+    Buf.writeUint32(1);
     Buf.writeString(aid || this.aid);
     Buf.sendParcel();
   },
 
   /**
-   * Read UICC Phonebook contacts.
+   * Get UICC Phonebook.
    *
    * @param contactType
-   *        "adn" or "fdn".
+   *        "ADN" or "FDN".
    * @param requestId
    *        Request id from RadioInterfaceLayer.
    */
-  readICCContacts: function readICCContacts(options) {
+  getICCContacts: function getICCContacts(options) {
     if (!this.appType) {
+      options.rilMessageType = "icccontacts";
       options.errorMsg = GECKO_ERROR_REQUEST_NOT_SUPPORTED;
-      this.sendChromeMessage(options);
-      return;
+      this.sendDOMMessage(options);
     }
 
     ICCContactHelper.readICCContacts(
       this.appType,
       options.contactType,
       function onsuccess(contacts) {
-        for (let i = 0; i < contacts.length; i++) {
-          let contact = contacts[i];
-          let pbrIndex = contact.pbrIndex || 0;
-          let recordIndex = pbrIndex * ICC_MAX_LINEAR_FIXED_RECORDS + contact.recordId;
-          contact.contactId = this.iccInfo.iccid + recordIndex;
-        }
         // Reuse 'options' to get 'requestId' and 'contactType'.
+        options.rilMessageType = "icccontacts";
         options.contacts = contacts;
-        RIL.sendChromeMessage(options);
+        RIL.sendDOMMessage(options);
       }.bind(this),
       function onerror(errorMsg) {
+        options.rilMessageType = "icccontacts";
         options.errorMsg = errorMsg;
-        RIL.sendChromeMessage(options);
+        RIL.sendDOMMessage(options);
       }.bind(this));
   },
 
   /**
    * Update UICC Phonebook.
    *
-   * @param contactType   "adn" or "fdn".
+   * @param contactType   "ADN" or "FDN".
    * @param contact       The contact will be updated.
    * @param pin2          PIN2 is required for updating FDN.
    * @param requestId     Request id from RadioInterfaceLayer.
@@ -904,12 +1342,14 @@ let RIL = {
   updateICCContact: function updateICCContact(options) {
     let onsuccess = function onsuccess() {
       // Reuse 'options' to get 'requestId' and 'contactType'.
-      RIL.sendChromeMessage(options);
+      options.rilMessageType = "icccontactupdate";
+      RIL.sendDOMMessage(options);
     }.bind(this);
 
     let onerror = function onerror(errorMsg) {
+      options.rilMessageType = "icccontactupdate";
       options.errorMsg = errorMsg;
-      RIL.sendChromeMessage(options);
+      RIL.sendDOMMessage(options);
     }.bind(this);
 
     if (!this.appType || !options.contact) {
@@ -917,29 +1357,14 @@ let RIL = {
       return;
     }
 
-    let contact = options.contact;
-    let iccid = RIL.iccInfo.iccid;
-    if (typeof contact.contactId === "string" &&
-        contact.contactId.startsWith(iccid)) {
-      let recordIndex = contact.contactId.substring(iccid.length);
-      contact.pbrIndex = Math.floor(recordIndex / ICC_MAX_LINEAR_FIXED_RECORDS);
-      contact.recordId = recordIndex % ICC_MAX_LINEAR_FIXED_RECORDS;
-    }
-
-    let isValidRecordId = contact.recordId > 0 && contact.recordId < 0xff;
-
-    if (DEBUG) {
-      debug("Update ICC Contact " + JSON.stringify(contact));
-    }
-
     // If contact has 'recordId' property, updates corresponding record.
     // If not, inserts the contact into a free record.
-    if (isValidRecordId) {
+    if (options.contact.recordId) {
       ICCContactHelper.updateICCContact(
-        this.appType, options.contactType, contact, options.pin2, onsuccess, onerror);
+        this.appType, options.contactType, options.contact, options.pin2, onsuccess, onerror);
     } else {
       ICCContactHelper.addICCContact(
-        this.appType, options.contactType, contact, options.pin2, onsuccess, onerror);
+        this.appType, options.contactType, options.contact, options.pin2, onsuccess, onerror);
     }
   },
 
@@ -951,73 +1376,8 @@ let RIL = {
    */
   setRadioPower: function setRadioPower(options) {
     Buf.newParcel(REQUEST_RADIO_POWER, options);
-    Buf.writeInt32(1);
-    Buf.writeInt32(options.on ? 1 : 0);
-    Buf.sendParcel();
-  },
-
-  /**
-   * Query call waiting status via MMI.
-   */
-  _handleQueryMMICallWaiting: function _handleQueryMMICallWaiting(options) {
-    function callback(options) {
-      options.length = Buf.readInt32();
-      options.enabled = (Buf.readInt32() === 1);
-      let services = Buf.readInt32();
-      if (options.enabled) {
-        options.statusMessage = MMI_SM_KS_SERVICE_ENABLED_FOR;
-        let serviceClass = [];
-        for (let serviceClassMask = 1;
-             serviceClassMask <= ICC_SERVICE_CLASS_MAX;
-             serviceClassMask <<= 1) {
-          if ((serviceClassMask & services) !== 0) {
-            serviceClass.push(MMI_KS_SERVICE_CLASS_MAPPING[serviceClassMask]);
-          }
-        }
-        options.additionalInformation = serviceClass;
-      } else {
-        options.statusMessage = MMI_SM_KS_SERVICE_DISABLED;
-      }
-
-      // Prevent DataCloneError when sending chrome messages.
-      delete options.callback;
-      this.sendChromeMessage(options);
-    }
-
-    options.callback = callback;
-    this.queryCallWaiting(options);
-  },
-
-  /**
-   * Set call waiting status via MMI.
-   */
-  _handleSetMMICallWaiting: function _handleSetMMICallWaiting(options) {
-    function callback(options) {
-      if (options.enabled) {
-        options.statusMessage = MMI_SM_KS_SERVICE_ENABLED;
-      } else {
-        options.statusMessage = MMI_SM_KS_SERVICE_DISABLED;
-      }
-
-      // Prevent DataCloneError when sending chrome messages.
-      delete options.callback;
-      this.sendChromeMessage(options);
-    }
-
-    options.callback = callback;
-    this.setCallWaiting(options);
-  },
-
-  /**
-   * Query call waiting status.
-   *
-   */
-  queryCallWaiting: function queryCallWaiting(options) {
-    Buf.newParcel(REQUEST_QUERY_CALL_WAITING, options);
-    Buf.writeInt32(1);
-    // As per 3GPP TS 24.083, section 1.6 UE doesn't need to send service
-    // class parameter in call waiting interrogation  to network
-    Buf.writeInt32(ICC_SERVICE_CLASS_NONE);
+    Buf.writeUint32(1);
+    Buf.writeUint32(options.on ? 1 : 0);
     Buf.sendParcel();
   },
 
@@ -1029,46 +1389,9 @@ let RIL = {
    */
   setCallWaiting: function setCallWaiting(options) {
     Buf.newParcel(REQUEST_SET_CALL_WAITING, options);
-    Buf.writeInt32(2);
-    Buf.writeInt32(options.enabled ? 1 : 0);
-    Buf.writeInt32(options.serviceClass !== undefined ?
-                    options.serviceClass : ICC_SERVICE_CLASS_VOICE);
-    Buf.sendParcel();
-  },
-
-  /**
-   * Queries current CLIP status.
-   *
-   * (MMI request for code "*#30#")
-   *
-   */
-  queryCLIP: function queryCLIP(options) {
-    Buf.simpleRequest(REQUEST_QUERY_CLIP, options);
-  },
-
-  /**
-   * Queries current CLIR status.
-   *
-   */
-  getCLIR: function getCLIR(options) {
-    Buf.simpleRequest(REQUEST_GET_CLIR, options);
-  },
-
-  /**
-   * Enables or disables the presentation of the calling line identity (CLI) to
-   * the called party when originating a call.
-   *
-   * @param options.clirMode
-   *        Is one of the CLIR_* constants in
-   *        nsIDOMMozMobileConnection interface.
-   */
-  setCLIR: function setCLIR(options) {
-    if (options) {
-      this.clirMode = options.clirMode;
-    }
-    Buf.newParcel(REQUEST_SET_CLIR, options);
-    Buf.writeInt32(1);
-    Buf.writeInt32(this.clirMode);
+    Buf.writeUint32(2);
+    Buf.writeUint32(options.enabled ? 1 : 0);
+    Buf.writeUint32(ICC_SERVICE_CLASS_VOICE);
     Buf.sendParcel();
   },
 
@@ -1078,10 +1401,10 @@ let RIL = {
    * @param on
    *        Boolean indicating whether the screen should be on or off.
    */
-  setScreenState: function setScreenState(options) {
+  setScreenState: function setScreenState(on) {
     Buf.newParcel(REQUEST_SCREEN_STATE);
-    Buf.writeInt32(1);
-    Buf.writeInt32(options.on ? 1 : 0);
+    Buf.writeUint32(1);
+    Buf.writeUint32(on ? 1 : 0);
     Buf.sendParcel();
   },
 
@@ -1118,8 +1441,8 @@ let RIL = {
     }
 
     Buf.newParcel(REQUEST_SET_PREFERRED_NETWORK_TYPE, options);
-    Buf.writeInt32(1);
-    Buf.writeInt32(this.preferredNetworkType);
+    Buf.writeUint32(1);
+    Buf.writeUint32(this.preferredNetworkType);
     Buf.sendParcel();
   },
 
@@ -1136,7 +1459,6 @@ let RIL = {
   requestNetworkInfo: function requestNetworkInfo() {
     if (this._processingNetworkInfo) {
       if (DEBUG) debug("Network info requested, but we're already requesting network info.");
-      this._needRepollNetworkInfo = true;
       return;
     }
 
@@ -1147,7 +1469,6 @@ let RIL = {
     this.getDataRegistrationState(); //TODO only GSM
     this.getOperator();
     this.getNetworkSelectionMode();
-    this.getSignalStrength();
   },
 
   /**
@@ -1162,9 +1483,9 @@ let RIL = {
   /**
    * Request the radio's network selection mode
    */
-  getNetworkSelectionMode: function getNetworkSelectionMode() {
+  getNetworkSelectionMode: function getNetworkSelectionMode(options) {
     if (DEBUG) debug("Getting network selection mode");
-    Buf.simpleRequest(REQUEST_QUERY_NETWORK_SELECTION_MODE);
+    Buf.simpleRequest(REQUEST_QUERY_NETWORK_SELECTION_MODE, options);
   },
 
   /**
@@ -1176,48 +1497,6 @@ let RIL = {
   },
 
   /**
-   * Set the roaming preference mode
-   */
-  setRoamingPreference: function setRoamingPreference(options) {
-    let roamingMode = CDMA_ROAMING_PREFERENCE_TO_GECKO.indexOf(options.mode);
-
-    if (roamingMode === -1) {
-      options.errorMsg = GECKO_ERROR_INVALID_PARAMETER;
-      this.sendChromeMessage(options);
-      return;
-    }
-
-    Buf.newParcel(REQUEST_CDMA_SET_ROAMING_PREFERENCE, options);
-    Buf.writeInt32(1);
-    Buf.writeInt32(roamingMode);
-    Buf.sendParcel();
-  },
-
-  /**
-   * Get the roaming preference mode
-   */
-  queryRoamingPreference: function getRoamingPreference(options) {
-    Buf.simpleRequest(REQUEST_CDMA_QUERY_ROAMING_PREFERENCE, options);
-  },
-
-  /**
-   * Set the voice privacy mode
-   */
-  setVoicePrivacyMode: function setVoicePrivacyMode(options) {
-    Buf.newParcel(REQUEST_CDMA_SET_PREFERRED_VOICE_PRIVACY_MODE, options);
-    Buf.writeInt32(1);
-    Buf.writeInt32(options.enabled ? 1 : 0);
-    Buf.sendParcel();
-  },
-
-  /**
-   * Get the voice privacy mode
-   */
-  queryVoicePrivacyMode: function getVoicePrivacyMode(options) {
-    Buf.simpleRequest(REQUEST_CDMA_QUERY_PREFERRED_VOICE_PRIVACY_MODE, options);
-  },
-
-  /**
    * Open Logical UICC channel (aid) for Secure Element access
    */
   iccOpenChannel: function iccOpenChannel(options) {
@@ -1225,7 +1504,7 @@ let RIL = {
       debug("iccOpenChannel: " + JSON.stringify(options));
     }
 
-    Buf.newParcel(REQUEST_SIM_OPEN_CHANNEL, options);
+    let token = Buf.newParcel(REQUEST_SIM_OPEN_CHANNEL, options);
     Buf.writeString(options.aid);
     Buf.sendParcel();
   },
@@ -1236,25 +1515,33 @@ let RIL = {
   iccExchangeAPDU: function iccExchangeAPDU(options) {
     if (DEBUG) debug("iccExchangeAPDU: " + JSON.stringify(options));
 
-    let cla = options.apdu.cla;
-    let command = options.apdu.command;
-    let channel = options.channel;
-    let path = options.apdu.path || "";
-    let data = options.apdu.data || "";
-    let data2 = options.apdu.data2 || "";
-
-    let p1 = options.apdu.p1;
-    let p2 = options.apdu.p2;
-    let p3 = options.apdu.p3; // Extra
+    var cla = options.apdu.cla;
+    var command = options.apdu.command;
+    var channel = options.channel;
+    var path = options.apdu.path;
+    var data = options.apdu.data;
+    var data2 = options.apdu.data2;
+    if (path == null || path === undefined) {
+      var path = "";
+    }
+    if (data == null || data === undefined) {
+      var data = "";
+    }
+    if (data2 == null || data2 === undefined) {
+      var data2 = "";
+    }
+    var p1 = options.apdu.p1;
+    var p2 = options.apdu.p2;
+    var p3 = options.apdu.p3; // Extra
 
     Buf.newParcel(REQUEST_SIM_ACCESS_CHANNEL, options);
-    Buf.writeInt32(cla);
-    Buf.writeInt32(command);
-    Buf.writeInt32(channel);
+    Buf.writeUint32(cla);
+    Buf.writeUint32(command);
+    Buf.writeUint32(channel);
     Buf.writeString(path); // path
-    Buf.writeInt32(p1);
-    Buf.writeInt32(p2);
-    Buf.writeInt32(p3);
+    Buf.writeUint32(p1);
+    Buf.writeUint32(p2);
+    Buf.writeUint32(p3);
     Buf.writeString(data); // generic data field.
     Buf.writeString(data2);
 
@@ -1268,8 +1555,8 @@ let RIL = {
     if (DEBUG) debug("iccCloseChannel: " + JSON.stringify(options));
 
     Buf.newParcel(REQUEST_SIM_CLOSE_CHANNEL, options);
-    Buf.writeInt32(1);
-    Buf.writeInt32(options.channel);
+    Buf.writeUint32(1);
+    Buf.writeUint32(options.channel);
     Buf.sendParcel();
   },
 
@@ -1317,25 +1604,6 @@ let RIL = {
     Buf.simpleRequest(REQUEST_BASEBAND_VERSION);
   },
 
-  sendExitEmergencyCbModeRequest: function sendExitEmergencyCbModeRequest(options) {
-    Buf.simpleRequest(REQUEST_EXIT_EMERGENCY_CALLBACK_MODE, options);
-  },
-
-  getCdmaSubscription: function getCdmaSubscription() {
-    Buf.simpleRequest(REQUEST_CDMA_SUBSCRIPTION);
-  },
-
-  exitEmergencyCbMode: function exitEmergencyCbMode(options) {
-    // The function could be called by an API from RadioInterfaceLayer or by
-    // ril_worker itself. From ril_worker, we won't pass the parameter
-    // 'options'. In this case, it is marked as internal.
-    if (!options) {
-      options = {internal: true};
-    }
-    this._cancelEmergencyCbModeTimeout();
-    this.sendExitEmergencyCbModeRequest(options);
-  },
-
   /**
    * Cache the request for making an emergency call when radio is off. The
    * request shall include two types of callback functions. 'callback' is
@@ -1350,31 +1618,21 @@ let RIL = {
    * @param number
    *        String containing the number to dial.
    * @param clirMode
-   *        Integer for showing/hidding the caller Id to the called party.
+   *        Integer doing something XXX TODO
    * @param uusInfo
    *        Integer doing something XXX TODO
    */
   dial: function dial(options) {
     let onerror = (function onerror(errorMsg) {
-      this._sendCallError(-1, errorMsg);
+      options.callIndex = -1;
+      options.rilMessageType = "callError";
+      options.errorMsg = errorMsg;
+      this.sendDOMMessage(options);
     }).bind(this);
 
     if (this._isEmergencyNumber(options.number)) {
       this.dialEmergencyNumber(options, onerror);
     } else {
-      if (!this._isCdma) {
-        // TODO: Both dial() and sendMMI() functions should be unified at some
-        // point in the future. In the mean time we handle temporary CLIR MMI
-        // commands through the dial() function. Please see bug 889737.
-        let mmi = this._parseMMI(options.number);
-        if (mmi && this._isTemporaryModeCLIR(mmi)) {
-          options.number = mmi.dialNumber;
-          // In temporary mode, MMI_PROCEDURE_ACTIVATION means allowing CLI
-          // presentation, i.e. CLIR_SUPPRESSION. See TS 22.030, Annex B.
-          options.clirMode = mmi.procedure == MMI_PROCEDURE_ACTIVATION ?
-                             CLIR_SUPPRESSION : CLIR_INVOCATION;
-        }
-      }
       this.dialNonEmergencyNumber(options, onerror);
     }
   },
@@ -1390,11 +1648,6 @@ let RIL = {
         options.isDialEmergency) {
       onerror(RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_UNOBTAINABLE_NUMBER]);
       return;
-    }
-
-    // Exit emergency callback mode when user dial a non-emergency call.
-    if (this._isInEmergencyCbMode) {
-      this.exitEmergencyCbMode();
     }
 
     options.request = REQUEST_DIAL;
@@ -1415,7 +1668,7 @@ let RIL = {
       this.cachedDialRequest.callback = this.sendDialRequest.bind(this, options);
 
       // Change radio setting value in settings DB to enable radio.
-      this.sendChromeMessage({rilMessageType: "setRadioEnabled", on: true});
+      this.sendDOMMessage({rilMessageType: "setRadioEnabled", on: true});
       return;
     }
 
@@ -1423,13 +1676,13 @@ let RIL = {
   },
 
   sendDialRequest: function sendDialRequest(options) {
-    Buf.newParcel(options.request);
+    let token = Buf.newParcel(options.request);
     Buf.writeString(options.number);
-    Buf.writeInt32(options.clirMode || 0);
-    Buf.writeInt32(options.uusInfo || 0);
+    Buf.writeUint32(options.clirMode || 0);
+    Buf.writeUint32(options.uusInfo || 0);
     // TODO Why do we need this extra 0? It was put it in to make this
     // match the format of the binary message.
-    Buf.writeInt32(0);
+    Buf.writeUint32(0);
     Buf.sendParcel();
   },
 
@@ -1450,8 +1703,8 @@ let RIL = {
       case CALL_STATE_DIALING:
       case CALL_STATE_ALERTING:
         Buf.newParcel(REQUEST_HANGUP);
-        Buf.writeInt32(1);
-        Buf.writeInt32(options.callIndex);
+        Buf.writeUint32(1);
+        Buf.writeUint32(options.callIndex);
         Buf.sendParcel();
         break;
       case CALL_STATE_HOLDING:
@@ -1468,8 +1721,8 @@ let RIL = {
    */
   setMute: function setMute(mute) {
     Buf.newParcel(REQUEST_SET_MUTE);
-    Buf.writeInt32(1);
-    Buf.writeInt32(mute ? 1 : 0);
+    Buf.writeUint32(1);
+    Buf.writeUint32(mute ? 1 : 0);
     Buf.sendParcel();
   },
 
@@ -1516,12 +1769,6 @@ let RIL = {
       return;
     }
 
-    if (this._isCdma) {
-      // AT+CHLD=0 means "release held or UDUB."
-      Buf.simpleRequest(REQUEST_HANGUP_WAITING_OR_BACKGROUND);
-      return;
-    }
-
     switch (call.state) {
       case CALL_STATE_INCOMING:
         Buf.simpleRequest(REQUEST_UDUB);
@@ -1536,13 +1783,7 @@ let RIL = {
   holdCall: function holdCall(options) {
     let call = this.currentCalls[options.callIndex];
     if (call && call.state == CALL_STATE_ACTIVE) {
-      if (this._isCdma) {
-        Buf.newParcel(REQUEST_CDMA_FLASH);
-        Buf.writeString("");
-        Buf.sendParcel();
-      } else {
-        Buf.simpleRequest(REQUEST_SWITCH_HOLDING_AND_ACTIVE);
-      }
+      Buf.simpleRequest(REQUEST_SWITCH_HOLDING_AND_ACTIVE);
     }
   },
 
@@ -1551,29 +1792,6 @@ let RIL = {
     if (call && call.state == CALL_STATE_HOLDING) {
       Buf.simpleRequest(REQUEST_SWITCH_HOLDING_AND_ACTIVE);
     }
-  },
-
-  // Flag indicating whether user has requested making a conference call.
-  _hasConferenceRequest: false,
-
-  conferenceCall: function conferenceCall(options) {
-    this._hasConferenceRequest = true;
-    Buf.simpleRequest(REQUEST_CONFERENCE, options);
-  },
-
-  separateCall: function separateCall(options) {
-    Buf.newParcel(REQUEST_SEPARATE_CONNECTION, options);
-    Buf.writeInt32(1);
-    Buf.writeInt32(options.callIndex);
-    Buf.sendParcel();
-  },
-
-  holdConference: function holdConference() {
-    Buf.simpleRequest(REQUEST_SWITCH_HOLDING_AND_ACTIVE);
-  },
-
-  resumeConference: function resumeConference() {
-    Buf.simpleRequest(REQUEST_SWITCH_HOLDING_AND_ACTIVE);
   },
 
   /**
@@ -1608,7 +1826,7 @@ let RIL = {
       CdmaPDUHelper.writeMessage(options);
     } else {
       Buf.newParcel(REQUEST_SEND_SMS, options);
-      Buf.writeInt32(2);
+      Buf.writeUint32(2);
       Buf.writeString(options.SMSC);
       GsmPDUHelper.writeMessage(options);
     }
@@ -1624,10 +1842,10 @@ let RIL = {
    *        SMS_* constant indicating the reason for unsuccessful handling.
    */
   acknowledgeGsmSms: function acknowledgeGsmSms(success, cause) {
-    Buf.newParcel(REQUEST_SMS_ACKNOWLEDGE);
-    Buf.writeInt32(2);
-    Buf.writeInt32(success ? 1 : 0);
-    Buf.writeInt32(cause);
+    let token = Buf.newParcel(REQUEST_SMS_ACKNOWLEDGE);
+    Buf.writeUint32(2);
+    Buf.writeUint32(success ? 1 : 0);
+    Buf.writeUint32(cause);
     Buf.sendParcel();
   },
 
@@ -1657,39 +1875,22 @@ let RIL = {
    *        SMS_* constant indicating the reason for unsuccessful handling.
    */
   acknowledgeCdmaSms: function acknowledgeCdmaSms(success, cause) {
-    Buf.newParcel(REQUEST_CDMA_SMS_ACKNOWLEDGE);
-    Buf.writeInt32(success ? 0 : 1);
-    Buf.writeInt32(cause);
+    let token = Buf.newParcel(REQUEST_CDMA_SMS_ACKNOWLEDGE);
+    Buf.writeUint32(success ? 0 : 1);
+    Buf.writeUint32(cause);
     Buf.sendParcel();
-  },
-
-  setCellBroadcastDisabled: function setCellBroadcastDisabled(options) {
-    this.cellBroadcastDisabled = options.disabled;
-
-    // If |this.mergedCellBroadcastConfig| is null, either we haven't finished
-    // reading required SIM files, or no any channel is ever configured.  In
-    // the former case, we'll call |this.updateCellBroadcastConfig()| later
-    // with correct configs; in the latter case, we don't bother resetting CB
-    // to disabled again.
-    if (this.mergedCellBroadcastConfig) {
-      this.updateCellBroadcastConfig();
-    }
   },
 
   setCellBroadcastSearchList: function setCellBroadcastSearchList(options) {
     try {
       let str = options.searchListStr;
       this.cellBroadcastConfigs.MMI = this._convertCellBroadcastSearchList(str);
-      options.success = true;
     } catch (e) {
       if (DEBUG) {
         debug("Invalid Cell Broadcast search list: " + e);
       }
-      options.success = false;
-    }
-
-    this.sendChromeMessage(options);
-    if (!options.success) {
+      options.rilRequestError = ERROR_GENERIC_FAILURE;
+      this.sendDOMMessage(options);
       return;
     }
 
@@ -1697,14 +1898,13 @@ let RIL = {
   },
 
   updateCellBroadcastConfig: function updateCellBroadcastConfig() {
-    let activate = !this.cellBroadcastDisabled &&
-                   (this.mergedCellBroadcastConfig != null) &&
-                   (this.mergedCellBroadcastConfig.length > 0);
+    let activate = (this.mergedCellBroadcastConfig != null)
+                   && (this.mergedCellBroadcastConfig.length > 0);
     if (activate) {
-      this.setSmsBroadcastConfig(this.mergedCellBroadcastConfig);
+      this.setGsmSmsBroadcastConfig(this.mergedCellBroadcastConfig);
     } else {
       // It's unnecessary to set config first if we're deactivating.
-      this.setSmsBroadcastActivation(false);
+      this.setGsmSmsBroadcastActivation(false);
     }
   },
 
@@ -1712,63 +1912,22 @@ let RIL = {
     Buf.newParcel(REQUEST_GSM_SET_BROADCAST_SMS_CONFIG);
 
     let numConfigs = config ? config.length / 2 : 0;
-    Buf.writeInt32(numConfigs);
+    Buf.writeUint32(numConfigs);
     for (let i = 0; i < config.length;) {
-      Buf.writeInt32(config[i++]);
-      Buf.writeInt32(config[i++]);
-      Buf.writeInt32(0x00);
-      Buf.writeInt32(0xFF);
-      Buf.writeInt32(1);
+      Buf.writeUint32(config[i++]);
+      Buf.writeUint32(config[i++]);
+      Buf.writeUint32(0x00);
+      Buf.writeUint32(0xFF);
+      Buf.writeUint32(1);
     }
 
     Buf.sendParcel();
   },
 
-  /**
-   * Send CDMA SMS broadcast config.
-   *
-   * @see 3GPP2 C.R1001 Sec. 9.2 and 9.3
-   */
-  setCdmaSmsBroadcastConfig: function setCdmaSmsBroadcastConfig(config) {
-    // |config| is an array of half-closed range: [[from, to), [from, to), ...].
-    // It will be further decomposed, ex: [1, 4) => 1, 2, 3.
-    Buf.newParcel(REQUEST_CDMA_SET_BROADCAST_SMS_CONFIG);
-
-    let numConfigs = 0;
-    for (let i = 0; i < config.length; i += 2) {
-      numConfigs += (config[i+1] - config[i]);
-    }
-
-    Buf.writeInt32(numConfigs);
-    for (let i = 0; i < config.length;) {
-      let begin = config[i++];
-      let end = config[i++];
-
-      for (let j = begin; j < end; ++j) {
-        Buf.writeInt32(j);
-        Buf.writeInt32(0);  // Language Indicator: Unknown or unspecified.
-        Buf.writeInt32(1);
-      }
-    }
-
-    Buf.sendParcel();
-  },
-
-  setSmsBroadcastConfig: function setSmsBroadcastConfig(config) {
-    if (this._isCdma) {
-      this.setCdmaSmsBroadcastConfig(config);
-    } else {
-      this.setGsmSmsBroadcastConfig(config);
-    }
-  },
-
-  setSmsBroadcastActivation: function setSmsBroadcastActivation(activate) {
-    let parcelType = this._isCdma ? REQUEST_CDMA_SMS_BROADCAST_ACTIVATION :
-                                    REQUEST_GSM_SMS_BROADCAST_ACTIVATION;
-    Buf.newParcel(parcelType);
-    Buf.writeInt32(1);
-    // See hardware/ril/include/telephony/ril.h, 0 - Activate, 1 - Turn off.
-    Buf.writeInt32(activate ? 0 : 1);
+  setGsmSmsBroadcastActivation: function setGsmSmsBroadcastActivation(activate) {
+    Buf.newParcel(REQUEST_GSM_SMS_BROADCAST_ACTIVATION);
+    Buf.writeUint32(1);
+    Buf.writeUint32(activate ? 1 : 0);
     Buf.sendParcel();
   },
 
@@ -1803,30 +1962,19 @@ let RIL = {
   /**
    * Get the Short Message Service Center address.
    */
-  getSmscAddress: function getSmscAddress(options) {
-    if (!this.SMSC) {
-      Buf.simpleRequest(REQUEST_GET_SMSC_ADDRESS, options);
-      return;
-    }
-
-    if (!options || options.rilMessageType !== "getSmscAddress") {
-      return;
-    }
-
-    options.smscAddress = this.SMSC;
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-    this.sendChromeMessage(options);
+  getSMSCAddress: function getSMSCAddress() {
+    Buf.simpleRequest(REQUEST_GET_SMSC_ADDRESS);
   },
 
   /**
    * Set the Short Message Service Center address.
    *
-   * @param smscAddress
+   * @param SMSC
    *        Short Message Service Center address in PDU format.
    */
-  setSmscAddress: function setSmscAddress(options) {
-    Buf.newParcel(REQUEST_SET_SMSC_ADDRESS, options);
-    Buf.writeString(options.smscAddress);
+  setSMSCAddress: function setSMSCAddress(options) {
+    Buf.newParcel(REQUEST_SET_SMSC_ADDRESS);
+    Buf.writeString(options.SMSC);
     Buf.sendParcel();
   },
 
@@ -1853,25 +2001,9 @@ let RIL = {
    *        String containing PDP type to request. ("IP", "IPV6", ...)
    */
   setupDataCall: function setupDataCall(options) {
-    // From ./hardware/ril/include/telephony/ril.h:
-    // ((const char **)data)[0] Radio technology to use: 0-CDMA, 1-GSM/UMTS, 2...
-    // for values above 2 this is RIL_RadioTechnology + 2.
-    //
-    // From frameworks/base/telephony/java/com/android/internal/telephony/DataConnection.java:
-    // if the mRilVersion < 6, radio technology must be GSM/UMTS or CDMA.
-    // Otherwise, it must be + 2
-    //
-    // See also bug 901232 and 867873
-    let radioTech;
-    if (RILQUIRKS_V5_LEGACY) {
-      radioTech = this._isCdma ? DATACALL_RADIOTECHNOLOGY_CDMA
-                               : DATACALL_RADIOTECHNOLOGY_GSM;
-    } else {
-      radioTech = options.radioTech + 2;
-    }
     let token = Buf.newParcel(REQUEST_SETUP_DATA_CALL, options);
-    Buf.writeInt32(7);
-    Buf.writeString(radioTech.toString());
+    Buf.writeUint32(7);
+    Buf.writeString(options.radioTech.toString());
     Buf.writeString(DATACALL_PROFILE_DEFAULT.toString());
     Buf.writeString(options.apn);
     Buf.writeString(options.user);
@@ -1896,14 +2028,14 @@ let RIL = {
       return;
     }
 
-    Buf.newParcel(REQUEST_DEACTIVATE_DATA_CALL, options);
-    Buf.writeInt32(2);
+    let token = Buf.newParcel(REQUEST_DEACTIVATE_DATA_CALL, options);
+    Buf.writeUint32(2);
     Buf.writeString(options.cid);
     Buf.writeString(options.reason || DATACALL_DEACTIVATE_NO_REASON);
     Buf.sendParcel();
 
     datacall.state = GECKO_NETWORK_STATE_DISCONNECTING;
-    this.sendChromeMessage(datacall);
+    this.sendDOMMessage(datacall);
   },
 
   /**
@@ -1921,52 +2053,13 @@ let RIL = {
   },
 
   /**
-   * Helper to parse MMI/USSD string. TS.22.030 Figure 3.5.3.2.
+   * Helper to parse and process a MMI string.
    */
   _parseMMI: function _parseMMI(mmiString) {
     if (!mmiString || !mmiString.length) {
       return null;
     }
 
-    let matches = this._matchMMIRegexp(mmiString);
-    if (matches) {
-      // After successfully executing the regular expresion over the MMI string,
-      // the following match groups should contain:
-      // 1 = full MMI string that might be used as a USSD request.
-      // 2 = MMI procedure.
-      // 3 = Service code.
-      // 5 = SIA.
-      // 7 = SIB.
-      // 9 = SIC.
-      // 11 = Password registration.
-      // 12 = Dialing number.
-      return {
-        fullMMI: matches[MMI_MATCH_GROUP_FULL_MMI],
-        procedure: matches[MMI_MATCH_GROUP_MMI_PROCEDURE],
-        serviceCode: matches[MMI_MATCH_GROUP_SERVICE_CODE],
-        sia: matches[MMI_MATCH_GROUP_SIA],
-        sib: matches[MMI_MATCH_GROUP_SIB],
-        sic: matches[MMI_MATCH_GROUP_SIC],
-        pwd: matches[MMI_MATCH_GROUP_PWD_CONFIRM],
-        dialNumber: matches[MMI_MATCH_GROUP_DIALING_NUMBER]
-      };
-    }
-
-    if (this._isPoundString(mmiString) ||
-        this._isMMIShortString(mmiString)) {
-      return {
-        fullMMI: mmiString
-      };
-    }
-
-    return null;
-  },
-
-  /**
-   * Helper to parse MMI string via regular expression. TS.22.030 Figure
-   * 3.5.3.2.
-   */
-  _matchMMIRegexp: function _matchMMIRegexp(mmiString) {
     // Regexp to parse and process the MMI code.
     if (this._mmiRegExp == null) {
       // The first group of the regexp takes the whole MMI string.
@@ -2009,41 +2102,41 @@ let RIL = {
 
       this._mmiRegExp = new RegExp(pattern);
     }
+    let matches = this._mmiRegExp.exec(mmiString);
 
-    // Regex only applys for those well-defined MMI strings (refer to TS.22.030
-    // Annex B), otherwise, null should be the expected return value.
-    return this._mmiRegExp.exec(mmiString);
-  },
-
-  /**
-   * Helper to parse # string. TS.22.030 Figure 3.5.3.2.
-   */
-  _isPoundString: function _isPoundString(mmiString) {
-    return (mmiString.charAt(mmiString.length - 1) === MMI_END_OF_USSD);
-  },
-
-  /**
-   * Helper to parse short string. TS.22.030 Figure 3.5.3.2.
-   */
-  _isMMIShortString: function _isMMIShortString(mmiString) {
-    if (mmiString.length > 2) {
-      return false;
+    // If the regex does not apply over the MMI string, it can still be an MMI
+    // code. If the MMI String is a #-string (entry of any characters defined
+    // in the TS.23.038 Default Alphabet followed by #SEND) it shall be treated
+    // as a USSD code.
+    if (matches == null) {
+      if (mmiString.charAt(mmiString.length - 1) == MMI_END_OF_USSD) {
+        return {
+          fullMMI: mmiString
+        };
+      }
+      return null;
     }
 
-    if (this._isEmergencyNumber(mmiString)) {
-      return false;
-    }
-
-    // In a call case.
-    if (Object.getOwnPropertyNames(this.currentCalls).length > 0) {
-      return true;
-    }
-
-    if ((mmiString.length != 2) || (mmiString.charAt(0) !== '1')) {
-      return true;
-    }
-
-    return false;
+    // After successfully executing the regular expresion over the MMI string,
+    // the following match groups should contain:
+    // 1 = full MMI string that might be used as a USSD request.
+    // 2 = MMI procedure.
+    // 3 = Service code.
+    // 5 = SIA.
+    // 7 = SIB.
+    // 9 = SIC.
+    // 11 = Password registration.
+    // 12 = Dialing number.
+    return {
+      fullMMI: matches[MMI_MATCH_GROUP_FULL_MMI],
+      procedure: matches[MMI_MATCH_GROUP_MMI_PROCEDURE],
+      serviceCode: matches[MMI_MATCH_GROUP_SERVICE_CODE],
+      sia: matches[MMI_MATCH_GROUP_SIA],
+      sib: matches[MMI_MATCH_GROUP_SIB],
+      sic: matches[MMI_MATCH_GROUP_SIC],
+      pwd: matches[MMI_MATCH_GROUP_PWD_CONFIRM],
+      dialNumber: matches[MMI_MATCH_GROUP_DIALING_NUMBER]
+    };
   },
 
   sendMMI: function sendMMI(options) {
@@ -2053,64 +2146,41 @@ let RIL = {
     let mmiString = options.mmi;
     let mmi = this._parseMMI(mmiString);
 
-    let _sendMMIError = (function _sendMMIError(errorMsg, mmiServiceCode) {
-      options.success = false;
+    let _sendMMIError = (function _sendMMIError(errorMsg) {
+      options.rilMessageType = "sendMMI";
       options.errorMsg = errorMsg;
-      if (mmiServiceCode) {
-        options.mmiServiceCode = mmiServiceCode;
-      }
-      this.sendChromeMessage(options);
+      this.sendDOMMessage(options);
     }).bind(this);
 
-    function _isValidPINPUKRequest(mmiServiceCode) {
+    function _isValidPINPUKRequest() {
       // The only allowed MMI procedure for ICC PIN, PIN2, PUK and PUK2 handling
       // is "Registration" (**).
       if (!mmi.procedure || mmi.procedure != MMI_PROCEDURE_REGISTRATION ) {
-        _sendMMIError(MMI_ERROR_KS_INVALID_ACTION, mmiServiceCode);
-        return false;
+        _sendMMIError("WRONG_MMI_PROCEDURE");
+        return;
       }
 
       if (!mmi.sia || !mmi.sia.length || !mmi.sib || !mmi.sib.length ||
           !mmi.sic || !mmi.sic.length) {
-        _sendMMIError(MMI_ERROR_KS_ERROR, mmiServiceCode);
-        return false;
+        _sendMMIError("MISSING_SUPPLEMENTARY_INFORMATION");
+        return;
       }
 
       if (mmi.sib != mmi.sic) {
-        _sendMMIError(MMI_ERROR_KS_MISMATCH_PIN, mmiServiceCode);
-        return false;
-      }
-
-      if (mmi.sia.length < 4 || mmi.sia.length > 8 ||
-          mmi.sib.length < 4 || mmi.sib.length > 8 ||
-          mmi.sic.length < 4 || mmi.sic.length > 8) {
-        _sendMMIError(MMI_ERROR_KS_INVALID_PIN, mmiServiceCode);
-        return false;
+        _sendMMIError("NEW_PIN_MISMATCH");
+        return;
       }
 
       return true;
     }
 
-    function _isRadioAvailable(mmiServiceCode) {
-      if (RIL.radioState !== GECKO_RADIOSTATE_READY) {
-        _sendMMIError(GECKO_ERROR_RADIO_NOT_AVAILABLE, mmiServiceCode);
-        return false;
-      }
-      return true;
-    }
-
-    // If we couldn't parse the MMI code, we'll send it as an USSD request.
-    if (mmi === null) {
+    if (mmi == null) {
       if (this._ussdSession) {
-        if (!_isRadioAvailable(MMI_KS_SC_USSD)) {
-          return;
-        }
         options.ussd = mmiString;
         this.sendUSSD(options);
         return;
       }
-
-      _sendMMIError(MMI_ERROR_KS_ERROR);
+      _sendMMIError("NO_VALID_MMI_STRING");
       return;
     }
 
@@ -2121,6 +2191,7 @@ let RIL = {
     // We check if the MMI service code is supported and in that case we
     // trigger the appropriate RIL request if possible.
     let sc = mmi.serviceCode;
+
     switch (sc) {
       // Call forwarding
       case MMI_SC_CFU:
@@ -2129,15 +2200,12 @@ let RIL = {
       case MMI_SC_CF_NOT_REACHABLE:
       case MMI_SC_CF_ALL:
       case MMI_SC_CF_ALL_CONDITIONAL:
-        if (!_isRadioAvailable(MMI_KS_SC_CALL_FORWARDING)) {
-          return;
-        }
         // Call forwarding requires at least an action, given by the MMI
         // procedure, and a reason, given by the MMI service code, but there
         // is no way that we get this far without a valid procedure or service
         // code.
-        options.mmiServiceCode = MMI_KS_SC_CALL_FORWARDING;
         options.action = MMI_PROC_TO_CF_ACTION[mmi.procedure];
+        options.rilMessageType = "sendMMI";
         options.reason = MMI_SC_TO_CF_REASON[sc];
         options.number = mmi.sia;
         options.serviceClass = this._siToServiceClass(mmi.sib);
@@ -2146,7 +2214,8 @@ let RIL = {
           return;
         }
 
-        options.isSetCallForward = true;
+        options.rilMessageType = "setCallForward";
+        options.isSendMMI = true;
         options.timeSeconds = mmi.sic;
         this.setCallForward(options);
         return;
@@ -2157,12 +2226,11 @@ let RIL = {
         // an MMI code of the form **04*OLD_PIN*NEW_PIN*NEW_PIN#, where old PIN
         // should be entered as the SIA parameter and the new PIN as SIB and
         // SIC.
-        if (!_isRadioAvailable(MMI_KS_SC_PIN) ||
-            !_isValidPINPUKRequest(MMI_KS_SC_PIN)) {
+        if (!_isValidPINPUKRequest()) {
           return;
         }
 
-        options.mmiServiceCode = MMI_KS_SC_PIN;
+        options.rilRequestType = "sendMMI";
         options.pin = mmi.sia;
         options.newPin = mmi.sib;
         this.changeICCPIN(options);
@@ -2174,12 +2242,11 @@ let RIL = {
         // enter and MMI code of the form **042*OLD_PIN2*NEW_PIN2*NEW_PIN2#,
         // where the old PIN2 should be entered as the SIA parameter and the
         // new PIN2 as SIB and SIC.
-        if (!_isRadioAvailable(MMI_KS_SC_PIN2) ||
-            !_isValidPINPUKRequest(MMI_KS_SC_PIN2)) {
+        if (!_isValidPINPUKRequest()) {
           return;
         }
 
-        options.mmiServiceCode = MMI_KS_SC_PIN2;
+        options.rilRequestType = "sendMMI";
         options.pin = mmi.sia;
         options.newPin = mmi.sib;
         this.changeICCPIN2(options);
@@ -2191,12 +2258,11 @@ let RIL = {
         // enter an MMI code of the form **05*PUK*NEW_PIN*NEW_PIN#, where PUK
         // should be entered as the SIA parameter and the new PIN as SIB and
         // SIC.
-        if (!_isRadioAvailable(MMI_KS_SC_PUK) ||
-            !_isValidPINPUKRequest(MMI_KS_SC_PUK)) {
+        if (!_isValidPINPUKRequest()) {
           return;
         }
 
-        options.mmiServiceCode = MMI_KS_SC_PUK;
+        options.rilRequestType = "sendMMI";
         options.puk = mmi.sia;
         options.newPin = mmi.sib;
         this.enterICCPUK(options);
@@ -2208,12 +2274,11 @@ let RIL = {
         // enter an MMI code of the form **052*PUK2*NEW_PIN2*NEW_PIN2#, where
         // PUK2 should be entered as the SIA parameter and the new PIN2 as SIB
         // and SIC.
-        if (!_isRadioAvailable(MMI_KS_SC_PUK2) ||
-            !_isValidPINPUKRequest(MMI_KS_SC_PUK2)) {
+        if (!_isValidPINPUKRequest()) {
           return;
         }
 
-        options.mmiServiceCode = MMI_KS_SC_PUK2;
+        options.rilRequestType = "sendMMI";
         options.puk = mmi.sia;
         options.newPin = mmi.sib;
         this.enterICCPUK2(options);
@@ -2223,50 +2288,14 @@ let RIL = {
       case MMI_SC_IMEI:
         // A device's IMEI can't change, so we only need to request it once.
         if (this.IMEI == null) {
-          this.getIMEI(options);
+          this.getIMEI({mmi: true});
           return;
         }
-        // If we already had the device's IMEI, we just send it to chrome.
-        options.mmiServiceCode = MMI_KS_SC_IMEI;
+        // If we already had the device's IMEI, we just send it to the DOM.
+        options.rilMessageType = "sendMMI";
         options.success = true;
-        options.statusMessage = this.IMEI;
-        this.sendChromeMessage(options);
-        return;
-
-      // CLIP
-      case MMI_SC_CLIP:
-        options.mmiServiceCode = MMI_KS_SC_CLIP;
-        options.procedure = mmi.procedure;
-        if (options.procedure === MMI_PROCEDURE_INTERROGATION) {
-          this.queryCLIP(options);
-        } else {
-          _sendMMIError(MMI_ERROR_KS_NOT_SUPPORTED, MMI_KS_SC_CLIP);
-        }
-        return;
-
-      // CLIR (non-temporary ones)
-      // TODO: Both dial() and sendMMI() functions should be unified at some
-      // point in the future. In the mean time we handle temporary CLIR MMI
-      // commands through the dial() function. Please see bug 889737.
-      case MMI_SC_CLIR:
-        options.mmiServiceCode = MMI_KS_SC_CLIR;
-        options.procedure = mmi.procedure;
-        switch (options.procedure) {
-          case MMI_PROCEDURE_INTERROGATION:
-            this.getCLIR(options);
-            return;
-          case MMI_PROCEDURE_ACTIVATION:
-            options.clirMode = CLIR_INVOCATION;
-            break;
-          case MMI_PROCEDURE_DEACTIVATION:
-            options.clirMode = CLIR_SUPPRESSION;
-            break;
-          default:
-            _sendMMIError(MMI_ERROR_KS_NOT_SUPPORTED, MMI_KS_SC_CLIR);
-            return;
-        }
-        options.isSetCLIR = true;
-        this.setCLIR(options);
+        options.result = this.IMEI;
+        this.sendDOMMessage(options);
         return;
 
       // Call barring
@@ -2278,69 +2307,27 @@ let RIL = {
       case MMI_SC_BA_ALL:
       case MMI_SC_BA_MO:
       case MMI_SC_BA_MT:
-        options.mmiServiceCode = MMI_KS_SC_CALL_BARRING;
-        options.password = mmi.sia || "";
-        options.serviceClass = this._siToServiceClass(mmi.sib);
-        options.facility = MMI_SC_TO_CB_FACILITY[sc];
-        options.procedure = mmi.procedure;
-        if (mmi.procedure === MMI_PROCEDURE_INTERROGATION) {
-          this.queryICCFacilityLock(options);
-          return;
-        }
-        if (mmi.procedure === MMI_PROCEDURE_ACTIVATION) {
-          options.enabled = 1;
-        } else if (mmi.procedure === MMI_PROCEDURE_DEACTIVATION) {
-          options.enabled = 0;
-        } else {
-          _sendMMIError(MMI_ERROR_KS_NOT_SUPPORTED, MMI_KS_SC_CALL_BARRING);
-          return;
-        }
-        this.setICCFacilityLock(options);
+        _sendMMIError("CALL_BARRING_NOT_SUPPORTED_VIA_MMI");
         return;
 
       // Call waiting
       case MMI_SC_CALL_WAITING:
-        if (!_isRadioAvailable(MMI_KS_SC_CALL_WAITING)) {
-          return;
-        }
-
-        options.mmiServiceCode = MMI_KS_SC_CALL_WAITING;
-
-        if (mmi.procedure === MMI_PROCEDURE_INTERROGATION) {
-          this._handleQueryMMICallWaiting(options);
-          return;
-        }
-
-        if (mmi.procedure === MMI_PROCEDURE_ACTIVATION) {
-          options.enabled = true;
-        } else if (mmi.procedure === MMI_PROCEDURE_DEACTIVATION) {
-          options.enabled = false;
-        } else {
-          _sendMMIError(MMI_ERROR_KS_NOT_SUPPORTED, MMI_KS_SC_CALL_WAITING);
-          return;
-        }
-
-        options.serviceClass = this._siToServiceClass(mmi.sia);
-        this._handleSetMMICallWaiting(options);
+        _sendMMIError("CALL_WAITING_NOT_SUPPORTED_VIA_MMI");
         return;
     }
 
-    // If the MMI code is not a known code and is a recognized USSD request,
-    // it shall still be sent as a USSD request.
-    if (mmi.fullMMI) {
-      if (!_isRadioAvailable(MMI_KS_SC_USSD)) {
-        return;
-      }
-
+    // If the MMI code is not a known code and is a recognized USSD request or
+    // a #-string, it shall still be sent as a USSD request.
+    if (mmi.fullMMI &&
+        (mmiString.charAt(mmiString.length - 1) == MMI_END_OF_USSD)) {
       options.ussd = mmi.fullMMI;
-      options.mmiServiceCode = MMI_KS_SC_USSD;
       this.sendUSSD(options);
       return;
     }
 
     // At this point, the MMI string is considered as not valid MMI code and
     // not valid USSD code.
-    _sendMMIError(MMI_ERROR_KS_ERROR);
+    _sendMMIError("NOT_VALID_MMI_STRING");
   },
 
   /**
@@ -2360,7 +2347,6 @@ let RIL = {
    * Cancel pending USSD.
    */
    cancelUSSD: function cancelUSSD(options) {
-     options.mmiServiceCode = MMI_KS_SC_USSD;
      Buf.simpleRequest(REQUEST_CANCEL_USSD, options);
    },
 
@@ -2376,12 +2362,12 @@ let RIL = {
    */
   queryCallForwardStatus: function queryCallForwardStatus(options) {
     Buf.newParcel(REQUEST_QUERY_CALL_FORWARD_STATUS, options);
-    Buf.writeInt32(CALL_FORWARD_ACTION_QUERY_STATUS);
-    Buf.writeInt32(options.reason);
-    Buf.writeInt32(options.serviceClass || ICC_SERVICE_CLASS_NONE);
-    Buf.writeInt32(this._toaFromString(options.number));
+    Buf.writeUint32(CALL_FORWARD_ACTION_QUERY_STATUS);
+    Buf.writeUint32(options.reason);
+    Buf.writeUint32(options.serviceClass);
+    Buf.writeUint32(this._toaFromString(options.number));
     Buf.writeString(options.number);
-    Buf.writeInt32(0);
+    Buf.writeUint32(0);
     Buf.sendParcel();
   },
 
@@ -2401,62 +2387,12 @@ let RIL = {
    */
   setCallForward: function setCallForward(options) {
     Buf.newParcel(REQUEST_SET_CALL_FORWARD, options);
-    Buf.writeInt32(options.action);
-    Buf.writeInt32(options.reason);
-    Buf.writeInt32(options.serviceClass);
-    Buf.writeInt32(this._toaFromString(options.number));
+    Buf.writeUint32(options.action);
+    Buf.writeUint32(options.reason);
+    Buf.writeUint32(options.serviceClass);
+    Buf.writeUint32(this._toaFromString(options.number));
     Buf.writeString(options.number);
-    Buf.writeInt32(options.timeSeconds);
-    Buf.sendParcel();
-  },
-
-  /**
-   * Queries current call barring rules.
-   *
-   * @param program
-   *        One of nsIDOMMozMobileConnection.CALL_BARRING_PROGRAM_* constants.
-   * @param serviceClass
-   *        One of ICC_SERVICE_CLASS_* constants.
-   */
-  queryCallBarringStatus: function queryCallBarringStatus(options) {
-    options.facility = CALL_BARRING_PROGRAM_TO_FACILITY[options.program];
-    options.password = ""; // For query no need to provide it.
-    this.queryICCFacilityLock(options);
-  },
-
-  /**
-   * Configures call barring rule.
-   *
-   * @param program
-   *        One of nsIDOMMozMobileConnection.CALL_BARRING_PROGRAM_* constants.
-   * @param enabled
-   *        Enable or disable the call barring.
-   * @param password
-   *        Barring password.
-   * @param serviceClass
-   *        One of ICC_SERVICE_CLASS_* constants.
-   */
-  setCallBarring: function setCallBarring(options) {
-    options.facility = CALL_BARRING_PROGRAM_TO_FACILITY[options.program];
-    this.setICCFacilityLock(options);
-  },
-
-  /**
-   * Change call barring facility password.
-   *
-   * @param pin
-   *        Old password.
-   * @param newPin
-   *        New password.
-   */
-  changeCallBarringPassword: function changeCallBarringPassword(options) {
-    Buf.newParcel(REQUEST_CHANGE_BARRING_PASSWORD, options);
-    Buf.writeInt32(3);
-    // Set facility to ICC_CB_FACILITY_BA_ALL by following TS.22.030 clause
-    // 6.5.4 and Table B.1.
-    Buf.writeString(ICC_CB_FACILITY_BA_ALL);
-    Buf.writeString(options.pin);
-    Buf.writeString(options.newPin);
+    Buf.writeUint32(options.timeSeconds);
     Buf.sendParcel();
   },
 
@@ -2467,9 +2403,9 @@ let RIL = {
    *        Does use have confirmed the call requested from ICC?
    */
   stkHandleCallSetup: function stkHandleCallSetup(options) {
-     Buf.newParcel(REQUEST_STK_HANDLE_CALL_SETUP_REQUESTED_FROM_SIM);
-     Buf.writeInt32(1);
-     Buf.writeInt32(options.hasConfirmed ? 1 : 0);
+     Buf.newParcel(REQUEST_STK_HANDLE_CALL_SETUP_REQUESTED_FROM_SIM, options);
+     Buf.writeUint32(1);
+     Buf.writeUint32(options.hasConfirmed ? 1 : 0);
      Buf.sendParcel();
   },
 
@@ -2480,11 +2416,11 @@ let RIL = {
    */
   sendStkTerminalProfile: function sendStkTerminalProfile(profile) {
     Buf.newParcel(REQUEST_STK_SET_PROFILE);
-    Buf.writeInt32(profile.length * 2);
+    Buf.writeUint32(profile.length * 2);
     for (let i = 0; i < profile.length; i++) {
       GsmPDUHelper.writeHexOctet(profile[i]);
     }
-    Buf.writeInt32(0);
+    Buf.writeUint32(0);
     Buf.sendParcel();
   },
 
@@ -2507,13 +2443,13 @@ let RIL = {
       return;
     }
 
+    let token = Buf.newParcel(REQUEST_STK_SEND_TERMINAL_RESPONSE);
     let command = response.command;
-    Buf.newParcel(REQUEST_STK_SEND_TERMINAL_RESPONSE);
 
     // 1st mark for Parcel size
     Buf.startCalOutgoingSize(function(size) {
       // Parcel size is in string length, which costs 2 uint8 per char.
-      Buf.writeInt32(size / 2);
+      Buf.writeUint32(size / 2);
     });
 
     // Command Details
@@ -2659,7 +2595,7 @@ let RIL = {
     // Calculate and write Parcel size to 1st mark
     Buf.stopCalOutgoingSize();
 
-    Buf.writeInt32(0);
+    Buf.writeUint32(0);
     Buf.sendParcel();
   },
 
@@ -2723,20 +2659,13 @@ let RIL = {
         break;
       case STK_EVENT_TYPE_CALL_DISCONNECTED:
         command.cause = command.event.error;
-        // Fall through.
-      case STK_EVENT_TYPE_CALL_CONNECTED:
+      case STK_EVENT_TYPE_CALL_CONNECTED:  // Fall through
         command.deviceId = {
           sourceId: (command.event.isIssuedByRemote ?
                      STK_DEVICE_ID_NETWORK : STK_DEVICE_ID_ME),
           destinationId: STK_DEVICE_ID_SIM
         };
         command.transactionId = 0;
-        break;
-      case STK_EVENT_TYPE_USER_ACTIVITY:
-        command.deviceId = {
-          sourceId: STK_DEVICE_ID_ME,
-          destinationId: STK_DEVICE_ID_SIM
-        };
         break;
       case STK_EVENT_TYPE_IDLE_SCREEN_AVAILABLE:
         command.deviceId = {
@@ -2750,13 +2679,6 @@ let RIL = {
           destinationId: STK_DEVICE_ID_SIM
         };
         command.language = command.event.language;
-        break;
-      case STK_EVENT_TYPE_BROWSER_TERMINATION:
-        command.deviceId = {
-          sourceId: STK_DEVICE_ID_ME,
-          destinationId: STK_DEVICE_ID_SIM
-        };
-        command.terminationCause = command.event.terminationCause;
         break;
     }
     this.sendICCEnvelopeCommand(command);
@@ -2777,18 +2699,17 @@ let RIL = {
    * @param [optional] cause
    * @param [optional] timerId
    * @param [optional] timerValue
-   * @param [optional] terminationCause
    */
   sendICCEnvelopeCommand: function sendICCEnvelopeCommand(options) {
     if (DEBUG) {
       debug("Stk Envelope " + JSON.stringify(options));
     }
-    Buf.newParcel(REQUEST_STK_SEND_ENVELOPE_COMMAND);
+    let token = Buf.newParcel(REQUEST_STK_SEND_ENVELOPE_COMMAND);
 
     // 1st mark for Parcel size
     Buf.startCalOutgoingSize(function(size) {
       // Parcel size is in string length, which costs 2 uint8 per char.
-      Buf.writeInt32(size / 2);
+      Buf.writeUint32(size / 2);
     });
 
     // Write a BER-TLV
@@ -2885,21 +2806,13 @@ let RIL = {
       ComprehensionTlvHelper.writeLanguageTlv(options.language);
     }
 
-    // Browser Termination
-    if (options.terminationCause != null) {
-      GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_BROWSER_TERMINATION_CAUSE |
-                                 COMPREHENSIONTLV_FLAG_CR);
-      GsmPDUHelper.writeHexOctet(1);
-      GsmPDUHelper.writeHexOctet(options.terminationCause);
-    }
-
     // Calculate and write BER length to 2nd mark
     Buf.stopCalOutgoingSize();
 
     // Calculate and write Parcel size to 1st mark
     Buf.stopCalOutgoingSize();
 
-    Buf.writeInt32(0);
+    Buf.writeUint32(0);
     Buf.sendParcel();
   },
 
@@ -2925,20 +2838,6 @@ let RIL = {
      }
 
      return numbers.indexOf(number) != -1;
-   },
-
-   /**
-    * Checks whether to temporarily suppress caller id for the call.
-    *
-    * @param mmi
-    *        MMI full object.
-    */
-   _isTemporaryModeCLIR: function _isTemporaryModeCLIR(mmi) {
-     return (mmi &&
-             mmi.serviceCode == MMI_SC_CLIR &&
-             mmi.dialNumber &&
-             (mmi.procedure == MMI_PROCEDURE_ACTIVATION ||
-              mmi.procedure == MMI_PROCEDURE_DEACTIVATION));
    },
 
   /**
@@ -2973,12 +2872,9 @@ let RIL = {
       if (newCardState == this.cardState) {
         return;
       }
-      this.iccInfo = {iccType: null};
-      ICCUtilsHelper.handleICCInfoChange();
-
       this.cardState = newCardState;
-      this.sendChromeMessage({rilMessageType: "cardstatechange",
-                              cardState: this.cardState});
+      this.sendDOMMessage({rilMessageType: "cardstatechange",
+                           cardState: this.cardState});
       return;
     }
 
@@ -2992,8 +2888,8 @@ let RIL = {
       }
       this.operator = null;
       this.cardState = GECKO_CARDSTATE_UNKNOWN;
-      this.sendChromeMessage({rilMessageType: "cardstatechange",
-                              cardState: this.cardState});
+      this.sendDOMMessage({rilMessageType: "cardstatechange",
+                           cardState: this.cardState});
       return;
     }
     // fetchICCRecords will need to read aid, so read aid here.
@@ -3001,9 +2897,6 @@ let RIL = {
     this.appType = app.app_type;
 
     switch (app.app_state) {
-      case CARD_APPSTATE_ILLEGAL:
-        newCardState = GECKO_CARDSTATE_ILLEGAL;
-        break;
       case CARD_APPSTATE_PIN:
         newCardState = GECKO_CARDSTATE_PIN_REQUIRED;
         break;
@@ -3018,15 +2911,8 @@ let RIL = {
         break;
       case CARD_APPSTATE_UNKNOWN:
       case CARD_APPSTATE_DETECTED:
-        // Fall through.
       default:
         newCardState = GECKO_CARDSTATE_UNKNOWN;
-    }
-
-    let pin1State = app.pin1_replaced ? iccStatus.universalPINState :
-                                        app.pin1;
-    if (pin1State === CARD_PINSTATE_ENABLED_PERM_BLOCKED) {
-      newCardState = GECKO_CARDSTATE_PERMANENT_BLOCKED;
     }
 
     if (this.cardState == newCardState) {
@@ -3035,87 +2921,38 @@ let RIL = {
 
     // This was moved down from CARD_APPSTATE_READY
     this.requestNetworkInfo();
+    this.getSignalStrength();
     if (newCardState == GECKO_CARDSTATE_READY) {
-      this.iccInfo.iccType = GECKO_CARD_TYPE[this.appType];
-
       // For type SIM, we need to check EF_phase first.
       // Other types of ICC we can send Terminal_Profile immediately.
       if (this.appType == CARD_APPTYPE_SIM) {
-        ICCRecordHelper.readICCPhase();
+        ICCRecordHelper.getICCPhase();
         ICCRecordHelper.fetchICCRecords();
       } else if (this.appType == CARD_APPTYPE_USIM) {
-        if (RILQUIRKS_SEND_STK_PROFILE_DOWNLOAD) {
-          this.sendStkTerminalProfile(STK_SUPPORTED_TERMINAL_PROFILE);
-        }
+        this.sendStkTerminalProfile(STK_SUPPORTED_TERMINAL_PROFILE);
         ICCRecordHelper.fetchICCRecords();
       } else if (this.appType == CARD_APPTYPE_RUIM) {
-        if (RILQUIRKS_SEND_STK_PROFILE_DOWNLOAD) {
-          this.sendStkTerminalProfile(STK_SUPPORTED_TERMINAL_PROFILE);
-        }
+        this.sendStkTerminalProfile(STK_SUPPORTED_TERMINAL_PROFILE);
         RuimRecordHelper.fetchRuimRecords();
       }
       this.reportStkServiceIsRunning();
     }
 
     this.cardState = newCardState;
-    this.sendChromeMessage({rilMessageType: "cardstatechange",
-                            cardState: this.cardState});
+    this.sendDOMMessage({rilMessageType: "cardstatechange",
+                         cardState: this.cardState});
   },
 
    /**
    * Helper for processing responses of functions such as enterICC* and changeICC*.
    */
-  _processEnterAndChangeICCResponses:
-    function _processEnterAndChangeICCResponses(length, options) {
-    options.success = (options.rilRequestError === 0);
+  _processEnterAndChangeICCResponses: function _processEnterAndChangeICCResponses(length, options) {
+    options.success = options.rilRequestError == 0;
     if (!options.success) {
       options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
     }
-    options.retryCount = length ? Buf.readInt32List()[0] : -1;
-    if (options.rilMessageType != "sendMMI") {
-      this.sendChromeMessage(options);
-      return;
-    }
-
-    let mmiServiceCode = options.mmiServiceCode;
-
-    if (options.success) {
-      switch (mmiServiceCode) {
-        case MMI_KS_SC_PIN:
-          options.statusMessage = MMI_SM_KS_PIN_CHANGED;
-          break;
-        case MMI_KS_SC_PIN2:
-          options.statusMessage = MMI_SM_KS_PIN2_CHANGED;
-          break;
-        case MMI_KS_SC_PUK:
-          options.statusMessage = MMI_SM_KS_PIN_UNBLOCKED;
-          break;
-        case MMI_KS_SC_PUK2:
-          options.statusMessage = MMI_SM_KS_PIN2_UNBLOCKED;
-          break;
-      }
-    } else {
-      if (options.retryCount <= 0) {
-        if (mmiServiceCode === MMI_KS_SC_PUK) {
-          options.errorMsg = MMI_ERROR_KS_SIM_BLOCKED;
-        } else if (mmiServiceCode === MMI_KS_SC_PIN) {
-          options.errorMsg = MMI_ERROR_KS_NEEDS_PUK;
-        }
-      } else {
-        if (mmiServiceCode === MMI_KS_SC_PIN ||
-            mmiServiceCode === MMI_KS_SC_PIN2) {
-          options.errorMsg = MMI_ERROR_KS_BAD_PIN;
-        } else if (mmiServiceCode === MMI_KS_SC_PUK ||
-                   mmiServiceCode === MMI_KS_SC_PUK2) {
-          options.errorMsg = MMI_ERROR_KS_BAD_PUK;
-        }
-        if (options.retryCount !== undefined) {
-          options.additionalInformation = options.retryCount;
-        }
-      }
-    }
-
-    this.sendChromeMessage(options);
+    options.retryCount = length ? Buf.readUint32List()[0] : -1;
+    this.sendDOMMessage(options);
   },
 
   // We combine all of the NETWORK_INFO_MESSAGE_TYPES into one "networkinfochange"
@@ -3141,7 +2978,7 @@ let RIL = {
     if (!this._processingNetworkInfo) {
       // We only combine these messages in the case of the combined request
       // in requestNetworkInfo()
-      this.sendChromeMessage(message);
+      this.sendDOMMessage(message);
       return;
     }
 
@@ -3165,8 +3002,8 @@ let RIL = {
     // Pending network info is ready to be sent when no more messages
     // are waiting for responses, but the combined payload hasn't been sent.
     for (let i = 0; i < NETWORK_INFO_MESSAGE_TYPES.length; i++) {
-      let msgType = NETWORK_INFO_MESSAGE_TYPES[i];
-      if (!(msgType in pending)) {
+      let type = NETWORK_INFO_MESSAGE_TYPES[i];
+      if (!(type in pending)) {
         if (DEBUG) debug("Still missing some more network info, not notifying main thread.");
         return;
       }
@@ -3189,111 +3026,11 @@ let RIL = {
   },
 
   _sendPendingNetworkInfo: function _sendPendingNetworkInfo() {
-    RIL.sendChromeMessage(RIL._pendingNetworkInfo);
+    RIL.sendDOMMessage(RIL._pendingNetworkInfo);
 
     RIL._processingNetworkInfo = false;
     for (let i = 0; i < NETWORK_INFO_MESSAGE_TYPES.length; i++) {
       delete RIL._pendingNetworkInfo[NETWORK_INFO_MESSAGE_TYPES[i]];
-    }
-
-    if (RIL._needRepollNetworkInfo) {
-      RIL._needRepollNetworkInfo = false;
-      RIL.requestNetworkInfo();
-    }
-  },
-
-  /**
-   * Normalize the signal strength in dBm to the signal level from 0 to 100.
-   *
-   * @param signal
-   *        The signal strength in dBm to normalize.
-   * @param min
-   *        The signal strength in dBm maps to level 0.
-   * @param max
-   *        The signal strength in dBm maps to level 100.
-   *
-   * @return level
-   *         The signal level from 0 to 100.
-   */
-  _processSignalLevel: function _processSignalLevel(signal, min, max) {
-    if (signal <= min) {
-      return 0;
-    }
-
-    if (signal >= max) {
-      return 100;
-    }
-
-    return Math.floor((signal - min) * 100 / (max - min));
-  },
-
-  _processSignalStrength: function _processSignalStrength(signal) {
-    let info = {
-      voice: {
-        signalStrength:    null,
-        relSignalStrength: null
-      },
-      data: {
-        signalStrength:    null,
-        relSignalStrength: null
-      }
-    };
-
-    if (this._isCdma) {
-      // CDMA RSSI.
-      // Valid values are positive integers. This value is the actual RSSI value
-      // multiplied by -1. Example: If the actual RSSI is -75, then this
-      // response value will be 75.
-      if (signal.cdmaDBM && signal.cdmaDBM > 0) {
-        let signalStrength = -1 * signal.cdmaDBM;
-        info.voice.signalStrength = signalStrength;
-
-        // -105 and -70 are referred to AOSP's implementation. These values are
-        // not constants and can be customized based on different requirement.
-        let signalLevel = this._processSignalLevel(signalStrength, -105, -70);
-        info.voice.relSignalStrength = signalLevel;
-      }
-
-      // EVDO RSSI.
-      // Valid values are positive integers. This value is the actual RSSI value
-      // multiplied by -1. Example: If the actual RSSI is -75, then this
-      // response value will be 75.
-      if (signal.evdoDBM && signal.evdoDBM > 0) {
-        let signalStrength = -1 * signal.evdoDBM;
-        info.data.signalStrength = signalStrength;
-
-        // -105 and -70 are referred to AOSP's implementation. These values are
-        // not constants and can be customized based on different requirement.
-        let signalLevel = this._processSignalLevel(signalStrength, -105, -70);
-        info.data.relSignalStrength = signalLevel;
-      }
-    } else {
-      // GSM signal strength.
-      // Valid values are 0-31 as defined in TS 27.007 8.5.
-      // 0     : -113 dBm or less
-      // 1     : -111 dBm
-      // 2...30: -109...-53 dBm
-      // 31    : -51 dBm
-      if (signal.gsmSignalStrength &&
-          signal.gsmSignalStrength >= 0 &&
-          signal.gsmSignalStrength <= 31) {
-        let signalStrength = -113 + 2 * signal.gsmSignalStrength;
-        info.voice.signalStrength = info.data.signalStrength = signalStrength;
-
-        // -115 and -85 are referred to AOSP's implementation. These values are
-        // not constants and can be customized based on different requirement.
-        let signalLevel = this._processSignalLevel(signalStrength, -110, -85);
-        info.voice.relSignalStrength = info.data.relSignalStrength = signalLevel;
-      }
-    }
-
-    info.rilMessageType = "signalstrengthchange";
-    this._sendNetworkInfoMessage(NETWORK_INFO_SIGNAL, info);
-
-    if (this.cachedDialRequest && info.voice.signalStrength) {
-      // Radio is ready for making the cached emergency call.
-      this.cachedDialRequest.callback();
-      this.cachedDialRequest = null;
     }
   },
 
@@ -3306,7 +3043,7 @@ let RIL = {
     let changed = false;
 
     let regState = RIL.parseInt(newState[0], NETWORK_CREG_STATE_UNKNOWN);
-    if (curState.regState === undefined || curState.regState !== regState) {
+    if (curState.regState != regState) {
       changed = true;
       curState.regState = regState;
 
@@ -3329,23 +3066,19 @@ let RIL = {
     // From TS 23.003, 0000 and 0xfffe are indicated that no valid LAI exists
     // in MS. So we still need to report the '0000' as well.
     let lac = RIL.parseInt(newState[1], -1, 16);
-    if (curState.cell.gsmLocationAreaCode === undefined ||
-        curState.cell.gsmLocationAreaCode !== lac) {
+    if (curState.cell.gsmLocationAreaCode !== lac) {
       curState.cell.gsmLocationAreaCode = lac;
       changed = true;
     }
 
     let cid = RIL.parseInt(newState[2], -1, 16);
-    if (curState.cell.gsmCellId === undefined ||
-        curState.cell.gsmCellId !== cid) {
+    if (curState.cell.gsmCellId !== cid) {
       curState.cell.gsmCellId = cid;
       changed = true;
     }
 
-    let radioTech = (newState[3] === undefined ?
-                     NETWORK_CREG_TECH_UNKNOWN :
-                     RIL.parseInt(newState[3], NETWORK_CREG_TECH_UNKNOWN));
-    if (curState.radioTech === undefined || curState.radioTech !== radioTech) {
+    let radioTech = RIL.parseInt(newState[3], NETWORK_CREG_TECH_UNKNOWN);
+    if (curState.radioTech != radioTech) {
       changed = true;
       curState.radioTech = radioTech;
       curState.type = GECKO_RADIO_TECH[radioTech] || null;
@@ -3357,36 +3090,23 @@ let RIL = {
     let rs = this.voiceRegistrationState;
     let stateChanged = this._processCREG(rs, state);
     if (stateChanged && rs.connected) {
-      RIL.getSmscAddress();
+      RIL.getSMSCAddress();
     }
 
-    let cell = rs.cell;
     if (this._isCdma) {
-      // Some variables below are not used. Comment them instead of removing to
-      // keep the information about state[x].
-      let cdmaBaseStationId = RIL.parseInt(state[4], -1);
-      let cdmaBaseStationLatitude = RIL.parseInt(state[5], -2147483648);
-      let cdmaBaseStationLongitude = RIL.parseInt(state[6], -2147483648);
-      // let cssIndicator = RIL.parseInt(state[7]);
-      let cdmaSystemId = RIL.parseInt(state[8], -1);
-      let cdmaNetworkId = RIL.parseInt(state[9], -1);
-      // let roamingIndicator = RIL.parseInt(state[10]);
-      // let systemIsInPRL = RIL.parseInt(state[11]);
-      // let defaultRoamingIndicator = RIL.parseInt(state[12]);
-      // let reasonForDenial = RIL.parseInt(state[13]);
-
-      if (cell.cdmaBaseStationId !== cdmaBaseStationId ||
-          cell.cdmaBaseStationLatitude !== cdmaBaseStationLatitude ||
-          cell.cdmaBaseStationLongitude !== cdmaBaseStationLongitude ||
-          cell.cdmaSystemId !== cdmaSystemId ||
-          cell.cdmaNetworkId !== cdmaNetworkId) {
-        stateChanged = true;
-        cell.cdmaBaseStationId = cdmaBaseStationId;
-        cell.cdmaBaseStationLatitude = cdmaBaseStationLatitude;
-        cell.cdmaBaseStationLongitude = cdmaBaseStationLongitude;
-        cell.cdmaSystemId = cdmaSystemId;
-        cell.cdmaNetworkId = cdmaNetworkId;
+      let baseStationId = RIL.parseInt(state[4]);
+      let baseStationLatitude = RIL.parseInt(state[5]);
+      let baseStationLongitude = RIL.parseInt(state[6]);
+      if (!baseStationLatitude && !baseStationLongitude) {
+        baseStationLatitude = baseStationLongitude = null;
       }
+      let cssIndicator = RIL.parseInt(state[7]);
+      RIL.cdmaSubscription.systemId = RIL.parseInt(state[8]);
+      RIL.cdmaSubscription.networkId = RIL.parseInt(state[9]);
+      let roamingIndicator = RIL.parseInt(state[10]);
+      let systemIsInPRL = RIL.parseInt(state[11]);
+      let defaultRoamingIndicator = RIL.parseInt(state[12]);
+      let reasonForDenial = RIL.parseInt(state[13]);
     }
 
     if (stateChanged) {
@@ -3412,15 +3132,11 @@ let RIL = {
     }
 
     if (!this.operator) {
-      this.operator = {
-        rilMessageType: "operatorchange",
-        longName: null,
-        shortName: null
-      };
+      this.operator = {rilMessageType: "operatorchange"};
     }
 
     let [longName, shortName, networkTuple] = operatorData;
-    let thisTuple = (this.operator.mcc || "") + (this.operator.mnc || "");
+    let thisTuple = this.operator.mcc + this.operator.mnc;
 
     if (this.operator.longName !== longName ||
         this.operator.shortName !== shortName ||
@@ -3433,7 +3149,7 @@ let RIL = {
         try {
           this._processNetworkTuple(networkTuple, this.operator);
         } catch (e) {
-          if (DEBUG) debug("Error processing operator tuple: " + e);
+          debug("Error processing operator tuple: " + e);
         }
       } else {
         // According to ril.h, the operator fields will be NULL when the operator
@@ -3479,9 +3195,6 @@ let RIL = {
    * Helpers for processing call state and handle the active call.
    */
   _processCalls: function _processCalls(newCalls) {
-    let conferenceChanged = false;
-    let clearConferenceRequest = false;
-
     // Go through the calls we currently have on file and see if any of them
     // changed state. Remove them from the newCalls map as we deal with them
     // so that only new calls remain in the map after we're done.
@@ -3495,33 +3208,20 @@ let RIL = {
       if (!newCall) {
         // Call is no longer reported by the radio. Remove from our map and
         // send disconnected state change.
-
-        if (this.currentConference.participants[currentCall.callIndex]) {
-          conferenceChanged = true;
-          currentCall.isConference = false;
-          delete this.currentConference.participants[currentCall.callIndex];
-          delete this.currentCalls[currentCall.callIndex];
-          // We don't query the fail cause here as it triggers another asynchrouns
-          // request that leads to a problem of updating all conferece participants
-          // in one task.
-          this._handleDisconnectedCall(currentCall);
-        } else {
-          delete this.currentCalls[currentCall.callIndex];
-          this.getFailCauseCode(currentCall);
-        }
+        delete this.currentCalls[currentCall.callIndex];
+        this.getFailCauseCode(currentCall);
         continue;
       }
 
       // Call is still valid.
-      if (newCall.state == currentCall.state &&
-          newCall.isMpty == currentCall.isMpty) {
+      if (newCall.state == currentCall.state) {
         continue;
       }
 
       // State has changed.
       if (newCall.state == CALL_STATE_INCOMING &&
           currentCall.state == CALL_STATE_WAITING) {
-        // Update the call internally but we don't notify chrome since these two
+        // Update the call internally but we don't notify DOM since these two
         // states are viewed as the same one there.
         currentCall.state = newCall.state;
         continue;
@@ -3530,71 +3230,8 @@ let RIL = {
       if (!currentCall.started && newCall.state == CALL_STATE_ACTIVE) {
         currentCall.started = new Date().getTime();
       }
-
-      if (currentCall.isMpty == newCall.isMpty &&
-          newCall.state != currentCall.state) {
-        currentCall.state = newCall.state;
-        if (currentCall.isConference) {
-          conferenceChanged = true;
-        }
-        this._handleChangedCallState(currentCall);
-        continue;
-      }
-
-      // '.isMpty' becomes false when the conference call is put on hold.
-      // We need to introduce additional 'isConference' to correctly record the
-      // real conference status
-
-      // Update a possible conference participant when .isMpty changes.
-      if (!currentCall.isMpty && newCall.isMpty) {
-        if (this._hasConferenceRequest) {
-          conferenceChanged = true;
-          clearConferenceRequest = true;
-          currentCall.state = newCall.state;
-          currentCall.isMpty = newCall.isMpty;
-          currentCall.isConference = true;
-          this.currentConference.participants[currentCall.callIndex] = currentCall;
-          this._handleChangedCallState(currentCall);
-        } else if (currentCall.isConference) {
-          // The case happens when resuming a held conference call.
-          conferenceChanged = true;
-          currentCall.state = newCall.state;
-          currentCall.isMpty = newCall.isMpty;
-          this.currentConference.participants[currentCall.callIndex] = currentCall;
-          this._handleChangedCallState(currentCall);
-        } else {
-          // Weird. This sometimes happens when we switch two calls, but it is
-          // not a conference call.
-          currentCall.state = newCall.state;
-          this._handleChangedCallState(currentCall);
-        }
-      } else if (currentCall.isMpty && !newCall.isMpty) {
-        if (!this.currentConference.participants[newCall.callIndex]) {
-          continue;
-        }
-
-        // '.isMpty' of a conference participant is set to false by rild when
-        // the conference call is put on hold. We don't actually know if the call
-        // still attends the conference until updating all calls finishes. We
-        // cache it for further determination.
-        if (newCall.state != CALL_STATE_HOLDING) {
-          delete this.currentConference.participants[newCall.callIndex];
-          currentCall.state = newCall.state;
-          currentCall.isMpty = newCall.isMpty;
-          currentCall.isConference = false;
-          conferenceChanged = true;
-          this._handleChangedCallState(currentCall);
-          continue;
-        }
-
-        if (!this.currentConference.cache) {
-          this.currentConference.cache = {};
-        }
-        this.currentConference.cache[currentCall.callIndex] = newCall;
-        currentCall.state = newCall.state;
-        currentCall.isMpty = newCall.isMpty;
-        conferenceChanged = true;
-      }
+      currentCall.state = newCall.state;
+      this._handleChangedCallState(currentCall);
     }
 
     // Go through any remaining calls that are new to us.
@@ -3606,133 +3243,42 @@ let RIL = {
             newCall.number[0] != "+") {
           newCall.number = "+" + newCall.number;
         }
-
         if (newCall.state == CALL_STATE_INCOMING) {
-          newCall.isOutgoing = false;
+          newCall.direction = 'incoming';
         } else if (newCall.state == CALL_STATE_DIALING) {
-          newCall.isOutgoing = true;
+          newCall.direction = 'outgoing';
         }
-
-        // Set flag for outgoing emergency call.
-        if (newCall.isOutgoing && this._isEmergencyNumber(newCall.number)) {
-          newCall.isEmergency = true;
-        } else {
-          newCall.isEmergency = false;
-        }
-
         // Add to our map.
-        if (newCall.isMpty) {
-          conferenceChanged = true;
-          newCall.isConference = true;
-          this.currentConference.participants[newCall.callIndex] = newCall;
-        } else {
-          newCall.isConference = false;
-        }
-        this._handleChangedCallState(newCall);
         this.currentCalls[newCall.callIndex] = newCall;
+        this._handleChangedCallState(newCall);
       }
-    }
-
-    if (clearConferenceRequest) {
-      this._hasConferenceRequest = false;
-    }
-    if (conferenceChanged) {
-      this._ensureConference();
     }
 
     // Update our mute status. If there is anything in our currentCalls map then
     // we know it's a voice call and we should leave audio on.
-    this.muted = (Object.getOwnPropertyNames(this.currentCalls).length === 0);
-  },
-
-  _ensureConference: function _ensureConference() {
-    let oldState = this.currentConference.state;
-    let remaining = Object.keys(this.currentConference.participants);
-
-    if (remaining.length == 1) {
-      // Remove that if only does one remain in a conference call.
-      let call = this.currentCalls[remaining[0]];
-      call.isConference = false;
-      this._handleChangedCallState(call);
-      delete this.currentConference.participants[call.callIndex];
-    } else if (remaining.length > 1) {
-      for each (let call in this.currentConference.cache) {
-        call.isConference = true;
-        this.currentConference.participants[call.callIndex] = call;
-        this.currentCalls[call.callIndex] = call;
-        this._handleChangedCallState(call);
-      }
-    }
-    delete this.currentConference.cache;
-
-    // Update the conference call's state.
-    let state = CALL_STATE_UNKNOWN;
-    for each (let call in this.currentConference.participants) {
-      if (state != CALL_STATE_UNKNOWN && state != call.state) {
-        // Each participant should have the same state, otherwise something
-        // wrong happens.
-        state = CALL_STATE_UNKNOWN;
-        break;
-      }
-      state = call.state;
-    }
-    if (oldState != state) {
-      this.currentConference.state = state;
-      let message = {rilMessageType: "conferenceCallStateChanged",
-                     state: state};
-      this.sendChromeMessage(message);
-    }
+    this.muted = Object.getOwnPropertyNames(this.currentCalls).length == 0;
   },
 
   _handleChangedCallState: function _handleChangedCallState(changedCall) {
     let message = {rilMessageType: "callStateChange",
                    call: changedCall};
-    this.sendChromeMessage(message);
+    this.sendDOMMessage(message);
   },
 
   _handleDisconnectedCall: function _handleDisconnectedCall(disconnectedCall) {
     let message = {rilMessageType: "callDisconnected",
                    call: disconnectedCall};
-    this.sendChromeMessage(message);
-  },
-
-  _sendCallError: function _sendCallError(callIndex, errorMsg) {
-    this.sendChromeMessage({rilMessageType: "callError",
-                           callIndex: callIndex,
-                           errorMsg: errorMsg});
+    this.sendDOMMessage(message);
   },
 
   _sendDataCallError: function _sendDataCallError(message, errorCode) {
-    // Should not include token for unsolicited response.
-    delete message.rilMessageToken;
     message.rilMessageType = "datacallerror";
     if (errorCode == ERROR_GENERIC_FAILURE) {
       message.errorMsg = RIL_ERROR_TO_GECKO_ERROR[errorCode];
     } else {
       message.errorMsg = RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[errorCode];
     }
-    this.sendChromeMessage(message);
-  },
-
-  _compareDataCallLink: function _compareDataCallLink(source, target) {
-    if (source.ifname != target.ifname ||
-        source.ipaddr != target.ipaddr ||
-        source.gw != target.gw) {
-      return false;
-    }
-
-    // Compare <datacall>.dns.
-    let sdns = source.dns, tdns = target.dns;
-    if (sdns.length != tdns.length) {
-      return false;
-    }
-    for (let i = 0; i < sdns.length; i++) {
-      if (sdns[i] != tdns[i]) {
-        return false;
-      }
-    }
-
-    return true;
+    this.sendDOMMessage(message);
   },
 
   _processDataCallList: function _processDataCallList(datacalls, newDataCallOptions) {
@@ -3758,10 +3304,9 @@ let RIL = {
         // If datacalls list is coming from REQUEST_SETUP_DATA_CALL response,
         // we do not change state for any currentDataCalls not in datacalls list.
         if (!newDataCallOptions) {
-          delete this.currentDataCalls[currentDataCall.cid];
           currentDataCall.state = GECKO_NETWORK_STATE_DISCONNECTED;
           currentDataCall.rilMessageType = "datacallstatechange";
-          this.sendChromeMessage(currentDataCall);
+          this.sendDOMMessage(currentDataCall);
         }
         continue;
       }
@@ -3770,68 +3315,39 @@ let RIL = {
         delete this.currentDataCalls[currentDataCall.cid];
         currentDataCall.state = GECKO_NETWORK_STATE_UNKNOWN;
         currentDataCall.rilMessageType = "datacallstatechange";
-        this.sendChromeMessage(currentDataCall);
+        this.sendDOMMessage(currentDataCall);
         continue;
       }
 
       this._setDataCallGeckoState(updatedDataCall);
       if (updatedDataCall.state != currentDataCall.state) {
-        if (updatedDataCall.state == GECKO_NETWORK_STATE_DISCONNECTED) {
-          delete this.currentDataCalls[currentDataCall.cid];
-        }
         currentDataCall.status = updatedDataCall.status;
         currentDataCall.active = updatedDataCall.active;
         currentDataCall.state = updatedDataCall.state;
         currentDataCall.rilMessageType = "datacallstatechange";
-        this.sendChromeMessage(currentDataCall);
-        continue;
+        this.sendDOMMessage(currentDataCall);
       }
-
-      // State not changed, now check links.
-      if (this._compareDataCallLink(updatedDataCall, currentDataCall)) {
-        if(DEBUG) debug("No changes in data call.");
-        continue;
-      }
-      if ((updatedDataCall.ifname != currentDataCall.ifname) ||
-          (updatedDataCall.ipaddr != currentDataCall.ipaddr)) {
-        if(DEBUG) debug("Data link changed, cleanup.");
-        this.deactivateDataCall(currentDataCall);
-        continue;
-      }
-      // Minor change, just update and notify.
-      if(DEBUG) debug("Data link minor change, just update and notify.");
-      currentDataCall.gw = updatedDataCall.gw;
-      if (updatedDataCall.dns) {
-        currentDataCall.dns[0] = updatedDataCall.dns[0];
-        currentDataCall.dns[1] = updatedDataCall.dns[1];
-      }
-      currentDataCall.rilMessageType = "datacallstatechange";
-      this.sendChromeMessage(currentDataCall);
     }
 
     for each (let newDataCall in datacalls) {
       if (!newDataCall.ifname) {
         continue;
       }
-
-      if (!newDataCallOptions) {
-        if (DEBUG) debug("Unexpected new data call: " + JSON.stringify(newDataCall));
-        continue;
-      }
-
       this.currentDataCalls[newDataCall.cid] = newDataCall;
       this._setDataCallGeckoState(newDataCall);
-
-      newDataCall.radioTech = newDataCallOptions.radioTech;
-      newDataCall.apn = newDataCallOptions.apn;
-      newDataCall.user = newDataCallOptions.user;
-      newDataCall.passwd = newDataCallOptions.passwd;
-      newDataCall.chappap = newDataCallOptions.chappap;
-      newDataCall.pdptype = newDataCallOptions.pdptype;
-      newDataCallOptions = null;
-
+      if (newDataCallOptions) {
+        newDataCall.radioTech = newDataCallOptions.radioTech;
+        newDataCall.apn = newDataCallOptions.apn;
+        newDataCall.user = newDataCallOptions.user;
+        newDataCall.passwd = newDataCallOptions.passwd;
+        newDataCall.chappap = newDataCallOptions.chappap;
+        newDataCall.pdptype = newDataCallOptions.pdptype;
+        newDataCallOptions = null;
+      } else if (DEBUG) {
+        debug("Unexpected new data call: " + JSON.stringify(newDataCall));
+      }
       newDataCall.rilMessageType = "datacallstatechange";
-      this.sendChromeMessage(newDataCall);
+      this.sendDOMMessage(newDataCall);
     }
   },
 
@@ -3845,76 +3361,6 @@ let RIL = {
         datacall.state = GECKO_NETWORK_STATE_CONNECTED;
         break;
     }
-  },
-
-  _processSuppSvcNotification: function _processSuppSvcNotification(info) {
-    debug("handle supp svc notification: " + JSON.stringify(info));
-
-    let notification = null;
-    let callIndex = -1;
-
-    if (info.notificationType === 0) {
-      // MO intermediate result code. Refer to code1 defined in 3GPP 27.007
-      // 7.17.
-    } else if (info.notificationType === 1) {
-      // MT unsolicited result code. Refer to code2 defined in 3GPP 27.007 7.17.
-      switch (info.code) {
-        case SUPP_SVC_NOTIFICATION_CODE2_PUT_ON_HOLD:
-        case SUPP_SVC_NOTIFICATION_CODE2_RETRIEVED:
-          notification = GECKO_SUPP_SVC_NOTIFICATION_FROM_CODE2[info.code];
-          break;
-        default:
-          // Notification type not supported.
-          return;
-      }
-
-      // Get the target call object for this notification.
-      let currentCallIndexes = Object.keys(this.currentCalls);
-      if (currentCallIndexes.length === 1) {
-        // Only one call exists. This should be the target.
-        callIndex = currentCallIndexes[0];
-      } else {
-        // Find the call in |currentCalls| by the given number.
-        if (info.number) {
-          for each (let currentCall in this.currentCalls) {
-            if (currentCall.number == info.number) {
-              callIndex = currentCall.callIndex;
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    let message = {rilMessageType: "suppSvcNotification",
-                   notification: notification,
-                   callIndex: callIndex};
-    this.sendChromeMessage(message);
-  },
-
-  _cancelEmergencyCbModeTimeout: function _cancelEmergencyCbModeTimeout() {
-    if (this._exitEmergencyCbModeTimeoutID) {
-      clearTimeout(this._exitEmergencyCbModeTimeoutID);
-      this._exitEmergencyCbModeTimeoutID = null;
-    }
-  },
-
-  _handleChangedEmergencyCbMode: function _handleChangedEmergencyCbMode(active) {
-    this._isInEmergencyCbMode = active;
-
-    // Clear the existed timeout event.
-    this._cancelEmergencyCbModeTimeout();
-
-    // Start a new timeout event when entering the mode.
-    if (active) {
-      this._exitEmergencyCbModeTimeoutID = setTimeout(
-          this.exitEmergencyCbMode.bind(this), EMERGENCY_CB_MODE_TIMEOUT_MS);
-    }
-
-    let message = {rilMessageType: "emergencyCbModeChange",
-                   active: active,
-                   timeoutMs: EMERGENCY_CB_MODE_TIMEOUT_MS};
-    this.sendChromeMessage(message);
   },
 
   _processNetworks: function _processNetworks() {
@@ -3934,7 +3380,7 @@ let RIL = {
       try {
         this._processNetworkTuple(networkTuple, network);
       } catch (e) {
-        if (DEBUG) debug("Error processing operator tuple: " + e);
+        debug("Error processing operator tuple: " + e);
       }
 
       let state = strings[i + 3];
@@ -3978,17 +3424,17 @@ let RIL = {
     this.radioTech = radioTech;
 
     switch(radioTech) {
-      case NETWORK_CREG_TECH_GPRS:
-      case NETWORK_CREG_TECH_EDGE:
-      case NETWORK_CREG_TECH_UMTS:
-      case NETWORK_CREG_TECH_HSDPA:
-      case NETWORK_CREG_TECH_HSUPA:
-      case NETWORK_CREG_TECH_HSPA:
-      case NETWORK_CREG_TECH_LTE:
-      case NETWORK_CREG_TECH_HSPAP:
-      case NETWORK_CREG_TECH_GSM:
-        isCdma = false;
-    }
+    case NETWORK_CREG_TECH_GPRS:
+    case NETWORK_CREG_TECH_EDGE:
+    case NETWORK_CREG_TECH_UMTS:
+    case NETWORK_CREG_TECH_HSDPA:
+    case NETWORK_CREG_TECH_HSUPA:
+    case NETWORK_CREG_TECH_HSPA:
+    case NETWORK_CREG_TECH_LTE:
+    case NETWORK_CREG_TECH_HSPAP:
+    case NETWORK_CREG_TECH_GSM:
+      isCdma = false;
+    };
 
     if (DEBUG) {
       debug("Radio tech is set to: " + GECKO_RADIO_TECH[radioTech] +
@@ -4073,9 +3519,9 @@ let RIL = {
     };
     Buf.newParcel(REQUEST_STK_SEND_ENVELOPE_WITH_STATUS, options);
 
-    Buf.seekIncoming(-1 * (Buf.getCurrentParcelSize() - Buf.getReadAvailable()
-                           - 2 * Buf.UINT32_SIZE)); // Skip response_type & request_type.
-    let messageStringLength = Buf.readInt32(); // In semi-octets
+    Buf.seekIncoming(-1 * (Buf.currentParcelSize - Buf.readAvailable
+                           - 2 * UINT32_SIZE)); // Skip response_type & request_type.
+    let messageStringLength = Buf.readUint32(); // In semi-octets
     let smscLength = GsmPDUHelper.readHexOctet(); // In octets, inclusive of TOA
     let tpduLength = (messageStringLength / 2) - (smscLength + 1); // In octets
 
@@ -4087,7 +3533,7 @@ let RIL = {
                  (tpduLength <= 127 ? 2 : 3) + tpduLength; // In octets
 
     let parcelLength = (berLen <= 127 ? 2 : 3) + berLen; // In octets
-    Buf.writeInt32(parcelLength * 2); // In semi-octets
+    Buf.writeUint32(parcelLength * 2); // In semi-octets
 
     // Write a BER-TLV
     GsmPDUHelper.writeHexOctet(BER_SMS_PP_DOWNLOAD_TAG);
@@ -4107,7 +3553,7 @@ let RIL = {
     if (smscLength) {
       GsmPDUHelper.writeHexOctet(COMPREHENSIONTLV_TAG_ADDRESS);
       GsmPDUHelper.writeHexOctet(smscLength);
-      Buf.copyIncomingToOutgoing(Buf.PDU_HEX_OCTET_SIZE * smscLength);
+      Buf.copyIncomingToOutgoing(PDU_HEX_OCTET_SIZE * smscLength);
     }
 
     // SMS TPDU-TLV
@@ -4117,7 +3563,7 @@ let RIL = {
       GsmPDUHelper.writeHexOctet(0x81);
     }
     GsmPDUHelper.writeHexOctet(tpduLength);
-    Buf.copyIncomingToOutgoing(Buf.PDU_HEX_OCTET_SIZE * tpduLength);
+    Buf.copyIncomingToOutgoing(PDU_HEX_OCTET_SIZE * tpduLength);
 
     // Write 2 string delimitors for the total string length must be even.
     Buf.writeStringDelimiter(0);
@@ -4138,13 +3584,13 @@ let RIL = {
     Buf.newParcel(REQUEST_ACKNOWLEDGE_INCOMING_GSM_SMS_WITH_PDU);
 
     // Two strings.
-    Buf.writeInt32(2);
+    Buf.writeUint32(2);
 
     // String 1: Success
     Buf.writeString(success ? "1" : "0");
 
     // String 2: RP-ACK/RP-ERROR PDU
-    Buf.writeInt32(2 * (responsePduLen + (success ? 5 : 6))); // In semi-octet
+    Buf.writeUint32(2 * (responsePduLen + (success ? 5 : 6))); // In semi-octet
     // 1. TP-MTI & TP-UDHI
     GsmPDUHelper.writeHexOctet(PDU_MTI_SMS_DELIVER);
     if (!success) {
@@ -4166,7 +3612,7 @@ let RIL = {
       GsmPDUHelper.writeHexOctet(responsePduLen);
     }
     // TP-UD
-    Buf.copyIncomingToOutgoing(Buf.PDU_HEX_OCTET_SIZE * responsePduLen);
+    Buf.copyIncomingToOutgoing(PDU_HEX_OCTET_SIZE * responsePduLen);
     // Write 2 string delimitors for the total string length must be even.
     Buf.writeStringDelimiter(0);
 
@@ -4180,37 +3626,37 @@ let RIL = {
     Buf.newParcel(REQUEST_WRITE_SMS_TO_SIM);
 
     // Write EFsms Status
-    Buf.writeInt32(EFSMS_STATUS_FREE);
+    Buf.writeUint32(EFSMS_STATUS_FREE);
 
-    Buf.seekIncoming(-1 * (Buf.getCurrentParcelSize() - Buf.getReadAvailable()
-                           - 2 * Buf.UINT32_SIZE)); // Skip response_type & request_type.
-    let messageStringLength = Buf.readInt32(); // In semi-octets
+    Buf.seekIncoming(-1 * (Buf.currentParcelSize - Buf.readAvailable
+                           - 2 * UINT32_SIZE)); // Skip response_type & request_type.
+    let messageStringLength = Buf.readUint32(); // In semi-octets
     let smscLength = GsmPDUHelper.readHexOctet(); // In octets, inclusive of TOA
     let pduLength = (messageStringLength / 2) - (smscLength + 1); // In octets
 
     // 1. Write PDU first.
     if (smscLength > 0) {
-      Buf.seekIncoming(smscLength * Buf.PDU_HEX_OCTET_SIZE);
+      Buf.seekIncoming(smscLength * PDU_HEX_OCTET_SIZE);
     }
     // Write EFsms PDU string length
-    Buf.writeInt32(2 * pduLength); // In semi-octets
+    Buf.writeUint32(2 * pduLength); // In semi-octets
     if (pduLength) {
-      Buf.copyIncomingToOutgoing(Buf.PDU_HEX_OCTET_SIZE * pduLength);
+      Buf.copyIncomingToOutgoing(PDU_HEX_OCTET_SIZE * pduLength);
     }
     // Write 2 string delimitors for the total string length must be even.
     Buf.writeStringDelimiter(0);
 
     // 2. Write SMSC
     // Write EFsms SMSC string length
-    Buf.writeInt32(2 * (smscLength + 1)); // Plus smscLength itself, in semi-octets
+    Buf.writeUint32(2 * (smscLength + 1)); // Plus smscLength itself, in semi-octets
     // Write smscLength
     GsmPDUHelper.writeHexOctet(smscLength);
     // Write TOA & SMSC Address
     if (smscLength) {
-      Buf.seekIncoming(-1 * (Buf.getCurrentParcelSize() - Buf.getReadAvailable()
-                             - 2 * Buf.UINT32_SIZE // Skip response_type, request_type.
-                             - 2 * Buf.PDU_HEX_OCTET_SIZE)); // Skip messageStringLength & smscLength.
-      Buf.copyIncomingToOutgoing(Buf.PDU_HEX_OCTET_SIZE * smscLength);
+      Buf.seekIncoming(-1 * (Buf.currentParcelSize - Buf.readAvailable
+                             - 2 * UINT32_SIZE // Skip response_type, request_type.
+                             - 2 * PDU_HEX_OCTET_SIZE)); // Skip messageStringLength & smscLength.
+      Buf.copyIncomingToOutgoing(PDU_HEX_OCTET_SIZE * smscLength);
     }
     // Write 2 string delimitors for the total string length must be even.
     Buf.writeStringDelimiter(0);
@@ -4227,8 +3673,7 @@ let RIL = {
    * @return A failure cause defined in 3GPP 23.040 clause 9.2.3.22.
    */
   _processSmsMultipart: function _processSmsMultipart(message) {
-    if (message.header && message.header.segmentMaxSeq &&
-        (message.header.segmentMaxSeq > 1)) {
+    if (message.header && (message.header.segmentMaxSeq > 1)) {
       message = this._processReceivedSmsSegment(message);
     } else {
       if (message.encoding == PDU_DCS_MSG_CODING_8BITS_ALPHABET) {
@@ -4247,14 +3692,8 @@ let RIL = {
         // the (U)SIM before sending an ACK to the SC.`  ~ 3GPP 23.038 clause 4
         message.result = PDU_FCS_RESERVED;
       }
-
-      if (message.messageType == PDU_CDMA_MSG_TYPE_BROADCAST) {
-        message.rilMessageType = "broadcastsms-received";
-      } else {
-        message.rilMessageType = "sms-received";
-      }
-
-      this.sendChromeMessage(message);
+      message.rilMessageType = "sms-received";
+      this.sendDOMMessage(message);
 
       // We will acknowledge receipt of the SMS after we try to store it
       // in the database.
@@ -4310,52 +3749,12 @@ let RIL = {
 
     delete this._pendingSentSmsMap[message.messageRef];
 
-    let deliveryStatus = ((status >>> 5) === 0x00)
+    let deliveryStatus = ((status >>> 5) == 0x00)
                        ? GECKO_SMS_DELIVERY_STATUS_SUCCESS
                        : GECKO_SMS_DELIVERY_STATUS_ERROR;
-    this.sendChromeMessage({
-      rilMessageType: options.rilMessageType,
-      rilMessageToken: options.rilMessageToken,
-      deliveryStatus: deliveryStatus
-    });
-
-    return PDU_FCS_OK;
-  },
-
-  /**
-   * Helper for processing CDMA SMS Delivery Acknowledgment Message
-   *
-   * @param message
-   *        decoded SMS Delivery ACK message from CdmaPDUHelper.
-   *
-   * @return A failure cause defined in 3GPP 23.040 clause 9.2.3.22.
-   */
-  _processCdmaSmsStatusReport: function _processCdmaSmsStatusReport(message) {
-    let options = this._pendingSentSmsMap[message.msgId];
-    if (!options) {
-      if (DEBUG) debug("no pending SMS-SUBMIT message");
-      return PDU_FCS_OK;
-    }
-
-    if (message.errorClass === 2) {
-      if (DEBUG) debug("SMS-STATUS-REPORT: delivery still pending, msgStatus: " + message.msgStatus);
-      return PDU_FCS_OK;
-    }
-
-    delete this._pendingSentSmsMap[message.msgId];
-
-    if (message.errorClass === -1 && message.body) {
-      // Process as normal incoming SMS, if errorClass is invalid
-      // but message body is available.
-      return this._processSmsMultipart(message);
-    }
-
-    let deliveryStatus = (message.errorClass === 0)
-                       ? GECKO_SMS_DELIVERY_STATUS_SUCCESS
-                       : GECKO_SMS_DELIVERY_STATUS_ERROR;
-    this.sendChromeMessage({
-      rilMessageType: options.rilMessageType,
-      rilMessageToken: options.rilMessageToken,
+    this.sendDOMMessage({
+      rilMessageType: "sms-delivery",
+      envelopeId: options.envelopeId,
       deliveryStatus: deliveryStatus
     });
 
@@ -4467,12 +3866,12 @@ let RIL = {
             this.sendSMS(options);
             break;
           }
+
           // Fallback to default error handling if it meets max retry count.
-          // Fall through.
         default:
-          this.sendChromeMessage({
-            rilMessageType: options.rilMessageType,
-            rilMessageToken: options.rilMessageToken,
+          this.sendDOMMessage({
+            rilMessageType: "sms-send-failed",
+            envelopeId: options.envelopeId,
             errorMsg: options.rilRequestError,
           });
           break;
@@ -4480,9 +3879,9 @@ let RIL = {
       return;
     }
 
-    options.messageRef = Buf.readInt32();
+    options.messageRef = Buf.readUint32();
     options.ackPDU = Buf.readString();
-    options.errorCode = Buf.readInt32();
+    options.errorCode = Buf.readUint32();
 
     if ((options.segmentMaxSeq > 1)
         && (options.segmentSeq < options.segmentMaxSeq)) {
@@ -4495,9 +3894,9 @@ let RIL = {
         this._pendingSentSmsMap[options.messageRef] = options;
       }
 
-      this.sendChromeMessage({
-        rilMessageType: options.rilMessageType,
-        rilMessageToken: options.rilMessageToken,
+      this.sendDOMMessage({
+        rilMessageType: "sms-sent",
+        envelopeId: options.envelopeId,
       });
     }
   },
@@ -4688,47 +4087,24 @@ let RIL = {
     return list;
   },
 
-  _isCellBroadcastConfigReady: function() {
-    if (!("MMI" in this.cellBroadcastConfigs)) {
-      return false;
-    }
-
-    // CBMI should be ready in GSM.
-    if (!this._isCdma &&
-        (!("CBMI" in this.cellBroadcastConfigs) ||
-         !("CBMID" in this.cellBroadcastConfigs) ||
-         !("CBMIR" in this.cellBroadcastConfigs))) {
-      return false;
-    }
-
-    return true;
-  },
-
   /**
    * Merge all members of cellBroadcastConfigs into mergedCellBroadcastConfig.
    */
   _mergeAllCellBroadcastConfigs: function _mergeAllCellBroadcastConfigs() {
-    if (!this._isCellBroadcastConfigReady()) {
+    if (!("CBMI" in this.cellBroadcastConfigs)
+        || !("CBMIR" in this.cellBroadcastConfigs)
+        || !("MMI" in this.cellBroadcastConfigs)) {
       if (DEBUG) {
         debug("cell broadcast configs not ready, waiting ...");
       }
       return;
     }
-
-    // Prepare cell broadcast config. CBMI* are only used in GSM.
-    let usedCellBroadcastConfigs = {MMI: this.cellBroadcastConfigs.MMI};
-    if (!this._isCdma) {
-      usedCellBroadcastConfigs.CBMI = this.cellBroadcastConfigs.CBMI;
-      usedCellBroadcastConfigs.CBMID = this.cellBroadcastConfigs.CBMID;
-      usedCellBroadcastConfigs.CBMIR = this.cellBroadcastConfigs.CBMIR;
-    }
-
     if (DEBUG) {
-      debug("Cell Broadcast search lists: " + JSON.stringify(usedCellBroadcastConfigs));
+      debug("Cell Broadcast search lists: " + JSON.stringify(this.cellBroadcastConfigs));
     }
 
     let list = null;
-    for each (let ll in usedCellBroadcastConfigs) {
+    for each (let ll in this.cellBroadcastConfigs) {
       if (ll == null) {
         continue;
       }
@@ -4754,15 +4130,12 @@ let RIL = {
       return false;
     }
 
-    if (!this._isCdma) {
-      // GSM not settable ranges.
-      for (let i = 0, f, t; i < CB_NON_MMI_SETTABLE_RANGES.length;) {
-        f = CB_NON_MMI_SETTABLE_RANGES[i++];
-        t = CB_NON_MMI_SETTABLE_RANGES[i++];
-        if ((from < t) && (to > f)) {
-          // Have overlap.
-          return false;
-        }
+    for (let i = 0, f, t; i < CB_NON_MMI_SETTABLE_RANGES.length;) {
+      f = CB_NON_MMI_SETTABLE_RANGES[i++];
+      t = CB_NON_MMI_SETTABLE_RANGES[i++];
+      if ((from < t) && (to > f)) {
+        // Have overlap.
+        return false;
       }
     }
 
@@ -4788,8 +4161,8 @@ let RIL = {
         throw "Invalid format";
       }
 
-      from = parseInt(result[1], 10);
-      to = (result[2]) ? parseInt(result[2], 10) + 1 : from + 1;
+      from = parseInt(result[1]);
+      to = (result[2] != null) ? parseInt(result[2]) + 1 : from + 1;
       if (!this._checkCellBroadcastMMISettable(from, to)) {
         throw "Invalid range";
       }
@@ -4810,8 +4183,8 @@ let RIL = {
    * @param message
    *        Object containing the message. Messages are supposed
    */
-  handleChromeMessage: function handleChromeMessage(message) {
-    if (DEBUG) debug("Received chrome message " + JSON.stringify(message));
+  handleDOMMessage: function handleMessage(message) {
+    if (DEBUG) debug("Received DOM message " + JSON.stringify(message));
     let method = this[message.rilMessageType];
     if (typeof method != "function") {
       if (DEBUG) {
@@ -4832,7 +4205,7 @@ let RIL = {
       calls.push(call);
     }
     options.calls = calls;
-    this.sendChromeMessage(options);
+    this.sendDOMMessage(options);
   },
 
   /**
@@ -4843,15 +4216,15 @@ let RIL = {
     for each (let datacall in this.currentDataCalls) {
       datacall_list.push(datacall);
     }
-    this.sendChromeMessage({rilMessageType: "datacalllist",
-                            datacalls: datacall_list});
+    this.sendDOMMessage({rilMessageType: "datacalllist",
+                         datacalls: datacall_list});
   },
 
   /**
    * Process STK Proactive Command.
    */
   processStkProactiveCommand: function processStkProactiveCommand() {
-    let length = Buf.readInt32();
+    let length = Buf.readUint32();
     let berTlv = BerTlvHelper.decode(length / 2);
     Buf.readStringDelimiter(length);
 
@@ -4871,7 +4244,7 @@ let RIL = {
            " commandQualifier = " + cmdDetails.commandQualifier);
     }
 
-    // STK_CMD_MORE_TIME need not to propagate event to chrome.
+    // STK_CMD_MORE_TIME need not to propagate event to DOM.
     if (cmdDetails.typeOfCommand == STK_CMD_MORE_TIME) {
       RIL.sendStkTerminalResponse({
         command: cmdDetails,
@@ -4881,13 +4254,13 @@ let RIL = {
 
     cmdDetails.rilMessageType = "stkcommand";
     cmdDetails.options = StkCommandParamsFactory.createParam(cmdDetails, ctlvs);
-    RIL.sendChromeMessage(cmdDetails);
+    RIL.sendDOMMessage(cmdDetails);
   },
 
   /**
    * Send messages to the main thread.
    */
-  sendChromeMessage: function sendChromeMessage(message) {
+  sendDOMMessage: function sendDOMMessage(message) {
     postMessage(message);
   },
 
@@ -4905,11 +4278,8 @@ let RIL = {
     }
   },
 
-  setInitialOptions: function setInitialOptions(options) {
-    DEBUG = DEBUG_WORKER || options.debug;
-    CLIENT_ID = options.clientId;
-    this.cellBroadcastDisabled = options.cellBroadcastDisabled;
-    this.clirMode = options.clirMode;
+  setDebugEnabled: function setDebugEnabled(options) {
+    DEBUG = DEBUG_WORKER || options.enabled;
   }
 };
 
@@ -4921,15 +4291,15 @@ RIL[REQUEST_GET_SIM_STATUS] = function REQUEST_GET_SIM_STATUS(length, options) {
   }
 
   let iccStatus = {};
-  iccStatus.cardState = Buf.readInt32(); // CARD_STATE_*
-  iccStatus.universalPINState = Buf.readInt32(); // CARD_PINSTATE_*
-  iccStatus.gsmUmtsSubscriptionAppIndex = Buf.readInt32();
-  iccStatus.cdmaSubscriptionAppIndex = Buf.readInt32();
+  iccStatus.cardState = Buf.readUint32(); // CARD_STATE_*
+  iccStatus.universalPINState = Buf.readUint32(); // CARD_PINSTATE_*
+  iccStatus.gsmUmtsSubscriptionAppIndex = Buf.readUint32();
+  iccStatus.cdmaSubscriptionAppIndex = Buf.readUint32();
   if (!RILQUIRKS_V5_LEGACY) {
-    iccStatus.imsSubscriptionAppIndex = Buf.readInt32();
+    iccStatus.imsSubscriptionAppIndex = Buf.readUint32();
   }
 
-  let apps_length = Buf.readInt32();
+  let apps_length = Buf.readUint32();
   if (apps_length > CARD_MAX_APPS) {
     apps_length = CARD_MAX_APPS;
   }
@@ -4937,20 +4307,20 @@ RIL[REQUEST_GET_SIM_STATUS] = function REQUEST_GET_SIM_STATUS(length, options) {
   iccStatus.apps = [];
   for (let i = 0 ; i < apps_length ; i++) {
     iccStatus.apps.push({
-      app_type:       Buf.readInt32(), // CARD_APPTYPE_*
-      app_state:      Buf.readInt32(), // CARD_APPSTATE_*
-      perso_substate: Buf.readInt32(), // CARD_PERSOSUBSTATE_*
+      app_type:       Buf.readUint32(), // CARD_APPTYPE_*
+      app_state:      Buf.readUint32(), // CARD_APPSTATE_*
+      perso_substate: Buf.readUint32(), // CARD_PERSOSUBSTATE_*
       aid:            Buf.readString(),
       app_label:      Buf.readString(),
-      pin1_replaced:  Buf.readInt32(),
-      pin1:           Buf.readInt32(),
-      pin2:           Buf.readInt32()
+      pin1_replaced:  Buf.readUint32(),
+      pin1:           Buf.readUint32(),
+      pin2:           Buf.readUint32()
     });
     if (RILQUIRKS_SIM_APP_STATE_EXTRA_FIELDS) {
-      Buf.readInt32();
-      Buf.readInt32();
-      Buf.readInt32();
-      Buf.readInt32();
+      Buf.readUint32();
+      Buf.readUint32();
+      Buf.readUint32();
+      Buf.readUint32();
     }
   }
 
@@ -4988,7 +4358,7 @@ RIL[REQUEST_GET_CURRENT_CALLS] = function REQUEST_GET_CURRENT_CALLS(length, opti
   // The RIL won't even send us the length integer if there are no active calls.
   // So only read this integer if the parcel actually has it.
   if (length) {
-    calls_length = Buf.readInt32();
+    calls_length = Buf.readUint32();
   }
   if (!calls_length) {
     this._processCalls(null);
@@ -5002,31 +4372,31 @@ RIL[REQUEST_GET_CURRENT_CALLS] = function REQUEST_GET_CURRENT_CALLS(length, opti
     // Extra uint32 field to get correct callIndex and rest of call data for
     // call waiting feature.
     if (RILQUIRKS_EXTRA_UINT32_2ND_CALL && i > 0) {
-      Buf.readInt32();
+      Buf.readUint32();
     }
 
-    call.state          = Buf.readInt32(); // CALL_STATE_*
-    call.callIndex      = Buf.readInt32(); // GSM index (1-based)
-    call.toa            = Buf.readInt32();
-    call.isMpty         = Boolean(Buf.readInt32());
-    call.isMT           = Boolean(Buf.readInt32());
-    call.als            = Buf.readInt32();
-    call.isVoice        = Boolean(Buf.readInt32());
-    call.isVoicePrivacy = Boolean(Buf.readInt32());
+    call.state          = Buf.readUint32(); // CALL_STATE_*
+    call.callIndex      = Buf.readUint32(); // GSM index (1-based)
+    call.toa            = Buf.readUint32();
+    call.isMpty         = Boolean(Buf.readUint32());
+    call.isMT           = Boolean(Buf.readUint32());
+    call.als            = Buf.readUint32();
+    call.isVoice        = Boolean(Buf.readUint32());
+    call.isVoicePrivacy = Boolean(Buf.readUint32());
     if (RILQUIRKS_CALLSTATE_EXTRA_UINT32) {
-      Buf.readInt32();
+      Buf.readUint32();
     }
     call.number             = Buf.readString(); //TODO munge with TOA
-    call.numberPresentation = Buf.readInt32(); // CALL_PRESENTATION_*
+    call.numberPresentation = Buf.readUint32(); // CALL_PRESENTATION_*
     call.name               = Buf.readString();
-    call.namePresentation   = Buf.readInt32();
+    call.namePresentation   = Buf.readUint32();
 
     call.uusInfo = null;
-    let uusInfoPresent = Buf.readInt32();
+    let uusInfoPresent = Buf.readUint32();
     if (uusInfoPresent == 1) {
       call.uusInfo = {
-        type:     Buf.readInt32(),
-        dcs:      Buf.readInt32(),
+        type:     Buf.readUint32(),
+        dcs:      Buf.readUint32(),
         userData: null //XXX TODO byte array?!?
       };
     }
@@ -5055,7 +4425,7 @@ RIL[REQUEST_GET_IMSI] = function REQUEST_GET_IMSI(length, options) {
 
   options.rilMessageType = "iccimsi";
   options.imsi = this.iccInfoPrivate.imsi;
-  this.sendChromeMessage(options);
+  this.sendDOMMessage(options);
 };
 RIL[REQUEST_HANGUP] = function REQUEST_HANGUP(length, options) {
   if (options.rilRequestError) {
@@ -5095,21 +4465,12 @@ RIL[REQUEST_SWITCH_HOLDING_AND_ACTIVE] = function REQUEST_SWITCH_HOLDING_AND_ACT
   // this.getCurrentCalls() helps update the call state actively.
   this.getCurrentCalls();
 };
-RIL[REQUEST_CONFERENCE] = function REQUEST_CONFERENCE(length, options) {
-  if (options.rilRequestError) {
-    this._hasConferenceRequest = false;
-    options = {rilMessageType: "conferenceError",
-               errorName: "addError",
-               errorMsg: RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError]};
-    this.sendChromeMessage(options);
-    return;
-  }
-};
+RIL[REQUEST_CONFERENCE] = null;
 RIL[REQUEST_UDUB] = null;
 RIL[REQUEST_LAST_CALL_FAIL_CAUSE] = function REQUEST_LAST_CALL_FAIL_CAUSE(length, options) {
   let num = 0;
   if (length) {
-    num = Buf.readInt32();
+    num = Buf.readUint32();
   }
   if (!num) {
     // No response of REQUEST_LAST_CALL_FAIL_CAUSE. Change the call state into
@@ -5118,45 +4479,91 @@ RIL[REQUEST_LAST_CALL_FAIL_CAUSE] = function REQUEST_LAST_CALL_FAIL_CAUSE(length
     return;
   }
 
-  let failCause = Buf.readInt32();
+  let failCause = Buf.readUint32();
   switch (failCause) {
     case CALL_FAIL_NORMAL:
       this._handleDisconnectedCall(options);
       break;
+    case CALL_FAIL_BUSY:
+      options.state = CALL_STATE_BUSY;
+      this._handleChangedCallState(options);
+      this._handleDisconnectedCall(options);
+      break;
     default:
-      this._sendCallError(options.callIndex,
-                          RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[failCause]);
+      options.rilMessageType = "callError";
+      options.errorMsg = RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[failCause];
+      this.sendDOMMessage(options);
       break;
   }
 };
 RIL[REQUEST_SIGNAL_STRENGTH] = function REQUEST_SIGNAL_STRENGTH(length, options) {
-  this._receivedNetworkInfo(NETWORK_INFO_SIGNAL);
-
   if (options.rilRequestError) {
     return;
   }
 
-  let signal = {
-    gsmSignalStrength: Buf.readInt32(),
-    gsmBitErrorRate:   Buf.readInt32(),
-    cdmaDBM:           Buf.readInt32(),
-    cdmaECIO:          Buf.readInt32(),
-    evdoDBM:           Buf.readInt32(),
-    evdoECIO:          Buf.readInt32(),
-    evdoSNR:           Buf.readInt32()
-  };
+  let obj = {};
 
-  if (!RILQUIRKS_V5_LEGACY) {
-    signal.lteSignalStrength = Buf.readInt32();
-    signal.lteRSRP =           Buf.readInt32();
-    signal.lteRSRQ =           Buf.readInt32();
-    signal.lteRSSNR =          Buf.readInt32();
-    signal.lteCQI =            Buf.readInt32();
+  // GSM
+  // Valid values are (0-31, 99) as defined in TS 27.007 8.5.
+  let gsmSignalStrength = Buf.readUint32();
+  obj.gsmSignalStrength = gsmSignalStrength & 0xff;
+  // GSM bit error rate (0-7, 99) as defined in TS 27.007 8.5.
+  obj.gsmBitErrorRate = Buf.readUint32();
+
+  obj.gsmDBM = null;
+  obj.gsmRelative = null;
+  if (obj.gsmSignalStrength >= 0 && obj.gsmSignalStrength <= 31) {
+    obj.gsmDBM = -113 + obj.gsmSignalStrength * 2;
+    obj.gsmRelative = Math.floor(obj.gsmSignalStrength * 100 / 31);
   }
 
-  if (DEBUG) debug("signal strength: " + JSON.stringify(signal));
+  // The SGS2 seems to compute the number of bars (0-4) for us and
+  // expose those instead of the actual signal strength. Since the RIL
+  // needs to be "warmed up" first for the quirk detection to work,
+  // we're detecting this ad-hoc and not upfront.
+  if (obj.gsmSignalStrength == 99) {
+    obj.gsmRelative = (gsmSignalStrength >> 8) * 25;
+  }
 
-  this._processSignalStrength(signal);
+  // CDMA
+  obj.cdmaDBM = Buf.readUint32();
+  // The CDMA EC/IO.
+  obj.cdmaECIO = Buf.readUint32();
+  // The EVDO RSSI value.
+
+  // EVDO
+  obj.evdoDBM = Buf.readUint32();
+  // The EVDO EC/IO.
+  obj.evdoECIO = Buf.readUint32();
+  // Signal-to-noise ratio. Valid values are 0 to 8.
+  obj.evdoSNR = Buf.readUint32();
+
+  // LTE
+  if (!RILQUIRKS_V5_LEGACY) {
+    // Valid values are (0-31, 99) as defined in TS 27.007 8.5.
+    obj.lteSignalStrength = Buf.readUint32();
+    // Reference signal receive power in dBm, multiplied by -1.
+    // Valid values are 44 to 140.
+    obj.lteRSRP = Buf.readUint32();
+    // Reference signal receive quality in dB, multiplied by -1.
+    // Valid values are 3 to 20.
+    obj.lteRSRQ = Buf.readUint32();
+    // Signal-to-noise ratio for the reference signal.
+    // Valid values are -200 (20.0 dB) to +300 (30 dB).
+    obj.lteRSSNR = Buf.readUint32();
+    // Channel Quality Indicator, valid values are 0 to 15.
+    obj.lteCQI = Buf.readUint32();
+  }
+
+  if (DEBUG) debug("Signal strength " + JSON.stringify(obj));
+  obj.rilMessageType = "signalstrengthchange";
+  this.sendDOMMessage(obj);
+
+  if (this.cachedDialRequest && obj.gsmDBM && obj.gsmRelative) {
+    // Radio is ready for making the cached emergency call.
+    this.cachedDialRequest.callback();
+    this.cachedDialRequest = null;
+  }
 };
 RIL[REQUEST_VOICE_REGISTRATION_STATE] = function REQUEST_VOICE_REGISTRATION_STATE(length, options) {
   this._receivedNetworkInfo(NETWORK_INFO_VOICE_REGISTRATION_STATE);
@@ -5169,15 +4576,6 @@ RIL[REQUEST_VOICE_REGISTRATION_STATE] = function REQUEST_VOICE_REGISTRATION_STAT
   if (DEBUG) debug("voice registration state: " + state);
 
   this._processVoiceRegistrationState(state);
-
-  if (this.cachedDialRequest &&
-       (this.voiceRegistrationState.emergencyCallsOnly ||
-        this.voiceRegistrationState.connected) &&
-      this.voiceRegistrationState.radioTech != NETWORK_CREG_TECH_UNKNOWN) {
-    // Radio is ready for making the cached emergency call.
-    this.cachedDialRequest.callback();
-    this.cachedDialRequest = null;
-  }
 };
 RIL[REQUEST_DATA_REGISTRATION_STATE] = function REQUEST_DATA_REGISTRATION_STATE(length, options) {
   this._receivedNetworkInfo(NETWORK_INFO_DATA_REGISTRATION_STATE);
@@ -5248,7 +4646,7 @@ RIL[REQUEST_SETUP_DATA_CALL] = function REQUEST_SETUP_DATA_CALL(length, options)
     this.readSetupDataCall_v5(options);
     this.currentDataCalls[options.cid] = options;
     options.rilMessageType = "datacallstatechange";
-    this.sendChromeMessage(options);
+    this.sendDOMMessage(options);
     // Let's get the list of data calls to ensure we know whether it's active
     // or not.
     this.getDataCallList();
@@ -5266,8 +4664,8 @@ RIL[REQUEST_SIM_IO] = function REQUEST_SIM_IO(length, options) {
 
   // Don't need to read rilRequestError since we can know error status from
   // sw1 and sw2.
-  options.sw1 = Buf.readInt32();
-  options.sw2 = Buf.readInt32();
+  options.sw1 = Buf.readUint32();
+  options.sw2 = Buf.readUint32();
   if (options.sw1 != ICC_STATUS_NORMAL_ENDING) {
     ICCIOHelper.processICCIOError(options);
     return;
@@ -5278,238 +4676,84 @@ RIL[REQUEST_SEND_USSD] = function REQUEST_SEND_USSD(length, options) {
   if (DEBUG) {
     debug("REQUEST_SEND_USSD " + JSON.stringify(options));
   }
-  options.success = (this._ussdSession = options.rilRequestError === 0);
+  options.success = this._ussdSession = options.rilRequestError == 0;
   options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-  this.sendChromeMessage(options);
+  this.sendDOMMessage(options);
 };
 RIL[REQUEST_CANCEL_USSD] = function REQUEST_CANCEL_USSD(length, options) {
   if (DEBUG) {
     debug("REQUEST_CANCEL_USSD" + JSON.stringify(options));
   }
-  options.success = (options.rilRequestError === 0);
+  options.success = options.rilRequestError == 0;
   this._ussdSession = !options.success;
   options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-  this.sendChromeMessage(options);
+  this.sendDOMMessage(options);
 };
-RIL[REQUEST_GET_CLIR] = function REQUEST_GET_CLIR(length, options) {
-  options.success = (options.rilRequestError === 0);
-  if (!options.success) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-    this.sendChromeMessage(options);
-    return;
-  }
-
-  let bufLength = Buf.readInt32();
-  if (!bufLength || bufLength < 2) {
-    options.success = false;
-    options.errorMsg = GECKO_ERROR_GENERIC_FAILURE;
-    this.sendChromeMessage(options);
-    return;
-  }
-
-  options.n = Buf.readInt32(); // Will be TS 27.007 +CLIR parameter 'n'.
-  options.m = Buf.readInt32(); // Will be TS 27.007 +CLIR parameter 'm'.
-
-  if (options.rilMessageType === "sendMMI") {
-    // TS 27.007 +CLIR parameter 'm'.
-    switch (options.m) {
-      // CLIR not provisioned.
-      case 0:
-        options.statusMessage = MMI_SM_KS_SERVICE_NOT_PROVISIONED;
-        break;
-      // CLIR provisioned in permanent mode.
-      case 1:
-        options.statusMessage = MMI_SM_KS_CLIR_PERMANENT;
-        break;
-      // Unknown (e.g. no network, etc.).
-      case 2:
-        options.success = false;
-        options.errorMsg = MMI_ERROR_KS_ERROR;
-        break;
-      // CLIR temporary mode presentation restricted.
-      case 3:
-        // TS 27.007 +CLIR parameter 'n'.
-        switch (options.n) {
-          // Default.
-          case 0:
-          // CLIR invocation.
-          case 1:
-            options.statusMessage = MMI_SM_KS_CLIR_DEFAULT_ON_NEXT_CALL_ON;
-            break;
-          // CLIR suppression.
-          case 2:
-            options.statusMessage = MMI_SM_KS_CLIR_DEFAULT_ON_NEXT_CALL_OFF;
-            break;
-          default:
-            options.success = false;
-            options.errorMsg = GECKO_ERROR_GENERIC_FAILURE;
-            break;
-        }
-        break;
-      // CLIR temporary mode presentation allowed.
-      case 4:
-        // TS 27.007 +CLIR parameter 'n'.
-        switch (options.n) {
-          // Default.
-          case 0:
-          // CLIR suppression.
-          case 2:
-            options.statusMessage = MMI_SM_KS_CLIR_DEFAULT_OFF_NEXT_CALL_OFF;
-            break;
-          // CLIR invocation.
-          case 1:
-            options.statusMessage = MMI_SM_KS_CLIR_DEFAULT_OFF_NEXT_CALL_ON;
-            break;
-          default:
-            options.success = false;
-            options.errorMsg = GECKO_ERROR_GENERIC_FAILURE;
-            break;
-        }
-        break;
-      default:
-        options.success = false;
-        options.errorMsg = GECKO_ERROR_GENERIC_FAILURE;
-        break;
-    }
-  }
-
-  this.sendChromeMessage(options);
-};
-RIL[REQUEST_SET_CLIR] = function REQUEST_SET_CLIR(length, options) {
-  if (options.rilMessageType == null) {
-    // The request was made by ril_worker itself automatically. Don't report.
-    return;
-  }
-  options.success = (options.rilRequestError === 0);
-  if (!options.success) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-  } else if (options.rilMessageType === "sendMMI") {
-    switch (options.procedure) {
-      case MMI_PROCEDURE_ACTIVATION:
-        options.statusMessage = MMI_SM_KS_SERVICE_ENABLED;
-        break;
-      case MMI_PROCEDURE_DEACTIVATION:
-        options.statusMessage = MMI_SM_KS_SERVICE_DISABLED;
-        break;
-    }
-  }
-  this.sendChromeMessage(options);
-};
-
+RIL[REQUEST_GET_CLIR] = null;
+RIL[REQUEST_SET_CLIR] = null;
 RIL[REQUEST_QUERY_CALL_FORWARD_STATUS] =
   function REQUEST_QUERY_CALL_FORWARD_STATUS(length, options) {
-    options.success = (options.rilRequestError === 0);
+    options.success = options.rilRequestError == 0;
     if (!options.success) {
       options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-      this.sendChromeMessage(options);
+      this.sendDOMMessage(options);
       return;
     }
 
     let rulesLength = 0;
     if (length) {
-      rulesLength = Buf.readInt32();
+      rulesLength = Buf.readUint32();
     }
     if (!rulesLength) {
       options.success = false;
-      options.errorMsg = GECKO_ERROR_GENERIC_FAILURE;
-      this.sendChromeMessage(options);
+      options.errorMsg =
+        "Invalid rule length while querying call forwarding status.";
+      this.sendDOMMessage(options);
       return;
     }
     let rules = new Array(rulesLength);
     for (let i = 0; i < rulesLength; i++) {
       let rule = {};
-      rule.active       = Buf.readInt32() == 1; // CALL_FORWARD_STATUS_*
-      rule.reason       = Buf.readInt32(); // CALL_FORWARD_REASON_*
-      rule.serviceClass = Buf.readInt32();
-      rule.toa          = Buf.readInt32();
+      rule.active       = Buf.readUint32() == 1; // CALL_FORWARD_STATUS_*
+      rule.reason       = Buf.readUint32(); // CALL_FORWARD_REASON_*
+      rule.serviceClass = Buf.readUint32();
+      rule.toa          = Buf.readUint32();
       rule.number       = Buf.readString();
-      rule.timeSeconds  = Buf.readInt32();
+      rule.timeSeconds  = Buf.readUint32();
       rules[i] = rule;
     }
     options.rules = rules;
-    if (options.rilMessageType === "sendMMI") {
-      options.statusMessage = MMI_SM_KS_SERVICE_INTERROGATED;
-      // MMI query call forwarding options request returns a set of rules that
-      // will be exposed in the form of an array of nsIDOMMozMobileCFInfo
-      // instances.
-      options.additionalInformation = rules;
-    }
-    this.sendChromeMessage(options);
+    this.sendDOMMessage(options);
 };
 RIL[REQUEST_SET_CALL_FORWARD] =
   function REQUEST_SET_CALL_FORWARD(length, options) {
-    options.success = (options.rilRequestError === 0);
+    options.success = options.rilRequestError == 0;
     if (!options.success) {
       options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-    } else if (options.rilMessageType === "sendMMI") {
-      switch (options.action) {
-        case CALL_FORWARD_ACTION_ENABLE:
-          options.statusMessage = MMI_SM_KS_SERVICE_ENABLED;
-          break;
-        case CALL_FORWARD_ACTION_DISABLE:
-          options.statusMessage = MMI_SM_KS_SERVICE_DISABLED;
-          break;
-        case CALL_FORWARD_ACTION_REGISTRATION:
-          options.statusMessage = MMI_SM_KS_SERVICE_REGISTERED;
-          break;
-        case CALL_FORWARD_ACTION_ERASURE:
-          options.statusMessage = MMI_SM_KS_SERVICE_ERASED;
-          break;
-      }
     }
-    this.sendChromeMessage(options);
+    this.sendDOMMessage(options);
 };
-RIL[REQUEST_QUERY_CALL_WAITING] =
-  function REQUEST_QUERY_CALL_WAITING(length, options) {
-  options.success = (options.rilRequestError === 0);
-  if (!options.success) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-    this.sendChromeMessage(options);
-    return;
-  }
-
-  if (options.callback) {
-    options.callback.call(this, options);
-    return;
-  }
-
-  options.length = Buf.readInt32();
-  options.enabled = ((Buf.readInt32() == 1) &&
-                     ((Buf.readInt32() & ICC_SERVICE_CLASS_VOICE) == 0x01));
-  this.sendChromeMessage(options);
-};
-
+RIL[REQUEST_QUERY_CALL_WAITING] = null;
 RIL[REQUEST_SET_CALL_WAITING] = function REQUEST_SET_CALL_WAITING(length, options) {
-  options.success = (options.rilRequestError === 0);
-  if (!options.success) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-    this.sendChromeMessage(options);
-    return;
-  }
-
-  if (options.callback) {
-    options.callback.call(this, options);
-    return;
-  }
-
-  this.sendChromeMessage(options);
+  options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+  this.sendDOMMessage(options);
 };
 RIL[REQUEST_SMS_ACKNOWLEDGE] = null;
 RIL[REQUEST_GET_IMEI] = function REQUEST_GET_IMEI(length, options) {
   this.IMEI = Buf.readString();
-  let rilMessageType = options.rilMessageType;
-  // So far we only send the IMEI back to chrome if it was requested via MMI.
-  if (rilMessageType !== "sendMMI") {
+  // So far we only send the IMEI back to the DOM if it was requested via MMI.
+  if (!options.mmi) {
     return;
   }
 
-  options.success = (options.rilRequestError === 0);
+  options.rilMessageType = "sendMMI";
+  options.success = options.rilRequestError == 0;
   options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
   if ((!options.success || this.IMEI == null) && !options.errorMsg) {
     options.errorMsg = GECKO_ERROR_GENERIC_FAILURE;
   }
-  options.statusMessage = this.IMEI;
-  this.sendChromeMessage(options);
+  options.result = this.IMEI;
+  this.sendDOMMessage(options);
 };
 RIL[REQUEST_GET_IMEISV] = function REQUEST_GET_IMEISV(length, options) {
   if (options.rilRequestError) {
@@ -5528,117 +4772,74 @@ RIL[REQUEST_DEACTIVATE_DATA_CALL] = function REQUEST_DEACTIVATE_DATA_CALL(length
   delete this.currentDataCalls[options.cid];
   datacall.state = GECKO_NETWORK_STATE_UNKNOWN;
   datacall.rilMessageType = "datacallstatechange";
-  this.sendChromeMessage(datacall);
+  this.sendDOMMessage(datacall);
 };
 RIL[REQUEST_QUERY_FACILITY_LOCK] = function REQUEST_QUERY_FACILITY_LOCK(length, options) {
-  options.success = (options.rilRequestError === 0);
+  options.success = options.rilRequestError == 0;
   if (!options.success) {
     options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
   }
 
-  let services;
   if (length) {
-    // Buf.readInt32List()[0] for Call Barring is a bit vector of services.
-    services = Buf.readInt32List()[0];
-  } else {
-    options.success = false;
-    options.errorMsg = GECKO_ERROR_GENERIC_FAILURE;
-    this.sendChromeMessage(options);
-    return;
+    options.enabled = Buf.readUint32List()[0] == 0 ? false : true;
   }
-
-  options.enabled = services === 0 ? false : true;
-
-  if (options.success && (options.rilMessageType === "sendMMI")) {
-    if (!options.enabled) {
-      options.statusMessage = MMI_SM_KS_SERVICE_DISABLED;
-    } else {
-      options.statusMessage = MMI_SM_KS_SERVICE_ENABLED_FOR;
-      let serviceClass = [];
-      for (let serviceClassMask = 1;
-           serviceClassMask <= ICC_SERVICE_CLASS_MAX;
-           serviceClassMask <<= 1) {
-        if ((serviceClassMask & services) !== 0) {
-          serviceClass.push(MMI_KS_SERVICE_CLASS_MAPPING[serviceClassMask]);
-        }
-      }
-
-      options.additionalInformation = serviceClass;
-    }
-  }
-  this.sendChromeMessage(options);
+  this.sendDOMMessage(options);
 };
 RIL[REQUEST_SET_FACILITY_LOCK] = function REQUEST_SET_FACILITY_LOCK(length, options) {
-  options.success = (options.rilRequestError === 0);
+  options.success = options.rilRequestError == 0;
   if (!options.success) {
     options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
   }
-
-  options.retryCount = length ? Buf.readInt32List()[0] : -1;
-
-  if (options.success && (options.rilMessageType === "sendMMI")) {
-    switch (options.procedure) {
-      case MMI_PROCEDURE_ACTIVATION:
-        options.statusMessage = MMI_SM_KS_SERVICE_ENABLED;
-        break;
-      case MMI_PROCEDURE_DEACTIVATION:
-        options.statusMessage = MMI_SM_KS_SERVICE_DISABLED;
-        break;
-    }
-  }
-  this.sendChromeMessage(options);
+  options.retryCount = length ? Buf.readUint32List()[0] : -1;
+  this.sendDOMMessage(options);
 };
-RIL[REQUEST_CHANGE_BARRING_PASSWORD] =
-  function REQUEST_CHANGE_BARRING_PASSWORD(length, options) {
-  if (options.rilRequestError) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-  }
-  this.sendChromeMessage(options);
-};
+RIL[REQUEST_CHANGE_BARRING_PASSWORD] = null;
 RIL[REQUEST_SIM_OPEN_CHANNEL] = function REQUEST_SIM_OPEN_CHANNEL(length, options) {
   if (options.rilRequestError) {
     options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-    this.sendChromeMessage(options);
+    this.sendDOMMessage(options);
     return;
   }
 
-  options.channel = Buf.readInt32();
+  options.channel = Buf.readUint32();
   if (DEBUG) debug("Setting channel number in options: " + options.channel);
-  this.sendChromeMessage(options);
+  this.sendDOMMessage(options);
 };
 RIL[REQUEST_SIM_CLOSE_CHANNEL] = function REQUEST_SIM_CLOSE_CHANNEL(length, options) {
   if (options.rilRequestError) {
     options.error = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-    this.sendChromeMessage(options);
+    this.sendDOMMessage(options);
     return;
   }
 
   // No return value
-  this.sendChromeMessage(options);
+  this.sendDOMMessage(options);
 };
 RIL[REQUEST_SIM_ACCESS_CHANNEL] = function REQUEST_SIM_ACCESS_CHANNEL(length, options) {
   if (options.rilRequestError) {
     options.error = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-    this.sendChromeMessage(options);
+    this.sendDOMMessage(options);
   }
 
-  options.sw1 = Buf.readInt32();
-  options.sw2 = Buf.readInt32();
+  options.sw1 = Buf.readUint32();
+  options.sw2 = Buf.readUint32();
   options.simResponse = Buf.readString();
   if (DEBUG) {
     debug("Setting return values for RIL[REQUEST_SIM_ACCESS_CHANNEL]: ["
           + options.sw1 + "," + options.sw2 + ", " + options.simResponse + "]");
   }
-  this.sendChromeMessage(options);
+  this.sendDOMMessage(options);
 };
 RIL[REQUEST_QUERY_NETWORK_SELECTION_MODE] = function REQUEST_QUERY_NETWORK_SELECTION_MODE(length, options) {
   this._receivedNetworkInfo(NETWORK_INFO_NETWORK_SELECTION_MODE);
 
   if (options.rilRequestError) {
+    options.error = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    this.sendDOMMessage(options);
     return;
   }
 
-  let mode = Buf.readInt32List();
+  let mode = Buf.readUint32List();
   let selectionMode;
 
   switch (mode[0]) {
@@ -5662,24 +4863,30 @@ RIL[REQUEST_QUERY_NETWORK_SELECTION_MODE] = function REQUEST_QUERY_NETWORK_SELEC
 RIL[REQUEST_SET_NETWORK_SELECTION_AUTOMATIC] = function REQUEST_SET_NETWORK_SELECTION_AUTOMATIC(length, options) {
   if (options.rilRequestError) {
     options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    this.sendDOMMessage(options);
+    return;
   }
 
-  this.sendChromeMessage(options);
+  this.sendDOMMessage(options);
 };
 RIL[REQUEST_SET_NETWORK_SELECTION_MANUAL] = function REQUEST_SET_NETWORK_SELECTION_MANUAL(length, options) {
   if (options.rilRequestError) {
     options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    this.sendDOMMessage(options);
+    return;
   }
 
-  this.sendChromeMessage(options);
+  this.sendDOMMessage(options);
 };
 RIL[REQUEST_QUERY_AVAILABLE_NETWORKS] = function REQUEST_QUERY_AVAILABLE_NETWORKS(length, options) {
   if (options.rilRequestError) {
     options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-  } else {
-    options.networks = this._processNetworks();
+    this.sendDOMMessage(options);
+    return;
   }
-  this.sendChromeMessage(options);
+
+  options.networks = this._processNetworks();
+  this.sendDOMMessage(options);
 };
 RIL[REQUEST_DTMF_START] = null;
 RIL[REQUEST_DTMF_STOP] = null;
@@ -5691,63 +4898,18 @@ RIL[REQUEST_BASEBAND_VERSION] = function REQUEST_BASEBAND_VERSION(length, option
   this.basebandVersion = Buf.readString();
   if (DEBUG) debug("Baseband version: " + this.basebandVersion);
 };
-RIL[REQUEST_SEPARATE_CONNECTION] = function REQUEST_SEPARATE_CONNECTION(length, options) {
-  if (options.rilRequestError) {
-    options = {rilMessageType: "conferenceError",
-               errorName: "removeError",
-               errorMsg: RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError]};
-    this.sendChromeMessage(options);
-    return;
-  }
-};
+RIL[REQUEST_SEPARATE_CONNECTION] = null;
 RIL[REQUEST_SET_MUTE] = null;
 RIL[REQUEST_GET_MUTE] = null;
-RIL[REQUEST_QUERY_CLIP] = function REQUEST_QUERY_CLIP(length, options) {
-  options.success = (options.rilRequestError === 0);
-  if (!options.success) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-    this.sendChromeMessage(options);
-    return;
-  }
-
-  let bufLength = Buf.readInt32();
-  if (!bufLength) {
-    options.success = false;
-    options.errorMsg = GECKO_ERROR_GENERIC_FAILURE;
-    this.sendChromeMessage(options);
-    return;
-  }
-
-  // options.provisioned informs about the called party receives the calling
-  // party's address information:
-  // 0 for CLIP not provisioned
-  // 1 for CLIP provisioned
-  // 2 for unknown
-  options.provisioned = Buf.readInt32();
-  if (options.rilMessageType === "sendMMI") {
-    switch (options.provisioned) {
-      case 0:
-        options.statusMessage = MMI_SM_KS_SERVICE_DISABLED;
-        break;
-      case 1:
-        options.statusMessage = MMI_SM_KS_SERVICE_ENABLED;
-        break;
-      default:
-        options.success = false;
-        options.errorMsg = MMI_ERROR_KS_ERROR;
-        break;
-    }
-  }
-  this.sendChromeMessage(options);
-};
+RIL[REQUEST_QUERY_CLIP] = null;
 RIL[REQUEST_LAST_DATA_CALL_FAIL_CAUSE] = null;
 
 RIL.readDataCall_v5 = function readDataCall_v5(options) {
   if (!options) {
     options = {};
   }
-  options.cid = Buf.readInt32().toString();
-  options.active = Buf.readInt32(); // DATACALL_ACTIVE_*
+  options.cid = Buf.readUint32().toString();
+  options.active = Buf.readUint32(); // DATACALL_ACTIVE_*
   options.type = Buf.readString();
   options.apn = Buf.readString();
   options.address = Buf.readString();
@@ -5758,10 +4920,10 @@ RIL.readDataCall_v6 = function readDataCall_v6(options) {
   if (!options) {
     options = {};
   }
-  options.status = Buf.readInt32();  // DATACALL_FAIL_*
-  options.suggestedRetryTime = Buf.readInt32();
-  options.cid = Buf.readInt32().toString();
-  options.active = Buf.readInt32();  // DATACALL_ACTIVE_*
+  options.status = Buf.readUint32();  // DATACALL_FAIL_*
+  options.suggestedRetryTime = Buf.readUint32();
+  options.cid = Buf.readUint32().toString();
+  options.active = Buf.readUint32();  // DATACALL_ACTIVE_*
   options.type = Buf.readString();
   options.ifname = Buf.readString();
   options.ipaddr = Buf.readString();
@@ -5803,9 +4965,9 @@ RIL[REQUEST_DATA_CALL_LIST] = function REQUEST_DATA_CALL_LIST(length, options) {
 
   let version = 0;
   if (!RILQUIRKS_V5_LEGACY) {
-    version = Buf.readInt32();
+    version = Buf.readUint32();
   }
-  let num = Buf.readInt32();
+  let num = num = Buf.readUint32();
   let datacalls = {};
   for (let i = 0; i < num; i++) {
     let datacall;
@@ -5854,20 +5016,23 @@ RIL[REQUEST_SET_PREFERRED_NETWORK_TYPE] = function REQUEST_SET_PREFERRED_NETWORK
     return;
   }
 
-  options.success = (options.rilRequestError == ERROR_SUCCESS);
-  this.sendChromeMessage(options);
+  this.sendDOMMessage({
+    rilMessageType: "setPreferredNetworkType",
+    networkType: options.networkType,
+    success: options.rilRequestError == ERROR_SUCCESS
+  });
 };
 RIL[REQUEST_GET_PREFERRED_NETWORK_TYPE] = function REQUEST_GET_PREFERRED_NETWORK_TYPE(length, options) {
   let networkType;
   if (!options.rilRequestError) {
     networkType = RIL_PREFERRED_NETWORK_TYPE_TO_GECKO.indexOf(GECKO_PREFERRED_NETWORK_TYPE_DEFAULT);
-    let responseLen = Buf.readInt32(); // Number of INT32 responsed.
+    let responseLen = Buf.readUint32(); // Number of INT32 responsed.
     if (responseLen) {
-      this.preferredNetworkType = networkType = Buf.readInt32();
+      this.preferredNetworkType = networkType = Buf.readUint32();
     }
   }
 
-  this.sendChromeMessage({
+  this.sendDOMMessage({
     rilMessageType: "getPreferredNetworkType",
     networkType: networkType,
     success: options.rilRequestError == ERROR_SUCCESS
@@ -5876,43 +5041,12 @@ RIL[REQUEST_GET_PREFERRED_NETWORK_TYPE] = function REQUEST_GET_PREFERRED_NETWORK
 RIL[REQUEST_GET_NEIGHBORING_CELL_IDS] = null;
 RIL[REQUEST_SET_LOCATION_UPDATES] = null;
 RIL[REQUEST_CDMA_SET_SUBSCRIPTION_SOURCE] = null;
-RIL[REQUEST_CDMA_SET_ROAMING_PREFERENCE] = function REQUEST_CDMA_SET_ROAMING_PREFERENCE(length, options) {
-  if (options.rilRequestError) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-  }
-  this.sendChromeMessage(options);
-};
-RIL[REQUEST_CDMA_QUERY_ROAMING_PREFERENCE] = function REQUEST_CDMA_QUERY_ROAMING_PREFERENCE(length, options) {
-  if (options.rilRequestError) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-  } else {
-    let mode = Buf.readInt32List();
-    options.mode = CDMA_ROAMING_PREFERENCE_TO_GECKO[mode[0]];
-  }
-  this.sendChromeMessage(options);
-};
+RIL[REQUEST_CDMA_SET_ROAMING_PREFERENCE] = null;
+RIL[REQUEST_CDMA_QUERY_ROAMING_PREFERENCE] = null;
 RIL[REQUEST_SET_TTY_MODE] = null;
 RIL[REQUEST_QUERY_TTY_MODE] = null;
-RIL[REQUEST_CDMA_SET_PREFERRED_VOICE_PRIVACY_MODE] = function REQUEST_CDMA_SET_PREFERRED_VOICE_PRIVACY_MODE(length, options) {
-  if (options.rilRequestError) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-    this.sendChromeMessage(options);
-    return;
-  }
-
-  this.sendChromeMessage(options);
-};
-RIL[REQUEST_CDMA_QUERY_PREFERRED_VOICE_PRIVACY_MODE] = function REQUEST_CDMA_QUERY_PREFERRED_VOICE_PRIVACY_MODE(length, options) {
-  if (options.rilRequestError) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-    this.sendChromeMessage(options);
-    return;
-  }
-
-  let enabled = Buf.readInt32List();
-  options.enabled = enabled[0] ? true : false;
-  this.sendChromeMessage(options);
-};
+RIL[REQUEST_CDMA_SET_PREFERRED_VOICE_PRIVACY_MODE] = null;
+RIL[REQUEST_CDMA_QUERY_PREFERRED_VOICE_PRIVACY_MODE] = null;
 RIL[REQUEST_CDMA_FLASH] = null;
 RIL[REQUEST_CDMA_BURST_DTMF] = null;
 RIL[REQUEST_CDMA_VALIDATE_AND_WRITE_AKEY] = null;
@@ -5923,28 +5057,14 @@ RIL[REQUEST_CDMA_SMS_ACKNOWLEDGE] = null;
 RIL[REQUEST_GSM_GET_BROADCAST_SMS_CONFIG] = null;
 RIL[REQUEST_GSM_SET_BROADCAST_SMS_CONFIG] = function REQUEST_GSM_SET_BROADCAST_SMS_CONFIG(length, options) {
   if (options.rilRequestError == ERROR_SUCCESS) {
-    this.setSmsBroadcastActivation(true);
+    this.setGsmSmsBroadcastActivation(true);
   }
 };
 RIL[REQUEST_GSM_SMS_BROADCAST_ACTIVATION] = null;
 RIL[REQUEST_CDMA_GET_BROADCAST_SMS_CONFIG] = null;
 RIL[REQUEST_CDMA_SET_BROADCAST_SMS_CONFIG] = null;
 RIL[REQUEST_CDMA_SMS_BROADCAST_ACTIVATION] = null;
-RIL[REQUEST_CDMA_SUBSCRIPTION] = function REQUEST_CDMA_SUBSCRIPTION(length, options) {
-  if (options.rilRequestError) {
-    return;
-  }
-
-  let result = Buf.readStringList();
-
-  this.iccInfo.mdn = result[0];
-  // The result[1] is Home SID. (Already be handled in readCDMAHome())
-  // The result[2] is Home NID. (Already be handled in readCDMAHome())
-  // The result[3] is MIN.
-  // The result[4] is PRL version.
-
-  ICCUtilsHelper.handleICCInfoChange();
-};
+RIL[REQUEST_CDMA_SUBSCRIPTION] = null;
 RIL[REQUEST_CDMA_WRITE_SMS_TO_RUIM] = null;
 RIL[REQUEST_CDMA_DELETE_SMS_ON_RUIM] = null;
 RIL[REQUEST_DEVICE_IDENTITY] = function REQUEST_DEVICE_IDENTITY(length, options) {
@@ -5960,27 +5080,13 @@ RIL[REQUEST_DEVICE_IDENTITY] = function REQUEST_DEVICE_IDENTITY(length, options)
   this.ESN = result[2];
   this.MEID = result[3];
 };
-RIL[REQUEST_EXIT_EMERGENCY_CALLBACK_MODE] = function REQUEST_EXIT_EMERGENCY_CALLBACK_MODE(length, options) {
-  if (options.internal) {
-    return;
-  }
-
-  options.success = (options.rilRequestError === 0);
-  if (!options.success) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-  }
-  this.sendChromeMessage(options);
-};
+RIL[REQUEST_EXIT_EMERGENCY_CALLBACK_MODE] = null;
 RIL[REQUEST_GET_SMSC_ADDRESS] = function REQUEST_GET_SMSC_ADDRESS(length, options) {
-  this.SMSC = options.rilRequestError ? null : Buf.readString();
-
-  if (!options || options.rilMessageType !== "getSmscAddress") {
+  if (options.rilRequestError) {
     return;
   }
 
-  options.smscAddress = this.SMSC;
-  options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-  this.sendChromeMessage(options);
+  this.SMSC = Buf.readString();
 };
 RIL[REQUEST_SET_SMSC_ADDRESS] = null;
 RIL[REQUEST_REPORT_SMS_MEMORY_STATUS] = null;
@@ -5992,17 +5098,17 @@ RIL[REQUEST_STK_SEND_ENVELOPE_WITH_STATUS] = function REQUEST_STK_SEND_ENVELOPE_
     return;
   }
 
-  let sw1 = Buf.readInt32();
-  let sw2 = Buf.readInt32();
-  if ((sw1 == ICC_STATUS_SAT_BUSY) && (sw2 === 0x00)) {
+  let sw1 = Buf.readUint32();
+  let sw2 = Buf.readUint32();
+  if ((sw1 == ICC_STATUS_SAT_BUSY) && (sw2 == 0x00)) {
     this.acknowledgeGsmSms(false, PDU_FCS_USAT_BUSY);
     return;
   }
 
-  let success = ((sw1 == ICC_STATUS_NORMAL_ENDING) && (sw2 === 0x00))
+  let success = ((sw1 == ICC_STATUS_NORMAL_ENDING) && (sw2 == 0x00))
                 || (sw1 == ICC_STATUS_NORMAL_ENDING_WITH_EXTRA);
 
-  let messageStringLength = Buf.readInt32(); // In semi-octets
+  let messageStringLength = Buf.readUint32(); // In semi-octets
   let responsePduLen = messageStringLength / 2; // In octets
   if (!responsePduLen) {
     this.acknowledgeGsmSms(success, success ? PDU_FCS_OK
@@ -6019,19 +5125,11 @@ RIL[REQUEST_VOICE_RADIO_TECH] = function REQUEST_VOICE_RADIO_TECH(length, option
     }
     return;
   }
-  let radioTech = Buf.readInt32List();
+  let radioTech = Buf.readUint32List();
   this._processRadioTech(radioTech[0]);
 };
-RIL[REQUEST_GET_UNLOCK_RETRY_COUNT] = function REQUEST_GET_UNLOCK_RETRY_COUNT(length, options) {
-  options.success = (options.rilRequestError === 0);
-  if (!options.success) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-  }
-  options.retryCount = length ? Buf.readInt32List()[0] : -1;
-  this.sendChromeMessage(options);
-};
 RIL[UNSOLICITED_RESPONSE_RADIO_STATE_CHANGED] = function UNSOLICITED_RESPONSE_RADIO_STATE_CHANGED() {
-  let radioState = Buf.readInt32();
+  let radioState = Buf.readUint32();
 
   // Ensure radio state at boot time.
   if (this._isInitialRadioState) {
@@ -6095,12 +5193,10 @@ RIL[UNSOLICITED_RESPONSE_RADIO_STATE_CHANGED] = function UNSOLICITED_RESPONSE_RA
     }
     this.getBasebandVersion();
     this.updateCellBroadcastConfig();
-    this.setPreferredNetworkType();
-    this.setCLIR();
   }
 
   this.radioState = newState;
-  this.sendChromeMessage({
+  this.sendDOMMessage({
     rilMessageType: "radiostatechange",
     radioState: newState
   });
@@ -6142,7 +5238,7 @@ RIL[UNSOLICITED_RESPONSE_NEW_SMS_STATUS_REPORT] = function UNSOLICITED_RESPONSE_
   this.acknowledgeGsmSms(result == PDU_FCS_OK, result);
 };
 RIL[UNSOLICITED_RESPONSE_NEW_SMS_ON_SIM] = function UNSOLICITED_RESPONSE_NEW_SMS_ON_SIM(length) {
-  // let info = Buf.readInt32List();
+  let info = Buf.readUint32List();
   //TODO
 };
 RIL[UNSOLICITED_ON_USSD] = function UNSOLICITED_ON_USSD() {
@@ -6153,9 +5249,9 @@ RIL[UNSOLICITED_ON_USSD] = function UNSOLICITED_ON_USSD() {
 
   this._ussdSession = (typeCode != "0" && typeCode != "2");
 
-  this.sendChromeMessage({rilMessageType: "USSDReceived",
-                          message: message,
-                          sessionEnded: !this._ussdSession});
+  this.sendDOMMessage({rilMessageType: "USSDReceived",
+                       message: message,
+                       sessionEnded: !this._ussdSession});
 };
 RIL[UNSOLICITED_NITZ_TIME_RECEIVED] = function UNSOLICITED_NITZ_TIME_RECEIVED() {
   let dateString = Buf.readString();
@@ -6191,11 +5287,11 @@ RIL[UNSOLICITED_NITZ_TIME_RECEIVED] = function UNSOLICITED_NITZ_TIME_RECEIVED() 
     return;
   }
 
-  this.sendChromeMessage({rilMessageType: "nitzTime",
-                          networkTimeInMS: timeInMS,
-                          networkTimeZoneInMinutes: -(tz * 15),
-                          networkDSTInMinutes: -(dst * 60),
-                          receiveTimeInMS: now});
+  this.sendDOMMessage({rilMessageType: "nitzTime",
+                       networkTimeInMS: timeInMS,
+                       networkTimeZoneInMinutes: -(tz * 15),
+                       networkDSTInMinutes: -(dst * 60),
+                       receiveTimeInMS: now});
 };
 
 RIL[UNSOLICITED_SIGNAL_STRENGTH] = function UNSOLICITED_SIGNAL_STRENGTH(length) {
@@ -6208,19 +5304,10 @@ RIL[UNSOLICITED_DATA_CALL_LIST_CHANGED] = function UNSOLICITED_DATA_CALL_LIST_CH
   }
   this[REQUEST_DATA_CALL_LIST](length, {rilRequestError: ERROR_SUCCESS});
 };
-RIL[UNSOLICITED_SUPP_SVC_NOTIFICATION] = function UNSOLICITED_SUPP_SVC_NOTIFICATION(length) {
-  let info = {};
-  info.notificationType = Buf.readInt32();
-  info.code = Buf.readInt32();
-  info.index = Buf.readInt32();
-  info.type = Buf.readInt32();
-  info.number = Buf.readString();
-
-  this._processSuppSvcNotification(info);
-};
+RIL[UNSOLICITED_SUPP_SVC_NOTIFICATION] = null;
 
 RIL[UNSOLICITED_STK_SESSION_END] = function UNSOLICITED_STK_SESSION_END() {
-  this.sendChromeMessage({rilMessageType: "stksessionend"});
+  this.sendDOMMessage({rilMessageType: "stksessionend"});
 };
 RIL[UNSOLICITED_STK_PROACTIVE_COMMAND] = function UNSOLICITED_STK_PROACTIVE_COMMAND() {
   this.processStkProactiveCommand();
@@ -6235,16 +5322,16 @@ RIL[UNSOLICITED_CALL_RING] = function UNSOLICITED_CALL_RING() {
   let info = {rilMessageType: "callRing"};
   let isCDMA = false; //XXX TODO hard-code this for now
   if (isCDMA) {
-    info.isPresent = Buf.readInt32();
-    info.signalType = Buf.readInt32();
-    info.alertPitch = Buf.readInt32();
-    info.signal = Buf.readInt32();
+    info.isPresent = Buf.readUint32();
+    info.signalType = Buf.readUint32();
+    info.alertPitch = Buf.readUint32();
+    info.signal = Buf.readUint32();
   }
   // At this point we don't know much other than the fact there's an incoming
   // call, but that's enough to bring up the Phone app already. We'll know
   // details once we get a call state changed notification and can then
   // dispatch DOM events etc.
-  this.sendChromeMessage(info);
+  this.sendDOMMessage(info);
 };
 RIL[UNSOLICITED_RESPONSE_SIM_STATUS_CHANGED] = function UNSOLICITED_RESPONSE_SIM_STATUS_CHANGED() {
   this.getICCStatus();
@@ -6253,11 +5340,7 @@ RIL[UNSOLICITED_RESPONSE_CDMA_NEW_SMS] = function UNSOLICITED_RESPONSE_CDMA_NEW_
   let [message, result] = CdmaPDUHelper.processReceivedSms(length);
 
   if (message) {
-    if (message.subMsgType === PDU_CDMA_MSG_TYPE_DELIVER_ACK) {
-      result = this._processCdmaSmsStatusReport(message);
-    } else {
-      result = this._processSmsMultipart(message);
-    }
+    result = this._processSmsMultipart(message);
   }
 
   if (result == PDU_FCS_RESERVED || result == MOZ_FCS_WAIT_FOR_EXPLICIT_ACK) {
@@ -6270,7 +5353,7 @@ RIL[UNSOLICITED_RESPONSE_CDMA_NEW_SMS] = function UNSOLICITED_RESPONSE_CDMA_NEW_
 RIL[UNSOLICITED_RESPONSE_NEW_BROADCAST_SMS] = function UNSOLICITED_RESPONSE_NEW_BROADCAST_SMS(length) {
   let message;
   try {
-    message = GsmPDUHelper.readCbMessage(Buf.readInt32());
+    message = GsmPDUHelper.readCbMessage(Buf.readUint32());
   } catch (e) {
     if (DEBUG) {
       debug("Failed to parse Cell Broadcast message: " + JSON.stringify(e));
@@ -6284,42 +5367,17 @@ RIL[UNSOLICITED_RESPONSE_NEW_BROADCAST_SMS] = function UNSOLICITED_RESPONSE_NEW_
   }
 
   message.rilMessageType = "cellbroadcast-received";
-  this.sendChromeMessage(message);
+  this.sendDOMMessage(message);
 };
 RIL[UNSOLICITED_CDMA_RUIM_SMS_STORAGE_FULL] = null;
 RIL[UNSOLICITED_RESTRICTED_STATE_CHANGED] = null;
-RIL[UNSOLICITED_ENTER_EMERGENCY_CALLBACK_MODE] = function UNSOLICITED_ENTER_EMERGENCY_CALLBACK_MODE() {
-  this._handleChangedEmergencyCbMode(true);
-};
-RIL[UNSOLICITED_CDMA_CALL_WAITING] = function UNSOLICITED_CDMA_CALL_WAITING(length) {
-  let call = {};
-  call.number              = Buf.readString();
-  call.numberPresentation  = Buf.readInt32();
-  call.name                = Buf.readString();
-  call.namePresentation    = Buf.readInt32();
-  call.isPresent           = Buf.readInt32();
-  call.signalType          = Buf.readInt32();
-  call.alertPitch          = Buf.readInt32();
-  call.signal              = Buf.readInt32();
-  this.sendChromeMessage({rilMessageType: "cdmaCallWaiting",
-                          number: call.number});
-};
-RIL[UNSOLICITED_CDMA_OTA_PROVISION_STATUS] = function UNSOLICITED_CDMA_OTA_PROVISION_STATUS() {
-  let status = Buf.readInt32List()[0];
-  this.sendChromeMessage({rilMessageType: "otastatuschange",
-                          status: status});
-};
-RIL[UNSOLICITED_CDMA_INFO_REC] = function UNSOLICITED_CDMA_INFO_REC(length) {
-  let record = CdmaPDUHelper.decodeInformationRecord();
-  record.rilMessageType = "cdma-info-rec-received";
-  this.sendChromeMessage(record);
-};
+RIL[UNSOLICITED_ENTER_EMERGENCY_CALLBACK_MODE] = null;
+RIL[UNSOLICITED_CDMA_CALL_WAITING] = null;
+RIL[UNSOLICITED_CDMA_OTA_PROVISION_STATUS] = null;
+RIL[UNSOLICITED_CDMA_INFO_REC] = null;
 RIL[UNSOLICITED_OEM_HOOK_RAW] = null;
 RIL[UNSOLICITED_RINGBACK_TONE] = null;
 RIL[UNSOLICITED_RESEND_INCALL_MUTE] = null;
-RIL[UNSOLICITED_EXIT_EMERGENCY_CALLBACK_MODE] = function UNSOLICITED_EXIT_EMERGENCY_CALLBACK_MODE() {
-  this._handleChangedEmergencyCbMode(false);
-};
 RIL[UNSOLICITED_RIL_CONNECTED] = function UNSOLICITED_RIL_CONNECTED(length) {
   // Prevent response id collision between UNSOLICITED_RIL_CONNECTED and
   // UNSOLICITED_VOICE_RADIO_TECH_CHANGED for Akami on gingerbread branch.
@@ -6327,7 +5385,7 @@ RIL[UNSOLICITED_RIL_CONNECTED] = function UNSOLICITED_RIL_CONNECTED(length) {
     return;
   }
 
-  let version = Buf.readInt32List()[0];
+  let version = Buf.readUint32List()[0];
   RILQUIRKS_V5_LEGACY = (version < 5);
   if (DEBUG) {
     debug("Detected RIL version " + version);
@@ -6335,8 +5393,8 @@ RIL[UNSOLICITED_RIL_CONNECTED] = function UNSOLICITED_RIL_CONNECTED(length) {
   }
 
   this.initRILState();
-  // Always ensure that we are not in emergency callback mode when init.
-  this.exitEmergencyCbMode();
+
+  this.setPreferredNetworkType();
 };
 
 /**
@@ -6691,7 +5749,7 @@ let GsmPDUHelper = {
       }
     }
 
-    if (dataBits !== 0) {
+    if (dataBits != 0) {
       this.writeHexOctet(data & 0xFF);
     }
   },
@@ -6739,7 +5797,7 @@ let GsmPDUHelper = {
       }
     }
 
-    Buf.seekIncoming((numOctets - i) * Buf.PDU_HEX_OCTET_SIZE);
+    Buf.seekIncoming((numOctets - i) * PDU_HEX_OCTET_SIZE);
     return ret;
   },
 
@@ -6851,7 +5909,7 @@ let GsmPDUHelper = {
         }
 
         // Skip trailing 0xff
-        Buf.seekIncoming((numOctets - i) * Buf.PDU_HEX_OCTET_SIZE);
+        Buf.seekIncoming((numOctets - i) * PDU_HEX_OCTET_SIZE);
         break;
       case 0x81: // Fall through
       case 0x82:
@@ -6901,18 +5959,18 @@ let GsmPDUHelper = {
               if (this.readHexOctet() & 0x80) {
                 gotUCS2 = 1;
                 break;
-              }
+              };
             }
             // Unread.
             // +1 for the GSM alphabet indexed at i,
-            Buf.seekIncoming(-1 * (count + 1) * Buf.PDU_HEX_OCTET_SIZE);
+            Buf.seekIncoming(-1 * (count + 1) * PDU_HEX_OCTET_SIZE);
             str += this.read8BitUnpackedToString(count + 1 - gotUCS2);
             i += count - gotUCS2;
           }
         }
 
         // Skipping trailing 0xff
-        Buf.seekIncoming((numOctets - len - headerLen) * Buf.PDU_HEX_OCTET_SIZE);
+        Buf.seekIncoming((numOctets - len - headerLen) * PDU_HEX_OCTET_SIZE);
         break;
     }
     return str;
@@ -7081,7 +6139,7 @@ let GsmPDUHelper = {
       }
     }
 
-    if (dataAvailable !== 0) {
+    if (dataAvailable != 0) {
       throw new Error("Illegal user data header found!");
     }
 
@@ -7174,15 +6232,26 @@ let GsmPDUHelper = {
    * @param recordSize  The size of linear fixed record.
    */
   readAlphaIdDiallingNumber: function readAlphaIdDiallingNumber(recordSize) {
-    let length = Buf.readInt32();
+    let length = Buf.readUint32();
 
     let alphaLen = recordSize - ADN_FOOTER_SIZE_BYTES;
     let alphaId = this.readAlphaIdentifier(alphaLen);
 
-    let number = this.readNumberWithLength();
+    let number;
+    let numLen = this.readHexOctet();
+    if (numLen != 0xff) {
+      if (numLen > ADN_MAX_BCD_NUMBER_BYTES) {
+        throw new Error("invalid length of BCD number/SSC contents - " + numLen);
+      }
+
+      number = this.readDiallingNumber(numLen);
+      Buf.seekIncoming((ADN_MAX_BCD_NUMBER_BYTES - numLen) * PDU_HEX_OCTET_SIZE);
+    } else {
+      Buf.seekIncoming(ADN_MAX_BCD_NUMBER_BYTES * PDU_HEX_OCTET_SIZE);
+    }
 
     // Skip 2 unused octets, CCP and EXT1.
-    Buf.seekIncoming(2 * Buf.PDU_HEX_OCTET_SIZE);
+    Buf.seekIncoming(2 * PDU_HEX_OCTET_SIZE);
     Buf.readStringDelimiter(length);
 
     let contact = null;
@@ -7204,17 +6273,39 @@ let GsmPDUHelper = {
                                                                   alphaId,
                                                                   number) {
     // Write String length
-    let strLen = recordSize * 2;
-    Buf.writeInt32(strLen);
+    let length = recordSize * 2;
+    Buf.writeUint32(length);
 
     let alphaLen = recordSize - ADN_FOOTER_SIZE_BYTES;
     this.writeAlphaIdentifier(alphaLen, alphaId);
-    this.writeNumberWithLength(number);
+
+    if (number) {
+      let numStart = number[0] == "+" ? 1 : 0;
+      let numDigits = number.length - numStart;
+      if (numDigits > ADN_MAX_NUMBER_DIGITS) {
+        number = number.substring(0, ADN_MAX_NUMBER_DIGITS + numStart);
+        numDigits = number.length - numStart;
+      }
+
+      // +1 for TON/NPI
+      let numLen = Math.ceil(numDigits / 2) + 1;
+      this.writeHexOctet(numLen);
+      this.writeDiallingNumber(number);
+      // Write trailing 0xff of Dialling Number.
+      for (let i = 0; i < ADN_MAX_BCD_NUMBER_BYTES - numLen; i++) {
+        this.writeHexOctet(0xff);
+      }
+    } else {
+      // +1 for numLen
+      for (let i = 0; i < ADN_MAX_BCD_NUMBER_BYTES + 1; i++) {
+        this.writeHexOctet(0xff);
+      }
+    }
 
     // Write unused octets 0xff, CCP and EXT1.
     this.writeHexOctet(0xff);
     this.writeHexOctet(0xff);
-    Buf.writeStringDelimiter(strLen);
+    Buf.writeStringDelimiter(length);
   },
 
   /**
@@ -7244,7 +6335,7 @@ let GsmPDUHelper = {
       numOctets--;
       return this.readICCUCS2String(temp, numOctets);
     } else {
-      Buf.seekIncoming(-1 * Buf.PDU_HEX_OCTET_SIZE);
+      Buf.seekIncoming(-1 * PDU_HEX_OCTET_SIZE);
       return this.read8BitUnpackedToString(numOctets);
     }
   },
@@ -7306,17 +6397,14 @@ let GsmPDUHelper = {
    */
   readDiallingNumber: function readDiallingNumber(len) {
     if (DEBUG) debug("PDU: Going to read Dialling number: " + len);
-    if (len === 0) {
-      return "";
-    }
 
     // TOA = TON + NPI
     let toa = this.readHexOctet();
 
-    let number = this.readSwappedNibbleBcdString(len - 1);
+    let number = this.readSwappedNibbleBcdString(len - 1).toString();
     if (number.length <= 0) {
-      if (DEBUG) debug("No number provided");
-      return "";
+      if (DEBUG) debug("PDU error: no number provided");
+      return null;
     }
     if ((toa >> 4) == (PDU_TOA_INTERNATIONAL >> 4)) {
       number = '+' + number;
@@ -7337,48 +6425,6 @@ let GsmPDUHelper = {
     }
     this.writeHexOctet(toa);
     this.writeSwappedNibbleBCD(number);
-  },
-
-  readNumberWithLength: function readNumberWithLength() {
-    let number;
-    let numLen = this.readHexOctet();
-    if (numLen != 0xff) {
-      if (numLen > ADN_MAX_BCD_NUMBER_BYTES) {
-        throw new Error("invalid length of BCD number/SSC contents - " + numLen);
-      }
-
-      number = this.readDiallingNumber(numLen);
-      Buf.seekIncoming((ADN_MAX_BCD_NUMBER_BYTES - numLen) * Buf.PDU_HEX_OCTET_SIZE);
-    } else {
-      Buf.seekIncoming(ADN_MAX_BCD_NUMBER_BYTES * Buf.PDU_HEX_OCTET_SIZE);
-    }
-
-    return number;
-  },
-
-  writeNumberWithLength: function writeNumberWithLength(number) {
-    if (number) {
-      let numStart = number[0] == "+" ? 1 : 0;
-      let numDigits = number.length - numStart;
-      if (numDigits > ADN_MAX_NUMBER_DIGITS) {
-        number = number.substring(0, ADN_MAX_NUMBER_DIGITS + numStart);
-        numDigits = number.length - numStart;
-      }
-
-      // +1 for TON/NPI
-      let numLen = Math.ceil(numDigits / 2) + 1;
-      this.writeHexOctet(numLen);
-      this.writeDiallingNumber(number);
-      // Write trailing 0xff of Dialling Number.
-      for (let i = 0; i < ADN_MAX_BCD_NUMBER_BYTES - numLen; i++) {
-        this.writeHexOctet(0xff);
-      }
-    } else {
-      // +1 for numLen
-      for (let i = 0; i < ADN_MAX_BCD_NUMBER_BYTES + 1; i++) {
-        this.writeHexOctet(0xff);
-      }
-    }
   },
 
   /**
@@ -7464,7 +6510,6 @@ let GsmPDUHelper = {
         encoding = PDU_DCS_MSG_CODING_16BITS_ALPHABET;
         // Bit 3..0 are coded exactly the same as Message Waiting Indication
         // Group 1101.
-        // Fall through.
       case 0xC0: // bits 7..4 = 1100
       case 0xD0: // bits 7..4 = 1101
         // Indiciates voicemail indicator set or clear
@@ -7647,7 +6692,7 @@ let GsmPDUHelper = {
     // Because each PDU octet is converted to two UCS2 char2, we should always
     // get even messageStringLength in this#_processReceivedSms(). So, we'll
     // always need two delimitors at the end.
-    if (Buf.getReadAvailable() <= 4) {
+    if (Buf.readAvailable <= 4) {
       return;
     }
 
@@ -7762,7 +6807,7 @@ let GsmPDUHelper = {
 
     // An SMS is a string, but we won't read it as such, so let's read the
     // string length and then defer to PDU parsing helper.
-    let messageStringLength = Buf.readInt32();
+    let messageStringLength = Buf.readUint32();
     if (DEBUG) debug("Got new SMS, length " + messageStringLength);
     let message = this.readMessage();
     if (DEBUG) debug("Got new SMS: " + JSON.stringify(message));
@@ -7797,12 +6842,11 @@ let GsmPDUHelper = {
             // short message waiting.` ~ 3GPP TS 31.111 7.1.1.1
             return [null, PDU_FCS_RESERVED];
           }
+          // Fall through!
 
           // If the service "data download via SMS-PP" is not available in the
           // (U)SIM Service Table, ..., then the ME shall store the message in
           // EFsms in accordance with TS 31.102` ~ 3GPP TS 31.111 7.1.1.1
-
-          // Fall through.
         default:
           RIL.writeSmsToSIM(message);
           break;
@@ -7961,7 +7005,7 @@ let GsmPDUHelper = {
 
     // Start the string. Since octets are represented in hex, we will need
     // twice as many characters as octets.
-    Buf.writeInt32(pduOctetLength * 2);
+    Buf.writeUint32(pduOctetLength * 2);
 
     // - PDU-TYPE-
 
@@ -8381,9 +7425,9 @@ let GsmPDUHelper = {
       return null;
     }
 
-    let textEncoding = (codingInfo & 0x70) >> 4;
-    let shouldIncludeCountryInitials = !!(codingInfo & 0x08);
-    let spareBits = codingInfo & 0x07;
+    let textEncoding = (codingInfo & 0x70) >> 4,
+        shouldIncludeCountryInitials = !!(codingInfo & 0x08),
+        spareBits = codingInfo & 0x07;
     let resultString;
 
     switch (textEncoding) {
@@ -8613,11 +7657,11 @@ let CdmaPDUHelper = {
    * Data writters
    */
   writeInt: function writeInt(value) {
-    Buf.writeInt32(value);
+    Buf.writeUint32(value);
   },
 
   writeByte: function writeByte(value) {
-    Buf.writeInt32(value & 0xFF);
+    Buf.writeUint32(value & 0xFF);
   },
 
   /**
@@ -8632,7 +7676,6 @@ let CdmaPDUHelper = {
       case PDU_DCS_MSG_CODING_16BITS_ALPHABET:
         return PDU_CDMA_MSG_CODING_UNICODE;
     }
-    throw new Error("gsmDcsToCdmaEncoding(): Invalid GSM SMS DCS value: " + encoding);
   },
 
   /**
@@ -8666,7 +7709,7 @@ let CdmaPDUHelper = {
         result.address = [];
         break;
       }
-      result.address.push(addrDigit);
+      result.address.push(addrDigit)
     }
 
     // Address can't be encoded with DTMF, then use 7-bit ASCII
@@ -8717,9 +7760,6 @@ let CdmaPDUHelper = {
 
     // User Data
     this.encodeUserDataMsg(options);
-
-    // Reply Option
-    this.encodeUserDataReplyOption(options);
 
     return userDataBuffer;
   },
@@ -8819,6 +7859,7 @@ let CdmaPDUHelper = {
               if (msgDigit == -1) {
                 throw new Error("'" + msgDigitChar + "' is not in 7 bit alphabet "
                                 + langIndex + ":" + langShiftIndex + "!");
+                break;
               }
 
               if (msgDigit === PDU_NL_RESERVED_CONTROL) {
@@ -8843,21 +7884,6 @@ let CdmaPDUHelper = {
     // Fill length
     let currentPosition = BitBufferHelper.getWriteBufferSize();
     BitBufferHelper.overwriteWriteBuffer(lengthPosition - 1, [currentPosition - lengthPosition]);
-  },
-
-  /**
-   * User data subparameter encoder : Reply Option
-   *
-   * @see 3GGP2 C.S0015-B 2.0, 4.5.11 Reply Option
-   */
-  encodeUserDataReplyOption: function cdma_encodeUserDataReplyOption(options) {
-    if (options.requestStatusReport) {
-      BitBufferHelper.writeBits(PDU_CDMA_MSG_USERDATA_REPLY_OPTION, 8);
-      BitBufferHelper.writeBits(1, 8);
-      BitBufferHelper.writeBits(0, 1); // USER_ACK_REQ
-      BitBufferHelper.writeBits(1, 1); // DAK_REQ
-      BitBufferHelper.flushWithPadding();
-    }
   },
 
   /**
@@ -8907,55 +7933,35 @@ let CdmaPDUHelper = {
       message.sender += String.fromCharCode(addrDigit);
     }
 
-    // Bearer Data
+    // User Data
     this.decodeUserData(message);
-
-    // Bearer Data Sub-Parameter: User Data
-    let userData = message[PDU_CDMA_MSG_USERDATA_BODY];
-    [message.header, message.body, message.encoding] =
-      (userData)? [userData.header, userData.body, userData.encoding]
-                : [null, null, null];
-
-    // Bearer Data Sub-Parameter: Message Status
-    // Success Delivery (0) if both Message Status and User Data are absent.
-    // Message Status absent (-1) if only User Data is available.
-    let msgStatus = message[PDU_CDMA_MSG_USER_DATA_MSG_STATUS];
-    [message.errorClass, message.msgStatus] =
-      (msgStatus)? [msgStatus.errorClass, msgStatus.msgStatus]
-                 : ((message.body)? [-1, -1]: [0, 0]);
 
     // Transform message to GSM msg
     let msg = {
-      SMSC:             "",
-      mti:              0,
-      udhi:             0,
-      sender:           message.sender,
-      recipient:        null,
-      pid:              PDU_PID_DEFAULT,
-      epid:             PDU_PID_DEFAULT,
-      dcs:              0,
-      mwi:              null,
-      replace:          false,
-      header:           message.header,
-      body:             message.body,
-      data:             null,
-      timestamp:        message[PDU_CDMA_MSG_USERDATA_TIMESTAMP],
-      language:         message[PDU_CDMA_LANGUAGE_INDICATOR],
-      status:           null,
-      scts:             null,
-      dt:               null,
-      encoding:         message.encoding,
-      messageClass:     GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_NORMAL],
-      messageType:      message.messageType,
-      serviceCategory:  message.service,
-      subMsgType:       message[PDU_CDMA_MSG_USERDATA_MSG_ID].msgType,
-      msgId:            message[PDU_CDMA_MSG_USERDATA_MSG_ID].msgId,
-      errorClass:       message.errorClass,
-      msgStatus:        message.msgStatus
+      SMSC:           "",
+      mti:            0,
+      udhi:           0,
+      sender:         message.sender,
+      recipient:      null,
+      pid:            PDU_PID_DEFAULT,
+      epid:           PDU_PID_DEFAULT,
+      dcs:            0,
+      mwi:            null, //message[PDU_CDMA_MSG_USERDATA_BODY].header ? message[PDU_CDMA_MSG_USERDATA_BODY].header.mwi : null,
+      replace:        false,
+      header:         message[PDU_CDMA_MSG_USERDATA_BODY].header,
+      body:           message[PDU_CDMA_MSG_USERDATA_BODY].body,
+      data:           null,
+      timestamp:      message[PDU_CDMA_MSG_USERDATA_TIMESTAMP],
+      status:         null,
+      scts:           null,
+      dt:             null,
+      encoding:       message[PDU_CDMA_MSG_USERDATA_BODY].encoding,
+      messageClass:   GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_NORMAL]
     };
 
     return msg;
   },
+
 
   /**
    * Helper for processing received SMS parcel data.
@@ -8986,11 +7992,11 @@ let CdmaPDUHelper = {
    * Data readers
    */
   readInt: function readInt() {
-    return Buf.readInt32();
+    return Buf.readUint32();
   },
 
   readByte: function readByte() {
-    return (Buf.readInt32() & 0xFF);
+    return (Buf.readUint32() & 0xFF);
   },
 
   /**
@@ -9049,17 +8055,11 @@ let CdmaPDUHelper = {
         case PDU_CDMA_MSG_USERDATA_TIMESTAMP:
           message[id] = this.decodeUserDataTimestamp();
           break;
-        case PDU_CDMA_MSG_USERDATA_REPLY_OPTION:
-          message[id] = this.decodeUserDataReplyOption();
-          break;
-        case PDU_CDMA_LANGUAGE_INDICATOR:
-          message[id] = this.decodeLanguageIndicator();
+        case PDU_CDMA_REPLY_OPTION:
+          message[id] = this.decodeUserDataReplyAction();
           break;
         case PDU_CDMA_MSG_USERDATA_CALLBACK_NUMBER:
           message[id] = this.decodeUserDataCallbackNumber();
-          break;
-        case PDU_CDMA_MSG_USER_DATA_MSG_STATUS:
-          message[id] = this.decodeUserDataMsgStatus();
           break;
       }
 
@@ -9116,14 +8116,14 @@ let CdmaPDUHelper = {
 
       switch (identifier) {
         case PDU_IEI_CONCATENATED_SHORT_MESSAGES_8BIT: {
-          let ref = BitBufferHelper.readBits(8),
-              max = BitBufferHelper.readBits(8),
-              seq = BitBufferHelper.readBits(8);
-          if (max && seq && (seq <= max)) {
-            header.segmentRef = ref;
-            header.segmentMaxSeq = max;
-            header.segmentSeq = seq;
-          }
+            let ref = BitBufferHelper.readBits(8),
+                max = BitBufferHelper.readBits(8),
+                seq = BitBufferHelper.readBits(8);
+            if (max && seq && (seq <= max)) {
+              header.segmentRef = ref;
+              header.segmentMaxSeq = max;
+              header.segmentSeq = seq;
+            }
           break;
         }
         case PDU_IEI_APPLICATION_PORT_ADDRESSING_SCHEME_8BIT: {
@@ -9206,13 +8206,16 @@ let CdmaPDUHelper = {
           mwi.active = mwi.msgCount > 0;
 
           if (DEBUG) debug("MWI in TP_UDH received: " + JSON.stringify(mwi));
+
           break;
         }
-        default:
+        default: {
           // Drop unsupported id
           for (let i = 0; i < length; i++) {
             BitBufferHelper.readBits(8);
           }
+          break;
+        }
       }
     }
 
@@ -9283,7 +8286,6 @@ let CdmaPDUHelper = {
             result = this.decodeAddr(addrInfo);
             break;
         }
-        // Fall through.
       case PDU_CDMA_MSG_CODING_7BITS_ASCII:
       case PDU_CDMA_MSG_CODING_IA5:           // TODO : Require Test
         while(msgBodySize > 0) {
@@ -9354,10 +8356,8 @@ let CdmaPDUHelper = {
       case PDU_CDMA_MSG_CODING_SHIFT_JIS:
         // Reference : http://msdn.microsoft.com/en-US/goglobal/cc305152.aspx
         //             http://demo.icu-project.org/icu-bin/convexp?conv=Shift_JIS
-        // Fall through.
       case PDU_CDMA_MSG_CODING_KOREAN:
       case PDU_CDMA_MSG_CODING_GSM_DCS:
-        // Fall through.
       default:
         break;
     }
@@ -9427,7 +8427,7 @@ let CdmaPDUHelper = {
    *
    * @see 3GGP2 C.S0015-B 2.0, 4.5.11 Reply Option
    */
-  decodeUserDataReplyOption: function cdma_decodeUserDataReplyOption() {
+  decodeUserDataReplyAction: function cdma_decodeUserDataReplyAction() {
     let replyAction = BitBufferHelper.readBits(4),
         result = { userAck: (replyAction & 0x8) ? true : false,
                    deliverAck: (replyAction & 0x4) ? true : false,
@@ -9435,17 +8435,6 @@ let CdmaPDUHelper = {
                    report: (replyAction & 0x1) ? true : false
                  };
 
-    return result;
-  },
-
-  /**
-   * User data subparameter decoder : Language Indicator
-   *
-   * @see 3GGP2 C.S0015-B 2.0, 4.5.14 Language Indicator
-   */
-  decodeLanguageIndicator: function cdma_decodeLanguageIndicator() {
-    let language = BitBufferHelper.readBits(8);
-    let result = CB_CDMA_LANG_GROUP[language];
     return result;
   },
 
@@ -9473,145 +8462,67 @@ let CdmaPDUHelper = {
     }
 
     return result;
-  },
-
-  /**
-   * User data subparameter decoder : Message Status
-   *
-   * @see 3GGP2 C.S0015-B 2.0, 4.5.21 Message Status
-   */
-  decodeUserDataMsgStatus: function cdma_decodeUserDataMsgStatus() {
-    let result = {
-      errorClass: BitBufferHelper.readBits(2),
-      msgStatus: BitBufferHelper.readBits(6)
-    };
-
-    return result;
-  },
-
-  /**
-   * Decode information record parcel.
-   */
-  decodeInformationRecord: function cdma_decodeInformationRecord() {
-    let record = {};
-    let numOfRecords = Buf.readInt32();
-
-    let type;
-    for (let i = 0; i < numOfRecords; i++) {
-      type = Buf.readInt32();
-
-      switch (type) {
-        /*
-         * Every type is encaped by ril, except extended display
-         */
-        case PDU_CDMA_INFO_REC_TYPE_DISPLAY:
-          record.display = Buf.readString();
-          break;
-        case PDU_CDMA_INFO_REC_TYPE_CALLED_PARTY_NUMBER:
-          record.calledNumber = {};
-          record.calledNumber.number = Buf.readString();
-          record.calledNumber.type = Buf.readInt32();
-          record.calledNumber.plan = Buf.readInt32();
-          record.calledNumber.pi = Buf.readInt32();
-          record.calledNumber.si = Buf.readInt32();
-          break;
-        case PDU_CDMA_INFO_REC_TYPE_CALLING_PARTY_NUMBER:
-          record.callingNumber = {};
-          record.callingNumber.number = Buf.readString();
-          record.callingNumber.type = Buf.readInt32();
-          record.callingNumber.plan = Buf.readInt32();
-          record.callingNumber.pi = Buf.readInt32();
-          record.callingNumber.si = Buf.readInt32();
-          break;
-        case PDU_CDMA_INFO_REC_TYPE_CONNECTED_NUMBER:
-          record.connectedNumber = {};
-          record.connectedNumber.number = Buf.readString();
-          record.connectedNumber.type = Buf.readInt32();
-          record.connectedNumber.plan = Buf.readInt32();
-          record.connectedNumber.pi = Buf.readInt32();
-          record.connectedNumber.si = Buf.readInt32();
-          break;
-        case PDU_CDMA_INFO_REC_TYPE_SIGNAL:
-          record.signal = {};
-          record.signal.present = Buf.readInt32();
-          record.signal.type = Buf.readInt32();
-          record.signal.alertPitch = Buf.readInt32();
-          record.signal.signal = Buf.readInt32();
-          break;
-        case PDU_CDMA_INFO_REC_TYPE_REDIRECTING_NUMBER:
-          record.redirect = {};
-          record.redirect.number = Buf.readString();
-          record.redirect.type = Buf.readInt32();
-          record.redirect.plan = Buf.readInt32();
-          record.redirect.pi = Buf.readInt32();
-          record.redirect.si = Buf.readInt32();
-          record.redirect.reason = Buf.readInt32();
-          break;
-        case PDU_CDMA_INFO_REC_TYPE_LINE_CONTROL:
-          record.lineControl = {};
-          record.lineControl.polarityIncluded = Buf.readInt32();
-          record.lineControl.toggle = Buf.readInt32();
-          record.lineControl.recerse = Buf.readInt32();
-          record.lineControl.powerDenial = Buf.readInt32();
-          break;
-        case PDU_CDMA_INFO_REC_TYPE_EXTENDED_DISPLAY:
-          let length = Buf.readInt32();
-          /*
-           * Extended display is still in format defined in
-           * C.S0005-F v1.0, 3.7.5.16
-           */
-          record.extendedDisplay = {};
-
-          let headerByte = Buf.readInt32();
-          length--;
-          // Based on spec, headerByte must be 0x80 now
-          record.extendedDisplay.indicator = (headerByte >> 7);
-          record.extendedDisplay.type = (headerByte & 0x7F);
-          record.extendedDisplay.records = [];
-
-          while (length > 0) {
-            let display = {};
-
-            display.tag = Buf.readInt32();
-            length--;
-            if (display.tag !== INFO_REC_EXTENDED_DISPLAY_BLANK &&
-                display.tag !== INFO_REC_EXTENDED_DISPLAY_SKIP) {
-              display.content = Buf.readString();
-              length -= (display.content.length + 1);
-            }
-
-            record.extendedDisplay.records.push(display);
-          }
-          break;
-        case PDU_CDMA_INFO_REC_TYPE_T53_CLIR:
-          record.cause = Buf.readInt32();
-          break;
-        case PDU_CDMA_INFO_REC_TYPE_T53_AUDIO_CONTROL:
-          record.audioControl = {};
-          record.audioControl.upLink = Buf.readInt32();
-          record.audioControl.downLink = Buf.readInt32();
-          break;
-        case PDU_CDMA_INFO_REC_TYPE_T53_RELEASE:
-          // Fall through
-        default:
-          throw new Error("UNSOLICITED_CDMA_INFO_REC(), Unsupported information record type " + record.type + "\n");
-      }
-    }
-
-    return record;
   }
 };
 
 let StkCommandParamsFactory = {
   createParam: function createParam(cmdDetails, ctlvs) {
-    let method = StkCommandParamsFactory[cmdDetails.typeOfCommand];
-    if (typeof method != "function") {
-      if (DEBUG) {
-        debug("Unknown proactive command " + cmdDetails.typeOfCommand.toString(16));
-      }
-      return null;
+    let param;
+    switch (cmdDetails.typeOfCommand) {
+      case STK_CMD_REFRESH:
+        param = this.processRefresh(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_POLL_INTERVAL:
+        param = this.processPollInterval(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_POLL_OFF:
+        param = this.processPollOff(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_PROVIDE_LOCAL_INFO:
+        param = this.processProvideLocalInfo(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_SET_UP_EVENT_LIST:
+        param = this.processSetUpEventList(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_SET_UP_MENU:
+      case STK_CMD_SELECT_ITEM:
+        param = this.processSelectItem(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_DISPLAY_TEXT:
+        param = this.processDisplayText(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_SET_UP_IDLE_MODE_TEXT:
+        param = this.processSetUpIdleModeText(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_GET_INKEY:
+        param = this.processGetInkey(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_GET_INPUT:
+        param = this.processGetInput(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_SEND_SS:
+      case STK_CMD_SEND_USSD:
+      case STK_CMD_SEND_SMS:
+      case STK_CMD_SEND_DTMF:
+        param = this.processEventNotify(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_SET_UP_CALL:
+        param = this.processSetupCall(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_LAUNCH_BROWSER:
+        param = this.processLaunchBrowser(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_PLAY_TONE:
+        param = this.processPlayTone(cmdDetails, ctlvs);
+        break;
+      case STK_CMD_TIMER_MANAGEMENT:
+        param = this.processTimerManagement(cmdDetails, ctlvs);
+        break;
+      default:
+        debug("unknown proactive command");
+        break;
     }
-    return method.call(this, cmdDetails, ctlvs);
+    return param;
   },
 
   /**
@@ -9719,7 +8630,7 @@ let StkCommandParamsFactory = {
       }
     }
 
-    if (menu.items.length === 0) {
+    if (menu.items.length == 0) {
       RIL.sendStkTerminalResponse({
         command: cmdDetails,
         resultCode: STK_RESULT_REQUIRED_VALUES_MISSING});
@@ -9906,19 +8817,20 @@ let StkCommandParamsFactory = {
 
   processSetupCall: function processSetupCall(cmdDetails, ctlvs) {
     let call = {};
-    let iter = Iterator(ctlvs);
 
-    let ctlv = StkProactiveCmdHelper.searchForNextTag(COMPREHENSIONTLV_TAG_ALPHA_ID, iter);
-    if (ctlv) {
-      call.confirmMessage = ctlv.value.identifier;
+    for (let i = 0; i < ctlvs.length; i++) {
+      let ctlv = ctlvs[i];
+      if (ctlv.tag == COMPREHENSIONTLV_TAG_ALPHA_ID) {
+        if (!call.confirmMessage) {
+          call.confirmMessage = ctlv.value.identifier;
+        } else {
+          call.callMessage = ctlv.value.identifier;
+          break;
+        }
+      }
     }
 
-    ctlv = StkProactiveCmdHelper.searchForNextTag(COMPREHENSIONTLV_TAG_ALPHA_ID, iter);
-    if (ctlv) {
-      call.callMessage = ctlv.value.identifier;
-    }
-
-    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ADDRESS, ctlvs);
+    let ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ADDRESS, ctlvs);
     if (!ctlv) {
       RIL.sendStkTerminalResponse({
         command: cmdDetails,
@@ -9948,7 +8860,7 @@ let StkCommandParamsFactory = {
     }
     browser.url = ctlv.value.url;
 
-    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ALPHA_ID, ctlvs);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ALPHA_ID, ctlvs)
     if (ctlv) {
       browser.confirmMessage = ctlv.value.identifier;
     }
@@ -9979,7 +8891,7 @@ let StkCommandParamsFactory = {
     }
 
     // vibrate is only defined in TS 102.223
-    playTone.isVibrate = (cmdDetails.commandQualifier & 0x01) !== 0x00;
+    playTone.isVibrate = (cmdDetails.commandQualifier & 0x01) != 0x00;
 
     return playTone;
   },
@@ -10017,109 +8929,51 @@ let StkCommandParamsFactory = {
     }
 
     return timer;
-  },
-
-   /**
-    * Construct a param for BIP commands.
-    *
-    * @param cmdDetails
-    *        The value object of CommandDetails TLV.
-    * @param ctlvs
-    *        The all TLVs in this proactive command.
-    */
-  processBipMessage: function processBipMessage(cmdDetails, ctlvs) {
-    let bipMsg = {};
-
-    let ctlv = StkProactiveCmdHelper.searchForTag(
-        COMPREHENSIONTLV_TAG_ALPHA_ID, ctlvs);
-    if (ctlv) {
-      bipMsg.text = ctlv.value.identifier;
-    }
-
-    return bipMsg;
   }
-};
-StkCommandParamsFactory[STK_CMD_REFRESH] = function STK_CMD_REFRESH(cmdDetails, ctlvs) {
-  return this.processRefresh(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_POLL_INTERVAL] = function STK_CMD_POLL_INTERVAL(cmdDetails, ctlvs) {
-  return this.processPollInterval(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_POLL_OFF] = function STK_CMD_POLL_OFF(cmdDetails, ctlvs) {
-  return this.processPollOff(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_PROVIDE_LOCAL_INFO] = function STK_CMD_PROVIDE_LOCAL_INFO(cmdDetails, ctlvs) {
-  return this.processProvideLocalInfo(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_SET_UP_EVENT_LIST] = function STK_CMD_SET_UP_EVENT_LIST(cmdDetails, ctlvs) {
-  return this.processSetUpEventList(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_SET_UP_MENU] = function STK_CMD_SET_UP_MENU(cmdDetails, ctlvs) {
-  return this.processSelectItem(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_SELECT_ITEM] = function STK_CMD_SELECT_ITEM(cmdDetails, ctlvs) {
-  return this.processSelectItem(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_DISPLAY_TEXT] = function STK_CMD_DISPLAY_TEXT(cmdDetails, ctlvs) {
-  return this.processDisplayText(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_SET_UP_IDLE_MODE_TEXT] = function STK_CMD_SET_UP_IDLE_MODE_TEXT(cmdDetails, ctlvs) {
-  return this.processSetUpIdleModeText(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_GET_INKEY] = function STK_CMD_GET_INKEY(cmdDetails, ctlvs) {
-  return this.processGetInkey(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_GET_INPUT] = function STK_CMD_GET_INPUT(cmdDetails, ctlvs) {
-  return this.processGetInput(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_SEND_SS] = function STK_CMD_SEND_SS(cmdDetails, ctlvs) {
-  return this.processEventNotify(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_SEND_USSD] = function STK_CMD_SEND_USSD(cmdDetails, ctlvs) {
-  return this.processEventNotify(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_SEND_SMS] = function STK_CMD_SEND_SMS(cmdDetails, ctlvs) {
-  return this.processEventNotify(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_SEND_DTMF] = function STK_CMD_SEND_DTMF(cmdDetails, ctlvs) {
-  return this.processEventNotify(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_SET_UP_CALL] = function STK_CMD_SET_UP_CALL(cmdDetails, ctlvs) {
-  return this.processSetupCall(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_LAUNCH_BROWSER] = function STK_CMD_LAUNCH_BROWSER(cmdDetails, ctlvs) {
-  return this.processLaunchBrowser(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_PLAY_TONE] = function STK_CMD_PLAY_TONE(cmdDetails, ctlvs) {
-  return this.processPlayTone(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_TIMER_MANAGEMENT] = function STK_CMD_TIMER_MANAGEMENT(cmdDetails, ctlvs) {
-  return this.processTimerManagement(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_OPEN_CHANNEL] = function STK_CMD_OPEN_CHANNEL(cmdDetails, ctlvs) {
-  return this.processBipMessage(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_CLOSE_CHANNEL] = function STK_CMD_CLOSE_CHANNEL(cmdDetails, ctlvs) {
-  return this.processBipMessage(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_RECEIVE_DATA] = function STK_CMD_RECEIVE_DATA(cmdDetails, ctlvs) {
-  return this.processBipMessage(cmdDetails, ctlvs);
-};
-StkCommandParamsFactory[STK_CMD_SEND_DATA] = function STK_CMD_SEND_DATA(cmdDetails, ctlvs) {
-  return this.processBipMessage(cmdDetails, ctlvs);
 };
 
 let StkProactiveCmdHelper = {
   retrieve: function retrieve(tag, length) {
-    let method = StkProactiveCmdHelper[tag];
-    if (typeof method != "function") {
-      if (DEBUG) {
-        debug("Unknown comprehension tag " + tag.toString(16));
-      }
-      Buf.seekIncoming(length * Buf.PDU_HEX_OCTET_SIZE);
-      return null;
+    switch (tag) {
+      case COMPREHENSIONTLV_TAG_COMMAND_DETAILS:
+        return this.retrieveCommandDetails(length);
+      case COMPREHENSIONTLV_TAG_DEVICE_ID:
+        return this.retrieveDeviceId(length);
+      case COMPREHENSIONTLV_TAG_ALPHA_ID:
+        return this.retrieveAlphaId(length);
+      case COMPREHENSIONTLV_TAG_DURATION:
+        return this.retrieveDuration(length);
+      case COMPREHENSIONTLV_TAG_ADDRESS:
+        return this.retrieveAddress(length);
+      case COMPREHENSIONTLV_TAG_TEXT_STRING:
+        return this.retrieveTextString(length);
+      case COMPREHENSIONTLV_TAG_TONE:
+        return this.retrieveTone(length);
+      case COMPREHENSIONTLV_TAG_ITEM:
+        return this.retrieveItem(length);
+      case COMPREHENSIONTLV_TAG_ITEM_ID:
+        return this.retrieveItemId(length);
+      case COMPREHENSIONTLV_TAG_RESPONSE_LENGTH:
+        return this.retrieveResponseLength(length);
+      case COMPREHENSIONTLV_TAG_FILE_LIST:
+        return this.retrieveFileList(length);
+      case COMPREHENSIONTLV_TAG_DEFAULT_TEXT:
+        return this.retrieveDefaultText(length);
+      case COMPREHENSIONTLV_TAG_EVENT_LIST:
+        return this.retrieveEventList(length);
+      case COMPREHENSIONTLV_TAG_TIMER_IDENTIFIER:
+        return this.retrieveTimerId(length);
+      case COMPREHENSIONTLV_TAG_TIMER_VALUE:
+        return this.retrieveTimerValue(length);
+      case COMPREHENSIONTLV_TAG_IMMEDIATE_RESPONSE:
+        return this.retrieveImmediaResponse(length);
+      case COMPREHENSIONTLV_TAG_URL:
+        return this.retrieveUrl(length);
+      default:
+        debug("StkProactiveCmdHelper: unknown tag " + tag.toString(16));
+        Buf.seekIncoming(length * PDU_HEX_OCTET_SIZE);
+        return null;
     }
-    return method.call(this, length);
   },
 
   /**
@@ -10430,69 +9284,14 @@ let StkProactiveCmdHelper = {
   },
 
   searchForTag: function searchForTag(tag, ctlvs) {
-    let iter = Iterator(ctlvs);
-    return this.searchForNextTag(tag, iter);
-  },
-
-  searchForNextTag: function searchForNextTag(tag, iter) {
-    for (let [index, ctlv] in iter) {
+    for (let i = 0; i < ctlvs.length; i++) {
+      let ctlv = ctlvs[i];
       if ((ctlv.tag & ~COMPREHENSIONTLV_FLAG_CR) == tag) {
         return ctlv;
       }
     }
     return null;
   },
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_COMMAND_DETAILS] = function COMPREHENSIONTLV_TAG_COMMAND_DETAILS(length) {
-  return this.retrieveCommandDetails(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_DEVICE_ID] = function COMPREHENSIONTLV_TAG_DEVICE_ID(length) {
-  return this.retrieveDeviceId(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_ALPHA_ID] = function COMPREHENSIONTLV_TAG_ALPHA_ID(length) {
-  return this.retrieveAlphaId(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_DURATION] = function COMPREHENSIONTLV_TAG_DURATION(length) {
-  return this.retrieveDuration(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_ADDRESS] = function COMPREHENSIONTLV_TAG_ADDRESS(length) {
-  return this.retrieveAddress(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_TEXT_STRING] = function COMPREHENSIONTLV_TAG_TEXT_STRING(length) {
-  return this.retrieveTextString(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_TONE] = function COMPREHENSIONTLV_TAG_TONE(length) {
-  return this.retrieveTone(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_ITEM] = function COMPREHENSIONTLV_TAG_ITEM(length) {
-  return this.retrieveItem(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_ITEM_ID] = function COMPREHENSIONTLV_TAG_ITEM_ID(length) {
-  return this.retrieveItemId(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_RESPONSE_LENGTH] = function COMPREHENSIONTLV_TAG_RESPONSE_LENGTH(length) {
-  return this.retrieveResponseLength(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_FILE_LIST] = function COMPREHENSIONTLV_TAG_FILE_LIST(length) {
-  return this.retrieveFileList(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_DEFAULT_TEXT] = function COMPREHENSIONTLV_TAG_DEFAULT_TEXT(length) {
-  return this.retrieveDefaultText(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_EVENT_LIST] = function COMPREHENSIONTLV_TAG_EVENT_LIST(length) {
-  return this.retrieveEventList(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_TIMER_IDENTIFIER] = function COMPREHENSIONTLV_TAG_TIMER_IDENTIFIER(length) {
-  return this.retrieveTimerId(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_TIMER_VALUE] = function COMPREHENSIONTLV_TAG_TIMER_VALUE(length) {
-  return this.retrieveTimerValue(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_IMMEDIATE_RESPONSE] = function COMPREHENSIONTLV_TAG_IMMEDIATE_RESPONSE(length) {
-  return this.retrieveImmediaResponse(length);
-};
-StkProactiveCmdHelper[COMPREHENSIONTLV_TAG_URL] = function COMPREHENSIONTLV_TAG_URL(length) {
-  return this.retrieveUrl(length);
 };
 
 let ComprehensionTlvHelper = {
@@ -10505,7 +9304,7 @@ let ComprehensionTlvHelper = {
     hlen++;
 
     // TS 101.220, clause 7.1.1
-    let tag, cr;
+    let tag, tagValue, cr;
     switch (temp) {
       // TS 101.220, clause 7.1.1
       case 0x0: // Not used.
@@ -10514,6 +9313,7 @@ let ComprehensionTlvHelper = {
         RIL.sendStkTerminalResponse({
           resultCode: STK_RESULT_CMD_DATA_NOT_UNDERSTOOD});
         throw new Error("Invalid octet when parsing Comprehension TLV :" + temp);
+        break;
       case 0x7f: // Tag is three byte format.
         // TS 101.220 clause 7.1.1.2.
         // | Byte 1 | Byte 2                        | Byte 3 |
@@ -10521,7 +9321,7 @@ let ComprehensionTlvHelper = {
         // | 0x7f   |CR | Tag Value                          |
         tag = (GsmPDUHelper.readHexOctet() << 8) | GsmPDUHelper.readHexOctet();
         hlen += 2;
-        cr = (tag & 0x8000) !== 0;
+        cr = (tag & 0x8000) != 0;
         tag &= ~0x8000;
         break;
       default: // Tag is single byte format.
@@ -10529,7 +9329,7 @@ let ComprehensionTlvHelper = {
         // TS 101.220 clause 7.1.1.1.
         // | 8 | 7 | 6 | 5 | 4 | 3 | 2 | 1 |
         // |CR | Tag Value                 |
-        cr = (tag & 0x80) !== 0;
+        cr = (tag & 0x80) != 0;
         tag &= ~0x80;
     }
 
@@ -10577,7 +9377,7 @@ let ComprehensionTlvHelper = {
     } else {
       RIL.sendStkTerminalResponse({
         resultCode: STK_RESULT_CMD_DATA_NOT_UNDERSTOOD});
-      throw new Error("Invalid octet in Comprehension TLV :" + temp);
+      throw new Error("Invalid octet in Comprehension TLV :" + length);
     }
 
     let ctlv = {
@@ -10813,6 +9613,7 @@ let BerTlvHelper = {
       RIL.sendStkTerminalResponse({
         resultCode: STK_RESULT_CMD_DATA_NOT_UNDERSTOOD});
       throw new Error("BerTlvHelper value length too long!!");
+      return;
     }
 
     let ctlvs = ComprehensionTlvHelper.decodeChunks(length);
@@ -10861,13 +9662,12 @@ let ICCFileHelper = {
       case ICC_EF_SST:
       case ICC_EF_PHASE:
       case ICC_EF_CBMI:
-      case ICC_EF_CBMID:
       case ICC_EF_CBMIR:
       case ICC_EF_OPL:
       case ICC_EF_PNN:
         return EF_PATH_MF_SIM + EF_PATH_DF_GSM;
       default:
-        return null;
+        return null
     }
   },
 
@@ -10884,7 +9684,6 @@ let ICCFileHelper = {
       case ICC_EF_SPN:
       case ICC_EF_SPDI:
       case ICC_EF_CBMI:
-      case ICC_EF_CBMID:
       case ICC_EF_CBMIR:
       case ICC_EF_OPL:
       case ICC_EF_PNN:
@@ -10902,13 +9701,10 @@ let ICCFileHelper = {
    */
   getRuimEFPath: function getRuimEFPath(fileId) {
     switch(fileId) {
-      case ICC_EF_CSIM_IMSI_M:
       case ICC_EF_CSIM_CDMAHOME:
       case ICC_EF_CSIM_CST:
       case ICC_EF_CSIM_SPN:
         return EF_PATH_MF_SIM + EF_PATH_DF_CDMA;
-      case ICC_EF_FDN:
-        return EF_PATH_MF_SIM + EF_PATH_DF_TELECOM;
       default:
         return null;
     }
@@ -11017,7 +9813,6 @@ let ICCIOHelper = {
     }
 
     options.type = EF_TYPE_LINEAR_FIXED;
-    options.pathId = ICCFileHelper.getEFPath(options.fileId);
     let cb = options.callback;
     options.callback = function callback(options) {
       options.callback = cb;
@@ -11082,12 +9877,12 @@ let ICCIOHelper = {
    * Process a ICC_COMMAND_GET_RESPONSE type command for REQUEST_SIM_IO.
    */
   processICCIOGetResponse: function processICCIOGetResponse(options) {
-    let strLen = Buf.readInt32();
+    let length = Buf.readUint32();
 
     // The format is from TS 51.011, clause 9.2.1
 
     // Skip RFU, data[0] data[1]
-    Buf.seekIncoming(2 * Buf.PDU_HEX_OCTET_SIZE);
+    Buf.seekIncoming(2 * PDU_HEX_OCTET_SIZE);
 
     // File size, data[2], data[3]
     options.fileSize = (GsmPDUHelper.readHexOctet() << 8) |
@@ -11112,7 +9907,7 @@ let ICCIOHelper = {
     //      1 byte File status, data[11],
     //      1 byte Length of the following data, data[12].
     Buf.seekIncoming(((RESPONSE_DATA_STRUCTURE - RESPONSE_DATA_FILE_TYPE - 1) *
-        Buf.PDU_HEX_OCTET_SIZE));
+        PDU_HEX_OCTET_SIZE));
 
     // Read Structure of EF, data[13]
     let efType = GsmPDUHelper.readHexOctet();
@@ -11126,10 +9921,10 @@ let ICCIOHelper = {
       options.recordSize = GsmPDUHelper.readHexOctet();
       options.totalRecords = options.fileSize / options.recordSize;
     } else {
-      Buf.seekIncoming(1 * Buf.PDU_HEX_OCTET_SIZE);
+      Buf.seekIncoming(1 * PDU_HEX_OCTET_SIZE);
     }
 
-    Buf.readStringDelimiter(strLen);
+    Buf.readStringDelimiter(length);
 
     if (options.callback) {
       options.callback(options);
@@ -11205,29 +10000,30 @@ let ICCRecordHelper = {
    * Fetch ICC records.
    */
   fetchICCRecords: function fetchICCRecords() {
-    this.readICCID();
+    this.getICCID();
     RIL.getIMSI();
-    this.readAD();
-    this.readSST();
+    this.getMSISDN();
+    this.getAD();
+    this.getSST();
+    this.getMBDN();
   },
 
   /**
-   * Read EF_phase.
+   * Get EF_phase.
    * This EF is only available in SIM.
    */
-  readICCPhase: function readICCPhase() {
+  getICCPhase: function getICCPhase() {
     function callback() {
-      let strLen = Buf.readInt32();
+      let length = Buf.readUint32();
 
       let phase = GsmPDUHelper.readHexOctet();
       // If EF_phase is coded '03' or greater, an ME supporting STK shall
       // perform the PROFILE DOWNLOAD procedure.
-      if (RILQUIRKS_SEND_STK_PROFILE_DOWNLOAD &&
-          phase >= ICC_PHASE_2_PROFILE_DOWNLOAD_REQUIRED) {
+      if (phase >= ICC_PHASE_2_PROFILE_DOWNLOAD_REQUIRED) {
         RIL.sendStkTerminalProfile(STK_SUPPORTED_TERMINAL_PROFILE);
       }
 
-      Buf.readStringDelimiter(strLen);
+      Buf.readStringDelimiter(length);
     }
 
     ICCIOHelper.loadTransparentEF({fileId: ICC_EF_PHASE,
@@ -11237,12 +10033,11 @@ let ICCRecordHelper = {
   /**
    * Read the ICCID.
    */
-  readICCID: function readICCID() {
+  getICCID: function getICCID() {
     function callback() {
-      let strLen = Buf.readInt32();
-      let octetLen = strLen / 2;
-      RIL.iccInfo.iccid = GsmPDUHelper.readSwappedNibbleBcdString(octetLen);
-      Buf.readStringDelimiter(strLen);
+      let length = Buf.readUint32();
+      RIL.iccInfo.iccid = GsmPDUHelper.readSwappedNibbleBcdString(length / 2);
+      Buf.readStringDelimiter(length);
 
       if (DEBUG) debug("ICCID: " + RIL.iccInfo.iccid);
       if (RIL.iccInfo.iccid) {
@@ -11257,12 +10052,10 @@ let ICCRecordHelper = {
   /**
    * Read the MSISDN from the ICC.
    */
-  readMSISDN: function readMSISDN() {
+  getMSISDN: function getMSISDN() {
     function callback(options) {
       let contact = GsmPDUHelper.readAlphaIdDiallingNumber(options.recordSize);
-      if (!contact ||
-          (RIL.iccInfo.msisdn !== undefined &&
-           RIL.iccInfo.msisdn === contact.number)) {
+      if (!contact || RIL.iccInfo.msisdn === contact.number) {
         return;
       }
       RIL.iccInfo.msisdn = contact.number;
@@ -11277,13 +10070,13 @@ let ICCRecordHelper = {
   /**
    * Read the AD (Administrative Data) from the ICC.
    */
-  readAD: function readAD() {
+  getAD: function getAD() {
     function callback() {
-      let strLen = Buf.readInt32();
+      let length = Buf.readUint32();
       // Each octet is encoded into two chars.
-      let octetLen = strLen / 2;
-      let ad = GsmPDUHelper.readHexOctetArray(octetLen);
-      Buf.readStringDelimiter(strLen);
+      let len = length / 2;
+      let ad = GsmPDUHelper.readHexOctetArray(len);
+      Buf.readStringDelimiter(length);
 
       if (DEBUG) {
         let str = "";
@@ -11293,12 +10086,13 @@ let ICCRecordHelper = {
         debug("AD: " + str);
       }
 
-      // The 4th byte of the response is the length of MNC.
-      let mccMnc = ICCUtilsHelper.parseMccMncFromImsi(RIL.iccInfoPrivate.imsi,
-                                                      ad && ad[3]);
-      if (mccMnc) {
-        RIL.iccInfo.mcc = mccMnc.mcc;
-        RIL.iccInfo.mnc = mccMnc.mnc;
+      let imsi = RIL.iccInfoPrivate.imsi;
+      if (imsi) {
+        // MCC is the first 3 digits of IMSI.
+        RIL.iccInfo.mcc = imsi.substr(0,3);
+        // The 4th byte of the response is the length of MNC.
+        RIL.iccInfo.mnc = imsi.substr(3, ad[3]);
+        if (DEBUG) debug("MCC: " + RIL.iccInfo.mcc + " MNC: " + RIL.iccInfo.mnc);
         ICCUtilsHelper.handleICCInfoChange();
       }
     }
@@ -11310,22 +10104,25 @@ let ICCRecordHelper = {
   /**
    * Read the SPN (Service Provider Name) from the ICC.
    */
-  readSPN: function readSPN() {
+  getSPN: function getSPN() {
     function callback() {
-      let strLen = Buf.readInt32();
+      let length = Buf.readUint32();
       // Each octet is encoded into two chars.
-      let octetLen = strLen / 2;
-      let spnDisplayCondition = GsmPDUHelper.readHexOctet();
       // Minus 1 because the first octet is used to store display condition.
-      let spn = GsmPDUHelper.readAlphaIdentifier(octetLen - 1);
-      Buf.readStringDelimiter(strLen);
+      let len = (length / 2) - 1;
+      let spnDisplayCondition = GsmPDUHelper.readHexOctet();
+      let spn = GsmPDUHelper.readAlphaIdentifier(len);
+      Buf.readStringDelimiter(length);
 
       if (DEBUG) {
         debug("SPN: spn = " + spn +
               ", spnDisplayCondition = " + spnDisplayCondition);
       }
 
-      RIL.iccInfoPrivate.spnDisplayCondition = spnDisplayCondition;
+      RIL.iccInfoPrivate.SPN = {
+        spn : spn,
+        spnDisplayCondition : spnDisplayCondition,
+      };
       RIL.iccInfo.spn = spn;
       ICCUtilsHelper.updateDisplayCondition();
       ICCUtilsHelper.handleICCInfoChange();
@@ -11338,13 +10135,13 @@ let ICCRecordHelper = {
   /**
    * Read the (U)SIM Service Table from the ICC.
    */
-  readSST: function readSST() {
+  getSST: function getSST() {
     function callback() {
-      let strLen = Buf.readInt32();
+      let length = Buf.readUint32();
       // Each octet is encoded into two chars.
-      let octetLen = strLen / 2;
-      let sst = GsmPDUHelper.readHexOctetArray(octetLen);
-      Buf.readStringDelimiter(strLen);
+      let len = length / 2;
+      let sst = GsmPDUHelper.readHexOctetArray(len);
+      Buf.readStringDelimiter(length);
       RIL.iccInfoPrivate.sst = sst;
       if (DEBUG) {
         let str = "";
@@ -11354,31 +10151,17 @@ let ICCRecordHelper = {
         debug("SST: " + str);
       }
 
-      if (ICCUtilsHelper.isICCServiceAvailable("MSISDN")) {
-        if (DEBUG) debug("MSISDN: MSISDN is available");
-        this.readMSISDN();
-      } else {
-        if (DEBUG) debug("MSISDN: MSISDN service is not available");
-      }
-
       // Fetch SPN and PLMN list, if some of them are available.
       if (ICCUtilsHelper.isICCServiceAvailable("SPN")) {
         if (DEBUG) debug("SPN: SPN is available");
-        this.readSPN();
+        this.getSPN();
       } else {
         if (DEBUG) debug("SPN: SPN service is not available");
       }
 
-      if (ICCUtilsHelper.isICCServiceAvailable("MDN")) {
-        if (DEBUG) debug("MDN: MDN available.");
-        this.readMBDN();
-      } else {
-        if (DEBUG) debug("MDN: MDN service is not available");
-      }
-
       if (ICCUtilsHelper.isICCServiceAvailable("SPDI")) {
         if (DEBUG) debug("SPDI: SPDI available.");
-        this.readSPDI();
+        this.getSPDI();
       } else {
         if (DEBUG) debug("SPDI: SPDI service is not available");
       }
@@ -11392,23 +10175,18 @@ let ICCRecordHelper = {
 
       if (ICCUtilsHelper.isICCServiceAvailable("OPL")) {
         if (DEBUG) debug("OPL: OPL is available");
-        this.readOPL();
+        this.getOPL();
       } else {
         if (DEBUG) debug("OPL: OPL is not available");
       }
 
       if (ICCUtilsHelper.isICCServiceAvailable("CBMI")) {
-        this.readCBMI();
+        this.getCBMI();
       } else {
         RIL.cellBroadcastConfigs.CBMI = null;
       }
-      if (ICCUtilsHelper.isICCServiceAvailable("DATA_DOWNLOAD_SMS_CB")) {
-        this.readCBMID();
-      } else {
-        RIL.cellBroadcastConfigs.CBMID = null;
-      }
       if (ICCUtilsHelper.isICCServiceAvailable("CBMIR")) {
-        this.readCBMIR();
+        this.getCBMIR();
       } else {
         RIL.cellBroadcastConfigs.CBMIR = null;
       }
@@ -11478,8 +10256,9 @@ let ICCRecordHelper = {
     }
 
     if (!contact || !contact.recordId) {
-      let error = onerror || debug;
-      error(GECKO_ERROR_INVALID_PARAMETER);
+      if (onerror) {
+        onerror("Invalid parameter.");
+      }
       return;
     }
 
@@ -11492,24 +10271,22 @@ let ICCRecordHelper = {
   },
 
   /**
-   * Read ICC MBDN. (Mailbox Dialling Number)
+   * Get ICC MBDN. (Mailbox Dialling Number)
    *
    * @see TS 131.102, clause 4.2.60
    */
-  readMBDN: function readMBDN() {
+  getMBDN: function getMBDN() {
     function callback(options) {
       let contact = GsmPDUHelper.readAlphaIdDiallingNumber(options.recordSize);
-      if (!contact ||
-          (RIL.iccInfoPrivate.mbdn !== undefined &&
-           RIL.iccInfoPrivate.mbdn === contact.number)) {
+      if (!contact || RIL.iccInfo.mbdn === contact.number){
         return;
       }
-      RIL.iccInfoPrivate.mbdn = contact.number;
+      RIL.iccInfo.mbdn = contact.number;
       if (DEBUG) {
         debug("MBDN, alphaId="+contact.alphaId+" number="+contact.number);
       }
       contact.rilMessageType = "iccmbdn";
-      RIL.sendChromeMessage(contact);
+      RIL.sendDOMMessage(contact);
     }
 
     ICCIOHelper.loadLinearFixedEF({fileId: ICC_EF_MBDN,
@@ -11524,7 +10301,7 @@ let ICCRecordHelper = {
    */
   readPBR: function readPBR(onsuccess, onerror) {
     function callback(options) {
-      let strLen = Buf.readInt32();
+      let strLen = Buf.readUint32();
       let octetLen = strLen / 2, readLen = 0;
 
       let pbrTlvs = [];
@@ -11532,7 +10309,7 @@ let ICCRecordHelper = {
         let tag = GsmPDUHelper.readHexOctet();
         if (tag == 0xff) {
           readLen++;
-          Buf.seekIncoming((octetLen - readLen) * Buf.PDU_HEX_OCTET_SIZE);
+          Buf.seekIncoming((octetLen - readLen) * PDU_HEX_OCTET_SIZE);
           break;
         }
 
@@ -11546,27 +10323,18 @@ let ICCRecordHelper = {
       }
       Buf.readStringDelimiter(strLen);
 
-      if (pbrTlvs.length > 0) {
-        let pbr = ICCUtilsHelper.parsePbrTlvs(pbrTlvs);
-        // EF_ADN is mandatory if and only if DF_PHONEBOOK is present.
-        if (!pbr.adn) {
-          let error = onerror || debug;
-          error("Cannot access ADN.");
-          return;
-        }
-        pbrs.push(pbr);
+      if (pbrTlvs.length == 0) {
+        let error = onerror || debug;
+        error("Cannot access Phonebook.");
+        return;
       }
 
-      if (options.p1 < options.totalRecords) {
-        ICCIOHelper.loadNextRecord(options);
-      } else {
-        if (onsuccess) {
-          onsuccess(pbrs);
-        }
+      let pbr = ICCUtilsHelper.parsePbrTlvs(pbrTlvs);
+      if (onsuccess) {
+        onsuccess(pbr);
       }
     }
 
-    let pbrs = [];
     ICCIOHelper.loadLinearFixedEF({fileId : ICC_EF_PBR,
                                    callback: callback.bind(this),
                                    onerror: onerror});
@@ -11589,7 +10357,7 @@ let ICCRecordHelper = {
    */
   readIAP: function readIAP(fileId, recordNumber, onsuccess, onerror) {
     function callback(options) {
-      let strLen = Buf.readInt32();
+      let strLen = Buf.readUint32();
       let octetLen = strLen / 2;
       this._iapRecordSize = options.recordSize;
 
@@ -11606,37 +10374,6 @@ let ICCRecordHelper = {
                                    recordSize: this._iapRecordSize,
                                    callback: callback.bind(this),
                                    onerror: onerror});
-  },
-
-  /**
-   * Update USIM Phonebook EF_IAP.
-   *
-   * @see TS 131.102, clause 4.4.2.13
-   *
-   * @param fileId       EF id of the IAP.
-   * @param recordNumber The identifier of the record shall be updated.
-   * @param iap          The IAP value to be written.
-   * @param onsuccess    Callback to be called when success.
-   * @param onerror      Callback to be called when error.
-   */
-  updateIAP: function updateIAP(fileId, recordNumber, iap, onsuccess, onerror) {
-    let dataWriter = function dataWriter(recordSize) {
-      // Write String length
-      let strLen = recordSize * 2;
-      Buf.writeInt32(strLen);
-
-      for (let i = 0; i < iap.length; i++) {
-        GsmPDUHelper.writeHexOctet(iap[i]);
-      }
-
-      Buf.writeStringDelimiter(strLen);
-    }.bind(this);
-
-    ICCIOHelper.updateLinearFixedEF({fileId: fileId,
-                                     recordNumber: recordNumber,
-                                     dataWriter: dataWriter,
-                                     callback: onsuccess,
-                                     onerror: onerror});
   },
 
   /**
@@ -11657,7 +10394,7 @@ let ICCRecordHelper = {
    */
   readEmail: function readEmail(fileId, fileType, recordNumber, onsuccess, onerror) {
     function callback(options) {
-      let strLen = Buf.readInt32();
+      let strLen = Buf.readUint32();
       let octetLen = strLen / 2;
       let email = null;
       this._emailRecordSize = options.recordSize;
@@ -11676,7 +10413,7 @@ let ICCRecordHelper = {
         email = GsmPDUHelper.read8BitUnpackedToString(octetLen - 2);
 
         // Consumes the remaining buffer
-        Buf.seekIncoming(2 * Buf.PDU_HEX_OCTET_SIZE); // For ADN SFI and Record Identifier
+        Buf.seekIncoming(2 * PDU_HEX_OCTET_SIZE); // For ADN SFI and Record Identifier
       }
 
       Buf.readStringDelimiter(strLen);
@@ -11692,44 +10429,6 @@ let ICCRecordHelper = {
                                    callback: callback.bind(this),
                                    onerror: onerror});
   },
-
-  /**
-   * Update USIM Phonebook EF_EMAIL.
-   *
-   * @see TS 131.102, clause 4.4.2.13
-   *
-   * @param pbr          Phonebook Reference File.
-   * @param recordNumber The identifier of the record shall be updated.
-   * @param email        The value to be written.
-   * @param adnRecordId  The record Id of ADN, only needed if the fileType of Email is TYPE2.
-   * @param onsuccess    Callback to be called when success.
-   * @param onerror      Callback to be called when error.
-   */
-  updateEmail: function updateEmail(pbr, recordNumber, email, adnRecordId, onsuccess, onerror) {
-    let fileId = pbr[USIM_PBR_EMAIL].fileId;
-    let fileType = pbr[USIM_PBR_EMAIL].fileType;
-    let dataWriter = function dataWriter(recordSize) {
-      // Write String length
-      let strLen = recordSize * 2;
-      Buf.writeInt32(strLen);
-
-      if (fileType == ICC_USIM_TYPE1_TAG) {
-        GsmPDUHelper.writeStringTo8BitUnpacked(recordSize, email);
-      } else {
-        GsmPDUHelper.writeStringTo8BitUnpacked(recordSize - 2, email);
-        GsmPDUHelper.writeHexOctet(pbr.adn.sfi || 0xff);
-        GsmPDUHelper.writeHexOctet(adnRecordId);
-      }
-
-      Buf.writeStringDelimiter(strLen);
-    }.bind(this);
-
-    ICCIOHelper.updateLinearFixedEF({fileId: fileId,
-                                     recordNumber: recordNumber,
-                                     dataWriter: dataWriter,
-                                     callback: onsuccess,
-                                     onerror: onerror});
- },
 
   /**
    * Cache EF_ANR record size.
@@ -11749,22 +10448,31 @@ let ICCRecordHelper = {
    */
   readANR: function readANR(fileId, fileType, recordNumber, onsuccess, onerror) {
     function callback(options) {
-      let strLen = Buf.readInt32();
+      let strLen = Buf.readUint32();
+      let octetLen = strLen / 2;
       let number = null;
       this._anrRecordSize = options.recordSize;
 
-      // Skip EF_AAS Record ID.
-      Buf.seekIncoming(1 * Buf.PDU_HEX_OCTET_SIZE);
+      // Skip ANR Record ID.
+      Buf.seekIncoming(1 * PDU_HEX_OCTET_SIZE);
 
-      number = GsmPDUHelper.readNumberWithLength();
+      let numLen = GsmPDUHelper.readHexOctet();
+      if (numLen != 0xff) {
+        if (numLen > ADN_MAX_BCD_NUMBER_BYTES) {
+          throw new Error("invalid length of BCD number/SSC contents - " + numLen);
+        }
+        number = GsmPDUHelper.readDiallingNumber(numLen);
+      } else {
+        Buf.seekIncoming(ADN_MAX_BCD_NUMBER_BYTES * PDU_HEX_OCTET_SIZE);
+      }
 
       // Skip 2 unused octets, CCP and EXT1.
-      Buf.seekIncoming(2 * Buf.PDU_HEX_OCTET_SIZE);
+      Buf.seekIncoming(2 * PDU_HEX_OCTET_SIZE);
 
       // For Type 2 there are two extra octets.
       if (fileType == ICC_USIM_TYPE2_TAG) {
         // Skip 2 unused octets, ADN SFI and Record Identifier.
-        Buf.seekIncoming(2 * Buf.PDU_HEX_OCTET_SIZE);
+        Buf.seekIncoming(2 * PDU_HEX_OCTET_SIZE);
       }
 
       Buf.readStringDelimiter(strLen);
@@ -11780,49 +10488,30 @@ let ICCRecordHelper = {
                                    callback: callback.bind(this),
                                    onerror: onerror});
   },
+
   /**
-   * Update USIM Phonebook EF_ANR.
+   * Read the PLMNsel (Public Land Mobile Network) from the ICC.
    *
-   * @see TS 131.102, clause 4.4.2.9
-   *
-   * @param pbr          Phonebook Reference File.
-   * @param recordNumber The identifier of the record shall be updated.
-   * @param number       The value to be written.
-   * @param adnRecordId  The record Id of ADN, only needed if the fileType of Email is TYPE2.
-   * @param onsuccess    Callback to be called when success.
-   * @param onerror      Callback to be called when error.
+   * See ETSI TS 100.977 section 10.3.4 EF_PLMNsel
    */
-  updateANR: function updateANR(pbr, recordNumber, number, adnRecordId, onsuccess, onerror) {
-    let fileId = pbr[USIM_PBR_ANR0].fileId;
-    let fileType = pbr[USIM_PBR_ANR0].fileType;
-    let dataWriter = function dataWriter(recordSize) {
-      // Write String length
-      let strLen = recordSize * 2;
-      Buf.writeInt32(strLen);
+  getPLMNSelector: function getPLMNSelector() {
+    function callback() {
+      if (DEBUG) debug("PLMN Selector: Process PLMN Selector");
 
-      // EF_AAS record Id. Unused for now.
-      GsmPDUHelper.writeHexOctet(0xff);
+      let length = Buf.readUint32();
+      RIL.iccInfoPrivate.PLMN = this.readPLMNEntries(length/3);
+      Buf.readStringDelimiter(length);
 
-      GsmPDUHelper.writeNumberWithLength(number);
+      if (DEBUG) debug("PLMN Selector: " + JSON.stringify(RIL.iccInfoPrivate.PLMN));
 
-      // Write unused octets 0xff, CCP and EXT1.
-      GsmPDUHelper.writeHexOctet(0xff);
-      GsmPDUHelper.writeHexOctet(0xff);
-
-      // For Type 2 there are two extra octets.
-      if (fileType == ICC_USIM_TYPE2_TAG) {
-        GsmPDUHelper.writeHexOctet(pbr.adn.sfi || 0xff);
-        GsmPDUHelper.writeHexOctet(adnRecordId);
+      if (RIL.updateDisplayCondition()) {
+        this.handleICCInfoChange();
       }
+    }
 
-      Buf.writeStringDelimiter(strLen);
-    }.bind(this);
-
-    ICCIOHelper.updateLinearFixedEF({fileId: fileId,
-                                     recordNumber: recordNumber,
-                                     dataWriter: dataWriter,
-                                     callback: onsuccess,
-                                     onerror: onerror});
+    // PLMN List is Service 7 in SIM, EF_PLMNsel
+    ICCIOHelper.loadTransparentEF({fileId: ICC_EF_PLMNsel,
+                                   callback: callback.bind(this)});
   },
 
   /**
@@ -11831,14 +10520,13 @@ let ICCRecordHelper = {
    * See TS 131.102 section 4.2.66 for USIM and TS 51.011 section 10.3.50
    * for SIM.
    */
-  readSPDI: function readSPDI() {
+  getSPDI: function getSPDI() {
     function callback() {
-      let strLen = Buf.readInt32();
-      let octetLen = strLen / 2;
+      let length = Buf.readUint32();
       let readLen = 0;
       let endLoop = false;
       RIL.iccInfoPrivate.SPDI = null;
-      while ((readLen < octetLen) && !endLoop) {
+      while ((readLen < length / 2) && !endLoop) {
         let tlvTag = GsmPDUHelper.readHexOctet();
         let tlvLen = GsmPDUHelper.readHexOctet();
         readLen += 2; // For tag and length fields.
@@ -11861,8 +10549,8 @@ let ICCRecordHelper = {
       }
 
       // Consume unread octets.
-      Buf.seekIncoming((octetLen - readLen) * Buf.PDU_HEX_OCTET_SIZE);
-      Buf.readStringDelimiter(strLen);
+      Buf.seekIncoming((length / 2 - readLen) * PDU_HEX_OCTET_SIZE);
+      Buf.readStringDelimiter(length);
 
       if (DEBUG) debug("SPDI: " + JSON.stringify(RIL.iccInfoPrivate.SPDI));
       if (ICCUtilsHelper.updateDisplayCondition()) {
@@ -11875,9 +10563,14 @@ let ICCRecordHelper = {
                                    callback: callback.bind(this)});
   },
 
-  _readCbmiHelper: function _readCbmiHelper(which) {
+  /**
+   * Read EFcbmi (Cell Broadcast Message Identifier selection)
+   *
+   * @see 3GPP TS 31.102 v110.02.0 section 4.2.14 EFcbmi
+   */
+  getCBMI: function getCBMI() {
     function callback() {
-      let strLength = Buf.readInt32();
+      let strLength = Buf.readUint32();
 
       // Each Message Identifier takes two octets and each octet is encoded
       // into two chars.
@@ -11894,55 +10587,33 @@ let ICCRecordHelper = {
         }
       }
       if (DEBUG) {
-        debug(which + ": " + JSON.stringify(list));
+        debug("CBMI: " + JSON.stringify(list));
       }
 
       Buf.readStringDelimiter(strLength);
 
-      RIL.cellBroadcastConfigs[which] = list;
+      RIL.cellBroadcastConfigs.CBMI = list;
       RIL._mergeAllCellBroadcastConfigs();
     }
 
     function onerror() {
-      RIL.cellBroadcastConfigs[which] = null;
+      RIL.cellBroadcastConfigs.CBMI = null;
       RIL._mergeAllCellBroadcastConfigs();
     }
 
-    let fileId = GLOBAL["ICC_EF_" + which];
-    ICCIOHelper.loadTransparentEF({fileId: fileId,
+    ICCIOHelper.loadTransparentEF({fileId: ICC_EF_CBMI,
                                    callback: callback.bind(this),
                                    onerror: onerror.bind(this)});
-  },
-
-  /**
-   * Read EFcbmi (Cell Broadcast Message Identifier selection)
-   *
-   * @see 3GPP TS 31.102 v110.02.0 section 4.2.14 EFcbmi
-   * @see 3GPP TS 51.011 v5.0.0 section 10.3.13 EFcbmi
-   */
-  readCBMI: function readCBMI() {
-    this._readCbmiHelper("CBMI");
-  },
-
-  /**
-   * Read EFcbmid (Cell Broadcast Message Identifier for Data Download)
-   *
-   * @see 3GPP TS 31.102 v110.02.0 section 4.2.20 EFcbmid
-   * @see 3GPP TS 51.011 v5.0.0 section 10.3.26 EFcbmid
-   */
-  readCBMID: function readCBMID() {
-    this._readCbmiHelper("CBMID");
   },
 
   /**
    * Read EFcbmir (Cell Broadcast Message Identifier Range selection)
    *
    * @see 3GPP TS 31.102 v110.02.0 section 4.2.22 EFcbmir
-   * @see 3GPP TS 51.011 v5.0.0 section 10.3.28 EFcbmir
    */
-  readCBMIR: function readCBMIR() {
+  getCBMIR: function getCBMIR() {
     function callback() {
-      let strLength = Buf.readInt32();
+      let strLength = Buf.readUint32();
 
       // Each Message Identifier range takes four octets and each octet is
       // encoded into two chars.
@@ -11988,10 +10659,10 @@ let ICCRecordHelper = {
    * See 3GPP TS 31.102 Sec. 4.2.59 for USIM
    *     3GPP TS 51.011 Sec. 10.3.42 for SIM.
    */
-  readOPL: function readOPL() {
+  getOPL: function getOPL() {
     let opl = [];
     function callback(options) {
-      let strLen = Buf.readInt32();
+      let len = Buf.readUint32();
       // The first 7 bytes are LAI (for UMTS) and the format of LAI is defined
       // in 3GPP TS 23.003, Sec 4.1
       //    +-------------+---------+
@@ -12037,9 +10708,9 @@ let ICCRecordHelper = {
         }
         opl.push(oplElement);
       } else {
-        Buf.seekIncoming(5 * Buf.PDU_HEX_OCTET_SIZE);
+        Buf.seekIncoming(5 * PDU_HEX_OCTET_SIZE);
       }
-      Buf.readStringDelimiter(strLen);
+      Buf.readStringDelimiter(len);
 
       if (options.p1 < options.totalRecords) {
         ICCIOHelper.loadNextRecord(options);
@@ -12061,7 +10732,7 @@ let ICCRecordHelper = {
   readPNN: function readPNN() {
     function callback(options) {
       let pnnElement;
-      let strLen = Buf.readInt32();
+      let strLen = Buf.readUint32();
       let octetLen = strLen / 2;
       let readLen = 0;
 
@@ -12071,7 +10742,7 @@ let ICCRecordHelper = {
         if (tlvTag == 0xFF) {
           // Unused byte
           readLen++;
-          Buf.seekIncoming((octetLen - readLen) * Buf.PDU_HEX_OCTET_SIZE);
+          Buf.seekIncoming((octetLen - readLen) * PDU_HEX_OCTET_SIZE);
           break;
         }
 
@@ -12088,7 +10759,7 @@ let ICCRecordHelper = {
             pnnElement.shortName = GsmPDUHelper.readNetworkName(tlvLen);
             break;
           default:
-            Buf.seekIncoming(tlvLen * Buf.PDU_HEX_OCTET_SIZE);
+            Buf.seekIncoming(tlvLen * PDU_HEX_OCTET_SIZE);
             break;
         }
 
@@ -12119,15 +10790,15 @@ let ICCRecordHelper = {
   },
 
   /**
-   * Find free record id.
+   * Get free record id.
    *
    * @param fileId      EF id.
    * @param onsuccess   Callback to be called when success.
    * @param onerror     Callback to be called when error.
    */
-  findFreeRecordId: function findFreeRecordId(fileId, onsuccess, onerror) {
+  getFreeRecordId: function getFreeRecordId(fileId, onsuccess, onerror) {
     function callback(options) {
-      let strLen = Buf.readInt32();
+      let strLen = Buf.readUint32();
       let octetLen = strLen / 2;
       let readLen = 0;
 
@@ -12146,7 +10817,7 @@ let ICCRecordHelper = {
         }
         return;
       } else {
-        Buf.seekIncoming((octetLen - readLen) * Buf.PDU_HEX_OCTET_SIZE);
+        Buf.seekIncoming((octetLen - readLen) * PDU_HEX_OCTET_SIZE);
       }
 
       Buf.readStringDelimiter(strLen);
@@ -12155,8 +10826,9 @@ let ICCRecordHelper = {
         ICCIOHelper.loadNextRecord(options);
       } else {
         // No free record found.
-        let error = onerror || debug;
-        error("No free record found.");
+        if (onerror) {
+          onerror("No free record found.");
+        }
       }
     }
 
@@ -12177,7 +10849,7 @@ let ICCRecordHelper = {
   readPLMNEntries: function readPLMNEntries(length) {
     let plmnList = [];
     // Each PLMN entry has 3 bytes.
-    if (DEBUG) debug("readPLMNEntries: PLMN entries length = " + length);
+    debug("readPLMNEntries: PLMN entries length = " + length);
     let index = 0;
     while (index < length) {
       // Unused entries will be 0xFFFFFF, according to EF_SPDI
@@ -12261,43 +10933,40 @@ let ICCUtilsHelper = {
       return null;
     }
 
-    if (!iccInfoPriv.OPL) {
-      // When OPL is not present:
-      // According to 3GPP TS 31.102 Sec. 4.2.58 and 3GPP TS 51.011 Sec. 10.3.41,
-      // If EF_OPL is not present, the first record in this EF is used for the
-      // default network name when registered to the HPLMN.
-      // If we haven't get pnnEntry assigned, we should try to assign default
-      // value to it.
-      if (mcc == iccInfo.mcc && mnc == iccInfo.mnc) {
-        pnnEntry = iccInfoPriv.PNN[0];
+    // According to 3GPP TS 31.102 Sec. 4.2.59 and 3GPP TS 51.011 Sec. 10.3.42,
+    // the ME shall use this EF_OPL in association with the EF_PNN in place
+    // of any network name stored within the ME's internal list and any network
+    // name received when registered to the PLMN.
+    let length = iccInfoPriv.OPL ? iccInfoPriv.OPL.length : 0;
+    for (let i = 0; i < length; i++) {
+      let opl = iccInfoPriv.OPL[i];
+      // Try to match the MCC/MNC.
+      if (mcc != opl.mcc || mnc != opl.mnc) {
+        continue;
       }
-    } else {
-      // According to 3GPP TS 31.102 Sec. 4.2.59 and 3GPP TS 51.011 Sec. 10.3.42,
-      // the ME shall use this EF_OPL in association with the EF_PNN in place
-      // of any network name stored within the ME's internal list and any network
-      // name received when registered to the PLMN.
-      let length = iccInfoPriv.OPL ? iccInfoPriv.OPL.length : 0;
-      for (let i = 0; i < length; i++) {
-        let opl = iccInfoPriv.OPL[i];
-        // Try to match the MCC/MNC.
-        if (mcc != opl.mcc || mnc != opl.mnc) {
-          continue;
+      // Try to match the location area code. If current local area code is
+      // covered by lac range that specified in the OPL entry, use the PNN
+      // that specified in the OPL entry.
+      if ((opl.lacTacStart == 0x0 && opl.lacTacEnd == 0xFFFE) ||
+          (opl.lacTacStart <= lac && opl.lacTacEnd >= lac)) {
+        if (opl.pnnRecordId == 0) {
+          // See 3GPP TS 31.102 Sec. 4.2.59 and 3GPP TS 51.011 Sec. 10.3.42,
+          // A value of '00' indicates that the name is to be taken from other
+          // sources.
+          return null;
         }
-        // Try to match the location area code. If current local area code is
-        // covered by lac range that specified in the OPL entry, use the PNN
-        // that specified in the OPL entry.
-        if ((opl.lacTacStart === 0x0 && opl.lacTacEnd == 0xFFFE) ||
-            (opl.lacTacStart <= lac && opl.lacTacEnd >= lac)) {
-          if (opl.pnnRecordId === 0) {
-            // See 3GPP TS 31.102 Sec. 4.2.59 and 3GPP TS 51.011 Sec. 10.3.42,
-            // A value of '00' indicates that the name is to be taken from other
-            // sources.
-            return null;
-          }
-          pnnEntry = iccInfoPriv.PNN[opl.pnnRecordId - 1];
-          break;
-        }
+        pnnEntry = iccInfoPriv.PNN[opl.pnnRecordId - 1]
+        break;
       }
+    }
+
+    // According to 3GPP TS 31.102 Sec. 4.2.58 and 3GPP TS 51.011 Sec. 10.3.41,
+    // the first record in this EF is used for the default network name when
+    // registered to the HPLMN.
+    // If we haven't get pnnEntry assigned, we should try to assign default
+    // value to it.
+    if (!pnnEntry && mcc == iccInfo.mcc && mnc == iccInfo.mnc) {
+      pnnEntry = iccInfoPriv.PNN[0]
     }
 
     if (!pnnEntry) {
@@ -12305,8 +10974,8 @@ let ICCUtilsHelper = {
     }
 
     // Return a new object to avoid global variable, PNN, be modified by accident.
-    return { fullName: pnnEntry.fullName || "",
-             shortName: pnnEntry.shortName || "" };
+    return {fullName: pnnEntry.fullName || "",
+            shortName: pnnEntry.shortName || ""};
   },
 
   /**
@@ -12321,32 +10990,31 @@ let ICCUtilsHelper = {
     // isDisplaySpnRequired = false
     let iccInfo = RIL.iccInfo;
     let iccInfoPriv = RIL.iccInfoPrivate;
-    let displayCondition = iccInfoPriv.spnDisplayCondition;
+    let iccSpn = iccInfoPriv.SPN;
     let origIsDisplayNetworkNameRequired = iccInfo.isDisplayNetworkNameRequired;
     let origIsDisplaySPNRequired = iccInfo.isDisplaySpnRequired;
 
-    if (displayCondition === undefined) {
+    if (!iccSpn) {
       iccInfo.isDisplayNetworkNameRequired = true;
       iccInfo.isDisplaySpnRequired = false;
     } else if (RIL._isCdma) {
       // CDMA family display rule.
       let cdmaHome = RIL.cdmaHome;
-      let cell = RIL.voiceRegistrationState.cell;
-      let sid = cell && cell.cdmaSystemId;
-      let nid = cell && cell.cdmaNetworkId;
+      let sid = RIL.cdmaSubscription.systemId;
+      let nid = RIL.cdmaSubscription.networkId;
 
       iccInfo.isDisplayNetworkNameRequired = false;
 
-      // If display condition is 0x0, we don't even need to check network id
+      // If display condition is false, we don't even need to check network id
       // or system id.
-      if (displayCondition === 0x0) {
+      if (iccSpn.spnDisplayCondition == false) {
         iccInfo.isDisplaySpnRequired = false;
       } else {
         // CDMA SPN Display condition dosen't specify whenever network name is
         // reqired.
         if (!cdmaHome ||
             !cdmaHome.systemId ||
-            cdmaHome.systemId.length === 0 ||
+            cdmaHome.systemId.length == 0 ||
             cdmaHome.systemId.length != cdmaHome.networkId.length ||
             !sid || !nid) {
           // CDMA Home haven't been ready, or we haven't got the system id and
@@ -12360,7 +11028,7 @@ let ICCUtilsHelper = {
           for (let i = 0; i < cdmaHome.systemId.length; i++) {
             let homeSid = cdmaHome.systemId[i],
                 homeNid = cdmaHome.networkId[i];
-            if (homeSid === 0 || homeNid === 0 // Reserved system id/network id
+            if (homeSid == 0 || homeNid == 0 // Reserved system id/network id
                || homeSid != sid) {
               continue;
             }
@@ -12411,7 +11079,11 @@ let ICCUtilsHelper = {
         // EF_SPDI contains a list of PLMNs in which the Service Provider Name
         // shall be displayed.
         iccInfo.isDisplaySpnRequired = true;
-        iccInfo.isDisplayNetworkNameRequired = (displayCondition & 0x01) !== 0;
+        if (iccSpn.spnDisplayCondition & 0x01) {
+          iccInfo.isDisplayNetworkNameRequired = true;
+        } else {
+          iccInfo.isDisplayNetworkNameRequired = false;
+        }
       } else {
         // The second bit of display condition tells us if we should display
         // registered PLMN.
@@ -12420,8 +11092,13 @@ let ICCUtilsHelper = {
         // We didn't found the requirement of displaying network name if
         // current PLMN isn't HPLMN nor one of PLMN in SPDI. So we keep
         // isDisplayNetworkNameRequired false.
-        iccInfo.isDisplayNetworkNameRequired = false;
-        iccInfo.isDisplaySpnRequired = (displayCondition & 0x02) === 0;
+        if (iccSpn.spnDisplayCondition & 0x02) {
+          iccInfo.isDisplayNetworkNameRequired = false;
+          iccInfo.isDisplaySpnRequired = false;
+        } else {
+          iccInfo.isDisplayNetworkNameRequired = false;
+          iccInfo.isDisplaySpnRequired = true;
+        }
       }
     }
 
@@ -12442,9 +11119,9 @@ let ICCUtilsHelper = {
         tag : GsmPDUHelper.readHexOctet(),
         length : GsmPDUHelper.readHexOctet(),
       };
-      simTlv.value = GsmPDUHelper.readHexOctetArray(simTlv.length);
+      simTlv.value = GsmPDUHelper.readHexOctetArray(simTlv.length)
       tlvs.push(simTlv);
-      index += simTlv.length + 2; // The length of 'tag' and 'length' field.
+      index += simTlv.length + 2 /* The length of 'tag' and 'length' field */;
     }
     return tlvs;
   },
@@ -12469,7 +11146,6 @@ let ICCUtilsHelper = {
         pbr[tagName] = tlv;
         pbr[tagName].fileType = pbrTlv.tag;
         pbr[tagName].fileId = (tlv.value[0] << 8) | tlv.value[1];
-        pbr[tagName].sfi = tlv.value[2];
 
         // For Type 2, the order of files is in the same order in IAP.
         if (pbrTlv.tag == ICC_USIM_TYPE2_TAG) {
@@ -12486,7 +11162,7 @@ let ICCUtilsHelper = {
    */
   handleICCInfoChange: function handleICCInfoChange() {
     RIL.iccInfo.rilMessageType = "iccinfochange";
-    RIL.sendChromeMessage(RIL.iccInfo);
+    RIL.sendDOMMessage(RIL.iccInfo);
   },
 
   /**
@@ -12552,9 +11228,9 @@ let ICCUtilsHelper = {
       bitmask = 1 << ((usimService % 8) << 0);
     }
 
-    return (serviceTable !== null) &&
+    return (serviceTable &&
            (index < serviceTable.length) &&
-           ((serviceTable[index] & bitmask) !== 0);
+           (serviceTable[index] & bitmask)) != 0;
   },
 
   /**
@@ -12584,36 +11260,6 @@ let ICCUtilsHelper = {
 
     return true;
   },
-
-  /**
-   * Parse MCC/MNC from IMSI. If there is no available value for the length of
-   * mnc, it will use the data in MCC table to parse.
-   *
-   * @param imsi
-   *        The imsi of icc.
-   * @param mncLength [optional]
-   *        The length of mnc.
-   *
-   * @return An object contains the parsing result of mcc and mnc.
-   *         Or null if any error occurred.
-   */
-  parseMccMncFromImsi: function parseMccMncFromImsi(imsi, mncLength) {
-    if (!imsi) {
-      return null;
-    }
-
-    // MCC is the first 3 digits of IMSI.
-    let mcc = imsi.substr(0,3);
-    if (!mncLength) {
-      // Check the MCC table to decide the length of MNC.
-      let index = MCC_TABLE_FOR_MNC_LENGTH_IS_3.indexOf(mcc);
-      mncLength = (index !== -1) ? 3 : 2;
-    }
-    let mnc = imsi.substr(3, mncLength);
-    if (DEBUG) debug("IMSI: " + imsi + " MCC: " + mcc + " MNC: " + mnc);
-
-    return { mcc: mcc, mnc: mnc};
-  },
 };
 
 /**
@@ -12621,44 +11267,27 @@ let ICCUtilsHelper = {
  */
 let ICCContactHelper = {
   /**
-   * Helper function to check DF_PHONEBOOK.
-   */
-  hasDfPhoneBook: function hasDfPhoneBook(appType) {
-    switch (appType) {
-      case CARD_APPTYPE_SIM:
-        return false;
-      case CARD_APPTYPE_USIM:
-        return true;
-      case CARD_APPTYPE_RUIM:
-        return ICCUtilsHelper.isICCServiceAvailable("ENHANCED_PHONEBOOK");
-      default:
-        return false;
-    }
-  },
-
-  /**
    * Helper function to read ICC contacts.
    *
-   * @param appType       One of CARD_APPTYPE_*.
-   * @param contactType   "adn" or "fdn".
+   * @param appType       CARD_APPTYPE_SIM or CARD_APPTYPE_USIM.
+   * @param contactType   "ADN" or "FDN"
    * @param onsuccess     Callback to be called when success.
    * @param onerror       Callback to be called when error.
    */
   readICCContacts: function readICCContacts(appType, contactType, onsuccess, onerror) {
     switch (contactType) {
-      case "adn":
-        if (!this.hasDfPhoneBook(appType)) {
-          ICCRecordHelper.readADNLike(ICC_EF_ADN, onsuccess, onerror);
-        } else {
-          this.readUSimContacts(onsuccess, onerror);
+      case "ADN":
+        switch (appType) {
+          case CARD_APPTYPE_SIM:
+            ICCRecordHelper.readADNLike(ICC_EF_ADN, onsuccess, onerror);
+            break;
+          case CARD_APPTYPE_USIM:
+            this.readUSimContacts(onsuccess, onerror);
+            break;
         }
         break;
-      case "fdn":
+      case "FDN":
         ICCRecordHelper.readADNLike(ICC_EF_FDN, onsuccess, onerror);
-        break;
-      default:
-        let error = onerror || debug;
-        error(GECKO_ERROR_REQUEST_NOT_SUPPORTED);
         break;
     }
   },
@@ -12666,73 +11295,55 @@ let ICCContactHelper = {
   /**
    * Helper function to find free contact record.
    *
-   * @param appType       One of CARD_APPTYPE_*.
-   * @param contactType   "adn" or "fdn".
+   * @param appType       CARD_APPTYPE_SIM or CARD_APPTYPE_USIM.
+   * @param contactType   "ADN" or "FDN".
    * @param onsuccess     Callback to be called when success.
    * @param onerror       Callback to be called when error.
    */
   findFreeICCContact: function findFreeICCContact(appType, contactType, onsuccess, onerror) {
     switch (contactType) {
-      case "adn":
-        if (!this.hasDfPhoneBook(appType)) {
-          ICCRecordHelper.findFreeRecordId(ICC_EF_ADN, onsuccess.bind(null, 0), onerror);
-        } else {
-          let gotPbrCb = function gotPbrCb(pbrs) {
-            this.findUSimFreeADNRecordId(pbrs, onsuccess, onerror);
-          }.bind(this);
+      case "ADN":
+        switch (appType) {
+          case CARD_APPTYPE_SIM:
+            ICCRecordHelper.getFreeRecordId(ICC_EF_ADN, onsuccess, onerror);
+            break;
+          case CARD_APPTYPE_USIM:
+            let gotPbrCb = function gotPbrCb(pbr) {
+              if (pbr.adn) {
+                ICCRecordHelper.getFreeRecordId(pbr.adn.fileId, onsuccess, onerror);
+              }
+            }.bind(this);
 
-          ICCRecordHelper.readPBR(gotPbrCb, onerror);
+            ICCRecordHelper.readPBR(gotPbrCb, onerror);
+            break;
         }
         break;
-      case "fdn":
-        ICCRecordHelper.findFreeRecordId(ICC_EF_FDN, onsuccess.bind(null, 0), onerror);
+      case "FDN":
+        ICCRecordHelper.getFreeRecordId(ICC_EF_FDN, onsuccess, onerror);
         break;
       default:
-        let error = onerror || debug;
-        error(GECKO_ERROR_REQUEST_NOT_SUPPORTED);
+        if (onerror) {
+          onerror(GECKO_ERROR_REQUEST_NOT_SUPPORTED);
+        }
         break;
     }
-  },
-
-   /**
-    * Find free ADN record id in USIM.
-    *
-    * @param pbrs          All Phonebook Reference Files read.
-    * @param onsuccess     Callback to be called when success.
-    * @param onerror       Callback to be called when error.
-    */
-  findUSimFreeADNRecordId: function findUSimFreeADNRecordId(pbrs, onsuccess, onerror) {
-    (function findFreeRecordId(pbrIndex) {
-      if (pbrIndex >= pbrs.length) {
-        let error = onerror || debug;
-        error("No free record found.");
-        return;
-      }
-
-      let pbr = pbrs[pbrIndex];
-      ICCRecordHelper.findFreeRecordId(
-        pbr.adn.fileId,
-        onsuccess.bind(this, pbrIndex),
-        findFreeRecordId.bind(null, pbrIndex + 1));
-    })(0);
   },
 
   /**
    * Helper function to add a new ICC contact.
    *
-   * @param appType       One of CARD_APPTYPE_*.
-   * @param contactType   "adn" or "fdn".
+   * @param appType       CARD_APPTYPE_SIM or CARD_APPTYPE_USIM.
+   * @param contactType   "ADN" or "FDN".
    * @param contact       The contact will be added.
    * @param pin2          PIN2 is required for FDN.
    * @param onsuccess     Callback to be called when success.
    * @param onerror       Callback to be called when error.
    */
   addICCContact: function addICCContact(appType, contactType, contact, pin2, onsuccess, onerror) {
-    let foundFreeCb = function foundFreeCb(pbrIndex, recordId) {
-      contact.pbrIndex = pbrIndex;
+    let foundFreeCb = function foundFreeCb(recordId) {
       contact.recordId = recordId;
       ICCContactHelper.updateICCContact(appType, contactType, contact, pin2, onsuccess, onerror);
-    };
+    }.bind(this);
 
     // Find free record first.
     ICCContactHelper.findFreeICCContact(appType, contactType, foundFreeCb, onerror);
@@ -12741,32 +11352,32 @@ let ICCContactHelper = {
   /**
    * Helper function to update ICC contact.
    *
-   * @param appType       One of CARD_APPTYPE_*.
-   * @param contactType   "adn" or "fdn".
+   * @param appType       CARD_APPTYPE_SIM or CARD_APPTYPE_USIM.
+   * @param contactType   "ADN" or "FDN".
    * @param contact       The contact will be updated.
    * @param pin2          PIN2 is required for FDN.
    * @param onsuccess     Callback to be called when success.
    * @param onerror       Callback to be called when error.
    */
   updateICCContact: function updateICCContact(appType, contactType, contact, pin2, onsuccess, onerror) {
-   let error = onerror || debug;
     switch (contactType) {
-      case "adn":
-        if (!this.hasDfPhoneBook(appType)) {
-          ICCRecordHelper.updateADNLike(ICC_EF_ADN, contact, null, onsuccess, onerror);
-        } else {
-          this.updateUSimContact(contact, onsuccess, onerror);
+      case "ADN":
+        switch (appType) {
+          case CARD_APPTYPE_SIM:
+            ICCRecordHelper.updateADNLike(ICC_EF_ADN, contact, null, onsuccess, onerror);
+            break;
+          case CARD_APPTYPE_USIM:
+            this.updateUSimContact(contact, onsuccess, onerror);
+            break;
         }
         break;
-      case "fdn":
-        if (!pin2) {
-          error("pin2 is empty");
-          return;
-        }
+      case "FDN":
         ICCRecordHelper.updateADNLike(ICC_EF_FDN, contact, pin2, onsuccess, onerror);
         break;
       default:
-        error(GECKO_ERROR_REQUEST_NOT_SUPPORTED);
+        if (onerror) {
+          onerror(GECKO_ERROR_REQUEST_NOT_SUPPORTED);
+        }
         break;
     }
   },
@@ -12778,59 +11389,21 @@ let ICCContactHelper = {
    * @param onerror       Callback to be called when error.
    */
   readUSimContacts: function readUSimContacts(onsuccess, onerror) {
-    let gotPbrCb = function gotPbrCb(pbrs) {
-      this.readAllPhonebookSets(pbrs, onsuccess, onerror);
+    let gotPbrCb = function gotPbrCb(pbr) {
+      if (pbr.adn) {
+        let gotAdnCb = function gotAdnCb(contacts) {
+          this.readSupportedPBRFields(pbr, contacts, onsuccess, onerror);
+        }.bind(this);
+
+        let fileId = pbr.adn.fileId;
+        ICCRecordHelper.readADNLike(fileId, gotAdnCb, onerror);
+      } else {
+        let error = onerror || debug;
+        error("Cannot access ADN.");
+      }
     }.bind(this);
 
     ICCRecordHelper.readPBR(gotPbrCb, onerror);
-  },
-
-  /**
-   * Read all Phonebook sets.
-   *
-   * @param pbrs          All Phonebook Reference Files read.
-   * @param onsuccess     Callback to be called when success.
-   * @param onerror       Callback to be called when error.
-   */
-  readAllPhonebookSets: function readAllPhonebookSets(pbrs, onsuccess, onerror) {
-    let allContacts = [], pbrIndex = 0;
-    let readPhonebook = function readPhonebook(contacts) {
-      if (contacts) {
-        allContacts = allContacts.concat(contacts);
-      }
-
-      let cLen = contacts ? contacts.length : 0;
-      for (let i = 0; i < cLen; i++) {
-        contacts[i].pbrIndex = pbrIndex;
-      }
-
-      pbrIndex++;
-      if (pbrIndex >= pbrs.length) {
-        if (onsuccess) {
-          onsuccess(allContacts);
-        }
-        return;
-      }
-
-      this.readPhonebookSet(pbrs[pbrIndex], readPhonebook, onerror);
-    }.bind(this);
-
-    this.readPhonebookSet(pbrs[pbrIndex], readPhonebook, onerror);
-  },
-
-  /**
-   * Read from Phonebook Reference File.
-   *
-   * @param pbr           Phonebook Reference File to be read.
-   * @param onsuccess     Callback to be called when success.
-   * @param onerror       Callback to be called when error.
-   */
-  readPhonebookSet: function readPhonebookSet(pbr, onsuccess, onerror) {
-    let gotAdnCb = function gotAdnCb(contacts) {
-      this.readSupportedPBRFields(pbr, contacts, onsuccess, onerror);
-    }.bind(this);
-
-    ICCRecordHelper.readADNLike(pbr.adn.fileId, gotAdnCb, onerror);
   },
 
   /**
@@ -12842,10 +11415,13 @@ let ICCContactHelper = {
    * @param onerror     Callback to be called when error.
    */
   readSupportedPBRFields: function readSupportedPBRFields(pbr, contacts, onsuccess, onerror) {
-    let fieldIndex = 0;
-    (function readField() {
-      let field = USIM_PBR_FIELDS[fieldIndex];
-      fieldIndex += 1;
+    // Current supported fields. Adding more fields to read will increasing I/O
+    // time dramatically, do check the performance is acceptable when you add
+    // more fileds.
+    const fields = ["email", "anr0"];
+
+    (function readField(field) {
+      let field = fields.pop();
       if (!field) {
         if (onsuccess) {
           onsuccess(contacts);
@@ -12869,7 +11445,7 @@ let ICCContactHelper = {
   readPhonebookField: function readPhonebookField(pbr, contacts, field, onsuccess, onerror) {
     if (!pbr[field]) {
       if (onsuccess) {
-        onsuccess(contacts);
+        onsuccess(contacts)
       }
       return;
     }
@@ -12912,11 +11488,11 @@ let ICCContactHelper = {
       let gotFieldCb = function gotFieldCb(value) {
         if (value) {
           // Move anr0 anr1,.. into anr[].
-          if (field.startsWith(USIM_PBR_ANR)) {
-            if (!contact[USIM_PBR_ANR]) {
-              contact[USIM_PBR_ANR] = [];
+          if (field.startsWith("anr")) {
+            if (!contact["anr"]) {
+              contact["anr"] = [];
             }
-            contact[USIM_PBR_ANR].push(value);
+            contact["anr"].push(value);
           } else {
             contact[field] = value;
           }
@@ -12928,17 +11504,16 @@ let ICCContactHelper = {
       }.bind(this);
 
       // Detect EF to be read, for anr, it could have anr0, anr1,...
-      let ef = field.startsWith(USIM_PBR_ANR) ? USIM_PBR_ANR : field;
+      let ef = field.startsWith("anr") ? "anr" : field;
       switch (ef) {
-        case USIM_PBR_EMAIL:
+        case "email":
           ICCRecordHelper.readEmail(fileId, fileType, recordId, gotFieldCb, onerror);
           break;
-        case USIM_PBR_ANR:
+        case "anr":
           ICCRecordHelper.readANR(fileId, fileType, recordId, gotFieldCb, onerror);
           break;
         default:
-          let error = onerror || debug;
-          error("Unknown field " + field);
+          onerror("Unknown field " + field);
           break;
       }
     }.bind(this);
@@ -12949,7 +11524,7 @@ let ICCContactHelper = {
   /**
    * Get the recordId.
    *
-   * If the fileType of field is ICC_USIM_TYPE1_TAG, use corresponding ADN recordId.
+   * If the fileType of Email is ICC_USIM_TYPE1_TAG, use corresponding ADN recordId.
    * otherwise get the recordId from IAP.
    *
    * @see TS 131.102, clause 4.4.2.2
@@ -12965,7 +11540,7 @@ let ICCContactHelper = {
       if (onsuccess) {
         onsuccess(contact.recordId);
       }
-    } else if (pbr[field].fileType == ICC_USIM_TYPE2_TAG) {
+    } else {
       // If the file type is ICC_USIM_TYPE2_TAG, the recordId shall be got from IAP.
       let gotIapCb = function gotIapCb(iap) {
         let indexInIAP = pbr[field].indexInIAP;
@@ -12977,9 +11552,6 @@ let ICCContactHelper = {
       }.bind(this);
 
       ICCRecordHelper.readIAP(pbr.iap.fileId, contact.recordId, gotIapCb, onerror);
-    } else {
-      let error = onerror | debug;
-      error("USIM PBR files in Type 3 format are not supported.");
     }
   },
 
@@ -12991,295 +11563,26 @@ let ICCContactHelper = {
    * @param onerror       Callback to be called when error.
    */
   updateUSimContact: function updateUSimContact(contact, onsuccess, onerror) {
-    let gotPbrCb = function gotPbrCb(pbrs) {
-      let pbr = pbrs[contact.pbrIndex];
-      if (!pbr) {
-        let error = onerror || debug;
-        error("Cannot access Phonebook.");
-        return;
+    let gotPbrCb = function gotPbrCb(pbr) {
+      if (pbr.adn) {
+        ICCRecordHelper.updateADNLike(pbr.adn.fileId, contact, null, onsuccess, onerror);
+      } else {
+        if (onerror) {
+          onerror("Cannot access ADN.");
+        }
       }
-      this.updatePhonebookSet(pbr, contact, onsuccess, onerror);
     }.bind(this);
 
     ICCRecordHelper.readPBR(gotPbrCb, onerror);
-  },
-
-  /**
-   * Update fields in Phonebook Reference File.
-   *
-   * @param pbr           Phonebook Reference File to be read.
-   * @param onsuccess     Callback to be called when success.
-   * @param onerror       Callback to be called when error.
-   */
-  updatePhonebookSet: function updatePhonebookSet(pbr, contact, onsuccess, onerror) {
-    let updateAdnCb = function () {
-      this.updateSupportedPBRFields(pbr, contact, onsuccess, onerror);
-    }.bind(this);
-
-    ICCRecordHelper.updateADNLike(pbr.adn.fileId, contact, null, updateAdnCb, onerror);
-  },
-
-  /**
-   * Update supported Phonebook fields.
-   *
-   * @param pbr         Phone Book Reference file.
-   * @param contact     Contact to be updated.
-   * @param onsuccess   Callback to be called when success.
-   * @param onerror     Callback to be called when error.
-   */
-  updateSupportedPBRFields: function updateSupportedPBRFields(pbr, contact, onsuccess, onerror) {
-    let fieldIndex = 0;
-    (function updateField() {
-      let field = USIM_PBR_FIELDS[fieldIndex];
-      fieldIndex += 1;
-      if (!field) {
-        if (onsuccess) {
-          onsuccess();
-        }
-        return;
-      }
-
-      // Check if PBR has this field.
-      if (!pbr[field]) {
-        updateField();
-        return;
-      }
-
-      // Check if contact has additional properties (email, anr, ...etc) that
-      // need to be updated as well.
-      if ((field === USIM_PBR_EMAIL && !contact.email) ||
-          (field === USIM_PBR_ANR0 && (!Array.isArray(contact.anr) ||
-                                       !contact.anr[0]))) {
-        updateField();
-        return;
-      }
-
-      ICCContactHelper.updateContactField(pbr, contact, field, updateField, onerror);
-    })();
-  },
-
-  /**
-   * Update contact's field from USIM.
-   *
-   * @param pbr           The phonebook reference file.
-   * @param contact       The contact needs to be updated.
-   * @param field         Phonebook field to be updated.
-   * @param onsuccess     Callback to be called when success.
-   * @param onerror       Callback to be called when error.
-   */
-  updateContactField: function updateContactField(pbr, contact, field, onsuccess, onerror) {
-    if (pbr[field].fileType === ICC_USIM_TYPE1_TAG) {
-      this.updateContactFieldType1(pbr, contact, field, onsuccess, onerror);
-    } else if (pbr[field].fileType === ICC_USIM_TYPE2_TAG) {
-      this.updateContactFieldType2(pbr, contact, field, onsuccess, onerror);
-    }
-  },
-
-  /**
-   * Update Type 1 USIM contact fields.
-   *
-   * @param pbr           The phonebook reference file.
-   * @param contact       The contact needs to be updated.
-   * @param field         Phonebook field to be updated.
-   * @param onsuccess     Callback to be called when success.
-   * @param onerror       Callback to be called when error.
-   */
-  updateContactFieldType1: function updateContactFieldType1(pbr, contact, field, onsuccess, onerror) {
-    if (field === USIM_PBR_EMAIL) {
-      ICCRecordHelper.updateEmail(pbr, contact.recordId, contact.email, null, onsuccess, onerror);
-    } else if (field === USIM_PBR_ANR0) {
-      ICCRecordHelper.updateANR(pbr, contact.recordId, contact.anr[0], null, onsuccess, onerror);
-    }
-  },
-
-  /**
-   * Update Type 2 USIM contact fields.
-   *
-   * @param pbr           The phonebook reference file.
-   * @param contact       The contact needs to be updated.
-   * @param field         Phonebook field to be updated.
-   * @param onsuccess     Callback to be called when success.
-   * @param onerror       Callback to be called when error.
-   */
-  updateContactFieldType2: function updateContactFieldType2(pbr, contact, field, onsuccess, onerror) {
-    // Case 1 : EF_IAP[adnRecordId] doesn't have a value(0xff)
-    //   Find a free recordId for EF_field
-    //   Update field with that free recordId.
-    //   Update IAP.
-    //
-    // Case 2: EF_IAP[adnRecordId] has a value
-    //   update EF_field[iap[field.indexInIAP]]
-
-    let gotIapCb = function gotIapCb(iap) {
-      let recordId = iap[pbr[field].indexInIAP];
-      if (recordId === 0xff) {
-        // Case 1.
-        this.addContactFieldType2(pbr, contact, field, onsuccess, onerror);
-        return;
-      }
-
-      // Case 2.
-      if (field === USIM_PBR_EMAIL) {
-        ICCRecordHelper.updateEmail(pbr, recordId, contact.email, contact.recordId, onsuccess, onerror);
-      } else if (field === USIM_PBR_ANR0) {
-        ICCRecordHelper.updateANR(pbr, recordId, contact.anr[0], contact.recordId, onsuccess, onerror);
-      }
-    }.bind(this);
-
-    ICCRecordHelper.readIAP(pbr.iap.fileId, contact.recordId, gotIapCb, onerror);
-  },
-
-  /**
-   * Add Type 2 USIM contact fields.
-   *
-   * @param pbr           The phonebook reference file.
-   * @param contact       The contact needs to be updated.
-   * @param field         Phonebook field to be updated.
-   * @param onsuccess     Callback to be called when success.
-   * @param onerror       Callback to be called when error.
-   */
-  addContactFieldType2: function addContactFieldType2(pbr, contact, field, onsuccess, onerror) {
-    let successCb = function successCb(recordId) {
-      let updateCb = function updateCb() {
-        this.updateContactFieldIndexInIAP(pbr, contact.recordId, field, recordId, onsuccess, onerror);
-      }.bind(this);
-
-      if (field === USIM_PBR_EMAIL) {
-        ICCRecordHelper.updateEmail(pbr, recordId, contact.email, contact.recordId, updateCb, onerror);
-      } else if (field === USIM_PBR_ANR0) {
-        ICCRecordHelper.updateANR(pbr, recordId, contact.anr[0], contact.recordId, updateCb, onerror);
-      }
-    }.bind(this);
-
-    let errorCb = function errorCb(errorMsg) {
-      let error = onerror || debug;
-      error(errorMsg + " USIM field " + field);
-    }.bind(this);
-
-    ICCRecordHelper.findFreeRecordId(pbr[field].fileId, successCb, errorCb);
-  },
-
-  /**
-   * Update IAP value.
-   *
-   * @param pbr           The phonebook reference file.
-   * @param recordNumber  The record identifier of EF_IAP.
-   * @param field         Phonebook field.
-   * @param value         The value of 'field' in IAP.
-   * @param onsuccess     Callback to be called when success.
-   * @param onerror       Callback to be called when error.
-   *
-   */
-  updateContactFieldIndexInIAP: function updateContactFieldIndexInIAP(pbr, recordNumber, field, value, onsuccess, onerror) {
-    let gotIAPCb = function gotIAPCb(iap) {
-      iap[pbr[field].indexInIAP] = value;
-      ICCRecordHelper.updateIAP(pbr.iap.fileId, recordNumber, iap, onsuccess, onerror);
-    }.bind(this);
-    ICCRecordHelper.readIAP(pbr.iap.fileId, recordNumber, gotIAPCb, onerror);
   },
 };
 
 let RuimRecordHelper = {
   fetchRuimRecords: function fetchRuimRecords() {
-    ICCRecordHelper.readICCID();
-    this.getIMSI_M();
+    ICCRecordHelper.getICCID();
+    RIL.getIMSI();
     this.readCST();
     this.readCDMAHome();
-    RIL.getCdmaSubscription();
-  },
-
-  /**
-   * Get IMSI_M from CSIM/RUIM.
-   * See 3GPP2 C.S0065 Sec. 5.2.2
-   */
-  getIMSI_M: function getIMSI_M() {
-    function callback() {
-      let strLen = Buf.readInt32();
-      let encodedImsi = GsmPDUHelper.readHexOctetArray(strLen / 2);
-      Buf.readStringDelimiter(strLen);
-
-      if ((encodedImsi[CSIM_IMSI_M_PROGRAMMED_BYTE] & 0x80)) { // IMSI_M programmed
-        RIL.iccInfoPrivate.imsi = this.decodeIMSI(encodedImsi);
-        RIL.sendChromeMessage({rilMessageType: "iccimsi",
-                               imsi: RIL.iccInfoPrivate.imsi});
-
-        let mccMnc = ICCUtilsHelper.parseMccMncFromImsi(RIL.iccInfoPrivate.imsi);
-        if (mccMnc) {
-          RIL.iccInfo.mcc = mccMnc.mcc;
-          RIL.iccInfo.mnc = mccMnc.mnc;
-          ICCUtilsHelper.handleICCInfoChange();
-        }
-      }
-    }
-
-    ICCIOHelper.loadTransparentEF({fileId: ICC_EF_CSIM_IMSI_M,
-                                   callback: callback.bind(this)});
-  },
-
-  /**
-   * Decode IMSI from IMSI_M
-   * See 3GPP2 C.S0005 Sec. 2.3.1
-   * +---+---------+------------+---+--------+---------+---+---------+--------+
-   * |RFU|   MCC   | programmed |RFU|  MNC   |  MIN1   |RFU|   MIN2  |  CLASS |
-   * +---+---------+------------+---+--------+---------+---+---------+--------+
-   * | 6 | 10 bits |   8 bits   | 1 | 7 bits | 24 bits | 6 | 10 bits | 8 bits |
-   * +---+---------+------------+---+--------+---------+---+---------+--------+
-   */
-  decodeIMSI: function decodeIMSI(encodedImsi) {
-    // MCC: 10 bits, 3 digits
-    let encodedMCC = ((encodedImsi[CSIM_IMSI_M_MCC_BYTE + 1] & 0x03) << 8) +
-                      (encodedImsi[CSIM_IMSI_M_MCC_BYTE] & 0xff);
-    let mcc = this.decodeIMSIValue(encodedMCC, 3);
-
-    // MNC: 7 bits, 2 digits
-    let encodedMNC =  encodedImsi[CSIM_IMSI_M_MNC_BYTE] & 0x7f;
-    let mnc = this.decodeIMSIValue(encodedMNC, 2);
-
-    // MIN2: 10 bits, 3 digits
-    let encodedMIN2 = ((encodedImsi[CSIM_IMSI_M_MIN2_BYTE + 1] & 0x03) << 8) +
-                       (encodedImsi[CSIM_IMSI_M_MIN2_BYTE] & 0xff);
-    let min2 = this.decodeIMSIValue(encodedMIN2, 3);
-
-    // MIN1: 10+4+10 bits, 3+1+3 digits
-    let encodedMIN1First3 = ((encodedImsi[CSIM_IMSI_M_MIN1_BYTE + 2] & 0xff) << 2) +
-                             ((encodedImsi[CSIM_IMSI_M_MIN1_BYTE + 1] & 0xc0) >> 6);
-    let min1First3 = this.decodeIMSIValue(encodedMIN1First3, 3);
-
-    let encodedFourthDigit = (encodedImsi[CSIM_IMSI_M_MIN1_BYTE + 1] & 0x3c) >> 2;
-    if (encodedFourthDigit > 9) {
-      encodedFourthDigit = 0;
-    }
-    let fourthDigit = encodedFourthDigit.toString();
-
-    let encodedMIN1Last3 = ((encodedImsi[CSIM_IMSI_M_MIN1_BYTE + 1] & 0x03) << 8) +
-                            (encodedImsi[CSIM_IMSI_M_MIN1_BYTE] & 0xff);
-    let min1Last3 = this.decodeIMSIValue(encodedMIN1Last3, 3);
-
-    return mcc + mnc + min2 + min1First3 + fourthDigit + min1Last3;
-  },
-
-  /**
-   * Decode IMSI Helper function
-   * See 3GPP2 C.S0005 section 2.3.1.1
-   */
-  decodeIMSIValue: function decodeIMSIValue(encoded, length) {
-    let offset = length === 3 ? 111 : 11;
-    let value = encoded + offset;
-
-    for (let base = 10, temp = value, i = 0; i < length; i++) {
-      if (temp % 10 === 0) {
-        value -= base;
-      }
-      temp = Math.floor(value / base);
-      base = base * 10;
-    }
-
-    let s = value.toString();
-    while (s.length < length) {
-      s = "0" + s;
-    }
-
-    return s;
   },
 
   /**
@@ -13288,14 +11591,14 @@ let RuimRecordHelper = {
    */
   readCDMAHome: function readCDMAHome() {
     function callback(options) {
-      let strLen = Buf.readInt32();
+      let strLen = Buf.readUint32();
       let tempOctet = GsmPDUHelper.readHexOctet();
       cdmaHomeSystemId.push(((GsmPDUHelper.readHexOctet() & 0x7f) << 8) | tempOctet);
       tempOctet = GsmPDUHelper.readHexOctet();
       cdmaHomeNetworkId.push(((GsmPDUHelper.readHexOctet() & 0xff) << 8) | tempOctet);
 
       // Consuming the last octet: band class.
-      Buf.seekIncoming(Buf.PDU_HEX_OCTET_SIZE);
+      Buf.seekIncoming(PDU_HEX_OCTET_SIZE);
 
       Buf.readStringDelimiter(strLen);
       if (options.p1 < options.totalRecords) {
@@ -13323,7 +11626,7 @@ let RuimRecordHelper = {
    */
   readCST: function readCST() {
     function callback() {
-      let strLen = Buf.readInt32();
+      let strLen = Buf.readUint32();
       // Each octet is encoded into two chars.
       RIL.iccInfoPrivate.cst = GsmPDUHelper.readHexOctetArray(strLen / 2);
       Buf.readStringDelimiter(strLen);
@@ -13347,12 +11650,12 @@ let RuimRecordHelper = {
 
   readSPN: function readSPN() {
     function callback() {
-      let strLen = Buf.readInt32();
+      let strLen = Buf.readUint32();
       let octetLen = strLen / 2;
       let displayCondition = GsmPDUHelper.readHexOctet();
       let codingScheme = GsmPDUHelper.readHexOctet();
       // Skip one octet: language indicator.
-      Buf.seekIncoming(Buf.PDU_HEX_OCTET_SIZE);
+      Buf.seekIncoming(PDU_HEX_OCTET_SIZE);
       let readLen = 3;
 
       // SPN String ends up with 0xff.
@@ -13387,8 +11690,10 @@ let RuimRecordHelper = {
         debug("CDMA SPN: " + RIL.iccInfo.spn +
               ", Display condition: " + displayCondition);
       }
-      RIL.iccInfoPrivate.spnDisplayCondition = displayCondition;
-      Buf.seekIncoming((octetLen - readLen) * Buf.PDU_HEX_OCTET_SIZE);
+      RIL.iccInfoPrivate.SPN = {
+        spnDisplayCondition: displayCondition
+      };
+      Buf.seekIncoming((octetLen - readLen) * PDU_HEX_OCTET_SIZE);
       Buf.readStringDelimiter(strLen);
     }
 
@@ -13401,16 +11706,23 @@ let RuimRecordHelper = {
  * Global stuff.
  */
 
+if (!this.debug) {
+  // Debugging stub that goes nowhere.
+  this.debug = function debug(message) {
+    dump("RIL Worker[" + CLIENT_ID + "]: " + message + "\n");
+  };
+}
+
 // Initialize buffers. This is a separate function so that unit tests can
 // re-initialize the buffers at will.
 Buf.init();
 
 function onRILMessage(data) {
   Buf.processIncoming(data);
-}
+};
 
 onmessage = function onmessage(event) {
-  RIL.handleChromeMessage(event.data);
+  RIL.handleDOMMessage(event.data);
 };
 
 onerror = function onerror(event) {

@@ -42,43 +42,43 @@ exports.testSimpleHistory = function (options) {
   var history = new History({});
   history.add('foo');
   history.add('bar');
-  assert.is(history.backward(), 'bar');
-  assert.is(history.backward(), 'foo');
+  assert.is('bar', history.backward());
+  assert.is('foo', history.backward());
 
   // Adding to the history again moves us back to the start of the history.
   history.add('quux');
-  assert.is(history.backward(), 'quux');
-  assert.is(history.backward(), 'bar');
-  assert.is(history.backward(), 'foo');
+  assert.is('quux', history.backward());
+  assert.is('bar', history.backward());
+  assert.is('foo', history.backward());
 };
 
 exports.testBackwardsPastIndex = function (options) {
   var history = new History({});
   history.add('foo');
   history.add('bar');
-  assert.is(history.backward(), 'bar');
-  assert.is(history.backward(), 'foo');
+  assert.is('bar', history.backward());
+  assert.is('foo', history.backward());
 
   // Moving backwards past recorded history just keeps giving you the last
   // item.
-  assert.is(history.backward(), 'foo');
+  assert.is('foo', history.backward());
 };
 
 exports.testForwardsPastIndex = function (options) {
   var history = new History({});
   history.add('foo');
   history.add('bar');
-  assert.is(history.backward(), 'bar');
-  assert.is(history.backward(), 'foo');
+  assert.is('bar', history.backward());
+  assert.is('foo', history.backward());
 
   // Going forward through the history again.
-  assert.is(history.forward(), 'bar');
+  assert.is('bar', history.forward());
 
   // 'Present' time.
-  assert.is(history.forward(), '');
+  assert.is('', history.forward());
 
   // Going to the 'future' just keeps giving us the empty string.
-  assert.is(history.forward(), '');
+  assert.is('', history.forward());
 };
 
 // });

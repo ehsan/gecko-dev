@@ -1,21 +1,10 @@
-/* -*- Mode: Javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 const Cu = Components.utils;
-let {Loader} = Cu.import("resource://gre/modules/commonjs/toolkit/loader.js", {});
-
-let loader = new Loader.Loader({
-  paths: {
-    "": "resource://gre/modules/commonjs/",
-    "devtools": "resource:///modules/devtools",
-  },
-  globals: {},
-});
-let require = Loader.Require(loader, { id: "undo-test" })
-
-let {UndoStack} = require("devtools/shared/undo");
+Cu.import("resource:///modules/devtools/Undo.jsm")
 
 const MAX_SIZE = 5;
 

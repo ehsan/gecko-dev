@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#if defined(MOZ_WIDGET_GTK)
+#if defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_GTK3)
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
 #elif defined(MOZ_WIDGET_QT)
@@ -25,7 +25,7 @@ static bool gShmAvailable = true;
 bool nsShmImage::UseShm()
 {
     return gfxPlatform::GetPlatform()->
-        ScreenReferenceSurface()->GetType() == gfxSurfaceTypeImage
+        ScreenReferenceSurface()->GetType() == gfxASurface::SurfaceTypeImage
         && gShmAvailable;
 }
 
@@ -57,7 +57,7 @@ nsShmImage::Create(const gfxIntSize& aSize,
     shm->mInfo.readOnly = False;
 
     int xerror = 0;
-#if defined(MOZ_WIDGET_GTK)
+#if defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_GTK3)
     gdk_error_trap_push();
     Status attachOk = XShmAttach(dpy, &shm->mInfo);
     XSync(dpy, False);
@@ -81,12 +81,12 @@ nsShmImage::Create(const gfxIntSize& aSize,
         if ((shm->mImage->red_mask == 0xff0000) &&
             (shm->mImage->green_mask == 0xff00) &&
             (shm->mImage->blue_mask == 0xff)) {
-            shm->mFormat = gfxImageFormatRGB24;
+            shm->mFormat = gfxASurface::ImageFormatRGB24;
             break;
         }
         goto unsupported;
     case 16:
-        shm->mFormat = gfxImageFormatRGB16_565; break;
+        shm->mFormat = gfxASurface::ImageFormatRGB16_565; break;
     unsupported:
     default:
         NS_WARNING("Unsupported XShm Image format!");
@@ -107,7 +107,7 @@ nsShmImage::AsSurface()
         ).forget();
 }
 
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK2)
 void
 nsShmImage::Put(GdkWindow* aWindow, GdkRectangle* aRects, GdkRectangle* aEnd)
 {
@@ -137,7 +137,7 @@ nsShmImage::Put(GdkWindow* aWindow, GdkRectangle* aRects, GdkRectangle* aEnd)
     XSync(dpy, False);
 }
 
-#elif (MOZ_WIDGET_GTK == 3)
+#elif defined(MOZ_WIDGET_GTK3)
 void
 nsShmImage::Put(GdkWindow* aWindow, cairo_rectangle_list_t* aRects)
 {

@@ -18,7 +18,7 @@
       let request = getFileHandle(fileStorage.key, "test.txt");
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
-      let event = yield undefined;
+      let event = yield;
 
       let fileHandle = event.target.result;
       fileHandle.onerror = errorHandler;
@@ -27,11 +27,11 @@
 
       request = lockedFile.write(testBuffer);
       request.onsuccess = grabEventAndContinueHandler;
-      event = yield undefined;
+      event = yield;
 
       request = fileHandle.getFile();
       request.onsuccess = grabEventAndContinueHandler;
-      event = yield undefined;
+      event = yield;
 
       let file = event.target.result;
 
@@ -84,14 +84,14 @@
         }
       }
 
-      yield undefined;
+      yield;
 
       ok(compareBuffers(resultBuffer1, testBuffer), "Correct data");
       ok(compareBuffers(resultBuffer2, testBuffer), "Correct data");
     }
 
     finishTest();
-    yield undefined;
+    yield;
   }
   </script>
   <script type="text/javascript;version=1.7" src="helpers.js"></script>

@@ -10,11 +10,10 @@ const { loader } = LoaderWithHookedConsole(module);
 const pb = loader.require('sdk/private-browsing');
 const pbUtils = loader.require('sdk/private-browsing/utils');
 const xulApp = require("sdk/system/xul-app");
-const { open: openWindow, getMostRecentBrowserWindow } = require('sdk/window/utils');
+const { openDialog, getMostRecentBrowserWindow } = require('sdk/window/utils');
 const { openTab, getTabContentWindow, getActiveTab, setTabURL, closeTab } = require('sdk/tabs/utils');
 const promise = require("sdk/core/promise");
 const windowHelpers = require('sdk/window/helpers');
-const events = require("sdk/system/events");
 
 function LoaderWithHookedConsole(module) {
   let globals = {};
@@ -58,7 +57,6 @@ exports.openWebpage = function openWebpage(url, enablePrivate) {
     let rawTab = openTab(chromeWindow, url, {
       isPrivate: enablePrivate
     });
-
     return {
       ready: promise.resolve(getTabContentWindow(rawTab)),
       close: function () {
@@ -69,26 +67,17 @@ exports.openWebpage = function openWebpage(url, enablePrivate) {
     };
   }
   else {
-    let win = openWindow(null, {
-      features: {
-        private: enablePrivate
-      }
+    let win = openDialog({
+      private: enablePrivate
     });
     let deferred = promise.defer();
+    win.addEventListener("load", function onLoad() {
+      win.removeEventListener("load", onLoad, false);
 
-    // Wait for delayed startup code to be executed, in order to ensure
-    // that the window is really ready
-    events.on("browser-delayed-startup-finished", function onReady({subject}) {
-      if (subject == win) {
-        events.off("browser-delayed-startup-finished", onReady);
-        deferred.resolve(win);
-
-        let rawTab = getActiveTab(win);
-        setTabURL(rawTab, url);
-        deferred.resolve(getTabContentWindow(rawTab));
-      }
-    }, true);
-
+      let rawTab = getActiveTab(win);
+      setTabURL(rawTab, url);
+      deferred.resolve(getTabContentWindow(rawTab));
+    });
     return {
       ready: deferred.promise,
       close: function () {

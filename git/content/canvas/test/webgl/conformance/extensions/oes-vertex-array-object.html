@@ -148,11 +148,7 @@ function runObjectTest() {
     ext.bindVertexArrayOES(null);
     shouldBeTrue("ext.isVertexArrayOES(vao)");
     
-    /*
-     * Issue found in the conformance test. The public webgl mailing list has been notified about it.
-     * The tests have already been fixed upstream.
-     */
-    //shouldBeFalse("ext.isVertexArrayOES()");
+    shouldBeFalse("ext.isVertexArrayOES()");
     shouldBeFalse("ext.isVertexArrayOES(null)");
     
     ext.deleteVertexArrayOES(vao);

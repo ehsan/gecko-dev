@@ -6,7 +6,6 @@
 #ifndef mozilla_dom_SVGStyleElement_h
 #define mozilla_dom_SVGStyleElement_h
 
-#include "mozilla/Attributes.h"
 #include "nsSVGElement.h"
 #include "nsStyleLinkElement.h"
 #include "nsStubMutationObserver.h"
@@ -28,8 +27,7 @@ protected:
                                            already_AddRefed<nsINodeInfo> aNodeInfo));
   SVGStyleElement(already_AddRefed<nsINodeInfo> aNodeInfo);
 
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -40,9 +38,9 @@ public:
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers) MOZ_OVERRIDE;
+                              bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true) MOZ_OVERRIDE;
+                              bool aNullParent = true);
   nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
@@ -50,15 +48,15 @@ public:
   }
   virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify) MOZ_OVERRIDE;
+                           bool aNotify);
   virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify) MOZ_OVERRIDE;
+                             bool aNotify);
   virtual bool ParseAttribute(int32_t aNamespaceID,
                               nsIAtom* aAttribute,
                               const nsAString& aValue,
-                              nsAttrValue& aResult) MOZ_OVERRIDE;
+                              nsAttrValue& aResult);
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // nsIMutationObserver
   NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
@@ -88,14 +86,14 @@ protected:
   }
 
   // nsStyleLinkElement overrides
-  already_AddRefed<nsIURI> GetStyleSheetURL(bool* aIsInline) MOZ_OVERRIDE;
+  already_AddRefed<nsIURI> GetStyleSheetURL(bool* aIsInline);
 
   void GetStyleSheetInfo(nsAString& aTitle,
                          nsAString& aType,
                          nsAString& aMedia,
                          bool* aIsScoped,
-                         bool* aIsAlternate) MOZ_OVERRIDE;
-  virtual CORSMode GetCORSMode() const MOZ_OVERRIDE;
+                         bool* aIsAlternate);
+  virtual CORSMode GetCORSMode() const;
 
   /**
    * Common method to call from the various mutation observer methods.

@@ -5,6 +5,9 @@
 
 package org.mozilla.gecko;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -15,16 +18,24 @@ public class Telemetry {
     // toolkit/components/telemetry/Histograms.json
     public static void HistogramAdd(String name,
                                     int value) {
-        GeckoEvent event =
-            GeckoEvent.createTelemetryHistogramAddEvent(name, value);
-        GeckoAppShell.sendEventToGecko(event);
+        try {
+            JSONObject jsonData = new JSONObject();
+
+            jsonData.put("name", name);
+            jsonData.put("value", value);
+
+            GeckoEvent event =
+                GeckoEvent.createBroadcastEvent("Telemetry:Add", jsonData.toString());
+            GeckoAppShell.sendEventToGecko(event);
+        } catch (JSONException e) {
+            Log.e(LOGTAG, "JSON exception: ", e);
+        }
     }
 
     public static class Timer {
         private long mStartTime;
         private String mName;
         private boolean mHasFinished;
-        private volatile long mElapsed = -1;
 
         public Timer(String name) {
             mName = name;
@@ -36,10 +47,6 @@ public class Telemetry {
             mHasFinished = true;
         }
 
-        public long getElapsed() {
-          return mElapsed;
-        }
-
         public void stop() {
             // Only the first stop counts.
             if (mHasFinished) {
@@ -48,12 +55,11 @@ public class Telemetry {
                 mHasFinished = true;
             }
 
-            final long elapsed = SystemClock.uptimeMillis() - mStartTime;
-            mElapsed = elapsed;
+            long elapsed = SystemClock.uptimeMillis() - mStartTime;
             if (elapsed < Integer.MAX_VALUE) {
                 HistogramAdd(mName, (int)(elapsed));
             } else {
-                Log.e(LOGTAG, "Duration of " + elapsed + " ms is too long to add to histogram.");
+                Log.e(LOGTAG, "Duration of " + elapsed + " ms is too long.");
             }
         }
     }

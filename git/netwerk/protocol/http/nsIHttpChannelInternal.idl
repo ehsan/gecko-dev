@@ -6,19 +6,16 @@
 #include "nsISupports.idl"
 
 %{C++
-template<class T> class nsTArray;
-template<class T> class nsCOMArray;
+#include "nsTArray.h"
 class nsCString;
 %}
 [ptr] native StringArray(nsTArray<nsCString>);
-[ref] native securityMessagesArray(nsCOMArray<nsISecurityConsoleMessage>);
 
 interface nsISocketTransport;
 interface nsIAsyncInputStream;
 interface nsIAsyncOutputStream;
 interface nsIURI;
 interface nsIProxyInfo;
-interface nsISecurityConsoleMessage;
 
 /**
  * The callback interface for nsIHttpChannelInternal::HTTPUpgrade()
@@ -37,7 +34,7 @@ interface nsIHttpUpgradeListener : nsISupports
  * using any feature exposed by this interface, be aware that this interface
  * will change and you will be broken.  You have been warned.
  */
-[scriptable, uuid(5b4b2632-cee4-11e2-8e84-c7506188709b)]
+[scriptable, uuid(68074a18-49a8-44d8-852c-320ad4b1d308)]
 interface nsIHttpChannelInternal : nsISupports
 {
     /**
@@ -54,12 +51,6 @@ interface nsIHttpChannelInternal : nsISupports
      * Get the major/minor version numbers for the response
      */
     void getResponseVersion(out unsigned long major, out unsigned long minor);
-
-    /*
-     * Retrieves all security messages from the security message queue
-     * and empties the queue after retrieval
-     */
-    [noscript] void takeAllSecurityMessages(in securityMessagesArray aMessages);
 
     /**
      * Helper method to set a cookie with a consumer-provided
@@ -141,7 +132,7 @@ interface nsIHttpChannelInternal : nsISupports
     /**
      * HTTPUpgrade allows for the use of HTTP to bootstrap another protocol
      * via the RFC 2616 Upgrade request header in conjunction with a 101 level
-     * response. The nsIHttpUpgradeListener will have its
+     * response. The nsIHttpUpgradeListener will have its 
      * onTransportAvailable() method invoked if a matching 101 is processed.
      * The arguments to onTransportAvailable provide the new protocol the low
      * level tranport streams that are no longer used by HTTP.
@@ -181,4 +172,11 @@ interface nsIHttpChannelInternal : nsISupports
      */
     attribute boolean loadUnblocked;
 
+    /**
+     * bug 819734 we implement experimental rate pacing strategies for pages
+     * with large numbers of subresources. Several experimental profiles are
+     * available and this attribute corresponds to the profile used for this
+     * channel. (or at least the one active when it is queried.)
+     */
+     readonly attribute uint32_t pacingTelemetryID;
 };

@@ -3,6 +3,11 @@
 // caching resources with size out of bounds
 //
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
 Cu.import("resource://testing-common/httpd.js");
 
 do_get_profile();
@@ -22,9 +27,7 @@ function repeatToLargerThan1K(data) {
 function setupChannel(suffix, value) {
     var ios = Components.classes["@mozilla.org/network/io-service;1"]
             .getService(Ci.nsIIOService);
-    var chan = ios.newChannel("http://localhost:" +
-                              httpserver.identity.primaryPort +
-                              suffix, "", null);
+    var chan = ios.newChannel("http://localhost:4444" + suffix, "", null);
     var httpChan = chan.QueryInterface(Components.interfaces.nsIHttpChannel);
     httpChan.setRequestHeader("x-request", value, false);
     
@@ -139,14 +142,8 @@ function TestCacheEntrySize(setSizeFunc, firstRequest, secondRequest, secondExpe
 
 function run_test()
 {
-    if (newCacheBackEndUsed()) {
-        // Test that "max_entry_size" prefs for disk- and memory-cache prevents caching resources with size out of bounds
-        do_check_true(true, "This test doesn't run with the new cache backend, the test or the cache needs to be fixed");
-        return;
-    }
-
     httpserver.registerPathHandler("/bug650995", handler);
-    httpserver.start(-1);
+    httpserver.start(4444);
 
     prefService.setBoolPref("browser.cache.offline.enable", false);
 

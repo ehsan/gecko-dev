@@ -14,7 +14,6 @@
 #include "SVGAnimatedPreserveAspectRatio.h"
 #include "nsSVGElement.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/SVGAnimatedEnumeration.h"
 
 class nsSVGMarkerFrame;
 
@@ -30,10 +29,9 @@ static const unsigned short SVG_MARKERUNITS_USERSPACEONUSE = 1;
 static const unsigned short SVG_MARKERUNITS_STROKEWIDTH    = 2;
 
 // Marker Orientation Types
-static const unsigned short SVG_MARKER_ORIENT_UNKNOWN            = 0;
-static const unsigned short SVG_MARKER_ORIENT_AUTO               = 1;
-static const unsigned short SVG_MARKER_ORIENT_ANGLE              = 2;
-static const unsigned short SVG_MARKER_ORIENT_AUTO_START_REVERSE = 3;
+static const unsigned short SVG_MARKER_ORIENT_UNKNOWN      = 0;
+static const unsigned short SVG_MARKER_ORIENT_AUTO         = 1;
+static const unsigned short SVG_MARKER_ORIENT_ANGLE        = 2;
 
 class nsSVGOrientType
 {
@@ -53,47 +51,36 @@ public:
   void SetAnimValue(uint16_t aValue)
     { mAnimVal = uint8_t(aValue); }
 
-  // we want to avoid exposing SVG_MARKER_ORIENT_AUTO_START_REVERSE to
-  // Web content
   uint16_t GetBaseValue() const
-    { return mAnimVal == SVG_MARKER_ORIENT_AUTO_START_REVERSE ?
-               SVG_MARKER_ORIENT_UNKNOWN : mBaseVal; }
+    { return mBaseVal; }
   uint16_t GetAnimValue() const
-    { return mAnimVal == SVG_MARKER_ORIENT_AUTO_START_REVERSE ?
-               SVG_MARKER_ORIENT_UNKNOWN : mAnimVal; }
-  uint16_t GetAnimValueInternal() const
     { return mAnimVal; }
 
-  already_AddRefed<SVGAnimatedEnumeration>
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration>
     ToDOMAnimatedEnum(nsSVGElement* aSVGElement);
 
 private:
   nsSVGEnumValue mAnimVal;
   nsSVGEnumValue mBaseVal;
 
-  struct DOMAnimatedEnum MOZ_FINAL : public SVGAnimatedEnumeration
+  struct DOMAnimatedEnum MOZ_FINAL : public nsIDOMSVGAnimatedEnumeration
   {
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedEnum)
+
     DOMAnimatedEnum(nsSVGOrientType* aVal,
                     nsSVGElement *aSVGElement)
-      : SVGAnimatedEnumeration(aSVGElement)
-      , mVal(aVal)
-    {}
+      : mVal(aVal), mSVGElement(aSVGElement) {}
 
     nsSVGOrientType *mVal; // kept alive because it belongs to content
+    nsRefPtr<nsSVGElement> mSVGElement;
 
-    using mozilla::dom::SVGAnimatedEnumeration::SetBaseVal;
-    virtual uint16_t BaseVal() MOZ_OVERRIDE
-    {
-      return mVal->GetBaseValue();
-    }
-    virtual void SetBaseVal(uint16_t aBaseVal, ErrorResult& aRv) MOZ_OVERRIDE
-    {
-      aRv = mVal->SetBaseValue(aBaseVal, mSVGElement);
-    }
-    virtual uint16_t AnimVal() MOZ_OVERRIDE
-    {
-      return mVal->GetAnimValue();
-    }
+    NS_IMETHOD GetBaseVal(uint16_t* aResult)
+      { *aResult = mVal->GetBaseValue(); return NS_OK; }
+    NS_IMETHOD SetBaseVal(uint16_t aValue)
+      { return mVal->SetBaseValue(aValue, mSVGElement); }
+    NS_IMETHOD GetAnimVal(uint16_t* aResult)
+      { *aResult = mVal->GetAnimValue(); return NS_OK; }
   };
 };
 
@@ -107,42 +94,37 @@ protected:
   friend nsresult (::NS_NewSVGMarkerElement(nsIContent **aResult,
                                             already_AddRefed<nsINodeInfo> aNodeInfo));
   SVGMarkerElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-  virtual JSObject* WrapNode(JSContext *cx,
-                             JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 public:
   // nsIContent interface
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const MOZ_OVERRIDE;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const;
 
   virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify) MOZ_OVERRIDE;
+                             bool aNotify);
 
   // nsSVGSVGElement methods:
-  virtual bool HasValidDimensions() const MOZ_OVERRIDE;
+  virtual bool HasValidDimensions() const;
 
   // public helpers
   gfxMatrix GetMarkerTransform(float aStrokeWidth,
-                               float aX, float aY, float aAutoAngle,
-                               bool aIsStart);
+                               float aX, float aY, float aAutoAngle);
   nsSVGViewBoxRect GetViewBoxRect();
   gfxMatrix GetViewBoxTransform();
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   nsSVGOrientType* GetOrientType() { return &mOrientType; }
 
-  // Returns the value of svg.marker-improvements.enabled.
-  static bool MarkerImprovementsPrefEnabled();
-
   // WebIDL
-  already_AddRefed<SVGAnimatedRect> ViewBox();
+  already_AddRefed<nsIDOMSVGAnimatedRect> ViewBox();
   already_AddRefed<DOMSVGAnimatedPreserveAspectRatio> PreserveAspectRatio();
   already_AddRefed<SVGAnimatedLength> RefX();
   already_AddRefed<SVGAnimatedLength> RefY();
-  already_AddRefed<SVGAnimatedEnumeration> MarkerUnits();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> MarkerUnits();
   already_AddRefed<SVGAnimatedLength> MarkerWidth();
   already_AddRefed<SVGAnimatedLength> MarkerHeight();
-  already_AddRefed<SVGAnimatedEnumeration> OrientType();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> OrientType();
   already_AddRefed<SVGAnimatedAngle> OrientAngle();
   void SetOrientToAuto();
   void SetOrientToAngle(SVGAngle& angle, ErrorResult& rv);
@@ -151,15 +133,15 @@ protected:
 
   virtual bool ParseAttribute(int32_t aNameSpaceID, nsIAtom* aName,
                                 const nsAString& aValue,
-                                nsAttrValue& aResult) MOZ_OVERRIDE;
+                                nsAttrValue& aResult);
 
   void SetParentCoordCtxProvider(SVGSVGElement *aContext);
 
-  virtual LengthAttributesInfo GetLengthInfo() MOZ_OVERRIDE;
-  virtual AngleAttributesInfo GetAngleInfo() MOZ_OVERRIDE;
-  virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;
-  virtual nsSVGViewBox *GetViewBox() MOZ_OVERRIDE;
-  virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio() MOZ_OVERRIDE;
+  virtual LengthAttributesInfo GetLengthInfo();
+  virtual AngleAttributesInfo GetAngleInfo();
+  virtual EnumAttributesInfo GetEnumInfo();
+  virtual nsSVGViewBox *GetViewBox();
+  virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio();
 
   enum { REFX, REFY, MARKERWIDTH, MARKERHEIGHT };
   nsSVGLength2 mLengthAttributes[4];

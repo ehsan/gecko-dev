@@ -12,7 +12,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEDistantLightElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEDistantLightElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEDistantLightElementBinding::Wrap(aCx, aScope, this);
 }
@@ -40,13 +40,13 @@ SVGFEDistantLightElement::AttributeAffectsRendering(int32_t aNameSpaceID,
           aAttribute == nsGkAtoms::elevation);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEDistantLightElement::Azimuth()
 {
   return mNumberAttributes[AZIMUTH].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEDistantLightElement::Elevation()
 {
   return mNumberAttributes[ELEVATION].ToDOMAnimatedNumber(this);

@@ -25,7 +25,7 @@ HTMLWin32ObjectOwnerAccessible::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLWin32ObjectOwnerAccessible: Accessible implementation
+// HTMLWin32ObjectOwnerAccessible: nsAccessNode implementation
 
 void
 HTMLWin32ObjectOwnerAccessible::Shutdown()
@@ -33,6 +33,9 @@ HTMLWin32ObjectOwnerAccessible::Shutdown()
   AccessibleWrap::Shutdown();
   mNativeAccessible = nullptr;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// HTMLWin32ObjectOwnerAccessible: Accessible implementation
 
 role
 HTMLWin32ObjectOwnerAccessible::NativeRole()

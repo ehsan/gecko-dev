@@ -40,20 +40,13 @@ public:
      *  that the page is part of.
      *  @param catalog         The catalog to add page content objects to.
      *  @param firstPage       Indicate if this is the first page of a document.
-     *  @param newResourceObjects All the resource objects (recursively) used on
+     *  @param resourceObjects All the resource objects (recursively) used on
      *                         the page are added to this array.  This gives
      *                         the caller a chance to deduplicate resources
      *                         across pages.
-     *  @param knownResourceObjects  The set of resources to be ignored.
      */
     void finalizePage(SkPDFCatalog* catalog, bool firstPage,
-                      const SkTSet<SkPDFObject*>& knownResourceObjects,
-                      SkTSet<SkPDFObject*>* newResourceObjects);
-
-    /** Add destinations for this page to the supplied dictionary.
-     *  @param dict       Dictionary to add destinations to.
-     */
-    void appendDestinations(SkPDFDict* dict);
+                      SkTDArray<SkPDFObject*>* resourceObjects);
 
     /** Determine the size of the page content and store to the catalog
      *  the offsets of all nonresource-indirect objects that make up the page
@@ -98,10 +91,10 @@ public:
 
 private:
     // Multiple pages may reference the content.
-    SkAutoTUnref<SkPDFDevice> fDevice;
+    SkRefPtr<SkPDFDevice> fDevice;
 
     // Once the content is finalized, put it into a stream for output.
-    SkAutoTUnref<SkPDFStream> fContentStream;
+    SkRefPtr<SkPDFStream> fContentStream;
 };
 
 #endif

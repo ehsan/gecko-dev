@@ -15,50 +15,44 @@
 //       which the deadline will be 15ms + throttle threshold
 //#define COMPOSITOR_PERFORMANCE_WARNING
 
-#include <stdint.h>                     // for uint64_t
-#include "Layers.h"                     // for Layer
-#include "ShadowLayersManager.h"        // for ShadowLayersManager
-#include "base/basictypes.h"            // for DISALLOW_EVIL_CONSTRUCTORS
-#include "base/platform_thread.h"       // for PlatformThreadId
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/Monitor.h"            // for Monitor
-#include "mozilla/RefPtr.h"             // for RefPtr
-#include "mozilla/TimeStamp.h"          // for TimeStamp
-#include "mozilla/ipc/ProtocolUtils.h"
-#include "mozilla/layers/GeckoContentController.h"
-#include "mozilla/layers/LayersMessages.h"  // for TargetConfig
 #include "mozilla/layers/PCompositorParent.h"
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsISupportsImpl.h"
-#include "nsSize.h"                     // for nsIntSize
-
-class CancelableTask;
-class MessageLoop;
-class gfxContext;
+#include "mozilla/layers/PLayersParent.h"
+#include "base/thread.h"
+#include "mozilla/Monitor.h"
+#include "mozilla/TimeStamp.h"
+#include "ShadowLayersManager.h"
+#include "LayerManagerComposite.h"
 class nsIWidget;
 
-namespace mozilla {
-namespace gfx {
-class DrawTarget;
+namespace base {
+class Thread;
 }
 
+namespace mozilla {
 namespace layers {
 
-class APZCTreeManager;
-class AsyncCompositionManager;
-class LayerManagerComposite;
-class LayerTransactionParent;
+class AsyncPanZoomController;
+class Layer;
+class LayerManager;
+struct TextureFactoryIdentifier;
 
-struct ScopedLayerTreeRegistration
-{
-  ScopedLayerTreeRegistration(uint64_t aLayersId,
-                              Layer* aRoot,
-                              GeckoContentController* aController);
-  ~ScopedLayerTreeRegistration();
+// Represents (affine) transforms that are calculated from a content view.
+struct ViewTransform {
+  ViewTransform(gfxPoint aTranslation = gfxPoint(),
+                gfxSize aScale = gfxSize(1, 1))
+    : mTranslation(aTranslation)
+    , mScale(aScale)
+  {}
 
-private:
-  uint64_t mLayersId;
+  operator gfx3DMatrix() const
+  {
+    return
+      gfx3DMatrix::ScalingMatrix(mScale.width, mScale.height, 1) *
+      gfx3DMatrix::Translation(mTranslation.x, mTranslation.y, 0);
+  }
+
+  gfxPoint mTranslation;
+  gfxSize mScale;
 };
 
 class CompositorParent : public PCompositorParent,
@@ -68,29 +62,21 @@ class CompositorParent : public PCompositorParent,
 
 public:
   CompositorParent(nsIWidget* aWidget,
-                   bool aUseExternalSurfaceSize = false,
+                   bool aRenderToEGLSurface = false,
                    int aSurfaceWidth = -1, int aSurfaceHeight = -1);
 
   virtual ~CompositorParent();
-
-  // IToplevelProtocol::CloneToplevel()
-  virtual IToplevelProtocol*
-  CloneToplevel(const InfallibleTArray<mozilla::ipc::ProtocolFdMapping>& aFds,
-                base::ProcessHandle aPeerProcess,
-                mozilla::ipc::ProtocolCloneContext* aCtx) MOZ_OVERRIDE;
 
   virtual bool RecvWillStop() MOZ_OVERRIDE;
   virtual bool RecvStop() MOZ_OVERRIDE;
   virtual bool RecvPause() MOZ_OVERRIDE;
   virtual bool RecvResume() MOZ_OVERRIDE;
-  virtual bool RecvNotifyChildCreated(const uint64_t& child) MOZ_OVERRIDE;
   virtual bool RecvMakeSnapshot(const SurfaceDescriptor& aInSnapshot,
                                 SurfaceDescriptor* aOutSnapshot);
-  virtual bool RecvFlushRendering() MOZ_OVERRIDE;
 
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
-  virtual void ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
+  virtual void ShadowLayersUpdated(ShadowLayersParent* aLayerTree,
                                    const TargetConfig& aTargetConfig,
                                    bool isFirstPaint) MOZ_OVERRIDE;
   /**
@@ -100,13 +86,12 @@ public:
    * The information refresh happens because the compositor will call
    * SetFirstPaintViewport on the next frame of composition.
    */
-  void ForceIsFirstPaint();
+  void ForceIsFirstPaint() { mIsFirstPaint = true; }
   void Destroy();
 
   LayerManagerComposite* GetLayerManager() { return mLayerManager; }
 
-  void NotifyChildCreated(uint64_t aChild);
-
+  void SetTransformation(float aScale, nsIntPoint aScrollOffset);
   void AsyncRender();
 
   // Can be called from any thread
@@ -119,13 +104,7 @@ public:
   bool ScheduleResumeOnCompositorThread(int width, int height);
 
   virtual void ScheduleComposition();
-  void NotifyShadowTreeTransaction(uint64_t aId, bool aIsFirstPaint);
-
-  /**
-   * Returns the unique layer tree identifier that corresponds to the root
-   * tree of this compositor.
-   */
-  uint64_t RootLayerTreeId();
+  void NotifyShadowTreeTransaction();
 
   /**
    * Returns a pointer to the compositor corresponding to the given ID.
@@ -164,19 +143,13 @@ public:
   static void DeallocateLayerTreeId(uint64_t aId);
 
   /**
-   * Set aController as the pan/zoom callback for the subtree referred
+   * Set aController as the pan/zoom controller for the tree referred
    * to by aLayersId.
    *
    * Must run on content main thread.
    */
-  static void SetControllerForLayerTree(uint64_t aLayersId,
-                                        GeckoContentController* aController);
-
-  /**
-   * This returns a reference to the APZCTreeManager to which
-   * pan/zoom-related events can be sent.
-   */
-  static APZCTreeManager* GetAPZCTreeManager(uint64_t aLayersId);
+  static void SetPanZoomControllerForLayerTree(uint64_t aLayersId,
+                                               AsyncPanZoomController* aController);
 
   /**
    * A new child process has been configured to push transactions
@@ -194,55 +167,42 @@ public:
   static void StartUpWithExistingThread(MessageLoop* aMsgLoop,
                                         PlatformThreadId aThreadID);
 
-  struct LayerTreeState {
-    LayerTreeState();
-    nsRefPtr<Layer> mRoot;
-    nsRefPtr<GeckoContentController> mController;
-    CompositorParent* mParent;
-    TargetConfig mTargetConfig;
-  };
-
-  /**
-   * Lookup the indirect shadow tree for |aId| and return it if it
-   * exists.  Otherwise null is returned.  This must only be called on
-   * the compositor thread.
-   */
-  static const LayerTreeState* GetIndirectShadowTree(uint64_t aId);
-
-  /**
-   * Tell all CompositorParents to update their last refresh to aTime and sample
-   * animations at this time stamp.  If aIsTesting is true, the
-   * CompositorParents will become "paused" and continue sampling animations at
-   * this time stamp until this function is called again with aIsTesting set to
-   * false.
-   */
-  static void SetTimeAndSampleAnimations(TimeStamp aTime, bool aIsTesting);
-
-  /**
-   * Returns true if the calling thread is the compositor thread.
-   */
-  static bool IsInCompositorThread();
 protected:
-  virtual PLayerTransactionParent*
-    AllocPLayerTransactionParent(const nsTArray<LayersBackend>& aBackendHints,
-                                 const uint64_t& aId,
-                                 TextureFactoryIdentifier* aTextureFactoryIdentifier,
-                                 bool* aSuccess);
-  virtual bool DeallocPLayerTransactionParent(PLayerTransactionParent* aLayers);
+  virtual PLayersParent* AllocPLayers(const LayersBackend& aBackendHint,
+                                      const uint64_t& aId,
+                                      TextureFactoryIdentifier* aTextureFactoryIdentifier);
+  virtual bool DeallocPLayers(PLayersParent* aLayers);
   virtual void ScheduleTask(CancelableTask*, int);
   virtual void Composite();
-  virtual void ComposeToTarget(gfx::DrawTarget* aTarget);
-
+  virtual void ComposeToTarget(gfxContext* aTarget);
+  virtual void SetFirstPaintViewport(const nsIntPoint& aOffset, float aZoom, const nsIntRect& aPageRect, const gfx::Rect& aCssPageRect);
+  virtual void SetPageRect(const gfx::Rect& aCssPageRect);
+  virtual void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
+                                nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY,
+                                gfx::Margin& aFixedLayerMargins);
   void SetEGLSurfaceSize(int width, int height);
+  // If SetPanZoomControllerForLayerTree is not set, Compositor will use
+  // derived class AsyncPanZoomController transformations.
+  // Compositor will not own AsyncPanZoomController here.
+  virtual AsyncPanZoomController* GetDefaultPanZoomController() { return nullptr; }
 
 private:
-  void InitializeLayerManager(const nsTArray<LayersBackend>& aBackendHints);
   void PauseComposition();
   void ResumeComposition();
   void ResumeCompositionAndResize(int width, int height);
   void ForceComposition();
 
-  inline static PlatformThreadId CompositorThreadID();
+  // Sample transforms for layer trees.  Return true to request
+  // another animation frame.
+  bool TransformShadowTree(TimeStamp aCurrentFrame);
+  void TransformScrollableLayer(Layer* aLayer, const gfx3DMatrix& aRootTransform);
+  // Return true if an AsyncPanZoomController content transform was
+  // applied for |aLayer|.  *aWantNextFrame is set to true if the
+  // controller wants another animation frame.
+  bool ApplyAsyncContentTransformToTree(TimeStamp aCurrentFrame, Layer* aLayer,
+                                        bool* aWantNextFrame);
+
+  inline PlatformThreadId CompositorThreadID();
 
   /**
    * Creates a global map referencing each compositor by ID.
@@ -289,32 +249,55 @@ private:
    */
   bool CanComposite();
 
+  // Platform specific functions
+  /**
+   * Recursively applies the given translation to all top-level fixed position
+   * layers that are descendants of the given layer.
+   * aScaleDiff is considered to be the scale transformation applied when
+   * displaying the layers, and is used to make sure the anchor points of
+   * fixed position layers remain in the same position.
+   */
+  void TransformFixedLayers(Layer* aLayer,
+                            const gfxPoint& aTranslation,
+                            const gfxSize& aScaleDiff,
+                            const gfx::Margin& aFixedLayerMargins);
+
   nsRefPtr<LayerManagerComposite> mLayerManager;
-  RefPtr<AsyncCompositionManager> mCompositionManager;
   nsIWidget* mWidget;
+  TargetConfig mTargetConfig;
   CancelableTask *mCurrentCompositeTask;
   TimeStamp mLastCompose;
-  TimeStamp mTestTime;
-  bool mIsTesting;
 #ifdef COMPOSITOR_PERFORMANCE_WARNING
   TimeStamp mExpectedComposeTime;
 #endif
 
   bool mPaused;
+  float mXScale;
+  float mYScale;
+  nsIntPoint mScrollOffset;
+  nsIntRect mContentRect;
 
-  bool mUseExternalSurfaceSize;
+  // When this flag is set, the next composition will be the first for a
+  // particular document (i.e. the document displayed on the screen will change).
+  // This happens when loading a new page or switching tabs. We notify the
+  // front-end (e.g. Java on Android) about this so that it take the new page
+  // size and zoom into account when providing us with the next view transform.
+  bool mIsFirstPaint;
+
+  // This flag is set during a layers update, so that the first composition
+  // after a layers update has it set. It is cleared after that first composition.
+  bool mLayersUpdated;
+
+  bool mRenderToEGLSurface;
   nsIntSize mEGLSurfaceSize;
 
   mozilla::Monitor mPauseCompositionMonitor;
   mozilla::Monitor mResumeCompositionMonitor;
 
   uint64_t mCompositorID;
-  uint64_t mRootLayerTreeID;
 
   bool mOverrideComposeReadiness;
   CancelableTask* mForceCompositionTask;
-
-  nsRefPtr<APZCTreeManager> mApzcTreeManager;
 
   DISALLOW_EVIL_CONSTRUCTORS(CompositorParent);
 };

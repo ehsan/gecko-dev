@@ -17,29 +17,37 @@
 #include "AudioSampleFormat.h"
 #include "AudioChannelCommon.h"
 #include <algorithm>
-#include "nsComponentManagerUtils.h"
-#include "nsIHttpChannel.h"
-#include "mozilla/dom/TimeRanges.h"
-#include "AudioStream.h"
+#include "mozilla/Preferences.h"
+#include "mozilla/dom/EnableWebAudioCheck.h"
+
+static bool
+IsAudioAPIEnabled()
+{
+  return mozilla::Preferences::GetBool("media.audio_data.enabled", true);
+}
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Audio)
 
 namespace mozilla {
 namespace dom {
 
-extern bool IsAudioAPIEnabled();
+NS_IMPL_ADDREF_INHERITED(HTMLAudioElement, HTMLMediaElement)
+NS_IMPL_RELEASE_INHERITED(HTMLAudioElement, HTMLMediaElement)
 
-NS_IMPL_ISUPPORTS_INHERITED4(HTMLAudioElement, HTMLMediaElement,
-                             nsIDOMHTMLMediaElement, nsIDOMHTMLAudioElement,
-                             nsITimerCallback, nsIAudioChannelAgentCallback)
+NS_INTERFACE_TABLE_HEAD(HTMLAudioElement)
+NS_HTML_CONTENT_INTERFACE_TABLE2(HTMLAudioElement, nsIDOMHTMLMediaElement,
+                                 nsIDOMHTMLAudioElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLAudioElement,
+                                             HTMLMediaElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLAudioElement)
 
 
 HTMLAudioElement::HTMLAudioElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : HTMLMediaElement(aNodeInfo),
-    mTimerActivated(false)
+  : HTMLMediaElement(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 HTMLAudioElement::~HTMLAudioElement()
@@ -52,7 +60,7 @@ HTMLAudioElement::Audio(const GlobalObject& aGlobal,
                         const Optional<nsAString>& aSrc,
                         ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.Get());
   nsIDocument* doc;
   if (!win || !(doc = win->GetExtantDoc())) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -85,7 +93,9 @@ HTMLAudioElement::MozSetup(uint32_t aChannels, uint32_t aRate, ErrorResult& aRv)
     return;
   }
 
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eMozAudioData);
+  if (dom::EnableWebAudioCheck::PrefEnabled()) {
+    OwnerDoc()->WarnOnceAbout(nsIDocument::eMozAudioData);
+  }
 
   // If there is already a src provided, don't setup another stream
   if (mDecoder) {
@@ -103,16 +113,8 @@ HTMLAudioElement::MozSetup(uint32_t aChannels, uint32_t aRate, ErrorResult& aRv)
     mAudioStream->Shutdown();
   }
 
-#ifdef MOZ_B2G
-  if (mTimerActivated) {
-    mDeferStopPlayTimer->Cancel();
-    mTimerActivated = false;
-    UpdateAudioChannelPlayingState();
-  }
-#endif
-
   mAudioStream = AudioStream::AllocateStream();
-  aRv = mAudioStream->Init(aChannels, aRate, mAudioChannelType, AudioStream::HighLatency);
+  aRv = mAudioStream->Init(aChannels, aRate, mAudioChannelType);
   if (aRv.Failed()) {
     mAudioStream->Shutdown();
     mAudioStream = nullptr;
@@ -120,7 +122,7 @@ HTMLAudioElement::MozSetup(uint32_t aChannels, uint32_t aRate, ErrorResult& aRv)
   }
 
   MetadataLoaded(aChannels, aRate, true, false, nullptr);
-  mAudioStream->SetVolume(mMuted ? 0.0 : mVolume);
+  mAudioStream->SetVolume(mVolume);
 }
 
 uint32_t
@@ -143,21 +145,6 @@ HTMLAudioElement::MozWriteAudio(const float* aData, uint32_t aLength,
     aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return 0;
   }
-
-#ifdef MOZ_B2G
-  if (!mDeferStopPlayTimer) {
-    mDeferStopPlayTimer = do_CreateInstance("@mozilla.org/timer;1");
-  }
-
-  if (mTimerActivated) {
-    mDeferStopPlayTimer->Cancel();
-  }
-  // The maximum buffer size of audio backend is 1 second, so waiting for 1
-  // second is sufficient enough.
-  mDeferStopPlayTimer->InitWithCallback(this, 1000, nsITimer::TYPE_ONE_SHOT);
-  mTimerActivated = true;
-  UpdateAudioChannelPlayingState();
-#endif
 
   // Don't write more than can be written without blocking.
   uint32_t writeLen = std::min(mAudioStream->Available(), aLength / mChannels);
@@ -223,76 +210,10 @@ nsresult HTMLAudioElement::SetAcceptHeader(nsIHttpChannel* aChannel)
 }
 
 JSObject*
-HTMLAudioElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLAudioElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return HTMLAudioElementBinding::Wrap(aCx, aScope, this);
 }
 
-/* void canPlayChanged (in boolean canPlay); */
-NS_IMETHODIMP
-HTMLAudioElement::CanPlayChanged(int32_t canPlay)
-{
-  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
-  // Only Audio_Data API will initialize the mAudioStream, so we call the parent
-  // one when this audio tag is not used by Audio_Data API.
-  if (!mAudioStream) {
-    return HTMLMediaElement::CanPlayChanged(canPlay);
-  }
-#ifdef MOZ_B2G
-  if (canPlay != AUDIO_CHANNEL_STATE_MUTED) {
-    SetMutedInternal(mMuted & ~MUTED_BY_AUDIO_CHANNEL);
-  } else {
-    SetMutedInternal(mMuted | MUTED_BY_AUDIO_CHANNEL);
-  }
-
-#endif
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HTMLAudioElement::Notify(nsITimer* aTimer)
-{
-#ifdef MOZ_B2G
-  mTimerActivated = false;
-  UpdateAudioChannelPlayingState();
-#endif
-  return NS_OK;
-}
-
-void
-HTMLAudioElement::UpdateAudioChannelPlayingState()
-{
-  if (!mAudioStream) {
-    HTMLMediaElement::UpdateAudioChannelPlayingState();
-    return;
-  }
-  // The HTMLAudioElement is registered to the AudioChannelService only on B2G.
-#ifdef MOZ_B2G
-  if (mTimerActivated != mPlayingThroughTheAudioChannel) {
-    mPlayingThroughTheAudioChannel = mTimerActivated;
-
-    if (!mAudioChannelAgent) {
-      nsresult rv;
-      mAudioChannelAgent = do_CreateInstance("@mozilla.org/audiochannelagent;1", &rv);
-      if (!mAudioChannelAgent) {
-        return;
-      }
-      // Use a weak ref so the audio channel agent can't leak |this|.
-      mAudioChannelAgent->InitWithWeakCallback(mAudioChannelType, this);
-
-      mAudioChannelAgent->SetVisibilityState(!OwnerDoc()->Hidden());
-    }
-
-    if (mPlayingThroughTheAudioChannel) {
-      int32_t canPlay;
-      mAudioChannelAgent->StartPlaying(&canPlay);
-      CanPlayChanged(canPlay);
-    } else {
-      mAudioChannelAgent->StopPlaying();
-      mAudioChannelAgent = nullptr;
-    }
-  }
-#endif
-}
 } // namespace dom
 } // namespace mozilla

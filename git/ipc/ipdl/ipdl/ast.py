@@ -186,61 +186,60 @@ class Include(Node):
         self.file = "%s.%s" % (name, suffix)
 
 class UsingStmt(Node):
-    def __init__(self, loc, cxxTypeSpec, cxxHeader=None, kind=None):
+    def __init__(self, loc, cxxTypeSpec):
         Node.__init__(self, loc)
-        assert not isinstance(cxxTypeSpec, str)
-        assert cxxHeader is None or isinstance(cxxHeader, str);
-        assert kind is None or kind == 'class' or kind == 'struct'
         self.type = cxxTypeSpec
-        self.header = cxxHeader
-        self.kind = kind
-    def canBeForwardDeclared(self):
-        return self.isClass() or self.isStruct()
-    def isClass(self):
-        return self.kind == 'class'
-    def isStruct(self):
-        return self.kind == 'struct'
 
 # "singletons"
-class PrettyPrinted:
+class ASYNC:
+    pretty = 'async'
     @classmethod
     def __hash__(cls): return hash(cls.pretty)
     @classmethod
     def __str__(cls):  return cls.pretty
-    
-class ASYNC(PrettyPrinted):
-    pretty = 'async'
-class INTR(PrettyPrinted):
-    pretty = 'intr'
-class SYNC(PrettyPrinted):
-    pretty = 'sync'
-class URGENT(PrettyPrinted):
-    pretty = 'urgent'
-class RPC(PrettyPrinted):
+class RPC:
     pretty = 'rpc'
+    @classmethod
+    def __hash__(cls): return hash(cls.pretty)
+    @classmethod
+    def __str__(cls):  return cls.pretty
+class SYNC:
+    pretty = 'sync'
+    @classmethod
+    def __hash__(cls): return hash(cls.pretty)
+    @classmethod
+    def __str__(cls):  return cls.pretty
 
-class INOUT(PrettyPrinted):
+class INOUT:
     pretty = 'inout'
-class IN(PrettyPrinted):
+    @classmethod
+    def __hash__(cls): return hash(cls.pretty)
+    @classmethod
+    def __str__(cls):  return cls.pretty
+class IN:
     pretty = 'in'
+    @classmethod
+    def __hash__(cls): return hash(cls.pretty)
+    @classmethod
+    def __str__(cls):  return cls.pretty
     @staticmethod
     def prettySS(cls, ss): return _prettyTable['in'][ss.pretty]
-class OUT(PrettyPrinted):
+class OUT:
     pretty = 'out'
+    @classmethod
+    def __hash__(cls): return hash(cls.pretty)
+    @classmethod
+    def __str__(cls):  return cls.pretty
     @staticmethod
     def prettySS(ss): return _prettyTable['out'][ss.pretty]
 
 _prettyTable = {
     IN  : { 'async': 'AsyncRecv',
             'sync': 'SyncRecv',
-            'intr': 'IntrAnswer',
-            'rpc': 'RPCAnswer',
-            'urgent': 'UrgentAnswer' },
+            'rpc': 'RpcAnswer' },
     OUT : { 'async': 'AsyncSend',
             'sync': 'SyncSend',
-            'intr': 'IntrCall',
-            'rpc': 'RPCCall',
-            'urgent': 'UrgentCall' }
+            'rpc': 'RpcCall' }
     # inout doesn't make sense here
 }
 
@@ -325,7 +324,7 @@ class MessageDecl(Node):
         self.outParams += outParamsList
 
     def hasReply(self):
-        return self.sendSemantics is SYNC or self.sendSemantics is INTR
+        return self.sendSemantics is SYNC or self.sendSemantics is RPC
 
 class Transition(Node):
     def __init__(self, loc, trigger, msg, toStates):

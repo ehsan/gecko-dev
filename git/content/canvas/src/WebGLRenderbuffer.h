@@ -15,11 +15,12 @@
 namespace mozilla {
 
 class WebGLRenderbuffer MOZ_FINAL
-    : public nsWrapperCache
+    : public nsISupports
     , public WebGLRefCountedObject<WebGLRenderbuffer>
     , public LinkedListElement<WebGLRenderbuffer>
     , public WebGLRectangleObject
     , public WebGLContextBoundObject
+    , public nsWrapperCache
 {
 public:
     WebGLRenderbuffer(WebGLContext *context);
@@ -32,20 +33,16 @@ public:
 
     bool HasEverBeenBound() { return mHasEverBeenBound; }
     void SetHasEverBeenBound(bool x) { mHasEverBeenBound = x; }
+    WebGLuint GLName() const { return mGLName; }
 
-    bool HasUninitializedImageData() const { return mImageDataStatus == WebGLImageDataStatus::UninitializedImageData; }
-    void SetImageDataStatus(WebGLImageDataStatus x) {
-        // there is no way to go from having image data to not having any
-        MOZ_ASSERT(x != WebGLImageDataStatus::NoImageData ||
-                   mImageDataStatus == WebGLImageDataStatus::NoImageData);
-        mImageDataStatus = x;
-    }
+    bool Initialized() const { return mInitialized; }
+    void SetInitialized(bool aInitialized) { mInitialized = aInitialized; }
 
-    GLenum InternalFormat() const { return mInternalFormat; }
-    void SetInternalFormat(GLenum aInternalFormat) { mInternalFormat = aInternalFormat; }
+    WebGLenum InternalFormat() const { return mInternalFormat; }
+    void SetInternalFormat(WebGLenum aInternalFormat) { mInternalFormat = aInternalFormat; }
 
-    GLenum InternalFormatForGL() const { return mInternalFormatForGL; }
-    void SetInternalFormatForGL(GLenum aInternalFormatForGL) { mInternalFormatForGL = aInternalFormatForGL; }
+    WebGLenum InternalFormatForGL() const { return mInternalFormatForGL; }
+    void SetInternalFormatForGL(WebGLenum aInternalFormatForGL) { mInternalFormatForGL = aInternalFormatForGL; }
 
     int64_t MemoryUsage() const;
 
@@ -53,25 +50,18 @@ public:
         return Context();
     }
 
-    void BindRenderbuffer() const;
-    void RenderbufferStorage(GLenum internalFormat, GLsizei width, GLsizei height) const;
-    void FramebufferRenderbuffer(GLenum attachment) const;
-    // Only handles a subset of `pname`s.
-    GLint GetRenderbufferParameter(GLenum target, GLenum pname) const;
+    virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
-    virtual JSObject* WrapObject(JSContext *cx,
-                                 JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
-
-    NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebGLRenderbuffer)
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLRenderbuffer)
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLRenderbuffer)
 
 protected:
-    GLuint mPrimaryRB;
-    GLuint mSecondaryRB;
-    GLenum mInternalFormat;
-    GLenum mInternalFormatForGL;
+
+    WebGLuint mGLName;
+    WebGLenum mInternalFormat;
+    WebGLenum mInternalFormatForGL;
     bool mHasEverBeenBound;
-    WebGLImageDataStatus mImageDataStatus;
+    bool mInitialized;
 
     friend class WebGLFramebuffer;
 };

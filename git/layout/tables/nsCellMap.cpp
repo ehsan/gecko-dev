@@ -37,8 +37,8 @@ static nsCellMap::CellDataArray * sEmptyRow;
 CellData::CellData(nsTableCellFrame* aOrigCell)
 {
   MOZ_COUNT_CTOR(CellData);
-  static_assert(sizeof(mOrigCell) == sizeof(mBits),
-                "mOrigCell and mBits must be the same size");
+  MOZ_STATIC_ASSERT(sizeof(mOrigCell) == sizeof(mBits),
+                    "mOrigCell and mBits must be the same size");
   mOrigCell = aOrigCell;
 }
 
@@ -239,7 +239,7 @@ nsTableCellMap::GetMapFor(const nsTableRowGroupFrame* aRowGroup,
 
   // if aRowGroup is a repeated header or footer find the header or footer it was repeated from
   if (aRowGroup->IsRepeatable()) {
-    nsTableFrame* fifTable = static_cast<nsTableFrame*>(mTableFrame.FirstInFlow());
+    nsTableFrame* fifTable = static_cast<nsTableFrame*>(mTableFrame.GetFirstInFlow());
 
     const nsStyleDisplay* display = aRowGroup->StyleDisplay();
     nsTableRowGroupFrame* rgOrig =
@@ -273,8 +273,7 @@ nsTableCellMap::Synchronize(nsTableFrame* aTableFrame)
   nsCellMap* map = nullptr;
   for (uint32_t rgX = 0; rgX < orderedRowGroups.Length(); rgX++) {
     nsTableRowGroupFrame* rgFrame = orderedRowGroups[rgX];
-    map = GetMapFor(static_cast<nsTableRowGroupFrame*>(rgFrame->FirstInFlow()),
-                    map);
+    map = GetMapFor((nsTableRowGroupFrame*)rgFrame->GetFirstInFlow(), map);
     if (map) {
       if (!maps.AppendElement(map)) {
         delete map;
@@ -551,8 +550,7 @@ nsTableCellMap::AppendCell(nsTableCellFrame& aCellFrame,
                            bool              aRebuildIfNecessary,
                            nsIntRect&        aDamageArea)
 {
-  MOZ_ASSERT(&aCellFrame == aCellFrame.FirstInFlow(),
-             "invalid call on continuing frame");
+  NS_ASSERTION(&aCellFrame == aCellFrame.GetFirstInFlow(), "invalid call on continuing frame");
   nsIFrame* rgFrame = aCellFrame.GetParent(); // get the row
   if (!rgFrame) return 0;
   rgFrame = rgFrame->GetParent();   // get the row group
@@ -613,8 +611,8 @@ nsTableCellMap::RemoveCell(nsTableCellFrame* aCellFrame,
                            nsIntRect&        aDamageArea)
 {
   if (!aCellFrame) ABORT0();
-  MOZ_ASSERT(aCellFrame == aCellFrame->FirstInFlow(),
-             "invalid call on continuing frame");
+  NS_ASSERTION(aCellFrame == (nsTableCellFrame *)aCellFrame->GetFirstInFlow(),
+               "invalid call on continuing frame");
   int32_t rowIndex = aRowIndex;
   int32_t rgStartRowIndex = 0;
   nsCellMap* cellMap = mFirstMap;

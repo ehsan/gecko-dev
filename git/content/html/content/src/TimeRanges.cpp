@@ -7,6 +7,8 @@
 #include "mozilla/dom/TimeRanges.h"
 #include "mozilla/dom/TimeRangesBinding.h"
 #include "mozilla/dom/HTMLMediaElement.h"
+#include "nsContentUtils.h"
+#include "nsDOMClassInfoID.h"
 #include "nsError.h"
 
 namespace mozilla {
@@ -119,7 +121,7 @@ TimeRanges::Normalize()
 }
 
 JSObject*
-TimeRanges::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+TimeRanges::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return TimeRangesBinding::Wrap(aCx, aScope, this);
 }

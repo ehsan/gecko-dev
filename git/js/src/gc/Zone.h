@@ -4,41 +4,50 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef gc_Zone_h
-#define gc_Zone_h
+#ifndef gc_zone_h___
+#define gc_zone_h___
 
-#include "mozilla/Atomics.h"
-#include "mozilla/MemoryReporting.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/GuardObjects.h"
 #include "mozilla/Util.h"
 
 #include "jscntxt.h"
+#include "jsfun.h"
 #include "jsgc.h"
 #include "jsinfer.h"
+#include "jsobj.h"
 
+#include "gc/StoreBuffer.h"
 #include "gc/FindSCCs.h"
+#include "vm/GlobalObject.h"
+#include "vm/RegExpObject.h"
+#include "vm/Shape.h"
 
 namespace js {
 
 /*
- * Encapsulates the data needed to perform allocation.  Typically there is
- * precisely one of these per zone (|cx->zone().allocator|).  However, in
- * parallel execution mode, there will be one per worker thread.
+ * Encapsulates the data needed to perform allocation.  Typically
+ * there is precisely one of these per compartment
+ * (|compartment.allocator|).  However, in parallel execution mode,
+ * there will be one per worker thread.  In general, if a piece of
+ * code must perform execution and should work safely either in
+ * parallel or sequential mode, you should make it take an
+ * |Allocator*| rather than a |JSContext*|.
  */
-class Allocator
+class Allocator : public MallocProvider<Allocator>
 {
-    /*
-     * Since allocators can be accessed from worker threads, the parent zone_
-     * should not be accessed in general. ArenaLists is allowed to actually do
-     * the allocation, however.
-     */
-    friend class gc::ArenaLists;
-
-    JS::Zone *zone_;
+    JS::Zone *zone;
 
   public:
     explicit Allocator(JS::Zone *zone);
 
     js::gc::ArenaLists arenas;
+
+    inline void *parallelNewGCThing(gc::AllocKind thingKind, size_t thingSize);
+
+    inline void *onOutOfMemory(void *p, size_t nbytes);
+    inline void updateMallocCounter(size_t nbytes);
+    inline void reportAllocationOverflow();
 };
 
 typedef Vector<JSCompartment *, 1, SystemAllocPolicy> CompartmentVector;
@@ -93,28 +102,32 @@ namespace JS {
  * zone.)
  */
 
-struct Zone : public JS::shadow::Zone,
-              public js::gc::GraphNodeBase<JS::Zone>,
-              public js::MallocProvider<JS::Zone>
+struct Zone : private JS::shadow::Zone, public js::gc::GraphNodeBase<JS::Zone>
 {
-  private:
-    friend bool js::CurrentThreadCanAccessZone(Zone *zone);
-
-  public:
+    JSRuntime                    *rt;
     js::Allocator                allocator;
 
     js::CompartmentVector        compartments;
 
     bool                         hold;
 
+#ifdef JSGC_GENERATIONAL
+    js::gc::VerifierNursery      gcNursery;
+    js::gc::StoreBuffer          gcStoreBuffer;
+#endif
+
   private:
     bool                         ionUsingBarriers_;
-
   public:
+
     bool                         active;  // GC flag, whether there are active frames
 
+    bool needsBarrier() const {
+        return needsBarrier_;
+    }
+
     bool compileBarriers(bool needsBarrier) const {
-        return needsBarrier || runtimeFromMainThread()->gcZeal() == js::gc::ZealVerifierPreValue;
+        return needsBarrier || rt->gcZeal() == js::gc::ZealVerifierPreValue;
     }
 
     bool compileBarriers() const {
@@ -128,8 +141,13 @@ struct Zone : public JS::shadow::Zone,
 
     void setNeedsBarrier(bool needs, ShouldUpdateIon updateIon);
 
-    const bool *AddressOfNeedsBarrier() const {
-        return &needsBarrier_;
+    static size_t OffsetOfNeedsBarrier() {
+        return offsetof(Zone, needsBarrier_);
+    }
+
+    js::GCMarker *barrierTracer() {
+        JS_ASSERT(needsBarrier_);
+        return &rt->gcMarker;
     }
 
   public:
@@ -148,7 +166,7 @@ struct Zone : public JS::shadow::Zone,
 
   public:
     bool isCollecting() const {
-        if (runtimeFromMainThread()->isHeapCollecting())
+        if (rt->isHeapCollecting())
             return gcState != NoGC;
         else
             return needsBarrier();
@@ -163,17 +181,16 @@ struct Zone : public JS::shadow::Zone,
      * tracer.
      */
     bool requireGCTracer() const {
-        return runtimeFromMainThread()->isHeapMajorCollecting() && gcState != NoGC;
+        return rt->isHeapCollecting() && gcState != NoGC;
     }
 
     void setGCState(CompartmentGCState state) {
-        JS_ASSERT(runtimeFromMainThread()->isHeapBusy());
-        JS_ASSERT_IF(state != NoGC, canCollect());
+        JS_ASSERT(rt->isHeapBusy());
         gcState = state;
     }
 
     void scheduleGC() {
-        JS_ASSERT(!runtimeFromMainThread()->isHeapBusy());
+        JS_ASSERT(!rt->isHeapBusy());
         gcScheduled = true;
     }
 
@@ -181,22 +198,12 @@ struct Zone : public JS::shadow::Zone,
         gcScheduled = false;
     }
 
-    bool isGCScheduled() {
-        return gcScheduled && canCollect();
+    bool isGCScheduled() const {
+        return gcScheduled;
     }
 
     void setPreservingCode(bool preserving) {
         gcPreserveCode = preserving;
-    }
-
-    bool canCollect() {
-        // Zones cannot be collected while in use by other threads.
-        if (usedByExclusiveThread)
-            return false;
-        JSRuntime *rt = runtimeFromAnyThread();
-        if (rt->isAtomsZone(this) && rt->exclusiveThreadsPresent())
-            return false;
-        return true;
     }
 
     bool wasGCStarted() const {
@@ -204,7 +211,7 @@ struct Zone : public JS::shadow::Zone,
     }
 
     bool isGCMarking() {
-        if (runtimeFromMainThread()->isHeapCollecting())
+        if (rt->isHeapCollecting())
             return gcState == Mark || gcState == MarkGray;
         else
             return needsBarrier();
@@ -226,23 +233,12 @@ struct Zone : public JS::shadow::Zone,
         return gcState == Finished;
     }
 
-    /* This is updated by both the main and GC helper threads. */
-    mozilla::Atomic<size_t, mozilla::ReleaseAcquire> gcBytes;
-
+    volatile size_t              gcBytes;
     size_t                       gcTriggerBytes;
     size_t                       gcMaxMallocBytes;
     double                       gcHeapGrowthFactor;
 
     bool                         isSystem;
-
-    /* Whether this zone is being used by a thread with an ExclusiveContext. */
-    bool usedByExclusiveThread;
-
-    /*
-     * Get a number that is incremented whenever this zone is collected, and
-     * possibly at other times too.
-     */
-    uint64_t gcNumber();
 
     /*
      * These flags help us to discover if a compartment that shouldn't be alive
@@ -256,22 +252,10 @@ struct Zone : public JS::shadow::Zone,
      * gcMaxMallocBytes down to zero. This counter should be used only when it's
      * not possible to know the size of a free.
      */
-    mozilla::Atomic<ptrdiff_t, mozilla::ReleaseAcquire> gcMallocBytes;
-
-    /*
-     * Whether a GC has been triggered as a result of gcMallocBytes falling
-     * below zero.
-     *
-     * This should be a bool, but Atomic only supports 32-bit and pointer-sized
-     * types.
-     */
-    mozilla::Atomic<uint32_t, mozilla::ReleaseAcquire> gcMallocGCTriggered;
+    ptrdiff_t                    gcMallocBytes;
 
     /* This compartment's gray roots. */
     js::Vector<js::GrayRoot, 0, js::SystemAllocPolicy> gcGrayRoots;
-
-    /* Per-zone data for use by an embedder. */
-    void *data;
 
     Zone(JSRuntime *rt);
     ~Zone();
@@ -279,9 +263,9 @@ struct Zone : public JS::shadow::Zone,
 
     void findOutgoingEdges(js::gc::ComponentFinder<JS::Zone> &finder);
 
-    void discardJitCode(js::FreeOp *fop);
+    void discardJitCode(js::FreeOp *fop, bool discardConstraints);
 
-    void addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, size_t *typePool);
+    void sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *typePool);
 
     void setGCLastBytes(size_t lastBytes, js::JSGCInvocationKind gckind);
     void reduceGCTriggerBytes(size_t amount);
@@ -293,8 +277,10 @@ struct Zone : public JS::shadow::Zone,
          * Note: this code may be run from worker threads.  We
          * tolerate any thread races when updating gcMallocBytes.
          */
-        gcMallocBytes -= ptrdiff_t(nbytes);
-        if (JS_UNLIKELY(isTooMuchMalloc()))
+        ptrdiff_t oldCount = gcMallocBytes;
+        ptrdiff_t newCount = oldCount - ptrdiff_t(nbytes);
+        gcMallocBytes = newCount;
+        if (JS_UNLIKELY(newCount <= 0 && oldCount > 0))
             onTooMuchMalloc();
     }
 
@@ -304,60 +290,32 @@ struct Zone : public JS::shadow::Zone,
 
     void onTooMuchMalloc();
 
-    void *onOutOfMemory(void *p, size_t nbytes) {
-        return runtimeFromMainThread()->onOutOfMemory(p, nbytes);
-    }
-    void reportAllocationOverflow() {
-        js_ReportAllocationOverflow(nullptr);
-    }
-
     void markTypes(JSTracer *trc);
 
     js::types::TypeZone types;
 
     void sweep(js::FreeOp *fop, bool releaseTypes);
-
-  private:
-    void sweepBreakpoints(js::FreeOp *fop);
 };
 
 } /* namespace JS */
 
 namespace js {
 
-/*
- * Using the atoms zone without holding the exclusive access lock is dangerous
- * because worker threads may be using it simultaneously. Therefore, it's
- * better to skip the atoms zone when iterating over zones. If you need to
- * iterate over the atoms zone, consider taking the exclusive access lock first.
- */
-enum ZoneSelector {
-    WithAtoms,
-    SkipAtoms
-};
-
 class ZonesIter {
   private:
     JS::Zone **it, **end;
 
   public:
-    ZonesIter(JSRuntime *rt, ZoneSelector selector) {
+    ZonesIter(JSRuntime *rt) {
         it = rt->zones.begin();
         end = rt->zones.end();
-
-        if (selector == SkipAtoms) {
-            JS_ASSERT(rt->isAtomsZone(*it));
-            it++;
-        }
     }
 
     bool done() const { return it == end; }
 
     void next() {
         JS_ASSERT(!done());
-        do {
-            it++;
-        } while (!done() && (*it)->usedByExclusiveThread);
+        it++;
     }
 
     JS::Zone *get() const {
@@ -371,34 +329,22 @@ class ZonesIter {
 
 struct CompartmentsInZoneIter
 {
-    // This is for the benefit of CompartmentsIterT::comp.
-    friend class mozilla::Maybe<CompartmentsInZoneIter>;
   private:
     JSCompartment **it, **end;
 
-    CompartmentsInZoneIter()
-      : it(nullptr), end(nullptr)
-    {}
-
   public:
-    explicit CompartmentsInZoneIter(JS::Zone *zone) {
+    CompartmentsInZoneIter(JS::Zone *zone) {
         it = zone->compartments.begin();
         end = zone->compartments.end();
     }
 
-    bool done() const {
-        JS_ASSERT(it);
-        return it == end;
-    }
+    bool done() const { return it == end; }
     void next() {
         JS_ASSERT(!done());
         it++;
     }
 
-    JSCompartment *get() const {
-        JS_ASSERT(it);
-        return *it;
-    }
+    JSCompartment *get() const { return *it; }
 
     operator JSCompartment *() const { return get(); }
     JSCompartment *operator->() const { return get(); }
@@ -416,22 +362,11 @@ class CompartmentsIterT
     mozilla::Maybe<CompartmentsInZoneIter> comp;
 
   public:
-    explicit CompartmentsIterT(JSRuntime *rt)
+    CompartmentsIterT(JSRuntime *rt)
       : zone(rt)
     {
-        if (zone.done())
-            comp.construct();
-        else
-            comp.construct(zone);
-    }
-
-    CompartmentsIterT(JSRuntime *rt, ZoneSelector selector)
-      : zone(rt, selector)
-    {
-        if (zone.done())
-            comp.construct();
-        else
-            comp.construct(zone);
+        JS_ASSERT(!zone.done());
+        comp.construct(zone);
     }
 
     bool done() const { return zone.done(); }
@@ -461,4 +396,4 @@ typedef CompartmentsIterT<ZonesIter> CompartmentsIter;
 
 } /* namespace js */
 
-#endif /* gc_Zone_h */
+#endif /* gc_zone_h___ */

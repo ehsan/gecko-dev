@@ -6,13 +6,14 @@
 #include "mpi.h"
 #include "mplogic.h"
 #include "mpi-priv.h"
+#include <stdlib.h>
 
 #define ECP192_DIGITS ECL_CURVE_DIGITS(192)
 
 /* Fast modular reduction for p192 = 2^192 - 2^64 - 1.  a can be r. Uses
  * algorithm 7 from Brown, Hankerson, Lopez, Menezes. Software
  * Implementation of the NIST Elliptic Curves over Prime Fields. */
-static mp_err
+mp_err
 ec_GFp_nistp192_mod(const mp_int *a, mp_int *r, const GFMethod *meth)
 {
 	mp_err res = MP_OKAY;
@@ -253,7 +254,7 @@ ec_GFp_nistp192_mod(const mp_int *a, mp_int *r, const GFMethod *meth)
  * number of words are so small, we don't want to overhead of mp function
  * calls.  Uses optimized modular reduction for p192. 
  */
-static mp_err
+mp_err
 ec_GFp_nistp192_add(const mp_int *a, const mp_int *b, mp_int *r, 
 			const GFMethod *meth)
 {
@@ -334,7 +335,7 @@ ec_GFp_nistp192_add(const mp_int *a, const mp_int *b, mp_int *r,
  * number of words are so small, we don't want to overhead of mp function
  * calls.  Uses optimized modular reduction for p192. 
  */
-static mp_err
+mp_err
 ec_GFp_nistp192_sub(const mp_int *a, const mp_int *b, mp_int *r, 
 			const GFMethod *meth)
 {
@@ -413,7 +414,7 @@ ec_GFp_nistp192_sub(const mp_int *a, const mp_int *b, mp_int *r,
 /* Compute the square of polynomial a, reduce modulo p192. Store the
  * result in r.  r could be a.  Uses optimized modular reduction for p192. 
  */
-static mp_err
+mp_err
 ec_GFp_nistp192_sqr(const mp_int *a, mp_int *r, const GFMethod *meth)
 {
 	mp_err res = MP_OKAY;
@@ -427,7 +428,7 @@ ec_GFp_nistp192_sqr(const mp_int *a, mp_int *r, const GFMethod *meth)
 /* Compute the product of two polynomials a and b, reduce modulo p192.
  * Store the result in r.  r could be a or b; a could be b.  Uses
  * optimized modular reduction for p192. */
-static mp_err
+mp_err
 ec_GFp_nistp192_mul(const mp_int *a, const mp_int *b, mp_int *r,
 					const GFMethod *meth)
 {
@@ -441,7 +442,7 @@ ec_GFp_nistp192_mul(const mp_int *a, const mp_int *b, mp_int *r,
 
 /* Divides two field elements. If a is NULL, then returns the inverse of
  * b. */
-static mp_err
+mp_err
 ec_GFp_nistp192_div(const mp_int *a, const mp_int *b, mp_int *r,
 		   const GFMethod *meth)
 {

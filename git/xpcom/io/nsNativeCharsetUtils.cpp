@@ -139,12 +139,12 @@ xp_iconv(iconv_t converter,
 static inline void
 xp_iconv_reset(iconv_t converter)
 {
-    // NOTE: the man pages on Solaris claim that you can pass nullptr
+    // NOTE: the man pages on Solaris claim that you can pass NULL
     // for all parameter to reset the converter, but beware the 
     // evil Solaris crash if you go down this route >:-)
     
-    const char *zero_char_in_ptr  = nullptr;
-    char       *zero_char_out_ptr = nullptr;
+    const char *zero_char_in_ptr  = NULL;
+    char       *zero_char_out_ptr = NULL;
     size_t      zero_size_in      = 0,
                 zero_size_out     = 0;
 
@@ -216,7 +216,7 @@ static const char *UTF_16_NAMES[] = {
     "ucs-2",
     "ucs2",
     "ucs_2",
-    nullptr
+    NULL
 };
 
 #if defined(ENABLE_UTF8_FALLBACK_SUPPORT)
@@ -227,7 +227,7 @@ static const char *UTF_8_NAMES[] = {
     "utf-8",
     "utf8",
     "utf_8",
-    nullptr
+    NULL
 };
 #endif
 
@@ -244,7 +244,7 @@ static const char *ISO_8859_1_NAMES[] = {
     "iso_8859_1",
     "iso8859_1",
 #endif
-    nullptr
+    NULL
 };
 
 class nsNativeCharsetConverter
@@ -302,7 +302,7 @@ nsNativeCharsetConverter::LazyInit()
     // we are the first to care about the locale's charset.
     if (!gLock)
       setlocale(LC_CTYPE, "");
-    const char  *blank_list[] = { "", nullptr };
+    const char  *blank_list[] = { "", NULL };
     const char **native_charset_list = blank_list;
     const char  *native_charset = nl_langinfo(CODESET);
     if (native_charset == nullptr) {
@@ -788,7 +788,7 @@ NS_CopyNativeToUnicode(const nsACString &input, nsAString &output)
     // this will generally result in a larger allocation, but that seems
     // better than an extra buffer copy.
     //
-    if (!output.SetLength(inputLen, fallible_t()))
+    if (!EnsureStringLength(output, inputLen))
         return NS_ERROR_OUT_OF_MEMORY;
     nsAString::iterator out_iter;
     output.BeginWriting(out_iter);
@@ -874,8 +874,6 @@ NS_ShutdownNativeCharsetUtils()
 #include "nsAString.h"
 #include "nsReadableUtils.h"
 
-using namespace mozilla;
-
 nsresult
 NS_CopyNativeToUnicode(const nsACString &input, nsAString &output)
 {
@@ -888,12 +886,12 @@ NS_CopyNativeToUnicode(const nsACString &input, nsAString &output)
 
     // determine length of result
     uint32_t resultLen = 0;
-    int n = ::MultiByteToWideChar(CP_ACP, 0, buf, inputLen, nullptr, 0);
+    int n = ::MultiByteToWideChar(CP_ACP, 0, buf, inputLen, NULL, 0);
     if (n > 0)
         resultLen += n;
 
     // allocate sufficient space
-    if (!output.SetLength(resultLen, fallible_t()))
+    if (!EnsureStringLength(output, resultLen))
         return NS_ERROR_OUT_OF_MEMORY;
     if (resultLen > 0) {
         nsAString::iterator out_iter;
@@ -919,13 +917,12 @@ NS_CopyUnicodeToNative(const nsAString  &input, nsACString &output)
     // determine length of result
     uint32_t resultLen = 0;
 
-    int n = ::WideCharToMultiByte(CP_ACP, 0, buf, inputLen, nullptr, 0,
-                                  nullptr, nullptr);
+    int n = ::WideCharToMultiByte(CP_ACP, 0, buf, inputLen, NULL, 0, NULL, NULL);
     if (n > 0)
         resultLen += n;
 
     // allocate sufficient space
-    if (!output.SetLength(resultLen, fallible_t()))
+    if (!EnsureStringLength(output, resultLen))
         return NS_ERROR_OUT_OF_MEMORY;
     if (resultLen > 0) {
         nsACString::iterator out_iter;
@@ -938,7 +935,7 @@ NS_CopyUnicodeToNative(const nsAString  &input, nsACString &output)
         char *result = out_iter.get();
 
         ::WideCharToMultiByte(CP_ACP, 0, buf, inputLen, result, resultLen,
-                              &defaultChar, nullptr);
+                              &defaultChar, NULL);
     }
     return NS_OK;
 }
@@ -959,7 +956,7 @@ NS_ConvertWtoA(const PRUnichar *aStrInW, int aBufferSizeOut,
 
     int numCharsConverted = WideCharToMultiByte(CP_ACP, 0, aStrInW, -1, 
                                                 aStrOutA, aBufferSizeOut,
-                                                aDefault, nullptr);
+                                                aDefault, NULL);
 
     if (!numCharsConverted) {
         if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
@@ -992,9 +989,7 @@ NS_ConvertWtoA(const PRUnichar *aStrInW, int aBufferSizeOut,
 #include <ulserrno.h>
 #include "nsNativeCharsetUtils.h"
 
-using namespace mozilla;
-
-static UconvObject UnicodeConverter = nullptr;
+static UconvObject UnicodeConverter = NULL;
 
 nsresult
 NS_CopyNativeToUnicode(const nsACString &input, nsAString  &output)
@@ -1007,7 +1002,7 @@ NS_CopyNativeToUnicode(const nsACString &input, nsAString  &output)
 
     // determine length of result
     uint32_t resultLen = inputLen;
-    if (!output.SetLength(resultLen, fallible_t()))
+    if (!EnsureStringLength(output, resultLen))
         return NS_ERROR_OUT_OF_MEMORY;
 
     nsAString::iterator out_iter;
@@ -1048,7 +1043,7 @@ NS_CopyUnicodeToNative(const nsAString &input, nsACString &output)
     // maximum length of unicode string of length x converted to native
     // codepage is x*2
     size_t resultLen = inputLen * 2;
-    if (!output.SetLength(resultLen, fallible_t()))
+    if (!EnsureStringLength(output, resultLen))
         return NS_ERROR_OUT_OF_MEMORY;
 
     nsACString::iterator out_iter;
@@ -1091,7 +1086,7 @@ NS_StartupNativeCharsetUtils()
         if (unirc == ULS_SUCCESS) {
             uconv_attribute_t attr;
             ::UniQueryUconvObject(UnicodeConverter, &attr, sizeof(uconv_attribute_t), 
-                                  nullptr, nullptr, nullptr);
+                                  NULL, NULL, NULL);
             attr.options = UCONV_OPTION_SUBSTITUTE_BOTH;
             attr.subchar_len=1;
             attr.subchar[0]='_';

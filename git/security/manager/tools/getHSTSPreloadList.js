@@ -47,10 +47,10 @@ const HEADER = "/* This Source Code Form is subject to the terms of the Mozilla 
 "\n" +
 "/*****************************************************************************/\n" +
 "/* This is an automatically generated file. If you're not                    */\n" +
-"/* nsSiteSecurityService.cpp, you shouldn't be #including it.     */\n" +
+"/* nsStrictTransportSecurityService.cpp, you shouldn't be #including it.     */\n" +
 "/*****************************************************************************/\n" +
 "\n" +
-"#include <stdint.h>\n";
+"#include \"mozilla/StandardInteger.h\"\n";
 const PREFIX = "\n" +
 "class nsSTSPreload\n" +
 "{\n" +
@@ -110,8 +110,8 @@ function getHosts(rawdata) {
   return hosts;
 }
 
-var gSSService = Cc["@mozilla.org/ssservice;1"]
-                   .getService(Ci.nsISiteSecurityService);
+var gSTSService = Cc["@mozilla.org/stsservice;1"]
+                  .getService(Ci.nsIStrictTransportSecurityService);
 
 function processStsHeader(host, header, status) {
   var maxAge = { value: 0 };
@@ -120,8 +120,7 @@ function processStsHeader(host, header, status) {
   if (header != null) {
     try {
       var uri = Services.io.newURI("https://" + host.name, null, null);
-      gSSService.processHeader(Ci.nsISiteSecurityService.HEADER_HSTS,
-                               uri, header, 0, maxAge, includeSubdomains);
+      gSTSService.processStsHeader(uri, header, 0, maxAge, includeSubdomains);
     }
     catch (e) {
       dump("ERROR: could not process header '" + header + "' from " +
@@ -214,13 +213,9 @@ function output(sortedStatuses, currentList) {
     writeTo(PREFIX, fos);
     for (var status of hstsStatuses) {
 
-      // If we've encountered an error for this entry (other than the site not
-      // sending an HSTS header), be safe and don't remove it from the list
-      // (given that it was already on the list).
-      if (status.error != ERROR_NONE &&
-          status.error != ERROR_NO_HSTS_HEADER &&
+      if (status.error == ERROR_CONNECTING_TO_HOST &&
           status.name in currentList) {
-        dump("INFO: error connecting to or processing " + status.name + " - using previous status on list\n");
+        dump("INFO: " + status.name + " could not be connected to - using previous status on list\n");
         writeTo(status.name + ": " + status.error + "\n", eos);
         status.maxAge = MINIMUM_REQUIRED_MAX_AGE;
         status.includeSubdomains = currentList[status.name];

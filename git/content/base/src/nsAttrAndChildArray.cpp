@@ -9,11 +9,8 @@
  */
 
 #include "nsAttrAndChildArray.h"
-
-#include "mozilla/MathAlgorithms.h"
-#include "mozilla/MemoryReporting.h"
-
 #include "nsMappedAttributeElement.h"
+#include "prbit.h"
 #include "nsString.h"
 #include "nsHTMLStyleSheet.h"
 #include "nsRuleWalker.h"
@@ -212,7 +209,7 @@ nsAttrAndChildArray::TakeChildAt(uint32_t aPos)
   memmove(pos, pos + 1, (childCount - aPos - 1) * sizeof(nsIContent*));
   SetChildCount(childCount - 1);
 
-  return dont_AddRef(child);
+  return child;
 }
 
 int32_t
@@ -316,23 +313,6 @@ nsAttrAndChildArray::GetAttr(nsIAtom* aLocalName, int32_t aNamespaceID) const
         return &ATTRS(mImpl)[i].mValue;
       }
     }
-  }
-
-  return nullptr;
-}
-
-const nsAttrValue*
-nsAttrAndChildArray::GetAttr(const nsAString& aLocalName) const
-{
-  uint32_t i, slotCount = AttrSlotCount();
-  for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
-    if (ATTRS(mImpl)[i].mName.Equals(aLocalName)) {
-      return &ATTRS(mImpl)[i].mValue;
-    }
-  }
-
-  if (mImpl && mImpl->mMappedAttrs) {
-    return mImpl->mMappedAttrs->GetAttr(aLocalName);
   }
 
   return nullptr;
@@ -772,7 +752,7 @@ nsAttrAndChildArray::GrowBy(uint32_t aGrowSize)
     } while (size < minSize);
   }
   else {
-    size = 1u << mozilla::CeilingLog2(minSize);
+    size = 1u << PR_CeilingLog2(minSize);
   }
 
   bool needToInitialize = !mImpl;
@@ -839,7 +819,7 @@ nsAttrAndChildArray::SetChildAtPos(void** aPos, nsIContent* aChild,
 }
 
 size_t
-nsAttrAndChildArray::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsAttrAndChildArray::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   if (mImpl) {

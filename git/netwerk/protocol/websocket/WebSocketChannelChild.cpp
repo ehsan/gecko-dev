@@ -10,11 +10,10 @@
 #include "mozilla/net/NeckoChild.h"
 #include "WebSocketChannelChild.h"
 #include "nsITabChild.h"
+#include "nsILoadContext.h"
 #include "nsNetUtil.h"
 #include "mozilla/ipc/InputStreamUtils.h"
 #include "mozilla/ipc/URIUtils.h"
-#include "mozilla/net/ChannelEventQueue.h"
-#include "SerializedLoadContext.h"
 
 using namespace mozilla::ipc;
 
@@ -50,11 +49,11 @@ NS_INTERFACE_MAP_BEGIN(WebSocketChannelChild)
 NS_INTERFACE_MAP_END
 
 WebSocketChannelChild::WebSocketChannelChild(bool aSecure)
- : mIPCOpen(false)
+: ALLOW_THIS_IN_INITIALIZER_LIST(mEventQ(static_cast<nsIWebSocketChannel*>(this)))
+, mIPCOpen(false)
 {
   LOG(("WebSocketChannelChild::WebSocketChannelChild() %p\n", this));
   BaseWebSocketChannel::mEncrypted = aSecure;
-  mEventQ = new ChannelEventQueue(static_cast<nsIWebSocketChannel*>(this));
 }
 
 WebSocketChannelChild::~WebSocketChannelChild()
@@ -103,8 +102,8 @@ bool
 WebSocketChannelChild::RecvOnStart(const nsCString& aProtocol,
                                    const nsCString& aExtensions)
 {
-  if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new StartEvent(this, aProtocol, aExtensions));
+  if (mEventQ.ShouldEnqueue()) {
+    mEventQ.Enqueue(new StartEvent(this, aProtocol, aExtensions));
   } else {
     OnStart(aProtocol, aExtensions);
   }
@@ -146,8 +145,8 @@ class StopEvent : public ChannelEvent
 bool
 WebSocketChannelChild::RecvOnStop(const nsresult& aStatusCode)
 {
-  if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new StopEvent(this, aStatusCode));
+  if (mEventQ.ShouldEnqueue()) {
+    mEventQ.Enqueue(new StopEvent(this, aStatusCode));
   } else {
     OnStop(aStatusCode);
   }
@@ -192,8 +191,8 @@ class MessageEvent : public ChannelEvent
 bool
 WebSocketChannelChild::RecvOnMessageAvailable(const nsCString& aMsg)
 {
-  if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new MessageEvent(this, aMsg, false));
+  if (mEventQ.ShouldEnqueue()) {
+    mEventQ.Enqueue(new MessageEvent(this, aMsg, false));
   } else {
     OnMessageAvailable(aMsg);
   }
@@ -213,8 +212,8 @@ WebSocketChannelChild::OnMessageAvailable(const nsCString& aMsg)
 bool
 WebSocketChannelChild::RecvOnBinaryMessageAvailable(const nsCString& aMsg)
 {
-  if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new MessageEvent(this, aMsg, true));
+  if (mEventQ.ShouldEnqueue()) {
+    mEventQ.Enqueue(new MessageEvent(this, aMsg, true));
   } else {
     OnBinaryMessageAvailable(aMsg);
   }
@@ -252,8 +251,8 @@ class AcknowledgeEvent : public ChannelEvent
 bool
 WebSocketChannelChild::RecvOnAcknowledge(const uint32_t& aSize)
 {
-  if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new AcknowledgeEvent(this, aSize));
+  if (mEventQ.ShouldEnqueue()) {
+    mEventQ.Enqueue(new AcknowledgeEvent(this, aSize));
   } else {
     OnAcknowledge(aSize);
   }
@@ -295,8 +294,8 @@ bool
 WebSocketChannelChild::RecvOnServerClose(const uint16_t& aCode,
                                          const nsCString& aReason)
 {
-  if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new ServerCloseEvent(this, aCode, aReason));
+  if (mEventQ.ShouldEnqueue()) {
+    mEventQ.Enqueue(new ServerCloseEvent(this, aCode, aReason));
   } else {
     OnServerClose(aCode, aReason);
   }

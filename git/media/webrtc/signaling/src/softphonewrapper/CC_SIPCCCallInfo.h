@@ -35,7 +35,6 @@ namespace CSF
         ~CC_SIPCCCallInfo ();
 
         cc_call_state_t getCallState ();
-        fsmdef_states_t getFsmState () const;
         bool getRingerState();
 
         virtual cc_call_attr_t getCallAttr();
@@ -43,7 +42,6 @@ namespace CSF
 
         virtual CC_LinePtr getline ();
         virtual std::string callStateToString (cc_call_state_t state);
-        virtual std::string fsmStateToString (fsmdef_states_t state) const;
         virtual std::string callEventToString (ccapi_call_event_e callEvent);
         virtual cc_call_type_t getCallType();
         virtual std::string getCalledPartyName();
@@ -80,10 +78,8 @@ namespace CSF
         virtual bool isAudioMuted();
         virtual bool isVideoMuted();
         virtual std::string getSDP();
-        virtual std::string getCandidate();
         virtual cc_int32_t getStatusCode();
         virtual MediaStreamTable* getMediaStreams() const;
-        virtual Timecard *takeTimecard();
 
         virtual void setMediaData(CC_SIPCCCallMediaDataPtr  pMediaData);
 

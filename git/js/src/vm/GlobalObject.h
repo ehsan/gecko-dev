@@ -4,17 +4,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef vm_GlobalObject_h
-#define vm_GlobalObject_h
+#ifndef GlobalObject_h___
+#define GlobalObject_h___
+
+#include "mozilla/Attributes.h"
+#include "mozilla/DebugOnly.h"
 
 #include "jsarray.h"
 #include "jsbool.h"
 #include "jsexn.h"
 #include "jsfun.h"
+#include "jsiter.h"
 #include "jsnum.h"
 
-#include "builtin/RegExp.h"
 #include "js/Vector.h"
+
+#include "builtin/RegExp.h"
 
 extern JSObject *
 js_InitObjectClass(JSContext *cx, js::HandleObject obj);
@@ -25,9 +30,6 @@ js_InitFunctionClass(JSContext *cx, js::HandleObject obj);
 extern JSObject *
 js_InitTypedArrayClasses(JSContext *cx, js::HandleObject obj);
 
-extern JSObject *
-js_InitTypedObjectClass(JSContext *cx, js::HandleObject obj);
-
 namespace js {
 
 class Debugger;
@@ -35,39 +37,31 @@ class Debugger;
 /*
  * Global object slots are reserved as follows:
  *
- * [0, APPLICATION_SLOTS)
- *   Pre-reserved slots in all global objects set aside for the embedding's
- *   use. As with all reserved slots these start out as UndefinedValue() and
- *   are traced for GC purposes. Apart from that the engine never touches
- *   these slots, so the embedding can do whatever it wants with them.
- * [APPLICATION_SLOTS, APPLICATION_SLOTS + JSProto_LIMIT)
+ * [0, JSProto_LIMIT)
  *   Stores the original value of the constructor for the corresponding
  *   JSProtoKey.
- * [APPLICATION_SLOTS + JSProto_LIMIT, APPLICATION_SLOTS + 2 * JSProto_LIMIT)
+ * [JSProto_LIMIT, 2 * JSProto_LIMIT)
  *   Stores the prototype, if any, for the constructor for the corresponding
  *   JSProtoKey offset from JSProto_LIMIT.
- * [APPLICATION_SLOTS + 2 * JSProto_LIMIT, APPLICATION_SLOTS + 3 * JSProto_LIMIT)
+ * [2 * JSProto_LIMIT, 3 * JSProto_LIMIT)
  *   Stores the current value of the global property named for the JSProtoKey
  *   for the corresponding JSProtoKey offset from 2 * JSProto_LIMIT.
- * [APPLICATION_SLOTS + 3 * JSProto_LIMIT, RESERVED_SLOTS)
+ * [3 * JSProto_LIMIT, RESERVED_SLOTS)
  *   Various one-off values: ES5 13.2.3's [[ThrowTypeError]], RegExp statics,
  *   the original eval for this global object (implementing |var eval =
  *   otherWindow.eval; eval(...)| as an indirect eval), a bit indicating
  *   whether this object has been cleared (see JS_ClearScope), and a cache for
  *   whether eval is allowed (per the global's Content Security Policy).
  *
- * The first two JSProto_LIMIT-sized ranges are necessary to implement
- * js::FindClassObject, and spec language speaking in terms of "the original
+ * The first two ranges are necessary to implement js::FindClassObject,
+ * FindClassPrototype, and spec language speaking in terms of "the original
  * Array prototype object", or "as if by the expression new Array()" referring
- * to the original Array constructor. The third range stores the (writable and
+ * to the original Array constructor.  The third range stores the (writable and
  * even deletable) Object, Array, &c. properties (although a slot won't be used
  * again if its property is deleted and readded).
  */
 class GlobalObject : public JSObject
 {
-    /* Count of slots set aside for application use. */
-    static const unsigned APPLICATION_SLOTS = 3;
-
     /*
      * Count of slots to store built-in constructors, prototypes, and initial
      * visible properties for the constructors.
@@ -75,7 +69,8 @@ class GlobalObject : public JSObject
     static const unsigned STANDARD_CLASS_SLOTS  = JSProto_LIMIT * 3;
 
     /* Various function values needed by the engine. */
-    static const unsigned EVAL                    = APPLICATION_SLOTS + STANDARD_CLASS_SLOTS;
+    static const unsigned BOOLEAN_VALUEOF         = STANDARD_CLASS_SLOTS;
+    static const unsigned EVAL                    = BOOLEAN_VALUEOF + 1;
     static const unsigned CREATE_DATAVIEW_FOR_THIS = EVAL + 1;
     static const unsigned THROWTYPEERROR          = CREATE_DATAVIEW_FOR_THIS + 1;
     static const unsigned PROTO_GETTER            = THROWTYPEERROR + 1;
@@ -95,32 +90,30 @@ class GlobalObject : public JSObject
     static const unsigned FROM_BUFFER_UINT8CLAMPED = FROM_BUFFER_FLOAT64 + 1;
 
     /* One-off properties stored after slots for built-ins. */
-    static const unsigned ARRAY_ITERATOR_PROTO  = FROM_BUFFER_UINT8CLAMPED + 1;
-    static const unsigned STRING_ITERATOR_PROTO  = ARRAY_ITERATOR_PROTO + 1;
-    static const unsigned LEGACY_GENERATOR_OBJECT_PROTO = STRING_ITERATOR_PROTO + 1;
-    static const unsigned STAR_GENERATOR_OBJECT_PROTO = LEGACY_GENERATOR_OBJECT_PROTO + 1;
-    static const unsigned MAP_ITERATOR_PROTO      = STAR_GENERATOR_OBJECT_PROTO + 1;
+    static const unsigned ELEMENT_ITERATOR_PROTO  = FROM_BUFFER_UINT8CLAMPED + 1;
+    static const unsigned GENERATOR_PROTO         = ELEMENT_ITERATOR_PROTO + 1;
+    static const unsigned MAP_ITERATOR_PROTO      = GENERATOR_PROTO + 1;
     static const unsigned SET_ITERATOR_PROTO      = MAP_ITERATOR_PROTO + 1;
     static const unsigned COLLATOR_PROTO          = SET_ITERATOR_PROTO + 1;
     static const unsigned NUMBER_FORMAT_PROTO     = COLLATOR_PROTO + 1;
     static const unsigned DATE_TIME_FORMAT_PROTO  = NUMBER_FORMAT_PROTO + 1;
     static const unsigned REGEXP_STATICS          = DATE_TIME_FORMAT_PROTO + 1;
-    static const unsigned WARNED_WATCH_DEPRECATED = REGEXP_STATICS + 1;
-    static const unsigned RUNTIME_CODEGEN_ENABLED = WARNED_WATCH_DEPRECATED + 1;
+    static const unsigned FUNCTION_NS             = REGEXP_STATICS + 1;
+    static const unsigned RUNTIME_CODEGEN_ENABLED = FUNCTION_NS + 1;
     static const unsigned DEBUGGERS               = RUNTIME_CODEGEN_ENABLED + 1;
     static const unsigned INTRINSICS              = DEBUGGERS + 1;
-    static const unsigned ARRAY_TYPE              = INTRINSICS + 1;
 
     /* Total reserved-slot count for global objects. */
-    static const unsigned RESERVED_SLOTS = ARRAY_TYPE + 1;
+    static const unsigned RESERVED_SLOTS = INTRINSICS + 1;
 
-    /*
-     * The slot count must be in the public API for JSCLASS_GLOBAL_FLAGS, and
-     * we won't expose GlobalObject, so just assert that the two values are
-     * synchronized.
-     */
-    static_assert(JSCLASS_GLOBAL_SLOT_COUNT == RESERVED_SLOTS,
-                  "global object slot counts are inconsistent");
+    void staticAsserts() {
+        /*
+         * The slot count must be in the public API for JSCLASS_GLOBAL_FLAGS,
+         * and we aren't going to expose GlobalObject, so just assert that the
+         * two values are synchronized.
+         */
+        JS_STATIC_ASSERT(JSCLASS_GLOBAL_SLOT_COUNT == RESERVED_SLOTS);
+    }
 
     friend JSObject *
     ::js_InitObjectClass(JSContext *cx, js::HandleObject);
@@ -131,58 +124,24 @@ class GlobalObject : public JSObject
     JSObject *
     initFunctionAndObjectClasses(JSContext *cx);
 
-    void setThrowTypeError(JSFunction *fun) {
-        JS_ASSERT(getSlotRef(THROWTYPEERROR).isUndefined());
-        setSlot(THROWTYPEERROR, ObjectValue(*fun));
-    }
+    inline void setDetailsForKey(JSProtoKey key, JSObject *ctor, JSObject *proto);
+    inline void setObjectClassDetails(JSFunction *ctor, JSObject *proto);
+    inline void setFunctionClassDetails(JSFunction *ctor, JSObject *proto);
 
-    void setOriginalEval(JSObject *evalobj) {
-        JS_ASSERT(getSlotRef(EVAL).isUndefined());
-        setSlot(EVAL, ObjectValue(*evalobj));
-    }
+    inline void setThrowTypeError(JSFunction *fun);
+    inline void setOriginalEval(JSObject *evalobj);
+    inline void setProtoGetter(JSFunction *protoGetter);
 
-    void setProtoGetter(JSFunction *protoGetter) {
-        JS_ASSERT(getSlotRef(PROTO_GETTER).isUndefined());
-        setSlot(PROTO_GETTER, ObjectValue(*protoGetter));
-    }
+    inline void setIntrinsicsHolder(JSObject *obj);
 
-    void setIntrinsicsHolder(JSObject *obj) {
-        JS_ASSERT(getSlotRef(INTRINSICS).isUndefined());
-        setSlot(INTRINSICS, ObjectValue(*obj));
-    }
-
-  public:
     Value getConstructor(JSProtoKey key) const {
         JS_ASSERT(key <= JSProto_LIMIT);
-        return getSlot(APPLICATION_SLOTS + key);
-    }
-
-    void setConstructor(JSProtoKey key, const Value &v) {
-        JS_ASSERT(key <= JSProto_LIMIT);
-        setSlot(APPLICATION_SLOTS + key, v);
+        return getSlot(key);
     }
 
     Value getPrototype(JSProtoKey key) const {
         JS_ASSERT(key <= JSProto_LIMIT);
-        return getSlot(APPLICATION_SLOTS + JSProto_LIMIT + key);
-    }
-
-    void setPrototype(JSProtoKey key, const Value &value) {
-        JS_ASSERT(key <= JSProto_LIMIT);
-        setSlot(APPLICATION_SLOTS + JSProto_LIMIT + key, value);
-    }
-
-    static uint32_t constructorPropertySlot(JSProtoKey key) {
-        JS_ASSERT(key <= JSProto_LIMIT);
-        return APPLICATION_SLOTS + JSProto_LIMIT * 2 + key;
-    }
-
-    Value getConstructorPropertySlot(JSProtoKey key) {
-        return getSlot(constructorPropertySlot(key));
-    }
-
-    void setConstructorPropertySlot(JSProtoKey key, const Value &ctor) {
-        setSlot(constructorPropertySlot(key), ctor);
+        return getSlot(JSProto_LIMIT + key);
     }
 
     bool classIsInitialized(JSProtoKey key) const {
@@ -195,50 +154,6 @@ class GlobalObject : public JSObject
         bool inited = classIsInitialized(JSProto_Function);
         JS_ASSERT(inited == classIsInitialized(JSProto_Object));
         return inited;
-    }
-
-    /*
-     * Lazy standard classes need a way to indicate they have been initialized.
-     * Otherwise, when we delete them, we might accidentally recreate them via
-     * a lazy initialization. We use the presence of a ctor or proto in the
-     * global object's slot to indicate that they've been constructed, but this
-     * only works for classes which have a proto and ctor. Classes which don't
-     * have one can call markStandardClassInitializedNoProto(), and we can
-     * always check whether a class is initialized by calling
-     * isStandardClassResolved().
-     */
-    bool isStandardClassResolved(const js::Class *clasp) const {
-        JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(clasp);
-
-        // If the constructor is undefined, then it hasn't been initialized.
-        return !getConstructor(key).isUndefined();
-    }
-
-    void markStandardClassInitializedNoProto(const js::Class *clasp) {
-        JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(clasp);
-
-        // We use true so that it's obvious what we're doing (instead of, say,
-        // null, which might be miscontrued as an error in setting Undefined).
-        if (getConstructor(key).isUndefined())
-            setConstructor(key, BooleanValue(true));
-    }
-
-  private:
-    void setDetailsForKey(JSProtoKey key, JSObject *ctor, JSObject *proto) {
-        JS_ASSERT(getConstructor(key).isUndefined());
-        JS_ASSERT(getPrototype(key).isUndefined());
-        JS_ASSERT(getConstructorPropertySlot(key).isUndefined());
-        setConstructor(key, ObjectValue(*ctor));
-        setPrototype(key, ObjectValue(*proto));
-        setConstructorPropertySlot(key, ObjectValue(*ctor));
-    }
-
-    void setObjectClassDetails(JSFunction *ctor, JSObject *proto) {
-        setDetailsForKey(JSProto_Object, ctor, proto);
-    }
-
-    void setFunctionClassDetails(JSFunction *ctor, JSObject *proto) {
-        setDetailsForKey(JSProto_Function, ctor, proto);
     }
 
     bool arrayClassInitialized() const {
@@ -278,23 +193,18 @@ class GlobalObject : public JSObject
         return getSlot(slot);
     }
 
-    void setCreateArrayFromBufferHelper(uint32_t slot, Handle<JSFunction*> fun) {
-        JS_ASSERT(getSlotRef(slot).isUndefined());
-        setSlot(slot, ObjectValue(*fun));
-    }
+    inline void setCreateArrayFromBufferHelper(uint32_t slot, Handle<JSFunction*> fun);
 
   public:
     /* XXX Privatize me! */
-    void setCreateDataViewForThis(Handle<JSFunction*> fun) {
-        JS_ASSERT(getSlotRef(CREATE_DATAVIEW_FOR_THIS).isUndefined());
-        setSlot(CREATE_DATAVIEW_FOR_THIS, ObjectValue(*fun));
-    }
+    inline void setBooleanValueOf(Handle<JSFunction*> valueOfFun);
+    inline void setCreateDataViewForThis(Handle<JSFunction*> fun);
 
     template<typename T>
     inline void setCreateArrayFromBuffer(Handle<JSFunction*> fun);
 
   public:
-    static GlobalObject *create(JSContext *cx, const Class *clasp);
+    static GlobalObject *create(JSContext *cx, Class *clasp);
 
     /*
      * Create a constructor function with the specified name and length using
@@ -312,20 +222,20 @@ class GlobalObject : public JSObject
      * complete the minimal initialization to make the returned object safe to
      * touch.
      */
-    JSObject *createBlankPrototype(JSContext *cx, const js::Class *clasp);
+    JSObject *createBlankPrototype(JSContext *cx, js::Class *clasp);
 
     /*
      * Identical to createBlankPrototype, but uses proto as the [[Prototype]]
      * of the returned blank prototype.
      */
-    JSObject *createBlankPrototypeInheriting(JSContext *cx, const js::Class *clasp, JSObject &proto);
+    JSObject *createBlankPrototypeInheriting(JSContext *cx, js::Class *clasp, JSObject &proto);
 
     JSObject *getOrCreateObjectPrototype(JSContext *cx) {
         if (functionObjectClassesInitialized())
             return &getPrototype(JSProto_Object).toObject();
         Rooted<GlobalObject*> self(cx, this);
         if (!initFunctionAndObjectClasses(cx))
-            return nullptr;
+            return NULL;
         return &self->getPrototype(JSProto_Object).toObject();
     }
 
@@ -334,7 +244,7 @@ class GlobalObject : public JSObject
             return &getPrototype(JSProto_Function).toObject();
         Rooted<GlobalObject*> self(cx, this);
         if (!initFunctionAndObjectClasses(cx))
-            return nullptr;
+            return NULL;
         return &self->getPrototype(JSProto_Function).toObject();
     }
 
@@ -343,14 +253,8 @@ class GlobalObject : public JSObject
             return &getPrototype(JSProto_Array).toObject();
         Rooted<GlobalObject*> self(cx, this);
         if (!js_InitArrayClass(cx, self))
-            return nullptr;
+            return NULL;
         return &self->getPrototype(JSProto_Array).toObject();
-    }
-
-    JSObject *maybeGetArrayPrototype() {
-        if (arrayClassInitialized())
-            return &getPrototype(JSProto_Array).toObject();
-        return nullptr;
     }
 
     JSObject *getOrCreateBooleanPrototype(JSContext *cx) {
@@ -358,7 +262,7 @@ class GlobalObject : public JSObject
             return &getPrototype(JSProto_Boolean).toObject();
         Rooted<GlobalObject*> self(cx, this);
         if (!js_InitBooleanClass(cx, self))
-            return nullptr;
+            return NULL;
         return &self->getPrototype(JSProto_Boolean).toObject();
     }
 
@@ -367,7 +271,7 @@ class GlobalObject : public JSObject
             return &getPrototype(JSProto_Number).toObject();
         Rooted<GlobalObject*> self(cx, this);
         if (!js_InitNumberClass(cx, self))
-            return nullptr;
+            return NULL;
         return &self->getPrototype(JSProto_Number).toObject();
     }
 
@@ -376,7 +280,7 @@ class GlobalObject : public JSObject
             return &getPrototype(JSProto_String).toObject();
         Rooted<GlobalObject*> self(cx, this);
         if (!js_InitStringClass(cx, self))
-            return nullptr;
+            return NULL;
         return &self->getPrototype(JSProto_String).toObject();
     }
 
@@ -385,14 +289,8 @@ class GlobalObject : public JSObject
             return &getPrototype(JSProto_RegExp).toObject();
         Rooted<GlobalObject*> self(cx, this);
         if (!js_InitRegExpClass(cx, self))
-            return nullptr;
+            return NULL;
         return &self->getPrototype(JSProto_RegExp).toObject();
-    }
-
-    JSObject *maybeGetRegExpPrototype() {
-        if (regexpClassInitialized())
-            return &getPrototype(JSProto_RegExp).toObject();
-        return nullptr;
     }
 
     JSObject *getOrCreateArrayBufferPrototype(JSContext *cx) {
@@ -400,7 +298,7 @@ class GlobalObject : public JSObject
             return &getPrototype(JSProto_ArrayBuffer).toObject();
         Rooted<GlobalObject*> self(cx, this);
         if (!js_InitTypedArrayClasses(cx, self))
-            return nullptr;
+            return NULL;
         return &self->getPrototype(JSProto_ArrayBuffer).toObject();
     }
 
@@ -410,16 +308,12 @@ class GlobalObject : public JSObject
             return &getPrototype(key).toObject();
         Rooted<GlobalObject*> self(cx, this);
         if (!js_InitExceptionClasses(cx, self))
-            return nullptr;
+            return NULL;
         return &self->getPrototype(key).toObject();
     }
 
     JSObject *getOrCreateIntlObject(JSContext *cx) {
-        return getOrCreateObject(cx, APPLICATION_SLOTS + JSProto_Intl, initIntlObject);
-    }
-
-    JSObject *getIteratorPrototype() {
-        return &getPrototype(JSProto_Iterator).toObject();
+        return getOrCreateObject(cx, JSProto_Intl, initIntlObject);
     }
 
     JSObject *getOrCreateCollatorPrototype(JSContext *cx) {
@@ -434,19 +328,8 @@ class GlobalObject : public JSObject
         return getOrCreateObject(cx, DATE_TIME_FORMAT_PROTO, initDateTimeFormatProto);
     }
 
-    JSObject *getArrayType(JSContext *cx) {
-        const Value &v = getReservedSlot(ARRAY_TYPE);
-
-        MOZ_ASSERT(v.isObject(),
-                   "GlobalObject::arrayType must only be called from "
-                   "TypedObject code that can assume TypedObject has "
-                   "been initialized");
-
-        return &v.toObject();
-    }
-
-    void setArrayType(JSObject *obj) {
-        initReservedSlot(ARRAY_TYPE, ObjectValue(*obj));
+    JSObject *getIteratorPrototype() {
+        return &getPrototype(JSProto_Iterator).toObject();
     }
 
   private:
@@ -458,40 +341,21 @@ class GlobalObject : public JSObject
             return &v.toObject();
         Rooted<GlobalObject*> self(cx, this);
         if (!init(cx, self))
-            return nullptr;
+            return NULL;
         return &self->getSlot(slot).toObject();
     }
 
   public:
     JSObject *getOrCreateIteratorPrototype(JSContext *cx) {
-        return getOrCreateObject(cx, APPLICATION_SLOTS + JSProto_LIMIT + JSProto_Iterator,
-                                 initIteratorClasses);
+        return getOrCreateObject(cx, JSProto_LIMIT + JSProto_Iterator, initIteratorClasses);
     }
 
-    JSObject *getOrCreateArrayIteratorPrototype(JSContext *cx) {
-        return getOrCreateObject(cx, ARRAY_ITERATOR_PROTO, initIteratorClasses);
+    JSObject *getOrCreateElementIteratorPrototype(JSContext *cx) {
+        return getOrCreateObject(cx, ELEMENT_ITERATOR_PROTO, initIteratorClasses);
     }
 
-    JSObject *getOrCreateStringIteratorPrototype(JSContext *cx) {
-        return getOrCreateObject(cx, STRING_ITERATOR_PROTO, initIteratorClasses);
-    }
-
-    JSObject *getOrCreateLegacyGeneratorObjectPrototype(JSContext *cx) {
-        return getOrCreateObject(cx, LEGACY_GENERATOR_OBJECT_PROTO, initIteratorClasses);
-    }
-
-    JSObject *getOrCreateStarGeneratorObjectPrototype(JSContext *cx) {
-        return getOrCreateObject(cx, STAR_GENERATOR_OBJECT_PROTO, initIteratorClasses);
-    }
-
-    JSObject *getOrCreateStarGeneratorFunctionPrototype(JSContext *cx) {
-        return getOrCreateObject(cx, APPLICATION_SLOTS + JSProto_LIMIT + JSProto_GeneratorFunction,
-                                 initIteratorClasses);
-    }
-
-    JSObject *getOrCreateStarGeneratorFunction(JSContext *cx) {
-        return getOrCreateObject(cx, APPLICATION_SLOTS + JSProto_GeneratorFunction,
-                                 initIteratorClasses);
+    JSObject *getOrCreateGeneratorPrototype(JSContext *cx) {
+        return getOrCreateObject(cx, GENERATOR_PROTO, initIteratorClasses);
     }
 
     JSObject *getOrCreateMapIteratorPrototype(JSContext *cx) {
@@ -507,7 +371,7 @@ class GlobalObject : public JSObject
             return &getPrototype(JSProto_DataView).toObject();
         Rooted<GlobalObject*> self(cx, this);
         if (!js_InitTypedArrayClasses(cx, self))
-            return nullptr;
+            return NULL;
         return &self->getPrototype(JSProto_DataView).toObject();
     }
 
@@ -516,47 +380,30 @@ class GlobalObject : public JSObject
         return &getSlotRef(INTRINSICS).toObject();
     }
 
-    bool maybeGetIntrinsicValue(PropertyName *name, Value *vp) {
-        JSObject *holder = intrinsicsHolder();
-        if (Shape *shape = holder->nativeLookupPure(name)) {
-            *vp = holder->getSlot(shape->slot());
-            return true;
-        }
-        return false;
-    }
-
     bool getIntrinsicValue(JSContext *cx, HandlePropertyName name, MutableHandleValue value) {
-        if (maybeGetIntrinsicValue(name, value.address()))
-            return true;
-        Rooted<GlobalObject*> self(cx, this);
-        if (!cx->runtime()->cloneSelfHostedValue(cx, name, value))
-            return false;
-        RootedObject holder(cx, self->intrinsicsHolder());
-        RootedId id(cx, NameToId(name));
-        return JS_DefinePropertyById(cx, holder, id, value, nullptr, nullptr, 0);
-    }
-
-    bool setIntrinsicValue(JSContext *cx, PropertyName *name, HandleValue value) {
-#ifdef DEBUG
-        RootedObject self(cx, this);
-        JS_ASSERT(cx->runtime()->isSelfHostingGlobal(self));
-#endif
         RootedObject holder(cx, intrinsicsHolder());
-        RootedValue valCopy(cx, value);
-        return JSObject::setProperty(cx, holder, holder, name, &valCopy, false);
+        RootedId id(cx, NameToId(name));
+        if (HasDataProperty(cx, holder, id, value.address()))
+            return true;
+        if (!cx->runtime->cloneSelfHostedValue(cx, name, value))
+            return false;
+        mozilla::DebugOnly<bool> ok = JS_DefinePropertyById(cx, holder, id, value, NULL, NULL, 0);
+        JS_ASSERT(ok);
+        return true;
     }
 
-    bool getSelfHostedFunction(JSContext *cx, HandleAtom selfHostedName, HandleAtom name,
-                               unsigned nargs, MutableHandleValue funVal);
+    inline bool setIntrinsicValue(JSContext *cx, PropertyName *name, HandleValue value);
 
-    RegExpStatics *getRegExpStatics() const {
-        JSObject &resObj = getSlot(REGEXP_STATICS).toObject();
-        return static_cast<RegExpStatics *>(resObj.getPrivate());
-    }
+    inline RegExpStatics *getRegExpStatics() const;
 
     JSObject *getThrowTypeError() const {
         JS_ASSERT(functionObjectClassesInitialized());
         return &getSlot(THROWTYPEERROR).toObject();
+    }
+
+    Value booleanValueOf() const {
+        JS_ASSERT(booleanClassInitialized());
+        return getSlot(BOOLEAN_VALUEOF);
     }
 
     Value createDataViewForThis() const {
@@ -573,10 +420,6 @@ class GlobalObject : public JSObject
     }
 
     static bool isRuntimeCodeGenEnabled(JSContext *cx, Handle<GlobalObject*> global);
-
-    // Warn about use of the deprecated watch/unwatch functions in the global
-    // in which |obj| was created, if no prior warning was given.
-    static bool warnOnceAboutWatch(JSContext *cx, HandleObject obj);
 
     const Value &getOriginalEval() const {
         JS_ASSERT(getSlot(EVAL).isObject());
@@ -602,144 +445,18 @@ class GlobalObject : public JSObject
 
     /*
      * The collection of Debugger objects debugging this global. If this global
-     * is not a debuggee, this returns either nullptr or an empty vector.
+     * is not a debuggee, this returns either NULL or an empty vector.
      */
     DebuggerVector *getDebuggers();
 
     /*
      * The same, but create the empty vector if one does not already
-     * exist. Returns nullptr only on OOM.
+     * exist. Returns NULL only on OOM.
      */
     static DebuggerVector *getOrCreateDebuggers(JSContext *cx, Handle<GlobalObject*> global);
 
     static bool addDebugger(JSContext *cx, Handle<GlobalObject*> global, Debugger *dbg);
 };
-
-template<>
-inline void
-GlobalObject::setCreateArrayFromBuffer<uint8_t>(Handle<JSFunction*> fun)
-{
-    setCreateArrayFromBufferHelper(FROM_BUFFER_UINT8, fun);
-}
-
-template<>
-inline void
-GlobalObject::setCreateArrayFromBuffer<int8_t>(Handle<JSFunction*> fun)
-{
-    setCreateArrayFromBufferHelper(FROM_BUFFER_INT8, fun);
-}
-
-template<>
-inline void
-GlobalObject::setCreateArrayFromBuffer<uint16_t>(Handle<JSFunction*> fun)
-{
-    setCreateArrayFromBufferHelper(FROM_BUFFER_UINT16, fun);
-}
-
-template<>
-inline void
-GlobalObject::setCreateArrayFromBuffer<int16_t>(Handle<JSFunction*> fun)
-{
-    setCreateArrayFromBufferHelper(FROM_BUFFER_INT16, fun);
-}
-
-template<>
-inline void
-GlobalObject::setCreateArrayFromBuffer<uint32_t>(Handle<JSFunction*> fun)
-{
-    setCreateArrayFromBufferHelper(FROM_BUFFER_UINT32, fun);
-}
-
-template<>
-inline void
-GlobalObject::setCreateArrayFromBuffer<int32_t>(Handle<JSFunction*> fun)
-{
-    setCreateArrayFromBufferHelper(FROM_BUFFER_INT32, fun);
-}
-
-template<>
-inline void
-GlobalObject::setCreateArrayFromBuffer<float>(Handle<JSFunction*> fun)
-{
-    setCreateArrayFromBufferHelper(FROM_BUFFER_FLOAT32, fun);
-}
-
-template<>
-inline void
-GlobalObject::setCreateArrayFromBuffer<double>(Handle<JSFunction*> fun)
-{
-    setCreateArrayFromBufferHelper(FROM_BUFFER_FLOAT64, fun);
-}
-
-template<>
-inline void
-GlobalObject::setCreateArrayFromBuffer<uint8_clamped>(Handle<JSFunction*> fun)
-{
-    setCreateArrayFromBufferHelper(FROM_BUFFER_UINT8CLAMPED, fun);
-}
-
-template<>
-inline Value
-GlobalObject::createArrayFromBuffer<uint8_t>() const
-{
-    return createArrayFromBufferHelper(FROM_BUFFER_UINT8);
-}
-
-template<>
-inline Value
-GlobalObject::createArrayFromBuffer<int8_t>() const
-{
-    return createArrayFromBufferHelper(FROM_BUFFER_INT8);
-}
-
-template<>
-inline Value
-GlobalObject::createArrayFromBuffer<uint16_t>() const
-{
-    return createArrayFromBufferHelper(FROM_BUFFER_UINT16);
-}
-
-template<>
-inline Value
-GlobalObject::createArrayFromBuffer<int16_t>() const
-{
-    return createArrayFromBufferHelper(FROM_BUFFER_INT16);
-}
-
-template<>
-inline Value
-GlobalObject::createArrayFromBuffer<uint32_t>() const
-{
-    return createArrayFromBufferHelper(FROM_BUFFER_UINT32);
-}
-
-template<>
-inline Value
-GlobalObject::createArrayFromBuffer<int32_t>() const
-{
-    return createArrayFromBufferHelper(FROM_BUFFER_INT32);
-}
-
-template<>
-inline Value
-GlobalObject::createArrayFromBuffer<float>() const
-{
-    return createArrayFromBufferHelper(FROM_BUFFER_FLOAT32);
-}
-
-template<>
-inline Value
-GlobalObject::createArrayFromBuffer<double>() const
-{
-    return createArrayFromBufferHelper(FROM_BUFFER_FLOAT64);
-}
-
-template<>
-inline Value
-GlobalObject::createArrayFromBuffer<uint8_clamped>() const
-{
-    return createArrayFromBufferHelper(FROM_BUFFER_UINT8CLAMPED);
-}
 
 /*
  * Define ctor.prototype = proto as non-enumerable, non-configurable, and
@@ -761,11 +478,17 @@ typedef HashSet<GlobalObject *, DefaultHasher<GlobalObject *>, SystemAllocPolicy
 
 } // namespace js
 
-template<>
 inline bool
-JSObject::is<js::GlobalObject>() const
+JSObject::isGlobal() const
 {
     return !!(js::GetObjectClass(const_cast<JSObject*>(this))->flags & JSCLASS_IS_GLOBAL);
 }
 
-#endif /* vm_GlobalObject_h */
+js::GlobalObject &
+JSObject::asGlobal()
+{
+    JS_ASSERT(isGlobal());
+    return *static_cast<js::GlobalObject *>(this);
+}
+
+#endif /* GlobalObject_h___ */

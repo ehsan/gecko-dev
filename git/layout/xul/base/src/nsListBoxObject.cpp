@@ -13,7 +13,6 @@
 #include "nsGkAtoms.h"
 #include "nsIScrollableFrame.h"
 #include "nsListBoxBodyFrame.h"
-#include "ChildIterator.h"
 
 class nsListBoxObject : public nsPIListBoxObject, public nsBoxObject
 {
@@ -120,22 +119,30 @@ nsListBoxObject::GetIndexOfItem(nsIDOMElement* aElement, int32_t *aResult)
 
 //////////////////////
 
-static nsIContent*
-FindBodyContent(nsIContent* aParent)
+static void
+FindBodyContent(nsIContent* aParent, nsIContent** aResult)
 {
   if (aParent->Tag() == nsGkAtoms::listboxbody) {
-    return aParent;
+    *aResult = aParent;
+    NS_IF_ADDREF(*aResult);
   }
+  else {
+    nsCOMPtr<nsIDOMNodeList> kids;
+    aParent->OwnerDoc()->BindingManager()->GetXBLChildNodesFor(aParent, getter_AddRefs(kids));
+    if (!kids) return;
 
-  mozilla::dom::FlattenedChildIterator iter(aParent);
-  for (nsIContent* child = iter.GetNextChild(); child; child = iter.GetNextChild()) {
-    nsIContent* result = FindBodyContent(child);
-    if (result) {
-      return result;
+    uint32_t i;
+    kids->GetLength(&i);
+    // start from the end, cuz we're smart and we know the listboxbody is probably at the end
+    while (i > 0) {
+      nsCOMPtr<nsIDOMNode> childNode;
+      kids->Item(--i, getter_AddRefs(childNode));
+      nsCOMPtr<nsIContent> childContent(do_QueryInterface(childNode));
+      FindBodyContent(childContent, aResult);
+      if (*aResult)
+        break;
     }
   }
-
-  return nullptr;
 }
 
 nsListBoxBodyFrame*
@@ -157,7 +164,8 @@ nsListBoxObject::GetListBoxBody(bool aFlush)
     return nullptr;
 
   // Iterate over our content model children looking for the body.
-  nsCOMPtr<nsIContent> content = FindBodyContent(frame->GetContent());
+  nsCOMPtr<nsIContent> content;
+  FindBodyContent(frame->GetContent(), getter_AddRefs(content));
 
   if (!content)
     return nullptr;

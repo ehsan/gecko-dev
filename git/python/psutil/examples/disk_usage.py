@@ -1,6 +1,8 @@
 #!/usr/bin/env python
-
-# Copyright (c) 2009, Giampaolo Rodola'. All rights reserved.
+#
+# $Id: disk_usage.py 1340 2012-06-09 13:42:21Z g.rodola $
+#
+# Copyright (c) 2009, Jay Loden, Giampaolo Rodola'. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -9,7 +11,6 @@ List all mounted disk partitions a-la "df -h" command.
 """
 
 import sys
-import os
 import psutil
 from psutil._compat import print_
 
@@ -34,9 +35,6 @@ def main():
     templ = "%-17s %8s %8s %8s %5s%% %9s  %s"
     print_(templ % ("Device", "Total", "Used", "Free", "Use ", "Type", "Mount"))
     for part in psutil.disk_partitions(all=False):
-        if os.name == 'nt' and 'cdrom' in part.opts:
-            # may raise ENOENT if there's no cd-rom in the drive
-            continue
         usage = psutil.disk_usage(part.mountpoint)
         print_(templ % (part.device,
                         bytes2human(usage.total),

@@ -11,6 +11,7 @@
 #include "plstr.h"
 #include "nsXPIDLString.h"
 #include "nsCOMPtr.h"
+#include "jsapi.h"
 #include "nsIJSRuntimeService.h"
 #include "nsIServiceManager.h"
 #include "nsMemory.h"
@@ -19,7 +20,7 @@
 // for mozilla::dom::workers::kJSPrincipalsDebugToken
 #include "mozilla/dom/workers/Workers.h"
 
-/* static */ bool
+/* static */ JSBool
 nsJSPrincipals::Subsume(JSPrincipals *jsprin, JSPrincipals *other)
 {
     bool result;

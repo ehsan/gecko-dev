@@ -21,7 +21,12 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=61098
 <script class="testbody" type="text/javascript">
 /** Test for Bug 61098 **/
 
-SimpleTest.expectAssertions(8);
+if (!navigator.platform.startsWith("Win")) {
+  SimpleTest.expectAssertions(9);
+} else {
+  SimpleTest.expectAssertions(8);
+}
+
 SimpleTest.waitForExplicitFinish();
 
 var mockPromptServiceRegisterer, mockPromptFactoryRegisterer;
@@ -31,8 +36,8 @@ var promptState;
 function registerMockPromptService()
 {
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-  var XPCOMUtils = SpecialPowers.Cu.import("resource://gre/modules/XPCOMUtils.jsm").XPCOMUtils;
-  var Ci = SpecialPowers.Ci;
+  Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+  var Ci = Components.interfaces;
 
   function MockPrompt(aDOMWindow) {
     this.domWindow = aDOMWindow;
@@ -53,8 +58,8 @@ function registerMockPromptService()
       // accounting for triggering the "stop showing more prompts" code for
       // abusive pages.
       var winUtils = SpecialPowers.getDOMWindowUtils(this.domWindow);
-      winUtils.enterModalState();
-      winUtils.leaveModalState();
+      var w = winUtils.enterModalStateWithWindow();
+      winUtils.leaveModalStateWithWindow(w);
     },
 
     alert: function(aDialogTitle, aText)
@@ -220,16 +225,18 @@ function registerMockPromptService()
 
 function enableDialogLoopBlocking()
 {
-  var prefs = SpecialPowers.Cc["@mozilla.org/preferences-service;1"].
-    getService(SpecialPowers.Ci.nsIPrefBranch);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"].
+    getService(Components.interfaces.nsIPrefBranch);
 
   prefs.setIntPref("dom.successive_dialog_time_limit", 3);
 }
 
 function resetDialogLoopBlocking()
 {
-  var prefs = SpecialPowers.Cc["@mozilla.org/preferences-service;1"].
-    getService(SpecialPowers.Ci.nsIPrefBranch);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"].
+    getService(Components.interfaces.nsIPrefBranch);
 
   prefs.setIntPref("dom.successive_dialog_time_limit", 0);
 }
@@ -343,6 +350,12 @@ function runtests()
 
   mockPromptFactoryRegisterer.unregister();
   mockPromptServiceRegisterer.unregister();
+
+  // Garbage collecting the windows created in this test can cause
+  // assertions, so GC now to blame those assertions to this test.
+  // ("mArguments wasn't cleaned up properly!" in ~nsGlobalWindow,
+  // bug 600703)
+  SpecialPowers.gc();
 
   SimpleTest.finish();
 }

@@ -5,13 +5,12 @@
 #aboutDialogContainer {
   background-image: url("chrome://branding/content/about-background.png");
   background-repeat: no-repeat;
-  background-color: rgb(19,8,36);
+  background-color: #000;
   color: #fff;
 }
 
 .text-link {
   color: #fff !important;
-  text-decoration: underline;
 }
 
 .text-link:-moz-focusring {

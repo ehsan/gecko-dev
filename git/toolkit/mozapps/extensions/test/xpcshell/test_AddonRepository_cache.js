@@ -20,7 +20,7 @@ const GETADDONS_RESULTS            = BASE_URL + "/data/test_AddonRepository_cach
 const GETADDONS_EMPTY              = BASE_URL + "/data/test_AddonRepository_empty.xml";
 const GETADDONS_FAILED             = BASE_URL + "/data/test_AddonRepository_failed.xml";
 
-const FILE_DATABASE = "addons.json";
+const FILE_DATABASE = "addons.sqlite";
 const ADDON_NAMES = ["test_AddonRepository_1",
                      "test_AddonRepository_2",
                      "test_AddonRepository_3"];
@@ -414,7 +414,7 @@ function trigger_background_update(aCallback) {
   Services.obs.addObserver({
     observe: function(aSubject, aTopic, aData) {
       Services.obs.removeObserver(this, "addons-background-update-complete");
-      do_execute_soon(aCallback);
+      aCallback();
     }
   }, "addons-background-update-complete", false);
 
@@ -493,7 +493,7 @@ function check_cache(aExpectedToFind, aExpectedImmediately, aCallback) {
         check_results([aAddon], [expected], true);
 
       if (--pendingAddons == 0)
-        do_execute_soon(aCallback);
+        aCallback();
     });
   }
 
@@ -512,7 +512,7 @@ function check_cache(aExpectedToFind, aExpectedImmediately, aCallback) {
  *         A callback to call once the checks are complete
  */
 function check_initialized_cache(aExpectedToFind, aCallback) {
-  check_cache(aExpectedToFind, true, function restart_initialized_cache() {
+  check_cache(aExpectedToFind, true, function() {
     restartManager();
 
     // If cache is disabled, then expect results immediately
@@ -521,38 +521,28 @@ function check_initialized_cache(aExpectedToFind, aCallback) {
   });
 }
 
-// Waits for the data to be written from the in-memory DB to the addons.json
-// file that is done asynchronously through OS.File
-function waitForFlushedData(aCallback) {
-  Services.obs.addObserver({
-    observe: function(aSubject, aTopic, aData) {
-      Services.obs.removeObserver(this, "addon-repository-data-written");
-      aCallback(aData == "true");
-    }
-  }, "addon-repository-data-written", false);
-}
 
 function run_test() {
   // Setup for test
-  do_test_pending("test_AddonRepository_cache");
+  do_test_pending();
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9");
 
   startupManager();
 
   // Install XPI add-ons
-  installAllFiles(ADDON_FILES, function first_installs() {
+  installAllFiles(ADDON_FILES, function() {
     restartManager();
 
     gServer = new HttpServer();
     gServer.registerDirectory("/data/", do_get_file("data"));
     gServer.start(PORT);
 
-    do_execute_soon(run_test_1);
+    run_test_1();
   });
 }
 
 function end_test() {
-  gServer.stop(function() {do_test_finished("test_AddonRepository_cache");});
+  gServer.stop(do_test_finished);
 }
 
 // Tests AddonRepository.cacheEnabled
@@ -562,14 +552,13 @@ function run_test_1() {
   Services.prefs.setBoolPref(PREF_GETADDONS_CACHE_ENABLED, true);
   do_check_true(AddonRepository.cacheEnabled);
 
-  do_execute_soon(run_test_2);
+  run_test_2();
 }
 
 // Tests that the cache and database begin as empty
 function run_test_2() {
   check_database_exists(false);
-  check_cache([false, false, false], false, function(){});
-  waitForFlushedData(run_test_3);
+  check_cache([false, false, false], false, run_test_3);
 }
 
 // Tests repopulateCache when the search fails
@@ -578,7 +567,7 @@ function run_test_3() {
   Services.prefs.setBoolPref(PREF_GETADDONS_CACHE_ENABLED, true);
   Services.prefs.setCharPref(PREF_GETADDONS_BYIDS, GETADDONS_FAILED);
 
-  AddonRepository.repopulateCache(ADDON_IDS, function test_3_repopulated() {
+  AddonRepository.repopulateCache(ADDON_IDS, function() {
     check_initialized_cache([false, false, false], run_test_4);
   });
 }
@@ -622,9 +611,7 @@ function run_test_6() {
     check_database_exists(false);
 
     Services.prefs.setBoolPref(PREF_GETADDONS_CACHE_ENABLED, true);
-    check_cache([false, false, false], false, function() {});
-
-    waitForFlushedData(run_test_7);
+    check_cache([false, false, false], false, run_test_7);
   });
 }
 
@@ -695,9 +682,9 @@ function run_test_12() {
   Services.prefs.setBoolPref(PREF_GETADDONS_CACHE_ENABLED, false);
   Services.prefs.setCharPref(PREF_GETADDONS_BYIDS, GETADDONS_RESULTS);
 
-  AddonManager.getAddonsByIDs(ADDON_IDS, function test_12_check(aAddons) {
+  AddonManager.getAddonsByIDs(ADDON_IDS, function(aAddons) {
     check_results(aAddons, WITHOUT_CACHE);
-    do_execute_soon(run_test_13);
+    run_test_13();
   });
 }
 
@@ -713,7 +700,7 @@ function run_test_13() {
 
     AddonManager.getAddonsByIDs(ADDON_IDS, function(aAddons) {
       check_results(aAddons, WITHOUT_CACHE);
-      do_execute_soon(run_test_14);
+      run_test_14();
     });
   });
 }
@@ -723,16 +710,14 @@ function run_test_13() {
 function run_test_14() {
   Services.prefs.setBoolPref(PREF_GETADDONS_CACHE_ENABLED, true);
 
-  waitForFlushedData(function() {
+  trigger_background_update(function() {
     check_database_exists(true);
 
     AddonManager.getAddonsByIDs(ADDON_IDS, function(aAddons) {
       check_results(aAddons, WITHOUT_CACHE);
-      do_execute_soon(run_test_15);
+      run_test_15();
     });
   });
-
-  trigger_background_update();
 }
 
 // Tests that the XPI add-ons correctly use the repository properties when
@@ -743,7 +728,7 @@ function run_test_15() {
   trigger_background_update(function() {
     AddonManager.getAddonsByIDs(ADDON_IDS, function(aAddons) {
       check_results(aAddons, WITH_CACHE);
-      do_execute_soon(run_test_16);
+      run_test_16();
     });
   });
 }
@@ -756,7 +741,7 @@ function run_test_16() {
 
   AddonManager.getAddonsByIDs(ADDON_IDS, function(aAddons) {
     check_results(aAddons, WITH_CACHE);
-    do_execute_soon(run_test_17);
+    run_test_17();
   });
 }
 

@@ -39,11 +39,6 @@ var util = require('util/util');
 // var assert = require('test/assert');
 
 exports.testFindCssSelector = function(options) {
-  if (options.isPhantomjs) {
-    assert.log('Skipping tests due to issues with querySelectorAll.');
-    return;
-  }
-
   var nodes = options.window.document.querySelectorAll('*');
   for (var i = 0; i < nodes.length; i++) {
     var selector = util.findCssSelector(nodes[i]);

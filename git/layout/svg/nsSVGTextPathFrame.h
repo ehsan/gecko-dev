@@ -6,9 +6,6 @@
 #ifndef NSSVGTEXTPATHFRAME_H
 #define NSSVGTEXTPATHFRAME_H
 
-#include "mozilla/Attributes.h"
-#include "mozilla/gfx/2D.h"
-#include "mozilla/RefPtr.h"
 #include "gfxTypes.h"
 #include "nsCOMPtr.h"
 #include "nsFrame.h"
@@ -17,7 +14,7 @@
 #include "nsQueryFrame.h"
 #include "nsSVGTSpanFrame.h"
 
-class gfxPath;
+class gfxFlattenedPath;
 class nsIAtom;
 class nsIContent;
 class nsIFrame;
@@ -32,7 +29,6 @@ typedef nsSVGTSpanFrame nsSVGTextPathFrameBase;
 
 class nsSVGTextPathFrame : public nsSVGTextPathFrameBase
 {
-  typedef mozilla::gfx::Path Path;
   typedef mozilla::SVGNumberList SVGNumberList;
 
   friend nsIFrame*
@@ -52,23 +48,23 @@ public:
 
   NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,
                                nsIAtom*        aAttribute,
-                               int32_t         aModType) MOZ_OVERRIDE;
+                               int32_t         aModType);
   /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::svgGFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGTextPath"), aResult);
   }
 #endif
 
   // nsSVGTextPathFrame methods:
-  mozilla::TemporaryRef<Path> GetPath();
+  already_AddRefed<gfxFlattenedPath> GetFlattenedPath();
   nsIFrame *GetPathFrame();
 
   /**
@@ -87,9 +83,9 @@ public:
 
 protected:
 
-  virtual void GetXY(SVGUserUnitList *aX, SVGUserUnitList *aY) MOZ_OVERRIDE;
-  virtual void GetDxDy(SVGUserUnitList *aDx, SVGUserUnitList *aDy) MOZ_OVERRIDE;
-  virtual const SVGNumberList *GetRotate() MOZ_OVERRIDE;
+  virtual void GetXY(SVGUserUnitList *aX, SVGUserUnitList *aY);
+  virtual void GetDxDy(SVGUserUnitList *aDx, SVGUserUnitList *aDy);
+  virtual const SVGNumberList *GetRotate();
 };
 
 #endif

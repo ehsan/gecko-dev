@@ -3,7 +3,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /**
- * MozTCPSocket exposes a TCP client and server sockets
+ * MozTCPSocket exposes a TCP client socket (no server sockets yet)
  * to highly privileged apps. It provides a buffered, non-blocking
  * interface for sending. For receiving, it uses an asynchronous,
  * event handler based interface.
@@ -11,10 +11,6 @@
 
 #include "domstubs.idl"
 #include "nsIDOMEvent.idl"
-#include "nsITCPSocketChild.idl"
-#include "nsIDOMTCPServerSocket.idl"
-
-interface nsISocketTransport;
 
 // Bug 731746 - Allow chrome JS object to implement nsIDOMEventTarget
 // nsITCPSocket should be an nsIEventTarget but js objects
@@ -27,12 +23,9 @@ interface nsISocketTransport;
 //  Once bug 723206 will be fixed, this method could be replaced by
 //  arguments when instantiating a TCPSocket object. For example it will
 //  be possible to do (similarly to the WebSocket API):
-//    var s = new MozTCPSocket(host, port);
+//    var s = new MozTCPSocket(host, port); 
 
-// Bug 797561 - Expose a server tcp socket API to web applications
-
-
-[scriptable, uuid(65f6d2c8-4be6-4695-958d-0735e8935289)]
+[scriptable, uuid(b82e17da-6476-11e1-8813-57a2ffe9e42c)]
 interface nsIDOMTCPSocket : nsISupports
 {
   /**
@@ -44,40 +37,15 @@ interface nsIDOMTCPSocket : nsISupports
    * @param options An object specifying one or more parameters which
    *                determine the details of the socket.
    *
-   *        useSecureTransport: true to create an SSL socket. Defaults to false.
+   *        useSSL: true to create an SSL socket. Defaults to false.
    *
-   *        binaryType: "arraybuffer" to use ArrayBuffer
+   *        binaryType: "arraybuffer" to use UInt8 array
    *          instances in the ondata callback and as the argument
    *          to send. Defaults to "string", to use JavaScript strings.
    *
    * @return The new TCPSocket instance.
    */
   nsIDOMTCPSocket open(in DOMString host, in unsigned short port, [optional] in jsval options);
-
-  /**
-   * Listen on a port
-   *
-   * @param localPort The port of the server socket. Pass -1 to indicate no preference,
-   *                  and a port will be selected automatically.
-   * @param options An object specifying one or more parameters which
-   *                determine the details of the socket.
-   *
-   *        binaryType: "arraybuffer" to use ArrayBuffer
-   *          instances in the ondata callback and as the argument
-   *          to send. Defaults to "string", to use JavaScript strings.
-   * @param backlog The maximum length the queue of pending connections may grow to.
-   *                This parameter may be silently limited by the operating system.
-   *                Pass -1 to use the default value.
-   *
-   * @return The new TCPServerSocket instance.
-   */
-  nsIDOMTCPServerSocket listen(in unsigned short localPort, [optional] in jsval options,
-                               [optional] in unsigned short backlog);
-
-  /**
-   * Enable secure on channel.
-   */
-  void upgradeToSecure();
 
   /**
    * The host of this socket object.
@@ -121,14 +89,10 @@ interface nsIDOMTCPSocket : nsISupports
    *
    * @param data The data to write to the socket. If
    *             binaryType: "arraybuffer" was passed in the options
-   *             object, then this object should be an ArrayBuffer instance.
+   *             object, then this object should be an Uint8Array instance.
    *             If binaryType: "string" was passed, or if no binaryType
    *             option was specified, then this object should be an
    *             ordinary JavaScript string.
-   * @param byteOffset The offset within the data from which to begin writing.
-   *                   Has no effect on non-ArrayBuffer data.
-   * @param byteLength The number of bytes to write. Has no effect on
-   *                   non-ArrayBuffer data.
    *
    * @return Send returns true or false as a hint to the caller that
    *         they may either continue sending more data immediately, or
@@ -141,7 +105,7 @@ interface nsIDOMTCPSocket : nsISupports
    *         handler has been called before buffering more data by more
    *         calls to send.
    */
-  boolean send(in jsval data, [optional] in unsigned long byteOffset, [optional] in unsigned long byteLength);
+  boolean send(in jsval data);
 
   /**
    * The readyState attribute indicates which state the socket is currently
@@ -179,7 +143,7 @@ interface nsIDOMTCPSocket : nsISupports
    * The ondata handler will be called repeatedly and asynchronously after
    * onopen has been called, every time some data was available from the server
    * and was read. If binaryType: "arraybuffer" was passed to open, the data
-   * attribute of the event object will be an ArrayBuffer. If not, it will be a
+   * attribute of the event object will be an Uint8Array. If not, it will be a
    * normal JavaScript string.
    *
    * At any time, the client may choose to pause reading and receiving ondata
@@ -211,79 +175,27 @@ interface nsIDOMTCPSocket : nsISupports
 };
 
 /*
- * This interface is implemented in TCPSocket.js as an internal interfaces
- * for use in cross-process socket implementation.
+ * Internal interfaces for use in cross-process socket implementation.
  * Needed to account for multiple possible types that can be provided to
  * the socket callbacks as arguments.
  */
-[scriptable, uuid(017f130f-2477-4215-8783-57eada957699)]
+[scriptable, uuid(fff9ed4a-5e94-4fc0-84e4-7f4d35d0a26c)]
 interface nsITCPSocketInternal : nsISupports {
-  // Trigger the callback for |type| and provide a DOMError() object with the given data
-  void callListenerError(in DOMString type, in DOMString name);
+  // Trigger the callback for |type| and provide an Error() object with the given data
+  void callListenerError(in DOMString type, in DOMString message, in DOMString filename,
+                         in uint32_t lineNumber, in uint32_t columnNumber);
 
   // Trigger the callback for |type| and provide a string argument
   void callListenerData(in DOMString type, in DOMString data);
 
-  // Trigger the callback for |type| and provide an ArrayBuffer argument
+  // Trigger the callback for |type| and provide a Uint8Array argument
   void callListenerArrayBuffer(in DOMString type, in jsval data);
 
   // Trigger the callback for |type| with no argument
   void callListenerVoid(in DOMString type);
 
-  // Update the DOM object's readyState.
-  // @param readyState
-  //        new ready state to be set to TCPSocket.
-  void updateReadyState(in DOMString readyState);
-
-  // Update the DOM object's bufferedAmount value with a tracking number to
-  // ensure the update request is sent after child's send() invocation.
-  // @param bufferedAmount
-  //        TCPSocket parent's bufferedAmount.
-  // @param trackingNumber
-  //        A number to ensure the bufferedAmount is updated after data
-  //        from child are sent to parent.
-  void updateBufferedAmount(in uint32_t bufferedAmount,
-                            in uint32_t trackingNumber);
-
-  // Create a socket object on the parent side.
-  // This is called in accepting any open request on the parent side.
-  // 
-  // @param transport
-  //        The accepted socket transport.
-  // @param binaryType
-  //        "arraybuffer" to use ArrayBuffer instances 
-  //        in the ondata callback and as the argument to send.
-  nsIDOMTCPSocket createAcceptedParent(in nsISocketTransport transport,
-                                       in DOMString binaryType);
-
-  // Create a DOM socket on the child side
-  // This is called when the socket is accepted on the parent side.
-  //
-  // @param socketChild
-  //        The socket child object for the IPC implementation.
-  // @param binaryType
-  //        "arraybuffer" to use ArrayBuffer instances
-  //        in the ondata callback and as the argument to send.
-  // @param window
-  //        An object to create ArrayBuffer for this window. See Bug 831107.
-  nsIDOMTCPSocket createAcceptedChild(in nsITCPSocketChild socketChild,
-                                      in DOMString binaryType,
-                                      in nsIDOMWindow window);
-
-  // Set App ID.
-  void setAppId(in unsigned long appId);
-
-  // Set a callback that handles the request from a TCP socket parent when that
-  // socket parent wants to notify that its bufferedAmount is updated.
-  void setOnUpdateBufferedAmountHandler(in jsval handler);
-
-  // Providing child process with ability to pass more arguments to parent's
-  // send() function.
-  // @param trackingNumber
-  //        To ensure the request to update bufferedAmount in child is after
-  //        lastest send() invocation from child.
-  void onRecvSendFromChild(in jsval data, in unsigned long byteOffset,
-                           in unsigned long byteLength, in unsigned long trackingNumber);
+  // Update the DOM object's readyState and bufferedAmount values with the provided data
+  void updateReadyStateAndBuffered(in DOMString readyState, in uint32_t bufferedAmount);
 };
 
 /**
@@ -314,7 +226,7 @@ interface nsITCPSocketEvent : nsISupports {
   /**
    * The data related to this event, if any. In the ondata callback,
    * data will be the bytes read from the network; if the binaryType
-   * of the socket was "arraybuffer", this value will be of type ArrayBuffer;
+   * of the socket was "arraybuffer", this value will be of type Uint8Array;
    * otherwise, it will be a normal JavaScript string.
    *
    * In the onerror callback, data will be a string with a description

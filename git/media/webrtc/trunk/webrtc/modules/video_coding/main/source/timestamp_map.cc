@@ -8,15 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <assert.h>
+#include "timestamp_map.h"
 #include <stdlib.h>
-#include "webrtc/modules/video_coding/main/source/timestamp_map.h"
+#include <assert.h>
 
 namespace webrtc {
 
 // Constructor. Optional parameter specifies maximum number of
 // coexisting timers.
-VCMTimestampMap::VCMTimestampMap(int32_t length):
+VCMTimestampMap::VCMTimestampMap(WebRtc_Word32 length):
     _nextAddIx(0),
     _nextPopIx(0)
 {
@@ -44,8 +44,8 @@ VCMTimestampMap::Reset()
     _nextPopIx = 0;
 }
 
-int32_t
-VCMTimestampMap::Add(uint32_t timestamp, void* data)
+WebRtc_Word32
+VCMTimestampMap::Add(WebRtc_UWord32 timestamp, void* data)
 {
     _map[_nextAddIx].timestamp = timestamp;
     _map[_nextAddIx].data = data;
@@ -61,7 +61,7 @@ VCMTimestampMap::Add(uint32_t timestamp, void* data)
 }
 
 void*
-VCMTimestampMap::Pop(uint32_t timestamp)
+VCMTimestampMap::Pop(WebRtc_UWord32 timestamp)
 {
     while (!IsEmpty())
     {

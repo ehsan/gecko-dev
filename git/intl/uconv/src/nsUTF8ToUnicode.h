@@ -6,8 +6,6 @@
 #ifndef nsUTF8ToUnicode_h___
 #define nsUTF8ToUnicode_h___
 
-#include "nsUCSupport.h"
-
 // Class ID for our UTF8ToUnicode charset converter
 // {5534DDC0-DD96-11d2-8AAC-00600811A836}
 #define NS_UTF8TOUNICODE_CID \

@@ -10,8 +10,6 @@
 #include "AccessibleHyperlink_i.c"
 
 #include "AccessibleWrap.h"
-#include "IUnknownImpl.h"
-#include "nsIURI.h"
 
 using namespace mozilla::a11y;
 
@@ -20,9 +18,6 @@ using namespace mozilla::a11y;
 STDMETHODIMP
 ia2AccessibleHyperlink::QueryInterface(REFIID iid, void** ppv)
 {
-  if (!ppv)
-    return E_INVALIDARG;
-
   *ppv = nullptr;
 
   if (IID_IAccessibleHyperlink == iid) {
@@ -43,9 +38,6 @@ STDMETHODIMP
 ia2AccessibleHyperlink::get_anchor(long aIndex, VARIANT* aAnchor)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aAnchor)
-    return E_INVALIDARG;
 
   VariantInit(aAnchor);
 
@@ -81,9 +73,6 @@ STDMETHODIMP
 ia2AccessibleHyperlink::get_anchorTarget(long aIndex, VARIANT* aAnchorTarget)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aAnchorTarget)
-    return E_INVALIDARG;
 
   VariantInit(aAnchorTarget);
 
@@ -128,9 +117,6 @@ ia2AccessibleHyperlink::get_startIndex(long* aIndex)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  if (!aIndex)
-    return E_INVALIDARG;
-
   *aIndex = 0;
 
   Accessible* thisObj = static_cast<AccessibleWrap*>(this);
@@ -151,9 +137,6 @@ ia2AccessibleHyperlink::get_endIndex(long* aIndex)
 {
   A11Y_TRYBLOCK_BEGIN
 
-  if (!aIndex)
-    return E_INVALIDARG;
-
   *aIndex = 0;
 
   Accessible* thisObj = static_cast<AccessibleWrap*>(this);
@@ -173,9 +156,6 @@ STDMETHODIMP
 ia2AccessibleHyperlink::get_valid(boolean* aValid)
 {
   A11Y_TRYBLOCK_BEGIN
-
-  if (!aValid)
-    return E_INVALIDARG;
 
   *aValid = false;
 

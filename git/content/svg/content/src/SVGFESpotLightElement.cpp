@@ -12,7 +12,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFESpotLightElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFESpotLightElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFESpotLightElementBinding::Wrap(aCx, aScope, this);
 }
@@ -54,49 +54,49 @@ SVGFESpotLightElement::AttributeAffectsRendering(int32_t aNameSpaceID,
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFESpotLightElement::X()
 {
   return mNumberAttributes[ATTR_X].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFESpotLightElement::Y()
 {
   return mNumberAttributes[ATTR_Y].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFESpotLightElement::Z()
 {
   return mNumberAttributes[ATTR_Z].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFESpotLightElement::PointsAtX()
 {
   return mNumberAttributes[POINTS_AT_X].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFESpotLightElement::PointsAtY()
 {
   return mNumberAttributes[POINTS_AT_Y].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFESpotLightElement::PointsAtZ()
 {
   return mNumberAttributes[POINTS_AT_Z].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFESpotLightElement::SpecularExponent()
 {
   return mNumberAttributes[SPECULAR_EXPONENT].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFESpotLightElement::LimitingConeAngle()
 {
   return mNumberAttributes[LIMITING_CONE_ANGLE].ToDOMAnimatedNumber(this);

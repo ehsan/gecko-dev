@@ -20,7 +20,9 @@
 
 
 #include "nsCRT.h"
-#include "nsDebug.h"
+#include "nsIServiceManager.h"
+#include "nsCharTraits.h"
+#include "nsUTF8Utils.h"
 
 //----------------------------------------------------------------------
 
@@ -65,7 +67,7 @@ char* nsCRT::strtok(char* string, const char* delims, char* *newStr)
   }
   *newStr = str;
 
-  return str == result ? nullptr : result;
+  return str == result ? NULL : result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,7 +75,7 @@ char* nsCRT::strtok(char* string, const char* delims, char* *newStr)
 /**
  * Compare unichar string ptrs, stopping at the 1st null 
  * NOTE: If both are null, we return 0.
- * NOTE: We terminate the search upon encountering a nullptr
+ * NOTE: We terminate the search upon encountering a NULL
  *
  * @update  gess 11/10/99
  * @param   s1 and s2 both point to unichar strings
@@ -103,7 +105,7 @@ int32_t nsCRT::strcmp(const PRUnichar* s1, const PRUnichar* s2) {
 /**
  * Compare unichar string ptrs, stopping at the 1st null or nth char.
  * NOTE: If either is null, we return 0.
- * NOTE: We DO NOT terminate the search upon encountering nullptr's before N
+ * NOTE: We DO NOT terminate the search upon encountering NULL's before N
  *
  * @update  gess 11/10/99
  * @param   s1 and s2 both point to unichar strings
@@ -131,7 +133,7 @@ const char* nsCRT::memmem(const char* haystack, uint32_t haystackLen,
   // Sanity checking
   if (!(haystack && needle && haystackLen && needleLen &&
         needleLen <= haystackLen))
-    return nullptr;
+    return NULL;
 
 #ifdef HAVE_MEMMEM
   return (const char*)::memmem(haystack, haystackLen, needle, needleLen);
@@ -144,7 +146,25 @@ const char* nsCRT::memmem(const char* haystack, uint32_t haystackLen,
       return haystack + i;
   }
 #endif
-  return nullptr;
+  return NULL;
+}
+
+PRUnichar* nsCRT::strdup(const PRUnichar* str)
+{
+  uint32_t len = NS_strlen(str);
+  return strndup(str, len);
+}
+
+PRUnichar* nsCRT::strndup(const PRUnichar* str, uint32_t len)
+{
+	nsCppSharedAllocator<PRUnichar> shared_allocator;
+	PRUnichar* rslt = shared_allocator.allocate(len + 1); // add one for the null
+  // PRUnichar* rslt = new PRUnichar[len + 1];
+
+  if (rslt == NULL) return NULL;
+  memcpy(rslt, str, len * sizeof(PRUnichar));
+  rslt[len] = 0;
+  return rslt;
 }
 
 // This should use NSPR but NSPR isn't exporting its PR_strtoll function

@@ -6,15 +6,17 @@
 #include "nsDOMEventTargetHelper.h"
 #include "nsContentUtils.h"
 #include "nsEventDispatcher.h"
+#include "nsGUIEvent.h"
 #include "nsIDocument.h"
+#include "nsIJSContextStack.h"
+#include "nsDOMJSUtils.h"
 #include "prprf.h"
 #include "nsGlobalWindow.h"
+#include "nsDOMEvent.h"
 #include "mozilla/Likely.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMEventTargetHelper)
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
@@ -24,8 +26,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDOMEventTargetHelper)
   if (MOZ_UNLIKELY(cb.WantDebugInfo())) {
     char name[512];
     nsAutoString uri;
-    if (tmp->mOwnerWindow && tmp->mOwnerWindow->GetExtantDoc()) {
-      tmp->mOwnerWindow->GetExtantDoc()->GetDocumentURI(uri);
+    if (tmp->mOwnerWindow && tmp->mOwnerWindow->GetExtantDocument()) {
+      tmp->mOwnerWindow->GetExtantDocument()->GetDocumentURI(uri);
     }
     PR_snprintf(name, sizeof(name), "nsDOMEventTargetHelper %s",
                 NS_ConvertUTF16toUTF8(uri).get());
@@ -69,8 +71,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMEventTargetHelper)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMEventTargetHelper)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_LAST_RELEASE(nsDOMEventTargetHelper,
-                                                   LastRelease())
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMEventTargetHelper)
 
 NS_IMPL_DOMTARGET_DEFAULTS(nsDOMEventTargetHelper)
 
@@ -82,7 +83,7 @@ nsDOMEventTargetHelper::~nsDOMEventTargetHelper()
   if (mListenerManager) {
     mListenerManager->Disconnect();
   }
-  ReleaseWrapper(this);
+  nsContentUtils::ReleaseWrapper(this, this);
 }
 
 void
@@ -154,7 +155,7 @@ nsDOMEventTargetHelper::RemoveEventListener(const nsAString& aType,
                                             nsIDOMEventListener* aListener,
                                             bool aUseCapture)
 {
-  nsEventListenerManager* elm = GetExistingListenerManager();
+  nsEventListenerManager* elm = GetListenerManager(false);
   if (elm) {
     elm->RemoveEventListener(aType, aListener, aUseCapture);
   }
@@ -177,11 +178,15 @@ nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
                "explicit by making aOptionalArgc non-zero.");
 
   if (aOptionalArgc < 2) {
-    nsresult rv = WantsUntrusted(&aWantsUntrusted);
+    nsresult rv;
+    nsIScriptContext* context = GetContextForEventHandlers(&rv);
     NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIDocument> doc =
+      nsContentUtils::GetDocumentFromScriptContext(context);
+    aWantsUntrusted = doc && !nsContentUtils::IsChromeDoc(doc);
   }
 
-  nsEventListenerManager* elm = GetOrCreateListenerManager();
+  nsEventListenerManager* elm = GetListenerManager(true);
   NS_ENSURE_STATE(elm);
   elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
   return NS_OK;
@@ -189,23 +194,27 @@ nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
 
 void
 nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
-                                         EventListener* aListener,
+                                         nsIDOMEventListener* aListener,
                                          bool aUseCapture,
                                          const Nullable<bool>& aWantsUntrusted,
                                          ErrorResult& aRv)
 {
   bool wantsUntrusted;
   if (aWantsUntrusted.IsNull()) {
-    nsresult rv = WantsUntrusted(&wantsUntrusted);
+    nsresult rv;
+    nsIScriptContext* context = GetContextForEventHandlers(&rv);
     if (NS_FAILED(rv)) {
       aRv.Throw(rv);
       return;
     }
+    nsCOMPtr<nsIDocument> doc =
+      nsContentUtils::GetDocumentFromScriptContext(context);
+    wantsUntrusted = doc && !nsContentUtils::IsChromeDoc(doc);
   } else {
     wantsUntrusted = aWantsUntrusted.Value();
   }
 
-  nsEventListenerManager* elm = GetOrCreateListenerManager();
+  nsEventListenerManager* elm = GetListenerManager(true);
   if (!elm) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return;
@@ -226,8 +235,12 @@ nsDOMEventTargetHelper::AddSystemEventListener(const nsAString& aType,
                "explicit by making aOptionalArgc non-zero.");
 
   if (aOptionalArgc < 2) {
-    nsresult rv = WantsUntrusted(&aWantsUntrusted);
+    nsresult rv;
+    nsIScriptContext* context = GetContextForEventHandlers(&rv);
     NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIDocument> doc =
+      nsContentUtils::GetDocumentFromScriptContext(context);
+    aWantsUntrusted = doc && !nsContentUtils::IsChromeDoc(doc);
   }
 
   return NS_AddSystemEventListener(this, aType, aListener, aUseCapture,
@@ -270,14 +283,24 @@ nsDOMEventTargetHelper::SetEventHandler(nsIAtom* aType,
                                         JSContext* aCx,
                                         const JS::Value& aValue)
 {
+  JSObject* obj = GetWrapper();
+  if (!obj) {
+    return NS_OK;
+  }
+
   nsRefPtr<EventHandlerNonNull> handler;
   JSObject* callable;
   if (aValue.isObject() &&
       JS_ObjectIsCallable(aCx, callable = &aValue.toObject())) {
-    handler = new EventHandlerNonNull(callable);
+    bool ok;
+    handler = new EventHandlerNonNull(aCx, obj, callable, &ok);
+    if (!ok) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
   }
-  SetEventHandler(aType, EmptyString(), handler);
-  return NS_OK;
+  ErrorResult rv;
+  SetEventHandler(aType, handler, rv);
+  return rv.ErrorCode();
 }
 
 void
@@ -285,7 +308,7 @@ nsDOMEventTargetHelper::GetEventHandler(nsIAtom* aType,
                                         JSContext* aCx,
                                         JS::Value* aValue)
 {
-  EventHandlerNonNull* handler = GetEventHandler(aType, EmptyString());
+  EventHandlerNonNull* handler = GetEventHandler(aType);
   if (handler) {
     *aValue = JS::ObjectValue(*handler->Callable());
   } else {
@@ -308,7 +331,7 @@ nsDOMEventTargetHelper::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 }
 
 nsresult
-nsDOMEventTargetHelper::DispatchDOMEvent(WidgetEvent* aEvent,
+nsDOMEventTargetHelper::DispatchDOMEvent(nsEvent* aEvent,
                                          nsIDOMEvent* aDOMEvent,
                                          nsPresContext* aPresContext,
                                          nsEventStatus* aEventStatus)
@@ -319,18 +342,12 @@ nsDOMEventTargetHelper::DispatchDOMEvent(WidgetEvent* aEvent,
 }
 
 nsEventListenerManager*
-nsDOMEventTargetHelper::GetOrCreateListenerManager()
+nsDOMEventTargetHelper::GetListenerManager(bool aCreateIfNotFound)
 {
-  if (!mListenerManager) {
+  if (!mListenerManager && aCreateIfNotFound) {
     mListenerManager = new nsEventListenerManager(this);
   }
 
-  return mListenerManager;
-}
-
-nsEventListenerManager*
-nsDOMEventTargetHelper::GetExistingListenerManager() const
-{
   return mListenerManager;
 }
 
@@ -346,15 +363,27 @@ nsDOMEventTargetHelper::GetContextForEventHandlers(nsresult* aRv)
                : nullptr;
 }
 
-nsresult
-nsDOMEventTargetHelper::WantsUntrusted(bool* aRetVal)
+void
+nsDOMEventTargetHelper::Init(JSContext* aCx)
 {
-  nsresult rv;
-  nsIScriptContext* context = GetContextForEventHandlers(&rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIDocument> doc =
-    nsContentUtils::GetDocumentFromScriptContext(context);
-  // We can let listeners on workers to always handle all the events.
-  *aRetVal = (doc && !nsContentUtils::IsChromeDoc(doc)) || !NS_IsMainThread();
-  return rv;
+  JSContext* cx = aCx;
+  if (!cx) {
+    nsIJSContextStack* stack = nsContentUtils::ThreadJSContextStack();
+
+    if (!stack)
+      return;
+
+    if (NS_FAILED(stack->Peek(&cx)) || !cx)
+      return;
+  }
+
+  NS_ASSERTION(cx, "Should have returned earlier ...");
+  nsIScriptContext* context = GetScriptContextFromJSContext(cx);
+  if (context) {
+    nsCOMPtr<nsPIDOMWindow> window =
+      do_QueryInterface(context->GetGlobalObject());
+    if (window) {
+      BindToOwner(window->GetCurrentInnerWindow());
+    }
+  }
 }

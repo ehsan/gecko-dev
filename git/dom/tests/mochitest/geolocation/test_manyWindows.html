@@ -21,9 +21,8 @@ href="https://bugzilla.mozilla.org/show_bug.cgi?id=478911">Crash in Multiple Win
 <script class="testbody" type="text/javascript">
 
 // ensure we are using the right testing provider
-resume_geolocationProvider(function() {
-  force_prompt(true, test1);
-});
+resume_geolocationProvider();
+force_prompt(true);
 
 /** Test for Bug  **/
 
@@ -39,10 +38,8 @@ addEventListener("message", function() {
   }
 }, false);
 
-function test1() {
-  for(var i = 0; i < numberOfWindows; i++) {
-    windows[i] = window.open("geolocation.html", "_blank", "width=700,height=400");
-  }
+for(var i = 0; i < numberOfWindows; i++) {
+  windows[i] = window.open("geolocation.html", "_blank", "width=700,height=400");
 }
 
 function closeWindows()
@@ -58,6 +55,7 @@ SimpleTest.waitForExplicitFinish();
 function done()
 {
   ok(navigator.geolocation, "Opened a bunch of windows and didn't crash.");
+  reset_prompt();
   SimpleTest.finish();
 }
 

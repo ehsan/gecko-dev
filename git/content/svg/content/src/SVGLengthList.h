@@ -204,7 +204,7 @@ public:
   /**
    * The value returned by this function depends on which attribute this object
    * is for. If appending a list of zeros to the attribute's list would have no
-   * effect on rendering (e.g. the attributes 'dx' and 'dy' on <text>), then
+   * affect on rendering (e.g. the attributes 'dx' and 'dy' on <text>), then
    * this method will return true. If appending a list of zeros to the
    * attribute's list could *change* rendering (e.g. the attributes 'x' and 'y'
    * on <text>), then this method will return false.
@@ -319,11 +319,6 @@ public:
   /// This may return a non-finite value
   float operator[](uint32_t aIndex) const {
     return (*mList)[aIndex].GetValueInUserUnits(mElement, mAxis);
-  }
-
-  bool HasPercentageValueAt(uint32_t aIndex) const {
-    const SVGLength& length = (*mList)[aIndex];
-    return length.GetUnit() == nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE;
   }
 
 private:

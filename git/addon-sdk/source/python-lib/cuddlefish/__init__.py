@@ -172,7 +172,7 @@ parser_groups = (
         (("", "--strip-sdk",), dict(dest="bundle_sdk",
                                     help=("Do not ship SDK modules in the xpi"),
                                     action="store_false",
-                                    default=False,
+                                    default=True,
                                     cmds=['run', 'test', 'testex', 'testpkgs',
                                           'testall', 'xpi'])),
         (("", "--force-use-bundled-sdk",), dict(dest="force_use_bundled_sdk",
@@ -228,16 +228,6 @@ parser_groups = (
                                   metavar=None,
                                   default=False,
                                   cmds=['sdocs'])),
-        (("", "--check-memory",), dict(dest="check_memory",
-                                       help="attempts to detect leaked compartments after a test run",
-                                       action="store_true",
-                                       default=False,
-                                       cmds=['test', 'testpkgs', 'testaddons',
-                                             'testall'])),
-        (("", "--output-file",), dict(dest="output_file",
-                                      help="Where to put the finished .xpi",
-                                      default=None,
-                                      cmds=['xpi'])),
         ]
      ),
 
@@ -554,7 +544,7 @@ def initializer(env_root, args, out=sys.stdout, err=sys.stderr):
     jid = create_jid()
     print >>out, '* generated jID automatically:', jid
     open(os.path.join(path,'package.json'),'w').write(PACKAGE_JSON % {'name':addon.lower(),
-                                                   'title':addon,
+                                                   'fullName':addon,
                                                    'id':jid })
     print >>out, '* package.json written'
     open(os.path.join(path,'test','test-main.js'),'w').write(TEST_MAIN_JS)
@@ -568,7 +558,7 @@ def initializer(env_root, args, out=sys.stdout, err=sys.stderr):
         print >>out, 'Do "cfx test" to test it and "cfx run" to try it.  Have fun!'
     else:
         print >>out, '\nYour sample add-on is now ready in the \'' + args[1] +  '\' directory.'
-        print >>out, 'Change to that directory, then do "cfx test" to test it, \nand "cfx run" to try it.  Have fun!'
+        print >>out, 'Change to that directory, then do "cfx test" to test it, \nand "cfx run" to try it.  Have fun!' 
     return {"result":0, "jid":jid}
 
 def buildJID(target_cfg):
@@ -597,7 +587,7 @@ def run(arguments=sys.argv[1:], target_cfg=None, pkg_cfg=None,
     (options, args) = parse_args(**parser_kwargs)
 
     config_args = get_config_args(options.config, env_root);
-
+    
     # reparse configs with arguments from local.json
     if config_args:
         parser_kwargs['arguments'] += config_args
@@ -670,7 +660,7 @@ def run(arguments=sys.argv[1:], target_cfg=None, pkg_cfg=None,
     # a Mozilla application (which includes running tests).
 
     use_main = False
-    inherited_options = ['verbose', 'enable_e10s', 'parseable', 'check_memory']
+    inherited_options = ['verbose', 'enable_e10s', 'parseable']
     enforce_timeouts = False
 
     if command == "xpi":
@@ -896,20 +886,14 @@ def run(arguments=sys.argv[1:], target_cfg=None, pkg_cfg=None,
             key,value = kv.split("=", 1)
             extra_harness_options[key] = value
         # Generate xpi filepath
-        if options.output_file:
-          xpi_path = options.output_file
-        else:
-          xpi_path = XPI_FILENAME % target_cfg.name
-
+        xpi_path = XPI_FILENAME % target_cfg.name
         print >>stdout, "Exporting extension to %s." % xpi_path
         build_xpi(template_root_dir=app_extension_dir,
                   manifest=manifest_rdf,
                   xpi_path=xpi_path,
                   harness_options=harness_options,
                   limit_to=used_files,
-                  extra_harness_options=extra_harness_options,
-                  bundle_sdk=True,
-                  pkgdir=options.pkgdir)
+                  extra_harness_options=extra_harness_options)
     else:
         from cuddlefish.runner import run_app
 
@@ -941,8 +925,7 @@ def run(arguments=sys.argv[1:], target_cfg=None, pkg_cfg=None,
                              env_root=env_root,
                              is_running_tests=(command == "test"),
                              overload_modules=options.overload_modules,
-                             bundle_sdk=options.bundle_sdk,
-                             pkgdir=options.pkgdir)
+                             bundle_sdk=options.bundle_sdk)
         except ValueError, e:
             print ""
             print "A given cfx option has an inappropriate value:"

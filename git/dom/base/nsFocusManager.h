@@ -85,11 +85,6 @@ public:
   }
 
   /**
-   * Update the caret with current mode (whether in caret browsing mode or not).
-   */
-  void UpdateCaretForCaretBrowsingMode();
-
-  /**
    * Returns the content node that would be focused if aWindow was in an
    * active window. This will traverse down the frame hierarchy, starting at
    * the given window aWindow. Sets aFocusedWindow to the window with the
@@ -120,6 +115,8 @@ public:
   static InputContextAction::Cause GetFocusMoveActionCause(uint32_t aFlags);
 
   static bool sMouseFocusesFormControl;
+
+  static bool ThemeDisplaysFocusForContent(nsIContent* aContent);
 
 protected:
 
@@ -518,7 +515,7 @@ private:
   // When a mouse down event process is finished, ESM sets focus to the target
   // content.  Therefore, while DOM event handlers are handling mouse down
   // events, the handlers should be able to steal focus from any elements even
-  // if focus is in chrome content.  So, if this isn't nullptr and the caller
+  // if focus is in chrome content.  So, if this isn't NULL and the caller
   // can access the document node, the caller should succeed in moving focus.
   nsCOMPtr<nsIDocument> mMouseDownEventHandlingDocument;
 

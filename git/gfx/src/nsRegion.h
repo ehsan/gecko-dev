@@ -6,16 +6,9 @@
 #ifndef nsRegion_h__
 #define nsRegion_h__
 
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uint32_t, uint64_t
-#include <sys/types.h>                  // for int32_t
-#include "gfxCore.h"                    // for NS_GFX
-#include "nsCoord.h"                    // for nscoord
-#include "nsError.h"                    // for nsresult
-#include "nsPoint.h"                    // for nsIntPoint, nsPoint
-#include "nsRect.h"                     // for nsIntRect, nsRect
-#include "nsString.h"               // for nsCString
-#include "xpcom-config.h"               // for CPP_THROW_NEW
+#include "nsRect.h"
+#include "nsPoint.h"
+#include "nsString.h"
 
 class nsIntRegion;
 
@@ -154,7 +147,6 @@ public:
   bool IsEqual (const nsRegion& aRegion) const;
   uint32_t GetNumRects () const { return mRectCount; }
   const nsRect& GetBounds () const { return mBoundRect; }
-  uint64_t Area () const;
   // Converts this region from aFromAPP, an appunits per pixel ratio, to
   // aToAPP. This applies nsRect::ConvertAppUnitsRoundOut/In to each rect of
   // the region.
@@ -417,7 +409,6 @@ public:
   }
   uint32_t GetNumRects () const { return mImpl.GetNumRects (); }
   nsIntRect GetBounds () const { return FromRect (mImpl.GetBounds ()); }
-  uint64_t Area () const { return mImpl.Area(); }
   nsRegion ToAppUnits (nscoord aAppUnitsPerPixel) const;
   nsIntRect GetLargestRectangle (const nsIntRect& aContainingRect = nsIntRect()) const
   {

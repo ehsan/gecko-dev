@@ -370,11 +370,8 @@ SessionStore.prototype = {
     if (aWindow.Browser.tabs.length > 0) {
       // Bundle this browser's data and extra data and save in the closedTabs
       // window property
-      //
-      // NB: The access to aBrowser.__SS_extdata throws during automation (in
-      // browser_msgmgr_01). See bug 888736.
       let data = aBrowser.__SS_data;
-      try { data.extData = aBrowser.__SS_extdata; } catch (e) { }
+      data.extData = aBrowser.__SS_extdata;
 
       this._windows[aWindow.__SSID].closedTabs.unshift(data);
       let length = this._windows[aWindow.__SSID].closedTabs.length;
@@ -729,11 +726,14 @@ SessionStore.prototype = {
         for (let i=0; i<tabs.length; i++) {
           let tabData = tabs[i];
 
+          // Add a tab, but don't load the URL until we need to
+          let params = { getAttention: false, delayLoad: true };
+
           // We must have selected tabs as soon as possible, so we let all tabs be selected
           // until we get the real selected tab. Then we stop selecting tabs. The end result
           // is that the right tab is selected, but we also don't get a bunch of errors
           let bringToFront = (i + 1 <= selected) && aBringToFront;
-          let tab = window.Browser.addTab(tabData.entries[tabData.index - 1].url, bringToFront);
+          let tab = window.Browser.addTab(tabData.entries[tabData.index - 1].url, bringToFront, null, params);
 
           // Start a real load for the selected tab
           if (i + 1 == selected) {

@@ -21,20 +21,18 @@ class SVGRectElement MOZ_FINAL : public SVGRectElementBase
 {
 protected:
   SVGRectElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-  virtual JSObject* WrapNode(JSContext *cx,
-                             JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
   friend nsresult (::NS_NewSVGRectElement(nsIContent **aResult,
                                           already_AddRefed<nsINodeInfo> aNodeInfo));
 
 public:
   // nsSVGSVGElement methods:
-  virtual bool HasValidDimensions() const MOZ_OVERRIDE;
+  virtual bool HasValidDimensions() const;
 
   // nsSVGPathGeometryElement methods:
-  virtual void ConstructPath(gfxContext *aCtx) MOZ_OVERRIDE;
-  virtual TemporaryRef<Path> BuildPath() MOZ_OVERRIDE;
+  virtual void ConstructPath(gfxContext *aCtx);
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // WebIDL
   already_AddRefed<SVGAnimatedLength> X();
@@ -46,7 +44,7 @@ public:
 
 protected:
 
-  virtual LengthAttributesInfo GetLengthInfo() MOZ_OVERRIDE;
+  virtual LengthAttributesInfo GetLengthInfo();
 
   enum { ATTR_X, ATTR_Y, ATTR_WIDTH, ATTR_HEIGHT, ATTR_RX, ATTR_RY };
   nsSVGLength2 mLengthAttributes[6];

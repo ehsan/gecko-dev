@@ -20,6 +20,7 @@ namespace dom {
 HTMLTitleElement::HTMLTitleElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
+  SetIsDOMBinding();
   AddMutationObserver(this);
 }
 
@@ -27,13 +28,30 @@ HTMLTitleElement::~HTMLTitleElement()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED2(HTMLTitleElement, nsGenericHTMLElement,
-                             nsIDOMHTMLTitleElement, nsIMutationObserver)
+
+NS_IMPL_ADDREF_INHERITED(HTMLTitleElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLTitleElement, Element)
+
+} // namespace dom
+} // namespace mozilla
+
+namespace mozilla {
+namespace dom {
+
+// QueryInterface implementation for HTMLTitleElement
+NS_INTERFACE_TABLE_HEAD(HTMLTitleElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE2(HTMLTitleElement,
+                                   nsIDOMHTMLTitleElement,
+                                   nsIMutationObserver)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLTitleElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
+
 
 NS_IMPL_ELEMENT_CLONE(HTMLTitleElement)
 
 JSObject*
-HTMLTitleElement::WrapNode(JSContext* cx, JS::Handle<JSObject*> scope)
+HTMLTitleElement::WrapNode(JSContext* cx, JSObject* scope)
 {
   return HTMLTitleElementBinding::Wrap(cx, scope, this);
 }

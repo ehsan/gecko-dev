@@ -4,6 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <stdlib.h>
+#include "jstypes.h"
 #include "jsnativestack.h"
 
 #ifdef XP_WIN
@@ -16,13 +18,13 @@
 #elif defined(XP_MACOSX) || defined(DARWIN) || defined(XP_UNIX)
 # include <pthread.h>
 
-# if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+# if defined(__FreeBSD__) || defined(__OpenBSD__)
 #  include <pthread_np.h>
 # endif
 
 # if defined(ANDROID)
-#  include <sys/types.h>
 #  include <unistd.h>
+#  include <sys/types.h>
 # endif
 
 #else
@@ -142,7 +144,7 @@ js::GetNativeStackBaseImpl()
         if (fs) {
             char line[100];
             unsigned long stackAddr = (unsigned long)&sattr;
-            while (fgets(line, sizeof(line), fs) != nullptr) {
+            while (fgets(line, sizeof(line), fs) != NULL) {
                 unsigned long stackStart;
                 unsigned long stackEnd;
                 if (sscanf(line, "%lx-%lx ", &stackStart, &stackEnd) == 2 &&

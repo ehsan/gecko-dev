@@ -7,7 +7,6 @@
 #include "nsCertOverrideService.h"
 #include "nsIX509Cert.h"
 #include "nsNSSCertificate.h"
-#include "nsNSSCertHelper.h"
 #include "nsCRT.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsStreamUtils.h"
@@ -81,10 +80,10 @@ nsCertOverride::convertStringToBits(const nsACString &str, OverrideBits &ob)
   }
 }
 
-NS_IMPL_ISUPPORTS3(nsCertOverrideService,
-                   nsICertOverrideService,
-                   nsIObserver,
-                   nsISupportsWeakReference)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsCertOverrideService, 
+                              nsICertOverrideService,
+                              nsIObserver,
+                              nsISupportsWeakReference)
 
 nsCertOverrideService::nsCertOverrideService()
   : monitor("nsCertOverrideService.monitor")
@@ -102,6 +101,8 @@ nsCertOverrideService::Init()
     NS_NOTREACHED("nsCertOverrideService initialized off main thread");
     return NS_ERROR_NOT_SAME_THREAD;
   }
+
+  mSettingsTable.Init();
 
   mOidTagForStoringNewHashes = SEC_OID_SHA256;
 
@@ -379,6 +380,30 @@ nsCertOverrideService::Write()
     }
   }
 
+  return NS_OK;
+}
+
+static nsresult
+GetCertFingerprintByOidTag(CERTCertificate* nsscert,
+                           SECOidTag aOidTag, 
+                           nsCString &fp)
+{
+  unsigned int hash_len = HASH_ResultLenByOidTag(aOidTag);
+  nsStringBuffer* fingerprint = nsStringBuffer::Alloc(hash_len);
+  if (!fingerprint)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  PK11_HashBuf(aOidTag, (unsigned char*)fingerprint->Data(), 
+               nsscert->derCert.data, nsscert->derCert.len);
+
+  SECItem fpItem;
+  fpItem.data = (unsigned char*)fingerprint->Data();
+  fpItem.len = hash_len;
+
+  char *tmpstr = CERT_Hexify(&fpItem, 1);
+  fp.Assign(tmpstr);
+  PORT_Free(tmpstr);
+  fingerprint->Release();
   return NS_OK;
 }
 

@@ -18,7 +18,6 @@
 #include "nsTableColFrame.h"
 #include "nsCOMPtr.h"
 #include "nsDisplayList.h"
-#include "nsIFrameInlines.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -29,9 +28,9 @@ struct nsTableCellReflowState : public nsHTMLReflowState
                          const nsHTMLReflowState& aParentReflowState,
                          nsIFrame*                aFrame,
                          const nsSize&            aAvailableSpace,
-                         uint32_t                 aFlags = 0)
+                         bool                     aInit = true)
     : nsHTMLReflowState(aPresContext, aParentReflowState, aFrame,
-                        aAvailableSpace, -1, -1, aFlags)
+                        aAvailableSpace, -1, -1, aInit)
   {
   }
 
@@ -534,28 +533,10 @@ public:
   }
 #endif
 
-  virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                         const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion *aInvalidRegion) MOZ_OVERRIDE;
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("TableRowBackground", TYPE_TABLE_ROW_BACKGROUND)
 };
-
-void
-nsDisplayTableRowBackground::ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                                       const nsDisplayItemGeometry* aGeometry,
-                                                       nsRegion *aInvalidRegion)
-{
-  if (aBuilder->ShouldSyncDecodeImages()) {
-    if (nsTableFrame::AnyTablePartHasUndecodedBackgroundImage(mFrame, mFrame->GetNextSibling())) {
-      bool snap;
-      aInvalidRegion->Or(*aInvalidRegion, GetBounds(aBuilder, &snap));
-    }
-  }
-
-  nsDisplayTableItem::ComputeInvalidationRegion(aBuilder, aGeometry, aInvalidRegion);
-}
 
 void
 nsDisplayTableRowBackground::Paint(nsDisplayListBuilder* aBuilder,
@@ -593,7 +574,7 @@ nsTableRowFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 int
-nsTableRowFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
+nsTableRowFrame::GetSkipSides() const
 {
   int skip = 0;
   if (nullptr != GetPrevInFlow()) {
@@ -766,7 +747,7 @@ nscoord CalcHeightFromUnpaginatedHeight(nsPresContext*   aPresContext,
 {
   nscoord height = 0;
   nsTableRowFrame* firstInFlow =
-    static_cast<nsTableRowFrame*>(aRow.FirstInFlow());
+    static_cast<nsTableRowFrame*>(aRow.GetFirstInFlow());
   if (firstInFlow->HasUnpaginatedHeight()) {
     height = firstInFlow->GetUnpaginatedHeight(aPresContext);
     for (nsIFrame* prevInFlow = aRow.GetPrevInFlow(); prevInFlow;
@@ -811,8 +792,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
 
       // it's an unknown frame type, give it a generic reflow and ignore the results
       nsTableCellReflowState kidReflowState(aPresContext, aReflowState,
-                                            kidFrame, nsSize(0,0),
-                                            nsHTMLReflowState::CALLER_WILL_INIT);
+                                            kidFrame, nsSize(0,0), false);
       InitChildReflowState(*aPresContext, nsSize(0,0), false, kidReflowState);
       nsHTMLReflowMetrics desiredSize;
       nsReflowStatus  status;
@@ -891,8 +871,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
 
         // Reflow the child
         nsTableCellReflowState kidReflowState(aPresContext, aReflowState, 
-                                              kidFrame, kidAvailSize,
-                                              nsHTMLReflowState::CALLER_WILL_INIT);
+                                              kidFrame, kidAvailSize, false);
         InitChildReflowState(*aPresContext, kidAvailSize, borderCollapse,
                              kidReflowState);
 
@@ -1086,8 +1065,7 @@ nsTableRowFrame::ReflowCellFrame(nsPresContext*          aPresContext,
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
   bool borderCollapse = tableFrame->IsBorderCollapse();
   nsTableCellReflowState cellReflowState(aPresContext, aReflowState,
-                                         aCellFrame, availSize,
-                                         nsHTMLReflowState::CALLER_WILL_INIT);
+                                         aCellFrame, availSize, false);
   InitChildReflowState(*aPresContext, availSize, borderCollapse, cellReflowState);
   cellReflowState.mFlags.mIsTopOfPage = aIsTopOfPage;
 
@@ -1127,7 +1105,7 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
   const nsStyleVisibility* rowVis = StyleVisibility();
   bool collapseRow = (NS_STYLE_VISIBILITY_COLLAPSE == rowVis->mVisible);
   nsTableFrame* tableFrame = static_cast<nsTableFrame*>(
-    nsTableFrame::GetTableFrame(this)->FirstInFlow());
+    nsTableFrame::GetTableFrame(this)->GetFirstInFlow());
   if (collapseRow) {
     tableFrame->SetNeedToCollapse(true);
   }
@@ -1264,7 +1242,8 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
         // collapse the cell!
         nsRect cellBounds(0, 0, cRect.width, cRect.height);
         nsOverflowAreas cellOverflow(cellBounds, cellBounds);
-        cellFrame->FinishAndStoreOverflow(cellOverflow, cRect.Size());
+        cellFrame->FinishAndStoreOverflow(cellOverflow,
+                                          nsSize(cRect.width, cRect.height));
         nsTableFrame::RePositionViews(cellFrame);
         ConsiderChildOverflow(overflow, cellFrame);
                 
@@ -1279,8 +1258,8 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
   }
 
   SetRect(rowRect);
-  overflow.UnionAllWith(nsRect(0, 0, rowRect.width, rowRect.height));
-  FinishAndStoreOverflow(overflow, rowRect.Size());
+  overflow.UnionAllWith(nsRect(0,0,rowRect.width, rowRect.height));
+  FinishAndStoreOverflow(overflow, nsSize(rowRect.width, rowRect.height));
 
   nsTableFrame::RePositionViews(this);
   nsTableFrame::InvalidateTableFrame(this, oldRect, oldVisualOverflow, false);
@@ -1349,7 +1328,7 @@ nsTableRowFrame::SetUnpaginatedHeight(nsPresContext* aPresContext,
 nscoord
 nsTableRowFrame::GetUnpaginatedHeight(nsPresContext* aPresContext)
 {
-  FrameProperties props = FirstInFlow()->Properties();
+  FrameProperties props = GetFirstInFlow()->Properties();
   return NS_PTR_TO_INT32(props.Get(RowUnpaginatedHeightProperty()));
 }
 

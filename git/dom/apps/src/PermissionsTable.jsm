@@ -27,6 +27,7 @@ const DENY_ACTION = Ci.nsIPermissionManager.DENY_ACTION;
 const PROMPT_ACTION = Ci.nsIPermissionManager.PROMPT_ACTION;
 
 // Permissions Matrix: https://docs.google.com/spreadsheet/ccc?key=0Akyz_Bqjgf5pdENVekxYRjBTX0dCXzItMnRyUU1RQ0E#gid=0
+// Also, keep in sync with https://mxr.mozilla.org/mozilla-central/source/extensions/cookie/Permission.txt
 
 // Permissions that are implicit:
 // battery-status, network-information, vibration,
@@ -64,12 +65,6 @@ this.PermissionsTable =  { geolocation: {
                              access: ["read", "write", "create"]
                            },
                            "device-storage:apps": {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION,
-                             access: ["read"]
-                           },
-                           "device-storage:crashes": {
                              app: DENY_ACTION,
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION,
@@ -124,11 +119,6 @@ this.PermissionsTable =  { geolocation: {
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION
                            },
-                           mobilenetwork: {
-                             app: DENY_ACTION,
-                             privileged: ALLOW_ACTION,
-                             certified: ALLOW_ACTION
-                           },
                            power: {
                              app: DENY_ACTION,
                              privileged: DENY_ACTION,
@@ -147,11 +137,6 @@ this.PermissionsTable =  { geolocation: {
                              additional: ["indexedDB-chrome-settings"]
                            },
                            permissions: {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           phonenumberservice: {
                              app: DENY_ACTION,
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION
@@ -228,8 +213,7 @@ this.PermissionsTable =  { geolocation: {
                              substitute: [
                                "indexedDB-unlimited",
                                "offline-app",
-                               "pin-app",
-                               "default-persistent-storage"
+                               "pin-app"
                              ]
                            },
                            "background-sensors": {
@@ -282,33 +266,7 @@ this.PermissionsTable =  { geolocation: {
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION
                            },
-                           "input": {
-                             app: DENY_ACTION,
-                             privileged: ALLOW_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           "input-manage": {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           "wappush": {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
-                           },
-                           "audio-capture": {
-                             app: PROMPT_ACTION,
-                             privileged: PROMPT_ACTION,
-                             certified: PROMPT_ACTION
-                           },
-                           "nfc": {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION,
-                             access: ["read", "write"]
-                           },
-                           "nfc-manager": {
+                           "keyboard": {
                              app: DENY_ACTION,
                              privileged: DENY_ACTION,
                              certified: ALLOW_ACTION

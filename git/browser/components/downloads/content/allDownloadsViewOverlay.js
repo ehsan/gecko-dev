@@ -259,7 +259,7 @@ DownloadElementShell.prototype = {
       }.bind(this),
 
       function onFailure(aReason) {
-        if (aReason instanceof OS.File.Error && aReason.becauseNoSuchFile) {
+        if (reason instanceof OS.File.Error && reason.becauseNoSuchFile) {
           this._targetFileInfoFetched = true;
           this._targetFileExists = false;
         }
@@ -788,17 +788,13 @@ function DownloadsPlacesView(aRichListBox, aActive = true) {
   // Register as a downloads view. The places data will be initialized by
   // the places setter.
   this._initiallySelectedElement = null;
-  this._downloadsData = DownloadsCommon.getData(window.opener || window);
-  this._downloadsData.addView(this);
-
-  // Get the Download button out of the attention state since we're about to
-  // view all downloads.
-  DownloadsCommon.getIndicatorData(window).attention = false;
+  let downloadsData = DownloadsCommon.getData(window.opener || window);
+  downloadsData.addView(this);
 
   // Make sure to unregister the view if the window is closed.
   window.addEventListener("unload", function() {
     window.controllers.removeController(this);
-    this._downloadsData.removeView(this);
+    downloadsData.removeView(this);
     this.result = null;
   }.bind(this), true);
   // Resizing the window may change items visibility.
@@ -992,19 +988,17 @@ DownloadsPlacesView.prototype = {
 
   _removeElement: function DPV__removeElement(aElement) {
     // If the element was selected exclusively, select its next
-    // sibling first, if not, try for previous sibling, if any.
-    if ((aElement.nextSibling || aElement.previousSibling) &&
+    // sibling first, if any.
+    if (aElement.nextSibling &&
         this._richlistbox.selectedItems &&
-        this._richlistbox.selectedItems.length == 1 &&
+        this._richlistbox.selectedItems.length > 0 &&
         this._richlistbox.selectedItems[0] == aElement) {
-      this._richlistbox.selectItem(aElement.nextSibling ||
-                                   aElement.previousSibling);
+      this._richlistbox.selectItem(aElement.nextSibling);
     }
 
     if (this._lastSessionDownloadElement == aElement)
       this._lastSessionDownloadElement = aElement.previousSibling;
 
-    this._richlistbox.removeItemFromSelection(aElement);
     this._richlistbox.removeChild(aElement);
     this._ensureVisibleElementsAreActive();
     goUpdateCommand("downloadsCmd_clearDownloads");
@@ -1448,7 +1442,11 @@ DownloadsPlacesView.prototype = {
         this._downloadURLFromClipboard();
         break;
       case "downloadsCmd_clearDownloads":
-        this._downloadsData.removeFinished();
+        if (PrivateBrowsingUtils.isWindowPrivate(window)) {
+          Services.downloads.cleanUpPrivate();
+        } else {
+          Services.downloads.cleanUp();
+        }
         if (this.result) {
           Cc["@mozilla.org/browser/download-history;1"]
             .getService(Ci.nsIDownloadHistory)
@@ -1459,11 +1457,7 @@ DownloadsPlacesView.prototype = {
         goUpdateCommand("downloadsCmd_clearDownloads");
         break;
       default: {
-        // Slicing the array to get a freezed list of selected items. Otherwise,
-        // the selectedItems array is live and doCommand may alter the selection
-        // while we are trying to do one particular action, like removing items
-        // from history.
-        let selectedElements = this._richlistbox.selectedItems.slice();
+        let selectedElements = this._richlistbox.selectedItems;
         for (let element of selectedElements) {
           element._shell.doCommand(aCommand);
         }

@@ -28,6 +28,14 @@
 #include <sys/quota.h>
 #endif
 
+#if (MOZ_PLATFORM_MAEMO == 6)
+#include <QUrl>
+#include <QString>
+#if (MOZ_ENABLE_CONTENTACTION)
+#include <contentaction/contentaction.h>
+#endif
+#endif
+
 #include "xpcom-private.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsCRT.h"
@@ -43,7 +51,6 @@
 #include "nsIDirectoryEnumerator.h"
 #include "nsISimpleEnumerator.h"
 #include "private/pprio.h"
-#include "prlink.h"
 
 #ifdef MOZ_WIDGET_GTK
 #include "nsIGIOService.h"
@@ -59,14 +66,17 @@
 static nsresult MacErrorMapper(OSErr inErr);
 #endif
 
+#if (MOZ_PLATFORM_MAEMO == 5)
+#include <glib.h>
+#include <hildon-uri.h>
+#include <hildon-mime.h>
+#include <libosso.h>
+#endif
+
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
 #include "nsIMIMEService.h"
 #include <linux/magic.h>
-#endif
-
-#ifdef MOZ_ENABLE_CONTENTACTION
-#include <contentaction/contentaction.h>
 #endif
 
 #include "nsNativeCharsetUtils.h"
@@ -197,12 +207,15 @@ nsDirEnumeratorUnix::GetNextFile(nsIFile **_retval)
     }
 
     nsCOMPtr<nsIFile> file = new nsLocalFile();
+    if (!file)
+        return NS_ERROR_OUT_OF_MEMORY;
 
     if (NS_FAILED(rv = file->InitWithNativePath(mParentPath)) ||
         NS_FAILED(rv = file->AppendNative(nsDependentCString(mEntry->d_name))))
         return rv;
 
-    file.forget(_retval);
+    *_retval = file;
+    NS_ADDREF(*_retval);
     return GetNextEntry();
 }
 
@@ -226,16 +239,16 @@ nsLocalFile::nsLocalFile(const nsLocalFile& other)
 }
 
 #ifdef MOZ_WIDGET_COCOA
-NS_IMPL_ISUPPORTS4(nsLocalFile,
-                   nsILocalFileMac,
-                   nsILocalFile,
-                   nsIFile,
-                   nsIHashable)
+NS_IMPL_THREADSAFE_ISUPPORTS4(nsLocalFile,
+                              nsILocalFileMac,
+                              nsILocalFile,
+                              nsIFile,
+                              nsIHashable)
 #else
-NS_IMPL_ISUPPORTS3(nsLocalFile,
-                   nsILocalFile,
-                   nsIFile,
-                   nsIHashable)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsLocalFile,
+                              nsILocalFile,
+                              nsIFile,
+                              nsIHashable)
 #endif
 
 nsresult
@@ -249,6 +262,8 @@ nsLocalFile::nsLocalFileConstructor(nsISupports *outer,
     *aInstancePtr = nullptr;
 
     nsCOMPtr<nsIFile> inst = new nsLocalFile();
+    if (!inst)
+        return NS_ERROR_OUT_OF_MEMORY;
     return inst->QueryInterface(aIID, aInstancePtr);
 }
 
@@ -267,8 +282,12 @@ NS_IMETHODIMP
 nsLocalFile::Clone(nsIFile **file)
 {
     // Just copy-construct ourselves
-    nsRefPtr<nsLocalFile> copy = new nsLocalFile(*this);
-    copy.forget(file);
+    *file = new nsLocalFile(*this);
+    if (!*file)
+      return NS_ERROR_OUT_OF_MEMORY;
+
+    NS_ADDREF(*file);
+    
     return NS_OK;
 }
 
@@ -382,8 +401,7 @@ nsLocalFile::OpenNSPRFileDesc(int32_t flags, int32_t mode, PRFileDesc **_retval)
 
 #if defined(LINUX) && !defined(ANDROID)
     if (flags & OS_READAHEAD) {
-        posix_fadvise(PR_FileDesc2NativeHandle(*_retval), 0, 0,
-                      POSIX_FADV_SEQUENTIAL);
+        readahead(PR_FileDesc2NativeHandle(*_retval), 0, 0);
     }
 #endif
     return NS_OK;
@@ -817,18 +835,6 @@ nsLocalFile::CopyToNative(nsIFile *newParent, const nsACString &newName)
         char buf[BUFSIZ];
         int32_t bytesRead;
         
-        // record PR_Write() error for better error message later.
-        nsresult saved_write_error = NS_OK;    
-        nsresult saved_read_error = NS_OK;
-
-        // DONE: Does PR_Read() return bytesRead < 0 for error?
-        // Yes., The errors from PR_Read are not so common and
-        // the value may not have correspondence in NS_ERROR_*, but
-        // we do catch it still, immediately after while() loop.
-        // We can differentiate errors pf PR_Read and PR_Write by
-        // looking at saved_write_error value. If PR_Write error occurs (and not
-        // PR_Read() error), save_write_error is not NS_OK.
-
         while ((bytesRead = PR_Read(oldFD, buf, BUFSIZ)) > 0) {
 #ifdef DEBUG_blizzard
             totalRead += bytesRead;
@@ -837,7 +843,6 @@ nsLocalFile::CopyToNative(nsIFile *newParent, const nsACString &newName)
             // PR_Write promises never to do a short write
             int32_t bytesWritten = PR_Write(newFD, buf, bytesRead);
             if (bytesWritten < 0) {
-                saved_write_error = NSRESULT_FOR_ERRNO();
                 bytesRead = -1;
                 break;
             }
@@ -848,39 +853,18 @@ nsLocalFile::CopyToNative(nsIFile *newParent, const nsACString &newName)
 #endif
         }
 
-        // Record error if PR_Read() failed.
-        // Must be done before any other I/O which may reset errno.
-        if ( (bytesRead < 0) && (saved_write_error == NS_OK)) {
-            saved_read_error = NSRESULT_FOR_ERRNO();
-        }
-
 #ifdef DEBUG_blizzard
         printf("read %d bytes, wrote %d bytes\n",
                  totalRead, totalWritten);
 #endif
 
-        // TODO/FIXME: better find out how to propagate errors of
-        // close.  Errors of close can occur.  Read man page of
-        // close(2); At least, we should tell the user that
-        // filesystem/disk is hosed so that users can take remedial
-        // action.
-
         // close the files
         PR_Close(newFD);
         PR_Close(oldFD);
 
-        // Let us report the failure to write and read.
-        // check for write/read error after cleaning up
-        if (bytesRead < 0) {
-            if (saved_write_error != NS_OK)
-                return saved_write_error;
-            else if (saved_read_error != NS_OK)
-                return saved_read_error;
-#if DEBUG
-            else                // sanity check. Die and debug.
-                MOZ_ASSERT(0);
-#endif
-        }
+        // check for read (or write) error after cleaning up
+        if (bytesRead < 0) 
+            return NS_ERROR_OUT_OF_MEMORY;
     }
     return rv;
 }
@@ -944,6 +928,8 @@ nsLocalFile::Remove(bool recursive)
 
     if (recursive) {
         nsDirEnumeratorUnix *dir = new nsDirEnumeratorUnix();
+        if (!dir)
+            return NS_ERROR_OUT_OF_MEMORY;
 
         nsCOMPtr<nsISimpleEnumerator> dirRef(dir); // release on exit
 
@@ -1191,7 +1177,7 @@ GetDeviceName(int deviceMajor, int deviceMinor, nsACString &deviceName)
         char *p_dev = strstr(mountinfo_line,device_num);
     
         int i;
-        for(i = 0; i < kMountInfoDevPosition && p_dev != nullptr; i++) {
+        for(i = 0; i < kMountInfoDevPosition && p_dev != NULL; i++) {
             p_dev = strchr(p_dev,' ');
             if(p_dev)
               p_dev++;
@@ -1669,13 +1655,17 @@ nsLocalFile::SetFollowLinks(bool aFollowLinks)
 NS_IMETHODIMP
 nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator **entries)
 {
-    nsRefPtr<nsDirEnumeratorUnix> dir = new nsDirEnumeratorUnix();
+    nsDirEnumeratorUnix *dir = new nsDirEnumeratorUnix();
+    if (!dir)
+        return NS_ERROR_OUT_OF_MEMORY;
 
+    NS_ADDREF(dir);
     nsresult rv = dir->Init(this, false);
     if (NS_FAILED(rv)) {
         *entries = nullptr;
+        NS_RELEASE(dir);
     } else {
-        dir.forget(entries);
+        *entries = dir; // transfer reference
     }
 
     return rv;
@@ -1782,8 +1772,6 @@ nsLocalFile::Reveal()
         else 
             /* Fallback to GnomeVFS */
             return gnomevfs->ShowURIForInput(mPath);
-    } else if (giovfs && NS_SUCCEEDED(giovfs->OrgFreedesktopFileManager1ShowItems(mPath))) {
-        return NS_OK;
     } else {
         nsCOMPtr<nsIFile> parentDir;
         nsAutoCString dirPath;
@@ -1814,6 +1802,24 @@ NS_IMETHODIMP
 nsLocalFile::Launch()
 {
 #ifdef MOZ_WIDGET_GTK
+#if (MOZ_PLATFORM_MAEMO==5)
+    const int32_t kHILDON_SUCCESS = 1;
+    DBusError err;
+    dbus_error_init(&err);
+
+    DBusConnection *connection = dbus_bus_get(DBUS_BUS_SESSION, &err);
+    if (dbus_error_is_set(&err)) {
+      dbus_error_free(&err);
+      return NS_ERROR_FAILURE;
+    }
+
+    if (nullptr == connection)
+      return NS_ERROR_FAILURE;
+
+    if (hildon_mime_open_file(connection, mPath.get()) != kHILDON_SUCCESS)
+      return NS_ERROR_FAILURE;
+    return NS_OK;
+#else
     nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
     nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
     if (giovfs) {
@@ -1824,10 +1830,11 @@ nsLocalFile::Launch()
     }
     
     return NS_ERROR_FAILURE;
+#endif
 #elif defined(MOZ_ENABLE_CONTENTACTION)
     QUrl uri = QUrl::fromLocalFile(QString::fromUtf8(mPath.get()));
     ContentAction::Action action =
-        ContentAction::Action::defaultActionForFile(uri);
+      ContentAction::Action::defaultActionForFile(uri);
 
     if (action.isValid()) {
       action.trigger();
@@ -1846,7 +1853,7 @@ nsLocalFile::Launch()
     nsDependentCString fileUri = NS_LITERAL_CSTRING("file://");
     fileUri.Append(mPath);
     mozilla::AndroidBridge* bridge = mozilla::AndroidBridge::Bridge();
-    return bridge->OpenUriExternal(NS_ConvertUTF8toUTF16(fileUri), NS_ConvertUTF8toUTF16(type)) ? NS_OK : NS_ERROR_FAILURE;
+    return bridge->OpenUriExternal(fileUri, type) ? NS_OK : NS_ERROR_FAILURE;
 #elif defined(MOZ_WIDGET_COCOA)
     CFURLRef url;
     if (NS_SUCCEEDED(GetCFURL(&url))) {
@@ -1863,17 +1870,21 @@ nsLocalFile::Launch()
 nsresult
 NS_NewNativeLocalFile(const nsACString &path, bool followSymlinks, nsIFile **result)
 {
-    nsRefPtr<nsLocalFile> file = new nsLocalFile();
+    nsLocalFile *file = new nsLocalFile();
+    if (!file)
+        return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(file);
 
     file->SetFollowLinks(followSymlinks);
 
     if (!path.IsEmpty()) {
         nsresult rv = file->InitWithNativePath(path);
         if (NS_FAILED(rv)) {
+            NS_RELEASE(file);
             return rv;
         }
     }
-    file.forget(result);
+    *result = file;
     return NS_OK;
 }
 
@@ -2066,7 +2077,7 @@ static nsresult CFStringReftoUTF8(CFStringRef aInStrRef, nsACString& aOutStr)
   CFIndex usedBufLen, inStrLen = ::CFStringGetLength(aInStrRef);
   CFIndex charsConverted = ::CFStringGetBytes(aInStrRef, CFRangeMake(0, inStrLen),
                                               kCFStringEncodingUTF8, 0, false,
-                                              nullptr, 0, &usedBufLen);
+                                              NULL, 0, &usedBufLen);
   if (charsConverted == inStrLen) {
     // all characters converted, do the actual conversion
     aOutStr.SetLength(usedBufLen);
@@ -2130,7 +2141,7 @@ nsLocalFile::GetFSRef(FSRef *_retval)
 
   nsresult rv = NS_ERROR_FAILURE;
 
-  CFURLRef url = nullptr;
+  CFURLRef url = NULL;
   if (NS_SUCCEEDED(GetCFURL(&url))) {
     if (::CFURLGetFSRef(url, _retval)) {
       rv = NS_OK;
@@ -2260,7 +2271,7 @@ nsLocalFile::LaunchWithDoc(nsIFile *aDocToLoad, bool aLaunchInBackground)
   }
   thelaunchSpec.launchFlags = theLaunchFlags;
 
-  OSErr err = ::LSOpenFromRefSpec(&thelaunchSpec, nullptr);
+  OSErr err = ::LSOpenFromRefSpec(&thelaunchSpec, NULL);
   if (err != noErr)
     return MacErrorMapper(err);
 
@@ -2276,7 +2287,7 @@ nsLocalFile::OpenDocWithApp(nsIFile *aAppToOpenWith, bool aLaunchInBackground)
     return rv;
 
   if (!aAppToOpenWith) {
-    OSErr err = ::LSOpenFSRef(&docFSRef, nullptr);
+    OSErr err = ::LSOpenFSRef(&docFSRef, NULL);
     return MacErrorMapper(err);
   }
 
@@ -2308,7 +2319,7 @@ nsLocalFile::OpenDocWithApp(nsIFile *aAppToOpenWith, bool aLaunchInBackground)
   thelaunchSpec.itemRefs = &docFSRef;
   thelaunchSpec.launchFlags = theLaunchFlags;
 
-  OSErr err = ::LSOpenFromRefSpec(&thelaunchSpec, nullptr);
+  OSErr err = ::LSOpenFromRefSpec(&thelaunchSpec, NULL);
   if (err != noErr)
     return MacErrorMapper(err);
 
@@ -2372,7 +2383,7 @@ nsLocalFile::GetBundleIdentifier(nsACString& outBundleIdentifier)
 
   CFURLRef urlRef;
   if (NS_SUCCEEDED(GetCFURL(&urlRef))) {
-    CFBundleRef bundle = ::CFBundleCreate(nullptr, urlRef);
+    CFBundleRef bundle = ::CFBundleCreate(NULL, urlRef);
     if (bundle) {
       CFStringRef bundleIdentifier = ::CFBundleGetIdentifier(bundle);
       if (bundleIdentifier)
@@ -2428,30 +2439,38 @@ NS_IMETHODIMP nsLocalFile::InitWithFile(nsIFile *aFile)
 nsresult
 NS_NewLocalFileWithFSRef(const FSRef* aFSRef, bool aFollowLinks, nsILocalFileMac** result)
 {
-  nsRefPtr<nsLocalFile> file = new nsLocalFile();
+  nsLocalFile* file = new nsLocalFile();
+  if (file == nullptr)
+    return NS_ERROR_OUT_OF_MEMORY;
+  NS_ADDREF(file);
 
   file->SetFollowLinks(aFollowLinks);
 
   nsresult rv = file->InitWithFSRef(aFSRef);
   if (NS_FAILED(rv)) {
+    NS_RELEASE(file);
     return rv;
   }
-  file.forget(result);
+  *result = file;
   return NS_OK;
 }
 
 nsresult
 NS_NewLocalFileWithCFURL(const CFURLRef aURL, bool aFollowLinks, nsILocalFileMac** result)
 {
-  nsRefPtr<nsLocalFile> file = new nsLocalFile();
+  nsLocalFile* file = new nsLocalFile();
+  if (!file)
+    return NS_ERROR_OUT_OF_MEMORY;
+  NS_ADDREF(file);
 
   file->SetFollowLinks(aFollowLinks);
 
   nsresult rv = file->InitWithCFURL(aURL);
   if (NS_FAILED(rv)) {
+    NS_RELEASE(file);
     return rv;
   }
-  file.forget(result);
+  *result = file;
   return NS_OK;
 }
 

@@ -8,23 +8,23 @@
 #define AudioNode_h_
 
 #include "nsDOMEventTargetHelper.h"
-#include "mozilla/dom/AudioNodeBinding.h"
 #include "nsCycleCollectionParticipant.h"
+#include "mozilla/Attributes.h"
 #include "EnableWebAudioCheck.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
 #include "AudioContext.h"
+#include "AudioParamTimeline.h"
 #include "MediaStreamGraph.h"
-#include "WebAudioUtils.h"
+
+struct JSContext;
 
 namespace mozilla {
 
+class ErrorResult;
+
 namespace dom {
 
-class AudioContext;
-class AudioBufferSourceNode;
-class AudioParam;
-class AudioParamTimeline;
 struct ThreeDPoint;
 
 template<class T>
@@ -64,49 +64,42 @@ private:
  * real-time processing and output of this AudioNode.
  *
  * We track the incoming and outgoing connections to other AudioNodes.
- * Outgoing connections have strong ownership.  Also, AudioNodes that will
- * produce sound on their output even when they have silent or no input ask
- * the AudioContext to keep playing or tail-time references to keep them alive
- * until the context is finished.
- *
- * Explicit disconnections will only remove references from output nodes after
- * the graph is notified and the main thread receives a reply.  Similarly,
- * nodes with playing or tail-time references release these references only
- * after receiving notification from their engine on the graph thread that
- * playing has stopped.  Engines notifying the main thread that they have
- * finished do so strictly *after* producing and returning their last block.
- * In this way, an engine that receives non-null input knows that the input
- * comes from nodes that are still alive and will keep their output nodes
- * alive for at least as long as it takes to process messages from the graph
- * thread.  i.e. the engine receiving non-null input knows that its node is
- * still alive, and will still be alive when it receives a message from the
- * engine.
+ * All connections are strong and thus rely on cycle collection to break them.
+ * However, we also track whether an AudioNode is capable of producing output
+ * in the future. If it isn't, then we break its connections to its inputs
+ * and outputs, allowing nodes to be immediately disconnected. This
+ * disconnection is done internally, invisible to DOM users.
  */
 class AudioNode : public nsDOMEventTargetHelper,
                   public EnableWebAudioCheck
 {
-protected:
-  // You can only use refcounting to delete this object
+public:
+  explicit AudioNode(AudioContext* aContext);
   virtual ~AudioNode();
 
-public:
-  AudioNode(AudioContext* aContext,
-            uint32_t aChannelCount,
-            ChannelCountMode aChannelCountMode,
-            ChannelInterpretation aChannelInterpretation);
-
   // This should be idempotent (safe to call multiple times).
-  virtual void DestroyMediaStream();
+  // This should be called in the destructor of every class that overrides
+  // this method.
+  virtual void DestroyMediaStream()
+  {
+    if (mStream) {
+      mStream->Destroy();
+      mStream = nullptr;
+    }
+  }
 
-  NS_DECL_ISUPPORTS_INHERITED
+  // This method should be overridden to return true in nodes
+  // which support being hooked up to the Media Stream graph.
+  virtual bool SupportsMediaStreams() const
+  {
+    return false;
+  }
+
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(AudioNode,
                                            nsDOMEventTargetHelper)
 
   virtual AudioBufferSourceNode* AsAudioBufferSourceNode() {
-    return nullptr;
-  }
-
-  virtual const DelayNode* AsDelayNode() const {
     return nullptr;
   }
 
@@ -120,49 +113,16 @@ public:
     return mContext;
   }
 
-  virtual void Connect(AudioNode& aDestination, uint32_t aOutput,
-                       uint32_t aInput, ErrorResult& aRv);
+  void Connect(AudioNode& aDestination, uint32_t aOutput,
+               uint32_t aInput, ErrorResult& aRv);
 
-  virtual void Connect(AudioParam& aDestination, uint32_t aOutput,
-                       ErrorResult& aRv);
-
-  virtual void Disconnect(uint32_t aOutput, ErrorResult& aRv);
+  void Disconnect(uint32_t aOutput, ErrorResult& aRv);
 
   // The following two virtual methods must be implemented by each node type
   // to provide their number of input and output ports. These numbers are
   // constant for the lifetime of the node. Both default to 1.
-  virtual uint16_t NumberOfInputs() const { return 1; }
-  virtual uint16_t NumberOfOutputs() const { return 1; }
-
-  uint32_t ChannelCount() const { return mChannelCount; }
-  virtual void SetChannelCount(uint32_t aChannelCount, ErrorResult& aRv)
-  {
-    if (aChannelCount == 0 ||
-        aChannelCount > WebAudioUtils::MaxChannelCount) {
-      aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-      return;
-    }
-    mChannelCount = aChannelCount;
-    SendChannelMixingParametersToStream();
-  }
-  ChannelCountMode ChannelCountModeValue() const
-  {
-    return mChannelCountMode;
-  }
-  virtual void SetChannelCountModeValue(ChannelCountMode aMode, ErrorResult& aRv)
-  {
-    mChannelCountMode = aMode;
-    SendChannelMixingParametersToStream();
-  }
-  ChannelInterpretation ChannelInterpretationValue() const
-  {
-    return mChannelInterpretation;
-  }
-  void SetChannelInterpretationValue(ChannelInterpretation aMode)
-  {
-    mChannelInterpretation = aMode;
-    SendChannelMixingParametersToStream();
-  }
+  virtual uint32_t NumberOfInputs() const { return 1; }
+  virtual uint32_t NumberOfOutputs() const { return 1; }
 
   struct InputNode {
     ~InputNode()
@@ -176,7 +136,6 @@ public:
     AudioNode* mInputNode;
     nsRefPtr<MediaInputPort> mStreamPort;
     // The index of the input port this node feeds into.
-    // This is not used for connections to AudioParams.
     uint32_t mInputPort;
     // The index of the output port this node comes out of.
     uint32_t mOutputPort;
@@ -188,30 +147,8 @@ public:
   {
     return mInputNodes;
   }
-  const nsTArray<nsRefPtr<AudioNode> >& OutputNodes() const
-  {
-    return mOutputNodes;
-  }
-  const nsTArray<nsRefPtr<AudioParam> >& OutputParams() const
-  {
-    return mOutputParams;
-  }
-
-  void RemoveOutputParam(AudioParam* aParam);
-
-  // MarkActive() asks the context to keep the AudioNode alive until the
-  // context is finished.  This takes care of "playing" references and
-  // "tail-time" references.
-  void MarkActive() { Context()->RegisterActiveNode(this); }
-  // Active nodes call MarkInactive() when they have finished producing sound
-  // for the foreseeable future.
-  // Do not call MarkInactive from a node destructor.  If the destructor is
-  // called, then the node is already inactive.
-  // MarkInactive() may delete |this|.
-  void MarkInactive() { Context()->UnregisterActiveNode(this); }
 
 private:
-  friend class AudioBufferSourceNode;
   // This could possibly delete 'this'.
   void DisconnectFromGraph();
 
@@ -222,7 +159,6 @@ protected:
   void SendDoubleParameterToStream(uint32_t aIndex, double aValue);
   void SendInt32ParameterToStream(uint32_t aIndex, int32_t aValue);
   void SendThreeDPointParameterToStream(uint32_t aIndex, const ThreeDPoint& aValue);
-  void SendChannelMixingParametersToStream();
   static void SendTimelineParameterToStream(AudioNode* aNode, uint32_t aIndex,
                                             const AudioParamTimeline& aValue);
 
@@ -243,15 +179,6 @@ private:
   // exact matching entry, since mOutputNodes doesn't include the port
   // identifiers and the same node could be connected on multiple ports.
   nsTArray<nsRefPtr<AudioNode> > mOutputNodes;
-  // For every mOutputParams entry, there is a corresponding entry in
-  // AudioParam::mInputNodes of the mOutputParams entry. We won't necessarily be
-  // able to identify the exact matching entry, since mOutputParams doesn't
-  // include the port identifiers and the same node could be connected on
-  // multiple ports.
-  nsTArray<nsRefPtr<AudioParam> > mOutputParams;
-  uint32_t mChannelCount;
-  ChannelCountMode mChannelCountMode;
-  ChannelInterpretation mChannelInterpretation;
 };
 
 }

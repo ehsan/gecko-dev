@@ -58,9 +58,8 @@ RecordedEvent::LoadEventFromStream(std::istream &aStream, EventType aType)
     LOAD_EVENT_TYPE(SNAPSHOT, RecordedSnapshot);
     LOAD_EVENT_TYPE(SCALEDFONTCREATION, RecordedScaledFontCreation);
     LOAD_EVENT_TYPE(SCALEDFONTDESTRUCTION, RecordedScaledFontDestruction);
-    LOAD_EVENT_TYPE(MASKSURFACE, RecordedMaskSurface);
   default:
-    return nullptr;
+    return NULL;
   }
 }
 
@@ -342,7 +341,7 @@ RecordedDrawTargetDestruction::OutputSimpleEventInfo(stringstream &aStringStream
 struct GenericPattern
 {
   GenericPattern(const PatternStorage &aStorage, Translator *aTranslator)
-    : mPattern(nullptr), mTranslator(aTranslator)
+    : mPattern(NULL), mTranslator(aTranslator)
   {
     mStorage = const_cast<PatternStorage*>(&aStorage);
   }
@@ -1215,41 +1214,6 @@ void
 RecordedScaledFontDestruction::OutputSimpleEventInfo(stringstream &aStringStream) const
 {
   aStringStream << "[" << mRefPtr << "] ScaledFont Destroyed";
-}
-
-void
-RecordedMaskSurface::PlayEvent(Translator *aTranslator) const
-{
-  aTranslator->LookupDrawTarget(mDT)->
-    MaskSurface(*GenericPattern(mPattern, aTranslator),
-                aTranslator->LookupSourceSurface(mRefMask),
-                mOffset, mOptions);
-}
-
-void
-RecordedMaskSurface::RecordToStream(ostream &aStream) const
-{
-  RecordedDrawingEvent::RecordToStream(aStream);
-  RecordPatternData(aStream, mPattern);
-  WriteElement(aStream, mRefMask);
-  WriteElement(aStream, mOffset);
-  WriteElement(aStream, mOptions);
-}
-
-RecordedMaskSurface::RecordedMaskSurface(istream &aStream)
-  : RecordedDrawingEvent(MASKSURFACE, aStream)
-{
-  ReadPatternData(aStream, mPattern);
-  ReadElement(aStream, mRefMask);
-  ReadElement(aStream, mOffset);
-  ReadElement(aStream, mOptions);
-}
-
-void
-RecordedMaskSurface::OutputSimpleEventInfo(stringstream &aStringStream) const
-{
-  aStringStream << "[" << mDT << "] MaskSurface (" << mRefMask << ")  Offset: (" << mOffset.x << "x" << mOffset.y << ") Pattern: ";
-  OutputSimplePatternInfo(mPattern, aStringStream);
 }
 
 }

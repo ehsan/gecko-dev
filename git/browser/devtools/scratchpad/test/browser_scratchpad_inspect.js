@@ -12,44 +12,47 @@ function test()
     openScratchpad(runTests);
   }, true);
 
-  content.location = "data:text/html;charset=utf8,<p>test inspect() in Scratchpad</p>";
+  content.location = "data:text/html,<title>foobarBug636725</title>" +
+    "<p>test inspect() in Scratchpad";
 }
 
 function runTests()
 {
   let sp = gScratchpadWindow.Scratchpad;
 
-  sp.setText("({ a: 'foobarBug636725' })");
+  sp.setText("document");
 
   sp.inspect().then(function() {
-    let sidebar = sp.sidebar;
-    ok(sidebar.visible, "sidebar is open");
 
+    let propPanel = document.querySelector(".scratchpad_propertyPanel");
+    ok(propPanel, "property panel is open");
 
-    let found = false;
+    propPanel.addEventListener("popupshown", function onPopupShown() {
+      propPanel.removeEventListener("popupshown", onPopupShown, false);
 
-    outer: for (let scope of sidebar.variablesView) {
-      for (let [, obj] of scope) {
-        for (let [, prop] of obj) {
-          if (prop.name == "a" && prop.value == "foobarBug636725") {
-            found = true;
-            break outer;
-          }
+      let tree = propPanel.querySelector("tree");
+      ok(tree, "property panel tree found");
+
+      let column = tree.columns[0];
+      let found = false;
+
+      for (let i = 0; i < tree.view.rowCount; i++) {
+        let cell = tree.view.getCellText(i, column);
+        if (cell == 'title: "foobarBug636725"') {
+          found = true;
+          break;
         }
       }
-    }
+      ok(found, "found the document.title property");
 
-    ok(found, "found the property");
+      executeSoon(function() {
+        propPanel.hidePopup();
 
-    let tabbox = sidebar._sidebar._tabbox;
-    is(tabbox.width, 300, "Scratchpad sidebar width is correct");
-    ok(!tabbox.hasAttribute("hidden"), "Scratchpad sidebar visible");
-    sidebar.hide();
-    ok(tabbox.hasAttribute("hidden"), "Scratchpad sidebar hidden");
-    sp.inspect().then(function() {
-      is(tabbox.width, 300, "Scratchpad sidebar width is still correct");
-      ok(!tabbox.hasAttribute("hidden"), "Scratchpad sidebar visible again");
-      finish();
-    });
+        finish();
+      });
+    }, false);
+  }, function() {
+    notok(true, "document not found");
+    finish();
   });
 }

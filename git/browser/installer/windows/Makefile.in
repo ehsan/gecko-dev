@@ -2,6 +2,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
 
 CONFIG_DIR = instgen
@@ -17,7 +24,6 @@ INSTALLER_FILES = \
 	nsis/uninstaller.nsi \
 	nsis/stub.nsi \
 	nsis/shared.nsh \
-	stub.tag \
 	$(NULL)
 
 ifdef MOZ_MAINTENANCE_SERVICE
@@ -59,7 +65,7 @@ else
 PPL_LOCALE_ARGS=$(call EXPAND_LOCALE_SRCDIR,browser/locales)/installer
 endif
 
-OVERRIDE_DEFAULT_GOAL := installer
+.DEFAULT_GOAL := installer
 installer::
 	$(MAKE) -C .. installer-stage
 	$(MAKE) $(CONFIG_DIR)/setup.exe
@@ -71,8 +77,8 @@ uninstaller::
 	$(MKDIR) $(CONFIG_DIR)
 	$(INSTALL) $(addprefix $(srcdir)/,$(INSTALLER_FILES)) $(CONFIG_DIR)
 	$(INSTALL) $(addprefix $(DIST)/branding/,$(BRANDING_FILES)) $(CONFIG_DIR)
-	$(call py_action,preprocessor,-Fsubstitution $(DEFINES) $(ACDEFINES) \
-	  $(srcdir)/nsis/defines.nsi.in -o $(CONFIG_DIR)/defines.nsi)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) \
+	  $(srcdir)/nsis/defines.nsi.in > $(CONFIG_DIR)/defines.nsi
 	$(PYTHON) $(topsrcdir)/toolkit/mozapps/installer/windows/nsis/preprocess-locale.py \
 	  --preprocess-locale $(topsrcdir) \
 	  $(PPL_LOCALE_ARGS) $(AB_CD) $(CONFIG_DIR)
@@ -81,8 +87,8 @@ uninstaller::
 ifdef MOZ_MAINTENANCE_SERVICE
 maintenanceservice_installer::
 	$(INSTALL) $(addprefix $(srcdir)/,$(INSTALLER_FILES)) $(CONFIG_DIR)
-	$(call py_action,preprocessor,-Fsubstitution $(DEFINES) $(ACDEFINES) \
-	  $(srcdir)/nsis/defines.nsi.in -o $(CONFIG_DIR)/defines.nsi)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) \
+	  $(srcdir)/nsis/defines.nsi.in > $(CONFIG_DIR)/defines.nsi
 	$(PYTHON) $(topsrcdir)/toolkit/mozapps/installer/windows/nsis/preprocess-locale.py \
 	  --preprocess-locale $(topsrcdir) \
 	  $(PPL_LOCALE_ARGS) $(AB_CD) $(CONFIG_DIR)
@@ -93,8 +99,8 @@ $(CONFIG_DIR)/setup.exe::
 	$(MKDIR) $(CONFIG_DIR)
 	$(INSTALL) $(addprefix $(srcdir)/,$(INSTALLER_FILES)) $(CONFIG_DIR)
 	$(INSTALL) $(addprefix $(DIST)/branding/,$(BRANDING_FILES)) $(CONFIG_DIR)
-	$(call py_action,preprocessor,-Fsubstitution $(DEFINES) $(ACDEFINES) \
-	  $(srcdir)/nsis/defines.nsi.in -o $(CONFIG_DIR)/defines.nsi)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) \
+	  $(srcdir)/nsis/defines.nsi.in > $(CONFIG_DIR)/defines.nsi
 	$(PYTHON) $(topsrcdir)/toolkit/mozapps/installer/windows/nsis/preprocess-locale.py \
 	  --preprocess-locale $(topsrcdir) \
 	  $(PPL_LOCALE_ARGS) $(AB_CD) $(CONFIG_DIR)

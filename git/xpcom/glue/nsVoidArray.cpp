@@ -3,12 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MathAlgorithms.h"
-#include "mozilla/MemoryReporting.h"
 #include <stdlib.h>
 
 #include "nsVoidArray.h"
 #include "nsQuickSort.h"
+#include "prbit.h"
 #include "nsISupportsImpl.h" // for nsTraceRefcnt
 #include "nsAlgorithm.h"
 
@@ -239,7 +238,7 @@ bool nsVoidArray::GrowArrayBy(int32_t aGrowBy)
     }
     else
     {
-      newSize = mozilla::CeilingLog2(newSize);
+      PR_CEILING_LOG2(newSize, newSize);
       newCapacity = CAPACITYOF_IMPL(1u << newSize);
     }
   }
@@ -568,13 +567,14 @@ bool nsVoidArray::MoveElement(int32_t aFrom, int32_t aTo)
   return true;
 }
 
-void nsVoidArray::RemoveElementsAt(int32_t aIndex, int32_t aCount)
+bool nsVoidArray::RemoveElementsAt(int32_t aIndex, int32_t aCount)
 {
   int32_t oldCount = Count();
   NS_ASSERTION(aIndex >= 0,"RemoveElementsAt(negative index)");
   if (uint32_t(aIndex) >= uint32_t(oldCount))
   {
-    return;
+    // An invalid index causes the replace to fail
+    return false;
   }
   // Limit to available entries starting at aIndex
   if (aCount + aIndex > oldCount)
@@ -589,17 +589,14 @@ void nsVoidArray::RemoveElementsAt(int32_t aIndex, int32_t aCount)
   }
 
   mImpl->mCount -= aCount;
-  return;
+  return true;
 }
 
 bool nsVoidArray::RemoveElement(void* aElement)
 {
   int32_t theIndex = IndexOf(aElement);
   if (theIndex != -1)
-  {
-    RemoveElementAt(theIndex);
-    return true;
-  }
+    return RemoveElementAt(theIndex);
 
   return false;
 }
@@ -698,7 +695,7 @@ struct SizeOfElementIncludingThisData
 {
   size_t mSize;
   nsVoidArraySizeOfElementIncludingThisFunc mSizeOfElementIncludingThis;
-  mozilla::MallocSizeOf mMallocSizeOf;
+  nsMallocSizeOfFun mMallocSizeOf;
   void *mData;      // the arg passed by the user
 };
 
@@ -713,7 +710,7 @@ SizeOfElementIncludingThisEnumerator(const void *aElement, void *aData)
 size_t
 nsVoidArray::SizeOfExcludingThis(
   nsVoidArraySizeOfElementIncludingThisFunc aSizeOfElementIncludingThis,
-  mozilla::MallocSizeOf aMallocSizeOf, void* aData) const
+  nsMallocSizeOfFun aMallocSizeOf, void* aData) const
 {
   size_t n = 0;
   // Measure the element storage.
@@ -900,21 +897,23 @@ nsSmallVoidArray::RemoveElement(void* aElement)
   return AsArray()->RemoveElement(aElement);
 }
 
-void
+bool
 nsSmallVoidArray::RemoveElementAt(int32_t aIndex)
 {
   if (HasSingle()) {
     if (aIndex == 0) {
       mImpl = nullptr;
+
+      return true;
     }
     
-    return;
+    return false;
   }
 
-  AsArray()->RemoveElementAt(aIndex);
+  return AsArray()->RemoveElementAt(aIndex);
 }
 
-void
+bool
 nsSmallVoidArray::RemoveElementsAt(int32_t aIndex, int32_t aCount)
 {
   if (HasSingle()) {
@@ -922,12 +921,14 @@ nsSmallVoidArray::RemoveElementsAt(int32_t aIndex, int32_t aCount)
       if (aCount > 0) {
         mImpl = nullptr;
       }
+
+      return true;
     }
 
-    return;
+    return false;
   }
 
-  AsArray()->RemoveElementsAt(aIndex, aCount);
+  return AsArray()->RemoveElementsAt(aIndex, aCount);
 }
 
 void

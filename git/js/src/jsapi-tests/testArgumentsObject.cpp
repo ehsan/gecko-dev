@@ -5,11 +5,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsapi-tests/tests.h"
 
-#include "jsobjinlines.h"
+#include "tests.h"
 
-#include "vm/ArgumentsObject-inl.h"
+#include "vm/Stack-inl.h"
 
 using namespace js;
 
@@ -31,7 +30,7 @@ static const char STRICT_TWO[] =
 static const char STRICT_THREE[] =
     "function f() { 'use strict'; return arguments; }";
 
-static const char * const CALL_CODES[] =
+static const char *CALL_CODES[] =
     { "f()", "f(0)", "f(0, 1)", "f(0, 1, 2)", "f(0, 1, 2, 3)", "f(0, 1, 2, 3, 4)" };
 
 static const size_t MAX_ELEMS = 6;
@@ -91,7 +90,7 @@ ExhaustiveTest(const char funcode[])
     EVAL(funcode, v.address());
 
     EVAL(CALL_CODES[ArgCount], v.address());
-    Rooted<ArgumentsObject*> argsobj(cx, &JSVAL_TO_OBJECT(v)->as<ArgumentsObject>());
+    Rooted<ArgumentsObject*> argsobj(cx, &JSVAL_TO_OBJECT(v)->asArguments());
 
     Value elems[MAX_ELEMS];
 

@@ -1,3 +1,8 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
 Cu.import("resource://testing-common/httpd.js");
 
 var httpserver = null;
@@ -66,24 +71,21 @@ function finish_test() {
 }
 
 function start_cache_read() {
-  var chan = make_channel("http://localhost:" +
-                          httpserver.identity.primaryPort + "/cached/test.gz");
+  var chan = make_channel("http://localhost:4444/cached/test.gz");
   chan.asyncOpen(new ChannelListener(finish_test, null), null);
 }
 
 function start_canceler() {
-  var chan = make_channel("http://localhost:" +
-                          httpserver.identity.primaryPort + "/cached/test.gz");
+  var chan = make_channel("http://localhost:4444/cached/test.gz");
   chan.asyncOpen(new Canceler(start_cache_read), null);
 }
 
 function run_test() {
   httpserver = new HttpServer();
   httpserver.registerPathHandler("/cached/test.gz", cachedHandler);
-  httpserver.start(-1);
+  httpserver.start(4444);
 
-  var chan = make_channel("http://localhost:" +
-                          httpserver.identity.primaryPort + "/cached/test.gz");
+  var chan = make_channel("http://localhost:4444/cached/test.gz");
   chan.asyncOpen(new ChannelListener(start_canceler, null), null);
   do_test_pending();
 }

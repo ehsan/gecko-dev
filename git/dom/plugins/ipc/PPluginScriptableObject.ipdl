@@ -6,8 +6,12 @@
 include protocol PPluginInstance;
 include protocol PPluginIdentifier;
 
-using struct mozilla::void_t from "ipc/IPCMessageUtils.h";
-using struct mozilla::null_t from "ipc/IPCMessageUtils.h";
+include "npapi.h";
+include "npruntime.h";
+include "mozilla/plugins/PluginMessageUtils.h";
+
+using mozilla::void_t;
+using mozilla::null_t;
 
 namespace mozilla {
 namespace plugins {
@@ -22,7 +26,7 @@ union Variant {
   nullable PPluginScriptableObject;
 };
 
-intr protocol PPluginScriptableObject
+rpc protocol PPluginScriptableObject
 {
   manager PPluginInstance;
 
@@ -30,42 +34,42 @@ both:
   async __delete__();
 
 parent:
-  intr NPN_Evaluate(nsCString aScript)
+  rpc NPN_Evaluate(nsCString aScript)
     returns (Variant aResult,
              bool aSuccess);
 
 child:
-  intr Invalidate();
+  rpc Invalidate();
 
 both:
   // NPClass methods
-  intr HasMethod(PPluginIdentifier aId)
+  rpc HasMethod(PPluginIdentifier aId)
     returns (bool aHasMethod);
 
-  intr Invoke(PPluginIdentifier aId,
+  rpc Invoke(PPluginIdentifier aId,
              Variant[] aArgs)
     returns (Variant aResult,
              bool aSuccess);
 
-  intr InvokeDefault(Variant[] aArgs)
+  rpc InvokeDefault(Variant[] aArgs)
     returns (Variant aResult,
              bool aSuccess);
 
-  intr HasProperty(PPluginIdentifier aId)
+  rpc HasProperty(PPluginIdentifier aId)
     returns (bool aHasProperty);
 
-  intr SetProperty(PPluginIdentifier aId,
+  rpc SetProperty(PPluginIdentifier aId,
                   Variant aValue)
     returns (bool aSuccess);
 
-  intr RemoveProperty(PPluginIdentifier aId)
+  rpc RemoveProperty(PPluginIdentifier aId)
     returns (bool aSuccess);
 
-  intr Enumerate()
+  rpc Enumerate()
     returns (PPluginIdentifier[] aProperties,
              bool aSuccess);
 
-  intr Construct(Variant[] aArgs)
+  rpc Construct(Variant[] aArgs)
     returns (Variant aResult,
              bool aSuccess);
 
@@ -86,12 +90,12 @@ both:
    * several checks at once and return all the results simultaneously.
    */
 parent:
-  intr GetParentProperty(PPluginIdentifier aId)
+  rpc GetParentProperty(PPluginIdentifier aId)
     returns (Variant aResult,
              bool aSuccess);
 
 child:
-  intr GetChildProperty(PPluginIdentifier aId)
+  rpc GetChildProperty(PPluginIdentifier aId)
     returns (bool aHasProperty,
              bool aHasMethod,
              Variant aResult,

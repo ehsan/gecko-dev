@@ -16,10 +16,8 @@ function handleRequest(request, response)
   bis.setInputStream(fis);
   var bytes = bis.readBytes(bis.available());
   response.setHeader("x-amz-meta-content-duration", "0.233", false);
+  response.setHeader("Content-Length", ""+bytes.length, false);
   response.setHeader("Content-Type", "video/ogg", false);
   response.write(bytes, bytes.length);
-  // Make this request async to prevent a default Content-Length from being provided.
-  response.processAsync();
-  response.finish();
   bis.close();
 }

@@ -33,38 +33,37 @@ protected:
   friend nsresult (::NS_NewSVGFilterElement(nsIContent **aResult,
                                             already_AddRefed<nsINodeInfo> aNodeInfo));
   SVGFilterElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-  virtual JSObject* WrapNode(JSContext *cx,
-                             JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 public:
   // nsIContent
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   // Invalidate users of this filter
   void Invalidate();
 
   // nsSVGSVGElement methods:
-  virtual bool HasValidDimensions() const MOZ_OVERRIDE;
+  virtual bool HasValidDimensions() const;
 
   // WebIDL
   already_AddRefed<SVGAnimatedLength> X();
   already_AddRefed<SVGAnimatedLength> Y();
   already_AddRefed<SVGAnimatedLength> Width();
   already_AddRefed<SVGAnimatedLength> Height();
-  already_AddRefed<SVGAnimatedEnumeration> FilterUnits();
-  already_AddRefed<SVGAnimatedEnumeration> PrimitiveUnits();
-  already_AddRefed<SVGAnimatedInteger> FilterResX();
-  already_AddRefed<SVGAnimatedInteger> FilterResY();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> FilterUnits();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> PrimitiveUnits();
+  already_AddRefed<nsIDOMSVGAnimatedInteger> FilterResX();
+  already_AddRefed<nsIDOMSVGAnimatedInteger> FilterResY();
   void SetFilterRes(uint32_t filterResX, uint32_t filterResY);
-  already_AddRefed<SVGAnimatedString> Href();
+  already_AddRefed<nsIDOMSVGAnimatedString> Href();
 
 protected:
 
-  virtual LengthAttributesInfo GetLengthInfo() MOZ_OVERRIDE;
-  virtual IntegerPairAttributesInfo GetIntegerPairInfo() MOZ_OVERRIDE;
-  virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;
-  virtual StringAttributesInfo GetStringInfo() MOZ_OVERRIDE;
+  virtual LengthAttributesInfo GetLengthInfo();
+  virtual IntegerPairAttributesInfo GetIntegerPairInfo();
+  virtual EnumAttributesInfo GetEnumInfo();
+  virtual StringAttributesInfo GetStringInfo();
 
   enum { ATTR_X, ATTR_Y, ATTR_WIDTH, ATTR_HEIGHT };
   nsSVGLength2 mLengthAttributes[4];

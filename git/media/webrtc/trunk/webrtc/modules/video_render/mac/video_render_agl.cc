@@ -8,18 +8,18 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/engine_configurations.h"
+#include "engine_configurations.h"
 
 #if defined(CARBON_RENDERING)
 
-#include "webrtc/modules/video_render/mac/video_render_agl.h"
+#include "video_render_agl.h"
 
 //  includes
-#include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/event_wrapper.h"
-#include "webrtc/system_wrappers/interface/thread_wrapper.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "critical_section_wrapper.h"
+#include "event_wrapper.h"
+#include "trace.h"
+#include "thread_wrapper.h"
+#include "common_video/libyuv/include/webrtc_libyuv.h"
 
 namespace webrtc {
 
@@ -80,8 +80,8 @@ VideoChannelAGL::~VideoChannelAGL()
     }
 }
 
-int32_t VideoChannelAGL::RenderFrame(const uint32_t streamId,
-                                     I420VideoFrame& videoFrame) {
+WebRtc_Word32 VideoChannelAGL::RenderFrame(const WebRtc_UWord32 streamId,
+                                           I420VideoFrame& videoFrame) {
   _owner->LockAGLCntx();
   if (_width != videoFrame.width() ||
       _height != videoFrame.height()) {
@@ -1784,7 +1784,7 @@ int VideoRenderAGL::CalculateVisibleRegion(ControlRef control, RgnHandle &visibl
                             continue;
                         }
 
-                    }  // next child control
+                    } // next child control
                 }
                 lastControl = tempControl;
                 GetSuperControl(tempControl, &subControl);
@@ -1872,7 +1872,7 @@ int VideoRenderAGL::ChangeWindow(void* newWindowRef)
     UnlockAGLCntx();
     return -1;
 }
-int32_t VideoRenderAGL::ChangeUniqueID(int32_t id)
+WebRtc_Word32 VideoRenderAGL::ChangeUniqueID(WebRtc_Word32 id)
 {
     LockAGLCntx();
 
@@ -1880,7 +1880,7 @@ int32_t VideoRenderAGL::ChangeUniqueID(int32_t id)
     return -1;
 }
 
-int32_t VideoRenderAGL::StartRender()
+WebRtc_Word32 VideoRenderAGL::StartRender()
 {
 
     LockAGLCntx();
@@ -1926,7 +1926,7 @@ int32_t VideoRenderAGL::StartRender()
 
 }
 
-int32_t VideoRenderAGL::StopRender()
+WebRtc_Word32 VideoRenderAGL::StopRender()
 {
     LockAGLCntx();
 
@@ -1952,7 +1952,7 @@ int32_t VideoRenderAGL::StopRender()
     return 0;
 }
 
-int32_t VideoRenderAGL::DeleteAGLChannel(const uint32_t streamID)
+WebRtc_Word32 VideoRenderAGL::DeleteAGLChannel(const WebRtc_UWord32 streamID)
 {
 
     LockAGLCntx();
@@ -1973,12 +1973,12 @@ int32_t VideoRenderAGL::DeleteAGLChannel(const uint32_t streamID)
     return 0;
 }
 
-int32_t VideoRenderAGL::GetChannelProperties(const uint16_t streamId,
-                                             uint32_t& zOrder,
-                                             float& left,
-                                             float& top,
-                                             float& right,
-                                             float& bottom)
+WebRtc_Word32 VideoRenderAGL::GetChannelProperties(const WebRtc_UWord16 streamId,
+WebRtc_UWord32& zOrder,
+float& left,
+float& top,
+float& right,
+float& bottom)
 {
 
     LockAGLCntx();
@@ -1996,6 +1996,7 @@ void VideoRenderAGL::UnlockAGLCntx()
     _renderCritSec.Leave();
 }
 
-}  // namespace webrtc
+} //namespace webrtc
 
 #endif   // CARBON_RENDERING
+

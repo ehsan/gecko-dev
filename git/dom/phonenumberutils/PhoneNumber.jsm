@@ -9,27 +9,28 @@
 this.EXPORTED_SYMBOLS = ["PhoneNumber"];
 
 Components.utils.import("resource://gre/modules/PhoneNumberMetaData.jsm");
-Components.utils.import("resource://gre/modules/PhoneNumberNormalizer.jsm");
 
 this.PhoneNumber = (function (dataBase) {
   // Use strict in our context only - users might not want it
   'use strict';
 
   const MAX_PHONE_NUMBER_LENGTH = 50;
+  const UNICODE_DIGITS = /[\uFF10-\uFF19\u0660-\u0669\u06F0-\u06F9]/g;
   const NON_ALPHA_CHARS = /[^a-zA-Z]/g;
   const NON_DIALABLE_CHARS = /[^,#+\*\d]/g;
   const NON_DIALABLE_CHARS_ONCE = new RegExp(NON_DIALABLE_CHARS.source);
   const BACKSLASH = /\\/g;
   const SPLIT_FIRST_GROUP = /^(\d+)(.*)$/;
+  const VALID_ALPHA_PATTERN = /[a-zA-Z]/g;
   const LEADING_PLUS_CHARS_PATTERN = /^[+\uFF0B]+/g;
 
   // Format of the string encoded meta data. If the name contains "^" or "$"
   // we will generate a regular expression from the value, with those special
   // characters as prefix/suffix.
   const META_DATA_ENCODING = ["region",
-                              "^(?:internationalPrefix)",
+                              "^internationalPrefix",
                               "nationalPrefix",
-                              "^(?:nationalPrefixForParsing)",
+                              "^nationalPrefixForParsing",
                               "nationalPrefixTransformRule",
                               "nationalPrefixFormattingRule",
                               "^possiblePattern$",
@@ -75,9 +76,6 @@ this.PhoneNumber = (function (dataBase) {
   // representation.
   function ParseFormat(md) {
     var formats = md.formats;
-    if (!formats) {
-      return null;
-    }
     // Bail if we already parsed the format definitions.
     if (!(Array.isArray(formats[0])))
       return;
@@ -140,9 +138,6 @@ this.PhoneNumber = (function (dataBase) {
     // so make sure to parse it now if we haven't already done so.
     ParseFormat(regionMetaData);
     var formats = regionMetaData.formats;
-    if (!formats) {
-      return null;
-    }
     for (var n = 0; n < formats.length; ++n) {
       var format = formats[n];
       // The leading digits field is optional. If we don't have it, just
@@ -177,14 +172,12 @@ this.PhoneNumber = (function (dataBase) {
           // "$NP" will be replaced by the national prefix, and "$FG" with the
           // first group of numbers.
           var match = number.match(SPLIT_FIRST_GROUP);
-          if (match) {
-            var firstGroup = match[1];
-            var rest = match[2];
-            var prefix = nationalPrefixFormattingRule;
-            prefix = prefix.replace("$NP", regionMetaData.nationalPrefix);
-            prefix = prefix.replace("$FG", firstGroup);
-            number = prefix + rest;
-          }
+          var firstGroup = match[1];
+          var rest = match[2];
+          var prefix = nationalPrefixFormattingRule;
+          prefix = prefix.replace("$NP", regionMetaData.nationalPrefix);
+          prefix = prefix.replace("$FG", firstGroup);
+          number = prefix + rest;
         }
       }
       return (number == "NA") ? null : number;
@@ -221,14 +214,40 @@ this.PhoneNumber = (function (dataBase) {
                                            : null;
       Object.defineProperty(this, "internationalNumber", { value: value, enumerable: true });
       return value;
-    },
-    // country name 'US'
-    get countryName() {
-      var value = this.region ? this.region : null;
-      Object.defineProperty(this, "countryName", { value: value, enumerable: true });
-      return value;
     }
   };
+
+  // Map letters to numbers according to the ITU E.161 standard
+  var E161 = {
+    'a': 2, 'b': 2, 'c': 2,
+    'd': 3, 'e': 3, 'f': 3,
+    'g': 4, 'h': 4, 'i': 4,
+    'j': 5, 'k': 5, 'l': 5,
+    'm': 6, 'n': 6, 'o': 6,
+    'p': 7, 'q': 7, 'r': 7, 's': 7,
+    't': 8, 'u': 8, 'v': 8,
+    'w': 9, 'x': 9, 'y': 9, 'z': 9
+  };
+
+  // Normalize a number by converting unicode numbers and symbols to their
+  // ASCII equivalents and removing all non-dialable characters.
+  function NormalizeNumber(number) {
+    if (typeof number !== 'string') {
+      return '';
+    }
+
+    number = number.replace(UNICODE_DIGITS,
+                            function (ch) {
+                              return String.fromCharCode(48 + (ch.charCodeAt(0) & 0xf));
+                            });
+    number = number.replace(VALID_ALPHA_PATTERN,
+                            function (ch) {
+                              return String(E161[ch.toLowerCase()] || 0);
+                            });
+    number = number.replace(LEADING_PLUS_CHARS_PATTERN, "+");
+    number = number.replace(NON_DIALABLE_CHARS, "");
+    return number;
+  }
 
   // Check whether the number is valid for the given region.
   function IsValidNumber(number, md) {
@@ -269,8 +288,6 @@ this.PhoneNumber = (function (dataBase) {
       for (var n = 0; n < entry.length; ++n) {
         if (typeof entry[n] == "string")
           entry[n] = ParseMetaData(countryCode, entry[n]);
-        if (n > 0)
-          entry[n].formats = entry[0].formats;
         ret = ParseNationalNumber(number, entry[n])
         if (ret)
           return ret;
@@ -300,7 +317,7 @@ this.PhoneNumber = (function (dataBase) {
     var ret;
 
     // Remove formating characters and whitespace.
-    number = PhoneNumberNormalizer.Normalize(number);
+    number = NormalizeNumber(number);
 
     // If there is no defaultRegion, we can't parse international access codes.
     if (!defaultRegion && number[0] !== '+')
@@ -375,5 +392,6 @@ this.PhoneNumber = (function (dataBase) {
   return {
     IsPlain: IsPlainPhoneNumber,
     Parse: ParseNumber,
+    Normalize: NormalizeNumber
   };
 })(PHONE_NUMBER_META_DATA);

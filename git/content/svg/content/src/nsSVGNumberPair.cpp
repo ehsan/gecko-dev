@@ -6,12 +6,29 @@
 #include "nsSVGNumberPair.h"
 #include "nsSVGAttrTearoffTable.h"
 #include "nsCharSeparatedTokenizer.h"
+#include "prdtoa.h"
+#include "nsError.h"
+#include "nsMathUtils.h"
 #include "nsSMILValue.h"
 #include "SVGContentUtils.h"
 #include "SVGNumberPairSMILType.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
+
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGNumberPair::DOMAnimatedNumber, mSVGElement)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGNumberPair::DOMAnimatedNumber)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGNumberPair::DOMAnimatedNumber)
+
+DOMCI_DATA(SVGAnimatedNumberPair, nsSVGNumberPair::DOMAnimatedNumber)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGNumberPair::DOMAnimatedNumber)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedNumber)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedNumber)
+NS_INTERFACE_MAP_END
+
+/* Implementation */
 
 static nsSVGAttrTearoffTable<nsSVGNumberPair, nsSVGNumberPair::DOMAnimatedNumber>
   sSVGFirstAnimatedNumberTearoffTable;
@@ -25,14 +42,22 @@ ParseNumberOptionalNumber(const nsAString& aValue,
   nsCharSeparatedTokenizerTemplate<IsSVGWhitespace>
     tokenizer(aValue, ',',
               nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
-  if (tokenizer.whitespaceBeforeFirstToken()) {
+  if (tokenizer.firstTokenBeganWithWhitespace()) {
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
 
   uint32_t i;
   for (i = 0; i < 2 && tokenizer.hasMoreTokens(); ++i) {
-    if (!SVGContentUtils::ParseNumber(tokenizer.nextToken(), aValues[i])) {
-      return NS_ERROR_DOM_SYNTAX_ERR;
+    NS_ConvertUTF16toUTF8 utf8Token(tokenizer.nextToken());
+    const char *token = utf8Token.get();
+    if (*token == '\0') {
+      return NS_ERROR_DOM_SYNTAX_ERR; // empty string (e.g. two commas in a row)
+    }
+
+    char *end;
+    aValues[i] = float(PR_strtod(token, &end));
+    if (*end != '\0' || !NS_finite(aValues[i])) {
+      return NS_ERROR_DOM_SYNTAX_ERR; // parse error
     }
   }
   if (i == 1) {
@@ -41,8 +66,8 @@ ParseNumberOptionalNumber(const nsAString& aValue,
 
   if (i == 0 ||                                   // Too few values.
       tokenizer.hasMoreTokens() ||                // Too many values.
-      tokenizer.whitespaceAfterCurrentToken() ||  // Trailing whitespace.
-      tokenizer.separatorAfterCurrentToken()) {   // Trailing comma.
+      tokenizer.lastTokenEndedWithWhitespace() || // Trailing whitespace.
+      tokenizer.lastTokenEndedWithSeparator()) {  // Trailing comma.
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
 
@@ -141,7 +166,16 @@ nsSVGNumberPair::SetAnimValue(const float aValue[2], nsSVGElement *aSVGElement)
   aSVGElement->DidAnimateNumberPair(mAttrEnum);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+nsresult
+nsSVGNumberPair::ToDOMAnimatedNumber(nsIDOMSVGAnimatedNumber** aResult,
+                                     PairIndex aIndex,
+                                     nsSVGElement* aSVGElement)
+{
+  *aResult = ToDOMAnimatedNumber(aIndex, aSVGElement).get();
+  return NS_OK;
+}
+
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 nsSVGNumberPair::ToDOMAnimatedNumber(PairIndex aIndex,
                                      nsSVGElement* aSVGElement)
 {

@@ -111,8 +111,7 @@ add_test(function test_get_changed_ids() {
   do_check_eq("object", typeof(changes));
   do_check_eq(1, Object.keys(changes).length);
   do_check_true(addon.syncGUID in changes);
-  _("Change time: " + changeTime + ", addon change: " + changes[addon.syncGUID]);
-  do_check_true(changes[addon.syncGUID] >= changeTime);
+  do_check_true(changes[addon.syncGUID] > changeTime);
 
   let oldTime = changes[addon.syncGUID];
   let guid2 = addon.syncGUID;
@@ -159,9 +158,7 @@ add_test(function test_disabled_install_semantics() {
   const PASSPHRASE = "abcdeabcdeabcdeabcdeabcdea";
   const ADDON_ID   = "addon1@tests.mozilla.org";
 
-  let server = new SyncServer();
-  server.start();
-  new SyncTestingInfrastructure(server.server, USER, PASSWORD, PASSPHRASE);
+  new SyncTestingInfrastructure(USER, PASSWORD, PASSPHRASE);
 
   generateNewKeys(Service.collectionKeys);
 
@@ -172,8 +169,10 @@ add_test(function test_disabled_install_semantics() {
     addons: {}
   };
 
+  let server = new SyncServer();
   server.registerUser(USER, "password");
   server.createContents(USER, contents);
+  server.start();
 
   let amoServer = new HttpServer();
   amoServer.registerFile("/search/guid:addon1%40tests.mozilla.org",
@@ -232,27 +231,19 @@ add_test(function test_disabled_install_semantics() {
   server.stop(advance_test);
 });
 
-add_test(function cleanup() {
-  // There's an xpcom-shutdown hook for this, but let's give this a shot.
-  reconciler.stopListening();
-  run_next_test();
-});
-
 function run_test() {
   initTestLogging("Trace");
-  Log.repository.getLogger("Sync.Engine.Addons").level =
-    Log.Level.Trace;
-  Log.repository.getLogger("Sync.Store.Addons").level = Log.Level.Trace;
-  Log.repository.getLogger("Sync.Tracker.Addons").level =
-    Log.Level.Trace;
-  Log.repository.getLogger("Sync.AddonsRepository").level =
-    Log.Level.Trace;
+  Log4Moz.repository.getLogger("Sync.Engine.Addons").level =
+    Log4Moz.Level.Trace;
+  Log4Moz.repository.getLogger("Sync.Store.Addons").level = Log4Moz.Level.Trace;
+  Log4Moz.repository.getLogger("Sync.Tracker.Addons").level =
+    Log4Moz.Level.Trace;
+  Log4Moz.repository.getLogger("Sync.AddonsRepository").level =
+    Log4Moz.Level.Trace;
+
+  new SyncTestingInfrastructure();
 
   reconciler.startListening();
-
-  // Don't flush to disk in the middle of an event listener!
-  // This causes test hangs on WinXP.
-  reconciler._shouldPersist = false;
 
   advance_test();
 }

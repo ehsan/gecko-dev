@@ -19,23 +19,3 @@ EXPORTS += [
     'nsCollation.h',
 ]
 
-SOURCES += [
-    'nsCharsetAlias.cpp',
-    'nsCollation.cpp',
-    'nsLanguageAtomService.cpp',
-    'nsLocale.cpp',
-    'nsLocaleService.cpp',
-    'nsScriptableDateFormat.cpp',
-    'nsUConvPropertySearch.cpp',
-]
-
-LIBRARY_NAME = 'nslocale_s'
-
-EXTRA_JS_MODULES += [
-    'PluralForm.jsm',
-]
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-

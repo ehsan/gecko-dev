@@ -8,21 +8,12 @@
 
 using namespace mozilla::dom;
 
-NS_IMPL_CYCLE_COLLECTION_1(AudioChannelAgent, mCallback)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(AudioChannelAgent)
-  NS_INTERFACE_MAP_ENTRY(nsIAudioChannelAgent)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(AudioChannelAgent)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(AudioChannelAgent)
+NS_IMPL_ISUPPORTS1(AudioChannelAgent, nsIAudioChannelAgent)
 
 AudioChannelAgent::AudioChannelAgent()
   : mAudioChannelType(AUDIO_AGENT_CHANNEL_ERROR)
   , mIsRegToService(false)
   , mVisible(true)
-  , mWithVideo(false)
 {
 }
 
@@ -55,36 +46,28 @@ AudioChannelAgent::InitWithWeakCallback(int32_t channelType,
   return InitInternal(channelType, callback, /* useWeakRef = */ true);
 }
 
-NS_IMETHODIMP
-AudioChannelAgent::InitWithVideo(int32_t channelType,
-                                 nsIAudioChannelAgentCallback *callback,
-                                 bool aUseWeakRef)
-{
-  return InitInternal(channelType, callback, aUseWeakRef, true);
-}
-
 nsresult
 AudioChannelAgent::InitInternal(int32_t aChannelType,
                                 nsIAudioChannelAgentCallback *aCallback,
-                                bool aUseWeakRef, bool aWithVideo)
+                                bool aUseWeakRef)
 {
   // We syncd the enum of channel type between nsIAudioChannelAgent.idl and
   // AudioChannelCommon.h the same.
-  static_assert(static_cast<AudioChannelType>(AUDIO_AGENT_CHANNEL_NORMAL) ==
-                AUDIO_CHANNEL_NORMAL &&
-                static_cast<AudioChannelType>(AUDIO_AGENT_CHANNEL_CONTENT) ==
-                AUDIO_CHANNEL_CONTENT &&
-                static_cast<AudioChannelType>(AUDIO_AGENT_CHANNEL_NOTIFICATION) ==
-                AUDIO_CHANNEL_NOTIFICATION &&
-                static_cast<AudioChannelType>(AUDIO_AGENT_CHANNEL_ALARM) ==
-                AUDIO_CHANNEL_ALARM &&
-                static_cast<AudioChannelType>(AUDIO_AGENT_CHANNEL_TELEPHONY) ==
-                AUDIO_CHANNEL_TELEPHONY &&
-                static_cast<AudioChannelType>(AUDIO_AGENT_CHANNEL_RINGER) ==
-                AUDIO_CHANNEL_RINGER &&
-                static_cast<AudioChannelType>(AUDIO_AGENT_CHANNEL_PUBLICNOTIFICATION) ==
-                AUDIO_CHANNEL_PUBLICNOTIFICATION,
-                "Enum of channel on nsIAudioChannelAgent.idl should be the same with AudioChannelCommon.h");
+  MOZ_STATIC_ASSERT(static_cast<AudioChannelType>(AUDIO_AGENT_CHANNEL_NORMAL) ==
+                    AUDIO_CHANNEL_NORMAL &&
+                    static_cast<AudioChannelType>(AUDIO_AGENT_CHANNEL_CONTENT) ==
+                    AUDIO_CHANNEL_CONTENT &&
+                    static_cast<AudioChannelType>(AUDIO_AGENT_CHANNEL_NOTIFICATION) ==
+                    AUDIO_CHANNEL_NOTIFICATION &&
+                    static_cast<AudioChannelType>(AUDIO_AGENT_CHANNEL_ALARM) ==
+                    AUDIO_CHANNEL_ALARM &&
+                    static_cast<AudioChannelType>(AUDIO_AGENT_CHANNEL_TELEPHONY) ==
+                    AUDIO_CHANNEL_TELEPHONY &&
+                    static_cast<AudioChannelType>(AUDIO_AGENT_CHANNEL_RINGER) ==
+                    AUDIO_CHANNEL_RINGER &&
+                    static_cast<AudioChannelType>(AUDIO_AGENT_CHANNEL_PUBLICNOTIFICATION) ==
+                    AUDIO_CHANNEL_PUBLICNOTIFICATION,
+                    "Enum of channel on nsIAudioChannelAgent.idl should be the same with AudioChannelCommon.h");
 
   if (mAudioChannelType != AUDIO_AGENT_CHANNEL_ERROR ||
       aChannelType > AUDIO_AGENT_CHANNEL_PUBLICNOTIFICATION ||
@@ -100,13 +83,11 @@ AudioChannelAgent::InitInternal(int32_t aChannelType,
     mCallback = aCallback;
   }
 
-  mWithVideo = aWithVideo;
-
   return NS_OK;
 }
 
 /* boolean startPlaying (); */
-NS_IMETHODIMP AudioChannelAgent::StartPlaying(int32_t *_retval)
+NS_IMETHODIMP AudioChannelAgent::StartPlaying(bool *_retval)
 {
   AudioChannelService *service = AudioChannelService::GetAudioChannelService();
   if (mAudioChannelType == AUDIO_AGENT_CHANNEL_ERROR ||
@@ -115,8 +96,8 @@ NS_IMETHODIMP AudioChannelAgent::StartPlaying(int32_t *_retval)
   }
 
   service->RegisterAudioChannelAgent(this,
-    static_cast<AudioChannelType>(mAudioChannelType), mWithVideo);
-  *_retval = service->GetState(this, !mVisible);
+    static_cast<AudioChannelType>(mAudioChannelType));
+  *_retval = !service->GetMuted(this, !mVisible);
   mIsRegToService = true;
   return NS_OK;
 }
@@ -145,7 +126,7 @@ NS_IMETHODIMP AudioChannelAgent::SetVisibilityState(bool visible)
   mVisible = visible;
   if (mIsRegToService && oldVisibility != mVisible && callback) {
     AudioChannelService *service = AudioChannelService::GetAudioChannelService();
-    callback->CanPlayChanged(service->GetState(this, !mVisible));
+    callback->CanPlayChanged(!service->GetMuted(this, !mVisible));
   }
   return NS_OK;
 }
@@ -155,7 +136,7 @@ void AudioChannelAgent::NotifyAudioChannelStateChanged()
   nsCOMPtr<nsIAudioChannelAgentCallback> callback = GetCallback();
   if (callback) {
     AudioChannelService *service = AudioChannelService::GetAudioChannelService();
-    callback->CanPlayChanged(service->GetState(this, !mVisible));
+    callback->CanPlayChanged(!service->GetMuted(this, !mVisible));
   }
 }
 

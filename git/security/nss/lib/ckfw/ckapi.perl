@@ -3,6 +3,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+$cvs_id = '@(#) $RCSfile$ $Revision$ $Date$';
 
 $copyright = '/* THIS IS A GENERATED FILE */
 /* This Source Code Form is subject to the terms of the Mozilla Public
@@ -74,6 +75,10 @@ print <<EOD
 #ifndef NSSCKG_H
 #define NSSCKG_H
 
+#ifdef DEBUG
+static const char NSSCKG_CVS_ID[] = "$g{CVS_ID} ; $cvs_id";
+#endif /* DEBUG */
+
 /*
  * nssckg.h
  *
@@ -113,6 +118,10 @@ print $copyright;
 print <<EOD
 #ifndef NSSCKFT_H
 #define NSSCKFT_H
+
+#ifdef DEBUG
+static const char NSSCKFT_CVS_ID[] = "$g{CVS_ID} ; $cvs_id";
+#endif /* DEBUG */
 
 /*
  * nssckft.h
@@ -154,6 +163,10 @@ print <<EOD
 #ifndef NSSCKEPV_H
 #define NSSCKEPV_H
 
+#ifdef DEBUG
+static const char NSSCKEPV_CVS_ID[] = "$g{CVS_ID} ; $cvs_id";
+#endif /* DEBUG */
+
 /*
  * nssckepv.h
  *
@@ -193,6 +206,10 @@ select API;
 
 print $copyright;
 print <<EOD
+
+#ifdef DEBUG
+static const char NSSCKAPI_CVS_ID[] = "$g{CVS_ID} ; $cvs_id";
+#endif /* DEBUG */
 
 /*
  * nssck.api

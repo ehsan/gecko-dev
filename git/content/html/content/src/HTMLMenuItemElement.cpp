@@ -3,13 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/HTMLMenuItemElement.h"
-
-#include "mozilla/BasicEvents.h"
+#include "HTMLMenuItemElement.h"
 #include "mozilla/dom/HTMLMenuItemElementBinding.h"
-#include "nsAttrValueInlines.h"
-#include "nsContentUtils.h"
 #include "nsEventDispatcher.h"
+#include "nsAttrValueInlines.h"
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(MenuItem)
@@ -164,6 +161,7 @@ HTMLMenuItemElement::HTMLMenuItemElement(
     mCheckedDirty(false),
     mChecked(false)
 {
+  SetIsDOMBinding();
   mParserCreating = aFromParser;
 }
 
@@ -172,8 +170,18 @@ HTMLMenuItemElement::~HTMLMenuItemElement()
 }
 
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLMenuItemElement, nsGenericHTMLElement,
-                             nsIDOMHTMLMenuItemElement)
+NS_IMPL_ADDREF_INHERITED(HTMLMenuItemElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLMenuItemElement, Element)
+
+
+// QueryInterface implementation for HTMLMenuItemElement
+NS_INTERFACE_TABLE_HEAD(HTMLMenuItemElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE2(HTMLMenuItemElement,
+                                   nsIDOMHTMLCommandElement,
+                                   nsIDOMHTMLMenuItemElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLMenuItemElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 //NS_IMPL_ELEMENT_CLONE(HTMLMenuItemElement)
 nsresult
@@ -483,7 +491,7 @@ HTMLMenuItemElement::InitChecked()
 }
 
 JSObject*
-HTMLMenuItemElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLMenuItemElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return HTMLMenuItemElementBinding::Wrap(aCx, aScope, this);
 }

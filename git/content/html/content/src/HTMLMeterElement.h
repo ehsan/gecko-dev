@@ -6,7 +6,7 @@
 #ifndef mozilla_dom_HTMLMeterElement_h
 #define mozilla_dom_HTMLMeterElement_h
 
-#include "mozilla/Attributes.h"
+#include "nsIDOMHTMLMeterElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsAttrValue.h"
 #include "nsAttrValueInlines.h"
@@ -17,18 +17,36 @@
 namespace mozilla {
 namespace dom {
 
-class HTMLMeterElement MOZ_FINAL : public nsGenericHTMLElement
+class HTMLMeterElement : public nsGenericHTMLElement,
+                         public nsIDOMHTMLMeterElement
 {
 public:
   HTMLMeterElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~HTMLMeterElement();
 
-  virtual nsEventStates IntrinsicState() const MOZ_OVERRIDE;
+  /* nsISupports */
+  NS_DECL_ISUPPORTS_INHERITED
 
-  nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const MOZ_OVERRIDE;
+  /* nsIDOMNode */
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  /* nsIDOMElement */
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  /* nsIDOMHTMLElement */
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+
+  /* nsIDOMHTMLMeterElement */
+  NS_DECL_NSIDOMHTMLMETERELEMENT
+
+  virtual nsEventStates IntrinsicState() const;
+
+  nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
   bool ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
-                      const nsAString& aValue, nsAttrValue& aResult) MOZ_OVERRIDE;
+                      const nsAString& aValue, nsAttrValue& aResult);
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // WebIDL
 
@@ -36,47 +54,46 @@ public:
   double Value() const;
   void SetValue(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::value, aValue, aRv);
+    aRv = SetValue(aValue);
   }
 
   /* @return the minimum value */
   double Min() const;
   void SetMin(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::min, aValue, aRv);
+    aRv = SetMin(aValue);
   }
 
   /* @return the maximum value */
   double Max() const;
   void SetMax(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::max, aValue, aRv);
+    aRv = SetMax(aValue);
   }
 
   /* @return the low value */
   double Low() const;
   void SetLow(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::low, aValue, aRv);
+    aRv = SetLow(aValue);
   }
 
   /* @return the high value */
   double High() const;
   void SetHigh(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::high, aValue, aRv);
+    aRv = SetHigh(aValue);
   }
 
   /* @return the optimum value */
   double Optimum() const;
   void SetOptimum(double aValue, ErrorResult& aRv)
   {
-    SetDoubleAttr(nsGkAtoms::optimum, aValue, aRv);
+    aRv = SetOptimum(aValue);
   }
 
 protected:
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
 private:
 

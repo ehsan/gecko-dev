@@ -21,8 +21,6 @@
 #include "nsIWebProgress.h"
 #include "prenv.h"
 #include "nsIDocShellTreeItem.h"
-#include "nsIURI.h"
-#include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -264,9 +262,6 @@ LogShellLoadType(nsIDocShell* aDocShell)
     case LOAD_NORMAL_BYPASS_PROXY_AND_CACHE:
       printf("normal bypass proxy and cache; ");
       break;
-    case LOAD_NORMAL_ALLOW_MIXED_CONTENT:
-      printf("normal allow mixed content; ");
-      break;
     case LOAD_RELOAD_NORMAL:
       printf("reload normal; ");
       break;
@@ -396,18 +391,19 @@ logging::DocLoad(const char* aMsg, nsIWebProgress* aWebProgress,
 
   nsCOMPtr<nsIDOMWindow> DOMWindow;
   aWebProgress->GetDOMWindow(getter_AddRefs(DOMWindow));
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(DOMWindow);
-  if (!window) {
+  if (!DOMWindow) {
     MsgEnd();
     return;
   }
 
-  nsCOMPtr<nsIDocument> documentNode = window->GetDoc();
-  if (!documentNode) {
+  nsCOMPtr<nsIDOMDocument> DOMDocument;
+  DOMWindow->GetDocument(getter_AddRefs(DOMDocument));
+  if (!DOMDocument) {
     MsgEnd();
     return;
   }
 
+  nsCOMPtr<nsIDocument> documentNode(do_QueryInterface(DOMDocument));
   DocAccessible* document = GetExistingDocAccessible(documentNode);
 
   LogDocInfo(documentNode, document);

@@ -62,15 +62,7 @@ public class GeckoEvent {
         COMPOSITOR_PAUSE(29),
         COMPOSITOR_RESUME(30),
         NATIVE_GESTURE_EVENT(31),
-        IME_KEY_EVENT(32),
-        CALL_OBSERVER(33),
-        REMOVE_OBSERVER(34),
-        LOW_MEMORY(35),
-        NETWORK_LINK_CHANGE(36),
-        TELEMETRY_HISTOGRAM_ADD(37),
-        PREFERENCES_OBSERVE(39),
-        PREFERENCES_GET(40),
-        PREFERENCES_REMOVE_OBSERVERS(41);
+        IME_KEY_EVENT(32);
 
         public final int value;
 
@@ -163,7 +155,6 @@ public class GeckoEvent {
     private int mEnd;
     private String mCharacters;
     private String mCharactersExtra;
-    private String mData;
     private int mRangeType;
     private int mRangeStyles;
     private int mRangeLineStyle;
@@ -177,8 +168,6 @@ public class GeckoEvent {
 
     private double mBandwidth;
     private boolean mCanBeMetered;
-    private boolean mIsWifi;
-    private int     mDHCPGateway;
 
     private int mNativeWindow;
 
@@ -188,8 +177,6 @@ public class GeckoEvent {
 
     private int mWidth;
     private int mHeight;
-
-    private String[] mPrefNames;
 
     private GeckoEvent(NativeGeckoEvent event) {
         mType = event.value;
@@ -324,7 +311,7 @@ public class GeckoEvent {
             event.mPoints = new Point[1];
 
             PointF geckoPoint = new PointF(pt.x, pt.y);
-            geckoPoint = GeckoAppShell.getLayerView().convertViewPointToLayerPoint(geckoPoint);
+            geckoPoint = GeckoApp.mAppContext.getLayerView().convertViewPointToLayerPoint(geckoPoint);
 
             if (geckoPoint == null) {
                 // This could happen if Gecko isn't ready yet.
@@ -342,24 +329,18 @@ public class GeckoEvent {
         }
     }
 
-    /**
-     * Creates a GeckoEvent that contains the data from the MotionEvent.
-     * The keepInViewCoordinates parameter can be set to false to convert from the Java
-     * coordinate system (device pixels relative to the LayerView) to a coordinate system
-     * relative to gecko's coordinate system (CSS pixels relative to gecko scroll position).
-     */
-    public static GeckoEvent createMotionEvent(MotionEvent m, boolean keepInViewCoordinates) {
+    public static GeckoEvent createMotionEvent(MotionEvent m) {
         GeckoEvent event = new GeckoEvent(NativeGeckoEvent.MOTION_EVENT);
-        event.initMotionEvent(m, keepInViewCoordinates);
+        event.initMotionEvent(m);
         return event;
     }
 
-    private void initMotionEvent(MotionEvent m, boolean keepInViewCoordinates) {
-        mAction = m.getActionMasked();
+    private void initMotionEvent(MotionEvent m) {
+        mAction = m.getAction();
         mTime = (System.currentTimeMillis() - SystemClock.elapsedRealtime()) + m.getEventTime();
         mMetaState = m.getMetaState();
 
-        switch (mAction) {
+        switch (mAction & MotionEvent.ACTION_MASK) {
             case MotionEvent.ACTION_CANCEL:
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_POINTER_UP:
@@ -375,9 +356,9 @@ public class GeckoEvent {
                 mOrientations = new float[mCount];
                 mPressures = new float[mCount];
                 mPointRadii = new Point[mCount];
-                mPointerIndex = m.getActionIndex();
+                mPointerIndex = (mAction & MotionEvent.ACTION_POINTER_INDEX_MASK) >> MotionEvent.ACTION_POINTER_INDEX_SHIFT;
                 for (int i = 0; i < mCount; i++) {
-                    addMotionPoint(i, i, m, keepInViewCoordinates);
+                    addMotionPoint(i, i, m);
                 }
                 break;
             }
@@ -393,12 +374,10 @@ public class GeckoEvent {
         }
     }
 
-    private void addMotionPoint(int index, int eventIndex, MotionEvent event, boolean keepInViewCoordinates) {
+    public void addMotionPoint(int index, int eventIndex, MotionEvent event) {
         try {
             PointF geckoPoint = new PointF(event.getX(eventIndex), event.getY(eventIndex));
-            if (!keepInViewCoordinates) {
-                geckoPoint = GeckoAppShell.getLayerView().convertViewPointToLayerPoint(geckoPoint);
-            }
+            geckoPoint = GeckoApp.mAppContext.getLayerView().convertViewPointToLayerPoint(geckoPoint);
 
             mPoints[index] = new Point(Math.round(geckoPoint.x), Math.round(geckoPoint.y));
             mPointIndicies[index] = event.getPointerId(eventIndex);
@@ -428,18 +407,11 @@ public class GeckoEvent {
                 }
             } else {
                 float size = event.getSize(eventIndex);
-                Resources resources = GeckoAppShell.getContext().getResources();
+                Resources resources = GeckoApp.mAppContext.getResources();
                 DisplayMetrics displaymetrics = resources.getDisplayMetrics();
                 size = size*Math.min(displaymetrics.heightPixels, displaymetrics.widthPixels);
                 mPointRadii[index] = new Point((int)size,(int)size);
                 mOrientations[index] = 0;
-            }
-            if (!keepInViewCoordinates) {
-                // If we are converting to gecko CSS pixels, then we should adjust the
-                // radii as well
-                float zoom = GeckoAppShell.getLayerView().getViewportMetrics().zoomFactor;
-                mPointRadii[index].x /= zoom;
-                mPointRadii[index].y /= zoom;
             }
             mPressures[index] = event.getPressure(eventIndex);
         } catch (Exception ex) {
@@ -614,14 +586,14 @@ public class GeckoEvent {
     public static GeckoEvent createViewportEvent(ImmutableViewportMetrics metrics, DisplayPortMetrics displayPort) {
         GeckoEvent event = new GeckoEvent(NativeGeckoEvent.VIEWPORT);
         event.mCharacters = "Viewport:Change";
-        StringBuilder sb = new StringBuilder(256);
+        StringBuffer sb = new StringBuffer(256);
         sb.append("{ \"x\" : ").append(metrics.viewportRectLeft)
           .append(", \"y\" : ").append(metrics.viewportRectTop)
           .append(", \"zoom\" : ").append(metrics.zoomFactor)
-          .append(", \"fixedMarginLeft\" : ").append(metrics.marginLeft)
-          .append(", \"fixedMarginTop\" : ").append(metrics.marginTop)
-          .append(", \"fixedMarginRight\" : ").append(metrics.marginRight)
-          .append(", \"fixedMarginBottom\" : ").append(metrics.marginBottom)
+          .append(", \"fixedMarginLeft\" : ").append(metrics.fixedLayerMarginLeft)
+          .append(", \"fixedMarginTop\" : ").append(metrics.fixedLayerMarginTop)
+          .append(", \"fixedMarginRight\" : ").append(metrics.fixedLayerMarginRight)
+          .append(", \"fixedMarginBottom\" : ").append(metrics.fixedLayerMarginBottom)
           .append(", \"displayPort\" :").append(displayPort.toJSON())
           .append('}');
         event.mCharactersExtra = sb.toString();
@@ -655,13 +627,10 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createNetworkEvent(double bandwidth, boolean canBeMetered,
-                                                boolean isWifi, int DHCPGateway) {
+    public static GeckoEvent createNetworkEvent(double bandwidth, boolean canBeMetered) {
         GeckoEvent event = new GeckoEvent(NativeGeckoEvent.NETWORK_CHANGED);
         event.mBandwidth = bandwidth;
         event.mCanBeMetered = canBeMetered;
-        event.mIsWifi = isWifi;
-        event.mDHCPGateway = DHCPGateway;
         return event;
     }
 
@@ -677,60 +646,6 @@ public class GeckoEvent {
     public static GeckoEvent createScreenOrientationEvent(short aScreenOrientation) {
         GeckoEvent event = new GeckoEvent(NativeGeckoEvent.SCREENORIENTATION_CHANGED);
         event.mScreenOrientation = aScreenOrientation;
-        return event;
-    }
-
-    public static GeckoEvent createCallObserverEvent(String observerKey, String topic, String data) {
-        GeckoEvent event = new GeckoEvent(NativeGeckoEvent.CALL_OBSERVER);
-        event.mCharacters = observerKey;
-        event.mCharactersExtra = topic;
-        event.mData = data;
-        return event;
-    }
-
-    public static GeckoEvent createRemoveObserverEvent(String observerKey) {
-        GeckoEvent event = new GeckoEvent(NativeGeckoEvent.REMOVE_OBSERVER);
-        event.mCharacters = observerKey;
-        return event;
-    }
-
-    public static GeckoEvent createPreferencesObserveEvent(int requestId, String[] prefNames) {
-        GeckoEvent event = new GeckoEvent(NativeGeckoEvent.PREFERENCES_OBSERVE);
-        event.mCount = requestId;
-        event.mPrefNames = prefNames;
-        return event;
-    }
-
-    public static GeckoEvent createPreferencesGetEvent(int requestId, String[] prefNames) {
-        GeckoEvent event = new GeckoEvent(NativeGeckoEvent.PREFERENCES_GET);
-        event.mCount = requestId;
-        event.mPrefNames = prefNames;
-        return event;
-    }
-
-    public static GeckoEvent createPreferencesRemoveObserversEvent(int requestId) {
-        GeckoEvent event = new GeckoEvent(NativeGeckoEvent.PREFERENCES_REMOVE_OBSERVERS);
-        event.mCount = requestId;
-        return event;
-    }
-
-    public static GeckoEvent createLowMemoryEvent(int level) {
-        GeckoEvent event = new GeckoEvent(NativeGeckoEvent.LOW_MEMORY);
-        event.mMetaState = level;
-        return event;
-    }
-
-    public static GeckoEvent createNetworkLinkChangeEvent(String status) {
-        GeckoEvent event = new GeckoEvent(NativeGeckoEvent.NETWORK_LINK_CHANGE);
-        event.mCharacters = status;
-        return event;
-    }
-
-    public static GeckoEvent createTelemetryHistogramAddEvent(String histogram,
-                                                              int value) {
-        GeckoEvent event = new GeckoEvent(NativeGeckoEvent.TELEMETRY_HISTOGRAM_ADD);
-        event.mCharacters = histogram;
-        event.mCount = value;
         return event;
     }
 

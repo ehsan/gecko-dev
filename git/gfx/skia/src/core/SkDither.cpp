@@ -53,3 +53,4 @@ const uint16_t gDitherMatrix_3Bit_16[4] = {
 };
 
 #endif
+

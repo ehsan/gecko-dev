@@ -75,7 +75,7 @@ void
 ShutdownVolumeServiceIOThread()
 {
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
-  sVolumeServiceIOThread = nullptr;
+  sVolumeServiceIOThread = NULL;
 }
 
 } // system

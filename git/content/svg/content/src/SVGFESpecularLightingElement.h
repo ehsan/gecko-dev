@@ -27,8 +27,7 @@ protected:
     : SVGFESpecularLightingElementBase(aNodeInfo)
   {
   }
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
 public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
@@ -41,12 +40,12 @@ public:
           int32_t aNameSpaceID, nsIAtom* aAttribute) const;
 
   // WebIDL
-  already_AddRefed<SVGAnimatedString> In1();
-  already_AddRefed<SVGAnimatedNumber> SurfaceScale();
-  already_AddRefed<SVGAnimatedNumber> SpecularConstant();
-  already_AddRefed<SVGAnimatedNumber> SpecularExponent();
-  already_AddRefed<SVGAnimatedNumber> KernelUnitLengthX();
-  already_AddRefed<SVGAnimatedNumber> KernelUnitLengthY();
+  already_AddRefed<nsIDOMSVGAnimatedString> In1();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> SurfaceScale();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> SpecularConstant();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> SpecularExponent();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> KernelUnitLengthX();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> KernelUnitLengthY();
 
 protected:
   virtual void LightPixel(const float *N, const float *L,

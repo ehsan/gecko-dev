@@ -6,17 +6,18 @@
 #ifndef mozilla_dom_HTMLOutputElement_h
 #define mozilla_dom_HTMLOutputElement_h
 
-#include "mozilla/Attributes.h"
 #include "nsGenericHTMLElement.h"
+#include "nsIDOMHTMLOutputElement.h"
 #include "nsStubMutationObserver.h"
 #include "nsIConstraintValidation.h"
 
 namespace mozilla {
 namespace dom {
 
-class HTMLOutputElement MOZ_FINAL : public nsGenericHTMLFormElement,
-                                    public nsStubMutationObserver,
-                                    public nsIConstraintValidation
+class HTMLOutputElement : public nsGenericHTMLFormElement,
+                          public nsIDOMHTMLOutputElement,
+                          public nsStubMutationObserver,
+                          public nsIConstraintValidation
 {
 public:
   using nsIConstraintValidation::GetValidationMessage;
@@ -27,23 +28,35 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLOutputElement
+  NS_DECL_NSIDOMHTMLOUTPUTELEMENT
+
   // nsIFormControl
   NS_IMETHOD_(uint32_t) GetType() const { return NS_FORM_OUTPUT; }
-  NS_IMETHOD Reset() MOZ_OVERRIDE;
-  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission) MOZ_OVERRIDE;
+  NS_IMETHOD Reset();
+  NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
 
-  virtual bool IsDisabled() const MOZ_OVERRIDE { return false; }
+  virtual bool IsDisabled() const { return false; }
 
-  nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const MOZ_OVERRIDE;
+  nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
   bool ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
-                        const nsAString& aValue, nsAttrValue& aResult) MOZ_OVERRIDE;
+                        const nsAString& aValue, nsAttrValue& aResult);
 
-  nsEventStates IntrinsicState() const MOZ_OVERRIDE;
+  nsEventStates IntrinsicState() const;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                nsIContent* aBindingParent,
-                               bool aCompileEventHandlers) MOZ_OVERRIDE;
+                               bool aCompileEventHandlers);
 
   // This function is called when a callback function from nsIMutationObserver
   // has to be used to update the defaultValue attribute.
@@ -58,42 +71,38 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(HTMLOutputElement,
                                            nsGenericHTMLFormElement)
 
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual nsIDOMNode* AsDOMNode() { return this; }
+  virtual JSObject*
+  WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   // WebIDL
   nsDOMSettableTokenList* HtmlFor();
   // nsGenericHTMLFormElement::GetForm is fine.
-  void GetName(nsAString& aName)
-  {
-    GetHTMLAttr(nsGkAtoms::name, aName);
-  }
-
+  using nsGenericHTMLFormElement::GetForm;
+  // XPCOM GetName is fine.
   void SetName(const nsAString& aName, ErrorResult& aRv)
   {
     SetHTMLAttr(nsGkAtoms::name, aName, aRv);
   }
 
-  void GetType(nsAString& aType)
+  // XPCOM GetType is fine.
+  // XPCOM GetDefaultValue is fine.
+  void SetDefaultValue(const nsAString& aDefaultValue, ErrorResult& aRv)
   {
-    aType.AssignLiteral("output");
+    aRv = SetDefaultValue(aDefaultValue);
   }
-
-  void GetDefaultValue(nsAString& aDefaultValue)
+  // XPCOM GetValue is fine.
+  void SetValue(const nsAString& aValue, ErrorResult& aRv)
   {
-    aDefaultValue = mDefaultValue;
+    aRv = SetValue(aValue);
   }
-
-  void SetDefaultValue(const nsAString& aDefaultValue, ErrorResult& aRv);
-
-  void GetValue(nsAString& aValue);
-  void SetValue(const nsAString& aValue, ErrorResult& aRv);
 
   // nsIConstraintValidation::WillValidate is fine.
   // nsIConstraintValidation::Validity() is fine.
   // nsIConstraintValidation::GetValidationMessage() is fine.
   // nsIConstraintValidation::CheckValidity() is fine.
-  void SetCustomValidity(const nsAString& aError);
+  using nsIConstraintValidation::CheckValidity;
+  // nsIConstraintValidation::SetCustomValidity() is fine.
 
 protected:
   enum ValueModeFlag {

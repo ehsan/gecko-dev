@@ -6,20 +6,20 @@
 #ifndef nsHttpPipeline_h__
 #define nsHttpPipeline_h__
 
+#include "nsHttp.h"
 #include "nsAHttpConnection.h"
 #include "nsAHttpTransaction.h"
+#include "nsIInputStream.h"
+#include "nsIOutputStream.h"
 #include "nsTArray.h"
 #include "nsCOMPtr.h"
-
-class nsIInputStream;
-class nsIOutputStream;
 
 class nsHttpPipeline : public nsAHttpConnection
                      , public nsAHttpTransaction
                      , public nsAHttpSegmentReader
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSAHTTPCONNECTION(mConnection)
     NS_DECL_NSAHTTPTRANSACTION
     NS_DECL_NSAHTTPSEGMENTREADER
@@ -29,7 +29,7 @@ public:
 
 private:
     nsresult FillSendBuf();
-
+    
     static NS_METHOD ReadFromPipe(nsIInputStream *, void *, const char *,
                                   uint32_t, uint32_t, uint32_t *);
 
@@ -58,7 +58,7 @@ private:
     nsresult                      mStatus;
 
     // these flags indicate whether or not the first request or response
-    // is partial.  a partial request means that Request(0) has been
+    // is partial.  a partial request means that Request(0) has been 
     // partially written out to the socket.  a partial response means
     // that Response(0) has been partially read in from the socket.
     bool mRequestIsPartial;

@@ -218,3 +218,4 @@ void* SkTLS::PlatformGetSpecific(bool forceCreateTheSlot) {
 void SkTLS::PlatformSetSpecific(void* ptr) {
     (void)pthread_setspecific(gSkTLSKey, ptr);
 }
+

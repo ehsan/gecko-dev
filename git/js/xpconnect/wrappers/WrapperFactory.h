@@ -8,6 +8,7 @@
 #ifndef _xpc_WRAPPERFACTORY_H
 #define _xpc_WRAPPERFACTORY_H
 
+#include "jsapi.h"
 #include "jswrapper.h"
 
 namespace xpc {
@@ -15,7 +16,8 @@ namespace xpc {
 class WrapperFactory {
   public:
     enum { WAIVE_XRAY_WRAPPER_FLAG = js::Wrapper::LAST_USED_FLAG << 1,
-           IS_XRAY_WRAPPER_FLAG    = WAIVE_XRAY_WRAPPER_FLAG << 1 };
+           IS_XRAY_WRAPPER_FLAG    = WAIVE_XRAY_WRAPPER_FLAG << 1,
+           SOW_FLAG                = IS_XRAY_WRAPPER_FLAG << 1 };
 
     // Return true if any of any of the nested wrappers have the flag set.
     static bool HasWrapperFlag(JSObject *wrapper, unsigned flag) {
@@ -63,7 +65,7 @@ class WrapperFactory {
                                             JS::HandleObject obj);
 
     // Wrap wrapped object into a waiver wrapper and then re-wrap it.
-    static bool WaiveXrayAndWrap(JSContext *cx, JS::MutableHandleValue vp);
+    static bool WaiveXrayAndWrap(JSContext *cx, jsval *vp);
 
     // Wrap a (same compartment) object in a SOW.
     static JSObject *WrapSOWObject(JSContext *cx, JSObject *obj);
@@ -73,6 +75,9 @@ class WrapperFactory {
 
     // Wrap a (same compartment) Components object.
     static JSObject *WrapComponentsObject(JSContext *cx, JS::HandleObject obj);
+
+    // Wrap a same-compartment object for Xray inspection.
+    static JSObject *WrapForSameCompartmentXray(JSContext *cx, JSObject *obj);
 
     // Returns true if the wrapper is in not shadowing mode for the id.
     static bool XrayWrapperNotShadowing(JSObject *wrapper, jsid id);

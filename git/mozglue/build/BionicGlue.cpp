@@ -9,14 +9,12 @@
 #include <time.h>
 #include <unistd.h>
 #include <android/log.h>
-
-#include "mozilla/Alignment.h"
+#include <mozilla/Util.h>
 
 #include <vector>
 
 #define NS_EXPORT __attribute__ ((visibility("default")))
 
-#if ANDROID_VERSION < 17 || defined(MOZ_WIDGET_ANDROID)
 /* Android doesn't have pthread_atfork(), so we need to use our own. */
 struct AtForkFuncs {
   void (*prepare)(void);
@@ -61,13 +59,11 @@ private:
 };
 
 static std::vector<AtForkFuncs, SpecialAllocator<AtForkFuncs> > atfork;
-#endif
 
 #ifdef MOZ_WIDGET_GONK
 #include "cpuacct.h"
 #define WRAP(x) x
 
-#if ANDROID_VERSION < 17 || defined(MOZ_WIDGET_ANDROID)
 extern "C" NS_EXPORT int
 timer_create(clockid_t, struct sigevent*, timer_t*)
 {
@@ -75,14 +71,12 @@ timer_create(clockid_t, struct sigevent*, timer_t*)
   abort();
   return -1;
 }
-#endif
 
 #else
 #define cpuacct_add(x)
 #define WRAP(x) __wrap_##x
 #endif
 
-#if ANDROID_VERSION < 17 || defined(MOZ_WIDGET_ANDROID)
 extern "C" NS_EXPORT int
 WRAP(pthread_atfork)(void (*prepare)(void), void (*parent)(void), void (*child)(void))
 {
@@ -102,7 +96,7 @@ extern "C" NS_EXPORT pid_t
 WRAP(fork)(void)
 {
   pid_t pid;
-  for (auto it = atfork.rbegin();
+  for (std::vector<AtForkFuncs>::reverse_iterator it = atfork.rbegin();
        it < atfork.rend(); ++it)
     if (it->prepare)
       it->prepare();
@@ -110,20 +104,19 @@ WRAP(fork)(void)
   switch ((pid = __fork())) {
   case 0:
     cpuacct_add(getuid());
-    for (auto it = atfork.begin();
+    for (std::vector<AtForkFuncs>::iterator it = atfork.begin();
          it < atfork.end(); ++it)
       if (it->child)
         it->child();
     break;
   default:
-    for (auto it = atfork.begin();
+    for (std::vector<AtForkFuncs>::iterator it = atfork.begin();
          it < atfork.end(); ++it)
       if (it->parent)
         it->parent();
   }
   return pid;
 }
-#endif
 
 extern "C" NS_EXPORT int
 WRAP(raise)(int sig)

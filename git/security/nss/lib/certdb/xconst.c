@@ -66,7 +66,7 @@ const SEC_ASN1Template CERTAuthInfoAccessTemplate[] = {
 
 
 SECStatus 
-CERT_EncodeSubjectKeyID(PLArenaPool *arena, const SECItem* srcString,
+CERT_EncodeSubjectKeyID(PRArenaPool *arena, const SECItem* srcString,
                         SECItem *encodedValue)
 {
     SECStatus rv = SECSuccess;
@@ -85,7 +85,7 @@ CERT_EncodeSubjectKeyID(PLArenaPool *arena, const SECItem* srcString,
 
 
 SECStatus
-CERT_EncodePrivateKeyUsagePeriod(PLArenaPool *arena,
+CERT_EncodePrivateKeyUsagePeriod(PRArenaPool *arena, 
                                 CERTPrivKeyUsagePeriod *pkup, 
 				SECItem *encodedValue)
 {
@@ -134,7 +134,7 @@ loser:
 
 
 SECStatus 
-CERT_EncodeIA5TypeExtension(PLArenaPool *arena, char *value, SECItem *encodedValue)
+CERT_EncodeIA5TypeExtension(PRArenaPool *arena, char *value, SECItem *encodedValue)
 {
     SECItem encodeContext;
     SECStatus rv = SECSuccess;
@@ -155,7 +155,7 @@ CERT_EncodeIA5TypeExtension(PLArenaPool *arena, char *value, SECItem *encodedVal
 }
 
 SECStatus
-CERT_EncodeAltNameExtension(PLArenaPool *arena,  CERTGeneralName  *value, SECItem *encodedValue)
+CERT_EncodeAltNameExtension(PRArenaPool *arena,  CERTGeneralName  *value, SECItem *encodedValue)
 {
     SECItem                **encodedGenName;
     SECStatus              rv = SECSuccess;
@@ -170,7 +170,7 @@ CERT_EncodeAltNameExtension(PLArenaPool *arena,  CERTGeneralName  *value, SECIte
 }
 
 CERTGeneralName *
-CERT_DecodeAltNameExtension(PLArenaPool *reqArena, SECItem *EncodedAltName)
+CERT_DecodeAltNameExtension(PRArenaPool *reqArena, SECItem *EncodedAltName)
 {
     SECStatus                  rv = SECSuccess;
     CERTAltNameEncodedContext  encodedContext;
@@ -205,7 +205,7 @@ loser:
 
 
 SECStatus
-CERT_EncodeNameConstraintsExtension(PLArenaPool          *arena, 
+CERT_EncodeNameConstraintsExtension(PRArenaPool          *arena, 
 				    CERTNameConstraints  *value,
 				    SECItem              *encodedValue)
 {
@@ -217,7 +217,7 @@ CERT_EncodeNameConstraintsExtension(PLArenaPool          *arena,
 
 
 CERTNameConstraints *
-CERT_DecodeNameConstraintsExtension(PLArenaPool          *arena,
+CERT_DecodeNameConstraintsExtension(PRArenaPool          *arena,
 				    const SECItem        *encodedConstraints)
 {
     return cert_DecodeNameConstraints(arena, encodedConstraints);
@@ -225,7 +225,7 @@ CERT_DecodeNameConstraintsExtension(PLArenaPool          *arena,
 
 
 CERTAuthInfoAccess **
-CERT_DecodeAuthInfoAccessExtension(PLArenaPool *reqArena,
+CERT_DecodeAuthInfoAccessExtension(PRArenaPool *reqArena,
 				   SECItem     *encodedExtension)
 {
     CERTAuthInfoAccess **info = NULL;
@@ -258,7 +258,7 @@ CERT_DecodeAuthInfoAccessExtension(PLArenaPool *reqArena,
 }
 
 SECStatus
-CERT_EncodeInfoAccessExtension(PLArenaPool *arena,
+CERT_EncodeInfoAccessExtension(PRArenaPool *arena,
 				   CERTAuthInfoAccess **info,
 				   SECItem *dest)
 {

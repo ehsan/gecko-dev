@@ -4,11 +4,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "TimeChangeObserver.h"
-#include "mozilla/Hal.h"
-#include "mozilla/Observer.h"
-#include "mozilla/HalTypes.h"
-#include "nsWeakPtr.h"
-#include "nsTObserverArray.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
@@ -16,35 +11,10 @@
 #include "nsDOMEvent.h"
 #include "nsContentUtils.h"
 #include "nsIObserverService.h"
-#include "nsIDocument.h"
 
 using namespace mozilla;
 using namespace mozilla::hal;
 using namespace mozilla::services;
-
-class nsSystemTimeChangeObserver : public SystemClockChangeObserver,
-                                   public SystemTimezoneChangeObserver
-{
-  typedef nsTObserverArray<nsWeakPtr> ListenerArray;
-public:
-  static nsSystemTimeChangeObserver* GetInstance();
-  virtual ~nsSystemTimeChangeObserver();
-
-  // Implementing hal::SystemClockChangeObserver::Notify()
-  void Notify(const int64_t& aClockDeltaMS);
-
-  // Implementing hal::SystemTimezoneChangeObserver::Notify()
-  void Notify(
-    const mozilla::hal::SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo);
-
-  nsresult AddWindowListenerImpl(nsPIDOMWindow* aWindow);
-  nsresult RemoveWindowListenerImpl(nsPIDOMWindow* aWindow);
-
-private:
-  nsSystemTimeChangeObserver() { };
-  ListenerArray mWindowListeners;
-  void FireMozTimeChangeEvent();
-};
 
 StaticAutoPtr<nsSystemTimeChangeObserver> sObserver;
 
@@ -108,9 +78,9 @@ nsSystemTimeChangeObserver::Notify(
 }
 
 nsresult
-mozilla::time::AddWindowListener(nsPIDOMWindow* aWindow)
+nsSystemTimeChangeObserver::AddWindowListener(nsPIDOMWindow* aWindow)
 {
-  return nsSystemTimeChangeObserver::GetInstance()->AddWindowListenerImpl(aWindow);
+  return GetInstance()->AddWindowListenerImpl(aWindow);
 }
 
 nsresult
@@ -145,13 +115,13 @@ nsSystemTimeChangeObserver::AddWindowListenerImpl(nsPIDOMWindow* aWindow)
 }
 
 nsresult
-mozilla::time::RemoveWindowListener(nsPIDOMWindow* aWindow)
+nsSystemTimeChangeObserver::RemoveWindowListener(nsPIDOMWindow* aWindow)
 {
   if (!sObserver) {
     return NS_OK;
   }
 
-  return nsSystemTimeChangeObserver::GetInstance()->RemoveWindowListenerImpl(aWindow);
+  return GetInstance()->RemoveWindowListenerImpl(aWindow);
 }
 
 nsresult
@@ -168,8 +138,7 @@ nsSystemTimeChangeObserver::RemoveWindowListenerImpl(nsPIDOMWindow* aWindow)
     }
   }
 
-  nsWeakPtr windowWeakRef = do_GetWeakReference(aWindow);
-  mWindowListeners.RemoveElement(windowWeakRef);
+  mWindowListeners.RemoveElement(NS_GetWeakReference(aWindow));
 
   if (mWindowListeners.IsEmpty()) {
     UnregisterSystemClockChangeObserver(sObserver);

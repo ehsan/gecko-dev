@@ -7,13 +7,16 @@
 #include <string>
 #include <stdio.h>
 #include <errno.h>
-#include <ostream>
+#include <iostream>
 #include <fstream>
 #include <sstream>
+#if defined(ANDROID)
+# include "android-signal-defs.h"
+#endif
 
 // Profiler
 #include "PlatformMacros.h"
-#include "GeckoProfiler.h"
+#include "GeckoProfilerImpl.h"
 #include "platform.h"
 #include "nsXULAppAPI.h"
 #include "nsThreadUtils.h"
@@ -21,7 +24,6 @@
 #include "shared-libraries.h"
 #include "mozilla/StackWalk.h"
 #include "ProfileEntry.h"
-#include "SyncProfile.h"
 #include "SaveProfileTask.h"
 #include "UnwinderThread2.h"
 #include "TableTicker.h"
@@ -43,7 +45,7 @@
 #include "mozilla/Services.h"
 
 // JS
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
 
 // This file's exports are listed in GeckoProfilerImpl.h.
 
@@ -52,7 +54,6 @@
 UnwMode sUnwindMode      = UnwINVALID;
 int     sUnwindInterval  = 0;
 int     sUnwindStackScan = 0;
-int     sProfileEntries  = 0;
 
 using std::string;
 using namespace mozilla;
@@ -103,18 +104,18 @@ void genProfileEntry(/*MODIFIED*/UnwinderThreadBuffer* utb,
     }
     if (entry.js()) {
       if (!entry.pc()) {
-        // The JIT only allows the top-most entry to have a nullptr pc
+        // The JIT only allows the top-most entry to have a NULL pc
         MOZ_ASSERT(&entry == &stack->mStack[stack->stackSize() - 1]);
         // If stack-walking was disabled, then that's just unfortunate
         if (lastpc) {
           jsbytecode *jspc = js::ProfilingGetPC(stack->mRuntime, entry.script(),
                                                 lastpc);
           if (jspc) {
-            lineno = JS_PCToLineNumber(nullptr, entry.script(), jspc);
+            lineno = JS_PCToLineNumber(NULL, entry.script(), jspc);
           }
         }
       } else {
-        lineno = JS_PCToLineNumber(nullptr, entry.script(), entry.pc());
+        lineno = JS_PCToLineNumber(NULL, entry.script(), entry.pc());
       }
     } else {
       lineno = entry.line();
@@ -155,53 +156,47 @@ void genPseudoBacktraceEntries(/*MODIFIED*/UnwinderThreadBuffer* utb,
 }
 
 // RUNS IN SIGHANDLER CONTEXT
-static
-void populateBuffer(UnwinderThreadBuffer* utb, TickSample* sample,
-                    UTB_RELEASE_FUNC releaseFunction, bool jankOnly)
+void BreakpadSampler::Tick(TickSample* sample)
 {
-  ThreadProfile& sampledThreadProfile = *sample->threadProfile;
-  PseudoStack* stack = sampledThreadProfile.GetPseudoStack();
+  /* Get hold of an empty inter-thread buffer into which to park
+     the ProfileEntries for this sample. */
+  UnwinderThreadBuffer* utb = uwt__acquire_empty_buffer();
+
+  /* This could fail, if no buffers are currently available, in which
+     case we must give up right away.  We cannot wait for a buffer to
+     become available, as that risks deadlock. */
+  if (!utb)
+    return;
 
   /* Manufacture the ProfileEntries that we will give to the unwinder
      thread, and park them in |utb|. */
+
+  // Marker(s) come before the sample
+  PseudoStack* stack = mPrimaryThreadProfile.GetPseudoStack();
+  for (int i = 0; stack->getMarker(i) != NULL; i++) {
+    utb__addEntry( utb, ProfileEntry('m', stack->getMarker(i)) );
+  }
+  stack->mQueueClearMarker = true;
+
   bool recordSample = true;
-
-  /* Don't process the PeudoStack's markers or honour jankOnly if we're
-     immediately sampling the current thread. */
-  if (!sample->isSamplingCurrentThread) {
-    // LinkedUWTBuffers before markers
-    UWTBufferLinkedList* syncBufs = stack->getLinkedUWTBuffers();
-    while (syncBufs && syncBufs->peek()) {
-      LinkedUWTBuffer* syncBuf = syncBufs->popHead();
-      utb__addEntry(utb, ProfileEntry('B', syncBuf->GetBuffer()));
+  if (mJankOnly) {
+    // if we are on a different event we can discard any temporary samples
+    // we've kept around
+    if (sLastSampledEventGeneration != sCurrentEventGeneration) {
+      // XXX: we also probably want to add an entry to the profile to help
+      // distinguish which samples are part of the same event. That, or record
+      // the event generation in each sample
+      mPrimaryThreadProfile.erase();
     }
-    // Marker(s) come before the sample
-    ProfilerMarkerLinkedList* pendingMarkersList = stack->getPendingMarkers();
-    while (pendingMarkersList && pendingMarkersList->peek()) {
-      ProfilerMarker* marker = pendingMarkersList->popHead();
-      stack->addStoredMarker(marker);
-      utb__addEntry( utb, ProfileEntry('m', marker) );
-    }
-    stack->updateGeneration(sampledThreadProfile.GetGenerationID());
-    if (jankOnly) {
-      // if we are on a different event we can discard any temporary samples
-      // we've kept around
-      if (sLastSampledEventGeneration != sCurrentEventGeneration) {
-        // XXX: we also probably want to add an entry to the profile to help
-        // distinguish which samples are part of the same event. That, or record
-        // the event generation in each sample
-        sampledThreadProfile.erase();
-      }
-      sLastSampledEventGeneration = sCurrentEventGeneration;
+    sLastSampledEventGeneration = sCurrentEventGeneration;
 
-      recordSample = false;
-      // only record the events when we have a we haven't seen a tracer
-      // event for 100ms
-      if (!sLastTracerEvent.IsNull()) {
-        TimeDuration delta = sample->timestamp - sLastTracerEvent;
-        if (delta.ToMilliseconds() > 100.0) {
-            recordSample = true;
-        }
+    recordSample = false;
+    // only record the events when we have a we haven't seen a tracer
+    // event for 100ms
+    if (!sLastTracerEvent.IsNull()) {
+      TimeDuration delta = sample->timestamp - sLastTracerEvent;
+      if (delta.ToMilliseconds() > 100.0) {
+          recordSample = true;
       }
     }
   }
@@ -243,7 +238,7 @@ void populateBuffer(UnwinderThreadBuffer* utb, TickSample* sample,
   }
 
   if (sample) {
-    TimeDuration delta = sample->timestamp - sStartTime;
+    TimeDuration delta = sample->timestamp - mStartTime;
     utb__addEntry( utb, ProfileEntry('t', delta.ToMilliseconds()) );
   }
 
@@ -294,59 +289,14 @@ void populateBuffer(UnwinderThreadBuffer* utb, TickSample* sample,
 #   elif defined(SPS_OS_windows)
     /* Totally fake this up so it at least builds.  No idea if we can
        even ever get here on Windows. */
-    void* ucV = nullptr;
+    void* ucV = NULL;
 #   else
 #     error "Unsupported platform"
 #   endif
-    releaseFunction(&sampledThreadProfile, utb, ucV);
+    uwt__release_full_buffer(&mPrimaryThreadProfile, utb, ucV);
   } else {
-    releaseFunction(&sampledThreadProfile, utb, nullptr);
+    uwt__release_full_buffer(&mPrimaryThreadProfile, utb, NULL);
   }
-}
-
-static
-void sampleCurrent(TickSample* sample)
-{
-  // This variant requires sample->threadProfile to be set
-  MOZ_ASSERT(sample->threadProfile);
-  LinkedUWTBuffer* syncBuf = utb__acquire_sync_buffer(tlsStackTop.get());
-  if (!syncBuf) {
-    return;
-  }
-  SyncProfile* syncProfile = sample->threadProfile->AsSyncProfile();
-  MOZ_ASSERT(syncProfile);
-  if (!syncProfile->SetUWTBuffer(syncBuf)) {
-    utb__release_sync_buffer(syncBuf);
-    return;
-  }
-  UnwinderThreadBuffer* utb = syncBuf->GetBuffer();
-  populateBuffer(utb, sample, &utb__finish_sync_buffer, false);
-}
-
-// RUNS IN SIGHANDLER CONTEXT
-void TableTicker::UnwinderTick(TickSample* sample)
-{
-  if (sample->isSamplingCurrentThread) {
-    sampleCurrent(sample);
-    return;
-  }
-
-  if (!sample->threadProfile) {
-    // Platform doesn't support multithread, so use the main thread profile we created
-    sample->threadProfile = GetPrimaryThreadProfile();
-  }
-
-  /* Get hold of an empty inter-thread buffer into which to park
-     the ProfileEntries for this sample. */
-  UnwinderThreadBuffer* utb = uwt__acquire_empty_buffer();
-
-  /* This could fail, if no buffers are currently available, in which
-     case we must give up right away.  We cannot wait for a buffer to
-     become available, as that risks deadlock. */
-  if (!utb)
-    return;
-
-  populateBuffer(utb, sample, &uwt__release_full_buffer, mJankOnly);
 }
 
 // END take samples

@@ -6,9 +6,7 @@
 
 // tests the registerFile API
 
-XPCOMUtils.defineLazyGetter(this, "BASE", function() {
-  return "http://localhost:" + srv.identity.primaryPort;
-});
+const BASE = "http://localhost:4444";
 
 var file = do_get_file("test_registerfile.js");
 
@@ -23,19 +21,15 @@ function onStop(ch, cx, status, data)
   do_check_eq(data.length, file.fileSize);
 }
 
-XPCOMUtils.defineLazyGetter(this, "test", function() {
-  return new Test(BASE + "/foo", null, onStart, onStop);
-});
-
-var srv;
+var test = new Test(BASE + "/foo", null, onStart, onStop);
 
 function run_test()
 {
-  srv = createServer();
+  var srv = createServer();
 
   try
   {
-    srv.registerFile("/foo", do_get_profile());
+    srv.registerFile("/foo", do_get_cwd());
     throw "registerFile succeeded!";
   }
   catch (e)
@@ -44,7 +38,7 @@ function run_test()
   }
 
   srv.registerFile("/foo", file);
-  srv.start(-1);
+  srv.start(4444);
 
   runHttpTests([test], testComplete(srv));
 }

@@ -13,27 +13,34 @@
 #include <windows.h>
 #elif defined(XP_MACOSX)
 #include <CoreServices/CoreServices.h>
+#elif defined(MOZ_WIDGET_GTK2)
+#include <gtk/gtk.h>
 #endif
 
 #include "nsArrayEnumerator.h"
+#include "nsAppDirectoryServiceDefs.h"
 #include "nsComponentManager.h"
 #include "nsEnumeratorUtils.h"
 #include "nsNetUtil.h"
 #include "nsStringEnumerator.h"
 #include "nsTextFormatter.h"
+#include "nsUnicharUtils.h"
 #include "nsXPCOMCIDInternal.h"
+#include "nsZipArchive.h"
 
 #include "mozilla/LookAndFeel.h"
 
 #include "nsICommandLine.h"
 #include "nsILocaleService.h"
+#include "nsIFile.h"
 #include "nsIObserverService.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
-#include "mozilla/Preferences.h"
 #include "nsIResProtocolHandler.h"
 #include "nsIScriptError.h"
+#include "nsIVersionComparator.h"
 #include "nsIXPConnect.h"
+#include "nsIXULAppInfo.h"
 #include "nsIXULRuntime.h"
 
 #define UILOCALE_CMD_LINE_ARG "UILocale"
@@ -41,7 +48,6 @@
 #define MATCH_OS_LOCALE_PREF "intl.locale.matchOS"
 #define SELECTED_LOCALE_PREF "general.useragent.locale"
 #define SELECTED_SKIN_PREF   "general.skins.selectedSkin"
-#define PACKAGE_OVERRIDE_BRANCH "chrome.override_package."
 
 using namespace mozilla;
 
@@ -116,6 +122,9 @@ nsChromeRegistryChrome::Init()
   if (NS_FAILED(rv))
     return rv;
 
+  mOverlayHash.Init();
+  mStyleHash.Init();
+  
   mSelectedLocale = NS_LITERAL_CSTRING("en-US");
   mSelectedSkin = NS_LITERAL_CSTRING("classic/1.0");
 
@@ -187,25 +196,20 @@ NS_IMETHODIMP
 nsChromeRegistryChrome::GetLocalesForPackage(const nsACString& aPackage,
                                        nsIUTF8StringEnumerator* *aResult)
 {
-  nsCString realpackage;
-  nsresult rv = OverrideLocalePackage(aPackage, realpackage);
-  if (NS_FAILED(rv))
-    return rv;
-
   nsTArray<nsCString> *a = new nsTArray<nsCString>;
   if (!a)
     return NS_ERROR_OUT_OF_MEMORY;
 
   PackageEntry* entry =
       static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
-                                                      & realpackage,
+                                                      & aPackage,
                                                       PL_DHASH_LOOKUP));
 
   if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
     entry->locales.EnumerateToArray(a);
   }
 
-  rv = NS_NewAdoptingUTF8StringEnumerator(aResult, a);
+  nsresult rv = NS_NewAdoptingUTF8StringEnumerator(aResult, a);
   if (NS_FAILED(rv))
     delete a;
 
@@ -263,13 +267,9 @@ nsresult
 nsChromeRegistryChrome::GetSelectedLocale(const nsACString& aPackage,
                                           nsACString& aLocale)
 {
-  nsCString realpackage;
-  nsresult rv = OverrideLocalePackage(aPackage, realpackage);
-  if (NS_FAILED(rv))
-    return rv;
   PackageEntry* entry =
       static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
-                                                      & realpackage,
+                                                      & aPackage,
                                                       PL_DHASH_LOOKUP));
 
   if (PL_DHASH_ENTRY_IS_FREE(entry))
@@ -279,21 +279,6 @@ nsChromeRegistryChrome::GetSelectedLocale(const nsACString& aPackage,
   if (aLocale.IsEmpty())
     return NS_ERROR_FAILURE;
 
-  return NS_OK;
-}
-
-nsresult
-nsChromeRegistryChrome::OverrideLocalePackage(const nsACString& aPackage,
-                                              nsACString& aOverride)
-{
-  const nsACString& pref = NS_LITERAL_CSTRING(PACKAGE_OVERRIDE_BRANCH) + aPackage;
-  nsAdoptingCString override = mozilla::Preferences::GetCString(PromiseFlatCString(pref).get());
-  if (override) {
-    aOverride = override;
-  }
-  else {
-    aOverride = aPackage;
-  }
   return NS_OK;
 }
 

@@ -64,8 +64,10 @@ public:
   NS_IMETHOD DoAction(uint8_t index);
   NS_IMETHOD TakeFocus();
 
-  // Accessible
+  // nsAccessNode
   virtual void Shutdown();
+
+  // Accessible
   virtual void Value(nsString& aValue);
   virtual uint64_t NativeLinkState() const;
 

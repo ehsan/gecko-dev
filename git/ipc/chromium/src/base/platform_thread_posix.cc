@@ -14,7 +14,7 @@
 #elif defined(OS_LINUX)
 #include <sys/syscall.h>
 #include <sys/prctl.h>
-#elif defined(OS_FREEBSD) && !defined(__GLIBC__)
+#elif defined(OS_FREEBSD)
 #include <sys/param.h>
 #include <sys/thr.h>
 #endif
@@ -23,7 +23,7 @@
 #include <unistd.h>
 #endif
 
-#if defined(OS_BSD) && !defined(OS_NETBSD) && !defined(__GLIBC__)
+#if defined(OS_BSD) && !defined(OS_NETBSD)
 #include <pthread_np.h>
 #endif
 
@@ -45,17 +45,7 @@ PlatformThreadId PlatformThread::CurrentId() {
   // Pthreads doesn't have the concept of a thread ID, so we have to reach down
   // into the kernel.
 #if defined(OS_MACOSX)
-  mach_port_t port = mach_thread_self();
-  mach_port_deallocate(mach_task_self(), port);
-  return port;
-#elif defined(OS_LINUX)
-#ifdef MOZ_WIDGET_GONK
-  return (intptr_t) (pthread_self());
-#else
-  return syscall(__NR_gettid);
-#endif
-#elif defined(OS_OPENBSD) || defined(__GLIBC__)
-  return (intptr_t) (pthread_self());
+  return mach_thread_self();
 #elif defined(OS_NETBSD)
   return _lwp_self();
 #elif defined(OS_DRAGONFLY)
@@ -68,6 +58,10 @@ PlatformThreadId PlatformThread::CurrentId() {
     thr_self(&lwpid);
     return lwpid;
 #  endif
+#elif defined(OS_OPENBSD)
+  return (intptr_t) (pthread_self());
+#elif defined(OS_LINUX)
+  return syscall(__NR_gettid);
 #endif
 }
 
@@ -108,13 +102,12 @@ void PlatformThread::SetName(const char* name) {
   // Note that glibc also has a 'pthread_setname_np' api, but it may not be
   // available everywhere and it's only benefit over using prctl directly is
   // that it can set the name of threads other than the current thread.
-#if defined(OS_LINUX)
-  prctl(PR_SET_NAME, reinterpret_cast<uintptr_t>(name), 0, 0, 0); 
+#if defined(OS_BSD) && !defined(OS_NETBSD)
+  pthread_set_name_np(pthread_self(), name);
 #elif defined(OS_NETBSD)
   pthread_setname_np(pthread_self(), "%s", (void *)name);
-#elif defined(OS_BSD) && !defined(__GLIBC__)
-  pthread_set_name_np(pthread_self(), name);
 #else
+  prctl(PR_SET_NAME, reinterpret_cast<uintptr_t>(name), 0, 0, 0); 
 #endif
 }
 #endif // !OS_MACOSX

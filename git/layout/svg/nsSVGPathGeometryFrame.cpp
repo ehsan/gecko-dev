@@ -106,15 +106,11 @@ nsSVGPathGeometryFrame::AttributeChanged(int32_t         aNameSpaceID,
                                          nsIAtom*        aAttribute,
                                          int32_t         aModType)
 {
-  // We don't invalidate for transform changes (the layers code does that).
-  // Also note that SVGTransformableElement::GetAttributeChangeHint will
-  // return nsChangeHint_UpdateOverflow for "transform" attribute changes
-  // and cause DoApplyRenderingChangeToTree to make the SchedulePaint call.
-
   if (aNameSpaceID == kNameSpaceID_None &&
       (static_cast<nsSVGPathGeometryElement*>
-                  (mContent)->AttributeDefinesGeometry(aAttribute))) {
-    nsSVGEffects::InvalidateRenderingObservers(this);
+                  (mContent)->AttributeDefinesGeometry(aAttribute) ||
+       aAttribute == nsGkAtoms::transform)) {
+    nsSVGUtils::InvalidateBounds(this, false);
     nsSVGUtils::ScheduleReflowSVG(this);
   }
   return NS_OK;
@@ -125,16 +121,14 @@ nsSVGPathGeometryFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
   nsSVGPathGeometryFrameBase::DidSetStyleContext(aOldStyleContext);
 
-  if (aOldStyleContext) {
-    float oldOpacity = aOldStyleContext->PeekStyleDisplay()->mOpacity;
-    float newOpacity = StyleDisplay()->mOpacity;
-    if (newOpacity != oldOpacity &&
-        nsSVGUtils::CanOptimizeOpacity(this)) {
-      // nsIFrame::BuildDisplayListForStackingContext() is not going to create an
-      // nsDisplayOpacity display list item, so DLBI won't invalidate for us.
-      InvalidateFrame();
-    }
-  }
+  // XXX: we'd like to use the style_hint mechanism and the
+  // ContentStateChanged/AttributeChanged functions for style changes
+  // to get slightly finer granularity, but unfortunately the
+  // style_hints don't map very well onto svg. Here seems to be the
+  // best place to deal with style changes:
+
+  nsSVGUtils::InvalidateBounds(this, false);
+  nsSVGUtils::ScheduleReflowSVG(this);
 }
 
 nsIAtom *
@@ -188,15 +182,14 @@ nsSVGPathGeometryFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 NS_IMETHODIMP
 nsSVGPathGeometryFrame::PaintSVG(nsRenderingContext *aContext,
-                                 const nsIntRect *aDirtyRect,
-                                 nsIFrame* aTransformRoot)
+                                 const nsIntRect *aDirtyRect)
 {
   if (!StyleVisibility()->IsVisible())
     return NS_OK;
 
   uint32_t paintOrder = StyleSVG()->mPaintOrder;
   if (paintOrder == NS_STYLE_PAINT_ORDER_NORMAL) {
-    Render(aContext, eRenderFill | eRenderStroke, aTransformRoot);
+    Render(aContext, eRenderFill | eRenderStroke);
     PaintMarkers(aContext);
   } else {
     while (paintOrder) {
@@ -204,10 +197,10 @@ nsSVGPathGeometryFrame::PaintSVG(nsRenderingContext *aContext,
         paintOrder & ((1 << NS_STYLE_PAINT_ORDER_BITWIDTH) - 1);
       switch (component) {
         case NS_STYLE_PAINT_ORDER_FILL:
-          Render(aContext, eRenderFill, aTransformRoot);
+          Render(aContext, eRenderFill);
           break;
         case NS_STYLE_PAINT_ORDER_STROKE:
-          Render(aContext, eRenderStroke, aTransformRoot);
+          Render(aContext, eRenderStroke);
           break;
         case NS_STYLE_PAINT_ORDER_MARKERS:
           PaintMarkers(aContext);
@@ -245,7 +238,8 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
 
   bool isHit = false;
 
-  nsRefPtr<gfxContext> tmpCtx = new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceDrawTarget());
+  nsRefPtr<gfxContext> tmpCtx =
+    new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
   GeneratePath(tmpCtx, canvasTM);
   gfxPoint userSpacePoint =
@@ -260,12 +254,7 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
   if (hitTestFlags & SVG_HIT_TEST_FILL)
     isHit = tmpCtx->PointInFill(userSpacePoint);
   if (!isHit && (hitTestFlags & SVG_HIT_TEST_STROKE)) {
-    nsSVGUtils::SetupCairoStrokeGeometry(this, tmpCtx);
-    // tmpCtx's matrix may have transformed by SetupCairoStrokeGeometry
-    // if there is a non-scaling stroke. We need to transform userSpacePoint
-    // so that everything is using the same co-ordinate system.
-    userSpacePoint =
-      nsSVGUtils::GetStrokeTransform(this).Invert().Transform(userSpacePoint);
+    nsSVGUtils::SetupCairoStrokeHitGeometry(this, tmpCtx);
     isHit = tmpCtx->PointInStroke(userSpacePoint);
   }
 
@@ -288,7 +277,7 @@ nsSVGPathGeometryFrame::ReflowSVG()
   NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
                "This call is probably a wasteful mistake");
 
-  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_FRAME_IS_NONDISPLAY),
+  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
                     "ReflowSVG mechanism not designed for this");
 
   if (!nsSVGUtils::NeedsReflowSVG(this)) {
@@ -328,7 +317,7 @@ nsSVGPathGeometryFrame::ReflowSVG()
   if (applyScaling) {
     scaling.Scale(scaleFactors.width, scaleFactors.height);
   }
-  gfxRect extent = GetBBoxContribution(scaling, flags).ToThebesRect();
+  gfxRect extent = GetBBoxContribution(scaling, flags);
   if (applyScaling) {
     extent.Scale(1 / scaleFactors.width, 1 / scaleFactors.height);
   }
@@ -362,38 +351,12 @@ nsSVGPathGeometryFrame::NotifySVGChanged(uint32_t aFlags)
   NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
                     "Invalidation logic may need adjusting");
 
-  // Changes to our ancestors may affect how we render when we are rendered as
-  // part of our ancestor (specifically, if our coordinate context changes size
-  // and we have percentage lengths defining our geometry, then we need to be
-  // reflowed). However, ancestor changes cannot affect how we render when we
-  // are rendered as part of any rendering observers that we may have.
-  // Therefore no need to notify rendering observers here.
-
-  // Don't try to be too smart trying to avoid the ScheduleReflowSVG calls
-  // for the stroke properties examined below. Checking HasStroke() is not
-  // enough, since what we care about is whether we include the stroke in our
-  // overflow rects or not, and we sometimes deliberately include stroke
-  // when it's not visible. See the complexities of GetBBoxContribution.
-
-  if (aFlags & COORD_CONTEXT_CHANGED) {
-    // Stroke currently contributes to our mRect, which is why we have to take
-    // account of stroke-width here. Note that we do not need to take account
-    // of stroke-dashoffset since, although that can have a percentage value
-    // that is resolved against our coordinate context, it does not affect our
-    // mRect.
-    if (static_cast<nsSVGPathGeometryElement*>(mContent)->GeometryDependsOnCoordCtx() ||
-        StyleSVG()->mStrokeWidth.HasPercent()) {
-      nsSVGUtils::ScheduleReflowSVG(this);
-    }
-  }
-
-  if ((aFlags & TRANSFORM_CHANGED) &&
-      StyleSVGReset()->mVectorEffect ==
-        NS_STYLE_VECTOR_EFFECT_NON_SCALING_STROKE) {
-    // Stroke currently contributes to our mRect, and our stroke depends on
-    // the transform to our outer-<svg> if |vector-effect:non-scaling-stroke|.
-    nsSVGUtils::ScheduleReflowSVG(this);
-  } 
+  // Ancestor changes can't affect how we render from the perspective of
+  // any rendering observers that we may have, so we don't need to
+  // invalidate them. We also don't need to invalidate ourself, since our
+  // changed ancestor will have invalidated its entire area, which includes
+  // our area.
+  nsSVGUtils::ScheduleReflowSVG(this);
 }
 
 SVGBBox
@@ -407,7 +370,8 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
     return bbox;
   }
 
-  nsRefPtr<gfxContext> tmpCtx = new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceDrawTarget());
+  nsRefPtr<gfxContext> tmpCtx =
+    new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
   GeneratePath(tmpCtx, aToBBoxUserspace);
   tmpCtx->IdentityMatrix();
@@ -447,7 +411,7 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
       // though, because if pathExtents is empty, its position will not have
       // been set. Happily we can use tmpCtx->GetUserStrokeExtent() to find
       // the center point of the extents even though it gets the extents wrong.
-      nsSVGUtils::SetupCairoStrokeBBoxGeometry(this, tmpCtx);
+      nsSVGUtils::SetupCairoStrokeGeometry(this, tmpCtx);
       pathExtents.MoveTo(tmpCtx->GetUserStrokeExtent().Center());
       pathExtents.SizeTo(0, 0);
     }
@@ -468,21 +432,30 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
       static_cast<nsSVGPathGeometryElement*>(mContent)->GetMarkPoints(&marks);
       uint32_t num = marks.Length();
 
-      // These are in the same order as the nsSVGMark::Type constants.
-      nsSVGMarkerFrame* markerFrames[] = {
-        properties.GetMarkerStartFrame(),
-        properties.GetMarkerMidFrame(),
-        properties.GetMarkerEndFrame(),
-      };
-      PR_STATIC_ASSERT(NS_ARRAY_LENGTH(markerFrames) == nsSVGMark::eTypeCount);
-
-      for (uint32_t i = 0; i < num; i++) {
-        nsSVGMark& mark = marks[i];
-        nsSVGMarkerFrame* frame = markerFrames[mark.type];
+      if (num) {
+        nsSVGMarkerFrame *frame = properties.GetMarkerStartFrame();
         if (frame) {
           SVGBBox mbbox =
             frame->GetMarkBBoxContribution(aToBBoxUserspace, aFlags, this,
-                                           &marks[i], strokeWidth);
+                                           &marks[0], strokeWidth);
+          bbox.UnionEdges(mbbox);
+        }
+
+        frame = properties.GetMarkerMidFrame();
+        if (frame) {
+          for (uint32_t i = 1; i < num - 1; i++) {
+            SVGBBox mbbox =
+              frame->GetMarkBBoxContribution(aToBBoxUserspace, aFlags, this,
+                                             &marks[i], strokeWidth);
+            bbox.UnionEdges(mbbox);
+          }
+        }
+
+        frame = properties.GetMarkerEndFrame();
+        if (frame) {
+          SVGBBox mbbox =
+            frame->GetMarkBBoxContribution(aToBBoxUserspace, aFlags, this,
+                                           &marks[num-1], strokeWidth);
           bbox.UnionEdges(mbbox);
         }
       }
@@ -496,9 +469,9 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 // nsSVGGeometryFrame methods:
 
 gfxMatrix
-nsSVGPathGeometryFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
+nsSVGPathGeometryFrame::GetCanvasTM(uint32_t aFor)
 {
-  if (!(GetStateBits() & NS_FRAME_IS_NONDISPLAY) && !aTransformRoot) {
+  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
         (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
@@ -510,9 +483,7 @@ nsSVGPathGeometryFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
   nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
   dom::SVGGraphicsElement *content = static_cast<dom::SVGGraphicsElement*>(mContent);
 
-  return content->PrependLocalTransformsTo(
-      this == aTransformRoot ? gfxMatrix() :
-                               parent->GetCanvasTM(aFor, aTransformRoot));
+  return content->PrependLocalTransformsTo(parent->GetCanvasTM(aFor));
 }
 
 //----------------------------------------------------------------------
@@ -566,8 +537,7 @@ nsSVGPathGeometryFrame::MarkerProperties::GetMarkerEndFrame()
 
 void
 nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
-                               uint32_t aRenderComponents,
-                               nsIFrame* aTransformRoot)
+                               uint32_t aRenderComponents)
 {
   gfxContext *gfx = aContext->ThebesContext();
 
@@ -583,39 +553,16 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
     break;
   }
 
+  /* save/restore the state so we don't screw up the xform */
+  gfx->Save();
+
+  GeneratePath(gfx, GetCanvasTM(FOR_PAINTING));
+
   if (renderMode != SVGAutoRenderState::NORMAL) {
     NS_ABORT_IF_FALSE(renderMode == SVGAutoRenderState::CLIP ||
                       renderMode == SVGAutoRenderState::CLIP_MASK,
                       "Unknown render mode");
-
-    // In the case that |renderMode == SVGAutoRenderState::CLIP| then we don't
-    // use the path we generate here until further up the call stack when
-    // nsSVGClipPathFrame::Clip calls gfxContext::Clip. That's a problem for
-    // Moz2D which emits paths in user space (unlike cairo which emits paths in
-    // device space). gfxContext has hacks to deal with code changing the
-    // transform then using the current path when it is backed by Moz2D, but
-    // Moz2D itself does not since that would fundamentally go against its API.
-    // Therefore we do not want to Save()/Restore() the gfxContext here in the
-    // SVGAutoRenderState::CLIP case since that would block us from killing off
-    // gfxContext and using Moz2D directly. Not bothering to Save()/Restore()
-    // is actually okay, since we know that doesn't matter in the
-    // SVGAutoRenderState::CLIP case (at least for the current implementation).
-    gfxContextMatrixAutoSaveRestore autoSaveRestore;
-    if (renderMode != SVGAutoRenderState::CLIP) {
-      autoSaveRestore.SetContext(gfx);
-    }
-
-    GeneratePath(gfx, GetCanvasTM(FOR_PAINTING, aTransformRoot));
-
-    // We used to call gfx->Restore() here, since for the
-    // SVGAutoRenderState::CLIP case it is important to leave the fill rule
-    // that we set below untouched so that the value is still set when return
-    // to gfxContext::Clip() further up the call stack. Since we no longer
-    // call gfx->Save() in the SVGAutoRenderState::CLIP case we don't need to
-    // worry that autoSaveRestore will delay the Restore() call for the
-    // CLIP_MASK case until we exit this function.
-
-    gfxContext::FillRule oldFillRull = gfx->CurrentFillRule();
+    gfx->Restore();
 
     if (GetClipRule() == NS_STYLE_FILL_RULE_EVENODD)
       gfx->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
@@ -625,31 +572,28 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
     if (renderMode == SVGAutoRenderState::CLIP_MASK) {
       gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
       gfx->Fill();
-      gfx->SetFillRule(oldFillRull); // restore, but only for CLIP_MASK
       gfx->NewPath();
     }
 
     return;
   }
 
-  gfxContextAutoSaveRestore autoSaveRestore(gfx);
-
-  GeneratePath(gfx, GetCanvasTM(FOR_PAINTING, aTransformRoot));
-
-  gfxTextContextPaint *contextPaint =
-    (gfxTextContextPaint*)aContext->GetUserData(&gfxTextContextPaint::sUserDataKey);
+  gfxTextObjectPaint *objectPaint =
+    (gfxTextObjectPaint*)aContext->GetUserData(&gfxTextObjectPaint::sUserDataKey);
 
   if ((aRenderComponents & eRenderFill) &&
-      nsSVGUtils::SetupCairoFillPaint(this, gfx, contextPaint)) {
+      nsSVGUtils::SetupCairoFillPaint(this, gfx, objectPaint)) {
     gfx->Fill();
   }
 
   if ((aRenderComponents & eRenderStroke) &&
-       nsSVGUtils::SetupCairoStroke(this, gfx, contextPaint)) {
+       nsSVGUtils::SetupCairoStroke(this, gfx, objectPaint)) {
     gfx->Stroke();
   }
 
   gfx->NewPath();
+
+  gfx->Restore();
 }
 
 void
@@ -677,36 +621,35 @@ nsSVGPathGeometryFrame::GeneratePath(gfxContext* aContext,
 void
 nsSVGPathGeometryFrame::PaintMarkers(nsRenderingContext* aContext)
 {
-  gfxTextContextPaint *contextPaint =
-    (gfxTextContextPaint*)aContext->GetUserData(&gfxTextContextPaint::sUserDataKey);
+  gfxTextObjectPaint *objectPaint =
+    (gfxTextObjectPaint*)aContext->GetUserData(&gfxTextObjectPaint::sUserDataKey);
 
   if (static_cast<nsSVGPathGeometryElement*>(mContent)->IsMarkable()) {
     MarkerProperties properties = GetMarkerProperties(this);
 
     if (properties.MarkersExist()) {
-      float strokeWidth = nsSVGUtils::GetStrokeWidth(this, contextPaint);
+      float strokeWidth = nsSVGUtils::GetStrokeWidth(this, objectPaint);
 
       nsTArray<nsSVGMark> marks;
       static_cast<nsSVGPathGeometryElement*>
                  (mContent)->GetMarkPoints(&marks);
 
       uint32_t num = marks.Length();
-      if (num) {
-        // These are in the same order as the nsSVGMark::Type constants.
-        nsSVGMarkerFrame* markerFrames[] = {
-          properties.GetMarkerStartFrame(),
-          properties.GetMarkerMidFrame(),
-          properties.GetMarkerEndFrame(),
-        };
-        PR_STATIC_ASSERT(NS_ARRAY_LENGTH(markerFrames) == nsSVGMark::eTypeCount);
 
-        for (uint32_t i = 0; i < num; i++) {
-          nsSVGMark& mark = marks[i];
-          nsSVGMarkerFrame* frame = markerFrames[mark.type];
-          if (frame) {
-            frame->PaintMark(aContext, this, &mark, strokeWidth);
-          }
+      if (num) {
+        nsSVGMarkerFrame *frame = properties.GetMarkerStartFrame();
+        if (frame)
+          frame->PaintMark(aContext, this, &marks[0], strokeWidth);
+
+        frame = properties.GetMarkerMidFrame();
+        if (frame) {
+          for (uint32_t i = 1; i < num - 1; i++)
+            frame->PaintMark(aContext, this, &marks[i], strokeWidth);
         }
+
+        frame = properties.GetMarkerEndFrame();
+        if (frame)
+          frame->PaintMark(aContext, this, &marks[num-1], strokeWidth);
       }
     }
   }

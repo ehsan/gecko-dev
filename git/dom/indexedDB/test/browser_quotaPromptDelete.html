@@ -70,7 +70,7 @@
         let request = indexedDB.open(name, 1);
         request.onerror = errorHandler;
         request.onupgradeneeded = grabEventAndContinueHandler;
-        let event = yield undefined;
+        let event = yield;
 
         db = event.target.result;
 
@@ -79,10 +79,10 @@
         db.createObjectStore("foo", { autoIncrement: true });
 
         request.onsuccess = grabEventAndContinueHandler;
-        yield undefined;
+        yield;
 
         setTimeout(testFinishedCallback, 0, "ready");
-        yield undefined;
+        yield;
       }
     </script>
 

@@ -6,30 +6,28 @@
 #ifndef GFX_CanvasLayerComposite_H
 #define GFX_CanvasLayerComposite_H
 
-#include "Layers.h"                     // for CanvasLayer, etc
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/RefPtr.h"             // for RefPtr
-#include "mozilla/layers/LayerManagerComposite.h"  // for LayerComposite, etc
-#include "mozilla/layers/LayersTypes.h"  // for LayerRenderState, etc
-#include "nsDebug.h"                    // for NS_RUNTIMEABORT
-#include "nsRect.h"                     // for nsIntRect
-#include "nscore.h"                     // for nsACString
-struct nsIntPoint;
+
+#include "LayerManagerComposite.h"
+#include "gfxASurface.h"
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
+#include "mozilla/X11Util.h"
+#endif
 
 namespace mozilla {
 namespace layers {
 
-class CompositableHost;
 // Canvas layers use ImageHosts (but CanvasClients) because compositing a
 // canvas is identical to compositing an image.
 class ImageHost;
 
-class CanvasLayerComposite : public CanvasLayer,
+// NB: eventually we'll have separate shadow canvas2d and shadow
+// canvas3d layers, but currently they look the same from the
+// perspective of the compositor process
+class CanvasLayerComposite : public ShadowCanvasLayer,
                              public LayerComposite
 {
 public:
   CanvasLayerComposite(LayerManagerComposite* aManager);
-
   virtual ~CanvasLayerComposite();
 
   // CanvasLayer impl
@@ -40,6 +38,14 @@ public:
 
   virtual LayerRenderState GetRenderState() MOZ_OVERRIDE;
 
+  // ShadowCanvasLayer impl
+  virtual void Swap(const SurfaceDescriptor& aNewFront,
+                    bool needYFlip,
+                    SurfaceDescriptor* aNewBack) MOZ_OVERRIDE
+  {
+    NS_ERROR("Should never be called");
+  }
+
   virtual void SetCompositableHost(CompositableHost* aHost) MOZ_OVERRIDE;
 
   virtual void Disconnect() MOZ_OVERRIDE
@@ -47,8 +53,10 @@ public:
     Destroy();
   }
 
+  // LayerComposite impl
   virtual Layer* GetLayer() MOZ_OVERRIDE;
-  virtual void RenderLayer(const nsIntRect& aClipRect) MOZ_OVERRIDE;
+  virtual void RenderLayer(const nsIntPoint& aOffset,
+                           const nsIntRect& aClipRect) MOZ_OVERRIDE;
 
   virtual void CleanupResources() MOZ_OVERRIDE;
 
@@ -56,15 +64,15 @@ public:
 
   virtual LayerComposite* AsLayerComposite() MOZ_OVERRIDE { return this; }
 
-  void SetBounds(nsIntRect aBounds) { mBounds = aBounds; }
-
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() const MOZ_OVERRIDE { return "CanvasLayerComposite"; }
 
 protected:
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix) MOZ_OVERRIDE;
+#endif
 
 private:
-  RefPtr<CompositableHost> mImageHost;
+  RefPtr<ImageHost> mImageHost;
 };
 
 } /* layers */

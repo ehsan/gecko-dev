@@ -1,4 +1,4 @@
- /*This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 'use strict';
@@ -14,8 +14,6 @@ const { activateTab, getOwnerWindow, getBrowserForTab, getTabTitle, setTabTitle,
         getTabURL, setTabURL, getTabContentType, getTabId } = require('./utils');
 const { getOwnerWindow: getPBOwnerWindow } = require('../private-browsing/window/utils');
 const viewNS = require('sdk/core/namespace').ns();
-const { deprecateUsage } = require('sdk/util/deprecate');
-const { getURL } = require('sdk/url/utils');
 
 // Array of the inner instances of all the wrapped tabs.
 const TABS = [];
@@ -64,9 +62,6 @@ const TabTrait = Trait.compose(EventEmitter, {
 
     viewNS(this._public).tab = this._tab;
     getPBOwnerWindow.implement(this._public, getChromeTab);
-
-    // Add tabs to getURL method
-    getURL.implement(this._public, (function (obj) this._public.url).bind(this));
 
     // Since we will have to identify tabs by a DOM elements facade function
     // is used as constructor that collects all the instances and makes sure
@@ -125,7 +120,7 @@ const TabTrait = Trait.compose(EventEmitter, {
    * listeners.
    */
   _onEvent: function _onEvent(type, tab) {
-    if (viewNS(tab).tab == this._tab)
+    if (tab == this._public)
       this._emit(type, tab);
   },
   /**
@@ -176,13 +171,7 @@ const TabTrait = Trait.compose(EventEmitter, {
    * URI of the favicon for the page currently loaded in this tab.
    * @type {String}
    */
-  get favicon() {
-    deprecateUsage(
-      'tab.favicon is deprecated, ' +
-      'please use require("sdk/places/favicon").getFavicon instead.'
-    );
-    return this._tab ? getFaviconURIForLocation(this.url) : undefined
-  },
+  get favicon() this._tab ? getFaviconURIForLocation(this.url) : undefined,
   /**
    * The CSS style for the tab
    */
@@ -248,12 +237,8 @@ const TabTrait = Trait.compose(EventEmitter, {
    * Close the tab
    */
   close: function close(callback) {
-    // Bug 699450: the tab may already have been detached
-    if (!this._tab || !this._tab.parentNode) {
-      if (callback)
-        callback();
+    if (!this._tab)
       return;
-    }
     if (callback)
       this.once(EVENTS.close.name, callback);
     this._window.gBrowser.removeTab(this._tab);

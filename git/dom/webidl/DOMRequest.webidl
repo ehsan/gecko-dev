@@ -3,7 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-interface nsISupports;
+interface DOMError;
+interface Window;
 
 enum DOMRequestReadyState { "pending", "done" };
 
@@ -11,8 +12,10 @@ interface DOMRequest : EventTarget {
   readonly attribute DOMRequestReadyState readyState;
 
   readonly attribute any result;
-  readonly attribute nsISupports? error;
+  readonly attribute DOMError? error;
 
+  [SetterThrows]
   attribute EventHandler onsuccess;
+  [SetterThrows]
   attribute EventHandler onerror;
 };

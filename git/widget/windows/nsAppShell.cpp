@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ipc/MessageChannel.h"
+#include "mozilla/ipc/RPCChannel.h"
 #include "nsAppShell.h"
 #include "nsToolkit.h"
 #include "nsThreadUtils.h"
@@ -16,16 +16,13 @@
 #include "mozilla/widget/AudioSession.h"
 #include "mozilla/HangMonitor.h"
 
-using namespace mozilla;
 using namespace mozilla::widget;
 
-namespace mozilla {
-namespace widget {
-// Native event callback message.
-UINT sAppShellGeckoMsgId = RegisterWindowMessageW(L"nsAppShell:EventID");
-} }
-
+const PRUnichar* kAppShellEventId = L"nsAppShell:EventID";
 const PRUnichar* kTaskbarButtonEventId = L"TaskbarButtonCreated";
+
+static UINT sMsgId;
+
 UINT sTaskbarButtonCreatedMsg;
 
 /* static */
@@ -46,7 +43,7 @@ using mozilla::crashreporter::LSPAnnotate;
 /*static*/ LRESULT CALLBACK
 nsAppShell::EventWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-  if (uMsg == sAppShellGeckoMsgId) {
+  if (uMsg == sMsgId) {
     nsAppShell *as = reinterpret_cast<nsAppShell *>(lParam);
     as->NativeEventCallback();
     NS_RELEASE(as);
@@ -74,11 +71,14 @@ nsAppShell::Init()
 
   mLastNativeEventScheduled = TimeStamp::NowLoRes();
 
+  if (!sMsgId)
+    sMsgId = RegisterWindowMessageW(kAppShellEventId);
+
   sTaskbarButtonCreatedMsg = ::RegisterWindowMessageW(kTaskbarButtonEventId);
   NS_ASSERTION(sTaskbarButtonCreatedMsg, "Could not register taskbar button creation message");
 
   WNDCLASSW wc;
-  HINSTANCE module = GetModuleHandle(nullptr);
+  HINSTANCE module = GetModuleHandle(NULL);
 
   const PRUnichar *const kWindowClass = L"nsAppShell:EventWindowClass";
   if (!GetClassInfoW(module, kWindowClass, &wc)) {
@@ -87,16 +87,16 @@ nsAppShell::Init()
     wc.cbClsExtra    = 0;
     wc.cbWndExtra    = 0;
     wc.hInstance     = module;
-    wc.hIcon         = nullptr;
-    wc.hCursor       = nullptr;
-    wc.hbrBackground = (HBRUSH) nullptr;
-    wc.lpszMenuName  = (LPCWSTR) nullptr;
+    wc.hIcon         = NULL;
+    wc.hCursor       = NULL;
+    wc.hbrBackground = (HBRUSH) NULL;
+    wc.lpszMenuName  = (LPCWSTR) NULL;
     wc.lpszClassName = kWindowClass;
     RegisterClassW(&wc);
   }
 
   mEventWnd = CreateWindowW(kWindowClass, L"nsAppShell:EventWindow",
-                           0, 0, 0, 10, 10, nullptr, nullptr, module, nullptr);
+                           0, 0, 0, 10, 10, NULL, NULL, module, NULL);
   NS_ENSURE_STATE(mEventWnd);
 
   return nsBaseAppShell::Init();
@@ -162,20 +162,17 @@ nsAppShell::ScheduleNativeEventCallback()
 {
   // Post a message to the hidden message window
   NS_ADDREF_THIS(); // will be released when the event is processed
-  {
-    MutexAutoLock lock(mLastNativeEventScheduledMutex);
-    // Time stamp this event so we can detect cases where the event gets
-    // dropping in sub classes / modal loops we do not control.
-    mLastNativeEventScheduled = TimeStamp::NowLoRes();
-  }
-  ::PostMessage(mEventWnd, sAppShellGeckoMsgId, 0, reinterpret_cast<LPARAM>(this));
+  // Time stamp this event so we can detect cases where the event gets
+  // dropping in sub classes / modal loops we do not control. 
+  mLastNativeEventScheduled = TimeStamp::NowLoRes();
+  ::PostMessage(mEventWnd, sMsgId, 0, reinterpret_cast<LPARAM>(this));
 }
 
 bool
 nsAppShell::ProcessNextNativeEvent(bool mayWait)
 {
   // Notify ipc we are spinning a (possibly nested) gecko event loop.
-  mozilla::ipc::MessageChannel::NotifyGeckoEventDispatch();
+  mozilla::ipc::RPCChannel::NotifyGeckoEventDispatch();
 
   bool gotMessage = false;
 
@@ -191,7 +188,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     // internal message because it may make different modifier key state or
     // mouse cursor position between them.
     if (mozilla::widget::MouseScrollHandler::IsWaitingInternalMessage()) {
-      gotMessage = WinUtils::PeekMessage(&msg, nullptr, MOZ_WM_MOUSEWHEEL_FIRST,
+      gotMessage = WinUtils::PeekMessage(&msg, NULL, MOZ_WM_MOUSEWHEEL_FIRST,
                                          MOZ_WM_MOUSEWHEEL_LAST, PM_REMOVE);
       NS_ASSERTION(gotMessage,
                    "waiting internal wheel message, but it has not come");
@@ -199,7 +196,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     }
 
     if (!gotMessage) {
-      gotMessage = WinUtils::PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
+      gotMessage = WinUtils::PeekMessage(&msg, NULL, 0, 0, PM_REMOVE);
       uiMessage =
         (msg.message >= WM_KEYFIRST && msg.message <= WM_IME_KEYLAST) ||
         (msg.message >= NS_WM_IMEFIRST && msg.message <= NS_WM_IMELAST) ||
@@ -228,7 +225,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     } else if (mayWait) {
       // Block and wait for any posted application message
       mozilla::HangMonitor::Suspend();
-      WinUtils::WaitForMessage();
+      ::WaitMessage();
     }
   } while (!gotMessage && mayWait);
 
@@ -242,13 +239,8 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
   static const mozilla::TimeDuration nativeEventStarvationLimit =
     mozilla::TimeDuration::FromSeconds(NATIVE_EVENT_STARVATION_LIMIT);
 
-  TimeDuration timeSinceLastNativeEventScheduled;
-  {
-    MutexAutoLock lock(mLastNativeEventScheduledMutex);
-    timeSinceLastNativeEventScheduled =
-        TimeStamp::NowLoRes() - mLastNativeEventScheduled;
-  }
-  if (timeSinceLastNativeEventScheduled > nativeEventStarvationLimit) {
+  if ((TimeStamp::NowLoRes() - mLastNativeEventScheduled) >
+      nativeEventStarvationLimit) {
     ScheduleNativeEventCallback();
   }
   

@@ -4,40 +4,37 @@
 
 // This test makes sure that the style editor does not store any
 // content CSS files in the permanent cache when opened from PB mode.
-
-let gUI;
-
 function test() {
   waitForExplicitFinish();
   let windowsToClose = [];
   let testURI = 'http://' + TEST_HOST + '/browser/browser/devtools/styleeditor/test/test_private.html';
 
   function checkCache() {
-    checkDiskCacheFor(TEST_HOST, function() {
-      gUI = null;
-      finish();
-    });
+    checkDiskCacheFor(TEST_HOST);
+    finish();
   }
 
   function doTest(aWindow) {
     aWindow.gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
       aWindow.gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
-      cache.clear();
-      openStyleEditorInWindow(aWindow, function(panel) {
-        gUI = panel.UI;
-        gUI.on("editor-added", onEditorAdded);
+      cache.evictEntries(Ci.nsICache.STORE_ANYWHERE);
+      launchStyleEditorChromeFromWindow(aWindow, function(aChrome) {
+        onEditorAdded(aChrome, aChrome.editors[0]);
       });
     }, true);
 
     aWindow.gBrowser.selectedBrowser.loadURI(testURI);
   }
 
-  function onEditorAdded(aEvent, aEditor) {
-    if (aEditor.sourceLoaded) {
+  function onEditorAdded(aChrome, aEditor) {
+    aChrome.removeChromeListener(this);
+
+    if (aEditor.isLoaded) {
       checkCache();
-    }
-    else {
-      aEditor.on("source-load", checkCache);
+    } else {
+      aEditor.addActionListener({
+        onLoad: checkCache
+      });
     }
   }
 

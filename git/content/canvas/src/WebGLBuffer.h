@@ -6,24 +6,21 @@
 #ifndef WEBGLBUFFER_H_
 #define WEBGLBUFFER_H_
 
-#include "WebGLObjectModel.h"
 #include "WebGLElementArrayCache.h"
-#include "GLDefs.h"
+#include "WebGLObjectModel.h"
 
 #include "nsWrapperCache.h"
 
 #include "mozilla/LinkedList.h"
-#include "mozilla/MemoryReporting.h"
 
 namespace mozilla {
 
-class WebGLElementArrayCache;
-
 class WebGLBuffer MOZ_FINAL
-    : public nsWrapperCache
+    : public nsISupports
     , public WebGLRefCountedObject<WebGLBuffer>
     , public LinkedListElement<WebGLBuffer>
     , public WebGLContextBoundObject
+    , public nsWrapperCache
 {
 public:
     WebGLBuffer(WebGLContext *context);
@@ -32,7 +29,7 @@ public:
 
     void Delete();
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
         size_t sizeOfCache = mCache ? mCache->SizeOfIncludingThis(aMallocSizeOf) : 0;
         return aMallocSizeOf(this) + sizeOfCache;
     }
@@ -40,10 +37,10 @@ public:
     bool HasEverBeenBound() { return mHasEverBeenBound; }
     void SetHasEverBeenBound(bool x) { mHasEverBeenBound = x; }
     GLuint GLName() const { return mGLName; }
-    WebGLsizeiptr ByteLength() const { return mByteLength; }
+    GLuint ByteLength() const { return mByteLength; }
     GLenum Target() const { return mTarget; }
 
-    void SetByteLength(WebGLsizeiptr byteLength) { mByteLength = byteLength; }
+    void SetByteLength(GLuint byteLength) { mByteLength = byteLength; }
 
     void SetTarget(GLenum target);
 
@@ -51,7 +48,7 @@ public:
 
     void ElementArrayCacheBufferSubData(size_t pos, const void* ptr, size_t update_size_in_bytes);
 
-    bool Validate(GLenum type, uint32_t max_allowed, size_t first, size_t count) {
+    bool Validate(WebGLenum type, uint32_t max_allowed, size_t first, size_t count) {
         return mCache->Validate(type, max_allowed, first, count);
     }
 
@@ -59,17 +56,16 @@ public:
         return Context();
     }
 
-    virtual JSObject* WrapObject(JSContext *cx,
-                                 JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+    virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
-    NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebGLBuffer)
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLBuffer)
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLBuffer)
 
 protected:
 
-    GLuint mGLName;
+    WebGLuint mGLName;
     bool mHasEverBeenBound;
-    WebGLsizeiptr mByteLength;
+    GLuint mByteLength;
     GLenum mTarget;
 
     nsAutoPtr<WebGLElementArrayCache> mCache;

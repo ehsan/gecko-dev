@@ -55,8 +55,7 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGPathSegList)
 
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
   nsISupports* GetParentObject()
   {
@@ -138,10 +137,17 @@ public:
   void Clear(ErrorResult& aError);
   already_AddRefed<DOMSVGPathSeg> Initialize(DOMSVGPathSeg& aNewItem,
                                              ErrorResult& aError);
-  already_AddRefed<DOMSVGPathSeg> GetItem(uint32_t index,
-                                          ErrorResult& error);
-  already_AddRefed<DOMSVGPathSeg> IndexedGetter(uint32_t index, bool& found,
-                                                ErrorResult& error);
+  DOMSVGPathSeg* GetItem(uint32_t aIndex, ErrorResult& aError)
+  {
+    bool found;
+    DOMSVGPathSeg* item = IndexedGetter(aIndex, found, aError);
+    if (!found) {
+      aError.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
+    }
+    return item;
+  }
+  DOMSVGPathSeg* IndexedGetter(uint32_t aIndex, bool& found,
+                               ErrorResult& aError);
   already_AddRefed<DOMSVGPathSeg> InsertItemBefore(DOMSVGPathSeg& aNewItem,
                                                    uint32_t aIndex,
                                                    ErrorResult& aError);
@@ -199,8 +205,8 @@ private:
   SVGAnimatedPathSegList& InternalAList() const;
 
   /// Creates an instance of the appropriate DOMSVGPathSeg sub-class for
-  // aIndex, if it doesn't already exist, and then returs it.
-  already_AddRefed<DOMSVGPathSeg> GetItemAt(uint32_t aIndex);
+  // aIndex, if it doesn't already exist.
+  void EnsureItemAt(uint32_t aIndex);
 
   void MaybeInsertNullInAnimValListAt(uint32_t aIndex,
                                       uint32_t aInternalIndex,

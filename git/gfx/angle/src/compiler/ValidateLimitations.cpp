@@ -421,7 +421,7 @@ bool ValidateLimitations::validateFunctionCall(TIntermAggregate* node)
         return true;
 
     // List of param indices for which loop indices are used as argument.
-    typedef std::vector<size_t> ParamIndex;
+    typedef std::vector<int> ParamIndex;
     ParamIndex pIndex;
     TIntermSequence& params = node->getSequence();
     for (TIntermSequence::size_type i = 0; i < params.size(); ++i) {
@@ -435,7 +435,7 @@ bool ValidateLimitations::validateFunctionCall(TIntermAggregate* node)
         return true;
 
     bool valid = true;
-    TSymbolTable& symbolTable = GetGlobalParseContext()->symbolTable;
+    TSymbolTable& symbolTable = GlobalParseContext->symbolTable;
     TSymbol* symbol = symbolTable.find(node->getName());
     ASSERT(symbol && symbol->isFunction());
     TFunction* function = static_cast<TFunction*>(symbol);

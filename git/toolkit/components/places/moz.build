@@ -11,83 +11,26 @@ XPIDL_SOURCES += [
     'nsINavHistoryService.idl',
 ]
 
-MODULE = 'places'
-
 if CONFIG['MOZ_PLACES']:
-    LIBXUL_LIBRARY = True
-    EXPORT_LIBRARY = True
-    MSVC_ENABLE_PGO = True
-    LIBRARY_NAME = 'places'
-
     XPIDL_SOURCES += [
-        'mozIAsyncFavicons.idl',
         'mozIAsyncHistory.idl',
+        'mozIAsyncFavicons.idl',
         'mozIAsyncLivemarks.idl',
-        'mozIColorAnalyzer.idl',
         'mozIPlacesAutoComplete.idl',
+        'mozIColorAnalyzer.idl',
         'nsIAnnotationService.idl',
         'nsIBrowserHistory.idl',
         'nsIFaviconService.idl',
         'nsINavBookmarksService.idl',
-        'nsITaggingService.idl',
+        'nsITaggingService.idl ',
         'nsPIPlacesDatabase.idl',
         'nsPIPlacesHistoryListenersNotifier.idl',
     ]
 
     EXPORTS.mozilla.places = [
-        'Database.h',
         'History.h',
+        'Database.h',
     ]
 
-    SOURCES += [
-        'AsyncFaviconHelpers.cpp',
-        'Database.cpp',
-        'Helpers.cpp',
-        'History.cpp',
-        'nsAnnoProtocolHandler.cpp',
-        'nsAnnotationService.cpp',
-        'nsFaviconService.cpp',
-        'nsMaybeWeakPtr.cpp',
-        'nsNavBookmarks.cpp',
-        'nsNavHistory.cpp',
-        'nsNavHistoryQuery.cpp',
-        'nsNavHistoryResult.cpp',
-        'nsPlacesModule.cpp',
-        'PlaceInfo.cpp',
-        'SQLFunctions.cpp',
-        'VisitInfo.cpp',
-    ]
-
-    LOCAL_INCLUDES += [
-        '../build',
-    ]
-
-    EXTRA_JS_MODULES = [
-        'BookmarkJSONUtils.jsm',
-        'ClusterLib.js',
-        'ColorAnalyzer_worker.js',
-        'ColorConversion.js',
-        'PlacesBackups.jsm',
-        'PlacesDBUtils.jsm',
-    ]
-
-    EXTRA_PP_JS_MODULES += [
-        'BookmarkHTMLUtils.jsm',
-        'PlacesUtils.jsm',
-    ]
-
-    EXTRA_COMPONENTS += [
-        'ColorAnalyzer.js',
-        'nsLivemarkService.js',
-        'nsPlacesExpiration.js',
-        'nsTaggingService.js',
-        'PlacesCategoriesStarter.js',
-        'toolkitplaces.manifest',
-    ]
-    if CONFIG['MOZ_XUL']:
-        EXTRA_COMPONENTS += [
-            'nsPlacesAutoComplete.js',
-            'nsPlacesAutoComplete.manifest',
-        ]
-include('/ipc/chromium/chromium-config.mozbuild')
+MODULE = 'places'
 

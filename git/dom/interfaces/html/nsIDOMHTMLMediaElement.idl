@@ -27,8 +27,8 @@ interface nsIDOMMediaStream;
 #endif
 %}
 
-[scriptable, uuid(d83d38f3-68b9-4ea2-8748-1cc738d74333)]
-interface nsIDOMHTMLMediaElement : nsISupports
+[scriptable, uuid(adbb2541-5ab6-41a3-9e16-fca46620b532)]
+interface nsIDOMHTMLMediaElement : nsIDOMHTMLElement
 {
   // error state
   readonly attribute nsIDOMMediaError error;
@@ -99,6 +99,14 @@ interface nsIDOMHTMLMediaElement : nsISupports
   // player interfaces to display the song title, artist, etc.
   [implicit_jscontext]
   jsval mozGetMetadata();
+
+  // Mozilla extension: load data from another media element. This is like
+  // load() but we don't run the resource selection algorithm; instead
+  // we just set our source to other's currentSrc. This is optimized
+  // so that this element will get access to all of other's cached/
+  // buffered data. In fact any future data downloaded by this element or
+  // other will be sharable by both elements.
+  void mozLoadFrom(in nsIDOMHTMLMediaElement other);
 
   // Mozilla extension: provides access to the fragment end time if
   // the media element has a fragment URI for the currentSrc, otherwise

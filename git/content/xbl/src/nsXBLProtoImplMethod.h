@@ -6,11 +6,10 @@
 #ifndef nsXBLProtoImplMethod_h__
 #define nsXBLProtoImplMethod_h__
 
-#include "mozilla/Attributes.h"
 #include "nsIAtom.h"
 #include "nsString.h"
+#include "jsapi.h"
 #include "nsString.h"
-#include "nsXBLMaybeCompiled.h"
 #include "nsXBLProtoImplMember.h"
 #include "nsXBLSerialize.h"
 
@@ -90,48 +89,47 @@ public:
   void SetLineNumber(uint32_t aLineNumber);
   
   virtual nsresult InstallMember(JSContext* aCx,
-                                 JS::Handle<JSObject*> aTargetClassObject) MOZ_OVERRIDE;
-  virtual nsresult CompileMember(const nsCString& aClassStr,
-                                 JS::Handle<JSObject*> aClassObject) MOZ_OVERRIDE;
+                                 JS::Handle<JSObject*> aTargetClassObject);
+  virtual nsresult CompileMember(nsIScriptContext* aContext,
+                                 const nsCString& aClassStr,
+                                 JS::Handle<JSObject*> aClassObject);
 
-  virtual void Trace(const TraceCallbacks& aCallbacks, void *aClosure) MOZ_OVERRIDE;
+  virtual void Trace(TraceCallback aCallback, void *aClosure) const;
 
-  nsresult Read(nsIObjectInputStream* aStream);
-  virtual nsresult Write(nsIObjectOutputStream* aStream) MOZ_OVERRIDE;
+  nsresult Read(nsIScriptContext* aContext, nsIObjectInputStream* aStream);
+  virtual nsresult Write(nsIScriptContext* aContext, nsIObjectOutputStream* aStream);
 
   bool IsCompiled() const
   {
-    return mMethod.IsCompiled();
+    return !(mUncompiledMethod & BIT_UNCOMPILED);
   }
-
   void SetUncompiledMethod(nsXBLUncompiledMethod* aUncompiledMethod)
   {
-    mMethod.SetUncompiled(aUncompiledMethod);
+    mUncompiledMethod = uintptr_t(aUncompiledMethod) | BIT_UNCOMPILED;
   }
-
   nsXBLUncompiledMethod* GetUncompiledMethod() const
   {
-    return mMethod.GetUncompiled();
+    uintptr_t unmasked = mUncompiledMethod & ~BIT_UNCOMPILED;
+    return reinterpret_cast<nsXBLUncompiledMethod*>(unmasked);
   }
 
 protected:
-  void SetCompiledMethod(JSObject* aCompiledMethod)
-  {
-    mMethod.SetJSFunction(aCompiledMethod);
-  }
+  enum { BIT_UNCOMPILED = 1 << 0 };
 
-  JSObject* GetCompiledMethod() const
-  {
-    return mMethod.GetJSFunction();
-  }
+  union {
+    uintptr_t mUncompiledMethod; // An object that represents the method before being compiled.
+    JSObject* mJSMethodObject;    // The JS object for the method (after compilation)
+  };
 
-  JS::Heap<nsXBLMaybeCompiled<nsXBLUncompiledMethod> > mMethod;
+#ifdef DEBUG
+  bool mIsCompiled;
+#endif
 };
 
 class nsXBLProtoImplAnonymousMethod : public nsXBLProtoImplMethod {
 public:
-  nsXBLProtoImplAnonymousMethod(const PRUnichar* aName) :
-    nsXBLProtoImplMethod(aName)
+  nsXBLProtoImplAnonymousMethod() :
+    nsXBLProtoImplMethod(EmptyString().get())
   {}
   
   nsresult Execute(nsIContent* aBoundElement);
@@ -140,12 +138,13 @@ public:
   // binding instantiations (though they may hang out in mMembers on the
   // prototype implementation).
   virtual nsresult InstallMember(JSContext* aCx,
-                                 JS::Handle<JSObject*> aTargetClassObject) MOZ_OVERRIDE {
+                                 JS::Handle<JSObject*> aTargetClassObject) {
     return NS_OK;
   }
 
   using nsXBLProtoImplMethod::Write;
-  nsresult Write(nsIObjectOutputStream* aStream,
+  nsresult Write(nsIScriptContext* aContext,
+                 nsIObjectOutputStream* aStream,
                  XBLBindingSerializeDetails aType);
 };
 

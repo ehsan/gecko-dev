@@ -6,14 +6,12 @@
 
 MODULE = 'accessibility'
 
-LIBRARY_NAME = 'AccessibleMarshal'
-
-GENERATED_SOURCES += [
-    'dlldata.c',
+EXPORTS += [
+    'ISimpleDOMDocument.h',
     'ISimpleDOMDocument_i.c',
-    'ISimpleDOMDocument_p.c',
+    'ISimpleDOMNode.h',
     'ISimpleDOMNode_i.c',
-    'ISimpleDOMNode_p.c',
+    'ISimpleDOMText.h',
     'ISimpleDOMText_i.c',
-    'ISimpleDOMText_p.c',
 ]
+

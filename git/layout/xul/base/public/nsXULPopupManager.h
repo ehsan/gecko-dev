@@ -11,6 +11,7 @@
 #define nsXULPopupManager_h__
 
 #include "prlog.h"
+#include "nsGUIEvent.h"
 #include "nsIContent.h"
 #include "nsIRollupListener.h"
 #include "nsIDOMEventListener.h"
@@ -21,7 +22,6 @@
 #include "nsIReflowCallback.h"
 #include "nsThreadUtils.h"
 #include "nsStyleConsts.h"
-#include "nsWidgetInitData.h"
 #include "mozilla/Attributes.h"
 
 // X.h defines KeyPress
@@ -51,7 +51,6 @@ class nsMenuBarFrame;
 class nsMenuParent;
 class nsIDOMKeyEvent;
 class nsIDocShellTreeItem;
-class nsPIDOMWindow;
 
 // when a menu command is executed, the closemenu attribute may be used
 // to define how the menu should be closed up
@@ -104,6 +103,11 @@ enum nsNavigationDirection {
                                             dir == eNavigationDirection_Last)
 
 PR_STATIC_ASSERT(NS_STYLE_DIRECTION_LTR == 0 && NS_STYLE_DIRECTION_RTL == 1);
+PR_STATIC_ASSERT((NS_VK_HOME == NS_VK_END + 1) &&
+                 (NS_VK_LEFT == NS_VK_END + 2) &&
+                 (NS_VK_UP == NS_VK_END + 3) &&
+                 (NS_VK_RIGHT == NS_VK_END + 4) &&
+                 (NS_VK_DOWN == NS_VK_END + 5));
 
 /**
  * DirectionFromKeyCodeTable: two arrays, the first for left-to-right and the
@@ -114,7 +118,7 @@ extern const nsNavigationDirection DirectionFromKeyCodeTable[2][6];
 
 #define NS_DIRECTION_FROM_KEY_CODE(frame, keycode)                     \
   (DirectionFromKeyCodeTable[frame->StyleVisibility()->mDirection]  \
-                            [keycode - nsIDOMKeyEvent::DOM_VK_END])
+                            [keycode - NS_VK_END])
 
 // nsMenuChainItem holds info about an open popup. Items are stored in a
 // doubly linked list. Note that the linked list is stored beginning from
@@ -187,7 +191,7 @@ public:
     NS_ASSERTION(aPopup, "null popup supplied to nsXULPopupShowingEvent constructor");
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE;
+  NS_IMETHOD Run();
 
 private:
   nsCOMPtr<nsIContent> mPopup;
@@ -214,7 +218,7 @@ public:
     // aNextPopup and aLastPopup may be null
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE;
+  NS_IMETHOD Run();
 
 private:
   nsCOMPtr<nsIContent> mPopup;
@@ -249,7 +253,7 @@ public:
     NS_ASSERTION(aMenu, "null menu supplied to nsXULMenuCommandEvent constructor");
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE;
+  NS_IMETHOD Run();
 
   void SetCloseMenuMode(CloseMenuMode aCloseMenuMode) { mCloseMenuMode = aCloseMenuMode; }
 
@@ -282,13 +286,13 @@ public:
   NS_DECL_NSIDOMEVENTLISTENER
 
   // nsIRollupListener
-  virtual bool Rollup(uint32_t aCount, const nsIntPoint* pos, nsIContent** aLastRolledUp) MOZ_OVERRIDE;
-  virtual bool ShouldRollupOnMouseWheelEvent() MOZ_OVERRIDE;
-  virtual bool ShouldConsumeOnMouseWheelEvent() MOZ_OVERRIDE;
-  virtual bool ShouldRollupOnMouseActivate() MOZ_OVERRIDE;
-  virtual uint32_t GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain) MOZ_OVERRIDE;
-  virtual void NotifyGeometryChange() MOZ_OVERRIDE {}
-  virtual nsIWidget* GetRollupWidget() MOZ_OVERRIDE;
+  virtual bool Rollup(uint32_t aCount, nsIContent** aLastRolledUp);
+  virtual bool ShouldRollupOnMouseWheelEvent();
+  virtual bool ShouldConsumeOnMouseWheelEvent();
+  virtual bool ShouldRollupOnMouseActivate();
+  virtual uint32_t GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain);
+  virtual void NotifyGeometryChange() {}
+  virtual nsIWidget* GetRollupWidget();
 
   static nsXULPopupManager* sInstance;
 
@@ -588,13 +592,6 @@ public:
     return HandleKeyboardNavigationInPopup(nullptr, aFrame, aDir);
   }
 
-  /**
-   * Handles the keyboard event with keyCode value. Returns true if the event
-   * has been handled.
-   */
-  bool HandleKeyboardEventWithKeyCode(nsIDOMKeyEvent* aKeyEvent,
-                                      nsMenuChainItem* aTopVisibleMenuItem);
-
   nsresult KeyUp(nsIDOMKeyEvent* aKeyEvent);
   nsresult KeyDown(nsIDOMKeyEvent* aKeyEvent);
   nsresult KeyPress(nsIDOMKeyEvent* aKeyEvent);
@@ -719,7 +716,7 @@ protected:
   bool IsChildOfDocShell(nsIDocument* aDoc, nsIDocShellTreeItem* aExpected);
 
   // the document the key event listener is attached to
-  nsCOMPtr<mozilla::dom::EventTarget> mKeyListener;
+  nsCOMPtr<nsIDOMEventTarget> mKeyListener;
 
   // widget that is currently listening to rollup events
   nsCOMPtr<nsIWidget> mWidget;
@@ -732,7 +729,7 @@ protected:
   nsIntPoint mCachedMousePoint;
 
   // cached modifiers
-  mozilla::Modifiers mCachedModifiers;
+  mozilla::widget::Modifiers mCachedModifiers;
 
   // set to the currently active menu bar, if any
   nsMenuBarFrame* mActiveMenuBar;

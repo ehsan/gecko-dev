@@ -75,7 +75,7 @@ case "$host" in
 	TARGET=FRV; TARGETDIR=frv
 	;;
 
-  hppa*-*-linux* | hppa*-*-openbsd* | parisc*-*-linux*)
+  hppa*-*-linux* | parisc*-*-linux*)
 	TARGET=PA_LINUX; TARGETDIR=pa
 	;;
   hppa*64-*-hpux*)
@@ -118,7 +118,7 @@ case "$host" in
   mips-sgi-irix5.* | mips-sgi-irix6.*)
 	TARGET=MIPS; TARGETDIR=mips
 	;;
-  mips*-*linux* | mips*-*-openbsd*)
+  mips*-*linux*)
 	# Support 128-bit long double for NewABI.
 	HAVE_LONG_DOUBLE='defined(__mips64)'
 	TARGET=MIPS; TARGETDIR=mips

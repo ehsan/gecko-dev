@@ -32,6 +32,8 @@
 
 using namespace mozilla::dom;
 
+static const char kMozStr[] = "moz";
+
 #define kXMLNS "xmlns"
 
 // to be readable, we assume that an indented line contains
@@ -1683,7 +1685,7 @@ nsXMLContentSerializer::AppendToStringWrapped(const nsASingleFragmentString& aSt
   mMayIgnoreLineBreakSequence = false;
 
   bool sequenceStartAfterAWhitespace = false;
-  if (pos < end && !aOutputStr.IsEmpty()) {
+  if (pos < end) {
     nsAString::const_char_iterator end2;
     aOutputStr.EndReading(end2);
     --end2;

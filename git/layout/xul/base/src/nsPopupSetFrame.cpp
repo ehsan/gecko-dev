@@ -82,28 +82,15 @@ nsPopupSetFrame::SetInitialChildList(ChildListID     aListID,
                                      nsFrameList&    aChildList)
 {
   if (aListID == kPopupList) {
-    NS_ASSERTION(mPopupList.IsEmpty(),
-                 "SetInitialChildList on non-empty child list");
+    // XXXmats this asserts because we don't implement
+    // GetChildList(kPopupList) so nsCSSFrameConstructor
+    // believes it's empty and calls us multiple times.
+    //NS_ASSERTION(mPopupList.IsEmpty(),
+    //             "SetInitialChildList on non-empty child list");
     AddPopupFrameList(aChildList);
     return NS_OK;
   }
   return nsBoxFrame::SetInitialChildList(aListID, aChildList);
-}
-
-const nsFrameList&
-nsPopupSetFrame::GetChildList(ChildListID aListID) const
-{
-  if (kPopupList == aListID) {
-    return mPopupList;
-  }
-  return nsBoxFrame::GetChildList(aListID);
-}
-
-void
-nsPopupSetFrame::GetChildLists(nsTArray<ChildList>* aLists) const
-{
-  nsBoxFrame::GetChildLists(aLists);
-  mPopupList.AppendIfNonempty(aLists, kPopupList);
 }
 
 void
@@ -158,3 +145,103 @@ nsPopupSetFrame::AddPopupFrameList(nsFrameList& aPopupFrameList)
 #endif
   mPopupList.InsertFrames(nullptr, nullptr, aPopupFrameList);
 }
+
+#ifdef DEBUG
+NS_IMETHODIMP
+nsPopupSetFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
+{
+  IndentBy(out, aIndent);
+  ListTag(out);
+#ifdef DEBUG_waterson
+  fprintf(out, " [parent=%p]", static_cast<void*>(mParent));
+#endif
+  if (HasView()) {
+    fprintf(out, " [view=%p]", static_cast<void*>(GetView()));
+  }
+  if (GetNextSibling()) {
+    fprintf(out, " next=%p", static_cast<void*>(GetNextSibling()));
+  }
+  if (nullptr != GetPrevContinuation()) {
+    fprintf(out, " prev-continuation=%p", static_cast<void*>(GetPrevContinuation()));
+  }
+  if (nullptr != GetNextContinuation()) {
+    fprintf(out, " next-continuation=%p", static_cast<void*>(GetNextContinuation()));
+  }
+  fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
+  if (0 != mState) {
+    fprintf(out, " [state=%016llx]", (unsigned long long)mState);
+  }
+  fprintf(out, " [content=%p]", static_cast<void*>(mContent));
+  nsPopupSetFrame* f = const_cast<nsPopupSetFrame*>(this);
+  if (f->HasOverflowAreas()) {
+    nsRect overflowArea = f->GetVisualOverflowRect();
+    fprintf(out, " [vis-overflow=%d,%d,%d,%d]",
+            overflowArea.x, overflowArea.y,
+            overflowArea.width, overflowArea.height);
+    overflowArea = f->GetScrollableOverflowRect();
+    fprintf(out, " [scr-overflow=%d,%d,%d,%d]",
+            overflowArea.x, overflowArea.y,
+            overflowArea.width, overflowArea.height);
+  }
+  fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
+  nsIAtom* pseudoTag = mStyleContext->GetPseudo();
+  if (pseudoTag) {
+    nsAutoString atomString;
+    pseudoTag->ToString(atomString);
+    fprintf(out, " pst=%s",
+            NS_LossyConvertUTF16toASCII(atomString).get());
+  }
+
+  // Output the children
+  bool outputOneList = false;
+  ChildListIterator lists(this);
+  for (; !lists.IsDone(); lists.Next()) {
+    if (outputOneList) {
+      IndentBy(out, aIndent);
+    }
+    outputOneList = true;
+    fprintf(out, "%s<\n", mozilla::layout::ChildListName(lists.CurrentID()));
+    nsFrameList::Enumerator childFrames(lists.CurrentList());
+    for (; !childFrames.AtEnd(); childFrames.Next()) {
+      nsIFrame* kid = childFrames.get();
+      // Verify the child frame's parent frame pointer is correct
+      NS_ASSERTION(kid->GetParent() == this, "bad parent frame pointer");
+
+      // Have the child frame list
+      kid->List(out, aIndent + 1, aFlags);
+    }
+    IndentBy(out, aIndent);
+    fputs(">\n", out);
+  }
+
+  // XXXmats the above is copy-pasted from nsContainerFrame::List which is lame,
+  // clean this up after bug 399111 is implemented.
+
+  if (!mPopupList.IsEmpty()) {
+    fputs("<\n", out);
+    ++aIndent;
+    IndentBy(out, aIndent);
+    fputs(mozilla::layout::ChildListName(kPopupList), out);
+    fputs(" for ", out);
+    ListTag(out);
+    fputs(" <\n", out);
+    ++aIndent;
+    for (nsFrameList::Enumerator e(mPopupList); !e.AtEnd(); e.Next()) {
+      e.get()->List(out, aIndent, aFlags);
+    }
+    --aIndent;
+    IndentBy(out, aIndent);
+    fputs(">\n", out);
+    --aIndent;
+    IndentBy(out, aIndent);
+    fputs(">\n", out);
+    outputOneList = true;
+  }
+
+  if (!outputOneList) {
+    fputs("<>\n", out);
+  }
+
+  return NS_OK;
+}
+#endif

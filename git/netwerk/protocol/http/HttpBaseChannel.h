@@ -23,7 +23,6 @@
 #include "nsIUploadChannel2.h"
 #include "nsIProgressEventSink.h"
 #include "nsIURI.h"
-#include "nsIEffectiveTLDService.h"
 #include "nsIStringEnumerator.h"
 #include "nsISupportsPriority.h"
 #include "nsIApplicationCache.h"
@@ -34,16 +33,13 @@
 #include "nsThreadUtils.h"
 #include "PrivateBrowsingChannel.h"
 #include "mozilla/net/DNS.h"
-#include "nsISecurityConsoleMessage.h"
-
-extern PRLogModuleInfo *gHttpLog;
 
 namespace mozilla {
 namespace net {
 
 /*
  * This class is a partial implementation of nsIHttpChannel.  It contains code
- * shared by nsHttpChannel and HttpChannelChild.
+ * shared by nsHttpChannel and HttpChannelChild. 
  * - Note that this class has nothing to do with nsBaseChannel, which is an
  *   earlier effort at a base class for channels that somehow never made it all
  *   the way to the HTTP channel.
@@ -113,11 +109,11 @@ public:
   NS_IMETHOD GetReferrer(nsIURI **referrer);
   NS_IMETHOD SetReferrer(nsIURI *referrer);
   NS_IMETHOD GetRequestHeader(const nsACString& aHeader, nsACString& aValue);
-  NS_IMETHOD SetRequestHeader(const nsACString& aHeader,
+  NS_IMETHOD SetRequestHeader(const nsACString& aHeader, 
                               const nsACString& aValue, bool aMerge);
   NS_IMETHOD VisitRequestHeaders(nsIHttpHeaderVisitor *visitor);
   NS_IMETHOD GetResponseHeader(const nsACString &header, nsACString &value);
-  NS_IMETHOD SetResponseHeader(const nsACString& header,
+  NS_IMETHOD SetResponseHeader(const nsACString& header, 
                                const nsACString& value, bool merge);
   NS_IMETHOD VisitResponseHeaders(nsIHttpHeaderVisitor *visitor);
   NS_IMETHOD GetAllowPipelining(bool *value);
@@ -153,15 +149,14 @@ public:
   NS_IMETHOD SetLoadAsBlocking(bool aLoadAsBlocking);
   NS_IMETHOD GetLoadUnblocked(bool *aLoadUnblocked);
   NS_IMETHOD SetLoadUnblocked(bool aLoadUnblocked);
-  NS_IMETHOD AddSecurityMessage(const nsAString &aMessageTag, const nsAString &aMessageCategory);
-  NS_IMETHOD TakeAllSecurityMessages(nsCOMArray<nsISecurityConsoleMessage> &aMessages);
-
+  NS_IMETHOD GetPacingTelemetryID(uint32_t *aID);
+  
   inline void CleanRedirectCacheChainIfNecessary()
   {
       mRedirectedCachekeys = nullptr;
   }
   NS_IMETHOD HTTPUpgrade(const nsACString & aProtocolName,
-                         nsIHttpUpgradeListener *aListener);
+                         nsIHttpUpgradeListener *aListener); 
 
   // nsISupportsPriority
   NS_IMETHOD GetPriority(int32_t *value);
@@ -178,19 +173,19 @@ public:
 
         nsContentEncodings(nsIHttpChannel* aChannel, const char* aEncodingHeader);
         virtual ~nsContentEncodings();
-
+        
     private:
         nsresult PrepareForNext(void);
-
+        
         // We do not own the buffer.  The channel owns it.
         const char* mEncodingHeader;
         const char* mCurStart;  // points to start of current header
         const char* mCurEnd;  // points to end of current header
-
+        
         // Hold a ref to our channel so that it can't go away and take the
         // header with it.
         nsCOMPtr<nsIHttpChannel> mChannel;
-
+        
         bool mReady;
     };
 
@@ -203,7 +198,6 @@ public:
 public: /* Necko internal use only... */
 
 protected:
-    nsCOMArray<nsISecurityConsoleMessage> mSecurityConsoleMessages;
 
   // Handle notifying listener, removing from loadgroup if request failed.
   void     DoNotifyListener();
@@ -308,8 +302,6 @@ protected:
 
   uint32_t                          mContentDispositionHint;
   nsAutoPtr<nsString>               mContentDispositionFilename;
-
-  nsRefPtr<nsHttpHandler>           mHttpHandler;  // keep gHttpHandler alive
 };
 
 // Share some code while working around C++'s absurd inability to handle casting
@@ -348,8 +340,7 @@ protected:
 template <class T>
 nsresult HttpAsyncAborter<T>::AsyncAbort(nsresult status)
 {
-  PR_LOG(gHttpLog, 4,
-         ("HttpAsyncAborter::AsyncAbort [this=%p status=%x]\n", mThis, status));
+  LOG(("HttpAsyncAborter::AsyncAbort [this=%p status=%x]\n", mThis, status));
 
   mThis->mStatus = status;
   mThis->mIsPending = false;
@@ -366,8 +357,8 @@ inline void HttpAsyncAborter<T>::HandleAsyncAbort()
   NS_PRECONDITION(!mCallOnResume, "How did that happen?");
 
   if (mThis->mSuspendCount) {
-    PR_LOG(gHttpLog, 4,
-           ("Waiting until resume to do async notification [this=%p]\n", mThis));
+    LOG(("Waiting until resume to do async notification [this=%p]\n",
+         mThis));
     mCallOnResume = &T::HandleAsyncAbort;
     return;
   }

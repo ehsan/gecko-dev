@@ -15,14 +15,13 @@ class nsDOMBeforeUnloadEvent : public nsDOMEvent,
 {
 public:
   nsDOMBeforeUnloadEvent(mozilla::dom::EventTarget* aOwner,
-                         nsPresContext* aPresContext,
-                         mozilla::WidgetEvent* aEvent)
+                         nsPresContext* aPresContext, nsEvent* aEvent)
   : nsDOMEvent(aOwner, aPresContext, aEvent)
   {
+    SetIsDOMBinding();
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::BeforeUnloadEventBinding::Wrap(aCx, aScope, this);
   }

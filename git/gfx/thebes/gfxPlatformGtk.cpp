@@ -9,7 +9,6 @@
 #endif
 
 #include "gfxPlatformGtk.h"
-#include "prenv.h"
 
 #include "nsUnicharUtils.h"
 #include "nsUnicodeProperties.h"
@@ -59,11 +58,11 @@ gfxFontconfigUtils *gfxPlatformGtk::sFontconfigUtils = nullptr;
 #ifndef MOZ_PANGO
 typedef nsDataHashtable<nsStringHashKey, nsRefPtr<FontFamily> > FontTable;
 typedef nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<gfxFontEntry> > > PrefFontTable;
-static FontTable *gPlatformFonts = nullptr;
-static FontTable *gPlatformFontAliases = nullptr;
-static PrefFontTable *gPrefFonts = nullptr;
-static gfxSparseBitSet *gCodepointsWithNoFonts = nullptr;
-static FT_Library gPlatformFTLibrary = nullptr;
+static FontTable *gPlatformFonts = NULL;
+static FontTable *gPlatformFontAliases = NULL;
+static PrefFontTable *gPrefFonts = NULL;
+static gfxSparseBitSet *gCodepointsWithNoFonts = NULL;
+static FT_Library gPlatformFTLibrary = NULL;
 #endif
 
 static cairo_user_data_key_t cairo_gdk_drawable_key;
@@ -92,9 +91,8 @@ gfxPlatformGtk::gfxPlatformGtk()
     UpdateFontList();
 #endif
     uint32_t canvasMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA);
-    uint32_t contentMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA);
-    InitBackendPrefs(canvasMask, BACKEND_CAIRO,
-                     contentMask, BACKEND_CAIRO);
+    uint32_t contentMask = (1 << BACKEND_CAIRO);
+    InitBackendPrefs(canvasMask, contentMask);
 }
 
 gfxPlatformGtk::~gfxPlatformGtk()
@@ -106,13 +104,13 @@ gfxPlatformGtk::~gfxPlatformGtk()
     gfxPangoFontGroup::Shutdown();
 #else
     delete gPlatformFonts;
-    gPlatformFonts = nullptr;
+    gPlatformFonts = NULL;
     delete gPlatformFontAliases;
-    gPlatformFontAliases = nullptr;
+    gPlatformFontAliases = NULL;
     delete gPrefFonts;
-    gPrefFonts = nullptr;
+    gPrefFonts = NULL;
     delete gCodepointsWithNoFonts;
-    gCodepointsWithNoFonts = nullptr;
+    gCodepointsWithNoFonts = NULL;
 
 #ifdef NS_FREE_PERMANENT_DATA
     // do cairo cleanup *before* closing down the FTLibrary,
@@ -121,7 +119,7 @@ gfxPlatformGtk::~gfxPlatformGtk()
     cairo_debug_reset_static_data();
 
     FT_Done_FreeType(gPlatformFTLibrary);
-    gPlatformFTLibrary = nullptr;
+    gPlatformFTLibrary = NULL;
 #endif
 #endif
 
@@ -136,11 +134,11 @@ gfxPlatformGtk::~gfxPlatformGtk()
 
 already_AddRefed<gfxASurface>
 gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
-                                       gfxContentType contentType)
+                                       gfxASurface::gfxContentType contentType)
 {
     nsRefPtr<gfxASurface> newSurface;
     bool needsClear = true;
-    gfxImageFormat imageFormat = OptimalFormatForContent(contentType);
+    gfxASurface::gfxImageFormat imageFormat = OptimalFormatForContent(contentType);
 #ifdef MOZ_X11
     // XXX we really need a different interface here, something that passes
     // in more context, including the display and/or target surface type that
@@ -284,15 +282,15 @@ gfxPlatformGtk::GetFontList(nsIAtom *aLangGroup,
 nsresult
 gfxPlatformGtk::UpdateFontList()
 {
-    FcPattern *pat = nullptr;
-    FcObjectSet *os = nullptr;
-    FcFontSet *fs = nullptr;
+    FcPattern *pat = NULL;
+    FcObjectSet *os = NULL;
+    FcFontSet *fs = NULL;
     int32_t result = -1;
 
     pat = FcPatternCreate();
-    os = FcObjectSetBuild(FC_FAMILY, FC_FILE, FC_INDEX, FC_WEIGHT, FC_SLANT, FC_WIDTH, nullptr);
+    os = FcObjectSetBuild(FC_FAMILY, FC_FILE, FC_INDEX, FC_WEIGHT, FC_SLANT, FC_WIDTH, NULL);
 
-    fs = FcFontList(nullptr, pat, os);
+    fs = FcFontList(NULL, pat, os);
 
 
     for (int i = 0; i < fs->nfont; i++) {
@@ -377,8 +375,8 @@ gfxPlatformGtk::ResolveFontName(const nsAString& aFontName,
 
     FcPattern *npat = FcPatternCreate();
     FcPatternAddString(npat, FC_FAMILY, (FcChar8*)utf8Name.get());
-    FcObjectSet *nos = FcObjectSetBuild(FC_FAMILY, nullptr);
-    FcFontSet *nfs = FcFontList(nullptr, npat, nos);
+    FcObjectSet *nos = FcObjectSetBuild(FC_FAMILY, NULL);
+    FcFontSet *nfs = FcFontList(NULL, npat, nos);
 
     for (int k = 0; k < nfs->nfont; k++) {
         FcChar8 *str;
@@ -402,15 +400,15 @@ gfxPlatformGtk::ResolveFontName(const nsAString& aFontName,
     npat = FcPatternCreate();
     FcPatternAddString(npat, FC_FAMILY, (FcChar8*)utf8Name.get());
     FcPatternDel(npat, FC_LANG);
-    FcConfigSubstitute(nullptr, npat, FcMatchPattern);
+    FcConfigSubstitute(NULL, npat, FcMatchPattern);
     FcDefaultSubstitute(npat);
 
-    nos = FcObjectSetBuild(FC_FAMILY, nullptr);
-    nfs = FcFontList(nullptr, npat, nos);
+    nos = FcObjectSetBuild(FC_FAMILY, NULL);
+    nfs = FcFontList(NULL, npat, nos);
 
     FcResult fresult;
 
-    FcPattern *match = FcFontMatch(nullptr, npat, &fresult);
+    FcPattern *match = FcFontMatch(NULL, npat, &fresult);
     if (match)
         FcFontSetAdd(nfs, match);
 
@@ -476,40 +474,10 @@ gfxPlatformGtk::GetOffscreenFormat()
     // Make sure there is a screen
     GdkScreen *screen = gdk_screen_get_default();
     if (screen && gdk_visual_get_depth(gdk_visual_get_system()) == 16) {
-        return gfxImageFormatRGB16_565;
+        return gfxASurface::ImageFormatRGB16_565;
     }
 
-    return gfxImageFormatRGB24;
-}
-
-static int sDepth = 0;
-
-int
-gfxPlatformGtk::GetScreenDepth() const
-{
-    if (!sDepth) {
-        GdkScreen *screen = gdk_screen_get_default();
-        if (screen) {
-            sDepth = gdk_visual_get_depth(gdk_visual_get_system());
-        } else {
-            sDepth = 24;
-        }
-
-    }
-
-    return sDepth;
-}
-
-bool
-gfxPlatformGtk::SupportsOffMainThreadCompositing()
-{
-  // Nightly builds have OMTC support by default for Electrolysis testing.
-#if defined(MOZ_X11) && !defined(NIGHTLY_BUILD)
-  return (PR_GetEnv("MOZ_USE_OMTC") != nullptr) ||
-         (PR_GetEnv("MOZ_OMTC_ENABLED") != nullptr);
-#else
-  return true;
-#endif
+    return gfxASurface::ImageFormatRGB24;
 }
 
 qcms_profile *
@@ -523,9 +491,9 @@ gfxPlatformGtk::GetPlatformCMSOutputProfile()
     Display *dpy = GDK_DISPLAY_XDISPLAY(gdk_display_get_default());
     // In xpcshell tests, we never initialize X and hence don't have a Display.
     // In this case, there's no output colour management to be done, so we just
-    // return nullptr.
+    // return NULL.
     if (!dpy) {
-        return nullptr;
+        return NULL;
     }
 
     Window root = gdk_x11_get_default_root_xwindow();
@@ -543,7 +511,7 @@ gfxPlatformGtk::GetPlatformCMSOutputProfile()
                                           False, AnyPropertyType,
                                           &retAtom, &retFormat, &retLength,
                                           &retAfter, &retProperty)) {
-            qcms_profile* profile = nullptr;
+            qcms_profile* profile = NULL;
 
             if (retLength > 0)
                 profile = qcms_profile_from_memory(retProperty, retLength);
@@ -723,46 +691,48 @@ gfxPlatformGtk::SetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<gfxF
 
 #if (MOZ_WIDGET_GTK == 2)
 void
-gfxPlatformGtk::SetGdkDrawable(cairo_surface_t *target,
+gfxPlatformGtk::SetGdkDrawable(gfxASurface *target,
                                GdkDrawable *drawable)
 {
-    if (cairo_surface_status(target))
+    if (target->CairoStatus())
         return;
 
     g_object_ref(drawable);
 
-    cairo_surface_set_user_data (target,
+    cairo_surface_set_user_data (target->CairoSurface(),
                                  &cairo_gdk_drawable_key,
                                  drawable,
                                  g_object_unref);
 }
 
 GdkDrawable *
-gfxPlatformGtk::GetGdkDrawable(cairo_surface_t *target)
+gfxPlatformGtk::GetGdkDrawable(gfxASurface *target)
 {
-    if (cairo_surface_status(target))
-        return nullptr;
+    if (target->CairoStatus())
+        return NULL;
 
     GdkDrawable *result;
 
-    result = (GdkDrawable*) cairo_surface_get_user_data (target,
+    result = (GdkDrawable*) cairo_surface_get_user_data (target->CairoSurface(),
                                                          &cairo_gdk_drawable_key);
     if (result)
         return result;
 
 #ifdef MOZ_X11
-    if (cairo_surface_get_type(target) != CAIRO_SURFACE_TYPE_XLIB)
-        return nullptr;
+    if (target->GetType() != gfxASurface::SurfaceTypeXlib)
+        return NULL;
+
+    gfxXlibSurface *xs = static_cast<gfxXlibSurface*>(target);
 
     // try looking it up in gdk's table
-    result = (GdkDrawable*) gdk_xid_table_lookup(cairo_xlib_surface_get_drawable(target));
+    result = (GdkDrawable*) gdk_xid_table_lookup(xs->XDrawable());
     if (result) {
         SetGdkDrawable(target, result);
         return result;
     }
 #endif
 
-    return nullptr;
+    return NULL;
 }
 #endif
 
@@ -770,13 +740,13 @@ TemporaryRef<ScaledFont>
 gfxPlatformGtk::GetScaledFontForFont(DrawTarget* aTarget, gfxFont *aFont)
 {
     NativeFont nativeFont;
-
-    if (aTarget->GetType() == BACKEND_CAIRO || aTarget->GetType() == BACKEND_SKIA) {
+    if (aTarget->GetType() == BACKEND_CAIRO) {
         nativeFont.mType = NATIVE_FONT_CAIRO_FONT_FACE;
-        nativeFont.mFont = aFont->GetCairoScaledFont();
-        return Factory::CreateScaledFontForNativeFont(nativeFont, aFont->GetAdjustedSize());
+        nativeFont.mFont = NULL;
+        return Factory::CreateScaledFontWithCairo(nativeFont, aFont->GetAdjustedSize(), aFont->GetCairoScaledFont());
     }
-
-    return nullptr;
-
+    NS_ASSERTION(aFont->GetType() == gfxFont::FONT_TYPE_FT2, "Expecting Freetype font");
+    nativeFont.mType = NATIVE_FONT_SKIA_FONT_FACE;
+    nativeFont.mFont = static_cast<gfxFT2FontBase*>(aFont)->GetFontOptions();
+    return Factory::CreateScaledFontForNativeFont(nativeFont, aFont->GetAdjustedSize());
 }

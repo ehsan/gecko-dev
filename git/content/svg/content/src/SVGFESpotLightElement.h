@@ -29,27 +29,26 @@ protected:
     : SVGFESpotLightElementBase(aNodeInfo)
   {
   }
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
 public:
   virtual bool AttributeAffectsRendering(
-          int32_t aNameSpaceID, nsIAtom* aAttribute) const MOZ_OVERRIDE;
+          int32_t aNameSpaceID, nsIAtom* aAttribute) const;
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // WebIDL
-  already_AddRefed<SVGAnimatedNumber> X();
-  already_AddRefed<SVGAnimatedNumber> Y();
-  already_AddRefed<SVGAnimatedNumber> Z();
-  already_AddRefed<SVGAnimatedNumber> PointsAtX();
-  already_AddRefed<SVGAnimatedNumber> PointsAtY();
-  already_AddRefed<SVGAnimatedNumber> PointsAtZ();
-  already_AddRefed<SVGAnimatedNumber> SpecularExponent();
-  already_AddRefed<SVGAnimatedNumber> LimitingConeAngle();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> X();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> Y();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> Z();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> PointsAtX();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> PointsAtY();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> PointsAtZ();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> SpecularExponent();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> LimitingConeAngle();
 
 protected:
-  virtual NumberAttributesInfo GetNumberInfo() MOZ_OVERRIDE;
+  virtual NumberAttributesInfo GetNumberInfo();
 
   enum { ATTR_X, ATTR_Y, ATTR_Z, POINTS_AT_X, POINTS_AT_Y, POINTS_AT_Z,
          SPECULAR_EXPONENT, LIMITING_CONE_ANGLE };

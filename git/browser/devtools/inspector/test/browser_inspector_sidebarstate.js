@@ -1,6 +1,10 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+let tempScope = {};
+Cu.import("resource:///modules/devtools/Target.jsm", tempScope);
+let TargetFactory = tempScope.TargetFactory;
+
 let doc;
 let inspector;
 
@@ -25,7 +29,10 @@ function inspectorRuleViewOpened()
 
   gDevTools.once("toolbox-destroyed", inspectorClosed);
   let target = TargetFactory.forTab(gBrowser.selectedTab);
-  gDevTools.getToolbox(target).destroy();
+  let toolbox = gDevTools.getToolbox(target);
+  executeSoon(function() {
+    toolbox.destroy();
+  });
 }
 
 function inspectorClosed()
@@ -52,7 +59,6 @@ function testNewDefaultTab()
 
 function finishTest()
 {
-  doc = inspector = null;
   gBrowser.removeCurrentTab();
   finish();
 }

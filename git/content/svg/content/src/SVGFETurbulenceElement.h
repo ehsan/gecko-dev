@@ -29,38 +29,37 @@ protected:
     : SVGFETurbulenceElementBase(aNodeInfo)
   {
   }
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
 public:
-  virtual bool SubregionIsUnionOfRegions() MOZ_OVERRIDE { return false; }
+  virtual bool SubregionIsUnionOfRegions() { return false; }
 
   virtual nsresult Filter(nsSVGFilterInstance* aInstance,
                           const nsTArray<const Image*>& aSources,
                           const Image* aTarget,
-                          const nsIntRect& aDataRect) MOZ_OVERRIDE;
+                          const nsIntRect& aDataRect);
   virtual bool AttributeAffectsRendering(
-          int32_t aNameSpaceID, nsIAtom* aAttribute) const MOZ_OVERRIDE;
-  virtual nsSVGString& GetResultImageName() MOZ_OVERRIDE { return mStringAttributes[RESULT]; }
+          int32_t aNameSpaceID, nsIAtom* aAttribute) const;
+  virtual nsSVGString& GetResultImageName() { return mStringAttributes[RESULT]; }
   virtual nsIntRect ComputeTargetBBox(const nsTArray<nsIntRect>& aSourceBBoxes,
-          const nsSVGFilterInstance& aInstance) MOZ_OVERRIDE;
+          const nsSVGFilterInstance& aInstance);
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // WebIDL
-  already_AddRefed<SVGAnimatedNumber> BaseFrequencyX();
-  already_AddRefed<SVGAnimatedNumber> BaseFrequencyY();
-  already_AddRefed<SVGAnimatedInteger> NumOctaves();
-  already_AddRefed<SVGAnimatedNumber> Seed();
-  already_AddRefed<SVGAnimatedEnumeration> StitchTiles();
-  already_AddRefed<SVGAnimatedEnumeration> Type();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> BaseFrequencyX();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> BaseFrequencyY();
+  already_AddRefed<nsIDOMSVGAnimatedInteger> NumOctaves();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> Seed();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> StitchTiles();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> Type();
 
 protected:
-  virtual NumberAttributesInfo GetNumberInfo() MOZ_OVERRIDE;
-  virtual NumberPairAttributesInfo GetNumberPairInfo() MOZ_OVERRIDE;
-  virtual IntegerAttributesInfo GetIntegerInfo() MOZ_OVERRIDE;
-  virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;
-  virtual StringAttributesInfo GetStringInfo() MOZ_OVERRIDE;
+  virtual NumberAttributesInfo GetNumberInfo();
+  virtual NumberPairAttributesInfo GetNumberPairInfo();
+  virtual IntegerAttributesInfo GetIntegerInfo();
+  virtual EnumAttributesInfo GetEnumInfo();
+  virtual StringAttributesInfo GetStringInfo();
 
   enum { SEED }; // floating point seed?!
   nsSVGNumber2 mNumberAttributes[1];

@@ -7,12 +7,12 @@
 #include "mozilla/net/WyciwygChannelParent.h"
 #include "nsWyciwygChannel.h"
 #include "nsNetUtil.h"
+#include "nsISupportsPriority.h"
 #include "nsCharsetSource.h"
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
 #include "mozilla/ipc/URIUtils.h"
 #include "mozilla/net/NeckoParent.h"
-#include "SerializedLoadContext.h"
 
 using namespace mozilla::ipc;
 
@@ -68,7 +68,7 @@ WyciwygChannelParent::RecvInit(const URIParams& aURI)
 
   nsCString uriSpec;
   uri->GetSpec(uriSpec);
-  LOG(("WyciwygChannelParent RecvInit [this=%p uri=%s]\n",
+  LOG(("WyciwygChannelParent RecvInit [this=%x uri=%s]\n",
        this, uriSpec.get()));
 
   nsCOMPtr<nsIIOService> ios(do_GetIOService(&rv));
@@ -91,7 +91,7 @@ bool
 WyciwygChannelParent::RecvAppData(const IPC::SerializedLoadContext& loadContext,
                                   PBrowserParent* parent)
 {
-  LOG(("WyciwygChannelParent RecvAppData [this=%p]\n", this));
+  LOG(("WyciwygChannelParent RecvAppData [this=%x]\n", this));
 
   if (!SetupAppData(loadContext, parent))
     return false;
@@ -107,9 +107,7 @@ WyciwygChannelParent::SetupAppData(const IPC::SerializedLoadContext& loadContext
   if (!mChannel)
     return true;
 
-  const char* error = NeckoParent::CreateChannelLoadContext(aParent,
-                                                            Manager()->Manager(),
-                                                            loadContext,
+  const char* error = NeckoParent::CreateChannelLoadContext(aParent, loadContext,
                                                             mLoadContext);
   if (error) {
     printf_stderr(nsPrintfCString("WyciwygChannelParent::SetupAppData: FATAL ERROR: %s\n",
@@ -137,7 +135,7 @@ WyciwygChannelParent::RecvAsyncOpen(const URIParams& aOriginal,
   if (!original)
     return false;
 
-  LOG(("WyciwygChannelParent RecvAsyncOpen [this=%p]\n", this));
+  LOG(("WyciwygChannelParent RecvAsyncOpen [this=%x]\n", this));
 
   if (!mChannel)
     return true;
@@ -228,7 +226,7 @@ WyciwygChannelParent::RecvCancel(const nsresult& aStatusCode)
 NS_IMETHODIMP
 WyciwygChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
 {
-  LOG(("WyciwygChannelParent::OnStartRequest [this=%p]\n", this));
+  LOG(("WyciwygChannelParent::OnStartRequest [this=%x]\n", this));
 
   nsresult rv;
 
@@ -271,7 +269,7 @@ WyciwygChannelParent::OnStopRequest(nsIRequest *aRequest,
                                     nsISupports *aContext,
                                     nsresult aStatusCode)
 {
-  LOG(("WyciwygChannelParent::OnStopRequest: [this=%p status=%ul]\n",
+  LOG(("WyciwygChannelParent::OnStopRequest: [this=%x status=%ul]\n",
        this, aStatusCode));
 
   if (mIPCClosed || !SendOnStopRequest(aStatusCode)) {
@@ -292,7 +290,7 @@ WyciwygChannelParent::OnDataAvailable(nsIRequest *aRequest,
                                       uint64_t aOffset,
                                       uint32_t aCount)
 {
-  LOG(("WyciwygChannelParent::OnDataAvailable [this=%p]\n", this));
+  LOG(("WyciwygChannelParent::OnDataAvailable [this=%x]\n", this));
 
   nsCString data;
   nsresult rv = NS_ReadInputStreamToString(aInputStream, data, aCount);

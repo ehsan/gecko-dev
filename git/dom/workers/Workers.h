@@ -9,11 +9,11 @@
 #include "jsapi.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Mutex.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 
 #define BEGIN_WORKERS_NAMESPACE \
   namespace mozilla { namespace dom { namespace workers {
@@ -24,7 +24,6 @@
 
 #define WORKERS_SHUTDOWN_TOPIC "web-workers-shutdown"
 
-class nsIScriptContext;
 class nsPIDOMWindow;
 
 BEGIN_WORKERS_NAMESPACE
@@ -43,138 +42,19 @@ AssertIsOnMainThread()
 { }
 #endif
 
-struct JSSettings
-{
-  enum {
-    // All the GC parameters that we support.
-    JSSettings_JSGC_MAX_BYTES = 0,
-    JSSettings_JSGC_MAX_MALLOC_BYTES,
-    JSSettings_JSGC_HIGH_FREQUENCY_TIME_LIMIT,
-    JSSettings_JSGC_LOW_FREQUENCY_HEAP_GROWTH,
-    JSSettings_JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MIN,
-    JSSettings_JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MAX,
-    JSSettings_JSGC_HIGH_FREQUENCY_LOW_LIMIT,
-    JSSettings_JSGC_HIGH_FREQUENCY_HIGH_LIMIT,
-    JSSettings_JSGC_ALLOCATION_THRESHOLD,
-    JSSettings_JSGC_SLICE_TIME_BUDGET,
-    JSSettings_JSGC_DYNAMIC_HEAP_GROWTH,
-    JSSettings_JSGC_DYNAMIC_MARK_SLICE,
-    // JSGC_MODE not supported
-
-    // This must be last so that we get an accurate count.
-    kGCSettingsArraySize
-  };
-
-  struct JSGCSetting
-  {
-    JSGCParamKey key;
-    uint32_t value;
-
-    JSGCSetting()
-    : key(static_cast<JSGCParamKey>(-1)), value(0)
-    { }
-
-    bool
-    IsSet() const
-    {
-      return key != static_cast<JSGCParamKey>(-1);
-    }
-
-    void
-    Unset()
-    {
-      key = static_cast<JSGCParamKey>(-1);
-      value = 0;
-    }
-  };
-
-  // There are several settings that we know we need so it makes sense to
-  // preallocate here.
-  typedef JSGCSetting JSGCSettingsArray[kGCSettingsArraySize];
-
-  // Settings that change based on chrome/content context.
-  struct JSContentChromeSettings
-  {
-    JS::ContextOptions options;
-    int32_t maxScriptRuntime;
-
-    JSContentChromeSettings()
-    : options(), maxScriptRuntime(0)
-    { }
-  };
-
-  JSContentChromeSettings chrome;
-  JSContentChromeSettings content;
-  JSGCSettingsArray gcSettings;
-  bool jitHardening;
-#ifdef JS_GC_ZEAL
-  uint8_t gcZeal;
-  uint32_t gcZealFrequency;
-#endif
-
-  JSSettings()
-  : jitHardening(false)
-#ifdef JS_GC_ZEAL
-  , gcZeal(0), gcZealFrequency(0)
-#endif
-  {
-    for (uint32_t index = 0; index < ArrayLength(gcSettings); index++) {
-      new (gcSettings + index) JSGCSetting();
-    }
-  }
-
-  bool
-  ApplyGCSetting(JSGCParamKey aKey, uint32_t aValue)
-  {
-    JSSettings::JSGCSetting* firstEmptySetting = nullptr;
-    JSSettings::JSGCSetting* foundSetting = nullptr;
-
-    for (uint32_t index = 0; index < ArrayLength(gcSettings); index++) {
-      JSSettings::JSGCSetting& setting = gcSettings[index];
-      if (setting.key == aKey) {
-        foundSetting = &setting;
-        break;
-      }
-      if (!firstEmptySetting && !setting.IsSet()) {
-        firstEmptySetting = &setting;
-      }
-    }
-
-    if (aValue) {
-      if (!foundSetting) {
-        foundSetting = firstEmptySetting;
-        if (!foundSetting) {
-          NS_ERROR("Not enough space for this value!");
-          return false;
-        }
-      }
-      foundSetting->key = aKey;
-      foundSetting->value = aValue;
-      return true;
-    }
-
-    if (foundSetting) {
-      foundSetting->Unset();
-      return true;
-    }
-
-    return false;
-  }
-};
-
 // All of these are implemented in RuntimeService.cpp
-bool
-ResolveWorkerClasses(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aId,
-                     unsigned aFlags, JS::MutableHandle<JSObject*> aObjp);
+JSBool
+ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsigned aFlags,
+                     JSMutableHandleObject aObjp);
 
 void
-CancelWorkersForWindow(nsPIDOMWindow* aWindow);
+CancelWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);
 
 void
-SuspendWorkersForWindow(nsPIDOMWindow* aWindow);
+SuspendWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);
 
 void
-ResumeWorkersForWindow(nsPIDOMWindow* aWindow);
+ResumeWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);
 
 class WorkerTask {
 public:
@@ -224,14 +104,6 @@ void
 ThrowDOMExceptionForNSResult(JSContext* aCx, nsresult aNSResult);
 
 } // namespace exceptions
-
-// Throws the JSMSG_GETTER_ONLY exception.  This shouldn't be used going
-// forward -- getter-only properties should just use JS_PSG for the setter
-// (implying no setter at all), which will not throw when set in non-strict
-// code but will in strict code.  Old code should use this only for temporary
-// compatibility reasons.
-extern bool
-GetterOnlyJSNative(JSContext* aCx, unsigned aArgc, JS::Value* aVp);
 
 END_WORKERS_NAMESPACE
 

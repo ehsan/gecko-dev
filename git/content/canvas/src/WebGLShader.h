@@ -7,14 +7,12 @@
 #define WEBGLSHADER_H_
 
 #include "WebGLObjectModel.h"
-#include "WebGLUniformInfo.h"
 
 #include "nsWrapperCache.h"
 
 #include "angle/ShaderLang.h"
 
 #include "mozilla/LinkedList.h"
-#include "mozilla/MemoryReporting.h"
 
 namespace mozilla {
 
@@ -23,26 +21,67 @@ struct WebGLMappedIdentifier {
     WebGLMappedIdentifier(const nsACString& o, const nsACString& m) : original(o), mapped(m) {}
 };
 
+struct WebGLUniformInfo {
+    uint32_t arraySize;
+    bool isArray;
+    ShDataType type;
+
+    WebGLUniformInfo(uint32_t s = 0, bool a = false, ShDataType t = SH_NONE)
+        : arraySize(s), isArray(a), type(t) {}
+
+    int ElementSize() const {
+        switch (type) {
+            case SH_INT:
+            case SH_FLOAT:
+            case SH_BOOL:
+            case SH_SAMPLER_2D:
+            case SH_SAMPLER_CUBE:
+                return 1;
+            case SH_INT_VEC2:
+            case SH_FLOAT_VEC2:
+            case SH_BOOL_VEC2:
+                return 2;
+            case SH_INT_VEC3:
+            case SH_FLOAT_VEC3:
+            case SH_BOOL_VEC3:
+                return 3;
+            case SH_INT_VEC4:
+            case SH_FLOAT_VEC4:
+            case SH_BOOL_VEC4:
+            case SH_FLOAT_MAT2:
+                return 4;
+            case SH_FLOAT_MAT3:
+                return 9;
+            case SH_FLOAT_MAT4:
+                return 16;
+            default:
+                NS_ABORT(); // should never get here
+                return 0;
+        }
+    }
+};
+
 class WebGLShader MOZ_FINAL
-    : public nsWrapperCache
+    : public nsISupports
     , public WebGLRefCountedObject<WebGLShader>
     , public LinkedListElement<WebGLShader>
     , public WebGLContextBoundObject
+    , public nsWrapperCache
 {
     friend class WebGLContext;
     friend class WebGLProgram;
 
 public:
-    WebGLShader(WebGLContext *context, GLenum stype);
+    WebGLShader(WebGLContext *context, WebGLenum stype);
 
     ~WebGLShader() {
         DeleteOnce();
     }
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
-    GLuint GLName() { return mGLName; }
-    GLenum ShaderType() { return mType; }
+    WebGLuint GLName() { return mGLName; }
+    WebGLenum ShaderType() { return mType; }
 
     void SetSource(const nsAString& src) {
         // XXX do some quick gzip here maybe -- getting this will be very rare
@@ -76,16 +115,15 @@ public:
         return Context();
     }
 
-    virtual JSObject* WrapObject(JSContext *cx,
-                                 JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+    virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
-    NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebGLShader)
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLShader)
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLShader)
 
 protected:
 
-    GLuint mGLName;
-    GLenum mType;
+    WebGLuint mGLName;
+    WebGLenum mType;
     nsString mSource;
     nsCString mTranslationLog; // The translation log should contain only ASCII characters
     bool mNeedsTranslation;

@@ -16,17 +16,13 @@
           'dependencies': [
             'video_codecs_test_framework',
             'webrtc_video_coding',
-            '<(DEPTH)/third_party/gflags/gflags.gyp:gflags',
+            '<(DEPTH)/third_party/google-gflags/google-gflags.gyp:google-gflags',
             '<(webrtc_root)/test/metrics.gyp:metrics',
             '<(webrtc_vp8_dir)/vp8.gyp:webrtc_vp8',
-          ],
-          'sources': [
-            'video_quality_measurement.cc',
-          ],
-          # Disable warnings to enable Win64 build, issue 1323.
-          'msvs_disabled_warnings': [
-            4267,  # size_t to int truncation.
-          ],
+           ],
+           'sources': [
+             'video_quality_measurement.cc',
+           ],
         },
       ], # targets
     }], # include_tests

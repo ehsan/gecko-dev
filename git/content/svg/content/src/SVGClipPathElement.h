@@ -27,14 +27,13 @@ protected:
   friend nsresult (::NS_NewSVGClipPathElement(nsIContent **aResult,
                                               already_AddRefed<nsINodeInfo> aNodeInfo));
   SVGClipPathElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-  virtual JSObject* WrapNode(JSContext *cx,
-                             JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 public:
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // WebIDL
-  already_AddRefed<SVGAnimatedEnumeration> ClipPathUnits();
+  already_AddRefed<nsIDOMSVGAnimatedEnumeration> ClipPathUnits();
 
 protected:
 
@@ -42,7 +41,7 @@ protected:
   nsSVGEnum mEnumAttributes[1];
   static EnumInfo sEnumInfo[1];
 
-  virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;
+  virtual EnumAttributesInfo GetEnumInfo();
 };
 
 } // namespace dom

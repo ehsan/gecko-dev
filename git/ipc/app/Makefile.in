@@ -2,12 +2,27 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH     = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir    = @srcdir@
+VPATH     = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+include $(topsrcdir)/ipc/app/defs.mk
+PROGRAM = $(MOZ_CHILD_PROCESS_NAME)
+
 ifneq ($(dir $(PROGRAM)),./)
   GENERATED_DIRS = $(dir $(PROGRAM))
 endif
 
+CPPSRCS = \
+  MozillaRuntimeMain.cpp \
+  $(NULL)
+
 ifeq (android,$(MOZ_WIDGET_TOOLKIT))
 WRAP_LDFLAGS =
+CPPSRCS = MozillaRuntimeMainAndroid.cpp
 else
 LIBS += \
   $(XPCOM_LIBS) \
@@ -38,6 +53,11 @@ endif
 NSDISTMODE = copy
 
 include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
+
+ifeq (android,$(MOZ_WIDGET_TOOLKIT))
+FINAL_TARGET = $(DIST)/bin/lib
+endif
 
 ifdef _MSC_VER
 # Always enter a Windows program through wmain, whether or not we're
@@ -50,19 +70,6 @@ include $(topsrcdir)/config/rules.mk
 LDFLAGS += $(MOZ_ALLOW_HEAP_EXECUTE_FLAGS)
 
 ifeq ($(OS_ARCH),WINNT) #{
-
-ifdef MOZ_CONTENT_SANDBOX
-LIBS += ../../security/sandbox/$(LIB_PREFIX)sandbox_s.$(LIB_SUFFIX)
-LIBS += $(NSPR_LIBS)
-LOCAL_INCLUDES += \
-  -I$(topsrcdir)/security/sandbox \
-  -I$(topsrcdir)/security/ \
-  $(NULL)
-endif
-
-# Note the manifest file exists in the tree, so we use the explicit filename
-# here.
-EXTRA_DEPS += plugin-container.exe.manifest
 #
 # Control the default heap size.
 # This is the heap returned by GetProcessHeap().

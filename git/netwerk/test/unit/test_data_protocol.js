@@ -1,5 +1,9 @@
 /* run some tests on the data: protocol handler */
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
+
 // The behaviour wrt spaces is:
 // - Textual content keeps all spaces
 // - Other content strips unescaped spaces

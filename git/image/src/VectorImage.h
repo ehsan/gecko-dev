@@ -8,10 +8,11 @@
 
 #include "Image.h"
 #include "nsIStreamListener.h"
-#include "mozilla/MemoryReporting.h"
+#include "nsIRequest.h"
+#include "mozilla/TimeStamp.h"
+#include "mozilla/WeakPtr.h"
 
-class nsIRequest;
-class gfxDrawable;
+class imgDecoderObserver;
 
 namespace mozilla {
 namespace layers {
@@ -20,11 +21,10 @@ class ImageContainer;
 }
 namespace image {
 
-struct SVGDrawingParameters;
-class  SVGDocumentWrapper;
-class  SVGRootRenderingObserver;
-class  SVGLoadEventListener;
-class  SVGParseCompleteListener;
+class SVGDocumentWrapper;
+class SVGRootRenderingObserver;
+class SVGLoadEventListener;
+class SVGParseCompleteListener;
 
 class VectorImage : public ImageResource,
                     public nsIStreamListener
@@ -43,8 +43,8 @@ public:
                 uint32_t aFlags);
   virtual nsIntRect FrameRect(uint32_t aWhichFrame) MOZ_OVERRIDE;
 
-  virtual size_t HeapSizeOfSourceWithComputedFallback(mozilla::MallocSizeOf aMallocSizeOf) const;
-  virtual size_t HeapSizeOfDecodedWithComputedFallback(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t HeapSizeOfSourceWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const;
+  virtual size_t HeapSizeOfDecodedWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const;
   virtual size_t NonHeapSizeOfDecoded() const;
   virtual size_t OutOfProcessSizeOfDecoded() const;
 
@@ -59,15 +59,8 @@ public:
                                        bool aLastPart) MOZ_OVERRIDE;
   virtual nsresult OnNewSourceData() MOZ_OVERRIDE;
 
-  /**
-   * Callback for SVGRootRenderingObserver.
-   *
-   * This just sets a dirty flag that we check in VectorImage::RequestRefresh,
-   * which is called under the ticks of the refresh driver of any observing
-   * documents that we may have. Only then (after all animations in this image
-   * have been updated) do we send out "frame changed" notifications,
-   */
-  void InvalidateObserversOnNextRefreshDriverTick();
+  // Callback for SVGRootRenderingObserver.
+  void InvalidateObserver();
 
   // Callback for SVGParseCompleteListener.
   void OnSVGDocumentParsed();
@@ -77,15 +70,11 @@ public:
   void OnSVGDocumentError();
 
 protected:
-  VectorImage(imgStatusTracker* aStatusTracker = nullptr,
-              ImageURL* aURI = nullptr);
+  VectorImage(imgStatusTracker* aStatusTracker = nullptr, nsIURI* aURI = nullptr);
 
   virtual nsresult StartAnimation();
   virtual nsresult StopAnimation();
   virtual bool     ShouldAnimate();
-
-  void CreateDrawableAndShow(const SVGDrawingParameters& aParams);
-  void Show(gfxDrawable* aDrawable, const SVGDrawingParameters& aParams);
 
 private:
   void CancelAllListeners();
@@ -100,11 +89,6 @@ private:
   bool           mIsDrawing;              // Are we currently drawing?
   bool           mHaveAnimations;         // Is our SVG content SMIL-animated?
                                           // (Only set after mIsFullyLoaded.)
-  bool           mHasPendingInvalidation; // Invalidate observers next refresh
-                                          // driver tick.
-
-  // Initializes imgStatusTracker and resets it on RasterImage destruction.
-  nsAutoPtr<imgStatusTrackerInit> mStatusTrackerInit;
 
   friend class ImageFactory;
 };

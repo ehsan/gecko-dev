@@ -11,14 +11,11 @@
 #include <math.h>
 
 #include "gfxMatrix.h"
-#include "mozilla/RangedPtr.h"
 
 class nsIContent;
 class nsIDocument;
 class nsIFrame;
-class nsPresContext;
 class nsStyleContext;
-class nsStyleCoord;
 class nsSVGElement;
 
 namespace mozilla {
@@ -135,51 +132,6 @@ public:
                       float aViewboxWidth, float aViewboxHeight,
                       const SVGPreserveAspectRatio &aPreserveAspectRatio);
 
-  static mozilla::RangedPtr<const PRUnichar>
-  GetStartRangedPtr(const nsAString& aString);
-
-  static mozilla::RangedPtr<const PRUnichar>
-  GetEndRangedPtr(const nsAString& aString);
-
-  /**
-   * Parse a number of the form:
-   * number ::= integer ([Ee] integer)? | [+-]? [0-9]* "." [0-9]+ ([Ee] integer)?
-   * Parsing fails if the number cannot be represented by a floatType.
-   * If parsing succeeds, aIter is updated so that it points to the character
-   * after the end of the number, otherwise it is left unchanged
-   */
-  template<class floatType>
-  static bool
-  ParseNumber(mozilla::RangedPtr<const PRUnichar>& aIter,
-              const mozilla::RangedPtr<const PRUnichar>& aEnd,
-              floatType& aValue);
-
-  /**
-   * Parse a number of the form:
-   * number ::= integer ([Ee] integer)? | [+-]? [0-9]* "." [0-9]+ ([Ee] integer)?
-   * Parsing fails if there is anything left over after the number,
-   * or the number cannot be represented by a floatType.
-   */
-  template<class floatType>
-  static bool
-  ParseNumber(const nsAString& aString, floatType& aValue);
-
-  /**
-   * Parse an integer of the form:
-   * integer ::= [+-]? [0-9]+
-   * Parsing fails if the number cannot be represented by an int32_t.
-   */
-  static bool
-  ParseInteger(const nsAString& aString, int32_t& aValue);
-
-  /**
-   * Converts an nsStyleCoord into a userspace value.  Handles units
-   * Factor (straight userspace), Coord (dimensioned), and Percent (of
-   * aContent's SVG viewport)
-   */
-  static float CoordToFloat(nsPresContext *aPresContext,
-                            nsSVGElement *aContent,
-                            const nsStyleCoord &aCoord);
 };
 
 #endif

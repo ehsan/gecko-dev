@@ -13,11 +13,11 @@
 #define nsCSSRuleProcessor_h_
 
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsCSSStyleSheet.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
+#include "nsCSSRules.h"
 #include "nsRuleWalker.h"
 #include "nsEventStates.h"
 
@@ -27,8 +27,6 @@ struct nsCSSSelectorList;
 struct RuleCascadeData;
 struct TreeMatchContext;
 class nsCSSKeyframesRule;
-class nsCSSPageRule;
-class nsCSSFontFeatureValuesRule;
 
 /**
  * The CSS style rule processor provides a mechanism for sibling style
@@ -114,9 +112,9 @@ public:
 
   virtual bool MediumFeaturesChanged(nsPresContext* aPresContext) MOZ_OVERRIDE;
 
-  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
+  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun mallocSizeOf)
     const MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
     const MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
 
   // Append all the currently-active font face rules to aArray.  Return
@@ -124,14 +122,11 @@ public:
   bool AppendFontFaceRules(nsPresContext* aPresContext,
                            nsTArray<nsFontFaceRuleContainer>& aArray);
 
-  nsCSSKeyframesRule* KeyframesRuleForName(nsPresContext* aPresContext,
-                                           const nsString& aName);
+  bool AppendKeyframesRules(nsPresContext* aPresContext,
+                            nsTArray<nsCSSKeyframesRule*>& aArray);
 
   bool AppendPageRules(nsPresContext* aPresContext,
                        nsTArray<nsCSSPageRule*>& aArray);
-
-  bool AppendFontFeatureValuesRules(nsPresContext* aPresContext,
-                              nsTArray<nsCSSFontFeatureValuesRule*>& aArray);
 
   /**
    * Returns the scope element for the scoped style sheets this rule

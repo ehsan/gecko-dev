@@ -6,56 +6,54 @@ let doc;
 let inspector;
 let computedView;
 
-const STYLESHEET_URL = "data:text/css,"+encodeURIComponent(
-  [".highlight {",
-   "color: blue",
-   "}"].join("\n"));
+function createDocument()
+{
+  doc.body.innerHTML = '<style type="text/css"> ' +
+    'html { color: #000000; } ' +
+    'span { font-variant: small-caps; color: #000000; } ' +
+    '.nomatches {color: #ff0000;}</style> <div id="first" style="margin: 10em; ' +
+    'font-size: 14pt; font-family: helvetica, sans-serif; color: #AAA">\n' +
+    '<h1>Some header text</h1>\n' +
+    '<p id="salutation" style="font-size: 12pt">hi.</p>\n' +
+    '<p id="body" style="font-size: 12pt">I am a test-case. This text exists ' +
+    'solely to provide some things to <span style="color: yellow">' +
+    'highlight</span> and <span style="font-weight: bold">count</span> ' +
+    'style list-items in the box at right. If you are reading this, ' +
+    'you should go do something else instead. Maybe read a book. Or better ' +
+    'yet, write some test-cases for another bit of code. ' +
+    '<span style="font-style: italic">some text</span></p>\n' +
+    '<p id="closing">more text</p>\n' +
+    '<p>even more text</p>' +
+    '</div>';
+  doc.title = "Rule view style editor link test";
 
-const DOCUMENT_URL = "data:text/html,"+encodeURIComponent(
-  ['<html>' +
-   '<head>' +
-   '<title>Computed view style editor link test</title>',
-   '<style type="text/css"> ',
-   'html { color: #000000; } ',
-   'span { font-variant: small-caps; color: #000000; } ',
-   '.nomatches {color: #ff0000;}</style> <div id="first" style="margin: 10em; ',
-   'font-size: 14pt; font-family: helvetica, sans-serif; color: #AAA">',
-   '</style>',
-   '<link rel="stylesheet" type="text/css" href="'+STYLESHEET_URL+'">',
-   '</head>',
-   '<body>',
-   '<h1>Some header text</h1>',
-   '<p id="salutation" style="font-size: 12pt">hi.</p>',
-   '<p id="body" style="font-size: 12pt">I am a test-case. This text exists ',
-   'solely to provide some things to ',
-   '<span style="color: yellow" class="highlight">',
-   'highlight</span> and <span style="font-weight: bold">count</span> ',
-   'style list-items in the box at right. If you are reading this, ',
-   'you should go do something else instead. Maybe read a book. Or better ',
-   'yet, write some test-cases for another bit of code. ',
-   '<span style="font-style: italic">some text</span></p>',
-   '<p id="closing">more text</p>',
-   '<p>even more text</p>',
-   '</div>',
-   '</body>',
-   '</html>'].join("\n"));
+  openInspector(selectNode);
+}
 
 
-
-function selectNode(aInspector, aComputedView)
+function selectNode(aInspector)
 {
   inspector = aInspector;
-  computedView = aComputedView;
 
   let span = doc.querySelector("span");
   ok(span, "captain, we have the span");
 
-  inspector.selection.setNode(span);
-  inspector.once("inspector-updated", testInlineStyle);
+  aInspector.selection.setNode(span);
+
+  aInspector.sidebar.once("computedview-ready", function() {
+    aInspector.sidebar.select("computedview");
+
+    computedView = getComputedView(aInspector);
+
+    Services.obs.addObserver(testInlineStyle, "StyleInspector-populated", false);
+  });
 }
 
 function testInlineStyle()
 {
+  Services.obs.removeObserver(testInlineStyle, "StyleInspector-populated");
+
+  info("expanding property");
   expandProperty(0, function propertyExpanded() {
     Services.ww.registerNotification(function onWindow(aSubject, aTopic) {
       if (aTopic != "domwindowopened") {
@@ -71,9 +69,7 @@ function testInlineStyle()
         info("closing window");
         win.close();
         Services.ww.unregisterNotification(onWindow);
-        executeSoon(() => {
-          testInlineStyleSheet();
-        });
+        testInlineStyleSheet();
       });
     });
     let link = getLinkByIndex(0);
@@ -86,55 +82,48 @@ function testInlineStyleSheet()
   info("clicking an inline stylesheet");
 
   let target = TargetFactory.forTab(gBrowser.selectedTab);
-  let toolbox = gDevTools.getToolbox(target);
-  toolbox.once("styleeditor-selected", () => {
+  gDevTools.showToolbox(target, "styleeditor").then(function(toolbox) {
     let panel = toolbox.getCurrentPanel();
+    let win = panel._panelWin;
 
-    panel.UI.once("editor-selected", (event, editor) => {
-      validateStyleEditorSheet(editor, 0);
-      executeSoon(() => {
-        testExternalStyleSheet(toolbox);
-      });
+    win.styleEditorChrome.addChromeListener({
+      onEditorAdded: function checkEditor(aChrome, aEditor) {
+        if (!aEditor.sourceEditor) {
+          aEditor.addActionListener({
+            onAttach: function (aEditor) {
+              aEditor.removeActionListener(this);
+              validateStyleEditorSheet(aEditor);
+            }
+          });
+        } else {
+          validateStyleEditorSheet(aEditor);
+        }
+      }
     });
   });
 
-  let link = getLinkByIndex(2);
+  let link = getLinkByIndex(1);
   link.click();
 }
 
-function testExternalStyleSheet(toolbox) {
-  info ("clicking an external stylesheet");
-
-  let panel = toolbox.getCurrentPanel();
-  panel.UI.once("editor-selected", (event, editor) => {
-    is(toolbox.currentToolId, "styleeditor", "style editor selected");
-    validateStyleEditorSheet(editor, 1);
-    finishUp();
-  });
-
-  toolbox.selectTool("inspector").then(function () {
-    info("inspector selected");
-    let link = getLinkByIndex(1);
-    link.click();
-  });
-}
-
-function validateStyleEditorSheet(aEditor, aExpectedSheetIndex)
+function validateStyleEditorSheet(aEditor)
 {
   info("validating style editor stylesheet");
-  let sheet = doc.styleSheets[aExpectedSheetIndex];
-  is(aEditor.styleSheet.href, sheet.href, "loaded stylesheet matches document stylesheet");
+
+  let sheet = doc.styleSheets[0];
+  is(aEditor.styleSheet, sheet, "loaded stylesheet matches document stylesheet");
+
+  finishUp();
 }
 
 function expandProperty(aIndex, aCallback)
 {
-  info("expanding property " + aIndex);
   let contentDoc = computedView.styleDocument;
   let expando = contentDoc.querySelectorAll(".expandable")[aIndex];
-
   expando.click();
 
-  inspector.once("computed-view-property-expanded", aCallback);
+  // We use executeSoon to give the property time to expand.
+  executeSoon(aCallback);
 }
 
 function getLinkByIndex(aIndex)
@@ -160,8 +149,8 @@ function test()
     gBrowser.selectedBrowser.removeEventListener(evt.type, arguments.callee,
       true);
     doc = content.document;
-    waitForFocus(function () { openComputedView(selectNode); }, content);
+    waitForFocus(createDocument, content);
   }, true);
 
-  content.location = DOCUMENT_URL;
+  content.location = "data:text/html,<p>Computed view style editor link test</p>";
 }

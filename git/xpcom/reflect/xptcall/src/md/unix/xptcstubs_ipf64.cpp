@@ -25,7 +25,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, uint32_t methodIndex,
 #define PARAM_BUFFER_COUNT     16
 
   nsXPTCMiniVariant paramBuffer[PARAM_BUFFER_COUNT];
-  nsXPTCMiniVariant* dispatchParams = nullptr;
+  nsXPTCMiniVariant* dispatchParams = NULL;
   const nsXPTMethodInfo* info;
   nsresult result = NS_ERROR_FAILURE;
   uint64_t* iargs = intargs;
@@ -129,7 +129,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, uint32_t methodIndex,
   return result;
 }
 
-extern "C" nsresult SharedStub(uint64_t,uint64_t,uint64_t,uint64_t,
+extern "C" int SharedStub(uint64_t,uint64_t,uint64_t,uint64_t,
  uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t *);
 
 /* Variable a0-a7 were put there so we can have access to the 8 input

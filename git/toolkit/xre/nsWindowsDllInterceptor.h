@@ -60,7 +60,7 @@
  *
  */
 
-#include <stdint.h>
+#include <mozilla/StandardInteger.h>
 
 namespace mozilla {
 namespace internal {
@@ -104,14 +104,14 @@ public:
 
       // I don't think this is actually necessary, but it can't hurt.
       FlushInstructionCache(GetCurrentProcess(),
-                            /* ignored */ nullptr,
+                            /* ignored */ NULL,
                             /* ignored */ 0);
     }
   }
 
   void Init(const char *modulename)
   {
-    mModule = LoadLibraryExA(modulename, nullptr, 0);
+    mModule = LoadLibraryExA(modulename, NULL, 0);
     if (!mModule) {
       //printf("LoadLibraryEx for '%s' failed\n", modulename);
       return;
@@ -159,14 +159,14 @@ public:
 
   bool WriteHook(byteptr_t fn, intptr_t hookDest, void **origFunc)
   {
-    // Check that the 5 bytes before fn are NOP's or INT 3's,
-    // and that the 2 bytes after fn are mov(edi, edi).
+    // Check that the 5 bytes before fn are NOP's, and that the 2 bytes after
+    // fn are mov(edi, edi).
     //
     // It's safe to read fn[-5] because we set it to PAGE_EXECUTE_READWRITE
     // before calling WriteHook.
 
     for (int i = -5; i <= -1; i++) {
-      if (fn[i] != 0x90 && fn[i] != 0xcc) // nop or int 3
+      if (fn[i] != 0x90) // nop
         return false;
     }
 
@@ -194,7 +194,7 @@ public:
 
     // I think this routine is safe without this, but it can't hurt.
     FlushInstructionCache(GetCurrentProcess(),
-                          /* ignored */ nullptr,
+                          /* ignored */ NULL,
                           /* ignored */ 0);
 
     return true;
@@ -256,7 +256,7 @@ public:
     if (mModule)
       return;
 
-    mModule = LoadLibraryExA(modulename, nullptr, 0);
+    mModule = LoadLibraryExA(modulename, NULL, 0);
     if (!mModule) {
       //printf("LoadLibraryEx for '%s' failed\n", modulename);
       return;
@@ -268,8 +268,7 @@ public:
 
     mMaxHooks = nhooks + (hooksPerPage % nhooks);
 
-    mHookPage = (byteptr_t) VirtualAllocEx(GetCurrentProcess(), nullptr,
-             mMaxHooks * kHookSize,
+    mHookPage = (byteptr_t) VirtualAllocEx(GetCurrentProcess(), NULL, mMaxHooks * kHookSize,
              MEM_COMMIT | MEM_RESERVE,
              PAGE_EXECUTE_READWRITE);
 
@@ -328,7 +327,7 @@ protected:
                         intptr_t dest,
                         void **outTramp)
   {
-    *outTramp = nullptr;
+    *outTramp = NULL;
 
     byteptr_t tramp = FindTrampolineSpace();
     if (!tramp)
@@ -394,8 +393,6 @@ protected:
       }
     }
 #elif defined(_M_X64)
-    byteptr_t directJmpAddr;
-
     while (nBytes < 13) {
 
       // if found JMP 32bit offset, next bytes must be NOP 
@@ -405,24 +402,8 @@ protected:
 
         continue;
       } 
-      if (origBytes[nBytes] == 0x0f) {
-        nBytes++;
-        if (origBytes[nBytes] == 0x1f) {
-          // nop (multibyte)
-          nBytes++;
-          if ((origBytes[nBytes] & 0xc0) == 0x40 &&
-              (origBytes[nBytes] & 0x7) == 0x04) {
-            nBytes += 3;
-          } else {
-            return;
-          }
-        } else if (origBytes[nBytes] == 0x05) {
-          // syscall
-          nBytes++;
-        } else {
-          return;
-        }
-      } else if (origBytes[nBytes] == 0x41) {
+        
+      if (origBytes[nBytes] == 0x41) {
         // REX.B
         nBytes++;
 
@@ -479,26 +460,6 @@ protected:
             // complex MOV
             return;
           }
-        } else if (origBytes[nBytes] == 0xc7) {
-          // MOV r/m64, imm32
-          if ((origBytes[nBytes + 1] & 0xf8) == 0x40) {
-            nBytes += 6;
-          } else {
-            return;
-          }
-        } else if (origBytes[nBytes] == 0xff) {
-          pJmp32 = nBytes - 1;
-          // JMP /4
-          if ((origBytes[nBytes+1] & 0xc0) == 0x0 &&
-              (origBytes[nBytes+1] & 0x07) == 0x5) {
-            // [rip+disp32]
-            // convert JMP 32bit offset to JMP 64bit direct
-            directJmpAddr = (byteptr_t)*((uint64_t*)(origBytes + nBytes + 6 + (*((int32_t*)(origBytes + nBytes + 2)))));
-            nBytes += 6;
-          } else {
-            // not support yet!
-            return;
-          }
         } else {
           // not support yet!
           return;
@@ -509,16 +470,8 @@ protected:
       } else if (origBytes[nBytes] == 0x90) {
         // nop
         nBytes++;
-      } else if (origBytes[nBytes] == 0xb8) {
-        // MOV 0xB8: http://ref.x86asm.net/coder32.html#xB8
-        nBytes += 5;
-      } else if (origBytes[nBytes] == 0xc3) {
-        // ret
-        nBytes++;
       } else if (origBytes[nBytes] == 0xe9) {
         pJmp32 = nBytes;
-        // convert JMP 32bit offset to JMP 64bit direct
-        directJmpAddr = origBytes + pJmp32 + 5 + (*((int32_t*)(origBytes + pJmp32 + 1)));
         // jmp 32bit offset
         nBytes += 5;
       } else if (origBytes[nBytes] == 0xff) {
@@ -565,6 +518,8 @@ protected:
 #elif defined(_M_X64)
     // If JMP32 opcode found, we don't insert to trampoline jump 
     if (pJmp32 >= 0) {
+      // convert JMP 32bit offset to JMP 64bit direct
+      byteptr_t directJmpAddr = origBytes + pJmp32 + 5 + (*((LONG*)(origBytes+pJmp32+1)));
       // mov r11, address
       tramp[pJmp32]   = 0x49;
       tramp[pJmp32+1] = 0xbb;
@@ -643,7 +598,7 @@ class WindowsDllInterceptor
 
 public:
   WindowsDllInterceptor()
-    : mModuleName(nullptr)
+    : mModuleName(NULL)
     , mNHooks(0)
   {}
 

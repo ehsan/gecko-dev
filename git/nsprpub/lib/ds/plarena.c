@@ -153,7 +153,7 @@ PR_IMPLEMENT(void *) PL_ArenaAllocate(PLArenaPool *pool, PRUint32 nb)
     {
         a = pool->current;
         do {
-            if ( nb <= a->limit - a->avail )  {
+            if ( a->avail +nb <= a->limit )  {
                 pool->current = a;
                 rp = (char *)a->avail;
                 a->avail += nb;
@@ -171,7 +171,7 @@ PR_IMPLEMENT(void *) PL_ArenaAllocate(PLArenaPool *pool, PRUint32 nb)
             return(0);
 
         for ( a = arena_freelist, p = NULL; a != NULL ; p = a, a = a->next ) {
-            if ( nb <= a->limit - a->base )  {
+            if ( a->base +nb <= a->limit )  {
                 if ( p == NULL )
                     arena_freelist = a->next;
                 else
@@ -196,16 +196,11 @@ PR_IMPLEMENT(void *) PL_ArenaAllocate(PLArenaPool *pool, PRUint32 nb)
     /* attempt to allocate from the heap */ 
     {  
         PRUint32 sz = PR_MAX(pool->arenasize, nb);
-        if (PR_UINT32_MAX - sz < sizeof *a + pool->mask) {
-            a = NULL;
-        } else {
-            sz += sizeof *a + pool->mask;  /* header and alignment slop */
-            a = (PLArena*)PR_MALLOC(sz);
-        }
+        sz += sizeof *a + pool->mask;  /* header and alignment slop */
+        a = (PLArena*)PR_MALLOC(sz);
         if ( NULL != a )  {
             a->limit = (PRUword)a + sz;
             a->base = a->avail = (PRUword)PL_ARENA_ALIGN(pool, a + 1);
-            PL_MAKE_MEM_NOACCESS((void*)a->avail, a->limit - a->avail);
             rp = (char *)a->avail;
             a->avail += nb;
             /* the newly allocated arena is linked after pool->current 
@@ -242,8 +237,7 @@ static void ClearArenaList(PLArena *a, PRInt32 pattern)
     for (; a; a = a->next) {
         PR_ASSERT(a->base <= a->avail && a->avail <= a->limit);
         a->avail = a->base;
-        PL_CLEAR_UNUSED_PATTERN(a, pattern);
-        PL_MAKE_MEM_NOACCESS((void*)a->avail, a->limit - a->avail);
+	PL_CLEAR_UNUSED_PATTERN(a, pattern);
     }
 }
 
@@ -279,8 +273,6 @@ static void FreeArenaList(PLArenaPool *pool, PLArena *head, PRBool reallyFree)
     } else {
         /* Insert the whole arena chain at the front of the freelist. */
         do {
-            PL_MAKE_MEM_NOACCESS((void*)(*ap)->base,
-                                 (*ap)->limit - (*ap)->base);
             ap = &(*ap)->next;
         } while (*ap);
         LockArena();

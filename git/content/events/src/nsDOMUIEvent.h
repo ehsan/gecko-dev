@@ -6,24 +6,18 @@
 #ifndef nsDOMUIEvent_h
 #define nsDOMUIEvent_h
 
-#include "mozilla/Attributes.h"
 #include "nsIDOMUIEvent.h"
 #include "nsDOMEvent.h"
 #include "nsLayoutUtils.h"
+#include "nsEvent.h"
 #include "mozilla/dom/UIEventBinding.h"
-#include "nsPresContext.h"
-#include "nsDeviceContext.h"
-
-class nsINode;
 
 class nsDOMUIEvent : public nsDOMEvent,
                      public nsIDOMUIEvent
 {
-  typedef mozilla::CSSIntPoint CSSIntPoint;
 public:
   nsDOMUIEvent(mozilla::dom::EventTarget* aOwner,
-               nsPresContext* aPresContext,
-               mozilla::WidgetGUIEvent* aEvent);
+               nsPresContext* aPresContext, nsGUIEvent* aEvent);
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMUIEvent, nsDOMEvent)
@@ -33,13 +27,15 @@ public:
   
   // Forward to nsDOMEvent
   NS_FORWARD_TO_NSDOMEVENT_NO_SERIALIZATION_NO_DUPLICATION
-  NS_IMETHOD DuplicatePrivateData() MOZ_OVERRIDE;
-  NS_IMETHOD_(void) Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType) MOZ_OVERRIDE;
-  NS_IMETHOD_(bool) Deserialize(const IPC::Message* aMsg, void** aIter) MOZ_OVERRIDE;
+  NS_IMETHOD DuplicatePrivateData();
+  NS_IMETHOD_(void) Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType);
+  NS_IMETHOD_(bool) Deserialize(const IPC::Message* aMsg, void** aIter);
 
-  static nsIntPoint
-  CalculateScreenPoint(nsPresContext* aPresContext,
-                       mozilla::WidgetEvent* aEvent)
+  virtual nsresult InitFromCtor(const nsAString& aType,
+                                JSContext* aCx, JS::Value* aVal);
+
+  static nsIntPoint CalculateScreenPoint(nsPresContext* aPresContext,
+                                         nsEvent* aEvent)
   {
     if (!aEvent ||
         (aEvent->eventStructType != NS_MOUSE_EVENT &&
@@ -50,21 +46,20 @@ public:
       return nsIntPoint(0, 0);
     }
 
-    mozilla::WidgetGUIEvent* event = aEvent->AsGUIEvent();
-    if (!event->widget) {
-      return mozilla::LayoutDeviceIntPoint::ToUntyped(aEvent->refPoint);
+    if (!((nsGUIEvent*)aEvent)->widget ) {
+      return aEvent->refPoint;
     }
 
-    mozilla::LayoutDeviceIntPoint offset = aEvent->refPoint +
-      mozilla::LayoutDeviceIntPoint::FromUntyped(event->widget->WidgetToScreenOffset());
+    nsIntPoint offset = aEvent->refPoint +
+                        ((nsGUIEvent*)aEvent)->widget->WidgetToScreenOffset();
     nscoord factor = aPresContext->DeviceContext()->UnscaledAppUnitsPerDevPixel();
     return nsIntPoint(nsPresContext::AppUnitsToIntCSSPixels(offset.x * factor),
                       nsPresContext::AppUnitsToIntCSSPixels(offset.y * factor));
   }
 
-  static CSSIntPoint CalculateClientPoint(nsPresContext* aPresContext,
-                                          mozilla::WidgetEvent* aEvent,
-                                          CSSIntPoint* aDefaultClientPoint)
+  static nsIntPoint CalculateClientPoint(nsPresContext* aPresContext,
+                                         nsEvent* aEvent,
+                                         nsIntPoint* aDefaultClientPoint)
   {
     if (!aEvent ||
         (aEvent->eventStructType != NS_MOUSE_EVENT &&
@@ -73,24 +68,23 @@ public:
          aEvent->eventStructType != NS_DRAG_EVENT &&
          aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT) ||
         !aPresContext ||
-        !aEvent->AsGUIEvent()->widget) {
-      return aDefaultClientPoint
-             ? *aDefaultClientPoint
-             : CSSIntPoint(0, 0);
+        !((nsGUIEvent*)aEvent)->widget) {
+      return (nullptr == aDefaultClientPoint ? nsIntPoint(0, 0) :
+        nsIntPoint(aDefaultClientPoint->x, aDefaultClientPoint->y));
     }
 
+    nsPoint pt(0, 0);
     nsIPresShell* shell = aPresContext->GetPresShell();
     if (!shell) {
-      return CSSIntPoint(0, 0);
+      return nsIntPoint(0, 0);
     }
     nsIFrame* rootFrame = shell->GetRootFrame();
-    if (!rootFrame) {
-      return CSSIntPoint(0, 0);
+    if (rootFrame) {
+      pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, rootFrame);
     }
-    nsPoint pt =
-      nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, rootFrame);
 
-    return CSSIntPoint::FromAppUnitsRounded(pt);
+    return nsIntPoint(nsPresContext::AppUnitsToIntCSSPixels(pt.x),
+                      nsPresContext::AppUnitsToIntCSSPixels(pt.y));
   }
 
   static already_AddRefed<nsDOMUIEvent> Constructor(const mozilla::dom::GlobalObject& aGlobal,
@@ -98,71 +92,101 @@ public:
                                                     const mozilla::dom::UIEventInit& aParam,
                                                     mozilla::ErrorResult& aRv);
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::UIEventBinding::Wrap(aCx, aScope, this);
   }
 
-  nsIDOMWindow* GetView() const
+  already_AddRefed<nsIDOMWindow> GetView()
   {
-    return mView;
+    nsCOMPtr<nsIDOMWindow> view = mView;
+    return view.forget();
   }
 
-  int32_t Detail() const
+  int32_t Detail()
   {
     return mDetail;
   }
 
-  int32_t LayerX() const
+  int32_t LayerX()
   {
     return GetLayerPoint().x;
   }
 
-  int32_t LayerY() const
+  int32_t LayerY()
   {
     return GetLayerPoint().y;
   }
 
-  int32_t PageX() const;
-  int32_t PageY() const;
-
-  virtual uint32_t Which()
+  int32_t PageX()
   {
-    MOZ_ASSERT(mEvent->eventStructType != NS_KEY_EVENT,
-               "Key events should override Which()");
-    MOZ_ASSERT(mEvent->eventStructType != NS_MOUSE_EVENT,
-               "Mouse events should override Which()");
-    return 0;
+    int32_t x;
+    GetPageX(&x);
+    return x;
+  }
+
+  int32_t PageY()
+  {
+    int32_t y;
+    GetPageY(&y);
+    return y;
+  }
+
+  uint32_t Which()
+  {
+    uint32_t w;
+    GetWhich(&w);
+    return w;
   }
 
   already_AddRefed<nsINode> GetRangeParent();
 
-  int32_t RangeOffset() const;
+  int32_t RangeOffset()
+  {
+    int32_t offset;
+    GetRangeOffset(&offset);
+    return offset;
+  }
 
-  bool CancelBubble() const
+  bool CancelBubble()
   {
     return mEvent->mFlags.mPropagationStopped;
   }
 
-  bool IsChar() const;
+  bool IsChar()
+  {
+    bool isChar;
+    GetIsChar(&isChar);
+    return isChar;
+  }
 
 protected:
   // Internal helper functions
+  nsIntPoint GetClientPoint();
   nsIntPoint GetMovementPoint();
-  nsIntPoint GetLayerPoint() const;
+  nsIntPoint GetLayerPoint();
+  nsIntPoint GetPagePoint();
+
+  // Allow specializations.
+  virtual nsresult Which(uint32_t* aWhich)
+  {
+    NS_ENSURE_ARG_POINTER(aWhich);
+    // Usually we never reach here, as this is reimplemented for mouse and keyboard events.
+    *aWhich = 0;
+    return NS_OK;
+  }
 
   nsCOMPtr<nsIDOMWindow> mView;
   int32_t mDetail;
-  CSSIntPoint mClientPoint;
+  nsIntPoint mClientPoint;
   // Screenpoint is mEvent->refPoint.
   nsIntPoint mLayerPoint;
-  CSSIntPoint mPagePoint;
+  nsIntPoint mPagePoint;
   nsIntPoint mMovementPoint;
   bool mIsPointerLocked;
-  CSSIntPoint mLastClientPoint;
+  nsIntPoint mLastClientPoint;
 
-  typedef mozilla::Modifiers Modifiers;
+  typedef mozilla::widget::Modifiers Modifiers;
   static Modifiers ComputeModifierState(const nsAString& aModifiersList);
   bool GetModifierStateInternal(const nsAString& aKey);
 };

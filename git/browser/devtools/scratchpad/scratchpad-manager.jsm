@@ -11,7 +11,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-const SCRATCHPAD_WINDOW_URL = "chrome://browser/content/devtools/scratchpad.xul";
+const SCRATCHPAD_WINDOW_URL = "chrome://browser/content/scratchpad.xul";
 const SCRATCHPAD_WINDOW_FEATURES = "chrome,titlebar,toolbar,centerscreen,resizable,dialog=no";
 
 Cu.import("resource://gre/modules/Services.jsm");
@@ -112,7 +112,7 @@ this.ScratchpadManager = {
                  .createInstance(Ci.nsIDialogParamBlock);
 
     params.SetNumberStrings(2);
-    params.SetString(0, this.createUid());
+    params.SetString(0, JSON.stringify(this._nextUid++));
 
     if (aState) {
       if (typeof aState != 'object') {
@@ -129,14 +129,6 @@ this.ScratchpadManager = {
     ShutdownObserver.init();
 
     return win;
-  },
-
-  /**
-   * Create a unique ID for a new Scratchpad.
-   */
-  createUid: function SPM_createUid()
-  {
-    return JSON.stringify(this._nextUid++);
   }
 };
 

@@ -44,7 +44,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "sigslot.h"
 
-#include "logging.h"
 #include "nspr.h"
 #include "nss.h"
 #include "ssl.h"
@@ -53,6 +52,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"
 
+#include "logging.h"
 #include "mtransport_test_utils.h"
 #include "runnable_utils.h"
 
@@ -315,10 +315,6 @@ TEST_F(TurnClient, SendToSelf) {
   Allocate();
   SendTo(relay_addr_);
   ASSERT_TRUE_WAIT(received() == 100, 1000);
-  PR_Sleep(10000); // Wait 10 seconds to make sure the
-                   // CreatePermission has time to complete/fail.
-  SendTo(relay_addr_);
-  ASSERT_TRUE_WAIT(received() == 200, 1000);
 }
 
 TEST_F(TurnClient, AllocateDummyServer) {
@@ -349,15 +345,7 @@ int main(int argc, char **argv)
         "environment variables to run this test\n");
     return 0;
   }
-  {
-    nr_transport_addr addr;
-    if (nr_ip4_str_port_to_transport_addr(g_turn_server.c_str(), 3478,
-                                          IPPROTO_UDP, &addr)) {
-      printf("Invalid TURN_SERVER_ADDRESS \"%s\". Only IP numbers supported.\n",
-             g_turn_server.c_str());
-      return 0;
-    }
-  }
+
   test_utils = new MtransportTestUtils();
   NSS_NoDB_Init(nullptr);
   NSS_SetDomesticPolicy();

@@ -22,7 +22,7 @@
 #include "nsAttrName.h"
 #include "nsTArray.h"
 #include "mozilla/dom/Element.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include <algorithm>
 
 const uint32_t kUnknownIndex = uint32_t(-1);
@@ -346,8 +346,10 @@ txXPathNodeUtils::getLocalName(const txXPathNode& aNode)
 
     if (aNode.isContent()) {
         if (aNode.mNode->IsElement()) {
-            nsCOMPtr<nsIAtom> localName = aNode.Content()->Tag();
-            return localName.forget();
+            nsIAtom* localName = aNode.Content()->Tag();
+            NS_ADDREF(localName);
+
+            return localName;
         }
 
         if (aNode.mNode->IsNodeOfType(nsINode::ePROCESSING_INSTRUCTION)) {
@@ -361,10 +363,11 @@ txXPathNodeUtils::getLocalName(const txXPathNode& aNode)
         return nullptr;
     }
 
-    nsCOMPtr<nsIAtom> localName = aNode.Content()->
+    nsIAtom* localName = aNode.Content()->
         GetAttrNameAt(aNode.mIndex)->LocalName();
+    NS_ADDREF(localName);
 
-    return localName.forget();
+    return localName;
 }
 
 nsIAtom*
@@ -535,8 +538,13 @@ txXPathNodeUtils::getOwnerDocument(const txXPathNode& aNode)
     return new txXPathNode(aNode.mNode->OwnerDoc());
 }
 
-const char gPrintfFmt[] = "id0x%p";
-const char gPrintfFmtAttr[] = "id0x%p-%010i";
+#ifndef HAVE_64BIT_OS
+const char gPrintfFmt[] = "id0x%08p";
+const char gPrintfFmtAttr[] = "id0x%08p-%010i";
+#else
+const char gPrintfFmt[] = "id0x%016p";
+const char gPrintfFmtAttr[] = "id0x%016p-%010i";
+#endif
 
 /* static */
 nsresult

@@ -203,7 +203,7 @@ static void PrintParameterUsage(void)
     fprintf(stderr, 
             "%-20s Restricts the set of enabled SSL/TLS protocols versions.\n"
             "%-20s All versions are enabled by default.\n"
-            "%-20s Possible values for min/max: ssl2 ssl3 tls1.0 tls1.1 tls1.2\n"
+            "%-20s Possible values for min/max: ssl2 ssl3 tls1.0 tls1.1\n"
             "%-20s Example: \"-V ssl3:\" enables SSL 3 and newer.\n",
             "-V [min]:[max]", "", "", "");
     fprintf(stderr, "%-20s Prints only payload data. Skips HTTP header.\n", "-S");
@@ -235,9 +235,6 @@ static void PrintParameterUsage(void)
     fprintf(stderr, "%-20s Test -F allows 0=any (default), 1=only OCSP, 2=only CRL\n", "-M");
     fprintf(stderr, "%-20s Restrict ciphers\n", "-c ciphers");
     fprintf(stderr, "%-20s Print cipher values allowed for parameter -c and exit\n", "-Y");
-    fprintf(stderr, "%-20s Enforce using an IPv4 destination address\n", "-4");
-    fprintf(stderr, "%-20s Enforce using an IPv6 destination address\n", "-6");
-    fprintf(stderr, "%-20s (Options -4 and -6 cannot be combined.)\n", "");
 }
 
 static void Usage(const char *progName)
@@ -528,13 +525,12 @@ ownAuthCertificate(void *arg, PRFileDesc *fd, PRBool checkSig,
         csa = SSL_PeerStapledOCSPResponses(fd);
         if (csa) {
             for (i = 0; i < csa->len; ++i) {
-		PORT_SetError(0);
-		if (CERT_CacheOCSPResponseFromSideChannel(
-			serverCertAuth->dbHandle, cert, PR_Now(),
-			&csa->items[i], arg) != SECSuccess) {
-		    PRErrorCode error = PR_GetError();
-		    PORT_Assert(error != 0);
-		}
+                CERT_CacheOCSPResponseFromSideChannel(
+                    serverCertAuth->dbHandle,
+                    cert,
+                    PR_Now(),
+                    &csa->items[i],
+                    arg);
             }
         }
     
@@ -752,7 +748,7 @@ restartHandshakeAfterServerCertIfNeeded(PRFileDesc * fd,
                                         PRBool override)
 {
     SECStatus rv;
-    PRErrorCode error;
+    PRErrorCode status;
     
     if (!serverCertAuth->isPaused)
 	return SECSuccess;
@@ -763,20 +759,20 @@ restartHandshakeAfterServerCertIfNeeded(PRFileDesc * fd,
     serverCertAuth->isPaused = PR_FALSE;
     rv = SSL_AuthCertificate(serverCertAuth->dbHandle, fd, PR_TRUE, PR_FALSE);
     if (rv != SECSuccess) {
-        error = PR_GetError();
-        if (error == 0) {
+        status = PR_GetError();
+        if (status == 0) {
             PR_NOT_REACHED("SSL_AuthCertificate return SECFailure without "
                            "setting error code.");
-            error = PR_INVALID_STATE_ERROR;
+            status = PR_INVALID_STATE_ERROR;
         } else if (override) {
             rv = ownBadCertHandler(NULL, fd);
         }
     }
     if (rv == SECSuccess) {
-        error = 0;
+        status = 0;
     }
 
-    if (SSL_AuthCertificateComplete(fd, error) != SECSuccess) {
+    if (SSL_AuthCertificateComplete(fd, status) != SECSuccess) {
         rv = SECFailure;
     }
 
@@ -810,8 +806,6 @@ int main(int argc, char **argv)
     PRSocketOptionData opt;
     PRNetAddr          addr;
     PRPollDesc         pollset[2];
-    PRBool             allowIPv4 = PR_TRUE;
-    PRBool             allowIPv6 = PR_TRUE;
     PRBool             pingServerFirst = PR_FALSE;
     int                pingTimeoutSeconds = -1;
     PRBool             clientSpeaksFirst = PR_FALSE;
@@ -852,14 +846,11 @@ int main(int argc, char **argv)
     SSL_VersionRangeGetSupported(ssl_variant_stream, &enabledVersions);
 
     optstate = PL_CreateOptState(argc, argv,
-                                 "46BFM:OSTV:W:Ya:c:d:fgh:m:n:op:qr:st:uvw:xz");
+                                 "BFM:OSTV:W:Ya:c:d:fgh:m:n:op:qr:st:uvw:xz");
     while ((optstatus = PL_GetNextOpt(optstate)) == PL_OPT_OK) {
 	switch (optstate->option) {
 	  case '?':
 	  default : Usage(progName); 			break;
-
-          case '4': allowIPv6 = PR_FALSE; if (!allowIPv4) Usage(progName); break;
-          case '6': allowIPv4 = PR_FALSE; if (!allowIPv6) Usage(progName); break;
 
           case 'B': bypassPKCS11 = 1; 			break;
 
@@ -995,15 +986,11 @@ int main(int argc, char **argv)
 	    SECU_PrintError(progName, "error looking up host");
 	    return 1;
 	}
-	for (;;) {
+	do {
 	    enumPtr = PR_EnumerateAddrInfo(enumPtr, addrInfo, portno, &addr);
-	    if (enumPtr == NULL)
-		break;
-	    if (addr.raw.family == PR_AF_INET && allowIPv4)
-		break;
-	    if (addr.raw.family == PR_AF_INET6 && allowIPv6)
-		break;
-	}
+	} while (enumPtr != NULL &&
+		 addr.raw.family != PR_AF_INET &&
+		 addr.raw.family != PR_AF_INET6);
 	PR_FreeAddrInfo(addrInfo);
 	if (enumPtr == NULL) {
 	    SECU_PrintError(progName, "error looking up host address");
@@ -1267,6 +1254,11 @@ int main(int argc, char **argv)
 		    FPRINTF(stderr, "%s: PR_Poll returned zero!\n", progName);
 		    return 1;
 		}
+		/* Must milliPause between PR_Poll and PR_GetConnectStatus,
+		 * Or else winsock gets mighty confused.
+		 * Sleep(0);
+		 */
+		milliPause(1);
 		status = PR_GetConnectStatus(pollset);
 		if (status == PR_SUCCESS) {
 		    break;

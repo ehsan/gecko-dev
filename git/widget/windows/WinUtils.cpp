@@ -7,14 +7,9 @@
 #include "WinUtils.h"
 #include "nsWindow.h"
 #include "nsWindowDefs.h"
-#include "KeyboardLayout.h"
+#include "nsGUIEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "mozilla/Preferences.h"
-
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG /* Allow logging in the release build */
-#endif // MOZ_LOGGING
-#include "prlog.h"
 
 #include "nsString.h"
 #include "nsDirectoryServiceUtils.h"
@@ -31,80 +26,33 @@
 #include "nsIChannel.h"
 #include "nsIObserver.h"
 #include "imgIEncoder.h"
-#include "nsIThread.h"
-#include "MainThreadUtils.h"
-#include "gfxColor.h"
 
 #ifdef NS_ENABLE_TSF
 #include <textstor.h>
 #include "nsTextStore.h"
 #endif // #ifdef NS_ENABLE_TSF
 
-#ifdef PR_LOGGING
-PRLogModuleInfo* gWindowsLog = nullptr;
-#endif
-
 namespace mozilla {
 namespace widget {
 
-NS_IMPL_ISUPPORTS1(myDownloadObserver, nsIDownloadObserver)
+  NS_IMPL_ISUPPORTS1(myDownloadObserver, nsIDownloadObserver)
 #ifdef MOZ_PLACES
-NS_IMPL_ISUPPORTS1(AsyncFaviconDataReady, nsIFaviconDataCallback)
+  NS_IMPL_ISUPPORTS1(AsyncFaviconDataReady, nsIFaviconDataCallback)
 #endif
-NS_IMPL_ISUPPORTS1(AsyncEncodeAndWriteIcon, nsIRunnable)
-NS_IMPL_ISUPPORTS1(AsyncDeleteIconFromDisk, nsIRunnable)
-NS_IMPL_ISUPPORTS1(AsyncDeleteAllFaviconsFromDisk, nsIRunnable)
+  NS_IMPL_THREADSAFE_ISUPPORTS1(AsyncWriteIconToDisk, nsIRunnable)
+  NS_IMPL_THREADSAFE_ISUPPORTS1(AsyncDeleteIconFromDisk, nsIRunnable)
+  NS_IMPL_THREADSAFE_ISUPPORTS1(AsyncDeleteAllFaviconsFromDisk, nsIRunnable)
 
 
-const char FaviconHelper::kJumpListCacheDir[] = "jumpListCache";
-const char FaviconHelper::kShortcutCacheDir[] = "shortcutCache";
+  const char FaviconHelper::kJumpListCacheDir[] = "jumpListCache";
+  const char FaviconHelper::kShortcutCacheDir[] = "shortcutCache";
 
 // apis available on vista and up.
-WinUtils::SHCreateItemFromParsingNamePtr WinUtils::sCreateItemFromParsingName = nullptr;
-WinUtils::SHGetKnownFolderPathPtr WinUtils::sGetKnownFolderPath = nullptr;
+WinUtils::SHCreateItemFromParsingNamePtr WinUtils::sCreateItemFromParsingName = NULL;
+WinUtils::SHGetKnownFolderPathPtr WinUtils::sGetKnownFolderPath = NULL;
 
-// We just leak these DLL HMODULEs. There's no point in calling FreeLibrary
-// on them during shutdown anyway.
-static const PRUnichar kShellLibraryName[] =  L"shell32.dll";
-static HMODULE sShellDll = nullptr;
-static const PRUnichar kDwmLibraryName[] = L"dwmapi.dll";
-static HMODULE sDwmDll = nullptr;
-
-WinUtils::DwmExtendFrameIntoClientAreaProc WinUtils::dwmExtendFrameIntoClientAreaPtr = nullptr;
-WinUtils::DwmIsCompositionEnabledProc WinUtils::dwmIsCompositionEnabledPtr = nullptr;
-WinUtils::DwmSetIconicThumbnailProc WinUtils::dwmSetIconicThumbnailPtr = nullptr;
-WinUtils::DwmSetIconicLivePreviewBitmapProc WinUtils::dwmSetIconicLivePreviewBitmapPtr = nullptr;
-WinUtils::DwmGetWindowAttributeProc WinUtils::dwmGetWindowAttributePtr = nullptr;
-WinUtils::DwmSetWindowAttributeProc WinUtils::dwmSetWindowAttributePtr = nullptr;
-WinUtils::DwmInvalidateIconicBitmapsProc WinUtils::dwmInvalidateIconicBitmapsPtr = nullptr;
-WinUtils::DwmDefWindowProcProc WinUtils::dwmDwmDefWindowProcPtr = nullptr;
-WinUtils::DwmGetCompositionTimingInfoProc WinUtils::dwmGetCompositionTimingInfoPtr = nullptr;
-
-/* static */
-void
-WinUtils::Initialize()
-{
-#ifdef PR_LOGGING
-  if (!gWindowsLog) {
-    gWindowsLog = PR_NewLogModule("Widget");
-  }
-#endif
-  if (!sDwmDll && WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION) {
-    sDwmDll = ::LoadLibraryW(kDwmLibraryName);
-
-    if (sDwmDll) {
-      dwmExtendFrameIntoClientAreaPtr = (DwmExtendFrameIntoClientAreaProc)::GetProcAddress(sDwmDll, "DwmExtendFrameIntoClientArea");
-      dwmIsCompositionEnabledPtr = (DwmIsCompositionEnabledProc)::GetProcAddress(sDwmDll, "DwmIsCompositionEnabled");
-      dwmSetIconicThumbnailPtr = (DwmSetIconicThumbnailProc)::GetProcAddress(sDwmDll, "DwmSetIconicThumbnail");
-      dwmSetIconicLivePreviewBitmapPtr = (DwmSetIconicLivePreviewBitmapProc)::GetProcAddress(sDwmDll, "DwmSetIconicLivePreviewBitmap");
-      dwmGetWindowAttributePtr = (DwmGetWindowAttributeProc)::GetProcAddress(sDwmDll, "DwmGetWindowAttribute");
-      dwmSetWindowAttributePtr = (DwmSetWindowAttributeProc)::GetProcAddress(sDwmDll, "DwmSetWindowAttribute");
-      dwmInvalidateIconicBitmapsPtr = (DwmInvalidateIconicBitmapsProc)::GetProcAddress(sDwmDll, "DwmInvalidateIconicBitmaps");
-      dwmDwmDefWindowProcPtr = (DwmDefWindowProcProc)::GetProcAddress(sDwmDll, "DwmDefWindowProc");
-      dwmGetCompositionTimingInfoPtr = (DwmGetCompositionTimingInfoProc)::GetProcAddress(sDwmDll, "DwmGetCompositionTimingInfo");
-    }
-  }
-}
+static const PRUnichar kSehllLibraryName[] =  L"shell32.dll";
+static HMODULE sShellDll = NULL;
 
 /* static */ 
 WinUtils::WinVersion
@@ -123,98 +71,6 @@ WinUtils::GetWindowsVersion()
   version =
     (osInfo.dwMajorVersion & 0xff) << 8 | (osInfo.dwMinorVersion & 0xff);
   return static_cast<WinVersion>(version);
-}
-
-/* static */
-bool
-WinUtils::GetWindowsServicePackVersion(UINT& aOutMajor, UINT& aOutMinor)
-{
-  OSVERSIONINFOEX osInfo;
-  osInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
-  // This cast is safe and supposed to be here, don't worry
-  if (!::GetVersionEx((OSVERSIONINFO*)&osInfo)) {
-    return false;
-  }
-  
-  aOutMajor = osInfo.wServicePackMajor;
-  aOutMinor = osInfo.wServicePackMinor;
-
-  return true;
-}
-
-// static
-void
-WinUtils::LogW(const wchar_t *fmt, ...)
-{
-  va_list args = nullptr;
-  if(!lstrlenW(fmt)) {
-    return;
-  }
-  va_start(args, fmt);
-  int buflen = _vscwprintf(fmt, args);
-  wchar_t* buffer = new wchar_t[buflen+1];
-  if (!buffer) {
-    va_end(args);
-    return;
-  }
-  vswprintf(buffer, buflen, fmt, args);
-  va_end(args);
-
-  // MSVC, including remote debug sessions
-  OutputDebugStringW(buffer);
-  OutputDebugStringW(L"\n");
-
-  int len = wcslen(buffer);
-  if (len) {
-    char* utf8 = new char[len+1];
-    memset(utf8, 0, sizeof(utf8));
-    if (WideCharToMultiByte(CP_ACP, 0, buffer,
-                            -1, utf8, len+1, nullptr,
-                            nullptr) > 0) {
-      // desktop console
-      printf("%s\n", utf8);
-#ifdef PR_LOGGING
-      NS_ASSERTION(gWindowsLog, "Called WinUtils Log() but Widget "
-                                   "log module doesn't exist!");
-      PR_LOG(gWindowsLog, PR_LOG_ALWAYS, (utf8));
-#endif
-    }
-    delete[] utf8;
-  }
-  delete[] buffer;
-}
-
-// static
-void
-WinUtils::Log(const char *fmt, ...)
-{
-  va_list args = nullptr;
-  if(!strlen(fmt)) {
-    return;
-  }
-  va_start(args, fmt);
-  int buflen = _vscprintf(fmt, args);
-  char* buffer = new char[buflen+1];
-  if (!buffer) {
-    va_end(args);
-    return;
-  }
-  vsprintf(buffer, fmt, args);
-  va_end(args);
-
-  // MSVC, including remote debug sessions
-  OutputDebugStringA(buffer);
-  OutputDebugStringW(L"\n");
-
-  // desktop console
-  printf("%s\n", buffer);
-
-#ifdef PR_LOGGING
-  NS_ASSERTION(gWindowsLog, "Called WinUtils Log() but Widget "
-                               "log module doesn't exist!");
-  PR_LOG(gWindowsLog, PR_LOG_ALWAYS, (buffer));
-#endif
-  delete[] buffer;
 }
 
 /* static */
@@ -254,28 +110,6 @@ WinUtils::GetMessage(LPMSG aMsg, HWND aWnd, UINT aFirstMessage,
 }
 
 /* static */
-void
-WinUtils::WaitForMessage()
-{
-  DWORD result = ::MsgWaitForMultipleObjectsEx(0, nullptr, INFINITE, QS_ALLINPUT,
-                                               MWMO_INPUTAVAILABLE);
-  NS_WARN_IF_FALSE(result != WAIT_FAILED, "Wait failed");
-
-  // This idiom is taken from the Chromium ipc code, see
-  // ipc/chromium/src/base/message+puimp_win.cpp:270.
-  // The intent is to avoid a busy wait when MsgWaitForMultipleObjectsEx
-  // returns quickly but PeekMessage would not return a message.
-  if (result == WAIT_OBJECT_0) {
-    MSG msg = {0};
-    DWORD queue_status = ::GetQueueStatus(QS_MOUSE);
-    if (HIWORD(queue_status) & QS_MOUSE &&
-        !PeekMessage(&msg, nullptr, WM_MOUSEFIRST, WM_MOUSELAST, PM_NOREMOVE)) {
-      ::WaitMessage();
-    }
-  }
-}
-
-/* static */
 bool
 WinUtils::GetRegistryKey(HKEY aRoot,
                          const PRUnichar* aKeyName,
@@ -298,7 +132,7 @@ WinUtils::GetRegistryKey(HKEY aRoot,
 
   DWORD type;
   result =
-    ::RegQueryValueExW(key, aValueName, nullptr, &type, (BYTE*) aBuffer,
+    ::RegQueryValueExW(key, aValueName, NULL, &type, (BYTE*) aBuffer,
                        &aBufferLength);
   ::RegCloseKey(key);
   if (result != ERROR_SUCCESS || type != REG_SZ) {
@@ -337,7 +171,7 @@ WinUtils::GetTopLevelHWND(HWND aWnd,
                           bool aStopIfNotPopup)
 {
   HWND curWnd = aWnd;
-  HWND topWnd = nullptr;
+  HWND topWnd = NULL;
 
   while (curWnd) {
     topWnd = curWnd;
@@ -378,20 +212,13 @@ GetNSWindowPropName()
 
 /* static */
 bool
-WinUtils::SetNSWindowBasePtr(HWND aWnd, nsWindowBase* aWidget)
+WinUtils::SetNSWindowPtr(HWND aWnd, nsWindow* aWindow)
 {
-  if (!aWidget) {
+  if (!aWindow) {
     ::RemovePropW(aWnd, GetNSWindowPropName());
     return true;
   }
-  return ::SetPropW(aWnd, GetNSWindowPropName(), (HANDLE)aWidget);
-}
-
-/* static */
-nsWindowBase*
-WinUtils::GetNSWindowBasePtr(HWND aWnd)
-{
-  return static_cast<nsWindowBase*>(::GetPropW(aWnd, GetNSWindowPropName()));
+  return ::SetPropW(aWnd, GetNSWindowPropName(), (HANDLE)aWindow);
 }
 
 /* static */
@@ -413,7 +240,7 @@ int32_t
 WinUtils::GetMonitorCount()
 {
   int32_t monitorCount = 0;
-  EnumDisplayMonitors(nullptr, nullptr, AddMonitor, (LPARAM)&monitorCount);
+  EnumDisplayMonitors(NULL, NULL, AddMonitor, (LPARAM)&monitorCount);
   return monitorCount;
 }
 
@@ -438,7 +265,7 @@ WinUtils::FindOurProcessWindow(HWND aWnd)
       return wnd;
     }
   }
-  return nullptr;
+  return NULL;
 }
 
 static bool
@@ -462,7 +289,7 @@ static HWND
 FindTopmostWindowAtPoint(HWND aWnd, const POINT& aPointInScreen)
 {
   if (!::IsWindowVisible(aWnd) || !IsPointInWindow(aWnd, aPointInScreen)) {
-    return nullptr;
+    return NULL;
   }
 
   HWND childWnd = ::GetTopWindow(aWnd);
@@ -514,7 +341,7 @@ WinUtils::FindOurWindowAtPoint(const POINT& aPointInScreen)
 {
   FindOurWindowAtPointInfo info;
   info.mInPointInScreen = aPointInScreen;
-  info.mOutWnd = nullptr;
+  info.mOutWnd = NULL;
 
   // This will enumerate all top-level windows in order from top to bottom.
   EnumWindows(FindOurWindowAtPointCallback, reinterpret_cast<LPARAM>(&info));
@@ -572,13 +399,12 @@ WinUtils::GetMouseInputSource()
 
 /* static */
 MSG
-WinUtils::InitMSG(UINT aMessage, WPARAM wParam, LPARAM lParam, HWND aWnd)
+WinUtils::InitMSG(UINT aMessage, WPARAM wParam, LPARAM lParam)
 {
   MSG msg;
   msg.message = aMessage;
   msg.wParam  = wParam;
   msg.lParam  = lParam;
-  msg.hwnd    = aWnd;
   return msg;
 }
 
@@ -592,7 +418,7 @@ WinUtils::SHCreateItemFromParsingName(PCWSTR pszPath, IBindCtx *pbc,
   }
 
   if (!sShellDll) {
-    sShellDll = ::LoadLibraryW(kShellLibraryName);
+    sShellDll = ::LoadLibraryW(kSehllLibraryName);
     if (!sShellDll) {
       return false;
     }
@@ -618,7 +444,7 @@ WinUtils::SHGetKnownFolderPath(REFKNOWNFOLDERID rfid,
   }
 
   if (!sShellDll) {
-    sShellDll = ::LoadLibraryW(kShellLibraryName);
+    sShellDll = ::LoadLibraryW(kSehllLibraryName);
     if (!sShellDll) {
       return false;
     }
@@ -658,6 +484,7 @@ myDownloadObserver::OnDownloadComplete(nsIDownloader *downloader,
   return NS_OK;
 }
 
+
 nsresult AsyncFaviconDataReady::OnFaviconDataNotAvailable(void)
 {
   if (!mURLShortcut) {
@@ -683,9 +510,11 @@ nsresult AsyncFaviconDataReady::OnFaviconDataNotAvailable(void)
   rv = NS_NewDownloader(getter_AddRefs(listener), downloadObserver, icoFile);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  channel->AsyncOpen(listener, nullptr);
+  channel->AsyncOpen(listener, NULL);
   return NS_OK;
 }
+
+
 
 NS_IMETHODIMP
 AsyncFaviconDataReady::OnComplete(nsIURI *aFaviconURI,
@@ -709,96 +538,60 @@ AsyncFaviconDataReady::OnComplete(nsIURI *aFaviconURI,
   rv = icoFile->GetPath(path);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Convert the obtained favicon data to an input stream
-  nsCOMPtr<nsIInputStream> stream;
-  rv = NS_NewByteInputStream(getter_AddRefs(stream),
-                             reinterpret_cast<const char*>(aData),
-                             aDataLen,
-                             NS_ASSIGNMENT_DEPEND);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Decode the image from the format it was returned to us in (probably PNG)
-  nsAutoCString mimeTypeOfInputData;
-  mimeTypeOfInputData.AssignLiteral("image/vnd.microsoft.icon");
-  nsCOMPtr<imgIContainer> container;
-  nsCOMPtr<imgITools> imgtool = do_CreateInstance("@mozilla.org/image/tools;1");
-  rv = imgtool->DecodeImageData(stream, aMimeType,
-                                getter_AddRefs(container));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsRefPtr<gfxASurface> imgFrame;
-  rv = container->GetFrame(imgIContainer::FRAME_FIRST, 0, getter_AddRefs(imgFrame));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsRefPtr<gfxImageSurface> imageSurface;
-  gfxIntSize size;
-  if (mURLShortcut) {
-    imageSurface =
-      new gfxImageSurface(gfxIntSize(48, 48),
-                          gfxImageFormatARGB32);
-    gfxContext context(imageSurface);
-    context.SetOperator(gfxContext::OPERATOR_SOURCE);
-    context.SetColor(gfxRGBA(1, 1, 1, 1));
-    context.Rectangle(gfxRect(0, 0, 48, 48));
-    context.Fill();
-
-    context.Translate(gfxPoint(16, 16));
-    context.SetOperator(gfxContext::OPERATOR_OVER);
-    context.DrawSurface(imgFrame,  gfxSize(16, 16));
-    size = imageSurface->GetSize();
-  } else {
-    imageSurface = imgFrame->GetAsReadableARGB32ImageSurface();
-    size.width = GetSystemMetrics(SM_CXSMICON);
-    size.height = GetSystemMetrics(SM_CYSMICON);
-    if (!size.width || !size.height) {
-      size.width = 16;
-      size.height = 16;
-    }
-  }
-
   // Allocate a new buffer that we own and can use out of line in 
   // another thread.  Copy the favicon raw data into it.
   const fallible_t fallible = fallible_t();
-  uint8_t *data = new (fallible) uint8_t[imageSurface->GetDataSize()];
+  uint8_t *data = new (fallible) uint8_t[aDataLen];
   if (!data) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
-  memcpy(data, imageSurface->Data(), imageSurface->GetDataSize());
+  memcpy(data, aData, aDataLen);
 
-  // AsyncEncodeAndWriteIcon takes ownership of the heap allocated buffer
-  nsCOMPtr<nsIRunnable> event = new AsyncEncodeAndWriteIcon(path, data,
-                                                            imageSurface->GetDataSize(),
-                                                            imageSurface->Stride(),
-                                                            size.width,
-                                                            size.height,
-                                                            mURLShortcut);
+  //AsyncWriteIconToDisk takes ownership of the heap allocated buffer.
+  nsCOMPtr<nsIRunnable> event = new AsyncWriteIconToDisk(path, aMimeType, 
+                                                         data, 
+                                                         aDataLen,
+                                                         mURLShortcut);
   mIOThread->Dispatch(event, NS_DISPATCH_NORMAL);
 
   return NS_OK;
 }
 #endif
 
-// Warning: AsyncEncodeAndWriteIcon assumes ownership of the aData buffer passed in
-AsyncEncodeAndWriteIcon::AsyncEncodeAndWriteIcon(const nsAString &aIconPath,
-                                                 uint8_t *aBuffer,
-                                                 uint32_t aBufferLength,
-                                                 uint32_t aStride,
-                                                 uint32_t aWidth,
-                                                 uint32_t aHeight,
-                                                 const bool aURLShortcut) :
+// Warning: AsyncWriteIconToDisk assumes ownership of the aData buffer passed in
+AsyncWriteIconToDisk::AsyncWriteIconToDisk(const nsAString &aIconPath,
+                                           const nsACString &aMimeTypeOfInputData,
+                                           uint8_t *aBuffer, 
+                                           uint32_t aBufferLength,
+                                           const bool aURLShortcut): 
   mURLShortcut(aURLShortcut),
   mIconPath(aIconPath),
+  mMimeTypeOfInputData(aMimeTypeOfInputData),
   mBuffer(aBuffer),
-  mBufferLength(aBufferLength),
-  mStride(aStride),
-  mWidth(aWidth),
-  mHeight(aHeight)
+  mBufferLength(aBufferLength)
+
 {
 }
 
-NS_IMETHODIMP AsyncEncodeAndWriteIcon::Run()
+NS_IMETHODIMP AsyncWriteIconToDisk::Run()
 {
   NS_PRECONDITION(!NS_IsMainThread(), "Should not be called on the main thread.");
+
+  // Convert the obtained favicon data to an input stream
+  nsCOMPtr<nsIInputStream> stream;
+  nsresult rv = 
+    NS_NewByteInputStream(getter_AddRefs(stream),
+                          reinterpret_cast<const char*>(mBuffer.get()),
+                          mBufferLength,
+                          NS_ASSIGNMENT_DEPEND);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Decode the image from the format it was returned to us in (probably PNG)
+  nsCOMPtr<imgIContainer> container;
+  nsCOMPtr<imgITools> imgtool = do_CreateInstance("@mozilla.org/image/tools;1");
+  rv = imgtool->DecodeImageData(stream, mMimeTypeOfInputData, 
+                                getter_AddRefs(container));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Get the recommended icon width and height, or if failure to obtain 
   // these settings, fall back to 16x16 ICOs.  These values can be different
@@ -806,19 +599,51 @@ NS_IMETHODIMP AsyncEncodeAndWriteIcon::Run()
   // Windows would scale the 16x16 icon themselves, but it's better
   // we let our ICO encoder do it.
   nsCOMPtr<nsIInputStream> iconStream;
-  nsRefPtr<imgIEncoder> encoder =
-    do_CreateInstance("@mozilla.org/image/encoder;2?"
-                      "type=image/vnd.microsoft.icon");
-  NS_ENSURE_TRUE(encoder, NS_ERROR_FAILURE);
-  nsresult rv = encoder->InitFromData(mBuffer, mBufferLength,
-                                      mWidth, mHeight,
-                                      mStride,
-                                      imgIEncoder::INPUT_FORMAT_HOSTARGB,
-                                      EmptyString());
-  NS_ENSURE_SUCCESS(rv, rv);
-  CallQueryInterface(encoder.get(), getter_AddRefs(iconStream));
-  if (!iconStream) {
-    return NS_ERROR_FAILURE;
+  if (!mURLShortcut) {
+    int32_t systemIconWidth = GetSystemMetrics(SM_CXSMICON);
+    int32_t systemIconHeight = GetSystemMetrics(SM_CYSMICON);
+    if ((systemIconWidth == 0 || systemIconHeight == 0)) {
+      systemIconWidth = 16;
+      systemIconHeight = 16;
+    }
+    // Scale the image to the needed size and in ICO format
+    mMimeTypeOfInputData.AssignLiteral("image/vnd.microsoft.icon");
+    rv = imgtool->EncodeScaledImage(container, mMimeTypeOfInputData,
+                                    systemIconWidth,
+                                    systemIconHeight,
+                                    EmptyString(),
+                                    getter_AddRefs(iconStream));
+    } else {
+      nsRefPtr<gfxASurface> s;
+      rv = container->GetFrame(imgIContainer::FRAME_FIRST, 0, getter_AddRefs(s));
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      gfxImageSurface* surface =
+        new gfxImageSurface(gfxIntSize(48, 48),
+                            gfxImageSurface::ImageFormatARGB32);
+      gfxContext context(surface);
+      context.SetOperator(gfxContext::OPERATOR_SOURCE);
+      context.SetColor(gfxRGBA(1, 1, 1, 1));
+      context.Rectangle(gfxRect(0, 0, 48, 48));
+      context.Fill();
+
+      context.Translate(gfxPoint(16, 16));
+      context.SetOperator(gfxContext::OPERATOR_OVER);
+      context.DrawSurface(s,  gfxSize(16, 16));
+      gfxIntSize size = surface->GetSize();
+
+      nsRefPtr<imgIEncoder> encoder = 
+        do_CreateInstance("@mozilla.org/image/encoder;2?"
+                          "type=image/vnd.microsoft.icon");
+      NS_ENSURE_TRUE(encoder, NS_ERROR_FAILURE);
+      rv = encoder->InitFromData(surface->Data(), surface->Stride() * size.height,
+                            size.width, size.height, surface->Stride(),
+                            imgIEncoder::INPUT_FORMAT_HOSTARGB, EmptyString());
+      NS_ENSURE_SUCCESS(rv, rv);
+      CallQueryInterface(encoder.get(), getter_AddRefs(iconStream));
+      if (!iconStream) {
+        return NS_ERROR_FAILURE;
+      }
   }
 
   NS_ENSURE_SUCCESS(rv, rv);
@@ -862,7 +687,7 @@ NS_IMETHODIMP AsyncEncodeAndWriteIcon::Run()
   return rv;
 }
 
-AsyncEncodeAndWriteIcon::~AsyncEncodeAndWriteIcon()
+AsyncWriteIconToDisk::~AsyncWriteIconToDisk()
 {
 }
 
@@ -1137,7 +962,7 @@ WinUtils::GetShellItemPath(IShellItem* aItem,
                            nsString& aResultString)
 {
   NS_ENSURE_TRUE(aItem, false);
-  LPWSTR str = nullptr;
+  LPWSTR str = NULL;
   if (FAILED(aItem->GetDisplayName(SIGDN_FILESYSPATH, &str)))
     return false;
   aResultString.Assign(str);
@@ -1153,7 +978,7 @@ WinUtils::ConvertHRGNToRegion(HRGN aRgn)
 
   nsIntRegion rgn;
 
-  DWORD size = ::GetRegionData(aRgn, 0, nullptr);
+  DWORD size = ::GetRegionData(aRgn, 0, NULL);
   nsAutoTArray<uint8_t,100> buffer;
   if (!buffer.SetLength(size))
     return rgn;
@@ -1183,35 +1008,6 @@ WinUtils::ToIntRect(const RECT& aRect)
                    aRect.right - aRect.left,
                    aRect.bottom - aRect.top);
 }
-
-/* static */
-bool
-WinUtils::IsIMEEnabled(const InputContext& aInputContext)
-{
-  return IsIMEEnabled(aInputContext.mIMEState.mEnabled);
-}
-
-/* static */
-bool
-WinUtils::IsIMEEnabled(IMEState::Enabled aIMEState)
-{
-  return (aIMEState == IMEState::ENABLED ||
-          aIMEState == IMEState::PLUGIN);
-}
-
-/* static */
-void
-WinUtils::SetupKeyModifiersSequence(nsTArray<KeyPair>* aArray,
-                                    uint32_t aModifiers)
-{
-  for (uint32_t i = 0; i < ArrayLength(sModifierKeyMap); ++i) {
-    const uint32_t* map = sModifierKeyMap[i];
-    if (aModifiers & map[0]) {
-      aArray->AppendElement(KeyPair(map[1], map[2]));
-    }
-  }
-}
-
 
 } // namespace widget
 } // namespace mozilla

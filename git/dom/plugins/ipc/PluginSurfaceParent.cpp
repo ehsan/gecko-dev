@@ -20,9 +20,5 @@ PluginSurfaceParent::PluginSurfaceParent(const WindowsSharedMemoryHandle& handle
     mSurface = dibsurf;
 }
 
-PluginSurfaceParent::~PluginSurfaceParent()
-{
-}
-
 }
 }

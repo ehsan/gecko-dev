@@ -13,13 +13,12 @@
 #include <io.h>
 #include <fcntl.h>
 #elif defined(XP_UNIX)
+#include <sys/time.h>
 #include <sys/resource.h>
-#include <time.h>
 #include <unistd.h>
 #endif
 
 #ifdef XP_MACOSX
-#include <mach/mach_time.h>
 #include "MacQuirks.h"
 #endif
 
@@ -46,7 +45,6 @@
 #include "nsXPCOMPrivate.h" // for MAXPATHLEN and XPCOM_DLL
 
 #include "mozilla/Telemetry.h"
-#include "mozilla/WindowsDllBlocklist.h"
 
 using namespace mozilla;
 
@@ -79,19 +77,9 @@ static void Output(const char *fmt, ... )
 #if MOZ_WINCONSOLE
   fwprintf_s(stderr, wide_msg);
 #else
-  // Linking user32 at load-time interferes with the DLL blocklist (bug 932100).
-  // This is a rare codepath, so we can load user32 at run-time instead.
-  HMODULE user32 = LoadLibraryW(L"user32.dll");
-  if (user32) {
-    typedef int (WINAPI * MessageBoxWFn)(HWND, LPCWSTR, LPCWSTR, UINT);
-    MessageBoxWFn messageBoxW = (MessageBoxWFn)GetProcAddress(user32, "MessageBoxW");
-    if (messageBoxW) {
-      messageBoxW(nullptr, wide_msg, L"Firefox", MB_OK
-                                               | MB_ICONERROR
-                                               | MB_SETFOREGROUND);
-    }
-    FreeLibrary(user32);
-  }
+  MessageBoxW(NULL, wide_msg, L"Firefox", MB_OK
+                                        | MB_ICONERROR
+                                        | MB_SETFOREGROUND);
 #endif
 #endif
 
@@ -155,19 +143,25 @@ static void AttachToTestHarness()
 XRE_GetFileFromPathType XRE_GetFileFromPath;
 XRE_CreateAppDataType XRE_CreateAppData;
 XRE_FreeAppDataType XRE_FreeAppData;
+#ifdef XRE_HAS_DLL_BLOCKLIST
+XRE_SetupDllBlocklistType XRE_SetupDllBlocklist;
+#endif
 XRE_TelemetryAccumulateType XRE_TelemetryAccumulate;
 XRE_StartupTimelineRecordType XRE_StartupTimelineRecord;
 XRE_mainType XRE_main;
-XRE_StopLateWriteChecksType XRE_StopLateWriteChecks;
+XRE_DisableWritePoisoningType XRE_DisableWritePoisoning;
 
 static const nsDynamicFunctionLoad kXULFuncs[] = {
     { "XRE_GetFileFromPath", (NSFuncPtr*) &XRE_GetFileFromPath },
     { "XRE_CreateAppData", (NSFuncPtr*) &XRE_CreateAppData },
     { "XRE_FreeAppData", (NSFuncPtr*) &XRE_FreeAppData },
+#ifdef XRE_HAS_DLL_BLOCKLIST
+    { "XRE_SetupDllBlocklist", (NSFuncPtr*) &XRE_SetupDllBlocklist },
+#endif
     { "XRE_TelemetryAccumulate", (NSFuncPtr*) &XRE_TelemetryAccumulate },
     { "XRE_StartupTimelineRecord", (NSFuncPtr*) &XRE_StartupTimelineRecord },
     { "XRE_main", (NSFuncPtr*) &XRE_main },
-    { "XRE_StopLateWriteChecks", (NSFuncPtr*) &XRE_StopLateWriteChecks },
+    { "XRE_DisableWritePoisoning", (NSFuncPtr*) &XRE_DisableWritePoisoning },
     { nullptr, nullptr }
 };
 
@@ -246,9 +240,6 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
       for (int idx = 1; idx < argc; idx++) {
         if (IsArg(argv[idx], "metrodesktop")) {
           metroOnDesktop = true;
-          // Disable crash reporting when running in metrodesktop mode.
-          char crashSwitch[] = "MOZ_CRASHREPORTER_DISABLE=1";
-          putenv(crashSwitch);
           break;
         } 
       }
@@ -332,16 +323,16 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
     // Check for a metro test harness command line args file
     HANDLE hTestFile = CreateFileA(path.get(),
                                    GENERIC_READ,
-                                   0, nullptr, OPEN_EXISTING,
+                                   0, NULL, OPEN_EXISTING,
                                    FILE_ATTRIBUTE_NORMAL,
-                                   nullptr);
+                                   NULL);
     if (hTestFile != INVALID_HANDLE_VALUE) {
       // Typical test harness command line args string is around 100 bytes.
       char buffer[1024];
       memset(buffer, 0, sizeof(buffer));
       DWORD bytesRead = 0;
       if (!ReadFile(hTestFile, (VOID*)buffer, sizeof(buffer)-1,
-                    &bytesRead, nullptr) || !bytesRead) {
+                    &bytesRead, NULL) || !bytesRead) {
         CloseHandle(hTestFile);
         printf("failed to read test file '%s'", testFile);
         return -1;
@@ -356,7 +347,7 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
 
       char* ptr = buffer;
       newArgv[0] = ptr;
-      while (*ptr != '\0' &&
+      while (*ptr != NULL &&
              (ptr - buffer) < sizeof(buffer) &&
              newArgc < ARRAYSIZE(newArgv)) {
         if (isspace(*ptr)) {
@@ -390,80 +381,25 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
   return 255;
 }
 
-#ifdef XP_WIN
-
-/**
- * Used only when GetTickCount64 is not available on the platform.
- * Last result of GetTickCount call. Kept in [ms].
- */
-static DWORD sLastGTCResult = 0;
-
-/**
- *  Higher part of the 64-bit value of MozGetTickCount64,
- * incremented atomically.
- */
-static DWORD sLastGTCRollover = 0;
-
-/**
- * Function protecting GetTickCount result from rolling over. The original
- * code comes from the Windows implementation of the TimeStamp class minus the
- * locking harness which isn't needed here.
- *
- * @returns The current time in milliseconds
- */
-static ULONGLONG WINAPI
-MozGetTickCount64()
+/* Local implementation of PR_Now, since the executable can't depend on NSPR */
+static PRTime _PR_Now()
 {
-  DWORD GTC = ::GetTickCount();
-
-  /* Pull the rollover counter forward only if new value of GTC goes way
-   * down under the last saved result */
-  if ((sLastGTCResult > GTC) && ((sLastGTCResult - GTC) > (1UL << 30)))
-    ++sLastGTCRollover;
-
-  sLastGTCResult = GTC;
-  return (ULONGLONG)sLastGTCRollover << 32 | sLastGTCResult;
-}
-
-typedef ULONGLONG (WINAPI* GetTickCount64_t)();
-static GetTickCount64_t sGetTickCount64 = nullptr;
-
+#ifdef XP_WIN
+  MOZ_STATIC_ASSERT(sizeof(PRTime) == sizeof(FILETIME), "PRTime must have the same size as FILETIME");
+  FILETIME ft;
+  GetSystemTimeAsFileTime(&ft);
+  PRTime now;
+  CopyMemory(&now, &ft, sizeof(PRTime));
+#ifdef __GNUC__
+  return (now - 116444736000000000LL) / 10LL;
+#else
+  return (now - 116444736000000000i64) / 10i64;
 #endif
 
-/**
- * Local TimeStamp::Now()-compatible implementation used to record timestamps
- * which will be passed to XRE_StartupTimelineRecord().
- */
-static uint64_t
-TimeStamp_Now()
-{
-#ifdef XP_WIN
-  LARGE_INTEGER freq;
-  ::QueryPerformanceFrequency(&freq);
-
-  HMODULE kernelDLL = GetModuleHandleW(L"kernel32.dll");
-  sGetTickCount64 = reinterpret_cast<GetTickCount64_t>
-    (GetProcAddress(kernelDLL, "GetTickCount64"));
-
-  if (!sGetTickCount64) {
-    /* If the platform does not support the GetTickCount64 (Windows XP doesn't),
-     * then use our fallback implementation based on GetTickCount. */
-    sGetTickCount64 = MozGetTickCount64;
-  }
-
-  return sGetTickCount64() * freq.QuadPart;
-#elif defined(XP_MACOSX)
-  return mach_absolute_time();
-#elif defined(HAVE_CLOCK_MONOTONIC)
-  struct timespec ts;
-  int rv = clock_gettime(CLOCK_MONOTONIC, &ts);
-
-  if (rv != 0) {
-    return 0;
-  }
-
-  uint64_t baseNs = (uint64_t)ts.tv_sec * 1000000000;
-  return baseNs + (uint64_t)ts.tv_nsec;
+#else
+  struct timeval tm;
+  gettimeofday(&tm, 0);
+  return (((PRTime)tm.tv_sec * 1000000LL) + (PRTime)tm.tv_usec);
 #endif
 }
 
@@ -518,13 +454,13 @@ InitXPCOMGlue(const char *argv0, nsIFile **xreDirectory)
     }
     if (absfwurl) {
       CFURLRef xulurl =
-        CFURLCreateCopyAppendingPathComponent(nullptr, absfwurl,
+        CFURLCreateCopyAppendingPathComponent(NULL, absfwurl,
                                               CFSTR("XUL.framework"),
                                               true);
 
       if (xulurl) {
         CFURLRef xpcomurl =
-          CFURLCreateCopyAppendingPathComponent(nullptr, xulurl,
+          CFURLCreateCopyAppendingPathComponent(NULL, xulurl,
                                                 CFSTR("libxpcom.dylib"),
                                                 false);
 
@@ -585,7 +521,7 @@ int main(int argc, char* argv[])
 #ifdef DEBUG_delay_start_metro
   Sleep(5000);
 #endif
-  uint64_t start = TimeStamp_Now();
+  PRTime start = _PR_Now();
 
 #ifdef XP_MACOSX
   TriggerQuirks();
@@ -602,23 +538,16 @@ int main(int argc, char* argv[])
 
   nsIFile *xreDirectory;
 
-#ifdef HAS_DLL_BLOCKLIST
-  DllBlocklist_Initialize();
-
-  // In order to be effective against AppInit DLLs, the blocklist must be
-  // initialized before user32.dll is loaded into the process. If this assert
-  // ever fires, then the fix for bug 932100 has been defeated and the
-  // blocklist will miss AppInit DLLs. You should use a delayload or reorder
-  // the code to prevent user32.dll from loading during early startup.
-  MOZ_ASSERT(!GetModuleHandleA("user32.dll"));
-#endif
-
   nsresult rv = InitXPCOMGlue(argv[0], &xreDirectory);
   if (NS_FAILED(rv)) {
     return 255;
   }
 
   XRE_StartupTimelineRecord(mozilla::StartupTimeline::START, start);
+
+#ifdef XRE_HAS_DLL_BLOCKLIST
+  XRE_SetupDllBlocklist();
+#endif
 
   if (gotCounters) {
 #if defined(XP_WIN)
@@ -654,7 +583,7 @@ int main(int argc, char* argv[])
   // at least one such write that we don't control (see bug 826029). For
   // now we enable writes again and early exits will have to use exit instead
   // of _exit.
-  XRE_StopLateWriteChecks();
+  XRE_DisableWritePoisoning();
 #endif
 
   return result;

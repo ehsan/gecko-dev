@@ -84,7 +84,7 @@ jsd_Constructing(JSDContext* jsdc, JSContext *cx, JSObject *obj,
                  JSAbstractFramePtr frame)
 {
     JSDObject* jsdobj;
-    JS::RootedScript script(cx);
+    JSScript* script;
     JSDScript* jsdscript;
     const char* ctorURL;
     JSString* ctorNameStr;
@@ -123,13 +123,13 @@ _hash_root(const void *key)
     return ((JSHashNumber)(ptrdiff_t) key) >> 2; /* help lame MSVC1.5 on Win16 */
 }
 
-bool
+JSBool
 jsd_InitObjectManager(JSDContext* jsdc)
 {
     JS_INIT_CLIST(&jsdc->objectsList);
     jsdc->objectsTable = JS_NewHashTable(256, _hash_root,
                                          JS_CompareValues, JS_CompareValues,
-                                         nullptr, nullptr);
+                                         NULL, NULL);
     return !!jsdc->objectsTable;
 }
 
@@ -161,7 +161,7 @@ jsd_IterateObjects(JSDContext* jsdc, JSDObject** iterp)
     if( !jsdobj )
         jsdobj = (JSDObject *)jsdc->objectsList.next;
     if( jsdobj == (JSDObject *)&jsdc->objectsList )
-        return nullptr;
+        return NULL;
     *iterp = (JSDObject*) jsdobj->links.next;
     return jsdobj;
 }
@@ -177,7 +177,7 @@ jsd_GetObjectNewURL(JSDContext* jsdc, JSDObject* jsdobj)
 {
     if( jsdobj->newURL )
         return JSD_ATOM_TO_STRING(jsdobj->newURL);
-    return nullptr;
+    return NULL;
 }
 
 unsigned
@@ -191,7 +191,7 @@ jsd_GetObjectConstructorURL(JSDContext* jsdc, JSDObject* jsdobj)
 {
     if( jsdobj->ctorURL )
         return JSD_ATOM_TO_STRING(jsdobj->ctorURL);
-    return nullptr;
+    return NULL;
 }
 
 unsigned
@@ -205,7 +205,7 @@ jsd_GetObjectConstructorName(JSDContext* jsdc, JSDObject* jsdobj)
 {
     if( jsdobj->ctorName )
         return JSD_ATOM_TO_STRING(jsdobj->ctorName);
-    return nullptr;
+    return NULL;
 }
 
 JSDObject*

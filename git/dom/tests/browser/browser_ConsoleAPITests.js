@@ -34,7 +34,7 @@ function test() {
 }
 
 function testConsoleData(aMessageObject) {
-  let messageWindow = Services.wm.getOuterWindowWithId(aMessageObject.ID);
+  let messageWindow = getWindowByWindowId(aMessageObject.ID);
   is(messageWindow, gWindow, "found correct window by window ID");
 
   is(aMessageObject.level, gLevel, "expected level received");
@@ -48,14 +48,7 @@ function testConsoleData(aMessageObject) {
   else {
     is(aMessageObject.arguments.length, gArgs.length, "arguments.length matches");
     gArgs.forEach(function (a, i) {
-      // Waive Xray so that we don't get messed up by Xray ToString.
-      //
-      // It'd be nice to just use XPCNativeWrapper.unwrap here, but there are
-      // a number of dumb reasons we can't. See bug 868675.
-      var arg = aMessageObject.arguments[i];
-      if (Components.utils.isXrayWrapper(arg))
-        arg = arg.wrappedJSObject;
-      is(arg, a, "correct arg " + i);
+      is(aMessageObject.arguments[i], a, "correct arg " + i);
     });
   }
 
@@ -63,7 +56,7 @@ function testConsoleData(aMessageObject) {
 }
 
 function testLocationData(aMessageObject) {
-  let messageWindow = Services.wm.getOuterWindowWithId(aMessageObject.ID);
+  let messageWindow = getWindowByWindowId(aMessageObject.ID);
   is(messageWindow, gWindow, "found correct window by window ID");
 
   is(aMessageObject.level, gLevel, "expected level received");
@@ -77,32 +70,6 @@ function testLocationData(aMessageObject) {
     is(aMessageObject.arguments[i], a, "correct arg " + i);
   });
 
-  startNativeCallbackTest();
-}
-
-function startNativeCallbackTest() {
-  // Reset the observer function to cope with the fabricated test data.
-  ConsoleObserver.observe = function CO_observe(aSubject, aTopic, aData) {
-    try {
-      testNativeCallback(aSubject.wrappedJSObject);
-    } catch (ex) {
-      // XXX Bug 906593 - Exceptions in this function currently aren't
-      // reported, because of some XPConnect weirdness, so report them manually
-      ok(false, "Exception thrown in CO_observe: " + ex);
-    }
-  };
-
-  let button = gWindow.document.getElementById("test-nativeCallback");
-  ok(button, "found #test-nativeCallback button");
-  EventUtils.synthesizeMouseAtCenter(button, {}, gWindow);
-}
-
-function testNativeCallback(aMessageObject) {
-  is(aMessageObject.level, "log", "expected level received");
-  is(aMessageObject.filename, "", "filename matches");
-  is(aMessageObject.lineNumber, 0, "lineNumber matches");
-  is(aMessageObject.functionName, "", "functionName matches");
-
   startGroupTest();
 }
 
@@ -112,8 +79,8 @@ function startGroupTest() {
     try {
       testConsoleGroup(aSubject.wrappedJSObject);
     } catch (ex) {
-      // XXX Bug 906593 - Exceptions in this function currently aren't
-      // reported, because of some XPConnect weirdness, so report them manually
+      // XXX Exceptions in this function currently aren't reported, because of
+      // some XPConnect weirdness, so report them manually
       ok(false, "Exception thrown in CO_observe: " + ex);
     }
   };
@@ -123,7 +90,7 @@ function startGroupTest() {
 }
 
 function testConsoleGroup(aMessageObject) {
-  let messageWindow = Services.wm.getOuterWindowWithId(aMessageObject.ID);
+  let messageWindow = getWindowByWindowId(aMessageObject.ID);
   is(messageWindow, gWindow, "found correct window by window ID");
 
   ok(aMessageObject.level == "group" ||
@@ -175,8 +142,8 @@ function startLocationTest() {
     try {
       testLocationData(aSubject.wrappedJSObject);
     } catch (ex) {
-      // XXX Bug 906593 - Exceptions in this function currently aren't
-      // reported, because of some XPConnect weirdness, so report them manually
+      // XXX Exceptions in this function currently aren't reported, because of
+      // some XPConnect weirdness, so report them manually
       ok(false, "Exception thrown in CO_observe: " + ex);
     }
   };
@@ -199,11 +166,11 @@ function observeConsoleTest() {
   let win = XPCNativeWrapper.unwrap(gWindow);
   expect("log", "arg");
   win.console.log("arg");
-  yield undefined;
+  yield;
 
   expect("info", "arg", "extra arg");
   win.console.info("arg", "extra arg");
-  yield undefined;
+  yield;
 
   // We don't currently support width and precision qualifiers, but we don't
   // choke on them either.
@@ -212,53 +179,53 @@ function observeConsoleTest() {
                    1,
                    "PI",
                    3.14159);
-  yield undefined;
+  yield;
 
   expect("log", "%d, %s, %l");
   win.console.log("%d, %s, %l");
-  yield undefined;
+  yield;
 
   expect("log", "%a %b %c");
   win.console.log("%a %b %c");
-  yield undefined;
+  yield;
 
   expect("log", "%a %b %c", "a", "b");
   win.console.log("%a %b %c", "a", "b");
-  yield undefined;
+  yield;
 
   expect("log", "2, a, %l", 3);
   win.console.log("%d, %s, %l", 2, "a", 3);
-  yield undefined;
+  yield;
 
   // Bug #692550 handle null and undefined.
   expect("log", "null, undefined");
   win.console.log("%s, %s", null, undefined);
-  yield undefined;
+  yield;
 
   // Bug #696288 handle object as first argument.
   let obj = { a: 1 };
   expect("log", obj, "a");
   win.console.log(obj, "a");
-  yield undefined;
+  yield;
 
   expect("dir", win.toString());
   win.console.dir(win);
-  yield undefined;
+  yield;
 
   expect("error", "arg");
   win.console.error("arg");
-  yield undefined;
+  yield;
 
   let obj2 = { b: 2 };
   expect("log", "omg ", obj, " foo ", 4, obj2);
   win.console.log("omg %o foo %o", obj, 4, obj2);
-  yield undefined;
+  yield;
 
   startTraceTest();
-  yield undefined;
+  yield;
 
   startLocationTest();
-  yield undefined;
+  yield;
 }
 
 function consoleAPISanityTest() {
@@ -285,8 +252,8 @@ function startTimeTest() {
     try {
       testConsoleTime(aSubject.wrappedJSObject);
     } catch (ex) {
-      // XXX Bug 906593 - Exceptions in this function currently aren't
-      // reported, because of some XPConnect weirdness, so report them manually
+      // XXX Exceptions in this function currently aren't reported, because of
+      // some XPConnect weirdness, so report them manually
       ok(false, "Exception thrown in CO_observe: " + ex);
     }
   };
@@ -304,7 +271,7 @@ function startTimeTest() {
 }
 
 function testConsoleTime(aMessageObject) {
-  let messageWindow = Services.wm.getOuterWindowWithId(aMessageObject.ID);
+  let messageWindow = getWindowByWindowId(aMessageObject.ID);
   is(messageWindow, gWindow, "found correct window by window ID");
 
   is(aMessageObject.level, gLevel, "expected level received");
@@ -328,8 +295,8 @@ function startTimeEndTest() {
     try {
       testConsoleTimeEnd(aSubject.wrappedJSObject);
     } catch (ex) {
-      // XXX Bug 906593 - Exceptions in this function currently aren't
-      // reported, because of some XPConnect weirdness, so report them manually
+      // XXX Exceptions in this function currently aren't reported, because of
+      // some XPConnect weirdness, so report them manually
       ok(false, "Exception thrown in CO_observe: " + ex);
     }
   };
@@ -347,7 +314,7 @@ function startTimeEndTest() {
 }
 
 function testConsoleTimeEnd(aMessageObject) {
-  let messageWindow = Services.wm.getOuterWindowWithId(aMessageObject.ID);
+  let messageWindow = getWindowByWindowId(aMessageObject.ID);
   is(messageWindow, gWindow, "found correct window by window ID");
 
   is(aMessageObject.level, gLevel, "expected level received");
@@ -375,8 +342,8 @@ function startEmptyTimerTest() {
     try {
       testEmptyTimer(aSubject.wrappedJSObject);
     } catch (ex) {
-      // XXX Bug 906593 - Exceptions in this function currently aren't
-      // reported, because of some XPConnect weirdness, so report them manually
+      // XXX Exceptions in this function currently aren't reported, because of
+      // some XPConnect weirdness, so report them manually
       ok(false, "Exception thrown in CO_observe: " + ex);
     }
   };
@@ -387,7 +354,7 @@ function startEmptyTimerTest() {
 }
 
 function testEmptyTimer(aMessageObject) {
-  let messageWindow = Services.wm.getOuterWindowWithId(aMessageObject.ID);
+  let messageWindow = getWindowByWindowId(aMessageObject.ID);
   is(messageWindow, gWindow, "found correct window by window ID");
 
   ok(aMessageObject.level == "time" || aMessageObject.level == "timeEnd",
@@ -418,8 +385,8 @@ var ConsoleObserver = {
     try {
       testConsoleData(aSubject.wrappedJSObject);
     } catch (ex) {
-      // XXX Bug 906593 - Exceptions in this function currently aren't
-      // reported, because of some XPConnect weirdness, so report them manually
+      // XXX Exceptions in this function currently aren't reported, because of
+      // some XPConnect weirdness, so report them manually
       ok(false, "Exception thrown in CO_observe: " + ex);
     }
   }
@@ -430,4 +397,14 @@ function getWindowId(aWindow)
   return aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                 .getInterface(Ci.nsIDOMWindowUtils)
                 .outerWindowID;
+}
+
+function getWindowByWindowId(aId) {
+  let someWindow = Services.wm.getMostRecentWindow("navigator:browser");
+  if (someWindow) {
+    let windowUtils = someWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                .getInterface(Ci.nsIDOMWindowUtils);
+    return windowUtils.getOuterWindowWithId(aId);
+  }
+  return null;
 }

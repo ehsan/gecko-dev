@@ -32,34 +32,17 @@ let gPage = {
   },
 
   /**
-   * True if the page is allowed to capture thumbnails using the background
-   * thumbnail service.
-   */
-  get allowBackgroundCaptures() {
-    return document.documentElement.getAttribute("allow-background-captures") ==
-           "true";
-  },
-
-  /**
    * Listens for notifications specific to this page.
    */
-  observe: function Page_observe(aSubject, aTopic, aData) {
-    if (aTopic == "nsPref:changed") {
-      let enabled = gAllPages.enabled;
-      this._updateAttributes(enabled);
+  observe: function Page_observe() {
+    let enabled = gAllPages.enabled;
+    this._updateAttributes(enabled);
 
-      // Initialize the whole page if we haven't done that, yet.
-      if (enabled) {
-        this._init();
-      } else {
-        gUndoDialog.hide();
-      }
-    } else if (aTopic == "page-thumbnail:create" && gGrid.ready) {
-      for (let site of gGrid.sites) {
-        if (site && site.url === aData) {
-          site.refreshThumbnail();
-        }
-      }
+    // Initialize the whole page if we haven't done that, yet.
+    if (enabled) {
+      this._init();
+    } else {
+      gUndoDialog.hide();
     }
   },
 
@@ -67,10 +50,7 @@ let gPage = {
    * Updates the whole page and the grid when the storage has changed.
    */
   update: function Page_update() {
-    // The grid might not be ready yet as we initialize it asynchronously.
-    if (gGrid.ready) {
-      gGrid.refresh();
-    }
+    gGrid.refresh();
   },
 
   /**
@@ -82,20 +62,6 @@ let gPage = {
       return;
 
     this._initialized = true;
-
-    this._mutationObserver = new MutationObserver(() => {
-      if (this.allowBackgroundCaptures) {
-        for (let site of gGrid.sites) {
-          if (site) {
-            site.captureIfMissing();
-          }
-        }
-      }
-    });
-    this._mutationObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["allow-background-captures"],
-    });
 
     gLinks.populateCache(function () {
       // Initialize and render the grid.
@@ -146,8 +112,6 @@ let gPage = {
   handleEvent: function Page_handleEvent(aEvent) {
     switch (aEvent.type) {
       case "unload":
-        if (this._mutationObserver)
-          this._mutationObserver.disconnect();
         gAllPages.unregister(this);
         break;
       case "click":

@@ -27,7 +27,7 @@
 #include <nsClassHashtable.h>
 #include "VideoUtils.h"
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 // Uncomment the following to validate that we're predicting the number
 // of Vorbis samples in each packet correctly.
@@ -447,7 +447,7 @@ public:
                              nsSeekTarget& aResult);
 
   bool HasIndex() const {
-    return mIndex.Count() > 0;
+    return mIndex.IsInitialized() && mIndex.Count() > 0;
   }
 
   // Returns the duration of the active tracks in the media, if we have

@@ -36,8 +36,9 @@ function debug(aMsg) {
 
 
 function enableOfflineCacheForApp(origin, appId) {
+  let originURI = Services.io.newURI(origin, null, null);
   let principal = Services.scriptSecurityManager.getAppCodebasePrincipal(
-                    origin, appId, false);
+                    originURI, appId, false);
   Services.perms.addFromPrincipal(principal, 'offline-app',
                                   Ci.nsIPermissionManager.ALLOW_ACTION);
   // Prevent cache from being evicted:
@@ -66,6 +67,7 @@ function storeCache(applicationCache, url, file, itemType) {
       bufferedOutputStream.writeFrom(inputStream, inputStream.available());
       bufferedOutputStream.flush();
       bufferedOutputStream.close();
+      outputStream.close();
       inputStream.close();
 
       cacheEntry.markValid();
@@ -78,7 +80,7 @@ function storeCache(applicationCache, url, file, itemType) {
 
 function readFile(aFile, aCallback) {
   let channel = NetUtil.newChannel(aFile);
-  channel.contentType = "plain/text";
+  channel.contentType = "pain/text";
   NetUtil.asyncFetch(channel, function(aStream, aResult) {
     if (!Components.isSuccessCode(aResult)) {
       Cu.reportError("OfflineCacheInstaller: Could not read file " + aFile.path);
@@ -99,15 +101,18 @@ function readFile(aFile, aCallback) {
 }
 
 function parseCacheLine(app, urls, line) {
-  try {
-    let url = Services.io.newURI(line, null, app.origin);
-    urls.push(url.spec);
-  } catch(e) {
-    throw new Error('Unable to parse cache line: ' + line + '(' + e + ')');
+  // Prepend webapp origin in case of absolute path
+  if (line[0] == '/') {
+    urls.push(app.origin + line.substring(1));
+  // Just pass along the url, if we have one
+  } else if (line.substr(0, 4) == 'http') {
+    urls.push(line);
+  } else {
+    throw new Error('Only accept absolute path and http/https URLs');
   }
 }
 
-function parseFallbackLine(app, urls, namespaces, fallbacks, line) {
+function parseFallbackLine(app, namespaces, fallbacks, line) {
   let split = line.split(/[ \t]+/);
   if (split.length != 2) {
     throw new Error('Should be made of two URLs seperated with spaces')
@@ -116,16 +121,13 @@ function parseFallbackLine(app, urls, namespaces, fallbacks, line) {
   let [ namespace, fallback ] = split;
 
   // Prepend webapp origin in case of absolute path
-  try {
-    namespace = Services.io.newURI(namespace, null, app.origin).spec;
-    fallback = Services.io.newURI(fallback, null, app.origin).spec;
-  } catch(e) {
-    throw new Error('Unable to parse fallback line: ' + line + '(' + e + ')');
-  }
+  if (namespace[0] == '/')
+    namespace = app.origin + namespace.substring(1);
+  if (fallback[0] == '/')
+    fallback = app.origin + fallback.substring(1);
 
   namespaces.push([type, namespace, fallback]);
   fallbacks.push(fallback);
-  urls.push(fallback);
 }
 
 function parseNetworkLine(namespaces, line) {
@@ -174,7 +176,7 @@ function parseAppCache(app, path, content) {
       } else if (currentSection == 'NETWORK') {
         parseNetworkLine(namespaces, line);
       } else if (currentSection == 'FALLBACK') {
-        parseFallbackLine(app, urls, namespaces, fallbacks, line);
+        parseFallbackLine(app, namespaces, fallbacks, line);
       }
     } catch(e) {
       throw new Error('Invalid ' + currentSection + ' line in appcache ' +
@@ -192,11 +194,7 @@ function parseAppCache(app, path, content) {
 }
 
 function installCache(app) {
-  if (!app.cachePath) {
-    return;
-  }
-
-  let cacheDir = makeFile(app.cachePath)
+  let cacheDir = makeFile(app.basePath)
   cacheDir.append(app.appId);
   cacheDir.append('cache');
   if (!cacheDir.exists())
@@ -210,7 +208,7 @@ function installCache(app) {
   enableOfflineCacheForApp(app.origin, app.localId);
 
   // Get the url for the manifest.
-  let appcacheURL = app.appcache_path;
+  let appcacheURL = app.origin + 'cache/manifest.appcache';
 
   // The group ID contains application id and 'f' for not being hosted in
   // a browser element, but a mozbrowser iframe.
@@ -224,9 +222,7 @@ function installCache(app) {
 
     entries.urls.forEach(function processCachedFile(url) {
       // Get this nsIFile from cache folder for this URL
-      // We have absolute urls, so remove the origin part to locate the
-      // files.
-      let path = url.replace(app.origin.spec, '');
+      let path = url.replace(/https?:\/\//, '');
       let file = cacheDir.clone();
       let paths = path.split('/');
       paths.forEach(file.append);
@@ -253,9 +249,6 @@ function installCache(app) {
       let type = nsIApplicationCache.ITEM_FALLBACK;
       applicationCache.markEntry(url, type);
     });
-
-    storeCache(applicationCache, appcacheURL, cacheManifest,
-               nsIApplicationCache.ITEM_MANIFEST);
   });
 }
 

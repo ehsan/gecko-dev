@@ -3,12 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsMathMLmoFrame.h"
+#include "nsCOMPtr.h"
+#include "nsFrame.h"
 #include "nsPresContext.h"
+#include "nsStyleContext.h"
+#include "nsStyleConsts.h"
 #include "nsRenderingContext.h"
 #include "nsContentUtils.h"
-#include "nsFrameSelection.h"
-#include "nsMathMLElement.h"
+
+#include "nsMathMLmoFrame.h"
 #include <algorithm>
 
 //
@@ -33,6 +36,7 @@ nsMathMLmoFrame::~nsMathMLmoFrame()
 static const PRUnichar kInvisibleComma = PRUnichar(0x200B); // a.k.a. ZERO WIDTH SPACE
 static const PRUnichar kApplyFunction  = PRUnichar(0x2061);
 static const PRUnichar kInvisibleTimes = PRUnichar(0x2062);
+static const PRUnichar kNullCh         = PRUnichar('\0');
 
 eMathMLFrameType
 nsMathMLmoFrame::GetMathMLFrameType()
@@ -118,7 +122,7 @@ nsMathMLmoFrame::ProcessTextData()
   nsContentUtils::GetNodeTextContent(mContent, false, data);
   data.CompressWhitespace();
   int32_t length = data.Length();
-  PRUnichar ch = (length == 0) ? PRUnichar('\0') : data[0];
+  PRUnichar ch = (length == 0) ? kNullCh : data[0];
 
   if ((length == 1) && 
       (ch == kInvisibleComma || 
@@ -163,6 +167,12 @@ nsMathMLmoFrame::ProcessTextData()
   mFlags |= allFlags & NS_MATHML_OPERATOR_ACCENT;
   mFlags |= allFlags & NS_MATHML_OPERATOR_MOVABLELIMITS;
 
+  bool isMutable =
+    NS_MATHML_OPERATOR_IS_STRETCHY(allFlags) ||
+    NS_MATHML_OPERATOR_IS_LARGEOP(allFlags);
+  if (isMutable)
+    mFlags |= NS_MATHML_OPERATOR_MUTABLE;
+
   // see if this is an operator that should be centered to cater for 
   // fonts that are not math-aware
   if (1 == length) {
@@ -177,19 +187,12 @@ nsMathMLmoFrame::ProcessTextData()
 
   // cache the operator
   mMathMLChar.SetData(presContext, data);
+  ResolveMathMLCharStyle(presContext, mContent, mStyleContext, &mMathMLChar, isMutable);
 
   // cache the native direction -- beware of bug 133429...
   // mEmbellishData.direction must always retain our native direction, whereas
   // mMathMLChar.GetStretchDirection() may change later, when Stretch() is called
   mEmbellishData.direction = mMathMLChar.GetStretchDirection();
-
-  bool isMutable =
-    NS_MATHML_OPERATOR_IS_LARGEOP(allFlags) ||
-    (mEmbellishData.direction != NS_STRETCH_DIRECTION_UNSUPPORTED);
-  if (isMutable)
-    mFlags |= NS_MATHML_OPERATOR_MUTABLE;
-
-  ResolveMathMLCharStyle(presContext, mContent, mStyleContext, &mMathMLChar, isMutable);
 }
 
 // get our 'form' and lookup in the Operator Dictionary to fetch 
@@ -338,13 +341,13 @@ nsMathMLmoFrame::ProcessOperatorData()
     // Use the default value suggested by the MathML REC.
     // http://www.w3.org/TR/MathML/chapter3.html#presm.mo.attrs
     // thickmathspace = 5/18em
-    float lspace = 5.0f/18.0f;
-    float rspace = 5.0f/18.0f;
+    float lspace = 5.0/18.0;
+    float rspace = 5.0/18.0;
     if (NS_MATHML_OPERATOR_IS_INVISIBLE(mFlags)) {
       // mMathMLChar has been reset in ProcessTextData so we can not find it
       // in the operator dictionary. The operator dictionary always uses
       // lspace = rspace = 0 for invisible operators.
-      lspace = rspace = 0;
+      lspace = rspace = 0.0;
     } else {
       // lookup the operator dictionary
       nsAutoString data;
@@ -505,7 +508,7 @@ nsMathMLmoFrame::ProcessOperatorData()
   // give a multiple of the defaut value but a multiple of the operator at
   // normal size.
   //
-  mMinSize = 0;
+  mMinSize = 0.0;
   GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::minsize_,
                value);
   if (!value.IsEmpty()) {
@@ -748,7 +751,8 @@ nsMathMLmoFrame::Stretch(nsRenderingContext& aRenderingContext,
     nsresult res = mMathMLChar.Stretch(PresContext(), aRenderingContext,
                                        aStretchDirection, container, charSize,
                                        stretchHint,
-                                       StyleVisibility()->mDirection);
+                                       NS_MATHML_IS_RTL(mPresentationData.
+                                                        flags));
     if (NS_FAILED(res)) {
       // gracefully handle cases where stretching the char failed (i.e., GetBoundingMetrics failed)
       // clear our 'form' to behave as if the operator wasn't in the dictionary
@@ -872,7 +876,7 @@ nsMathMLmoFrame::Stretch(nsRenderingContext& aRenderingContext,
     aDesiredStretchSize.width = mBoundingMetrics.width;
     aDesiredStretchSize.mBoundingMetrics.width = mBoundingMetrics.width;
 
-    nscoord dx = (StyleVisibility()->mDirection ?
+    nscoord dx = (NS_MATHML_IS_RTL(mPresentationData.flags) ?
                   trailingSpace : leadingSpace);
     if (dx) {
       // adjust the offsets

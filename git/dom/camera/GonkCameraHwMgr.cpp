@@ -88,11 +88,7 @@ GonkCameraHardware::postData(int32_t aMsgType, const sp<IMemory>& aDataPtr, came
       break;
 
     case CAMERA_MSG_COMPRESSED_IMAGE:
-      if (aDataPtr != nullptr) {
-        ReceiveImage(mTarget, (uint8_t*)aDataPtr->pointer(), aDataPtr->size());
-      } else {
-        ReceiveImageError(mTarget);
-      }
+      ReceiveImage(mTarget, (uint8_t*)aDataPtr->pointer(), aDataPtr->size());
       break;
 
     default:
@@ -183,24 +179,14 @@ GonkCameraHardware::Init()
   mNativeWindow = new GonkNativeWindow();
   mNativeWindow->setNewFrameCallback(this);
   mCamera->setListener(this);
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-  mCamera->setPreviewTexture(mNativeWindow->getBufferQueue());
-#else
   mCamera->setPreviewTexture(mNativeWindow);
-#endif
   mInitialized = true;
 }
 
 sp<GonkCameraHardware>
 GonkCameraHardware::Connect(mozilla::nsGonkCameraControl* aTarget, uint32_t aCameraId)
 {
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 18
-  sp<Camera> camera = Camera::connect(aCameraId, /* clientPackageName */String16("gonk.camera"), Camera::USE_CALLING_UID);
-#else
   sp<Camera> camera = Camera::connect(aCameraId);
-#endif
-
-
   if (camera.get() == nullptr) {
     return nullptr;
   }
@@ -231,10 +217,6 @@ GonkCameraHardware::~GonkCameraHardware()
   DOM_CAMERA_LOGT( "%s:%d : this=%p\n", __func__, __LINE__, (void*)this );
   mCamera.clear();
   mNativeWindow.clear();
-
-  if (mClosing) {
-    return;
-  }
 
   /**
    * Trigger the OnClosed event; the upper layers can't do anything

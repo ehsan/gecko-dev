@@ -84,7 +84,7 @@ function checkTextareaRequiredValidity()
   var element = document.createElement('textarea');
   document.forms[0].appendChild(element);
 
-  SpecialPowers.wrap(element).value = '';
+  element.value = '';
   element.required = false;
   checkNotSufferingFromBeingMissing(element);
 
@@ -97,10 +97,10 @@ function checkTextareaRequiredValidity()
   element.readOnly = false;
   checkSufferingFromBeingMissing(element, true);
 
-  SpecialPowers.wrap(element).value = 'foo';
+  element.value = 'foo';
   checkNotSufferingFromBeingMissing(element);
 
-  SpecialPowers.wrap(element).value = '';
+  element.value = '';
   checkSufferingFromBeingMissing(element, true);
 
   element.required = false;
@@ -108,13 +108,13 @@ function checkTextareaRequiredValidity()
 
   element.focus();
   element.required = true;
-  SpecialPowers.wrap(element).value = 'foobar';
+  element.value = 'foobar';
   element.blur();
   element.form.reset();
   checkSufferingFromBeingMissing(element, false);
 
   // TODO: for the moment, a textarea outside of a document is mutable.
-  SpecialPowers.wrap(element).value = ''; // To make -moz-ui-valid apply.
+  element.value = ''; // To make -moz-ui-valid apply.
   element.required = false;
   document.forms[0].removeChild(element);
   checkNotSufferingFromBeingMissing(element);
@@ -126,7 +126,7 @@ function checkInputRequiredNotApply(type, isBarred)
   element.type = type;
   document.forms[0].appendChild(element);
 
-  SpecialPowers.wrap(element).value = '';
+  element.value = '';
   element.required = false;
   checkNotSufferingFromBeingMissing(element, isBarred);
 
@@ -145,7 +145,7 @@ function checkInputRequiredValidity(type)
   element.type = type;
   document.forms[0].appendChild(element);
 
-  SpecialPowers.wrap(element).value = '';
+  element.value = '';
   element.required = false;
   checkNotSufferingFromBeingMissing(element);
 
@@ -159,32 +159,32 @@ function checkInputRequiredValidity(type)
   checkSufferingFromBeingMissing(element, true);
 
   if (element.type == 'email') {
-    SpecialPowers.wrap(element).value = 'foo@bar.com';
+    element.value = 'foo@bar.com';
   } else if (element.type == 'url') {
-    SpecialPowers.wrap(element).value = 'http://mozilla.org/';
+    element.value = 'http://mozilla.org/';
   } else if (element.type == 'number') {
-    SpecialPowers.wrap(element).value = '42';
+    element.value = '42';
   } else if (element.type == 'date') {
-    SpecialPowers.wrap(element).value = '2010-10-10';
+    element.value = '2010-10-10';
   } else if (element.type == 'time') {
-    SpecialPowers.wrap(element).value = '21:21';
+    element.value = '21:21';
   } else {
-    SpecialPowers.wrap(element).value = 'foo';
+    element.value = 'foo';
   }
   checkNotSufferingFromBeingMissing(element);
 
-  SpecialPowers.wrap(element).value = '';
+  element.value = '';
   checkSufferingFromBeingMissing(element, true);
 
   element.focus();
   element.required = true;
-  SpecialPowers.wrap(element).value = 'foobar';
+  element.value = 'foobar';
   element.blur();
   element.form.reset();
   checkSufferingFromBeingMissing(element, false);
 
   element.required = true;
-  SpecialPowers.wrap(element).value = ''; // To make :-moz-ui-valid apply.
+  element.value = ''; // To make :-moz-ui-valid apply.
   document.forms[0].removeChild(element);
   checkNotSufferingFromBeingMissing(element);
 }
@@ -307,12 +307,12 @@ function checkInputRequiredValidityForFile()
   document.forms[0].appendChild(element);
 
   function createFileWithData(fileName, fileData) {
-    var dirSvc = SpecialPowers.Cc["@mozilla.org/file/directory_service;1"]
-                              .getService(SpecialPowers.Ci.nsIProperties);
-    var testFile = dirSvc.get("ProfD", SpecialPowers.Ci.nsIFile);
+    var dirSvc = Components.classes["@mozilla.org/file/directory_service;1"]
+                           .getService(Components.interfaces.nsIProperties);
+    var testFile = dirSvc.get("ProfD", Components.interfaces.nsIFile);
     testFile.append(fileName);
-    var outStream = SpecialPowers.Cc["@mozilla.org/network/file-output-stream;1"].
-                    createInstance(SpecialPowers.Ci.nsIFileOutputStream);
+    var outStream = Components.classes["@mozilla.org/network/file-output-stream;1"].
+                    createInstance(Components.interfaces.nsIFileOutputStream);
     outStream.init(testFile, 0x02 | 0x08 | 0x20, // write, create, truncate
                    0666, 0);
     outStream.write(fileData, fileData.length);
@@ -321,33 +321,36 @@ function checkInputRequiredValidityForFile()
     return testFile;
   }
 
+  // Need privileges to set a filename with .value.
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   var file = createFileWithData("345822_file", "file content");
 
-  SpecialPowers.wrap(element).value = "";
+  element.value = "";
   element.required = false;
   checkNotSufferingFromBeingMissing(element);
 
   element.required = true;
   checkSufferingFromBeingMissing(element, true);
 
-  SpecialPowers.wrap(element).value = file.path;
+  element.value = file.path;
   checkNotSufferingFromBeingMissing(element);
 
-  SpecialPowers.wrap(element).value = "";
+  element.value = "";
   checkSufferingFromBeingMissing(element, true);
 
   element.required = false;
   checkNotSufferingFromBeingMissing(element);
 
   element.focus();
-  SpecialPowers.wrap(element).value = file.path;
+  element.value = file.path;
   element.required = true;
   element.blur();
   element.form.reset();
   checkSufferingFromBeingMissing(element, false);
 
   element.required = true;
-  SpecialPowers.wrap(element).value = '';
+  element.value = '';
   file.remove(false);
   document.forms[0].removeChild(element);
   checkNotSufferingFromBeingMissing(element);
@@ -364,7 +367,8 @@ for (type of typeBarredFromConstraintValidation) {
 }
 
 // Then, checks for the types which do not use the required attribute.
-var typeRequireNotApply = ['range', 'color'];
+// TODO: check 'color' when they will be implemented.
+var typeRequireNotApply = ['range'];
 for (type of typeRequireNotApply) {
   checkInputRequiredNotApply(type, false);
 }

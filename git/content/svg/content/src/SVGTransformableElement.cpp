@@ -24,7 +24,7 @@ SVGTransformableElement::Transform()
   // We're creating a DOM wrapper, so we must tell GetAnimatedTransformList
   // to allocate the SVGAnimatedTransformList if it hasn't already done so:
   return SVGAnimatedTransformList::GetDOMWrapper(
-           GetAnimatedTransformList(DO_ALLOCATE), this);
+           GetAnimatedTransformList(DO_ALLOCATE), this).get();
 
 }
 
@@ -56,7 +56,7 @@ SVGTransformableElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
     // will be called on us and our ancestors.
     nsIFrame* frame =
       const_cast<SVGTransformableElement*>(this)->GetPrimaryFrame();
-    if (!frame || (frame->GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+    if (!frame || (frame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
       return retval; // no change
     }
     if (aModType == nsIDOMMutationEvent::ADDITION ||
@@ -134,16 +134,6 @@ SVGTransformableElement::SetAnimateMotionTransform(const gfxMatrix* aMatrix)
   }
   mAnimateMotionTransform = aMatrix ? new gfxMatrix(*aMatrix) : nullptr;
   DidAnimateTransformList();
-  nsIFrame* frame = GetPrimaryFrame();
-  if (frame) {
-    // If the result of this transform and any other transforms on this frame
-    // is the identity matrix, then DoApplyRenderingChangeToTree won't handle
-    // our nsChangeHint_UpdateTransformLayer hint since aFrame->IsTransformed()
-    // will return false. That's fine, but we still need to schedule a repaint,
-    // and that won't otherwise happen. Since it's cheap to call SchedulePaint,
-    // we don't bother to check IsTransformed().
-    frame->SchedulePaint();
-  }
 }
 
 nsSVGAnimatedTransformList*
@@ -172,7 +162,7 @@ SVGTransformableElement::GetBBox(ErrorResult& rv)
 {
   nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
 
-  if (!frame || (frame->GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
+  if (!frame || (frame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     rv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
@@ -183,7 +173,9 @@ SVGTransformableElement::GetBBox(ErrorResult& rv)
     return nullptr;
   }
 
-  return NS_NewSVGRect(this, nsSVGUtils::GetBBox(frame));
+  nsRefPtr<SVGRect> rect;
+  rv = NS_NewSVGRect(getter_AddRefs(rect), nsSVGUtils::GetBBox(frame));
+  return rect.forget();
 }
 
 already_AddRefed<SVGMatrix>

@@ -6,11 +6,15 @@
 
 #include "nsIMEStateManager.h"
 #include "nsCOMPtr.h"
+#include "nsViewManager.h"
 #include "nsIPresShell.h"
 #include "nsISupports.h"
+#include "nsPIDOMWindow.h"
+#include "nsIInterfaceRequestorUtils.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
+#include "nsIDOMWindow.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsContentUtils.h"
 #include "nsINode.h"
@@ -27,9 +31,9 @@
 #include "mozilla/Services.h"
 #include "nsIFormControl.h"
 #include "nsIForm.h"
-#include "mozilla/dom/HTMLFormElement.h"
+#include "nsHTMLFormElement.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/TextEvents.h"
+#include "nsEventDispatcher.h"
 #include "TextComposition.h"
 #include "mozilla/Preferences.h"
 #include "nsAsyncDOMEvent.h"
@@ -47,7 +51,7 @@ class nsTextStateManager MOZ_FINAL : public nsISelectionListener,
 {
 public:
   nsTextStateManager()
-    : mObserving(nsIMEUpdatePreference::NOTIFY_NOTHING)
+    : mObserving(false)
     {
     }
 
@@ -75,7 +79,7 @@ private:
   void NotifyContentAdded(nsINode* aContainer, int32_t aStart, int32_t aEnd);
   void ObserveEditableNode();
 
-  nsIMEUpdatePreference::Notifications mObserving;
+  bool mObserving;
   uint32_t mPreAttrChangeLength;
 };
 
@@ -86,6 +90,7 @@ private:
 nsIContent*    nsIMEStateManager::sContent      = nullptr;
 nsPresContext* nsIMEStateManager::sPresContext  = nullptr;
 bool           nsIMEStateManager::sInstalledMenuKeyboardListener = false;
+bool           nsIMEStateManager::sInSecureInputMode = false;
 bool           nsIMEStateManager::sIsTestingIME = false;
 
 nsTextStateManager* nsIMEStateManager::sTextStateObserver = nullptr;
@@ -236,6 +241,29 @@ nsIMEStateManager::OnChangeFocusInternal(nsPresContext* aPresContext,
                                      aPresContext->GetRootWidget();
   if (!widget) {
     return NS_OK;
+  }
+
+  // Handle secure input mode for password field input.
+  bool contentIsPassword = false;
+  if (aContent && aContent->GetNameSpaceID() == kNameSpaceID_XHTML) {
+    if (aContent->Tag() == nsGkAtoms::input) {
+      nsAutoString type;
+      aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::type, type);
+      contentIsPassword = type.LowerCaseEqualsLiteral("password");
+    }
+  }
+  if (sInSecureInputMode) {
+    if (!contentIsPassword) {
+      if (NS_SUCCEEDED(widget->EndSecureKeyboardInput())) {
+        sInSecureInputMode = false;
+      }
+    }
+  } else {
+    if (contentIsPassword) {
+      if (NS_SUCCEEDED(widget->BeginSecureKeyboardInput())) {
+        sInSecureInputMode = true;
+      }
+    }
   }
 
   IMEState newState = GetNewIMEState(aPresContext, aContent);
@@ -462,12 +490,8 @@ nsIMEStateManager::SetIMEState(const IMEState &aState,
     } else {
       context.mHTMLInputType.Assign(nsGkAtoms::textarea->GetUTF16String());
     }
-
-    if (Preferences::GetBool("dom.forms.inputmode", false)) {
-      aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::inputmode,
-                        context.mHTMLInputInputmode);
-    }
-
+    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::inputmode,
+                      context.mHTMLInputInputmode);
     aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::moz_action_hint,
                       context.mActionHint);
 
@@ -483,7 +507,7 @@ nsIMEStateManager::SetIMEState(const IMEState &aState,
           willSubmit = true;
         // is this an html form and does it only have a single text input element?
         } else if (formElement && formElement->Tag() == nsGkAtoms::form && formElement->IsHTML() &&
-                   !static_cast<dom::HTMLFormElement*>(formElement)->ImplicitSubmissionIsDisabled()) {
+                   static_cast<nsHTMLFormElement*>(formElement)->HasSingleTextControl()) {
           willSubmit = true;
         }
       }
@@ -522,7 +546,7 @@ nsIMEStateManager::EnsureTextCompositionArray()
 void
 nsIMEStateManager::DispatchCompositionEvent(nsINode* aEventTargetNode,
                                             nsPresContext* aPresContext,
-                                            WidgetEvent* aEvent,
+                                            nsEvent* aEvent,
                                             nsEventStatus* aStatus,
                                             nsDispatchingCallback* aCallBack)
 {
@@ -534,7 +558,7 @@ nsIMEStateManager::DispatchCompositionEvent(nsINode* aEventTargetNode,
 
   EnsureTextCompositionArray();
 
-  WidgetGUIEvent* GUIEvent = aEvent->AsGUIEvent();
+  nsGUIEvent* GUIEvent = static_cast<nsGUIEvent*>(aEvent);
 
   TextComposition* composition =
     sTextCompositions->GetCompositionFor(GUIEvent->widget);
@@ -583,9 +607,10 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
       case REQUEST_TO_CANCEL_COMPOSITION:
         return composition ? aWidget->NotifyIME(aNotification) : NS_OK;
       default:
-        MOZ_CRASH("Unsupported notification");
+        MOZ_NOT_REACHED("Unsupported notification");
+        return NS_ERROR_INVALID_ARG;
     }
-    MOZ_CRASH(
+    MOZ_NOT_REACHED(
       "Failed to handle the notification for non-synthesized composition");
   }
 
@@ -599,7 +624,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
 
       nsEventStatus status = nsEventStatus_eIgnore;
       if (!backup.GetLastData().IsEmpty()) {
-        WidgetTextEvent textEvent(true, NS_TEXT_TEXT, widget);
+        nsTextEvent textEvent(true, NS_TEXT_TEXT, widget);
         textEvent.theText = backup.GetLastData();
         textEvent.mFlags.mIsSynthesizedForTests = true;
         widget->DispatchEvent(&textEvent, status);
@@ -609,7 +634,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
       }
 
       status = nsEventStatus_eIgnore;
-      WidgetCompositionEvent endEvent(true, NS_COMPOSITION_END, widget);
+      nsCompositionEvent endEvent(true, NS_COMPOSITION_END, widget);
       endEvent.data = backup.GetLastData();
       endEvent.mFlags.mIsSynthesizedForTests = true;
       widget->DispatchEvent(&endEvent, status);
@@ -622,7 +647,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
 
       nsEventStatus status = nsEventStatus_eIgnore;
       if (!backup.GetLastData().IsEmpty()) {
-        WidgetCompositionEvent updateEvent(true, NS_COMPOSITION_UPDATE, widget);
+        nsCompositionEvent updateEvent(true, NS_COMPOSITION_UPDATE, widget);
         updateEvent.data = backup.GetLastData();
         updateEvent.mFlags.mIsSynthesizedForTests = true;
         widget->DispatchEvent(&updateEvent, status);
@@ -631,7 +656,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
         }
 
         status = nsEventStatus_eIgnore;
-        WidgetTextEvent textEvent(true, NS_TEXT_TEXT, widget);
+        nsTextEvent textEvent(true, NS_TEXT_TEXT, widget);
         textEvent.theText = backup.GetLastData();
         textEvent.mFlags.mIsSynthesizedForTests = true;
         widget->DispatchEvent(&textEvent, status);
@@ -641,7 +666,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
       }
 
       status = nsEventStatus_eIgnore;
-      WidgetCompositionEvent endEvent(true, NS_COMPOSITION_END, widget);
+      nsCompositionEvent endEvent(true, NS_COMPOSITION_END, widget);
       endEvent.data = backup.GetLastData();
       endEvent.mFlags.mIsSynthesizedForTests = true;
       widget->DispatchEvent(&endEvent, status);
@@ -732,7 +757,9 @@ nsTextStateManager::Init(nsIWidget* aWidget,
     return;
   }
 
-  ObserveEditableNode();
+  if (mWidget->GetIMEUpdatePreference().mWantUpdates) {
+    ObserveEditableNode();
+  }
 }
 
 void
@@ -741,19 +768,18 @@ nsTextStateManager::ObserveEditableNode()
   MOZ_ASSERT(mSel);
   MOZ_ASSERT(mRootContent);
 
-  mObserving = mWidget->GetIMEUpdatePreference().mWantUpdates;
-  if (mObserving & nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE) {
-    // add selection change listener
-    nsCOMPtr<nsISelectionPrivate> selPrivate(do_QueryInterface(mSel));
-    NS_ENSURE_TRUE_VOID(selPrivate);
-    nsresult rv = selPrivate->AddSelectionListener(this);
-    NS_ENSURE_SUCCESS_VOID(rv);
-  }
+  // add selection change listener
+  nsCOMPtr<nsISelectionPrivate> selPrivate(do_QueryInterface(mSel));
+  NS_ENSURE_TRUE_VOID(selPrivate);
+  nsresult rv = selPrivate->AddSelectionListener(this);
+  NS_ENSURE_SUCCESS_VOID(rv);
+  rv = selPrivate->AddSelectionListener(this);
+  NS_ENSURE_SUCCESS_VOID(rv);
 
-  if (mObserving & nsIMEUpdatePreference::NOTIFY_TEXT_CHANGE) {
-    // add text change observer
-    mRootContent->AddMutationObserver(this);
-  }
+  // add text change observer
+  mRootContent->AddMutationObserver(this);
+
+  mObserving = true;
 }
 
 void
@@ -771,13 +797,13 @@ nsTextStateManager::Destroy(void)
   }
   // Even if there are some pending notification, it'll never notify the widget.
   mWidget = nullptr;
-  if ((mObserving & nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE) && mSel) {
+  if (mObserving && mSel) {
     nsCOMPtr<nsISelectionPrivate> selPrivate(do_QueryInterface(mSel));
     if (selPrivate)
       selPrivate->RemoveSelectionListener(this);
   }
   mSel = nullptr;
-  if ((mObserving & nsIMEUpdatePreference::NOTIFY_TEXT_CHANGE) && mRootContent) {
+  if (mObserving && mRootContent) {
     mRootContent->RemoveMutationObserver(this);
   }
   mRootContent = nullptr;
@@ -1043,7 +1069,8 @@ nsIMEStateManager::IsEditableIMEState(nsIWidget* aWidget)
     case widget::IMEState::DISABLED:
       return false;
     default:
-      MOZ_CRASH("Unknown IME enable state");
+      MOZ_NOT_REACHED("Unknown IME enable state");
+      return false;
   }
 }
 

@@ -4,13 +4,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import optparse
 import os
 import subprocess
 import sys
 import unittest
-from mozprocess import processhandler
 from time import sleep
+
+from mozprocess import processhandler
 
 here = os.path.dirname(os.path.abspath(__file__))
 
@@ -22,33 +22,14 @@ def make_proclaunch(aDir):
         Returns:
             the path to the proclaunch executable that is generated
     """
-
+    # Ideally make should take care of this, but since it doesn't,
+    # on windows anyway, let's just call out both targets explicitly.
+    p = subprocess.call(["make", "-C", "iniparser"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=aDir)
+    p = subprocess.call(["make"],stdout=subprocess.PIPE, stderr=subprocess.PIPE ,cwd=aDir)
     if sys.platform == "win32":
         exepath = os.path.join(aDir, "proclaunch.exe")
     else:
         exepath = os.path.join(aDir, "proclaunch")
-
-    # remove the launcher, if it already exists
-    # otherwise, if the make fails you may not notice
-    if os.path.exists(exepath):
-        os.remove(exepath)
-
-    # Ideally make should take care of both calls through recursion, but since it doesn't,
-    # on windows anyway (to file?), let's just call out both targets explicitly.
-    for command in [["make", "-C", "iniparser"],
-                    ["make"]]:
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=aDir)
-        stdout, stderr = process.communicate()
-        if process.returncode:
-            # SomethingBadHappen; print all the things
-            print "%s: exit %d" % (command, process.returncode)
-            print "stdout:\n%s" % stdout
-            print "stderr:\n%s" % stderr
-            raise subprocess.CalledProcessError(process.returncode, command, stdout)
-
-    # ensure the launcher now exists
-    if not os.path.exists(exepath):
-        raise AssertionError("proclaunch executable '%s' does not exist (sys.platform=%s)" % (exepath, sys.platform))
     return exepath
 
 def check_for_process(processName):
@@ -91,18 +72,12 @@ def check_for_process(processName):
 
 class ProcTest(unittest.TestCase):
 
-    # whether to remove created files on exit
-    cleanup = os.environ.get('CLEANUP', 'true').lower() in ('1', 'true')
-
     @classmethod
     def setUpClass(cls):
         cls.proclaunch = make_proclaunch(here)
 
     @classmethod
     def tearDownClass(cls):
-        del cls.proclaunch
-        if not cls.cleanup:
-            return
         files = [('proclaunch',),
                  ('proclaunch.exe',),
                  ('iniparser', 'dictionary.o'),
@@ -121,6 +96,7 @@ class ProcTest(unittest.TestCase):
                     errors.append(str(e))
         if errors:
             raise OSError("Error(s) encountered tearing down %s.%s:\n%s" % (cls.__module__, cls.__name__, '\n'.join(errors)))
+        del cls.proclaunch
 
     def test_process_normal_finish(self):
         """Process is started, runs to completion while we wait for it"""
@@ -159,30 +135,6 @@ class ProcTest(unittest.TestCase):
                                           cwd=here)
         p.run(timeout=10)
         p.wait()
-
-        detected, output = check_for_process(self.proclaunch)
-        self.determine_status(detected,
-                              output,
-                              p.proc.returncode,
-                              p.didTimeout,
-                              False,
-                              ['returncode', 'didtimeout'])
-
-    def test_process_timeout_no_kill(self):
-        """ Process is started, runs but we time out waiting on it
-            to complete. Process should not be killed.
-        """
-        p = None
-        def timeout_handler():
-            self.assertEqual(p.proc.poll(), None)
-            p.kill()
-        p = processhandler.ProcessHandler([self.proclaunch, "process_waittimeout.ini"],
-                                          cwd=here,
-                                          onTimeout=(timeout_handler,),
-                                          kill_on_timeout=False)
-        p.run(timeout=1)
-        p.wait()
-        self.assertTrue(p.didTimeout)
 
         detected, output = check_for_process(self.proclaunch)
         self.determine_status(detected,

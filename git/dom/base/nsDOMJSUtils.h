@@ -2,11 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+
 #ifndef nsDOMJSUtils_h__
 #define nsDOMJSUtils_h__
 
-#include "nsIScriptContext.h"
 #include "jsapi.h"
+#include "nsIScriptContext.h"
 
 class nsIJSArgArray;
 
@@ -15,7 +16,7 @@ class nsIJSArgArray;
 inline nsIScriptContext *
 GetScriptContextFromJSContext(JSContext *cx)
 {
-  if (!(JS::ContextOptionsRef(cx).privateIsNSISupports())) {
+  if (!(::JS_GetOptions(cx) & JSOPTION_PRIVATE_IS_NSISUPPORTS)) {
     return nullptr;
   }
 
@@ -28,7 +29,21 @@ GetScriptContextFromJSContext(JSContext *cx)
   return scx;
 }
 
-JSObject* GetDefaultScopeFromJSContext(JSContext *cx);
+inline nsIScriptContextPrincipal*
+GetScriptContextPrincipalFromJSContext(JSContext *cx)
+{
+  if (!(::JS_GetOptions(cx) & JSOPTION_PRIVATE_IS_NSISUPPORTS)) {
+    return nullptr;
+  }
+
+  nsCOMPtr<nsIScriptContextPrincipal> scx =
+    do_QueryInterface(static_cast<nsISupports *>
+                                 (::JS_GetContextPrivate(cx)));
+
+  // This will return a pointer to something that's about to be
+  // released, but that's ok here.
+  return scx;
+}
 
 // A factory function for turning a JS::Value argv into an nsIArray
 // but also supports an effecient way of extracting the original argv.
@@ -37,9 +52,9 @@ JSObject* GetDefaultScopeFromJSContext(JSContext *cx);
 //    ((JS::Value*)aArgv)[0], ..., ((JS::Value*)aArgv)[aArgc - 1]
 // The resulting object will take a copy of the array, and ensure each
 // element is rooted.
-// Optionally, aArgv may be nullptr, in which case the array is allocated and
-// rooted, but all items remain nullptr.  This presumably means the caller
-// will then QI us for nsIJSArgArray, and set our array elements.
+// Optionally, aArgv may be NULL, in which case the array is allocated and
+// rooted, but all items remain NULL.  This presumably means the caller will
+// then QI us for nsIJSArgArray, and set our array elements.
 nsresult NS_CreateJSArgv(JSContext *aContext, uint32_t aArgc, void *aArgv,
                          nsIJSArgArray **aArray);
 

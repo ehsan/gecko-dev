@@ -6,103 +6,99 @@
 #define nsDOMTouchEvent_h_
 
 #include "nsDOMUIEvent.h"
+#include "nsIDOMTouchEvent.h"
+#include "nsString.h"
 #include "nsTArray.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/EventForwards.h"
 #include "nsJSEnvironment.h"
-#include "mozilla/dom/Touch.h"
 #include "mozilla/dom/TouchEventBinding.h"
-#include "nsWrapperCache.h"
 
-
-class nsAString;
-
-class nsDOMTouchList MOZ_FINAL : public nsISupports
-                               , public nsWrapperCache
+class nsDOMTouchList MOZ_FINAL : public nsIDOMTouchList
 {
-  typedef mozilla::dom::Touch Touch;
-
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMTouchList)
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMTouchList)
+  NS_DECL_NSIDOMTOUCHLIST
 
-  nsDOMTouchList(nsISupports* aParent)
-    : mParent(aParent)
+  nsDOMTouchList()
   {
-    SetIsDOMBinding();
     nsJSContext::LikelyShortLivingObjectCreated();
   }
-  nsDOMTouchList(nsISupports* aParent,
-                 const nsTArray< nsRefPtr<Touch> >& aTouches)
-    : mParent(aParent)
-    , mPoints(aTouches)
-  {
-    SetIsDOMBinding();
-    nsJSContext::LikelyShortLivingObjectCreated();
-  }
+  nsDOMTouchList(nsTArray<nsCOMPtr<nsIDOMTouch> > &aTouches);
 
-  void Append(Touch* aPoint)
+  void Append(nsIDOMTouch* aPoint)
   {
     mPoints.AppendElement(aPoint);
   }
 
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-
-  nsISupports* GetParentObject() const
+  nsIDOMTouch* GetItemAt(uint32_t aIndex)
   {
-    return mParent;
+    return mPoints.SafeElementAt(aIndex, nullptr);
   }
-
-  static bool PrefEnabled();
-
-  uint32_t Length() const
-  {
-    return mPoints.Length();
-  }
-  Touch* Item(uint32_t aIndex) const
-  {
-    return mPoints.SafeElementAt(aIndex);
-  }
-  Touch* IndexedGetter(uint32_t aIndex, bool& aFound) const
-  {
-    aFound = aIndex < mPoints.Length();
-    if (!aFound) {
-      return nullptr;
-    }
-    return mPoints[aIndex];
-  }
-  Touch* IdentifiedTouch(int32_t aIdentifier) const;
 
 protected:
-  nsCOMPtr<nsISupports> mParent;
-  nsTArray< nsRefPtr<Touch> > mPoints;
+  nsTArray<nsCOMPtr<nsIDOMTouch> > mPoints;
 };
 
-class nsDOMTouchEvent : public nsDOMUIEvent
+class nsDOMTouchEvent : public nsDOMUIEvent,
+                        public nsIDOMTouchEvent
 {
 public:
   nsDOMTouchEvent(mozilla::dom::EventTarget* aOwner,
-                  nsPresContext* aPresContext,
-                  mozilla::WidgetTouchEvent* aEvent);
+                  nsPresContext* aPresContext, nsTouchEvent* aEvent);
+  virtual ~nsDOMTouchEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMTouchEvent, nsDOMUIEvent)
+  NS_DECL_NSIDOMTOUCHEVENT
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  NS_FORWARD_TO_NSDOMUIEVENT
+
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::TouchEventBinding::Wrap(aCx, aScope, this);
   }
 
-  nsDOMTouchList* Touches();
-  nsDOMTouchList* TargetTouches();
-  nsDOMTouchList* ChangedTouches();
+  already_AddRefed<nsIDOMTouchList> GetTouches()
+  {
+    nsCOMPtr<nsIDOMTouchList> t;
+    GetTouches(getter_AddRefs(t));
+    return t.forget();
+  }
 
-  bool AltKey();
-  bool MetaKey();
-  bool CtrlKey();
-  bool ShiftKey();
+  already_AddRefed<nsIDOMTouchList> GetTargetTouches()
+  {
+    nsCOMPtr<nsIDOMTouchList> t;
+    GetTargetTouches(getter_AddRefs(t));
+    return t.forget();
+  }
+
+  already_AddRefed<nsIDOMTouchList> GetChangedTouches()
+  {
+    nsCOMPtr<nsIDOMTouchList> t;
+    GetChangedTouches(getter_AddRefs(t));
+    return t.forget();
+  }
+
+  bool AltKey()
+  {
+    return static_cast<nsInputEvent*>(mEvent)->IsAlt();
+  }
+
+  bool MetaKey()
+  {
+    return static_cast<nsInputEvent*>(mEvent)->IsMeta();
+  }
+
+  bool CtrlKey()
+  {
+    return static_cast<nsInputEvent*>(mEvent)->IsControl();
+  }
+
+  bool ShiftKey()
+  {
+    return static_cast<nsInputEvent*>(mEvent)->IsShift();
+  }
 
   void InitTouchEvent(const nsAString& aType,
                       bool aCanBubble,
@@ -113,16 +109,21 @@ public:
                       bool aAltKey,
                       bool aShiftKey,
                       bool aMetaKey,
-                      nsDOMTouchList* aTouches,
-                      nsDOMTouchList* aTargetTouches,
-                      nsDOMTouchList* aChangedTouches,
-                      mozilla::ErrorResult& aRv);
+                      nsIDOMTouchList* aTouches,
+                      nsIDOMTouchList* aTargetTouches,
+                      nsIDOMTouchList* aChangedTouches,
+                      mozilla::ErrorResult& aRv)
+  {
+    aRv = InitTouchEvent(aType, aCanBubble, aCancelable, aView, aDetail,
+                         aCtrlKey, aAltKey, aShiftKey, aMetaKey,
+                         aTouches, aTargetTouches, aChangedTouches);
+  }
 
   static bool PrefEnabled();
 protected:
-  nsRefPtr<nsDOMTouchList> mTouches;
-  nsRefPtr<nsDOMTouchList> mTargetTouches;
-  nsRefPtr<nsDOMTouchList> mChangedTouches;
+  nsCOMPtr<nsIDOMTouchList> mTouches;
+  nsCOMPtr<nsIDOMTouchList> mTargetTouches;
+  nsCOMPtr<nsIDOMTouchList> mChangedTouches;
 };
 
 #endif /* !defined(nsDOMTouchEvent_h_) */

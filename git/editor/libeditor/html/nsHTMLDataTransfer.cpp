@@ -8,7 +8,6 @@
 
 #include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/Base64.h"
-#include "mozilla/BasicEvents.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Selection.h"
 #include "mozilla/Util.h"
@@ -27,6 +26,7 @@
 #include "nsEditor.h"
 #include "nsEditorUtils.h"
 #include "nsError.h"
+#include "nsGUIEvent.h"
 #include "nsGkAtoms.h"
 #include "nsHTMLEditUtils.h"
 #include "nsHTMLEditor.h"
@@ -94,6 +94,8 @@ class nsISupports;
 
 using namespace mozilla;
 using namespace mozilla::dom;
+
+const PRUnichar nbsp = 160;
 
 #define kInsertCookie  "_moz_Insert Here_moz_"
 
@@ -224,7 +226,7 @@ nsHTMLEditor::InsertHTMLWithContext(const nsAString & aInputString,
 {
   return DoInsertHTMLWithContext(aInputString, aContextStr, aInfoStr,
       aFlavor, aSourceDoc, aDestNode, aDestOffset, aDeleteSelection,
-      /* trusted input */ true, /* clear style */ false);
+      true);
 }
 
 nsresult
@@ -236,8 +238,7 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
                                       nsIDOMNode *aDestNode,
                                       int32_t aDestOffset,
                                       bool aDeleteSelection,
-                                      bool aTrustedInput,
-                                      bool aClearStyle)
+                                      bool aTrustedInput)
 {
   NS_ENSURE_TRUE(mRules, NS_ERROR_NOT_INITIALIZED);
 
@@ -365,14 +366,12 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
     rv = DeleteSelectionAndPrepareToCreateNode();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    if (aClearStyle) {
-      // pasting does not inherit local inline styles
-      nsCOMPtr<nsIDOMNode> tmpNode =
-        do_QueryInterface(selection->GetAnchorNode());
-      int32_t tmpOffset = selection->GetAnchorOffset();
-      rv = ClearStyle(address_of(tmpNode), &tmpOffset, nullptr, nullptr);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+    // pasting does not inherit local inline styles
+    nsCOMPtr<nsIDOMNode> tmpNode =
+      do_QueryInterface(selection->GetAnchorNode());
+    int32_t tmpOffset = selection->GetAnchorOffset();
+    rv = ClearStyle(address_of(tmpNode), &tmpOffset, nullptr, nullptr);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
   else
   {
@@ -1339,7 +1338,7 @@ bool nsHTMLEditor::HavePrivateHTMLFlavor(nsIClipboard *aClipboard)
 
 NS_IMETHODIMP nsHTMLEditor::Paste(int32_t aSelectionType)
 {
-  if (!FireClipboardEvent(NS_PASTE, aSelectionType))
+  if (!FireClipboardEvent(NS_PASTE))
     return NS_OK;
 
   // Get Clipboard Service
@@ -1420,9 +1419,7 @@ NS_IMETHODIMP nsHTMLEditor::Paste(int32_t aSelectionType)
 
 NS_IMETHODIMP nsHTMLEditor::PasteTransferable(nsITransferable *aTransferable)
 {
-  // Use an invalid value for the clipboard type as data comes from aTransferable
-  // and we don't currently implement a way to put that in the data transfer yet.
-  if (!FireClipboardEvent(NS_PASTE, nsIClipboard::kGlobalClipboard))
+  if (!FireClipboardEvent(NS_PASTE))
     return NS_OK;
 
   // handle transferable hooks
@@ -1440,7 +1437,7 @@ NS_IMETHODIMP nsHTMLEditor::PasteTransferable(nsITransferable *aTransferable)
 //
 NS_IMETHODIMP nsHTMLEditor::PasteNoFormatting(int32_t aSelectionType)
 {
-  if (!FireClipboardEvent(NS_PASTE, aSelectionType))
+  if (!FireClipboardEvent(NS_PASTE))
     return NS_OK;
 
   ForceCompositionEnd();

@@ -20,13 +20,20 @@ HTMLDivElement::~HTMLDivElement()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLDivElement, nsGenericHTMLElement,
-                             nsIDOMHTMLDivElement)
+NS_IMPL_ADDREF_INHERITED(HTMLDivElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLDivElement, Element)
+
+// QueryInterface implementation for HTMLDivElement
+NS_INTERFACE_TABLE_HEAD(HTMLDivElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLDivElement, nsIDOMHTMLDivElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLDivElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLDivElement)
 
 JSObject*
-HTMLDivElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLDivElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return dom::HTMLDivElementBinding::Wrap(aCx, aScope, this);
 }

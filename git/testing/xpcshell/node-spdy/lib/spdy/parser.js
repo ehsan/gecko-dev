@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 var parser = exports;
 
 var spdy = require('../spdy'),
@@ -5,21 +9,15 @@ var spdy = require('../spdy'),
     stream = require('stream'),
     Buffer = require('buffer').Buffer;
 
-var legacy = !stream.Duplex;
-
-if (legacy) {
-  var DuplexStream = stream;
-} else {
-  var DuplexStream = stream.Duplex;
-}
-
 //
-// ### function Parser (connection)
+// ### function Parser (connection, deflate, inflate)
 // #### @connection {spdy.Connection} connection
+// #### @deflate {zlib.Deflate} Deflate stream
+// #### @inflate {zlib.Inflate} Inflate stream
 // SPDY protocol frames parser's @constructor
 //
-function Parser(connection) {
-  DuplexStream.call(this);
+function Parser(connection, deflate, inflate) {
+  stream.Stream.call(this);
 
   this.drained = true;
   this.paused = false;
@@ -28,45 +26,33 @@ function Parser(connection) {
   this.waiting = 8;
 
   this.state = { type: 'frame-head' };
-  this.socket = connection.socket;
-  this.connection = connection;
+  this.deflate = deflate;
+  this.inflate = inflate;
   this.framer = null;
 
   this.connection = connection;
 
-  if (legacy) {
-    this.readable = this.writable = true;
-  }
+  this.readable = this.writable = true;
 }
-util.inherits(Parser, DuplexStream);
+util.inherits(Parser, stream.Stream);
 
 //
-// ### function create (connection)
+// ### function create (connection, deflate, inflate)
 // #### @connection {spdy.Connection} connection
+// #### @deflate {zlib.Deflate} Deflate stream
+// #### @inflate {zlib.Inflate} Inflate stream
 // @constructor wrapper
 //
-parser.create = function create(connection) {
-  return new Parser(connection);
+parser.create = function create(connection, deflate, inflate) {
+  return new Parser(connection, deflate, inflate);
 };
 
 //
-// ### function destroy ()
-// Just a stub.
-//
-Parser.prototype.destroy = function destroy() {
-};
-
-//
-// ### function _write (data, encoding, cb)
+// ### function write (data)
 // #### @data {Buffer} chunk of data
-// #### @encoding {Null} encoding
-// #### @cb {Function} callback
 // Writes or buffers data to parser
 //
-Parser.prototype._write = function write(data, encoding, cb) {
-  // Legacy compatibility
-  if (!cb) cb = function() {};
-
+Parser.prototype.write = function write(data) {
   if (data !== undefined) {
     // Buffer data
     this.buffer.push(data);
@@ -77,7 +63,7 @@ Parser.prototype._write = function write(data, encoding, cb) {
   if (this.paused) return false;
 
   // We shall not do anything until we get all expected data
-  if (this.buffered < this.waiting) return cb();
+  if (this.buffered < this.waiting) return;
 
   // Mark parser as not drained
   if (data !== undefined) this.drained = false;
@@ -120,16 +106,13 @@ Parser.prototype._write = function write(data, encoding, cb) {
     self.paused = false;
 
     // Propagate errors
-    if (err) {
-      cb();
-      return self.emit('error', err);
-    }
+    if (err) return self.emit('error', err);
 
     // Set new `waiting`
     self.waiting = waiting;
 
     if (self.waiting <= self.buffered) {
-      self._write(undefined, null, cb);
+      self.write();
     } else {
       process.nextTick(function() {
         if (self.drained) return;
@@ -138,54 +121,16 @@ Parser.prototype._write = function write(data, encoding, cb) {
         self.drained = true;
         self.emit('drain');
       });
-
-      cb();
     }
   });
 };
 
-if (legacy) {
-  //
-  // ### function write (data, encoding, cb)
-  // #### @data {Buffer} chunk of data
-  // #### @encoding {Null} encoding
-  // #### @cb {Function} callback
-  // Legacy method
-  //
-  Parser.prototype.write = Parser.prototype._write;
-
-  //
-  // ### function end ()
-  // Stream's end() implementation
-  //
-  Parser.prototype.end = function end() {
-    this.emit('end');
-  };
-}
-
 //
-// ### function createFramer (version)
-// #### @version {Number} Protocol version, either 2 or 3
-// Sets framer instance on Parser's instance
+// ### function end ()
+// Stream's end() implementation
 //
-Parser.prototype.createFramer = function createFramer(version) {
-  if (spdy.protocol[version]) {
-    this.emit('version', version);
-
-    this.framer = new spdy.protocol[version].Framer(
-      spdy.utils.zwrap(this.connection._deflate),
-      spdy.utils.zwrap(this.connection._inflate)
-    );
-
-    // Propagate framer to connection
-    this.connection._framer = this.framer;
-    this.emit('framer', this.framer);
-  } else {
-    this.emit(
-      'error',
-      new Error('Unknown protocol version requested: ' + version)
-    );
-  }
+Parser.prototype.end = function end() {
+  this.emit('end');
 };
 
 //
@@ -201,7 +146,16 @@ Parser.prototype.execute = function execute(state, data, callback) {
 
     // Lazily create framer
     if (!this.framer && header.control) {
-      this.createFramer(header.version);
+      if (spdy.protocol[header.version]) {
+        this.framer = new spdy.protocol[header.version].Framer(
+          spdy.utils.zwrap(this.deflate),
+          spdy.utils.zwrap(this.inflate)
+        );
+
+        // Propagate framer to connection
+        this.connection.framer = this.framer;
+        this.emit('_framer', this.framer);
+      }
     }
 
     state.type = 'frame-body';

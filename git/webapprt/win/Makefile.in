@@ -2,6 +2,18 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH     = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir    = @srcdir@
+VPATH     = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+# Build a binary bootstrapping with XRE_main
+PROGRAM   = webapprt-stub$(BIN_SUFFIX)
+
+CPPSRCS   = webapprt.cpp
+
 # Statically link against the CRT
 USE_STATIC_LIBS = 1
 # Don't create a dependency on mozglue, which is impossible (difficult?)
@@ -68,9 +80,9 @@ endif
 libs::
 	$(RM) -r $(CONFIG_DIR)
 	$(MKDIR) $(CONFIG_DIR)
-	$(call py_action,preprocessor,-Fsubstitution \
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py -Fsubstitution \
 		$(DEFINES) $(ACDEFINES) \
-		$(srcdir)/webapp-uninstaller.nsi.in -o $(CONFIG_DIR)/webapp-uninstaller.nsi)
+		$(srcdir)/webapp-uninstaller.nsi.in > $(CONFIG_DIR)/webapp-uninstaller.nsi
 	$(PYTHON) \
 		$(topsrcdir)/toolkit/mozapps/installer/windows/nsis/preprocess-locale.py \
 		--create-nlf-file $(topsrcdir) $(AB_CD) $(CONFIG_DIR)

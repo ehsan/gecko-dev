@@ -18,6 +18,10 @@ var ContextMenuHandler = {
     // Messages we receive from browser
     // Command sent over from browser that only we can handle.
     addMessageListener("Browser:ContextCommand", this, false);
+    // InvokeContextAtPoint is sent to us from browser's selection
+    // overlay when it traps a contextmenu event. In response we
+    // should invoke context menu logic at the point specified.
+    addMessageListener("Browser:InvokeContextAtPoint", this, false);
 
     this.popupNode = null;
   },
@@ -159,6 +163,31 @@ var ContextMenuHandler = {
    * Utility routines
    */
 
+   /*
+    * _translateToTopLevelWindow - Given a potential coordinate set within
+    * a subframe, translate up to the parent window which is what front
+    * end code expect.
+    */
+  _translateToTopLevelWindow: function _translateToTopLevelWindow(aPopupNode) {
+    let offsetX = 0;
+    let offsetY = 0;
+    let element = aPopupNode;
+    while (element &&
+           element.ownerDocument &&
+           element.ownerDocument.defaultView != content) {
+      element = element.ownerDocument.defaultView.frameElement;
+      let rect = element.getBoundingClientRect();
+      offsetX += rect.left;
+      offsetY += rect.top;
+    }
+    let win = null;
+    if (element == aPopupNode)
+      win = content;
+    else
+      win = element.contentDocument.defaultView;
+    return { targetWindow: win, offsetX: offsetX, offsetY: offsetY };
+  },
+
   /*
    * _processPopupNode - Generate and send a Content:ContextMenu message
    * to browser detailing the underlying content types at this.popupNode.
@@ -172,7 +201,7 @@ var ContextMenuHandler = {
     let { targetWindow: targetWindow,
           offsetX: offsetX,
           offsetY: offsetY } =
-      Util.translateToTopLevelWindow(aPopupNode);
+      this._translateToTopLevelWindow(aPopupNode);
 
     let popupNode = this.popupNode = aPopupNode;
     let imageUrl = "";
@@ -293,7 +322,7 @@ var ContextMenuHandler = {
       // If this is text and has a selection, we want to bring
       // up the copy option on the context menu.
       let selection = targetWindow.getSelection();
-      if (selection && this._tapInSelection(selection, aX, aY)) {
+      if (selection && selection.toString().length > 0) {
         state.string = targetWindow.getSelection().toString();
         state.types.push("copy");
         state.types.push("selected-text");
@@ -321,20 +350,6 @@ var ContextMenuHandler = {
     this._previousState = state;
 
     sendAsyncMessage("Content:ContextMenu", state);
-  },
-
-  _tapInSelection: function (aSelection, aX, aY) {
-    if (!aSelection || !aSelection.rangeCount) {
-      return false;
-    }
-    for (let idx = 0; idx < aSelection.rangeCount; idx++) {
-      let range = aSelection.getRangeAt(idx);
-      let rect = range.getBoundingClientRect();
-      if (Util.pointWithinDOMRect(aX, aY, rect)) {
-        return true;
-      }
-    }
-    return false;
   },
 
   _getLinkURL: function ch_getLinkURL(aLink) {

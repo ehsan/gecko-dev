@@ -10,32 +10,32 @@
 simple_events = [
     'ProgressEvent',
     'StorageEvent',
+    'DeviceProximityEvent',
     'MozSettingsEvent',
+    'UserProximityEvent',
     'CustomEvent',
     'PageTransitionEvent',
     'DOMTransactionEvent',
     'PopStateEvent',
     'HashChangeEvent',
     'CloseEvent',
+    'MozContactChangeEvent',
     'DeviceOrientationEvent',
+    'DeviceLightEvent',
     'MozApplicationEvent',
     'SmartCardEvent',
-    'StyleRuleChangeEvent',
-    'StyleSheetChangeEvent',
-    'StyleSheetApplicableStateChangeEvent',
-#ifdef MOZ_WIDGET_GONK
-    'MozWifiStatusChangeEvent',
-    'MozWifiConnectionInfoEvent',
-#endif
+    'StyleSheetAddedEvent',
+    'StyleSheetRemovedEvent',
 #ifdef MOZ_B2G_BT
     'BluetoothDeviceEvent',
-    'BluetoothStatusChangedEvent',
 #endif
 #ifdef MOZ_B2G_RIL
+    'CallEvent',
     'CFStateChangeEvent',
     'DataErrorEvent',
-    'MozEmergencyCbModeEvent',
-    'MozOtaStatusEvent',
+    'ICCCardLockErrorEvent',
+    'MozWifiStatusChangeEvent',
+    'MozWifiConnectionInfoEvent',
     'MozCellBroadcastEvent',
     'MozVoicemailEvent',
     'USSDReceivedEvent',
@@ -48,14 +48,21 @@ simple_events = [
 #endif
     'DeviceStorageChangeEvent',
     'PopupBlockedEvent',
-    'RecordErrorEvent',
+    'BlobEvent',
+#ifdef MOZ_GAMEPAD
+    'GamepadEvent',
+    'GamepadButtonEvent',
+    'GamepadAxisMoveEvent',
+#endif
 #ifdef MOZ_WEBSPEECH
     'SpeechRecognitionEvent',
+    'SpeechRecognitionError',
 #endif
   ]
 
 """ include file names """
 special_includes = [
+    'DictionaryHelpers.h',
     'nsContentUtils.h',
     'nsIDOMApplicationRegistry.h',
     'nsIDOMFile.h'
@@ -67,13 +74,3 @@ exclude_automatic_type_include = [
     'mozIDOMApplication',
     'nsIDOMBlob'
   ]
-
-""" Map xpidl interface names to implementation classes. The third column is the canonical interface. """
-xpidl_to_native = [
-    ['nsIDOMBluetoothDevice', 'bluetooth::BluetoothDevice', 'nsIDOMBluetoothDevice'],
-    ['nsIDOMDocument', 'nsIDocument', 'nsIDocument'],
-    ['nsIDOMElement', 'mozilla::dom::Element', 'mozilla::dom::Element'],
-    ['nsIDOMCSSStyleSheet', 'nsCSSStyleSheet', 'nsIStyleSheet'],
-    ['nsIDOMWindow', 'nsGlobalWindow', 'nsIDOMEventTarget']
-  ]
-

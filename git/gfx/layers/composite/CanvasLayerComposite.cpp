@@ -3,29 +3,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "ipc/AutoOpenSurface.h"
+#include "mozilla/layers/PLayers.h"
+#include "mozilla/layers/ShadowLayers.h"
+#include "mozilla/layers/CompositorTypes.h" // for TextureInfo
+#include "mozilla/layers/Effects.h"
+
 #include "CanvasLayerComposite.h"
-#include "composite/CompositableHost.h"  // for CompositableHost
-#include "gfx2DGlue.h"                  // for ToFilter, ToMatrix4x4
-#include "gfxImageSurface.h"            // for gfxImageSurface
-#include "GraphicsFilter.h"             // for GraphicsFilter
-#include "gfxUtils.h"                   // for gfxUtils, etc
-#include "mozilla/gfx/Matrix.h"         // for Matrix4x4
-#include "mozilla/gfx/Point.h"          // for Point
-#include "mozilla/gfx/Rect.h"           // for Rect
-#include "mozilla/layers/Compositor.h"  // for Compositor
-#include "mozilla/layers/Effects.h"     // for EffectChain
-#include "mozilla/mozalloc.h"           // for operator delete
-#include "nsAString.h"
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsString.h"                   // for nsAutoCString
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
+#include "ImageHost.h"
+#include "gfx2DGlue.h"
 
 using namespace mozilla;
 using namespace mozilla::layers;
 
 CanvasLayerComposite::CanvasLayerComposite(LayerManagerComposite* aManager)
-  : CanvasLayer(aManager, nullptr)
+  : ShadowCanvasLayer(aManager, nullptr)
   , LayerComposite(aManager)
   , mImageHost(nullptr)
 {
@@ -40,9 +32,8 @@ CanvasLayerComposite::~CanvasLayerComposite()
   CleanupResources();
 }
 
-void
-CanvasLayerComposite::SetCompositableHost(CompositableHost* aHost) {
-  mImageHost = aHost;
+void CanvasLayerComposite::SetCompositableHost(CompositableHost* aHost) {
+  mImageHost = static_cast<ImageHost*>(aHost);
 }
 
 Layer*
@@ -54,29 +45,23 @@ CanvasLayerComposite::GetLayer()
 LayerRenderState
 CanvasLayerComposite::GetRenderState()
 {
-  if (mDestroyed || !mImageHost || !mImageHost->IsAttached()) {
+  if (mDestroyed || !mImageHost) {
     return LayerRenderState();
   }
   return mImageHost->GetRenderState();
 }
 
 void
-CanvasLayerComposite::RenderLayer(const nsIntRect& aClipRect)
+CanvasLayerComposite::RenderLayer(const nsIntPoint& aOffset,
+                                  const nsIntRect& aClipRect)
 {
-  if (!mImageHost || !mImageHost->IsAttached()) {
+  if (!mImageHost) {
     return;
   }
 
   mCompositor->MakeCurrent();
 
-#ifdef MOZ_DUMP_PAINTING
-  if (gfxUtils::sDumpPainting) {
-    nsRefPtr<gfxImageSurface> surf = mImageHost->GetAsSurface();
-    WriteSnapshotToDumpFile(this, surf);
-  }
-#endif
-
-  GraphicsFilter filter = mFilter;
+  gfxPattern::GraphicsFilter filter = mFilter;
 #ifdef ANDROID
   // Bug 691354
   // Using the LINEAR filter we get unexplained artifacts.
@@ -84,12 +69,12 @@ CanvasLayerComposite::RenderLayer(const nsIntRect& aClipRect)
   gfxMatrix matrix;
   bool is2D = GetEffectiveTransform().Is2D(&matrix);
   if (is2D && !matrix.HasNonTranslationOrFlip()) {
-    filter = GraphicsFilter::FILTER_NEAREST;
+    filter = gfxPattern::FILTER_NEAREST;
   }
 #endif
 
   EffectChain effectChain;
-  LayerManagerComposite::AutoAddMaskEffect autoMaskEffect(mMaskLayer, effectChain);
+  LayerManagerComposite::AddMaskEffect(mMaskLayer, effectChain);
   gfx::Matrix4x4 transform;
   ToMatrix4x4(GetEffectiveTransform(), transform);
   gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
@@ -97,39 +82,37 @@ CanvasLayerComposite::RenderLayer(const nsIntRect& aClipRect)
   mImageHost->Composite(effectChain,
                         GetEffectiveOpacity(),
                         transform,
+                        gfx::Point(aOffset.x, aOffset.y),
                         gfx::ToFilter(filter),
                         clipRect);
 }
 
 CompositableHost*
-CanvasLayerComposite::GetCompositableHost()
-{
-  if ( mImageHost && mImageHost->IsAttached()) {
-    return mImageHost.get();
-  }
-
-  return nullptr;
+CanvasLayerComposite::GetCompositableHost() {
+  return mImageHost.get();
 }
 
 void
 CanvasLayerComposite::CleanupResources()
 {
   if (mImageHost) {
-    mImageHost->Detach(this);
+    mImageHost->Detach();
   }
   mImageHost = nullptr;
 }
 
+#ifdef MOZ_LAYERS_HAVE_LOG
 nsACString&
 CanvasLayerComposite::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   CanvasLayer::PrintInfo(aTo, aPrefix);
   aTo += "\n";
-  if (mImageHost && mImageHost->IsAttached()) {
+  if (mImageHost) {
     nsAutoCString pfx(aPrefix);
     pfx += "  ";
     mImageHost->PrintInfo(aTo, pfx.get());
   }
   return aTo;
 }
+#endif
 

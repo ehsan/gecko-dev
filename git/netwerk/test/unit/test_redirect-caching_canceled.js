@@ -1,16 +1,14 @@
-Cu.import("resource://testing-common/httpd.js");
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
 
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + httpServer.identity.primaryPort;
-});
+Cu.import("resource://testing-common/httpd.js");
 
 var httpServer = null;
 // Need to randomize, because apparently no one clears our cache
 var randomPath = "/redirect/" + Math.random();
-
-XPCOMUtils.defineLazyGetter(this, "randomURI", function() {
-  return URL + randomPath;
-});
+var randomURI = "http://localhost:4444" + randomPath;
 
 function make_channel(url, callback, ctx) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
@@ -23,7 +21,7 @@ const responseBody = "response body";
 function redirectHandler(metadata, response)
 {
   response.setStatusLine(metadata.httpVersion, 301, "Moved");
-  response.setHeader("Location", URL + "/content", false);
+  response.setHeader("Location", "http://localhost:4444/content", false);
   response.setHeader("Cache-control", "max-age=1000", false);
   return;
 }
@@ -61,7 +59,7 @@ function run_test()
   httpServer = new HttpServer();
   httpServer.registerPathHandler(randomPath, redirectHandler);
   httpServer.registerPathHandler("/content", contentHandler);
-  httpServer.start(-1);
+  httpServer.start(4444);
 
   var chan = make_channel(randomURI);
   chan.asyncOpen(new ChannelListener(firstTimeThrough, null), null);

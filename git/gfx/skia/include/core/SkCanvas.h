@@ -25,9 +25,7 @@ class SkBounder;
 class SkDevice;
 class SkDraw;
 class SkDrawFilter;
-class SkMetaData;
 class SkPicture;
-class SkRRect;
 class SkSurface_Base;
 
 /** \class SkCanvas
@@ -64,8 +62,6 @@ public:
     explicit SkCanvas(const SkBitmap& bitmap);
     virtual ~SkCanvas();
 
-    SkMetaData& getMetaData();
-
     ///////////////////////////////////////////////////////////////////////////
 
     /**
@@ -86,6 +82,12 @@ public:
     */
     SkDevice* getDevice() const;
 
+    /** Specify a device for this canvas to draw into. If it is not null, its
+        reference count is incremented. If the canvas was already holding a
+        device, its reference count is decremented. The new device is returned.
+    */
+    virtual SkDevice* setDevice(SkDevice* device);
+
     /**
      *  saveLayer() can create another device (which is later drawn onto
      *  the previous device). getTopDevice() returns the top-most device current
@@ -100,6 +102,12 @@ public:
      *        sometimes.
      */
     SkDevice* getTopDevice(bool updateMatrixClip = false) const;
+
+    /**
+     *  Create a new raster device and make it current. This also returns
+     *  the new device.
+     */
+    SkDevice* setBitmapDevice(const SkBitmap& bitmap);
 
     /**
      *  Shortcut for getDevice()->createCompatibleDevice(...).
@@ -340,46 +348,23 @@ public:
     */
     void resetMatrix();
 
-    /**
-     *  Modify the current clip with the specified rectangle.
-     *  @param rect The rect to combine with the current clip
-     *  @param op The region op to apply to the current clip
-     *  @param doAntiAlias true if the clip should be antialiased
-     *  @return true if the canvas' clip is non-empty
-     */
+    /** Modify the current clip with the specified rectangle.
+        @param rect The rect to intersect with the current clip
+        @param op The region op to apply to the current clip
+        @return true if the canvas' clip is non-empty
+    */
     virtual bool clipRect(const SkRect& rect,
                           SkRegion::Op op = SkRegion::kIntersect_Op,
                           bool doAntiAlias = false);
 
-    /**
-     *  Modify the current clip with the specified SkRRect.
-     *  @param rrect The rrect to combine with the current clip
-     *  @param op The region op to apply to the current clip
-     *  @param doAntiAlias true if the clip should be antialiased
-     *  @return true if the canvas' clip is non-empty
-     */
-    virtual bool clipRRect(const SkRRect& rrect,
-                           SkRegion::Op op = SkRegion::kIntersect_Op,
-                           bool doAntiAlias = false);
-
-    /**
-     *  Modify the current clip with the specified path.
-     *  @param path The path to combine with the current clip
-     *  @param op The region op to apply to the current clip
-     *  @param doAntiAlias true if the clip should be antialiased
-     *  @return true if the canvas' new clip is non-empty
-     */
+    /** Modify the current clip with the specified path.
+        @param path The path to apply to the current clip
+        @param op The region op to apply to the current clip
+        @return true if the canvas' new clip is non-empty
+    */
     virtual bool clipPath(const SkPath& path,
                           SkRegion::Op op = SkRegion::kIntersect_Op,
                           bool doAntiAlias = false);
-
-    /** EXPERIMENTAL -- only used for testing
-        Set to false to force clips to be hard, even if doAntiAlias=true is
-        passed to clipRect or clipPath.
-     */
-    void setAllowSoftClip(bool allow) {
-        fAllowSoftClip = allow;
-    }
 
     /** Modify the current clip with the specified region. Note that unlike
         clipRect() and clipPath() which transform their arguments by the current
@@ -593,16 +578,7 @@ public:
         @param oval     The rectangle bounds of the oval to be drawn
         @param paint    The paint used to draw the oval
     */
-    virtual void drawOval(const SkRect& oval, const SkPaint&);
-
-    /**
-     *  Draw the specified RRect using the specified paint The rrect will be filled or stroked
-     *  based on the Style in the paint.
-     *
-     *  @param rrect    The round-rect to draw
-     *  @param paint    The paint used to draw the round-rect
-     */
-    virtual void drawRRect(const SkRRect& rrect, const SkPaint& paint);
+    void drawOval(const SkRect& oval, const SkPaint&);
 
     /** Draw the specified circle using the specified paint. If radius is <= 0,
         then nothing will be drawn. The circle will be filled
@@ -668,25 +644,8 @@ public:
                         image will be drawn
         @param paint    The paint used to draw the bitmap, or NULL
     */
-    virtual void drawBitmapRectToRect(const SkBitmap& bitmap, const SkRect* src,
-                                      const SkRect& dst,
-                                      const SkPaint* paint);
-
-    void drawBitmapRect(const SkBitmap& bitmap, const SkRect& dst,
-                        const SkPaint* paint) {
-        this->drawBitmapRectToRect(bitmap, NULL, dst, paint);
-    }
-
-    void drawBitmapRect(const SkBitmap& bitmap, const SkIRect* isrc,
-                        const SkRect& dst, const SkPaint* paint = NULL) {
-        SkRect realSrcStorage;
-        SkRect* realSrcPtr = NULL;
-        if (isrc) {
-            realSrcStorage.set(*isrc);
-            realSrcPtr = &realSrcStorage;
-        }
-        this->drawBitmapRectToRect(bitmap, realSrcPtr, dst, paint);
-    }
+    virtual void drawBitmapRect(const SkBitmap& bitmap, const SkIRect* src,
+                                const SkRect& dst, const SkPaint* paint = NULL);
 
     virtual void drawBitmapMatrix(const SkBitmap& bitmap, const SkMatrix& m,
                                   const SkPaint* paint = NULL);
@@ -803,7 +762,10 @@ public:
 
     /** Draw the picture into this canvas. This method effective brackets the
         playback of the picture's draw calls with save/restore, so the state
-        of this canvas will be unchanged after this call.
+        of this canvas will be unchanged after this call. This contrasts with
+        the more immediate method SkPicture::draw(), which does not bracket
+        the canvas with save/restore, thus the canvas may be left in a changed
+        state after the call.
         @param picture The recorded drawing commands to playback into this
                        canvas.
     */
@@ -827,7 +789,7 @@ public:
         @param xmode Used if both texs and colors are present. In this
                     case the colors are combined with the texture using mode,
                     before being drawn using the paint. If mode is null, then
-                    kModulate_Mode is used.
+                    kMultiply_Mode is used.
         @param indices If not null, array of indices to reference into the
                     vertex (texs, colors) array.
         @param indexCount number of entries in the indices array (if not null)
@@ -917,6 +879,8 @@ public:
         return &fClipStack;
     }
 
+    void setExternalMatrix(const SkMatrix* = NULL);
+
     class ClipVisitor {
     public:
         virtual ~ClipVisitor();
@@ -991,17 +955,6 @@ protected:
     // can perform copy-on-write or invalidate any cached images
     void predrawNotify();
 
-    /** DEPRECATED -- use constructor(device)
-
-     Marked as 'protected' to avoid new clients using this before we can
-     completely remove it.
-
-     Specify a device for this canvas to draw into. If it is not null, its
-     reference count is incremented. If the canvas was already holding a
-     device, its reference count is decremented. The new device is returned.
-     */
-    virtual SkDevice* setDevice(SkDevice* device);
-
 private:
     class MCRec;
 
@@ -1013,9 +966,8 @@ private:
     uint32_t    fMCRecStorage[32];
 
     SkBounder*  fBounder;
+    SkDevice*   fLastDeviceToGainFocus;
     int         fSaveLayerCount;    // number of successful saveLayer calls
-
-    SkMetaData* fMetaData;
 
     SkSurface_Base*  fSurfaceBase;
     SkSurface_Base* getSurfaceBase() const { return fSurfaceBase; }
@@ -1023,6 +975,8 @@ private:
         fSurfaceBase = sb;
     }
     friend class SkSurface_Base;
+
+    void prepareForDeviceDraw(SkDevice*, const SkMatrix&, const SkRegion&);
 
     bool fDeviceCMDirty;            // cleared by updateDeviceCMCache()
     void updateDeviceCMCache();
@@ -1039,7 +993,7 @@ private:
     // canvas apis, without confusing subclasses (like SkPictureRecording)
     void internalDrawBitmap(const SkBitmap&, const SkIRect*, const SkMatrix& m,
                                   const SkPaint* paint);
-    void internalDrawBitmapRect(const SkBitmap& bitmap, const SkRect* src,
+    void internalDrawBitmapRect(const SkBitmap& bitmap, const SkIRect* src,
                                 const SkRect& dst, const SkPaint* paint);
     void internalDrawBitmapNine(const SkBitmap& bitmap, const SkIRect& center,
                                 const SkRect& dst, const SkPaint* paint);
@@ -1062,7 +1016,6 @@ private:
      */
     mutable SkRectCompareType fLocalBoundsCompareType;
     mutable bool              fLocalBoundsCompareTypeDirty;
-    bool fAllowSoftClip;
 
     const SkRectCompareType& getLocalClipBoundsCompareType() const {
         if (fLocalBoundsCompareTypeDirty) {
@@ -1072,6 +1025,9 @@ private:
         return fLocalBoundsCompareType;
     }
     void computeLocalClipBoundsCompareType() const;
+
+    SkMatrix    fExternalMatrix, fExternalInverse;
+    bool        fUseExternalMatrix;
 
     class AutoValidateClip : ::SkNoncopyable {
     public:
@@ -1107,20 +1063,7 @@ public:
         }
     }
     ~SkAutoCanvasRestore() {
-        if (fCanvas) {
-            fCanvas->restoreToCount(fSaveCount);
-        }
-    }
-
-    /**
-     *  Perform the restore now, instead of waiting for the destructor. Will
-     *  only do this once.
-     */
-    void restore() {
-        if (fCanvas) {
-            fCanvas->restoreToCount(fSaveCount);
-            fCanvas = NULL;
-        }
+        fCanvas->restoreToCount(fSaveCount);
     }
 
 private:

@@ -7,6 +7,8 @@
 
 #include "mozilla/Assertions.h"
 
+#include "plstr.h"
+
 #include "jsapi.h"
 
 #include "nsCollationCID.h"
@@ -15,13 +17,10 @@
 #include "nsIPlatformCharset.h"
 #include "nsILocaleService.h"
 #include "nsICollation.h"
+#include "nsIServiceManager.h"
 #include "nsUnicharUtils.h"
-#include "nsComponentManagerUtils.h"
-#include "nsServiceManagerUtils.h"
 
 #include "xpcpublic.h"
-
-using namespace JS;
 
 /**
  * JS locale callbacks implemented by XPCOM modules.  These are theoretically
@@ -72,33 +71,33 @@ struct XPCLocaleCallbacks : public JSLocaleCallbacks
     return ths;
   }
 
-  static bool
-  LocaleToUpperCase(JSContext *cx, HandleString src, MutableHandleValue rval)
+  static JSBool
+  LocaleToUpperCase(JSContext *cx, JSHandleString src, JSMutableHandleValue rval)
   {
     return ChangeCase(cx, src, rval, ToUpperCase);
   }
 
-  static bool
-  LocaleToLowerCase(JSContext *cx, HandleString src, MutableHandleValue rval)
+  static JSBool
+  LocaleToLowerCase(JSContext *cx, JSHandleString src, JSMutableHandleValue rval)
   {
     return ChangeCase(cx, src, rval, ToLowerCase);
   }
 
-  static bool
-  LocaleToUnicode(JSContext* cx, const char* src, MutableHandleValue rval)
+  static JSBool
+  LocaleToUnicode(JSContext* cx, const char* src, JSMutableHandleValue rval)
   {
     return This(JS_GetRuntime(cx))->ToUnicode(cx, src, rval);
   }
 
-  static bool
-  LocaleCompare(JSContext *cx, HandleString src1, HandleString src2, MutableHandleValue rval)
+  static JSBool
+  LocaleCompare(JSContext *cx, JSHandleString src1, JSHandleString src2, JSMutableHandleValue rval)
   {
     return This(JS_GetRuntime(cx))->Compare(cx, src1, src2, rval);
   }
 
 private:
-  static bool
-  ChangeCase(JSContext* cx, HandleString src, MutableHandleValue rval,
+  static JSBool
+  ChangeCase(JSContext* cx, JSHandleString src, JSMutableHandleValue rval,
              void(*changeCaseFnc)(const nsAString&, nsAString&))
   {
     nsDependentJSString depStr;
@@ -119,8 +118,8 @@ private:
     return true;
   }
 
-  bool
-  Compare(JSContext *cx, HandleString src1, HandleString src2, MutableHandleValue rval)
+  JSBool
+  Compare(JSContext *cx, JSHandleString src1, JSHandleString src2, JSMutableHandleValue rval)
   {
     nsresult rv;
 
@@ -166,8 +165,8 @@ private:
     return true;
   }
 
-  bool
-  ToUnicode(JSContext* cx, const char* src, MutableHandleValue rval)
+  JSBool
+  ToUnicode(JSContext* cx, const char* src, JSMutableHandleValue rval)
   {
     nsresult rv;
 
@@ -182,7 +181,7 @@ private:
           nsAutoString localeStr;
           rv = appLocale->
                GetCategory(NS_LITERAL_STRING(NSILOCALE_TIME), localeStr);
-          MOZ_ASSERT(NS_SUCCEEDED(rv), "failed to get app locale info");
+          NS_ASSERTION(NS_SUCCEEDED(rv), "failed to get app locale info");
 
           nsCOMPtr<nsIPlatformCharset> platformCharset =
             do_GetService(NS_PLATFORMCHARSET_CONTRACTID, &rv);
@@ -202,7 +201,7 @@ private:
       }
     }
 
-    int32_t srcLength = strlen(src);
+    int32_t srcLength = PL_strlen(src);
 
     if (mDecoder) {
       int32_t unicharLength = srcLength;
@@ -267,7 +266,7 @@ xpc_LocalizeRuntime(JSRuntime *rt)
 
   nsAutoString localeStr;
   rv = appLocale->GetCategory(NS_LITERAL_STRING(NSILOCALE_TIME), localeStr);
-  MOZ_ASSERT(NS_SUCCEEDED(rv), "failed to get app locale info");
+  NS_ASSERTION(NS_SUCCEEDED(rv), "failed to get app locale info");
   NS_LossyConvertUTF16toASCII locale(localeStr);
 
   return !!JS_SetDefaultLocale(rt, locale.get());

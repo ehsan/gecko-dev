@@ -11,7 +11,6 @@ include protocol PCompositor;
 include protocol PCrashReporter;
 include protocol PExternalHelperApp;
 include protocol PDeviceStorageRequest;
-include protocol PFMRadio;
 include protocol PHal;
 include protocol PImageBridge;
 include protocol PIndexedDB;
@@ -20,31 +19,33 @@ include protocol PNecko;
 include protocol PSms;
 include protocol PSpeechSynthesis;
 include protocol PStorage;
-include protocol PTelephony;
 include protocol PTestShell;
-include protocol PJavaScript;
 include DOMTypes;
-include JavaScriptTypes;
 include InputStreamParams;
-include PTabContext;
 include URIParams;
-include ProtocolTypes;
 
-using GeoPosition from "nsGeoPositionIPCSerialiser.h";
+include "mozilla/chrome/RegistryMessageUtils.h";
+include "mozilla/dom/PermissionMessageUtils.h";
+include "mozilla/dom/TabMessageUtils.h";
+include "mozilla/layout/RenderFrameUtils.h";
+include "mozilla/net/NeckoMessageUtils.h";
+include "nsGeoPositionIPCSerialiser.h";
 
-using struct ChromePackage from "mozilla/chrome/RegistryMessageUtils.h";
-using struct ResourceMapping from "mozilla/chrome/RegistryMessageUtils.h";
-using struct OverrideMapping from "mozilla/chrome/RegistryMessageUtils.h";
-using base::ChildPrivileges from "base/process_util.h";
-using struct IPC::Permission from "mozilla/net/NeckoMessageUtils.h";
-using class IPC::Principal from "mozilla/dom/PermissionMessageUtils.h";
-using struct mozilla::null_t from "ipc/IPCMessageUtils.h";
-using struct mozilla::void_t from "ipc/IPCMessageUtils.h";
-using mozilla::dom::AudioChannelType from "AudioChannelCommon.h";
-using mozilla::dom::AudioChannelState from "AudioChannelCommon.h";
-using mozilla::dom::NativeThreadId from "mozilla/dom/TabMessageUtils.h";
-using mozilla::hal::ProcessPriority from "mozilla/HalTypes.h";
-using gfxIntSize from "nsSize.h";
+using GeoPosition;
+using PrefTuple;
+
+using ChromePackage;
+using ResourceMapping;
+using OverrideMapping;
+using base::ChildPrivileges;
+using IPC::Permission;
+using IPC::Principal;
+using mozilla::null_t;
+using mozilla::void_t;
+using mozilla::dom::AudioChannelType;
+using mozilla::dom::NativeThreadId;
+using mozilla::layout::ScrollingBehavior;
+using gfxIntSize;
 
 namespace mozilla {
 namespace dom {
@@ -62,49 +63,46 @@ struct FontListEntry {
 struct DeviceStorageFreeSpaceParams
 {
   nsString type;
-  nsString storageName;
+  nsString fullpath;
 };
 
 struct DeviceStorageUsedSpaceParams
 {
   nsString type;
-  nsString storageName;
+  nsString fullpath;
 };
 
 struct DeviceStorageAvailableParams
 {
   nsString type;
-  nsString storageName;
+  nsString fullpath;
 };
 
 struct DeviceStorageAddParams
 {
   nsString type;
-  nsString storageName;
-  nsString relpath;
   PBlob blob;
+  nsString name;
+  nsString fullpath;
 };
 
 struct DeviceStorageGetParams
 {
   nsString type;
-  nsString storageName;
-  nsString rootDir;
-  nsString relpath;
+  nsString name;
+  nsString fullpath;
 };
 
 struct DeviceStorageDeleteParams
 {
   nsString type;
-  nsString storageName;
-  nsString relpath;
+  nsString fullpath;
 };
 
 struct DeviceStorageEnumerationParams
 {
   nsString type;
-  nsString storageName;
-  nsString rootdir;
+  nsString fullpath;
   uint64_t since;
 };
 
@@ -119,38 +117,98 @@ union DeviceStorageParams
   DeviceStorageAvailableParams;
 };
 
-struct FMRadioRequestEnableParams
+struct SlicedBlobConstructorParams
 {
-  double frequency;
+  PBlob source;
+  uint64_t begin;
+  uint64_t end;
+  nsString contentType;
 };
 
-struct FMRadioRequestDisableParams
+struct MysteryBlobConstructorParams
 {
-
+  // Nothing is known about this type of blob.
 };
 
-struct FMRadioRequestSetFrequencyParams
+union ChildBlobConstructorParams
 {
-  double frequency;
+  NormalBlobConstructorParams;
+  FileBlobConstructorParams;
+  SlicedBlobConstructorParams;
+  MysteryBlobConstructorParams;
 };
 
-struct FMRadioRequestSeekParams
+struct ParentBlobConstructorParams
 {
-  bool upward;
+  ChildBlobConstructorParams blobParams;
+  OptionalInputStreamParams optionalInputStreamParams;
 };
 
-struct FMRadioRequestCancelSeekParams
+union BlobConstructorParams
 {
-
+  ChildBlobConstructorParams;
+  ParentBlobConstructorParams;
 };
 
-union FMRadioRequestParams
+// An IPCTabContext which corresponds to a PBrowser opened by a child when it
+// receives window.open().
+//
+// If isBrowserElement is false, this PopupIPCTabContext corresponds to an app
+// frame, and the frame's app-id and app-frame-owner-app-id will be equal to the
+// opener's values.
+//
+// If isBrowserElement is true, the frame's browserFrameOwnerAppId will be equal
+// to the opener's app-id.
+//
+// It's an error to set isBrowserElement == false if opener is a browser
+// element.  Such a PopupIPCTabContext should be rejected by code which receives
+// it.
+struct PopupIPCTabContext
 {
-  FMRadioRequestEnableParams;
-  FMRadioRequestDisableParams;
-  FMRadioRequestSetFrequencyParams;
-  FMRadioRequestSeekParams;
-  FMRadioRequestCancelSeekParams;
+  PBrowser opener;
+  bool isBrowserElement;
+};
+
+// An IPCTabContext which corresponds to an app frame.
+struct AppFrameIPCTabContext
+{
+  // The ID of the app this frame corresponds to.  May be NO_APP_ID.
+  uint32_t ownAppId;
+
+  // The ID of the app containing this frame.  May be NO_APP_ID.
+  uint32_t appFrameOwnerAppId;
+};
+
+// An IPCTabContext which corresponds to a browser frame.
+struct BrowserFrameIPCTabContext
+{
+  // The ID of the app which contains this browser frame.  May be NO_APP_ID.
+  uint32_t browserFrameOwnerAppId;
+};
+
+// This is equivalent to AppFrameIPCTabContext with all fields set to NO_APP_ID.
+struct VanillaFrameIPCTabContext
+{};
+
+// IPCTabContext is an analog to mozilla::dom::TabContext.  Both specify an
+// iframe/PBrowser's own and containing app-ids and tell you whether the
+// iframe/PBrowser is a browser frame.  But only IPCTabContext is allowed to
+// travel over IPC.
+//
+// We need IPCTabContext (specifically, PopupIPCTabContext) to prevent a
+// privilege escalation attack by a compromised child process.  See the comment
+// on AllocPBrowser for details.
+union IPCTabAppBrowserContext
+{
+  PopupIPCTabContext;
+  AppFrameIPCTabContext;
+  BrowserFrameIPCTabContext;
+  VanillaFrameIPCTabContext;
+};
+
+struct IPCTabContext {
+  IPCTabAppBrowserContext appBrowserContext;
+  ScrollingBehavior scrollingBehavior;
 };
 
 union PrefValue {
@@ -170,7 +228,7 @@ struct PrefSetting {
   MaybePrefValue userValue;
 };
 
-intr protocol PContent
+rpc protocol PContent
 {
     parent opens PCompositor;
     parent opens PImageBridge;
@@ -181,7 +239,6 @@ intr protocol PContent
     manages PCrashReporter;
     manages PDeviceStorageRequest;
     manages PExternalHelperApp;
-    manages PFMRadio;
     manages PHal;
     manages PIndexedDB;
     manages PMemoryReportRequest;
@@ -189,9 +246,7 @@ intr protocol PContent
     manages PSms;
     manages PSpeechSynthesis;
     manages PStorage;
-    manages PTelephony;
     manages PTestShell;
-    manages PJavaScript;
 
 both:
     // Depending on exactly how the new browser is being created, it might be
@@ -200,7 +255,7 @@ both:
     // The child creates the PBrowser as part of
     // TabChild::BrowserFrameProvideWindow (which happens when the child's
     // content calls window.open()), and the parent creates the PBrowser as part
-    // of ContentParent::CreateBrowserOrApp.
+    // of ContentParent::CreateTab.
     //
     // When the parent constructs a PBrowser, the child trusts the app token it
     // receives from the parent.  In that case, context can be any of the
@@ -221,8 +276,6 @@ both:
 
     async PBlob(BlobConstructorParams params);
 
-    async PJavaScript();
-
 child:
     /**
      * Update OS process privileges to |privs|.  Can usually only be
@@ -231,7 +284,7 @@ child:
      */
     async SetProcessPrivileges(ChildPrivileges privs);
 
-    PMemoryReportRequest(uint32_t generation);
+    PMemoryReportRequest();
 
     /**
      * Notify the AudioChannelService in the child processes.
@@ -255,7 +308,6 @@ child:
      * MemoryInfoDumper::dumpGCAndCCLogsToFile.
      */
     async DumpGCAndCCLogsToFile(nsString identifier,
-                                bool dumpAllTraces,
                                 bool dumpChildProcesses);
 
     PTestShell();
@@ -288,32 +340,16 @@ child:
      */
     ActivateA11y();
 
-    AppInfo(nsCString version, nsCString buildID, nsCString name, nsCString UAName);
+    AppInfo(nsCString version, nsCString buildID);
 
     // Notify child that last-pb-context-exited notification was observed
     LastPrivateDocShellDestroyed();
 
-    FilePathUpdate(nsString storageType, nsString storageName, nsString filepath,
-                   nsCString reasons);
+    FilePathUpdate(nsString type, nsString filepath, nsCString reasons);
 
     FileSystemUpdate(nsString fsName, nsString mountPoint, int32_t fsState,
-                     int32_t mountGeneration, bool isMediaPresent,
-                     bool isSharing);
+                     int32_t mountGeneration);
 
-    // Ask the Nuwa process to create a new child process.
-    NuwaFork();
-
-    NotifyProcessPriorityChanged(ProcessPriority priority);
-    MinimizeMemoryUsage();
-    CancelMinimizeMemoryUsage();
-
-    /**
-     * Used to manage nsIStyleSheetService across processes.
-     */
-    async LoadAndRegisterSheet(URIParams uri, uint32_t type);
-    async UnregisterSheet(URIParams uri, uint32_t type);
-
-    NotifyPhoneStateChange(nsString newState);
 parent:
     /**
      * Tell the content process some attributes of itself.  This is
@@ -350,11 +386,7 @@ parent:
 
     PStorage();
 
-    PTelephony();
-
     PBluetooth();
-
-    PFMRadio();
 
     // Services remoting
 
@@ -375,12 +407,7 @@ parent:
 
     sync ReadFontList() returns (FontListEntry[] retValue);
 
-    sync SyncMessage(nsString aMessage, ClonedMessageData aData,
-                     CpowEntry[] aCpows, Principal aPrincipal)
-      returns (nsString[] retval);
-
-    rpc RpcMessage(nsString aMessage, ClonedMessageData aData,
-                   CpowEntry[] aCpows, Principal aPrincipal)
+    sync SyncMessage(nsString aMessage, ClonedMessageData aData)
       returns (nsString[] retval);
 
     ShowAlertNotification(nsString imageUrl,
@@ -390,15 +417,29 @@ parent:
                           nsString cookie,
                           nsString name,
                           nsString bidi,
-                          nsString lang,
-                          Principal principal);
+                          nsString lang);
 
-    CloseAlert(nsString name, Principal principal);
+    CloseAlert(nsString name);
+
+    /**
+     * Tests permission for a provided principal using the permission
+     * manager.
+     *
+     * @param principal
+     *   The principal to test for the permissions.
+     * @param type
+     *   The type of permission to for the principal.
+     *
+     * NOTE: The principal is untrusted in the parent process. Only
+     *       principals that can live in the content process should
+     *       be provided.
+     */
+    sync TestPermissionFromPrincipal(Principal principal, nsCString type)
+        returns (uint32_t permission);
 
     PExternalHelperApp(OptionalURIParams uri, nsCString aMimeContentType,
                        nsCString aContentDisposition, bool aForceSave,
-                       int64_t aContentLength, OptionalURIParams aReferrer,
-                       nullable PBrowser aBrowser);
+                       int64_t aContentLength, OptionalURIParams aReferrer);
 
     AddGeolocationListener(Principal principal, bool highAccuracy);
     RemoveGeolocationListener();
@@ -437,43 +478,29 @@ parent:
     async FirstIdle();
 
     // Get Muted from the main AudioChannelService.
-    sync AudioChannelGetState(AudioChannelType aType, bool aElementHidden,
+    sync AudioChannelGetMuted(AudioChannelType aType, bool aElementHidden,
                               bool aElementWasHidden)
-        returns (AudioChannelState value);
+        returns (bool value);
 
-    sync AudioChannelRegisterType(AudioChannelType aType, bool aWithVideo);
+    sync AudioChannelRegisterType(AudioChannelType aType);
     sync AudioChannelUnregisterType(AudioChannelType aType,
-                                    bool aElementHidden,
-                                    bool aWithVideo);
+                                    bool aElementHidden);
 
     async AudioChannelChangedNotification();
-    async AudioChannelChangeDefVolChannel(AudioChannelType aType,
-                                          bool aHidden);
 
     async FilePathUpdateNotify(nsString aType,
-                               nsString aStorageName,
                                nsString aFilepath,
                                nsCString aReason);
     // get nsIVolumeService to broadcast volume information
     async BroadcastVolume(nsString volumeName);
 
+    async RecordingDeviceEvents(nsString recordingStatus);
+
     // Notify the parent that the child has finished handling a system message.
     async SystemMessageHandled();
 
-    NuwaReady();
-
-    sync AddNewProcess(uint32_t pid, ProtocolFdMapping[] aFds);
-
-    // called by the child (test code only) to propagate volume changes to the parent
-    async CreateFakeVolume(nsString fsName, nsString mountPoint);
-    async SetFakeVolumeState(nsString fsName, int32_t fsState);
-
-    sync KeywordToURI(nsCString keyword)
-        returns (OptionalInputStreamParams postData, OptionalURIParams uri);
-
 both:
-     AsyncMessage(nsString aMessage, ClonedMessageData aData,
-                  CpowEntry[] aCpows, Principal aPrincipal);
+     AsyncMessage(nsString aMessage, ClonedMessageData aData);
 };
 
 }

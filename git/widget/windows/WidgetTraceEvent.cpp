@@ -22,24 +22,18 @@
 #include "nsAutoPtr.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
-#include "nsTraceRefcnt.h"
 #include "nsWindowDefs.h"
 
 namespace {
 
 // Used for signaling the background thread from the main thread.
-HANDLE sEventHandle = nullptr;
+HANDLE sEventHandle = NULL;
 
 // We need a runnable in order to find the hidden window on the main
 // thread.
 class HWNDGetter : public nsRunnable {
 public:
-  HWNDGetter() : hidden_window_hwnd(nullptr) {
-    MOZ_COUNT_CTOR(HWNDGetter);
-  }
-  ~HWNDGetter() {
-    MOZ_COUNT_DTOR(HWNDGetter);
-  }
+  HWNDGetter() : hidden_window_hwnd(NULL) {}
 
   HWND hidden_window_hwnd;
 
@@ -91,20 +85,20 @@ namespace mozilla {
 
 bool InitWidgetTracing()
 {
-  sEventHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-  return sEventHandle != nullptr;
+  sEventHandle = CreateEvent(NULL, FALSE, FALSE, NULL);
+  return sEventHandle != NULL;
 }
 
 void CleanUpWidgetTracing()
 {
   CloseHandle(sEventHandle);
-  sEventHandle = nullptr;
+  sEventHandle = NULL;
 }
 
 // This function is called from the main (UI) thread.
 void SignalTracerThread()
 {
-  if (sEventHandle != nullptr)
+  if (sEventHandle != NULL)
     SetEvent(sEventHandle);
 }
 
@@ -114,12 +108,12 @@ bool FireAndWaitForTracerEvent()
   NS_ABORT_IF_FALSE(sEventHandle, "Tracing not initialized!");
 
   // First, try to find the hidden window.
-  static HWND hidden_window = nullptr;
-  if (hidden_window == nullptr) {
+  static HWND hidden_window = NULL;
+  if (hidden_window == NULL) {
     hidden_window = GetHiddenWindowHWND();
   }
 
-  if (hidden_window == nullptr)
+  if (hidden_window == NULL)
     return false;
 
   // Post the tracer message into the hidden window's message queue,

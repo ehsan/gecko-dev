@@ -8,12 +8,12 @@
 #include "nsContentEventHandler.h"
 #include "nsContentUtils.h"
 #include "nsEventDispatcher.h"
+#include "nsGUIEvent.h"
 #include "nsIContent.h"
 #include "nsIMEStateManager.h"
 #include "nsIPresShell.h"
+#include "nsIWidget.h"
 #include "nsPresContext.h"
-#include "mozilla/MiscEvents.h"
-#include "mozilla/TextEvents.h"
 
 namespace mozilla {
 
@@ -23,7 +23,7 @@ namespace mozilla {
 
 TextComposition::TextComposition(nsPresContext* aPresContext,
                                  nsINode* aNode,
-                                 WidgetGUIEvent* aEvent) :
+                                 nsGUIEvent* aEvent) :
   mPresContext(aPresContext), mNode(aNode),
   mNativeContext(aEvent->widget->GetInputContext().mNativeIMEContext),
   mIsSynthesizedForTests(aEvent->mFlags.mIsSynthesizedForTests)
@@ -45,13 +45,20 @@ TextComposition::MatchesNativeContext(nsIWidget* aWidget) const
   return mNativeContext == aWidget->GetInputContext().mNativeIMEContext;
 }
 
+bool
+TextComposition::MatchesEventTarget(nsPresContext* aPresContext,
+                                    nsINode* aNode) const
+{
+  return mPresContext == aPresContext && mNode == aNode;
+}
+
 void
-TextComposition::DispatchEvent(WidgetGUIEvent* aEvent,
+TextComposition::DispatchEvent(nsGUIEvent* aEvent,
                                nsEventStatus* aStatus,
                                nsDispatchingCallback* aCallBack)
 {
   if (aEvent->message == NS_COMPOSITION_UPDATE) {
-    mLastData = aEvent->AsCompositionEvent()->data;
+    mLastData = static_cast<nsCompositionEvent*>(aEvent)->data;
   }
 
   nsEventDispatcher::Dispatch(mNode, mPresContext,
@@ -114,9 +121,8 @@ TextComposition::CompositionEventDispatcher::Run()
   nsEventStatus status = nsEventStatus_eIgnore;
   switch (mEventMessage) {
     case NS_COMPOSITION_START: {
-      WidgetCompositionEvent compStart(true, NS_COMPOSITION_START, mWidget);
-      WidgetQueryContentEvent selectedText(true, NS_QUERY_SELECTED_TEXT,
-                                           mWidget);
+      nsCompositionEvent compStart(true, NS_COMPOSITION_START, mWidget);
+      nsQueryContentEvent selectedText(true, NS_QUERY_SELECTED_TEXT, mWidget);
       nsContentEventHandler handler(mPresContext);
       handler.OnQuerySelectedText(&selectedText);
       NS_ASSERTION(selectedText.mSucceeded, "Failed to get selected text");
@@ -127,21 +133,22 @@ TextComposition::CompositionEventDispatcher::Run()
     }
     case NS_COMPOSITION_UPDATE:
     case NS_COMPOSITION_END: {
-      WidgetCompositionEvent compEvent(true, mEventMessage, mWidget);
+      nsCompositionEvent compEvent(true, mEventMessage, mWidget);
       compEvent.data = mData;
       nsIMEStateManager::DispatchCompositionEvent(mEventTarget, mPresContext,
                                                   &compEvent, &status, nullptr);
       break;
     }
     case NS_TEXT_TEXT: {
-      WidgetTextEvent textEvent(true, NS_TEXT_TEXT, mWidget);
+      nsTextEvent textEvent(true, NS_TEXT_TEXT, mWidget);
       textEvent.theText = mData;
       nsIMEStateManager::DispatchCompositionEvent(mEventTarget, mPresContext,
                                                   &textEvent, &status, nullptr);
       break;
     }
     default:
-      MOZ_CRASH("Unsupported event");
+      MOZ_NOT_REACHED("Unsupported event");
+      break;
   }
   return NS_OK;
 }
@@ -188,6 +195,13 @@ TextComposition*
 TextCompositionArray::GetCompositionFor(nsIWidget* aWidget)
 {
   index_type i = IndexOf(aWidget);
+  return i != NoIndex ? &ElementAt(i) : nullptr;
+}
+
+TextComposition*
+TextCompositionArray::GetCompositionFor(nsPresContext* aPresContext)
+{
+  index_type i = IndexOf(aPresContext);
   return i != NoIndex ? &ElementAt(i) : nullptr;
 }
 

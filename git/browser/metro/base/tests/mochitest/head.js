@@ -19,51 +19,14 @@ const kDefaultWait = 2000;
 const kDefaultInterval = 50;
 
 /*=============================================================================
-  Load Helpers
-=============================================================================*/
-
-let splitPath = chromeRoot.split('/');
-if (!splitPath[splitPath.length-1]) {
-  splitPath.pop();
-}
-// ../mochitest to make sure we're looking for the libs on the right path
-// even for mochiperf tests.
-splitPath.pop();
-splitPath.push('mochitest');
-
-const mochitestPath = splitPath.join('/') + '/';
-
-[
-  "helpers/BookmarksHelper.js",
-  "helpers/HistoryHelper.js",
-  "helpers/ViewStateHelper.js"
-].forEach(function(lib) {
-  Services.scriptloader.loadSubScript(mochitestPath + lib, this);
-}, this);
-
-/*=============================================================================
   Metro ui helpers
 =============================================================================*/
-
-function isLandscapeMode()
-{
-  return Elements.windowState.getAttribute("viewstate") == "landscape";
-}
-
-function setDevPixelEqualToPx()
-{
-  todo(false, "test depends on devPixelsPerPx set to 1.0 - see bugs 886624 and 859742");
-  SpecialPowers.setCharPref("layout.css.devPixelsPerPx", "1.0");
-  registerCleanupFunction(function () {
-    SpecialPowers.clearUserPref("layout.css.devPixelsPerPx");
-  });
-}
 
 function checkContextUIMenuItemCount(aCount)
 {
   let visibleCount = 0;
-  for (let idx = 0; idx < ContextMenuUI.commands.childNodes.length; idx++) {
-    if (!ContextMenuUI.commands.childNodes[idx].hidden)
+  for (let idx = 0; idx < ContextMenuUI._commands.childNodes.length; idx++) {
+    if (!ContextMenuUI._commands.childNodes[idx].hidden)
       visibleCount++;
   }
   is(visibleCount, aCount, "command list count");
@@ -72,8 +35,8 @@ function checkContextUIMenuItemCount(aCount)
 function checkContextUIMenuItemVisibility(aVisibleList)
 {
   let errors = 0;
-  for (let idx = 0; idx < ContextMenuUI.commands.childNodes.length; idx++) {
-    let item = ContextMenuUI.commands.childNodes[idx];
+  for (let idx = 0; idx < ContextMenuUI._commands.childNodes.length; idx++) {
+    let item = ContextMenuUI._commands.childNodes[idx];
     if (aVisibleList.indexOf(item.id) != -1 && item.hidden) {
       // item should be visible
       errors++;
@@ -87,24 +50,6 @@ function checkContextUIMenuItemVisibility(aVisibleList)
   is(errors, 0, "context menu item list visibility");
 }
 
-function checkMonoclePositionRange(aMonocle, aMinX, aMaxX, aMinY, aMaxY)
-{
-  let monocle = null;
-  if (aMonocle == "start")
-    monocle = SelectionHelperUI._startMark;
-  else if (aMonocle == "end")
-    monocle = SelectionHelperUI._endMark;
-  else if (aMonocle == "caret")
-    monocle = SelectionHelperUI._caretMark;
-  else
-    ok(false, "bad monocle id");
-
-  ok(monocle.xPos > aMinX && monocle.xPos < aMaxX,
-    "X position is " + monocle.xPos + ", expected between " + aMinX + " and " + aMaxX);
-  ok(monocle.yPos > aMinY && monocle.yPos < aMaxY,
-    "Y position is " + monocle.yPos + ", expected between " + aMinY + " and " + aMaxY);
-}
-
 /*
  * showNotification - displays a test notification with the current
  * browser and waits for the noticiation to be fully displayed.
@@ -114,156 +59,57 @@ function checkMonoclePositionRange(aMonocle, aMinX, aMaxX, aMinY, aMaxY)
 function showNotification()
 {
   return Task.spawn(function() {
-    let strings = Strings.browser;
-    var buttons = [
-      {
-        isDefault: false,
-        label: strings.GetStringFromName("popupButtonAllowOnce2"),
-        accessKey: "",
-        callback: function() { }
-      },
-      {
-        label: strings.GetStringFromName("popupButtonAlwaysAllow3"),
-        accessKey: "",
-        callback: function() { }
-      },
-      {
-        label: strings.GetStringFromName("popupButtonNeverWarn3"),
-        accessKey: "",
-        callback: function() { }
-      }
-    ];
-    let notificationBox = Browser.getNotificationBox();
-    const priority = notificationBox.PRIORITY_WARNING_MEDIUM;
-    let note = notificationBox.appendNotification("test notification", "popup-blocked",
-                                                  "chrome://browser/skin/images/infobar-popup.png",
-                                                  priority, buttons);
-    yield waitForEvent(notificationBox, "transitionend");
-    throw new Task.Result(note);
+    try {
+      let strings = Strings.browser;
+      var buttons = [
+        {
+          isDefault: false,
+          label: strings.GetStringFromName("popupButtonAllowOnce2"),
+          accessKey: "",
+          callback: function() { }
+        },
+        {
+          label: strings.GetStringFromName("popupButtonAlwaysAllow3"),
+          accessKey: "",
+          callback: function() { }
+        },
+        {
+          label: strings.GetStringFromName("popupButtonNeverWarn3"),
+          accessKey: "",
+          callback: function() { }
+        }
+      ];
+      let notificationBox = Browser.getNotificationBox();
+      const priority = notificationBox.PRIORITY_WARNING_MEDIUM;
+      notificationBox.appendNotification("test notification", "popup-blocked",
+                                          "chrome://browser/skin/images/infobar-popup.png",
+                                          priority, buttons);
+      yield waitForEvent(notificationBox, "transitionend");
+      return;
+    } catch (ex) {
+      throw new Task.Result(ex);
+    }
   });
 }
 
-function removeNotifications() {
-  Browser.getNotificationBox().removeAllNotifications(true);
-}
+/*=============================================================================
+  Asynchronous Metro ui helpers
+=============================================================================*/
 
-function getSelection(aElement) {
-  if (!aElement)
-    return null;
-
-  // chrome text edit
-  if (aElement instanceof Ci.nsIDOMXULTextBoxElement) {
-    return aElement.QueryInterface(Components.interfaces.nsIDOMXULTextBoxElement)
-                   .editor.selection;
-  }
-
-  // editable content element
-  if (aElement instanceof Ci.nsIDOMNSEditableElement) {
-    return aElement.QueryInterface(Ci.nsIDOMNSEditableElement)
-                   .editor.selection;
-  }
-
-  // document or window
-  if (aElement instanceof HTMLDocument || aElement instanceof Window) {
-    return aElement.getSelection();
-  }
-
-  // browser
-  return aElement.contentWindow.getSelection();
-}
-
-function getTrimmedSelection(aElement) {
-  let sel = getSelection(aElement);
-  if (!sel)
-    return "";
-  return sel.toString().trim();
-}
-
-/*
- * clearSelection(aTarget) - clears the current selection in
- * aTarget, shuts down the selection manager and purges all
- * message manager events to insure a reset state for the ui.
- */
-function clearSelection(aTarget) {
-  SelectionHelperUI.closeEditSession(true);
-  getSelection(aTarget).removeAllRanges();
-  purgeEventQueue();
-}
-
-// Hides the tab and context app bar if they are visible
 function hideContextUI()
 {
   purgeEventQueue();
-
-  return Task.spawn(function() {
-    if (ContextUI.tabbarVisible) {
-      let promise = waitForEvent(Elements.tray, "transitionend", null, Elements.tray);
-      if (ContextUI.dismiss()) {
-        yield promise;
-      }
-    }
-
-    if (ContextUI.contextAppbarVisible) {
-      let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-      ContextUI.dismissContextAppbar();
-      yield promise;
-    }
-  });
-}
-
-function showNavBar()
-{
-  let promise = waitForEvent(Elements.navbar, "transitionend");
-  if (!ContextUI.navbarVisible) {
-    ContextUI.displayNavbar();
+  if (ContextUI.isVisible) {
+    info("is visible, waiting...");
+    let promise = waitForEvent(Elements.tray, "transitionend");
+    ContextUI.dismiss();
     return promise;
   }
 }
 
-function fireAppBarDisplayEvent()
-{
-  let promise = waitForEvent(Elements.tray, "transitionend");
-  let event = document.createEvent("Events");
-  event.initEvent("MozEdgeUICompleted", true, false);
-  gWindow.dispatchEvent(event);
-  purgeEventQueue();
-  return promise;
-}
-
 /*=============================================================================
-  General test helpers
+  Asynchronous test helpers
 =============================================================================*/
-let gOpenedTabs = [];
-
-function loadUriInActiveTab(aUri)
-{
-  return Task.spawn(function() {
-    let promise = waitForEvent(getBrowser(), "pageshow");
-    BrowserUI.goToURI(aUri);
-    yield waitForCondition(function () {
-      return getBrowser().currentURI.spec == aUri
-    }, "getBrowser().currentURI.spec == " + aUri);
-    yield promise;
-  });
-}
-
-function navForward() {
-  return Task.spawn(function() {
-    let promise = waitForEvent(getBrowser(), "pageshow");
-    EventUtils.synthesizeKey("VK_RIGHT", { altKey: true }, window);
-    yield promise;
-  });
-}
-
-function navBackViaNavButton() {
-  return Task.spawn(function() {
-    let promise = waitForEvent(getBrowser(), "pageshow");
-    let backButton = document.getElementById("overlay-back");
-    sendElementTap(window, backButton);
-    yield promise;
-  });
-}
-
 /**
  *  Loads a URL in a new tab asynchronously.
  *
@@ -280,27 +126,12 @@ function addTab(aUrl) {
   return Task.spawn(function() {
     info("Opening "+aUrl+" in a new tab");
     let tab = Browser.addTab(aUrl, true);
-    yield tab.pageShowPromise;
+    yield waitForEvent(tab.browser, "pageshow");
 
     is(tab.browser.currentURI.spec, aUrl, aUrl + " is loaded");
-
-    yield hideContextUI();
-
-    gOpenedTabs.push(tab);
-
+    registerCleanupFunction(function() Browser.closeTab(tab));
     throw new Task.Result(tab);
   });
-}
-
-/**
- * Cleans up tabs left open by addTab().
- * This is being called at runTests() after the test loop.
- */
-function cleanUpOpenedTabs() {
-  let tab;
-  while(tab = gOpenedTabs.shift()) {
-    Browser.closeTab(Browser.getTabFromChrome(tab.chromeTab), { forceClose: true })
-  }
 }
 
 /**
@@ -323,47 +154,29 @@ function cleanUpOpenedTabs() {
  * @param aTimeoutMs the number of miliseconds to wait before giving up
  * @returns a Promise that resolves to the received event, or to an Error
  */
-function waitForEvent(aSubject, aEventName, aTimeoutMs, aTarget) {
+function waitForEvent(aSubject, aEventName, aTimeoutMs) {
+  info("waitForEvent: on " + aSubject + " event: " + aEventName);
   let eventDeferred = Promise.defer();
   let timeoutMs = aTimeoutMs || kDefaultWait;
-  let stack = new Error().stack;
   let timerID = setTimeout(function wfe_canceller() {
-    aSubject.removeEventListener(aEventName, listener);
-    eventDeferred.reject( new Error(aEventName+" event timeout at " + stack) );
+    aSubject.removeEventListener(aEventName, onEvent);
+    eventDeferred.reject( new Error(aEventName+" event timeout") );
   }, timeoutMs);
 
-  var listener = function (aEvent) {
-    if (aTarget && aTarget !== aEvent.target)
-        return;
-
+  function onEvent(aEvent) {
     // stop the timeout clock and resume
     clearTimeout(timerID);
     eventDeferred.resolve(aEvent);
   }
 
-  function cleanup(aEventOrError) {
+  function cleanup() {
     // unhook listener in case of success or failure
-    aSubject.removeEventListener(aEventName, listener);
-    return aEventOrError;
+    aSubject.removeEventListener(aEventName, onEvent);
   }
-  aSubject.addEventListener(aEventName, listener, false);
-  return eventDeferred.promise.then(cleanup, cleanup);
-}
+  eventDeferred.promise.then(cleanup, cleanup);
 
-/**
- * Wait for an nsIMessageManager IPC message.
- */
-function waitForMessage(aName, aMessageManager) {
-  let deferred = Promise.defer();
-  let manager = aMessageManager || messageManager;
-  function listener(aMessage) {
-    deferred.resolve(aMessage);
-  }
-  manager.addMessageListener(aName, listener);
-  function cleanup(aEventOrError) {
-    manager.removeMessageListener(aName, listener);
-  }
-  return deferred.promise.then(cleanup, cleanup);
+  aSubject.addEventListener(aEventName, onEvent, false);
+  return eventDeferred.promise;
 }
 
 /**
@@ -412,12 +225,11 @@ function waitForCondition(aCondition, aTimeoutMs, aIntervalMs) {
   let timeoutMs = aTimeoutMs || kDefaultWait;
   let intervalMs = aIntervalMs || kDefaultInterval;
   let startTime = Date.now();
-  let stack = new Error().stack;
 
   function testCondition() {
     let now = Date.now();
     if((now - startTime) > timeoutMs) {
-      deferred.reject( new Error("Timed out waiting for condition to be true at " + stack) );
+      deferred.reject( new Error("Timed out waiting for condition to be true") );
       return;
     }
 
@@ -430,50 +242,6 @@ function waitForCondition(aCondition, aTimeoutMs, aIntervalMs) {
     }
 
     if (condition) {
-      deferred.resolve(true);
-    } else {
-      setTimeout(testCondition, intervalMs);
-    }
-  }
-
-  setTimeout(testCondition, 0);
-  return deferred.promise;
-}
-
-/**
- * same as waitForCondition but with better test output.
- *
- * @param aCondition the callback that must return a truthy value
- * @param aTestMsg test condition message printed when the test succeeds or
- * fails. Defaults to the stringified version of aCondition.
- * @param aTimeoutMs the number of miliseconds to wait before giving up
- * @param aIntervalMs the number of miliseconds between calls to aCondition
- * @returns a Promise that resolves to true, or to an Error
- */
-function waitForCondition2(aCondition, aTestMsg, aTimeoutMs, aIntervalMs) {
-  let deferred = Promise.defer();
-  let msg = aTestMsg || aCondition;
-  let timeoutMs = aTimeoutMs || kDefaultWait;
-  let intervalMs = aIntervalMs || kDefaultInterval;
-  let startTime = Date.now();
-
-  function testCondition() {
-    let now = Date.now();
-    if((now - startTime) > timeoutMs) {
-      deferred.reject( new Error("Timed out waiting for " + msg) );
-      return;
-    }
-
-    let condition;
-    try {
-      condition = aCondition();
-    } catch (e) {
-      deferred.reject( new Error("Got exception while attempting to test '" + msg + "': " + e) );
-      return;
-    }
-
-    if (condition) {
-      ok(true, msg);
       deferred.resolve(true);
     } else {
       setTimeout(testCondition, intervalMs);
@@ -641,39 +409,6 @@ function synthesizeNativeMouseMUp(aElement, aOffsetX, aOffsetY) {
 }
 
 /*
- * logicalCoordsForElement - given coordinates relative to top-left of
- * given element, returns logical coordinates for window. If a non-numeric
- * X or Y value is given, a value for the center of the element in that
- * dimension is used.
- *
- * @param aElement element coordinates are relative to.
- * @param aX, aY relative coordinates.
- */
-function logicalCoordsForElement (aElement, aX, aY) {
-  let coords = { x: null, y: null };
-  let rect = aElement.getBoundingClientRect();
-
-  coords.x = isNaN(aX) ? rect.left + (rect.width / 2) : rect.left + aX;
-  coords.y = isNaN(aY) ? rect.top + (rect.height / 2) : rect.top + aY;
-
-  return coords;
-}
-
-function sendContextMenuMouseClickToElement(aWindow, aElement, aX, aY) {
-  let utils = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                     .getInterface(Ci.nsIDOMWindowUtils);
-  let coords = logicalCoordsForElement(aElement, aX, aY);
-
-  utils.sendMouseEventToWindow("mousedown", coords.x, coords.y, 2, 1, 0);
-  utils.sendMouseEventToWindow("mouseup", coords.x, coords.y, 2, 1, 0);
-  utils.sendMouseEventToWindow("contextmenu", coords.x, coords.y, 2, 1, 0);
-}
-
-function sendMouseClick(aWindow, aX, aY) {
-  EventUtils.synthesizeMouseAtPoint(aX, aY, {}, aWindow);
-}
-
-/*
  * sendContextMenuClick - simulates a press-hold touch input event. Event
  * is delivered to the main window of the application through the top-level
  * widget.
@@ -688,26 +423,6 @@ function sendContextMenuClick(aX, aY) {
                       .getInterface(Components.interfaces.nsIDOMWindowUtils);
   utils.sendMouseEvent("contextmenu", aX, aY, 2, 1, 0, true,
                         1, Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH);
-}
-
-/*
- * sendContextMenuClickToSelection - simulates a press-hold touch input event
- * selected text in a window.
- */
-function sendContextMenuClickToSelection(aWindow) {
-  let selection = aWindow.getSelection();
-  if (!selection || !selection.rangeCount) {
-    ok(false, "no selection to tap!");
-    return;
-  }
-  let range = selection.getRangeAt(0);
-  let rect = range.getBoundingClientRect();
-  let x = rect.left + (rect.width / 2);
-  let y = rect.top + (rect.height / 2);
-  let utils = aWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                      .getInterface(Components.interfaces.nsIDOMWindowUtils);
-  utils.sendMouseEventToWindow("contextmenu", x, y, 2, 1, 0, true,
-                                1, Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH);
 }
 
 /*
@@ -728,142 +443,14 @@ function sendContextMenuClickToWindow(aWindow, aX, aY) {
 function sendContextMenuClickToElement(aWindow, aElement, aX, aY) {
   let utils = aWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                       .getInterface(Components.interfaces.nsIDOMWindowUtils);
-  let coords = logicalCoordsForElement(aElement, aX, aY);
-  utils.sendMouseEventToWindow("contextmenu", coords.x, coords.y, 2, 1, 0, true,
+  let rect = aElement.getBoundingClientRect();
+  utils.sendMouseEventToWindow("contextmenu", rect.left + aX, rect.top + aY, 2, 1, 0, true,
                                 1, Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH);
 }
-
-/*
- * sendDoubleTap - simulates a double click or double tap.
- */
-function sendDoubleTap(aWindow, aX, aY) {
-  EventUtils.synthesizeMouseAtPoint(aX, aY, {
-      clickCount: 1,
-      inputSource: Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH
-    }, aWindow);
-
-  EventUtils.synthesizeMouseAtPoint(aX, aY, {
-      clickCount: 2,
-      inputSource: Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH
-    }, aWindow);
-}
-
-function sendTap(aWindow, aX, aY) {
-  EventUtils.synthesizeMouseAtPoint(aX, aY, {
-      clickCount: 1,
-      inputSource: Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH
-    }, aWindow);
-}
-
-function sendElementTap(aWindow, aElement, aX, aY) {
-  let coords = logicalCoordsForElement(aElement, aX, aY);
-  EventUtils.synthesizeMouseAtPoint(coords.x, coords.y, {
-      clickCount: 1,
-      inputSource: Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH
-    }, aWindow);
-}
-
-/*
- * sendTouchDrag - sends a touch series composed of a touchstart,
- * touchmove, and touchend w3c event.
- */
-function sendTouchDrag(aWindow, aStartX, aStartY, aEndX, aEndY) {
-  EventUtils.synthesizeTouchAtPoint(aStartX, aStartY, { type: "touchstart" }, aWindow);
-  EventUtils.synthesizeTouchAtPoint(aEndX, aEndY, { type: "touchmove" }, aWindow);
-  EventUtils.synthesizeTouchAtPoint(aEndX, aEndY, { type: "touchend" }, aWindow);
-}
-
-/*
- * TouchDragAndHold - simulates a drag and hold sequence of events.
- */
-function TouchDragAndHold() {
-}
-
-TouchDragAndHold.prototype = {
-  _timeoutStep: 2,
-  _numSteps: 50,
-  _debug: false,
-  _win: null,
-
-  callback: function callback() {
-    if (this._win == null)
-      return;
-
-    if (this._debug) {
-      SelectionHelperUI.debugDisplayDebugPoint(this._currentPoint.xPos,
-        this._currentPoint.yPos, 5, "#FF0000", true);
-    }
-
-    if (++this._step.steps >= this._numSteps) {
-      EventUtils.synthesizeTouchAtPoint(this._endPoint.xPos, this._endPoint.yPos,
-                                        { type: "touchmove" }, this._win);
-      this._defer.resolve();
-      return;
-    }
-    this._currentPoint.xPos += this._step.x;
-    this._currentPoint.yPos += this._step.y;
-    if (this._debug) {
-      info("[" + this._step.steps + "] touchmove " + this._currentPoint.xPos + " x " + this._currentPoint.yPos);
-    }
-    EventUtils.synthesizeTouchAtPoint(this._currentPoint.xPos, this._currentPoint.yPos,
-                                      { type: "touchmove" }, this._win);
-    let self = this;
-    setTimeout(function () { self.callback(); }, this._timeoutStep);
-  },
-
-  start: function start(aWindow, aStartX, aStartY, aEndX, aEndY) {
-    this._defer = Promise.defer();
-    this._win = aWindow;
-    this._endPoint = { xPos: aEndX, yPos: aEndY };
-    this._currentPoint = { xPos: aStartX, yPos: aStartY };
-    this._step = { steps: 0, x: (aEndX - aStartX) / this._numSteps, y: (aEndY - aStartY) / this._numSteps };
-    if (this._debug) {
-      info("[0] touchstart " + aStartX + " x " + aStartY);
-    }
-    EventUtils.synthesizeTouchAtPoint(aStartX, aStartY, { type: "touchstart" }, aWindow);
-    let self = this;
-    setTimeout(function () { self.callback(); }, this._timeoutStep);
-    return this._defer.promise;
-  },
-
-  move: function move(aEndX, aEndY) {
-    if (this._win == null)
-      return;
-    if (this._debug) {
-      info("[0] continuation to " + aEndX + " x " + aEndY);
-    }
-    this._defer = Promise.defer();
-    this._step = { steps: 0,
-                   x: (aEndX - this._endPoint.xPos) / this._numSteps,
-                   y: (aEndY - this._endPoint.yPos) / this._numSteps };
-    this._endPoint = { xPos: aEndX, yPos: aEndY };
-    let self = this;
-    setTimeout(function () { self.callback(); }, this._timeoutStep);
-    return this._defer.promise;
-  },
-
-  end: function start() {
-    if (this._debug) {
-      info("[" + this._step.steps + "] touchend " + this._endPoint.xPos + " x " + this._endPoint.yPos);
-      SelectionHelperUI.debugClearDebugPoints();
-    }
-    EventUtils.synthesizeTouchAtPoint(this._endPoint.xPos, this._endPoint.yPos,
-                                      { type: "touchend" }, this._win);
-    this._win = null;
-  },
-};
 
 /*=============================================================================
   System utilities
 =============================================================================*/
-
-/*
- * emptyClipboard - clear the windows clipboard.
- */
-function emptyClipboard() {
-  Cc["@mozilla.org/widget/clipboard;1"].getService(Ci.nsIClipboard)
-                                       .emptyClipboard(Ci.nsIClipboard.kGlobalClipboard);
-}
 
 /*
  * purgeEventQueue - purges the event queue on the calling thread.
@@ -885,78 +472,35 @@ let gTests = [];
 
 function runTests() {
   waitForExplicitFinish();
-
   Task.spawn(function() {
     while((gCurrentTest = gTests.shift())){
+      info("START " + gCurrentTest.desc);
       try {
         if ('function' == typeof gCurrentTest.setUp) {
           info("SETUP " + gCurrentTest.desc);
           yield Task.spawn(gCurrentTest.setUp.bind(gCurrentTest));
         }
-        try {
-          info("RUN " + gCurrentTest.desc);
-          yield Task.spawn(gCurrentTest.run.bind(gCurrentTest));
-        } finally {
-          if ('function' == typeof gCurrentTest.tearDown) {
-            info("TEARDOWN " + gCurrentTest.desc);
-            yield Task.spawn(gCurrentTest.tearDown.bind(gCurrentTest));
-          }
+        yield Task.spawn(gCurrentTest.run.bind(gCurrentTest));
+        if ('function' == typeof gCurrentTest.tearDown) {
+          info("TEARDOWN " + gCurrentTest.desc);
+          yield Task.spawn(gCurrentTest.tearDown.bind(gCurrentTest));
         }
       } catch (ex) {
-        ok(false, "runTests: Task failed - " + ex + ' at ' + ex.stack);
+        ok(false, "runTests: Task failed - " + ex);
       } finally {
         info("END " + gCurrentTest.desc);
       }
     }
-
-    try {
-      cleanUpOpenedTabs();
-
-      let badTabs = [];
-      Browser.tabs.forEach(function(item, index, array) {
-        let location = item.browser.currentURI.spec;
-        if (index == 0 && location == "about:blank" || location == "about:start") {
-          return;
-        }
-        ok(false, "Left over tab after test: '" + location + "'");
-        badTabs.push(item);
-      });
-
-      badTabs.forEach(function(item, index, array) {
-        Browser.closeTab(item, { forceClose: true });
-      });
-    } catch (ex) {
-      ok(false, "Cleanup tabs failed - " + ex);
-    }
-
     finish();
   });
 }
 
-// wrap a method with a spy that records how and how many times it gets called
-// the spy is returned; use spy.restore() to put the original back
-function spyOnMethod(aObj, aMethod) {
-  let origFunc = aObj[aMethod];
-  let spy = function() {
-    spy.calledWith = Array.slice(arguments);
-    spy.callCount++;
-    return (spy.returnValue = origFunc.apply(aObj, arguments));
-  };
-  spy.callCount = 0;
-  spy.restore = function() {
-    return (aObj[aMethod] = origFunc);
-  };
-  return (aObj[aMethod] = spy);
-}
-
-// replace a method with a stub that records how and how many times it gets called
-// the stub is returned; use stub.restore() to put the original back
 function stubMethod(aObj, aMethod) {
   let origFunc = aObj[aMethod];
   let func = function() {
     func.calledWith = Array.slice(arguments);
     func.callCount++;
-  };
+  }
   func.callCount = 0;
   func.restore = function() {
     return (aObj[aMethod] = origFunc);

@@ -12,17 +12,3 @@ EXPORTS.mozilla.ipc += [
     'RawDBusConnection.h',
 ]
 
-SOURCES += [
-    'DBusThread.cpp',
-    'DBusUtils.cpp',
-    'RawDBusConnection.cpp',
-]
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'mozdbus_s'
-
-EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
-

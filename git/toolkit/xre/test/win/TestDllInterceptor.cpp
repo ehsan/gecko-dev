@@ -41,14 +41,9 @@ patched_rotatePayload(payload p)
 bool TestHook(const char *dll, const char *func)
 {
   void *orig_func;
-  bool successful = false;
-  {
-    WindowsDllInterceptor TestIntercept;
-    TestIntercept.Init(dll);
-    successful = TestIntercept.AddHook(func, 0, &orig_func);
-  }
-
-  if (successful) {
+  WindowsDllInterceptor TestIntercept;
+  TestIntercept.Init(dll);
+  if (TestIntercept.AddHook(func, 0, &orig_func)) {
     printf("TEST-PASS | WindowsDllInterceptor | Could hook %s from %s\n", func, dll);
     return true;
   } else {
@@ -121,10 +116,7 @@ int main()
       TestHook("user32.dll", "SetWindowLongW") &&
 #endif
       TestHook("user32.dll", "TrackPopupMenu") &&
-#ifdef _M_IX86
-      // We keep this test to hook complex code on x86. (Bug 850957)
       TestHook("ntdll.dll", "NtFlushBuffersFile") &&
-#endif
       TestHook("ntdll.dll", "NtWriteFile") &&
       TestHook("ntdll.dll", "NtWriteFileGather") &&
       // Bug 733892: toolkit/crashreporter/nsExceptionHandler.cpp

@@ -5,13 +5,15 @@
 
 #include "nsDeviceProtocolHandler.h"
 #include "nsDeviceChannel.h"
+#include "nsNetCID.h"
 #include "nsAutoPtr.h"
+#include "nsCOMPtr.h"
 #include "nsSimpleURI.h"
 
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS1(nsDeviceProtocolHandler,
-                   nsIProtocolHandler)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsDeviceProtocolHandler,
+                              nsIProtocolHandler)
 
 nsresult
 nsDeviceProtocolHandler::Init(){

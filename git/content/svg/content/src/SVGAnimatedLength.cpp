@@ -5,6 +5,7 @@
 
 #include "mozilla/dom/SVGAnimatedLength.h"
 #include "mozilla/dom/SVGAnimatedLengthBinding.h"
+#include "nsContentUtils.h"
 #include "nsSVGLength2.h"
 
 namespace mozilla {
@@ -12,11 +13,17 @@ namespace dom {
 
 NS_SVG_VAL_IMPL_CYCLE_COLLECTION_WRAPPERCACHED(SVGAnimatedLength, mSVGElement)
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(SVGAnimatedLength, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(SVGAnimatedLength, Release)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(SVGAnimatedLength)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(SVGAnimatedLength)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(SVGAnimatedLength)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedLength)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
 
 JSObject*
-SVGAnimatedLength::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGAnimatedLength::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return SVGAnimatedLengthBinding::Wrap(aCx, aScope, this);
 }

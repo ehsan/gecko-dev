@@ -1,6 +1,8 @@
+/* vim:set ts=2 sw=2 sts=2 expandtab */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 
 module.metadata = {
   "stability": "experimental"
@@ -9,12 +11,11 @@ module.metadata = {
 const { Cc, Ci } = require('chrome');
 const { descriptor, Sandbox, evaluate, main, resolveURI } = require('toolkit/loader');
 const { once } = require('../system/events');
-const { exit, env, staticArgs } = require('../system');
+const { exit, env, staticArgs, name } = require('../system');
 const { when: unload } = require('../system/unload');
 const { loadReason } = require('../self');
 const { rootURI } = require("@loader/options");
 const globals = require('../system/globals');
-const xulApp = require('../system/xul-app');
 const appShellService = Cc['@mozilla.org/appshell/appShellService;1'].
                         getService(Ci.nsIAppShellService);
 
@@ -22,20 +23,13 @@ const NAME2TOPIC = {
   'Firefox': 'sessionstore-windows-restored',
   'Fennec': 'sessionstore-windows-restored',
   'SeaMonkey': 'sessionstore-windows-restored',
-  'Thunderbird': 'mail-startup-done'
+  'Thunderbird': 'mail-startup-done',
+  '*': 'final-ui-startup'
 };
-
-// Set 'final-ui-startup' as default topic for unknown applications
-let appStartup = 'final-ui-startup';
 
 // Gets the topic that fit best as application startup event, in according with
 // the current application (e.g. Firefox, Fennec, Thunderbird...)
-for (let name of Object.keys(NAME2TOPIC)) {
-  if (xulApp.is(name)) {
-    appStartup = NAME2TOPIC[name];
-    break;
-  }
-}
+const APP_STARTUP = NAME2TOPIC[name] || NAME2TOPIC['*'];
 
 // Initializes default preferences
 function setDefaultPrefs(prefsURI) {
@@ -72,7 +66,7 @@ function definePseudo(loader, id, exports) {
 }
 
 function wait(reason, options) {
-  once(appStartup, function() {
+  once(APP_STARTUP, function() {
     startup(null, options);
   });
 }
@@ -112,7 +106,6 @@ function startup(reason, options) {
     }).then(function() {
       run(options);
     }).then(null, console.exception);
-    return void 0; // otherwise we raise a warning, see bug 910304
 }
 
 function run(options) {
@@ -152,10 +145,10 @@ function run(options) {
 
       program.main({
         loadReason: loadReason,
-        staticArgs: staticArgs
-      }, {
+        staticArgs: staticArgs 
+      }, { 
         print: function print(_) { dump(_ + '\n') },
-        quit: exit
+        quit: exit 
       });
     }
   } catch (error) {

@@ -9,13 +9,21 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "AddonManager",
-                                  "resource://gre/modules/AddonManager.jsm");
+XPCOMUtils.defineLazyGetter(this, "AddonManager", function() {
+  Components.utils.import("resource://gre/modules/AddonManager.jsm");
+  return AddonManager;
+});
 
-XPCOMUtils.defineLazyModuleGetter(this, "AddonRepository",
-                                  "resource://gre/modules/AddonRepository.jsm");
+XPCOMUtils.defineLazyGetter(this, "AddonRepository", function() {
+  Components.utils.import("resource://gre/modules/AddonRepository.jsm");
+  return AddonRepository;
+});
 
-XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
+XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
+  Components.utils.import("resource://gre/modules/NetUtil.jsm");
+  return NetUtil;
+});
+
 
 function getPref(func, preference, defaultValue) {
   try {
@@ -129,10 +137,19 @@ var RecommendedSearchResults = {
     if (!aData)
       return;
 
+    // Initialize the file output stream.
+    let ostream = Cc["@mozilla.org/network/safe-file-output-stream;1"].createInstance(Ci.nsIFileOutputStream);
+    ostream.init(aFile, 0x02 | 0x08 | 0x20, 0600, ostream.DEFER_OPEN);
+
+    // Obtain a converter to convert our data to a UTF-8 encoded input stream.
+    let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].createInstance(Ci.nsIScriptableUnicodeConverter);
+    converter.charset = "UTF-8";
+
     // Asynchronously copy the data to the file.
-    let array = new TextEncoder().encode(aData);
-    OS.File.writeAtomic(aFile.path, array, { tmpPath: aFile.path + ".tmp" }).then(function onSuccess() {
-      Services.obs.notifyObservers(null, "recommended-addons-cache-updated", "");
+    let istream = converter.convertToInputStream(aData);
+    NetUtil.asyncCopy(istream, ostream, function(rc) {
+      if (Components.isSuccessCode(rc))
+        Services.obs.notifyObservers(null, "recommended-addons-cache-updated", "");
     });
   },
   
@@ -158,7 +175,7 @@ var RecommendedSearchResults = {
           id: aAddon.id,
           name: aAddon.name,
           version: aAddon.version,
-          learnmoreURL: aAddon.learnmoreURL,
+          homepageURL: aAddon.homepageURL,
           iconURL: aAddon.iconURL
         })
       });

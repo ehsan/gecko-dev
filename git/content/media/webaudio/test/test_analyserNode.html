@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-  <title>Test AnalyserNode</title>
+  <title>Test GainNode</title>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="webaudio.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -12,6 +12,7 @@
 
 SimpleTest.waitForExplicitFinish();
 addLoadEvent(function() {
+  SpecialPowers.setBoolPref("media.webaudio.enabled", true);
 
   var context = new AudioContext();
   var buffer = context.createBuffer(1, 2048, context.sampleRate);
@@ -29,10 +30,6 @@ addLoadEvent(function() {
 
   source.connect(analyser);
   analyser.connect(destination);
-
-  is(analyser.channelCount, 1, "analyser node has 2 input channels by default");
-  is(analyser.channelCountMode, "explicit", "Correct channelCountMode for the analyser node");
-  is(analyser.channelInterpretation, "speakers", "Correct channelCountInterpretation for the analyser node");
 
   is(analyser.fftSize, 2048, "Correct default value for fftSize");
   is(analyser.frequencyBinCount, 1024, "Correct default value for frequencyBinCount");
@@ -82,6 +79,7 @@ addLoadEvent(function() {
   analyser.smoothingTimeConstant = 0;
   analyser.smoothingTimeConstant = 1;
 
+  SpecialPowers.clearUserPref("media.webaudio.enabled");
   SimpleTest.finish();
 });
 

@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include "xptcall.h"
+#include "prlong.h"
 #include "prinrval.h"
 #include "nsMemory.h"
 
@@ -1132,11 +1133,11 @@ const char* FooBarImpl::ImplName()
 NS_IMETHODIMP
 FooBarImpl::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 {
-  if (nullptr == aInstancePtr) {
+  if (NULL == aInstancePtr) {
     return NS_ERROR_NULL_POINTER;
   }
 
-  *aInstancePtr = nullptr;
+  *aInstancePtr = NULL;
 
 
   if (aIID.Equals(NS_GET_IID(nsIFoo))) {
@@ -1303,11 +1304,11 @@ NS_IMETHODIMP FooBarImpl2::BarMethod2(int32_t i)
 NS_IMETHODIMP
 FooBarImpl2::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 {
-  if (nullptr == aInstancePtr) {
+  if (NULL == aInstancePtr) {
     return NS_ERROR_NULL_POINTER;
   }
 
-  *aInstancePtr = nullptr;
+  *aInstancePtr = NULL;
 
 
   if (aIID.Equals(NS_GET_IID(nsIFoo))) {

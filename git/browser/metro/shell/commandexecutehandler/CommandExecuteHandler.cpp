@@ -33,50 +33,16 @@
 // Pulled from desktop browser's shell
 #define APP_REG_NAME L"Firefox"
 
-// If we have a restart request, attempt to wait up to RESTART_WAIT_TIMEOUT
-// until the previous instance closes.  We don't want to wait too long
-// because the browser could appear to randomly start for the user. We want
-// it to also be long enough so the browser has time to close.
-#define RESTART_WAIT_PER_RETRY 50
-#define RESTART_WAIT_TIMEOUT 38000
-
 static const WCHAR* kFirefoxExe = L"firefox.exe";
 static const WCHAR* kMetroFirefoxExe = L"firefox.exe";
 static const WCHAR* kDefaultMetroBrowserIDPathKey = L"FirefoxURL";
-static const WCHAR* kMetroRestartCmdLine = L"--metro-restart";
-
-static bool GetDefaultBrowserPath(CStringW& aPathBuffer);
-
-/*
- * Retrieve our module dir path.
- *
- * @aPathBuffer Buffer to fill
- */
-static bool GetModulePath(CStringW& aPathBuffer)
-{
-  WCHAR buffer[MAX_PATH];
-  memset(buffer, 0, sizeof(buffer));
-
-  if (!GetModuleFileName(nullptr, buffer, MAX_PATH)) {
-    Log(L"GetModuleFileName failed.");
-    return false;
-  }
-
-  WCHAR* slash = wcsrchr(buffer, '\\');
-  if (!slash)
-    return false;
-  *slash = '\0';
-
-  aPathBuffer = buffer;
-  return true;
-}
-
+static const WCHAR* kDemoMetroBrowserIDPathKey = L"Mozilla.Firefox.URL";
 
 template <class T>void SafeRelease(T **ppT)
 {
   if (*ppT) {
     (*ppT)->Release();
-    *ppT = nullptr;
+    *ppT = NULL;
   }
 }
 
@@ -97,13 +63,10 @@ public:
 
   CExecuteCommandVerb() :
     mRef(1),
-    mShellItemArray(nullptr),
-    mUnkSite(nullptr),
+    mShellItemArray(NULL),
+    mUnkSite(NULL),
     mTargetIsFileSystemLink(false),
-    mTargetIsDefaultBrowser(false),
-    mTargetIsBrowser(false),
     mIsDesktopRequest(true),
-    mIsRestartMetroRequest(false),
     mRequestMet(false)
   {
   }
@@ -149,12 +112,7 @@ public:
   IFACEMETHODIMP SetParameters(PCWSTR aParameters)
   {
     Log(L"SetParameters: '%s'", aParameters);
-
-    if (_wcsicmp(aParameters, kMetroRestartCmdLine) == 0) {
-      mIsRestartMetroRequest = true;
-    } else {
-      mParameters = aParameters;
-    }
+    mParameters = aParameters;
     return S_OK;
   }
 
@@ -190,9 +148,9 @@ public:
 #ifdef SHOW_CONSOLE
     Log(L"SetSelection param count: %d", count);
     for (DWORD idx = 0; idx < count; idx++) {
-      IShellItem* item = nullptr;
+      IShellItem* item = NULL;
       if (SUCCEEDED(aArray->GetItemAt(idx, &item))) {
-        LPWSTR str = nullptr;
+        LPWSTR str = NULL;
         if (FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &str))) {
           if (FAILED(item->GetDisplayName(SIGDN_URL, &str))) {
             Log(L"Failed to get a shell item array item.");
@@ -207,7 +165,7 @@ public:
     }
 #endif
 
-    IShellItem* item = nullptr;
+    IShellItem* item = NULL;
     if (FAILED(aArray->GetItemAt(0, &item))) {
       return E_FAIL;
     }
@@ -225,7 +183,7 @@ public:
 
   IFACEMETHODIMP GetSelection(REFIID aRefID, void **aInt)
   {
-    *aInt = nullptr;
+    *aInt = NULL;
     return mShellItemArray ? mShellItemArray->QueryInterface(aRefID, aInt) : E_FAIL;
   }
 
@@ -249,7 +207,7 @@ public:
 
   IFACEMETHODIMP GetSite(REFIID aRefID, void **aInt)
   {
-    *aInt = nullptr;
+    *aInt = NULL;
     return mUnkSite ? mUnkSite->QueryInterface(aRefID, aInt) : E_FAIL;
   }
 
@@ -266,14 +224,14 @@ public:
     }
 
     HRESULT hr;
-    IServiceProvider* pSvcProvider = nullptr;
+    IServiceProvider* pSvcProvider = NULL;
     hr = mUnkSite->QueryInterface(IID_IServiceProvider, (void**)&pSvcProvider);
     if (!pSvcProvider) {
       Log(L"Couldn't get IServiceProvider service from explorer. (%X)", hr);
       return S_OK;
     }
 
-    IExecuteCommandHost* pHost = nullptr;
+    IExecuteCommandHost* pHost = NULL;
     // If we can't get this it's a conventional desktop launch
     hr = pSvcProvider->QueryService(SID_ExecuteCommandHost,
                                     IID_IExecuteCommandHost, (void**)&pHost);
@@ -319,80 +277,43 @@ public:
     return S_OK;
   }
 
-  /*
-   * Retrieve the target path if it is the default browser
-   * or if not default, retreives the target path if it is a firefox browser
-   * or if the target is not firefox, relies on a hack to get the
-   * 'module dir path\firefox.exe'
-   * The reason why it's not good to rely on the CEH path is because there is
-   * no guarantee win8 will use the CEH at our expected path.  It has an in
-   * memory cache even if the registry is updated for the CEH path.
-   *
-   * @aPathBuffer Buffer to fill
-   */
-  bool GetDesktopBrowserPath(CStringW& aPathBuffer)
-  {
-    // If the target was the default browser itself then return early.  Otherwise
-    // rely on a hack to check CEH path and calculate it relative to it.
-
-    if (mTargetIsDefaultBrowser || mTargetIsBrowser) {
-      aPathBuffer = mTarget;
-      return true;
-    }
-
-    if (!GetModulePath(aPathBuffer))
-      return false;
-
-    // ceh.exe sits in dist/bin root with the desktop browser. Since this
-    // is a firefox only component, this hardcoded filename is ok.
-    aPathBuffer.Append(L"\\");
-    aPathBuffer.Append(kFirefoxExe);
-    return true;
-  }
-
   bool IsDefaultBrowser()
   {
+    bool result = false;
     IApplicationAssociationRegistration* pAAR;
     HRESULT hr = CoCreateInstance(CLSID_ApplicationAssociationRegistration,
-                                  nullptr,
+                                  NULL,
                                   CLSCTX_INPROC,
                                   IID_IApplicationAssociationRegistration,
                                   (void**)&pAAR);
-    if (FAILED(hr))
-      return false;
+    if (SUCCEEDED(hr)) {
+      BOOL res;
+      hr = pAAR->QueryAppIsDefaultAll(AL_EFFECTIVE,
+                                      APP_REG_NAME,
+                                      &res);
+      Log(L"QueryAppIsDefaultAll: %d", res);
+      if (!res) 
+        return false;
+      // Make sure the Prog ID matches what we have
+      LPWSTR registeredApp;
+      hr = pAAR->QueryCurrentDefault(L"http", AT_URLPROTOCOL, AL_EFFECTIVE,
+                                      &registeredApp);
+      Log(L"QueryCurrentDefault: %X", hr);
+      if (SUCCEEDED(hr)) {
+        Log(L"registeredApp=%s", registeredApp);
+        result = !wcsicmp(registeredApp, kDefaultMetroBrowserIDPathKey);
+        if (!result) {
+          result = !wcsicmp(registeredApp, kDemoMetroBrowserIDPathKey);
+        }
+        CoTaskMemFree(registeredApp);
+      } else {
+        result = false;
+      }
 
-    BOOL res = FALSE;
-    hr = pAAR->QueryAppIsDefaultAll(AL_EFFECTIVE,
-                                    APP_REG_NAME,
-                                    &res);
-    Log(L"QueryAppIsDefaultAll: %d", res);
-    if (!res) {
       pAAR->Release();
-      return false;
+      return result;
     }
-    // Make sure the Prog ID matches what we have
-    LPWSTR registeredApp;
-    hr = pAAR->QueryCurrentDefault(L"http", AT_URLPROTOCOL, AL_EFFECTIVE,
-                                    &registeredApp);
-    pAAR->Release();
-    Log(L"QueryCurrentDefault: %X", hr);
-    if (FAILED(hr))
-      return false;
-
-    Log(L"registeredApp=%s", registeredApp);
-    bool result = !wcsicmp(registeredApp, kDefaultMetroBrowserIDPathKey);
-    CoTaskMemFree(registeredApp);
-    if (!result)
-      return false;
-
-    // If the registry points another browser's path,
-    // activating the Metro browser will fail. So fallback to the desktop.
-    CStringW selfPath;
-    GetDesktopBrowserPath(selfPath);
-    CStringW browserPath;
-    GetDefaultBrowserPath(browserPath);
-
-    return !selfPath.CompareNoCase(browserPath);
+    return result;
   }
 private:
   ~CExecuteCommandVerb()
@@ -403,6 +324,7 @@ private:
 
   void LaunchDesktopBrowser();
   bool SetTargetPath(IShellItem* aItem);
+  bool IsTargetBrowser();
 
   long mRef;
   IShellItemArray *mShellItemArray;
@@ -411,37 +333,49 @@ private:
   CStringW mTarget;
   CStringW mParameters;
   bool mTargetIsFileSystemLink;
-  bool mTargetIsDefaultBrowser;
-  bool mTargetIsBrowser;
   DWORD mKeyState;
   bool mIsDesktopRequest;
-  bool mIsRestartMetroRequest;
   bool mRequestMet;
 };
 
 /*
- * Retrieve the current default browser's path.
+ * Retrieve our module dir path.
  *
  * @aPathBuffer Buffer to fill
  */
-static bool GetDefaultBrowserPath(CStringW& aPathBuffer)
+static bool GetModulePath(CStringW& aPathBuffer)
 {
   WCHAR buffer[MAX_PATH];
-  DWORD length = MAX_PATH;
+  memset(buffer, 0, sizeof(buffer));
 
-  if (FAILED(AssocQueryStringW(ASSOCF_NOTRUNCATE | ASSOCF_INIT_IGNOREUNKNOWN,
-                               ASSOCSTR_EXECUTABLE,
-                               kDefaultMetroBrowserIDPathKey, nullptr,
-                               buffer, &length))) {
-    Log(L"AssocQueryString failed.");
+  if (!GetModuleFileName(NULL, buffer, MAX_PATH)) {
+    Log(L"GetModuleFileName failed.");
     return false;
   }
 
-  // sanity check
-  if (lstrcmpiW(PathFindFileNameW(buffer), kFirefoxExe))
+  WCHAR* slash = wcsrchr(buffer, '\\');
+  if (!slash)
     return false;
+  *slash = '\0';
 
   aPathBuffer = buffer;
+  return true;
+}
+
+/*
+ * Retrieve 'module dir path\firefox.exe'
+ *
+ * @aPathBuffer Buffer to fill
+ */
+static bool GetDesktopBrowserPath(CStringW& aPathBuffer)
+{
+  if (!GetModulePath(aPathBuffer))
+    return false;
+
+  // ceh.exe sits in dist/bin root with the desktop browser. Since this
+  // is a firefox only component, this hardcoded filename is ok.
+  aPathBuffer.Append(L"\\");
+  aPathBuffer.Append(kFirefoxExe);
   return true;
 }
 
@@ -451,23 +385,58 @@ static bool GetDefaultBrowserPath(CStringW& aPathBuffer)
  * @aPathBuffer Buffer to fill
  * @aCharLength Length of buffer to fill in characters
  */
-template <size_t N>
-static bool GetDefaultBrowserAppModelID(WCHAR (&aIDBuffer)[N])
+static bool GetDefaultBrowserAppModelID(WCHAR* aIDBuffer,
+                                        long aCharLength)
 {
+  if (!aIDBuffer || aCharLength <= 0)
+    return false;
+
+  memset(aIDBuffer, 0, (sizeof(WCHAR)*aCharLength));
+
   HKEY key;
   if (RegOpenKeyExW(HKEY_CLASSES_ROOT, kDefaultMetroBrowserIDPathKey,
                     0, KEY_READ, &key) != ERROR_SUCCESS) {
     return false;
   }
-  DWORD len = sizeof(aIDBuffer);
+  DWORD len = aCharLength * sizeof(WCHAR);
   memset(aIDBuffer, 0, len);
-  if (RegQueryValueExW(key, L"AppUserModelID", nullptr, nullptr,
+  if (RegQueryValueExW(key, L"AppUserModelID", NULL, NULL,
                        (LPBYTE)aIDBuffer, &len) != ERROR_SUCCESS || !len) {
     RegCloseKey(key);
     return false;
   }
   RegCloseKey(key);
   return true;
+}
+
+/*
+ * Determines if the current target points directly to a particular
+ * browser or to a file or url.
+ */
+bool CExecuteCommandVerb::IsTargetBrowser()
+{
+  if (!mTarget.GetLength() || !mTargetIsFileSystemLink)
+    return false;
+
+  CStringW modulePath;
+  if (!GetModulePath(modulePath))
+    return false;
+
+  modulePath.MakeLower();
+
+  CStringW tmpTarget = mTarget;
+  tmpTarget.Replace(L"\"", L"");
+  tmpTarget.MakeLower();
+  
+  CStringW checkPath;
+  
+  checkPath = modulePath;
+  checkPath.Append(L"\\");
+  checkPath.Append(kFirefoxExe);
+  if (tmpTarget == checkPath) {
+    return true;
+  }
+  return false;
 }
 
 namespace {
@@ -523,7 +492,7 @@ bool CExecuteCommandVerb::SetTargetPath(IShellItem* aItem)
   CComPtr<IDataObject> object;
   // Check the underlying data object first to insure we get
   // absolute uri. See chromium bug 157184.
-  if (SUCCEEDED(aItem->BindToHandler(nullptr, BHID_DataObject,
+  if (SUCCEEDED(aItem->BindToHandler(NULL, BHID_DataObject,
                                      IID_IDataObject,
                                      reinterpret_cast<void**>(&object))) &&
       GetPlainText(object, cstrText)) {
@@ -540,14 +509,13 @@ bool CExecuteCommandVerb::SetTargetPath(IShellItem* aItem)
 
     mTargetIsFileSystemLink = (components.nScheme == INTERNET_SCHEME_FILE);
     mTarget = cstrText;
-
     return true;
   }
 
   Log(L"No data object or data object has no text.");
 
   // Use the shell item display name
-  LPWSTR str = nullptr;
+  LPWSTR str = NULL;
   mTargetIsFileSystemLink = true;
   if (FAILED(aItem->GetDisplayName(SIGDN_FILESYSPATH, &str))) {
     mTargetIsFileSystemLink = false;
@@ -558,15 +526,6 @@ bool CExecuteCommandVerb::SetTargetPath(IShellItem* aItem)
   }
   mTarget = str;
   CoTaskMemFree(str);
-
-  CStringW defaultPath;
-  GetDefaultBrowserPath(defaultPath);
-  mTargetIsDefaultBrowser = !mTarget.CompareNoCase(defaultPath);
-
-  size_t browserEXELen = wcslen(kFirefoxExe);
-  mTargetIsBrowser = mTarget.GetLength() >= browserEXELen &&
-                     !mTarget.Right(browserEXELen).CompareNoCase(kFirefoxExe);
-
   return true;
 }
 
@@ -582,23 +541,13 @@ void CExecuteCommandVerb::LaunchDesktopBrowser()
   }
 
   // If a taskbar shortcut, link or local file is clicked, the target will
-  // be the browser exe or file.  Don't pass in -url for the target if the
-  // target is known to be a browser.  Otherwise, one instance of Firefox
-  // will try to open another instance.
+  // be the browser exe or file.
   CStringW params;
-  if (!mTargetIsDefaultBrowser && !mTargetIsBrowser && !mTarget.IsEmpty()) {
-    // Fallback to the module path if it failed to get the default browser.
-    GetDefaultBrowserPath(browserPath);
+  if (!IsTargetBrowser()) {
     params += "-url ";
     params += "\"";
     params += mTarget;
     params += "\"";
-  }
-
-  // Tack on any extra parameters we received (for example -profilemanager)
-  if (!mParameters.IsEmpty()) {
-    params += " ";
-    params += mParameters;
   }
 
   Log(L"Desktop Launch: verb:%s exe:%s params:%s", mVerb, browserPath, params); 
@@ -606,12 +555,12 @@ void CExecuteCommandVerb::LaunchDesktopBrowser()
   SHELLEXECUTEINFOW seinfo;
   memset(&seinfo, 0, sizeof(seinfo));
   seinfo.cbSize = sizeof(SHELLEXECUTEINFOW);
-  seinfo.fMask  = 0;
-  seinfo.hwnd   = nullptr;
-  seinfo.lpVerb = nullptr;
+  seinfo.fMask  = NULL;
+  seinfo.hwnd   = NULL;
+  seinfo.lpVerb = NULL;
   seinfo.lpFile = browserPath;
   seinfo.lpParameters =  params;
-  seinfo.lpDirectory  = nullptr;
+  seinfo.lpDirectory  = NULL;
   seinfo.nShow  = SW_SHOWNORMAL;
         
   ShellExecuteExW(&seinfo);
@@ -627,86 +576,16 @@ private:
   bool* mFlag;
 };
 
-static HRESULT
-PrepareActivationManager(CComPtr<IApplicationActivationManager> &activateMgr)
-{
-  HRESULT hr = activateMgr.CoCreateInstance(CLSID_ApplicationActivationManager,
-                                            nullptr, CLSCTX_LOCAL_SERVER);
-  if (FAILED(hr)) {
-    Log(L"CoCreateInstance failed, launching on desktop.");
-    return E_FAIL;
-  }
-
-  // Hand off focus rights to the out-of-process activation server. Without
-  // this the metro interface won't launch.
-  hr = CoAllowSetForegroundWindow(activateMgr, nullptr);
-  if (FAILED(hr)) {
-    Log(L"CoAllowSetForegroundWindow result %X", hr);
-    return E_FAIL;
-  }
-
-  return S_OK;
-}
-
-DWORD WINAPI
-DelayedExecuteThread(LPVOID param)
-{
-  Log(L"Starting delayed execute thread...");
-  bool &bRequestMet(*(bool*)param);
-  AutoSetRequestMet asrm(&bRequestMet);
-
-  CoInitialize(nullptr);
-
-  CComPtr<IApplicationActivationManager> activateMgr;
-  if (FAILED(PrepareActivationManager(activateMgr))) {
-      Log(L"Warning: Could not prepare activation manager");
-  }
-
-  size_t currentWaitTime = 0;
-  while(currentWaitTime < RESTART_WAIT_TIMEOUT) {
-    if (!IsImmersiveProcessRunning(kMetroFirefoxExe))
-      break;
-    currentWaitTime += RESTART_WAIT_PER_RETRY;
-    Sleep(RESTART_WAIT_PER_RETRY);
-  }
-
-  Log(L"Done waiting, getting app ID");
-  // Activate the application as long as we can obtian the appModelID
-  WCHAR appModelID[256];
-  if (GetDefaultBrowserAppModelID(appModelID)) {
-    Log(L"Activating application");
-    DWORD processID;
-    HRESULT hr = activateMgr->ActivateApplication(appModelID, L"", AO_NOSPLASHSCREEN, &processID);
-    if (SUCCEEDED(hr)) {
-      Log(L"Activate application succeeded");
-    } else {
-      Log(L"Activate application failed! (%x)", hr);
-    }
-  }
-
-  CoUninitialize();
-  return 0;
-}
-
 IFACEMETHODIMP CExecuteCommandVerb::Execute()
 {
   Log(L"Execute()");
 
-  if (!mTarget.GetLength()) {
-    // We shut down when this flips to true
-    mRequestMet = true;
-    return E_FAIL;
-  }
-
-  if (mIsRestartMetroRequest) {
-    HANDLE thread = CreateThread(nullptr, 0, DelayedExecuteThread,
-                                 &mRequestMet, 0, nullptr);
-    CloseHandle(thread);
-    return S_OK;
-  }
-
   // We shut down when this flips to true
   AutoSetRequestMet asrm(&mRequestMet);
+
+  if (!mTarget.GetLength()) {
+    return E_FAIL;
+  }
 
   // Launch on the desktop
   if (mIsDesktopRequest) {
@@ -714,26 +593,40 @@ IFACEMETHODIMP CExecuteCommandVerb::Execute()
     return S_OK;
   }
 
-  CComPtr<IApplicationActivationManager> activateMgr;
-  if (FAILED(PrepareActivationManager(activateMgr))) {
-      LaunchDesktopBrowser();
-      return S_OK;
+  // Launch into Metro
+  IApplicationActivationManager* activateMgr = NULL;
+  DWORD processID;
+  if (FAILED(CoCreateInstance(CLSID_ApplicationActivationManager, NULL,
+                              CLSCTX_LOCAL_SERVER,
+                              IID_IApplicationActivationManager,
+                              (void**)&activateMgr))) {
+    Log(L"CoCreateInstance failed, launching on desktop.");
+    LaunchDesktopBrowser();
+    return S_OK;
   }
-
+  
   HRESULT hr;
   WCHAR appModelID[256];
-  if (!GetDefaultBrowserAppModelID(appModelID)) {
+  if (!GetDefaultBrowserAppModelID(appModelID, (sizeof(appModelID)/sizeof(WCHAR)))) {
     Log(L"GetDefaultBrowserAppModelID failed, launching on desktop.");
+    activateMgr->Release();
     LaunchDesktopBrowser();
     return S_OK;
   }
 
+  // Hand off focus rights to the out-of-process activation server. Without
+  // this the metro interface won't launch.
+  hr = CoAllowSetForegroundWindow(activateMgr, NULL);
+  if (FAILED(hr)) {
+    Log(L"CoAllowSetForegroundWindow result %X", hr);
+    activateMgr->Release();
+    return false;
+  }
+
   Log(L"Metro Launch: verb:%s appid:%s params:%s", mVerb, appModelID, mTarget); 
 
-
   // shortcuts to the application
-  DWORD processID;
-  if (mTargetIsDefaultBrowser) {
+  if (IsTargetBrowser()) {
     hr = activateMgr->ActivateApplication(appModelID, L"", AO_NONE, &processID);
     Log(L"ActivateApplication result %X", hr);
   // files
@@ -745,6 +638,7 @@ IFACEMETHODIMP CExecuteCommandVerb::Execute()
     hr = activateMgr->ActivateForProtocol(appModelID, mShellItemArray, &processID);
     Log(L"ActivateForProtocol result %X", hr);
   }
+  activateMgr->Release();
   return S_OK;
 }
 
@@ -792,7 +686,7 @@ ClassFactory::Register(CLSCTX aClass, REGCLS aUse)
 STDMETHODIMP
 ClassFactory::QueryInterface(REFIID riid, void **ppv)
 {
-  IUnknown *punk = nullptr;
+  IUnknown *punk = NULL;
   if (riid == IID_IUnknown || riid == IID_IClassFactory) {
     punk = static_cast<IClassFactory*>(this);
   }
@@ -808,7 +702,7 @@ ClassFactory::QueryInterface(REFIID riid, void **ppv)
 STDMETHODIMP
 ClassFactory::CreateInstance(IUnknown *punkOuter, REFIID riid, void **ppv)
 {
-  *ppv = nullptr;
+  *ppv = NULL;
   if (punkOuter)
     return CLASS_E_NOAGGREGATION;
   return mUnkObject->QueryInterface(riid, ppv);
@@ -836,7 +730,7 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, PWSTR pszCmdLine, int)
 
   if (!wcslen(pszCmdLine) || StrStrI(pszCmdLine, L"-Embedding"))
   {
-      CoInitialize(nullptr);
+      CoInitialize(NULL);
 
       CExecuteCommandVerb *pHandler = new CExecuteCommandVerb();
       if (!pHandler)
@@ -849,13 +743,13 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, PWSTR pszCmdLine, int)
 
       ClassFactory classFactory(ppi);
       ppi->Release();
-      ppi = nullptr;
+      ppi = NULL;
 
       // REGCLS_SINGLEUSE insures we only get used once and then discarded.
       if (FAILED(classFactory.Register(CLSCTX_LOCAL_SERVER, REGCLS_SINGLEUSE)))
         return -1;
 
-      if (!SetTimer(nullptr, 1, HEARTBEAT_MSEC, nullptr)) {
+      if (!SetTimer(NULL, 1, HEARTBEAT_MSEC, NULL)) {
         Log(L"Failed to set timer, can't process request.");
         return -1;
       }

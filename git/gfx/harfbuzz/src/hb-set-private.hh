@@ -32,31 +32,47 @@
 #include "hb-object-private.hh"
 
 
-/*
- * The set digests here implement various "filters" that support
- * "approximate member query".  Conceptually these are like Bloom
- * Filter and Quotient Filter, however, much smaller, faster, and
- * designed to fit the requirements of our uses for glyph coverage
- * queries.  As a result, our filters have much higher.
- */
+struct hb_set_digest_common_bits_t
+{
+  ASSERT_POD ();
 
-template <typename mask_t, unsigned int shift>
+  typedef unsigned int mask_t;
+
+  inline void init (void) {
+    mask = ~0;
+    value = (mask_t) -1;
+  }
+
+  inline void add (hb_codepoint_t g) {
+    if (unlikely (value == (mask_t) -1)) {
+      value = g;
+      return;
+    }
+
+    mask ^= (g & mask) ^ value;
+    value &= mask;
+  }
+
+  inline void add_range (hb_codepoint_t a, hb_codepoint_t b) {
+    /* The negation here stands for ~(x-1). */
+    mask &= -(1 << _hb_bit_storage (a ^ b));
+    value &= mask;
+  }
+
+  inline bool may_have (hb_codepoint_t g) const {
+    return (g & mask) == value;
+  }
+
+  private:
+  mask_t mask;
+  mask_t value;
+};
+
 struct hb_set_digest_lowest_bits_t
 {
   ASSERT_POD ();
 
-  static const unsigned int mask_bytes = sizeof (mask_t);
-  static const unsigned int mask_bits = sizeof (mask_t) * 8;
-  static const unsigned int num_bits = 0
-				     + (mask_bytes >= 1 ? 3 : 0)
-				     + (mask_bytes >= 2 ? 1 : 0)
-				     + (mask_bytes >= 4 ? 1 : 0)
-				     + (mask_bytes >= 8 ? 1 : 0)
-				     + (mask_bytes >= 16? 1 : 0)
-				     + 0;
-
-  ASSERT_STATIC (shift < sizeof (hb_codepoint_t) * 8);
-  ASSERT_STATIC (shift + num_bits <= sizeof (hb_codepoint_t) * 8);
+  typedef unsigned long mask_t;
 
   inline void init (void) {
     mask = 0;
@@ -67,7 +83,7 @@ struct hb_set_digest_lowest_bits_t
   }
 
   inline void add_range (hb_codepoint_t a, hb_codepoint_t b) {
-    if ((b >> shift) - (a >> shift) >= mask_bits - 1)
+    if (b - a >= sizeof (mask_t) * 8 - 1)
       mask = (mask_t) -1;
     else {
       mask_t ma = mask_for (a);
@@ -82,64 +98,37 @@ struct hb_set_digest_lowest_bits_t
 
   private:
 
-  static inline mask_t mask_for (hb_codepoint_t g) {
-    return ((mask_t) 1) << ((g >> shift) & (mask_bits - 1));
-  }
+  static inline mask_t mask_for (hb_codepoint_t g) { return ((mask_t) 1) << (g & (sizeof (mask_t) * 8 - 1)); }
   mask_t mask;
 };
 
-template <typename head_t, typename tail_t>
-struct hb_set_digest_combiner_t
+struct hb_set_digest_t
 {
   ASSERT_POD ();
 
   inline void init (void) {
-    head.init ();
-    tail.init ();
+    digest1.init ();
+    digest2.init ();
   }
 
   inline void add (hb_codepoint_t g) {
-    head.add (g);
-    tail.add (g);
+    digest1.add (g);
+    digest2.add (g);
   }
 
   inline void add_range (hb_codepoint_t a, hb_codepoint_t b) {
-    head.add_range (a, b);
-    tail.add_range (a, b);
+    digest1.add_range (a, b);
+    digest2.add_range (a, b);
   }
 
   inline bool may_have (hb_codepoint_t g) const {
-    return head.may_have (g) && tail.may_have (g);
+    return digest1.may_have (g) && digest2.may_have (g);
   }
 
   private:
-  head_t head;
-  tail_t tail;
+  hb_set_digest_common_bits_t digest1;
+  hb_set_digest_lowest_bits_t digest2;
 };
-
-
-/*
- * hb_set_digest_t
- *
- * This is a combination of digests that performs "best".
- * There is not much science to this: it's a result of intuition
- * and testing.
- */
-typedef hb_set_digest_combiner_t
-<
-  hb_set_digest_lowest_bits_t<unsigned long, 4>,
-  hb_set_digest_combiner_t
-  <
-    hb_set_digest_lowest_bits_t<unsigned long, 0>,
-    hb_set_digest_lowest_bits_t<unsigned long, 9>
-  >
-> hb_set_digest_t;
-
-
-
-/*
- * hb_set_t
- */
 
 
 /* TODO Make this faster and memmory efficient. */
@@ -171,7 +160,7 @@ struct hb_set_t
   inline void add (hb_codepoint_t g)
   {
     if (unlikely (in_error)) return;
-    if (unlikely (g == INVALID)) return;
+    if (unlikely (g == SENTINEL)) return;
     if (unlikely (g > MAX_G)) return;
     elt (g) |= mask (g);
   }
@@ -256,22 +245,19 @@ struct hb_set_t
   }
   inline bool next (hb_codepoint_t *codepoint) const
   {
-    if (unlikely (*codepoint == INVALID)) {
+    if (unlikely (*codepoint == SENTINEL)) {
       hb_codepoint_t i = get_min ();
-      if (i != INVALID) {
+      if (i != SENTINEL) {
         *codepoint = i;
 	return true;
-      } else {
-	*codepoint = INVALID;
+      } else
         return false;
-      }
     }
     for (hb_codepoint_t i = *codepoint + 1; i < MAX_G + 1; i++)
       if (has (i)) {
         *codepoint = i;
 	return true;
       }
-    *codepoint = INVALID;
     return false;
   }
   inline bool next_range (hb_codepoint_t *first, hb_codepoint_t *last) const
@@ -280,10 +266,7 @@ struct hb_set_t
 
     i = *last;
     if (!next (&i))
-    {
-      *last = *first = INVALID;
       return false;
-    }
 
     *last = *first = i;
     while (next (&i) && i == *last + 1)
@@ -303,10 +286,10 @@ struct hb_set_t
   {
     for (unsigned int i = 0; i < ELTS; i++)
       if (elts[i])
-	for (unsigned int j = 0; j < BITS; j++)
+	for (unsigned int j = 0; i < BITS; j++)
 	  if (elts[i] & (1 << j))
 	    return i * BITS + j;
-    return INVALID;
+    return SENTINEL;
   }
   inline hb_codepoint_t get_max (void) const
   {
@@ -315,7 +298,7 @@ struct hb_set_t
 	for (unsigned int j = BITS; j; j--)
 	  if (elts[i - 1] & (1 << (j - 1)))
 	    return (i - 1) * BITS + (j - 1);
-    return INVALID;
+    return SENTINEL;
   }
 
   typedef uint32_t elt_t;
@@ -324,7 +307,7 @@ struct hb_set_t
   static const unsigned int BITS = (1 << SHIFT);
   static const unsigned int MASK = BITS - 1;
   static const unsigned int ELTS = (MAX_G + 1 + (BITS - 1)) / BITS;
-  static  const hb_codepoint_t INVALID = HB_SET_VALUE_INVALID;
+  static  const hb_codepoint_t SENTINEL = (hb_codepoint_t) -1;
 
   elt_t &elt (hb_codepoint_t g) { return elts[g >> SHIFT]; }
   elt_t elt (hb_codepoint_t g) const { return elts[g >> SHIFT]; }

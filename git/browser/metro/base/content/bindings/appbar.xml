@@ -1,13 +1,29 @@
-<?xml version="1.0"?>
+<?xml version="1.0"?>  
 
 <bindings xmlns="http://www.mozilla.org/xbl"
           xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
-  <binding id="appbarBinding">
-    <content>
+  <binding id="appbarBinding">  
+    <content> 
       <xul:toolbar anonid="toolbar"><children/></xul:toolbar>
     </content>
 
     <implementation implements="nsIDOMEventListener">
+      <constructor>
+        <![CDATA[
+          window.addEventListener('MozContextUIShow', this);
+          window.addEventListener('MozContextUIDismiss', this);
+          window.addEventListener('MozAppbarDismiss', this);
+        ]]>
+      </constructor>
+
+      <destructor>
+        <![CDATA[
+          window.removeEventListener('MozContextUIShow', this);
+          window.removeEventListener('MozContextUIDismiss', this);
+          window.removeEventListener('MozAppbarDismiss', this);
+        ]]>
+      </destructor>
+
       <field name="sticky">false</field>
       <field name="_toolbar" readonly="true">document.getAnonymousElementByAttribute(this, "anonid", "toolbar");</field>
 
@@ -29,20 +45,10 @@
           ]]>
         </body>
       </method>
-
+      
       <method name="dismiss">
         <body>
           <![CDATA[
-            if (!this.isShowing)
-              return;
-
-            let self = this;
-            this.setAttribute("hiding", "true");
-            this.addEventListener("transitionend", function appbar_transitionend() {
-              self.removeEventListener("transitionend", appbar_transitionend, false);
-              self.removeAttribute("hiding");
-            }, false);
-
             this._fire("MozAppbarDismissing");
             this.removeAttribute("visible");
           ]]>
@@ -52,9 +58,6 @@
       <method name="show">
         <body>
           <![CDATA[
-            if (this.isShowing)
-              return;
-
             this._fire("MozAppbarShowing");
             this.setAttribute("visible", "true");
           ]]>
@@ -72,6 +75,28 @@
           ]]>
         </body>
       </method>
+
+      <method name="handleEvent">
+        <parameter name="aEvent"/>
+        <body>
+          <![CDATA[
+            switch (aEvent.type) {
+              case 'MozContextUIShow':
+                this.show();
+                break;
+              case 'MozAppbarDismiss':
+              case 'MozContextUIDismiss':
+                this.dismiss();
+                break;
+            }
+          ]]>
+        </body>
+      </method>
     </implementation>
+
+    <handlers>
+      <!-- Work around for bug 835175 -->
+      <handler event="click">false;</handler>
+    </handlers>
   </binding>
 </bindings>

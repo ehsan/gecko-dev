@@ -10,15 +10,12 @@ XPIDL_SOURCES += [
     'nsIStyleSheetService.idl',
 ]
 
-if CONFIG['IBMBIDI']:
-    UNIFIED_SOURCES += [
-        'nsBidi.cpp',
-        'nsBidiPresUtils.cpp',
+if not CONFIG['MOZ_XUL']:
+    XPIDL_SOURCES += [
+        'nsIBoxObject.idl',
     ]
-
-if CONFIG['MOZ_DEBUG']:
-    UNIFIED_SOURCES += [
-        'nsAutoLayoutPhase.cpp',
+    EXPORTS    += [
+        'nsPIBoxObject.h',
     ]
 
 XPIDL_MODULE = 'layout_base'
@@ -26,18 +23,18 @@ XPIDL_MODULE = 'layout_base'
 MODULE = 'layout'
 
 EXPORTS += [
-    'ActiveLayerTracker.h',
     'DisplayItemClip.h',
     'DisplayListClipState.h',
     'FrameLayerBuilder.h',
     'FramePropertyTable.h',
+    'StackArena.h',
     'nsArenaMemoryStats.h',
     'nsBidi.h',
     'nsBidiPresUtils.h',
+    'nsCSSFrameConstructor.h',
     'nsCaret.h',
     'nsChangeHint.h',
     'nsCompatibility.h',
-    'nsCSSFrameConstructor.h',
     'nsDisplayItemTypes.h',
     'nsDisplayItemTypesList.h',
     'nsDisplayList.h',
@@ -57,63 +54,10 @@ EXPORTS += [
     'nsPresState.h',
     'nsRefreshDriver.h',
     'nsStyleChangeList.h',
-    'ScrollbarStyles.h',
-    'StackArena.h',
-    'Units.h',
+    'nsStyleConsts.h',
 ]
 
 EXPORTS.mozilla += [
     'PaintTracker.h',
 ]
-
-UNIFIED_SOURCES += [
-    'ActiveLayerTracker.cpp',
-    'DisplayItemClip.cpp',
-    'DisplayListClipState.cpp',
-    'FrameLayerBuilder.cpp',
-    'FramePropertyTable.cpp',
-    'MaskLayerImageCache.cpp',
-    'nsCaret.cpp',
-    'nsCounterManager.cpp',
-    'nsCSSColorUtils.cpp',
-    'nsCSSFrameConstructor.cpp',
-    'nsCSSRendering.cpp',
-    'nsCSSRenderingBorders.cpp',
-    'nsDisplayList.cpp',
-    'nsDisplayListInvalidation.cpp',
-    'nsDocumentViewer.cpp',
-    'nsFrameManager.cpp',
-    'nsFrameTraversal.cpp',
-    'nsGenConList.cpp',
-    'nsLayoutDebugger.cpp',
-    'nsLayoutHistoryState.cpp',
-    'nsLayoutUtils.cpp',
-    'nsPresContext.cpp',
-    'nsPresShell.cpp',
-    'nsQuoteList.cpp',
-    'nsStyleChangeList.cpp',
-    'nsStyleSheetService.cpp',
-    'PaintTracker.cpp',
-    'PositionedEventTargeting.cpp',
-    'RestyleManager.cpp',
-    'RestyleTracker.cpp',
-    'StackArena.cpp',
-]
-
-# nsPresArena.cpp needs to be built separately because it uses plarena.h.
-# nsRefreshDriver.cpp needs to be built separately because of name clashes in the OS X headers
-SOURCES += [
-    'nsPresArena.cpp',
-    'nsRefreshDriver.cpp',
-]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'gkbase_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -4,19 +4,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef assembler_assembler_SparcAssembler_h
-#define assembler_assembler_SparcAssembler_h
+#ifndef SparcAssembler_h
+#define SparcAssembler_h
 
-#include "assembler/wtf/Platform.h"
+#include <assembler/wtf/Platform.h>
 
 // Some debug code uses s(n)printf for instruction logging.
 #include <stdio.h>
 
 #if ENABLE_ASSEMBLER && WTF_CPU_SPARC
 
-#include "assembler/assembler/AssemblerBufferWithConstantPool.h"
-#include "assembler/wtf/Assertions.h"
+#include "AssemblerBufferWithConstantPool.h"
+#include <assembler/wtf/Assertions.h>
 
+#include "methodjit/Logging.h"
 #define IPFX  "        %s"
 #define ISPFX "        "
 #ifdef JS_METHODJIT_SPEW
@@ -1139,7 +1140,7 @@ namespace JSC {
         {
             ASSERT(reg <= 31);
             ASSERT(reg >= 0);
-            static char const * const names[] = {
+            static char const * names[] = {
                 "%g0", "%g1", "%g2", "%g3",
                 "%g4", "%g5", "%g6", "%g7",
                 "%o0", "%o1", "%o2", "%o3",
@@ -1156,7 +1157,7 @@ namespace JSC {
         {
             ASSERT(reg <= 31);
             ASSERT(reg >= 0);
-            static char const * const names[] = {
+            static char const * names[] = {
                 "%f0",   "%f1",   "%f2",   "%f3",
                 "%f4",   "%f5",   "%f6",   "%f7",
                 "%f8",   "%f9",  "%f10",  "%f11",
@@ -1175,7 +1176,7 @@ namespace JSC {
             ASSERT(cc >= 0);
 
             uint32_t    ccIndex = cc;
-            static char const * const inames[] = {
+            static char const * inames[] = {
                 "   ", "e  ",
                 "le ", "l  ",
                 "leu", "cs ",
@@ -1194,7 +1195,7 @@ namespace JSC {
             ASSERT(cc >= 0);
 
             uint32_t    ccIndex = cc;
-            static char const * const fnames[] = {
+            static char const * fnames[] = {
                 "   ", "ne ",
                 "   ", "ul ",
                 "l  ", "ug ",
@@ -1214,4 +1215,4 @@ namespace JSC {
 
 #endif // ENABLE(ASSEMBLER) && CPU(SPARC)
 
-#endif /* assembler_assembler_SparcAssembler_h */
+#endif // SparcAssembler_h

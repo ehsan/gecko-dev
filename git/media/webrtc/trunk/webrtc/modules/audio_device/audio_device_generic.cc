@@ -8,49 +8,49 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/audio_device/audio_device_generic.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "audio_device_generic.h"
+#include "trace.h"
 
 namespace webrtc {
 
-int32_t AudioDeviceGeneric::SetRecordingSampleRate(
-    const uint32_t samplesPerSec)
+WebRtc_Word32 AudioDeviceGeneric::SetRecordingSampleRate(
+    const WebRtc_UWord32 samplesPerSec)
 {
     WEBRTC_TRACE(kTraceError, kTraceAudioDevice, -1,
         "Set recording sample rate not supported on this platform");
     return -1;
 }
 
-int32_t AudioDeviceGeneric::SetPlayoutSampleRate(
-    const uint32_t samplesPerSec)
+WebRtc_Word32 AudioDeviceGeneric::SetPlayoutSampleRate(
+    const WebRtc_UWord32 samplesPerSec)
 {
     WEBRTC_TRACE(kTraceError, kTraceAudioDevice, -1,
         "Set playout sample rate not supported on this platform");
     return -1;
 }
-
-int32_t AudioDeviceGeneric::SetLoudspeakerStatus(bool enable)
+	
+WebRtc_Word32 AudioDeviceGeneric::SetLoudspeakerStatus(bool enable)
 {
     WEBRTC_TRACE(kTraceError, kTraceAudioDevice, -1,
         "Set loudspeaker status not supported on this platform");
     return -1;
 }
 
-int32_t AudioDeviceGeneric::GetLoudspeakerStatus(bool& enable) const
+WebRtc_Word32 AudioDeviceGeneric::GetLoudspeakerStatus(bool& enable) const
 {
     WEBRTC_TRACE(kTraceError, kTraceAudioDevice, -1,
         "Get loudspeaker status not supported on this platform");
     return -1;
 }
 
-int32_t AudioDeviceGeneric::ResetAudioDevice()
+WebRtc_Word32 AudioDeviceGeneric::ResetAudioDevice()
 {
     WEBRTC_TRACE(kTraceError, kTraceAudioDevice, -1,
         "Reset audio device not supported on this platform");
     return -1;
 }
 
-int32_t AudioDeviceGeneric::SoundDeviceControl(unsigned int par1,
+WebRtc_Word32 AudioDeviceGeneric::SoundDeviceControl(unsigned int par1,
     unsigned int par2, unsigned int par3, unsigned int par4)
 {
     WEBRTC_TRACE(kTraceError, kTraceAudioDevice, -1,
@@ -73,3 +73,4 @@ bool AudioDeviceGeneric::BuiltInAECIsEnabled() const
 }
 
 }  // namespace webrtc
+

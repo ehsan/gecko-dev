@@ -54,13 +54,7 @@
     <item android:id="@+id/settings"
           android:title="@string/settings" />
 
-    <item android:id="@+id/new_guest_session"
-          android:icon="@drawable/ic_menu_guest"
+    <item android:id="@+id/toggle_profiling"
           android:visible="false"
-          android:title="@string/new_guest_session"/>
-
-    <item android:id="@+id/exit_guest_session"
-          android:icon="@drawable/ic_menu_guest"
-          android:visible="false"
-          android:title="@string/exit_guest_session"/>
+          android:title="@string/toggle_profiling" />
 </menu>

@@ -3,10 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* We don't support zooming yet, disable Animated zoom by clamping it to the default zoom. */
-const kBrowserFindZoomLevelMin = 1;
-const kBrowserFindZoomLevelMax = 1;
-
 var FindHelperUI = {
   type: "find",
   commands: {
@@ -42,22 +38,27 @@ var FindHelperUI = {
   },
 
   init: function findHelperInit() {
-    this._textbox = document.getElementById("findbar-textbox");
-    this._container = Elements.findbar;
+    this._textbox = document.getElementById("find-helper-textbox");
+    this._container = document.getElementById("content-navigator");
 
     this._cmdPrevious = document.getElementById(this.commands.previous);
     this._cmdNext = document.getElementById(this.commands.next);
 
-    this._textbox.addEventListener("keydown", this);
+    this._textbox.addEventListener('keydown', this);
 
     // Listen for find assistant messages from content
     messageManager.addMessageListener("FindAssist:Show", this);
     messageManager.addMessageListener("FindAssist:Hide", this);
 
+    // Listen for pan events happening on the browsers
+    Elements.browsers.addEventListener("PanBegin", this, false);
+    Elements.browsers.addEventListener("PanFinished", this, false);
+
     // Listen for events where form assistant should be closed
     Elements.tabList.addEventListener("TabSelect", this, true);
     Elements.browsers.addEventListener("URLChanged", this, true);
-    window.addEventListener("MozAppbarShowing", this);
+    window.addEventListener("MozContextUIShow", this, true);
+    window.addEventListener("MozContextUIExpand", this, true);
   },
 
   receiveMessage: function findHelperReceiveMessage(aMessage) {
@@ -79,6 +80,8 @@ var FindHelperUI = {
 
   handleEvent: function findHelperHandleEvent(aEvent) {
     switch (aEvent.type) {
+      case "MozContextUIShow":
+      case "MozContextUIExpand":
       case "TabSelect":
         this.hide();
         break;
@@ -88,45 +91,39 @@ var FindHelperUI = {
           this.hide();
         break;
 
-      case "keydown":
-        if (aEvent.keyCode == Ci.nsIDOMKeyEvent.DOM_VK_RETURN) {
-          if (aEvent.shiftKey) {
-            this.goToPrevious();
-          } else {
-            this.goToNext();
-          }
-        }
+      case "PanBegin":
+        this._container.style.visibility = "hidden";
+        this._textbox.collapsed = true;
         break;
 
-      case "MozAppbarShowing":
-        if (aEvent.target != this._container) {
-          this.hide();
-        }
+      case "PanFinished":
+        this._container.style.visibility = "visible";
+        this._textbox.collapsed = false;
         break;
+
+      case "keydown":
+        if (aEvent.keyCode == Ci.nsIDOMKeyEvent.DOM_VK_RETURN) {
+	  if (aEvent.shiftKey) {
+	    this.goToPrevious();
+	  } else {
+	    this.goToNext();
+	  }
+        }
     }
   },
 
   show: function findHelperShow() {
-    if (BrowserUI.isStartTabVisible || this._open)
-      return;
-
     // Hide any menus
     ContextUI.dismiss();
 
     // Shutdown selection related ui
     SelectionHelperUI.closeEditSession();
 
-    let findbar = this._container;
-    setTimeout(() => {
-      Elements.browsers.setAttribute("findbar", true);
-      findbar.show();
-
-      this.search(this._textbox.value);
-      this._textbox.select();
-      this._textbox.focus();
-
-      this._open = true;
-    }, 0);
+    this._container.show(this);
+    this.search(this._textbox.value);
+    this._textbox.select();
+    this._textbox.focus();
+    this._open = true;
 
     // Prevent the view to scroll automatically while searching
     Browser.selectedBrowser.scrollSync = false;
@@ -136,20 +133,14 @@ var FindHelperUI = {
     if (!this._open)
       return;
 
-    let onTransitionEnd = () => {
-      this._container.removeEventListener("transitionend", onTransitionEnd, true);
-      this._textbox.value = "";
-      this.status = null;
-      this._open = false;
-
-      // Restore the scroll synchronisation
-      Browser.selectedBrowser.scrollSync = true;
-    };
-
+    this._textbox.value = "";
+    this.status = null;
     this._textbox.blur();
-    this._container.addEventListener("transitionend", onTransitionEnd, true);
-    this._container.dismiss();
-    Elements.browsers.removeAttribute("findbar");
+    this._container.hide(this);
+    this._open = false;
+
+    // Restore the scroll synchronisation
+    Browser.selectedBrowser.scrollSync = true;
   },
 
   goToPrevious: function findHelperGoToPrevious() {
@@ -162,6 +153,12 @@ var FindHelperUI = {
 
   search: function findHelperSearch(aValue) {
     this.updateCommands(aValue);
+
+    // Don't bother searching if the value is empty
+    if (aValue == "") {
+      this.status = null;
+      return;
+    }
 
     Browser.selectedBrowser.messageManager.sendAsyncMessage("FindAssist:Find", { searchString: aValue });
   },
@@ -182,8 +179,8 @@ var FindHelperUI = {
 
       // Clamp the zoom level relatively to the default zoom level of the page
       let defaultZoomLevel = Browser.selectedTab.getDefaultZoomLevel();
-      zoomLevel = Util.clamp(zoomLevel, (defaultZoomLevel * kBrowserFindZoomLevelMin),
-                                        (defaultZoomLevel * kBrowserFindZoomLevelMax));
+      zoomLevel = Util.clamp(zoomLevel, (defaultZoomLevel * kBrowserFormZoomLevelMin),
+                                        (defaultZoomLevel * kBrowserFormZoomLevelMax));
       zoomLevel = Browser.selectedTab.clampZoomLevel(zoomLevel);
 
       let zoomRect = Browser._getZoomRectForPoint(aElementRect.center().x, aElementRect.y, zoomLevel);

@@ -10,19 +10,18 @@ Services.prefs.setBoolPref("extensions.checkUpdateSecurity", false);
 Services.prefs.setBoolPref("extensions.hotfix.cert.checkAttributes", false);
 
 Components.utils.import("resource://testing-common/httpd.js");
-var testserver = new HttpServer();
-testserver.start(-1);
-gPort = testserver.identity.primaryPort;
-testserver.registerDirectory("/addons/", do_get_file("addons"));
-mapFile("/data/test_hotfix_1.rdf", testserver);
-mapFile("/data/test_hotfix_2.rdf", testserver);
-mapFile("/data/test_hotfix_3.rdf", testserver);
-
+var testserver;
 const profileDir = gProfD.clone();
 profileDir.append("extensions");
 
 function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
+
+  // Create and configure the HTTP server.
+  testserver = new HttpServer();
+  testserver.registerDirectory("/data/", do_get_file("data"));
+  testserver.registerDirectory("/addons/", do_get_file("addons"));
+  testserver.start(4444);
 
   startupManager();
 
@@ -37,8 +36,7 @@ function end_test() {
 // Test that background updates find and install any available hotfix
 function run_test_1() {
   Services.prefs.setCharPref("extensions.hotfix.id", "hotfix@tests.mozilla.org");
-  Services.prefs.setCharPref("extensions.update.background.url", "http://localhost:" +
-                             gPort + "/data/test_hotfix_1.rdf");
+  Services.prefs.setCharPref("extensions.update.background.url", "http://localhost:4444/data/test_hotfix_1.rdf");
 
   prepare_test({
     "hotfix@tests.mozilla.org": [
@@ -50,7 +48,7 @@ function run_test_1() {
     "onDownloadEnded",
     "onInstallStarted",
     "onInstallEnded",
-  ], callback_soon(check_test_1));
+  ], check_test_1);
 
   // Fake a timer event
   gInternalManager.notify(null);
@@ -64,14 +62,14 @@ function check_test_1() {
     do_check_eq(aAddon.version, "1.0");
 
     aAddon.uninstall();
-    do_execute_soon(run_test_2);
+    restartManager();
+
+    run_test_2();
   });
 }
 
 // Don't install an already used hotfix
 function run_test_2() {
-  restartManager();
-
   AddonManager.addInstallListener({
     onNewInstall: function() {
       do_throw("Should not have seen a new install created");
@@ -80,7 +78,9 @@ function run_test_2() {
 
   function observer() {
     Services.obs.removeObserver(arguments.callee, "addons-background-update-complete");
-    do_execute_soon(run_test_3);
+
+    restartManager();
+    run_test_3();
   }
 
   Services.obs.addObserver(observer, "addons-background-update-complete", false);
@@ -91,9 +91,7 @@ function run_test_2() {
 
 // Install a newer hotfix
 function run_test_3() {
-  restartManager();
-  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:" +
-                             gPort + "/data/test_hotfix_2.rdf");
+  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_2.rdf");
 
   prepare_test({
     "hotfix@tests.mozilla.org": [
@@ -105,7 +103,7 @@ function run_test_3() {
     "onDownloadEnded",
     "onInstallStarted",
     "onInstallEnded",
-  ], callback_soon(check_test_3));
+  ], check_test_3);
 
   // Fake a timer event
   gInternalManager.notify(null);
@@ -119,16 +117,15 @@ function check_test_3() {
     do_check_eq(aAddon.version, "2.0");
 
     aAddon.uninstall();
-    do_execute_soon(run_test_4);
+    restartManager();
+
+    run_test_4();
   });
 }
 
 // Don't install an incompatible hotfix
 function run_test_4() {
-  restartManager();
-
-  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:" +
-                             gPort + "/data/test_hotfix_3.rdf");
+  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_3.rdf");
 
   AddonManager.addInstallListener({
     onNewInstall: function() {
@@ -138,7 +135,9 @@ function run_test_4() {
 
   function observer() {
     Services.obs.removeObserver(arguments.callee, "addons-background-update-complete");
-    do_execute_soon(run_test_5);
+
+    restartManager();
+    run_test_5();
   }
 
   Services.obs.addObserver(observer, "addons-background-update-complete", false);
@@ -149,10 +148,7 @@ function run_test_4() {
 
 // Don't install an older hotfix
 function run_test_5() {
-  restartManager();
-
-  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:" +
-                             gPort + "/data/test_hotfix_1.rdf");
+  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_1.rdf");
 
   AddonManager.addInstallListener({
     onNewInstall: function() {
@@ -162,7 +158,9 @@ function run_test_5() {
 
   function observer() {
     Services.obs.removeObserver(arguments.callee, "addons-background-update-complete");
-    do_execute_soon(run_test_6);
+
+    restartManager();
+    run_test_6();
   }
 
   Services.obs.addObserver(observer, "addons-background-update-complete", false);
@@ -173,11 +171,8 @@ function run_test_5() {
 
 // Don't re-download an already pending install
 function run_test_6() {
-  restartManager();
-
   Services.prefs.setCharPref("extensions.hotfix.lastVersion", "0");
-  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:" +
-                             gPort + "/data/test_hotfix_1.rdf");
+  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_1.rdf");
 
   prepare_test({
     "hotfix@tests.mozilla.org": [
@@ -189,7 +184,7 @@ function run_test_6() {
     "onDownloadEnded",
     "onInstallStarted",
     "onInstallEnded",
-  ], callback_soon(check_test_6));
+  ], check_test_6);
 
   // Fake a timer event
   gInternalManager.notify(null);
@@ -208,7 +203,9 @@ function check_test_6() {
 
     AddonManager.getAddonByID("hotfix@tests.mozilla.org", function(aAddon) {
       aAddon.uninstall();
-      do_execute_soon(run_test_7);
+
+      restartManager();
+      run_test_7();
     });
   }
 
@@ -220,8 +217,6 @@ function check_test_6() {
 
 // Start downloading again if something cancels the install
 function run_test_7() {
-  restartManager();
-
   Services.prefs.setCharPref("extensions.hotfix.lastVersion", "0");
 
   prepare_test({
@@ -261,7 +256,7 @@ function check_test_7(aInstall) {
     "onDownloadEnded",
     "onInstallStarted",
     "onInstallEnded",
-  ], callback_soon(finish_test_7));
+  ], finish_test_7);
 
   // Fake a timer event
   gInternalManager.notify(null);
@@ -275,17 +270,16 @@ function finish_test_7() {
     do_check_eq(aAddon.version, "1.0");
 
     aAddon.uninstall();
-    do_execute_soon(run_test_8);
+    restartManager();
+
+    run_test_8();
   });
 }
 
 // Cancel a pending install when a newer version is already available
 function run_test_8() {
-  restartManager();
-
   Services.prefs.setCharPref("extensions.hotfix.lastVersion", "0");
-  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:" +
-                             gPort + "/data/test_hotfix_1.rdf");
+  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_1.rdf");
 
   prepare_test({
     "hotfix@tests.mozilla.org": [
@@ -304,8 +298,7 @@ function run_test_8() {
 }
 
 function check_test_8() {
-  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:" +
-                             gPort + "/data/test_hotfix_2.rdf");
+  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_2.rdf");
 
   prepare_test({
     "hotfix@tests.mozilla.org": [
@@ -326,13 +319,13 @@ function check_test_8() {
 }
 
 function finish_test_8() {
-  AddonManager.getAllInstalls(callback_soon(function(aInstalls) {
+  AddonManager.getAllInstalls(function(aInstalls) {
     do_check_eq(aInstalls.length, 1);
     do_check_eq(aInstalls[0].version, "2.0");
 
     restartManager();
 
-    AddonManager.getAddonByID("hotfix@tests.mozilla.org", callback_soon(function(aAddon) {
+    AddonManager.getAddonByID("hotfix@tests.mozilla.org", function(aAddon) {
       do_check_neq(aAddon, null);
       do_check_eq(aAddon.version, "2.0");
 
@@ -340,6 +333,6 @@ function finish_test_8() {
       restartManager();
 
       end_test();
-    }));
-  }));
+    });
+  });
 }

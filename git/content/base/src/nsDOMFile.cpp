@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -36,9 +35,9 @@
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Attributes.h"
-#include "nsThreadUtils.h"
 
 #include "mozilla/dom/FileListBinding.h"
+
 using namespace mozilla;
 using namespace mozilla::dom;
 
@@ -58,7 +57,7 @@ public:
                          uint32_t aLength,
                          nsIInputStream** _retval);
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   // These are mandatory.
   NS_FORWARD_NSIINPUTSTREAM(mStream->)
@@ -84,8 +83,8 @@ private:
   nsCOMPtr<nsIIPCSerializableInputStream> mSerializableInputStream;
 };
 
-NS_IMPL_ADDREF(DataOwnerAdapter)
-NS_IMPL_RELEASE(DataOwnerAdapter)
+NS_IMPL_THREADSAFE_ADDREF(DataOwnerAdapter)
+NS_IMPL_THREADSAFE_RELEASE(DataOwnerAdapter)
 
 NS_INTERFACE_MAP_BEGIN(DataOwnerAdapter)
   NS_INTERFACE_MAP_ENTRY(nsIInputStream)
@@ -129,14 +128,6 @@ nsDOMFileBase::GetName(nsAString &aFileName)
 }
 
 NS_IMETHODIMP
-nsDOMFileBase::GetPath(nsAString &aPath)
-{
-  NS_ASSERTION(mIsFile, "Should only be called on files");
-  aPath = mPath;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDOMFileBase::GetLastModifiedDate(JSContext* cx, JS::Value *aLastModifiedDate)
 {
   JSObject* date = JS_NewDateObjectMsec(cx, JS_Now() / PR_USEC_PER_MSEC);
@@ -164,10 +155,7 @@ nsDOMFileBase::GetMozFullPath(nsAString &aFileName)
 NS_IMETHODIMP
 nsDOMFileBase::GetMozFullPathInternal(nsAString &aFileName)
 {
-  if (!mIsFile) {
-    return NS_ERROR_FAILURE;
-  }
-
+  NS_ASSERTION(mIsFile, "Should only be called on files");
   aFileName.Truncate();
   return NS_OK;
 }
@@ -272,7 +260,8 @@ nsDOMFileBase::MozSlice(int64_t aStart, int64_t aEnd,
   if (sgo) {
     nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(sgo);
     if (window) {
-      nsCOMPtr<nsIDocument> document = window->GetExtantDoc();
+      nsCOMPtr<nsIDocument> document =
+        do_QueryInterface(window->GetExtantDocument());
       if (document) {
         document->WarnOnceAbout(nsIDocument::eMozSlice);
       }
@@ -287,7 +276,7 @@ nsDOMFileBase::GetInternalStream(nsIInputStream **aStream)
 {
   // Must be overridden
   NS_NOTREACHED("Must override GetInternalStream");
-
+  
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -458,13 +447,11 @@ NS_INTERFACE_MAP_BEGIN(nsDOMFile)
 NS_INTERFACE_MAP_END
 
 // Threadsafe when GetMutable() == false
-NS_IMPL_ADDREF(nsDOMFile)
-NS_IMPL_RELEASE(nsDOMFile)
+NS_IMPL_THREADSAFE_ADDREF(nsDOMFile)
+NS_IMPL_THREADSAFE_RELEASE(nsDOMFile)
 
 ////////////////////////////////////////////////////////////////////////////
 // nsDOMFileCC implementation
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMFileCC)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsDOMFileCC)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMFileCC)
@@ -604,15 +591,6 @@ nsDOMFileFile::GetInternalStream(nsIInputStream **aStream)
                                       -1, -1, sFileStreamFlags);
 }
 
-void
-nsDOMFileFile::SetPath(const nsAString& aPath)
-{
-  MOZ_ASSERT(aPath.IsEmpty() ||
-             aPath[aPath.Length() - 1] == PRUnichar('/'),
-             "Path must end with a path separator");
-  mPath = aPath;
-}
-
 ////////////////////////////////////////////////////////////////////////////
 // nsDOMMemoryFile implementation
 
@@ -634,9 +612,6 @@ nsDOMMemoryFile::GetInternalStream(nsIInputStream **aStream)
   return DataOwnerAdapter::Create(mDataOwner, mStart, mLength, aStream);
 }
 
-/* static */ StaticMutex
-nsDOMMemoryFile::DataOwner::sDataOwnerMutex;
-
 /* static */ StaticAutoPtr<LinkedList<nsDOMMemoryFile::DataOwner> >
 nsDOMMemoryFile::DataOwner::sDataOwners;
 
@@ -646,19 +621,20 @@ nsDOMMemoryFile::DataOwner::sMemoryReporterRegistered;
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(DOMMemoryFileDataOwnerMallocSizeOf)
 
 class nsDOMMemoryFileDataOwnerMemoryReporter MOZ_FINAL
-  : public MemoryMultiReporter
+  : public nsIMemoryMultiReporter
 {
-public:
-  nsDOMMemoryFileDataOwnerMemoryReporter()
-    : MemoryMultiReporter("dom-memory-file-data-owner")
-  {}
+  NS_DECL_ISUPPORTS
 
-  NS_IMETHOD CollectReports(nsIMemoryReporterCallback *aCallback,
+  NS_IMETHOD GetName(nsACString& aName)
+  {
+    aName.AssignASCII("dom-memory-file-data-owner");
+    return NS_OK;
+  }
+
+  NS_IMETHOD CollectReports(nsIMemoryMultiReporterCallback *aCallback,
                             nsISupports *aClosure)
   {
     typedef nsDOMMemoryFile::DataOwner DataOwner;
-
-    StaticMutexAutoLock lock(DataOwner::sDataOwnerMutex);
 
     if (!DataOwner::sDataOwners) {
       return NS_OK;
@@ -726,17 +702,19 @@ public:
   }
 };
 
+NS_IMPL_ISUPPORTS1(nsDOMMemoryFileDataOwnerMemoryReporter,
+                   nsIMemoryMultiReporter)
+
 /* static */ void
 nsDOMMemoryFile::DataOwner::EnsureMemoryReporterRegistered()
 {
-  sDataOwnerMutex.AssertCurrentThreadOwns();
   if (sMemoryReporterRegistered) {
     return;
   }
 
   nsRefPtr<nsDOMMemoryFileDataOwnerMemoryReporter> reporter = new
     nsDOMMemoryFileDataOwnerMemoryReporter();
-  NS_RegisterMemoryReporter(reporter);
+  NS_RegisterMemoryMultiReporter(reporter);
 
   sMemoryReporterRegistered = true;
 }
@@ -756,7 +734,7 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMFileList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMFileList)
 
 JSObject*
-nsDOMFileList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+nsDOMFileList::WrapObject(JSContext *cx, JSObject *scope)
 {
   return FileListBinding::Wrap(cx, scope, this);
 }
@@ -793,27 +771,4 @@ nsDOMFileInternalUrlHolder::~nsDOMFileInternalUrlHolder() {
     CopyUTF16toUTF8(mUrl, narrowUrl);
     nsBlobProtocolHandler::RemoveDataEntry(narrowUrl);
   }
-}
-
-////////////////////////////////////////////////////////////////////////////
-// nsDOMTemporaryFileBlob implementation
-already_AddRefed<nsIDOMBlob>
-nsDOMTemporaryFileBlob::CreateSlice(uint64_t aStart, uint64_t aLength,
-                                    const nsAString& aContentType)
-{
-  if (aStart + aLength > mLength)
-    return nullptr;
-
-  nsCOMPtr<nsIDOMBlob> t =
-    new nsDOMTemporaryFileBlob(this, aStart + mStartPos, aLength, aContentType);
-  return t.forget();
-}
-
-NS_IMETHODIMP
-nsDOMTemporaryFileBlob::GetInternalStream(nsIInputStream **aStream)
-{
-  nsCOMPtr<nsTemporaryFileInputStream> stream =
-    new nsTemporaryFileInputStream(mFileDescOwner, mStartPos, mStartPos + mLength);
-  stream.forget(aStream);
-  return NS_OK;
 }

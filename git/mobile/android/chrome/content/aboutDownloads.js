@@ -10,8 +10,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/PluralForm.jsm");
 Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
-
 let gStrings = Services.strings.createBundle("chrome://browser/locale/aboutDownloads.properties");
 
 let downloadTemplate =
@@ -151,9 +149,9 @@ let Downloads = {
     this._stepAddEntries(privateEntries, this._privateList, privateEntries.length);
 
     // Add non-private downloads
-    let normalEntries = this.getDownloads({ isPrivate: false });    
-    this._stepAddEntries(normalEntries, this._normalList, 1, this._scrollToSelectedDownload.bind(this));    
-    ContextMenus.init();    
+    let normalEntries = this.getDownloads({ isPrivate: false });
+    this._stepAddEntries(normalEntries, this._normalList, 1);
+    ContextMenus.init();
   },
 
   uninit: function dl_uninit() {
@@ -252,11 +250,11 @@ let Downloads = {
   },
 
   _getDownloadSize: function dl_getDownloadSize(aSize) {
-    if (aSize > 0) {
-      let displaySize = DownloadUtils.convertByteUnits(aSize);
-      return displaySize.join(""); // [0] is size, [1] is units
-    }
-    return gStrings.GetStringFromName("downloadState.unknownSize");
+    let displaySize = DownloadUtils.convertByteUnits(aSize);
+    if (displaySize[0] > 0) // [0] is size, [1] is units
+      return displaySize.join("");
+    else
+      return gStrings.GetStringFromName("downloadState.unknownSize");
   },
 
   // Not all states are displayed as-is on mobile, some are translated to a generic state
@@ -360,7 +358,6 @@ let Downloads = {
 
       let updatedState = this._getState(aStmt.row.state);
       // Try to get the attribute values from the statement
-
       return {
         guid: aStmt.row.guid,
         target: aStmt.row.name,
@@ -380,14 +377,9 @@ let Downloads = {
     }
   },
 
-  _stepAddEntries: function dv__stepAddEntries(aEntries, aList, aNumItems, aCallback) {
-    
-    if (aEntries.length == 0){
-      if (aCallback)
-        aCallback();
-
+  _stepAddEntries: function dv__stepAddEntries(aEntries, aList, aNumItems) {
+    if (aEntries.length == 0)
       return;
-    }
 
     let attrs = aEntries.shift();
     let item = this._createItem(downloadTemplate, attrs);
@@ -396,12 +388,12 @@ let Downloads = {
     // Add another item to the list if we should; otherwise, let the UI update
     // and continue later
     if (aNumItems > 1) {
-      this._stepAddEntries(aEntries, aList, aNumItems - 1, aCallback);
+      this._stepAddEntries(aEntries, aList, aNumItems - 1);
     } else {
       // Use a shorter delay for earlier downloads to display them faster
       let delay = Math.min(aList.itemCount * 10, 300);
       setTimeout(function () {
-        this._stepAddEntries(aEntries, aList, 5, aCallback);
+        this._stepAddEntries(aEntries, aList, 5);
       }.bind(this), delay);
     }
   },
@@ -462,15 +454,20 @@ let Downloads = {
 
   removeDownload: function dl_removeDownload(aItem) {
     this._getDownloadForElement(aItem, function(aDownload) {
-      if (aDownload.targetFile) {
-        OS.File.remove(aDownload.targetFile.path).then(null, function onError(reason) {
-          if (!(reason instanceof OS.File.Error && reason.becauseNoSuchFile)) {
-            this.logError("removeDownload() " + reason, aDownload);
-          }
-        }.bind(this));
+      let f = null;
+      try {
+        f = aDownload.targetFile;
+      } catch (ex) {
+        // even if there is no file, pretend that there is so that we can remove
+        // it from the list
+        f = { leafName: "" };
       }
-
       aDownload.remove();
+      try {
+        if (f) f.remove(false);
+      } catch (ex) {
+        this.logError("removeDownload() " + ex, aDownload);
+      }
     }.bind(this));
   },
 
@@ -528,15 +525,17 @@ let Downloads = {
 
   cancelDownload: function dl_cancelDownload(aItem) {
     this._getDownloadForElement(aItem, function(aDownload) {
-      OS.File.remove(aDownload.targetFile.path).then(null, function onError(reason) {
-        if (!(reason instanceof OS.File.Error && reason.becauseNoSuchFile)) {
-          this.logError("cancelDownload() " + reason, aDownload);
-        }
-      }.bind(this));
+      try {
+        aDownload.cancel();
+        let f = aDownload.targetFile;
 
-      aDownload.cancel();
+        if (f.exists())
+          f.remove(false);
 
-      this._updateDownloadRow(aItem, aDownload);
+        this._updateDownloadRow(aItem, aDownload);
+      } catch (ex) {
+        this.logError("cancelDownload() " + ex, aDownload);
+      }
     }.bind(this));
   },
 
@@ -552,31 +551,6 @@ let Downloads = {
     } catch (ex) {
       this.logError("_updateDownloadRow() " + ex, aDownload);
     }
-  },
-  
-  /**
-   * In case a specific downloadId was passed while opening, scrolls the list to 
-   * the given elemenet
-   */
-
-  _scrollToSelectedDownload : function dl_scrollToSelected() {
-    let spec = document.location.href;
-    let pos = spec.indexOf("?");
-    let query = "";
-    if (pos >= 0)
-      query = spec.substring(pos + 1);
-
-    // Just assume the query is "id=<id>"
-    let id = query.substring(3);
-    if (!id) {
-      return;
-    }    
-    downloadElement = this._getElementForDownload(id);
-    if (!downloadElement) {
-      return;
-    }
-
-    downloadElement.scrollIntoView();
   },
 
   /**

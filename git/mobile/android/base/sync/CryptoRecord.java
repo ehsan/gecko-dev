@@ -16,7 +16,6 @@ import org.mozilla.gecko.sync.crypto.KeyBundle;
 import org.mozilla.gecko.sync.crypto.MissingCryptoInputException;
 import org.mozilla.gecko.sync.crypto.NoKeyBundleException;
 import org.mozilla.gecko.sync.repositories.domain.Record;
-import org.mozilla.gecko.sync.repositories.domain.RecordParseException;
 
 /**
  * A Sync crypto record has:
@@ -129,7 +128,7 @@ public class CryptoRecord extends Record {
    * @throws IOException
    */
   public static CryptoRecord fromJSONRecord(String jsonRecord)
-      throws ParseException, NonObjectJSONException, IOException, RecordParseException {
+      throws ParseException, NonObjectJSONException, IOException {
     byte[] bytes = jsonRecord.getBytes("UTF-8");
     ExtendedJSONObject object = ExtendedJSONObject.parseUTF8AsJSONObject(bytes);
 
@@ -138,7 +137,7 @@ public class CryptoRecord extends Record {
 
   // TODO: defensive programming.
   public static CryptoRecord fromJSONRecord(ExtendedJSONObject jsonRecord)
-      throws IOException, ParseException, NonObjectJSONException, RecordParseException {
+      throws IOException, ParseException, NonObjectJSONException {
     String id                  = (String) jsonRecord.get(KEY_ID);
     String collection          = (String) jsonRecord.get(KEY_COLLECTION);
     String jsonEncodedPayload  = (String) jsonRecord.get(KEY_PAYLOAD);
@@ -149,29 +148,15 @@ public class CryptoRecord extends Record {
     record.guid         = id;
     record.collection   = collection;
     if (jsonRecord.containsKey(KEY_MODIFIED)) {
-      Long timestamp = jsonRecord.getTimestamp(KEY_MODIFIED);
-      if (timestamp == null) {
-        throw new RecordParseException("timestamp could not be parsed");
-      }
-      record.lastModified = timestamp.longValue();
+      record.lastModified = jsonRecord.getTimestamp(KEY_MODIFIED);
     }
     if (jsonRecord.containsKey(KEY_SORTINDEX)) {
-      // getLong tries to cast to Long, and might return null. We catch all
-      // exceptions, just to be safe.
-      try {
-        record.sortIndex = jsonRecord.getLong(KEY_SORTINDEX);
-      } catch (Exception e) {
-        throw new RecordParseException("timestamp could not be parsed");
-      }
+      record.sortIndex = jsonRecord.getLong(KEY_SORTINDEX);
     }
     if (jsonRecord.containsKey(KEY_TTL)) {
       // TTLs are never returned by the sync server, so should never be true if
       // the record was fetched.
-      try {
-        record.ttl = jsonRecord.getLong(KEY_TTL);
-      } catch (Exception e) {
-        throw new RecordParseException("TTL could not be parsed");
-      }
+      record.ttl = jsonRecord.getLong(KEY_TTL);
     }
     // TODO: deleted?
     return record;
@@ -210,7 +195,7 @@ public class CryptoRecord extends Record {
     CryptoInfo info = CryptoInfo.encrypt(cleartextBytes, keyBundle);
     String message = new String(Base64.encodeBase64(info.getMessage()));
     String iv      = new String(Base64.encodeBase64(info.getIV()));
-    String hmac    = Utils.byte2Hex(info.getHMAC());
+    String hmac    = Utils.byte2hex(info.getHMAC());
     ExtendedJSONObject ciphertext = new ExtendedJSONObject();
     ciphertext.put(KEY_CIPHERTEXT, message);
     ciphertext.put(KEY_HMAC, hmac);

@@ -13,7 +13,7 @@
 
 #include <list>
 
-#include "webrtc/modules/video_coding/codecs/test_framework/normal_async_test.h"
+#include "normal_async_test.h"
 
 class PacketLossTest : public NormalAsyncTest
 {
@@ -51,9 +51,9 @@ protected:
     int _totalKept;
     int _totalThrown;
     int _sumChannelBytes;
-    std::list<uint32_t> _frameQueue;
-    uint8_t* _lastFrame;
-    uint32_t _lastFrameLength;
+    std::list<WebRtc_UWord32> _frameQueue;
+    WebRtc_UWord8* _lastFrame;
+    WebRtc_UWord32 _lastFrameLength;
 };
 
 

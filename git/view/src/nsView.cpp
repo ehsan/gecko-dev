@@ -6,14 +6,16 @@
 #include "nsView.h"
 
 #include "mozilla/Attributes.h"
-#include "mozilla/BasicEvents.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Likely.h"
-#include "mozilla/Poison.h"
 #include "nsIWidget.h"
+#include "nsWidgetsCID.h"
 #include "nsViewManager.h"
 #include "nsIFrame.h"
-#include "nsPresArena.h"
+#include "nsGUIEvent.h"
+#include "nsIComponentManager.h"
+#include "nsGfxCIID.h"
+#include "nsIInterfaceRequestor.h"
 #include "nsXULPopupManager.h"
 #include "nsIWidgetListener.h"
 
@@ -32,6 +34,7 @@ nsView::nsView(nsViewManager* aViewManager, nsViewVisibility aVisibility)
   mViewManager = aViewManager;
   mDirtyRegion = nullptr;
   mWidgetIsTopLevel = false;
+  mInAlternatePaint = false;
 }
 
 void nsView::DropMouseGrabbing()
@@ -94,24 +97,6 @@ nsView::~nsView()
   delete mDirtyRegion;
 }
 
-class DestroyWidgetRunnable : public nsRunnable {
-public:
-  NS_DECL_NSIRUNNABLE
-
-  explicit DestroyWidgetRunnable(nsIWidget* aWidget) : mWidget(aWidget) {}
-
-private:
-  nsCOMPtr<nsIWidget> mWidget;
-};
-
-NS_IMETHODIMP DestroyWidgetRunnable::Run()
-{
-  mWidget->Destroy();
-  mWidget = nullptr;
-  return NS_OK;
-}
-
-
 void nsView::DestroyWidget()
 {
   if (mWindow)
@@ -125,11 +110,7 @@ void nsView::DestroyWidget()
     }
     else {
       mWindow->SetWidgetListener(nullptr);
-
-      nsCOMPtr<nsIRunnable> widgetDestroyer =
-        new DestroyWidgetRunnable(mWindow);
-
-      NS_DispatchToMainThread(widgetDestroyer);
+      mWindow->Destroy();
     }
 
     NS_RELEASE(mWindow);
@@ -153,9 +134,7 @@ nsView* nsView::GetViewFor(nsIWidget* aWidget)
 
 void nsView::Destroy()
 {
-  this->~nsView();
-  mozWritePoison(this, sizeof(*this));
-  nsView::operator delete(this);
+  delete this;
 }
 
 void nsView::SetPosition(nscoord aX, nscoord aY)
@@ -208,10 +187,9 @@ nsIntRect nsView::CalcWidgetBounds(nsWindowType aType)
   nsRect viewBounds(mDimBounds);
 
   nsView* parent = GetParent();
-  nsIWidget* parentWidget = nullptr;
   if (parent) {
     nsPoint offset;
-    parentWidget = parent->GetNearestWidget(&offset, p2a);
+    nsIWidget* parentWidget = parent->GetNearestWidget(&offset, p2a);
     // make viewBounds be relative to the parent widget, in appunits
     viewBounds += offset;
 
@@ -226,33 +204,6 @@ nsIntRect nsView::CalcWidgetBounds(nsWindowType aType)
 
   // Compute widget bounds in device pixels
   nsIntRect newBounds = viewBounds.ToNearestPixels(p2a);
-
-#ifdef XP_MACOSX
-  // cocoa rounds widget coordinates to the nearest global "display pixel"
-  // integer value. So we avoid fractional display pixel values by rounding
-  // to the nearest value that won't yield a fractional display pixel.
-  nsIWidget* widget = parentWidget ? parentWidget : mWindow;
-  uint32_t round;
-  if (aType == eWindowType_popup && widget &&
-      ((round = widget->RoundsWidgetCoordinatesTo()) > 1)) {
-    nsIntSize pixelRoundedSize = newBounds.Size();
-    // round the top left and bottom right to the nearest round pixel
-    newBounds.x = NSToIntRoundUp(NSAppUnitsToDoublePixels(viewBounds.x, p2a) / round) * round;
-    newBounds.y = NSToIntRoundUp(NSAppUnitsToDoublePixels(viewBounds.y, p2a) / round) * round;
-    newBounds.width =
-      NSToIntRoundUp(NSAppUnitsToDoublePixels(viewBounds.XMost(), p2a) / round) * round - newBounds.x;
-    newBounds.height =
-      NSToIntRoundUp(NSAppUnitsToDoublePixels(viewBounds.YMost(), p2a) / round) * round - newBounds.y;
-    // but if that makes the widget larger then our frame may not paint the
-    // extra pixels, so reduce the size to the nearest round value
-    if (newBounds.width > pixelRoundedSize.width) {
-      newBounds.width -= round;
-    }
-    if (newBounds.height > pixelRoundedSize.height) {
-      newBounds.height -= round;
-    }
-  }
-#endif
 
   // Compute where the top-left of our widget ended up relative to the parent
   // widget, in appunits.
@@ -277,39 +228,16 @@ void nsView::DoResetWidgetBounds(bool aMoveOnly,
   if (mViewManager->GetRootView() == this) {
     return;
   }
-
-  NS_PRECONDITION(mWindow, "Why was this called??");
-
-  // Hold this ref to make sure it stays alive.
-  nsCOMPtr<nsIWidget> widget = mWindow;
-
-  // Stash a copy of these and use them so we can handle this being deleted (say
-  // from sync painting/flushing from Show/Move/Resize on the widget).
-  nsIntRect newBounds;
-  nsRefPtr<nsDeviceContext> dx = mViewManager->GetDeviceContext();
+  
+  nsIntRect curBounds;
+  mWindow->GetClientBounds(curBounds);
 
   nsWindowType type;
-  widget->GetWindowType(type);
+  mWindow->GetWindowType(type);
 
-  nsIntRect curBounds;
-  widget->GetClientBounds(curBounds);
-  bool invisiblePopup = type == eWindowType_popup &&
-                        ((curBounds.IsEmpty() && mDimBounds.IsEmpty()) ||
-                         mVis == nsViewVisibility_kHide);
-
-  if (invisiblePopup) {
-    // We're going to hit the early exit below, avoid calling CalcWidgetBounds.
-  } else {
-    newBounds = CalcWidgetBounds(type);
-  }
-
-  bool curVisibility = widget->IsVisible();
-  bool newVisibility = IsEffectivelyVisible();
-  if (curVisibility && !newVisibility) {
-    widget->Show(false);
-  }
-
-  if (invisiblePopup) {
+  if (type == eWindowType_popup &&
+      ((curBounds.IsEmpty() && mDimBounds.IsEmpty()) ||
+       mVis == nsViewVisibility_kHide)) {
     // Don't manipulate empty or hidden popup widgets. For example there's no
     // point moving hidden comboboxes around, or doing X server roundtrips
     // to compute their true screen position. This could mean that WidgetToScreen
@@ -317,6 +245,10 @@ void nsView::DoResetWidgetBounds(bool aMoveOnly,
     // positions aren't reliable anyway because of correction to be on or off-screen.
     return;
   }
+
+  NS_PRECONDITION(mWindow, "Why was this called??");
+
+  nsIntRect newBounds = CalcWidgetBounds(type);
 
   bool changedPos = curBounds.TopLeft() != newBounds.TopLeft();
   bool changedSize = curBounds.Size() != newBounds.Size();
@@ -327,46 +259,27 @@ void nsView::DoResetWidgetBounds(bool aMoveOnly,
   // because of the potential for device-pixel coordinate spaces for mixed
   // hidpi/lodpi screens to overlap each other and result in bad placement
   // (bug 814434).
-  double invScale;
-
-  // Bug 861270: for correct widget manipulation at arbitrary scale factors,
-  // prefer to base scaling on widget->GetDefaultScale(). But only do this if
-  // it matches the view manager's device context scale after allowing for the
-  // quantization to app units, because of OS X multiscreen issues (where the
-  // only two scales are 1.0 or 2.0, and so the quantization doesn't actually
-  // cause problems anyhow).
-  // In the case of a mismatch, fall back to scaling based on the dev context's
-  // unscaledAppUnitsPerDevPixel value. On platforms where the device-pixel
-  // scale is uniform across all displays (currently all except OS X), we'll
-  // always use the precise value from mWindow->GetDefaultScale here.
-  CSSToLayoutDeviceScale scale = widget->GetDefaultScale();
-  if (NSToIntRound(60.0 / scale.scale) == dx->UnscaledAppUnitsPerDevPixel()) {
-    invScale = 1.0 / scale.scale;
-  } else {
-    invScale = dx->UnscaledAppUnitsPerDevPixel() / 60.0;
-  }
+  nsRefPtr<nsDeviceContext> dx;
+  mViewManager->GetDeviceContext(*getter_AddRefs(dx));
+  double invScale = dx->UnscaledAppUnitsPerDevPixel() / 60.0;
 
   if (changedPos) {
     if (changedSize && !aMoveOnly) {
-      widget->ResizeClient(newBounds.x * invScale,
-                           newBounds.y * invScale,
-                           newBounds.width * invScale,
-                           newBounds.height * invScale,
-                           aInvalidateChangedSize);
+      mWindow->ResizeClient(newBounds.x * invScale,
+                            newBounds.y * invScale,
+                            newBounds.width * invScale,
+                            newBounds.height * invScale,
+                            aInvalidateChangedSize);
     } else {
-      widget->MoveClient(newBounds.x * invScale,
-                         newBounds.y * invScale);
+      mWindow->MoveClient(newBounds.x * invScale,
+                          newBounds.y * invScale);
     }
   } else {
     if (changedSize && !aMoveOnly) {
-      widget->ResizeClient(newBounds.width * invScale,
-                           newBounds.height * invScale,
-                           aInvalidateChangedSize);
+      mWindow->ResizeClient(newBounds.width * invScale,
+                            newBounds.height * invScale,
+                            aInvalidateChangedSize);
     } // else do nothing!
-  }
-
-  if (!curVisibility && newVisibility) {
-    widget->Show(true);
   }
 }
 
@@ -401,7 +314,13 @@ void nsView::NotifyEffectiveVisibilityChanged(bool aEffectivelyVisible)
 
   if (nullptr != mWindow)
   {
-    ResetWidgetBounds(false, false);
+    if (aEffectivelyVisible)
+    {
+      DoResetWidgetBounds(false, true);
+      mWindow->Show(true);
+    }
+    else
+      mWindow->Show(false);
   }
 
   for (nsView* child = mFirstChild; child; child = child->mNextSibling) {
@@ -567,7 +486,8 @@ nsresult nsView::CreateWidget(nsWidgetInitData *aWidgetInitData,
 
   nsIntRect trect = CalcWidgetBounds(aWidgetInitData->mWindowType);
 
-  nsRefPtr<nsDeviceContext> dx = mViewManager->GetDeviceContext();
+  nsRefPtr<nsDeviceContext> dx;
+  mViewManager->GetDeviceContext(*getter_AddRefs(dx));
 
   nsIWidget* parentWidget =
     GetParent() ? GetParent()->GetNearestWidget(nullptr) : nullptr;
@@ -605,7 +525,8 @@ nsresult nsView::CreateWidgetForParent(nsIWidget* aParentWidget,
 
   nsIntRect trect = CalcWidgetBounds(aWidgetInitData->mWindowType);
 
-  nsRefPtr<nsDeviceContext> dx = mViewManager->GetDeviceContext();
+  nsRefPtr<nsDeviceContext> dx;
+  mViewManager->GetDeviceContext(*getter_AddRefs(dx));
 
   mWindow =
     aParentWidget->CreateChild(trect, dx, aWidgetInitData).get();
@@ -630,7 +551,8 @@ nsresult nsView::CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
 
   nsIntRect trect = CalcWidgetBounds(aWidgetInitData->mWindowType);
 
-  nsRefPtr<nsDeviceContext> dx = mViewManager->GetDeviceContext();
+  nsRefPtr<nsDeviceContext> dx;
+  mViewManager->GetDeviceContext(*getter_AddRefs(dx));
 
   // XXX/cjones: having these two separate creation cases seems ... um
   // ... unnecessary, but it's the way the old code did it.  Please
@@ -698,7 +620,8 @@ nsresult nsView::AttachToTopLevelWidget(nsIWidget* aWidget)
     }
   }
 
-  nsRefPtr<nsDeviceContext> dx = mViewManager->GetDeviceContext();
+  nsRefPtr<nsDeviceContext> dx;
+  mViewManager->GetDeviceContext(*getter_AddRefs(dx));
 
   // Note, the previous device context will be released. Detaching
   // will not restore the old one.
@@ -735,11 +658,12 @@ nsresult nsView::DetachFromTopLevelWidget()
   return NS_OK;
 }
 
-void nsView::SetZIndex(bool aAuto, int32_t aZIndex)
+void nsView::SetZIndex(bool aAuto, int32_t aZIndex, bool aTopMost)
 {
   bool oldIsAuto = GetZIndexIsAuto();
   mVFlags = (mVFlags & ~NS_VIEW_FLAG_AUTO_ZINDEX) | (aAuto ? NS_VIEW_FLAG_AUTO_ZINDEX : 0);
   mZIndex = aZIndex;
+  SetTopMost(aTopMost);
   
   if (HasWidget() || !oldIsAuto || !aAuto) {
     UpdateNativeWidgetZIndexes(this, FindNonAutoZIndex(this));
@@ -995,7 +919,8 @@ nsView::WindowResized(nsIWidget* aWidget, int32_t aWidth, int32_t aHeight)
   // window creation
   SetForcedRepaint(true);
   if (this == mViewManager->GetRootView()) {
-    nsRefPtr<nsDeviceContext> devContext = mViewManager->GetDeviceContext();
+    nsRefPtr<nsDeviceContext> devContext;
+    mViewManager->GetDeviceContext(*getter_AddRefs(devContext));
     // ensure DPI is up-to-date, in case of window being opened and sized
     // on a non-default-dpi display (bug 829963)
     devContext->CheckDPIChange();
@@ -1038,12 +963,19 @@ nsView::WillPaintWindow(nsIWidget* aWidget)
 }
 
 bool
-nsView::PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion)
+nsView::PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion, uint32_t aFlags)
 {
   NS_ASSERTION(this == nsView::GetViewFor(aWidget), "wrong view for widget?");
 
+  mInAlternatePaint = aFlags & PAINT_IS_ALTERNATE;
   nsRefPtr<nsViewManager> vm = mViewManager;
-  bool result = vm->PaintWindow(aWidget, aRegion);
+  bool result = vm->PaintWindow(aWidget, aRegion, aFlags);
+  // PaintWindow can destroy this via WillPaintWindow notification, so we have
+  // to re-get the view from the widget.
+  nsView* view = nsView::GetViewFor(aWidget);
+  if (view) {
+    view->mInAlternatePaint = false;
+  }
   return result;
 }
 
@@ -1064,8 +996,7 @@ nsView::RequestRepaint()
 }
 
 nsEventStatus
-nsView::HandleEvent(WidgetGUIEvent* aEvent,
-                    bool aUseAttachedEvents)
+nsView::HandleEvent(nsGUIEvent* aEvent, bool aUseAttachedEvents)
 {
   NS_PRECONDITION(nullptr != aEvent->widget, "null widget ptr");
 

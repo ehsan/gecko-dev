@@ -4,7 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsString.h"
+#include "nsReadableUtils.h"
 #include "nsNetUtil.h"
+#include "nsEscape.h"
 #include "nsCRT.h"
 
 #include "nsIPlatformCharset.h"
@@ -18,18 +21,12 @@
 #include "nsIURIFixup.h"
 #include "nsDefaultURIFixup.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/ContentChild.h"
-#include "mozilla/ipc/InputStreamUtils.h"
-#include "mozilla/ipc/URIUtils.h"
 #include "nsIObserverService.h"
-#include "nsXULAppAPI.h"
 
 using namespace mozilla;
 
 /* Implementation file */
 NS_IMPL_ISUPPORTS1(nsDefaultURIFixup, nsIURIFixup)
-
-static bool sFixTypos = true;
 
 nsDefaultURIFixup::nsDefaultURIFixup()
 {
@@ -116,8 +113,7 @@ nsDefaultURIFixup::CreateExposableURI(nsIURI *aURI, nsIURI **aReturn)
 
 /* nsIURI createFixupURI (in nsAUTF8String aURIText, in unsigned long aFixupFlags); */
 NS_IMETHODIMP
-nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupFlags,
-                                  nsIInputStream **aPostData, nsIURI **aURI)
+nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupFlags, nsIURI **aURI)
 {
     NS_ENSURE_ARG(!aStringURI.IsEmpty());
     NS_ENSURE_ARG_POINTER(aURI);
@@ -151,7 +147,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
                                        sizeof("view-source:") - 1,
                                        uriString.Length() -
                                          (sizeof("view-source:") - 1)),
-                             newFixupFlags, aPostData, getter_AddRefs(uri));
+                             newFixupFlags, getter_AddRefs(uri));
         if (NS_FAILED(rv))
             return NS_ERROR_FAILURE;
         nsAutoCString spec;
@@ -216,50 +212,6 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
                          scheme.LowerCaseEqualsLiteral("ftp") ||
                          scheme.LowerCaseEqualsLiteral("file"));
 
-    // Check if we want to fix up common scheme typos.
-    rv = Preferences::AddBoolVarCache(&sFixTypos,
-                                      "browser.fixup.typo.scheme",
-                                      sFixTypos);
-    MOZ_ASSERT(NS_SUCCEEDED(rv),
-              "Failed to observe \"browser.fixup.typo.scheme\"");
-
-    // Fix up common scheme typos.
-    if (sFixTypos && (aFixupFlags & FIXUP_FLAG_FIX_SCHEME_TYPOS)) {
-
-        // Fast-path for common cases.
-        if (scheme.IsEmpty() ||
-            scheme.LowerCaseEqualsLiteral("http") ||
-            scheme.LowerCaseEqualsLiteral("https") ||
-            scheme.LowerCaseEqualsLiteral("ftp") ||
-            scheme.LowerCaseEqualsLiteral("file")) {
-            // Do nothing.
-        } else if (scheme.LowerCaseEqualsLiteral("ttp")) {
-            // ttp -> http.
-            uriString.Replace(0, 3, "http");
-            scheme.AssignLiteral("http");
-        } else if (scheme.LowerCaseEqualsLiteral("ttps")) {
-            // ttps -> https.
-            uriString.Replace(0, 4, "https");
-            scheme.AssignLiteral("https");
-        } else if (scheme.LowerCaseEqualsLiteral("tps")) {
-            // tps -> https.
-            uriString.Replace(0, 3, "https");
-            scheme.AssignLiteral("https");
-        } else if (scheme.LowerCaseEqualsLiteral("ps")) {
-            // ps -> https.
-            uriString.Replace(0, 2, "https");
-            scheme.AssignLiteral("https");
-        } else if (scheme.LowerCaseEqualsLiteral("ile")) {
-            // ile -> file.
-            uriString.Replace(0, 3, "file");
-            scheme.AssignLiteral("file");
-        } else if (scheme.LowerCaseEqualsLiteral("le")) {
-            // le -> file.
-            uriString.Replace(0, 2, "file");
-            scheme.AssignLiteral("file");
-        }
-    }
-
     // Now we need to check whether "scheme" is something we don't
     // really know about.
     nsCOMPtr<nsIProtocolHandler> ourHandler, extHandler;
@@ -291,7 +243,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
         NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
         if (fixupKeywords)
         {
-            KeywordURIFixup(uriString, aPostData, aURI);
+            KeywordURIFixup(uriString, aURI);
             if(*aURI)
                 return NS_OK;
         }
@@ -357,7 +309,7 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
     // keyword match.  This catches search strings with '.' or ':' in them.
     if (!*aURI && fixupKeywords)
     {
-        KeywordToURI(aStringURI, aPostData, aURI);
+        KeywordToURI(aStringURI, aURI);
         if(*aURI)
             return NS_OK;
     }
@@ -366,13 +318,9 @@ nsDefaultURIFixup::CreateFixupURI(const nsACString& aStringURI, uint32_t aFixupF
 }
 
 NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
-                                              nsIInputStream **aPostData,
                                               nsIURI **aURI)
 {
     *aURI = nullptr;
-    if (aPostData) {
-        *aPostData = nullptr;
-    }
     NS_ENSURE_STATE(Preferences::GetRootBranch());
 
     // Strip leading "?" and leading/trailing spaces from aKeyword
@@ -381,28 +329,6 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
         keyword.Cut(0, 1);
     }
     keyword.Trim(" ");
-
-    if (XRE_GetProcessType() == GeckoProcessType_Content) {
-        dom::ContentChild* contentChild = dom::ContentChild::GetSingleton();
-        if (!contentChild) {
-            return NS_ERROR_NOT_AVAILABLE;
-        }
-
-        ipc::OptionalInputStreamParams postData;
-        ipc::OptionalURIParams uri;
-        if (!contentChild->SendKeywordToURI(keyword, &postData, &uri)) {
-            return NS_ERROR_FAILURE;
-        }
-
-        if (aPostData) {
-            nsCOMPtr<nsIInputStream> temp = DeserializeInputStream(postData);
-            temp.forget(aPostData);
-        }
-
-        nsCOMPtr<nsIURI> temp = DeserializeURI(uri);
-        temp.forget(aURI);
-        return NS_OK;
-    }
 
 #ifdef MOZ_TOOLKIT_SEARCH
     // Try falling back to the search service's default search engine
@@ -414,30 +340,18 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
             nsCOMPtr<nsISearchSubmission> submission;
             // We allow default search plugins to specify alternate
             // parameters that are specific to keyword searches.
-            NS_NAMED_LITERAL_STRING(mozKeywordSearch, "application/x-moz-keywordsearch");
-            bool supportsResponseType = false;
-            defaultEngine->SupportsResponseType(mozKeywordSearch, &supportsResponseType);
-            if (supportsResponseType)
-              defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
-                                           mozKeywordSearch,
-                                           NS_LITERAL_STRING("keyword"),
-                                           getter_AddRefs(submission));
-            else
-              defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
-                                           EmptyString(),
-                                           NS_LITERAL_STRING("keyword"),
-                                           getter_AddRefs(submission));
+            defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
+                                         EmptyString(),
+                                         NS_LITERAL_STRING("keyword"),
+                                         getter_AddRefs(submission));
             if (submission) {
+                // The submission depends on POST data (i.e. the search engine's
+                // "method" is POST), we can't use this engine for keyword
+                // searches
                 nsCOMPtr<nsIInputStream> postData;
                 submission->GetPostData(getter_AddRefs(postData));
-                if (aPostData) {
-                  postData.forget(aPostData);
-                } else if (postData) {
-                  // The submission specifies POST data (i.e. the search
-                  // engine's "method" is POST), but our caller didn't allow
-                  // passing post data back. No point passing back a URL that
-                  // won't load properly.
-                  return NS_ERROR_FAILURE;
+                if (postData) {
+                    return NS_ERROR_NOT_AVAILABLE;
                 }
 
                 // This notification is meant for Firefox Health Report so it
@@ -449,9 +363,7 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
                 // the search engine's name through various function calls.
                 nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
                 if (obsSvc) {
-                  // Note that "keyword-search" refers to a search via the url
-                  // bar, not a bookmarks keyword search.
-                  obsSvc->NotifyObservers(defaultEngine, "keyword-search", NS_ConvertUTF8toUTF16(keyword).get());
+                    obsSvc->NotifyObservers(defaultEngine, "keyword-search", NS_ConvertUTF8toUTF16(keyword).get());
                 }
 
                 return submission->GetUri(aURI);
@@ -841,9 +753,8 @@ const char * nsDefaultURIFixup::GetCharsetForUrlBar()
   return charset;
 }
 
-void nsDefaultURIFixup::KeywordURIFixup(const nsACString & aURIString,
-                                        nsIInputStream **aPostData,
-                                        nsIURI** aURI)
+nsresult nsDefaultURIFixup::KeywordURIFixup(const nsACString & aURIString, 
+                                            nsIURI** aURI)
 {
     // These are keyword formatted strings
     // "what is mozilla"
@@ -882,8 +793,13 @@ void nsDefaultURIFixup::KeywordURIFixup(const nsACString & aURIString,
          (spaceLoc < qMarkLoc || quoteLoc < qMarkLoc)) ||
         qMarkLoc == 0)
     {
-        KeywordToURI(aURIString, aPostData, aURI);
+        KeywordToURI(aURIString, aURI);
     }
+
+    if(*aURI)
+        return NS_OK;
+
+    return NS_ERROR_FAILURE;
 }
 
 

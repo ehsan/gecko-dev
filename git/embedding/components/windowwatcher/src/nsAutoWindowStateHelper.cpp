@@ -5,15 +5,12 @@
 
 #include "nsAutoWindowStateHelper.h"
 
-#include "nsDOMEvent.h"
-#include "nsIDocument.h"
-#include "nsIDOMEvent.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
+#include "nsIDOMEventTarget.h"
+#include "nsIDOMEvent.h"
 #include "nsString.h"
-
-using namespace mozilla;
-using namespace mozilla::dom;
+#include "nsGUIEvent.h"
 
 /****************************************************************
  ****************** nsAutoWindowStateHelper *********************
@@ -26,7 +23,7 @@ nsAutoWindowStateHelper::nsAutoWindowStateHelper(nsIDOMWindow *aWindow)
   nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(aWindow));
 
   if (window) {
-    window->EnterModalState();
+    mCallerWindow = window->EnterModalState();
   }
 }
 
@@ -35,7 +32,7 @@ nsAutoWindowStateHelper::~nsAutoWindowStateHelper()
   nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mWindow));
 
   if (window) {
-    window->LeaveModalState();
+    window->LeaveModalState(mCallerWindow);
   }
 
   if (mDefaultEnabled) {
@@ -47,27 +44,24 @@ bool
 nsAutoWindowStateHelper::DispatchEventToChrome(const char *aEventName)
 {
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mWindow);
-  if (!window || (window->IsInnerWindow() && !window->IsCurrentInnerWindow())) {
+  if (!window) {
     return true;
   }
 
   // The functions of nsContentUtils do not provide the required behavior,
   // so the following is inlined.
-  nsIDocument* doc = window->GetExtantDoc();
+  nsIDOMDocument* doc = window->GetExtantDocument();
   if (!doc) {
     return true;
   }
 
-  ErrorResult rv;
-  nsRefPtr<nsDOMEvent> event = doc->CreateEvent(NS_LITERAL_STRING("Events"), rv);
-  if (rv.Failed()) {
-    return false;
-  }
+  nsCOMPtr<nsIDOMEvent> event;
+  doc->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
   NS_ENSURE_TRUE(NS_SUCCEEDED(event->InitEvent(NS_ConvertASCIItoUTF16(aEventName), true, true)), false);
   event->SetTrusted(true);
   event->GetInternalNSEvent()->mFlags.mOnlyChromeDispatch = true;
 
-  nsCOMPtr<EventTarget> target = do_QueryInterface(window);
+  nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(window));
   bool defaultActionEnabled;
   target->DispatchEvent(event, &defaultActionEnabled);
   return defaultActionEnabled;

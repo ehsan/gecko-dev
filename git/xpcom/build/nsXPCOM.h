@@ -321,17 +321,20 @@ NS_LogCOMPtrRelease(void *aCOMPtr, nsISupports *aObject);
  * The XPCOM cycle collector analyzes and breaks reference cycles between
  * participating XPCOM objects. All objects in the cycle must implement
  * nsCycleCollectionParticipant to break cycles correctly.
+ *
+ * The first two functions below exist only to support binary components
+ * that were compiled for older XPCOM versions.
  */
 
 #ifdef __cplusplus
 
 class nsCycleCollectionParticipant;
-class nsCycleCollectingAutoRefCnt;
 
-XPCOM_API(void)
-NS_CycleCollectorSuspect3(void *n, nsCycleCollectionParticipant *p,
-                          nsCycleCollectingAutoRefCnt *aRefCnt,
-                          bool* aShouldDelete);
+XPCOM_API(nsPurpleBufferEntry*)
+NS_CycleCollectorSuspect2(void *n, nsCycleCollectionParticipant *p);
+
+XPCOM_API(bool)
+NS_CycleCollectorForget2(nsPurpleBufferEntry *e);
 
 #endif
 

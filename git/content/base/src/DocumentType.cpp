@@ -60,7 +60,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-DocumentType::WrapNode(JSContext *cx, JS::Handle<JSObject*> scope)
+DocumentType::WrapNode(JSContext *cx, JSObject *scope)
 {
   return DocumentTypeBinding::Wrap(cx, scope, this);
 }
@@ -74,6 +74,7 @@ DocumentType::DocumentType(already_AddRefed<nsINodeInfo> aNodeInfo,
   mSystemId(aSystemId),
   mInternalSubset(aInternalSubset)
 {
+  SetIsDOMBinding();
   NS_ABORT_IF_FALSE(mNodeInfo->NodeType() == nsIDOMNode::DOCUMENT_TYPE_NODE,
                     "Bad NodeType in aNodeInfo");
 }

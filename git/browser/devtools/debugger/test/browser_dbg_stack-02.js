@@ -1,83 +1,86 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-/**
- * Test that stackframes are added when debugger is paused in eval calls.
+/* vim:set ts=2 sw=2 sts=2 et: */
+/*
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-const TAB_URL = EXAMPLE_URL + "doc_recursion-stack.html";
-
-let gTab, gDebuggee, gPanel, gDebugger;
-let gFrames;
+var gPane = null;
+var gTab = null;
+var gDebuggee = null;
+var gDebugger = null;
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
+  debug_tab_pane(STACK_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gDebuggee = aDebuggee;
-    gPanel = aPanel;
-    gDebugger = gPanel.panelWin;
-    gFrames = gDebugger.DebuggerView.StackFrames;
+    gPane = aPane;
+    gDebugger = gPane.panelWin;
 
-    waitForSourceAndCaretAndScopes(gPanel, ".html", 18).then(performTest);
-    gDebuggee.evalCall();
+    testEvalCall();
   });
 }
 
-function performTest() {
-  is(gDebugger.gThreadClient.state, "paused",
-    "Should only be getting stack frames while paused.");
-  is(gFrames.itemCount, 2,
-    "Should have two frames.");
+function testEvalCall() {
+  gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+    Services.tm.currentThread.dispatch({ run: function() {
 
-  is(gFrames.getItemAtIndex(0).value,
-    "evalCall", "Oldest frame name should be correct.");
-  is(gFrames.getItemAtIndex(0).description,
-    TAB_URL, "Oldest frame url should be correct.");
+      let frames = gDebugger.DebuggerView.StackFrames._container._list;
+      let childNodes = frames.childNodes;
 
-  is(gFrames.getItemAtIndex(1).value,
-    "(eval)", "Newest frame name should be correct.");
-  is(gFrames.getItemAtIndex(1).description,
-    TAB_URL, "Newest frame url should be correct.");
+      is(gDebugger.DebuggerController.activeThread.state, "paused",
+        "Should only be getting stack frames while paused.");
 
-  is(gFrames.selectedIndex, 1,
-    "Newest frame should be selected by default.");
-  isnot(gFrames.selectedIndex, 0,
-    "Oldest frame should not be selected.");
+      is(frames.querySelectorAll(".dbg-stackframe").length, 2,
+        "Should have two frames.");
 
-  EventUtils.sendMouseEvent({ type: "mousedown" },
-    gFrames.getItemAtIndex(0).target,
-    gDebugger);
+      is(childNodes.length, frames.querySelectorAll(".dbg-stackframe").length,
+        "All children should be frames.");
 
-  isnot(gFrames.selectedIndex, 1,
-    "Newest frame should not be selected after click.");
-  is(gFrames.selectedIndex, 0,
-    "Oldest frame should be selected after click.");
+      is(frames.querySelector("#stackframe-0 .dbg-stackframe-title").getAttribute("value"),
+        "(eval)", "Frame name should be (eval)");
 
-  EventUtils.sendMouseEvent({ type: "mousedown" },
-    gFrames.getItemAtIndex(1).target.querySelector(".dbg-stackframe-title"),
-    gDebugger);
+      ok(frames.querySelector("#stackframe-0").parentNode.hasAttribute("checked"),
+        "First frame should be selected by default.");
 
-  is(gFrames.selectedIndex, 1,
-    "Newest frame should be selected after click inside the newest frame.");
-  isnot(gFrames.selectedIndex, 0,
-    "Oldest frame should not be selected after click inside the newest frame.");
+      ok(!frames.querySelector("#stackframe-1").parentNode.hasAttribute("checked"),
+        "Second frame should not be selected.");
 
-  EventUtils.sendMouseEvent({ type: "mousedown" },
-    gFrames.getItemAtIndex(0).target.querySelector(".dbg-stackframe-details"),
-    gDebugger);
 
-  isnot(gFrames.selectedIndex, 1,
-    "Newest frame should not be selected after click inside the oldest frame.");
-  is(gFrames.selectedIndex, 0,
-    "Oldest frame should be selected after click inside the oldest frame.");
+      EventUtils.sendMouseEvent({ type: "mousedown" },
+        frames.querySelector("#stackframe-1"),
+        gDebugger);
 
-  resumeDebuggerThenCloseAndFinish(gPanel);
+      ok(!frames.querySelector("#stackframe-0").parentNode.hasAttribute("checked"),
+         "First frame should not be selected after click.");
+
+      ok(frames.querySelector("#stackframe-1").parentNode.hasAttribute("checked"),
+         "Second frame should be selected after click.");
+
+
+      EventUtils.sendMouseEvent({ type: "mousedown" },
+        frames.querySelector("#stackframe-0 .dbg-stackframe-title"),
+        gDebugger);
+
+      ok(frames.querySelector("#stackframe-0").parentNode.hasAttribute("checked"),
+         "First frame should be selected after click inside the first frame.");
+
+      ok(!frames.querySelector("#stackframe-1").parentNode.hasAttribute("checked"),
+         "Second frame should not be selected after click inside the first frame.");
+
+
+      gDebugger.DebuggerController.activeThread.resume(function() {
+        closeDebuggerAndFinish();
+      });
+    }}, 0);
+  });
+
+  gDebuggee.evalCall();
 }
 
 registerCleanupFunction(function() {
+  removeTab(gTab);
+  gPane = null;
   gTab = null;
   gDebuggee = null;
-  gPanel = null;
   gDebugger = null;
-  gFrames = null;
 });

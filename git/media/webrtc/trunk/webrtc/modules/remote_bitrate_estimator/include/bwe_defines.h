@@ -11,7 +11,7 @@
 #ifndef WEBRTC_MODULES_RTP_RTCP_SOURCE_BWE_DEFINES_H_
 #define WEBRTC_MODULES_RTP_RTCP_SOURCE_BWE_DEFINES_H_
 
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
 
 #define BWE_MAX(a,b) ((a)>(b)?(a):(b))
 #define BWE_MIN(a,b) ((a)<(b)?(a):(b))
@@ -19,9 +19,9 @@
 namespace webrtc {
 enum BandwidthUsage
 {
-    kBwNormal = 0,
-    kBwUnderusing = 1,
-    kBwOverusing = 2,
+    kBwNormal,
+    kBwOverusing,
+    kBwUnderusing
 };
 
 enum RateControlState
@@ -42,16 +42,16 @@ class RateControlInput
 {
 public:
     RateControlInput(BandwidthUsage bwState,
-                     uint32_t incomingBitRate,
+                     WebRtc_UWord32 incomingBitRate,
                      double noiseVar)
         : _bwState(bwState),
           _incomingBitRate(incomingBitRate),
           _noiseVar(noiseVar) {}
 
     BandwidthUsage  _bwState;
-    uint32_t      _incomingBitRate;
+    WebRtc_UWord32      _incomingBitRate;
     double              _noiseVar;
 };
-}  // namespace webrtc
+} //namespace webrtc
 
 #endif // WEBRTC_MODULES_RTP_RTCP_SOURCE_BWE_DEFINES_H_

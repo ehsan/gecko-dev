@@ -5,27 +5,42 @@
 
 #include "base/basictypes.h"
 #include "ipc/IPCMessageUtils.h"
-#include "mozilla/ContentEvents.h"
 
 #include "nsDOMScrollAreaEvent.h"
-#include "mozilla/dom/DOMRect.h"
-
-using namespace mozilla;
+#include "nsGUIEvent.h"
+#include "nsClientRect.h"
+#include "nsDOMClassInfoID.h"
+#include "nsIClassInfo.h"
+#include "nsIXPCScriptable.h"
 
 nsDOMScrollAreaEvent::nsDOMScrollAreaEvent(mozilla::dom::EventTarget* aOwner,
                                            nsPresContext *aPresContext,
-                                           InternalScrollAreaEvent* aEvent)
+                                           nsScrollAreaEvent *aEvent)
   : nsDOMUIEvent(aOwner, aPresContext, aEvent)
   , mClientArea(nullptr)
 {
   mClientArea.SetLayoutRect(aEvent ? aEvent->mArea : nsRect());
+  SetIsDOMBinding();
+}
+
+nsDOMScrollAreaEvent::~nsDOMScrollAreaEvent()
+{
+  if (mEventIsInternal && mEvent) {
+    if (mEvent->eventStructType == NS_SCROLLAREA_EVENT) {
+      delete static_cast<nsScrollAreaEvent *>(mEvent);
+      mEvent = nullptr;
+    }
+  }
 }
 
 NS_IMPL_ADDREF_INHERITED(nsDOMScrollAreaEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMScrollAreaEvent, nsDOMUIEvent)
 
+DOMCI_DATA(ScrollAreaEvent, nsDOMScrollAreaEvent)
+
 NS_INTERFACE_MAP_BEGIN(nsDOMScrollAreaEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMScrollAreaEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ScrollAreaEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
 
@@ -94,7 +109,7 @@ nsresult
 NS_NewDOMScrollAreaEvent(nsIDOMEvent **aInstancePtrResult,
                          mozilla::dom::EventTarget* aOwner,
                          nsPresContext *aPresContext,
-                         InternalScrollAreaEvent* aEvent)
+                         nsScrollAreaEvent *aEvent)
 {
   nsDOMScrollAreaEvent* ev =
     new nsDOMScrollAreaEvent(aOwner, aPresContext, aEvent);

@@ -12,9 +12,11 @@
 #include "nsCSSRendering.h"
 #include "nsINameSpaceManager.h"
 #include "nsIDocument.h"
+#include "nsIDOMEventTarget.h"
 #include "nsGkAtoms.h"
 #include "nsMenuFrame.h"
 #include "nsMenuPopupFrame.h"
+#include "nsGUIEvent.h"
 #include "nsUnicharUtils.h"
 #include "nsPIDOMWindow.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -25,9 +27,7 @@
 #endif
 #include "nsContentUtils.h"
 #include "nsUTF8Utils.h"
-#include "mozilla/TextEvents.h"
 
-using namespace mozilla;
 
 //
 // NS_NewMenuBarFrame
@@ -72,19 +72,21 @@ nsMenuBarFrame::Init(nsIContent*      aContent,
 
   // Hook up the menu bar as a key listener on the whole document.  It will see every
   // key press that occurs, but after everyone else does.
-  mTarget = aContent->GetDocument();
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aContent->GetDocument());
+  
+  mTarget = target;
 
   // Also hook up the listener to the window listening for focus events. This is so we can keep proper
   // state as the user alt-tabs through processes.
-
-  mTarget->AddEventListener(NS_LITERAL_STRING("keypress"), mMenuBarListener, false);
-  mTarget->AddEventListener(NS_LITERAL_STRING("keydown"), mMenuBarListener, false);
-  mTarget->AddEventListener(NS_LITERAL_STRING("keyup"), mMenuBarListener, false);
+  
+  target->AddEventListener(NS_LITERAL_STRING("keypress"), mMenuBarListener, false); 
+  target->AddEventListener(NS_LITERAL_STRING("keydown"), mMenuBarListener, false);  
+  target->AddEventListener(NS_LITERAL_STRING("keyup"), mMenuBarListener, false);   
 
   // mousedown event should be handled in all phase
-  mTarget->AddEventListener(NS_LITERAL_STRING("mousedown"), mMenuBarListener, true);
-  mTarget->AddEventListener(NS_LITERAL_STRING("mousedown"), mMenuBarListener, false);
-  mTarget->AddEventListener(NS_LITERAL_STRING("blur"), mMenuBarListener, true);
+  target->AddEventListener(NS_LITERAL_STRING("mousedown"), mMenuBarListener, true);
+  target->AddEventListener(NS_LITERAL_STRING("mousedown"), mMenuBarListener, false);
+  target->AddEventListener(NS_LITERAL_STRING("blur"), mMenuBarListener, true);   
 }
 
 NS_IMETHODIMP
@@ -150,7 +152,7 @@ nsMenuBarFrame::ToggleMenuActiveState()
       // Activate the menu bar
       SetActive(true);
 
-#if (MOZ_WIDGET_GTK == 2)
+#ifdef MOZ_WIDGET_GTK2
       firstFrame->OpenMenu(true);
 #else
       firstFrame->SelectMenu(true);
@@ -171,8 +173,7 @@ GetInsertionPoint(nsIPresShell* aShell, nsIFrame* aFrame, nsIFrame* aChild,
   nsIContent* child = nullptr;
   if (aChild)
     child = aChild->GetContent();
-  *aResult = aShell->FrameConstructor()->
-    GetInsertionPoint(aFrame->GetContent(), child);
+  aShell->FrameConstructor()->GetInsertionPoint(aFrame, child, aResult);
 }
 
 nsMenuFrame*
@@ -182,8 +183,8 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
   aKeyEvent->GetCharCode(&charCode);
 
   nsAutoTArray<uint32_t, 10> accessKeys;
-  WidgetKeyboardEvent* nativeKeyEvent =
-    aKeyEvent->GetInternalNSEvent()->AsKeyboardEvent();
+  nsEvent* nativeEvent = nsContentUtils::GetNativeEvent(aKeyEvent);
+  nsKeyEvent* nativeKeyEvent = static_cast<nsKeyEvent*>(nativeEvent);
   if (nativeKeyEvent)
     nsContentUtils::GetAccessKeyCandidates(nativeKeyEvent, accessKeys);
   if (accessKeys.IsEmpty() && charCode)
@@ -378,7 +379,7 @@ nsMenuBarFrame::ChangeMenuItem(nsMenuFrame* aMenuItem,
 }
 
 nsMenuFrame*
-nsMenuBarFrame::Enter(WidgetGUIEvent* aEvent)
+nsMenuBarFrame::Enter(nsGUIEvent* aEvent)
 {
   if (!mCurrentMenu)
     return nullptr;

@@ -17,19 +17,13 @@
 // Interfaces needed to include
 #include "nsIPrompt.h"
 #include "nsIAuthPrompt.h"
-#include "nsIBrowserDOMWindow.h"
 #include "nsIWebProgress.h"
-#include "nsIWidget.h"
 #include "nsIWindowMediator.h"
-#include "nsIDOMChromeWindow.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMXULElement.h"
 #include "nsIXULBrowserWindow.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla;
 
 // CIDs
 static NS_DEFINE_CID(kWindowMediatorCID, NS_WINDOWMEDIATOR_CID);
@@ -251,25 +245,6 @@ NS_IMETHODIMP nsChromeTreeOwner::GetPrimaryContentShell(nsIDocShellTreeItem** aS
    return mXULWindow->GetPrimaryContentShell(aShell);
 }
 
-NS_IMETHODIMP
-nsChromeTreeOwner::GetContentWindow(JSContext* aCx, JS::Value* aVal)
-{
-  NS_ENSURE_STATE(mXULWindow);
-
-  nsCOMPtr<nsIDOMWindow> domWin;
-  mXULWindow->GetWindowDOMWindow(getter_AddRefs(domWin));
-  nsCOMPtr<nsIDOMChromeWindow> chromeWin = do_QueryInterface(domWin);
-  if (!chromeWin)
-    return NS_OK;
-
-  nsCOMPtr<nsIBrowserDOMWindow> browserDOMWin;
-  chromeWin->GetBrowserDOMWindow(getter_AddRefs(browserDOMWin));
-  if (!browserDOMWin)
-    return NS_OK;
-
-  return browserDOMWin->GetContentWindow(aVal);
-}
-
 NS_IMETHODIMP nsChromeTreeOwner::SizeShellTo(nsIDocShellTreeItem* aShellItem,
    int32_t aCX, int32_t aCY)
 {
@@ -283,7 +258,7 @@ nsChromeTreeOwner::SetPersistence(bool aPersistPosition,
                                   bool aPersistSizeMode)
 {
   NS_ENSURE_STATE(mXULWindow);
-  nsCOMPtr<dom::Element> docShellElement = mXULWindow->GetWindowDOMElement();
+  nsCOMPtr<nsIDOMElement> docShellElement = mXULWindow->GetWindowDOMElement();
   if (!docShellElement)
     return NS_ERROR_FAILURE;
 
@@ -308,10 +283,8 @@ nsChromeTreeOwner::SetPersistence(bool aPersistPosition,
   FIND_PERSIST_STRING(gLiterals->kHeight,   aPersistSize);
   FIND_PERSIST_STRING(gLiterals->kSizemode, aPersistSizeMode);
 
-  ErrorResult rv;
-  if (saveString) {
-    docShellElement->SetAttribute(gLiterals->kPersist, persistString, rv);
-  }
+  if (saveString) 
+    docShellElement->SetAttribute(gLiterals->kPersist, persistString);
 
   return NS_OK;
 }
@@ -322,8 +295,8 @@ nsChromeTreeOwner::GetPersistence(bool* aPersistPosition,
                                   bool* aPersistSizeMode)
 {
   NS_ENSURE_STATE(mXULWindow);
-  nsCOMPtr<dom::Element> docShellElement = mXULWindow->GetWindowDOMElement();
-  if (!docShellElement)
+  nsCOMPtr<nsIDOMElement> docShellElement = mXULWindow->GetWindowDOMElement();
+  if (!docShellElement) 
     return NS_ERROR_FAILURE;
 
   nsAutoString persistString;

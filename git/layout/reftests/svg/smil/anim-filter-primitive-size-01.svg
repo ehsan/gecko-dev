@@ -6,7 +6,8 @@
   <script>
 
 window.addEventListener("MozReftestInvalidate", run, false);
-setTimeout(run, 4000); // fallback for running outside reftest
+
+setTimeout(run, 3000); // for non-gecko
 
 function run() {
   setTimeAndSnapshot(1, true)

@@ -6,8 +6,7 @@
 #include "SourceSurfaceCG.h"
 #include "DrawTargetCG.h"
 
-#include "MacIOSurface.h"
-#include "Tools.h"
+#include "QuartzSupport.h"
 
 namespace mozilla {
 namespace gfx {
@@ -128,9 +127,7 @@ SourceSurfaceCG::InitFromData(unsigned char *aData,
   assert(aSize.width >= 0 && aSize.height >= 0);
 
   void *data = malloc(aStride * aSize.height);
-  // Copy all the data except the stride padding on the very last
-  // row since we can't guarantee that is readable.
-  memcpy(data, aData, aStride * (aSize.height - 1) + (aSize.width * BytesPerPixel(aFormat)));
+  memcpy(data, aData, aStride * aSize.height);
 
   mFormat = aFormat;
   mImage = CreateCGImage(data, data, aSize, aStride, aFormat);
@@ -160,22 +157,12 @@ DataSourceSurfaceCG::InitFromData(unsigned char *aData,
                                int32_t aStride,
                                SurfaceFormat aFormat)
 {
-  if (aSize.width <= 0 || aSize.height <= 0) {
-    return false;
-  }
-
   void *data = malloc(aStride * aSize.height);
-  memcpy(data, aData, aStride * (aSize.height - 1) + (aSize.width * BytesPerPixel(aFormat)));
+  memcpy(data, aData, aStride * aSize.height);
 
-  mFormat = aFormat;
   mImage = CreateCGImage(data, data, aSize, aStride, aFormat);
 
-  if (!mImage) {
-    free(data);
-    return false;
-  }
-
-  return true;
+  return mImage;
 }
 
 CGContextRef CreateBitmapContextForImage(CGImageRef image)
@@ -214,7 +201,6 @@ CGContextRef CreateBitmapContextForImage(CGImageRef image)
 
 DataSourceSurfaceCG::DataSourceSurfaceCG(CGImageRef aImage)
 {
-  mFormat = FORMAT_B8G8R8A8;
   mImage = aImage;
   mCg = CreateBitmapContextForImage(aImage);
   if (mCg == nullptr) {
@@ -255,7 +241,6 @@ DataSourceSurfaceCG::GetData()
 SourceSurfaceCGBitmapContext::SourceSurfaceCGBitmapContext(DrawTargetCG *aDrawTarget)
 {
   mDrawTarget = aDrawTarget;
-  mFormat = aDrawTarget->GetFormat();
   mCg = (CGContextRef)aDrawTarget->GetNativeSurface(NATIVE_SURFACE_CGCONTEXT);
   if (!mCg)
     abort();
@@ -292,7 +277,7 @@ void SourceSurfaceCGBitmapContext::EnsureImage() const
 
     if (!mData) abort();
 
-    mImage = CreateCGImage(info, mData, mSize, mStride, mFormat);
+    mImage = CreateCGImage(info, mData, mSize, mStride, FORMAT_B8G8R8A8);
   }
 }
 
@@ -344,7 +329,6 @@ SourceSurfaceCGIOSurfaceContext::SourceSurfaceCGIOSurfaceContext(DrawTargetCG *a
 
   RefPtr<MacIOSurface> surf = MacIOSurface::IOSurfaceContextGetSurface(cg);
 
-  mFormat = aDrawTarget->GetFormat();
   mSize.width = surf->GetWidth();
   mSize.height = surf->GetHeight();
 

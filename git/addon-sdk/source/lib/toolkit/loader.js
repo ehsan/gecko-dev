@@ -1,7 +1,8 @@
+/* vim:set ts=2 sw=2 sts=2 expandtab */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 ;(function(id, factory) { // Module boilerplate :(
   if (typeof(define) === 'function') { // RequireJS
     define(factory);
@@ -38,7 +39,6 @@ const { loadSubScript } = Cc['@mozilla.org/moz/jssubscript-loader;1'].
                      getService(Ci.mozIJSSubScriptLoader);
 const { notifyObservers } = Cc['@mozilla.org/observer-service;1'].
                         getService(Ci.nsIObserverService);
-const { NetUtil } = Cu.import("resource://gre/modules/NetUtil.jsm", {});
 
 // Define some shortcuts.
 const bind = Function.call.bind(Function.bind);
@@ -48,20 +48,6 @@ const define = Object.defineProperties;
 const prototypeOf = Object.getPrototypeOf;
 const create = Object.create;
 const keys = Object.keys;
-
-
-const COMPONENT_ERROR = '`Components` is not available in this context.\n' +
-  'Functionality provided by Components may be available in an SDK\n' +
-  'module: https://jetpack.mozillalabs.com/sdk/latest/docs/ \n\n' +
-  'However, if you still need to import Components, you may use the\n' +
-  '`chrome` module\'s properties for shortcuts to Component properties:\n\n' +
-  'Shortcuts: \n' +
-  '    Cc = Components' + '.classes \n' +
-  '    Ci = Components' + '.interfaces \n' +
-  '    Cu = Components' + '.utils \n' +
-  '    CC = Components' + '.Constructor \n' +
-  'Example: \n' +
-  '    let { Cc, Ci } = require(\'chrome\');\n';
 
 // Workaround for bug 674195. Freezing objects from other compartments fail,
 // so we use `Object.freeze` from the same component instead.
@@ -158,18 +144,6 @@ var serializeStack = iced(function serializeStack(frames) {
 })
 exports.serializeStack = serializeStack
 
-function readURI(uri) {
-  let stream = NetUtil.newChannel(uri, 'UTF-8', null).open();
-  let count = stream.available();
-  let data = NetUtil.readInputStreamToString(stream, count, {
-    charset: 'UTF-8'
-  });
-
-  stream.close();
-
-  return data;
-}
-
 // Function takes set of options and returns a JS sandbox. Function may be
 // passed set of options:
 //  - `name`: A string value which identifies the sandbox in about:memory. Will
@@ -183,8 +157,6 @@ function readURI(uri) {
 //    to `true`.
 // - `sandbox`: A sandbox to share JS compartment with. If omitted new
 //    compartment will be created.
-// - `metadata`: A metadata object associated with the sandbox. It should
-//    be JSON-serializable.
 // For more details see:
 // https://developer.mozilla.org/en/Components.utils.Sandbox
 const Sandbox = iced(function Sandbox(options) {
@@ -196,11 +168,8 @@ const Sandbox = iced(function Sandbox(options) {
     sandboxName: options.name,
     principal: 'principal' in options ? options.principal : systemPrincipal,
     wantXrays: 'wantXrays' in options ? options.wantXrays : true,
-    wantGlobalProperties: 'wantGlobalProperties' in options ?
-                          options.wantGlobalProperties : [],
     sandboxPrototype: 'prototype' in options ? options.prototype : {},
-    sameGroupAs: 'sandbox' in options ? options.sandbox : null,
-    metadata: 'metadata' in options ? options.metadata : {}
+    sameGroupAs: 'sandbox' in options ? options.sandbox : null
   };
 
   // Make `options.sameGroupAs` only if `sandbox` property is passed,
@@ -248,32 +217,20 @@ const load = iced(function load(loader, module) {
   let { sandboxes, globals } = loader;
   let require = Require(loader, module);
 
-  // We expose set of properties defined by `CommonJS` specification via
-  // prototype of the sandbox. Also globals are deeper in the prototype
-  // chain so that each module has access to them as well.
-  let descriptors = descriptor({
-    require: require,
-    module: module,
-    exports: module.exports,
-    get Components() {
-      // Expose `Components` property to throw error on usage with
-      // additional information
-      throw new ReferenceError(COMPONENT_ERROR);
-    }
-  });
-
   let sandbox = sandboxes[module.uri] = Sandbox({
     name: module.uri,
     // Get an existing module sandbox, if any, so we can reuse its compartment
     // when creating the new one to reduce memory consumption.
     sandbox: sandboxes[keys(sandboxes).shift()],
-    prototype: create(globals, descriptors),
-    wantXrays: false,
-    wantGlobalProperties: module.id == "sdk/indexed-db" ? ["indexedDB"] : [],
-    metadata: {
-      addonID: loader.id,
-      URI: module.uri
-    }
+    // We expose set of properties defined by `CommonJS` specification via
+    // prototype of the sandbox. Also globals are deeper in the prototype
+    // chain so that each module has access to them as well.
+    prototype: create(globals, descriptor({
+      require: require,
+      module: module,
+      exports: module.exports
+    })),
+    wantXrays: false
   });
 
   try {
@@ -283,7 +240,6 @@ const load = iced(function load(loader, module) {
     let stack = error.stack || Error().stack;
     let frames = parseStack(stack).filter(isntLoaderFrame);
     let toString = String(error);
-    let file = sourceURI(fileName);
 
     // Note that `String(error)` where error is from subscript loader does
     // not puts `:` after `"Error"` unlike regular errors thrown by JS code.
@@ -295,13 +251,6 @@ const load = iced(function load(loader, module) {
       lineNumber = caller.lineNumber;
       message = "Module `" + module.id + "` is not found at " + module.uri;
       toString = message;
-    }
-    // Workaround for a Bug 910653. Errors thrown by subscript loader
-    // do not include `stack` field and above created error won't have
-    // fileName or lineNumber of the module being loaded, so we ensure
-    // it does.
-    else if (frames[frames.length - 1].fileName !== file) {
-      frames.push({ fileName: file, lineNumber: lineNumber, name: "" });
     }
 
     let prototype = typeof(error) === "object" ? error.constructor.prototype :
@@ -326,11 +275,7 @@ exports.load = load;
 // Utility function to check if id is relative.
 function isRelative(id) { return id[0] === '.'; }
 // Utility function to normalize module `uri`s so they have `.js` extension.
-function normalize(uri) {
-  return isJSURI(uri) ? uri :
-         isJSONURI(uri) ? uri :
-         uri + '.js';
-}
+function normalize(uri) { return uri.substr(-3) === '.js' ? uri : uri + '.js'; }
 // Utility function to join paths. In common case `base` is a
 // `requirer.uri` but in some cases it may be `baseURI`. In order to
 // avoid complexity we require `baseURI` with a trailing `/`.
@@ -357,7 +302,6 @@ const resolveURI = iced(function resolveURI(id, mapping) {
     if (id.indexOf(path) === 0)
       return normalize(id.replace(path, uri));
   }
-  return void 0; // otherwise we raise a warning, see bug 910304
 });
 exports.resolveURI = resolveURI;
 
@@ -388,31 +332,9 @@ const Require = iced(function Require(loader, requirer) {
     if (uri in modules) {
       module = modules[uri];
     }
-    else if (isJSONURI(uri)) {
-      let data;
-
-      // First attempt to load and parse json uri
-      // ex: `test.json`
-      // If that doesn't exist, check for `test.json.js`
-      // for node parity
-      try {
-        data = JSON.parse(readURI(uri));
-        module = modules[uri] = Module(requirement, uri);
-        module.exports = data;
-        freeze(module);
-      }
-      catch (err) {
-        // If error thrown from JSON parsing, throw that, do not
-        // attempt to find .json.js file
-        if (err && /JSON\.parse/.test(err.message))
-          throw err;
-        uri = uri + '.js';
-      }
-    }
-    // If not yet cached, load and cache it.
-    // We also freeze module to prevent it from further changes
-    // at runtime.
-    if (!(uri in modules)) {
+    // Otherwise load and cache it. We also freeze module to prevent it from
+    // further changes at runtime.
+    else {
       module = modules[uri] = Module(requirement, uri);
       freeze(load(loader, module));
     }
@@ -428,7 +350,7 @@ exports.Require = Require;
 const main = iced(function main(loader, id) {
   let uri = resolveURI(id, loader.mapping)
   let module = loader.main = loader.modules[uri] = Module(id, uri);
-  return loader.load(loader, module).exports;
+  return load(loader, module).exports;
 });
 exports.main = main;
 
@@ -525,8 +447,6 @@ const Loader = iced(function Loader(options) {
     // Map of module sandboxes indexed by module URIs.
     sandboxes: { enumerable: false, value: {} },
     resolve: { enumerable: false, value: resolve },
-    // ID of the addon, if provided.
-    id: { enumerable: false, value: options.id },
     load: { enumerable: false, value: options.load || load },
     // Main (entry point) module, it can be set only once, since loader
     // instance can have only one main module.
@@ -542,9 +462,6 @@ const Loader = iced(function Loader(options) {
   }));
 });
 exports.Loader = Loader;
-
-let isJSONURI = uri => uri.substr(-5) === '.json';
-let isJSURI = uri => uri.substr(-3) === '.js';
 
 });
 

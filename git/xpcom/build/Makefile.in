@@ -4,8 +4,52 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+include $(srcdir)/../glue/objs.mk
+
+EXTRA_DEPS += $(srcdir)/../glue/objs.mk
+
+LIBRARY_NAME	= xpcom_core
+LIBXUL_LIBRARY = 1
+EXPORT_LIBRARY = 1
 
 MOZILLA_INTERNAL_API = 1
+
+ifeq ($(OS_ARCH),Linux)
+DEFINES += -DXP_LINUX
+endif
+
+ifeq (Darwin, $(OS_ARCH))
+CSRCS = mach_override.c
+endif
+
+CPPSRCS = \
+  $(XPCOM_GLUE_SRC_LCPPSRCS) \
+  $(XPCOM_GLUENS_SRC_LCPPSRCS) \
+  nsXPComInit.cpp \
+  nsXPCOMStrings.cpp \
+  Services.cpp \
+  Omnijar.cpp \
+  FileLocation.cpp \
+  FrozenFunctions.cpp \
+  $(NULL)
+
+ifeq (Darwin, $(OS_ARCH))
+CPPSRCS += mozPoisonWriteBase.cpp mozPoisonWriteMac.cpp
+else ifeq ($(OS_ARCH),WINNT)
+CPPSRCS += mozPoisonWriteBase.cpp mozPoisonWriteWin.cpp
+else
+CPPSRCS += mozPoisonWriteStub.cpp
+endif
+
+ifeq ($(OS_ARCH),WINNT)
+CPPSRCS += perfprobe.cpp
+endif
 
 SHARED_LIBRARY_LIBS = \
 		$(DEPTH)/chrome/src/$(LIB_PREFIX)chrome_s.$(LIB_SUFFIX) \
@@ -41,10 +85,22 @@ LOCAL_INCLUDES	= \
 		-I$(srcdir)/../../docshell/base \
 		$(NULL)
 
+SDK_HEADERS =  \
+  nsXPCOM.h       \
+  nsXPCOMCID.h    \
+  $(NULL)
+
+GARBAGE         += $(XPCOM_GLUE_SRC_LCPPSRCS) $(XPCOM_GLUENS_SRC_LCPPSRCS)
+
+include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
 DEFINES		+= \
+		-D_IMPL_NS_COM \
 		-D_IMPL_NS_STRINGAPI \
+		-DEXPORT_XPT_API \
+		-DEXPORT_XPTC_API \
 		-DOMNIJAR_NAME="$(OMNIJAR_NAME)" \
 		$(NULL)
 
@@ -55,3 +111,6 @@ endif
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 CXXFLAGS	+= $(TK_CFLAGS)
 endif
+
+export:: $(XPCOM_GLUE_SRC_CPPSRCS) $(XPCOM_GLUENS_SRC_CPPSRCS)
+	$(INSTALL) $^ .

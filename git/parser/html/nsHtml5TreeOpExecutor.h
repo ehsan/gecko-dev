@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsHtml5TreeOpExecutor_h
-#define nsHtml5TreeOpExecutor_h
+#ifndef nsHtml5TreeOpExecutor_h__
+#define nsHtml5TreeOpExecutor_h__
 
 #include "nsIAtom.h"
 #include "nsINameSpaceManager.h"
@@ -228,6 +228,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
      * value if broken.
      */
     inline nsresult IsBroken() {
+      NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
       return mBroken;
     }
 
@@ -415,4 +416,4 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
 };
 
-#endif // nsHtml5TreeOpExecutor_h
+#endif // nsHtml5TreeOpExecutor_h__

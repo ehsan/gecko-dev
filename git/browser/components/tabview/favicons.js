@@ -78,7 +78,7 @@ let FavIcons = {
   _getFavIconFromTabImage:
     function FavIcons_getFavIconFromTabImage(tab, callback) {
 
-    let tabImage = gBrowser.getIcon(tab);
+    let tabImage = tab.image;
 
     // If the tab image's url starts with http(s), fetch icon from favicon
     // service via the moz-anno protocol.

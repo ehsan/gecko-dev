@@ -2,8 +2,10 @@
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
 MARIONETTE_TIMEOUT = 60000;
-MARIONETTE_HEAD_JS = 'head.js';
 
+SpecialPowers.addPermission("telephony", true, document);
+
+let telephony = window.navigator.mozTelephony;
 let outNumber = "5555551111";
 let outgoingCall;
 
@@ -14,7 +16,7 @@ function dial() {
   outgoingCall.onalerting = function onalerting(event) {
     log("Received 'alerting' call event.");
     answer();
-  };
+  };  
 }
 
 function answer() {
@@ -30,7 +32,7 @@ function answer() {
       return(callDuration >= 2000);
     });
   };
-  emulator.run("gsm accept " + outNumber);
+  runEmulatorCmd("gsm accept " + outNumber);
 }
 
 function cleanUp(){
@@ -39,6 +41,4 @@ function cleanUp(){
   finish();
 }
 
-startTest(function() {
-  dial();
-});
+dial();

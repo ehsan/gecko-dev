@@ -13,6 +13,7 @@ import platform
 import shutil
 import socket
 import subprocess
+import sys
 from telnetlib import Telnet
 import tempfile
 import time
@@ -42,13 +43,10 @@ class Emulator(object):
 
     deviceRe = re.compile(r"^emulator-(\d+)(\s*)(.*)$")
     _default_res = '320x480'
-    prefs = {'app.update.enabled': False,
-             'app.update.staging.enabled': False,
-             'app.update.service.enabled': False}
 
     def __init__(self, homedir=None, noWindow=False, logcat_dir=None,
                  arch="x86", emulatorBinary=None, res=None, sdcard=None,
-                 symbols_path=None, userdata=None):
+                 userdata=None):
         self.port = None
         self.dm = None
         self._emulator_launched = False
@@ -69,7 +67,6 @@ class Emulator(object):
         self.screen = EmulatorScreen(self)
         self.homedir = homedir
         self.sdcard = sdcard
-        self.symbols_path = symbols_path
         self.noWindow = noWindow
         if self.homedir is not None:
             self.homedir = os.path.expanduser(homedir)
@@ -77,8 +74,7 @@ class Emulator(object):
         self.copy_userdata = self.dataImg is None
 
     def _check_for_b2g(self):
-        self.b2g = B2GInstance(homedir=self.homedir, emulator=True,
-                               symbols_path=self.symbols_path)
+        self.b2g = B2GInstance(homedir=self.homedir, emulator=True)
         self.adb = self.b2g.adb_path
         self.homedir = self.b2g.homedir
 
@@ -161,11 +157,13 @@ class Emulator(object):
         closed), and self.proc.poll() is also not None (meaning the emulator
         process has terminated).
         """
-        return self._emulator_launched and self.proc is not None \
-                                       and self.proc.poll() is not None
+        if (self._emulator_launched and self.proc is not None
+                                    and self.proc.poll() is not None):
+            return True
+        return False
 
-    def check_for_minidumps(self):
-        return self.b2g.check_for_crashes()
+    def check_for_minidumps(self, symbols_path):
+        return self.b2g.check_for_crashes(symbols_path)
 
     def create_sdcard(self, sdcard):
         self._tmp_sdcard = tempfile.mktemp(prefix='sdcard')
@@ -274,9 +272,6 @@ waitFor(
             # older emulators.  45s *should* be enough of a delay
             # to allow telephony API's to work.
             pass
-        except InvalidResponseException:
-            self.check_for_minidumps()
-            raise
         print 'done'
         marionette.set_context(marionette.CONTEXT_CONTENT)
         marionette.delete_session()
@@ -353,27 +348,6 @@ waitFor(
             self.install_gecko(gecko_path, marionette)
 
         self.wait_for_system_message(marionette)
-        self.set_prefs(marionette)
-
-    def set_prefs(self, marionette):
-        marionette.start_session()
-        marionette.set_context(marionette.CONTEXT_CHROME)
-        for pref in self.prefs:
-            marionette.execute_script("""
-            Components.utils.import("resource://gre/modules/Services.jsm");
-            let argtype = typeof(arguments[1]);
-            switch(argtype) {
-                case 'boolean':
-                    Services.prefs.setBoolPref(arguments[0], arguments[1]);
-                    break;
-                case 'number':
-                    Services.prefs.setIntPref(arguments[0], arguments[1]);
-                    break;
-                default:
-                    Services.prefs.setCharPref(arguments[0], arguments[1]);
-            }
-            """, [pref, self.prefs[pref]])
-        marionette.delete_session()
 
     def restart_b2g(self):
         print 'restarting B2G'
@@ -455,7 +429,7 @@ waitFor(
         filename = os.path.join(self.logcat_dir, "emulator-%d.log" % self.port)
         if os.access(filename, os.F_OK):
             self.rotate_log(filename)
-        cmd = [self.adb, '-s', 'emulator-%d' % self.port, 'logcat', '-v', 'threadtime']
+        cmd = [self.adb, '-s', 'emulator-%d' % self.port, 'logcat']
 
         self.logcat_proc = LogcatProc(filename, cmd)
         self.logcat_proc.run()
@@ -464,14 +438,16 @@ waitFor(
         """ Set up TCP port forwarding to the specified port on the device,
             using any availble local port, and return the local port.
         """
+
+        import socket
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.bind(("",0))
         local_port = s.getsockname()[1]
         s.close()
 
-        self._run_adb(['forward',
-                       'tcp:%d' % local_port,
-                       'tcp:%d' % remote_port])
+        output = self._run_adb(['forward',
+                                'tcp:%d' % local_port,
+                                'tcp:%d' % remote_port])
 
         self.marionette_port = local_port
 

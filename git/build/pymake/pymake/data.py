@@ -504,13 +504,13 @@ class Variables(object):
 
         return (None, None, None)
 
-    def set(self, name, flavor, source, value, force=False):
+    def set(self, name, flavor, source, value):
         assert flavor in (self.FLAVOR_RECURSIVE, self.FLAVOR_SIMPLE)
         assert source in (self.SOURCE_OVERRIDE, self.SOURCE_COMMANDLINE, self.SOURCE_MAKEFILE, self.SOURCE_ENVIRONMENT, self.SOURCE_AUTOMATIC, self.SOURCE_IMPLICIT)
         assert isinstance(value, str_type), "expected str, got %s" % type(value)
 
         prevflavor, prevsource, prevvalue = self.get(name)
-        if prevsource is not None and source > prevsource and not force:
+        if prevsource is not None and source > prevsource:
             # TODO: give a location for this warning
             _log.info("not setting variable '%s', set by higher-priority source to value '%s'" % (name, prevvalue))
             return
@@ -573,8 +573,7 @@ class Pattern(object):
     def __init__(self, s):
         r = []
         i = 0
-        slen = len(s)
-        while i < slen:
+        while i < len(s):
             c = s[i]
             if c == '\\':
                 nc = s[i + 1]
@@ -780,8 +779,7 @@ class RemakeTargetParallel(object):
             return
 
         self.currunning = True
-        rule = self.rlist.pop(0)
-        self.makefile.context.defer(rule.runcommands, self.indent, self.commandscb)
+        self.rlist.pop(0).runcommands(self.indent, self.commandscb)
 
     def commandscb(self, error):
         assert error in (True, False)
@@ -845,15 +843,11 @@ class RemakeRuleContext(object):
         self._depfinishedserial(False, False)
 
     def _startdepparallel(self, d):
-        dep, weak = d
-        if weak:
-            depfinished = self._weakdepfinishedparallel
-        else:
-            depfinished = self._depfinishedparallel
         if self.makefile.error:
             depfinished(True, False)
         else:
-            dep.make(self.makefile, self.targetstack, depfinished)
+            dep, weak = d
+            dep.make(self.makefile, self.targetstack, weak and self._weakdepfinishedparallel or self._depfinishedparallel)
 
     def _weakdepfinishedparallel(self, error, didanything):
         if error:
@@ -1480,20 +1474,8 @@ class Rule(object):
 
     def getcommands(self, target, makefile):
         assert isinstance(target, Target)
-        # Prerequisites are merged if the target contains multiple rules and is
-        # not a terminal (double colon) rule. See
-        # https://www.gnu.org/software/make/manual/make.html#Multiple-Targets.
-        prereqs = []
-        prereqs.extend(self.prerequisites)
 
-        if not self.doublecolon:
-            for rule in target.rules:
-                # The current rule comes first, which is already in prereqs so
-                # we don't need to add it again.
-                if rule != self:
-                    prereqs.extend(rule.prerequisites)
-
-        return getcommandsforrule(self, target, makefile, prereqs, stem=None)
+        return getcommandsforrule(self, target, makefile, self.prerequisites, stem=None)
         # TODO: $* in non-pattern rules?
 
 class PatternRuleInstance(object):
@@ -1688,11 +1670,8 @@ class Makefile(object):
         Inform the makefile of a target which is a candidate for being the default target,
         if there isn't already a default target.
         """
-        flavor, source, value = self.variables.get('.DEFAULT_GOAL')
-        if self.defaulttarget is None and t != '.PHONY' and value is None:
+        if self.defaulttarget is None and t != '.PHONY':
             self.defaulttarget = t
-            self.variables.set('.DEFAULT_GOAL', Variables.FLAVOR_SIMPLE,
-                               Variables.SOURCE_AUTOMATIC, t)
 
     def getpatternvariables(self, pattern):
         assert isinstance(pattern, Pattern)

@@ -5,32 +5,17 @@
 const Cu = Components.utils;
 const Ci = Components.interfaces;
 const Cc = Components.classes;
-
-Services.prefs.setBoolPref("devtools.debugger.log", true);
-SimpleTest.registerCleanupFunction(() => {
-  Services.prefs.clearUserPref("devtools.debugger.log");
-});
-
-
 let tempScope = {};
-Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm", tempScope);
+Cu.import("resource:///modules/devtools/LayoutHelpers.jsm", tempScope);
 let LayoutHelpers = tempScope.LayoutHelpers;
-
-let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", tempScope);
-let TargetFactory = devtools.TargetFactory;
-
+Cu.import("resource:///modules/devtools/Target.jsm", tempScope);
+let TargetFactory = tempScope.TargetFactory;
 Components.utils.import("resource://gre/modules/devtools/Console.jsm", tempScope);
 let console = tempScope.console;
 
 // Import the GCLI test helper
 let testDir = gTestPath.substr(0, gTestPath.lastIndexOf("/"));
-Services.scriptloader.loadSubScript(testDir + "../../../commandline/test/helpers.js", this);
-
-SimpleTest.registerCleanupFunction(() => {
-  console.error("Here we are\n")
-  let {DebuggerServer} = Cu.import("resource://gre/modules/devtools/dbg-server.jsm", {});
-  console.error("DebuggerServer open connections: " + Object.getOwnPropertyNames(DebuggerServer._connections).length);
-});
+Services.scriptloader.loadSubScript(testDir + "/helpers.js", this);
 
 function openInspector(callback)
 {
@@ -44,12 +29,6 @@ function getActiveInspector()
 {
   let target = TargetFactory.forTab(gBrowser.selectedTab);
   return gDevTools.getToolbox(target).getPanel("inspector");
-}
-
-function getNodeFront(node)
-{
-  let inspector = getActiveInspector();
-  return inspector.walker.frontForRawNode(node);
 }
 
 function isHighlighting()
@@ -77,8 +56,7 @@ function getHighlitNode()
   // Get midpoint of diagonal line.
   let midpoint = midPoint(a, b);
 
-  let lh = new LayoutHelpers(window.content);
-  return lh.getElementFromPoint(h.win.document, midpoint.x,
+  return LayoutHelpers.getElementFromPoint(h.win.document, midpoint.x,
     midpoint.y);
 }
 
@@ -108,11 +86,6 @@ function ruleView()
   let sidebar = getActiveInspector().sidebar;
   let iframe = sidebar.tabbox.querySelector(".iframe-ruleview");
   return iframe.contentWindow.ruleView;
-}
-
-function getComputedView() {
-  let inspector = getActiveInspector();
-  return inspector.sidebar.getWindowForTab("computedview").computedview.view;
 }
 
 function synthesizeKeyFromKeyTag(aKeyId) {
@@ -173,23 +146,3 @@ function focusSearchBoxUsingShortcut(panelWin, callback) {
   }, false);
   EventUtils.synthesizeKey(name, modifiers);
 }
-
-function getComputedPropertyValue(aName)
-{
-  let computedview = getComputedView();
-  let props = computedview.styleDocument.querySelectorAll(".property-view");
-
-  for (let prop of props) {
-    let name = prop.querySelector(".property-name");
-
-    if (name.textContent === aName) {
-      let value = prop.querySelector(".property-value");
-      return value.textContent;
-    }
-  }
-}
-
-SimpleTest.registerCleanupFunction(function () {
-  let target = TargetFactory.forTab(gBrowser.selectedTab);
-  gDevTools.closeToolbox(target);
-});

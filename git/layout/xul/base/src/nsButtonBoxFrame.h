@@ -25,11 +25,10 @@ public:
                                            const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
-                         mozilla::WidgetGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                                      nsGUIEvent* aEvent,
+                                      nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 
-  virtual void MouseClicked(nsPresContext* aPresContext,
-                            mozilla::WidgetGUIEvent* aEvent)
+  virtual void MouseClicked (nsPresContext* aPresContext, nsGUIEvent* aEvent)
   { DoMouseClick(aEvent, false); }
 
 #ifdef DEBUG
@@ -42,7 +41,7 @@ public:
    * Our implementation of MouseClicked. 
    * @param aTrustEvent if true and aEvent as null, then assume the event was trusted
    */
-  void DoMouseClick(mozilla::WidgetGUIEvent* aEvent, bool aTrustEvent);
+  void DoMouseClick(nsGUIEvent* aEvent, bool aTrustEvent);
   void UpdateMouseThrough() MOZ_OVERRIDE { AddStateBits(NS_FRAME_MOUSE_THROUGH_NEVER); }
 }; // class nsButtonBoxFrame
 

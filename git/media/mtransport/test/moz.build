@@ -6,23 +6,3 @@
 
 MODULE = 'test_mtransport'
 
-if CONFIG['OS_TARGET'] != 'WINNT' and CONFIG['MOZ_WIDGET_TOOLKIT'] != 'gonk':
-    CPP_UNIT_TESTS += [
-        'ice_unittest.cpp',
-        'nrappkit_unittest.cpp',
-        'rlogringbuffer_unittest.cpp',
-        'runnable_utils_unittest.cpp',
-        'simpletokenbucket_unittest.cpp',
-        'sockettransportservice_unittest.cpp',
-        'TestSyncRunnable.cpp',
-        'transport_unittests.cpp',
-        'turn_unittest.cpp',
-    ]
-
-    if CONFIG['MOZ_SCTP']:
-        CPP_UNIT_TESTS += [
-            'sctp_unittest.cpp',
-        ]
-
-FAIL_ON_WARNINGS = True
-

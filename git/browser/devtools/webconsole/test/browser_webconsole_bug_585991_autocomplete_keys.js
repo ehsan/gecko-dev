@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const TEST_URI = "data:text/html;charset=utf-8,<p>bug 585991 - autocomplete popup keyboard usage test";
-let HUD, popup, jsterm, inputNode, completeNode;
+let HUD;
 
 function test() {
   addTab(TEST_URI);
@@ -16,7 +16,6 @@ function test() {
 
 function consoleOpened(aHud) {
   HUD = aHud;
-  info("web console opened");
 
   content.wrappedJSObject.foobarBug585991 = {
     "item0": "value0",
@@ -25,10 +24,9 @@ function consoleOpened(aHud) {
     "item3": "value3",
   };
 
-  jsterm = HUD.jsterm;
-  popup = jsterm.autocompletePopup;
-  completeNode = jsterm.completeNode;
-  inputNode = jsterm.inputNode;
+  let jsterm = HUD.jsterm;
+  let popup = jsterm.autocompletePopup;
+  let completeNode = jsterm.completeNode;
 
   ok(!popup.isOpen, "popup is not open");
 
@@ -69,6 +67,7 @@ function consoleOpened(aHud) {
     is(popup.selectedIndex, 17,
        "Index of the first item from bottom is selected.");
     EventUtils.synthesizeKey("VK_DOWN", {});
+    EventUtils.synthesizeKey("VK_DOWN", {});
 
     let prefix = jsterm.inputNode.value.replace(/[\S]/g, " ");
 
@@ -91,20 +90,23 @@ function consoleOpened(aHud) {
     is(completeNode.value, prefix + "watch",
         "completeNode.value holds watch");
 
-    info("press Tab and wait for popup to hide");
-    popup._panel.addEventListener("popuphidden", popupHideAfterTab, false);
+    popup._panel.addEventListener("popuphidden", autocompletePopupHidden, false);
+
     EventUtils.synthesizeKey("VK_TAB", {});
   }, false);
 
-  info("wait for completion: window.foobarBug585991.");
   jsterm.setInputValue("window.foobarBug585991");
   EventUtils.synthesizeKey(".", {});
 }
 
-function popupHideAfterTab()
+function autocompletePopupHidden()
 {
-  // At this point the completion suggestion should be accepted.
-  popup._panel.removeEventListener("popuphidden", popupHideAfterTab, false);
+  let jsterm = HUD.jsterm;
+  let popup = jsterm.autocompletePopup;
+  let completeNode = jsterm.completeNode;
+  let inputNode = jsterm.inputNode;
+
+  popup._panel.removeEventListener("popuphidden", autocompletePopupHidden, false);
 
   ok(!popup.isOpen, "popup is not open");
 
@@ -121,6 +123,7 @@ function popupHideAfterTab()
     is(popup.itemCount, 18, "popup.itemCount is correct");
 
     is(popup.selectedIndex, 17, "First index from bottom is selected");
+    EventUtils.synthesizeKey("VK_DOWN", {});
     EventUtils.synthesizeKey("VK_DOWN", {});
 
     let prefix = jsterm.inputNode.value.replace(/[\S]/g, " ");
@@ -143,13 +146,11 @@ function popupHideAfterTab()
       executeSoon(testReturnKey);
     }, false);
 
-    info("press Escape to close the popup");
     executeSoon(function() {
       EventUtils.synthesizeKey("VK_ESCAPE", {});
     });
   }, false);
 
-  info("wait for completion: window.foobarBug585991.");
   executeSoon(function() {
     jsterm.setInputValue("window.foobarBug585991");
     EventUtils.synthesizeKey(".", {});
@@ -158,6 +159,11 @@ function popupHideAfterTab()
 
 function testReturnKey()
 {
+  let jsterm = HUD.jsterm;
+  let popup = jsterm.autocompletePopup;
+  let completeNode = jsterm.completeNode;
+  let inputNode = jsterm.inputNode;
+
   popup._panel.addEventListener("popupshown", function onShown() {
     popup._panel.removeEventListener("popupshown", onShown, false);
 
@@ -166,6 +172,7 @@ function testReturnKey()
     is(popup.itemCount, 18, "popup.itemCount is correct");
 
     is(popup.selectedIndex, 17, "First index from bottom is selected");
+    EventUtils.synthesizeKey("VK_DOWN", {});
     EventUtils.synthesizeKey("VK_DOWN", {});
 
     let prefix = jsterm.inputNode.value.replace(/[\S]/g, " ");
@@ -180,7 +187,7 @@ function testReturnKey()
     is(popup.selectedIndex, 1, "index 1 is selected");
     is(popup.selectedItem.label, "valueOf", "valueOf is selected");
     is(completeNode.value, prefix + "valueOf",
-       "completeNode.value holds valueOf");
+        "completeNode.value holds valueOf");
 
     popup._panel.addEventListener("popuphidden", function onHidden() {
       popup._panel.removeEventListener("popuphidden", onHidden, false);
@@ -195,12 +202,8 @@ function testReturnKey()
       dontShowArrayNumbers();
     }, false);
 
-    info("press Return to accept suggestion. wait for popup to hide");
-
-    executeSoon(() => EventUtils.synthesizeKey("VK_RETURN", {}));
+    EventUtils.synthesizeKey("VK_RETURN", {});
   }, false);
-
-  info("wait for completion suggestions: window.foobarBug585991.");
 
   executeSoon(function() {
     jsterm.setInputValue("window.foobarBug58599");
@@ -211,7 +214,6 @@ function testReturnKey()
 
 function dontShowArrayNumbers()
 {
-  info("dontShowArrayNumbers");
   content.wrappedJSObject.foobarBug585991 = ["Sherlock Holmes"];
 
   let jsterm = HUD.jsterm;
@@ -225,100 +227,14 @@ function dontShowArrayNumbers()
     ok(!sameItems.some(function(prop, index) { prop === "0"; }),
        "Completing on an array doesn't show numbers.");
 
-    popup._panel.addEventListener("popuphidden", testReturnWithNoSelection, false);
+    popup._panel.addEventListener("popuphidden", consoleOpened, false);
 
-    info("wait for popup to hide");
-    executeSoon(() => EventUtils.synthesizeKey("VK_ESCAPE", {}));
+    EventUtils.synthesizeKey("VK_TAB", {});
+
+    executeSoon(finishTest);
   }, false);
 
-  info("wait for popup to show");
-  executeSoon(() => {
-    jsterm.setInputValue("window.foobarBug585991");
-    EventUtils.synthesizeKey(".", {});
-  });
+  jsterm.setInputValue("window.foobarBug585991");
+  EventUtils.synthesizeKey(".", {});
 }
 
-function testReturnWithNoSelection()
-{
-  popup._panel.removeEventListener("popuphidden", testReturnWithNoSelection, false);
-
-  info("test pressing return with open popup, but no selection, see bug 873250");
-  content.wrappedJSObject.testBug873250a = "hello world";
-  content.wrappedJSObject.testBug873250b = "hello world 2";
-
-  popup._panel.addEventListener("popupshown", function onShown() {
-    popup._panel.removeEventListener("popupshown", onShown);
-
-    ok(popup.isOpen, "popup is open");
-    is(popup.itemCount, 2, "popup.itemCount is correct");
-    isnot(popup.selectedIndex, -1, "popup.selectedIndex is correct");
-
-    info("press Return and wait for popup to hide");
-    popup._panel.addEventListener("popuphidden", popupHideAfterReturnWithNoSelection);
-    executeSoon(() => EventUtils.synthesizeKey("VK_RETURN", {}));
-  });
-
-  executeSoon(() => {
-    info("wait for popup to show");
-    jsterm.setInputValue("window.testBu");
-    EventUtils.synthesizeKey("g", {});
-  });
-}
-
-function popupHideAfterReturnWithNoSelection()
-{
-  popup._panel.removeEventListener("popuphidden", popupHideAfterReturnWithNoSelection);
-
-  ok(!popup.isOpen, "popup is not open after VK_RETURN");
-
-  is(inputNode.value, "", "inputNode is empty after VK_RETURN");
-  is(completeNode.value, "", "completeNode is empty");
-  is(jsterm.history[jsterm.history.length-1], "window.testBug",
-     "jsterm history is correct");
-
-  executeSoon(testCompletionInText);
-}
-
-function testCompletionInText()
-{
-  info("test that completion works inside text, see bug 812618");
-
-  popup._panel.addEventListener("popupshown", function onShown() {
-    popup._panel.removeEventListener("popupshown", onShown);
-
-    ok(popup.isOpen, "popup is open");
-    is(popup.itemCount, 2, "popup.itemCount is correct");
-
-    EventUtils.synthesizeKey("VK_DOWN", {});
-    is(popup.selectedIndex, 0, "popup.selectedIndex is correct");
-    ok(!completeNode.value, "completeNode.value is empty");
-
-    let items = popup.getItems().reverse().map(e => e.label);
-    let sameItems = items.every((prop, index) =>
-      ["testBug873250a", "testBug873250b"][index] === prop);
-    ok(sameItems, "getItems returns the items we expect");
-
-    info("press Tab and wait for popup to hide");
-    popup._panel.addEventListener("popuphidden", popupHideAfterCompletionInText);
-    EventUtils.synthesizeKey("VK_TAB", {});
-  });
-
-  jsterm.setInputValue("dump(window.testBu)");
-  inputNode.selectionStart = inputNode.selectionEnd = 18;
-  EventUtils.synthesizeKey("g", {});
-}
-
-function popupHideAfterCompletionInText()
-{
-  // At this point the completion suggestion should be accepted.
-  popup._panel.removeEventListener("popuphidden", popupHideAfterCompletionInText);
-
-  ok(!popup.isOpen, "popup is not open");
-  is(inputNode.value, "dump(window.testBug873250b)",
-     "completion was successful after VK_TAB");
-  is(inputNode.selectionStart, 26, "cursor location is correct");
-  is(inputNode.selectionStart, inputNode.selectionEnd, "cursor location (confirmed)");
-  ok(!completeNode.value, "completeNode is empty");
-
-  finishTest();
-}

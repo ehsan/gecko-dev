@@ -5,8 +5,8 @@
 
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG /* Allow logging in the release build */
-#include "prlog.h"
 #endif
+#include "prlog.h"
 
 #include "mozilla/Util.h"
 
@@ -15,17 +15,18 @@
 #include "nsServiceManagerUtils.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/Services.h"
 
+#include "nsIStreamBufferAccess.h"
 #include "nsIUUIDGenerator.h"
+#include "nsMemory.h"
 #include "nsICharsetConverterManager.h"
-#include "nsIObserverService.h"
-#include "nsCRT.h"
-
-#include "harfbuzz/hb.h"
 
 #include "plbase64.h"
 #include "prlog.h"
+
+#ifdef XP_MACOSX
+#include <CoreFoundation/CoreFoundation.h>
+#endif
 
 #ifdef PR_LOGGING
 
@@ -34,10 +35,198 @@
 
 #endif // PR_LOGGING
 
+#define NO_RANGE_FOUND 126 // bit 126 in the font unicode ranges is required to be 0
+
 #define UNICODE_BMP_LIMIT 0x10000
 
 using namespace mozilla;
-using mozilla::services::GetObserverService;
+
+/* Unicode subrange table
+ *   from: http://msdn.microsoft.com/en-us/library/dd374090
+ *
+ * Edit the text to extend the initial digit, then use something like:
+ * perl -pi -e 's/^(\d+)\t([\dA-Fa-f]+)\s+-\s+([\dA-Fa-f]+)\s+\b([a-zA-Z0-9\(\)\- ]+)/    { \1, 0x\2, 0x\3, \"\4\" },/' < unicoderange.txt
+ * to generate the below list.
+ */
+struct UnicodeRangeTableEntry
+{
+    uint8_t bit;
+    uint32_t start;
+    uint32_t end;
+    const char *info;
+};
+
+static struct UnicodeRangeTableEntry gUnicodeRanges[] = {
+    { 0, 0x0000, 0x007F, "Basic Latin" },
+    { 1, 0x0080, 0x00FF, "Latin-1 Supplement" },
+    { 2, 0x0100, 0x017F, "Latin Extended-A" },
+    { 3, 0x0180, 0x024F, "Latin Extended-B" },
+    { 4, 0x0250, 0x02AF, "IPA Extensions" },
+    { 4, 0x1D00, 0x1D7F, "Phonetic Extensions" },
+    { 4, 0x1D80, 0x1DBF, "Phonetic Extensions Supplement" },
+    { 5, 0x02B0, 0x02FF, "Spacing Modifier Letters" },
+    { 5, 0xA700, 0xA71F, "Modifier Tone Letters" },
+    { 6, 0x0300, 0x036F, "Combining Diacritical Marks" },
+    { 6, 0x1DC0, 0x1DFF, "Combining Diacritical Marks Supplement" },
+    { 7, 0x0370, 0x03FF, "Greek and Coptic" },
+    { 8, 0x2C80, 0x2CFF, "Coptic" },
+    { 9, 0x0400, 0x04FF, "Cyrillic" },
+    { 9, 0x0500, 0x052F, "Cyrillic Supplement" },
+    { 9, 0x2DE0, 0x2DFF, "Cyrillic Extended-A" },
+    { 9, 0xA640, 0xA69F, "Cyrillic Extended-B" },
+    { 10, 0x0530, 0x058F, "Armenian" },
+    { 11, 0x0590, 0x05FF, "Hebrew" },
+    { 12, 0xA500, 0xA63F, "Vai" },
+    { 13, 0x0600, 0x06FF, "Arabic" },
+    { 13, 0x0750, 0x077F, "Arabic Supplement" },
+    { 14, 0x07C0, 0x07FF, "NKo" },
+    { 15, 0x0900, 0x097F, "Devanagari" },
+    { 16, 0x0980, 0x09FF, "Bengali" },
+    { 17, 0x0A00, 0x0A7F, "Gurmukhi" },
+    { 18, 0x0A80, 0x0AFF, "Gujarati" },
+    { 19, 0x0B00, 0x0B7F, "Oriya" },
+    { 20, 0x0B80, 0x0BFF, "Tamil" },
+    { 21, 0x0C00, 0x0C7F, "Telugu" },
+    { 22, 0x0C80, 0x0CFF, "Kannada" },
+    { 23, 0x0D00, 0x0D7F, "Malayalam" },
+    { 24, 0x0E00, 0x0E7F, "Thai" },
+    { 25, 0x0E80, 0x0EFF, "Lao" },
+    { 26, 0x10A0, 0x10FF, "Georgian" },
+    { 26, 0x2D00, 0x2D2F, "Georgian Supplement" },
+    { 27, 0x1B00, 0x1B7F, "Balinese" },
+    { 28, 0x1100, 0x11FF, "Hangul Jamo" },
+    { 29, 0x1E00, 0x1EFF, "Latin Extended Additional" },
+    { 29, 0x2C60, 0x2C7F, "Latin Extended-C" },
+    { 29, 0xA720, 0xA7FF, "Latin Extended-D" },
+    { 30, 0x1F00, 0x1FFF, "Greek Extended" },
+    { 31, 0x2000, 0x206F, "General Punctuation" },
+    { 31, 0x2E00, 0x2E7F, "Supplemental Punctuation" },
+    { 32, 0x2070, 0x209F, "Superscripts And Subscripts" },
+    { 33, 0x20A0, 0x20CF, "Currency Symbols" },
+    { 34, 0x20D0, 0x20FF, "Combining Diacritical Marks For Symbols" },
+    { 35, 0x2100, 0x214F, "Letterlike Symbols" },
+    { 36, 0x2150, 0x218F, "Number Forms" },
+    { 37, 0x2190, 0x21FF, "Arrows" },
+    { 37, 0x27F0, 0x27FF, "Supplemental Arrows-A" },
+    { 37, 0x2900, 0x297F, "Supplemental Arrows-B" },
+    { 37, 0x2B00, 0x2BFF, "Miscellaneous Symbols and Arrows" },
+    { 38, 0x2200, 0x22FF, "Mathematical Operators" },
+    { 38, 0x27C0, 0x27EF, "Miscellaneous Mathematical Symbols-A" },
+    { 38, 0x2980, 0x29FF, "Miscellaneous Mathematical Symbols-B" },
+    { 38, 0x2A00, 0x2AFF, "Supplemental Mathematical Operators" },
+    { 39, 0x2300, 0x23FF, "Miscellaneous Technical" },
+    { 40, 0x2400, 0x243F, "Control Pictures" },
+    { 41, 0x2440, 0x245F, "Optical Character Recognition" },
+    { 42, 0x2460, 0x24FF, "Enclosed Alphanumerics" },
+    { 43, 0x2500, 0x257F, "Box Drawing" },
+    { 44, 0x2580, 0x259F, "Block Elements" },
+    { 45, 0x25A0, 0x25FF, "Geometric Shapes" },
+    { 46, 0x2600, 0x26FF, "Miscellaneous Symbols" },
+    { 47, 0x2700, 0x27BF, "Dingbats" },
+    { 48, 0x3000, 0x303F, "CJK Symbols And Punctuation" },
+    { 49, 0x3040, 0x309F, "Hiragana" },
+    { 50, 0x30A0, 0x30FF, "Katakana" },
+    { 50, 0x31F0, 0x31FF, "Katakana Phonetic Extensions" },
+    { 51, 0x3100, 0x312F, "Bopomofo" },
+    { 50, 0x31A0, 0x31BF, "Bopomofo Extended" },
+    { 52, 0x3130, 0x318F, "Hangul Compatibility Jamo" },
+    { 53, 0xA840, 0xA87F, "Phags-pa" },
+    { 54, 0x3200, 0x32FF, "Enclosed CJK Letters And Months" },
+    { 55, 0x3300, 0x33FF, "CJK Compatibility" },
+    { 56, 0xAC00, 0xD7AF, "Hangul Syllables" },
+    { 57, 0xD800, 0xDFFF, "Non-Plane 0" },
+    { 58, 0x10900, 0x1091F, "Phoenician" },
+    { 59, 0x2E80, 0x2EFF, "CJK Radicals Supplement" },
+    { 59, 0x2F00, 0x2FDF, "Kangxi Radicals" },
+    { 59, 0x2FF0, 0x2FFF, "Ideographic Description Characters" },
+    { 59, 0x3190, 0x319F, "Kanbun" },
+    { 59, 0x3400, 0x4DBF, "CJK Unified Ideographs Extension A" },
+    { 59, 0x4E00, 0x9FFF, "CJK Unified Ideographs" },
+    { 59, 0x20000, 0x2A6DF, "CJK Unified Ideographs Extension B" },
+    { 60, 0xE000, 0xF8FF, "Private Use Area" },
+    { 61, 0x31C0, 0x31EF, "CJK Strokes" },
+    { 61, 0xF900, 0xFAFF, "CJK Compatibility Ideographs" },
+    { 61, 0x2F800, 0x2FA1F, "CJK Compatibility Ideographs Supplement" },
+    { 62, 0xFB00, 0xFB4F, "Alphabetic Presentation Forms" },
+    { 63, 0xFB50, 0xFDFF, "Arabic Presentation Forms-A" },
+    { 64, 0xFE20, 0xFE2F, "Combining Half Marks" },
+    { 65, 0xFE10, 0xFE1F, "Vertical Forms" },
+    { 65, 0xFE30, 0xFE4F, "CJK Compatibility Forms" },
+    { 66, 0xFE50, 0xFE6F, "Small Form Variants" },
+    { 67, 0xFE70, 0xFEFF, "Arabic Presentation Forms-B" },
+    { 68, 0xFF00, 0xFFEF, "Halfwidth And Fullwidth Forms" },
+    { 69, 0xFFF0, 0xFFFF, "Specials" },
+    { 70, 0x0F00, 0x0FFF, "Tibetan" },
+    { 71, 0x0700, 0x074F, "Syriac" },
+    { 72, 0x0780, 0x07BF, "Thaana" },
+    { 73, 0x0D80, 0x0DFF, "Sinhala" },
+    { 74, 0x1000, 0x109F, "Myanmar" },
+    { 75, 0x1200, 0x137F, "Ethiopic" },
+    { 75, 0x1380, 0x139F, "Ethiopic Supplement" },
+    { 75, 0x2D80, 0x2DDF, "Ethiopic Extended" },
+    { 76, 0x13A0, 0x13FF, "Cherokee" },
+    { 77, 0x1400, 0x167F, "Unified Canadian Aboriginal Syllabics" },
+    { 78, 0x1680, 0x169F, "Ogham" },
+    { 79, 0x16A0, 0x16FF, "Runic" },
+    { 80, 0x1780, 0x17FF, "Khmer" },
+    { 80, 0x19E0, 0x19FF, "Khmer Symbols" },
+    { 81, 0x1800, 0x18AF, "Mongolian" },
+    { 82, 0x2800, 0x28FF, "Braille Patterns" },
+    { 83, 0xA000, 0xA48F, "Yi Syllables" },
+    { 83, 0xA490, 0xA4CF, "Yi Radicals" },
+    { 84, 0x1700, 0x171F, "Tagalog" },
+    { 84, 0x1720, 0x173F, "Hanunoo" },
+    { 84, 0x1740, 0x175F, "Buhid" },
+    { 84, 0x1760, 0x177F, "Tagbanwa" },
+    { 85, 0x10300, 0x1032F, "Old Italic" },
+    { 86, 0x10330, 0x1034F, "Gothic" },
+    { 87, 0x10400, 0x1044F, "Deseret" },
+    { 88, 0x1D000, 0x1D0FF, "Byzantine Musical Symbols" },
+    { 88, 0x1D100, 0x1D1FF, "Musical Symbols" },
+    { 88, 0x1D200, 0x1D24F, "Ancient Greek Musical Notation" },
+    { 89, 0x1D400, 0x1D7FF, "Mathematical Alphanumeric Symbols" },
+    { 90, 0xFF000, 0xFFFFD, "Private Use (plane 15)" },
+    { 90, 0x100000, 0x10FFFD, "Private Use (plane 16)" },
+    { 91, 0xFE00, 0xFE0F, "Variation Selectors" },
+    { 91, 0xE0100, 0xE01EF, "Variation Selectors Supplement" },
+    { 92, 0xE0000, 0xE007F, "Tags" },
+    { 93, 0x1900, 0x194F, "Limbu" },
+    { 94, 0x1950, 0x197F, "Tai Le" },
+    { 95, 0x1980, 0x19DF, "New Tai Lue" },
+    { 96, 0x1A00, 0x1A1F, "Buginese" },
+    { 97, 0x2C00, 0x2C5F, "Glagolitic" },
+    { 98, 0x2D30, 0x2D7F, "Tifinagh" },
+    { 99, 0x4DC0, 0x4DFF, "Yijing Hexagram Symbols" },
+    { 100, 0xA800, 0xA82F, "Syloti Nagri" },
+    { 101, 0x10000, 0x1007F, "Linear B Syllabary" },
+    { 101, 0x10080, 0x100FF, "Linear B Ideograms" },
+    { 101, 0x10100, 0x1013F, "Aegean Numbers" },
+    { 102, 0x10140, 0x1018F, "Ancient Greek Numbers" },
+    { 103, 0x10380, 0x1039F, "Ugaritic" },
+    { 104, 0x103A0, 0x103DF, "Old Persian" },
+    { 105, 0x10450, 0x1047F, "Shavian" },
+    { 106, 0x10480, 0x104AF, "Osmanya" },
+    { 107, 0x10800, 0x1083F, "Cypriot Syllabary" },
+    { 108, 0x10A00, 0x10A5F, "Kharoshthi" },
+    { 109, 0x1D300, 0x1D35F, "Tai Xuan Jing Symbols" },
+    { 110, 0x12000, 0x123FF, "Cuneiform" },
+    { 110, 0x12400, 0x1247F, "Cuneiform Numbers and Punctuation" },
+    { 111, 0x1D360, 0x1D37F, "Counting Rod Numerals" },
+    { 112, 0x1B80, 0x1BBF, "Sundanese" },
+    { 113, 0x1C00, 0x1C4F, "Lepcha" },
+    { 114, 0x1C50, 0x1C7F, "Ol Chiki" },
+    { 115, 0xA880, 0xA8DF, "Saurashtra" },
+    { 116, 0xA900, 0xA92F, "Kayah Li" },
+    { 117, 0xA930, 0xA95F, "Rejang" },
+    { 118, 0xAA00, 0xAA5F, "Cham" },
+    { 119, 0x10190, 0x101CF, "Ancient Symbols" },
+    { 120, 0x101D0, 0x101FF, "Phaistos Disc" },
+    { 121, 0x10280, 0x1029F, "Lycian" },
+    { 121, 0x102A0, 0x102DF, "Carian" },
+    { 121, 0x10920, 0x1093F, "Lydian" },
+    { 122, 0x1F000, 0x1F02F, "Mahjong Tiles" },
+    { 122, 0x1F030, 0x1F09F, "Domino Tiles" }
+};
 
 #pragma pack(1)
 
@@ -703,6 +892,16 @@ gfxFontUtils::MapCharToGlyph(const uint8_t *aCmapBuf, uint32_t aBufLength,
     return gid;
 }
 
+uint8_t gfxFontUtils::CharRangeBit(uint32_t ch) {
+    const uint32_t n = sizeof(gUnicodeRanges) / sizeof(struct UnicodeRangeTableEntry);
+
+    for (uint32_t i = 0; i < n; ++i)
+        if (ch >= gUnicodeRanges[i].start && ch <= gUnicodeRanges[i].end)
+            return gUnicodeRanges[i].bit;
+
+    return NO_RANGE_FOUND;
+}
+
 void gfxFontUtils::GetPrefsFontList(const char *aPrefName, nsTArray<nsString>& aFontList)
 {
     const PRUnichar kComma = PRUnichar(',');
@@ -914,10 +1113,13 @@ gfxFontUtils::RenameFont(const nsAString& aName, const uint8_t *aFontData,
     // -- string data, located after the name records, stored in big-endian form
     PRUnichar *strData = reinterpret_cast<PRUnichar*>(nameRecord);
 
-    mozilla::NativeEndian::copyAndSwapToBigEndian(strData,
-                                                  aName.BeginReading(),
-                                                  aName.Length());
-    strData[aName.Length()] = 0; // add null termination
+    const PRUnichar *nameStr = aName.BeginReading();
+    const PRUnichar *nameStrEnd = aName.EndReading();
+    while (nameStr < nameStrEnd) {
+        PRUnichar ch = *nameStr++;
+        *strData++ = NS_SWAP16(ch);
+    }
+    *strData = 0; // add null termination
     
     // adjust name table header to point to the new name table
     SFNTHeader *sfntHeader = reinterpret_cast<SFNTHeader*>(newFontData);
@@ -1017,18 +1219,17 @@ gfxFontUtils::GetFullNameFromSFNT(const uint8_t* aFontData, uint32_t aLength,
     uint32_t len = dirEntry->length;
     NS_ENSURE_TRUE(aLength > len && aLength - len >= dirEntry->offset,
                    NS_ERROR_UNEXPECTED);
+    FallibleTArray<uint8_t> nameTable;
+    if (!nameTable.SetLength(len)) {
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
+    memcpy(nameTable.Elements(), aFontData + dirEntry->offset, len);
 
-    hb_blob_t *nameBlob =
-        hb_blob_create((const char*)aFontData + dirEntry->offset, len,
-                       HB_MEMORY_MODE_READONLY, nullptr, nullptr);
-    nsresult rv = GetFullNameFromTable(nameBlob, aFullName);
-    hb_blob_destroy(nameBlob);
-
-    return rv;
+    return GetFullNameFromTable(nameTable, aFullName);
 }
 
 nsresult
-gfxFontUtils::GetFullNameFromTable(hb_blob_t *aNameTable,
+gfxFontUtils::GetFullNameFromTable(FallibleTArray<uint8_t>& aNameTable,
                                    nsAString& aFullName)
 {
     nsAutoString name;
@@ -1060,7 +1261,7 @@ gfxFontUtils::GetFullNameFromTable(hb_blob_t *aNameTable,
 }
 
 nsresult
-gfxFontUtils::GetFamilyNameFromTable(hb_blob_t *aNameTable,
+gfxFontUtils::GetFamilyNameFromTable(FallibleTArray<uint8_t>& aNameTable,
                                      nsAString& aFullName)
 {
     nsAutoString name;
@@ -1086,14 +1287,14 @@ enum {
 };    
 
 nsresult
-gfxFontUtils::ReadNames(hb_blob_t *aNameTable, uint32_t aNameID, 
+gfxFontUtils::ReadNames(FallibleTArray<uint8_t>& aNameTable, uint32_t aNameID, 
                         int32_t aPlatformID, nsTArray<nsString>& aNames)
 {
     return ReadNames(aNameTable, aNameID, LANG_ALL, aPlatformID, aNames);
 }
 
 nsresult
-gfxFontUtils::ReadCanonicalName(hb_blob_t *aNameTable, uint32_t aNameID, 
+gfxFontUtils::ReadCanonicalName(FallibleTArray<uint8_t>& aNameTable, uint32_t aNameID, 
                                 nsString& aName)
 {
     nsresult rv;
@@ -1261,7 +1462,7 @@ gfxFontUtils::GetCharsetForFontName(uint16_t aPlatform, uint16_t aScript, uint16
 // convert a raw name from the name table to an nsString, if possible;
 // return value indicates whether conversion succeeded
 bool
-gfxFontUtils::DecodeFontName(const char *aNameData, int32_t aByteLen, 
+gfxFontUtils::DecodeFontName(const uint8_t *aNameData, int32_t aByteLen, 
                              uint32_t aPlatformCode, uint32_t aScriptCode,
                              uint32_t aLangCode, nsAString& aName)
 {
@@ -1311,7 +1512,7 @@ gfxFontUtils::DecodeFontName(const char *aNameData, int32_t aByteLen,
     }
 
     int32_t destLength;
-    rv = decoder->GetMaxLength(aNameData, aByteLen, &destLength);
+    rv = decoder->GetMaxLength(reinterpret_cast<const char*>(aNameData), aByteLen, &destLength);
     if (NS_FAILED(rv)) {
         NS_WARNING("decoder->GetMaxLength failed, invalid font name?");
         return false;
@@ -1319,7 +1520,7 @@ gfxFontUtils::DecodeFontName(const char *aNameData, int32_t aByteLen,
 
     // make space for the converted string
     aName.SetLength(destLength);
-    rv = decoder->Convert(aNameData, &aByteLen,
+    rv = decoder->Convert(reinterpret_cast<const char*>(aNameData), &aByteLen,
                           aName.BeginWriting(), &destLength);
     if (NS_FAILED(rv)) {
         NS_WARNING("decoder->Convert failed, invalid font name?");
@@ -1331,17 +1532,17 @@ gfxFontUtils::DecodeFontName(const char *aNameData, int32_t aByteLen,
 }
 
 nsresult
-gfxFontUtils::ReadNames(hb_blob_t *aNameTable, uint32_t aNameID, 
+gfxFontUtils::ReadNames(FallibleTArray<uint8_t>& aNameTable, uint32_t aNameID, 
                         int32_t aLangID, int32_t aPlatformID,
                         nsTArray<nsString>& aNames)
 {
-    uint32_t nameTableLen;
-    const char *nameTable = hb_blob_get_data(aNameTable, &nameTableLen);
+    uint32_t nameTableLen = aNameTable.Length();
     NS_ASSERTION(nameTableLen != 0, "null name table");
 
-    if (!nameTableLen) {
+    if (nameTableLen == 0)
         return NS_ERROR_FAILURE;
-    }
+
+    uint8_t *nameTable = aNameTable.Elements();
 
     // -- name table data
     const NameHeader *nameHeader = reinterpret_cast<const NameHeader*>(nameTable);
@@ -1418,118 +1619,409 @@ gfxFontUtils::ReadNames(hb_blob_t *aNameTable, uint32_t aNameID,
 
 #ifdef XP_WIN
 
+// Embedded OpenType (EOT) handling
+// needed for dealing with downloadable fonts on Windows
+//
+// EOT version 0x00020001
+// based on http://www.w3.org/Submission/2008/SUBM-EOT-20080305/
+//
+// EOT header consists of a fixed-size portion containing general font
+// info, followed by a variable-sized portion containing name data,
+// followed by the actual TT/OT font data (non-byte values are always
+// stored in big-endian format)
+//
+// EOT header is stored in *little* endian order!!
+
+#pragma pack(1)
+
+struct EOTFixedHeader {
+
+    uint32_t      eotSize;            // Total structure length in PRUint8s (including string and font data)
+    uint32_t      fontDataSize;       // Length of the OpenType font (FontData) in PRUint8s
+    uint32_t      version;            // Version number of this format - 0x00010000
+    uint32_t      flags;              // Processing Flags
+    uint8_t       panose[10];         // The PANOSE value for this font - See http://www.microsoft.com/typography/otspec/os2.htm#pan
+    uint8_t       charset;            // In Windows this is derived from TEXTMETRIC.tmCharSet. This value specifies the character set of the font. DEFAULT_CHARSET (0x01) indicates no preference. - See http://msdn2.microsoft.com/en-us/library/ms534202.aspx
+    uint8_t       italic;             // If the bit for ITALIC is set in OS/2.fsSelection, the value will be 0x01 - See http://www.microsoft.com/typography/otspec/os2.htm#fss
+    uint32_t      weight;             // The weight value for this font - See http://www.microsoft.com/typography/otspec/os2.htm#wtc
+    uint16_t      fsType;             // Type flags that provide information about embedding permissions - See http://www.microsoft.com/typography/otspec/os2.htm#fst
+    uint16_t      magicNumber;        // Magic number for EOT file - 0x504C. Used to check for data corruption.
+    uint32_t      unicodeRange1;      // OS/2.UnicodeRange1 (bits 0-31) - See http://www.microsoft.com/typography/otspec/os2.htm#ur
+    uint32_t      unicodeRange2;      // OS/2.UnicodeRange2 (bits 32-63) - See http://www.microsoft.com/typography/otspec/os2.htm#ur
+    uint32_t      unicodeRange3;      // OS/2.UnicodeRange3 (bits 64-95) - See http://www.microsoft.com/typography/otspec/os2.htm#ur
+    uint32_t      unicodeRange4;      // OS/2.UnicodeRange4 (bits 96-127) - See http://www.microsoft.com/typography/otspec/os2.htm#ur
+    uint32_t      codePageRange1;     // CodePageRange1 (bits 0-31) - See http://www.microsoft.com/typography/otspec/os2.htm#cpr
+    uint32_t      codePageRange2;     // CodePageRange2 (bits 32-63) - See http://www.microsoft.com/typography/otspec/os2.htm#cpr
+    uint32_t      checkSumAdjustment; // head.CheckSumAdjustment - See http://www.microsoft.com/typography/otspec/head.htm
+    uint32_t      reserved[4];        // Reserved - must be 0
+    uint16_t      padding1;           // Padding to maintain long alignment. Padding value must always be set to 0x0000.
+
+    enum {
+        EOT_VERSION = 0x00020001,
+        EOT_MAGIC_NUMBER = 0x504c,
+        EOT_DEFAULT_CHARSET = 0x01,
+        EOT_EMBED_PRINT_PREVIEW = 0x0004,
+        EOT_FAMILY_NAME_INDEX = 0,    // order of names in variable portion of EOT header
+        EOT_STYLE_NAME_INDEX = 1,
+        EOT_VERSION_NAME_INDEX = 2,
+        EOT_FULL_NAME_INDEX = 3,
+        EOT_NUM_NAMES = 4
+    };
+
+};
+
+#pragma pack()
+
+// EOT headers are only used on Windows
+
+// EOT variable-sized header (version 0x00020001 - contains 4 name
+// fields, each with the structure):
+//
+//   // number of bytes in the name array
+//   uint16_t size;
+//   // array of UTF-16 chars, total length = <size> bytes
+//   // note: english version of name record string
+//   uint8_t  name[size]; 
+//
+// This structure is used for the following names, each separated by two
+// bytes of padding (always 0 with no padding after the rootString):
+//
+//   familyName  - based on name ID = 1
+//   styleName   - based on name ID = 2
+//   versionName - based on name ID = 5
+//   fullName    - based on name ID = 4
+//   rootString  - used to restrict font usage to a specific domain
+//
+
+#if DEBUG
+static void 
+DumpEOTHeader(uint8_t *aHeader, uint32_t aHeaderLen)
+{
+    uint32_t offset = 0;
+    uint8_t *ch = aHeader;
+
+    printf("\n\nlen == %d\n\n", aHeaderLen);
+    while (offset < aHeaderLen) {
+        printf("%7.7x    ", offset);
+        int i;
+        for (i = 0; i < 16; i++) {
+            printf("%2.2x  ", *ch++);
+        }
+        printf("\n");
+        offset += 16;
+    }
+}
+#endif
+
+nsresult
+gfxFontUtils::MakeEOTHeader(const uint8_t *aFontData, uint32_t aFontDataLength,
+                            FallibleTArray<uint8_t> *aHeader,
+                            FontDataOverlay *aOverlay)
+{
+    NS_ASSERTION(aFontData && aFontDataLength != 0, "null font data");
+    NS_ASSERTION(aHeader, "null header");
+    NS_ASSERTION(aHeader->Length() == 0, "non-empty header passed in");
+    NS_ASSERTION(aOverlay, "null font overlay struct passed in");
+
+    aOverlay->overlaySrc = 0;
+    
+    if (!aHeader->AppendElements(sizeof(EOTFixedHeader)))
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    EOTFixedHeader *eotHeader = reinterpret_cast<EOTFixedHeader*>(aHeader->Elements());
+    memset(eotHeader, 0, sizeof(EOTFixedHeader));
+
+    uint32_t fontDataSize = aFontDataLength;
+
+    // set up header fields
+    eotHeader->fontDataSize = fontDataSize;
+    eotHeader->version = EOTFixedHeader::EOT_VERSION;
+    eotHeader->flags = 0;  // don't specify any special processing
+    eotHeader->charset = EOTFixedHeader::EOT_DEFAULT_CHARSET;
+    eotHeader->fsType = EOTFixedHeader::EOT_EMBED_PRINT_PREVIEW;
+    eotHeader->magicNumber = EOTFixedHeader::EOT_MAGIC_NUMBER;
+
+    // read in the sfnt header
+    if (sizeof(SFNTHeader) > aFontDataLength)
+        return NS_ERROR_FAILURE;
+    
+    const SFNTHeader *sfntHeader = reinterpret_cast<const SFNTHeader*>(aFontData);
+    if (!IsValidSFNTVersion(sfntHeader->sfntVersion))
+        return NS_ERROR_FAILURE;
+
+    // iterate through the table headers to find the head, name and OS/2 tables
+    bool foundHead = false, foundOS2 = false, foundName = false, foundGlyphs = false;
+    uint32_t headOffset, headLen, nameOffset, nameLen, os2Offset, os2Len;
+    uint32_t i, numTables;
+
+    numTables = sfntHeader->numTables;
+    if (sizeof(SFNTHeader) + sizeof(TableDirEntry) * numTables > aFontDataLength)
+        return NS_ERROR_FAILURE;
+    
+    uint64_t dataLength(aFontDataLength);
+    
+    // table directory entries begin immediately following SFNT header
+    const TableDirEntry *dirEntry = reinterpret_cast<const TableDirEntry*>(aFontData + sizeof(SFNTHeader));
+    
+    for (i = 0; i < numTables; i++, dirEntry++) {
+    
+        // sanity check on offset, length values
+        if (uint64_t(dirEntry->offset) + uint64_t(dirEntry->length) > dataLength)
+            return NS_ERROR_FAILURE;
+
+        switch (dirEntry->tag) {
+
+        case TRUETYPE_TAG('h','e','a','d'):
+            foundHead = true;
+            headOffset = dirEntry->offset;
+            headLen = dirEntry->length;
+            if (headLen < sizeof(HeadTable))
+                return NS_ERROR_FAILURE;
+            break;
+
+        case TRUETYPE_TAG('n','a','m','e'):
+            foundName = true;
+            nameOffset = dirEntry->offset;
+            nameLen = dirEntry->length;
+            break;
+
+        case TRUETYPE_TAG('O','S','/','2'):
+            foundOS2 = true;
+            os2Offset = dirEntry->offset;
+            os2Len = dirEntry->length;
+            break;
+
+        case TRUETYPE_TAG('g','l','y','f'):  // TrueType-style quadratic glyph table
+            foundGlyphs = true;
+            break;
+
+        case TRUETYPE_TAG('C','F','F',' '):  // PS-style cubic glyph table
+            foundGlyphs = true;
+            break;
+
+        default:
+            break;
+        }
+
+        if (foundHead && foundName && foundOS2 && foundGlyphs)
+            break;
+    }
+
+    // require these three tables on Windows
+    if (!foundHead || !foundName || !foundOS2)
+        return NS_ERROR_FAILURE;
+
+    // at this point, all table offset/length values are within bounds
+    
+    // read in the data from those tables
+
+    // -- head table data
+    const HeadTable  *headData = reinterpret_cast<const HeadTable*>(aFontData + headOffset);
+
+    if (headData->tableVersionNumber != HeadTable::HEAD_VERSION ||
+        headData->magicNumber != HeadTable::HEAD_MAGIC_NUMBER) {
+        return NS_ERROR_FAILURE;
+    }
+
+    eotHeader->checkSumAdjustment = headData->checkSumAdjustment;
+
+    // -- name table data
+
+    // -- first, read name table header
+    const NameHeader *nameHeader = reinterpret_cast<const NameHeader*>(aFontData + nameOffset);
+    uint32_t nameStringsBase = uint32_t(nameHeader->stringOffset);
+
+    uint32_t nameCount = nameHeader->count;
+
+    // -- sanity check the number of name records
+    if (uint64_t(nameCount) * sizeof(NameRecord) + uint64_t(nameOffset) > dataLength)
+        return NS_ERROR_FAILURE;
+
+    // bug 496573 -- dummy names in case the font didn't contain English names
+    const nsString dummyNames[EOTFixedHeader::EOT_NUM_NAMES] = {
+        NS_LITERAL_STRING("Unknown"),
+        NS_LITERAL_STRING("Regular"),
+        EmptyString(),
+        dummyNames[EOTFixedHeader::EOT_FAMILY_NAME_INDEX]
+    };
+
+    // -- iterate through name records, look for specific name ids with
+    //    matching platform/encoding/etc. and store offset/lengths
+    NameRecordData names[EOTFixedHeader::EOT_NUM_NAMES] = {0};
+    const NameRecord *nameRecord = reinterpret_cast<const NameRecord*>(aFontData + nameOffset + sizeof(NameHeader));
+    uint32_t needNames = (1 << EOTFixedHeader::EOT_FAMILY_NAME_INDEX) | 
+                         (1 << EOTFixedHeader::EOT_STYLE_NAME_INDEX) | 
+                         (1 << EOTFixedHeader::EOT_FULL_NAME_INDEX) | 
+                         (1 << EOTFixedHeader::EOT_VERSION_NAME_INDEX);
+
+    for (i = 0; i < nameCount; i++, nameRecord++) {
+
+        // looking for Microsoft English US name strings, skip others
+        if (uint32_t(nameRecord->platformID) != PLATFORM_ID_MICROSOFT || 
+                uint32_t(nameRecord->encodingID) != ENCODING_ID_MICROSOFT_UNICODEBMP || 
+                uint32_t(nameRecord->languageID) != LANG_ID_MICROSOFT_EN_US)
+            continue;
+
+        uint32_t index;
+        switch ((uint32_t)nameRecord->nameID) {
+
+        case NAME_ID_FAMILY:
+            index = EOTFixedHeader::EOT_FAMILY_NAME_INDEX;
+            break;
+
+        case NAME_ID_STYLE:
+            index = EOTFixedHeader::EOT_STYLE_NAME_INDEX;
+            break;
+
+        case NAME_ID_FULL:
+            index = EOTFixedHeader::EOT_FULL_NAME_INDEX;
+            break;
+
+        case NAME_ID_VERSION:
+            index = EOTFixedHeader::EOT_VERSION_NAME_INDEX;
+            break;
+
+        default:
+            continue;
+        }
+
+        names[index].offset = nameRecord->offset;
+        names[index].length = nameRecord->length;
+        needNames &= ~(1 << index);
+
+        if (needNames == 0)
+            break;
+    }
+
+    // -- expand buffer if needed to include variable-length portion
+    uint32_t eotVariableLength = 0;
+    for (i = 0; i < EOTFixedHeader::EOT_NUM_NAMES; i++) {
+        if (!(needNames & (1 << i))) {
+            eotVariableLength += names[i].length & (~1);
+        } else {
+            eotVariableLength += dummyNames[i].Length() * sizeof(PRUnichar);
+        }
+    }
+    eotVariableLength += EOTFixedHeader::EOT_NUM_NAMES * (2 /* size */ 
+                                                          + 2 /* padding */) +
+                         2 /* null root string size */;
+
+    if (!aHeader->AppendElements(eotVariableLength))
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    // append the string data to the end of the EOT header
+    uint8_t *eotEnd = aHeader->Elements() + sizeof(EOTFixedHeader);
+    uint32_t strOffset, strLen;
+
+    for (i = 0; i < EOTFixedHeader::EOT_NUM_NAMES; i++) {
+        if (!(needNames & (1 << i))) {
+            uint32_t namelen = names[i].length;
+            uint32_t nameoff = names[i].offset;  // offset from base of string storage
+
+            // sanity check the name string location
+            if (uint64_t(nameOffset) + uint64_t(nameStringsBase) +
+                uint64_t(nameoff) + uint64_t(namelen) > dataLength) {
+                return NS_ERROR_FAILURE;
+            }
+
+            strOffset = nameOffset + nameStringsBase + nameoff;
+
+            // output 2-byte str size
+            strLen = namelen & (~1);  // UTF-16 string len must be even
+            *((uint16_t*) eotEnd) = uint16_t(strLen);
+            eotEnd += 2;
+
+            // length is number of UTF-16 chars, not bytes
+            CopySwapUTF16(reinterpret_cast<const uint16_t*>(aFontData + strOffset),
+                          reinterpret_cast<uint16_t*>(eotEnd),
+                          (strLen >> 1));
+        } else {
+            // bug 496573 -- English names are not present.
+            // supply an artificial one.
+            strLen = dummyNames[i].Length() * sizeof(PRUnichar);
+            *((uint16_t*) eotEnd) = uint16_t(strLen);
+            eotEnd += 2;
+
+            memcpy(eotEnd, dummyNames[i].BeginReading(), strLen);
+        }
+        eotEnd += strLen;
+
+        // add 2-byte zero padding to the end of each string
+        *eotEnd++ = 0;
+        *eotEnd++ = 0;
+
+        // Note: Microsoft's WEFT tool produces name strings which
+        // include an extra null at the end of each string, in addition
+        // to the 2-byte zero padding that separates the string fields. 
+        // Don't think this is important to imitate...
+    }
+
+    // append null root string size
+    *eotEnd++ = 0;
+    *eotEnd++ = 0;
+
+    NS_ASSERTION(eotEnd == aHeader->Elements() + aHeader->Length(), 
+                 "header length calculation incorrect");
+                 
+    // bug 496573 -- fonts with a fullname that does not begin with the 
+    // family name cause the EOT font loading API to hiccup
+    uint32_t famOff = names[EOTFixedHeader::EOT_FAMILY_NAME_INDEX].offset;
+    uint32_t famLen = names[EOTFixedHeader::EOT_FAMILY_NAME_INDEX].length;
+    uint32_t fullOff = names[EOTFixedHeader::EOT_FULL_NAME_INDEX].offset;
+    uint32_t fullLen = names[EOTFixedHeader::EOT_FULL_NAME_INDEX].length;
+    
+    const uint8_t *nameStrings = aFontData + nameOffset + nameStringsBase;
+
+    // assure that the start of the fullname matches the family name
+    if (famLen <= fullLen 
+        && memcmp(nameStrings + famOff, nameStrings + fullOff, famLen)) {
+        aOverlay->overlaySrc = nameOffset + nameStringsBase + famOff;
+        aOverlay->overlaySrcLen = famLen;
+        aOverlay->overlayDest = nameOffset + nameStringsBase + fullOff;
+    }
+
+    // -- OS/2 table data
+    const OS2Table *os2Data = reinterpret_cast<const OS2Table*>(aFontData + os2Offset);
+
+    memcpy(eotHeader->panose, os2Data->panose, sizeof(eotHeader->panose));
+
+    eotHeader->italic = (uint16_t) os2Data->fsSelection & 0x01;
+    eotHeader->weight = os2Data->usWeightClass;
+    eotHeader->unicodeRange1 = os2Data->unicodeRange1;
+    eotHeader->unicodeRange2 = os2Data->unicodeRange2;
+    eotHeader->unicodeRange3 = os2Data->unicodeRange3;
+    eotHeader->unicodeRange4 = os2Data->unicodeRange4;
+    eotHeader->codePageRange1 = os2Data->codePageRange1;
+    eotHeader->codePageRange2 = os2Data->codePageRange2;
+
+    eotHeader->eotSize = aHeader->Length() + fontDataSize;
+
+    // DumpEOTHeader(aHeader->Elements(), aHeader->Length());
+
+    return NS_OK;
+}
+
 /* static */
 bool
-gfxFontUtils::IsCffFont(const uint8_t* aFontData)
+gfxFontUtils::IsCffFont(const uint8_t* aFontData, bool& hasVertical)
 {
     // this is only called after aFontData has passed basic validation,
     // so we know there is enough data present to allow us to read the version!
     const SFNTHeader *sfntHeader = reinterpret_cast<const SFNTHeader*>(aFontData);
+
+    uint32_t i;
+    uint32_t numTables = sfntHeader->numTables;
+    const TableDirEntry *dirEntry = 
+        reinterpret_cast<const TableDirEntry*>(aFontData + sizeof(SFNTHeader));
+    hasVertical = false;
+    for (i = 0; i < numTables; i++, dirEntry++) {
+        if (dirEntry->tag == TRUETYPE_TAG('v','h','e','a')) {
+            hasVertical = true;
+            break;
+        }
+    }
+
     return (sfntHeader->sfntVersion == TRUETYPE_TAG('O','T','T','O'));
 }
 
 #endif
-
-NS_IMPL_ISUPPORTS1(gfxFontInfoLoader::ShutdownObserver, nsIObserver)
-
-NS_IMETHODIMP
-gfxFontInfoLoader::ShutdownObserver::Observe(nsISupports *aSubject,
-                                             const char *aTopic,
-                                             const PRUnichar *someData)
-{
-    if (!nsCRT::strcmp(aTopic, "quit-application")) {
-        mLoader->CancelLoader();
-    } else {
-        NS_NOTREACHED("unexpected notification topic");
-    }
-    return NS_OK;
-}
-
-void
-gfxFontInfoLoader::StartLoader(uint32_t aDelay, uint32_t aInterval)
-{
-    mInterval = aInterval;
-
-    // sanity check
-    if (mState != stateInitial && mState != stateTimerOff) {
-        CancelLoader();
-    }
-
-    // set up timer
-    if (!mTimer) {
-        mTimer = do_CreateInstance("@mozilla.org/timer;1");
-        if (!mTimer) {
-            NS_WARNING("Failure to create font info loader timer");
-            return;
-        }
-    }
-
-    // need an initial delay?
-    uint32_t timerInterval;
-
-    if (aDelay) {
-        mState = stateTimerOnDelay;
-        timerInterval = aDelay;
-    } else {
-        mState = stateTimerOnInterval;
-        timerInterval = mInterval;
-    }
-
-    InitLoader();
-
-    // start timer
-    mTimer->InitWithFuncCallback(LoaderTimerCallback, this, timerInterval,
-                                 nsITimer::TYPE_REPEATING_SLACK);
-
-    nsCOMPtr<nsIObserverService> obs = GetObserverService();
-    if (obs) {
-        mObserver = new ShutdownObserver(this);
-        obs->AddObserver(mObserver, "quit-application", false);
-    }
-}
-
-void
-gfxFontInfoLoader::CancelLoader()
-{
-    if (mState == stateInitial) {
-        return;
-    }
-    mState = stateTimerOff;
-    if (mTimer) {
-        mTimer->Cancel();
-        mTimer = nullptr;
-    }
-    RemoveShutdownObserver();
-    FinishLoader();
-}
-
-void
-gfxFontInfoLoader::LoaderTimerFire()
-{
-    if (mState == stateTimerOnDelay) {
-        mState = stateTimerOnInterval;
-        mTimer->SetDelay(mInterval);
-    }
-
-    bool done = RunLoader();
-    if (done) {
-        CancelLoader();
-    }
-}
-
-gfxFontInfoLoader::~gfxFontInfoLoader()
-{
-    RemoveShutdownObserver();
-}
-
-void
-gfxFontInfoLoader::RemoveShutdownObserver()
-{
-    if (mObserver) {
-        nsCOMPtr<nsIObserverService> obs = GetObserverService();
-        if (obs) {
-            obs->RemoveObserver(mObserver, "quit-application");
-            mObserver = nullptr;
-        }
-    }
-}

@@ -9,10 +9,14 @@
 #include "nsIMobileConnectionProvider.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsWeakPtr.h"
 
 namespace mozilla {
 namespace dom {
+
+namespace icc {
+  class IccManager;
+} // namespace icc
+
 namespace network {
 
 class MobileConnection : public nsDOMEventTargetHelper
@@ -35,7 +39,7 @@ public:
 
   NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
 
-  MobileConnection(uint32_t aClientId);
+  MobileConnection();
 
   void Init(nsPIDOMWindow *aWindow);
   void Shutdown();
@@ -46,11 +50,14 @@ public:
 private:
   nsCOMPtr<nsIMobileConnectionProvider> mProvider;
   nsRefPtr<Listener> mListener;
-  nsWeakPtr mWindow;
+  nsRefPtr<icc::IccManager> mIccManager;
 
-  uint32_t mClientId;
-
-  bool CheckPermission(const char* aType);
+  nsIDOMEventTarget*
+  ToIDOMEventTarget() const
+  {
+    return static_cast<nsDOMEventTargetHelper*>(
+           const_cast<MobileConnection*>(this));
+  }
 };
 
 } // namespace network

@@ -8,7 +8,6 @@
 #include "nsIDOMMozSmsMessage.h"
 #include "nsIMobileMessageCallback.h"
 #include "DOMCursor.h"
-#include "nsCxPusher.h"
 #include "nsServiceManagerUtils.h"      // for do_GetService
 
 namespace mozilla {
@@ -48,7 +47,8 @@ MobileMessageCursorCallback::NotifyCursorError(int32_t aError)
       cursor->FireError(NS_LITERAL_STRING("InternalError"));
       break;
     default: // SUCCESS_NO_ERROR is handled above.
-      MOZ_CRASH("Should never get here!");
+      MOZ_NOT_REACHED("Should never get here!");
+      return NS_ERROR_FAILURE;
   }
 
   return NS_OK;
@@ -67,12 +67,13 @@ MobileMessageCursorCallback::NotifyCursorResult(nsISupports* aResult)
   AutoPushJSContext cx(scriptContext->GetNativeContext());
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
-  JS::Rooted<JSObject*> global(cx, scriptContext->GetWindowProxy());
+  JSObject* global = scriptContext->GetNativeGlobal();
   NS_ENSURE_TRUE(global, NS_ERROR_FAILURE);
 
+  JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, global);
 
-  JS::Rooted<JS::Value> wrappedResult(cx);
+  JS::Value wrappedResult;
   rv = nsContentUtils::WrapNative(cx, global, aResult, &wrappedResult);
   NS_ENSURE_SUCCESS(rv, rv);
 

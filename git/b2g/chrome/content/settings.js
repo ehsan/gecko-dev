@@ -62,6 +62,43 @@ var SettingsListener = {
 
 SettingsListener.init();
 
+// =================== Audio ====================
+SettingsListener.observe('audio.volume.master', 1.0, function(value) {
+  let audioManager = Services.audioManager;
+  if (!audioManager)
+    return;
+
+  audioManager.masterVolume = Math.max(0.0, Math.min(value, 1.0));
+});
+
+let audioChannelSettings = [];
+
+if ("nsIAudioManager" in Ci) {
+  const nsIAudioManager = Ci.nsIAudioManager;
+  audioChannelSettings = [
+    // settings name, max value, apply to stream types
+    ['audio.volume.content', 15, [nsIAudioManager.STREAM_TYPE_SYSTEM, nsIAudioManager.STREAM_TYPE_MUSIC]],
+    ['audio.volume.notification', 15, [nsIAudioManager.STREAM_TYPE_RING, nsIAudioManager.STREAM_TYPE_NOTIFICATION]],
+    ['audio.volume.alarm', 15, [nsIAudioManager.STREAM_TYPE_ALARM]],
+    ['audio.volume.telephony', 5, [nsIAudioManager.STREAM_TYPE_VOICE_CALL]],
+    ['audio.volume.bt_sco', 15, [nsIAudioManager.STREAM_TYPE_BLUETOOTH_SCO]],
+  ];
+}
+
+for each (let [setting, maxValue, streamTypes] in audioChannelSettings) {
+  (function AudioStreamSettings(setting, maxValue, streamTypes) {
+    SettingsListener.observe(setting, maxValue, function(value) {
+      let audioManager = Services.audioManager;
+      if (!audioManager)
+        return;
+
+      for each(let streamType in streamTypes) {
+        audioManager.setStreamVolumeIndex(streamType, Math.min(value, maxValue));
+      }
+    });
+  })(setting, maxValue, streamTypes);
+}
+
 // =================== Console ======================
 
 SettingsListener.observe('debug.console.enabled', true, function(value) {
@@ -127,242 +164,69 @@ SettingsListener.observe('language.current', 'en-US', function(value) {
     function(value) {
       Services.prefs.setBoolPref('dom.sms.strict7BitEncoding', value);
   });
-
-  SettingsListener.observe('ril.sms.requestStatusReport.enabled', false,
-    function(value) {
-      Services.prefs.setBoolPref('dom.sms.requestStatusReport', value);
-  });
-
-  SettingsListener.observe('ril.mms.requestStatusReport.enabled', false,
-    function(value) {
-      Services.prefs.setBoolPref('dom.mms.requestStatusReport', value);
-  });
-
-  SettingsListener.observe('ril.mms.requestReadReport.enabled', true,
-    function(value) {
-      Services.prefs.setBoolPref('dom.mms.requestReadReport', value);
-  });
-
-  SettingsListener.observe('ril.cellbroadcast.disabled', false,
-    function(value) {
-      Services.prefs.setBoolPref('ril.cellbroadcast.disabled', value);
-  });
-
-  SettingsListener.observe('ril.radio.disabled', false,
-    function(value) {
-      Services.prefs.setBoolPref('ril.radio.disabled', value);
-  });
-
-  SettingsListener.observe('wap.UAProf.url', '',
-    function(value) {
-      Services.prefs.setCharPref('wap.UAProf.url', value);
-  });
-
-  SettingsListener.observe('wap.UAProf.tagname', 'x-wap-profile',
-    function(value) {
-      Services.prefs.setCharPref('wap.UAProf.tagname', value);
-  });
-
-  // DSDS default service IDs
-  ['mms', 'sms', 'telephony', 'voicemail'].forEach(function(key) {
-    SettingsListener.observe('ril.' + key + '.defaultServiceId', 0,
-                             function(value) {
-      if (value != null) {
-        Services.prefs.setIntPref('dom.' + key + '.defaultServiceId', value);
-      }
-    });
-  });
 })();
 
 //=================== DeviceInfo ====================
 Components.utils.import('resource://gre/modules/XPCOMUtils.jsm');
 Components.utils.import('resource://gre/modules/ctypes.jsm');
 (function DeviceInfoToSettings() {
+  XPCOMUtils.defineLazyServiceGetter(this, 'gSettingsService',
+                                     '@mozilla.org/settingsService;1',
+                                     'nsISettingsService');
+  let lock = gSettingsService.createLock();
   // MOZ_B2G_VERSION is set in b2g/confvars.sh, and is output as a #define value
   // from configure.in, defaults to 1.0.0 if this value is not exist.
 #filter attemptSubstitution
   let os_version = '@MOZ_B2G_VERSION@';
   let os_name = '@MOZ_B2G_OS_NAME@';
 #unfilter attemptSubstitution
+  lock.set('deviceinfo.os', os_version, null, null);
+  lock.set('deviceinfo.software', os_name + ' ' + os_version, null, null);
 
   let appInfo = Cc["@mozilla.org/xre/app-info;1"]
                   .getService(Ci.nsIXULAppInfo);
+  lock.set('deviceinfo.platform_version', appInfo.platformVersion, null, null);
+  lock.set('deviceinfo.platform_build_id', appInfo.platformBuildID, null, null);
+
   let update_channel = Services.prefs.getCharPref('app.update.channel');
+  lock.set('deviceinfo.update_channel', update_channel, null, null);
 
   // Get the hardware info and firmware revision from device properties.
   let hardware_info = null;
   let firmware_revision = null;
-  let product_model = null;
 #ifdef MOZ_WIDGET_GONK
     hardware_info = libcutils.property_get('ro.hardware');
     firmware_revision = libcutils.property_get('ro.firmware_revision');
-    product_model = libcutils.property_get('ro.product.model');
 #endif
-
-  let software = os_name + ' ' + os_version;
-  let setting = {
-    'deviceinfo.os': os_version,
-    'deviceinfo.software': software,
-    'deviceinfo.platform_version': appInfo.platformVersion,
-    'deviceinfo.platform_build_id': appInfo.platformBuildID,
-    'deviceinfo.update_channel': update_channel,
-    'deviceinfo.hardware': hardware_info,
-    'deviceinfo.firmware_revision': firmware_revision,
-    'deviceinfo.product_model': product_model
-  }
-  window.navigator.mozSettings.createLock().set(setting);
+  lock.set('deviceinfo.hardware', hardware_info, null, null);
+  lock.set('deviceinfo.firmware_revision', firmware_revision, null, null);
 })();
 
-// =================== Debugger / ADB ====================
+// =================== Debugger ====================
+SettingsListener.observe('devtools.debugger.remote-enabled', false, function(value) {
+  Services.prefs.setBoolPref('devtools.debugger.remote-enabled', value);
+  // This preference is consulted during startup
+  Services.prefs.savePrefFile(null);
+  value ? RemoteDebugger.start() : RemoteDebugger.stop();
 
 #ifdef MOZ_WIDGET_GONK
-let AdbController = {
-  DEBUG: false,
-  locked: undefined,
-  remoteDebuggerEnabled: undefined,
-  lockEnabled: undefined,
-  disableAdbTimer: null,
-  disableAdbTimeoutHours: 12,
+  let enableAdb = value;
 
-  debug: function(str) {
-    dump("AdbController: " + str + "\n");
-  },
+  try {
+    if (Services.prefs.getBoolPref('marionette.defaultPrefs.enabled')) {
+      // Marionette is enabled. Force adb on, since marionette requires remote
+      // debugging to be disabled (we don't want adb to track the remote debugger
+      // setting).
 
-  setLockscreenEnabled: function(value) {
-    this.lockEnabled = value;
-    if (this.DEBUG) {
-      this.debug("setLockscreenEnabled = " + this.lockEnabled);
+      enableAdb = true;
     }
-    this.updateState();
-  },
+  } catch (e) {
+    // This means that the pref doesn't exist. Which is fine. We just leave
+    // enableAdb alone.
+  }
 
-  setLockscreenState: function(value) {
-    this.locked = value;
-    if (this.DEBUG) {
-      this.debug("setLockscreenState = " + this.locked);
-    }
-    this.updateState();
-  },
-
-  setRemoteDebuggerState: function(value) {
-    this.remoteDebuggerEnabled = value;
-    if (this.DEBUG) {
-      this.debug("setRemoteDebuggerState = " + this.remoteDebuggerEnabled);
-    }
-    this.updateState();
-  },
-
-  startDisableAdbTimer: function() {
-    if (this.disableAdbTimer) {
-      this.disableAdbTimer.cancel();
-    } else {
-      this.disableAdbTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-      try {
-        this.disableAdbTimeoutHours =
-          Services.prefs.getIntPref("b2g.adb.timeout-hours");
-      } catch (e) {
-        // This happens if the pref doesn't exist, in which case
-        // disableAdbTimeoutHours will still be set to the default.
-      }
-    }
-    if (this.disableAdbTimeoutHours <= 0) {
-      if (this.DEBUG) {
-        this.debug("Timer to disable ADB not started due to zero timeout");
-      }
-      return;
-    }
-
-    if (this.DEBUG) {
-      this.debug("Starting timer to disable ADB in " +
-                 this.disableAdbTimeoutHours + " hours");
-    }
-    let timeoutMilliseconds = this.disableAdbTimeoutHours * 60 * 60 * 1000;
-    this.disableAdbTimer.initWithCallback(this, timeoutMilliseconds,
-                                          Ci.nsITimer.TYPE_ONE_SHOT);
-  },
-
-  stopDisableAdbTimer: function() {
-    if (this.DEBUG) {
-      this.debug("Stopping timer to disable ADB");
-    }
-    if (this.disableAdbTimer) {
-      this.disableAdbTimer.cancel();
-      this.disableAdbTimer = null;
-    }
-  },
-
-  notify: function(aTimer) {
-    if (aTimer == this.disableAdbTimer) {
-      this.disableAdbTimer = null;
-      // The following dump will be the last thing that shows up in logcat,
-      // and will at least give the user a clue about why logcat was
-      // disconnected, if the user happens to be using logcat.
-      dump("AdbController: ADB timer expired - disabling ADB\n");
-      navigator.mozSettings.createLock().set(
-        {'devtools.debugger.remote-enabled': false});
-    }
-  },
-
-  updateState: function() {
-    if (this.remoteDebuggerEnabled === undefined ||
-        this.lockEnabled === undefined ||
-        this.locked === undefined) {
-      // Part of initializing the settings database will cause the observers
-      // to trigger. We want to wait until both have been initialized before
-      // we start changing ther adb state. Without this then we can wind up
-      // toggling adb off and back on again (or on and back off again).
-      //
-      // For completeness, one scenario which toggles adb is using the unagi.
-      // The unagi has adb enabled by default (prior to b2g starting). If you
-      // have the phone lock disabled and remote debugging enabled, then we'll
-      // receive an unlock event and an rde event. However at the time we
-      // receive the unlock event we haven't yet received the rde event, so
-      // we turn adb off momentarily, which disconnects a logcat that might
-      // be running. Changing the defaults (in AdbController) just moves the
-      // problem to a different phone, which has adb disabled by default and
-      // we wind up turning on adb for a short period when we shouldn't.
-      //
-      // By waiting until both values are properly initialized, we avoid
-      // turning adb on or off accidentally.
-      if (this.DEBUG) {
-        this.debug("updateState: Waiting for all vars to be initialized");
-      }
-      return;
-    }
-
-    // Check if we have a remote debugging session going on. If so, we won't
-    // disable adb even if the screen is locked.
-    let isDebugging = DebuggerServer._connections &&
-                      Object.keys(DebuggerServer._connections).length > 0;
-    if (this.DEBUG) {
-      this.debug("isDebugging=" + isDebugging);
-    }
-
-    let enableAdb = this.remoteDebuggerEnabled &&
-      (!(this.lockEnabled && this.locked) || isDebugging);
-
-    let useDisableAdbTimer = true;
-    try {
-      if (Services.prefs.getBoolPref("marionette.defaultPrefs.enabled")) {
-        // Marionette is enabled. Marionette requires that adb be on (and also
-        // requires that remote debugging be off). The fact that marionette
-        // is enabled also implies that we're doing a non-production build, so
-        // we want adb enabled all of the time.
-        enableAdb = true;
-        useDisableAdbTimer = false;
-      }
-    } catch (e) {
-      // This means that the pref doesn't exist. Which is fine. We just leave
-      // enableAdb alone.
-    }
-    if (this.DEBUG) {
-      this.debug("updateState: enableAdb = " + enableAdb +
-                 " remoteDebuggerEnabled = " + this.remoteDebuggerEnabled +
-                 " lockEnabled = " + this.lockEnabled +
-                 " locked = " + this.locked);
-    }
-
-    // Configure adb.
+  // Configure adb.
+  try {
     let currentConfig = libcutils.property_get("persist.sys.usb.config");
     let configFuncs = currentConfig.split(",");
     let adbIndex = configFuncs.indexOf("adb");
@@ -375,49 +239,16 @@ let AdbController = {
     } else {
       // Remove adb from the list of functions, if present
       if (adbIndex >= 0) {
-        configFuncs.splice(adbIndex, 1);
+        configFuncs.splice(adbIndex,1);
       }
     }
     let newConfig = configFuncs.join(",");
     if (newConfig != currentConfig) {
-      if (this.DEBUG) {
-        this.debug("updateState: currentConfig = " + currentConfig);
-        this.debug("updateState:     newConfig = " + newConfig);
-      }
-      try {
-        libcutils.property_set("persist.sys.usb.config", newConfig);
-      } catch(e) {
-        dump("Error configuring adb: " + e);
-      }
+      libcutils.property_set("persist.sys.usb.config", newConfig);
     }
-    if (useDisableAdbTimer) {
-      if (enableAdb && !isDebugging) {
-        this.startDisableAdbTimer();
-      } else {
-        this.stopDisableAdbTimer();
-      }
-    }
-  }
-};
-
-SettingsListener.observe("lockscreen.locked", false,
-                         AdbController.setLockscreenState.bind(AdbController));
-SettingsListener.observe("lockscreen.enabled", false,
-                         AdbController.setLockscreenEnabled.bind(AdbController));
-#endif
-
-SettingsListener.observe('devtools.debugger.remote-enabled', false, function(value) {
-  Services.prefs.setBoolPref('devtools.debugger.remote-enabled', value);
-  // This preference is consulted during startup
-  Services.prefs.savePrefFile(null);
-  try {
-    value ? RemoteDebugger.start() : RemoteDebugger.stop();
   } catch(e) {
-    dump("Error while initializing devtools: " + e + "\n" + e.stack + "\n");
+    dump("Error configuring adb: " + e);
   }
-
-#ifdef MOZ_WIDGET_GONK
-  AdbController.setRemoteDebuggerState(value);
 #endif
 });
 
@@ -425,23 +256,9 @@ SettingsListener.observe('debug.log-animations.enabled', false, function(value) 
   Services.prefs.setBoolPref('layers.offmainthreadcomposition.log-animations', value);
 });
 
-// =================== Device Storage ====================
-SettingsListener.observe('device.storage.writable.name', 'sdcard', function(value) {
-  if (Services.prefs.getPrefType('device.storage.writable.name') != Ci.nsIPrefBranch.PREF_STRING) {
-    // We clear the pref because it used to be erroneously written as a bool
-    // and we need to clear it before we can change it to have the correct type.
-    Services.prefs.clearUserPref('device.storage.writable.name');
-  }
-  Services.prefs.setCharPref('device.storage.writable.name', value);
-});
-
 // =================== Privacy ====================
 SettingsListener.observe('privacy.donottrackheader.enabled', false, function(value) {
   Services.prefs.setBoolPref('privacy.donottrackheader.enabled', value);
-});
-
-SettingsListener.observe('privacy.donottrackheader.value', 1, function(value) {
-  Services.prefs.setIntPref('privacy.donottrackheader.value', value);
 });
 
 // =================== Crash Reporting ====================
@@ -453,23 +270,9 @@ SettingsListener.observe('app.reportCrashes', 'ask', function(value) {
   } else {
     Services.prefs.clearUserPref('app.reportCrashes');
   }
-  // This preference is consulted during startup.
-  Services.prefs.savePrefFile(null);
 });
 
 // ================ Updates ================
 SettingsListener.observe('app.update.interval', 86400, function(value) {
   Services.prefs.setIntPref('app.update.interval', value);
-});
-
-// ================ Debug ================
-// XXX could factor out into a settings->pref map.
-SettingsListener.observe("debug.fps.enabled", false, function(value) {
-  Services.prefs.setBoolPref("layers.acceleration.draw-fps", value);
-});
-SettingsListener.observe("debug.paint-flashing.enabled", false, function(value) {
-  Services.prefs.setBoolPref("nglayout.debug.paint_flashing", value);
-});
-SettingsListener.observe("layers.draw-borders", false, function(value) {
-  Services.prefs.setBoolPref("layers.draw-borders", value);
 });

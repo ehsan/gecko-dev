@@ -8,10 +8,7 @@
 
 Components.utils.import("resource://testing-common/httpd.js");
 
-var gTestserver = new HttpServer();
-gTestserver.start(-1);
-gPort = gTestserver.identity.primaryPort;
-mapFile("/data/test_gfxBlacklist.xml", gTestserver);
+var gTestserver = null;
 
 function get_platform() {
   var xulRuntime = Components.classes["@mozilla.org/xre/app-info;1"]
@@ -20,8 +17,7 @@ function get_platform() {
 }
 
 function load_blocklist(file) {
-  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:" +
-                             gPort + "/data/" + file);
+  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:4444/data/" + file);
   var blocklist = Cc["@mozilla.org/extensions/blocklist;1"].
                   getService(Ci.nsITimerCallback);
   blocklist.notify(null);
@@ -72,6 +68,10 @@ function run_test() {
 
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "3", "8");
   startupManager();
+
+  gTestserver = new HttpServer();
+  gTestserver.registerDirectory("/data/", do_get_file("data"));
+  gTestserver.start(4444);
 
   do_test_pending();
 

@@ -11,7 +11,7 @@
 #include "nsAlgorithm.h"
 #include <algorithm>
 
-struct gfxQuaternion : public mozilla::gfx::BasePoint4D<gfxFloat, gfxQuaternion> {
+struct THEBES_API gfxQuaternion : public mozilla::gfx::BasePoint4D<gfxFloat, gfxQuaternion> {
     typedef mozilla::gfx::BasePoint4D<gfxFloat, gfxQuaternion> Super;
 
     gfxQuaternion() : Super() {}

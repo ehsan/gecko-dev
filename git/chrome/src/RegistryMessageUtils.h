@@ -7,7 +7,7 @@
 #define mozilla_RegistryMessageUtils_h
 
 #include "ipc/IPCMessageUtils.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 
 struct SerializedURI
 {

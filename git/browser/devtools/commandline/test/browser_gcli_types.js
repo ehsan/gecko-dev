@@ -37,15 +37,6 @@ function test() {
 
 // var assert = require('test/assert');
 var types = require('gcli/types');
-var nodetype = require('gcli/types/node');
-
-exports.setup = function(options) {
-  nodetype.setDocument(options.window.document);
-};
-
-exports.shutdown = function(options) {
-  nodetype.unsetDocument();
-};
 
 function forEachType(options, typeSpec, callback) {
   types.getTypeNames().forEach(function(name) {
@@ -58,22 +49,15 @@ function forEachType(options, typeSpec, callback) {
     }
     else if (name === 'delegate') {
       typeSpec.delegateType = function() {
-        return types.createType('string');
+        return types.getType('string');
       };
     }
     else if (name === 'array') {
       typeSpec.subtype = 'string';
     }
 
-    var type = types.createType(typeSpec);
+    var type = types.getType(typeSpec);
     callback(type);
-
-    // Clean up
-    delete typeSpec.name;
-    delete typeSpec.requisition;
-    delete typeSpec.data;
-    delete typeSpec.delegateType;
-    delete typeSpec.subtype;
   });
 }
 
@@ -84,8 +68,7 @@ exports.testDefault = function(options) {
   }
 
   forEachType(options, {}, function(type) {
-    var context = options.display.requisition.executionContext;
-    var blank = type.getBlank(context).value;
+    var blank = type.getBlank().value;
 
     // boolean and array types are exempt from needing undefined blank values
     if (type.name === 'boolean') {

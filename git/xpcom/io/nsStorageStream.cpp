@@ -17,12 +17,12 @@
 #include "nsSegmentedBuffer.h"
 #include "nsStreamUtils.h"
 #include "nsCOMPtr.h"
+#include "prbit.h"
 #include "nsIInputStream.h"
 #include "nsISeekableStream.h"
 #include "prlog.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Likely.h"
-#include "mozilla/MathAlgorithms.h"
 
 #if defined(PR_LOGGING)
 //
@@ -59,9 +59,9 @@ nsStorageStream::~nsStorageStream()
     delete mSegmentedBuffer;
 }
 
-NS_IMPL_ISUPPORTS2(nsStorageStream,
-                   nsIStorageStream,
-                   nsIOutputStream)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsStorageStream,
+                              nsIStorageStream,
+                              nsIOutputStream)
 
 NS_IMETHODIMP
 nsStorageStream::Init(uint32_t segmentSize, uint32_t maxSize,
@@ -72,7 +72,7 @@ nsStorageStream::Init(uint32_t segmentSize, uint32_t maxSize,
         return NS_ERROR_OUT_OF_MEMORY;
     
     mSegmentSize = segmentSize;
-    mSegmentSizeLog2 = mozilla::FloorLog2(segmentSize);
+    mSegmentSizeLog2 = PR_FloorLog2(segmentSize);
 
     // Segment size must be a power of two
     if (mSegmentSize != ((uint32_t)1 << mSegmentSizeLog2))
@@ -320,7 +320,7 @@ public:
         NS_ADDREF(mStorageStream);
 	}
 
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIINPUTSTREAM
     NS_DECL_NSISEEKABLESTREAM
 
@@ -348,9 +348,9 @@ private:
     uint32_t SegOffset(uint32_t aPosition) {return aPosition & (mSegmentSize - 1);}
 };
 
-NS_IMPL_ISUPPORTS2(nsStorageInputStream,
-                   nsIInputStream,
-                   nsISeekableStream)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsStorageInputStream,
+                              nsIInputStream,
+                              nsISeekableStream)
 
 NS_IMETHODIMP
 nsStorageStream::NewInputStream(int32_t aStartingOffset, nsIInputStream* *aInputStream)

@@ -17,3 +17,4 @@ typedef SkGrPixelRef SkGrTexturePixelRef;
 typedef SkGrPixelRef SkGrRenderTargetPixelRef;
 
 #endif
+

@@ -13,12 +13,13 @@
 #include "nsAutoJSValHolder.h"
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
-#include "nsString.h"
-#include "nsJSPrincipals.h"
-#include "nsContentUtils.h"
-#include "js/TypeDecls.h"
+#include "nsStringGlue.h"
 
+struct JSContext;
+class JSObject;
 struct JSPrincipals;
+
+class nsIJSContextStack;
 
 namespace mozilla {
 namespace ipc {
@@ -29,34 +30,72 @@ public:
     static XPCShellEnvironment* CreateEnvironment();
     ~XPCShellEnvironment();
 
-    void ProcessFile(JSContext *cx, JS::Handle<JSObject*> obj,
-                     const char *filename, FILE *file, bool forceTTY);
     bool EvaluateString(const nsString& aString,
                         nsString* aResult = nullptr);
 
     JSPrincipals* GetPrincipal() {
-        return nsJSPrincipals::get(nsContentUtils::GetSystemPrincipal());
+        return mJSPrincipals;
     }
 
     JSObject* GetGlobalObject() {
         return mGlobalHolder.ToJSObject();
     }
 
-    void SetIsQuitting() {
-        mQuitting = true;
+    JSContext* GetContext() {
+        return mCx;
     }
-    bool IsQuitting() {
+
+    void SetExitCode(int aExitCode) {
+        mExitCode = aExitCode;
+    }
+    int ExitCode() {
+        return mExitCode;
+    }
+
+    void SetIsQuitting() {
+        mQuitting = JS_TRUE;
+    }
+    JSBool IsQuitting() {
         return mQuitting;
     }
+
+    void SetShouldReportWarnings(JSBool aReportWarnings) {
+        mReportWarnings = aReportWarnings;
+    }
+    JSBool ShouldReportWarnings() {
+        return mReportWarnings;
+    }
+
+    void SetShouldCompoleOnly(JSBool aCompileOnly) {
+        mCompileOnly = aCompileOnly;
+    }
+    JSBool ShouldCompileOnly() {
+        return mCompileOnly;
+    }
+
+    class AutoContextPusher
+    {
+    public:
+        AutoContextPusher(XPCShellEnvironment* aEnv);
+        ~AutoContextPusher();
+    private:
+        XPCShellEnvironment* mEnv;
+    };
 
 protected:
     XPCShellEnvironment();
     bool Init();
 
 private:
+    JSContext* mCx;
     nsAutoJSValHolder mGlobalHolder;
+    nsCOMPtr<nsIJSContextStack> mCxStack;
+    JSPrincipals* mJSPrincipals;
 
-    bool mQuitting;
+    int mExitCode;
+    JSBool mQuitting;
+    JSBool mReportWarnings;
+    JSBool mCompileOnly;
 };
 
 } /* namespace ipc */

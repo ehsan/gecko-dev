@@ -11,7 +11,6 @@
 #include "nsIWidget.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMWindow.h"
-#include "mozilla/EventForwards.h"
 
 namespace mozilla {
 namespace widget {
@@ -41,24 +40,16 @@ public:
    * @param aUnshiftedCharCode  CharCode for aKeyCode without Shift key.
    *                            This may be zero if aKeyCode key doesn't input
    *                            a Latin character.
-   *                            Note that must not be nullptr.
+   *                            Note that must not be NULL.
    * @param aShiftedCharCode    CharCode for aKeyCOde with Shift key.
    *                            This is always 0 when aKeyCode isn't
    *                            NS_VK_[A-Z].
-   *                            Note that must not be nullptr.
+   *                            Note that must not be NULL.
    */
   static void GetLatinCharCodeForKeyCode(uint32_t aKeyCode,
                                          bool aIsCapsLock,
                                          uint32_t* aUnshiftedCharCode,
                                          uint32_t* aShiftedCharCode);
-
-  /**
-   * GetDeadKeyNameIndex() returns a key name index for dead key or
-   * "Unidentified".  This method can return the index from non-combining
-   * unicode character, e.g., '`' returns KEY_NAME_INDEX_DeadGrave.
-   * So, you cannot use this method for checking if the char is a dead char.
-   */
-  static KeyNameIndex GetDeadKeyNameIndex(PRUnichar aChar);
 };
 
 } // namespace widget

@@ -44,3 +44,4 @@ private:
 };
 
 #endif // SkBML_WXMLParser_DEFINED
+

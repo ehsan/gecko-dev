@@ -5,19 +5,15 @@
 
 #include "mozilla/dom/SVGEllipseElement.h"
 #include "mozilla/dom/SVGEllipseElementBinding.h"
-#include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/PathHelpers.h"
 #include "gfxContext.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(Ellipse)
-
-using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGEllipseElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGEllipseElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGEllipseElementBinding::Wrap(aCx, aScope, this);
 }
@@ -100,25 +96,12 @@ SVGEllipseElement::ConstructPath(gfxContext *aCtx)
   GetAnimatedLengthValues(&x, &y, &rx, &ry, nullptr);
 
   if (rx > 0.0f && ry > 0.0f) {
-    aCtx->Ellipse(gfxPoint(x, y), gfxSize(2.0*rx, 2.0*ry));
+    aCtx->Save();
+    aCtx->Translate(gfxPoint(x, y));
+    aCtx->Scale(rx, ry);
+    aCtx->Arc(gfxPoint(0, 0), 1, 0, 2 * M_PI);
+    aCtx->Restore();
   }
-}
-
-TemporaryRef<Path>
-SVGEllipseElement::BuildPath()
-{
-  float x, y, rx, ry;
-  GetAnimatedLengthValues(&x, &y, &rx, &ry, nullptr);
-
-  if (rx <= 0.0f || ry <= 0.0f) {
-    return nullptr;
-  }
-
-  RefPtr<PathBuilder> pathBuilder = CreatePathBuilder();
-
-  AppendEllipseToPath(pathBuilder, Point(x, y), Size(2.0*rx, 2.0*ry));
-
-  return pathBuilder->Finish();
 }
 
 } // namespace dom

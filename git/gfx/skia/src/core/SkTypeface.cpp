@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2011 The Android Open Source Project
  *
@@ -5,12 +6,10 @@
  * found in the LICENSE file.
  */
 
+
 #include "SkAdvancedTypefaceMetrics.h"
-#include "SkFontDescriptor.h"
-#include "SkFontHost.h"
-#include "SkFontStream.h"
-#include "SkStream.h"
 #include "SkTypeface.h"
+#include "SkFontHost.h"
 
 SK_DEFINE_INST_COUNT(SkTypeface)
 
@@ -20,8 +19,8 @@ SK_DEFINE_INST_COUNT(SkTypeface)
     static int32_t gTypefaceCounter;
 #endif
 
-SkTypeface::SkTypeface(Style style, SkFontID fontID, bool isFixedPitch)
-    : fUniqueID(fontID), fStyle(style), fIsFixedPitch(isFixedPitch) {
+SkTypeface::SkTypeface(Style style, SkFontID fontID, bool isFixedWidth)
+    : fUniqueID(fontID), fStyle(style), fIsFixedWidth(isFixedWidth) {
 #ifdef TRACE_LIFECYCLE
     SkDebugf("SkTypeface: create  %p fontID %d total %d\n",
              this, fontID, ++gTypefaceCounter);
@@ -37,7 +36,7 @@ SkTypeface::~SkTypeface() {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-SkTypeface* SkTypeface::GetDefaultTypeface() {
+static SkTypeface* get_default_typeface() {
     // we keep a reference to this guy for all time, since if we return its
     // fontID, the font cache may later on ask to resolve that back into a
     // typeface object.
@@ -50,13 +49,9 @@ SkTypeface* SkTypeface::GetDefaultTypeface() {
     return gDefaultTypeface;
 }
 
-SkTypeface* SkTypeface::RefDefault() {
-    return SkRef(GetDefaultTypeface());
-}
-
 uint32_t SkTypeface::UniqueID(const SkTypeface* face) {
     if (NULL == face) {
-        face = GetDefaultTypeface();
+        face = get_default_typeface();
     }
     return face->uniqueID();
 }
@@ -72,10 +67,6 @@ SkTypeface* SkTypeface::CreateFromName(const char name[], Style style) {
 }
 
 SkTypeface* SkTypeface::CreateFromTypeface(const SkTypeface* family, Style s) {
-    if (family && family->style() == s) {
-        family->ref();
-        return const_cast<SkTypeface*>(family);
-    }
     return SkFontHost::CreateTypeface(family, NULL, s);
 }
 
@@ -89,112 +80,58 @@ SkTypeface* SkTypeface::CreateFromFile(const char path[]) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void SkTypeface::serialize(SkWStream* wstream) const {
-    bool isLocal = false;
-    SkFontDescriptor desc(this->style());
-    this->onGetFontDescriptor(&desc, &isLocal);
-
-    desc.serialize(wstream);
-    if (isLocal) {
-        int ttcIndex;   // TODO: write this to the stream?
-        SkAutoTUnref<SkStream> rstream(this->openStream(&ttcIndex));
-        if (rstream.get()) {
-            size_t length = rstream->getLength();
-            wstream->writePackedUInt(length);
-            wstream->writeStream(rstream, length);
-        } else {
-            wstream->writePackedUInt(0);
-        }
-    } else {
-        wstream->writePackedUInt(0);
-    }
+void SkTypeface::serialize(SkWStream* stream) const {
+    SkFontHost::Serialize(this, stream);
 }
 
 SkTypeface* SkTypeface::Deserialize(SkStream* stream) {
-    SkFontDescriptor desc(stream);
-    size_t length = stream->readPackedUInt();
-    if (length > 0) {
-        void* addr = sk_malloc_flags(length, 0);
-        if (addr) {
-            SkAutoTUnref<SkStream> localStream(SkNEW_ARGS(SkMemoryStream,
-                                                        (addr, length, false)));
-            return SkTypeface::CreateFromStream(localStream.get());
-        }
-        // failed to allocate, so just skip and create-from-name
-        stream->skip(length);
-    }
+    return SkFontHost::Deserialize(stream);
+}
 
-    return SkTypeface::CreateFromName(desc.getFamilyName(), desc.getStyle());
+SkAdvancedTypefaceMetrics* SkTypeface::getAdvancedTypefaceMetrics(
+        SkAdvancedTypefaceMetrics::PerGlyphInfo perGlyphInfo,
+        const uint32_t* glyphIDs,
+        uint32_t glyphIDsCount) const {
+    return SkFontHost::GetAdvancedTypefaceMetrics(fUniqueID,
+                                                  perGlyphInfo,
+                                                  glyphIDs,
+                                                  glyphIDsCount);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 int SkTypeface::countTables() const {
-    return this->onGetTableTags(NULL);
+    return SkFontHost::CountTables(fUniqueID);
 }
 
 int SkTypeface::getTableTags(SkFontTableTag tags[]) const {
-    return this->onGetTableTags(tags);
+    return SkFontHost::GetTableTags(fUniqueID, tags);
 }
 
 size_t SkTypeface::getTableSize(SkFontTableTag tag) const {
-    return this->onGetTableData(tag, 0, ~0U, NULL);
+    return SkFontHost::GetTableSize(fUniqueID, tag);
 }
 
 size_t SkTypeface::getTableData(SkFontTableTag tag, size_t offset, size_t length,
                                 void* data) const {
-    return this->onGetTableData(tag, offset, length, data);
-}
-
-SkStream* SkTypeface::openStream(int* ttcIndex) const {
-    int ttcIndexStorage;
-    if (NULL == ttcIndex) {
-        // So our subclasses don't need to check for null param
-        ttcIndex = &ttcIndexStorage;
-    }
-    return this->onOpenStream(ttcIndex);
+    return SkFontHost::GetTableData(fUniqueID, tag, offset, length, data);
 }
 
 int SkTypeface::getUnitsPerEm() const {
-    // should we try to cache this in the base-class?
-    return this->onGetUPEM();
-}
-
-SkAdvancedTypefaceMetrics* SkTypeface::getAdvancedTypefaceMetrics(
-                                SkAdvancedTypefaceMetrics::PerGlyphInfo info,
-                                const uint32_t* glyphIDs,
-                                uint32_t glyphIDsCount) const {
-    return this->onGetAdvancedTypefaceMetrics(info, glyphIDs, glyphIDsCount);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-
-int SkTypeface::onGetUPEM() const {
     int upem = 0;
 
+#ifdef SK_BUILD_FOR_ANDROID
+    upem = SkFontHost::GetUnitsPerEm(fUniqueID);
+#else
     SkAdvancedTypefaceMetrics* metrics;
-    metrics = this->getAdvancedTypefaceMetrics(
-                             SkAdvancedTypefaceMetrics::kNo_PerGlyphInfo,
-                             NULL, 0);
+    metrics = SkFontHost::GetAdvancedTypefaceMetrics(fUniqueID,
+                                 SkAdvancedTypefaceMetrics::kNo_PerGlyphInfo,
+                                 NULL, 0);
     if (metrics) {
         upem = metrics->fEmSize;
         metrics->unref();
     }
+#endif
     return upem;
 }
 
-int SkTypeface::onGetTableTags(SkFontTableTag tags[]) const {
-    int ttcIndex;
-    SkAutoTUnref<SkStream> stream(this->openStream(&ttcIndex));
-    return stream.get() ? SkFontStream::GetTableTags(stream, ttcIndex, tags) : 0;
-}
-
-size_t SkTypeface::onGetTableData(SkFontTableTag tag, size_t offset,
-                                  size_t length, void* data) const {
-    int ttcIndex;
-    SkAutoTUnref<SkStream> stream(this->openStream(&ttcIndex));
-    return stream.get()
-        ? SkFontStream::GetTableData(stream, ttcIndex, tag, offset, length, data)
-        : 0;
-}

@@ -4,175 +4,101 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.widget.ArrowPopup;
+import org.mozilla.gecko.util.HardwareUtils;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.content.res.Resources;
-import android.text.TextUtils;
+import android.graphics.drawable.BitmapDrawable;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
+import android.widget.PopupWindow;
+import android.widget.RelativeLayout;
+import android.widget.RelativeLayout.LayoutParams;
 import android.widget.TextView;
 
 /**
  * SiteIdentityPopup is a singleton class that displays site identity data in
  * an arrow panel popup hanging from the lock icon in the browser toolbar.
  */
-public class SiteIdentityPopup extends ArrowPopup
-                               implements DoorHanger.OnButtonClickListener {
+public class SiteIdentityPopup extends PopupWindow {
     private static final String LOGTAG = "GeckoSiteIdentityPopup";
 
     public static final String UNKNOWN = "unknown";
     public static final String VERIFIED = "verified";
     public static final String IDENTIFIED = "identified";
-    public static final String MIXED_CONTENT_BLOCKED = "mixed_content_blocked";
-    public static final String MIXED_CONTENT_LOADED = "mixed_content_loaded";
 
-    // Security states corresponding to image levels in site_security_level.xml
-    public static final int LEVEL_UKNOWN = 0;
-    public static final int LEVEL_IDENTIFIED = 1;
-    public static final int LEVEL_VERIFIED = 2;
-    public static final int LEVEL_MIXED_CONTENT_BLOCKED = 3;
-    public static final int LEVEL_MIXED_CONTENT_LOADED = 4;
-
-    // FIXME: Update this URL for mobile. See bug 885923.
-    private static final String MIXED_CONTENT_SUPPORT_URL =
-        "https://support.mozilla.org/kb/how-does-content-isnt-secure-affect-my-safety";
+    private static SiteIdentityPopup sInstance;
 
     private Resources mResources;
+    private boolean mInflated;
 
-    private LinearLayout mIdentity;
     private TextView mHost;
     private TextView mOwner;
+    private TextView mSupplemental;
     private TextView mVerifier;
+    private TextView mEncrypted;
 
-    private DoorHanger mMixedContentNotification;
+    private ImageView mLarry;
+    private ImageView mArrow;
 
-    SiteIdentityPopup(BrowserApp aActivity) {
-        super(aActivity, null);
+    private int mYOffset;
 
-        mResources = aActivity.getResources();
+    private SiteIdentityPopup() {
+        super(GeckoApp.mAppContext);
+
+        mResources = GeckoApp.mAppContext.getResources();
+        mYOffset = mResources.getDimensionPixelSize(R.dimen.menu_popup_offset);
+        mInflated = false;
     }
 
-    public static int getSecurityImageLevel(String mode) {
-        if (IDENTIFIED.equals(mode)) {
-            return LEVEL_IDENTIFIED;
+    public static synchronized SiteIdentityPopup getInstance() {
+        if (sInstance == null) {
+            sInstance = new SiteIdentityPopup();
         }
-        if (VERIFIED.equals(mode)) {
-            return LEVEL_VERIFIED;
-        }
-        if (MIXED_CONTENT_BLOCKED.equals(mode)) {
-            return LEVEL_MIXED_CONTENT_BLOCKED;
-        }
-        if (MIXED_CONTENT_LOADED.equals(mode)) {
-            return LEVEL_MIXED_CONTENT_LOADED;
-        }
-        return LEVEL_UKNOWN;
+        return sInstance;
     }
 
-    @Override
-    protected void init() {
-        super.init();
-
-        // Make the popup focusable so it doesn't inadvertently trigger click events elsewhere
-        // which may reshow the popup (see bug 785156)
-        setFocusable(true);
-
-        LayoutInflater inflater = LayoutInflater.from(mActivity);
-        mIdentity = (LinearLayout) inflater.inflate(R.layout.site_identity, null);
-        mContent.addView(mIdentity);
-
-        mHost = (TextView) mIdentity.findViewById(R.id.host);
-        mOwner = (TextView) mIdentity.findViewById(R.id.owner);
-        mVerifier = (TextView) mIdentity.findViewById(R.id.verifier);
+    public static synchronized void clearInstance() {
+        sInstance = null;
     }
 
-    private void setIdentity(JSONObject identityData) {
-        try {
-            String host = identityData.getString("host");
-            mHost.setText(host);
+    private void init() {
+        setBackgroundDrawable(new BitmapDrawable());
+        setOutsideTouchable(true);
+        setWindowLayoutMode(HardwareUtils.isTablet() ? LayoutParams.WRAP_CONTENT : LayoutParams.FILL_PARENT,
+                LayoutParams.WRAP_CONTENT);
 
-            String owner = identityData.getString("owner");
+        LayoutInflater inflater = LayoutInflater.from(GeckoApp.mAppContext);
+        RelativeLayout layout = (RelativeLayout) inflater.inflate(R.layout.site_identity_popup, null);
+        setContentView(layout);
 
-            // Supplemental data is optional.
-            String supplemental = identityData.optString("supplemental");
-            if (!TextUtils.isEmpty(supplemental)) {
-                owner += "\n" + supplemental;
-            }
-            mOwner.setText(owner);
+        mHost = (TextView) layout.findViewById(R.id.host);
+        mOwner = (TextView) layout.findViewById(R.id.owner);
+        mVerifier = (TextView) layout.findViewById(R.id.verifier);
 
-            String verifier = identityData.getString("verifier");
-            String encrypted = identityData.getString("encrypted");
-            mVerifier.setText(verifier + "\n" + encrypted);
+        mLarry = (ImageView) layout.findViewById(R.id.larry);
+        mArrow = (ImageView) layout.findViewById(R.id.arrow);
 
-            mContent.setPadding(0, 0, 0, 0);
-            mIdentity.setVisibility(View.VISIBLE);
-
-        } catch (JSONException e) {
-            // Hide the identity data if there isn't valid site identity data.
-            // Set some top padding on the popup content to create a of light blue
-            // between the popup arrow and the mixed content notification.
-            mContent.setPadding(0, (int) mResources.getDimension(R.dimen.identity_padding_top), 0, 0);
-            mIdentity.setVisibility(View.GONE);
-        }
+        mInflated = true;
     }
 
-    @Override
-    public void onButtonClick(DoorHanger dh, String tag) {
-        try {
-            JSONObject data = new JSONObject();
-            data.put("allowMixedContent", tag.equals("disable"));
-            GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Reload", data.toString());
-            GeckoAppShell.sendEventToGecko(e);
-        } catch (JSONException e) {
-            Log.e(LOGTAG, "Exception creating message to enable/disable mixed content blocking", e);
+    public void show(View v) {
+        Tab selectedTab = Tabs.getInstance().getSelectedTab();
+        if (selectedTab == null) {
+            Log.e(LOGTAG, "Selected tab is null");
+            return;
         }
 
-        dismiss();
-    }
-
-    private void addMixedContentNotification(boolean blocked) {
-        // Remove any exixting mixed content notification.
-        removeMixedContentNotification();
-        mMixedContentNotification = new DoorHanger(mActivity, DoorHanger.Theme.DARK);
-
-        String message;
-        if (blocked) {
-            message = mActivity.getString(R.string.blocked_mixed_content_message_top) + "\n\n" +
-                      mActivity.getString(R.string.blocked_mixed_content_message_bottom);
-        } else {
-            message = mActivity.getString(R.string.loaded_mixed_content_message);
-        }
-        mMixedContentNotification.setMessage(message);
-        mMixedContentNotification.addLink(mActivity.getString(R.string.learn_more), MIXED_CONTENT_SUPPORT_URL, "\n\n");
-
-        if (blocked) {
-            mMixedContentNotification.setIcon(R.drawable.shield_doorhanger);
-            mMixedContentNotification.addButton(mActivity.getString(R.string.disable_protection), "disable", this);
-            mMixedContentNotification.addButton(mActivity.getString(R.string.keep_blocking), "keepBlocking", this);
-        } else {
-            mMixedContentNotification.setIcon(R.drawable.warning_doorhanger);
-            mMixedContentNotification.addButton(mActivity.getString(R.string.enable_protection), "enable", this);
+        JSONObject identityData = selectedTab.getIdentityData();
+        if (identityData == null) {
+            Log.e(LOGTAG, "Tab has no identity data");
+            return;
         }
 
-        mContent.addView(mMixedContentNotification);
-    }
-
-    private void removeMixedContentNotification() {
-        if (mMixedContentNotification != null) {
-            mContent.removeView(mMixedContentNotification);
-            mMixedContentNotification = null;
-        }
-    }
-
-    /*
-     * @param identityData A JSONObject that holds the current tab's identity data.
-     */
-    public void updateIdentity(JSONObject identityData) {
         String mode;
         try {
             mode = identityData.getString("mode");
@@ -181,7 +107,7 @@ public class SiteIdentityPopup extends ArrowPopup
             return;
         }
 
-        if (UNKNOWN.equals(mode)) {
+        if (!mode.equals(VERIFIED) && !mode.equals(IDENTIFIED)) {
             Log.e(LOGTAG, "Can't show site identity popup in non-identified state");
             return;
         }
@@ -189,16 +115,54 @@ public class SiteIdentityPopup extends ArrowPopup
         if (!mInflated)
             init();
 
-        setIdentity(identityData);
+        try {
+            String host = identityData.getString("host");
+            mHost.setText(host);
 
-        if (MIXED_CONTENT_BLOCKED.equals(mode) || MIXED_CONTENT_LOADED.equals(mode)) {
-            addMixedContentNotification(MIXED_CONTENT_BLOCKED.equals(mode));
+            String owner = identityData.getString("owner");
+
+            try {
+                String supplemental = identityData.getString("supplemental");
+                owner += "\n" + supplemental;
+            } catch (JSONException e) { }
+
+            mOwner.setText(owner);
+
+            String verifier = identityData.getString("verifier");
+            String encrypted = identityData.getString("encrypted");
+            mVerifier.setText(verifier + "\n" + encrypted);
+        } catch (JSONException e) {
+            Log.e(LOGTAG, "Exception trying to get identity data", e);
+            return;
         }
-    }
 
-    @Override
-    public void dismiss() {
-        super.dismiss();
-        removeMixedContentNotification();
+        if (mode.equals(VERIFIED)) {
+            // Use a blue theme for SSL
+            mLarry.setImageResource(R.drawable.larry_blue);
+            mHost.setTextColor(mResources.getColor(R.color.identity_verified));
+            mOwner.setTextColor(mResources.getColor(R.color.identity_verified));
+        } else {
+            // Use a green theme for EV
+            mLarry.setImageResource(R.drawable.larry_green);
+            mHost.setTextColor(mResources.getColor(R.color.identity_identified));
+            mOwner.setTextColor(mResources.getColor(R.color.identity_identified));
+        }
+
+        int[] anchorLocation = new int[2];
+        v.getLocationOnScreen(anchorLocation);
+
+        int arrowWidth = mResources.getDimensionPixelSize(R.dimen.menu_popup_arrow_width);
+        int leftMargin = anchorLocation[0] + (v.getWidth() - arrowWidth) / 2;
+
+        int offset = 0;
+        if (HardwareUtils.isTablet()) {
+            int popupWidth = mResources.getDimensionPixelSize(R.dimen.doorhanger_width);
+            offset = 0 - popupWidth + arrowWidth*3/2 + v.getWidth()/2;
+        }
+
+        LayoutParams layoutParams = (LayoutParams) mArrow.getLayoutParams();
+        layoutParams.setMargins(leftMargin, 0, 0, 0);
+
+        showAsDropDown(v, offset, -mYOffset);
     }
 }

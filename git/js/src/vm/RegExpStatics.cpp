@@ -6,9 +6,10 @@
 
 #include "vm/RegExpStatics.h"
 
-#include "vm/RegExpStaticsObject.h"
-
 #include "jsobjinlines.h"
+
+#include "vm/RegExpObject-inl.h"
+#include "vm/RegExpStatics-inl.h"
 
 using namespace js;
 
@@ -20,14 +21,14 @@ using namespace js;
  */
 
 static void
-resc_finalize(FreeOp *fop, JSObject *obj)
+resc_finalize(FreeOp *fop, RawObject obj)
 {
     RegExpStatics *res = static_cast<RegExpStatics *>(obj->getPrivate());
     fop->delete_(res);
 }
 
 static void
-resc_trace(JSTracer *trc, JSObject *obj)
+resc_trace(JSTracer *trc, RawObject obj)
 {
     void *pdata = obj->getPrivate();
     JS_ASSERT(pdata);
@@ -35,7 +36,7 @@ resc_trace(JSTracer *trc, JSObject *obj)
     res->mark(trc);
 }
 
-const Class RegExpStaticsObject::class_ = {
+Class js::RegExpStaticsClass = {
     "RegExpStatics",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS,
     JS_PropertyStub,         /* addProperty */
@@ -46,38 +47,24 @@ const Class RegExpStaticsObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     resc_finalize,
-    nullptr,                 /* checkAccess */
-    nullptr,                 /* call        */
-    nullptr,                 /* hasInstance */
-    nullptr,                 /* construct   */
+    NULL,                    /* checkAccess */
+    NULL,                    /* call        */
+    NULL,                    /* construct   */
+    NULL,                    /* hasInstance */
     resc_trace
 };
 
 JSObject *
 RegExpStatics::create(JSContext *cx, GlobalObject *parent)
 {
-    JSObject *obj = NewObjectWithGivenProto(cx, &RegExpStaticsObject::class_, nullptr, parent);
+    JSObject *obj = NewObjectWithGivenProto(cx, &RegExpStaticsClass, NULL, parent);
     if (!obj)
-        return nullptr;
+        return NULL;
     RegExpStatics *res = cx->new_<RegExpStatics>();
     if (!res)
-        return nullptr;
+        return NULL;
     obj->setPrivate(static_cast<void *>(res));
     return obj;
-}
-
-void
-RegExpStatics::markFlagsSet(JSContext *cx)
-{
-    // Flags set on the RegExp function get propagated to constructed RegExp
-    // objects, which interferes with optimizations that inline RegExp cloning
-    // or avoid cloning entirely. Scripts making this assumption listen to
-    // type changes on RegExp.prototype, so mark a state change to trigger
-    // recompilation of all such code (when recompiling, a stub call will
-    // always be performed).
-    JS_ASSERT(this == cx->global()->getRegExpStatics());
-
-    types::MarkTypeObjectFlags(cx, cx->global(), types::OBJECT_FLAG_REGEXP_FLAGS_SET);
 }
 
 bool
@@ -92,7 +79,7 @@ RegExpStatics::executeLazy(JSContext *cx)
 
     /* Retrieve or create the RegExpShared in this compartment. */
     RegExpGuard g(cx);
-    if (!cx->compartment()->regExps.get(cx, lazySource, lazyFlags, &g))
+    if (!cx->compartment->regExps.get(cx, lazySource, lazyFlags, &g))
         return false;
 
     /*
@@ -116,7 +103,7 @@ RegExpStatics::executeLazy(JSContext *cx)
 
     /* Unset lazy state and remove rooted values that now have no use. */
     pendingLazyEvaluation = false;
-    lazySource = nullptr;
+    lazySource = NULL;
     lazyIndex = size_t(-1);
 
     return true;

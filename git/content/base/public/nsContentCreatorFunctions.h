@@ -6,7 +6,7 @@
 #ifndef nsContentCreatorFunctions_h__
 #define nsContentCreatorFunctions_h__
 
-#include "nsError.h"
+#include "nscore.h"
 #include "nsCOMPtr.h"
 #include "mozilla/dom/FromParser.h"
 

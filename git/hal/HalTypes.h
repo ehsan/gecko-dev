@@ -6,8 +6,8 @@
 #ifndef mozilla_hal_Types_h
 #define mozilla_hal_Types_h
 
-#include "ipc/IPCMessageUtils.h"
-#include "mozilla/Observer.h"
+#include "IPCMessageUtils.h"
+#include "Observer.h"
 
 namespace mozilla {
 namespace hal {
@@ -83,7 +83,6 @@ enum ProcessPriority {
   PROCESS_PRIORITY_BACKGROUND,
   PROCESS_PRIORITY_BACKGROUND_HOMESCREEN,
   PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE,
-  PROCESS_PRIORITY_FOREGROUND_KEYBOARD,
   // Any priority greater than or equal to FOREGROUND is considered
   // "foreground" for the purposes of priority testing, for example
   // CurrentProcessIsForeground().
@@ -93,24 +92,13 @@ enum ProcessPriority {
   NUM_PROCESS_PRIORITY
 };
 
-enum ProcessCPUPriority {
-  PROCESS_CPU_PRIORITY_LOW,
-  PROCESS_CPU_PRIORITY_NORMAL,
-  NUM_PROCESS_CPU_PRIORITY
-};
-
-// Convert a ProcessPriority enum value (with an optional ProcessCPUPriority)
-// to a string.  The strings returned by this function are statically
-// allocated; do not attempt to free one!
+// Convert a ProcessPriority enum value to a string.  The strings returned by
+// this function are statically allocated; do not attempt to free one!
 //
 // If you pass an unknown process priority (or NUM_PROCESS_PRIORITY), we
 // fatally assert in debug builds and otherwise return "???".
 const char*
 ProcessPriorityToString(ProcessPriority aPriority);
-
-const char*
-ProcessPriorityToString(ProcessPriority aPriority,
-                        ProcessCPUPriority aCPUPriority);
 
 /**
  * Used by ModifyWakeLock
@@ -129,7 +117,6 @@ enum FMRadioOperation {
   FM_RADIO_OPERATION_ENABLE,
   FM_RADIO_OPERATION_DISABLE,
   FM_RADIO_OPERATION_SEEK,
-  FM_RADIO_OPERATION_TUNE,
   NUM_FM_RADIO_OPERATION
 };
 

@@ -2,11 +2,32 @@
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
 MARIONETTE_TIMEOUT = 60000;
-MARIONETTE_HEAD_JS = 'head.js';
 
+SpecialPowers.addPermission("telephony", true, document);
+
+let telephony = window.navigator.mozTelephony;
 let number = "5555551234";
 let connectedCalls;
 let incomingCall;
+
+function verifyInitialState() {
+  log("Verifying initial state.");
+  ok(telephony);
+  is(telephony.active, null);
+  ok(telephony.calls);
+  is(telephony.calls.length, 0);
+
+  runEmulatorCmd("gsm list", function(result) {
+    log("Initial call list: " + result);
+    is(result[0], "OK");
+    if (result[0] == "OK") {
+      simulateIncoming();
+    } else {
+      log("Call exists from a previous test, failing out.");
+      cleanUp();
+    }
+  });
+}
 
 function simulateIncoming() {
   log("Simulating an incoming call.");
@@ -21,21 +42,21 @@ function simulateIncoming() {
     is(telephony.calls.length, 1);
     is(telephony.calls[0], incomingCall);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + number + " : incoming");
       is(result[1], "OK");
       answer();
     });
   };
-  emulator.run("gsm call " + number);
+  runEmulatorCmd("gsm call " + number);
 }
 
 function answer() {
   log("Answering the incoming call.");
 
   let gotConnecting = false;
-  incomingCall.onconnecting = function onconnecting(event) {
+  incomingCall.onconnecting = function onconnecting(event) { 
     log("Received 'connecting' call event.");
     is(incomingCall, event.call);
     is(incomingCall.state, "connecting");
@@ -50,7 +71,7 @@ function answer() {
 
     is(incomingCall, telephony.active);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + number + " : active");
       is(result[1], "OK");
@@ -81,10 +102,10 @@ function hold() {
     is(telephony.calls.length, 1);
     is(telephony.calls[0], incomingCall);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + number + " : held");
-      is(result[1], "OK");
+      is(result[1], "OK");   
       // Wait on hold for a couple of seconds
       log("Pausing 2 seconds while on hold");
       setTimeout(resume, 2000);
@@ -114,7 +135,7 @@ function resume() {
     is(telephony.calls.length, 1);
     is(telephony.calls[0], incomingCall);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "inbound from " + number + " : active");
       is(result[1], "OK");
@@ -144,7 +165,7 @@ function hangUp() {
     is(telephony.active, null);
     is(telephony.calls.length, 0);
 
-    emulator.run("gsm list", function(result) {
+    runEmulatorCmd("gsm list", function(result) {
       log("Call list is now: " + result);
       is(result[0], "OK");
       cleanUp();
@@ -155,9 +176,9 @@ function hangUp() {
 
 function cleanUp() {
   telephony.onincoming = null;
+  SpecialPowers.removePermission("telephony", document);
   finish();
 }
 
-startTest(function() {
-  simulateIncoming();
-});
+// Start the test
+verifyInitialState();

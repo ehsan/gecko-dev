@@ -1,13 +1,10 @@
-# vim: set ts=4 sw=4 tw=99 et:
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import os, sys
 
-from ipdl.ast import CxxInclude, Decl, Loc, QualifiedId, State, StructDecl, TransitionStmt
-from ipdl.ast import TypeSpec, UnionDecl, UsingStmt, Visitor, ASYNC, SYNC, INTR
-from ipdl.ast import IN, OUT, INOUT, ANSWER, CALL, RECV, SEND, URGENT, RPC
+from ipdl.ast import CxxInclude, Decl, Loc, QualifiedId, State, StructDecl, TransitionStmt, TypeSpec, UnionDecl, UsingStmt, Visitor, ASYNC, SYNC, RPC, IN, OUT, INOUT, ANSWER, CALL, RECV, SEND
 import ipdl.builtin as builtin
 
 _DELETE_MSG = '__delete__'
@@ -206,24 +203,17 @@ class IPDLType(Type):
 
     def isAsync(self): return self.sendSemantics is ASYNC
     def isSync(self): return self.sendSemantics is SYNC
-    def isInterrupt(self): return self.sendSemantics is INTR
-    def isUrgent(self): return self.sendSemantics is URGENT
     def isRpc(self): return self.sendSemantics is RPC
 
     def talksAsync(self): return True
-    def talksSync(self): return self.isSync() or self.isRpc() or self.isInterrupt()
-    def talksRpc(self): return self.isRpc() or self.isInterrupt()
-    def talksInterrupt(self): return self.isInterrupt()
+    def talksSync(self): return self.isSync() or self.isRpc()
+    def talksRpc(self): return self.isRpc()
 
-    def hasReply(self):  return (self.isSync()
-                                 or self.isInterrupt()
-                                 or self.isUrgent()
-                                 or self.isRpc())
+    def hasReply(self):  return self.isSync() or self.isRpc()
 
     def needsMoreJuiceThan(self, o):
         return (o.isAsync() and not self.isAsync()
-                or o.isSync() and (self.isUrgent() or self.isRpc())
-                or (o.isUrgent() or o.isRpc()) and self.isInterrupt())
+                or o.isSync() and self.isRpc())
 
 class StateType(IPDLType):
     def __init__(self, protocol, name, start=False):
@@ -508,7 +498,7 @@ def makeBuiltinUsing(tname):
                               QualifiedId(_builtinloc, base, quals)))
 
 builtinUsing = [ makeBuiltinUsing(t) for t in builtin.Types ]
-builtinHeaderIncludes = [ CxxInclude(_builtinloc, f) for f in builtin.HeaderIncludes ]
+builtinIncludes = [ CxxInclude(_builtinloc, f) for f in builtin.Includes ]
 
 def errormsg(loc, fmt, *args):
     while not isinstance(loc, Loc):
@@ -596,6 +586,8 @@ With this information, it finally type checks the AST.'''
                 self.reportErrors(errout)
                 return False
             return True
+
+        tu.cxxIncludes = builtinIncludes + tu.cxxIncludes
 
         # tag each relevant node with "decl" information, giving type, name,
         # and location of declaration
@@ -877,7 +869,7 @@ class GatherDecls(TcheckVisitor):
                 "destructor declaration `%s(...)' required for managed protocol `%s'",
                 _DELETE_MSG, p.name)
 
-        p.decl.type.hasReentrantDelete = p.decl.type.hasDelete and self.symtab.lookup(_DELETE_MSG).type.isInterrupt()
+        p.decl.type.hasReentrantDelete = p.decl.type.hasDelete and self.symtab.lookup(_DELETE_MSG).type.isRpc()
 
         for managed in p.managesStmts:
             mgdname = managed.name
@@ -1465,18 +1457,6 @@ class CheckTypes(TcheckVisitor):
                 "sync parent-to-child messages are verboten (here, message `%s' in protocol `%s')",
                 mname, pname)
 
-        if mtype.isUrgent() and (mtype.isIn() or mtype.isInout()):
-            self.error(
-                loc,
-                "urgent child-to-parent messages are verboten (here, message `%s' in protocol `%s')",
-                mname, pname)
-
-        if mtype.isRpc() and (mtype.isOut() or mtype.isInout()):
-            self.error(
-                loc,
-                "rpc parent-to-child messages are verboten (here, message' `%s' in protocol `%s')",
-                mname, pname)
-
         if mtype.needsMoreJuiceThan(ptype):
             self.error(
                 loc,
@@ -1509,13 +1489,13 @@ class CheckTypes(TcheckVisitor):
         loc = t.loc
         impliedDirection, impliedSems = {
             SEND: [ OUT, _YNC ], RECV: [ IN, _YNC ],
-            CALL: [ OUT, INTR ],  ANSWER: [ IN, INTR ],
+            CALL: [ OUT, RPC ],  ANSWER: [ IN, RPC ],
          } [t.trigger]
         
         if (OUT is impliedDirection and t.msg.type.isIn()
             or IN is impliedDirection and t.msg.type.isOut()
-            or _YNC is impliedSems and t.msg.type.isInterrupt()
-            or INTR is impliedSems and (not t.msg.type.isInterrupt())):
+            or _YNC is impliedSems and t.msg.type.isRpc()
+            or RPC is impliedSems and (not t.msg.type.isRpc())):
             mtype = t.msg.type
 
             self.error(
@@ -1641,7 +1621,7 @@ class ProcessGraph:
         for b in cls.iterbridges():
             if b.parent == actor:
                 endpoints.append(Actor(b.bridgeProto, 'parent'))
-            if b.child == actor:
+            elif b.child == actor:
                 endpoints.append(Actor(b.bridgeProto, 'child'))
         return endpoints
 
@@ -1794,12 +1774,11 @@ class BuildProcessGraph(TcheckVisitor):
 
             if pproc == cproc:
                 if parentSideActor is not None:
-                    if parentSideProto != childSideProto:
-                        self.error(bridges.loc,
-                                   "ambiguous bridge `%s' between `%s' and `%s'",
-                                   bridgeProto.name(),
-                                   parentSideProto.name(),
-                                   childSideProto.name())
+                    self.error(bridges.loc,
+                               "ambiguous bridge `%s' between `%s' and `%s'",
+                               bridgeProto.type.name(),
+                               parentSideProto.name(),
+                               childSideProto.name())
                 else:
                     parentSideActor, childSideActor = pactor.other(), cactor.other()
 

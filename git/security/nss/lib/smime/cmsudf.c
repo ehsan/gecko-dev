@@ -4,6 +4,8 @@
 
 /*
  * CMS User Define Types
+ *
+ * $Id$
  */
 
 #include "cmslocal.h"
@@ -40,7 +42,7 @@ static PRLock *nsscmstypeHashLock;
 /* the hash table itself */
 static PLHashTable *nsscmstypeHash;
 /* arena to hold all the hash table data */
-static PLArenaPool *nsscmstypeArena;
+static PRArenaPool *nsscmstypeArena;
 
 /*
  * clean up our global tables

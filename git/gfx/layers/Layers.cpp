@@ -5,32 +5,23 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/DebugOnly.h"
+
+#include "mozilla/layers/PLayers.h"
+#include "mozilla/layers/ShadowLayers.h"
+#include "mozilla/Telemetry.h"
+
+#include "ImageLayers.h"
+#include "ImageContainer.h"
 #include "Layers.h"
-#include <algorithm>                    // for max, min
-#include "AnimationCommon.h"            // for ComputedTimingFunction
-#include "CompositableHost.h"           // for CompositableHost
-#include "ImageContainer.h"             // for ImageContainer, etc
-#include "ImageLayers.h"                // for ImageLayer
-#include "LayerSorter.h"                // for SortLayersBy3DZOrder
-#include "LayersLogging.h"              // for AppendToString
-#include "ReadbackLayer.h"              // for ReadbackLayer
-#include "gfxPlatform.h"                // for gfxPlatform
-#include "gfxUtils.h"                   // for gfxUtils, etc
-#include "mozilla/DebugOnly.h"          // for DebugOnly
-#include "mozilla/Preferences.h"        // for Preferences
-#include "mozilla/Telemetry.h"          // for Accumulate
-#include "mozilla/TelemetryHistogramEnums.h"
-#include "mozilla/gfx/2D.h"             // for DrawTarget
-#include "mozilla/gfx/BaseSize.h"       // for BaseSize
-#include "mozilla/layers/AsyncPanZoomController.h"
-#include "mozilla/layers/Compositor.h"  // for Compositor
-#include "mozilla/layers/CompositorTypes.h"
-#include "mozilla/layers/LayerManagerComposite.h"  // for LayerComposite
-#include "mozilla/layers/LayersMessages.h"  // for TransformFunction, etc
-#include "nsAString.h"
-#include "nsCSSValue.h"                 // for nsCSSValue::Array, etc
-#include "nsPrintfCString.h"            // for nsPrintfCString
-#include "nsStyleStruct.h"              // for nsTimingFunction, etc
+#include "gfxPlatform.h"
+#include "ReadbackLayer.h"
+#include "gfxUtils.h"
+#include "nsPrintfCString.h"
+#include "LayerSorter.h"
+#include "AnimationCommon.h"
+#include "mozilla/layers/Compositor.h"
+#include "LayersLogging.h"
 
 using namespace mozilla::layers;
 using namespace mozilla::gfx;
@@ -42,11 +33,13 @@ const ViewID FrameMetrics::START_SCROLL_ID = 2;
 
 uint8_t gLayerManagerLayerBuilder;
 
+#ifdef MOZ_LAYERS_HAVE_LOG
 FILE*
 FILEOrDefault(FILE* aFile)
 {
   return aFile ? aFile : stderr;
 }
+#endif // MOZ_LAYERS_HAVE_LOG
 
 namespace mozilla {
 namespace layers {
@@ -116,7 +109,7 @@ LayerManager::GetScrollableLayers(nsTArray<Layer*>& aArray)
 
 already_AddRefed<gfxASurface>
 LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
-                                   gfxImageFormat aFormat)
+                                   gfxASurface::gfxImageFormat aFormat)
 {
   return gfxPlatform::GetPlatform()->
     CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFormat));
@@ -125,7 +118,7 @@ LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
 already_AddRefed<gfxASurface>
 LayerManager::CreateOptimalMaskSurface(const gfxIntSize &aSize)
 {
-  return CreateOptimalSurface(aSize, gfxImageFormatA8);
+  return CreateOptimalSurface(aSize, gfxASurface::ImageFormatA8);
 }
 
 TemporaryRef<DrawTarget>
@@ -133,7 +126,7 @@ LayerManager::CreateDrawTarget(const IntSize &aSize,
                                SurfaceFormat aFormat)
 {
   return gfxPlatform::GetPlatform()->
-    CreateOffscreenCanvasDrawTarget(aSize, aFormat);
+    CreateOffscreenDrawTarget(aSize, aFormat);
 }
 
 TextureFactoryIdentifier
@@ -179,14 +172,11 @@ Layer::Layer(LayerManager* aManager, void* aImplData) :
   mPostXScale(1.0f),
   mPostYScale(1.0f),
   mOpacity(1.0),
-  mMixBlendMode(gfxContext::OPERATOR_OVER),
-  mForceIsolatedGroup(false),
   mContentFlags(0),
   mUseClipRect(false),
   mUseTileSourceRect(false),
   mIsFixedPosition(false),
   mMargins(0, 0, 0, 0),
-  mStickyPositionData(nullptr),
   mDebugColorIndex(0),
   mAnimationGeneration(0)
 {}
@@ -294,21 +284,14 @@ CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
       {
         float x = aFunctions[i].get_SkewX().x();
         arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_skewx, resultTail);
-        arr->Item(1).SetFloatValue(x, eCSSUnit_Radian);
+        arr->Item(1).SetFloatValue(x, eCSSUnit_Number);
         break;
       }
       case TransformFunction::TSkewY:
       {
         float y = aFunctions[i].get_SkewY().y();
         arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_skewy, resultTail);
-        arr->Item(1).SetFloatValue(y, eCSSUnit_Radian);
-        break;
-      }
-      case TransformFunction::TSkew:
-      {
-        arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_skew, resultTail);
-        arr->Item(1).SetFloatValue(aFunctions[i].get_Skew().x(), eCSSUnit_Radian);
-        arr->Item(2).SetFloatValue(aFunctions[i].get_Skew().y(), eCSSUnit_Radian);
+        arr->Item(1).SetFloatValue(y, eCSSUnit_Number);
         break;
       }
       case TransformFunction::TTransformMatrix:
@@ -416,23 +399,6 @@ Layer::SetAnimations(const AnimationArray& aAnimations)
 }
 
 void
-ContainerLayer::SetAsyncPanZoomController(AsyncPanZoomController *controller)
-{
-  mAPZC = controller;
-}
-
-AsyncPanZoomController*
-ContainerLayer::GetAsyncPanZoomController() const
-{
-#ifdef DEBUG
-  if (mAPZC) {
-    MOZ_ASSERT(GetFrameMetrics().IsScrollable());
-  }
-#endif
-  return mAPZC;
-}
-
-void
 Layer::ApplyPendingUpdatesToSubtree()
 {
   ApplyPendingUpdatesForThisTransaction();
@@ -462,7 +428,7 @@ Layer::CanUseOpaqueSurface()
 const nsIntRect*
 Layer::GetEffectiveClipRect()
 {
-  if (LayerComposite* shadow = AsLayerComposite()) {
+  if (ShadowLayer* shadow = AsShadowLayer()) {
     return shadow->GetShadowClipRect();
   }
   return GetClipRect();
@@ -471,7 +437,7 @@ Layer::GetEffectiveClipRect()
 const nsIntRegion&
 Layer::GetEffectiveVisibleRegion()
 {
-  if (LayerComposite* shadow = AsLayerComposite()) {
+  if (ShadowLayer* shadow = AsShadowLayer()) {
     return shadow->GetShadowVisibleRegion();
   }
   return GetVisibleRegion();
@@ -487,7 +453,8 @@ Layer::SnapTransformTranslation(const gfx3DMatrix& aTransform,
 
   gfxMatrix matrix2D;
   gfx3DMatrix result;
-  if (mManager->IsSnappingEffectiveTransforms() &&
+  if (!(mContentFlags & CONTENT_DISABLE_TRANSFORM_SNAPPING) &&
+      mManager->IsSnappingEffectiveTransforms() &&
       aTransform.Is2D(&matrix2D) &&
       !matrix2D.HasNonTranslation() &&
       matrix2D.HasNonIntegerTranslation()) {
@@ -519,7 +486,8 @@ Layer::SnapTransform(const gfx3DMatrix& aTransform,
 
   gfxMatrix matrix2D;
   gfx3DMatrix result;
-  if (mManager->IsSnappingEffectiveTransforms() &&
+  if (!(mContentFlags & CONTENT_DISABLE_TRANSFORM_SNAPPING) &&
+      mManager->IsSnappingEffectiveTransforms() &&
       aTransform.Is2D(&matrix2D) &&
       gfxSize(1.0, 1.0) <= aSnapRect.Size() &&
       matrix2D.PreservesAxisAlignedRectangles()) {
@@ -626,10 +594,10 @@ Layer::CalculateScissorRect(const nsIntRect& aCurrentScissorRect,
 }
 
 const gfx3DMatrix
-Layer::GetTransform() const
+Layer::GetTransform()
 {
   gfx3DMatrix transform = mTransform;
-  if (const ContainerLayer* c = AsContainerLayer()) {
+  if (ContainerLayer* c = AsContainerLayer()) {
     transform.Scale(c->GetPreXScale(), c->GetPreYScale(), 1.0f);
   }
   transform.ScalePost(mPostXScale, mPostYScale, 1.0f);
@@ -640,7 +608,7 @@ const gfx3DMatrix
 Layer::GetLocalTransform()
 {
   gfx3DMatrix transform;
-  if (LayerComposite* shadow = AsLayerComposite())
+  if (ShadowLayer* shadow = AsShadowLayer())
     transform = shadow->GetShadowTransform();
   else
     transform = mTransform;
@@ -665,7 +633,7 @@ Layer::ApplyPendingUpdatesForThisTransaction()
 const float
 Layer::GetLocalOpacity()
 {
-   if (LayerComposite* shadow = AsLayerComposite())
+   if (ShadowLayer* shadow = AsShadowLayer())
     return shadow->GetShadowOpacity();
   return mOpacity;
 }
@@ -679,20 +647,6 @@ Layer::GetEffectiveOpacity()
     opacity *= c->GetLocalOpacity();
   }
   return opacity;
-}
-  
-gfxContext::GraphicsOperator
-Layer::GetEffectiveMixBlendMode()
-{
-  if(mMixBlendMode != gfxContext::OPERATOR_OVER)
-    return mMixBlendMode;
-  for (ContainerLayer* c = GetParent(); c && !c->UseIntermediateSurface();
-    c = c->GetParent()) {
-    if(c->mMixBlendMode != gfxContext::OPERATOR_OVER)
-      return c->mMixBlendMode;
-  }
-
-  return mMixBlendMode;
 }
 
 void
@@ -708,138 +662,6 @@ Layer::ComputeEffectiveTransformForMaskLayer(const gfx3DMatrix& aTransformToSurf
 #endif
     mMaskLayer->mEffectiveTransform.PreMultiply(mMaskLayer->GetTransform());
   }
-}
-
-ContainerLayer::ContainerLayer(LayerManager* aManager, void* aImplData)
-  : Layer(aManager, aImplData),
-    mFirstChild(nullptr),
-    mLastChild(nullptr),
-    mPreXScale(1.0f),
-    mPreYScale(1.0f),
-    mInheritedXScale(1.0f),
-    mInheritedYScale(1.0f),
-    mUseIntermediateSurface(false),
-    mSupportsComponentAlphaChildren(false),
-    mMayHaveReadbackChild(false)
-{
-  mContentFlags = 0; // Clear NO_TEXT, NO_TEXT_OVER_TRANSPARENT
-}
-
-ContainerLayer::~ContainerLayer() {}
-
-void
-ContainerLayer::InsertAfter(Layer* aChild, Layer* aAfter)
-{
-  NS_ASSERTION(aChild->Manager() == Manager(),
-               "Child has wrong manager");
-  NS_ASSERTION(!aChild->GetParent(),
-               "aChild already in the tree");
-  NS_ASSERTION(!aChild->GetNextSibling() && !aChild->GetPrevSibling(),
-               "aChild already has siblings?");
-  NS_ASSERTION(!aAfter ||
-               (aAfter->Manager() == Manager() &&
-                aAfter->GetParent() == this),
-               "aAfter is not our child");
-
-  aChild->SetParent(this);
-  if (aAfter == mLastChild) {
-    mLastChild = aChild;
-  }
-  if (!aAfter) {
-    aChild->SetNextSibling(mFirstChild);
-    if (mFirstChild) {
-      mFirstChild->SetPrevSibling(aChild);
-    }
-    mFirstChild = aChild;
-    NS_ADDREF(aChild);
-    DidInsertChild(aChild);
-    return;
-  }
-
-  Layer* next = aAfter->GetNextSibling();
-  aChild->SetNextSibling(next);
-  aChild->SetPrevSibling(aAfter);
-  if (next) {
-    next->SetPrevSibling(aChild);
-  }
-  aAfter->SetNextSibling(aChild);
-  NS_ADDREF(aChild);
-  DidInsertChild(aChild);
-}
-
-void
-ContainerLayer::RemoveChild(Layer *aChild)
-{
-  NS_ASSERTION(aChild->Manager() == Manager(),
-               "Child has wrong manager");
-  NS_ASSERTION(aChild->GetParent() == this,
-               "aChild not our child");
-
-  Layer* prev = aChild->GetPrevSibling();
-  Layer* next = aChild->GetNextSibling();
-  if (prev) {
-    prev->SetNextSibling(next);
-  } else {
-    this->mFirstChild = next;
-  }
-  if (next) {
-    next->SetPrevSibling(prev);
-  } else {
-    this->mLastChild = prev;
-  }
-
-  aChild->SetNextSibling(nullptr);
-  aChild->SetPrevSibling(nullptr);
-  aChild->SetParent(nullptr);
-
-  this->DidRemoveChild(aChild);
-  NS_RELEASE(aChild);
-}
-
-
-void
-ContainerLayer::RepositionChild(Layer* aChild, Layer* aAfter)
-{
-  NS_ASSERTION(aChild->Manager() == Manager(),
-               "Child has wrong manager");
-  NS_ASSERTION(aChild->GetParent() == this,
-               "aChild not our child");
-  NS_ASSERTION(!aAfter ||
-               (aAfter->Manager() == Manager() &&
-                aAfter->GetParent() == this),
-               "aAfter is not our child");
-
-  Layer* prev = aChild->GetPrevSibling();
-  Layer* next = aChild->GetNextSibling();
-  if (prev == aAfter) {
-    // aChild is already in the correct position, nothing to do.
-    return;
-  }
-  if (prev) {
-    prev->SetNextSibling(next);
-  }
-  if (next) {
-    next->SetPrevSibling(prev);
-  }
-  if (!aAfter) {
-    aChild->SetPrevSibling(nullptr);
-    aChild->SetNextSibling(mFirstChild);
-    if (mFirstChild) {
-      mFirstChild->SetPrevSibling(aChild);
-    }
-    mFirstChild = aChild;
-    return;
-  }
-
-  Layer* afterNext = aAfter->GetNextSibling();
-  if (afterNext) {
-    afterNext->SetPrevSibling(aChild);
-  } else {
-    mLastChild = aChild;
-  }
-  aAfter->SetNextSibling(aChild);
-  aChild->SetPrevSibling(aAfter);
-  aChild->SetNextSibling(afterNext);
 }
 
 void
@@ -955,16 +777,6 @@ ContainerLayer::ComputeEffectiveTransformsForChildren(const gfx3DMatrix& aTransf
   for (Layer* l = mFirstChild; l; l = l->GetNextSibling()) {
     l->ComputeEffectiveTransforms(aTransformToSurface);
   }
-}
-
-/* static */ bool
-ContainerLayer::HasOpaqueAncestorLayer(Layer* aLayer)
-{
-  for (Layer* l = aLayer->GetParent(); l; l = l->GetParent()) {
-    if (l->GetContentFlags() & Layer::CONTENT_OPAQUE)
-      return true;
-  }
-  return false;
 }
 
 void
@@ -1129,15 +941,14 @@ LayerManager::BeginTabSwitch()
   mTabSwitchStart = TimeStamp::Now();
 }
 
-static nsACString& PrintInfo(nsACString& aTo, LayerComposite* aLayerComposite);
+#ifdef MOZ_LAYERS_HAVE_LOG
+
+static nsACString& PrintInfo(nsACString& aTo, ShadowLayer* aShadowLayer);
 
 #ifdef MOZ_DUMP_PAINTING
 template <typename T>
 void WriteSnapshotLinkToDumpFile(T* aObj, FILE* aFile)
 {
-  if (!aObj) {
-    return;
-  }
   nsCString string(aObj->Name());
   string.Append("-");
   string.AppendInt((uint64_t)aObj);
@@ -1167,10 +978,9 @@ void WriteSnapshotToDumpFile(LayerManager* aManager, gfxASurface* aSurf)
   WriteSnapshotToDumpFile_internal(aManager, aSurf);
 }
 
-void WriteSnapshotToDumpFile(Compositor* aCompositor, DrawTarget* aTarget)
+void WriteSnapshotToDumpFile(Compositor* aCompositor, gfxASurface* aSurf)
 {
-  nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(aTarget);
-  WriteSnapshotToDumpFile_internal(aCompositor, surf);
+  WriteSnapshotToDumpFile_internal(aCompositor, aSurf);
 }
 #endif
 
@@ -1187,13 +997,6 @@ Layer::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
     fprintf(aFile, ">");
   }
   DumpSelf(aFile, aPrefix);
-
-#ifdef MOZ_DUMP_PAINTING
-  if (AsLayerComposite() && AsLayerComposite()->GetCompositableHost()) {
-    AsLayerComposite()->GetCompositableHost()->Dump(aFile, aPrefix, aDumpHtml);
-  }
-#endif
-
   if (aDumpHtml) {
     fprintf(aFile, "</a>");
   }
@@ -1201,7 +1004,7 @@ Layer::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
   if (Layer* mask = GetMaskLayer()) {
     nsAutoCString pfx(aPrefix);
     pfx += "  Mask layer: ";
-    mask->Dump(aFile, pfx.get(), aDumpHtml);
+    mask->Dump(aFile, pfx.get());
   }
 
   if (Layer* kid = GetFirstChild()) {
@@ -1210,7 +1013,7 @@ Layer::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
     if (aDumpHtml) {
       fprintf(aFile, "<ul>");
     }
-    kid->Dump(aFile, pfx.get(), aDumpHtml);
+    kid->Dump(aFile, pfx.get());
     if (aDumpHtml) {
       fprintf(aFile, "</ul>");
     }
@@ -1228,11 +1031,7 @@ Layer::DumpSelf(FILE* aFile, const char* aPrefix)
 {
   nsAutoCString str;
   PrintInfo(str, aPrefix);
-  if (!aFile || aFile == stderr) {
-    printf_stderr("%s\n", str.get());
-  } else {
-    fprintf(aFile, "%s\n", str.get());
-  }
+  fprintf(FILEOrDefault(aFile), "%s\n", str.get());
 }
 
 void
@@ -1270,7 +1069,7 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
   aTo += aPrefix;
   aTo += nsPrintfCString("%s%s (0x%p)", mManager->Name(), Name(), this);
 
-  ::PrintInfo(aTo, AsLayerComposite());
+  ::PrintInfo(aTo, AsShadowLayer());
 
   if (mUseClipRect) {
     AppendToString(aTo, mClipRect, " [clip=", "]");
@@ -1296,15 +1095,7 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
     aTo += " [componentAlpha]";
   }
   if (GetIsFixedPosition()) {
-    aTo.AppendPrintf(" [isFixedPosition anchor=%f,%f]", mAnchor.x, mAnchor.y);
-  }
-  if (GetIsStickyPosition()) {
-    aTo.AppendPrintf(" [isStickyPosition scrollId=%d outer=%f,%f %fx%f "
-                     "inner=%f,%f %fx%f]", mStickyPositionData->mScrollId,
-                     mStickyPositionData->mOuter.x, mStickyPositionData->mOuter.y,
-                     mStickyPositionData->mOuter.width, mStickyPositionData->mOuter.height,
-                     mStickyPositionData->mInner.x, mStickyPositionData->mInner.y,
-                     mStickyPositionData->mInner.width, mStickyPositionData->mInner.height);
+    aTo += " [isFixedPosition]";
   }
 
   return aTo;
@@ -1348,7 +1139,7 @@ nsACString&
 CanvasLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   Layer::PrintInfo(aTo, aPrefix);
-  if (mFilter != GraphicsFilter::FILTER_GOOD) {
+  if (mFilter != gfxPattern::FILTER_GOOD) {
     AppendToString(aTo, mFilter, " [filter=", "]");
   }
   return aTo;
@@ -1358,7 +1149,7 @@ nsACString&
 ImageLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   Layer::PrintInfo(aTo, aPrefix);
-  if (mFilter != GraphicsFilter::FILTER_GOOD) {
+  if (mFilter != gfxPattern::FILTER_GOOD) {
     AppendToString(aTo, mFilter, " [filter=", "]");
   }
   return aTo;
@@ -1489,55 +1280,74 @@ LayerManager::IsLogEnabled()
 }
 
 static nsACString&
-PrintInfo(nsACString& aTo, LayerComposite* aLayerComposite)
+PrintInfo(nsACString& aTo, ShadowLayer* aShadowLayer)
 {
-  if (!aLayerComposite) {
+  if (!aShadowLayer) {
     return aTo;
   }
-  if (const nsIntRect* clipRect = aLayerComposite->GetShadowClipRect()) {
+  if (const nsIntRect* clipRect = aShadowLayer->GetShadowClipRect()) {
     AppendToString(aTo, *clipRect, " [shadow-clip=", "]");
   }
-  if (!aLayerComposite->GetShadowTransform().IsIdentity()) {
-    AppendToString(aTo, aLayerComposite->GetShadowTransform(), " [shadow-transform=", "]");
+  if (!aShadowLayer->GetShadowTransform().IsIdentity()) {
+    AppendToString(aTo, aShadowLayer->GetShadowTransform(), " [shadow-transform=", "]");
   }
-  if (!aLayerComposite->GetShadowVisibleRegion().IsEmpty()) {
-    AppendToString(aTo, aLayerComposite->GetShadowVisibleRegion(), " [shadow-visible=", "]");
+  if (!aShadowLayer->GetShadowVisibleRegion().IsEmpty()) {
+    AppendToString(aTo, aShadowLayer->GetShadowVisibleRegion(), " [shadow-visible=", "]");
   }
   return aTo;
 }
 
-void
-SetAntialiasingFlags(Layer* aLayer, gfxContext* aTarget)
-{
-  if (!aTarget->IsCairo()) {
-    RefPtr<DrawTarget> dt = aTarget->GetDrawTarget();
+#else  // !MOZ_LAYERS_HAVE_LOG
 
-    if (dt->GetFormat() != FORMAT_B8G8R8A8) {
-      return;
-    }
+void Layer::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml) {}
+void Layer::DumpSelf(FILE* aFile, const char* aPrefix) {}
+void Layer::Log(const char* aPrefix) {}
+void Layer::LogSelf(const char* aPrefix) {}
+nsACString&
+Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
+{ return aTo; }
 
-    const nsIntRect& bounds = aLayer->GetVisibleRegion().GetBounds();
-    gfx::Rect transformedBounds = dt->GetTransform().TransformBounds(gfx::Rect(Float(bounds.x), Float(bounds.y),
-                                                                     Float(bounds.width), Float(bounds.height)));
-    transformedBounds.RoundOut();
-    IntRect intTransformedBounds;
-    transformedBounds.ToIntRect(&intTransformedBounds);
-    dt->SetPermitSubpixelAA(!(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA) ||
-                            dt->GetOpaqueRect().Contains(intTransformedBounds));
-  } else {
-    nsRefPtr<gfxASurface> surface = aTarget->CurrentSurface();
-    if (surface->GetContentType() != GFX_CONTENT_COLOR_ALPHA) {
-      // Destination doesn't have alpha channel; no need to set any special flags
-      return;
-    }
+nsACString&
+ThebesLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
+{ return aTo; }
 
-    const nsIntRect& bounds = aLayer->GetVisibleRegion().GetBounds();
-    surface->SetSubpixelAntialiasingEnabled(
-        !(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA) ||
-        surface->GetOpaqueRect().Contains(
-          aTarget->UserToDevice(gfxRect(bounds.x, bounds.y, bounds.width, bounds.height))));
-  }
-}
+nsACString&
+ContainerLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
+{ return aTo; }
+
+nsACString&
+ColorLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
+{ return aTo; }
+
+nsACString&
+CanvasLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
+{ return aTo; }
+
+nsACString&
+ImageLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
+{ return aTo; }
+
+nsACString&
+RefLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
+{ return aTo; }
+
+nsACString&
+ReadbackLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
+{ return aTo; }
+
+void LayerManager::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml) {}
+void LayerManager::DumpSelf(FILE* aFile, const char* aPrefix) {}
+void LayerManager::Log(const char* aPrefix) {}
+void LayerManager::LogSelf(const char* aPrefix) {}
+
+nsACString&
+LayerManager::PrintInfo(nsACString& aTo, const char* aPrefix)
+{ return aTo; }
+
+/*static*/ void LayerManager::InitLog() {}
+/*static*/ bool LayerManager::IsLogEnabled() { return false; }
+
+#endif // MOZ_LAYERS_HAVE_LOG
 
 PRLogModuleInfo* LayerManager::sLog;
 

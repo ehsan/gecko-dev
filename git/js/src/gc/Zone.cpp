@@ -4,27 +4,34 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "gc/Zone.h"
-
+#include "jsapi.h"
+#include "jscntxt.h"
 #include "jsgc.h"
+#include "jsprf.h"
+
+#include "js/HashTable.h"
+#include "gc/GCInternals.h"
 
 #ifdef JS_ION
-#include "jit/BaselineJIT.h"
-#include "jit/Ion.h"
-#include "jit/JitCompartment.h"
+#include "ion/BaselineJIT.h"
+#include "ion/IonCompartment.h"
+#include "ion/Ion.h"
 #endif
-#include "vm/Debugger.h"
-#include "vm/Runtime.h"
 
+#include "jsobjinlines.h"
 #include "jsgcinlines.h"
 
 using namespace js;
 using namespace js::gc;
 
 JS::Zone::Zone(JSRuntime *rt)
-  : JS::shadow::Zone(rt, &rt->gcMarker),
+  : rt(rt),
     allocator(this),
     hold(false),
+#ifdef JSGC_GENERATIONAL
+    gcNursery(),
+    gcStoreBuffer(rt),
+#endif
     ionUsingBarriers_(false),
     active(false),
     gcScheduled(false),
@@ -34,13 +41,10 @@ JS::Zone::Zone(JSRuntime *rt)
     gcTriggerBytes(0),
     gcHeapGrowthFactor(3.0),
     isSystem(false),
-    usedByExclusiveThread(false),
     scheduledForDestruction(false),
     maybeAlive(true),
     gcMallocBytes(0),
-    gcMallocGCTriggered(false),
     gcGrayRoots(),
-    data(nullptr),
     types(this)
 {
     /* Ensure that there are no vtables to mess us up here. */
@@ -52,8 +56,8 @@ JS::Zone::Zone(JSRuntime *rt)
 
 Zone::~Zone()
 {
-    if (this == runtimeFromMainThread()->systemZone)
-        runtimeFromMainThread()->systemZone = nullptr;
+    if (this == rt->systemZone)
+        rt->systemZone = NULL;
 }
 
 bool
@@ -66,17 +70,20 @@ Zone::init(JSContext *cx)
 void
 Zone::setNeedsBarrier(bool needs, ShouldUpdateIon updateIon)
 {
+#ifdef JS_METHODJIT
+    /* ClearAllFrames calls compileBarriers() and needs the old value. */
+    bool old = compileBarriers();
+    if (compileBarriers(needs) != old)
+        mjit::ClearAllFrames(this);
+#endif
+
 #ifdef JS_ION
     if (updateIon == UpdateIon && needs != ionUsingBarriers_) {
-        jit::ToggleBarriers(this, needs);
+        ion::ToggleBarriers(this, needs);
         ionUsingBarriers_ = needs;
     }
 #endif
 
-    if (needs && runtimeFromMainThread()->isAtomsZone(this))
-        JS_ASSERT(!runtimeFromMainThread()->exclusiveThreadsPresent());
-
-    JS_ASSERT_IF(needs, canCollect());
     needsBarrier_ = needs;
 }
 
@@ -99,7 +106,7 @@ Zone::markTypes(JSTracer *trc)
     for (size_t thingKind = FINALIZE_OBJECT0; thingKind < FINALIZE_OBJECT_LIMIT; thingKind++) {
         ArenaHeader *aheader = allocator.arenas.getFirstArena(static_cast<AllocKind>(thingKind));
         if (aheader)
-            trc->runtime->gcMarker.pushArenaList(aheader);
+            rt->gcMarker.pushArenaList(aheader);
     }
 
     for (CellIterUnderGC i(this, FINALIZE_TYPE_OBJECT); !i.done(); i.next()) {
@@ -113,7 +120,6 @@ void
 Zone::resetGCMallocBytes()
 {
     gcMallocBytes = ptrdiff_t(gcMaxMallocBytes);
-    gcMallocGCTriggered = false;
 }
 
 void
@@ -130,8 +136,7 @@ Zone::setGCMaxMallocBytes(size_t value)
 void
 Zone::onTooMuchMalloc()
 {
-    if (!gcMallocGCTriggered)
-        gcMallocGCTriggered = TriggerZoneGC(this, JS::gcreason::TOO_MUCH_MALLOC);
+    TriggerZoneGC(this, gcreason::TOO_MUCH_MALLOC);
 }
 
 void
@@ -145,78 +150,59 @@ Zone::sweep(FreeOp *fop, bool releaseTypes)
         releaseTypes = false;
 
     if (!isPreservingCode()) {
-        gcstats::AutoPhase ap(fop->runtime()->gcStats, gcstats::PHASE_DISCARD_ANALYSIS);
+        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_DISCARD_ANALYSIS);
         types.sweep(fop, releaseTypes);
     }
-
-    if (!fop->runtime()->debuggerList.isEmpty())
-        sweepBreakpoints(fop);
 
     active = false;
 }
 
 void
-Zone::sweepBreakpoints(FreeOp *fop)
+Zone::discardJitCode(FreeOp *fop, bool discardConstraints)
 {
+#ifdef JS_METHODJIT
     /*
-     * Sweep all compartments in a zone at the same time, since there is no way
-     * to iterate over the scripts belonging to a single compartment in a zone.
+     * Kick all frames on the stack into the interpreter, and release all JIT
+     * code in the compartment unless code is being preserved, in which case
+     * purge all caches in the JIT scripts. Even if we are not releasing all
+     * JIT code, we still need to release code for scripts which are in the
+     * middle of a native or getter stub call, as these stubs will have been
+     * redirected to the interpoline.
      */
+    mjit::ClearAllFrames(this);
 
-    gcstats::AutoPhase ap1(fop->runtime()->gcStats, gcstats::PHASE_SWEEP_TABLES);
-    gcstats::AutoPhase ap2(fop->runtime()->gcStats, gcstats::PHASE_SWEEP_TABLES_BREAKPOINT);
-
-    for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
-        JSScript *script = i.get<JSScript>();
-        if (!script->hasAnyBreakpointsOrStepMode())
-            continue;
-        bool scriptGone = IsScriptAboutToBeFinalized(&script);
-        JS_ASSERT(script == i.get<JSScript>());
-        for (unsigned i = 0; i < script->length; i++) {
-            BreakpointSite *site = script->getBreakpointSite(script->code + i);
-            if (!site)
-                continue;
-            Breakpoint *nextbp;
-            for (Breakpoint *bp = site->firstBreakpoint(); bp; bp = nextbp) {
-                nextbp = bp->nextInSite();
-                if (scriptGone || IsObjectAboutToBeFinalized(&bp->debugger->toJSObjectRef()))
-                    bp->destroy(fop);
-            }
-        }
-    }
-}
-
-void
-Zone::discardJitCode(FreeOp *fop)
-{
-#ifdef JS_ION
     if (isPreservingCode()) {
         PurgeJITCaches(this);
     } else {
+# ifdef JS_ION
 
-# ifdef DEBUG
+#  ifdef DEBUG
         /* Assert no baseline scripts are marked as active. */
         for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
             JS_ASSERT_IF(script->hasBaselineScript(), !script->baselineScript()->active());
         }
-# endif
+#  endif
 
         /* Mark baseline scripts on the stack as active. */
-        jit::MarkActiveBaselineScripts(this);
+        ion::MarkActiveBaselineScripts(this);
 
         /* Only mark OSI points if code is being discarded. */
-        jit::InvalidateAll(fop, this);
-
+        ion::InvalidateAll(fop, this);
+# endif
         for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
-            jit::FinishInvalidation(fop, script);
+
+            mjit::ReleaseScriptCode(fop, script);
+# ifdef JS_ION
+            ion::FinishInvalidation(fop, script);
 
             /*
              * Discard baseline script if it's not marked as active. Note that
              * this also resets the active flag.
              */
-            jit::FinishDiscardBaselineScript(fop, script);
+            ion::FinishDiscardBaselineScript(fop, script);
+# endif
 
             /*
              * Use counts for scripts are reset on GC. After discarding code we
@@ -227,34 +213,14 @@ Zone::discardJitCode(FreeOp *fop)
         }
 
         for (CompartmentsInZoneIter comp(this); !comp.done(); comp.next()) {
+#ifdef JS_ION
             /* Free optimized baseline stubs. */
-            if (comp->jitCompartment())
-                comp->jitCompartment()->optimizedStubSpace()->free();
+            if (comp->ionCompartment())
+                comp->ionCompartment()->optimizedStubSpace()->free();
+#endif
 
-            comp->types.clearCompilerOutputs(fop);
+            comp->types.sweepCompilerOutputs(fop, discardConstraints);
         }
     }
-#endif
+#endif /* JS_METHODJIT */
 }
-
-uint64_t
-Zone::gcNumber()
-{
-    // Zones in use by exclusive threads are not collected, and threads using
-    // them cannot access the main runtime's gcNumber without racing.
-    return usedByExclusiveThread ? 0 : runtimeFromMainThread()->gcNumber;
-}
-
-JS::Zone *
-js::ZoneOfObject(const JSObject &obj)
-{
-    return obj.zone();
-}
-
-JS::Zone *
-js::ZoneOfObjectFromAnyThread(const JSObject &obj)
-{
-    return obj.zoneFromAnyThread();
-}
-
-

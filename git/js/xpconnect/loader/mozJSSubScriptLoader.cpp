@@ -9,51 +9,31 @@
 #include "mozJSComponentLoader.h"
 #include "mozJSLoaderUtils.h"
 
+#include "nsIServiceManager.h"
+#include "nsIXPConnect.h"
+
 #include "nsIURI.h"
 #include "nsIIOService.h"
 #include "nsIChannel.h"
 #include "nsIInputStream.h"
 #include "nsNetCID.h"
+#include "nsDependentString.h"
+#include "nsAutoPtr.h"
 #include "nsNetUtil.h"
+#include "nsIProtocolHandler.h"
 #include "nsIFileURL.h"
 #include "nsScriptLoader.h"
-#include "nsIScriptSecurityManager.h"
 
 #include "jsapi.h"
+#include "jsdbgapi.h"
 #include "jsfriendapi.h"
-#include "js/OldDebugAPI.h"
 #include "nsJSPrincipals.h"
-#include "xpcpublic.h" // For xpc::SystemErrorReporter
-#include "xpcprivate.h" // For xpc::OptionsBase
 
 #include "mozilla/scache/StartupCache.h"
 #include "mozilla/scache/StartupCacheUtils.h"
+#include "mozilla/Preferences.h"
 
 using namespace mozilla::scache;
-using namespace JS;
-using namespace xpc;
-
-class MOZ_STACK_CLASS LoadSubScriptOptions : public OptionsBase {
-public:
-    LoadSubScriptOptions(JSContext *cx = xpc_GetSafeJSContext(),
-                         JSObject *options = nullptr)
-        : OptionsBase(cx, options)
-        , target(cx)
-        , charset(NullString())
-        , ignoreCache(false)
-    { }
-
-    virtual bool Parse() {
-      return ParseObject("target", &target) &&
-             ParseString("charset", charset) &&
-             ParseBoolean("ignoreCache", &ignoreCache);
-    }
-
-    RootedObject target;
-    nsString charset;
-    bool ignoreCache;
-};
-
 
 /* load() error msgs, XXX localize? */
 #define LOAD_ERROR_NOSERVICE "Error creating IO Service."
@@ -69,6 +49,10 @@ public:
 #define LOAD_ERROR_NOSPEC "Failed to get URI spec.  This is bad."
 #define LOAD_ERROR_CONTENTTOOBIG "ContentLength is too large"
 
+// We just use the same reporter as the component loader
+extern void
+mozJSLoaderErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep);
+
 mozJSSubScriptLoader::mozJSSubScriptLoader() : mSystemPrincipal(nullptr)
 {
     // Force construction of the JS component loader.  We may need it later.
@@ -81,25 +65,22 @@ mozJSSubScriptLoader::~mozJSSubScriptLoader()
     /* empty */
 }
 
-NS_IMPL_ISUPPORTS1(mozJSSubScriptLoader, mozIJSSubScriptLoader)
+NS_IMPL_THREADSAFE_ISUPPORTS1(mozJSSubScriptLoader, mozIJSSubScriptLoader)
 
 static nsresult
 ReportError(JSContext *cx, const char *msg)
 {
-    RootedValue exn(cx, JS::StringValue(JS_NewStringCopyZ(cx, msg)));
-    JS_SetPendingException(cx, exn);
+    JS_SetPendingException(cx, STRING_TO_JSVAL(JS_NewStringCopyZ(cx, msg)));
     return NS_OK;
 }
 
 nsresult
-mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *targetObjArg,
+mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_obj,
                                  const nsAString& charset, const char *uriStr,
                                  nsIIOService *serv, nsIPrincipal *principal,
                                  bool reuseGlobal, JSScript **scriptp,
                                  JSFunction **functionp)
 {
-    RootedObject target_obj(cx, targetObjArg);
-
     nsCOMPtr<nsIChannel>     chan;
     nsCOMPtr<nsIInputStream> instream;
     JSErrorReporter  er;
@@ -139,11 +120,12 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *targetObj
 
     /* set our own error reporter so we can report any bad things as catchable
      * exceptions, including the source/line number */
-    er = JS_SetErrorReporter(cx, xpc::SystemErrorReporter);
+    er = JS_SetErrorReporter(cx, mozJSLoaderErrorReporter);
 
     JS::CompileOptions options(cx);
     options.setPrincipals(nsJSPrincipals::get(principal))
            .setFileAndLine(uriStr, 1);
+    JS::RootedObject target_obj_root(cx, target_obj);
     if (!charset.IsVoid()) {
         nsString script;
         rv = nsScriptLoader::ConvertToUTF16(nullptr, reinterpret_cast<const uint8_t*>(buf.get()), len,
@@ -154,11 +136,11 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *targetObj
         }
 
         if (!reuseGlobal) {
-            *scriptp = JS::Compile(cx, target_obj, options,
+            *scriptp = JS::Compile(cx, target_obj_root, options,
                                    reinterpret_cast<const jschar*>(script.get()),
                                    script.Length());
         } else {
-            *functionp = JS::CompileFunction(cx, target_obj, options,
+            *functionp = JS::CompileFunction(cx, target_obj_root, options,
                                              nullptr, 0, nullptr,
                                              reinterpret_cast<const jschar*>(script.get()),
                                              script.Length());
@@ -168,9 +150,9 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *targetObj
         // the lazy source loader doesn't know the encoding.
         if (!reuseGlobal) {
             options.setSourcePolicy(JS::CompileOptions::LAZY_SOURCE);
-            *scriptp = JS::Compile(cx, target_obj, options, buf.get(), len);
+            *scriptp = JS::Compile(cx, target_obj_root, options, buf.get(), len);
         } else {
-            *functionp = JS::CompileFunction(cx, target_obj, options,
+            *functionp = JS::CompileFunction(cx, target_obj_root, options,
                                              nullptr, 0, nullptr, buf.get(),
                                              len);
         }
@@ -184,10 +166,10 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *targetObj
 
 NS_IMETHODIMP
 mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
-                                    const Value& targetArg,
+                                    const JS::Value& target,
                                     const nsAString& charset,
                                     JSContext* cx,
-                                    Value* retval)
+                                    JS::Value* retval)
 {
     /*
      * Loads a local url and evals it into the current cx
@@ -196,34 +178,10 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
      *        synchronously.
      *   target_obj: Optional object to eval the script onto (defaults to context
      *               global)
-     *   charset: Optional character set to use for reading
      *   returns: Whatever jsval the script pointed to by the url returns.
      * Should ONLY (O N L Y !) be called from JavaScript code.
      */
-    LoadSubScriptOptions options(cx);
-    options.charset = charset;
-    options.target = targetArg.isObject() ? &targetArg.toObject() : nullptr;
-    return DoLoadSubScriptWithOptions(url, options, cx, retval);
-}
 
-
-NS_IMETHODIMP
-mozJSSubScriptLoader::LoadSubScriptWithOptions(const nsAString& url, const Value& optionsVal,
-                                               JSContext* cx, Value* retval)
-{
-    if (!optionsVal.isObject())
-        return NS_ERROR_INVALID_ARG;
-    LoadSubScriptOptions options(cx, &optionsVal.toObject());
-    if (!options.Parse())
-        return NS_ERROR_INVALID_ARG;
-    return DoLoadSubScriptWithOptions(url, options, cx, retval);
-}
-
-nsresult
-mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString& url,
-                                                 LoadSubScriptOptions& options,
-                                                 JSContext* cx, Value* retval)
-{
     nsresult rv = NS_OK;
 
     /* set the system principal if it's not here already */
@@ -238,22 +196,28 @@ mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString& url,
             return rv;
     }
 
-    RootedObject targetObj(cx);
+    JSAutoRequest ar(cx);
+
+    JSObject* targetObj;
     mozJSComponentLoader* loader = mozJSComponentLoader::Get();
     rv = loader->FindTargetObject(cx, &targetObj);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // We base reusingGlobal off of what the loader told us, but we may not
-    // actually be using that object.
     bool reusingGlobal = !JS_IsGlobalObject(targetObj);
 
-    if (options.target)
-        targetObj = options.target;
+    // We base reusingGlobal off of what the loader told us, but we may not
+    // actually be using that object.
+    JSObject* passedObj;
+    if (!JS_ValueToObject(cx, target, &passedObj))
+        return NS_ERROR_ILLEGAL_VALUE;
+
+    if (passedObj)
+        targetObj = passedObj;
 
     // Remember an object out of the calling compartment so that we
     // can properly wrap the result later.
     nsCOMPtr<nsIPrincipal> principal = mSystemPrincipal;
-    RootedObject result_obj(cx, targetObj);
+    JSObject *result_obj = targetObj;
     targetObj = JS_FindCompilationScope(cx, targetObj);
     if (!targetObj)
         return NS_ERROR_FAILURE;
@@ -276,7 +240,7 @@ mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString& url,
     nsAutoCString uriStr;
     nsAutoCString scheme;
 
-    RootedScript script(cx);
+    JSScript* script = nullptr;
 
     // Figure out who's calling us
     if (!JS_DescribeScriptedCaller(cx, &script, nullptr)) {
@@ -333,14 +297,14 @@ mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString& url,
     cachePath.AppendPrintf("jssubloader/%d", version);
     PathifyURI(uri, cachePath);
 
-    RootedFunction function(cx);
+    JSFunction* function = nullptr;
     script = nullptr;
-    if (cache && !options.ignoreCache)
+    if (cache)
         rv = ReadCachedScript(cache, cachePath, cx, mSystemPrincipal, &script);
     if (!script) {
-        rv = ReadScript(uri, cx, targetObj, options.charset,
+        rv = ReadScript(uri, cx, targetObj, charset,
                         static_cast<const char*>(uriStr.get()), serv,
-                        principal, reusingGlobal, script.address(), function.address());
+                        principal, reusingGlobal, &script, &function);
         writeScript = !!script;
     }
 
@@ -353,19 +317,17 @@ mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString& url,
 
     loader->NoteSubScript(script, targetObj);
 
-    RootedValue rval(cx);
     bool ok = false;
     if (function) {
-        ok = JS_CallFunction(cx, targetObj, function, 0, nullptr, rval.address());
+        ok = JS_CallFunction(cx, targetObj, function, 0, nullptr, retval);
     } else {
-        ok = JS_ExecuteScriptVersion(cx, targetObj, script, rval.address(), version);
+        ok = JS_ExecuteScriptVersion(cx, targetObj, script, retval, version);
     }
 
     if (ok) {
         JSAutoCompartment rac(cx, result_obj);
-        if (!JS_WrapValue(cx, &rval))
+        if (!JS_WrapValue(cx, retval))
             return NS_ERROR_UNEXPECTED;
-        *retval = rval;
     }
 
     if (cache && ok && writeScript) {

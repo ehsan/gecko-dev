@@ -12,6 +12,7 @@
 #include "nsIObserverService.h"
 #include "nsIObserver.h"
 #include "nsIXPConnect.h"
+#include "nsIJSContextStack.h"
 
 #include "nsIWindowMediator.h"
 #include "nsIWindowWatcher.h"
@@ -23,14 +24,13 @@
 #include "nsCRT.h"
 #include "prprf.h"
 
-#include "nsWidgetInitData.h"
 #include "nsWidgetsCID.h"
-#include "nsIWidget.h"
 #include "nsIRequestObserver.h"
 
 /* For implementing GetHiddenWindowAndJSContext */
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptContext.h"
+#include "jsapi.h"
 
 #include "nsAppShellService.h"
 #include "nsISupportsPrimitives.h"
@@ -41,7 +41,6 @@
 #include "nsILoadContext.h"
 #include "nsIWebNavigation.h"
 
-#include "mozilla/Attributes.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/StartupTimeline.h"
 
@@ -318,8 +317,8 @@ WebBrowserChrome2Stub::GetInterface(const nsIID & aIID, void **aSink)
 // This is the "stub" we return from CreateWindowlessBrowser - it exists
 // purely to keep a strong reference to the browser and the container to
 // prevent the container being collected while the stub remains alive.
-class WindowlessBrowserStub MOZ_FINAL : public nsIWebNavigation,
-                                        public nsIInterfaceRequestor {
+class WindowlessBrowserStub: public nsIWebNavigation,
+                             public nsIInterfaceRequestor {
 public:
   WindowlessBrowserStub(nsIWebBrowser *aBrowser, nsISupports *aContainer) {
     mBrowser = aBrowser;
@@ -349,7 +348,7 @@ NS_IMPL_RELEASE(WindowlessBrowserStub)
 
 
 NS_IMETHODIMP
-nsAppShellService::CreateWindowlessBrowser(bool aIsChrome, nsIWebNavigation **aResult)
+nsAppShellService::CreateWindowlessBrowser(nsIWebNavigation **aResult)
 {
   /* First, we create an instance of nsWebBrowser. Instances of this class have
    * an associated doc shell, which is what we're interested in.
@@ -375,8 +374,7 @@ nsAppShellService::CreateWindowlessBrowser(bool aIsChrome, nsIWebNavigation **aR
   nsCOMPtr<nsIWebNavigation> navigation = do_QueryInterface(browser);
 
   nsCOMPtr<nsIDocShellTreeItem> item = do_QueryInterface(navigation);
-  item->SetItemType(aIsChrome ? nsIDocShellTreeItem::typeChromeWrapper
-                              : nsIDocShellTreeItem::typeContentWrapper);
+  item->SetItemType(nsIDocShellTreeItem::typeContentWrapper);
 
   /* A windowless web browser doesn't have an associated OS level window. To
    * accomplish this, we initialize the window associated with our instance of
@@ -396,9 +394,6 @@ nsAppShellService::CreateWindowlessBrowser(bool aIsChrome, nsIWebNavigation **aR
 
   nsISupports *isstub = NS_ISUPPORTS_CAST(nsIWebBrowserChrome2*, stub);
   nsRefPtr<nsIWebNavigation> result = new WindowlessBrowserStub(browser, isstub);
-  nsCOMPtr<nsIDocShell> docshell = do_GetInterface(result);
-  docshell->SetInvisible(true);
-
   result.forget(aResult);
   return NS_OK;
 }
@@ -465,9 +460,11 @@ CheckForFullscreenWindow()
     windowList->GetNext(getter_AddRefs(supportsWindow));
     nsCOMPtr<nsIBaseWindow> baseWin(do_QueryInterface(supportsWindow));
     if (baseWin) {
+      int32_t sizeMode;
       nsCOMPtr<nsIWidget> widget;
       baseWin->GetMainWidget(getter_AddRefs(widget));
-      if (widget && widget->SizeMode() == nsSizeMode_Fullscreen) {
+      if (widget && NS_SUCCEEDED(widget->GetSizeMode(&sizeMode)) && 
+          sizeMode == nsSizeMode_Fullscreen) {
         return true;
       }
     }

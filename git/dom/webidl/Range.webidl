@@ -12,7 +12,8 @@
  * liability, trademark and document use rules apply.
  */
 
-[Constructor]
+interface ClientRect;
+
 interface Range {
   [Throws]
   readonly attribute Node startContainer;
@@ -38,7 +39,7 @@ interface Range {
   void setEndBefore(Node refNode);
   [Throws]
   void setEndAfter(Node refNode);
-  void collapse(optional boolean toStart = false);
+  void collapse(boolean toStart);
   [Throws]
   void selectNode(Node refNode);
   [Throws]
@@ -83,6 +84,6 @@ partial interface Range {
 
 // http://dvcs.w3.org/hg/csswg/raw-file/tip/cssom-view/Overview.html#extensions-to-the-range-interface
 partial interface Range {
-  DOMRectList? getClientRects();
-  DOMRect getBoundingClientRect();
+  ClientRectList? getClientRects();
+  ClientRect getBoundingClientRect();
 };

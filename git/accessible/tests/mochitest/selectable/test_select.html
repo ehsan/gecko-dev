@@ -37,22 +37,22 @@
       testSelectableSelection(select, [ "cb1_item1" ]);
 
       // select 2nd item
-      select.addItemToSelection(1);
-      testSelectableSelection(select, [ "cb1_item2" ], "addItemToSelection(1): ");
+      select.addChildToSelection(1);
+      testSelectableSelection(select, [ "cb1_item2" ], "addChildToSelect(1): ");
 
       // unselect 2nd item, 1st item gets selected automatically
-      select.removeItemFromSelection(1);
+      select.removeChildFromSelection(1);
       testSelectableSelection(select, [ "cb1_item1" ],
-                              "removeItemFromSelection(1): ");
+                              "removeChildFromSelection(1): ");
 
       // doesn't change selection
-      is(select.selectAll(), false,
+      is(select.selectAllSelection(), false,
          "No way to select all items in combobox '" + id + "'");
-      testSelectableSelection(select, [ "cb1_item1" ], "selectAll: ");
+      testSelectableSelection(select, [ "cb1_item1" ], "selectAllSelection: ");
 
       // doesn't change selection
-      select.unselectAll();
-      testSelectableSelection(select, [ "cb1_item1" ], "unselectAll: ");
+      select.clearSelection();
+      testSelectableSelection(select, [ "cb1_item1" ], "clearSelection: ");
 
       //////////////////////////////////////////////////////////////////////////
       // select@size="1" with optgroups
@@ -66,17 +66,17 @@
       select = getAccessible(comboboxList, [nsIAccessibleSelectable]);
       testSelectableSelection(select, [ "cb2_item1" ]);
 
-      select.addItemToSelection(1);
+      select.addChildToSelection(1);
       testSelectableSelection(select, [ "cb2_item2" ]);
 
-      select.removeItemFromSelection(1);
+      select.removeChildFromSelection(1);
       testSelectableSelection(select, [ "cb2_item1" ]);
 
-      is(select.selectAll(), false,
+      is(select.selectAllSelection(), false,
          "No way to select all items in combobox " + id + "'");
       testSelectableSelection(select, [ "cb2_item1" ]);
 
-      select.unselectAll();
+      select.clearSelection();
       testSelectableSelection(select, [ "cb2_item1" ]);
 
       //////////////////////////////////////////////////////////////////////////
@@ -90,22 +90,22 @@
       testSelectableSelection(select, [ ]);
 
       // select 2nd item
-      select.addItemToSelection(1);
-      testSelectableSelection(select, [ "lb1_item2" ], "addItemToSelection(1): ");
+      select.addChildToSelection(1);
+      testSelectableSelection(select, [ "lb1_item2" ], "addChildToSelect(1): ");
 
       // unselect 2nd item, 1st item gets selected automatically
-      select.removeItemFromSelection(1);
+      select.removeChildFromSelection(1);
       testSelectableSelection(select, [ ],
-                              "removeItemFromSelection(1): ");
+                              "removeChildFromSelection(1): ");
 
       // doesn't change selection
-      is(select.selectAll(), false,
+      is(select.selectAllSelection(), false,
          "No way to select all items in single selectable listbox '" + id + "'");
-      testSelectableSelection(select, [ ], "selectAll: ");
+      testSelectableSelection(select, [ ], "selectAllSelection: ");
 
       // doesn't change selection
-      select.unselectAll();
-      testSelectableSelection(select, [ ], "unselectAll: ");
+      select.clearSelection();
+      testSelectableSelection(select, [ ], "clearSelection: ");
 
       //////////////////////////////////////////////////////////////////////////
       // select@size="4" with optgroups, single selectable
@@ -117,17 +117,17 @@
       select = getAccessible(id, [nsIAccessibleSelectable]);
       testSelectableSelection(select, [ ]);
 
-      select.addItemToSelection(1);
+      select.addChildToSelection(1);
       testSelectableSelection(select, [ "lb2_item2" ]);
 
-      select.removeItemFromSelection(1);
+      select.removeChildFromSelection(1);
       testSelectableSelection(select, [ ]);
 
-      is(select.selectAll(), false,
+      is(select.selectAllSelection(), false,
          "No way to select all items in single selectable listbox " + id + "'");
       testSelectableSelection(select, [ ]);
 
-      select.unselectAll();
+      select.clearSelection();
       testSelectableSelection(select, [ ]);
 
       //////////////////////////////////////////////////////////////////////////
@@ -140,19 +140,19 @@
       select = getAccessible(id, [nsIAccessibleSelectable]);
       testSelectableSelection(select, [ ]);
 
-      select.addItemToSelection(0);
-      testSelectableSelection(select, [ "lb3_item1" ], "addItemToSelection: ");
+      select.addChildToSelection(0);
+      testSelectableSelection(select, [ "lb3_item1" ], "addChildToSelection: ");
 
-      select.removeItemFromSelection(0);
-      testSelectableSelection(select, [ ], "removeItemFromSelection: ");
+      select.removeChildFromSelection(0);
+      testSelectableSelection(select, [ ], "removeChildFromSelection: ");
 
-      is(select.selectAll(), true,
+      is(select.selectAllSelection(), true,
          "All items in listbox '" + id + "' should be selected");
       testSelectableSelection(select, [ "lb3_item1", "lb3_item2"],
-                              "selectAll: ");
+                              "selectAllSelection: ");
 
-      select.unselectAll();
-      testSelectableSelection(select, [ ], "unselectAll: ");
+      select.clearSelection();
+      testSelectableSelection(select, [ ], "clearSelection: ");
 
       //////////////////////////////////////////////////////////////////////////
       // select@size="4" multiselect with optgroups
@@ -164,17 +164,17 @@
       select = getAccessible(id, [nsIAccessibleSelectable]);
       testSelectableSelection(select, [ ]);
 
-      select.addItemToSelection(0);
+      select.addChildToSelection(0);
       testSelectableSelection(select, [ "lb4_item1" ]);
 
-      select.removeItemFromSelection(0);
+      select.removeChildFromSelection(0);
       testSelectableSelection(select, [ ]);
 
-      is(select.selectAll(), true,
+      is(select.selectAllSelection(), true,
          "All items in listbox '" + id + "' should be selected");
       testSelectableSelection(select, [ "lb4_item1", "lb4_item2"]);
 
-      select.unselectAll();
+      select.clearSelection();
       testSelectableSelection(select, [ ]);
 
       SimpleTest.finish();

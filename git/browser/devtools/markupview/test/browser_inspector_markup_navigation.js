@@ -10,10 +10,10 @@ function test() {
   let doc;
 
   let keySequences = [
-    ["pageup", "*doctype*"],
-    ["down", "html"],
+    ["right", "html"],
     ["down", "head"],
     ["down", "body"],
+    ["right", "body"],
     ["down", "node0"],
     ["right", "node0"],
     ["down", "node1"],
@@ -33,6 +33,7 @@ function test() {
     ["left", "node7"],
     ["left", "node7"],
     ["right", "node7"],
+    ["right", "*text*"],
     ["right", "*text*"],
     ["down", "node8"],
     ["right", "node8"],
@@ -83,7 +84,7 @@ function test() {
     var target = TargetFactory.forTab(gBrowser.selectedTab);
     gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
       inspector = toolbox.getCurrentPanel();
-      inspector.once("inspector-updated", startNavigation);
+      startNavigation();
     });
   }
 
@@ -125,7 +126,7 @@ function test() {
         break;
     }
 
-    inspector.markup._waitForChildren().then(() => executeSoon(function BIMNT_newNode() {
+    executeSoon(function BIMNT_newNode() {
       let node = inspector.selection.node;
 
       if (className == "*comment*") {
@@ -139,7 +140,7 @@ function test() {
       }
 
       nextStep(cursor + 1);
-    }));
+    });
   }
 
   function finishUp() {

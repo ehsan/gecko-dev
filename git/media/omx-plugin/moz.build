@@ -16,9 +16,3 @@
 
 MODULE = 'omxplugin'
 
-SOURCES += [
-    'OmxPlugin.cpp',
-]
-
-LIBRARY_NAME = 'omxplugin'
-

@@ -6,8 +6,9 @@
 #include "nsIDOMEventTarget.idl"
 
 interface nsIDOMDOMRequest;
+interface nsIDOMDOMError;
 
-[scriptable, uuid(4081390c-08cf-11e3-9200-b3c0a8744b20)]
+[scriptable, uuid(d89870fe-5ba3-11e2-a5d2-cfa1d3f6e5f4)]
 interface mozIDOMApplication  : nsISupports
 {
   readonly attribute jsval manifest;
@@ -59,8 +60,7 @@ interface mozIDOMApplication  : nsISupports
   readonly attribute boolean readyToApplyDownload;
   readonly attribute long downloadSize;
 
-  // This is a DOMError
-  readonly attribute nsISupports downloadError;
+  readonly attribute nsIDOMDOMError downloadError;
 
   attribute nsIDOMEventListener ondownloadsuccess;
   attribute nsIDOMEventListener ondownloaderror;
@@ -85,21 +85,8 @@ interface mozIDOMApplication  : nsISupports
   /* startPoint will be used when several launch_path exists for an app */
   nsIDOMDOMRequest launch([optional] in DOMString startPoint);
 
-  /**
-   * Clear data that has been collected through mozbrowser elements.
-   * onsuccess will be called once data is actually cleared.
-   */
-  nsIDOMDOMRequest clearBrowserData();
-
-  /**
-   * Inter-App Communication APIs.
-   *
-   * https://wiki.mozilla.org/WebAPI/Inter_App_Communication_Alt_proposal
-   */
-  nsISupports connect(in DOMString keyword,
-                      [optional] in jsval rules); // nsISupports is a Promise.
-
-  nsISupports getConnections(); // nsISupports is a Promise.
+  /* Clear data that has been collected through mozbrowser elements. */
+  void clearBrowserData();
 };
 
 [scriptable, uuid(cf742022-5ba3-11e2-868f-03310341b006)]
@@ -148,7 +135,7 @@ interface mozIDOMApplicationMgmt : nsISupports
   nsIDOMDOMRequest uninstall(in mozIDOMApplication app);
 };
 
-[scriptable, uuid(52710c5f-b2a2-4b27-b5b9-f679a1bcc79b)]
+[scriptable, uuid(abfc6c15-8b92-4b9a-b892-52e6ae76f379)]
 interface mozIDOMApplicationRegistry : nsISupports
 {
   /**
@@ -178,19 +165,6 @@ interface mozIDOMApplicationRegistry : nsISupports
    * the request will return the applications installed from this origin, or null.
    */
   nsIDOMDOMRequest getInstalled();
-
-  /**
-   * Install a packaged web app.
-   *
-   * @param packageUrl : the URL of the webapps manifest.
-   * @param parameters : A structure with optional information.
-   *                      {
-   *                       receipts: ...    Will be used to specify the payment receipts for this installation.
-   *                       categories: ...  Will be used to specify the categories of the webapp.
-   *                      }
-   * @returns          : A DOMRequest object, returning the app object in |result| if install succeeds.
-   */
-  nsIDOMDOMRequest installPackage(in DOMString packageUrl, [optional] in jsval parameters);
 
   readonly attribute mozIDOMApplicationMgmt mgmt;
 };

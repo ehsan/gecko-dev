@@ -7,24 +7,27 @@
 #include "nsHTTPCompressConv.h"
 #include "nsMemory.h"
 #include "plstr.h"
+#include "prlog.h"
+#include "nsIChannel.h"
 #include "nsCOMPtr.h"
+#include "nsReadableUtils.h"
 #include "nsError.h"
 #include "nsStreamUtils.h"
 #include "nsStringStream.h"
 #include "nsComponentManagerUtils.h"
 
 // nsISupports implementation
-NS_IMPL_ISUPPORTS3(nsHTTPCompressConv,
-                   nsIStreamConverter,
-                   nsIStreamListener,
-                   nsIRequestObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsHTTPCompressConv,
+                              nsIStreamConverter,
+                              nsIStreamListener,
+                              nsIRequestObserver)
 
 // nsFTPDirListingConv methods
 nsHTTPCompressConv::nsHTTPCompressConv()
     : mListener(nullptr)
     , mMode(HTTP_COMPRESS_IDENTITY)
-    , mOutBuffer(nullptr)
-    , mInpBuffer(nullptr)
+    , mOutBuffer(NULL)
+    , mInpBuffer(NULL)
     , mOutBufferLen(0)
     , mInpBufferLen(0)
     , mCheckHeaderDone(false)
@@ -131,24 +134,24 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
 
         case HTTP_COMPRESS_DEFLATE:
 
-            if (mInpBuffer != nullptr && streamLen > mInpBufferLen)
+            if (mInpBuffer != NULL && streamLen > mInpBufferLen)
             {
                 mInpBuffer = (unsigned char *) nsMemory::Realloc(mInpBuffer, mInpBufferLen = streamLen);
                
                 if (mOutBufferLen < streamLen * 2)
                     mOutBuffer = (unsigned char *) nsMemory::Realloc(mOutBuffer, mOutBufferLen = streamLen * 3);
 
-                if (mInpBuffer == nullptr || mOutBuffer == nullptr)
+                if (mInpBuffer == NULL || mOutBuffer == NULL)
                     return NS_ERROR_OUT_OF_MEMORY;
             }
 
-            if (mInpBuffer == nullptr)
+            if (mInpBuffer == NULL)
                 mInpBuffer = (unsigned char *) nsMemory::Alloc(mInpBufferLen = streamLen);
 
-            if (mOutBuffer == nullptr)
+            if (mOutBuffer == NULL)
                 mOutBuffer = (unsigned char *) nsMemory::Alloc(mOutBufferLen = streamLen * 3);
 
-            if (mInpBuffer == nullptr || mOutBuffer == nullptr)
+            if (mInpBuffer == NULL || mOutBuffer == NULL)
                 return NS_ERROR_OUT_OF_MEMORY;
 
             uint32_t unused;

@@ -4,9 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsRuleData.h"
+#include "nsPresArena.h"
 
-#include "mozilla/Poison.h"
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 inline size_t
 nsRuleData::GetPoisonOffset()
@@ -14,13 +14,13 @@ nsRuleData::GetPoisonOffset()
   // Fill in mValueOffsets such that mValueStorage + mValueOffsets[i]
   // will yield the frame poison value for all uninitialized value
   // offsets.
-  static_assert(sizeof(uintptr_t) == sizeof(size_t),
-                "expect uintptr_t and size_t to be the same size");
-  static_assert(uintptr_t(-1) > uintptr_t(0),
-                "expect uintptr_t to be unsigned");
-  static_assert(size_t(-1) > size_t(0),
-                "expect size_t to be unsigned");
-  uintptr_t framePoisonValue = mozPoisonValue();
+  MOZ_STATIC_ASSERT(sizeof(uintptr_t) == sizeof(size_t),
+                    "expect uintptr_t and size_t to be the same size");
+  MOZ_STATIC_ASSERT(uintptr_t(-1) > uintptr_t(0),
+                    "expect uintptr_t to be unsigned");
+  MOZ_STATIC_ASSERT(size_t(-1) > size_t(0),
+                    "expect size_t to be unsigned");
+  uintptr_t framePoisonValue = nsPresArena::GetPoisonValue();
   return size_t(framePoisonValue - uintptr_t(mValueStorage)) /
          sizeof(nsCSSValue);
 }

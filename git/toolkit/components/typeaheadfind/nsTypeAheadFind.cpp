@@ -31,6 +31,7 @@
 #include "nsIDOMHTMLElement.h"
 #include "nsIDocument.h"
 #include "nsISelection.h"
+#include "nsILink.h"
 #include "nsTextFragment.h"
 #include "nsIDOMNSEditableElement.h"
 #include "nsIEditor.h"
@@ -48,7 +49,6 @@
 #include "nsIObserverService.h"
 #include "nsFocusManager.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/Link.h"
 #include "nsRange.h"
 
 #include "nsTypeAheadFind.h"
@@ -851,7 +851,7 @@ nsTypeAheadFind::RangeStartsInsideLink(nsIDOMRange *aRange,
     // eventually we'll run out of ancestors
 
     if (startContent->IsHTML()) {
-      nsCOMPtr<mozilla::dom::Link> link(do_QueryInterface(startContent));
+      nsCOMPtr<nsILink> link(do_QueryInterface(startContent));
       if (link) {
         // Check to see if inside HTML link
         *aIsInsideLink = startContent->HasAttr(kNameSpaceID_None, hrefAtom);
@@ -919,17 +919,15 @@ nsTypeAheadFind::Find(const nsAString& aSearchString, bool aLinksOnly,
   *aResult = FIND_NOTFOUND;
 
   nsCOMPtr<nsIPresShell> presShell (GetPresShell());
-  if (!presShell) {
+  if (!presShell) {    
     nsCOMPtr<nsIDocShell> ds (do_QueryReferent(mDocShell));
     NS_ENSURE_TRUE(ds, NS_ERROR_FAILURE);
 
     presShell = ds->GetPresShell();
-    NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
-    mPresShell = do_GetWeakReference(presShell);
-  }
-
+    mPresShell = do_GetWeakReference(presShell);    
+  }  
   nsCOMPtr<nsISelection> selection;
-  nsCOMPtr<nsISelectionController> selectionController =
+  nsCOMPtr<nsISelectionController> selectionController = 
     do_QueryReferent(mSelectionController);
   if (!selectionController) {
     GetSelection(presShell, getter_AddRefs(selectionController),
@@ -1221,13 +1219,14 @@ nsTypeAheadFind::GetPresShell()
   if (!mPresShell)
     return nullptr;
 
-  nsCOMPtr<nsIPresShell> shell = do_QueryReferent(mPresShell);
+  nsIPresShell *shell = nullptr;
+  CallQueryReferent(mPresShell.get(), &shell);
   if (shell) {
     nsPresContext *pc = shell->GetPresContext();
     if (!pc || !nsCOMPtr<nsISupports>(pc->GetContainer())) {
-      return nullptr;
+      NS_RELEASE(shell);
     }
   }
 
-  return shell.forget();
+  return shell;
 }

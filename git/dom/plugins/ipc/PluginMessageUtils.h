@@ -10,7 +10,7 @@
 #include "ipc/IPCMessageUtils.h"
 #include "base/message_loop.h"
 
-#include "mozilla/ipc/MessageChannel.h"
+#include "mozilla/ipc/RPCChannel.h"
 #include "mozilla/ipc/CrossProcessMutex.h"
 #include "gfxipc/ShadowLayerUtils.h"
 
@@ -18,8 +18,9 @@
 #include "npruntime.h"
 #include "npfunctions.h"
 #include "nsAutoPtr.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsTArray.h"
+#include "nsThreadUtils.h"
 #include "prlog.h"
 #include "nsHashKeys.h"
 #ifdef MOZ_CRASHREPORTER
@@ -43,9 +44,9 @@ enum ScriptableObjectType
   Proxy
 };
 
-mozilla::ipc::RacyInterruptPolicy
-MediateRace(const mozilla::ipc::MessageChannel::Message& parent,
-            const mozilla::ipc::MessageChannel::Message& child);
+mozilla::ipc::RPCChannel::RacyRPCPolicy
+MediateRace(const mozilla::ipc::RPCChannel::Message& parent,
+            const mozilla::ipc::RPCChannel::Message& child);
 
 std::string
 MungePluginDsoPath(const std::string& path);
@@ -232,7 +233,7 @@ inline void AssertPluginThread()
 void DeferNPObjectLastRelease(const NPNetscapeFuncs* f, NPObject* o);
 void DeferNPVariantLastRelease(const NPNetscapeFuncs* f, NPVariant* v);
 
-// in NPAPI, char* == nullptr is sometimes meaningful.  the following is
+// in NPAPI, char* == NULL is sometimes meaningful.  the following is
 // helper code for dealing with nullable nsCString's
 inline nsCString
 NullableString(const char* aString)
@@ -249,7 +250,7 @@ inline const char*
 NullableStringGet(const nsCString& str)
 {
   if (str.IsVoid())
-    return nullptr;
+    return NULL;
 
   return str.get();
 }
@@ -499,12 +500,12 @@ struct ParamTraits<NPNSString*>
   typedef NPNSString* paramType;
 
   // Empty string writes a length of 0 and no buffer.
-  // We don't write a nullptr terminating character in buffers.
+  // We don't write a NULL terminating character in buffers.
   static void Write(Message* aMsg, const paramType& aParam)
   {
     CFStringRef cfString = (CFStringRef)aParam;
 
-    // Write true if we have a string, false represents nullptr.
+    // Write true if we have a string, false represents NULL.
     aMsg->WriteBool(!!cfString);
     if (!cfString) {
       return;
@@ -534,7 +535,7 @@ struct ParamTraits<NPNSString*>
       return false;
     }
     if (!haveString) {
-      *aResult = nullptr;
+      *aResult = NULL;
       return true;
     }
 
@@ -609,7 +610,7 @@ struct ParamTraits<NSCursorInfo>
       return false;
     }
 
-    uint8_t* data = nullptr;
+    uint8_t* data = NULL;
     if (dataLength != 0) {
       if (!aMsg->ReadBytes(aIter, (const char**)&data, dataLength) || !data) {
         return false;

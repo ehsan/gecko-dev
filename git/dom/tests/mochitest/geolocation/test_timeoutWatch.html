@@ -21,21 +21,18 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=455327
 /** Test for Bug  **/
 
 // ensure we are using the right testing provider
-resume_geolocationProvider(function() {
-  force_prompt(true, test1);
-});
+resume_geolocationProvider();
+force_prompt(true);
 
 SimpleTest.waitForExplicitFinish();
 
-function test1() {
-  stop_geolocationProvider(test2);
-}
+stop_geolocationProvider();
 
 function successCallback(pos){
   ok(false, "success should have never been called.");
-  resume_geolocationProvider(function() {
-    SimpleTest.finish();
-  });
+  resume_geolocationProvider();
+  reset_prompt()
+  SimpleTest.finish();
 }
 
 function errorCallback(err) {
@@ -43,9 +40,9 @@ function errorCallback(err) {
     ok(false, "nothing is hooked up to test against.");
   else
     ok(err.code == err.TIMEOUT, "ensure error is a timeout.");
-  resume_geolocationProvider(function() {
-    SimpleTest.finish();
-  });
+  resume_geolocationProvider();
+  reset_prompt()
+  SimpleTest.finish();
 }
 
 
@@ -54,11 +51,9 @@ var options = {
     timeout: 10
 };
 
-function test2() {
-  navigator.geolocation.watchPosition(successCallback,
-                                      errorCallback,
-                                      options);
-}
+navigator.geolocation.watchPosition(successCallback,
+                                    errorCallback,
+                                    options);
 </script>
 </pre>
 </body>

@@ -4,6 +4,8 @@
 
 /*
  * PKCS7 encoding.
+ *
+ * $Id$
  */
 
 #include "p7local.h"
@@ -61,7 +63,7 @@ sec_pkcs7_encoder_start_encrypt (SEC_PKCS7ContentInfo *cinfo,
     PK11SymKey  *bulkkey;
     void *mark, *wincx;
     int i;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
 
     /* Get the context in case we need it below. */
     wincx = cinfo->pwfn_arg;
@@ -661,7 +663,7 @@ sec_pkcs7_encoder_sig_and_certs (SEC_PKCS7ContentInfo *cinfo,
     SECItem **digests;
     SEC_PKCS7SignerInfo *signerinfo, **signerinfos;
     SECItem **rawcerts, ***rawcertsp;
-    PLArenaPool *poolp;
+    PRArenaPool *poolp;
     int certcount;
     int ci, cli, rci, si;
 
@@ -1092,7 +1094,7 @@ SEC_PKCS7Encode (SEC_PKCS7ContentInfo *cinfo,
  * "pwfnarg" is an opaque argument to the above callback.
  */
 SECItem *
-SEC_PKCS7EncodeItem (PLArenaPool *pool,
+SEC_PKCS7EncodeItem (PRArenaPool *pool,
 		     SECItem *dest,
 		     SEC_PKCS7ContentInfo *cinfo,
 		     PK11SymKey *bulkkey,

@@ -14,7 +14,8 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"
 #include "mozilla/dom/Nullable.h"
-#include "js/TypeDecls.h"
+
+struct JSContext;
 
 ////////////////////////////////////////////////////
 // nsGeoPositionCoords
@@ -26,7 +27,7 @@
 class nsGeoPositionCoords MOZ_FINAL : public nsIDOMGeoPositionCoords
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMGEOPOSITIONCOORDS
   
   nsGeoPositionCoords(double aLat, double aLong,
@@ -46,7 +47,7 @@ private:
 class nsGeoPosition MOZ_FINAL : public nsIDOMGeoPosition
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMGEOPOSITION
   
   nsGeoPosition(double aLat, double aLong,
@@ -90,8 +91,7 @@ public:
 
   nsISupports* GetParentObject() const;
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   Coordinates* Coords();
 
@@ -119,8 +119,7 @@ public:
 
   Position* GetParentObject() const;
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   double Latitude() const;
 

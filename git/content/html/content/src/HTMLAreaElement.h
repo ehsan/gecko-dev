@@ -7,21 +7,22 @@
 #ifndef mozilla_dom_HTMLAreaElement_h
 #define mozilla_dom_HTMLAreaElement_h
 
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/Link.h"
-#include "nsGenericHTMLElement.h"
-#include "nsGkAtoms.h"
 #include "nsIDOMHTMLAreaElement.h"
+#include "nsGenericHTMLElement.h"
+#include "nsILink.h"
+#include "nsGkAtoms.h"
 #include "nsIURL.h"
+#include "Link.h"
 
 class nsIDocument;
 
 namespace mozilla {
 namespace dom {
 
-class HTMLAreaElement MOZ_FINAL : public nsGenericHTMLElement,
-                                  public nsIDOMHTMLAreaElement,
-                                  public Link
+class HTMLAreaElement : public nsGenericHTMLElement,
+                        public nsIDOMHTMLAreaElement,
+                        public nsILink,
+                        public Link
 {
 public:
   HTMLAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -33,22 +34,36 @@ public:
   // DOM memory reporter participant
   NS_DECL_SIZEOF_EXCLUDING_THIS
 
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
 
   // nsIDOMHTMLAreaElement
   NS_DECL_NSIDOMHTMLAREAELEMENT
 
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
-  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
-  virtual bool IsLink(nsIURI** aURI) const MOZ_OVERRIDE;
-  virtual void GetLinkTarget(nsAString& aTarget) MOZ_OVERRIDE;
-  virtual already_AddRefed<nsIURI> GetHrefURI() const MOZ_OVERRIDE;
+  // nsILink
+  NS_IMETHOD LinkAdded() { return NS_OK; }
+  NS_IMETHOD LinkRemoved() { return NS_OK; }
+
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
+  virtual bool IsLink(nsIURI** aURI) const;
+  virtual void GetLinkTarget(nsAString& aTarget);
+  virtual nsLinkState GetLinkState() const;
+  virtual already_AddRefed<nsIURI> GetHrefURI() const;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers) MOZ_OVERRIDE;
+                              bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true) MOZ_OVERRIDE;
+                              bool aNullParent = true);
   nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
@@ -56,13 +71,15 @@ public:
   }
   virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify) MOZ_OVERRIDE;
+                           bool aNotify);
   virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify) MOZ_OVERRIDE;
+                             bool aNotify);
 
-  virtual nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
-  virtual nsEventStates IntrinsicState() const MOZ_OVERRIDE;
+  virtual nsEventStates IntrinsicState() const;
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // WebIDL
 
@@ -108,33 +125,8 @@ public:
     SetHTMLAttr(nsGkAtoms::ping, aPing, aError);
   }
 
-  void GetOrigin(nsAString &aOrigin)
-  {
-    Link::GetOrigin(aOrigin);
-  }
-
   // The XPCOM GetProtocol is OK for us
   // The XPCOM SetProtocol is OK for us
-
-  void GetUsername(nsAString& aUsername)
-  {
-    Link::GetUsername(aUsername);
-  }
-
-  void SetUsername(const nsAString& aUsername)
-  {
-    Link::SetUsername(aUsername);
-  }
-
-  void GetPassword(nsAString& aPassword)
-  {
-    Link::GetPassword(aPassword);
-  }
-
-  void SetPassword(const nsAString& aPassword)
-  {
-    Link::SetPassword(aPassword);
-  }
 
   // The XPCOM GetHost is OK for us
   // The XPCOM SetHost is OK for us
@@ -170,11 +162,10 @@ public:
   }
 
 protected:
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
-  virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;
-  virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
+  virtual void GetItemValueText(nsAString& text);
+  virtual void SetItemValueText(const nsAString& text);
 };
 
 } // namespace dom

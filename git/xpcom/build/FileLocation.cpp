@@ -8,24 +8,6 @@
 
 namespace mozilla {
 
-FileLocation::FileLocation()
-{
-}
-
-FileLocation::~FileLocation()
-{
-}
-
-FileLocation::FileLocation(nsIFile* file)
-{
-  Init(file);
-}
-
-FileLocation::FileLocation(nsIFile* file, const char *path)
-{
-  Init(file, path);
-}
-
 FileLocation::FileLocation(const FileLocation &file, const char *path)
 {
   if (file.IsZip()) {
@@ -69,30 +51,6 @@ FileLocation::FileLocation(const FileLocation &file, const char *path)
 }
 
 void
-FileLocation::Init(nsIFile* file)
-{
-  mBaseZip = nullptr;
-  mBaseFile = file;
-  mPath.Truncate();
-}
-
-void
-FileLocation::Init(nsIFile* file, const char* path)
-{
-  mBaseZip = nullptr;
-  mBaseFile = file;
-  mPath = path;
-}
-
-void
-FileLocation::Init(nsZipArchive* zip, const char* path)
-{
-  mBaseZip = zip;
-  mBaseFile = nullptr;
-  mPath = path;
-}
-
-void
 FileLocation::GetURIString(nsACString &result) const
 {
   if (mBaseFile) {
@@ -115,7 +73,7 @@ FileLocation::GetBaseFile()
     nsRefPtr<nsZipHandle> handler = mBaseZip->GetFD();
     if (handler)
       return handler->mFile.GetBaseFile();
-    return nullptr;
+    return NULL;
   }
 
   nsCOMPtr<nsIFile> file = mBaseFile;

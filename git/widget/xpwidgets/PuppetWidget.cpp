@@ -7,7 +7,7 @@
 
 #include "base/basictypes.h"
 
-#include "ClientLayerManager.h"
+#include "BasicLayers.h"
 #include "gfxPlatform.h"
 #if defined(MOZ_ENABLE_D3D10_LAYER)
 # include "LayerManagerD3D10.h"
@@ -15,8 +15,7 @@
 #include "mozilla/dom/TabChild.h"
 #include "mozilla/Hal.h"
 #include "mozilla/layers/CompositorChild.h"
-#include "mozilla/layers/PLayerTransactionChild.h"
-#include "mozilla/TextEvents.h"
+#include "mozilla/layers/PLayersChild.h"
 #include "PuppetWidget.h"
 #include "nsIWidgetListener.h"
 
@@ -75,7 +74,6 @@ NS_IMPL_ISUPPORTS_INHERITED1(PuppetWidget, nsBaseWidget,
 PuppetWidget::PuppetWidget(TabChild* aTabChild)
   : mTabChild(aTabChild)
   , mDPI(-1)
-  , mDefaultScale(-1)
 {
   MOZ_COUNT_CTOR(PuppetWidget);
 }
@@ -102,7 +100,7 @@ PuppetWidget::Create(nsIWidget        *aParent,
 
   mSurface = gfxPlatform::GetPlatform()
              ->CreateOffscreenSurface(gfxIntSize(1, 1),
-                                      gfxASurface::ContentFromFormat(gfxImageFormatARGB32));
+                                      gfxASurface::ContentFromFormat(gfxASurface::ImageFormatARGB32));
 
   mIMEComposing = false;
   mNeedIMEStateInit = MightNeedIMEFocus(aInitData);
@@ -122,10 +120,11 @@ PuppetWidget::Create(nsIWidget        *aParent,
 void
 PuppetWidget::InitIMEState()
 {
-  MOZ_ASSERT(mTabChild);
   if (mNeedIMEStateInit) {
     uint32_t chromeSeqno;
-    mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
+    if (mTabChild) {
+      mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
+    }
     mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
     mNeedIMEStateInit = false;
   }
@@ -243,7 +242,7 @@ PuppetWidget::Invalidate(const nsIntRect& aRect)
 }
 
 void
-PuppetWidget::InitEvent(WidgetGUIEvent& event, nsIntPoint* aPoint)
+PuppetWidget::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
 {
   if (nullptr == aPoint) {
     event.refPoint.x = 0;
@@ -258,7 +257,7 @@ PuppetWidget::InitEvent(WidgetGUIEvent& event, nsIntPoint* aPoint)
 }
 
 NS_IMETHODIMP
-PuppetWidget::DispatchEvent(WidgetGUIEvent* event, nsEventStatus& aStatus)
+PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 {
 #ifdef DEBUG
   debug_DumpEvent(stdout, event->widget, event,
@@ -275,17 +274,17 @@ PuppetWidget::DispatchEvent(WidgetGUIEvent* event, nsEventStatus& aStatus)
   }
   switch (event->eventStructType) {
   case NS_COMPOSITION_EVENT:
-    mIMELastReceivedSeqno = event->AsCompositionEvent()->seqno;
+    mIMELastReceivedSeqno = static_cast<nsCompositionEvent*>(event)->seqno;
     if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
       return NS_OK;
     break;
   case NS_TEXT_EVENT:
-    mIMELastReceivedSeqno = event->AsTextEvent()->seqno;
+    mIMELastReceivedSeqno = static_cast<nsTextEvent*>(event)->seqno;
     if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
       return NS_OK;
     break;
   case NS_SELECTION_EVENT:
-    mIMELastReceivedSeqno = event->AsSelectionEvent()->seqno;
+    mIMELastReceivedSeqno = static_cast<nsSelectionEvent*>(event)->seqno;
     if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
       return NS_OK;
     break;
@@ -305,7 +304,7 @@ PuppetWidget::DispatchEvent(WidgetGUIEvent* event, nsEventStatus& aStatus)
 }
 
 LayerManager*
-PuppetWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
+PuppetWidget::GetLayerManager(PLayersChild* aShadowManager,
                               LayersBackend aBackendHint,
                               LayerManagerPersistence aPersistence,
                               bool* aAllowRetaining)
@@ -323,12 +322,9 @@ PuppetWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
     }
 #endif
     if (!mLayerManager) {
-      mLayerManager = new ClientLayerManager(this);
+      mLayerManager = new BasicShadowLayerManager(this);
+      mLayerManager->AsShadowForwarder()->SetShadowManager(aShadowManager);
     }
-  }
-  ShadowLayerForwarder* lf = mLayerManager->AsShadowForwarder();
-  if (!lf->HasShadowManager() && aShadowManager) {
-    lf->SetShadowManager(aShadowManager);
   }
   if (aAllowRetaining) {
     *aAllowRetaining = true;
@@ -350,7 +346,7 @@ PuppetWidget::IMEEndComposition(bool aCancel)
 #endif
 
   nsEventStatus status;
-  WidgetTextEvent textEvent(true, NS_TEXT_TEXT, this);
+  nsTextEvent textEvent(true, NS_TEXT_TEXT, this);
   InitEvent(textEvent, nullptr);
   textEvent.seqno = mIMELastReceivedSeqno;
   // SendEndIMEComposition is always called since ResetInputState
@@ -365,7 +361,7 @@ PuppetWidget::IMEEndComposition(bool aCancel)
 
   DispatchEvent(&textEvent, status);
 
-  WidgetCompositionEvent compEvent(true, NS_COMPOSITION_END, this);
+  nsCompositionEvent compEvent(true, NS_COMPOSITION_END, this);
   InitEvent(compEvent, nullptr);
   compEvent.seqno = mIMELastReceivedSeqno;
   DispatchEvent(&compEvent, status);
@@ -444,7 +440,7 @@ PuppetWidget::NotifyIMEOfFocusChange(bool aFocus)
 
   if (aFocus) {
     nsEventStatus status;
-    WidgetQueryContentEvent queryEvent(true, NS_QUERY_TEXT_CONTENT, this);
+    nsQueryContentEvent queryEvent(true, NS_QUERY_TEXT_CONTENT, this);
     InitEvent(queryEvent, nullptr);
     // Query entire content
     queryEvent.InitForQueryTextContent(0, UINT32_MAX);
@@ -459,15 +455,13 @@ PuppetWidget::NotifyIMEOfFocusChange(bool aFocus)
   }
 
   uint32_t chromeSeqno;
-  mIMEPreference.mWantUpdates = nsIMEUpdatePreference::NOTIFY_NOTHING;
+  mIMEPreference.mWantUpdates = false;
   mIMEPreference.mWantHints = false;
   if (!mTabChild->SendNotifyIMEFocus(aFocus, &mIMEPreference, &chromeSeqno))
     return NS_ERROR_FAILURE;
 
   if (aFocus) {
-    if ((mIMEPreference.mWantUpdates &
-           nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE) &&
-        mIMEPreference.mWantHints) {
+    if (mIMEPreference.mWantUpdates && mIMEPreference.mWantHints) {
       NotifyIMEOfSelectionChange(); // Update selection
     }
   } else {
@@ -496,7 +490,7 @@ PuppetWidget::NotifyIMEOfTextChange(uint32_t aStart,
 
   if (mIMEPreference.mWantHints) {
     nsEventStatus status;
-    WidgetQueryContentEvent queryEvent(true, NS_QUERY_TEXT_CONTENT, this);
+    nsQueryContentEvent queryEvent(true, NS_QUERY_TEXT_CONTENT, this);
     InitEvent(queryEvent, nullptr);
     queryEvent.InitForQueryTextContent(0, UINT32_MAX);
     DispatchEvent(&queryEvent, status);
@@ -505,7 +499,7 @@ PuppetWidget::NotifyIMEOfTextChange(uint32_t aStart,
       mTabChild->SendNotifyIMETextHint(queryEvent.mReply.mString);
     }
   }
-  if (mIMEPreference.mWantUpdates & nsIMEUpdatePreference::NOTIFY_TEXT_CHANGE) {
+  if (mIMEPreference.mWantUpdates) {
     mTabChild->SendNotifyIMETextChange(aStart, aEnd, aNewEnd);
   }
   return NS_OK;
@@ -521,10 +515,9 @@ PuppetWidget::NotifyIMEOfSelectionChange()
   if (!mTabChild)
     return NS_ERROR_FAILURE;
 
-  if (mIMEPreference.mWantUpdates &
-        nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE) {
+  if (mIMEPreference.mWantUpdates) {
     nsEventStatus status;
-    WidgetQueryContentEvent queryEvent(true, NS_QUERY_SELECTED_TEXT, this);
+    nsQueryContentEvent queryEvent(true, NS_QUERY_SELECTED_TEXT, this);
     InitEvent(queryEvent, nullptr);
     DispatchEvent(&queryEvent, status);
 
@@ -576,19 +569,14 @@ PuppetWidget::Paint()
 #endif
 
     if (mozilla::layers::LAYERS_D3D10 == mLayerManager->GetBackendType()) {
-      mAttachedWidgetListener->PaintWindow(this, region);
-    } else if (mozilla::layers::LAYERS_CLIENT == mLayerManager->GetBackendType()) {
-      // Do nothing, the compositor will handle drawing
-      if (mTabChild) {
-        mTabChild->NotifyPainted();
-      }
+      mAttachedWidgetListener->PaintWindow(this, region, 0);
     } else {
       nsRefPtr<gfxContext> ctx = new gfxContext(mSurface);
       ctx->Rectangle(gfxRect(0,0,0,0));
       ctx->Clip();
       AutoLayerManagerSetup setupLayerManager(this, ctx,
                                               BUFFER_NONE);
-      mAttachedWidgetListener->PaintWindow(this, region);
+      mAttachedWidgetListener->PaintWindow(this, region, 0);
       if (mTabChild) {
         mTabChild->NotifyPainted();
       }
@@ -639,20 +627,6 @@ PuppetWidget::GetDPI()
   }
 
   return mDPI;
-}
-
-double
-PuppetWidget::GetDefaultScaleInternal()
-{
-  if (mDefaultScale < 0) {
-    if (mTabChild) {
-      mTabChild->GetDefaultScale(&mDefaultScale);
-    } else {
-      mDefaultScale = 1;
-    }
-  }
-
-  return mDefaultScale;
 }
 
 void*

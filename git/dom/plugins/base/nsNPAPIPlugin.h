@@ -10,7 +10,7 @@
 #include "npfunctions.h"
 #include "nsPluginHost.h"
 
-#include "nsCxPusher.h"
+#include "jsapi.h"
 
 #include "mozilla/PluginLibrary.h"
 
@@ -46,7 +46,7 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  // Constructs and initializes an nsNPAPIPlugin object. A nullptr file path
+  // Constructs and initializes an nsNPAPIPlugin object. A NULL file path
   // will prevent this from calling NP_Initialize.
   static nsresult CreatePlugin(nsPluginTag *aPluginTag, nsNPAPIPlugin** aResult);
 
@@ -137,7 +137,11 @@ JSContext* GetJSContext(NPP npp);
 inline bool
 NPStringIdentifierIsPermanent(NPP npp, NPIdentifier id)
 {
-  AutoSafeJSContext cx;
+  JSContext* cx = GetJSContext(npp);
+  if (!cx) // OOM?
+    return false;
+
+  JSAutoRequest ar(cx);
   return JS_StringHasBeenInterned(cx, NPIdentifierToString(id));
 }
 

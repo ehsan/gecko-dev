@@ -79,7 +79,7 @@ is(BODY_UCS2.length,      CB_MAX_CONTENT_UCS2,     "BODY_UCS2.length");
 is(BODY_UCS2_IND.length,  CB_MAX_CONTENT_UCS2 - 1, "BODY_UCS2_IND.length")
 
 let cbs = window.navigator.mozCellBroadcast;
-ok(cbs instanceof window.MozCellBroadcast,
+ok(cbs instanceof MozCellBroadcast,
    "mozCellBroadcast is instanceof " + cbs.constructor);
 
 let pendingEmulatorCmdCount = 0;
@@ -157,7 +157,7 @@ function testGsmMessageAttributes() {
     ok(message, "event.message is valid");
 
     // Attributes other than `language` and `body` should always be assigned.
-    ok(message.gsmGeographicalScope != null, "message.gsmGeographicalScope");
+    ok(message.geographicalScope != null, "message.geographicalScope");
     ok(message.messageCode != null, "message.messageCode");
     ok(message.messageId != null, "message.messageId");
     ok(message.language != null, "message.language");
@@ -170,7 +170,6 @@ function testGsmMessageAttributes() {
       ok(message.etws.emergencyUserAlert != null, "message.etws.emergencyUserAlert");
       ok(message.etws.popup != null, "message.etws.popup");
     }
-    ok(message.cdmaServiceCategory != null, "message.cdmaServiceCategory");
 
     window.setTimeout(testReceiving_GSM_GeographicalScope, 0);
   });
@@ -188,8 +187,8 @@ function testReceiving_GSM_GeographicalScope() {
             + buildHexStr(0, (CB_MESSAGE_SIZE_GSM - 2) * 2);
 
     doTestHelper(pdu, nextTest, function (message) {
-      is(message.gsmGeographicalScope, CB_GSM_GEOGRAPHICAL_SCOPE_NAMES[gs],
-         "message.gsmGeographicalScope");
+      is(message.geographicalScope, CB_GSM_GEOGRAPHICAL_SCOPE_NAMES[gs],
+         "message.geographicalScope");
     });
   }
 
@@ -441,26 +440,7 @@ function testReceiving_GSM_Multipart() {
     });
   }
 
-  repeat(do_test, seq(16, 1), testReceiving_GSM_ServiceCategory);
-}
-
-function testReceiving_GSM_ServiceCategory() {
-  log("Test receiving GSM Cell Broadcast - Service Category");
-
-  cbs.addEventListener("received", function onreceived(event) {
-    cbs.removeEventListener("received", onreceived);
-
-    let message = event.message;
-
-    // Bug 910091
-    // "Service Category" is not defined in GSM.  We should always get '0' here.
-    is(message.cdmaServiceCategory, 0, "message.cdmaServiceCategory");
-
-    window.setTimeout(cleanUp, 0);
-  });
-
-  let pdu = buildHexStr(0, CB_MESSAGE_SIZE_GSM * 2);
-  sendCellBroadcastMessage(pdu);
+  repeat(do_test, seq(16, 1), cleanUp);
 }
 
 function cleanUp() {
@@ -476,6 +456,6 @@ function cleanUp() {
 }
 
 waitFor(testGsmMessageAttributes, function () {
-  return navigator.mozMobileConnections[0].voice.connected;
+  return navigator.mozMobileConnection.voice.connected;
 });
 

@@ -18,20 +18,13 @@
 ** for all C files.
 **/
 
-#ifndef jstypes_h
-#define jstypes_h
+#ifndef jstypes_h___
+#define jstypes_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/Types.h"
+#include "mozilla/Util.h"
 
-// jstypes.h is (or should be!) included by every file in SpiderMonkey.
-// js-config.h and jsversion.h also should be included by every file.
-// So include them here.
-// XXX: including them in js/RequiredDefines.h should be a better option, since
-// that is by definition the header file that should be included in all
-// SpiderMonkey code.  However, Gecko doesn't do this!  See bug 909576.
 #include "js-config.h"
-#include "jsversion.h"
 
 /***********************************************************************
 ** MACROS:      JS_EXTERN_API
@@ -87,6 +80,10 @@
 #else
 #define JS_FASTCALL
 #define JS_NO_FASTCALL
+#endif
+
+#ifndef JS_INLINE
+#define JS_INLINE MOZ_INLINE
 #endif
 
 #ifndef JS_ALWAYS_INLINE
@@ -183,6 +180,19 @@
 # error "Implement me"
 #endif
 
+
+/************************************************************************
+** TYPES:       JSBool
+** DESCRIPTION:
+**  Use JSBool for variables and parameter types. Use JS_FALSE and JS_TRUE
+**      for clarity of target type in assignments and actual arguments. Use
+**      'if (bool)', 'while (!bool)', '(bool) ? x : y' etc., to test booleans
+**      just as you would C int-valued conditions.
+************************************************************************/
+typedef int JSBool;
+#define JS_TRUE (int)1
+#define JS_FALSE (int)0
+
 /***********************************************************************
 ** MACROS:      JS_LIKELY
 **              JS_UNLIKELY
@@ -234,11 +244,8 @@
 #define JS_BITS_PER_BYTE 8
 #define JS_BITS_PER_BYTE_LOG2 3
 
-#if defined(JS_64BIT)
-# define JS_BITS_PER_WORD 64
-#else
-# define JS_BITS_PER_WORD 32
-#endif
+#define JS_BITS_PER_WORD (JS_BITS_PER_BYTE * JS_BYTES_PER_WORD)
+#define JS_BITS_PER_DOUBLE (JS_BITS_PER_BYTE * JS_BYTES_PER_DOUBLE)
 
 /***********************************************************************
 ** MACROS:      JS_FUNC_TO_DATA_PTR
@@ -273,4 +280,4 @@
 # define JS_EXTENSION_(s) s
 #endif
 
-#endif /* jstypes_h */
+#endif /* jstypes_h___ */

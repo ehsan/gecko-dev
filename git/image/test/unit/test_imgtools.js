@@ -13,7 +13,11 @@ const Cc = Components.classes;
  * Call |dumpToFile(outData);| in a test to file to a file.
  */
 function dumpToFile(aData) {
-    var outputFile = do_get_tempdir();
+    const path = "/tmp";
+
+    var outputFile = Cc["@mozilla.org/file/local;1"].
+                     createInstance(Ci.nsILocalFile);
+    outputFile.initWithPath(path);
     outputFile.append("testdump.png");
 
     var outputStream = Cc["@mozilla.org/network/file-output-stream;1"].
@@ -289,7 +293,7 @@ encodedBytes = streamToArray(istream);
 refName = "image3ico32x32.png";
 refFile = do_get_file(refName);
 istream = getFileInputStream(refFile);
-do_check_eq(istream.available(), 2285);
+do_check_eq(istream.available(), 2281);
 referenceBytes = streamToArray(istream);
 
 // compare the encoder's output to the reference file.

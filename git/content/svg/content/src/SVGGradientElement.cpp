@@ -11,6 +11,7 @@
 #include "mozilla/Util.h"
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
+#include "nsIDOMSVGAnimatedEnum.h"
 #include "nsSVGElement.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(LinearGradient)
@@ -70,7 +71,7 @@ SVGGradientElement::GetStringInfo()
                               ArrayLength(sStringInfo));
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGGradientElement::GradientUnits()
 {
   return mEnumAttributes[GRADIENTUNITS].ToDOMAnimatedEnum(this);
@@ -86,13 +87,13 @@ SVGGradientElement::GradientTransform()
            GetAnimatedTransformList(DO_ALLOCATE), this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGGradientElement::SpreadMethod()
 {
   return mEnumAttributes[SPREADMETHOD].ToDOMAnimatedEnum(this);
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGGradientElement::Href()
 {
   return mStringAttributes[HREF].ToDOMAnimatedString(this);
@@ -116,7 +117,7 @@ SVGGradientElement::IsAttributeMapped(const nsIAtom* name) const
 //---------------------Linear Gradients------------------------
 
 JSObject*
-SVGLinearGradientElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGLinearGradientElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGLinearGradientElementBinding::Wrap(aCx, aScope, this);
 }
@@ -190,7 +191,7 @@ SVGLinearGradientElement::GetLengthInfo()
 //-------------------------- Radial Gradients ----------------------------
 
 JSObject*
-SVGRadialGradientElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGRadialGradientElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGRadialGradientElementBinding::Wrap(aCx, aScope, this);
 }

@@ -1,5 +1,10 @@
 // This file tests the flag LOAD_TREAT_APPLICATION_OCTET_STREAM_AS_UNKNOWN.
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+
 Cu.import("resource://testing-common/httpd.js");
 
 const octetStreamType = "application/octet-stream";
@@ -62,16 +67,14 @@ function makeChan(url) {
   return chan;
 }
 
-XPCOMUtils.defineLazyGetter(this, "url", function() {
-  return "http://localhost:" + httpserv.identity.primaryPort + "/test";
-});
+var url = "http://localhost:4444/test";
 
 var httpserv = null;
 
 function run_test() {
   httpserv = new HttpServer();
   httpserv.registerPathHandler("/test", handler);
-  httpserv.start(-1);
+  httpserv.start(4444);
 
   // Register our fake sniffer that always returns the content-type we want.
   Components.manager.nsIComponentRegistrar.registerFactory(snifferCID,

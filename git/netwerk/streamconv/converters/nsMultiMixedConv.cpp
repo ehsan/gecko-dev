@@ -4,11 +4,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsMultiMixedConv.h"
+#include "nsMemory.h"
 #include "plstr.h"
 #include "nsIHttpChannel.h"
+#include "nsIServiceManager.h"
 #include "nsNetUtil.h"
 #include "nsMimeTypes.h"
 #include "nsIStringStream.h"
+#include "nsReadableUtils.h"
 #include "nsCRT.h"
 #include "nsIHttpChannelInternal.h"
 #include "nsURLHelper.h"
@@ -446,7 +449,7 @@ nsMultiMixedConv::AsyncConvertData(const char *aFromType, const char *aToType,
 class AutoFree
 {
 public:
-  AutoFree() : mBuffer(nullptr) {}
+  AutoFree() : mBuffer(NULL) {}
 
   AutoFree(char *buffer) : mBuffer(buffer) {}
 
@@ -562,8 +565,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
     int32_t tokenLinefeed = 1;
     while ( (token = FindToken(cursor, bufLen)) ) {
 
-        if (((token + mTokenLen) < (cursor + bufLen)) &&
-            (*(token + mTokenLen + 1) == '-')) {
+        if (*(token+mTokenLen+1) == '-') {
             // This was the last delimiter so we can stop processing
             rv = SendData(cursor, LengthToToken(cursor, token));
             if (NS_FAILED(rv)) return rv;

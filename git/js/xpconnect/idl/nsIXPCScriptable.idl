@@ -5,25 +5,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsISupports.idl"
-#include "nsIClassInfo.idl"
+#include "nsIXPConnect.idl"
 
 %{C++
 #ifdef XP_WIN
 #undef GetClassName
 #endif
-
-#include "js/TypeDecls.h"
-
-struct JSFreeOp;
 %}
-
-interface nsIXPConnectWrappedNative;
-
-[ptr] native JSContextPtr(JSContext);
-[ptr] native JSObjectPtr(JSObject);
-[ptr] native JSValPtr(JS::Value);
-[ptr] native JSFreeOpPtr(JSFreeOp);
-[ref] native JSCallArgsRef(const JS::CallArgs);
 
 /**
  * Note: This is not really an XPCOM interface.  For example, callers must
@@ -31,7 +19,7 @@ interface nsIXPConnectWrappedNative;
  * boolean to PR_TRUE before making the call.  Implementations may skip writing
  * to *_retval unless they want to return PR_FALSE.
  */
-[uuid(155d1863-2b0b-4f5e-b800-05184944156b)]
+[uuid(33b9d098-e680-4e4c-88a2-57cccceac145)]
 interface nsIXPCScriptable : nsISupports
 {
     /* bitflags used for 'flags' (only 32 bits available!) */
@@ -134,11 +122,11 @@ interface nsIXPCScriptable : nsISupports
 
     boolean call(in nsIXPConnectWrappedNative wrapper,
                 in JSContextPtr cx, in JSObjectPtr obj,
-                in JSCallArgsRef args);
+                in uint32_t argc, in JSValPtr argv, in JSValPtr vp);
 
     boolean construct(in nsIXPConnectWrappedNative wrapper,
                      in JSContextPtr cx, in JSObjectPtr obj,
-                     in JSCallArgsRef args);
+                     in uint32_t argc, in JSValPtr argv, in JSValPtr vp);
 
     boolean hasInstance(in nsIXPConnectWrappedNative wrapper,
                        in JSContextPtr cx, in JSObjectPtr obj,

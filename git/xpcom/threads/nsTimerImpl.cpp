@@ -10,15 +10,12 @@
 #include "nsThreadManager.h"
 #include "nsThreadUtils.h"
 #include "plarena.h"
-#include "pratom.h"
 #include "GeckoProfiler.h"
-#include "mozilla/Atomics.h"
 
-using mozilla::Atomic;
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
 
-static Atomic<int32_t>  gGenerator;
+static int32_t          gGenerator = 0;
 static TimerThread*     gThread = nullptr;
 
 #ifdef DEBUG_TIMERS
@@ -109,14 +106,14 @@ public:
   NS_IMETHOD Run();
 
   nsTimerEvent(nsTimerImpl *timer, int32_t generation)
-    : mTimer(dont_AddRef(timer)), mGeneration(generation) {
+    : mTimer(timer), mGeneration(generation) {
     // timer is already addref'd for us
     MOZ_COUNT_CTOR(nsTimerEvent);
 
     MOZ_ASSERT(gThread->IsOnTimerThread(),
                "nsTimer must always be allocated on the timer thread");
 
-    sAllocatorUsers++;
+    PR_ATOMIC_INCREMENT(&sAllocatorUsers);
   }
 
 #ifdef DEBUG_TIMERS
@@ -138,23 +135,27 @@ public:
 private:
   nsTimerEvent(); // Not implemented
   ~nsTimerEvent() {
+#ifdef DEBUG
+    if (mTimer)
+      NS_WARNING("leaking reference to nsTimerImpl");
+#endif
     MOZ_COUNT_DTOR(nsTimerEvent);
 
     MOZ_ASSERT(!sCanDeleteAllocator || sAllocatorUsers > 0,
                "This will result in us attempting to deallocate the nsTimerEvent allocator twice");
-    sAllocatorUsers--;
+    PR_ATOMIC_DECREMENT(&sAllocatorUsers);
   }
 
-  nsRefPtr<nsTimerImpl> mTimer;
+  nsTimerImpl *mTimer;
   int32_t      mGeneration;
 
   static TimerEventAllocator* sAllocator;
-  static Atomic<int32_t> sAllocatorUsers;
+  static int32_t sAllocatorUsers;
   static bool sCanDeleteAllocator;
 };
 
 TimerEventAllocator* nsTimerEvent::sAllocator = nullptr;
-Atomic<int32_t> nsTimerEvent::sAllocatorUsers;
+int32_t nsTimerEvent::sAllocatorUsers = 0;
 bool nsTimerEvent::sCanDeleteAllocator = false;
 
 namespace {
@@ -191,15 +192,15 @@ void TimerEventAllocator::Free(void* aPtr)
 
 } // anonymous namespace
 
-NS_IMPL_QUERY_INTERFACE1(nsTimerImpl, nsITimer)
-NS_IMPL_ADDREF(nsTimerImpl)
+NS_IMPL_THREADSAFE_QUERY_INTERFACE1(nsTimerImpl, nsITimer)
+NS_IMPL_THREADSAFE_ADDREF(nsTimerImpl)
 
 NS_IMETHODIMP_(nsrefcnt) nsTimerImpl::Release(void)
 {
   nsrefcnt count;
 
   MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");
-  count = --mRefCnt;
+  count = NS_AtomicDecrementRefcnt(mRefCnt);
   NS_LOG_RELEASE(this, count, "nsTimerImpl");
   if (count == 0) {
     mRefCnt = 1; /* stabilize */
@@ -318,10 +319,6 @@ nsresult nsTimerImpl::InitCommon(uint32_t aType, uint32_t aDelay)
   nsresult rv;
 
   NS_ENSURE_TRUE(gThread, NS_ERROR_NOT_INITIALIZED);
-  if (!mEventTarget) {
-    NS_ERROR("mEventTarget is NULL");
-    return NS_ERROR_NOT_INITIALIZED;
-  }
 
   rv = gThread->Init();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -344,7 +341,7 @@ nsresult nsTimerImpl::InitCommon(uint32_t aType, uint32_t aDelay)
     gThread->RemoveTimer(this);
   mCanceled = false;
   mTimeout = TimeStamp();
-  mGeneration = gGenerator++;
+  mGeneration = PR_ATOMIC_INCREMENT(&gGenerator);
 
   mType = (uint8_t)aType;
   SetDelayInternal(aDelay);
@@ -499,8 +496,8 @@ void nsTimerImpl::Fire()
 
   PROFILER_LABEL("Timer", "Fire");
 
-#ifdef DEBUG_TIMERS
   TimeStamp now = TimeStamp::Now();
+#ifdef DEBUG_TIMERS
   if (PR_LOG_TEST(GetTimerLog(), PR_LOG_DEBUG)) {
     TimeDuration   a = now - mStart; // actual delay in intervals
     TimeDuration   b = TimeDuration::FromMilliseconds(mDelay); // expected delay in intervals
@@ -615,7 +612,10 @@ void nsTimerEvent::DeleteAllocatorIfNeeded()
 
 NS_IMETHODIMP nsTimerEvent::Run()
 {
-  if (mGeneration != mTimer->GetGeneration())
+  nsRefPtr<nsTimerImpl> timer;
+  timer.swap(mTimer);
+
+  if (mGeneration != timer->GetGeneration())
     return NS_OK;
 
 #ifdef DEBUG_TIMERS
@@ -627,18 +627,13 @@ NS_IMETHODIMP nsTimerEvent::Run()
   }
 #endif
 
-  mTimer->Fire();
+  timer->Fire();
 
   return NS_OK;
 }
 
 nsresult nsTimerImpl::PostTimerEvent()
 {
-  if (!mEventTarget) {
-    NS_ERROR("Attempt to post timer event to NULL event target");
-    return NS_ERROR_NOT_INITIALIZED;
-  }
-
   // XXX we may want to reuse this nsTimerEvent in the case of repeating timers.
 
   // Since TimerThread addref'd 'this' for us, we don't need to addref here.

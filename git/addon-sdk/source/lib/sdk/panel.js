@@ -19,8 +19,7 @@ const { isPrivateBrowsingSupported } = require('./self');
 const { isWindowPBSupported } = require('./private-browsing/utils');
 const { Class } = require("./core/heritage");
 const { merge } = require("./util/object");
-const { WorkerHost, Worker, detach, attach, destroy,
-        requiresAddonGlobal } = require("./worker/utils");
+const { WorkerHost, Worker, detach, attach } = require("./worker/utils");
 const { Disposable } = require("./core/disposable");
 const { contract: loaderContract } = require("./content/loader");
 const { contract } = require("./util/contract");
@@ -30,33 +29,47 @@ const domPanel = require("./panel/utils");
 const { events } = require("./panel/events");
 const systemEvents = require("./system/events");
 const { filter, pipe } = require("./event/utils");
-const { getNodeView, getActiveView } = require("./view/core");
-const { isNil, isObject } = require("./lang/type");
-const { getAttachEventType } = require("./content/utils");
+const { getNodeView } = require("./view/core");
+
+if (isPrivateBrowsingSupported && isWindowPBSupported)
+  throw Error('The panel module cannot be used with per-window private browsing at the moment, see Bug 816257');
+
+let isArray = Array.isArray;
+let assetsURI = require("./self").data.url();
+
+function isAddonContent({ contentURL }) {
+  return typeof(contentURL) === "string" && contentURL.indexOf(assetsURI) === 0;
+}
+
+function hasContentScript({ contentScript, contentScriptFile }) {
+  return (isArray(contentScript) ? contentScript.length > 0 :
+         !!contentScript) ||
+         (isArray(contentScriptFile) ? contentScriptFile.length > 0 :
+         !!contentScriptFile);
+}
+
+function requiresAddonGlobal(model) {
+  return isAddonContent(model) && !hasContentScript(model);
+}
+
+function getAttachEventType(model) {
+  let when = model.contentScriptWhen;
+  return requiresAddonGlobal(model) ? "sdk-panel-content-changed" :
+         when === "start" ? "sdk-panel-content-changed" :
+         when === "end" ? "sdk-panel-document-loaded" :
+         when === "ready" ? "sdk-panel-content-loaded" :
+         null;
+}
+
 
 let number = { is: ['number', 'undefined', 'null'] };
 let boolean = { is: ['boolean', 'undefined', 'null'] };
 
-let rectContract = contract({
-  top: number,
-  right: number,
-  bottom: number,
-  left: number
-});
-
-let rect = {
-  is: ['object', 'undefined', 'null'],
-  map: function(v) isNil(v) || !isObject(v) ? v : rectContract(v)
-}
-
-let displayContract = contract({
+let panelContract = contract(merge({
   width: number,
   height: number,
   focus: boolean,
-  position: rect
-});
-
-let panelContract = contract(merge({}, displayContract.rules, loaderContract.rules));
+}, loaderContract.rules));
 
 
 function isDisposed(panel) !views.has(panel);
@@ -67,10 +80,11 @@ let views = new WeakMap();
 let workers = new WeakMap();
 
 function viewFor(panel) views.get(panel)
+exports.viewFor = viewFor;
+
 function modelFor(panel) models.get(panel)
 function panelFor(view) panels.get(view)
 function workerFor(panel) workers.get(panel)
-
 
 // Utility function takes `panel` instance and makes sure it will be
 // automatically hidden as soon as other panel is shown.
@@ -84,14 +98,14 @@ let setupAutoHide = new function() {
       // It could be that listener is not GC-ed in the same cycle as
       // panel in such case we remove listener manually.
       let view = viewFor(panel);
-      if (!view) systemEvents.off("popupshowing", listener);
+      if (!view) systemEvents.off("sdk-panel-show", listener);
       else if (subject !== view) panel.hide();
     }
 
     // system event listener is intentionally weak this way we'll allow GC
     // to claim panel if it's no longer referenced by an add-on code. This also
     // helps minimizing cleanup required on unload.
-    systemEvents.on("popupshowing", listener);
+    systemEvents.on("sdk-panel-show", listener);
     // To make sure listener is not claimed by GC earlier than necessary we
     // associate it with `panel` it's associated with. This way it won't be
     // GC-ed earlier than `panel` itself.
@@ -110,10 +124,9 @@ const Panel = Class({
   extends: WorkerHost(workerFor),
   setup: function setup(options) {
     let model = merge({
-      defaultWidth: 320,
-      defaultHeight: 240,
+      width: 320,
+      height: 240,
       focus: true,
-      position: Object.freeze({}),
     }, panelContract(options));
     models.set(this, model);
 
@@ -140,7 +153,7 @@ const Panel = Class({
     this.hide();
     off(this);
 
-    destroy(workerFor(this));
+    detach(workerFor(this));
 
     domPanel.dispose(viewFor(this));
 
@@ -159,51 +172,24 @@ const Panel = Class({
   /* Public API: Panel.focus */
   get focus() modelFor(this).focus,
 
-  /* Public API: Panel.position */
-  get position() modelFor(this).position,
-
   get contentURL() modelFor(this).contentURL,
   set contentURL(value) {
     let model = modelFor(this);
     model.contentURL = panelContract({ contentURL: value }).contentURL;
     domPanel.setURL(viewFor(this), model.contentURL);
-    // Detach worker so that messages send will be queued until it's
-    // reatached once panel content is ready.
-    detach(workerFor(this));
   },
 
   /* Public API: Panel.isShowing */
   get isShowing() !isDisposed(this) && domPanel.isOpen(viewFor(this)),
 
   /* Public API: Panel.show */
-  show: function show(options, anchor) {
-    if (options instanceof Ci.nsIDOMElement) {
-      [anchor, options] = [options, null];
-    }
-
-    if (anchor instanceof Ci.nsIDOMElement) {
-      console.warn(
-        "Passing a DOM node to Panel.show() method is an unsupported " +
-        "feature that will be soon replaced. " +
-        "See: https://bugzilla.mozilla.org/show_bug.cgi?id=878877"
-      );
-    }
-
+  show: function show(anchor) {
     let model = modelFor(this);
     let view = viewFor(this);
     let anchorView = getNodeView(anchor);
 
-    options = merge({
-      position: model.position,
-      width: model.width,
-      height: model.height,
-      defaultWidth: model.defaultWidth,
-      defaultHeight: model.defaultHeight,
-      focus: model.focus
-    }, displayContract(options));
-
     if (!isDisposed(this))
-      domPanel.show(view, options, anchorView);
+      domPanel.show(view, model.width, model.height, model.focus, anchorView);
 
     return this;
   },
@@ -221,8 +207,8 @@ const Panel = Class({
     let model = modelFor(this);
     let view = viewFor(this);
     let change = panelContract({
-      width: width || model.width || model.defaultWidth,
-      height: height || model.height || model.defaultHeight
+      width: width || model.width,
+      height: height || model.height
     });
 
     model.width = change.width
@@ -235,24 +221,25 @@ const Panel = Class({
 });
 exports.Panel = Panel;
 
-// Note must be defined only after value to `Panel` is assigned.
-getActiveView.define(Panel, viewFor);
-
 // Filter panel events to only panels that are create by this module.
-let panelEvents = filter(events, function({target}) panelFor(target));
+let panelEvents = filter(function({target}) panelFor(target), events);
 
 // Panel events emitted after panel has being shown.
-let shows = filter(panelEvents, function({type}) type === "popupshown");
+let shows = filter(function({type}) type === "sdk-panel-shown", panelEvents);
 
 // Panel events emitted after panel became hidden.
-let hides = filter(panelEvents, function({type}) type === "popuphidden");
+let hides = filter(function({type}) type === "sdk-panel-hidden", panelEvents);
 
 // Panel events emitted after content inside panel is ready. For different
 // panels ready may mean different state based on `contentScriptWhen` attribute.
 // Weather given event represents readyness is detected by `getAttachEventType`
 // helper function.
-let ready = filter(panelEvents, function({type, target})
-  getAttachEventType(modelFor(panelFor(target))) === type);
+let ready = filter(function({type, target})
+  getAttachEventType(modelFor(panelFor(target))) === type, panelEvents);
+
+// Panel events emitted after content document in the panel has changed.
+let change = filter(function({type}) type === "sdk-panel-content-changed",
+                    panelEvents);
 
 // Forward panel show / hide events to panel's own event listeners.
 on(shows, "data", function({target}) emit(panelFor(target), "show"));

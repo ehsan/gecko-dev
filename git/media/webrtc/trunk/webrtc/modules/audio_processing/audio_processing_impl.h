@@ -11,17 +11,17 @@
 #ifndef WEBRTC_MODULES_AUDIO_PROCESSING_MAIN_SOURCE_AUDIO_PROCESSING_IMPL_H_
 #define WEBRTC_MODULES_AUDIO_PROCESSING_MAIN_SOURCE_AUDIO_PROCESSING_IMPL_H_
 
-#include "webrtc/modules/audio_processing/include/audio_processing.h"
+#include "audio_processing.h"
 
 #include <list>
 #include <string>
 
-#include "webrtc/system_wrappers/interface/scoped_ptr.h"
+#include "scoped_ptr.h"
 
 namespace webrtc {
 class AudioBuffer;
 class CriticalSectionWrapper;
-class EchoCancellationImplWrapper;
+class EchoCancellationImpl;
 class EchoControlMobileImpl;
 class FileWrapper;
 class GainControlImpl;
@@ -56,36 +56,33 @@ class AudioProcessingImpl : public AudioProcessing {
   bool was_stream_delay_set() const;
 
   // AudioProcessing methods.
-  virtual int Initialize() OVERRIDE;
+  virtual int Initialize();
   virtual int InitializeLocked();
-  virtual void SetExtraOptions(const Config& config) OVERRIDE;
-  virtual int set_sample_rate_hz(int rate) OVERRIDE;
-  virtual int sample_rate_hz() const OVERRIDE;
-  virtual int set_num_channels(int input_channels,
-                               int output_channels) OVERRIDE;
-  virtual int num_input_channels() const OVERRIDE;
-  virtual int num_output_channels() const OVERRIDE;
-  virtual int set_num_reverse_channels(int channels) OVERRIDE;
-  virtual int num_reverse_channels() const OVERRIDE;
-  virtual int ProcessStream(AudioFrame* frame) OVERRIDE;
-  virtual int AnalyzeReverseStream(AudioFrame* frame) OVERRIDE;
-  virtual int set_stream_delay_ms(int delay) OVERRIDE;
-  virtual int stream_delay_ms() const OVERRIDE;
-  virtual void set_delay_offset_ms(int offset) OVERRIDE;
-  virtual int delay_offset_ms() const OVERRIDE;
-  virtual int StartDebugRecording(
-      const char filename[kMaxFilenameSize]) OVERRIDE;
-  virtual int StopDebugRecording() OVERRIDE;
-  virtual EchoCancellation* echo_cancellation() const OVERRIDE;
-  virtual EchoControlMobile* echo_control_mobile() const OVERRIDE;
-  virtual GainControl* gain_control() const OVERRIDE;
-  virtual HighPassFilter* high_pass_filter() const OVERRIDE;
-  virtual LevelEstimator* level_estimator() const OVERRIDE;
-  virtual NoiseSuppression* noise_suppression() const OVERRIDE;
-  virtual VoiceDetection* voice_detection() const OVERRIDE;
+  virtual int set_sample_rate_hz(int rate);
+  virtual int sample_rate_hz() const;
+  virtual int set_num_channels(int input_channels, int output_channels);
+  virtual int num_input_channels() const;
+  virtual int num_output_channels() const;
+  virtual int set_num_reverse_channels(int channels);
+  virtual int num_reverse_channels() const;
+  virtual int ProcessStream(AudioFrame* frame);
+  virtual int AnalyzeReverseStream(AudioFrame* frame);
+  virtual int set_stream_delay_ms(int delay);
+  virtual int stream_delay_ms() const;
+  virtual void set_delay_offset_ms(int offset);
+  virtual int delay_offset_ms() const;
+  virtual int StartDebugRecording(const char filename[kMaxFilenameSize]);
+  virtual int StopDebugRecording();
+  virtual EchoCancellation* echo_cancellation() const;
+  virtual EchoControlMobile* echo_control_mobile() const;
+  virtual GainControl* gain_control() const;
+  virtual HighPassFilter* high_pass_filter() const;
+  virtual LevelEstimator* level_estimator() const;
+  virtual NoiseSuppression* noise_suppression() const;
+  virtual VoiceDetection* voice_detection() const;
 
   // Module methods.
-  virtual int32_t ChangeUniqueId(const int32_t id) OVERRIDE;
+  virtual WebRtc_Word32 ChangeUniqueId(const WebRtc_Word32 id);
 
  private:
   bool is_data_processed() const;
@@ -95,7 +92,7 @@ class AudioProcessingImpl : public AudioProcessing {
 
   int id_;
 
-  EchoCancellationImplWrapper* echo_cancellation_;
+  EchoCancellationImpl* echo_cancellation_;
   EchoControlMobileImpl* echo_control_mobile_;
   GainControlImpl* gain_control_;
   HighPassFilterImpl* high_pass_filter_;

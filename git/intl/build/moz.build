@@ -6,13 +6,3 @@
 
 MODULE = 'i18n'
 
-SOURCES += [
-    'nsI18nModule.cpp',
-]
-
-LIBRARY_NAME = 'i18n'
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
-

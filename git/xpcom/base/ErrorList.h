@@ -1,4 +1,3 @@
-// IWYU pragma: private, include "nsError.h"
 /* Helper file for nsError.h, via preprocessor magic */
   /* Standard "it worked" return value */
   ERROR(NS_OK,  0),
@@ -251,10 +250,7 @@
   ERROR(NS_ERROR_UNKNOWN_SOCKET_TYPE,   FAILURE(51)),
   /* The specified socket type could not be created. */
   ERROR(NS_ERROR_SOCKET_CREATE_FAILED,  FAILURE(52)),
-  /* The operating system doesn't support the given type of address. */
-  ERROR(NS_ERROR_SOCKET_ADDRESS_NOT_SUPPORTED, FAILURE(53)),
-  /* The address to which we tried to bind the socket was busy. */
-  ERROR(NS_ERROR_SOCKET_ADDRESS_IN_USE, FAILURE(54)),
+
 
   /* Cache specific error codes: */
   ERROR(NS_ERROR_CACHE_KEY_NOT_FOUND,        FAILURE(61)),
@@ -596,7 +592,6 @@
   ERROR(NS_ERROR_XPC_HAS_BEEN_SHUTDOWN,                FAILURE(51)),
   ERROR(NS_ERROR_XPC_CANT_MODIFY_PROP_ON_WN,           FAILURE(52)),
   ERROR(NS_ERROR_XPC_BAD_CONVERT_JS_ZERO_ISNOT_NULL,   FAILURE(53)),
-  ERROR(NS_ERROR_XPC_CANT_PASS_CPOW_TO_NATIVE,         FAILURE(54)),
   /* any new errors here should have an associated entry added in xpc.msg */
 
   ERROR(NS_SUCCESS_I_DID_SOMETHING,      SUCCESS(1)),
@@ -604,6 +599,13 @@
    * filename begins with chrome://global/) shoudl return this from their
    * scriptable helper's PreCreate hook. */
   ERROR(NS_SUCCESS_CHROME_ACCESS_ONLY,   SUCCESS(2)),
+  /* Classes that want slim wrappers should return
+   * NS_SUCCESS_ALLOW_SLIM_WRAPPERS from their scriptable helper's PreCreate
+   * hook. They must also force a parent for their wrapper (from the PreCreate
+   * hook), they must implement nsWrapperCache and their scriptable helper must
+   * implement nsXPCClassInfo and must return DONT_ASK_INSTANCE_FOR_SCRIPTABLE
+   * in the flags. */
+  ERROR(NS_SUCCESS_ALLOW_SLIM_WRAPPERS,  SUCCESS(3)),
 #undef MODULE
 
 
@@ -690,8 +692,6 @@
   ERROR(NS_PROPTABLE_PROP_NOT_THERE,            FAILURE(10)),
   /* Error code for XBL */
   ERROR(NS_ERROR_XBL_BLOCKED,                   FAILURE(15)),
-  /* Error code for when the content process crashed */
-  ERROR(NS_ERROR_CONTENT_CRASHED,               FAILURE(16)),
 
   /* XXX this is not really used */
   ERROR(NS_HTML_STYLE_PROPERTY_NOT_THERE,   SUCCESS(2)),

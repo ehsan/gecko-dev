@@ -8,27 +8,19 @@
  * download it notices. All subsequent downloads, even across sessions, should
  * not open the panel automatically.
  */
-function test_task()
+function gen_test()
 {
-  // Clear the download panel has shown preference first as this test is used to
-  // verify this preference's behaviour.
-  let oldPrefValue = true;
-  try {
-    oldPrefValue = Services.prefs.getBoolPref("browser.download.panel.shown");
-  } catch(ex) { }
-  Services.prefs.setBoolPref("browser.download.panel.shown", false);
-
   try {
     // Ensure that state is reset in case previous tests didn't finish.
-    yield task_resetState();
+    for (let yy in gen_resetState(DownloadsCommon.getData(window))) yield;
 
-    // With this set to false, we should automatically open the panel the first
-    // time a download is started.
+    // With this set to false, we should automatically open the panel
+    // the first time a download is started.
     DownloadsCommon.getData(window).panelHasShownBefore = false;
 
-    let promise = promisePanelOpened();
+    prepareForPanelOpen();
     DownloadsCommon.getData(window)._notifyDownloadEvent("start");
-    yield promise;
+    yield;
 
     // If we got here, that means the panel opened.
     DownloadsPanel.hidePanel();
@@ -36,30 +28,29 @@ function test_task()
     ok(DownloadsCommon.getData(window).panelHasShownBefore,
        "Should have recorded that the panel was opened on a download.")
 
-    // Next, make sure that if we start another download, we don't open the
-    // panel automatically.
-    let originalOnPopupShown = DownloadsPanel.onPopupShown;
-    DownloadsPanel.onPopupShown = function () {
-      originalOnPopupShown.apply(this, arguments);
-      ok(false, "Should not have opened the downloads panel.");
-    };
-
-    try {
-      DownloadsCommon.getData(window)._notifyDownloadEvent("start");
-
-      // Wait 2 seconds to ensure that the panel does not open.
-      let deferTimeout = Promise.defer();
-      setTimeout(deferTimeout.resolve, 2000);
-      yield deferTimeout.promise;
-    } finally {
-      DownloadsPanel.onPopupShown = originalOnPopupShown;
-    }
+    // Next, make sure that if we start another download, we don't open
+    // the panel automatically.
+    panelShouldNotOpen();
+    DownloadsCommon.getData(window)._notifyDownloadEvent("start");
+    yield waitFor(2);
+  } catch(e) {
+    ok(false, e);
   } finally {
     // Clean up when the test finishes.
-    yield task_resetState();
-    // Set the preference instead of clearing it afterwards to ensure the
-    // right value is used no matter what the default was. This ensures the
-    // panel doesn't appear and affect other tests.
-    Services.prefs.setBoolPref("browser.download.panel.shown", oldPrefValue);
+    for (let yy in gen_resetState(DownloadsCommon.getData(window))) yield;
   }
+}
+
+/**
+ * Call this to record a test failure for the next time the downloads panel
+ * opens.
+ */
+function panelShouldNotOpen()
+{
+  // Hook to wait until the test data has been loaded.
+  let originalOnViewLoadCompleted = DownloadsPanel.onViewLoadCompleted;
+  DownloadsPanel.onViewLoadCompleted = function () {
+    DownloadsPanel.onViewLoadCompleted = originalOnViewLoadCompleted;
+    ok(false, "Should not have opened the downloads panel.");
+  };
 }

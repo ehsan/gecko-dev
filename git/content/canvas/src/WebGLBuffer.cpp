@@ -5,8 +5,8 @@
 
 #include "WebGLBuffer.h"
 #include "WebGLContext.h"
-#include "GLContext.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
+#include "nsContentUtils.h"
 
 using namespace mozilla;
 
@@ -56,11 +56,16 @@ WebGLBuffer::ElementArrayCacheBufferSubData(size_t pos, const void* ptr, size_t 
 }
 
 JSObject*
-WebGLBuffer::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope) {
+WebGLBuffer::WrapObject(JSContext *cx, JSObject *scope) {
     return dom::WebGLBufferBinding::Wrap(cx, scope, this);
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(WebGLBuffer)
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(WebGLBuffer, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(WebGLBuffer, Release)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLBuffer)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(WebGLBuffer)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLBuffer)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END

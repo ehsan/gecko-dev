@@ -133,10 +133,12 @@ public:
    * calling thread).
    */
   CompletionNotifier(mozIStorageStatementCallback *aCallback,
-                     ExecutionState aReason)
+                     ExecutionState aReason,
+                     StatementDataArray &aStatementData)
     : mCallback(aCallback)
     , mReason(aReason)
   {
+    mStatementData.SwapElements(aStatementData);
   }
 
   NS_IMETHOD Run()
@@ -146,10 +148,16 @@ public:
       NS_RELEASE(mCallback);
     }
 
+    // The async thread could still hold onto a reference to us, so we need to
+    // make sure we release our reference to the StatementData now in case our
+    // destructor happens in a different thread.
+    mStatementData.Clear();
+
     return NS_OK;
   }
 
 private:
+  StatementDataArray mStatementData;
   mozIStorageStatementCallback *mCallback;
   ExecutionState mReason;
 };
@@ -420,17 +428,11 @@ AsyncExecuteStatements::notifyComplete()
   NS_ASSERTION(mState != PENDING,
                "Still in a pending state when calling Complete!");
 
-  // Reset our statements before we try to commit or rollback.  If we are
+  // Finalize our statements before we try to commit or rollback.  If we are
   // canceling and have statements that think they have pending work, the
   // rollback will fail.
   for (uint32_t i = 0; i < mStatements.Length(); i++)
-    mStatements[i].reset();
-
-  // Release references to the statement data as soon as possible. If this
-  // is the last reference, statements will be finalized immediately on the
-  // async thread, hence avoiding several bounces between threads and possible
-  // race conditions with AsyncClose().
-  mStatements.Clear();
+    mStatements[i].finalize();
 
   // Handle our transaction, if we have one
   if (mTransactionManager) {
@@ -452,7 +454,9 @@ AsyncExecuteStatements::notifyComplete()
   // Always generate a completion notification; it is what guarantees that our
   // destruction does not happen here on the async thread.
   nsRefPtr<CompletionNotifier> completionEvent =
-    new CompletionNotifier(mCallback, mState);
+    new CompletionNotifier(mCallback, mState, mStatements);
+  NS_ASSERTION(mStatements.IsEmpty(),
+               "Should have given up ownership of mStatements!");
 
   // We no longer own mCallback (the CompletionNotifier takes ownership).
   mCallback = nullptr;
@@ -510,7 +514,7 @@ AsyncExecuteStatements::notifyResults()
   return rv;
 }
 
-NS_IMPL_ISUPPORTS2(
+NS_IMPL_THREADSAFE_ISUPPORTS2(
   AsyncExecuteStatements,
   nsIRunnable,
   mozIStoragePendingStatement
@@ -573,9 +577,8 @@ AsyncExecuteStatements::Run()
     return notifyComplete();
 
   if (statementsNeedTransaction()) {
-    Connection* rawConnection = static_cast<Connection*>(mConnection.get());
-    mTransactionManager = new mozStorageAsyncTransaction(rawConnection, false,
-                                                         mozIStorageConnection::TRANSACTION_IMMEDIATE);
+    mTransactionManager = new mozStorageTransaction(mConnection, false,
+                                                    mozIStorageConnection::TRANSACTION_IMMEDIATE);
   }
 
   // Execute each statement, giving the callback results if it returns any.

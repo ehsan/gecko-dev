@@ -5,9 +5,10 @@
 #ifndef nsIContent_h___
 #define nsIContent_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCaseTreatment.h" // for enum, cannot be forward-declared
-#include "nsINode.h"
+#include "nsCOMPtr.h"        // for already_AddRefed in constructor
+#include "nsIDocument.h"     // for use in inline function (IsInHTMLDocument)
+#include "nsINode.h"         // for base class
 
 // Forward declarations
 class nsAString;
@@ -18,7 +19,6 @@ class nsAttrValue;
 class nsAttrName;
 class nsTextFragment;
 class nsIFrame;
-class nsXBLBinding;
 
 namespace mozilla {
 namespace widget {
@@ -34,8 +34,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID \
-{ 0x976f4cd1, 0xbdfc, 0x4a1e, \
-  { 0x82, 0x46, 0x1c, 0x13, 0x9c, 0xd3, 0x73, 0x7f } }
+{ 0x8a8b4b1d, 0x72d8, 0x428e, \
+ { 0x95, 0x75, 0xf9, 0x18, 0xba, 0xf6, 0x9e, 0xa1 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -170,7 +170,7 @@ public:
   bool IsRootOfNativeAnonymousSubtree() const
   {
     NS_ASSERTION(!HasFlag(NODE_IS_NATIVE_ANONYMOUS_ROOT) ||
-                 (HasFlag(NODE_IS_ANONYMOUS_ROOT) &&
+                 (HasFlag(NODE_IS_ANONYMOUS) &&
                   HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE)),
                  "Some flags seem to be missing!");
     return HasFlag(NODE_IS_NATIVE_ANONYMOUS_ROOT);
@@ -186,9 +186,9 @@ public:
    * Makes this content anonymous
    * @see nsIAnonymousContentCreator
    */
-  void SetIsNativeAnonymousRoot()
+  void SetNativeAnonymous()
   {
-    SetFlags(NODE_IS_ANONYMOUS_ROOT | NODE_IS_IN_ANONYMOUS_SUBTREE |
+    SetFlags(NODE_IS_ANONYMOUS | NODE_IS_IN_ANONYMOUS_SUBTREE |
              NODE_IS_NATIVE_ANONYMOUS_ROOT);
   }
 
@@ -210,7 +210,7 @@ public:
                  "to binding parent");
     NS_ASSERTION(!GetParent() ||
                  ((GetBindingParent() == GetParent()) ==
-                  HasFlag(NODE_IS_ANONYMOUS_ROOT)) ||
+                  HasFlag(NODE_IS_ANONYMOUS)) ||
                  // Unfortunately default content for XBL insertion points is
                  // anonymous content that is bound with the parent of the
                  // insertion point as the parent but the bound element for the
@@ -218,10 +218,10 @@ public:
                  // the assert a bit here.
                  (GetBindingParent() &&
                   (GetBindingParent() == GetParent()->GetBindingParent()) ==
-                  HasFlag(NODE_IS_ANONYMOUS_ROOT)),
+                  HasFlag(NODE_IS_ANONYMOUS)),
                  "For nodes with parent, flag and GetBindingParent() check "
                  "should match");
-    return HasFlag(NODE_IS_ANONYMOUS_ROOT);
+    return HasFlag(NODE_IS_ANONYMOUS);
   }
 
   /**
@@ -243,7 +243,10 @@ public:
    * Return true iff this node is in an HTML document (in the HTML5 sense of
    * the term, i.e. not in an XHTML/XML document).
    */
-  inline bool IsInHTMLDocument() const;
+  inline bool IsInHTMLDocument() const
+  {
+    return OwnerDoc()->IsHTML();
+  }
 
   /**
    * Get the namespace that this element's tag is defined in
@@ -293,11 +296,6 @@ public:
     return IsInNamespace(kNameSpaceID_XUL);
   }
 
-  inline bool IsXUL(nsIAtom* aTag) const
-  {
-    return mNodeInfo->Equals(aTag, kNameSpaceID_XUL);
-  }
-
   inline bool IsMathML() const
   {
     return IsInNamespace(kNameSpaceID_MathML);
@@ -308,18 +306,24 @@ public:
     return mNodeInfo->Equals(aTag, kNameSpaceID_MathML);
   }
 
-  inline bool IsActiveChildrenElement() const
-  {
-    return mNodeInfo->Equals(nsGkAtoms::children, kNameSpaceID_XBL) &&
-           GetBindingParent();
-  }
-
   /**
    * Returns an atom holding the name of the attribute of type ID on
    * this content node (if applicable).  Returns null for non-element
    * content nodes.
    */
   virtual nsIAtom *GetIDAttributeName() const = 0;
+
+  /**
+   * Normalizes an attribute name and returns it as a nodeinfo if an attribute
+   * with that name exists. This method is intended for character case
+   * conversion if the content object is case insensitive (e.g. HTML). Returns
+   * the nodeinfo of the attribute with the specified name if one exists or
+   * null otherwise.
+   *
+   * @param aStr the unparsed attribute string
+   * @return the node info. May be nullptr.
+   */
+  virtual already_AddRefed<nsINodeInfo> GetExistingAttrNameFromQName(const nsAString& aStr) const = 0;
 
   /**
    * Set attribute values. All attribute values are assumed to have a
@@ -607,47 +611,8 @@ public:
   virtual nsIContent *GetBindingParent() const = 0;
 
   /**
-   * Gets the current XBL binding that is bound to this element.
-   *
-   * @return the current binding.
-   */
-  virtual nsXBLBinding *GetXBLBinding() const = 0;
-
-  /**
-   * Sets or unsets an XBL binding for this element. Setting a
-   * binding on an element that already has a binding will remove the
-   * old binding.
-   *
-   * @param aBinding The binding to bind to this content. If nullptr is
-   *        provided as the argument, then existing binding will be
-   *        removed.
-   *
-   * @param aOldBindingManager The old binding manager that contains
-   *                           this content if this content was adopted
-   *                           to another document.
-   */
-  virtual void SetXBLBinding(nsXBLBinding* aBinding,
-                             nsBindingManager* aOldBindingManager = nullptr) = 0;
-
-  /**
-   * Gets the insertion parent element of the XBL binding.
-   * The insertion parent is our one true parent in the transformed DOM.
-   *
-   * @return the insertion parent element.
-   */
-  virtual nsIContent *GetXBLInsertionParent() const = 0;
-
-  /**
-   * Sets the insertion parent element of the XBL binding.
-   *
-   * @param aContent The insertion parent element.
-   */
-  virtual void SetXBLInsertionParent(nsIContent* aContent) = 0;
-
-  /**
    * Returns the content node that is the parent of this node in the flattened
-   * tree. For nodes that are not filtered into an insertion point, this
-   * simply returns their DOM parent in the original DOM tree.
+   * tree.
    *
    * @return the flattened tree parent
    */
@@ -667,6 +632,17 @@ public:
    * XXXjwatt: IMO IsInteractiveLink would be a better name.
    */
   virtual bool IsLink(nsIURI** aURI) const = 0;
+
+  /**
+   * Get the cached state of the link.  If the state is unknown, 
+   * return eLinkState_Unknown.
+   *
+   * @return The cached link state of the link.
+   */
+  virtual nsLinkState GetLinkState() const
+  {
+    return eLinkState_NotLink;
+  }
 
   /**
     * Get a pointer to the full href URI (fully resolved and canonicalized,
@@ -872,9 +848,9 @@ public:
   }
 
   // Overloaded from nsINode
-  virtual already_AddRefed<nsIURI> GetBaseURI() const MOZ_OVERRIDE;
+  virtual already_AddRefed<nsIURI> GetBaseURI() const;
 
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
   virtual bool IsPurple() = 0;
   virtual void RemovePurple() = 0;

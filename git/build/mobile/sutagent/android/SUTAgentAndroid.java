@@ -66,7 +66,6 @@ public class SUTAgentAndroid extends Activity
     public static String sPowerStatus = null;
     public static int    nChargeLevel = 0;
     public static int    nBatteryTemp = 0;
-    public static long   nCreateTimeMillis = System.currentTimeMillis();
 
     String lineSep = System.getProperty("line.separator");
     public PrintWriter dataOut = null;
@@ -161,8 +160,6 @@ public class SUTAgentAndroid extends Activity
         fixScreenOrientation();
 
         DoCommand dc = new DoCommand(getApplication());
-
-        dc.FixDataLocalPermissions();
 
         // Get configuration settings from "ini" file
         File dir = getFilesDir();
@@ -398,12 +395,14 @@ public class SUTAgentAndroid extends Activity
             }
         }
 
-    private void logMemory(String caller)
+    @Override
+    public void onLowMemory()
         {
+        System.gc();
         DoCommand dc = new DoCommand(getApplication());
         if (dc != null)
             {
-            log(dc, caller);
+            log(dc, "onLowMemory");
             log(dc, dc.GetMemoryInfo());
             String procInfo = dc.GetProcessInfo();
             if (procInfo != null)
@@ -425,22 +424,8 @@ public class SUTAgentAndroid extends Activity
             }
         else
             {
-            Log.e("SUTAgentAndroid", "logMemory: unable to log to file!");
+            Log.e("SUTAgentAndroid", "onLowMemory: unable to log to file!");
             }
-        }
-
-    @Override
-    public void onLowMemory()
-        {
-        System.gc();
-        logMemory("onLowMemory");
-        }
-
-    @Override
-    public void onTrimMemory(int level)
-        {
-        System.gc();
-        logMemory("onTrimMemory"+level);
         }
 
     private void monitorBatteryState()

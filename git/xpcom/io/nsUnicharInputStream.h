@@ -24,6 +24,9 @@ public:
   NS_DECL_NSISIMPLEUNICHARSTREAMFACTORY
 
   static nsSimpleUnicharStreamFactory* GetInstance();
+
+private:
+  static const nsSimpleUnicharStreamFactory kInstance;
 };
 
 #endif // nsUnicharInputStream_h__

@@ -6,21 +6,21 @@
 #ifndef mozilla_dom_CDATASection_h
 #define mozilla_dom_CDATASection_h
 
-#include "mozilla/Attributes.h"
 #include "nsIDOMCDATASection.h"
 #include "mozilla/dom/Text.h"
 
 namespace mozilla {
 namespace dom {
 
-class CDATASection MOZ_FINAL : public Text,
-                               public nsIDOMCDATASection
+class CDATASection : public Text,
+                     public nsIDOMCDATASection
 {
 private:
   void Init()
   {
     NS_ABORT_IF_FALSE(mNodeInfo->NodeType() == nsIDOMNode::CDATA_SECTION_NODE,
                       "Bad NodeType in aNodeInfo");
+    SetIsDOMBinding();
   }
 
 public:
@@ -48,7 +48,6 @@ public:
 
   // nsIDOMCharacterData
   NS_FORWARD_NSIDOMCHARACTERDATA(nsGenericDOMDataNode::)
-  using nsGenericDOMDataNode::SetData; // Prevent hiding overloaded virtual function.
 
   // nsIDOMText
   NS_FORWARD_NSIDOMTEXT(nsGenericDOMDataNode::)
@@ -60,17 +59,16 @@ public:
   virtual bool IsNodeOfType(uint32_t aFlags) const;
 
   virtual nsGenericDOMDataNode* CloneDataNode(nsINodeInfo *aNodeInfo,
-                                              bool aCloneText) const MOZ_OVERRIDE;
+                                              bool aCloneText) const;
 
-  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 #ifdef DEBUG
-  virtual void List(FILE* out, int32_t aIndent) const MOZ_OVERRIDE;
-  virtual void DumpContent(FILE* out, int32_t aIndent,bool aDumpAll) const MOZ_OVERRIDE;
+  virtual void List(FILE* out, int32_t aIndent) const;
+  virtual void DumpContent(FILE* out, int32_t aIndent,bool aDumpAll) const;
 #endif
 
 protected:
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 };
 
 } // namespace dom

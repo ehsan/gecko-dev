@@ -5,11 +5,12 @@
 
 #include "nsDOMNavigationTiming.h"
 #include "nsCOMPtr.h"
+#include "nscore.h"
+#include "TimeStamp.h"
 #include "nsContentUtils.h"
+
+#include "nsIDOMEventTarget.h"
 #include "nsIScriptSecurityManager.h"
-#include "prtime.h"
-#include "nsIURI.h"
-#include "mozilla/TimeStamp.h"
 
 nsDOMNavigationTiming::nsDOMNavigationTiming()
 {

@@ -6,7 +6,6 @@
 #ifndef mozilla_dom_HTMLDataElement_h
 #define mozilla_dom_HTMLDataElement_h
 
-#include "mozilla/Attributes.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
@@ -14,11 +13,24 @@
 namespace mozilla {
 namespace dom {
 
-class HTMLDataElement MOZ_FINAL : public nsGenericHTMLElement
+class HTMLDataElement MOZ_FINAL : public nsGenericHTMLElement,
+                                  public nsIDOMHTMLElement
 {
 public:
   HTMLDataElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~HTMLDataElement();
+
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
 
   // HTMLDataElement WebIDL
   void GetValue(nsAString& aValue)
@@ -31,13 +43,13 @@ public:
     SetHTMLAttr(nsGkAtoms::value, aValue, aError);
   }
 
-  virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;
-  virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
-  virtual nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const MOZ_OVERRIDE;
+  virtual void GetItemValueText(nsAString& text);
+  virtual void SetItemValueText(const nsAString& text);
+  virtual nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
 protected:
-  virtual JSObject* WrapNode(JSContext* aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 };
 
 } // namespace dom

@@ -7,6 +7,7 @@
 #include "nsDSURIContentListener.h"
 #include "nsIChannel.h"
 #include "nsServiceManagerUtils.h"
+#include "nsXPIDLString.h"
 #include "nsDocShellCID.h"
 #include "nsIWebNavigationInfo.h"
 #include "nsIDocument.h"
@@ -17,9 +18,9 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsError.h"
 #include "nsCharSeparatedTokenizer.h"
+#include "mozilla/Preferences.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
-#include "nsDocShellLoadTypes.h"
 
 using namespace mozilla;
 
@@ -51,8 +52,8 @@ nsDSURIContentListener::Init()
 // nsDSURIContentListener::nsISupports
 //*****************************************************************************   
 
-NS_IMPL_ADDREF(nsDSURIContentListener)
-NS_IMPL_RELEASE(nsDSURIContentListener)
+NS_IMPL_THREADSAFE_ADDREF(nsDSURIContentListener)
+NS_IMPL_THREADSAFE_RELEASE(nsDSURIContentListener)
 
 NS_INTERFACE_MAP_BEGIN(nsDSURIContentListener)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIURIContentListener)
@@ -123,14 +124,12 @@ nsDSURIContentListener::DoContent(const char* aContentType,
 
     if (rv == NS_ERROR_REMOTE_XUL) {
       request->Cancel(rv);
-      *aAbortProcess = true;
       return NS_OK;
     }
 
-    if (NS_FAILED(rv)) { 
-      // we don't know how to handle the content
-      *aContentHandler = nullptr;
-      return rv;
+    if (NS_FAILED(rv)) {
+       // it's okay if we don't know how to handle the content   
+        return NS_OK;
     }
 
     if (loadFlags & nsIChannel::LOAD_RETARGETED_DOCUMENT_URI) {
@@ -261,7 +260,7 @@ nsDSURIContentListener::SetParentContentListener(nsIURIContentListener*
     return NS_OK;
 }
 
-bool nsDSURIContentListener::CheckOneFrameOptionsPolicy(nsIHttpChannel *httpChannel,
+bool nsDSURIContentListener::CheckOneFrameOptionsPolicy(nsIRequest *request,
                                                         const nsAString& policy) {
     static const char allowFrom[] = "allow-from";
     const uint32_t allowFromLen = ArrayLength(allowFrom) - 1;
@@ -273,6 +272,11 @@ bool nsDSURIContentListener::CheckOneFrameOptionsPolicy(nsIHttpChannel *httpChan
         !policy.LowerCaseEqualsLiteral("sameorigin") &&
         !isAllowFrom)
         return true;
+
+    nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(request);
+    if (!httpChannel) {
+        return true;
+    }
 
     nsCOMPtr<nsIURI> uri;
     httpChannel->GetURI(getter_AddRefs(uri));
@@ -398,20 +402,7 @@ bool nsDSURIContentListener::CheckOneFrameOptionsPolicy(nsIHttpChannel *httpChan
 // in the request (comma-separated in a header, multiple headers, etc).
 bool nsDSURIContentListener::CheckFrameOptions(nsIRequest *request)
 {
-    nsresult rv;
-    nsCOMPtr<nsIChannel> chan = do_QueryInterface(request);
-    if (!chan) {
-      return true;
-    }
-
-    nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(chan);
-    if (!httpChannel) {
-      // check if it is hiding in a multipart channel
-      rv = mDocShell->GetHttpChannel(chan, getter_AddRefs(httpChannel));
-      if (NS_FAILED(rv))
-        return false;
-    }
-
+    nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(request);
     if (!httpChannel) {
         return true;
     }
@@ -430,7 +421,7 @@ bool nsDSURIContentListener::CheckFrameOptions(nsIRequest *request)
     nsCharSeparatedTokenizer tokenizer(xfoHeaderValue, ',');
     while (tokenizer.hasMoreTokens()) {
         const nsSubstring& tok = tokenizer.nextToken();
-        if (!CheckOneFrameOptionsPolicy(httpChannel, tok)) {
+        if (!CheckOneFrameOptionsPolicy(request, tok)) {
             // cancel the load and display about:blank
             httpChannel->Cancel(NS_BINDING_ABORTED);
             if (mDocShell) {

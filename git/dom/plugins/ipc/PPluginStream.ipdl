@@ -5,10 +5,11 @@
 
 include protocol PPluginInstance;
 
+include "mozilla/plugins/PluginMessageUtils.h";
 
-using mozilla::plugins::Buffer from "mozilla/plugins/PluginMessageUtils.h";
-using NPError from "npapi.h";
-using NPReason from "npapi.h";
+using mozilla::plugins::Buffer;
+using NPError;
+using NPReason;
 
 namespace mozilla {
 namespace plugins {
@@ -17,12 +18,12 @@ namespace plugins {
  * PPluginStream represents an NPStream sent from the plugin to the browser.
  */
 
-intr protocol PPluginStream
+rpc protocol PPluginStream
 {
   manager PPluginInstance;
 
 parent:
-  intr NPN_Write(Buffer data) returns (int32_t written);
+  rpc NPN_Write(Buffer data) returns (int32_t written);
 
 both:
   /**
@@ -30,7 +31,7 @@ both:
    * @param artificial True when the stream is closed as a by-product of
    *                        some other call (such as a failure in NPN_Write).
    */
-  intr __delete__(NPReason reason, bool artificial);
+  rpc __delete__(NPReason reason, bool artificial);
 };
 
 } // namespace plugins

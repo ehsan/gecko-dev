@@ -39,7 +39,7 @@ SkDisplayable::~SkDisplayable() {
 #endif
 }
 
-bool SkDisplayable::addChild(SkAnimateMaker& , SkDisplayable* child) {
+bool SkDisplayable::add(SkAnimateMaker& , SkDisplayable* child) {
     return false;
 }
 
@@ -538,3 +538,5 @@ void SkDisplayable::setReference(const SkMemberInfo* info, SkDisplayable* displa
 void SkDisplayable::validate() {
 }
 #endif
+
+

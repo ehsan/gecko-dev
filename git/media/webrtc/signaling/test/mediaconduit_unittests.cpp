@@ -7,13 +7,13 @@
 #include <fstream>
 #include <unistd.h>
 #include <vector>
-#include <math.h>
 
 using namespace std;
 
 #include "mozilla/Scoped.h"
 #include <MediaConduitInterface.h>
 #include "nsIEventTarget.h"
+#include "nsStaticComponents.h"
 #include "FakeMediaStreamsImpl.h"
 
 #define GTEST_HAS_RTTI 0
@@ -271,7 +271,7 @@ void AudioSendAndReceive::GenerateAndReadSamples()
    int16_t audioOutput[PLAYOUT_SAMPLE_LENGTH];
    short* inbuf;
    int sampleLengthDecoded = 0;
-   unsigned int SAMPLES = (PLAYOUT_SAMPLE_FREQUENCY * 10); //10 seconds
+   int SAMPLES = (PLAYOUT_SAMPLE_FREQUENCY * 10); //10 seconds
    int CHANNELS = 1; //mono audio
    int sampleLengthInBytes = sizeof(audioInput);
    //generated audio buffer
@@ -300,7 +300,7 @@ void AudioSendAndReceive::GenerateAndReadSamples()
    fclose(inFile);
 
    WriteWaveHeader(PLAYOUT_SAMPLE_FREQUENCY, 1, outFile);
-   unsigned int numSamplesReadFromInput = 0;
+   int numSamplesReadFromInput = 0;
    do
    {
     if(!memcpy(audioInput, inbuf, sampleLengthInBytes))
@@ -548,12 +548,12 @@ class TransportConduitTest : public ::testing::Test
   {
     int err = 0;
     //get pointer to VideoSessionConduit
-    mVideoSession = mozilla::VideoSessionConduit::Create(NULL);
+    mVideoSession = mozilla::VideoSessionConduit::Create();
     if( !mVideoSession )
       ASSERT_NE(mVideoSession, (void*)NULL);
 
    // This session is for other one
-    mVideoSession2 = mozilla::VideoSessionConduit::Create(NULL);
+    mVideoSession2 = mozilla::VideoSessionConduit::Create();
     if( !mVideoSession2 )
       ASSERT_NE(mVideoSession2,(void*)NULL);
 
@@ -574,8 +574,8 @@ class TransportConduitTest : public ::testing::Test
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
 
     //configure send and recv codecs on theconduit
-    mozilla::VideoCodecConfig cinst1(120, "VP8", 0);
-    mozilla::VideoCodecConfig cinst2(124, "I420", 0);
+    mozilla::VideoCodecConfig cinst1(120, "VP8", 640, 480);
+    mozilla::VideoCodecConfig cinst2(124, "I420", 640, 480);
 
 
     std::vector<mozilla::VideoCodecConfig* > rcvCodecList;
@@ -622,7 +622,7 @@ class TransportConduitTest : public ::testing::Test
     int err = 0;
     mozilla::RefPtr<mozilla::VideoSessionConduit> mVideoSession;
     //get pointer to VideoSessionConduit
-    mVideoSession = mozilla::VideoSessionConduit::Create(NULL);
+    mVideoSession = mozilla::VideoSessionConduit::Create();
     if( !mVideoSession )
       ASSERT_NE(mVideoSession, (void*)NULL);
 
@@ -638,8 +638,8 @@ class TransportConduitTest : public ::testing::Test
     cerr << "    1. Same Codec (VP8) Repeated Twice " << endl;
     cerr << "   *************************************************" << endl;
 
-    mozilla::VideoCodecConfig cinst1(120, "VP8", 0);
-    mozilla::VideoCodecConfig cinst2(120, "VP8", 0);
+    mozilla::VideoCodecConfig cinst1(120, "VP8", 640, 480);
+    mozilla::VideoCodecConfig cinst2(120, "VP8", 640, 480);
     rcvCodecList.push_back(&cinst1);
     rcvCodecList.push_back(&cinst2);
     err = mVideoSession->ConfigureRecvMediaCodecs(rcvCodecList);
@@ -655,8 +655,8 @@ class TransportConduitTest : public ::testing::Test
     cerr << "   Setting payload 1 with name: I4201234tttttthhhyyyy89087987y76t567r7756765rr6u6676" << endl;
     cerr << "   Setting payload 2 with name of zero length" << endl;
 
-    mozilla::VideoCodecConfig cinst3(124, "I4201234tttttthhhyyyy89087987y76t567r7756765rr6u6676", 0);
-    mozilla::VideoCodecConfig cinst4(124, "", 0);
+    mozilla::VideoCodecConfig cinst3(124, "I4201234tttttthhhyyyy89087987y76t567r7756765rr6u6676", 352, 288);
+    mozilla::VideoCodecConfig cinst4(124, "", 352, 288);
 
     rcvCodecList.push_back(&cinst3);
     rcvCodecList.push_back(&cinst4);
@@ -710,152 +710,6 @@ class TransportConduitTest : public ::testing::Test
 
   }
 
-  void DumpMaxFs(int orig_width, int orig_height, int max_fs,
-                 int new_width, int new_height)
-  {
-    cerr << "Applying max_fs=" << max_fs << " to input resolution " <<
-                 orig_width << "x" << orig_height << endl;
-    cerr << "New resolution: " << new_width << "x" << new_height << endl;
-    cerr << endl;
-  }
-
-  // Calculate new resolution for sending video by applying max-fs constraint.
-  void GetVideoResolutionWithMaxFs(int orig_width, int orig_height, int max_fs,
-                                   int *new_width, int *new_height)
-  {
-    int err = 0;
-
-    // Get pointer to VideoSessionConduit.
-    mVideoSession = mozilla::VideoSessionConduit::Create(NULL);
-    if( !mVideoSession )
-      ASSERT_NE(mVideoSession, (void*)NULL);
-
-    // Configure send codecs on the conduit.
-    mozilla::VideoCodecConfig cinst1(120, "VP8", 0, max_fs, 0);
-
-    err = mVideoSession->ConfigureSendMediaCodec(&cinst1);
-    ASSERT_EQ(mozilla::kMediaConduitNoError, err);
-
-    // Send one frame.
-    MOZ_ASSERT(!(orig_width & 1));
-    MOZ_ASSERT(!(orig_height & 1));
-    int len = ((orig_width * orig_height) * 3 / 2);
-    uint8_t* frame = (uint8_t*) PR_MALLOC(len);
-
-    memset(frame, COLOR, len);
-    mVideoSession->SendVideoFrame((unsigned char*)frame,
-                                  len,
-                                  orig_width,
-                                  orig_height,
-                                  mozilla::kVideoI420,
-                                  0);
-    PR_Free(frame);
-
-    // Get the new resolution as adjusted by the max-fs constraint.
-    *new_width = mVideoSession->SendingWidth();
-    *new_height = mVideoSession->SendingHeight();
-  }
-
-  void TestVideoConduitMaxFs()
-  {
-    int orig_width, orig_height, width, height, max_fs;
-
-    // No limitation.
-    cerr << "Test no max-fs limition" << endl;
-    orig_width = 640;
-    orig_height = 480;
-    max_fs = 0;
-    GetVideoResolutionWithMaxFs(orig_width, orig_height, max_fs, &width, &height);
-    DumpMaxFs(orig_width, orig_height, max_fs, width, height);
-    ASSERT_EQ(width, 640);
-    ASSERT_EQ(height, 480);
-
-    // VGA to QVGA.
-    cerr << "Test resizing from VGA to QVGA" << endl;
-    orig_width = 640;
-    orig_height = 480;
-    max_fs = 300;
-    GetVideoResolutionWithMaxFs(orig_width, orig_height, max_fs, &width, &height);
-    DumpMaxFs(orig_width, orig_height, max_fs, width, height);
-    ASSERT_EQ(width, 320);
-    ASSERT_EQ(height, 240);
-
-    // Extreme input resolution.
-    cerr << "Test extreme input resolution" << endl;
-    orig_width = 3072;
-    orig_height = 100;
-    max_fs = 300;
-    GetVideoResolutionWithMaxFs(orig_width, orig_height, max_fs, &width, &height);
-    DumpMaxFs(orig_width, orig_height, max_fs, width, height);
-    ASSERT_EQ(width, 768);
-    ASSERT_EQ(height, 26);
-
-    // Small max-fs.
-    cerr << "Test small max-fs (case 1)" << endl;
-    orig_width = 8;
-    orig_height = 32;
-    max_fs = 1;
-    GetVideoResolutionWithMaxFs(orig_width, orig_height, max_fs, &width, &height);
-    DumpMaxFs(orig_width, orig_height, max_fs, width, height);
-    ASSERT_EQ(width, 4);
-    ASSERT_EQ(height, 16);
-
-    // Small max-fs.
-    cerr << "Test small max-fs (case 2)" << endl;
-    orig_width = 4;
-    orig_height = 50;
-    max_fs = 1;
-    GetVideoResolutionWithMaxFs(orig_width, orig_height, max_fs, &width, &height);
-    DumpMaxFs(orig_width, orig_height, max_fs, width, height);
-    ASSERT_EQ(width, 2);
-    ASSERT_EQ(height, 16);
-
-    // Small max-fs.
-    cerr << "Test small max-fs (case 3)" << endl;
-    orig_width = 872;
-    orig_height = 136;
-    max_fs = 3;
-    GetVideoResolutionWithMaxFs(orig_width, orig_height, max_fs, &width, &height);
-    DumpMaxFs(orig_width, orig_height, max_fs, width, height);
-    ASSERT_EQ(width, 48);
-    ASSERT_EQ(height, 8);
-
-    // Small max-fs.
-    cerr << "Test small max-fs (case 4)" << endl;
-    orig_width = 160;
-    orig_height = 8;
-    max_fs = 5;
-    GetVideoResolutionWithMaxFs(orig_width, orig_height, max_fs, &width, &height);
-    DumpMaxFs(orig_width, orig_height, max_fs, width, height);
-    ASSERT_EQ(width, 80);
-    ASSERT_EQ(height, 4);
-
-    // Random values.
-    for (int i = 0; i < 30; i++) {
-      max_fs = rand() % 1000;
-      orig_width = ((rand() % 2000) & ~1) + 2;
-      orig_height = ((rand() % 2000) & ~1) + 2;
-      // Potential crash on small resolution, see bug 919979.
-      if (orig_width * orig_height <= 20) {
-        cerr << "Temporarily skip resolution " << orig_width << "x" <<
-             orig_height << endl;
-        continue;
-      }
-
-      GetVideoResolutionWithMaxFs(orig_width, orig_height, max_fs,
-                                  &width, &height);
-      if (max_fs > 0 &&
-          ceil(width / 16.) * ceil(height / 16.) > max_fs) {
-        DumpMaxFs(orig_width, orig_height, max_fs, width, height);
-        ADD_FAILURE();
-      }
-      if ((width & 1) || (height & 1)) {
-        DumpMaxFs(orig_width, orig_height, max_fs, width, height);
-        ADD_FAILURE();
-      }
-    }
- }
-
 private:
   //Audio Conduit Test Objects
   mozilla::RefPtr<mozilla::AudioSessionConduit> mAudioSession;
@@ -891,16 +745,12 @@ TEST_F(TransportConduitTest, TestVideoConduitCodecAPI) {
   TestVideoConduitCodecAPI();
  }
 
-TEST_F(TransportConduitTest, TestVideoConduitMaxFs) {
-  TestVideoConduitMaxFs();
- }
-
 }  // end namespace
 
 int main(int argc, char **argv)
 {
   // This test can cause intermittent oranges on the builders
-  CHECK_ENVIRONMENT_FLAG("MOZ_WEBRTC_MEDIACONDUIT_TESTS")
+  CHECK_ENVIRONMENT_FLAG("MOZ_WEBRTC_TESTS")
 
   test_utils = new MtransportTestUtils();
   ::testing::InitGoogleTest(&argc, argv);

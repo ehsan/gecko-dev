@@ -1,110 +1,66 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-MARIONETTE_TIMEOUT = 60000;
+MARIONETTE_TIMEOUT = 30000;
 
 SpecialPowers.addPermission("mobileconnection", true, document);
 
-let icc = navigator.mozIccManager;
+// TODO: bug 847741 move getSimContacts to IccManager
+SpecialPowers.addPermission("contacts-read", true, document);
+SpecialPowers.addPermission("contacts-write", true, document);
+SpecialPowers.addPermission("contacts-create", true, document);
+
+let icc = navigator.mozMobileConnection.icc;
 ok(icc instanceof MozIccManager, "icc is instanceof " + icc.constructor);
 
-function testReadContacts(type) {
-  let request = icc.readContacts(type);
-  request.onsuccess = function onsuccess() {
-    let contacts = request.result;
+// TODO: bug 847741 move getSimContacts to IccManager
+let mozContacts = window.navigator.mozContacts;
+ok(mozContacts);
 
-    is(Array.isArray(contacts), true);
+function testAddIccContact() {
+  let contact = new mozContact();
 
-    is(contacts[0].name[0], "Mozilla");
-    is(contacts[0].tel[0].value, "15555218201");
-    is(contacts[0].id, "890141032111185107201");
-
-    is(contacts[1].name[0], "Saßê黃");
-    is(contacts[1].tel[0].value, "15555218202");
-    is(contacts[1].id, "890141032111185107202");
-
-    is(contacts[2].name[0], "Fire 火");
-    is(contacts[2].tel[0].value, "15555218203");
-    is(contacts[2].id, "890141032111185107203");
-
-    is(contacts[3].name[0], "Huang 黃");
-    is(contacts[3].tel[0].value, "15555218204");
-    is(contacts[3].id, "890141032111185107204");
-
-    runNextTest();
-  };
-
-  request.onerror = function onerror() {
-    ok(false, "Cannot get " + type + " contacts");
-    runNextTest();
-  };
-};
-
-function testAddContact(type, pin2) {
-  let contact = new mozContact({
-    name: ["add"],
-    tel: [{value: "0912345678"}],
-    email:[]
+  contact.init({
+    name: "add",
+    tel: [{value: "0912345678"}]
   });
 
-  let updateRequest = icc.updateContact(type, contact, pin2);
+  // TODO: 'ADN' should change to use lower case
+  let updateRequest = icc.updateContact("ADN", contact);
 
   updateRequest.onsuccess = function onsuccess() {
     // Get ICC contact for checking new contact
 
-    let getRequest = icc.readContacts(type);
+    // TODO: 1. bug 847741 move getSimContacts to IccManager
+    //       2. 'ADN' should change to use lower case
+    let getRequest = mozContacts.getSimContacts("ADN");
 
     getRequest.onsuccess = function onsuccess() {
-      let contacts = getRequest.result;
+      let simContacts = getRequest.result;
 
       // There are 4 SIM contacts which are harded in emulator
-      is(contacts.length, 5);
+      is(simContacts.length, 5);
 
-      is(contacts[4].name[0], "add");
-      is(contacts[4].tel[0].value, "0912345678");
+      is(simContacts[4].name, "add");
+      is(simContacts[4].tel[0].value, "0912345678");
 
       runNextTest();
     };
 
     getRequest.onerror = function onerror() {
-      ok(false, "Cannot get " + type + " contacts: " + getRequest.error.name);
+      ok(false, "Cannot get ICC contacts: " + getRequest.error.name);
       runNextTest();
     };
   };
 
   updateRequest.onerror = function onerror() {
-    if (type === "fdn" && pin2 === undefined) {
-      ok(updateRequest.error.name === "pin2 is empty",
-         "expected error when pin2 is not provided");
-    } else {
-      ok(false, "Cannot add " + type + " contact: " + updateRequest.error.name);
-    }
+    ok(false, "Cannot add ICC contact: " + updateRequest.error.name);
     runNextTest();
   };
 };
 
-function testReadAdnContacts() {
-  testReadContacts("adn");
-}
-
-function testAddAdnContact() {
-  testAddContact("adn");
-}
-
-function testReadFdnContacts() {
-  testReadContacts("fdn");
-}
-
-function testAddFdnContact() {
-  testAddContact("fdn", "0000");
-  testAddContact("fdn");
-}
-
 let tests = [
-  testReadAdnContacts,
-  testAddAdnContact,
-  testReadFdnContacts,
-  testAddFdnContact
+  testAddIccContact,
 ];
 
 function runNextTest() {
@@ -119,6 +75,12 @@ function runNextTest() {
 
 function cleanUp() {
   SpecialPowers.removePermission("mobileconnection", document);
+
+  // TODO: bug 847741 move getSimContacts to IccManager
+  SpecialPowers.removePermission("contacts-read", document);
+  SpecialPowers.removePermission("contacts-write", document);
+  SpecialPowers.removePermission("contacts-create", document);
+
   finish();
 }
 

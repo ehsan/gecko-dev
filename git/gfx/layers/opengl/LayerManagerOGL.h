@@ -6,68 +6,47 @@
 #ifndef GFX_LAYERMANAGEROGL_H
 #define GFX_LAYERMANAGEROGL_H
 
-#include <sys/types.h>                  // for int32_t
-#include "GLDefs.h"                     // for GLuint, GLenum, GLintptr, etc
-#include "LayerManagerOGLProgram.h"     // for ShaderProgramOGL, etc
 #include "Layers.h"
-#include "gfxMatrix.h"                  // for gfxMatrix
-#include "gfxPoint.h"                   // for gfxIntSize
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE, MOZ_FINAL
-#include "mozilla/RefPtr.h"             // for TemporaryRef
-#include "mozilla/gfx/BaseSize.h"       // for BaseSize
-#include "mozilla/gfx/Point.h"          // for IntSize
-#include "mozilla/gfx/Types.h"          // for SurfaceFormat, etc
-#include "mozilla/layers/CompositorTypes.h"  // for MaskType::MaskNone, etc
-#include "mozilla/layers/LayersTypes.h"  // for LayersBackend, etc
-#include "nsAString.h"
-#include "nsAutoPtr.h"                  // for nsRefPtr, nsAutoPtr
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsDebug.h"                    // for NS_ASSERTION, NS_WARNING
-#include "nsISupportsImpl.h"            // for Layer::AddRef, etc
-#include "nsRect.h"                     // for nsIntRect
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nsSize.h"                     // for nsIntSize
-#include "nsTArray.h"                   // for nsTArray, nsTArray_Impl, etc
-#include "nsThreadUtils.h"              // for nsRunnable
-#include "nscore.h"                     // for NS_IMETHOD, nsAString, etc
+#include "LayerManagerOGLProgram.h"
+
+#include "mozilla/TimeStamp.h"
+#include "nsPoint.h"
+
 #ifdef XP_WIN
 #include <windows.h>
 #endif
 
-#define BUFFER_OFFSET(i) ((char *)nullptr + (i))
+#define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
-class gfx3DMatrix;
-class gfxASurface;
-class gfxContext;
-class nsIWidget;
-struct nsIntPoint;
+#include "gfxContext.h"
+#include "gfx3DMatrix.h"
+#include "nsIWidget.h"
+#include "GLContextTypes.h"
+#include "GLDefs.h"
 
 namespace mozilla {
 namespace gl {
 class GLContext;
 }
-namespace gfx {
-class DrawTarget;
-}
 namespace layers {
 
 class Composer2D;
-class ImageLayer;
 class LayerOGL;
-class ThebesLayerComposite;
-class ContainerLayerComposite;
-class ImageLayerComposite;
-class CanvasLayerComposite;
-class ColorLayerComposite;
+class ShadowThebesLayer;
+class ShadowContainerLayer;
+class ShadowImageLayer;
+class ShadowCanvasLayer;
+class ShadowColorLayer;
 struct FPSState;
 
 /**
  * This is the LayerManager used for OpenGL 2.1 and OpenGL ES 2.0.
  * This should be used only on the main thread.
  */
-class LayerManagerOGL : public LayerManager
+class THEBES_API LayerManagerOGL : public LayerManager
 {
   typedef mozilla::gl::GLContext GLContext;
+  typedef mozilla::gl::ShaderProgramType ProgramType;
 
 public:
   LayerManagerOGL(nsIWidget *aWidget, int aSurfaceWidth = -1, int aSurfaceHeight = -1,
@@ -146,29 +125,29 @@ public:
   ShaderProgramOGL* GetBasicLayerProgram(bool aOpaque, bool aIsRGB,
                                          MaskType aMask = MaskNone)
   {
-    ShaderProgramType format = BGRALayerProgramType;
+    gl::ShaderProgramType format = gl::BGRALayerProgramType;
     if (aIsRGB) {
       if (aOpaque) {
-        format = RGBXLayerProgramType;
+        format = gl::RGBXLayerProgramType;
       } else {
-        format = RGBALayerProgramType;
+        format = gl::RGBALayerProgramType;
       }
     } else {
       if (aOpaque) {
-        format = BGRXLayerProgramType;
+        format = gl::BGRXLayerProgramType;
       }
     }
     return GetProgram(format, aMask);
   }
 
-  ShaderProgramOGL* GetProgram(ShaderProgramType aType,
+  ShaderProgramOGL* GetProgram(gl::ShaderProgramType aType,
                                Layer* aMaskLayer) {
     if (aMaskLayer)
       return GetProgram(aType, Mask2d);
     return GetProgram(aType, MaskNone);
   }
 
-  ShaderProgramOGL* GetProgram(ShaderProgramType aType,
+  ShaderProgramOGL* GetProgram(gl::ShaderProgramType aType,
                                MaskType aMask = MaskNone) {
     NS_ASSERTION(ProgramProfileOGL::ProgramExists(aType, aMask),
                  "Invalid program type.");
@@ -179,14 +158,10 @@ public:
     return GetProgram(GetFBOLayerProgramType(), aMask);
   }
 
-  ShaderProgramType GetFBOLayerProgramType() {
+  gl::ShaderProgramType GetFBOLayerProgramType() {
     if (mFBOTextureTarget == LOCAL_GL_TEXTURE_RECTANGLE_ARB)
-      return RGBARectLayerProgramType;
-    return RGBALayerProgramType;
-  }
-
-  gfx::SurfaceFormat GetFBOTextureFormat() {
-    return gfx::FORMAT_R8G8B8A8;
+      return gl::RGBARectLayerProgramType;
+    return gl::RGBALayerProgramType;
   }
 
   GLContext* gl() const { return mGLContext; }
@@ -199,6 +174,21 @@ public:
 
   void* GetThebesLayerCallbackData() const
   { return mThebesLayerCallbackData; }
+
+  /*
+   * Helper functions for our layers
+   */
+  void CallThebesLayerDrawCallback(ThebesLayer* aLayer,
+                                   gfxContext* aContext,
+                                   const nsIntRegion& aRegionToDraw)
+  {
+    NS_ASSERTION(mThebesLayerCallback,
+                 "CallThebesLayerDrawCallback without callback!");
+    mThebesLayerCallback(aLayer, aContext,
+                         aRegionToDraw, nsIntRegion(),
+                         mThebesLayerCallbackData);
+  }
+
 
   GLenum FBOTextureTarget() { return mFBOTextureTarget; }
 
@@ -222,7 +212,7 @@ public:
    * shaders are required to sample from the different
    * texture types.
    */
-  bool CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
+  void CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
                             GLuint aCurrentFrameBuffer,
                             GLuint *aFBO, GLuint *aTexture);
 
@@ -264,7 +254,9 @@ public:
                                       GLenum aWrapMode = LOCAL_GL_REPEAT,
                                       bool aFlipped = false);
 
+#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() const { return "OGL"; }
+#endif // MOZ_LAYERS_HAVE_LOG
 
   const nsIntSize& GetWidgetSize() {
     return mWidgetSize;
@@ -326,7 +318,7 @@ private:
   nsIntSize mSurfaceSize;
 
   /** 
-   * Context target, nullptr when drawing directly to our swap chain.
+   * Context target, NULL when drawing directly to our swap chain.
    */
   nsRefPtr<gfxContext> mTarget;
 
@@ -403,7 +395,7 @@ private:
    * Helper method for Initialize, creates all valid variations of a program
    * and adds them to mPrograms
    */
-  void AddPrograms(ShaderProgramType aType);
+  void AddPrograms(gl::ShaderProgramType aType);
 
   /**
    * Recursive helper method for use by ComputeRenderIntegrity. Subtracts
@@ -432,6 +424,7 @@ private:
 #endif
 
   static bool sDrawFPS;
+  static bool sFrameCounter;
 };
 
 /**
@@ -456,6 +449,8 @@ public:
   virtual void Destroy() = 0;
 
   virtual Layer* GetLayer() = 0;
+
+  virtual LayerRenderState GetRenderState() { return LayerRenderState(); }
 
   virtual void RenderLayer(int aPreviousFrameBuffer,
                            const nsIntPoint& aOffset) = 0;

@@ -17,13 +17,7 @@ import traceback
 import uuid
 import sys
 
-from .base import (
-    CommandContext,
-    MachError,
-    NoCommandError,
-    UnknownCommandError,
-    UnrecognizedArgumentError,
-)
+from .base import CommandContext
 
 from .decorators import (
     CommandArgument,
@@ -32,11 +26,23 @@ from .decorators import (
 )
 
 from .config import ConfigSettings
-from .dispatcher import CommandAction
 from .logging import LoggingManager
+
 from .registrar import Registrar
 
 
+# Settings for argument parser that don't get proxied to sub-module. i.e. these
+# are things consumed by the driver itself.
+CONSUMED_ARGUMENTS = [
+    'settings_file',
+    'verbose',
+    'logfile',
+    'log_interval',
+    'command',
+    'mach_class',
+    'mach_method',
+    'mach_pass_context',
+]
 
 MACH_ERROR = r'''
 The error occurred in mach itself. This is likely a bug in mach itself or a
@@ -67,31 +73,6 @@ The error occurred in code that was called by the mach command. This is either
 a bug in the called code itself or in the way that mach is calling it.
 
 You should consider filing a bug for this issue.
-'''.lstrip()
-
-NO_COMMAND_ERROR = r'''
-It looks like you tried to run mach without a command.
-
-Run |mach help| to show a list of commands.
-'''.lstrip()
-
-UNKNOWN_COMMAND_ERROR = r'''
-It looks like you are trying to %s an unknown mach command: %s
-
-Run |mach help| to show a list of commands.
-'''.lstrip()
-
-UNRECOGNIZED_ARGUMENT_ERROR = r'''
-It looks like you passed an unrecognized argument into mach.
-
-The %s command does not accept the arguments: %s
-'''.lstrip()
-
-INVALID_COMMAND_CONTEXT = r'''
-It looks like you tried to run a mach command from an invalid context. The %s
-command failed to meet the following conditions: %s
-
-Run |mach help| to show a list of all commands available to the current context.
 '''.lstrip()
 
 
@@ -134,24 +115,7 @@ class ArgumentParser(argparse.ArgumentParser):
 
 @CommandProvider
 class Mach(object):
-    """Main mach driver type.
-
-    This type is responsible for holding global mach state and dispatching
-    a command from arguments.
-
-    The following attributes may be assigned to the instance to influence
-    behavior:
-
-        populate_context_handler -- If defined, it must be a callable. The
-            callable will be called with the mach.base.CommandContext instance
-            as its single argument right before command dispatch. This allows
-            modification of the context instance and thus passing of
-            arbitrary data to command handlers.
-
-        require_conditions -- If True, commands that do not have any condition
-            functions applied will be skipped. Defaults to False.
-
-    """
+    """Contains code for the command-line `mach` interface."""
 
     USAGE = """%(prog)s [global arguments] command [command arguments]
 
@@ -177,8 +141,6 @@ To see more help for a specific command, run:
         self.log_manager = LoggingManager()
         self.logger = logging.getLogger(__name__)
         self.settings = ConfigSettings()
-
-        self.populate_context_handler = None
 
         self.log_manager.register_structured_logger(self.logger)
 
@@ -214,19 +176,6 @@ To see more help for a specific command, run:
             module_name = 'mach.commands.%s' % uuid.uuid1().get_hex()
 
         imp.load_source(module_name, path)
-
-    def define_category(self, name, title, description, priority=50):
-        """Provide a description for a named command category."""
-
-        Registrar.register_category(name, title, description, priority)
-
-    @property
-    def require_conditions(self):
-        return Registrar.require_conditions
-
-    @require_conditions.setter
-    def require_conditions(self, value):
-        Registrar.require_conditions = value
 
     def run(self, argv, stdin=None, stdout=None, stderr=None):
         """Runs mach with arguments provided from the command line.
@@ -289,14 +238,7 @@ To see more help for a specific command, run:
             sys.stderr = orig_stderr
 
     def _run(self, argv):
-        context = CommandContext(cwd=self.cwd,
-            settings=self.settings, log_manager=self.log_manager,
-            commands=Registrar)
-
-        if self.populate_context_handler:
-            self.populate_context_handler(context)
-
-        parser = self.get_argument_parser(context)
+        parser = self.get_argument_parser()
 
         if not len(argv):
             # We don't register the usage until here because if it is globally
@@ -306,18 +248,18 @@ To see more help for a specific command, run:
             parser.print_usage()
             return 0
 
-        try:
-            args = parser.parse_args(argv)
-        except NoCommandError:
-            print(NO_COMMAND_ERROR)
-            return 1
-        except UnknownCommandError as e:
-            print(UNKNOWN_COMMAND_ERROR % (e.verb, e.command))
-            return 1
-        except UnrecognizedArgumentError as e:
-            print(UNRECOGNIZED_ARGUMENT_ERROR % (e.command,
-                ' '.join(e.arguments)))
-            return 1
+        args = parser.parse_args(argv)
+
+        if args.command == 'help':
+            if args.subcommand is None:
+                parser.usage = \
+                    '%(prog)s [global arguments] command [command arguments]'
+                parser.print_help()
+                return 0
+
+            handler = Registrar.command_handlers[args.subcommand]
+            handler.parser.print_help()
+            return 0
 
         # Add JSON logging to a file if requested.
         if args.logfile:
@@ -330,42 +272,34 @@ To see more help for a specific command, run:
 
         self.log_manager.register_structured_logger(logging.getLogger('mach'))
 
-        write_times = True
-        if args.log_no_times or 'MACH_NO_WRITE_TIMES' in os.environ:
-            write_times = False
-
         # Always enable terminal logging. The log manager figures out if we are
         # actually in a TTY or are a pipe and does the right thing.
         self.log_manager.add_terminal_logging(level=log_level,
-            write_interval=args.log_interval, write_times=write_times)
+            write_interval=args.log_interval)
 
         self.load_settings(args)
 
-        if not hasattr(args, 'mach_handler'):
-            raise MachError('ArgumentParser result missing mach handler info.')
+        stripped = {k: getattr(args, k) for k in vars(args) if k not in
+            CONSUMED_ARGUMENTS}
 
-        handler = getattr(args, 'mach_handler')
-        cls = handler.cls
+        context = CommandContext(topdir=self.cwd, cwd=self.cwd,
+            settings=self.settings, log_manager=self.log_manager,
+            commands=Registrar)
 
-        if handler.pass_context:
+        if not hasattr(args, 'mach_class'):
+            raise Exception('ArgumentParser result missing mach_class.')
+
+        cls = getattr(args, 'mach_class')
+
+        if getattr(args, 'mach_pass_context'):
             instance = cls(context)
         else:
             instance = cls()
 
-        if handler.conditions:
-            fail_conditions = []
-            for c in handler.conditions:
-                if not c(instance):
-                    fail_conditions.append(c)
-
-            if fail_conditions:
-                print(self._condition_failed_message(handler.name, fail_conditions))
-                return 1
-
-        fn = getattr(instance, handler.method)
+        fn = getattr(instance, getattr(args, 'mach_method'))
 
         try:
-            result = fn(**vars(args.command_args))
+            result = fn(**stripped)
 
             if not result:
                 result = 0
@@ -426,16 +360,6 @@ To see more help for a specific command, run:
         self.logger.log(level, format_str,
             extra={'action': action, 'params': params})
 
-    @classmethod
-    def _condition_failed_message(cls, name, conditions):
-        msg = ['\n']
-        for c in conditions:
-            part = ['  %s' % c.__name__]
-            if c.__doc__ is not None:
-                part.append(c.__doc__)
-            msg.append(' - '.join(part))
-        return INVALID_COMMAND_CONTEXT % (name, '\n'.join(msg))
-
     def _print_error_header(self, argv, fh):
         fh.write('Error running mach:\n\n')
         fh.write('    ')
@@ -491,15 +415,21 @@ To see more help for a specific command, run:
 
         return os.path.exists(p)
 
-    def get_argument_parser(self, context):
+    def get_argument_parser(self):
         """Returns an argument parser for the command-line interface."""
 
         parser = ArgumentParser(add_help=False,
-            usage='%(prog)s [global arguments] command [command arguments]')
+            usage='%(prog)s [global arguments]')
 
         # Order is important here as it dictates the order the auto-generated
         # help messages are printed.
+        subparser = parser.add_subparsers(dest='command', title='Commands')
+        parser.set_defaults(command='help')
+
         global_group = parser.add_argument_group('Global Arguments')
+
+        global_group.add_argument('-h', '--help', action='help',
+            help='Show this help message and exit.')
 
         #global_group.add_argument('--settings', dest='settings_file',
         #    metavar='FILENAME', help='Path to settings file.')
@@ -515,14 +445,15 @@ To see more help for a specific command, run:
             help='Prefix log line with interval from last message rather '
                 'than relative time. Note that this is NOT execution time '
                 'if there are parallel operations.')
-        global_group.add_argument('--log-no-times', dest='log_no_times',
-            action='store_true', default=False,
-            help='Do not prefix log lines with times. By default, mach will '
-                'prefix each output line with the time since command start.')
 
-        # We need to be last because CommandAction swallows all remaining
-        # arguments and argparse parses arguments in the order they were added.
-        parser.add_argument('command', action=CommandAction,
-            registrar=Registrar, context=context)
+        Registrar.populate_argument_parser(subparser)
 
         return parser
+
+    @Command('help', help='Show mach usage info or help for a command.')
+    @CommandArgument('subcommand', default=None, nargs='?',
+        help='Command to show help info for.')
+    def _help(self, subcommand=None):
+        # The built-in handler doesn't pass the original ArgumentParser into
+        # handlers (yet). This command is currently handled by _run().
+        assert False

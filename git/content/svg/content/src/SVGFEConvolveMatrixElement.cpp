@@ -14,12 +14,13 @@ namespace mozilla {
 namespace dom {
 
 // Edge Mode Values
+static const unsigned short SVG_EDGEMODE_UNKNOWN = 0;
 static const unsigned short SVG_EDGEMODE_DUPLICATE = 1;
 static const unsigned short SVG_EDGEMODE_WRAP = 2;
 static const unsigned short SVG_EDGEMODE_NONE = 3;
 
 JSObject*
-SVGFEConvolveMatrixElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEConvolveMatrixElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEConvolveMatrixElementBinding::Wrap(aCx, aScope, this);
 }
@@ -84,19 +85,19 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEConvolveMatrixElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEConvolveMatrixElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedInteger>
+already_AddRefed<nsIDOMSVGAnimatedInteger>
 SVGFEConvolveMatrixElement::OrderX()
 {
   return mIntegerPairAttributes[ORDER].ToDOMAnimatedInteger(nsSVGIntegerPair::eFirst, this);
 }
 
-already_AddRefed<SVGAnimatedInteger>
+already_AddRefed<nsIDOMSVGAnimatedInteger>
 SVGFEConvolveMatrixElement::OrderY()
 {
   return mIntegerPairAttributes[ORDER].ToDOMAnimatedInteger(nsSVGIntegerPair::eSecond, this);
@@ -109,19 +110,19 @@ SVGFEConvolveMatrixElement::KernelMatrix()
                                                  this, KERNELMATRIX);
 }
 
-already_AddRefed<SVGAnimatedInteger>
+already_AddRefed<nsIDOMSVGAnimatedInteger>
 SVGFEConvolveMatrixElement::TargetX()
 {
   return mIntegerAttributes[TARGET_X].ToDOMAnimatedInteger(this);
 }
 
-already_AddRefed<SVGAnimatedInteger>
+already_AddRefed<nsIDOMSVGAnimatedInteger>
 SVGFEConvolveMatrixElement::TargetY()
 {
   return mIntegerAttributes[TARGET_Y].ToDOMAnimatedInteger(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGFEConvolveMatrixElement::EdgeMode()
 {
   return mEnumAttributes[EDGEMODE].ToDOMAnimatedEnum(this);
@@ -133,26 +134,26 @@ SVGFEConvolveMatrixElement::PreserveAlpha()
   return mBooleanAttributes[PRESERVEALPHA].ToDOMAnimatedBoolean(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEConvolveMatrixElement::Divisor()
 {
   return mNumberAttributes[DIVISOR].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEConvolveMatrixElement::Bias()
 {
   return mNumberAttributes[BIAS].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEConvolveMatrixElement::KernelUnitLengthX()
 {
   return mNumberPairAttributes[KERNEL_UNIT_LENGTH].ToDOMAnimatedNumber(nsSVGNumberPair::eFirst,
                                                                        this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEConvolveMatrixElement::KernelUnitLengthY()
 {
   return mNumberPairAttributes[KERNEL_UNIT_LENGTH].ToDOMAnimatedNumber(nsSVGNumberPair::eSecond,
@@ -305,8 +306,7 @@ SVGFEConvolveMatrixElement::Filter(nsSVGFilterInstance* instance,
   if (orderX > NS_SVG_OFFSCREEN_MAX_DIMENSION ||
       orderY > NS_SVG_OFFSCREEN_MAX_DIMENSION)
     return NS_ERROR_FAILURE;
-  const fallible_t fallible = fallible_t();
-  nsAutoArrayPtr<float> kernel(new (fallible) float[orderX * orderY]);
+  nsAutoArrayPtr<float> kernel(new float[orderX * orderY]);
   if (!kernel)
     return NS_ERROR_FAILURE;
   for (uint32_t i = 0; i < kmLength; i++) {

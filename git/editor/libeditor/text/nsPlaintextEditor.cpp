@@ -7,7 +7,6 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Selection.h"
-#include "mozilla/TextEvents.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/mozalloc.h"
 #include "nsAString.h"
@@ -23,6 +22,7 @@
 #include "nsEditRules.h"
 #include "nsEditorUtils.h"  // nsAutoEditBatch, nsAutoRules
 #include "nsError.h"
+#include "nsGUIEvent.h"
 #include "nsGkAtoms.h"
 #include "nsIClipboard.h"
 #include "nsIContent.h"
@@ -90,8 +90,6 @@ nsPlaintextEditor::~nsPlaintextEditor()
   if (mRules)
     mRules->DetachEditor();
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsPlaintextEditor)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsPlaintextEditor, nsEditor)
   if (tmp->mRules)
@@ -355,8 +353,7 @@ nsPlaintextEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
     return nsEditor::HandleKeyPressEvent(aKeyEvent);
   }
 
-  WidgetKeyboardEvent* nativeKeyEvent =
-    aKeyEvent->GetInternalNSEvent()->AsKeyboardEvent();
+  nsKeyEvent* nativeKeyEvent = GetNativeKeyEvent(aKeyEvent);
   NS_ENSURE_TRUE(nativeKeyEvent, NS_ERROR_UNEXPECTED);
   NS_ASSERTION(nativeKeyEvent->message == NS_KEY_PRESS,
                "HandleKeyPressEvent gets non-keypress event");
@@ -1138,7 +1135,7 @@ nsPlaintextEditor::CanCutOrCopy()
 }
 
 bool
-nsPlaintextEditor::FireClipboardEvent(int32_t aType, int32_t aSelectionType)
+nsPlaintextEditor::FireClipboardEvent(int32_t aType)
 {
   if (aType == NS_PASTE)
     ForceCompositionEnd();
@@ -1150,7 +1147,7 @@ nsPlaintextEditor::FireClipboardEvent(int32_t aType, int32_t aSelectionType)
   if (NS_FAILED(GetSelection(getter_AddRefs(selection))))
     return false;
 
-  if (!nsCopySupport::FireClipboardEvent(aType, aSelectionType, presShell, selection))
+  if (!nsCopySupport::FireClipboardEvent(aType, presShell, selection))
     return false;
 
   // If the event handler caused the editor to be destroyed, return false.
@@ -1160,7 +1157,7 @@ nsPlaintextEditor::FireClipboardEvent(int32_t aType, int32_t aSelectionType)
 
 NS_IMETHODIMP nsPlaintextEditor::Cut()
 {
-  if (FireClipboardEvent(NS_CUT, nsIClipboard::kGlobalClipboard))
+  if (FireClipboardEvent(NS_CUT))
     return DeleteSelection(eNone, eStrip);
   return NS_OK;
 }
@@ -1174,7 +1171,7 @@ NS_IMETHODIMP nsPlaintextEditor::CanCut(bool *aCanCut)
 
 NS_IMETHODIMP nsPlaintextEditor::Copy()
 {
-  FireClipboardEvent(NS_COPY, nsIClipboard::kGlobalClipboard);
+  FireClipboardEvent(NS_COPY);
   return NS_OK;
 }
 
@@ -1585,10 +1582,10 @@ nsPlaintextEditor::SelectEntireDocument(nsISelection *aSelection)
   return NS_OK;
 }
 
-already_AddRefed<mozilla::dom::EventTarget>
+already_AddRefed<nsIDOMEventTarget>
 nsPlaintextEditor::GetDOMEventTarget()
 {
-  nsCOMPtr<mozilla::dom::EventTarget> copy = mEventTarget;
+  nsCOMPtr<nsIDOMEventTarget> copy = mEventTarget;
   return copy.forget();
 }
 

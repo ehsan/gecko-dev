@@ -13,20 +13,17 @@
 #include "nsString.h"
 #include "nsWrapperCache.h"
 #include "nsGenericHTMLElement.h"
-#include "jsfriendapi.h" // For js::ExpandoAndGeneration
 
 namespace mozilla {
 class ErrorResult;
 }
 
-class nsDOMStringMap : public nsStubMutationObserver,
+class nsDOMStringMap : public nsISupports,
                        public nsWrapperCache
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMStringMap)
-
-  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
 
   nsINode* GetParentObject()
   {
@@ -36,16 +33,12 @@ public:
   nsDOMStringMap(nsGenericHTMLElement* aElement);
 
   // WebIDL API
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
-  void NamedGetter(const nsAString& aProp, bool& found,
-                   mozilla::dom::DOMString& aResult) const;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  void NamedGetter(const nsAString& aProp, bool& found, nsString& aResult) const;
   void NamedSetter(const nsAString& aProp, const nsAString& aValue,
                    mozilla::ErrorResult& rv);
   void NamedDeleter(const nsAString& aProp, bool &found);
   void GetSupportedNames(nsTArray<nsString>& aNames);
-
-  js::ExpandoAndGeneration mExpandoAndGeneration;
 
 private:
   virtual ~nsDOMStringMap();
@@ -54,8 +47,8 @@ protected:
   nsRefPtr<nsGenericHTMLElement> mElement;
   // Flag to guard against infinite recursion.
   bool mRemovingProp;
-  static bool DataPropToAttr(const nsAString& aProp, nsAutoString& aResult);
-  static bool AttrToDataProp(const nsAString& aAttr, nsAutoString& aResult);
+  static bool DataPropToAttr(const nsAString& aProp, nsAString& aResult);
+  static bool AttrToDataProp(const nsAString& aAttr, nsAString& aResult);
 };
 
 #endif

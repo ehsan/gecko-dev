@@ -8,15 +8,14 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-
+#include <cstdio>
+#include <cstdlib>
 #include <map>
 #include <string>
 #include <vector>
 
-#include "webrtc/tools/frame_analyzer/video_quality_analysis.h"
-#include "webrtc/tools/simple_command_line_parser.h"
+#include "tools/frame_analyzer/video_quality_analysis.h"
+#include "tools/simple_command_line_parser.h"
 
 void CompareFiles(const char* reference_file_name, const char* test_file_name,
                   const char* results_file_name, int width, int height) {

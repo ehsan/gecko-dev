@@ -165,7 +165,7 @@ SettingsServiceLock.prototype = {
     this._requests.enqueue({ callback: aCallback,
                              intent: "set", 
                              name: aName, 
-                             value: this._settingsService._settingsDB.prepareValue(aValue),
+                             value: aValue, 
                              message: aMessage });
     this.createTransactionAndProcess();
   },
@@ -182,12 +182,18 @@ SettingsServiceLock.prototype = {
 
 const SETTINGSSERVICE_CID        = Components.ID("{f656f0c0-f776-11e1-a21f-0800200c9a66}");
 
+let myGlobal = this;
+
 function SettingsService()
 {
   debug("settingsService Constructor");
   this._locks = new Queue();
+  if (!("indexedDB" in myGlobal)) {
+    let idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"].getService(Ci.nsIIndexedDatabaseManager);
+    idbManager.initWindowless(myGlobal);
+  }
   this._settingsDB = new SettingsDB();
-  this._settingsDB.init();
+  this._settingsDB.init(myGlobal);
 }
 
 SettingsService.prototype = {
@@ -204,20 +210,14 @@ SettingsService.prototype = {
     this._locks.enqueue(lock);
     this._settingsDB.ensureDB(
       function() { lock.createTransactionAndProcess(); },
-      function() { dump("SettingsService failed to open DB!\n"); }
-    );
+      function() { dump("SettingsService failed to open DB!\n"); },
+      myGlobal );
     this.nextTick(function() { this._open = false; }, lock);
     return lock;
   },
 
   classID : SETTINGSSERVICE_CID,
   QueryInterface : XPCOMUtils.generateQI([Ci.nsISettingsService]),
-  classInfo: XPCOMUtils.generateCI({
-    classID: SETTINGSSERVICE_CID,
-    contractID: "@mozilla.org/settingsService;1",
-    interfaces: [Ci.nsISettingsService],
-    flags: nsIClassInfo.DOM_OBJECT
-  })
 }
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([SettingsService, SettingsServiceLock])

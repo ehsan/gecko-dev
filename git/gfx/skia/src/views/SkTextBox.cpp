@@ -257,3 +257,4 @@ SkScalar SkTextBox::getTextHeight() const {
     SkScalar spacing = SkScalarMul(fPaint->getTextSize(), fSpacingMul) + fSpacingAdd;
     return this->countLines() * spacing;
 }
+

@@ -20,8 +20,8 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef jArray_h
-#define jArray_h
+#ifndef jArray_h_
+#define jArray_h_
 
 #include "mozilla/NullPtr.h"
 #include "nsDebug.h"
@@ -124,4 +124,4 @@ class autoJArray {
     }
 };
 
-#endif // jArray_h
+#endif // jArray_h_

@@ -5,23 +5,37 @@
 #ifndef mozilla_dom_HTMLTableSectionElement_h
 #define mozilla_dom_HTMLTableSectionElement_h
 
-#include "mozilla/Attributes.h"
 #include "nsGenericHTMLElement.h"
+#include "nsIDOMHTMLTableSectionElement.h"
 #include "nsContentList.h" // For ctor.
 
 namespace mozilla {
 namespace dom {
 
-class HTMLTableSectionElement MOZ_FINAL : public nsGenericHTMLElement
+class HTMLTableSectionElement : public nsGenericHTMLElement,
+                                public nsIDOMHTMLTableSectionElement
 {
 public:
   HTMLTableSectionElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLTableSectionElement
+  NS_DECL_NSIDOMHTMLTABLESECTIONELEMENT
 
   nsIHTMLCollection* Rows();
   already_AddRefed<nsGenericHTMLElement>
@@ -64,17 +78,18 @@ public:
   virtual bool ParseAttribute(int32_t aNamespaceID,
                               nsIAtom* aAttribute,
                               const nsAString& aValue,
-                              nsAttrValue& aResult) MOZ_OVERRIDE;
-  virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const MOZ_OVERRIDE;
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const MOZ_OVERRIDE;
+                              nsAttrValue& aResult);
+  virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(HTMLTableSectionElement,
                                                      nsGenericHTMLElement)
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 
   nsRefPtr<nsContentList> mRows;
 };

@@ -1,5 +1,9 @@
 /***********************************************************************
-Copyright (c) 2006-2011, Skype Limited. All rights reserved.
+Copyright (c) 2006-2012 IETF Trust and Skype Limited. All rights reserved.
+
+This file is extracted from RFC6716. Please see that RFC for additional
+information.
+
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
 are met:
@@ -12,7 +16,7 @@ documentation and/or other materials provided with the distribution.
 names of specific contributors, may be used to endorse or promote
 products derived from this software without specific prior written
 permission.
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS”
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
 ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
@@ -27,6 +31,10 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #ifndef SILK_DEBUG_H
 #define SILK_DEBUG_H
+
+#ifdef _WIN32
+#define _CRT_SECURE_NO_DEPRECATE    1
+#endif
 
 #include "typedef.h"
 #include <stdio.h>      /* file writing */
@@ -65,6 +73,7 @@ unsigned long GetHighResolutionTime(void); /* O  time in usec*/
 
 #if (defined(_WIN32) || defined(_WINCE))
 #include <windows.h>    /* timer */
+#pragma warning( disable : 4996 )       /* stop bitching about strcpy in TIC()*/
 #else   /* Linux or Mac*/
 #include <sys/time.h>
 #endif
@@ -263,6 +272,9 @@ extern int silk_debug_store_count;
         fclose( silk_debug_store_fp[ i ] );                         \
     }                                                               \
 }
+
+/* micro sec */
+#define silk_GETTIME(void)       time = (opus_int64) silk_GetHighResolutionTime();
 
 #else /* SILK_DEBUG */
 

@@ -45,7 +45,7 @@ extern "C" {
     // to missing the classpath
     MOZ_ASSERT(NS_IsMainThread());
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
-    if (!env) return nullptr;
+    if (!env) return NULL;
     return env->FindClass(className);
   }
 
@@ -55,7 +55,7 @@ extern "C" {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
     jclass globalRef = static_cast<jclass>(env->NewGlobalRef(env->FindClass(className)));
     if (!globalRef)
-      return nullptr;
+      return NULL;
 
     // return the newly create global reference
     return globalRef;
@@ -73,7 +73,7 @@ extern "C" {
                                                                      &foundClass));
     mainThread->Dispatch(runnable_ref, NS_DISPATCH_SYNC);
     if (!foundClass)
-      return nullptr;
+      return NULL;
 
     return foundClass;
   }
@@ -84,7 +84,7 @@ extern "C" {
                           const char *methodName,
                           const char *signature) {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
-    if (!env) return nullptr;
+    if (!env) return NULL;
     return env->GetStaticMethodID(methodClass, methodName, signature);
   }
 
@@ -92,7 +92,7 @@ extern "C" {
   bool
   jsjni_ExceptionCheck() {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
-    if (!env) return nullptr;
+    if (!env) return NULL;
     return env->ExceptionCheck();
   }
 
@@ -118,20 +118,5 @@ extern "C" {
 
     mozilla::AutoLocalJNIFrame jniFrame(env);
     return env->CallStaticIntMethodA(cls, method, values);
-  }
-
-  __attribute__ ((visibility("default")))
-  jobject jsjni_GetGlobalContextRef() {
-    return mozilla::AndroidBridge::Bridge()->GetGlobalContextRef();
-  }
-
-  __attribute__ ((visibility("default")))
-  JavaVM* jsjni_GetVM() {
-    return mozilla::AndroidBridge::GetVM();
-  }
-
-  __attribute__ ((visibility("default")))
-  JNIEnv* jsjni_GetJNIForThread() {
-    return GetJNIForThread();
   }
 }

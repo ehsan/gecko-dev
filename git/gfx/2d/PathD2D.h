@@ -6,9 +6,8 @@
 #ifndef MOZILLA_GFX_PATHD2D_H_
 #define MOZILLA_GFX_PATHD2D_H_
 
-#include <d2d1.h>
-
 #include "2D.h"
+#include "moz-d2d1-1.h"
 
 namespace mozilla {
 namespace gfx {
@@ -85,15 +84,12 @@ public:
   virtual Rect GetStrokedBounds(const StrokeOptions &aStrokeOptions,
                                 const Matrix &aTransform = Matrix()) const;
 
-  virtual void StreamToSink(PathSink *aSink) const;
-
   virtual FillRule GetFillRule() const { return mFillRule; }
 
   ID2D1Geometry *GetGeometry() { return mGeometry; }
 
 private:
   friend class DrawTargetD2D;
-  friend class DrawTargetD2D1;
 
   mutable RefPtr<ID2D1PathGeometry> mGeometry;
   bool mEndedActive;

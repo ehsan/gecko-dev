@@ -16,8 +16,7 @@ Cu.import("resource://testing-common/httpd.js");
 var server = new HttpServer();
 server.registerDirectory("/", do_get_file(''));
 server.registerContentType("sjs", "sjs");
-server.start(-1);
-
+server.start(8088);
 
 load('image_load_helpers.js');
 

@@ -16,7 +16,6 @@
 #include "nsRuleData.h"
 #include "nsMappedAttributes.h"
 #include "nsContentUtils.h"
-#include "nsIURI.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Shared)
 
@@ -33,17 +32,33 @@ NS_IMPL_ADDREF_INHERITED(HTMLSharedElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLSharedElement, Element)
 
 // QueryInterface implementation for HTMLSharedElement
-NS_INTERFACE_MAP_BEGIN(HTMLSharedElement)
+NS_INTERFACE_TABLE_HEAD(HTMLSharedElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_AMBIGUOUS_BEGIN(HTMLSharedElement,
+                                                  nsIDOMHTMLParamElement)
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE_AMBIGUOUS(HTMLSharedElement,
+                                                         nsGenericHTMLElement,
+                                                         nsIDOMHTMLParamElement)
+  NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLParamElement, param)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLBaseElement, base)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLDirectoryElement, dir)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLQuoteElement, q)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLQuoteElement, blockquote)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLHeadElement, head)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLHtmlElement, html)
-NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLSharedElement)
+
+// nsIDOMHTMLParamElement
+NS_IMPL_STRING_ATTR(HTMLSharedElement, Name, name)
+NS_IMPL_STRING_ATTR(HTMLSharedElement, Type, type)
+NS_IMPL_STRING_ATTR(HTMLSharedElement, Value, value)
+NS_IMPL_STRING_ATTR(HTMLSharedElement, ValueType, valuetype)
+
+// nsIDOMHTMLDirectoryElement
+NS_IMPL_BOOL_ATTR(HTMLSharedElement, Compact, compact)
 
 // nsIDOMHTMLQuoteElement
 NS_IMPL_URI_ATTR(HTMLSharedElement, Cite, cite)
@@ -312,7 +327,7 @@ HTMLSharedElement::GetAttributeMappingFunction() const
 }
 
 JSObject*
-HTMLSharedElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLSharedElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   if (mNodeInfo->Equals(nsGkAtoms::param)) {
     return HTMLParamElementBinding::Wrap(aCx, aScope, this);

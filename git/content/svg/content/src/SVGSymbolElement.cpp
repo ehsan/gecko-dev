@@ -12,7 +12,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGSymbolElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+SVGSymbolElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return SVGSymbolElementBinding::Wrap(aCx, aScope, this);
 }
@@ -40,10 +40,12 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGSymbolElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedRect>
+already_AddRefed<nsIDOMSVGAnimatedRect>
 SVGSymbolElement::ViewBox()
 {
-  return mViewBox.ToSVGAnimatedRect(this);
+  nsCOMPtr<nsIDOMSVGAnimatedRect> rect;
+  mViewBox.ToDOMAnimatedRect(getter_AddRefs(rect), this);
+  return rect.forget();
 }
 
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>

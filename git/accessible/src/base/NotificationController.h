@@ -15,9 +15,12 @@
 #include "Logging.h"
 #endif
 
+class nsIContent;
+
 namespace mozilla {
 namespace a11y {
 
+class Accessible;
 class DocAccessible;
 
 /**
@@ -209,7 +212,6 @@ private:
   enum eObservingState {
     eNotObservingRefresh,
     eRefreshObserving,
-    eRefreshProcessing,
     eRefreshProcessingForUpdate
   };
   eObservingState mObservingState;

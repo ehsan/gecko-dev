@@ -77,3 +77,4 @@ private:
 };
 
 #endif // SkDrawPaint_DEFINED
+

@@ -22,8 +22,8 @@
 namespace mozilla {
 namespace dom {
 
-class PluginDocument MOZ_FINAL : public MediaDocument
-                               , public nsIPluginDocument
+class PluginDocument : public MediaDocument
+                     , public nsIPluginDocument
 {
 public:
   PluginDocument();
@@ -109,8 +109,13 @@ PluginDocument::~PluginDocument()
 {}
 
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(PluginDocument, MediaDocument,
-                                     mPluginContent)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(PluginDocument, MediaDocument)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPluginContent)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(PluginDocument, MediaDocument)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPluginContent)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(PluginDocument, MediaDocument)
 NS_IMPL_RELEASE_INHERITED(PluginDocument, MediaDocument)
@@ -186,6 +191,9 @@ PluginDocument::StartDocumentLoad(const char*         aCommand,
   MediaDocument::UpdateTitleAndCharset(mMimeType);
 
   mStreamListener = new PluginStreamListener(this);
+  if (!mStreamListener) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   NS_ASSERTION(aDocListener, "null aDocListener");
   NS_ADDREF(*aDocListener = mStreamListener);
 
@@ -285,6 +293,9 @@ nsresult
 NS_NewPluginDocument(nsIDocument** aResult)
 {
   mozilla::dom::PluginDocument* doc = new mozilla::dom::PluginDocument();
+  if (!doc) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   NS_ADDREF(doc);
   nsresult rv = doc->Init();

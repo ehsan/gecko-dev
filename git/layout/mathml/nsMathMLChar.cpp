@@ -3,18 +3,23 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsMathMLChar.h"
 #include "mozilla/MathAlgorithms.h"
 
 #include "nsCOMPtr.h"
-#include "nsIFrame.h"
+#include "nsFrame.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
+#include "nsStyleConsts.h"
+#include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "nsRenderingContext.h"
+#include "gfxPlatform.h"
 
 #include "mozilla/Preferences.h"
+#include "nsISupportsPrimitives.h"
+#include "nsIComponentManager.h"
 #include "nsIPersistentProperties2.h"
+#include "nsIServiceManager.h"
 #include "nsIObserverService.h"
 #include "nsIObserver.h"
 #include "nsNetUtil.h"
@@ -26,6 +31,7 @@
 #include "nsDisplayList.h"
 
 #include "nsMathMLOperators.h"
+#include "nsMathMLChar.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -33,6 +39,7 @@ using namespace mozilla;
 //#define NOISY_SEARCH 1
 
 // -----------------------------------------------------------------------------
+static const PRUnichar   kSpaceCh   = PRUnichar(' ');
 static const nsGlyphCode kNullGlyph = {{0, 0}, 0};
 typedef enum {eExtension_base, eExtension_variants, eExtension_parts}
   nsMathfontPrefExtension;
@@ -390,7 +397,7 @@ NS_IMPL_ISUPPORTS1(nsGlyphTableList, nsIObserver)
 // Here is the global list of applicable glyph tables that we will be using
 static nsGlyphTableList* gGlyphTableList = nullptr;
 
-static bool gGlyphTableInitialized = false;
+static bool gInitialized = false;
 
 // XPCOM shutdown observer
 NS_IMETHODIMP
@@ -428,7 +435,7 @@ nsGlyphTableList::Finalize()
   else
     rv = NS_ERROR_FAILURE;
 
-  gGlyphTableInitialized = false;
+  gInitialized = false;
   // our oneself will be destroyed when our |Release| is called by the observer
   return rv;
 }
@@ -554,8 +561,8 @@ MathFontEnumCallback(const nsString& aFamily, bool aGeneric, void *aData)
 static nsresult
 InitGlobals(nsPresContext* aPresContext)
 {
-  NS_ASSERTION(!gGlyphTableInitialized, "Error -- already initialized");
-  gGlyphTableInitialized = true;
+  NS_ASSERTION(!gInitialized, "Error -- already initialized");
+  gInitialized = true;
 
   // Allocate the placeholders for the preferred parts and variants
   nsresult rv = NS_ERROR_OUT_OF_MEMORY;
@@ -606,12 +613,6 @@ InitGlobals(nsPresContext* aPresContext)
 // -----------------------------------------------------------------------------
 // And now the implementation of nsMathMLChar
 
-nsMathMLChar::~nsMathMLChar()
-{
-  MOZ_COUNT_DTOR(nsMathMLChar);
-  mStyleContext->Release();
-}
-
 nsStyleContext*
 nsMathMLChar::GetStyleContext() const
 {
@@ -637,7 +638,7 @@ void
 nsMathMLChar::SetData(nsPresContext* aPresContext,
                       nsString&       aData)
 {
-  if (!gGlyphTableInitialized) {
+  if (!gInitialized) {
     InitGlobals(aPresContext);
   }
   mData = aData;
@@ -1250,7 +1251,7 @@ nsMathMLChar::StretchEnumContext::EnumCallback(const nsString& aFamily,
   nsStyleContext *sc = context->mChar->mStyleContext;
   nsFont font = sc->StyleFont()->mFont;
   if (!aGeneric && !SetFontFamily(sc, context->mRenderingContext,
-                                  font, nullptr, kNullGlyph, aFamily))
+                                  font, NULL, kNullGlyph, aFamily))
      return true; // Could not set the family
 
   context->mGlyphTable = glyphTable;
@@ -1502,7 +1503,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
   // apply a scale transform to the base char.
   if (!glyphFound && largeop) {
     float scale;
-    float largeopFactor = float(M_SQRT2);
+    float largeopFactor = M_SQRT2;
 
     // increase the width if it is not largeopFactor times larger
     // than the initial one.
@@ -1643,9 +1644,6 @@ public:
   }
 #endif
 
-  virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                         const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion *aInvalidRegion) MOZ_OVERRIDE;
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("MathMLCharBackground", TYPE_MATHML_CHAR_BACKGROUND)
@@ -1653,16 +1651,6 @@ private:
   nsStyleContext* mStyleContext;
   nsRect          mRect;
 };
-
-void
-nsDisplayMathMLCharBackground::ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                                         const nsDisplayItemGeometry* aGeometry,
-                                                         nsRegion *aInvalidRegion)
-{
-  AddInvalidRegionForSyncDecodeBackgroundImages(aBuilder, aGeometry, aInvalidRegion);
-
-  nsDisplayItem::ComputeInvalidationRegion(aBuilder, aGeometry, aInvalidRegion);
-}
 
 void nsDisplayMathMLCharBackground::Paint(nsDisplayListBuilder* aBuilder,
                                           nsRenderingContext* aCtx)

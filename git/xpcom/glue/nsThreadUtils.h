@@ -9,7 +9,6 @@
 
 #include "prthread.h"
 #include "prinrval.h"
-#include "MainThreadUtils.h"
 #include "nsIThreadManager.h"
 #include "nsIThread.h"
 #include "nsIRunnable.h"
@@ -17,6 +16,7 @@
 #include "nsStringGlue.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
+#include "mozilla/threads/nsThreadIDs.h"
 #include "mozilla/Likely.h"
 
 //-----------------------------------------------------------------------------
@@ -37,8 +37,8 @@ template <size_t LEN>
 inline NS_COM_GLUE void
 NS_SetThreadName(nsIThread *thread, const char (&name)[LEN])
 {
-  static_assert(LEN <= 16,
-                "Thread name must be no more than 16 characters");
+  MOZ_STATIC_ASSERT(LEN <= 16,
+                    "Thread name must be no more than 16 characters");
   NS_SetThreadName(thread, nsDependentCString(name));
 }
 
@@ -70,15 +70,9 @@ NS_NewNamedThread(const char (&name)[LEN],
                   nsIRunnable *initialEvent = nullptr,
                   uint32_t stackSize = nsIThreadManager::DEFAULT_STACK_SIZE)
 {
-  nsresult rv = NS_NewThread(result, nullptr, stackSize);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_SetThreadName<LEN>(*result, name);
-  if (initialEvent) {
-    rv = (*result)->Dispatch(initialEvent, NS_DISPATCH_NORMAL);
-    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Initial event dispatch failed");
-  }
-
-  return rv;
+    nsresult rv = NS_NewThread(result, initialEvent, stackSize);
+    NS_SetThreadName<LEN>(*result, name);
+    return rv;
 }
 
 /**
@@ -89,6 +83,35 @@ NS_NewNamedThread(const char (&name)[LEN],
  */
 extern NS_COM_GLUE NS_METHOD
 NS_GetCurrentThread(nsIThread **result);
+
+/**
+ * Get a reference to the main thread.
+ *
+ * @param result
+ *   The resulting nsIThread object.
+ */
+extern NS_COM_GLUE NS_METHOD
+NS_GetMainThread(nsIThread **result);
+
+#if defined(MOZILLA_INTERNAL_API) && defined(XP_WIN)
+bool NS_IsMainThread();
+#elif defined(MOZILLA_INTERNAL_API) && defined(NS_TLS)
+// This is defined in nsThreadManager.cpp and initialized to `Main` for the
+// main thread by nsThreadManager::Init.
+extern NS_TLS mozilla::threads::ID gTLSThreadID;
+inline bool NS_IsMainThread()
+{
+  return gTLSThreadID == mozilla::threads::Main;
+}
+#else
+/**
+ * Test to see if the current thread is the main thread.
+ *
+ * @returns true if the current thread is the main thread, and false
+ * otherwise.
+ */
+extern NS_COM_GLUE bool NS_IsMainThread();
+#endif
 
 /**
  * Dispatch the given event to the current thread.
@@ -213,7 +236,7 @@ extern NS_COM_GLUE nsIThread *NS_GetCurrentThread();
 class NS_COM_GLUE nsRunnable : public nsIRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
   nsRunnable() {
@@ -228,7 +251,7 @@ protected:
 class NS_COM_GLUE nsCancelableRunnable : public nsICancelableRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
   NS_DECL_NSICANCELABLERUNNABLE
 
@@ -274,29 +297,16 @@ public:
   typedef typename ReturnTypeEnforcer<ReturnType>::ReturnTypeIsSafe check;
 };
 
-template <class ClassType, typename Arg, bool Owning>
+template <class ClassType, bool Owning>
 struct nsRunnableMethodReceiver {
   ClassType *mObj;
-  Arg mArg;
-  nsRunnableMethodReceiver(ClassType *obj, Arg arg)
-    : mObj(obj)
-    , mArg(arg)
-  { NS_IF_ADDREF(mObj); }
- ~nsRunnableMethodReceiver() {  Revoke(); }
-  void Revoke() { NS_IF_RELEASE(mObj); }
-};
-
-template <class ClassType, bool Owning>
-struct nsRunnableMethodReceiver<ClassType, void, Owning> {
-  ClassType *mObj;
-  nsRunnableMethodReceiver(ClassType *obj) : mObj(obj)
-    { NS_IF_ADDREF(mObj); }
-  ~nsRunnableMethodReceiver() { Revoke(); }
+  nsRunnableMethodReceiver(ClassType *obj) : mObj(obj) { NS_IF_ADDREF(mObj); }
+ ~nsRunnableMethodReceiver() { Revoke(); }
   void Revoke() { NS_IF_RELEASE(mObj); }
 };
 
 template <class ClassType>
-struct nsRunnableMethodReceiver<ClassType, void, false> {
+struct nsRunnableMethodReceiver<ClassType, false> {
   ClassType *mObj;
   nsRunnableMethodReceiver(ClassType *obj) : mObj(obj) {}
   void Revoke() { mObj = nullptr; }
@@ -304,70 +314,28 @@ struct nsRunnableMethodReceiver<ClassType, void, false> {
 
 template <typename Method, bool Owning> struct nsRunnableMethodTraits;
 
-template <class C, typename R, typename A, bool Owning>
-struct nsRunnableMethodTraits<R (C::*)(A), Owning> {
-  typedef C class_type;
-  typedef R return_type;
-  typedef A arg_type;
-  typedef nsRunnableMethod<C, R, Owning> base_type;
-};
-
 template <class C, typename R, bool Owning>
 struct nsRunnableMethodTraits<R (C::*)(), Owning> {
   typedef C class_type;
   typedef R return_type;
-  typedef void arg_type;
   typedef nsRunnableMethod<C, R, Owning> base_type;
 };
 
-#ifdef NS_HAVE_STDCALL
-template <class C, typename R, typename A, bool Owning>
-struct nsRunnableMethodTraits<R (__stdcall C::*)(A), Owning> {
-  typedef C class_type;
-  typedef R return_type;
-  typedef A arg_type;
-  typedef nsRunnableMethod<C, R, Owning> base_type;
-};
-
+#ifdef HAVE_STDCALL
 template <class C, typename R, bool Owning>
-struct nsRunnableMethodTraits<R (NS_STDCALL C::*)(), Owning> {
+struct nsRunnableMethodTraits<R (__stdcall C::*)(), Owning> {
   typedef C class_type;
   typedef R return_type;
-  typedef void arg_type;
   typedef nsRunnableMethod<C, R, Owning> base_type;
 };
 #endif
 
-template <typename Method, typename Arg, bool Owning>
+template <typename Method, bool Owning>
 class nsRunnableMethodImpl
   : public nsRunnableMethodTraits<Method, Owning>::base_type
 {
   typedef typename nsRunnableMethodTraits<Method, Owning>::class_type ClassType;
-  nsRunnableMethodReceiver<ClassType, Arg, Owning> mReceiver;
-  Method mMethod;
-public:
-  nsRunnableMethodImpl(ClassType *obj,
-                       Method method,
-                       Arg arg)
-    : mReceiver(obj, arg)
-    , mMethod(method)
-  {}
-  NS_IMETHOD Run() {
-    if (MOZ_LIKELY(mReceiver.mObj))
-      ((*mReceiver.mObj).*mMethod)(mReceiver.mArg);
-    return NS_OK;
-  }
-  void Revoke() {
-    mReceiver.Revoke();
-  }
-};
-
-template <typename Method, bool Owning>
-class nsRunnableMethodImpl<Method, void, Owning>
-  : public nsRunnableMethodTraits<Method, Owning>::base_type
-{
-  typedef typename nsRunnableMethodTraits<Method, Owning>::class_type ClassType;
-  nsRunnableMethodReceiver<ClassType, void, Owning> mReceiver;
+  nsRunnableMethodReceiver<ClassType, Owning> mReceiver;
   Method mMethod;
 
 public:
@@ -402,32 +370,14 @@ template<typename PtrType, typename Method>
 typename nsRunnableMethodTraits<Method, true>::base_type*
 NS_NewRunnableMethod(PtrType ptr, Method method)
 {
-  return new nsRunnableMethodImpl<Method, void, true>(ptr, method);
-}
-
-template<typename T>
-struct dependent_type
-{
-  typedef T type;
-};
-
-
-// Similar to NS_NewRunnableMethod. Call like so:
-// Type myArg;
-// nsCOMPtr<nsIRunnable> event =
-//   NS_NewRunnableMethodWithArg<Type>(myObject, &MyClass::HandleEvent, myArg);
-template<typename Arg, typename Method, typename PtrType>
-typename nsRunnableMethodTraits<Method, true>::base_type*
-NS_NewRunnableMethodWithArg(PtrType ptr, Method method, typename dependent_type<Arg>::type arg)
-{
-  return new nsRunnableMethodImpl<Method, Arg, true>(ptr, method, arg);
+  return new nsRunnableMethodImpl<Method, true>(ptr, method);
 }
 
 template<typename PtrType, typename Method>
 typename nsRunnableMethodTraits<Method, false>::base_type*
 NS_NewNonOwningRunnableMethod(PtrType ptr, Method method)
 {
-  return new nsRunnableMethodImpl<Method, void, false>(ptr, method);
+  return new nsRunnableMethodImpl<Method, false>(ptr, method);
 }
 
 #endif  // XPCOM_GLUE_AVOID_NSPR

@@ -7,7 +7,6 @@
 #ifndef AbstractMediaDecoder_h_
 #define AbstractMediaDecoder_h_
 
-#include "mozilla/Attributes.h"
 #include "nsISupports.h"
 #include "nsDataHashtable.h"
 #include "nsThreadUtils.h"
@@ -23,7 +22,6 @@ class MediaResource;
 class ReentrantMonitor;
 class VideoFrameContainer;
 class TimedMetadata;
-class MediaDecoderOwner;
 
 typedef nsDataHashtable<nsCStringHashKey, nsCString> MetadataTags;
 
@@ -55,7 +53,7 @@ public:
 
   // Called by the decode thread to keep track of the number of bytes read
   // from the resource.
-  virtual void NotifyBytesConsumed(int64_t aBytes, int64_t aOffset) = 0;
+  virtual void NotifyBytesConsumed(int64_t aBytes) = 0;
 
   // Increments the parsed and decoded frame counters by the passed in counts.
   // Can be called on any thread.
@@ -71,11 +69,6 @@ public:
 
   // Set the duration of the media in microseconds.
   virtual void SetMediaDuration(int64_t aDuration) = 0;
-
-  // Sets the duration of the media in microseconds. The MediaDecoder
-  // fires a durationchange event to its owner (e.g., an HTML audio
-  // tag).
-  virtual void UpdateEstimatedMediaDuration(int64_t aDuration) = 0;
 
   // Set the media as being seekable or not.
   virtual void SetMediaSeekable(bool aMediaSeekable) = 0;
@@ -108,10 +101,6 @@ public:
   // the media file has been read. Call on the decode thread only.
   virtual void OnReadMetadataCompleted() = 0;
 
-  // Returns the owner of this media decoder. The owner should only be used
-  // on the main thread.
-  virtual MediaDecoderOwner* GetOwner() = 0;
-
   // Stack based class to assist in notifying the frame statistics of
   // parsed and decoded frames. Use inside video demux & decode functions
   // to ensure all parsed and decoded frames are reported on all return paths.
@@ -143,7 +132,7 @@ class AudioMetadataEventRunner : public nsRunnable
         mTags(aTags)
   {}
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     mDecoder->MetadataLoaded(mChannels, mRate, mHasAudio, mHasVideo, mTags);
     return NS_OK;

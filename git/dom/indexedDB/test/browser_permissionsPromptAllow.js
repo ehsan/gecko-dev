@@ -24,7 +24,7 @@ function test1()
     gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
 
     setFinishedCallback(function(result, exception) {
-      ok(result instanceof IDBDatabase,
+      ok(result instanceof Components.interfaces.nsIIDBDatabase,
          "First database creation was successful");
       ok(!exception, "No exception");
       is(getPermission(testPageURL, "indexedDB"),
@@ -60,7 +60,7 @@ function test2()
     gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
 
     setFinishedCallback(function(result, exception) {
-      ok(result instanceof IDBDatabase,
+      ok(result instanceof Components.interfaces.nsIIDBDatabase,
          "First database creation was successful");
       ok(!exception, "No exception");
       is(getPermission(testPageURL, "indexedDB"),

@@ -3,7 +3,6 @@
 
   <script type="text/javascript"
           src="/tests/SimpleTest/SimpleTest.js"></script>
-  <script type="application/javascript" src="utils.js"></script>
   <link rel="stylesheet" type="text/css"
         href="/tests/SimpleTest/test.css">
 
@@ -12,7 +11,6 @@
 
   <script type="application/javascript">
     SimpleTest.waitForExplicitFinish();
-    setTestPluginEnabledState(SpecialPowers.Ci.nsIPluginTag.STATE_ENABLED);
 
     function frameLoaded() {
       var testframe = document.getElementById('testframe');

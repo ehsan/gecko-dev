@@ -25,8 +25,6 @@
 #include "nsTArray.h"
 #include "nsDataHashtable.h"
 
-#include "mozilla/RefPtr.h"
-
 #include <windows.h>
 #include <objbase.h>
 
@@ -34,36 +32,18 @@
 #include <dxgi.h>
 #endif
 
-// This header is available in the June 2010 SDK and in the Win8 SDK
-#include <d3dcommon.h>
-// Win 8.0 SDK types we'll need when building using older sdks.
-#if !defined(D3D_FEATURE_LEVEL_11_1) // defined in the 8.0 SDK only
-#define D3D_FEATURE_LEVEL_11_1 static_cast<D3D_FEATURE_LEVEL>(0xb100)
-#define D3D_FL9_1_REQ_TEXTURE2D_U_OR_V_DIMENSION 2048
-#define D3D_FL9_3_REQ_TEXTURE2D_U_OR_V_DIMENSION 4096
-#endif
-
-namespace mozilla {
-namespace layers {
-class DeviceManagerD3D9;
-}
-}
-class IDirect3DDevice9;
-class ID3D11Device;
-class IDXGIAdapter1;
-
-class nsIMemoryReporter;
+class nsIMemoryMultiReporter;
 
 // Utility to get a Windows HDC from a thebes context,
 // used by both GDI and Uniscribe font shapers
 struct DCFromContext {
     DCFromContext(gfxContext *aContext) {
-        dc = nullptr;
+        dc = NULL;
         nsRefPtr<gfxASurface> aSurface = aContext->CurrentSurface();
-        NS_ASSERTION(aSurface || !aContext->IsCairo(), "DCFromContext: null surface");
+        NS_ASSERTION(aSurface, "DCFromContext: null surface");
         if (aSurface &&
-            (aSurface->GetType() == gfxSurfaceTypeWin32 ||
-             aSurface->GetType() == gfxSurfaceTypeWin32Printing))
+            (aSurface->GetType() == gfxASurface::SurfaceTypeWin32 ||
+             aSurface->GetType() == gfxASurface::SurfaceTypeWin32Printing))
         {
             dc = static_cast<gfxWindowsSurface*>(aSurface.get())->GetDC();
             needsRelease = false;
@@ -73,7 +53,7 @@ struct DCFromContext {
             cairo_win32_scaled_font_select_font(scaled, dc);
         }
         if (!dc) {
-            dc = GetDC(nullptr);
+            dc = GetDC(NULL);
             SetGraphicsMode(dc, GM_ADVANCED);
             needsRelease = true;
         }
@@ -81,7 +61,7 @@ struct DCFromContext {
 
     ~DCFromContext() {
         if (needsRelease) {
-            ReleaseDC(nullptr, dc);
+            ReleaseDC(NULL, dc);
         } else {
             RestoreDC(dc, -1);
         }
@@ -108,7 +88,7 @@ struct ClearTypeParameterInfo {
     int32_t     enhancedContrast;
 };
 
-class gfxWindowsPlatform : public gfxPlatform {
+class THEBES_API gfxWindowsPlatform : public gfxPlatform {
 public:
     enum TextRenderingMode {
         TEXT_RENDERING_NO_CLEARTYPE,
@@ -126,10 +106,10 @@ public:
     virtual gfxPlatformFontList* CreatePlatformFontList();
 
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                         gfxContentType contentType);
+                                                         gfxASurface::gfxContentType contentType);
     virtual already_AddRefed<gfxASurface>
       CreateOffscreenImageSurface(const gfxIntSize& aSize,
-                                  gfxContentType aContentType);
+                                  gfxASurface::gfxContentType aContentType);
 
     virtual mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
       GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont);
@@ -246,8 +226,7 @@ public:
         kWindowsServer2003 = 0x50002,
         kWindowsVista = 0x60000,
         kWindows7 = 0x60001,
-        kWindows8 = 0x60002,
-        kWindows8_1 = 0x60003
+        kWindows8 = 0x60002
     };
 
     static int32_t WindowsOSVersion(int32_t *aBuildNum = nullptr);
@@ -272,13 +251,10 @@ public:
 #else
     inline bool DWriteEnabled() { return false; }
 #endif
-    mozilla::layers::DeviceManagerD3D9* GetD3D9DeviceManager();
-    IDirect3DDevice9* GetD3D9Device();
 #ifdef CAIRO_HAS_D2D_SURFACE
     cairo_device_t *GetD2DDevice() { return mD2DDevice; }
     ID3D10Device1 *GetD3D10Device() { return mD2DDevice ? cairo_d2d_device_get_device(mD2DDevice) : nullptr; }
 #endif
-    ID3D11Device *GetD3D11Device();
 
     static bool IsOptimus();
 
@@ -291,7 +267,6 @@ protected:
 
 private:
     void Init();
-    IDXGIAdapter1 *GetDXGIAdapter();
 
     bool mUseDirectWrite;
     bool mUsingGDIFonts;
@@ -305,18 +280,13 @@ private:
 #ifdef CAIRO_HAS_D2D_SURFACE
     cairo_device_t *mD2DDevice;
 #endif
-    mozilla::RefPtr<IDXGIAdapter1> mAdapter;
-    nsRefPtr<mozilla::layers::DeviceManagerD3D9> mDeviceManager;
-    mozilla::RefPtr<ID3D11Device> mD3D11Device;
-    bool mD3D9DeviceInitialized;
-    bool mD3D11DeviceInitialized;
 
     virtual qcms_profile* GetPlatformCMSOutputProfile();
 
     // TODO: unify this with mPrefFonts (NB: holds families, not fonts) in gfxPlatformFontList
     nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<gfxFontEntry> > > mPrefFonts;
 
-    nsIMemoryReporter* mGPUAdapterReporter;
+    nsIMemoryMultiReporter* mGPUAdapterMultiReporter;
 };
 
 #endif /* GFX_WINDOWS_PLATFORM_H */

@@ -30,8 +30,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef yarr_ASCIICType_h
-#define yarr_ASCIICType_h
+#ifndef WTF_ASCIICType_h
+#define WTF_ASCIICType_h
 
 #include "assembler/wtf/Assertions.h"
 
@@ -180,4 +180,4 @@ using WTF::toASCIIHexValue;
 using WTF::toASCIILower;
 using WTF::toASCIIUpper;
 
-#endif /* yarr_ASCIICType_h */
+#endif

@@ -21,14 +21,24 @@ namespace dom {
 HTMLBRElement::HTMLBRElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 HTMLBRElement::~HTMLBRElement()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLBRElement, nsGenericHTMLElement,
-                             nsIDOMHTMLBRElement)
+NS_IMPL_ADDREF_INHERITED(HTMLBRElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLBRElement, Element)
+
+
+// QueryInterface implementation for HTMLBRElement
+NS_INTERFACE_TABLE_HEAD(HTMLBRElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLBRElement, nsIDOMHTMLBRElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLBRElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
+
 
 NS_IMPL_ELEMENT_CLONE(HTMLBRElement)
 
@@ -96,7 +106,7 @@ HTMLBRElement::GetAttributeMappingFunction() const
 }
 
 JSObject*
-HTMLBRElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLBRElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return HTMLBRElementBinding::Wrap(aCx, aScope, this);
 }

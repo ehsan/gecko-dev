@@ -45,6 +45,7 @@ NS_IMPL_ISUPPORTS2(nsZipWriter, nsIZipWriter,
 
 nsZipWriter::nsZipWriter()
 {
+    mEntryHash.Init();
     mInQueue = false;
 }
 

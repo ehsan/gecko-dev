@@ -11,9 +11,9 @@
 #ifndef WEBRTC_VOICE_ENGINE_MONITOR_MODULE_H
 #define WEBRTC_VOICE_ENGINE_MONITOR_MODULE_H
 
-#include "webrtc/modules/interface/module.h"
-#include "webrtc/typedefs.h"
-#include "webrtc/voice_engine/voice_engine_defines.h"
+#include "module.h"
+#include "typedefs.h"
+#include "voice_engine_defines.h"
 
 class MonitorObserver
 {
@@ -32,32 +32,32 @@ namespace voe {
 class MonitorModule : public Module
 {
 public:
-    int32_t RegisterObserver(MonitorObserver& observer);
+    WebRtc_Word32 RegisterObserver(MonitorObserver& observer);
 
-    int32_t DeRegisterObserver();
+    WebRtc_Word32 DeRegisterObserver();
 
     MonitorModule();
 
     virtual ~MonitorModule();
 public:	// module
-    int32_t Version(char* version,
-                    uint32_t& remainingBufferInBytes,
-                    uint32_t& position) const;
+    WebRtc_Word32 Version(char* version,
+                          WebRtc_UWord32& remainingBufferInBytes,
+                          WebRtc_UWord32& position) const;
 
-    int32_t ChangeUniqueId(int32_t id);
+    WebRtc_Word32 ChangeUniqueId(const WebRtc_Word32 id);
 
-    int32_t TimeUntilNextProcess();
+    WebRtc_Word32 TimeUntilNextProcess();
 
-    int32_t Process();
+    WebRtc_Word32 Process();
 private:
     enum { kAverageProcessUpdateTimeMs = 1000 };
     MonitorObserver* _observerPtr;
     CriticalSectionWrapper&	_callbackCritSect;
-    int32_t _lastProcessTime;
+    WebRtc_Word32 _lastProcessTime;
 };
 
-}  // namespace voe
+}  //  namespace voe
 
-}  // namespace webrtc
+}  //  namespace webrtc
 
 #endif // VOICE_ENGINE_MONITOR_MODULE

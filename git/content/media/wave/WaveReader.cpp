@@ -10,12 +10,10 @@
 #include "mozilla/dom/TimeRanges.h"
 #include "MediaDecoderStateMachine.h"
 #include "VideoUtils.h"
-#include "nsISeekableStream.h"
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 #include "mozilla/Util.h"
 #include "mozilla/CheckedInt.h"
-#include "mozilla/Endian.h"
 #include <algorithm>
 
 namespace mozilla {
@@ -63,15 +61,18 @@ static const uint16_t WAVE_FORMAT_CHUNK_SIZE = 16;
 // supported by AudioStream.
 static const uint16_t WAVE_FORMAT_ENCODING_PCM = 1;
 
-// We reject files with more than this number of channels if we're decoding for
-// playback.
+// Maximum number of channels supported
 static const uint8_t MAX_CHANNELS = 2;
 
 namespace {
   uint32_t
   ReadUint32BE(const char** aBuffer)
   {
-    uint32_t result = BigEndian::readUint32(*aBuffer);
+    uint32_t result =
+      uint8_t((*aBuffer)[0]) << 24 |
+      uint8_t((*aBuffer)[1]) << 16 |
+      uint8_t((*aBuffer)[2]) << 8 |
+      uint8_t((*aBuffer)[3]);
     *aBuffer += sizeof(uint32_t);
     return result;
   }
@@ -79,7 +80,11 @@ namespace {
   uint32_t
   ReadUint32LE(const char** aBuffer)
   {
-    uint32_t result = LittleEndian::readUint32(*aBuffer);
+    uint32_t result =
+      uint8_t((*aBuffer)[3]) << 24 |
+      uint8_t((*aBuffer)[2]) << 16 |
+      uint8_t((*aBuffer)[1]) << 8 |
+      uint8_t((*aBuffer)[0]);
     *aBuffer += sizeof(uint32_t);
     return result;
   }
@@ -87,7 +92,9 @@ namespace {
   uint16_t
   ReadUint16LE(const char** aBuffer)
   {
-    uint16_t result = LittleEndian::readUint16(*aBuffer);
+    uint16_t result =
+      uint8_t((*aBuffer)[1]) << 8 |
+      uint8_t((*aBuffer)[0]) << 0;
     *aBuffer += sizeof(uint16_t);
     return result;
   }
@@ -95,9 +102,7 @@ namespace {
   int16_t
   ReadInt16LE(const char** aBuffer)
   {
-    uint16_t result = LittleEndian::readInt16(*aBuffer);
-    *aBuffer += sizeof(int16_t);
-    return result;
+    return static_cast<int16_t>(ReadUint16LE(aBuffer));
   }
 
   uint8_t
@@ -125,8 +130,8 @@ nsresult WaveReader::Init(MediaDecoderReader* aCloneDonor)
   return NS_OK;
 }
 
-nsresult WaveReader::ReadMetadata(MediaInfo* aInfo,
-                                  MetadataTags** aTags)
+nsresult WaveReader::ReadMetadata(VideoInfo* aInfo,
+                                    MetadataTags** aTags)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
@@ -135,16 +140,17 @@ nsresult WaveReader::ReadMetadata(MediaInfo* aInfo,
     return NS_ERROR_FAILURE;
   }
 
-  nsAutoPtr<dom::HTMLMediaElement::MetadataTags> tags;
+  nsAutoPtr<HTMLMediaElement::MetadataTags> tags;
 
   bool loadAllChunks = LoadAllChunks(tags);
   if (!loadAllChunks) {
     return NS_ERROR_FAILURE;
   }
 
-  mInfo.mAudio.mHasAudio = true;
-  mInfo.mAudio.mRate = mSampleRate;
-  mInfo.mAudio.mChannels = mChannels;
+  mInfo.mHasAudio = true;
+  mInfo.mHasVideo = false;
+  mInfo.mAudioRate = mSampleRate;
+  mInfo.mAudioChannels = mChannels;
 
   *aInfo = mInfo;
 
@@ -196,17 +202,15 @@ bool WaveReader::DecodeAudioData()
   int64_t readSize = std::min(BLOCK_SIZE, remaining);
   int64_t frames = readSize / mFrameSize;
 
-  static_assert(uint64_t(BLOCK_SIZE) < UINT_MAX /
-                sizeof(AudioDataValue) / MAX_CHANNELS,
-                "bufferSize calculation could overflow.");
+  PR_STATIC_ASSERT(uint64_t(BLOCK_SIZE) < UINT_MAX / sizeof(AudioDataValue) / MAX_CHANNELS);
   const size_t bufferSize = static_cast<size_t>(frames * mChannels);
   nsAutoArrayPtr<AudioDataValue> sampleBuffer(new AudioDataValue[bufferSize]);
 
-  static_assert(uint64_t(BLOCK_SIZE) < UINT_MAX / sizeof(char),
-                "BLOCK_SIZE too large for enumerator.");
+  PR_STATIC_ASSERT(uint64_t(BLOCK_SIZE) < UINT_MAX / sizeof(char));
   nsAutoArrayPtr<char> dataBuffer(new char[static_cast<size_t>(readSize)]);
 
   if (!ReadAll(dataBuffer, readSize)) {
+    mAudioQueue.Finish();
     return false;
   }
 
@@ -270,9 +274,9 @@ static double RoundToUsecs(double aSeconds) {
   return floor(aSeconds * USECS_PER_S) / USECS_PER_S;
 }
 
-nsresult WaveReader::GetBuffered(dom::TimeRanges* aBuffered, int64_t aStartTime)
+nsresult WaveReader::GetBuffered(TimeRanges* aBuffered, int64_t aStartTime)
 {
-  if (!mInfo.HasAudio()) {
+  if (!mInfo.mHasAudio) {
     return NS_OK;
   }
   int64_t startOffset = mDecoder->GetResource()->GetNextCachedData(mWavePCMOffset);
@@ -308,6 +312,7 @@ WaveReader::ReadAll(char* aBuf, int64_t aSize, int64_t* aBytesRead)
     if (read == 0) {
       return false;
     }
+    mDecoder->NotifyBytesConsumed(read);
     got += read;
     if (aBytesRead) {
       *aBytesRead = got;
@@ -329,15 +334,14 @@ WaveReader::LoadRIFFChunk()
     return false;
   }
 
-  static_assert(sizeof(uint32_t) * 3 <= RIFF_INITIAL_SIZE,
-                "Reads would overflow riffHeader buffer.");
+  PR_STATIC_ASSERT(sizeof(uint32_t) * 2 <= RIFF_INITIAL_SIZE);
   if (ReadUint32BE(&p) != RIFF_CHUNK_MAGIC) {
     NS_WARNING("resource data not in RIFF format");
     return false;
   }
 
   // Skip over RIFF size field.
-  p += sizeof(uint32_t);
+  p += 4;
 
   if (ReadUint32BE(&p) != WAVE_CHUNK_MAGIC) {
     NS_WARNING("Expected WAVE chunk");
@@ -362,13 +366,12 @@ WaveReader::LoadFormatChunk(uint32_t aChunkSize)
     return false;
   }
 
-  static_assert(sizeof(uint16_t) +
-                sizeof(uint16_t) +
-                sizeof(uint32_t) +
-                4 +
-                sizeof(uint16_t) +
-                sizeof(uint16_t) <= sizeof(waveFormat),
-                "Reads would overflow waveFormat buffer.");
+  PR_STATIC_ASSERT(sizeof(uint16_t) +
+                   sizeof(uint16_t) +
+                   sizeof(uint32_t) +
+                   4 +
+                   sizeof(uint16_t) +
+                   sizeof(uint16_t) <= sizeof(waveFormat));
   if (ReadUint16LE(&p) != WAVE_FORMAT_ENCODING_PCM) {
     NS_WARNING("WAVE is not uncompressed PCM, compressed encodings are not supported");
     return false;
@@ -397,8 +400,7 @@ WaveReader::LoadFormatChunk(uint32_t aChunkSize)
       return false;
     }
 
-    static_assert(sizeof(uint16_t) <= sizeof(extLength),
-                  "Reads would overflow extLength buffer.");
+    PR_STATIC_ASSERT(sizeof(uint16_t) <= sizeof(extLength));
     uint16_t extra = ReadUint16LE(&p);
     if (aChunkSize - (WAVE_FORMAT_CHUNK_SIZE + 2) != extra) {
       NS_WARNING("Invalid extended format chunk size");
@@ -407,8 +409,7 @@ WaveReader::LoadFormatChunk(uint32_t aChunkSize)
     extra += extra % 2;
 
     if (extra > 0) {
-      static_assert(UINT16_MAX + (UINT16_MAX % 2) < UINT_MAX / sizeof(char),
-                    "chunkExtension array too large for iterator.");
+      PR_STATIC_ASSERT(UINT16_MAX + (UINT16_MAX % 2) < UINT_MAX / sizeof(char));
       nsAutoArrayPtr<char> chunkExtension(new char[extra]);
       if (!ReadAll(chunkExtension.get(), extra)) {
         return false;
@@ -422,14 +423,12 @@ WaveReader::LoadFormatChunk(uint32_t aChunkSize)
 
   // Make sure metadata is fairly sane.  The rate check is fairly arbitrary,
   // but the channels check is intentionally limited to mono or stereo
-  // when the media is intended for direct playback because that's what the
-  // audio backend currently supports.
+  // because that's what the audio backend currently supports.
   unsigned int actualFrameSize = sampleFormat == 8 ? 1 : 2 * channels;
   if (rate < 100 || rate > 96000 ||
-      (((channels < 1 || channels > MAX_CHANNELS) ||
-       (frameSize != 1 && frameSize != 2 && frameSize != 4)) &&
-       !mIgnoreAudioOutputFormat) ||
-       (sampleFormat != 8 && sampleFormat != 16) ||
+      channels < 1 || channels > MAX_CHANNELS ||
+      (frameSize != 1 && frameSize != 2 && frameSize != 4) ||
+      (sampleFormat != 8 && sampleFormat != 16) ||
       frameSize != actualFrameSize) {
     NS_WARNING("Invalid WAVE metadata");
     return false;
@@ -523,8 +522,7 @@ WaveReader::GetNextChunk(uint32_t* aChunk, uint32_t* aChunkSize)
     return false;
   }
 
-  static_assert(sizeof(uint32_t) * 2 <= CHUNK_HEADER_SIZE,
-                "Reads would overflow chunkHeader buffer.");
+  PR_STATIC_ASSERT(sizeof(uint32_t) * 2 <= CHUNK_HEADER_SIZE);
   *aChunk = ReadUint32BE(&p);
   *aChunkSize = ReadUint32LE(&p);
 
@@ -533,15 +531,14 @@ WaveReader::GetNextChunk(uint32_t* aChunk, uint32_t* aChunkSize)
 
 bool
 WaveReader::LoadListChunk(uint32_t aChunkSize,
-                          nsAutoPtr<dom::HTMLMediaElement::MetadataTags> &aTags)
+    nsAutoPtr<HTMLMediaElement::MetadataTags> &aTags)
 {
   // List chunks are always word (two byte) aligned.
   NS_ABORT_IF_FALSE(mDecoder->GetResource()->Tell() % 2 == 0,
                     "LoadListChunk called with unaligned resource");
 
   static const unsigned int MAX_CHUNK_SIZE = 1 << 16;
-  static_assert(uint64_t(MAX_CHUNK_SIZE) < UINT_MAX / sizeof(char),
-                "MAX_CHUNK_SIZE too large for enumerator.");
+  PR_STATIC_ASSERT(MAX_CHUNK_SIZE < UINT_MAX / sizeof(char));
 
   if (aChunkSize > MAX_CHUNK_SIZE) {
     return false;
@@ -567,7 +564,8 @@ WaveReader::LoadListChunk(uint32_t aChunkSize,
 
   const char* const end = chunk.get() + aChunkSize;
 
-  aTags = new dom::HTMLMediaElement::MetadataTags;
+  aTags = new HTMLMediaElement::MetadataTags;
+  aTags->Init();
 
   while (p + 8 < end) {
     uint32_t id = ReadUint32BE(&p);
@@ -581,10 +579,8 @@ WaveReader::LoadListChunk(uint32_t aChunkSize,
       break;
     }
 
-    // Wrap the string, adjusting length to account for optional
-    // null termination in the chunk.
     nsCString val(p, length);
-    if (length > 0 && val[length - 1] == '\0') {
+    if (val[length - 1] == '\0') {
       val.SetLength(length - 1);
     }
 
@@ -609,7 +605,7 @@ WaveReader::LoadListChunk(uint32_t aChunkSize,
 }
 
 bool
-WaveReader::LoadAllChunks(nsAutoPtr<dom::HTMLMediaElement::MetadataTags> &aTags)
+WaveReader::LoadAllChunks(nsAutoPtr<HTMLMediaElement::MetadataTags> &aTags)
 {
   // Chunks are always word (two byte) aligned.
   NS_ABORT_IF_FALSE(mDecoder->GetResource()->Tell() % 2 == 0,
@@ -627,8 +623,7 @@ WaveReader::LoadAllChunks(nsAutoPtr<dom::HTMLMediaElement::MetadataTags> &aTags)
       return false;
     }
 
-    static_assert(sizeof(uint32_t) * 2 <= CHUNK_HEADER_SIZE,
-                  "Reads would overflow chunkHeader buffer.");
+    PR_STATIC_ASSERT(sizeof(uint32_t) * 2 <= CHUNK_HEADER_SIZE);
 
     uint32_t magic = ReadUint32BE(&p);
     uint32_t chunkSize = ReadUint32LE(&p);
@@ -667,8 +662,7 @@ WaveReader::LoadAllChunks(nsAutoPtr<dom::HTMLMediaElement::MetadataTags> &aTags)
     }
 
     static const int64_t MAX_CHUNK_SIZE = 1 << 16;
-    static_assert(uint64_t(MAX_CHUNK_SIZE) < UINT_MAX / sizeof(char),
-                  "MAX_CHUNK_SIZE too large for enumerator.");
+    PR_STATIC_ASSERT(uint64_t(MAX_CHUNK_SIZE) < UINT_MAX / sizeof(char));
     nsAutoArrayPtr<char> chunk(new char[MAX_CHUNK_SIZE]);
     while (forward.value() > 0) {
       int64_t size = std::min(forward.value(), MAX_CHUNK_SIZE);

@@ -11,9 +11,9 @@ function test() {
 
     // This is receiving over 80 KB of json and will populate over 6000 items
     // in a variables view instance. Debug builds are slow.
-    requestLongerTimeout(4);
+    requestLongerTimeout(2);
 
-    let { document, L10N, NetMonitorView } = aMonitor.panelWin;
+    let { document, L10N, SourceEditor, NetMonitorView } = aMonitor.panelWin;
     let { RequestsMenu } = NetMonitorView;
 
     RequestsMenu.lazyUpdate = false;
@@ -25,19 +25,19 @@ function test() {
           statusText: "OK",
           type: "json",
           fullMimeType: "text/json; charset=utf-8",
-          size: L10N.getFormatStr("networkMenu.sizeKB", L10N.numberWithDecimals(85975/1024, 2)),
+          size: L10N.getFormatStr("networkMenu.sizeKB", 83.96),
           time: true
         });
-
-      aMonitor.panelWin.once(aMonitor.panelWin.EVENTS.RESPONSE_BODY_DISPLAYED, () => {
-        testResponseTab();
-        teardown(aMonitor).then(finish);
-      });
 
       EventUtils.sendMouseEvent({ type: "mousedown" },
         document.getElementById("details-pane-toggle"));
       EventUtils.sendMouseEvent({ type: "mousedown" },
         document.querySelectorAll("#details-pane tab")[3]);
+
+      aMonitor.panelWin.once("NetMonitor:ResponseBodyAvailable", () => {
+        testResponseTab();
+        teardown(aMonitor).then(finish);
+      });
 
       function testResponseTab() {
         let tab = document.querySelectorAll("#details-pane tab")[3];
@@ -46,15 +46,14 @@ function test() {
         is(tab.getAttribute("selected"), "true",
           "The response tab in the network details pane should be selected.");
 
-        is(tabpanel.querySelector("#response-content-info-header")
-          .hasAttribute("hidden"), true,
-          "The response info header doesn't have the intended visibility.");
         is(tabpanel.querySelector("#response-content-json-box")
           .hasAttribute("hidden"), false,
           "The response content json box doesn't have the intended visibility.");
+
         is(tabpanel.querySelector("#response-content-textarea-box")
           .hasAttribute("hidden"), true,
           "The response content textarea box doesn't have the intended visibility.");
+
         is(tabpanel.querySelector("#response-content-image-box")
           .hasAttribute("hidden"), true,
           "The response content image box doesn't have the intended visibility.");
@@ -77,7 +76,7 @@ function test() {
         is(jsonScope.querySelectorAll(names)[0].getAttribute("value"),
           "0", "The first json property name was incorrect.");
         is(jsonScope.querySelectorAll(values)[0].getAttribute("value"),
-          "Object", "The first json property value was incorrect.");
+          "[object Object]", "The first json property value was incorrect.");
 
         is(jsonScope.querySelectorAll(names)[1].getAttribute("value"),
           "greeting", "The second json property name was incorrect.");
@@ -87,7 +86,7 @@ function test() {
         is(Array.slice(jsonScope.querySelectorAll(names), -1).shift().getAttribute("value"),
           "__proto__", "The last json property name was incorrect.");
         is(Array.slice(jsonScope.querySelectorAll(values), -1).shift().getAttribute("value"),
-          "Object", "The last json property value was incorrect.");
+          "[object Object]", "The last json property value was incorrect.");
       }
     });
 

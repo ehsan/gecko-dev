@@ -40,8 +40,7 @@
           android:title="@string/desktop_mode"
           android:checkable="true" />
 
-    <item android:id="@+id/tools"
-          android:title="@string/tools"
+    <item android:title="@string/tools"
           android:icon="@drawable/ic_menu_tools">
 
         <menu>
@@ -61,18 +60,11 @@
             <item android:id="@+id/apps"
                   android:icon="@drawable/ic_menu_apps"
                   android:title="@string/apps"/>
-
-            <item android:id="@+id/new_guest_session"
-                  android:icon="@drawable/ic_menu_guest"
-                  android:visible="false"
-                  android:title="@string/new_guest_session"/>
-
         </menu>
 
     </item>
 
     <item android:id="@+id/char_encoding"
-          android:icon="@drawable/ic_menu_character_encoding"
           android:visible="false"
           android:title="@string/char_encoding"/>
 
@@ -80,8 +72,7 @@
           android:icon="@drawable/ic_menu_settings"
           android:title="@string/settings" />
 
-    <item android:id="@+id/exit_guest_session"
-          android:icon="@drawable/ic_menu_guest"
+    <item android:id="@+id/toggle_profiling"
           android:visible="false"
-          android:title="@string/exit_guest_session"/>
+          android:title="@string/toggle_profiling" />
 </menu>

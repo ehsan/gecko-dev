@@ -77,21 +77,6 @@ static const char kHttpOnlyPrefix[] = "#HttpOnly_";
 #define COOKIES_FILE "cookies.sqlite"
 #define COOKIES_SCHEMA_VERSION 5
 
-// parameter indexes; see EnsureReadDomain, EnsureReadComplete and
-// ReadCookieDBListener::HandleResult
-#define IDX_NAME 0
-#define IDX_VALUE 1
-#define IDX_HOST 2
-#define IDX_PATH 3
-#define IDX_EXPIRY 4
-#define IDX_LAST_ACCESSED 5
-#define IDX_CREATION_TIME 6
-#define IDX_SECURE 7
-#define IDX_HTTPONLY 8
-#define IDX_BASE_DOMAIN 9
-#define IDX_APP_ID 10
-#define IDX_BROWSER_ELEM 11
-
 static const int64_t kCookieStaleThreshold = 60 * PR_USEC_PER_SEC; // 1 minute in microseconds
 static const int64_t kCookiePurgeAge =
   int64_t(30 * 24 * 60 * 60) * PR_USEC_PER_SEC; // 30 days in microseconds
@@ -501,9 +486,9 @@ public:
         break;
 
       CookieDomainTuple *tuple = mDBState->hostArray.AppendElement();
-      row->GetUTF8String(IDX_BASE_DOMAIN, tuple->key.mBaseDomain);
-      tuple->key.mAppId = static_cast<uint32_t>(row->AsInt32(IDX_APP_ID));
-      tuple->key.mInBrowserElement = static_cast<bool>(row->AsInt32(IDX_BROWSER_ELEM));
+      row->GetUTF8String(9, tuple->key.mBaseDomain);
+      tuple->key.mAppId = static_cast<uint32_t>(row->AsInt32(10));
+      tuple->key.mInBrowserElement = static_cast<bool>(row->AsInt32(11));
       tuple->cookie = gCookieService->GetCookieFromRow(row);
     }
 
@@ -559,7 +544,7 @@ public:
   nsRefPtr<DBState> mDBState;
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD Complete(nsresult, nsISupports*)
+  NS_IMETHOD Complete()
   {
     gCookieService->HandleDBClosed(mDBState);
     return NS_OK;
@@ -660,7 +645,7 @@ NS_IMPL_ISUPPORTS5(nsCookieService,
                    nsISupportsWeakReference)
 
 nsCookieService::nsCookieService()
- : mDBState(nullptr)
+ : mDBState(NULL)
  , mCookieBehavior(BEHAVIOR_ACCEPT)
  , mThirdPartySession(false)
  , mMaxNumberOfCookies(kMaxNumberOfCookies)
@@ -745,8 +730,8 @@ nsCookieService::InitDBStates()
     // Database may be corrupt. Synchronously close the connection, clean up the
     // default DBState, and try again.
     COOKIE_LOGSTRING(PR_LOG_WARNING, ("InitDBStates(): retrying TryInitDB()"));
-    CleanupCachedStatements();
-    CleanupDefaultDBConnection();
+
+    CloseDefaultDBConnection();
     result = TryInitDB(true);
     if (result == RESULT_RETRY) {
       // We're done. Change the code to failure so we clean up below.
@@ -760,8 +745,7 @@ nsCookieService::InitDBStates()
 
     // Connection failure is unrecoverable. Clean up our connection. We can run
     // fine without persistent storage -- e.g. if there's no profile.
-    CleanupCachedStatements();
-    CleanupDefaultDBConnection();
+    CloseDefaultDBConnection();
   }
 }
 
@@ -792,7 +776,7 @@ nsCookieService::TryInitDB(bool aRecreateDB)
   if (aRecreateDB) {
     nsCOMPtr<nsIFile> backupFile;
     mDefaultDBState->cookieFile->Clone(getter_AddRefs(backupFile));
-    rv = backupFile->MoveToNative(nullptr,
+    rv = backupFile->MoveToNative(NULL,
       NS_LITERAL_CSTRING(COOKIES_FILE ".bak"));
     NS_ENSURE_SUCCESS(rv, RESULT_FAILURE);
   }
@@ -862,8 +846,6 @@ nsCookieService::TryInitDB(bool aRecreateDB)
         // Compute the baseDomains for the table. This must be done eagerly
         // otherwise we won't be able to synchronously read in individual
         // domains on demand.
-        const int64_t SCHEMA2_IDX_ID  =  0;
-        const int64_t SCHEMA2_IDX_HOST = 1;
         nsCOMPtr<mozIStorageStatement> select;
         rv = mDefaultDBState->dbConn->CreateStatement(NS_LITERAL_CSTRING(
           "SELECT id, host FROM moz_cookies"), getter_AddRefs(select));
@@ -884,8 +866,8 @@ nsCookieService::TryInitDB(bool aRecreateDB)
           if (!hasResult)
             break;
 
-          int64_t id = select->AsInt64(SCHEMA2_IDX_ID);
-          select->GetUTF8String(SCHEMA2_IDX_HOST, host);
+          int64_t id = select->AsInt64(0);
+          select->GetUTF8String(1, host);
 
           rv = GetBaseDomainFromHost(host, baseDomain);
           NS_ENSURE_SUCCESS(rv, RESULT_RETRY);
@@ -923,10 +905,6 @@ nsCookieService::TryInitDB(bool aRecreateDB)
         // Select the whole table, and order by the fields we're interested in.
         // This means we can simply do a linear traversal of the results and
         // check for duplicates as we go.
-        const int64_t SCHEMA3_IDX_ID =   0;
-        const int64_t SCHEMA3_IDX_NAME = 1;
-        const int64_t SCHEMA3_IDX_HOST = 2;
-        const int64_t SCHEMA3_IDX_PATH = 3;
         nsCOMPtr<mozIStorageStatement> select;
         rv = mDefaultDBState->dbConn->CreateStatement(NS_LITERAL_CSTRING(
           "SELECT id, name, host, path FROM moz_cookies "
@@ -947,10 +925,10 @@ nsCookieService::TryInitDB(bool aRecreateDB)
 
         if (hasResult) {
           nsCString name1, host1, path1;
-          int64_t id1 = select->AsInt64(SCHEMA3_IDX_ID);
-          select->GetUTF8String(SCHEMA3_IDX_NAME, name1);
-          select->GetUTF8String(SCHEMA3_IDX_HOST, host1);
-          select->GetUTF8String(SCHEMA3_IDX_PATH, path1);
+          int64_t id1 = select->AsInt64(0);
+          select->GetUTF8String(1, name1);
+          select->GetUTF8String(2, host1);
+          select->GetUTF8String(3, path1);
 
           nsCString name2, host2, path2;
           while (1) {
@@ -961,10 +939,10 @@ nsCookieService::TryInitDB(bool aRecreateDB)
             if (!hasResult)
               break;
 
-            int64_t id2 = select->AsInt64(SCHEMA3_IDX_ID);
-            select->GetUTF8String(SCHEMA3_IDX_NAME, name2);
-            select->GetUTF8String(SCHEMA3_IDX_HOST, host2);
-            select->GetUTF8String(SCHEMA3_IDX_PATH, path2);
+            int64_t id2 = select->AsInt64(0);
+            select->GetUTF8String(1, name2);
+            select->GetUTF8String(2, host2);
+            select->GetUTF8String(3, path2);
 
             // If the two rows match in (name, host, path), we know the earlier
             // row has an earlier expiry time. Delete it.
@@ -1237,15 +1215,12 @@ void
 nsCookieService::CloseDBStates()
 {
   // Null out our private and pointer DBStates regardless.
-  mPrivateDBState = nullptr;
-  mDBState = nullptr;
+  mPrivateDBState = NULL;
+  mDBState = NULL;
 
   // If we don't have a default DBState, we're done.
   if (!mDefaultDBState)
     return;
-
-  // Cleanup cached statements before we can close anything.
-  CleanupCachedStatements();
 
   if (mDefaultDBState->dbConn) {
     // Cancel any pending read. No further results will be received by our
@@ -1258,46 +1233,36 @@ nsCookieService::CloseDBStates()
     mDefaultDBState->dbConn->AsyncClose(mDefaultDBState->closeListener);
   }
 
-  CleanupDefaultDBConnection();
+  CloseDefaultDBConnection();
 
-  mDefaultDBState = nullptr;
+  mDefaultDBState = NULL;
 }
 
-// Null out the statements.
-// This must be done before closing the connection.
+// Close the default connection by nulling out statements, listeners, and the
+// connection itself. This will not cancel a pending read or asynchronously
+// close the connection -- these must be done beforehand if necessary.
 void
-nsCookieService::CleanupCachedStatements()
+nsCookieService::CloseDefaultDBConnection()
 {
-  mDefaultDBState->stmtInsert = nullptr;
-  mDefaultDBState->stmtDelete = nullptr;
-  mDefaultDBState->stmtUpdate = nullptr;
-}
-
-// Null out the listeners, and the database connection itself. This
-// will not null out the statements, cancel a pending read or
-// asynchronously close the connection -- these must be done
-// beforehand if necessary.
-void
-nsCookieService::CleanupDefaultDBConnection()
-{
-  MOZ_ASSERT(!mDefaultDBState->stmtInsert, "stmtInsert has been cleaned up");
-  MOZ_ASSERT(!mDefaultDBState->stmtDelete, "stmtDelete has been cleaned up");
-  MOZ_ASSERT(!mDefaultDBState->stmtUpdate, "stmtUpdate has been cleaned up");
+  // Destroy our statements before we close the db.
+  mDefaultDBState->stmtInsert = NULL;
+  mDefaultDBState->stmtDelete = NULL;
+  mDefaultDBState->stmtUpdate = NULL;
 
   // Null out the database connections. If 'dbConn' has not been used for any
   // asynchronous operations yet, this will synchronously close it; otherwise,
   // it's expected that the caller has performed an AsyncClose prior.
-  mDefaultDBState->dbConn = nullptr;
-  mDefaultDBState->syncConn = nullptr;
+  mDefaultDBState->dbConn = NULL;
+  mDefaultDBState->syncConn = NULL;
 
   // Manually null out our listeners. This is necessary because they hold a
   // strong ref to the DBState itself. They'll stay alive until whatever
   // statements are still executing complete.
-  mDefaultDBState->readListener = nullptr;
-  mDefaultDBState->insertListener = nullptr;
-  mDefaultDBState->updateListener = nullptr;
-  mDefaultDBState->removeListener = nullptr;
-  mDefaultDBState->closeListener = nullptr;
+  mDefaultDBState->readListener = NULL;
+  mDefaultDBState->insertListener = NULL;
+  mDefaultDBState->updateListener = NULL;
+  mDefaultDBState->removeListener = NULL;
+  mDefaultDBState->closeListener = NULL;
 }
 
 void
@@ -1324,7 +1289,7 @@ nsCookieService::HandleDBClosed(DBState* aDBState)
     // 'cookies.sqlite.bak-rebuild'.
     nsCOMPtr<nsIFile> backupFile;
     aDBState->cookieFile->Clone(getter_AddRefs(backupFile));
-    nsresult rv = backupFile->MoveToNative(nullptr,
+    nsresult rv = backupFile->MoveToNative(NULL,
       NS_LITERAL_CSTRING(COOKIES_FILE ".bak-rebuild"));
 
     COOKIE_LOGSTRING(PR_LOG_WARNING,
@@ -1368,9 +1333,8 @@ nsCookieService::HandleCorruptDB(DBState* aDBState)
       mDefaultDBState->syncConn = nullptr;
     }
 
-    CleanupCachedStatements();
     mDefaultDBState->dbConn->AsyncClose(mDefaultDBState->closeListener);
-    CleanupDefaultDBConnection();
+    CloseDefaultDBConnection();
     break;
   }
   case DBState::CLOSING_FOR_REBUILD: {
@@ -1381,11 +1345,10 @@ nsCookieService::HandleCorruptDB(DBState* aDBState)
   case DBState::REBUILDING: {
     // We had an error while rebuilding the DB. Game over. Close the database
     // and let the close handler do nothing; then we'll move it out of the way.
-    CleanupCachedStatements();
     if (mDefaultDBState->dbConn) {
       mDefaultDBState->dbConn->AsyncClose(mDefaultDBState->closeListener);
     }
-    CleanupDefaultDBConnection();
+    CloseDefaultDBConnection();
     break;
   }
   }
@@ -1441,8 +1404,7 @@ nsCookieService::RebuildCorruptDB(DBState* aDBState)
     // closure.
     COOKIE_LOGSTRING(PR_LOG_WARNING,
       ("RebuildCorruptDB(): TryInitDB() failed with result %u", result));
-    CleanupCachedStatements();
-    CleanupDefaultDBConnection();
+    CloseDefaultDBConnection();
     mDefaultDBState->corruptFlag = DBState::OK;
     mObserverService->NotifyObservers(nullptr, "cookie-db-closed", nullptr);
     return;
@@ -1472,7 +1434,7 @@ nsCookieService::RebuildCorruptDB(DBState* aDBState)
   NS_ASSERT_SUCCESS(rv);
   nsCOMPtr<mozIStoragePendingStatement> handle;
   rv = stmt->ExecuteAsync(aDBState->insertListener, getter_AddRefs(handle));
-  NS_ASSERT_SUCCESS(rv);
+  NS_ASSERT_SUCCESS(rv);    
 }
 
 nsCookieService::~nsCookieService()
@@ -1577,8 +1539,7 @@ nsCookieService::SetCookieString(nsIURI     *aHostURI,
                                  const char *aCookieHeader,
                                  nsIChannel *aChannel)
 {
-  return SetCookieStringCommon(aHostURI, aCookieHeader, nullptr, aChannel,
-                               false);
+  return SetCookieStringCommon(aHostURI, aCookieHeader, NULL, aChannel, false);
 }
 
 NS_IMETHODIMP
@@ -1664,23 +1625,13 @@ nsCookieService::SetCookieStringInternal(nsIURI             *aHostURI,
   // check default prefs
   CookieStatus cookieStatus = CheckPrefs(aHostURI, aIsForeign, requireHostMatch,
                                          aCookieHeader.get());
-  // fire a notification if third party or if cookie was rejected
-  // (but not if there was an error)
+  // fire a notification if cookie was rejected (but not if there was an error)
   switch (cookieStatus) {
   case STATUS_REJECTED:
     NotifyRejected(aHostURI);
-    if (aIsForeign) {
-      NotifyThirdParty(aHostURI, false, aChannel);
-    }
-    return; // Stop here
+    return;
   case STATUS_REJECTED_WITH_ERROR:
     return;
-  case STATUS_ACCEPTED: // Fallthrough
-  case STATUS_ACCEPT_SESSION:
-    if (aIsForeign) {
-      NotifyThirdParty(aHostURI, true, aChannel);
-    }
-    break;
   default:
     break;
   }
@@ -1713,66 +1664,8 @@ nsCookieService::SetCookieStringInternal(nsIURI             *aHostURI,
 void
 nsCookieService::NotifyRejected(nsIURI *aHostURI)
 {
-  if (mObserverService) {
+  if (mObserverService)
     mObserverService->NotifyObservers(aHostURI, "cookie-rejected", nullptr);
-  }
-}
-
-// notify observers that a third-party cookie was accepted/rejected
-// if the cookie issuer is unknown, it defaults to "?"
-void
-nsCookieService::NotifyThirdParty(nsIURI *aHostURI, bool aIsAccepted, nsIChannel *aChannel)
-{
-  if (!mObserverService) {
-    return;
-  }
-
-  const char* topic;
-
-  if (mDBState != mPrivateDBState) {
-    // Regular (non-private) browsing
-    if (aIsAccepted) {
-      topic = "third-party-cookie-accepted";
-    } else {
-      topic = "third-party-cookie-rejected";
-    }
-  } else {
-    // Private browsing
-    if (aIsAccepted) {
-      topic = "private-third-party-cookie-accepted";
-    } else {
-      topic = "private-third-party-cookie-rejected";
-    }
-  }
-
-  do {
-    // Attempt to find the host of aChannel.
-    if (!aChannel) {
-      break;
-    }
-    nsCOMPtr<nsIURI> channelURI;
-    nsresult rv = aChannel->GetURI(getter_AddRefs(channelURI));
-    if (NS_FAILED(rv)) {
-      break;
-    }
-
-    nsAutoCString referringHost;
-    rv = channelURI->GetHost(referringHost);
-    if (NS_FAILED(rv)) {
-      break;
-    }
-
-    nsAutoString referringHostUTF16 = NS_ConvertUTF8toUTF16(referringHost);
-    mObserverService->NotifyObservers(aHostURI,
-                                      topic,
-                                      referringHostUTF16.get());
-    return;
-  } while (0);
-
-  // This can fail for a number of reasons, in which kind we fallback to "?"
-  mObserverService->NotifyObservers(aHostURI,
-                                    topic,
-                                    NS_LITERAL_STRING("?").get());
 }
 
 // notify observers that the cookie list changed. there are five possible
@@ -2022,7 +1915,7 @@ OpenDBResult
 nsCookieService::Read()
 {
   // Set up a statement for the read. Note that our query specifies that
-  // 'baseDomain' not be nullptr -- see below for why.
+  // 'baseDomain' not be NULL -- see below for why.
   nsCOMPtr<mozIStorageAsyncStatement> stmtRead;
   nsresult rv = mDefaultDBState->dbConn->CreateAsyncStatement(NS_LITERAL_CSTRING(
     "SELECT "
@@ -2042,7 +1935,7 @@ nsCookieService::Read()
     "WHERE baseDomain NOTNULL"), getter_AddRefs(stmtRead));
   NS_ENSURE_SUCCESS(rv, RESULT_RETRY);
 
-  // Set up a statement to delete any rows with a nullptr 'baseDomain'
+  // Set up a statement to delete any rows with a NULL 'baseDomain'
   // column. This takes care of any cookies set by browsers that don't
   // understand the 'baseDomain' column, where the database schema version
   // is from one that does. (This would occur when downgrading.)
@@ -2062,6 +1955,7 @@ nsCookieService::Read()
   // Init our readSet hash and execute the statements. Note that, after this
   // point, we cannot fail without altering the cleanup code in InitDBStates()
   // to handle closing of the now-asynchronous connection.
+  mDefaultDBState->readSet.Init();
   mDefaultDBState->hostArray.SetCapacity(kMaxNumberOfCookies);
 
   mDefaultDBState->readListener = new ReadCookieDBListener(mDefaultDBState);
@@ -2084,20 +1978,20 @@ nsCookieService::GetCookieFromRow(T &aRow)
 {
   // Skip reading 'baseDomain' -- up to the caller.
   nsCString name, value, host, path;
-  DebugOnly<nsresult> rv = aRow->GetUTF8String(IDX_NAME, name);
+  DebugOnly<nsresult> rv = aRow->GetUTF8String(0, name);
   NS_ASSERT_SUCCESS(rv);
-  rv = aRow->GetUTF8String(IDX_VALUE, value);
+  rv = aRow->GetUTF8String(1, value);
   NS_ASSERT_SUCCESS(rv);
-  rv = aRow->GetUTF8String(IDX_HOST, host);
+  rv = aRow->GetUTF8String(2, host);
   NS_ASSERT_SUCCESS(rv);
-  rv = aRow->GetUTF8String(IDX_PATH, path);
+  rv = aRow->GetUTF8String(3, path);
   NS_ASSERT_SUCCESS(rv);
 
-  int64_t expiry = aRow->AsInt64(IDX_EXPIRY);
-  int64_t lastAccessed = aRow->AsInt64(IDX_LAST_ACCESSED);
-  int64_t creationTime = aRow->AsInt64(IDX_CREATION_TIME);
-  bool isSecure = 0 != aRow->AsInt32(IDX_SECURE);
-  bool isHttpOnly = 0 != aRow->AsInt32(IDX_HTTPONLY);
+  int64_t expiry = aRow->AsInt64(4);
+  int64_t lastAccessed = aRow->AsInt64(5);
+  int64_t creationTime = aRow->AsInt64(6);
+  bool isSecure = 0 != aRow->AsInt32(7);
+  bool isHttpOnly = 0 != aRow->AsInt32(8);
 
   // Create a new nsCookie and assign the data.
   return nsCookie::Create(name, value, host, path,
@@ -2131,7 +2025,7 @@ nsCookieService::AsyncReadComplete()
     if (mDefaultDBState->readSet.GetEntry(tuple.key))
       continue;
 
-    AddCookieToList(tuple.key, tuple.cookie, mDefaultDBState, nullptr, false);
+    AddCookieToList(tuple.key, tuple.cookie, mDefaultDBState, NULL, false);
   }
 
   mDefaultDBState->stmtReadDomain = nullptr;
@@ -2189,7 +2083,6 @@ nsCookieService::EnsureReadDomain(const nsCookieKey &aKey)
     return;
 
   // Read in the data synchronously.
-  // see IDX_NAME, etc. for parameter indexes
   nsresult rv;
   if (!mDefaultDBState->stmtReadDomain) {
     // Cache the statement, since it's likely to be used again.
@@ -2258,7 +2151,7 @@ nsCookieService::EnsureReadDomain(const nsCookieKey &aKey)
   // Add the cookies to the table in a single operation. This makes sure that
   // either all the cookies get added, or in the case of corruption, none.
   for (uint32_t i = 0; i < array.Length(); ++i) {
-    AddCookieToList(aKey, array[i], mDefaultDBState, nullptr, false);
+    AddCookieToList(aKey, array[i], mDefaultDBState, NULL, false);
   }
 
   // Add it to the hashset of read entries, so we don't read it again.
@@ -2284,7 +2177,6 @@ nsCookieService::EnsureReadComplete()
   CancelAsyncRead(false);
 
   // Read in the data synchronously.
-  // see IDX_NAME, etc. for parameter indexes
   nsCOMPtr<mozIStorageStatement> stmt;
   nsresult rv = mDefaultDBState->syncConn->CreateStatement(NS_LITERAL_CSTRING(
     "SELECT "
@@ -2331,9 +2223,9 @@ nsCookieService::EnsureReadComplete()
       break;
 
     // Make sure we haven't already read the data.
-    stmt->GetUTF8String(IDX_BASE_DOMAIN, baseDomain);
-    appId = static_cast<uint32_t>(stmt->AsInt32(IDX_APP_ID));
-    inBrowserElement = static_cast<bool>(stmt->AsInt32(IDX_BROWSER_ELEM));
+    stmt->GetUTF8String(9, baseDomain);
+    appId = static_cast<uint32_t>(stmt->AsInt32(10));
+    inBrowserElement = static_cast<bool>(stmt->AsInt32(11));
     nsCookieKey key(baseDomain, appId, inBrowserElement);
     if (mDefaultDBState->readSet.GetEntry(key))
       continue;
@@ -2347,7 +2239,7 @@ nsCookieService::EnsureReadComplete()
   // either all the cookies get added, or in the case of corruption, none.
   for (uint32_t i = 0; i < array.Length(); ++i) {
     CookieDomainTuple& tuple = array[i];
-    AddCookieToList(tuple.key, tuple.cookie, mDefaultDBState, nullptr,
+    AddCookieToList(tuple.key, tuple.cookie, mDefaultDBState, NULL,
       false);
   }
 
@@ -2507,7 +2399,7 @@ nsCookieService::ImportCookies(nsIFile *aCookieFile)
     }
     else {
       AddInternal(key, newCookie, currentTimeInUsec,
-                  nullptr, nullptr, true);
+                  NULL, NULL, true);
     }
   }
 
@@ -2976,7 +2868,7 @@ nsCookieService::AddInternal(const nsCookieKey             &aKey,
 
   // Add the cookie to the db. We do not supply a params array for batching
   // because this might result in removals and additions being out of order.
-  AddCookieToList(aKey, aCookie, mDBState, nullptr);
+  AddCookieToList(aKey, aCookie, mDBState, NULL);
   COOKIE_LOGSUCCESS(SET_COOKIE, aHostURI, aCookieHeader, aCookie, foundCookie);
 
   // Now that list mutations are complete, notify observers. We do it here
@@ -3817,7 +3709,7 @@ nsCookieService::FindStaleCookie(nsCookieEntry *aEntry,
                                  int64_t aCurrentTime,
                                  nsListIter &aIter)
 {
-  aIter.entry = nullptr;
+  aIter.entry = NULL;
 
   int64_t oldestTime = 0;
   const nsCookieEntry::ArrayType &cookies = aEntry->GetCookies();

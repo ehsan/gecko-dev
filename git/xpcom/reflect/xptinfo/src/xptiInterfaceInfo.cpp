@@ -7,6 +7,7 @@
 
 #include "xptiprivate.h"
 #include "mozilla/XPTInterfaceInfoManager.h"
+#include "nsAtomicRefcnt.h"
 
 using namespace mozilla;
 
@@ -59,8 +60,8 @@ xptiInterfaceEntry::xptiInterfaceEntry(const char* name,
     , mMethodBaseIndex(0)
     , mConstantBaseIndex(0)
     , mTypelib(aTypelib)
-    , mParent(nullptr)
-    , mInfo(nullptr)
+    , mParent(NULL)
+    , mInfo(NULL)
     , mFlags(0)
 {
     memcpy(mName, name, nameLength);
@@ -126,7 +127,7 @@ nsresult
 xptiInterfaceEntry::GetName(char **name)
 {
     // It is not necessary to Resolve because this info is read from manifest.
-    *name = (char*) nsMemory::Clone(mName, strlen(mName)+1);
+    *name = (char*) nsMemory::Clone(mName, PL_strlen(mName)+1);
     return *name ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
@@ -191,7 +192,7 @@ xptiInterfaceEntry::GetMethodInfo(uint16_t index, const nsXPTMethodInfo** info)
                 mDescriptor->num_methods)
     {
         NS_ERROR("bad param");
-        *info = nullptr;
+        *info = NULL;
         return NS_ERROR_INVALID_ARG;
     }
 
@@ -245,7 +246,7 @@ xptiInterfaceEntry::GetConstant(uint16_t index, const nsXPTConstant** constant)
                 mDescriptor->num_constants)
     {
         NS_PRECONDITION(0, "bad param");
-        *constant = nullptr;
+        *constant = NULL;
         return NS_ERROR_INVALID_ARG;
     }
 
@@ -314,8 +315,12 @@ xptiInterfaceEntry::GetInfoForParam(uint16_t methodIndex,
     if(NS_FAILED(rv))
         return rv;
 
-    *info = entry->InterfaceInfo().get();
+    xptiInterfaceInfo* theInfo;
+    rv = entry->GetInterfaceInfo(&theInfo);    
+    if(NS_FAILED(rv))
+        return rv;
 
+    *info = static_cast<nsIInterfaceInfo*>(theInfo);
     return NS_OK;
 }
 
@@ -532,8 +537,8 @@ xptiInterfaceEntry::HasAncestor(const nsIID * iid, bool *_retval)
 
 /***************************************************/
 
-already_AddRefed<xptiInterfaceInfo> 
-xptiInterfaceEntry::InterfaceInfo()
+nsresult 
+xptiInterfaceEntry::GetInterfaceInfo(xptiInterfaceInfo** info)
 {
 #ifdef DEBUG
     XPTInterfaceInfoManager::GetSingleton()->mWorkingSet.mTableReentrantMonitor.
@@ -544,10 +549,15 @@ xptiInterfaceEntry::InterfaceInfo()
     if(!mInfo)
     {
         mInfo = new xptiInterfaceInfo(this);
+        if(!mInfo)
+        {
+            *info = nullptr;    
+            return NS_ERROR_OUT_OF_MEMORY;
+        }
     }
     
-    nsRefPtr<xptiInterfaceInfo> info = mInfo;
-    return info.forget();
+    NS_ADDREF(*info = mInfo);
+    return NS_OK;    
 }
     
 void     
@@ -570,8 +580,7 @@ xptiInterfaceInfo::BuildParent()
                  !mParent &&
                  mEntry->Parent(),
                 "bad BuildParent call");
-    mParent = mEntry->Parent()->InterfaceInfo().get();
-    return true;
+    return NS_SUCCEEDED(mEntry->Parent()->GetInterfaceInfo(&mParent));
 }
 
 /***************************************************************************/
@@ -594,7 +603,7 @@ xptiInterfaceInfo::~xptiInterfaceInfo()
 nsrefcnt
 xptiInterfaceInfo::AddRef(void)
 {
-    nsrefcnt cnt = ++mRefCnt;
+    nsrefcnt cnt = NS_AtomicIncrementRefcnt(mRefCnt);
     NS_LOG_ADDREF(this, cnt, "xptiInterfaceInfo", sizeof(*this));
     return cnt;
 }
@@ -603,7 +612,7 @@ nsrefcnt
 xptiInterfaceInfo::Release(void)
 {
     xptiInterfaceEntry* entry = mEntry;
-    nsrefcnt cnt = --mRefCnt;
+    nsrefcnt cnt = NS_AtomicDecrementRefcnt(mRefCnt);
     NS_LOG_RELEASE(this, cnt, "xptiInterfaceInfo");
     if(!cnt)
     {
@@ -612,7 +621,7 @@ xptiInterfaceInfo::Release(void)
                                           mTableReentrantMonitor);
         LOG_INFO_MONITOR_ENTRY;
 
-        // If InterfaceInfo added and *released* a reference before we 
+        // If GetInterfaceInfo added and *released* a reference before we 
         // acquired the monitor then 'this' might already be dead. In that
         // case we would not want to try to access any instance data. We
         // would want to bail immediately. If 'this' is already dead then the
@@ -621,7 +630,7 @@ xptiInterfaceInfo::Release(void)
         if(entry && !entry->InterfaceInfoEquals(this))
             return 0;
 
-        // If InterfaceInfo added a reference before we acquired the monitor
+        // If GetInterfaceInfo added a reference before we acquired the monitor
         // then we want to bail out of here without destorying the object.
         if(mRefCnt)
             return 1;

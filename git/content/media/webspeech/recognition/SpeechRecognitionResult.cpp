@@ -4,6 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsContentUtils.h"
+
 #include "SpeechRecognitionResult.h"
 #include "mozilla/dom/SpeechRecognitionResultBinding.h"
 
@@ -31,8 +33,7 @@ SpeechRecognitionResult::~SpeechRecognitionResult()
 }
 
 JSObject*
-SpeechRecognitionResult::WrapObject(JSContext* aCx,
-                                    JS::Handle<JSObject*> aScope)
+SpeechRecognitionResult::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return SpeechRecognitionResultBinding::Wrap(aCx, aScope, this);
 }

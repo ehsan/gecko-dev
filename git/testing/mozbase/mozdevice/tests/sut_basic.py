@@ -1,6 +1,5 @@
 from sut import MockAgent
 import mozdevice
-import mozlog
 import unittest
 
 class BasicTest(unittest.TestCase):
@@ -9,7 +8,8 @@ class BasicTest(unittest.TestCase):
         """Tests DeviceManager initialization."""
         a = MockAgent(self)
 
-        d = mozdevice.DroidSUT("127.0.0.1", port=a.port, logLevel=mozlog.DEBUG)
+        mozdevice.DroidSUT.debug = 4
+        d = mozdevice.DroidSUT("127.0.0.1", port=a.port)
         # all testing done in device's constructor
         a.wait()
 
@@ -21,7 +21,8 @@ class BasicTest(unittest.TestCase):
                 ("mkdr /mnt/sdcard/tests", "/mnt/sdcard/tests successfully created"),
                 ("ver", "SUTAgentAndroid Version 1.14")]
         a = MockAgent(self, start_commands = cmds)
-        dm = mozdevice.DroidSUT("127.0.0.1", port=a.port, logLevel=mozlog.DEBUG)
+        mozdevice.DroidSUT.debug = 4
+        dm = mozdevice.DroidSUT("127.0.0.1", port=a.port)
         a.wait()
 
     def test_timeout_normal(self):
@@ -31,7 +32,8 @@ class BasicTest(unittest.TestCase):
                                         ("ls", "test.txt"),
                                         ("rm /mnt/sdcard/tests/test.txt",
                                          "Removed the file")])
-        d = mozdevice.DroidSUT("127.0.0.1", port=a.port, logLevel=mozlog.DEBUG)
+        mozdevice.DroidSUT.debug = 4
+        d = mozdevice.DroidSUT("127.0.0.1", port=a.port)
         ret = d.removeFile('/mnt/sdcard/tests/test.txt')
         self.assertEqual(ret, None) # if we didn't throw an exception, we're ok
         a.wait()
@@ -42,7 +44,8 @@ class BasicTest(unittest.TestCase):
                                         ("cd /mnt/sdcard/tests", ""),
                                         ("ls", "test.txt"),
                                         ("rm /mnt/sdcard/tests/test.txt", 0)])
-        d = mozdevice.DroidSUT("127.0.0.1", port=a.port, logLevel=mozlog.DEBUG)
+        mozdevice.DroidSUT.debug = 4
+        d = mozdevice.DroidSUT("127.0.0.1", port=a.port)
         d.default_timeout = 1
         exceptionThrown = False
         try:
@@ -50,7 +53,6 @@ class BasicTest(unittest.TestCase):
         except mozdevice.DMError:
             exceptionThrown = True
         self.assertEqual(exceptionThrown, True)
-        a.should_stop = True
         a.wait()
 
     def test_shell(self):

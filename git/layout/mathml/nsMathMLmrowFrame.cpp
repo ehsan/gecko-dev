@@ -3,8 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+
+#include "nsCOMPtr.h"
+#include "nsFrame.h"
+#include "nsStyleContext.h"
+#include "nsStyleConsts.h"
+
 #include "nsMathMLmrowFrame.h"
-#include "mozilla/gfx/2D.h"
 
 //
 // <mrow> -- horizontally group any number of subexpressions - implementation
@@ -29,6 +34,11 @@ nsMathMLmrowFrame::InheritAutomaticData(nsIFrame* aParent)
   nsMathMLContainerFrame::InheritAutomaticData(aParent);
 
   mPresentationData.flags |= NS_MATHML_STRETCH_ALL_CHILDREN_VERTICALLY;
+
+  if (mContent->Tag() == nsGkAtoms::mrow_) {
+    // see if the directionality attribute is there
+    nsMathMLFrame::FindAttrDirectionality(mContent, mPresentationData);
+  }
 
   return NS_OK;
 }

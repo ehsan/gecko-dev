@@ -10,8 +10,9 @@
 // Used for DNLEN and UNLEN
 #include <lm.h>
 
+#include <nsAutoPtr.h>
 #include <nsWindowsHelpers.h>
-#include "mozilla/Scoped.h"
+#include <nsMemory.h>
 
 #include "serviceinstall.h"
 #include "servicebase.h"
@@ -64,7 +65,7 @@ GetVersionNumberFromPath(LPWSTR path, DWORD &A, DWORD &B,
                          DWORD &C, DWORD &D) 
 {
   DWORD fileVersionInfoSize = GetFileVersionInfoSizeW(path, 0);
-  mozilla::ScopedDeleteArray<char> fileVersionInfo(new char[fileVersionInfoSize]);
+  nsAutoArrayPtr<char> fileVersionInfo = new char[fileVersionInfoSize];
   if (!GetFileVersionInfoW(path, 0, fileVersionInfoSize,
                            fileVersionInfo.get())) {
       LOG_WARN(("Could not obtain file info of old service.  (%d)", 
@@ -101,7 +102,7 @@ BOOL
 UpdateServiceDescription(SC_HANDLE serviceHandle)
 {
   WCHAR updaterINIPath[MAX_PATH + 1];
-  if (!GetModuleFileNameW(nullptr, updaterINIPath, 
+  if (!GetModuleFileNameW(NULL, updaterINIPath, 
                           sizeof(updaterINIPath) /
                           sizeof(updaterINIPath[0]))) {
     LOG_WARN(("Could not obtain module filename when attempting to "
@@ -213,8 +214,8 @@ FixServicePath(SC_HANDLE service,
 
 
   if (!ChangeServiceConfigW(service, SERVICE_NO_CHANGE, SERVICE_NO_CHANGE,
-                            SERVICE_NO_CHANGE, fixedPath, nullptr, nullptr,
-                            nullptr, nullptr, nullptr, nullptr)) {
+                            SERVICE_NO_CHANGE, fixedPath, NULL, NULL, NULL,
+                            NULL, NULL, NULL)) {
     LOG_WARN(("Could not fix service path.  (%d)", GetLastError()));
     return FALSE;
   }
@@ -235,7 +236,7 @@ BOOL
 SvcInstall(SvcInstallAction action)
 {
   // Get a handle to the local computer SCM database with full access rights.
-  nsAutoServiceHandle schSCManager(OpenSCManager(nullptr, nullptr, 
+  nsAutoServiceHandle schSCManager(OpenSCManager(NULL, NULL, 
                                                  SC_MANAGER_ALL_ACCESS));
   if (!schSCManager) {
     LOG_WARN(("Could not open service manager.  (%d)", GetLastError()));
@@ -243,7 +244,7 @@ SvcInstall(SvcInstallAction action)
   }
 
   WCHAR newServiceBinaryPath[MAX_PATH + 1];
-  if (!GetModuleFileNameW(nullptr, newServiceBinaryPath, 
+  if (!GetModuleFileNameW(NULL, newServiceBinaryPath, 
                           sizeof(newServiceBinaryPath) / 
                           sizeof(newServiceBinaryPath[0]))) {
     LOG_WARN(("Could not obtain module filename when attempting to "
@@ -276,7 +277,7 @@ SvcInstall(SvcInstallAction action)
 
     // The service exists and we opened it
     DWORD bytesNeeded;
-    if (!QueryServiceConfigW(schService, nullptr, 0, &bytesNeeded) && 
+    if (!QueryServiceConfigW(schService, NULL, 0, &bytesNeeded) && 
         GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
       LOG_WARN(("Could not determine buffer size for query service config.  (%d)",
                 GetLastError()));
@@ -285,7 +286,7 @@ SvcInstall(SvcInstallAction action)
 
     // Get the service config information, in particular we want the binary 
     // path of the service.
-    mozilla::ScopedDeleteArray<char> serviceConfigBuffer(new char[bytesNeeded]);
+    nsAutoArrayPtr<char> serviceConfigBuffer = new char[bytesNeeded];
     if (!QueryServiceConfigW(schService, 
         reinterpret_cast<QUERY_SERVICE_CONFIGW*>(serviceConfigBuffer.get()), 
         bytesNeeded, &bytesNeeded)) {
@@ -386,11 +387,10 @@ SvcInstall(SvcInstallAction action)
           // Calculate the temp file path that we're moving the file to. This 
           // is the same as the proper service path but with a .old extension.
           LPWSTR oldServiceBinaryTempPath = 
-            new WCHAR[len + 1];
-          memset(oldServiceBinaryTempPath, 0, (len + 1) * sizeof (WCHAR));
-          wcsncpy(oldServiceBinaryTempPath, serviceConfig.lpBinaryPathName, len);
+            new WCHAR[wcslen(serviceConfig.lpBinaryPathName) + 1];
+          wcscpy(oldServiceBinaryTempPath, serviceConfig.lpBinaryPathName);
           // Rename the last 3 chars to 'old'
-          wcsncpy(oldServiceBinaryTempPath + len - 3, L"old", 3);
+          wcscpy(oldServiceBinaryTempPath + len - 3, L"old");
 
           // Move the current (old) service file to the temp path.
           if (MoveFileExW(serviceConfig.lpBinaryPathName, 
@@ -439,8 +439,7 @@ SvcInstall(SvcInstallAction action)
       // We made a copy of ourselves to the existing location.
       // The tmp file (the process of which we are executing right now) will be
       // left over.  Attempt to delete the file on the next reboot.
-      if (MoveFileExW(newServiceBinaryPath, nullptr,
-                      MOVEFILE_DELAY_UNTIL_REBOOT)) {
+      if (MoveFileExW(newServiceBinaryPath, NULL, MOVEFILE_DELAY_UNTIL_REBOOT)) {
         LOG(("Deleting the old file path on the next reboot: %ls.",
              newServiceBinaryPath));
       } else {
@@ -454,7 +453,7 @@ SvcInstall(SvcInstallAction action)
     // We don't need to copy ourselves to the existing location.
     // The tmp file (the process of which we are executing right now) will be
     // left over.  Attempt to delete the file on the next reboot.
-    MoveFileExW(newServiceBinaryPath, nullptr, MOVEFILE_DELAY_UNTIL_REBOOT);
+    MoveFileExW(newServiceBinaryPath, NULL, MOVEFILE_DELAY_UNTIL_REBOOT);
     
     // nothing to do, we already have a newer service installed
     return TRUE; 
@@ -472,8 +471,8 @@ SvcInstall(SvcInstallAction action)
   schService.own(CreateServiceW(schSCManager, SVC_NAME, SVC_DISPLAY_NAME,
                                 SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS,
                                 SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL,
-                                newServiceBinaryPath, nullptr, nullptr,
-                                nullptr, nullptr, nullptr));
+                                newServiceBinaryPath, NULL, NULL, NULL, 
+                                NULL, NULL));
   if (!schService) {
     LOG_WARN(("Could not create Windows service. "
               "This error should never happen since a service install "
@@ -502,7 +501,7 @@ BOOL
 StopService()
 {
   // Get a handle to the local computer SCM database with full access rights.
-  nsAutoServiceHandle schSCManager(OpenSCManager(nullptr, nullptr, 
+  nsAutoServiceHandle schSCManager(OpenSCManager(NULL, NULL, 
                                                  SC_MANAGER_ALL_ACCESS));
   if (!schSCManager) {
     LOG_WARN(("Could not open service manager.  (%d)", GetLastError()));
@@ -548,7 +547,7 @@ BOOL
 SvcUninstall()
 {
   // Get a handle to the local computer SCM database with full access rights.
-  nsAutoServiceHandle schSCManager(OpenSCManager(nullptr, nullptr, 
+  nsAutoServiceHandle schSCManager(OpenSCManager(NULL, NULL, 
                                                  SC_MANAGER_ALL_ACCESS));
   if (!schSCManager) {
     LOG_WARN(("Could not open service manager.  (%d)", GetLastError()));
@@ -598,8 +597,8 @@ SvcUninstall()
 BOOL
 SetUserAccessServiceDACL(SC_HANDLE hService)
 {
-  PACL pNewAcl = nullptr;
-  PSECURITY_DESCRIPTOR psd = nullptr;
+  PACL pNewAcl = NULL;
+  PSECURITY_DESCRIPTOR psd = NULL;
   DWORD lastError = SetUserAccessServiceDACL(hService, pNewAcl, psd);
   if (pNewAcl) {
     LocalFree((HLOCAL)pNewAcl);
@@ -650,7 +649,7 @@ SetUserAccessServiceDACL(SC_HANDLE hService, PACL &pNewAcl,
   }
 
   // Get the current DACL from the security descriptor.
-  PACL pacl = nullptr;
+  PACL pacl = NULL;
   BOOL bDaclPresent = FALSE;
   BOOL bDaclDefaulted = FALSE;
   if ( !GetSecurityDescriptorDacl(psd, &bDaclPresent, &pacl, 
@@ -667,7 +666,7 @@ SetUserAccessServiceDACL(SC_HANDLE hService, PACL &pNewAcl,
     return GetLastError();
   }
 
-  if (!CreateWellKnownSid(WinBuiltinUsersSid, nullptr, sid, &SIDSize)) {
+  if (!CreateWellKnownSid(WinBuiltinUsersSid, NULL, sid, &SIDSize)) {
     DWORD lastError = GetLastError();
     LOG_WARN(("Could not create well known SID.  (%d)", lastError));
     LocalFree(sid);
@@ -678,21 +677,21 @@ SetUserAccessServiceDACL(SC_HANDLE hService, PACL &pNewAcl,
   // a buffer for the domain name but it's not used since we're using
   // the built in account Sid.
   SID_NAME_USE accountType;
-  WCHAR accountName[UNLEN + 1] = { L'\0' };
-  WCHAR domainName[DNLEN + 1] = { L'\0' };
+  WCHAR accountName[UNLEN + 1];
+  WCHAR domainName[DNLEN + 1];
   DWORD accountNameSize = UNLEN + 1;
   DWORD domainNameSize = DNLEN + 1;
-  if (!LookupAccountSidW(nullptr, sid, accountName, 
+  if (!LookupAccountSidW(NULL, sid, accountName, 
                          &accountNameSize, 
                          domainName, &domainNameSize, &accountType)) {
     LOG_WARN(("Could not lookup account Sid, will try Users.  (%d)",
               GetLastError()));
-    wcsncpy(accountName, L"Users", UNLEN);
+    wcscpy(accountName, L"Users");
   }
 
   // We already have the group name so we can get rid of the SID
   FreeSid(sid);
-  sid = nullptr;
+  sid = NULL;
 
   // Build the ACE, BuildExplicitAccessWithName cannot fail so it is not logged.
   EXPLICIT_ACCESS ea;

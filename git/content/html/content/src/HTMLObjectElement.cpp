@@ -8,7 +8,6 @@
 #include "mozilla/Util.h"
 
 #include "mozilla/dom/HTMLObjectElementBinding.h"
-#include "mozilla/dom/ElementInlines.h"
 #include "nsAutoPtr.h"
 #include "nsAttrValueInlines.h"
 #include "nsGkAtoms.h"
@@ -16,6 +15,7 @@
 #include "nsIDocument.h"
 #include "nsIPluginDocument.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMSVGDocument.h"
 #include "nsFormSubmission.h"
 #include "nsIObjectFrame.h"
 #include "nsNPAPIPluginInstance.h"
@@ -38,6 +38,8 @@ HTMLObjectElement::HTMLObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
 
   // By default we're in the loading state
   AddStatesSilently(NS_EVENT_STATE_LOADING);
+
+  SetIsDOMBinding();
 }
 
 HTMLObjectElement::~HTMLObjectElement()
@@ -64,35 +66,37 @@ HTMLObjectElement::DoneAddingChildren(bool aHaveNotified)
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLObjectElement)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLObjectElement,
                                                   nsGenericHTMLFormElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mValidity)
   nsObjectLoadingContent::Traverse(tmp, cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLObjectElement,
                                                 nsGenericHTMLFormElement)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mValidity)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(HTMLObjectElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLObjectElement, Element)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLObjectElement)
-  NS_INTERFACE_TABLE_INHERITED10(HTMLObjectElement,
-                                 nsIDOMHTMLObjectElement,
-                                 imgINotificationObserver,
-                                 nsIRequestObserver,
-                                 nsIStreamListener,
-                                 nsIFrameLoaderOwner,
-                                 nsIObjectLoadingContent,
-                                 nsIImageLoadingContent,
-                                 imgIOnloadBlocker,
-                                 nsIChannelEventSink,
-                                 nsIConstraintValidation)
-NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLFormElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(HTMLObjectElement)
+    NS_INTERFACE_TABLE_ENTRY(HTMLObjectElement, nsIDOMHTMLObjectElement)
+    NS_INTERFACE_TABLE_ENTRY(HTMLObjectElement, imgINotificationObserver)
+    NS_INTERFACE_TABLE_ENTRY(HTMLObjectElement, nsIRequestObserver)
+    NS_INTERFACE_TABLE_ENTRY(HTMLObjectElement, nsIStreamListener)
+    NS_INTERFACE_TABLE_ENTRY(HTMLObjectElement, nsIFrameLoaderOwner)
+    NS_INTERFACE_TABLE_ENTRY(HTMLObjectElement, nsIObjectLoadingContent)
+    NS_INTERFACE_TABLE_ENTRY(HTMLObjectElement, nsIImageLoadingContent)
+    NS_INTERFACE_TABLE_ENTRY(HTMLObjectElement, imgIOnloadBlocker)
+    NS_INTERFACE_TABLE_ENTRY(HTMLObjectElement, nsIInterfaceRequestor)
+    NS_INTERFACE_TABLE_ENTRY(HTMLObjectElement, nsIChannelEventSink)
+    NS_INTERFACE_TABLE_ENTRY(HTMLObjectElement, nsIConstraintValidation)
+    NS_INTERFACE_TABLE_ENTRY(HTMLObjectElement, nsIDOMGetSVGDocument)
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLObjectElement,
+                                               nsGenericHTMLFormElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLObjectElement)
 
@@ -347,6 +351,12 @@ HTMLObjectElement::GetContentWindow()
   return nullptr;
 }
 
+NS_IMETHODIMP
+HTMLObjectElement::GetSVGDocument(nsIDOMDocument **aResult)
+{
+  return GetContentDocument(aResult);
+}
+
 bool
 HTMLObjectElement::ParseAttribute(int32_t aNamespaceID,
                                   nsIAtom *aAttribute,
@@ -443,10 +453,9 @@ HTMLObjectElement::CopyInnerTo(Element* aDest)
 }
 
 JSObject*
-HTMLObjectElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+HTMLObjectElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
-  JS::Rooted<JSObject*> obj(aCx,
-    HTMLObjectElementBinding::Wrap(aCx, aScope, this));
+  JSObject* obj = HTMLObjectElementBinding::Wrap(aCx, aScope, this);
   if (!obj) {
     return nullptr;
   }

@@ -6,7 +6,6 @@
 #ifndef mozilla_dom_HTMLMenuItemElement_h
 #define mozilla_dom_HTMLMenuItemElement_h
 
-#include "mozilla/Attributes.h"
 #include "nsIDOMHTMLMenuItemElement.h"
 #include "nsGenericHTMLElement.h"
 
@@ -15,8 +14,8 @@ namespace dom {
 
 class Visitor;
 
-class HTMLMenuItemElement MOZ_FINAL : public nsGenericHTMLElement,
-                                      public nsIDOMHTMLMenuItemElement
+class HTMLMenuItemElement : public nsGenericHTMLElement,
+                            public nsIDOMHTMLMenuItemElement
 {
 public:
   using mozilla::dom::Element::GetText;
@@ -30,24 +29,38 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLCommandElement
+  NS_DECL_NSIDOMHTMLCOMMANDELEMENT
+
   // nsIDOMHTMLMenuItemElement
   NS_DECL_NSIDOMHTMLMENUITEMELEMENT
 
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
-  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers) MOZ_OVERRIDE;
+                              bool aCompileEventHandlers);
 
   virtual bool ParseAttribute(int32_t aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
-                                nsAttrValue& aResult) MOZ_OVERRIDE;
+                                nsAttrValue& aResult);
 
-  virtual void DoneCreatingElement() MOZ_OVERRIDE;
+  virtual void DoneCreatingElement();
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   uint8_t GetType() const { return mType; }
 
@@ -113,13 +126,12 @@ public:
   }
 
 protected:
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 
 
 protected:
   virtual nsresult AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify) MOZ_OVERRIDE;
+                                const nsAttrValue* aValue, bool aNotify);
 
   void WalkRadioGroup(Visitor* aVisitor);
 

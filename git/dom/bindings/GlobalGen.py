@@ -55,16 +55,13 @@ def main():
         parser.parse(''.join(lines), fullPath)
     parserResults = parser.finish()
 
-    # Load the configuration.
-    config = Configuration(configFile, parserResults)
-
-    # Write the configuration out to a pickle.
+    # Write the parser results out to a pickle.
     resultsFile = open('ParserResults.pkl', 'wb')
-    cPickle.dump(config, resultsFile, -1)
+    cPickle.dump(parserResults, resultsFile, -1)
     resultsFile.close()
 
-    # Generate the atom list.
-    generate_file(config, 'GeneratedAtomList', 'declare')
+    # Load the configuration.
+    config = Configuration(configFile, parserResults)
 
     # Generate the prototype list.
     generate_file(config, 'PrototypeList', 'declare')

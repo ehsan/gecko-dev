@@ -7,32 +7,15 @@
 
 function test()
 {
-  let storage = Cu.import("resource://gre/modules/ConsoleAPIStorage.jsm", {}).ConsoleAPIStorage;
-  storage.clearEvents();
-
-  let console = Cu.import("resource://gre/modules/devtools/Console.jsm", {}).console;
-  console.log("bug861338-log-cached");
-
-  HUDService.toggleBrowserConsole().then(consoleOpened);
+  HUDConsoleUI.toggleBrowserConsole().then(consoleOpened);
   let hud = null;
 
   function consoleOpened(aHud)
   {
     hud = aHud;
-    waitForMessages({
-      webconsole: hud,
-      messages: [{
-        name: "cached console.log message",
-        text: "bug861338-log-cached",
-        category: CATEGORY_WEBDEV,
-        severity: SEVERITY_LOG,
-      }],
-    }).then(onCachedMessage);
-  }
-
-  function onCachedMessage()
-  {
     hud.jsterm.clearOutput(true);
+
+    let console = Cu.import("resource://gre/modules/devtools/Console.jsm", {}).console;
 
     console.time("foobarTimer");
     let foobar = { bug851231prop: "bug851231value" };
@@ -86,7 +69,7 @@ function test()
           name: "console.trace output",
           consoleTrace: {
             file: "browser_console_consolejsm_output.js",
-            fn: "onCachedMessage",
+            fn: "consoleOpened",
           },
         },
         {
@@ -125,7 +108,7 @@ function test()
 
       hud.jsterm.on("variablesview-fetched", onFetch);
 
-      clickable.scrollIntoView(false);
+      scrollOutputToNode(clickable);
 
       info("wait for variablesview-fetched");
       executeSoon(() =>

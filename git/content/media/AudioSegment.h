@@ -7,11 +7,9 @@
 #define MOZILLA_AUDIOSEGMENT_H_
 
 #include "MediaSegment.h"
+#include "nsISupportsImpl.h"
 #include "AudioSampleFormat.h"
 #include "SharedBuffer.h"
-#ifdef MOZILLA_INTERNAL_API
-#include "mozilla/TimeStamp.h"
-#endif
 
 namespace mozilla {
 
@@ -21,27 +19,6 @@ class AudioStream;
  * For auto-arrays etc, guess this as the common number of channels.
  */
 const int GUESS_AUDIO_CHANNELS = 2;
-
-// We ensure that the graph advances in steps that are multiples of the Web
-// Audio block size
-const uint32_t WEBAUDIO_BLOCK_SIZE_BITS = 7;
-const uint32_t WEBAUDIO_BLOCK_SIZE = 1 << WEBAUDIO_BLOCK_SIZE_BITS;
-
-void InterleaveAndConvertBuffer(const void** aSourceChannels,
-                                AudioSampleFormat aSourceFormat,
-                                int32_t aLength, float aVolume,
-                                int32_t aChannels,
-                                AudioDataValue* aOutput);
-
-/**
- * Given an array of input channels (aChannelData), downmix to aOutputChannels,
- * interleave the channel data. A total of aOutputChannels*aDuration
- * interleaved samples will be copied to a channel buffer in aOutput.
- */
-void DownmixAndInterleave(const nsTArray<const void*>& aChannelData,
-                          AudioSampleFormat aSourceFormat, int32_t aDuration,
-                          float aVolume, uint32_t aOutputChannels,
-                          AudioDataValue* aOutput);
 
 /**
  * An AudioChunk represents a multi-channel buffer of audio samples.
@@ -105,9 +82,6 @@ struct AudioChunk {
   nsTArray<const void*> mChannelData; // one pointer per channel; empty if and only if mBuffer is null
   float mVolume; // volume multiplier to apply (1.0f if mBuffer is nonnull)
   SampleFormat mBufferFormat; // format of frames in mBuffer (only meaningful if mBuffer is nonnull)
-#ifdef MOZILLA_INTERNAL_API
-  mozilla::TimeStamp mTimeStamp;           // time at which this has been fetched from the MediaEngine
-#endif
 };
 
 /**
@@ -131,9 +105,6 @@ public:
     }
     chunk->mVolume = 1.0f;
     chunk->mBufferFormat = AUDIO_FORMAT_FLOAT32;
-#ifdef MOZILLA_INTERNAL_API
-    chunk->mTimeStamp = TimeStamp::Now();
-#endif
   }
   void AppendFrames(already_AddRefed<ThreadSharedObject> aBuffer,
                     const nsTArray<const int16_t*>& aChannelData,
@@ -146,9 +117,6 @@ public:
     }
     chunk->mVolume = 1.0f;
     chunk->mBufferFormat = AUDIO_FORMAT_S16;
-#ifdef MOZILLA_INTERNAL_API
-    chunk->mTimeStamp = TimeStamp::Now();
-#endif
   }
   // Consumes aChunk, and returns a pointer to the persistent copy of aChunk
   // in the segment.
@@ -159,13 +127,10 @@ public:
     chunk->mChannelData.SwapElements(aChunk->mChannelData);
     chunk->mVolume = aChunk->mVolume;
     chunk->mBufferFormat = aChunk->mBufferFormat;
-#ifdef MOZILLA_INTERNAL_API
-    chunk->mTimeStamp = TimeStamp::Now();
-#endif
     return chunk;
   }
   void ApplyVolume(float aVolume);
-  void WriteTo(uint64_t aID, AudioStream* aOutput);
+  void WriteTo(AudioStream* aOutput);
 
   static Type StaticType() { return AUDIO; }
 };

@@ -9,8 +9,8 @@
 #define nsDataChannel_h___
 
 #include "nsBaseChannel.h"
-
-class nsIInputStream;
+#include "nsIInputStream.h"
+#include "nsCOMPtr.h"
 
 class nsDataChannel : public nsBaseChannel {
 public:

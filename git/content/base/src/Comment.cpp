@@ -8,6 +8,7 @@
  */
 
 #include "nsCOMPtr.h"
+#include "mozilla/dom/Element.h" // DOMCI_NODE_DATA
 #include "mozilla/dom/Comment.h"
 #include "mozilla/dom/CommentBinding.h"
 
@@ -59,21 +60,8 @@ Comment::List(FILE* out, int32_t aIndent) const
 }
 #endif
 
-/* static */ already_AddRefed<Comment>
-Comment::Constructor(const GlobalObject& aGlobal,
-                     const nsAString& aData, ErrorResult& aRv)
-{
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
-  if (!window || !window->GetDoc()) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  return window->GetDoc()->CreateComment(aData);
-}
-
 JSObject*
-Comment::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+Comment::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return CommentBinding::Wrap(aCx, aScope, this);
 }

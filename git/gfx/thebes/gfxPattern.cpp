@@ -7,8 +7,6 @@
 #include "gfxPattern.h"
 #include "gfxASurface.h"
 #include "gfxPlatform.h"
-#include "gfx2DGlue.h"
-#include "gfxGradientCache.h"
 
 #include "cairo.h"
 
@@ -17,27 +15,27 @@
 using namespace mozilla::gfx;
 
 gfxPattern::gfxPattern(cairo_pattern_t *aPattern)
-  : mGfxPattern(nullptr)
+  : mGfxPattern(NULL)
 {
     mPattern = cairo_pattern_reference(aPattern);
 }
 
 gfxPattern::gfxPattern(const gfxRGBA& aColor)
-  : mGfxPattern(nullptr)
+  : mGfxPattern(NULL)
 {
     mPattern = cairo_pattern_create_rgba(aColor.r, aColor.g, aColor.b, aColor.a);
 }
 
 // from another surface
 gfxPattern::gfxPattern(gfxASurface *surface)
-  : mGfxPattern(nullptr)
+  : mGfxPattern(NULL)
 {
     mPattern = cairo_pattern_create_for_surface(surface->CairoSurface());
 }
 
 // linear
 gfxPattern::gfxPattern(gfxFloat x0, gfxFloat y0, gfxFloat x1, gfxFloat y1)
-  : mGfxPattern(nullptr)
+  : mGfxPattern(NULL)
 {
     mPattern = cairo_pattern_create_linear(x0, y0, x1, y1);
 }
@@ -45,7 +43,7 @@ gfxPattern::gfxPattern(gfxFloat x0, gfxFloat y0, gfxFloat x1, gfxFloat y1)
 // radial
 gfxPattern::gfxPattern(gfxFloat cx0, gfxFloat cy0, gfxFloat radius0,
                        gfxFloat cx1, gfxFloat cy1, gfxFloat radius1)
-  : mGfxPattern(nullptr)
+  : mGfxPattern(NULL)
 {
     mPattern = cairo_pattern_create_radial(cx0, cy0, radius0,
                                            cx1, cy1, radius1);
@@ -53,11 +51,10 @@ gfxPattern::gfxPattern(gfxFloat cx0, gfxFloat cy0, gfxFloat radius0,
 
 // Azure
 gfxPattern::gfxPattern(SourceSurface *aSurface, const Matrix &aTransform)
-  : mPattern(nullptr)
-  , mGfxPattern(nullptr)
+  : mPattern(NULL)
+  , mGfxPattern(NULL)
   , mSourceSurface(aSurface)
   , mTransform(aTransform)
-  , mExtend(EXTEND_NONE)
 {
 }
 
@@ -80,7 +77,7 @@ void
 gfxPattern::AddColorStop(gfxFloat offset, const gfxRGBA& c)
 {
   if (mPattern) {
-    mStops = nullptr;
+    mStops = NULL;
     if (gfxPlatform::GetCMSMode() == eCMSMode_All) {
         gfxRGBA cms;
         qcms_transform *transform = gfxPlatform::GetCMSRGBTransform();
@@ -101,29 +98,6 @@ void
 gfxPattern::SetColorStops(mozilla::RefPtr<mozilla::gfx::GradientStops> aStops)
 {
   mStops = aStops;
-}
-
-void
-gfxPattern::CacheColorStops(mozilla::gfx::DrawTarget *aDT)
-{
-  if (mPattern) {
-    mStops = nullptr;
-    nsTArray<GradientStop> stops;
-    int count = 0;
-    cairo_pattern_get_color_stop_count(mPattern, &count);
-    stops.SetLength(count);
-    for (int n = 0; n < count; ++n) {
-      double offset, r, g, b, a;
-      cairo_pattern_get_color_stop_rgba(mPattern, n, &offset, &r, &g, &b, &a);
-      stops[n].color = mozilla::gfx::Color(r, g, b, a);
-      stops[n].offset = offset;
-    }
-    mStops = gfxGradientCache::GetOrCreateGradientStops(aDT,
-                                                        stops,
-                                                        (cairo_pattern_get_extend(mPattern) == CAIRO_EXTEND_REPEAT)
-                                                        ? mozilla::gfx::EXTEND_REPEAT
-                                                        : mozilla::gfx::EXTEND_CLAMP);
-  }
 }
 
 void
@@ -149,23 +123,6 @@ gfxPattern::GetMatrix() const
     cairo_pattern_get_matrix(mPattern, &mat);
     return gfxMatrix(*reinterpret_cast<gfxMatrix*>(&mat));
   } else {
-    // invert at the higher precision of gfxMatrix
-    // cause we need to convert at some point anyways
-    gfxMatrix mat = ThebesMatrix(mTransform);
-    mat.Invert();
-    return mat;
-  }
-}
-
-gfxMatrix
-gfxPattern::GetInverseMatrix() const
-{
-  if (mPattern) {
-    cairo_matrix_t mat;
-    cairo_pattern_get_matrix(mPattern, &mat);
-    cairo_matrix_invert(&mat);
-    return gfxMatrix(*reinterpret_cast<gfxMatrix*>(&mat));
-  } else {
     return ThebesMatrix(mTransform);
   }
 }
@@ -180,7 +137,7 @@ gfxPattern::GetPattern(DrawTarget *aTarget, Matrix *aPatternTransform)
 
   if (!mPattern) {
     mGfxPattern = new (mSurfacePattern.addr())
-      SurfacePattern(mSourceSurface, ToExtendMode(mExtend), mTransform);
+      SurfacePattern(mSourceSurface, EXTEND_CLAMP, mTransform);
     return mGfxPattern;
   }
 
@@ -202,7 +159,7 @@ gfxPattern::GetPattern(DrawTarget *aTarget, Matrix *aPatternTransform)
       cairo_pattern_get_matrix(mPattern, &mat);
       gfxMatrix matrix(*reinterpret_cast<gfxMatrix*>(&mat));
 
-      cairo_surface_t *surf = nullptr;
+      cairo_surface_t *surf = NULL;
       cairo_pattern_get_surface(mPattern, &surf);
 
       if (!mSourceSurface) {
@@ -318,10 +275,10 @@ void
 gfxPattern::SetExtend(GraphicsExtend extend)
 {
   if (mPattern) {
-    mStops = nullptr;
+    mStops = NULL;
     if (extend == EXTEND_PAD_EDGE) {
         if (cairo_pattern_get_type(mPattern) == CAIRO_PATTERN_TYPE_SURFACE) {
-            cairo_surface_t *surf = nullptr;
+            cairo_surface_t *surf = NULL;
 
             cairo_pattern_get_surface (mPattern, &surf);
             if (surf) {
@@ -349,7 +306,7 @@ gfxPattern::SetExtend(GraphicsExtend extend)
   } else {
     // This is always a surface pattern and will default to EXTEND_PAD
     // for EXTEND_PAD_EDGE.
-    mExtend = extend;
+    mExtend = ToExtendMode(extend);
   }
 }
 
@@ -360,7 +317,7 @@ gfxPattern::IsOpaque()
     switch (cairo_pattern_get_type(mPattern)) {
     case CAIRO_PATTERN_TYPE_SURFACE:
       {
-        cairo_surface_t *surf = nullptr;
+        cairo_surface_t *surf = NULL;
         cairo_pattern_get_surface(mPattern, &surf);
 
         if (cairo_surface_get_content(surf) == CAIRO_CONTENT_COLOR) {
@@ -384,7 +341,7 @@ gfxPattern::Extend() const
   if (mPattern) {
     return (GraphicsExtend)cairo_pattern_get_extend(mPattern);
   } else {
-    return mExtend;
+    return ThebesExtend(mExtend);
   }
 }
 
@@ -392,13 +349,13 @@ void
 gfxPattern::SetFilter(GraphicsFilter filter)
 {
   if (mPattern) {
-    cairo_pattern_set_filter(mPattern, (cairo_filter_t)(int)filter);
+    cairo_pattern_set_filter(mPattern, (cairo_filter_t)filter);
   } else {
     mFilter = ToFilter(filter);
   }
 }
 
-GraphicsFilter
+gfxPattern::GraphicsFilter
 gfxPattern::Filter() const
 {
   if (mPattern) {
@@ -431,7 +388,7 @@ gfxPattern::GetSurface()
   } else {
     // We should never be trying to get the surface off an Azure gfx Pattern.
     NS_ERROR("Attempt to get surface off an Azure gfxPattern!");
-    return nullptr;
+    return NULL;
   }
 }
 

@@ -6,11 +6,9 @@
 #include "nsSVGPolyElement.h"
 #include "DOMSVGPointList.h"
 #include "gfxContext.h"
-#include "mozilla/gfx/2D.h"
 #include "SVGContentUtils.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 //----------------------------------------------------------------------
 // nsISupports methods
@@ -80,32 +78,26 @@ nsSVGPolyElement::GetMarkPoints(nsTArray<nsSVGMark> *aMarks)
   if (!points.Length())
     return;
 
-  float px = points[0].mX, py = points[0].mY, prevAngle = 0.0;
+  float px = 0.0, py = 0.0, prevAngle = 0.0;
 
-  aMarks->AppendElement(nsSVGMark(px, py, 0, nsSVGMark::eStart));
-
-  for (uint32_t i = 1; i < points.Length(); ++i) {
+  for (uint32_t i = 0; i < points.Length(); ++i) {
     float x = points[i].mX;
     float y = points[i].mY;
     float angle = atan2(y-py, x-px);
-
-    // Vertex marker.
-    if (i == 1) {
-      aMarks->ElementAt(0).angle = angle;
-    } else {
-      aMarks->ElementAt(aMarks->Length() - 2).angle =
+    if (i == 1)
+      aMarks->ElementAt(aMarks->Length() - 1).angle = angle;
+    else if (i > 1)
+      aMarks->ElementAt(aMarks->Length() - 1).angle =
         SVGContentUtils::AngleBisect(prevAngle, angle);
-    }
 
-    aMarks->AppendElement(nsSVGMark(x, y, 0, nsSVGMark::eMid));
+    aMarks->AppendElement(nsSVGMark(x, y, 0));
 
     prevAngle = angle;
     px = x;
     py = y;
   }
 
-  aMarks->LastElement().angle = prevAngle;
-  aMarks->LastElement().type = nsSVGMark::eEnd;
+  aMarks->ElementAt(aMarks->Length() - 1).angle = prevAngle;
 }
 
 void
@@ -122,21 +114,3 @@ nsSVGPolyElement::ConstructPath(gfxContext *aCtx)
   }
 }
 
-TemporaryRef<Path>
-nsSVGPolyElement::BuildPath()
-{
-  const SVGPointList &points = mPoints.GetAnimValue();
-
-  if (points.IsEmpty()) {
-    return nullptr;
-  }
-
-  RefPtr<PathBuilder> pathBuilder = CreatePathBuilder();
-
-  pathBuilder->MoveTo(points[0]);
-  for (uint32_t i = 1; i < points.Length(); ++i) {
-    pathBuilder->LineTo(points[i]);
-  }
-
-  return pathBuilder->Finish();
-}

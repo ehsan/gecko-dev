@@ -4,7 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/SVGRect.h"
-#include "nsSVGElement.h"
+#include "nsContentUtils.h"
+#include "nsDOMClassInfoID.h"
+
+DOMCI_DATA(SVGRect, mozilla::dom::SVGRect)
 
 namespace mozilla {
 namespace dom {
@@ -12,21 +15,20 @@ namespace dom {
 //----------------------------------------------------------------------
 // implementation:
 
-SVGRect::SVGRect(nsIContent* aParent, float x, float y, float w, float h)
-  : SVGIRect(), mParent(aParent), mX(x), mY(y), mWidth(w), mHeight(h)
+SVGRect::SVGRect(float x, float y, float w, float h)
+    : mX(x), mY(y), mWidth(w), mHeight(h)
 {
 }
 
 //----------------------------------------------------------------------
 // nsISupports methods:
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(SVGRect, mParent)
+NS_IMPL_ADDREF(SVGRect)
+NS_IMPL_RELEASE(SVGRect)
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(SVGRect)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(SVGRect)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(SVGRect)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+NS_INTERFACE_MAP_BEGIN(SVGRect)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGRect)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGRect)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -36,20 +38,21 @@ NS_INTERFACE_MAP_END
 ////////////////////////////////////////////////////////////////////////
 // Exported creation functions:
 
-already_AddRefed<mozilla::dom::SVGRect>
-NS_NewSVGRect(nsIContent* aParent, float aX, float aY, float aWidth,
-              float aHeight)
+nsresult
+NS_NewSVGRect(mozilla::dom::SVGRect** result, float x, float y,
+              float width, float height)
 {
-  nsRefPtr<mozilla::dom::SVGRect> rect =
-    new mozilla::dom::SVGRect(aParent, aX, aY, aWidth, aHeight);
-
-  return rect.forget();
+  *result = new mozilla::dom::SVGRect(x, y, width, height);
+  if (!*result) return NS_ERROR_OUT_OF_MEMORY;
+  NS_ADDREF(*result);
+  return NS_OK;
 }
 
-already_AddRefed<mozilla::dom::SVGRect>
-NS_NewSVGRect(nsIContent* aParent, const gfxRect& aRect)
+nsresult
+NS_NewSVGRect(mozilla::dom::SVGRect** result, const gfxRect& rect)
 {
-  return NS_NewSVGRect(aParent, aRect.X(), aRect.Y(),
-                       aRect.Width(), aRect.Height());
+  return NS_NewSVGRect(result,
+                       rect.X(), rect.Y(),
+                       rect.Width(), rect.Height());
 }
 

@@ -165,8 +165,7 @@ function run_test() {
   installAllFiles([do_get_addon(a.addon) for each (a in ADDONS)], function() {
 
     restartManager();
-    AddonManager.getAddonByID(ADDONS[1].id, callback_soon(function(addon) {
-      do_check_true(!(!addon));
+    AddonManager.getAddonByID(ADDONS[1].id, function(addon) {
       addon.userDisabled = true;
       restartManager();
 
@@ -176,6 +175,6 @@ function run_test() {
           item.findUpdates(updateListener, AddonManager.UPDATE_WHEN_USER_REQUESTED);
         });
       });
-    }));
+    });
   });
 }

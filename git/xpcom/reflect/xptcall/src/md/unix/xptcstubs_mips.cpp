@@ -8,7 +8,7 @@
 #include "xptcprivate.h"
 #include "xptiprivate.h"
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 /*
  * This is for MIPS O32 ABI
@@ -23,7 +23,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, uint32_t methodIndex, uint32_t* args)
 #define PARAM_BUFFER_COUNT		16
 
     nsXPTCMiniVariant paramBuffer[PARAM_BUFFER_COUNT];
-    nsXPTCMiniVariant* dispatchParams = nullptr;
+    nsXPTCMiniVariant* dispatchParams = NULL;
     const nsXPTMethodInfo* info;
     uint8_t paramCount;
     uint8_t i;

@@ -7,15 +7,14 @@
 #define GFX_FONTMISSINGGLYPHS_H
 
 #include "gfxTypes.h"
+#include "gfxContext.h"
 #include "gfxRect.h"
-
-class gfxContext;
 
 /**
  * This class should not be instantiated. It's just a container
  * for some helper functions.
  */
-class gfxFontMissingGlyphs {
+class THEBES_API gfxFontMissingGlyphs {
 public:
     /**
      * Draw hexboxes for a missing glyph.

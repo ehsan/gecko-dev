@@ -1,9 +1,11 @@
+
 /*
  * Copyright 2006 The Android Open Source Project
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
+
 
 #ifndef SkAvoidXfermode_DEFINED
 #define SkAvoidXfermode_DEFINED
@@ -15,7 +17,7 @@
     This xfermode will draw the src everywhere except on top of the specified
     color.
 */
-class SK_API SkAvoidXfermode : public SkXfermode {
+class SkAvoidXfermode : public SkXfermode {
 public:
     enum Mode {
         kAvoidColor_Mode,   //!< draw everywhere except on the opColor
@@ -41,15 +43,14 @@ public:
 
     // overrides from SkXfermode
     virtual void xfer32(SkPMColor dst[], const SkPMColor src[], int count,
-                        const SkAlpha aa[]) const SK_OVERRIDE;
+                        const SkAlpha aa[]) SK_OVERRIDE;
     virtual void xfer16(uint16_t dst[], const SkPMColor src[], int count,
-                        const SkAlpha aa[]) const SK_OVERRIDE;
+                        const SkAlpha aa[]) SK_OVERRIDE;
     virtual void xfer4444(uint16_t dst[], const SkPMColor src[], int count,
-                          const SkAlpha aa[]) const SK_OVERRIDE;
+                          const SkAlpha aa[]) SK_OVERRIDE;
     virtual void xferA8(SkAlpha dst[], const SkPMColor src[], int count,
-                        const SkAlpha aa[]) const SK_OVERRIDE;
+                        const SkAlpha aa[]) SK_OVERRIDE;
 
-    SK_DEVELOPER_TO_STRING()
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkAvoidXfermode)
 
 protected:

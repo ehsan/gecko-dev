@@ -24,7 +24,7 @@
  */
 
 
-#include "assembler/jit/ExecutableAllocator.h"
+#include "ExecutableAllocator.h"
 
 #if ENABLE_ASSEMBLER && WTF_OS_OS2
 
@@ -51,12 +51,6 @@ ExecutablePool::Allocation ExecutableAllocator::systemAlloc(size_t n)
 void ExecutableAllocator::systemRelease(const ExecutablePool::Allocation& alloc)
 {
     DosFreeMem(alloc.pages);
-}
-
-void
-ExecutablePool::toggleAllCodeAsAccessible(bool accessible)
-{
-    MOZ_CRASH();
 }
 
 #if ENABLE_ASSEMBLER_WX_EXCLUSIVE

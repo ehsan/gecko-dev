@@ -9,11 +9,11 @@
 #include "mozilla/X11Util.h"
 #endif
 
+#include "GLContext.h"
 #include "GLLibraryLoader.h"
 
 #include "nsIFile.h"
 
-#include <bitset>
 
 #if defined(XP_WIN)
 
@@ -43,7 +43,7 @@ typedef void *EGLNativeWindowType;
 // This should really go in GLLibraryEGL.cpp but we currently reference
 // APITRACE_LIB in GLContextProviderEGL.cpp. Further refactoring
 // will come in subsequent patches on Bug 732865
-#define APITRACE_LIB "/data/local/tmp/egltrace.so"
+#define APITRACE_LIB "/data/local/egltrace.so"
 
 #ifdef MOZ_WIDGET_ANDROID
 
@@ -60,20 +60,9 @@ typedef void *EGLNativeWindowType;
 namespace mozilla {
 namespace gl {
 
+#ifdef DEBUG
 #undef BEFORE_GL_CALL
 #undef AFTER_GL_CALL
-
-#ifdef DEBUG
-
-#ifndef MOZ_FUNCTION_NAME
-# ifdef __GNUC__
-#  define MOZ_FUNCTION_NAME __PRETTY_FUNCTION__
-# elif defined(_MSC_VER)
-#  define MOZ_FUNCTION_NAME __FUNCTION__
-# else
-#  define MOZ_FUNCTION_NAME __func__  // defined in C99, supported in various C++ compilers. Just raw function name.
-# endif
-#endif
 
 #define BEFORE_GL_CALL do {          \
     BeforeGLCall(MOZ_FUNCTION_NAME); \
@@ -84,10 +73,22 @@ namespace gl {
 } while (0)
 // We rely on the fact that GLLibraryEGL.h #defines BEFORE_GL_CALL and
 // AFTER_GL_CALL to nothing if !defined(DEBUG).
-#else
-#define BEFORE_GL_CALL
-#define AFTER_GL_CALL
 #endif
+
+static inline void BeforeGLCall(const char* glFunction)
+{
+    if (GLContext::DebugMode()) {
+        if (GLContext::DebugMode() & GLContext::DebugTrace)
+            printf_stderr("[egl] > %s\n", glFunction);
+    }
+}
+
+static inline void AfterGLCall(const char* glFunction)
+{
+    if (GLContext::DebugMode() & GLContext::DebugTrace) {
+        printf_stderr("[egl] < %s\n", glFunction);
+    }
+}
 
 class GLLibraryEGL
 {
@@ -125,11 +126,11 @@ public:
     }
 
     void MarkExtensionUnsupported(EGLExtensions aKnownExtension) {
-        mAvailableExtensions[aKnownExtension] = false;
+        mAvailableExtensions[aKnownExtension] = 0;
     }
 
 protected:
-    std::bitset<Extensions_Max> mAvailableExtensions;
+    GLContext::ExtensionBitset<Extensions_Max> mAvailableExtensions;
 
 public:
 
@@ -427,6 +428,10 @@ public:
         return IsExtensionSupported(KHR_gl_texture_2D_image);
     }
 
+    bool HasKHRLockSurface() {
+        return IsExtensionSupported(KHR_lock_surface);
+    }
+
     bool HasANGLESurfaceD3DTexture2DShareHandle() {
         return IsExtensionSupported(ANGLE_surface_d3d_texture_2d_share_handle);
     }
@@ -517,11 +522,6 @@ public:
         pfnGetSyncAttrib fGetSyncAttrib;
     } mSymbols;
 
-#ifdef DEBUG
-    static void BeforeGLCall(const char* glFunction);
-    static void AfterGLCall(const char* glFunction);
-#endif
-
 private:
     bool mInitialized;
     PRLibrary* mEGLLibrary;
@@ -529,9 +529,6 @@ private:
 
     bool mIsANGLE;
 };
-
-extern GLLibraryEGL sEGLLibrary;
-#define EGL_DISPLAY()        sEGLLibrary.Display()
 
 } /* namespace gl */
 } /* namespace mozilla */

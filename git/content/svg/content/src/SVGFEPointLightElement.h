@@ -26,22 +26,21 @@ protected:
     : SVGFEPointLightElementBase(aNodeInfo)
   {
   }
-  virtual JSObject* WrapNode(JSContext *cx,
-                             JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
 public:
   virtual bool AttributeAffectsRendering(
-          int32_t aNameSpaceID, nsIAtom* aAttribute) const MOZ_OVERRIDE;
+          int32_t aNameSpaceID, nsIAtom* aAttribute) const;
 
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // WebIDL
-  already_AddRefed<SVGAnimatedNumber> X();
-  already_AddRefed<SVGAnimatedNumber> Y();
-  already_AddRefed<SVGAnimatedNumber> Z();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> X();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> Y();
+  already_AddRefed<nsIDOMSVGAnimatedNumber> Z();
 
 protected:
-  virtual NumberAttributesInfo GetNumberInfo() MOZ_OVERRIDE;
+  virtual NumberAttributesInfo GetNumberInfo();
 
   enum { ATTR_X, ATTR_Y, ATTR_Z };
   nsSVGNumber2 mNumberAttributes[3];

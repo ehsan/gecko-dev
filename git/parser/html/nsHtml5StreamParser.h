@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsHtml5StreamParser_h
-#define nsHtml5StreamParser_h
+#ifndef nsHtml5StreamParser_h__
+#define nsHtml5StreamParser_h__
 
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
@@ -20,7 +20,6 @@
 #include "nsHtml5Speculation.h"
 #include "nsITimer.h"
 #include "nsICharsetDetector.h"
-#include "nsIThreadRetargetableStreamListener.h"
 
 class nsHtml5Parser;
 
@@ -102,7 +101,6 @@ enum eHtml5StreamState {
 };
 
 class nsHtml5StreamParser : public nsIStreamListener,
-                            public nsIThreadRetargetableStreamListener,
                             public nsICharsetDetectionObserver {
 
   friend class nsHtml5RequestStopper;
@@ -127,8 +125,6 @@ class nsHtml5StreamParser : public nsIStreamListener,
     NS_DECL_NSIREQUESTOBSERVER
     // nsIStreamListener methods:
     NS_DECL_NSISTREAMLISTENER
-    // nsIThreadRetargetableStreamListener methods:
-    NS_DECL_NSITHREADRETARGETABLESTREAMLISTENER
     
     // nsICharsetDetectionObserver
     /**
@@ -243,14 +239,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
     
     void DoStopRequest();
     
-    void DoDataAvailable(const uint8_t* aBuffer, uint32_t aLength);
-
-    static NS_METHOD CopySegmentsToParser(nsIInputStream *aInStream,
-                                          void *aClosure,
-                                          const char *aFromSegment,
-                                          uint32_t aToOffset,
-                                          uint32_t aCount,
-                                          uint32_t *aWriteCount);
+    void DoDataAvailable(uint8_t* aBuffer, uint32_t aLength);
 
     bool IsTerminatedOrInterrupted() {
       mozilla::MutexAutoLock autoLock(mTerminatedMutex);
@@ -341,11 +330,14 @@ class nsHtml5StreamParser : public nsIStreamListener,
      * Initialize the Unicode decoder, mark the BOM as the source and
      * drop the sniffer.
      *
-     * @param aDecoderCharsetName The name for the decoder's charset
+     * @param aCharsetName The charset name to report to the outside (UTF-16
+     *                     or UTF-8)
+     * @param aDecoderCharsetName The actual name for the decoder's charset
      *                            (UTF-16BE, UTF-16LE or UTF-8; the BOM has
      *                            been swallowed)
      */
-    nsresult SetupDecodingFromBom(const char* aDecoderCharsetName);
+    nsresult SetupDecodingFromBom(const char* aCharsetName,
+                                  const char* aDecoderCharsetName);
 
     /**
      * Become confident or resolve and encoding name to its preferred form.
@@ -556,4 +548,4 @@ class nsHtml5StreamParser : public nsIStreamListener,
     static int32_t                sTimerSubsequentDelay;
 };
 
-#endif // nsHtml5StreamParser_h
+#endif // nsHtml5StreamParser_h__

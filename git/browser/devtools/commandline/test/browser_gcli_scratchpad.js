@@ -37,7 +37,7 @@ function test() {
 
 // var assert = require('test/assert');
 
-var origScratchpad;
+var origScratchpad = undefined;
 
 exports.setup = function(options) {
   origScratchpad = options.display.inputter.scratchpad;
@@ -65,7 +65,7 @@ exports.testActivate = function(options) {
   var ev = {};
   stubScratchpad.activatedCount = 0;
   options.display.inputter.handleKeyUp(ev);
-  assert.is(stubScratchpad.activatedCount, 1, 'scratchpad is activated');
+  assert.is(1, stubScratchpad.activatedCount, 'scratchpad is activated');
 };
 
 

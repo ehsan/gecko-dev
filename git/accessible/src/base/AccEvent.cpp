@@ -6,19 +6,22 @@
 
 #include "AccEvent.h"
 
+#include "ApplicationAccessibleWrap.h"
+#include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "DocAccessible.h"
+#include "nsIAccessibleText.h"
 #include "xpcAccEvents.h"
 #include "States.h"
 
 #include "nsEventStateManager.h"
+#include "nsIServiceManager.h"
+#ifdef MOZ_XUL
+#include "nsIDOMXULMultSelectCntrlEl.h"
+#endif
 
 using namespace mozilla;
 using namespace mozilla::a11y;
-
-static_assert(static_cast<bool>(eNoUserInput) == false &&
-              static_cast<bool>(eFromUserInput) == true,
-              "EIsFromUserInput cannot be casted to bool");
 
 ////////////////////////////////////////////////////////////////////////////////
 // AccEvent
@@ -120,18 +123,6 @@ AccShowEvent::
 {
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-// AccTextSelChangeEvent
-////////////////////////////////////////////////////////////////////////////////
-
-AccTextSelChangeEvent::AccTextSelChangeEvent(HyperTextAccessible* aTarget,
-                                             nsISelection* aSelection) :
-  AccEvent(nsIAccessibleEvent::EVENT_TEXT_SELECTION_CHANGED, aTarget,
-           eAutoDetect, eCoalesceTextSelChange),
-  mSel(aSelection) {}
-
-AccTextSelChangeEvent::~AccTextSelChangeEvent() { }
 
 ////////////////////////////////////////////////////////////////////////////////
 // AccSelChangeEvent

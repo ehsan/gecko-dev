@@ -6,10 +6,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 include protocol PBrowser;
-include protocol PLayerTransaction;
-
-
-using class nsRegion from "nsRegion.h";
+include protocol PLayers;
 
 namespace mozilla {
 namespace layout {
@@ -26,7 +23,7 @@ namespace layout {
 sync protocol PRenderFrame
 {
     manager PBrowser;
-    manages PLayerTransaction;
+    manages PLayers;
 
 parent:
     /**
@@ -40,23 +37,22 @@ parent:
      * |id| is set to 0 in the "direct" case, and to a whole number
      * in the "indirect" case.
      */
-    async PLayerTransaction();
+    async PLayers();
 
     async NotifyCompositorTransaction();
 
-    async UpdateHitRegion(nsRegion aRegion);
+    async CancelDefaultPanZoom();
+    async DetectScrollableSubframe();
 
     async __delete__();
 
 state EMPTY_OR_DIRECT_COMPOSITOR:
-    recv PLayerTransaction goto HAVE_CONTENT;
+    recv PLayers goto HAVE_CONTENT;
     recv NotifyCompositorTransaction goto EMPTY_OR_DIRECT_COMPOSITOR;
-    recv UpdateHitRegion goto EMPTY_OR_DIRECT_COMPOSITOR;
     recv __delete__;
 
 state HAVE_CONTENT:
     recv NotifyCompositorTransaction goto HAVE_CONTENT;
-    recv UpdateHitRegion goto HAVE_CONTENT;
     recv __delete__;
 };
 

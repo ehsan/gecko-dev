@@ -5,18 +5,15 @@
 //
 
 #include "compiler/MapLongVariableNames.h"
-
-#include "third_party/murmurhash/MurmurHash3.h"
+#include "spooky.h"
 
 namespace {
 
-TString mapLongName(size_t id, const TString& name, bool isGlobal)
+TString mapLongName(int id, const TString& name, bool isGlobal)
 {
     ASSERT(name.size() > MAX_SHORTENED_IDENTIFIER_SIZE);
     TStringStream stream;
-
-    uint64_t hash[2] = {0, 0};
-    MurmurHash3_x64_128(name.data(), name.length(), 0, hash);
+    uint64 hash = SpookyHash::Hash64(name.data(), name.length(), 0);
 
     // We want to avoid producing a string with a double underscore,
     // which would be an illegal GLSL identifier. We can assume that the
@@ -26,7 +23,7 @@ TString mapLongName(size_t id, const TString& name, bool isGlobal)
            << name.substr(0, 9)
            << (name[8] == '_' ? "" : "_")
            << std::hex
-           << hash[0];
+           << hash;
     ASSERT(stream.str().length() <= MAX_SHORTENED_IDENTIFIER_SIZE);
     ASSERT(stream.str().length() >= MAX_SHORTENED_IDENTIFIER_SIZE - 2);
     return stream.str();
@@ -80,7 +77,7 @@ void LongNameMap::Insert(const char* originalName, const char* mappedName)
         originalName, mappedName));
 }
 
-size_t LongNameMap::Size() const
+int LongNameMap::Size() const
 {
     return mLongNameMap.size();
 }
@@ -125,7 +122,7 @@ TString MapLongVariableNames::mapGlobalLongName(const TString& name)
     const char* mappedName = mGlobalMap->Find(name.c_str());
     if (mappedName != NULL)
         return mappedName;
-    size_t id = mGlobalMap->Size();
+    int id = mGlobalMap->Size();
     TString rt = mapLongName(id, name, true);
     mGlobalMap->Insert(name.c_str(), rt.c_str());
     return rt;

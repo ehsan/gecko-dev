@@ -8,11 +8,12 @@
 #ifndef SkNativeGLContext_DEFINED
 #define SkNativeGLContext_DEFINED
 
-#include "SkGLContextHelper.h"
+#include "SkGLContext.h"
 
 #if defined(SK_BUILD_FOR_MAC)
-    #include <OpenGL/OpenGL.h>
-#elif defined(SK_BUILD_FOR_ANDROID) || defined(SK_BUILD_FOR_NACL)
+    #include <AGL/agl.h>
+
+#elif defined(SK_BUILD_FOR_ANDROID)
     #include <GLES2/gl2.h>
     #include <EGL/egl.h>
 #elif defined(SK_BUILD_FOR_UNIX)
@@ -23,7 +24,7 @@
     #include <GL/GL.h>
 #endif
 
-class SkNativeGLContext : public SkGLContextHelper {
+class SkNativeGLContext : public SkGLContext {
 public:
     SkNativeGLContext();
 
@@ -38,11 +39,7 @@ public:
 
     private:
     #if defined(SK_BUILD_FOR_MAC)
-        CGLContextObj fOldCGLContext;
-    #elif defined(SK_BUILD_FOR_ANDROID) || defined(SK_BUILD_FOR_NACL)
-        EGLContext fOldEGLContext;
-        EGLDisplay fOldDisplay;
-        EGLSurface fOldSurface;
+        AGLContext fOldAGLContext;
     #elif defined(SK_BUILD_FOR_UNIX)
         GLXContext fOldGLXContext;
         Display* fOldDisplay;
@@ -50,9 +47,10 @@ public:
     #elif defined(SK_BUILD_FOR_WIN32)
         HDC fOldHDC;
         HGLRC fOldHGLRC;
-
-    #elif defined(SK_BUILD_FOR_IOS)
-        void* fEAGLContext;
+    #elif defined(SK_BUILD_FOR_ANDROID)
+        EGLContext fOldEGLContext;
+        EGLDisplay fOldDisplay;
+        EGLSurface fOldSurface;
     #endif
     };
 
@@ -62,11 +60,7 @@ protected:
 
 private:
 #if defined(SK_BUILD_FOR_MAC)
-    CGLContextObj fContext;
-#elif defined(SK_BUILD_FOR_ANDROID) || defined(SK_BUILD_FOR_NACL)
-    EGLContext fContext;
-    EGLDisplay fDisplay;
-    EGLSurface fSurface;
+    AGLContext fContext;
 #elif defined(SK_BUILD_FOR_UNIX)
     GLXContext fContext;
     Display* fDisplay;
@@ -77,8 +71,10 @@ private:
     HDC fDeviceContext;
     HGLRC fGlRenderContext;
     static ATOM gWC;
-#elif defined(SK_BUILD_FOR_IOS)
-    void* fEAGLContext;
+#elif defined(SK_BUILD_FOR_ANDROID)
+    EGLContext fContext;
+    EGLDisplay fDisplay;
+    EGLSurface fSurface;
 #endif
 };
 

@@ -6,7 +6,7 @@
 #ifndef GLCONTEXTPROVIDER_H_
 #define GLCONTEXTPROVIDER_H_
 
-#include "GLContextTypes.h"
+#include "GLContext.h"
 #include "gfxTypes.h"
 #include "gfxPoint.h"
 #include "nsAutoPtr.h"
@@ -40,20 +40,14 @@ namespace gl {
 #define GL_CONTEXT_PROVIDER_DEFAULT GLContextProviderCGL
 #endif
 
-#if defined(ANDROID) || defined(XP_WIN)
+#if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO) || defined(XP_WIN)
 #define GL_CONTEXT_PROVIDER_NAME GLContextProviderEGL
 #include "GLContextProviderImpl.h"
 #undef GL_CONTEXT_PROVIDER_NAME
+
 #ifndef GL_CONTEXT_PROVIDER_DEFAULT
 #define GL_CONTEXT_PROVIDER_DEFAULT GLContextProviderEGL
 #endif
-#endif
-
-#ifdef MOZ_GL_PROVIDER
-#define GL_CONTEXT_PROVIDER_NAME MOZ_GL_PROVIDER
-#include "GLContextProviderImpl.h"
-#undef GL_CONTEXT_PROVIDER_NAME
-#define GL_CONTEXT_PROVIDER_DEFAULT MOZ_GL_PROVIDER
 #endif
 
 #if defined(MOZ_X11) && !defined(GL_CONTEXT_PROVIDER_DEFAULT)
@@ -61,6 +55,13 @@ namespace gl {
 #include "GLContextProviderImpl.h"
 #undef GL_CONTEXT_PROVIDER_NAME
 #define GL_CONTEXT_PROVIDER_DEFAULT GLContextProviderGLX
+#endif
+
+#ifdef MOZ_GL_PROVIDER
+#define GL_CONTEXT_PROVIDER_NAME MOZ_GL_PROVIDER
+#include "GLContextProviderImpl.h"
+#undef GL_CONTEXT_PROVIDER_NAME
+#define GL_CONTEXT_PROVIDER_DEFAULT MOZ_GL_PROVIDER
 #endif
 
 #ifdef GL_CONTEXT_PROVIDER_DEFAULT

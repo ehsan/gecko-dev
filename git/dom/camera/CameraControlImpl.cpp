@@ -3,7 +3,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "base/basictypes.h"
-#include "mozilla/Assertions.h"
 #include "DOMCameraPreview.h"
 #include "CameraRecorderProfiles.h"
 #include "CameraControlImpl.h"
@@ -21,7 +20,6 @@ CameraControlImpl::CameraControlImpl(uint32_t aCameraId, nsIThread* aCameraThrea
   , mFileFormat()
   , mMaxMeteringAreas(0)
   , mMaxFocusAreas(0)
-  , mPreviewState(PREVIEW_STOPPED)
   , mDOMPreview(nullptr)
   , mAutoFocusOnSuccessCb(nullptr)
   , mAutoFocusOnErrorCb(nullptr)
@@ -30,7 +28,6 @@ CameraControlImpl::CameraControlImpl(uint32_t aCameraId, nsIThread* aCameraThrea
   , mOnShutterCb(nullptr)
   , mOnClosedCb(nullptr)
   , mOnRecorderStateChangeCb(nullptr)
-  , mOnPreviewStateChangeCb(nullptr)
 {
   DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
 }
@@ -91,7 +88,7 @@ CameraControlImpl::Set(JSContext* aCx, uint32_t aKey, const JS::Value& aValue, u
 
   uint32_t length = 0;
 
-  JS::Rooted<JSObject*> regions(aCx, &aValue.toObject());
+  JSObject* regions = &aValue.toObject();
   if (!JS_GetArrayLength(aCx, regions, &length)) {
     return NS_ERROR_FAILURE;
   }
@@ -105,7 +102,7 @@ CameraControlImpl::Set(JSContext* aCx, uint32_t aKey, const JS::Value& aValue, u
   regionArray.SetCapacity(length);
 
   for (uint32_t i = 0; i < length; ++i) {
-    JS::Rooted<JS::Value> v(aCx);
+    JS::Value v;
 
     if (!JS_GetElement(aCx, regions, i, &v)) {
       return NS_ERROR_FAILURE;
@@ -122,7 +119,7 @@ CameraControlImpl::Set(JSContext* aCx, uint32_t aKey, const JS::Value& aValue, u
     r->right = 1000;
     r->weight = 1000;
 
-    nsresult rv = r->Init(aCx, v.address());
+    nsresult rv = r->Init(aCx, &v);
     NS_ENSURE_SUCCESS(rv, rv);
 
     DOM_CAMERA_LOGI("region %d: top=%d, left=%d, bottom=%d, right=%d, weight=%d\n",
@@ -145,7 +142,7 @@ CameraControlImpl::Get(JSContext* aCx, uint32_t aKey, JS::Value* aValue)
 
   GetParameter(aKey, regionArray);
 
-  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, 0, nullptr));
+  JSObject* array = JS_NewArrayObject(aCx, 0, nullptr);
   if (!array) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -155,36 +152,36 @@ CameraControlImpl::Get(JSContext* aCx, uint32_t aKey, JS::Value* aValue)
 
   for (uint32_t i = 0; i < length; ++i) {
     CameraRegion* r = &regionArray[i];
-    JS::Rooted<JS::Value> v(aCx);
+    JS::Value v;
 
-    JS::Rooted<JSObject*> o(aCx, JS_NewObject(aCx, nullptr, nullptr, nullptr));
+    JSObject* o = JS_NewObject(aCx, nullptr, nullptr, nullptr);
     if (!o) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
     DOM_CAMERA_LOGI("top=%d\n", r->top);
     v = INT_TO_JSVAL(r->top);
-    if (!JS_SetProperty(aCx, o, "top", v)) {
+    if (!JS_SetProperty(aCx, o, "top", &v)) {
       return NS_ERROR_FAILURE;
     }
     DOM_CAMERA_LOGI("left=%d\n", r->left);
     v = INT_TO_JSVAL(r->left);
-    if (!JS_SetProperty(aCx, o, "left", v)) {
+    if (!JS_SetProperty(aCx, o, "left", &v)) {
       return NS_ERROR_FAILURE;
     }
     DOM_CAMERA_LOGI("bottom=%d\n", r->bottom);
     v = INT_TO_JSVAL(r->bottom);
-    if (!JS_SetProperty(aCx, o, "bottom", v)) {
+    if (!JS_SetProperty(aCx, o, "bottom", &v)) {
       return NS_ERROR_FAILURE;
     }
     DOM_CAMERA_LOGI("right=%d\n", r->right);
     v = INT_TO_JSVAL(r->right);
-    if (!JS_SetProperty(aCx, o, "right", v)) {
+    if (!JS_SetProperty(aCx, o, "right", &v)) {
       return NS_ERROR_FAILURE;
     }
     DOM_CAMERA_LOGI("weight=%d\n", r->weight);
     v = INT_TO_JSVAL(r->weight);
-    if (!JS_SetProperty(aCx, o, "weight", v)) {
+    if (!JS_SetProperty(aCx, o, "weight", &v)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -240,34 +237,6 @@ CameraControlImpl::Get(nsICameraRecorderStateChange** aOnRecorderStateChange)
   return NS_OK;
 }
 
-nsresult
-CameraControlImpl::Set(nsICameraPreviewStateChange* aOnPreviewStateChange)
-{
-  mOnPreviewStateChangeCb = new nsMainThreadPtrHolder<nsICameraPreviewStateChange>(aOnPreviewStateChange);
-  return NS_OK;
-}
-
-nsresult
-CameraControlImpl::Get(nsICameraPreviewStateChange** aOnPreviewStateChange)
-{
-  *aOnPreviewStateChange = mOnPreviewStateChangeCb;
-  return NS_OK;
-}
-
-nsresult
-CameraControlImpl::Set(uint32_t aKey, const idl::CameraSize& aSize)
-{
-  SetParameter(aKey, aSize);
-  return NS_OK;
-}
-
-nsresult
-CameraControlImpl::Get(uint32_t aKey, idl::CameraSize& aSize)
-{
-  GetParameter(aKey, aSize);
-  return NS_OK;
-}
-
 already_AddRefed<RecorderProfileManager>
 CameraControlImpl::GetRecorderProfileManager()
 {
@@ -285,7 +254,6 @@ CameraControlImpl::Shutdown()
   mOnShutterCb = nullptr;
   mOnClosedCb = nullptr;
   mOnRecorderStateChangeCb = nullptr;
-  mOnPreviewStateChangeCb = nullptr;
 }
 
 void
@@ -307,40 +275,19 @@ CameraControlImpl::OnShutter()
   }
 }
 
-class OnClosedTask : public nsRunnable
+void
+CameraControlImpl::OnClosedInternal()
 {
-public:
-  OnClosedTask(nsMainThreadPtrHandle<nsICameraClosedCallback> onClosed, uint64_t aWindowId)
-    : mOnClosedCb(onClosed)
-    , mWindowId(aWindowId)
-  {
-    DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
+  DOM_CAMERA_LOGI("Camera hardware was closed\n");
+  if (mOnClosedCb.get()) {
+    mOnClosedCb->HandleEvent();
   }
-
-  virtual ~OnClosedTask()
-  {
-    DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
-  }
-
-  NS_IMETHOD Run()
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-
-    if (mOnClosedCb.get() && nsDOMCameraManager::IsWindowStillActive(mWindowId)) {
-      mOnClosedCb->HandleEvent();
-    }
-    return NS_OK;
-  }
-
-protected:
-  nsMainThreadPtrHandle<nsICameraClosedCallback> mOnClosedCb;
-  uint64_t mWindowId;
-};
+}
 
 void
 CameraControlImpl::OnClosed()
 {
-  nsCOMPtr<nsIRunnable> onClosed = new OnClosedTask(mOnClosedCb, mWindowId);
+  nsCOMPtr<nsIRunnable> onClosed = NS_NewRunnableMethod(this, &CameraControlImpl::OnClosedInternal);
   nsresult rv = NS_DispatchToMainThread(onClosed);
   if (NS_FAILED(rv)) {
     DOM_CAMERA_LOGW("Failed to dispatch onClosed event to main thread (%d)\n", rv);
@@ -356,39 +303,6 @@ CameraControlImpl::OnRecorderStateChange(const nsString& aStateMsg, int32_t aSta
   nsresult rv = NS_DispatchToMainThread(onRecorderStateChange);
   if (NS_FAILED(rv)) {
     DOM_CAMERA_LOGE("Failed to dispatch onRecorderStateChange event to main thread (%d)\n", rv);
-  }
-}
-
-void
-CameraControlImpl::OnPreviewStateChange(PreviewState aNewState)
-{
-  if (aNewState == mPreviewState) {
-    DOM_CAMERA_LOGI("OnPreviewStateChange: state did not change from %d\n", mPreviewState);
-    return;
-  }
-
-  nsString msg;
-  switch (aNewState) {
-    case PREVIEW_STOPPED:
-      msg = NS_LITERAL_STRING("stopped");
-      break;
-
-    case PREVIEW_STARTED:
-      msg = NS_LITERAL_STRING("started");
-      break;
-
-    default:
-      MOZ_ASSUME_UNREACHABLE("Preview state can only be PREVIEW_STOPPED or _STARTED!");
-  }
-
-  // const nsString& aStateMsg)
-  DOM_CAMERA_LOGI("OnPreviewStateChange: '%s'\n", NS_ConvertUTF16toUTF8(msg).get());
-  mPreviewState = aNewState;
-
-  nsCOMPtr<nsIRunnable> onPreviewStateChange = new CameraPreviewStateChange(mOnPreviewStateChangeCb, msg, mWindowId);
-  nsresult rv = NS_DispatchToMainThread(onPreviewStateChange);
-  if (NS_FAILED(rv)) {
-    DOM_CAMERA_LOGE("Failed to dispatch onPreviewStateChange event to main thread (%d)\n", rv);
   }
 }
 
@@ -421,7 +335,7 @@ CameraControlImpl::AutoFocus(nsICameraAutoFocusCallback* onSuccess, nsICameraErr
 }
 
 nsresult
-CameraControlImpl::TakePicture(const CameraSize& aSize, int32_t aRotation, const nsAString& aFileFormat, CameraPosition aPosition, uint64_t aDateTime, nsICameraTakePictureCallback* onSuccess, nsICameraErrorCallback* onError)
+CameraControlImpl::TakePicture(CameraSize aSize, int32_t aRotation, const nsAString& aFileFormat, CameraPosition aPosition, uint64_t aDateTime, nsICameraTakePictureCallback* onSuccess, nsICameraErrorCallback* onError)
 {
   MOZ_ASSERT(NS_IsMainThread());
   bool cancel = false;

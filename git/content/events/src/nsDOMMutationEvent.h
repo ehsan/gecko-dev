@@ -7,18 +7,18 @@
 #define nsDOMMutationEvent_h__
 
 #include "nsIDOMMutationEvent.h"
-#include "nsINode.h"
 #include "nsDOMEvent.h"
+#include "nsMutationEvent.h"
 #include "mozilla/dom/MutationEventBinding.h"
-#include "mozilla/EventForwards.h"
 
 class nsDOMMutationEvent : public nsDOMEvent,
                            public nsIDOMMutationEvent
 {
 public:
   nsDOMMutationEvent(mozilla::dom::EventTarget* aOwner,
-                     nsPresContext* aPresContext,
-                     mozilla::InternalMutationEvent* aEvent);
+                     nsPresContext* aPresContext, nsMutationEvent* aEvent);
+
+  virtual ~nsDOMMutationEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -27,8 +27,7 @@ public:
   // Forward to base class
   NS_FORWARD_TO_NSDOMEVENT
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::MutationEventBinding::Wrap(aCx, aScope, this);
   }
@@ -38,9 +37,17 @@ public:
   // GetNewValue(nsAString& aNewValue);
   // GetAttrName(nsAString& aAttrName);
 
-  already_AddRefed<nsINode> GetRelatedNode();
+  already_AddRefed<nsINode> GetRelatedNode()
+  {
+    nsCOMPtr<nsINode> n =
+      do_QueryInterface(static_cast<nsMutationEvent*>(mEvent)->mRelatedNode);
+    return n.forget();
+  }
 
-  uint16_t AttrChange();
+  uint16_t AttrChange()
+  {
+    return static_cast<nsMutationEvent*>(mEvent)->mAttrChange;
+  }
 
   void InitMutationEvent(const nsAString& aType,
                          bool& aCanBubble, bool& aCancelable,

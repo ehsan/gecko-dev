@@ -94,10 +94,6 @@ MarkUserDataHandler(void* aNode, nsIAtom* aKey, void* aValue, void* aData)
 static void
 MarkMessageManagers()
 {
-  // The global message manager only exists in the root process.
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    return;
-  }
   nsCOMPtr<nsIMessageBroadcaster> strongGlobalMM =
     do_GetService("@mozilla.org/globalmessagemanager;1");
   if (!strongGlobalMM) {
@@ -139,12 +135,12 @@ MarkMessageManagers()
         static_cast<nsFrameMessageManager*>(tabMM)->GetCallback();
       if (cb) {
         nsFrameLoader* fl = static_cast<nsFrameLoader*>(cb);
-        EventTarget* et = fl->GetTabChildGlobalAsEventTarget();
+        nsIDOMEventTarget* et = fl->GetTabChildGlobalAsEventTarget();
         if (!et) {
           continue;
         }
         static_cast<nsInProcessTabChildGlobal*>(et)->MarkForCC();
-        nsEventListenerManager* elm = et->GetExistingListenerManager();
+        nsEventListenerManager* elm = et->GetListenerManager(false);
         if (elm) {
           elm->MarkForCC();
         }
@@ -188,13 +184,13 @@ MarkContentViewer(nsIContentViewer* aViewer, bool aCleanupJS,
       doc->GetMarkedCCGeneration() != nsCCUncollectableMarker::sGeneration) {
     doc->MarkUncollectableForCCGeneration(nsCCUncollectableMarker::sGeneration);
     if (aCleanupJS) {
-      nsEventListenerManager* elm = doc->GetExistingListenerManager();
+      nsEventListenerManager* elm = doc->GetListenerManager(false);
       if (elm) {
         elm->MarkForCC();
       }
       nsCOMPtr<EventTarget> win = do_QueryInterface(doc->GetInnerWindow());
       if (win) {
-        elm = win->GetExistingListenerManager();
+        elm = win->GetListenerManager(false);
         if (elm) {
           elm->MarkForCC();
         }
@@ -263,8 +259,9 @@ MarkDocShell(nsIDocShellTreeNode* aNode, bool aCleanupJS, bool aPrepareForCC)
     int32_t i, historyCount;
     history->GetCount(&historyCount);
     for (i = 0; i < historyCount; ++i) {
-      nsCOMPtr<nsISHEntry> shEntry;
-      history->GetEntryAtIndex(i, false, getter_AddRefs(shEntry));
+      nsCOMPtr<nsIHistoryEntry> historyEntry;
+      history->GetEntryAtIndex(i, false, getter_AddRefs(historyEntry));
+      nsCOMPtr<nsISHEntry> shEntry = do_QueryInterface(historyEntry);
 
       MarkSHEntry(shEntry, aCleanupJS, aPrepareForCC);
     }
@@ -422,7 +419,9 @@ TraceActiveWindowGlobal(const uint64_t& aId, nsGlobalWindow*& aWindow, void* aCl
 {
   if (aWindow->GetDocShell() && aWindow->IsOuterWindow()) {
     TraceClosure* closure = static_cast<TraceClosure*>(aClosure);
-    aWindow->TraceGlobalJSObject(closure->mTrc);
+    if (JSObject* global = aWindow->FastGetGlobalJSObject()) {
+      JS_CallObjectTracer(closure->mTrc, global, "active window global");
+    }
 #ifdef MOZ_XUL
     nsIDocument* doc = aWindow->GetExtantDoc();
     if (doc && doc->IsXUL()) {

@@ -7,13 +7,12 @@
 #define nsRangeFrame_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/Decimal.h"
-#include "mozilla/EventForwards.h"
 #include "nsContainerFrame.h"
 #include "nsIAnonymousContentCreator.h"
 #include "nsCOMPtr.h"
 
 class nsBaseContentList;
+class nsGUIEvent;
 
 class nsRangeFrame : public nsContainerFrame,
                      public nsIAnonymousContentCreator
@@ -52,10 +51,6 @@ public:
 #endif
 
   virtual bool IsLeaf() const MOZ_OVERRIDE { return true; }
-
-#ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
-#endif
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements) MOZ_OVERRIDE;
@@ -111,7 +106,7 @@ public:
    */
   bool ShouldUseNativeStyle() const;
 
-  mozilla::Decimal GetValueAtEventPoint(mozilla::WidgetGUIEvent* aEvent);
+  double GetValueAtEventPoint(nsGUIEvent* aEvent);
 
   /**
    * Helper that's used when the value of the range changes to reposition the

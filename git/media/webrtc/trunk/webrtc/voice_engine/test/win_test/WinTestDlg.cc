@@ -9,10 +9,10 @@
  */
 
 #include <math.h>
-#include "webrtc/test/testsupport/fileutils.h"
-#include "webrtc/voice_engine/test/win_test/WinTest.h"
-#include "webrtc/voice_engine/test/win_test/WinTestDlg.h"
-#include "webrtc/voice_engine/test/win_test/stdafx.h"
+#include "stdafx.h"
+#include "WinTest.h"
+#include "WinTestDlg.h"
+#include "testsupport/fileutils.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -61,14 +61,14 @@ class ConnectionObserver : public  VoEConnectionObserver
 {
 public:
     ConnectionObserver();
-    virtual void OnPeriodicDeadOrAlive(int channel, bool alive);
+    virtual void OnPeriodicDeadOrAlive(const int channel, const bool alive);
 };
 
 ConnectionObserver::ConnectionObserver()
 {
 }
 
-void ConnectionObserver::OnPeriodicDeadOrAlive(int channel, bool alive)
+void ConnectionObserver::OnPeriodicDeadOrAlive(const int channel, const bool alive)
 {
     CString str;
     str.Format(_T("OnPeriodicDeadOrAlive(channel=%d) => alive=%d"), channel, alive);
@@ -79,7 +79,7 @@ void ConnectionObserver::OnPeriodicDeadOrAlive(int channel, bool alive)
 //    VoiceEngineObserver
 // ----------------------------------------------------------------------------
 
-void CWinTestDlg::CallbackOnError(int channel, int errCode)
+void CWinTestDlg::CallbackOnError(const int channel, const int errCode)
 {
     _nErrorCallbacks++;
 
@@ -129,14 +129,14 @@ void CWinTestDlg::CallbackOnError(int channel, int errCode)
 //    VoERTPObserver
 // ----------------------------------------------------------------------------
 
-void CWinTestDlg::OnIncomingCSRCChanged(int channel, unsigned int CSRC, bool added)
+void CWinTestDlg::OnIncomingCSRCChanged(const int channel, const unsigned int CSRC, const bool added)
 {
     CString str;
     str.Format(_T("OnIncomingCSRCChanged(channel=%d) => CSRC=%u, added=%d"), channel, CSRC, added);
     SetDlgItemText(IDC_EDIT_ERROR_CALLBACK, (LPCTSTR)str);
 }
 
-void CWinTestDlg::OnIncomingSSRCChanged(int channel, unsigned int SSRC)
+void CWinTestDlg::OnIncomingSSRCChanged(const int channel, const unsigned int SSRC)
 {
     CString str;
     str.Format(_T("OnIncomingSSRCChanged(channel=%d) => SSRC=%u"), channel, SSRC);
@@ -184,24 +184,24 @@ class MediaProcessImpl : public VoEMediaProcess
 {
 public:
     MediaProcessImpl();
-    virtual void Process(int channel,
-                         ProcessingTypes type,
-                         int16_t audio_10ms[],
-                         int length,
-                         int samplingFreqHz,
-                         bool stereo);
+    virtual void Process(const int channel,
+                         const ProcessingTypes type,
+                         WebRtc_Word16 audio_10ms[],
+                         const int length,
+                         const int samplingFreqHz,
+                         const bool stereo);
 };
 
 MediaProcessImpl::MediaProcessImpl()
 {
 }
 
-void MediaProcessImpl::Process(int channel,
-                               ProcessingTypes type,
-                               int16_t audio_10ms[],
-                               int length,
-                               int samplingFreqHz,
-                               bool stereo)
+void MediaProcessImpl::Process(const int channel,
+                               const ProcessingTypes type,
+                               WebRtc_Word16 audio_10ms[],
+                               const int length,
+                               const int samplingFreqHz,
+                               const bool stereo)
 {
     int x = rand() % 100;
 
@@ -2684,15 +2684,14 @@ void CWinTestDlg::OnBnClickedCheckSrtpTx1()
     if (enable)
     {
         (_checkSrtpTx1++ %2 == 0) ? useForRTCP = false : useForRTCP = true;
-        // TODO(solenberg): Install SRTP encryption policy.
-        TEST(true, "Built-in SRTP support is deprecated. Enable it again by "
-            "setting an external encryption policy, i.e.:\n\r"
-            "_veEncryptionPtr->RegisterExternalEncryption(channel, myPolicy)");
+        TEST((ret = _veEncryptionPtr->EnableSRTPSend(channel,
+            kCipherAes128CounterMode, 30, kAuthHmacSha1, 20, 4, kEncryptionAndAuthentication, key, useForRTCP)) == 0,
+            _T("EnableSRTPSend(channel=%d, kCipherAes128CounterMode, 30, kAuthHmacSha1, 20, 4, kEncryptionAndAuthentication, key, useForRTCP=%d)"),
+            channel, useForRTCP);
     }
     else
     {
-        // TODO(solenberg): Uninstall SRTP encryption policy, i.e.:
-        //   _veEncryptionPtr->DeRegisterExternalEncryption(channel);
+        TEST((ret = _veEncryptionPtr->DisableSRTPSend(channel) == 0), _T("DisableSRTPSend(channel=%d)"), channel);
     }
     if (ret == -1)
     {
@@ -2712,15 +2711,14 @@ void CWinTestDlg::OnBnClickedCheckSrtpTx2()
     if (enable)
     {
         (_checkSrtpTx2++ %2 == 0) ? useForRTCP = false : useForRTCP = true;
-        // TODO(solenberg): Install SRTP encryption policy.
-        TEST(true, "Built-in SRTP support is deprecated. Enable it again by "
-            "setting an external encryption policy, i.e.:\n\r"
-            "_veEncryptionPtr->RegisterExternalEncryption(channel, myPolicy)");
+        TEST((ret = _veEncryptionPtr->EnableSRTPSend(channel,
+            kCipherAes128CounterMode, 30, kAuthHmacSha1, 20, 4, kEncryptionAndAuthentication, key, useForRTCP)) == 0,
+            _T("EnableSRTPSend(channel=%d, kCipherAes128CounterMode, 30, kAuthHmacSha1, 20, 4, kEncryptionAndAuthentication, key, useForRTCP=%d)"),
+            channel, useForRTCP);
     }
     else
     {
-        // TODO(solenberg): Uninstall SRTP encryption policy, i.e.:
-        //   _veEncryptionPtr->DeRegisterExternalEncryption(channel);
+        TEST((ret = _veEncryptionPtr->DisableSRTPSend(channel) == 0), _T("DisableSRTPSend(channel=%d)"), channel);
     }
     if (ret == -1)
     {
@@ -2740,15 +2738,14 @@ void CWinTestDlg::OnBnClickedCheckSrtpRx1()
     if (enable)
     {
         (_checkSrtpRx1++ %2 == 0) ? useForRTCP = false : useForRTCP = true;
-        // TODO(solenberg): Install SRTP encryption policy.
-        TEST(true, "Built-in SRTP support is deprecated. Enable it again by "
-            "setting an external encryption policy, i.e.:\n\r"
-            "_veEncryptionPtr->RegisterExternalEncryption(channel, myPolicy)");
+        TEST((ret = _veEncryptionPtr->EnableSRTPReceive(channel,
+            kCipherAes128CounterMode, 30, kAuthHmacSha1, 20, 4, kEncryptionAndAuthentication, key, useForRTCP)) == 0,
+            _T("EnableSRTPReceive(channel=%d, kCipherAes128CounterMode, 30, kAuthHmacSha1, 20, 4, kEncryptionAndAuthentication, key, useForRTCP=%d)"),
+            channel, useForRTCP);
     }
     else
     {
-        // TODO(solenberg): Uninstall SRTP encryption policy, i.e.:
-        //   _veEncryptionPtr->DeRegisterExternalEncryption(channel);
+        TEST((ret = _veEncryptionPtr->DisableSRTPReceive(channel) == 0), _T("DisableSRTPReceive(channel=%d)"), channel);
     }
     if (ret == -1)
     {
@@ -2768,15 +2765,14 @@ void CWinTestDlg::OnBnClickedCheckSrtpRx2()
     if (enable)
     {
         (_checkSrtpRx2++ %2 == 0) ? useForRTCP = false : useForRTCP = true;
-        // TODO(solenberg): Install SRTP encryption policy.
-        TEST(true, "Built-in SRTP support is deprecated. Enable it again by "
-            "setting an external encryption policy, i.e.:\n\r"
-            "_veEncryptionPtr->RegisterExternalEncryption(channel, myPolicy)");
+        TEST((ret = _veEncryptionPtr->EnableSRTPReceive(channel,
+            kCipherAes128CounterMode, 30, kAuthHmacSha1, 20, 4, kEncryptionAndAuthentication, key, useForRTCP)) == 0,
+            _T("EnableSRTPReceive(channel=%d, kCipherAes128CounterMode, 30, kAuthHmacSha1, 20, 4, kEncryptionAndAuthentication, key, useForRTCP=%d)"),
+            channel, useForRTCP);
     }
     else
     {
-        // TODO(solenberg): Uninstall SRTP encryption policy, i.e.:
-        //   _veEncryptionPtr->DeRegisterExternalEncryption(channel);
+        TEST((ret = _veEncryptionPtr->DisableSRTPReceive(channel)) == 0, _T("DisableSRTPReceive(channel=%d)"), channel);
     }
     if (ret == -1)
     {
@@ -3585,3 +3581,4 @@ void CWinTestDlg::OnBnClickedButtonTest1()
 {
     // add tests here...
 }
+

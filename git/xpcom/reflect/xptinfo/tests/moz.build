@@ -6,10 +6,3 @@
 
 MODULE = 'xpcom'
 
-SOURCES += [
-    'TestInterfaceInfo.cpp',
-]
-
-SIMPLE_PROGRAMS += [
-    'TestInterfaceInfo'
-]

@@ -11,12 +11,12 @@
 #ifndef WEBRTC_VIDEO_ENGINE_VIE_RENDER_MANAGER_H_
 #define WEBRTC_VIDEO_ENGINE_VIE_RENDER_MANAGER_H_
 
-#include <map>
+#include "system_wrappers/interface/list_wrapper.h"
+#include "system_wrappers/interface/map_wrapper.h"
+#include "system_wrappers/interface/scoped_ptr.h"
+#include "typedefs.h"  // NOLINT
 
-#include "webrtc/system_wrappers/interface/list_wrapper.h"
-#include "webrtc/system_wrappers/interface/scoped_ptr.h"
-#include "webrtc/typedefs.h"
-#include "webrtc/video_engine/vie_manager_base.h"
+#include "video_engine/vie_manager_base.h"
 
 namespace webrtc {
 
@@ -29,21 +29,21 @@ class ViERenderer;
 class ViERenderManager : private ViEManagerBase {
   friend class ViERenderManagerScoped;
  public:
-  explicit ViERenderManager(int32_t engine_id);
+  explicit ViERenderManager(WebRtc_Word32 engine_id);
   ~ViERenderManager();
 
-  int32_t RegisterVideoRenderModule(VideoRender* render_module);
-  int32_t DeRegisterVideoRenderModule(VideoRender* render_module);
+  WebRtc_Word32 RegisterVideoRenderModule(VideoRender* render_module);
+  WebRtc_Word32 DeRegisterVideoRenderModule(VideoRender* render_module);
 
-  ViERenderer* AddRenderStream(const int32_t render_id,
+  ViERenderer* AddRenderStream(const WebRtc_Word32 render_id,
                                void* window,
-                               const uint32_t z_order,
+                               const WebRtc_UWord32 z_order,
                                const float left,
                                const float top,
                                const float right,
                                const float bottom);
 
-  int32_t RemoveRenderStream(int32_t render_id);
+  WebRtc_Word32 RemoveRenderStream(WebRtc_Word32 render_id);
 
  private:
   // Returns a pointer to the render module if it exists in the render list.
@@ -51,14 +51,11 @@ class ViERenderManager : private ViEManagerBase {
   VideoRender* FindRenderModule(void* window);
 
   // Methods used by ViERenderScoped.
-  ViERenderer* ViERenderPtr(int32_t render_id) const;
+  ViERenderer* ViERenderPtr(WebRtc_Word32 render_id) const;
 
   scoped_ptr<CriticalSectionWrapper> list_cs_;
-  int32_t engine_id_;
-  // Protected by ViEManagerBase.
-  typedef std::map<int32_t, ViERenderer*> RendererMap;
-  RendererMap stream_to_vie_renderer_;
-
+  WebRtc_Word32 engine_id_;
+  MapWrapper stream_to_vie_renderer_;  // Protected by ViEManagerBase.
   ListWrapper render_list_;
   bool use_external_render_module_;
 };
@@ -68,7 +65,7 @@ class ViERenderManagerScoped: private ViEManagerScopedBase {
   explicit ViERenderManagerScoped(const ViERenderManager& vie_render_manager);
 
   // Returns a pointer to the ViERender object.
-  ViERenderer* Renderer(int32_t render_id) const;
+  ViERenderer* Renderer(WebRtc_Word32 render_id) const;
 };
 
 }  // namespace webrtc

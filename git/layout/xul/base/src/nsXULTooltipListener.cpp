@@ -5,8 +5,8 @@
 
 #include "nsXULTooltipListener.h"
 
-#include "nsDOMEvent.h"
 #include "nsIDOMMouseEvent.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDocument.h"
@@ -19,20 +19,20 @@
 #ifdef MOZ_XUL
 #include "nsITreeView.h"
 #endif
+#include "nsGUIEvent.h"
 #include "nsIScriptContext.h"
 #include "nsPIDOMWindow.h"
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
 #endif
 #include "nsIRootBox.h"
-#include "nsIBoxObject.h"
 #include "nsEventDispatcher.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/dom/Element.h"
 
+
 using namespace mozilla;
-using namespace mozilla::dom;
 
 nsXULTooltipListener* nsXULTooltipListener::mInstance = nullptr;
 
@@ -101,8 +101,9 @@ nsXULTooltipListener::MouseOut(nsIDOMEvent* aEvent)
   // hide the tooltip
   if (currentTooltip) {
     // which node did the mouse leave?
-    nsCOMPtr<nsIDOMNode> targetNode = do_QueryInterface(
-      aEvent->InternalDOMEvent()->GetTarget());
+    nsCOMPtr<nsIDOMEventTarget> eventTarget;
+    aEvent->GetTarget(getter_AddRefs(eventTarget));
+    nsCOMPtr<nsIDOMNode> targetNode(do_QueryInterface(eventTarget));
 
     nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
     if (pm) {
@@ -155,8 +156,10 @@ nsXULTooltipListener::MouseMove(nsIDOMEvent* aEvent)
   mMouseScreenX = newMouseX;
   mMouseScreenY = newMouseY;
 
-  nsCOMPtr<nsIContent> sourceContent = do_QueryInterface(
-    aEvent->InternalDOMEvent()->GetCurrentTarget());
+  nsCOMPtr<nsIDOMEventTarget> currentTarget;
+  aEvent->GetCurrentTarget(getter_AddRefs(currentTarget));
+
+  nsCOMPtr<nsIContent> sourceContent = do_QueryInterface(currentTarget);
   mSourceNode = do_GetWeakReference(sourceContent);
 #ifdef MOZ_XUL
   mIsSourceTree = sourceContent->Tag() == nsGkAtoms::treechildren;
@@ -173,7 +176,8 @@ nsXULTooltipListener::MouseMove(nsIDOMEvent* aEvent)
   // showing and the tooltip hasn't been displayed since the mouse entered
   // the node, then start the timer to show the tooltip.
   if (!currentTooltip && !mTooltipShownOnce) {
-    nsCOMPtr<EventTarget> eventTarget = aEvent->InternalDOMEvent()->GetTarget();
+    nsCOMPtr<nsIDOMEventTarget> eventTarget;
+    aEvent->GetTarget(getter_AddRefs(eventTarget));
 
     // don't show tooltips attached to elements outside of a menu popup
     // when hovering over an element inside it. The popupsinherittooltip
@@ -656,10 +660,6 @@ nsXULTooltipListener::DestroyTooltip()
   nsCOMPtr<nsIDOMEventListener> kungFuDeathGrip(this);
   nsCOMPtr<nsIContent> currentTooltip = do_QueryReferent(mCurrentTooltip);
   if (currentTooltip) {
-    // release tooltip before removing listener to prevent our destructor from
-    // being called recursively (bug 120863)
-    mCurrentTooltip = nullptr;
-
     // clear out the tooltip node on the document
     nsCOMPtr<nsIDocument> doc = currentTooltip->GetDocument();
     if (doc) {
@@ -673,9 +673,15 @@ nsXULTooltipListener::DestroyTooltip()
     }
 
     // remove the popuphidden listener from tooltip
-    currentTooltip->RemoveSystemEventListener(NS_LITERAL_STRING("popuphiding"), this, false);
-  }
+    nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(currentTooltip));
 
+    // release tooltip before removing listener to prevent our destructor from
+    // being called recursively (bug 120863)
+    mCurrentTooltip = nullptr;
+
+    evtTarget->RemoveEventListener(NS_LITERAL_STRING("popuphiding"), this, false);
+  }
+  
   // kill any ongoing timers
   KillTooltipTimer();
   mSourceNode = nullptr;

@@ -1,4 +1,6 @@
 /*
+ * $Id: process_info.c 1462 2012-07-18 03:12:08Z g.rodola $
+ *
  * Copyright (c) 2009, Jay Loden, Giampaolo Rodola'. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
@@ -32,7 +34,7 @@
  * On error, the function returns a BSD errno value.
  */
 int
-psutil_get_proc_list(struct kinfo_proc **procList, size_t *procCount)
+get_proc_list(struct kinfo_proc **procList, size_t *procCount)
 {
     int err;
     struct kinfo_proc * result;
@@ -112,7 +114,7 @@ psutil_get_proc_list(struct kinfo_proc **procList, size_t *procCount)
 
 
 char
-*psutil_get_cmd_path(long pid, size_t *pathsize)
+*getcmdpath(long pid, size_t *pathsize)
 {
     int  mib[4];
     char *path;
@@ -133,7 +135,7 @@ char
 
     path = malloc(size);
     if (path == NULL) {
-        PyErr_NoMemory();
+        PyErr_SetString(PyExc_MemoryError, "couldn't allocate memory");
         return NULL;
     }
 
@@ -148,7 +150,6 @@ char
 
 
 /*
- * XXX no longer used; it probably makese sense to remove it.
  * Borrowed from psi Python System Information project
  *
  * Get command arguments and environment variables.
@@ -161,10 +162,10 @@ char
  *      1 for insufficient privileges.
  */
 char
-*psutil_get_cmd_args(long pid, size_t *argsize)
+*getcmdargs(long pid, size_t *argsize)
 {
-    int mib[4], argmax;
-    size_t size = sizeof(argmax);
+    int mib[4];
+    size_t size, argmax;
     char *procargs = NULL;
 
     /* Get the maximum process arguments size. */
@@ -178,7 +179,7 @@ char
     /* Allocate space for the arguments. */
     procargs = (char *)malloc(argmax);
     if (procargs == NULL) {
-        PyErr_NoMemory();
+        PyErr_SetString(PyExc_MemoryError, "couldn't allocate memory");
         return NULL;
     }
 
@@ -204,7 +205,7 @@ char
 
 /* returns the command line as a python list object */
 PyObject*
-psutil_get_arg_list(long pid)
+get_arg_list(long pid)
 {
     char *argstr = NULL;
     int pos = 0;
@@ -216,7 +217,7 @@ psutil_get_arg_list(long pid)
         return retlist;
     }
 
-    argstr = psutil_get_cmd_args(pid, &argsize);
+    argstr = getcmdargs(pid, &argsize);
     if (argstr == NULL) {
         goto error;
     }
@@ -252,7 +253,7 @@ error:
  * Return 1 if PID exists in the current process list, else 0.
  */
 int
-psutil_pid_exists(long pid)
+pid_exists(long pid)
 {
     int kill_ret;
     if (pid < 0) {
@@ -267,18 +268,4 @@ psutil_pid_exists(long pid)
 
     // otherwise return 0 for PID not found
     return 0;
-}
-
-
-/*
- * Set exception to AccessDenied if pid exists else NoSuchProcess.
- */
-int
-psutil_raise_ad_or_nsp(pid) {
-    if (psutil_pid_exists(pid) == 0) {
-        NoSuchProcess();
-    }
-    else {
-        AccessDenied();
-    }
 }

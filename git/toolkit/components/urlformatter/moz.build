@@ -12,10 +12,3 @@ XPIDL_SOURCES += [
 
 MODULE = 'urlformatter'
 
-EXTRA_COMPONENTS += [
-    'nsURLFormatter.manifest',
-]
-
-EXTRA_PP_COMPONENTS += [
-    'nsURLFormatter.js',
-]

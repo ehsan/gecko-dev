@@ -38,7 +38,7 @@ static CERTSignedCrl *FindCRL
     cert = CERT_FindCertByNicknameOrEmailAddr(certHandle, name);
     if (!cert) {
         CERTName *certName = NULL;
-        PLArenaPool *arena = NULL;
+        PRArenaPool *arena = NULL;
     
         certName = CERT_AsciiToName(name);
         if (certName) {
@@ -93,7 +93,7 @@ static void ListCRLNames (CERTCertDBHandle *certHandle, int crlType, PRBool dele
     CERTCrlHeadNode *crlList = NULL;
     CERTCrlNode *crlNode = NULL;
     CERTName *name = NULL;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv;
 
     do {
@@ -232,7 +232,7 @@ SECStatus ImportCRL (CERTCertDBHandle *certHandle, char *url, int type,
 
 
     /* Read in the entire file specified with the -f argument */
-    rv = SECU_ReadDERFromFile(&crlDER, inFile, PR_FALSE, PR_FALSE);
+    rv = SECU_ReadDERFromFile(&crlDER, inFile, PR_FALSE);
     if (rv != SECSuccess) {
 	SECU_PrintError(progName, "unable to read input file");
 	return (SECFailure);
@@ -284,14 +284,14 @@ SECStatus ImportCRL (CERTCertDBHandle *certHandle, char *url, int type,
 SECStatus DumpCRL(PRFileDesc *inFile)
 {
     int rv;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     CERTSignedCrl *newCrl = NULL;
     
     SECItem crlDER;
     crlDER.data = NULL;
 
     /* Read in the entire file specified with the -f argument */
-    rv = SECU_ReadDERFromFile(&crlDER, inFile, PR_FALSE, PR_FALSE);
+    rv = SECU_ReadDERFromFile(&crlDER, inFile, PR_FALSE);
     if (rv != SECSuccess) {
 	SECU_PrintError(progName, "unable to read input file");
 	return (SECFailure);
@@ -362,7 +362,7 @@ FindSigningCert(CERTCertDBHandle *certHandle, CERTSignedCrl *signCrl,
 }
 
 static CERTSignedCrl*
-CreateModifiedCRLCopy(PLArenaPool *arena, CERTCertDBHandle *certHandle,
+CreateModifiedCRLCopy(PRArenaPool *arena, CERTCertDBHandle *certHandle,
                 CERTCertificate **cert, char *certNickName,
                 PRFileDesc *inFile, PRInt32 decodeOptions,
                 PRInt32 importOptions)
@@ -370,7 +370,7 @@ CreateModifiedCRLCopy(PLArenaPool *arena, CERTCertDBHandle *certHandle,
     SECItem crlDER = {0, NULL, 0};
     CERTSignedCrl *signCrl = NULL;
     CERTSignedCrl *modCrl = NULL;
-    PLArenaPool *modArena = NULL;
+    PRArenaPool *modArena = NULL;
     SECStatus rv = SECSuccess;
 
     if (!arena || !certHandle || !certNickName) {
@@ -386,7 +386,7 @@ CreateModifiedCRLCopy(PLArenaPool *arena, CERTCertDBHandle *certHandle,
     }
     
     if (inFile != NULL) {
-        rv = SECU_ReadDERFromFile(&crlDER, inFile, PR_FALSE, PR_FALSE);
+        rv = SECU_ReadDERFromFile(&crlDER, inFile, PR_FALSE);
         if (rv != SECSuccess) {
             SECU_PrintError(progName, "unable to read input file");
             PORT_FreeArena(modArena, PR_FALSE);
@@ -464,7 +464,7 @@ CreateModifiedCRLCopy(PLArenaPool *arena, CERTCertDBHandle *certHandle,
 
 
 static CERTSignedCrl*
-CreateNewCrl(PLArenaPool *arena, CERTCertDBHandle *certHandle,
+CreateNewCrl(PRArenaPool *arena, CERTCertDBHandle *certHandle,
              CERTCertificate *cert)
 { 
     CERTSignedCrl *signCrl = NULL;
@@ -673,7 +673,7 @@ GenerateCRL (CERTCertDBHandle *certHandle, char *certNickName,
 {
     CERTCertificate *cert = NULL;
     CERTSignedCrl *signCrl = NULL;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv;
     SECOidTag hashAlgTag = SEC_OID_UNKNOWN;
 

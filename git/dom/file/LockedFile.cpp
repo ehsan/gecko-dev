@@ -36,9 +36,8 @@
 
 #define STREAM_COPY_BLOCK_SIZE 32768
 
-using namespace mozilla;
-using namespace mozilla::dom;
 USING_FILE_NAMESPACE
+using mozilla::dom::EncodingUtils;
 
 namespace {
 
@@ -213,13 +212,13 @@ CreateGenericEvent(mozilla::dom::EventTarget* aEventOwner,
 }
 
 inline nsresult
-GetInputStreamForJSVal(JS::Handle<JS::Value> aValue, JSContext* aCx,
+GetInputStreamForJSVal(const JS::Value& aValue, JSContext* aCx,
                        nsIInputStream** aInputStream, uint64_t* aInputLength)
 {
   nsresult rv;
 
-  if (aValue.isObject()) {
-    JS::Rooted<JSObject*> obj(aCx, &aValue.toObject());
+  if (!JSVAL_IS_PRIMITIVE(aValue)) {
+    JSObject* obj = JSVAL_TO_OBJECT(aValue);
     if (JS_IsArrayBufferObject(obj)) {
       char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(obj));
       uint32_t length = JS_GetArrayBufferByteLength(obj);
@@ -246,8 +245,14 @@ GetInputStreamForJSVal(JS::Handle<JS::Value> aValue, JSContext* aCx,
     }
   }
 
-  JSString* jsstr = JS::ToString(aCx, aValue);
-  NS_ENSURE_TRUE(jsstr, NS_ERROR_XPC_BAD_CONVERT_JS);
+  JSString* jsstr;
+  if (JSVAL_IS_STRING(aValue)) {
+    jsstr = JSVAL_TO_STRING(aValue);
+  }
+  else {
+    jsstr = JS_ValueToString(aCx, aValue);
+    NS_ENSURE_TRUE(jsstr, NS_ERROR_XPC_BAD_CONVERT_JS);
+  }
 
   nsDependentJSString str;
   if (!str.init(aCx, jsstr)) {
@@ -272,7 +277,7 @@ GetInputStreamForJSVal(JS::Handle<JS::Value> aValue, JSContext* aCx,
 // static
 already_AddRefed<LockedFile>
 LockedFile::Create(FileHandle* aFileHandle,
-                   FileMode aMode,
+                   Mode aMode,
                    RequestMode aRequestMode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -304,7 +309,7 @@ LockedFile::Create(FileHandle* aFileHandle,
 
 LockedFile::LockedFile()
 : mReadyState(INITIAL),
-  mMode(FileMode::Readonly),
+  mMode(READ_ONLY),
   mRequestMode(NORMAL),
   mLocation(0),
   mPendingRequests(0),
@@ -384,7 +389,7 @@ LockedFile::CreateParallelStream(nsISupports** aStream)
   }
 
   nsCOMPtr<nsISupports> stream =
-    mFileHandle->CreateStream(mFileHandle->mFile, mMode == FileMode::Readonly);
+    mFileHandle->CreateStream(mFileHandle->mFile, mMode == READ_ONLY);
   NS_ENSURE_TRUE(stream, NS_ERROR_FAILURE);
 
   mParallelStreams.AppendElement(stream);
@@ -405,7 +410,7 @@ LockedFile::GetOrCreateStream(nsISupports** aStream)
 
   if (!mStream) {
     nsCOMPtr<nsISupports> stream =
-      mFileHandle->CreateStream(mFileHandle->mFile, mMode == FileMode::Readonly);
+      mFileHandle->CreateStream(mFileHandle->mFile, mMode == READ_ONLY);
     NS_ENSURE_TRUE(stream, NS_ERROR_FAILURE);
 
     stream.swap(mStream);
@@ -468,10 +473,10 @@ LockedFile::GetMode(nsAString& aMode)
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   switch (mMode) {
-   case FileMode::Readonly:
+   case READ_ONLY:
      aMode.AssignLiteral("readonly");
      break;
-   case FileMode::Readwrite:
+   case READ_WRITE:
      aMode.AssignLiteral("readwrite");
      break;
    default:
@@ -517,8 +522,7 @@ LockedFile::SetLocation(JSContext* aCx,
   }
 
   uint64_t location;
-  JS::Rooted<JS::Value> value(aCx, aLocation);
-  if (!JS::ToUint64(aCx, value, &location)) {
+  if (!JS::ToUint64(aCx, aLocation, &location)) {
     return NS_ERROR_TYPE_ERR;
   }
 
@@ -688,7 +692,7 @@ LockedFile::Truncate(uint64_t aSize,
     return NS_ERROR_DOM_FILEHANDLE_LOCKEDFILE_INACTIVE_ERR;
   }
 
-  if (mMode != FileMode::Readwrite) {
+  if (mMode != READ_WRITE) {
     return NS_ERROR_DOM_FILEHANDLE_READ_ONLY_ERR;
   }
 
@@ -737,7 +741,7 @@ LockedFile::Flush(nsISupports** _retval)
     return NS_ERROR_DOM_FILEHANDLE_LOCKEDFILE_INACTIVE_ERR;
   }
 
-  if (mMode != FileMode::Readwrite) {
+  if (mMode != READ_WRITE) {
     return NS_ERROR_DOM_FILEHANDLE_READ_ONLY_ERR;
   }
 
@@ -845,7 +849,7 @@ LockedFile::WriteOrAppend(const JS::Value& aValue,
     return NS_ERROR_DOM_FILEHANDLE_LOCKEDFILE_INACTIVE_ERR;
   }
 
-  if (mMode != FileMode::Readwrite) {
+  if (mMode != READ_WRITE) {
     return NS_ERROR_DOM_FILEHANDLE_READ_ONLY_ERR;
   }
 
@@ -858,11 +862,10 @@ LockedFile::WriteOrAppend(const JS::Value& aValue,
     return NS_OK;
   }
 
-  JS::Rooted<JS::Value> val(aCx, aValue);
   nsCOMPtr<nsIInputStream> inputStream;
   uint64_t inputLength;
   nsresult rv =
-    GetInputStreamForJSVal(val, aCx, getter_AddRefs(inputStream),
+    GetInputStreamForJSVal(aValue, aCx, getter_AddRefs(inputStream),
                            &inputLength);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -919,7 +922,7 @@ FinishHelper::FinishHelper(LockedFile* aLockedFile)
   mStream.swap(aLockedFile->mStream);
 }
 
-NS_IMPL_ISUPPORTS1(FinishHelper, nsIRunnable)
+NS_IMPL_THREADSAFE_ISUPPORTS1(FinishHelper, nsIRunnable)
 
 NS_IMETHODIMP
 FinishHelper::Run()
@@ -1024,9 +1027,9 @@ nsresult
 ReadHelper::GetSuccessResult(JSContext* aCx,
                              JS::Value* aVal)
 {
-  JS::Rooted<JSObject*> arrayBuffer(aCx);
+  JSObject *arrayBuffer;
   nsresult rv =
-    nsContentUtils::CreateArrayBuffer(aCx, mStream->Data(), arrayBuffer.address());
+    nsContentUtils::CreateArrayBuffer(aCx, mStream->Data(), &arrayBuffer);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aVal = OBJECT_TO_JSVAL(arrayBuffer);
@@ -1061,13 +1064,11 @@ ReadTextHelper::GetSuccessResult(JSContext* aCx,
                                                 tmpString);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  JS::Rooted<JS::Value> rval(aCx);
-  if (!xpc::StringToJsval(aCx, tmpString, &rval)) {
+  if (!xpc::StringToJsval(aCx, tmpString, aVal)) {
     NS_WARNING("Failed to convert string!");
     return NS_ERROR_FAILURE;
   }
 
-  *aVal = rval;
   return NS_OK;
 }
 

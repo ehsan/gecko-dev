@@ -8,10 +8,12 @@
 #include "mozilla/net/FTPChannelParent.h"
 #include "nsFTPChannel.h"
 #include "nsNetUtil.h"
+#include "nsISupportsPriority.h"
+#include "nsIRedirectChannelRegistrar.h"
 #include "nsFtpProtocolHandler.h"
+#include "mozilla/LoadContext.h"
 #include "mozilla/ipc/InputStreamUtils.h"
 #include "mozilla/ipc/URIUtils.h"
-#include "SerializedLoadContext.h"
 
 using namespace mozilla::ipc;
 
@@ -58,35 +60,11 @@ NS_IMPL_ISUPPORTS4(FTPChannelParent,
 // FTPChannelParent::PFTPChannelParent
 //-----------------------------------------------------------------------------
 
-//-----------------------------------------------------------------------------
-// FTPChannelParent methods
-//-----------------------------------------------------------------------------
-
 bool
-FTPChannelParent::Init(const FTPChannelCreationArgs& aArgs)
-{
-  switch (aArgs.type()) {
-  case FTPChannelCreationArgs::TFTPChannelOpenArgs:
-  {
-    const FTPChannelOpenArgs& a = aArgs.get_FTPChannelOpenArgs();
-    return DoAsyncOpen(a.uri(), a.startPos(), a.entityID(), a.uploadStream());
-  }
-  case FTPChannelCreationArgs::TFTPChannelConnectArgs:
-  {
-    const FTPChannelConnectArgs& cArgs = aArgs.get_FTPChannelConnectArgs();
-    return ConnectChannel(cArgs.channelId());
-  }
-  default:
-    NS_NOTREACHED("unknown open type");
-    return false;
-  }
-}
-
-bool
-FTPChannelParent::DoAsyncOpen(const URIParams& aURI,
-                              const uint64_t& aStartPos,
-                              const nsCString& aEntityID,
-                              const OptionalInputStreamParams& aUploadStream)
+FTPChannelParent::RecvAsyncOpen(const URIParams& aURI,
+                                const uint64_t& aStartPos,
+                                const nsCString& aEntityID,
+                                const OptionalInputStreamParams& aUploadStream)
 {
   nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
   if (!uri)
@@ -95,7 +73,7 @@ FTPChannelParent::DoAsyncOpen(const URIParams& aURI,
 #ifdef DEBUG
   nsCString uriSpec;
   uri->GetSpec(uriSpec);
-  LOG(("FTPChannelParent DoAsyncOpen [this=%p uri=%s]\n",
+  LOG(("FTPChannelParent RecvAsyncOpen [this=%x uri=%s]\n",
        this, uriSpec.get()));
 #endif
 
@@ -139,7 +117,7 @@ FTPChannelParent::DoAsyncOpen(const URIParams& aURI,
 }
 
 bool
-FTPChannelParent::ConnectChannel(const uint32_t& channelId)
+FTPChannelParent::RecvConnectChannel(const uint32_t& channelId)
 {
   nsresult rv;
 
@@ -186,41 +164,23 @@ FTPChannelParent::RecvResume()
 NS_IMETHODIMP
 FTPChannelParent::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
 {
-  LOG(("FTPChannelParent::OnStartRequest [this=%p]\n", this));
+  LOG(("FTPChannelParent::OnStartRequest [this=%x]\n", this));
 
-  nsCOMPtr<nsIChannel> chan = do_QueryInterface(aRequest);
-  MOZ_ASSERT(chan);
-  NS_ENSURE_TRUE(chan, NS_ERROR_UNEXPECTED);
-
+  nsFtpChannel* chan = static_cast<nsFtpChannel*>(aRequest);
   int64_t contentLength;
   chan->GetContentLength(&contentLength);
   nsCString contentType;
   chan->GetContentType(contentType);
-
   nsCString entityID;
-  nsCOMPtr<nsIResumableChannel> resChan = do_QueryInterface(aRequest);
-  MOZ_ASSERT(resChan); // both FTP and HTTP should implement nsIResumableChannel
-  if (resChan) {
-    resChan->GetEntityID(entityID);
-  }
+  chan->GetEntityID(entityID);
+  PRTime lastModified;
+  chan->GetLastModifiedTime(&lastModified);
 
-  nsCOMPtr<nsIFTPChannel> ftpChan = do_QueryInterface(aRequest);
-  PRTime lastModified = 0;
-  if (ftpChan) {
-    ftpChan->GetLastModifiedTime(&lastModified);
-  } else {
-    // Temporary hack: if we were redirected to use an HTTP channel (ie FTP is
-    // using an HTTP proxy), cancel, as we don't support those redirects yet.
-    aRequest->Cancel(NS_ERROR_NOT_IMPLEMENTED);
-  }
-
-  URIParams uriparam;
-  nsCOMPtr<nsIURI> uri;
-  chan->GetURI(getter_AddRefs(uri));
-  SerializeURI(uri, uriparam);
+  URIParams uri;
+  SerializeURI(chan->URI(), uri);
 
   if (mIPCClosed || !SendOnStartRequest(contentLength, contentType,
-                                       lastModified, entityID, uriparam)) {
+                                       lastModified, entityID, uri)) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -232,7 +192,7 @@ FTPChannelParent::OnStopRequest(nsIRequest* aRequest,
                                 nsISupports* aContext,
                                 nsresult aStatusCode)
 {
-  LOG(("FTPChannelParent::OnStopRequest: [this=%p status=%ul]\n",
+  LOG(("FTPChannelParent::OnStopRequest: [this=%x status=%ul]\n",
        this, aStatusCode));
 
   if (mIPCClosed || !SendOnStopRequest(aStatusCode)) {
@@ -253,7 +213,7 @@ FTPChannelParent::OnDataAvailable(nsIRequest* aRequest,
                                   uint64_t aOffset,
                                   uint32_t aCount)
 {
-  LOG(("FTPChannelParent::OnDataAvailable [this=%p]\n", this));
+  LOG(("FTPChannelParent::OnDataAvailable [this=%x]\n", this));
   
   nsCString data;
   nsresult rv = NS_ReadInputStreamToString(aInputStream, data, aCount);

@@ -25,8 +25,8 @@
  * Please edit UTF16Buffer.java instead and regenerate.
  */
 
-#ifndef nsHtml5UTF16Buffer_h
-#define nsHtml5UTF16Buffer_h
+#ifndef nsHtml5UTF16Buffer_h__
+#define nsHtml5UTF16Buffer_h__
 
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"

@@ -7,8 +7,6 @@
 #include "compiler/OutputGLSLBase.h"
 #include "compiler/compiler_debug.h"
 
-#include <cfloat>
-
 namespace
 {
 TString arrayBrackets(const TType& type)
@@ -40,14 +38,12 @@ bool isSingleStatement(TIntermNode* node) {
 }  // namespace
 
 TOutputGLSLBase::TOutputGLSLBase(TInfoSinkBase& objSink,
-                                 ShArrayIndexClampingStrategy clampingStrategy,
                                  ShHashFunction64 hashFunction,
                                  NameMap& nameMap,
                                  TSymbolTable& symbolTable)
     : TIntermTraverser(true, true, true),
       mObjSink(objSink),
       mDeclaringVariables(false),
-      mClampingStrategy(clampingStrategy),
       mHashFunction(hashFunction),
       mNameMap(nameMap),
       mSymbolTable(symbolTable)
@@ -79,9 +75,25 @@ void TOutputGLSLBase::writeVariableType(const TType& type)
     if ((qualifier != EvqTemporary) && (qualifier != EvqGlobal))
         out << type.getQualifierString() << " ";
     // Declare the struct if we have not done so already.
-    if ((type.getBasicType() == EbtStruct) && !structDeclared(type.getStruct()))
+    if ((type.getBasicType() == EbtStruct) &&
+        (mDeclaredStructs.find(type.getTypeName()) == mDeclaredStructs.end()))
     {
-        declareStruct(type.getStruct());
+        out << "struct " << hashName(type.getTypeName()) << "{\n";
+        const TTypeList* structure = type.getStruct();
+        ASSERT(structure != NULL);
+        for (size_t i = 0; i < structure->size(); ++i)
+        {
+            const TType* fieldType = (*structure)[i].type;
+            ASSERT(fieldType != NULL);
+            if (writeVariablePrecision(fieldType->getPrecision()))
+                out << " ";
+            out << getTypeName(*fieldType) << " " << hashName(fieldType->getFieldName());
+            if (fieldType->isArray())
+                out << arrayBrackets(*fieldType);
+            out << ";\n";
+        }
+        out << "}";
+        mDeclaredStructs.insert(type.getTypeName());
     }
     else
     {
@@ -122,29 +134,28 @@ const ConstantUnion* TOutputGLSLBase::writeConstantUnion(const TType& type,
 
     if (type.getBasicType() == EbtStruct)
     {
-        const TStructure* structure = type.getStruct();
-        out << hashName(structure->name()) << "(";
-
-        const TFieldList& fields = structure->fields();
-        for (size_t i = 0; i < fields.size(); ++i)
+        out << hashName(type.getTypeName()) << "(";
+        const TTypeList* structure = type.getStruct();
+        ASSERT(structure != NULL);
+        for (size_t i = 0; i < structure->size(); ++i)
         {
-            const TType* fieldType = fields[i]->type();
+            const TType* fieldType = (*structure)[i].type;
             ASSERT(fieldType != NULL);
             pConstUnion = writeConstantUnion(*fieldType, pConstUnion);
-            if (i != fields.size() - 1) out << ", ";
+            if (i != structure->size() - 1) out << ", ";
         }
         out << ")";
     }
     else
     {
-        size_t size = type.getObjectSize();
+        int size = type.getObjectSize();
         bool writeType = size > 1;
         if (writeType) out << getTypeName(type) << "(";
-        for (size_t i = 0; i < size; ++i, ++pConstUnion)
+        for (int i = 0; i < size; ++i, ++pConstUnion)
         {
             switch (pConstUnion->getType())
             {
-                case EbtFloat: out << std::min(FLT_MAX, std::max(-FLT_MAX, pConstUnion->getFConst())); break;
+                case EbtFloat: out << pConstUnion->getFConst(); break;
                 case EbtInt: out << pConstUnion->getIConst(); break;
                 case EbtBool: out << pConstUnion->getBConst(); break;
                 default: UNREACHABLE();
@@ -208,11 +219,7 @@ bool TOutputGLSLBase::visitBinary(Visit visit, TIntermBinary* node)
             {
                 if (visit == InVisit)
                 {
-                    if (mClampingStrategy == SH_CLAMP_WITH_CLAMP_INTRINSIC) {
-                        out << "[int(clamp(float(";
-                    } else {
-                        out << "[webgl_int_clamp(";
-                    }
+                    out << "[webgl_int_clamp(";
                 }
                 else if (visit == PostVisit)
                 {
@@ -229,12 +236,7 @@ bool TOutputGLSLBase::visitBinary(Visit visit, TIntermBinary* node)
                     {
                         maxSize = leftType.getNominalSize() - 1;
                     }
-
-                    if (mClampingStrategy == SH_CLAMP_WITH_CLAMP_INTRINSIC) {
-                        out << "), 0.0, float(" << maxSize << ")))]";
-                    } else {
-                        out << ", 0, " << maxSize << ")]";
-                    }
+                    out << ", 0, " << maxSize << ")]";
                 }
             }
             else
@@ -245,21 +247,9 @@ bool TOutputGLSLBase::visitBinary(Visit visit, TIntermBinary* node)
         case EOpIndexDirectStruct:
             if (visit == InVisit)
             {
-                // Here we are writing out "foo.bar", where "foo" is struct
-                // and "bar" is field. In AST, it is represented as a binary
-                // node, where left child represents "foo" and right child "bar".
-                // The node itself represents ".". The struct field "bar" is
-                // actually stored as an index into TStructure::fields.
                 out << ".";
-                const TStructure* structure = node->getLeft()->getType().getStruct();
-                const TIntermConstantUnion* index = node->getRight()->getAsConstantUnion();
-                const TField* field = structure->fields()[index->getIConst(0)];
-
-                TString fieldName = field->name();
-                if (!mSymbolTable.findBuiltIn(structure->name()))
-                    fieldName = hashName(fieldName);
-
-                out << fieldName;
+                // TODO(alokp): ASSERT
+                out << hashName(node->getType().getFieldName());
                 visitChildren = false;
             }
             break;
@@ -587,7 +577,7 @@ bool TOutputGLSLBase::visitAggregate(Visit visit, TIntermAggregate* node)
             {
                 const TType& type = node->getType();
                 ASSERT(type.getBasicType() == EbtStruct);
-                out << hashName(type.getStruct()->name()) << "(";
+                out << hashName(type.getTypeName()) << "(";
             }
             else if (visit == InVisit)
             {
@@ -756,7 +746,7 @@ TString TOutputGLSLBase::getTypeName(const TType& type)
     else
     {
         if (type.getBasicType() == EbtStruct)
-            out << hashName(type.getStruct()->name());
+            out << hashName(type.getTypeName());
         else
             out << type.getBasicString();
     }
@@ -788,30 +778,4 @@ TString TOutputGLSLBase::hashFunctionName(const TString& mangled_name)
     if (mSymbolTable.findBuiltIn(mangled_name) != NULL || name == "main")
         return name;
     return hashName(name);
-}
-
-bool TOutputGLSLBase::structDeclared(const TStructure* structure) const
-{
-    return mDeclaredStructs.find(structure->name()) != mDeclaredStructs.end();
-}
-
-void TOutputGLSLBase::declareStruct(const TStructure* structure)
-{
-    TInfoSinkBase& out = objSink();
-
-    out << "struct " << hashName(structure->name()) << "{\n";
-    const TFieldList& fields = structure->fields();
-    for (size_t i = 0; i < fields.size(); ++i)
-    {
-        const TField* field = fields[i];
-        if (writeVariablePrecision(field->type()->getPrecision()))
-            out << " ";
-        out << getTypeName(*field->type()) << " " << hashName(field->name());
-        if (field->type()->isArray())
-            out << arrayBrackets(*field->type());
-        out << ";\n";
-    }
-    out << "}";
-
-    mDeclaredStructs.insert(structure->name());
 }

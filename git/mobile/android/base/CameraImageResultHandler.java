@@ -13,43 +13,30 @@ import android.text.format.Time;
 import android.util.Log;
 
 import java.io.File;
-import java.util.Queue;
+import java.util.concurrent.SynchronousQueue;
 
 class CameraImageResultHandler implements ActivityResultHandler {
     private static final String LOGTAG = "GeckoCameraImageResultHandler";
 
-    private final Queue<String> mFilePickerResult;
-    private final ActivityHandlerHelper.FileResultHandler mHandler;
+    private final SynchronousQueue<String> mFilePickerResult;
 
-    CameraImageResultHandler(Queue<String> resultQueue) {
+    CameraImageResultHandler(SynchronousQueue<String> resultQueue) {
         mFilePickerResult = resultQueue;
-        mHandler = null;
-    }
-
-    /* Use this constructor to asynchronously listen for results */
-    public CameraImageResultHandler(ActivityHandlerHelper.FileResultHandler handler) {
-        mHandler = handler;
-        mFilePickerResult = null;
     }
 
     @Override
     public void onActivityResult(int resultCode, Intent data) {
-        if (resultCode != Activity.RESULT_OK) {
-            if (mFilePickerResult != null) {
-                mFilePickerResult.offer("");
+        try {
+            if (resultCode != Activity.RESULT_OK) {
+                mFilePickerResult.put("");
+                return;
             }
-            return;
-        }
 
-        File file = new File(Environment.getExternalStorageDirectory(), sImageName);
-        sImageName = "";
-
-        if (mFilePickerResult != null) {
-            mFilePickerResult.offer(file.getAbsolutePath());
-        }
-
-        if (mHandler != null) {
-            mHandler.gotFile(file.getAbsolutePath());
+            File file = new File(Environment.getExternalStorageDirectory(), sImageName);
+            sImageName = "";
+            mFilePickerResult.put(file.getAbsolutePath());
+        } catch (InterruptedException e) {
+            Log.i(LOGTAG, "error returning file picker result", e);
         }
     }
 

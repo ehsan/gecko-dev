@@ -3,15 +3,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsAutoPtr.h"
+#include "nsScriptLoader.h"
 
 #include "jsapi.h"
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
 
 #include "nsJSPrincipals.h"
 
 #include "mozilla/scache/StartupCache.h"
+#include "mozilla/scache/StartupCacheUtils.h"
 
-using namespace JS;
 using namespace mozilla::scache;
 
 // We only serialize scripts with system principals. So we don't serialize the
@@ -19,7 +20,7 @@ using namespace mozilla::scache;
 // principals to the system principals.
 nsresult
 ReadCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx,
-                 nsIPrincipal *systemPrincipal, MutableHandleScript scriptp)
+                 nsIPrincipal *systemPrincipal, JSScript **scriptp)
 {
     nsAutoArrayPtr<char> buf;
     uint32_t len;
@@ -28,9 +29,10 @@ ReadCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx,
     if (NS_FAILED(rv))
         return rv; // don't warn since NOT_AVAILABLE is an ok error
 
-    scriptp.set(JS_DecodeScript(cx, buf, len, nsJSPrincipals::get(systemPrincipal), nullptr));
-    if (!scriptp)
+    JSScript *script = JS_DecodeScript(cx, buf, len, nsJSPrincipals::get(systemPrincipal), nullptr);
+    if (!script)
         return NS_ERROR_OUT_OF_MEMORY;
+    *scriptp = script;
     return NS_OK;
 }
 
@@ -57,7 +59,7 @@ ReadCachedFunction(StartupCache* cache, nsACString &uri, JSContext *cx,
 
 nsresult
 WriteCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx,
-                  nsIPrincipal *systemPrincipal, HandleScript script)
+                  nsIPrincipal *systemPrincipal, JSScript *script)
 {
     MOZ_ASSERT(JS_GetScriptPrincipals(script) == nsJSPrincipals::get(systemPrincipal));
     MOZ_ASSERT(JS_GetScriptOriginPrincipals(script) == nsJSPrincipals::get(systemPrincipal));

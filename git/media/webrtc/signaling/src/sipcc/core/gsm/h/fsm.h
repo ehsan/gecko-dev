@@ -13,7 +13,6 @@
 #include "sll_lite.h"
 #include "sessionConstants.h"
 #include "ccsdp.h"
-#include "fsmdef_states.h"
 
 /* TODO: BLASBERG
  * fsm.h only needs the following from ccsip_core.h
@@ -65,6 +64,27 @@ typedef enum {
     FSMDEF_CALL_TYPE_FORWARD = CC_CALL_TYPE_FORWARDED,
     FSMDEF_CALL_TYPE_MAX
 } fsmdef_call_types_t;
+
+typedef enum {
+    FSMDEF_S_MIN = -1,
+    FSMDEF_S_IDLE,
+    FSMDEF_S_COLLECT_INFO,
+    FSMDEF_S_CALL_SENT,
+    FSMDEF_S_OUTGOING_PROCEEDING,
+    FSMDEF_S_KPML_COLLECT_INFO,
+    FSMDEF_S_OUTGOING_ALERTING,
+    FSMDEF_S_INCOMING_ALERTING,
+    FSMDEF_S_CONNECTING,
+    FSMDEF_S_JOINING,
+    FSMDEF_S_CONNECTED,
+    FSMDEF_S_CONNECTED_MEDIA_PEND,
+    FSMDEF_S_RELEASING,
+    FSMDEF_S_HOLD_PENDING,
+    FSMDEF_S_HOLDING,
+    FSMDEF_S_RESUME_PENDING,
+    FSMDEF_S_PRESERVED,
+    FSMDEF_S_MAX
+} fsmdef_states_t;
 
 typedef enum {
     FSMDEF_MRTONE_NO_ACTION = 0,
@@ -206,11 +226,6 @@ typedef struct fsmdef_media_t_ {
      * rtcp-mux indicates media stream is muxed for RTP and RTCP
      */
     boolean        rtcp_mux;
-
-    /*
-     * The value of the a=setup line
-     */
-    sdp_setup_type_e setup;
 
     /*
      * port number used in m= data channel line
@@ -429,7 +444,6 @@ typedef struct {
     char digest_alg[FSMDEF_MAX_DIGEST_ALG_LEN];
     char digest[FSMDEF_MAX_DIGEST_LEN];
 
-    sll_lite_list_t candidate_list;
 } fsmdef_dcb_t;
 
 typedef enum fsm_types_t_ {
@@ -498,11 +512,6 @@ typedef enum fsmxfr_modes_t_ {
     FSMXFR_MODE_TRANSFEREE,
     FSMXFR_MODE_TARGET
 } fsmxfr_modes_t;
-
-typedef struct fsmdef_candidate_t_ {
-    sll_lite_node_t node;     /* link node, must be first member of struct */
-    string_t candidate;       /* the candidate value */
-} fsmdef_candidate_t;
 
 struct fsmxfr_xcb_t_;
 typedef struct fsmxfr_xcb_t_ {

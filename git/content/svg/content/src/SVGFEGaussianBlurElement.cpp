@@ -14,7 +14,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEGaussianBlurElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEGaussianBlurElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEGaussianBlurElementBinding::Wrap(aCx, aScope, this);
 }
@@ -37,19 +37,19 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEGaussianBlurElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEGaussianBlurElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEGaussianBlurElement::StdDeviationX()
 {
   return mNumberPairAttributes[STD_DEV].ToDOMAnimatedNumber(nsSVGNumberPair::eFirst, this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFEGaussianBlurElement::StdDeviationY()
 {
   return mNumberPairAttributes[STD_DEV].ToDOMAnimatedNumber(nsSVGNumberPair::eSecond, this);
@@ -106,8 +106,8 @@ BoxBlur(const uint8_t *aInput, uint8_t *aOutput,
         int32_t aLeftLobe, int32_t aRightLobe, bool aAlphaOnly)
 {
   int32_t boxSize = aLeftLobe + aRightLobe + 1;
-  uint32_t scaledDivisor = ComputeScaledDivisor(boxSize);
-  uint32_t sums[4] = {0, 0, 0, 0};
+  int32_t scaledDivisor = ComputeScaledDivisor(boxSize);
+  int32_t sums[4] = {0, 0, 0, 0};
 
   for (int32_t i=0; i < boxSize; i++) {
     int32_t pos = aStartMinor - aLeftLobe + i;
@@ -119,7 +119,7 @@ BoxBlur(const uint8_t *aInput, uint8_t *aOutput,
   }
 
   aOutput += aStrideMinor*aStartMinor;
-  if (aStartMinor + boxSize <= aEndMinor) {
+  if (aStartMinor + int32_t(boxSize) <= aEndMinor) {
     const uint8_t *lastInput = aInput + aStartMinor*aStrideMinor;
     const uint8_t *nextInput = aInput + (aStartMinor + aRightLobe + 1)*aStrideMinor;
 #define OUTPUT(j)     aOutput[j] = (sums[j]*scaledDivisor) >> 24;
@@ -236,8 +236,7 @@ SVGFEGaussianBlurElement::GaussianBlur(const Image* aSource,
   NS_ASSERTION(nsIntRect(0, 0, aTarget->mImage->Width(), aTarget->mImage->Height()).Contains(aDataRect),
                "aDataRect out of bounds");
 
-  const fallible_t fallible = fallible_t();
-  nsAutoArrayPtr<uint8_t> tmp(new (fallible) uint8_t[aTarget->mImage->GetDataSize()]);
+  nsAutoArrayPtr<uint8_t> tmp(new uint8_t[aTarget->mImage->GetDataSize()]);
   if (!tmp)
     return;
   memset(tmp, 0, aTarget->mImage->GetDataSize());

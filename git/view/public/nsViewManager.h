@@ -8,11 +8,11 @@
 
 #include "nscore.h"
 #include "nsView.h"
+#include "nsEvent.h"
 #include "nsCOMPtr.h"
 #include "nsCRT.h"
 #include "nsVoidArray.h"
 #include "nsDeviceContext.h"
-#include "mozilla/EventForwards.h"
 
 class nsIWidget;
 struct nsRect;
@@ -121,9 +121,8 @@ public:
    * @param aViewTarget dispatch the event to this view
    * @param aStatus event handling status
    */
-  void DispatchEvent(mozilla::WidgetGUIEvent *aEvent,
-                     nsView* aViewTarget,
-                     nsEventStatus* aStatus);
+  void DispatchEvent(nsGUIEvent *aEvent,
+      nsView* aViewTarget, nsEventStatus* aStatus);
 
   /**
    * Given a parent view, insert another view as its child.
@@ -204,8 +203,12 @@ public:
    * relative to the view's siblings.
    * @param aView view to change z depth of
    * @param aZindex explicit z depth
+   * @param aTopMost used when this view is z-index:auto to compare against 
+   *        other z-index:auto views.
+   *        true if the view should be topmost when compared with 
+   *        other z-index:auto views.
    */
-  void SetViewZIndex(nsView *aView, bool aAutoZIndex, int32_t aZindex);
+  void SetViewZIndex(nsView *aView, bool aAutoZIndex, int32_t aZindex, bool aTopMost = false);
 
   /**
    * Set whether the view "floats" above all other views,
@@ -229,11 +232,9 @@ public:
 
   /**
    * Get the device context associated with this manager
+   * @result device context
    */
-  nsDeviceContext* GetDeviceContext() const
-  {
-    return mContext;
-  }
+  void GetDeviceContext(nsDeviceContext *&aContext);
 
   /**
    * A stack class for disallowing changes that would enter painting. For
@@ -341,6 +342,10 @@ private:
   // aView is the view for aWidget and aRegion is relative to aWidget.
   void Refresh(nsView *aView, const nsIntRegion& aRegion);
 
+  void InvalidateRectDifference(nsView *aView, const nsRect& aRect, const nsRect& aCutOut);
+  void InvalidateHorizontalBandDifference(nsView *aView, const nsRect& aRect, const nsRect& aCutOut,
+                                          nscoord aY1, nscoord aY2, bool aInCutOut);
+
   // Utilities
 
   bool IsViewInserted(nsView *aView);
@@ -373,7 +378,8 @@ private:
   bool IsPaintingAllowed() { return RootViewManager()->mRefreshDisableCount == 0; }
 
   void WillPaintWindow(nsIWidget* aWidget);
-  bool PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion);
+  bool PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion,
+                   uint32_t aFlags);
   void DidPaintWindow();
 
   // Call this when you need to let the viewmanager know that it now has

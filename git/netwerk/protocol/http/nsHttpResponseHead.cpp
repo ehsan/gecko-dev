@@ -4,13 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// HttpLog.h should generally be included first
-#include "HttpLog.h"
-
+#include <stdlib.h>
 #include "nsHttpResponseHead.h"
 #include "nsPrintfCString.h"
+#include "prprf.h"
 #include "prtime.h"
-#include "nsURLHelper.h"
+#include "nsCRT.h"
 #include <algorithm>
 
 //-----------------------------------------------------------------------------
@@ -99,7 +98,7 @@ nsresult
 nsHttpResponseHead::Parse(char *block)
 {
 
-    LOG(("nsHttpResponseHead::Parse [this=%p]\n", this));
+    LOG(("nsHttpResponseHead::Parse [this=%x]\n", this));
 
     // this command works on a buffer as prepared by Flatten, as such it is
     // not very forgiving ;-)
@@ -135,10 +134,10 @@ nsHttpResponseHead::ParseStatusLine(const char *line)
     //
     // Parse Status-Line:: HTTP-Version SP Status-Code SP Reason-Phrase CRLF
     //
-
+ 
     // HTTP-Version
     ParseVersion(line);
-
+    
     if ((mVersion == NS_HTTP_VERSION_0_9) || !(line = PL_strchr(line, ' '))) {
         mStatus = 200;
         mStatusText.AssignLiteral("OK");
@@ -170,11 +169,11 @@ nsHttpResponseHead::ParseHeaderLine(const char *line)
     nsHttpAtom hdr = {0};
     char *val;
     nsresult rv;
-
+    
     rv = mHeaders.ParseHeaderLine(line, &hdr, &val);
     if (NS_FAILED(rv))
         return rv;
-
+    
     // leading and trailing LWS has been removed from |val|
 
     // handle some special case headers...
@@ -186,7 +185,7 @@ nsHttpResponseHead::ParseHeaderLine(const char *line)
             mContentLength = len;
         }
         else {
-            // If this is a negative content length then just ignore it
+            // If this is a negative content length then just ignore it 
             LOG(("invalid content-length! %s\n", val));
         }
     }
@@ -224,7 +223,7 @@ nsHttpResponseHead::ComputeCurrentAge(uint32_t now,
     *result = 0;
 
     if (NS_FAILED(GetDateValue(&dateValue))) {
-        LOG(("nsHttpResponseHead::ComputeCurrentAge [this=%p] "
+        LOG(("nsHttpResponseHead::ComputeCurrentAge [this=%x] "
              "Date response header not set!\n", this));
         // Assume we have a fast connection and that our clock
         // is in sync with the server.
@@ -239,7 +238,7 @@ nsHttpResponseHead::ComputeCurrentAge(uint32_t now,
     if (NS_SUCCEEDED(GetAgeValue(&ageValue)))
         *result = std::max(*result, ageValue);
 
-    MOZ_ASSERT(now >= requestTime, "bogus request time");
+    NS_ASSERTION(now >= requestTime, "bogus request time");
 
     // Compute current age
     *result += (now - requestTime);
@@ -279,7 +278,7 @@ nsHttpResponseHead::ComputeFreshnessLifetime(uint32_t *result) const
         // the Expires header can specify a date in the past.
         return NS_OK;
     }
-
+    
     // Fallback on heuristic using last modified header...
     if (NS_SUCCEEDED(GetLastModifiedValue(&date2))) {
         LOG(("using last-modified to determine freshness-lifetime\n"));
@@ -336,7 +335,7 @@ nsHttpResponseHead::MustValidate() const
         LOG(("Must validate since response is an uncacheable error page\n"));
         return true;
     }
-
+    
     // The no-cache response header indicates that we must validate this
     // cached response before reusing.
     if (NoCache()) {
@@ -370,8 +369,8 @@ nsHttpResponseHead::MustValidateIfExpired() const
 {
     // according to RFC2616, section 14.9.4:
     //
-    //  When the must-revalidate directive is present in a response received by a
-    //  cache, that cache MUST NOT use the entry after it becomes stale to respond to
+    //  When the must-revalidate directive is present in a response received by a   
+    //  cache, that cache MUST NOT use the entry after it becomes stale to respond to 
     //  a subsequent request without first revalidating it with the origin server.
     //
     return HasHeaderValue(nsHttp::Cache_Control, "must-revalidate");
@@ -387,7 +386,7 @@ nsHttpResponseHead::IsResumable() const
     // non-2xx responses.
     return mStatus == 200 &&
            mVersion >= NS_HTTP_VERSION_1_1 &&
-           PeekHeader(nsHttp::Content_Length) &&
+           PeekHeader(nsHttp::Content_Length) && 
           (PeekHeader(nsHttp::ETag) || PeekHeader(nsHttp::Last_Modified)) &&
            HasHeaderValue(nsHttp::Accept_Ranges, "bytes");
 }
@@ -396,12 +395,12 @@ bool
 nsHttpResponseHead::ExpiresInPast() const
 {
     uint32_t maxAgeVal, expiresVal, dateVal;
-
+    
     // Bug #203271. Ensure max-age directive takes precedence over Expires
     if (NS_SUCCEEDED(GetMaxAgeValue(&maxAgeVal))) {
         return false;
     }
-
+    
     return NS_SUCCEEDED(GetExpiresValue(&expiresVal)) &&
            NS_SUCCEEDED(GetDateValue(&dateVal)) &&
            expiresVal < dateVal;
@@ -410,7 +409,7 @@ nsHttpResponseHead::ExpiresInPast() const
 nsresult
 nsHttpResponseHead::UpdateHeaders(const nsHttpHeaderArray &headers)
 {
-    LOG(("nsHttpResponseHead::UpdateHeaders [this=%p]\n", this));
+    LOG(("nsHttpResponseHead::UpdateHeaders [this=%x]\n", this));
 
     uint32_t i, count = headers.Count();
     for (i=0; i<count; ++i) {
@@ -486,7 +485,7 @@ nsHttpResponseHead::ParseDateHeader(nsHttpAtom header, uint32_t *result) const
     if (st != PR_SUCCESS)
         return NS_ERROR_NOT_AVAILABLE;
 
-    *result = PRTimeToSeconds(time);
+    *result = PRTimeToSeconds(time); 
     return NS_OK;
 }
 
@@ -510,22 +509,14 @@ nsHttpResponseHead::GetMaxAgeValue(uint32_t *result) const
     if (!val)
         return NS_ERROR_NOT_AVAILABLE;
 
-    const char *p = nsHttp::FindToken(val, "max-age", HTTP_HEADER_VALUE_SEPS "=");
+    const char *p = PL_strcasestr(val, "max-age=");
     if (!p)
         return NS_ERROR_NOT_AVAILABLE;
-    p += 7;
-    while (*p == ' ' || *p == '\t')
-        ++p;
-    if (*p != '=')
-        return NS_ERROR_NOT_AVAILABLE;
-    ++p;
-    while (*p == ' ' || *p == '\t')
-        ++p;
 
-    int maxAgeValue = atoi(p);
+    int maxAgeValue = atoi(p + 8);
     if (maxAgeValue < 0)
         maxAgeValue = 0;
-    *result = static_cast<uint32_t>(maxAgeValue);
+    *result = uint32_t(maxAgeValue);
     return NS_OK;
 }
 
@@ -548,7 +539,7 @@ nsHttpResponseHead::GetExpiresValue(uint32_t *result) const
     if (time < 0)
         *result = 0;
     else
-        *result = PRTimeToSeconds(time);
+        *result = PRTimeToSeconds(time); 
     return NS_OK;
 }
 
@@ -587,12 +578,6 @@ nsHttpResponseHead::ParseVersion(const char *str)
 
     // make sure we have HTTP at the beginning
     if (PL_strncasecmp(str, "HTTP", 4) != 0) {
-        if (PL_strncasecmp(str, "ICY ", 4) == 0) {
-            // ShoutCast ICY is HTTP/1.0-like. Assume it is HTTP/1.0.
-            LOG(("Treating ICY as HTTP 1.0\n"));
-            mVersion = NS_HTTP_VERSION_1_0;
-            return;
-        }
         LOG(("looks like a HTTP/0.9 response\n"));
         mVersion = NS_HTTP_VERSION_0_9;
         return;
@@ -642,7 +627,7 @@ nsHttpResponseHead::ParseCacheControl(const char *val)
     if (nsHttp::FindToken(val, "no-cache", HTTP_HEADER_VALUE_SEPS))
         mCacheControlNoCache = true;
 
-    // search header value for occurrence of "no-store"
+    // search header value for occurrence of "no-store" 
     if (nsHttp::FindToken(val, "no-store", HTTP_HEADER_VALUE_SEPS))
         mCacheControlNoStore = true;
 }

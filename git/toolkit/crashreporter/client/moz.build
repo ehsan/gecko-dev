@@ -6,36 +6,3 @@
 
 MODULE = 'crashreporter'
 
-if CONFIG['OS_TARGET'] != 'Android':
-    PROGRAM = 'crashreporter'
-# The xpcshell test case here verifies that the CA certificate list
-
-SOURCES += [
-    'crashreporter.cpp',
-]
-
-if CONFIG['OS_ARCH'] == 'WINNT':
-    SOURCES += [
-        'crashreporter_win.cpp',
-    ]
-elif CONFIG['OS_ARCH'] == 'Darwin':
-    SOURCES += [
-        'crashreporter_unix_common.cpp',
-    ]
-elif CONFIG['OS_ARCH'] == 'SunOS':
-    SOURCES += [
-        'crashreporter_linux.cpp',
-        'crashreporter_unix.cpp',
-    ]
-
-if CONFIG['MOZ_ENABLE_GTK']:
-    SOURCES += [
-        'crashreporter_gtk_common.cpp',
-        'crashreporter_linux.cpp',
-        'crashreporter_unix_common.cpp'
-        ]
-
-if CONFIG['OS_ARCH'] == 'Darwin':
-    SOURCES += [
-        'crashreporter_osx.mm',
-    ]

@@ -8,10 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 
-#include "webrtc/modules/interface/module_common_types.h"
-#include "webrtc/modules/utility/interface/audio_frame_operations.h"
+#include "audio_frame_operations.h"
+#include "module_common_types.h"
 
 namespace webrtc {
 namespace {
@@ -62,8 +62,7 @@ TEST_F(AudioFrameOperationsTest, MonoToStereoFailsWithBadParameters) {
 TEST_F(AudioFrameOperationsTest, MonoToStereoSucceeds) {
   frame_.num_channels_ = 1;
   SetFrameData(&frame_, 1);
-  AudioFrame temp_frame;
-  temp_frame.CopyFrom(frame_);
+  AudioFrame temp_frame = frame_;
   EXPECT_EQ(0, AudioFrameOperations::MonoToStereo(&frame_));
 
   AudioFrame stereo_frame;
@@ -87,8 +86,7 @@ TEST_F(AudioFrameOperationsTest, StereoToMonoFailsWithBadParameters) {
 
 TEST_F(AudioFrameOperationsTest, StereoToMonoSucceeds) {
   SetFrameData(&frame_, 4, 2);
-  AudioFrame temp_frame;
-  temp_frame.CopyFrom(frame_);
+  AudioFrame temp_frame = frame_;
   EXPECT_EQ(0, AudioFrameOperations::StereoToMono(&frame_));
 
   AudioFrame mono_frame;
@@ -133,8 +131,7 @@ TEST_F(AudioFrameOperationsTest, SwapStereoChannelsFailsOnMono) {
   // Set data to "stereo", despite it being a mono frame.
   SetFrameData(&frame_, 0, 1);
 
-  AudioFrame orig_frame;
-  orig_frame.CopyFrom(frame_);
+  AudioFrame orig_frame = frame_;
   AudioFrameOperations::SwapStereoChannels(&frame_);
   // Verify that no swap occurred.
   VerifyFramesAreEqual(orig_frame, frame_);

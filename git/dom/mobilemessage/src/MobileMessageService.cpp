@@ -7,6 +7,7 @@
 #include "MobileMessageThread.h"
 #include "MobileMessageService.h"
 #include "SmsSegmentInfo.h"
+#include "jsapi.h"
 
 namespace mozilla {
 namespace dom {
@@ -31,7 +32,6 @@ MobileMessageService::GetInstance()
 NS_IMETHODIMP
 MobileMessageService::CreateSmsMessage(int32_t aId,
                                        uint64_t aThreadId,
-                                       const nsAString& aIccId,
                                        const nsAString& aDelivery,
                                        const nsAString& aDeliveryStatus,
                                        const nsAString& aSender,
@@ -39,14 +39,12 @@ MobileMessageService::CreateSmsMessage(int32_t aId,
                                        const nsAString& aBody,
                                        const nsAString& aMessageClass,
                                        const JS::Value& aTimestamp,
-                                       const JS::Value& aDeliveryTimestamp,
                                        const bool aRead,
                                        JSContext* aCx,
                                        nsIDOMMozSmsMessage** aMessage)
 {
   return SmsMessage::Create(aId,
                             aThreadId,
-                            aIccId,
                             aDelivery,
                             aDeliveryStatus,
                             aSender,
@@ -54,7 +52,6 @@ MobileMessageService::CreateSmsMessage(int32_t aId,
                             aBody,
                             aMessageClass,
                             aTimestamp,
-                            aDeliveryTimestamp,
                             aRead,
                             aCx,
                             aMessage);
@@ -63,9 +60,8 @@ MobileMessageService::CreateSmsMessage(int32_t aId,
 NS_IMETHODIMP
 MobileMessageService::CreateMmsMessage(int32_t               aId,
                                        uint64_t              aThreadId,
-                                       const nsAString&      aIccId,
                                        const nsAString&      aDelivery,
-                                       const JS::Value&      aDeliveryInfo,
+                                       const JS::Value&      aDeliveryStatus,
                                        const nsAString&      aSender,
                                        const JS::Value&      aReceivers,
                                        const JS::Value&      aTimestamp,
@@ -73,16 +69,13 @@ MobileMessageService::CreateMmsMessage(int32_t               aId,
                                        const nsAString&      aSubject,
                                        const nsAString&      aSmil,
                                        const JS::Value&      aAttachments,
-                                       const JS::Value&      aExpiryDate,
-                                       bool                  aIsReadReportRequested,
                                        JSContext*            aCx,
                                        nsIDOMMozMmsMessage** aMessage)
 {
   return MmsMessage::Create(aId,
                             aThreadId,
-                            aIccId,
                             aDelivery,
-                            aDeliveryInfo,
+                            aDeliveryStatus,
                             aSender,
                             aReceivers,
                             aTimestamp,
@@ -90,8 +83,6 @@ MobileMessageService::CreateMmsMessage(int32_t               aId,
                             aSubject,
                             aSmil,
                             aAttachments,
-                            aExpiryDate,
-                            aIsReadReportRequested,
                             aCx,
                             aMessage);
 }
@@ -112,20 +103,16 @@ NS_IMETHODIMP
 MobileMessageService::CreateThread(uint64_t aId,
                                    const JS::Value& aParticipants,
                                    const JS::Value& aTimestamp,
-                                   const nsAString& aLastMessageSubject,
                                    const nsAString& aBody,
                                    uint64_t aUnreadCount,
-                                   const nsAString& aLastMessageType,
                                    JSContext* aCx,
                                    nsIDOMMozMobileMessageThread** aThread)
 {
   return MobileMessageThread::Create(aId,
                                      aParticipants,
                                      aTimestamp,
-                                     aLastMessageSubject,
                                      aBody,
                                      aUnreadCount,
-                                     aLastMessageType,
                                      aCx,
                                      aThread);
 }

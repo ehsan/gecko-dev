@@ -4,6 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* $Id$ */
 
 /* Note: ssl_FreeSID() in sslnonce.c gets used for both client and server 
  * cache sids!
@@ -34,7 +35,7 @@
  *     sidCacheEntry            sidCacheData[ numSIDCacheEntries];
  *     certCacheEntry           certCacheData[numCertCacheEntries];
  *     SSLWrappedSymWrappingKey keyCacheData[kt_kea_size][SSL_NUM_WRAP_MECHS];
- *     PRUint8                  keyNameSuffix[SESS_TICKET_KEY_VAR_NAME_LEN]
+ *     uint8                    keyNameSuffix[SESS_TICKET_KEY_VAR_NAME_LEN]
  *     encKeyCacheEntry         ticketEncKey; // Wrapped in non-bypass mode
  *     encKeyCacheEntry         ticketMacKey; // Wrapped in non-bypass mode
  *     PRBool                   ticketKeysValid;
@@ -215,7 +216,7 @@ struct cacheDescStr {
     sidCacheEntry   *          sidCacheData;
     certCacheEntry  *          certCacheData;
     SSLWrappedSymWrappingKey * keyCacheData;
-    PRUint8         *          ticketKeyNameSuffix;
+    uint8           *          ticketKeyNameSuffix;
     encKeyCacheEntry         * ticketEncKey;
     encKeyCacheEntry         * ticketMacKey;
     PRUint32        *          ticketKeysValid;
@@ -500,7 +501,7 @@ ConvertFromSID(sidCacheEntry *to, sslSessionID *from)
 	/* This is an SSL v3 session */
 
 	to->u.ssl3.cipherSuite      = from->u.ssl3.cipherSuite;
-	to->u.ssl3.compression      = (PRUint16)from->u.ssl3.compression;
+	to->u.ssl3.compression      = (uint16)from->u.ssl3.compression;
 	to->u.ssl3.keys             = from->u.ssl3.keys;
 	to->u.ssl3.masterWrapMech   = from->u.ssl3.masterWrapMech;
 	to->u.ssl3.exchKeyType      = from->u.ssl3.exchKeyType;
@@ -531,7 +532,7 @@ ConvertToSID(sidCacheEntry *    from,
              CERTCertDBHandle * dbHandle)
 {
     sslSessionID *to;
-    PRUint16 version = from->version;
+    uint16 version = from->version;
 
     to = PORT_ZNew(sslSessionID);
     if (!to) {
@@ -848,7 +849,7 @@ ServerSessionIDCache(sslSessionID *sid)
 {
     sidCacheEntry sce;
     PRUint32      now     = 0;
-    PRUint16      version = sid->version;
+    uint16        version = sid->version;
     cacheDesc *   cache   = &globalCache;
 
     if ((version >= SSL_LIBRARY_VERSION_3_0) &&
@@ -1127,7 +1128,7 @@ InitCache(cacheDesc *cache, int maxCacheEntries, int maxCertCacheEntries,
 
     cache->keyCacheSize  = (char *)ptr - (char *)cache->keyCacheData;
 
-    cache->ticketKeyNameSuffix = (PRUint8 *)ptr;
+    cache->ticketKeyNameSuffix = (uint8 *)ptr;
     ptr = (ptrdiff_t)(cache->ticketKeyNameSuffix +
 	SESS_TICKET_KEY_VAR_NAME_LEN);
     ptr = SID_ROUNDUP(ptr, SID_ALIGNMENT);
@@ -1858,8 +1859,8 @@ GenerateTicketKeys(void *pwArg, unsigned char *keyName, PK11SymKey **aesKey,
     PK11SymKey *aesKeyTmp = NULL;
     PK11SymKey *macKeyTmp = NULL;
     cacheDesc *cache = &globalCache;
-    PRUint8 ticketKeyNameSuffixLocal[SESS_TICKET_KEY_VAR_NAME_LEN];
-    PRUint8 *ticketKeyNameSuffix;
+    uint8 ticketKeyNameSuffixLocal[SESS_TICKET_KEY_VAR_NAME_LEN];
+    uint8 *ticketKeyNameSuffix;
 
     if (!cache->cacheMem) {
         /* cache is not initalized. Use stack buffer */
@@ -2026,9 +2027,9 @@ ssl_GetSessionTicketKeys(unsigned char *keyName, unsigned char *encKey,
     PRBool rv = PR_FALSE;
     PRUint32 now = 0;
     cacheDesc *cache = &globalCache;
-    PRUint8 ticketMacKey[SHA256_LENGTH], ticketEncKey[AES_256_KEY_LENGTH];
-    PRUint8 ticketKeyNameSuffixLocal[SESS_TICKET_KEY_VAR_NAME_LEN];
-    PRUint8 *ticketMacKeyPtr, *ticketEncKeyPtr, *ticketKeyNameSuffix;
+    uint8 ticketMacKey[AES_256_KEY_LENGTH], ticketEncKey[SHA256_LENGTH];
+    uint8 ticketKeyNameSuffixLocal[SESS_TICKET_KEY_VAR_NAME_LEN];
+    uint8 *ticketMacKeyPtr, *ticketEncKeyPtr, *ticketKeyNameSuffix;
     PRBool cacheIsEnabled = PR_TRUE;
 
     if (!cache->cacheMem) { /* cache is uninitialized */

@@ -6,26 +6,26 @@
 #ifndef nsMathMLsemanticsFrame_h___
 #define nsMathMLsemanticsFrame_h___
 
-#include "mozilla/Attributes.h"
-#include "nsMathMLSelectedFrame.h"
+#include "nsMathMLContainerFrame.h"
 
 //
 // <semantics> -- associate annotations with a MathML expression
 //
 
-class nsMathMLsemanticsFrame : public nsMathMLSelectedFrame {
+class nsMathMLsemanticsFrame : public nsMathMLContainerFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewMathMLsemanticsFrame(nsIPresShell* aPresShell,
                                               nsStyleContext* aContext);
 
+  NS_IMETHOD
+  TransmitAutomaticData();
+
 protected:
   nsMathMLsemanticsFrame(nsStyleContext* aContext) :
-    nsMathMLSelectedFrame(aContext) {}
+    nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLsemanticsFrame();
-
-  nsIFrame* GetSelectedFrame() MOZ_OVERRIDE;
 };
 
 #endif /* nsMathMLsemanticsFrame_h___ */

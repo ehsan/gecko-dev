@@ -6,14 +6,9 @@
 #ifndef GFX_BLUR_H
 #define GFX_BLUR_H
 
+#include "gfxContext.h"
+#include "gfxImageSurface.h"
 #include "gfxTypes.h"
-#include "nsSize.h"
-#include "nsAutoPtr.h"
-#include "gfxPoint.h"
-
-class gfxContext;
-class gfxImageSurface;
-struct gfxRect;
 
 namespace mozilla {
   namespace gfx {
@@ -40,7 +35,7 @@ namespace mozilla {
  * any desired content onto the context acquired through GetContext, and lastly
  * calls Paint to apply the blurred content as an alpha mask.
  */
-class gfxAlphaBoxBlur
+class THEBES_API gfxAlphaBoxBlur
 {
 public:
     gfxAlphaBoxBlur();
@@ -57,13 +52,12 @@ public:
      *   this value.  This parameter should nearly always be computed using
      *   CalculateBlurRadius, below.
      *
-     * @param aDirtyRect A pointer to a dirty rect, measured in device units,
-     *  if available. This will be used for optimizing the blur operation. It
-     *  is safe to pass nullptr here.
+     * @param aDirtyRect A pointer to a dirty rect, measured in device units, if available.
+     *  This will be used for optimizing the blur operation. It is safe to pass NULL here.
      *
-     * @param aSkipRect A pointer to a rect, measured in device units, that
-     *  represents an area where blurring is unnecessary and shouldn't be done
-     *  for speed reasons. It is safe to pass nullptr here.
+     * @param aSkipRect A pointer to a rect, measured in device units, that represents an area
+     *  where blurring is unnecessary and shouldn't be done for speed reasons. It is safe to
+     *  pass NULL here.
      */
     gfxContext* Init(const gfxRect& aRect,
                      const gfxIntSize& aSpreadRadius,

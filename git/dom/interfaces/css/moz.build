@@ -5,11 +5,9 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 XPIDL_SOURCES += [
-    'nsIDOMCounter.idl',
     'nsIDOMCSSCharsetRule.idl',
     'nsIDOMCSSConditionRule.idl',
     'nsIDOMCSSFontFaceRule.idl',
-    'nsIDOMCSSFontFeatureValuesRule.idl',
     'nsIDOMCSSGroupingRule.idl',
     'nsIDOMCSSImportRule.idl',
     'nsIDOMCSSMediaRule.idl',
@@ -25,6 +23,7 @@ XPIDL_SOURCES += [
     'nsIDOMCSSUnknownRule.idl',
     'nsIDOMCSSValue.idl',
     'nsIDOMCSSValueList.idl',
+    'nsIDOMCounter.idl',
     'nsIDOMElementCSSInlineStyle.idl',
     'nsIDOMMozCSSKeyframeRule.idl',
     'nsIDOMMozCSSKeyframesRule.idl',
@@ -32,6 +31,11 @@ XPIDL_SOURCES += [
 ]
 
 XPIDL_MODULE = 'dom_css'
+
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/interfaces/base',
+    '-I$(topsrcdir)/dom/interfaces/stylesheets',
+]
 
 MODULE = 'dom'
 

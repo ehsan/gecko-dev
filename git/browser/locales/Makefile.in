@@ -3,6 +3,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+relativesrcdir = @relativesrcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
 include $(topsrcdir)/config/config.mk
 
 vpath %.xml @srcdir@/en-US/searchplugins
@@ -68,11 +76,7 @@ STUB_HOOK = $(NSINSTALL) -D "$(_ABS_DIST)/$(PKG_INST_PATH)"; \
     $(NULL)
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT) $(DIST_SUBDIR),windows metro)
-SEARCHPLUGINS_NAMES = $(shell cat $(call MERGE_FILE,/searchplugins/metrolist.txt))
-else
 SEARCHPLUGINS_NAMES = $(shell cat $(call MERGE_FILE,/searchplugins/list.txt))
-endif
 SEARCHPLUGINS_PATH := $(FINAL_TARGET)/searchplugins
 SEARCHPLUGINS := $(addsuffix .xml,$(SEARCHPLUGINS_NAMES))
 PP_TARGETS += SEARCHPLUGINS
@@ -105,11 +109,12 @@ PROFILE_CHROME = userChrome-example.css userContent-example.css
 NO_JA_JP_MAC_AB_CD := $(if $(filter ja-JP-mac, $(AB_CD)),ja,$(AB_CD))
 
 %/defaults/profile/bookmarks.html: bookmarks.inc generic/profile/bookmarks.html.in
-	$(call py_action,preprocessor, \
+	$(SYSINSTALL) -D $(dir $@)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
 	  -I $< \
 	  -DAB_CD=$(NO_JA_JP_MAC_AB_CD) \
 	  $(srcdir)/generic/profile/bookmarks.html.in \
-	  -o $@)
+	  > $@
 
 libs:: $(FINAL_TARGET)/defaults/profile/bookmarks.html ;
 
@@ -118,6 +123,14 @@ libs:: $(addprefix generic/profile/,$(PROFILE_FILES))
 
 libs:: $(call MERGE_FILES,$(addprefix profile/chrome/,$(PROFILE_CHROME)))
 	$(SYSINSTALL) $(IFLAGS1) $^ $(FINAL_TARGET)/defaults/profile/chrome
+
+install:: $(DESTDIR)$(mozappdir)/defaults/profile/bookmarks.html ;
+
+install:: $(addprefix generic/profile/,$(PROFILE_FILES))
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/defaults/profile
+
+install:: $(call MERGE_FILES,$(addprefix profile/chrome/,$(PROFILE_CHROME)))
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/defaults/profile/chrome
 
 # metro build calls back here for search engine plugins
 searchplugins: $(addprefix $(FINAL_TARGET)/searchplugins/,$(SEARCHPLUGINS))
@@ -192,12 +205,12 @@ ifeq ($(OS_ARCH),WINNT)
 	cat $< $(srcdir)/../installer/windows/nsis/updater_append.ini | \
 	  sed -e "s/^InfoText=/Info=/" -e "s/^TitleText=/Title=/" | \
 	  sed -e "s/%MOZ_APP_DISPLAYNAME%/$(MOZ_APP_DISPLAYNAME)/" > \
-	  $(FINAL_TARGET)/../updater.ini
+	  $(DIST)/bin/updater.ini
 else
 	cat $< | \
 	  sed -e "s/^InfoText=/Info=/" -e "s/^TitleText=/Title=/" | \
 	  sed -e "s/%MOZ_APP_DISPLAYNAME%/$(MOZ_APP_DISPLAYNAME)/" > \
-	  $(FINAL_TARGET)/../updater.ini
+	  $(DIST)/bin/updater.ini
 endif
 endif
 

@@ -12,16 +12,3 @@ EXPORTS.speex += [
     'speex_types.h',
 ]
 
-SOURCES += [
-  'sse_detect.cpp',
-]
-
-LIBRARY_NAME = 'speex_resampler'
-
-SOURCES += [
-    'resample.c',
-]
-
-MSVC_ENABLE_PGO = True
-
-FORCE_STATIC_LIB = True

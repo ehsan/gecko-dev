@@ -14,7 +14,7 @@ function testSelectableSelection(aIdentifier, aSelectedChildren, aMsg)
   var len = aSelectedChildren.length;
 
   // getSelectedChildren
-  var selectedChildren = acc.selectedItems;
+  var selectedChildren = acc.GetSelectedChildren();
   is(selectedChildren ? selectedChildren.length : 0, len,
      msg + "getSelectedChildren: wrong selected children count for " +
      prettyName(aIdentifier));
@@ -28,26 +28,28 @@ function testSelectableSelection(aIdentifier, aSelectedChildren, aMsg)
        prettyName(actualAcc) + ", expected: " + prettyName(expectedAcc) + "}");
   }
 
-  // selectedItemCount
-  is(acc.selectedItemCount, aSelectedChildren.length,
-     "selectedItemCount: wrong selected children count for " + prettyName(aIdentifier));
+  // selectionCount
+  // XXX: nsIAccessibleText and nsIAccessibleSelectable both have
+  // selectionCount property.
+  //is(acc.selectionCount, aSelectedChildren.length,
+  //   "selectionCount: wrong selected children count for " + prettyName(aIdentifier));
 
-  // getSelectedItemAt
+  // refSelection
   for (var idx = 0; idx < len; idx++) {
     var expectedAcc = getAccessible(aSelectedChildren[idx]);
-    is(acc.getSelectedItemAt(idx), expectedAcc,
-       msg + "getSelectedItemAt: wrong selected child at index " + idx + " for " +
+    is(acc.refSelection(idx), expectedAcc,
+       msg + "refSelection: wrong selected child at index " + idx + " for " +
        prettyName(aIdentifier));
   }
 
-  // isItemSelected
-  testIsItemSelected(acc, acc, { value: 0 }, aSelectedChildren, msg);
+  // isChildSelected
+  testIsChildSelected(acc, acc, { value: 0 }, aSelectedChildren, msg);
 }
 
 /**
- * Test isItemSelected method, helper for testSelectableSelection
+ * Test isChildSelected method, helper for testSelectableSelection
  */
-function testIsItemSelected(aSelectAcc, aTraversedAcc, aIndexObj, aSelectedChildren, aMsg)
+function testIsChildSelected(aSelectAcc, aTraversedAcc, aIndexObj, aSelectedChildren, aMsg)
 {
   var childCount = aTraversedAcc.childCount;
   for (var idx = 0; idx < childCount; idx++) {
@@ -63,9 +65,9 @@ function testIsItemSelected(aSelectAcc, aTraversedAcc, aIndexObj, aSelectedChild
         }
       }
 
-      // isItemSelected
-      is(aSelectAcc.isItemSelected(aIndexObj.value++), isSelected,
-         aMsg + "isItemSelected: wrong selected child " + prettyName(child) +
+      // isChildSelected
+      is(aSelectAcc.isChildSelected(aIndexObj.value++), isSelected,
+         aMsg + "isChildSelected: wrong selected child " + prettyName(child) +
          " for " + prettyName(aSelectAcc));
 
       // selected state
@@ -75,6 +77,6 @@ function testIsItemSelected(aSelectAcc, aTraversedAcc, aIndexObj, aSelectedChild
       continue;
     }
 
-    testIsItemSelected(aSelectAcc, child, aIndexObj, aSelectedChildren);
+    testIsChildSelected(aSelectAcc, child, aIndexObj, aSelectedChildren);
   }
 }

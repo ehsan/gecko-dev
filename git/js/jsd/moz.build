@@ -13,32 +13,3 @@ EXPORTS += [
     'jsdebug.h',
 ]
 
-XPCSHELL_TESTS_MANIFESTS += ['test/xpcshell.ini']
-
-SOURCES += [
-    'jsd_atom.cpp',
-    'jsd_high.cpp',
-    'jsd_hook.cpp',
-    'jsd_lock.cpp',
-    'jsd_obj.cpp',
-    'jsd_scpt.cpp',
-    'jsd_stak.cpp',
-    'jsd_step.cpp',
-    'jsd_text.cpp',
-    'jsd_val.cpp',
-    'jsd_xpc.cpp',
-    'jsdebug.cpp',
-    'jshash.cpp',
-]
-
-DEFINES['EXPORT_JSD_API'] = True
-
-if CONFIG['JS_THREADSAFE']:
-    DEFINES['JS_THREADSAFE'] = True
-
-LIBRARY_NAME = 'jsd'
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
-

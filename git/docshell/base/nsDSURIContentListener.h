@@ -8,13 +8,12 @@
 #define nsDSURIContentListener_h__
 
 #include "nsCOMPtr.h"
+#include "nsString.h"
 #include "nsIURIContentListener.h"
 #include "nsWeakReference.h"
 
 class nsDocShell;
 class nsIWebNavigationInfo;
-class nsIHttpChannel;
-class nsAString;
 
 class nsDSURIContentListener :
     public nsIURIContentListener,
@@ -23,7 +22,7 @@ class nsDSURIContentListener :
 {
 friend class nsDocShell;
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIURICONTENTLISTENER
 
     nsresult Init();
@@ -39,7 +38,7 @@ protected:
     // Determine if X-Frame-Options allows content to be framed
     // as a subdocument
     bool CheckFrameOptions(nsIRequest* request);
-    bool CheckOneFrameOptionsPolicy(nsIHttpChannel* httpChannel,
+    bool CheckOneFrameOptionsPolicy(nsIRequest* request,
                                     const nsAString& policy);
 
     enum XFOHeader {

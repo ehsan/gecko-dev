@@ -17,6 +17,8 @@
 #include "nsDirectoryServiceUtils.h"
 #include "nsISimpleEnumerator.h"
 #include "mozilla/Preferences.h"
+#include "imgIContainer.h"
+#include "imgITools.h"
 #include "nsStringStream.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
@@ -46,9 +48,9 @@ JumpListBuilder::JumpListBuilder() :
   mMaxItems(0),
   mHasCommit(false)
 {
-  ::CoInitialize(nullptr);
+  ::CoInitialize(NULL);
   
-  CoCreateInstance(CLSID_DestinationList, nullptr, CLSCTX_INPROC_SERVER,
+  CoCreateInstance(CLSID_DestinationList, NULL, CLSCTX_INPROC_SERVER,
                    IID_ICustomDestinationList, getter_AddRefs(mJumpListMgr));
 
   // Make a lazy thread for any IO
@@ -257,9 +259,8 @@ NS_IMETHODIMP JumpListBuilder::AddListToBuild(int16_t aCatType, nsIArray *items,
 
       HRESULT hr;
       nsRefPtr<IObjectCollection> collection;
-      hr = CoCreateInstance(CLSID_EnumerableObjectCollection, nullptr,
-                            CLSCTX_INPROC_SERVER, IID_IObjectCollection,
-                            getter_AddRefs(collection));
+      hr = CoCreateInstance(CLSID_EnumerableObjectCollection, NULL, CLSCTX_INPROC_SERVER,
+                            IID_IObjectCollection, getter_AddRefs(collection));
       if (FAILED(hr))
         return NS_ERROR_UNEXPECTED;
 
@@ -323,9 +324,8 @@ NS_IMETHODIMP JumpListBuilder::AddListToBuild(int16_t aCatType, nsIArray *items,
 
       HRESULT hr;
       nsRefPtr<IObjectCollection> collection;
-      hr = CoCreateInstance(CLSID_EnumerableObjectCollection, nullptr,
-                            CLSCTX_INPROC_SERVER, IID_IObjectCollection,
-                            getter_AddRefs(collection));
+      hr = CoCreateInstance(CLSID_EnumerableObjectCollection, NULL, CLSCTX_INPROC_SERVER,
+                            IID_IObjectCollection, getter_AddRefs(collection));
       if (FAILED(hr))
         return NS_ERROR_UNEXPECTED;
 

@@ -2,22 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
-
-// Skipping due to window creation being unsupported in Fennec
-module.metadata = {
-  engines: {
-    'Firefox': '*'
-  }
-};
+"use stirct";
 
 const { Cc, Ci } = require("chrome");
 const { setTimeout } = require("sdk/timers");
 const { LoaderWithHookedConsole } = require("sdk/test/loader");
 const { Worker } = require("sdk/content/worker");
-const { close } = require("sdk/window/helpers");
-const { set: setPref } = require("sdk/preferences/service");
-const DEPRECATE_PREF = "devtools.errorconsole.deprecation_warnings";
 
 const DEFAULT_CONTENT_URL = "data:text/html;charset=utf-8,foo";
 
@@ -74,8 +64,8 @@ function WorkerTest(url, callback) {
         // ... before loading the expected doc and waiting for its load event
         loadAndWait(browser, url, function onDocumentLoaded() {
           callback(assert, browser, function onTestDone() {
-
-            close(chromeWindow).then(done);
+            chromeWindow.close();
+            done();
           });
         });
       });
@@ -328,7 +318,8 @@ exports["test:chrome is unwrapped"] = function(assert, done) {
       onMessage: function(msg) {
         assert.ok(msg,
           "content script has an unwrapped access to chrome document");
-        close(window).then(done);
+        window.close();
+        done();
       }
     });
 
@@ -660,7 +651,6 @@ exports["test:global postMessage"] = WorkerTest(
   DEFAULT_CONTENT_URL,
   function(assert, browser, done) {
     let { loader } = LoaderWithHookedConsole(module, onMessage);
-    setPref(DEPRECATE_PREF, true);
 
     // Intercept all console method calls
     let seenMessages = 0;
@@ -699,5 +689,15 @@ exports["test:global postMessage"] = WorkerTest(
     worker.postMessage("hi!");
   }
 );
+
+if (require("sdk/system/xul-app").is("Fennec")) {
+  module.exports = {
+    "test Unsupported Test": function UnsupportedTest (assert) {
+        assert.pass(
+          "Skipping this test until Fennec support is implemented." +
+          "See bug 806817");
+    }
+  }
+}
 
 require("test").run(exports);

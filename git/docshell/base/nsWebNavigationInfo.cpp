@@ -5,10 +5,10 @@
 
 #include "nsWebNavigationInfo.h"
 #include "nsIWebNavigation.h"
+#include "nsString.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIDocumentLoaderFactory.h"
 #include "nsIPluginHost.h"
-#include "nsIDocShell.h"
 #include "nsContentUtils.h"
 #include "imgLoader.h"
 
@@ -50,22 +50,14 @@ nsWebNavigationInfo::IsTypeSupported(const nsACString& aType,
   if (*aIsTypeSupported) {
     return rv;
   }
-
-  // If this request is for a docShell that isn't going to allow plugins,
-  // there's no need to try and find a plugin to handle it.
-  nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(aWebNav));
-  bool allowed;
-  if (docShell && NS_SUCCEEDED(docShell->GetAllowPlugins(&allowed)) && !allowed) {
-    return NS_OK;
-  }
-
+  
   // Try reloading plugins in case they've changed.
   nsCOMPtr<nsIPluginHost> pluginHost =
     do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
   if (pluginHost) {
     // false will ensure that currently running plugins will not
     // be shut down
-    rv = pluginHost->ReloadPlugins();
+    rv = pluginHost->ReloadPlugins(false);
     if (NS_SUCCEEDED(rv)) {
       // OK, we reloaded plugins and there were new ones
       // (otherwise NS_ERROR_PLUGINS_PLUGINSNOTCHANGED would have

@@ -4,35 +4,42 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsboolinlines_h
-#define jsboolinlines_h
+#ifndef jsboolinlines_h___
+#define jsboolinlines_h___
 
-#include "jsbool.h"
+#include "mozilla/Assertions.h"
+#include "mozilla/Likely.h"
 
-#include "vm/BooleanObject.h"
-#include "vm/WrapperObject.h"
+#include "js/RootingAPI.h"
+
+#include "jsobjinlines.h"
+
+#include "vm/BooleanObject-inl.h"
 
 namespace js {
 
-bool
-BooleanGetPrimitiveValueSlow(HandleObject, JSContext *);
+bool BooleanGetPrimitiveValueSlow(JSContext *, HandleObject, Value *);
 
 inline bool
-BooleanGetPrimitiveValue(HandleObject obj, JSContext *cx)
+BooleanGetPrimitiveValue(JSContext *cx, HandleObject obj, Value *vp)
 {
-    if (obj->is<BooleanObject>())
-        return obj->as<BooleanObject>().unbox();
+    if (obj->isBoolean()) {
+        *vp = BooleanValue(obj->asBoolean().unbox());
+        return true;
+    }
 
-    return BooleanGetPrimitiveValueSlow(obj, cx);
+    return BooleanGetPrimitiveValueSlow(cx, obj, vp);
 }
 
 inline bool
-EmulatesUndefined(JSObject *obj)
+EmulatesUndefined(RawObject obj)
 {
-    JSObject *actual = MOZ_LIKELY(!obj->is<WrapperObject>()) ? obj : UncheckedUnwrap(obj);
-    return actual->getClass()->emulatesUndefined();
+    RawObject actual = MOZ_LIKELY(!obj->isWrapper()) ? obj : UncheckedUnwrap(obj);
+    bool emulatesUndefined = actual->getClass()->emulatesUndefined();
+    MOZ_ASSERT_IF(emulatesUndefined, obj->type()->flags & types::OBJECT_FLAG_EMULATES_UNDEFINED);
+    return emulatesUndefined;
 }
 
 } /* namespace js */
 
-#endif /* jsboolinlines_h */
+#endif /* jsboolinlines_h___ */

@@ -7,6 +7,7 @@
 #include "nsMenuBarFrame.h"
 #include "nsMenuPopupFrame.h"
 #include "nsIDOMEvent.h"
+#include "nsGUIEvent.h"
 
 // Drag & Drop, Clipboard
 #include "nsIServiceManager.h"
@@ -19,7 +20,6 @@
 
 #include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/TextEvents.h"
 
 using namespace mozilla;
 
@@ -166,7 +166,7 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
   // if event has already been handled, bail
   if (aKeyEvent) {
     bool eventHandled = false;
-    aKeyEvent->GetDefaultPrevented(&eventHandled);
+    aKeyEvent->GetPreventDefault(&eventHandled);
     if (eventHandled) {
       return NS_OK;       // don't consume event
     }
@@ -188,7 +188,7 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
   if (mAccessKey)
   {
     bool preventDefault;
-    aKeyEvent->GetDefaultPrevented(&preventDefault);
+    aKeyEvent->GetPreventDefault(&preventDefault);
     if (!preventDefault) {
       nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aKeyEvent);
       uint32_t keyCode, charCode;
@@ -197,8 +197,8 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
 
       bool hasAccessKeyCandidates = charCode != 0;
       if (!hasAccessKeyCandidates) {
-        WidgetKeyboardEvent* nativeKeyEvent =
-          aKeyEvent->GetInternalNSEvent()->AsKeyboardEvent();
+        nsEvent* nativeEvent = nsContentUtils::GetNativeEvent(aKeyEvent);
+        nsKeyEvent* nativeKeyEvent = static_cast<nsKeyEvent*>(nativeEvent);
         if (nativeKeyEvent) {
           nsAutoTArray<uint32_t, 10> keys;
           nsContentUtils::GetAccessKeyCandidates(nativeKeyEvent, keys);
@@ -269,8 +269,8 @@ uint32_t
 nsMenuBarListener::GetModifiers(nsIDOMKeyEvent* aKeyEvent)
 {
   uint32_t modifiers = 0;
-  WidgetInputEvent* inputEvent =
-    aKeyEvent->GetInternalNSEvent()->AsInputEvent();
+  nsInputEvent* inputEvent =
+    static_cast<nsInputEvent*>(aKeyEvent->GetInternalNSEvent());
   MOZ_ASSERT(inputEvent);
 
   if (inputEvent->IsShift()) {

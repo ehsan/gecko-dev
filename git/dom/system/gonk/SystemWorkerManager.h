@@ -23,14 +23,18 @@
 #include "nsIObserver.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
-#include "nsXULAppAPI.h" // For XRE_GetProcessType
+#include "nsDebug.h"
+#include "nsDOMEventTargetHelper.h"
+#include "nsStringGlue.h"
+#include "nsTArray.h"
 
 class nsIWorkerHolder;
 
 namespace mozilla {
 
 namespace ipc {
-  class KeyStore;
+  class RilConsumer;
+  class UnixSocketRawData;
 }
 
 namespace dom {
@@ -55,18 +59,24 @@ public:
   static nsIInterfaceRequestor*
   GetInterfaceRequestor();
 
+  static bool SendRilRawData(unsigned long aClientId,
+                             ipc::UnixSocketRawData* aRaw);
+
 private:
   SystemWorkerManager();
   ~SystemWorkerManager();
 
+#ifdef MOZ_WIDGET_GONK
   nsresult InitNetd(JSContext *cx);
+#endif
   nsresult InitWifi(JSContext *cx);
-  nsresult InitKeyStore(JSContext *cx);
 
+#ifdef MOZ_WIDGET_GONK
   nsCOMPtr<nsIWorkerHolder> mNetdWorker;
+#endif
   nsCOMPtr<nsIWorkerHolder> mWifiWorker;
 
-  nsRefPtr<ipc::KeyStore> mKeyStore;
+  nsTArray<nsRefPtr<ipc::RilConsumer> > mRilConsumers;
 
   bool mShutdown;
 };

@@ -6,10 +6,8 @@
 #ifndef nsXMLElement_h___
 #define nsXMLElement_h___
 
-#include "mozilla/Attributes.h"
 #include "nsIDOMElement.h"
-#include "mozilla/dom/ElementInlines.h"
-#include "mozilla/dom/DOMRect.h"
+#include "mozilla/dom/Element.h"
 
 class nsXMLElement : public mozilla::dom::Element,
                      public nsIDOMElement
@@ -18,6 +16,7 @@ public:
   nsXMLElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : mozilla::dom::Element(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
 
   // nsISupports
@@ -30,30 +29,31 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsINode interface methods
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
+  virtual nsXPCClassInfo* GetClassInfo();
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // nsIContent interface methods
-  virtual nsIAtom *GetIDAttributeName() const MOZ_OVERRIDE;
-  virtual nsIAtom* DoGetID() const MOZ_OVERRIDE;
+  virtual nsIAtom *GetIDAttributeName() const;
+  virtual nsIAtom* DoGetID() const;
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers) MOZ_OVERRIDE;
-  virtual void UnbindFromTree(bool aDeep, bool aNullParent) MOZ_OVERRIDE;
+                              bool aCompileEventHandlers);
+  virtual void UnbindFromTree(bool aDeep, bool aNullParent);
   virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify) MOZ_OVERRIDE;
+                             bool aNotify);
   virtual bool ParseAttribute(int32_t aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
-                                nsAttrValue& aResult) MOZ_OVERRIDE;
+                                nsAttrValue& aResult);
 
   // Element overrides
-  virtual void NodeInfoChanged(nsINodeInfo* aOldNodeInfo) MOZ_OVERRIDE;
+  virtual void NodeInfoChanged(nsINodeInfo* aOldNodeInfo);
 
 protected:
-  virtual JSObject* WrapNode(JSContext *aCx,
-                             JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 };
 
 #endif // nsXMLElement_h___

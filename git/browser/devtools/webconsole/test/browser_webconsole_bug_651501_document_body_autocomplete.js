@@ -22,6 +22,11 @@ function consoleOpened(aHud) {
   let popup = jsterm.autocompletePopup;
   let completeNode = jsterm.completeNode;
 
+  let tmp = {};
+  Cu.import("resource://gre/modules/devtools/WebConsoleUtils.jsm", tmp);
+  let WCU = tmp.WebConsoleUtils;
+  tmp = null;
+
   ok(!popup.isOpen, "popup is not open");
 
   popup._panel.addEventListener("popupshown", function onShown() {
@@ -29,11 +34,13 @@ function consoleOpened(aHud) {
 
     ok(popup.isOpen, "popup is open");
 
-    // expected properties:
+    // |props| values, and the following properties:
     // __defineGetter__  __defineSetter__ __lookupGetter__ __lookupSetter__
     // constructor hasOwnProperty isPrototypeOf propertyIsEnumerable
     // toLocaleString toSource toString unwatch valueOf watch.
-    ok(popup.itemCount >= 14, "popup.itemCount is correct");
+    let props = WCU.inspectObject(content.wrappedJSObject.document.body,
+                                  function() { });
+    is(popup.itemCount, 14 + props.length, "popup.itemCount is correct");
 
     popup._panel.addEventListener("popuphidden", autocompletePopupHidden, false);
 
@@ -74,17 +81,28 @@ function testPropertyPanel()
 {
   let jsterm = gHUD.jsterm;
   jsterm.clearOutput();
-  jsterm.execute("document", (msg) => {
-    jsterm.once("variablesview-fetched", onVariablesViewReady);
-    let anchor = msg.querySelector(".body a");
-    EventUtils.synthesizeMouse(anchor, 2, 2, {}, gHUD.iframeWindow);
+  jsterm.execute("document");
+
+  waitForSuccess({
+    name: "jsterm document object output",
+    validatorFn: function()
+    {
+      return gHUD.outputNode.querySelector(".webconsole-msg-output");
+    },
+    successFn: function()
+    {
+      jsterm.once("variablesview-fetched", onVariablesViewReady);
+      let node = gHUD.outputNode.querySelector(".webconsole-msg-output");
+      EventUtils.synthesizeMouse(node, 2, 2, {}, gHUD.iframeWindow);
+    },
+    failureFn: finishTest,
   });
 }
 
 function onVariablesViewReady(aEvent, aView)
 {
   findVariableViewProperties(aView, [
-    { name: "body", value: "HTMLBodyElement" },
+    { name: "__proto__.body", value: "[object HTMLBodyElement]" },
   ], { webconsole: gHUD }).then(finishTest);
 }
 

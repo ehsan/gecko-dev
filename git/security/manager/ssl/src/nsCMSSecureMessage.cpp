@@ -122,7 +122,7 @@ DecodeCert(const char *value, nsIX509Cert ** _retval)
     rv = NS_ERROR_FAILURE;
   }
 
-  free((char*)data);
+  nsCRT::free((char*)data);
   return rv;
 }
 
@@ -244,7 +244,7 @@ SendMessage(const char *msg, const char *base64Cert, char ** _retval)
   rv = encode(output.data, output.len, _retval);
 
 done:
-  if (certDER) free((char *)certDER);
+  if (certDER) nsCRT::free((char *)certDER);
   if (cert) CERT_DestroyCertificate(cert);
   if (cmsMsg) NSS_CMSMessage_Destroy(cmsMsg);
   if (arena) PORT_FreeArena(arena, false);  /* false? */
@@ -327,7 +327,7 @@ decode(const char *data, unsigned char **result, int32_t * _retval)
 {
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsCMSSecureMessage::decode\n"));
   nsresult rv = NS_OK;
-  uint32_t len = strlen(data);
+  uint32_t len = PL_strlen(data);
   int adjust = 0;
 
   /* Compute length adjustment */

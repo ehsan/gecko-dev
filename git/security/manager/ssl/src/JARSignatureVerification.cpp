@@ -20,7 +20,6 @@
 #include "nsIStringEnumerator.h"
 #include "nsIZipReader.h"
 #include "nsNSSCertificate.h"
-#include "nsProxyRelease.h"
 #include "nsString.h"
 #include "nsTHashtable.h"
 #include "ScopedNSSTypes.h"
@@ -92,7 +91,7 @@ FindAndLoadOneEntry(nsIZipReader * zip,
   // Also, keep in mind bug 164695 and that we must leave room for
   // null-terminating the buffer.
   static const uint32_t MAX_LENGTH = 1024 * 1024;
-  static_assert(MAX_LENGTH < UINT32_MAX, "MAX_LENGTH < UINT32_MAX");
+  MOZ_STATIC_ASSERT(MAX_LENGTH < UINT32_MAX, "MAX_LENGTH < UINT32_MAX");
   NS_ENSURE_TRUE(len64 < MAX_LENGTH, NS_ERROR_FILE_CORRUPTED);
   NS_ENSURE_TRUE(len64 < UINT32_MAX, NS_ERROR_FILE_CORRUPTED); // bug 164695
   SECITEM_AllocItem(buf, static_cast<uint32_t>(len64 + 1));
@@ -201,31 +200,14 @@ ReadLine(/*in/out*/ const char* & nextLineStart, /*out*/ nsCString & line,
          bool allowContinuations = true)
 {
   line.Truncate();
-  size_t previousLength = 0;
-  size_t currentLength = 0;
   for (;;) {
     const char* eol = PL_strpbrk(nextLineStart, "\r\n");
 
     if (!eol) { // Reached end of file before newline
-      eol = nextLineStart + strlen(nextLineStart);
+      eol = nextLineStart + PL_strlen(nextLineStart);
     }
 
-    previousLength = currentLength;
     line.Append(nextLineStart, eol - nextLineStart);
-    currentLength = line.Length();
-
-    // The spec says "No line may be longer than 72 bytes (not characters)"
-    // in its UTF8-encoded form.
-    static const size_t lineLimit = 72;
-    if (currentLength - previousLength > lineLimit) {
-      return NS_ERROR_SIGNED_JAR_MANIFEST_INVALID;
-    }
-
-    // The spec says: "Implementations should support 65535-byte
-    // (not character) header values..."
-    if (currentLength > 65535) {
-      return NS_ERROR_SIGNED_JAR_MANIFEST_INVALID;
-    }
 
     if (*eol == '\r') {
       ++eol;
@@ -254,14 +236,22 @@ ReadLine(/*in/out*/ const char* & nextLineStart, /*out*/ nsCString & line,
 #define JAR_MF_SEARCH_STRING "(M|/M)ETA-INF/(M|m)(ANIFEST|anifest).(MF|mf)$"
 #define JAR_SF_SEARCH_STRING "(M|/M)ETA-INF/*.(SF|sf)$"
 #define JAR_RSA_SEARCH_STRING "(M|/M)ETA-INF/*.(RSA|rsa)$"
-#define JAR_MF_HEADER "Manifest-Version: 1.0"
-#define JAR_SF_HEADER "Signature-Version: 1.0"
+#define JAR_MF_HEADER (const char*)"Manifest-Version: 1.0"
+#define JAR_SF_HEADER (const char*)"Signature-Version: 1.0"
 
 nsresult
 ParseAttribute(const nsAutoCString & curLine,
                /*out*/ nsAutoCString & attrName,
                /*out*/ nsAutoCString & attrValue)
 {
+  nsAutoCString::size_type len = curLine.Length();
+  if (len > 72) {
+    // The spec says "No line may be longer than 72 bytes (not characters)"
+    // in its UTF8-encoded form. This check also ensures that len < INT32_MAX,
+    // which is required below.
+    return NS_ERROR_SIGNED_JAR_MANIFEST_INVALID;
+  }
+
   // Find the colon that separates the name from the value.
   int32_t colonPos = curLine.FindChar(':');
   if (colonPos == kNotFound) {
@@ -339,7 +329,7 @@ ParseSF(const char* filebuf, /*out*/ SECItem & mfDigest)
   nsresult rv;
 
   const char* nextLineStart = filebuf;
-  rv = CheckManifestVersion(nextLineStart, NS_LITERAL_CSTRING(JAR_SF_HEADER));
+  rv = CheckManifestVersion(nextLineStart, nsLiteralCString(JAR_SF_HEADER));
   if (NS_FAILED(rv))
     return rv;
 
@@ -399,7 +389,7 @@ ParseMF(const char* filebuf, nsIZipReader * zip,
 
   const char* nextLineStart = filebuf;
 
-  rv = CheckManifestVersion(nextLineStart, NS_LITERAL_CSTRING(JAR_MF_HEADER));
+  rv = CheckManifestVersion(nextLineStart, nsLiteralCString(JAR_MF_HEADER));
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -633,6 +623,7 @@ OpenSignedJARFile(nsIFile * aJarFile,
   ScopedAutoSECItem buf(128 * 1024);
 
   nsTHashtable<nsCStringHashKey> items;
+  items.Init();
 
   rv = ParseMF(char_ptr_cast(manifestBuffer.data), zip, items, buf);
   if (NS_FAILED(rv)) {
@@ -641,7 +632,7 @@ OpenSignedJARFile(nsIFile * aJarFile,
 
   // Verify every entry in the file.
   nsCOMPtr<nsIUTF8StringEnumerator> entries;
-  rv = zip->FindEntries(EmptyCString(), getter_AddRefs(entries));
+  rv = zip->FindEntries(NS_LITERAL_CSTRING(""), getter_AddRefs(entries));
   if (NS_SUCCEEDED(rv) && !entries) {
     rv = NS_ERROR_UNEXPECTED;
   }
@@ -736,7 +727,7 @@ public:
   OpenSignedJARFileTask(nsIFile * aJarFile,
                         nsIOpenSignedJARFileCallback * aCallback)
     : mJarFile(aJarFile)
-    , mCallback(new nsMainThreadPtrHolder<nsIOpenSignedJARFileCallback>(aCallback))
+    , mCallback(aCallback)
   {
   }
 
@@ -757,7 +748,7 @@ private:
   }
 
   const nsCOMPtr<nsIFile> mJarFile;
-  nsMainThreadPtrHandle<nsIOpenSignedJARFileCallback> mCallback;
+  const nsCOMPtr<nsIOpenSignedJARFileCallback> mCallback;
   nsCOMPtr<nsIZipReader> mZipReader; // out
   nsCOMPtr<nsIX509Cert3> mSignerCert; // out
 };

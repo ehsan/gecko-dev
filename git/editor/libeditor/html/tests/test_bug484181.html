@@ -26,9 +26,9 @@ addLoadEvent(runTest);
 var gMisspeltWords;
 
 function getEditor() {
-  var Ci = SpecialPowers.Ci;
+  var Ci = Components.interfaces;
   var win = window;
-  var editingSession = SpecialPowers.wrap(win).QueryInterface(Ci.nsIInterfaceRequestor)
+  var editingSession = win.QueryInterface(Ci.nsIInterfaceRequestor)
                           .getInterface(Ci.nsIWebNavigation)
                           .QueryInterface(Ci.nsIInterfaceRequestor)
                           .getInterface(Ci.nsIEditingSession);
@@ -42,6 +42,7 @@ function getSpellCheckSelection() {
 }
 
 function append(str) {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
   var edit = document.getElementById("edit");
   var editor = getEditor();
@@ -58,23 +59,22 @@ function runTest() {
   gMisspeltWords = ["haz", "cheezburger"];
   var edit = document.getElementById("edit");
   edit.focus();
+  SimpleTest.executeSoon(function() {
+      is(isSpellingCheckOk(), true, "All misspellings before editing are accounted for.");
 
-  SpecialPowers.Cu.import("resource://gre/modules/AsyncSpellCheckTestHelper.jsm", window);
-  onSpellCheck(edit, function () {
-    is(isSpellingCheckOk(), true, "All misspellings before editing are accounted for.");
-
-    append(" becaz I'm a lolcat!");
-    onSpellCheck(edit, function () {
+      append(" becaz I'm a lolcat!");
+      SimpleTest.executeSoon(function() {
       gMisspeltWords.push("becaz");
       gMisspeltWords.push("lolcat");
       is(isSpellingCheckOk(), true, "All misspellings after typing are accounted for.");
 
       SimpleTest.finish();
-    });
+      });
   });
 }
 
 function isSpellingCheckOk() {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
   var sel = getSpellCheckSelection();
   var numWords = sel.rangeCount;

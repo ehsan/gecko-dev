@@ -5,7 +5,7 @@
 
 #include "nsIChannel.idl"
 
-[scriptable, builtinclass, uuid(6e6cc56d-51eb-4299-a795-dcfd1229ab3d)]
+[scriptable, uuid(6e6cc56d-51eb-4299-a795-dcfd1229ab3d)]
 interface nsIJARChannel : nsIChannel 
 {
     /**
@@ -14,7 +14,7 @@ interface nsIJARChannel : nsIChannel
      * redirects, and plugins should be disabled when loading from this
      * channel.
      */
-    [infallible] readonly attribute boolean isUnsafe;
+    readonly attribute boolean isUnsafe;
 
     /**
      * Forces the uri to be a app:// uri.

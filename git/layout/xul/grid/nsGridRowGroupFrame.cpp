@@ -23,6 +23,10 @@ NS_NewGridRowGroupFrame(nsIPresShell* aPresShell,
                         nsStyleContext* aContext)
 {
   nsCOMPtr<nsBoxLayout> layout = NS_NewGridRowGroupLayout();
+  if (!layout) {
+    return nullptr;
+  }
+
   return new (aPresShell) nsGridRowGroupFrame(aPresShell, aContext, layout);
 }
 

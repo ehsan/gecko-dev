@@ -19,7 +19,6 @@
 #include "SkPath.h"
 #include "SkPathHeap.h"
 #include "SkRegion.h"
-#include "SkRRect.h"
 #include "SkPictureFlat.h"
 
 #ifdef SK_BUILD_FOR_ANDROID
@@ -62,27 +61,19 @@ public:
     SkPicturePlayback();
     SkPicturePlayback(const SkPicturePlayback& src, SkPictCopyInfo* deepCopyInfo = NULL);
     explicit SkPicturePlayback(const SkPictureRecord& record, bool deepCopy = false);
-    SkPicturePlayback(SkStream*, const SkPictInfo&, SkPicture::InstallPixelRefProc);
+    SkPicturePlayback(SkStream*, const SkPictInfo&, bool* isValid);
 
     virtual ~SkPicturePlayback();
 
     void draw(SkCanvas& canvas);
 
-    void serialize(SkWStream*, SkPicture::EncodeBitmap) const;
+    void serialize(SkWStream*) const;
 
     void dumpSize() const;
 
-#ifdef SK_BUILD_FOR_ANDROID
     // Can be called in the middle of playback (the draw() call). WIll abort the
     // drawing and return from draw() after the "current" op code is done
-    void abort() { fAbortCurrentPlayback = true; }
-#endif
-
-protected:
-#ifdef SK_DEVELOPER
-    virtual size_t preDraw(size_t offset, int type);
-    virtual void postDraw(size_t offset);
-#endif
+    void abort();
 
 private:
     class TextContainer {
@@ -94,13 +85,7 @@ private:
     };
 
     const SkBitmap& getBitmap(SkReader32& reader) {
-        const int index = reader.readInt();
-        if (SkBitmapHeap::INVALID_SLOT == index) {
-#ifdef SK_DEBUG
-            SkDebugf("An invalid bitmap was recorded!\n");
-#endif
-            return fBadBitmap;
-        }
+        int index = reader.readInt();
         return (*fBitmaps)[index];
     }
 
@@ -191,16 +176,11 @@ public:
 #endif
 
 private:    // these help us with reading/writing
-    void parseStreamTag(SkStream*, const SkPictInfo&, uint32_t tag, size_t size,
-                        SkPicture::InstallPixelRefProc);
-    void parseBufferTag(SkOrderedReadBuffer&, uint32_t tag, size_t size);
+    bool parseStreamTag(SkStream*, const SkPictInfo&, uint32_t tag, size_t size);
+    bool parseBufferTag(SkOrderedReadBuffer&, uint32_t tag, size_t size);
     void flattenToBuffer(SkOrderedWriteBuffer&) const;
 
 private:
-    // Only used by getBitmap() if the passed in index is SkBitmapHeap::INVALID_SLOT. This empty
-    // bitmap allows playback to draw nothing and move on.
-    SkBitmap fBadBitmap;
-
     SkAutoTUnref<SkBitmapHeap> fBitmapHeap;
     SkAutoTUnref<SkPathHeap> fPathHeap;
 
@@ -221,7 +201,6 @@ private:
     SkFactoryPlayback* fFactoryPlayback;
 #ifdef SK_BUILD_FOR_ANDROID
     SkMutex fDrawMutex;
-    bool fAbortCurrentPlayback;
 #endif
 };
 

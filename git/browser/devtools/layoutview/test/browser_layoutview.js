@@ -1,12 +1,14 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-let TargetFactory = devtools.TargetFactory;
+let tempScope = {};
+Cu.import("resource:///modules/devtools/Target.jsm", tempScope);
+let TargetFactory = tempScope.TargetFactory;
 
 function test() {
   waitForExplicitFinish();
 
+  Services.prefs.setBoolPref("devtools.layoutview.enabled", true);
   Services.prefs.setBoolPref("devtools.inspector.sidebarOpen", true);
 
   let doc;
@@ -75,13 +77,10 @@ function test() {
 
     info("Inspector open");
 
+    inspector.selection.setNode(node);
     inspector.sidebar.select("layoutview");
-    inspector.sidebar.once("layoutview-ready", () => {
-      inspector.selection.setNode(node);
-      inspector.once("inspector-updated", viewReady);
-    });
+    inspector.sidebar.once("layoutview-ready", viewReady);
   }
-
 
   function viewReady() {
     info("Layout view ready");
@@ -101,13 +100,15 @@ function test() {
       is(elt.textContent, res1[i].value, res1[i].selector + " has the right value.");
     }
 
-    inspector.once("layoutview-updated", test2);
+    gBrowser.selectedBrowser.addEventListener("MozAfterPaint", test2, false);
 
     inspector.selection.node.style.height = "150px";
     inspector.selection.node.style.paddingRight = "50px";
   }
 
   function test2() {
+    gBrowser.selectedBrowser.removeEventListener("MozAfterPaint", test2, false);
+
     let viewdoc = view.document;
 
     for (let i = 0; i < res2.length; i++) {
@@ -122,6 +123,7 @@ function test() {
   }
 
   function finishUp() {
+    Services.prefs.clearUserPref("devtools.layoutview.enabled");
     Services.prefs.clearUserPref("devtools.inspector.sidebarOpen");
     gBrowser.removeCurrentTab();
     finish();

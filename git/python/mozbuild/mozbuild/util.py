@@ -11,12 +11,9 @@ import copy
 import errno
 import hashlib
 import os
-import stat
 import sys
-import time
 
 from StringIO import StringIO
-
 
 if sys.version_info[0] == 3:
     str_type = str
@@ -118,7 +115,7 @@ class FileAvoidWrite(StringIO):
     """
     def __init__(self, filename):
         StringIO.__init__(self)
-        self.name = filename
+        self.filename = filename
 
     def close(self):
         """Stop accepting writes, compare file contents, and rewrite if needed.
@@ -131,7 +128,7 @@ class FileAvoidWrite(StringIO):
         StringIO.close(self)
         existed = False
         try:
-            existing = open(self.name, 'rU')
+            existing = open(self.filename, 'rU')
             existed = True
         except IOError:
             pass
@@ -144,8 +141,8 @@ class FileAvoidWrite(StringIO):
             finally:
                 existing.close()
 
-        ensureParentDir(self.name)
-        with open(self.name, 'w') as file:
+        ensureParentDir(self.filename)
+        with open(self.filename, 'w') as file:
             file.write(buf)
 
         return existed, True
@@ -178,8 +175,12 @@ def resolve_target_to_make(topobjdir, target):
     Makefile containing a different Makefile, and an appropriate
     target.
     '''
+    if os.path.isabs(target):
+        print('Absolute paths for make targets are not allowed.')
+        return (None, None)
 
-    target = target.replace(os.sep, '/').lstrip('/')
+    target = target.replace(os.sep, '/')
+
     abs_target = os.path.join(topobjdir, target)
 
     # For directories, run |make -C dir|. If the directory does not
@@ -217,87 +218,6 @@ def resolve_target_to_make(topobjdir, target):
         target = os.path.join(os.path.basename(reldir), target)
         reldir = os.path.dirname(reldir)
 
-
-class UnsortedError(Exception):
-    def __init__(self, srtd, original):
-        assert len(srtd) == len(original)
-
-        self.sorted = srtd
-        self.original = original
-
-        for i, orig in enumerate(original):
-            s = srtd[i]
-
-            if orig != s:
-                self.i = i
-                break
-
-    def __str__(self):
-        s = StringIO()
-
-        s.write('An attempt was made to add an unsorted sequence to a list. ')
-        s.write('The incoming list is unsorted starting at element %d. ' %
-            self.i)
-        s.write('We expected "%s" but got "%s"' % (
-            self.sorted[self.i], self.original[self.i]))
-
-        return s.getvalue()
-
-
-class StrictOrderingOnAppendList(list):
-    """A list specialized for moz.build environments.
-
-    We overload the assignment and append operations to require that incoming
-    elements be ordered. This enforces cleaner style in moz.build files.
-    """
-    @staticmethod
-    def ensure_sorted(l):
-        srtd = sorted(l, key=lambda x: x.lower())
-
-        if srtd != l:
-            raise UnsortedError(srtd, l)
-
-    def __init__(self, iterable=[]):
-        StrictOrderingOnAppendList.ensure_sorted(iterable)
-
-        list.__init__(self, iterable)
-
-    def extend(self, l):
-        if not isinstance(l, list):
-            raise ValueError('List can only be extended with other list instances.')
-
-        StrictOrderingOnAppendList.ensure_sorted(l)
-
-        return list.extend(self, l)
-
-    def __setslice__(self, i, j, sequence):
-        if not isinstance(sequence, list):
-            raise ValueError('List can only be sliced with other list instances.')
-
-        StrictOrderingOnAppendList.ensure_sorted(sequence)
-
-        return list.__setslice__(self, i, j, sequence)
-
-    def __add__(self, other):
-        if not isinstance(other, list):
-            raise ValueError('Only lists can be appended to lists.')
-
-        StrictOrderingOnAppendList.ensure_sorted(other)
-
-        # list.__add__ will return a new list. We "cast" it to our type.
-        return StrictOrderingOnAppendList(list.__add__(self, other))
-
-    def __iadd__(self, other):
-        if not isinstance(other, list):
-            raise ValueError('Only lists can be appended to lists.')
-
-        StrictOrderingOnAppendList.ensure_sorted(other)
-
-        list.__iadd__(self, other)
-
-        return self
-
-
 class MozbuildDeletionError(Exception):
     pass
 
@@ -321,7 +241,7 @@ class HierarchicalStringList(object):
     __slots__ = ('_strings', '_children')
 
     def __init__(self):
-        self._strings = StrictOrderingOnAppendList()
+        self._strings = []
         self._children = {}
 
     def get_children(self):
@@ -373,120 +293,3 @@ class HierarchicalStringList(object):
             if not isinstance(v, str_type):
                 raise ValueError(
                     'Expected a list of strings, not an element of %s' % type(v))
-
-
-class LockFile(object):
-    """LockFile is used by the lock_file method to hold the lock.
-
-    This object should not be used directly, but only through
-    the lock_file method below.
-    """
-
-    def __init__(self, lockfile):
-        self.lockfile = lockfile
-
-    def __del__(self):
-        while True:
-            try:
-                os.remove(self.lockfile)
-                break
-            except OSError as e:
-                if e.errno == errno.EACCES:
-                    # Another process probably has the file open, we'll retry.
-                    # Just a short sleep since we want to drop the lock ASAP
-                    # (but we need to let some other process close the file
-                    # first).
-                    time.sleep(0.1)
-            else:
-                # Re-raise unknown errors
-                raise
-
-
-def lock_file(lockfile, max_wait = 600):
-    """Create and hold a lockfile of the given name, with the given timeout.
-
-    To release the lock, delete the returned object.
-    """
-
-    # FUTURE This function and object could be written as a context manager.
-
-    while True:
-        try:
-            fd = os.open(lockfile, os.O_EXCL | os.O_RDWR | os.O_CREAT)
-            # We created the lockfile, so we're the owner
-            break
-        except OSError as e:
-            if (e.errno == errno.EEXIST or
-                (sys.platform == "win32" and e.errno == errno.EACCES)):
-                pass
-            else:
-                # Should not occur
-                raise
-
-        try:
-            # The lock file exists, try to stat it to get its age
-            # and read its contents to report the owner PID
-            f = open(lockfile, 'r')
-            s = os.stat(lockfile)
-        except EnvironmentError as e:
-            if e.errno == errno.ENOENT or e.errno == errno.EACCES:
-            # We didn't create the lockfile, so it did exist, but it's
-            # gone now. Just try again
-                continue
-
-            raise Exception('{0} exists but stat() failed: {1}'.format(
-                lockfile, e.strerror))
-
-        # We didn't create the lockfile and it's still there, check
-        # its age
-        now = int(time.time())
-        if now - s[stat.ST_MTIME] > max_wait:
-            pid = f.readline().rstrip()
-            raise Exception('{0} has been locked for more than '
-                '{1} seconds (PID {2})'.format(lockfile, max_wait, pid))
-
-        # It's not been locked too long, wait a while and retry
-        f.close()
-        time.sleep(1)
-
-    # if we get here. we have the lockfile. Convert the os.open file
-    # descriptor into a Python file object and record our PID in it
-    f = os.fdopen(fd, 'w')
-    f.write('{0}\n'.format(os.getpid()))
-    f.close()
-
-    return LockFile(lockfile)
-
-
-class PushbackIter(object):
-    '''Utility iterator that can deal with pushed back elements.
-
-    This behaves like a regular iterable, just that you can call
-    iter.pushback(item) to get the given item as next item in the
-    iteration.
-    '''
-    def __init__(self, iterable):
-        self.it = iter(iterable)
-        self.pushed_back = []
-
-    def __iter__(self):
-        return self
-
-    def __nonzero__(self):
-        if self.pushed_back:
-            return True
-
-        try:
-            self.pushed_back.insert(0, self.it.next())
-        except StopIteration:
-            return False
-        else:
-            return True
-
-    def next(self):
-        if self.pushed_back:
-            return self.pushed_back.pop()
-        return self.it.next()
-
-    def pushback(self, item):
-        self.pushed_back.append(item)

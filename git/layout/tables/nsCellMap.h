@@ -9,6 +9,7 @@
 #include "celldata.h"
 #include "nsTArray.h"
 #include "nsTArray.h"
+#include "nsRect.h"
 #include "nsCOMPtr.h"
 #include "nsAlgorithm.h"
 #include "nsAutoPtr.h"
@@ -24,7 +25,6 @@ class nsTableFrame;
 class nsCellMap;
 class nsPresContext;
 class nsCellMapColumnIterator;
-struct nsIntRect;
 
 struct nsColInfo
 {

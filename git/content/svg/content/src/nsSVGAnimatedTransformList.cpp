@@ -6,10 +6,10 @@
 #include "nsSVGAnimatedTransformList.h"
 #include "mozilla/dom/SVGAnimatedTransformList.h"
 #include "mozilla/dom/SVGAnimationElement.h"
-#include "nsCharSeparatedTokenizer.h"
-#include "nsSVGTransform.h"
 #include "nsSMILValue.h"
+#include "prdtoa.h"
 #include "SVGContentUtils.h"
+#include "nsSVGTransform.h"
 #include "SVGTransformListSMILType.h"
 
 namespace mozilla {
@@ -25,12 +25,6 @@ nsSVGAnimatedTransformList::SetBaseValueString(const nsAString& aValue)
     return rv;
   }
 
-  return SetBaseValue(newBaseValue);
-}
-
-nsresult
-nsSVGAnimatedTransformList::SetBaseValue(const SVGTransformList& aValue)
-{
   SVGAnimatedTransformList *domWrapper =
     SVGAnimatedTransformList::GetDOMWrapperIfExists(this);
   if (domWrapper) {
@@ -39,14 +33,14 @@ nsSVGAnimatedTransformList::SetBaseValue(const SVGTransformList& aValue)
     // to remove DOM items from itself, and any removed DOM items need to copy
     // their internal counterpart values *before* we change them.
     //
-    domWrapper->InternalBaseValListWillChangeLengthTo(aValue.Length());
+    domWrapper->InternalBaseValListWillChangeLengthTo(newBaseValue.Length());
   }
 
   // We don't need to call DidChange* here - we're only called by
   // nsSVGElement::ParseAttribute under Element::SetAttr,
   // which takes care of notifying.
 
-  nsresult rv = mBaseVal.CopyFrom(aValue);
+  rv = mBaseVal.CopyFrom(newBaseValue);
   if (NS_FAILED(rv) && domWrapper) {
     // Attempting to increase mBaseVal's length failed - reduce domWrapper
     // back to the same length:
@@ -186,9 +180,8 @@ nsSVGAnimatedTransformList::SMILAnimatedTransformList::ParseValue(
 {
   NS_ABORT_IF_FALSE(aResult.IsNull(), "Unexpected type for SMIL value");
 
-  static_assert(SVGTransformSMILData::NUM_SIMPLE_PARAMS == 3,
-                "nsSVGSMILTransform constructor should be expecting array "
-                "with 3 params");
+  // nsSVGSMILTransform constructor should be expecting array with 3 params
+  PR_STATIC_ASSERT(SVGTransformSMILData::NUM_SIMPLE_PARAMS == 3);
 
   float params[3] = { 0.f };
   int32_t numParsed = ParseParameterList(aSpec, params, 3);
@@ -226,7 +219,7 @@ nsSVGAnimatedTransformList::SMILAnimatedTransformList::ParseValue(
     return;
   }
 
-  nsSMILValue val(SVGTransformListSMILType::Singleton());
+  nsSMILValue val(&SVGTransformListSMILType::sSingleton);
   SVGTransformSMILData transform(transformType, params);
   if (NS_FAILED(SVGTransformListSMILType::AppendTransform(transform, val))) {
     return; // OOM
@@ -236,27 +229,54 @@ nsSVGAnimatedTransformList::SMILAnimatedTransformList::ParseValue(
   aResult.Swap(val);
 }
 
+namespace
+{
+  inline void
+  SkipWsp(nsACString::const_iterator& aIter,
+          const nsACString::const_iterator& aIterEnd)
+  {
+    while (aIter != aIterEnd && IsSVGWhitespace(*aIter))
+      ++aIter;
+  }
+} // end anonymous namespace block
+
 int32_t
 nsSVGAnimatedTransformList::SMILAnimatedTransformList::ParseParameterList(
   const nsAString& aSpec,
   float* aVars,
   int32_t aNVars)
 {
-  nsCharSeparatedTokenizerTemplate<IsSVGWhitespace>
-    tokenizer(aSpec, ',', nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
+  NS_ConvertUTF16toUTF8 spec(aSpec);
+
+  nsACString::const_iterator start, end;
+  spec.BeginReading(start);
+  spec.EndReading(end);
+
+  SkipWsp(start, end);
 
   int numArgsFound = 0;
 
-  while (tokenizer.hasMoreTokens()) {
-    float f;
-    if (!SVGContentUtils::ParseNumber(tokenizer.nextToken(), f)) {
-      return -1;    
-    }
+  while (start != end) {
+    char const *arg = start.get();
+    char *argend;
+    float f = float(PR_strtod(arg, &argend));
+    if (arg == argend || argend > end.get() || !NS_finite(f))
+      return -1;
+
     if (numArgsFound < aNVars) {
       aVars[numArgsFound] = f;
     }
+
+    start.advance(argend - arg);
     numArgsFound++;
+
+    SkipWsp(start, end);
+    if (*start == ',') {
+      ++start;
+      SkipWsp(start, end);
+    }
   }
+
   return numArgsFound;
 }
 
@@ -266,7 +286,7 @@ nsSVGAnimatedTransformList::SMILAnimatedTransformList::GetBaseValue() const
   // To benefit from Return Value Optimization and avoid copy constructor calls
   // due to our use of return-by-value, we must return the exact same object
   // from ALL return points. This function must only return THIS variable:
-  nsSMILValue val(SVGTransformListSMILType::Singleton());
+  nsSMILValue val(&SVGTransformListSMILType::sSingleton);
   if (!SVGTransformListSMILType::AppendTransforms(mVal->mBaseVal, val)) {
     val = nsSMILValue();
   }
@@ -279,7 +299,7 @@ nsSVGAnimatedTransformList::SMILAnimatedTransformList::SetAnimValue(
   const nsSMILValue& aNewAnimValue)
 {
   NS_ABORT_IF_FALSE(
-    aNewAnimValue.mType == SVGTransformListSMILType::Singleton(),
+    aNewAnimValue.mType == &SVGTransformListSMILType::sSingleton,
     "Unexpected type to assign animated value");
   SVGTransformList animVal;
   if (!SVGTransformListSMILType::GetTransforms(aNewAnimValue,

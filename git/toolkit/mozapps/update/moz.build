@@ -5,43 +5,31 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'android':
-    if CONFIG['MOZ_UPDATER'] or CONFIG['MOZ_MAINTENANCE_SERVICE']:
+    if CONFIG['MOZ_UPDATER']:
+        DIRS += ['common', 'updater']
+    elif CONFIG['MOZ_MAINTENANCE_SERVICE']:
         # If only the maintenance service is installed and not
         # the updater, then the maintenance service may still be
         # used for other things.  We need to build update/common
         # which the maintenance service uses.
         DIRS += ['common']
-        if CONFIG['OS_ARCH'] == 'WINNT':
-            DIRS += ['common-standalone']
 
-    if CONFIG['MOZ_UPDATER']:
-        DIRS += ['updater']
-
-MODULE = 'update'
-
-XPCSHELL_TESTS_MANIFESTS += ['tests/unit_timermanager/xpcshell.ini']
+TEST_DIRS += ['test_timermanager']
 
 XPIDL_SOURCES += [
     'nsIUpdateTimerManager.idl',
 ]
 
-EXTRA_COMPONENTS += [
-    'nsUpdateTimerManager.js',
-    'nsUpdateTimerManager.manifest',
-]
-
+# Update tests require the updater binary
 if CONFIG['MOZ_UPDATER']:
-    TEST_DIRS += ['tests']
+    TEST_DIRS += ['test']
+
+    if CONFIG['MOZ_MAINTENANCE_SERVICE']:
+        TEST_DIRS += ['test_svc']
 
     XPIDL_SOURCES += [
         'nsIUpdateService.idl',
     ]
 
-    EXTRA_COMPONENTS += [
-        'nsUpdateService.manifest',
-    ]
+MODULE = 'update'
 
-    EXTRA_PP_COMPONENTS += [
-        'nsUpdateService.js',
-        'nsUpdateServiceStub.js',
-    ]

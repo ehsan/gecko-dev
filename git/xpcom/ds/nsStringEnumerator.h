@@ -4,9 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsIStringEnumerator.h"
-#include "nsStringFwd.h"
-
-template<class T> class nsTArray;
+#include "nsString.h"
+#include "nsTArray.h"
 
 // nsIStringEnumerator/nsIUTF8StringEnumerator implementations
 //

@@ -18,7 +18,11 @@ import glob
 import shutil
 import os
 import sys
-import json
+
+try:
+    import json
+except ImportError:
+    import simplejson as json
 
 results = Results()
 here = os.path.dirname(os.path.realpath(__file__))

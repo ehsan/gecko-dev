@@ -6,34 +6,3 @@
 
 MODULE = 'layout'
 
-UNIFIED_SOURCES += [
-    'nsMathMLChar.cpp',
-    'nsMathMLContainerFrame.cpp',
-    'nsMathMLFrame.cpp',
-    'nsMathMLmactionFrame.cpp',
-    'nsMathMLmencloseFrame.cpp',
-    'nsMathMLmfencedFrame.cpp',
-    'nsMathMLmfracFrame.cpp',
-    'nsMathMLmmultiscriptsFrame.cpp',
-    'nsMathMLmoFrame.cpp',
-    'nsMathMLmpaddedFrame.cpp',
-    'nsMathMLmphantomFrame.cpp',
-    'nsMathMLmrootFrame.cpp',
-    'nsMathMLmrowFrame.cpp',
-    'nsMathMLmspaceFrame.cpp',
-    'nsMathMLmsqrtFrame.cpp',
-    'nsMathMLmstyleFrame.cpp',
-    'nsMathMLmtableFrame.cpp',
-    'nsMathMLmunderoverFrame.cpp',
-    'nsMathMLOperators.cpp',
-    'nsMathMLSelectedFrame.cpp',
-    'nsMathMLsemanticsFrame.cpp',
-    'nsMathMLTokenFrame.cpp',
-]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'gkmathml_s'
-

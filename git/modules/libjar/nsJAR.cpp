@@ -44,10 +44,10 @@ public:
   // True if the second step of verification (VerifyEntry) 
   // has taken place:
   bool                entryVerified;
-
+  
   // Not signed, valid, or failure code
   int16_t             status;
-
+  
   // Internal storage of digests
   nsCString           calculatedSectionDigest;
   nsCString           storedEntryDigest;
@@ -98,15 +98,15 @@ nsJAR::~nsJAR()
   Close();
 }
 
-NS_IMPL_QUERY_INTERFACE1(nsJAR, nsIZipReader)
-NS_IMPL_ADDREF(nsJAR)
+NS_IMPL_THREADSAFE_QUERY_INTERFACE1(nsJAR, nsIZipReader)
+NS_IMPL_THREADSAFE_ADDREF(nsJAR)
 
 // Custom Release method works with nsZipReaderCache...
 nsrefcnt nsJAR::Release(void) 
 {
   nsrefcnt count; 
   NS_PRECONDITION(0 != mRefCnt, "dup release"); 
-  count = --mRefCnt;
+  count = NS_AtomicDecrementRefcnt(mRefCnt); 
   NS_LOG_RELEASE(this, count, "nsJAR"); 
   if (0 == count) {
     mRefCnt = 1; /* stabilize */ 
@@ -223,6 +223,11 @@ nsJAR::Extract(const nsACString &aEntryName, nsIFile* outFile)
   // If it's a directory that already exists and contains files, throw
   // an exception and return.
 
+  //XXX Bug 332139:
+  //XXX If we guarantee that rv in the case of a non-empty directory
+  //XXX is always FILE_DIR_NOT_EMPTY, we can remove
+  //XXX |rv == NS_ERROR_FAILURE| - bug 322183 needs to be completely
+  //XXX fixed before that can happen
   nsresult rv = outFile->Remove(false);
   if (rv == NS_ERROR_FILE_DIR_NOT_EMPTY ||
       rv == NS_ERROR_FAILURE)
@@ -450,7 +455,7 @@ nsJAR::ReadLine(const char** src)
 
   if (eol == nullptr) // Probably reached end of file before newline
   {
-    length = strlen(*src);
+    length = PL_strlen(*src);
     if (length == 0) // immediate end-of-file
       *src = nullptr;
     else             // some data left on this line
@@ -861,7 +866,7 @@ nsresult nsJAR::CalculateDigest(const char* aInBuf, uint32_t aLen,
   return hasher->Finish(true, digest);
 }
 
-NS_IMPL_ISUPPORTS1(nsJAREnumerator, nsIUTF8StringEnumerator)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsJAREnumerator, nsIUTF8StringEnumerator)
   
 //----------------------------------------------
 // nsJAREnumerator::HasMore
@@ -903,7 +908,7 @@ nsJAREnumerator::GetNext(nsACString& aResult)
 }
 
 
-NS_IMPL_ISUPPORTS1(nsJARItem, nsIZipEntry)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsJARItem, nsIZipEntry)
 
 nsJARItem::nsJARItem(nsZipItem* aZipItem)
     : mSize(aZipItem->Size()),
@@ -911,7 +916,6 @@ nsJARItem::nsJARItem(nsZipItem* aZipItem)
       mCrc32(aZipItem->CRC32()),
       mLastModTime(aZipItem->LastModTime()),
       mCompression(aZipItem->Compression()),
-      mPermissions(aZipItem->Mode()),
       mIsDirectory(aZipItem->IsDirectory()),
       mIsSynthetic(aZipItem->isSynthetic)
 {
@@ -1001,22 +1005,10 @@ nsJARItem::GetLastModifiedTime(PRTime* aLastModTime)
     return NS_OK;
 }
 
-//------------------------------------------
-// nsJARItem::GetPermissions
-//------------------------------------------
-NS_IMETHODIMP
-nsJARItem::GetPermissions(uint32_t* aPermissions)
-{
-    NS_ENSURE_ARG_POINTER(aPermissions);
-
-    *aPermissions = mPermissions;
-    return NS_OK;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsIZipReaderCache
 
-NS_IMPL_ISUPPORTS3(nsZipReaderCache, nsIZipReaderCache, nsIObserver, nsISupportsWeakReference)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsZipReaderCache, nsIZipReaderCache, nsIObserver, nsISupportsWeakReference)
 
 nsZipReaderCache::nsZipReaderCache()
   : mLock("nsZipReaderCache.mLock")

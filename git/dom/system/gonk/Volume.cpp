@@ -57,26 +57,9 @@ Volume::Volume(const nsCSubstring& aName)
     mState(nsIVolume::STATE_INIT),
     mName(aName),
     mMountGeneration(-1),
-    mMountLocked(true),  // Needs to agree with nsVolume::nsVolume
-    mSharingEnabled(false),
-    mCanBeShared(true),
-    mIsSharing(false)
+    mMountLocked(true)  // Needs to agree with nsVolume::nsVolume
 {
   DBG("Volume %s: created", NameStr());
-}
-
-void
-Volume::SetIsSharing(bool aIsSharing)
-{
-  if (aIsSharing == mIsSharing) {
-    return;
-  }
-  mIsSharing = aIsSharing;
-  LOG("Volume %s: IsSharing set to %d state %s",
-      NameStr(), (int)mIsSharing, StateStr(mState));
-  if (mIsSharing) {
-    mEventObserverList.Broadcast(this);
-  }
 }
 
 void
@@ -118,15 +101,6 @@ Volume::SetMediaPresent(bool aMediaPresent)
 }
 
 void
-Volume::SetSharingEnabled(bool aSharingEnabled)
-{
-  mSharingEnabled = aSharingEnabled;
-
-  LOG("SetSharingMode for volume %s to %d canBeShared = %d",
-      NameStr(), (int)mSharingEnabled, (int)mCanBeShared);
-}
-
-void
 Volume::SetState(Volume::STATE aNewState)
 {
   MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
@@ -148,29 +122,9 @@ Volume::SetState(Volume::STATE aNewState)
         StateStr(aNewState), mEventObserverList.Length());
   }
 
-  switch (aNewState) {
-     case nsIVolume::STATE_NOMEDIA:
-       // Cover the startup case where we don't get insertion/removal events
-       mMediaPresent = false;
-       mIsSharing = false;
-       break;
-
-     case nsIVolume::STATE_MOUNTED:
-     case nsIVolume::STATE_FORMATTING:
-       mIsSharing = false;
-       break;
-
-     case nsIVolume::STATE_SHARED:
-     case nsIVolume::STATE_SHAREDMNT:
-       // Covers startup cases. Normally, mIsSharing would be set to true
-       // when we issue the command to initiate the sharing process, but
-       // it's conceivable that a volume could already be in a shared state
-       // when b2g starts.
-       mIsSharing = true;
-       break;
-
-     default:
-       break;
+  if (aNewState == nsIVolume::STATE_NOMEDIA) {
+    // Cover the startup case where we don't get insertion/removal events
+    mMediaPresent = false;
   }
   mState = aNewState;
   mEventObserverList.Broadcast(this);
@@ -298,13 +252,7 @@ Volume::HandleVoldResponse(int aResponseCode, nsCWhitespaceTokenizer& aTokenizer
       SetMountPoint(mntPoint);
       nsresult errCode;
       nsCString state(aTokenizer.nextToken());
-      if (state.EqualsLiteral("X")) {
-        // Special state for creating fake volumes which can't be shared.
-        mCanBeShared = false;
-        SetState(nsIVolume::STATE_MOUNTED);
-      } else {
-        SetState((STATE)state.ToInteger(&errCode));
-      }
+      SetState((STATE)state.ToInteger(&errCode));
       break;
     }
 

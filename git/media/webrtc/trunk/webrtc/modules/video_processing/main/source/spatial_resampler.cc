@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_processing/main/source/spatial_resampler.h"
+#include "spatial_resampler.h"
 
 
 namespace webrtc {
@@ -28,9 +28,9 @@ VPMSimpleSpatialResampler::~VPMSimpleSpatialResampler()
 }
 
 
-int32_t
-VPMSimpleSpatialResampler::SetTargetFrameSize(int32_t width,
-                                              int32_t height)
+WebRtc_Word32
+VPMSimpleSpatialResampler::SetTargetFrameSize(WebRtc_Word32 width,
+                                              WebRtc_Word32 height)
 {
   if (_resamplingMode == kNoRescaling)  {
     return VPM_OK;
@@ -61,7 +61,7 @@ VPMSimpleSpatialResampler::Reset()
   _targetHeight = 0;
 }
 
-int32_t
+WebRtc_Word32
 VPMSimpleSpatialResampler::ResampleFrame(const I420VideoFrame& inFrame,
                                          I420VideoFrame* outFrame)
 {
@@ -96,21 +96,21 @@ VPMSimpleSpatialResampler::ResampleFrame(const I420VideoFrame& inFrame,
     return VPM_SCALE_ERROR;
 }
 
-int32_t
+WebRtc_Word32
 VPMSimpleSpatialResampler::TargetHeight()
 {
   return _targetHeight;
 }
 
-int32_t
+WebRtc_Word32
 VPMSimpleSpatialResampler::TargetWidth()
 {
   return _targetWidth;
 }
 
 bool
-VPMSimpleSpatialResampler::ApplyResample(int32_t width,
-                                         int32_t height)
+VPMSimpleSpatialResampler::ApplyResample(WebRtc_Word32 width,
+                                         WebRtc_Word32 height)
 {
   if ((width == _targetWidth && height == _targetHeight) ||
        _resamplingMode == kNoRescaling)
@@ -119,4 +119,4 @@ VPMSimpleSpatialResampler::ApplyResample(int32_t width,
     return true;
 }
 
-}  // namespace
+} //namespace

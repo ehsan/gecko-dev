@@ -1,3 +1,4 @@
+/* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -132,21 +133,13 @@ exports.isTabOpen = isTabOpen;
 function closeTab(tab) {
   let gBrowser = getTabBrowserForTab(tab);
   // normal case?
-  if (gBrowser) {
-    // Bug 699450: the tab may already have been detached
-    if (!tab.parentNode)
-      return;
+  if (gBrowser)
     return gBrowser.removeTab(tab);
-  }
 
   let window = getWindowHoldingTab(tab);
   // fennec?
-  if (window && window.BrowserApp) {
-    // Bug 699450: the tab may already have been detached
-    if (!tab.browser)
-      return;
+  if (window && window.BrowserApp)
     return window.BrowserApp.closeTab(tab);
-  }
   return null;
 }
 exports.closeTab = closeTab;
@@ -212,20 +205,14 @@ exports.getAllTabContentWindows = getAllTabContentWindows;
 function getTabForContentWindow(window) {
   // Retrieve the topmost frame container. It can be either <xul:browser>,
   // <xul:iframe/> or <html:iframe/>. But in our case, it should be xul:browser.
-  let browser;
-  try {
-    browser = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                    .getInterface(Ci.nsIWebNavigation)
-                    .QueryInterface(Ci.nsIDocShell)
-                    .chromeEventHandler;
-  } catch(e) {
-    // Bug 699450: The tab may already have been detached so that `window` is
-    // in a almost destroyed state and can't be queryinterfaced anymore.
-  }
+  let browser = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                   .getInterface(Ci.nsIWebNavigation)
+                   .QueryInterface(Ci.nsIDocShell)
+                   .chromeEventHandler;
 
   // Is null for toplevel documents
   if (!browser) {
-    return null;
+    return false;
   }
 
   // Retrieve the owner window, should be browser.xul one

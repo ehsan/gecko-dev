@@ -1,10 +1,9 @@
 /*
  * jmorecfg.h
  *
- * This file was part of the Independent JPEG Group's software:
  * Copyright (C) 1991-1997, Thomas G. Lane.
- * Modifications:
  * Copyright (C) 2009, 2011, D. R. Commander.
+ * This file is part of the Independent JPEG Group's software.
  * For conditions of distribution and use, see the accompanying README file.
  *
  * This file contains additional configuration options that customize the
@@ -12,7 +11,7 @@
  * optimizations.  Most users will not need to touch this file.
  */
 
-#include <stdint.h>
+#include "mozilla/StandardInteger.h"
 
 /*
  * Define BITS_IN_JSAMPLE as either

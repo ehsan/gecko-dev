@@ -102,6 +102,8 @@ NS_IMPL_ISUPPORTS1(nsSynthVoiceRegistry, nsISynthVoiceRegistry)
 nsSynthVoiceRegistry::nsSynthVoiceRegistry()
   : mSpeechSynthChild(nullptr)
 {
+  mUriVoiceMap.Init();
+
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
 
     mSpeechSynthChild = new SpeechSynthesisChild();
@@ -514,11 +516,11 @@ nsSynthVoiceRegistry::SpeakUtterance(SpeechSynthesisUtterance& aUtterance,
     aUtterance.mVoice->GetVoiceURI(uri);
   }
 
-  nsRefPtr<nsSpeechTask> task;
+  nsSpeechTask* task;
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     task = new SpeechTaskChild(&aUtterance);
     SpeechSynthesisRequestChild* actor =
-      new SpeechSynthesisRequestChild(static_cast<SpeechTaskChild*>(task.get()));
+      new SpeechSynthesisRequestChild(static_cast<SpeechTaskChild*>(task));
     mSpeechSynthChild->SendPSpeechSynthesisRequestConstructor(actor,
                                                               aUtterance.mText,
                                                               lang,
@@ -532,7 +534,8 @@ nsSynthVoiceRegistry::SpeakUtterance(SpeechSynthesisUtterance& aUtterance,
           aUtterance.Rate(), aUtterance.Pitch(), task);
   }
 
-  return task.forget();
+  NS_IF_ADDREF(task);
+  return task;
 }
 
 void

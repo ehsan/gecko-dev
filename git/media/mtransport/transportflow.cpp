@@ -7,6 +7,8 @@
 // Original author: ekr@rtfm.com
 #include <deque>
 
+#include <prlog.h>
+
 #include "logging.h"
 #include "runnable_utils.h"
 #include "transportflow.h"
@@ -63,7 +65,7 @@ nsresult TransportFlow::PushLayer(TransportLayer *layer) {
 
   // Don't allow pushes once we are in error state.
   if (state_ == TransportLayer::TS_ERROR) {
-    MOZ_MTLOG(ML_ERROR, id_ + ": Can't call PushLayer in error state for flow");
+    MOZ_MTLOG(PR_LOG_ERROR, id_ + ": Can't call PushLayer in error state for flow ");
     return NS_ERROR_FAILURE;
   }
 
@@ -74,7 +76,7 @@ nsresult TransportFlow::PushLayer(TransportLayer *layer) {
     ClearLayers(layers_.get());
 
     // Set ourselves to have failed.
-    MOZ_MTLOG(ML_ERROR, id_ << ": Layer initialization failed; invalidating");
+    MOZ_MTLOG(PR_LOG_ERROR, id_ << ": Layer initialization failed; invalidating");
     StateChangeInt(TransportLayer::TS_ERROR);
 
     return rv;
@@ -104,14 +106,13 @@ nsresult TransportFlow::PushLayers(nsAutoPtr<std::queue<TransportLayer *> > laye
 
   MOZ_ASSERT(!layers->empty());
   if (layers->empty()) {
-    MOZ_MTLOG(ML_ERROR, id_ << ": Can't call PushLayers with empty layers");
+    MOZ_MTLOG(PR_LOG_ERROR, id_ << ": Can't call PushLayers with empty layers");
     return NS_ERROR_INVALID_ARG;
   }
 
   // Don't allow pushes once we are in error state.
   if (state_ == TransportLayer::TS_ERROR) {
-    MOZ_MTLOG(ML_ERROR,
-              id_ << ": Can't call PushLayers in error state for flow ");
+    MOZ_MTLOG(PR_LOG_ERROR, id_ << ": Can't call PushLayers in error state for flow ");
     ClearLayers(layers.get());
     return NS_ERROR_FAILURE;
   }
@@ -129,8 +130,7 @@ nsresult TransportFlow::PushLayers(nsAutoPtr<std::queue<TransportLayer *> > laye
 
     rv = layer->Init();
     if (NS_FAILED(rv)) {
-      MOZ_MTLOG(ML_ERROR,
-                id_ << ": Layer initialization failed; invalidating flow ");
+      MOZ_MTLOG(PR_LOG_ERROR, id_ << ": Layer initialization failed; invalidating flow ");
       break;
     }
 

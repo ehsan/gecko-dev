@@ -14,17 +14,17 @@ namespace mozilla {
 namespace dom {
 
 // Turbulence Types
+static const unsigned short SVG_TURBULENCE_TYPE_UNKNOWN = 0;
 static const unsigned short SVG_TURBULENCE_TYPE_FRACTALNOISE = 1;
 static const unsigned short SVG_TURBULENCE_TYPE_TURBULENCE = 2;
 
 // Stitch Options
+static const unsigned short SVG_STITCHTYPE_UNKNOWN = 0;
 static const unsigned short SVG_STITCHTYPE_STITCH = 1;
 static const unsigned short SVG_STITCHTYPE_NOSTITCH = 2;
 
-static const int32_t MAX_OCTAVES = 10;
-
 JSObject*
-SVGFETurbulenceElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFETurbulenceElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFETurbulenceElementBinding::Wrap(aCx, aScope, this);
 }
@@ -84,37 +84,37 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFETurbulenceElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFETurbulenceElement::BaseFrequencyX()
 {
   return mNumberPairAttributes[BASE_FREQ].ToDOMAnimatedNumber(nsSVGNumberPair::eFirst, this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFETurbulenceElement::BaseFrequencyY()
 {
   return mNumberPairAttributes[BASE_FREQ].ToDOMAnimatedNumber(nsSVGNumberPair::eSecond, this);
 }
 
-already_AddRefed<SVGAnimatedInteger>
+already_AddRefed<nsIDOMSVGAnimatedInteger>
 SVGFETurbulenceElement::NumOctaves()
 {
   return mIntegerAttributes[OCTAVES].ToDOMAnimatedInteger(this);
 }
 
-already_AddRefed<SVGAnimatedNumber>
+already_AddRefed<nsIDOMSVGAnimatedNumber>
 SVGFETurbulenceElement::Seed()
 {
   return mNumberAttributes[SEED].ToDOMAnimatedNumber(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGFETurbulenceElement::StitchTiles()
 {
   return mEnumAttributes[STITCHTILES].ToDOMAnimatedEnum(this);
 }
 
-already_AddRefed<SVGAnimatedEnumeration>
+already_AddRefed<nsIDOMSVGAnimatedEnumeration>
 SVGFETurbulenceElement::Type()
 {
   return mEnumAttributes[TYPE].ToDOMAnimatedEnum(this);
@@ -137,7 +137,7 @@ SVGFETurbulenceElement::Filter(nsSVGFilterInstance* instance,
   float fX = mNumberPairAttributes[BASE_FREQ].GetAnimValue(nsSVGNumberPair::eFirst);
   float fY = mNumberPairAttributes[BASE_FREQ].GetAnimValue(nsSVGNumberPair::eSecond);
   float seed = mNumberAttributes[OCTAVES].GetAnimValue();
-  int32_t octaves = std::min(mIntegerAttributes[OCTAVES].GetAnimValue(), MAX_OCTAVES);
+  int32_t octaves = mIntegerAttributes[OCTAVES].GetAnimValue();
   uint16_t type = mEnumAttributes[TYPE].GetAnimValue();
   uint16_t stitch = mEnumAttributes[STITCHTILES].GetAnimValue();
 
@@ -264,7 +264,7 @@ SVGFETurbulenceElement::Noise2(int aColorChannel, double aVec[2],
 {
   int bx0, bx1, by0, by1, b00, b10, b01, b11;
   double rx0, rx1, ry0, ry1, *q, sx, sy, a, b, t, u, v;
-  long i, j;
+  register long i, j;
   t = aVec[0] + sPerlinN;
   bx0 = (int) t;
   bx1 = bx0 + 1;
@@ -276,7 +276,7 @@ SVGFETurbulenceElement::Noise2(int aColorChannel, double aVec[2],
   ry0 = t - (int) t;
   ry1 = ry0 - 1.0f;
   // If stitching, adjust lattice points accordingly.
-  if (aStitchInfo != nullptr) {
+  if (aStitchInfo != NULL) {
     if (bx0 >= aStitchInfo->mWrapX)
       bx0 -= aStitchInfo->mWidth;
     if (bx1 >= aStitchInfo->mWrapX)
@@ -322,7 +322,7 @@ SVGFETurbulenceElement::Turbulence(int aColorChannel, double* aPoint,
                                    double aTileWidth, double aTileHeight)
 {
   StitchInfo stitch;
-  StitchInfo *stitchInfo = nullptr; // Not stitching when nullptr.
+  StitchInfo *stitchInfo = NULL; // Not stitching when NULL.
   // Adjust the base frequencies if necessary for stitching.
   if (aDoStitching) {
     // When stitching tiled turbulence, the frequencies must be adjusted
@@ -363,7 +363,7 @@ SVGFETurbulenceElement::Turbulence(int aColorChannel, double* aPoint,
     vec[0] *= 2;
     vec[1] *= 2;
     ratio *= 2;
-    if (stitchInfo != nullptr) {
+    if (stitchInfo != NULL) {
       // Update stitch values. Subtracting sPerlinN before the multiplication
       // and adding it afterward simplifies to subtracting it once.
       stitch.mWidth *= 2;

@@ -4,15 +4,16 @@
 
 function continue_test(status, entry) {
   do_check_eq(status, Components.results.NS_OK);
-  // TODO - mayhemer: remove this tests completely
-  // entry.deviceID;
+  entry.deviceID;
   // if the above line does not crash, the test was successful
   do_test_finished();
 }
 
 function run_test() {
-  asyncOpenCacheEntry("http://some.key/",
-                      "disk", Ci.nsICacheStorage.OPEN_NORMALLY, null,
+  asyncOpenCacheEntry("key",
+                      "client",
+                      Components.interfaces.nsICache.STORE_ANYWHERE,
+                      Components.interfaces.nsICache.ACCESS_WRITE,
                       continue_test);
   do_test_pending();
 }

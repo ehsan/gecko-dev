@@ -6,21 +6,18 @@
 #ifndef GFX_LAYERMANAGEROGLPROGRAM_H
 #define GFX_LAYERMANAGEROGLPROGRAM_H
 
-#include "GLDefs.h"                     // for GLint, GLenum, GLuint, etc
-#include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "gfxTypes.h"
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/RefPtr.h"             // for RefPtr
-#include "mozilla/gfx/Matrix.h"         // for Matrix4x4
-#include "mozilla/gfx/Rect.h"           // for Rect
-#include "mozilla/gfx/Types.h"
-#include "nsDebug.h"                    // for NS_ASSERTION
-#include "nsPoint.h"                    // for nsIntPoint
-#include "nsTArray.h"                   // for nsTArray
-#include "mozilla/layers/CompositorTypes.h"
+#include <string.h>
 
-struct gfxRGBA;
-struct nsIntRect;
+#include "prenv.h"
+
+#include "nsString.h"
+#include "nsTArray.h"
+#include "GLContextTypes.h"
+#include "gfx3DMatrix.h"
+#include "mozilla/layers/LayersTypes.h"
+#include "gfxColor.h"
+#include "mozilla/gfx/Matrix.h"
+#include "mozilla/RefPtr.h"
 
 namespace mozilla {
 namespace gl {
@@ -29,76 +26,6 @@ class GLContext;
 namespace layers {
 
 class Layer;
-
-enum ShaderProgramType {
-  RGBALayerProgramType,
-  BGRALayerProgramType,
-  RGBXLayerProgramType,
-  BGRXLayerProgramType,
-  RGBARectLayerProgramType,
-  RGBXRectLayerProgramType,
-  BGRARectLayerProgramType,
-  RGBAExternalLayerProgramType,
-  ColorLayerProgramType,
-  YCbCrLayerProgramType,
-  ComponentAlphaPass1ProgramType,
-  ComponentAlphaPass1RGBProgramType,
-  ComponentAlphaPass2ProgramType,
-  ComponentAlphaPass2RGBProgramType,
-  Copy2DProgramType,
-  Copy2DRectProgramType,
-  NumProgramTypes
-};
-
-static inline ShaderProgramType
-ShaderProgramFromSurfaceFormat(gfx::SurfaceFormat aFormat)
-{
-  switch (aFormat) {
-    case gfx::FORMAT_B8G8R8A8:
-      return BGRALayerProgramType;
-    case gfx::FORMAT_B8G8R8X8:
-      return BGRXLayerProgramType;
-    case gfx::FORMAT_R8G8B8A8:
-      return RGBALayerProgramType;
-    case gfx::FORMAT_R8G8B8X8:
-    case gfx::FORMAT_R5G6B5:
-      return RGBXLayerProgramType;
-    case gfx::FORMAT_A8:
-      // We don't have a specific luminance shader
-      break;
-    default:
-      NS_ASSERTION(false, "Unhandled surface format!");
-  }
-  return ShaderProgramType(0);
-}
-
-static inline ShaderProgramType
-ShaderProgramFromTargetAndFormat(GLenum aTarget,
-                                 gfx::SurfaceFormat aFormat)
-{
-  switch(aTarget) {
-    case LOCAL_GL_TEXTURE_EXTERNAL:
-      MOZ_ASSERT(aFormat == gfx::FORMAT_R8G8B8A8);
-      return RGBAExternalLayerProgramType;
-    case LOCAL_GL_TEXTURE_RECTANGLE_ARB:
-      MOZ_ASSERT(aFormat == gfx::FORMAT_R8G8B8A8 ||
-                 aFormat == gfx::FORMAT_R8G8B8X8);
-      if (aFormat == gfx::FORMAT_R8G8B8A8)
-        return RGBARectLayerProgramType;
-      else
-        return RGBXRectLayerProgramType;
-    default:
-      return ShaderProgramFromSurfaceFormat(aFormat);
-  }
-}
-
-static inline ShaderProgramType
-ShaderProgramFromContentType(gfxContentType aContentType)
-{
-  if (aContentType == GFX_CONTENT_COLOR_ALPHA)
-    return RGBALayerProgramType;
-  return RGBXLayerProgramType;
-}
 
 /**
  * This struct represents the shaders that make up a program and the uniform
@@ -112,16 +39,16 @@ struct ProgramProfileOGL
    * Factory method; creates an instance of this class for the given
    * ShaderProgramType
    */
-  static ProgramProfileOGL GetProfileFor(ShaderProgramType aType,
+  static ProgramProfileOGL GetProfileFor(gl::ShaderProgramType aType,
                                          MaskType aMask);
 
   /**
    * returns true if such a shader program exists
    */
-  static bool ProgramExists(ShaderProgramType aType, MaskType aMask)
+  static bool ProgramExists(gl::ShaderProgramType aType, MaskType aMask)
   {
     if (aType < 0 ||
-        aType >= NumProgramTypes)
+        aType >= gl::NumProgramTypes)
       return false;
 
     if (aMask < MaskNone ||
@@ -129,18 +56,13 @@ struct ProgramProfileOGL
       return false;
 
     if (aMask == Mask2d &&
-        (aType == Copy2DProgramType ||
-         aType == Copy2DRectProgramType))
-      return false;
-
-    if (aMask != MaskNone &&
-        aType == BGRARectLayerProgramType)
+        (aType == gl::Copy2DProgramType ||
+         aType == gl::Copy2DRectProgramType))
       return false;
 
     return aMask != Mask3d ||
-           aType == RGBARectLayerProgramType ||
-           aType == RGBXRectLayerProgramType ||
-           aType == RGBALayerProgramType;
+           aType == gl::RGBARectLayerProgramType ||
+           aType == gl::RGBALayerProgramType;
   }
 
 
@@ -188,10 +110,12 @@ struct ProgramProfileOGL
   nsTArray<Argument> mAttributes;
   uint32_t mTextureCount;
   bool mHasMatrixProj;
+  bool mHasTextureTransform;
 private:
   ProgramProfileOGL() :
     mTextureCount(0),
-    mHasMatrixProj(false) {}
+    mHasMatrixProj(false),
+    mHasTextureTransform(false) {}
 };
 
 
@@ -312,11 +236,13 @@ public:
 
   // sets this program's texture transform, if it uses one
   void SetTextureTransform(const gfx3DMatrix& aMatrix) {
-    SetMatrixUniform(mProfile.LookupUniformLocation("uTextureTransform"), aMatrix);
+    if (mProfile.mHasTextureTransform)
+      SetMatrixUniform(mProfile.LookupUniformLocation("uTextureTransform"), aMatrix);
   }
 
   void SetTextureTransform(const gfx::Matrix4x4& aMatrix) {
-    SetMatrixUniform(mProfile.LookupUniformLocation("uTextureTransform"), aMatrix);
+    if (mProfile.mHasTextureTransform)
+      SetMatrixUniform(mProfile.LookupUniformLocation("uTextureTransform"), aMatrix);
   }
 
   void SetRenderOffset(const nsIntPoint& aOffset) {

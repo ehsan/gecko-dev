@@ -16,121 +16,23 @@
   padding: 0;
   margin: 0;
   background: none;
-  width: 16px;
 }
 
 .chat-toolbarbutton > .toolbarbutton-text {
   display: none;
 }
 
-.chat-toolbarbutton > .toolbarbutton-icon {
-  width: inherit;
-}
-
 .chat-close-button {
-  list-style-image: url('chrome://browser/skin/social/chat-icons.png');
-  -moz-image-region: rect(0, 16px, 16px, 0);
-}
-
-.chat-close-button:hover {
-  -moz-image-region: rect(0, 32px, 16px, 16px);
+  list-style-image: url('chrome://browser/skin/social/chat-close.png');
+  -moz-image-region: rect(0, 14px, 14px, 0);
 }
 
 .chat-close-button:hover:active {
-  -moz-image-region: rect(0, 48px, 16px, 32px);
+  -moz-image-region: rect(14px, 14px, 28px, 0);
 }
 
-.chat-minimize-button {
-  list-style-image: url('chrome://browser/skin/social/chat-icons.png');
-  -moz-image-region: rect(16px, 16px, 32px, 0);
-}
-
-.chat-minimize-button:hover {
-  -moz-image-region: rect(16px, 32px, 32px, 16px);
-}
-
-.chat-minimize-button:hover:active {
-  -moz-image-region: rect(16px, 48px, 32px, 32px);
-}
-
-.chat-swap-button {
-  list-style-image: url('chrome://browser/skin/social/chat-icons.png');
-  -moz-image-region: rect(48px, 16px, 64px, 0);
-}
-
-.chat-swap-button:hover {
-  -moz-image-region: rect(48px, 32px, 64px, 16px);
-}
-
-.chat-swap-button:hover:active {
-  -moz-image-region: rect(48px, 48px, 64px, 32px);
-}
-
-chatbar > chatbox > .chat-titlebar > .chat-swap-button {
-  list-style-image: url('chrome://browser/skin/social/chat-icons.png');
-  -moz-image-region: rect(32px, 16px, 48px, 0);
-}
-
-chatbar > chatbox > .chat-titlebar > .chat-swap-button:hover {
-  -moz-image-region: rect(32px, 32px, 48px, 16px);
-}
-
-chatbar > chatbox > .chat-titlebar > .chat-swap-button:hover:active {
-  -moz-image-region: rect(32px, 48px, 48px, 32px);
-}
-
-@media (min-resolution: 2dppx) {
-  .chat-close-button {
-    list-style-image: url('chrome://browser/skin/social/chat-icons@2x.png');
-    -moz-image-region: rect(0, 32px, 32px, 0);
-  }
-
-  .chat-close-button:hover {
-    -moz-image-region: rect(0, 64px, 32px, 32px);
-  }
-
-  .chat-close-button:hover:active {
-    -moz-image-region: rect(0, 96px, 32px, 64px);
-  }
-
-  .chat-minimize-button {
-    list-style-image: url('chrome://browser/skin/social/chat-icons@2x.png');
-    -moz-image-region: rect(32px, 32px, 64px, 0);
-  }
-
-  .chat-minimize-button:hover {
-    -moz-image-region: rect(32px, 64px, 64px, 32px);
-  }
-
-  .chat-minimize-button:hover:active {
-    -moz-image-region: rect(32px, 96px, 64px, 64px);
-  }
-
-  .chat-swap-button {
-    list-style-image: url('chrome://browser/skin/social/chat-icons@2x.png');
-    -moz-image-region: rect(96px, 32px, 128px, 0);
-  }
-
-  .chat-swap-button:hover {
-    -moz-image-region: rect(96px, 64px, 128px, 32px);
-  }
-
-  .chat-swap-button:hover:active {
-    -moz-image-region: rect(96px, 96px, 128px, 64px);
-  }
-
-  chatbar > chatbox > .chat-titlebar > .chat-swap-button {
-    list-style-image: url('chrome://browser/skin/social/chat-icons@2x.png');
-    -moz-image-region: rect(64px, 32px, 96px, 0);
-  }
-
-  chatbar > chatbox > .chat-titlebar > .chat-swap-button:hover {
-    -moz-image-region: rect(64px, 64px, 96px, 32px);
-  }
-
-  chatbar > chatbox > .chat-titlebar > .chat-swap-button:hover:active {
-    -moz-image-region: rect(64px, 96px, 96px, 64px);
-  }
+.chat-close-button:hover {
+  -moz-image-region: rect(28px, 14px, 42px, 0);
 }
 
 .chat-title {
@@ -152,11 +54,6 @@ chatbar > chatbox > .chat-titlebar > .chat-swap-button:hover:active {
   cursor: pointer;
 }
 
-.chat-titlebar > .notification-anchor-icon {
-  margin-left: 2px;
-  margin-right: 2px;
-}
-
 .chat-titlebar[minimized="true"] {
   border-bottom: none;
 }
@@ -176,12 +73,13 @@ chatbar > chatbox > .chat-titlebar > .chat-swap-button:hover:active {
 
 .chatbar-button {
   list-style-image: url("chrome://browser/skin/social/services-16.png");
+  border: none;
   margin: 0;
   padding: 2px;
   height: 21px;
   width: 21px;
-  border: 1px solid #ccc;
-  border-bottom: none;
+  border-top: 1px solid #ccc;
+  -moz-border-end: 1px solid #ccc;
 }
 
 @media (min-resolution: 2dppx) {
@@ -190,15 +88,20 @@ chatbar > chatbox > .chat-titlebar > .chat-swap-button:hover:active {
   }
 }
 
-.chatbar-button > .toolbarbutton-icon {
-  width: 16px;
-}
-
 .chatbar-button > menupopup > .menuitem-iconic > .menu-iconic-left > .menu-iconic-icon {
   width: auto;
   height: auto;
   max-height: 16px;
   max-width: 16px;
+}
+
+.chatbar-button > .toolbarbutton-icon {
+  opacity: .6;
+}
+
+.chatbar-button:hover > .toolbarbutton-icon,
+.chatbar-button[open="true"] > .toolbarbutton-icon {
+  opacity: 1;
 }
 
 .chatbar-button[open="true"] {
@@ -229,11 +132,4 @@ chatbox {
   background-color: white;
   border: 1px solid #ccc;
   border-bottom: none;
-}
-
-window > chatbox {
-  -moz-margin-start: 0px;
-  margin: 0px;
-  border: none;
-  padding: 0px;
 }

@@ -11,8 +11,8 @@
 #ifndef VCM_TEST_MACROS_H
 #define VCM_TEST_MACROS_H
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 
 extern int vcmMacrosTests;
 extern int vcmMacrosErrors;

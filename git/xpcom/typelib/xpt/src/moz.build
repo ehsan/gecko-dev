@@ -6,13 +6,3 @@
 
 MODULE = 'xpcom'
 
-LIBRARY_NAME = 'xpt'
-
-SOURCES += [
-    'xpt_arena.c',
-    'xpt_struct.c',
-    'xpt_xdr.c',
-]
-
-LIBXUL_LIBRARY = True
-

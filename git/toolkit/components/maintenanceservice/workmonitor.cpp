@@ -15,6 +15,7 @@
 #pragma comment(lib, "rpcrt4.lib")
 
 #include "nsWindowsHelpers.h"
+#include "nsAutoPtr.h"
 
 #include "workmonitor.h"
 #include "serviceinstall.h"
@@ -57,7 +58,7 @@ IsStatusApplying(LPCWSTR updateDirPath, BOOL &isApplying)
                                       FILE_SHARE_READ | 
                                       FILE_SHARE_WRITE | 
                                       FILE_SHARE_DELETE,
-                                      nullptr, OPEN_EXISTING, 0, nullptr));
+                                      NULL, OPEN_EXISTING, 0, NULL));
 
   if (INVALID_HANDLE_VALUE == statusFile) {
     LOG_WARN(("Could not open update.status file"));
@@ -66,7 +67,7 @@ IsStatusApplying(LPCWSTR updateDirPath, BOOL &isApplying)
 
   char buf[32] = { 0 };
   DWORD read;
-  if (!ReadFile(statusFile, buf, sizeof(buf), &read, nullptr)) {
+  if (!ReadFile(statusFile, buf, sizeof(buf), &read, NULL)) {
     LOG_WARN(("Could not read from update.status file"));
     return FALSE;
   }
@@ -179,10 +180,10 @@ StartUpdateProcess(int argc,
   putenv(const_cast<char*>("MOZ_USING_SERVICE=1"));
   LOG(("Starting service with cmdline: %ls", cmdLine));
   processStarted = CreateProcessW(argv[0], cmdLine, 
-                                  nullptr, nullptr, FALSE, 
+                                  NULL, NULL, FALSE, 
                                   CREATE_DEFAULT_ERROR_MODE, 
-                                  nullptr, 
-                                  nullptr, &si, &pi);
+                                  NULL, 
+                                  NULL, &si, &pi);
   // Empty value on putenv is how you remove an env variable in Windows
   putenv(const_cast<char*>("MOZ_USING_SERVICE="));
   
@@ -263,7 +264,7 @@ StartUpdateProcess(int argc,
       // performing the replacing in that case.
       if (!backgroundUpdate) {
         LOG(("Launching post update process as the service in session 0."));
-        if (!LaunchWinPostProcess(installDir, updateInfoDir, true, nullptr)) {
+        if (!LaunchWinPostProcess(installDir, updateInfoDir, true, NULL)) {
           LOG_WARN(("The post update process could not be launched."
                     " installDir: %ls, updateInfoDir: %ls",
                     installDir, updateInfoDir));
@@ -329,7 +330,7 @@ ProcessSoftwareUpdateCommand(DWORD argc, LPWSTR *argv)
   }
 
   nsAutoHandle noWriteLock(CreateFileW(argv[0], GENERIC_READ, FILE_SHARE_READ, 
-                                       nullptr, OPEN_EXISTING, 0, nullptr));
+                                       NULL, OPEN_EXISTING, 0, NULL));
   if (INVALID_HANDLE_VALUE == noWriteLock) {
       LOG_WARN(("Could not set no write sharing access on file.  (%d)",
                 GetLastError()));
@@ -344,7 +345,7 @@ ProcessSoftwareUpdateCommand(DWORD argc, LPWSTR *argv)
   // Verify that the updater.exe that we are executing is the same
   // as the one in the installation directory which we are updating.
   // The installation dir that we are installing to is installDir.
-  WCHAR installDirUpdater[MAX_PATH + 1] = { L'\0' };
+  WCHAR installDirUpdater[MAX_PATH + 1] = {L'\0'};
   wcsncpy(installDirUpdater, installDir, MAX_PATH);
   if (!PathAppendSafe(installDirUpdater, L"updater.exe")) {
     LOG_WARN(("Install directory updater could not be determined."));
@@ -378,7 +379,7 @@ ProcessSoftwareUpdateCommand(DWORD argc, LPWSTR *argv)
   // Check to make sure the updater.exe module has the unique updater identity.
   // This is a security measure to make sure that the signed executable that
   // we will run is actually an updater.
-  HMODULE updaterModule = LoadLibraryEx(argv[0], nullptr, 
+  HMODULE updaterModule = LoadLibraryEx(argv[0], NULL, 
                                         LOAD_LIBRARY_AS_DATAFILE);
   if (!updaterModule) {
     LOG_WARN(("updater.exe module could not be loaded. (%d)", GetLastError()));
@@ -479,7 +480,7 @@ ProcessSoftwareUpdateCommand(DWORD argc, LPWSTR *argv)
 BOOL
 GetSecureUpdaterPath(WCHAR serviceUpdaterPath[MAX_PATH + 1])
 {
-  if (!GetModuleFileNameW(nullptr, serviceUpdaterPath, MAX_PATH)) {
+  if (!GetModuleFileNameW(NULL, serviceUpdaterPath, MAX_PATH)) {
     LOG_WARN(("Could not obtain module filename when attempting to "
               "use a secure updater path.  (%d)", GetLastError()));
     return FALSE;
@@ -497,7 +498,7 @@ GetSecureUpdaterPath(WCHAR serviceUpdaterPath[MAX_PATH + 1])
     return FALSE;
   }
 
-  CreateDirectoryW(serviceUpdaterPath, nullptr);
+  CreateDirectoryW(serviceUpdaterPath, NULL);
 
   if (!PathAppendSafe(serviceUpdaterPath, L"updater.exe")) {
     LOG_WARN(("Couldn't append file spec when attempting to use a secure "
@@ -586,19 +587,16 @@ ExecuteServiceCommand(int argc, LPWSTR *argv)
            oldUpdaterPath, secureUpdaterPath));
       DeleteSecureUpdater(secureUpdaterPath);
       result = CopyFileW(oldUpdaterPath, secureUpdaterPath, FALSE);
+      if (!result) {
+        LOG_WARN(("Could not copy path to secure location.  (%d)",
+                  GetLastError()));
+      }
     }
 
-    if (!result) {
-      LOG_WARN(("Could not copy path to secure location.  (%d)",
-                GetLastError()));
-      if (argc > 4 && !WriteStatusFailure(argv[4],
-                                          SERVICE_COULD_NOT_COPY_UPDATER)) {
-        LOG_WARN(("Could not write update.status could not copy updater error"));
-      }
-    } else {
-
-      // We obtained the path and copied it successfully, update the path to
-      // use for the service update.
+    // If we obtained the path and copied it successfully update the path to
+    // use for the service update.  If there was a problem use the original
+    // path so things work like it used to.
+    if (result) {
       argv[3] = secureUpdaterPath;
 
       WCHAR oldUpdaterINIPath[MAX_PATH + 1] = { L'\0' };
@@ -613,10 +611,10 @@ ExecuteServiceCommand(int argc, LPWSTR *argv)
                     oldUpdaterINIPath, secureUpdaterINIPath, GetLastError()));
         }
       }
-
-      result = ProcessSoftwareUpdateCommand(argc - 3, argv + 3);
-      DeleteSecureUpdater(secureUpdaterPath);
     }
+
+    result = ProcessSoftwareUpdateCommand(argc - 3, argv + 3);
+    DeleteSecureUpdater(secureUpdaterPath);
 
     // We might not reach here if the service install succeeded
     // because the service self updates itself and the service

@@ -84,7 +84,7 @@ SkDrawGradient::~SkDrawGradient() {
     delete fUnitMapper;
 }
 
-bool SkDrawGradient::addChild(SkAnimateMaker& , SkDisplayable* child) {
+bool SkDrawGradient::add(SkAnimateMaker& , SkDisplayable* child) {
     SkASSERT(child);
     if (child->isColor()) {
         SkDrawColor* color = (SkDrawColor*) child;

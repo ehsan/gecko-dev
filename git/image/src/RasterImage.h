@@ -18,28 +18,29 @@
 #define mozilla_imagelib_RasterImage_h_
 
 #include "Image.h"
-#include "FrameBlender.h"
 #include "nsCOMPtr.h"
 #include "imgIContainer.h"
 #include "nsIProperties.h"
+#include "nsITimer.h"
+#include "nsIRequest.h"
 #include "nsTArray.h"
 #include "imgFrame.h"
 #include "nsThreadUtils.h"
 #include "DiscardTracker.h"
-#include "Orientation.h"
-#include "nsIObserver.h"
-#include "mozilla/MemoryReporting.h"
+#include "nsISupportsImpl.h"
 #include "mozilla/TimeStamp.h"
+#include "mozilla/Telemetry.h"
+#include "mozilla/LinkedList.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/WeakPtr.h"
 #include "mozilla/Mutex.h"
+#include "gfx2DGlue.h"
 #ifdef DEBUG
   #include "imgIContainerDebug.h"
 #endif
 
 class nsIInputStream;
 class nsIThreadPool;
-class nsIRequest;
 
 #define NS_RASTERIMAGE_CID \
 { /* 376ff2c1-9bf6-418a-b143-3340c00112f7 */         \
@@ -117,6 +118,10 @@ class nsIRequest;
  * @par
  * The mAnim structure has members only needed for animated images, so
  * it's not allocated until the second frame is added.
+ *
+ * @note
+ * mAnimationMode and mLoopCount are not in the mAnim structure because
+ * they have public setters.
  */
 
 class ScaleRequest;
@@ -130,7 +135,6 @@ class Image;
 namespace image {
 
 class Decoder;
-class FrameAnimator;
 
 class RasterImage : public ImageResource
                   , public nsIProperties
@@ -140,7 +144,7 @@ class RasterImage : public ImageResource
 #endif
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIPROPERTIES
   NS_DECL_IMGICONTAINER
 #ifdef DEBUG
@@ -169,10 +173,10 @@ public:
   uint32_t GetCurrentFrameIndex();
 
   /* The total number of frames in this image. */
-  uint32_t GetNumFrames() const;
+  uint32_t GetNumFrames();
 
-  virtual size_t HeapSizeOfSourceWithComputedFallback(mozilla::MallocSizeOf aMallocSizeOf) const;
-  virtual size_t HeapSizeOfDecodedWithComputedFallback(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t HeapSizeOfSourceWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const;
+  virtual size_t HeapSizeOfDecodedWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const;
   virtual size_t NonHeapSizeOfDecoded() const;
   virtual size_t OutOfProcessSizeOfDecoded() const;
 
@@ -183,11 +187,13 @@ public:
   /* Callbacks for decoders */
   nsresult SetFrameAsNonPremult(uint32_t aFrameNum, bool aIsNonPremult);
 
-  /** Sets the size and inherent orientation of the container. This should only
-   * be called by the decoder. This function may be called multiple times, but
-   * will throw an error if subsequent calls do not match the first.
+  /**
+   * Sets the size of the container. This should only be called by the
+   * decoder. This function may be called multiple times, but will throw an
+   * error if subsequent calls do not match the first.
    */
-  nsresult SetSize(int32_t aWidth, int32_t aHeight, Orientation aOrientation);
+  nsresult SetSize(int32_t aWidth, int32_t aHeight);
+
 
   /**
    * Ensures that a given frame number exists with the given parameters, and
@@ -197,7 +203,7 @@ public:
    */
   nsresult EnsureFrame(uint32_t aFramenum, int32_t aX, int32_t aY,
                        int32_t aWidth, int32_t aHeight,
-                       gfxImageFormat aFormat,
+                       gfxASurface::gfxImageFormat aFormat,
                        uint8_t aPaletteDepth,
                        uint8_t** imageData,
                        uint32_t* imageLength,
@@ -211,7 +217,7 @@ public:
    */
   nsresult EnsureFrame(uint32_t aFramenum, int32_t aX, int32_t aY,
                        int32_t aWidth, int32_t aHeight,
-                       gfxImageFormat aFormat,
+                       gfxASurface::gfxImageFormat aFormat,
                        uint8_t** imageData,
                        uint32_t* imageLength,
                        imgFrame** aFrame);
@@ -246,10 +252,6 @@ public:
                                        bool aLastPart) MOZ_OVERRIDE;
   virtual nsresult OnNewSourceData() MOZ_OVERRIDE;
 
-  static already_AddRefed<nsIEventTarget> GetEventTarget() {
-    return DecodePool::Singleton()->GetEventTarget();
-  }
-
   /**
    * A hint of the number of bytes of source data that the image contains. If
    * called early on, this can help reduce copying and reallocations by
@@ -271,6 +273,34 @@ public:
   nsIntSize GetRequestedResolution() {
     return mRequestedResolution;
   }
+
+  // "Blend" method indicates how the current image is combined with the
+  // previous image.
+  enum FrameBlendMethod {
+    // All color components of the frame, including alpha, overwrite the current
+    // contents of the frame's output buffer region
+    kBlendSource =  0,
+
+    // The frame should be composited onto the output buffer based on its alpha,
+    // using a simple OVER operation
+    kBlendOver
+  };
+
+  enum FrameDisposalMethod {
+    kDisposeClearAll         = -1, // Clear the whole image, revealing
+                                   // what was there before the gif displayed
+    kDisposeNotSpecified,   // Leave frame, let new frame draw on top
+    kDisposeKeep,           // Leave frame, let new frame draw on top
+    kDisposeClear,          // Clear the frame's area, revealing bg
+    kDisposeRestorePrevious // Restore the previous (composited) frame
+  };
+
+  // A hint as to whether an individual frame is entirely opaque, or requires
+  // alpha blending.
+  enum FrameAlpha {
+    kFrameHasAlpha,
+    kFrameOpaque
+  };
 
  nsCString GetURIString() {
     nsCString spec;
@@ -309,16 +339,51 @@ public:
   };
 
 private:
-  already_AddRefed<imgStatusTracker> CurrentStatusTracker()
+  imgStatusTracker& CurrentStatusTracker()
   {
-    nsRefPtr<imgStatusTracker> statusTracker;
-    statusTracker = mDecodeRequest ? mDecodeRequest->mStatusTracker
-                                   : mStatusTracker;
-    MOZ_ASSERT(statusTracker);
-    return statusTracker.forget();
+    if (mDecodeRequest) {
+      return *mDecodeRequest->mStatusTracker;
+    } else {
+      return *mStatusTracker;
+    }
   }
 
   nsresult OnImageDataCompleteCore(nsIRequest* aRequest, nsISupports*, nsresult aStatus);
+
+  struct Anim
+  {
+    //! Area of the first frame that needs to be redrawn on subsequent loops.
+    nsIntRect                  firstFrameRefreshArea;
+    uint32_t                   currentAnimationFrameIndex; // 0 to numFrames-1
+
+    // the time that the animation advanced to the current frame
+    TimeStamp                  currentAnimationFrameTime;
+
+    //! Track the last composited frame for Optimizations (See DoComposite code)
+    int32_t                    lastCompositedFrameIndex;
+    /** For managing blending of frames
+     *
+     * Some animations will use the compositingFrame to composite images
+     * and just hand this back to the caller when it is time to draw the frame.
+     * NOTE: When clearing compositingFrame, remember to set
+     *       lastCompositedFrameIndex to -1.  Code assume that if
+     *       lastCompositedFrameIndex >= 0 then compositingFrame exists.
+     */
+    nsAutoPtr<imgFrame>        compositingFrame;
+    /** the previous composited frame, for DISPOSE_RESTORE_PREVIOUS
+     *
+     * The Previous Frame (all frames composited up to the current) needs to be
+     * stored in cases where the image specifies it wants the last frame back
+     * when it's done with the current frame.
+     */
+    nsAutoPtr<imgFrame>        compositingPrevFrame;
+
+    Anim() :
+      firstFrameRefreshArea(),
+      currentAnimationFrameIndex(0),
+      lastCompositedFrameIndex(-1) {}
+    ~Anim() {}
+  };
 
   /**
    * Each RasterImage has a pointer to one or zero heap-allocated
@@ -333,9 +398,6 @@ private:
       , mChunkCount(0)
       , mAllocatedNewFrame(false)
     {
-      MOZ_ASSERT(aImage, "aImage cannot be null");
-      MOZ_ASSERT(aImage->mStatusTracker,
-                 "aImage should have an imgStatusTracker");
       mStatusTracker = aImage->mStatusTracker->CloneForRecording();
     }
 
@@ -386,7 +448,7 @@ private:
   class DecodePool : public nsIObserver
   {
   public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
 
     static DecodePool* Singleton();
@@ -420,14 +482,6 @@ private:
      *         that we return NS_OK even when the size was not found.)
      */
     nsresult DecodeUntilSizeAvailable(RasterImage* aImg);
-
-    /**
-     * Returns an event target interface to the thread pool; primarily for
-     * OnDataAvailable delivery off main thread.
-     *
-     * @return An nsIEventTarget interface to mThreadPool.
-     */
-    already_AddRefed<nsIEventTarget> GetEventTarget();
 
     virtual ~DecodePool();
 
@@ -471,11 +525,12 @@ private:
 
   private: /* members */
 
-    // mThreadPoolMutex protects mThreadPool. For all RasterImages R,
-    // R::mDecodingMutex must be acquired before mThreadPoolMutex if both are
-    // acquired; the other order may cause deadlock.
+    // mThreadPoolMutex protects both mThreadPool and mShuttingDown. For all
+    // RasterImages R, R::mDecodingMutex must be acquired before
+    // mThreadPoolMutex if both are acquired; the other order may cause deadlock.
     mozilla::Mutex          mThreadPoolMutex;
     nsCOMPtr<nsIThreadPool> mThreadPool;
+    bool                    mShuttingDown;
   };
 
   class DecodeDoneWorker : public nsRunnable
@@ -528,15 +583,32 @@ private:
 
   void DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
                                     gfxContext *aContext,
-                                    GraphicsFilter aFilter,
+                                    gfxPattern::GraphicsFilter aFilter,
                                     const gfxMatrix &aUserSpaceToImageSpace,
                                     const gfxRect &aFill,
-                                    const nsIntRect &aSubimage,
-                                    uint32_t aFlags);
+                                    const nsIntRect &aSubimage);
 
   nsresult CopyFrame(uint32_t aWhichFrame,
                      uint32_t aFlags,
                      gfxImageSurface **_retval);
+  /**
+   * Advances the animation. Typically, this will advance a single frame, but it
+   * may advance multiple frames. This may happen if we have infrequently
+   * "ticking" refresh drivers (e.g. in background tabs), or extremely short-
+   * lived animation frames.
+   *
+   * @param aTime the time that the animation should advance to. This will
+   *              typically be <= TimeStamp::Now().
+   *
+   * @param [out] aDirtyRect a pointer to an nsIntRect which encapsulates the
+   *        area to be repainted after the frame is advanced.
+   *
+   * @returns true, if the frame was successfully advanced, false if it was not
+   *          able to be advanced (e.g. the frame to which we want to advance is
+   *          still decoding). Note: If false is returned, then aDirtyRect will
+   *          remain unmodified.
+   */
+  bool AdvanceFrame(mozilla::TimeStamp aTime, nsIntRect* aDirtyRect);
 
   /**
    * Deletes and nulls out the frame in mFrames[framenum].
@@ -552,19 +624,80 @@ private:
   imgFrame* GetImgFrame(uint32_t framenum);
   imgFrame* GetDrawableImgFrame(uint32_t framenum);
   imgFrame* GetCurrentImgFrame();
+  imgFrame* GetCurrentDrawableImgFrame();
   uint32_t GetCurrentImgFrameIndex() const;
+  mozilla::TimeStamp GetCurrentImgFrameEndTime() const;
 
-  size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxMemoryLocation aLocation,
-                                                 mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxASurface::MemoryLocation aLocation,
+                                                 nsMallocSizeOfFun aMallocSizeOf) const;
 
-  void EnsureAnimExists();
+  inline void EnsureAnimExists()
+  {
+    if (!mAnim) {
+
+      // Create the animation context
+      mAnim = new Anim();
+
+      // We don't support discarding animated images (See bug 414259).
+      // Lock the image and throw away the key.
+      //
+      // Note that this is inefficient, since we could get rid of the source
+      // data too. However, doing this is actually hard, because we're probably
+      // calling ensureAnimExists mid-decode, and thus we're decoding out of
+      // the source buffer. Since we're going to fix this anyway later, and
+      // since we didn't kill the source data in the old world either, locking
+      // is acceptable for the moment.
+      LockImage();
+
+      // Notify our observers that we are starting animation.
+      CurrentStatusTracker().RecordImageIsAnimated();
+    }
+  }
+
+  /** Function for doing the frame compositing of animations
+   *
+   * @param aDirtyRect  Area that the display will need to update
+   * @param aPrevFrame  Last Frame seen/processed
+   * @param aNextFrame  Frame we need to incorperate/display
+   * @param aNextFrameIndex Position of aNextFrame in mFrames list
+   */
+  nsresult DoComposite(nsIntRect* aDirtyRect,
+                       imgFrame* aPrevFrame,
+                       imgFrame* aNextFrame,
+                       int32_t aNextFrameIndex);
+
+  /** Clears an area of <aFrame> with transparent black.
+   *
+   * @param aFrame Target Frame
+   *
+   * @note Does also clears the transparancy mask
+   */
+  static void ClearFrame(imgFrame* aFrame);
+
+  //! @overload
+  static void ClearFrame(imgFrame* aFrame, nsIntRect &aRect);
+
+  //! Copy one frames's image and mask into another
+  static bool CopyFrameImage(imgFrame *aSrcFrame,
+                               imgFrame *aDstFrame);
+
+  /** Draws one frames's image to into another,
+   * at the position specified by aRect
+   *
+   * @param aSrcFrame  Frame providing the source image
+   * @param aDstFrame  Frame where the image is drawn into
+   * @param aRect      The position and size to draw the image
+   */
+  static nsresult DrawFrameTo(imgFrame *aSrcFrame,
+                              imgFrame *aDstFrame,
+                              nsIntRect& aRect);
 
   nsresult InternalAddFrameHelper(uint32_t framenum, imgFrame *frame,
                                   uint8_t **imageData, uint32_t *imageLength,
                                   uint32_t **paletteData, uint32_t *paletteLength,
                                   imgFrame** aRetFrame);
   nsresult InternalAddFrame(uint32_t framenum, int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight,
-                            gfxImageFormat aFormat, uint8_t aPaletteDepth,
+                            gfxASurface::gfxImageFormat aFormat, uint8_t aPaletteDepth,
                             uint8_t **imageData, uint32_t *imageLength,
                             uint32_t **paletteData, uint32_t *paletteLength,
                             imgFrame** aRetFrame);
@@ -580,22 +713,14 @@ private:
   bool IsInUpdateImageContainer() { return mInUpdateImageContainer; }
   enum RequestDecodeType {
       ASYNCHRONOUS,
-      SYNCHRONOUS_NOTIFY,
-      SYNCHRONOUS_NOTIFY_AND_SOME_DECODE
+      SOMEWHAT_SYNCHRONOUS
   };
   NS_IMETHOD RequestDecodeCore(RequestDecodeType aDecodeType);
 
-  // We would like to just check if we have a zero lock count, but we can't do
-  // that for animated images because in EnsureAnimExists we lock the image and
-  // never unlock so that animated images always have their lock count >= 1. In
-  // that case we use our animation consumers count as a proxy for lock count.
-  bool IsUnlocked() { return (mLockCount == 0 || (mAnim && mAnimationConsumers == 0)); }
-
 private: // data
   nsIntSize                  mSize;
-  Orientation                mOrientation;
 
-  // Whether our frames were decoded using any special flags.
+  // Whether mFrames below were decoded using any special flags.
   // Some flags (e.g. unpremultiplied data) may not be compatible
   // with the browser's needs for displaying the image to the user.
   // As such, we may need to redecode if we're being asked for
@@ -606,7 +731,10 @@ private: // data
   uint32_t                   mFrameDecodeFlags;
 
   //! All the frames of the image
-  FrameBlender              mFrameBlender;
+  // IMPORTANT: if you use mFrames in a method, call EnsureImageIsDecoded() first
+  // to ensure that the frames actually exist (they may have been discarded to save
+  // memory, or we may be decoding on draw).
+  nsTArray<imgFrame*>        mFrames;
 
   // The last frame we decoded for multipart images.
   imgFrame*                  mMultipartDecodedFrame;
@@ -616,7 +744,10 @@ private: // data
   // IMPORTANT: if you use mAnim in a method, call EnsureImageIsDecoded() first to ensure
   // that the frames actually exist (they may have been discarded to save memory, or
   // we maybe decoding on draw).
-  FrameAnimator* mAnim;
+  RasterImage::Anim*        mAnim;
+
+  //! # loops remaining before animation stops (-1 no stop)
+  int32_t                    mLoopCount;
 
   // Discard members
   uint32_t                   mLockCount;
@@ -653,9 +784,9 @@ private: // data
   nsRefPtr<Decoder>          mDecoder;
   nsRefPtr<DecodeRequest>    mDecodeRequest;
   uint32_t                   mBytesDecoded;
+  // END LOCKED MEMBER VARIABLES
 
   bool                       mInDecoder;
-  // END LOCKED MEMBER VARIABLES
 
   // Boolean flags (clustered together to conserve space):
   bool                       mHasSize:1;       // Has SetSize() been called?
@@ -682,11 +813,6 @@ private: // data
   // off a full decode.
   bool                       mWantFullDecode:1;
 
-  // Set when a decode worker detects an error off-main-thread. Once the error
-  // is handled on the main thread, mError is set, but mPendingError is used to
-  // stop decode work immediately.
-  bool                       mPendingError:1;
-
   // Decoding
   nsresult WantDecodedFrames();
   nsresult SyncDecode();
@@ -697,7 +823,7 @@ private: // data
   TimeStamp mDrawStartTime;
 
   inline bool CanQualityScale(const gfxSize& scale);
-  inline bool CanScale(GraphicsFilter aFilter, gfxSize aScale, uint32_t aFlags);
+  inline bool CanScale(gfxPattern::GraphicsFilter aFilter, gfxSize aScale);
 
   struct ScaleResult
   {
@@ -717,41 +843,17 @@ private: // data
   // will inform us when to let go of this pointer.
   ScaleRequest* mScaleRequest;
 
-  // Initializes imgStatusTracker and resets it on RasterImage destruction.
-  nsAutoPtr<imgStatusTrackerInit> mStatusTrackerInit;
-
   nsresult ShutdownDecoder(eShutdownIntent aIntent);
 
-  // Error handling.
-  void DoError();
-
-  class HandleErrorWorker : public nsRunnable
-  {
-  public:
-    /**
-     * Called from decoder threads when DoError() is called, since errors can't
-     * be handled safely off-main-thread. Dispatches an event which reinvokes
-     * DoError on the main thread if there isn't one already pending.
-     */
-    static void DispatchIfNeeded(RasterImage* aImage);
-
-    NS_IMETHOD Run();
-
-  private:
-    HandleErrorWorker(RasterImage* aImage);
-
-    nsRefPtr<RasterImage> mImage;
-  };
-
   // Helpers
+  void DoError();
   bool CanDiscard();
   bool CanForciblyDiscard();
   bool DiscardingActive();
   bool StoringSourceData() const;
 
 protected:
-  RasterImage(imgStatusTracker* aStatusTracker = nullptr,
-              ImageURL* aURI = nullptr);
+  RasterImage(imgStatusTracker* aStatusTracker = nullptr, nsIURI* aURI = nullptr);
 
   bool ShouldAnimate();
 
@@ -760,6 +862,10 @@ protected:
 
 inline NS_IMETHODIMP RasterImage::GetAnimationMode(uint16_t *aAnimationMode) {
   return GetAnimationModeInternal(aAnimationMode);
+}
+
+inline NS_IMETHODIMP RasterImage::SetAnimationMode(uint16_t aAnimationMode) {
+  return SetAnimationModeInternal(aAnimationMode);
 }
 
 // Asynchronous Decode Requestor

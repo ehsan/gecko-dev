@@ -6,17 +6,17 @@
 #include <stdarg.h>
 
 #include "WebGLContext.h"
-#include "GLContext.h"
 
 #include "prprf.h"
 
+#include "nsIJSContextStack.h"
 #include "jsapi.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIVariant.h"
-#include "nsCxPusher.h"
 
 #include "nsIDOMEvent.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMDataContainerEvent.h"
 
 #include "mozilla/Preferences.h"
@@ -47,28 +47,21 @@ WebGLContext::GenerateWarning(const char *fmt, va_list ap)
 
     // no need to print to stderr, as JS_ReportWarning takes care of this for us.
 
-    AutoJSContext cx;
-    JS_ReportWarning(cx, "WebGL: %s", buf);
-    if (!ShouldGenerateWarnings()) {
-        JS_ReportWarning(cx,
-            "WebGL: No further warnings will be reported for this WebGL context "
-            "(already reported %d warnings)", mAlreadyGeneratedWarnings);
+    nsCOMPtr<nsIJSContextStack> stack = do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+    JSContext* ccx = nullptr;
+    if (stack && NS_SUCCEEDED(stack->Peek(&ccx)) && ccx) {
+        JS_ReportWarning(ccx, "WebGL: %s", buf);
+        if (!ShouldGenerateWarnings()) {
+            JS_ReportWarning(ccx,
+                "WebGL: No further warnings will be reported for this WebGL context "
+                "(already reported %d warnings)", mAlreadyGeneratedWarnings);
+        }
     }
-}
-
-bool
-WebGLContext::ShouldGenerateWarnings() const
-{
-    if (mMaxWarnings == -1) {
-        return true;
-    }
-
-    return mAlreadyGeneratedWarnings < mMaxWarnings;
 }
 
 CheckedUint32
-WebGLContext::GetImageSize(GLsizei height, 
-                           GLsizei width, 
+WebGLContext::GetImageSize(WebGLsizei height, 
+                           WebGLsizei width, 
                            uint32_t pixelSize,
                            uint32_t packOrUnpackAlignment)
 {
@@ -85,7 +78,7 @@ WebGLContext::GetImageSize(GLsizei height,
 }
 
 void
-WebGLContext::SynthesizeGLError(GLenum err)
+WebGLContext::SynthesizeGLError(WebGLenum err)
 {
     // If there is already a pending error, don't overwrite it;
     // but if there isn't, then we need to check for a gl error
@@ -101,7 +94,7 @@ WebGLContext::SynthesizeGLError(GLenum err)
 }
 
 void
-WebGLContext::SynthesizeGLError(GLenum err, const char *fmt, ...)
+WebGLContext::SynthesizeGLError(WebGLenum err, const char *fmt, ...)
 {
     va_list va;
     va_start(va, fmt);
@@ -120,12 +113,6 @@ WebGLContext::ErrorInvalidEnum(const char *fmt, ...)
     va_end(va);
 
     return SynthesizeGLError(LOCAL_GL_INVALID_ENUM);
-}
-
-void
-WebGLContext::ErrorInvalidEnumInfo(const char *info, GLenum enumvalue)
-{
-    return ErrorInvalidEnum("%s: invalid enum value 0x%x", info, enumvalue);
 }
 
 void
@@ -189,7 +176,7 @@ WebGLContext::ErrorName(GLenum error)
         case LOCAL_GL_NO_ERROR:
             return "NO_ERROR";
         default:
-            MOZ_ASSERT(false);
+            NS_ABORT();
             return "[unknown WebGL error!]";
     }
 }
@@ -221,18 +208,7 @@ WebGLContext::IsTextureFormatCompressed(GLenum format)
             return true;
     }
 
-    MOZ_ASSERT(false, "Invalid WebGL texture format?");
+    NS_NOTREACHED("Invalid WebGL texture format?");
+    NS_ABORT();
     return false;
-}
-
-void
-WebGLContext::UpdateWebGLErrorAndClearGLError(GLenum *currentGLError)
-{
-    // get and clear GL error in ALL cases
-    GLenum error = gl->GetAndClearError();
-    if (currentGLError)
-        *currentGLError = error;
-    // only store in mWebGLError if is hasn't already recorded an error
-    if (!mWebGLError)
-        mWebGLError = error;
 }

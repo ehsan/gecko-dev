@@ -6,16 +6,14 @@
 #define mozilla_net_WyciwygChannelChild_h
 
 #include "mozilla/net/PWyciwygChannelChild.h"
+#include "mozilla/net/ChannelEventQueue.h"
 #include "nsIWyciwygChannel.h"
 #include "nsIChannel.h"
+#include "nsIProgressEventSink.h"
 #include "PrivateBrowsingChannel.h"
-
-class nsIProgressEventSink;
 
 namespace mozilla {
 namespace net {
-
-class ChannelEventQueue;
 
 // TODO: replace with IPDL states
 enum WyciwygChannelChildState {
@@ -101,7 +99,7 @@ private:
 
   bool mIPCOpen;
   bool mSentAppData;
-  nsRefPtr<ChannelEventQueue> mEventQ;
+  ChannelEventQueue mEventQ;
 
   friend class WyciwygStartRequestEvent;
   friend class WyciwygDataAvailableEvent;

@@ -4,24 +4,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/ScopeObject-inl.h"
-
 #include "mozilla/PodOperations.h"
 
 #include "jscompartment.h"
 #include "jsiter.h"
 
-#include "vm/ArgumentsObject.h"
-#include "vm/GlobalObject.h"
-#include "vm/ProxyObject.h"
-#include "vm/Shape.h"
-#include "vm/Xdr.h"
+#include "GlobalObject.h"
+#include "ScopeObject.h"
+#include "Shape.h"
+#include "Xdr.h"
 
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
-#include "jsscriptinlines.h"
 
-#include "vm/Stack-inl.h"
+#include "ScopeObject-inl.h"
 
 using namespace js;
 using namespace js::types;
@@ -32,23 +28,89 @@ typedef Rooted<ArgumentsObject *> RootedArgumentsObject;
 
 /*****************************************************************************/
 
-static JSObject *
-InnermostStaticScope(JSScript *script, jsbytecode *pc)
+StaticScopeIter::StaticScopeIter(JSContext *cx, HandleObject objArg)
+  : obj(cx, objArg), onNamedLambda(false)
+{
+    JS_ASSERT_IF(obj, obj->isStaticBlock() || obj->isFunction());
+}
+
+bool
+StaticScopeIter::done() const
+{
+    return !obj;
+}
+
+void
+StaticScopeIter::operator++(int)
+{
+    if (obj->isStaticBlock()) {
+        obj = obj->asStaticBlock().enclosingStaticScope();
+    } else if (onNamedLambda || !obj->toFunction()->isNamedLambda()) {
+        onNamedLambda = false;
+        obj = obj->toFunction()->nonLazyScript()->enclosingStaticScope();
+    } else {
+        onNamedLambda = true;
+    }
+    JS_ASSERT_IF(obj, obj->isStaticBlock() || obj->isFunction());
+    JS_ASSERT_IF(onNamedLambda, obj->isFunction());
+}
+
+bool
+StaticScopeIter::hasDynamicScopeObject() const
+{
+    return obj->isStaticBlock()
+           ? obj->asStaticBlock().needsClone()
+           : obj->toFunction()->isHeavyweight();
+}
+
+RawShape
+StaticScopeIter::scopeShape() const
+{
+    JS_ASSERT(hasDynamicScopeObject());
+    JS_ASSERT(type() != NAMED_LAMBDA);
+    return type() == BLOCK
+           ? block().lastProperty()
+           : funScript()->bindings.callObjShape();
+}
+
+StaticScopeIter::Type
+StaticScopeIter::type() const
+{
+    if (onNamedLambda)
+        return NAMED_LAMBDA;
+    return obj->isStaticBlock() ? BLOCK : FUNCTION;
+}
+
+StaticBlockObject &
+StaticScopeIter::block() const
+{
+    JS_ASSERT(type() == BLOCK);
+    return obj->asStaticBlock();
+}
+
+RawScript
+StaticScopeIter::funScript() const
+{
+    JS_ASSERT(type() == FUNCTION);
+    return obj->toFunction()->nonLazyScript();
+}
+
+/*****************************************************************************/
+
+RawShape
+js::ScopeCoordinateToStaticScopeShape(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
     JS_ASSERT(pc >= script->code && pc < script->code + script->length);
     JS_ASSERT(JOF_OPTYPE(*pc) == JOF_SCOPECOORD);
 
     uint32_t blockIndex = GET_UINT32_INDEX(pc + 2 * sizeof(uint16_t));
-
+    RootedObject innermostStaticScope(cx, NULL);
     if (blockIndex == UINT32_MAX)
-        return script->function();
-    return &script->getObject(blockIndex)->as<StaticBlockObject>();
-}
+        innermostStaticScope = script->function();
+    else
+        innermostStaticScope = &script->getObject(blockIndex)->asStaticBlock();
 
-Shape *
-js::ScopeCoordinateToStaticScopeShape(JSScript *script, jsbytecode *pc)
-{
-    StaticScopeIter<NoGC> ssi(InnermostStaticScope(script, pc));
+    StaticScopeIter ssi(cx, innermostStaticScope);
     ScopeCoordinate sc(pc);
     while (true) {
         if (ssi.hasDynamicScopeObject()) {
@@ -62,9 +124,9 @@ js::ScopeCoordinateToStaticScopeShape(JSScript *script, jsbytecode *pc)
 }
 
 PropertyName *
-js::ScopeCoordinateName(JSScript *script, jsbytecode *pc)
+js::ScopeCoordinateName(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
-    Shape::Range<NoGC> r(ScopeCoordinateToStaticScopeShape(script, pc));
+    Shape::Range<NoGC> r(ScopeCoordinateToStaticScopeShape(cx, script, pc));
     ScopeCoordinate sc(pc);
     while (r.front().slot() != sc.slot)
         r.popFront();
@@ -72,62 +134,28 @@ js::ScopeCoordinateName(JSScript *script, jsbytecode *pc)
 
     /* Beware nameless destructuring formal. */
     if (!JSID_IS_ATOM(id))
-        return script->runtimeFromAnyThread()->atomState.empty;
+        return cx->runtime->atomState.empty;
     return JSID_TO_ATOM(id)->asPropertyName();
 }
 
-JSScript *
-js::ScopeCoordinateFunctionScript(JSScript *script, jsbytecode *pc)
-{
-    StaticScopeIter<NoGC> ssi(InnermostStaticScope(script, pc));
-    ScopeCoordinate sc(pc);
-    while (true) {
-        if (ssi.hasDynamicScopeObject()) {
-            if (!sc.hops)
-                break;
-            sc.hops--;
-        }
-        ssi++;
-    }
-    if (ssi.type() != StaticScopeIter<NoGC>::FUNCTION)
-        return nullptr;
-    return ssi.funScript();
-}
-
 /*****************************************************************************/
-
-void
-ScopeObject::setEnclosingScope(HandleObject obj)
-{
-    JS_ASSERT_IF(obj->is<CallObject>() || obj->is<DeclEnvObject>() || obj->is<BlockObject>(),
-                 obj->isDelegate());
-    setFixedSlot(SCOPE_CHAIN_SLOT, ObjectValue(*obj));
-}
 
 /*
  * Construct a bare-bones call object given a shape, type, and slots pointer.
  * The call object must be further initialized to be usable.
  */
 CallObject *
-CallObject::create(JSContext *cx, HandleScript script, HandleShape shape, HandleTypeObject type, HeapSlot *slots)
+CallObject::create(JSContext *cx, HandleShape shape, HandleTypeObject type, HeapSlot *slots)
 {
     gc::AllocKind kind = gc::GetGCObjectKind(shape->numFixedSlots());
-    JS_ASSERT(CanBeFinalizedInBackground(kind, &CallObject::class_));
+    JS_ASSERT(CanBeFinalizedInBackground(kind, &CallClass));
     kind = gc::GetBackgroundAllocKind(kind);
 
-    gc::InitialHeap heap = script->treatAsRunOnce ? gc::TenuredHeap : gc::DefaultHeap;
-    JSObject *obj = JSObject::create(cx, kind, heap, shape, type, slots);
+    JSObject *obj = JSObject::create(cx, kind, GetInitialHeap(GenericObject, &CallClass),
+                                     shape, type, slots);
     if (!obj)
-        return nullptr;
-
-    if (script->treatAsRunOnce) {
-        RootedObject nobj(cx, obj);
-        if (!JSObject::setSingletonType(cx, nobj))
-            return nullptr;
-        return &nobj->as<CallObject>();
-    }
-
-    return &obj->as<CallObject>();
+        return NULL;
+    return &obj->asCall();
 }
 
 /*
@@ -136,24 +164,24 @@ CallObject::create(JSContext *cx, HandleScript script, HandleShape shape, Handle
  * callee) or used as a template for jit compilation.
  */
 CallObject *
-CallObject::createTemplateObject(JSContext *cx, HandleScript script, gc::InitialHeap heap)
+CallObject::createTemplateObject(JSContext *cx, HandleScript script)
 {
     RootedShape shape(cx, script->bindings.callObjShape());
-    JS_ASSERT(shape->getObjectClass() == &class_);
+    JS_ASSERT(shape->getObjectClass() == &CallClass);
 
-    RootedTypeObject type(cx, cx->getNewType(&class_, nullptr));
+    RootedTypeObject type(cx, cx->compartment->getNewType(cx, &CallClass, NULL));
     if (!type)
-        return nullptr;
+        return NULL;
 
     gc::AllocKind kind = gc::GetGCObjectKind(shape->numFixedSlots());
-    JS_ASSERT(CanBeFinalizedInBackground(kind, &class_));
+    JS_ASSERT(CanBeFinalizedInBackground(kind, &CallClass));
     kind = gc::GetBackgroundAllocKind(kind);
 
-    JSObject *obj = JSObject::create(cx, kind, heap, shape, type);
+    JSObject *obj = JSObject::create(cx, kind, gc::TenuredHeap, shape, type);
     if (!obj)
-        return nullptr;
+        return NULL;
 
-    return &obj->as<CallObject>();
+    return &obj->asCall();
 }
 
 /*
@@ -165,21 +193,12 @@ CallObject::createTemplateObject(JSContext *cx, HandleScript script, gc::Initial
 CallObject *
 CallObject::create(JSContext *cx, HandleScript script, HandleObject enclosing, HandleFunction callee)
 {
-    gc::InitialHeap heap = script->treatAsRunOnce ? gc::TenuredHeap : gc::DefaultHeap;
-    CallObject *callobj = CallObject::createTemplateObject(cx, script, heap);
+    CallObject *callobj = CallObject::createTemplateObject(cx, script);
     if (!callobj)
-        return nullptr;
+        return NULL;
 
-    callobj->as<ScopeObject>().setEnclosingScope(enclosing);
+    callobj->asScope().setEnclosingScope(enclosing);
     callobj->initFixedSlot(CALLEE_SLOT, ObjectOrNullValue(callee));
-
-    if (script->treatAsRunOnce) {
-        Rooted<CallObject*> ncallobj(cx, callobj);
-        if (!JSObject::setSingletonType(cx, ncallobj))
-            return nullptr;
-        return ncallobj;
-    }
-
     return callobj;
 }
 
@@ -196,7 +215,7 @@ CallObject::createForFunction(JSContext *cx, HandleObject enclosing, HandleFunct
     if (callee->isNamedLambda()) {
         scopeChain = DeclEnvObject::create(cx, scopeChain, callee);
         if (!scopeChain)
-            return nullptr;
+            return NULL;
     }
 
     RootedScript script(cx, callee->nonLazyScript());
@@ -214,13 +233,11 @@ CallObject::createForFunction(JSContext *cx, AbstractFramePtr frame)
 
     CallObject *callobj = createForFunction(cx, scopeChain, callee);
     if (!callobj)
-        return nullptr;
+        return NULL;
 
     /* Copy in the closed-over formal arguments. */
-    for (AliasedFormalIter i(frame.script()); i; i++) {
-        callobj->setAliasedVar(cx, i, i->name(),
-                               frame.unaliasedFormal(i.frameIndex(), DONT_CHECK_ALIASING));
-    }
+    for (AliasedFormalIter i(frame.script()); i; i++)
+        callobj->setAliasedVar(i, frame.unaliasedFormal(i.frameIndex(), DONT_CHECK_ALIASING));
 
     return callobj;
 }
@@ -229,8 +246,8 @@ CallObject *
 CallObject::createForStrictEval(JSContext *cx, AbstractFramePtr frame)
 {
     JS_ASSERT(frame.isStrictEvalFrame());
-    JS_ASSERT_IF(frame.isStackFrame(), cx->interpreterFrame() == frame.asStackFrame());
-    JS_ASSERT_IF(frame.isStackFrame(), cx->interpreterRegs().pc == frame.script()->code);
+    JS_ASSERT_IF(frame.isStackFrame(), cx->fp() == frame.asStackFrame());
+    JS_ASSERT_IF(frame.isStackFrame(), cx->regs().pc == frame.script()->code);
 
     RootedFunction callee(cx);
     RootedScript script(cx, frame.script());
@@ -238,7 +255,7 @@ CallObject::createForStrictEval(JSContext *cx, AbstractFramePtr frame)
     return create(cx, script, scopeChain, callee);
 }
 
-const Class CallObject::class_ = {
+JS_PUBLIC_DATA(Class) js::CallClass = {
     "Call",
     JSCLASS_IS_ANONYMOUS | JSCLASS_HAS_RESERVED_SLOTS(CallObject::RESERVED_SLOTS),
     JS_PropertyStub,         /* addProperty */
@@ -247,10 +264,10 @@ const Class CallObject::class_ = {
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
     JS_ResolveStub,
-    nullptr                  /* convert: Leave it nullptr so we notice if calls ever escape */
+    NULL                     /* convert: Leave it NULL so we notice if calls ever escape */
 };
 
-const Class DeclEnvObject::class_ = {
+Class js::DeclEnvClass = {
     js_Object_str,
     JSCLASS_HAS_RESERVED_SLOTS(DeclEnvObject::RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
@@ -269,89 +286,86 @@ const Class DeclEnvObject::class_ = {
  * scope and callee) or used as a template for jit compilation.
  */
 DeclEnvObject *
-DeclEnvObject::createTemplateObject(JSContext *cx, HandleFunction fun, gc::InitialHeap heap)
+DeclEnvObject::createTemplateObject(JSContext *cx, HandleFunction fun)
 {
-    JS_ASSERT(IsNurseryAllocable(FINALIZE_KIND));
-
-    RootedTypeObject type(cx, cx->getNewType(&class_, nullptr));
+    RootedTypeObject type(cx, cx->compartment->getNewType(cx, &DeclEnvClass, NULL));
     if (!type)
-        return nullptr;
+        return NULL;
 
     RootedShape emptyDeclEnvShape(cx);
-    emptyDeclEnvShape = EmptyShape::getInitialShape(cx, &class_, nullptr,
-                                                    cx->global(), nullptr, FINALIZE_KIND,
+    emptyDeclEnvShape = EmptyShape::getInitialShape(cx, &DeclEnvClass, NULL,
+                                                    cx->global(), FINALIZE_KIND,
                                                     BaseShape::DELEGATE);
     if (!emptyDeclEnvShape)
-        return nullptr;
+        return NULL;
 
-    RootedObject obj(cx, JSObject::create(cx, FINALIZE_KIND, heap, emptyDeclEnvShape, type));
+    RootedObject obj(cx, JSObject::create(cx, FINALIZE_KIND, gc::DefaultHeap, emptyDeclEnvShape, type));
     if (!obj)
-        return nullptr;
+        return NULL;
 
     // Assign a fixed slot to a property with the same name as the lambda.
     Rooted<jsid> id(cx, AtomToId(fun->atom()));
-    const Class *clasp = obj->getClass();
+    Class *clasp = obj->getClass();
     unsigned attrs = JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY;
-    if (!JSObject::putProperty<SequentialExecution>(cx, obj, id, clasp->getProperty,
-                                                    clasp->setProperty, lambdaSlot(), attrs, 0, 0))
+    if (!JSObject::putProperty(cx, obj, id, clasp->getProperty, clasp->setProperty,
+                               lambdaSlot(), attrs, 0, 0))
     {
-        return nullptr;
+        return NULL;
     }
 
     JS_ASSERT(!obj->hasDynamicSlots());
-    return &obj->as<DeclEnvObject>();
+    return &obj->asDeclEnv();
 }
 
 DeclEnvObject *
 DeclEnvObject::create(JSContext *cx, HandleObject enclosing, HandleFunction callee)
 {
-    RootedObject obj(cx, createTemplateObject(cx, callee, gc::DefaultHeap));
+    RootedObject obj(cx, createTemplateObject(cx, callee));
     if (!obj)
-        return nullptr;
+        return NULL;
 
-    obj->as<ScopeObject>().setEnclosingScope(enclosing);
+    obj->asScope().setEnclosingScope(enclosing);
     obj->setFixedSlot(lambdaSlot(), ObjectValue(*callee));
-    return &obj->as<DeclEnvObject>();
+    return &obj->asDeclEnv();
 }
 
 WithObject *
 WithObject::create(JSContext *cx, HandleObject proto, HandleObject enclosing, uint32_t depth)
 {
-    RootedTypeObject type(cx, cx->getNewType(&class_, proto.get()));
+    RootedTypeObject type(cx, proto->getNewType(cx, &WithClass));
     if (!type)
-        return nullptr;
+        return NULL;
 
-    RootedShape shape(cx, EmptyShape::getInitialShape(cx, &class_, TaggedProto(proto),
-                                                      &enclosing->global(), nullptr,
-                                                      FINALIZE_KIND));
+    RootedShape shape(cx, EmptyShape::getInitialShape(cx, &WithClass, TaggedProto(proto),
+                                                      &enclosing->global(), FINALIZE_KIND));
     if (!shape)
-        return nullptr;
+        return NULL;
 
     RootedObject obj(cx, JSObject::create(cx, FINALIZE_KIND, gc::DefaultHeap, shape, type));
     if (!obj)
-        return nullptr;
+        return NULL;
 
-    obj->as<ScopeObject>().setEnclosingScope(enclosing);
+    obj->asScope().setEnclosingScope(enclosing);
     obj->setReservedSlot(DEPTH_SLOT, PrivateUint32Value(depth));
 
-    JSObject *thisp = JSObject::thisObject(cx, proto);
+    RawObject thisp = JSObject::thisObject(cx, proto);
     if (!thisp)
-        return nullptr;
+        return NULL;
 
     obj->setFixedSlot(THIS_SLOT, ObjectValue(*thisp));
 
-    return &obj->as<WithObject>();
+    return &obj->asWith();
 }
 
-static bool
+static JSBool
 with_LookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
                    MutableHandleObject objp, MutableHandleShape propp)
 {
-    RootedObject actual(cx, &obj->as<WithObject>().object());
+    RootedObject actual(cx, &obj->asWith().object());
     return JSObject::lookupGeneric(cx, actual, id, objp, propp);
 }
 
-static bool
+static JSBool
 with_LookupProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
                     MutableHandleObject objp, MutableHandleShape propp)
 {
@@ -359,17 +373,17 @@ with_LookupProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
     return with_LookupGeneric(cx, obj, id, objp, propp);
 }
 
-static bool
+static JSBool
 with_LookupElement(JSContext *cx, HandleObject obj, uint32_t index,
                    MutableHandleObject objp, MutableHandleShape propp)
 {
     RootedId id(cx);
-    if (!IndexToId(cx, index, id.address()))
+    if (!IndexToId(cx, index, &id))
         return false;
     return with_LookupGeneric(cx, obj, id, objp, propp);
 }
 
-static bool
+static JSBool
 with_LookupSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
                    MutableHandleObject objp, MutableHandleShape propp)
 {
@@ -377,15 +391,15 @@ with_LookupSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
     return with_LookupGeneric(cx, obj, id, objp, propp);
 }
 
-static bool
+static JSBool
 with_GetGeneric(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
                 MutableHandleValue vp)
 {
-    RootedObject actual(cx, &obj->as<WithObject>().object());
+    RootedObject actual(cx, &obj->asWith().object());
     return JSObject::getGeneric(cx, actual, actual, id, vp);
 }
 
-static bool
+static JSBool
 with_GetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandlePropertyName name,
                  MutableHandleValue vp)
 {
@@ -393,17 +407,17 @@ with_GetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleP
     return with_GetGeneric(cx, obj, receiver, id, vp);
 }
 
-static bool
+static JSBool
 with_GetElement(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_t index,
                 MutableHandleValue vp)
 {
     RootedId id(cx);
-    if (!IndexToId(cx, index, id.address()))
+    if (!IndexToId(cx, index, &id))
         return false;
     return with_GetGeneric(cx, obj, receiver, id, vp);
 }
 
-static bool
+static JSBool
 with_GetSpecial(JSContext *cx, HandleObject obj, HandleObject receiver, HandleSpecialId sid,
                 MutableHandleValue vp)
 {
@@ -411,91 +425,133 @@ with_GetSpecial(JSContext *cx, HandleObject obj, HandleObject receiver, HandleSp
     return with_GetGeneric(cx, obj, receiver, id, vp);
 }
 
-static bool
+static JSBool
 with_SetGeneric(JSContext *cx, HandleObject obj, HandleId id,
-                MutableHandleValue vp, bool strict)
+                MutableHandleValue vp, JSBool strict)
 {
-    RootedObject actual(cx, &obj->as<WithObject>().object());
+    RootedObject actual(cx, &obj->asWith().object());
     return JSObject::setGeneric(cx, actual, actual, id, vp, strict);
 }
 
-static bool
+static JSBool
 with_SetProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
-                 MutableHandleValue vp, bool strict)
+                 MutableHandleValue vp, JSBool strict)
 {
-    RootedObject actual(cx, &obj->as<WithObject>().object());
+    RootedObject actual(cx, &obj->asWith().object());
     return JSObject::setProperty(cx, actual, actual, name, vp, strict);
 }
 
-static bool
+static JSBool
 with_SetElement(JSContext *cx, HandleObject obj, uint32_t index,
-                MutableHandleValue vp, bool strict)
+                MutableHandleValue vp, JSBool strict)
 {
-    RootedObject actual(cx, &obj->as<WithObject>().object());
+    RootedObject actual(cx, &obj->asWith().object());
     return JSObject::setElement(cx, actual, actual, index, vp, strict);
 }
 
-static bool
+static JSBool
 with_SetSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
-                MutableHandleValue vp, bool strict)
+                MutableHandleValue vp, JSBool strict)
 {
-    RootedObject actual(cx, &obj->as<WithObject>().object());
+    RootedObject actual(cx, &obj->asWith().object());
     return JSObject::setSpecial(cx, actual, actual, sid, vp, strict);
 }
 
-static bool
+static JSBool
 with_GetGenericAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp)
 {
-    RootedObject actual(cx, &obj->as<WithObject>().object());
+    RootedObject actual(cx, &obj->asWith().object());
     return JSObject::getGenericAttributes(cx, actual, id, attrsp);
 }
 
-static bool
+static JSBool
+with_GetPropertyAttributes(JSContext *cx, HandleObject obj, HandlePropertyName name, unsigned *attrsp)
+{
+    RootedObject actual(cx, &obj->asWith().object());
+    return JSObject::getPropertyAttributes(cx, actual, name, attrsp);
+}
+
+static JSBool
+with_GetElementAttributes(JSContext *cx, HandleObject obj, uint32_t index, unsigned *attrsp)
+{
+    RootedObject actual(cx, &obj->asWith().object());
+    return JSObject::getElementAttributes(cx, actual, index, attrsp);
+}
+
+static JSBool
+with_GetSpecialAttributes(JSContext *cx, HandleObject obj, HandleSpecialId sid, unsigned *attrsp)
+{
+    RootedObject actual(cx, &obj->asWith().object());
+    return JSObject::getSpecialAttributes(cx, actual, sid, attrsp);
+}
+
+static JSBool
 with_SetGenericAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp)
 {
-    RootedObject actual(cx, &obj->as<WithObject>().object());
+    RootedObject actual(cx, &obj->asWith().object());
     return JSObject::setGenericAttributes(cx, actual, id, attrsp);
 }
 
-static bool
-with_DeleteProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
-                    bool *succeeded)
+static JSBool
+with_SetPropertyAttributes(JSContext *cx, HandleObject obj, HandlePropertyName name, unsigned *attrsp)
 {
-    RootedObject actual(cx, &obj->as<WithObject>().object());
+    RootedObject actual(cx, &obj->asWith().object());
+    return JSObject::setPropertyAttributes(cx, actual, name, attrsp);
+}
+
+static JSBool
+with_SetElementAttributes(JSContext *cx, HandleObject obj, uint32_t index, unsigned *attrsp)
+{
+    RootedObject actual(cx, &obj->asWith().object());
+    return JSObject::setElementAttributes(cx, actual, index, attrsp);
+}
+
+static JSBool
+with_SetSpecialAttributes(JSContext *cx, HandleObject obj, HandleSpecialId sid, unsigned *attrsp)
+{
+    RootedObject actual(cx, &obj->asWith().object());
+    return JSObject::setSpecialAttributes(cx, actual, sid, attrsp);
+}
+
+static JSBool
+with_DeleteProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
+                    JSBool *succeeded)
+{
+    RootedObject actual(cx, &obj->asWith().object());
     return JSObject::deleteProperty(cx, actual, name, succeeded);
 }
 
-static bool
+static JSBool
 with_DeleteElement(JSContext *cx, HandleObject obj, uint32_t index,
-                   bool *succeeded)
+                   JSBool *succeeded)
 {
-    RootedObject actual(cx, &obj->as<WithObject>().object());
+    RootedObject actual(cx, &obj->asWith().object());
     return JSObject::deleteElement(cx, actual, index, succeeded);
 }
 
-static bool
+static JSBool
 with_DeleteSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
-                   bool *succeeded)
+                   JSBool *succeeded)
 {
-    RootedObject actual(cx, &obj->as<WithObject>().object());
+    RootedObject actual(cx, &obj->asWith().object());
     return JSObject::deleteSpecial(cx, actual, sid, succeeded);
 }
 
-static bool
+static JSBool
 with_Enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
                MutableHandleValue statep, MutableHandleId idp)
 {
-    RootedObject actual(cx, &obj->as<WithObject>().object());
+    RootedObject actual(cx, &obj->asWith().object());
     return JSObject::enumerate(cx, actual, enum_op, statep, idp);
 }
 
 static JSObject *
 with_ThisObject(JSContext *cx, HandleObject obj)
 {
-    return &obj->as<WithObject>().withThis();
+    return &obj->asWith().withThis();
 }
 
-const Class WithObject::class_ = {
+Class js::WithClass = {
     "With",
     JSCLASS_HAS_RESERVED_SLOTS(WithObject::RESERVED_SLOTS) |
     JSCLASS_IS_ANONYMOUS,
@@ -506,37 +562,42 @@ const Class WithObject::class_ = {
     JS_EnumerateStub,
     JS_ResolveStub,
     JS_ConvertStub,
-    nullptr,                 /* finalize */
-    nullptr,                 /* checkAccess */
-    nullptr,                 /* call        */
-    nullptr,                 /* hasInstance */
-    nullptr,                 /* construct   */
-    nullptr,                 /* trace       */
+    NULL,                    /* finalize */
+    NULL,                    /* checkAccess */
+    NULL,                    /* call        */
+    NULL,                    /* construct   */
+    NULL,                    /* hasInstance */
+    NULL,                    /* trace       */
     JS_NULL_CLASS_EXT,
     {
         with_LookupGeneric,
         with_LookupProperty,
         with_LookupElement,
         with_LookupSpecial,
-        nullptr,             /* defineGeneric */
-        nullptr,             /* defineProperty */
-        nullptr,             /* defineElement */
-        nullptr,             /* defineSpecial */
+        NULL,             /* defineGeneric */
+        NULL,             /* defineProperty */
+        NULL,             /* defineElement */
+        NULL,             /* defineSpecial */
         with_GetGeneric,
         with_GetProperty,
         with_GetElement,
-        nullptr,             /* getElementIfPresent */
+        NULL,             /* getElementIfPresent */
         with_GetSpecial,
         with_SetGeneric,
         with_SetProperty,
         with_SetElement,
         with_SetSpecial,
         with_GetGenericAttributes,
+        with_GetPropertyAttributes,
+        with_GetElementAttributes,
+        with_GetSpecialAttributes,
         with_SetGenericAttributes,
+        with_SetPropertyAttributes,
+        with_SetElementAttributes,
+        with_SetSpecialAttributes,
         with_DeleteProperty,
         with_DeleteElement,
         with_DeleteSpecial,
-        nullptr, nullptr, /* watch/unwatch */
         with_Enumerate,
         with_ThisObject,
     }
@@ -548,24 +609,24 @@ ClonedBlockObject *
 ClonedBlockObject::create(JSContext *cx, Handle<StaticBlockObject *> block, AbstractFramePtr frame)
 {
     assertSameCompartment(cx, frame);
-    JS_ASSERT(block->getClass() == &BlockObject::class_);
+    JS_ASSERT(block->getClass() == &BlockClass);
 
-    RootedTypeObject type(cx, cx->getNewType(&BlockObject::class_, block.get()));
+    RootedTypeObject type(cx, block->getNewType(cx, &BlockClass));
     if (!type)
-        return nullptr;
+        return NULL;
 
     RootedShape shape(cx, block->lastProperty());
 
     RootedObject obj(cx, JSObject::create(cx, FINALIZE_KIND, gc::TenuredHeap, shape, type));
     if (!obj)
-        return nullptr;
+        return NULL;
 
     /* Set the parent if necessary, as for call objects. */
     if (&frame.scopeChain()->global() != obj->getParent()) {
-        JS_ASSERT(obj->getParent() == nullptr);
+        JS_ASSERT(obj->getParent() == NULL);
         Rooted<GlobalObject*> global(cx, &frame.scopeChain()->global());
         if (!JSObject::setParent(cx, obj, global))
-            return nullptr;
+            return NULL;
     }
 
     JS_ASSERT(!obj->inDictionaryMode());
@@ -582,12 +643,12 @@ ClonedBlockObject::create(JSContext *cx, Handle<StaticBlockObject *> block, Abst
     unsigned base = frame.script()->nfixed + block->stackDepth();
     for (unsigned i = 0; i < nslots; ++i) {
         if (block->isAliased(i))
-            obj->as<ClonedBlockObject>().setVar(i, frame.unaliasedLocal(base + i));
+            obj->asClonedBlock().setVar(i, frame.unaliasedLocal(base + i));
     }
 
     JS_ASSERT(obj->isDelegate());
 
-    return &obj->as<ClonedBlockObject>();
+    return &obj->asClonedBlock();
 }
 
 void
@@ -602,27 +663,27 @@ ClonedBlockObject::copyUnaliasedValues(AbstractFramePtr frame)
 }
 
 StaticBlockObject *
-StaticBlockObject::create(ExclusiveContext *cx)
+StaticBlockObject::create(JSContext *cx)
 {
-    RootedTypeObject type(cx, cx->getNewType(&BlockObject::class_, nullptr));
+    RootedTypeObject type(cx, cx->compartment->getNewType(cx, &BlockClass, NULL));
     if (!type)
-        return nullptr;
+        return NULL;
 
     RootedShape emptyBlockShape(cx);
-    emptyBlockShape = EmptyShape::getInitialShape(cx, &BlockObject::class_, nullptr, nullptr,
-                                                  nullptr, FINALIZE_KIND, BaseShape::DELEGATE);
+    emptyBlockShape = EmptyShape::getInitialShape(cx, &BlockClass, NULL, NULL, FINALIZE_KIND,
+                                                  BaseShape::DELEGATE);
     if (!emptyBlockShape)
-        return nullptr;
+        return NULL;
 
     JSObject *obj = JSObject::create(cx, FINALIZE_KIND, gc::TenuredHeap, emptyBlockShape, type);
     if (!obj)
-        return nullptr;
+        return NULL;
 
-    return &obj->as<StaticBlockObject>();
+    return &obj->asStaticBlock();
 }
 
-/* static */ Shape *
-StaticBlockObject::addVar(ExclusiveContext *cx, Handle<StaticBlockObject*> block, HandleId id,
+/* static */ RawShape
+StaticBlockObject::addVar(JSContext *cx, Handle<StaticBlockObject*> block, HandleId id,
                           int index, bool *redeclared)
 {
     JS_ASSERT(JSID_IS_ATOM(id) || (JSID_IS_INT(id) && JSID_TO_INT(id) == index));
@@ -633,23 +694,21 @@ StaticBlockObject::addVar(ExclusiveContext *cx, Handle<StaticBlockObject*> block
     Shape **spp;
     if (Shape::search(cx, block->lastProperty(), id, &spp, true)) {
         *redeclared = true;
-        return nullptr;
+        return NULL;
     }
 
     /*
      * Don't convert this object to dictionary mode so that we can clone the
      * block's shape later.
      */
-    uint32_t slot = JSSLOT_FREE(&BlockObject::class_) + index;
-    return JSObject::addPropertyInternal<SequentialExecution>(
-        cx, block, id,
-        /* getter = */ nullptr, /* setter = */ nullptr,
-        slot, JSPROP_ENUMERATE | JSPROP_PERMANENT,
-        Shape::HAS_SHORTID, index, spp,
-        /* allowDictionary = */ false);
+    uint32_t slot = JSSLOT_FREE(&BlockClass) + index;
+    return JSObject::addPropertyInternal(cx, block, id, /* getter = */ NULL, /* setter = */ NULL,
+                                         slot, JSPROP_ENUMERATE | JSPROP_PERMANENT,
+                                         Shape::HAS_SHORTID, index, spp,
+                                         /* allowDictionary = */ false);
 }
 
-const Class BlockObject::class_ = {
+Class js::BlockClass = {
     "Block",
     JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(BlockObject::RESERVED_SLOTS) |
@@ -665,7 +724,7 @@ const Class BlockObject::class_ = {
 
 template<XDRMode mode>
 bool
-js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
+js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript script,
                          StaticBlockObject **objp)
 {
     /* NB: Keep this in sync with CloneStaticBlockObject. */
@@ -711,7 +770,7 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
                 return false;
 
             /* The empty string indicates an int id. */
-            RootedId id(cx, atom != cx->runtime()->emptyString
+            RootedId id(cx, atom != cx->runtime->emptyString
                             ? AtomToId(atom)
                             : INT_TO_JSID(i));
 
@@ -756,7 +815,7 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
             /* The empty string indicates an int id. */
             atom = JSID_IS_ATOM(propid)
                    ? JSID_TO_ATOM(propid)
-                   : cx->runtime()->emptyString;
+                   : cx->runtime->emptyString;
             if (!XDRAtom(xdr, &atom))
                 return false;
 
@@ -769,10 +828,10 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
 }
 
 template bool
-js::XDRStaticBlockObject(XDRState<XDR_ENCODE> *, HandleObject, StaticBlockObject **);
+js::XDRStaticBlockObject(XDRState<XDR_ENCODE> *, HandleObject, HandleScript, StaticBlockObject **);
 
 template bool
-js::XDRStaticBlockObject(XDRState<XDR_DECODE> *, HandleObject, StaticBlockObject **);
+js::XDRStaticBlockObject(XDRState<XDR_DECODE> *, HandleObject, HandleScript, StaticBlockObject **);
 
 JSObject *
 js::CloneStaticBlockObject(JSContext *cx, HandleObject enclosingScope, Handle<StaticBlockObject*> srcBlock)
@@ -781,7 +840,7 @@ js::CloneStaticBlockObject(JSContext *cx, HandleObject enclosingScope, Handle<St
 
     Rooted<StaticBlockObject*> clone(cx, StaticBlockObject::create(cx));
     if (!clone)
-        return nullptr;
+        return NULL;
 
     clone->initEnclosingStaticScope(enclosingScope);
     clone->setStackDepth(srcBlock->stackDepth());
@@ -789,7 +848,7 @@ js::CloneStaticBlockObject(JSContext *cx, HandleObject enclosingScope, Handle<St
     /* Shape::Range is reverse order, so build a list in forward order. */
     AutoShapeVector shapes(cx);
     if (!shapes.growBy(srcBlock->slotCount()))
-        return nullptr;
+        return NULL;
     for (Shape::Range<NoGC> r(srcBlock->lastProperty()); !r.empty(); r.popFront())
         shapes[r.front().shortid()] = &r.front();
 
@@ -800,7 +859,7 @@ js::CloneStaticBlockObject(JSContext *cx, HandleObject enclosingScope, Handle<St
         bool redeclared;
         if (!StaticBlockObject::addVar(cx, clone, id, i, &redeclared)) {
             JS_ASSERT(!redeclared);
-            return nullptr;
+            return NULL;
         }
 
         clone->setAliased(i, srcBlock->isAliased(i));
@@ -811,12 +870,15 @@ js::CloneStaticBlockObject(JSContext *cx, HandleObject enclosingScope, Handle<St
 
 /*****************************************************************************/
 
-// Any name atom for a function which will be added as a DeclEnv object to the
-// scope chain above call objects for fun.
-static inline JSAtom *
-CallObjectLambdaName(JSFunction &fun)
+ScopeIter::ScopeIter(JSContext *cx
+                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
+  : cx(cx),
+    frame_(NullFramePtr()),
+    cur_(cx, reinterpret_cast<JSObject *>(-1)),
+    block_(cx, reinterpret_cast<StaticBlockObject *>(-1)),
+    type_(Type(-1))
 {
-    return fun.isNamedLambda() ? fun.atom() : nullptr;
+    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
 }
 
 ScopeIter::ScopeIter(const ScopeIter &si, JSContext *cx
@@ -836,7 +898,7 @@ ScopeIter::ScopeIter(JSObject &enclosingScope, JSContext *cx
   : cx(cx),
     frame_(NullFramePtr()),
     cur_(cx, &enclosingScope),
-    block_(cx, nullptr),
+    block_(cx, reinterpret_cast<StaticBlockObject *>(-1)),
     type_(Type(-1))
 {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -888,17 +950,16 @@ ScopeIter::ScopeIter(AbstractFramePtr frame, ScopeObject &scope, JSContext *cx
      * fp->blockChain. Fortunately, we can compare scope object stack depths to
      * determine the block (if any) that encloses 'scope'.
      */
-    if (cur_->is<NestedScopeObject>()) {
+    if (cur_->isNestedScope()) {
         block_ = frame.maybeBlockChain();
         while (block_) {
-            if (block_->stackDepth() <= cur_->as<NestedScopeObject>().stackDepth())
+            if (block_->stackDepth() <= cur_->asNestedScope().stackDepth())
                 break;
             block_ = block_->enclosingBlock();
         }
-        JS_ASSERT_IF(cur_->is<ClonedBlockObject>(),
-                     cur_->as<ClonedBlockObject>().staticBlock() == *block_);
+        JS_ASSERT_IF(cur_->isClonedBlock(), cur_->asClonedBlock().staticBlock() == *block_);
     } else {
-        block_ = nullptr;
+        block_ = NULL;
     }
     settle();
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -908,7 +969,7 @@ ScopeObject &
 ScopeIter::scope() const
 {
     JS_ASSERT(hasScopeObject());
-    return cur_->as<ScopeObject>();
+    return cur_->asScope();
 }
 
 ScopeIter &
@@ -918,26 +979,26 @@ ScopeIter::operator++()
     switch (type_) {
       case Call:
         if (hasScopeObject_) {
-            cur_ = &cur_->as<CallObject>().enclosingScope();
+            cur_ = &cur_->asCall().enclosingScope();
             if (CallObjectLambdaName(*frame_.fun()))
-                cur_ = &cur_->as<DeclEnvObject>().enclosingScope();
+                cur_ = &cur_->asDeclEnv().enclosingScope();
         }
         frame_ = NullFramePtr();
         break;
       case Block:
         block_ = block_->enclosingBlock();
         if (hasScopeObject_)
-            cur_ = &cur_->as<ClonedBlockObject>().enclosingScope();
+            cur_ = &cur_->asClonedBlock().enclosingScope();
         settle();
         break;
       case With:
         JS_ASSERT(hasScopeObject_);
-        cur_ = &cur_->as<WithObject>().enclosingScope();
+        cur_ = &cur_->asWith().enclosingScope();
         settle();
         break;
       case StrictEvalScope:
         if (hasScopeObject_)
-            cur_ = &cur_->as<CallObject>().enclosingScope();
+            cur_ = &cur_->asCall().enclosingScope();
         frame_ = NullFramePtr();
         break;
     }
@@ -978,7 +1039,7 @@ ScopeIter::settle()
             type_ = Call;
             hasScopeObject_ = false;
         }
-    } else if (frame_.isNonStrictDirectEvalFrame() && cur_ == frame_.evalPrevScopeChain(cx)) {
+    } else if (frame_.isNonStrictDirectEvalFrame() && cur_ == frame_.evalPrevScopeChain(cx->runtime)) {
         if (block_) {
             JS_ASSERT(!block_->needsClone());
             type_ = Block;
@@ -990,25 +1051,25 @@ ScopeIter::settle()
         JS_ASSERT(cur_ == frame_.fun()->environment());
         frame_ = NullFramePtr();
     } else if (frame_.isStrictEvalFrame() && !frame_.hasCallObj()) {
-        JS_ASSERT(cur_ == frame_.evalPrevScopeChain(cx));
+        JS_ASSERT(cur_ == frame_.evalPrevScopeChain(cx->runtime));
         frame_ = NullFramePtr();
-    } else if (cur_->is<WithObject>()) {
+    } else if (cur_->isWith()) {
         JS_ASSERT_IF(frame_.isFunctionFrame(), frame_.fun()->isHeavyweight());
         JS_ASSERT_IF(block_, block_->needsClone());
-        JS_ASSERT_IF(block_, block_->stackDepth() < cur_->as<WithObject>().stackDepth());
+        JS_ASSERT_IF(block_, block_->stackDepth() < cur_->asWith().stackDepth());
         type_ = With;
         hasScopeObject_ = true;
     } else if (block_) {
         type_ = Block;
         hasScopeObject_ = block_->needsClone();
-        JS_ASSERT_IF(hasScopeObject_, cur_->as<ClonedBlockObject>().staticBlock() == *block_);
-    } else if (cur_->is<CallObject>()) {
-        CallObject &callobj = cur_->as<CallObject>();
+        JS_ASSERT_IF(hasScopeObject_, cur_->asClonedBlock().staticBlock() == *block_);
+    } else if (cur_->isCall()) {
+        CallObject &callobj = cur_->asCall();
         type_ = callobj.isForEval() ? StrictEvalScope : Call;
         hasScopeObject_ = true;
         JS_ASSERT_IF(type_ == Call, callobj.callee().nonLazyScript() == frame_.script());
     } else {
-        JS_ASSERT(!cur_->is<ScopeObject>());
+        JS_ASSERT(!cur_->isScope());
         JS_ASSERT(frame_.isGlobalFrame() || frame_.isDebuggerFrame());
         frame_ = NullFramePtr();
     }
@@ -1033,8 +1094,6 @@ ScopeIterKey::match(ScopeIterKey si1, ScopeIterKey si2)
 }
 
 /*****************************************************************************/
-
-namespace {
 
 /*
  * DebugScopeProxy is the handler for DebugScopeObject proxy objects. Having a
@@ -1088,8 +1147,8 @@ class DebugScopeProxy : public BaseProxyHandler
         AbstractFramePtr maybeframe = DebugScopes::hasLiveFrame(*scope);
 
         /* Handle unaliased formals, vars, and consts at function scope. */
-        if (scope->is<CallObject>() && !scope->as<CallObject>().isForEval()) {
-            CallObject &callobj = scope->as<CallObject>();
+        if (scope->isCall() && !scope->asCall().isForEval()) {
+            CallObject &callobj = scope->asCall();
             RootedScript script(cx, callobj.callee().nonLazyScript());
             if (!script->ensureHasTypes(cx))
                 return false;
@@ -1121,6 +1180,10 @@ class DebugScopeProxy : public BaseProxyHandler
                     if (action == GET)
                         vp.set(UndefinedValue());
                 }
+
+                if (action == SET)
+                    TypeScript::SetLocal(cx, script, i, vp);
+
             } else {
                 JS_ASSERT(bi->kind() == ARGUMENT);
                 unsigned i = bi.frameIndex();
@@ -1158,9 +1221,9 @@ class DebugScopeProxy : public BaseProxyHandler
         }
 
         /* Handle unaliased let and catch bindings at block scope. */
-        if (scope->is<ClonedBlockObject>()) {
-            Rooted<ClonedBlockObject *> block(cx, &scope->as<ClonedBlockObject>());
-            Shape *shape = block->lastProperty()->search(cx, id);
+        if (scope->isClonedBlock()) {
+            Rooted<ClonedBlockObject *> block(cx, &scope->asClonedBlock());
+            RawShape shape = block->lastProperty()->search(cx, id);
             if (!shape)
                 return false;
 
@@ -1169,7 +1232,7 @@ class DebugScopeProxy : public BaseProxyHandler
                 return false;
 
             if (maybeframe) {
-                JSScript *script = maybeframe.script();
+                RawScript script = maybeframe.script();
                 unsigned local = block->slotToLocalIndex(script->bindings, shape->slot());
                 if (action == GET)
                     vp.set(maybeframe.unaliasedLocal(local));
@@ -1187,8 +1250,7 @@ class DebugScopeProxy : public BaseProxyHandler
         }
 
         /* The rest of the internal scopes do not have unaliased vars. */
-        JS_ASSERT(scope->is<DeclEnvObject>() || scope->is<WithObject>() ||
-                  scope->as<CallObject>().isForEval());
+        JS_ASSERT(scope->isDeclEnv() || scope->isWith() || scope->asCall().isForEval());
         return false;
     }
 
@@ -1199,7 +1261,7 @@ class DebugScopeProxy : public BaseProxyHandler
 
     static bool isFunctionScope(ScopeObject &scope)
     {
-        return scope.is<CallObject>() && !scope.as<CallObject>().isForEval();
+        return scope.isCall() && !scope.asCall().isForEval();
     }
 
     /*
@@ -1211,7 +1273,7 @@ class DebugScopeProxy : public BaseProxyHandler
     static bool isMissingArgumentsBinding(ScopeObject &scope)
     {
         return isFunctionScope(scope) &&
-               !scope.as<CallObject>().callee().nonLazyScript()->argumentsHasVarBinding();
+               !scope.asCall().callee().nonLazyScript()->argumentsHasVarBinding();
     }
 
     /*
@@ -1223,17 +1285,17 @@ class DebugScopeProxy : public BaseProxyHandler
     static bool checkForMissingArguments(JSContext *cx, jsid id, ScopeObject &scope,
                                          ArgumentsObject **maybeArgsObj)
     {
-        *maybeArgsObj = nullptr;
+        *maybeArgsObj = NULL;
 
         if (!isArguments(cx, id) || !isFunctionScope(scope))
             return true;
 
-        if (scope.as<CallObject>().callee().nonLazyScript()->needsArgsObj())
+        if (scope.asCall().callee().nonLazyScript()->needsArgsObj())
             return true;
 
         AbstractFramePtr maybeframe = DebugScopes::hasLiveFrame(scope);
         if (!maybeframe) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_DEBUG_NOT_LIVE,
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_DEBUG_NOT_LIVE,
                                  "Debugger scope");
             return false;
         }
@@ -1248,33 +1310,30 @@ class DebugScopeProxy : public BaseProxyHandler
 
     DebugScopeProxy() : BaseProxyHandler(&family) {}
 
-    bool isExtensible(JSContext *cx, HandleObject proxy, bool *extensible) MOZ_OVERRIDE
+    bool isExtensible(JSObject *proxy) MOZ_OVERRIDE
     {
         // always [[Extensible]], can't be made non-[[Extensible]], like most
         // proxies
-        *extensible = true;
         return true;
     }
 
     bool preventExtensions(JSContext *cx, HandleObject proxy) MOZ_OVERRIDE
     {
         // See above.
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_CANT_CHANGE_EXTENSIBILITY);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_CHANGE_EXTENSIBILITY);
         return false;
     }
 
-    bool getPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
-                               MutableHandle<PropertyDescriptor> desc,
+    bool getPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id, PropertyDescriptor *desc,
                                unsigned flags) MOZ_OVERRIDE
     {
         return getOwnPropertyDescriptor(cx, proxy, id, desc, flags);
     }
 
     bool getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
-                                  MutableHandle<PropertyDescriptor> desc,
-                                  unsigned flags) MOZ_OVERRIDE
+                                  PropertyDescriptor *desc, unsigned flags) MOZ_OVERRIDE
     {
-        Rooted<DebugScopeObject*> debugScope(cx, &proxy->as<DebugScopeObject>());
+        Rooted<DebugScopeObject*> debugScope(cx, &proxy->asDebugScope());
         Rooted<ScopeObject*> scope(cx, &debugScope->scope());
 
         RootedArgumentsObject maybeArgsObj(cx);
@@ -1282,34 +1341,30 @@ class DebugScopeProxy : public BaseProxyHandler
             return false;
 
         if (maybeArgsObj) {
-            desc.object().set(debugScope);
-            desc.setAttributes(JSPROP_READONLY | JSPROP_ENUMERATE | JSPROP_PERMANENT);
-            desc.value().setObject(*maybeArgsObj);
-            desc.setShortId(0);
-            desc.setGetter(nullptr);
-            desc.setSetter(nullptr);
+            PodZero(desc);
+            desc->obj = debugScope;
+            desc->attrs = JSPROP_READONLY | JSPROP_ENUMERATE | JSPROP_PERMANENT;
+            desc->value = ObjectValue(*maybeArgsObj);
             return true;
         }
 
         RootedValue v(cx);
         if (handleUnaliasedAccess(cx, debugScope, scope, id, GET, &v)) {
-            desc.object().set(debugScope);
-            desc.setAttributes(JSPROP_READONLY | JSPROP_ENUMERATE | JSPROP_PERMANENT);
-            desc.value().set(v);
-            desc.setShortId(0);
-            desc.setGetter(nullptr);
-            desc.setSetter(nullptr);
+            PodZero(desc);
+            desc->obj = debugScope;
+            desc->attrs = JSPROP_READONLY | JSPROP_ENUMERATE | JSPROP_PERMANENT;
+            desc->value = v;
             return true;
         }
 
-        return JS_GetOwnPropertyDescriptorById(cx, scope, id, flags, desc);
+        return JS_GetPropertyDescriptorById(cx, scope, id, 0, desc);
     }
 
     bool get(JSContext *cx, HandleObject proxy, HandleObject receiver,  HandleId id,
              MutableHandleValue vp) MOZ_OVERRIDE
     {
-        Rooted<DebugScopeObject*> debugScope(cx, &proxy->as<DebugScopeObject>());
-        Rooted<ScopeObject*> scope(cx, &proxy->as<DebugScopeObject>().scope());
+        Rooted<DebugScopeObject*> debugScope(cx, &proxy->asDebugScope());
+        Rooted<ScopeObject*> scope(cx, &proxy->asDebugScope().scope());
 
         RootedArgumentsObject maybeArgsObj(cx);
         if (!checkForMissingArguments(cx, id, *scope, maybeArgsObj.address()))
@@ -1329,17 +1384,17 @@ class DebugScopeProxy : public BaseProxyHandler
     bool set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id, bool strict,
              MutableHandleValue vp) MOZ_OVERRIDE
     {
-        Rooted<DebugScopeObject*> debugScope(cx, &proxy->as<DebugScopeObject>());
-        Rooted<ScopeObject*> scope(cx, &proxy->as<DebugScopeObject>().scope());
+        Rooted<DebugScopeObject*> debugScope(cx, &proxy->asDebugScope());
+        Rooted<ScopeObject*> scope(cx, &proxy->asDebugScope().scope());
         if (handleUnaliasedAccess(cx, debugScope, scope, id, SET, vp))
             return true;
         return JSObject::setGeneric(cx, scope, scope, id, vp, strict);
     }
 
     bool defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
-                        MutableHandle<PropertyDescriptor> desc) MOZ_OVERRIDE
+                        PropertyDescriptor *desc) MOZ_OVERRIDE
     {
-        Rooted<ScopeObject*> scope(cx, &proxy->as<DebugScopeObject>().scope());
+        Rooted<ScopeObject*> scope(cx, &proxy->asDebugScope().scope());
 
         bool found;
         if (!has(cx, proxy, id, &found))
@@ -1347,14 +1402,14 @@ class DebugScopeProxy : public BaseProxyHandler
         if (found)
             return Throw(cx, id, JSMSG_CANT_REDEFINE_PROP);
 
-        return JS_DefinePropertyById(cx, scope, id, desc.value(), desc.getter(), desc.setter(),
-                                     desc.attributes());
+        return JS_DefinePropertyById(cx, scope, id, desc->value, desc->getter, desc->setter,
+                                     desc->attrs);
     }
 
     bool getScopePropertyNames(JSContext *cx, HandleObject proxy, AutoIdVector &props,
                                unsigned flags)
     {
-        Rooted<ScopeObject*> scope(cx, &proxy->as<DebugScopeObject>().scope());
+        Rooted<ScopeObject*> scope(cx, &proxy->asDebugScope().scope());
 
         if (isMissingArgumentsBinding(*scope)) {
             if (!props.append(NameToId(cx->names().arguments)))
@@ -1368,8 +1423,8 @@ class DebugScopeProxy : public BaseProxyHandler
          * Function scopes are optimized to not contain unaliased variables so
          * they must be manually appended here.
          */
-        if (scope->is<CallObject>() && !scope->as<CallObject>().isForEval()) {
-            RootedScript script(cx, scope->as<CallObject>().callee().nonLazyScript());
+        if (scope->isCall() && !scope->asCall().isForEval()) {
+            RootedScript script(cx, scope->asCall().callee().nonLazyScript());
             for (BindingIter bi(script); bi; bi++) {
                 if (!bi->aliased() && !props.append(NameToId(bi->name())))
                     return false;
@@ -1392,14 +1447,14 @@ class DebugScopeProxy : public BaseProxyHandler
     bool has(JSContext *cx, HandleObject proxy, HandleId id_, bool *bp) MOZ_OVERRIDE
     {
         RootedId id(cx, id_);
-        ScopeObject &scopeObj = proxy->as<DebugScopeObject>().scope();
+        ScopeObject &scopeObj = proxy->asDebugScope().scope();
 
         if (isArguments(cx, id) && isFunctionScope(scopeObj)) {
             *bp = true;
             return true;
         }
 
-        bool found;
+        JSBool found;
         RootedObject scope(cx, &scopeObj);
         if (!JS_HasPropertyById(cx, scope, id, &found))
             return false;
@@ -1408,8 +1463,8 @@ class DebugScopeProxy : public BaseProxyHandler
          * Function scopes are optimized to not contain unaliased variables so
          * a manual search is necessary.
          */
-        if (!found && scope->is<CallObject>() && !scope->as<CallObject>().isForEval()) {
-            RootedScript script(cx, scope->as<CallObject>().callee().nonLazyScript());
+        if (!found && scope->isCall() && !scope->asCall().isForEval()) {
+            RootedScript script(cx, scope->asCall().callee().nonLazyScript());
             for (BindingIter bi(script); bi; bi++) {
                 if (!bi->aliased() && NameToId(bi->name()) == id) {
                     found = true;
@@ -1426,11 +1481,9 @@ class DebugScopeProxy : public BaseProxyHandler
     {
         RootedValue idval(cx, IdToValue(id));
         return js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_CANT_DELETE,
-                                        JSDVG_IGNORE_STACK, idval, NullPtr(), nullptr, nullptr);
+                                        JSDVG_IGNORE_STACK, idval, NullPtr(), NULL, NULL);
     }
 };
-
-} /* anonymous namespace */
 
 int DebugScopeProxy::family = 0;
 DebugScopeProxy DebugScopeProxy::singleton;
@@ -1438,68 +1491,65 @@ DebugScopeProxy DebugScopeProxy::singleton;
 /* static */ DebugScopeObject *
 DebugScopeObject::create(JSContext *cx, ScopeObject &scope, HandleObject enclosing)
 {
-    JS_ASSERT(scope.compartment() == cx->compartment());
-    RootedValue priv(cx, ObjectValue(scope));
-    JSObject *obj = NewProxyObject(cx, &DebugScopeProxy::singleton, priv,
-                                   nullptr /* proto */, &scope.global());
+    JS_ASSERT(scope.compartment() == cx->compartment);
+    JSObject *obj = NewProxyObject(cx, &DebugScopeProxy::singleton, ObjectValue(scope),
+                                   NULL /* proto */, &scope.global(), ProxyNotCallable);
     if (!obj)
-        return nullptr;
+        return NULL;
 
-    JS_ASSERT(!enclosing->is<ScopeObject>());
+    JS_ASSERT(!enclosing->isScope());
+    SetProxyExtra(obj, ENCLOSING_EXTRA, ObjectValue(*enclosing));
+    SetProxyExtra(obj, SNAPSHOT_EXTRA, NullValue());
 
-    DebugScopeObject *debugScope = &obj->as<DebugScopeObject>();
-    debugScope->setExtra(ENCLOSING_EXTRA, ObjectValue(*enclosing));
-    debugScope->setExtra(SNAPSHOT_EXTRA, NullValue());
-
-    return debugScope;
+    return &obj->asDebugScope();
 }
 
 ScopeObject &
 DebugScopeObject::scope() const
 {
-    return target()->as<ScopeObject>();
+    return GetProxyTargetObject(const_cast<DebugScopeObject*>(this))->asScope();
 }
 
 JSObject &
 DebugScopeObject::enclosingScope() const
 {
-    return extra(ENCLOSING_EXTRA).toObject();
+    return GetProxyExtra(const_cast<DebugScopeObject*>(this), ENCLOSING_EXTRA).toObject();
 }
 
 JSObject *
 DebugScopeObject::maybeSnapshot() const
 {
-    JS_ASSERT(!scope().as<CallObject>().isForEval());
-    return extra(SNAPSHOT_EXTRA).toObjectOrNull();
+    JS_ASSERT(!scope().asCall().isForEval());
+    return GetProxyExtra(const_cast<DebugScopeObject*>(this), SNAPSHOT_EXTRA).toObjectOrNull();
 }
 
 void
 DebugScopeObject::initSnapshot(JSObject &o)
 {
-    JS_ASSERT(maybeSnapshot() == nullptr);
-    setExtra(SNAPSHOT_EXTRA, ObjectValue(o));
+    JS_ASSERT(maybeSnapshot() == NULL);
+    SetProxyExtra(this, SNAPSHOT_EXTRA, ObjectValue(o));
 }
 
 bool
 DebugScopeObject::isForDeclarative() const
 {
     ScopeObject &s = scope();
-    return s.is<CallObject>() || s.is<BlockObject>() || s.is<DeclEnvObject>();
+    return s.isCall() || s.isBlock() || s.isDeclEnv();
 }
 
 bool
-js_IsDebugScopeSlow(ProxyObject *proxy)
+js_IsDebugScopeSlow(RawObject obj)
 {
-    JS_ASSERT(proxy->hasClass(&ProxyObject::uncallableClass_));
-    return proxy->handler() == &DebugScopeProxy::singleton;
+    return obj->getClass() == &ObjectProxyClass &&
+           GetProxyHandler(obj) == &DebugScopeProxy::singleton;
 }
 
 /*****************************************************************************/
 
 DebugScopes::DebugScopes(JSContext *cx)
  : proxiedScopes(cx),
-   missingScopes(cx->runtime()),
-   liveScopes(cx->runtime())
+   missingScopes(cx),
+   liveScopes(cx)
 {}
 
 DebugScopes::~DebugScopes()
@@ -1577,22 +1627,22 @@ DebugScopes::sweep(JSRuntime *rt)
 static bool
 CanUseDebugScopeMaps(JSContext *cx)
 {
-    return cx->compartment()->debugMode();
+    return cx->compartment->debugMode();
 }
 
 DebugScopes *
 DebugScopes::ensureCompartmentData(JSContext *cx)
 {
-    JSCompartment *c = cx->compartment();
+    JSCompartment *c = cx->compartment;
     if (c->debugScopes)
         return c->debugScopes;
 
-    c->debugScopes = cx->runtime()->new_<DebugScopes>(cx);
+    c->debugScopes = c->rt->new_<DebugScopes>(cx);
     if (c->debugScopes && c->debugScopes->init())
         return c->debugScopes;
 
     js_ReportOutOfMemory(cx);
-    return nullptr;
+    return NULL;
 }
 
 DebugScopeObject *
@@ -1600,21 +1650,21 @@ DebugScopes::hasDebugScope(JSContext *cx, ScopeObject &scope)
 {
     DebugScopes *scopes = scope.compartment()->debugScopes;
     if (!scopes)
-        return nullptr;
+        return NULL;
 
     if (ObjectWeakMap::Ptr p = scopes->proxiedScopes.lookup(&scope)) {
         JS_ASSERT(CanUseDebugScopeMaps(cx));
-        return &p->value->as<DebugScopeObject>();
+        return &p->value->asDebugScope();
     }
 
-    return nullptr;
+    return NULL;
 }
 
 bool
 DebugScopes::addDebugScope(JSContext *cx, ScopeObject &scope, DebugScopeObject &debugScope)
 {
-    JS_ASSERT(cx->compartment() == scope.compartment());
-    JS_ASSERT(cx->compartment() == debugScope.compartment());
+    JS_ASSERT(cx->compartment == scope.compartment());
+    JS_ASSERT(cx->compartment == debugScope.compartment());
 
     if (!CanUseDebugScopeMaps(cx))
         return true;
@@ -1629,7 +1679,7 @@ DebugScopes::addDebugScope(JSContext *cx, ScopeObject &scope, DebugScopeObject &
         return false;
     }
 
-    HashTableWriteBarrierPost(cx->runtime(), &scopes->proxiedScopes, &scope);
+    HashTableWriteBarrierPost(cx->runtime, &scopes->proxiedScopes, &scope);
     return true;
 }
 
@@ -1638,22 +1688,22 @@ DebugScopes::hasDebugScope(JSContext *cx, const ScopeIter &si)
 {
     JS_ASSERT(!si.hasScopeObject());
 
-    DebugScopes *scopes = cx->compartment()->debugScopes;
+    DebugScopes *scopes = cx->compartment->debugScopes;
     if (!scopes)
-        return nullptr;
+        return NULL;
 
     if (MissingScopeMap::Ptr p = scopes->missingScopes.lookup(si)) {
         JS_ASSERT(CanUseDebugScopeMaps(cx));
         return p->value;
     }
-    return nullptr;
+    return NULL;
 }
 
 bool
 DebugScopes::addDebugScope(JSContext *cx, const ScopeIter &si, DebugScopeObject &debugScope)
 {
     JS_ASSERT(!si.hasScopeObject());
-    JS_ASSERT(cx->compartment() == debugScope.compartment());
+    JS_ASSERT(cx->compartment == debugScope.compartment());
 
     if (!CanUseDebugScopeMaps(cx))
         return true;
@@ -1673,7 +1723,6 @@ DebugScopes::addDebugScope(JSContext *cx, const ScopeIter &si, DebugScopeObject 
         js_ReportOutOfMemory(cx);
         return false;
     }
-    HashTableWriteBarrierPost(cx->runtime(), &scopes->liveScopes, &debugScope.scope());
 
     return true;
 }
@@ -1684,11 +1733,11 @@ DebugScopes::onPopCall(AbstractFramePtr frame, JSContext *cx)
     JS_ASSERT(!frame.isYielding());
     assertSameCompartment(cx, frame);
 
-    DebugScopes *scopes = cx->compartment()->debugScopes;
+    DebugScopes *scopes = cx->compartment->debugScopes;
     if (!scopes)
         return;
 
-    Rooted<DebugScopeObject*> debugScope(cx, nullptr);
+    Rooted<DebugScopeObject*> debugScope(cx, NULL);
 
     if (frame.fun()->isHeavyweight()) {
         /*
@@ -1698,15 +1747,15 @@ DebugScopes::onPopCall(AbstractFramePtr frame, JSContext *cx)
         if (!frame.hasCallObj())
             return;
 
-        CallObject &callobj = frame.scopeChain()->as<CallObject>();
+        CallObject &callobj = frame.scopeChain()->asCall();
         scopes->liveScopes.remove(&callobj);
         if (ObjectWeakMap::Ptr p = scopes->proxiedScopes.lookup(&callobj))
-            debugScope = &p->value->as<DebugScopeObject>();
+            debugScope = &p->value->asDebugScope();
     } else {
         ScopeIter si(frame, cx);
         if (MissingScopeMap::Ptr p = scopes->missingScopes.lookup(si)) {
             debugScope = p->value;
-            scopes->liveScopes.remove(&debugScope->scope().as<CallObject>());
+            scopes->liveScopes.remove(&debugScope->scope().asCall());
             scopes->missingScopes.remove(p);
         }
     }
@@ -1719,7 +1768,7 @@ DebugScopes::onPopCall(AbstractFramePtr frame, JSContext *cx)
      *
      * Note: since it is simplest for this function to be infallible, failure
      * in this code will be silently ignored. This does not break any
-     * invariants since DebugScopeObject::maybeSnapshot can already be nullptr.
+     * invariants since DebugScopeObject::maybeSnapshot can already be NULL.
      */
     if (debugScope) {
         /*
@@ -1736,7 +1785,7 @@ DebugScopes::onPopCall(AbstractFramePtr frame, JSContext *cx)
          * but are aliased via the arguments object.
          */
         RootedScript script(cx, frame.script());
-        if (script->analyzedArgsUsage() && script->needsArgsObj() && frame.hasArgsObj()) {
+        if (script->needsArgsObj() && frame.hasArgsObj()) {
             for (unsigned i = 0; i < frame.numFormalArgs(); ++i) {
                 if (script->formalLivesInArgumentsObject(i))
                     vec[i] = frame.argsObj().arg(i);
@@ -1762,19 +1811,19 @@ DebugScopes::onPopBlock(JSContext *cx, AbstractFramePtr frame)
 {
     assertSameCompartment(cx, frame);
 
-    DebugScopes *scopes = cx->compartment()->debugScopes;
+    DebugScopes *scopes = cx->compartment->debugScopes;
     if (!scopes)
         return;
 
     StaticBlockObject &staticBlock = *frame.maybeBlockChain();
     if (staticBlock.needsClone()) {
-        ClonedBlockObject &clone = frame.scopeChain()->as<ClonedBlockObject>();
+        ClonedBlockObject &clone = frame.scopeChain()->asClonedBlock();
         clone.copyUnaliasedValues(frame);
         scopes->liveScopes.remove(&clone);
     } else {
         ScopeIter si(frame, cx);
         if (MissingScopeMap::Ptr p = scopes->missingScopes.lookup(si)) {
-            ClonedBlockObject &clone = p->value->scope().as<ClonedBlockObject>();
+            ClonedBlockObject &clone = p->value->scope().asClonedBlock();
             clone.copyUnaliasedValues(frame);
             scopes->liveScopes.remove(&clone);
             scopes->missingScopes.remove(p);
@@ -1787,7 +1836,7 @@ DebugScopes::onPopWith(AbstractFramePtr frame)
 {
     DebugScopes *scopes = frame.compartment()->debugScopes;
     if (scopes)
-        scopes->liveScopes.remove(&frame.scopeChain()->as<WithObject>());
+        scopes->liveScopes.remove(&frame.scopeChain()->asWith());
 }
 
 void
@@ -1802,7 +1851,7 @@ DebugScopes::onPopStrictEvalScope(AbstractFramePtr frame)
      * CallObject. See ScopeIter::settle.
      */
     if (frame.hasCallObj())
-        scopes->liveScopes.remove(&frame.scopeChain()->as<CallObject>());
+        scopes->liveScopes.remove(&frame.scopeChain()->asCall());
 }
 
 void
@@ -1821,17 +1870,15 @@ DebugScopes::onGeneratorFrameChange(AbstractFramePtr from, AbstractFramePtr to, 
              * scope while it is suspended, we can find its frame (which would
              * otherwise not be found by AllFramesIter).
              */
-            JS_ASSERT(toIter.scope().compartment() == cx->compartment());
+            JS_ASSERT(toIter.scope().compartment() == cx->compartment);
             LiveScopeMap::AddPtr livePtr = scopes->liveScopes.lookupForAdd(&toIter.scope());
-            if (livePtr) {
+            if (livePtr)
                 livePtr->value = to;
-            } else {
+            else
                 scopes->liveScopes.add(livePtr, &toIter.scope(), to);  // OOM here?
-                HashTableWriteBarrierPost(cx->runtime(), &scopes->liveScopes, &toIter.scope());
-            }
         } else {
             ScopeIter si(toIter, from, cx);
-            JS_ASSERT(si.frame().scopeChain()->compartment() == cx->compartment());
+            JS_ASSERT(si.frame().scopeChain()->compartment() == cx->compartment);
             if (MissingScopeMap::Ptr p = scopes->missingScopes.lookup(si)) {
                 DebugScopeObject &debugScope = *p->value;
                 scopes->liveScopes.lookup(&debugScope.scope())->value = to;
@@ -1869,27 +1916,26 @@ DebugScopes::updateLiveScopes(JSContext *cx)
      * to date' bit for fp->prev() in fp, simply popping fp effectively clears
      * the flag for us, at exactly the time when execution resumes fp->prev().
      */
-    for (AllFramesIter i(cx); !i.done(); ++i) {
+    for (AllFramesIter i(cx->runtime); !i.done(); ++i) {
         /*
          * Debug-mode currently disables Ion compilation in the compartment of
          * the debuggee.
          */
-        if (i.isIon())
+        if (i.isIonOptimizedJS())
             continue;
 
         AbstractFramePtr frame = i.abstractFramePtr();
-        if (frame.scopeChain()->compartment() != cx->compartment())
+        if (frame.scopeChain()->compartment() != cx->compartment)
             continue;
 
         for (ScopeIter si(frame, cx); !si.done(); ++si) {
             if (si.hasScopeObject()) {
-                JS_ASSERT(si.scope().compartment() == cx->compartment());
+                JS_ASSERT(si.scope().compartment() == cx->compartment);
                 DebugScopes *scopes = ensureCompartmentData(cx);
                 if (!scopes)
                     return false;
                 if (!scopes->liveScopes.put(&si.scope(), frame))
                     return false;
-                HashTableWriteBarrierPost(cx->runtime(), &scopes->liveScopes, &si.scope());
             }
         }
 
@@ -1923,7 +1969,7 @@ DebugScopes::hasLiveFrame(ScopeObject &scope)
          *  4. GC completes, live objects may now point to values that weren't
          *     marked and thus may point to swept GC things
          */
-        if (JSGenerator *gen = frame.maybeSuspendedGenerator(scope.compartment()->runtimeFromMainThread()))
+        if (JSGenerator *gen = frame.maybeSuspendedGenerator(scope.compartment()->rt))
             JSObject::readBarrier(gen->obj);
 
         return frame;
@@ -1944,22 +1990,22 @@ GetDebugScopeForScope(JSContext *cx, Handle<ScopeObject*> scope, const ScopeIter
 
     RootedObject enclosingDebug(cx, GetDebugScope(cx, enclosing));
     if (!enclosingDebug)
-        return nullptr;
+        return NULL;
 
     JSObject &maybeDecl = scope->enclosingScope();
-    if (maybeDecl.is<DeclEnvObject>()) {
-        JS_ASSERT(CallObjectLambdaName(scope->as<CallObject>().callee()));
-        enclosingDebug = DebugScopeObject::create(cx, maybeDecl.as<DeclEnvObject>(), enclosingDebug);
+    if (maybeDecl.isDeclEnv()) {
+        JS_ASSERT(CallObjectLambdaName(scope->asCall().callee()));
+        enclosingDebug = DebugScopeObject::create(cx, maybeDecl.asDeclEnv(), enclosingDebug);
         if (!enclosingDebug)
-            return nullptr;
+            return NULL;
     }
 
     DebugScopeObject *debugScope = DebugScopeObject::create(cx, *scope, enclosingDebug);
     if (!debugScope)
-        return nullptr;
+        return NULL;
 
     if (!DebugScopes::addDebugScope(cx, *scope, *debugScope))
-        return nullptr;
+        return NULL;
 
     return debugScope;
 }
@@ -1973,7 +2019,7 @@ GetDebugScopeForMissing(JSContext *cx, const ScopeIter &si)
     ScopeIter copy(si, cx);
     RootedObject enclosingDebug(cx, GetDebugScope(cx, ++copy));
     if (!enclosingDebug)
-        return nullptr;
+        return NULL;
 
     /*
      * Create the missing scope object. For block objects, this takes care of
@@ -1986,19 +2032,19 @@ GetDebugScopeForMissing(JSContext *cx, const ScopeIter &si)
      * scopes must not be put on the frame's scope chain; instead, they are
      * maintained via DebugScopes hooks.
      */
-    DebugScopeObject *debugScope = nullptr;
+    DebugScopeObject *debugScope = NULL;
     switch (si.type()) {
       case ScopeIter::Call: {
         Rooted<CallObject*> callobj(cx, CallObject::createForFunction(cx, si.frame()));
         if (!callobj)
-            return nullptr;
+            return NULL;
 
-        if (callobj->enclosingScope().is<DeclEnvObject>()) {
+        if (callobj->enclosingScope().isDeclEnv()) {
             JS_ASSERT(CallObjectLambdaName(callobj->callee()));
-            DeclEnvObject &declenv = callobj->enclosingScope().as<DeclEnvObject>();
+            DeclEnvObject &declenv = callobj->enclosingScope().asDeclEnv();
             enclosingDebug = DebugScopeObject::create(cx, declenv, enclosingDebug);
             if (!enclosingDebug)
-                return nullptr;
+                return NULL;
         }
 
         debugScope = DebugScopeObject::create(cx, *callobj, enclosingDebug);
@@ -2008,20 +2054,20 @@ GetDebugScopeForMissing(JSContext *cx, const ScopeIter &si)
         Rooted<StaticBlockObject *> staticBlock(cx, &si.staticBlock());
         ClonedBlockObject *block = ClonedBlockObject::create(cx, staticBlock, si.frame());
         if (!block)
-            return nullptr;
+            return NULL;
 
         debugScope = DebugScopeObject::create(cx, *block, enclosingDebug);
         break;
       }
       case ScopeIter::With:
       case ScopeIter::StrictEvalScope:
-        MOZ_ASSUME_UNREACHABLE("should already have a scope");
+        JS_NOT_REACHED("should already have a scope");
     }
     if (!debugScope)
-        return nullptr;
+        return NULL;
 
     if (!DebugScopes::addDebugScope(cx, si, *debugScope))
-        return nullptr;
+        return NULL;
 
     return debugScope;
 }
@@ -2035,16 +2081,16 @@ GetDebugScope(JSContext *cx, JSObject &obj)
      * chain; every scope chain must start with zero or more ScopeObjects and
      * terminate with one or more non-ScopeObjects (viz., GlobalObject).
      */
-    if (!obj.is<ScopeObject>()) {
+    if (!obj.isScope()) {
 #ifdef DEBUG
         JSObject *o = &obj;
         while ((o = o->enclosingScope()))
-            JS_ASSERT(!o->is<ScopeObject>());
+            JS_ASSERT(!o->isScope());
 #endif
         return &obj;
     }
 
-    Rooted<ScopeObject*> scope(cx, &obj.as<ScopeObject>());
+    Rooted<ScopeObject*> scope(cx, &obj.asScope());
     if (AbstractFramePtr frame = DebugScopes::hasLiveFrame(*scope)) {
         ScopeIter si(frame, *scope, cx);
         return GetDebugScope(cx, si);
@@ -2056,7 +2102,7 @@ GetDebugScope(JSContext *cx, JSObject &obj)
 static JSObject *
 GetDebugScope(JSContext *cx, const ScopeIter &si)
 {
-    JS_CHECK_RECURSION(cx, return nullptr);
+    JS_CHECK_RECURSION(cx, return NULL);
 
     if (si.done())
         return GetDebugScope(cx, si.enclosingScope());
@@ -2074,9 +2120,9 @@ JSObject *
 js::GetDebugScopeForFunction(JSContext *cx, HandleFunction fun)
 {
     assertSameCompartment(cx, fun);
-    JS_ASSERT(cx->compartment()->debugMode());
+    JS_ASSERT(cx->compartment->debugMode());
     if (!DebugScopes::updateLiveScopes(cx))
-        return nullptr;
+        return NULL;
     return GetDebugScope(cx, *fun->environment());
 }
 
@@ -2085,179 +2131,7 @@ js::GetDebugScopeForFrame(JSContext *cx, AbstractFramePtr frame)
 {
     assertSameCompartment(cx, frame);
     if (CanUseDebugScopeMaps(cx) && !DebugScopes::updateLiveScopes(cx))
-        return nullptr;
+        return NULL;
     ScopeIter si(frame, cx);
     return GetDebugScope(cx, si);
 }
-
-#ifdef DEBUG
-
-typedef HashSet<PropertyName *> PropertyNameSet;
-
-static bool
-RemoveReferencedNames(JSContext *cx, HandleScript script, PropertyNameSet &remainingNames)
-{
-    // Remove from remainingNames --- the closure variables in some outer
-    // script --- any free variables in this script. This analysis isn't perfect:
-    //
-    // - It will not account for free variables in an inner script which are
-    //   actually accessing some name in an intermediate script between the
-    //   inner and outer scripts. This can cause remainingNames to be an
-    //   underapproximation.
-    //
-    // - It will not account for new names introduced via eval. This can cause
-    //   remainingNames to be an overapproximation. This would be easy to fix
-    //   but is nice to have as the eval will probably not access these
-    //   these names and putting eval in an inner script is bad news if you
-    //   care about entraining variables unnecessarily.
-
-    for (jsbytecode *pc = script->code;
-         pc != script->code + script->length;
-         pc += GetBytecodeLength(pc))
-    {
-        PropertyName *name;
-
-        switch (JSOp(*pc)) {
-          case JSOP_NAME:
-          case JSOP_CALLNAME:
-          case JSOP_SETNAME:
-            name = script->getName(pc);
-            break;
-
-          case JSOP_GETALIASEDVAR:
-          case JSOP_CALLALIASEDVAR:
-          case JSOP_SETALIASEDVAR:
-            name = ScopeCoordinateName(script, pc);
-            break;
-
-          default:
-            name = nullptr;
-            break;
-        }
-
-        if (name)
-            remainingNames.remove(name);
-    }
-
-    if (script->hasObjects()) {
-        ObjectArray *objects = script->objects();
-        for (size_t i = 0; i < objects->length; i++) {
-            JSObject *obj = objects->vector[i];
-            if (obj->is<JSFunction>() && obj->as<JSFunction>().isInterpreted()) {
-                JSFunction *fun = &obj->as<JSFunction>();
-                RootedScript innerScript(cx, fun->getOrCreateScript(cx));
-                if (!innerScript)
-                    return false;
-
-                if (!RemoveReferencedNames(cx, innerScript, remainingNames))
-                    return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-static bool
-AnalyzeEntrainedVariablesInScript(JSContext *cx, HandleScript script, HandleScript innerScript)
-{
-    PropertyNameSet remainingNames(cx);
-    if (!remainingNames.init())
-        return false;
-
-    for (BindingIter bi(script); bi; bi++) {
-        if (bi->aliased()) {
-            PropertyNameSet::AddPtr p = remainingNames.lookupForAdd(bi->name());
-            if (!p && !remainingNames.add(p, bi->name()))
-                return false;
-        }
-    }
-
-    if (!RemoveReferencedNames(cx, innerScript, remainingNames))
-        return false;
-
-    if (!remainingNames.empty()) {
-        Sprinter buf(cx);
-        if (!buf.init())
-            return false;
-
-        buf.printf("Script ");
-
-        if (JSAtom *name = script->function()->displayAtom()) {
-            buf.putString(name);
-            buf.printf(" ");
-        }
-
-        buf.printf("(%s:%d) has variables entrained by ", script->filename(), script->lineno);
-
-        if (JSAtom *name = innerScript->function()->displayAtom()) {
-            buf.putString(name);
-            buf.printf(" ");
-        }
-
-        buf.printf("(%s:%d) ::", innerScript->filename(), innerScript->lineno);
-
-        for (PropertyNameSet::Range r = remainingNames.all(); !r.empty(); r.popFront()) {
-            buf.printf(" ");
-            buf.putString(r.front());
-        }
-
-        printf("%s\n", buf.string());
-    }
-
-    if (innerScript->hasObjects()) {
-        ObjectArray *objects = innerScript->objects();
-        for (size_t i = 0; i < objects->length; i++) {
-            JSObject *obj = objects->vector[i];
-            if (obj->is<JSFunction>() && obj->as<JSFunction>().isInterpreted()) {
-                JSFunction *fun = &obj->as<JSFunction>();
-                RootedScript innerInnerScript(cx, fun->nonLazyScript());
-                if (!AnalyzeEntrainedVariablesInScript(cx, script, innerInnerScript))
-                    return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-// Look for local variables in script or any other script inner to it, which are
-// part of the script's call object and are unnecessarily entrained by their own
-// inner scripts which do not refer to those variables. An example is:
-//
-// function foo() {
-//   var a, b;
-//   function bar() { return a; }
-//   function baz() { return b; }
-// }
-//
-// |bar| unnecessarily entrains |b|, and |baz| unnecessarily entrains |a|.
-bool
-js::AnalyzeEntrainedVariables(JSContext *cx, HandleScript script)
-{
-    if (!script->hasObjects())
-        return true;
-
-    ObjectArray *objects = script->objects();
-    for (size_t i = 0; i < objects->length; i++) {
-        JSObject *obj = objects->vector[i];
-        if (obj->is<JSFunction>() && obj->as<JSFunction>().isInterpreted()) {
-            JSFunction *fun = &obj->as<JSFunction>();
-            RootedScript innerScript(cx, fun->getOrCreateScript(cx));
-            if (!innerScript)
-                return false;
-
-            if (script->function() && script->function()->isHeavyweight()) {
-                if (!AnalyzeEntrainedVariablesInScript(cx, script, innerScript))
-                    return false;
-            }
-
-            if (!AnalyzeEntrainedVariables(cx, innerScript))
-                return false;
-        }
-    }
-
-    return true;
-}
-
-#endif

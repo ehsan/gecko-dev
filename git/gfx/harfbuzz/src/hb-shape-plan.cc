@@ -27,7 +27,6 @@
 #include "hb-shape-plan-private.hh"
 #include "hb-shaper-private.hh"
 #include "hb-font-private.hh"
-#include "hb-buffer-private.hh"
 
 #define HB_SHAPER_IMPLEMENT(shaper) \
 	HB_SHAPER_DATA_ENSURE_DECLARE(shaper, face) \
@@ -83,20 +82,6 @@ hb_shape_plan_plan (hb_shape_plan_t    *shape_plan,
  * hb_shape_plan_t
  */
 
-/**
- * hb_shape_plan_create: (Xconstructor)
- * @face: 
- * @props: 
- * @user_features: (array length=num_user_features):
- * @num_user_features: 
- * @shaper_list: (array zero-terminated=1):
- *
- * 
- *
- * Return value: (transfer full):
- *
- * Since: 1.0
- **/
 hb_shape_plan_t *
 hb_shape_plan_create (hb_face_t                     *face,
 		      const hb_segment_properties_t *props,
@@ -125,15 +110,6 @@ hb_shape_plan_create (hb_face_t                     *face,
   return shape_plan;
 }
 
-/**
- * hb_shape_plan_get_empty:
- *
- * 
- *
- * Return value: (transfer full):
- *
- * Since: 1.0
- **/
 hb_shape_plan_t *
 hb_shape_plan_get_empty (void)
 {
@@ -157,30 +133,12 @@ hb_shape_plan_get_empty (void)
   return const_cast<hb_shape_plan_t *> (&_hb_shape_plan_nil);
 }
 
-/**
- * hb_shape_plan_reference: (skip)
- * @shape_plan: a shape plan.
- *
- * 
- *
- * Return value: (transfer full):
- *
- * Since: 1.0
- **/
 hb_shape_plan_t *
 hb_shape_plan_reference (hb_shape_plan_t *shape_plan)
 {
   return hb_object_reference (shape_plan);
 }
 
-/**
- * hb_shape_plan_destroy: (skip)
- * @shape_plan: a shape plan.
- *
- * 
- *
- * Since: 1.0
- **/
 void
 hb_shape_plan_destroy (hb_shape_plan_t *shape_plan)
 {
@@ -195,20 +153,6 @@ hb_shape_plan_destroy (hb_shape_plan_t *shape_plan)
   free (shape_plan);
 }
 
-/**
- * hb_shape_plan_set_user_data: (skip)
- * @shape_plan: a shape plan.
- * @key: 
- * @data: 
- * @destroy: 
- * @replace: 
- *
- * 
- *
- * Return value: 
- *
- * Since: 1.0
- **/
 hb_bool_t
 hb_shape_plan_set_user_data (hb_shape_plan_t    *shape_plan,
 			     hb_user_data_key_t *key,
@@ -219,17 +163,6 @@ hb_shape_plan_set_user_data (hb_shape_plan_t    *shape_plan,
   return hb_object_set_user_data (shape_plan, key, data, destroy, replace);
 }
 
-/**
- * hb_shape_plan_get_user_data: (skip)
- * @shape_plan: a shape plan.
- * @key: 
- *
- * 
- *
- * Return value: (transfer none):
- *
- * Since: 1.0
- **/
 void *
 hb_shape_plan_get_user_data (hb_shape_plan_t    *shape_plan,
 			     hb_user_data_key_t *key)
@@ -238,20 +171,6 @@ hb_shape_plan_get_user_data (hb_shape_plan_t    *shape_plan,
 }
 
 
-/**
- * hb_shape_plan_execute:
- * @shape_plan: a shape plan.
- * @font: a font.
- * @buffer: a buffer.
- * @features: (array length=num_features):
- * @num_features: 
- *
- * 
- *
- * Return value: 
- *
- * Since: 1.0
- **/
 hb_bool_t
 hb_shape_plan_execute (hb_shape_plan_t    *shape_plan,
 		       hb_font_t          *font,
@@ -259,13 +178,8 @@ hb_shape_plan_execute (hb_shape_plan_t    *shape_plan,
 		       const hb_feature_t *features,
 		       unsigned int        num_features)
 {
-  if (unlikely (hb_object_is_inert (shape_plan) ||
-		hb_object_is_inert (font) ||
-		hb_object_is_inert (buffer)))
+  if (unlikely (shape_plan->face != font->face))
     return false;
-
-  assert (shape_plan->face == font->face);
-  assert (hb_segment_properties_equal (&shape_plan->props, &buffer->props));
 
 #define HB_SHAPER_EXECUTE(shaper) \
 	HB_STMT_START { \
@@ -318,20 +232,6 @@ hb_shape_plan_matches (const hb_shape_plan_t          *shape_plan,
 	  (shape_plan->shaper_func == proposal->shaper_func));
 }
 
-/**
- * hb_shape_plan_create_cached:
- * @face: 
- * @props: 
- * @user_features: (array length=num_user_features):
- * @num_user_features: 
- * @shaper_list: (array zero-terminated=1):
- *
- * 
- *
- * Return value: (transfer full):
- *
- * Since: 1.0
- **/
 hb_shape_plan_t *
 hb_shape_plan_create_cached (hb_face_t                     *face,
 			     const hb_segment_properties_t *props,
@@ -401,16 +301,6 @@ retry:
   return hb_shape_plan_reference (shape_plan);
 }
 
-/**
- * hb_shape_plan_get_shaper:
- * @shape_plan: a shape plan.
- *
- * 
- *
- * Return value: (transfer none):
- *
- * Since: 1.0
- **/
 const char *
 hb_shape_plan_get_shaper (hb_shape_plan_t *shape_plan)
 {

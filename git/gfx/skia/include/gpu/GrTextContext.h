@@ -11,10 +11,11 @@
 #ifndef GrTextContext_DEFINED
 #define GrTextContext_DEFINED
 
-#include "GrContext.h"
 #include "GrGlyph.h"
 #include "GrPaint.h"
+#include "GrMatrix.h"
 
+struct GrGpuTextVertex;
 class GrContext;
 class GrTextStrike;
 class GrFontScaler;
@@ -22,7 +23,9 @@ class GrDrawTarget;
 
 class GrTextContext {
 public:
-    GrTextContext(GrContext*, const GrPaint&);
+    GrTextContext(GrContext*,
+                  const GrPaint& paint,
+                  const GrMatrix* extMatrix = NULL);
     ~GrTextContext();
 
     void drawPackedGlyph(GrGlyph::PackedID, GrFixed left, GrFixed top,
@@ -32,9 +35,11 @@ public:
 
 private:
     GrPaint         fPaint;
+    GrVertexLayout  fVertexLayout;
     GrContext*      fContext;
     GrDrawTarget*   fDrawTarget;
 
+    GrMatrix        fExtMatrix;
     GrFontScaler*   fScaler;
     GrTextStrike*   fStrike;
 
@@ -48,13 +53,15 @@ private:
         kDefaultRequestedVerts   = kDefaultRequestedGlyphs * 4,
     };
 
-    SkPoint*                fVertices;
-    int32_t                 fMaxVertices;
-    GrTexture*              fCurrTexture;
-    int                     fCurrVertex;
+    GrGpuTextVertex* fVertices;
 
-    GrIRect                 fClipRect;
-    GrContext::AutoMatrix   fAutoMatrix;
+    int32_t     fMaxVertices;
+    GrTexture*  fCurrTexture;
+    int         fCurrVertex;
+
+    GrIRect     fClipRect;
+    GrMatrix    fOrigViewMatrix;    // restore previous viewmatrix
 };
 
 #endif
+

@@ -109,9 +109,6 @@ public class CollectionKeys {
    */
   public void setKeyPairsFromWBO(CryptoRecord keys, KeyBundle syncKeyBundle)
       throws CryptoException, IOException, ParseException, NonObjectJSONException {
-    if (keys == null) {
-      throw new IllegalArgumentException("cannot set key pairs from null record");
-    }
     if (syncKeyBundle != null) {
       keys.keyBundle = syncKeyBundle;
       keys.decrypt();
@@ -121,7 +118,7 @@ public class CollectionKeys {
 
     ExtendedJSONObject collections = cleartext.getObject("collections");
     HashMap<String, KeyBundle> collectionKeys = new HashMap<String, KeyBundle>();
-    for (Entry<String, Object> pair : collections.entrySet()) {
+    for (Entry<String, Object> pair : collections.entryIterable()) {
       KeyBundle bundle = arrayToKeyBundle((JSONArray) pair.getValue());
       collectionKeys.put(pair.getKey(), bundle);
     }

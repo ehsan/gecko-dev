@@ -28,8 +28,8 @@ LayerManagerD3D9::LayerManagerD3D9(nsIWidget *aWidget)
   : mWidget(aWidget)
   , mDeviceResetCount(0)
 {
-  mCurrentCallbackInfo.Callback = nullptr;
-  mCurrentCallbackInfo.CallbackData = nullptr;
+  mCurrentCallbackInfo.Callback = NULL;
+  mCurrentCallbackInfo.CallbackData = NULL;
 }
 
 LayerManagerD3D9::~LayerManagerD3D9()
@@ -163,12 +163,12 @@ LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
     SetCompositingDisabled(aFlags & END_NO_COMPOSITE);
     Render();
     /* Clean this out for sanity */
-    mCurrentCallbackInfo.Callback = nullptr;
-    mCurrentCallbackInfo.CallbackData = nullptr;
+    mCurrentCallbackInfo.Callback = NULL;
+    mCurrentCallbackInfo.CallbackData = NULL;
   }
 
   // Clear mTarget, next transaction could have no target
-  mTarget = nullptr;
+  mTarget = NULL;
 }
 
 void
@@ -219,6 +219,11 @@ LayerManagerD3D9::CreateReadbackLayer()
   return layer.forget();
 }
 
+void ReleaseTexture(void *texture)
+{
+  static_cast<IDirect3DTexture9*>(texture)->Release();
+}
+
 void
 LayerManagerD3D9::ReportFailure(const nsACString &aMsg, HRESULT aCode)
 {
@@ -250,7 +255,7 @@ LayerManagerD3D9::Render()
   nsIntRect rect;
   mWidget->GetClientBounds(rect);
 
-  device()->Clear(0, nullptr, D3DCLEAR_TARGET, 0x00000000, 0, 0);
+  device()->Clear(0, NULL, D3DCLEAR_TARGET, 0x00000000, 0, 0);
 
   device()->BeginScene();
 
@@ -336,18 +341,18 @@ LayerManagerD3D9::PaintToTarget()
 
   device()->CreateOffscreenPlainSurface(desc.Width, desc.Height,
                                        D3DFMT_A8R8G8B8, D3DPOOL_SYSTEMMEM,
-                                       getter_AddRefs(destSurf), nullptr);
+                                       getter_AddRefs(destSurf), NULL);
 
   device()->GetRenderTargetData(backBuff, destSurf);
 
   D3DLOCKED_RECT rect;
-  destSurf->LockRect(&rect, nullptr, D3DLOCK_READONLY);
+  destSurf->LockRect(&rect, NULL, D3DLOCK_READONLY);
 
   nsRefPtr<gfxImageSurface> imageSurface =
     new gfxImageSurface((unsigned char*)rect.pBits,
                         gfxIntSize(desc.Width, desc.Height),
                         rect.Pitch,
-                        gfxImageFormatARGB32);
+                        gfxASurface::ImageFormatARGB32);
 
   mTarget->SetSource(imageSurface);
   mTarget->SetOperator(gfxContext::OPERATOR_OVER);

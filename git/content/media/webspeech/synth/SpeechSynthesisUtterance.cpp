@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsCOMPtr.h"
+#include "nsContentUtils.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsGkAtoms.h"
 
@@ -18,10 +19,7 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(SpeechSynthesisUtterance,
-                                     nsDOMEventTargetHelper, mVoice);
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(SpeechSynthesisUtterance)
+NS_INTERFACE_MAP_BEGIN(SpeechSynthesisUtterance)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
@@ -42,8 +40,7 @@ SpeechSynthesisUtterance::SpeechSynthesisUtterance(const nsAString& text)
 SpeechSynthesisUtterance::~SpeechSynthesisUtterance() {}
 
 JSObject*
-SpeechSynthesisUtterance::WrapObject(JSContext* aCx,
-                                     JS::Handle<JSObject*> aScope)
+SpeechSynthesisUtterance::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return SpeechSynthesisUtteranceBinding::Wrap(aCx, aScope, this);
 }
@@ -66,17 +63,17 @@ SpeechSynthesisUtterance::Constructor(GlobalObject& aGlobal,
                                       const nsAString& aText,
                                       ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.Get());
 
   if (!win) {
     aRv.Throw(NS_ERROR_FAILURE);
   }
 
   MOZ_ASSERT(win->IsInnerWindow());
-  nsRefPtr<SpeechSynthesisUtterance> object =
-    new SpeechSynthesisUtterance(aText);
+  SpeechSynthesisUtterance* object = new SpeechSynthesisUtterance(aText);
+  NS_ADDREF(object);
   object->BindToOwner(win);
-  return object.forget();
+  return object;
 }
 
 void

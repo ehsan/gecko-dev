@@ -14,8 +14,8 @@ namespace dom {
 static const PRUnichar kReplacementChar = static_cast<PRUnichar>(0xFFFD);
 
 void
-TextDecoder::Init(const nsAString& aEncoding, const bool aFatal,
-                  ErrorResult& aRv)
+TextDecoderBase::Init(const nsAString& aEncoding, const bool aFatal,
+                      ErrorResult& aRv)
 {
   nsAutoString label(aEncoding);
   EncodingUtils::TrimSpaceCharacters(label);
@@ -52,9 +52,9 @@ TextDecoder::Init(const nsAString& aEncoding, const bool aFatal,
 }
 
 void
-TextDecoder::Decode(const char* aInput, const int32_t aLength,
-                    const bool aStream, nsAString& aOutDecodedString,
-                    ErrorResult& aRv)
+TextDecoderBase::Decode(const char* aInput, const int32_t aLength,
+                        const bool aStream, nsAString& aOutDecodedString,
+                        ErrorResult& aRv)
 {
   aOutDecodedString.Truncate();
 
@@ -101,11 +101,16 @@ TextDecoder::Decode(const char* aInput, const int32_t aLength,
 }
 
 void
-TextDecoder::GetEncoding(nsAString& aEncoding)
+TextDecoderBase::GetEncoding(nsAString& aEncoding)
 {
   CopyASCIItoUTF16(mEncoding, aEncoding);
   nsContentUtils::ASCIIToLower(aEncoding);
 }
+
+NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(TextDecoder, AddRef)
+NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(TextDecoder, Release)
+
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(TextDecoder, mGlobal)
 
 } // dom
 } // mozilla

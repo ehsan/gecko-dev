@@ -19,13 +19,17 @@ test_Microformats();
 test_adr();
 
 function test_Microformats() {
-  var Microformats = SpecialPowers.Cu.import("resource://gre/modules/Microformats.js").Microformats;
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  Components.utils.import("resource://gre/modules/Microformats.js");
 
   ok(Microformats, "Check global access to Microformats");
 };
 
 function test_adr() {
-  var adr = SpecialPowers.Cu.import("resource://gre/modules/Microformats.js").adr;
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  Components.utils.import("resource://gre/modules/Microformats.js");
 
   var address;
 

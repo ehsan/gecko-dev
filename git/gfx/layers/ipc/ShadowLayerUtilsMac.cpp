@@ -5,10 +5,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/layers/PLayerTransaction.h"
+#include "mozilla/layers/PLayers.h"
 #include "mozilla/layers/ShadowLayers.h"
-#include "mozilla/layers/LayerManagerComposite.h"
-#include "mozilla/layers/CompositorTypes.h"
 
 #include "gfxPlatform.h"
 
@@ -21,7 +19,7 @@ namespace layers {
 
 bool
 ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
-                                                  gfxContentType aContent,
+                                                  gfxASurface::gfxContentType aContent,
                                                   uint32_t aCaps,
                                                   SurfaceDescriptor* aBuffer)
 {
@@ -32,22 +30,10 @@ ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
 ShadowLayerForwarder::PlatformOpenDescriptor(OpenMode aMode,
                                              const SurfaceDescriptor& aSurface)
 {
-  if (aSurface.type() == SurfaceDescriptor::TShmem) {
-    return gfxSharedQuartzSurface::Open(aSurface.get_Shmem());
-  } else if (aSurface.type() == SurfaceDescriptor::TMemoryImage) {
-    const MemoryImage& image = aSurface.get_MemoryImage();
-    gfxImageFormat format
-      = static_cast<gfxImageFormat>(image.format());
-
-    nsRefPtr<gfxASurface> surf =
-      new gfxQuartzSurface((unsigned char*)image.data(),
-                           image.size(),
-                           image.stride(),
-                           format);
-    return surf.forget();
-
+  if (SurfaceDescriptor::TShmem != aSurface.type()) {
+    return nullptr;
   }
-  return nullptr;
+  return gfxSharedQuartzSurface::Open(aSurface.get_Shmem());
 }
 
 /*static*/ bool
@@ -74,16 +60,6 @@ ShadowLayerForwarder::PlatformGetDescriptorSurfaceSize(
   return false;
 }
 
-/*static*/ bool
-ShadowLayerForwarder::PlatformGetDescriptorSurfaceImageFormat(
-  const SurfaceDescriptor&,
-  OpenMode,
-  gfxImageFormat*,
-  gfxASurface**)
-{
-  return false;
-}
-
 bool
 ShadowLayerForwarder::PlatformDestroySharedSurface(SurfaceDescriptor* aSurface)
 {
@@ -96,7 +72,7 @@ ShadowLayerForwarder::PlatformSyncBeforeUpdate()
 }
 
 /*static*/ void
-LayerManagerComposite::PlatformSyncBeforeReplyUpdate()
+ShadowLayerManager::PlatformSyncBeforeReplyUpdate()
 {
 }
 
@@ -107,15 +83,15 @@ ISurfaceAllocator::PlatformDestroySharedSurface(SurfaceDescriptor*)
 }
 
 /*static*/ already_AddRefed<TextureImage>
-LayerManagerComposite::OpenDescriptorForDirectTexturing(GLContext*,
-                                                        const SurfaceDescriptor&,
-                                                        GLenum)
+ShadowLayerManager::OpenDescriptorForDirectTexturing(GLContext*,
+                                                     const SurfaceDescriptor&,
+                                                     GLenum)
 {
   return nullptr;
 }
 
 /*static*/ bool
-LayerManagerComposite::SupportsDirectTexturing()
+ShadowLayerManager::SupportsDirectTexturing()
 {
   return false;
 }

@@ -59,17 +59,15 @@ function onFramesAdded()
 }
 
 
-function onExecuteFooObj(msg)
+function onExecuteFooObj()
 {
+  let msg = gWebConsole.outputNode.querySelector(".webconsole-msg-output");
   ok(msg, "output message found");
   isnot(msg.textContent.indexOf("[object Object]"), -1, "message text check");
 
-  let anchor = msg.querySelector("a");
-  ok(anchor, "object link found");
-
   gJSTerm.once("variablesview-fetched", onFooObjFetch);
 
-  executeSoon(() => EventUtils.synthesizeMouse(anchor, 2, 2, {},
+  executeSoon(() => EventUtils.synthesizeMouse(msg, 2, 2, {},
                                                gWebConsole.iframeWindow));
 }
 
@@ -103,7 +101,7 @@ function onTestPropFound(aResults)
 function onFooObjFetchAfterUpdate(aEvent, aVar)
 {
   info("onFooObjFetchAfterUpdate");
-  let para = content.wrappedJSObject.document.querySelector("p");
+  let para = content.document.querySelector("p");
   let expectedValue = content.document.title + "foo2SecondCall" + para;
 
   findVariableViewProperties(aVar, [
@@ -122,7 +120,7 @@ function onUpdatedTestPropFound(aResults)
 
 function onExecuteFooObjTestProp2()
 {
-  let para = content.wrappedJSObject.document.querySelector("p");
+  let para = content.document.querySelector("p");
   let expected = content.document.title + "foo2SecondCall" + para;
 
   isnot(gWebConsole.outputNode.textContent.indexOf(expected), -1,

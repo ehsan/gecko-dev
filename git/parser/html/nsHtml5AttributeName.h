@@ -25,8 +25,8 @@
  * Please edit AttributeName.java instead and regenerate.
  */
 
-#ifndef nsHtml5AttributeName_h
-#define nsHtml5AttributeName_h
+#ifndef nsHtml5AttributeName_h__
+#define nsHtml5AttributeName_h__
 
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
@@ -256,7 +256,6 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_POSTER;
     static nsHtml5AttributeName* ATTR_POINTS;
     static nsHtml5AttributeName* ATTR_PROMPT;
-    static nsHtml5AttributeName* ATTR_SRCDOC;
     static nsHtml5AttributeName* ATTR_SCOPED;
     static nsHtml5AttributeName* ATTR_STRING;
     static nsHtml5AttributeName* ATTR_SCHEME;

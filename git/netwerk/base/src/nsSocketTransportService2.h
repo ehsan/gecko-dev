@@ -8,18 +8,18 @@
 
 #include "nsPISocketTransportService.h"
 #include "nsIThreadInternal.h"
-#include "nsIRunnable.h"
+#include "nsThreadUtils.h"
 #include "nsEventQueue.h"
 #include "nsCOMPtr.h"
+#include "pldhash.h"
 #include "prinrval.h"
 #include "prlog.h"
 #include "prinit.h"
+#include "prio.h"
+#include "nsASocketHandler.h"
 #include "nsIObserver.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/net/DashboardTypes.h"
-
-class nsASocketHandler;
-struct PRPollDesc;
 
 //-----------------------------------------------------------------------------
 
@@ -47,7 +47,7 @@ class nsSocketTransportService : public nsPISocketTransportService
     typedef mozilla::Mutex Mutex;
 
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSPISOCKETTRANSPORTSERVICE
     NS_DECL_NSISOCKETTRANSPORTSERVICE
     NS_DECL_NSIEVENTTARGET
@@ -74,11 +74,9 @@ public:
         return mActiveCount + mIdleCount < gMaxCount;
     }
 
-    // Called by the networking dashboard on the socket thread only
+    // Called by the networking dashboard
     // Fills the passed array with socket information
     void GetSocketConnections(nsTArray<mozilla::net::SocketInfo> *);
-    uint64_t GetSentBytes() { return mSentBytesCount; }
-    uint64_t GetReceivedBytes() { return mReceivedBytesCount; }
 protected:
 
     virtual ~nsSocketTransportService();
@@ -156,10 +154,7 @@ private:
     bool GrowActiveList();
     bool GrowIdleList();
     void   InitMaxCount();
-
-    // Total bytes number transfered through all the sockets except active ones
-    uint64_t mSentBytesCount;
-    uint64_t mReceivedBytesCount;
+    
     //-------------------------------------------------------------------------
     // poll list (socket thread only)
     //
@@ -197,9 +192,6 @@ private:
                            SocketContext *context, bool aActive);
 
     void ClosePrivateConnections();
-    void DetachSocketWithGuard(bool aGuardLocals,
-                               SocketContext *socketList,
-                               int32_t index);
 };
 
 extern nsSocketTransportService *gSocketTransportService;

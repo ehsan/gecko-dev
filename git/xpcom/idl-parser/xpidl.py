@@ -1485,7 +1485,7 @@ class IDLParser(object):
                              optimize=1)
         self.parser = yacc.yacc(module=self,
                                 outputdir=outputdir,
-                                debug=0,
+                                debugfile='xpidl_debug',
                                 tabmodule='xpidlyacc',
                                 optimize=1)
 

@@ -7,7 +7,6 @@
 #ifndef HTMLPropertiesCollection_h_
 #define HTMLPropertiesCollection_h_
 
-#include "mozilla/Attributes.h"
 #include "nsDOMLists.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsAutoPtr.h"
@@ -19,8 +18,9 @@
 #include "nsIHTMLCollection.h"
 #include "nsHashKeys.h"
 #include "nsRefPtrHashtable.h"
-#include "nsGenericHTMLElement.h"
+#include "jsapi.h"
 
+class nsGenericHTMLElement;
 class nsIDocument;
 class nsINode;
 
@@ -55,31 +55,15 @@ public:
   HTMLPropertiesCollection(nsGenericHTMLElement* aRoot);
   virtual ~HTMLPropertiesCollection();
 
-  // nsWrapperCache
   using nsWrapperCache::GetWrapperPreserveColor;
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-protected:
-  virtual JSObject* GetWrapperPreserveColorInternal() MOZ_OVERRIDE
-  {
-    return nsWrapperCache::GetWrapperPreserveColor();
-  }
-public:
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
   virtual Element* GetElementAt(uint32_t aIndex);
 
   void SetDocument(nsIDocument* aDocument);
-  nsINode* GetParentObject() MOZ_OVERRIDE;
-
-  virtual Element*
-  GetFirstNamedElement(const nsAString& aName, bool& aFound) MOZ_OVERRIDE
-  {
-    // HTMLPropertiesCollection.namedItem and the named getter call the
-    // NamedItem that returns a PropertyNodeList, calling
-    // HTMLCollection.namedItem doesn't make sense so this returns null.
-    aFound = false;
-    return nullptr;
-  }
+  nsINode* GetParentObject();
+  virtual JSObject* NamedItem(JSContext* cx, const nsAString& name,
+                              mozilla::ErrorResult& error);
   PropertyNodeList* NamedItem(const nsAString& aName);
   PropertyNodeList* NamedGetter(const nsAString& aName, bool& aFound)
   {
@@ -91,7 +75,7 @@ public:
     EnsureFresh();
     return mNames;
   }
-  virtual void GetSupportedNames(nsTArray<nsString>& aNames) MOZ_OVERRIDE;
+  virtual void GetSupportedNames(nsTArray<nsString>& aNames);
 
   NS_DECL_NSIDOMHTMLCOLLECTION
 
@@ -131,7 +115,7 @@ protected:
   nsRefPtrHashtable<nsStringHashKey, PropertyNodeList> mNamedItemEntries;
 
   // The element this collection is rooted at
-  nsRefPtr<nsGenericHTMLElement> mRoot;
+  nsCOMPtr<nsGenericHTMLElement> mRoot;
 
   // The document mRoot is in, if any
   nsCOMPtr<nsIDocument> mDoc;
@@ -148,15 +132,14 @@ public:
                    nsIContent* aRoot, const nsAString& aName);
   virtual ~PropertyNodeList();
 
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
 
   void SetDocument(nsIDocument* aDocument);
 
   void GetValues(JSContext* aCx, nsTArray<JS::Value >& aResult,
                  ErrorResult& aError);
 
-  virtual nsIContent* Item(uint32_t aIndex) MOZ_OVERRIDE;
+  virtual nsIContent* Item(uint32_t aIndex);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
@@ -170,8 +153,8 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
   // nsINodeList interface
-  virtual int32_t IndexOf(nsIContent* aContent) MOZ_OVERRIDE;
-  virtual nsINode* GetParentObject() MOZ_OVERRIDE;
+  virtual int32_t IndexOf(nsIContent* aContent);
+  virtual nsINode* GetParentObject();
 
   void AppendElement(nsGenericHTMLElement* aElement)
   {

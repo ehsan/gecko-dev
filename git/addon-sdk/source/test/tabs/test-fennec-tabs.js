@@ -8,8 +8,6 @@ const { Loader, LoaderWithHookedConsole } = require('sdk/test/loader');
 const timer = require('sdk/timers');
 const tabs = require('sdk/tabs');
 const windows = require('sdk/windows');
-const { set: setPref } = require("sdk/preferences/service");
-const DEPRECATE_PREF = "devtools.errorconsole.deprecation_warnings";
 
 const tabsLen = tabs.length;
 const URL = 'data:text/html;charset=utf-8,<html><head><title>#title#</title></head></html>';
@@ -22,7 +20,9 @@ const ERR_FENNEC_MSG = {
 };
 
 // TEST: tab unloader
-exports.testAutomaticDestroy = function(assert, done) {
+exports.testAutomaticDestroy = function(test) {
+  test.waitUntilDone();
+
   let called = false;
 
   let loader2 = Loader(module);
@@ -32,36 +32,36 @@ exports.testAutomaticDestroy = function(assert, done) {
   let tabs2Len = tabs2.length;
 
   tabs2.on('open', function onOpen(tab) {
-    assert.fail("an onOpen listener was called that should not have been");
+    test.fail("an onOpen listener was called that should not have been");
     called = true;
   });
   tabs2.on('ready', function onReady(tab) {
-    assert.fail("an onReady listener was called that should not have been");
+    test.fail("an onReady listener was called that should not have been");
     called = true;
   });
   tabs2.on('select', function onSelect(tab) {
-    assert.fail("an onSelect listener was called that should not have been");
+    test.fail("an onSelect listener was called that should not have been");
     called = true;
   });
   tabs2.on('close', function onClose(tab) {
-    assert.fail("an onClose listener was called that should not have been");
+    test.fail("an onClose listener was called that should not have been");
     called = true;
   });
   loader2.unload();
 
   tabs3.on('open', function onOpen(tab) {
-    assert.pass("an onOpen listener was called for tabs3");
+    test.pass("an onOpen listener was called for tabs3");
 
     tab.on('ready', function onReady(tab) {
-      assert.fail("an onReady listener was called that should not have been");
+      test.fail("an onReady listener was called that should not have been");
       called = true;
     });
     tab.on('select', function onSelect(tab) {
-      assert.fail("an onSelect listener was called that should not have been");
+      test.fail("an onSelect listener was called that should not have been");
       called = true;
     });
     tab.on('close', function onClose(tab) {
-      assert.fail("an onClose listener was called that should not have been");
+      test.fail("an onClose listener was called that should not have been");
       called = true;
     });
   });
@@ -70,22 +70,22 @@ exports.testAutomaticDestroy = function(assert, done) {
 
   // Fire a tab event and ensure that the destroyed tab is inactive
   tabs.once('open', function(tab) {
-    assert.pass('tabs.once("open") works!');
+    test.pass('tabs.once("open") works!');
 
-    assert.equal(tabs2Len, tabs2.length, "tabs2 length was not changed");
-    assert.equal(tabs.length, (tabs2.length+2), "tabs.length > tabs2.length");
+    test.assertEqual(tabs2Len, tabs2.length, "tabs2 length was not changed");
+    test.assertEqual(tabs.length, (tabs2.length+2), "tabs.length > tabs2.length");
 
     tab.once('ready', function() {
-      assert.pass('tab.once("ready") works!');
+      test.pass('tab.once("ready") works!');
 
       tab.once('close', function() {
-        assert.pass('tab.once("close") works!');
+        test.pass('tab.once("close") works!');
 
         timer.setTimeout(function () {
-          assert.ok(!called, "Unloaded tab module is destroyed and inactive");
+          test.assert(!called, "Unloaded tab module is destroyed and inactive");
 
           // end test
-          done();
+          test.done();
         });
       });
 
@@ -97,8 +97,8 @@ exports.testAutomaticDestroy = function(assert, done) {
 };
 
 // TEST: tab properties
-exports.testTabProperties = function(assert, done) {
-  setPref(DEPRECATE_PREF, true);
+exports.testTabProperties = function(test) {
+  test.waitUntilDone();
   let { loader, messages } = LoaderWithHookedConsole();
   let tabs = loader.require('sdk/tabs');
 
@@ -107,37 +107,38 @@ exports.testTabProperties = function(assert, done) {
   tabs.open({
     url: url,
     onReady: function(tab) {
-      assert.equal(tab.title, "foo", "title of the new tab matches");
-      assert.equal(tab.url, url, "URL of the new tab matches");
-      assert.ok(tab.favicon, "favicon of the new tab is not empty");
+      test.assertEqual(tab.title, "foo", "title of the new tab matches");
+      test.assertEqual(tab.url, url, "URL of the new tab matches");
+      test.assert(tab.favicon, "favicon of the new tab is not empty");
       // TODO: remove need for this test by implementing the favicon feature
-      assert.equal(messages[0].msg,
-        "tab.favicon is deprecated, and " +
-        "currently favicon helpers are not yet supported " +
-        "by Fennec",
-        "favicon logs an error for now");
-      assert.equal(tab.style, null, "style of the new tab matches");
-      assert.equal(tab.index, tabsLen, "index of the new tab matches");
-      assert.notEqual(tab.getThumbnail(), null, "thumbnail of the new tab matches");
-      assert.notEqual(tab.id, null, "a tab object always has an id property");
+      // Poors man deepEqual with JSON.stringify...
+      test.assertEqual(JSON.stringify(messages),
+                       JSON.stringify([ERR_FENNEC_MSG]),
+                       "favicon logs an error for now");
+      test.assertEqual(tab.style, null, "style of the new tab matches");
+      test.assertEqual(tab.index, tabsLen, "index of the new tab matches");
+      test.assertNotEqual(tab.getThumbnail(), null, "thumbnail of the new tab matches");
+      test.assertNotEqual(tab.id, null, "a tab object always has an id property");
 
       tab.close(function() {
         loader.unload();
 
         // end test
-        done();
+        test.done();
       });
     }
   });
 };
 
 // TEST: tabs iterator and length property
-exports.testTabsIteratorAndLength = function(assert, done) {
+exports.testTabsIteratorAndLength = function(test) {
+  test.waitUntilDone();
+
   let newTabs = [];
   let startCount = 0;
   for each (let t in tabs) startCount++;
 
-  assert.equal(startCount, tabs.length, "length property is correct");
+  test.assertEqual(startCount, tabs.length, "length property is correct");
 
   let url = "data:text/html;charset=utf-8,testTabsIteratorAndLength";
   tabs.open({url: url, onOpen: function(tab) newTabs.push(tab)});
@@ -147,21 +148,26 @@ exports.testTabsIteratorAndLength = function(assert, done) {
     onOpen: function(tab) {
       let count = 0;
       for each (let t in tabs) count++;
-      assert.equal(count, startCount + 3, "iterated tab count matches");
-      assert.equal(startCount + 3, tabs.length, "iterated tab count matches length property");
+      test.assertEqual(count, startCount + 3, "iterated tab count matches");
+      test.assertEqual(startCount + 3, tabs.length, "iterated tab count matches length property");
 
       let newTabsLength = newTabs.length;
       newTabs.forEach(function(t) t.close(function() {
         if (--newTabsLength > 0) return;
 
-        tab.close(done);
+        tab.close(function() {
+          // end test
+          test.done();
+        });
       }));
     }
   });
 };
 
 // TEST: tab.url setter
-exports.testTabLocation = function(assert, done) {
+exports.testTabLocation = function(test) {
+  test.waitUntilDone();
+
   let url1 = "data:text/html;charset=utf-8,foo";
   let url2 = "data:text/html;charset=utf-8,bar";
 
@@ -170,9 +176,12 @@ exports.testTabLocation = function(assert, done) {
       return;
 
     tabs.removeListener('ready', onReady);
-    assert.pass("tab loaded the correct url");
+    test.pass("tab loaded the correct url");
 
-    tab.close(done);
+    tab.close(function() {
+      // end test
+      test.done();
+    });
   });
 
   tabs.open({
@@ -183,8 +192,37 @@ exports.testTabLocation = function(assert, done) {
   });
 };
 
+// TEST: tab.reload()
+exports.testTabReload = function(test) {
+  test.waitUntilDone();
+
+  let url = "data:text/html;charset=utf-8,<!doctype%20html><title></title>";
+
+  tabs.open({
+    url: url,
+    onReady: function onReady(tab) {
+      tab.removeListener('ready', onReady);
+
+      tab.once(
+        'ready',
+        function onReload() {
+          test.pass("the tab was loaded again");
+          test.assertEqual(tab.url, url, "the tab has the same URL");
+
+          // end test
+          tab.close(function() test.done());
+        }
+      );
+
+      tab.reload();
+    }
+  });
+};
+
 // TEST: tab.move()
-exports.testTabMove = function(assert, done) {
+exports.testTabMove = function(test) {
+  test.waitUntilDone();
+
   let { loader, messages } = LoaderWithHookedConsole();
   let tabs = loader.require('sdk/tabs');
 
@@ -193,22 +231,22 @@ exports.testTabMove = function(assert, done) {
   tabs.open({
     url: url,
     onOpen: function(tab1) {
-      assert.ok(tab1.index >= 0, "opening a tab returns a tab w/ valid index");
+      test.assert(tab1.index >= 0, "opening a tab returns a tab w/ valid index");
 
       tabs.open({
         url: url,
         onOpen: function(tab) {
           let i = tab.index;
-          assert.ok(tab.index > tab1.index, "2nd tab has valid index");
+          test.assert(tab.index > tab1.index, "2nd tab has valid index");
           tab.index = 0;
-          assert.equal(tab.index, i, "tab index after move matches");
-          assert.equal(JSON.stringify(messages),
+          test.assertEqual(tab.index, i, "tab index after move matches");
+          test.assertEqual(JSON.stringify(messages),
                            JSON.stringify([ERR_FENNEC_MSG]),
                            "setting tab.index logs error");
           // end test
           tab1.close(function() tab.close(function() {
             loader.unload();
-            done();
+            test.done();
           }));
         }
       });
@@ -217,7 +255,9 @@ exports.testTabMove = function(assert, done) {
 };
 
 // TEST: open tab with default options
-exports.testTabsOpen_alt = function(assert, done) {
+exports.testTabsOpen_alt = function(test) {
+  test.waitUntilDone();
+
   let { loader, messages } = LoaderWithHookedConsole();
   let tabs = loader.require('sdk/tabs');
   let url = "data:text/html;charset=utf-8,default";
@@ -225,22 +265,24 @@ exports.testTabsOpen_alt = function(assert, done) {
   tabs.open({
     url: url,
     onReady: function(tab) {
-      assert.equal(tab.url, url, "URL of the new tab matches");
-      assert.equal(tabs.activeTab, tab, "URL of active tab in the current window matches");
-      assert.equal(tab.isPinned, false, "The new tab is not pinned");
-      assert.equal(messages.length, 1, "isPinned logs error");
+      test.assertEqual(tab.url, url, "URL of the new tab matches");
+      test.assertEqual(tabs.activeTab, tab, "URL of active tab in the current window matches");
+      test.assertEqual(tab.isPinned, false, "The new tab is not pinned");
+      test.assertEqual(messages.length, 1, "isPinned logs error");
 
       // end test
       tab.close(function() {
         loader.unload();
-        done();
+        test.done();
       });
     }
   });
 };
 
 // TEST: open pinned tab
-exports.testOpenPinned_alt = function(assert, done) {
+exports.testOpenPinned_alt = function(test) {
+    test.waitUntilDone();
+
     let { loader, messages } = LoaderWithHookedConsole();
     let tabs = loader.require('sdk/tabs');
     let url = "about:blank";
@@ -249,24 +291,26 @@ exports.testOpenPinned_alt = function(assert, done) {
       url: url,
       isPinned: true,
       onOpen: function(tab) {
-        assert.equal(tab.isPinned, false, "The new tab is pinned");
+        test.assertEqual(tab.isPinned, false, "The new tab is pinned");
         // We get two error message: one for tabs.open's isPinned argument
         // and another one for tab.isPinned
-        assert.equal(JSON.stringify(messages),
+        test.assertEqual(JSON.stringify(messages),
                          JSON.stringify([ERR_FENNEC_MSG, ERR_FENNEC_MSG]),
                          "isPinned logs error");
 
         // end test
         tab.close(function() {
           loader.unload();
-          done();
+          test.done();
         });
       }
     });
 };
 
 // TEST: pin/unpin opened tab
-exports.testPinUnpin_alt = function(assert, done) {
+exports.testPinUnpin_alt = function(test) {
+    test.waitUntilDone();
+
     let { loader, messages } = LoaderWithHookedConsole();
     let tabs = loader.require('sdk/tabs');
     let url = "data:text/html;charset=utf-8,default";
@@ -275,8 +319,8 @@ exports.testPinUnpin_alt = function(assert, done) {
       url: url,
       onOpen: function(tab) {
         tab.pin();
-        assert.equal(tab.isPinned, false, "The tab was pinned correctly");
-        assert.equal(JSON.stringify(messages),
+        test.assertEqual(tab.isPinned, false, "The tab was pinned correctly");
+        test.assertEqual(JSON.stringify(messages),
                          JSON.stringify([ERR_FENNEC_MSG, ERR_FENNEC_MSG]),
                          "tab.pin() logs error");
 
@@ -284,33 +328,35 @@ exports.testPinUnpin_alt = function(assert, done) {
         messages.length = 0;
 
         tab.unpin();
-        assert.equal(tab.isPinned, false, "The tab was unpinned correctly");
-        assert.equal(JSON.stringify(messages),
+        test.assertEqual(tab.isPinned, false, "The tab was unpinned correctly");
+        test.assertEqual(JSON.stringify(messages),
                          JSON.stringify([ERR_FENNEC_MSG, ERR_FENNEC_MSG]),
                          "tab.unpin() logs error");
 
         // end test
         tab.close(function() {
           loader.unload();
-          done();
+          test.done();
         });
       }
     });
 };
 
 // TEST: open tab in background
-exports.testInBackground = function(assert, done) {
+exports.testInBackground = function(test) {
+  test.waitUntilDone();
+
   let activeUrl = tabs.activeTab.url;
   let url = "data:text/html;charset=utf-8,background";
   let window = windows.browserWindows.activeWindow;
   tabs.once('ready', function onReady(tab) {
-    assert.equal(tabs.activeTab.url, activeUrl, "URL of active tab has not changed");
-    assert.equal(tab.url, url, "URL of the new background tab matches");
-    assert.equal(windows.browserWindows.activeWindow, window, "a new window was not opened");
-    assert.notEqual(tabs.activeTab.url, url, "URL of active tab is not the new URL");
+    test.assertEqual(tabs.activeTab.url, activeUrl, "URL of active tab has not changed");
+    test.assertEqual(tab.url, url, "URL of the new background tab matches");
+    test.assertEqual(windows.browserWindows.activeWindow, window, "a new window was not opened");
+    test.assertNotEqual(tabs.activeTab.url, url, "URL of active tab is not the new URL");
 
     // end test
-    tab.close(done);
+    tab.close(function() test.done());
   });
 
   tabs.open({
@@ -320,7 +366,9 @@ exports.testInBackground = function(assert, done) {
 };
 
 // TEST: open tab in new window
-exports.testOpenInNewWindow = function(assert, done) {
+exports.testOpenInNewWindow = function(test) {
+  test.waitUntilDone();
+
   let url = "data:text/html;charset=utf-8,newwindow";
   let window = windows.browserWindows.activeWindow;
 
@@ -328,18 +376,20 @@ exports.testOpenInNewWindow = function(assert, done) {
     url: url,
     inNewWindow: true,
     onReady: function(tab) {
-      assert.equal(windows.browserWindows.length, 1, "a new window was not opened");
-      assert.equal(windows.browserWindows.activeWindow, window, "old window is active");
-      assert.equal(tab.url, url, "URL of the new tab matches");
-      assert.equal(tabs.activeTab, tab, "tab is the activeTab");
+      test.assertEqual(windows.browserWindows.length, 1, "a new window was not opened");
+      test.assertEqual(windows.browserWindows.activeWindow, window, "old window is active");
+      test.assertEqual(tab.url, url, "URL of the new tab matches");
+      test.assertEqual(tabs.activeTab, tab, "tab is the activeTab");
 
-      tab.close(done);
+      tab.close(function() test.done());
     }
   });
 };
 
 // TEST: onOpen event handler
-exports.testTabsEvent_onOpen = function(assert, done) {
+exports.testTabsEvent_onOpen = function(test) {
+  test.waitUntilDone();
+
   let url = URL.replace('#title#', 'testTabsEvent_onOpen');
   let eventCount = 0;
 
@@ -351,19 +401,21 @@ exports.testTabsEvent_onOpen = function(assert, done) {
 
   // add listener via collection add
   tabs.on('open', function listener2(tab) {
-    assert.equal(++eventCount, 2, "both listeners notified");
+    test.assertEqual(++eventCount, 2, "both listeners notified");
     tabs.removeListener('open', listener1);
     tabs.removeListener('open', listener2);
 
     // ends test
-    tab.close(done);
+    tab.close(function() test.done());
   });
 
   tabs.open(url);
 };
 
 // TEST: onClose event handler
-exports.testTabsEvent_onClose = function(assert, done) {
+exports.testTabsEvent_onClose = function(test) {
+  test.waitUntilDone();
+
   let url = "data:text/html;charset=utf-8,onclose";
   let eventCount = 0;
 
@@ -375,12 +427,12 @@ exports.testTabsEvent_onClose = function(assert, done) {
 
   // add listener via collection add
   tabs.on('close', function listener2(tab) {
-    assert.equal(++eventCount, 2, "both listeners notified");
+    test.assertEqual(++eventCount, 2, "both listeners notified");
     tabs.removeListener('close', listener1);
     tabs.removeListener('close', listener2);
 
     // end test
-    done();
+    test.done();
   });
 
   tabs.on('ready', function onReady(tab) {
@@ -392,7 +444,9 @@ exports.testTabsEvent_onClose = function(assert, done) {
 };
 
 // TEST: onClose event handler when a window is closed
-exports.testTabsEvent_onCloseWindow = function(assert, done) {
+exports.testTabsEvent_onCloseWindow = function(test) {
+  test.waitUntilDone();
+
   let closeCount = 0, individualCloseCount = 0;
   function listener() {
     closeCount++;
@@ -406,12 +460,12 @@ exports.testTabsEvent_onCloseWindow = function(assert, done) {
       if (++openTabs == 3) {
         tabs.removeListener("close", listener);
 
-        assert.equal(closeCount, 3, "Correct number of close events received");
-        assert.equal(individualCloseCount, 3,
+        test.assertEqual(closeCount, 3, "Correct number of close events received");
+        test.assertEqual(individualCloseCount, 3,
                          "Each tab with an attached onClose listener received a close " +
                          "event when the window was closed");
 
-        done();
+        test.done();
       }
     });
   }
@@ -436,7 +490,9 @@ exports.testTabsEvent_onCloseWindow = function(assert, done) {
 };
 
 // TEST: onReady event handler
-exports.testTabsEvent_onReady = function(assert, done) {
+exports.testTabsEvent_onReady = function(test) {
+  test.waitUntilDone();
+
   let url = "data:text/html;charset=utf-8,onready";
   let eventCount = 0;
 
@@ -448,19 +504,21 @@ exports.testTabsEvent_onReady = function(assert, done) {
 
   // add listener via collection add
   tabs.on('ready', function listener2(tab) {
-    assert.equal(++eventCount, 2, "both listeners notified");
+    test.assertEqual(++eventCount, 2, "both listeners notified");
     tabs.removeListener('ready', listener1);
     tabs.removeListener('ready', listener2);
 
     // end test
-    tab.close(done);
+    tab.close(function() test.done());
   });
 
   tabs.open(url);
 };
 
 // TEST: onActivate event handler
-exports.testTabsEvent_onActivate = function(assert, done) {
+exports.testTabsEvent_onActivate = function(test) {
+  test.waitUntilDone();
+
     let url = "data:text/html;charset=utf-8,onactivate";
     let eventCount = 0;
 
@@ -472,20 +530,22 @@ exports.testTabsEvent_onActivate = function(assert, done) {
 
     // add listener via collection add
     tabs.on('activate', function listener2(tab) {
-      assert.equal(++eventCount, 2, "both listeners notified");
-      assert.equal(tab, tabs.activeTab, 'the active tab is correct');
+      test.assertEqual(++eventCount, 2, "both listeners notified");
+      test.assertEqual(tab, tabs.activeTab, 'the active tab is correct');
       tabs.removeListener('activate', listener1);
       tabs.removeListener('activate', listener2);
 
       // end test
-      tab.close(done);
+      tab.close(function() test.done());
     });
 
     tabs.open(url);
 };
 
 // TEST: onDeactivate event handler
-exports.testTabsEvent_onDeactivate = function(assert, done) {
+exports.testTabsEvent_onDeactivate = function(test) {
+  test.waitUntilDone();
+
   let url = "data:text/html;charset=utf-8,ondeactivate";
   let eventCount = 0;
 
@@ -497,13 +557,13 @@ exports.testTabsEvent_onDeactivate = function(assert, done) {
 
   // add listener via collection add
   tabs.on('deactivate', function listener2(tab) {
-    assert.equal(++eventCount, 2, 'both listeners notified');
-    assert.notEqual(tab, tabs.activeTab, 'the active tab is not the deactivated tab');
+    test.assertEqual(++eventCount, 2, 'both listeners notified');
+    test.assertNotEqual(tab, tabs.activeTab, 'the active tab is not the deactivated tab');
     tabs.removeListener('deactivate', listener1);
     tabs.removeListener('deactivate', listener2);
 
     // end test
-    tab.close(done);
+    tab.close(function() test.done());
   });
 
   tabs.on('activate', function onActivate(tab) {
@@ -516,7 +576,9 @@ exports.testTabsEvent_onDeactivate = function(assert, done) {
 };
 
 // TEST: per-tab event handlers
-exports.testPerTabEvents = function(assert, done) {
+exports.testPerTabEvents = function(test) {
+  test.waitUntilDone();
+
   let eventCount = 0;
 
   tabs.open({
@@ -530,18 +592,42 @@ exports.testPerTabEvents = function(assert, done) {
 
       // add listener via collection add
       tab.on('ready', function listener2() {
-        assert.equal(eventCount, 1, "both listeners notified");
+        test.assertEqual(eventCount, 1, "both listeners notified");
         tab.removeListener('ready', listener1);
         tab.removeListener('ready', listener2);
 
         // end test
-        tab.close(done);
+        tab.close(function() test.done());
       });
     }
   });
 };
 
-exports.testUniqueTabIds = function(assert, done) {
+// TEST: tabs.activeTab getter
+exports.testActiveTab_getter_alt = function(test) {
+  test.waitUntilDone();
+
+  let url = URL.replace("#title#", "foo");
+  tabs.open({
+    url: url,
+    onActivate: function(tab) {
+      test.assertEqual(tabs.activeTab.url, tab.url, 'the active tab is correct');
+
+      tab.once('ready', function() {
+        test.assertEqual(tab.url, url);
+        test.assertEqual(tab.title, "foo");
+
+        tab.close(function() {
+          // end test
+          test.done();
+        });
+      });
+    }
+  });
+};
+
+exports.testUniqueTabIds = function(test) {
+  test.waitUntilDone();
   var tabs = require('sdk/tabs');
   var tabIds = {};
   var steps = [
@@ -564,8 +650,8 @@ exports.testUniqueTabIds = function(assert, done) {
       });
     },
     function (index) {
-      assert.notEqual(tabIds.tab1, tabIds.tab2, "Tab ids should be unique.");
-      done();
+      test.assertNotEqual(tabIds.tab1, tabIds.tab2, "Tab ids should be unique.");
+      test.done();
     }
   ];
 
@@ -580,5 +666,3 @@ exports.testUniqueTabIds = function(assert, done) {
 
   next(0);
 }
-
-require('sdk/test').run(exports);

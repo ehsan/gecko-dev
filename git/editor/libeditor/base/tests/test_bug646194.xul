@@ -35,12 +35,11 @@ function runTest() {
 
   var i = document.getElementById("i");
   i.focus();
-  var win = i.contentWindow;
   var doc = i.contentDocument;
   var t = doc.getElementById("t");
   t.focus();
   // put the caret at the end
-  win.getSelection().collapse(t.firstChild, 11);
+  getSelection().collapse(t.firstChild, 11);
 
   // Simulate pression Option+Delete on Mac
   // We do things this way because not every platform can invoke this

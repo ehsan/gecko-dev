@@ -9,15 +9,13 @@
  */
 
 #include "nsCSSDataBlock.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/Declaration.h"
 #include "mozilla/css/ImageLoader.h"
 #include "nsRuleData.h"
 #include "nsStyleSet.h"
 #include "nsStyleContext.h"
-#include "nsIDocument.h"
 
-using namespace mozilla;
+namespace css = mozilla::css;
 
 /**
  * Does a fast move of aSource to aDest.  The previous value in
@@ -228,7 +226,7 @@ nsCSSCompressedDataBlock::CreateEmptyBlock()
 }
 
 size_t
-nsCSSCompressedDataBlock::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSCompressedDataBlock::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
     size_t n = aMallocSizeOf(this);
     for (uint32_t i = 0; i < mNumProps; i++) {

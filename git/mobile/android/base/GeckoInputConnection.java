@@ -6,8 +6,6 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.InputConnectionHandler;
-import org.mozilla.gecko.util.Clipboard;
-import org.mozilla.gecko.util.GamepadUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import android.R;
@@ -125,28 +123,6 @@ class GeckoInputConnection
             }
         }
 
-        public void runOnIcThread(final Handler uiHandler,
-                                  final GeckoEditableClient client,
-                                  final Runnable runnable) {
-            final Handler icHandler = client.getInputConnectionHandler();
-            if (icHandler.getLooper() == uiHandler.getLooper()) {
-                // IC thread is UI thread; safe to run directly
-                runnable.run();
-                return;
-            }
-            runOnIcThread(icHandler, runnable);
-        }
-
-        public void sendEventFromUiThread(final Handler uiHandler,
-                                          final GeckoEditableClient client,
-                                          final GeckoEvent event) {
-            runOnIcThread(uiHandler, client, new Runnable() {
-                @Override public void run() {
-                    client.sendEvent(event);
-                }
-            });
-        }
-
         public Editable getEditableForUiThread(final Handler uiHandler,
                                                final GeckoEditableClient client) {
             if (DEBUG) {
@@ -223,7 +199,7 @@ class GeckoInputConnection
     private boolean mBatchSelectionChanged;
     private boolean mBatchTextChanged;
     private long mLastRestartInputTime;
-    private final InputConnection mKeyInputConnection;
+    private final InputConnection mPluginInputConnection;
 
     public static GeckoEditableListener create(View targetView,
                                                GeckoEditableClient editable) {
@@ -238,8 +214,8 @@ class GeckoInputConnection
         super(targetView, true);
         mEditableClient = editable;
         mIMEState = IME_STATE_DISABLED;
-        // InputConnection that sends keys for plugins, which don't have full editors
-        mKeyInputConnection = new BaseInputConnection(targetView, false);
+        // InputConnection for plugins, which don't have full editors
+        mPluginInputConnection = new BaseInputConnection(targetView, false);
     }
 
     @Override
@@ -294,10 +270,10 @@ class GeckoInputConnection
                 // If selection is empty, we'll select everything
                 if (selStart == selEnd) {
                     // Fill the clipboard
-                    Clipboard.setText(editable);
+                    GeckoAppShell.setClipboardText(editable.toString());
                     editable.clear();
                 } else {
-                    Clipboard.setText(
+                    GeckoAppShell.setClipboardText(
                             editable.toString().substring(
                                 Math.min(selStart, selEnd),
                                 Math.max(selStart, selEnd)));
@@ -305,7 +281,7 @@ class GeckoInputConnection
                 }
                 break;
             case R.id.paste:
-                commitText(Clipboard.getText(), 1);
+                commitText(GeckoAppShell.getClipboardText(), 1);
                 break;
             case R.id.copy:
                 // Copy the current selection or the empty string if nothing is selected.
@@ -313,7 +289,7 @@ class GeckoInputConnection
                                     editable.toString().substring(
                                         Math.min(selStart, selEnd),
                                         Math.max(selStart, selEnd));
-                Clipboard.setText(copiedText);
+                GeckoAppShell.setClipboardText(copiedText);
                 break;
         }
         return true;
@@ -350,7 +326,7 @@ class GeckoInputConnection
     }
 
     private static View getView() {
-        return GeckoAppShell.getLayerView();
+        return GeckoApp.mAppContext.getLayerView();
     }
 
     private static InputMethodManager getInputMethodManager() {
@@ -420,6 +396,9 @@ class GeckoInputConnection
         }
         mBatchSelectionChanged = false;
         mBatchTextChanged = false;
+        mUpdateRequest = null;
+
+        mCurrentInputMethod = "";
 
         // Do not reset mIMEState here; see comments in notifyIMEContext
     }
@@ -428,13 +407,6 @@ class GeckoInputConnection
     public void onTextChange(String text, int start, int oldEnd, int newEnd) {
 
         if (mUpdateRequest == null) {
-            // Android always expects selection updates when not in extracted mode;
-            // in extracted mode, the selection is reported through updateExtractedText
-            final Editable editable = getEditable();
-            if (editable != null) {
-                onSelectionChange(Selection.getSelectionStart(editable),
-                                  Selection.getSelectionEnd(editable));
-            }
             return;
         }
 
@@ -636,8 +608,8 @@ class GeckoInputConnection
             outAttrs.actionLabel = mIMEActionHint;
         }
 
-        Context context = GeckoAppShell.getContext();
-        DisplayMetrics metrics = context.getResources().getDisplayMetrics();
+        GeckoApp app = GeckoApp.mAppContext;
+        DisplayMetrics metrics = app.getResources().getDisplayMetrics();
         if (Math.min(metrics.widthPixels, metrics.heightPixels) > INLINE_IME_MIN_DISPLAY_SIZE) {
             // prevent showing full-screen keyboard only when the screen is tall enough
             // to show some reasonable amount of the page (see bug 752709)
@@ -652,14 +624,14 @@ class GeckoInputConnection
         }
 
         String prevInputMethod = mCurrentInputMethod;
-        mCurrentInputMethod = InputMethods.getCurrentInputMethod(context);
+        mCurrentInputMethod = InputMethods.getCurrentInputMethod(app);
         if (DEBUG) {
             Log.d(LOGTAG, "IME: CurrentInputMethod=" + mCurrentInputMethod);
         }
 
         // If the user has changed IMEs, then notify input method observers.
-        if (!mCurrentInputMethod.equals(prevInputMethod) && GeckoAppShell.getGeckoInterface() != null) {
-            FormAssistPopup popup = GeckoAppShell.getGeckoInterface().getFormAssistPopup();
+        if (!mCurrentInputMethod.equals(prevInputMethod)) {
+            FormAssistPopup popup = app.mFormAssistPopup;
             if (popup != null) {
                 popup.onInputMethodChanged(mCurrentInputMethod);
             }
@@ -669,57 +641,12 @@ class GeckoInputConnection
             // Since we are using a temporary string as the editable, the selection is at 0
             outAttrs.initialSelStart = 0;
             outAttrs.initialSelEnd = 0;
-            return mKeyInputConnection;
+            return mPluginInputConnection;
         }
         Editable editable = getEditable();
         outAttrs.initialSelStart = Selection.getSelectionStart(editable);
         outAttrs.initialSelEnd = Selection.getSelectionEnd(editable);
         return this;
-    }
-
-    private boolean replaceComposingSpanWithSelection() {
-        final Editable content = getEditable();
-        if (content == null) {
-            return false;
-        }
-        int a = getComposingSpanStart(content),
-            b = getComposingSpanEnd(content);
-        if (a != -1 && b != -1) {
-            if (DEBUG) {
-                Log.d(LOGTAG, "removing composition at " + a + "-" + b);
-            }
-            removeComposingSpans(content);
-            Selection.setSelection(content, a, b);
-        }
-        return true;
-    }
-
-    @Override
-    public boolean commitText(CharSequence text, int newCursorPosition) {
-        if (InputMethods.shouldCommitCharAsKey(mCurrentInputMethod) &&
-            text.length() == 1 && newCursorPosition > 0) {
-            if (DEBUG) {
-                Log.d(LOGTAG, "committing \"" + text + "\" as key");
-            }
-            // mKeyInputConnection is a BaseInputConnection that commits text as keys;
-            // but we first need to replace any composing span with a selection,
-            // so that the new key events will generate characters to replace
-            // text from the old composing span
-            return replaceComposingSpanWithSelection() &&
-                mKeyInputConnection.commitText(text, newCursorPosition);
-        }
-        return super.commitText(text, newCursorPosition);
-    }
-
-    @Override
-    public boolean setSelection(int start, int end) {
-        if (start < 0 || end < 0) {
-            // Some keyboards (e.g. Samsung) can call setSelection with
-            // negative offsets. In that case we ignore the call, similar to how
-            // BaseInputConnection.setSelection ignores offsets that go past the length.
-            return true;
-        }
-        return super.setSelection(start, end);
     }
 
     @Override
@@ -797,11 +724,6 @@ class GeckoInputConnection
     }
 
     private boolean processKey(int keyCode, KeyEvent event, boolean down) {
-        if (GamepadUtils.isSonyXperiaGamepadKeyEvent(event)) {
-            event = GamepadUtils.translateSonyXperiaGamepadKeys(keyCode, event);
-            keyCode = event.getKeyCode();
-        }
-
         if (keyCode > KeyEvent.getMaxKeyCode() ||
             !shouldProcessKey(keyCode, event)) {
             return false;
@@ -811,8 +733,7 @@ class GeckoInputConnection
 
         View view = getView();
         if (view == null) {
-            InputThreadUtils.sInstance.sendEventFromUiThread(ThreadUtils.getUiHandler(),
-                mEditableClient, GeckoEvent.createKeyEvent(event, 0));
+            mEditableClient.sendEvent(GeckoEvent.createKeyEvent(event, 0));
             return true;
         }
 
@@ -829,7 +750,7 @@ class GeckoInputConnection
         if (skip ||
             (down && !keyListener.onKeyDown(view, uiEditable, keyCode, event)) ||
             (!down && !keyListener.onKeyUp(view, uiEditable, keyCode, event))) {
-            InputThreadUtils.sInstance.sendEventFromUiThread(uiHandler, mEditableClient,
+            mEditableClient.sendEvent(
                 GeckoEvent.createKeyEvent(event, TextKeyListener.getMetaState(uiEditable)));
             if (skip && down) {
                 // Usually, the down key listener call above adjusts meta states for us.
@@ -855,22 +776,10 @@ class GeckoInputConnection
     }
 
     @Override
-    public boolean onKeyMultiple(int keyCode, int repeatCount, final KeyEvent event) {
+    public boolean onKeyMultiple(int keyCode, int repeatCount, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_UNKNOWN) {
             // KEYCODE_UNKNOWN means the characters are in KeyEvent.getCharacters()
-            View view = getView();
-            if (view != null) {
-                InputThreadUtils.sInstance.runOnIcThread(
-                    view.getRootView().getHandler(), mEditableClient,
-                    new Runnable() {
-                        @Override public void run() {
-                            // Don't call GeckoInputConnection.commitText because it can
-                            // post a key event back to onKeyMultiple, causing a loop
-                            GeckoInputConnection.super.commitText(event.getCharacters(), 1);
-                        }
-                    });
-            }
-            return true;
+            return commitText(event.getCharacters(), 1);
         }
         while ((repeatCount--) != 0) {
             if (!processKey(keyCode, event, true) ||
@@ -923,10 +832,6 @@ class GeckoInputConnection
                 resetInputConnection();
                 break;
 
-            case NOTIFY_IME_OPEN_VKB:
-                showSoftInput();
-                break;
-
             default:
                 if (DEBUG) {
                     throw new IllegalArgumentException("Unexpected NOTIFY_IME=" + type);
@@ -947,7 +852,8 @@ class GeckoInputConnection
                                               typeHint.equalsIgnoreCase("month") ||
                                               typeHint.equalsIgnoreCase("week") ||
                                               typeHint.equalsIgnoreCase("datetime-local"))))) {
-            state = IME_STATE_DISABLED;
+            mIMEState = IME_STATE_DISABLED;
+            return;
         }
 
         // mIMEState and the mIME*Hint fields should only be changed by notifyIMEContext,
@@ -963,10 +869,6 @@ class GeckoInputConnection
         mIMETypeHint = (typeHint == null) ? "" : typeHint;
         mIMEModeHint = (modeHint == null) ? "" : modeHint;
         mIMEActionHint = (actionHint == null) ? "" : actionHint;
-
-        // These fields are reset here and will be updated when restartInput is called below
-        mUpdateRequest = null;
-        mCurrentInputMethod = "";
 
         View v = getView();
         if (v == null || !v.hasFocus()) {

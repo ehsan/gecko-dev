@@ -21,8 +21,15 @@ HTMLPreElement::~HTMLPreElement()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLPreElement, nsGenericHTMLElement,
-                             nsIDOMHTMLPreElement)
+NS_IMPL_ADDREF_INHERITED(HTMLPreElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLPreElement, Element)
+
+// QueryInterface implementation for HTMLPreElement
+NS_INTERFACE_TABLE_HEAD(HTMLPreElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLPreElement, nsIDOMHTMLPreElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLPreElement,
+                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLPreElement)
 
@@ -115,7 +122,7 @@ HTMLPreElement::GetAttributeMappingFunction() const
 }
 
 JSObject*
-HTMLPreElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
+HTMLPreElement::WrapNode(JSContext *aCx, JSObject *aScope)
 {
   return HTMLPreElementBinding::Wrap(aCx, aScope, this);
 }

@@ -11,7 +11,6 @@
 #include "mozilla/Services.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
-#include "nsMemoryPressure.h"
 #include "nsThreadUtils.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -21,13 +20,28 @@
 #define LOG(args...)  \
   __android_log_print(ANDROID_LOG_INFO, "GonkMemoryPressure" , ## args)
 
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
-
 using namespace mozilla;
 
 namespace {
+
+class MemoryPressureRunnable : public nsRunnable
+{
+public:
+  NS_IMETHOD Run()
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+    LOG("Dispatching low-memory memory-pressure event");
+
+    nsCOMPtr<nsIObserverService> os = services::GetObserverService();
+    if (os) {
+      // We use low-memory-no-forward because each process has its own watcher
+      // and thus there is no need for the main process to forward this event.
+      os->NotifyObservers(nullptr, "memory-pressure",
+                          NS_LITERAL_STRING("low-memory-no-forward").get());
+    }
+    return NS_OK;
+  }
+};
 
 /**
  * MemoryPressureWatcher watches sysfs from its own thread to notice when the
@@ -69,7 +83,7 @@ public:
   {
   }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   nsresult Init()
   {
@@ -117,14 +131,6 @@ public:
   {
     MOZ_ASSERT(!NS_IsMainThread());
 
-#ifdef MOZ_NUWA_PROCESS
-    if (IsNuwaProcess()) {
-      NS_ASSERTION(NuwaMarkCurrentThread != nullptr,
-                   "NuwaMarkCurrentThread is undefined!");
-      NuwaMarkCurrentThread(nullptr, nullptr);
-    }
-#endif
-
     int lowMemFd = open("/sys/kernel/mm/lowmemkiller/notify_trigger_active",
                         O_RDONLY | O_CLOEXEC);
     NS_ENSURE_STATE(lowMemFd != -1);
@@ -166,17 +172,13 @@ public:
       // sometimes completes after the memory-pressure event is over, so let's
       // just believe the result of poll().
 
-      // We use low-memory-no-forward because each process has its own watcher
-      // and thus there is no need for the main process to forward this event.
-      rv = NS_DispatchMemoryPressure(MemPressure_New);
-      NS_ENSURE_SUCCESS(rv, rv);
+      nsRefPtr<MemoryPressureRunnable> memoryPressureRunnable =
+        new MemoryPressureRunnable();
+      NS_DispatchToMainThread(memoryPressureRunnable);
 
       // Manually check lowMemFd until we observe that memory pressure is over.
-      // We won't fire any more low-memory events until we observe that
-      // we're no longer under pressure. Instead, we fire low-memory-ongoing
-      // events, which cause processes to keep flushing caches but will not
-      // trigger expensive GCs and other attempts to save memory that are
-      // likely futile at this point.
+      // We won't fire any more memory-pressure events until we observe that
+      // we're no longer under pressure.
       bool memoryPressure;
       do {
         {
@@ -199,13 +201,7 @@ public:
         LOG("Checking to see if memory pressure is over.");
         rv = CheckForMemoryPressure(lowMemFd, &memoryPressure);
         NS_ENSURE_SUCCESS(rv, rv);
-
-        if (memoryPressure) {
-          rv = NS_DispatchMemoryPressure(MemPressure_Ongoing);
-          NS_ENSURE_SUCCESS(rv, rv);
-          continue;
-        }
-      } while (false);
+      } while (memoryPressure);
 
       LOG("Memory pressure is over.");
     }
@@ -252,7 +248,7 @@ private:
   ScopedClose mShutdownPipeWrite;
 };
 
-NS_IMPL_ISUPPORTS2(MemoryPressureWatcher, nsIRunnable, nsIObserver);
+NS_IMPL_THREADSAFE_ISUPPORTS2(MemoryPressureWatcher, nsIRunnable, nsIObserver);
 
 } // anonymous namespace
 

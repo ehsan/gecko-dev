@@ -13,21 +13,16 @@ include protocol PWyciwygChannel;
 include protocol PFTPChannel;
 include protocol PWebSocket;
 include protocol PTCPSocket;
-include protocol PTCPServerSocket;
-include protocol PUDPSocket;
 include protocol PRemoteOpenFile;
-include protocol PBlob; //FIXME: bug #792908
-
-include protocol PRtspController;
 include URIParams;
-include InputStreamParams;
-include NeckoChannelParams;
 
+include "SerializedLoadContext.h";
 
-using class IPC::SerializedLoadContext from "SerializedLoadContext.h";
+using IPC::SerializedLoadContext;
 
 namespace mozilla {
 namespace net {
+
 
 //-------------------------------------------------------------------
 sync protocol PNecko
@@ -39,34 +34,26 @@ sync protocol PNecko
   manages PFTPChannel;
   manages PWebSocket;
   manages PTCPSocket;
-  manages PTCPServerSocket;
-  manages PUDPSocket;
   manages PRemoteOpenFile;
-  manages PRtspController;
 
 parent:
   __delete__();
 
   PCookieService();
   PHttpChannel(nullable PBrowser browser,
-               SerializedLoadContext loadContext,
-               HttpChannelCreationArgs args);
+               SerializedLoadContext loadContext);
   PWyciwygChannel();
-  PFTPChannel(PBrowser browser, SerializedLoadContext loadContext,
-              FTPChannelCreationArgs args);
-
+  PFTPChannel(PBrowser browser, SerializedLoadContext loadContext);
   PWebSocket(PBrowser browser, SerializedLoadContext loadContext);
-  PTCPServerSocket(uint16_t localPort, uint16_t backlog, nsString binaryType);
-  PUDPSocket(nsCString host, uint16_t port);
+  PTCPSocket(nsString host, uint16_t port, bool useSSL, nsString binaryType,
+             nullable PBrowser browser);
 
-  PRemoteOpenFile(URIParams fileuri, OptionalURIParams appuri);
+  // Request that the parent open a file.
+  PRemoteOpenFile(URIParams fileuri, nullable PBrowser browser);
 
   HTMLDNSPrefetch(nsString hostname, uint16_t flags);
   CancelHTMLDNSPrefetch(nsString hostname, uint16_t flags, nsresult reason);
-  PRtspController();
 
-both:
-  PTCPSocket();
 };
 
 

@@ -11,7 +11,11 @@ import re
 import histogram_tools
 import json
 
-from collections import OrderedDict
+# For compatibility with python 2.6
+try:
+    from collections import OrderedDict
+except ImportError:
+    from simplejson import OrderedDict
 
 # Keep this in sync with TelemetryPing.
 startup_histogram_re = re.compile("SQLITE|HTTP|SPDY|CACHE|DNS")

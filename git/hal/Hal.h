@@ -10,16 +10,15 @@
 #include "mozilla/hal_sandbox/PHal.h"
 #include "mozilla/HalTypes.h"
 #include "base/basictypes.h"
-#include "mozilla/Observer.h"
 #include "mozilla/Types.h"
 #include "nsTArray.h"
 #include "prlog.h"
 #include "mozilla/dom/battery/Types.h"
 #include "mozilla/dom/network/Types.h"
 #include "mozilla/dom/power/Types.h"
+#include "mozilla/dom/ContentParent.h"
 #include "mozilla/hal_sandbox/PHal.h"
 #include "mozilla/dom/ScreenOrientation.h"
-#include "mozilla/HalScreenConfiguration.h"
 
 /*
  * Hal.h contains the public Hal API.
@@ -40,9 +39,13 @@ class nsIDOMWindow;
 
 namespace mozilla {
 
+template <class T>
+class Observer;
+
 namespace hal {
 
 typedef Observer<void_t> AlarmObserver;
+typedef Observer<ScreenConfiguration> ScreenConfigurationObserver;
 
 class WindowIdentifier;
 
@@ -246,7 +249,7 @@ void AdjustSystemClock(int64_t aDeltaMilliseconds);
 
 /**
  * Set timezone
- * @param aTimezoneSpec The definition can be found in
+ * @param aTimezoneSpec The definition can be found in 
  * http://en.wikipedia.org/wiki/List_of_tz_database_time_zones
  */
 void SetTimezone(const nsCString& aTimezoneSpec);
@@ -256,12 +259,6 @@ void SetTimezone(const nsCString& aTimezoneSpec);
  * http://en.wikipedia.org/wiki/List_of_tz_database_time_zones
  */
 nsCString GetTimezone();
-
-/**
- * Get timezone offset
- * returns the timezone offset relative to UTC in minutes (DST effect included)
- */
-int32_t GetTimezoneOffset();
 
 /**
  * Register observer for system clock changed notification.
@@ -306,14 +303,14 @@ void NotifySystemTimezoneChange(
 
 /**
  * Reboot the device.
- *
+ * 
  * This API is currently only allowed to be used from the main process.
  */
 void Reboot();
 
 /**
  * Power off the device.
- *
+ * 
  * This API is currently only allowed to be used from the main process.
  */
 void PowerOff();
@@ -426,7 +423,7 @@ void RegisterSwitchObserver(hal::SwitchDevice aDevice, hal::SwitchObserver *aSwi
 void UnregisterSwitchObserver(hal::SwitchDevice aDevice, hal::SwitchObserver *aSwitchObserver);
 
 /**
- * Notify the state of the switch.
+ * Notify the state of the switch. 
  *
  * This API is internal to hal; clients shouldn't call it directly.
  */
@@ -473,22 +470,13 @@ void NotifyAlarmFired();
 bool SetAlarm(int32_t aSeconds, int32_t aNanoseconds);
 
 /**
- * Set the priority of the given process.  A process's priority is a two-tuple
- * consisting of a hal::ProcessPriority value and a hal::ProcessCPUPriority
- * value.
- *
- * Two processes with the same ProcessCPUPriority value don't necessarily have
- * the same CPU priority; the CPU priority we assign to a process is a function
- * of its ProcessPriority and ProcessCPUPriority.
+ * Set the priority of the given process.
  *
  * Exactly what this does will vary between platforms.  On *nix we might give
  * background processes higher nice values.  On other platforms, we might
  * ignore this call entirely.
  */
-void SetProcessPriority(int aPid,
-                        hal::ProcessPriority aPriority,
-                        hal::ProcessCPUPriority aCPUPriority,
-                        uint32_t aLRU = 0);
+void SetProcessPriority(int aPid, hal::ProcessPriority aPriority);
 
 /**
  * Register an observer for the FM radio.
@@ -561,7 +549,7 @@ hal::FMRadioSettings GetFMBandSettings(hal::FMRadioCountry aCountry);
  * Start a watchdog to compulsively shutdown the system if it hangs.
  * @param aMode Specify how to shutdown the system.
  * @param aTimeoutSecs Specify the delayed seconds to shutdown the system.
- *
+ * 
  * This API is currently only allowed to be used from the main process.
  */
 void StartForceQuitWatchdog(hal::ShutdownMode aMode, int32_t aTimeoutSecs);
@@ -580,27 +568,6 @@ void StartMonitoringGamepadStatus();
  * Stop monitoring the status of gamepads attached to the system.
  */
 void StopMonitoringGamepadStatus();
-
-/**
- * Start monitoring disk space for low space situations.
- *
- * This API is currently only allowed to be used from the main process.
- */
-void StartDiskSpaceWatcher();
-
-/**
- * Stop monitoring disk space for low space situations.
- *
- * This API is currently only allowed to be used from the main process.
- */
-void StopDiskSpaceWatcher();
-
-/**
- * Get total system memory of device being run on in bytes.
- *
- * Returns 0 if we are unable to determine this information from /proc/meminfo.
- */
-uint32_t GetTotalSystemMemory();
 
 } // namespace MOZ_HAL_NAMESPACE
 } // namespace mozilla

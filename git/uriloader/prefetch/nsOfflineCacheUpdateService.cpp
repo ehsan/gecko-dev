@@ -46,7 +46,6 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Attributes.h"
-#include "nsIDiskSpaceWatcher.h"
 
 using namespace mozilla;
 
@@ -132,7 +131,6 @@ public:
         : mService(aService)
         , mManifestURI(aManifestURI)
         , mDocumentURI(aDocumentURI)
-        , mDidReleaseThis(false)
         {
             mDocument = do_GetWeakReference(aDocument);
         }
@@ -142,7 +140,6 @@ private:
     nsCOMPtr<nsIURI> mManifestURI;
     nsCOMPtr<nsIURI> mDocumentURI;
     nsCOMPtr<nsIWeakReference> mDocument;
-    bool mDidReleaseThis;
 };
 
 NS_IMPL_ISUPPORTS2(nsOfflineCachePendingUpdate,
@@ -171,16 +168,11 @@ nsOfflineCachePendingUpdate::OnStateChange(nsIWebProgress* aWebProgress,
                                            uint32_t progressStateFlags,
                                            nsresult aStatus)
 {
-    if (mDidReleaseThis) {
-        return NS_OK;
-    }
     nsCOMPtr<nsIDOMDocument> updateDoc = do_QueryReferent(mDocument);
     if (!updateDoc) {
         // The document that scheduled this update has gone away,
         // we don't need to listen anymore.
         aWebProgress->RemoveProgressListener(this);
-        MOZ_ASSERT(!mDidReleaseThis);
-        mDidReleaseThis = true;
         NS_RELEASE_THIS();
         return NS_OK;
     }
@@ -216,14 +208,9 @@ nsOfflineCachePendingUpdate::OnStateChange(nsIWebProgress* aWebProgress,
         mService->Schedule(mManifestURI, mDocumentURI,
                            updateDoc, window, nullptr,
                            appId, isInBrowserElement, getter_AddRefs(update));
-        if (mDidReleaseThis) {
-            return NS_OK;
-        }
     }
 
     aWebProgress->RemoveProgressListener(this);
-    MOZ_ASSERT(!mDidReleaseThis);
-    mDidReleaseThis = true;
     NS_RELEASE_THIS();
 
     return NS_OK;
@@ -274,7 +261,6 @@ NS_IMPL_ISUPPORTS3(nsOfflineCacheUpdateService,
 nsOfflineCacheUpdateService::nsOfflineCacheUpdateService()
     : mDisabled(false)
     , mUpdateRunning(false)
-    , mLowFreeSpace(false)
 {
 }
 
@@ -300,19 +286,6 @@ nsOfflineCacheUpdateService::Init()
     nsresult rv = observerService->AddObserver(this,
                                                NS_XPCOM_SHUTDOWN_OBSERVER_ID,
                                                true);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // Get the current status of the disk in terms of free space and observe
-    // low device storage notifications.
-    nsCOMPtr<nsIDiskSpaceWatcher> diskSpaceWatcherService =
-      do_GetService("@mozilla.org/toolkit/disk-space-watcher;1");
-    if (diskSpaceWatcherService) {
-      diskSpaceWatcherService->GetIsDiskFull(&mLowFreeSpace);
-    } else {
-      NS_WARNING("Could not get disk status from nsIDiskSpaceWatcher");
-    }
-
-    rv = observerService->AddObserver(this, "disk-space-watcher", false);
     NS_ENSURE_SUCCESS(rv, rv);
 
     gOfflineCacheUpdateService = this;
@@ -435,11 +408,6 @@ nsOfflineCacheUpdateService::ProcessNextUpdate()
 
     if (mUpdates.Length() > 0) {
         mUpdateRunning = true;
-        // Canceling the update before Begin() call will make the update
-        // asynchronously finish with an error.
-        if (mLowFreeSpace) {
-            mUpdates[0]->Cancel();
-        }
         return mUpdates[0]->Begin();
     }
 
@@ -534,14 +502,6 @@ nsOfflineCacheUpdateService::Schedule(nsIURI *aManifestURI,
 
     nsresult rv;
 
-    if (aWindow) {
-      // Ensure there is window.applicationCache object that is
-      // responsible for association of the new applicationCache
-      // with the corresponding document.  Just ignore the result.
-      nsCOMPtr<nsIDOMOfflineResourceList> appCacheWindowObject;
-      aWindow->GetApplicationCache(getter_AddRefs(appCacheWindowObject));
-    }
-
     rv = update->Init(aManifestURI, aDocumentURI, aDocument,
                       aCustomProfileDir, aAppID, aInBrowser);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -631,17 +591,6 @@ nsOfflineCacheUpdateService::Observe(nsISupports     *aSubject,
         mDisabled = true;
     }
 
-    if (!strcmp(aTopic, "disk-space-watcher")) {
-        if (NS_LITERAL_STRING("full").Equals(aData)) {
-            mLowFreeSpace = true;
-            for (uint32_t i = 0; i < mUpdates.Length(); i++) {
-                mUpdates[i]->Cancel();
-            }
-        } else if (NS_LITERAL_STRING("free").Equals(aData)) {
-            mLowFreeSpace = false;
-        }
-    }
-
     return NS_OK;
 }
 
@@ -698,13 +647,21 @@ OfflineAppPermForURI(nsIURI *aURI,
     const char *permName = pinned ? "pin-app" : "offline-app";
     permissionManager->TestExactPermission(innerURI, permName, &perm);
 
+    if (perm == nsIPermissionManager::UNKNOWN_ACTION && !pinned) {
+        static const char kPrefName[] = "offline-apps.allow_by_default";
+        if (aPrefBranch) {
+            aPrefBranch->GetBoolPref(kPrefName, aAllowed);
+        } else {
+            *aAllowed = Preferences::GetBool(kPrefName, false);
+        }
+
+        return NS_OK;
+    }
+
     if (perm == nsIPermissionManager::ALLOW_ACTION ||
         perm == nsIOfflineCacheUpdateService::ALLOW_NO_WARN) {
         *aAllowed = true;
     }
-
-    // offline-apps.allow_by_default is now effective at the cache selection
-    // algorithm code (nsContentSink).
 
     return NS_OK;
 }

@@ -45,9 +45,6 @@ MapFrameRectToFilterSpace(const nsRect* aRect,
 {
   nsIntRect rect(0, 0, aFilterRes.width, aFilterRes.height);
   if (aRect) {
-    if (aRect->IsEmpty()) {
-      return nsIntRect();
-    }
     gfxRect rectInCSSPx =
       nsLayoutUtils::RectToGfxRect(*aRect, aAppUnitsPerCSSPx);
     gfxRect rectInFilterSpace =
@@ -124,8 +121,7 @@ public:
                        const nsRect *aPostFilterDirtyRect,
                        const nsRect *aPreFilterDirtyRect,
                        const nsRect *aOverridePreFilterVisualOverflowRect,
-                       const gfxRect *aOverrideBBox = nullptr,
-                       nsIFrame* aTransformRoot = nullptr);
+                       const gfxRect *aOverrideBBox = nullptr);
   ~nsAutoFilterInstance() {}
 
   // If this returns null, then draw nothing. Either the filter draws
@@ -142,8 +138,7 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
                                            const nsRect *aPostFilterDirtyRect,
                                            const nsRect *aPreFilterDirtyRect,
                                            const nsRect *aPreFilterVisualOverflowRectOverride,
-                                           const gfxRect *aOverrideBBox,
-                                           nsIFrame* aTransformRoot)
+                                           const gfxRect *aOverrideBBox)
 {
   const SVGFilterElement *filter = aFilterFrame->GetFilterContent();
 
@@ -221,16 +216,16 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
       // nothing to draw
       return;
     }
+    float scale = nsSVGUtils::MaxExpansion(canvasTM);
 
-    gfxSize scale = canvasTM.ScaleFactors(true);
-    filterRegion.Scale(scale.width, scale.height);
+    filterRegion.Scale(scale);
     filterRegion.RoundOut();
     // We don't care if this overflows, because we can handle upscaling/
     // downscaling to filterRes
     bool overflow;
     filterRes = nsSVGUtils::ConvertToSurfaceSize(filterRegion.Size(),
                                                  &overflow);
-    filterRegion.Scale(1.0 / scale.width, 1.0 / scale.height);
+    filterRegion.Scale(1.0 / scale);
   }
 
   // Get various transforms:
@@ -281,8 +276,7 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
                             nsIntSize(filterRes.width, filterRes.height),
                             filterToDeviceSpace, filterToFrameSpaceInCSSPx,
                             preFilterVisualOverflowRect, postFilterDirtyRect,
-                            preFilterDirtyRect, primitiveUnits,
-                            aTransformRoot);
+                            preFilterDirtyRect, primitiveUnits);
 }
 
 uint16_t
@@ -442,12 +436,10 @@ nsresult
 nsSVGFilterFrame::PaintFilteredFrame(nsRenderingContext *aContext,
                                      nsIFrame *aFilteredFrame,
                                      nsSVGFilterPaintCallback *aPaintCallback,
-                                     const nsRect *aDirtyArea,
-                                     nsIFrame* aTransformRoot)
+                                     const nsRect *aDirtyArea)
 {
   nsAutoFilterInstance instance(aFilteredFrame, this, aPaintCallback,
-                                aDirtyArea, nullptr, nullptr, nullptr,
-                                aTransformRoot);
+                                aDirtyArea, nullptr, nullptr);
   if (!instance.get()) {
     return NS_OK;
   }
@@ -464,9 +456,6 @@ static nsRect
 TransformFilterSpaceToFrameSpace(nsSVGFilterInstance *aInstance,
                                  nsIntRect *aRect)
 {
-  if (aRect->IsEmpty()) {
-    return nsRect();
-  }
   gfxMatrix m = aInstance->GetFilterSpaceToFrameSpaceInCSSPxTransform();
   gfxRect r(aRect->x, aRect->y, aRect->width, aRect->height);
   r = m.TransformBounds(r);
@@ -477,10 +466,6 @@ nsRect
 nsSVGFilterFrame::GetPostFilterDirtyArea(nsIFrame *aFilteredFrame,
                                          const nsRect& aPreFilterDirtyRect)
 {
-  if (aPreFilterDirtyRect.IsEmpty()) {
-    return nsRect();
-  }
-
   nsAutoFilterInstance instance(aFilteredFrame, this, nullptr, nullptr,
                                 &aPreFilterDirtyRect, nullptr);
   if (!instance.get()) {
@@ -522,7 +507,7 @@ nsSVGFilterFrame::GetPostFilterBounds(nsIFrame *aFilteredFrame,
                                       const nsRect *aPreFilterBounds)
 {
   MOZ_ASSERT(!(aFilteredFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT) ||
-             !(aFilteredFrame->GetStateBits() & NS_FRAME_IS_NONDISPLAY),
+             !(aFilteredFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
              "Non-display SVG do not maintain visual overflow rects");
 
   nsAutoFilterInstance instance(aFilteredFrame, this, nullptr, nullptr,

@@ -12,7 +12,6 @@
 #include "nsSurfaceTexture.h"
 #include "gfxImageSurface.h"
 #include "AndroidBridge.h"
-#include "nsThreadUtils.h"
 
 using namespace mozilla;
 
@@ -53,11 +52,11 @@ public:
   jobject CreateSurfaceTexture(GLuint aTexture)
   {
     if (!EnsureInitialized())
-      return nullptr;
+      return NULL;
 
     JNIEnv* env = GetJNIForThread();
     if (!env)
-      return nullptr;
+      return NULL;
 
     AutoLocalJNIFrame jniFrame(env);
 
@@ -94,7 +93,7 @@ public:
     jfloatArray jarray = env->NewFloatArray(16);
     env->CallVoidMethod(aSurfaceTexture, jSurfaceTexture_getTransformMatrix, jarray);
 
-    jfloat* array = env->GetFloatArrayElements(jarray, nullptr);
+    jfloat* array = env->GetFloatArrayElements(jarray, NULL);
 
     aMatrix._11 = array[0];
     aMatrix._12 = array[1];
@@ -137,13 +136,13 @@ nsSurfaceTexture::Create(GLuint aTexture)
   // Right now we only support creating this on the main thread because
   // of the JNIEnv assumptions in JNIHelper and elsewhere
   if (!NS_IsMainThread())
-    return nullptr;
+    return NULL;
 
   nsSurfaceTexture* st = new nsSurfaceTexture();
   if (!st->Init(aTexture)) {
     LOG("Failed to initialize nsSurfaceTexture");
     delete st;
-    st = nullptr;
+    st = NULL;
   }
 
   return st;
@@ -156,7 +155,7 @@ nsSurfaceTexture::Find(int id)
 
   it = sInstances.find(id);
   if (it == sInstances.end())
-    return nullptr;
+    return NULL;
 
   return it->second;
 }
@@ -190,7 +189,7 @@ nsSurfaceTexture::Init(GLuint aTexture)
 }
 
 nsSurfaceTexture::nsSurfaceTexture()
-  : mSurfaceTexture(nullptr), mNativeWindow(nullptr)
+  : mSurfaceTexture(NULL), mNativeWindow(NULL)
 {
 }
 
@@ -198,11 +197,11 @@ nsSurfaceTexture::~nsSurfaceTexture()
 {
   sInstances.erase(mID);
 
-  mFrameAvailableCallback = nullptr;
+  mFrameAvailableCallback = NULL;
 
   if (mNativeWindow) {
     AndroidBridge::Bridge()->ReleaseNativeWindowForSurfaceTexture(mSurfaceTexture);
-    mNativeWindow = nullptr;
+    mNativeWindow = NULL;
   }
 
   JNIEnv* env = GetJNIForThread();
@@ -213,7 +212,7 @@ nsSurfaceTexture::~nsSurfaceTexture()
     AndroidBridge::Bridge()->UnregisterSurfaceTextureFrameListener(mSurfaceTexture);
 
     env->DeleteGlobalRef(mSurfaceTexture);
-    mSurfaceTexture = nullptr;
+    mSurfaceTexture = NULL;
   }
 }
 

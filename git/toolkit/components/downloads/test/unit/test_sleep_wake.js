@@ -18,9 +18,7 @@ const nsIDM = Ci.nsIDownloadManager;
 const nsIWBP = Ci.nsIWebBrowserPersist;
 const nsIWPL = Ci.nsIWebProgressListener;
 const dm = Cc["@mozilla.org/download-manager;1"].getService(nsIDM);
-if (!oldDownloadManagerDisabled()) {
-  dm.cleanUp();
-}
+dm.cleanUp();
 
 function notify(aTopic)
 {
@@ -31,10 +29,6 @@ function notify(aTopic)
 
 function run_test()
 {
-  if (oldDownloadManagerDisabled()) {
-    return;
-  }
-
   /**
    * 0. Speed up the resume on wake delay from 10 seconds
    */
@@ -80,7 +74,7 @@ function run_test()
     }
     resp.bodyOutputStream.write(body, body.length);
   });
-  httpserv.start(-1);
+  httpserv.start(4444);
 
   /**
    * 3. Perform various actions for certain download states
@@ -147,8 +141,7 @@ function run_test()
                          nsIWBP.PERSIST_FLAGS_BYPASS_CACHE |
                          nsIWBP.PERSIST_FLAGS_AUTODETECT_APPLY_CONVERSION;
   let dl = dm.addDownload(nsIDM.DOWNLOAD_TYPE_DOWNLOAD,
-                          createURI("http://localhost:" +
-                                    httpserv.identity.primaryPort + "/resume"),
+                          createURI("http://localhost:4444/resume"),
                           createURI(destFile), null, null,
                           Math.round(Date.now() * 1000), null, persist, false);
   persist.progressListener = dl.QueryInterface(nsIWPL);

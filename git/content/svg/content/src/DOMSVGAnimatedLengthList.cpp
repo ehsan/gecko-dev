@@ -10,27 +10,27 @@
 #include "nsCOMPtr.h"
 #include "nsSVGAttrTearoffTable.h"
 #include "mozilla/dom/SVGAnimatedLengthListBinding.h"
+#include "nsContentUtils.h"
 
 // See the architecture comment in this file's header.
 
 namespace mozilla {
 
-static inline
-nsSVGAttrTearoffTable<SVGAnimatedLengthList, DOMSVGAnimatedLengthList>&
-SVGAnimatedLengthListTearoffTable()
-{
-  static nsSVGAttrTearoffTable<SVGAnimatedLengthList, DOMSVGAnimatedLengthList>
-    sSVGAnimatedLengthListTearoffTable;
-  return sSVGAnimatedLengthListTearoffTable;
-}
+static nsSVGAttrTearoffTable<SVGAnimatedLengthList, DOMSVGAnimatedLengthList>
+  sSVGAnimatedLengthListTearoffTable;
 
 NS_SVG_VAL_IMPL_CYCLE_COLLECTION_WRAPPERCACHED(DOMSVGAnimatedLengthList, mElement)
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(DOMSVGAnimatedLengthList, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(DOMSVGAnimatedLengthList, Release)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(DOMSVGAnimatedLengthList)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(DOMSVGAnimatedLengthList)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGAnimatedLengthList)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
 
 JSObject*
-DOMSVGAnimatedLengthList::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+DOMSVGAnimatedLengthList::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return dom::SVGAnimatedLengthListBinding::Wrap(aCx, aScope, this);
 }
@@ -62,10 +62,10 @@ DOMSVGAnimatedLengthList::GetDOMWrapper(SVGAnimatedLengthList *aList,
                                         uint8_t aAxis)
 {
   nsRefPtr<DOMSVGAnimatedLengthList> wrapper =
-    SVGAnimatedLengthListTearoffTable().GetTearoff(aList);
+    sSVGAnimatedLengthListTearoffTable.GetTearoff(aList);
   if (!wrapper) {
     wrapper = new DOMSVGAnimatedLengthList(aElement, aAttrEnum, aAxis);
-    SVGAnimatedLengthListTearoffTable().AddTearoff(aList, wrapper);
+    sSVGAnimatedLengthListTearoffTable.AddTearoff(aList, wrapper);
   }
   return wrapper.forget();
 }
@@ -73,14 +73,14 @@ DOMSVGAnimatedLengthList::GetDOMWrapper(SVGAnimatedLengthList *aList,
 /* static */ DOMSVGAnimatedLengthList*
 DOMSVGAnimatedLengthList::GetDOMWrapperIfExists(SVGAnimatedLengthList *aList)
 {
-  return SVGAnimatedLengthListTearoffTable().GetTearoff(aList);
+  return sSVGAnimatedLengthListTearoffTable.GetTearoff(aList);
 }
 
 DOMSVGAnimatedLengthList::~DOMSVGAnimatedLengthList()
 {
   // Script no longer has any references to us, to our base/animVal objects, or
   // to any of their list items.
-  SVGAnimatedLengthListTearoffTable().RemoveTearoff(&InternalAList());
+  sSVGAnimatedLengthListTearoffTable.RemoveTearoff(&InternalAList());
 }
 
 void

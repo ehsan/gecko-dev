@@ -462,8 +462,7 @@ nsDocumentEncoder::SerializeToStringRecursive(nsINode* aNode,
   if (!maybeFixedNode)
     maybeFixedNode = aNode;
 
-  if ((mFlags & SkipInvisibleContent) &&
-      !(mFlags & OutputNonTextContentAsPlaceholder)) {
+  if (mFlags & SkipInvisibleContent) {
     if (aNode->IsNodeOfType(nsINode::eCONTENT)) {
       nsIFrame* frame = static_cast<nsIContent*>(aNode)->GetPrimaryFrame();
       if (frame) {
@@ -550,7 +549,7 @@ ConvertAndWrite(const nsAString& aString,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsAutoCString charXferString;
-  if (!charXferString.SetLength(charLength, fallible_t()))
+  if (!EnsureStringLength(charXferString, charLength))
     return NS_ERROR_OUT_OF_MEMORY;
 
   char* charXferBuf = charXferString.BeginWriting();
@@ -1009,7 +1008,7 @@ nsDocumentEncoder::EncodeToString(nsAString& aOutputString)
   nsString output;
   static const size_t bufferSize = 2048;
   if (!mCachedBuffer) {
-    mCachedBuffer = nsStringBuffer::Alloc(bufferSize).get();
+    mCachedBuffer = nsStringBuffer::Alloc(bufferSize);
   }
   NS_ASSERTION(!mCachedBuffer->IsReadonly(),
                "DocumentEncoder shouldn't keep reference to non-readonly buffer!");
@@ -1184,11 +1183,17 @@ nsDocumentEncoder::EncodeToStream(nsIOutputStream* aStream)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  mStream = aStream;
-
+  bool chromeCaller = nsContentUtils::IsCallerChrome();
+  if (chromeCaller) {
+    mStream = aStream;
+  }
   nsAutoString buf;
 
   rv = EncodeToString(buf);
+
+  if (!chromeCaller) {
+    mStream = aStream;
+  }
 
   // Force a flush of the last chunk of data.
   FlushText(buf, true);

@@ -5,16 +5,15 @@
 #include "FocusManager.h"
 
 #include "Accessible-inl.h"
-#include "AccIterator.h"
 #include "DocAccessible-inl.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "nsEventShell.h"
 #include "Role.h"
+#include "RootAccessible.h"
 
 #include "nsEventStateManager.h"
 #include "nsFocusManager.h"
-#include "mozilla/dom/Element.h"
 
 namespace dom = mozilla::dom;
 using namespace mozilla::a11y;
@@ -266,6 +265,9 @@ FocusManager::ProcessFocusEvent(AccEvent* aEvent)
   NS_PRECONDITION(aEvent->GetEventType() == nsIAccessibleEvent::EVENT_FOCUS,
                   "Focus event is expected!");
 
+  EIsFromUserInput fromUserInputFlag = aEvent->IsFromUserInput() ?
+    eFromUserInput : eNoUserInput;
+
   // Emit focus event if event target is the active item. Otherwise then check
   // if it's still focused and then update active item and emit focus event.
   Accessible* target = aEvent->GetAccessible();
@@ -287,39 +289,17 @@ FocusManager::ProcessFocusEvent(AccEvent* aEvent)
   }
 
   // Fire menu start/end events for ARIA menus.
-  if (target->IsARIARole(nsGkAtoms::menuitem)) {
+  if (target->ARIARole() == roles::MENUITEM) {
     // The focus was moved into menu.
-    Accessible* ARIAMenubar = nullptr;
-    Accessible* child = target;
-    Accessible* parent = child->Parent();
-    while (parent) {
-      nsRoleMapEntry* roleMap = parent->ARIARoleMap();
-      if (roleMap) {
-        if (roleMap->Is(nsGkAtoms::menubar)) {
-          ARIAMenubar = parent;
-          break;
-        }
-
-        // Go up in the parent chain of the menu hierarchy.
-        if (roleMap->Is(nsGkAtoms::menuitem) || roleMap->Is(nsGkAtoms::menu)) {
-          child = parent;
-          parent = child->Parent();
-          continue;
-        }
-      }
-
-      // If no required context role then check aria-owns relation.
-      RelatedAccIterator iter(child->Document(), child->GetContent(),
-                              nsGkAtoms::aria_owns);
-      parent = iter.Next();
-    }
+    Accessible* ARIAMenubar =
+      nsAccUtils::GetAncestorWithRole(target, roles::MENUBAR);
 
     if (ARIAMenubar != mActiveARIAMenubar) {
       // Leaving ARIA menu. Fire menu_end event on current menubar.
       if (mActiveARIAMenubar) {
         nsRefPtr<AccEvent> menuEndEvent =
           new AccEvent(nsIAccessibleEvent::EVENT_MENU_END, mActiveARIAMenubar,
-                       aEvent->FromUserInput());
+                       fromUserInputFlag);
         nsEventShell::FireEvent(menuEndEvent);
       }
 
@@ -329,7 +309,7 @@ FocusManager::ProcessFocusEvent(AccEvent* aEvent)
       if (mActiveARIAMenubar) {
         nsRefPtr<AccEvent> menuStartEvent =
           new AccEvent(nsIAccessibleEvent::EVENT_MENU_START,
-                       mActiveARIAMenubar, aEvent->FromUserInput());
+                       mActiveARIAMenubar, fromUserInputFlag);
         nsEventShell::FireEvent(menuStartEvent);
       }
     }
@@ -337,7 +317,7 @@ FocusManager::ProcessFocusEvent(AccEvent* aEvent)
     // Focus left a menu. Fire menu_end event.
     nsRefPtr<AccEvent> menuEndEvent =
       new AccEvent(nsIAccessibleEvent::EVENT_MENU_END, mActiveARIAMenubar,
-                   aEvent->FromUserInput());
+                   fromUserInputFlag);
     nsEventShell::FireEvent(menuEndEvent);
 
     mActiveARIAMenubar = nullptr;
@@ -349,7 +329,7 @@ FocusManager::ProcessFocusEvent(AccEvent* aEvent)
 #endif
 
   nsRefPtr<AccEvent> focusEvent =
-    new AccEvent(nsIAccessibleEvent::EVENT_FOCUS, target, aEvent->FromUserInput());
+    new AccEvent(nsIAccessibleEvent::EVENT_FOCUS, target, fromUserInputFlag);
   nsEventShell::FireEvent(focusEvent);
 
   // Fire scrolling_start event when the document receives the focus if it has
@@ -362,7 +342,7 @@ FocusManager::ProcessFocusEvent(AccEvent* aEvent)
       // XXX: bug 625699, note in some cases the node could go away before we
       // we receive focus event, for example if the node is removed from DOM.
       nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_SCROLLING_START,
-                              anchorJump, aEvent->FromUserInput());
+                              anchorJump, fromUserInputFlag);
     }
     targetDocument->SetAnchorJump(nullptr);
   }

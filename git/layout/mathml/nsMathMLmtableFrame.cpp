@@ -3,18 +3,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsMathMLmtableFrame.h"
+#include "nsCOMPtr.h"
+#include "nsFrame.h"
+#include "nsBlockFrame.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
+#include "nsTableRowFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsRenderingContext.h"
 
 #include "nsTArray.h"
+#include "nsCSSFrameConstructor.h"
+#include "nsTableOuterFrame.h"
 #include "nsTableFrame.h"
+#include "nsTableCellFrame.h"
 #include "celldata.h"
 
-#include "RestyleManager.h"
+#include "nsMathMLmtableFrame.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -496,7 +502,7 @@ nsMathMLmtableOuterFrame::AttributeChanged(int32_t  aNameSpaceID,
   }
 
   // Explicitly request a re-resolve and reflow in our subtree to pick up any changes
-  presContext->RestyleManager()->
+  presContext->PresShell()->FrameConstructor()->
     PostRestyleEvent(mContent->AsElement(), eRestyle_Subtree,
                      nsChangeHint_AllReflowHints);
 
@@ -677,7 +683,7 @@ nsMathMLmtableFrame::RestyleTable()
   MapAllAttributesIntoCSS(this);
 
   // Explicitly request a re-resolve and reflow in our subtree to pick up any changes
-  PresContext()->RestyleManager()->
+  PresContext()->PresShell()->FrameConstructor()->
     PostRestyleEvent(mContent->AsElement(), eRestyle_Subtree,
                      nsChangeHint_AllReflowHints);
 }
@@ -705,7 +711,7 @@ nsMathMLmtrFrame::AttributeChanged(int32_t  aNameSpaceID,
   // Attributes specific to <mtr>:
   // groupalign  : Not yet supported.
   // rowalign    : Fully specified in mathml.css, and so HasAttributeDependentStyle() will
-  //               pick it up and RestyleManager will issue a PostRestyleEvent().
+  //               pick it up and nsCSSFrameConstructor will issue a PostRestyleEvent().
   // columnalign : Need an explicit re-style call.
 
   if (aAttribute == nsGkAtoms::rowalign_) {
@@ -738,7 +744,7 @@ nsMathMLmtrFrame::AttributeChanged(int32_t  aNameSpaceID,
   }
 
   // Explicitly request a re-resolve and reflow in our subtree to pick up any changes
-  presContext->RestyleManager()->
+  presContext->PresShell()->FrameConstructor()->
     PostRestyleEvent(mContent->AsElement(), eRestyle_Subtree,
                      nsChangeHint_AllReflowHints);
 

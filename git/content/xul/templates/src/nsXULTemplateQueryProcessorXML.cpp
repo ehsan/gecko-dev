@@ -9,6 +9,7 @@
 #include "nsIDOMNode.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEvent.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMXPathNSResolver.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
@@ -25,8 +26,6 @@
 #include "nsXULTemplateQueryProcessorXML.h"
 #include "nsXULTemplateResultXML.h"
 #include "nsXULSortService.h"
-
-using namespace mozilla::dom;
 
 NS_IMPL_ISUPPORTS1(nsXMLQuery, nsXMLQuery)
 
@@ -86,17 +85,19 @@ TraverseRuleToBindingsMap(nsISupports* aKey, nsXMLBindingSet* aMatch, void* aCon
     return PL_DHASH_NEXT;
 }
   
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULTemplateQueryProcessorXML)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULTemplateQueryProcessorXML)
-    tmp->mRuleToBindingsMap.Clear();
+    if (tmp->mRuleToBindingsMap.IsInitialized()) {
+        tmp->mRuleToBindingsMap.Clear();
+    }
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mRoot)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mEvaluator)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mTemplateBuilder)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mRequest)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULTemplateQueryProcessorXML)
-    tmp->mRuleToBindingsMap.EnumerateRead(TraverseRuleToBindingsMap, &cb);
+    if (tmp->mRuleToBindingsMap.IsInitialized()) {
+        tmp->mRuleToBindingsMap.EnumerateRead(TraverseRuleToBindingsMap, &cb);
+    }
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRoot)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mEvaluator)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTemplateBuilder)
@@ -174,7 +175,7 @@ nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
         do_CreateInstance(NS_XMLHTTPREQUEST_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = req->Init(docPrincipal, context,
+    rv = req->Init(docPrincipal, context, 
                    scriptObject ? scriptObject : doc->GetScopeObject(),
                    nullptr);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -183,7 +184,7 @@ nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
                    EmptyString(), EmptyString());
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<EventTarget> target(do_QueryInterface(req));
+    nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(req));
     rv = target->AddEventListener(NS_LITERAL_STRING("load"), this, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -219,6 +220,9 @@ nsXULTemplateQueryProcessorXML::InitializeForBuilding(nsISupports* aDatasource,
     mEvaluator = do_CreateInstance("@mozilla.org/dom/xpath-evaluator;1");
     NS_ENSURE_TRUE(mEvaluator, NS_ERROR_OUT_OF_MEMORY);
 
+    if (!mRuleToBindingsMap.IsInitialized())
+        mRuleToBindingsMap.Init();
+
     return NS_OK;
 }
 
@@ -227,7 +231,8 @@ nsXULTemplateQueryProcessorXML::Done()
 {
     mGenerationStarted = false;
 
-    mRuleToBindingsMap.Clear();
+    if (mRuleToBindingsMap.IsInitialized())
+        mRuleToBindingsMap.Clear();
 
     return NS_OK;
 }

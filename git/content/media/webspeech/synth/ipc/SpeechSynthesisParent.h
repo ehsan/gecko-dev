@@ -2,8 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_SpeechSynthesisParent_h
-#define mozilla_dom_SpeechSynthesisParent_h
+#pragma once
 
 #include "mozilla/dom/PSpeechSynthesisParent.h"
 #include "mozilla/dom/PSpeechSynthesisRequestParent.h"
@@ -28,14 +27,14 @@ public:
 protected:
   SpeechSynthesisParent();
   virtual ~SpeechSynthesisParent();
-  PSpeechSynthesisRequestParent* AllocPSpeechSynthesisRequestParent(const nsString& aText,
-                                                                    const nsString& aLang,
-                                                                    const nsString& aUri,
-                                                                    const float& aVolume,
-                                                                    const float& aRate,
-                                                                    const float& aPitch);
+  PSpeechSynthesisRequestParent* AllocPSpeechSynthesisRequest(const nsString& aText,
+                                                              const nsString& aLang,
+                                                              const nsString& aUri,
+                                                              const float& aVolume,
+                                                              const float& aRate,
+                                                              const float& aPitch);
 
-  bool DeallocPSpeechSynthesisRequestParent(PSpeechSynthesisRequestParent* aActor);
+  bool DeallocPSpeechSynthesisRequest(PSpeechSynthesisRequestParent* aActor);
 
   bool RecvPSpeechSynthesisRequestConstructor(PSpeechSynthesisRequestParent* aActor,
                                               const nsString& aText,
@@ -92,5 +91,3 @@ private:
 
 } // namespace dom
 } // namespace mozilla
-
-#endif

@@ -368,6 +368,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             NS_ENSURE_SUCCESS(rv, rv);
 
             nsTHashtable<nsStringHashKey> hash;
+            hash.Init();
 
             int32_t i, len = nodes->size();
             for (i = 0; i < len; ++i) {
@@ -567,20 +568,20 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
 
             if (nodes->isEmpty()) {
                 return aContext->recycler()->
-                    getNumberResult(UnspecifiedNaN(), aResult);
+                    getNumberResult(MOZ_DOUBLE_NaN(), aResult);
             }
 
             bool findMax = mType == MAX;
 
-            double res = findMax ? mozilla::NegativeInfinity() :
-                                   mozilla::PositiveInfinity();
+            double res = findMax ? MOZ_DOUBLE_NEGATIVE_INFINITY() :
+                                   MOZ_DOUBLE_POSITIVE_INFINITY();
             int32_t i, len = nodes->size();
             for (i = 0; i < len; ++i) {
                 nsAutoString str;
                 txXPathNodeUtils::appendNodeValue(nodes->get(i), str);
                 double val = txDouble::toDouble(str);
-                if (mozilla::IsNaN(val)) {
-                    res = UnspecifiedNaN();
+                if (MOZ_DOUBLE_IS_NaN(val)) {
+                    res = MOZ_DOUBLE_NaN();
                     break;
                 }
 
@@ -610,15 +611,15 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             NS_ENSURE_SUCCESS(rv, rv);
 
             bool findMax = mType == HIGHEST;
-            double res = findMax ? mozilla::NegativeInfinity() :
-                                   mozilla::PositiveInfinity();
+            double res = findMax ? MOZ_DOUBLE_NEGATIVE_INFINITY() :
+                                   MOZ_DOUBLE_POSITIVE_INFINITY();
             int32_t i, len = nodes->size();
             for (i = 0; i < len; ++i) {
                 nsAutoString str;
                 const txXPathNode& node = nodes->get(i);
                 txXPathNodeUtils::appendNodeValue(node, str);
                 double val = txDouble::toDouble(str);
-                if (mozilla::IsNaN(val)) {
+                if (MOZ_DOUBLE_IS_NaN(val)) {
                     resultSet->clear();
                     break;
                 }

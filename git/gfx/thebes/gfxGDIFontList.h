@@ -6,7 +6,6 @@
 #ifndef GFX_GDIFONTLIST_H
 #define GFX_GDIFONTLIST_H
 
-#include "mozilla/MemoryReporting.h"
 #include "gfxWindowsPlatform.h"
 #include "gfxPlatformFontList.h"
 #include "nsGkAtoms.h"
@@ -17,11 +16,11 @@ class AutoDC // get the global device context, and auto-release it on destructio
 {
 public:
     AutoDC() {
-        mDC = ::GetDC(nullptr);
+        mDC = ::GetDC(NULL);
     }
 
     ~AutoDC() {
-        ::ReleaseDC(nullptr, mDC);
+        ::ReleaseDC(NULL, mDC);
     }
 
     HDC GetDC() {
@@ -44,7 +43,7 @@ public:
             mDC = aDC;
             mOldFont = (HFONT)::SelectObject(aDC, mFont);
         } else {
-            mOldFont = nullptr;
+            mOldFont = NULL;
         }
     }
 
@@ -66,7 +65,7 @@ public:
     }
 
     bool IsValid() const {
-        return mFont != nullptr;
+        return mFont != NULL;
     }
 
     HFONT GetFont() const {
@@ -240,8 +239,8 @@ public:
 
     virtual bool TestCharacterMap(uint32_t aCh);
 
-    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontListSizes* aSizes) const;
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                                     FontListSizes*    aSizes) const;
 
     // create a font entry for a font with a given name
     static GDIFontEntry* CreateFontEntry(const nsAString& aName,
@@ -281,8 +280,8 @@ protected:
 
     virtual gfxFont *CreateFontInstance(const gfxFontStyle *aFontStyle, bool aNeedsBold);
 
-    virtual nsresult CopyFontTable(uint32_t aTableTag,
-                                   FallibleTArray<uint8_t>& aBuffer) MOZ_OVERRIDE;
+    virtual nsresult GetFontTable(uint32_t aTableTag,
+                                  FallibleTArray<uint8_t>& aBuffer);
 
     LOGFONTW mLogFont;
 };
@@ -322,15 +321,17 @@ public:
     virtual bool ResolveFontName(const nsAString& aFontName,
                                    nsAString& aResolvedFontName);
 
-    virtual void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontListSizes* aSizes) const;
-    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontListSizes* aSizes) const;
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                                     FontListSizes*    aSizes) const;
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                                     FontListSizes*    aSizes) const;
 
 private:
     friend class gfxWindowsPlatform;
 
     gfxGDIFontList();
+
+    void InitializeFontEmbeddingProcs();
 
     nsresult GetFontSubstitutes();
 
