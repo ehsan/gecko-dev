@@ -110,6 +110,18 @@ public class Crypto5MiddlewareRepositorySession extends MiddlewareRepositorySess
     }
 
     @Override
+    public void onFetchSucceeded(Record[] records, long fetchEnd) {
+      for (Record record : records) {
+        try {
+          this.onFetchedRecord(record);
+        } catch (Exception e) {
+          this.onFetchFailed(e, record);
+        }
+      }
+      this.onFetchCompleted(fetchEnd);
+    }
+
+    @Override
     public void onFetchCompleted(final long fetchEnd) {
       next.onFetchCompleted(fetchEnd);
     }

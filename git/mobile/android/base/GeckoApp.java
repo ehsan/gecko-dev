@@ -826,7 +826,6 @@ abstract public class GeckoApp
 
         tab.setContentType(contentType);
         tab.clearFavicon();
-        tab.updateTitle(null);
         tab.updateIdentityData(null);
         tab.setReaderEnabled(false);
         tab.setAllowZoom(true);

@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ipc/AutoOpenSurface.h"
 #include "mozilla/layers/PLayers.h"
 #include "TiledLayerBuffer.h"
 
@@ -969,7 +968,7 @@ ShadowThebesLayerOGL::~ShadowThebesLayerOGL()
 bool
 ShadowThebesLayerOGL::ShouldDoubleBuffer()
 {
-#ifdef MOZ_JAVA_COMPOSITOR
+#ifdef ANDROID
   /* Enable double-buffering on Android so that we don't block for as long
    * when uploading textures. This is a work-around for the lack of an
    * asynchronous texture upload facility.
@@ -993,8 +992,7 @@ ShadowThebesLayerOGL::EnsureTextureUpdated()
   if (mRegionPendingUpload.IsEmpty() || !IsSurfaceDescriptorValid(mFrontBufferDescriptor))
     return;
 
-  AutoOpenSurface frontSurface(OPEN_READ_ONLY, mFrontBuffer.Buffer());
-  mBuffer->DirectUpdate(frontSurface.Get(), mRegionPendingUpload);
+  mBuffer->DirectUpdate(mFrontBuffer.Buffer(), mRegionPendingUpload);
   mRegionPendingUpload.SetEmpty();
 }
 
@@ -1047,15 +1045,15 @@ ShadowThebesLayerOGL::EnsureTextureUpdated(nsIntRegion& aRegion)
     if (updateRegion.IsEmpty())
       continue;
 
-    AutoOpenSurface surface(OPEN_READ_ONLY, mFrontBuffer.Buffer());
     nsRefPtr<TextureImage> texImage;
     if (!gl()->CanUploadSubTextures()) {
       // When sub-textures are unsupported, TiledTextureImage expands the
       // boundaries of DirectUpdate to tile boundaries. So that we don't
       // re-upload texture data, use the tile iteration to monitor how much
       // of the texture was actually uploaded.
-      gfxIntSize size = surface.Size();
-      mBuffer->EnsureTexture(size, surface.ContentType());
+      gfxASurface* surface = mFrontBuffer.Buffer();
+      gfxIntSize size = surface->GetSize();
+      mBuffer->EnsureTexture(size, surface->GetContentType());
       texImage = mBuffer->GetTextureImage().get();
       if (texImage->GetTileCount() > 1)
         texImage->SetIterationCallback(EnsureTextureUpdatedCallback, (void *)&updateRegion);
@@ -1064,7 +1062,7 @@ ShadowThebesLayerOGL::EnsureTextureUpdated(nsIntRegion& aRegion)
     }
 
     // Upload this quadrant of the region.
-    mBuffer->DirectUpdate(surface.Get(), updateRegion);
+    mBuffer->DirectUpdate(mFrontBuffer.Buffer(), updateRegion);
 
     if (!gl()->CanUploadSubTextures())
       texImage->SetIterationCallback(nsnull, nsnull);
@@ -1104,9 +1102,8 @@ ShadowThebesLayerOGL::ProgressiveUpload()
 
   // Set a tile iteration callback so we can cancel the upload after a tile
   // has been uploaded and subtract it from mRegionPendingUpload
-  AutoOpenSurface frontSurface(OPEN_READ_ONLY, mFrontBuffer.Buffer());
-  mBuffer->EnsureTexture(frontSurface.Size(),
-                         frontSurface.ContentType());
+  mBuffer->EnsureTexture(mFrontBuffer.Buffer()->GetSize(),
+                         mFrontBuffer.Buffer()->GetContentType());
   nsRefPtr<gl::TextureImage> tiledImage = mBuffer->GetTextureImage().get();
   if (tiledImage->GetTileCount() > 1)
     tiledImage->SetIterationCallback(ProgressiveUploadCallback, (void *)&mRegionPendingUpload);
@@ -1114,7 +1111,7 @@ ShadowThebesLayerOGL::ProgressiveUpload()
     mRegionPendingUpload.SetEmpty();
 
   // Upload a tile
-  mBuffer->DirectUpdate(frontSurface.Get(), mRegionPendingUpload);
+  mBuffer->DirectUpdate(mFrontBuffer.Buffer(), mRegionPendingUpload);
 
   // Remove the iteration callback
   tiledImage->SetIterationCallback(nsnull, nsnull);
@@ -1138,11 +1135,13 @@ ShadowThebesLayerOGL::Swap(const ThebesBuffer& aNewFront,
 {
   // The double-buffer path is copied and adapted from BasicLayers.cpp
   if (ShouldDoubleBuffer()) {
-    AutoOpenSurface newFrontBuffer(OPEN_READ_ONLY, aNewFront.buffer());
+    nsRefPtr<gfxASurface> newFrontBuffer =
+      ShadowLayerForwarder::OpenDescriptor(aNewFront.buffer());
 
     if (IsSurfaceDescriptorValid(mFrontBufferDescriptor)) {
-      AutoOpenSurface currentFront(OPEN_READ_ONLY, mFrontBufferDescriptor);
-      if (currentFront.Size() != newFrontBuffer.Size()) {
+      nsRefPtr<gfxASurface> currentFront =
+        ShadowLayerForwarder::OpenDescriptor(mFrontBufferDescriptor);
+      if (currentFront->GetSize() != newFrontBuffer->GetSize()) {
         // Current front buffer is obsolete
         DestroyFrontBuffer();
       }
@@ -1160,12 +1159,12 @@ ShadowThebesLayerOGL::Swap(const ThebesBuffer& aNewFront,
     // They might overlap with our old pixels.
     aNewBackValidRegion->Sub(mOldValidRegion, aUpdatedRegion);
 
-    SurfaceDescriptor unused;
+    nsRefPtr<gfxASurface> unused;
     nsIntRect backRect;
     nsIntPoint backRotation;
     mFrontBuffer.Swap(
-      aNewFront.buffer(), aNewFront.rect(), aNewFront.rotation(),
-      &unused, &backRect, &backRotation);
+      newFrontBuffer, aNewFront.rect(), aNewFront.rotation(),
+      getter_AddRefs(unused), &backRect, &backRotation);
 
     if (aNewBack->type() != OptionalThebesBuffer::Tnull_t) {
       aNewBack->get_ThebesBuffer().rect() = backRect;
@@ -1179,13 +1178,12 @@ ShadowThebesLayerOGL::Swap(const ThebesBuffer& aNewFront,
       if (!mBuffer) {
         mBuffer = new ShadowBufferOGL(this);
       }
-      AutoOpenSurface frontSurface(OPEN_READ_ONLY, mFrontBufferDescriptor);
-      mBuffer->Upload(frontSurface.Get(), aUpdatedRegion, aNewFront.rect(), aNewFront.rotation(), true, mRegionPendingUpload);
+      nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(mFrontBufferDescriptor);
+      mBuffer->Upload(surf, aUpdatedRegion, aNewFront.rect(), aNewFront.rotation(), true, mRegionPendingUpload);
 
       // Schedule a task to progressively upload the texture
       if (!mUploadTask) {
         mUploadTask = NewRunnableMethod(this, &ShadowThebesLayerOGL::ProgressiveUpload);
-        // XXX magic delay constant
         MessageLoop::current()->PostDelayedTask(FROM_HERE, mUploadTask, 5);
       }
     }
@@ -1201,8 +1199,8 @@ ShadowThebesLayerOGL::Swap(const ThebesBuffer& aNewFront,
     if (!mBuffer) {
       mBuffer = new ShadowBufferOGL(this);
     }
-    AutoOpenSurface frontSurface(OPEN_READ_ONLY, aNewFront.buffer());
-    mBuffer->Upload(frontSurface.Get(), aUpdatedRegion, aNewFront.rect(), aNewFront.rotation(), false, mRegionPendingUpload);
+    nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront.buffer());
+    mBuffer->Upload(surf, aUpdatedRegion, aNewFront.rect(), aNewFront.rotation(), false, mRegionPendingUpload);
   }
 
   *aNewBack = aNewFront;

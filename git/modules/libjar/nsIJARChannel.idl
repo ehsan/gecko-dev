@@ -15,9 +15,4 @@ interface nsIJARChannel : nsIChannel
      * channel.
      */
     readonly attribute boolean isUnsafe;
-
-    /**
-     * Forces the uri to be a app:// uri.
-     */
-    void setAppURI(in nsIURI uri);
 };

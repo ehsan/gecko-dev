@@ -442,22 +442,10 @@ nsSVGGlyphFrame::UpdateBounds()
 
   mRect.SetEmpty();
 
-  PRUint32 flags = nsSVGUtils::eBBoxIncludeFill |
-                   nsSVGUtils::eBBoxIncludeStroke |
-                   nsSVGUtils::eBBoxIncludeMarkers;
-  // Our "visual" overflow rect needs to be valid for building display lists
-  // for hit testing, which means that for certain values of 'pointer-events'
-  // it needs to include the geometry of the fill or stroke even when the fill/
-  // stroke don't actually render (e.g. when stroke="none" or
-  // stroke-opacity="0"). GetHitTestFlags() accounts for 'pointer-events'.
-  PRUint16 hitTestFlags = GetHitTestFlags();
-  if ((hitTestFlags & SVG_HIT_TEST_FILL)) {
-   flags |= nsSVGUtils::eBBoxIncludeFillGeometry;
-  }
-  if ((hitTestFlags & SVG_HIT_TEST_STROKE)) {
-   flags |= nsSVGUtils::eBBoxIncludeStrokeGeometry;
-  }
-  gfxRect extent = GetBBoxContribution(gfxMatrix(), flags);
+  gfxRect extent = GetBBoxContribution(gfxMatrix(),
+    nsSVGUtils::eBBoxIncludeFill | nsSVGUtils::eBBoxIgnoreFillIfNone |
+    nsSVGUtils::eBBoxIncludeStroke | nsSVGUtils::eBBoxIgnoreStrokeIfNone |
+    nsSVGUtils::eBBoxIncludeMarkers);
 
   if (!extent.IsEmpty()) {
     mRect = nsLayoutUtils::RoundGfxRectToAppRect(extent, 
@@ -602,15 +590,15 @@ nsSVGGlyphFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
   gfxRect pathExtents = tmpCtx->GetUserPathExtent();
 
   // Account for fill:
-  if ((aFlags & nsSVGUtils::eBBoxIncludeFillGeometry) ||
-      ((aFlags & nsSVGUtils::eBBoxIncludeFill) &&
+  if ((aFlags & nsSVGUtils::eBBoxIncludeFill) != 0 &&
+      ((aFlags & nsSVGUtils::eBBoxIgnoreFillIfNone) == 0 ||
        GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None)) {
     bbox = pathExtents;
   }
 
   // Account for stroke:
-  if ((aFlags & nsSVGUtils::eBBoxIncludeStrokeGeometry) ||
-      ((aFlags & nsSVGUtils::eBBoxIncludeStroke) && HasStroke())) {
+  if ((aFlags & nsSVGUtils::eBBoxIncludeStroke) != 0 &&
+      ((aFlags & nsSVGUtils::eBBoxIgnoreStrokeIfNone) == 0 || HasStroke())) {
     bbox =
       bbox.Union(nsSVGUtils::PathExtentsToMaxStrokeExtents(pathExtents,
                                                            this,

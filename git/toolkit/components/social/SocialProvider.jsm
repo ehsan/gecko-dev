@@ -18,9 +18,8 @@ const EXPORTED_SYMBOLS = ["SocialProvider"];
  *
  * @constructor
  * @param {jsobj} object representing the manifest file describing this provider
- * @param {bool} whether the provider should be initially enabled (defaults to true)
  */
-function SocialProvider(input, enabled) {
+function SocialProvider(input) {
   if (!input.name)
     throw new Error("SocialProvider must be passed a name");
   if (!input.origin)
@@ -30,53 +29,16 @@ function SocialProvider(input, enabled) {
   this.workerURL = input.workerURL;
   this.origin = input.origin;
 
-  // If enabled is |undefined|, default to true.
-  this._enabled = !(enabled == false);
-  if (this._enabled)
-    this._activate();
+  let workerAPIPort = this.getWorkerPort();
+  if (workerAPIPort)
+    this.workerAPI = new WorkerAPI(workerAPIPort);
 }
 
 SocialProvider.prototype = {
-  // Provider enabled/disabled state. Disabled providers do not have active
-  // connections to their FrameWorkers.
-  _enabled: true,
-  get enabled() {
-    return this._enabled;
-  },
-  set enabled(val) {
-    let enable = !!val;
-    if (enable == this._enabled)
-      return;
-
-    this._enabled = enable;
-
-    if (enable) {
-      this._activate();
-    } else {
-      this._terminate();
-    }
-  },
-
-  // Active port to the provider's FrameWorker. Null if the provider has no
-  // FrameWorker, or is disabled.
-  port: null,
-
-  // Reference to a workerAPI object for this provider. Null if the provider has
-  // no FrameWorker, or is disabled.
-  workerAPI: null,
-
-  // Internal helper methods
-  _activate: function _activate() {
-    // Initialize the workerAPI and its port first, so that its initialization
-    // occurs before any other messages are processed by other ports.
-    let workerAPIPort = this._getWorkerPort();
-    if (workerAPIPort)
-      this.workerAPI = new WorkerAPI(workerAPIPort);
-
-    this.port = this._getWorkerPort();
-  },
-
-  _terminate: function _terminate() {
+  /**
+   * Terminates the provider's FrameWorker, if it has one.
+   */
+  terminate: function terminate() {
     if (this.workerURL) {
       try {
         getFrameWorkerHandle(this.workerURL, null).terminate();
@@ -84,20 +46,18 @@ SocialProvider.prototype = {
         Cu.reportError("SocialProvider FrameWorker termination failed: " + e);
       }
     }
-    this.port = null;
-    this.workerAPI = null;
   },
 
   /**
    * Instantiates a FrameWorker for the provider if one doesn't exist, and
-   * returns a reference to a new port to that FrameWorker.
+   * returns a reference to a port to that FrameWorker.
    *
-   * Returns null if this provider has no workerURL, or is disabled.
+   * Returns null if this provider has no workerURL.
    *
    * @param {DOMWindow} window (optional)
    */
-  _getWorkerPort: function _getWorkerPort(window) {
-    if (!this.workerURL || !this.enabled)
+  getWorkerPort: function getWorkerPort(window) {
+    if (!this.workerURL)
       return null;
     try {
       return getFrameWorkerHandle(this.workerURL, window).port;

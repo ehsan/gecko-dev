@@ -290,7 +290,7 @@ js::RunScript(JSContext *cx, JSScript *script, StackFrame *fp)
 #ifdef JS_METHODJIT
     mjit::CompileStatus status;
     status = mjit::CanMethodJIT(cx, script, script->code, fp->isConstructing(),
-                                mjit::CompileRequest_Interpreter, fp);
+                                mjit::CompileRequest_Interpreter);
     if (status == mjit::Compile_Error)
         return false;
 
@@ -479,7 +479,7 @@ js::ExecuteKernel(JSContext *cx, JSScript *script_, JSObject &scopeChain, const 
     if (!cx->stack.pushExecuteFrame(cx, script, thisv, scopeChain, type, evalInFrame, &efg))
         return false;
 
-    if (!script->ensureRanAnalysis(cx))
+    if (!script->ensureRanAnalysis(cx, &scopeChain))
         return false;
     TypeScript::SetThis(cx, script, efg.fp()->thisValue());
 
@@ -839,7 +839,7 @@ TryNoteIter::settle()
  * in *expr.
  */
 static bool
-DoIncDec(JSContext *cx, HandleScript script, jsbytecode *pc, const Value &v, Value *slot, Value *expr)
+DoIncDec(JSContext *cx, JSScript *script, jsbytecode *pc, const Value &v, Value *slot, Value *expr)
 {
     const JSCodeSpec &cs = js_CodeSpec[*pc];
 
@@ -1488,7 +1488,7 @@ check_backedge:
         DO_OP();
     mjit::CompileStatus status =
         mjit::CanMethodJIT(cx, script, regs.pc, regs.fp()->isConstructing(),
-                           mjit::CompileRequest_Interpreter, regs.fp());
+                           mjit::CompileRequest_Interpreter);
     if (status == mjit::Compile_Error)
         goto error;
     if (status == mjit::Compile_Okay) {
@@ -2475,8 +2475,7 @@ BEGIN_CASE(JSOP_FUNCALL)
         /* Try to ensure methods are method JIT'd.  */
         mjit::CompileStatus status = mjit::CanMethodJIT(cx, script, script->code,
                                                         construct,
-                                                        mjit::CompileRequest_Interpreter,
-                                                        regs.fp());
+                                                        mjit::CompileRequest_Interpreter);
         if (status == mjit::Compile_Error)
             goto error;
         if (status == mjit::Compile_Okay) {
@@ -2765,7 +2764,6 @@ BEGIN_CASE(JSOP_GETALIASEDVAR)
 {
     ScopeCoordinate sc = ScopeCoordinate(regs.pc);
     PUSH_COPY(regs.fp()->aliasedVarScope(sc).aliasedVar(sc));
-    TypeScript::Monitor(cx, script, regs.pc, regs.sp[-1]);
 }
 END_CASE(JSOP_GETALIASEDVAR)
 

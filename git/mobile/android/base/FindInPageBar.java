@@ -9,11 +9,10 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
 import android.widget.RelativeLayout;
 import android.widget.RelativeLayout.LayoutParams;
 
@@ -21,7 +20,7 @@ public class FindInPageBar extends RelativeLayout implements TextWatcher, View.O
     private static final String LOGTAG = "GeckoFindInPagePopup";
 
     private final Context mContext;
-    private CustomEditText mFindText;
+    private EditText mFindText;
     private boolean mInflated = false;
 
     public FindInPageBar(Context context, AttributeSet attrs) {
@@ -38,17 +37,8 @@ public class FindInPageBar extends RelativeLayout implements TextWatcher, View.O
         content.findViewById(R.id.find_next).setOnClickListener(this);
         content.findViewById(R.id.find_close).setOnClickListener(this);
 
-        mFindText = (CustomEditText) content.findViewById(R.id.find_text);
+        mFindText = (EditText) content.findViewById(R.id.find_text);
         mFindText.addTextChangedListener(this);
-        mFindText.setOnKeyPreImeListener(new CustomEditText.OnKeyPreImeListener() {
-            public boolean onKeyPreIme(View v, int keyCode, KeyEvent event) {
-                if (keyCode == KeyEvent.KEYCODE_BACK) {
-                    hide();
-                    return true;
-                }
-                return false;
-            }
-        });
 
         mInflated = true;
     }
@@ -57,35 +47,14 @@ public class FindInPageBar extends RelativeLayout implements TextWatcher, View.O
         if (!mInflated)
             inflateContent();
 
-        setVisibility(VISIBLE);
+        setVisibility(VISIBLE);        
         mFindText.requestFocus();
-
-        // Show the virtual keyboard.
-        if (mFindText.hasWindowFocus()) {
-            getInputMethodManager(mFindText).showSoftInput(mFindText, 0);
-        } else {
-            // showSoftInput won't work until after the window is focused.
-            mFindText.setOnWindowFocusChangeListener(new CustomEditText.OnWindowFocusChangeListener() {
-               public void onWindowFocusChanged(boolean hasFocus) {
-                   if (!hasFocus)
-                       return;
-                   mFindText.setOnWindowFocusChangeListener(null);
-                   getInputMethodManager(mFindText).showSoftInput(mFindText, 0);
-               }
-            });
-        }
     }
 
     public void hide() {
-        setVisibility(GONE);
-        getInputMethodManager(mFindText).hideSoftInputFromWindow(mFindText.getWindowToken(), 0);
+        setVisibility(GONE);        
         GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Closed", null));
     }
-
-    private InputMethodManager getInputMethodManager(View view) {
-        Context context = view.getContext();
-        return (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
-     }
 
     // TextWatcher implementation
 

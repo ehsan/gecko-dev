@@ -8,7 +8,6 @@
 /* This must occur *after* layers/PLayers.h to avoid typedefs conflicts. */
 #include "mozilla/Util.h"
 
-#include "ipc/AutoOpenSurface.h"
 #include "mozilla/layers/ShadowLayers.h"
 #include "ShadowBufferD3D9.h"
 
@@ -618,8 +617,8 @@ ShadowThebesLayerD3D9::Swap(const ThebesBuffer& aNewFront,
   }
 
   if (mBuffer) {
-    AutoOpenSurface surf(OPEN_READ_ONLY, aNewFront.buffer());
-    mBuffer->Upload(surf.Get(), GetVisibleRegion().GetBounds());
+    nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront.buffer());
+    mBuffer->Upload(surf, GetVisibleRegion().GetBounds());
   }
 
   *aNewBack = aNewFront;

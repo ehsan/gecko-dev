@@ -305,26 +305,25 @@ public:
 
   void sampleRuntime(JSRuntime *runtime) {
     mRuntime = runtime;
-    JS_STATIC_ASSERT(sizeof(mStack[0]) == sizeof(js::ProfileEntry));
-    js::SetRuntimeProfilingStack(runtime,
-                                 (js::ProfileEntry*) mStack,
-                                 (uint32_t*) &mStackPointer,
-                                 mozilla::ArrayLength(mStack));
     if (mStartJSSampling)
-      enableJSSampling();
+      installJSSampling();
   }
-  void enableJSSampling() {
+  void installJSSampling() {
+    JS_STATIC_ASSERT(sizeof(mStack[0]) == sizeof(js::ProfileEntry));
     if (mRuntime) {
-      js::EnableRuntimeProfilingStack(mRuntime, true);
+      js::SetRuntimeProfilingStack(mRuntime,
+                                   (js::ProfileEntry*) mStack,
+                                   (uint32_t*) &mStackPointer,
+                                   mozilla::ArrayLength(mStack));
       mStartJSSampling = false;
     } else {
       mStartJSSampling = true;
     }
   }
-  void disableJSSampling() {
+  void uninstallJSSampling() {
     mStartJSSampling = false;
     if (mRuntime)
-      js::EnableRuntimeProfilingStack(mRuntime, false);
+      js::SetRuntimeProfilingStack(mRuntime, NULL, NULL, 0);
   }
 
   // Keep a list of active checkpoints

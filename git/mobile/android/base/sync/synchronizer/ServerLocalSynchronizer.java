@@ -11,8 +11,7 @@ package org.mozilla.gecko.sync.synchronizer;
  * See <code>ServerLocalSynchronizerSession</code> for error handling details.
  */
 public class ServerLocalSynchronizer extends Synchronizer {
-  @Override
-  public SynchronizerSession newSynchronizerSession() {
+  public SynchronizerSession getSynchronizerSession() {
     return new ServerLocalSynchronizerSession(this, this);
   }
 }

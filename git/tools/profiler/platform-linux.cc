@@ -253,7 +253,7 @@ void Sampler::Stop() {
 
   // Restore old signal handler
   if (data_->signal_handler_installed_) {
-    sigaction(SIGNAL_SAVE_PROFILE, &data_->old_sigsave_signal_handler_, 0);
+    sigaction(SIGPROF, &data_->old_sigsave_signal_handler_, 0);
     sigaction(SIGPROF, &data_->old_sigprof_signal_handler_, 0);
     data_->signal_handler_installed_ = false;
   }
@@ -262,24 +262,23 @@ void Sampler::Stop() {
   sActiveSampler = NULL;
 }
 
-#ifdef ANDROID
-static struct sigaction old_sigstart_signal_handler;
-const int SIGSTART = SIGUSR1;
+static struct sigaction old_sigstartstop_signal_handler;
+const int SIGSTARTSTOP = SIGUSR1;
 
-static void StartSignalHandler(int signal, siginfo_t* info, void* context) {
+static void StartStopSignalHandler(int signal, siginfo_t* info, void* context) {
   mozilla_sampler_start(PROFILE_DEFAULT_ENTRY, PROFILE_DEFAULT_INTERVAL,
                         PROFILE_DEFAULT_FEATURES, PROFILE_DEFAULT_FEATURE_COUNT);
 }
 
-void OS::RegisterStartHandler()
+void OS::RegisterStartStopHandlers()
 {
-  LOG("Registering start signal");
+  LOG("Registering start/stop signal");
   struct sigaction sa;
-  sa.sa_sigaction = StartSignalHandler;
+  sa.sa_sigaction = StartStopSignalHandler;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = SA_RESTART | SA_SIGINFO;
-  if (sigaction(SIGSTART, &sa, &old_sigstart_signal_handler) != 0) {
+  if (sigaction(SIGSTARTSTOP, &sa, &old_sigstartstop_signal_handler) != 0) {
     LOG("Error installing signal");
   }
 }
-#endif
+

@@ -279,11 +279,11 @@ public:
     NS_RUNTIMEABORT("if this default impl is called, |aBuffer| leaks");
   }
   
-  virtual void SetBackBufferYUVImage(const SurfaceDescriptor& aYBuffer,
-                                     const SurfaceDescriptor& aUBuffer,
-                                     const SurfaceDescriptor& aVBuffer)
+  virtual void SetBackBufferYUVImage(gfxSharedImageSurface* aYBuffer,
+                                     gfxSharedImageSurface* aUBuffer,
+                                     gfxSharedImageSurface* aVBuffer)
   {
-    NS_RUNTIMEABORT("if this default impl is called, the buffers leak");
+    NS_RUNTIMEABORT("if this default impl is called, |aBuffer| leaks");
   }
 
   virtual void Disconnect()

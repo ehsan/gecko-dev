@@ -21,9 +21,7 @@ import org.mozilla.gecko.sync.syncadapter.SyncAdapter;
 import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ListView;
@@ -31,6 +29,7 @@ import android.widget.Toast;
 
 public class SendTabActivity extends Activity {
   public static final String LOG_TAG = "SendTabActivity";
+  private ListView listview;
   private ClientRecordArrayAdapter arrayAdapter;
   private AccountManager accountManager;
   private Account localAccount;
@@ -50,29 +49,14 @@ public class SendTabActivity extends Activity {
     registerDisplayURICommand();
 
     setContentView(R.layout.sync_send_tab);
-    final ListView listview = (ListView) findViewById(R.id.device_list);
+    arrayAdapter = new ClientRecordArrayAdapter(this, R.layout.sync_list_item, getClientArray());
+
+    listview = (ListView) findViewById(R.id.device_list);
+    listview.setAdapter(arrayAdapter);
     listview.setItemsCanFocus(true);
     listview.setTextFilterEnabled(true);
     listview.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
     enableSend(false);
-
-    // Fetching the client list hits the clients database, so we spin this onto
-    // a background task.
-    final Context context = this;
-    new AsyncTask<Void, Void, ClientRecord[]>() {
-
-      @Override
-      protected ClientRecord[] doInBackground(Void... params) {
-        return getClientArray();
-      }
-
-      @Override
-      protected void onPostExecute(final ClientRecord[] clientArray) {
-        // We're allowed to update the UI from here.
-        arrayAdapter = new ClientRecordArrayAdapter(context, R.layout.sync_list_item, clientArray);
-        listview.setAdapter(arrayAdapter);
-      }
-    }.execute();
   }
 
   private static void registerDisplayURICommand() {
@@ -118,23 +102,14 @@ public class SendTabActivity extends Activity {
     final String title = extras.getString(Intent.EXTRA_SUBJECT);
     final CommandProcessor processor = CommandProcessor.getProcessor();
 
-    final String clientGUID = getAccountGUID();
-    final List<String> guids = arrayAdapter.getCheckedGUIDs();
-
-    if (clientGUID == null || guids == null) {
-      // Should never happen.
-      Logger.warn(LOG_TAG, "clientGUID? " + (clientGUID == null) + " or guids? " + (guids == null) +
-          " was null; aborting without sending tab.");
-      finish();
-      return;
-    }
+    final String[] guids = arrayAdapter.getCheckedGUIDs();
 
     // Perform tab sending on another thread.
     new Thread() {
       @Override
       public void run() {
-        for (String guid : guids) {
-          processor.sendURIToClientForDisplay(uri, guid, title, clientGUID, getApplicationContext());
+        for (int i = 0; i < guids.length; i++) {
+          processor.sendURIToClientForDisplay(uri, guids[i], title, getAccountGUID(), getApplicationContext());
         }
 
         Logger.info(LOG_TAG, "Requesting immediate clients stage sync.");

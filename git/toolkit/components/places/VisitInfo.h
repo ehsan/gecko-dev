@@ -7,14 +7,13 @@
 
 #include "mozIAsyncHistory.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Attributes.h"
 
 class nsIURI;
 
 namespace mozilla {
 namespace places {
 
-class VisitInfo MOZ_FINAL : public mozIVisitInfo
+class VisitInfo : public mozIVisitInfo
 {
 public:
   NS_DECL_ISUPPORTS

@@ -11,7 +11,6 @@
 #include "gfxSharedImageSurface.h"
 #include "gfxPlatform.h"
 
-#include "AutoOpenSurface.h"
 #include "mozilla/ipc/SharedMemorySysV.h"
 #include "mozilla/layers/PLayerChild.h"
 #include "mozilla/layers/PLayersChild.h"
@@ -356,7 +355,7 @@ ShadowLayerForwarder::ShadowDrawToTarget(gfxContext* aTarget) {
     return false;
   }
 
-  nsRefPtr<gfxASurface> surface = OpenDescriptor(OPEN_READ_WRITE, descriptorOut);
+  nsRefPtr<gfxASurface> surface = OpenDescriptor(descriptorOut);
   aTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
   aTarget->DrawSurface(surface, surface->GetSize());
 
@@ -383,6 +382,22 @@ OptimalShmemType()
 }
 
 bool
+ShadowLayerForwarder::AllocDoubleBuffer(const gfxIntSize& aSize,
+                                        gfxASurface::gfxContentType aContent,
+                                        gfxSharedImageSurface** aFrontBuffer,
+                                        gfxSharedImageSurface** aBackBuffer)
+{
+  return AllocBuffer(aSize, aContent, aFrontBuffer) &&
+         AllocBuffer(aSize, aContent, aBackBuffer);
+}
+
+void
+ShadowLayerForwarder::DestroySharedSurface(gfxSharedImageSurface* aSurface)
+{
+  mShadowManager->DeallocShmem(aSurface->GetShmem());
+}
+
+bool
 ShadowLayerForwarder::AllocBuffer(const gfxIntSize& aSize,
                                   gfxASurface::gfxContentType aContent,
                                   gfxSharedImageSurface** aBuffer)
@@ -403,25 +418,43 @@ ShadowLayerForwarder::AllocBuffer(const gfxIntSize& aSize,
 }
 
 bool
-ShadowLayerForwarder::AllocBuffer(const gfxIntSize& aSize,
-                                  gfxASurface::gfxContentType aContent,
-                                  SurfaceDescriptor* aBuffer)
-{
-  return AllocBufferWithCaps(aSize, aContent, DEFAULT_BUFFER_CAPS, aBuffer);
-}
-
-bool
-ShadowLayerForwarder::AllocBufferWithCaps(const gfxIntSize& aSize,
-                                          gfxASurface::gfxContentType aContent,
-                                          uint32_t aCaps,
-                                          SurfaceDescriptor* aBuffer)
+ShadowLayerForwarder::AllocDoubleBuffer(const gfxIntSize& aSize,
+                                        gfxASurface::gfxContentType aContent,
+                                        SurfaceDescriptor* aFrontBuffer,
+                                        SurfaceDescriptor* aBackBuffer)
 {
   bool tryPlatformSurface = true;
 #ifdef DEBUG
   tryPlatformSurface = !PR_GetEnv("MOZ_LAYERS_FORCE_SHMEM_SURFACES");
 #endif
   if (tryPlatformSurface &&
-      PlatformAllocBuffer(aSize, aContent, aCaps, aBuffer)) {
+      PlatformAllocDoubleBuffer(aSize, aContent, aFrontBuffer, aBackBuffer)) {
+    return true;
+  }
+
+  nsRefPtr<gfxSharedImageSurface> front;
+  nsRefPtr<gfxSharedImageSurface> back;
+  if (!AllocDoubleBuffer(aSize, aContent,
+                         getter_AddRefs(front), getter_AddRefs(back))) {
+    return false;
+  }
+
+  *aFrontBuffer = front->GetShmem();
+  *aBackBuffer = back->GetShmem();
+  return true;
+}
+
+bool
+ShadowLayerForwarder::AllocBuffer(const gfxIntSize& aSize,
+                                  gfxASurface::gfxContentType aContent,
+                                  SurfaceDescriptor* aBuffer)
+{
+  bool tryPlatformSurface = true;
+#ifdef DEBUG
+  tryPlatformSurface = !PR_GetEnv("MOZ_LAYERS_FORCE_SHMEM_SURFACES");
+#endif
+  if (tryPlatformSurface &&
+      PlatformAllocBuffer(aSize, aContent, aBuffer)) {
     return true;
   }
 
@@ -435,10 +468,9 @@ ShadowLayerForwarder::AllocBufferWithCaps(const gfxIntSize& aSize,
 }
 
 /*static*/ already_AddRefed<gfxASurface>
-ShadowLayerForwarder::OpenDescriptor(OpenMode aMode,
-                                     const SurfaceDescriptor& aSurface)
+ShadowLayerForwarder::OpenDescriptor(const SurfaceDescriptor& aSurface)
 {
-  nsRefPtr<gfxASurface> surf = PlatformOpenDescriptor(aMode, aSurface);
+  nsRefPtr<gfxASurface> surf = PlatformOpenDescriptor(aSurface);
   if (surf) {
     return surf.forget();
   }
@@ -452,46 +484,6 @@ ShadowLayerForwarder::OpenDescriptor(OpenMode aMode,
     NS_RUNTIMEABORT("unexpected SurfaceDescriptor type!");
     return nsnull;
   }
-}
-
-/*static*/ gfxContentType
-ShadowLayerForwarder::GetDescriptorSurfaceContentType(
-  const SurfaceDescriptor& aDescriptor, OpenMode aMode,
-  gfxASurface** aSurface)
-{
-  gfxContentType content;
-  if (PlatformGetDescriptorSurfaceContentType(aDescriptor, aMode,
-                                              &content, aSurface)) {
-    return content;
-  }
-
-  nsRefPtr<gfxASurface> surface = OpenDescriptor(aMode, aDescriptor);
-  content = surface->GetContentType();
-  *aSurface = surface.forget().get();
-  return content;
-}
-
-/*static*/ gfxIntSize
-ShadowLayerForwarder::GetDescriptorSurfaceSize(
-  const SurfaceDescriptor& aDescriptor, OpenMode aMode,
-  gfxASurface** aSurface)
-{
-  gfxIntSize size;
-  if (PlatformGetDescriptorSurfaceSize(aDescriptor, aMode, &size, aSurface)) {
-    return size;
-  }
-
-  nsRefPtr<gfxASurface> surface = OpenDescriptor(aMode, aDescriptor);
-  size = surface->GetSize();
-  *aSurface = surface.forget().get();
-  return size;
-}
-
-/*static*/ void
-ShadowLayerForwarder::CloseDescriptor(const SurfaceDescriptor& aDescriptor)
-{
-  PlatformCloseDescriptor(aDescriptor);
-  // There's no "close" needed for Shmem surfaces.
 }
 
 // Destroy the Shmem SurfaceDescriptor |aSurface|.
@@ -555,45 +547,26 @@ ShadowLayerManager::DestroySharedSurface(SurfaceDescriptor* aSurface,
 #if !defined(MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS)
 
 bool
+ShadowLayerForwarder::PlatformAllocDoubleBuffer(const gfxIntSize&,
+                                                gfxASurface::gfxContentType,
+                                                SurfaceDescriptor*,
+                                                SurfaceDescriptor*)
+{
+  return false;
+}
+
+bool
 ShadowLayerForwarder::PlatformAllocBuffer(const gfxIntSize&,
                                           gfxASurface::gfxContentType,
-                                          uint32_t,
                                           SurfaceDescriptor*)
 {
   return false;
 }
 
 /*static*/ already_AddRefed<gfxASurface>
-ShadowLayerForwarder::PlatformOpenDescriptor(OpenMode,
-                                             const SurfaceDescriptor&)
+ShadowLayerForwarder::PlatformOpenDescriptor(const SurfaceDescriptor&)
 {
   return nsnull;
-}
-
-/*static*/ bool
-ShadowLayerForwarder::PlatformCloseDescriptor(const SurfaceDescriptor&)
-{
-  return false;
-}
-
-/*static*/ bool
-ShadowLayerForwarder::PlatformGetDescriptorSurfaceContentType(
-  const SurfaceDescriptor&,
-  OpenMode,
-  gfxContentType*,
-  gfxASurface**)
-{
-  return false;
-}
-
-/*static*/ bool
-ShadowLayerForwarder::PlatformGetDescriptorSurfaceSize(
-  const SurfaceDescriptor&,
-  OpenMode,
-  gfxIntSize*,
-  gfxASurface**)
-{
-  return false;
 }
 
 bool
@@ -625,61 +598,6 @@ IsSurfaceDescriptorValid(const SurfaceDescriptor& aSurface)
 {
   return SurfaceDescriptor::T__None != aSurface.type();
 }
-
-AutoOpenSurface::AutoOpenSurface(OpenMode aMode,
-                                 const SurfaceDescriptor& aDescriptor)
-  : mDescriptor(aDescriptor)
-  , mMode(aMode)
-{
-  MOZ_ASSERT(IsSurfaceDescriptorValid(mDescriptor));
-}
-
-AutoOpenSurface::~AutoOpenSurface()
-{
-  if (mSurface) {
-    mSurface = nsnull;
-    ShadowLayerForwarder::CloseDescriptor(mDescriptor);
-  }
-}
-
-gfxContentType
-AutoOpenSurface::ContentType()
-{
-  if (mSurface) {
-    return mSurface->GetContentType();
-  }
-  return ShadowLayerForwarder::GetDescriptorSurfaceContentType(
-    mDescriptor, mMode, getter_AddRefs(mSurface));
-}
-
-gfxIntSize
-AutoOpenSurface::Size()
-{
-  if (mSurface) {
-    return mSurface->GetSize();
-  }
-  return ShadowLayerForwarder::GetDescriptorSurfaceSize(
-    mDescriptor, mMode, getter_AddRefs(mSurface));
-}
-
-gfxASurface*
-AutoOpenSurface::Get()
-{
-  if (!mSurface) {
-    mSurface = ShadowLayerForwarder::OpenDescriptor(mMode, mDescriptor);
-  }
-  return mSurface.get();
-}
-
-gfxImageSurface*
-AutoOpenSurface::GetAsImage()
-{
-  if (!mSurfaceAsImage) {
-    mSurfaceAsImage = Get()->GetAsImageSurface();
-  }
-  return mSurfaceAsImage.get();
-}
-
 
 } // namespace layers
 } // namespace mozilla

@@ -13,18 +13,17 @@ class TestClick(MarionetteTestCase):
         link.click()
         self.assertEqual("Clicked", self.marionette.execute_script("return document.getElementById('mozLink').innerHTML;"))
 
-    def testClickingALinkMadeUpOfNumbersIsHandledCorrectly(self):
-        test_html = self.marionette.absolute_url("clicks.html")
-        self.marionette.navigate(test_html)
-        self.marionette.find_element("link text", "333333").click()
-        self.assertEqual(self.marionette.title, "XHTML Test Page")
-
 class TestClickChrome(MarionetteTestCase):
     def setUp(self):
         MarionetteTestCase.setUp(self)
         self.marionette.set_context("chrome")
         self.win = self.marionette.get_window()
-        self.marionette.execute_script("window.open('chrome://marionette/content/test.xul', '_blank', 'chrome,centerscreen');")
+        #need to get the file:// path for xul
+        unit = os.path.abspath(os.path.join(os.path.realpath(__file__), os.path.pardir))
+        tests = os.path.abspath(os.path.join(unit, os.path.pardir))
+        mpath = os.path.abspath(os.path.join(tests, os.path.pardir))
+        xul = "file://" + os.path.join(mpath, "www", "test.xul")
+        self.marionette.execute_script("window.open('" + xul +"', '_blank', 'chrome,centerscreen');")
 
     def tearDown(self):
         self.marionette.execute_script("window.close();")
