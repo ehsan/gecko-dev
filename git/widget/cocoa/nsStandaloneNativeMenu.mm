@@ -18,7 +18,6 @@ NS_IMPL_ISUPPORTS_INHERITED(nsStandaloneNativeMenu, nsMenuGroupOwnerX,
 
 nsStandaloneNativeMenu::nsStandaloneNativeMenu()
 : mMenu(nullptr)
-, mContainerStatusBarItem(nil)
 {
 }
 
@@ -53,8 +52,6 @@ nsStandaloneNativeMenu::Init(nsIDOMElement * aDOMElement)
     mMenu = nullptr;
     return rv;
   }
-
-  mMenu->SetupIcon();
 
   return NS_OK;
 }
@@ -197,19 +194,4 @@ nsStandaloneNativeMenu::ForceUpdateNativeMenuAt(const nsAString& indexString)
   }
 
   return NS_OK;
-}
-
-void
-nsStandaloneNativeMenu::IconUpdated()
-{
-  if (mContainerStatusBarItem) {
-    [mContainerStatusBarItem setImage:[mMenu->NativeMenuItem() image]];
-  }
-}
-
-void
-nsStandaloneNativeMenu::SetContainerStatusBarItem(NSStatusItem* aItem)
-{
-  mContainerStatusBarItem = aItem;
-  IconUpdated();
 }

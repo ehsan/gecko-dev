@@ -79,7 +79,7 @@ var gSawInstallNotification = false;
 var gInstallNotificationObserver = {
   observe: function(aSubject, aTopic, aData) {
     var installInfo = aSubject.QueryInterface(Ci.amIWebInstallInfo);
-    isnot(installInfo.originator, null, "Notification should have non-null originator");
+    isnot(installInfo.originatingWindow, null, "Notification should have non-null originatingWindow");
     gSawInstallNotification = true;
     Services.obs.removeObserver(this, "addon-install-started");
   }

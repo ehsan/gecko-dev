@@ -6,10 +6,6 @@
 
 const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
-// Invalid auth token as per
-// https://github.com/mozilla-services/loop-server/blob/45787d34108e2f0d87d74d4ddf4ff0dbab23501c/loop/errno.json#L6
-const INVALID_AUTH_TOKEN = 110;
-
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
@@ -249,9 +245,7 @@ let MozLoopServiceInternal = {
         // No need to clear the promise here, everything was good, so we don't need
         // to re-register.
       }, (error) => {
-        // There's other errors than invalid auth token, but we should only do the reset
-        // as a last resort.
-        if (error.code === 401 && error.errno === INVALID_AUTH_TOKEN) {
+        if (error.errno == 401) {
           if (this.urlExpiryTimeIsInFuture()) {
             // XXX Should this be reported to the user is a visible manner?
             Cu.reportError("Loop session token is invalid, all previously "
