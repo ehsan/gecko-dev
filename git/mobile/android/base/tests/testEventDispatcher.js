@@ -28,7 +28,7 @@ function send_test_message(type) {
   outerObject.object = innerObject;
   outerObject.objectArray = [null, innerObject];
 
-  Messaging.sendRequest(outerObject);
+  sendMessageToJava(outerObject);
 }
 
 function send_message_for_response(type, response) {

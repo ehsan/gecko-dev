@@ -11,9 +11,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Prompt",
                                   "resource://gre/modules/Prompt.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "Messaging",
-                                  "resource://gre/modules/Messaging.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "sendMessageToJava",
                                   "resource://gre/modules/Messaging.jsm");
 
@@ -155,7 +152,7 @@ var HelperApps =  {
 
   launchUri: function launchUri(uri) {
     let msg = this._getMessage("Intent:Open", uri);
-    Messaging.sendRequest(msg);
+    sendMessageToJava(msg);
   },
 
   _parseApps: function _parseApps(appInfo) {
@@ -205,7 +202,7 @@ var HelperApps =  {
             className: app.activityName
         });
 
-        Messaging.sendRequest(msg);
+        sendMessageToJava(msg);
     }
   },
 

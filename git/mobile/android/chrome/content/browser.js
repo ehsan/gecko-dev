@@ -27,7 +27,7 @@ Cu.import("resource://gre/modules/accessibility/AccessFu.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
                                   "resource://gre/modules/PluralForm.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "Messaging",
+XPCOMUtils.defineLazyModuleGetter(this, "sendMessageToJava",
                                   "resource://gre/modules/Messaging.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "DebuggerServer",
@@ -306,7 +306,7 @@ var BrowserApp = {
       try {
         BrowserApp.deck.removeEventListener("DOMContentLoaded", BrowserApp_delayedStartup, false);
         Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
-        Messaging.sendRequest({ type: "Gecko:DelayedStartup" });
+        sendMessageToJava({ type: "Gecko:DelayedStartup" });
 
         // Queue up some other performance-impacting initializations
         Services.tm.mainThread.dispatch(function() {
@@ -366,7 +366,7 @@ var BrowserApp = {
     }
 
     window.addEventListener("fullscreen", function() {
-      Messaging.sendRequest({
+      sendMessageToJava({
         type: window.fullScreen ? "ToggleChrome:Show" : "ToggleChrome:Hide"
       });
     }, false);
@@ -378,7 +378,7 @@ var BrowserApp = {
       // (per spec). This means the last event on enabling will be for the innermost
       // document, which will have mozFullScreenElement set correctly.
       let doc = e.target;
-      Messaging.sendRequest({
+      sendMessageToJava({
         type: doc.mozFullScreen ? "DOMFullScreen:Start" : "DOMFullScreen:Stop",
         rootElement: (doc.mozFullScreen && doc.mozFullScreenElement == doc.documentElement)
       });
@@ -461,7 +461,7 @@ var BrowserApp = {
     }
 
     // notify java that gecko has loaded
-    Messaging.sendRequest({ type: "Gecko:Ready" });
+    sendMessageToJava({ type: "Gecko:Ready" });
   },
 
   get _startupStatus() {
@@ -487,7 +487,7 @@ var BrowserApp = {
    */
   setLocale: function (locale) {
     console.log("browser.js: requesting locale set: " + locale);
-    Messaging.sendRequest({ type: "Locale:Set", locale: locale });
+    sendMessageToJava({ type: "Locale:Set", locale: locale });
   },
 
   _initRuntime: function(status, url, callback) {
@@ -632,7 +632,7 @@ var BrowserApp = {
         UITelemetry.addEvent("action.1", "contextmenu", null, "web_contact_email");
 
         let url = NativeWindow.contextmenus._getLinkURL(aTarget);
-        Messaging.sendRequest({
+        sendMessageToJava({
           type: "Contact:Add",
           email: url
         });
@@ -644,7 +644,7 @@ var BrowserApp = {
         UITelemetry.addEvent("action.1", "contextmenu", null, "web_contact_phone");
 
         let url = NativeWindow.contextmenus._getLinkURL(aTarget);
-        Messaging.sendRequest({
+        sendMessageToJava({
           type: "Contact:Add",
           phone: url
         });
@@ -657,7 +657,7 @@ var BrowserApp = {
 
         let url = NativeWindow.contextmenus._getLinkURL(aTarget);
         let title = aTarget.textContent || aTarget.title || url;
-        Messaging.sendRequest({
+        sendMessageToJava({
           type: "Bookmark:Insert",
           url: url,
           title: title
@@ -773,7 +773,7 @@ var BrowserApp = {
         UITelemetry.addEvent("action.1", "contextmenu", null, "web_background_image");
 
         let src = aTarget.src;
-        Messaging.sendRequest({
+        sendMessageToJava({
           type: "Image:SetAs",
           url: src
         });
@@ -963,7 +963,7 @@ var BrowserApp = {
           type: "Content:LoadError",
           tabID: tab.id
         };
-        Messaging.sendRequest(message);
+        sendMessageToJava(message);
         dump("Handled load error: " + e)
       }
     }
@@ -1010,7 +1010,7 @@ var BrowserApp = {
       type: "Tab:Close",
       tabID: aTab.id
     };
-    Messaging.sendRequest(message);
+    sendMessageToJava(message);
   },
 
   _loadWebapp: function(aMessage) {
@@ -1080,7 +1080,7 @@ var BrowserApp = {
       type: "Tab:Select",
       tabID: aTab.id
     };
-    Messaging.sendRequest(message);
+    sendMessageToJava(message);
   },
 
   /**
@@ -1323,7 +1323,7 @@ var BrowserApp = {
       prefs.push(pref);
     }
 
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "Preferences:Data",
       requestId: aRequestId,    // opaque request identifier, can be any string/int/whatever
       preferences: prefs
@@ -1429,7 +1429,7 @@ var BrowserApp = {
     }
 
     Promise.all(promises).then(function() {
-      Messaging.sendRequest({
+      sendMessageToJava({
         type: "Sanitize:Finished",
         success: true
       });
@@ -1438,7 +1438,7 @@ var BrowserApp = {
         callback();
       }
     }).catch(function(err) {
-      Messaging.sendRequest({
+      sendMessageToJava({
         type: "Sanitize:Finished",
         error: err,
         success: false
@@ -1621,7 +1621,7 @@ var BrowserApp = {
         let query = isPrivate ? "" : aData;
 
         let engine = aSubject.QueryInterface(Ci.nsISearchEngine);
-        Messaging.sendRequest({
+        sendMessageToJava({
           type: "Search:Keyword",
           identifier: engine.identifier,
           name: engine.name,
@@ -1682,11 +1682,11 @@ var BrowserApp = {
       }
 
       case "sessionstore-state-purge-complete":
-        Messaging.sendRequest({ type: "Session:StatePurged" });
+        sendMessageToJava({ type: "Session:StatePurged" });
         break;
 
       case "gather-telemetry":
-        Messaging.sendRequest({ type: "Telemetry:Gather" });
+        sendMessageToJava({ type: "Telemetry:Gather" });
         break;
 
       case "Viewport:FixedMarginsChanged":
@@ -1871,7 +1871,7 @@ var NativeWindow = {
   },
 
   loadDex: function(zipFile, implClass) {
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "Dex:Load",
       zipfile: zipFile,
       impl: implClass || "Main"
@@ -1879,7 +1879,7 @@ var NativeWindow = {
   },
 
   unloadDex: function(zipFile) {
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "Dex:Unload",
       zipfile: zipFile
     });
@@ -1913,7 +1913,7 @@ var NativeWindow = {
         this._callbacks[msg.button.id] = aOptions.button.callback;
       }
 
-      Messaging.sendRequest(msg);
+      sendMessageToJava(msg);
     }
   },
 
@@ -1938,21 +1938,21 @@ var NativeWindow = {
       options.type = "Menu:Add";
       options.id = this._menuId;
 
-      Messaging.sendRequest(options);
+      sendMessageToJava(options);
       this._callbacks[this._menuId] = options.callback;
       this._menuId++;
       return this._menuId - 1;
     },
 
     remove: function(aId) {
-      Messaging.sendRequest({ type: "Menu:Remove", id: aId });
+      sendMessageToJava({ type: "Menu:Remove", id: aId });
     },
 
     update: function(aId, aOptions) {
       if (!aOptions)
         return;
 
-      Messaging.sendRequest({
+      sendMessageToJava({
         type: "Menu:Update", 
         id: aId,
         options: aOptions
@@ -2002,11 +2002,11 @@ var NativeWindow = {
         tabID: aTabID || BrowserApp.selectedTab.id,
         options: aOptions || {}
       };
-      Messaging.sendRequest(json);
+      sendMessageToJava(json);
     },
 
     hide: function(aValue, aTabID) {
-      Messaging.sendRequest({
+      sendMessageToJava({
         type: "Doorhanger:Remove",
         value: aValue,
         tabID: aTabID
@@ -3196,7 +3196,7 @@ Tab.prototype = {
         isPrivate: isPrivate,
         stub: stub
       };
-      Messaging.sendRequest(message);
+      sendMessageToJava(message);
 
       this.overscrollController = new OverscrollController(this);
     }
@@ -3260,7 +3260,7 @@ Tab.prototype = {
           type: "Content:LoadError",
           tabID: this.id
         };
-        Messaging.sendRequest(message);
+        sendMessageToJava(message);
         dump("Handled load error: " + e);
       }
     }
@@ -3351,7 +3351,7 @@ Tab.prototype = {
     // Set desktop mode for tab and send change to Java
     if (this.desktopMode != aDesktopMode) {
       this.desktopMode = aDesktopMode;
-      Messaging.sendRequest({
+      sendMessageToJava({
         type: "DesktopMode:Changed",
         desktopMode: aDesktopMode,
         tabID: this.id
@@ -3780,7 +3780,7 @@ Tab.prototype = {
         else if (docURI.startsWith("about:neterror"))
           errorType = "neterror";
 
-        Messaging.sendRequest({
+        sendMessageToJava({
           type: "DOMContentLoaded",
           tabID: this.id,
           bgColor: backgroundColor,
@@ -3891,7 +3891,7 @@ Tab.prototype = {
             href: resolveGeckoURI(target.href),
             size: maxSize
           };
-          Messaging.sendRequest(json);
+          sendMessageToJava(json);
         } else if (list.indexOf("[alternate]") != -1 && aEvent.type == "DOMLinkAdded") {
           let type = target.type.toLowerCase().replace(/^\s+|\s*(?:;.*)?$/g, "");
           let isFeed = (type == "application/rss+xml" || type == "application/atom+xml");
@@ -3911,7 +3911,7 @@ Tab.prototype = {
               type: "Link:Feed",
               tabID: this.id
             };
-            Messaging.sendRequest(json);
+            sendMessageToJava(json);
           } catch (e) {}
         } else if (list.indexOf("[search]" != -1) && aEvent.type == "DOMLinkAdded") {
           let type = target.type && target.type.toLowerCase();
@@ -3965,7 +3965,7 @@ Tab.prototype = {
               visible: true
             };
 
-            Messaging.sendRequest(newEngineMessage);
+            sendMessageToJava(newEngineMessage);
           }
         }
         break;
@@ -3979,7 +3979,7 @@ Tab.prototype = {
         if (aEvent.originalTarget != this.browser.contentDocument)
           return;
 
-        Messaging.sendRequest({
+        sendMessageToJava({
           type: "DOMTitleChanged",
           tabID: this.id,
           title: truncate(aEvent.target.title, MAX_TITLE_LENGTH)
@@ -3995,7 +3995,7 @@ Tab.prototype = {
         if (this.browser.contentWindow == aEvent.target) {
           aEvent.preventDefault();
 
-          Messaging.sendRequest({
+          sendMessageToJava({
             type: "Tab:Close",
             tabID: this.id
           });
@@ -4065,7 +4065,7 @@ Tab.prototype = {
         if (aEvent.originalTarget.defaultView != this.browser.contentWindow)
           return;
 
-        Messaging.sendRequest({
+        sendMessageToJava({
           type: "Content:PageShow",
           tabID: this.id
         });
@@ -4112,7 +4112,7 @@ Tab.prototype = {
 
           this.savedArticle = article;
 
-          Messaging.sendRequest({
+          sendMessageToJava({
             type: "Content:ReaderEnabled",
             tabID: this.id
           });
@@ -4176,7 +4176,7 @@ Tab.prototype = {
         restoring: restoring,
         success: success
       };
-      Messaging.sendRequest(message);
+      sendMessageToJava(message);
     }
   },
 
@@ -4258,7 +4258,7 @@ Tab.prototype = {
       sameDocument: sameDocument
     };
 
-    Messaging.sendRequest(message);
+    sendMessageToJava(message);
 
     // The search term is only valid for this location change event, so reset it here.
     this.userSearch = "";
@@ -4300,7 +4300,7 @@ Tab.prototype = {
       identity: identity
     };
 
-    Messaging.sendRequest(message);
+    sendMessageToJava(message);
   },
 
   onProgressChange: function(aWebProgress, aRequest, aCurSelfProgress, aMaxSelfProgress, aCurTotalProgress, aMaxTotalProgress) {
@@ -4327,7 +4327,7 @@ Tab.prototype = {
         message.numEntries = aParams.numEntries;
     }
 
-    Messaging.sendRequest(message);
+    sendMessageToJava(message);
   },
 
   _getGeckoZoom: function() {
@@ -4564,7 +4564,7 @@ Tab.prototype = {
 
   sendViewportMetadata: function sendViewportMetadata() {
     let metadata = this.metadata;
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "Tab:ViewportMetadata",
       allowZoom: metadata.allowZoom,
       allowDoubleTapZoom: metadata.allowDoubleTapZoom,
@@ -4782,7 +4782,7 @@ var BrowserEventHandler = {
         let doc = BrowserApp.selectedBrowser.contentDocument;
         let rootScrollable = (doc.compatMode === "BackCompat" ? doc.body : doc.documentElement);
         if (this._scrollableElement != rootScrollable) {
-          Messaging.sendRequest({ type: "Panning:Override" });
+          sendMessageToJava({ type: "Panning:Override" });
         }
       }
     }
@@ -4822,7 +4822,7 @@ var BrowserEventHandler = {
         return;
 
       tab.hasTouchListener = true;
-      Messaging.sendRequest({
+      sendMessageToJava({
         type: "Tab:HasTouchListener",
         tabID: tab.id
       });
@@ -4872,7 +4872,7 @@ var BrowserEventHandler = {
           let doc = BrowserApp.selectedBrowser.contentDocument;
           if (this._scrollableElement == null ||
               this._scrollableElement == doc.documentElement) {
-            Messaging.sendRequest({ type: "Panning:CancelOverride" });
+            sendMessageToJava({ type: "Panning:CancelOverride" });
             return;
           }
 
@@ -4882,10 +4882,10 @@ var BrowserEventHandler = {
         // Scroll the scrollable element
         if (this._elementCanScroll(this._scrollableElement, x, y)) {
           this._scrollElementBy(this._scrollableElement, x, y);
-          Messaging.sendRequest({ type: "Gesture:ScrollAck", scrolled: true });
+          sendMessageToJava({ type: "Gesture:ScrollAck", scrolled: true });
           SelectionHandler.subdocumentScrolled(this._scrollableElement);
         } else {
-          Messaging.sendRequest({ type: "Gesture:ScrollAck", scrolled: false });
+          sendMessageToJava({ type: "Gesture:ScrollAck", scrolled: false });
         }
 
         break;
@@ -5801,7 +5801,7 @@ var FormAssistant = {
         return;
       }
 
-      Messaging.sendRequest({
+      sendMessageToJava({
         type:  "FormAssist:AutoComplete",
         suggestions: suggestions,
         rect: ElementTouchHelper.getBoundingContentRect(aElement)
@@ -5836,7 +5836,7 @@ var FormAssistant = {
     if (!this._isValidateable(aElement))
       return false;
 
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "FormAssist:ValidationMessage",
       validationMessage: aElement.validationMessage,
       rect: ElementTouchHelper.getBoundingContentRect(aElement)
@@ -5846,7 +5846,7 @@ var FormAssistant = {
   },
 
   _hideFormAssistPopup: function _hideFormAssistPopup() {
-    Messaging.sendRequest({ type: "FormAssist:Hide" });
+    sendMessageToJava({ type: "FormAssist:Hide" });
   }
 };
 
@@ -5917,7 +5917,7 @@ let HealthReportStatusListener = {
             return;
         }
 
-        Messaging.sendRequest(response);
+        sendMessageToJava(response);
         break;
     }
   },
@@ -5976,7 +5976,7 @@ let HealthReportStatusListener = {
     if (this._shouldIgnore(aAddon)) {
       json.ignore = true;
     }
-    Messaging.sendRequest({ type: aAction, id: aAddon.id, json: json });
+    sendMessageToJava({ type: aAction, id: aAddon.id, json: json });
   },
 
   // Add-on listeners.
@@ -6039,7 +6039,7 @@ let HealthReportStatusListener = {
         }
 
         console.log("Sending snapshot message.");
-        Messaging.sendRequest({
+        sendMessageToJava({
           type: "HealthReport:Snapshot",
           json: {
             addons: jsonA,
@@ -6693,7 +6693,7 @@ var CharacterEncoding = {
       showCharEncoding = Services.prefs.getComplexValue("browser.menu.showCharacterEncoding", Ci.nsIPrefLocalizedString).data;
     } catch (e) { /* Optional */ }
 
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "CharEncoding:State",
       visible: showCharEncoding
     });
@@ -6727,7 +6727,7 @@ var CharacterEncoding = {
       }
     }
 
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "CharEncoding:Data",
       charsets: this._charsets,
       selected: selected
@@ -6939,7 +6939,7 @@ OverscrollController.prototype = {
   },
 
   doCommand : function doCommand(aCommand){
-    Messaging.sendRequest({ type: "ToggleChrome:Focus" });
+    sendMessageToJava({ type: "ToggleChrome:Focus" });
   },
 
   onEvent : function onEvent(aEvent) { }
@@ -7033,7 +7033,7 @@ var SearchEngines = {
     }
 
     // By convention, the currently configured default engine is at position zero in searchEngines.
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "SearchEngines:Data",
       searchEngines: searchEngines,
       suggest: {
@@ -7117,7 +7117,7 @@ var SearchEngines = {
           visible: false
         };
 
-        Messaging.sendRequest(newEngineMessage);
+        sendMessageToJava(newEngineMessage);
       }
     }).bind(this));
   },
@@ -7412,13 +7412,13 @@ let Reader = {
 
   pageAction: {
     readerModeCallback: function(){
-      Messaging.sendRequest({
+      sendMessageToJava({
         type: "Reader:Click",
       });
     },
 
     readerModeActiveCallback: function(){
-      Messaging.sendRequest({
+      sendMessageToJava({
         type: "Reader:LongClick",
       });
 
@@ -7492,7 +7492,7 @@ let Reader = {
           article = article || {};
           this.log("Reader:Add success=" + result + ", url=" + url + ", title=" + article.title + ", excerpt=" + article.excerpt);
 
-          Messaging.sendRequest({
+          sendMessageToJava({
             type: "Reader:Added",
             result: result,
             title: truncate(article.title, MAX_TITLE_LENGTH),
@@ -7540,7 +7540,7 @@ let Reader = {
         this.removeArticleFromCache(args.url, function(success) {
           this.log("Reader:Remove success=" + success + ", url=" + args.url);
           if (success && args.notify) {
-            Messaging.sendRequest({
+            sendMessageToJava({
               type: "Reader:Removed",
               url: args.url
             });
@@ -8185,7 +8185,7 @@ var Distribution = {
       } catch (e) { /* ignore bad prefs and move on */ }
     }
 
-    Messaging.sendRequest({ type: "Distribution:Set:OK" });
+    sendMessageToJava({ type: "Distribution:Set:OK" });
   },
 
   // aFile is an nsIFile

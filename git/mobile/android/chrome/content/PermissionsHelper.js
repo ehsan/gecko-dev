@@ -88,7 +88,7 @@ var PermissionsHelper = {
         } catch(e) {
           host = uri.spec;
         }
-        Messaging.sendRequest({
+        sendMessageToJava({
           type: "Permissions:Data",
           host: host,
           permissions: permissions

@@ -9,26 +9,49 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 
-this.EXPORTED_SYMBOLS = ["sendMessageToJava", "Messaging"];
+this.EXPORTED_SYMBOLS = ["sendMessageToJava", "RequestService"];
 
 XPCOMUtils.defineLazyServiceGetter(this, "uuidgen",
                                    "@mozilla.org/uuid-generator;1",
                                    "nsIUUIDGenerator");
 
 function sendMessageToJava(aMessage, aCallback) {
-  Cu.reportError("sendMessageToJava is deprecated. Use Messaging API instead.");
+  if (aCallback) {
+    let id = uuidgen.generateUUID().toString();
+    let obs = {
+      observe: function(aSubject, aTopic, aData) {
+        let data = JSON.parse(aData);
+        if (data.__guid__ != id) {
+          return;
+        }
 
-  Messaging.sendRequest(aMessage, aCallback);
+        Services.obs.removeObserver(obs, aMessage.type + ":Response", false);
+
+        if (data.status === "cancel") {
+          // No Java-side listeners handled our callback.
+          return;
+        }
+
+        aCallback(data.status === "success" ? data.response : null,
+                  data.status === "error"   ? data.response : null);
+      }
+    }
+
+    aMessage.__guid__ = id;
+    Services.obs.addObserver(obs, aMessage.type + ":Response", false);
+  }
+
+  return Services.androidBridge.handleGeckoMessage(aMessage);
 }
 
-let Messaging = {
+let RequestService = {
   /**
    * Add a listener for the given message.
    *
    * Only one request listener can be registered for a given message.
    *
    * Example usage:
-   *   Messaging.addListener({
+   *   RequestService.addListener({
    *     // aMessage is the message name.
    *     // aData is data sent from Java with the request.
    *     // The return value is used to respond to the request. The return
@@ -43,7 +66,7 @@ let Messaging = {
    *
    * The listener may also be a generator function, useful for performing a
    * task asynchronously. For example:
-   *   Messaging.addListener({
+   *   RequestService.addListener({
    *     onRequest: function* (aMessage, aData) {
    *       yield new Promise(resolve => setTimeout(resolve, 2000));
    *       return { response: "bar" };
@@ -65,41 +88,6 @@ let Messaging = {
    */
   removeListener: function (aMessage) {
     requestHandler.removeListener(aMessage);
-  },
-
-  /**
-   * Sends a request to Java.
-   *
-   * @param aMessage  Message to send; must be an object with a "type" property
-   * @param aCallback Callback function, required if this request expects a response.
-   */
-  sendRequest: function (aMessage, aCallback) {
-    if (aCallback) {
-      let id = uuidgen.generateUUID().toString();
-      let obs = {
-        observe: function(aSubject, aTopic, aData) {
-          let data = JSON.parse(aData);
-          if (data.__guid__ != id) {
-            return;
-          }
-
-          Services.obs.removeObserver(obs, aMessage.type + ":Response", false);
-
-          if (data.status === "cancel") {
-            // No Java-side listeners handled our callback.
-            return;
-          }
-
-          aCallback(data.status === "success" ? data.response : null,
-                    data.status === "error"   ? data.response : null);
-        }
-      }
-
-      aMessage.__guid__ = id;
-      Services.obs.addObserver(obs, aMessage.type + ":Response", false);
-    }
-
-    return Services.androidBridge.handleGeckoMessage(aMessage);
   },
 };
 
@@ -147,7 +135,7 @@ let requestHandler = {
       Cu.reportError(e);
     }
 
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "Gecko:Request" + wrapper.id,
       response: response
     });

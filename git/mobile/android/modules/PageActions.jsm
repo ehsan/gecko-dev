@@ -67,7 +67,7 @@ var PageActions = {
 
   add: function(aOptions) {
     let id = uuidgen.generateUUID().toString();
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "PageActions:Add",
       id: id,
       title: aOptions.title,
@@ -85,7 +85,7 @@ var PageActions = {
   },
 
   remove: function(id) {
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "PageActions:Remove",
       id: id
     });

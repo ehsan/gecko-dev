@@ -62,7 +62,7 @@ var CastingApps = {
     SimpleServiceDiscovery.search(120 * 1000);
 
     this._castMenuId = NativeWindow.contextmenus.add(
-      Strings.browser.GetStringFromName("contextmenu.sendToDevice"),
+      Strings.browser.GetStringFromName("contextmenu.castToScreen"),
       this.filterCast,
       this.handleContextMenu.bind(this)
     );
@@ -429,14 +429,14 @@ var CastingApps = {
     // Both states have the same action: Show the cast page action
     if (aVideo.mozIsCasting) {
       this.pageAction.id = PageActions.add({
-        title: Strings.browser.GetStringFromName("contextmenu.sendToDevice"),
+        title: Strings.browser.GetStringFromName("contextmenu.castToScreen"),
         icon: "drawable://casting_active",
         clickCallback: this.pageAction.click,
         important: true
       });
     } else if (aVideo.mozAllowCasting) {
       this.pageAction.id = PageActions.add({
-        title: Strings.browser.GetStringFromName("contextmenu.sendToDevice"),
+        title: Strings.browser.GetStringFromName("contextmenu.castToScreen"),
         icon: "drawable://casting",
         clickCallback: this.pageAction.click,
         important: true
@@ -463,7 +463,7 @@ var CastingApps = {
     }
 
     let prompt = new Prompt({
-      title: Strings.browser.GetStringFromName("casting.sendToDevice")
+      title: Strings.browser.GetStringFromName("casting.prompt")
     }).setSingleChoiceItems(items).show(function(data) {
       let selected = data.button;
       let service = selected == -1 ? null : filteredServices[selected];
@@ -563,7 +563,7 @@ var CastingApps = {
     }
 
     aRemoteMedia.load(this.session.data);
-    Messaging.sendRequest({ type: "Casting:Started", device: this.session.service.friendlyName });
+    sendMessageToJava({ type: "Casting:Started", device: this.session.service.friendlyName });
 
     let video = this.session.videoRef.get();
     if (video) {
@@ -573,7 +573,7 @@ var CastingApps = {
   },
 
   onRemoteMediaStop: function(aRemoteMedia) {
-    Messaging.sendRequest({ type: "Casting:Stopped" });
+    sendMessageToJava({ type: "Casting:Stopped" });
     this._shutdown();
   },
 
