@@ -68,9 +68,7 @@ describe("loop.roomViews", function () {
         videoMuted: false,
         failureReason: undefined,
         used: false,
-        foo: "bar",
-        localVideoDimensions: {},
-        remoteVideoDimensions: {}
+        foo: "bar"
       });
     });
 

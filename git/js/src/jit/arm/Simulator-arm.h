@@ -38,8 +38,9 @@ namespace js {
 namespace jit {
 
 class Simulator;
-class Redirection;
-class CachePage;
+class SimulatorRuntime;
+SimulatorRuntime *CreateSimulatorRuntime();
+void DestroySimulatorRuntime(SimulatorRuntime *srt);
 
 // When the SingleStepCallback is called, the simulator is about to execute
 // sim->get_pc() and the current machine state represents the completed
@@ -94,13 +95,7 @@ class Simulator
         num_q_registers = 16
     };
 
-    // Returns nullptr on OOM.
-    static Simulator *Create();
-
-    static void Destroy(Simulator *simulator);
-
-    // Constructor/destructor are for internal use only; use the static methods above.
-    Simulator();
+    explicit Simulator(SimulatorRuntime *srt);
     ~Simulator();
 
     // The currently executing Simulator instance. Potentially there can be one
@@ -110,8 +105,6 @@ class Simulator
     static inline uintptr_t StackLimit() {
         return Simulator::Current()->stackLimit();
     }
-
-    uintptr_t *addressOfStackLimit();
 
     // Accessors for register state. Reading the pc value adheres to the ARM
     // architecture specification and is off by a 8 from the currently executing
@@ -194,8 +187,6 @@ class Simulator
         // C code.
         end_sim_pc = -2
     };
-
-    bool init();
 
     // Checks if the current instruction should be executed based on its
     // condition bits.
@@ -342,7 +333,6 @@ class Simulator
 
     // Simulator support.
     char *stack_;
-    uintptr_t stackLimit_;
     bool pc_modified_;
     int64_t icount_;
 
@@ -359,6 +349,8 @@ class Simulator
     bool single_stepping_;
     SingleStepCallback single_step_callback_;
     void *single_step_callback_arg_;
+
+    SimulatorRuntime *srt_;
 
     // A stop is watched if its code is less than kNumOfWatchedStops.
     // Only watched stops support enabling/disabling and the counter feature.
@@ -382,35 +374,6 @@ class Simulator
         return icount_;
     }
 
-  private:
-    Redirection *redirection_;
-
-    // ICache checking.
-    struct ICacheHasher {
-        typedef void *Key;
-        typedef void *Lookup;
-        static HashNumber hash(const Lookup &l);
-        static bool match(const Key &k, const Lookup &l);
-    };
-
-  public:
-    typedef HashMap<void *, CachePage *, ICacheHasher, SystemAllocPolicy> ICacheMap;
-
-  protected:
-    ICacheMap icache_;
-
-  public:
-    ICacheMap &icache() {
-        return icache_;
-    }
-
-    Redirection *redirection() const {
-        return redirection_;
-    }
-
-    void setRedirection(js::jit::Redirection *redirection) {
-        redirection_ = redirection;
-    }
 };
 
 #define JS_CHECK_SIMULATOR_RECURSION_WITH_EXTRA(cx, extra, onerror)             \

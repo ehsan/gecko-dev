@@ -292,9 +292,7 @@ int32_t AudioTransportImpl::NeedMorePlayData(
     const uint8_t nChannels,
     const uint32_t samplesPerSec,
     void* audioSamples,
-    uint32_t& nSamplesOut,
-    int64_t* elapsed_time_ms,
-    int64_t* ntp_time_ms)
+    uint32_t& nSamplesOut)
 {
     if (_fullDuplex)
     {
@@ -538,18 +536,11 @@ int AudioTransportImpl::OnDataAvailable(const int voe_channels[],
   return 0;
 }
 
-void AudioTransportImpl::PushCaptureData(int voe_channel,
-                                         const void* audio_data,
-                                         int bits_per_sample, int sample_rate,
-                                         int number_of_channels,
-                                         int number_of_frames) {}
-
-void AudioTransportImpl::PullRenderData(int bits_per_sample, int sample_rate,
-                                        int number_of_channels,
-                                        int number_of_frames,
-                                        void* audio_data,
-                                        int64_t* elapsed_time_ms,
-                                        int64_t* ntp_time_ms) {}
+void AudioTransportImpl::OnData(int voe_channel,
+                                const void* audio_data,
+                                int bits_per_sample, int sample_rate,
+                                int number_of_channels,
+                                int number_of_frames) {}
 
 FuncTestManager::FuncTestManager() :
     _processThread(NULL),
@@ -916,12 +907,9 @@ int32_t FuncTestManager::TestDeviceEnumeration()
 
 #ifdef _WIN32
     // default (-1)
-    // TODO(henrika): fix below test.
-#if 0
     EXPECT_EQ(0, audioDevice->PlayoutDeviceName(-1, name, guid));
     TEST_LOG("PlayoutDeviceName(%d):   default name=%s \n \
 	                 default guid=%s\n", -1, name, guid);
-#endif  // 0
 #else
     // should fail
     EXPECT_EQ(-1, audioDevice->PlayoutDeviceName(-1, name, guid));
@@ -941,12 +929,9 @@ int32_t FuncTestManager::TestDeviceEnumeration()
 
 #ifdef _WIN32
     // default (-1)
-    // TODO(henrika): fix below test.
-#if 0
     EXPECT_EQ(0, audioDevice->RecordingDeviceName(-1, name, guid));
     TEST_LOG("RecordingDeviceName(%d): default name=%s \n \
 	                 default guid=%s\n", -1, name, guid);
-#endif
 #else
     // should fail
     EXPECT_EQ(-1, audioDevice->PlayoutDeviceName(-1, name, guid));
@@ -1022,6 +1007,8 @@ int32_t FuncTestManager::TestDeviceSelection()
     {
         PRINT_STR(Stereo Playout, false);
     }
+    EXPECT_EQ(0, audioDevice->SpeakerIsAvailable(&available));
+    PRINT_STR(Speaker, available);
     EXPECT_EQ(0, audioDevice->SpeakerVolumeIsAvailable(&available));
     PRINT_STR(Speaker Volume, available);
     EXPECT_EQ(0, audioDevice->SpeakerMuteIsAvailable(&available));
@@ -1040,6 +1027,8 @@ int32_t FuncTestManager::TestDeviceSelection()
     {
         PRINT_STR(Stereo Playout, false);
     }
+    EXPECT_EQ(0, audioDevice->SpeakerIsAvailable(&available));
+    PRINT_STR(Speaker, available);
     EXPECT_EQ(0, audioDevice->SpeakerVolumeIsAvailable(&available));
     PRINT_STR(Speaker Volume, available);
     EXPECT_EQ(0, audioDevice->SpeakerMuteIsAvailable(&available));
@@ -1065,6 +1054,8 @@ int32_t FuncTestManager::TestDeviceSelection()
         {
             PRINT_STR(Stereo Playout, false);
         }
+        EXPECT_EQ(0, audioDevice->SpeakerIsAvailable(&available));
+        PRINT_STR(Speaker, available);
         EXPECT_EQ(0, audioDevice->SpeakerVolumeIsAvailable(&available));
         PRINT_STR(Speaker Volume, available);
         EXPECT_EQ(0, audioDevice->SpeakerMuteIsAvailable(&available));
@@ -1094,6 +1085,8 @@ int32_t FuncTestManager::TestDeviceSelection()
         // special fix to ensure that we don't log 'available' when recording is not OK
         PRINT_STR(Stereo Recording, false);
     }
+    EXPECT_EQ(0, audioDevice->MicrophoneIsAvailable(&available));
+    PRINT_STR(Microphone, available);
     EXPECT_EQ(0, audioDevice->MicrophoneVolumeIsAvailable(&available));
     PRINT_STR(Microphone Volume, available);
     EXPECT_EQ(0, audioDevice->MicrophoneMuteIsAvailable(&available));
@@ -1115,6 +1108,8 @@ int32_t FuncTestManager::TestDeviceSelection()
         // special fix to ensure that we don't log 'available' when recording is not OK
         PRINT_STR(Stereo Recording, false);
     }
+    EXPECT_EQ(0, audioDevice->MicrophoneIsAvailable(&available));
+    PRINT_STR(Microphone, available);
     EXPECT_EQ(0, audioDevice->MicrophoneVolumeIsAvailable(&available));
     PRINT_STR(Microphone Volume, available);
     EXPECT_EQ(0, audioDevice->MicrophoneMuteIsAvailable(&available));
@@ -1144,6 +1139,8 @@ int32_t FuncTestManager::TestDeviceSelection()
             // is not OK
             PRINT_STR(Stereo Recording, false);
         }
+        EXPECT_EQ(0, audioDevice->MicrophoneIsAvailable(&available));
+        PRINT_STR(Microphone, available);
         EXPECT_EQ(0, audioDevice->MicrophoneVolumeIsAvailable(&available));
         PRINT_STR(Microphone Volume, available);
         EXPECT_EQ(0, audioDevice->MicrophoneMuteIsAvailable(&available));
@@ -2692,7 +2689,7 @@ int32_t FuncTestManager::TestAdvancedMBAPI()
         " from the loudspeaker.\n\
 > Press any key to stop...\n \n");
     PAUSE(DEFAULT_PAUSE_TIME);
-    EXPECT_EQ(0, audioDevice->GetLoudspeakerStatus(&loudspeakerOn));
+    EXPECT_EQ(0, audioDevice->GetLoudspeakerStatus(loudspeakerOn));
     EXPECT_TRUE(loudspeakerOn);
 
     TEST_LOG("Set to not use speaker\n");
@@ -2701,7 +2698,7 @@ int32_t FuncTestManager::TestAdvancedMBAPI()
         " from the loudspeaker.\n\
 > Press any key to stop...\n \n");
     PAUSE(DEFAULT_PAUSE_TIME);
-    EXPECT_EQ(0, audioDevice->GetLoudspeakerStatus(&loudspeakerOn));
+    EXPECT_EQ(0, audioDevice->GetLoudspeakerStatus(loudspeakerOn));
     EXPECT_FALSE(loudspeakerOn);
 #endif
 

@@ -129,22 +129,21 @@ a resolve reaction that verifies the returned value.
 Note that in the promise chain constructed in `test_function` assertions don't
 need to wrapped in `step` or `step_func` calls.
 
-`promise_rejects` can be used to test Promises that need to reject:
-
-    promise_rejects(test_object, code, promise)
-
-The `code` argument is equivalent to the same argument to the `assert_throws`
-function.
-
-Here's an example where the `bar()` function returns a Promise that rejects
-with a TypeError:
+Here's another example where the `test_function` uses the provided `test`
+parameter to test a Promise that is expected to reject. Note that it's important
+to handle all expected rejections since an unhandled rejection causes the test
+to fail.
 
     function bar() {
-      return Promise.reject(new TypeError());
+      return Promise.reject("bar");
     }
 
     promise_test(function(t) {
-      return promise_rejects(t, new TypeError(), bar);
+      return bar()
+        .then(t.unreached_func("bar() should not accept"),
+              function(result) {
+                assert_equals(result, "bar", "bar should return 'bar'");
+              });
     }, "Another example");
 
 ## Single Page Tests ##

@@ -107,10 +107,6 @@ void TableTicker::HandleSaveRequest()
   NS_DispatchToMainThread(runnable);
 }
 
-void TableTicker::DeleteExpiredMarkers()
-{
-  mBuffer->deleteExpiredStoredMarkers();
-}
 
 void TableTicker::StreamTaskTracer(JSStreamWriter& b)
 {
@@ -157,6 +153,7 @@ void TableTicker::StreamMetaJSCustomObject(JSStreamWriter& b)
     b.NameValue("version", 2);
     b.NameValue("interval", interval());
     b.NameValue("stackwalk", mUseStackWalk);
+    b.NameValue("jank", mJankOnly);
     b.NameValue("processType", XRE_GetProcessType());
 
     mozilla::TimeDuration delta = mozilla::TimeStamp::Now() - sStartTime;
@@ -756,9 +753,52 @@ void TableTicker::InplaceTick(TickSample* sample)
 {
   ThreadProfile& currThreadProfile = *sample->threadProfile;
 
-  currThreadProfile.addTag(ProfileEntry('T', currThreadProfile.ThreadId()));
-
   PseudoStack* stack = currThreadProfile.GetPseudoStack();
+  stack->updateGeneration(currThreadProfile.GetGenerationID());
+  bool recordSample = true;
+#if defined(XP_WIN)
+  bool powerSample = false;
+#endif
+
+  /* Don't process the PeudoStack's markers or honour jankOnly if we're
+     immediately sampling the current thread. */
+  if (!sample->isSamplingCurrentThread) {
+    // Marker(s) come before the sample
+    ProfilerMarkerLinkedList* pendingMarkersList = stack->getPendingMarkers();
+    while (pendingMarkersList && pendingMarkersList->peek()) {
+      ProfilerMarker* marker = pendingMarkersList->popHead();
+      stack->addStoredMarker(marker);
+      currThreadProfile.addTag(ProfileEntry('m', marker));
+    }
+
+#if defined(XP_WIN)
+    if (mProfilePower) {
+      mIntelPowerGadget->TakeSample();
+      powerSample = true;
+    }
+#endif
+
+    if (mJankOnly) {
+      // if we are on a different event we can discard any temporary samples
+      // we've kept around
+      if (sLastSampledEventGeneration != sCurrentEventGeneration) {
+        // XXX: we also probably want to add an entry to the profile to help
+        // distinguish which samples are part of the same event. That, or record
+        // the event generation in each sample
+        currThreadProfile.erase();
+      }
+      sLastSampledEventGeneration = sCurrentEventGeneration;
+
+      recordSample = false;
+      // only record the events when we have a we haven't seen a tracer event for 100ms
+      if (!sLastTracerEvent.IsNull()) {
+        mozilla::TimeDuration delta = sample->timestamp - sLastTracerEvent;
+        if (delta.ToMilliseconds() > 100.0) {
+            recordSample = true;
+        }
+      }
+    }
+  }
 
 #if defined(USE_NS_STACKWALK) || defined(USE_EHABI_STACKWALK)
   if (mUseStackWalk) {
@@ -770,16 +810,8 @@ void TableTicker::InplaceTick(TickSample* sample)
   doSampleStackTrace(currThreadProfile, sample, mAddLeafAddresses);
 #endif
 
-  // Don't process the PeudoStack's markers if we're
-  // synchronously sampling the current thread.
-  if (!sample->isSamplingCurrentThread) {
-    ProfilerMarkerLinkedList* pendingMarkersList = stack->getPendingMarkers();
-    while (pendingMarkersList && pendingMarkersList->peek()) {
-      ProfilerMarker* marker = pendingMarkersList->popHead();
-      currThreadProfile.addStoredMarker(marker);
-      currThreadProfile.addTag(ProfileEntry('m', marker));
-    }
-  }
+  if (recordSample)
+    currThreadProfile.flush();
 
   if (sample && currThreadProfile.GetThreadResponsiveness()->HasData()) {
     mozilla::TimeDuration delta = currThreadProfile.GetThreadResponsiveness()->GetUnresponsiveDuration(sample->timestamp);
@@ -802,8 +834,7 @@ void TableTicker::InplaceTick(TickSample* sample)
   }
 
 #if defined(XP_WIN)
-  if (mProfilePower) {
-    mIntelPowerGadget->TakeSample();
+  if (powerSample) {
     currThreadProfile.addTag(ProfileEntry('p', static_cast<float>(mIntelPowerGadget->GetTotalPackagePowerInWatts())));
   }
 #endif

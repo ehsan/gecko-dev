@@ -29,11 +29,6 @@ html|h1 {
   margin-bottom: .5em;
 }
 
-html|hr {
-  border-style: solid none none none;
-  border-color: #c1c1c1;
-}
-
 xul|caption {
   -moz-appearance: none;
   margin: 0;
@@ -411,29 +406,11 @@ html|a:hover:active,
 
 /* Checkboxes and radio buttons */
 
-/* Hide the actual checkbox */
-html|input[type="checkbox"] {
-  opacity: 0;
-  position: absolute;
-}
-
-/* Create a box to style as the checkbox */
-html|input[type="checkbox"] + html|label:before {
-  display: inline-block;
-  content: "";
-  vertical-align: middle;
-}
-
-html|input[type="checkbox"] + html|label {
-  line-height: 0px;
-}
-
 xul|checkbox {
   -moz-margin-start: 0;
 }
 
-xul|*.checkbox-check,
-html|input[type="checkbox"] + html|label:before {
+xul|*.checkbox-check {
   -moz-appearance: none;
   width: 23px;
   height: 23px;
@@ -448,8 +425,7 @@ html|input[type="checkbox"] + html|label:before {
   box-shadow: 0 1px 1px 0 #fff, inset 0 2px 0 0 rgba(0,0,0,0.03);
 }
 
-xul|checkbox:not([disabled="true"]):hover > xul|*.checkbox-check,
-html|input[type="checkbox"]:not(:disabled) + html|label:hover:before {
+xul|checkbox:not([disabled="true"]):hover > xul|*.checkbox-check {
   border-color: #0095dd;
 }
 
@@ -457,12 +433,7 @@ xul|*.checkbox-check[checked] {
   list-style-image: url("chrome://global/skin/in-content/check.svg#check");
 }
 
-html|input[type="checkbox"]:checked + html|label:before {
-  background-image: url("chrome://global/skin/in-content/check.svg#check"), linear-gradient(#fff, rgba(255,255,255,0.8)) !important;
-}
-
-xul|checkbox[disabled="true"] > xul|*.checkbox-check,
-html|input[type="checkbox"]:disabled + html|label {
+xul|checkbox[disabled="true"] > xul|*.checkbox-check {
   opacity: 0.5;
 }
 

@@ -515,16 +515,6 @@ HTMLMediaElement::IsVideo()
   return false;
 }
 
-already_AddRefed<MediaSource>
-HTMLMediaElement::GetMozMediaSourceObject() const
-{
-  nsRefPtr<MediaSource> source;
-  if (IsMediaSourceURI(mLoadingSrc)) {
-    NS_GetSourceForMediaSourceURI(mLoadingSrc, getter_AddRefs(source));
-  }
-  return source.forget();
-}
-
 already_AddRefed<DOMMediaStream>
 HTMLMediaElement::GetMozSrcObject() const
 {
@@ -1889,6 +1879,7 @@ HTMLMediaElement::CaptureStreamInternal(bool aFinishWhenEnded)
   // back into the output stream.
   out->mStream->GetStream()->ChangeExplicitBlockerCount(1);
   if (mDecoder) {
+    mDecoder->SetAudioCaptured(true);
     mDecoder->AddOutputStream(
         out->mStream->GetStream()->AsProcessedStream(), aFinishWhenEnded);
   }
@@ -2704,6 +2695,7 @@ nsresult HTMLMediaElement::FinishDecoderSetup(MediaDecoder* aDecoder,
   // available immediately.
   mDecoder->SetResource(aStream);
   mDecoder->SetAudioChannel(mAudioChannel);
+  mDecoder->SetAudioCaptured(mAudioCaptured);
   mDecoder->SetVolume(mMuted ? 0.0 : mVolume);
   mDecoder->SetPreservesPitch(mPreservesPitch);
   mDecoder->SetPlaybackRate(mPlaybackRate);

@@ -49,6 +49,10 @@ int16_t ACMGSMFR::InternalCreateEncoder() { return -1; }
 
 void ACMGSMFR::DestructEncoderSafe() { return; }
 
+void ACMGSMFR::InternalDestructEncoderInst(void* /* ptr_inst */) {
+  return;
+}
+
 #else  //===================== Actual Implementation =======================
 
 ACMGSMFR::ACMGSMFR(int16_t codec_id)
@@ -141,6 +145,13 @@ void ACMGSMFR::DestructEncoderSafe() {
   }
   encoder_exist_ = false;
   encoder_initialized_ = false;
+}
+
+void ACMGSMFR::InternalDestructEncoderInst(void* ptr_inst) {
+  if (ptr_inst != NULL) {
+    WebRtcGSMFR_FreeEnc(static_cast<GSMFR_encinst_t_*>(ptr_inst));
+  }
+  return;
 }
 
 #endif

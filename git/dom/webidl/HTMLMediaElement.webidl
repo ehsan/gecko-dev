@@ -102,8 +102,6 @@ interface HTMLMediaElement : HTMLElement {
 
 // Mozilla extensions:
 partial interface HTMLMediaElement {
-  [ChromeOnly]
-  readonly attribute MediaSource? mozMediaSourceObject;
   attribute MediaStream? mozSrcObject;
   attribute boolean mozPreservesPitch;
   readonly attribute boolean mozAutoplayEnabled;

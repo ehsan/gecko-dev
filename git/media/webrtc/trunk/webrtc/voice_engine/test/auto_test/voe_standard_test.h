@@ -15,6 +15,7 @@
 #include <string>
 
 #include "gflags/gflags.h"
+#include "webrtc/common.h"
 #include "webrtc/voice_engine/include/voe_audio_processing.h"
 #include "webrtc/voice_engine/include/voe_base.h"
 #include "webrtc/voice_engine/include/voe_dtmf.h"
@@ -24,8 +25,14 @@
 #include "webrtc/voice_engine/test/auto_test/resource_manager.h"
 #include "webrtc/voice_engine/test/auto_test/voe_test_common.h"
 #include "webrtc/voice_engine/test/auto_test/voe_test_interface.h"
+#ifdef WEBRTC_VOICE_ENGINE_CALL_REPORT_API
+#include "webrtc/voice_engine/include/voe_call_report.h"
+#endif
 #ifdef WEBRTC_VOICE_ENGINE_CODEC_API
 #include "webrtc/voice_engine/include/voe_codec.h"
+#endif
+#ifdef WEBRTC_VOICE_ENGINE_ENCRYPTION_API
+#include "webrtc/voice_engine/include/voe_encryption.h"
 #endif
 #ifdef WEBRTC_VOICE_ENGINE_EXTERNAL_MEDIA_API
 #include "webrtc/voice_engine/include/voe_external_media.h"
@@ -61,8 +68,10 @@ class SubAPIManager {
  public:
   SubAPIManager()
     : _base(true),
+      _callReport(false),
       _codec(false),
       _dtmf(false),
+      _encryption(false),
       _externalMedia(false),
       _file(false),
       _hardware(false),
@@ -72,11 +81,17 @@ class SubAPIManager {
       _videoSync(false),
       _volumeControl(false),
       _apm(false) {
+#ifdef WEBRTC_VOICE_ENGINE_CALL_REPORT_API
+      _callReport = true;
+#endif
 #ifdef WEBRTC_VOICE_ENGINE_CODEC_API
       _codec = true;
 #endif
 #ifdef WEBRTC_VOICE_ENGINE_DTMF_API
       _dtmf = true;
+#endif
+#ifdef WEBRTC_VOICE_ENGINE_ENCRYPTION_API
+      _encryption = true;
 #endif
 #ifdef WEBRTC_VOICE_ENGINE_EXTERNAL_MEDIA_API
       _externalMedia = true;
@@ -108,7 +123,7 @@ class SubAPIManager {
   void DisplayStatus() const;
 
  private:
-  bool _base, _codec, _dtmf;
+  bool _base, _callReport, _codec, _dtmf, _encryption;
   bool _externalMedia, _file, _hardware;
   bool _netEqStats, _network, _rtp_rtcp, _videoSync, _volumeControl, _apm;
 };
@@ -170,8 +185,16 @@ class VoETestManager {
     return voe_vsync_;
   }
 
+  VoEEncryption* EncryptionPtr() const {
+    return voe_encrypt_;
+  }
+
   VoEExternalMedia* ExternalMediaPtr() const {
     return voe_xmedia_;
+  }
+
+  VoECallReport* CallReportPtr() const {
+    return voe_call_report_;
   }
 
 #ifdef WEBRTC_VOICE_ENGINE_NETEQ_STATS_API
@@ -185,8 +208,10 @@ class VoETestManager {
 
   VoiceEngine*           voice_engine_;
   VoEBase*               voe_base_;
+  VoECallReport*         voe_call_report_;
   VoECodec*              voe_codec_;
   VoEDtmf*               voe_dtmf_;
+  VoEEncryption*         voe_encrypt_;
   VoEExternalMedia*      voe_xmedia_;
   VoEFile*               voe_file_;
   VoEHardware*           voe_hardware_;
@@ -200,6 +225,8 @@ class VoETestManager {
   VoEAudioProcessing*    voe_apm_;
 
   ResourceManager        resource_manager_;
+
+  Config                 config_;
 };
 
 }  // namespace voetest

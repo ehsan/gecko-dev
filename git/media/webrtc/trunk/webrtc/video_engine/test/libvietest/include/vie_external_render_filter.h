@@ -24,11 +24,8 @@ class ExternalRendererEffectFilter : public webrtc::ViEEffectFilter {
   explicit ExternalRendererEffectFilter(webrtc::ExternalRenderer* renderer)
       : width_(0), height_(0), renderer_(renderer) {}
   virtual ~ExternalRendererEffectFilter() {}
-  virtual int Transform(int size,
-                        unsigned char* frame_buffer,
-                        int64_t ntp_time_ms,
-                        unsigned int timestamp,
-                        unsigned int width,
+  virtual int Transform(int size, unsigned char* frame_buffer,
+                        unsigned int time_stamp90KHz, unsigned int width,
                         unsigned int height) {
     if (width != width_ || height_ != height) {
       renderer_->FrameSizeChange(width, height, 1);
@@ -37,8 +34,7 @@ class ExternalRendererEffectFilter : public webrtc::ViEEffectFilter {
     }
     return renderer_->DeliverFrame(frame_buffer,
                                    size,
-                                   ntp_time_ms,
-                                   timestamp,
+                                   time_stamp90KHz,
                                    webrtc::TickTime::MillisecondTimestamp(),
                                    NULL);
   }

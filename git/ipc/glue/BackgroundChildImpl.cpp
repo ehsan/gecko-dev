@@ -190,10 +190,7 @@ BackgroundChildImpl::DeallocPFileDescriptorSetChild(
 BackgroundChildImpl::PVsyncChild*
 BackgroundChildImpl::AllocPVsyncChild()
 {
-  nsRefPtr<mozilla::layout::VsyncChild> actor = new mozilla::layout::VsyncChild();
-  // There still has one ref-count after return, and it will be released in
-  // DeallocPVsyncChild().
-  return actor.forget().take();
+  return new mozilla::layout::VsyncChild();
 }
 
 bool
@@ -201,9 +198,7 @@ BackgroundChildImpl::DeallocPVsyncChild(PVsyncChild* aActor)
 {
   MOZ_ASSERT(aActor);
 
-  // This actor already has one ref-count. Please check AllocPVsyncChild().
-  nsRefPtr<mozilla::layout::VsyncChild> actor =
-      dont_AddRef(static_cast<mozilla::layout::VsyncChild*>(aActor));
+  delete static_cast<mozilla::layout::VsyncChild*>(aActor);
   return true;
 }
 

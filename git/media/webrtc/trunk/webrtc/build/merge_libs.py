@@ -16,7 +16,6 @@ import os
 import subprocess
 import sys
 
-IGNORE_PATTERNS = ['do_not_use', 'protoc']
 
 def FindFiles(path, pattern):
   """Finds files matching |pattern| under |path|.
@@ -36,10 +35,9 @@ def FindFiles(path, pattern):
   files = []
   for root, _, filenames in os.walk(path):
     for filename in fnmatch.filter(filenames, pattern):
-      if filename not in IGNORE_PATTERNS:
-        # We use the relative path here to avoid "argument list too
-        # long" errors on Linux.  Note: This doesn't always work, so
-        # we use the find command on Linux.
+      if 'do_not_use' not in filename and 'protoc' not in filename:
+        # We use the relative path here to avoid "argument list too long"
+        # errors on Linux.
         files.append(os.path.relpath(os.path.join(root, filename)))
   return files
 
@@ -60,28 +58,23 @@ def main(argv):
     os.remove(output_lib)
 
   if sys.platform.startswith('linux'):
-    pattern = '*.o'
-    cmd = 'ar crs'
+    objects = FindFiles(search_path, '*.o')
+    cmd = 'ar crs '
   elif sys.platform == 'darwin':
-    pattern = '*.a'
+    objects = FindFiles(search_path, '*.a')
     cmd = 'libtool -static -v -o '
   elif sys.platform == 'win32':
-    pattern = '*.lib'
+    objects = FindFiles(search_path, '*.lib')
     cmd = 'lib /OUT:'
   else:
     sys.stderr.write('Platform not supported: %r\n\n' % sys.platform)
     return 1
 
-  if sys.platform.startswith('linux'):
-    cmd = ' '.join(['find', search_path, '-name "' + pattern + '"' +
-                    ' -and -not -name ' +
-                    ' -and -not -name '.join(IGNORE_PATTERNS) +
-                    ' -exec', cmd, output_lib, '{} +'])
-  else:
-    cmd = ' '.join([cmd + output_lib] + FindFiles(search_path, pattern))
+  cmd += output_lib + ' ' + ' '.join(objects)
   print cmd
   subprocess.check_call(cmd, shell=True)
   return 0
 
 if __name__ == '__main__':
   sys.exit(main(sys.argv))
+

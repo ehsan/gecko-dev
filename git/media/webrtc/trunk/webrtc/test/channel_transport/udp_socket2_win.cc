@@ -426,8 +426,7 @@ int32_t UdpSocket2Windows::SendTo(const int8_t* buf, int32_t len,
     {
         return len;
     }
-    error = _mgr->PushIoContext(pIoContext);
-    if(error)
+    if((error = _mgr->PushIoContext(pIoContext)))
     {
         WEBRTC_TRACE(
             kTraceError,
@@ -494,8 +493,8 @@ void UdpSocket2Windows::IOCompleted(PerIoContext* pIOContext,
                 {
                     assert(false);
                 }
-                int32_t err = _mgr->PushIoContext(pIOContext);
-                if(err)
+                int32_t err = 0;
+                if((err = _mgr->PushIoContext(pIOContext)))
                 {
                     WEBRTC_TRACE(
                         kTraceError,
@@ -649,8 +648,8 @@ int32_t UdpSocket2Windows::PostRecv(PerIoContext* pIoContext)
     {
         assert(false);
     }
-    int32_t error = _mgr->PushIoContext(pIoContext);
-    if(error)
+    int32_t error = 0;
+    if((error = _mgr->PushIoContext(pIoContext)))
     {
         WEBRTC_TRACE(
             kTraceError,

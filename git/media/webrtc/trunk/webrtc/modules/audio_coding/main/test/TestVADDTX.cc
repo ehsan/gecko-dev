@@ -12,6 +12,7 @@
 
 #include <iostream>
 
+#include "webrtc/common.h"
 #include "webrtc/common_types.h"
 #include "webrtc/engine_configurations.h"
 #include "webrtc/modules/audio_coding/main/acm2/acm_common_defs.h"
@@ -22,10 +23,11 @@
 
 namespace webrtc {
 
-TestVADDTX::TestVADDTX()
-    : _acmA(AudioCodingModule::Create(0)),
-      _acmB(AudioCodingModule::Create(1)),
-      _channelA2B(NULL) {}
+TestVADDTX::TestVADDTX(const Config& config)
+    : _acmA(config.Get<AudioCodingModuleFactory>().Create(0)),
+      _acmB(config.Get<AudioCodingModuleFactory>().Create(1)),
+      _channelA2B(NULL) {
+}
 
 TestVADDTX::~TestVADDTX() {
   if (_channelA2B != NULL) {

@@ -29,15 +29,7 @@
         ],
       },
       'sources': [
-        'audio_converter.cc',
-        'audio_converter.h',
         'audio_util.cc',
-        'blocker.cc',
-        'blocker.h',
-        'fir_filter.cc',
-        'fir_filter.h',
-        'fir_filter_neon.h',
-        'fir_filter_sse.h',
         'include/audio_util.h',
         'resampler/include/push_resampler.h',
         'resampler/include/resampler.h',
@@ -82,12 +74,11 @@
         'signal_processing/spl_init.c',
         'signal_processing/spl_sqrt.c',
         'signal_processing/spl_sqrt_floor.c',
+        'signal_processing/spl_version.c',
         'signal_processing/splitting_filter.c',
         'signal_processing/sqrt_of_one_minus_x_squared.c',
         'signal_processing/vector_scaling_operations.c',
-        'vad/include/vad.h',
         'vad/include/webrtc_vad.h',
-        'vad/vad.cc',
         'vad/webrtc_vad.c',
         'vad/vad_core.c',
         'vad/vad_core.h',
@@ -97,25 +88,8 @@
         'vad/vad_gmm.h',
         'vad/vad_sp.c',
         'vad/vad_sp.h',
-        'wav_header.cc',
-        'wav_header.h',
-        'wav_file.cc',
-        'wav_file.h',
-        'window_generator.cc',
-        'window_generator.h',
       ],
       'conditions': [
-        ['rtc_use_openmax_dl==1', {
-          'sources': [
-            'lapped_transform.cc',
-            'lapped_transform.h',
-            'real_fourier.cc',
-            'real_fourier.h',
-          ],
-          'dependencies': [
-            '<(DEPTH)/third_party/openmax_dl/dl/dl.gyp:openmax_dl',
-          ],
-        }],
         ['target_arch=="ia32" or target_arch=="x64"', {
           'dependencies': ['common_audio_sse2',],
         }],
@@ -140,7 +114,7 @@
             }],
           ],  # conditions
         }],
-        ['target_arch=="mipsel" and mips_arch_variant!="r6" and android_webview_build==0', {
+        ['target_arch=="mipsel"', {
           'sources': [
             'signal_processing/include/spl_inl_mips.h',
             'signal_processing/complex_bit_reverse_mips.c',
@@ -178,7 +152,6 @@
           'target_name': 'common_audio_sse2',
           'type': 'static_library',
           'sources': [
-            'fir_filter_sse.cc',
             'resampler/sinc_resampler_sse.cc',
           ],
           'cflags': ['-msse2',],
@@ -200,21 +173,11 @@
           'type': 'static_library',
           'includes': ['../build/arm_neon.gypi',],
           'sources': [
-            'fir_filter_neon.cc',
             'resampler/sinc_resampler_neon.cc',
             'signal_processing/cross_correlation_neon.S',
             'signal_processing/downsample_fast_neon.S',
             'signal_processing/min_max_operations_neon.S',
             'signal_processing/vector_scaling_operations_neon.S',
-          ],
-          'conditions': [
-            # Disable LTO in common_audio_neon target due to compiler bug
-            ['use_lto==1', {
-              'cflags!': [
-                '-flto',
-                '-ffat-lto-objects',
-              ],
-            }],
           ],
         },
       ],  # targets
@@ -231,10 +194,7 @@
             '<(DEPTH)/testing/gtest.gyp:gtest',
           ],
           'sources': [
-            'audio_converter_unittest.cc',
             'audio_util_unittest.cc',
-            'blocker_unittest.cc',
-            'fir_filter_unittest.cc',
             'resampler/resampler_unittest.cc',
             'resampler/push_resampler_unittest.cc',
             'resampler/push_sinc_resampler_unittest.cc',
@@ -249,18 +209,11 @@
             'vad/vad_sp_unittest.cc',
             'vad/vad_unittest.cc',
             'vad/vad_unittest.h',
-            'wav_header_unittest.cc',
-            'wav_file_unittest.cc',
-            'window_generator_unittest.cc',
           ],
           'conditions': [
-            ['rtc_use_openmax_dl==1', {
-              'sources': [
-                'lapped_transform_unittest.cc',
-                'real_fourier_unittest.cc',
-              ],
-            }],
-            ['OS=="android"', {
+            # TODO(henrike): remove build_with_chromium==1 when the bots are
+            # using Chromium's buildbots.
+            ['build_with_chromium==1 and OS=="android" and gtest_target_type=="shared_library"', {
               'dependencies': [
                 '<(DEPTH)/testing/android/native_test.gyp:native_test_native_code',
               ],
@@ -269,7 +222,9 @@
         },
       ],  # targets
       'conditions': [
-        ['OS=="android"', {
+        # TODO(henrike): remove build_with_chromium==1 when the bots are using
+        # Chromium's buildbots.
+        ['build_with_chromium==1 and OS=="android" and gtest_target_type=="shared_library"', {
           'targets': [
             {
               'target_name': 'common_audio_unittests_apk_target',
@@ -290,6 +245,7 @@
               ],
               'includes': [
                 '../build/isolate.gypi',
+                'common_audio_unittests.isolate',
               ],
               'sources': [
                 'common_audio_unittests.isolate',

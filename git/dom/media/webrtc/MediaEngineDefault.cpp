@@ -181,6 +181,7 @@ MediaEngineDefaultVideoSource::Stop(SourceMediaStream *aSource, TrackID aID)
       aSource->EndTrack(kTrackCount + i);
     }
   }
+  aSource->Finish();
 
   mState = kStopped;
   return NS_OK;
@@ -437,6 +438,7 @@ MediaEngineDefaultAudioSource::Stop(SourceMediaStream *aSource, TrackID aID)
       aSource->EndTrack(kTrackCount + kFakeVideoTrackCount+i);
     }
   }
+  aSource->Finish();
 
   mState = kStopped;
   return NS_OK;

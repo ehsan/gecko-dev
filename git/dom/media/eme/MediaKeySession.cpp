@@ -9,7 +9,6 @@
 #include "mozilla/dom/MediaKeyError.h"
 #include "mozilla/dom/MediaKeyMessageEvent.h"
 #include "mozilla/dom/MediaEncryptedEvent.h"
-#include "mozilla/dom/MediaKeyStatusMap.h"
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/CDMProxy.h"
 #include "mozilla/AsyncEventDispatcher.h"
@@ -23,7 +22,6 @@ NS_IMPL_CYCLE_COLLECTION_INHERITED(MediaKeySession,
                                    DOMEventTargetHelper,
                                    mMediaKeyError,
                                    mKeys,
-                                   mKeyStatusMap,
                                    mClosed)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(MediaKeySession)
@@ -48,7 +46,6 @@ MediaKeySession::MediaKeySession(nsPIDOMWindow* aParent,
   , mToken(sMediaKeySessionNum++)
   , mIsClosed(false)
   , mUninitialized(true)
-  , mKeyStatusMap(new MediaKeyStatusMap(aParent))
 {
   MOZ_ASSERT(aParent);
   mClosed = mKeys->MakePromise(aRv);
@@ -107,30 +104,6 @@ Promise*
 MediaKeySession::Closed() const
 {
   return mClosed;
-}
-
-
-void
-MediaKeySession::UpdateKeyStatusMap()
-{
-  MOZ_ASSERT(!IsClosed());
-  if (!mKeys->GetCDMProxy()) {
-    return;
-  }
-
-  nsTArray<CDMCaps::KeyStatus> keyStatuses;
-  {
-    CDMCaps::AutoLock caps(mKeys->GetCDMProxy()->Capabilites());
-    caps.GetKeyStatusesForSession(mSessionId, keyStatuses);
-  }
-
-  mKeyStatusMap->Update(keyStatuses);
-}
-
-MediaKeyStatusMap*
-MediaKeySession::KeyStatuses() const
-{
-  return mKeyStatusMap;
 }
 
 already_AddRefed<Promise>
@@ -275,6 +248,34 @@ MediaKeySession::Remove(ErrorResult& aRv)
   return promise.forget();
 }
 
+already_AddRefed<Promise>
+MediaKeySession::GetUsableKeyIds(ErrorResult& aRv)
+{
+  nsRefPtr<Promise> promise(mKeys->MakePromise(aRv));
+  if (aRv.Failed()) {
+    return nullptr;
+  }
+
+  if (IsClosed() || !mKeys->GetCDMProxy()) {
+    promise->MaybeReject(NS_ERROR_DOM_INVALID_STATE_ERR);
+    return promise.forget();
+  }
+
+  nsTArray<CencKeyId> keyIds;
+  {
+    CDMCaps::AutoLock caps(mKeys->GetCDMProxy()->Capabilites());
+    caps.GetUsableKeysForSession(mSessionId, keyIds);
+  }
+
+  nsTArray<TypedArrayCreator<ArrayBuffer>> array;
+  for (size_t i = 0; i < keyIds.Length(); i++) {
+    array.AppendElement(keyIds[i]);
+  }
+  promise->MaybeResolve(array);
+
+  return promise.forget();
+}
+
 void
 MediaKeySession::DispatchKeyMessage(MediaKeyMessageType aMessageType,
                                     const nsTArray<uint8_t>& aMessage)
@@ -301,9 +302,6 @@ MediaKeySession::DispatchKeysChange()
   if (IsClosed()) {
     return;
   }
-
-  UpdateKeyStatusMap();
-
   nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
     new AsyncEventDispatcher(this, NS_LITERAL_STRING("keyschange"), false);
   asyncDispatcher->PostDOMEvent();

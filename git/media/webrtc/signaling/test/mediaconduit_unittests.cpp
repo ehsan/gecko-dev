@@ -595,7 +595,6 @@ class TransportConduitTest : public ::testing::Test
                                             WrapRunnableNMRet(
                                                 &mozilla::VideoSessionConduit::Create,
                                                 nullptr,
-                                                false,
                                                 &mVideoSession));
     if( !mVideoSession )
       ASSERT_NE(mVideoSession, (void*)nullptr);
@@ -605,7 +604,6 @@ class TransportConduitTest : public ::testing::Test
                                             WrapRunnableNMRet(
                                                 &mozilla::VideoSessionConduit::Create,
                                                 nullptr,
-                                                true,
                                                 &mVideoSession2));
     if( !mVideoSession2 )
       ASSERT_NE(mVideoSession2,(void*)nullptr);
@@ -697,7 +695,6 @@ class TransportConduitTest : public ::testing::Test
                                             WrapRunnableNMRet(
                                                 &mozilla::VideoSessionConduit::Create,
                                                 nullptr,
-                                                true,
                                                 &videoSession));
     if( !videoSession )
       ASSERT_NE(videoSession, (void*)nullptr);
@@ -810,7 +807,6 @@ class TransportConduitTest : public ::testing::Test
                                             WrapRunnableNMRet(
                                                 &mozilla::VideoSessionConduit::Create,
                                                 nullptr,
-                                                false,
                                                 &mVideoSession));
     if( !mVideoSession )
       ASSERT_NE(mVideoSession, (void*)nullptr);

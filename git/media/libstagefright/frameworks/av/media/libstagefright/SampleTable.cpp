@@ -257,10 +257,7 @@ status_t SampleTable::setSampleToChunkParams(
             return ERROR_IO;
         }
 
-        if (!U32_AT(buffer)) {
-          ALOGE("error reading sample to chunk table");
-          return ERROR_MALFORMED;  // chunk index is 1 based in the spec.
-        }
+        CHECK(U32_AT(buffer) >= 1);  // chunk index is 1 based in the spec.
 
         // We want the chunk index to be 0-based.
         mSampleToChunkEntries[i].startChunk = U32_AT(buffer) - 1;

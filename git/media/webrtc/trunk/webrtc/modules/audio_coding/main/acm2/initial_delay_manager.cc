@@ -219,14 +219,6 @@ void InitialDelayManager::LatePackets(
   return;
 }
 
-bool InitialDelayManager::GetPlayoutTimestamp(uint32_t* playout_timestamp) {
-  if (!buffering_) {
-    return false;
-  }
-  *playout_timestamp = playout_timestamp_;
-  return true;
-}
-
 void InitialDelayManager::DisableBuffering() {
   buffering_ = false;
 }

@@ -213,17 +213,17 @@ class MacroAssemblerX86Shared : public Assembler
     }
     void atomic_cmpxchg8(Register newval, const Operand &addr, Register oldval_and_result) {
         // %eax must be explicitly provided for calling clarity.
-        MOZ_ASSERT(oldval_and_result.code() == X86Encoding::rax);
+        MOZ_ASSERT(oldval_and_result.code() == X86Registers::eax);
         lock_cmpxchg8(newval, addr);
     }
     void atomic_cmpxchg16(Register newval, const Operand &addr, Register oldval_and_result) {
         // %eax must be explicitly provided for calling clarity.
-        MOZ_ASSERT(oldval_and_result.code() == X86Encoding::rax);
+        MOZ_ASSERT(oldval_and_result.code() == X86Registers::eax);
         lock_cmpxchg16(newval, addr);
     }
     void atomic_cmpxchg32(Register newval, const Operand &addr, Register oldval_and_result) {
         // %eax must be explicitly provided for calling clarity.
-        MOZ_ASSERT(oldval_and_result.code() == X86Encoding::rax);
+        MOZ_ASSERT(oldval_and_result.code() == X86Registers::eax);
         lock_cmpxchg32(newval, addr);
     }
 

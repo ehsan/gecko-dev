@@ -382,7 +382,10 @@ class FullParseHandler
         if (!initialYield)
             return false;
 
-        stmtList->prepend(initialYield);
+        initialYield->pn_next = stmtList->pn_head;
+        stmtList->pn_head = initialYield;
+        stmtList->pn_count++;
+
         return true;
     }
 

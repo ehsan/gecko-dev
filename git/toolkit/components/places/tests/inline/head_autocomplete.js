@@ -139,7 +139,7 @@ function ensure_results(aSearchString, aExpectedValue) {
     waitForCleanup(run_next_test);
   };
 
-  do_print("Searching for: '" + aSearchString + "'");
+  do_log_info("Searching for: '" + aSearchString + "'");
   controller.startSearch(aSearchString);
 }
 
@@ -153,7 +153,7 @@ function run_test() {
   gAutoCompleteTests.forEach(function (testData) {
     let [description, searchString, expectedValue, setupFunc] = testData;
     add_test(function () {
-      do_print(description);
+      do_log_info(description);
       Services.prefs.setBoolPref("browser.urlbar.autocomplete.enabled", true);
       Services.prefs.setBoolPref("browser.urlbar.autoFill", true);
       Services.prefs.setBoolPref("browser.urlbar.autoFill.typed", false);

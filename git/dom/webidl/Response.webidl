@@ -19,7 +19,6 @@ interface Response {
 
   readonly attribute USVString url;
   readonly attribute unsigned short status;
-  readonly attribute boolean ok;
   readonly attribute ByteString statusText;
   [SameObject] readonly attribute Headers headers;
 

@@ -157,7 +157,6 @@ public:
                                     int aArg = 0) {}
 
   GeckoContentController() {}
-  virtual void Destroy() {}
 
 protected:
   // Protected destructor, to discourage deletion outside of Release():

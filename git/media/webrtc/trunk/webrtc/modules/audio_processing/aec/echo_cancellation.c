@@ -72,13 +72,13 @@ static void OpenDebugFiles(aecpc_t* aecpc, int *instance_count);
 // GTP/Linux(ChromeOS): TBD, but for the moment we will trust the values.
 #if defined(WEBRTC_CHROMIUM_BUILD) && defined(WEBRTC_MAC)
 #define WEBRTC_UNTRUSTED_DELAY
-#endif
 
-#if defined(WEBRTC_UNTRUSTED_DELAY) && defined(WEBRTC_MAC)
+#if defined(WEBRTC_MAC)
 static const int kDelayDiffOffsetSamples = -160;
 #else
 // Not enabled for now.
 static const int kDelayDiffOffsetSamples = 0;
+#endif
 #endif
 
 #if defined(WEBRTC_MAC)
@@ -110,18 +110,18 @@ int webrtc_aec_instance_count = 0;
 static void EstBufDelayNormal(aecpc_t* aecInst);
 static void EstBufDelayExtended(aecpc_t* aecInst);
 static int ProcessNormal(aecpc_t* self,
-                         const float* near,
-                         const float* near_high,
-                         float* out,
-                         float* out_high,
+                         const int16_t* near,
+                         const int16_t* near_high,
+                         int16_t* out,
+                         int16_t* out_high,
                          int16_t num_samples,
                          int16_t reported_delay_ms,
                          int32_t skew);
 static void ProcessExtended(aecpc_t* self,
-                            const float* near,
-                            const float* near_high,
-                            float* out,
-                            float* out_high,
+                            const int16_t* near,
+                            const int16_t* near_high,
+                            int16_t* out,
+                            int16_t* out_high,
                             int16_t num_samples,
                             int16_t reported_delay_ms,
                             int32_t skew);
@@ -164,8 +164,16 @@ int32_t WebRtcAec_Create(void** aecInst) {
   aecpc->lastError = 0;
 
 #ifdef WEBRTC_AEC_DEBUG_DUMP
+  aecpc->far_pre_buf_s16 =
+      WebRtc_CreateBuffer(PART_LEN2 + kResamplerBufferSize, sizeof(int16_t));
+  if (!aecpc->far_pre_buf_s16) {
+    WebRtcAec_Free(aecpc);
+    aecpc = NULL;
+    return -1;
+  }
   aecpc->bufFile = aecpc->skewFile = aecpc->delayFile = NULL;
   OpenDebugFiles(aecpc, &webrtc_aec_instance_count);
+
 #endif
 
   return 0;
@@ -181,6 +189,7 @@ int32_t WebRtcAec_Free(void* aecInst) {
   WebRtc_FreeBuffer(aecpc->far_pre_buf);
 
 #ifdef WEBRTC_AEC_DEBUG_DUMP
+  WebRtc_FreeBuffer(aecpc->far_pre_buf_s16);
   if (aecpc->bufFile) {
     // we don't let one be open and not the others
     fclose(aecpc->bufFile);
@@ -247,7 +256,7 @@ int32_t WebRtcAec_Init(void* aecInst, int32_t sampFreq, int32_t scSampFreq) {
   aecpc->checkBuffSize = 1;
   aecpc->firstVal = 0;
 
-  aecpc->startup_phase = WebRtcAec_reported_delay_enabled(aecpc->aec);
+  aecpc->startup_phase = 1;
   aecpc->bufSizeStart = 0;
   aecpc->checkBufSizeCtr = 0;
   aecpc->msInSndCardBuf = 0;
@@ -274,17 +283,30 @@ int32_t WebRtcAec_Init(void* aecInst, int32_t sampFreq, int32_t scSampFreq) {
     return -1;
   }
 
+#ifdef WEBRTC_AEC_DEBUG_DUMP
+  if (WebRtc_InitBuffer(aecpc->far_pre_buf_s16) == -1) {
+    aecpc->lastError = AEC_UNSPECIFIED_ERROR;
+    return -1;
+  }
+  WebRtc_MoveReadPtr(aecpc->far_pre_buf_s16, -PART_LEN);  // Start overlap.
+#endif
+
   return 0;
 }
 
 // only buffer L band for farend
 int32_t WebRtcAec_BufferFarend(void* aecInst,
-                               const float* farend,
+                               const int16_t* farend,
                                int16_t nrOfSamples) {
   aecpc_t* aecpc = aecInst;
+  int32_t retVal = 0;
   int newNrOfSamples = (int)nrOfSamples;
-  float new_farend[MAX_RESAMP_LEN];
-  const float* farend_ptr = farend;
+  short newFarend[MAX_RESAMP_LEN];
+  const int16_t* farend_ptr = farend;
+  float tmp_farend[MAX_RESAMP_LEN];
+  const float* farend_float = tmp_farend;
+  float skew;
+  int i = 0;
 
   if (farend == NULL) {
     aecpc->lastError = AEC_NULL_POINTER_ERROR;
@@ -302,50 +324,60 @@ int32_t WebRtcAec_BufferFarend(void* aecInst,
     return -1;
   }
 
+  skew = aecpc->skew;
+
   if (aecpc->skewMode == kAecTrue && aecpc->resample == kAecTrue) {
     // Resample and get a new number of samples
     WebRtcAec_ResampleLinear(aecpc->resampler,
                              farend,
                              nrOfSamples,
-                             aecpc->skew,
-                             new_farend,
+                             skew,
+                             newFarend,
                              &newNrOfSamples);
-    farend_ptr = new_farend;
+    farend_ptr = (const int16_t*)newFarend;
   }
 
   aecpc->farend_started = 1;
   WebRtcAec_SetSystemDelay(aecpc->aec,
                            WebRtcAec_system_delay(aecpc->aec) + newNrOfSamples);
 
-  // Write the time-domain data to |far_pre_buf|.
-  WebRtc_WriteBuffer(aecpc->far_pre_buf, farend_ptr, (size_t)newNrOfSamples);
+#ifdef WEBRTC_AEC_DEBUG_DUMP
+  WebRtc_WriteBuffer(
+      aecpc->far_pre_buf_s16, farend_ptr, (size_t)newNrOfSamples);
+#endif
+  // Cast to float and write the time-domain data to |far_pre_buf|.
+  for (i = 0; i < newNrOfSamples; i++) {
+    tmp_farend[i] = (float)farend_ptr[i];
+  }
+  WebRtc_WriteBuffer(aecpc->far_pre_buf, farend_float, (size_t)newNrOfSamples);
 
   // Transform to frequency domain if we have enough data.
   while (WebRtc_available_read(aecpc->far_pre_buf) >= PART_LEN2) {
     // We have enough data to pass to the FFT, hence read PART_LEN2 samples.
-    {
-      float* ptmp;
-      float tmp[PART_LEN2];
-      WebRtc_ReadBuffer(aecpc->far_pre_buf, (void**)&ptmp, tmp, PART_LEN2);
-      WebRtcAec_BufferFarendPartition(aecpc->aec, ptmp);
-#ifdef WEBRTC_AEC_DEBUG_DUMP
-      WebRtc_WriteBuffer(
-          WebRtcAec_far_time_buf(aecpc->aec), &ptmp[PART_LEN], 1);
-#endif
-    }
+    WebRtc_ReadBuffer(
+        aecpc->far_pre_buf, (void**)&farend_float, tmp_farend, PART_LEN2);
+
+    WebRtcAec_BufferFarendPartition(aecpc->aec, farend_float);
 
     // Rewind |far_pre_buf| PART_LEN samples for overlap before continuing.
     WebRtc_MoveReadPtr(aecpc->far_pre_buf, -PART_LEN);
+#ifdef WEBRTC_AEC_DEBUG_DUMP
+    WebRtc_ReadBuffer(
+        aecpc->far_pre_buf_s16, (void**)&farend_ptr, newFarend, PART_LEN2);
+    WebRtc_WriteBuffer(
+        WebRtcAec_far_time_buf(aecpc->aec), &farend_ptr[PART_LEN], 1);
+    WebRtc_MoveReadPtr(aecpc->far_pre_buf_s16, -PART_LEN);
+#endif
   }
 
-  return 0;
+  return retVal;
 }
 
 int32_t WebRtcAec_Process(void* aecInst,
-                          const float* nearend,
-                          const float* nearendH,
-                          float* out,
-                          float* outH,
+                          const int16_t* nearend,
+                          const int16_t* nearendH,
+                          int16_t* out,
+                          int16_t* outH,
                           int16_t nrOfSamples,
                           int16_t msInSndCardBuf,
                           int32_t skew) {
@@ -605,10 +637,10 @@ AecCore* WebRtcAec_aec_core(void* handle) {
 }
 
 static int ProcessNormal(aecpc_t* aecpc,
-                         const float* nearend,
-                         const float* nearendH,
-                         float* out,
-                         float* outH,
+                         const int16_t* nearend,
+                         const int16_t* nearendH,
+                         int16_t* out,
+                         int16_t* outH,
                          int16_t nrOfSamples,
                          int16_t msInSndCardBuf,
                          int32_t skew) {
@@ -665,10 +697,10 @@ static int ProcessNormal(aecpc_t* aecpc,
   if (aecpc->startup_phase) {
     // Only needed if they don't already point to the same place.
     if (nearend != out) {
-      memcpy(out, nearend, sizeof(*out) * nrOfSamples);
+      memcpy(out, nearend, sizeof(short) * nrOfSamples);
     }
     if (nearendH != outH) {
-      memcpy(outH, nearendH, sizeof(*outH) * nrOfSamples);
+      memcpy(outH, nearendH, sizeof(short) * nrOfSamples);
     }
 
     // The AEC is in the start up mode
@@ -742,9 +774,7 @@ static int ProcessNormal(aecpc_t* aecpc,
     }
   } else {
     // AEC is enabled.
-    if (WebRtcAec_reported_delay_enabled(aecpc->aec)) {
-      EstBufDelayNormal(aecpc);
-    }
+    EstBufDelayNormal(aecpc);
 
     // Note that 1 frame is supported for NB and 2 frames for WB.
     for (i = 0; i < nFrames; i++) {
@@ -765,20 +795,21 @@ static int ProcessNormal(aecpc_t* aecpc,
 }
 
 static void ProcessExtended(aecpc_t* self,
-                            const float* near,
-                            const float* near_high,
-                            float* out,
-                            float* out_high,
+                            const int16_t* near,
+                            const int16_t* near_high,
+                            int16_t* out,
+                            int16_t* out_high,
                             int16_t num_samples,
                             int16_t reported_delay_ms,
                             int32_t skew) {
   int i;
   const int num_frames = num_samples / FRAME_LEN;
-  const int delay_diff_offset = kDelayDiffOffsetSamples;
 #if defined(WEBRTC_UNTRUSTED_DELAY)
+  const int delay_diff_offset = kDelayDiffOffsetSamples;
   reported_delay_ms = kFixedDelayMs;
 #else
   // This is the usual mode where we trust the reported system delay values.
+  const int delay_diff_offset = 0;
   // Due to the longer filter, we no longer add 10 ms to the reported delay
   // to reduce chance of non-causality. Instead we apply a minimum here to avoid
   // issues with the read pointer jumping around needlessly.
@@ -798,10 +829,10 @@ static void ProcessExtended(aecpc_t* self,
   if (!self->farend_started) {
     // Only needed if they don't already point to the same place.
     if (near != out) {
-      memcpy(out, near, sizeof(*out) * num_samples);
+      memcpy(out, near, sizeof(short) * num_samples);
     }
     if (near_high != out_high) {
-      memcpy(out_high, near_high, sizeof(*out_high) * num_samples);
+      memcpy(out_high, near_high, sizeof(short) * num_samples);
     }
     return;
   }
@@ -819,9 +850,7 @@ static void ProcessExtended(aecpc_t* self,
     self->startup_phase = 0;
   }
 
-  if (WebRtcAec_reported_delay_enabled(self->aec)) {
-    EstBufDelayExtended(self);
-  }
+  EstBufDelayExtended(self);
 
   {
     // |delay_diff_offset| gives us the option to manually rewind the delay on

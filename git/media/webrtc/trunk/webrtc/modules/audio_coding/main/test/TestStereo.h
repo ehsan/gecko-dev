@@ -20,6 +20,8 @@
 
 namespace webrtc {
 
+class Config;
+
 enum StereoMonoMode {
   kNotSet,
   kMono,
@@ -33,13 +35,12 @@ class TestPackStereo : public AudioPacketizationCallback {
 
   void RegisterReceiverACM(AudioCodingModule* acm);
 
-  virtual int32_t SendData(
-      const FrameType frame_type,
-      const uint8_t payload_type,
-      const uint32_t timestamp,
-      const uint8_t* payload_data,
-      const uint16_t payload_size,
-      const RTPFragmentationHeader* fragmentation) OVERRIDE;
+  virtual int32_t SendData(const FrameType frame_type,
+                           const uint8_t payload_type,
+                           const uint32_t timestamp,
+                           const uint8_t* payload_data,
+                           const uint16_t payload_size,
+                           const RTPFragmentationHeader* fragmentation);
 
   uint16_t payload_size();
   uint32_t timestamp_diff();
@@ -53,7 +54,7 @@ class TestPackStereo : public AudioPacketizationCallback {
   uint32_t timestamp_diff_;
   uint32_t last_in_timestamp_;
   uint64_t total_bytes_;
-  int payload_size_;
+  uint16_t payload_size_;
   StereoMonoMode codec_mode_;
   // Simulate packet losses
   bool lost_packet_;
@@ -61,10 +62,10 @@ class TestPackStereo : public AudioPacketizationCallback {
 
 class TestStereo : public ACMTest {
  public:
-  explicit TestStereo(int test_mode);
+  TestStereo(int test_mode, const Config& config);
   ~TestStereo();
 
-  virtual void Perform() OVERRIDE;
+  void Perform();
  private:
   // The default value of '-1' indicates that the registration is based only on
   // codec name and a sampling frequncy matching is not required. This is useful

@@ -18,13 +18,14 @@
 #include "webrtc/modules/rtp_rtcp/interface/rtp_payload_registry.h"
 #include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp_defines.h"
 #include "webrtc/modules/rtp_rtcp/source/rtp_receiver_strategy.h"
-#include "webrtc/system_wrappers/interface/logging.h"
+#include "webrtc/system_wrappers/interface/trace.h"
 
 namespace webrtc {
 
-using RtpUtility::GetCurrentRTP;
-using RtpUtility::Payload;
-using RtpUtility::StringCompare;
+using ModuleRTPUtility::GetCurrentRTP;
+using ModuleRTPUtility::Payload;
+using ModuleRTPUtility::RTPPayloadParser;
+using ModuleRTPUtility::StringCompare;
 
 RtpReceiver* RtpReceiver::CreateVideoReceiver(
     int id, Clock* clock,
@@ -38,7 +39,7 @@ RtpReceiver* RtpReceiver::CreateVideoReceiver(
   return new RtpReceiverImpl(
       id, clock, NullObjectRtpAudioFeedback(), incoming_messages_callback,
       rtp_payload_registry,
-      RTPReceiverStrategy::CreateVideoStrategy(incoming_payload_callback));
+      RTPReceiverStrategy::CreateVideoStrategy(id, incoming_payload_callback));
 }
 
 RtpReceiver* RtpReceiver::CreateAudioReceiver(
@@ -86,6 +87,8 @@ RtpReceiverImpl::RtpReceiverImpl(int32_t id,
   assert(incoming_messages_callback);
 
   memset(current_remote_csrc_, 0, sizeof(current_remote_csrc_));
+
+  WEBRTC_TRACE(kTraceMemory, kTraceRtpRtcp, id, "%s created", __FUNCTION__);
 }
 
 RtpReceiverImpl::~RtpReceiverImpl() {
@@ -93,6 +96,17 @@ RtpReceiverImpl::~RtpReceiverImpl() {
     cb_rtp_feedback_->OnIncomingCSRCChanged(id_, current_remote_csrc_[i],
                                             false);
   }
+  WEBRTC_TRACE(kTraceMemory, kTraceRtpRtcp, id_, "%s deleted", __FUNCTION__);
+}
+
+RTPReceiverStrategy* RtpReceiverImpl::GetMediaReceiver() const {
+  return rtp_media_receiver_.get();
+}
+
+RtpVideoCodecTypes RtpReceiverImpl::VideoCodecType() const {
+  PayloadUnion media_specific;
+  rtp_media_receiver_->GetLastMediaSpecificPayload(&media_specific);
+  return media_specific.Video.videoCodecType;
 }
 
 int32_t RtpReceiverImpl::RegisterReceivePayload(
@@ -113,8 +127,9 @@ int32_t RtpReceiverImpl::RegisterReceivePayload(
   if (created_new_payload) {
     if (rtp_media_receiver_->OnNewPayloadTypeCreated(payload_name, payload_type,
                                                      frequency) != 0) {
-      LOG(LS_ERROR) << "Failed to register payload: " << payload_name << "/"
-                 << payload_type;
+      WEBRTC_TRACE(kTraceError, kTraceRtpRtcp, id_,
+                   "%s failed to register payload",
+                   __FUNCTION__);
       return -1;
     }
   }
@@ -167,12 +182,19 @@ bool RtpReceiverImpl::IncomingRtpPacket(
   PayloadUnion payload_specific,
   bool in_order) {
   // Sanity check.
-  assert(payload_length >= 0);
-
+  if (payload_length  < 0) {
+    WEBRTC_TRACE(kTraceError, kTraceRtpRtcp, id_,
+                 "%s invalid argument",
+                 __FUNCTION__);
+    return false;
+  }
+  int8_t first_payload_byte = 0;
+  if (payload_length > 0) {
+    first_payload_byte = payload[0];
+  }
   // Trigger our callbacks.
   CheckSSRCChanged(rtp_header);
 
-  int8_t first_payload_byte = payload_length > 0 ? payload[0] : 0;
   bool is_red = false;
   bool should_reset_statistics = false;
 
@@ -183,9 +205,14 @@ bool RtpReceiverImpl::IncomingRtpPacket(
                           &should_reset_statistics) == -1) {
     if (payload_length == 0) {
       // OK, keep-alive packet.
+      WEBRTC_TRACE(kTraceStream, kTraceRtpRtcp, id_,
+                   "%s received keepalive",
+                   __FUNCTION__);
       return true;
     }
-    LOG(LS_WARNING) << "Receiving invalid payload type.";
+    WEBRTC_TRACE(kTraceWarning, kTraceRtpRtcp, id_,
+                 "%s received invalid payloadtype",
+                 __FUNCTION__);
     return false;
   }
 
@@ -320,8 +347,9 @@ void RtpReceiverImpl::CheckSSRCChanged(const RTPHeader& rtp_header) {
         id_, rtp_header.payloadType, payload_name,
         rtp_header.payload_type_frequency, channels, rate)) {
       // New stream, same codec.
-      LOG(LS_ERROR) << "Failed to create decoder for payload type: "
-                    << rtp_header.payloadType;
+      WEBRTC_TRACE(kTraceError, kTraceRtpRtcp, id_,
+                   "Failed to create decoder for payload type:%d",
+                   rtp_header.payloadType);
     }
   }
 }

@@ -2325,7 +2325,7 @@ struct ArenasToUpdate
     };
     ArenasToUpdate(JSRuntime *rt, KindsToUpdate kinds);
     bool done() { return initialized && arena == nullptr; }
-    ArenaHeader* next(AutoLockHelperThreadState& lock);
+    ArenaHeader* next();
     ArenaHeader *getArenasToUpdate(AutoLockHelperThreadState& lock, unsigned max);
 
   private:
@@ -2349,7 +2349,7 @@ bool ArenasToUpdate::shouldProcessKind(unsigned kind)
         return false;
     }
 
-    if (js::gc::IsBackgroundFinalized(AllocKind(kind)))
+    if (kind > FINALIZE_OBJECT_LAST || js::gc::IsBackgroundFinalized(AllocKind(kind)))
         return (kinds & BACKGROUND) != 0;
     else
         return (kinds & FOREGROUND) != 0;
@@ -2362,7 +2362,7 @@ ArenasToUpdate::ArenasToUpdate(JSRuntime *rt, KindsToUpdate kinds)
 }
 
 ArenaHeader *
-ArenasToUpdate::next(AutoLockHelperThreadState& lock)
+ArenasToUpdate::next()
 {
     // Find the next arena to update.
     //
@@ -2407,7 +2407,7 @@ ArenasToUpdate::getArenasToUpdate(AutoLockHelperThreadState& lock, unsigned coun
     ArenaHeader *tail = nullptr;
 
     for (unsigned i = 0; i < count; ++i) {
-        ArenaHeader *arena = next(lock);
+        ArenaHeader *arena = next();
         if (!arena)
             break;
 
@@ -2492,46 +2492,31 @@ GCRuntime::updateAllCellPointersParallel(MovingTracer *trc)
 
     const size_t minTasks = 2;
     const size_t maxTasks = 8;
-    size_t targetTaskCount = HelperThreadState().cpuCount / 2;
-    size_t taskCount = Min(Max(targetTaskCount, minTasks), maxTasks);
-    UpdateCellPointersTask bgTasks[maxTasks];
-    UpdateCellPointersTask fgTask;
+    unsigned taskCount = Min(Max(HelperThreadState().cpuCount / 2, minTasks) + 1,
+                             maxTasks);
+    UpdateCellPointersTask updateTasks[maxTasks];
 
     ArenasToUpdate fgArenas(rt, ArenasToUpdate::FOREGROUND);
     ArenasToUpdate bgArenas(rt, ArenasToUpdate::BACKGROUND);
-
-    unsigned tasksStarted = 0;
-    {
-        AutoLockHelperThreadState lock;
-        unsigned i;
-        for (i = 0; i < taskCount && !bgArenas.done(); ++i) {
-            bgTasks[i].init(rt, &bgArenas, lock);
-            startTask(bgTasks[i], gcstats::PHASE_COMPACT_UPDATE_CELLS);
-        }
-        tasksStarted = i;
-
-        fgTask.init(rt, &fgArenas, lock);
+    AutoLockHelperThreadState lock;
+    unsigned i;
+    for (i = 0; i < taskCount && !bgArenas.done(); ++i) {
+        ArenasToUpdate *source = i == 0 ? &fgArenas : &bgArenas;
+        updateTasks[i].init(rt, source, lock);
+        startTask(updateTasks[i], gcstats::PHASE_COMPACT_UPDATE_CELLS);
     }
+    unsigned tasksStarted = i;
 
-    fgTask.runFromMainThread(rt);
-
-    {
-        AutoLockHelperThreadState lock;
-        for (unsigned i = 0; i < tasksStarted; ++i)
-            joinTask(bgTasks[i], gcstats::PHASE_COMPACT_UPDATE_CELLS);
-    }
+    for (i = 0; i < tasksStarted; ++i)
+        joinTask(updateTasks[i], gcstats::PHASE_COMPACT_UPDATE_CELLS);
 }
 
 void
 GCRuntime::updateAllCellPointersSerial(MovingTracer *trc)
 {
-    UpdateCellPointersTask task;
-    {
-        AutoLockHelperThreadState lock;
-        ArenasToUpdate allArenas(rt, ArenasToUpdate::ALL);
-        task.init(rt, &allArenas, lock);
-    }
-    task.runFromMainThread(rt);
+    ArenasToUpdate allArenas(rt, ArenasToUpdate::ALL);
+    while (ArenaHeader *arena = allArenas.next())
+        UpdateCellPointers(trc, arena);
 }
 
 /*

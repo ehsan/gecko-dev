@@ -53,6 +53,7 @@ int VoENetEqStatsImpl::GetNetworkStatistics(int channel,
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "GetNetworkStatistics(channel=%d, stats=?)", channel);
+    ANDROID_NOT_SUPPORTED(_shared->statistics());
 
     if (!_shared->statistics().Initialized())
     {
@@ -73,6 +74,7 @@ int VoENetEqStatsImpl::GetNetworkStatistics(int channel,
 
 int VoENetEqStatsImpl::GetDecodingCallStatistics(
     int channel, AudioDecodingCallStats* stats) const {
+  ANDROID_NOT_SUPPORTED(_shared->statistics());
 
   if (!_shared->statistics().Initialized()) {
     _shared->SetLastError(VE_NOT_INITED, kTraceError);

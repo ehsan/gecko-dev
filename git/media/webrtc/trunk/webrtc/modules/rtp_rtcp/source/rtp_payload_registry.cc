@@ -10,13 +10,15 @@
 
 #include "webrtc/modules/rtp_rtcp/interface/rtp_payload_registry.h"
 
-#include "webrtc/system_wrappers/interface/logging.h"
+#include "webrtc/system_wrappers/interface/trace.h"
 
 namespace webrtc {
 
 RTPPayloadRegistry::RTPPayloadRegistry(
+    const int32_t id,
     RTPPayloadStrategy* rtp_payload_strategy)
     : crit_sect_(CriticalSectionWrapper::CreateCriticalSection()),
+      id_(id),
       rtp_payload_strategy_(rtp_payload_strategy),
       red_payload_type_(-1),
       ulpfec_payload_type_(-1),
@@ -29,7 +31,7 @@ RTPPayloadRegistry::RTPPayloadRegistry(
 
 RTPPayloadRegistry::~RTPPayloadRegistry() {
   while (!payload_type_map_.empty()) {
-    RtpUtility::PayloadTypeMap::iterator it = payload_type_map_.begin();
+    ModuleRTPUtility::PayloadTypeMap::iterator it = payload_type_map_.begin();
     delete it->second;
     payload_type_map_.erase(it);
   }
@@ -58,8 +60,9 @@ int32_t RTPPayloadRegistry::RegisterReceivePayload(
     case 77:        //  205 Transport layer FB message.
     case 78:        //  206 Payload-specific FB message.
     case 79:        //  207 Extended report.
-      LOG(LS_ERROR) << "Can't register invalid receiver payload type: "
-                    << payload_type;
+      WEBRTC_TRACE(kTraceError, kTraceRtpRtcp, id_,
+                   "%s invalid payloadtype:%d",
+                   __FUNCTION__, payload_type);
       return -1;
     default:
       break;
@@ -69,12 +72,12 @@ int32_t RTPPayloadRegistry::RegisterReceivePayload(
 
   CriticalSectionScoped cs(crit_sect_.get());
 
-  RtpUtility::PayloadTypeMap::iterator it =
-      payload_type_map_.find(payload_type);
+  ModuleRTPUtility::PayloadTypeMap::iterator it =
+    payload_type_map_.find(payload_type);
 
   if (it != payload_type_map_.end()) {
     // We already use this payload type.
-    RtpUtility::Payload* payload = it->second;
+    ModuleRTPUtility::Payload* payload = it->second;
 
     assert(payload);
 
@@ -83,7 +86,7 @@ int32_t RTPPayloadRegistry::RegisterReceivePayload(
     // Check if it's the same as we already have.
     // If same, ignore sending an error.
     if (payload_name_length == name_length &&
-        RtpUtility::StringCompare(
+        ModuleRTPUtility::StringCompare(
             payload->name, payload_name, payload_name_length)) {
       if (rtp_payload_strategy_->PayloadIsCompatible(*payload, frequency,
                                                      channels, rate)) {
@@ -91,7 +94,9 @@ int32_t RTPPayloadRegistry::RegisterReceivePayload(
         return 0;
       }
     }
-    LOG(LS_ERROR) << "Payload type already registered: " << payload_type;
+    WEBRTC_TRACE(kTraceError, kTraceRtpRtcp, id_,
+                 "%s invalid argument payload_type:%d already registered",
+                 __FUNCTION__, payload_type);
     return -1;
   }
 
@@ -100,18 +105,18 @@ int32_t RTPPayloadRegistry::RegisterReceivePayload(
         payload_name, payload_name_length, frequency, channels, rate);
   }
 
-  RtpUtility::Payload* payload = NULL;
+  ModuleRTPUtility::Payload* payload = NULL;
 
   // Save the RED payload type. Used in both audio and video.
-  if (RtpUtility::StringCompare(payload_name, "red", 3)) {
+  if (ModuleRTPUtility::StringCompare(payload_name, "red", 3)) {
     red_payload_type_ = payload_type;
-    payload = new RtpUtility::Payload;
+    payload = new ModuleRTPUtility::Payload;
     memset(payload, 0, sizeof(*payload));
     payload->audio = false;
     strncpy(payload->name, payload_name, RTP_PAYLOAD_NAME_SIZE - 1);
-  } else if (RtpUtility::StringCompare(payload_name, "ulpfec", 3)) {
+  } else if (ModuleRTPUtility::StringCompare(payload_name, "ulpfec", 3)) {
     ulpfec_payload_type_ = payload_type;
-    payload = new RtpUtility::Payload;
+    payload = new ModuleRTPUtility::Payload;
     memset(payload, 0, sizeof(*payload));
     payload->audio = false;
     strncpy(payload->name, payload_name, RTP_PAYLOAD_NAME_SIZE - 1);
@@ -132,9 +137,15 @@ int32_t RTPPayloadRegistry::RegisterReceivePayload(
 int32_t RTPPayloadRegistry::DeRegisterReceivePayload(
     const int8_t payload_type) {
   CriticalSectionScoped cs(crit_sect_.get());
-  RtpUtility::PayloadTypeMap::iterator it =
-      payload_type_map_.find(payload_type);
-  assert(it != payload_type_map_.end());
+  ModuleRTPUtility::PayloadTypeMap::iterator it =
+    payload_type_map_.find(payload_type);
+
+  if (it == payload_type_map_.end()) {
+    WEBRTC_TRACE(kTraceError, kTraceRtpRtcp, id_,
+                 "%s failed to find payload_type:%d",
+                 __FUNCTION__, payload_type);
+    return -1;
+  }
   delete it->second;
   payload_type_map_.erase(it);
   return 0;
@@ -149,14 +160,15 @@ void RTPPayloadRegistry::DeregisterAudioCodecOrRedTypeRegardlessOfPayloadType(
     const uint32_t frequency,
     const uint8_t channels,
     const uint32_t rate) {
-  RtpUtility::PayloadTypeMap::iterator iterator = payload_type_map_.begin();
+  ModuleRTPUtility::PayloadTypeMap::iterator iterator =
+      payload_type_map_.begin();
   for (; iterator != payload_type_map_.end(); ++iterator) {
-    RtpUtility::Payload* payload = iterator->second;
+    ModuleRTPUtility::Payload* payload = iterator->second;
     size_t name_length = strlen(payload->name);
 
-    if (payload_name_length == name_length &&
-        RtpUtility::StringCompare(
-            payload->name, payload_name, payload_name_length)) {
+    if (payload_name_length == name_length
+        && ModuleRTPUtility::StringCompare(payload->name, payload_name,
+                                           payload_name_length)) {
       // We found the payload name in the list.
       // If audio, check frequency and rate.
       if (payload->audio) {
@@ -167,7 +179,7 @@ void RTPPayloadRegistry::DeregisterAudioCodecOrRedTypeRegardlessOfPayloadType(
           payload_type_map_.erase(iterator);
           break;
         }
-      } else if (RtpUtility::StringCompare(payload_name, "red", 3)) {
+      } else if (ModuleRTPUtility::StringCompare(payload_name, "red", 3)) {
         delete payload;
         payload_type_map_.erase(iterator);
         break;
@@ -182,20 +194,25 @@ int32_t RTPPayloadRegistry::ReceivePayloadType(
     const uint8_t channels,
     const uint32_t rate,
     int8_t* payload_type) const {
-  assert(payload_type);
+  if (payload_type == NULL) {
+    WEBRTC_TRACE(kTraceError, kTraceRtpRtcp, id_,
+                 "%s invalid argument", __FUNCTION__);
+    return -1;
+  }
   size_t payload_name_length = strlen(payload_name);
 
   CriticalSectionScoped cs(crit_sect_.get());
 
-  RtpUtility::PayloadTypeMap::const_iterator it = payload_type_map_.begin();
+  ModuleRTPUtility::PayloadTypeMap::const_iterator it =
+      payload_type_map_.begin();
 
   for (; it != payload_type_map_.end(); ++it) {
-    RtpUtility::Payload* payload = it->second;
+    ModuleRTPUtility::Payload* payload = it->second;
     assert(payload);
 
     size_t name_length = strlen(payload->name);
     if (payload_name_length == name_length &&
-        RtpUtility::StringCompare(
+        ModuleRTPUtility::StringCompare(
             payload->name, payload_name, payload_name_length)) {
       // Name matches.
       if (payload->audio) {
@@ -224,6 +241,12 @@ int32_t RTPPayloadRegistry::ReceivePayloadType(
     }
   }
   return -1;
+}
+
+void RTPPayloadRegistry::SetRtxStatus(bool enable, uint32_t ssrc) {
+  CriticalSectionScoped cs(crit_sect_.get());
+  rtx_ = enable;
+  ssrc_rtx_ = ssrc;
 }
 
 bool RTPPayloadRegistry::RtxEnabled() const {
@@ -259,9 +282,9 @@ bool RTPPayloadRegistry::RestoreOriginalPacket(uint8_t** restored_packet,
   *packet_length -= kRtxHeaderSize;
 
   // Replace the SSRC and the sequence number with the originals.
-  RtpUtility::AssignUWord16ToBuffer(*restored_packet + 2,
-                                    original_sequence_number);
-  RtpUtility::AssignUWord32ToBuffer(*restored_packet + 8, original_ssrc);
+  ModuleRTPUtility::AssignUWord16ToBuffer(*restored_packet + 2,
+                                          original_sequence_number);
+  ModuleRTPUtility::AssignUWord32ToBuffer(*restored_packet + 8, original_ssrc);
 
   CriticalSectionScoped cs(crit_sect_.get());
 
@@ -273,24 +296,17 @@ bool RTPPayloadRegistry::RestoreOriginalPacket(uint8_t** restored_packet,
         (*restored_packet)[1] |= kRtpMarkerBitMask;  // Marker bit is set.
       }
     } else {
-      LOG(LS_WARNING) << "Incorrect RTX configuration, dropping packet.";
+      WEBRTC_TRACE(kTraceWarning, kTraceRtpRtcp, id_,
+                   "Incorrect RTX configuration, dropping packet.");
       return false;
     }
   }
   return true;
 }
 
-void RTPPayloadRegistry::SetRtxSsrc(uint32_t ssrc) {
-  CriticalSectionScoped cs(crit_sect_.get());
-  ssrc_rtx_ = ssrc;
-  rtx_ = true;
-}
-
 void RTPPayloadRegistry::SetRtxPayloadType(int payload_type) {
   CriticalSectionScoped cs(crit_sect_.get());
-  assert(payload_type >= 0);
   payload_type_rtx_ = payload_type;
-  rtx_ = true;
 }
 
 bool RTPPayloadRegistry::IsRed(const RTPHeader& header) const {
@@ -305,8 +321,8 @@ bool RTPPayloadRegistry::IsEncapsulated(const RTPHeader& header) const {
 bool RTPPayloadRegistry::GetPayloadSpecifics(uint8_t payload_type,
                                              PayloadUnion* payload) const {
   CriticalSectionScoped cs(crit_sect_.get());
-  RtpUtility::PayloadTypeMap::const_iterator it =
-      payload_type_map_.find(payload_type);
+  ModuleRTPUtility::PayloadTypeMap::const_iterator it =
+    payload_type_map_.find(payload_type);
 
   // Check that this is a registered payload type.
   if (it == payload_type_map_.end()) {
@@ -318,7 +334,7 @@ bool RTPPayloadRegistry::GetPayloadSpecifics(uint8_t payload_type,
 
 int RTPPayloadRegistry::GetPayloadTypeFrequency(
     uint8_t payload_type) const {
-  RtpUtility::Payload* payload;
+  ModuleRTPUtility::Payload* payload;
   if (!PayloadTypeToPayload(payload_type, payload)) {
     return -1;
   }
@@ -327,12 +343,12 @@ int RTPPayloadRegistry::GetPayloadTypeFrequency(
 }
 
 bool RTPPayloadRegistry::PayloadTypeToPayload(
-    const uint8_t payload_type,
-    RtpUtility::Payload*& payload) const {
+  const uint8_t payload_type,
+  ModuleRTPUtility::Payload*& payload) const {
   CriticalSectionScoped cs(crit_sect_.get());
 
-  RtpUtility::PayloadTypeMap::const_iterator it =
-      payload_type_map_.find(payload_type);
+  ModuleRTPUtility::PayloadTypeMap::const_iterator it =
+    payload_type_map_.find(payload_type);
 
   // Check that this is a registered payload type.
   if (it == payload_type_map_.end()) {
@@ -363,10 +379,11 @@ class RTPPayloadAudioStrategy : public RTPPayloadStrategy {
  public:
   virtual bool CodecsMustBeUnique() const OVERRIDE { return true; }
 
-  virtual bool PayloadIsCompatible(const RtpUtility::Payload& payload,
-                                   const uint32_t frequency,
-                                   const uint8_t channels,
-                                   const uint32_t rate) const OVERRIDE {
+  virtual bool PayloadIsCompatible(
+       const ModuleRTPUtility::Payload& payload,
+       const uint32_t frequency,
+       const uint8_t channels,
+       const uint32_t rate) const OVERRIDE {
     return
         payload.audio &&
         payload.typeSpecific.Audio.frequency == frequency &&
@@ -375,18 +392,19 @@ class RTPPayloadAudioStrategy : public RTPPayloadStrategy {
             payload.typeSpecific.Audio.rate == 0 || rate == 0);
   }
 
-  virtual void UpdatePayloadRate(RtpUtility::Payload* payload,
-                                 const uint32_t rate) const OVERRIDE {
+  virtual void UpdatePayloadRate(
+      ModuleRTPUtility::Payload* payload,
+      const uint32_t rate) const OVERRIDE {
     payload->typeSpecific.Audio.rate = rate;
   }
 
-  virtual RtpUtility::Payload* CreatePayloadType(
+  virtual ModuleRTPUtility::Payload* CreatePayloadType(
       const char payloadName[RTP_PAYLOAD_NAME_SIZE],
       const int8_t payloadType,
       const uint32_t frequency,
       const uint8_t channels,
       const uint32_t rate) const OVERRIDE {
-    RtpUtility::Payload* payload = new RtpUtility::Payload;
+    ModuleRTPUtility::Payload* payload = new ModuleRTPUtility::Payload;
     payload->name[RTP_PAYLOAD_NAME_SIZE - 1] = 0;
     strncpy(payload->name, payloadName, RTP_PAYLOAD_NAME_SIZE - 1);
     assert(frequency >= 1000);
@@ -397,7 +415,8 @@ class RTPPayloadAudioStrategy : public RTPPayloadStrategy {
     return payload;
   }
 
-  int GetPayloadTypeFrequency(const RtpUtility::Payload& payload) const {
+  int GetPayloadTypeFrequency(
+      const ModuleRTPUtility::Payload& payload) const {
     return payload.typeSpecific.Audio.frequency;
   }
 };
@@ -406,37 +425,39 @@ class RTPPayloadVideoStrategy : public RTPPayloadStrategy {
  public:
   virtual bool CodecsMustBeUnique() const OVERRIDE { return false; }
 
-  virtual bool PayloadIsCompatible(const RtpUtility::Payload& payload,
-                                   const uint32_t frequency,
-                                   const uint8_t channels,
-                                   const uint32_t rate) const OVERRIDE {
+  virtual bool PayloadIsCompatible(
+      const ModuleRTPUtility::Payload& payload,
+      const uint32_t frequency,
+      const uint8_t channels,
+      const uint32_t rate) const OVERRIDE {
     return !payload.audio;
   }
 
-  virtual void UpdatePayloadRate(RtpUtility::Payload* payload,
-                                 const uint32_t rate) const OVERRIDE {
+  virtual void UpdatePayloadRate(
+      ModuleRTPUtility::Payload* payload,
+      const uint32_t rate) const OVERRIDE {
     payload->typeSpecific.Video.maxRate = rate;
   }
 
-  virtual RtpUtility::Payload* CreatePayloadType(
+  virtual ModuleRTPUtility::Payload* CreatePayloadType(
       const char payloadName[RTP_PAYLOAD_NAME_SIZE],
       const int8_t payloadType,
       const uint32_t frequency,
       const uint8_t channels,
       const uint32_t rate) const OVERRIDE {
     RtpVideoCodecTypes videoType = kRtpVideoGeneric;
-    if (RtpUtility::StringCompare(payloadName, "VP8", 3)) {
+    if (ModuleRTPUtility::StringCompare(payloadName, "VP8", 3)) {
       videoType = kRtpVideoVp8;
-    } else if (RtpUtility::StringCompare(payloadName, "H264", 4)) {
+    } else if (ModuleRTPUtility::StringCompare(payloadName, "H264", 4)) {
       videoType = kRtpVideoH264;
-    } else if (RtpUtility::StringCompare(payloadName, "I420", 4)) {
+    } else if (ModuleRTPUtility::StringCompare(payloadName, "I420", 4)) {
       videoType = kRtpVideoGeneric;
-    } else if (RtpUtility::StringCompare(payloadName, "ULPFEC", 6)) {
+    } else if (ModuleRTPUtility::StringCompare(payloadName, "ULPFEC", 6)) {
       videoType = kRtpVideoNone;
     } else {
       videoType = kRtpVideoGeneric;
     }
-    RtpUtility::Payload* payload = new RtpUtility::Payload;
+    ModuleRTPUtility::Payload* payload = new ModuleRTPUtility::Payload;
 
     payload->name[RTP_PAYLOAD_NAME_SIZE - 1] = 0;
     strncpy(payload->name, payloadName, RTP_PAYLOAD_NAME_SIZE - 1);
@@ -446,7 +467,8 @@ class RTPPayloadVideoStrategy : public RTPPayloadStrategy {
     return payload;
   }
 
-  int GetPayloadTypeFrequency(const RtpUtility::Payload& payload) const {
+  int GetPayloadTypeFrequency(
+      const ModuleRTPUtility::Payload& payload) const {
     return kVideoPayloadTypeFrequency;
   }
 };
