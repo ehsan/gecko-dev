@@ -1019,7 +1019,6 @@ TabParent::RecvNotifyIMEFocus(const bool& aFocus,
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (!widget) {
     aPreference->mWantUpdates = nsIMEUpdatePreference::NOTIFY_NOTHING;
-    aPreference->mWantHints = false;
     return true;
   }
 
@@ -1045,6 +1044,9 @@ TabParent::RecvNotifyIMETextChange(const uint32_t& aStart,
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (!widget)
     return true;
+
+  NS_ASSERTION(widget->GetIMEUpdatePreference().WantTextChange(),
+               "Don't call Send/RecvNotifyIMETextChange without NOTIFY_TEXT_CHANGE");
 
   widget->NotifyIMEOfTextChange(aStart, aEnd, aNewEnd);
   return true;
@@ -1080,7 +1082,9 @@ TabParent::RecvNotifyIMESelection(const uint32_t& aSeqno,
   if (aSeqno == mIMESeqno) {
     mIMESelectionAnchor = aAnchor;
     mIMESelectionFocus = aFocus;
-    widget->NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE);
+    if (widget->GetIMEUpdatePreference().WantSelectionChange()) {
+      widget->NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE);
+    }
   }
   return true;
 }
