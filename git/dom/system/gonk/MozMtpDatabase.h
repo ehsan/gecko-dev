@@ -30,6 +30,7 @@ public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MozMtpDatabase)
 
   MozMtpDatabase();
+  virtual ~MozMtpDatabase();
 
   // called from SendObjectInfo to reserve a database entry for the incoming file
   virtual MtpObjectHandle beginSendObject(const char* aPath,
@@ -119,12 +120,9 @@ public:
                          DeviceStorageFile* aFile,
                          const nsACString& aEventType);
 
-protected:
-  virtual ~MozMtpDatabase();
-
 private:
 
-  struct DbEntry MOZ_FINAL
+  struct DbEntry
   {
     DbEntry()
       : mHandle(0),
@@ -147,9 +145,6 @@ private:
     nsCString       mPath;
     PRTime          mDateCreated;
     PRTime          mDateModified;
-
-  protected:
-    ~DbEntry() {}
   };
 
   template<class T>
@@ -211,16 +206,13 @@ private:
   typedef nsTArray<mozilla::RefPtr<DbEntry> > UnprotectedDbArray;
   typedef ProtectedTArray<mozilla::RefPtr<DbEntry> > ProtectedDbArray;
 
-  struct StorageEntry MOZ_FINAL
+  struct StorageEntry
   {
     NS_INLINE_DECL_THREADSAFE_REFCOUNTING(StorageEntry)
 
     MtpStorageID  mStorageID;
     nsCString     mStoragePath;
     nsCString     mStorageName;
-
-  protected:
-    ~StorageEntry() {}
   };
   typedef ProtectedTArray<mozilla::RefPtr<StorageEntry> > StorageArray;
 

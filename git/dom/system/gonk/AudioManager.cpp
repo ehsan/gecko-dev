@@ -185,9 +185,6 @@ public:
       NS_ConvertUTF16toUTF8(aName).get());
     return NS_OK;
   }
-
-protected:
-  ~AudioChannelVolInitCallback() {}
 };
 
 NS_IMPL_ISUPPORTS(AudioChannelVolInitCallback, nsISettingsServiceCallback)

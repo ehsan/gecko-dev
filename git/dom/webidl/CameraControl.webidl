@@ -423,9 +423,7 @@ interface CameraControl : MediaStream
    'mouth' is the coordinates of the detected mouth; null if not supported or
    detected. Same boundary conditions as 'leftEye'.
 */
-[Pref="camera.control.face_detection.enabled",
- Func="DOMCameraDetectedFace::HasSupport",
- Constructor(optional CameraDetectedFaceInit initDict)]
+[Pref="camera.control.face_detection.enabled", Func="DOMCameraDetectedFace::HasSupport"]
 interface CameraDetectedFace
 {
   readonly attribute unsigned long id;
@@ -442,19 +440,6 @@ interface CameraDetectedFace
 
   readonly attribute boolean hasMouth;
   readonly attribute DOMPoint? mouth;
-};
-
-dictionary CameraDetectedFaceInit
-{
-  unsigned long id = 0;
-  unsigned long score = 100;
-  CameraRegion bounds;
-  boolean hasLeftEye = false;
-  DOMPointInit leftEye;
-  boolean hasRightEye = false;
-  DOMPointInit rightEye;
-  boolean hasMouth = false;
-  DOMPointInit mouth;
 };
 
 callback CameraFaceDetectionCallback = void (sequence<CameraDetectedFace> faces);

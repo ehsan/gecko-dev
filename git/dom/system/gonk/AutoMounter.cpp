@@ -230,6 +230,12 @@ public:
     UpdateState();
   }
 
+  ~AutoMounter()
+  {
+    Volume::UnregisterVolumeObserver(&mVolumeEventObserver, "AutoMounter");
+    VolumeManager::UnregisterStateObserver(&mVolumeManagerStateObserver);
+  }
+
   void CheckVolumeSettings()
   {
     if (VolumeManager::State() != VolumeManager::VOLUMES_READY) {
@@ -381,13 +387,6 @@ public:
     DBG("Calling UpdateState due to volume %s unmounting set to %d",
         vol->NameStr(), (int)vol->IsUnmountRequested());
     UpdateState();
-  }
-
-protected:
-  ~AutoMounter()
-  {
-    Volume::UnregisterVolumeObserver(&mVolumeEventObserver, "AutoMounter");
-    VolumeManager::UnregisterStateObserver(&mVolumeManagerStateObserver);
   }
 
 private:

@@ -60,7 +60,7 @@ namespace {
  * between read()s, we sleep by Wait()'ing on a monitor, which we notify on
  * shutdown.
  */
-class MemoryPressureWatcher MOZ_FINAL
+class MemoryPressureWatcher
   : public nsIRunnable
   , public nsIObserver
 {
@@ -216,9 +216,6 @@ public:
 
     return NS_OK;
   }
-
-protected:
-  ~MemoryPressureWatcher() {}
 
 private:
   /**

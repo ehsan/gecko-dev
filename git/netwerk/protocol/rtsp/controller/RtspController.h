@@ -25,8 +25,6 @@ public:
   NS_DECL_NSISTREAMINGPROTOCOLLISTENER
 
   RtspController(nsIChannel *channel);
-
-protected:
   ~RtspController();
 
 private:
