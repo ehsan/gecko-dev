@@ -29,7 +29,6 @@ loader.lazyGetter(this, "DebuggerPanel", () => require("devtools/debugger/debugg
 loader.lazyImporter(this, "StyleEditorPanel", "resource:///modules/devtools/StyleEditorPanel.jsm");
 loader.lazyGetter(this, "ProfilerPanel", () => require("devtools/profiler/panel"));
 loader.lazyGetter(this, "NetMonitorPanel", () => require("devtools/netmonitor/netmonitor-panel").NetMonitorPanel);
-loader.lazyGetter(this, "ScratchpadPanel", () => require("devtools/scratchpad/scratchpad-panel").ScratchpadPanel);
 
 // Strings
 const toolboxProps = "chrome://browser/locale/devtools/toolbox.properties";
@@ -39,7 +38,6 @@ const styleEditorProps = "chrome://browser/locale/devtools/styleeditor.propertie
 const webConsoleProps = "chrome://browser/locale/devtools/webconsole.properties";
 const profilerProps = "chrome://browser/locale/devtools/profiler.properties";
 const netMonitorProps = "chrome://browser/locale/devtools/netmonitor.properties";
-const scratchpadProps = "chrome://browser/locale/devtools/scratchpad.properties";
 loader.lazyGetter(this, "toolboxStrings", () => Services.strings.createBundle(toolboxProps));
 loader.lazyGetter(this, "webConsoleStrings", () => Services.strings.createBundle(webConsoleProps));
 loader.lazyGetter(this, "debuggerStrings", () => Services.strings.createBundle(debuggerProps));
@@ -47,7 +45,6 @@ loader.lazyGetter(this, "styleEditorStrings", () => Services.strings.createBundl
 loader.lazyGetter(this, "inspectorStrings", () => Services.strings.createBundle(inspectorProps));
 loader.lazyGetter(this, "profilerStrings",() => Services.strings.createBundle(profilerProps));
 loader.lazyGetter(this, "netMonitorStrings", () => Services.strings.createBundle(netMonitorProps));
-loader.lazyGetter(this, "scratchpadStrings", () => Services.strings.createBundle(scratchpadProps));
 
 let Tools = {};
 exports.Tools = Tools;
@@ -205,25 +202,6 @@ Tools.netMonitor = {
   }
 };
 
-Tools.scratchpad = {
-  id: "scratchpad",
-  ordinal: 7,
-  visibilityswitch: "devtools.scratchpad.enabled",
-  icon: "chrome://browser/skin/devtools/tool-scratchpad.png",
-  url: "chrome://browser/content/devtools/scratchpad.xul",
-  label: l10n("scratchpad.label", scratchpadStrings),
-  tooltip: l10n("scratchpad.tooltip", scratchpadStrings),
-
-  isTargetSupported: function(target) {
-    return target.isRemote;
-  },
-
-  build: function(iframeWindow, toolbox) {
-    let panel = new ScratchpadPanel(iframeWindow, toolbox);
-    return panel.open();
-  }
-};
-
 let defaultTools = [
   Tools.options,
   Tools.styleEditor,
@@ -231,8 +209,7 @@ let defaultTools = [
   Tools.jsdebugger,
   Tools.inspector,
   Tools.jsprofiler,
-  Tools.netMonitor,
-  Tools.scratchpad
+  Tools.netMonitor
 ];
 
 exports.defaultTools = defaultTools;

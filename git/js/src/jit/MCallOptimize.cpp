@@ -212,17 +212,18 @@ IonBuilder::inlineArray(CallInfo &callInfo)
         initLength = callInfo.argc();
         allocating = MNewArray::NewArray_Allocating;
 
-        types::TypeObject *baseType = types::TypeScript::InitObject(cx, script(), pc, JSProto_Array);
-        if (!baseType)
+        types::TypeObject *type = types::TypeScript::InitObject(cx, script(), pc, JSProto_Array);
+        if (!type)
             return InliningStatus_Error;
-        types::TypeObjectKey *type = types::TypeObjectKey::get(baseType);
         if (!type->unknownProperties()) {
-            types::HeapTypeSetKey elemTypes = type->property(JSID_VOID);
+            types::HeapTypeSet *elemTypes = type->getProperty(cx, JSID_VOID);
+            if (!elemTypes)
+                return InliningStatus_Error;
 
             for (uint32_t i = 0; i < initLength; i++) {
                 MDefinition *value = callInfo.getArg(i);
-                if (!TypeSetIncludes(elemTypes.actualTypes, value->type(), value->resultTypeSet())) {
-                    elemTypes.freeze(constraints());
+                if (!TypeSetIncludes(elemTypes, value->type(), value->resultTypeSet())) {
+                    elemTypes->addFreeze(cx);
                     return InliningStatus_NotInlined;
                 }
             }
@@ -250,7 +251,7 @@ IonBuilder::inlineArray(CallInfo &callInfo)
         return InliningStatus_Error;
 
     types::TemporaryTypeSet::DoubleConversion conversion =
-        getInlineReturnTypeSet()->convertDoubleElements(constraints());
+        getInlineReturnTypeSet()->convertDoubleElements(cx);
     if (conversion == types::TemporaryTypeSet::AlwaysConvertToDoubles)
         templateObject->setShouldConvertDoubleElements();
 
@@ -319,21 +320,23 @@ IonBuilder::inlineArrayPopShift(CallInfo &callInfo, MArrayPopShift::Mode mode)
     types::TemporaryTypeSet *thisTypes = callInfo.thisArg()->resultTypeSet();
     if (!thisTypes || thisTypes->getKnownClass() != &ArrayObject::class_)
         return InliningStatus_NotInlined;
-    if (thisTypes->hasObjectFlags(constraints(), unhandledFlags))
+    if (thisTypes->hasObjectFlags(cx, unhandledFlags))
         return InliningStatus_NotInlined;
 
     RootedScript scriptRoot(cx, script());
-    if (types::ArrayPrototypeHasIndexedProperty(constraints(), scriptRoot))
+    if (types::ArrayPrototypeHasIndexedProperty(cx, scriptRoot))
         return InliningStatus_NotInlined;
 
     callInfo.unwrapArgs();
 
     types::StackTypeSet *returnTypes = getOriginalInlineReturnTypeSet();
-    bool needsHoleCheck = thisTypes->hasObjectFlags(constraints(), types::OBJECT_FLAG_NON_PACKED);
+    bool needsHoleCheck = thisTypes->hasObjectFlags(cx, types::OBJECT_FLAG_NON_PACKED);
     bool maybeUndefined = returnTypes->hasType(types::Type::UndefinedType());
 
-    bool barrier = PropertyReadNeedsTypeBarrier(cx, constraints(),
-                                                callInfo.thisArg(), nullptr, returnTypes);
+    bool barrier;
+    if (!PropertyReadNeedsTypeBarrier(cx, callInfo.thisArg(), nullptr, returnTypes, &barrier))
+        return InliningStatus_Error;
+
     if (barrier)
         returnType = MIRType_Value;
 
@@ -360,11 +363,14 @@ IonBuilder::inlineArrayPush(CallInfo &callInfo)
 
     MDefinition *obj = callInfo.thisArg();
     MDefinition *value = callInfo.getArg(0);
-    if (PropertyWriteNeedsTypeBarrier(constraints(), current,
-                                      &obj, nullptr, &value, /* canModify = */ false))
+    bool writeNeedsBarrier;
+    if (!PropertyWriteNeedsTypeBarrier(cx, current, &obj, nullptr, &value,
+                                       /* canModify = */ false, &writeNeedsBarrier))
     {
-        return InliningStatus_NotInlined;
+        return InliningStatus_Error;
     }
+    if (writeNeedsBarrier)
+        return InliningStatus_NotInlined;
     JS_ASSERT(obj == callInfo.thisArg() && value == callInfo.getArg(0));
 
     if (getInlineReturnType() != MIRType_Int32)
@@ -375,18 +381,17 @@ IonBuilder::inlineArrayPush(CallInfo &callInfo)
     types::TemporaryTypeSet *thisTypes = callInfo.thisArg()->resultTypeSet();
     if (!thisTypes || thisTypes->getKnownClass() != &ArrayObject::class_)
         return InliningStatus_NotInlined;
-    if (thisTypes->hasObjectFlags(constraints(), types::OBJECT_FLAG_SPARSE_INDEXES |
+    if (thisTypes->hasObjectFlags(cx, types::OBJECT_FLAG_SPARSE_INDEXES |
                                   types::OBJECT_FLAG_LENGTH_OVERFLOW))
     {
         return InliningStatus_NotInlined;
     }
 
     RootedScript scriptRoot(cx, script());
-    if (types::ArrayPrototypeHasIndexedProperty(constraints(), scriptRoot))
+    if (types::ArrayPrototypeHasIndexedProperty(cx, scriptRoot))
         return InliningStatus_NotInlined;
 
-    types::TemporaryTypeSet::DoubleConversion conversion =
-        thisTypes->convertDoubleElements(constraints());
+    types::TemporaryTypeSet::DoubleConversion conversion = thisTypes->convertDoubleElements(cx);
     if (conversion == types::TemporaryTypeSet::AmbiguousDoubleConversion)
         return InliningStatus_NotInlined;
 
@@ -435,7 +440,7 @@ IonBuilder::inlineArrayConcat(CallInfo &callInfo)
 
     if (thisTypes->getKnownClass() != &ArrayObject::class_)
         return InliningStatus_NotInlined;
-    if (thisTypes->hasObjectFlags(constraints(), types::OBJECT_FLAG_SPARSE_INDEXES |
+    if (thisTypes->hasObjectFlags(cx, types::OBJECT_FLAG_SPARSE_INDEXES |
                                   types::OBJECT_FLAG_LENGTH_OVERFLOW))
     {
         return InliningStatus_NotInlined;
@@ -443,7 +448,7 @@ IonBuilder::inlineArrayConcat(CallInfo &callInfo)
 
     if (argTypes->getKnownClass() != &ArrayObject::class_)
         return InliningStatus_NotInlined;
-    if (argTypes->hasObjectFlags(constraints(), types::OBJECT_FLAG_SPARSE_INDEXES |
+    if (argTypes->hasObjectFlags(cx, types::OBJECT_FLAG_SPARSE_INDEXES |
                                  types::OBJECT_FLAG_LENGTH_OVERFLOW))
     {
         return InliningStatus_NotInlined;
@@ -451,7 +456,7 @@ IonBuilder::inlineArrayConcat(CallInfo &callInfo)
 
     // Watch out for indexed properties on the prototype.
     RootedScript scriptRoot(cx, script());
-    if (types::ArrayPrototypeHasIndexedProperty(constraints(), scriptRoot))
+    if (types::ArrayPrototypeHasIndexedProperty(cx, scriptRoot))
         return InliningStatus_NotInlined;
 
     // Require the 'this' types to have a specific type matching the current
@@ -459,20 +464,18 @@ IonBuilder::inlineArrayConcat(CallInfo &callInfo)
     if (thisTypes->getObjectCount() != 1)
         return InliningStatus_NotInlined;
 
-    types::TypeObject *baseThisType = thisTypes->getTypeObject(0);
-    if (!baseThisType)
-        return InliningStatus_NotInlined;
-    types::TypeObjectKey *thisType = types::TypeObjectKey::get(baseThisType);
-    if (thisType->unknownProperties() ||
-        &thisType->proto().toObject()->global() != &script()->global())
+    types::TypeObject *thisType = thisTypes->getTypeObject(0);
+    if (!thisType ||
+        thisType->unknownProperties() ||
+        &thisType->proto->global() != &script()->global())
     {
         return InliningStatus_NotInlined;
     }
 
     // Don't inline if 'this' is packed and the argument may not be packed
     // (the result array will reuse the 'this' type).
-    if (!thisTypes->hasObjectFlags(constraints(), types::OBJECT_FLAG_NON_PACKED) &&
-        argTypes->hasObjectFlags(constraints(), types::OBJECT_FLAG_NON_PACKED))
+    if (!thisTypes->hasObjectFlags(cx, types::OBJECT_FLAG_NON_PACKED) &&
+        argTypes->hasObjectFlags(cx, types::OBJECT_FLAG_NON_PACKED))
     {
         return InliningStatus_NotInlined;
     }
@@ -480,30 +483,38 @@ IonBuilder::inlineArrayConcat(CallInfo &callInfo)
     // Constraints modeling this concat have not been generated by inference,
     // so check that type information already reflects possible side effects of
     // this call.
-    types::HeapTypeSetKey thisElemTypes = thisType->property(JSID_VOID);
+    types::HeapTypeSet *thisElemTypes = thisType->getProperty(cx, JSID_VOID);
+    if (!thisElemTypes)
+        return InliningStatus_Error;
 
     types::TemporaryTypeSet *resTypes = getInlineReturnTypeSet();
     if (!resTypes->hasType(types::Type::ObjectType(thisType)))
         return InliningStatus_NotInlined;
 
     for (unsigned i = 0; i < argTypes->getObjectCount(); i++) {
-        types::TypeObjectKey *argType = argTypes->getObject(i);
+        if (argTypes->getSingleObject(i))
+            return InliningStatus_NotInlined;
+
+        types::TypeObject *argType = argTypes->getTypeObject(i);
         if (!argType)
             continue;
 
         if (argType->unknownProperties())
             return InliningStatus_NotInlined;
 
-        types::HeapTypeSetKey elemTypes = argType->property(JSID_VOID);
-        if (!elemTypes.knownSubset(constraints(), thisElemTypes))
+        types::HeapTypeSet *elemTypes = argType->getProperty(cx, JSID_VOID);
+        if (!elemTypes)
+            return InliningStatus_Error;
+
+        if (!elemTypes->knownSubset(cx, thisElemTypes))
             return InliningStatus_NotInlined;
     }
 
     // Inline the call.
-    JSObject *templateObj = NewDenseEmptyArray(cx, thisType->proto().toObject(), TenuredObject);
+    JSObject *templateObj = NewDenseEmptyArray(cx, thisType->proto, TenuredObject);
     if (!templateObj)
         return InliningStatus_Error;
-    templateObj->setType(baseThisType);
+    templateObj->setType(thisType);
 
     callInfo.unwrapArgs();
 
@@ -1057,9 +1068,12 @@ IonBuilder::inlineUnsafePutElements(CallInfo &callInfo)
 
         bool writeNeedsBarrier = false;
         if (isDenseNative) {
-            writeNeedsBarrier = PropertyWriteNeedsTypeBarrier(constraints(), current,
-                                                              &obj, nullptr, &elem,
-                                                              /* canModify = */ false);
+            if (!PropertyWriteNeedsTypeBarrier(cx, current, &obj, nullptr, &elem,
+                                               /* canModify = */ false,
+                                               &writeNeedsBarrier))
+            {
+                return InliningStatus_Error;
+            }
         }
 
         // We can only inline setelem on dense arrays that do not need type
@@ -1121,7 +1135,7 @@ IonBuilder::inlineUnsafeSetDenseArrayElement(CallInfo &callInfo, uint32_t base)
     MDefinition *elem = callInfo.getArg(base + 2);
 
     types::TemporaryTypeSet::DoubleConversion conversion =
-        obj->resultTypeSet()->convertDoubleElements(constraints());
+        obj->resultTypeSet()->convertDoubleElements(cx);
     if (!jsop_setelem_dense(conversion, SetElem_Unsafe, obj, id, elem))
         return false;
     return true;

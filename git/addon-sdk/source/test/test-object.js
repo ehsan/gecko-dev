@@ -9,28 +9,27 @@ let o = {
   'paper': 0,
   'rock': 1,
   'scissors': 2
+}
+
+//exports.testMerge = function(test) {}
+//exports.testExtend = function(test) {}
+
+exports.testHas = function(test) {
+  test.assertEqual(has(o, 'paper'), true, 'has correctly finds key');
+  test.assertEqual(has(o, 'rock'), true, 'has correctly finds key');
+  test.assertEqual(has(o, 'scissors'), true, 'has correctly finds key');
+  test.assertEqual(has(o, 'nope'), false, 'has correctly does not find key');
+  test.assertEqual(has(o, '__proto__'), false, 'has correctly does not find key');
+  test.assertEqual(has(o, 'isPrototypeOf'), false, 'has correctly does not find key');
 };
 
-//exports.testMerge = function(assert) {}
-//exports.testExtend = function(assert) {}
-
-exports.testHas = function(assert) {
-  assert.equal(has(o, 'paper'), true, 'has correctly finds key');
-  assert.equal(has(o, 'rock'), true, 'has correctly finds key');
-  assert.equal(has(o, 'scissors'), true, 'has correctly finds key');
-  assert.equal(has(o, 'nope'), false, 'has correctly does not find key');
-  assert.equal(has(o, '__proto__'), false, 'has correctly does not find key');
-  assert.equal(has(o, 'isPrototypeOf'), false, 'has correctly does not find key');
-};
-
-exports.testEach = function(assert) {
+exports.testEach = function(test) {
+  var count = 0;
   var keys = new Set();
   each(o, function (value, key, object) {
     keys.add(key);
-    assert.equal(o[key], value, 'Key and value pairs passed in');
-    assert.equal(o, object, 'Object passed in');
+    test.assertEqual(o[key], value, 'Key and value pairs passed in');
+    test.assertEqual(o, object, 'Object passed in');
   });
-  assert.equal(keys.size, 3, 'All keys have been iterated upon');
-};
-
-require('sdk/test').run(exports);
+  test.assertEqual(keys.size, 3, 'All keys have been iterated upon');
+}

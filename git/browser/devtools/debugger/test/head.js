@@ -74,7 +74,6 @@ function addTab(aUrl, aWindow) {
 
   linkedBrowser.addEventListener("load", function onLoad() {
     linkedBrowser.removeEventListener("load", onLoad, true);
-    info("Tab added and finished loading: " + aUrl);
     deferred.resolve(tab);
   }, true);
 
@@ -91,7 +90,6 @@ function removeTab(aTab, aWindow) {
 
   tabContainer.addEventListener("TabClose", function onClose(aEvent) {
     tabContainer.removeEventListener("TabClose", onClose, false);
-    info("Tab removed and finished closing.");
     deferred.resolve();
   }, false);
 
@@ -211,12 +209,6 @@ function once(aTarget, aEventName, aUseCapture = false) {
 function waitForTick() {
   let deferred = promise.defer();
   executeSoon(deferred.resolve);
-  return deferred.promise;
-}
-
-function waitForTime(aDelay) {
-  let deferred = promise.defer();
-  setTimeout(deferred.resolve, aDelay);
   return deferred.promise;
 }
 

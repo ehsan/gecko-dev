@@ -47,9 +47,8 @@ Wrapper::New(JSContext *cx, JSObject *obj, JSObject *proto, JSObject *parent, Wr
     AutoMarkInDeadZone amd(cx->zone());
 
     RootedValue priv(cx, ObjectValue(*obj));
-    ProxyOptions options;
-    options.setCallable(obj->isCallable());
-    return NewProxyObject(cx, handler, priv, proto, parent, options);
+    return NewProxyObject(cx, handler, priv, proto, parent,
+                          obj->isCallable() ? ProxyIsCallable : ProxyNotCallable);
 }
 
 JSObject *
@@ -174,7 +173,7 @@ CrossCompartmentWrapper::~CrossCompartmentWrapper()
 {
 }
 
-bool Wrapper::finalizeInBackground(Value priv)
+bool CrossCompartmentWrapper::finalizeInBackground(Value priv)
 {
     if (!priv.isObject())
         return true;
@@ -837,11 +836,10 @@ DeadObjectProxy DeadObjectProxy::singleton;
 const char DeadObjectProxy::sDeadObjectFamily = 0;
 
 JSObject *
-js::NewDeadProxyObject(JSContext *cx, JSObject *parent,
-                       const ProxyOptions &options)
+js::NewDeadProxyObject(JSContext *cx, JSObject *parent)
 {
     return NewProxyObject(cx, &DeadObjectProxy::singleton, JS::NullHandleValue,
-                          NULL, parent, options);
+                          NULL, parent, ProxyNotCallable);
 }
 
 bool

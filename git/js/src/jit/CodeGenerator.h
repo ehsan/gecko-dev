@@ -53,7 +53,7 @@ class CodeGenerator : public CodeGeneratorSpecific
   public:
     bool generate();
     bool generateAsmJS();
-    bool link(JSContext *cx, types::CompilerConstraintList *constraints);
+    bool link();
 
     bool visitLabel(LLabel *lir);
     bool visitNop(LNop *lir);

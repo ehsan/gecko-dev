@@ -719,11 +719,9 @@ WrapCallable(JSContext *cx, JSObject *callable, JSObject *sandboxProtoProxy)
                  &xpc::sandboxProxyHandler);
 
     RootedValue priv(cx, ObjectValue(*callable));
-    js::ProxyOptions options;
-    options.setCallable(true);
     return js::NewProxyObject(cx, &xpc::sandboxCallableProxyHandler,
                               priv, nullptr,
-                              sandboxProtoProxy, options);
+                              sandboxProtoProxy, js::ProxyIsCallable);
 }
 
 template<typename Op>

@@ -336,7 +336,7 @@ function promiseLoop() {
   });
 }
 
-function promiseStaticReject() {
+function promiseReject() {
   var promise = Promise.reject(42).then(function(what) {
     ok(false, "This should not be called");
   }, function(what) {
@@ -345,7 +345,7 @@ function promiseStaticReject() {
   });
 }
 
-function promiseStaticResolve() {
+function promiseResolve() {
   var promise = Promise.resolve(42).then(function(what) {
     is(what, 42, "Value == 42");
     runTest();
@@ -378,7 +378,7 @@ var tests = [ promiseResolve, promiseReject,
               promiseThenCatchOrderingReject,
               promiseNestedPromise, promiseNestedNestedPromise,
               promiseWrongNestedPromise, promiseLoop,
-              promiseStaticReject, promiseStaticResolve,
+              promiseReject, promiseResolve,
               promiseResolveNestedPromise,
             ];
 

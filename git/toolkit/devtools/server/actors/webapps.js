@@ -190,9 +190,6 @@ WebappsActor.prototype = {
                                requestID: "bar"
                              });
 
-        Services.obs.notifyObservers(null, "webapps-installed",
-          JSON.stringify({ manifestURL: aApp.manifestURL }));
-
         delete aApp.manifest;
         aDeferred.resolve({ appId: aId, path: aDir.path });
 
@@ -856,29 +853,20 @@ WebappsActor.prototype = {
 
   watchApps: function () {
     this._openedApps = new Set();
-    // For now, app open/close events are only implement on b2g
-    if (Services.appinfo.ID == "{3c2e2abc-06d4-11e1-ac3b-374f68613e61}") {
-      let chromeWindow = Services.wm.getMostRecentWindow('navigator:browser');
-      let systemAppFrame = chromeWindow.getContentWindow();
-      systemAppFrame.addEventListener("appwillopen", this);
-      systemAppFrame.addEventListener("appterminated", this);
-    }
-    Services.obs.addObserver(this, "webapps-installed", false);
-    Services.obs.addObserver(this, "webapps-uninstall", false);
+    let chromeWindow = Services.wm.getMostRecentWindow('navigator:browser');
+    let systemAppFrame = chromeWindow.getContentWindow();
+    systemAppFrame.addEventListener("appwillopen", this);
+    systemAppFrame.addEventListener("appterminated", this);
 
     return {};
   },
 
   unwatchApps: function () {
     this._openedApps = null;
-    if (Services.appinfo.ID == "{3c2e2abc-06d4-11e1-ac3b-374f68613e61}") {
-      let chromeWindow = Services.wm.getMostRecentWindow('navigator:browser');
-      let systemAppFrame = chromeWindow.getContentWindow();
-      systemAppFrame.removeEventListener("appwillopen", this);
-      systemAppFrame.removeEventListener("appterminated", this);
-    }
-    Services.obs.removeObserver(this, "webapps-installed", false);
-    Services.obs.removeObserver(this, "webapps-uninstall", false);
+    let chromeWindow = Services.wm.getMostRecentWindow('navigator:browser');
+    let systemAppFrame = chromeWindow.getContentWindow();
+    systemAppFrame.removeEventListener("appwillopen", this);
+    systemAppFrame.removeEventListener("appterminated", this);
 
     return {};
   },
@@ -923,21 +911,6 @@ WebappsActor.prototype = {
         });
 
         break;
-    }
-  },
-
-  observe: function (subject, topic, data) {
-    let app = JSON.parse(data);
-    if (topic == "webapps-installed") {
-      this.conn.send({ from: this.actorID,
-                       type: "appInstall",
-                       manifestURL: app.manifestURL
-                     });
-    } else if (topic == "webapps-uninstall") {
-      this.conn.send({ from: this.actorID,
-                       type: "appUninstall",
-                       manifestURL: app.manifestURL
-                     });
     }
   }
 };
