@@ -131,6 +131,7 @@ public:
   nsresult GetNamespaceURI(nsAString& aNamespaceURI);
   nsresult GetLocalName(nsAString& aLocalName);
   nsresult GetPrefix(nsAString& aPrefix);
+  nsresult SetPrefix(const nsAString& aPrefix);
   nsresult Normalize();
   nsresult IsSupported(const nsAString& aFeature,
                        const nsAString& aVersion,
@@ -469,6 +470,9 @@ private:
   }                                                                         \
   NS_IMETHOD GetPrefix(nsAString& aPrefix) {                                \
     return nsGenericDOMDataNode::GetPrefix(aPrefix);                        \
+  }                                                                         \
+  NS_IMETHOD SetPrefix(const nsAString& aPrefix) {                          \
+    return nsGenericDOMDataNode::SetPrefix(aPrefix);                        \
   }                                                                         \
   NS_IMETHOD Normalize() {                                                  \
     return NS_OK;                                                           \

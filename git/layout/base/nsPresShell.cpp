@@ -843,7 +843,8 @@ public:
 
   //nsIViewObserver interface
 
-  NS_IMETHOD Paint(nsIView* aViewToPaint,
+  NS_IMETHOD Paint(nsIView* aDisplayRoot,
+                   nsIView* aViewToPaint,
                    nsIWidget* aWidget,
                    const nsRegion& aDirtyRegion,
                    const nsIntRegion& aIntDirtyRegion,
@@ -5876,6 +5877,9 @@ nscolor PresShell::ComputeBackstopColor(nsIView* aDisplayRoot)
 }
 
 struct PaintParams {
+  nsIFrame* mFrame;
+  nsPoint mOffsetToWidget;
+  const nsRegion* mDirtyRegion;
   nscolor mBackgroundColor;
 };
 
@@ -5953,16 +5957,33 @@ static void DrawThebesLayer(ThebesLayer* aLayer,
                             void* aCallbackData)
 {
   PaintParams* params = static_cast<PaintParams*>(aCallbackData);
-  aContext->NewPath();
-  aContext->SetColor(gfxRGBA(params->mBackgroundColor));
-  nsIntRect dirtyRect = aRegionToDraw.GetBounds();
-  aContext->Rectangle(
-    gfxRect(dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height));
-  aContext->Fill();
+  nsIFrame* frame = params->mFrame;
+  if (frame) {
+    // We're drawing into a child window.
+    nsIDeviceContext* devCtx = frame->PresContext()->DeviceContext();
+    nsCOMPtr<nsIRenderingContext> rc;
+    nsresult rv = devCtx->CreateRenderingContextInstance(*getter_AddRefs(rc));
+    if (NS_SUCCEEDED(rv)) {
+      rc->Init(devCtx, aContext);
+      nsIRenderingContext::AutoPushTranslation
+        push(rc, params->mOffsetToWidget.x, params->mOffsetToWidget.y);
+      nsLayoutUtils::PaintFrame(rc, frame, *params->mDirtyRegion,
+                                params->mBackgroundColor,
+                                nsLayoutUtils::PAINT_WIDGET_LAYERS);
+    }
+  } else {
+    aContext->NewPath();
+    aContext->SetColor(gfxRGBA(params->mBackgroundColor));
+    nsIntRect dirtyRect = aRegionToDraw.GetBounds();
+    aContext->Rectangle(
+      gfxRect(dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height));
+    aContext->Fill();
+  }
 }
 
 NS_IMETHODIMP
-PresShell::Paint(nsIView*           aViewToPaint,
+PresShell::Paint(nsIView*           aDisplayRoot,
+                 nsIView*           aViewToPaint,
                  nsIWidget*         aWidgetToPaint,
                  const nsRegion&    aDirtyRegion,
                  const nsIntRegion& aIntDirtyRegion,
@@ -5981,6 +6002,7 @@ PresShell::Paint(nsIView*           aViewToPaint,
 #endif
 
   NS_ASSERTION(!mIsDestroying, "painting a destroyed PresShell");
+  NS_ASSERTION(aDisplayRoot, "null view");
   NS_ASSERTION(aViewToPaint, "null view");
   NS_ASSERTION(aWidgetToPaint, "Can't paint without a widget");
 
@@ -5988,7 +6010,7 @@ PresShell::Paint(nsIView*           aViewToPaint,
   AUTO_LAYOUT_PHASE_ENTRY_POINT(presContext, Paint);
 
   nsIFrame* frame = aPaintDefaultBackground
-      ? nsnull : static_cast<nsIFrame*>(aViewToPaint->GetClientData());
+      ? nsnull : static_cast<nsIFrame*>(aDisplayRoot->GetClientData());
 
   bool isRetainingManager;
   LayerManager* layerManager =
@@ -6019,9 +6041,9 @@ PresShell::Paint(nsIView*           aViewToPaint,
     frame->ClearPresShellsFromLastPaint();
   }
 
-  nscolor bgcolor = ComputeBackstopColor(aViewToPaint);
+  nscolor bgcolor = ComputeBackstopColor(aDisplayRoot);
 
-  if (frame) {
+  if (frame && aViewToPaint == aDisplayRoot) {
     // Defer invalidates that are triggered during painting, and discard
     // invalidates of areas that are already being repainted.
     // The layer system can trigger invalidates during painting
@@ -6041,15 +6063,30 @@ PresShell::Paint(nsIView*           aViewToPaint,
     return NS_OK;
   }
 
+  if (frame) {
+    // Defer invalidates that are triggered during painting, and discard
+    // invalidates of areas that are already being repainted.
+    frame->BeginDeferringInvalidatesForDisplayRoot(aDirtyRegion);
+  }
+
   nsRefPtr<ThebesLayer> root = layerManager->CreateThebesLayer();
   if (root) {
     root->SetVisibleRegion(aIntDirtyRegion);
     layerManager->SetRoot(root);
   }
-  bgcolor = NS_ComposeColors(bgcolor, mCanvasBackgroundColor);
-  PaintParams params = { bgcolor };
+  if (!frame) {
+    bgcolor = NS_ComposeColors(bgcolor, mCanvasBackgroundColor);
+  }
+  PaintParams params =
+    { frame,
+      aDisplayRoot->GetOffsetToWidget(aWidgetToPaint),
+      &aDirtyRegion,
+      bgcolor };
   layerManager->EndTransaction(DrawThebesLayer, &params);
 
+  if (frame) {
+    frame->EndDeferringInvalidatesForDisplayRoot();
+  }
   presContext->NotifyDidPaintForSubtree();
   return NS_OK;
 }
