@@ -856,13 +856,8 @@ class nsDirEnumerator MOZ_FINAL
   : public nsISimpleEnumerator
   , public nsIDirectoryEnumerator
 {
-private:
-  ~nsDirEnumerator()
-  {
-    Close();
-  }
-
 public:
+
   NS_DECL_ISUPPORTS
 
   nsDirEnumerator() : mDir(nullptr)
@@ -972,6 +967,13 @@ public:
       }
     }
     return NS_OK;
+  }
+
+  // dtor can be non-virtual since there are no subclasses, but must be
+  // public to use the class on the stack.
+  ~nsDirEnumerator()
+  {
+    Close();
   }
 
 protected:
@@ -2102,19 +2104,19 @@ nsLocalFile::CopyMove(nsIFile* aParentDir, const nsAString& aNewName,
       }
     }
 
-    nsRefPtr<nsDirEnumerator> dirEnum = new nsDirEnumerator();
+    nsDirEnumerator dirEnum;
 
-    rv = dirEnum->Init(this);
+    rv = dirEnum.Init(this);
     if (NS_FAILED(rv)) {
       NS_WARNING("dirEnum initialization failed");
       return rv;
     }
 
     bool more = false;
-    while (NS_SUCCEEDED(dirEnum->HasMoreElements(&more)) && more) {
+    while (NS_SUCCEEDED(dirEnum.HasMoreElements(&more)) && more) {
       nsCOMPtr<nsISupports> item;
       nsCOMPtr<nsIFile> file;
-      dirEnum->GetNext(getter_AddRefs(item));
+      dirEnum.GetNext(getter_AddRefs(item));
       file = do_QueryInterface(item);
       if (file) {
         bool isDir, isLink;
@@ -2334,17 +2336,17 @@ nsLocalFile::Remove(bool aRecursive)
 
   if (isDir) {
     if (aRecursive) {
-      nsRefPtr<nsDirEnumerator> dirEnum = new nsDirEnumerator();
+      nsDirEnumerator dirEnum;
 
-      rv = dirEnum->Init(this);
+      rv = dirEnum.Init(this);
       if (NS_FAILED(rv)) {
         return rv;
       }
 
       bool more = false;
-      while (NS_SUCCEEDED(dirEnum->HasMoreElements(&more)) && more) {
+      while (NS_SUCCEEDED(dirEnum.HasMoreElements(&more)) && more) {
         nsCOMPtr<nsISupports> item;
-        dirEnum->GetNext(getter_AddRefs(item));
+        dirEnum.GetNext(getter_AddRefs(item));
         nsCOMPtr<nsIFile> file = do_QueryInterface(item);
         if (file) {
           file->Remove(aRecursive);
@@ -3203,13 +3205,17 @@ nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator** aEntries)
     return NS_OK;
   }
 
-  nsRefPtr<nsDirEnumerator> dirEnum = new nsDirEnumerator();
+  nsDirEnumerator* dirEnum = new nsDirEnumerator();
+  if (dirEnum == nullptr)
+    return NS_ERROR_OUT_OF_MEMORY;
+  NS_ADDREF(dirEnum);
   rv = dirEnum->Init(this);
   if (NS_FAILED(rv)) {
+    NS_RELEASE(dirEnum);
     return rv;
   }
 
-  dirEnum.forget(aEntries);
+  *aEntries = dirEnum;
 
   return NS_OK;
 }

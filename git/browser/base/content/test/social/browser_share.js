@@ -115,7 +115,7 @@ var tests = {
       is(shareButton.getAttribute("disabled"), "true", "share button attribute is disabled");
       // button should be visible
       is(shareButton.hidden, false, "share button is visible");
-      SocialService.disableProvider(manifest.origin, next);
+      SocialService.removeProvider(manifest.origin, next);
     });
   },
   testShareEnabledOnActivation: function(next) {
@@ -163,7 +163,7 @@ var tests = {
           if (testData) {
             executeSoon(runOneTest);
           } else {
-            SocialService.disableProvider(manifest.origin, next);
+            SocialService.removeProvider(manifest.origin, next);
           }
           break;
       }
@@ -227,7 +227,7 @@ var tests = {
           case "got-share-data-message":
             is(JSON.stringify(e.data.result), expecting, "microdata data ok");
             gBrowser.removeTab(testTab);
-            SocialService.disableProvider(manifest.origin, next);
+            SocialService.removeProvider(manifest.origin, next);
             break;
         }
       }

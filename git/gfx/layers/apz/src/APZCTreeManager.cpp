@@ -888,26 +888,16 @@ bool
 APZCTreeManager::FlushRepaintsForOverscrollHandoffChain()
 {
   MonitorAutoLock lock(mTreeLock);  // to access mOverscrollHandoffChain
+  if (mOverscrollHandoffChain.length() == 0) {
+    return false;
+  }
   for (uint32_t i = 0; i < mOverscrollHandoffChain.length(); i++) {
     nsRefPtr<AsyncPanZoomController> item = mOverscrollHandoffChain[i];
     if (item) {
       item->FlushRepaintForOverscrollHandoff();
     }
   }
-  return mOverscrollHandoffChain.length() > 0;
-}
-
-bool
-APZCTreeManager::CancelAnimationsForOverscrollHandoffChain()
-{
-  MonitorAutoLock lock(mTreeLock);  // to access mOverscrollHandoffChain
-  for (uint32_t i = 0; i < mOverscrollHandoffChain.length(); i++) {
-    nsRefPtr<AsyncPanZoomController> item = mOverscrollHandoffChain[i];
-    if (item) {
-      item->CancelAnimation();
-    }
-  }
-  return mOverscrollHandoffChain.length() > 0;
+  return true;
 }
 
 bool

@@ -15,6 +15,7 @@ namespace mozilla {
 namespace dom {
 struct ThreeDPoint;
 class AudioParamTimeline;
+class DelayNodeEngine;
 class AudioContext;
 }
 
@@ -54,7 +55,8 @@ public:
       mKind(aKind),
       mNumberOfInputChannels(2),
       mMarkAsFinishedAfterThisBlock(false),
-      mAudioParamStream(false)
+      mAudioParamStream(false),
+      mMuted(false)
   {
     MOZ_ASSERT(NS_IsMainThread());
     mChannelCountMode = ChannelCountMode::Max;
@@ -105,16 +107,17 @@ public:
                                       ChannelCountMode aChannelCountMoe,
                                       ChannelInterpretation aChannelInterpretation);
   virtual void ProcessInput(GraphTime aFrom, GraphTime aTo, uint32_t aFlags) MOZ_OVERRIDE;
-  /**
-   * Produce the next block of output, before input is provided.
-   * ProcessInput() will be called later, and it then should not change
-   * the output.  This is used only for DelayNodeEngine in a feedback loop.
-   */
-  void ProduceOutputBeforeInput(GraphTime aFrom);
   TrackTicks GetCurrentPosition();
   bool IsAudioParamStream() const
   {
     return mAudioParamStream;
+  }
+  void Mute() {
+    mMuted = true;
+  }
+
+  void Unmute() {
+    mMuted = false;
   }
 
   const OutputChunks& LastChunks() const
@@ -192,6 +195,8 @@ protected:
   bool mMarkAsFinishedAfterThisBlock;
   // Whether the stream is an AudioParamHelper stream.
   bool mAudioParamStream;
+  // Whether the stream is muted. Access only on the MediaStreamGraph thread.
+  bool mMuted;
 };
 
 }

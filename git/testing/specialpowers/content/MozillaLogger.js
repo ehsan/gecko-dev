@@ -6,20 +6,16 @@
 
 function MozillaLogger(aPath) {
 }
-// This delimiter is used to avoid interleaving Mochitest/Gecko logs.
-var LOG_DELIMITER = String.fromCharCode(0xe175) + String.fromCharCode(0xee31) + String.fromCharCode(0x2c32) + String.fromCharCode(0xacbf);
-function formatLogMessage(msg) {
-    return LOG_DELIMITER + msg.info.join(' ') + LOG_DELIMITER + "\n";
-}
 
 MozillaLogger.prototype = {
-  init : function(path) {},
 
+  init : function(path) {},
+  
   getLogCallback : function() {
     return function (msg) {
-      var data = formatLogMessage(msg);
+      var data = msg.num + " " + msg.level + " " + msg.info.join(' ') + "\n";
       dump(data);
-    };
+    }
   },
 
   log : function(msg) {
@@ -48,13 +44,13 @@ SpecialPowersLogger.prototype = {
 
   getLogCallback : function () {
     return function (msg) {
-      var data = formatLogMessage(msg);
+      var data = msg.num + " " + msg.level + " " + msg.info.join(' ') + "\n";
       SpecialPowers.log(data);
 
       if (data.indexOf("SimpleTest FINISH") >= 0) {
         SpecialPowers.closeLogFile();
       }
-    };
+    }
   },
 
   log : function (msg) {
@@ -82,7 +78,7 @@ function MozillaFileLogger(aPath) {
 }
 
 MozillaFileLogger.prototype = {
-
+  
   init : function (path) {
     var PR_WRITE_ONLY   = 0x02; // Open for writing only.
     var PR_CREATE_FILE  = 0x08;
@@ -94,38 +90,30 @@ MozillaFileLogger.prototype = {
                                      createInstance(Components.interfaces.nsIFileOutputStream);
     this._foStream.init(this._file, PR_WRITE_ONLY | PR_CREATE_FILE | PR_APPEND,
                                      436 /* 0664 */, 0);
-
-    this._converter = Components.classes["@mozilla.org/intl/converter-output-stream;1"].
-                    createInstance(Components.interfaces.nsIConverterOutputStream);
-    this._converter.init(this._foStream, "UTF-8", 0, 0);
   },
 
   getLogCallback : function() {
     return function (msg) {
-      var data = formatLogMessage(msg);
-      if (MozillaFileLogger._converter) {
-        this._converter.writeString(data);
-      }
+      var data = msg.num + " " + msg.level + " " + msg.info.join(' ') + "\n";
+      if (MozillaFileLogger._foStream)
+        this._foStream.write(data, data.length);
 
       if (data.indexOf("SimpleTest FINISH") >= 0) {
         MozillaFileLogger.close();
       }
-    };
+    }
   },
 
   log : function(msg) {
-    if (this._converter) {
-      this._converter.writeString(msg);
-    }
+    if (this._foStream)
+      this._foStream.write(msg, msg.length);
   },
-  close : function() {
-    if (this._converter) {
-      this._converter.flush();
-      this._converter.close();
-    }
 
+  close : function() {
+    if(this._foStream)
+      this._foStream.close();
+  
     this._foStream = null;
-    this._converter = null;
     this._file = null;
   }
 };

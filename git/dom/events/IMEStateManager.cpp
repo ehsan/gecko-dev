@@ -767,16 +767,10 @@ IMEStateManager::SetIMEState(const IMEState& aState,
     aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::moz_action_hint,
                       context.mActionHint);
 
-    // Get the input content corresponding to the focused node,
-    // which may be an anonymous child of the input content.
-    nsIContent* inputContent = aContent->FindFirstNonChromeOnlyAccessContent();
-
-    // If we don't have an action hint and
-    // return won't submit the form, use "next".
-    if (context.mActionHint.IsEmpty() &&
-        inputContent->Tag() == nsGkAtoms::input) {
+    // if we don't have an action hint and  return won't submit the form use "next"
+    if (context.mActionHint.IsEmpty() && aContent->Tag() == nsGkAtoms::input) {
       bool willSubmit = false;
-      nsCOMPtr<nsIFormControl> control(do_QueryInterface(inputContent));
+      nsCOMPtr<nsIFormControl> control(do_QueryInterface(aContent));
       mozilla::dom::Element* formElement = control->GetFormElement();
       nsCOMPtr<nsIForm> form;
       if (control) {

@@ -120,11 +120,10 @@ public:
    * 
    * Convenience function that generates nsZipHandle
    *
-   * @param   aFile         The file used to access the zip
-   * @param   aMustCacheFd  Optional flag to keep the PRFileDesc in nsZipHandle
+   * @param   aFile  The file used to access the zip
    * @return  status code
    */
-  nsresult OpenArchive(nsIFile *aFile, bool aMustCacheFd = false);
+  nsresult OpenArchive(nsIFile *aFile);
 
   /**
    * Test the integrity of items in this archive by running
@@ -381,7 +380,7 @@ class nsZipHandle {
 friend class nsZipArchive;
 friend class mozilla::FileLocation;
 public:
-  static nsresult Init(nsIFile *file, bool aMustCacheFd, nsZipHandle **ret,
+  static nsresult Init(nsIFile *file, nsZipHandle **ret,
                        PRFileDesc **aFd = nullptr);
   static nsresult Init(nsZipArchive *zip, const char *entry,
                        nsZipHandle **ret);
@@ -390,8 +389,6 @@ public:
   NS_METHOD_(MozExternalRefCountType) Release(void);
 
   int64_t SizeOfMapping();
-
-  nsresult GetNSPRFileDesc(PRFileDesc** aNSPRFileDesc);
 
 protected:
   const uint8_t * mFileData; /* pointer to mmaped file */
@@ -403,7 +400,6 @@ private:
   ~nsZipHandle();
 
   PRFileMap *                       mMap;    /* nspr datastructure for mmap */
-  mozilla::AutoFDClose              mNSPRFileDesc;
   nsAutoPtr<nsZipItemPtr<uint8_t> > mBuf;
   mozilla::ThreadSafeAutoRefCnt     mRefCnt; /* ref count */
   NS_DECL_OWNINGTHREAD

@@ -4362,28 +4362,14 @@ nsDocShell::LoadURIWithBase(const char16_t * aURI,
           fixupFlags |= nsIURIFixup::FIXUP_FLAG_FIX_SCHEME_TYPOS;
         }
         nsCOMPtr<nsIInputStream> fixupStream;
-        nsCOMPtr<nsIURIFixupInfo> fixupInfo;
-        rv = sURIFixup->GetFixupURIInfo(uriString, fixupFlags,
-                                        getter_AddRefs(fixupStream),
-                                        getter_AddRefs(fixupInfo));
-
-        if (NS_SUCCEEDED(rv)) {
-            fixupInfo->GetPreferredURI(getter_AddRefs(uri));
-            fixupInfo->SetConsumer(GetAsSupports(this));
-        }
-
+        rv = sURIFixup->CreateFixupURI(uriString, fixupFlags,
+                                       getter_AddRefs(fixupStream),
+                                       getter_AddRefs(uri));
         if (fixupStream) {
             // CreateFixupURI only returns a post data stream if it succeeded
             // and changed the URI, in which case we should override the
             // passed-in post data.
             postStream = fixupStream;
-        }
-
-        if (aLoadFlags & LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP) {
-            nsCOMPtr<nsIObserverService> serv = services::GetObserverService();
-            if (serv) {
-                serv->NotifyObservers(fixupInfo, "keyword-uri-fixup", aURI);
-            }
         }
     }
     // else no fixup service so just use the URI we created and see

@@ -311,6 +311,7 @@ VideoDevice::VideoDevice(MediaEngineVideoSource* aSource)
     mFacingMode = dom::VideoFacingModeEnum::User;
   }
 
+  // dom::MediaSourceEnum::Camera;
   mMediaSource = aSource->GetMediaSource();
 }
 
@@ -366,14 +367,9 @@ MediaDevice::GetFacingMode(nsAString& aFacingMode)
 NS_IMETHODIMP
 MediaDevice::GetMediaSource(nsAString& aMediaSource)
 {
-  if (mMediaSource == MediaSourceType::Microphone) {
-    aMediaSource.Assign(NS_LITERAL_STRING("microphone"));
-  } else if (mMediaSource == MediaSourceType::Window) { // this will go away
-    aMediaSource.Assign(NS_LITERAL_STRING("window"));
-  } else { // all the rest are shared
-    aMediaSource.Assign(NS_ConvertUTF8toUTF16(
-      dom::MediaSourceEnumValues::strings[uint32_t(mMediaSource)].value));
-  }
+
+  aMediaSource.Assign(NS_ConvertUTF8toUTF16(
+    dom::MediaSourceEnumValues::strings[uint32_t(mMediaSource)].value));
   return NS_OK;
 }
 
@@ -763,7 +759,7 @@ template<class SourceType, class ConstraintsType>
 static SourceSet *
   GetSources(MediaEngine *engine,
              ConstraintsType &aConstraints,
-             void (MediaEngine::* aEnumerate)(MediaSourceType, nsTArray<nsRefPtr<SourceType> >*),
+             void (MediaEngine::* aEnumerate)(dom::MediaSourceEnum, nsTArray<nsRefPtr<SourceType> >*),
              const char* media_device_name = nullptr)
 {
   ScopedDeletePtr<SourceSet> result(new SourceSet);
@@ -774,8 +770,7 @@ static SourceSet *
   SourceSet candidateSet;
   {
     nsTArray<nsRefPtr<SourceType> > sources;
-    // all MediaSourceEnums are contained in MediaSourceType
-    (engine->*aEnumerate)((MediaSourceType)((int)aConstraints.mMediaSource), &sources);
+    (engine->*aEnumerate)(aConstraints.mMediaSource, &sources);
     /**
       * We're allowing multiple tabs to access the same camera for parity
       * with Chrome.  See bug 811757 for some of the issues surrounding
@@ -1919,8 +1914,7 @@ WindowsHashToArrayFunc (const uint64_t& aId,
       for (uint32_t i = 0; i < length; ++i) {
         nsRefPtr<GetUserMediaCallbackMediaStreamListener> listener =
           aData->ElementAt(i);
-        if (listener->CapturingVideo() || listener->CapturingAudio() ||
-            listener->CapturingScreen() || listener->CapturingWindow()) {
+        if (listener->CapturingVideo() || listener->CapturingAudio()) {
           capturing = true;
           break;
         }
@@ -1951,29 +1945,24 @@ MediaManager::GetActiveMediaCaptureWindows(nsISupportsArray **aArray)
 
 NS_IMETHODIMP
 MediaManager::MediaCaptureWindowState(nsIDOMWindow* aWindow, bool* aVideo,
-                                      bool* aAudio, bool *aScreenShare,
-                                      bool* aWindowShare)
+                                      bool* aAudio)
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
   *aVideo = false;
   *aAudio = false;
-  *aScreenShare = false;
-  *aWindowShare = false;
 
-  nsresult rv = MediaCaptureWindowStateInternal(aWindow, aVideo, aAudio, aScreenShare, aWindowShare);
+  nsresult rv = MediaCaptureWindowStateInternal(aWindow, aVideo, aAudio);
 #ifdef DEBUG
   nsCOMPtr<nsPIDOMWindow> piWin = do_QueryInterface(aWindow);
-  LOG(("%s: window %lld capturing %s %s %s %s", __FUNCTION__, piWin ? piWin->WindowID() : -1,
-       *aVideo ? "video" : "", *aAudio ? "audio" : "",
-       *aScreenShare ? "screenshare" : "",  *aWindowShare ? "windowshare" : ""));
+  LOG(("%s: window %lld capturing %s %s", __FUNCTION__, piWin ? piWin->WindowID() : -1,
+       *aVideo ? "video" : "", *aAudio ? "audio" : ""));
 #endif
   return rv;
 }
 
 nsresult
 MediaManager::MediaCaptureWindowStateInternal(nsIDOMWindow* aWindow, bool* aVideo,
-                                              bool* aAudio, bool *aScreenShare,
-                                              bool* aWindowShare)
+                                              bool* aAudio)
 {
   // We need to return the union of all streams in all innerwindows that
   // correspond to that outerwindow.
@@ -2002,11 +1991,8 @@ MediaManager::MediaCaptureWindowStateInternal(nsIDOMWindow* aWindow, bool* aVide
           if (listener->CapturingAudio()) {
             *aAudio = true;
           }
-          if (listener->CapturingScreen()) {
-            *aScreenShare = true;
-          }
-          if (listener->CapturingWindow()) {
-            *aWindowShare = true;
+          if (*aAudio && *aVideo) {
+            return NS_OK; // no need to continue iterating
           }
         }
       }
@@ -2022,7 +2008,10 @@ MediaManager::MediaCaptureWindowStateInternal(nsIDOMWindow* aWindow, bool* aVide
         docShell->GetChildAt(i, getter_AddRefs(item));
         nsCOMPtr<nsPIDOMWindow> win = item ? item->GetWindow() : nullptr;
 
-        MediaCaptureWindowStateInternal(win, aVideo, aAudio, aScreenShare, aWindowShare);
+        MediaCaptureWindowStateInternal(win, aVideo, aAudio);
+        if (*aAudio && *aVideo) {
+          return NS_OK; // no need to continue iterating
+        }
       }
     }
   }

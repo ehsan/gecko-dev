@@ -17,9 +17,20 @@
 namespace mozilla {
 
 static void
+SetUpperBound(uint32_t* out_upperBound, uint32_t newBound)
+{
+  if (!out_upperBound)
+      return;
+
+  *out_upperBound = newBound;
+}
+
+static void
 UpdateUpperBound(uint32_t* out_upperBound, uint32_t newBound)
 {
-  MOZ_ASSERT(out_upperBound);
+  if (!out_upperBound)
+      return;
+
   *out_upperBound = std::max(*out_upperBound, newBound);
 }
 
@@ -478,12 +489,12 @@ bool
 WebGLElementArrayCache::Validate(uint32_t maxAllowed, size_t firstElement,
                                  size_t countElements, uint32_t* out_upperBound)
 {
-  *out_upperBound = 0;
+  SetUpperBound(out_upperBound, 0);
 
   // if maxAllowed is >= the max T value, then there is no way that a T index could be invalid
   uint32_t maxTSize = std::numeric_limits<T>::max();
   if (maxAllowed >= maxTSize) {
-    UpdateUpperBound(out_upperBound, maxTSize);
+    SetUpperBound(out_upperBound, maxTSize);
     return true;
   }
 
@@ -517,7 +528,7 @@ WebGLElementArrayCache::Validate(uint32_t maxAllowed, size_t firstElement,
   T globalMax = tree->GlobalMaximum();
   if (globalMax <= maxAllowedT)
   {
-    UpdateUpperBound(out_upperBound, globalMax);
+    SetUpperBound(out_upperBound, globalMax);
     return true;
   }
 

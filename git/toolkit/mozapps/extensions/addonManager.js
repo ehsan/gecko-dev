@@ -42,11 +42,11 @@ function amManager() {
   let globalMM = Cc["@mozilla.org/globalmessagemanager;1"]
                  .getService(Ci.nsIMessageListenerManager);
   globalMM.loadFrameScript(CHILD_SCRIPT, true);
-  globalMM.addMessageListener(MSG_INSTALL_ADDONS, this);
 
   gParentMM = Cc["@mozilla.org/parentprocessmessagemanager;1"]
                  .getService(Ci.nsIMessageListenerManager);
   gParentMM.addMessageListener(MSG_INSTALL_ENABLED, this);
+  gParentMM.addMessageListener(MSG_INSTALL_ADDONS, this);
 }
 
 amManager.prototype = {
@@ -74,7 +74,7 @@ amManager.prototype = {
    * @see amIWebInstaller.idl
    */
   installAddonsFromWebpage: function AMC_installAddonsFromWebpage(aMimetype,
-                                                                  aOriginator,
+                                                                  aWindow,
                                                                   aReferer, aUris,
                                                                   aHashes, aNames,
                                                                   aIcons, aCallback) {
@@ -90,10 +90,9 @@ amManager.prototype = {
     let loadGroup = null;
 
     try {
-      loadGroup = aOriginator.QueryInterface(Ci.nsIDOMWindow)
-                             .QueryInterface(Ci.nsIInterfaceRequestor)
-                             .getInterface(Ci.nsIWebNavigation)
-                             .QueryInterface(Ci.nsIDocumentLoader).loadGroup;
+      loadGroup = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIWebNavigation)
+                         .QueryInterface(Ci.nsIDocumentLoader).loadGroup;
     }
     catch (e) {
     }
@@ -101,7 +100,7 @@ amManager.prototype = {
     let installs = [];
     function buildNextInstall() {
       if (aUris.length == 0) {
-        AddonManager.installAddonsFromWebpage(aMimetype, aOriginator, aReferer, installs);
+        AddonManager.installAddonsFromWebpage(aMimetype, aWindow, aReferer, installs);
         return;
       }
       let uri = aUris.shift();
@@ -169,7 +168,7 @@ amManager.prototype = {
       case MSG_INSTALL_ENABLED:
         return this.isInstallEnabled(payload.mimetype, referer);
 
-      case MSG_INSTALL_ADDONS: {
+      case MSG_INSTALL_ADDONS:
         let callback = null;
         if (payload.callbackID != -1) {
           callback = {
@@ -183,14 +182,13 @@ amManager.prototype = {
           };
         }
 
-        // If aMessage.objects.window exists, then we're same-process and we
-        // can target any modal prompts more correctly. Otherwise, we use the
-        // browser element for the remote browser as the best bet.
-        let originator = aMessage.objects.window || aMessage.target;
+        // Should reimplement this properly with Window IDs when possible,
+        // see bug 596109.
+        let window = aMessage.objects.win;
+
         return this.installAddonsFromWebpage(payload.mimetype,
-          originator, referer, payload.uris, payload.hashes,
-          payload.names, payload.icons, callback);
-      }
+          window, referer, payload.uris, payload.hashes, payload.names,
+          payload.icons, callback);
     }
   },
 

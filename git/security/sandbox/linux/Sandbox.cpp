@@ -112,6 +112,7 @@ SandboxLogJSStack(void)
  *
  * @see InstallSyscallReporter() function.
  */
+#ifdef MOZ_CONTENT_SANDBOX_REPORTER
 static void
 Reporter(int nr, siginfo_t *info, void *void_context)
 {
@@ -194,6 +195,7 @@ InstallSyscallReporter(void)
   }
   return 0;
 }
+#endif
 
 /**
  * This function installs the syscall filter, a.k.a. seccomp.
@@ -439,9 +441,11 @@ SetCurrentProcessSandbox()
   PR_ASSERT(gSeccompSandboxLog);
 #endif
 
+#if defined(MOZ_CONTENT_SANDBOX_REPORTER)
   if (InstallSyscallReporter()) {
     LOG_ERROR("install_syscall_reporter() failed\n");
   }
+#endif
 
   if (IsSandboxingSupported()) {
     BroadcastSetThreadSandbox();

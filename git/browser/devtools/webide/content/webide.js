@@ -207,10 +207,9 @@ let UI = {
   setupBusyTimeout: function() {
     this.cancelBusyTimeout();
     this._busyTimeout = setTimeout(() => {
-      let busyPromise = this._busyPromise;
       this.unbusy();
       UI.reportError("error_operationTimeout", this._busyOperationDescription);
-      busyPromise.reject("promise timeout: " + this._busyOperationDescription);
+      this._busyPromise.reject("promise timeout: " + this._busyOperationDescription);
     }, 30000);
   },
 
@@ -811,12 +810,8 @@ let Cmds = {
       runtimeAppsNode.firstChild.remove();
     }
 
-    let sortedApps = AppManager.webAppsStore.object.all;
-    sortedApps = sortedApps.sort((a, b) => {
-      return a.name > b.name;
-    });
-    for (let i = 0; i < sortedApps.length; i++) {
-      let app = sortedApps[i];
+    for (let i = 0; i < AppManager.webAppsStore.object.all.length; i++) {
+      let app = AppManager.webAppsStore.object.all[i];
       let panelItemNode = document.createElement("toolbarbutton");
       panelItemNode.className = "panel-item";
       panelItemNode.setAttribute("label", app.name);

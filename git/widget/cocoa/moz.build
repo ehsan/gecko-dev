@@ -50,7 +50,6 @@ UNIFIED_SOURCES += [
     'nsScreenManagerCocoa.mm',
     'nsSound.mm',
     'nsStandaloneNativeMenu.mm',
-    'nsSystemStatusBarCocoa.mm',
     'nsToolkit.mm',
     'nsWidgetFactory.mm',
     'nsWindowMap.mm',

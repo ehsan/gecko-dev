@@ -193,7 +193,6 @@ namespace jit {
     _(InstanceOf)                                                           \
     _(CallInstanceOf)                                                       \
     _(InterruptCheck)                                                       \
-    _(AsmJSInterruptCheck)                                                  \
     _(ProfilerStackOp)                                                      \
     _(GetDOMProperty)                                                       \
     _(GetDOMMember)                                                         \

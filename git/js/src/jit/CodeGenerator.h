@@ -351,7 +351,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitAssertRangeV(LAssertRangeV *ins);
 
     bool visitInterruptCheck(LInterruptCheck *lir);
-    bool visitAsmJSInterruptCheck(LAsmJSInterruptCheck *lir);
     bool visitRecompileCheck(LRecompileCheck *ins);
 
     IonScriptCounts *extractScriptCounts() {
