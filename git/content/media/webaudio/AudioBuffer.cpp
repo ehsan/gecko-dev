@@ -235,7 +235,7 @@ AudioBuffer::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
   size_t amount = aMallocSizeOf(this);
   amount += mJSChannels.SizeOfExcludingThis(aMallocSizeOf);
   if (mSharedChannels) {
-    amount += mSharedChannels->SizeOfIncludingThis(aMallocSizeOf);
+    amount += mSharedChannels->SizeOfExcludingThis(aMallocSizeOf);
   }
   return amount;
 }

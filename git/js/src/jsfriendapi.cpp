@@ -39,10 +39,6 @@ JS_STATIC_ASSERT(offsetof(JSRuntime, mainThread) ==
 PerThreadDataFriendFields::PerThreadDataFriendFields()
 {
     PodArrayZero(nativeStackLimit);
-#if JS_STACK_GROWTH_DIRECTION > 0
-    for (int i=0; i<StackKindCount; i++)
-        nativeStackLimit[i] = UINTPTR_MAX;
-#endif
 #if defined(JSGC_USE_EXACT_ROOTING)
     PodArrayZero(thingGCRooters);
 #endif

@@ -776,14 +776,6 @@ var gBrowserInit = {
 
     window.addEventListener("AppCommand", HandleAppCommandEvent, true);
 
-    // These routines add message listeners. They must run before
-    // loading the frame script to ensure that we don't miss any
-    // message sent between when the frame script is loaded and when
-    // the listener is registered.
-    DOMLinkHandler.init();
-    gPageStyleMenu.init();
-    LanguageDetectionListener.init();
-
     messageManager.loadFrameScript("chrome://browser/content/content.js", true);
 
     // initialize observers and listeners
@@ -801,6 +793,9 @@ var gBrowserInit = {
     // hook up UI through progress listener
     gBrowser.addProgressListener(window.XULBrowserWindow);
     gBrowser.addTabsProgressListener(window.TabsProgressListener);
+
+    // setup our common DOMLinkAdded listener
+    DOMLinkHandler.init();
 
     // setup simple gestures support
     gGestureSupport.init(true);
@@ -863,11 +858,9 @@ var gBrowserInit = {
       }
     }
 
-    // Certain kinds of automigration rely on this notification to complete
-    // their tasks BEFORE the browser window is shown. SessionStore uses it to
-    // restore tabs into windows AFTER important parts like gMultiProcessBrowser
-    // have been initialized.
-    Services.obs.notifyObservers(window, "browser-window-before-show", "");
+    // Certain kinds of automigration rely on this notification to complete their
+    // tasks BEFORE the browser window is shown.
+    Services.obs.notifyObservers(null, "browser-window-before-show", "");
 
     // Set a sane starting width/height for all resolutions on new profiles.
     if (!document.documentElement.hasAttribute("width")) {
@@ -1027,6 +1020,8 @@ var gBrowserInit = {
     IndexedDBPromptHelper.init();
     gFormSubmitObserver.init();
     gRemoteTabsUI.init();
+    gPageStyleMenu.init();
+    LanguageDetectionListener.init();
 
     // Initialize the full zoom setting.
     // We do this before the session restore service gets initialized so we can

@@ -201,6 +201,10 @@ this.PointerAdapter = { // jshint ignore:line
 
   handleEvent: function PointerAdapter_handleEvent(aDetail) {
     let timeStamp = Date.now();
+    Logger.debug(() => {
+      return ['Pointer event', aDetail.type, 'at:', timeStamp,
+        JSON.stringify(aDetail.points)];
+    });
     GestureTracker.handle(aDetail, timeStamp);
   }
 };

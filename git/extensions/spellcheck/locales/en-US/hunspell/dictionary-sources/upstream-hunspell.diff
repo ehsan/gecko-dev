@@ -9614,46 +9614,44 @@
 > testcase/MS
 46831a52679
 > testsuite/MS
-46845a52694
-> textbox/SM
-46925a52775
+46925a52774
 > theremin/MS
-47455c53305
+47455c53304
 < toolbar
 ---
 > toolbar/MS
-47755a53606
+47755a53605
 > transfect/DSMG
-47774a53626,53627
+47774a53625,53626
 > transgenderism
 > transgene/MS
-47951c53804
+47951c53803
 < triage/M
 ---
 > triage/MG
-48869a54723
+48869a54722
 > unlikeable
-49211c55065
+49211c55064
 < vagina/M
 ---
 > vagina/MS
-49368,49369c55222
+49368,49369c55221
 < velour's
 < velours's
 ---
 > velour/MS
-49478a55332
+49478a55331
 > vertices
-50148a56003
+50148a56002
 > weaponize/DSG
-50260,50261d56114
+50260,50261d56113
 < werwolf/M
 < werwolves
-50728c56581
+50728c56580
 < women
 ---
 > women/M
-50794c56647
+50794c56646
 < wop/S!
 ---
 > wop/MS!
