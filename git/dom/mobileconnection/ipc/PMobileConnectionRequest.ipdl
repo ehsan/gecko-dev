@@ -54,7 +54,7 @@ struct MobileConnectionReplySuccessMmi
 
 struct MobileConnectionReplySuccessCallForwarding
 {
-  nsMobileCallForwardingOptions[] results;
+  MozCallForwardingOptions[] results;
 };
 
 struct MobileConnectionReplySuccessCallBarring

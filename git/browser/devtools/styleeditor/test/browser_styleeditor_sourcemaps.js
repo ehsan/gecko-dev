@@ -69,6 +69,8 @@ const origNames = ["sourcemaps.scss", "contained.scss", "test-stylus.styl"];
 waitForExplicitFinish();
 
 let test = asyncTest(function*() {
+  Services.prefs.setBoolPref(PREF, true);
+
   let {UI} = yield addTabAndOpenStyleEditors(7, null, TESTCASE_URI);
 
   is(UI.editors.length, 4,

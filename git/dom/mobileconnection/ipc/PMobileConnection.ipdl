@@ -109,37 +109,27 @@ struct CancelMmiRequest
 
 struct SetCallForwardingRequest
 {
-  uint16_t action;
-  uint16_t reason;
-  nsString number;
-  uint16_t timeSeconds;
-  uint16_t serviceClass;
+  MozCallForwardingOptions options;
 };
 
 struct GetCallForwardingRequest
 {
-  uint16_t reason;
+  int16_t reason;
 };
 
 struct SetCallBarringRequest
 {
-  uint16_t program;
-  bool enabled;
-  nsString password;
-  uint16_t serviceClass;
+  MozCallBarringOptions options;
 };
 
 struct GetCallBarringRequest
 {
-  uint16_t program;
-  nsString password;
-  uint16_t serviceClass;
+  MozCallBarringOptions options;
 };
 
 struct ChangeCallBarringPasswordRequest
 {
-  nsString pin;
-  nsString newPin;
+  MozCallBarringOptions options;
 };
 
 struct SetCallWaitingRequest

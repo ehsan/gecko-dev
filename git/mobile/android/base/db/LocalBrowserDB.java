@@ -7,9 +7,6 @@ package org.mozilla.gecko.db;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.InputStream;
-import java.lang.IllegalAccessException;
-import java.lang.NoSuchFieldException;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,18 +53,12 @@ import android.net.Uri;
 import android.provider.Browser;
 import android.text.TextUtils;
 import android.util.Log;
-import org.mozilla.gecko.util.IOUtils;
-
-import static org.mozilla.gecko.util.IOUtils.ConsumedInputStream;
-import static org.mozilla.gecko.favicons.LoadFaviconTask.DEFAULT_FAVICON_BUFFER_SIZE;
 
 public class LocalBrowserDB {
     // Calculate these once, at initialization. isLoggable is too expensive to
     // have in-line in each log call.
     private static final String LOGTAG = "GeckoLocalBrowserDB";
-
-    // Sentinel value used to indicate a failure to locate an ID for a default favicon.
-    private static final int FAVICON_ID_NOT_FOUND = Integer.MIN_VALUE;
+    private static final Integer FAVICON_ID_NOT_FOUND = Integer.MIN_VALUE;
 
     private static final boolean logDebug = Log.isLoggable(LOGTAG, Log.DEBUG);
     protected static void debug(String message) {
@@ -194,20 +185,11 @@ public class LocalBrowserDB {
                 final ContentValues bookmarkValue = createBookmark(now, title, url, pos++, folderID);
                 bookmarkValues.add(bookmarkValue);
 
-                ConsumedInputStream faviconStream = getDefaultFaviconFromDrawable(context, name);
-                if (faviconStream == null) {
-                    faviconStream = getDefaultFaviconFromPath(context, name);
+                Bitmap icon = getDefaultFaviconFromPath(context, name);
+                if (icon == null) {
+                    icon = getDefaultFaviconFromDrawable(context, name);
                 }
-
-                if (faviconStream == null) {
-                    continue;
-                }
-
-                // In the event that truncating the buffer fails, give up and move on.
-                byte[] icon;
-                try {
-                    icon = faviconStream.getTruncatedData();
-                } catch (OutOfMemoryError e) {
+                if (icon == null) {
                     continue;
                 }
 
@@ -222,7 +204,11 @@ public class LocalBrowserDB {
                     bookmarkValue.put(Bookmarks.FAVICON_ID, faviconID);
                     faviconValues.add(iconValue);
                 }
-            } catch (IllegalAccessException | IllegalArgumentException | NoSuchFieldException e) {
+            } catch (IllegalAccessException e) {
+                Log.wtf(LOGTAG, "Reflection failure.", e);
+            } catch (IllegalArgumentException e) {
+                Log.wtf(LOGTAG, "Reflection failure.", e);
+            } catch (NoSuchFieldException e) {
                 Log.wtf(LOGTAG, "Reflection failure.", e);
             }
         }
@@ -306,13 +292,13 @@ public class LocalBrowserDB {
 
                 try {
                     final String iconData = bookmark.getString("icon");
-
-                    byte[] icon = BitmapUtils.getBytesFromDataURI(iconData);
+                    final Bitmap icon = BitmapUtils.getBitmapFromDataURI(iconData);
                     if (icon == null) {
                         continue;
                     }
 
                     final ContentValues iconValue = createFavicon(url, icon);
+
                     if (iconValue == null) {
                         continue;
                     }
@@ -375,11 +361,21 @@ public class LocalBrowserDB {
         return v;
     }
 
-    private static ContentValues createFavicon(final String url, final byte[] icon) {
+    private static ContentValues createFavicon(final String url, final Bitmap icon) {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+
         ContentValues iconValues = new ContentValues();
         iconValues.put(Favicons.PAGE_URL, url);
-        iconValues.put(Favicons.DATA, icon);
 
+        byte[] data = null;
+        if (icon.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
+            data = stream.toByteArray();
+        } else {
+            Log.w(LOGTAG, "Favicon compression failed.");
+            return null;
+        }
+
+        iconValues.put(Favicons.DATA, data);
         return iconValues;
     }
 
@@ -408,53 +404,45 @@ public class LocalBrowserDB {
         return bookmark.getString(property);
     }
 
-    private static int getFaviconId(String name) {
+    private static Bitmap getDefaultFaviconFromPath(Context context, String name) {
+        Class<?> stringClass = R.string.class;
         try {
-            Class<?> drawablesClass = R.raw.class;
+            // Look for a drawable with the id R.drawable.bookmarkdefaults_favicon_*
+            Field faviconField = stringClass.getField(name.replace("_title_", "_favicon_"));
+            if (faviconField == null) {
+                return null;
+            }
+            int faviconId = faviconField.getInt(null);
+            String path = context.getString(faviconId);
 
-            // Look for a favicon with the id R.raw.bookmarkdefaults_favicon_*.
+            String apkPath = context.getPackageResourcePath();
+            File apkFile = new File(apkPath);
+            String bitmapPath = "jar:jar:" + apkFile.toURI() + "!/" + AppConstants.OMNIJAR_NAME + "!/" + path;
+            return GeckoJarReader.getBitmap(context.getResources(), bitmapPath);
+        } catch (java.lang.IllegalAccessException ex) {
+            Log.e(LOGTAG, "[Path] Can't create favicon " + name, ex);
+        } catch (java.lang.NoSuchFieldException ex) {
+            // If the field does not exist, that means we intend to load via a drawable.
+        }
+        return null;
+    }
+
+    private static Bitmap getDefaultFaviconFromDrawable(Context context, String name) {
+        Class<?> drawablesClass = R.drawable.class;
+        try {
+            // Look for a drawable with the id R.drawable.bookmarkdefaults_favicon_*
             Field faviconField = drawablesClass.getField(name.replace("_title_", "_favicon_"));
-            faviconField.setAccessible(true);
-
-            return faviconField.getInt(null);
-        } catch (IllegalAccessException | NoSuchFieldException  ex) {
-            Log.wtf(LOGTAG, "Reflection error fetching favicon: " + name, ex);
+            if (faviconField == null) {
+                return null;
+            }
+            int faviconId = faviconField.getInt(null);
+            return BitmapUtils.decodeResource(context, faviconId);
+        } catch (java.lang.IllegalAccessException ex) {
+            Log.e(LOGTAG, "[Drawable] Can't create favicon " + name, ex);
+        } catch (java.lang.NoSuchFieldException ex) {
+            Log.wtf(LOGTAG, "No field, and presumably no drawable, for " + name);
         }
-
-        Log.e(LOGTAG, "Failed to find favicon resource ID for " + name);
-        return FAVICON_ID_NOT_FOUND;
-    }
-
-    /**
-     * Load a favicon from the omnijar.
-     * @return A ConsumedInputStream containing the bytes loaded from omnijar. This must be a format
-     *         compatible with the favicon decoder (most probably a PNG or ICO file).
-     */
-    private static ConsumedInputStream getDefaultFaviconFromPath(Context context, String name) {
-        int faviconId = getFaviconId(name);
-        if (faviconId == FAVICON_ID_NOT_FOUND) {
-            return null;
-        }
-
-        String path = context.getString(faviconId);
-
-        String apkPath = context.getPackageResourcePath();
-        File apkFile = new File(apkPath);
-        String bitmapPath = "jar:jar:" + apkFile.toURI() + "!/" + AppConstants.OMNIJAR_NAME + "!/" + path;
-
-        InputStream iStream = GeckoJarReader.getStream(bitmapPath);
-
-        return IOUtils.readFully(iStream, DEFAULT_FAVICON_BUFFER_SIZE);
-    }
-
-    private static ConsumedInputStream getDefaultFaviconFromDrawable(Context context, String name) {
-        int faviconId = getFaviconId(name);
-        if (faviconId == FAVICON_ID_NOT_FOUND) {
-            return null;
-        }
-
-        InputStream iStream = context.getResources().openRawResource(faviconId);
-        return IOUtils.readFully(iStream, DEFAULT_FAVICON_BUFFER_SIZE);
+        return null;
     }
 
     // Invalidate cached data
