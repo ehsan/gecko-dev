@@ -54,8 +54,6 @@ include config.mk
 
 #NS_USE_NATIVE = 1
 
-DEFINES += -DJS_TRACER
-
 ifdef NARCISSUS
 DEFINES += -DNARCISSUS
 endif
