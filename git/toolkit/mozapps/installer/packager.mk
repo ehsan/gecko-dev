@@ -90,20 +90,7 @@ JSSHELL_BINS  = \
 ifndef MOZ_NATIVE_NSPR
 JSSHELL_BINS += $(DIST)/bin/$(LIB_PREFIX)nspr4$(DLL_SUFFIX)
 ifeq ($(OS_ARCH),WINNT)
-ifdef MOZ_MEMORY
-JSSHELL_BINS += $(DIST)/bin/jemalloc$(DLL_SUFFIX)
-endif
-ifeq ($(_MSC_VER),1400)
-JSSHELL_BINS += $(DIST)/bin/Microsoft.VC80.CRT.manifest
-JSSHELL_BINS += $(DIST)/bin/msvcr80.dll
-endif
-ifeq ($(_MSC_VER),1500)
-JSSHELL_BINS += $(DIST)/bin/Microsoft.VC90.CRT.manifest
-JSSHELL_BINS += $(DIST)/bin/msvcr90.dll
-endif
-ifeq ($(_MSC_VER),1500)
-JSSHELL_BINS += $(DIST)/bin/msvcr100.dll
-endif
+JSSHELL_BINS += $(DIST)/bin/mozcrt19$(DLL_SUFFIX)
 else
 JSSHELL_BINS += \
   $(DIST)/bin/$(LIB_PREFIX)plds4$(DLL_SUFFIX) \

@@ -64,6 +64,7 @@ endif # ENABLE_TESTS
 
 include $(topsrcdir)/config/rules.mk
 
+ifndef MOZ_MEMORY
 ifdef WIN32_REDIST_DIR
 ifndef MOZ_DEBUG
 
@@ -100,3 +101,4 @@ endif
 
 endif # ! MOZ_DEBUG
 endif # WIN32_REDIST_DIR
+endif # ! MOZ_MEMORY

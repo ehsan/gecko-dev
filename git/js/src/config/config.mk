@@ -519,16 +519,11 @@ endif # USE_STATIC_LIBS
 endif # WINNT && !GNU_CC
 
 ifeq ($(OS_ARCH),Darwin)
-# Compiling ObjC requires an Apple compiler anyway, so it's ok to set
-# host CMFLAGS here.
+# Darwin doesn't cross-compile, so just set both types of flags here.
 HOST_CMFLAGS += -fobjc-exceptions
 HOST_CMMFLAGS += -fobjc-exceptions
 OS_COMPILE_CMFLAGS += -fobjc-exceptions
 OS_COMPILE_CMMFLAGS += -fobjc-exceptions
-ifeq ($(MOZ_WIDGET_TOOLKIT),uikit)
-OS_COMPILE_CMFLAGS += -fobjc-abi-version=2 -fobjc-legacy-dispatch
-OS_COMPILE_CMMFLAGS += -fobjc-abi-version=2 -fobjc-legacy-dispatch
-endif
 endif
 
 COMPILE_CFLAGS	= $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CFLAGS)
