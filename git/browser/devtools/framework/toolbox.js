@@ -1115,10 +1115,7 @@ Toolbox.prototype = {
       deferred.resolve();
     };
 
-    promise.all([
-      this.initInspector(),
-      this.selectTool("inspector")
-    ]).then(() => {
+    this.initInspector().then(() => {
       this._isPicking = true;
       this._pickerButton.setAttribute("checked", "true");
 

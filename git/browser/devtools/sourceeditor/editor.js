@@ -47,8 +47,7 @@ const CM_SCRIPTS  = [
   "chrome://browser/content/devtools/codemirror/css.js",
   "chrome://browser/content/devtools/codemirror/htmlmixed.js",
   "chrome://browser/content/devtools/codemirror/clike.js",
-  "chrome://browser/content/devtools/codemirror/activeline.js",
-  "chrome://browser/content/devtools/codemirror/trailingspace.js"
+  "chrome://browser/content/devtools/codemirror/activeline.js"
 ];
 
 const CM_IFRAME   =

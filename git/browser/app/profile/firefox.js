@@ -1150,14 +1150,10 @@ pref("devtools.tilt.enabled", true);
 pref("devtools.tilt.intro_transition", true);
 pref("devtools.tilt.outro_transition", true);
 
-// Scratchpad settings
-// - recentFileMax: The maximum number of recently-opened files
-//                  stored. Setting this preference to 0 will not
-//                  clear any recent files, but rather hide the
-//                  'Open Recent'-menu.
-// - showTrailingSpace: Whether to highlight trailing space or not.
+// The maximum number of recently-opened files stored.
+// Setting this preference to 0 will not clear any recent files, but rather hide
+// the 'Open Recent'-menu.
 pref("devtools.scratchpad.recentFilesMax", 10);
-pref("devtools.scratchpad.showTrailingSpace", false);
 
 // Enable the Style Editor.
 pref("devtools.styleeditor.enabled", true);
@@ -1337,7 +1333,7 @@ pref("browser.uiCustomization.debug", false);
 
 // The URL where remote content that composes the UI for Firefox Accounts should
 // be fetched. Must use HTTPS.
-pref("firefox.accounts.remoteUrl", "https://accounts.dev.lcip.org/?service=sync");
+pref("firefox.accounts.remoteUrl", "https://accounts.dev.lcip.org/flow?moar_native=true");
 
 // The URL of the Firefox Accounts auth server backend
 pref("identity.fxaccounts.auth.uri", "https://api-accounts.dev.lcip.org/v1");

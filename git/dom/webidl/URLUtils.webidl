@@ -16,9 +16,7 @@
 [NoInterfaceObject]
 interface URLUtils {
   [SetterThrows]
-  // Bug 824857: no support for stringifier attributes yet.
-  //  stringifier attribute DOMString href;
-           attribute DOMString href;
+  stringifier attribute DOMString href;
   readonly attribute DOMString origin;
 
            attribute DOMString protocol;

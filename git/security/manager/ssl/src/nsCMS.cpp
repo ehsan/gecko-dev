@@ -41,9 +41,9 @@ nsCMSMessage::nsCMSMessage(NSSCMSMessage *aCMSMsg)
 nsCMSMessage::~nsCMSMessage()
 {
   nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown()) {
+  if (isAlreadyShutDown())
     return;
-  }
+
   destructorSafeDestroyNSSReference();
   shutdown(calledFromObject);
 }
@@ -55,6 +55,9 @@ void nsCMSMessage::virtualDestroyNSSReference()
 
 void nsCMSMessage::destructorSafeDestroyNSSReference()
 {
+  if (isAlreadyShutDown())
+    return;
+
   if (m_cmsMsg) {
     NSS_CMSMessage_Destroy(m_cmsMsg);
   }
@@ -381,9 +384,9 @@ public:
   ~nsZeroTerminatedCertArray()
   {
     nsNSSShutDownPreventionLock locker;
-    if (isAlreadyShutDown()) {
+    if (isAlreadyShutDown())
       return;
-    }
+
     destructorSafeDestroyNSSReference();
     shutdown(calledFromObject);
   }
@@ -395,6 +398,9 @@ public:
 
   void destructorSafeDestroyNSSReference()
   {
+    if (isAlreadyShutDown())
+      return;
+
     if (mCerts)
     {
       for (uint32_t i=0; i < mSize; i++) {
@@ -727,9 +733,9 @@ nsCMSDecoder::nsCMSDecoder()
 nsCMSDecoder::~nsCMSDecoder()
 {
   nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown()) {
+  if (isAlreadyShutDown())
     return;
-  }
+
   destructorSafeDestroyNSSReference();
   shutdown(calledFromObject);
 }
@@ -741,6 +747,9 @@ void nsCMSDecoder::virtualDestroyNSSReference()
 
 void nsCMSDecoder::destructorSafeDestroyNSSReference()
 {
+  if (isAlreadyShutDown())
+    return;
+
   if (m_dcx) {
     NSS_CMSDecoder_Cancel(m_dcx);
     m_dcx = nullptr;
@@ -810,9 +819,9 @@ nsCMSEncoder::nsCMSEncoder()
 nsCMSEncoder::~nsCMSEncoder()
 {
   nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown()) {
+  if (isAlreadyShutDown())
     return;
-  }
+
   destructorSafeDestroyNSSReference();
   shutdown(calledFromObject);
 }
@@ -824,6 +833,10 @@ void nsCMSEncoder::virtualDestroyNSSReference()
 
 void nsCMSEncoder::destructorSafeDestroyNSSReference()
 {
+  nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown())
+    return;
+
   if (m_ecx)
     NSS_CMSEncoder_Cancel(m_ecx);
 }

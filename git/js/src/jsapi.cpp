@@ -228,8 +228,7 @@ JS_ConvertArgumentsVA(JSContext *cx, unsigned argc, jsval *argv, const char *for
         }
         if (sp == argv + argc) {
             if (required) {
-                HandleValue callee = HandleValue::fromMarkedLocation(&argv[-2]);
-                if (JSFunction *fun = ReportIfNotFunction(cx, callee)) {
+                if (JSFunction *fun = ReportIfNotFunction(cx, argv[-2])) {
                     char numBuf[12];
                     JS_snprintf(numBuf, sizeof numBuf, "%u", argc);
                     JSAutoByteString funNameBytes;
@@ -299,7 +298,7 @@ JS_ConvertArgumentsVA(JSContext *cx, unsigned argc, jsval *argv, const char *for
             *va_arg(ap, JSObject **) = obj;
             break;
           case 'f':
-              obj = ReportIfNotFunction(cx, HandleValue::fromMarkedLocation(sp));
+            obj = ReportIfNotFunction(cx, *sp);
             if (!obj)
                 return false;
             *sp = OBJECT_TO_JSVAL(obj);
@@ -3986,8 +3985,7 @@ JS_CloneFunctionObject(JSContext *cx, JSObject *funobjArg, JSObject *parentArg)
 
     if (!funobj->is<JSFunction>()) {
         AutoCompartment ac(cx, funobj);
-        RootedValue v(cx, ObjectValue(*funobj));
-        ReportIsNotFunction(cx, v);
+        ReportIsNotFunction(cx, ObjectValue(*funobj));
         return nullptr;
     }
 

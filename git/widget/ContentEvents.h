@@ -228,7 +228,6 @@ public:
     propertyName(aPropertyName), elapsedTime(aElapsedTime),
     pseudoElement(aPseudoElement)
   {
-    mFlags.mCancelable = false;
   }
 
   nsString propertyName;
@@ -264,7 +263,6 @@ public:
     animationName(aAnimationName), elapsedTime(aElapsedTime),
     pseudoElement(aPseudoElement)
   {
-    mFlags.mCancelable = false;
   }
 
   nsString animationName;
