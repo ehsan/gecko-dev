@@ -3000,10 +3000,9 @@ nsRange::AutoInvalidateSelection::~AutoInvalidateSelection()
 }
 
 /* static */ already_AddRefed<nsRange>
-nsRange::Constructor(const GlobalObject& aGlobal,
-                     ErrorResult& aRv)
+nsRange::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.Get());
   if (!window || !window->GetDoc()) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;

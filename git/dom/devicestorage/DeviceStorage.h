@@ -21,7 +21,6 @@
 #define DEVICESTORAGE_MUSIC      "music"
 #define DEVICESTORAGE_APPS       "apps"
 #define DEVICESTORAGE_SDCARD     "sdcard"
-#define DEVICESTORAGE_CRASHES    "crashes"
 
 namespace mozilla {
 namespace dom {
@@ -301,7 +300,6 @@ private:
   static mozilla::StaticRefPtr<VolumeNameCache> sVolumeNameCache;
 
 #ifdef MOZ_WIDGET_GONK
-  nsString mLastStatus;
   void DispatchMountChangeEvent(nsAString& aVolumeStatus);
 #endif
 

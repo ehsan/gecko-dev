@@ -212,6 +212,7 @@ AsyncPanZoomController::AsyncPanZoomController(uint64_t aLayersId,
      mLastAsyncScrollOffset(0, 0),
      mCurrentAsyncScrollOffset(0, 0),
      mAsyncScrollTimeoutTask(nullptr),
+     mDPI(72),
      mDisableNextTouchBatch(false),
      mHandlingTouchQueue(false),
      mDelayPanning(false)
@@ -221,6 +222,8 @@ AsyncPanZoomController::AsyncPanZoomController(uint64_t aLayersId,
   if (aGestures == USE_GESTURE_DETECTOR) {
     mGestureEventListener = new GestureEventListener(this);
   }
+
+  SetDPI(mDPI);
 }
 
 AsyncPanZoomController::~AsyncPanZoomController() {
@@ -429,7 +432,7 @@ nsEventStatus AsyncPanZoomController::OnTouchMove(const MultiTouchInput& aEvent)
       return nsEventStatus_eIgnore;
 
     case TOUCHING: {
-      float panThreshold = gTouchStartTolerance * APZCTreeManager::GetDPI();
+      float panThreshold = gTouchStartTolerance * mDPI;
       UpdateWithTouchAtDevicePoint(aEvent);
 
       if (PanDistance() < panThreshold) {
@@ -945,6 +948,14 @@ const CSSRect AsyncPanZoomController::CalculatePendingDisplayPort(
 
   CSSRect shiftedDisplayPort = displayPort + scrollOffset;
   return scrollableRect.ClampRect(shiftedDisplayPort) - scrollOffset;
+}
+
+void AsyncPanZoomController::SetDPI(int aDPI) {
+  mDPI = aDPI;
+}
+
+int AsyncPanZoomController::GetDPI() {
+  return mDPI;
 }
 
 void AsyncPanZoomController::ScheduleComposite() {

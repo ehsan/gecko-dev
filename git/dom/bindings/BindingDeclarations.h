@@ -64,13 +64,31 @@ class MOZ_STACK_CLASS GlobalObject
 public:
   GlobalObject(JSContext* aCx, JSObject* aObject);
 
+  nsISupports* Get() const
+  {
+    return mGlobalObject;
+  }
+
+  bool Failed() const
+  {
+    return !Get();
+  }
+
+private:
+  JS::Rooted<JSObject*> mGlobalJSObject;
+  nsISupports* mGlobalObject;
+  nsCOMPtr<nsISupports> mGlobalObjectRef;
+};
+
+class MOZ_STACK_CLASS WorkerGlobalObject
+{
+public:
+  WorkerGlobalObject(JSContext* aCx, JSObject* aObject);
+
   JSObject* Get() const
   {
     return mGlobalJSObject;
   }
-
-  nsISupports* GetAsSupports() const;
-
   // The context that this returns is not guaranteed to be in the compartment of
   // the object returned from Get(), in fact it's generally in the caller's
   // compartment.
@@ -84,11 +102,9 @@ public:
     return !Get();
   }
 
-protected:
+private:
   JS::RootedObject mGlobalJSObject;
   JSContext* mCx;
-  mutable nsISupports* mGlobalObject;
-  mutable nsCOMPtr<nsISupports> mGlobalObjectRef;
 };
 
 /**

@@ -26,8 +26,7 @@ class URL MOZ_FINAL
 {
 public:
   // WebIDL methods
-  static void CreateObjectURL(const GlobalObject& aGlobal,
-                              nsIDOMBlob* aBlob,
+  static void CreateObjectURL(const GlobalObject& aGlobal, nsIDOMBlob* aBlob,
                               const objectURLOptions& aOptions,
                               nsString& aResult,
                               ErrorResult& aError);

@@ -30,10 +30,9 @@ SpeechGrammarList::~SpeechGrammarList()
 }
 
 SpeechGrammarList*
-SpeechGrammarList::Constructor(const GlobalObject& aGlobal,
-                               ErrorResult& aRv)
+SpeechGrammarList::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
 {
-  return new SpeechGrammarList(aGlobal.GetAsSupports());
+  return new SpeechGrammarList(aGlobal.Get());
 }
 
 JSObject*

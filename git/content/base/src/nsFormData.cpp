@@ -111,7 +111,7 @@ nsFormData::Constructor(const GlobalObject& aGlobal,
                         const Optional<NonNull<HTMLFormElement> >& aFormElement,
                         ErrorResult& aRv)
 {
-  nsRefPtr<nsFormData> formData = new nsFormData(aGlobal.GetAsSupports());
+  nsRefPtr<nsFormData> formData = new nsFormData(aGlobal.Get());
   if (aFormElement.WasPassed()) {
     aRv = aFormElement.Value().WalkFormElements(formData);
   }

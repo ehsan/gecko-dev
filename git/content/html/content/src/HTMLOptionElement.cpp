@@ -335,7 +335,7 @@ HTMLOptionElement::Option(const GlobalObject& aGlobal,
                           const Optional<bool>& aDefaultSelected,
                           const Optional<bool>& aSelected, ErrorResult& aError)
 {
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.Get());
   nsIDocument* doc;
   if (!win || !(doc = win->GetExtantDoc())) {
     aError.Throw(NS_ERROR_FAILURE);

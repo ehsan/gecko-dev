@@ -11,7 +11,6 @@
 #include "gfxWindowsSurface.h"
 #include "gfxAlphaRecovery.h"
 #include "gfxPattern.h"
-#include "mozilla/gfx/2D.h"
 
 enum {
     RENDER_STATE_INIT,
@@ -183,9 +182,7 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
 bool
 gfxWindowsNativeDrawing::IsDoublePass()
 {
-    if (!mContext->IsCairo() &&
-        (mContext->GetDrawTarget()->GetType() != mozilla::gfx::BACKEND_CAIRO ||
-         mContext->GetDrawTarget()->IsDualDrawTarget())) {
+    if (!mContext->IsCairo()) {
       return true;
     }
 

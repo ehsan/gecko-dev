@@ -135,7 +135,7 @@ LayerManager::CreateDrawTarget(const IntSize &aSize,
                                SurfaceFormat aFormat)
 {
   return gfxPlatform::GetPlatform()->
-    CreateOffscreenCanvasDrawTarget(aSize, aFormat);
+    CreateOffscreenDrawTarget(aSize, aFormat);
 }
 
 TextureFactoryIdentifier

@@ -35,10 +35,7 @@ namespace js {
 // generates the memory reports, because NotableStringInfo uses this value.
 JS_FRIEND_API(size_t) MemoryReportingSundriesThreshold();
 
-// This hash policy avoids flattening ropes (which perturbs the site being
-// measured and requires a JSContext) at the expense of doing a FULL ROPE COPY
-// on every hash and match! Beware.
-struct InefficientNonFlatteningStringHashPolicy
+struct StringHashPolicy
 {
     typedef JSString *Lookup;
     static HashNumber hash(const Lookup &l);
@@ -304,10 +301,8 @@ struct ZoneStats : js::ZoneStatsPod
         }
     }
 
-    typedef js::HashMap<JSString*,
-                        StringInfo,
-                        js::InefficientNonFlatteningStringHashPolicy,
-                        js::SystemAllocPolicy> StringsHashMap;
+    typedef js::HashMap<JSString*, StringInfo, js::StringHashPolicy, js::SystemAllocPolicy>
+        StringsHashMap;
 
     StringsHashMap strings;
     js::Vector<NotableStringInfo, 0, js::SystemAllocPolicy> notableStrings;

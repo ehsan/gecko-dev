@@ -53,7 +53,7 @@ HTMLAudioElement::Audio(const GlobalObject& aGlobal,
                         const Optional<nsAString>& aSrc,
                         ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.Get());
   nsIDocument* doc;
   if (!win || !(doc = win->GetExtantDoc())) {
     aRv.Throw(NS_ERROR_FAILURE);

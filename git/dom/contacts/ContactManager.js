@@ -658,12 +658,6 @@ ContactManager.prototype = {
           Services.DOMRequest.fireError(req, msg.errorMsg);
         }
         break;
-      case "Contacts:GetAll:Return:KO":
-        req = this.getRequest(msg.requestID);
-        if (req) {
-          Services.DOMRequest.fireError(req.cursor, msg.errorMsg);
-        }
-        break;
       case "PermissionPromptHelper:AskPermission:OK":
         if (DEBUG) debug("id: " + msg.requestID);
         req = this.getRequest(msg.requestID);
@@ -692,14 +686,14 @@ ContactManager.prototype = {
         if (DEBUG) debug("new revision: " + msg.revision);
         req = this.getRequest(msg.requestID);
         if (req) {
-          Services.DOMRequest.fireSuccess(req.request, msg.revision);
+          Services.DOMRequest.fireSuccess(req, msg.revision);
         }
         break;
       case "Contacts:Count":
         if (DEBUG) debug("count: " + msg.count);
         req = this.getRequest(msg.requestID);
         if (req) {
-          Services.DOMRequest.fireSuccess(req.request, msg.count);
+          Services.DOMRequest.fireSuccess(req, msg.count);
         }
         break;
       default:
@@ -877,12 +871,8 @@ ContactManager.prototype = {
   },
 
   remove: function removeContact(aRecord) {
-    let request = this.createRequest();
-    if (!aRecord || !aRecord.id) {
-      Services.DOMRequest.fireErrorAsync(request, true);
-      return request;
-    }
-
+    let request;
+    request = this.createRequest();
     let options = { id: aRecord.id };
     let allowCallback = function() {
       cpmm.sendAsyncMessage("Contact:Remove", {requestID: this.getRequestId({request: request, reason: "remove"}), options: options});
@@ -908,7 +898,7 @@ ContactManager.prototype = {
 
     let allowCallback = function() {
       cpmm.sendAsyncMessage("Contacts:GetRevision", {
-        requestID: this.getRequestId({ request: request })
+        requestID: this.getRequestId(request)
       });
     }.bind(this);
 
@@ -925,7 +915,7 @@ ContactManager.prototype = {
 
     let allowCallback = function() {
       cpmm.sendAsyncMessage("Contacts:GetCount", {
-        requestID: this.getRequestId({ request: request })
+        requestID: this.getRequestId(request)
       });
     }.bind(this);
 
@@ -944,8 +934,7 @@ ContactManager.prototype = {
                               "Contact:Remove:Return:OK", "Contact:Remove:Return:KO",
                               "Contact:Changed",
                               "PermissionPromptHelper:AskPermission:OK",
-                              "Contacts:GetAll:Next", "Contacts:GetAll:Return:KO",
-                              "Contacts:Count",
+                              "Contacts:GetAll:Next", "Contacts:Count",
                               "Contacts:Revision", "Contacts:GetRevision:Return:KO",]);
   },
 

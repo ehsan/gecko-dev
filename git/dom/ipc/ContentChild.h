@@ -208,9 +208,7 @@ public:
     virtual bool RecvFileSystemUpdate(const nsString& aFsName,
                                       const nsString& aVolumeName,
                                       const int32_t& aState,
-                                      const int32_t& aMountGeneration,
-                                      const bool& aIsMediaPresent,
-                                      const bool& aIsSharing);
+                                      const int32_t& aMountGeneration);
 
     virtual bool RecvNotifyProcessPriorityChanged(const hal::ProcessPriority& aPriority);
     virtual bool RecvMinimizeMemoryUsage();

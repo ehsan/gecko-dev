@@ -31,10 +31,9 @@ SpeechGrammar::~SpeechGrammar()
 }
 
 SpeechGrammar*
-SpeechGrammar::Constructor(const GlobalObject& aGlobal,
-                           ErrorResult& aRv)
+SpeechGrammar::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
 {
-  return new SpeechGrammar(aGlobal.GetAsSupports());
+  return new SpeechGrammar(aGlobal.Get());
 }
 
 nsISupports*

@@ -99,9 +99,9 @@ class Element;
 struct ElementRegistrationOptions;
 class EventTarget;
 class FrameRequestCallback;
+class GlobalObject;
 class HTMLBodyElement;
 class Link;
-class GlobalObject;
 class NodeFilter;
 class NodeIterator;
 class ProcessingInstruction;
@@ -150,7 +150,6 @@ NS_GetContentList(nsINode* aRootNode,
 // Gecko.
 class nsIDocument : public nsINode
 {
-  typedef mozilla::dom::GlobalObject GlobalObject;
 public:
   typedef mozilla::dom::Element Element;
 
@@ -1925,7 +1924,7 @@ public:
     return GetScopeObject();
   }
   static already_AddRefed<nsIDocument>
-    Constructor(const GlobalObject& aGlobal,
+    Constructor(const mozilla::dom::GlobalObject& aGlobal,
                 mozilla::ErrorResult& rv);
   virtual mozilla::dom::DOMImplementation*
     GetImplementation(mozilla::ErrorResult& rv) = 0;

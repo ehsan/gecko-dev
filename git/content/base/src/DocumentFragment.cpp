@@ -122,10 +122,9 @@ DocumentFragment::DumpContent(FILE* out, int32_t aIndent,
 #endif
 
 /* static */ already_AddRefed<DocumentFragment>
-DocumentFragment::Constructor(const GlobalObject& aGlobal,
-                              ErrorResult& aRv)
+DocumentFragment::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.Get());
   if (!window || !window->GetDoc()) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;

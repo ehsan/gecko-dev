@@ -1704,53 +1704,53 @@ ReparentWrapper(JSContext* aCx, JS::HandleObject aObjArg)
   return NS_OK;
 }
 
-GlobalObject::GlobalObject(JSContext* aCx, JSObject* aObject)
-  : mGlobalJSObject(aCx),
-    mCx(aCx),
-    mGlobalObject(nullptr)
+template<bool mainThread>
+inline JSObject*
+GetGlobalObject(JSContext* aCx, JSObject* aObject,
+                Maybe<JSAutoCompartment>& aAutoCompartment)
 {
-  Maybe<JSAutoCompartment> ac;
   JS::Rooted<JSObject*> obj(aCx, aObject);
   if (js::IsWrapper(obj)) {
     obj = js::CheckedUnwrap(obj, /* stopAtOuter = */ false);
     if (!obj) {
-      // We should never end up here on a worker thread, since there shouldn't
-      // be any security wrappers to worry about.
-      if (!MOZ_LIKELY(NS_IsMainThread())) {
-        MOZ_CRASH();
-      }
-
-      Throw<true>(aCx, NS_ERROR_XPC_SECURITY_MANAGER_VETO);
-      return;
+      Throw<mainThread>(aCx, NS_ERROR_XPC_SECURITY_MANAGER_VETO);
+      return nullptr;
     }
-    ac.construct(aCx, obj);
+    aAutoCompartment.construct(aCx, obj);
   }
 
-  mGlobalJSObject = JS_GetGlobalForObject(aCx, obj);
+  return JS_GetGlobalForObject(aCx, obj);
 }
 
-nsISupports*
-GlobalObject::GetAsSupports() const
+GlobalObject::GlobalObject(JSContext* aCx, JSObject* aObject)
+  : mGlobalJSObject(aCx)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (mGlobalObject) {
-    return mGlobalObject;
+  Maybe<JSAutoCompartment> ac;
+  mGlobalJSObject = GetGlobalObject<true>(aCx, aObject, ac);
+  if (!mGlobalJSObject) {
+    mGlobalObject = nullptr;
+    return;
   }
 
-  JS::Rooted<JS::Value> val(mCx, JS::ObjectValue(*mGlobalJSObject));
+  JS::Rooted<JS::Value> val(aCx, JS::ObjectValue(*mGlobalJSObject));
 
   // Switch this to UnwrapDOMObjectToISupports once our global objects are
   // using new bindings.
-  nsresult rv = xpc_qsUnwrapArg<nsISupports>(mCx, val, &mGlobalObject,
+  nsresult rv = xpc_qsUnwrapArg<nsISupports>(aCx, val, &mGlobalObject,
                                              static_cast<nsISupports**>(getter_AddRefs(mGlobalObjectRef)),
                                              val.address());
   if (NS_FAILED(rv)) {
     mGlobalObject = nullptr;
-    Throw<true>(mCx, NS_ERROR_XPC_BAD_CONVERT_JS);
+    Throw<true>(aCx, NS_ERROR_XPC_BAD_CONVERT_JS);
   }
+}
 
-  return mGlobalObject;
+WorkerGlobalObject::WorkerGlobalObject(JSContext* aCx, JSObject* aObject)
+  : mGlobalJSObject(aCx),
+    mCx(aCx)
+{
+  Maybe<JSAutoCompartment> ac;
+  mGlobalJSObject = GetGlobalObject<false>(aCx, aObject, ac);
 }
 
 bool
@@ -1847,7 +1847,7 @@ ReportLenientThisUnwrappingFailure(JSContext* cx, JS::Handle<JSObject*> obj)
   if (global.Failed()) {
     return false;
   }
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(global.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(global.Get());
   if (window && window->GetDoc()) {
     window->GetDoc()->WarnOnceAbout(nsIDocument::eLenientThis);
   }
@@ -1884,7 +1884,7 @@ GetWindowForJSImplementedObject(JSContext* cx, JS::Handle<JSObject*> obj,
 
   // It's OK if we have null here: that just means the content-side
   // object really wasn't associated with any window.
-  nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(global.GetAsSupports()));
+  nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(global.Get()));
   win.forget(window);
   return true;
 }
@@ -1896,7 +1896,7 @@ ConstructJSImplementation(JSContext* aCx, const char* aContractId,
                           ErrorResult& aRv)
 {
   // Get the window to use as a parent and for initialization.
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.Get());
   if (!window) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
