@@ -20,7 +20,6 @@ Cu.import("resource://gre/modules/Task.jsm", this);
 
 const DAILY_COUNTER_FIELD = {type: Metrics.Storage.FIELD_DAILY_COUNTER};
 const DAILY_LAST_TEXT_FIELD = {type: Metrics.Storage.FIELD_DAILY_LAST_TEXT};
-const DAILY_LAST_NUMERIC_FIELD = {type: Metrics.Storage.FIELD_DAILY_LAST_NUMERIC};
 
 
 this.Translation = {
@@ -301,8 +300,6 @@ TranslationMeasurement1.prototype = Object.freeze({
     pageTranslatedCountsByLanguage: DAILY_LAST_TEXT_FIELD,
     detectedLanguageChangedBefore: DAILY_COUNTER_FIELD,
     detectedLanguageChangedAfter: DAILY_COUNTER_FIELD,
-    detectLanguageEnabled: DAILY_LAST_NUMERIC_FIELD,
-    showTranslationUI: DAILY_LAST_NUMERIC_FIELD,
   },
 
   shouldIncludeField: function (field) {
@@ -327,7 +324,7 @@ TranslationMeasurement1.prototype = Object.freeze({
 
       return data;
     });
-  },
+},
 
   _wrapJSONSerializer: function (serializer) {
     let _parseInPlace = function(o, k) {
@@ -414,19 +411,6 @@ TranslationProvider.prototype = Object.freeze({
         } else {
           yield m.incrementDailyCounter("detectedLanguageChangedAfter");
         }
-    }.bind(this));
-  },
-
-  collectDailyData: function () {
-    let m = this.getMeasurement(TranslationMeasurement1.prototype.name,
-                                TranslationMeasurement1.prototype.version);
-
-    return this._enqueueTelemetryStorageTask(function* recordTask() {
-      let detectLanguageEnabled = Services.prefs.getBoolPref("browser.translation.detectLanguage");
-      yield m.setDailyLastNumeric("detectLanguageEnabled", detectLanguageEnabled ? 1 : 0);
-
-      let showTranslationUI = Services.prefs.getBoolPref("browser.translation.ui.show");
-      yield m.setDailyLastNumeric("showTranslationUI", showTranslationUI ? 1 : 0);
     }.bind(this));
   },
 
