@@ -69,7 +69,7 @@ CPPSRCS = \
   testPropCache.cpp \
   testSameValue.cpp \
   testScriptObject.cpp \
-  testSetProperty.cpp \
+  testSetPropertyWithNativeGetterStubSetter.cpp \
   testThreadGC.cpp \
   testThreads.cpp \
   testTrap.cpp \

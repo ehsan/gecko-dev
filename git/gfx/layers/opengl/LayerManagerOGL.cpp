@@ -61,6 +61,8 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch2.h"
 
+#include "nsIGfxInfo.h"
+
 namespace mozilla {
 namespace layers {
 
@@ -148,37 +150,52 @@ LayerManagerOGL::CleanupResources()
   mGLContext = nsnull;
 }
 
-already_AddRefed<mozilla::gl::GLContext>
-LayerManagerOGL::CreateContext()
+PRBool
+LayerManagerOGL::Initialize(GLContext *aExistingContext)
 {
-  nsRefPtr<GLContext> context;
+  if (aExistingContext) {
+    mGLContext = aExistingContext;
+  } else {
+    if (mGLContext)
+      CleanupResources();
+
+    nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+
+    PRBool forceAccelerate = PR_FALSE;
+    if (prefs) {
+      // we should use AddBoolPrefVarCache
+      prefs->GetBoolPref("layers.acceleration.force-enabled",
+                         &forceAccelerate);
+    }
+
+    nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
+    if (gfxInfo) {
+      PRInt32 status;
+      if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_OPENGL_LAYERS, &status))) {
+        if (status != nsIGfxInfo::FEATURE_NO_INFO && !forceAccelerate) {
+          NS_WARNING("OpenGL-accelerated layers are not supported on this system.");
+          return PR_FALSE;
+        }
+      }
+    }
+
+    mGLContext = nsnull;
 
 #ifdef XP_WIN
-  if (PR_GetEnv("MOZ_LAYERS_PREFER_EGL")) {
-    printf_stderr("Trying GL layers...\n");
-    context = gl::GLContextProviderEGL::CreateForWindow(mWidget);
-  }
+    if (PR_GetEnv("MOZ_LAYERS_PREFER_EGL")) {
+      printf_stderr("Trying GL layers...\n");
+      mGLContext = gl::GLContextProviderEGL::CreateForWindow(mWidget);
+    }
 #endif
 
-  if (!context)
-    context = gl::GLContextProvider::CreateForWindow(mWidget);
+    if (!mGLContext)
+      mGLContext = gl::GLContextProvider::CreateForWindow(mWidget);
 
-  if (!context) {
-    NS_WARNING("Failed to create LayerManagerOGL context");
+    if (!mGLContext) {
+      NS_WARNING("Failed to create LayerManagerOGL context");
+      return PR_FALSE;
+    }
   }
-  return context.forget();
-}
-
-PRBool
-LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext)
-{
-  // Do not allow double intiailization
-  NS_ABORT_IF_FALSE(mGLContext == nsnull, "Don't reiniailize layer managers");
-
-  if (!aContext)
-    return PR_FALSE;
-
-  mGLContext = aContext;
 
   MakeCurrent();
 

@@ -366,14 +366,11 @@ nsresult nsTreeWalker::FirstChildInternal(PRBool aReversed, nsIDOMNode **_retval
                 node = sibling;
                 break;
             }
-
             nsINode *parent = node->GetNodeParent();
 
             if (!parent || parent == mRoot || parent == mCurrentNode) {
                 return NS_OK;
             }
-
-            node = parent;
 
         } while (node);
     }

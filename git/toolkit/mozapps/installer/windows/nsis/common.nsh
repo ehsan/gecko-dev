@@ -4682,12 +4682,10 @@
               StrCpy $AddStartMenuSC "1"
             ${EndIf}
 
-            !ifndef NO_STARTMENU_DIR
-              ReadINIStr $R8 $R7 "Install" "StartMenuDirectoryName"
-              ${If} $R8 != ""
-                StrCpy $StartMenuDir "$R8"
-              ${EndIf}
-            !endif
+            ReadINIStr $R8 $R7 "Install" "StartMenuDirectoryName"
+            ${If} $R8 != ""
+              StrCpy $StartMenuDir "$R8"
+            ${EndIf}
           ${EndIf}
         ${EndUnless}
       ${EndIf}

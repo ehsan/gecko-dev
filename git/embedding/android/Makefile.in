@@ -48,12 +48,10 @@ DIRS = locales
 JAVAFILES = \
   GeckoApp.java \
   GeckoAppShell.java \
-  GeckoConnectivityReceiver.java \
   GeckoEvent.java \
   GeckoSurfaceView.java \
   GeckoInputConnection.java \
   AlertNotification.java \
-  MemoryWatcher.java \
   $(NULL)
 
 PROCESSEDJAVAFILES = \

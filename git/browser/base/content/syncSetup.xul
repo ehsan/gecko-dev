@@ -320,7 +320,7 @@
             <label class="text-link"
                    value="&resetPassword.label;"
                    onclick="gSyncUtils.resetPassword(); return false;"/>
-          </row>
+	  </row>
           <row align="center">
             <label control="existingServer"
                    value="&server.label;"/>
@@ -370,14 +370,11 @@
       <description>
         &existingSyncKey.description;
         <label class="text-link"
-               href="https://services.mozilla.com/sync/help/manual-setup">
-          &addDevice.showMeHow.label;
-        </label>
-        <spacer id="passphraseHelpSpacer"/>
+               value="&addDevice.showMeHow.label;"
+               href="https://services.mozilla.com/sync/help/manual-setup"/>
         <label class="text-link"
-               onclick="gSyncUtils.resetPassphrase(); return false;">
-          &resetSyncKey.label;
-        </label>
+               value="&resetSyncKey.label;"
+               onclick="gSyncUtils.resetPassphrase(); return false;"/>
       </description>
     </vbox>
   </wizardpage>

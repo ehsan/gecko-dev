@@ -75,12 +75,6 @@ public:
 
   nsresult OSProtocolHandlerExists(const char * aScheme,
                                    PRBool * aHandlerExists);
-
-protected:
-  virtual void FixFilePermissions(nsILocalFile* aFile);
-
-private:
-  PRUint32 mPermissions;
 };
 
 #endif // nsOSHelperAppService_h__

@@ -141,13 +141,8 @@ function testHash(aBrowser, aCallback) {
 }
 
 function isLoading() {
-  var loading = gManagerWindow.document.getElementById("discover-view").selectedPanel ==
-                gManagerWindow.document.getElementById("discover-loading");
-  if (loading) {
-    is_element_visible(gManagerWindow.document.querySelector("#discover-loading .loading"),
-                       "Loading message should be visible when its panel is the selected panel");
-  }
-  return loading;
+  return gManagerWindow.document.getElementById("discover-view").selectedPanel ==
+         gManagerWindow.document.getElementById("discover-loading");
 }
 
 function isError() {

@@ -72,8 +72,6 @@ CPPSRCS = \
           History.cpp \
           nsPlacesImportExportService.cpp \
           AsyncFaviconHelpers.cpp \
-          PlaceInfo.cpp \
-          VisitInfo.cpp \
           $(NULL)
 
 EXTRA_DSO_LDOPTS += \
@@ -81,12 +79,6 @@ EXTRA_DSO_LDOPTS += \
 	$(MOZ_UNICHARUTIL_LIBS) \
 	$(MOZ_COMPONENT_LIBS) \
 	$(NULL)
-
-ifndef MOZ_ENABLE_LIBXUL
-EXTRA_DSO_LDOPTS += \
-	$(MOZ_JS_LIBS) \
-	$(NULL)
-endif
 
 LOCAL_INCLUDES += -I$(srcdir)/../../build
 

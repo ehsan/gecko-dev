@@ -39,7 +39,6 @@ namespace JSC { namespace Yarr {
 #define RegexStackSpaceForBackTrackInfoAlternative 1 // One per alternative.
 #define RegexStackSpaceForBackTrackInfoParentheticalAssertion 1
 #define RegexStackSpaceForBackTrackInfoParenthesesOnce 1 // Only for !fixed quantifiers.
-#define RegexStackSpaceForBackTrackInfoParenthesesTerminal 1
 #define RegexStackSpaceForBackTrackInfoParentheses 4
 
 struct PatternDisjunction;
@@ -67,15 +66,11 @@ struct CharacterClassTable {
     /* Ownership transferred to caller. */
     static CharacterClassTable *create(const char* table, bool inverted)
     {
-        // FIXME: bug 574459 -- no NULL checks done by any of the callers, all
-        // of which are in RegExpJitTables.h.
-        /* We can't (easily) use js_new() here because the constructor is private. */
-        void *memory = js_malloc(sizeof(CharacterClassTable));
-        return memory ? new(memory) CharacterClassTable(table, inverted) : NULL;
+        return new CharacterClassTable(table, inverted);
     }
 
     void incref() { JS_ATOMIC_INCREMENT(&m_refcount); }
-    void decref() { if (JS_ATOMIC_DECREMENT(&m_refcount) == 0) js_delete(this); }
+    void decref() { if (JS_ATOMIC_DECREMENT(&m_refcount) == 0) delete this; }
 
 private:
     CharacterClassTable(const char* table, bool inverted)
@@ -138,7 +133,6 @@ struct PatternTerm {
             unsigned subpatternId;
             unsigned lastSubpatternId;
             bool isCopy;
-            bool isTerminal;
         } parentheses;
     };
     QuantifierType quantityType;
@@ -170,7 +164,6 @@ struct PatternTerm {
         parentheses.disjunction = disjunction;
         parentheses.subpatternId = subpatternId;
         parentheses.isCopy = false;
-        parentheses.isTerminal = false;
         quantityType = QuantifierFixedCount;
         quantityCount = 1;
     }
@@ -270,14 +263,6 @@ struct PatternAlternative {
     bool m_containsBOL : 1;
 };
 
-template<typename T, size_t N, class AP>
-static inline void
-deleteAllValues(js::Vector<T*,N,AP> &vector)
-{
-    for (T** t = vector.begin(); t < vector.end(); ++t)
-        js_delete(*t);
-}
-
 struct PatternDisjunction {
     PatternDisjunction(PatternAlternative* parent = 0)
         : m_parent(parent)
@@ -292,8 +277,7 @@ struct PatternDisjunction {
 
     PatternAlternative* addNewAlternative()
     {
-        // FIXME: bug 574459 -- no NULL check
-        PatternAlternative* alternative = js_new<PatternAlternative>(this);
+        PatternAlternative* alternative = new PatternAlternative(this);
         m_alternatives.append(alternative);
         return alternative;
     }

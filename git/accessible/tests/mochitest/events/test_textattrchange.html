@@ -25,8 +25,6 @@
     const nsIDOMNSEditableElement =
       Components.interfaces.nsIDOMNSEditableElement;
 
-    Components.utils.import("resource://gre/modules/InlineSpellChecker.jsm");
-
     function spelledTextInvoker(aID)
     {
       this.DOMNode = getNode(aID);
@@ -37,14 +35,12 @@
 
       this.invoke = function spelledTextInvoker_invoke()
       {
+        this.DOMNode.setAttribute("value", "valid text inalid tixt");
+        this.DOMNode.focus();
+
         var editor = this.DOMNode.QueryInterface(nsIDOMNSEditableElement).editor;
-        var spellChecker = new InlineSpellChecker(editor);
-        spellChecker.enabled = true;
-
-        //var spellchecker = editor.getInlineSpellChecker(true);
-        //spellchecker.enableRealTimeSpell = true;
-
-        this.DOMNode.value = "valid text inalid tixt";
+        var spellchecker = editor.getInlineSpellChecker(true);
+        spellchecker.enableRealTimeSpell = true;
       }
 
       this.finalCheck = function spelledTextInvoker_finalCheck()
@@ -73,17 +69,12 @@
      * Do tests.
      */
     //gA11yEventDumpID = "eventdump"; // debug stuff
-    //gA11yEventDumpToConsole = true;
 
     var gQueue = null;
     function doTests()
     {
-      // Synth focus before spellchecking turning on to make sure editor
-      // gets a time for initialization.
-
       gQueue = new eventQueue();
-      gQueue.push(new synthFocus("input", null, EVENT_FOCUS));
-      gQueue.push(new spelledTextInvoker("input"));
+      gQueue.push(new spelledTextInvoker("area8"));
       gQueue.invoke(); // Will call SimpleTest.finish();
     }
 
@@ -104,7 +95,7 @@
   <pre id="test">
   </pre>
 
-  <input id="input"/>
+  <input id="area8"/>
 
   <div id="eventdump"></div>
 </body>

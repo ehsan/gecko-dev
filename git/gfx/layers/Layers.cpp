@@ -200,17 +200,6 @@ LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
     CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFormat));
 }
 
-#ifdef DEBUG
-void
-LayerManager::Mutated(Layer* aLayer)
-{
-  NS_ABORT_IF_FALSE(!aLayer->GetTileSourceRect() ||
-                    (LAYERS_BASIC == GetBackendType() &&
-                     Layer::TYPE_IMAGE == aLayer->GetType()),
-                    "Tiling not supported for this manager/layer type");
-}
-#endif  // DEBUG
-
 //--------------------------------------------------
 // Layer
 
@@ -466,9 +455,6 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
   }
   if (1.0 != mOpacity) {
     aTo.AppendPrintf(" [opacity=%g]", mOpacity);
-  }
-  if (const nsIntRect* tileSourceRect = GetTileSourceRect()) {
-    AppendToString(aTo, *tileSourceRect, " [tileSrc=", "]");
   }
   if (GetContentFlags() & CONTENT_OPAQUE) {
     aTo += " [opaqueContent]";

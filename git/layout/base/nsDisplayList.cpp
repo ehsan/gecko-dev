@@ -180,14 +180,9 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
     metrics.mViewportScrollOffset =
       rootScrollableFrame->GetScrollPosition().ToNearestPixels(auPerDevPixel);
     
-  }
-  else {
-    nsSize contentSize = aForFrame->GetSize();
-    metrics.mContentSize = nsIntSize(NSAppUnitsToIntPixels(contentSize.width, auPerDevPixel),
-                                     NSAppUnitsToIntPixels(contentSize.height, auPerDevPixel));
+    metrics.mScrollId = aScrollId;
   }
 
-  metrics.mScrollId = aScrollId;
   aRoot->SetFrameMetrics(metrics);
 }
 
@@ -459,17 +454,16 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
                "Must call ComputeVisibility before calling Paint");
 
   nsRefPtr<LayerManager> layerManager;
-  bool allowRetaining = false;
-  bool doBeginTransaction = true;
   if (aFlags & PAINT_USE_WIDGET_LAYERS) {
     nsIFrame* referenceFrame = aBuilder->ReferenceFrame();
     NS_ASSERTION(referenceFrame == nsLayoutUtils::GetDisplayRootFrame(referenceFrame),
                  "Reference frame must be a display root for us to use the layer manager");
     nsIWidget* window = referenceFrame->GetNearestWidget();
     if (window) {
+      bool allowRetaining = true;
       layerManager = window->GetLayerManager(&allowRetaining);
-      if (layerManager) {
-        doBeginTransaction = !(aFlags & PAINT_EXISTING_TRANSACTION);
+      if (layerManager && allowRetaining) {
+        aBuilder->LayerBuilder()->WillBeginRetainedLayerTransaction(layerManager);
       }
     }
   }
@@ -487,15 +481,10 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
     FrameLayerBuilder::InvalidateAllLayers(layerManager);
   }
 
-  if (doBeginTransaction) {
-    if (aCtx) {
-      layerManager->BeginTransactionWithTarget(aCtx->ThebesContext());
-    } else {
-      layerManager->BeginTransaction();
-    }
-  }
-  if (allowRetaining) {
-    aBuilder->LayerBuilder()->DidBeginRetainedLayerTransaction(layerManager);
+  if (aCtx) {
+    layerManager->BeginTransactionWithTarget(aCtx->ThebesContext());
+  } else {
+    layerManager->BeginTransaction();
   }
 
   nsRefPtr<ContainerLayer> root = aBuilder->LayerBuilder()->

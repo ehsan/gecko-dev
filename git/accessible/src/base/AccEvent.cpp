@@ -306,8 +306,8 @@ AccTextChangeEvent::CreateXPCOMObject()
 
 AccMutationEvent::
   AccMutationEvent(PRUint32 aEventType, nsAccessible* aTarget,
-                   nsINode* aTargetNode) :
-  AccEvent(aEventType, aTarget, eAutoDetect, eCoalesceFromSameSubtree)
+                   nsINode* aTargetNode, EIsFromUserInput aIsFromUserInput) :
+  AccEvent(aEventType, aTarget, aIsFromUserInput, eCoalesceFromSameSubtree)
 {
   mNode = aTargetNode;
 }
@@ -318,8 +318,10 @@ AccMutationEvent::
 ////////////////////////////////////////////////////////////////////////////////
 
 AccHideEvent::
-  AccHideEvent(nsAccessible* aTarget, nsINode* aTargetNode) :
-  AccMutationEvent(::nsIAccessibleEvent::EVENT_HIDE, aTarget, aTargetNode)
+  AccHideEvent(nsAccessible* aTarget, nsINode* aTargetNode,
+               EIsFromUserInput aIsFromUserInput) :
+  AccMutationEvent(::nsIAccessibleEvent::EVENT_HIDE, aTarget, aTargetNode,
+                   aIsFromUserInput)
 {
   mParent = mAccessible->GetCachedParent();
   mNextSibling = mAccessible->GetCachedNextSibling();
@@ -332,8 +334,10 @@ AccHideEvent::
 ////////////////////////////////////////////////////////////////////////////////
 
 AccShowEvent::
-  AccShowEvent(nsAccessible* aTarget, nsINode* aTargetNode) :
-  AccMutationEvent(::nsIAccessibleEvent::EVENT_SHOW, aTarget, aTargetNode)
+  AccShowEvent(nsAccessible* aTarget, nsINode* aTargetNode,
+               EIsFromUserInput aIsFromUserInput) :
+  AccMutationEvent(::nsIAccessibleEvent::EVENT_SHOW, aTarget, aTargetNode,
+                   aIsFromUserInput)
 {
 }
 

@@ -127,7 +127,7 @@ namespace XPCWrapper {
 JSObject *
 Unwrap(JSContext *cx, JSObject *wrapper)
 {
-  if (wrapper->isWrapper()) {
+  if (wrapper->isProxy()) {
     if (xpc::AccessCheck::isScriptAccessOnly(cx, wrapper))
       return nsnull;
     return wrapper->unwrap();

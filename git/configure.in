@@ -130,7 +130,7 @@ GCONF_VERSION=1.2.1
 GIO_VERSION=2.0
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.7.4
+SQLITE_VERSION=3.7.3
 LIBNOTIFY_VERSION=0.4
 
 MSMANIFEST_TOOL=
@@ -7642,7 +7642,7 @@ dnl ========================================================
 dnl shark
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(shark,
-[  --enable-shark          Enable shark remote profiling. Implies --enable-profiling.],
+[  --enable-shark          Enable shark remote profiling (needs CHUD framework). Implies --enable-profiling.],
     MOZ_SHARK=1,
     MOZ_SHARK= )
 if test -n "$MOZ_SHARK"; then
@@ -7671,13 +7671,6 @@ MOZ_ARG_ENABLE_BOOL(vtune,
 if test -n "$MOZ_VTUNE"; then
     MOZ_PROFILING=1
     AC_DEFINE(MOZ_VTUNE)
-fi
-
-dnl ========================================================
-dnl Profiling
-dnl ========================================================
-if test -n "$MOZ_PROFILING"; then
-    AC_DEFINE(MOZ_PROFILING)
 fi
 
 dnl ========================================================
@@ -7759,16 +7752,6 @@ MOZ_ARG_ENABLE_BOOL(elf-dynstr-gc,
 [  --enable-elf-dynstr-gc  Enable elf dynstr garbage collector (opt builds only)],
     USE_ELF_DYNSTR_GC=1,
     USE_ELF_DYNSTR_GC= )
-
-dnl ========================================================
-dnl = --disable-elf-hack
-dnl ========================================================
-
-USE_ELF_HACK=1
-MOZ_ARG_DISABLE_BOOL(elf-hack,
-[  --disable-elf-hack      Disable elf hacks],
-    USE_ELF_HACK=,
-    USE_ELF_HACK=1)
 
 dnl ========================================================
 dnl = 
@@ -9045,7 +9028,6 @@ AC_SUBST(MOZ_DIRECTX_SDK_PATH)
 AC_SUBST(ENABLE_STRIP)
 AC_SUBST(PKG_SKIP_STRIP)
 AC_SUBST(USE_ELF_DYNSTR_GC)
-AC_SUBST(USE_ELF_HACK)
 AC_SUBST(INCREMENTAL_LINKER)
 AC_SUBST(MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS)
 AC_SUBST(MOZ_JEMALLOC_STANDALONE_GLUE_LDOPTS)

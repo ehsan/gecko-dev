@@ -1,3 +1,4 @@
+Cu.import("resource://services-sync/auth.js");
 Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/resource.js");

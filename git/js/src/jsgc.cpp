@@ -858,7 +858,7 @@ js_FinishGC(JSRuntime *rt)
     for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
         JSCompartment *comp = *c;
         comp->finishArenaLists();
-        js_delete(comp);
+        delete comp;
     }
     rt->compartments.clear();
     rt->atomsCompartment = NULL;
@@ -2162,7 +2162,7 @@ SweepCrossCompartmentWrappers(JSContext *cx)
     JSRuntime *rt = cx->runtime;
     /*
      * Figure out how much JIT code should be released from inactive compartments.
-     * If multiple eighth-lives have passed, compound the release interval linearly;
+     * If multiple eighth-lifes have passed, compound the release interval linearly;
      * if enough time has passed, all inactive JIT code will be released.
      */
     uint32 releaseInterval = 0;
@@ -2177,8 +2177,10 @@ SweepCrossCompartmentWrappers(JSContext *cx)
     }
 
     /* Remove dead wrappers from the compartment map. */
-    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
+    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
         (*c)->sweep(cx, releaseInterval);
+    }
+    
 }
 
 static void
@@ -2186,29 +2188,31 @@ SweepCompartments(JSContext *cx, JSGCInvocationKind gckind)
 {
     JSRuntime *rt = cx->runtime;
     JSCompartmentCallback callback = rt->compartmentCallback;
-
-    /* Skip the atomsCompartment. */
-    JSCompartment **read = rt->compartments.begin() + 1;
+    JSCompartment **read = rt->compartments.begin();
     JSCompartment **end = rt->compartments.end();
     JSCompartment **write = read;
-    JS_ASSERT(rt->compartments.length() >= 1);
-    JS_ASSERT(*rt->compartments.begin() == rt->atomsCompartment);
+
+    /* Delete atomsCompartment only during runtime shutdown */
+    rt->atomsCompartment->marked = true;
 
     while (read < end) {
-        JSCompartment *compartment = *read++;
-
-        /* Unmarked compartments containing marked objects don't get deleted, except LAST_CONTEXT GC is performed. */
-        if ((!compartment->marked && compartment->arenaListsAreEmpty()) || gckind == GC_LAST_CONTEXT) {
+        JSCompartment *compartment = (*read++);
+        if (compartment->marked) {
+            compartment->marked = false;
+            *write++ = compartment;
+        } else {
             JS_ASSERT(compartment->freeLists.isEmpty());
-            if (callback)
-                (void) callback(cx, compartment, JSCOMPARTMENT_DESTROY);
-            if (compartment->principals)
-                JSPRINCIPALS_DROP(cx, compartment->principals);
-            js_delete(compartment);
-            continue;
+            if (compartment->arenaListsAreEmpty() || gckind == GC_LAST_CONTEXT) {
+                if (callback)
+                    (void) callback(cx, compartment, JSCOMPARTMENT_DESTROY);
+                if (compartment->principals)
+                    JSPRINCIPALS_DROP(cx, compartment->principals);
+                delete compartment;
+            } else {
+                compartment->marked = false;
+                *write++ = compartment;
+            }
         }
-        compartment->marked = false;
-        *write++ = compartment;
     }
     rt->compartments.resize(write - rt->compartments.begin());
 }
@@ -2350,6 +2354,7 @@ MarkAndSweepCompartment(JSContext *cx, JSCompartment *comp, JSGCInvocationKind g
      * state. We finalize objects before other GC things to ensure that
      * object's finalizer can access them even if they will be freed.
      */
+
     comp->sweep(cx, 0);
 
     comp->finalizeObjectArenaLists(cx);
@@ -2459,13 +2464,14 @@ MarkAndSweep(JSContext *cx, JSGCInvocationKind gckind GCTIMER_PARAM)
      * state. We finalize objects before other GC things to ensure that
      * object's finalizer can access them even if they will be freed.
      */
-    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); c++)
-        (*c)->finalizeObjectArenaLists(cx);
+
+    for (JSCompartment **comp = rt->compartments.begin(); comp != rt->compartments.end(); comp++)
+        (*comp)->finalizeObjectArenaLists(cx);
 
     TIMESTAMP(sweepObjectEnd);
 
-    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); c++)
-        (*c)->finalizeStringArenaLists(cx);
+    for (JSCompartment **comp = rt->compartments.begin(); comp != rt->compartments.end(); comp++)
+        (*comp)->finalizeStringArenaLists(cx);
 
     TIMESTAMP(sweepStringEnd);
 
@@ -2858,9 +2864,9 @@ JSCompartment *
 NewCompartment(JSContext *cx, JSPrincipals *principals)
 {
     JSRuntime *rt = cx->runtime;
-    JSCompartment *compartment = js_new<JSCompartment>(rt);
+    JSCompartment *compartment = new JSCompartment(rt);
     if (!compartment || !compartment->init()) {
-        js_delete(compartment);
+        delete compartment;
         JS_ReportOutOfMemory(cx);
         return NULL;
     }

@@ -1221,7 +1221,8 @@ array_toString_sub(JSContext *cx, JSObject *obj, JSBool locale,
      * Use HashTable entry as the cycle indicator. On first visit, create the
      * entry, and, when leaving, remove the entry.
      */
-    BusyArraysMap::AddPtr hashp = cx->busyArrays.lookupForAdd(obj);
+    typedef js::HashSet<JSObject *> ObjSet;
+    ObjSet::AddPtr hashp = cx->busyArrays.lookupForAdd(obj);
     uint32 genBefore;
     if (!hashp) {
         /* Not in hash table, so not a cycle. */

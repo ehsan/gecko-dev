@@ -108,11 +108,7 @@ function run_test() {
     registry += DELIM + "$\n";
   }
   registry += file.lastModifiedTime + DELIM + "0" + DELIM + "0" + DELIM + "$\n";
-  registry += "Plug-in for testing purposes.\u2122 " + 
-                "(\u0939\u093f\u0928\u094d\u0926\u0940 " + 
-                "\u4e2d\u6587 " +
-                "\u0627\u0644\u0639\u0631\u0628\u064a\u0629)" +
-                DELIM + "$\n";
+  registry += "Plug-in for testing purposes." + DELIM + "$\n";
   registry += "Test Plug-in" + DELIM + "$\n";
   registry += "1\n";
   registry += "0" + DELIM + "application/x-test" + DELIM + "Test mimetype" +
@@ -125,11 +121,7 @@ function run_test() {
 
   // If the plugin was not rescanned then this version will not be correct
   do_check_eq(plugin.version, "1.0.0.0");
-  do_check_eq(plugin.description,
-              "Plug-in for testing purposes.\u2122 " + 
-                "(\u0939\u093f\u0928\u094d\u0926\u0940 " + 
-                "\u4e2d\u6587 " +
-                "\u0627\u0644\u0639\u0631\u0628\u064a\u0629)");
+  do_check_eq(plugin.description, "Plug-in for testing purposes.");
   // If the plugin registry was not read then the plugin will not be disabled
   do_check_true(plugin.disabled);
   do_check_false(plugin.blocklisted);

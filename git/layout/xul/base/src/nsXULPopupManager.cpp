@@ -217,19 +217,8 @@ NS_IMETHODIMP nsXULPopupManager::ShouldRollupOnMouseWheelEvent(PRBool *aShouldRo
 {
   // should rollup only for autocomplete widgets
   // XXXndeakin this should really be something the popup has more control over
-
-  *aShouldRollup = PR_FALSE;
   nsMenuChainItem* item = GetTopVisibleMenu();
-  if (!item)
-    return NS_OK;
-
-  nsIContent* content = item->Frame()->GetContent();
-  if (content) {
-    nsAutoString value;
-    content->GetAttr(kNameSpaceID_None, nsGkAtoms::type, value);
-    *aShouldRollup = StringBeginsWith(value, NS_LITERAL_STRING("autocomplete"));
-  }
-
+  *aShouldRollup = (item && !item->Frame()->IsMenu()); 
   return NS_OK;
 }
 

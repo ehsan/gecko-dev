@@ -4356,7 +4356,8 @@ nsDocument::CreateElement(const nsAString& aTagName,
     ToLowerCase(aTagName, lcTagName);
   }
 
-  rv = CreateElem(needsLowercase ? lcTagName : aTagName,
+  rv = CreateElem(needsLowercase ? static_cast<const nsAString&>(lcTagName)
+                                 : aTagName,
                   nsnull,
                   IsHTML() ? kNameSpaceID_XHTML : GetDefaultNamespaceID(),
                   PR_TRUE, aReturn);
@@ -8114,24 +8115,22 @@ nsDocument::AddImage(imgIRequest* aImage)
   if (!success)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  nsresult rv = NS_OK;
-
   // If this is the first insertion and we're locking images, lock this image
   // too.
-  if (oldCount == 0 && mLockingImages) {
-    rv = aImage->LockImage();
-    if (NS_SUCCEEDED(rv))
-      rv = aImage->RequestDecode();
+  if ((oldCount == 0) && mLockingImages) {
+    nsresult rv = aImage->LockImage();
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = aImage->RequestDecode();
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   // If this is the first insertion and we're animating images, request
   // that this image be animated too.
   if (oldCount == 0 && mAnimatingImages) {
-    nsresult rv2 = aImage->IncrementAnimationConsumers();
-    rv = NS_SUCCEEDED(rv) ? rv2 : rv;
+    return aImage->IncrementAnimationConsumers();
   }
 
-  return rv;
+  return NS_OK;
 }
 
 nsresult
@@ -8156,21 +8155,17 @@ nsDocument::RemoveImage(imgIRequest* aImage)
     mImageTracker.Put(aImage, count);
   }
 
-  nsresult rv = NS_OK;
-
   // If we removed the image from the tracker and we're locking images, unlock
   // this image.
-  if (count == 0 && mLockingImages)
-    rv = aImage->UnlockImage();
+  if ((count == 0) && mLockingImages)
+    return aImage->UnlockImage();
 
   // If we removed the image from the tracker and we're animating images,
   // remove our request to animate this image.
-  if (count == 0 && mAnimatingImages) {
-    nsresult rv2 = aImage->DecrementAnimationConsumers();
-    rv = NS_SUCCEEDED(rv) ? rv2 : rv;
-  }
+  if (count == 0 && mAnimatingImages)
+    return aImage->DecrementAnimationConsumers();
 
-  return rv;
+  return NS_OK;
 }
 
 PLDHashOperator LockEnumerator(imgIRequest* aKey,

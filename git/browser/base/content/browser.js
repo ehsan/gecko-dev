@@ -719,11 +719,11 @@ const gXPInstallObserver = {
       options.installs = installInfo.installs;
       options.contentWindow = browser.contentWindow;
       options.sourceURI = browser.currentURI;
-      options.eventCallback = function(aEvent) {
+      options.eventCallback = function(aNotification, aEvent) {
         if (aEvent != "removed")
           return;
-        options.contentWindow = null;
-        options.sourceURI = null;
+        aNotification.options.contentWindow = null;
+        aNotification.options.sourceURI = null;
       };
       PopupNotifications.show(browser, notificationID, messageString, anchorID,
                               null, null, options);
@@ -873,27 +873,7 @@ const gFormSubmitObserver = {
     }, false);
 
     this.panel.hidden = false;
-
-    // We want to show the popup at the middle of checkbox and radio buttons
-    // and where the content begin for the other elements.
-    let offset = 0;
-    let position = "";
-
-    if (element.tagName == 'INPUT' &&
-        (element.type == 'radio' || element.type == 'checkbox')) {
-      position = "bottomcenter topleft";
-    } else {
-      let style = element.ownerDocument.defaultView.getComputedStyle(element, null);
-      if (style.direction == 'rtl') {
-        offset = parseInt(style.paddingRight) + parseInt(style.borderRightWidth);
-      } else {
-        offset = parseInt(style.paddingLeft) + parseInt(style.borderLeftWidth);
-      }
-
-      position = "after_start";
-    }
-
-    this.panel.openPopup(element, position, offset, 0);
+    this.panel.openPopup(element, "after_start", 0, 0);
   }
 };
 
@@ -1635,9 +1615,6 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   if (consoleEnabled) {
     document.getElementById("javascriptConsole").hidden = false;
     document.getElementById("key_errorConsole").removeAttribute("disabled");
-#ifdef MENUBAR_CAN_AUTOHIDE
-    document.getElementById("appmenu_errorConsole").hidden = false;
-#endif
   }
 
 #ifdef MENUBAR_CAN_AUTOHIDE
@@ -1698,6 +1675,7 @@ function BrowserShutdown()
     Components.utils.reportError(ex);
   }
 
+  TabView.uninit();
   BrowserOffline.uninit();
   OfflineApps.uninit();
   gPrivateBrowsingUI.uninit();
@@ -1736,8 +1714,7 @@ function nonBrowserWindowStartup()
                        'Browser:SendLink', 'cmd_pageSetup', 'cmd_print', 'cmd_find', 'cmd_findAgain',
                        'viewToolbarsMenu', 'viewSidebarMenuMenu', 'Browser:Reload',
                        'viewFullZoomMenu', 'pageStyleMenu', 'charsetMenu', 'View:PageSource', 'View:FullScreen',
-                       'viewHistorySidebar', 'Browser:AddBookmarkAs', 'View:PageInfo', 'Tasks:InspectPage',
-                       'Browser:ToggleTabView'];
+                       'viewHistorySidebar', 'Browser:AddBookmarkAs', 'View:PageInfo', 'Tasks:InspectPage'];
   var element;
 
   for (var id in disabledItems)
@@ -3543,12 +3520,6 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
 #ifndef XP_MACOSX
     updateEditUIVisibility();
 #endif
-
-    // Hacky: update the PopupNotifications' object's reference to the iconBox,
-    // if it already exists, since it may have changed if the URL bar was
-    // added/removed.
-    if (!__lookupGetter__("PopupNotifications"))
-      PopupNotifications.iconBox = document.getElementById("notification-popup-box");
   }
 
   PlacesToolbarHelper.customizeDone();
@@ -4326,21 +4297,6 @@ var XULBrowserWindow = {
         document.documentElement.setAttribute("disablechrome", "true");
       else
         document.documentElement.removeAttribute("disablechrome");
-
-      // Disable find commands in documents that ask for them to be disabled.
-      let docElt = content.document.documentElement;
-      let disableFind = aLocationURI &&
-        (docElt && docElt.getAttribute("disablefastfind") == "true") &&
-        (aLocationURI.schemeIs("about") || aLocationURI.schemeIs("chrome"));
-      let findCommands = [document.getElementById("cmd_find"),
-                          document.getElementById("cmd_findAgain"),
-                          document.getElementById("cmd_findPrevious")];
-      findCommands.forEach(function (elt) {
-        if (disableFind)
-          elt.setAttribute("disabled", "true");
-        else
-          elt.removeAttribute("disabled");
-      });
     }
     UpdateBackForwardCommands(gBrowser.webNavigation);
 
@@ -4900,7 +4856,7 @@ var TabsInTitlebar = {
   },
 
   _update: function () {
-    if (!this._initialized || window.fullScreen)
+    if (!this._initialized)
       return;
 
     let allowed = true;
@@ -4936,17 +4892,6 @@ var TabsInTitlebar = {
       titlebar.style.marginBottom = - Math.min(distance, maxMargin) + "px";
 
       docElement.setAttribute("tabsintitlebar", "true");
-
-      if (!this._draghandle) {
-        let tmp = {};
-        Components.utils.import("resource://gre/modules/WindowDraggingUtils.jsm", tmp);
-        this._draghandle = new tmp.WindowDraggingElement(tabsToolbar, window);
-        this._draghandle.mouseDownCheck = function () {
-          return !this._dragBindingAlive &&
-                 this.ownerDocument.documentElement
-                     .getAttribute("tabsintitlebar") == "true";
-        };
-      }
     } else {
       docElement.removeAttribute("tabsintitlebar");
 
@@ -8289,8 +8234,8 @@ var TabContextMenu = {
     document.getElementById("context_closeOtherTabs").disabled = unpinnedTabs <= 1;
     document.getElementById("context_closeOtherTabs").hidden = this.contextTab.pinned;
 
-    // Hide "Move to Group" if it's a pinned tab.
-    document.getElementById("context_tabViewMenu").hidden = this.contextTab.pinned;
+    // Disable "Move to Group" if it's a pinned tab.
+    document.getElementById("context_tabViewMenu").disabled = this.contextTab.pinned;
   }
 };
 

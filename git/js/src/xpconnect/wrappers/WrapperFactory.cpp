@@ -83,8 +83,6 @@ GetCurrentOuter(JSContext *cx, JSObject *obj)
 JSObject *
 WrapperFactory::WaiveXray(JSContext *cx, JSObject *obj)
 {
-    obj = obj->unwrap();
-
     // We have to make sure that if we're wrapping an outer window, that
     // the .wrappedJSObject also wraps the outer window.
     obj = GetCurrentOuter(cx, obj);
@@ -103,9 +101,7 @@ WrapperFactory::WaiveXray(JSContext *cx, JSObject *obj)
             if (proto && !(proto = WaiveXray(cx, proto)))
                 return nsnull;
 
-            JSAutoEnterCompartment ac;
-            if (!ac.enter(cx, obj))
-                return nsnull;
+            js::SwitchToCompartment sc(cx, obj->compartment());
             wobj = JSWrapper::New(cx, obj, proto, obj->getGlobal(), &WaiveXrayWrapperWrapper);
             if (!wobj)
                 return nsnull;
@@ -132,10 +128,7 @@ JSObject *
 WrapperFactory::DoubleWrap(JSContext *cx, JSObject *obj, uintN flags)
 {
     if (flags & WrapperFactory::WAIVE_XRAY_WRAPPER_FLAG) {
-        JSAutoEnterCompartment ac;
-        if (!ac.enter(cx, obj))
-            return nsnull;
-
+        js::SwitchToCompartment sc(cx, obj->compartment());
         return WaiveXray(cx, obj);
     }
     return obj;
@@ -352,7 +345,7 @@ WrapperFactory::WaiveXrayAndWrap(JSContext *cx, jsval *vp)
     if (JSVAL_IS_PRIMITIVE(*vp))
         return JS_WrapValue(cx, vp);
 
-    JSObject *obj = JSVAL_TO_OBJECT(*vp);
+    JSObject *obj = JSVAL_TO_OBJECT(*vp)->unwrap();
 
     obj = WaiveXray(cx, obj);
     if (!obj)

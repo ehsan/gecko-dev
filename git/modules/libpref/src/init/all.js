@@ -105,8 +105,6 @@ pref("dom.indexedDB.warningQuota", 50);
 // of content viewers to cache based on the amount of available memory.
 pref("browser.sessionhistory.max_total_viewers", -1);
 
-pref("browser.sessionhistory.optimize_eviction", false);
-
 pref("ui.use_native_colors", true);
 pref("ui.use_native_popup_windows", false);
 pref("ui.click_hold_context_menus", false);
@@ -204,7 +202,6 @@ pref("gfx.font_rendering.harfbuzz.level", 2);
 #ifdef XP_WIN
 #ifndef WINCE
 pref("gfx.font_rendering.directwrite.enabled", false);
-pref("gfx.font_rendering.directwrite.use_gdi_table_loading", true);
 #endif
 #endif
 
@@ -569,8 +566,6 @@ pref("dom.disable_open_click_delay", 1000);
 
 pref("dom.storage.enabled", true);
 pref("dom.storage.default_quota",      5120);
-
-pref("dom.send_after_paint_to_content", false);
 
 // Timeout clamp in ms for timeouts we clamp
 pref("dom.min_timeout_value", 10);

@@ -136,6 +136,8 @@ static const size_t MAX_SLOW_NATIVE_EXTRA_SLOTS = 16;
 /* Forward declarations of tracer types. */
 class VMAllocator;
 class FrameInfoCache;
+struct REHashFn;
+struct REHashKey;
 struct FrameInfo;
 struct VMSideExit;
 struct TreeFragment;
@@ -143,6 +145,8 @@ struct TracerState;
 template<typename T> class Queue;
 typedef Queue<uint16> SlotList;
 class TypeMap;
+struct REFragment;
+typedef nanojit::HashMap<REHashKey, REFragment*, REHashFn> REHashMap;
 class LoopProfile;
 
 #if defined(JS_JIT_SPEW) || defined(DEBUG)
@@ -833,7 +837,7 @@ private:
                         _(joinedsetmethod), _(joinedinitmethod),              \
                         _(joinedreplace), _(joinedsort), _(joinedmodulepat),  \
                         _(mreadbarrier), _(mwritebarrier), _(mwslotbarrier),  \
-                        _(unjoined), _(indynamicscope)
+                        _(unjoined)
 # define identity(x)    x
 
 struct JSFunctionMeter {
@@ -1633,10 +1637,6 @@ VersionIsKnown(JSVersion version)
     return VersionNumber(version) != JSVERSION_UNKNOWN;
 }
 
-typedef js::HashSet<JSObject *,
-                    js::DefaultHasher<JSObject *>,
-                    js::SystemAllocPolicy> BusyArraysMap;
-
 } /* namespace js */
 
 struct JSContext
@@ -1736,7 +1736,7 @@ struct JSContext
 
     /* State for object and array toSource conversion. */
     JSSharpObjectMap    sharpObjectMap;
-    js::BusyArraysMap   busyArrays;
+    js::HashSet<JSObject *> busyArrays;
 
     /* Argument formatter support for JS_{Convert,Push}Arguments{,VA}. */
     JSArgumentFormatMap *argumentFormatMap;
@@ -2137,6 +2137,9 @@ struct JSContext
      * a boolean flag to minimize the amount of code in its inlined callers.
      */
     JS_FRIEND_API(void) checkMallocGCPressure(void *p);
+
+    /* To silence MSVC warning about using 'this' in a member initializer. */
+    JSContext *thisInInitializer() { return this; }
 }; /* struct JSContext */
 
 #ifdef JS_THREADSAFE
@@ -2785,93 +2788,35 @@ class AutoLocalNameArray {
 };
 
 template <class RefCountable>
-class AlreadyIncRefed
-{
-    typedef RefCountable *****ConvertibleToBool;
-
-    RefCountable *obj;
+class AutoRefCount {
+    JSContext       * const cx;
+    RefCountable    *obj;
 
   public:
-    explicit AlreadyIncRefed(RefCountable *obj) : obj(obj) {}
+    explicit AutoRefCount(JSContext *cx) : cx(cx), obj(NULL) {}
 
-    bool null() const { return obj == NULL; }
-    operator ConvertibleToBool() const { return (ConvertibleToBool)obj; }
-
-    RefCountable *operator->() const { JS_ASSERT(!null()); return obj; }
-    RefCountable &operator*() const { JS_ASSERT(!null()); return *obj; }
-    RefCountable *get() const { return obj; }
-};
-
-template <class RefCountable>
-class NeedsIncRef
-{
-    typedef RefCountable *****ConvertibleToBool;
-
-    RefCountable *obj;
-
-  public:
-    explicit NeedsIncRef(RefCountable *obj) : obj(obj) {}
-
-    bool null() const { return obj == NULL; }
-    operator ConvertibleToBool() const { return (ConvertibleToBool)obj; }
-
-    RefCountable *operator->() const { JS_ASSERT(!null()); return obj; }
-    RefCountable &operator*() const { JS_ASSERT(!null()); return *obj; }
-    RefCountable *get() const { return obj; }
-};
-
-template <class RefCountable>
-class AutoRefCount
-{
-    typedef RefCountable *****ConvertibleToBool;
-
-    JSContext *const cx;
-    RefCountable *obj;
-
-    AutoRefCount(const AutoRefCount &);
-    void operator=(const AutoRefCount &);
-
-  public:
-    explicit AutoRefCount(JSContext *cx)
-      : cx(cx), obj(NULL)
-    {}
-
-    AutoRefCount(JSContext *cx, NeedsIncRef<RefCountable> aobj)
-      : cx(cx), obj(aobj.get())
-    {
-        if (obj)
-            obj->incref(cx);
+    AutoRefCount(JSContext *cx, RefCountable *obj) : cx(cx), obj(NULL) {
+        reset(obj);
     }
-
-    AutoRefCount(JSContext *cx, AlreadyIncRefed<RefCountable> aobj)
-      : cx(cx), obj(aobj.get())
-    {}
 
     ~AutoRefCount() {
         if (obj)
             obj->decref(cx);
     }
 
-    void reset(NeedsIncRef<RefCountable> aobj) {
+    void reset(RefCountable *aobj) {
         if (obj)
             obj->decref(cx);
-        obj = aobj.get();
+
+        obj = aobj;
+
         if (obj)
             obj->incref(cx);
     }
 
-    void reset(AlreadyIncRefed<RefCountable> aobj) {
-        if (obj)
-            obj->decref(cx);
-        obj = aobj.get();
+    RefCountable *get() {
+        return obj;
     }
-
-    bool null() const { return obj == NULL; }
-    operator ConvertibleToBool() const { return (ConvertibleToBool)obj; }
-
-    RefCountable *operator->() const { JS_ASSERT(!null()); return obj; }
-    RefCountable &operator*() const { JS_ASSERT(!null()); return *obj; }
-    RefCountable *get() const { return obj; }
 };
 
 } /* namespace js */

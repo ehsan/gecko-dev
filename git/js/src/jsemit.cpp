@@ -5921,9 +5921,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
              * API users may also set the JSOPTION_NO_SCRIPT_RVAL option when
              * calling JS_Compile* to suppress JSOP_POPV.
              */
-            useful = wantval = !(cg->flags & (TCF_IN_FUNCTION | TCF_NO_SCRIPT_RVAL));
-
-            /* Don't eliminate expressions with side effects. */
+            wantval = !(cg->flags & (TCF_IN_FUNCTION | TCF_NO_SCRIPT_RVAL));
+            useful = wantval || pn->isDirectivePrologueMember();
             if (!useful) {
                 if (!CheckSideEffects(cx, cg, pn2, &useful))
                     return JS_FALSE;
@@ -5936,21 +5935,14 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
              * labeled compound statement.
              */
             if (!useful &&
-                cg->topStmt &&
-                cg->topStmt->type == STMT_LABEL &&
-                cg->topStmt->update >= CG_OFFSET(cg)) {
-                useful = true;
-            }
-
-            if (!useful) {
-                /* Don't complain about directive prologue members; just don't emit their code. */
-                if (!pn->isDirectivePrologueMember()) {
-                    CG_CURRENT_LINE(cg) = pn2->pn_pos.begin.lineno;
-                    if (!ReportCompileErrorNumber(cx, CG_TS(cg), pn2,
-                                                  JSREPORT_WARNING | JSREPORT_STRICT,
-                                                  JSMSG_USELESS_EXPR)) {
-                        return JS_FALSE;
-                    }
+                (!cg->topStmt ||
+                 cg->topStmt->type != STMT_LABEL ||
+                 cg->topStmt->update < CG_OFFSET(cg))) {
+                CG_CURRENT_LINE(cg) = pn2->pn_pos.begin.lineno;
+                if (!ReportCompileErrorNumber(cx, CG_TS(cg), pn2,
+                                              JSREPORT_WARNING | JSREPORT_STRICT,
+                                              JSMSG_USELESS_EXPR)) {
+                    return JS_FALSE;
                 }
             } else {
                 op = wantval ? JSOP_POPV : JSOP_POP;
@@ -7090,10 +7082,12 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             return JS_FALSE;
         break;
 
+#if JS_HAS_DEBUGGER_KEYWORD
       case TOK_DEBUGGER:
         if (js_Emit1(cx, cg, JSOP_DEBUGGER) < 0)
             return JS_FALSE;
         break;
+#endif /* JS_HAS_DEBUGGER_KEYWORD */
 
 #if JS_HAS_XML_SUPPORT
       case TOK_XMLELEM:

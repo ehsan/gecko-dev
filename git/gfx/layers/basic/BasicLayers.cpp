@@ -667,8 +667,7 @@ public:
                      void* aCallbackData);
 
   static void PaintContext(gfxPattern* aPattern,
-                           const nsIntRegion& aVisible,
-                           const nsIntRect* aTileSourceRect,
+                           const gfxIntSize& aSize,
                            float aOpacity,
                            gfxContext* aContext);
 
@@ -713,21 +712,13 @@ BasicImageLayer::GetAndPaintCurrentImage(gfxContext* aContext,
 
   pat->SetFilter(mFilter);
 
-  // The visible region can extend outside the image.  If we're not
-  // tiling, we don't want to draw into that area, so just draw within
-  // the image bounds.
-  const nsIntRect* tileSrcRect = GetTileSourceRect();
-  PaintContext(pat,
-               tileSrcRect ? GetVisibleRegion() : nsIntRegion(nsIntRect(0, 0, mSize.width, mSize.height)),
-               tileSrcRect,
-               aOpacity, aContext); 
+  PaintContext(pat, mSize, aOpacity, aContext); 
   return pat.forget();
 }
 
 /*static*/ void
 BasicImageLayer::PaintContext(gfxPattern* aPattern,
-                              const nsIntRegion& aVisible,
-                              const nsIntRect* aTileSourceRect,
+                              const gfxIntSize& aSize,
                               float aOpacity,
                               gfxContext* aContext)
 {
@@ -745,34 +736,21 @@ BasicImageLayer::PaintContext(gfxPattern* aPattern,
     extend = gfxPattern::EXTEND_NONE;
   }
 
-  if (!aTileSourceRect) {
-    aContext->NewPath();
-    // No need to snap here; our transform has already taken care of it.
-    // XXX true for arbitrary regions?  Don't care yet though
-    gfxUtils::PathFromRegion(aContext, aVisible);
-    aPattern->SetExtend(extend);
-    aContext->SetPattern(aPattern);
-    aContext->FillWithOpacity(aOpacity);
-  } else {
-    nsRefPtr<gfxASurface> source = aPattern->GetSurface();
-    NS_ABORT_IF_FALSE(source, "Expecting a surface pattern");
-    gfxIntSize sourceSize = source->GetSize();
-    nsIntRect sourceRect(0, 0, sourceSize.width, sourceSize.height);
-    NS_ABORT_IF_FALSE(sourceRect == *aTileSourceRect,
-                      "Cowardly refusing to create a temporary surface for tiling");
-
-    gfxContextAutoSaveRestore saveRestore(aContext);
-
-    aContext->NewPath();
-    gfxUtils::PathFromRegion(aContext, aVisible);
-
-    aPattern->SetExtend(gfxPattern::EXTEND_REPEAT);
-    aContext->SetPattern(aPattern);
-    aContext->FillWithOpacity(aOpacity);
-  }
-
-  // Reset extend mode for callers that need to reuse the pattern
   aPattern->SetExtend(extend);
+
+  /* Draw RGB surface onto frame */
+  aContext->NewPath();
+  // No need to snap here; our transform has already taken care of it.
+  aContext->Rectangle(gfxRect(0, 0, aSize.width, aSize.height));
+  aContext->SetPattern(aPattern);
+  if (aOpacity != 1.0) {
+    aContext->Save();
+    aContext->Clip();
+    aContext->Paint(aOpacity);
+    aContext->Restore();
+  } else {
+    aContext->Fill();
+  }
 }
 
 class BasicColorLayer : public ColorLayer, BasicImplData {
@@ -845,9 +823,6 @@ public:
   virtual void Paint(gfxContext* aContext,
                      LayerManager::DrawThebesLayerCallback aCallback,
                      void* aCallbackData);
-
-  virtual void PaintWithOpacity(gfxContext* aContext,
-                                float aOpacity);
 
 protected:
   BasicLayerManager* BasicManager()
@@ -958,13 +933,6 @@ BasicCanvasLayer::Paint(gfxContext* aContext,
                         LayerManager::DrawThebesLayerCallback aCallback,
                         void* aCallbackData)
 {
-  PaintWithOpacity(aContext, GetEffectiveOpacity());
-}
-
-void
-BasicCanvasLayer::PaintWithOpacity(gfxContext* aContext,
-                                   float aOpacity)
-{
   NS_ASSERTION(BasicManager()->InDrawing(),
                "Can only draw in drawing phase");
 
@@ -980,11 +948,20 @@ BasicCanvasLayer::PaintWithOpacity(gfxContext* aContext,
     aContext->Scale(1.0, -1.0);
   }
 
+  float opacity = GetEffectiveOpacity();
+
   aContext->NewPath();
   // No need to snap here; our transform is already set up to snap our rect
   aContext->Rectangle(gfxRect(0, 0, mBounds.width, mBounds.height));
   aContext->SetPattern(pat);
-  aContext->FillWithOpacity(aOpacity);
+  if (opacity != 1.0) {
+    aContext->Save();
+    aContext->Clip();
+    aContext->Paint(opacity);
+    aContext->Restore();
+  } else {
+    aContext->Fill();
+  }
 
   if (mNeedsYFlip) {
     aContext->SetMatrix(m);
@@ -1299,24 +1276,12 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
 
     // If we're doing manual double-buffering, we need to avoid drawing
     // the results of an incomplete transaction to the destination surface.
-    // If the transaction is incomplete and we're not double-buffering then
-    // either the system is double-buffering our window (in which case the
-    // followup EndTransaction will be drawn over the top of our incomplete
-    // transaction before the system updates the window), or we have no
-    // overlapping or transparent layers in the update region, in which case
-    // our partial transaction drawing will look fine.
     if (useDoubleBuffering && !mTransactionIncomplete) {
       finalTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
       PopGroupWithCachedSurface(finalTarget, cachedSurfaceOffset);
     }
 
-    if (!mTransactionIncomplete) {
-      // Clear out target if we have a complete transaction.
-      mTarget = nsnull;
-    } else {
-      // If we don't have a complete transaction set back to the old mTarget.
-      mTarget = finalTarget;
-    }
+    mTarget = nsnull;
   }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
@@ -1325,32 +1290,23 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
 #endif
 
 #ifdef DEBUG
-  // Go back to the construction phase if the transaction isn't complete.
-  // Layout will update the layer tree and call EndTransaction().
-  mPhase = mTransactionIncomplete ? PHASE_CONSTRUCTION : PHASE_NONE;
+  mPhase = PHASE_NONE;
 #endif
-
-  if (!mTransactionIncomplete) {
-    // This is still valid if the transaction was incomplete.
-    mUsingDefaultTarget = PR_FALSE;
-  }
+  mUsingDefaultTarget = PR_FALSE;
 
   NS_ASSERTION(!aCallback || !mTransactionIncomplete,
                "If callback is not null, transaction must be complete");
-
-  // XXX - We should probably assert here that for an incomplete transaction
-  // out target is the default target.
-
   return !mTransactionIncomplete;
 }
 
 bool
-BasicLayerManager::EndEmptyTransaction()
+BasicLayerManager::DoEmptyTransaction()
 {
   if (!mRoot) {
     return false;
   }
 
+  BeginTransaction();
   return EndTransactionInternal(nsnull, nsnull);
 }
 
@@ -1919,9 +1875,7 @@ BasicShadowableImageLayer::Paint(gfxContext* aContext,
   }
 
   nsRefPtr<gfxContext> tmpCtx = new gfxContext(mBackSurface);
-  PaintContext(pat,
-               nsIntRegion(nsIntRect(0, 0, mSize.width, mSize.height)),
-               nsnull, 1.0, tmpCtx);
+  PaintContext(pat, mSize, 1.0, tmpCtx);
 
   BasicManager()->PaintedImage(BasicManager()->Hold(this),
                                mBackSurface);
@@ -2045,19 +1999,11 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext,
   if (!HasShadow())
     return;
 
-  // It'd be nice to draw directly into the shmem back buffer.
-  // Doing so is complex -- for 2D canvases, we'd need to copy
-  // changed areas, much like we do for Thebes layers, as well as
-  // do all sorts of magic to swap out the surface underneath the
-  // canvas' thebes/cairo context.
+  // XXX this is yucky and slow.  It'd be nice to draw directly into
+  // the shmem back buffer
   nsRefPtr<gfxContext> tmpCtx = new gfxContext(mBackBuffer);
   tmpCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
-
-  // call BasicCanvasLayer::Paint to draw to our tmp context, because
-  // it'll handle things like flipping correctly.  We always want
-  // to do this with 1.0 opacity though, because opacity is a layer
-  // property that's handled by the shadow tree.
-  BasicCanvasLayer::PaintWithOpacity(tmpCtx, 1.0f);
+  tmpCtx->DrawSurface(mSurface, gfxSize(mBounds.width, mBounds.height));
 
   BasicManager()->PaintedCanvas(BasicManager()->Hold(this),
                                 mBackBuffer);
@@ -2397,8 +2343,7 @@ BasicShadowImageLayer::Paint(gfxContext* aContext,
 
   nsRefPtr<gfxPattern> pat = new gfxPattern(mFrontSurface);
   pat->SetFilter(mFilter);
-  BasicImageLayer::PaintContext(
-    pat, GetEffectiveVisibleRegion(), GetTileSourceRect(), GetEffectiveOpacity(), aContext);
+  BasicImageLayer::PaintContext(pat, mSize, GetEffectiveOpacity(), aContext);
 }
 
 class BasicShadowColorLayer : public ShadowColorLayer,
@@ -2514,7 +2459,7 @@ BasicShadowCanvasLayer::Paint(gfxContext* aContext,
   // No need to snap here; our transform has already taken care of it
   aContext->Rectangle(r);
   aContext->SetPattern(pat);
-  aContext->FillWithOpacity(GetEffectiveOpacity());
+  aContext->Fill();
 }
 
 // Create a shadow layer (PLayerChild) for aLayer, if we're forwarding
@@ -2663,8 +2608,6 @@ BasicShadowLayerManager::SetRoot(Layer* aLayer)
 void
 BasicShadowLayerManager::Mutated(Layer* aLayer)
 {
-  BasicLayerManager::Mutated(aLayer);
-
   NS_ASSERTION(InConstruction() || InDrawing(), "wrong phase");
   if (HasShadowManager()) {
     ShadowLayerForwarder::Mutated(Hold(aLayer));
@@ -2678,7 +2621,7 @@ BasicShadowLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
   // If the last transaction was incomplete (a failed DoEmptyTransaction),
   // don't signal a new transaction to ShadowLayerForwarder. Carry on adding
   // to the previous transaction.
-  if (HasShadowManager()) {
+  if (HasShadowManager() && !mTransactionIncomplete) {
     ShadowLayerForwarder::BeginTransaction();
   }
   BasicLayerManager::BeginTransactionWithTarget(aTarget);
@@ -2693,12 +2636,17 @@ BasicShadowLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
 }
 
 bool
-BasicShadowLayerManager::EndEmptyTransaction()
+BasicShadowLayerManager::DoEmptyTransaction()
 {
-  if (!BasicLayerManager::EndEmptyTransaction()) {
+  if (!mRoot) {
+    return false;
+  }
+
+  BasicLayerManager::BeginTransaction();
+  if (!EndTransactionInternal(nsnull, nsnull)) {
     // Return without calling ForwardTransaction. This leaves the
     // ShadowLayerForwarder transaction open; the following
-    // EndTransaction will complete it.
+    // BeginTransaction/EndTransaction pair will complete it.
     return false;
   }
   ForwardTransaction();

@@ -502,40 +502,11 @@ nsDiskCacheStreamIO::Flush()
     // write data to cache blocks, or flush mBuffer to file
     nsDiskCacheMap *cacheMap = mDevice->CacheMap();  // get map reference
     nsresult rv;
-
-    PRBool written = PR_FALSE;
-
-    if ((mStreamEnd <= kMaxBufferSize) &&
-        (mBinding->mCacheEntry->StoragePolicy() != nsICache::STORE_ON_DISK_AS_FILE)) {
-        // store data (if any) in cache block files
-
-        mBufDirty = PR_FALSE;
-
-        // delete existing storage
-        nsDiskCacheRecord * record = &mBinding->mRecord;
-        if (record->DataLocationInitialized()) {
-            rv = cacheMap->DeleteStorage(record, nsDiskCache::kData);
-            if (NS_FAILED(rv)) {
-                NS_WARNING("cacheMap->DeleteStorage() failed.");
-                cacheMap->DeleteRecord(record);
-                return rv;
-            }
-        }
-
-        // flush buffer to block files
-        written = PR_TRUE;
-        if (mStreamEnd > 0) {
-            rv = cacheMap->WriteDataCacheBlocks(mBinding, mBuffer, mBufEnd);
-            if (NS_FAILED(rv)) {
-                NS_WARNING("WriteDataCacheBlocks() failed.");
-                written = PR_FALSE;
-            }
-        }
-    }
-
-    if (!written) {
+    
+    if ((mStreamEnd > kMaxBufferSize) ||
+        (mBinding->mCacheEntry->StoragePolicy() == nsICache::STORE_ON_DISK_AS_FILE)) {
         // make sure we save as separate file
-        rv = FlushBufferToFile(); // initializes DataFileLocation() if necessary
+        rv = FlushBufferToFile();       // will initialize DataFileLocation() if necessary
 
         if (mFD) {
           // Update the file size of the disk file in the cache
@@ -558,6 +529,32 @@ nsDiskCacheStreamIO::Flush()
         // therefore, it's probably not worth optimizing for the subsequent
         // write, so we unconditionally delete mBuffer here.
         DeleteBuffer();
+
+    } else {
+        // store data (if any) in cache block files
+
+        mBufDirty = PR_FALSE;
+
+        // delete existing storage
+        nsDiskCacheRecord * record = &mBinding->mRecord;
+        if (record->DataLocationInitialized()) {
+            rv = cacheMap->DeleteStorage(record, nsDiskCache::kData);
+            if (NS_FAILED(rv)) {
+                NS_WARNING("cacheMap->DeleteStorage() failed.");
+                cacheMap->DeleteRecord(record);
+                return  rv;
+            }
+        }
+    
+        // flush buffer to block files
+        if (mStreamEnd > 0) {
+            rv = cacheMap->WriteDataCacheBlocks(mBinding, mBuffer, mBufEnd);
+            if (NS_FAILED(rv)) {
+                NS_WARNING("WriteDataCacheBlocks() failed.");
+                nsCacheService::DoomEntry(mBinding->mCacheEntry);
+                return rv;
+            }
+        }
     }
     
     // XXX do we need this here?  WriteDataCacheBlocks() calls UpdateRecord()

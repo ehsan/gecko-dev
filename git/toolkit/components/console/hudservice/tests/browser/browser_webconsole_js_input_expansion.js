@@ -93,7 +93,7 @@ function testJSInputExpansion() {
   input.value = "";
   EventUtils.synthesizeKey("d", {});
   let height = getHeight();
-  // is(height, initialHeight, "height shrank to original size");
+  ok(height == initialHeight, "height shrank to original size");
 
   finishTest();
 }

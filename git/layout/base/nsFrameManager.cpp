@@ -984,9 +984,7 @@ CaptureChange(nsStyleContext* aOldContext, nsStyleContext* aNewContext,
 
   NS_UpdateHint(ourChange, aChangeToAssume);
   if (NS_UpdateHint(aMinChange, ourChange)) {
-    if (!(ourChange & nsChangeHint_ReconstructFrame) || aContent) {
-      aChangeList->AppendChange(aFrame, aContent, ourChange);
-    }
+    aChangeList->AppendChange(aFrame, aContent, ourChange);
   }
   return aMinChange;
 }

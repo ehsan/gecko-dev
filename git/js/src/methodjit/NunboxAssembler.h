@@ -323,7 +323,7 @@ class NunboxAssembler : public JSC::MacroAssembler
         loadPtr(privAddr, to);
     }
 
-    void loadObjPrivate(RegisterID base, RegisterID to) {
+    void loadFunctionPrivate(RegisterID base, RegisterID to) {
         Address priv(base, offsetof(JSObject, privateData));
         loadPtr(priv, to);
     }

@@ -61,8 +61,6 @@
 #include "nsWindowDbg.h"
 #include "cairo.h"
 #include "nsITimer.h"
-#include "mozilla/TimeStamp.h"
-
 #ifdef CAIRO_HAS_D2D_SURFACE
 #include "gfxD2DSurface.h"
 #endif
@@ -101,7 +99,6 @@ class imgIContainer;
 
 class nsWindow : public nsBaseWidget
 {
-  typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::widget::WindowHook WindowHook;
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
   typedef mozilla::widget::TaskbarWindowPreview TaskbarWindowPreview;
@@ -509,8 +506,10 @@ protected:
   PRPackedBool          mIsTopWidgetWindow;
   PRPackedBool          mInDtor;
   PRPackedBool          mIsVisible;
+  PRPackedBool          mIsInMouseCapture;
   PRPackedBool          mUnicodeWidget;
   PRPackedBool          mPainting;
+  PRPackedBool          mExitToNonClientArea;
   PRPackedBool          mTouchWindow;
   PRPackedBool          mDisplayPanFeedback;
   PRPackedBool          mHideChrome;
@@ -536,7 +535,6 @@ protected:
   static PRBool         sSwitchKeyboardLayout;
   static PRBool         sJustGotDeactivate;
   static PRBool         sJustGotActivate;
-  static PRBool         sIsInMouseCapture;
   static int            sTrimOnMinimize;
   static PRBool         sDefaultTrackPointHack;
   static const char*    sDefaultMainWindowClass;
@@ -617,10 +615,6 @@ protected:
   // icon has been created on the taskbar.
   PRBool                mHasTaskbarIconBeenCreated;
 #endif
-
-  // The point in time at which the last paint completed. We use this to avoid
-  //  painting too rapidly in response to frequent input events.
-  TimeStamp mLastPaintEndTime;
 
 #if defined(WINCE_HAVE_SOFTKB)
   static PRBool         sSoftKeyboardState;

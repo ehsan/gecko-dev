@@ -159,7 +159,7 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
     fillRule = GetClipRule();
   } else {
     mask = GetHittestMask();
-    if (!mask || ((mask & HITTEST_MASK_CHECK_MRECT) &&
+    if (!mask || (!(mask & HITTEST_MASK_FORCE_TEST) &&
                   !mRect.Contains(aPoint)))
       return nsnull;
     fillRule = GetStyleSVG()->mFillRule;
@@ -521,25 +521,24 @@ nsSVGPathGeometryFrame::GetHittestMask()
           mask |= HITTEST_MASK_FILL;
         if (GetStyleSVG()->mStroke.mType != eStyleSVGPaintType_None)
           mask |= HITTEST_MASK_STROKE;
-        if (GetStyleSVG()->mStrokeOpacity > 0)
-          mask |= HITTEST_MASK_CHECK_MRECT;
       }
       break;
     case NS_STYLE_POINTER_EVENTS_VISIBLEFILL:
       if (GetStyleVisibility()->IsVisible()) {
-        mask |= HITTEST_MASK_FILL;
+        mask |= HITTEST_MASK_FILL | HITTEST_MASK_FORCE_TEST;
       }
       break;
     case NS_STYLE_POINTER_EVENTS_VISIBLESTROKE:
       if (GetStyleVisibility()->IsVisible()) {
-        mask |= HITTEST_MASK_STROKE;
+        mask |= HITTEST_MASK_STROKE | HITTEST_MASK_FORCE_TEST;
       }
       break;
     case NS_STYLE_POINTER_EVENTS_VISIBLE:
       if (GetStyleVisibility()->IsVisible()) {
         mask |=
           HITTEST_MASK_FILL |
-          HITTEST_MASK_STROKE;
+          HITTEST_MASK_STROKE |
+          HITTEST_MASK_FORCE_TEST;
       }
       break;
     case NS_STYLE_POINTER_EVENTS_PAINTED:
@@ -547,19 +546,18 @@ nsSVGPathGeometryFrame::GetHittestMask()
         mask |= HITTEST_MASK_FILL;
       if (GetStyleSVG()->mStroke.mType != eStyleSVGPaintType_None)
         mask |= HITTEST_MASK_STROKE;
-      if (GetStyleSVG()->mStrokeOpacity)
-        mask |= HITTEST_MASK_CHECK_MRECT;
       break;
     case NS_STYLE_POINTER_EVENTS_FILL:
-      mask |= HITTEST_MASK_FILL;
+      mask |= HITTEST_MASK_FILL | HITTEST_MASK_FORCE_TEST;
       break;
     case NS_STYLE_POINTER_EVENTS_STROKE:
-      mask |= HITTEST_MASK_STROKE;
+      mask |= HITTEST_MASK_STROKE | HITTEST_MASK_FORCE_TEST;
       break;
     case NS_STYLE_POINTER_EVENTS_ALL:
       mask |=
         HITTEST_MASK_FILL |
-        HITTEST_MASK_STROKE;
+        HITTEST_MASK_STROKE |
+        HITTEST_MASK_FORCE_TEST;
       break;
     default:
       NS_ERROR("not reached");

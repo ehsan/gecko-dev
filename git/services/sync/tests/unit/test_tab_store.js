@@ -1,5 +1,6 @@
 Cu.import("resource://services-sync/engines/tabs.js");
 Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-sync/type_records/tabs.js");
 
 function test_create() {
   let store = new TabEngine()._store;

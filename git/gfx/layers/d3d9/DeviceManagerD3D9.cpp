@@ -181,8 +181,7 @@ SwapChainD3D9::Reset()
 #define LACKS_CAP(a, b) !(((a) & (b)) == (b))
 
 DeviceManagerD3D9::DeviceManagerD3D9()
-  : mDeviceResetCount(0)
-  , mHasDynamicTextures(false)
+  : mHasDynamicTextures(false)
   , mDeviceWasRemoved(false)
 {
 }
@@ -529,7 +528,6 @@ DeviceManagerD3D9::VerifyReadyForRendering()
       if (FAILED(hr)) {
         mDeviceWasRemoved = true;
         LayerManagerD3D9::OnDeviceManagerDestroy(this);
-        ++mDeviceResetCount;
         return false;
       }
     }
@@ -557,7 +555,6 @@ DeviceManagerD3D9::VerifyReadyForRendering()
   pp.hDeviceWindow = mFocusWnd;
 
   hr = mDevice->Reset(&pp);
-  ++mDeviceResetCount;
 
   if (hr == D3DERR_DEVICELOST) {
     return false;

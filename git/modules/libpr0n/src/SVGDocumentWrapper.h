@@ -53,7 +53,7 @@ class nsIRequest;
 class nsIDocumentViewer;
 class nsILoadGroup;
 class nsIFrame;
-struct nsIntSize;
+class nsIntSize;
 class nsSVGSVGElement;
 
 #define SVG_MIMETYPE     "image/svg+xml"

@@ -191,7 +191,7 @@ ChangesMethodValue(const js::Value &prev, const js::Value &v)
            (!v.isObject() || &v.toObject() != prevObj);
 }
 
-inline const js::Shape *
+inline bool
 JSObject::methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Value &v)
 {
     if (brandedOrHasMethodBarrier() && shape.slot != SHAPE_INVALID_SLOT) {
@@ -202,7 +202,7 @@ JSObject::methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Va
             return methodShapeChange(cx, shape);
         }
     }
-    return &shape;
+    return true;
 }
 
 inline bool

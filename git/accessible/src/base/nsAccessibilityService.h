@@ -163,16 +163,18 @@ public:
   inline nsAccessible* GetAccessibleInWeakShell(nsINode* aNode,
                                                 nsIWeakReference* aWeakShell)
   {
-    // XXX: weak shell is ignored until multiple shell documents are supported.
-    return GetAccessible(aNode);
+    return GetAccessibleByRule(aNode, aWeakShell, eGetAccForNode);
   }
 
   /**
    * Return an accessible for the given DOM node or container accessible if
    * the node is not accessible.
    */
-  nsAccessible* GetAccessibleOrContainer(nsINode* aNode,
-                                         nsIWeakReference* aWeakShell);
+  inline nsAccessible* GetAccessibleOrContainer(nsINode* aNode,
+                                                nsIWeakReference* aWeakShell)
+  {
+    return GetAccessibleByRule(aNode, aWeakShell, eGetAccForNodeOrContainer);
+  }
 
   /**
    * Return a container accessible for the given DOM node.
@@ -180,9 +182,37 @@ public:
   inline nsAccessible* GetContainerAccessible(nsINode* aNode,
                                               nsIWeakReference* aWeakShell)
   {
-    return aNode ?
-      GetAccessibleOrContainer(aNode->GetNodeParent(), aWeakShell) : nsnull;
+    return GetAccessibleByRule(aNode, aWeakShell, eGetAccForContainer);
   }
+
+  /**
+   * Return cached accessible for the given DOM node or cached container
+   * accessible if there's no cached accessible for the given node.
+   */
+  nsAccessible* GetCachedAccessibleOrContainer(nsINode* aNode);
+
+  /**
+   * Return the first cached accessible parent of a DOM node.
+   *
+   * @param aDOMNode    [in] the DOM node to get an accessible for
+   */
+  inline nsAccessible* GetCachedContainerAccessible(nsINode *aNode)
+  {
+    return aNode ?
+      GetCachedAccessibleOrContainer(aNode->GetNodeParent()) : nsnull;
+  }
+
+protected:
+  /**
+   * Return an accessible for the DOM node in the given presentation shell if
+   * the accessible already exists, otherwise null.
+   *
+   * @param  aNode       [in] the DOM node to get an access node for
+   * @param  aPresShell  [in] the presentation shell which contains layout info
+   *                       for the DOM node
+   */
+  nsAccessible *GetCachedAccessible(nsINode *aNode,
+                                    nsIWeakReference *aShell);
 
 private:
   // nsAccessibilityService creation is controlled by friend
@@ -201,6 +231,19 @@ private:
    * Shutdowns accessibility service.
    */
   void Shutdown();
+
+  enum EWhatAccToGet {
+    eGetAccForNode = 0x1,
+    eGetAccForContainer = 0x2,
+    eGetAccForNodeOrContainer = eGetAccForNode | eGetAccForContainer
+  };
+
+  /**
+   * Return accessible or accessible container for the given node in presshell.
+   */
+  nsAccessible* GetAccessibleByRule(nsINode* aNode,
+                                    nsIWeakReference* aWeakShell,
+                                    EWhatAccToGet aWhatToGet);
 
   /**
    * Return accessible for HTML area element associated with an image map.

@@ -769,36 +769,41 @@ SessionStoreService.prototype = {
 
       if (closedWindowState) {
         let newWindowState;
-#ifdef XP_MACOSX
-        // We want to split the window up into pinned tabs and unpinned tabs.
-        // Pinned tabs should be restored. If there are any remaining tabs,
-        // they should be added back to _closedWindows.
-        // We'll cheat a little bit and reuse _prepDataForDeferredRestore
-        // even though it wasn't built exactly for this.
-        let [appTabsState, normalTabsState] =
-          this._prepDataForDeferredRestore(JSON.stringify({ windows: [closedWindowState] }));
+#ifndef XP_MACOSX
+        if (!this._doResumeSession()) {
+#endif
+          // We want to split the window up into pinned tabs and unpinned tabs.
+          // Pinned tabs should be restored. If there are any remaining tabs,
+          // they should be added back to _closedWindows.
+          // We'll cheat a little bit and reuse _prepDataForDeferredRestore
+          // even though it wasn't built exactly for this.
+          let [appTabsState, normalTabsState] =
+            this._prepDataForDeferredRestore(JSON.stringify({ windows: [closedWindowState] }));
 
-        // These are our pinned tabs, which we should restore
-        if (appTabsState.windows.length) {
-          newWindowState = appTabsState.windows[0];
-          delete newWindowState.__lastSessionWindowID;
-        }
+          // These are our pinned tabs, which we should restore
+          if (appTabsState.windows.length) {
+            newWindowState = appTabsState.windows[0];
+            delete newWindowState.__lastSessionWindowID;
+          }
 
-        // In case there were no unpinned tabs, remove the window from _closedWindows
-        if (!normalTabsState.windows.length) {
-          this._closedWindows.splice(closedWindowIndex, 1);
+          // In case there were no unpinned tabs, remove the window from _closedWindows
+          if (!normalTabsState.windows.length) {
+            this._closedWindows.splice(closedWindowIndex, 1);
+          }
+          // Or update _closedWindows with the modified state
+          else {
+            delete normalTabsState.windows[0].__lastSessionWindowID;
+            this._closedWindows[closedWindowIndex] = normalTabsState.windows[0];
+          }
+#ifndef XP_MACOSX
         }
-        // Or update _closedWindows with the modified state
         else {
-          delete normalTabsState.windows[0].__lastSessionWindowID;
-          this._closedWindows[closedWindowIndex] = normalTabsState.windows[0];
+          // If we're just restoring the window, make sure it gets removed from
+          // _closedWindows.
+          this._closedWindows.splice(closedWindowIndex, 1);
+          newWindowState = closedWindowState;
+          delete newWindowState.hidden;
         }
-#else
-        // If we're just restoring the window, make sure it gets removed from
-        // _closedWindows.
-        this._closedWindows.splice(closedWindowIndex, 1);
-        newWindowState = closedWindowState;
-        delete newWindowState.hidden;
 #endif
         if (newWindowState) {
           // Ensure that the window state isn't hidden
@@ -1178,7 +1183,6 @@ SessionStoreService.prototype = {
     this._updateTextAndScrollDataForTab(sourceWindow, aTab.linkedBrowser, tabState, true);
     tabState.index += aDelta;
     tabState.index = Math.max(1, Math.min(tabState.index, tabState.entries.length));
-    tabState.pinned = false;
 
     this._sendWindowStateEvent(aWindow, "Busy");
     let newTab = aTab == aWindow.gBrowser.selectedTab ?
@@ -1508,7 +1512,6 @@ SessionStoreService.prototype = {
     //           data even when we shouldn't (e.g. Back, different anchor)
     if (history && browser.__SS_data &&
         browser.__SS_data.entries[history.index] &&
-        browser.__SS_data.entries[history.index].url == browser.currentURI.spec &&
         history.index < this._sessionhistory_max_entries - 1 && !aFullData) {
       tabData = browser.__SS_data;
       tabData.index = history.index + 1;

@@ -17,9 +17,7 @@
     
     function doTest()
     {
-      var iframeDoc = [ getNode("iframe").contentDocument ];
-      testCharacterCount(iframeDoc, 15);
-      testText(iframeDoc, 0, 15, "outbody inbody ");
+      testText([getNode("iframe").contentDocument], 0, 14, "outbody inbody");
 
       SimpleTest.finish();
     }
