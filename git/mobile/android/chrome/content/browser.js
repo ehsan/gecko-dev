@@ -1402,9 +1402,7 @@ var BrowserApp = {
         break;
 
       case "keyword-search":
-        // This event refers to a search via the URL bar, not a bookmarks
-        // keyword search. Note that this code assumes that the user can only
-        // perform a keyword search on the selected tab.
+        // This assumes that the user can only perform a keyword search on the selected tab.
         this.selectedTab.userSearch = aData;
 
         let engine = aSubject.QueryInterface(Ci.nsISearchEngine);

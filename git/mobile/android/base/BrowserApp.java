@@ -1444,8 +1444,7 @@ abstract public class BrowserApp extends GeckoApp
 
                 final String keywordUrl = BrowserDB.getUrlForKeyword(getContentResolver(), keyword);
 
-                // If there isn't a bookmark keyword, load the url. This may result in a query
-                // using the default search engine.
+                // If there isn't a bookmark keyword, just load the URL.
                 if (TextUtils.isEmpty(keywordUrl)) {
                     Tabs.getInstance().loadUrl(url, Tabs.LOADURL_USER_ENTERED);
                     return;

@@ -113,7 +113,6 @@ TextTrack::AddRegion(TextTrackRegion& aRegion)
 {
   TextTrackRegion* region = mRegionList->GetRegionById(aRegion.Id());
   if (!region) {
-    aRegion.SetTextTrack(this);
     mRegionList->AddTextTrackRegion(&aRegion);
     return;
   }

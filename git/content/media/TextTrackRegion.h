@@ -12,7 +12,6 @@
 #include "nsString.h"
 #include "nsWrapperCache.h"
 #include "mozilla/ErrorResult.h"
-#include "mozilla/dom/TextTrack.h"
 
 namespace mozilla {
 namespace dom {
@@ -144,11 +143,6 @@ public:
   }
 
   /** end WebIDL Methods. */
-
-  void SetTextTrack(TextTrack* aTrack)
-  {
-    mTrack = aTrack;
-  }
 
   // Helper to aid copying of a given TextTrackRegion's width, lines,
   // anchor, viewport and scroll values.

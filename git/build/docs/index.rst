@@ -20,7 +20,6 @@ Important Concepts
    Profile Guided Optimization <pgo>
    slow
    environment-variables
-   build-targets
    test_manifests
 
 mozbuild
