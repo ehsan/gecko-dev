@@ -28,7 +28,6 @@ class nsIDocument;
 class nsCSSParser;
 class nsMediaList;
 class nsIStyleSheetLinkingElement;
-class nsCycleCollectionTraversalCallback;
 
 namespace mozilla {
 
@@ -340,14 +339,6 @@ public:
   bool IsAlternate(const nsAString& aTitle, bool aHasAlternateRel);
 
   typedef nsTArray<nsRefPtr<SheetLoadData> > LoadDataArray;
-
-  // Traverse the cached stylesheets we're holding on to.  This should
-  // only be called from the document that owns this loader.
-  void TraverseCachedSheets(nsCycleCollectionTraversalCallback& cb);
-
-  // Unlink the cached stylesheets we're holding on to.  Again, this
-  // should only be called from the document that owns this loader.
-  void UnlinkCachedSheets();
 
 private:
   friend class SheetLoadData;
