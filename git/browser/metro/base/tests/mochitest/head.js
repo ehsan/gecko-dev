@@ -396,12 +396,11 @@ function waitForCondition(aCondition, aTimeoutMs, aIntervalMs) {
   let timeoutMs = aTimeoutMs || kDefaultWait;
   let intervalMs = aIntervalMs || kDefaultInterval;
   let startTime = Date.now();
-  let stack = new Error().stack;
 
   function testCondition() {
     let now = Date.now();
     if((now - startTime) > timeoutMs) {
-      deferred.reject( new Error("Timed out waiting for condition to be true at " + stack) );
+      deferred.reject( new Error("Timed out waiting for condition to be true") );
       return;
     }
 

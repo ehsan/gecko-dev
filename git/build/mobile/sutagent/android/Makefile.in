@@ -21,7 +21,7 @@ JAVAFILES = \
   R.java \
   $(NULL)
 
-ANDROID_RESFILES = \
+RES_FILES = \
   res/drawable/icon.png \
   res/drawable/ateamlogo.png \
   res/drawable/ic_stat_first.png \

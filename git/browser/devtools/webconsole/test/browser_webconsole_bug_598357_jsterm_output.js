@@ -224,10 +224,12 @@ function testGen() {
 
   eventHandlers.push(variablesViewShown);
 
-  EventUtils.synthesizeMouse(messageBody, 2, 2, {}, HUD.iframeWindow);
+  // Send the mousedown, mouseup and click events to check if the variables
+  // view opens.
+  EventUtils.sendMouseEvent({ type: "mousedown" }, messageBody, window);
+  EventUtils.sendMouseEvent({ type: "click" }, messageBody, window);
 
   if (showsVariablesView) {
-    info("messageBody tagName '" + messageBody.tagName +  "' className '" + messageBody.className + "'");
     yield undefined; // wait for the panel to open if we need to.
   }
 

@@ -12,7 +12,7 @@ JAVAFILES = \
   R.java \
   $(NULL)
 
-ANDROID_RESFILES = \
+RES_FILES = \
   res/drawable-hdpi/icon.png \
   res/drawable-ldpi/icon.png \
   res/drawable-mdpi/icon.png \

@@ -206,10 +206,9 @@ add_task(function test_getTemporaryDownloadsDirectory()
 add_task(function test_notifications()
 {
   enableObserversTestMode();
+  mustInterruptResponses();
 
   for (let isPrivate of [false, true]) {
-    mustInterruptResponses();
-
     let list = yield promiseNewList(isPrivate);
     let download1 = yield promiseNewDownload(httpUrl("interruptible.txt"));
     let download2 = yield promiseNewDownload(httpUrl("interruptible.txt"));

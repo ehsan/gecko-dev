@@ -218,4 +218,10 @@ public class WebAppImpl extends GeckoApp {
         }
         super.onTabChanged(tab, msg, data);
     }
+
+    @Override
+    protected void geckoConnected() {
+        super.geckoConnected();
+        mLayerView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+    }
 };
