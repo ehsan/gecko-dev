@@ -67,7 +67,7 @@ public class Tab {
     private Context mAppContext;
     private ErrorType mErrorType = ErrorType.NONE;
     private static final int MAX_HISTORY_LIST_SIZE = 50;
-    private volatile int mLoadProgress;
+    private int mLoadProgress;
 
     public static final int STATE_DELAYED = 0;
     public static final int STATE_LOADING = 1;
@@ -635,7 +635,7 @@ public class Tab {
         setHasTouchListeners(false);
         setBackgroundColor(DEFAULT_BACKGROUND_COLOR);
         setErrorType(ErrorType.NONE);
-        setLoadProgressIfLoading(LOAD_PROGRESS_LOCATION_CHANGE);
+        setLoadProgress(LOAD_PROGRESS_LOCATION_CHANGE);
 
         Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.LOCATION_CHANGE, oldUrl);
     }
@@ -672,7 +672,7 @@ public class Tab {
     }
 
     void handleContentLoaded() {
-        setLoadProgressIfLoading(LOAD_PROGRESS_LOADED);
+        setLoadProgress(LOAD_PROGRESS_LOADED);
     }
 
     protected void saveThumbnailToDB() {
@@ -774,22 +774,6 @@ public class Tab {
      */
     void setLoadProgress(int progressPercentage) {
         mLoadProgress = progressPercentage;
-    }
-
-    /**
-     * Sets the tab load progress to the given percentage only if the tab is
-     * currently loading.
-     *
-     * about:neterror can trigger a STOP before other page load events (bug
-     * 976426), so any post-START events should make sure the page is loading
-     * before updating progress.
-     *
-     * @param progressPercentage Percentage to set progress to (0-100)
-     */
-    void setLoadProgressIfLoading(int progressPercentage) {
-        if (getState() == STATE_LOADING) {
-            setLoadProgress(progressPercentage);
-        }
     }
 
     /**

@@ -77,7 +77,7 @@ if (typeof Mozilla == 'undefined') {
 		_sendEvent('hideHighlight');
 	};
 
-	Mozilla.UITour.showInfo = function(target, title, text, icon, buttons, options) {
+	Mozilla.UITour.showInfo = function(target, title, text, icon, buttons) {
 		var buttonData = [];
 		if (Array.isArray(buttons)) {
 			for (var i = 0; i < buttons.length; i++) {
@@ -90,17 +90,12 @@ if (typeof Mozilla == 'undefined') {
 			}
 		}
 
-		var closeButtonCallbackID;
-		if (options && options.closeButtonCallback)
-			closeButtonCallbackID = _waitForCallback(options.closeButtonCallback);
-
 		_sendEvent('showInfo', {
 			target: target,
 			title: title,
 			text: text,
 			icon: icon,
-			buttons: buttonData,
-			closeButtonCallbackID: closeButtonCallbackID
+			buttons: buttonData
 		});
 	};
 
