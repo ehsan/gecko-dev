@@ -22,8 +22,6 @@ import android.view.View;
  * A class representing any interactions that take place on the Awesomescreen.
  */
 public class AboutHomeComponent extends BaseComponent {
-    private static final String LOGTAG = AboutHomeComponent.class.getSimpleName();
-
     // The different types of pages that can be present on about:home
     public enum PageType {
         HISTORY,
@@ -84,13 +82,13 @@ public class AboutHomeComponent extends BaseComponent {
     }
 
     public AboutHomeComponent swipeToPageOnRight() {
-        mTestContext.dumpLog(LOGTAG, "Swiping to the page on the right.");
+        mTestContext.dumpLog("Swiping to the page on the right.");
         swipeToPage(Solo.RIGHT);
         return this;
     }
 
     public AboutHomeComponent swipeToPageOnLeft() {
-        mTestContext.dumpLog(LOGTAG, "Swiping to the page on the left.");
+        mTestContext.dumpLog("Swiping to the page on the left.");
         swipeToPage(Solo.LEFT);
         return this;
     }

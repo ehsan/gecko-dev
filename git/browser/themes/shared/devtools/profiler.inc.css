@@ -12,6 +12,10 @@
   font-weight: bold;
 }
 
+.devtools-toolbar {
+  min-height: 33px;
+}
+
 .profiler-sidebar {
   min-width: 196px;
 }
@@ -45,7 +49,7 @@
   cursor: pointer;
 }
 
-.selected [state=completed] .profiler-sidebar-item > hbox > a {
+[state=completed].selected .profiler-sidebar-item > hbox > a {
   display: block;
 }
 
