@@ -246,15 +246,10 @@ window.TabItems = {
                   .removeClass("front");  
                 Navbar.show();
                               
-                try{
-                  var gID = self.getItemByTab(this).parent.id;
-                  if(gID) {
-                    var group = Groups.group(gID);
-                    Groups.setActiveGroup( group );                   
-                  }
-                }
-                catch(e){
-                  Utils.log(e);                
+                var gID = self.getItemByTab(this).parent.id;
+                if(gID) {
+                  var group = Groups.group(gID);
+                  Groups.setActiveGroup( group );                   
                 }
               
                 $("body").css("overflow", overflow);              
@@ -282,22 +277,11 @@ window.TabItems = {
       var reconnected = false;
       $div.each(function() {
         var tab = Tabs.tab(this);
-        if(tab == Utils.homeTab) 
-          $(this).hide();
-        else {
-          var item = new TabItem(this, tab);
-          $(this).data('tabItem', item);    
-          
-          if(TabItems.reconnect(item))
-            reconnected = true;
-          else if(!tab.url || tab.url == 'about:blank') {
-            tab.mirror.addSubscriber(item, 'urlChanged', function(who, info) {
-              Utils.assert('changing away from blank', info.oldURL == 'about:blank' || !info.oldURL);
-              TabItems.reconnect(item);
-              tab.mirror.removeSubscriber(item);
-            });
-          }
-        }
+        var item = new TabItem(this, tab);
+        $(this).data('tabItem', item);    
+        
+        if(TabItems.reconnect(item))
+          reconnected = true;
       });
       
       if(!reconnected && $div.length == 1 && Groups)
@@ -325,7 +309,7 @@ window.TabItems = {
   // ----------
   getItems: function() {
     var items = [];
-    $('.tab:visible').each(function() {
+    $('.tab').each(function() {
       items.push($(this).data('tabItem'));
     });
     
@@ -372,9 +356,6 @@ window.TabItems = {
     if(this.storageData && this.storageData.tabs) {
       $.each(this.storageData.tabs, function(index, tab) {
         if(item.getURL() == tab.url) {
-          if(item.parent)
-            item.parent.remove(item);
-            
           item.setBounds(tab.bounds, true);
           item.userSize = tab.userSize;
           if(tab.groupID) {

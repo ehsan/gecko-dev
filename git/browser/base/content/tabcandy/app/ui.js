@@ -12,6 +12,16 @@ Navbar = {
 
     return null;
   },
+  
+  get urlBar(){
+    var win = Utils.activeWindow;
+    if(win) {
+      var navbar = win.gBrowser.ownerDocument.getElementById("urlbar");
+      return navbar;      
+    }
+
+    return null;    
+  },
 
   // ----------
   show: function() {
@@ -92,8 +102,13 @@ var Tabbar = {
       tab.collapsed = true;
     });
     
+    // Show all of the tabs in the group and move them (in order)
+    // that they appear in the group to the end of the tab strip.
+    // This way the tab order is matched up to the group's thumbnail
+    // order.
     visibleTabs.forEach(function(tab){
       tab.collapsed = false;
+      Utils.activeWindow.gBrowser.moveTabTo(tab, UI.tabBar.el.children.length-1);
     });
     
   },
@@ -313,7 +328,6 @@ function UIClass(){
   
   // ___ Storage
   var data = Storage.read();
-  this.storageSanity(data);
   if(data.hideTabBar)
     this.hideTabBar();
     
@@ -351,7 +365,7 @@ function UIClass(){
   });
   
   // ___ Dev Menu
-  this.addDevMenu();
+/*   this.addDevMenu(); */
   
   // ___ Done
   this.initialized = true;
@@ -431,45 +445,42 @@ UIClass.prototype = {
   
   // ----------
   addDevMenu: function() {
-    var html = '<select style="position:absolute; top:5px;">'; 
-    var $select = $(html)
-      .appendTo('body')
-      .change(function () {
-        var index = $(this).val();
-        commands[index].code();
-      });
+    var html = '<select style="position:absolute">'
+      + '<option>*</option>';
       
-    var commands = [{
-      name: '*', 
-      code: function() {
-      }
-    }, {
-      name: 'home', 
-      code: function() {
-        location.href = '../../index.html';
-      }
-    }];
-      
-    var count = commands.length;
+/*
+    var names = Utils.getVisualizationNames();
+    var count = names.length;
     var a;
     for(a = 0; a < count; a++) {
-      html = '<option value="'
-        + a
-        + '">'
-        + commands[a].name
+      var name = names[a];
+      html += '<option value="'
+        + name
+        + '"'
+        + (name == myName ? ' selected="true"' : '')
+        + '>'
+        + name
         + '</option>';
-        
-      $select.append(html);
     }
+    
+    html += '<option disabled="disabled">----------</option>';
+    html += '<option value="">Home</option>';
+*/
+
+    html += '</select>';
+    $('body')
+      .append(html)
+      .change(function () {
+/*
+        var name = $(this).val();
+        if(name)
+          location.href = '../' + name + '/index.html';
+        else
+          location.href = '../../index.html';
+*/
+      });
   },
 
-  // ----------
-  storageSanity: function(data) {
-    if(data) {
-      // TODO: cleanliness check
-    }
-  },
-  
   // ----------
   _addArrangements: function() {
     this.grid = new ArrangeClass("Grid", function(value) {
