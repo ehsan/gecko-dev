@@ -24,8 +24,8 @@ function onTabViewWindowLoaded() {
   let boxTwo = new contentWindow.Rect(20, 400, 300, 300);
   let groupTwo = new contentWindow.GroupItem([], { bounds: boxTwo });
 
-  groupOne.addSubscriber("childAdded", function onChildAdded() {
-    groupOne.removeSubscriber("childAdded", onChildAdded);
+  groupOne.addSubscriber(groupOne, "childAdded", function() {
+    groupOne.removeSubscriber(groupOne, "childAdded");
     groupTwo.newTab();
   });
 
@@ -68,7 +68,7 @@ function addTest(contentWindow, groupOneId, groupTwoId, originalTab) {
     Math.round(groupTwoRectCenter.y - tabItemRectCenter.y);
 
   function endGame() {
-    groupTwo.removeSubscriber("childAdded", endGame);
+    groupTwo.removeSubscriber(groupTwo, "childAdded");
 
     is(groupOne.getChildren().length, --groupOneTabItemCount,
        "The number of children in group one is decreased by 1");
@@ -83,14 +83,14 @@ function addTest(contentWindow, groupOneId, groupTwoId, originalTab) {
       EventUtils.sendMouseEvent(
         { type: "click" }, closeButton[0], contentWindow);
     };
-    groupTwo.addSubscriber("close", function onClose() {
-      groupTwo.removeSubscriber("close", onClose);
-      finish(); 
+    groupTwo.addSubscriber(groupTwo, "close", function() {
+      groupTwo.removeSubscriber(groupTwo, "close");
+      finish();  
     });
     window.addEventListener("tabviewhidden", onTabViewHidden, false);
     gBrowser.selectedTab = originalTab;
   }
-  groupTwo.addSubscriber("childAdded", endGame);
+  groupTwo.addSubscriber(groupTwo, "childAdded", endGame);
   
   simulateDragDrop(tabItem.container, offsetX, offsetY, contentWindow);
 }

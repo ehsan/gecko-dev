@@ -36,8 +36,8 @@ function onTabViewWindowLoaded() {
 
 function testStayOnPage(contentWindow, groupItemOne, groupItemTwo) {
   setupAndRun(contentWindow, groupItemOne, groupItemTwo, function(doc) {
-    groupItemTwo.addSubscriber("groupShown", function onShown() {
-      groupItemTwo.removeSubscriber("groupShown", onShown);
+    groupItemTwo.addSubscriber(groupItemTwo, "groupShown", function() {
+      groupItemTwo.removeSubscriber(groupItemTwo, "groupShown");
 
       is(gBrowser.tabs.length, 2, 
          "The total number of tab is 2 when staying on the page");
@@ -61,8 +61,8 @@ function testStayOnPage(contentWindow, groupItemOne, groupItemTwo) {
 function testLeavePage(contentWindow, groupItemOne, groupItemTwo) {
   setupAndRun(contentWindow, groupItemOne, groupItemTwo, function(doc) {
     // clean up and finish the test
-    groupItemTwo.addSubscriber("close", function onClose() {
-      groupItemTwo.removeSubscriber("close", onClose);
+    groupItemTwo.addSubscriber(groupItemTwo, "close", function() {
+      groupItemTwo.removeSubscriber(groupItemTwo, "close");
 
       is(gBrowser.tabs.length, 1,
          "The total number of tab is 1 after leaving the page");

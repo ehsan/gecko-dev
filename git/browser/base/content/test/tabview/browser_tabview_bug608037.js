@@ -28,7 +28,8 @@ function onTabViewWindowLoaded() {
   ok(TabView.isVisible(), "Tab View is still visible after removing a tab");
   is(groupItems[0].getChildren().length, 2, "The group has two tab items");
 
-  restoreTab(function (tabTwo) {
+  tabTwo = undoCloseTab(0);
+  whenTabIsReconnected(tabTwo, function() {
     ok(TabView.isVisible(), "Tab View is still visible after restoring a tab");
     is(groupItems[0].getChildren().length, 3, "The group still has three tab items");
 
@@ -38,5 +39,20 @@ function onTabViewWindowLoaded() {
       gBrowser.removeTab(tabTwo);
       finish();
     });
+  });
+}
+
+// ----------
+function whenTabIsReconnected(tab, callback) {
+  let tabItem = tab._tabViewTabItem;
+
+  if (tabItem._reconnected) {
+    callback();
+    return;
+  }
+
+  tabItem.addSubscriber(tabItem, "reconnected", function () {
+    tabItem.removeSubscriber(tabItem, "reconnected");
+    callback();
   });
 }

@@ -2172,7 +2172,8 @@ nsHTMLEditor::SelectElement(nsIDOMElement* aElement)
   nsresult res = NS_ERROR_NULL_POINTER;
 
   // Must be sure that element is contained in the document body
-  if (IsNodeInActiveEditor(aElement)) {
+  if (IsElementInBody(aElement))
+  {
     nsCOMPtr<nsISelection> selection;
     res = GetSelection(getter_AddRefs(selection));
     NS_ENSURE_SUCCESS(res, res);
@@ -2204,7 +2205,8 @@ nsHTMLEditor::SetCaretAfterElement(nsIDOMElement* aElement)
   nsresult res = NS_ERROR_NULL_POINTER;
 
   // Be sure the element is contained in the document body
-  if (aElement && IsNodeInActiveEditor(aElement)) {
+  if (aElement && IsElementInBody(aElement))
+  {
     nsCOMPtr<nsISelection> selection;
     res = GetSelection(getter_AddRefs(selection));
     NS_ENSURE_SUCCESS(res, res);
@@ -4279,16 +4281,9 @@ void nsHTMLEditor::IsTextPropertySetByContent(nsIDOMNode        *aNode,
 //
 
 
-PRBool
-nsHTMLEditor::IsNodeInActiveEditor(nsIDOMNode* aNode)
+PRBool nsHTMLEditor::IsElementInBody(nsIDOMElement* aElement)
 {
-  nsIContent* activeEditingHost = GetActiveEditingHost();
-  if (!activeEditingHost) {
-    return PR_FALSE;
-  }
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(node, PR_FALSE);
-  return nsContentUtils::ContentIsDescendantOf(node, activeEditingHost);
+  return nsTextEditUtils::InBody(aElement, this);
 }
 
 PRBool
@@ -4296,7 +4291,8 @@ nsHTMLEditor::SetCaretInTableCell(nsIDOMElement* aElement)
 {
   PRBool caretIsSet = PR_FALSE;
 
-  if (aElement && IsNodeInActiveEditor(aElement)) {
+  if (aElement && IsElementInBody(aElement))
+  {
     nsresult res = NS_OK;
     nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
     if (content)
@@ -4312,7 +4308,7 @@ nsHTMLEditor::SetCaretInTableCell(nsIDOMElement* aElement)
       {
         nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aElement);
         nsCOMPtr<nsIDOMNode> parent;
-        // This MUST succeed if IsNodeInActiveEditor was TRUE
+        // This MUST succeed if IsElementInBody was TRUE
         node->GetParentNode(getter_AddRefs(parent));
         nsCOMPtr<nsIDOMNode>firstChild;
         // Find deepest child
@@ -4621,7 +4617,8 @@ nsHTMLEditor::GetPriorHTMLSibling(nsIDOMNode *inParent, PRInt32 inOffset, nsCOMP
   *outNode = nsnull;
   NS_ENSURE_TRUE(inOffset, NS_OK);  // return null sibling if at offset zero
   nsCOMPtr<nsIDOMNode> node = nsEditor::GetChildAt(inParent,inOffset-1);
-  if (node && IsEditable(node)) {
+  if (IsEditable(node)) 
+  {
     *outNode = node;
     return res;
   }
@@ -4672,7 +4669,8 @@ nsHTMLEditor::GetNextHTMLSibling(nsIDOMNode *inParent, PRInt32 inOffset, nsCOMPt
   *outNode = nsnull;
   nsCOMPtr<nsIDOMNode> node = nsEditor::GetChildAt(inParent,inOffset);
   NS_ENSURE_TRUE(node, NS_OK); // return null sibling if no sibling
-  if (node && IsEditable(node)) {
+  if (IsEditable(node)) 
+  {
     *outNode = node;
     return res;
   }
@@ -4694,7 +4692,8 @@ nsHTMLEditor::GetPriorHTMLNode(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNode
   NS_ENSURE_SUCCESS(res, res);
   
   // if it's not in the body, then zero it out
-  if (*outNode && !IsNodeInActiveEditor(*outNode)) {
+  if (*outNode && !nsTextEditUtils::InBody(*outNode, this))
+  {
     *outNode = nsnull;
   }
   return res;
@@ -4712,7 +4711,8 @@ nsHTMLEditor::GetPriorHTMLNode(nsIDOMNode *inParent, PRInt32 inOffset, nsCOMPtr<
   NS_ENSURE_SUCCESS(res, res);
   
   // if it's not in the body, then zero it out
-  if (*outNode && !IsNodeInActiveEditor(*outNode)) {
+  if (*outNode && !nsTextEditUtils::InBody(*outNode, this))
+  {
     *outNode = nsnull;
   }
   return res;
@@ -4731,7 +4731,8 @@ nsHTMLEditor::GetNextHTMLNode(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNode,
   NS_ENSURE_SUCCESS(res, res);
   
   // if it's not in the body, then zero it out
-  if (*outNode && !IsNodeInActiveEditor(*outNode)) {
+  if (*outNode && !nsTextEditUtils::InBody(*outNode, this))
+  {
     *outNode = nsnull;
   }
   return res;
@@ -4749,7 +4750,8 @@ nsHTMLEditor::GetNextHTMLNode(nsIDOMNode *inParent, PRInt32 inOffset, nsCOMPtr<n
   NS_ENSURE_SUCCESS(res, res);
   
   // if it's not in the body, then zero it out
-  if (*outNode && !IsNodeInActiveEditor(*outNode)) {
+  if (*outNode && !nsTextEditUtils::InBody(*outNode, this))
+  {
     *outNode = nsnull;
   }
   return res;
@@ -5074,10 +5076,7 @@ nsHTMLEditor::IsEmptyNodeImpl( nsIDOMNode *aNode,
       {
         res = IsVisTextNode(node, outIsEmptyNode, aSafeToAskFrames);
         NS_ENSURE_SUCCESS(res, res);
-        // break out if we find we aren't emtpy
-        if (!*outIsEmptyNode) {
-          return NS_OK;
-        }
+        NS_ENSURE_TRUE(*outIsEmptyNode, NS_OK);  // break out if we find we aren't emtpy
       }
       else  // an editable, non-text node.  we need to check it's content.
       {
@@ -5821,38 +5820,6 @@ nsHTMLEditor::IsActiveInDOMWindow()
     return PR_FALSE;
   }
   return PR_TRUE;
-}
-
-nsIContent*
-nsHTMLEditor::GetActiveEditingHost()
-{
-  NS_ENSURE_TRUE(mDocWeak, PR_FALSE);
-
-  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
-  NS_ENSURE_TRUE(doc, nsnull);
-  if (doc->HasFlag(NODE_IS_EDITABLE)) {
-    return doc->GetBodyElement();
-  }
-
-  // We're HTML editor for contenteditable
-  nsCOMPtr<nsISelection> selection;
-  nsresult rv = GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(rv, nsnull);
-  nsCOMPtr<nsIDOMNode> focusNode;
-  rv = selection->GetFocusNode(getter_AddRefs(focusNode));
-  NS_ENSURE_SUCCESS(rv, nsnull);
-  nsCOMPtr<nsIContent> content = do_QueryInterface(focusNode);
-  if (!content) {
-    return nsnull;
-  }
-
-  // If the active content isn't editable, or it has independent selection,
-  // we're not active.
-  if (!content->HasFlag(NODE_IS_EDITABLE) ||
-      content->HasIndependentSelection()) {
-    return nsnull;
-  }
-  return content->GetEditingHost();
 }
 
 already_AddRefed<nsIDOMEventTarget>

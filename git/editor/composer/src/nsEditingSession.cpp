@@ -374,11 +374,6 @@ nsEditingSession::SetupEditorOnWindow(nsIDOMWindow *aWindow)
       document->FlushPendingNotifications(Flush_Frames);
       if (mMakeWholeDocumentEditable) {
         document->SetEditableFlag(PR_TRUE);
-        nsCOMPtr<nsIHTMLDocument> htmlDocument = do_QueryInterface(document);
-        if (htmlDocument) {
-          // Enable usage of the execCommand API
-          htmlDocument->SetEditingState(nsIHTMLDocument::eDesignMode);
-        }
       }
     }
   }
@@ -616,10 +611,6 @@ nsEditingSession::TearDownEditorOnWindow(nsIDOMWindow *aWindow)
       NS_ENSURE_SUCCESS(rv, rv);
 
       doc->SetEditableFlag(PR_FALSE);
-      nsCOMPtr<nsIHTMLDocument> htmlDocument = do_QueryInterface(doc);
-      if (htmlDocument) {
-        htmlDocument->SetEditingState(nsIHTMLDocument::eOff);
-      }
     }
   }
 
