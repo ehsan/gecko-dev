@@ -225,11 +225,9 @@ MmsConnection.prototype = {
   mmsPort:  -1,
 
   setApnSetting: function(network) {
+    this.mmsc = network.mmsc;
     // Workaround an xpconnect issue with undefined string objects. See bug 808220.
-    this.mmsc =
-      (network.mmsc === "undefined") ? undefined : network.mmsc;
-    this.mmsProxy =
-      (network.mmsProxy === "undefined") ? undefined : network.mmsProxy;
+    this.mmsProxy = (network === "undefined") ? undefined : network.mmsProxy;
     this.mmsPort = network.mmsPort;
   },
 
@@ -1215,6 +1213,12 @@ function SendTransaction(mmsConnection, cancellableId, msg, requestDeliveryRepor
   msg.headers["x-mms-message-class"] = "personal";
   msg.headers["x-mms-expiry"] = 7 * 24 * 60 * 60;
   msg.headers["x-mms-priority"] = 129;
+  try {
+    msg.headers["x-mms-read-report"] =
+      Services.prefs.getBoolPref("dom.mms.requestReadReport");
+  } catch (e) {
+    msg.headers["x-mms-read-report"] = true;
+  }
   msg.headers["x-mms-delivery-report"] = requestDeliveryReport;
 
   if (!gMmsTransactionHelper.checkMaxValuesParameters(msg)) {
@@ -2181,12 +2185,6 @@ MmsService.prototype = {
         Services.prefs.getBoolPref("dom.mms.requestStatusReport");
     } catch (e) {
       aMessage["deliveryStatusRequested"] = false;
-    }
-    try {
-      headers["x-mms-read-report"] =
-        Services.prefs.getBoolPref("dom.mms.requestReadReport");
-    } catch (e) {
-      headers["x-mms-read-report"] = false;
     }
 
     if (DEBUG) debug("createSavableFromParams: aMessage: " +
