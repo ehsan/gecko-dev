@@ -1263,7 +1263,7 @@ CheckStrictFormals(JSContext *cx, JSTreeContext *tc, JSFunction *fun,
     if (!tc->needStrictChecks())
         return true;
 
-    atom = fun->findDuplicateFormal();
+    atom = js_FindDuplicateFormal(fun);
     if (atom) {
         /*
          * We have found a duplicate parameter name. If we can find the
