@@ -383,11 +383,6 @@ private:
   bool GetFollowingCharMessage(MSG& aCharMsg) const;
 
   /**
-   * Whether the key event can compute virtual keycode from the scancode value.
-   */
-  bool CanComputeVirtualKeyCodeFromScanCode() const;
-
-  /**
    * Wraps MapVirtualKeyEx() with MAPVK_VSC_TO_VK.
    */
   uint8_t ComputeVirtualKeyCodeFromScanCode() const;
@@ -396,11 +391,6 @@ private:
    * Wraps MapVirtualKeyEx() with MAPVK_VSC_TO_VK_EX.
    */
   uint8_t ComputeVirtualKeyCodeFromScanCodeEx() const;
-
-  /**
-   * Wraps MapVirtualKeyEx() with MAPVK_VK_TO_VSC_EX or MAPVK_VK_TO_VSC.
-   */
-  uint16_t ComputeScanCodeExFromVirtualKeyCode(UINT aVirtualKeyCode) const;
 
   /**
    * Wraps MapVirtualKeyEx() with MAPVK_VSC_TO_VK and MAPVK_VK_TO_CHAR.
@@ -575,8 +565,13 @@ public:
    * ConvertScanCodeToCodeNameIndex() returns CodeNameIndex value for
    * the given scan code.  aScanCode can be over 0xE000 since this method
    * doesn't use Windows API.
+   *
+   * NOTE: Some special keys always generate 0xE000 for the scan code but
+   *       the virtual keycode indicates the key.  In such case, this method
+   *       computes CodeNameIndex from aVirtualKeyCode.
    */
-  static CodeNameIndex ConvertScanCodeToCodeNameIndex(UINT aScanCode);
+  static CodeNameIndex ConvertScanCodeToCodeNameIndex(UINT aScanCode,
+                                                      UINT aVirtualKeyCode);
 
   HKL GetLayout() const
   {

@@ -162,8 +162,12 @@ public:
 
     int32_t Pid();
 
-    bool NeedsPermissionsUpdate() {
+    bool NeedsPermissionsUpdate() const {
         return mSendPermissionUpdates;
+    }
+
+    bool NeedsDataStoreInfos() const {
+        return mSendDataStoreInfos;
     }
 
     BlobParent* GetOrCreateActorForBlob(nsIDOMBlob* aBlob);
@@ -329,10 +333,6 @@ private:
      * is an abnormal shutdown (e.g. a crash).
      */
     void ShutDownProcess(bool aCloseWithError);
-
-    // Perform any steps necesssary to gracefully shtudown the message
-    // manager and null out mMessageManager.
-    void ShutDownMessageManager();
 
     PCompositorParent*
     AllocPCompositorParent(mozilla::ipc::Transport* aTransport,
@@ -532,6 +532,11 @@ private:
     virtual bool RecvGetSystemMemory(const uint64_t& getterId) MOZ_OVERRIDE;
     virtual bool RecvBroadcastVolume(const nsString& aVolumeName) MOZ_OVERRIDE;
 
+    virtual bool RecvDataStoreGetStores(
+                       const nsString& aName,
+                       const IPC::Principal& aPrincipal,
+                       InfallibleTArray<DataStoreSetting>* aValue) MOZ_OVERRIDE;
+
     virtual bool RecvSpeakerManagerGetSpeakerStatus(bool* aValue) MOZ_OVERRIDE;
 
     virtual bool RecvSpeakerManagerForceSpeaker(const bool& aEnable) MOZ_OVERRIDE;
@@ -606,6 +611,7 @@ private:
     bool mIsAlive;
 
     bool mSendPermissionUpdates;
+    bool mSendDataStoreInfos;
     bool mIsForBrowser;
     bool mIsNuwaProcess;
 
