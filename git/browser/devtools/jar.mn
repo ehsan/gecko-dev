@@ -23,5 +23,4 @@ browser.jar:
     content/browser/debugger-controller.js        (debugger/debugger-controller.js)
     content/browser/debugger-view.js              (debugger/debugger-view.js)
     content/browser/devtools/gcli.css             (commandline/gcli.css)
-    content/browser/devtools/gclioutput.xhtml     (commandline/gclioutput.xhtml)
-    content/browser/devtools/gclitooltip.xhtml    (commandline/gclitooltip.xhtml)
+    content/browser/devtools/gcliblank.xhtml      (commandline/gcliblank.xhtml)

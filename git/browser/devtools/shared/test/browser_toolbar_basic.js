@@ -9,10 +9,10 @@ registerCleanupFunction(function() {
   imported = {};
 });
 
-const TEST_URI = "http://example.com/browser/browser/devtools/shared/test/browser_toolbar_basic.html";
+const URL = "http://example.com/browser/browser/devtools/shared/test/browser_toolbar_basic.html";
 
 function test() {
-  addTab(TEST_URI, function(browser, tab) {
+  addTab(URL, function(browser, tab) {
     info("Starting browser_toolbar_basic.js");
     runTest();
   });

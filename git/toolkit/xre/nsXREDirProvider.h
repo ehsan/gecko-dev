@@ -34,8 +34,6 @@ public:
                       nsIDirectoryServiceProvider* aAppProvider = nsnull);
   ~nsXREDirProvider();
 
-  static nsXREDirProvider* GetSingleton();
-
   // We only set the profile dir, we don't ensure that it exists;
   // that is the responsibility of the toolkit profile service.
   // We also don't fire profile-changed notifications... that is

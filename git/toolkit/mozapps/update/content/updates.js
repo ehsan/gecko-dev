@@ -15,7 +15,6 @@ const CoR = Components.results;
 
 const XMLNS_XUL               = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
-const PREF_APP_UPDATE_BACKGROUND         = "app.update.stage.enabled";
 const PREF_APP_UPDATE_BACKGROUNDERRORS   = "app.update.backgroundErrors";
 const PREF_APP_UPDATE_BILLBOARD_TEST_URL = "app.update.billboard.test_url";
 const PREF_APP_UPDATE_CERT_ERRORS        = "app.update.cert.errors";
@@ -36,8 +35,6 @@ const STATE_DOWNLOADING       = "downloading";
 const STATE_PENDING           = "pending";
 const STATE_PENDING_SVC       = "pending-service";
 const STATE_APPLYING          = "applying";
-const STATE_APPLIED           = "applied";
-const STATE_APPLIED_SVC       = "applied-service";
 const STATE_SUCCEEDED         = "succeeded";
 const STATE_DOWNLOAD_FAILED   = "download-failed";
 const STATE_FAILED            = "failed";
@@ -413,8 +410,6 @@ var gUpdates = {
           switch (state) {
           case STATE_PENDING:
           case STATE_PENDING_SVC:
-          case STATE_APPLIED:
-          case STATE_APPLIED_SVC:
             this.sourceEvent = SRCEVT_BACKGROUND;
             aCallback("finishedBackground");
             return;
@@ -1219,11 +1214,6 @@ var gDownloadingPage = {
   _hiding: false,
 
   /**
-   * Have we registered an observer for a background update being staged
-   */
-  _updateApplyingObserver: false,
-
-  /**
    * Initialize
    */
   onPageShow: function() {
@@ -1270,7 +1260,7 @@ var gDownloadingPage = {
         // we fell back from a partial patch to a complete patch and even
         // then we couldn't validate. Show a validation error with instructions
         // on how to manually update.
-        this.cleanUp();
+        this.removeDownloadListener();
         gUpdates.wiz.goTo("errors");
         return;
       }
@@ -1358,30 +1348,12 @@ var gDownloadingPage = {
   },
 
   /**
-   * Wait for an update being staged in the background.
+   * Removes the download listener.
    */
-  _setUpdateApplying: function() {
-    this._downloadProgress.mode = "undetermined";
-    this._pauseButton.hidden = true;
-    let applyingStatus = gUpdates.getAUSString("applyingUpdate");
-    this._setStatus(applyingStatus);
-
-    Services.obs.addObserver(this, "update-staged", false);
-    this._updateApplyingObserver = true;
-  },
-
-  /**
-   * Clean up the listener and observer registered for the wizard.
-   */
-  cleanUp: function() {
+  removeDownloadListener: function() {
     var aus = CoC["@mozilla.org/updates/update-service;1"].
               getService(CoI.nsIApplicationUpdateService);
     aus.removeDownloadListener(this);
-
-    if (this._updateApplyingObserver) {
-      Services.obs.removeObserver(this, "update-staged");
-      this._updateApplyingObserver = false;
-    }
   },
 
   /**
@@ -1412,7 +1384,7 @@ var gDownloadingPage = {
     if (this._hiding)
       return;
 
-    this.cleanUp();
+    this.removeDownloadListener();
   },
 
   /**
@@ -1426,7 +1398,7 @@ var gDownloadingPage = {
     // Remove ourself as a download listener so that we don't continue to be
     // fed progress and state notifications after the UI we're updating has
     // gone away.
-    this.cleanUp();
+    this.removeDownloadListener();
 
     var aus = CoC["@mozilla.org/updates/update-service;1"].
               getService(CoI.nsIApplicationUpdateService);
@@ -1560,7 +1532,7 @@ var gDownloadingPage = {
           (u.isCompleteUpdate || u.patchCount != 2)) {
         // Verification error of complete patch, informational text is held in
         // the update object.
-        this.cleanUp();
+        this.removeDownloadListener();
         gUpdates.wiz.goTo("errors");
         break;
       }
@@ -1579,36 +1551,15 @@ var gDownloadingPage = {
       break;
     case CoR.NS_OK:
       LOG("gDownloadingPage", "onStopRequest - patch verification succeeded");
-      // If the background update pref is set, we should wait until the update
-      // is actually staged in the background.
-      if (getPref("getBoolPref", PREF_APP_UPDATE_BACKGROUND, false)) {
-        this._setUpdateApplying();
-      } else {
-        this.cleanUp();
-        gUpdates.wiz.goTo("finished");
-      }
+      this.removeDownloadListener();
+      gUpdates.wiz.goTo("finished");
       break;
     default:
       LOG("gDownloadingPage", "onStopRequest - transfer failed");
       // Some kind of transfer error, die.
-      this.cleanUp();
+      this.removeDownloadListener();
       gUpdates.wiz.goTo("errors");
       break;
-    }
-  },
-
-  /**
-   * See nsIObserver.idl
-   */
-  observe: function(aSubject, aTopic, aData) {
-    if (aTopic == "update-staged") {
-      this.cleanUp();
-      if (aData == STATE_APPLIED ||
-          aData == STATE_APPLIED_SVC) {
-        gUpdates.wiz.goTo("finished");
-      } else {
-        gUpdates.wiz.goTo("errors");
-      }
     }
   },
 
@@ -1618,7 +1569,6 @@ var gDownloadingPage = {
   QueryInterface: function(iid) {
     if (!iid.equals(CoI.nsIRequestObserver) &&
         !iid.equals(CoI.nsIProgressEventSink) &&
-        !iid.equals(CoI.nsIObserver) &&
         !iid.equals(CoI.nsISupports))
       throw CoR.NS_ERROR_NO_INTERFACE;
     return this;

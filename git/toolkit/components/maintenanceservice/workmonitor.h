@@ -3,3 +3,4 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 BOOL ExecuteServiceCommand(int argc, LPWSTR *argv);
+BOOL GetUpdateDirectoryPath(LPWSTR);
