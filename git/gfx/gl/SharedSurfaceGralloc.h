@@ -6,8 +6,8 @@
 #ifndef SHARED_SURFACE_GRALLOC_H_
 #define SHARED_SURFACE_GRALLOC_H_
 
+#include "SharedSurfaceGL.h"
 #include "mozilla/layers/LayersSurfaces.h"
-#include "SharedSurface.h"
 
 namespace mozilla {
 namespace layers {
@@ -20,7 +20,7 @@ class GLContext;
 class GLLibraryEGL;
 
 class SharedSurface_Gralloc
-    : public SharedSurface
+    : public SharedSurface_GL
 {
 public:
     static SharedSurface_Gralloc* Create(GLContext* prodGL,
@@ -30,7 +30,7 @@ public:
                                          layers::ISurfaceAllocator* allocator);
 
     static SharedSurface_Gralloc* Cast(SharedSurface* surf) {
-        MOZ_ASSERT(surf->mType == SharedSurfaceType::Gralloc);
+        MOZ_ASSERT(surf->Type() == SharedSurfaceType::Gralloc);
 
         return (SharedSurface_Gralloc*)surf;
     }
@@ -73,7 +73,7 @@ public:
 };
 
 class SurfaceFactory_Gralloc
-    : public SurfaceFactory
+    : public SurfaceFactory_GL
 {
 protected:
     RefPtr<layers::ISurfaceAllocator> mAllocator;

@@ -50,9 +50,7 @@ try {
     this.__defineGetter__.call(window.location, 'href', function(){});
     ok(false, "shouldn't be able to override location.href");
 } catch (e) {
-    ok(/shadow/.exec(e.message) ||
-       /can't redefine non-configurable/.exec(e.message),
-       "Should be caught by the anti-shadow mechanism.");
+    ok(/shadow/.exec(e.message), "Should be caught by the anti-shadow mechanism.");
 }
 
 // Try deleting the property.
@@ -63,16 +61,17 @@ delete Object.getPrototypeOf(window.location).href;
 ok(typeof window.location.href !== 'undefined',
    "shouldn't be able to delete the property off of the prototype");
 
-this.__defineGetter__.call(Object.getPrototypeOf(window.location), 'href', function(){});
-ok(true, "should be able to define things on the prototype");
+try {
+    this.__defineGetter__.call(Object.getPrototypeOf(window.location), 'href', function(){});
+    ok(false, "shouldn't be able to use the prototype");
+} catch (e) {
+}
 
 try {
     this.__defineSetter__.call(window.location, 'href', function(){});
     ok(false, "overrode a setter for location.href?");
 } catch (e) {
-    ok(/shadow/.exec(e.message) ||
-       /can't redefine non-configurable/.exec(e.message),
-       "Should be caught by the anti-shadow mechanism.");
+    ok(/shadow/.exec(e.message), "Should be caught by the anti-shadow mechanism.");
 }
 
 try {

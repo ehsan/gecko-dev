@@ -24,7 +24,6 @@ class FTPChannelParent : public PFTPChannelParent
                        , public nsIParentChannel
                        , public nsIInterfaceRequestor
                        , public ADivertableParentChannel
-                       , public nsIChannelEventSink
 {
 public:
   NS_DECL_ISUPPORTS
@@ -32,7 +31,6 @@ public:
   NS_DECL_NSISTREAMLISTENER
   NS_DECL_NSIPARENTCHANNEL
   NS_DECL_NSIINTERFACEREQUESTOR
-  NS_DECL_NSICHANNELEVENTSINK
 
   FTPChannelParent(nsILoadContext* aLoadContext, PBOverrideStatus aOverrideStatus);
 
@@ -79,8 +77,7 @@ protected:
 
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
-  // if configured to use HTTP proxy for FTP, this can an an HTTP channel.
-  nsCOMPtr<nsIChannel> mChannel;
+  nsRefPtr<nsFtpChannel> mChannel;
 
   bool mIPCClosed;
 

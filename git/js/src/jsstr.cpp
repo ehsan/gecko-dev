@@ -24,7 +24,6 @@
 #include "mozilla/PodOperations.h"
 #include "mozilla/Range.h"
 #include "mozilla/TypeTraits.h"
-#include "mozilla/UniquePtr.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -73,12 +72,10 @@ using mozilla::CheckedInt;
 using mozilla::IsNaN;
 using mozilla::IsNegativeZero;
 using mozilla::IsSame;
-using mozilla::Move;
 using mozilla::PodCopy;
 using mozilla::PodEqual;
 using mozilla::RangedPtr;
 using mozilla::SafeCast;
-using mozilla::UniquePtr;
 
 using JS::AutoCheckCannotGC;
 
@@ -4826,16 +4823,16 @@ js_strcmp(const jschar *lhs, const jschar *rhs)
     }
 }
 
-UniquePtr<jschar[], JS::FreePolicy>
-js::DuplicateString(js::ThreadSafeContext *cx, const jschar *s)
+jschar *
+js_strdup(js::ThreadSafeContext *cx, const jschar *s)
 {
     size_t n = js_strlen(s);
-    auto ret = cx->make_pod_array<jschar>(n + 1);
+    jschar *ret = cx->pod_malloc<jschar>(n + 1);
     if (!ret)
-        return ret;
-    js_strncpy(ret.get(), s, n);
+        return nullptr;
+    js_strncpy(ret, s, n);
     ret[n] = '\0';
-    return Move(ret);
+    return ret;
 }
 
 template <typename CharT>

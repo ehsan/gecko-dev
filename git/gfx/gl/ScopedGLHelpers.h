@@ -6,8 +6,6 @@
 #ifndef SCOPEDGLHELPERS_H_
 #define SCOPEDGLHELPERS_H_
 
-#include "mozilla/UniquePtr.h"
-
 #include "GLContext.h"
 
 namespace mozilla {
@@ -324,7 +322,7 @@ struct ScopedGLDrawState {
     ScopedGLState stencil;
 
     GLuint maxAttrib;
-    UniquePtr<GLint[]> attrib_enabled;
+    ScopedDeleteArray<GLint> attrib_enabled;
     GLint attrib0_size;
     GLint attrib0_stride;
     GLint attrib0_type;

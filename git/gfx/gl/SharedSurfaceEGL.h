@@ -6,20 +6,21 @@
 #ifndef SHARED_SURFACE_EGL_H_
 #define SHARED_SURFACE_EGL_H_
 
+#include "SharedSurfaceGL.h"
+#include "SurfaceFactory.h"
+#include "GLLibraryEGL.h"
+#include "SurfaceTypes.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Mutex.h"
-#include "nsAutoPtr.h"
-#include "SharedSurface.h"
 
 namespace mozilla {
 namespace gl {
 
 class GLContext;
-class GLLibraryEGL;
 class TextureGarbageBin;
 
 class SharedSurface_EGLImage
-    : public SharedSurface
+    : public SharedSurface_GL
 {
 public:
     static SharedSurface_EGLImage* Create(GLContext* prodGL,
@@ -29,7 +30,7 @@ public:
                                           EGLContext context);
 
     static SharedSurface_EGLImage* Cast(SharedSurface* surf) {
-        MOZ_ASSERT(surf->mType == SharedSurfaceType::EGLImageShare);
+        MOZ_ASSERT(surf->Type() == SharedSurfaceType::EGLImageShare);
 
         return (SharedSurface_EGLImage*)surf;
     }
@@ -80,7 +81,7 @@ public:
 
 
 class SurfaceFactory_EGLImage
-    : public SurfaceFactory
+    : public SurfaceFactory_GL
 {
 public:
     // Fallible:
@@ -93,7 +94,7 @@ protected:
     SurfaceFactory_EGLImage(GLContext* prodGL,
                             EGLContext context,
                             const SurfaceCaps& caps)
-        : SurfaceFactory(prodGL, SharedSurfaceType::EGLImageShare, caps)
+        : SurfaceFactory_GL(prodGL, SharedSurfaceType::EGLImageShare, caps)
         , mContext(context)
     {}
 

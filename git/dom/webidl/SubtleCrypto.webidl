@@ -67,12 +67,6 @@ dictionary HmacImportParams : Algorithm {
   AlgorithmIdentifier hash;
 };
 
-dictionary Pbkdf2Params : Algorithm {
-  CryptoOperationData salt;
-  [EnforceRange] unsigned long iterations;
-  AlgorithmIdentifier hash;
-};
-
 dictionary RsaHashedImportParams {
   AlgorithmIdentifier hash;
 };

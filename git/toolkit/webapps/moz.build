@@ -9,7 +9,7 @@ EXTRA_PP_JS_MODULES += [
     'WebappOSUtils.jsm',
 ]
 
-TEST_DIRS += ['tests']
+MOCHITEST_CHROME_MANIFESTS += ['tests/chrome.ini']
 
 if CONFIG['MOZ_BUILD_APP'] == 'mobile/android':
     DEFINES['MOZ_FENNEC'] = True

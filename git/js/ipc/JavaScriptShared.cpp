@@ -201,7 +201,12 @@ JavaScriptShared::convertIdToGeckoString(JSContext *cx, JS::HandleId id, nsStrin
     if (!str)
         return false;
 
-    return AssignJSString(cx, *to, str);
+    const jschar *chars = JS_GetStringCharsZ(cx, str);
+    if (!chars)
+        return false;
+
+    *to = chars;
+    return true;
 }
 
 bool

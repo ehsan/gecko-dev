@@ -10,25 +10,26 @@
     android:orientation="vertical"
     tools:context=".MainActivity">
 
-    <fragment
+
+    <FrameLayout
+        android:id="@+id/gecko_fragments"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:name="org.mozilla.search.PostSearchFragment"
-        android:id="@+id/gecko"
+        android:layout_marginTop="45dp"
         />
 
-    <fragment
+
+    <FrameLayout
+        android:id="@+id/presearch_fragments"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:name="org.mozilla.search.PreSearchFragment"
-        android:id="@+id/presearch"
         />
 
-    <fragment
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:name="org.mozilla.search.autocomplete.SearchFragment"
+    <FrameLayout
+
         android:id="@+id/header_fragments"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         />
 
 </merge>

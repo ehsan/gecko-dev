@@ -135,9 +135,7 @@ private:
       for (CERTCertListNode* n = CERT_LIST_HEAD(candidates);
            !CERT_LIST_END(n, candidates); n = CERT_LIST_NEXT(n)) {
         bool keepGoing;
-        SECStatus srv = checker.Check(n->cert->derCert,
-                                      nullptr/*additionalNameConstraints*/,
-                                      keepGoing);
+        SECStatus srv = checker.Check(n->cert->derCert, keepGoing);
         if (srv != SECSuccess) {
           return SECFailure;
         }

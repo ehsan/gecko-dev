@@ -214,12 +214,10 @@ private:
 
 // The scriptable class that drives the event tracer
 
-class VisualEventTracer MOZ_FINAL: public nsIVisualEventTracer
+class VisualEventTracer : public nsIVisualEventTracer
 {
   NS_DECL_ISUPPORTS
   NS_DECL_NSIVISUALEVENTTRACER
-private:
-  ~VisualEventTracer() {}
 };
 
 #define NS_VISUALEVENTTRACER_CID \

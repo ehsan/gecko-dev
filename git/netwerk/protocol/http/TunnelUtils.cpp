@@ -15,7 +15,6 @@
 #include "nsISocketProviderService.h"
 #include "nsISSLSocketControl.h"
 #include "nsISocketTransport.h"
-#include "nsISupportsPriority.h"
 #include "nsNetAddr.h"
 #include "prerror.h"
 #include "prio.h"
@@ -826,7 +825,7 @@ private:
 SpdyConnectTransaction::SpdyConnectTransaction(nsHttpConnectionInfo *ci,
                                                nsIInterfaceRequestor *callbacks,
                                                uint32_t caps,
-                                               nsHttpTransaction *trans,
+                                               nsAHttpTransaction *trans,
                                                nsAHttpConnection *session)
   : NullHttpTransaction(ci, callbacks, caps | NS_HTTP_ALLOW_KEEPALIVE)
   , mConnectStringOffset(0)
@@ -838,14 +837,12 @@ SpdyConnectTransaction::SpdyConnectTransaction(nsHttpConnectionInfo *ci,
   , mOutputDataSize(0)
   , mOutputDataUsed(0)
   , mOutputDataOffset(0)
-  , mForcePlainText(false)
 {
   LOG(("SpdyConnectTransaction ctor %p\n", this));
 
   mTimestampSyn = TimeStamp::Now();
   mRequestHead = new nsHttpRequestHead();
   nsHttpConnection::MakeConnectString(trans, mRequestHead, mConnectString);
-  mDrivingTransaction = trans;
 }
 
 SpdyConnectTransaction::~SpdyConnectTransaction()
@@ -854,24 +851,6 @@ SpdyConnectTransaction::~SpdyConnectTransaction()
   if (mRequestHead) {
     delete mRequestHead;
   }
-
-  if (mDrivingTransaction) {
-    // requeue it I guess. This should be gone.
-    gHttpHandler->InitiateTransaction(mDrivingTransaction,
-                                      mDrivingTransaction->Priority());
-  }
-}
-
-void
-SpdyConnectTransaction::ForcePlainText()
-{
-  MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
-  MOZ_ASSERT(!mInputDataUsed && !mInputDataSize && !mInputDataOffset);
-  MOZ_ASSERT(!mForcePlainText);
-  MOZ_ASSERT(!mTunnelTransport, "call before mapstreamtohttpconnection");
-
-  mForcePlainText = true;
-  return;
 }
 
 void
@@ -901,23 +880,10 @@ SpdyConnectTransaction::MapStreamToHttpConnection(nsISocketTransport *aTransport
                       true, callbacks,
                       PR_MillisecondsToInterval(
                         static_cast<uint32_t>(rtt.ToMilliseconds())));
-  if (mForcePlainText) {
-      mTunneledConn->ForcePlainText();
-  } else {
-    mTunneledConn->SetupSecondaryTLS();
-    mTunneledConn->SetInSpdyTunnel(true);
-  }
+  mTunneledConn->SetupSecondaryTLS();
+  mTunneledConn->SetInSpdyTunnel(true);
 
-  // make the originating transaction stick to the tunneled conn
-  nsRefPtr<nsAHttpConnection> wrappedConn =
-    gHttpHandler->ConnMgr()->MakeConnectionHandle(mTunneledConn);
-  mDrivingTransaction->SetConnection(wrappedConn);
-  mDrivingTransaction->MakeSticky();
-
-  // jump the priority and start the dispatcher
-  gHttpHandler->InitiateTransaction(
-    mDrivingTransaction, nsISupportsPriority::PRIORITY_HIGHEST - 60);
-  mDrivingTransaction = nullptr;
+  gHttpHandler->ConnMgr()->ReclaimConnection(mTunneledConn);
 }
 
 nsresult
@@ -967,8 +933,7 @@ SpdyConnectTransaction::ReadSegments(nsAHttpSegmentReader *reader,
                                      uint32_t *countRead)
 {
   MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
-  LOG(("SpdyConnectTransaction::ReadSegments %p count %d conn %p\n",
-       this, count, mTunneledConn.get()));
+  LOG(("SpdyConnectTransaction::ReadSegments %p count %d\n", this, count));
 
   mSegmentReader = reader;
 
@@ -995,17 +960,6 @@ SpdyConnectTransaction::ReadSegments(nsAHttpSegmentReader *reader,
       return rv;
     }
     return NS_BASE_STREAM_WOULD_BLOCK;
-  }
-
-  if (mForcePlainText) {
-    // this path just ignores sending the request so that we can
-    // send a synthetic reply in writesegments()
-    LOG(("SpdyConnectTransaciton::ReadSegments %p dropping %d output bytes "
-         "due to synthetic reply\n", this, mOutputDataUsed - mOutputDataOffset));
-    *countRead = mOutputDataUsed - mOutputDataOffset;
-    mOutputDataOffset = mOutputDataUsed = 0;
-    mTunneledConn->DontReuse();
-    return NS_OK;
   }
 
   *countRead = 0;
@@ -1066,7 +1020,7 @@ SpdyConnectTransaction::WriteSegments(nsAHttpSegmentWriter *writer,
                                        count, countWritten);
   if (NS_FAILED(rv)) {
     if (rv != NS_BASE_STREAM_WOULD_BLOCK) {
-      LOG(("SpdyConnectTransaction::WriteSegments wrapped writer %p Error %x\n", this, rv));
+      LOG(("SpdyConnectTransaction::Flush %p Error %x\n", this, rv));
       CreateShimError(rv);
     }
     return rv;

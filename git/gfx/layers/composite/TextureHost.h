@@ -33,7 +33,7 @@ struct nsIntSize;
 struct nsIntRect;
 
 namespace mozilla {
-namespace gl {
+namespace gfx {
 class SurfaceStream;
 }
 namespace ipc {
@@ -635,7 +635,7 @@ public:
 
 protected:
   Compositor* mCompositor;
-  gl::SurfaceStream* mStream;
+  gfx::SurfaceStream* mStream;
   RefPtr<NewTextureSource> mTextureSource;
   RefPtr<DataTextureSource> mDataTextureSource;
 };

@@ -22,7 +22,6 @@
 #include "xpcprivate.h"
 
 #include "mozilla/dom/DOMExceptionBinding.h"
-#include "mozilla/ErrorResult.h"
 
 using namespace mozilla;
 
@@ -552,14 +551,6 @@ Exception::GetData() const
 {
   nsCOMPtr<nsISupports> data = mData;
   return data.forget();
-}
-
-void
-Exception::GetStack(nsAString& aStack, ErrorResult& aRv) const
-{
-  if (mLocation) {
-    aRv = mLocation->GetFormattedStack(aStack);
-  }
 }
 
 void

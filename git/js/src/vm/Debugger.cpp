@@ -12,7 +12,6 @@
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jswrapper.h"
-
 #include "frontend/BytecodeCompiler.h"
 #include "gc/Marking.h"
 #include "jit/BaselineJIT.h"
@@ -20,12 +19,10 @@
 #include "vm/ArgumentsObject.h"
 #include "vm/DebuggerMemory.h"
 #include "vm/WrapperObject.h"
-
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
 #include "jsopcodeinlines.h"
 #include "jsscriptinlines.h"
-
 #include "vm/ObjectImpl-inl.h"
 #include "vm/Stack-inl.h"
 
@@ -2249,18 +2246,21 @@ Debugger::construct(JSContext *cx, unsigned argc, Value *vp)
     obj->setReservedSlot(JSSLOT_DEBUG_MEMORY_INSTANCE, ObjectValue(*memory));
 
     /* Construct the underlying C++ object. */
-    auto dbg = cx->make_unique<Debugger>(cx, obj.get());
-    if (!dbg || !dbg->init(cx))
+    Debugger *dbg = cx->new_<Debugger>(cx, obj.get());
+    if (!dbg)
         return false;
-
-    Debugger *debugger = dbg.release();
-    obj->setPrivate(debugger); // owns the released pointer
+    if (!dbg->init(cx)) {
+        js_delete(dbg);
+        return false;
+    }
+    obj->setPrivate(dbg);
+    /* Now the JSObject owns the js::Debugger instance, so we needn't delete it. */
 
     /* Add the initial debuggees, if any. */
     for (unsigned i = 0; i < args.length(); i++) {
         Rooted<GlobalObject*>
             debuggee(cx, &args[i].toObject().as<ProxyObject>().private_().toObject().global());
-        if (!debugger->addDebuggeeGlobal(cx, debuggee))
+        if (!dbg->addDebuggeeGlobal(cx, debuggee))
             return false;
     }
 
@@ -4183,7 +4183,7 @@ static void
 UpdateFrameIterPc(FrameIter &iter)
 {
     if (iter.abstractFramePtr().isRematerializedFrame()) {
-#if defined(DEBUG) && defined(JS_ION)
+#ifdef DEBUG
         // Rematerialized frames don't need their pc updated. The reason we
         // need to update pc is because we might get the same Debugger.Frame
         // object for multiple re-entries into debugger code from debuggee

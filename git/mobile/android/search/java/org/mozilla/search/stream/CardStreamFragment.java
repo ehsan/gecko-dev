@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.search;
+package org.mozilla.search.stream;
 
 import android.os.Bundle;
 import android.support.v4.app.ListFragment;
 import android.view.View;
 import android.widget.ArrayAdapter;
 
-import org.mozilla.search.stream.PreloadAgent;
+import org.mozilla.search.R;
 
 
 /**
@@ -17,7 +17,7 @@ import org.mozilla.search.stream.PreloadAgent;
  * we only use this during pre-search, but we could also use it
  * during post-search at some point.
  */
-public class PreSearchFragment extends ListFragment {
+public class CardStreamFragment extends ListFragment {
 
     private ArrayAdapter<PreloadAgent.TmpItem> adapter;
 
@@ -25,7 +25,7 @@ public class PreSearchFragment extends ListFragment {
      * Mandatory empty constructor for the fragment manager to instantiate the
      * fragment (e.g. upon screen orientation changes).
      */
-    public PreSearchFragment() {
+    public CardStreamFragment() {
     }
 
     @Override

@@ -8,10 +8,11 @@
 #include "gfxPoint.h"
 #include "SharedSurface.h"
 #include "SharedSurfaceGL.h"
+#include "SurfaceFactory.h"
 #include "GeckoProfiler.h"
 
 namespace mozilla {
-namespace gl {
+namespace gfx {
 
 SurfaceStreamType
 SurfaceStream::ChooseGLStreamType(SurfaceStream::OMTC omtc,
@@ -60,15 +61,15 @@ bool
 SurfaceStream_TripleBuffer::CopySurfaceToProducer(SharedSurface* src, SurfaceFactory* factory)
 {
     if (!mProducer) {
-        New(factory, src->mSize, mProducer);
+        New(factory, src->Size(), mProducer);
         if (!mProducer) {
             return false;
         }
     }
 
-    MOZ_ASSERT(src->mSize == mProducer->mSize, "Size mismatch");
+    MOZ_ASSERT(src->Size() == mProducer->Size(), "Size mismatch");
 
-    SharedSurface::ProdCopy(src, mProducer, factory);
+    SharedSurface::Copy(src, mProducer, factory);
     return true;
 }
 
@@ -253,12 +254,12 @@ SurfaceStream_SingleBuffer::SwapProducer(SurfaceFactory* factory,
 
         // Size mismatch means we need to squirrel the current Prod
         // into Cons, and leave Prod empty, so it gets a new surface below.
-        bool needsNewBuffer = mProducer->mSize != size;
+        bool needsNewBuffer = mProducer->Size() != size;
 
         // Even if we're the right size, if the type has changed, and we don't
         // need to preserve, we should switch out for (presumedly) better perf.
-        if (mProducer->mType != factory->mType &&
-            !factory->mCaps.preserve)
+        if (mProducer->Type() != factory->Type() &&
+            !factory->Caps().preserve)
         {
             needsNewBuffer = true;
         }
@@ -349,9 +350,9 @@ SurfaceStream_TripleBuffer_Copy::SwapProducer(SurfaceFactory* factory,
         mStaging->Fence();
 
         New(factory, size, mProducer);
-
-        if (mProducer && mStaging->mSize == mProducer->mSize)
-            SharedSurface::ProdCopy(mStaging, mProducer, factory);
+        
+        if (mProducer && mStaging->Size() == mProducer->Size())
+            SharedSurface::Copy(mStaging, mProducer, factory);
     } else {
         New(factory, size, mProducer);
     }

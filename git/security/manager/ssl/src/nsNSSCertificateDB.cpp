@@ -1629,10 +1629,8 @@ NS_IMETHODIMP nsNSSCertificateDB::AddCertFromBase64(const char* aBase64,
     return MapSECStatus(SECFailure);
   }
 
-   // If there's already a certificate that matches this one in the database,
-   // we still want to set its trust to the given value.
   if (tmpCert->isperm) {
-    return SetCertTrustFromString(newCert, aTrust);
+    return NS_OK;
   }
 
   nsXPIDLCString nickname;

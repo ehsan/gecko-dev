@@ -1497,6 +1497,9 @@ XPCJSRuntime::NewShortLivedString()
 void
 XPCJSRuntime::DeleteShortLivedString(nsString *string)
 {
+    if (string == &EmptyString() || string == &NullString())
+        return;
+
     for (uint32_t i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i) {
         if (!mScratchStrings[i].empty() &&
             mScratchStrings[i].addr() == string) {

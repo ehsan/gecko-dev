@@ -54,8 +54,9 @@ namespace android {
 
 namespace mozilla {
     namespace gfx {
-        class DataSourceSurface;
         class SourceSurface;
+        class DataSourceSurface;
+        struct SurfaceCaps;
     }
 
     namespace gl {
@@ -66,7 +67,7 @@ namespace mozilla {
         class GLBlitHelper;
         class GLBlitTextureImageHelper;
         class GLReadTexImageHelper;
-        struct SurfaceCaps;
+        class SharedSurface_GL;
     }
 
     namespace layers {
@@ -849,9 +850,9 @@ public:
             !data &&
             Vendor() == GLVendor::NVIDIA)
         {
-            UniquePtr<char[]> buf = MakeUnique<char[]>(1);
+            ScopedDeleteArray<char> buf(new char[1]);
             buf[0] = 0;
-            fBufferSubData(target, size-1, 1, buf.get());
+            fBufferSubData(target, size-1, 1, buf);
         }
     }
 
@@ -2503,6 +2504,11 @@ public:
 
 // -----------------------------------------------------------------------------
 // Constructor
+public:
+
+    typedef struct gfx::SurfaceCaps SurfaceCaps;
+
+
 protected:
     GLContext(const SurfaceCaps& caps,
               GLContext* sharedContext = nullptr,
@@ -2518,6 +2524,8 @@ public:
 // -----------------------------------------------------------------------------
 // Everything that isn't standard GL APIs
 protected:
+    typedef class gfx::SharedSurface SharedSurface;
+    typedef gfx::SharedSurfaceType SharedSurfaceType;
     typedef gfx::SurfaceFormat SurfaceFormat;
 
     virtual bool MakeCurrentImpl(bool aForce) = 0;
@@ -2701,7 +2709,7 @@ public:
     GLint GetMaxTextureImageSize() { return mMaxTextureImageSize; }
 
 public:
-    std::map<GLuint, SharedSurface*> mFBOMapping;
+    std::map<GLuint, SharedSurface_GL*> mFBOMapping;
 
     enum {
         DebugEnabled = 1 << 0,
@@ -2770,7 +2778,7 @@ public:
         fScissor(0, 0, size.width, size.height);
         fViewport(0, 0, size.width, size.height);
 
-        mCaps = mScreen->mCaps;
+        mCaps = mScreen->Caps();
         if (mCaps.any)
             DetermineCaps();
 
@@ -2861,20 +2869,20 @@ protected:
 
     void DestroyScreenBuffer();
 
-    SharedSurface* mLockedSurface;
+    SharedSurface_GL* mLockedSurface;
 
 public:
-    void LockSurface(SharedSurface* surf) {
+    void LockSurface(SharedSurface_GL* surf) {
         MOZ_ASSERT(!mLockedSurface);
         mLockedSurface = surf;
     }
 
-    void UnlockSurface(SharedSurface* surf) {
+    void UnlockSurface(SharedSurface_GL* surf) {
         MOZ_ASSERT(mLockedSurface == surf);
         mLockedSurface = nullptr;
     }
 
-    SharedSurface* GetLockedSurface() const {
+    SharedSurface_GL* GetLockedSurface() const {
         return mLockedSurface;
     }
 
@@ -2887,7 +2895,7 @@ public:
     }
 
     bool PublishFrame();
-    SharedSurface* RequestFrame();
+    SharedSurface_GL* RequestFrame();
 
     /* Clear to transparent black, with 0 depth and stencil,
      * while preserving current ClearColor etc. values.

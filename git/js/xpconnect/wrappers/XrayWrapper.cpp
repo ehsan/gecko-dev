@@ -69,8 +69,6 @@ IsTypedArrayKey(JSProtoKey key)
     return key >= JSProto_Int8Array && key <= JSProto_Uint8ClampedArray;
 }
 
-bool SilentFailure(JSContext *cx, JS::HandleId id, const char *reason);
-
 // Whitelist for the standard ES classes we can Xray to.
 static bool
 IsJSXraySupported(JSProtoKey key)
@@ -105,14 +103,7 @@ GetXrayType(JSObject *obj)
     if (IsJSXraySupported(standardProto))
         return XrayForJSObject;
 
-    // Modulo a few exceptions, everything else counts as an XrayWrapper to an
-    // opaque object, which means that more-privileged code sees nothing from
-    // the underlying object. This is very important for security. In some cases
-    // though, we need to make an exception for compatibility.
-    if (IsSandbox(obj))
-        return NotXray;
-
-    return XrayForOpaqueObject;
+    return NotXray;
 }
 
 JSObject *
@@ -495,17 +486,6 @@ public:
         MOZ_CRASH("resolveNativeProperty hook should never be called with HasPrototype = 1");
     }
 
-    virtual bool resolveOwnProperty(JSContext *cx, const Wrapper &jsWrapper, HandleObject wrapper,
-                                    HandleObject holder, HandleId id,
-                                    MutableHandle<JSPropertyDescriptor> desc) MOZ_OVERRIDE
-    {
-        bool ok = XrayTraits::resolveOwnProperty(cx, jsWrapper, wrapper, holder, id, desc);
-        if (!ok || desc.object())
-            return ok;
-
-        return SilentFailure(cx, id, "Object is not safely Xrayable");
-    }
-
     bool defineProperty(JSContext *cx, HandleObject wrapper, HandleId id,
                         MutableHandle<JSPropertyDescriptor> desc,
                         Handle<JSPropertyDescriptor> existingDesc, bool *defined)
@@ -573,7 +553,7 @@ public:
     static OpaqueXrayTraits singleton;
 };
 
-bool
+inline bool
 SilentFailure(JSContext *cx, HandleId id, const char *reason)
 {
 #ifdef DEBUG
@@ -583,7 +563,7 @@ SilentFailure(JSContext *cx, HandleId id, const char *reason)
     AutoFilename filename;
     unsigned line = 0;
     DescribeScriptedCaller(cx, &filename, &line);
-    NS_WARNING(nsPrintfCString("Silently denied access to property |%s|: %s (@%s:%u)",
+    NS_WARNING(nsPrintfCString("Denied access to property |%s| on Xrayed Object: %s (@%s:%u)",
                                NS_LossyConvertUTF16toASCII(name).get(), reason,
                                filename.get(), line).get());
 #endif

@@ -489,22 +489,10 @@ def PrototypeIDAndDepth(descriptor):
     return (prototypeID, depth)
 
 
-def MemberIsUnforgeable(member, descriptor):
-    # Note: "or" and "and" return either their LHS or RHS, not
-    # necessarily booleans.  Make sure to return a boolean from this
-    # method, because callers will compare its return value to
-    # booleans.
-    return bool((member.isAttr() or member.isMethod()) and
-                not member.isStatic() and
-                (member.isUnforgeable() or
-                 descriptor.interface.getExtendedAttribute("Unforgeable")))
-
-
 def UseHolderForUnforgeable(descriptor):
     return (descriptor.concrete and
             descriptor.proxy and
-            any(m for m in descriptor.interface.members
-                if MemberIsUnforgeable(m, descriptor)))
+            any(m for m in descriptor.interface.members if (m.isAttr() or m.isMethod()) and m.isUnforgeable()))
 
 
 def CallOnUnforgeableHolder(descriptor, code, isXrayCheck=None,
@@ -2011,7 +1999,7 @@ class MethodDefiner(PropertyDefiner):
         if descriptor.interface.hasInterfacePrototypeObject() or static:
             methods = [m for m in descriptor.interface.members if
                        m.isMethod() and m.isStatic() == static and
-                       MemberIsUnforgeable(m, descriptor) == unforgeable and
+                       m.isUnforgeable() == unforgeable and
                        not m.isIdentifierLess()]
         else:
             methods = []
@@ -2084,8 +2072,7 @@ class MethodDefiner(PropertyDefiner):
 
         if not static:
             stringifier = descriptor.operations['Stringifier']
-            if (stringifier and
-                unforgeable == MemberIsUnforgeable(stringifier, descriptor)):
+            if stringifier:
                 toStringDesc = {
                     "name": "toString",
                     "nativeName": stringifier.identifier.name,
@@ -2110,18 +2097,6 @@ class MethodDefiner(PropertyDefiner):
                     self.chrome.append(toJSONDesc)
                 else:
                     self.regular.append(toJSONDesc)
-            if (unforgeable and
-                descriptor.interface.getExtendedAttribute("Unforgeable")):
-                # Synthesize our valueOf method
-                self.regular.append({
-                    "name": 'valueOf',
-                    "nativeName": "UnforgeableValueOf",
-                    "methodInfo": False,
-                    "length": 0,
-                    "flags": "JSPROP_ENUMERATE", # readonly/permanent added
-                                                 # automatically.
-                    "condition": MemberCondition(None, None)
-                })
         elif (descriptor.interface.isJSImplemented() and
               descriptor.interface.hasInterfaceObject()):
             self.chrome.append({
@@ -2152,7 +2127,7 @@ class MethodDefiner(PropertyDefiner):
             return m["condition"]
 
         def flags(m):
-            unforgeable = " | JSPROP_PERMANENT | JSPROP_READONLY" if self.unforgeable else ""
+            unforgeable = " | JSPROP_PERMANENT" if self.unforgeable else ""
             return m["flags"] + unforgeable
 
         def specData(m):
@@ -2200,23 +2175,6 @@ class MethodDefiner(PropertyDefiner):
             condition, specData, doIdArrays)
 
 
-def IsCrossOriginWritable(attr, descriptor):
-    """
-    Return whether the IDLAttribute in question is cross-origin writable on the
-    interface represented by descriptor.  This is needed to handle the fact that
-    some, but not all, interfaces implementing URLUtils want a cross-origin
-    writable .href.
-    """
-    crossOriginWritable = attr.getExtendedAttribute("CrossOriginWritable")
-    if not crossOriginWritable:
-        return False
-    if crossOriginWritable == True:
-        return True
-    assert (isinstance(crossOriginWritable, list) and
-            len(crossOriginWritable) == 1)
-    return crossOriginWritable[0] == descriptor.interface.identifier.name
-
-
 class AttrDefiner(PropertyDefiner):
     def __init__(self, descriptor, name, static, unforgeable=False):
         assert not (static and unforgeable)
@@ -2226,7 +2184,7 @@ class AttrDefiner(PropertyDefiner):
         if descriptor.interface.hasInterfacePrototypeObject() or static:
             attributes = [m for m in descriptor.interface.members if
                           m.isAttr() and m.isStatic() == static and
-                          MemberIsUnforgeable(m, descriptor) == unforgeable]
+                          m.isUnforgeable() == unforgeable]
         else:
             attributes = []
         self.chrome = [m for m in attributes if isChromeOnly(m)]
@@ -2280,7 +2238,7 @@ class AttrDefiner(PropertyDefiner):
             else:
                 if attr.hasLenientThis():
                     accessor = "genericLenientSetter"
-                elif IsCrossOriginWritable(attr, self.descriptor):
+                elif attr.getExtendedAttribute("CrossOriginWritable"):
                     accessor = "genericCrossOriginSetter"
                 elif self.descriptor.needsSpecialGenericOps():
                     accessor = "genericSetter"
@@ -2828,11 +2786,6 @@ def InitUnforgeablePropertiesOnObject(descriptor, obj, properties, failureReturn
     """
     unforgeables = []
 
-    if failureReturnValue:
-        failureReturnValue = " " + failureReturnValue
-    else:
-        failureReturnValue = ""
-
     defineUnforgeableAttrs = fill(
         """
         if (!DefineUnforgeableAttributes(aCx, ${obj}, %s)) {
@@ -2840,7 +2793,7 @@ def InitUnforgeablePropertiesOnObject(descriptor, obj, properties, failureReturn
         }
         """,
         obj=obj,
-        rv=failureReturnValue)
+        rv=" " + failureReturnValue if failureReturnValue else "")
     defineUnforgeableMethods = fill(
         """
         if (!DefineUnforgeableMethods(aCx, ${obj}, %s)) {
@@ -2848,7 +2801,7 @@ def InitUnforgeablePropertiesOnObject(descriptor, obj, properties, failureReturn
         }
         """,
         obj=obj,
-        rv=failureReturnValue)
+        rv=" " + failureReturnValue if failureReturnValue else "")
 
     unforgeableMembers = [
         (defineUnforgeableAttrs, properties.unforgeableAttrs),
@@ -2861,19 +2814,6 @@ def InitUnforgeablePropertiesOnObject(descriptor, obj, properties, failureReturn
             unforgeables.append(
                 CGIfWrapper(CGGeneric(template % array.variableName(True)),
                             "nsContentUtils::ThreadsafeIsCallerChrome()"))
-
-    if descriptor.interface.getExtendedAttribute("Unforgeable"):
-        # We do our undefined toJSON here, not as a regular property
-        # because we don't have a concept of value props anywhere.
-        unforgeables.append(CGGeneric(fill(
-            """
-            if (!JS_DefineProperty(aCx, ${obj}, "toJSON", JS::UndefinedHandleValue,
-                                   JSPROP_READONLY | JSPROP_ENUMERATE | JSPROP_PERMANENT)) {
-              return${rv};
-            }
-            """,
-            obj=obj,
-            rv=failureReturnValue)))
 
     return CGList(unforgeables)
 
@@ -10413,13 +10353,13 @@ class CGDescriptor(CGThing):
                         cgThings.append(CGSpecializedSetter(descriptor, m))
                         if m.hasLenientThis():
                             hasLenientSetter = True
-                        elif IsCrossOriginWritable(m, descriptor):
+                        elif m.getExtendedAttribute("CrossOriginWritable"):
                             crossOriginSetters.add(m.identifier.name)
                         elif descriptor.needsSpecialGenericOps():
                             hasSetter = True
                 elif m.getExtendedAttribute("PutForwards"):
                     cgThings.append(CGSpecializedForwardingSetter(descriptor, m))
-                    if IsCrossOriginWritable(m, descriptor):
+                    if m.getExtendedAttribute("CrossOriginWritable"):
                         crossOriginSetters.add(m.identifier.name)
                     elif descriptor.needsSpecialGenericOps():
                         hasSetter = True

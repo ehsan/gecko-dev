@@ -72,7 +72,6 @@ class AudioTrackList;
 class VideoTrackList;
 
 class HTMLMediaElement : public nsGenericHTMLElement,
-                         public nsIDOMHTMLMediaElement,
                          public nsIObserver,
                          public MediaDecoderOwner,
                          public nsIAudioChannelAgentCallback

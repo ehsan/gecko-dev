@@ -12,7 +12,6 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsIFTPChannel.h"
-#include "nsIForcePendingChannel.h"
 #include "nsIUploadChannel.h"
 #include "nsIProxyInfo.h"
 #include "nsIProxiedChannel.h"
@@ -24,8 +23,7 @@ class nsFtpChannel : public nsBaseChannel,
                      public nsIFTPChannel,
                      public nsIUploadChannel,
                      public nsIResumableChannel,
-                     public nsIProxiedChannel,
-                     public nsIForcePendingChannel
+                     public nsIProxiedChannel
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
@@ -90,8 +88,8 @@ public:
     // Helper function for getting the nsIFTPEventSink.
     void GetFTPEventSink(nsCOMPtr<nsIFTPEventSink> &aResult);
 
-public:
-    NS_IMETHOD ForcePending(bool aForcePending);
+public: /* Internal Necko use only. */
+    void ForcePending(bool aForcePending);
 
 protected:
     virtual ~nsFtpChannel() {}

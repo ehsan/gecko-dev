@@ -15,7 +15,7 @@
 #include "mozilla/layers/TextureClient.h"  // for TextureClient, etc
 
 namespace mozilla {
-namespace gl {
+namespace gfx {
 class SurfaceStream;
 }
 }

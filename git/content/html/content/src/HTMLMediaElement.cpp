@@ -48,6 +48,7 @@
 #include "nsICategoryManager.h"
 #include "MediaResource.h"
 
+#include "nsIDOMHTMLVideoElement.h"
 #include "nsIContentPolicy.h"
 #include "nsContentPolicyUtils.h"
 #include "nsCrossSiteListenerProxy.h"
@@ -457,7 +458,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLMediaElement, nsGenericHTMLE
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(HTMLMediaElement)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMHTMLMediaElement)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY(nsIAudioChannelAgentCallback)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
@@ -486,12 +486,6 @@ NS_IMETHODIMP
 HTMLMediaElement::SetMozAudioChannelType(const nsAString& aValue)
 {
   return SetAttrHelper(nsGkAtoms::mozaudiochannel, aValue);
-}
-
-NS_IMETHODIMP_(bool)
-HTMLMediaElement::IsVideo()
-{
-  return false;
 }
 
 already_AddRefed<DOMMediaStream>
@@ -1826,7 +1820,8 @@ HTMLMediaElement::CaptureStreamInternal(bool aFinishWhenEnded)
   // holistically.
   uint8_t hints = 0;
   if (Preferences::GetBool("media.capturestream_hints.enabled")) {
-    if (IsVideo() && GetVideoFrameContainer()) {
+    nsCOMPtr<nsIDOMHTMLVideoElement> video = do_QueryObject(this);
+    if (video && GetVideoFrameContainer()) {
       hints = DOMMediaStream::HINT_CONTENTS_VIDEO | DOMMediaStream::HINT_CONTENTS_AUDIO;
     } else {
       hints = DOMMediaStream::HINT_CONTENTS_AUDIO;
@@ -2768,14 +2763,11 @@ public:
     }
     aGraph->DispatchToMainThreadAfterStreamStateUpdate(event.forget());
   }
-  virtual void NotifyEvent(MediaStreamGraph* aGraph,
-                           MediaStreamListener::MediaStreamGraphEvent event) MOZ_OVERRIDE
+  virtual void NotifyFinished(MediaStreamGraph* aGraph) MOZ_OVERRIDE
   {
-    if (event == EVENT_FINISHED) {
-      nsCOMPtr<nsIRunnable> event =
-        NS_NewRunnableMethod(this, &StreamListener::DoNotifyFinished);
-      aGraph->DispatchToMainThreadAfterStreamStateUpdate(event.forget());
-    }
+    nsCOMPtr<nsIRunnable> event =
+      NS_NewRunnableMethod(this, &StreamListener::DoNotifyFinished);
+    aGraph->DispatchToMainThreadAfterStreamStateUpdate(event.forget());
   }
   virtual void NotifyHasCurrentData(MediaStreamGraph* aGraph) MOZ_OVERRIDE
   {
@@ -3283,9 +3275,9 @@ VideoFrameContainer* HTMLMediaElement::GetVideoFrameContainer()
     return mVideoFrameContainer;
 
   // Only video frames need an image container.
-  if (!IsVideo()) {
+  nsCOMPtr<nsIDOMHTMLVideoElement> video = do_QueryObject(this);
+  if (!video)
     return nullptr;
-  }
 
   mVideoFrameContainer =
     new VideoFrameContainer(this, LayerManager::CreateAsynchronousImageContainer());
@@ -3892,8 +3884,9 @@ void HTMLMediaElement::UpdateAudioChannelPlayingState()
       if (!mAudioChannelAgent) {
         return;
       }
+      nsCOMPtr<nsIDOMHTMLVideoElement> video = do_QueryObject(this);
       // Use a weak ref so the audio channel agent can't leak |this|.
-      if (AudioChannel::Normal == mAudioChannel && IsVideo()) {
+      if (AudioChannel::Normal == mAudioChannel && video) {
         mAudioChannelAgent->InitWithVideo(OwnerDoc()->GetWindow(),
                                           static_cast<int32_t>(mAudioChannel),
                                           this, true);
