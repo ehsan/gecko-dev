@@ -618,7 +618,7 @@ CloneProperties(JSContext *cx, HandleObject obj, HandleObject clone, CloneMemory
     return true;
 }
 
-static JSObject *
+static RawObject
 CloneObject(JSContext *cx, HandleObject srcObj, CloneMemory &clonedObjects)
 {
     CloneMemory::AddPtr p = clonedObjects.lookupForAdd(srcObj.get());
@@ -707,7 +707,7 @@ JSRuntime::cloneSelfHostedFunctionScript(JSContext *cx, Handle<PropertyName*> na
     RootedFunction sourceFun(cx, funVal.toObject().toFunction());
     RootedScript sourceScript(cx, sourceFun->nonLazyScript());
     JS_ASSERT(!sourceScript->enclosingStaticScope());
-    JSScript *cscript = CloneScript(cx, NullPtr(), targetFun, sourceScript);
+    RawScript cscript = CloneScript(cx, NullPtr(), targetFun, sourceScript);
     if (!cscript)
         return false;
     targetFun->setScript(cscript);

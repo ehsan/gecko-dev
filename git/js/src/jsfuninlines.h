@@ -28,7 +28,7 @@ JSFunction::initAtom(JSAtom *atom)
 }
 
 inline void
-JSFunction::setGuessedAtom(JSAtom *atom)
+JSFunction::setGuessedAtom(js::RawAtom atom)
 {
     JS_ASSERT(atom_ == NULL);
     JS_ASSERT(atom != NULL);

@@ -245,7 +245,7 @@ class NameResolver
         if (buf.empty())
             return NULL;
 
-        JSAtom *atom = buf.finishAtom();
+        RawAtom atom = buf.finishAtom();
         fun->setGuessedAtom(atom);
         return atom;
     }

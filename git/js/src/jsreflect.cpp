@@ -1482,7 +1482,7 @@ class ASTSerializer
     NodeBuilder         builder;
     DebugOnly<uint32_t> lineno;
 
-    Value unrootedAtomContents(JSAtom *atom) {
+    RawValue unrootedAtomContents(RawAtom atom) {
         return StringValue(atom ? atom : cx->names().empty);
     }
 

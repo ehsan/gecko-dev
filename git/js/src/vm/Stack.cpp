@@ -53,7 +53,7 @@ using mozilla::PodCopy;
 /*****************************************************************************/
 
 void
-StackFrame::initExecuteFrame(JSScript *script, StackFrame *prevLink, AbstractFramePtr prev,
+StackFrame::initExecuteFrame(RawScript script, StackFrame *prevLink, AbstractFramePtr prev,
                              FrameRegs *regs, const Value &thisv, JSObject &scopeChain,
                              ExecuteType type)
 {
@@ -87,7 +87,7 @@ StackFrame::initExecuteFrame(JSScript *script, StackFrame *prevLink, AbstractFra
         dstvp[0] = NullValue();
         exec.script = script;
 #ifdef DEBUG
-        u.evalScript = (JSScript *)0xbad;
+        u.evalScript = (RawScript)0xbad;
 #endif
     }
 

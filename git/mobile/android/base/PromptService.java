@@ -467,11 +467,8 @@ public class PromptService implements OnClickListener, OnCancelListener, OnItemC
         mDialog = null;
         mSelected = null;
         try {
-            if (!sPromptQueue.offer(aReturn, 5, TimeUnit.SECONDS)) {
-                ThreadUtils.dumpAllStackTraces();
-                throw new ThreadUtils.UiThreadBlockedException();
-            }
-        } catch(InterruptedException ex) {
+            sPromptQueue.put(aReturn);
+        } catch(Exception ex) {
             Log.d(LOGTAG, "sPromptQueue not ready yet");
         }
     }

@@ -28,7 +28,7 @@ Bindings::Bindings()
 {}
 
 inline
-AliasedFormalIter::AliasedFormalIter(JSScript *script)
+AliasedFormalIter::AliasedFormalIter(js::RawScript script)
   : begin_(script->bindings.bindingArray()),
     p_(begin_),
     end_(begin_ + (script->funHasAnyAliasedFormal ? script->bindings.numArgs() : 0)),
@@ -176,7 +176,7 @@ JSScript::destroyMJITInfo(js::FreeOp *fop)
 #endif /* JS_METHODJIT */
 
 inline void
-JSScript::writeBarrierPre(JSScript *script)
+JSScript::writeBarrierPre(js::RawScript script)
 {
 #ifdef JSGC_INCREMENTAL
     if (!script || !script->runtime()->needsBarrier())
@@ -185,7 +185,7 @@ JSScript::writeBarrierPre(JSScript *script)
     JS::Zone *zone = script->zone();
     if (zone->needsBarrier()) {
         JS_ASSERT(!zone->rt->isHeapBusy());
-        JSScript *tmp = script;
+        js::RawScript tmp = script;
         MarkScriptUnbarriered(zone->barrierTracer(), &tmp, "write barrier");
         JS_ASSERT(tmp == script);
     }
@@ -193,7 +193,7 @@ JSScript::writeBarrierPre(JSScript *script)
 }
 
 inline void
-JSScript::writeBarrierPost(JSScript *script, void *addr)
+JSScript::writeBarrierPost(js::RawScript script, void *addr)
 {
 }
 

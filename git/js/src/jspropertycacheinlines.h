@@ -33,7 +33,7 @@ js::PropertyCache::test(JSContext *cx, jsbytecode *pc, JSObject **obj,
 {
     JS_ASSERT(this == &cx->propertyCache());
 
-    Shape *kshape = (*obj)->lastProperty();
+    RawShape kshape = (*obj)->lastProperty();
     *entry = &table[hash(pc, kshape)];
     PCMETER(pctestentry = *entry);
     PCMETER(tests++);
@@ -64,7 +64,7 @@ js::PropertyCache::testForSet(JSContext *cx, jsbytecode *pc, JSObject *obj,
 {
     JS_ASSERT(this == &cx->propertyCache());
 
-    Shape *kshape = obj->lastProperty();
+    RawShape kshape = obj->lastProperty();
     PropertyCacheEntry *entry = &table[hash(pc, kshape)];
     *entryp = entry;
     PCMETER(pctestentry = entry);

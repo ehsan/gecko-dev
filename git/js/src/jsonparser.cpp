@@ -122,9 +122,9 @@ JSONParser::readString()
 
         jschar c = *current++;
         if (c == '"') {
-            JSFlatString *str = (ST == JSONParser::PropertyName)
-                                ? buffer.finishAtom()
-                                : buffer.finishString();
+            RawFlatString str = (ST == JSONParser::PropertyName)
+                                 ? buffer.finishAtom()
+                                 : buffer.finishString();
             if (!str)
                 return token(OOM);
             return stringToken(str);

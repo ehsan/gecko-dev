@@ -550,6 +550,8 @@ struct nsCharSourceTraits
       }
   };
 
+#ifdef HAVE_CPP_PARTIAL_SPECIALIZATION
+
 template <class CharT>
 struct nsCharSourceTraits<CharT*>
   {
@@ -585,6 +587,82 @@ struct nsCharSourceTraits<CharT*>
       }
   };
 
+#else
+
+template <>
+struct nsCharSourceTraits<const char*>
+  {
+    typedef ptrdiff_t difference_type;
+
+    static
+    uint32_t
+    readable_distance( const char* s )
+      {
+        return uint32_t(nsCharTraits<char>::length(s));
+//      return numeric_limits<uint32_t>::max();
+      }
+
+    static
+    uint32_t
+    readable_distance( const char* first, const char* last )
+      {
+        return uint32_t(last-first);
+      }
+
+    static
+    const char*
+    read( const char* s )
+      {
+        return s;
+      }
+
+    static
+    void
+    advance( const char*& s, difference_type n )
+      {
+        s += n;
+      }
+ };
+
+
+template <>
+struct nsCharSourceTraits<const PRUnichar*>
+  {
+    typedef ptrdiff_t difference_type;
+
+    static
+    uint32_t
+    readable_distance( const PRUnichar* s )
+      {
+        return uint32_t(nsCharTraits<PRUnichar>::length(s));
+//      return numeric_limits<uint32_t>::max();
+      }
+
+    static
+    uint32_t
+    readable_distance( const PRUnichar* first, const PRUnichar* last )
+      {
+        return uint32_t(last-first);
+      }
+
+    static
+    const PRUnichar*
+    read( const PRUnichar* s )
+      {
+        return s;
+      }
+
+    static
+    void
+    advance( const PRUnichar*& s, difference_type n )
+      {
+        s += n;
+      }
+ };
+
+#endif
+
+
 template <class OutputIterator>
 struct nsCharSinkTraits
   {
@@ -595,6 +673,8 @@ struct nsCharSinkTraits
         iter.write(s, n);
       }
   };
+
+#ifdef HAVE_CPP_PARTIAL_SPECIALIZATION
 
 template <class CharT>
 struct nsCharSinkTraits<CharT*>
@@ -607,5 +687,33 @@ struct nsCharSinkTraits<CharT*>
         iter += n;
       }
   };
+
+#else
+
+template <>
+struct nsCharSinkTraits<char*>
+  {
+    static
+    void
+    write( char*& iter, const char* s, uint32_t n )
+      {
+        nsCharTraits<char>::move(iter, s, n);
+        iter += n;
+      }
+  };
+
+template <>
+struct nsCharSinkTraits<PRUnichar*>
+  {
+    static
+    void
+    write( PRUnichar*& iter, const PRUnichar* s, uint32_t n )
+      {
+        nsCharTraits<PRUnichar>::move(iter, s, n);
+        iter += n;
+      }
+  };
+
+#endif
 
 #endif // !defined(nsCharTraits_h___)

@@ -3235,7 +3235,7 @@ JS_LinkConstructorAndPrototype(JSContext *cx, JSObject *ctorArg, JSObject *proto
 }
 
 JS_PUBLIC_API(JSClass *)
-JS_GetClass(JSObject *obj)
+JS_GetClass(RawObject obj)
 {
     return obj->getJSClass();
 }
@@ -3271,14 +3271,14 @@ JS_HasInstance(JSContext *cx, JSObject *objArg, jsval valueArg, JSBool *bp)
 }
 
 JS_PUBLIC_API(void *)
-JS_GetPrivate(JSObject *obj)
+JS_GetPrivate(RawObject obj)
 {
     /* This function can be called by a finalizer. */
     return obj->getPrivate();
 }
 
 JS_PUBLIC_API(void)
-JS_SetPrivate(JSObject *obj, void *data)
+JS_SetPrivate(RawObject obj, void *data)
 {
     /* This function can be called by a finalizer. */
     obj->setPrivate(data);
@@ -3316,7 +3316,7 @@ JS_SetPrototype(JSContext *cx, JSObject *objArg, JSObject *protoArg)
 }
 
 JS_PUBLIC_API(JSObject *)
-JS_GetParent(JSObject *obj)
+JS_GetParent(RawObject obj)
 {
     JS_ASSERT(!obj->isScope());
     return obj->getParent();
@@ -4490,7 +4490,7 @@ JS_DeleteProperty(JSContext *cx, JSObject *objArg, const char *name)
     return JS_DeleteProperty2(cx, objArg, name, &junk);
 }
 
-static Shape *
+static RawShape
 LastConfigurableShape(JSObject *obj)
 {
     for (Shape::Range<NoGC> r(obj->lastProperty()); !r.empty(); r.popFront()) {
@@ -4577,7 +4577,7 @@ JS_Enumerate(JSContext *cx, JSObject *objArg)
 const uint32_t JSSLOT_ITER_INDEX = 0;
 
 static void
-prop_iter_finalize(FreeOp *fop, JSObject *obj)
+prop_iter_finalize(FreeOp *fop, RawObject obj)
 {
     void *pdata = obj->getPrivate();
     if (!pdata)
@@ -4591,7 +4591,7 @@ prop_iter_finalize(FreeOp *fop, JSObject *obj)
 }
 
 static void
-prop_iter_trace(JSTracer *trc, JSObject *obj)
+prop_iter_trace(JSTracer *trc, RawObject obj)
 {
     void *pdata = obj->getPrivate();
     if (!pdata)
@@ -4603,7 +4603,7 @@ prop_iter_trace(JSTracer *trc, JSObject *obj)
          * barrier here because the pointer is updated via setPrivate, which
          * always takes a barrier.
          */
-        Shape *tmp = static_cast<Shape *>(pdata);
+        RawShape tmp = static_cast<RawShape>(pdata);
         MarkShapeUnbarriered(trc, &tmp, "prop iter shape");
         obj->setPrivateUnbarriered(tmp);
     } else {
@@ -4675,7 +4675,7 @@ JS_NextProperty(JSContext *cx, JSObject *iterobjArg, jsid *idp)
     if (i < 0) {
         /* Native case: private data is a property tree node pointer. */
         JS_ASSERT(iterobj->getParent()->isNative());
-        Shape *shape = static_cast<Shape *>(iterobj->getPrivate());
+        RawShape shape = static_cast<RawShape>(iterobj->getPrivate());
 
         while (shape->previous() && !shape->enumerable())
             shape = shape->previous();
@@ -4684,7 +4684,7 @@ JS_NextProperty(JSContext *cx, JSObject *iterobjArg, jsid *idp)
             JS_ASSERT(shape->isEmptyShape());
             *idp = JSID_VOID;
         } else {
-            iterobj->setPrivateGCThing(const_cast<Shape *>(shape->previous().get()));
+            iterobj->setPrivateGCThing(const_cast<RawShape>(shape->previous().get()));
             *idp = shape->propid();
         }
     } else {
@@ -4719,13 +4719,13 @@ JS_ArrayIterator(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 JS_PUBLIC_API(jsval)
-JS_GetReservedSlot(JSObject *obj, uint32_t index)
+JS_GetReservedSlot(RawObject obj, uint32_t index)
 {
     return obj->getReservedSlot(index);
 }
 
 JS_PUBLIC_API(void)
-JS_SetReservedSlot(JSObject *obj, uint32_t index, Value value)
+JS_SetReservedSlot(RawObject obj, uint32_t index, RawValue value)
 {
     obj->setReservedSlot(index, value);
 }
@@ -4935,13 +4935,13 @@ JS_GetFunctionArity(JSFunction *fun)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_ObjectIsFunction(JSContext *cx, JSObject *obj)
+JS_ObjectIsFunction(JSContext *cx, RawObject obj)
 {
     return obj->isFunction();
 }
 
 JS_PUBLIC_API(JSBool)
-JS_ObjectIsCallable(JSContext *cx, JSObject *obj)
+JS_ObjectIsCallable(JSContext *cx, RawObject obj)
 {
     return obj->isCallable();
 }
@@ -5073,7 +5073,7 @@ JS_DefineFunctions(JSContext *cx, JSObject *objArg, const JSFunctionSpec *fs)
                     return JS_FALSE;
                 }
             } else {
-                JSFunction *fun = DefineFunction(cx, obj, id, /* native = */ NULL, fs->nargs, 0,
+                RawFunction fun = DefineFunction(cx, obj, id, /* native = */ NULL, fs->nargs, 0,
                                                  JSFunction::ExtendedFinalizeKind, SingletonObject);
                 if (!fun)
                     return JS_FALSE;
@@ -7198,7 +7198,7 @@ JS::AssertArgumentsAreSane(JSContext *cx, const JS::Value &value)
 #endif /* DEBUG */
 
 JS_PUBLIC_API(void *)
-JS_EncodeScript(JSContext *cx, JSScript *scriptArg, uint32_t *lengthp)
+JS_EncodeScript(JSContext *cx, RawScript scriptArg, uint32_t *lengthp)
 {
     XDREncoder encoder(cx);
     RootedScript script(cx, scriptArg);

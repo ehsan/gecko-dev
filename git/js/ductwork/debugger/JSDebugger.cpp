@@ -9,7 +9,6 @@
 #include "jsapi.h"
 #include "jsfriendapi.h"
 #include "jsdbgapi.h"
-#include "jswrapper.h"
 #include "mozilla/ModuleUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsMemory.h"
@@ -46,7 +45,7 @@ JSDebugger::AddClass(const JS::Value &global, JSContext* cx)
   }
   
   JSObject* obj = &global.toObject();
-  obj = js::UncheckedUnwrap(obj, /* stopAtOuter = */ false);
+  obj = JS_UnwrapObjectAndInnerize(obj);
   if (!obj) {
     return NS_ERROR_FAILURE;
   }

@@ -191,7 +191,7 @@ VectorMatchPairs::allocOrExpandArray(size_t pairCount)
 /* RegExpObject */
 
 static void
-regexp_trace(JSTracer *trc, JSObject *obj)
+regexp_trace(JSTracer *trc, RawObject obj)
 {
      /*
       * We have to check both conditions, since:
@@ -265,7 +265,7 @@ RegExpObject::createShared(JSContext *cx, RegExpGuard *g)
     return true;
 }
 
-Shape *
+RawShape
 RegExpObject::assignInitialShape(JSContext *cx)
 {
     JS_ASSERT(isRegExp());

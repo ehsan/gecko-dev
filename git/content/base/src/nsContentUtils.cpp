@@ -972,6 +972,8 @@ struct NormalizeNewlinesCharTraits {
     OutputIterator mIterator;
 };
 
+#ifdef HAVE_CPP_PARTIAL_SPECIALIZATION
+
 template <class CharT>
 struct NormalizeNewlinesCharTraits<CharT*> {
   public:
@@ -986,6 +988,40 @@ struct NormalizeNewlinesCharTraits<CharT*> {
   private:
     CharT* mCharPtr;
 };
+
+#else
+
+template <>
+struct NormalizeNewlinesCharTraits<char*> {
+  public:
+    typedef char value_type;
+
+  public:
+    NormalizeNewlinesCharTraits(char* aCharPtr) : mCharPtr(aCharPtr) { }
+    void writechar(char aChar) {
+      *mCharPtr++ = aChar;
+    }
+
+  private:
+    char* mCharPtr;
+};
+
+template <>
+struct NormalizeNewlinesCharTraits<PRUnichar*> {
+  public:
+    typedef PRUnichar value_type;
+
+  public:
+    NormalizeNewlinesCharTraits(PRUnichar* aCharPtr) : mCharPtr(aCharPtr) { }
+    void writechar(PRUnichar aChar) {
+      *mCharPtr++ = aChar;
+    }
+
+  private:
+    PRUnichar* mCharPtr;
+};
+
+#endif
 
 template <class OutputIterator>
 class CopyNormalizeNewlines
