@@ -18,7 +18,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
 
 XPCOMUtils.defineLazyGetter(this, "gPrincipal", function () {
   let uri = Services.io.newURI("about:newtab", null, null);
-  return Services.scriptSecurityManager.getNoAppCodebasePrincipal(uri);
+  return Services.scriptSecurityManager.getCodebasePrincipal(uri);
 });
 
 // The preference that tells whether this feature is enabled.

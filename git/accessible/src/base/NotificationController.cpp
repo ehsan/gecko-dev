@@ -21,9 +21,7 @@
 #endif
 
 #include "mozilla/dom/Element.h"
-#include "mozilla/Telemetry.h"
 
-using namespace mozilla;
 using namespace mozilla::a11y;
 
 // Defines the number of selection add/remove events in the queue when they
@@ -176,8 +174,6 @@ NotificationController::IsUpdatePending()
 void
 NotificationController::WillRefresh(mozilla::TimeStamp aTime)
 {
-  Telemetry::AutoTimer<Telemetry::A11Y_UPDATE_TIME> updateTimer();
-
   // If the document accessible that notification collector was created for is
   // now shut down, don't process notifications anymore.
   NS_ASSERTION(mDocument,

@@ -396,8 +396,7 @@ public:
  *  Creates a new cache map file if one doesn't exist.
  *  Returns error if it detects change in format or cache wasn't closed.
  */
-    nsresult  Open( nsIFile *  cacheDirectory,
-                    nsDiskCache::CorruptCacheInfo *  corruptInfo);
+    nsresult  Open( nsIFile *  cacheDirectory);
     nsresult  Close(bool flush);
     nsresult  Trim();
 
@@ -479,7 +478,7 @@ private:
     /**
      *  Private methods
      */
-    nsresult    OpenBlockFiles(nsDiskCache::CorruptCacheInfo *  corruptInfo);
+    nsresult    OpenBlockFiles();
     nsresult    CloseBlockFiles(bool flush);
     bool        CacheFilesExist();
 

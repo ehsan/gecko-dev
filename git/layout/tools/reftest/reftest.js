@@ -809,7 +809,7 @@ function ReadManifest(aURL, inherited_status)
             }
         }
 
-        var principal = secMan.getSimpleCodebasePrincipal(aURL);
+        var principal = secMan.getCodebasePrincipal(aURL);
 
         if (items[0] == "include") {
             if (items.length != 2 || runHttp)

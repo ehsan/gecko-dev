@@ -3398,10 +3398,7 @@ GetPrincipalFromString(JSContext *cx, JSString *codebase, nsIPrincipal **princip
         do_GetService(kScriptSecurityManagerContractID);
     NS_ENSURE_TRUE(secman, NS_ERROR_FAILURE);
 
-    // We could allow passing in the app-id and browser-element info to the
-    // sandbox constructor. But creating a sandbox based on a string is a
-    // deprecated API so no need to add features to it.
-    rv = secman->GetNoAppCodebasePrincipal(uri, principal);
+    rv = secman->GetCodebasePrincipal(uri, principal);
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ENSURE_TRUE(*principal, NS_ERROR_FAILURE);
 

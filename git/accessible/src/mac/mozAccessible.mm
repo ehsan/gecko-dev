@@ -417,7 +417,7 @@ GetClosestInterestingAccessible(id anObject)
                "Does not support nsIAccessibleText when it should");
 #endif
 
-#define ROLE(geckoRole, stringRole, atkRole, macRole, msaaRole, ia2Role, nameRule) \
+#define ROLE(geckoRole, stringRole, atkRole, macRole, msaaRole, ia2Role) \
   case roles::geckoRole: \
     return macRole;
 

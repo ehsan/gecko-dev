@@ -118,9 +118,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
 
   if (mMode == modeGetFolder) {
     PL_strncat(filedlg.szFullFile, initialDir.get(), MAX_PATH);
-    if (filedlg.szFullFile[0] && 
-        filedlg.szFullFile[strlen(filedlg.szFullFile) - 1] != '\\') 
-      PL_strncat(filedlg.szFullFile, "\\", 1);
+    PL_strncat(filedlg.szFullFile, "\\", 1);
     PL_strncat(filedlg.szFullFile, "^", 1);
     filedlg.fl = FDS_OPEN_DIALOG | FDS_CENTER;
     filedlg.pfnDlgProc = DirDialogProc;
@@ -141,9 +139,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
   }
   else {
     PL_strncpy(filedlg.szFullFile, initialDir.get(), MAX_PATH);
-    if (filedlg.szFullFile[0] && 
-        filedlg.szFullFile[strlen(filedlg.szFullFile) - 1] != '\\') 
-      PL_strncat(filedlg.szFullFile, "\\", 1);
+    PL_strncat(filedlg.szFullFile, "\\", 1);
     PL_strncat(filedlg.szFullFile, fileBuffer.get(), MAX_PATH);
     filedlg.fl = FDS_CENTER;
     if (mMode == modeSave) {

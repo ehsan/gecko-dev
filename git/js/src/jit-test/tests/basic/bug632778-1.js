@@ -1,6 +1,7 @@
-// |jit-test| error: TypeError
+load(libdir + "asserts.js");
 function f() {
     "use strict";
 }
 g = wrap(f);
-Object.defineProperty(g, "arguments", {set: function(){}});
+assertThrowsInstanceOf(function () { Object.defineProperty(g, "arguments", {set: function(){}}); }, TypeError);
+

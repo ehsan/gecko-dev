@@ -370,8 +370,7 @@ __try {
   a11y::role geckoRole = xpAccessible->Role();
   PRUint32 msaaRole = 0;
 
-#define ROLE(_geckoRole, stringRole, atkRole, macRole, \
-             _msaaRole, ia2Role, nameRule) \
+#define ROLE(_geckoRole, stringRole, atkRole, macRole, _msaaRole, ia2Role) \
   case roles::_geckoRole: \
     msaaRole = _msaaRole; \
     break;
@@ -1136,8 +1135,7 @@ __try {
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-#define ROLE(_geckoRole, stringRole, atkRole, macRole, \
-             msaaRole, ia2Role, nameRule) \
+#define ROLE(_geckoRole, stringRole, atkRole, macRole, msaaRole, ia2Role) \
   case roles::_geckoRole: \
     *aRole = ia2Role; \
     break;

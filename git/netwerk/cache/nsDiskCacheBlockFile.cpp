@@ -21,16 +21,10 @@ using namespace mozilla;
 nsresult
 nsDiskCacheBlockFile::Open(nsIFile * blockFile,
                            PRUint32  blockSize,
-                           PRUint32  bitMapSize,
-                           nsDiskCache::CorruptCacheInfo *  corruptInfo)
+                           PRUint32  bitMapSize)
 {
-    NS_ENSURE_ARG_POINTER(corruptInfo);
-    *corruptInfo = nsDiskCache::kUnexpectedError;
-
-    if (bitMapSize % 32) {
-        *corruptInfo = nsDiskCache::kInvalidArgPointer;
+    if (bitMapSize % 32)
         return NS_ERROR_INVALID_ARG;
-    }
 
     mBlockSize = blockSize;
     mBitMapWords = bitMapSize / 32;
@@ -39,7 +33,6 @@ nsDiskCacheBlockFile::Open(nsIFile * blockFile,
     // open the file - restricted to user, the data could be confidential
     nsresult rv = blockFile->OpenNSPRFileDesc(PR_RDWR | PR_CREATE_FILE, 00600, &mFD);
     if (NS_FAILED(rv)) {
-        *corruptInfo = nsDiskCache::kCouldNotCreateBlockFile;
         CACHE_LOG_DEBUG(("CACHE: nsDiskCacheBlockFile::Open "
                          "[this=%p] unable to open or create file: %d",
                          this, rv));
@@ -53,20 +46,16 @@ nsDiskCacheBlockFile::Open(nsIFile * blockFile,
     mFileSize = PR_Available(mFD);
     if (mFileSize < 0) {
         // XXX an error occurred. We could call PR_GetError(), but how would that help?
-        *corruptInfo = nsDiskCache::kBlockFileSizeError;
         rv = NS_ERROR_UNEXPECTED;
         goto error_exit;
     }
     if (mFileSize == 0) {
         // initialize bit map and write it
         memset(mBitMap, 0, bitMapBytes);
-        if (!Write(0, mBitMap, bitMapBytes)) {
-            *corruptInfo = nsDiskCache::kBlockFileBitMapWriteError;
+        if (!Write(0, mBitMap, bitMapBytes))
             goto error_exit;
-        }
         
     } else if ((PRUint32)mFileSize < bitMapBytes) {
-        *corruptInfo = nsDiskCache::kBlockFileSizeLessThanBitMap;
         rv = NS_ERROR_UNEXPECTED;  // XXX NS_ERROR_CACHE_INVALID;
         goto error_exit;
         
@@ -74,7 +63,6 @@ nsDiskCacheBlockFile::Open(nsIFile * blockFile,
         // read the bit map
         const PRInt32 bytesRead = PR_Read(mFD, mBitMap, bitMapBytes);
         if ((bytesRead < 0) || ((PRUint32)bytesRead < bitMapBytes)) {
-            *corruptInfo = nsDiskCache::kBlockFileBitMapReadError;
             rv = NS_ERROR_UNEXPECTED;
             goto error_exit;
         }
@@ -89,7 +77,6 @@ nsDiskCacheBlockFile::Open(nsIFile * blockFile,
         // because the last block will generally not be 'whole'.
         const PRUint32  estimatedSize = CalcBlockFileSize();
         if ((PRUint32)mFileSize + blockSize < estimatedSize) {
-            *corruptInfo = nsDiskCache::kBlockFileEstimatedSizeError;
             rv = NS_ERROR_UNEXPECTED;
             goto error_exit;
         }
