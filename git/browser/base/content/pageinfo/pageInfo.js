@@ -348,9 +348,9 @@ function resetPageInfo()
   /* Reset Media tab */
   var mediaTab = document.getElementById("mediaTab");
   if (!mediaTab.hidden) {
-    Components.classes["@mozilla.org/observer-service;1"]
-              .getService(Components.interfaces.nsIObserverService)
-              .removeObserver(imagePermissionObserver, "perm-changed");
+    var os = Components.classes["@mozilla.org/observer-service;1"]
+                       .getService(Components.interfaces.nsIObserverService);
+    os.removeObserver(imagePermissionObserver, "perm-changed");
     mediaTab.hidden = true;
   }
   gImageView.clear();
@@ -370,11 +370,10 @@ function resetPageInfo()
 
 function onUnloadPageInfo()
 {
-  // Remove the observer, only if there is at least 1 image.
   if (!document.getElementById("mediaTab").hidden) {
-    Components.classes["@mozilla.org/observer-service;1"]
-              .getService(Components.interfaces.nsIObserverService)
-              .removeObserver(imagePermissionObserver, "perm-changed");
+    var os = Components.classes["@mozilla.org/observer-service;1"]
+                       .getService(Components.interfaces.nsIObserverService);
+    os.removeObserver(imagePermissionObserver, "perm-changed");
   }
 
   /* Call registered overlay unload functions */
@@ -543,7 +542,6 @@ function doGrab(iterator)
       processFrames();
       return;
     }
-
   setTimeout(doGrab, 16, iterator);
 }
 
@@ -559,7 +557,6 @@ function addImage(url, type, alt, elem, isBg)
 {
   if (!url)
     return;
-
   if (!gImageHash.hasOwnProperty(url))
     gImageHash[url] = { };
   if (!gImageHash[url].hasOwnProperty(type))
@@ -587,13 +584,11 @@ function addImage(url, type, alt, elem, isBg)
     else
       sizeText = gStrings.unknown;
     gImageView.addRow([url, type, sizeText, alt, 1, elem, isBg]);
-
-    // Add the observer, only once.
     if (gImageView.data.length == 1) {
       document.getElementById("mediaTab").hidden = false;
-      Components.classes["@mozilla.org/observer-service;1"]
-                .getService(Components.interfaces.nsIObserverService)
-                .addObserver(imagePermissionObserver, "perm-changed", false);
+      var os = Components.classes["@mozilla.org/observer-service;1"]
+                         .getService(Components.interfaces.nsIObserverService);
+      os.addObserver(imagePermissionObserver, "perm-changed", false);
     }
   }
   else {
@@ -670,7 +665,6 @@ function onBeginLinkDrag(event,urlField,descField)
                              .createInstance(Components.interfaces.nsISupportsArray);
   if (!transArray)
     return;
-
   var trans = Components.classes[TRANSFERABLE_CONTRACTID]
                         .createInstance(Components.interfaces.nsITransferable);
   if (!trans)
@@ -1023,7 +1017,6 @@ var imagePermissionObserver = {
   {
     if (document.getElementById("mediaPreviewBox").collapsed)
       return;
-
     if (aTopic == "perm-changed") {
       var permission = aSubject.QueryInterface(Components.interfaces.nsIPermission);
       if (permission.type == "image") {

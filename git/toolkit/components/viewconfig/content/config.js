@@ -372,11 +372,7 @@ function ShowPrefs()
   if (!document.getElementById("showWarningNextTime").checked)
     gPrefBranch.setBoolPref("general.warnOnAboutConfig", false);
 
-  var textbox = document.getElementById("textbox");
-  if (textbox.value)
-    // somebody seems to already have tried to apply a filter
-    FilterPrefs();
-  textbox.focus();
+  document.getElementById("textbox").focus();
 }
 
 function onConfigUnload()
