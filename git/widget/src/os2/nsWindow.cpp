@@ -1249,12 +1249,8 @@ NS_METHOD nsWindow::ConstrainPosition(PRBool aAllowSlop,
 //-------------------------------------------------------------------------
 NS_METHOD nsWindow::Move(PRInt32 aX, PRInt32 aY)
 {
-  if (mWindowType == eWindowType_toplevel ||
-      mWindowType == eWindowType_dialog) {
-    SetSizeMode(nsSizeMode_Normal);
-  }
-  Resize(aX, aY, mBounds.width, mBounds.height, PR_FALSE);
-  return NS_OK;
+   Resize( aX, aY, mBounds.width, mBounds.height, PR_FALSE);
+   return NS_OK;
 }
 
 //-------------------------------------------------------------------------
@@ -1681,9 +1677,9 @@ HBITMAP nsWindow::DataToBitmap(PRUint8* aImageData, PRUint32 aWidth,
   } bi;
 
   memset( &bi, 0, sizeof(bi));
-  bi.white.bBlue = (BYTE)255;
-  bi.white.bGreen = (BYTE)255;
-  bi.white.bRed = (BYTE)255;
+  bi.white.bBlue = 255;
+  bi.white.bGreen = 255;
+  bi.white.bRed = 255;
 
   // fill in the particulars
   bi.head.cbFix = sizeof(bi.head);
@@ -2470,7 +2466,28 @@ PRBool nsWindow::ProcessMessage( ULONG msg, MPARAM mp1, MPARAM mp2, MRESULT &rc)
         case WM_QUERYCONVERTPOS:
           {
             PRECTL pCursorRect = (PRECTL)mp1;
-            rc = (MRESULT)QCP_NOCONVERT;
+            nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_QUERY, this);
+            nsIntPoint point;
+            point.x = 0;
+            point.y = 0;
+            InitEvent(event,&point);
+            DispatchWindowEvent(&event);
+            if ((event.theReply.mCursorPosition.x) || 
+                (event.theReply.mCursorPosition.y)) 
+            {
+              pCursorRect->xLeft = event.theReply.mCursorPosition.x + 1;
+              pCursorRect->xRight = pCursorRect->xLeft + event.theReply.mCursorPosition.width - 1;
+              pCursorRect->yTop = GetClientHeight() - event.theReply.mCursorPosition.y;
+              pCursorRect->yBottom = pCursorRect->yTop - event.theReply.mCursorPosition.height;
+
+              point.x = 0;
+              point.y = 0;
+
+              rc = (MRESULT)QCP_CONVERT;
+            }
+            else
+              rc = (MRESULT)QCP_NOCONVERT;
+
             result = PR_TRUE;
             break;
           }
@@ -3149,7 +3166,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, MPARAM mp1, MPARAM mp2,
 */
   pluginEvent.lParam = MAKELONG(event.refPoint.x, event.refPoint.y);
 
-  event.pluginEvent = (void *)&pluginEvent;
+  event.nativeMsg = (void *)&pluginEvent;
 
   // call the event callback 
   if (nsnull != mEventCallback) {
@@ -3193,7 +3210,7 @@ PRBool nsWindow::DispatchFocus(PRUint32 aEventType)
         break;
     }
 
-    event.pluginEvent = (void *)&pluginEvent;
+    event.nativeMsg = (void *)&pluginEvent;
     return DispatchWindowEvent(&event);
   }
   return PR_FALSE;
@@ -3579,14 +3596,13 @@ PRBool nsWindow::CheckDragStatus(PRUint32 aAction, HPS * oHps)
     // for this window, get the hps;  otherwise, return zero;
     // (if we provide a 2nd hps for a window, the cursor in text
     // fields won't be erased when it's moved to another position)
-  if (oHps) {
+  if (oHps)
     if (getHps && !mDragHps) {
       mDragHps = DrgGetPS(mWnd);
       *oHps = mDragHps;
-    } else {
-      *oHps = 0;
     }
-  }
+    else
+      *oHps = 0;
 
   return rtn;
 }

@@ -51,10 +51,9 @@
 #include "nsDisplayList.h"
 
 nsIFrame*
-NS_NewPlaceholderFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
-                       nsFrameState aTypeBit)
+NS_NewPlaceholderFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  return new (aPresShell) nsPlaceholderFrame(aContext, aTypeBit);
+  return new (aPresShell) nsPlaceholderFrame(aContext);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsPlaceholderFrame)
@@ -241,9 +240,6 @@ nsPlaceholderFrame::List(FILE* out, PRInt32 aIndent) const
   }
   if (nsnull != nextInFlow) {
     fprintf(out, " next-in-flow=%p", static_cast<void*>(nextInFlow));
-  }
-  if (nsnull != mContent) {
-    fprintf(out, " [content=%p]", static_cast<void*>(mContent));
   }
   if (mOutOfFlowFrame) {
     fprintf(out, " outOfFlowFrame=");

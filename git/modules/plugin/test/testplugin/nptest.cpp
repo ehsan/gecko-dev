@@ -83,13 +83,10 @@ static bool stopWatchingInstanceCount(NPObject* npobj, const NPVariant* args, ui
 static bool unscheduleAllTimers(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getLastMouseX(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getLastMouseY(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getPaintCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool doInternalConsistencyCheck(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool setColor(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool throwExceptionNextInvoke(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool convertPointX(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool convertPointY(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "npnEvaluateTest",
@@ -110,13 +107,10 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "unscheduleAllTimers",
   "getLastMouseX",
   "getLastMouseY",
-  "getPaintCount",
   "getError",
   "doInternalConsistencyCheck",
   "setColor",
   "throwExceptionNextInvoke",
-  "convertPointX",
-  "convertPointY",
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
 static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMethodIdentifierNames)] = {
@@ -138,13 +132,10 @@ static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMetho
   unscheduleAllTimers,
   getLastMouseX,
   getLastMouseY,
-  getPaintCount,
   getError,
   doInternalConsistencyCheck,
   setColor,
   throwExceptionNextInvoke,
-  convertPointX,
-  convertPointY,
 };
 
 static const char* NPN_GetURLNotifyCookie = "NPN_GetURLNotify_Cookie";
@@ -588,7 +579,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
 
   instanceData->lastReportedPrivateModeState = false;
   instanceData->lastMouseX = instanceData->lastMouseY = -1;
-  instanceData->paintCount = 0;
 
   // do platform-specific initialization
   NPError err = pluginInstanceInit(instanceData);
@@ -1171,12 +1161,6 @@ void
 NPN_SetException(NPObject *npobj, const NPUTF8 *message)
 {
   return sBrowserFuncs->setexception(npobj, message);
-}
-
-NPBool
-NPN_ConvertPoint(NPP instance, double sourceX, double sourceY, NPCoordinateSpace sourceSpace, double *destX, double *destY, NPCoordinateSpace destSpace)
-{
-  return sBrowserFuncs->convertpoint(instance, sourceX, sourceY, sourceSpace, destX, destY, destSpace);
 }
 
 //
@@ -1768,18 +1752,6 @@ getLastMouseY(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVaria
 }
 
 static bool
-getPaintCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  INT32_TO_NPVARIANT(id->paintCount, *result);
-  return true;
-}
-
-static bool
 getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
   if (argCount != 0)
@@ -1810,68 +1782,6 @@ doInternalConsistencyCheck(NPObject* npobj, const NPVariant* args, uint32_t argC
   }
   memcpy(utf8String, error.c_str(), error.length() + 1);
   STRINGZ_TO_NPVARIANT(utf8String, *result);
-  return true;
-}
-
-static bool
-convertPointX(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 4)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-
-  if (!NPVARIANT_IS_INT32(args[0]))
-    return false;
-  int32_t sourceSpace = NPVARIANT_TO_INT32(args[0]);
-
-  if (!NPVARIANT_IS_INT32(args[1]))
-    return false;
-  double sourceX = static_cast<double>(NPVARIANT_TO_INT32(args[1]));
-
-  if (!NPVARIANT_IS_INT32(args[2]))
-    return false;
-  double sourceY = static_cast<double>(NPVARIANT_TO_INT32(args[2]));
-
-  if (!NPVARIANT_IS_INT32(args[3]))
-    return false;
-  int32_t destSpace = NPVARIANT_TO_INT32(args[3]);
-
-  double resultX, resultY;
-  NPN_ConvertPoint(npp, sourceX, sourceY, (NPCoordinateSpace)sourceSpace, &resultX, &resultY, (NPCoordinateSpace)destSpace);
-
-  DOUBLE_TO_NPVARIANT(resultX, *result);
-  return true;
-}
-
-static bool
-convertPointY(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 4)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-
-  if (!NPVARIANT_IS_INT32(args[0]))
-    return false;
-  int32_t sourceSpace = NPVARIANT_TO_INT32(args[0]);
-
-  if (!NPVARIANT_IS_INT32(args[1]))
-    return false;
-  double sourceX = static_cast<double>(NPVARIANT_TO_INT32(args[1]));
-
-  if (!NPVARIANT_IS_INT32(args[2]))
-    return false;
-  double sourceY = static_cast<double>(NPVARIANT_TO_INT32(args[2]));
-
-  if (!NPVARIANT_IS_INT32(args[3]))
-    return false;
-  int32_t destSpace = NPVARIANT_TO_INT32(args[3]);
-
-  double resultX, resultY;
-  NPN_ConvertPoint(npp, sourceX, sourceY, (NPCoordinateSpace)sourceSpace, &resultX, &resultY, (NPCoordinateSpace)destSpace);
-  
-  DOUBLE_TO_NPVARIANT(resultY, *result);
   return true;
 }
 

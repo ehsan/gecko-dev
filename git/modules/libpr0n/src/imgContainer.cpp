@@ -312,7 +312,7 @@ NS_IMETHODIMP imgContainer::ExtractFrame(PRUint32 aWhichFrame,
   // FLAG_SYNC_DECODE
   PRUint32 frameIndex = (aWhichFrame == FRAME_FIRST) ?
                         0 : GetCurrentImgFrameIndex();
-  imgFrame *frame = GetDrawableImgFrame(frameIndex);
+  imgFrame *frame = GetImgFrame(frameIndex);
   if (!frame) {
     *_retval = nsnull;
     return NS_ERROR_FAILURE;
@@ -378,17 +378,6 @@ imgFrame *imgContainer::GetImgFrame(PRUint32 framenum)
   return mFrames.SafeElementAt(framenum, nsnull);
 }
 
-imgFrame *imgContainer::GetDrawableImgFrame(PRUint32 framenum)
-{
-  imgFrame *frame = GetImgFrame(framenum);
-
-  // We will return a paletted frame if it's not marked as compositing failed
-  // so we can catch crashes for reasons we haven't investigated.
-  if (frame && frame->GetCompositingFailed())
-    return nsnull;
-  return frame;
-}
-
 PRUint32 imgContainer::GetCurrentImgFrameIndex() const
 {
   if (mAnim)
@@ -400,11 +389,6 @@ PRUint32 imgContainer::GetCurrentImgFrameIndex() const
 imgFrame *imgContainer::GetCurrentImgFrame()
 {
   return GetImgFrame(GetCurrentImgFrameIndex());
-}
-
-imgFrame *imgContainer::GetCurrentDrawableImgFrame()
-{
-  return GetDrawableImgFrame(GetCurrentImgFrameIndex());
 }
 
 //******************************************************************************
@@ -546,7 +530,7 @@ NS_IMETHODIMP imgContainer::CopyFrame(PRUint32 aWhichFrame,
   // FLAG_SYNC_DECODE
   PRUint32 frameIndex = (aWhichFrame == FRAME_FIRST) ?
                         0 : GetCurrentImgFrameIndex();
-  imgFrame *frame = GetDrawableImgFrame(frameIndex);
+  imgFrame *frame = GetImgFrame(frameIndex);
   if (!frame) {
     *_retval = nsnull;
     return NS_ERROR_FAILURE;
@@ -597,7 +581,7 @@ NS_IMETHODIMP imgContainer::GetFrame(PRUint32 aWhichFrame,
   // FLAG_SYNC_DECODE
   PRUint32 frameIndex = (aWhichFrame == FRAME_FIRST) ?
                           0 : GetCurrentImgFrameIndex();
-  imgFrame *frame = GetDrawableImgFrame(frameIndex);
+  imgFrame *frame = GetImgFrame(frameIndex);
   if (!frame) {
     *_retval = nsnull;
     return NS_ERROR_FAILURE;
@@ -1461,11 +1445,8 @@ NS_IMETHODIMP imgContainer::Notify(nsITimer *timer)
                               nextFrame, nextFrameIndex))) {
       // something went wrong, move on to next
       NS_WARNING("imgContainer::Notify(): Composing Frame Failed\n");
-      nextFrame->SetCompositingFailed(PR_TRUE);
       mAnim->currentAnimationFrameIndex = nextFrameIndex;
       return NS_OK;
-    } else {
-      nextFrame->SetCompositingFailed(PR_FALSE);
     }
   }
   // Set currentAnimationFrameIndex at the last possible moment
@@ -1583,10 +1564,7 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
     }
     nsresult rv = mAnim->compositingFrame->Init(0, 0, mSize.width, mSize.height,
                                                 gfxASurface::ImageFormatARGB32);
-    if (NS_FAILED(rv)) {
-      mAnim->compositingFrame = nsnull;
-      return rv;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
     needToBlankComposite = PR_TRUE;
   } else if (aNextFrameIndex == 1) {
     // When we are looping the compositing frame needs to be cleared.
@@ -1690,10 +1668,7 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
       }
       nsresult rv = mAnim->compositingPrevFrame->Init(0, 0, mSize.width, mSize.height,
                                                       gfxASurface::ImageFormatARGB32);
-      if (NS_FAILED(rv)) {
-        mAnim->compositingPrevFrame = nsnull;
-        return rv;
-      }
+      NS_ENSURE_SUCCESS(rv, rv);
     }
 
     CopyFrameImage(mAnim->compositingFrame, mAnim->compositingPrevFrame);
@@ -1742,9 +1717,7 @@ void imgContainer::ClearFrame(imgFrame *aFrame)
   if (!aFrame)
     return;
 
-  nsresult rv = aFrame->LockImageData();
-  if (NS_FAILED(rv))
-    return;
+  aFrame->LockImageData();
 
   nsRefPtr<gfxASurface> surf;
   aFrame->GetSurface(getter_AddRefs(surf));
@@ -1763,9 +1736,7 @@ void imgContainer::ClearFrame(imgFrame *aFrame, nsIntRect &aRect)
   if (!aFrame || aRect.width <= 0 || aRect.height <= 0)
     return;
 
-  nsresult rv = aFrame->LockImageData();
-  if (NS_FAILED(rv))
-    return;
+  aFrame->LockImageData();
 
   nsRefPtr<gfxASurface> surf;
   aFrame->GetSurface(getter_AddRefs(surf));
@@ -2357,7 +2328,7 @@ NS_IMETHODIMP imgContainer::Draw(gfxContext *aContext, gfxPattern::GraphicsFilte
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  imgFrame *frame = GetCurrentDrawableImgFrame();
+  imgFrame *frame = GetCurrentImgFrame();
   if (!frame) {
     NS_ABORT_IF_FALSE(!mDecoded, "Decoded but frame not available?");
     return NS_OK; // Getting the frame (above) touches the image and kicks off decoding

@@ -117,8 +117,7 @@ function ensure_results(aSearch, aExpected)
       let j;
       for (j = 0; j < aExpected.length; j++) {
         // Skip processed expected results
-        if (aExpected[j] == undefined)
-          continue;
+        if (aExpected[j] == undefined) continue;
 
         let [uri, title, tags] = gPages[aExpected[j]];
 
@@ -165,19 +164,23 @@ function ensure_results(aSearch, aExpected)
 }
 
 // Get history services
-var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
-              getService(Ci.nsINavHistoryService);
-var bhist = histsvc.QueryInterface(Ci.nsIBrowserHistory);
-var bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
-            getService(Ci.nsINavBookmarksService);
-var tagsvc = Cc["@mozilla.org/browser/tagging-service;1"].
-             getService(Ci.nsITaggingService);
-var iosvc = Cc["@mozilla.org/network/io-service;1"].
-            getService(Ci.nsIIOService);
-var prefs = Cc["@mozilla.org/preferences-service;1"].
-            getService(Ci.nsIPrefBranch);
-var lmsvc = Cc["@mozilla.org/browser/livemark-service;2"].
-            getService(Ci.nsILivemarkService);
+try {
+  var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
+                getService(Ci.nsINavHistoryService);
+  var bhist = histsvc.QueryInterface(Ci.nsIBrowserHistory);
+  var bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+              getService(Ci.nsINavBookmarksService);
+  var tagsvc = Cc["@mozilla.org/browser/tagging-service;1"].
+               getService(Ci.nsITaggingService);
+  var iosvc = Cc["@mozilla.org/network/io-service;1"].
+              getService(Ci.nsIIOService);
+  var prefs = Cc["@mozilla.org/preferences-service;1"].
+              getService(Ci.nsIPrefBranch);
+  var lmsvc = Cc["@mozilla.org/browser/livemark-service;2"].
+              getService(Ci.nsILivemarkService);
+} catch(ex) {
+  do_throw("Could not get services\n");
+}
 
 // Some date not too long ago
 let gDate = new Date(Date.now() - 1000 * 60 * 60) * 1000;
@@ -185,70 +188,27 @@ let gDate = new Date(Date.now() - 1000 * 60 * 60) * 1000;
 let gPages = [];
 
 /**
- * Function gets current database connection, if the connection has been closed
- * it will try to reconnect to the places.sqlite database.
- */
-function DBConn()
-{
-  let db = Cc["@mozilla.org/browser/nav-history-service;1"].
-           getService(Ci.nsPIPlacesDatabase).
-           DBConnection;
-  if (db.connectionReady)
-    return db;
-
-  // open a new connection if needed
-  let file = dirSvc.get('ProfD', Ci.nsIFile);
-  file.append("places.sqlite");
-  let storageService = Cc["@mozilla.org/storage/service;1"].
-                       getService(Ci.mozIStorageService);
-  try {
-    var dbConn = storageService.openDatabase(file);
-  } catch (ex) {
-    return null;
-  }
-  return dbConn;
-}
-
-/**
- * Sets title synchronously for a page in moz_places synchronously.
- * History.SetPageTitle uses LAZY_ADD so we can't rely on it.
+ * Sets the page title synchronously.  The page must already be in the database.
  *
  * @param aURI
  *        An nsIURI to set the title for.
  * @param aTitle
  *        The title to set the page to.
- * @throws if the page is not found in the database.
- *
- * @note this function only exists because we have no API to do this. It should
- *       be added in bug 421897.
  */
-function setPageTitle(aURI, aTitle) {
-  let dbConn = DBConn();
-  // Check that the page exists.
-  let stmt = dbConn.createStatement(
-    "SELECT id FROM moz_places_view WHERE url = :url");
-  stmt.params.url = aURI.spec;
-  try {
-    if (!stmt.executeStep()) {
-      do_throw("Unable to find page " + aURIString);
-      return;
-    }
-  }
-  finally {
-    stmt.finalize();
-  }
-
-  // Update the title
-  stmt = dbConn.createStatement(
-    "UPDATE moz_places_view SET title = :title WHERE url = :url");
+function setPageTitle(aURI, aTitle)
+{
+  // XXX this function only exists because we have no API to do this. It should
+  //     be added in bug 421897.
+  let db = histsvc.QueryInterface(Ci.nsPIPlacesDatabase).DBConnection;
+  let stmt = db.createStatement(
+    "UPDATE moz_places_view " +
+    "SET title = :title " +
+    "WHERE url = :uri"
+  );
   stmt.params.title = aTitle;
-  stmt.params.url = aURI.spec;
-  try {
-    stmt.execute();
-  }
-  finally {
-    stmt.finalize();
-  }
+  stmt.params.uri = aURI.spec;
+  stmt.execute();
+  stmt.finalize();
 }
 
 /**
@@ -281,7 +241,7 @@ function addLivemark(aContainerSiteURI, aContainerFeedURI, aContainerTitle,
                      aChildURI, aChildTitle, aTransitionType, aNoChildVisit)
 {
   // Add a page entry for the child uri
-  gPages[aChildURI] = [aChildURI, aChildTitle, null];
+  gPages[aChildURI] = [aChildURI, aChildTitle, /* no tags */];
 
   let out = [aChildURI, aChildTitle];
   out.push("\nchild uri=" + kURIs[aChildURI]);

@@ -510,15 +510,8 @@
 
         if (window.XULBrowserWindow) {
           var nodeItem = event.target.node;
-
-          var linkURI;
           if (nodeItem && PlacesUtils.nodeIsURI(nodeItem))
-            linkURI = nodeItem.uri;
-          else if (node.hasAttribute("targetURI"))
-            linkURI = node.getAttribute("targetURI");
-
-          if (linkURI)
-            window.XULBrowserWindow.setOverLink(linkURI, null);
+            window.XULBrowserWindow.setOverLink(nodeItem.uri, null);
         }
       ]]></handler>
       <handler event="DOMMenuItemInactive"><![CDATA[

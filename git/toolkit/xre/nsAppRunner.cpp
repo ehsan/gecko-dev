@@ -205,7 +205,6 @@
 #include "nsExceptionHandler.h"
 #include "nsICrashReporter.h"
 #define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
-#include "nsIPrefService.h"
 #endif
 
 #ifdef WINCE
@@ -1223,9 +1222,7 @@ static void DumpArbitraryHelp()
 
   {
     nsXREDirProvider dirProvider;
-    rv = dirProvider.Initialize(gAppData->directory, gAppData->xreDirectory);
-    if (NS_FAILED(rv))
-      return;
+    dirProvider.Initialize(nsnull, gAppData->xreDirectory);
 
     ScopedXPCOMStartup xpcom;
     xpcom.Initialize();
@@ -3285,23 +3282,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       rv |= xpcom.SetWindowCreator(nativeApp);
       NS_ENSURE_SUCCESS(rv, 1);
 
-#ifdef MOZ_CRASHREPORTER
-      // tell the crash reporter to also send the release channel
-      nsCOMPtr<nsIPrefService> prefs = do_GetService("@mozilla.org/preferences-service;1", &rv);
-      if (NS_SUCCEEDED(rv)) {
-        nsCOMPtr<nsIPrefBranch> defaultPrefBranch;
-        rv = prefs->GetDefaultBranch(nsnull, getter_AddRefs(defaultPrefBranch));
-
-        if (NS_SUCCEEDED(rv)) {
-          nsXPIDLCString sval;
-          rv = defaultPrefBranch->GetCharPref("app.update.channel", getter_Copies(sval));
-          if (NS_SUCCEEDED(rv)) {
-            CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("ReleaseChannel"),
-                                               sval);
-          }
-        }
-      }
-#endif
       {
         if (startOffline) {
           nsCOMPtr<nsIIOService2> io (do_GetService("@mozilla.org/network/io-service;1"));

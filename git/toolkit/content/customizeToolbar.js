@@ -462,7 +462,7 @@ function fillRowWithFlex(aRow)
 
 /**
  * Makes sure that an item that has been cloned from a template
- * is stripped of any attributes that may adversely affect its
+ * is stripped of all properties that may adversely affect its
  * appearance in the palette.
  */
 function cleanUpItemForPalette(aItem, aWrapper)
@@ -482,12 +482,17 @@ function cleanUpItemForPalette(aItem, aWrapper)
   // Remove attributes that screw up our appearance.
   aItem.removeAttribute("command");
   aItem.removeAttribute("observes");
+  aItem.removeAttribute("disabled");
   aItem.removeAttribute("type");
   aItem.removeAttribute("width");
 
-  Array.forEach(aWrapper.querySelectorAll("[disabled]"), function(aNode) {
-    aNode.removeAttribute("disabled");
-  });
+  if (aItem.localName == "toolbaritem" && aItem.firstChild) {
+    aItem.firstChild.removeAttribute("observes");
+
+    // So the throbber doesn't throb in the dialog,
+    // cute as that may be...
+    aItem.firstChild.removeAttribute("busy");
+  }
 }
 
 /**

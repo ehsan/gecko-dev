@@ -152,8 +152,7 @@ imgFrame::imgFrame() :
   mBlendMethod(1), /* imgIContainer::kBlendOver */
   mSinglePixel(PR_FALSE),
   mNeverUseDeviceSurface(PR_FALSE),
-  mFormatChanged(PR_FALSE),
-  mCompositingFailed(PR_FALSE)
+  mFormatChanged(PR_FALSE)
 #ifdef USE_WIN_SURFACE
   , mIsDDBSurface(PR_FALSE)
 #endif
@@ -464,6 +463,11 @@ void imgFrame::Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
   }
   // At this point, we've taken care of mSinglePixel images, images with
   // aPadding, and partially-decoded images.
+
+  if (!AllowedImageSize(fill.size.width + 1, fill.size.height + 1)) {
+    NS_WARNING("Destination area too large, bailing out");
+    return;
+  }
 
   // Compute device-space-to-image-space transform. We need to sanity-
   // check it to work around a pixman bug :-(
@@ -811,7 +815,7 @@ void imgFrame::GetPaletteData(PRUint32 **aPalette, PRUint32 *length) const
 nsresult imgFrame::LockImageData()
 {
   if (mPalettedImageData)
-    return NS_ERROR_NOT_AVAILABLE;
+    return NS_OK;
 
   if ((mOptSurface || mSinglePixel) && !mImageSurface) {
     // Recover the pixels
@@ -843,7 +847,7 @@ nsresult imgFrame::LockImageData()
 nsresult imgFrame::UnlockImageData()
 {
   if (mPalettedImageData)
-    return NS_ERROR_NOT_AVAILABLE;
+    return NS_OK;
 
 #ifdef XP_MACOSX
   if (mQuartzSurface)
@@ -915,14 +919,4 @@ void imgFrame::SetHasNoAlpha()
       mFormat = gfxASurface::ImageFormatRGB24;
       mFormatChanged = PR_TRUE;
   }
-}
-
-PRBool imgFrame::GetCompositingFailed() const
-{
-  return mCompositingFailed;
-}
-
-void imgFrame::SetCompositingFailed(PRBool val)
-{
-  mCompositingFailed = val;
 }

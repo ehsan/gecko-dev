@@ -1451,9 +1451,12 @@ nsNavBookmarks::InsertSeparator(PRInt64 aParent, PRInt32 aIndex,
                                 PRInt64* aNewItemId)
 {
   NS_ENSURE_ARG_MIN(aParent, 1);
-  // -1 means "append", but no other negative value is allowed.
-  NS_ENSURE_ARG_MIN(aIndex, -1);
   NS_ENSURE_ARG_POINTER(aNewItemId);
+
+  // You can pass -1 to indicate append, but no other negative number is
+  // allowed
+  if (aIndex < -1)
+    return NS_ERROR_INVALID_ARG;
 
   mozStorageTransaction transaction(mDBConn, PR_FALSE);
 
@@ -1464,8 +1467,7 @@ nsNavBookmarks::InsertSeparator(PRInt64 aParent, PRInt32 aIndex,
   if (aIndex == nsINavBookmarksService::DEFAULT_INDEX ||
       aIndex >= folderCount) {
     index = folderCount;
-  }
-  else {
+  } else {
     index = aIndex;
     rv = AdjustIndices(aParent, index, PR_INT32_MAX, 1);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1490,22 +1492,23 @@ nsNavBookmarks::InsertSeparator(PRInt64 aParent, PRInt32 aIndex,
 nsresult
 nsNavBookmarks::GetLastChildId(PRInt64 aFolder, PRInt64* aItemId)
 {
-  *aItemId = -1;
-
   nsCOMPtr<mozIStorageStatement> statement;
   nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
       "SELECT id FROM moz_bookmarks WHERE parent = ?1 "
-      "ORDER BY position DESC LIMIT 1"),
-    getter_AddRefs(statement));
+      "ORDER BY position DESC LIMIT 1"), getter_AddRefs(statement));
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = statement->BindInt64Parameter(0, aFolder);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PRBool found;
-  rv = statement->ExecuteStep(&found);
+  PRBool hasMore;
+  rv = statement->ExecuteStep(&hasMore);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (found)
+  if (!hasMore) {
+    // Item doesn't exist
+    *aItemId = -1;
+  }
+  else
     *aItemId = statement->AsInt64(0);
 
   return NS_OK;
@@ -1517,28 +1520,31 @@ nsNavBookmarks::GetIdForItemAt(PRInt64 aFolder, PRInt32 aIndex, PRInt64* aItemId
   NS_ENSURE_ARG_MIN(aFolder, 1);
   NS_ENSURE_ARG_POINTER(aItemId);
 
-  *aItemId = -1;
-
   nsresult rv;
   if (aIndex == nsINavBookmarksService::DEFAULT_INDEX) {
-    // Get last item within aFolder.
+    // we want the last item within aFolder
     rv = GetLastChildId(aFolder, aItemId);
     NS_ENSURE_SUCCESS(rv, rv);
-  }
-  else {
-    // Get the item in aFolder with position aIndex.
-    mozStorageStatementScoper scope(mDBGetChildAt);
+  } else {
+    {
+      // get the item in aFolder with position aIndex
+      mozStorageStatementScoper scope(mDBGetChildAt);
 
-    rv = mDBGetChildAt->BindInt64Parameter(0, aFolder);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = mDBGetChildAt->BindInt32Parameter(1, aIndex);
-    NS_ENSURE_SUCCESS(rv, rv);
+      rv = mDBGetChildAt->BindInt64Parameter(0, aFolder);
+      NS_ENSURE_SUCCESS(rv, rv);
+      rv = mDBGetChildAt->BindInt32Parameter(1, aIndex);
+      NS_ENSURE_SUCCESS(rv, rv);
 
-    PRBool found;
-    rv = mDBGetChildAt->ExecuteStep(&found);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (found)
-      *aItemId = mDBGetChildAt->AsInt64(0);
+      PRBool hasMore;
+      rv = mDBGetChildAt->ExecuteStep(&hasMore);
+      NS_ENSURE_SUCCESS(rv, rv);
+      if (!hasMore) {
+        // Item doesn't exist
+        *aItemId = -1;
+      }
+      else
+        *aItemId = mDBGetChildAt->AsInt64(0);
+    }
   }
   return NS_OK;
 }
@@ -1547,23 +1553,24 @@ nsresult
 nsNavBookmarks::GetParentAndIndexOfFolder(PRInt64 aFolder, PRInt64* aParent, 
                                           PRInt32* aIndex)
 {
+  nsCAutoString buffer;
+  buffer.AssignLiteral("SELECT parent, position FROM moz_bookmarks WHERE id = ");
+  buffer.AppendInt(aFolder);
+
   nsCOMPtr<mozIStorageStatement> statement;
-  nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-      "SELECT parent, position FROM moz_bookmarks WHERE id = ?1"),
-    getter_AddRefs(statement));
+  nsresult rv = mDBConn->CreateStatement(buffer, getter_AddRefs(statement));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = statement->BindInt64Parameter(0, aFolder);
+  PRBool results;
+  rv = statement->ExecuteStep(&results);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  PRBool found;
-  rv = statement->ExecuteStep(&found);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(found, NS_ERROR_INVALID_ARG); // Folder does not exist.
+  if (!results) {
+    return NS_ERROR_INVALID_ARG; // folder is not in the hierarchy
+  }
 
   *aParent = statement->AsInt64(0);
   *aIndex = statement->AsInt32(1);
-
+  
   return NS_OK;
 }
 

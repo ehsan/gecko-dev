@@ -313,8 +313,7 @@ nsXBLPrototypeBinding::nsXBLPrototypeBinding()
 nsresult
 nsXBLPrototypeBinding::Init(const nsACString& aID,
                             nsIXBLDocumentInfo* aInfo,
-                            nsIContent* aElement,
-                            PRBool aFirstBinding)
+                            nsIContent* aElement)
 {
   if (!kAttrPool || !nsXBLInsertionPointEntry::PoolInited()) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -326,28 +325,13 @@ nsXBLPrototypeBinding::Init(const nsACString& aID,
   // The binding URI might not be a nsIURL (e.g. for data: URIs). In that case,
   // we always use the first binding, so we don't need to keep track of the ID.
   nsCOMPtr<nsIURL> bindingURL = do_QueryInterface(mBindingURI);
-  if (bindingURL) {
-    if (aFirstBinding) {
-      rv = mBindingURI->Clone(getter_AddRefs(mAlternateBindingURI));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+  if (bindingURL)
     bindingURL->SetRef(aID);
-  }
 
   mXBLDocInfoWeak = aInfo;
 
   SetBindingElement(aElement);
   return NS_OK;
-}
-
-PRBool nsXBLPrototypeBinding::CompareBindingURI(nsIURI* aURI) const
-{
-  PRBool equal = PR_FALSE;
-  mBindingURI->Equals(aURI, &equal);
-  if (!equal && mAlternateBindingURI) {
-    mAlternateBindingURI->Equals(aURI, &equal);
-  }
-  return equal;
 }
 
 static PRIntn

@@ -124,39 +124,16 @@ nsInlineFrame::IsSelfEmpty()
   // XXX Top and bottom removed, since they shouldn't affect things, but this
   // doesn't really match with nsLineLayout.cpp's setting of
   // ZeroEffectiveSpanBox, anymore, so what should this really be?
-  PRBool haveRight =
-    border->GetActualBorderWidth(NS_SIDE_RIGHT) != 0 ||
-    !IsPaddingZero(padding->mPadding.GetRightUnit(),
-                   padding->mPadding.GetRight()) ||
-    !IsMarginZero(margin->mMargin.GetRightUnit(),
-                  margin->mMargin.GetRight());
-  PRBool haveLeft =
-    border->GetActualBorderWidth(NS_SIDE_LEFT) != 0 ||
-    !IsPaddingZero(padding->mPadding.GetLeftUnit(),
-                   padding->mPadding.GetLeft()) ||
-    !IsMarginZero(margin->mMargin.GetLeftUnit(),
-                  margin->mMargin.GetLeft());
-  if (haveLeft || haveRight) {
-    if (GetStateBits() & NS_FRAME_IS_SPECIAL) {
-      PRBool haveStart, haveEnd;
-      if (NS_STYLE_DIRECTION_LTR == GetStyleVisibility()->mDirection) {
-        haveStart = haveLeft;
-        haveEnd = haveRight;
-      } else {
-        haveStart = haveRight;
-        haveEnd = haveLeft;
-      }
-      // For special frames, ignore things we know we'll skip in GetSkipSides.
-      // XXXbz should we be doing this for non-special frames too, in a more
-      // general way?
-
-      // Get the first continuation eagerly, as a performance optimization, to
-      // avoid having to get it twice..
-      nsIFrame* firstCont = GetFirstContinuation();
-      return
-        (!haveStart || nsLayoutUtils::FrameIsNonFirstInIBSplit(firstCont)) &&
-        (!haveEnd || nsLayoutUtils::FrameIsNonLastInIBSplit(firstCont));
-    }
+  if (border->GetActualBorderWidth(NS_SIDE_RIGHT) != 0 ||
+      border->GetActualBorderWidth(NS_SIDE_LEFT) != 0 ||
+      !IsPaddingZero(padding->mPadding.GetRightUnit(),
+                     padding->mPadding.GetRight()) ||
+      !IsPaddingZero(padding->mPadding.GetLeftUnit(),
+                     padding->mPadding.GetLeft()) ||
+      !IsMarginZero(margin->mMargin.GetRightUnit(),
+                    margin->mMargin.GetRight()) ||
+      !IsMarginZero(margin->mMargin.GetLeftUnit(),
+                    margin->mMargin.GetLeft())) {
     return PR_FALSE;
   }
   return PR_TRUE;
@@ -400,7 +377,6 @@ nsInlineFrame::Reflow(nsPresContext*          aPresContext,
   InlineReflowState irs;
   irs.mPrevFrame = nsnull;
   irs.mLineContainer = lineContainer;
-  irs.mLineLayout = aReflowState.mLineLayout;
   irs.mNextInFlow = (nsInlineFrame*) GetNextInFlow();
   irs.mSetParentPointer = lazilySetParentPointer;
 
@@ -458,9 +434,9 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   PRBool ltr = (NS_STYLE_DIRECTION_LTR == aReflowState.mStyleVisibility->mDirection);
   nscoord leftEdge = 0;
   // Don't offset by our start borderpadding if we have a prev continuation or
-  // if we're in a part of an {ib} split other than the first one.
+  // if we're in the last part of an {ib} split.
   if (!GetPrevContinuation() &&
-      !nsLayoutUtils::FrameIsNonFirstInIBSplit(this)) {
+      !nsLayoutUtils::FrameIsInLastPartOfIBSplit(this)) {
     leftEdge = ltr ? aReflowState.mComputedBorderPadding.left
                    : aReflowState.mComputedBorderPadding.right;
   }
@@ -609,24 +585,22 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   // Compute final width.
 
   // Make sure to not include our start border and padding if we have a prev
-  // continuation or if we're in a part of an {ib} split other than the first
-  // one.
+  // continuation or if we're in the last part of an {ib} split.
   if (!GetPrevContinuation() &&
-      !nsLayoutUtils::FrameIsNonFirstInIBSplit(this)) {
+      !nsLayoutUtils::FrameIsInLastPartOfIBSplit(this)) {
     aMetrics.width += ltr ? aReflowState.mComputedBorderPadding.left
                           : aReflowState.mComputedBorderPadding.right;
   }
 
   /*
    * We want to only apply the end border and padding if we're the last
-   * continuation and either not in an {ib} split or the last part of it.  To
-   * be the last continuation we have to be complete (so that we won't get a
-   * next-in-flow) and have no non-fluid continuations on our continuation
-   * chain.
+   * continuation and not in the first part of an {ib} split.  To be the last
+   * continuation we have to be complete (so that we won't get a next-in-flow)
+   * and have no non-fluid continuations on our continuation chain.
    */
   if (NS_FRAME_IS_COMPLETE(aStatus) &&
       !GetLastInFlow()->GetNextContinuation() &&
-      !nsLayoutUtils::FrameIsNonLastInIBSplit(this)) {
+      !nsLayoutUtils::FrameIsInFirstPartOfIBSplit(this)) {
     aMetrics.width += ltr ? aReflowState.mComputedBorderPadding.right
                           : aReflowState.mComputedBorderPadding.left;
   }
@@ -694,7 +668,7 @@ nsInlineFrame::ReflowInlineFrame(nsPresContext* aPresContext,
         aStatus = NS_FRAME_NOT_COMPLETE |
           NS_INLINE_BREAK | NS_INLINE_BREAK_AFTER |
           (aStatus & NS_INLINE_BREAK_TYPE_MASK);
-        PushFrames(aPresContext, aFrame, irs.mPrevFrame, irs);
+        PushFrames(aPresContext, aFrame, irs.mPrevFrame);
       }
       else {
         // Preserve reflow status when breaking-before our first child
@@ -726,7 +700,7 @@ nsInlineFrame::ReflowInlineFrame(nsPresContext* aPresContext,
       nsIFrame* nextFrame = aFrame->GetNextSibling();
       if (nextFrame) {
         NS_FRAME_SET_INCOMPLETE(aStatus);
-        PushFrames(aPresContext, nextFrame, aFrame, irs);
+        PushFrames(aPresContext, nextFrame, aFrame);
       }
       else if (nsnull != GetNextInFlow()) {
         // We must return an incomplete status if there are more child
@@ -760,7 +734,7 @@ nsInlineFrame::ReflowInlineFrame(nsPresContext* aPresContext,
       if (!reflowingFirstLetter) {
         nsIFrame* nextFrame = aFrame->GetNextSibling();
         if (nextFrame) {
-          PushFrames(aPresContext, nextFrame, aFrame, irs);
+          PushFrames(aPresContext, nextFrame, aFrame);
         }
       }
     }
@@ -792,9 +766,6 @@ nsInlineFrame::PullOneFrame(nsPresContext* aPresContext,
       nextInFlow->mFrames.RemoveFirstChild();
       mFrames.InsertFrame(this, irs.mPrevFrame, frame);
       isComplete = PR_FALSE;
-      if (irs.mLineLayout) {
-        irs.mLineLayout->SetDirtyNextLine();
-      }
       nsHTMLContainerFrame::ReparentFrameView(aPresContext, frame, nextInFlow, this);
       break;
     }
@@ -809,8 +780,7 @@ nsInlineFrame::PullOneFrame(nsPresContext* aPresContext,
 void
 nsInlineFrame::PushFrames(nsPresContext* aPresContext,
                           nsIFrame* aFromChild,
-                          nsIFrame* aPrevSibling,
-                          InlineReflowState& aState)
+                          nsIFrame* aPrevSibling)
 {
   NS_PRECONDITION(aFromChild, "null pointer");
   NS_PRECONDITION(aPrevSibling, "pushing first child");
@@ -824,9 +794,6 @@ nsInlineFrame::PushFrames(nsPresContext* aPresContext,
   // Add the frames to our overflow list (let our next in flow drain
   // our overflow list when it is ready)
   SetOverflowFrames(aPresContext, mFrames.RemoveFramesAfter(aPrevSibling));
-  if (aState.mLineLayout) {
-    aState.mLineLayout->SetDirtyNextLine();
-  }
 }
 
 
@@ -864,22 +831,21 @@ nsInlineFrame::GetSkipSides() const
   }
 
   if (GetStateBits() & NS_FRAME_IS_SPECIAL) {
-    // All but the last part of an {ib} split should skip the "end" side (as
-    // determined by this frame's direction) and all but the first part of such
-    // a split should skip the "start" side.  But figuring out which part of
-    // the split we are involves getting our first continuation, which might be
+    // The first part of an {ib} split should always skip the "end" side (as
+    // determined by this frame's direction) and the last part of such a split
+    // should alwas skip the "start" side.  But figuring out which part of the
+    // split we are involves getting our first continuation, which might be
     // expensive.  So don't bother if we already have the relevant bits set.
     PRBool ltr = (NS_STYLE_DIRECTION_LTR == GetStyleVisibility()->mDirection);
     PRIntn startBit = (1 << (ltr ? NS_SIDE_LEFT : NS_SIDE_RIGHT));
     PRIntn endBit = (1 << (ltr ? NS_SIDE_RIGHT : NS_SIDE_LEFT));
     if (((startBit | endBit) & skip) != (startBit | endBit)) {
       // We're missing one of the skip bits, so check whether we need to set it.
-      // Only get the first continuation once, as an optimization.
-      nsIFrame* firstContinuation = GetFirstContinuation();
-      if (nsLayoutUtils::FrameIsNonLastInIBSplit(firstContinuation)) {
+      if (nsLayoutUtils::FrameIsInFirstPartOfIBSplit(this)) {
         skip |= endBit;
-      }
-      if (nsLayoutUtils::FrameIsNonFirstInIBSplit(firstContinuation)) {
+      } else {
+        NS_ASSERTION(nsLayoutUtils::FrameIsInLastPartOfIBSplit(this),
+                     "How did that happen?");
         skip |= startBit;
       }
     }

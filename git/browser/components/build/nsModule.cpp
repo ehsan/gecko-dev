@@ -39,7 +39,6 @@
 #include "nsIGenericFactory.h"
 
 #include "nsBrowserCompsCID.h"
-#include "DirectoryProvider.h"
 #include "nsPlacesImportExportService.h"
 
 #if defined(XP_WIN)
@@ -85,7 +84,6 @@ using namespace mozilla::browser;
 
 /////////////////////////////////////////////////////////////////////////////
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(DirectoryProvider)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsPlacesImportExportService)
 #if defined(XP_WIN)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindowsShellService)
@@ -126,14 +124,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrivateBrowsingServiceWrapper, Init)
 
 static const nsModuleComponentInfo components[] =
 {
-  { "Browser Directory Provider",
-    NS_BROWSERDIRECTORYPROVIDER_CID,
-    NS_BROWSERDIRECTORYPROVIDER_CONTRACTID,
-    DirectoryProviderConstructor,
-    DirectoryProvider::Register,
-    DirectoryProvider::Unregister
-  },
-
 #if defined(XP_WIN)
   { "Browser Shell Service",
     NS_SHELLSERVICE_CID,

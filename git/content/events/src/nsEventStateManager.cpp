@@ -1983,13 +1983,9 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
       // change during the drag.
       dataTransfer->SetReadOnly();
 
-      if (status != nsEventStatus_eConsumeNoDefault) {
-        PRBool dragStarted = DoDefaultDragStart(aPresContext, event, dataTransfer,
-                                                targetContent, isSelection);
-        if (dragStarted) {
-          aEvent->flags |= NS_EVENT_FLAG_STOP_DISPATCH;
-        }
-      }
+      if (status != nsEventStatus_eConsumeNoDefault)
+        DoDefaultDragStart(aPresContext, event, dataTransfer,
+                           targetContent, isSelection);
 
       // Note that frame event handling doesn't care about NS_DRAGDROP_GESTURE,
       // which is just as well since we don't really know which frame to
@@ -2110,7 +2106,7 @@ nsEventStateManager::DetermineDragTarget(nsPresContext* aPresContext,
   }
 }
 
-PRBool
+void
 nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
                                         nsDragEvent* aDragEvent,
                                         nsDOMDataTransfer* aDataTransfer,
@@ -2120,19 +2116,18 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
   nsCOMPtr<nsIDragService> dragService =
     do_GetService("@mozilla.org/widget/dragservice;1");
   if (!dragService)
-    return PR_FALSE;
+    return;
 
   // Default handling for the draggesture/dragstart event.
   //
   // First, check if a drag session already exists. This means that the drag
   // service was called directly within a draggesture handler. In this case,
   // don't do anything more, as it is assumed that the handler is managing
-  // drag and drop manually. Make sure to return true to indicate that a drag
-  // began.
+  // drag and drop manually.
   nsCOMPtr<nsIDragSession> dragSession;
   dragService->GetCurrentSession(getter_AddRefs(dragSession));
   if (dragSession)
-    return PR_TRUE;
+    return; // already a drag in progress
 
   // No drag session is currently active, so check if a handler added
   // any items to be dragged. If not, there isn't anything to drag.
@@ -2140,7 +2135,7 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
   if (aDataTransfer)
     aDataTransfer->GetMozItemCount(&count);
   if (!count)
-    return PR_FALSE;
+    return;
 
   // Get the target being dragged, which may not be the same as the
   // target of the mouse event. If one wasn't set in the
@@ -2153,7 +2148,7 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
   if (!dragTarget) {
     dragTarget = do_QueryInterface(aDragTarget);
     if (!dragTarget)
-      return PR_FALSE;
+      return;
   }
 
   // check which drag effect should initially be used. If the effect was not
@@ -2188,7 +2183,7 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
   nsCOMPtr<nsISupportsArray> transArray;
   aDataTransfer->GetTransferables(getter_AddRefs(transArray));
   if (!transArray)
-    return PR_FALSE;
+    return;
 
   // XXXndeakin don't really want to create a new drag DOM event
   // here, but we need something to pass to the InvokeDragSession
@@ -2236,8 +2231,6 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
                                             imageX, imageY, domDragEvent,
                                             aDataTransfer);
   }
-
-  return PR_TRUE;
 }
 
 nsresult
@@ -3140,8 +3133,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
             !(aEvent->flags & NS_EVENT_FLAG_NO_DEFAULT_CALLED_IN_CONTENT));
         }
       } else if (aEvent->message == NS_DRAGDROP_OVER && !isChromeDoc) {
-        // No one called preventDefault(), so handle drop only in chrome.
-        dragSession->SetOnlyChromeDrop(PR_TRUE);
+        dragSession->SetCanDrop(PR_FALSE);
       }
 
       // now set the drop effect in the initial dataTransfer. This ensures
@@ -3605,7 +3597,7 @@ nsEventStateManager::DispatchMouseEvent(nsGUIEvent* aEvent, PRUint32 aMessage,
   event.isControl = ((nsMouseEvent*)aEvent)->isControl;
   event.isAlt = ((nsMouseEvent*)aEvent)->isAlt;
   event.isMeta = ((nsMouseEvent*)aEvent)->isMeta;
-  event.pluginEvent = ((nsMouseEvent*)aEvent)->pluginEvent;
+  event.nativeMsg = ((nsMouseEvent*)aEvent)->nativeMsg;
   event.relatedTarget = aRelatedContent;
 
   mCurrentTargetContent = aTargetContent;

@@ -104,22 +104,7 @@
  * nsSessionStore restore a window next time it gets a chance and will post
  * notifications. The latter won't.
  */
-
-function browserWindowsCount() {
-  let count = 0;
-  let e = Cc["@mozilla.org/appshell/window-mediator;1"]
-            .getService(Ci.nsIWindowMediator)
-            .getEnumerator("navigator:browser");
-  while (e.hasMoreElements()) {
-    if (!e.getNext().closed)
-      ++count;
-  }
-  return count;
-}
-
 function test() {
-  is(browserWindowsCount(), 1, "Only one browser window should be open initially");
-
   waitForExplicitFinish();
 
   // Some urls that might be opened in tabs and/or popups
@@ -232,9 +217,9 @@ function test() {
       newWin.removeEventListener("load", arguments.callee, false);
       newWin.gBrowser.addEventListener("load", function(aEvent) {
         newWin.gBrowser.removeEventListener("load", arguments.callee, true);
-        TEST_URLS.forEach(function (url) {
+        for each (let url in TEST_URLS) {
           newWin.gBrowser.addTab(url);
-        });
+        }
 
         executeSoon(function() testFn(newWin));
       }, true);
@@ -513,11 +498,7 @@ function test() {
     // Mac tests
     testMacNotifications(
       function() testNotificationCount(
-        function() {
-          cleanupTestsuite();
-          is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
-          finish();
-        }
+        function() cleanupTestsuite() + finish()
       )
     );
   }
@@ -529,11 +510,7 @@ function test() {
           function() testOpenCloseOnlyPopup(
             function() testOpenCloseRestoreFromPopup (
               function() testNotificationCount(
-                function() {
-                  cleanupTestsuite();
-                  is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
-                  finish();
-                }
+                function() cleanupTestsuite() + finish()
               )
             )
           )

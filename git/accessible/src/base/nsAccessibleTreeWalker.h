@@ -39,8 +39,7 @@
 #ifndef _nsAccessibleTreeWalker_H_
 #define _nsAccessibleTreeWalker_H_
 
-/* For documentation of the accessibility architecture, see
- * http://www.mozilla.org/access/architecture
+/* For documentation of the accessibility architecture,  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
  */
 
 #include "nsCOMPtr.h"
@@ -50,7 +49,6 @@
 #include "nsIDOMNodeList.h"
 #include "nsIAccessibilityService.h"
 #include "nsIWeakReference.h"
-#include "nsIFrame.h"
 
 enum { eSiblingsUninitialized = -1, eSiblingsWalkFrames = -2 };
 
@@ -60,7 +58,7 @@ struct WalkState {
   nsCOMPtr<nsIDOMNodeList> siblingList;
   nsIContent *parentContent; // For walking normal DOM
   WalkState *prevState;
-  nsWeakFrame frame;       // Helps avoid GetPrimaryFrameFor() calls
+  nsIFrame *frame;     // Helps avoid GetPrimaryFrameFor() calls
   PRInt32 siblingIndex;    // Holds a state flag or an index into the siblingList
   PRBool isHidden;         // Don't enter subtree if hidden
 };

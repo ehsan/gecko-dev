@@ -70,7 +70,6 @@ const PRIVACY_ENCRYPTED = 1;
 const PRIVACY_FULL = 2;
 
 const NOTIFY_WINDOWS_RESTORED = "sessionstore-windows-restored";
-const NOTIFY_BROWSER_STATE_RESTORED = "sessionstore-browser-state-restored";
 
 // global notifications observed
 const OBSERVING = [
@@ -109,10 +108,6 @@ const CAPABILITIES = [
   "Subframes", "Plugins", "Javascript", "MetaRedirects", "Images",
   "DNSPrefetch", "Auth"
 ];
-
-#ifndef XP_WIN
-#define BROKEN_WM_Z_ORDER
-#endif
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -155,12 +150,8 @@ SessionStoreService.prototype = {
   // when crash recovery is disabled, session data is not written to disk
   _resume_from_crash: true,
 
-  // During the initial restore and setBrowserState calls tracks the number of
-  // windows yet to be restored
+  // During the initial restore tracks the number of windows yet to be restored
   _restoreCount: 0,
-
-  // whether a setBrowserState call is in progress
-  _browserSetState: false,
 
   // time in milliseconds (Date.now()) when the session was last written to file
   _lastSaveTime: 0, 
@@ -750,8 +741,6 @@ SessionStoreService.prototype = {
     if (!aNoNotification) {
       this.saveStateDelayed(aWindow);
     }
-
-    this._updateCrashReportURL(aWindow);
   },
 
   /**
@@ -894,12 +883,9 @@ SessionStoreService.prototype = {
     catch (ex) { /* invalid state object - don't restore anything */ }
     if (!state || !state.windows)
       throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
-
-    this._browserSetState = true;
-
+    
     var window = this._getMostRecentBrowserWindow();
     if (!window) {
-      this._restoreCount = 1;
       this._openWindowWithState(state);
       return;
     }
@@ -913,9 +899,6 @@ SessionStoreService.prototype = {
 
     // make sure closed window data isn't kept
     this._closedWindows = [];
-
-    // determine how many windows are meant to be restored
-    this._restoreCount = state.windows ? state.windows.length : 0;
 
     // restore to the given state
     this.restoreWindow(window, state, true);
@@ -1195,16 +1178,15 @@ SessionStoreService.prototype = {
       tabData.entries[0] = { url: browser.currentURI.spec };
       tabData.index = 1;
     }
-
-    // If there is a userTypedValue set, then either the user has typed something
-    // in the URL bar, or a new tab was opened with a URI to load. userTypedClear
-    // is used to indicate whether the tab was in some sort of loading state with
-    // userTypedValue.
-    if (browser.userTypedValue) {
-      tabData.userTypedValue = browser.userTypedValue;
-      tabData.userTypedClear = browser.userTypedClear;
+    else if (browser.currentURI.spec == "about:blank" &&
+             browser.userTypedValue) {
+      // This can happen if the user opens a lot of tabs simultaneously and we
+      // try to save state before all of them are properly loaded. If we crash
+      // then we get a bunch of about:blank tabs which isn't what we want.
+      tabData.entries[0] = { url: browser.userTypedValue };
+      tabData.index = 1;
     }
-
+    
     var disallow = [];
     for (var i = 0; i < CAPABILITIES.length; i++)
       if (!browser.docShell["allow" + CAPABILITIES[i]])
@@ -1824,13 +1806,13 @@ SessionStoreService.prototype = {
     try {
       var root = typeof aState == "string" ? this._safeEval(aState) : aState;
       if (!root.windows[0]) {
-        this._sendRestoreCompletedNotifications();
+        this._notifyIfAllWindowsRestored();
         return; // nothing to restore
       }
     }
     catch (ex) { // invalid state object - don't restore anything 
       debug(ex);
-      this._sendRestoreCompletedNotifications();
+      this._notifyIfAllWindowsRestored();
       return;
     }
 
@@ -1917,7 +1899,7 @@ SessionStoreService.prototype = {
     // set smoothScroll back to the original value
     tabstrip.smoothScroll = smoothScroll;
 
-    this._sendRestoreCompletedNotifications();
+    this._notifyIfAllWindowsRestored();
   },
 
   /**
@@ -2127,15 +2109,7 @@ SessionStoreService.prototype = {
       browser.__SS_restore = this.restoreDocument_proxy;
       browser.addEventListener("load", browser.__SS_restore, true);
     }
-
-    // Handle userTypedValue. Setting userTypedValue seems to update gURLbar
-    // as needed. Calling loadURI will cancel form filling in restoreDocument_proxy
-    if (tabData.userTypedValue) {
-      browser.userTypedValue = tabData.userTypedValue;
-      if (tabData.userTypedClear)
-        browser.loadURI(tabData.userTypedValue, null, null, true);
-    }
-
+    
     aWindow.setTimeout(function(){ _this.restoreHistory(aWindow, aTabs, aTabData, aIdMap); }, 0);
   },
 
@@ -2611,7 +2585,7 @@ SessionStoreService.prototype = {
     
     while (windowsEnum.hasMoreElements()) {
       var window = windowsEnum.getNext();
-      if (window.__SSi && !window.closed) {
+      if (window.__SSi) {
         aFunc.call(this, window);
       }
     }
@@ -2622,34 +2596,9 @@ SessionStoreService.prototype = {
    * @returns Window reference
    */
   _getMostRecentBrowserWindow: function sss_getMostRecentBrowserWindow() {
-    var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
-             getService(Ci.nsIWindowMediator);
-
-    var win = wm.getMostRecentWindow("navigator:browser");
-    if (!win)
-      return null;
-    if (!win.closed)
-      return win;
-
-#ifdef BROKEN_WM_Z_ORDER
-    win = null;
-    var windowsEnum = wm.getEnumerator("navigator:browser");
-    // this is oldest to newest, so this gets a bit ugly
-    while (windowsEnum.hasMoreElements()) {
-      let nextWin = windowsEnum.getNext();
-      if (!nextWin.closed)
-        win = nextWin;
-    }
-    return win;
-#else
-    var windowsEnum = wm.getZOrderDOMWindowEnumerator("navigator:browser", true);
-    while (windowsEnum.hasMoreElements()) {
-      win = windowsEnum.getNext();
-      if (!win.closed)
-        return win;
-    }
-    return null;
-#endif
+    var windowMediator = Cc["@mozilla.org/appshell/window-mediator;1"].
+                         getService(Ci.nsIWindowMediator);
+    return windowMediator.getMostRecentWindow("navigator:browser");
   },
 
   /**
@@ -2863,15 +2812,12 @@ SessionStoreService.prototype = {
     return jsonString;
   },
 
-  _sendRestoreCompletedNotifications: function sss_sendRestoreCompletedNotifications() {
+  _notifyIfAllWindowsRestored: function sss_notifyIfAllWindowsRestored() {
     if (this._restoreCount) {
       this._restoreCount--;
       if (this._restoreCount == 0) {
         // This was the last window restored at startup, notify observers.
-        this._observerService.notifyObservers(null,
-          this._browserSetState ? NOTIFY_BROWSER_STATE_RESTORED : NOTIFY_WINDOWS_RESTORED,
-          "");
-        this._browserSetState = false;
+        this._observerService.notifyObservers(null, NOTIFY_WINDOWS_RESTORED, "");
       }
     }
   },

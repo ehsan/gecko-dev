@@ -165,39 +165,39 @@ static void FreeStringArray(PRUint32 variants, char ** array)
 
 /* nsPluginsDir implementation */
 
-// The file name must be in the form "np*.dll"
 PRBool nsPluginsDir::IsPluginFile(nsIFile* file)
 {
+  PRBool ret = PR_FALSE;
   nsCAutoString path;
   if (NS_FAILED(file->GetNativePath(path)))
     return PR_FALSE;
 
-  const char *cPath = path.get();
-
+  const char *pathname = path.get();
+  const char* filename;
+  char* extension;
+  PRUint32 len;
   // this is most likely a path, so skip to the filename
-  const char* filename = PL_strrchr(cPath, '\\');
+  filename = PL_strrchr(pathname, '\\');
   if (filename)
     ++filename;
   else
-    filename = cPath;
+    filename = pathname;
 
-  char* extension = PL_strrchr(filename, '.');
+  len = PL_strlen(filename);
+  // the filename must be: "np*.dll"
+  extension = PL_strrchr(filename, '.');
   if (extension)
     ++extension;
 
-  PRUint32 fullLength = PL_strlen(filename);
-  PRUint32 extLength = PL_strlen(extension);
-  if (fullLength >= 7 && extLength == 3) {
-    if (!PL_strncasecmp(filename, "np", 2) && !PL_strncasecmp(extension, "dll", 3)) {
+  if (len > 5) {
+    if (!PL_strncasecmp(filename, "np", 2) && !PL_strcasecmp(extension, "dll")) {
       // don't load OJI-based Java plugins
-      if (!PL_strncasecmp(filename, "npoji", 5) ||
-          !PL_strncasecmp(filename, "npjava", 6))
+      if (!PL_strncasecmp(filename, "npoji", 5))
         return PR_FALSE;
       return PR_TRUE;
     }
   }
-
-  return PR_FALSE;
+  return ret;
 }
 
 /* nsPluginFile implementation */

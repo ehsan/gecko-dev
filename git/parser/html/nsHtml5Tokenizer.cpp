@@ -32,7 +32,6 @@
 
 #include "prtypes.h"
 #include "nsIAtom.h"
-#include "nsHtml5AtomTable.h"
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
@@ -45,7 +44,6 @@
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
-#include "nsAHtml5TreeBuilderState.h"
 
 #include "nsHtml5TreeBuilder.h"
 #include "nsHtml5MetaScanner.h"
@@ -74,21 +72,9 @@ nsHtml5Tokenizer::nsHtml5Tokenizer(nsHtml5TreeBuilder* tokenHandler)
   : tokenHandler(tokenHandler),
     encodingDeclarationHandler(nsnull),
     bmpChar(jArray<PRUnichar,PRInt32>(1)),
-    astralChar(jArray<PRUnichar,PRInt32>(2)),
-    tagName(nsnull),
-    attributeName(nsnull),
-    doctypeName(nsnull),
-    publicIdentifier(nsnull),
-    systemIdentifier(nsnull),
-    attributes(nsnull)
+    astralChar(jArray<PRUnichar,PRInt32>(2))
 {
   MOZ_COUNT_CTOR(nsHtml5Tokenizer);
-}
-
-void 
-nsHtml5Tokenizer::setInterner(nsHtml5AtomTable* interner)
-{
-  this->interner = interner;
 }
 
 void 
@@ -114,7 +100,7 @@ nsHtml5Tokenizer::setContentModelFlag(PRInt32 contentModelFlag, nsIAtom* content
     return;
   }
   jArray<PRUnichar,PRInt32> asArray = nsHtml5Portability::newCharArrayFromLocal(contentModelElement);
-  this->contentModelElement = nsHtml5ElementName::elementNameByBuffer(asArray, 0, asArray.length, interner);
+  this->contentModelElement = nsHtml5ElementName::elementNameByBuffer(asArray, 0, asArray.length);
   asArray.release();
   contentModelElementToArray();
 }
@@ -243,7 +229,7 @@ nsHtml5Tokenizer::strBufToString()
 void 
 nsHtml5Tokenizer::strBufToDoctypeName()
 {
-  doctypeName = nsHtml5Portability::newLocalNameFromBuffer(strBuf, 0, strBufLen, interner);
+  doctypeName = nsHtml5Portability::newLocalNameFromBuffer(strBuf, 0, strBufLen);
 }
 
 void 
@@ -356,13 +342,13 @@ nsHtml5Tokenizer::flushChars(PRUnichar* buf, PRInt32 pos)
 void 
 nsHtml5Tokenizer::resetAttributes()
 {
-  attributes = nsnull;
+  attributes->clear(0);
 }
 
 void 
 nsHtml5Tokenizer::strBufToElementNameString()
 {
-  tagName = nsHtml5ElementName::elementNameByBuffer(strBuf, 0, strBufLen, interner);
+  tagName = nsHtml5ElementName::elementNameByBuffer(strBuf, 0, strBufLen);
 }
 
 PRInt32 
@@ -378,8 +364,6 @@ nsHtml5Tokenizer::emitCurrentTagToken(PRBool selfClosing, PRInt32 pos)
   } else {
     tokenHandler->startTag(tagName, attrs, selfClosing);
   }
-  tagName->release();
-  tagName = nsnull;
   resetAttributes();
   return stateSave;
 }
@@ -387,10 +371,7 @@ nsHtml5Tokenizer::emitCurrentTagToken(PRBool selfClosing, PRInt32 pos)
 void 
 nsHtml5Tokenizer::attributeNameComplete()
 {
-  attributeName = nsHtml5AttributeName::nameByBuffer(strBuf, 0, strBufLen, interner);
-  if (!attributes) {
-    attributes = new nsHtml5HtmlAttributes(0);
-  }
+  attributeName = nsHtml5AttributeName::nameByBuffer(strBuf, 0, strBufLen);
   if (attributes->contains(attributeName)) {
 
     attributeName->release();
@@ -404,7 +385,6 @@ nsHtml5Tokenizer::addAttributeWithoutValue()
 
   if (!!attributeName) {
     attributes->addAttribute(attributeName, nsHtml5Portability::newEmptyString());
-    attributeName = nsnull;
   }
 }
 
@@ -414,7 +394,6 @@ nsHtml5Tokenizer::addAttributeWithValue()
   if (!!attributeName) {
     nsString* value = longStrBufToString();
     attributes->addAttribute(attributeName, value);
-    attributeName = nsnull;
   }
 }
 
@@ -426,8 +405,28 @@ nsHtml5Tokenizer::startErrorReporting()
 void 
 nsHtml5Tokenizer::start()
 {
-  initializeWithoutStarting();
+  confident = PR_FALSE;
+  strBuf = jArray<PRUnichar,PRInt32>(64);
+  strBufLen = 0;
+  longStrBuf = jArray<PRUnichar,PRInt32>(1024);
+  longStrBufLen = 0;
+  stateSave = NS_HTML5TOKENIZER_DATA;
+  line = 1;
+  lastCR = PR_FALSE;
   tokenHandler->startTokenization(this);
+  index = 0;
+  forceQuirks = PR_FALSE;
+  additional = '\0';
+  entCol = -1;
+  lo = 0;
+  hi = (nsHtml5NamedCharacters::NAMES.length - 1);
+  candidate = -1;
+  strBufMark = 0;
+  prevValue = -1;
+  value = 0;
+  seenDigits = PR_FALSE;
+  shouldSuspend = PR_FALSE;
+  attributes = new nsHtml5HtmlAttributes(0);
 }
 
 PRBool 
@@ -923,7 +922,7 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
             }
             case '&': {
               clearStrBufAndAppendCurrentC(c);
-              rememberAmpersandLocation('>');
+              rememberAmpersandLocation('\0');
               returnState = state;
               state = NS_HTML5TOKENIZER_CONSUME_CHARACTER_REFERENCE;
               goto stateloop;
@@ -2870,22 +2869,6 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
 }
 
 void 
-nsHtml5Tokenizer::initDoctypeFields()
-{
-  nsHtml5Portability::releaseLocal(doctypeName);
-  doctypeName = nsHtml5Atoms::emptystring;
-  if (!!systemIdentifier) {
-    nsHtml5Portability::releaseString(systemIdentifier);
-    systemIdentifier = nsnull;
-  }
-  if (!!publicIdentifier) {
-    nsHtml5Portability::releaseString(publicIdentifier);
-    publicIdentifier = nsnull;
-  }
-  forceQuirks = PR_FALSE;
-}
-
-void 
 nsHtml5Tokenizer::emitCarriageReturn(PRUnichar* buf, PRInt32 pos)
 {
   silentCarriageReturn();
@@ -3048,16 +3031,9 @@ nsHtml5Tokenizer::eof()
           emitComment(0, 0);
         } else {
 
-          nsHtml5Portability::releaseLocal(doctypeName);
           doctypeName = nsHtml5Atoms::emptystring;
-          if (!!systemIdentifier) {
-            nsHtml5Portability::releaseString(systemIdentifier);
-            systemIdentifier = nsnull;
-          }
-          if (!!publicIdentifier) {
-            nsHtml5Portability::releaseString(publicIdentifier);
-            publicIdentifier = nsnull;
-          }
+          publicIdentifier = nsnull;
+          systemIdentifier = nsnull;
           forceQuirks = PR_TRUE;
           emitDoctypeToken(0);
           goto eofloop_end;
@@ -3266,11 +3242,8 @@ nsHtml5Tokenizer::emitDoctypeToken(PRInt32 pos)
   cstart = pos + 1;
   tokenHandler->doctype(doctypeName, publicIdentifier, systemIdentifier, forceQuirks);
   nsHtml5Portability::releaseLocal(doctypeName);
-  doctypeName = nsnull;
   nsHtml5Portability::releaseString(publicIdentifier);
-  publicIdentifier = nsnull;
   nsHtml5Portability::releaseString(systemIdentifier);
-  systemIdentifier = nsnull;
 }
 
 void 
@@ -3304,28 +3277,13 @@ nsHtml5Tokenizer::emitOrAppendOne(PRUnichar* val, PRInt32 returnState)
 void 
 nsHtml5Tokenizer::end()
 {
-  strBuf.release();
   strBuf = nsnull;
-  longStrBuf.release();
   longStrBuf = nsnull;
-  nsHtml5Portability::releaseLocal(doctypeName);
+  systemIdentifier = nsnull;
+  publicIdentifier = nsnull;
   doctypeName = nsnull;
-  if (!!systemIdentifier) {
-    nsHtml5Portability::releaseString(systemIdentifier);
-    systemIdentifier = nsnull;
-  }
-  if (!!publicIdentifier) {
-    nsHtml5Portability::releaseString(publicIdentifier);
-    publicIdentifier = nsnull;
-  }
-  if (!!tagName) {
-    tagName->release();
-    tagName = nsnull;
-  }
-  if (!!attributeName) {
-    attributeName->release();
-    attributeName = nsnull;
-  }
+  tagName = nsnull;
+  attributeName = nsnull;
   tokenHandler->endTokenization();
   if (!!attributes) {
     attributes->clear(0);
@@ -3374,123 +3332,6 @@ PRBool
 nsHtml5Tokenizer::isInDataState()
 {
   return (stateSave == NS_HTML5TOKENIZER_DATA);
-}
-
-void 
-nsHtml5Tokenizer::resetToDataState()
-{
-  strBufLen = 0;
-  longStrBufLen = 0;
-  stateSave = NS_HTML5TOKENIZER_DATA;
-  lastCR = PR_FALSE;
-  index = 0;
-  forceQuirks = PR_FALSE;
-  additional = '\0';
-  entCol = -1;
-  lo = 0;
-  hi = (nsHtml5NamedCharacters::NAMES.length - 1);
-  candidate = -1;
-  strBufMark = 0;
-  prevValue = -1;
-  value = 0;
-  seenDigits = PR_FALSE;
-  shouldSuspend = PR_FALSE;
-  initDoctypeFields();
-  if (!!tagName) {
-    tagName->release();
-    tagName = nsnull;
-  }
-  if (!!attributeName) {
-    attributeName->release();
-    attributeName = nsnull;
-  }
-  if (!!attributes) {
-    delete attributes;
-    attributes = nsnull;
-  }
-}
-
-void 
-nsHtml5Tokenizer::loadState(nsHtml5Tokenizer* other)
-{
-  strBufLen = other->strBufLen;
-  if (strBufLen > strBuf.length) {
-    strBuf.release();
-    strBuf = jArray<PRUnichar,PRInt32>(strBufLen);
-  }
-  nsHtml5ArrayCopy::arraycopy(other->strBuf, strBuf, strBufLen);
-  longStrBufLen = other->longStrBufLen;
-  if (longStrBufLen > longStrBuf.length) {
-    longStrBuf.release();
-    longStrBuf = jArray<PRUnichar,PRInt32>(longStrBufLen);
-  }
-  nsHtml5ArrayCopy::arraycopy(other->longStrBuf, longStrBuf, longStrBufLen);
-  stateSave = other->stateSave;
-  lastCR = other->lastCR;
-  index = other->index;
-  forceQuirks = other->forceQuirks;
-  additional = other->additional;
-  entCol = other->entCol;
-  lo = other->lo;
-  hi = other->hi;
-  candidate = other->candidate;
-  strBufMark = other->strBufMark;
-  prevValue = other->prevValue;
-  value = other->value;
-  seenDigits = other->seenDigits;
-  shouldSuspend = PR_FALSE;
-  nsHtml5Portability::releaseLocal(doctypeName);
-  if (!other->doctypeName) {
-    doctypeName = nsnull;
-  } else {
-    doctypeName = nsHtml5Portability::newLocalFromLocal(other->doctypeName, interner);
-  }
-  nsHtml5Portability::releaseString(systemIdentifier);
-  if (!other->systemIdentifier) {
-    systemIdentifier = nsnull;
-  } else {
-    systemIdentifier = nsHtml5Portability::newStringFromString(other->systemIdentifier);
-  }
-  nsHtml5Portability::releaseString(publicIdentifier);
-  if (!other->publicIdentifier) {
-    publicIdentifier = nsnull;
-  } else {
-    publicIdentifier = nsHtml5Portability::newStringFromString(other->publicIdentifier);
-  }
-  if (!!tagName) {
-    tagName->release();
-  }
-  if (!other->tagName) {
-    tagName = nsnull;
-  } else {
-    tagName = other->tagName->cloneElementName(interner);
-  }
-  if (!!attributeName) {
-    attributeName->release();
-  }
-  if (!other->attributeName) {
-    attributeName = nsnull;
-  } else {
-    attributeName = other->attributeName->cloneAttributeName(interner);
-  }
-  if (!!attributes) {
-    delete attributes;
-  }
-  if (!other->attributes) {
-    attributes = nsnull;
-  } else {
-    attributes = other->attributes->cloneAttributes(interner);
-  }
-}
-
-void 
-nsHtml5Tokenizer::initializeWithoutStarting()
-{
-  confident = PR_FALSE;
-  strBuf = jArray<PRUnichar,PRInt32>(64);
-  longStrBuf = jArray<PRUnichar,PRInt32>(1024);
-  line = 1;
-  resetToDataState();
 }
 
 void 

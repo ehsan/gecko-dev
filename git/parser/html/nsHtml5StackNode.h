@@ -31,7 +31,6 @@
 
 #include "prtypes.h"
 #include "nsIAtom.h"
-#include "nsHtml5AtomTable.h"
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
@@ -44,10 +43,8 @@
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
-#include "nsAHtml5TreeBuilderState.h"
 
 class nsHtml5StreamParser;
-class nsHtml5SpeculativeLoader;
 
 class nsHtml5Tokenizer;
 class nsHtml5TreeBuilder;
@@ -67,7 +64,7 @@ class nsHtml5StackNode
     nsIAtom* name;
     nsIAtom* popName;
     PRInt32 ns;
-    nsIContent** node;
+    nsIContent* node;
     PRBool scoping;
     PRBool special;
     PRBool fosterParenting;
@@ -75,17 +72,19 @@ class nsHtml5StackNode
   private:
     PRInt32 refcount;
   public:
-    nsHtml5StackNode(PRInt32 group, PRInt32 ns, nsIAtom* name, nsIContent** node, PRBool scoping, PRBool special, PRBool fosterParenting, nsIAtom* popName, nsHtml5HtmlAttributes* attributes);
-    nsHtml5StackNode(PRInt32 ns, nsHtml5ElementName* elementName, nsIContent** node);
-    nsHtml5StackNode(PRInt32 ns, nsHtml5ElementName* elementName, nsIContent** node, nsHtml5HtmlAttributes* attributes);
-    nsHtml5StackNode(PRInt32 ns, nsHtml5ElementName* elementName, nsIContent** node, nsIAtom* popName);
-    nsHtml5StackNode(PRInt32 ns, nsHtml5ElementName* elementName, nsIContent** node, nsIAtom* popName, PRBool scoping);
+    nsHtml5StackNode(PRInt32 group, PRInt32 ns, nsIAtom* name, nsIContent* node, PRBool scoping, PRBool special, PRBool fosterParenting, nsIAtom* popName, nsHtml5HtmlAttributes* attributes);
+    nsHtml5StackNode(PRInt32 ns, nsHtml5ElementName* elementName, nsIContent* node);
+    nsHtml5StackNode(PRInt32 ns, nsHtml5ElementName* elementName, nsIContent* node, nsHtml5HtmlAttributes* attributes);
+    nsHtml5StackNode(PRInt32 ns, nsHtml5ElementName* elementName, nsIContent* node, nsIAtom* popName);
+    nsHtml5StackNode(PRInt32 ns, nsHtml5ElementName* elementName, nsIContent* node, nsIAtom* popName, PRBool scoping);
     ~nsHtml5StackNode();
     void dropAttributes();
     void retain();
     void release();
     static void initializeStatics();
     static void releaseStatics();
+
+#include "nsHtml5StackNodeHSupplement.h"
 };
 
 #ifdef nsHtml5StackNode_cpp__

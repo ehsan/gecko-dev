@@ -92,6 +92,8 @@ public:
         /* [optional][in] */ VARIANT varChild,
         /* [retval][out] */ BSTR __RPC_FAR *pszValue);
 
+    virtual void FireAnchorJumpEvent();
+
   // nsDocAccessibleWrap
 
   /**

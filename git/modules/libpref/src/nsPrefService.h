@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Brian Nesse <bnesse@netscape.com>
- *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -78,7 +77,8 @@ protected:
 
 private:
   nsCOMPtr<nsIPrefBranch2> mRootBranch;
-  nsCOMPtr<nsIFile>        mCurrentFile;
+  nsCOMPtr<nsIFile>       mCurrentFile;
+  PRPackedBool            mDontWriteUserPrefs;
 };
 
 #endif // nsPrefService_h__

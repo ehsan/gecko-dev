@@ -341,9 +341,9 @@ public:
 
   /**
    * If this frame is a placeholder for a float, then return the float,
-   * otherwise return nsnull.  aPlaceholder must be a placeholder frame.
+   * otherwise return nsnull.
    */
-  static nsIFrame* GetFloatFromPlaceholder(nsIFrame* aPlaceholder);
+  static nsIFrame* GetFloatFromPlaceholder(nsIFrame* aPossiblePlaceholder);
 
   // Combine aNewBreakType with aOrigBreakType, but limit the break types
   // to NS_STYLE_CLEAR_LEFT, RIGHT, LEFT_AND_RIGHT.
@@ -1062,22 +1062,22 @@ public:
   static nsTextFragment* GetTextFragmentForPrinting(const nsIFrame* aFrame);
 
   /**
-   * Return true if aFrame is in an {ib} split and is NOT one of the
-   * continuations of the first inline in it.
+   * Return whether aFrame is an inline frame in the first part of an {ib}
+   * split.
    */
-  static PRBool FrameIsNonFirstInIBSplit(const nsIFrame* aFrame) {
+  static PRBool FrameIsInFirstPartOfIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
-      aFrame->GetFirstContinuation()->
+      !aFrame->GetFirstContinuation()->
         GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling);
   }
 
   /**
-   * Return true if aFrame is in an {ib} split and is NOT one of the
-   * continuations of the last inline in it.
+   * Return whether aFrame is an inline frame in the last part of an {ib}
+   * split.
    */
-  static PRBool FrameIsNonLastInIBSplit(const nsIFrame* aFrame) {
+  static PRBool FrameIsInLastPartOfIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
-      aFrame->GetFirstContinuation()->
+      !aFrame->GetFirstContinuation()->
         GetProperty(nsGkAtoms::IBSplitSpecialSibling);
   }
 

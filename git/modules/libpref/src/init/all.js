@@ -1620,13 +1620,8 @@ pref("intl.enable_tsf_support", false);
 pref("intl.tsf.on_layout_change_interval", 100);
 #endif
 
-#ifdef WINCE
-// bug 506798 - can't type in bookmarks panel on WinCE
-pref("ui.panel.default_level_parent", true);
-#else
 // See bug 448927, on topmost panel, some IMEs are not usable on Windows.
 pref("ui.panel.default_level_parent", false);
-#endif
 
 pref("mousewheel.system_scroll_override_on_root_content.enabled", true);
 
@@ -2813,5 +2808,3 @@ pref("geo.enabled", true);
 
 // Enable/Disable HTML5 parser
 pref("html5.enable", false);
-// Toggle which thread the HTML5 parser uses for streama parsing
-pref("html5.offmainthread", true);

@@ -76,9 +76,9 @@ public:
    * @param aCount      The number of times to add aValueToAdd.
    * @return PR_TRUE on success, PR_FALSE on failure.
    */
-  static PRBool Add(nsCSSProperty aProperty, Value& aDest,
-                    const Value& aValueToAdd, PRUint32 aCount) {
-    return AddWeighted(aProperty, 1.0, aDest, aCount, aValueToAdd, aDest);
+  static PRBool Add(Value& aDest, const Value& aValueToAdd,
+                    PRUint32 aCount) {
+    return AddWeighted(1.0, aDest, aCount, aValueToAdd, aDest);
   }
 
   /**
@@ -99,8 +99,7 @@ public:
    * @param aDistance   The result of the calculation.
    * @return PR_TRUE on success, PR_FALSE on failure.
    */
-  static PRBool ComputeDistance(nsCSSProperty aProperty,
-                                const Value& aStartValue,
+  static PRBool ComputeDistance(const Value& aStartValue,
                                 const Value& aEndValue,
                                 double& aDistance);
 
@@ -120,14 +119,13 @@ public:
    * @param [out] aResultValue The resulting interpolated value.
    * @return PR_TRUE on success, PR_FALSE on failure.
    */
-  static PRBool Interpolate(nsCSSProperty aProperty,
-                            const Value& aStartValue,
+  static PRBool Interpolate(const Value& aStartValue,
                             const Value& aEndValue,
                             double aPortion,
                             Value& aResultValue) {
     NS_ABORT_IF_FALSE(0.0 <= aPortion && aPortion <= 1.0, "out of range");
-    return AddWeighted(aProperty, 1.0 - aPortion, aStartValue,
-                       aPortion, aEndValue, aResultValue);
+    return AddWeighted(1.0 - aPortion, aStartValue, aPortion, aEndValue,
+                       aResultValue);
   }
 
   /**
@@ -144,8 +142,7 @@ public:
    * difficulty, we might change this to restrict them to being
    * positive.
    */
-  static PRBool AddWeighted(nsCSSProperty aProperty,
-                            double aCoeff1, const Value& aValue1,
+  static PRBool AddWeighted(double aCoeff1, const Value& aValue1,
                             double aCoeff2, const Value& aValue2,
                             Value& aResultValue);
 
@@ -226,7 +223,6 @@ public:
     eUnit_Auto,
     eUnit_None,
     eUnit_Enumerated,
-    eUnit_Integer,
     eUnit_Coord,
     eUnit_Percent,
     eUnit_Float,
@@ -260,7 +256,7 @@ public:
     }
 
     PRInt32 GetIntValue() const {
-      NS_ASSERTION(IsIntUnit(mUnit), "unit mismatch");
+      NS_ASSERTION(mUnit == eUnit_Enumerated, "unit mismatch");
       return mValue.mInt;
     }
     nscoord GetCoordValue() const {
@@ -294,8 +290,8 @@ public:
                    "must be valueless unit");
     }
     Value(const Value& aOther) : mUnit(eUnit_Null) { *this = aOther; }
-    enum IntegerConstructorType { IntegerConstructor };
-    Value(PRInt32 aInt, Unit aUnit, IntegerConstructorType);
+    enum EnumeratedConstructorType { EnumeratedConstructor };
+    Value(PRInt32 aInt, EnumeratedConstructorType);
     enum CoordConstructorType { CoordConstructor };
     Value(nscoord aLength, CoordConstructorType);
     enum PercentConstructorType { PercentConstructor };
@@ -329,9 +325,6 @@ public:
   private:
     void FreeValue();
 
-    static PRBool IsIntUnit(Unit aUnit) {
-      return aUnit == eUnit_Enumerated || aUnit == eUnit_Integer;
-    }
     static PRBool IsCSSValuePairUnit(Unit aUnit) {
       return aUnit == eUnit_CSSValuePair;
     }

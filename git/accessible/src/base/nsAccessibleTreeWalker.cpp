@@ -46,6 +46,7 @@
 #include "nsIContent.h"
 #include "nsIDOMXULElement.h"
 #include "nsIPresShell.h"
+#include "nsIFrame.h"
 #include "nsWeakReference.h"
 
 nsAccessibleTreeWalker::nsAccessibleTreeWalker(nsIWeakReference* aPresShell, nsIDOMNode* aNode, PRBool aWalkAnonContent): 
@@ -58,6 +59,7 @@ nsAccessibleTreeWalker::nsAccessibleTreeWalker(nsIWeakReference* aPresShell, nsI
   mState.siblingIndex = eSiblingsUninitialized;
   mState.siblingList = nsnull;
   mState.isHidden = false;
+  mState.frame = nsnull;
 
   MOZ_COUNT_CTOR(nsAccessibleTreeWalker);
 }
@@ -119,13 +121,12 @@ void nsAccessibleTreeWalker::GetKids(nsIDOMNode *aParentNode)
 
 NS_IMETHODIMP nsAccessibleTreeWalker::PopState()
 {
-  nsIFrame *frameParent =
-    mState.frame.GetFrame() ? mState.frame.GetFrame()->GetParent() : nsnull;
+  nsIFrame *frameParent = mState.frame? mState.frame->GetParent(): nsnull;
   if (mState.prevState) {
     WalkState *toBeDeleted = mState.prevState;
     mState = *mState.prevState; // deep copy
     mState.isHidden = PR_FALSE; // If we were in a child, the parent wasn't hidden
-    if (!mState.frame.GetFrame()) {
+    if (!mState.frame) {
       mState.frame = frameParent;
     }
     delete toBeDeleted;
@@ -165,8 +166,8 @@ void nsAccessibleTreeWalker::GetNextDOMNode()
     mState.domNode = do_QueryInterface(mState.parentContent->GetChildAt(++mState.siblingIndex));
   }
   else if (mState.siblingIndex == eSiblingsWalkFrames) {
-    if (mState.frame.GetFrame()) {
-      mState.domNode = do_QueryInterface(mState.frame.GetFrame()->GetContent());
+    if (mState.frame) {
+      mState.domNode = do_QueryInterface(mState.frame->GetContent());
     } else {
       mState.domNode = nsnull;
     }
@@ -229,20 +230,18 @@ NS_IMETHODIMP nsAccessibleTreeWalker::GetFirstChild()
 
 void nsAccessibleTreeWalker::UpdateFrame(PRBool aTryFirstChild)
 {
-  nsIFrame *curFrame = mState.frame.GetFrame();
-  if (!curFrame) {
+  if (!mState.frame) {
     return;
   }
 
   if (aTryFirstChild) {
     // If the frame implements nsIAnonymousContentCreator interface then go down
     // through the frames and obtain anonymous nodes for them.
-    nsIAnonymousContentCreator* creator = do_QueryFrame(curFrame);
-    nsIFrame *child = curFrame->GetFirstChild(nsnull);
-    mState.frame = child;
+    nsIAnonymousContentCreator* creator = do_QueryFrame(mState.frame);
+    mState.frame = mState.frame->GetFirstChild(nsnull);
 
-    if (creator && child && mState.siblingIndex < 0) {
-      mState.domNode = do_QueryInterface(child->GetContent());
+    if (creator && mState.frame && mState.siblingIndex < 0) {
+      mState.domNode = do_QueryInterface(mState.frame->GetContent());
       mState.siblingIndex = eSiblingsWalkFrames;
     }
 // temporary workaround for Bug 359210. We never want to walk frames.
@@ -269,7 +268,7 @@ void nsAccessibleTreeWalker::UpdateFrame(PRBool aTryFirstChild)
 #endif
   }
   else {
-    mState.frame = curFrame->GetNextSibling();
+    mState.frame = mState.frame->GetNextSibling();
   }
 }
 
@@ -286,11 +285,9 @@ PRBool nsAccessibleTreeWalker::GetAccessible()
   mState.accessible = nsnull;
   nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
 
-  nsIFrame *frame = mState.frame.GetFrame();
   mAccService->GetAccessible(mState.domNode, presShell, mWeakShell,
-                             &frame, &mState.isHidden,
+                             &mState.frame, &mState.isHidden,
                              getter_AddRefs(mState.accessible));
-  mState.frame = frame;
   return mState.accessible ? PR_TRUE : PR_FALSE;
 }
 

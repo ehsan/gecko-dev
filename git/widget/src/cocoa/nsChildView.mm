@@ -78,7 +78,6 @@
 
 #include "gfxContext.h"
 #include "gfxQuartzSurface.h"
-#include "nsRegion.h"
 
 #include <dlfcn.h>
 
@@ -807,12 +806,12 @@ void* nsChildView::GetNativeData(PRUint32 aDataType)
 
 nsTransparencyMode nsChildView::GetTransparencyMode()
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  nsCocoaWindow* windowWidget = GetXULWindowWidget();
-  return windowWidget ? windowWidget->GetTransparencyMode() : eTransparencyOpaque;
+  return [mView isOpaque] ? eTransparencyOpaque : eTransparencyTransparent;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(eTransparencyOpaque);
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+  return eTransparencyOpaque;
 }
 
 // This is called by nsContainerFrame on the root widget for all window types
@@ -821,9 +820,14 @@ void nsChildView::SetTransparencyMode(nsTransparencyMode aMode)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  nsCocoaWindow* windowWidget = GetXULWindowWidget();
-  if (windowWidget) {
-    windowWidget->SetTransparencyMode(aMode);
+  BOOL isTransparent = aMode == eTransparencyTransparent;
+  BOOL currentTransparency = ![[mView window] isOpaque];
+  if (isTransparent != currentTransparency) {
+    nsCocoaWindow *widget = GetXULWindowWidget();
+    if (widget) {
+      widget->MakeBackgroundTransparent(aMode);
+      [(ChildView*)mView setTransparent:isTransparent];
+    }
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -899,6 +903,12 @@ void nsChildView::UpdatePluginPort()
       }
     }
 #endif
+    if ([(ChildView*)mView pluginEventModel] == NPEventModelCocoa) {
+      if (cocoaWindow) {
+        mPluginCGContext.context = (CGContextRef)[[cocoaWindow graphicsContext] graphicsPort];
+        mPluginCGContext.window = (NPNSWindow*)cocoaWindow;
+      }
+    }
   }
 #ifndef NP_NO_QUICKDRAW
   else {
@@ -1690,19 +1700,6 @@ nsresult nsChildView::ConfigureChildren(const nsTArray<Configuration>& aConfigur
   return NS_OK;
 }  
 
-static PRInt32
-PickValueForSign(PRInt32 aSign, PRInt32 aLessThanZero, PRInt32 aZero,
-                 PRInt32 aGreaterThanZero)
-{
-  if (aSign < 0) {
-    return aLessThanZero;
-  }
-  if (aSign > 0) {
-    return aGreaterThanZero;
-  }
-  return aZero;
-}
-
 void nsChildView::Scroll(const nsIntPoint& aDelta,
                          const nsTArray<nsIntRect>& aDestRects,
                          const nsTArray<Configuration>& aConfigurations)
@@ -1713,58 +1710,19 @@ void nsChildView::Scroll(const nsIntPoint& aDelta,
   if (!mParentView)
     return;
 
+#ifndef NS_LEOPARD_AND_LATER
   BOOL viewWasDirty = mVisible && [mView needsDisplay];
-  if (mVisible && !aDestRects.IsEmpty()) {
-    // Union of all source and destination rects
-    nsIntRegion destRegion;
-    NSSize scrollVector = {aDelta.x, aDelta.y};
+#endif // NS_LEOPARD_AND_LATER
+  if (mVisible) {
     for (PRUint32 i = 0; i < aDestRects.Length(); ++i) {
       NSRect rect;
       GeckoRectToNSRect(aDestRects[i] - aDelta, rect);
+      NSSize scrollVector = {aDelta.x, aDelta.y};
       [mView scrollRect:rect by:scrollVector];
-      destRegion.Or(destRegion, aDestRects[i]);
-    }
 #ifdef NS_LEOPARD_AND_LATER
-    if (viewWasDirty) {
-      nsIntRect allRects = destRegion.GetBounds();
-      allRects.UnionRect(allRects, allRects - aDelta);
-      NSRect all;
-      GeckoRectToNSRect(allRects, all);
-      [mView translateRectsNeedingDisplayInRect:all by:scrollVector];
-
-      // Areas that could be affected by the
-      // translateRectsNeedingDisplayInRect but aren't in any destination
-      // may have had their invalidation moved incorrectly. So just
-      // invalidate them now. Unfortunately Apple hasn't given us an API
-      // to do exactly what we need here.
-      nsIntRegion needsInvalidation;
-      needsInvalidation.Sub(allRects, destRegion);
-      nsIntRegionRectIterator iter(needsInvalidation);
-      const nsIntRect* invalidate;
-      for (nsIntRegionRectIterator iter(needsInvalidation);
-           (invalidate = iter.Next()) != nsnull;) {
-        NSRect rect;
-        GeckoRectToNSRect(*invalidate, rect);
-        [mView setNeedsDisplayInRect:rect];
-      }
-    }
+      [mView translateRectsNeedingDisplayInRect:rect by:scrollVector];
 #endif // NS_LEOPARD_AND_LATER
-
-    // Leopard, at least, has a nasty bug where calling scrollRect:by: doesn't
-    // actually trigger a window update. A window update is only triggered
-    // if you actually paint something. In some cases Gecko might optimize
-    // scrolling in such a way that nothing actually gets repainted.
-    // So let's invalidate one pixel. We'll pick a pixel on the trailing edge
-    // of the last destination rectangle, since in most situations that's going
-    // to be invalidated anyway.
-    nsIntRect lastRect = aDestRects[aDestRects.Length() - 1] + aDelta;
-    nsIntPoint pointToInvalidate(
-      PickValueForSign(aDelta.x, lastRect.XMost(), lastRect.x, lastRect.x - 1),
-      PickValueForSign(aDelta.y, lastRect.YMost(), lastRect.y, lastRect.y - 1));
-    if (!nsIntRect(0,0,mBounds.width,mBounds.height).Contains(pointToInvalidate)) {
-      pointToInvalidate = nsIntPoint(0, 0);
     }
-    Invalidate(nsIntRect(pointToInvalidate, nsIntSize(1,1)), PR_FALSE);
   }
 
   // Don't force invalidation of the child if it's moving by the scroll
@@ -2177,11 +2135,13 @@ nsChildView::GetDocumentAccessible(nsIAccessible** aAccessible)
 // occurs in this view.
 NSPasteboard* globalDragPboard = nil;
 
-// gLastDragView and gLastDragMouseDownEvent are used to communicate information
-// to the drag service during drag invocation (starting a drag in from the view).
-// gLastDragView is only non-null while mouseDragged is on the call stack.
+// gLastDragView and gLastDragEvent are only non-null during calls to |mouseDragged:|
+// in our native NSView. They are used to communicate information to the drag service
+// during drag invocation (starting a drag in from the view). All drag service drag
+// invocations happen only while these two global variables are non-null, while |mouseDragged:|
+// is on the stack.
 NSView* gLastDragView = nil;
-NSEvent* gLastDragMouseDownEvent = nil;
+NSEvent* gLastDragEvent = nil;
 
 + (void)initialize
 {
@@ -2392,9 +2352,14 @@ NSEvent* gLastDragMouseDownEvent = nil;
   return YES;
 }
 
+- (void)setTransparent:(BOOL)transparent
+{
+  mIsTransparent = transparent;
+}
+
 - (BOOL)isOpaque
 {
-  return [[self window] isOpaque];
+  return !mIsTransparent;
 }
 
 -(void)setIsPluginView:(BOOL)aIsPlugin
@@ -2624,14 +2589,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   paintEvent.region = rgn;
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
-  PRBool painted = mGeckoChild->DispatchWindowEvent(paintEvent);
-  if (!painted && [self isOpaque]) {
-    // Gecko refused to draw, but we've claimed to be opaque, so we have to
-    // draw something--fill with white.
-    CGContextSetRGBFillColor(aContext, 1, 1, 1, 1);
-    CGContextFillRect(aContext, CGRectMake(aRect.origin.x, aRect.origin.y,
-                                           aRect.size.width, aRect.size.height));
-  }
+  mGeckoChild->DispatchWindowEvent(paintEvent);
   if (!mGeckoChild)
     return;
 
@@ -2661,15 +2619,6 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   CGContextStrokeRect(aContext,
                       CGRectMake(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height));
 #endif
-}
-
-- (void)viewWillDraw
-{
-  if (!mGeckoChild)
-    return;
-
-  nsPaintEvent paintEvent(PR_TRUE, NS_WILL_PAINT, mGeckoChild);
-  mGeckoChild->DispatchWindowEvent(paintEvent);
 }
 
 // Allows us to turn off setting up the clip region
@@ -3028,9 +2977,6 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     mLastMouseDownEvent = [theEvent retain];
   }
 
-  [gLastDragMouseDownEvent release];
-  gLastDragMouseDownEvent = [theEvent retain];
-
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   if ([self maybeRollup:theEvent] ||
@@ -3067,7 +3013,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     carbonEvent.when = ::TickCount();
     ::GetGlobalMouse(&carbonEvent.where);
     carbonEvent.modifiers = ::GetCurrentKeyModifiers();
-    geckoEvent.pluginEvent = &carbonEvent;
+    geckoEvent.nativeMsg = &carbonEvent;
   }
 #endif
   NPCocoaEvent cocoaEvent;
@@ -3083,7 +3029,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
     cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
     cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
-    geckoEvent.pluginEvent = &cocoaEvent;
+    geckoEvent.nativeMsg = &cocoaEvent;
   }
 
   mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -3119,7 +3065,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     carbonEvent.when = ::TickCount();
     ::GetGlobalMouse(&carbonEvent.where);
     carbonEvent.modifiers = ::GetCurrentKeyModifiers();
-    geckoEvent.pluginEvent = &carbonEvent;
+    geckoEvent.nativeMsg = &carbonEvent;
   }
 #endif
   NPCocoaEvent cocoaEvent;
@@ -3135,7 +3081,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
     cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
     cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
-    geckoEvent.pluginEvent = &cocoaEvent;
+    geckoEvent.nativeMsg = &cocoaEvent;
   }
 
   mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -3161,31 +3107,29 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   // Create event for use by plugins.
   // This is going to our child view so we don't need to look up the destination
   // event type.
+#ifndef NP_NO_CARBON
   EventRecord carbonEvent;
-  NPCocoaEvent cocoaEvent;
-  if (mIsPluginView) {
-#ifndef NP_NO_CARBON  
-    if (mPluginEventModel == NPEventModelCarbon) {
-      carbonEvent.what = NPEventType_AdjustCursorEvent;
-      carbonEvent.message = 0;
-      carbonEvent.when = ::TickCount();
-      ::GetGlobalMouse(&carbonEvent.where);
-      carbonEvent.modifiers = ::GetCurrentKeyModifiers();
-      event.pluginEvent = &carbonEvent;
-    }
+  if (mPluginEventModel == NPEventModelCarbon) {
+    carbonEvent.what = NPEventType_AdjustCursorEvent;
+    carbonEvent.message = 0;
+    carbonEvent.when = ::TickCount();
+    ::GetGlobalMouse(&carbonEvent.where);
+    carbonEvent.modifiers = ::GetCurrentKeyModifiers();
+    event.nativeMsg = &carbonEvent;
+  }
 #endif
-    if (mPluginEventModel == NPEventModelCocoa) {
-      InitNPCocoaEvent(&cocoaEvent);
-      cocoaEvent.type = ((msg == NS_MOUSE_ENTER) ? NPCocoaEventMouseEntered : NPCocoaEventMouseExited);
-      cocoaEvent.data.mouse.modifierFlags = [aEvent modifierFlags];
-      cocoaEvent.data.mouse.pluginX = 5;
-      cocoaEvent.data.mouse.pluginY = 5;
-      cocoaEvent.data.mouse.buttonNumber = [aEvent buttonNumber];
-      cocoaEvent.data.mouse.deltaX = [aEvent deltaX];
-      cocoaEvent.data.mouse.deltaY = [aEvent deltaY];
-      cocoaEvent.data.mouse.deltaZ = [aEvent deltaZ];
-      event.pluginEvent = &cocoaEvent;
-    }    
+  NPCocoaEvent cocoaEvent;
+  if (mPluginEventModel == NPEventModelCocoa) {
+    InitNPCocoaEvent(&cocoaEvent);
+    cocoaEvent.type = ((msg == NS_MOUSE_ENTER) ? NPCocoaEventMouseEntered : NPCocoaEventMouseExited);
+    cocoaEvent.data.mouse.modifierFlags = [aEvent modifierFlags];
+    cocoaEvent.data.mouse.pluginX = 5;
+    cocoaEvent.data.mouse.pluginY = 5;
+    cocoaEvent.data.mouse.buttonNumber = [aEvent buttonNumber];
+    cocoaEvent.data.mouse.deltaX = [aEvent deltaX];
+    cocoaEvent.data.mouse.deltaY = [aEvent deltaY];
+    cocoaEvent.data.mouse.deltaZ = [aEvent deltaZ];
+    event.nativeMsg = &cocoaEvent;
   }
 
   event.exit = aType;
@@ -3212,34 +3156,33 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   // Create event for use by plugins.
   // This is going to our child view so we don't need to look up the destination
   // event type.
-  EventRecord carbonEvent;
-  NPCocoaEvent cocoaEvent;
-  if (mIsPluginView) {
 #ifndef NP_NO_CARBON
-    if (mPluginEventModel == NPEventModelCarbon) {
-      carbonEvent.what = NPEventType_AdjustCursorEvent;
-      carbonEvent.message = 0;
-      carbonEvent.when = ::TickCount();
-      ::GetGlobalMouse(&carbonEvent.where);
-      carbonEvent.modifiers = ::GetCurrentKeyModifiers();
-      geckoEvent.pluginEvent = &carbonEvent;
-    }
-#endif
-    if (mPluginEventModel == NPEventModelCocoa) {
-      InitNPCocoaEvent(&cocoaEvent);
-      NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
-      cocoaEvent.type = NPCocoaEventMouseMoved;
-      cocoaEvent.data.mouse.modifierFlags = [theEvent modifierFlags];
-      cocoaEvent.data.mouse.pluginX = point.x;
-      cocoaEvent.data.mouse.pluginY = point.y;
-      cocoaEvent.data.mouse.buttonNumber = [theEvent buttonNumber];
-      cocoaEvent.data.mouse.clickCount = [theEvent clickCount];
-      cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
-      cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
-      cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
-      geckoEvent.pluginEvent = &cocoaEvent;
-    }
+  EventRecord carbonEvent;
+  if (mPluginEventModel == NPEventModelCarbon) {
+    carbonEvent.what = NPEventType_AdjustCursorEvent;
+    carbonEvent.message = 0;
+    carbonEvent.when = ::TickCount();
+    ::GetGlobalMouse(&carbonEvent.where);
+    carbonEvent.modifiers = ::GetCurrentKeyModifiers();
+    geckoEvent.nativeMsg = &carbonEvent;
   }
+#endif
+  NPCocoaEvent cocoaEvent;
+  if (mPluginEventModel == NPEventModelCocoa) {
+    InitNPCocoaEvent(&cocoaEvent);
+    NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
+    cocoaEvent.type = NPCocoaEventMouseMoved;
+    cocoaEvent.data.mouse.modifierFlags = [theEvent modifierFlags];
+    cocoaEvent.data.mouse.pluginX = point.x;
+    cocoaEvent.data.mouse.pluginY = point.y;
+    cocoaEvent.data.mouse.buttonNumber = [theEvent buttonNumber];
+    cocoaEvent.data.mouse.clickCount = [theEvent clickCount];
+    cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
+    cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
+    cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
+    geckoEvent.nativeMsg = &cocoaEvent;
+  }
+
   mGeckoChild->DispatchWindowEvent(geckoEvent);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -3253,6 +3196,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     return;
 
   gLastDragView = self;
+  gLastDragEvent = theEvent;
 
   nsMouseEvent geckoEvent(PR_TRUE, NS_MOUSE_MOVE, nsnull, nsMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGeckoEvent:&geckoEvent];
@@ -3266,7 +3210,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     carbonEvent.when = ::TickCount();
     ::GetGlobalMouse(&carbonEvent.where);
     carbonEvent.modifiers = btnState | ::GetCurrentKeyModifiers();
-    geckoEvent.pluginEvent = &carbonEvent;
+    geckoEvent.nativeMsg = &carbonEvent;
   }
 #endif
   NPCocoaEvent cocoaEvent;
@@ -3282,15 +3226,16 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
     cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
     cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
-    geckoEvent.pluginEvent = &cocoaEvent;
+    geckoEvent.nativeMsg = &cocoaEvent;
   }
 
   mGeckoChild->DispatchWindowEvent(geckoEvent);
 
   // Note, sending the above event might have destroyed our widget since we didn't retain.
   // Fine so long as we don't access any local variables from here on.
-  gLastDragView = nil;
 
+  gLastDragView = nil;
+  gLastDragEvent = nil;
   // XXX maybe call markedTextSelectionChanged:client: here?
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -3321,7 +3266,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     carbonEvent.when = ::TickCount();
     ::GetGlobalMouse(&carbonEvent.where);
     carbonEvent.modifiers = controlKey;  // fake a context menu click
-    geckoEvent.pluginEvent = &carbonEvent;    
+    geckoEvent.nativeMsg = &carbonEvent;    
   }
 #endif
   NPCocoaEvent cocoaEvent;
@@ -3337,7 +3282,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
     cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
     cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
-    geckoEvent.pluginEvent = &cocoaEvent;
+    geckoEvent.nativeMsg = &cocoaEvent;
   }
 
   PRBool handled = mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -3371,7 +3316,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     carbonEvent.when = ::TickCount();
     ::GetGlobalMouse(&carbonEvent.where);
     carbonEvent.modifiers = controlKey;  // fake a context menu click
-    geckoEvent.pluginEvent = &carbonEvent;
+    geckoEvent.nativeMsg = &carbonEvent;
   }
 #endif
   NPCocoaEvent cocoaEvent;
@@ -3387,7 +3332,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
     cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
     cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
-    geckoEvent.pluginEvent = &cocoaEvent;
+    geckoEvent.nativeMsg = &cocoaEvent;
   }
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
@@ -3526,28 +3471,6 @@ static const PRInt32 sShadowInvalidationInterval = 100;
       geckoEvent.delta = (PRInt32)floorf(scrollDelta);
     else
       geckoEvent.delta = (PRInt32)ceilf(scrollDelta);
-
-    NPCocoaEvent cocoaEvent;
-    if (mPluginEventModel == NPEventModelCocoa) {
-      InitNPCocoaEvent(&cocoaEvent);
-      NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
-      cocoaEvent.type = NPCocoaEventScrollWheel;
-      cocoaEvent.data.mouse.modifierFlags = [theEvent modifierFlags];
-      cocoaEvent.data.mouse.pluginX = point.x;
-      cocoaEvent.data.mouse.pluginY = point.y;
-      cocoaEvent.data.mouse.buttonNumber = [theEvent buttonNumber];
-      cocoaEvent.data.mouse.clickCount = 0;
-      if (inAxis & nsMouseScrollEvent::kIsHorizontal)
-        cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
-      else
-        cocoaEvent.data.mouse.deltaX = 0.0;
-      if (inAxis & nsMouseScrollEvent::kIsVertical)
-        cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
-      else
-        cocoaEvent.data.mouse.deltaY = 0.0;
-      cocoaEvent.data.mouse.deltaZ = 0.0;
-      geckoEvent.pluginEvent = &cocoaEvent;
-    }
 
     nsAutoRetainCocoaObject kungFuDeathGrip(self);
     mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -3721,7 +3644,6 @@ static PRBool ConvertUnicodeToCharCode(PRUnichar inUniChar, unsigned char* outCh
 
 static void ConvertCocoaKeyEventToNPCocoaEvent(NSEvent* cocoaEvent, NPCocoaEvent& pluginEvent, PRUint32 keyType = 0)
 {
-  InitNPCocoaEvent(&pluginEvent);
   NSEventType nativeType = [cocoaEvent type];
   switch (nativeType) {
     case NSKeyDown:
@@ -4031,6 +3953,7 @@ static PRBool IsNormalCharInputtingEvent(const nsKeyEvent& aEvent)
 
   outGeckoEvent->widget = [self widget];
   outGeckoEvent->time = PR_IntervalNow();
+  outGeckoEvent->nativeMsg = inEvent;
 
   if (inEvent) {
     unsigned int modifiers = nsCocoaUtils::GetCocoaEventModifierFlags(inEvent);
@@ -4643,7 +4566,7 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
       PRUint32 charCode(charCodes.ElementAt(i));
 
       keyDownEvent.time       = PR_IntervalNow();
-      keyDownEvent.pluginEvent  = &eventRec;
+      keyDownEvent.nativeMsg  = &eventRec;
       if (IsSpecialGeckoKey(macKeyCode)) {
         keyDownEvent.keyCode  = keyCode;
       } else {
@@ -4775,11 +4698,11 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
 #ifndef NP_NO_CARBON
       if (mPluginEventModel == NPEventModelCarbon) {
         ConvertCocoaKeyEventToCarbonEvent(mCurKeyEvent, carbonEvent);
-        geckoEvent.pluginEvent = &carbonEvent;
+        geckoEvent.nativeMsg = &carbonEvent;
       } else
 #endif
       {
-        geckoEvent.pluginEvent = NULL;
+        geckoEvent.nativeMsg = NULL;
       }
       geckoEvent.isShift   = (nsCocoaUtils::GetCocoaEventModifierFlags(mCurKeyEvent) & NSShiftKeyMask) != 0;
       if (!IsPrintableChar(geckoEvent.charCode)) {
@@ -5190,13 +5113,13 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
       EventRecord carbonEvent;
       if (mPluginEventModel == NPEventModelCarbon) {
         ConvertCocoaKeyEventToCarbonEvent(theEvent, carbonEvent);
-        geckoEvent.pluginEvent = &carbonEvent;
+        geckoEvent.nativeMsg = &carbonEvent;
       }
 #endif
       NPCocoaEvent cocoaEvent;
       if (mPluginEventModel == NPEventModelCocoa) {
         ConvertCocoaKeyEventToNPCocoaEvent(theEvent, cocoaEvent);
-        geckoEvent.pluginEvent = &cocoaEvent;
+        geckoEvent.nativeMsg = &cocoaEvent;
       }
 
       mKeyDownHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -5245,11 +5168,11 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
       EventRecord carbonEvent;
       if (mPluginEventModel == NPEventModelCarbon) {
         ConvertCocoaKeyEventToCarbonEvent(theEvent, carbonEvent);
-        geckoEvent.pluginEvent = &carbonEvent;
+        geckoEvent.nativeMsg = &carbonEvent;
       } else
 #endif
       {
-        geckoEvent.pluginEvent = NULL;
+        geckoEvent.nativeMsg = NULL;
       }
 
       mKeyPressHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -5290,11 +5213,11 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
       EventRecord carbonEvent;
       if (mPluginEventModel == NPEventModelCarbon) {
         ConvertCocoaKeyEventToCarbonEvent(theEvent, carbonEvent);
-        geckoEvent.pluginEvent = &carbonEvent;
+        geckoEvent.nativeMsg = &carbonEvent;
       } else
 #endif
       {
-        geckoEvent.pluginEvent = NULL;
+        geckoEvent.nativeMsg = NULL;
       }
 
       mKeyPressHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -5432,7 +5355,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
       [self convertCocoaKeyEvent:theEvent toGeckoEvent:&keyUpEvent];
       NPCocoaEvent pluginEvent;
       ConvertCocoaKeyEventToNPCocoaEvent(theEvent, pluginEvent);
-      keyUpEvent.pluginEvent = &pluginEvent;
+      keyUpEvent.nativeMsg = &pluginEvent;
       mGeckoChild->DispatchWindowEvent(keyUpEvent);
     }
 #ifndef NP_NO_CARBON
@@ -5463,7 +5386,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
       [self convertCocoaKeyEvent:theEvent toGeckoEvent:&keyUpEvent];
       EventRecord macKeyUpEvent;
       ConvertCocoaKeyEventToCarbonEvent(theEvent, macKeyUpEvent);
-      keyUpEvent.pluginEvent = &macKeyUpEvent;
+      keyUpEvent.nativeMsg = &macKeyUpEvent;
       mGeckoChild->DispatchWindowEvent(keyUpEvent);      
     }
 #endif
@@ -5489,7 +5412,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
       [self convertCocoaKeyEvent:nativeKeyDownEvent toGeckoEvent:&geckoEvent];
 
       // plugin case returned out early, we don't need a native event here
-      geckoEvent.pluginEvent = NULL;
+      geckoEvent.nativeMsg = NULL;
 
       keyDownHandled = mGeckoChild->DispatchWindowEvent(geckoEvent);
       if (!mGeckoChild)
@@ -5515,7 +5438,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
       geckoEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
 
     // plugin case returned out early, we don't need a native event here
-    geckoEvent.pluginEvent = NULL;
+    geckoEvent.nativeMsg = NULL;
 
     mGeckoChild->DispatchWindowEvent(geckoEvent);
     if (!mGeckoChild)
@@ -5526,7 +5449,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   [self convertCocoaKeyEvent:theEvent toGeckoEvent:&geckoEvent];
 
   // plugin case returned out early, we don't need a native event here
-  geckoEvent.pluginEvent = NULL;
+  geckoEvent.nativeMsg = NULL;
 
   mGeckoChild->DispatchWindowEvent(geckoEvent);
 
@@ -5725,13 +5648,13 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   EventRecord carbonEvent;
   if (mPluginEventModel == NPEventModelCarbon) {
     ConvertCocoaKeyEventToCarbonEvent(theEvent, carbonEvent, message);
-    geckoEvent.pluginEvent = &carbonEvent;
+    geckoEvent.nativeMsg = &carbonEvent;
   }
 #endif
   NPCocoaEvent cocoaEvent;
   if (mPluginEventModel == NPEventModelCocoa) {
     ConvertCocoaKeyEventToNPCocoaEvent(theEvent, cocoaEvent, message);
-    geckoEvent.pluginEvent = &cocoaEvent;
+    geckoEvent.nativeMsg = &cocoaEvent;
   }
 
   mGeckoChild->DispatchWindowEvent(geckoEvent);
@@ -5996,8 +5919,6 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
   [globalDragPboard release];
   globalDragPboard = nil;
-  [gLastDragMouseDownEvent release];
-  gLastDragMouseDownEvent = nil;
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

@@ -735,7 +735,6 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   if (needsParser) {
     if (loadAsHtml5) {
       mParser = nsHtml5Module::NewHtml5Parser();
-      mParser->MarkAsNotScriptCreated();
     } else {
       mParser = do_CreateInstance(kCParserCID, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -1807,7 +1806,7 @@ nsHTMLDocument::SetCookie(const nsAString& aCookie)
 nsresult
 nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
 {
-  if (!IsHTML() || mDisableDocWrite) {
+  if (!IsHTML()) {
     // No calling document.open() on XHTML
 
     return NS_ERROR_DOM_INVALID_ACCESS_ERR;
@@ -2132,7 +2131,7 @@ nsHTMLDocument::WriteCommon(const nsAString& aText,
     (mWriteLevel > NS_MAX_DOCUMENT_WRITE_DEPTH || mTooDeepWriteRecursion);
   NS_ENSURE_STATE(!mTooDeepWriteRecursion);
 
-  if (!IsHTML() || mDisableDocWrite) {
+  if (!IsHTML()) {
     // No calling document.write*() on XHTML!
 
     return NS_ERROR_DOM_INVALID_ACCESS_ERR;
@@ -2143,8 +2142,7 @@ nsHTMLDocument::WriteCommon(const nsAString& aText,
   void *key = GenerateParserKey();
   if (mWriteState == eDocumentClosed ||
       (mWriteState == ePendingClose &&
-       !mPendingScripts.Contains(key)) ||
-      (mParser && !mParser->IsInsertionPointDefined())) {
+       !mPendingScripts.Contains(key))) {
     mWriteState = eDocumentClosed;
     mParser->Terminate();
     NS_ASSERTION(!mParser, "mParser should have been null'd out");
@@ -2937,21 +2935,7 @@ nsHTMLDocument::GenerateParserKey(void)
 
   // The script loader provides us with the currently executing script element,
   // which is guaranteed to be unique per script.
-  if (nsHtml5Module::sEnabled) {
-    nsIScriptElement* script = mScriptLoader->GetCurrentScript();
-    if (script && mParser && mParser->IsScriptCreated()) {
-      nsCOMPtr<nsIParser> creatorParser = script->GetCreatorParser();
-      if (creatorParser != mParser) {
-        // Make scripts that aren't inserted by the active parser of this document
-        // participate in the context of the script that document.open()ed 
-        // this document.
-        return mParser->GetRootContextKey();
-      }
-    }
-    return script;
-  } else {
-    return mScriptLoader->GetCurrentScript();
-  }
+  return mScriptLoader->GetCurrentScript();
 }
 
 /* attribute DOMString designMode; */

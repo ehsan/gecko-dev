@@ -25,12 +25,12 @@ body > div {
      passing the blit region and the paint region as a parameters. -->
 
 <div id="testSimpleScroll">
-  <div style="height:300px; background:-moz-linear-gradient(top, red, black);"></div>
+  <div style="height:300px; background:-moz-linear-gradient(top, bottom, from(red), to(black));"></div>
 </div>
 
 <div id="testFixedBackground">
-  <div style="height:300px; margin-bottom:-300px; background:-moz-linear-gradient(left, red, black) fixed;"></div>
-  <div style="height:300px; background:-moz-linear-gradient(top, rgba(0,0,0,0.7), rgba(255,0,0,0.7));"></div>
+  <div style="height:300px; margin-bottom:-300px; background:-moz-linear-gradient(left, right, from(red), to(black)) fixed;"></div>
+  <div style="height:300px; background:-moz-linear-gradient(top, bottom, from(rgba(0,0,0,0.7)), to(rgba(255,0,0,0.7)));"></div>
 </div>
 
 <div id="testFixedPosOverlay">
@@ -60,47 +60,35 @@ body > div {
 </div>
 
 <div style="border:1px solid black;" id="testBorder">
-  <div style="height:300px; background:-moz-linear-gradient(top, red, black);"></div>
+  <div style="height:300px; background:-moz-linear-gradient(top, bottom, from(red), to(black));"></div>
 </div>
 
 <div id="testScrollOutOfView">
-  <div style="height:10px; margin-bottom:210px; background:-moz-linear-gradient(top, rgba(0,0,0,0.7), rgba(255,0,0,0.7));"></div>
+  <div style="height:10px; margin-bottom:210px; background:-moz-linear-gradient(top, bottom, from(rgba(0,0,0,0.7)), to(rgba(255,0,0,0.7)));"></div>
 </div>
 
 <div id="testScrollIntoView">
-  <div style="height:10px; margin-top:210px; background:-moz-linear-gradient(top, rgba(0,0,0,0.7), rgba(255,0,0,0.7));"></div>
+  <div style="height:10px; margin-top:210px; background:-moz-linear-gradient(top, bottom, from(rgba(0,0,0,0.7)), to(rgba(255,0,0,0.7)));"></div>
 </div>
 
 <div id="testSimpleScrollWithSubpixelOffset1" style="top:0.2px">
-  <div style="height:300px; background:-moz-linear-gradient(top, red, black);"></div>
+  <div style="height:300px; background:-moz-linear-gradient(top, bottom, from(red), to(black));"></div>
 </div>
 
 <div id="testSimpleScrollWithSubpixelOffset2" style="top:0.8px">
-  <div style="height:300px; background:-moz-linear-gradient(top, red, black);"></div>
+  <div style="height:300px; background:-moz-linear-gradient(top, bottom, from(red), to(black));"></div>
 </div>
 
 <div id="testSimpleScrollWithSubpixelOffset3" style="left:0.2px" class="horizontal">
-  <div style="width:300px; height:200px; background:-moz-linear-gradient(left, red, black);"></div>
+  <div style="width:300px; height:200px; background:-moz-linear-gradient(left, right, from(red), to(black));"></div>
 </div>
 
 <div id="testSimpleScrollWithSubpixelOffset4" style="left:0.8px" class="horizontal">
-  <div style="width:300px; height:200px; background:-moz-linear-gradient(left, red, black);"></div>
+  <div style="width:300px; height:200px; background:-moz-linear-gradient(left, right, from(red), to(black));"></div>
 </div>
 
 <div id="testMovingClipArea">
   <div style="margin-top:20px; height:20px; margin-bottom:300px; background-color:blue; overflow:hidden;"></div>
-</div>
-
-<div id="testNonmovingClipArea">
-  <div style="height:300px; background:-moz-linear-gradient(top, red, black);"></div>
-  <div style="position:fixed; left:0; top:150px; width:200px; height:50px; background:yellow; overflow:hidden; opacity:0.5;">
-    <div style="height:50px; background:-moz-linear-gradient(top, green, yellow); opacity:0.3;"></div>
-  </div>
-</div>
-
-<div id="testFixedOverUniform">
-  <div style="height:300px; background:blue;"></div>
-  <div style="position:fixed; left:0; top:50px; width:100px; height:45px; background:yellow; opacity:0.5;"></div>
 </div>
 
 <script>
@@ -204,8 +192,8 @@ function testSimpleScrollWithSubpixelOffset2(blitRegion, paintRegion) {
   ok(paintRegion.containsRegion(new Region([[0,181,200,200]])),
      "Should repaint area that was scrolled into view: " + paintRegion.toString());
   // Check that we're not repainting anything in the area that's blitted
-  ok(!paintRegion.intersectsRect([0,0,200,180]),
-     "Should not repaint area that was blitted: " + paintRegion.toString());
+  todo(!paintRegion.intersectsRect([0,0,200,180]),
+       "Should not repaint area that was blitted: " + paintRegion.toString());
 }
 
 function testSimpleScrollWithSubpixelOffset3(blitRegion, paintRegion) {
@@ -228,27 +216,13 @@ function testSimpleScrollWithSubpixelOffset4(blitRegion, paintRegion) {
   ok(paintRegion.containsRegion(new Region([[181,0,200,200]])),
      "Should repaint area that was scrolled into view: " + paintRegion.toString());
   // Check that we're not repainting anything in the area that's blitted
-  ok(!paintRegion.intersectsRect([0,0,180,200]),
-     "Should not repaint area that was blitted: " + paintRegion.toString());
+  todo(!paintRegion.intersectsRect([0,0,180,200]),
+       "Should not repaint area that was blitted: " + paintRegion.toString());
 }
 
 function testMovingClipArea(blitRegion, paintRegion) {
   ok(blitRegion.equalsRegion(new Region([[0,0,200,40]])),
      "Should blit everything that's affected: " + blitRegion.toString());
-  ok(paintRegion.isEmpty(),
-     "Shouldn't repaint anything: " + paintRegion.toString());
-}
-
-function testNonmovingClipArea(blitRegion, paintRegion) {
-  ok(blitRegion.equalsRegion(new Region([[0,0,200,130]])),
-     "Should only blit necessary strip: " + blitRegion.toString());
-  ok(paintRegion.equalsRegion(new Region([[0,130,200,200]])),
-     "Should only repaint necessary strip: " + paintRegion.toString());
-}
-
-function testFixedOverUniform(blitRegion, paintRegion) {
-  ok(!blitRegion.intersectsRect([0,20,200,200]),
-     "Shouldn't blit anything except possibly to cover the area that has moved offscreen: " + blitRegion.toString());
   ok(paintRegion.isEmpty(),
      "Shouldn't repaint anything: " + paintRegion.toString());
 }

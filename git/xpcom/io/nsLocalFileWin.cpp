@@ -2947,7 +2947,7 @@ nsLocalFile::GetNativePath(nsACString &_retval)
 NS_IMETHODIMP
 nsLocalFile::GetNativeCanonicalPath(nsACString &aResult)
 {
-    NS_WARNING("This method is lossy. Use GetCanonicalPath !");
+    NS_WARNING("This method is lossy. Use GetCanoincailPath !");
     EnsureShortPath();
     NS_CopyUnicodeToNative(mShortWorkingPath, aResult);
     return NS_OK;

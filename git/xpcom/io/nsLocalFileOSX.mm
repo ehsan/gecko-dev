@@ -1038,23 +1038,30 @@ NS_IMETHODIMP nsLocalFile::IsHidden(PRBool *_retval)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_INIT();
-
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = PR_FALSE;
-
-  // If the leaf name begins with a '.', consider it invisible
-  nsAutoString name;
-  nsresult rv = GetLeafName(name);
+  
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
   if (NS_FAILED(rv))
     return rv;
-  if (name.Length() >= 1 && Substring(name, 0, 1).EqualsLiteral("."))
+  
+  FSCatalogInfo catalogInfo;
+  HFSUniStr255 leafName;  
+  OSErr err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoFinderInfo, &catalogInfo,
+                                &leafName, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+      
+  FileInfo *fInfoPtr = (FileInfo *)(catalogInfo.finderInfo); // Finder flags are in the same place whether we use FileInfo or FolderInfo
+  if ((fInfoPtr->finderFlags & kIsInvisible) != 0) {
     *_retval = PR_TRUE;
-
-  LSItemInfoRecord itemInfo;
-  LSCopyItemInfoForURL(mBaseURL, kLSRequestBasicFlagsOnly, &itemInfo);
-  *_retval = !!(itemInfo.flags & kLSItemInfoIsInvisible);
-
+  }
+  else {
+    // If the leaf name begins with a '.', consider it invisible
+    if (leafName.length >= 1 && leafName.unicode[0] == UniChar('.'))
+      *_retval = PR_TRUE;
+  }
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
@@ -1450,7 +1457,31 @@ NS_IMETHODIMP nsLocalFile::AppendRelativeNativePath(const nsACString& relativeFi
 
 NS_IMETHODIMP nsLocalFile::GetPersistentDescriptor(nsACString& aPersistentDescriptor)
 {
-  return GetNativePath(aPersistentDescriptor);
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
+  if (NS_FAILED(rv))
+    return rv;
+    
+  AliasHandle aliasH;
+  OSErr err = ::FSNewAlias(nsnull, &fsRef, &aliasH);
+  if (err != noErr)
+    return MacErrorMapper(err);
+    
+   PRUint32 bytes = ::GetHandleSize((Handle) aliasH);
+   ::HLock((Handle) aliasH);
+   // Passing nsnull for dest makes NULL-term string
+   char* buf = PL_Base64Encode((const char*)*aliasH, bytes, nsnull);
+   ::DisposeHandle((Handle) aliasH);
+   NS_ENSURE_TRUE(buf, NS_ERROR_OUT_OF_MEMORY);
+   
+   aPersistentDescriptor = buf;
+   PR_Free(buf);
+
+  return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP nsLocalFile::SetPersistentDescriptor(const nsACString& aPersistentDescriptor)

@@ -368,19 +368,6 @@ nsBlockFrame::List(FILE* out, PRInt32 aIndent) const
     fprintf(out, " next-in-flow=%p", static_cast<void*>(GetNextInFlow()));
   }
 
-  void* IBsibling = GetProperty(nsGkAtoms::IBSplitSpecialSibling);
-  if (IBsibling) {
-    fprintf(out, " IBSplitSpecialSibling=%p", IBsibling);
-  }
-  void* IBprevsibling = GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling);
-  if (IBprevsibling) {
-    fprintf(out, " IBSplitSpecialPrevSibling=%p", IBprevsibling);
-  }
-
-  if (nsnull != mContent) {
-    fprintf(out, " [content=%p]", static_cast<void*>(mContent));
-  }
-
   // Output the rect and state
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
   if (0 != mState) {
@@ -405,7 +392,7 @@ nsBlockFrame::List(FILE* out, PRInt32 aIndent) const
   }
   fprintf(out, " sc=%p(i=%d,b=%d)",
           static_cast<void*>(mStyleContext), numInlineLines, numBlockLines);
-  nsIAtom* pseudoTag = mStyleContext->GetPseudo();
+  nsIAtom* pseudoTag = mStyleContext->GetPseudoType();
   if (pseudoTag) {
     nsAutoString atomString;
     pseudoTag->ToString(atomString);
@@ -595,7 +582,7 @@ nsBlockFrame::IsContainingBlock() const
   // of an element's containing block.
   // Since the parent of such a block is either a normal block or
   // another such pseudo, this shouldn't cause anything bad to happen.
-  nsIAtom *pseudoType = GetStyleContext()->GetPseudo();
+  nsIAtom *pseudoType = GetStyleContext()->GetPseudoType();
   return pseudoType != nsCSSAnonBoxes::mozAnonymousBlock &&
          pseudoType != nsCSSAnonBoxes::mozAnonymousPositionedBlock;
 }
@@ -1432,7 +1419,7 @@ nsBlockFrame::ComputeCombinedArea(const nsHTMLReflowState& aReflowState,
     // for the scrollframe's padding, which is logically below the
     // bottom margins of the children.
     nscoord bottomEdgeOfContents = aBottomEdgeOfChildren;
-    if (GetStyleContext()->GetPseudo() == nsCSSAnonBoxes::scrolledContent) {
+    if (GetStyleContext()->GetPseudoType() == nsCSSAnonBoxes::scrolledContent) {
       // We're a scrolled frame; the scrollframe's padding should be added
       // to the bottom edge of the children
       bottomEdgeOfContents += aReflowState.mComputedPadding.bottom;
@@ -2955,7 +2942,6 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
       if (!*aState.mReflowState.mDiscoveredClearance) {
         *aState.mReflowState.mDiscoveredClearance = frame;
       }
-      aState.mPrevChild = frame;
       // Exactly what we do now is flexible since we'll definitely be
       // reflowed.
       return NS_OK;
@@ -3684,28 +3670,6 @@ nsBlockFrame::DoReflowInlineFrames(nsBlockReflowState& aState,
     printf("Line reflow status = %s\n", LineReflowStatusNames[lineReflowStatus]);
   }
 #endif
-
-  if (aLineLayout.GetDirtyNextLine()) {
-    // aLine may have been pushed to the overflow lines.
-    nsLineList* overflowLines = GetOverflowLines();
-    // We can't just compare iterators front() to aLine here, since they may be in
-    // different lists.
-    PRBool pushedToOverflowLines = overflowLines &&
-      overflowLines->front() == aLine.get();
-    if (pushedToOverflowLines) {
-      // aLine is stale, it's associated with the main line list but it should
-      // be associated with the overflow line list now
-      aLine = overflowLines->begin();
-    }
-    nsBlockInFlowLineIterator iter(this, aLine, pushedToOverflowLines);
-    if (iter.Next() && iter.GetLine()->IsInline()) {
-      iter.GetLine()->MarkDirty();
-      if (iter.GetContainer() != this) {
-        aState.mReflowStatus |= NS_FRAME_REFLOW_NEXTINFLOW;
-      }
-    }
-  }
-
   *aLineReflowStatus = lineReflowStatus;
 
   return rv;
@@ -3746,7 +3710,16 @@ nsBlockFrame::ReflowInlineFrame(nsBlockReflowState& aState,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (frameReflowStatus & NS_FRAME_REFLOW_NEXTINFLOW) {
-    aLineLayout.SetDirtyNextLine();
+    // we need to ensure that the frame's nextinflow gets reflowed.
+    aState.mReflowStatus |= NS_FRAME_REFLOW_NEXTINFLOW;
+    nsBlockFrame* ourNext = static_cast<nsBlockFrame*>(GetNextInFlow());
+    if (ourNext && aFrame->GetNextInFlow()) {
+      PRBool isValid;
+      nsBlockInFlowLineIterator iter(ourNext, aFrame->GetNextInFlow(), &isValid);
+      if (isValid) {
+        iter.GetLine()->MarkDirty();
+      }
+    }
   }
 
   NS_ENSURE_SUCCESS(rv, rv);
@@ -3833,7 +3806,12 @@ nsBlockFrame::ReflowInlineFrame(nsBlockReflowState& aState,
 
         if (NS_INLINE_IS_BREAK_AFTER(frameReflowStatus) &&
             !aLineLayout.GetLineEndsInBR()) {
-          aLineLayout.SetDirtyNextLine();
+          // Mark next line dirty in case SplitLine didn't end up
+          // pushing any frames.
+          nsLineList_iterator next = aLine.next();
+          if (next != end_lines() && !next->IsBlock()) {
+            next->MarkDirty();
+          }
         }
       }
     }
@@ -6336,11 +6314,11 @@ nsBlockFrame::SetInitialChildList(nsIAtom*        aListName,
     // block in {ib} splits do NOT get first-letter frames.  Note that
     // NS_BLOCK_HAS_FIRST_LETTER_STYLE gets set on all continuations of the
     // block.
-    nsIAtom *pseudo = GetStyleContext()->GetPseudo();
+    nsIAtom *pseudo = GetStyleContext()->GetPseudoType();
     PRBool haveFirstLetterStyle =
       (!pseudo ||
        (pseudo == nsCSSAnonBoxes::cellContent &&
-        mParent->GetStyleContext()->GetPseudo() == nsnull) ||
+        mParent->GetStyleContext()->GetPseudoType() == nsnull) ||
        pseudo == nsCSSAnonBoxes::fieldsetContent ||
        pseudo == nsCSSAnonBoxes::scrolledContent ||
        pseudo == nsCSSAnonBoxes::columnContent) &&
@@ -6644,9 +6622,7 @@ void nsBlockFrame::CollectFloats(nsIFrame* aFrame, nsFrameList& aList,
   while (aFrame) {
     // Don't descend into float containing blocks.
     if (!aFrame->IsFloatContainingBlock()) {
-      nsIFrame *outOfFlowFrame =
-        aFrame->GetType() == nsGkAtoms::placeholderFrame ?
-          nsLayoutUtils::GetFloatFromPlaceholder(aFrame) : nsnull;
+      nsIFrame *outOfFlowFrame = nsLayoutUtils::GetFloatFromPlaceholder(aFrame);
       if (outOfFlowFrame) {
         // Make sure that its parent is us. Otherwise we don't want
         // to mess around with it because it belongs to someone

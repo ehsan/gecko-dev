@@ -74,11 +74,6 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 const Cr = Components.results;
 
-const STATE_IDLE = 0;
-const STATE_TRANSITION_STARTED = 1;
-const STATE_WAITING_FOR_RESTORE = 2;
-const STATE_RESTORE_FINISHED = 3;
-
 ////////////////////////////////////////////////////////////////////////////////
 //// PrivateBrowsingService
 
@@ -87,7 +82,6 @@ function PrivateBrowsingService() {
   this._obs.addObserver(this, "quit-application-granted", true);
   this._obs.addObserver(this, "private-browsing", true);
   this._obs.addObserver(this, "command-line-startup", true);
-  this._obs.addObserver(this, "sessionstore-browser-state-restored", true);
 }
 
 PrivateBrowsingService.prototype = {
@@ -121,8 +115,8 @@ PrivateBrowsingService.prototype = {
   // How to treat the non-private session
   _saveSession: true,
 
-  // The current status of the private browsing service
-  _currentStatus: STATE_IDLE,
+  // Make sure we don't allow re-enterant changing of the private mode
+  _alreadyChangingMode: false,
 
   // Whether the private browsing mode has been started automatically (ie. always-on)
   _autoStarted: false,
@@ -240,7 +234,6 @@ PrivateBrowsingService.prototype = {
       // if we have transitioned out of private browsing mode and the session is
       // to be restored, do it now
       if (!this._inPrivateBrowsing) {
-        this._currentStatus = STATE_WAITING_FOR_RESTORE;
         ss.setBrowserState(this._savedBrowserState);
         this._savedBrowserState = null;
 
@@ -282,32 +275,8 @@ PrivateBrowsingService.prototype = {
           }]
         };
         // Transition into private browsing mode
-        this._currentStatus = STATE_WAITING_FOR_RESTORE;
         ss.setBrowserState(JSON.stringify(privateBrowsingState));
       }
-    }
-  },
-
-  _notifyIfTransitionComplete: function PBS__notifyIfTransitionComplete() {
-    switch (this._currentStatus) {
-      case STATE_TRANSITION_STARTED:
-        // no session store operation was needed, so just notify of transition completion
-      case STATE_RESTORE_FINISHED:
-        // restore has been completed
-        this._currentStatus = STATE_IDLE;
-        this._obs.notifyObservers(null, "private-browsing-transition-complete", "");
-        break;
-      case STATE_WAITING_FOR_RESTORE:
-        // too soon to notify...
-        break;
-      case STATE_IDLE:
-        // no need to notify
-        break;
-      default:
-        // unexpected state observed
-        Cu.reportError("Unexpected private browsing status reached: " +
-                       this._currentStatus);
-        break;
     }
   },
 
@@ -396,10 +365,6 @@ PrivateBrowsingService.prototype = {
                       getService(Ci.nsIHttpAuthManager);
         authMgr.clearAll();
 
-        try {
-          this._prefs.deleteBranch("geo.wifi.access_token.");
-        } catch (ex) {}
-
         if (!this._inPrivateBrowsing) {
           // Clear the error console
           let consoleService = Cc["@mozilla.org/consoleservice;1"].
@@ -412,12 +377,6 @@ PrivateBrowsingService.prototype = {
         this._obs.removeObserver(this, "command-line-startup");
         aSubject.QueryInterface(Ci.nsICommandLine);
         this.handle(aSubject);
-        break;
-      case "sessionstore-browser-state-restored":
-        if (this._currentStatus == STATE_WAITING_FOR_RESTORE) {
-          this._currentStatus = STATE_RESTORE_FINISHED;
-          this._notifyIfTransitionComplete();
-        }
         break;
     }
   },
@@ -453,11 +412,11 @@ PrivateBrowsingService.prototype = {
     // status of the service while it's in the process of another transition.
     // So, we detect a reentrant call here and throw an error.
     // This is documented in nsIPrivateBrowsingService.idl.
-    if (this._currentStatus != STATE_IDLE)
+    if (this._alreadyChangingMode)
       throw Cr.NS_ERROR_FAILURE;
 
     try {
-      this._currentStatus = STATE_TRANSITION_STARTED;
+      this._alreadyChangingMode = true;
 
       if (val != this._inPrivateBrowsing) {
         if (val) {
@@ -502,7 +461,7 @@ PrivateBrowsingService.prototype = {
           "private browsing mode change request: " + ex.toString());
     } finally {
       this._windowsToClose = [];
-      this._notifyIfTransitionComplete();
+      this._alreadyChangingMode = false;
     }
   },
 
@@ -598,7 +557,7 @@ PrivateBrowsingService.prototype = {
               getService(Ci.nsILoginManager)) {
       // Clear all passwords for domain
       try {
-        let logins = lm.getAllLogins();
+        let logins = lm.getAllLogins({});
         for (let i = 0; i < logins.length; i++)
           if (logins[i].hostname.hasRootDomain(aDomain))
             lm.removeLogin(logins[i]);
@@ -608,7 +567,7 @@ PrivateBrowsingService.prototype = {
       catch (ex if ex.message.indexOf("User canceled Master Password entry") != -1) { }
 
       // Clear any "do not save for this site" for this domain
-      let disabledHosts = lm.getAllDisabledHosts();
+      let disabledHosts = lm.getAllDisabledHosts({});
       for (let i = 0; i < disabledHosts.length; i++)
         if (disabledHosts[i].hasRootDomain(aDomain))
           lm.setLoginSavingEnabled(disabledHosts, true);

@@ -47,7 +47,6 @@
  * test program to access and test every aspect of the Mozilla implementation.
  */
 
-#include <ole2.h>
 #include <msctf.h>
 #include <textstor.h>
 #include <richedit.h>
@@ -145,7 +144,7 @@ protected:
   PRBool TestContentEvents(void);
   PRBool TestEditMessages(void);
 
-  PRBool TestSelectionInternal(char* aTestName,
+  PRBool TestApp::TestSelectionInternal(char* aTestName,
                                         LONG aStart,
                                         LONG aEnd,
                                         TsActiveSelEnd aSelEnd);

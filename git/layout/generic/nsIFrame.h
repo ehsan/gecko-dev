@@ -237,8 +237,6 @@ enum {
   // If this bit is set, the frame is "special" (lame term, I know),
   // which means that it is part of the mangled frame hierarchy that
   // results when an inline has been split because of a nested block.
-  // See the comments in nsCSSFrameConstructor::ConstructInline for
-  // more details.
   NS_FRAME_IS_SPECIAL =                         0x00008000,
 
   // If this bit is set, the frame may have a transform that it applies
@@ -2532,29 +2530,7 @@ public:
     Clear(mFrame ? mFrame->PresContext()->GetPresShell() : nsnull);
   }
 private:
-  void InitInternal(nsIFrame* aFrame);
-
-  void InitExternal(nsIFrame* aFrame) {
-    Clear(mFrame ? mFrame->PresContext()->GetPresShell() : nsnull);
-    mFrame = aFrame;
-    if (mFrame) {
-      nsIPresShell* shell = mFrame->PresContext()->GetPresShell();
-      NS_WARN_IF_FALSE(shell, "Null PresShell in nsWeakFrame!");
-      if (shell) {
-        shell->AddWeakFrame(this);
-      } else {
-        mFrame = nsnull;
-      }
-    }
-  }
-
-  void Init(nsIFrame* aFrame) {
-#ifdef _IMPL_NS_LAYOUT
-    InitInternal(aFrame);
-#else
-    InitExternal(aFrame);
-#endif
-  }
+  void Init(nsIFrame* aFrame);
 
   nsWeakFrame*  mPrev;
   nsIFrame*     mFrame;

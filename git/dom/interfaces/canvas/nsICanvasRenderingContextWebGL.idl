@@ -59,39 +59,16 @@ typedef long           GLfixed;
 //typedef signed octet GLbyte;
 
 //typedef unsigned long  GLintptr;
-typedef long  GLsizeiptr;
+//typedef unsigned long  GLsizeiptr;
 
-%{C++
-namespace mozilla {
-    class WebGLArrayBuffer;
-}
-%}
-[ptr] native WebGLArrayBufferPtr (mozilla::WebGLArrayBuffer);
 //
 // Array types
 //
-[scriptable, uuid(34b6cf8e-47da-458e-ab42-0451a3533ee5)]
-interface nsICanvasArrayBuffer : nsISupports
-{
-  readonly attribute unsigned long byteLength;
-
-  [noscript, notxpcom] WebGLArrayBufferPtr GetNativeArrayBuffer();
-  [noscript, notxpcom] voidPtr nativePointer();
-  [noscript, notxpcom] unsigned long nativeSize();
-};
 
 [scriptable, uuid(84ba4e98-8173-7c10-dca0-b5ba7809fcf3)]
 interface nsICanvasArray : nsISupports
 {
-  readonly attribute nsICanvasArrayBuffer buffer;
-  readonly attribute unsigned long byteOffset;
-  readonly attribute unsigned long byteLength;
-  readonly attribute unsigned long length;
-
-  // XXX kill this.
-  unsigned long alignedSizeInBytes();
-
-  nsICanvasArray slice(in unsigned long offset, in unsigned long length);
+  attribute unsigned long length;
 
   [noscript, notxpcom] unsigned long nativeType();
   [noscript, notxpcom] voidPtr nativePointer();
@@ -103,71 +80,36 @@ interface nsICanvasArray : nsISupports
 [scriptable, Uuid(0f6d0e7b-bcfc-9305-6a1d-a9653b5e8c80)]
 interface nsICanvasFloatArray : nsICanvasArray
 {
-  [IndexGetter] float get(in unsigned long index);
-  //[IndexSetter] void set(in unsigned long index, in float value);
-  //void set(in CanvasFloatArray array, [Optional] in unsigned long offset);
-  //void set(in sequence<float> array, [Optional] in unsigned long offset);
-  void set();
 };
 
 [scriptable, uuid(b29db7cf-fa58-435f-8d45-611cc50979ad)]
 interface nsICanvasByteArray : nsICanvasArray
 {
-  [IndexGetter] long get(in unsigned long index);
-  //[IndexSetter] void set(in unsigned long index, in long value);
-  //void set(in nsICanvasByteArray array, [Optional] in unsigned long offset);
-  //void set(in sequence<long> array, [Optional] in unsigned long offset);
-  void set();
 };
 
 [scriptable, uuid(3daa67fa-e743-2cbd-a212-805c2fc520cc)]
 interface nsICanvasUnsignedByteArray : nsICanvasArray
 {
-  [IndexGetter] unsigned long get(in unsigned long index);
-  //[IndexSetter] void set(in unsigned long index, in unsigned long value);
-  //void set(in CanvasUnsignedByteArray array, [Optional] in unsigned long offset);
-  //void set(in sequence<unsigned long> array, [Optional] in unsigned long offset);
-  void set();
 };
 
 [scriptable, uuid(a8a982e3-3977-7364-f012-c497a5ab7681)]
 interface nsICanvasShortArray : nsICanvasArray
 {
-  [IndexGetter] long get(in unsigned long index);
-  //[IndexSetter] void set(in unsigned long index, in long value);
-  //void set(in CanvasShortArray array, [Optional] in unsigned long offset);
-  //void set(in sequence<long> array, [Optional] in unsigned long offset);
-  void set();
 };
 
 [scriptable, uuid(8b9c67cc-c7be-a062-84b0-76a910a5c1e6)]
 interface nsICanvasUnsignedShortArray : nsICanvasArray
 {
-  [IndexGetter] unsigned long get(in unsigned long index);
-  //[IndexSetter] void set(in unsigned long index, in unsigned long value);
-  //void set(in CanvasUnsignedShortArray array, [Optional] in unsigned long offset);
-  //void set(in sequence<unsigned long> array, [Optional] in unsigned long offset);
-  void set();
 };
 
 [scriptable, uuid(b9b2e861-3a28-4311-993c-799e4f77dcba)]
 interface nsICanvasIntArray : nsICanvasArray
 {
-  [IndexGetter] long get(in unsigned long index);
-  //[IndexSetter] void set(in unsigned long index, in long value);
-  //void set(in CanvasIntArray array, [Optional] in unsigned long offset);
-  //void set(in sequence<long> array, [Optional] in unsigned long offset);
-  void set();
 };
 
 [scriptable, uuid(0d6ee3f8-71b6-460d-b05a-d579cc55edbe)]
 interface nsICanvasUnsignedIntArray : nsICanvasArray
 {
-  [IndexGetter] unsigned long get(in unsigned long index);
-  //[IndexSetter] void set(in unsigned long index, in unsigned long value);
-  //void set(in CanvasUnsignedIntArray array, [Optional] in unsigned long offset);
-  //void set(in sequence<unsigned long> array, [Optional] in unsigned long offset);
-  void set();
 };
 
 //
@@ -670,12 +612,18 @@ interface nsICanvasRenderingContextWebGL : nsISupports
   //  ATTRIBUTES
   //
   readonly attribute nsIDOMHTMLCanvasElement canvas;
+  readonly attribute nsIWebGLBuffer currentArrayBufferBinding;
+  readonly attribute nsIWebGLBuffer currentElementArrayBufferBinding;
+  readonly attribute nsIWebGLFramebuffer currentFramebufferBinding;
+  readonly attribute nsIWebGLRenderbuffer currentRenderbufferBinding;
+  readonly attribute nsIWebGLTexture currentTextureBinding2D;
+  readonly attribute nsIWebGLTexture currentTextureBindingCubeMap;
+  readonly attribute nsIWebGLProgram currentProgram;
 
   //
   //  METHODS
   //
   void present();
-  long sizeInBytes(in GLenum type);
 
   void activeTexture (in GLenum texture);
   void attachShader (in nsIWebGLProgram program, in nsIWebGLShader shader);
@@ -692,14 +640,10 @@ interface nsICanvasRenderingContextWebGL : nsISupports
 
   // Modified: void glBufferData (GLenum target, GLsizeiptr size, const void* data, GLenum usage);
   // void bufferData (in GLenum target, in GLsizei size, in GLenum usage);
-  // void bufferData (in GLenum target, in nsICanvasArray data, in GLenum usage);
-  // void bufferData (in GLenum target, in nsICanvasArrayBuffer data, in GLenum usage);
-  void bufferData (in GLenum target);
+  void bufferData (in GLenum target, in nsICanvasArray data, in GLenum usage);
 
   // Modified: void glBufferSubData (GLenum target, GLintptr offset, GLsizeiptr size, const void* data);
-  // void bufferSubData (in GLenum target, in GLsizeiptr offset, in nsICanvasArray data);
-  // void bufferSubData (in GLenum target, in GLsizeiptr offset, in CanvasArrayBuffer data);
-  void bufferSubData (in GLenum target, in GLsizeiptr offset);
+  void bufferSubData (in GLenum target, in GLuint offset, in nsICanvasArray data);
 
   GLenum checkFramebufferStatus (in GLenum target);
   void clear (in GLbitfield mask);
@@ -773,32 +717,33 @@ interface nsICanvasRenderingContextWebGL : nsISupports
   //GLint getInteger(in GLenum pname);
   //nsIWebGLIntArray getIntegerv(in GLenum pname);
   // js only
-  void getParameter (in GLenum pname);
+  void getParameter(in GLenum pname);
 
   // Modified: void glGetBufferParameteriv (GLenum target, GLenum pname, GLint* params);
-  GLint getBufferParameteri (in GLenum target, in GLenum pname); // XXX remove
-  void getBufferParameter (in GLenum target, in GLenum pname);
+  GLint getBufferParameteri (in GLenum target, in GLenum pname);
+  //nsIWebGLIntArray glGetBufferParameteriv (in GLenum target, in GLenum pname);
 
   GLenum getError ();
 
   // Modified: void glGetFramebufferAttachmentParameteriv (GLenum target, GLenum attachment, GLenum pname, GLint* params);
-  GLint getFramebufferAttachmentParameteri (in GLenum target, in GLenum attachment, in GLenum pname); // XXX remove
-  void getFramebufferAttachmentParameter (in GLenum target, in GLenum attachment, in GLenum pname);
+  GLint getFramebufferAttachmentParameteri (in GLenum target, in GLenum attachment, in GLenum pname);
+  //nsIWebGLIntArray glGetFramebufferAttachmentParameteriv (in GLenum target, in GLenum attachment, in GLenum pname);
 
   // Modified: void glGetProgramiv (nsIWebGLProgram program, GLenum pname, GLint* params);
-  GLint getProgrami (in nsIWebGLProgram program, in GLenum pname); // XXX remove
-  void getProgramParameter (in nsIWebGLProgram program, in GLenum pname);
+  GLint getProgrami (in nsIWebGLProgram program, in GLenum pname);
+  //nsIWebGLIntArray getProgramiv (in nsIWebGLProgram program, in GLenum pname);
+  //void getProgramParameter (in nsIWebGLProgram program, in GLenum pname);
 
   // Modified: void glGetProgramInfoLog (GLuint program, GLsizei bufsize, GLsizei* length, char* infolog);
   DOMString getProgramInfoLog (in nsIWebGLProgram program);
 
   // Modified: void glGetRenderbufferParameteriv (GLenum target, GLenum pname, GLint* params);
   //nsIWebGLIntArray getRenderbufferParameteriv (in GLenum target, in GLenum pname);
-  GLint getRenderbufferParameteri (in GLenum target, in GLenum pname); // XXX remove
-  void getRenderbufferParameter (in GLenum target, in GLenum pname);
+  GLint getRenderbufferParameteri (in GLenum target, in GLenum pname);
 
-  GLint getShaderi (in nsIWebGLShader shader, in GLenum pname); // XXX remove
-  void getShaderParameter (in nsIWebGLShader shader, in GLenum pname);
+  GLint getShaderi (in nsIWebGLShader shader, in GLenum pname);
+  nsICanvasIntArray getShaderiv (in nsIWebGLShader shader, in GLenum pname);
+  // GONE void getShaderParameter (in nsIWebGLShader shader, in GLenum pname);
 
   // Modified: void glGetShaderInfoLog (GLuint shader, GLsizei bufsize, GLsizei* length, char* infolog);
   DOMString getShaderInfoLog (in nsIWebGLShader shader);
@@ -809,20 +754,27 @@ interface nsICanvasRenderingContextWebGL : nsISupports
   DOMString getShaderSource (in nsIWebGLShader shader);
   DOMString getString (in GLenum name);
 
-  GLfloat getTexParameterf (in GLenum target, in GLenum pname);         // XXX remove
-  GLint getTexParameteri (in GLenum target, in GLenum pname);           // XXX remove
-  void getTexParameter (in GLenum target, in GLenum pname);
+  GLfloat getTexParameterf (in GLenum target, in GLenum pname);
+  nsICanvasArray getTexParameterfv (in GLenum target, in GLenum pname);
+  GLint getTexParameteri (in GLenum target, in GLenum pname);
+  nsICanvasArray getTexParameteriv (in GLenum target, in GLenum pname);
 
   // FIXME: This is problematic. We don't implicitly know how big the returned data buffer
   // needs to be like in the other glGet* calls. The only way to find out is to iterate 
   // through all the active uniforms with glGetActiveUniform() looking for the corresponding
   // 'location'. This will give us the type and size of the data. Since this is a get call
   // maybe that's ok?
-  void getUniform (in nsIWebGLProgram program, in GLint location);
+  GLfloat getUniformf (in nsIWebGLProgram program, in GLint location);
+  nsICanvasArray getUniformfv (in nsIWebGLProgram program, in GLint location);
+  GLint getUniformi (in nsIWebGLProgram program, in GLint location);
+  nsICanvasArray getUniformiv (in nsIWebGLProgram program, in GLint location);
 
   GLint getUniformLocation (in nsIWebGLProgram program, in DOMString name);
 
-  void getVertexAttrib (in GLuint index, in GLenum pname);
+  GLfloat getVertexAttribf (in GLuint index, in GLenum pname);
+  nsICanvasArray getVertexAttribfv (in GLuint index, in GLenum pname);
+  GLint getVertexAttribi (in GLuint index, in GLenum pname);
+  nsICanvasArray getVertexAttribiv (in GLuint index, in GLenum pname);
 
   // TBD
   // void glGetVertexAttribPointerv (GLuint index, GLenum pname, void** pointer);

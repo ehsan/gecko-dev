@@ -205,10 +205,6 @@
 #include "nsGfxCIID.h"
 #endif
 
-// A magic APP message that can be sent to quit, sort of like a QUERYENDSESSION/ENDSESSION,
-// but without the query.
-#define MOZ_WM_APP_QUIT (WM_APP+0x0300)
-
 /**************************************************************
  **************************************************************
  **
@@ -1258,10 +1254,6 @@ void nsWindow::SetThemeRegion()
 // Move this component
 NS_METHOD nsWindow::Move(PRInt32 aX, PRInt32 aY)
 {
-  if (mWindowType == eWindowType_toplevel ||
-      mWindowType == eWindowType_dialog) {
-    SetSizeMode(nsSizeMode_Normal);
-  }
   // Check to see if window needs to be moved first
   // to avoid a costly call to SetWindowPos. This check
   // can not be moved to the calling code in nsView, because
@@ -1500,17 +1492,28 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
       case nsSizeMode_Maximized :
         mode = SW_MAXIMIZE;
         break;
-
       case nsSizeMode_Minimized :
-        // Using SW_SHOWMINIMIZED prevents the working set from being trimmed but
-        // keeps the window active in the tray. So after the window is minimized,
-        // windows will fire WM_WINDOWPOSCHANGED (OnWindowPosChanged) at which point
-        // we will do some additional processing to get the active window set right.
-        // If sTrimOnMinimize is set, we let windows handle minimization normally
-        // using SW_MINIMIZE.
         mode = sTrimOnMinimize ? SW_MINIMIZE : SW_SHOWMINIMIZED;
-        break;
+        if (!sTrimOnMinimize) {
+          // Find the next window that is enabled, visible, and not minimized.
+          HWND hwndBelow = ::GetNextWindow(mWnd, GW_HWNDNEXT);
+          while (hwndBelow && (!::IsWindowEnabled(hwndBelow) || !::IsWindowVisible(hwndBelow) ||
+                               ::IsIconic(hwndBelow))) {
+            hwndBelow = ::GetNextWindow(hwndBelow, GW_HWNDNEXT);
+          }
 
+          // Push ourselves to the bottom of the stack, then activate the
+          // next window.
+          ::SetWindowPos(mWnd, HWND_BOTTOM, 0, 0, 0, 0,
+                         SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE);
+          if (hwndBelow)
+            ::SetForegroundWindow(hwndBelow);
+
+          // Play the minimize sound while we're here, since that is also
+          // forgotten when we use SW_SHOWMINIMIZED.
+          ::PlaySoundW(L"Minimize", nsnull, SND_ALIAS | SND_NODEFAULT | SND_ASYNC);
+        }
+        break;
       default :
         mode = SW_RESTORE;
     }
@@ -1638,12 +1641,6 @@ NS_METHOD nsWindow::IsEnabled(PRBool *aState)
 NS_METHOD nsWindow::SetFocus(PRBool aRaise)
 {
   if (mWnd) {
-#ifdef WINSTATE_DEBUG_OUTPUT
-    if (mWnd == GetTopLevelHWND(mWnd))
-      printf("*** SetFocus: [  top] raise=%d\n", aRaise);
-    else
-      printf("*** SetFocus: [child] raise=%d\n", aRaise);
-#endif
     // Uniconify, if necessary
     HWND toplevelWnd = GetTopLevelHWND(mWnd);
     if (aRaise && ::IsIconic(toplevelWnd)) {
@@ -3011,7 +3008,7 @@ PRBool nsWindow::DispatchKeyEvent(PRUint32 aEventType, WORD aCharCode,
     pluginEvent.event = aMsg->message;
     pluginEvent.wParam = aMsg->wParam;
     pluginEvent.lParam = aMsg->lParam;
-    event.pluginEvent = (void *)&pluginEvent;
+    event.nativeMsg = (void *)&pluginEvent;
   }
 
   PRBool result = DispatchWindowEvent(&event);
@@ -3120,7 +3117,7 @@ PRBool nsWindow::DispatchPluginEvent(const MSG &aMsg)
   pluginEvent.event = aMsg.message;
   pluginEvent.wParam = aMsg.wParam;
   pluginEvent.lParam = aMsg.lParam;
-  event.pluginEvent = (void *)&pluginEvent;
+  event.nativeMsg = (void *)&pluginEvent;
   return DispatchWindowEvent(&event);
 }
 
@@ -3297,7 +3294,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
   pluginEvent.wParam = wParam;     // plugins NEED raw OS event flags!
   pluginEvent.lParam = lParam;
 
-  event.pluginEvent = (void *)&pluginEvent;
+  event.nativeMsg = (void *)&pluginEvent;
 
   // call the event callback
   if (nsnull != mEventCallback) {
@@ -3424,7 +3421,7 @@ PRBool nsWindow::DispatchFocus(PRUint32 aEventType)
         break;
     }
 
-    event.pluginEvent = (void *)&pluginEvent;
+    event.nativeMsg = (void *)&pluginEvent;
 
     return DispatchWindowEvent(&event);
   }
@@ -3704,13 +3701,9 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       *aRetValue = sCanQuit ? TRUE : FALSE;
       result = PR_TRUE;
       break;
-#endif
 
-#ifndef WINCE
     case WM_ENDSESSION:
-#endif
-    case MOZ_WM_APP_QUIT:
-      if (msg == MOZ_WM_APP_QUIT || (wParam == TRUE && sCanQuit == TRI_TRUE))
+      if (wParam == TRUE && sCanQuit == TRI_TRUE)
       {
         // Let's fake a shutdown sequence without actually closing windows etc.
         // to avoid Windows killing us in the middle. A proper shutdown would
@@ -3732,7 +3725,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       result = PR_TRUE;
       break;
 
-#ifndef WINCE
     case WM_DISPLAYCHANGE:
       DispatchStandardEvent(NS_DISPLAYCHANGED);
       break;
@@ -4820,96 +4812,23 @@ BOOL nsWindow::OnInputLangChange(HKL aHKL)
   return PR_FALSE;   // always pass to child window
 }
 
-#if !defined(WINCE) // implemented in nsWindowCE.cpp
 void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
 {
   if (wp == nsnull)
     return;
 
-#ifdef WINSTATE_DEBUG_OUTPUT
-  if (mWnd == GetTopLevelHWND(mWnd))
-    printf("*** OnWindowPosChanged: [  top] ");
-  else
-    printf("*** OnWindowPosChanged: [child] ");
-  printf("WINDOWPOS flags:");
-  if (wp->flags & SWP_FRAMECHANGED)
-    printf("SWP_FRAMECHANGED ");
-  if (wp->flags & SWP_SHOWWINDOW)
-    printf("SWP_SHOWWINDOW ");
-  if (wp->flags & SWP_NOSIZE)
-    printf("SWP_NOSIZE ");
-  if (wp->flags & SWP_HIDEWINDOW)
-    printf("SWP_HIDEWINDOW ");
-  printf("\n");
-#endif
-
-  // Handle window size mode changes
-  if (wp->flags & SWP_FRAMECHANGED) {
-    nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, this);
-
-    WINDOWPLACEMENT pl;
-    pl.length = sizeof(pl);
-    ::GetWindowPlacement(mWnd, &pl);
-
-    if (pl.showCmd == SW_SHOWMAXIMIZED)
-      event.mSizeMode = nsSizeMode_Maximized;
-    else if (pl.showCmd == SW_SHOWMINIMIZED)
-      event.mSizeMode = nsSizeMode_Minimized;
-    else
-      event.mSizeMode = nsSizeMode_Normal;
-
-    // Windows has just changed the size mode of this window. The following
-    // NS_SIZEMODE event will trigger a call into SetSizeMode where we will
-    // set the min/max window state again or for nsSizeMode_Normal, call
-    // SetWindow with a parameter of SW_RESTORE. There's no need however as
-    // this window's mode has already changed. Updating mSizeMode here
-    // insures the SetSizeMode call is a no-op. Addresses a bug on Win7 related
-    // to window docking. (bug 489258)
-    mSizeMode = event.mSizeMode;
-
-    // If !sTrimOnMinimize, we minimize windows using SW_SHOWMINIMIZED (See
-    // SetSizeMode for internal calls, and WM_SYSCOMMAND for external). This
-    // prevents the working set from being trimmed but keeps the window active.
-    // After the window is minimized, we need to do some touch up work on the
-    // active window. (bugs 76831 & 499816)
-    if (!sTrimOnMinimize && nsSizeMode_Minimized == event.mSizeMode)
-      ActivateOtherWindowHelper(mWnd);
-
-#ifdef WINSTATE_DEBUG_OUTPUT
-    switch (mSizeMode) {
-      case nsSizeMode_Normal:
-          printf("*** mSizeMode: nsSizeMode_Normal\n");
-        break;
-      case nsSizeMode_Minimized:
-          printf("*** mSizeMode: nsSizeMode_Minimized\n");
-        break;
-      case nsSizeMode_Maximized:
-          printf("*** mSizeMode: nsSizeMode_Maximized\n");
-        break;
-      default:
-          printf("*** mSizeMode: ??????\n");
-        break;
-    };
-#endif
-
-    InitEvent(event);
-
-    result = DispatchWindowEvent(&event);
-
-    // Skip window size change events below on minimization.
-    if (mSizeMode == nsSizeMode_Minimized)
-      return;
-  }
-
-  // Handle window size changes
+  // We only care about a resize, so filter out things like z-order
+  // changes. Note: there's a WM_MOVE handler above which is why we're
+  // not handling them here...
   if (0 == (wp->flags & SWP_NOSIZE)) {
+    // XXX Why are we using the client size area? If the size notification
+    // is for the client area then the origin should be (0,0) and not
+    // the window origin in screen coordinates...
     RECT r;
-    PRInt32 newWidth, newHeight;
-
     ::GetWindowRect(mWnd, &r);
-
-    newWidth  = r.right - r.left;
-    newHeight = r.bottom - r.top;
+    PRInt32 newWidth, newHeight;
+    newWidth = PRInt32(r.right - r.left);
+    newHeight = PRInt32(r.bottom - r.top);
     nsIntRect rect(wp->x, wp->y, newWidth, newHeight);
 
 #ifdef MOZ_XUL
@@ -4921,79 +4840,88 @@ void nsWindow::OnWindowPosChanged(WINDOWPOS *wp, PRBool& result)
     {
       RECT drect;
 
-      // getting wider
-      drect.left   = wp->x + mLastSize.width;
-      drect.top    = wp->y;
-      drect.right  = drect.left + (newWidth - mLastSize.width);
+      //getting wider
+      drect.left = wp->x + mLastSize.width;
+      drect.top = wp->y;
+      drect.right = drect.left + (newWidth - mLastSize.width);
       drect.bottom = drect.top + newHeight;
 
       ::RedrawWindow(mWnd, &drect, NULL,
-                     RDW_INVALIDATE |
-                     RDW_NOERASE |
-                     RDW_NOINTERNALPAINT |
-                     RDW_ERASENOW |
-                     RDW_ALLCHILDREN);
+                     RDW_INVALIDATE | RDW_NOERASE | RDW_NOINTERNALPAINT | RDW_ERASENOW | RDW_ALLCHILDREN);
     }
     if (newHeight > mLastSize.height)
     {
       RECT drect;
 
-      // getting taller
-      drect.left   = wp->x;
-      drect.top    = wp->y + mLastSize.height;
-      drect.right  = drect.left + newWidth;
+      //getting taller
+      drect.left = wp->x;
+      drect.top = wp->y + mLastSize.height;
+      drect.right = drect.left + newWidth;
       drect.bottom = drect.top + (newHeight - mLastSize.height);
 
       ::RedrawWindow(mWnd, &drect, NULL,
-                     RDW_INVALIDATE |
-                     RDW_NOERASE |
-                     RDW_NOINTERNALPAINT |
-                     RDW_ERASENOW |
-                     RDW_ALLCHILDREN);
+                     RDW_INVALIDATE | RDW_NOERASE | RDW_NOINTERNALPAINT | RDW_ERASENOW | RDW_ALLCHILDREN);
     }
 
-    mBounds.width    = newWidth;
-    mBounds.height   = newHeight;
-    mLastSize.width  = newWidth;
+    mBounds.width  = newWidth;
+    mBounds.height = newHeight;
+    mLastSize.width = newWidth;
     mLastSize.height = newHeight;
 
-#ifdef WINSTATE_DEBUG_OUTPUT
-    printf("*** Resize window: %d x %d x %d x %d\n", wp->x, wp->y, newWidth, newHeight);
-#endif
-
-    // Recalculate the width and height based on the client area for gecko events.
-    if (::GetClientRect(mWnd, &r)) {
-      rect.width  = r.right - r.left;
-      rect.height = r.bottom - r.top;
+    // If we're being minimized, don't send the resize event to Gecko because
+    // it will cause the scrollbar in the content area to go away and we'll
+    // forget the scroll position of the page.  Note that we need to check the
+    // toplevel window, because child windows seem to go to 0x0 on minimize.
+    HWND toplevelWnd = GetTopLevelHWND(mWnd);
+    if (mWnd == toplevelWnd && IsIconic(toplevelWnd)) {
+      result = PR_FALSE;
+      return;
     }
-    
-    // Send a gecko resize event
+
+    // recalculate the width and height
+    // this time based on the client area
+    if (::GetClientRect(mWnd, &r)) {
+      rect.width  = PRInt32(r.right - r.left);
+      rect.height = PRInt32(r.bottom - r.top);
+    }
     result = OnResize(rect);
   }
-}
 
-// static
-void nsWindow::ActivateOtherWindowHelper(HWND aWnd)
-{
-  // Find the next window that is enabled, visible, and not minimized.
-  HWND hwndBelow = ::GetNextWindow(aWnd, GW_HWNDNEXT);
-  while (hwndBelow && (!::IsWindowEnabled(hwndBelow) || !::IsWindowVisible(hwndBelow) ||
-                       ::IsIconic(hwndBelow))) {
-    hwndBelow = ::GetNextWindow(hwndBelow, GW_HWNDNEXT);
+  // handle size mode changes - (the framechanged message seems a handy
+  // place to hook in, because it happens early enough (WM_SIZE is too
+  // late) and because in testing it seems an accurate harbinger of an
+  // impending min/max/restore change (WM_NCCALCSIZE would also work,
+  // but it's also sent when merely resizing.))
+  if (wp->flags & SWP_FRAMECHANGED && ::IsWindowVisible(mWnd)) {
+    nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, this);
+#ifndef WINCE
+    WINDOWPLACEMENT pl;
+    pl.length = sizeof(pl);
+    ::GetWindowPlacement(mWnd, &pl);
+
+    if (pl.showCmd == SW_SHOWMAXIMIZED)
+      event.mSizeMode = nsSizeMode_Maximized;
+    else if (pl.showCmd == SW_SHOWMINIMIZED)
+      event.mSizeMode = nsSizeMode_Minimized;
+    else
+      event.mSizeMode = nsSizeMode_Normal;
+#else
+    event.mSizeMode = mSizeMode;
+#endif
+    // Windows has just changed the size mode of this window. The following
+    // NS_SIZEMODE event will trigger a call into SetSizeMode where we will
+    // set the min/max window state again or for nsSizeMode_Normal, call
+    // SetWindow with a parameter of SW_RESTORE. There's no need however as
+    // this window's mode has already changed. Updating mSizeMode here
+    // insures the SetSizeMode call is a no-op. Addresses a bug on Win7 related
+    // to window docking. (bug 489258)
+    mSizeMode = event.mSizeMode;
+
+    InitEvent(event);
+
+    result = DispatchWindowEvent(&event);
   }
-
-  // Push ourselves to the bottom of the stack, then activate the
-  // next window.
-  ::SetWindowPos(aWnd, HWND_BOTTOM, 0, 0, 0, 0,
-                 SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE);
-  if (hwndBelow)
-    ::SetForegroundWindow(hwndBelow);
-
-  // Play the minimize sound while we're here, since that is also
-  // forgotten when we use SW_SHOWMINIMIZED.
-  ::PlaySoundW(L"Minimize", nsnull, SND_ALIAS | SND_NODEFAULT | SND_ASYNC);
 }
-#endif // !defined(WINCE)
 
 #if !defined(WINCE)
 void nsWindow::OnWindowPosChanging(LPWINDOWPOS& info)
@@ -6928,7 +6856,6 @@ void nsWindow::InitTrackPointHack()
   long lResult;
   const WCHAR wstrKeys[][40] = {L"Software\\Lenovo\\TrackPoint",
                                 L"Software\\Lenovo\\UltraNav",
-                                L"Software\\Alps\\Apoint\\TrackPoint",
                                 L"Software\\Synaptics\\SynTPEnh\\UltraNavPS2"};    
   // If anything fails turn the hack off
   sTrackPointHack = false;

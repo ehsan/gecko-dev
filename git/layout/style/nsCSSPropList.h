@@ -479,8 +479,7 @@ CSS_PROP_BACKGROUND(
     BackgroundImage,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS |
-        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED |
-        CSS_PROPERTY_START_IMAGE_LOADS,
+        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Color,
     mBackImage,
     eCSSType_ValueList,
@@ -692,9 +691,7 @@ CSS_PROP_BORDER(
     -moz-border-image,
     border_image,
     MozBorderImage,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_START_IMAGE_LOADS |
-        CSS_PROPERTY_IMAGE_IS_IN_ARRAY_0,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderImage,
     eCSSType_Value,
@@ -1279,7 +1276,7 @@ CSS_PROP_CONTENT(
     content,
     content,
     Content,
-    CSS_PROPERTY_START_IMAGE_LOADS,
+    0,
     Content,
     mContent,
     eCSSType_ValueList,
@@ -1335,9 +1332,7 @@ CSS_PROP_USERINTERFACE(
     cursor,
     cursor,
     Cursor,
-    CSS_PROPERTY_VALUE_LIST_USES_COMMAS |
-        CSS_PROPERTY_START_IMAGE_LOADS |
-        CSS_PROPERTY_IMAGE_IS_IN_ARRAY_0,
+    CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     UserInterface,
     mCursor,
     eCSSType_ValueList,
@@ -1457,8 +1452,8 @@ CSS_PROP_FONT(
     mStretch,
     eCSSType_Value,
     kFontStretchKTable,
-    offsetof(nsStyleFont, mFont.stretch),
-    eStyleAnimType_Custom)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_FONT(
     font-style,
     font_style,
@@ -1490,8 +1485,8 @@ CSS_PROP_FONT(
     mWeight,
     eCSSType_Value,
     kFontWeightKTable,
-    offsetof(nsStyleFont, mFont.weight),
-    eStyleAnimType_Custom)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_UIRESET(
     -moz-force-broken-image-icon,
     force_broken_image_icon,
@@ -1578,7 +1573,7 @@ CSS_PROP_LIST(
     list-style-image,
     list_style_image,
     ListStyleImage,
-    CSS_PROPERTY_START_IMAGE_LOADS,
+    0,
     List,
     mImage,
     eCSSType_Value,
@@ -2579,8 +2574,9 @@ CSS_PROP_POSITION(
     mZIndex,
     eCSSType_Value,
     nsnull,
-    offsetof(nsStylePosition, mZIndex),
-    eStyleAnimType_Coord)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+
 CSS_PROP_XUL(
     -moz-box-align,
     box_align,

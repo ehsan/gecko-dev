@@ -126,6 +126,13 @@ class PostMessageEvent;
 class nsDOMOfflineResourceList;
 class nsGeolocation;
 
+// permissible values for CheckOpenAllow
+enum OpenAllowValue {
+  allowNot = 0,     // the window opening is denied
+  allowNoAbuse,     // allowed: not a popup
+  allowWhitelisted  // allowed: it's whitelisted or popup blocking is disabled
+};
+
 extern nsresult
 NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,
                           PRBool *aIsInterval,
@@ -184,9 +191,6 @@ struct nsTimeout : PRCList
 
   // stack depth at which timeout is firing
   PRUint32 mFiringDepth;
-
-  // 
-  PRUint32 mNestingLevel;
 
   // The popup state at timeout creation time if not created from
   // another timeout
@@ -568,8 +572,8 @@ protected:
   nsresult BuildURIfromBase(const char *aURL,
                             nsIURI **aBuiltURI,
                             PRBool *aFreeSecurityPass, JSContext **aCXused);
-  PRBool PopupWhitelisted();
-  PopupControlState RevisePopupAbuseLevel(PopupControlState);
+  PopupControlState CheckForAbusePoint();
+  OpenAllowValue CheckOpenAllow(PopupControlState aAbuseLevel);
   void     FireAbuseEvents(PRBool aBlocked, PRBool aWindow,
                            const nsAString &aPopupURL,
                            const nsAString &aPopupWindowName,

@@ -48,7 +48,6 @@
 #   Paul O’Shannessy <paul@oshannessy.com>
 #   Nils Maier <maierman@web.de>
 #   Rob Arnold <robarnold@cmu.edu>
-#   Dietrich Ayala <dietrich@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -152,12 +151,6 @@ XPCOMUtils.defineLazyGetter(this, "Win7Features", function () {
 #endif
   return null;
 });
-
-#ifdef MOZ_CRASHREPORTER
-XPCOMUtils.defineLazyServiceGetter(this, "gCrashReporter",
-                                   "@mozilla.org/xre/app-info;1",
-                                   "nsICrashReporter");
-#endif
 
 /**
 * We can avoid adding multiple load event listeners and save some time by adding
@@ -1294,10 +1287,6 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     Components.utils.reportError("Failed to init content pref service:\n" + ex);
   }
 
-  let NP = {};
-  Cu.import("resource:///modules/NetworkPrioritizer.jsm", NP);
-  NP.trackBrowserWindow(window);
-
   // initialize the session-restore service (in case it's not already running)
   if (document.documentElement.getAttribute("windowtype") == "navigator:browser") {
     try {
@@ -2099,25 +2088,11 @@ function BrowserViewSourceOfDocument(aDocument)
 // imageElement - image to load in the Media Tab of the Page Info window; can be null/omitted
 function BrowserPageInfo(doc, initialTab, imageElement) {
   var args = {doc: doc, initialTab: initialTab, imageElement: imageElement};
-  var windows = Cc['@mozilla.org/appshell/window-mediator;1']
-                  .getService(Ci.nsIWindowMediator)
-                  .getEnumerator("Browser:page-info");
-
-  var documentURL = doc ? doc.location : window.content.document.location;
-
-  // Check for windows matching the url
-  while (windows.hasMoreElements()) {
-    var currentWindow = windows.getNext();
-    if (currentWindow.document.documentElement.getAttribute("relatedUrl") == documentURL) {
-      currentWindow.focus();
-      currentWindow.resetPageInfo(args);
-      return currentWindow;
-    }
-  }
-
-  // We didn't find a matching window, so open a new one.
-  return openDialog("chrome://browser/content/pageinfo/pageInfo.xul", "",
-                    "chrome,toolbar,dialog=no,resizable", args);
+  return toOpenDialogByTypeAndUrl("Browser:page-info",
+                                  doc ? doc.location : window.content.document.location,
+                                  "chrome://browser/content/pageinfo/pageInfo.xul",
+                                  "chrome,toolbar,dialog=no,resizable",
+                                  args);
 }
 
 #ifdef DEBUG
@@ -3274,6 +3249,28 @@ function toOpenWindowByType(inType, uri, features)
     window.open(uri, "_blank", "chrome,extrachrome,menubar,resizable,scrollbars,status,toolbar");
 }
 
+function toOpenDialogByTypeAndUrl(inType, relatedUrl, windowUri, features, extraArgument)
+{
+  var windowManager = Components.classes['@mozilla.org/appshell/window-mediator;1'].getService();
+  var windowManagerInterface = windowManager.QueryInterface(Components.interfaces.nsIWindowMediator);
+  var windows = windowManagerInterface.getEnumerator(inType);
+
+  // Check for windows matching the url
+  while (windows.hasMoreElements()) {
+    var currentWindow = windows.getNext();
+    if (currentWindow.document.documentElement.getAttribute("relatedUrl") == relatedUrl) {
+    	currentWindow.focus();
+    	return;
+    }
+  }
+
+  // We didn't find a matching window, so open a new one.
+  if (features)
+    return window.openDialog(windowUri, "_blank", features, extraArgument);
+
+  return window.openDialog(windowUri, "_blank", "chrome,extrachrome,menubar,resizable,scrollbars,status,toolbar", extraArgument);
+}
+
 function OpenBrowserWindow()
 {
   var charsetArg = new String();
@@ -3773,13 +3770,10 @@ var FullScreen =
       }
     }
 
-    if (aShow) {
+    if (aShow)
       gNavToolbox.removeAttribute("inFullscreen");
-      document.documentElement.removeAttribute("inFullscreen");
-    } else {
+    else
       gNavToolbox.setAttribute("inFullscreen", true);
-      document.documentElement.setAttribute("inFullscreen", true);
-    }
 
     var controls = document.getElementsByAttribute("fullscreencontrol", "true");
     for (var i = 0; i < controls.length; ++i)
@@ -4325,14 +4319,6 @@ var TabsProgressListener = {
   },
 
   onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
-#ifdef MOZ_CRASHREPORTER
-    if (!aRequest.URI)
-      aRequest.QueryInterface(Ci.nsIChannel);
-    if (aStateFlags & Ci.nsIWebProgressListener.STATE_START &&
-        aStateFlags & Ci.nsIWebProgressListener.STATE_IS_DOCUMENT) {
-      gCrashReporter.annotateCrashReport("URL", aRequest.URI.spec);
-    }
-#endif
   },
 
   onLocationChange: function (aBrowser, aWebProgress, aRequest, aLocationURI) {
@@ -5475,9 +5461,9 @@ var OfflineApps = {
   {
     var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
                        getService(Components.interfaces.nsIApplicationCacheService);
-    if (!groups)
-      groups = cacheService.getGroups();
-
+    if (!groups) {
+      groups = cacheService.getGroups({});
+    }
     var ios = Components.classes["@mozilla.org/network/io-service;1"].
               getService(Components.interfaces.nsIIOService);
 
@@ -5952,7 +5938,6 @@ var gMissingPluginInstaller = {
     }
 
     function showOutdatedPluginsInfo() {
-      gPrefService.setBoolPref("plugins.update.notifyUser", false);
       var url = formatURL("plugins.update.url", true);
       gBrowser.loadOneTab(url, {inBackground: false});
       return true;
@@ -6855,7 +6840,6 @@ let gPrivateBrowsingUI = {
     this._observerService = Cc["@mozilla.org/observer-service;1"].
                             getService(Ci.nsIObserverService);
     this._observerService.addObserver(this, "private-browsing", false);
-    this._observerService.addObserver(this, "private-browsing-transition-complete", false);
 
     this._privateBrowsingService = Cc["@mozilla.org/privatebrowsing;1"].
                                    getService(Ci.nsIPrivateBrowsingService);
@@ -6866,19 +6850,6 @@ let gPrivateBrowsingUI = {
 
   uninit: function PBUI_unint() {
     this._observerService.removeObserver(this, "private-browsing");
-    this._observerService.removeObserver(this, "private-browsing-transition-complete");
-  },
-
-  get _disableUIOnToggle PBUI__disableUIOnTogle() {
-    if (this._privateBrowsingService.autoStarted)
-      return false;
-
-    try {
-      return !gPrefService.getBoolPref("browser.privatebrowsing.keep_current_session");
-    }
-    catch (e) {
-      return true;
-    }
   },
 
   observe: function PBUI_observe(aSubject, aTopic, aData) {
@@ -6887,15 +6858,6 @@ let gPrivateBrowsingUI = {
         this.onEnterPrivateBrowsing();
       else if (aData == "exit")
         this.onExitPrivateBrowsing();
-    }
-    else if (aTopic == "private-browsing-transition-complete") {
-      if (this._disableUIOnToggle) {
-        // use setTimeout here in order to make the code testable
-        setTimeout(function() {
-          document.getElementById("Tools:PrivateBrowsing")
-                  .removeAttribute("disabled");
-        }, 0);
-      }
     }
   },
 
@@ -6992,10 +6954,6 @@ let gPrivateBrowsingUI = {
     setTimeout(function () {
       DownloadMonitorPanel.updateStatus();
     }, 0);
-
-    if (this._disableUIOnToggle)
-      document.getElementById("Tools:PrivateBrowsing")
-              .setAttribute("disabled", "true");
   },
 
   onExitPrivateBrowsing: function PBUI_onExitPrivateBrowsing() {
@@ -7046,10 +7004,6 @@ let gPrivateBrowsingUI = {
     setTimeout(function () {
       DownloadMonitorPanel.updateStatus();
     }, 0);
-
-    if (this._disableUIOnToggle)
-      document.getElementById("Tools:PrivateBrowsing")
-              .setAttribute("disabled", "true");
   },
 
   _setPBMenuTitle: function PBUI__setPBMenuTitle(aMode) {
@@ -7170,11 +7124,9 @@ var LightWeightThemeWebInstaller = {
     this._removePreviousNotifications();
 
     var notificationBox = gBrowser.getNotificationBox();
-    var notificationBar =
-      notificationBox.appendNotification(message, "lwtheme-install-request", "",
-                                         notificationBox.PRIORITY_INFO_MEDIUM,
-                                         buttons);
-    notificationBar.persistence = 1;
+    notificationBox.appendNotification(message, "lwtheme-install-request", "",
+                                       notificationBox.PRIORITY_INFO_MEDIUM,
+                                       buttons);
   },
 
   _install: function (newTheme) {
@@ -7208,13 +7160,10 @@ var LightWeightThemeWebInstaller = {
     this._removePreviousNotifications();
 
     var notificationBox = gBrowser.getNotificationBox();
-    var notificationBar =
-      notificationBox.appendNotification(text("message"),
-                                         "lwtheme-install-notification", "",
-                                         notificationBox.PRIORITY_INFO_MEDIUM,
-                                         buttons);
-    notificationBar.persistence = 1;
-    notificationBar.timeout = Date.now() + 20000; // 20 seconds
+    notificationBox.appendNotification(text("message"),
+                                       "lwtheme-install-notification", "",
+                                       notificationBox.PRIORITY_INFO_MEDIUM,
+                                       buttons);
   },
 
   _removePreviousNotifications: function () {
@@ -7283,7 +7232,44 @@ var LightWeightThemeWebInstaller = {
   },
 
   _getThemeFromNode: function (node) {
-    return this._manager.parseTheme(node.getAttribute("data-browsertheme"),
-                                    node.baseURI);
+    const MANDATORY = ["id", "name", "headerURL"];
+    const OPTIONAL = ["footerURL", "textcolor", "accentcolor", "iconURL",
+                      "previewURL", "author", "description", "homepageURL"];
+
+    try {
+      var data = JSON.parse(node.getAttribute("data-browsertheme"));
+    } catch (e) {
+      return null;
+    }
+
+    if (!data || typeof data != "object")
+      return null;
+
+    for (let prop in data) {
+      if (!data[prop] ||
+          typeof data[prop] != "string" ||
+          MANDATORY.indexOf(prop) == -1 && OPTIONAL.indexOf(prop) == -1) {
+        delete data[prop];
+        continue;
+      }
+
+      if (/URL$/.test(prop)) {
+        try {
+          data[prop] = makeURLAbsolute(node.baseURI, data[prop]);
+
+          if (/^https?:/.test(data[prop]))
+            continue;
+        } catch (e) {}
+
+        delete data[prop];
+      }
+    }
+
+    for (let i = 0; i < MANDATORY.length; i++) {
+      if (!(MANDATORY[i] in data)) 
+        return null;
+    }
+
+    return data;
   }
 }

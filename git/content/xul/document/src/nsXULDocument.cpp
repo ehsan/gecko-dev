@@ -2892,8 +2892,7 @@ nsXULDocument::ResumeWalk()
     // <html:script src="..." />) can be properly re-loaded if the
     // cached copy of the document becomes stale.
     nsresult rv;
-    nsCOMPtr<nsIURI> overlayURI =
-        mCurrentPrototype ? mCurrentPrototype->GetURI() : nsnull;
+    nsCOMPtr<nsIURI> overlayURI = mCurrentPrototype->GetURI();
 
     while (1) {
         // Begin (or resume) walking the current prototype.
@@ -4759,7 +4758,6 @@ nsXULDocument::GetDocumentLWTheme()
             content->GetAttr(kNameSpaceID_None, nsGkAtoms::lwtheme, hasLWTheme) &&
             !(hasLWTheme.IsEmpty()) &&
             hasLWTheme.EqualsLiteral("true")) {
-            mDocLWTheme = Doc_Theme_Neutral;
             nsAutoString lwTheme;
             content->GetAttr(kNameSpaceID_None, nsGkAtoms::lwthemetextcolor, lwTheme);
             if (!(lwTheme.IsEmpty())) {

@@ -33,7 +33,6 @@
 
 #include "prtypes.h"
 #include "nsIAtom.h"
-#include "nsHtml5AtomTable.h"
 #include "nsITimer.h"
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
@@ -53,10 +52,8 @@
 #include "nsHtml5StackNode.h"
 #include "nsHtml5TreeOpExecutor.h"
 #include "nsHtml5StreamParser.h"
-#include "nsAHtml5TreeBuilderState.h"
 
 class nsHtml5StreamParser;
-class nsHtml5SpeculativeLoader;
 
 class nsHtml5Tokenizer;
 class nsHtml5MetaScanner;
@@ -68,7 +65,7 @@ class nsHtml5StateSnapshot;
 class nsHtml5Portability;
 
 
-class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
+class nsHtml5TreeBuilder
 {
   private:
     static jArray<PRUnichar,PRInt32> ISINDEX_PROMPT;
@@ -84,13 +81,13 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     PRBool fragment;
     nsIAtom* contextName;
     PRInt32 contextNamespace;
-    nsIContent** contextNode;
+    nsIContent* contextNode;
     jArray<nsHtml5StackNode*,PRInt32> stack;
     PRInt32 currentPtr;
     jArray<nsHtml5StackNode*,PRInt32> listOfActiveFormattingElements;
     PRInt32 listPtr;
-    nsIContent** formPointer;
-    nsIContent** headPointer;
+    nsIContent* formPointer;
+    nsIContent* headPointer;
   protected:
     jArray<PRUnichar,PRInt32> charBuffer;
     PRInt32 charBufferLen;
@@ -157,7 +154,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     void addAttributesToHtml(nsHtml5HtmlAttributes* attributes);
     void pushHeadPointerOntoStack();
     void reconstructTheActiveFormattingElements();
-    void insertIntoFosterParent(nsIContent** child);
+    void insertIntoFosterParent(nsIContent* child);
     PRBool isInStack(nsHtml5StackNode* node);
     void pop();
     void popOnEof();
@@ -172,63 +169,48 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     void appendToCurrentNodeAndPushElementMayFoster(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
     void appendToCurrentNodeAndPushElementMayFosterNoScoping(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
     void appendToCurrentNodeAndPushElementMayFosterCamelCase(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
-    void appendToCurrentNodeAndPushElementMayFoster(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes, nsIContent** form);
-    void appendVoidElementToCurrentMayFoster(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent** form);
+    void appendToCurrentNodeAndPushElementMayFoster(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes, nsIContent* form);
+    void appendVoidElementToCurrentMayFoster(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent* form);
     void appendVoidElementToCurrentMayFoster(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
     void appendVoidElementToCurrentMayFosterCamelCase(PRInt32 ns, nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
-    void appendVoidElementToCurrent(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent** form);
+    void appendVoidElementToCurrent(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent* form);
   protected:
     void accumulateCharacters(PRUnichar* buf, PRInt32 start, PRInt32 length);
     void accumulateCharacter(PRUnichar c);
     void requestSuspension();
-    nsIContent** createElement(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes);
-    nsIContent** createElement(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent** form);
-    nsIContent** createHtmlElementSetAsRoot(nsHtml5HtmlAttributes* attributes);
-    void detachFromParent(nsIContent** element);
-    PRBool hasChildren(nsIContent** element);
-    void appendElement(nsIContent** child, nsIContent** newParent);
-    void appendChildrenToNewParent(nsIContent** oldParent, nsIContent** newParent);
-    void insertFosterParentedChild(nsIContent** child, nsIContent** table, nsIContent** stackParent);
-    void insertFosterParentedCharacters(PRUnichar* buf, PRInt32 start, PRInt32 length, nsIContent** table, nsIContent** stackParent);
-    void appendCharacters(nsIContent** parent, PRUnichar* buf, PRInt32 start, PRInt32 length);
-    void appendComment(nsIContent** parent, PRUnichar* buf, PRInt32 start, PRInt32 length);
+    nsIContent* createElement(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes);
+    nsIContent* createElement(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent* form);
+    nsIContent* createHtmlElementSetAsRoot(nsHtml5HtmlAttributes* attributes);
+    void detachFromParent(nsIContent* element);
+    PRBool hasChildren(nsIContent* element);
+    void appendElement(nsIContent* child, nsIContent* newParent);
+    void appendChildrenToNewParent(nsIContent* oldParent, nsIContent* newParent);
+    void insertFosterParentedChild(nsIContent* child, nsIContent* table, nsIContent* stackParent);
+    void insertFosterParentedCharacters(PRUnichar* buf, PRInt32 start, PRInt32 length, nsIContent* table, nsIContent* stackParent);
+    void appendCharacters(nsIContent* parent, PRUnichar* buf, PRInt32 start, PRInt32 length);
+    void appendComment(nsIContent* parent, PRUnichar* buf, PRInt32 start, PRInt32 length);
     void appendCommentToDocument(PRUnichar* buf, PRInt32 start, PRInt32 length);
-    void addAttributesToElement(nsIContent** element, nsHtml5HtmlAttributes* attributes);
-    void markMalformedIfScript(nsIContent** elt);
+    void addAttributesToElement(nsIContent* element, nsHtml5HtmlAttributes* attributes);
+    void markMalformedIfScript(nsIContent* elt);
     void start(PRBool fragment);
     void end();
     void appendDoctypeToDocument(nsIAtom* name, nsString* publicIdentifier, nsString* systemIdentifier);
-    void elementPushed(PRInt32 ns, nsIAtom* name, nsIContent** node);
-    void elementPopped(PRInt32 ns, nsIAtom* name, nsIContent** node);
+    void elementPushed(PRInt32 ns, nsIAtom* name, nsIContent* node);
+    void elementPopped(PRInt32 ns, nsIAtom* name, nsIContent* node);
   public:
-    void setFragmentContext(nsIAtom* context, PRInt32 ns, nsIContent** node, PRBool quirks);
+    void setFragmentContext(nsIAtom* context, PRInt32 ns, nsIContent* node, PRBool quirks);
   protected:
-    nsIContent** currentNode();
+    nsIContent* currentNode();
   public:
     PRBool isScriptingEnabled();
     void setScriptingEnabled(PRBool scriptingEnabled);
     PRBool inForeign();
-    void flushCharacters();
   private:
+    void flushCharacters();
     PRBool charBufferContainsNonWhitespace();
   public:
-    nsAHtml5TreeBuilderState* newSnapshot();
-    PRBool snapshotMatches(nsAHtml5TreeBuilderState* snapshot);
-    void loadState(nsAHtml5TreeBuilderState* snapshot, nsHtml5AtomTable* interner);
-  private:
-    PRInt32 findInArray(nsHtml5StackNode* node, jArray<nsHtml5StackNode*,PRInt32> arr);
-  public:
-    nsIContent** getFormPointer();
-    nsIContent** getHeadPointer();
-    jArray<nsHtml5StackNode*,PRInt32> getListOfActiveFormattingElements();
-    jArray<nsHtml5StackNode*,PRInt32> getStack();
-    PRInt32 getMode();
-    PRInt32 getOriginalMode();
-    PRInt32 getForeignFlag();
-    PRBool isNeedToDropLF();
-    PRBool isQuirks();
-    PRInt32 getListLength();
-    PRInt32 getStackLength();
+    nsHtml5StateSnapshot* newSnapshot();
+    PRBool snapshotMatches(nsHtml5StateSnapshot* snapshot);
     static void initializeStatics();
     static void releaseStatics();
 

@@ -77,7 +77,7 @@ BROWSER_CHROME_URL = "chrome://browser/content/browser.xul"
 if automation.IS_DEBUG_BUILD:
     SERVER_STARTUP_TIMEOUT = 180
 else:
-    SERVER_STARTUP_TIMEOUT = 90
+    SERVER_STARTUP_TIMEOUT = 45
 
 oldcwd = os.getcwd()
 SCRIPT_DIRECTORY = os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0])))
@@ -99,7 +99,6 @@ class MochitestOptions(optparse.OptionParser):
 
     # we want to pass down everything from automation.__all__
     addCommonOptions(self, defaults=dict(zip(automation.__all__, [getattr(automation, x) for x in automation.__all__])))
-    automation.addExtraCommonOptions(self)
 
     self.add_option("--close-when-done",
                     action = "store_true", dest = "closeWhenDone",
@@ -201,6 +200,12 @@ class MochitestOptions(optparse.OptionParser):
                     help = "sets the given variable in the application's "
                            "environment")
     defaults["environment"] = []
+    
+    self.add_option("--setpref",
+                    action = "append", type = "string",
+                    dest = "extraPrefs", metavar = "PREF=VALUE",
+                    help = "defines an extra user preference")
+    defaults["extraPrefs"] = []    
     
     self.add_option("--browser-arg",
                     action = "append", type = "string",
@@ -450,13 +455,7 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
   if os.path.exists(LEAK_REPORT_FILE):
     os.remove(LEAK_REPORT_FILE)
 
-  # then again to actually run mochitest
-  if options.timeout:
-      timeout = options.timeout + 30
-  elif options.autorun:
-      timeout = None
-  else:
-      timeout = 330.0 # default JS harness timeout is 300 seconds
+  # then again to actually run reftest
   automation.log.info("INFO | runtests.py | Running tests: start.\n")
   status = automation.runApp(testURL, browserEnv, options.app,
                              PROFILE_DIRECTORY, options.browserArgs,
@@ -465,8 +464,7 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
                              xrePath = options.xrePath,
                              certPath=options.certPath,
                              debuggerInfo=debuggerInfo,
-                             symbolsPath=options.symbolsPath,
-                             timeout = timeout)
+                             symbolsPath=options.symbolsPath)
 
   # Server's no longer needed, and perhaps more importantly, anything it might
   # spew to console shouldn't disrupt the leak information table we print next.

@@ -758,6 +758,7 @@ MAKEFILES_xulapp="
   toolkit/mozapps/xpinstall/Makefile
   toolkit/profile/Makefile
   toolkit/profile/public/Makefile
+  toolkit/profile/skin/Makefile
   toolkit/profile/src/Makefile
   toolkit/system/dbus/Makefile
   toolkit/system/gnome/Makefile
@@ -827,10 +828,6 @@ MAKEFILES_libmar="
   modules/libmar/tool/Makefile
 "
 
-MAKEFILES_lib7z="
-  modules/lib7z/Makefile
-"
-
 MAKEFILES_extensions="
   extensions/cookie/Makefile
   extensions/permissions/Makefile
@@ -879,7 +876,6 @@ add_makefiles "
   $MAKEFILES_accessible
   $MAKEFILES_zlib
   $MAKEFILES_libmar
-  $MAKEFILES_lib7z
   $MAKEFILES_extensions
 "
 

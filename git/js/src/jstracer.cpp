@@ -8421,7 +8421,7 @@ TraceRecorder::switchop()
                       "guard(switch on numeric)"),
               BRANCH_EXIT);
     } else if (JSVAL_IS_STRING(v)) {
-        LIns* args[] = { INS_CONSTSTR(JSVAL_TO_STRING(v)), v_ins };
+        LIns* args[] = { v_ins, INS_CONSTSTR(JSVAL_TO_STRING(v)) };
         guard(true,
               addName(lir->ins_eq0(lir->ins_eq0(lir->insCall(&js_EqualStrings_ci, args))),
                       "guard(switch on string)"),
@@ -13448,23 +13448,11 @@ TraceRecorder::record_JSOP_LAMBDA()
      * via identity and mutation. But don't clone if our result is consumed by
      * JSOP_SETMETHOD or JSOP_INITMETHOD, since we optimize away the clone for
      * these combinations and clone only if the "method value" escapes.
-     *
-     * See jsops.cpp, the JSOP_LAMBDA null closure case. The JSOP_SETMETHOD and
-     * JSOP_INITMETHOD logic governing the early ARECORD_CONTINUE returns below
-     * must agree with the corresponding break-from-do-while(0) logic there.
      */
     if (FUN_NULL_CLOSURE(fun) && OBJ_GET_PARENT(cx, FUN_OBJECT(fun)) == globalObj) {
         JSOp op2 = JSOp(cx->fp->regs->pc[JSOP_LAMBDA_LENGTH]);
 
-        if (op2 == JSOP_SETMETHOD) {
-            jsval lval = stackval(-1);
-
-            if (!JSVAL_IS_PRIMITIVE(lval) &&
-                OBJ_GET_CLASS(cx, JSVAL_TO_OBJECT(lval)) == &js_ObjectClass) {
-                stack(0, INS_CONSTOBJ(FUN_OBJECT(fun)));
-                return ARECORD_CONTINUE;
-            }
-        } else if (op2 == JSOP_INITMETHOD) {
+        if (op2 == JSOP_SETMETHOD || op2 == JSOP_INITMETHOD) {
             stack(0, INS_CONSTOBJ(FUN_OBJECT(fun)));
             return ARECORD_CONTINUE;
         }

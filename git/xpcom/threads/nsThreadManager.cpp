@@ -44,10 +44,7 @@
 #include "nsAutoPtr.h"
 #include "nsAutoLock.h"
 
-#ifdef XP_WIN
-#include <windows.h>
-DWORD gTLSIsMainThreadIndex = TlsAlloc();
-#elif defined(NS_TLS)
+#ifdef NS_TLS
 NS_TLS bool gTLSIsMainThread = false;
 #endif
 
@@ -109,9 +106,7 @@ nsThreadManager::Init()
   // GetIsMainThread calls that occur post-Shutdown.
   mMainThread->GetPRThread(&mMainPRThread);
 
-#ifdef XP_WIN
-  TlsSetValue(gTLSIsMainThreadIndex, (void*) 1);
-#elif defined(NS_TLS)
+#ifdef NS_TLS
   gTLSIsMainThread = true;
 #endif
 

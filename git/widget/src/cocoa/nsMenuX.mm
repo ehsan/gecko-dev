@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <dlfcn.h>
-
 #include "nsMenuX.h"
 #include "nsMenuItemX.h"
 #include "nsMenuUtilsX.h"
@@ -95,12 +93,6 @@ nsMenuX::nsMenuX()
                                 @selector(nsMenuX_NSMenu_addItem:toTable:), PR_TRUE);
       nsToolkit::SwizzleMethods([NSMenu class], @selector(_removeItem:fromTable:),
                                 @selector(nsMenuX_NSMenu_removeItem:fromTable:), PR_TRUE);
-      // On SnowLeopard the Shortcut framework (which contains the
-      // SCTGRLIndex class) is loaded on demand, whenever the user first opens
-      // a menu (which normally hasn't happened yet).  So we need to load it
-      // here explicitly.
-      if (nsToolkit::OnSnowLeopardOrLater())
-        dlopen("/System/Library/PrivateFrameworks/Shortcut.framework/Shortcut", RTLD_LAZY);
       Class SCTGRLIndexClass = ::NSClassFromString(@"SCTGRLIndex");
       nsToolkit::SwizzleMethods(SCTGRLIndexClass, @selector(indexMenuBarDynamically),
                                 @selector(nsMenuX_SCTGRLIndex_indexMenuBarDynamically));
@@ -814,50 +806,6 @@ static pascal OSStatus MyMenuEventHandler(EventHandlerCallRef myHandler, EventRe
 
   nsMenuX* targetMenu = static_cast<nsMenuX*>(userData);
   UInt32 kind = ::GetEventKind(event);
-
-  // On SnowLeopard, our Help menu items often get disabled when the user
-  // enters a password after waking from sleep or the screen saver.  Whether
-  // or not the user is prompted for a password is governed by the "Require
-  // password" setting in the Security pref panel.  For more information see
-  // bug 513048.
-  //
-  // This is surely an OS bug, though it's not clear exactly what triggers it.
-  // The end result is that the Help menu's items are turned off in Carbon,
-  // even though they're turned on in Cocoa.  (On SnowLeopard, system menus
-  // are still implemented in Carbon (at least for for 32-bit apps), using the
-  // undocumented NSCarbonMenuImpl class.)  The workaround for this is to do
-  // the following whenever a menu is opened:  If it's the Help menu, check
-  // Carbon and Cocoa enabled states of all its menu items.  If any of these
-  // states don't match, change the Carbon enabled state to match the Cocoa
-  // enabled state.
-  if (nsToolkit::OnSnowLeopardOrLater() && targetMenu && (kind == kEventMenuOpening)) {
-    nsCOMPtr<nsIContent> content(targetMenu->Content());
-    NSMenu *nativeMenu = static_cast<NSMenu*>(targetMenu->NativeData());
-    if (content && nativeMenu) {
-      nsAutoString id;
-      content->GetAttr(kNameSpaceID_None, nsWidgetAtoms::id, id);
-      if (id.Equals(NS_LITERAL_STRING("helpMenu"))) {
-        MenuRef helpMenuRef = _NSGetCarbonMenu(nativeMenu);
-        if (helpMenuRef) {
-          NSArray *items = [nativeMenu itemArray];
-          NSUInteger count = [items count];
-          for (NSUInteger i = 0; i < count; ++i) {
-            NSMenuItem *anItem = (NSMenuItem *) [items objectAtIndex:i];
-            BOOL cocoaEnabled = [anItem isEnabled];
-            Boolean carbonEnabled = ::IsMenuItemEnabled(helpMenuRef, i+1);
-            if (carbonEnabled != cocoaEnabled) {
-              if (!carbonEnabled) {
-                ::EnableMenuItem(helpMenuRef, i+1);
-              } else {
-                ::DisableMenuItem(helpMenuRef, i+1);
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
   if (kind == kEventMenuTargetItem) {
     // get the position of the menu item we want
     PRUint16 aPos;
@@ -995,12 +943,6 @@ static OSStatus InstallMyMenuEventHandler(MenuRef menuRef, void* userData, Event
   if (!mGeckoMenu)
     return;
 
-  // Don't do anything while the OS is (re)indexing our menus (on Leopard and
-  // higher).  This stops the Help menu from being able to search in our
-  // menus, but it also resolves many other problems.
-  if (nsMenuX::sIndexingMenuLevel > 0)
-    return;
-
   if (gRollupListener && gRollupWidget) {
     gRollupListener->Rollup(nsnull, nsnull);
     [menu cancelTracking];
@@ -1012,12 +954,6 @@ static OSStatus InstallMyMenuEventHandler(MenuRef menuRef, void* userData, Event
 - (void)menuDidClose:(NSMenu *)menu
 {
   if (!mGeckoMenu)
-    return;
-
-  // Don't do anything while the OS is (re)indexing our menus (on Leopard and
-  // higher).  This stops the Help menu from being able to search in our
-  // menus, but it also resolves many other problems.
-  if (nsMenuX::sIndexingMenuLevel > 0)
     return;
 
   mGeckoMenu->MenuClosed();

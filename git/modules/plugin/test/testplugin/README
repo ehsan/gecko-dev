@@ -25,13 +25,6 @@ digits, 2 per channel in AARRGGBB format.
 Attempts to set the value of an undefined variable (0x0) via NPN_SetValue,
 returns true if it succeeds and false if it doesn't. It should never succeed.
 
-== NPN_ConvertPoint testing ==
-
-* convertPointX(sourceSpace, sourceX, sourceY, destSpace)
-* convertPointY(sourceSpace, sourceX, sourceY, destSpace)
-The plugin uses NPN_ConvertPoint to convert sourceX and sourceY from the source
-to dest space and returns the X or Y result based on the call.
-
 == NPRuntime testing ==
 
 The test plugin object supports the following scriptable methods:
@@ -102,13 +95,8 @@ wmode="window" was specified and the platform supports windowed plugins.
 
 * setColor(colorString)
 Sets the color used for drawmode="solid" and invalidates the plugin area.
-This calls NPN_Invalidate, even for windowed plugins, since that should work
-for windowed plugins too (Silverlight depends on it).
-
-* getPaintCount()
-Returns the number of times this plugin instance has processed a paint request.
-This can be used to detect whether painting has happened in a plugin's
-window.
+For now, invalidation only works for windowless plugins (including Mac
+plugins).
 
 == Plugin geometry ==
 

@@ -72,11 +72,8 @@ GetCSSComputedValue(nsIContent* aElem,
   nsIDocument* doc = aElem->GetCurrentDoc();
   NS_ABORT_IF_FALSE(doc,"any target element that's actively being animated "
                     "must be in a document");
-
-  nsPIDOMWindow* win = doc->GetWindow();
-  NS_ABORT_IF_FALSE(win, "actively animated document w/ no window");
   nsRefPtr<nsComputedDOMStyle>
-    computedStyle(win->LookupComputedStyleFor(aElem));
+    computedStyle(doc->GetWindow()->LookupComputedStyleFor(aElem));
   if (computedStyle) {
     // NOTE: This will produce an empty string for shorthand values
     computedStyle->GetPropertyValue(aPropID, aResult);
@@ -254,10 +251,10 @@ nsSMILCSSProperty::IsPropertyAnimatable(nsCSSProperty aPropID)
     // case eCSSProperty_font_family:
     case eCSSProperty_font_size:
     case eCSSProperty_font_size_adjust:
-    case eCSSProperty_font_stretch:
+    // case eCSSProperty_font_stretch:
     case eCSSProperty_font_style:
     case eCSSProperty_font_variant:
-    case eCSSProperty_font_weight:
+    // case eCSSProperty_font_weight:
     case eCSSProperty_image_rendering:
     case eCSSProperty_letter_spacing:
     case eCSSProperty_lighting_color:

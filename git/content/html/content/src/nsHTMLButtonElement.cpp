@@ -61,7 +61,6 @@
 #include "nsPresState.h"
 #include "nsLayoutErrors.h"
 #include "nsFocusManager.h"
-#include "nsHTMLFormElement.h"
 
 #define NS_IN_SUBMIT_CLICK      (1 << 0)
 #define NS_OUTER_ACTIVATE_EVENT (1 << 1)
@@ -465,9 +464,8 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
         // Using presShell to dispatch the event. It makes sure that
         // event is not handled if the window is being destroyed.
         if (presShell) {
-          // Hold a strong ref while dispatching
-          nsRefPtr<nsHTMLFormElement> form(mForm);
-          presShell->HandleDOMEventWithTarget(mForm, &event, &status);
+          nsCOMPtr<nsIContent> form(do_QueryInterface(mForm));
+          presShell->HandleDOMEventWithTarget(form, &event, &status);
         }
       }
     }

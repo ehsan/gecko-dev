@@ -335,24 +335,23 @@ PlacesTreeView.prototype = {
   },
 
   _convertPRTimeToString: function PTV__convertPRTimeToString(aTime) {
-    const MS_PER_MINUTE = 60000;
-    const MS_PER_DAY = 86400000;
-    let timeMs = aTime / 1000; // PRTime is in microseconds
+    var timeInMilliseconds = aTime / 1000; // PRTime is in microseconds
 
     // Date is calculated starting from midnight, so the modulo with a day are
     // milliseconds from today's midnight.
-    // getTimezoneOffset corrects that based on local time, notice midnight
-    // can have a different offset during DST-change days.
-    let dateObj = new Date();
-    let now = dateObj.getTime() - dateObj.getTimezoneOffset() * MS_PER_MINUTE;
-    let midnight = now - (now % MS_PER_DAY);
-    midnight += new Date(midnight).getTimezoneOffset() * MS_PER_MINUTE;
+    // getTimezoneOffset corrects that based on local time.
+    // 86400000 = 24 * 60 * 60 * 1000 = 1 day
+    // 60000 = 60 * 1000 = 1 minute
+    var dateObj = new Date();
+    var timeZoneOffsetInMs = dateObj.getTimezoneOffset() * 60000;
+    var now = dateObj.getTime() - timeZoneOffsetInMs;
+    var midnight = now - (now % (86400000));
 
-    let dateFormat = timeMs >= midnight ?
+    var dateFormat = timeInMilliseconds - timeZoneOffsetInMs >= midnight ?
                       Ci.nsIScriptableDateFormat.dateFormatNone :
                       Ci.nsIScriptableDateFormat.dateFormatShort;
 
-    let timeObj = new Date(timeMs);
+    var timeObj = new Date(timeInMilliseconds);
     return (this._dateService.FormatDateTime("", dateFormat,
       Ci.nsIScriptableDateFormat.timeFormatNoSeconds,
       timeObj.getFullYear(), timeObj.getMonth() + 1,

@@ -113,17 +113,6 @@ public:
                                mozIStorageStatementCallback *aCallback);
 
   /**
-   * Checks to see if a favicon's URI has changed, and notifies callers if it
-   * has.
-   *
-   * @param aPageURI
-   *        The URI of the page aFaviconURI is for.
-   * @param aFaviconURI
-   *        The URI for the favicon we want to test for on aPageURI.
-   */
-  void checkAndNotify(nsIURI *aPageURI, nsIURI *aFaviconURI);
-
-  /**
    * Finalize all internal statements.
    */
   nsresult FinalizeStatements();
@@ -153,9 +142,9 @@ private:
    */
   nsCOMPtr<nsIURI> mDefaultIcon;
 
-  // Set to true during favicons expiration, addition of new favicons won't be
-  // allowed till expiration has finished since those should then be expired.
-  bool mFaviconsExpirationRunning;
+  // Set to true during expiration, addition of new favicons won't be allowed
+  // till expiration has finished.
+  bool mExpirationRunning;
 
   // The target dimension, in pixels, for favicons we optimize.
   // If we find images that are as large or larger than an uncompressed RGBA

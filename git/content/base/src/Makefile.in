@@ -84,7 +84,7 @@ CPPSRCS		= \
 		nsDOMAttributeMap.cpp \
 		nsDOMDocumentType.cpp \
 		nsDOMFile.cpp \
-		nsDOMFileReader.cpp \
+		nsDOMFileRequest.cpp \
 		nsDOMLists.cpp \
 		nsDOMParser.cpp \
 		nsDOMSerializer.cpp \
@@ -132,7 +132,6 @@ CPPSRCS		= \
 		nsXMLContentSerializer.cpp \
 		nsXMLHttpRequest.cpp \
 		nsXMLNameSpaceMap.cpp \
-		Link.cpp \
 		$(NULL)
 
 GQI_SRCS = contentbase.gqi

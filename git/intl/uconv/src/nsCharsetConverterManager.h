@@ -41,7 +41,6 @@
 #include "nsICharsetConverterManager.h"
 #include "nsIStringBundle.h"
 #include "nsInterfaceHashtable.h"
-#include "mozilla/Mutex.h"
 
 #ifdef MOZ_USE_NATIVE_UCONV
 #include "nsINativeUConvService.h"
@@ -69,7 +68,6 @@ private:
 #endif
 
   nsInterfaceHashtable<nsCharPtrHashKey, nsIUnicodeDecoder> mDecoderHash;
-  mozilla::Mutex                                            mDecoderHashMutex;
 
   nsresult LoadExtensibleBundle(const char * aRegistryKey, 
       nsIStringBundle ** aResult);

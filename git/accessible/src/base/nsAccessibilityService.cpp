@@ -127,7 +127,8 @@ nsAccessibilityService::nsAccessibilityService()
   nsCOMPtr<nsIWebProgress> progress(do_GetService(NS_DOCUMENTLOADER_SERVICE_CONTRACTID));
   if (progress) {
     progress->AddProgressListener(static_cast<nsIWebProgressListener*>(this),
-                                  nsIWebProgress::NOTIFY_STATE_DOCUMENT);
+                                  nsIWebProgress::NOTIFY_STATE_DOCUMENT |
+                                  nsIWebProgress::NOTIFY_LOCATION);
   }
 
   // Initialize accessibility.
@@ -265,35 +266,6 @@ NS_IMETHODIMP nsAccessibilityService::ProcessDocLoadEvent(nsITimer *aTimer, void
 }
 
 NS_IMETHODIMP
-nsAccessibilityService::NotifyOfAnchorJumpTo(nsIContent *aTarget)
-{
-  nsCOMPtr<nsIDOMNode> targetNode(do_QueryInterface(aTarget));
-
-  nsCOMPtr<nsIAccessible> targetAcc;
-  GetAccessibleFor(targetNode, getter_AddRefs(targetAcc));
-
-  // If the jump target is not accessible then fire an event for nearest
-  // accessible in parent chain.
-  if (!targetAcc) {
-    nsIDocument *document = aTarget->GetCurrentDoc();
-    nsCOMPtr<nsIDOMNode> documentNode(do_QueryInterface(document));
-    if (documentNode) {
-      nsCOMPtr<nsIAccessibleDocument> accessibleDoc =
-        nsAccessNode::GetDocAccessibleFor(documentNode);
-      if (accessibleDoc)
-        accessibleDoc->GetAccessibleInParentChain(targetNode, PR_TRUE,
-                                                  getter_AddRefs(targetAcc));
-    }
-  }
-
-  if (targetAcc)
-    return nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_SCROLLING_START,
-                                    targetAcc);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsAccessibilityService::FireAccessibleEvent(PRUint32 aEvent,
                                             nsIAccessible *aTarget)
 {
@@ -337,7 +309,28 @@ NS_IMETHODIMP nsAccessibilityService::OnProgressChange(nsIWebProgress *aWebProgr
 NS_IMETHODIMP nsAccessibilityService::OnLocationChange(nsIWebProgress *aWebProgress,
   nsIRequest *aRequest, nsIURI *location)
 {
-  NS_NOTREACHED("notification excluded in AddProgressListener(...)");
+  // If the document is already loaded, this will just check to see
+  // if an anchor jump event needs to be fired.
+  // If there is no accessible for the document, we will ignore
+  // this and the anchor jump event will be fired via OnStateChange
+  // and nsIAccessibleStates::STATE_STOP
+  nsCOMPtr<nsIDOMWindow> domWindow;
+  aWebProgress->GetDOMWindow(getter_AddRefs(domWindow));
+  NS_ASSERTION(domWindow, "DOM Window for state change is null");
+  NS_ENSURE_TRUE(domWindow, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  domWindow->GetDocument(getter_AddRefs(domDoc));
+  nsCOMPtr<nsIDOMNode> domDocRootNode(do_QueryInterface(domDoc));
+  NS_ENSURE_TRUE(domDocRootNode, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsIAccessibleDocument> accessibleDoc =
+    nsAccessNode::GetDocAccessibleFor(domDocRootNode);
+  nsRefPtr<nsDocAccessible> docAcc =
+    nsAccUtils::QueryAccessibleDocument(accessibleDoc);
+  if (docAcc)
+    docAcc->FireAnchorJumpEvent();
+
   return NS_OK;
 }
 
@@ -362,14 +355,10 @@ nsresult
 nsAccessibilityService::GetInfo(nsIFrame* aFrame, nsIWeakReference** aShell, nsIDOMNode** aNode)
 {
   NS_ASSERTION(aFrame,"Error -- 1st argument (aFrame) is null!!");
-  if (!aFrame) {
-    return NS_ERROR_FAILURE;
-  }
   nsCOMPtr<nsIContent> content = aFrame->GetContent();
   nsCOMPtr<nsIDOMNode> node(do_QueryInterface(content));
   if (!content || !node)
     return NS_ERROR_FAILURE;
-
   *aNode = node;
   NS_IF_ADDREF(*aNode);
 
@@ -1330,12 +1319,6 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
 
   *aIsHidden = PR_FALSE;
 
-  // Frames can be deallocated when we flush layout, or when we call into code
-  // that can flush layout, either directly, or via DOM manipulation, or some
-  // CSS styles like :hover. We use the weak frame checks to avoid calling
-  // methods on a dead frame pointer.
-  nsWeakFrame weakFrame(*aFrameHint);
-
 #ifdef DEBUG_A11Y
   // Please leave this in for now, it's a convenient debugging method
   nsAutoString name;
@@ -1406,15 +1389,15 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
   }
 
   // We have a content node
+  nsIFrame *frame = *aFrameHint;
 #ifdef DEBUG_A11Y
   static int frameHintFailed, frameHintTried, frameHintNonexistant, frameHintFailedForText;
   ++frameHintTried;
 #endif
-
-  if (!weakFrame.GetFrame() || content != weakFrame.GetFrame()->GetContent()) {
+  if (!frame || content != frame->GetContent()) {
     // Frame hint not correct, get true frame, we try to optimize away from this
-    weakFrame = aPresShell->GetRealPrimaryFrameFor(content);
-    if (weakFrame.GetFrame()) {
+    frame = aPresShell->GetRealPrimaryFrameFor(content);
+    if (frame) {
 #ifdef DEBUG_A11Y_FRAME_OPTIMIZATION
       // Frame hint debugging
       ++frameHintFailed;
@@ -1427,18 +1410,18 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
         printf("* "); // Aaron's break point
       }
 #endif
-      if (weakFrame.GetFrame()->GetContent() != content) {
+      if (frame->GetContent() != content) {
         // Not the main content for this frame!
         // For example, this happens because <area> elements return the
         // image frame as their primary frame. The main content for the 
         // image frame is the image content.
 
         // Check if frame is an image frame, and content is <area>
-        nsIImageFrame *imageFrame = do_QueryFrame(weakFrame.GetFrame());
+        nsIImageFrame *imageFrame = do_QueryFrame(frame);
         nsCOMPtr<nsIDOMHTMLAreaElement> areaElmt = do_QueryInterface(content);
         if (imageFrame && areaElmt) {
           nsCOMPtr<nsIAccessible> imageAcc;
-          CreateHTMLImageAccessible(weakFrame.GetFrame(), getter_AddRefs(imageAcc));
+          CreateHTMLImageAccessible(frame, getter_AddRefs(imageAcc));
           if (imageAcc) {
             // cache children
             PRInt32 childCount;
@@ -1450,44 +1433,34 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
 
         return NS_OK;
       }
-      *aFrameHint = weakFrame.GetFrame();
+      *aFrameHint = frame;
     }
   }
 
   // Check frame to see if it is hidden
-  if (!weakFrame.GetFrame() ||
-      !weakFrame.GetFrame()->GetStyleVisibility()->IsVisible()) {
+  if (!frame || !frame->GetStyleVisibility()->IsVisible()) {
     *aIsHidden = PR_TRUE;
   }
 
-  if (*aIsHidden) {
-    *aFrameHint = weakFrame.GetFrame();
+  if (*aIsHidden)
     return NS_OK;
-  }
 
   /**
    * Attempt to create an accessible based on what we know
    */
   if (content->IsNodeOfType(nsINode::eTEXT)) {
     // --- Create HTML for visible text frames ---
-    nsIFrame* f = weakFrame.GetFrame();
-    if (f && f->IsEmpty()) {
+    if (frame->IsEmpty()) {
       nsAutoString renderedWhitespace;
-      f->GetRenderedText(&renderedWhitespace, nsnull, nsnull, 0, 1);
+      frame->GetRenderedText(&renderedWhitespace, nsnull, nsnull, 0, 1);
       if (renderedWhitespace.IsEmpty()) {
         // Really empty -- nothing is rendered
         *aIsHidden = PR_TRUE;
-        *aFrameHint = weakFrame.GetFrame();
         return NS_OK;
       }
     }
-    if (weakFrame.IsAlive()) {
-      weakFrame.GetFrame()->GetAccessible(getter_AddRefs(newAcc));
-    }
-
-    nsresult rv = InitAccessible(newAcc, aAccessible, nsnull);
-    *aFrameHint = weakFrame.GetFrame();
-    return rv;
+    frame->GetAccessible(getter_AddRefs(newAcc));
+    return InitAccessible(newAcc, aAccessible, nsnull);
   }
 
   PRBool isHTML = content->IsHTML();
@@ -1504,16 +1477,11 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
     content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::name, name);
     if (!name.IsEmpty()) {
       *aIsHidden = PR_TRUE;
-      *aFrameHint = weakFrame.GetFrame();
       return NS_OK;
     }
     
-    nsresult rv =
-      CreateHyperTextAccessible(weakFrame.GetFrame(), getter_AddRefs(newAcc));
-    if (NS_FAILED(rv)) {
-      *aFrameHint = weakFrame.GetFrame();
-      return rv;
-    }
+    nsresult rv = CreateHyperTextAccessible(frame, getter_AddRefs(newAcc));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   nsRoleMapEntry *roleMapEntry = nsAccUtils::GetRoleMapEntry(aNode);
@@ -1522,14 +1490,13 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
     // Only create accessible for role of "presentation" if it is focusable --
     // in that case we need an accessible in case it gets focused, we
     // don't want focus ever to be 'lost'
-    *aFrameHint = weakFrame.GetFrame();
     return NS_OK;
   }
 
-  if (weakFrame.IsAlive() && !newAcc && isHTML) {  // HTML accessibles
+  if (!newAcc && isHTML) {  // HTML accessibles
     PRBool tryTagNameOrFrame = PR_TRUE;
 
-    nsIAtom *frameType = weakFrame.GetFrame()->GetType();
+    nsIAtom *frameType = frame->GetType();
 
     PRBool partOfHTMLTable =
       frameType == nsAccessibilityAtoms::tableCaptionFrame ||
@@ -1580,7 +1547,6 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
             // presentation if they aren't focusable and have not explicit ARIA
             // role (don't create accessibles for them unless they need to fire
             // focus events).
-            *aFrameHint = weakFrame.GetFrame();
             return NS_OK;
           }
 
@@ -1625,13 +1591,9 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
       // The method creates accessibles for table related content too therefore
       // we do not call it if accessibles for table related content are
       // prevented above.
-      nsresult rv =
-        CreateHTMLAccessibleByMarkup(weakFrame.GetFrame(), aWeakShell, aNode,
-                                     getter_AddRefs(newAcc));
-      if (NS_FAILED(rv)) {
-        *aFrameHint = weakFrame.GetFrame();
-        return rv;
-      }
+      nsresult rv = CreateHTMLAccessibleByMarkup(frame, aWeakShell, aNode,
+                                                 getter_AddRefs(newAcc));
+      NS_ENSURE_SUCCESS(rv, rv);
 
       if (!newAcc) {
         // Do not create accessible object subtrees for non-rendered table
@@ -1640,19 +1602,14 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
         // the table caption would still be created. By setting
         // *aIsHidden = PR_TRUE we ensure that no descendant accessibles are
         // created.
-        nsIFrame* f = weakFrame.GetFrame();
-        if (!f) {
-          f = aPresShell->GetRealPrimaryFrameFor(content);
-        }
-        if (f->GetType() == nsAccessibilityAtoms::tableCaptionFrame &&
-           f->GetRect().IsEmpty()) {
+        if (frame->GetType() == nsAccessibilityAtoms::tableCaptionFrame &&
+           frame->GetRect().IsEmpty()) {
           // XXX This is not the ideal place for this code, but right now there
           // is no better place:
           *aIsHidden = PR_TRUE;
-          *aFrameHint = weakFrame.GetFrame();
           return NS_OK;
         }
-        f->GetAccessible(getter_AddRefs(newAcc)); // Try using frame to do it
+        frame->GetAccessible(getter_AddRefs(newAcc)); // Try using frame to do it
       }
     }
   }
@@ -1661,10 +1618,7 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
     // Elements may implement nsIAccessibleProvider via XBL. This allows them to
     // say what kind of accessible to create.
     nsresult rv = GetAccessibleByType(aNode, getter_AddRefs(newAcc));
-    if (NS_FAILED(rv)) {
-      *aFrameHint = weakFrame.GetFrame();
-      return rv;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (!newAcc) {
@@ -1690,7 +1644,7 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
   // We don't do this for <body>, <html>, <window>, <dialog> etc. which 
   // correspond to the doc accessible and will be created in any case
   if (!newAcc && content->Tag() != nsAccessibilityAtoms::body && content->GetParent() && 
-      ((weakFrame.GetFrame() && weakFrame.GetFrame()->IsFocusable()) ||
+      (frame->IsFocusable() ||
        (isHTML && nsCoreUtils::HasListener(content, NS_LITERAL_STRING("click"))) ||
        HasUniversalAriaProperty(content, aWeakShell) || roleMapEntry ||
        HasRelatedContent(content) || nsCoreUtils::IsXLink(content))) {
@@ -1699,7 +1653,7 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
     // other accessibles can point to it, or so that it can hold a state, etc.
     if (isHTML) {
       // Interesting HTML container which may have selectable text and/or embedded objects
-      CreateHyperTextAccessible(weakFrame.GetFrame(), getter_AddRefs(newAcc));
+      CreateHyperTextAccessible(frame, getter_AddRefs(newAcc));
     }
     else {  // XUL, SVG, MathML etc.
       // Interesting generic non-HTML container
@@ -1707,9 +1661,7 @@ NS_IMETHODIMP nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
     }
   }
 
-  nsresult rv = InitAccessible(newAcc, aAccessible, roleMapEntry);
-  *aFrameHint = weakFrame.GetFrame();
-  return rv;
+  return InitAccessible(newAcc, aAccessible, roleMapEntry);
 }
 
 PRBool

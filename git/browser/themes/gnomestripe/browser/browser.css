@@ -229,7 +229,9 @@ menuitem:not([type]) {
 }
 
 #menu_close {
-  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
+  /*XXX Avoiding size=menu as some themes (e.g. Human) don't provide the icon
+        at 16*16px (bug 426930), and upscaled images are ugly (bug 422179). */
+  list-style-image: url("moz-icon://stock/gtk-close?size=toolbar");
 }
 
 #context-media-play {
@@ -974,7 +976,7 @@ toolbar[iconsize="small"] #fullscreen-button {
 
 .ac-result-type-keyword,
 .autocomplete-treebody::-moz-tree-image(keyword, treecolAutoCompleteImage) {
-  list-style-image: url(moz-icon://stock/gtk-find?size=menu);
+  list-style-image: url(chrome://global/skin/icons/Search-glass.png);
   width: 16px;
   height: 16px;
 }
@@ -1093,15 +1095,11 @@ statusbarpanel#statusbar-display {
   width: 16px;
   min-height: 16px;
   margin: 0 3px;
+  list-style-image: url("chrome://global/skin/icons/notloading_16.png");
 }
 
 #navigator-throbber[busy="true"] {
   list-style-image: url("chrome://global/skin/icons/loading_16.png");
-}
-
-#navigator-throbber,
-#wrapper-navigator-throbber > #navigator-throbber {
-  list-style-image: url("chrome://global/skin/icons/notloading_16.png");
 }
 
 
@@ -1191,7 +1189,9 @@ tabpanels {
 }
 
 #context_closeTab {
-  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
+  /*XXX Avoiding size=menu as some themes (e.g. Human) don't provide the icon
+        at 16*16px (bug 426930), and upscaled images are ugly (bug 422179). */
+  list-style-image: url("moz-icon://stock/gtk-close?size=toolbar");
 }
 
 /* tabbrowser-tab focus ring */
@@ -1268,27 +1268,19 @@ tabpanels {
 }
 
 .tabs-closebutton > .toolbarbutton-icon {
-  /* XXX Buttons have padding in widget/ that we don't want here but can't override with good CSS, so we must
-     use evil CSS to give the impression of smaller content */
-  margin: -2px;
+  margin: 0;
 }
 
 /* Tabbrowser arrowscrollbox arrows */
 .tabbrowser-arrowscrollbox > .scrollbutton-up {
   -moz-appearance: tab-scroll-arrow-back;
-  margin: 0;
+  margin: 0px;
 }
 
 .tabbrowser-arrowscrollbox > .scrollbutton-down {
   -moz-appearance: tab-scroll-arrow-forward;
-  margin: 0;
-  -moz-transition: 1s -moz-box-shadow ease-out;
-  -moz-border-radius: 4px;
-}
-
-.tabbrowser-arrowscrollbox > .scrollbutton-down[notifybgtab] {
-  -moz-box-shadow: 0 0 7px 5px Highlight inset;
-  -moz-transition: none;
+  margin: 0px;
+  outline-color: Highlight;
 }
 
 .tabs-alltabs-button {

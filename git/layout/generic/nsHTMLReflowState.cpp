@@ -734,7 +734,7 @@ nsHTMLReflowState::GetHypotheticalBoxContainer(nsIFrame* aFrame,
     NS_ASSERTION(aFrame, "Must find containing block somewhere");
   } while (!(aFrame->IsContainingBlock() ||
              (aFrame->IsFrameOfType(nsIFrame::eBlockFrame) &&
-              IsAnonBlockPseudo(aFrame->GetStyleContext()->GetPseudo()))));
+              IsAnonBlockPseudo(aFrame->GetStyleContext()->GetPseudoType()))));
 
   NS_ASSERTION(aFrame != frame, "How did that happen?");
 

@@ -59,30 +59,6 @@ typedef struct _nsCocoaWindowList {
   nsCocoaWindow *window; // Weak
 } nsCocoaWindowList;
 
-// NSWindow subclass that is the base class for all of our own window classes.
-// This class handles the storage of those settings that need to be persisted
-// across window destruction and reconstruction, i.e. when switching to and from
-// fullscreen mode.
-// We don't save shadow, transparency mode or background color because it's not
-// worth the hassle - Gecko will reset them anyway as soon as the window is
-// resized.
-@interface BaseWindow : NSWindow
-{
-  NSMutableDictionary* mState;
-  BOOL mDrawsIntoWindowFrame;
-  NSColor* mActiveTitlebarColor;
-  NSColor* mInactiveTitlebarColor;
-}
-
-- (void)importState:(NSDictionary*)aState;
-- (NSMutableDictionary*)exportState;
-- (void)setDrawsContentsIntoWindowFrame:(BOOL)aState;
-- (BOOL)drawsContentsIntoWindowFrame;
-- (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
-- (NSColor*)titlebarColorForActiveWindow:(BOOL)aActive;
-
-@end
-
 @interface NSWindow (Undocumented)
 
 // If a window has been explicitly removed from the "window cache" (to
@@ -99,7 +75,7 @@ typedef struct _nsCocoaWindowList {
 
 @end
 
-@interface PopupWindow : BaseWindow
+@interface PopupWindow : NSWindow
 {
 @private
   BOOL mIsContextMenu;
@@ -112,7 +88,7 @@ typedef struct _nsCocoaWindowList {
 
 @end
 
-@interface BorderlessWindow : BaseWindow
+@interface BorderlessWindow : NSWindow
 {
 }
 
@@ -153,21 +129,35 @@ struct UnifiedGradientInfo {
 // and for background of the window.
 @interface TitlebarAndBackgroundColor : NSColor
 {
+  NSColor *mActiveTitlebarColor;
+  NSColor *mInactiveTitlebarColor;
+  NSColor *mBackgroundColor;
   ToolbarWindow *mWindow; // [WEAK] (we are owned by the window)
 }
 
-- (id)initWithWindow:(ToolbarWindow*)aWindow;
+- (id)initWithActiveTitlebarColor:(NSColor*)aActiveTitlebarColor
+            inactiveTitlebarColor:(NSColor*)aInactiveTitlebarColor
+                  backgroundColor:(NSColor*)aBackgroundColor
+                        forWindow:(ToolbarWindow*)aWindow;
 
+// Pass nil here to get the default appearance.
+- (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
+- (NSColor*)activeTitlebarColor;
+- (NSColor*)inactiveTitlebarColor;
+
+- (void)setBackgroundColor:(NSColor*)aColor;
+- (NSColor*)backgroundColor;
+
+- (ToolbarWindow*)window;
 @end
 
 // NSWindow subclass for handling windows with toolbars.
-@interface ToolbarWindow : BaseWindow
+@interface ToolbarWindow : NSWindow
 {
   TitlebarAndBackgroundColor *mColor;
   float mUnifiedToolbarHeight;
-  NSColor *mBackgroundColor;
+  BOOL mDrawsIntoWindowFrame;
 }
-// Pass nil here to get the default appearance.
 - (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
 - (void)setUnifiedToolbarHeight:(float)aToolbarHeight;
 - (float)unifiedToolbarHeight;
@@ -176,6 +166,10 @@ struct UnifiedGradientInfo {
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect sync:(BOOL)aSync;
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect;
 - (void)setDrawsContentsIntoWindowFrame:(BOOL)aState;
+- (BOOL)drawsContentsIntoWindowFrame;
+// This method is also available on NSWindows (via a category), and is the 
+// preferred way to check the background color of a window.
+- (NSColor*)windowBackgroundColor;
 @end
 
 class nsCocoaWindow : public nsBaseWidget, public nsPIWidgetCocoa
@@ -272,6 +266,8 @@ public:
     // nsIKBStateControl interface
     NS_IMETHOD ResetInputState();
     
+    void MakeBackgroundTransparent(PRBool aTransparent);
+
     NS_IMETHOD BeginSecureKeyboardInput();
     NS_IMETHOD EndSecureKeyboardInput();
 
@@ -290,7 +286,7 @@ protected:
   void                 DestroyNativeWindow();
 
   nsIWidget*           mParent;         // if we're a popup, this is our parent [WEAK]
-  BaseWindow*          mWindow;         // our cocoa window [STRONG]
+  NSWindow*            mWindow;         // our cocoa window [STRONG]
   WindowDelegate*      mDelegate;       // our delegate for processing window msgs [STRONG]
   nsRefPtr<nsMenuBarX> mMenuBar;
   NSWindow*            mSheetWindowParent; // if this is a sheet, this is the NSWindow it's attached to

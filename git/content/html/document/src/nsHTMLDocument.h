@@ -177,10 +177,6 @@ public:
   virtual PRInt32 GetNumFormsSynchronous();
   virtual void TearingDownEditor(nsIEditor *aEditor);
   virtual void SetIsXHTML(PRBool aXHTML) { mIsRegularHTML = !aXHTML; }
-  virtual void SetDocWriteDisabled(PRBool aDisabled)
-  {
-    mDisableDocWrite = aDisabled;
-  }
 
   nsresult ChangeContentEditableCount(nsIContent *aElement, PRInt32 aChange);
 
@@ -341,8 +337,6 @@ protected:
   PRPackedBool mIsFrameset;
 
   PRPackedBool mTooDeepWriteRecursion;
-
-  PRPackedBool mDisableDocWrite;
 
   nsCOMPtr<nsIWyciwygChannel> mWyciwygChannel;
 

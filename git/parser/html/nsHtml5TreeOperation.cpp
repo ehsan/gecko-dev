@@ -48,20 +48,9 @@
 #include "nsBindingManager.h"
 #include "nsXBLBinding.h"
 #include "nsHtml5DocumentMode.h"
-#include "nsHtml5HtmlAttributes.h"
-#include "nsContentCreatorFunctions.h"
-#include "nsIScriptElement.h"
-#include "nsIDTD.h"
-#include "nsTraceRefcnt.h"
-#include "nsIDOMHTMLFormElement.h"
-#include "nsIFormControl.h"
-#include "nsIStyleSheetLinkingElement.h"
-#include "nsIDOMDocumentType.h"
 
 nsHtml5TreeOperation::nsHtml5TreeOperation()
-#ifdef DEBUG
- : mOpCode(eTreeOpUninitialized)
-#endif
+ : mOpCode(eTreeOpAppend)
 {
   MOZ_COUNT_CTOR(nsHtml5TreeOperation);
 }
@@ -69,28 +58,6 @@ nsHtml5TreeOperation::nsHtml5TreeOperation()
 nsHtml5TreeOperation::~nsHtml5TreeOperation()
 {
   MOZ_COUNT_DTOR(nsHtml5TreeOperation);
-  NS_ASSERTION(mOpCode != eTreeOpUninitialized, "Uninitialized tree op.");
-  switch(mOpCode) {
-    case eTreeOpAddAttributes:
-      delete mTwo.attributes;
-      break;
-    case eTreeOpCreateElement:
-      delete mThree.attributes;
-      break;
-    case eTreeOpCreateDoctype:
-      delete mTwo.stringPair;
-      break;
-    case eTreeOpCreateTextNode:
-    case eTreeOpCreateComment:
-      delete[] mTwo.unicharPtr;
-      break;
-    case eTreeOpSetDocumentCharset:
-    case eTreeOpNeedsCharsetSwitchTo:
-      delete[] mOne.charPtr;
-      break;
-    default: // keep the compiler happy
-      break;
-  }
 }
 
 nsresult
@@ -99,18 +66,15 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder)
   nsresult rv = NS_OK;
   switch(mOpCode) {
     case eTreeOpAppend: {
-      nsIContent* node = *(mOne.node);
-      nsIContent* parent = *(mTwo.node);
-      aBuilder->PostPendingAppendNotification(parent, node);
-      rv = parent->AppendChildTo(node, PR_FALSE);
+      aBuilder->PostPendingAppendNotification(mParent, mNode);
+      rv = mParent->AppendChildTo(mNode, PR_FALSE);
       return rv;
     }
     case eTreeOpDetach: {
-      nsIContent* node = *(mOne.node);
       aBuilder->FlushPendingAppendNotifications();
-      nsIContent* parent = node->GetParent();
+      nsIContent* parent = mNode->GetParent();
       if (parent) {
-        PRUint32 pos = parent->IndexOf(node);
+        PRUint32 pos = parent->IndexOf(mNode);
         NS_ASSERTION((pos >= 0), "Element not found as child of its parent");
         rv = parent->RemoveChildAt(pos, PR_TRUE, PR_FALSE);
         NS_ENSURE_SUCCESS(rv, rv);
@@ -118,270 +82,115 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder)
       return rv;
     }
     case eTreeOpAppendChildrenToNewParent: {
-      nsIContent* node = *(mOne.node);
-      nsIContent* parent = *(mTwo.node);
       aBuilder->FlushPendingAppendNotifications();
-      PRUint32 childCount = parent->GetChildCount();
+      PRUint32 childCount = mParent->GetChildCount();
       PRBool didAppend = PR_FALSE;
-      while (node->GetChildCount()) {
-        nsCOMPtr<nsIContent> child = node->GetChildAt(0);
-        rv = node->RemoveChildAt(0, PR_TRUE, PR_FALSE);
+      while (mNode->GetChildCount()) {
+        nsCOMPtr<nsIContent> child = mNode->GetChildAt(0);
+        rv = mNode->RemoveChildAt(0, PR_TRUE, PR_FALSE);
         NS_ENSURE_SUCCESS(rv, rv);
-        rv = parent->AppendChildTo(child, PR_FALSE);
+        rv = mParent->AppendChildTo(child, PR_FALSE);
         NS_ENSURE_SUCCESS(rv, rv);
         didAppend = PR_TRUE;
       }
       if (didAppend) {
-        nsNodeUtils::ContentAppended(parent, childCount);
+        nsNodeUtils::ContentAppended(mParent, childCount);
       }
       return rv;
     }
     case eTreeOpFosterParent: {
-      nsIContent* node = *(mOne.node);
-      nsIContent* parent = *(mTwo.node);
-      nsIContent* table = *(mThree.node);
-      nsIContent* foster = table->GetParent();
-      if (foster && foster->IsNodeOfType(nsINode::eELEMENT)) {
+      nsIContent* parent = mTable->GetParent();
+      if (parent && parent->IsNodeOfType(nsINode::eELEMENT)) {
         aBuilder->FlushPendingAppendNotifications();
-        PRUint32 pos = foster->IndexOf(table);
-        rv = foster->InsertChildAt(node, pos, PR_FALSE);
+        PRUint32 pos = parent->IndexOf(mTable);
+        rv = parent->InsertChildAt(mNode, pos, PR_FALSE);
         NS_ENSURE_SUCCESS(rv, rv);
-        nsNodeUtils::ContentInserted(foster, node, pos);
+        nsNodeUtils::ContentInserted(parent, mNode, pos);
       } else {
-        aBuilder->PostPendingAppendNotification(parent, node);
-        rv = parent->AppendChildTo(node, PR_FALSE);
+        aBuilder->PostPendingAppendNotification(mParent, mNode);
+        rv = mParent->AppendChildTo(mNode, PR_FALSE);
       }
       return rv;
     }
     case eTreeOpAppendToDocument: {
-      nsIContent* node = *(mOne.node);
       aBuilder->FlushPendingAppendNotifications();
       nsIDocument* doc = aBuilder->GetDocument();
       PRUint32 childCount = doc->GetChildCount();
-      rv = doc->AppendChildTo(node, PR_FALSE);
+      rv = doc->AppendChildTo(mNode, PR_FALSE);
       NS_ENSURE_SUCCESS(rv, rv);
-      nsNodeUtils::ContentInserted(doc, node, childCount);
+      nsNodeUtils::ContentInserted(doc, mNode, childCount);
       return rv;
     }
     case eTreeOpAddAttributes: {
-      nsIContent* node = *(mOne.node);
-      nsHtml5HtmlAttributes* attributes = mTwo.attributes;
-
-      nsIDocument* document = node->GetCurrentDoc();
-
-      PRInt32 len = attributes->getLength();
-      for (PRInt32 i = 0; i < len; ++i) {
-        // prefix doesn't need regetting. it is always null or a static atom
-        // local name is never null
-        nsCOMPtr<nsIAtom> localName = Reget(attributes->getLocalName(i));
-        PRInt32 nsuri = attributes->getURI(i);
-        if (!node->HasAttr(nsuri, localName)) {
-
+      // mNode holds the new attributes and mParent is the target
+      nsIDocument* document = mParent->GetCurrentDoc();
+      
+      PRUint32 len = mNode->GetAttrCount();
+      for (PRUint32 i = 0; i < len; ++i) {
+        const nsAttrName* attrName = mNode->GetAttrNameAt(i);
+        nsIAtom* localName = attrName->LocalName();
+        PRInt32 nsuri = attrName->NamespaceID();
+        if (!mParent->HasAttr(nsuri, localName)) {
+          nsAutoString value;
+          mNode->GetAttr(nsuri, localName, value);
+          
           // the manual notification code is based on nsGenericElement
           
-          PRUint32 stateMask = PRUint32(node->IntrinsicState());
-          nsNodeUtils::AttributeWillChange(node, 
+          PRUint32 stateMask = PRUint32(mParent->IntrinsicState());
+          nsNodeUtils::AttributeWillChange(mParent, 
                                            nsuri,
                                            localName,
                                            static_cast<PRUint8>(nsIDOMMutationEvent::ADDITION));
-
-          // prefix doesn't need regetting. it is always null or a static atom
-          // local name is never null
-          node->SetAttr(nsuri, localName, attributes->getPrefix(i), *(attributes->getValue(i)), PR_FALSE);
-          // XXX what to do with nsresult?
           
-          if (document || node->HasFlag(NODE_FORCE_XBL_BINDINGS)) {
-            nsIDocument* ownerDoc = node->GetOwnerDoc();
+          mParent->SetAttr(nsuri, localName, attrName->GetPrefix(), value, PR_FALSE);
+          
+          if (document || mParent->HasFlag(NODE_FORCE_XBL_BINDINGS)) {
+            nsIDocument* ownerDoc = mParent->GetOwnerDoc();
             if (ownerDoc) {
               nsRefPtr<nsXBLBinding> binding =
-                ownerDoc->BindingManager()->GetBinding(node);
+                ownerDoc->BindingManager()->GetBinding(mParent);
               if (binding) {
                 binding->AttributeChanged(localName, nsuri, PR_FALSE, PR_FALSE);
               }
             }
           }
           
-          stateMask ^= PRUint32(node->IntrinsicState());
+          stateMask = stateMask ^ PRUint32(mParent->IntrinsicState());
           if (stateMask && document) {
             MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, PR_TRUE);
-            document->ContentStatesChanged(node, nsnull, stateMask);
+            document->ContentStatesChanged(mParent, nsnull, stateMask);
           }
-          nsNodeUtils::AttributeChanged(node, 
+          nsNodeUtils::AttributeChanged(mParent, 
                                         nsuri, 
                                         localName, 
                                         static_cast<PRUint8>(nsIDOMMutationEvent::ADDITION),
                                         stateMask);
         }
       }
-      
-      return rv;
-    }
-    case eTreeOpCreateElement: {
-      nsIContent** target = mOne.node;
-      PRInt32 ns = mInt;
-      nsCOMPtr<nsIAtom> name = Reget(mTwo.atom);
-      nsHtml5HtmlAttributes* attributes = mThree.attributes;
-      
-      nsCOMPtr<nsIContent> newContent;
-      nsCOMPtr<nsINodeInfo> nodeInfo = aBuilder->GetNodeInfoManager()->GetNodeInfo(name, nsnull, ns);
-      NS_ASSERTION(nodeInfo, "Got null nodeinfo.");
-      NS_NewElement(getter_AddRefs(newContent), nodeInfo->NamespaceID(), nodeInfo, PR_TRUE);
-      NS_ASSERTION(newContent, "Element creation created null pointer.");
-
-      aBuilder->HoldElement(*target = newContent);      
-
-      if (NS_UNLIKELY(name == nsHtml5Atoms::style || name == nsHtml5Atoms::link)) {
-        nsCOMPtr<nsIStyleSheetLinkingElement> ssle(do_QueryInterface(newContent));
-        if (ssle) {
-          ssle->InitStyleLinkElement(PR_FALSE);
-          ssle->SetEnableUpdates(PR_FALSE);
-        }
-      }
-
-      if (!attributes) {
-        return rv;
-      }
-
-      PRInt32 len = attributes->getLength();
-      for (PRInt32 i = 0; i < len; ++i) {
-        // prefix doesn't need regetting. it is always null or a static atom
-        // local name is never null
-        nsCOMPtr<nsIAtom> localName = Reget(attributes->getLocalName(i));
-        newContent->SetAttr(attributes->getURI(i), localName, attributes->getPrefix(i), *(attributes->getValue(i)), PR_FALSE);
-        // XXX what to do with nsresult?
-      }
-      return rv;
-    }
-    case eTreeOpSetFormElement: {
-      nsIContent* node = *(mOne.node);
-      nsIContent* parent = *(mTwo.node);
-      nsCOMPtr<nsIFormControl> formControl(do_QueryInterface(node));
-      // NS_ASSERTION(formControl, "Form-associated element did not implement nsIFormControl.");
-      // TODO: uncomment the above line when <output> (bug 346485) and <keygen> (bug 101019) are supported by Gecko
-      nsCOMPtr<nsIDOMHTMLFormElement> formElement(do_QueryInterface(parent));
-      NS_ASSERTION(formElement, "The form element doesn't implement nsIDOMHTMLFormElement.");
-      if (formControl) { // avoid crashing on <output> and <keygen>
-        formControl->SetForm(formElement);
-      }
-      return rv;
-    }
-    case eTreeOpCreateTextNode: {
-      nsIContent** target = mOne.node;
-      PRUnichar* buffer = mTwo.unicharPtr;
-      PRInt32 length = mInt;
-      
-      nsCOMPtr<nsIContent> text;
-      NS_NewTextNode(getter_AddRefs(text), aBuilder->GetNodeInfoManager());
-      // XXX nsresult and comment null check?
-      text->SetText(buffer, length, PR_FALSE);
-      // XXX nsresult
-      
-      aBuilder->HoldNonElement(*target = text);
-      return rv;
-    }
-    case eTreeOpCreateComment: {
-      nsIContent** target = mOne.node;
-      PRUnichar* buffer = mTwo.unicharPtr;
-      PRInt32 length = mInt;
-      
-      nsCOMPtr<nsIContent> comment;
-      NS_NewCommentNode(getter_AddRefs(comment), aBuilder->GetNodeInfoManager());
-      // XXX nsresult and comment null check?
-      comment->SetText(buffer, length, PR_FALSE);
-      // XXX nsresult
-      
-      aBuilder->HoldNonElement(*target = comment);
-      return rv;
-    }
-    case eTreeOpCreateDoctype: {
-      nsCOMPtr<nsIAtom> name = Reget(mOne.atom);
-      nsHtml5TreeOperationStringPair* pair = mTwo.stringPair;
-      nsString publicId;
-      nsString systemId;
-      pair->Get(publicId, systemId);
-      nsIContent** target = mThree.node;
-      
-      // Adapted from nsXMLContentSink
-      // Create a new doctype node
-      nsCOMPtr<nsIDOMDocumentType> docType;
-      nsAutoString voidString;
-      voidString.SetIsVoid(PR_TRUE);
-      NS_NewDOMDocumentType(getter_AddRefs(docType),
-                            aBuilder->GetNodeInfoManager(),
-                            nsnull,
-                            name,
-                            nsnull,
-                            nsnull,
-                            publicId,
-                            systemId,
-                            voidString);
-      NS_ASSERTION(docType, "Doctype creation failed.");
-      nsCOMPtr<nsIContent> asContent = do_QueryInterface(docType);
-      aBuilder->HoldNonElement(*target = asContent);      
-      return rv;
-    }
-    case eTreeOpRunScript: {
-      nsIContent* node = *(mOne.node);
-      nsAHtml5TreeBuilderState* snapshot = mTwo.state;
-      if (snapshot) {
-        aBuilder->InitializeDocWriteParserState(snapshot);
-      }
-      aBuilder->SetScriptElement(node);
       return rv;
     }
     case eTreeOpDoneAddingChildren: {
-      nsIContent* node = *(mOne.node);
-      node->DoneAddingChildren(aBuilder->HaveNotified(node));
+      mNode->DoneAddingChildren(aBuilder->HaveNotified(mNode));
       return rv;
     }
     case eTreeOpDoneCreatingElement: {
-      nsIContent* node = *(mOne.node);
-      node->DoneCreatingElement();
+      mNode->DoneCreatingElement();
       return rv;
-    }
-    case eTreeOpSetDocumentCharset: {
-      char* str = mOne.charPtr;
-      nsDependentCString dependentString(str);
-      aBuilder->SetDocumentCharset(dependentString);
-      return rv;
-    }
-    case eTreeOpNeedsCharsetSwitchTo: {
-      char* str = mOne.charPtr;
-      aBuilder->NeedsCharsetSwitchTo(str);
-      return rv;    
     }
     case eTreeOpUpdateStyleSheet: {
-      nsIContent* node = *(mOne.node);
-      aBuilder->FlushPendingAppendNotifications();
-      aBuilder->UpdateStyleSheet(node);
+      aBuilder->UpdateStyleSheet(mNode);
       return rv;
     }
     case eTreeOpProcessBase: {
-      nsIContent* node = *(mOne.node);
-      rv = aBuilder->ProcessBASETag(node);
+      rv = aBuilder->ProcessBASETag(mNode);
       return rv;
     }
     case eTreeOpProcessMeta: {
-      nsIContent* node = *(mOne.node);
-      rv = aBuilder->ProcessMETATag(node);
+      rv = aBuilder->ProcessMETATag(mNode);
       return rv;
     }
     case eTreeOpProcessOfflineManifest: {
-      nsIContent* node = *(mOne.node);
-      aBuilder->ProcessOfflineManifest(node);
-      return rv;
-    }
-    case eTreeOpMarkMalformedIfScript: {
-      nsIContent* node = *(mOne.node);
-      nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(node);
-      if (sele) {
-        // Make sure to serialize this script correctly, for nice round tripping.
-        sele->SetIsMalformed();
-      }
-      return rv;
-    }
-    case eTreeOpStreamEnded: {
-      aBuilder->StreamEnded();
+      aBuilder->ProcessOfflineManifest(mNode);
       return rv;
     }
     case eTreeOpStartLayout: {
@@ -389,7 +198,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder)
       return rv;
     }
     case eTreeOpDocumentMode: {
-      aBuilder->DocumentMode(mOne.mode);
+      aBuilder->DocumentMode(mMode);
       return rv;
     }
     default: {

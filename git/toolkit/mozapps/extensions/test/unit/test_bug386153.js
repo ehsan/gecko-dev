@@ -48,7 +48,6 @@ function findXPI(dpb, name) {
       return i * 4;
   }
   do_throw(name + " wasn't in the list");
-  return 0;
 }
 
 // Called to display the XPInstall dialog

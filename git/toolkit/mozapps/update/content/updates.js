@@ -49,7 +49,7 @@ const CoR = Components.results;
 const XMLNS_XUL               = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
 const PREF_UPDATE_MANUAL_URL        = "app.update.url.manual";
-const PREF_APP_UPDATE_LOG           = "app.update.log";
+const PREF_APP_UPDATE_LOG_BRANCH    = "app.update.log.";
 const PREF_UPDATE_TEST_LOOP         = "app.update.test.loop";
 const PREF_UPDATE_NEVER_BRANCH      = "app.update.never.";
 const PREF_AUTO_UPDATE_ENABLED      = "app.update.enabled";
@@ -71,7 +71,7 @@ const SRCEVT_BACKGROUND       = 2;
 
 var gConsole    = null;
 var gPref       = null;
-var gLogEnabled = false;
+var gLogEnabled = { };
 
 /**
  * Logs a string to the error console.
@@ -79,7 +79,7 @@ var gLogEnabled = false;
  *          The string to write to the error console..
  */
 function LOG(module, string) {
-  if (gLogEnabled) {
+  if (module in gLogEnabled || "all" in gLogEnabled) {
     dump("*** AUS:UI " + module + ":" + string + "\n");
     gConsole.logStringMessage("AUS:UI " + module + ":" + string);
   }
@@ -312,7 +312,7 @@ var gUpdates = {
             getService(CoI.nsIPrefBranch2);
     gConsole = CoC["@mozilla.org/consoleservice;1"].
                getService(CoI.nsIConsoleService);
-    gLogEnabled = getPref("getBoolPref", PREF_APP_UPDATE_LOG, false)
+    this._initLoggingPrefs();
 
     this.strings = document.getElementById("updateStrings");
     var brandStrings = document.getElementById("brandStrings");
@@ -337,6 +337,26 @@ var gUpdates = {
     var startPage = this.startPage;
     LOG("gUpdates", "onLoad - setting current page to startpage " + startPage.id);
     gUpdates.wiz.currentPage = startPage;
+  },
+
+  /**
+   * Initialize Logging preferences, formatted like so:
+   *  app.update.log.<moduleName> = <true|false>
+   */
+  _initLoggingPrefs: function() {
+    try {
+      var ps = CoC["@mozilla.org/preferences-service;1"].
+               getService(CoI.nsIPrefService);
+      var logBranch = ps.getBranch(PREF_APP_UPDATE_LOG_BRANCH);
+      var modules = logBranch.getChildList("");
+
+      for (var i = 0; i < modules.length; ++i) {
+        if (logBranch.prefHasUserValue(modules[i]))
+          gLogEnabled[modules[i]] = logBranch.getBoolPref(modules[i]);
+      }
+    }
+    catch (e) {
+    }
   },
 
   /**
@@ -546,7 +566,7 @@ var gPluginsPage = {
 
     var phs = CoC["@mozilla.org/plugin/host;1"].
                  getService(CoI.nsIPluginHost);
-    var plugins = phs.getPluginTags();
+    var plugins = phs.getPluginTags({});
     var blocklist = CoC["@mozilla.org/extensions/blocklist;1"].
                       getService(CoI.nsIBlocklistService);
 
@@ -625,15 +645,6 @@ var gIncompatibleCheckPage = {
    * Initialize
    */
   onPageShow: function() {
-    var aus = CoC["@mozilla.org/updates/update-service;1"].
-              getService(CoI.nsIApplicationUpdateService2);
-    // Display the manual update page if the user is unable to apply the update
-    if (!aus.canApplyUpdates) {
-      gUpdates.wiz.currentPage.setAttribute("next", "manualUpdate");
-      gUpdates.wiz.advance();
-      return;
-    }
-
     var ai = CoC["@mozilla.org/xre/app-info;1"].getService(CoI.nsIXULAppInfo);
     var vc = CoC["@mozilla.org/xpcom/version-comparator;1"].
              getService(CoI.nsIVersionComparator);
@@ -648,12 +659,14 @@ var gIncompatibleCheckPage = {
              getService(CoI.nsIExtensionManager);
     this.addons = em.getIncompatibleItemList(gUpdates.update.extensionVersion,
                                              gUpdates.update.platformVersion,
-                                             CoI.nsIUpdateItem.TYPE_ANY, false);
+                                             CoI.nsIUpdateItem.TYPE_ANY, false,
+                                             { });
     if (this.addons.length > 0) {
       // Don't include add-ons that are already incompatible with the current
       // version of the application
       var addons = em.getIncompatibleItemList(null, null,
-                                              CoI.nsIUpdateItem.TYPE_ANY, false);
+                                              CoI.nsIUpdateItem.TYPE_ANY, false,
+                                              { });
       for (var i = 0; i < addons.length; ++i) {
         for (var j = 0; j < this.addons.length; ++j) {
           if (addons[i].id == this.addons[j].id) {
@@ -746,24 +759,6 @@ var gIncompatibleCheckPage = {
         !iid.equals(CoI.nsISupports))
       throw CoR.NS_ERROR_NO_INTERFACE;
     return this;
-  }
-};
-
-/**
- * The "Unable to Update" page. Provides the user information about why they
- * were unable to update and a manual download url.
- */
-var gManualUpdatePage = {
-  onPageShow: function() {
-    var formatter = CoC["@mozilla.org/toolkit/URLFormatterService;1"].
-                    getService(CoI.nsIURLFormatter);
-    var manualURL = formatter.formatURLPref(PREF_UPDATE_MANUAL_URL);
-    var manualUpdateLinkLabel = document.getElementById("manualUpdateLinkLabel");
-    manualUpdateLinkLabel.value = manualURL;
-    manualUpdateLinkLabel.setAttribute("url", manualURL);
-
-    gUpdates.setButtons(null, null, "okButton", true);
-    gUpdates.wiz.getButton("finish").focus();
   }
 };
 

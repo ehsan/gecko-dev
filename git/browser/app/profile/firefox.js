@@ -165,7 +165,9 @@ pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/Ve
 pref("extensions.update.interval", 86400);  // Check for updates to Extensions and 
                                             // Themes every day
 // Non-symmetric (not shared by extensions) extension-specific [update] preferences
-pref("extensions.getMoreThemesURL", "https://addons.mozilla.org/%LOCALE%/%APP%/getpersonas");
+pref("extensions.getMoreExtensionsURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/%VERSION%/extensions/");
+pref("extensions.getMoreThemesURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/%VERSION%/themes/");
+pref("extensions.getMorePluginsURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/%VERSION%/plugins/");
 pref("extensions.dss.enabled", false);          // Dynamic Skin Switching                                               
 pref("extensions.dss.switchPending", false);    // Non-dynamic switch pending after next
                                                 // restart.
@@ -175,8 +177,6 @@ pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.description", "chrome://
 
 pref("xpinstall.whitelist.add", "addons.mozilla.org");
 pref("xpinstall.whitelist.add.36", "getpersonas.com");
-
-pref("lightweightThemes.update.enabled", true);
 
 pref("keyword.enabled", true);
 pref("keyword.URL", "chrome://browser-region/locale/region.properties");
@@ -262,7 +262,8 @@ pref("browser.download.useDownloadDir", true);
 
 #ifdef WINCE
 pref("browser.download.folderList", 2);
-pref("browser.download.dir", "\\Storage Card");
+// Bug 499807: use Hard Disk filesystem because Desktop is short on space.
+pref("browser.download.dir", "\\Hard Disk");
 #else
 pref("browser.download.folderList", 1);
 #endif
@@ -752,11 +753,7 @@ pref("browser.rights.3.shown", false);
 pref("browser.rights.override", true);
 #endif
 
-#ifdef WINCE
-pref("browser.sessionstore.resume_from_crash", false);
-#else
 pref("browser.sessionstore.resume_from_crash", true);
-#endif
 pref("browser.sessionstore.resume_session_once", false);
 
 // minimal interval between two save operations in milliseconds

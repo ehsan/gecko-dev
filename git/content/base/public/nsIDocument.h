@@ -105,8 +105,8 @@ class nsIBoxObject;
 
 // IID for the nsIDocument interface
 #define NS_IDOCUMENT_IID      \
-{ 0xd16d73c1, 0xe0f7, 0x415c, \
- { 0xbd, 0x68, 0x9c, 0x1f, 0x93, 0xb8, 0x73, 0x7a } }
+  { 0x2ca82a51, 0x4a6a, 0x4dfa, \
+      { 0xa6, 0x5f, 0x49, 0x52, 0xa3, 0xaa, 0x02, 0xef } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -1178,16 +1178,14 @@ public:
   enum DocumentTheme {
     Doc_Theme_Uninitialized, // not determined yet
     Doc_Theme_None,
-    Doc_Theme_Neutral,
     Doc_Theme_Dark,
     Doc_Theme_Bright
   };
 
   /**
-   * Returns Doc_Theme_None if there is no lightweight theme specified,
-   * Doc_Theme_Dark for a dark theme, Doc_Theme_Bright for a light theme, and
-   * Doc_Theme_Neutral for any other theme. This is used to determine the state
-   * of the pseudoclasses :-moz-lwtheme and :-moz-lwtheme-text.
+   * Returns Doc_Theme_None if there is no lightweight theme specified, Doc_Theme_Dark
+   * for a dark theme and Doc_Theme_Bright for a light theme. This is used to
+   * determine the state of the pseudoclasses :-moz-lwtheme and :-moz-lwtheme-text.
    */
   virtual int GetDocumentLWTheme() { return Doc_Theme_None; }
 
@@ -1208,8 +1206,6 @@ public:
    * href, if it changed.
    */
   virtual nsresult SetFirstBaseNodeWithHref(nsIContent *node) = 0;
-
-  virtual nsISupports* GetCurrentContentSink() = 0;
 
 protected:
   ~nsIDocument()

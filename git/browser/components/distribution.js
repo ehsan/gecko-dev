@@ -244,7 +244,7 @@ DistributionCustomizer.prototype = {
   },
 
   _bookmarksApplied: false,
-  applyBookmarks: function DIST_applyBookmarks() {
+  applyBookmarks: function DIST_applyBookarks() {
     this._bookmarksApplied = true;
     if (!this._iniFile)
       return this._checkCustomizationComplete();

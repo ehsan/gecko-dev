@@ -509,7 +509,7 @@ nsComputedDOMStyle::GetPropertyCSSValue(const nsAString& aPropertyName,
         topWithPseudoElementData = topWithPseudoElementData->GetParent();
       }
       NS_ASSERTION(nsCSSPseudoElements::PseudoElementContainsElements(
-                     topWithPseudoElementData->GetPseudo()),
+                     topWithPseudoElementData->GetPseudoType()),
                    "we should be in a pseudo-element that is expected to "
                    "contain elements");
     }
@@ -1225,7 +1225,9 @@ nsComputedDOMStyle::GetFontStretch(nsIDOMCSSValue** aValue)
   PR_STATIC_ASSERT(NS_FONT_STRETCH_NARROWER + NS_FONT_STRETCH_WIDER == 0);
   PR_STATIC_ASSERT(NS_FONT_STRETCH_NARROWER < 0);
   PRInt16 stretch = font->mFont.stretch;
-  if (stretch <= NS_FONT_STRETCH_NARROWER / 2) {
+  if (stretch == NS_FONT_STRETCH_NORMAL) {
+    val->SetIdent(eCSSKeyword_normal);
+  } else if (stretch <= NS_FONT_STRETCH_NARROWER / 2) {
     val->SetIdent(eCSSKeyword_narrower);
   } else if (stretch >= NS_FONT_STRETCH_WIDER / 2) {
     val->SetIdent(eCSSKeyword_wider);
@@ -1257,17 +1259,14 @@ nsComputedDOMStyle::GetFontWeight(nsIDOMCSSValue** aValue)
 
   const nsStyleFont* font = GetStyleFont();
 
-  PRUint16 weight = font->mFont.weight;
-  if (weight % 100 == 0) {
-    val->SetNumber(font->mFont.weight);
-  } else if (weight % 100 > 50) {
-    // FIXME: This doesn't represent the full range of computed values,
-    // but at least it's legal CSS.
-    val->SetIdent(eCSSKeyword_lighter);
+  // XXX This doesn't deal with bolder/lighter very well.
+  const nsCSSKeyword enum_weight =
+    nsCSSProps::ValueToKeywordEnum(font->mFont.weight,
+                                   nsCSSProps::kFontWeightKTable);
+  if (enum_weight != eCSSKeyword_UNKNOWN) {
+    val->SetIdent(enum_weight);
   } else {
-    // FIXME: This doesn't represent the full range of computed values,
-    // but at least it's legal CSS.
-    val->SetIdent(eCSSKeyword_bolder);
+    val->SetNumber(font->mFont.weight);
   }
 
   return CallQueryInterface(val, aValue);
@@ -1359,92 +1358,76 @@ AppendCSSGradientLength(const nsStyleCoord& aValue,
   aString.Append(tokenString);
 }
 
+static void
+AppendCSSGradientRadius(const nscoord aValue,
+                        nsROCSSPrimitiveValue* aPrimitive,
+                        nsAString& aString)
+{
+  nsAutoString tokenString;
+  aPrimitive->SetAppUnits(aValue);
+  aPrimitive->GetCssText(tokenString);
+  aString.Append(tokenString);
+}
+
 nsresult
 nsComputedDOMStyle::GetCSSGradientString(const nsStyleGradient* aGradient,
                                          nsAString& aString)
 {
-  if (aGradient->mRepeating) {
-    if (aGradient->mShape == NS_STYLE_GRADIENT_SHAPE_LINEAR)
-      aString.AssignLiteral("-moz-repeating-linear-gradient(");
-    else
-      aString.AssignLiteral("-moz-repeating-radial-gradient(");
-  } else {
-    if (aGradient->mShape == NS_STYLE_GRADIENT_SHAPE_LINEAR)
-      aString.AssignLiteral("-moz-linear-gradient(");
-    else
-      aString.AssignLiteral("-moz-radial-gradient(");
-  }
+  if (aGradient->mIsRadial)
+    aString.AssignLiteral("-moz-radial-gradient(");
+  else
+    aString.AssignLiteral("-moz-linear-gradient(");
 
-  PRBool needSep = PR_FALSE;
-  nsAutoString tokenString;
   nsROCSSPrimitiveValue *tmpVal = GetROCSSPrimitiveValue();
   if (!tmpVal)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  if (aGradient->mBgPosX.mUnit != eStyleUnit_None) {
-    AppendCSSGradientLength(aGradient->mBgPosX, tmpVal, aString);
-    needSep = PR_TRUE;
-  }
-  if (aGradient->mBgPosY.mUnit != eStyleUnit_None) {
-    if (needSep) {
-      aString.AppendLiteral(" ");
-    }
-    AppendCSSGradientLength(aGradient->mBgPosY, tmpVal, aString);
-    needSep = PR_TRUE;
-  }
-  if (aGradient->mAngle.mUnit != eStyleUnit_None) {
-    if (needSep) {
-      aString.AppendLiteral(" ");
-    }
-    tmpVal->SetNumber(aGradient->mAngle.GetAngleValue());
-    tmpVal->GetCssText(tokenString);
-    aString.Append(tokenString);
-    switch (aGradient->mAngle.mUnit) {
-    case eStyleUnit_Degree: aString.AppendLiteral("deg"); break;
-    case eStyleUnit_Grad: aString.AppendLiteral("grad"); break;
-    case eStyleUnit_Radian: aString.AppendLiteral("rad"); break;
-    default: NS_NOTREACHED("unrecognized angle unit");
-    }
-    needSep = PR_TRUE;
+  // starting X position
+  AppendCSSGradientLength(aGradient->mStartX, tmpVal, aString);
+  aString.AppendLiteral(" ");
+
+  // starting Y position
+  AppendCSSGradientLength(aGradient->mStartY, tmpVal, aString);
+  aString.AppendLiteral(", ");
+
+  // starting radius
+  if (aGradient->mIsRadial) {
+    AppendCSSGradientRadius(aGradient->mStartRadius, tmpVal, aString);
+    aString.AppendLiteral(", ");
   }
 
-  if (aGradient->mShape != NS_STYLE_GRADIENT_SHAPE_LINEAR) {
-    if (needSep) {
-      aString.AppendLiteral(", ");
-    }
-    AppendASCIItoUTF16(nsCSSProps::
-                       ValueToKeyword(aGradient->mShape,
-                                      nsCSSProps::kRadialGradientShapeKTable),
-                       aString);
-    if (aGradient->mSize != NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER) {
-      aString.AppendLiteral(" ");
-      AppendASCIItoUTF16(nsCSSProps::
-                         ValueToKeyword(aGradient->mSize,
-                                        nsCSSProps::kRadialGradientSizeKTable),
-                         aString);
-    }
-    needSep = PR_TRUE;
-  }
+  // ending X position
+  AppendCSSGradientLength(aGradient->mEndX, tmpVal, aString);
+  aString.AppendLiteral(" ");
 
+  // ending Y position
+  AppendCSSGradientLength(aGradient->mEndY, tmpVal, aString);
+
+  // ending radius
+  if (aGradient->mIsRadial) {
+    aString.AppendLiteral(", ");
+    AppendCSSGradientRadius(aGradient->mStartRadius, tmpVal, aString);
+  }
 
   // color stops
   for (PRUint32 i = 0; i < aGradient->mStops.Length(); ++i) {
-    if (needSep) {
-      aString.AppendLiteral(", ");
-    }
+    nsAutoString tokenString;
+    aString.AppendLiteral(", color-stop(");
+
+    tmpVal->SetPercent(aGradient->mStops[i].mPosition);
+    tmpVal->GetCssText(tokenString);
+    aString.Append(tokenString);
+    aString.AppendLiteral(", ");
+
     nsresult rv = SetToRGBAColor(tmpVal, aGradient->mStops[i].mColor);
     if (NS_FAILED(rv)) {
       delete tmpVal;
       return NS_ERROR_OUT_OF_MEMORY;
     }
+
     tmpVal->GetCssText(tokenString);
     aString.Append(tokenString);
-
-    if (aGradient->mStops[i].mLocation.mUnit != eStyleUnit_None) {
-      aString.AppendLiteral(" ");
-      AppendCSSGradientLength(aGradient->mStops[i].mLocation, tmpVal, aString);
-    }
-    needSep = PR_TRUE;
+    aString.AppendLiteral(")");
   }
 
   delete tmpVal;

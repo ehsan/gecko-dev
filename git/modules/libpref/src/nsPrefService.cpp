@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Alec Flett <alecf@netscape.com>
- *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -77,6 +76,7 @@ static nsresult pref_InitInitialObjects(void);
  */
 
 nsPrefService::nsPrefService()
+: mDontWriteUserPrefs(PR_FALSE)
 {
 }
 
@@ -305,22 +305,10 @@ nsresult nsPrefService::UseUserPrefFile()
 nsresult nsPrefService::MakeBackupPrefFile(nsIFile *aFile)
 {
   // Example: this copies "prefs.js" to "Invalidprefs.js" in the same directory.
-  // "Invalidprefs.js" is removed if it exists, prior to making the copy.
   nsAutoString newFilename;
   nsresult rv = aFile->GetLeafName(newFilename);
   NS_ENSURE_SUCCESS(rv, rv);
   newFilename.Insert(NS_LITERAL_STRING("Invalid"), 0);
-  nsCOMPtr<nsIFile> newFile;
-  rv = aFile->GetParent(getter_AddRefs(newFile));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = newFile->Append(newFilename);
-  NS_ENSURE_SUCCESS(rv, rv);
-  PRBool exists = PR_FALSE;
-  newFile->Exists(&exists);
-  if (exists) {
-    rv = newFile->Remove(PR_FALSE);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
   rv = aFile->CopyTo(nsnull, newFilename);
   NS_ENSURE_SUCCESS(rv, rv);
   return rv;
@@ -340,10 +328,7 @@ nsresult nsPrefService::ReadAndOwnUserPrefFile(nsIFile *aFile)
   if (exists) {
     rv = openPrefFile(mCurrentFile);
     if (NS_FAILED(rv)) {
-      // Save a backup copy of the current (invalid) prefs file, since all prefs
-      // from the error line to the end of the file will be lost (bug 361102).
-      // TODO we should notify the user about it (bug 523725).
-      MakeBackupPrefFile(mCurrentFile);
+      mDontWriteUserPrefs = NS_FAILED(MakeBackupPrefFile(mCurrentFile));
     }
   } else {
     rv = NS_ERROR_FILE_NOT_FOUND;
@@ -402,6 +387,12 @@ nsresult nsPrefService::WritePrefFile(nsIFile* aFile)
 
   if (!gHashTable.ops)
     return NS_ERROR_NOT_INITIALIZED;
+
+  // Don't save user prefs if there was an error reading them and we failed
+  // to make a backup copy, since all prefs from the error line to the end of
+  // the file would be lost (bug 361102).
+  if (mDontWriteUserPrefs && aFile == mCurrentFile)
+    return NS_OK;
 
   // execute a "safe" save by saving through a tempfile
   rv = NS_NewSafeLocalFileOutputStream(getter_AddRefs(outStreamSink),

@@ -97,9 +97,6 @@ public:
 
   void SetHasNoAlpha();
 
-  PRBool GetCompositingFailed() const;
-  void SetCompositingFailed(PRBool val);
-
   nsresult LockImageData();
   nsresult UnlockImageData();
 
@@ -171,7 +168,6 @@ private: // data
   PRPackedBool mSinglePixel;
   PRPackedBool mNeverUseDeviceSurface;
   PRPackedBool mFormatChanged;
-  PRPackedBool mCompositingFailed;
 
 #ifdef XP_WIN
   PRPackedBool mIsDDBSurface;

@@ -150,18 +150,15 @@ shellMkdir (wchar_t **pArgv)
 
             /* check if directory already exists */
             _wgetcwd ( path, _MAX_PATH );
-            if ( _wchdir ( tmpPath ) == -1 &&
-                 _wmkdir ( tmpPath ) == -1 && // might have hit EEXIST
-                 _wchdir ( tmpPath ) == -1) { // so try again
-                char buf[2048];
-                _snprintf(buf, 2048, "Could not create the directory: %S",
-                          tmpPath);
-                perror ( buf );
-                retVal = 3;
-                break;
-            } else {
-                // get back to the cwd
+            if ( _wchdir ( tmpPath ) != -1 ) {
                 _wchdir ( path );
+            } else {
+                if ( _wmkdir ( tmpPath ) == -1 ) {
+                    printf ( "%ls: ", tmpPath );
+                    perror ( "Could not create the directory" );
+                    retVal = 3;
+                    break;
+                }
             }
             if ( *pArg == '\0' )      /* complete path? */
                 break;

@@ -609,7 +609,7 @@ nsSVGGlyphFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
   SetupGlobalTransform(tmpCtx);
   CharacterIterator iter(this, PR_TRUE);
   iter.SetInitialMatrix(tmpCtx);
-  AddBoundingBoxesToPath(&iter, tmpCtx);
+  AddCharactersToPath(&iter, tmpCtx);
   tmpCtx->IdentityMatrix();
 
   mOverrideCanvasTM = nsnull;

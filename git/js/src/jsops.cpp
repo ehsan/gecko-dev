@@ -3267,6 +3267,12 @@ BEGIN_CASE(JSOP_LAMBDA)
                 /*
                  * Optimize ({method: function () { ... }, ...}) and
                  * this.method = function () { ... }; bytecode sequences.
+                 *
+                 * Note that we jump to the entry points for JSOP_SETPROP and
+                 * JSOP_INITPROP without calling the trace recorder, because
+                 * the record hooks for those ops are essentially no-ops (this
+                 * can't change given the predictive shape guarding the
+                 * recorder must do).
                  */
                 if (op == JSOP_SETMETHOD) {
 #ifdef DEBUG
@@ -3583,7 +3589,19 @@ BEGIN_CASE(JSOP_INITMETHOD)
                 JS_ASSERT(sprop2 == sprop);
             } else {
                 JS_ASSERT(scope->owned());
-                scope->extend(cx, sprop);
+
+                /* Inline-specialized version of JSScope::extend. */
+                js_LeaveTraceIfGlobalObject(cx, obj);
+                scope->shape = sprop->shape;
+                ++scope->entryCount;
+                scope->lastProp = sprop;
+
+                jsuint index;
+                if (js_IdIsIndex(sprop->id, &index))
+                    scope->setIndexedProperties();
+
+                if (sprop->isMethod())
+                    scope->setMethodBarrier();
             }
 
             /*

@@ -67,16 +67,9 @@
 
 #if defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) \
         || defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) \
-        || defined(__ARM_ARCH_6ZK__) || defined(__ARM_ARCH_6T2__) \
-	|| defined(__ARM_ARCH_6M__)
+        || defined(__ARM_ARCH_6ZK__)
 # undef __ARM_ARCH__
 # define __ARM_ARCH__ 6
-#endif
-
-#if defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) \
-        || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__)
-# undef __ARM_ARCH__
-# define __ARM_ARCH__ 7
 #endif
 
 #if __ARM_ARCH__ >= 5
@@ -196,7 +189,7 @@ ARM_FUNC_START ffi_call_SYSV
 
 @ return INT
 	cmp	r3, #FFI_TYPE_INT
-#if defined(__SOFTFP__) || defined(__ARM_EABI__)
+#ifdef __SOFTFP__
 	cmpne	r3, #FFI_TYPE_FLOAT
 #endif
 	streq	r0, [r2]
@@ -204,12 +197,12 @@ ARM_FUNC_START ffi_call_SYSV
 
 	@ return INT64
 	cmp	r3, #FFI_TYPE_SINT64
-#if defined(__SOFTFP__) || defined(__ARM_EABI__)
+#ifdef __SOFTFP__
 	cmpne	r3, #FFI_TYPE_DOUBLE
 #endif
 	stmeqia	r2, {r0, r1}
 
-#if !defined(__SOFTFP__) && !defined(__ARM_EABI__)
+#ifndef __SOFTFP__
 	beq	LSYM(Lepilogue)
 
 @ return FLOAT
@@ -252,21 +245,21 @@ ARM_FUNC_START ffi_closure_SYSV
 	beq	.Lretint
 
 	cmp	r0, #FFI_TYPE_FLOAT
-#if defined(__SOFTFP__) || defined(__ARM_EABI__)
+#ifdef __SOFTFP__
 	beq	.Lretint
 #else
 	beq	.Lretfloat
 #endif
 
 	cmp	r0, #FFI_TYPE_DOUBLE
-#if defined(__SOFTFP__) || defined(__ARM_EABI__)
+#ifdef __SOFTFP__
 	beq	.Lretlonglong
 #else
 	beq	.Lretdouble
 #endif
 
 	cmp	r0, #FFI_TYPE_LONGDOUBLE
-#if defined(__SOFTFP__) || defined(__ARM_EABI__)
+#ifdef __SOFTFP__
 	beq	.Lretlonglong
 #else
 	beq	.Lretlongdouble
@@ -285,7 +278,7 @@ ARM_FUNC_START ffi_closure_SYSV
 	ldr	r1, [sp, #4]
 	b	.Lclosure_epilogue
 
-#if !defined(__SOFTFP__) && !defined(__ARM_EABI__)
+#ifndef __SOFTFP__
 .Lretfloat:
 	ldfs	f0, [sp]
 	b	.Lclosure_epilogue

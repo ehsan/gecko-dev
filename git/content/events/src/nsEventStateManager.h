@@ -322,19 +322,18 @@ protected:
 
   /*
    * Perform the default handling for the dragstart/draggesture event and set up a
-   * drag for aDataTransfer if it contains any data. Returns true if a drag has
-   * started.
+   * drag for aDataTransfer if it contains any data.
    *
    * aDragEvent - the dragstart/draggesture event
    * aDataTransfer - the data transfer that holds the data to be dragged
    * aDragTarget - the target of the drag
    * aIsSelection - true if a selection is being dragged
    */
-  PRBool DoDefaultDragStart(nsPresContext* aPresContext,
-                            nsDragEvent* aDragEvent,
-                            nsDOMDataTransfer* aDataTransfer,
-                            nsIContent* aDragTarget,
-                            PRBool aIsSelection);
+  void DoDefaultDragStart(nsPresContext* aPresContext,
+                          nsDragEvent* aDragEvent,
+                          nsDOMDataTransfer* aDataTransfer,
+                          nsIContent* aDragTarget,
+                          PRBool aIsSelection);
 
   PRBool IsTrackingDragGesture ( ) const { return mGestureDownContent != nsnull; }
   /**

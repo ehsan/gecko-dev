@@ -240,10 +240,6 @@ static PRBool               gDOMWindowDumpEnabled      = PR_FALSE;
 // The shortest interval/timeout we permit
 #define DOM_MIN_TIMEOUT_VALUE 10 // 10ms
 
-// The number of nested timeouts before we start clamping. HTML5 says 1, WebKit
-// uses 5.
-#define DOM_CLAMP_TIMEOUT_NESTING_LEVEL 5
-
 // The longest interval (as PRIntervalTime) we permit, or that our
 // timer code can handle, really. See DELAY_INTERVAL_LIMIT in
 // nsTimerImpl.h for details.
@@ -553,12 +549,6 @@ nsDummyJavaPluginOwner::ForceRedraw()
 
 NS_IMETHODIMP
 nsDummyJavaPluginOwner::GetNetscapeWindow(void *value)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsDummyJavaPluginOwner::SetEventModel(PRInt32 eventModel)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -882,6 +872,11 @@ nsGlobalWindow::CleanUp()
     mContext = nsnull;            // Forces Release
   }
   mChromeEventHandler = nsnull; // Forces Release
+
+  if (IsOuterWindow() && IsPopupSpamWindow()) {
+    SetPopupSpamWindow(PR_FALSE);
+    --gOpenPopupSpamCount;
+  }
 
   nsGlobalWindow *inner = GetCurrentInnerWindowInternal();
 
@@ -2079,15 +2074,6 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
   if (aDocShell == mDocShell)
     return;
 
-  if (!aDocShell && // window is closing
-      IsOuterWindow() && IsPopupSpamWindow())
-  {
-    SetPopupSpamWindow(PR_FALSE);
-    --gOpenPopupSpamCount;
-    NS_ASSERTION(gOpenPopupSpamCount >= 0,
-                 "Unbalanced decrement of gOpenPopupSpamCount");
-  }
-
   PRUint32 lang_id;
   nsIScriptContext *langCtx;
   // SetDocShell(nsnull) means the window is being torn down. Drop our
@@ -2973,7 +2959,7 @@ nsGlobalWindow::GetOpener(nsIDOMWindowInternal** aOpener)
 
   *aOpener = nsnull;
 
-  nsCOMPtr<nsPIDOMWindow> opener = do_QueryReferent(mOpener);
+  nsCOMPtr<nsIDOMWindowInternal> opener = do_QueryReferent(mOpener);
   if (!opener) {
     return NS_OK;
   }
@@ -2984,36 +2970,27 @@ nsGlobalWindow::GetOpener(nsIDOMWindowInternal** aOpener)
     return NS_OK;
   }
 
-  nsCOMPtr<nsPIDOMWindow> openerPwin(do_QueryInterface(opener));
-  if (!openerPwin) {
-    return NS_OK;
-  }
-
-  // First, ensure that we're not handing back a chrome window.
-  nsGlobalWindow *win = static_cast<nsGlobalWindow *>(openerPwin.get());
-  if (win->IsChromeWindow()) {
-    return NS_OK;
-  }
-
   // We don't want to reveal the opener if the opener is a mail window,
   // because opener can be used to spoof the contents of a message (bug 105050).
   // So, we look in the opener's root docshell to see if it's a mail window.
-  nsCOMPtr<nsIDocShellTreeItem> docShellAsItem =
-    do_QueryInterface(openerPwin->GetDocShell());
+  nsCOMPtr<nsPIDOMWindow> openerPwin(do_QueryInterface(opener));
+  if (openerPwin) {
+    nsCOMPtr<nsIDocShellTreeItem> docShellAsItem =
+      do_QueryInterface(openerPwin->GetDocShell());
 
-  if (docShellAsItem) {
-    nsCOMPtr<nsIDocShellTreeItem> openerRootItem;
-    docShellAsItem->GetRootTreeItem(getter_AddRefs(openerRootItem));
-    nsCOMPtr<nsIDocShell> openerRootDocShell(do_QueryInterface(openerRootItem));
-    if (openerRootDocShell) {
-      PRUint32 appType;
-      nsresult rv = openerRootDocShell->GetAppType(&appType);
-      if (NS_SUCCEEDED(rv) && appType != nsIDocShell::APP_TYPE_MAIL) {
-        *aOpener = opener;
+    if (docShellAsItem) {
+      nsCOMPtr<nsIDocShellTreeItem> openerRootItem;
+      docShellAsItem->GetRootTreeItem(getter_AddRefs(openerRootItem));
+      nsCOMPtr<nsIDocShell> openerRootDocShell(do_QueryInterface(openerRootItem));
+      if (openerRootDocShell) {
+        PRUint32 appType;
+        nsresult rv = openerRootDocShell->GetAppType(&appType);
+        if (NS_SUCCEEDED(rv) && appType != nsIDocShell::APP_TYPE_MAIL) {
+          *aOpener = opener;
+        }
       }
     }
   }
-
   NS_IF_ADDREF(*aOpener);
   return NS_OK;
 }
@@ -4299,7 +4276,7 @@ nsGlobalWindow::Focus()
 
   PRBool canFocus =
     CanSetProperty("dom.disable_window_flip") ||
-    RevisePopupAbuseLevel(gPopupControlState) < openAbused;
+    CheckOpenAllow(CheckForAbusePoint()) == allowNoAbuse;
 
   nsCOMPtr<nsIDOMWindow> activeWindow;
   fm->GetActiveWindow(getter_AddRefs(activeWindow));
@@ -4995,35 +4972,17 @@ nsGlobalWindow::CanSetProperty(const char *aPrefName)
   return !nsContentUtils::GetBoolPref(aPrefName, PR_TRUE);
 }
 
-PRBool
-nsGlobalWindow::PopupWhitelisted()
-{
-  if (!IsPopupBlocked(mDocument))
-    return PR_TRUE;
-
-  nsCOMPtr<nsIDOMWindow> parent;
-
-  if (NS_FAILED(GetParent(getter_AddRefs(parent))) ||
-      parent == static_cast<nsIDOMWindow*>(this))
-  {
-    return PR_FALSE;
-  }
-
-  return static_cast<nsGlobalWindow*>
-                    (static_cast<nsIDOMWindow*>
-                                (parent.get()))->PopupWhitelisted();
-}
 
 /*
  * Examine the current document state to see if we're in a way that is
  * typically abused by web designers. The window.open code uses this
  * routine to determine whether to allow the new window.
- * Returns a value from the PopupControlState enum.
+ * Returns a value from the CheckForAbusePoint enum.
  */
 PopupControlState
-nsGlobalWindow::RevisePopupAbuseLevel(PopupControlState aControl)
+nsGlobalWindow::CheckForAbusePoint()
 {
-  FORWARD_TO_OUTER(RevisePopupAbuseLevel, (aControl), aControl);
+  FORWARD_TO_OUTER(CheckForAbusePoint, (), openAbused);
 
   NS_ASSERTION(mDocShell, "Must have docshell");
   
@@ -5036,17 +4995,9 @@ nsGlobalWindow::RevisePopupAbuseLevel(PopupControlState aControl)
   if (type != nsIDocShellTreeItem::typeContent)
     return openAllowed;
 
-  PopupControlState abuse = aControl;
-  switch (abuse) {
-  case openControlled:
-  case openAbused:
-  case openOverridden:
-    if (PopupWhitelisted())
-      abuse = PopupControlState(abuse - 1);
-  case openAllowed: break;
-  default:
-    NS_WARNING("Strange PopupControlState!");
-  }
+  // level of abuse we've detected, initialized to the current popup
+  // state
+  PopupControlState abuse = gPopupControlState;
 
   // limit the number of simultaneously open popups
   if (abuse == openAbused || abuse == openControlled) {
@@ -5056,6 +5007,41 @@ nsGlobalWindow::RevisePopupAbuseLevel(PopupControlState aControl)
   }
 
   return abuse;
+}
+
+/* Allow or deny a window open based on whether popups are suppressed.
+   A popup generally will be allowed if it's from a white-listed domain.
+   Returns a value from the CheckOpenAllow enum. */
+OpenAllowValue
+nsGlobalWindow::CheckOpenAllow(PopupControlState aAbuseLevel)
+{
+  NS_PRECONDITION(GetDocShell(), "Must have docshell");
+
+  OpenAllowValue allowWindow = allowNoAbuse; // (also used for openControlled)
+  
+  if (aAbuseLevel >= openAbused) {
+    allowWindow = allowNot;
+
+    // However it might still not be blocked. For now we use both our
+    // location and the top window's location when determining whether
+    // a popup open request is whitelisted or not. This isn't ideal
+    // when dealing with iframe/frame documents, but it'll do for
+    // now. Getting the iframe/frame case right would require some
+    // changes to the frontend's handling of popup events etc.
+    if (aAbuseLevel == openAbused) {
+      nsCOMPtr<nsIDOMWindow> topWindow;
+      GetTop(getter_AddRefs(topWindow));
+
+      nsCOMPtr<nsPIDOMWindow> topPIWin(do_QueryInterface(topWindow));
+
+      if (topPIWin && (!IsPopupBlocked(topPIWin->GetExtantDocument()) ||
+                       !IsPopupBlocked(mDocument))) {
+        allowWindow = allowWhitelisted;
+      }
+    }
+  }
+
+  return allowWindow;
 }
 
 /* If a window open is blocked, fire the appropriate DOM events.
@@ -7508,10 +7494,13 @@ nsGlobalWindow::OpenInternal(const nsAString& aUrl, const nsAString& aName,
   if (NS_FAILED(rv))
     return rv;
 
-  PopupControlState abuseLevel = gPopupControlState;
+  // These next two variables are only accessed when checkForPopup is true
+  PopupControlState abuseLevel;
+  OpenAllowValue allowReason;
   if (checkForPopup) {
-    abuseLevel = RevisePopupAbuseLevel(abuseLevel);
-    if (abuseLevel >= openAbused) {
+    abuseLevel = CheckForAbusePoint();
+    allowReason = CheckOpenAllow(abuseLevel);
+    if (allowReason == allowNot) {
       if (aJSCallerContext) {
         // If script in some other window is doing a window.open on us and
         // it's being blocked, then it's OK to close us afterwards, probably.
@@ -7669,8 +7658,6 @@ nsGlobalWindow::ClearWindowScope(nsISupports *aWindow)
 // nsGlobalWindow: Timeout Functions
 //*****************************************************************************
 
-PRUint32 sNestingLevel;
-
 nsresult
 nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
                                      PRInt32 interval,
@@ -7685,9 +7672,7 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
     return NS_OK;
   }
 
-  PRUint32 nestingLevel = sNestingLevel + 1;
-  if (interval < DOM_MIN_TIMEOUT_VALUE &&
-      (aIsInterval || nestingLevel >= DOM_CLAMP_TIMEOUT_NESTING_LEVEL)) {
+  if (interval < DOM_MIN_TIMEOUT_VALUE) {
     // Don't allow timeouts less than DOM_MIN_TIMEOUT_VALUE from
     // now...
 
@@ -7788,10 +7773,6 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
   }
 
   timeout->mWindow = this;
-
-  if (!aIsInterval) {
-    timeout->mNestingLevel = nestingLevel;
-  }
 
   // No popups from timeouts by default
   timeout->mPopupState = openAbused;
@@ -8010,13 +7991,6 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
     ++gRunningTimeoutDepth;
     ++mTimeoutFiringDepth;
 
-    PRBool trackNestingLevel = !timeout->mInterval;
-    PRUint32 nestingLevel;
-    if (trackNestingLevel) {
-      nestingLevel = sNestingLevel;
-      sNestingLevel = timeout->mNestingLevel;
-    }
-
     nsCOMPtr<nsIScriptTimeoutHandler> handler(timeout->mScriptHandler);
     void *scriptObject = handler->GetScriptObject();
     if (!scriptObject) {
@@ -8057,10 +8031,6 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
     }
     handler = nsnull; // drop reference before dropping timeout refs.
 
-    if (trackNestingLevel) {
-      sNestingLevel = nestingLevel;
-    }
-
     --mTimeoutFiringDepth;
     --gRunningTimeoutDepth;
 
@@ -8099,21 +8069,14 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
     // If we have a regular interval timer, we re-schedule the
     // timeout, accounting for clock drift.
     if (timeout->mInterval) {
-      // Compute time to next timeout for interval timer.
+      // Compute time to next timeout for interval timer. If we're
+      // running pending timeouts because they've been temporarily
+      // disabled (!aTimeout), set the next interval to be relative to
+      // "now", and not to when the timeout that was pending should
+      // have fired.
+      // Also check if the next interval timeout is overdue.  If so,
+      // then restart the interval from now.
       PRTime nextInterval = (PRTime)timeout->mInterval * PR_USEC_PER_MSEC;
-
-      // Make sure nextInterval is at least DOM_MIN_TIMEOUT_VALUE.
-      // Note: We must cast the rhs expression to PRTime to work
-      // around what looks like a compiler bug on x86_64.
-      if (nextInterval < (PRTime)(DOM_MIN_TIMEOUT_VALUE * PR_USEC_PER_MSEC)) {
-         nextInterval = DOM_MIN_TIMEOUT_VALUE * PR_USEC_PER_MSEC;
-      }
-
-      // If we're running pending timeouts because they've been temporarily
-      // disabled (!aTimeout), set the next interval to be relative to "now",
-      // and not to when the timeout that was pending should have fired.  Also
-      // check if the next interval timeout is overdue.  If so, then restart
-      // the interval from now.
       if (!aTimeout || nextInterval + timeout->mWhen <= now)
         nextInterval += now;
       else
@@ -8121,10 +8084,11 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
 
       PRTime delay = nextInterval - PR_Now();
 
-      // And make sure delay is nonnegative; that might happen if the timer
-      // thread is firing our timers somewhat early.
-      if (delay < 0) {
-        delay = 0;
+      // Make sure the delay is at least DOM_MIN_TIMEOUT_VALUE.
+      // Note: We must cast the rhs expression to PRTime to work
+      // around what looks like a compiler bug on x86_64.
+      if (delay < (PRTime)(DOM_MIN_TIMEOUT_VALUE * PR_USEC_PER_MSEC)) {
+        delay = DOM_MIN_TIMEOUT_VALUE * PR_USEC_PER_MSEC;
       }
 
       if (timeout->mTimer) {
@@ -9388,8 +9352,6 @@ nsNavigator::GetPlatform(nsAString& aPlatform)
     aPlatform.AssignLiteral("MacPPC");
 #elif defined(XP_MACOSX) && defined(__i386__)
     aPlatform.AssignLiteral("MacIntel");
-#elif defined(XP_MACOSX) && defined(__x86_64__)
-    aPlatform.AssignLiteral("MacIntel");
 #elif defined(XP_OS2)
     aPlatform.AssignLiteral("OS/2");
 #else
@@ -9921,27 +9883,12 @@ nsNavigator::MozIsLocallyAvailable(const nsAString &aURI,
 NS_IMETHODIMP nsNavigator::GetGeolocation(nsIDOMGeoGeolocation **_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
-  *_retval = nsnull;
 
-  if (mGeolocation) {
-    NS_ADDREF(*_retval = mGeolocation);
-    return NS_OK;
+  if (!mGeolocation && mDocShell) {
+    nsCOMPtr<nsIDOMWindow> contentDOMWindow(do_GetInterface(mDocShell));
+    mGeolocation = new nsGeolocation(contentDOMWindow);
   }
 
-  if (!mDocShell)
-    return NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsIDOMWindow> contentDOMWindow(do_GetInterface(mDocShell));
-  if (!contentDOMWindow)
-    return NS_ERROR_FAILURE;
-    
-  mGeolocation = new nsGeolocation();
-  if (!mGeolocation)
-    return NS_ERROR_FAILURE;
-  
-  if (NS_FAILED(mGeolocation->Init(contentDOMWindow)))
-    return NS_ERROR_FAILURE;
-  
-  NS_ADDREF(*_retval = mGeolocation);    
-  return NS_OK; 
+  NS_IF_ADDREF(*_retval = mGeolocation);
+  return NS_OK;
 }

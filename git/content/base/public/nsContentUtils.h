@@ -70,7 +70,6 @@ class nsIContent;
 class nsIDOMNode;
 class nsIDOMKeyEvent;
 class nsIDocument;
-class nsIDocumentObserver;
 class nsIDocShell;
 class nsINameSpaceManager;
 class nsIScriptSecurityManager;
@@ -1675,13 +1674,27 @@ public:
 class mozAutoRemovableBlockerRemover
 {
 public:
-  mozAutoRemovableBlockerRemover(nsIDocument* aDocument);
-  ~mozAutoRemovableBlockerRemover();
+  mozAutoRemovableBlockerRemover()
+  {
+    mNestingLevel = nsContentUtils::GetRemovableScriptBlockerLevel();
+    for (PRUint32 i = 0; i < mNestingLevel; ++i) {
+      nsContentUtils::RemoveRemovableScriptBlocker();
+    }
+
+    NS_ASSERTION(nsContentUtils::IsSafeToRunScript(), "killing mutation events");
+  }
+
+  ~mozAutoRemovableBlockerRemover()
+  {
+    NS_ASSERTION(nsContentUtils::GetRemovableScriptBlockerLevel() == 0,
+                 "Should have had none");
+    for (PRUint32 i = 0; i < mNestingLevel; ++i) {
+      nsContentUtils::AddRemovableScriptBlocker();
+    }
+  }
 
 private:
   PRUint32 mNestingLevel;
-  nsCOMPtr<nsIDocument> mDocument;
-  nsCOMPtr<nsIDocumentObserver> mObserver;
 };
 
 #define NS_AUTO_GCROOT_PASTE2(tok,line) tok##line

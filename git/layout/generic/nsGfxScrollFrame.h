@@ -51,7 +51,6 @@
 #include "nsIView.h"
 #include "nsIReflowCallback.h"
 #include "nsBoxLayoutState.h"
-#include "nsQueryFrame.h"
 
 class nsPresContext;
 class nsIPresShell;
@@ -106,9 +105,6 @@ public:
   void CurPosAttributeChanged(nsIContent* aChild);
   void PostScrollEvent();
   void FireScrollEvent();
-  void PostScrolledAreaEvent(nsRect &aScrolledArea);
-  void FireScrolledAreaEvent(nsRect &aScrolledArea);
-
 
   class ScrollEvent : public nsRunnable {
   public:
@@ -236,25 +232,6 @@ public:
   // If true, need to actually update our scrollbar attributes in the
   // reflow callback.
   PRPackedBool mUpdateScrollbarAttributes:1;
-private:
-  class ScrolledAreaEventDispatcher : public nsRunnable {
-  public:
-    NS_DECL_NSIRUNNABLE
-
-    ScrolledAreaEventDispatcher(nsGfxScrollFrameInner *aScrollFrameInner)
-      : mScrollFrameInner(aScrollFrameInner),
-        mScrolledArea(0, 0, 0, 0)
-    {
-    }
-
-    void Revoke() { mScrollFrameInner = nsnull; }
-
-    nsGfxScrollFrameInner *mScrollFrameInner;
-    nsRect mScrolledArea;
-  };
-
-  nsRevocableEventPtr<ScrolledAreaEventDispatcher> mScrolledAreaEventDispatcher;
-
 };
 
 /**
@@ -412,7 +389,24 @@ public:
    * scroll frame's scrolled content area.
    */
 
-  NS_IMETHOD PostScrolledAreaEventForCurrentArea();
+  void PostScrolledAreaEvent(nsRect &aScrolledArea);
+  void FireScrolledAreaEvent(nsRect &aScrolledArea);
+
+  class ScrolledAreaEventDispatcher : public nsRunnable {
+  public:
+    NS_DECL_NSIRUNNABLE
+
+    ScrolledAreaEventDispatcher(nsHTMLScrollFrame *aScrollFrame)
+      : mScrollFrame(aScrollFrame),
+        mScrolledArea(0, 0, 0, 0)
+    {
+    }
+
+    void Revoke() { mScrollFrame = nsnull; }
+
+    nsHTMLScrollFrame *mScrollFrame;
+    nsRect mScrolledArea;
+  };
 
 protected:
   nsHTMLScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, PRBool aIsRoot);
@@ -446,6 +440,8 @@ protected:
 private:
   friend class nsGfxScrollFrameInner;
   nsGfxScrollFrameInner mInner;
+
+  nsRevocableEventPtr<ScrolledAreaEventDispatcher> mScrolledAreaEventDispatcher;
 };
 
 /**
@@ -607,10 +603,6 @@ public:
       return PR_FALSE;
     return nsBoxFrame::IsFrameOfType(aFlags);
   }
-
-  void PostScrolledAreaEvent(nsRect &aScrolledArea);
-
-  NS_IMETHOD PostScrolledAreaEventForCurrentArea();
 
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;

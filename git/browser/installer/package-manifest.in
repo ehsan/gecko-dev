@@ -102,7 +102,6 @@
 #endif
 
 ; [Components]
-@BINPATH@/components/components.list
 @BINPATH@/components/alerts.xpt
 #ifdef ACCESSIBILITY
 #ifdef XP_WIN32
@@ -293,11 +292,7 @@
 @BINPATH@/components/nsSidebar.js
 @BINPATH@/components/nsExtensionManager.js
 @BINPATH@/components/nsBlocklistService.js
-#ifdef MOZ_UPDATER
 @BINPATH@/components/nsUpdateService.js
-@BINPATH@/components/nsUpdateServiceStub.js
-#endif
-@BINPATH@/components/nsUpdateTimerManager.js
 @BINPATH@/components/pluginGlue.js
 @BINPATH@/components/nsSessionStartup.js
 @BINPATH@/components/nsSessionStore.js
@@ -501,9 +496,4 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/firefoxfaststart.exe
 @BINPATH@/components/FastStartup.js
 #endif
-#endif
-
-; [OS/2]
-#ifdef XP_OS2
-@BINPATH@/MozSounds.cmd
 #endif

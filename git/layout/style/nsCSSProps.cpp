@@ -725,9 +725,14 @@ const PRInt32 nsCSSProps::kCursorKTable[] = {
   eCSSKeyword_ns_resize, NS_STYLE_CURSOR_NS_RESIZE,
   eCSSKeyword_ew_resize, NS_STYLE_CURSOR_EW_RESIZE,
   eCSSKeyword_none, NS_STYLE_CURSOR_NONE,
+  // -moz- prefixed aliases for some CSS3 cursors for backward compat
+  eCSSKeyword__moz_copy, NS_STYLE_CURSOR_COPY,
+  eCSSKeyword__moz_alias, NS_STYLE_CURSOR_ALIAS,
+  eCSSKeyword__moz_context_menu, NS_STYLE_CURSOR_CONTEXT_MENU,
   // -moz- prefixed vendor specific
   eCSSKeyword__moz_grab, NS_STYLE_CURSOR_GRAB,
   eCSSKeyword__moz_grabbing, NS_STYLE_CURSOR_GRABBING,
+  eCSSKeyword__moz_spinning, NS_STYLE_CURSOR_SPINNING,
   eCSSKeyword__moz_zoom_in, NS_STYLE_CURSOR_MOZ_ZOOM_IN,
   eCSSKeyword__moz_zoom_out, NS_STYLE_CURSOR_MOZ_ZOOM_OUT,
   eCSSKeyword_UNKNOWN,-1
@@ -848,7 +853,6 @@ const PRInt32 nsCSSProps::kFontStretchKTable[] = {
   eCSSKeyword_extra_condensed, NS_STYLE_FONT_STRETCH_EXTRA_CONDENSED,
   eCSSKeyword_condensed, NS_STYLE_FONT_STRETCH_CONDENSED,
   eCSSKeyword_semi_condensed, NS_STYLE_FONT_STRETCH_SEMI_CONDENSED,
-  eCSSKeyword_normal, NS_STYLE_FONT_STRETCH_NORMAL,
   eCSSKeyword_semi_expanded, NS_STYLE_FONT_STRETCH_SEMI_EXPANDED,
   eCSSKeyword_expanded, NS_STYLE_FONT_STRETCH_EXPANDED,
   eCSSKeyword_extra_expanded, NS_STYLE_FONT_STRETCH_EXTRA_EXPANDED,
@@ -870,7 +874,6 @@ const PRInt32 nsCSSProps::kFontVariantKTable[] = {
 };
 
 const PRInt32 nsCSSProps::kFontWeightKTable[] = {
-  eCSSKeyword_normal, NS_STYLE_FONT_WEIGHT_NORMAL,
   eCSSKeyword_bold, NS_STYLE_FONT_WEIGHT_BOLD,
   eCSSKeyword_bolder, NS_STYLE_FONT_WEIGHT_BOLDER,
   eCSSKeyword_lighter, NS_STYLE_FONT_WEIGHT_LIGHTER,
@@ -1057,23 +1060,6 @@ const PRInt32 nsCSSProps::kPositionKTable[] = {
   eCSSKeyword_relative, NS_STYLE_POSITION_RELATIVE,
   eCSSKeyword_absolute, NS_STYLE_POSITION_ABSOLUTE,
   eCSSKeyword_fixed, NS_STYLE_POSITION_FIXED,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const PRInt32 nsCSSProps::kRadialGradientShapeKTable[] = {
-  eCSSKeyword_circle,  NS_STYLE_GRADIENT_SHAPE_CIRCULAR,
-  eCSSKeyword_ellipse, NS_STYLE_GRADIENT_SHAPE_ELLIPTICAL,
-  eCSSKeyword_UNKNOWN,-1
-};
-
-const PRInt32 nsCSSProps::kRadialGradientSizeKTable[] = {
-  eCSSKeyword_closest_side,    NS_STYLE_GRADIENT_SIZE_CLOSEST_SIDE,
-  eCSSKeyword_closest_corner,  NS_STYLE_GRADIENT_SIZE_CLOSEST_CORNER,
-  eCSSKeyword_farthest_side,   NS_STYLE_GRADIENT_SIZE_FARTHEST_SIDE,
-  eCSSKeyword_farthest_corner, NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER,
-  // synonyms
-  eCSSKeyword_contain,         NS_STYLE_GRADIENT_SIZE_CLOSEST_SIDE,
-  eCSSKeyword_cover,           NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER,
   eCSSKeyword_UNKNOWN,-1
 };
 

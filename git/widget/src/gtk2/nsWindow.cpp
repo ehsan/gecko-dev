@@ -134,6 +134,8 @@ D_DEBUG_DOMAIN( ns_Window, "nsWindow", "nsWindow" );
 }
 #include "gfxDirectFBSurface.h"
 #define GDK_WINDOW_XWINDOW(_win) _win
+#else
+#define D_DEBUG_AT(x,y...)    do {} while (0)
 #endif
 
 // Don't put more than this many rects in the dirty region, just fluff
@@ -198,8 +200,6 @@ static gboolean scroll_event_cb           (GtkWidget *widget,
                                            GdkEventScroll *event);
 static gboolean visibility_notify_event_cb(GtkWidget *widget,
                                            GdkEventVisibility *event);
-static void     hierarchy_changed_cb      (GtkWidget *widget,
-                                           GtkWidget *previous_toplevel);
 static gboolean window_state_event_cb     (GtkWidget *widget,
                                            GdkEventWindowState *event);
 static void     theme_changed_cb          (GtkSettings *settings,
@@ -364,17 +364,6 @@ static PRBool gForce24bpp = PR_FALSE;
 
 static GtkWidget *gInvisibleContainer = NULL;
 
-// Some gobject functions expect functions for gpointer arguments.
-// gpointer is void* but C++ doesn't like casting functions to void*.
-template<class T> gpointer
-FuncToGpointer(T aFunction)
-{
-    return reinterpret_cast<gpointer>
-        (reinterpret_cast<uintptr_t>
-         // This cast just provides a warning if T is not a function.
-         (reinterpret_cast<void (*)()>(aFunction)));
-}
-
 nsWindow::nsWindow()
 {
     mIsTopLevel       = PR_FALSE;
@@ -395,8 +384,7 @@ nsWindow::nsWindow()
     mContainerGotFocus   = PR_FALSE;
     mContainerLostFocus  = PR_FALSE;
     mContainerBlockFocus = PR_FALSE;
-    mHasMappedToplevel   = PR_FALSE;
-    mIsFullyObscured     = PR_FALSE;
+    mIsVisible           = PR_FALSE;
     mRetryPointerGrab    = PR_FALSE;
     mRetryKeyboardGrab   = PR_FALSE;
     mTransientParent     = nsnull;
@@ -525,7 +513,7 @@ nsWindow::InitKeyEvent(nsKeyEvent &aEvent, GdkEventKey *aGdkEvent)
     // so link to the GdkEvent (which will vanish soon after return from the
     // event callback) to give plugins access to hardware_keycode and state.
     // (An XEvent would be nice but the GdkEvent is good enough.)
-    aEvent.pluginEvent = (void *)aGdkEvent;
+    aEvent.nativeMsg = (void *)aGdkEvent;
 
     aEvent.time      = aGdkEvent->time;
 }
@@ -551,6 +539,9 @@ nsWindow::DispatchActivateEvent(void)
     NS_ASSERTION(mContainer || mIsDestroyed,
                  "DispatchActivateEvent only intended for container windows");
 
+    if (!mIsTopLevel)
+        return;
+
 #ifdef ACCESSIBILITY
     DispatchActivateEventAccessible();
 #endif //ACCESSIBILITY
@@ -562,6 +553,9 @@ nsWindow::DispatchActivateEvent(void)
 void
 nsWindow::DispatchDeactivateEvent(void)
 {
+    if (!mIsTopLevel)
+        return;
+
     nsGUIEvent event(PR_TRUE, NS_DEACTIVATE, this);
     nsEventStatus status;
     DispatchEvent(&event, status);
@@ -652,7 +646,9 @@ CheckDestroyInvisibleContainer()
 
 // Change the containing GtkWidget on a sub-hierarchy of GdkWindows belonging
 // to aOldWidget and rooted at aWindow, and reparent any child GtkWidgets of
-// the GdkWindow hierarchy to aNewWidget.
+// the GdkWindow hierarchy.  If aNewWidget is NULL, the reference to
+// aOldWidget is removed from its GdkWindows, and child GtkWidgets are
+// destroyed.
 static void
 SetWidgetForHierarchy(GdkWindow *aWindow,
                       GtkWidget *aOldWidget,
@@ -671,7 +667,13 @@ SetWidgetForHierarchy(GdkWindow *aWindow,
 
         // This window belongs to a child widget, which will no longer be a
         // child of aOldWidget.
-        gtk_widget_reparent(widget, aNewWidget);
+        if (aNewWidget) {
+            gtk_widget_reparent(widget, aNewWidget);
+        } else {
+            // aNewWidget == NULL indicates that the window is about to be
+            // destroyed.
+            gtk_widget_destroy(widget);
+        }
 
         return;
     }
@@ -683,30 +685,6 @@ SetWidgetForHierarchy(GdkWindow *aWindow,
     g_list_free(children);
 
     gdk_window_set_user_data(aWindow, aNewWidget);
-}
-
-// Walk the list of child windows and call destroy on them.
-void
-nsWindow::DestroyChildWindows()
-{
-    if (!mGdkWindow)
-        return;
-
-    while (GList *children = gdk_window_peek_children(mGdkWindow)) {
-        GdkWindow *child = GDK_WINDOW(children->data);
-        nsWindow *kid = get_window_for_gdk_window(child);
-        if (kid) {
-            kid->Destroy();
-        } else {
-            // This child is not an nsWindow.
-            // Destroy the child GtkWidget.
-            gpointer data;
-            gdk_window_get_user_data(child, &data);
-            if (GTK_IS_WIDGET(data)) {
-                gtk_widget_destroy(static_cast<GtkWidget*>(data));
-            }
-        }
-    }
 }
 
 NS_IMETHODIMP
@@ -732,7 +710,7 @@ nsWindow::Destroy(void)
     }
 
     g_signal_handlers_disconnect_by_func(gtk_settings_get_default(),
-                                         FuncToGpointer(theme_changed_cb),
+                                         (gpointer)G_CALLBACK(theme_changed_cb),
                                          this);
 
     // ungrab if required
@@ -745,6 +723,15 @@ nsWindow::Destroy(void)
     }
 
     NativeShow(PR_FALSE);
+
+    // walk the list of children and call destroy on them.  Have to be
+    // careful, though -- calling destroy on a kid may actually remove
+    // it from our child list, losing its sibling links.
+    for (nsIWidget* kid = mFirstChild; kid; ) {
+        nsIWidget* next = kid->GetNextSibling();
+        kid->Destroy();
+        kid = next;
+    }
 
 #ifdef USE_XIM
     IMEDestroyContext();
@@ -797,13 +784,16 @@ nsWindow::Destroy(void)
                           "mGdkWindow should be NULL when mContainer is destroyed");
     }
     else if (mGdkWindow) {
-        // Destroy child windows to ensure that their mThebesSurfaces are
-        // released and to remove references from GdkWindows back to their
-        // container widget.  (OnContainerUnrealize() does this when the
-        // MozContainer widget is destroyed.)
-        DestroyChildWindows();
+        // Remove references from GdkWindows back to their container
+        // widget while the GdkWindow hierarchy is still available.
+        // (OnContainerUnrealize does this when the MozContainer widget is
+        // destroyed.)
+        if (owningWidget) {
+            SetWidgetForHierarchy(mGdkWindow, owningWidget, NULL);
+        }
+        NS_ASSERTION(!get_gtk_widget_for_gdk_window(mGdkWindow),
+                     "widget reference not removed");
 
-        gdk_window_set_user_data(mGdkWindow, NULL);
         g_object_set_data(G_OBJECT(mGdkWindow), "nsWindow", NULL);
         gdk_window_destroy(mGdkWindow);
         mGdkWindow = nsnull;
@@ -856,11 +846,11 @@ nsWindow::SetParent(nsIWidget *aNewParent)
     NS_ABORT_IF_FALSE(!GDK_WINDOW_OBJECT(mGdkWindow)->destroyed,
                       "destroyed GdkWindow with widget");
 
-    nsWindow* newParent = static_cast<nsWindow*>(aNewParent);
     GdkWindow* newParentWindow = NULL;
     GtkWidget* newContainer = NULL;
     if (aNewParent) {
-        newParentWindow = newParent->mGdkWindow;
+        newParentWindow = static_cast<GdkWindow*>
+            (aNewParent->GetNativeData(NS_NATIVE_WINDOW));
         if (newParentWindow) {
             newContainer = get_gtk_widget_for_gdk_window(newParentWindow);
         }
@@ -887,12 +877,6 @@ nsWindow::SetParent(nsIWidget *aNewParent)
         }
 
         gdk_window_reparent(mGdkWindow, newParentWindow, 0, 0);
-    }
-
-    PRBool parentHasMappedToplevel =
-        newParent && newParent->mHasMappedToplevel;
-    if (mHasMappedToplevel != parentHasMappedToplevel) {
-        SetHasMappedToplevel(parentHasMappedToplevel);
     }
 
     return NS_OK;
@@ -937,6 +921,33 @@ nsWindow::IsVisible(PRBool& aState)
     return NS_OK;
 }
 
+// Internal method, which returns false when no part of the window can be seen.
+PRBool
+nsWindow::CanBeSeen()
+{
+    // mIsVisible keeps track of whether any part of the window is unobscured,
+    // but does not get updated when the window changes state from viewable to
+    // not viewable (when any ancestor window is unmapped) because
+    // VisibilityNotifty events do not get sent on such a change in state.
+    if (!mIsShown || !mIsVisible)
+        return PR_FALSE;
+
+    GtkWidget *topWidget = nsnull;
+    GetToplevelWidget(&topWidget);
+
+    // If the toplevel widget has been unmapped, then record this in
+    // mIsVisible.  mIsVisible will be updated in OnVisibilityNotifyEvent()
+    // when its window becomes viewable again.
+    // (gdk_window_is_viewable() is not suitable here as it does not
+    // check GDK_WINDOW_STATE_ICONIFIED.)
+    mIsVisible =
+        topWidget &&
+        !(gdk_window_get_state(topWidget->window) &
+          (GDK_WINDOW_STATE_ICONIFIED|GDK_WINDOW_STATE_WITHDRAWN));
+        
+    return mIsVisible;
+}
+
 NS_IMETHODIMP
 nsWindow::ConstrainPosition(PRBool aAllowSlop, PRInt32 *aX, PRInt32 *aY)
 {
@@ -969,18 +980,9 @@ nsWindow::ConstrainPosition(PRBool aAllowSlop, PRInt32 *aX, PRInt32 *aY)
 NS_IMETHODIMP
 nsWindow::Show(PRBool aState)
 {
-    if (aState == mIsShown)
-        return NS_OK;
-
     mIsShown = aState;
 
     LOG(("nsWindow::Show [%p] state %d\n", (void *)this, aState));
-
-    if (aState) {
-        // Now that this window is shown, mHasMappedToplevel needs to be
-        // tracked on viewable descendants.
-        SetHasMappedToplevel(mHasMappedToplevel);
-    }
 
     // Ok, someone called show on a window that isn't sized to a sane
     // value.  Mark this window as needing to have Show() called on it
@@ -998,7 +1000,14 @@ nsWindow::Show(PRBool aState)
     // If someone is showing this window and it needs a resize then
     // resize the widget.
     if (aState) {
+        
+        // Sizemode can be set before the window is created.  If it is,
+        // we want to force fullscreen, if needed.
+        if (mSizeMode == nsSizeMode_Fullscreen)
+            MakeFullScreen(PR_TRUE);
+
         if (mNeedsMove) {
+            LOG(("\tresizing\n"));
             NativeResize(mBounds.x, mBounds.y, mBounds.width, mBounds.height,
                          PR_FALSE);
         } else if (mNeedsResize) {
@@ -1169,11 +1178,6 @@ nsWindow::Move(PRInt32 aX, PRInt32 aY)
 {
     LOG(("nsWindow::Move [%p] %d %d\n", (void *)this,
          aX, aY));
-
-    if (mWindowType == eWindowType_toplevel ||
-        mWindowType == eWindowType_dialog) {
-        SetSizeMode(nsSizeMode_Normal);
-    }
 
     mPlaced = PR_TRUE;
 
@@ -1657,7 +1661,7 @@ NS_IMETHODIMP
 nsWindow::Invalidate(const nsIntRect &aRect,
                      PRBool           aIsSynchronous)
 {
-    if (!mGdkWindow)
+    if (!mGdkWindow || !CanBeSeen())
         return NS_OK;
 
     GdkRectangle rect;
@@ -1681,8 +1685,6 @@ nsWindow::Update()
 {
     if (!mGdkWindow)
         return NS_OK;
-
-    LOGDRAW(("Update [%p] %p\n", this, mGdkWindow));
 
     gdk_window_process_updates(mGdkWindow, FALSE);
     return NS_OK;
@@ -2060,8 +2062,7 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
         return FALSE;
     }
 
-    // Windows that are not visible will be painted after they become visible.
-    if (!mGdkWindow || mIsFullyObscured || !mHasMappedToplevel)
+    if (!mGdkWindow)
         return FALSE;
 
     static NS_DEFINE_CID(kRegionCID, NS_REGION_CID);
@@ -2388,7 +2389,7 @@ nsWindow::OnContainerUnrealize(GtkWidget *aWidget)
                  "unexpected \"unrealize\" signal");
 
     if (mGdkWindow) {
-        DestroyChildWindows();
+        SetWidgetForHierarchy(mGdkWindow, aWidget, NULL);
 
         g_object_set_data(G_OBJECT(mGdkWindow), "nsWindow", NULL);
         mGdkWindow = NULL;
@@ -3214,23 +3215,10 @@ void
 nsWindow::OnVisibilityNotifyEvent(GtkWidget *aWidget,
                                   GdkEventVisibility *aEvent)
 {
-    LOGDRAW(("Visibility event %i on [%p] %p\n",
-             aEvent->state, this, aEvent->window));
-
-    if (!mGdkWindow)
-        return;
-
     switch (aEvent->state) {
     case GDK_VISIBILITY_UNOBSCURED:
     case GDK_VISIBILITY_PARTIAL:
-        if (mIsFullyObscured && mHasMappedToplevel) {
-            // GDK_EXPOSE events have been ignored, so make sure GDK
-            // doesn't think that the window has already been painted.
-            gdk_window_invalidate_rect(mGdkWindow, NULL, FALSE);
-        }
-
-        mIsFullyObscured = PR_FALSE;
-
+        mIsVisible = PR_TRUE;
 #ifdef MOZ_PLATFORM_HILDON
 #ifdef USE_XIM
         // In Hildon/Maemo, a browser window will get into 'patially visible' state wheneven an
@@ -3246,7 +3234,7 @@ nsWindow::OnVisibilityNotifyEvent(GtkWidget *aWidget,
         EnsureGrabs();
         break;
     default: // includes GDK_VISIBILITY_FULLY_OBSCURED
-        mIsFullyObscured = PR_TRUE;
+        mIsVisible = PR_FALSE;
         break;
     }
 }
@@ -3256,27 +3244,6 @@ nsWindow::OnWindowStateEvent(GtkWidget *aWidget, GdkEventWindowState *aEvent)
 {
     LOG(("nsWindow::OnWindowStateEvent [%p] changed %d new_window_state %d\n",
          (void *)this, aEvent->changed_mask, aEvent->new_window_state));
-
-    if (IS_MOZ_CONTAINER(aWidget)) {
-        // This event is notifying the container widget of changes to the
-        // toplevel window.  Just detect changes affecting whether windows are
-        // viewable.
-        //
-        // (A visibility notify event is sent to each window that becomes
-        // viewable when the toplevel is mapped, but we can't rely on that for
-        // setting mHasMappedToplevel because these toplevel window state
-        // events are asynchronous.  The windows in the hierarchy now may not
-        // be the same windows as when the toplevel was mapped, so they may
-        // not get VisibilityNotify events.)
-        PRBool mapped =
-            !(aEvent->new_window_state &
-              (GDK_WINDOW_STATE_ICONIFIED|GDK_WINDOW_STATE_WITHDRAWN));
-        if (mHasMappedToplevel != mapped) {
-            SetHasMappedToplevel(mapped);
-        }
-        return;
-    }
-    // else the widget is a shell widget.
 
     nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, this);
 
@@ -3905,10 +3872,6 @@ nsWindow::Create(nsIWidget        *aParent,
     case eWindowType_child: {
         if (parentMozContainer) {
             mGdkWindow = CreateGdkWindow(parentGdkWindow, parentMozContainer);
-            nsWindow *parentnsWindow =
-                get_window_for_gdk_window(parentGdkWindow);
-            if (parentnsWindow)
-                mHasMappedToplevel = parentnsWindow->mHasMappedToplevel;
         }
         else if (parentGtkContainer) {
             GtkWidget *container = moz_container_new();
@@ -3996,10 +3959,6 @@ nsWindow::Create(nsIWidget        *aParent,
                          G_CALLBACK(scroll_event_cb), NULL);
         g_signal_connect(G_OBJECT(mContainer), "visibility_notify_event",
                          G_CALLBACK(visibility_notify_event_cb), NULL);
-        g_signal_connect(G_OBJECT(mContainer), "hierarchy_changed",
-                         G_CALLBACK(hierarchy_changed_cb), NULL);
-        // Initialize mHasMappedToplevel.
-        hierarchy_changed_cb(GTK_WIDGET(mContainer), NULL);
 
         gtk_drag_dest_set((GtkWidget *)mContainer,
                           (GtkDestDefaults)0,
@@ -4230,6 +4189,7 @@ nsWindow::NativeResize(PRInt32 aX, PRInt32 aY,
             gtk_window_move(GTK_WINDOW(mShell), aX, aY);
 
         gtk_window_resize(GTK_WINDOW(mShell), aWidth, aHeight);
+        gdk_window_resize(mGdkWindow, aWidth, aHeight);
     }
     else if (mContainer) {
         GtkAllocation allocation;
@@ -4289,48 +4249,6 @@ nsWindow::NativeShow (PRBool  aAction)
         }
         else if (mGdkWindow) {
             gdk_window_hide(mGdkWindow);
-        }
-    }
-}
-
-void
-nsWindow::SetHasMappedToplevel(PRBool aState)
-{
-    // Even when aState == mHasMappedToplevel (as when this method is called
-    // from Show()), child windows need to have their state checked, so don't
-    // return early.
-    PRBool oldState = mHasMappedToplevel;
-    mHasMappedToplevel = aState;
-
-    // mHasMappedToplevel is not updated for children of windows that are
-    // hidden; GDK knows not to send expose events for these windows.  The
-    // state is recorded on the hidden window itself, but, for child trees of
-    // hidden windows, their state essentially becomes disconnected from their
-    // hidden parent.  When the hidden parent gets shown, the child trees are
-    // reconnected, and the state of the window being shown can be easily
-    // propagated.
-    if (!mIsShown || !mGdkWindow)
-        return;
-
-    if (aState && !oldState && !mIsFullyObscured) {
-        // GDK_EXPOSE events have been ignored but the window is now visible,
-        // so make sure GDK doesn't think that the window has already been
-        // painted.
-        gdk_window_invalidate_rect(mGdkWindow, NULL, FALSE);
-
-        // Check that a grab didn't fail due to the window not being
-        // viewable.
-        EnsureGrabs();
-    }
-
-    for (GList *children = gdk_window_peek_children(mGdkWindow);
-         children;
-         children = children->next) {
-        GdkWindow *gdkWin = GDK_WINDOW(children->data);
-        nsWindow *child = get_window_for_gdk_window(gdkWin);
-
-        if (child && child->mHasMappedToplevel != aState) {
-            child->SetHasMappedToplevel(aState);
         }
     }
 }
@@ -4628,7 +4546,7 @@ nsWindow::GrabPointer(void)
     // If the window isn't visible, just set the flag to retry the
     // grab.  When this window becomes visible, the grab will be
     // retried.
-    if (!mHasMappedToplevel || mIsFullyObscured) {
+    if (!CanBeSeen()) {
         LOG(("GrabPointer: window not visible\n"));
         mRetryPointerGrab = PR_TRUE;
         return;
@@ -4665,7 +4583,7 @@ nsWindow::GrabKeyboard(void)
     // If the window isn't visible, just set the flag to retry the
     // grab.  When this window becomes visible, the grab will be
     // retried.
-    if (!mHasMappedToplevel || mIsFullyObscured) {
+    if (!CanBeSeen()) {
         LOG(("GrabKeyboard: window not visible\n"));
         mRetryKeyboardGrab = PR_TRUE;
         return;
@@ -4967,21 +4885,25 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
     LOG(("nsWindow::MakeFullScreen [%p] aFullScreen %d\n",
          (void *)this, aFullScreen));
 
+#if GTK_CHECK_VERSION(2,2,0)
     if (aFullScreen) {
         if (mSizeMode != nsSizeMode_Fullscreen)
             mLastSizeMode = mSizeMode;
 
         mSizeMode = nsSizeMode_Fullscreen;
-        gtk_window_fullscreen(GTK_WINDOW(mShell));
+        gdk_window_fullscreen (mShell->window);
     }
     else {
         mSizeMode = mLastSizeMode;
-        gtk_window_unfullscreen(GTK_WINDOW(mShell));
+        gdk_window_unfullscreen (mShell->window);
     }
 
     NS_ASSERTION(mLastSizeMode != nsSizeMode_Fullscreen,
                  "mLastSizeMode should never be fullscreen");
     return NS_OK;
+#else
+    return nsBaseWidget::MakeFullScreen(aFullScreen);
+#endif
 }
 
 NS_IMETHODIMP
@@ -5730,44 +5652,6 @@ visibility_notify_event_cb (GtkWidget *widget, GdkEventVisibility *event)
     window->OnVisibilityNotifyEvent(widget, event);
 
     return TRUE;
-}
-
-static void
-hierarchy_changed_cb (GtkWidget *widget,
-                      GtkWidget *previous_toplevel)
-{
-    GtkWidget *toplevel = gtk_widget_get_toplevel(widget);
-    GdkWindowState old_window_state = GDK_WINDOW_STATE_WITHDRAWN;
-    GdkEventWindowState event;
-
-    event.new_window_state = GDK_WINDOW_STATE_WITHDRAWN;
-
-    if (GTK_IS_WINDOW(previous_toplevel)) {
-        g_signal_handlers_disconnect_by_func(previous_toplevel,
-                                             FuncToGpointer(window_state_event_cb),
-                                             widget);
-        if (widget->window) {
-            old_window_state = gdk_window_get_state(widget->window);
-        }
-    }
-
-    if (GTK_IS_WINDOW(toplevel)) {
-        g_signal_connect_swapped(toplevel, "window-state-event",
-                                 G_CALLBACK(window_state_event_cb), widget);
-        if (widget->window) {
-            event.new_window_state = gdk_window_get_state(widget->window);
-        }
-    }
-
-    event.changed_mask = static_cast<GdkWindowState>
-        (old_window_state ^ event.new_window_state);
-
-    if (event.changed_mask) {
-        event.type = GDK_WINDOW_STATE;
-        event.window = NULL;
-        event.send_event = TRUE;
-        window_state_event_cb(widget, &event);
-    }
 }
 
 /* static */
@@ -7215,9 +7099,6 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
 gfxASurface*
 nsWindow::GetThebesSurface()
 {
-    if (!mGdkWindow)
-        return nsnull;
-
     GdkDrawable* d;
     gint x_offset, y_offset;
     gdk_window_get_internal_paint_info(mGdkWindow, &d, &x_offset, &y_offset);

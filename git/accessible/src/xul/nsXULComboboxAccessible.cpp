@@ -58,7 +58,7 @@ nsresult
 nsXULComboboxAccessible::Init()
 {
   nsresult rv = nsAccessibleWrap::Init();
-  nsCoreUtils::GeneratePopupTree(mDOMNode);
+  nsXULMenupopupAccessible::GenerateMenu(mDOMNode);
   return rv;
 }
 

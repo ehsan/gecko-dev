@@ -883,7 +883,12 @@ nsBindingManager::RemoveLayeredBinding(nsIContent* aContent, nsIURI* aURL)
   NS_ENSURE_FALSE(binding->GetBaseBinding(), NS_ERROR_FAILURE);
 
   // Make sure that the binding has the URI that is requested to be removed
-  if (!binding->PrototypeBinding()->CompareBindingURI(aURL)) {
+  nsIURI* bindingUri = binding->PrototypeBinding()->BindingURI();
+  
+  PRBool equalUri;
+  nsresult rv = aURL->Equals(bindingUri, &equalUri);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!equalUri) {
     return NS_OK;
   }
 

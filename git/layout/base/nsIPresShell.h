@@ -122,10 +122,10 @@ typedef struct CapturingContentInfo {
     mAllowed(PR_FALSE), mRetargetToElement(PR_FALSE), mContent(nsnull) { }
 } CapturingContentInfo;
 
-// 7190dd0b-4278-4ad6-bee5-6defef4c5647
+// eed2ef56-133f-4696-9eee-5fc45d816be8
 #define NS_IPRESSHELL_IID     \
-{ 0x7190dd0b, 0x4278, 0x4ad6, \
-  { 0xbe, 0xe5, 0x6d, 0xef, 0xef, 0x4c, 0x56, 0x47 } }
+{ 0xeed2ef56, 0x133f, 0x4696, \
+  { 0x9e, 0xee, 0x5f, 0xc4, 0x5d, 0x81, 0x6b, 0xe8 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -344,12 +344,6 @@ public:
    * The same as GetRootScrollFrame, but returns an nsIScrollableFrame
    */
   nsIScrollableFrame* GetRootScrollFrameAsScrollable() const;
-
-  /*
-   * The same as GetRootScrollFrame, but returns an nsIScrollableFrame.
-   * Can be called by code not linked into gklayout.
-   */
-  virtual nsIScrollableFrame* GetRootScrollFrameAsScrollableExternal() const;
 
   /**
    * Returns the page sequence frame associated with the frame hierarchy.
@@ -828,29 +822,8 @@ public:
                                                         nsIntPoint& aPoint,
                                                         nsIntRect* aScreenRect) = 0;
 
-  void AddWeakFrameInternal(nsWeakFrame* aWeakFrame);
-  virtual void AddWeakFrameExternal(nsWeakFrame* aWeakFrame);
-
-  void AddWeakFrame(nsWeakFrame* aWeakFrame)
-  {
-#ifdef _IMPL_NS_LAYOUT
-    AddWeakFrameInternal(aWeakFrame);
-#else
-    AddWeakFrameExternal(aWeakFrame);
-#endif
-  }
-
-  void RemoveWeakFrameInternal(nsWeakFrame* aWeakFrame);
-  virtual void RemoveWeakFrameExternal(nsWeakFrame* aWeakFrame);
-
-  void RemoveWeakFrame(nsWeakFrame* aWeakFrame)
-  {
-#ifdef _IMPL_NS_LAYOUT
-    RemoveWeakFrameInternal(aWeakFrame);
-#else
-    RemoveWeakFrameExternal(aWeakFrame);
-#endif
-  }
+  void AddWeakFrame(nsWeakFrame* aWeakFrame);
+  void RemoveWeakFrame(nsWeakFrame* aWeakFrame);
 
 #ifdef NS_DEBUG
   nsIFrame* GetDrawEventTargetFrame() { return mDrawEventTargetFrame; }

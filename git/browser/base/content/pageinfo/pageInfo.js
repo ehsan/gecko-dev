@@ -85,7 +85,7 @@ pageInfoTreeView.prototype = {
   {
     this.rows = this.data.push(row);
     this.rowCountChanged(this.rows - 1, 1);
-    if (this.selection.count == 0 && this.rowCount && !gImageElement)
+    if (this.selection.count == 0 && this.rowCount)
       this.selection.select(0);
   },
 
@@ -279,12 +279,16 @@ function onLoadPageInfo()
   gStrings.mediaLink = gBundle.getString("mediaLink");
   gStrings.mediaInput = gBundle.getString("mediaInput");
 
-  var args = "arguments" in window &&
-             window.arguments.length >= 1 &&
-             window.arguments[0];
-
-  if (!args || !args.doc) {
-    gWindow = window.opener.content;
+  if ("arguments" in window && window.arguments.length >= 1 &&
+       window.arguments[0] && window.arguments[0].doc) {
+    gDocument = window.arguments[0].doc;
+    gWindow = gDocument.defaultView;
+  }
+  else {
+    if ("gBrowser" in window.opener)
+      gWindow = window.opener.gBrowser.contentWindow;
+    else
+      gWindow = window.opener.frames[0];
     gDocument = gWindow.document;
   }
 
@@ -292,8 +296,24 @@ function onLoadPageInfo()
   var imageTree = document.getElementById("imagetree");
   imageTree.view = gImageView;
 
+  // set gImageElement if present
+  if ("arguments" in window && window.arguments.length >= 1 &&
+      window.arguments[0].imageElement)
+    gImageElement = window.arguments[0].imageElement;
+
+  // build the content
+  loadPageInfo();
+
   /* Select the requested tab, if the name is specified */
-  loadTab(args);
+  var initialTab = "generalTab";
+  if ("arguments" in window && window.arguments.length >= 1 &&
+       window.arguments[0] && window.arguments[0].initialTab)
+    initialTab = window.arguments[0].initialTab;
+  var radioGroup = document.getElementById("viewGroup");
+  initialTab = document.getElementById(initialTab) || document.getElementById("generalTab");
+  radioGroup.selectedItem = initialTab;
+  radioGroup.selectedItem.doCommand();
+  radioGroup.focus();
   Components.classes["@mozilla.org/observer-service;1"]
             .getService(Components.interfaces.nsIObserverService)
             .notifyObservers(window, "page-info-dialog-loaded", null);
@@ -320,7 +340,7 @@ function loadPageInfo()
   onLoadRegistry.forEach(function(func) { func(); });
 }
 
-function resetPageInfo(args)
+function resetPageInfo()
 {
   /* Reset Meta tags part */
   gMetaView.clear();
@@ -344,8 +364,8 @@ function resetPageInfo(args)
   /* Call registered overlay reset functions */
   onResetRegistry.forEach(function(func) { func(); });
 
-  /* Rebuild the data */
-  loadTab(args);
+  /* And let's rebuild the data */
+  loadPageInfo();
 }
 
 function onUnloadPageInfo()
@@ -381,26 +401,6 @@ function showTab(id)
   var deck  = document.getElementById("mainDeck");
   var pagel = document.getElementById(id + "Panel");
   deck.selectedPanel = pagel;
-}
-
-function loadTab(args)
-{
-  if (args && args.doc) {
-    gDocument = args.doc;
-    gWindow = gDocument.defaultView;
-  }
-
-  gImageElement = args && args.imageElement;
-
-  /* Load the page info */
-  loadPageInfo();
-
-  var initialTab = (args && args.initialTab) || "generalTab";
-  var radioGroup = document.getElementById("viewGroup");
-  initialTab = document.getElementById(initialTab) || document.getElementById("generalTab");
-  radioGroup.selectedItem = initialTab;
-  radioGroup.selectedItem.doCommand();
-  radioGroup.focus();
 }
 
 function onClickMore()
@@ -592,8 +592,6 @@ function addImage(url, type, alt, elem, isBg)
   else {
     var i = gImageHash[url][type][alt];
     gImageView.data[i][COL_IMAGE_COUNT]++;
-    if (elem == gImageElement)
-      gImageView.data[i][COL_IMAGE_NODE] = elem;
   }
 }
 
@@ -1181,8 +1179,6 @@ function selectImage() {
   for (var i = 0; i < tree.view.rowCount; i++) {
     if (gImageElement == gImageView.data[i][COL_IMAGE_NODE]) {
       tree.view.selection.select(i);
-      tree.treeBoxObject.ensureRowIsVisible(i);
-      tree.focus();
       return;
     }
   }

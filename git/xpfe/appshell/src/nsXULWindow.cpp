@@ -143,15 +143,15 @@ nsXULWindow::nsXULWindow(PRUint32 aChromeFlags)
     mCenterAfterLoad(PR_FALSE),
     mIsHiddenWindow(PR_FALSE),
     mLockedUntilChromeLoad(PR_FALSE),
-    mIgnoreXULSize(PR_FALSE),
-    mIgnoreXULPosition(PR_FALSE),
     mContextFlags(0),
     mBlurSuppressionLevel(0),
     mPersistentAttributesDirty(0),
     mPersistentAttributesMask(0),
     mChromeFlags(aChromeFlags),
     // best guess till we have a widget
-    mAppPerDev(nsPresContext::AppUnitsPerCSSPixel())
+    mAppPerDev(nsPresContext::AppUnitsPerCSSPixel()),
+    mIgnoreXULSize(PR_FALSE),
+    mIgnoreXULPosition(PR_FALSE)
 {
 }
 
@@ -571,8 +571,11 @@ NS_IMETHODIMP nsXULWindow::Destroy()
 
 NS_IMETHODIMP nsXULWindow::SetPosition(PRInt32 aX, PRInt32 aY)
 {
-  // Don't reset the window's size mode here - platforms that don't want to move
-  // maximized windows should reset it in their respective Move implementation.
+  /* any attempt to set the window's size or position overrides the window's
+     zoom state. this is important when these two states are competing while
+     the window is being opened. but it should probably just always be so. */
+  mWindow->SetSizeMode(nsSizeMode_Normal);
+
   NS_ENSURE_SUCCESS(mWindow->Move(aX, aY), NS_ERROR_FAILURE);
   if (!mChromeLoaded) {
     // If we're called before the chrome is loaded someone obviously wants this
@@ -805,12 +808,7 @@ NS_IMETHODIMP nsXULWindow::SetVisibility(PRBool aVisibility)
   // the window good enough?
   nsCOMPtr<nsIBaseWindow> shellAsWin(do_QueryInterface(mDocShell));
   shellAsWin->SetVisibility(aVisibility);
-  // Store locally so it doesn't die on us. 'Show' can result in the window
-  // being closed with nsXULWindow::Destroy being called. That would set
-  // mWindow to null and posibly destroy the nsIWidget while its Show method
-  // is on the stack. We need to keep it alive until Show finishes.
-  nsCOMPtr<nsIWidget> window = mWindow;
-  window->Show(aVisibility);
+  mWindow->Show(aVisibility);
 
   nsCOMPtr<nsIWindowMediator> windowMediator(do_GetService(NS_WINDOWMEDIATOR_CONTRACTID));
   if (windowMediator)
@@ -1028,11 +1026,8 @@ void nsXULWindow::OnChromeLoaded()
     if (mCenterAfterLoad && !positionSet)
       Center(parentWindow, parentWindow ? PR_FALSE : PR_TRUE, PR_FALSE);
 
-    if (mShowAfterLoad) {
+    if (mShowAfterLoad)
       SetVisibility(PR_TRUE);
-      // At this point the window may have been closed during Show(), so
-      // nsXULWindow::Destroy may already have been called. Take care!
-    }
   }
   mPersistentAttributesMask |= PAD_POSITION | PAD_SIZE | PAD_MISC;
 }

@@ -314,7 +314,6 @@ nsRuleNode::CalcLengthWithInitialFont(nsPresContext* aPresContext,
 #define SETCOORD_LPAH   (SETCOORD_LP | SETCOORD_AH)
 #define SETCOORD_LPEH   (SETCOORD_LP | SETCOORD_ENUMERATED | SETCOORD_INHERIT)
 #define SETCOORD_LPAEH  (SETCOORD_LPAH | SETCOORD_ENUMERATED)
-#define SETCOORD_LPO    (SETCOORD_LP | SETCOORD_NONE)
 #define SETCOORD_LPOH   (SETCOORD_LPH | SETCOORD_NONE)
 #define SETCOORD_LPOEH  (SETCOORD_LPOH | SETCOORD_ENUMERATED)
 #define SETCOORD_LE     (SETCOORD_LENGTH | SETCOORD_ENUMERATED)
@@ -518,11 +517,9 @@ static void SetGradientCoord(const nsCSSValue& aValue, nsPresContext* aPresConte
   }
 
   // OK to pass bad aParentCoord since we're not passing SETCOORD_INHERIT
-  if (!SetCoord(aValue, aResult, nsStyleCoord(), SETCOORD_LPO,
-                aContext, aPresContext, aCanStoreInRuleTree)) {
-    NS_NOTREACHED("unexpected unit for gradient anchor point");
-    aResult.SetNoneValue();
-  }
+  PRBool result = SetCoord(aValue, aResult, nsStyleCoord(), SETCOORD_LP,
+                           aContext, aPresContext, aCanStoreInRuleTree);
+  NS_ABORT_IF_FALSE(result, "Incorrect data structure created by parsing code");
 }
 
 static void SetGradient(const nsCSSValue& aValue, nsPresContext* aPresContext,
@@ -533,55 +530,34 @@ static void SetGradient(const nsCSSValue& aValue, nsPresContext* aPresContext,
                     "The given data is not a gradient");
 
   nsCSSValueGradient* gradient = aValue.GetGradientValue();
+  aResult.mIsRadial = gradient->mIsRadial;
+
+  // start values
+  SetGradientCoord(gradient->mStartX, aPresContext, aContext,
+                   aResult.mStartX, aCanStoreInRuleTree);
+
+  SetGradientCoord(gradient->mStartY, aPresContext, aContext,
+                   aResult.mStartY, aCanStoreInRuleTree);
 
   if (gradient->mIsRadial) {
-    if (gradient->mRadialShape.GetUnit() == eCSSUnit_Enumerated) {
-      aResult.mShape = gradient->mRadialShape.GetIntValue();
-    } else {
-      NS_ASSERTION(gradient->mRadialShape.GetUnit() == eCSSUnit_None,
-                   "bad unit for radial shape");
-      aResult.mShape = NS_STYLE_GRADIENT_SHAPE_ELLIPTICAL;
-    }
-    if (gradient->mRadialSize.GetUnit() == eCSSUnit_Enumerated) {
-      aResult.mSize = gradient->mRadialSize.GetIntValue();
-    } else {
-      NS_ASSERTION(gradient->mRadialSize.GetUnit() == eCSSUnit_None,
-                   "bad unit for radial shape");
-      aResult.mSize = NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER;
-    }
-  } else {
-    NS_ASSERTION(gradient->mRadialShape.GetUnit() == eCSSUnit_None,
-                 "bad unit for linear shape");
-    NS_ASSERTION(gradient->mRadialSize.GetUnit() == eCSSUnit_None,
-                 "bad unit for linear size");
-    aResult.mShape = NS_STYLE_GRADIENT_SHAPE_LINEAR;
-    aResult.mSize = NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER;
+    NS_ABORT_IF_FALSE(gradient->mStartRadius.IsLengthUnit(),
+                      "Incorrect data structure created by parsing code");
+    aResult.mStartRadius = CalcLength(gradient->mStartRadius, aContext,
+                                      aPresContext, aCanStoreInRuleTree);
   }
 
-  // bg-position
-  SetGradientCoord(gradient->mBgPosX, aPresContext, aContext,
-                   aResult.mBgPosX, aCanStoreInRuleTree);
+  // end values
+  SetGradientCoord(gradient->mEndX, aPresContext, aContext,
+                   aResult.mEndX, aCanStoreInRuleTree);
 
-  SetGradientCoord(gradient->mBgPosY, aPresContext, aContext,
-                   aResult.mBgPosY, aCanStoreInRuleTree);
+  SetGradientCoord(gradient->mEndY, aPresContext, aContext,
+                   aResult.mEndY, aCanStoreInRuleTree);
 
-  aResult.mRepeating = gradient->mIsRepeating;
-
-  // angle
-  if (gradient->mAngle.IsAngularUnit()) {
-    nsStyleUnit unit;
-    switch (gradient->mAngle.GetUnit()) {
-    case eCSSUnit_Degree: unit = eStyleUnit_Degree; break;
-    case eCSSUnit_Grad:   unit = eStyleUnit_Grad; break;
-    case eCSSUnit_Radian: unit = eStyleUnit_Radian; break;
-    default: NS_NOTREACHED("unrecognized angular unit");
-      unit = eStyleUnit_Degree;
-    }
-    aResult.mAngle.SetAngleValue(gradient->mAngle.GetAngleValue(), unit);
-  } else {
-    NS_ASSERTION(gradient->mAngle.GetUnit() == eCSSUnit_None,
-                 "bad unit for gradient angle");
-    aResult.mAngle.SetNoneValue();
+  if (gradient->mIsRadial) {
+    NS_ABORT_IF_FALSE(gradient->mEndRadius.IsLengthUnit(),
+                      "Incorrect data structure created by parsing code");
+    aResult.mEndRadius = CalcLength(gradient->mEndRadius, aContext,
+                                    aPresContext, aCanStoreInRuleTree);
   }
 
   // stops
@@ -589,11 +565,10 @@ static void SetGradient(const nsCSSValue& aValue, nsPresContext* aPresContext,
     nsStyleGradientStop stop;
     nsCSSValueGradientStop &valueStop = gradient->mStops[i];
 
-    if (!SetCoord(valueStop.mLocation, stop.mLocation,
-                  nsStyleCoord(), SETCOORD_LPO,
-                  aContext, aPresContext, aCanStoreInRuleTree)) {
-      NS_NOTREACHED("unexpected unit for gradient stop location");
-    }
+    if (valueStop.mLocation.GetUnit() == eCSSUnit_Percent)
+      stop.mPosition = valueStop.mLocation.GetPercentValue();
+    else
+      stop.mPosition = valueStop.mLocation.GetFloatValue();
 
     // inherit is not a valid color for stops, so we pass in a dummy
     // parent color
@@ -1827,7 +1802,7 @@ GetPseudoRestriction(nsStyleContext *aContext)
 {
   // This needs to match nsStyleSet::WalkRestrictionRule.
   PRUint32 pseudoRestriction = 0;
-  nsIAtom *pseudoType = aContext->GetPseudo();
+  nsIAtom *pseudoType = aContext->GetPseudoType();
   if (pseudoType) {
     if (pseudoType == nsCSSPseudoElements::firstLetter) {
       pseudoRestriction = CSS_PROPERTY_APPLIES_TO_FIRST_LETTER;
@@ -2011,7 +1986,7 @@ nsRuleNode::WalkRuleTree(const nsStyleStructID aSID,
       /* Reset structs don't inherit from first-line. */
       /* See similar code in COMPUTE_START_RESET */
       while (parentContext &&
-             parentContext->GetPseudo() == nsCSSPseudoElements::firstLine) {
+             parentContext->GetPseudoType() == nsCSSPseudoElements::firstLine) {
         parentContext = parentContext->GetParent();
       }
     }
@@ -2390,7 +2365,7 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
   /* Reset structs don't inherit from first-line */                           \
   /* See similar code in WalkRuleTree */                                      \
   while (parentContext &&                                                     \
-         parentContext->GetPseudo() == nsCSSPseudoElements::firstLine) {      \
+         parentContext->GetPseudoType() == nsCSSPseudoElements::firstLine) {  \
     parentContext = parentContext->GetParent();                               \
   }                                                                           \
                                                                               \
@@ -2825,7 +2800,7 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
               defaultVariableFont->variant,
               0, 0, 0, systemFont.variant);
 
-  // font-weight: int, enum, inherit, initial, -moz-system-font
+  // font-weight: int, enum, normal, inherit, initial, -moz-system-font
   // special handling for enum
   if (eCSSUnit_Enumerated == aFontData.mWeight.GetUnit()) {
     PRInt32 value = aFontData.mWeight.GetIntValue();
@@ -2842,12 +2817,14 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
     }
   } else
     SetDiscrete(aFontData.mWeight, aFont->mFont.weight, aCanStoreInRuleTree,
-                SETDSC_INTEGER | SETDSC_SYSTEM_FONT,
+                SETDSC_INTEGER | SETDSC_NORMAL | SETDSC_SYSTEM_FONT,
                 aParentFont->mFont.weight,
                 defaultVariableFont->weight,
-                0, 0, 0, systemFont.weight);
+                0, 0,
+                NS_STYLE_FONT_WEIGHT_NORMAL,
+                systemFont.weight);
 
-  // font-stretch: enum, inherit
+  // font-stretch: enum, normal, inherit
   if (eCSSUnit_Enumerated == aFontData.mStretch.GetUnit()) {
     PRInt32 value = aFontData.mStretch.GetIntValue();
     switch (value) {
@@ -2862,10 +2839,10 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
     }
   } else
     SetDiscrete(aFontData.mStretch, aFont->mFont.stretch, aCanStoreInRuleTree,
-                SETDSC_SYSTEM_FONT,
+                SETDSC_NORMAL | SETDSC_SYSTEM_FONT,
                 aParentFont->mFont.stretch,
                 defaultVariableFont->stretch,
-                0, 0, 0, systemFont.stretch);
+                0, 0, NS_FONT_STRETCH_NORMAL, systemFont.stretch);
 
 #ifdef MOZ_MATHML
   // Compute scriptlevel, scriptminsize and scriptsizemultiplier now so
@@ -4033,7 +4010,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     // and 'position'.  Since generated content can't be floated or
     // positioned, we can deal with it here.
 
-    if (nsCSSPseudoElements::firstLetter == aContext->GetPseudo()) {
+    if (nsCSSPseudoElements::firstLetter == aContext->GetPseudoType()) {
       // a non-floating first-letter must be inline
       // XXX this fix can go away once bug 103189 is fixed correctly
       display->mDisplay = NS_STYLE_DISPLAY_INLINE;

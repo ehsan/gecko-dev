@@ -234,8 +234,7 @@ ElementTransitionsStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 #ifdef DEBUG
       PRBool ok =
 #endif
-        nsStyleAnimation::Interpolate(pt.mProperty,
-                                      pt.mStartValue, pt.mEndValue,
+        nsStyleAnimation::Interpolate(pt.mStartValue, pt.mEndValue,
                                       valuePortion, pt.mCurrentValue);
       NS_ABORT_IF_FALSE(ok, "could not interpolate values");
 
@@ -348,8 +347,8 @@ nsTransitionManager::StyleContextChanged(nsIContent *aElement,
                                          nsStyleContext *aOldStyleContext,
                                          nsStyleContext *aNewStyleContext)
 {
-  NS_PRECONDITION(aOldStyleContext->GetPseudo() ==
-                      aNewStyleContext->GetPseudo(),
+  NS_PRECONDITION(aOldStyleContext->GetPseudoType() ==
+                      aNewStyleContext->GetPseudoType(),
                   "pseudo type mismatch");
   // If we were called from ReParentStyleContext, this assertion would
   // actually fire.  If we need to be called from there, we can probably
@@ -373,7 +372,7 @@ nsTransitionManager::StyleContextChanged(nsIContent *aElement,
     return nsnull;
   }
   
-  nsIAtom *pseudo = aNewStyleContext->GetPseudo();
+  nsIAtom *pseudo = aNewStyleContext->GetPseudoType();
   if (pseudo && (pseudo != nsCSSPseudoElements::before &&
                  pseudo != nsCSSPseudoElements::after)) {
     return nsnull;
@@ -399,7 +398,7 @@ nsTransitionManager::StyleContextChanged(nsIContent *aElement,
     // when they're both zero, we can ignore the transition.
     if (t.GetDelay() != 0.0f || t.GetDuration() != 0.0f) {
       et = GetElementTransitions(aElement,
-                                 aNewStyleContext->GetPseudo(),
+                                 aNewStyleContext->GetPseudoType(),
                                  PR_FALSE);
 
       // We might have something to transition.  See if any of the
@@ -513,8 +512,8 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
     // Check that we can interpolate between these values
     // (If this is ever a performance problem, we could add a
     // CanInterpolate method, but it seems fine for now.)
-    nsStyleAnimation::Interpolate(aProperty, pt.mStartValue, pt.mEndValue,
-                                  0.5, dummyValue);
+    nsStyleAnimation::Interpolate(pt.mStartValue, pt.mEndValue, 0.5,
+                                  dummyValue);
 
   PRUint32 currentIndex = nsTArray<ElementPropertyTransition>::NoIndex;
   if (aElementTransitions) {
@@ -576,12 +575,12 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
 #ifdef DEBUG
     PRBool ok =
 #endif
-      nsStyleAnimation::ComputeDistance(aProperty, pt.mStartValue,
-                                        pt.mEndValue, fullDistance);
+      nsStyleAnimation::ComputeDistance(pt.mStartValue, pt.mEndValue,
+                                        fullDistance);
     NS_ABORT_IF_FALSE(ok, "could not compute distance");
     NS_ABORT_IF_FALSE(fullDistance >= 0.0, "distance must be positive");
 
-    if (nsStyleAnimation::ComputeDistance(aProperty, endVal, pt.mEndValue,
+    if (nsStyleAnimation::ComputeDistance(endVal, pt.mEndValue,
                                           remainingDistance)) {
       NS_ABORT_IF_FALSE(remainingDistance >= 0.0, "distance must be positive");
       durationFraction = fullDistance / remainingDistance;
@@ -614,7 +613,7 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
 
   if (!aElementTransitions) {
     aElementTransitions =
-      GetElementTransitions(aElement, aNewStyleContext->GetPseudo(),
+      GetElementTransitions(aElement, aNewStyleContext->GetPseudoType(),
                             PR_TRUE);
     if (!aElementTransitions) {
       NS_WARNING("allocating ElementTransitions failed");

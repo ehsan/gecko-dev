@@ -43,7 +43,6 @@ import itertools
 import logging
 import os
 import re
-import select
 import shutil
 import signal
 import subprocess
@@ -66,7 +65,6 @@ __all__ = [
            "log",
            "runApp",
            "Process",
-           "addExtraCommonOptions",
            "initializeProfile",
            "DIST_BIN",
            "DEFAULT_APP",
@@ -74,11 +72,7 @@ __all__ = [
            "environment",
            "IS_TEST_BUILD",
            "IS_DEBUG_BUILD",
-           "DEFAULT_TIMEOUT",
           ]
-
-# timeout, in seconds
-DEFAULT_TIMEOUT = 60.0
 
 # These are generated in mozilla/build/Makefile.in
 #expand DIST_BIN = __XPC_BIN_PATH__
@@ -100,7 +94,6 @@ UNIXISH = not IS_WIN32 and not IS_MAC
 #expand CERTS_SRC_DIR = __CERTS_SRC_DIR__
 #expand IS_TEST_BUILD = __IS_TEST_BUILD__
 #expand IS_DEBUG_BUILD = __IS_DEBUG_BUILD__
-#expand CRASHREPORTER = __CRASHREPORTER__ == 1
 
 ###########
 # LOGGING #
@@ -352,15 +345,6 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
   prefsFile.write("".join(prefs))
   prefsFile.close()
 
-def addExtraCommonOptions(parser):
-  "Adds command-line options which are common to mochitest and reftest."
-
-  parser.add_option("--setpref",
-                    action = "append", type = "string",
-                    default = [],
-                    dest = "extraPrefs", metavar = "PREF=VALUE",
-                    help = "defines an extra user preference")  
-
 def fillCertificateDB(profileDir, certPath, utilityPath, xrePath):
   pwfilePath = os.path.join(profileDir, ".crtdbpw")
   
@@ -447,69 +431,9 @@ def environment(env = None, xrePath = DIST_BIN, crashreporter = True):
   if crashreporter:
     env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
     env['MOZ_CRASHREPORTER'] = '1'
-  else:
-    env['MOZ_CRASHREPORTER_DISABLE'] = '1'
-
   env['GNOME_DISABLE_CRASH_DIALOG'] = "1"
   return env
 
-if IS_WIN32:
-  import ctypes, time, msvcrt
-  PeekNamedPipe = ctypes.windll.kernel32.PeekNamedPipe
-  GetLastError = ctypes.windll.kernel32.GetLastError
-  def readWithTimeout(f, timeout):
-    """Try to read a line of output from the file object |f|.
-    |f| must be a  pipe, like the |stdout| member of a subprocess.Popen
-    object created with stdout=PIPE. If no output
-    is received within |timeout| seconds, return a blank line.
-    Returns a tuple (line, did_timeout), where |did_timeout| is True
-    if the read timed out, and False otherwise."""
-    if timeout is None:
-      # shortcut to allow callers to pass in "None" for no timeout.
-      return (f.readline(), False)
-    x = msvcrt.get_osfhandle(f.fileno())
-    l = ctypes.c_long()
-    done = time.time() + timeout
-    while time.time() < done:
-      if PeekNamedPipe(x, None, 0, None, ctypes.byref(l), None) == 0:
-        err = GetLastError()
-        if err == 38 or err == 109: # ERROR_HANDLE_EOF || ERROR_BROKEN_PIPE
-          return ('', False)
-        else:
-          log.error("readWithTimeout got error: %d", err)
-      if l > 0:
-        # we're assuming that the output is line-buffered,
-        # which is not unreasonable
-        return (f.readline(), False)
-      time.sleep(0.01)
-    return ('', True)
-else:
-  def readWithTimeout(f, timeout):
-    """Try to read a line of output from the file object |f|. If no output
-    is received within |timeout| seconds, return a blank line.
-    Returns a tuple (line, did_timeout), where |did_timeout| is True
-    if the read timed out, and False otherwise."""
-    (r, w, e) = select.select([f], [], [], timeout)
-    if len(r) == 0:
-      return ('', True)
-    return (f.readline(), False)
-
-def triggerBreakpad(proc, utilityPath):
-  """Attempt to kill this process in a way that triggers Breakpad crash
-  reporting, if we know how for this platform. Otherwise just .kill() it."""
-  if CRASHREPORTER:
-    if UNIXISH:
-      # SEGV will get picked up by Breakpad's signal handler
-      os.kill(proc.pid, signal.SIGSEGV)
-      return
-    elif IS_WIN32:
-      # We should have a "crashinject" program in our utility path
-      crashinject = os.path.normpath(os.path.join(utilityPath, "crashinject.exe"))
-      if os.path.exists(crashinject) and subprocess.Popen([crashinject, str(proc.pid)]).wait() == 0:
-        return
-  #TODO: kill the process such that it triggers Breakpad on OS X (bug 525296)
-  log.info("Can't trigger Breakpad, just killing process")
-  proc.kill()
 
 ###############
 # RUN THE APP #
@@ -518,8 +442,7 @@ def triggerBreakpad(proc, utilityPath):
 def runApp(testURL, env, app, profileDir, extraArgs,
            runSSLTunnel = False, utilityPath = DIST_BIN,
            xrePath = DIST_BIN, certPath = CERTS_SRC_DIR,
-           debuggerInfo = None, symbolsPath = None,
-           timeout = DEFAULT_TIMEOUT):
+           debuggerInfo = None, symbolsPath = None):
   "Run the app, log the duration it took to execute, return the status code."
 
   # copy env so we don't munge the caller's environment
@@ -583,7 +506,6 @@ def runApp(testURL, env, app, profileDir, extraArgs,
   log.info("INFO | automation.py | Application pid: %d", proc.pid)
 
   stackFixerProcess = None
-  didTimeout = False
   if outputPipe is None:
     log.info("TEST-INFO: Not logging stdout or stderr due to debugger connection")
   else:
@@ -598,20 +520,17 @@ def runApp(testURL, env, app, profileDir, extraArgs,
         stackFixerProcess = Process([PERL, os.path.join(utilityPath, stackFixerCommand)], stdin=logsource, stdout=subprocess.PIPE)
         logsource = stackFixerProcess.stdout
 
-    (line, didTimeout) = readWithTimeout(logsource, timeout)
-    while line != "" and not didTimeout:
+    line = logsource.readline()
+    while line != "":
       log.info(line.rstrip())
-      (line, didTimeout) = readWithTimeout(logsource, timeout)
-    if didTimeout:
-      log.info("TEST-UNEXPECTED-FAIL | automation.py | application timed out after %d seconds with no output", int(timeout))
-      triggerBreakpad(proc, utilityPath)
+      line = logsource.readline()
 
   status = proc.wait()
-  if status != 0 and not didTimeout:
+  if status != 0:
     log.info("TEST-UNEXPECTED-FAIL | automation.py | Exited with code %d during test run", status)
   if stackFixerProcess is not None:
     status = stackFixerProcess.wait()
-    if status != 0 and not didTimeout:
+    if status != 0:
       log.info("TEST-UNEXPECTED-FAIL | automation.py | Stack fixer process exited with code %d during test run", status)
   log.info("INFO | automation.py | Application ran for: %s", str(datetime.now() - startTime))
 

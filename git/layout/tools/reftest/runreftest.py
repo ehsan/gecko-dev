@@ -63,16 +63,8 @@ def createReftestProfile(options, profileDir):
   prefsFile = open(os.path.join(profileDir, "user.js"), "w")
   prefsFile.write("""user_pref("browser.dom.window.dump.enabled", true);
 """)
-  prefsFile.write('user_pref("reftest.timeout", %d);\n' % (options.timeout * 1000))
-  prefsFile.write('user_pref("ui.caretBlinkTime", -1);\n')
-
-  for v in options.extraPrefs:
-    thispref = v.split("=")
-    if len(thispref) < 2:
-      print "Error: syntax error in --setpref=" + v
-      sys.exit(1)
-    part = 'user_pref("%s", %s);\n' % (thispref[0], thispref[1])
-    prefsFile.write(part)
+  prefsFile.write('user_pref("reftest.timeout", %d);' % (options.timeout * 1000))
+  prefsFile.write('user_pref("ui.caretBlinkTime", -1);')
   # no slow script dialogs
   prefsFile.write('user_pref("dom.max_script_run_time", 0);')
   prefsFile.write('user_pref("dom.max_chrome_script_run_time", 0);')
@@ -91,7 +83,6 @@ def main():
 
   # we want to pass down everything from automation.__all__
   addCommonOptions(parser, defaults=dict(zip(automation.__all__, [getattr(automation, x) for x in automation.__all__])))
-  automation.addExtraCommonOptions(parser)
   parser.add_option("--appname",
                     action = "store", type = "string", dest = "app",
                     default = os.path.join(SCRIPT_DIRECTORY, automation.DEFAULT_APP),
@@ -182,10 +173,7 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
                                utilityPath = options.utilityPath,
                                xrePath=options.xrePath,
                                debuggerInfo=debuggerInfo,
-                               symbolsPath=options.symbolsPath,
-                               # give the JS harness 30 seconds to deal
-                               # with its own timeouts
-                               timeout=options.timeout + 30.0)
+                               symbolsPath=options.symbolsPath)
     processLeakLog(leakLogFile, options.leakThreshold)
     automation.log.info("\nREFTEST INFO | runreftest.py | Running tests: end.")
   finally:

@@ -150,7 +150,7 @@ InitKeyEvent(nsKeyEvent &aEvent, QKeyEvent *aQEvent)
     // so link to the GdkEvent (which will vanish soon after return from the
     // event callback) to give plugins access to hardware_keycode and state.
     // (An XEvent would be nice but the GdkEvent is good enough.)
-    aEvent.pluginEvent = (void *)aQEvent;
+    aEvent.nativeMsg = (void *)aQEvent;
 }
 
 nsWindow::nsWindow()
@@ -373,11 +373,6 @@ nsWindow::Move(PRInt32 aX, PRInt32 aY)
 {
     LOG(("nsWindow::Move [%p] %d %d\n", (void *)this,
          aX, aY));
-
-    if (mWindowType == eWindowType_toplevel ||
-        mWindowType == eWindowType_dialog) {
-        SetSizeMode(nsSizeMode_Normal);
-    }
 
     // Since a popup window's x/y coordinates are in relation to to
     // the parent, the parent might have moved so we always move a

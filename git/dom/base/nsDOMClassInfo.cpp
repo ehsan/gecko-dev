@@ -293,7 +293,6 @@
 #include "nsIDOMHTMLPreElement.h"
 #include "nsIDOMHTMLQuoteElement.h"
 #include "nsIDOMHTMLScriptElement.h"
-#include "nsIDOMNSHTMLScriptElement.h"
 #include "nsIDOMNSHTMLSelectElement.h"
 #include "nsIDOMHTMLStyleElement.h"
 #include "nsIDOMHTMLTableCaptionElem.h"
@@ -456,7 +455,7 @@
 #include "nsDOMWorker.h"
 
 #include "nsDOMFile.h"
-#include "nsDOMFileReader.h"
+#include "nsDOMFileRequest.h"
 #include "nsIDOMFileException.h"
 #include "nsIDOMFileError.h"
 
@@ -1255,7 +1254,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(FileError, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(FileReader, nsEventTargetSH,
+  NS_DEFINE_CLASSINFO_DATA(FileRequest, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(ModalContentWindow, nsWindowSH,
@@ -1336,8 +1335,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(WebGLRenderbuffer, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(CanvasArrayBuffer, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(CanvasFloatArray, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(CanvasByteArray, nsDOMGenericSH,
@@ -1377,7 +1374,7 @@ struct nsContractIDMapData
 static const nsContractIDMapData kConstructorMap[] =
 {
   NS_DEFINE_CONSTRUCTOR_DATA(DOMParser, NS_DOMPARSER_CONTRACTID)
-  NS_DEFINE_CONSTRUCTOR_DATA(FileReader, NS_FILEREADER_CONTRACTID)
+  NS_DEFINE_CONSTRUCTOR_DATA(FileRequest, NS_FILEREQUEST_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XMLSerializer, NS_XMLSERIALIZER_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XMLHttpRequest, NS_XMLHTTPREQUEST_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XPathEvaluator, NS_XPATH_EVALUATOR_CONTRACTID)
@@ -1399,7 +1396,6 @@ static const nsConstructorFuncMapData kConstructorFuncMap[] =
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(Worker, nsDOMWorker::NewWorker)
 
   // WebGL Array Types
-  NS_DEFINE_CONSTRUCTOR_FUNC_DATA(CanvasArrayBuffer, NS_NewCanvasArrayBuffer)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(CanvasFloatArray, NS_NewCanvasFloatArray)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(CanvasByteArray, NS_NewCanvasByteArray)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(CanvasUnsignedByteArray, NS_NewCanvasUnsignedByteArray)
@@ -2513,7 +2509,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLScriptElement, nsIDOMHTMLScriptElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLScriptElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLScriptElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -3584,8 +3579,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIException)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(FileReader, nsIDOMFileReader)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMFileReader)
+  DOM_CLASSINFO_MAP_BEGIN(FileRequest, nsIDOMFileRequest)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMFileRequest)
     DOM_CLASSINFO_MAP_ENTRY(nsIXMLHttpRequestEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIInterfaceRequestor)
@@ -3725,10 +3720,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(WebGLRenderbuffer, nsIWebGLRenderbuffer)
     DOM_CLASSINFO_MAP_ENTRY(nsIWebGLRenderbuffer)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(CanvasArrayBuffer, nsICanvasArrayBuffer)
-    DOM_CLASSINFO_MAP_ENTRY(nsICanvasArrayBuffer)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(CanvasFloatArray, nsICanvasFloatArray)
@@ -9216,7 +9207,8 @@ nsHTMLFormElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
     PRInt32 n = GetArrayIndexFromId(cx, id);
 
     if (n >= 0) {
-      nsIFormControl* control = form->GetElementAt(n);
+      nsCOMPtr<nsIFormControl> control;
+      form->GetElementAt(n, getter_AddRefs(control));
 
       if (control) {
         nsresult rv = WrapNative(cx, obj, control, PR_TRUE, vp);
@@ -9264,7 +9256,8 @@ nsHTMLFormElementSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
       PRUint32 count = form->GetElementCount();
 
       if ((PRUint32)index < count) {
-        nsIFormControl* controlNode = form->GetElementAt(index);
+        nsCOMPtr<nsIFormControl> controlNode;
+        form->GetElementAt(index, getter_AddRefs(controlNode));
         NS_ENSURE_TRUE(controlNode, NS_ERROR_FAILURE);
 
         nsCOMPtr<nsIDOMElement> domElement = do_QueryInterface(controlNode);

@@ -198,15 +198,11 @@ function openUILinkIn( url, where, allowThirdPartyFixup, postData, referrerUrl )
                createInstance(Ci.nsISupportsString);
     wuri.data = url;
 
-    var allowThirdPartyFixupSupports = Cc["@mozilla.org/supports-PRBool;1"].
-                                       createInstance(Ci.nsISupportsPRBool);
-    allowThirdPartyFixupSupports.data = allowThirdPartyFixup;
-
     sa.AppendElement(wuri);
     sa.AppendElement(null);
     sa.AppendElement(referrerUrl);
     sa.AppendElement(postData);
-    sa.AppendElement(allowThirdPartyFixupSupports);
+    sa.AppendElement(allowThirdPartyFixup);
 
     var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
              getService(Ci.nsIWindowWatcher);
@@ -475,7 +471,7 @@ function buildHelpMenu()
 #ifdef MOZ_UPDATER
   var updates = 
       Components.classes["@mozilla.org/updates/update-service;1"].
-      getService(Components.interfaces.nsIApplicationUpdateService2);
+      getService(Components.interfaces.nsIApplicationUpdateService);
   var um = 
       Components.classes["@mozilla.org/updates/update-manager;1"].
       getService(Components.interfaces.nsIUpdateManager);
@@ -483,9 +479,9 @@ function buildHelpMenu()
   // Disable the UI if the update enabled pref has been locked by the 
   // administrator or if we cannot update for some other reason
   var checkForUpdates = document.getElementById("checkForUpdates");
-  var canCheckForUpdates = updates.canCheckForUpdates;
-  checkForUpdates.setAttribute("disabled", !canCheckForUpdates);
-  if (!canCheckForUpdates)
+  var canUpdate = updates.canUpdate;
+  checkForUpdates.setAttribute("disabled", !canUpdate);
+  if (!canUpdate)
     return; 
 
   var strings = document.getElementById("bundle_browser");

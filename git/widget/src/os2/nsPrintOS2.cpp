@@ -354,11 +354,11 @@ BOOL PRINTDLG::ShowProperties(ULONG printerNdx)
 /*  Job management                                                          */
 /****************************************************************************/
 
-HDC PrnOpenDC( PRTQUEUE *pInfo, PCSZ pszApplicationName, int copies, int destination, char *file )
+HDC PrnOpenDC( PRTQUEUE *pInfo, PSZ pszApplicationName, int copies, int destination, char *file )
 {
    HDC hdc = 0;
-   PCSZ pszLogAddress;
-   PCSZ pszDataType;
+   PSZ pszLogAddress;
+   PSZ pszDataType;
    LONG dcType;
    DEVOPENSTRUC dop;
 
@@ -381,11 +381,11 @@ HDC PrnOpenDC( PRTQUEUE *pInfo, PCSZ pszApplicationName, int copies, int destina
       dcType = OD_DIRECT;
    } 
 
-   dop.pszLogAddress      = const_cast<PSZ>(pszLogAddress); 
+   dop.pszLogAddress      = pszLogAddress; 
    dop.pszDriverName      = (char*)pInfo->DriverName ();
    dop.pdriv              = pInfo->PQI3 ().pDriverData;
-   dop.pszDataType        = const_cast<PSZ>(pszDataType); 
-   dop.pszComment         = const_cast<PSZ>(pszApplicationName);
+   dop.pszDataType        = pszDataType; 
+   dop.pszComment         = pszApplicationName;
    dop.pszQueueProcName   = pInfo->PQI3 ().pszPrProc;     
    dop.pszQueueProcParams = 0;
    dop.pszSpoolerParams   = 0;     
