@@ -55,13 +55,6 @@ class RPCChannel : public SyncChannel
     friend class CxxStackFrame;
 
 public:
-    // What happens if RPC calls race?
-    enum RacyRPCPolicy {
-        RRPError,
-        RRPChildWins,
-        RRPParentWins
-    };
-
     class /*NS_INTERFACE_CLASS*/ RPCListener :
         public SyncChannel::SyncListener
     {
@@ -85,16 +78,17 @@ public:
         virtual void OnExitedCxxStack()
         {
             NS_RUNTIMEABORT("default impl shouldn't be invoked");
-        }
-
-        virtual RacyRPCPolicy MediateRPCRace(const Message& parent,
-                                             const Message& child)
-        {
-            return RRPChildWins;
-        }
+        }   
     };
 
-    RPCChannel(RPCListener* aListener);
+    // What happens if RPC calls race?
+    enum RacyRPCPolicy {
+        RRPError,
+        RRPChildWins,
+        RRPParentWins
+    };
+
+    RPCChannel(RPCListener* aListener, RacyRPCPolicy aPolicy=RRPChildWins);
 
     virtual ~RPCChannel();
 
@@ -134,11 +128,6 @@ public:
     // Return true iff successful.
     bool UnblockChild();
 
-    // Return true iff this has code on the C++ stack.
-    bool IsOnCxxStack() const {
-        return 0 < mCxxStackFrames;
-    }
-
     NS_OVERRIDE
     virtual bool OnSpecialMessage(uint16 id, const Message& msg);
 
@@ -173,10 +162,6 @@ protected:
   private:
     // Called on worker thread only
 
-    RPCListener* Listener() const {
-        return static_cast<RPCListener*>(mListener);
-    }
-
     bool EventOccurred();
 
     void MaybeProcessDeferredIncall();
@@ -195,12 +180,12 @@ protected:
     // for when the depth goes from non-zero to zero;
     void EnteredCxxStack()
     {
-        Listener()->OnEnteredCxxStack();
+        static_cast<RPCListener*>(mListener)->OnEnteredCxxStack();
     }
 
     void ExitedCxxStack()
     {
-        Listener()->OnExitedCxxStack();
+        static_cast<RPCListener*>(mListener)->OnExitedCxxStack();
     }
 
     class NS_STACK_CLASS CxxStackFrame
@@ -337,6 +322,7 @@ protected:
     // detect the same race.
     //
     size_t mRemoteStackDepthGuess;
+    RacyRPCPolicy mRacePolicy;
 
     // True iff the parent has put us in a |BlockChild()| state.
     bool mBlockedOnParent;
