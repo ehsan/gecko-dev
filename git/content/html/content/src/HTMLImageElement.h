@@ -11,7 +11,6 @@
 #include "nsImageLoadingContent.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "imgRequestProxy.h"
-#include "Units.h"
 
 namespace mozilla {
 namespace dom {
@@ -175,7 +174,7 @@ public:
   }
 
 protected:
-  CSSIntPoint GetXY();
+  nsIntPoint GetXY();
   virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;
   virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
   virtual JSObject* WrapNode(JSContext *aCx,

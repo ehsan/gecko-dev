@@ -158,7 +158,7 @@ FileService::Enqueue(LockedFile* aLockedFile, FileHelper* aFileHelper)
 
   nsIAtom* storageId = fileHandle->mFileStorage->Id();
   const nsAString& fileName = fileHandle->mFileName;
-  bool modeIsWrite = aLockedFile->mMode == FileMode::Readwrite;
+  bool modeIsWrite = aLockedFile->mMode == LockedFile::READ_WRITE;
 
   FileStorageInfo* fileStorageInfo;
   if (!mFileStorageInfos.Get(storageId, &fileStorageInfo)) {
@@ -456,7 +456,7 @@ FileService::FileStorageInfo::RemoveLockedFileQueue(LockedFile* aLockedFile)
 
     const nsAString& fileName = lockedFile->mFileHandle->mFileName;
 
-    if (lockedFile->mMode == FileMode::Readwrite) {
+    if (lockedFile->mMode == LockedFile::READ_WRITE) {
       if (!IsFileLockedForWriting(fileName)) {
         LockFileForWriting(fileName);
       }

@@ -36,9 +36,8 @@
 
 #define STREAM_COPY_BLOCK_SIZE 32768
 
-using namespace mozilla;
-using namespace mozilla::dom;
 USING_FILE_NAMESPACE
+using mozilla::dom::EncodingUtils;
 
 namespace {
 
@@ -278,7 +277,7 @@ GetInputStreamForJSVal(const JS::Value& aValue, JSContext* aCx,
 // static
 already_AddRefed<LockedFile>
 LockedFile::Create(FileHandle* aFileHandle,
-                   FileMode aMode,
+                   Mode aMode,
                    RequestMode aRequestMode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -310,7 +309,7 @@ LockedFile::Create(FileHandle* aFileHandle,
 
 LockedFile::LockedFile()
 : mReadyState(INITIAL),
-  mMode(FileMode::Readonly),
+  mMode(READ_ONLY),
   mRequestMode(NORMAL),
   mLocation(0),
   mPendingRequests(0),
@@ -390,7 +389,7 @@ LockedFile::CreateParallelStream(nsISupports** aStream)
   }
 
   nsCOMPtr<nsISupports> stream =
-    mFileHandle->CreateStream(mFileHandle->mFile, mMode == FileMode::Readonly);
+    mFileHandle->CreateStream(mFileHandle->mFile, mMode == READ_ONLY);
   NS_ENSURE_TRUE(stream, NS_ERROR_FAILURE);
 
   mParallelStreams.AppendElement(stream);
@@ -411,7 +410,7 @@ LockedFile::GetOrCreateStream(nsISupports** aStream)
 
   if (!mStream) {
     nsCOMPtr<nsISupports> stream =
-      mFileHandle->CreateStream(mFileHandle->mFile, mMode == FileMode::Readonly);
+      mFileHandle->CreateStream(mFileHandle->mFile, mMode == READ_ONLY);
     NS_ENSURE_TRUE(stream, NS_ERROR_FAILURE);
 
     stream.swap(mStream);
@@ -474,10 +473,10 @@ LockedFile::GetMode(nsAString& aMode)
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   switch (mMode) {
-   case FileMode::Readonly:
+   case READ_ONLY:
      aMode.AssignLiteral("readonly");
      break;
-   case FileMode::Readwrite:
+   case READ_WRITE:
      aMode.AssignLiteral("readwrite");
      break;
    default:
@@ -693,7 +692,7 @@ LockedFile::Truncate(uint64_t aSize,
     return NS_ERROR_DOM_FILEHANDLE_LOCKEDFILE_INACTIVE_ERR;
   }
 
-  if (mMode != FileMode::Readwrite) {
+  if (mMode != READ_WRITE) {
     return NS_ERROR_DOM_FILEHANDLE_READ_ONLY_ERR;
   }
 
@@ -742,7 +741,7 @@ LockedFile::Flush(nsISupports** _retval)
     return NS_ERROR_DOM_FILEHANDLE_LOCKEDFILE_INACTIVE_ERR;
   }
 
-  if (mMode != FileMode::Readwrite) {
+  if (mMode != READ_WRITE) {
     return NS_ERROR_DOM_FILEHANDLE_READ_ONLY_ERR;
   }
 
@@ -850,7 +849,7 @@ LockedFile::WriteOrAppend(const JS::Value& aValue,
     return NS_ERROR_DOM_FILEHANDLE_LOCKEDFILE_INACTIVE_ERR;
   }
 
-  if (mMode != FileMode::Readwrite) {
+  if (mMode != READ_WRITE) {
     return NS_ERROR_DOM_FILEHANDLE_READ_ONLY_ERR;
   }
 

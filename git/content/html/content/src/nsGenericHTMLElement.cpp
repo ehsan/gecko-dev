@@ -390,9 +390,9 @@ IsOffsetParent(nsIFrame* aFrame)
 }
 
 Element*
-nsGenericHTMLElement::GetOffsetRect(CSSIntRect& aRect)
+nsGenericHTMLElement::GetOffsetRect(nsRect& aRect)
 {
-  aRect = CSSIntRect();
+  aRect = nsRect();
 
   nsIFrame* frame = GetStyledFrame();
   if (!frame) {
@@ -479,12 +479,16 @@ nsGenericHTMLElement::GetOffsetRect(CSSIntRect& aRect)
   // XXX We should really consider subtracting out padding for
   // content-box sizing, but we should see what IE does....
 
+  // Convert to pixels.
+  aRect.x = nsPresContext::AppUnitsToIntCSSPixels(origin.x);
+  aRect.y = nsPresContext::AppUnitsToIntCSSPixels(origin.y);
+
   // Get the union of all rectangles in this and continuation frames.
   // It doesn't really matter what we use as aRelativeTo here, since
   // we only care about the size. We just have to use something non-null.
   nsRect rcFrame = nsLayoutUtils::GetAllInFlowRectsUnion(frame, frame);
-  rcFrame.MoveTo(origin);
-  aRect = CSSIntRect::FromAppUnitsRounded(rcFrame);
+  aRect.width = nsPresContext::AppUnitsToIntCSSPixels(rcFrame.width);
+  aRect.height = nsPresContext::AppUnitsToIntCSSPixels(rcFrame.height);
 
   return offsetParent ? offsetParent->AsElement() : nullptr;
 }

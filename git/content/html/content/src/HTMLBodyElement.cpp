@@ -30,8 +30,8 @@ namespace dom {
 //----------------------------------------------------------------------
 
 BodyRule::BodyRule(HTMLBodyElement* aPart)
-  : mPart(aPart)
 {
+  mPart = aPart;
 }
 
 BodyRule::~BodyRule()
@@ -349,7 +349,9 @@ HTMLBodyElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
   if (mContentStyleRule) {
     mContentStyleRule->mPart = nullptr;
-    mContentStyleRule = nullptr;
+
+    // destroy old style rule
+    NS_RELEASE(mContentStyleRule);
   }
 
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);  
@@ -418,6 +420,7 @@ HTMLBodyElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
     // XXXbz should this use OwnerDoc() or GetCurrentDoc()?
     // sXBL/XBL2 issue!
     mContentStyleRule = new BodyRule(this);
+    NS_IF_ADDREF(mContentStyleRule);
   }
   if (aRuleWalker && mContentStyleRule) {
     aRuleWalker->Forward(mContentStyleRule);
