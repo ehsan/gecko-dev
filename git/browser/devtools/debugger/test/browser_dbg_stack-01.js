@@ -37,7 +37,7 @@ function testSimpleCall() {
         "All children should be frames.");
 
       gDebugger.DebuggerController.activeThread.resume(function() {
-        closeDebuggerAndFinish();
+        closeDebuggerAndFinish(gTab);
       });
     }}, 0);
   });

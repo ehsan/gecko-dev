@@ -132,7 +132,7 @@
   -moz-image-region: rect(0, 48px, 16px, 32px);
 }
 
-/* Splitters */
+/* Splitter */
 
 .devtools-horizontal-splitter {
   -moz-appearance: none;
@@ -142,16 +142,5 @@
   min-height: 3px;
   height: 3px;
   margin-bottom: -3px;
-  position: relative;
-}
-
-.devtools-side-splitter {
-  -moz-appearance: none;
-  background-image: none;
-  border: 0;
-  -moz-border-start: 1px solid black;
-  min-width: 0;
-  width: 3px;
-  -moz-margin-end: -3px;
   position: relative;
 }

@@ -1724,17 +1724,6 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     document.getElementById("appmenu_charsetMenu").hidden = true;
 #endif
 
-  // Enable Responsive UI?
-  let responsiveUIEnabled = gPrefService.getBoolPref("devtools.responsiveUI.enabled");
-  if (responsiveUIEnabled) {
-    document.getElementById("menu_responsiveUI").hidden = false;
-    document.getElementById("Tools:ResponsiveUI").removeAttribute("disabled");
-#ifdef MENUBAR_CAN_AUTOHIDE
-    document.getElementById("appmenu_responsiveUI").hidden = false;
-#endif
-    document.getElementById("developer-toolbar-responsiveui").hidden = false;
-  }
-
   let appMenuButton = document.getElementById("appmenu-button");
   let appMenuPopup = document.getElementById("appmenu-popup");
   if (appMenuButton && appMenuPopup) {
@@ -9311,18 +9300,6 @@ XPCOMUtils.defineLazyGetter(Scratchpad, "ScratchpadManager", function() {
   let tmp = {};
   Cu.import("resource:///modules/devtools/scratchpad-manager.jsm", tmp);
   return tmp.ScratchpadManager;
-});
-
-var ResponsiveUI = {
-  toggle: function RUI_toggle() {
-    this.ResponsiveUIManager.toggle(window, gBrowser.selectedTab);
-  }
-};
-
-XPCOMUtils.defineLazyGetter(ResponsiveUI, "ResponsiveUIManager", function() {
-  let tmp = {};
-  Cu.import("resource:///modules/devtools/responsivedesign.jsm", tmp);
-  return tmp.ResponsiveUIManager;
 });
 
 var StyleEditor = {

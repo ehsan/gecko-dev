@@ -12,7 +12,6 @@ const Cu = Components.utils;
 const DBG_XUL = "chrome://browser/content/debugger.xul";
 const DBG_STRINGS_URI = "chrome://browser/locale/devtools/debugger.properties";
 const REMOTE_PROFILE_NAME = "_remote-debug";
-const TAB_SWITCH_NOTIFICATION = "debugger-tab-switch";
 
 Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -32,7 +31,6 @@ function DebuggerUI(aWindow) {
 }
 
 DebuggerUI.prototype = {
-
   /**
    * Called by the DebuggerPane to update the Debugger toggle switches with the
    * debugger state.
@@ -41,7 +39,7 @@ DebuggerUI.prototype = {
     let selectedTab = this.chromeWindow.getBrowser().selectedTab;
     let command = this.chromeWindow.document.getElementById("Tools:Debugger");
 
-    if (this.getDebugger()) {
+    if (this.getDebugger(selectedTab) != null) {
       command.setAttribute("checked", "true");
     } else {
       command.removeAttribute("checked");
@@ -53,18 +51,13 @@ DebuggerUI.prototype = {
    * @return DebuggerPane if the debugger is started, null if it's stopped.
    */
   toggleDebugger: function DUI_toggleDebugger() {
-    let scriptDebugger = this.getDebugger();
-    let selectedTab = this.chromeWindow.gBrowser.selectedTab;
+    let tab = this.chromeWindow.gBrowser.selectedTab;
 
-    if (scriptDebugger) {
-      if (scriptDebugger.ownerTab !== selectedTab) {
-        this.showTabSwitchNotification();
-        return scriptDebugger;
-      }
-      scriptDebugger.close();
+    if (tab._scriptDebugger) {
+      tab._scriptDebugger.close();
       return null;
     }
-    return new DebuggerPane(this, selectedTab);
+    return new DebuggerPane(this, tab);
   },
 
   /**
@@ -72,10 +65,10 @@ DebuggerUI.prototype = {
    * @return RemoteDebuggerWindow if the debugger is started, null if stopped.
    */
   toggleRemoteDebugger: function DUI_toggleRemoteDebugger() {
-    let remoteDebugger = this.getRemoteDebugger();
+    let win = this.chromeWindow;
 
-    if (remoteDebugger) {
-      remoteDebugger.close();
+    if (win._remoteDebugger) {
+      win._remoteDebugger.close();
       return null;
     }
     return new RemoteDebuggerWindow(this);
@@ -86,22 +79,21 @@ DebuggerUI.prototype = {
    * @return ChromeDebuggerProcess if the debugger is started, null if stopped.
    */
   toggleChromeDebugger: function DUI_toggleChromeDebugger(aOnClose, aOnRun) {
-    let chromeDebugger = this.getChromeDebugger();
+    let win = this.chromeWindow;
 
-    if (chromeDebugger) {
-      chromeDebugger.close();
+    if (win._chromeDebugger) {
+      win._chromeDebugger.close();
       return null;
     }
-    return new ChromeDebuggerProcess(this.chromeWindow, aOnClose, aOnRun, true);
+    return new ChromeDebuggerProcess(win, aOnClose, aOnRun, true);
   },
 
   /**
-   * Get the current script debugger.
+   * Get the debugger for a specified tab.
    * @return DebuggerPane if a debugger exists for the tab, null otherwise.
    */
-  getDebugger: function DUI_getDebugger() {
-    let win = this.chromeWindow;
-    return '_scriptDebugger' in win ? win._scriptDebugger : null;
+  getDebugger: function DUI_getDebugger(aTab) {
+    return '_scriptDebugger' in aTab ? aTab._scriptDebugger : null;
   },
 
   /**
@@ -128,52 +120,6 @@ DebuggerUI.prototype = {
    */
   get preferences() {
     return DebuggerPreferences;
-  },
-
-  /**
-   * Currently, there can only be one debugger per tab.
-   * Show an asynchronous notification which asks the user to switch the
-   * script debugger to the current tab if it's already open in another one.
-   */
-  showTabSwitchNotification: function DUI_showTabSwitchNotification()
-  {
-    let gBrowser = this.chromeWindow.gBrowser;
-    let selectedBrowser = gBrowser.selectedBrowser;
-
-    let nbox = gBrowser.getNotificationBox(selectedBrowser);
-    let notification = nbox.getNotificationWithValue(TAB_SWITCH_NOTIFICATION);
-    if (notification) {
-      nbox.removeNotification(notification);
-      return;
-    }
-
-    let buttons = [{
-      id: "debugger.confirmTabSwitch.buttonSwitch",
-      label: L10N.getStr("confirmTabSwitch.buttonSwitch"),
-      accessKey: L10N.getStr("confirmTabSwitch.buttonSwitch.accessKey"),
-      callback: function DUI_notificationButtonSwitch() {
-        gBrowser.selectedTab = this.getDebugger().ownerTab;
-      }.bind(this)
-    }, {
-      id: "debugger.confirmTabSwitch.buttonOpen",
-      label: L10N.getStr("confirmTabSwitch.buttonOpen"),
-      accessKey: L10N.getStr("confirmTabSwitch.buttonOpen.accessKey"),
-      callback: function DUI_notificationButtonOpen() {
-        this.getDebugger().close();
-        this.toggleDebugger();
-      }.bind(this)
-    }];
-
-    let message = L10N.getStr("confirmTabSwitch.message");
-    let imageURL = "chrome://browser/skin/Info.png";
-
-    notification = nbox.appendNotification(
-      message, TAB_SWITCH_NOTIFICATION,
-      imageURL, nbox.PRIORITY_WARNING_HIGH, buttons, null);
-
-    // Make sure this is not a transient notification, to avoid the automatic
-    // transient notification removal.
-    notification.persistence = -1;
   }
 };
 
@@ -187,7 +133,6 @@ DebuggerUI.prototype = {
  */
 function DebuggerPane(aDebuggerUI, aTab) {
   this._globalUI = aDebuggerUI;
-  this._win = aDebuggerUI.chromeWindow;
   this._tab = aTab;
 
   this._initServer();
@@ -201,8 +146,7 @@ DebuggerPane.prototype = {
    */
   _initServer: function DP__initServer() {
     if (!DebuggerServer.initialized) {
-      // Always allow connections from nsIPipe transports.
-      DebuggerServer.init(function () { return true; });
+      DebuggerServer.init();
       DebuggerServer.addBrowserActors();
     }
   },
@@ -211,9 +155,9 @@ DebuggerPane.prototype = {
    * Creates and initializes the widgets containing the debugger UI.
    */
   _create: function DP__create() {
-    this._win._scriptDebugger = this;
+    this._tab._scriptDebugger = this;
 
-    let gBrowser = this._win.gBrowser;
+    let gBrowser = this._tab.linkedBrowser.getTabBrowser();
     let ownerDocument = gBrowser.parentNode.ownerDocument;
 
     this._splitter = ownerDocument.createElement("splitter");
@@ -249,11 +193,10 @@ DebuggerPane.prototype = {
    * Closes the debugger, removing child nodes and event listeners.
    */
   close: function DP_close() {
-    if (!this._win) {
+    if (!this._tab) {
       return;
     }
-    delete this._win._scriptDebugger;
-    this._win = null;
+    delete this._tab._scriptDebugger;
     this._tab = null;
 
     DebuggerPreferences.height = this._frame.height;
@@ -268,14 +211,6 @@ DebuggerPane.prototype = {
     this._nbox = null;
 
     this._globalUI.refreshCommand();
-  },
-
-  /**
-   * Gets the tab owning this debugger instance.
-   * @return XULElement
-   */
-  get ownerTab() {
-    return this._tab;
   },
 
   /**
@@ -406,37 +341,11 @@ ChromeDebuggerProcess.prototype = {
    */
   _initServer: function RDP__initServer() {
     if (!DebuggerServer.initialized) {
-      DebuggerServer.init(this._allowConnection);
+      DebuggerServer.init();
       DebuggerServer.addBrowserActors();
     }
     DebuggerServer.closeListener();
     DebuggerServer.openListener(DebuggerPreferences.remotePort, false);
-  },
-
-  /**
-   * Prompt the user to accept or decline the incoming connection.
-   *
-   * @return true if the connection should be permitted, false otherwise
-   */
-  _allowConnection: function RDP__allowConnection() {
-    let title = L10N.getStr("remoteIncomingPromptTitle");
-    let msg = L10N.getStr("remoteIncomingPromptMessage");
-    let disableButton = L10N.getStr("remoteIncomingPromptDisable");
-    let prompt = Services.prompt;
-    let flags = prompt.BUTTON_POS_0 * prompt.BUTTON_TITLE_OK +
-                prompt.BUTTON_POS_1 * prompt.BUTTON_TITLE_CANCEL +
-                prompt.BUTTON_POS_2 * prompt.BUTTON_TITLE_IS_STRING +
-                prompt.BUTTON_POS_1_DEFAULT;
-    let result = prompt.confirmEx(null, title, msg, flags, null, null,
-                                  disableButton, null, { value: false });
-    if (result == 0) {
-      return true;
-    }
-    if (result == 2) {
-      DebuggerServer.closeListener();
-      Services.prefs.setBoolPref("devtools.debugger.remote-enabled", false);
-    }
-    return false;
   },
 
   /**

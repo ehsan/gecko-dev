@@ -1036,11 +1036,8 @@ pref("devtools.inspector.highlighterShowVeil", true);
 pref("devtools.inspector.highlighterShowInfobar", true);
 
 // Enable the Layout View
-pref("devtools.layoutview.enabled", true);
+pref("devtools.layoutview.enabled", false);
 pref("devtools.layoutview.open", false);
-
-// Enable the Responsive UI tool
-pref("devtools.responsiveUI.enabled", true);
 
 // Enable the Debugger
 pref("devtools.debugger.enabled", true);
@@ -1051,12 +1048,10 @@ pref("devtools.debugger.remote-autoconnect", false);
 pref("devtools.debugger.remote-connection-retries", 3);
 pref("devtools.debugger.remote-timeout", 3000);
 
-// The default Debugger UI settings
+// The default Debugger UI height
 pref("devtools.debugger.ui.height", 250);
 pref("devtools.debugger.ui.remote-win.width", 900);
 pref("devtools.debugger.ui.remote-win.height", 400);
-pref("devtools.debugger.ui.stackframes-width", 200);
-pref("devtools.debugger.ui.variables-width", 300);
 
 // Enable the style inspector
 pref("devtools.styleinspector.enabled", true);

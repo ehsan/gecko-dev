@@ -129,7 +129,7 @@ function testSimpleCall() {
         "The grip information for the localVar5 wasn't set correctly.");
 
       gDebugger.DebuggerController.activeThread.resume(function() {
-        closeDebuggerAndFinish();
+        closeDebuggerAndFinish(gTab);
       });
     }}, 0);
   });

@@ -37,7 +37,7 @@ function test() {
 
         gDebugger.DebuggerController.activeThread.addOneTimeListener("resumed", function() {
           Services.tm.currentThread.dispatch({ run: function() {
-            closeDebuggerAndFinish(true);
+            closeDebuggerAndFinish(gTab, true);
           }}, 0);
         });
 
@@ -55,7 +55,7 @@ function test() {
   },
   function beforeTabAdded() {
     if (!DebuggerServer.initialized) {
-      DebuggerServer.init(function() { return true; });
+      DebuggerServer.init();
       DebuggerServer.addBrowserActors();
     }
     DebuggerServer.closeListener();
