@@ -518,20 +518,6 @@ WebGLContext::InitAndValidateGL()
         return false;
     }
 
-#ifdef ANDROID
-    // bug 736123, blacklist WebGL on Adreno
-    bool forceEnabled = Preferences::GetBool("webgl.force-enabled", false);
-    if (!forceEnabled) {
-        int renderer = gl->Renderer();
-        if (renderer == gl::GLContext::RendererAdreno200 ||
-            renderer == gl::GLContext::RendererAdreno205)
-        {
-            LogMessage("WebGL blocked on this Adreno driver!");
-            return false;
-        }
-    }
-#endif
-
     mMinCapability = Preferences::GetBool("webgl.min_capability_mode", false);
     mDisableExtensions = Preferences::GetBool("webgl.disable-extensions", false);
 

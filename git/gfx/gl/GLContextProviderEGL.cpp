@@ -1995,10 +1995,6 @@ GLContextProviderEGL::CreateForNativePixmapSurface(gfxASurface* aSurface)
 GLContext *
 GLContextProviderEGL::GetGlobalContext()
 {
-#ifdef ANDROID
-    return nsnull;
-#endif
-
     static bool triedToCreateContext = false;
     if (!triedToCreateContext && !gGlobalContext) {
         triedToCreateContext = true;
