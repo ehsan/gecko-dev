@@ -4,8 +4,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ListView;
 
-import org.mozilla.gecko.home.HomePager;
-
 public class testHistory extends AboutHomeTest {
     private View mFirstChild;
 
@@ -25,7 +23,7 @@ public class testHistory extends AboutHomeTest {
 
         openAboutHomeTab(AboutHomeTabs.HISTORY);
 
-        final ListView hList = findListViewWithTag(HomePager.LIST_TAG_HISTORY);
+        final ListView hList = findListViewWithTag("history");
         mAsserter.is(waitForNonEmptyListToLoad(hList), true, "list is properly loaded");
 
         // Click on the history item and wait for the page to load
