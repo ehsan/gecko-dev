@@ -8,7 +8,7 @@
 #ifndef mozilla_dom_MediaQueryList_h
 #define mozilla_dom_MediaQueryList_h
 
-#include "nsISupports.h"
+#include "nsIDOMMediaQueryList.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
@@ -24,7 +24,7 @@ class nsMediaList;
 namespace mozilla {
 namespace dom {
 
-class MediaQueryList MOZ_FINAL : public nsISupports,
+class MediaQueryList MOZ_FINAL : public nsIDOMMediaQueryList,
                                  public nsWrapperCache,
                                  public PRCList
 {
@@ -40,27 +40,31 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(MediaQueryList)
 
+  NS_DECL_NSIDOMMEDIAQUERYLIST
+
   nsISupports* GetParentObject() const;
 
   struct HandleChangeData {
     nsRefPtr<MediaQueryList> mql;
+    nsCOMPtr<nsIDOMMediaQueryListListener> listener;
     nsCOMPtr<mozilla::dom::MediaQueryListListener> callback;
   };
 
+  typedef FallibleTArray< nsCOMPtr<nsIDOMMediaQueryListListener> > ListenerList;
   typedef FallibleTArray< nsRefPtr<mozilla::dom::MediaQueryListListener> > CallbackList;
   typedef FallibleTArray<HandleChangeData> NotifyList;
 
   // Appends listeners that need notification to aListenersToNotify
   void MediumFeaturesChanged(NotifyList &aListenersToNotify);
 
-  bool HasListeners() const { return !mCallbacks.IsEmpty(); }
+  bool HasListeners() const { return !mListeners.IsEmpty() || !mCallbacks.IsEmpty(); }
 
   void RemoveAllListeners();
 
   JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
   // WebIDL methods
-  void GetMedia(nsAString& aMedia);
+  // The XPCOM GetMedia method is good
   bool Matches();
   void AddListener(mozilla::dom::MediaQueryListListener& aListener);
   void RemoveListener(mozilla::dom::MediaQueryListListener& aListener);
@@ -87,6 +91,7 @@ private:
   nsRefPtr<nsMediaList> mMediaList;
   bool mMatches;
   bool mMatchesValid;
+  ListenerList mListeners;
   CallbackList mCallbacks;
 };
 

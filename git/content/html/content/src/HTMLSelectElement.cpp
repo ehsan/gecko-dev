@@ -116,8 +116,6 @@ HTMLSelectElement::HTMLSelectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     mOptGroupCount(0),
     mSelectedIndex(-1)
 {
-  SetHasWeirdParserInsertionMode();
-
   // DoneAddingChildren() will be called later if it's from the parser,
   // otherwise it is
 

@@ -70,6 +70,12 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     using MacroAssemblerX86Shared::callWithExitFrame;
     using MacroAssemblerX86Shared::branch32;
 
+    enum Result {
+        GENERAL,
+        DOUBLE,
+        FLOAT
+    };
+
     MacroAssemblerX86()
       : inCall_(false),
         enoughMemory_(true)
@@ -676,7 +682,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     }
 
     void setStackArg(const Register &reg, uint32_t arg) {
-        movl(reg, Operand(esp, arg * sizeof(intptr_t)));
+        movl(reg, Operand(esp, arg * STACK_SLOT_SIZE));
     }
 
     // Type testing instructions can take a tag in a register or a
@@ -1037,19 +1043,19 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     // automatically adjusted. It is extremely important that esp-relative
     // addresses are computed *after* setupABICall(). Furthermore, no
     // operations should be emitted while setting arguments.
-    void passABIArg(const MoveOperand &from, MoveOp::Type type);
+    void passABIArg(const MoveOperand &from);
     void passABIArg(const Register &reg);
-    void passABIArg(const FloatRegister &reg, MoveOp::Type type);
+    void passABIArg(const FloatRegister &reg);
 
   private:
     void callWithABIPre(uint32_t *stackAdjust);
-    void callWithABIPost(uint32_t stackAdjust, MoveOp::Type result);
+    void callWithABIPost(uint32_t stackAdjust, Result result);
 
   public:
     // Emits a call to a C/C++ function, resolving all argument moves.
-    void callWithABI(void *fun, MoveOp::Type result = MoveOp::GENERAL);
-    void callWithABI(AsmJSImmPtr fun, MoveOp::Type result = MoveOp::GENERAL);
-    void callWithABI(const Address &fun, MoveOp::Type result = MoveOp::GENERAL);
+    void callWithABI(void *fun, Result result = GENERAL);
+    void callWithABI(AsmJSImmPtr fun, Result result = GENERAL);
+    void callWithABI(const Address &fun, Result result = GENERAL);
 
     // Used from within an Exit frame to handle a pending exception.
     void handleFailureWithHandler(void *handler);

@@ -43,7 +43,6 @@ MmsMessage::MmsMessage(int32_t                          aId,
                        const nsAString&                 aSender,
                        const nsTArray<nsString>&        aReceivers,
                        uint64_t                         aTimestamp,
-                       uint64_t                         aSentTimestamp,
                        bool                             aRead,
                        const nsAString&                 aSubject,
                        const nsAString&                 aSmil,
@@ -58,7 +57,6 @@ MmsMessage::MmsMessage(int32_t                          aId,
     mSender(aSender),
     mReceivers(aReceivers),
     mTimestamp(aTimestamp),
-    mSentTimestamp(aSentTimestamp),
     mRead(aRead),
     mSubject(aSubject),
     mSmil(aSmil),
@@ -76,7 +74,6 @@ MmsMessage::MmsMessage(const mobilemessage::MmsMessageData& aData)
   , mSender(aData.sender())
   , mReceivers(aData.receivers())
   , mTimestamp(aData.timestamp())
-  , mSentTimestamp(aData.sentTimestamp())
   , mRead(aData.read())
   , mSubject(aData.subject())
   , mSmil(aData.smil())
@@ -176,7 +173,6 @@ MmsMessage::Create(int32_t               aId,
                    const nsAString&      aSender,
                    const JS::Value&      aReceivers,
                    const JS::Value&      aTimestamp,
-                   const JS::Value&      aSentTimestamp,
                    bool                  aRead,
                    const nsAString&      aSubject,
                    const nsAString&      aSmil,
@@ -260,11 +256,6 @@ MmsMessage::Create(int32_t               aId,
   nsresult rv = convertTimeToInt(aCx, aTimestamp, timestamp);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Set |sentTimestamp|.
-  uint64_t sentTimestamp;
-  rv = convertTimeToInt(aCx, aSentTimestamp, sentTimestamp);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   // Set |attachments|.
   if (!aAttachments.isObject()) {
     return NS_ERROR_INVALID_ARG;
@@ -303,7 +294,6 @@ MmsMessage::Create(int32_t               aId,
                                                          aSender,
                                                          receivers,
                                                          timestamp,
-                                                         sentTimestamp,
                                                          aRead,
                                                          aSubject,
                                                          aSmil,
@@ -327,7 +317,6 @@ MmsMessage::GetData(ContentParent* aParent,
   aData.sender().Assign(mSender);
   aData.receivers() = mReceivers;
   aData.timestamp() = mTimestamp;
-  aData.sentTimestamp() = mSentTimestamp;
   aData.read() = mRead;
   aData.subject() = mSubject;
   aData.smil() = mSmil;
@@ -578,13 +567,6 @@ NS_IMETHODIMP
 MmsMessage::GetTimestamp(DOMTimeStamp* aTimestamp)
 {
   *aTimestamp = mTimestamp;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-MmsMessage::GetSentTimestamp(DOMTimeStamp* aSentTimestamp)
-{
-  *aSentTimestamp = mSentTimestamp;
   return NS_OK;
 }
 

@@ -259,7 +259,7 @@ MOZ_ARG_WITH_STRING(android-sdk,
                           location where the Android SDK can be found (base directory, e.g. .../android/platforms/android-6)],
     android_sdk=$withval)
 
-android_sdk_root=${withval%/platforms/android-*}
+android_sdk_root=$withval/../../
 
 case "$target" in
 *-android*|*-linuxandroid*)

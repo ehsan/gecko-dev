@@ -911,6 +911,15 @@ RenderFrameParent::NotifyInputEvent(const WidgetInputEvent& aEvent,
 }
 
 void
+RenderFrameParent::NotifyDimensionsChanged(ScreenIntSize size)
+{
+  if (GetApzcTreeManager()) {
+    GetApzcTreeManager()->UpdateRootCompositionBounds(
+      mLayersId, ScreenIntRect(ScreenIntPoint(), size));
+  }
+}
+
+void
 RenderFrameParent::ActorDestroy(ActorDestroyReason why)
 {
   if (mLayersId != 0) {

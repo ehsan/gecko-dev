@@ -18,7 +18,6 @@ public:
   HTMLTableSectionElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
-    SetHasWeirdParserInsertionMode();
   }
 
   // nsISupports
