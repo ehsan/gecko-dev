@@ -98,9 +98,6 @@ public:
   virtual nsSMILTimeContainer* GetTimeContainer();
 
 protected:
-  // nsSVGElement overrides
-  PRBool IsEventName(nsIAtom* aName);
-
   void UpdateHrefTarget(nsIContent* aNodeForContext,
                         const nsAString& aHrefStr);
 
