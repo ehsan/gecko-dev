@@ -257,7 +257,9 @@ void
 ConvertGrallocImageToNV12(GrallocImage* aSource, uint8_t* aDestination)
 {
   // Get graphic buffer.
-  sp<GraphicBuffer> graphicBuffer = aSource->GetGraphicBuffer();
+  GrallocTextureClientOGL* client =
+    static_cast<GrallocTextureClientOGL*>(aSource->GetTextureClient(nullptr));
+  sp<GraphicBuffer> graphicBuffer = client->GetGraphicBuffer();
 
   int pixelFormat = graphicBuffer->getPixelFormat();
   // Only support NV21 (from camera) or YV12 (from HW decoder output) for now.

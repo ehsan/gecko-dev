@@ -13,7 +13,8 @@
 
 namespace mozilla {
 
-class NetworkWorker MOZ_FINAL : public nsINetworkWorker
+class NetworkWorker MOZ_FINAL : public nsINetworkWorker,
+                                public mozilla::ipc::NetdConsumer
 {
 public:
   NS_DECL_ISUPPORTS
@@ -22,6 +23,7 @@ public:
   static already_AddRefed<NetworkWorker> FactoryCreate();
 
   void DispatchNetworkResult(const mozilla::dom::NetworkResultOptions& aOptions);
+  void MessageReceived(mozilla::ipc::NetdCommand* aMessage);
 
 private:
   NetworkWorker();
@@ -29,6 +31,7 @@ private:
 
   static void NotifyResult(mozilla::dom::NetworkResultOptions& aResult);
 
+  nsCOMPtr<nsIThread> mWorkerThread;
   nsCOMPtr<nsINetworkEventListener> mListener;
 };
 
