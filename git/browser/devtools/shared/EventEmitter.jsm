@@ -6,23 +6,19 @@ this.EXPORTED_SYMBOLS = ["EventEmitter"];
 
 /**
  * EventEmitter.
- */
-this.EventEmitter = function EventEmitter() {};
-
-/**
- * Decorate an object with event emitter functionality.
  *
- * @param Object aObjectToDecorate
- *        Bind all public methods of EventEmitter to
- *        the aObjectToDecorate object.
+ * @param Object aObjectToExtend
+ *        If aObjectToExtend is not null, the public methods of EventEmitter
+ *        are bound to the object.
  */
-EventEmitter.decorate = function EventEmitter_decorate (aObjectToDecorate) {
-  let emitter = new EventEmitter();
-  aObjectToDecorate.on = emitter.on.bind(emitter);
-  aObjectToDecorate.off = emitter.off.bind(emitter);
-  aObjectToDecorate.once = emitter.once.bind(emitter);
-  aObjectToDecorate.emit = emitter.emit.bind(emitter);
-};
+this.EventEmitter = function EventEmitter(aObjectToExtend) {
+  if (aObjectToExtend) {
+    aObjectToExtend.on = this.on.bind(this);
+    aObjectToExtend.off = this.off.bind(this);
+    aObjectToExtend.once = this.once.bind(this);
+    aObjectToExtend.emit = this.emit.bind(this);
+  }
+}
 
 EventEmitter.prototype = {
   /**
@@ -107,5 +103,5 @@ EventEmitter.prototype = {
         }
       }
     }
-  }
-};
+  },
+}

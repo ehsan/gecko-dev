@@ -733,24 +733,26 @@ AppendToFaceList(nsCString& aFaceList,
 }
 
 void
-FT2FontEntry::CheckForBrokenFont(gfxFontFamily *aFamily)
+FT2FontEntry::CheckForBrokenFont()
 {
+    NS_ASSERTION(mFamily != nullptr, "font entry must belong to a family");
+
     // note if the family is in the "bad underline" blacklist
-    if (aFamily->IsBadUnderlineFamily()) {
+    if (mFamily->IsBadUnderlineFamily()) {
         mIsBadUnderlineFont = true;
     }
 
     // bug 721719 - set the IgnoreGSUB flag on entries for Roboto
     // because of unwanted on-by-default "ae" ligature.
     // (See also AppendFaceFromFontListEntry.)
-    if (aFamily->Name().EqualsLiteral("roboto")) {
+    if (mFamily->Name().EqualsLiteral("roboto")) {
         mIgnoreGSUB = true;
     }
 
     // bug 706888 - set the IgnoreGSUB flag on the broken version of
     // Droid Sans Arabic from certain phones, as identified by the
     // font checksum in the 'head' table
-    else if (aFamily->Name().EqualsLiteral("droid sans arabic")) {
+    else if (mFamily->Name().EqualsLiteral("droid sans arabic")) {
         const TT_Header *head = static_cast<const TT_Header*>
             (FT_Get_Sfnt_Table(mFTFace, ft_sfnt_head));
         if (head && head->CheckSum_Adjust == 0xe445242) {
@@ -816,7 +818,8 @@ gfxFT2FontList::AppendFacesFromFontFile(nsCString& aFileName,
                 fe->mStandardFace = aStdFile;
                 family->AddFontEntry(fe);
 
-                fe->CheckForBrokenFont(family);
+                // this depends on the entry having been added to its family
+                fe->CheckForBrokenFont();
 
                 AppendToFaceList(faceList, name, fe);
 #ifdef PR_LOGGING
@@ -1186,7 +1189,8 @@ gfxFT2FontList::AppendFaceFromFontListEntry(const FontListEntry& aFLE,
         }
         family->AddFontEntry(fe);
 
-        fe->CheckForBrokenFont(family);
+        // this depends on the entry having been added to its family
+        fe->CheckForBrokenFont();
     }
 }
 
@@ -1272,8 +1276,8 @@ gfxFT2FontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
     return data.mFontEntry;
 }
 
-gfxFontFamily*
-gfxFT2FontList::GetDefaultFont(const gfxFontStyle* aStyle)
+gfxFontEntry*
+gfxFT2FontList::GetDefaultFont(const gfxFontStyle* aStyle, bool& aNeedsBold)
 {
 #ifdef XP_WIN
     HGDIOBJ hGDI = ::GetStockObject(SYSTEM_FONT);
@@ -1281,14 +1285,14 @@ gfxFT2FontList::GetDefaultFont(const gfxFontStyle* aStyle)
     if (hGDI && ::GetObjectW(hGDI, sizeof(logFont), &logFont)) {
         nsAutoString resolvedName;
         if (ResolveFontName(nsDependentString(logFont.lfFaceName), resolvedName)) {
-            return FindFamily(resolvedName);
+            return FindFontForFamily(resolvedName, aStyle, aNeedsBold);
         }
     }
 #elif defined(ANDROID)
     nsAutoString resolvedName;
     if (ResolveFontName(NS_LITERAL_STRING("Roboto"), resolvedName) ||
         ResolveFontName(NS_LITERAL_STRING("Droid Sans"), resolvedName)) {
-        return FindFamily(resolvedName);
+        return FindFontForFamily(resolvedName, aStyle, aNeedsBold);
     }
 #endif
     /* TODO: what about Qt or other platforms that may use this? */

@@ -14,7 +14,7 @@ function testEmitter(aObject) {
 
   if (aObject) {
     emitter = aObject;
-    EventEmitter.decorate(emitter);
+    new EventEmitter(emitter);
   } else {
     emitter = new EventEmitter();
   }

@@ -33,7 +33,7 @@ this.Hosts = {
 function BottomHost(hostTab) {
   this.hostTab = hostTab;
 
-  EventEmitter.decorate(this);
+  new EventEmitter(this);
 }
 
 BottomHost.prototype = {
@@ -101,7 +101,7 @@ BottomHost.prototype = {
 function SidebarHost(hostTab) {
   this.hostTab = hostTab;
 
-  EventEmitter.decorate(this);
+  new EventEmitter(this);
 }
 
 SidebarHost.prototype = {
@@ -166,7 +166,7 @@ SidebarHost.prototype = {
 function WindowHost() {
   this._boundUnload = this._boundUnload.bind(this);
 
-  EventEmitter.decorate(this);
+  new EventEmitter(this);
 }
 
 WindowHost.prototype = {

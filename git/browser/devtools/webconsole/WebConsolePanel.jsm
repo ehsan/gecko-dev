@@ -22,7 +22,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "HUDService",
 function WebConsolePanel(iframeWindow, toolbox) {
   this._frameWindow = iframeWindow;
   this._toolbox = toolbox;
-  EventEmitter.decorate(this);
+  new EventEmitter(this);
 }
 
 WebConsolePanel.prototype = {
