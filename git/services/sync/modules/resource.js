@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ["Resource"];
+const EXPORTED_SYMBOLS = ['Resource', 'JsonFilter'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -49,6 +49,27 @@ Cu.import("resource://weave/log4moz.js");
 Cu.import("resource://weave/constants.js");
 Cu.import("resource://weave/util.js");
 Cu.import("resource://weave/auth.js");
+
+// = RequestException =
+//
+// This function raises an exception through the call
+// stack for a failed network request.
+function RequestException(resource, action, request) {
+  this._resource = resource;
+  this._action = action;
+  this._request = request;
+  this.location = Components.stack.caller;
+}
+RequestException.prototype = {
+  get resource() { return this._resource; },
+  get action() { return this._action; },
+  get request() { return this._request; },
+  get status() { return this._request.status; },
+  toString: function ReqEx_toString() {
+    return "Could not " + this._action + " resource " + this._resource.spec +
+      " (" + this._request.responseStatus + ")";
+  }
+};
 
 // = Resource =
 //
@@ -101,6 +122,8 @@ Resource.prototype = {
     return this._uri;
   },
   set uri(value) {
+    this._dirty = true;
+    this._downloaded = false;
     if (typeof value == 'string')
       this._uri = Utils.makeURI(value);
     else
@@ -122,7 +145,31 @@ Resource.prototype = {
   _data: null,
   get data() this._data,
   set data(value) {
+    this._dirty = true;
     this._data = value;
+  },
+
+  _lastChannel: null,
+  _downloaded: false,
+  _dirty: false,
+  get lastChannel() this._lastChannel,
+  get downloaded() this._downloaded,
+  get dirty() this._dirty,
+
+  // ** {{{ Resource.filters }}} **
+  //
+  // Filters are used to perform pre and post processing on 
+  // requests made for resources. Use these methods to add,
+  // remove and clear filters applied to the resource.
+  _filters: null,
+  pushFilter: function Res_pushFilter(filter) {
+    this._filters.push(filter);
+  },
+  popFilter: function Res_popFilter() {
+    return this._filters.pop();
+  },
+  clearFilters: function Res_clearFilters() {
+    this._filters = [];
   },
 
   _init: function Res__init(uri) {
@@ -131,6 +178,7 @@ Resource.prototype = {
       Log4Moz.Level[Utils.prefs.getCharPref("log.logger.network.resources")];
     this.uri = uri;
     this._headers = {'Content-type': 'text/plain'};
+    this._filters = [];
   },
 
   // ** {{{ Resource._createRequest }}} **
@@ -140,15 +188,18 @@ Resource.prototype = {
   // to obtain a request channel.
   //
   _createRequest: function Res__createRequest() {
-    let channel = Svc.IO.newChannel(this.spec, null, null).
-      QueryInterface(Ci.nsIRequest).QueryInterface(Ci.nsIHttpChannel);
+    this._lastChannel = Svc.IO.newChannel(this.spec, null, null).
+      QueryInterface(Ci.nsIRequest);
 
     // Always validate the cache:
-    channel.loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE;
-    channel.loadFlags |= Ci.nsIRequest.INHIBIT_CACHING;
+    let loadFlags = this._lastChannel.loadFlags;
+    loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE;
+    loadFlags |= Ci.nsIRequest.INHIBIT_CACHING;
+    this._lastChannel.loadFlags = loadFlags;
+    this._lastChannel = this._lastChannel.QueryInterface(Ci.nsIHttpChannel);
     
     // Setup a callback to handle bad HTTPS certificates.
-    channel.notificationCallbacks = new badCertListener();
+    this._lastChannel.notificationCallbacks = new badCertListener();
     
     // Avoid calling the authorizer more than once
     let headers = this.headers; 
@@ -157,12 +208,32 @@ Resource.prototype = {
         this._log.trace("HTTP Header " + key + ": ***** (suppressed)");
       else
         this._log.trace("HTTP Header " + key + ": " + headers[key]);
-      channel.setRequestHeader(key, headers[key], false);
+      this._lastChannel.setRequestHeader(key, headers[key], false);
     }
-    return channel;
+    return this._lastChannel;
   },
 
   _onProgress: function Res__onProgress(channel) {},
+
+  // ** {{{ Resource.filterUpload }}} **
+  //
+  // Apply pre-request filters. Currently, this is done before
+  // any PUT request.
+  filterUpload: function Resource_filterUpload() {
+    this._data = this._filters.reduce(function(data, filter) {
+      return filter.beforePUT(data);
+    }, this._data);
+  },
+
+  // ** {{{ Resource.filterDownload }}} **
+  //
+  // Apply post-request filters. Currently, this done after
+  // any GET request.
+  filterDownload: function Resource_filterDownload() {
+    this._data = this._filters.reduceRight(function(data, filter) {
+      return filter.afterGET(data);
+    }, this._data);
+  },
 
   // ** {{{ Resource._request }}} **
   //
@@ -179,10 +250,7 @@ Resource.prototype = {
     // PUT and POST are trreated differently because 
     // they have payload data.
     if ("PUT" == action || "POST" == action) {
-      // Convert non-string bodies into JSON
-      if (this._data.constructor.toString() != String)
-        this._data = JSON.stringify(this._data);
-
+      this.filterUpload();
       this._log.debug(action + " Length: " + this._data.length);
       this._log.trace(action + " Body: " + this._data);
 
@@ -221,52 +289,31 @@ Resource.prototype = {
       throw error;
     }
 
-    // Set some default values in-case there's no response header
-    let headers = {};
-    let status = 0;
-    let success = true;
-    try {
-      // Read out the response headers if available
-      channel.visitResponseHeaders({
-        visitHeader: function visitHeader(header, value) {
-          headers[header] = value;
+    if (!channel.requestSucceeded) {
+      this._log.debug(action + " request failed (" + channel.responseStatus + ")");
+      if (this._data)
+        this._log.debug("Error response: " + this._data);
+      throw new RequestException(this, action, channel);
+
+    } else {
+      this._log.debug(action + " request successful (" + channel.responseStatus  + ")");
+
+      switch (action) {
+      case "DELETE":
+        if (Utils.checkStatus(channel.responseStatus, null, [[200,300],404])){
+          this._dirty = false;
+          this._data = null;
         }
-      });
-      status = channel.responseStatus;
-      success = channel.requestSucceeded;
-
-      if (success) {
-        this._log.debug(action + " success: " + status);
-        if (this._log.level <= Log4Moz.Level.Trace)
-          this._log.trace(action + " Body: " + this._data);
-      }
-      else {
-        let log = "debug";
-        let mesg = action + " fail: " + status;
-
-        // Only log the full response body (may be HTML) when Trace logging
-        if (this._log.level <= Log4Moz.Level.Trace) {
-          log = "trace";
-          mesg += " " + this._data;
-        }
-
-        this._log[log](mesg);
+        break;
+      case "GET":
+      case "POST":
+        this._log.trace(action + " Body: " + this._data);
+        this.filterDownload();
+        break;
       }
     }
-    // Got a response but no header; must be cached (use default values)
-    catch(ex) {
-      this._log.debug(action + " cached: " + status);
-    }
 
-    let ret = new String(this._data);
-    ret.headers = headers;
-    ret.status = status;
-    ret.success = success;
-
-    // Make a lazy getter to convert the json response into an object
-    Utils.lazy2(ret, "obj", function() JSON.parse(ret));
-
-    return ret;
+    return this._data;
   },
 
   // ** {{{ Resource.get }}} **
@@ -312,17 +359,8 @@ ChannelListener.prototype = {
   onStartRequest: function Channel_onStartRequest(channel) {
     // XXX Bug 482179 Some reason xpconnect makes |channel| only nsIRequest
     channel.QueryInterface(Ci.nsIHttpChannel);
-
-    let log = "trace";
-    let mesg = channel.requestMethod + " request for " + channel.URI.spec;
-    // Only log a part of the uri for logs higher than trace
-    if (this._log.level > Log4Moz.Level.Trace) {
-      log = "debug";
-      if (mesg.length > 200)
-        mesg = mesg.substr(0, 200) + "...";
-    }
-    this._log[log](mesg);
-
+    this._log.debug(channel.requestMethod + " request for " +
+      channel.URI.spec);
     this._data = '';
   },
 
@@ -344,6 +382,30 @@ ChannelListener.prototype = {
 
     this._data += siStream.read(count);
     this._onProgress();
+  }
+};
+
+// = JsonFilter =
+//
+// Currently, the only filter used in conjunction with 
+// {{{Resource.filters}}}. It simply encodes outgoing records
+// as JSON, and decodes incoming JSON into JS objects.
+function JsonFilter() {
+  let level = "Debug";
+  try { level = Utils.prefs.getCharPref("log.logger.network.jsonFilter"); }
+  catch (e) { /* ignore unset prefs */ }
+  this._log = Log4Moz.repository.getLogger("Net.JsonFilter");
+  this._log.level = Log4Moz.Level[level];
+}
+JsonFilter.prototype = {
+  beforePUT: function JsonFilter_beforePUT(data) {
+    this._log.trace("Encoding data as JSON");
+    return JSON.stringify(data);
+  },
+
+  afterGET: function JsonFilter_afterGET(data) {
+    this._log.trace("Decoding JSON data");
+    return JSON.parse(data);
   }
 };
 

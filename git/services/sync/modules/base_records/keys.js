@@ -176,7 +176,7 @@ PubKeyManager.prototype = {
 
   uploadKeypair: function PubKeyManager_uploadKeypair(keys) {
     for each (let key in keys)
-      new Resource(key.uri).put(key);
+      new Resource(key.uri).put(key.serialize());
   }
 };
 

@@ -93,7 +93,11 @@ BookmarksEngine.prototype = {
   _storeObj: BookmarksStore,
   _trackerObj: BookmarksTracker,
 
-  _sync: Utils.batchSync("Bookmark", SyncEngine)
+  _sync: function BookmarksEngine__sync() {
+    Svc.Bookmark.runInBatchMode({
+      runBatched: Utils.bind2(this, SyncEngine.prototype._sync)
+    }, null);
+  }
 };
 
 function BookmarksStore() {
@@ -361,12 +365,9 @@ BookmarksStore.prototype = {
         record._insertPos, "as", record.title].join(" "));
       break;
     case "livemark":
-      let siteURI = null;
-      if (record.siteUri != null)
-        siteURI = Utils.makeURI(record.siteUri);
-
-      newId = this._ls.createLivemark(record._parent, record.title, siteURI,
-        Utils.makeURI(record.feedUri), record._insertPos);
+      newId = this._ls.createLivemark(record._parent, record.title,
+        Utils.makeURI(record.siteUri), Utils.makeURI(record.feedUri),
+        record._insertPos);
       this._log.debug(["created livemark", newId, "under", record._parent, "at",
         record._insertPos, "as", record.title, record.siteUri, record.feedUri].
         join(" "));
@@ -620,10 +621,7 @@ BookmarksStore.prototype = {
     case this._bms.TYPE_FOLDER:
       if (this._ls.isLivemark(placeId)) {
         record = new Livemark();
-
-        let siteURI = this._ls.getSiteURI(placeId);
-        if (siteURI != null)
-          record.siteUri = siteURI.spec;
+        record.siteUri = this._ls.getSiteURI(placeId).spec;
         record.feedUri = this._ls.getFeedURI(placeId).spec;
 
       } else {
@@ -658,6 +656,13 @@ BookmarksStore.prototype = {
   },
 
   _getParentGUIDForId: function BStore__getParentGUIDForId(itemId) {
+    // Give the parent annotation if it exists
+    try {
+      // XXX Work around Bug 510628 by removing prepended parenT
+      return Utils.anno(itemId, PARENT_ANNO).slice(1);
+    }
+    catch(ex) {}
+
     let parentid = this._bms.getFolderIdForItem(itemId);
     if (parentid == -1) {
       this._log.debug("Found orphan bookmark, reparenting to unfiled");
@@ -668,6 +673,13 @@ BookmarksStore.prototype = {
   },
 
   _getPredecessorGUIDForId: function BStore__getPredecessorGUIDForId(itemId) {
+    // Give the predecessor annotation if it exists
+    try {
+      // XXX Work around Bug 510628 by removing prepended predecessoR
+      return Utils.anno(itemId, PREDECESSOR_ANNO).slice(1);
+    }
+    catch(ex) {}
+
     // Figure out the predecessor, unless it's the first item
     let itemPos = Svc.Bookmark.getItemIndex(itemId);
     if (itemPos == 0)
@@ -866,12 +878,6 @@ BookmarksTracker.prototype = {
   onItemChanged: function BMT_onItemChanged(itemId, property, isAnno, value) {
     if (this._ignore(itemId))
       return;
-
-    // Make sure to remove items that now have the exclude annotation
-    if (property == "places/excludeFromBackup") {
-      this.removeChangedID(GUIDForId(itemId));
-      return;
-    }
 
     // ignore annotations except for the ones that we sync
     let annos = ["bookmarkProperties/description",

@@ -11,13 +11,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Weave.
+ * The Original Code is Bookmarks Sync.
  *
  * The Initial Developer of the Original Code is Mozilla.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *  Atul Varma <varmaa@toolness.com>
  *  Dan Mills <thunder@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -34,56 +35,54 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ['ClientRecord'];
-
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cr = Components.results;
 const Cu = Components.utils;
-
 Cu.import("resource://weave/log4moz.js");
 Cu.import("resource://weave/util.js");
-Cu.import("resource://weave/base_records/wbo.js");
 
-function ClientRecord(uri) {
-  this._ClientRec_init(uri);
+const EXPORTED_SYMBOLS = ["FaultTolerance"];
+
+FaultTolerance = {
+  get Service() {
+    if (!this._Service)
+      this._Service = new FTService();
+    return this._Service;
+  }
+};
+
+function FTService() {
+  this._log = Log4Moz.repository.getLogger("FaultTolerance");
+  this._log.level = Log4Moz.Level["Debug"];
+  this._appender = new FTAppender(this);
+  Log4Moz.repository.rootLogger.addAppender(this._appender);
 }
-ClientRecord.prototype = {
-  __proto__: WBORecord.prototype,
-  _logName: "Record.Client",
-
-  _ClientRec_init: function ClientRec_init(uri) {
-    this._WBORec_init(uri);
+FTService.prototype = {
+  get lastException() this._lastException,
+  onMessage: function FTS_onMessage(message) {
+    // FIXME: we get all log messages here, and could use them to keep track of
+    // our current state
   },
 
-  _escape: function ClientRecord__escape(toAscii) {
-    // Escape-to-ascii or unescape-from-ascii each value
-    if (this.payload != null)
-      for (let [key, val] in Iterator(this.payload))
-        this.payload[key] = (toAscii ? escape : unescape)(val);
-  },
+  onException: function FTS_onException(ex) {
+    this._lastException = ex;
+    this._log.debug(Utils.exceptionStr(ex));
+    return true; // continue sync if thrown by a sync engine
+  }
+};
 
-  serialize: function ClientRecord_serialize() {
-    // Convert potential non-ascii to ascii before serializing
-    this._escape(true);
-    let ret = WBORecord.prototype.serialize.apply(this, arguments);
+function FTFormatter() {}
+FTFormatter.prototype = {
+  __proto__: new Log4Moz.Formatter(),
+  format: function FTF_format(message) message
+};
 
-    // Restore the original data for normal use
-    this._escape(false);
-    return ret;
-  },
-
-  deserialize: function ClientRecord_deserialize(json) {
-    // Deserialize then convert potential escaped non-ascii
-    WBORecord.prototype.deserialize.apply(this, arguments);
-    this._escape(false);
-  },
-
-  // engines.js uses cleartext to determine if records _isEqual
-  // XXX Bug 482669 Implement .equals() for SyncEngine to compare records
-  get cleartext() this.serialize(),
-
-  // XXX engines.js calls encrypt/decrypt for all records, so define these:
-  encrypt: function ClientRecord_encrypt(passphrase) {},
-  decrypt: function ClientRecord_decrypt(passphrase) {}
+function FTAppender(ftService) {
+  this._ftService = ftService;
+  this._name = "FTAppender";
+  this._formatter = new FTFormatter();
+}
+FTAppender.prototype = {
+  __proto__: new Log4Moz.Appender(),
+  doAppend: function FTA_append(message) {
+    this._ftService.onMessage(message);
+  }
 };

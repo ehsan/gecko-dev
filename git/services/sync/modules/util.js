@@ -124,29 +124,6 @@ let Utils = {
     };
   },
 
-  batchSync: function batchSync(service, engineType) {
-    return function batchedSync() {
-      let engine = this;
-      let batchEx = null;
-
-      // Try running sync in batch mode
-      Svc[service].runInBatchMode({
-        runBatched: function wrappedSync() {
-          try {
-            engineType.prototype._sync.call(engine);
-          }
-          catch(ex) {
-            batchEx = ex;
-          }
-        }
-      }, null);
-
-      // Expose the exception if something inside the batch failed
-      if (batchEx!= null)
-        throw batchEx;
-    };
-  },
-
   // Generates a brand-new globally unique identifier (GUID).
   makeGUID: function makeGUID() {
     let uuidgen = Cc["@mozilla.org/uuid-generator;1"].
@@ -207,6 +184,41 @@ let Utils = {
     if (arg.autoCreate && !file.exists())
       file.create(file.NORMAL_FILE_TYPE, PERMS_FILE);
     return file;
+  },
+
+  findPassword: function findPassword(realm, username) {
+    // fixme: make a request and get the realm ?
+    let password;
+    let logins = Svc.Login.findLogins({}, 'chrome://weave', null, realm);
+
+    for (let i = 0; i < logins.length; i++) {
+      if (logins[i].username == username) {
+        password = logins[i].password;
+        break;
+      }
+    }
+    return password;
+  },
+
+  setPassword: function setPassword(realm, username, password) {
+    // cleanup any existing passwords
+    let lm = Svc.Login;
+    let logins = lm.findLogins({}, 'chrome://weave', null, realm);
+    for (let i = 0; i < logins.length; i++)
+      lm.removeLogin(logins[i]);
+
+    if (!password)
+      return;
+
+    let log = Log4Moz.repository.getLogger("Service.Util");
+    log.trace("Setting '" + realm + "' password for user " + username);
+
+    // save the new one
+    let nsLoginInfo = new Components.Constructor(
+      "@mozilla.org/login-manager/loginInfo;1", Ci.nsILoginInfo, "init");
+    let login = new nsLoginInfo('chrome://weave', null, realm,
+                                username, password, "", "");
+    lm.addLogin(login);
   },
 
   /**
@@ -476,25 +488,6 @@ let Utils = {
     return url;
   },
 
-  // ensures url ends with a slash, optionally adds an extra string at the end
-  slashify: function Weave_slashify(url, extra) {
-    if (url[url.length-1] != '/')
-      url += '/';
-    if (extra)
-      url += extra;
-    return url;
-  },
-
-  //
-  getURLPref: function Weave_getURLPref(pref, def, extra) {
-    let url = Svc.Prefs.get(pref);
-    if (!url && typeof(def) == "undefined")
-      throw pref + " not set";
-    else if (!url)
-      return def;
-    return Utils.slashify(url, extra);
-  },
-
   xpath: function Weave_xpath(xmlDoc, xpathString) {
     let root = xmlDoc.ownerDocument == null ?
       xmlDoc.documentElement : xmlDoc.ownerDocument.documentElement;
@@ -679,6 +672,10 @@ let Utils = {
     this.openDialog("ChangeSomething", "generic-change.xul");
   },
 
+  openShare: function Utils_openShare() {
+    Utils.openDialog("Share", "share.xul");
+  },
+
   openLog: function Utils_openLog() {
     Utils._openChromeWindow("Log", "log.xul");
   },
@@ -688,32 +685,6 @@ let Utils = {
 
   openSync: function Utils_openSync() {
     Utils._openChromeWindow("Sync", "pick-sync.xul");
-  },
-
-  __errorBundle: null,
-  get _errorBundle() {
-    if (!this.__errorBundle) {
-      this.__errorBundle = new StringBundle("chrome://weave/locales/errors.properties");
-    }
-    return this.__errorBundle;
-  },
-
-  getErrorString: function Utils_getErrorString(error, args) {
-    switch (error) {
-      case Weave.LOGIN_FAILED_NETWORK_ERROR:
-        errorString = "error.login.reason.network";
-        break;
-      case Weave.LOGIN_FAILED_INVALID_PASSPHRASE:
-        errorString = "error.login.reason.passphrase";
-        break;
-      case Weave.LOGIN_FAILED_LOGIN_REJECTED:
-        errorString = "error.login.reason.password";
-        break;
-      default:
-        errorString = "error.login.reason.unknown";
-        break;
-    }
-    return this._errorBundle.get(errorString, args || null);
   },
 
   // assumes an nsIConverterInputStream

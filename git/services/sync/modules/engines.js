@@ -183,78 +183,7 @@ Engine.prototype = {
   sync: function Engine_sync() {
     if (!this._sync)
       throw "engine does not implement _sync method";
-
-    let times = {};
-    let wrapped = {};
-    // Find functions in any point of the prototype chain
-    for (let _name in this) {
-      let name = _name;
-
-      // Ignore certain constructors/functions
-      if (name.search(/^_(.+Obj|notify)$/) == 0)
-        continue;
-
-      // Only track functions but skip the constructors
-      if (typeof this[name] == "function") {
-        times[name] = [];
-        wrapped[name] = this[name];
-
-        // Wrap the original function with a start/stop timer
-        this[name] = function() {
-          let start = Date.now();
-          try {
-            return wrapped[name].apply(this, arguments);
-          }
-          finally {
-            times[name].push(Date.now() - start);
-          }
-        };
-      }
-    }
-
-    try {
-      this._notify("sync", this.name, this._sync)();
-    }
-    finally {
-      // Restore original unwrapped functionality
-      for (let [name, func] in Iterator(wrapped))
-        this[name] = func;
-
-      let stats = {};
-      for (let [name, time] in Iterator(times)) {
-        // Figure out stats on the times unless there's nothing
-        let num = time.length;
-        if (num == 0)
-          continue;
-
-        // Track the min/max/sum of the values
-        let stat = {
-          num: num,
-          sum: 0
-        };
-        time.forEach(function(val) {
-          if (val < stat.min || stat.min == null)
-            stat.min = val;
-          if (val > stat.max || stat.max == null)
-            stat.max = val;
-          stat.sum += val;
-        });
-
-        stat.avg = Number((stat.sum / num).toFixed(2));
-        stats[name] = stat;
-      }
-
-      stats.toString = function() {
-        let sums = [];
-        for (let [name, stat] in Iterator(this))
-          if (stat.sum != null)
-            sums.push(name.replace(/^_/, "") + " " + stat.sum);
-
-        return "Total (ms): " + sums.sort().join(", ");
-      };
-
-      this._log.info(stats);
-    }
+    this._notify("sync", this.name, this._sync)();
   },
 
   wipeServer: function Engine_wipeServer() {
@@ -296,18 +225,16 @@ SyncEngine.prototype = {
       return null;
     if (url[url.length-1] != '/')
       url += '/';
-    url += "0.5/";
+    url += "0.3/user/";
     return url;
   },
 
   get engineURL() {
-    return this.baseURL + ID.get('WeaveID').username +
-      '/storage/' + this.name + '/';
+    return this.baseURL + ID.get('WeaveID').username + '/' + this.name + '/';
   },
 
   get cryptoMetaURL() {
-    return this.baseURL + ID.get('WeaveID').username +
-      '/storage/crypto/' + this.name;
+    return this.baseURL + ID.get('WeaveID').username + '/crypto/' + this.name;
   },
 
   get lastSync() {
@@ -356,9 +283,7 @@ SyncEngine.prototype = {
       meta.generateIV();
       meta.addUnwrappedKey(pubkey, symkey);
       let res = new Resource(meta.uri);
-      let resp = res.put(meta);
-      if (!resp.success)
-        throw resp;
+      res.put(meta.serialize());
 
       // Cache the cryto meta that we just put on the server
       CryptoMetas.set(meta.uri, meta);
@@ -380,12 +305,6 @@ SyncEngine.prototype = {
 
   // Generate outgoing records
   _processIncoming: function SyncEngine__processIncoming() {
-    // Only bother getting data from the server if there's new things
-    if (this.lastModified <= this.lastSync) {
-      this._log.debug("Nothing new from the server to process");
-      return;
-    }
-
     this._log.debug("Downloading & applying server changes");
 
     // enable cache, and keep only the first few items.  Otherwise (when
@@ -422,9 +341,7 @@ SyncEngine.prototype = {
       Sync.sleep(0);
     });
 
-    let resp = newitems.get();
-    if (!resp.success)
-      throw resp;
+    newitems.get();
 
     if (this.lastSync < this._lastSyncTmp)
         this.lastSync = this._lastSyncTmp;
@@ -478,9 +395,6 @@ SyncEngine.prototype = {
   //    case when syncing for the first time two machines that already have the
   //    same bookmarks.  In this case we change the IDs to match.
   _reconcile: function SyncEngine__reconcile(item) {
-    if (this._log.level <= Log4Moz.Level.Trace)
-      this._log.trace("Incoming: " + item);
-
     // Step 1: Check for conflicts
     //         If same as local record, do not upload
     this._log.trace("Reconcile step 1");
@@ -521,6 +435,8 @@ SyncEngine.prototype = {
 
   // Apply incoming records
   _applyIncoming: function SyncEngine__applyIncoming(item) {
+    if (this._log.level <= Log4Moz.Level.Trace)
+      this._log.trace("Incoming: " + item);
     try {
       this._tracker.ignoreAll = true;
       this._store.applyIncoming(item);
@@ -536,9 +452,8 @@ SyncEngine.prototype = {
   // Upload outgoing records
   _uploadOutgoing: function SyncEngine__uploadOutgoing() {
     let outnum = [i for (i in this._tracker.changedIDs)].length;
+    this._log.debug("Preparing " + outnum + " outgoing records");
     if (outnum) {
-      this._log.debug("Preparing " + outnum + " outgoing records");
-
       // collection we'll upload
       let up = new Collection(this.engineURL);
       let count = 0;
@@ -546,15 +461,9 @@ SyncEngine.prototype = {
       // Upload what we've got so far in the collection
       let doUpload = Utils.bind2(this, function(desc) {
         this._log.info("Uploading " + desc + " of " + outnum + " records");
-        let resp = up.post();
-        if (!resp.success)
-          throw resp;
-
-        // Record the modified time of the upload
-        let modified = resp.headers["X-Weave-Timestamp"];
-        if (modified > this.lastSync)
-          this.lastSync = modified;
-
+        up.post();
+        if (up.data.modified > this.lastSync)
+          this.lastSync = up.data.modified;
         up.clearRecords();
       });
 
@@ -567,7 +476,7 @@ SyncEngine.prototype = {
           this._log.trace("Outgoing: " + out);
 
         out.encrypt(ID.get("WeaveCryptoID"));
-        up.pushData(out);
+        up.pushData(JSON.parse(out.serialize())); // FIXME: inefficient
 
         // Partial upload
         if ((++count % MAX_UPLOAD_RECORDS) == 0)

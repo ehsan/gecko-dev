@@ -79,24 +79,27 @@ WBORecord.prototype = {
     return 0;
   },
 
-  deserialize: function deserialize(json) {
-    this.data = json.constructor.toString() == String ? JSON.parse(json) : json;
+  serialize: function WBORec_serialize() {
+    // Convert the payload into a string because the server expects that
+    let payload = this.payload;
+    this.payload = this.deleted ? "" : JSON.stringify(payload);
+
+    let ret = JSON.stringify(this.data);
+
+    // Restore the original payload
+    this.payload = payload;
+
+    return ret;
+  },
+
+  deserialize: function WBORec_deserialize(json) {
+    this.data = JSON.parse(json);
 
     // Empty string payloads are deleted records
     if (this.payload === "")
       this.deleted = true;
     else
       this.payload = JSON.parse(this.payload);
-  },
-
-  toJSON: function toJSON() {
-    // Copy fields from data to except payload which needs to be a string
-    let obj = {};
-    for (let [key, val] in Iterator(this.data))
-      if (key != "payload")
-        obj[key] = val;
-    obj.payload = this.deleted ? "" : JSON.stringify(this.payload);
-    return obj;
   },
 
   toString: function WBORec_toString() "{ " + [
@@ -123,22 +126,18 @@ RecordManager.prototype = {
   _init: function RegordMgr__init() {
     this._log = Log4Moz.repository.getLogger(this._logName);
     this._records = {};
+    this._aliases = {};
   },
 
   import: function RecordMgr_import(url) {
     this._log.trace("Importing record: " + (url.spec ? url.spec : url));
     try {
-      // Clear out the last response with empty object if GET fails
-      this.response = {};
-      this.response = new Resource(url).get();
-
-      // Don't parse and save the record on failure
-      if (!this.response.success)
-        return null;
+      this.lastResource = new Resource(url);
+      this.lastResource.get();
 
       let record = new this._recordType();
-      record.deserialize(this.response);
-      record.uri = url;
+      record.deserialize(this.lastResource.data);
+      record.uri = url; // NOTE: may override id in this.lastResource.data
 
       return this.set(url, record);
     }
@@ -149,10 +148,17 @@ RecordManager.prototype = {
   },
 
   get: function RecordMgr_get(url) {
-    // Use a url string as the key to the hash
+    // Note: using url object directly as key for this._records cache does not
+    // work because different url objects (even pointing to the same place) are
+    // different objects and therefore not equal. So always use the string, not
+    // the object, as a key.
+    // TODO: use the string as key for this._aliases as well?  (Don't know)
     let spec = url.spec ? url.spec : url;
     if (spec in this._records)
       return this._records[spec];
+
+    if (url in this._aliases)
+      url = this._aliases[url];
     return this.import(url);
   },
 
@@ -162,7 +168,10 @@ RecordManager.prototype = {
   },
 
   contains: function RegordMgr_contains(url) {
-    if ((url.spec || url) in this._records)
+    let record = null;
+    if (url in this._aliases)
+      url = this._aliases[url];
+    if (url in this._records)
       return true;
     return false;
   },
@@ -173,5 +182,14 @@ RecordManager.prototype = {
 
   del: function RegordMgr_del(url) {
     delete this._records[url];
+  },
+  getAlias: function RegordMgr_getAlias(alias) {
+    return this._aliases[alias];
+  },
+  setAlias: function RegordMgr_setAlias(url, alias) {
+    this._aliases[alias] = url;
+  },
+  delAlias: function RegordMgr_delAlias(alias) {
+    delete this._aliases[alias];
   }
 };

@@ -21,6 +21,7 @@ const modules = [
                  "engines.js",
                  "ext/Observers.js",
                  "ext/Preferences.js",
+                 "faultTolerance.js",
                  "identity.js",
                  "log4moz.js",
                  "notifications.js",

@@ -81,7 +81,11 @@ HistoryEngine.prototype = {
   _storeObj: HistoryStore,
   _trackerObj: HistoryTracker,
 
-  _sync: Utils.batchSync("History", SyncEngine),
+  _sync: function HistoryEngine__sync() {
+    Svc.History.runInBatchMode({
+      runBatched: Utils.bind2(this, SyncEngine.prototype._sync)
+    }, null);
+  },
 
   // History reconciliation is simpler than the default one from SyncEngine,
   // because we have the advantage that we can use the URI as a definitive
@@ -256,11 +260,14 @@ HistoryStore.prototype = {
     if (this.urlExists(uri))
       curvisits = this._getVisits(record.histUri);
 
-    // Add visits if there's no local visit with the same date
-    for each (let {date, type} in record.visits)
-      if (curvisits.every(function(cur) cur.date != date))
-        Svc.History.addVisit(uri, date, null, type, type == 5 || type == 6, 0);
-
+    let visit;
+    while ((visit = record.visits.pop())) {
+      if (curvisits.filter(function(i) i.date == visit.date).length)
+        continue;
+      this._log.debug("     visit " + visit.date);
+      this._hsvc.addVisit(uri, visit.date, null, visit.type,
+                          (visit.type == 5 || visit.type == 6), 0);
+    }
     this._hsvc.setPageTitle(uri, record.title);
 
     // Equalize IDs
