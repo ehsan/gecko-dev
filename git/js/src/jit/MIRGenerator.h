@@ -88,7 +88,7 @@ class MIRGenerator
     }
 
     bool compilingAsmJS() const {
-        return info_->compilingAsmJS();
+        return info_->script() == nullptr;
     }
 
     uint32_t maxAsmJSStackArgBytes() const {

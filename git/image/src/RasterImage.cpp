@@ -543,10 +543,6 @@ RasterImage::Init(const char* aMimeType,
 NS_IMETHODIMP_(void)
 RasterImage::RequestRefresh(const mozilla::TimeStamp& aTime)
 {
-  if (HadRecentRefresh(aTime)) {
-    return;
-  }
-
   EvaluateAnimation();
 
   if (!mAnimating) {
@@ -2861,7 +2857,7 @@ RasterImage::RequestDiscard()
 
 // Flushes up to aMaxBytes to the decoder.
 nsresult
-RasterImage::DecodeSomeData(size_t aMaxBytes, DecodeStrategy aStrategy)
+RasterImage::DecodeSomeData(uint32_t aMaxBytes, DecodeStrategy aStrategy)
 {
   // We should have a decoder if we get here
   NS_ABORT_IF_FALSE(mDecoder, "trying to decode without decoder!");
@@ -2886,8 +2882,8 @@ RasterImage::DecodeSomeData(size_t aMaxBytes, DecodeStrategy aStrategy)
   MOZ_ASSERT(mBytesDecoded < mSourceData.Length());
 
   // write the proper amount of data
-  size_t bytesToDecode = std::min(aMaxBytes,
-                                  mSourceData.Length() - mBytesDecoded);
+  uint32_t bytesToDecode = std::min(aMaxBytes,
+                                    mSourceData.Length() - mBytesDecoded);
   nsresult rv = WriteToDecoder(mSourceData.Elements() + mBytesDecoded,
                                bytesToDecode,
                                aStrategy);
@@ -3384,7 +3380,7 @@ RasterImage::DecodePool::DecodeJob::Run()
 
   mRequest->mRequestStatus = DecodeRequest::REQUEST_ACTIVE;
 
-  size_t oldByteCount = mImage->mBytesDecoded;
+  uint32_t oldByteCount = mImage->mBytesDecoded;
 
   DecodeType type = DECODE_TYPE_UNTIL_DONE_BYTES;
 
@@ -3396,7 +3392,7 @@ RasterImage::DecodePool::DecodeJob::Run()
 
   DecodePool::Singleton()->DecodeSomeOfImage(mImage, DECODE_ASYNC, type, mRequest->mBytesToDecode);
 
-  size_t bytesDecoded = mImage->mBytesDecoded - oldByteCount;
+  uint32_t bytesDecoded = mImage->mBytesDecoded - oldByteCount;
 
   mRequest->mRequestStatus = DecodeRequest::REQUEST_WORK_DONE;
 

@@ -1238,18 +1238,6 @@ MarkJitActivations(JSRuntime *rt, JSTracer *trc)
         MarkJitActivation(trc, activations);
 }
 
-JSCompartment *
-TopmostIonActivationCompartment(JSRuntime *rt)
-{
-    for (JitActivationIterator activations(rt); !activations.done(); ++activations) {
-        for (JitFrameIterator frames(activations); !frames.done(); ++frames) {
-            if (frames.type() == JitFrame_IonJS)
-                return activations.activation()->compartment();
-        }
-    }
-    return nullptr;
-}
-
 #ifdef JSGC_GENERATIONAL
 void
 UpdateJitActivationsForMinorGC(JSRuntime *rt, JSTracer *trc)

@@ -109,10 +109,10 @@ AudioNode::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
 }
 
 template <class InputNode>
-static size_t
+static uint32_t
 FindIndexOfNode(const nsTArray<InputNode>& aInputNodes, const AudioNode* aNode)
 {
-  for (size_t i = 0; i < aInputNodes.Length(); ++i) {
+  for (uint32_t i = 0; i < aInputNodes.Length(); ++i) {
     if (aInputNodes[i].mInputNode == aNode) {
       return i;
     }
@@ -121,11 +121,11 @@ FindIndexOfNode(const nsTArray<InputNode>& aInputNodes, const AudioNode* aNode)
 }
 
 template <class InputNode>
-static size_t
+static uint32_t
 FindIndexOfNodeWithPorts(const nsTArray<InputNode>& aInputNodes, const AudioNode* aNode,
                          uint32_t aInputPort, uint32_t aOutputPort)
 {
-  for (size_t i = 0; i < aInputNodes.Length(); ++i) {
+  for (uint32_t i = 0; i < aInputNodes.Length(); ++i) {
     if (aInputNodes[i].mInputNode == aNode &&
         aInputNodes[i].mInputPort == aInputPort &&
         aInputNodes[i].mOutputPort == aOutputPort) {
@@ -147,27 +147,27 @@ AudioNode::DisconnectFromGraph()
 
   // Disconnect inputs. We don't need them anymore.
   while (!mInputNodes.IsEmpty()) {
-    size_t i = mInputNodes.Length() - 1;
+    uint32_t i = mInputNodes.Length() - 1;
     nsRefPtr<AudioNode> input = mInputNodes[i].mInputNode;
     mInputNodes.RemoveElementAt(i);
     input->mOutputNodes.RemoveElement(this);
   }
 
   while (!mOutputNodes.IsEmpty()) {
-    size_t i = mOutputNodes.Length() - 1;
+    uint32_t i = mOutputNodes.Length() - 1;
     nsRefPtr<AudioNode> output = mOutputNodes[i].forget();
     mOutputNodes.RemoveElementAt(i);
-    size_t inputIndex = FindIndexOfNode(output->mInputNodes, this);
+    uint32_t inputIndex = FindIndexOfNode(output->mInputNodes, this);
     // It doesn't matter which one we remove, since we're going to remove all
     // entries for this node anyway.
     output->mInputNodes.RemoveElementAt(inputIndex);
   }
 
   while (!mOutputParams.IsEmpty()) {
-    size_t i = mOutputParams.Length() - 1;
+    uint32_t i = mOutputParams.Length() - 1;
     nsRefPtr<AudioParam> output = mOutputParams[i].forget();
     mOutputParams.RemoveElementAt(i);
-    size_t inputIndex = FindIndexOfNode(output->InputNodes(), this);
+    uint32_t inputIndex = FindIndexOfNode(output->InputNodes(), this);
     // It doesn't matter which one we remove, since we're going to remove all
     // entries for this node anyway.
     output->RemoveInputNode(inputIndex);

@@ -322,7 +322,7 @@ main(int32_t argc, char *argv[])
   if (NS_WARN_IF(!timer)) {
     return -1;
   }
-  nsRefPtr<MulticastTimerCallback> timerCb = new MulticastTimerCallback();
+  nsCOMPtr<MulticastTimerCallback> timerCb = new MulticastTimerCallback();
 
   // The following multicast tests using multiple sockets require a firewall
   // exception on Windows XP before they pass.  For now, we'll skip them here.

@@ -29,7 +29,6 @@ using namespace js::types;
 using mozilla::PodZero;
 
 typedef Rooted<ArgumentsObject *> RootedArgumentsObject;
-typedef MutableHandle<ArgumentsObject *> MutableHandleArgumentsObject;
 
 /*****************************************************************************/
 
@@ -1119,12 +1118,6 @@ class DebugScopeProxy : public BaseProxyHandler
 {
     enum Action { SET, GET };
 
-    enum AccessResult {
-        ACCESS_UNALIASED,
-        ACCESS_GENERIC,
-        ACCESS_LOST
-    };
-
     /*
      * This function handles access to unaliased locals/formals. Since they are
      * unaliased, the values of these variables are not stored in the slots of
@@ -1144,17 +1137,13 @@ class DebugScopeProxy : public BaseProxyHandler
      *     - and there was not a DebugScopeObject yet associated with the
      *       scope, then the unaliased values are lost and not recoverable.
      *
-     * Callers should check accessResult for non-failure results:
-     *  - ACCESS_UNALIASED if the access was unaliased and completed
-     *  - ACCESS_GENERIC   if the access was aliased or the property not found
-     *  - ACCESS_LOST      if the value has been lost to the debugger
+     * handleUnaliasedAccess returns 'true' if the access was unaliased and
+     * completed by handleUnaliasedAccess.
      */
-    bool handleUnaliasedAccess(JSContext *cx, Handle<DebugScopeObject*> debugScope,
-                               Handle<ScopeObject*> scope, jsid id, Action action,
-                               MutableHandleValue vp, AccessResult *accessResult)
+    bool handleUnaliasedAccess(JSContext *cx, Handle<DebugScopeObject*> debugScope, Handle<ScopeObject*> scope,
+                               jsid id, Action action, MutableHandleValue vp)
     {
         JS_ASSERT(&debugScope->scope() == scope);
-        *accessResult = ACCESS_GENERIC;
         ScopeIterVal *maybeLiveScope = DebugScopes::hasLiveScope(*scope);
 
         /* Handle unaliased formals, vars, and consts at function scope. */
@@ -1169,12 +1158,12 @@ class DebugScopeProxy : public BaseProxyHandler
             while (bi && NameToId(bi->name()) != id)
                 bi++;
             if (!bi)
-                return true;
+                return false;
 
             if (bi->kind() == Binding::VARIABLE || bi->kind() == Binding::CONSTANT) {
                 uint32_t i = bi.frameIndex();
                 if (script->varIsAliased(i))
-                    return true;
+                    return false;
 
                 if (maybeLiveScope) {
                     AbstractFramePtr frame = maybeLiveScope->frame();
@@ -1189,16 +1178,14 @@ class DebugScopeProxy : public BaseProxyHandler
                         snapshot->setDenseElement(bindings.numArgs() + i, vp);
                 } else {
                     /* The unaliased value has been lost to the debugger. */
-                    if (action == GET) {
-                        *accessResult = ACCESS_LOST;
-                        return true;
-                    }
+                    if (action == GET)
+                        vp.set(MagicValue(JS_OPTIMIZED_OUT));
                 }
             } else {
                 JS_ASSERT(bi->kind() == Binding::ARGUMENT);
                 unsigned i = bi.frameIndex();
                 if (script->formalIsAliased(i))
-                    return true;
+                    return false;
 
                 if (maybeLiveScope) {
                     AbstractFramePtr frame = maybeLiveScope->frame();
@@ -1220,17 +1207,14 @@ class DebugScopeProxy : public BaseProxyHandler
                         snapshot->setDenseElement(i, vp);
                 } else {
                     /* The unaliased value has been lost to the debugger. */
-                    if (action == GET) {
-                        *accessResult = ACCESS_LOST;
-                        return true;
-                    }
+                    if (action == GET)
+                        vp.set(MagicValue(JS_OPTIMIZED_OUT));
                 }
 
                 if (action == SET)
                     TypeScript::SetArgument(cx, script, i, vp);
             }
 
-            *accessResult = ACCESS_UNALIASED;
             return true;
         }
 
@@ -1239,11 +1223,11 @@ class DebugScopeProxy : public BaseProxyHandler
             Rooted<ClonedBlockObject *> block(cx, &scope->as<ClonedBlockObject>());
             Shape *shape = block->lastProperty()->search(cx, id);
             if (!shape)
-                return true;
+                return false;
 
             unsigned i = block->staticBlock().shapeToIndex(*shape);
             if (block->staticBlock().isAliased(i))
-                return true;
+                return false;
 
             if (maybeLiveScope) {
                 AbstractFramePtr frame = maybeLiveScope->frame();
@@ -1260,14 +1244,13 @@ class DebugScopeProxy : public BaseProxyHandler
                     block->setVar(i, vp, DONT_CHECK_ALIASING);
             }
 
-            *accessResult = ACCESS_UNALIASED;
             return true;
         }
 
         /* The rest of the internal scopes do not have unaliased vars. */
         JS_ASSERT(scope->is<DeclEnvObject>() || scope->is<DynamicWithObject>() ||
                   scope->as<CallObject>().isForEval());
-        return true;
+        return false;
     }
 
     static bool isArguments(JSContext *cx, jsid id)
@@ -1293,33 +1276,31 @@ class DebugScopeProxy : public BaseProxyHandler
     }
 
     /*
-     * This function checks if an arguments object needs to be created when
-     * the debugger requests 'arguments' for a function scope where the
-     * arguments object has been optimized away (either because the binding is
-     * missing altogether or because !ScriptAnalysis::needsArgsObj).
+     * This function creates an arguments object when the debugger requests
+     * 'arguments' for a function scope where the arguments object has been
+     * optimized away (either because the binding is missing altogether or
+     * because !ScriptAnalysis::needsArgsObj).
      */
-    static bool isMissingArguments(JSContext *cx, jsid id, ScopeObject &scope)
+    static bool checkForMissingArguments(JSContext *cx, jsid id, ScopeObject &scope,
+                                         ArgumentsObject **maybeArgsObj)
     {
-        return isArguments(cx, id) && isFunctionScope(scope) &&
-               !scope.as<CallObject>().callee().nonLazyScript()->needsArgsObj();
-    }
+        *maybeArgsObj = nullptr;
 
-    /*
-     * Create a missing arguments object. If the function returns true but
-     * argsObj is null, it means the scope is dead.
-     */
-    static bool createMissingArguments(JSContext *cx, jsid id, ScopeObject &scope,
-                                       MutableHandleArgumentsObject argsObj)
-    {
-        MOZ_ASSERT(isMissingArguments(cx, id, scope));
-        argsObj.set(nullptr);
-
-        ScopeIterVal *maybeScope = DebugScopes::hasLiveScope(scope);
-        if (!maybeScope)
+        if (!isArguments(cx, id) || !isFunctionScope(scope))
             return true;
 
-        argsObj.set(ArgumentsObject::createUnexpected(cx, maybeScope->frame()));
-        return !!argsObj;
+        if (scope.as<CallObject>().callee().nonLazyScript()->needsArgsObj())
+            return true;
+
+        ScopeIterVal *maybeScope = DebugScopes::hasLiveScope(scope);
+        if (!maybeScope) {
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_DEBUG_NOT_LIVE,
+                                 "Debugger scope");
+            return false;
+        }
+
+        *maybeArgsObj = ArgumentsObject::createUnexpected(cx, maybeScope->frame());
+        return true;
     }
 
   public:
@@ -1355,118 +1336,51 @@ class DebugScopeProxy : public BaseProxyHandler
         Rooted<DebugScopeObject*> debugScope(cx, &proxy->as<DebugScopeObject>());
         Rooted<ScopeObject*> scope(cx, &debugScope->scope());
 
-        if (isMissingArguments(cx, id, *scope)) {
-            RootedArgumentsObject argsObj(cx);
-            if (!createMissingArguments(cx, id, *scope, &argsObj))
-                return false;
+        RootedArgumentsObject maybeArgsObj(cx);
+        if (!checkForMissingArguments(cx, id, *scope, maybeArgsObj.address()))
+            return false;
 
-            if (!argsObj) {
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_DEBUG_NOT_LIVE,
-                                     "Debugger scope");
-                return false;
-            }
-
+        if (maybeArgsObj) {
             desc.object().set(debugScope);
             desc.setAttributes(JSPROP_READONLY | JSPROP_ENUMERATE | JSPROP_PERMANENT);
-            desc.value().setObject(*argsObj);
+            desc.value().setObject(*maybeArgsObj);
             desc.setGetter(nullptr);
             desc.setSetter(nullptr);
             return true;
         }
 
         RootedValue v(cx);
-        AccessResult access;
-        if (!handleUnaliasedAccess(cx, debugScope, scope, id, GET, &v, &access))
-            return false;
-
-        switch (access) {
-          case ACCESS_UNALIASED:
+        if (handleUnaliasedAccess(cx, debugScope, scope, id, GET, &v)) {
             desc.object().set(debugScope);
             desc.setAttributes(JSPROP_READONLY | JSPROP_ENUMERATE | JSPROP_PERMANENT);
             desc.value().set(v);
             desc.setGetter(nullptr);
             desc.setSetter(nullptr);
             return true;
-          case ACCESS_GENERIC:
-            return JS_GetOwnPropertyDescriptorById(cx, scope, id, desc);
-          case ACCESS_LOST:
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_DEBUG_OPTIMIZED_OUT);
-            return false;
-          default:
-            MOZ_ASSUME_UNREACHABLE("bad AccessResult");
         }
+
+        return JS_GetOwnPropertyDescriptorById(cx, scope, id, desc);
     }
 
-    bool get(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
+    bool get(JSContext *cx, HandleObject proxy, HandleObject receiver,  HandleId id,
              MutableHandleValue vp) MOZ_OVERRIDE
     {
         Rooted<DebugScopeObject*> debugScope(cx, &proxy->as<DebugScopeObject>());
         Rooted<ScopeObject*> scope(cx, &proxy->as<DebugScopeObject>().scope());
 
-        if (isMissingArguments(cx, id, *scope)) {
-            RootedArgumentsObject argsObj(cx);
-            if (!createMissingArguments(cx, id, *scope, &argsObj))
-                return false;
-
-            if (!argsObj) {
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_DEBUG_NOT_LIVE,
-                                     "Debugger scope");
-                return false;
-            }
-
-            vp.setObject(*argsObj);
-            return true;
-        }
-
-        AccessResult access;
-        if (!handleUnaliasedAccess(cx, debugScope, scope, id, GET, vp, &access))
+        RootedArgumentsObject maybeArgsObj(cx);
+        if (!checkForMissingArguments(cx, id, *scope, maybeArgsObj.address()))
             return false;
 
-        switch (access) {
-          case ACCESS_UNALIASED:
-            return true;
-          case ACCESS_GENERIC:
-            return JSObject::getGeneric(cx, scope, scope, id, vp);
-          case ACCESS_LOST:
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_DEBUG_OPTIMIZED_OUT);
-            return false;
-          default:
-            MOZ_ASSUME_UNREACHABLE("bad AccessResult");
-        }
-    }
-
-    /*
-     * Like 'get', but returns sentinel values instead of throwing on
-     * exceptional cases.
-     */
-    bool getMaybeSentinelValue(JSContext *cx, Handle<DebugScopeObject *> debugScope, HandleId id,
-                               MutableHandleValue vp)
-    {
-        Rooted<ScopeObject*> scope(cx, &debugScope->scope());
-
-        if (isMissingArguments(cx, id, *scope)) {
-            RootedArgumentsObject argsObj(cx);
-            if (!createMissingArguments(cx, id, *scope, &argsObj))
-                return false;
-            vp.set(argsObj ? ObjectValue(*argsObj) : MagicValue(JS_OPTIMIZED_ARGUMENTS));
+        if (maybeArgsObj) {
+            vp.set(ObjectValue(*maybeArgsObj));
             return true;
         }
 
-        AccessResult access;
-        if (!handleUnaliasedAccess(cx, debugScope, scope, id, GET, vp, &access))
-            return false;
+        if (handleUnaliasedAccess(cx, debugScope, scope, id, GET, vp))
+            return true;
 
-        switch (access) {
-          case ACCESS_UNALIASED:
-            return true;
-          case ACCESS_GENERIC:
-            return JSObject::getGeneric(cx, scope, scope, id, vp);
-          case ACCESS_LOST:
-            vp.setMagic(JS_OPTIMIZED_OUT);
-            return true;
-          default:
-            MOZ_ASSUME_UNREACHABLE("bad AccessResult");
-        }
+        return JSObject::getGeneric(cx, scope, scope, id, vp);
     }
 
     bool set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id, bool strict,
@@ -1474,19 +1388,9 @@ class DebugScopeProxy : public BaseProxyHandler
     {
         Rooted<DebugScopeObject*> debugScope(cx, &proxy->as<DebugScopeObject>());
         Rooted<ScopeObject*> scope(cx, &proxy->as<DebugScopeObject>().scope());
-
-        AccessResult access;
-        if (!handleUnaliasedAccess(cx, debugScope, scope, id, SET, vp, &access))
-            return false;
-
-        switch (access) {
-          case ACCESS_UNALIASED:
+        if (handleUnaliasedAccess(cx, debugScope, scope, id, SET, vp))
             return true;
-          case ACCESS_GENERIC:
-            return JSObject::setGeneric(cx, scope, scope, id, vp, strict);
-          default:
-            MOZ_ASSUME_UNREACHABLE("bad AccessResult");
-        }
+        return JSObject::setGeneric(cx, scope, scope, id, vp, strict);
     }
 
     bool defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
@@ -1645,13 +1549,6 @@ DebugScopeObject::isForDeclarative() const
 {
     ScopeObject &s = scope();
     return s.is<CallObject>() || s.is<BlockObject>() || s.is<DeclEnvObject>();
-}
-
-bool
-DebugScopeObject::getMaybeSentinelValue(JSContext *cx, HandleId id, MutableHandleValue vp)
-{
-    Rooted<DebugScopeObject *> self(cx, this);
-    return DebugScopeProxy::singleton.getMaybeSentinelValue(cx, self, id, vp);
 }
 
 bool

@@ -171,7 +171,7 @@ nsAboutCache::VisitNextStorage()
     // from visitor callback.  The cache v1 service doesn't like it.
     // TODO - mayhemer, bug 913828, remove this dispatch and call
     // directly.
-    nsCOMPtr<nsIRunnable> event =
+    nsCOMPtr<nsRunnableMethod<nsAboutCache> > event =
         NS_NewRunnableMethod(this, &nsAboutCache::FireVisitStorage);
     return NS_DispatchToMainThread(event);
 }
