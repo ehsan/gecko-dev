@@ -7,11 +7,10 @@
 
 #include "nsIVolumeMountLock.h"
 
-#include "mozilla/dom/WakeLock.h"
+#include "nsIDOMWakeLock.h"
 #include "nsIObserver.h"
 #include "nsString.h"
 #include "nsTArray.h"
-#include "nsAutoPtr.h"
 #include "nsWeakReference.h"
 
 namespace mozilla {
@@ -42,10 +41,10 @@ private:
 
   nsresult Init();
 
-  nsRefPtr<dom::WakeLock>  mWakeLock;
-  nsString                 mVolumeName;
-  int32_t                  mVolumeGeneration;
-  bool                     mUnlocked;
+  nsString                    mVolumeName;
+  int32_t                     mVolumeGeneration;
+  nsCOMPtr<nsIDOMMozWakeLock> mWakeLock;
+  bool                        mUnlocked;
 };
 
 } // namespace system

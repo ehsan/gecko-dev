@@ -13,9 +13,6 @@
 #include "nsURLHelper.h"
 #include <algorithm>
 
-namespace mozilla {
-namespace net {
-
 //-----------------------------------------------------------------------------
 // nsHttpResponseHead <public>
 //-----------------------------------------------------------------------------
@@ -811,6 +808,3 @@ nsHttpResponseHead::ParsePragma(const char *val)
     if (nsHttp::FindToken(val, "no-cache", HTTP_HEADER_VALUE_SEPS))
         mPragmaNoCache = true;
 }
-
-} // namespace mozilla::net
-} // namespace mozilla

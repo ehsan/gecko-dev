@@ -18,8 +18,6 @@ extern PRLogModuleInfo *gHttpLog;
 // nsHttpConnectionInfo - holds the properties of a connection
 //-----------------------------------------------------------------------------
 
-namespace mozilla { namespace net {
-
 class nsHttpConnectionInfo
 {
 public:
@@ -27,9 +25,25 @@ public:
                          nsProxyInfo* proxyInfo,
                          bool usingSSL=false);
 
-    virtual ~nsHttpConnectionInfo()
+   ~nsHttpConnectionInfo()
     {
         PR_LOG(gHttpLog, 4, ("Destroying nsHttpConnectionInfo @%x\n", this));
+    }
+
+    nsrefcnt AddRef()
+    {
+        nsrefcnt n = ++mRef;
+        NS_LOG_ADDREF(this, n, "nsHttpConnectionInfo", sizeof(*this));
+        return n;
+    }
+
+    nsrefcnt Release()
+    {
+        nsrefcnt n = --mRef;
+        NS_LOG_RELEASE(this, n, "nsHttpConnectionInfo");
+        if (n == 0)
+            delete this;
+        return n;
     }
 
     const nsAFlatCString &HashKey() const { return mHashKey; }
@@ -82,6 +96,7 @@ public:
     bool HostIsLocalIPLiteral() const;
 
 private:
+    mozilla::ThreadSafeAutoRefCnt mRef;
     nsCString              mHashKey;
     nsCString              mHost;
     int32_t                mPort;
@@ -89,11 +104,6 @@ private:
     bool                   mUsingHttpProxy;
     bool                   mUsingSSL;
     bool                   mUsingConnect;  // if will use CONNECT with http proxy
-
-// for nsRefPtr
-    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(nsHttpConnectionInfo)
 };
-
-}} // namespace mozilla::net
 
 #endif // nsHttpConnectionInfo_h__

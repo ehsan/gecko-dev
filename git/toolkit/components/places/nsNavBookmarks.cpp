@@ -209,7 +209,6 @@ nsNavBookmarks::nsNavBookmarks()
   , mCacheObservers("bookmark-observers")
   , mBatching(false)
   , mBookmarkToKeywordHash(BOOKMARKS_TO_KEYWORDS_INITIAL_CACHE_SIZE)
-  , mBookmarkToKeywordHashInitialized(false)
   , mRecentBookmarksCache(RECENT_BOOKMARKS_INITIAL_CACHE_SIZE)
   , mUncachableBookmarks(RECENT_BOOKMARKS_INITIAL_CACHE_SIZE)
 {
@@ -2629,11 +2628,6 @@ nsNavBookmarks::GetURIForKeyword(const nsAString& aUserCasedKeyword,
 
 nsresult
 nsNavBookmarks::EnsureKeywordsHash() {
-  if (mBookmarkToKeywordHashInitialized) {
-    return NS_OK;
-  }
-  mBookmarkToKeywordHashInitialized = true;
-
   nsCOMPtr<mozIStorageStatement> stmt;
   nsresult rv = mDB->MainConn()->CreateStatement(NS_LITERAL_CSTRING(
     "SELECT b.id, k.keyword "

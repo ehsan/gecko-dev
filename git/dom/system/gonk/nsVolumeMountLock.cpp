@@ -17,7 +17,6 @@
 #define VOLUME_MANAGER_LOG_TAG  "nsVolumeMountLock"
 #include "VolumeManagerLog.h"
 #include "nsServiceManagerUtils.h"
-#include "mozilla/dom/power/PowerManagerService.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::services;
@@ -142,18 +141,14 @@ NS_IMETHODIMP nsVolumeMountLock::Observe(nsISupports* aSubject, const char* aTop
   mWakeLock = nullptr;
   mVolumeGeneration = mountGeneration;
 
-  nsRefPtr<power::PowerManagerService> pmService =
-    power::PowerManagerService::GetInstance();
+  nsCOMPtr<nsIPowerManagerService> pmService =
+    do_GetService(POWERMANAGERSERVICE_CONTRACTID);
   NS_ENSURE_TRUE(pmService, NS_ERROR_FAILURE);
 
   nsString mountLockName;
   vol->GetMountLockName(mountLockName);
-
-  ErrorResult err;
-  mWakeLock = pmService->NewWakeLock(mountLockName, nullptr, err);
-  if (err.Failed()) {
-    return err.ErrorCode();
-  }
+  rv = pmService->NewWakeLock(mountLockName, nullptr, getter_AddRefs(mWakeLock));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   LOG("nsVolumeMountLock acquired for '%s' gen %d",
       NS_LossyConvertUTF16toASCII(mVolumeName).get(), mVolumeGeneration);

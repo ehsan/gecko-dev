@@ -751,9 +751,11 @@ GetCPUID(uint32_t *cpuId)
 class MachineId
 {
     uint32_t cpuId_;
-    JS::BuildIdCharVector buildId_;
+    js::Vector<char> buildId_;
 
   public:
+    MachineId(ExclusiveContext *cx) : buildId_(cx) {}
+
     bool extractCurrentState(ExclusiveContext *cx) {
         if (!cx->asmJSCacheOps().buildId)
             return false;
@@ -938,7 +940,7 @@ js::StoreAsmJSModuleInCache(AsmJSParser &parser,
                             const AsmJSStaticLinkData &linkData,
                             ExclusiveContext *cx)
 {
-    MachineId machineId;
+    MachineId machineId(cx);
     if (!machineId.extractCurrentState(cx))
         return false;
 
@@ -997,7 +999,7 @@ js::LookupAsmJSModuleInCache(ExclusiveContext *cx,
 {
     int64_t usecBefore = PRMJ_Now();
 
-    MachineId machineId;
+    MachineId machineId(cx);
     if (!machineId.extractCurrentState(cx))
         return true;
 
@@ -1014,7 +1016,7 @@ js::LookupAsmJSModuleInCache(ExclusiveContext *cx,
 
     const uint8_t *cursor = entry.memory;
 
-    MachineId cachedMachineId;
+    MachineId cachedMachineId(cx);
     cursor = cachedMachineId.deserialize(cx, cursor);
     if (!cursor)
         return false;

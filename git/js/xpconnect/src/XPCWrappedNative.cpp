@@ -1496,9 +1496,7 @@ XPCWrappedNative::FindTearOff(XPCNativeInterface* aInterface,
                         rv = NS_ERROR_OUT_OF_MEMORY;
                     }
                 }
-                if (pError)
-                    *pError = rv;
-                return to;
+                goto return_result;
             }
             if (!firstAvailable && to->IsAvailable())
                 firstAvailable = to;
@@ -1508,13 +1506,18 @@ XPCWrappedNative::FindTearOff(XPCNativeInterface* aInterface,
     to = firstAvailable;
 
     if (!to) {
-        auto newChunk = new XPCWrappedNativeTearOffChunk();
+        XPCWrappedNativeTearOffChunk* newChunk =
+            new XPCWrappedNativeTearOffChunk();
+        if (!newChunk) {
+            rv = NS_ERROR_OUT_OF_MEMORY;
+            goto return_result;
+        }
         lastChunk->mNextChunk = newChunk;
         to = newChunk->mTearOffs;
     }
 
     {
-        // Scope keeps |tearoff| from leaking across the rest of the function.
+        // Scope keeps |tearoff| from leaking across the return_result: label
         AutoMarkingWrappedNativeTearOffPtr tearoff(cx, to);
         rv = InitTearOff(to, aInterface, needJSObject);
         // During shutdown, we don't sweep tearoffs.  So make sure to unmark
@@ -1524,6 +1527,8 @@ XPCWrappedNative::FindTearOff(XPCNativeInterface* aInterface,
         if (NS_FAILED(rv))
             to = nullptr;
     }
+
+return_result:
 
     if (pError)
         *pError = rv;

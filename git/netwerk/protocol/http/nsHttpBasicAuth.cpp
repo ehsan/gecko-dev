@@ -10,9 +10,6 @@
 #include "plbase64.h"
 #include "nsString.h"
 
-namespace mozilla {
-namespace net {
-
 //-----------------------------------------------------------------------------
 // nsHttpBasicAuth <public>
 //-----------------------------------------------------------------------------
@@ -96,6 +93,3 @@ nsHttpBasicAuth::GetAuthFlags(uint32_t *flags)
     *flags = REQUEST_BASED | REUSABLE_CREDENTIALS | REUSABLE_CHALLENGE;
     return NS_OK;
 }
-
-} // namespace mozilla::net
-} // namespace mozilla

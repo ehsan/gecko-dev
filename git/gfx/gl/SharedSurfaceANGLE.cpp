@@ -5,12 +5,16 @@
 
 #include "SharedSurfaceANGLE.h"
 
-#include "GLContextEGL.h"
+#include "GLContext.h"
 
 using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace gl {
+
+class GLContextEGL;
+void SetEGLSurfaceOverride(GLContextEGL* context, EGLSurface surf);
+GLContextEGL* DowncastGLContextEGL(GLContext* context);
 
 SurfaceFactory_ANGLEShareHandle*
 SurfaceFactory_ANGLEShareHandle::Create(GLContext* gl,
@@ -45,7 +49,7 @@ SharedSurface_ANGLEShareHandle::~SharedSurface_ANGLEShareHandle()
 void
 SharedSurface_ANGLEShareHandle::LockProdImpl()
 {
-    GLContextEGL::Cast(mGL)->SetEGLSurfaceOverride(mPBuffer);
+    SetEGLSurfaceOverride(DowncastGLContextEGL(mGL), mPBuffer);
 }
 
 void
@@ -271,7 +275,7 @@ SurfaceFactory_ANGLEShareHandle::SurfaceFactory_ANGLEShareHandle(GLContext* gl,
     , mConsD3D(d3d)
 {
     mConfig = ChooseConfig(mProdGL, mEGL, mReadCaps);
-    mContext = GLContextEGL::Cast(mProdGL)->GetEGLContext();
+    mContext = mProdGL->GetNativeData(GLContext::NativeGLContext);
     MOZ_ASSERT(mConfig && mContext);
 }
 

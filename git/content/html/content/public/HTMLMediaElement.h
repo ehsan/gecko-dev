@@ -39,7 +39,6 @@ class VideoFrameContainer;
 namespace dom {
 class TextTrack;
 class TimeRanges;
-class WakeLock;
 }
 }
 
@@ -589,7 +588,7 @@ protected:
    */
   virtual void WakeLockCreate();
   virtual void WakeLockRelease();
-  nsRefPtr<WakeLock> mWakeLock;
+  nsCOMPtr<nsIDOMMozWakeLock> mWakeLock;
 
   /**
    * Logs a warning message to the web console to report various failures.

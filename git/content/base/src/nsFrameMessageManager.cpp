@@ -397,9 +397,6 @@ nsFrameMessageManager::LoadFrameScript(const nsAString& aURL,
                                        bool aAllowDelayedLoad,
                                        bool aRunInGlobalScope)
 {
-  // FIXME: Bug 673569 is currently disabled.
-  aRunInGlobalScope = true;
-
   if (aAllowDelayedLoad) {
     if (IsGlobal() || IsWindowLevel()) {
       // Cache for future windows or frames
@@ -929,8 +926,8 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
 
       JS::Rooted<JS::Value> targetv(ctx);
       JS::Rooted<JSObject*> global(ctx, JS_GetGlobalForObject(ctx, object));
-      nsresult rv = nsContentUtils::WrapNative(ctx, global, aTarget, &targetv, true);
-      NS_ENSURE_SUCCESS(rv, rv);
+      nsContentUtils::WrapNative(ctx, global, aTarget, &targetv,
+                                 nullptr, true);
 
       JS::Rooted<JSObject*> cpows(ctx);
       if (aCpows) {
@@ -1020,8 +1017,8 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
           defaultThisValue = aTarget;
         }
         JS::Rooted<JSObject*> global(ctx, JS_GetGlobalForObject(ctx, object));
-        nsresult rv = nsContentUtils::WrapNative(ctx, global, defaultThisValue, &thisValue, true);
-        NS_ENSURE_SUCCESS(rv, rv);
+        nsContentUtils::WrapNative(ctx, global, defaultThisValue,
+                                   &thisValue, nullptr, true);
       } else {
         // If the listener is a JS object which has receiveMessage function:
         if (!JS_GetProperty(ctx, object, "receiveMessage", &funval) ||

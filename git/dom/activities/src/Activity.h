@@ -9,7 +9,11 @@
 #include "mozilla/dom/BindingDeclarations.h"
 #include "nsIActivityProxy.h"
 #include "mozilla/Preferences.h"
-#include "nsPIDOMWindow.h"
+
+#define NS_DOMACTIVITY_CID                          \
+ {0x1c5b0930, 0xc90c, 0x4e9c, {0xaf, 0x4e, 0xb0, 0xb7, 0xa6, 0x59, 0xb4, 0xed}}
+
+#define NS_DOMACTIVITY_CONTRACTID "@mozilla.org/dom/activity;1"
 
 namespace mozilla {
 namespace dom {
@@ -33,21 +37,15 @@ public:
               nsIDOMMozActivityOptions* aOptions,
               ErrorResult& aRv)
   {
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aOwner.GetAsSupports());
-    if (!window) {
-      aRv.Throw(NS_ERROR_UNEXPECTED);
-      return nullptr;
-    }
-
-    nsRefPtr<Activity> activity = new Activity(window);
-    aRv = activity->Initialize(window, aOptions);
+    nsRefPtr<Activity> activity = new Activity();
+    aRv = activity->Initialize(aOwner.GetAsSupports(), aOptions);
     return activity.forget();
   }
 
-  Activity(nsPIDOMWindow* aWindow);
+  Activity();
 
 protected:
-  nsresult Initialize(nsPIDOMWindow* aWindow,
+  nsresult Initialize(nsISupports* aOwner,
                       nsIDOMMozActivityOptions* aOptions);
 
   nsCOMPtr<nsIActivityProxy> mProxy;
