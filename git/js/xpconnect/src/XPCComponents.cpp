@@ -2697,7 +2697,7 @@ nsXPCComponents_Utils::ReportError(const JS::Value &errorArg, JSContext *cx)
 /* void evalInSandbox(in AString source, in nativeobj sandbox); */
 NS_IMETHODIMP
 nsXPCComponents_Utils::EvalInSandbox(const nsAString& source,
-                                     const JS::Value& sandboxValArg,
+                                     const JS::Value& sandboxVal,
                                      const JS::Value& version,
                                      const JS::Value& filenameVal,
                                      int32_t lineNumber,
@@ -2705,9 +2705,8 @@ nsXPCComponents_Utils::EvalInSandbox(const nsAString& source,
                                      uint8_t optionalArgc,
                                      JS::Value *retval)
 {
-    RootedValue sandboxVal(cx, sandboxValArg);
     RootedObject sandbox(cx);
-    if (!JS_ValueToObject(cx, sandboxVal, &sandbox) || !sandbox)
+    if (!JS_ValueToObject(cx, sandboxVal, sandbox.address()) || !sandbox)
         return NS_ERROR_INVALID_ARG;
 
     // Optional third argument: JS version, as a string.
@@ -2834,28 +2833,6 @@ nsXPCComponents_Utils::Unload(const nsACString & registryLocation)
     if (!moduleloader)
         return NS_ERROR_FAILURE;
     return moduleloader->Unload(registryLocation);
-}
-
-/*
- * JSObject importGlobalProperties (in jsval aPropertyList);
- */
-NS_IMETHODIMP
-nsXPCComponents_Utils::ImportGlobalProperties(const JS::Value& aPropertyList,
-                                              JSContext* cx)
-{
-    RootedObject global(cx, CurrentGlobalOrNull(cx));
-    MOZ_ASSERT(global);
-    GlobalProperties options;
-    NS_ENSURE_TRUE(aPropertyList.isObject(), NS_ERROR_INVALID_ARG);
-    RootedObject propertyList(cx, &aPropertyList.toObject());
-    NS_ENSURE_TRUE(JS_IsArrayObject(cx, propertyList), NS_ERROR_INVALID_ARG);
-    if (!options.Parse(cx, propertyList) ||
-        !options.Define(cx, global))
-    {
-        return NS_ERROR_FAILURE;
-    }
-
-    return NS_OK;
 }
 
 /* xpcIJSWeakReference getWeakReference (); */

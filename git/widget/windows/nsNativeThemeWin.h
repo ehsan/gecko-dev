@@ -67,8 +67,6 @@ public:
 
   bool ThemeNeedsComboboxDropmarker();
 
-  virtual bool WidgetAppearanceDependsOnWindowFocus(uint8_t aWidgetType) MOZ_OVERRIDE;
-
   nsNativeThemeWin();
   virtual ~nsNativeThemeWin();
 

@@ -21,7 +21,6 @@
 #include "js/TypeDecls.h"
 #include "js/RootingAPI.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/GuardObjects.h"
 #include "mozilla/TimeStamp.h"
 #include "nsContentListDeclarations.h"
@@ -35,6 +34,8 @@ class imgIRequest;
 class imgLoader;
 class imgRequestProxy;
 class nsAutoScriptBlockerSuppressNodeRemoved;
+class nsDragEvent;
+class nsEvent;
 class nsEventListenerManager;
 class nsHtml5StringParser;
 class nsIChannel;
@@ -83,6 +84,7 @@ class nsIWidget;
 class nsIWordBreaker;
 class nsIXPConnect;
 class nsIXPConnectJSObjectHolder;
+class nsKeyEvent;
 class nsNodeInfoManager;
 class nsPIDOMWindow;
 class nsPresContext;
@@ -738,14 +740,6 @@ public:
   }
 
   /**
-   * Report simple error message to the browser console
-   *   @param aErrorText the error message
-   *   @param classification Name of the module reporting error
-   */
-  static void LogSimpleConsoleError(const nsAString& aErrorText,
-                                    const char * classification);
-
-  /**
    * Report a non-localized error message to the error console.
    *   @param aErrorText the error message
    *   @param aErrorFlags See nsIScriptError.
@@ -1372,7 +1366,7 @@ public:
    * aDOMEvent->GetInternalNSEvent().
    * XXX Is this necessary?
    */
-  static mozilla::WidgetEvent* GetNativeEvent(nsIDOMEvent* aDOMEvent);
+  static nsEvent* GetNativeEvent(nsIDOMEvent* aDOMEvent);
 
   /**
    * Get the candidates for accelkeys for aDOMKeyEvent.
@@ -1391,9 +1385,8 @@ public:
    * @param aCandidates [out] the candidate access key list.
    *                          the first item is most preferred.
    */
-  static void GetAccessKeyCandidates(
-                mozilla::WidgetKeyboardEvent* aNativeKeyEvent,
-                nsTArray<uint32_t>& aCandidates);
+  static void GetAccessKeyCandidates(nsKeyEvent* aNativeKeyEvent,
+                                     nsTArray<uint32_t>& aCandidates);
 
   /**
    * Hide any XUL popups associated with aDocument, including any documents
@@ -1407,9 +1400,9 @@ public:
   static already_AddRefed<nsIDragSession> GetDragSession();
 
   /*
-   * Initialize and set the dataTransfer field of an WidgetDragEvent.
+   * Initialize and set the dataTransfer field of an nsDragEvent.
    */
-  static nsresult SetDataTransferInEvent(mozilla::WidgetDragEvent* aDragEvent);
+  static nsresult SetDataTransferInEvent(nsDragEvent* aDragEvent);
 
   // filters the drag and drop action to fit within the effects allowed and
   // returns it.
@@ -1420,7 +1413,7 @@ public:
    * an ancestor of the document for the source of the drag.
    */
   static bool CheckForSubFrameDrop(nsIDragSession* aDragSession,
-                                   mozilla::WidgetDragEvent* aDropEvent);
+                                   nsDragEvent* aDropEvent);
 
   /**
    * Return true if aURI is a local file URI (i.e. file://).
@@ -2193,6 +2186,14 @@ private:
   static bool sDOMWindowDumpEnabled;
 #endif
 };
+
+#define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \
+  nsContentUtils::HoldJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz),        \
+                                NS_CYCLE_COLLECTION_PARTICIPANT(clazz))
+
+#define NS_DROP_JS_OBJECTS(obj, clazz)                                         \
+  nsContentUtils::DropJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz))
+
 
 class MOZ_STACK_CLASS nsAutoScriptBlocker {
 public:

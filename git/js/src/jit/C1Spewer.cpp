@@ -10,6 +10,8 @@
 
 #include <time.h>
 
+#include "jit/Ion.h"
+#include "jit/IonBuilder.h"
 #include "jit/LinearScan.h"
 #include "jit/LIR.h"
 #include "jit/MIRGraph.h"
@@ -21,7 +23,7 @@ bool
 C1Spewer::init(const char *path)
 {
     spewout_ = fopen(path, "w");
-    return (spewout_ != nullptr);
+    return (spewout_ != NULL);
 }
 
 void
@@ -41,7 +43,7 @@ C1Spewer::beginFunction(MIRGraph *graph, HandleScript script)
         fprintf(spewout_, "  name \"asm.js compilation\"\n");
         fprintf(spewout_, "  method \"asm.js compilation\"\n");
     }
-    fprintf(spewout_, "  date %d\n", (int)time(nullptr));
+    fprintf(spewout_, "  date %d\n", (int)time(NULL));
     fprintf(spewout_, "end_compilation\n");
 }
 

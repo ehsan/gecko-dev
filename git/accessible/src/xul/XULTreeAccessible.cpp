@@ -543,8 +543,10 @@ XULTreeAccessible::GetTreeItemAccessible(int32_t aRow)
   nsRefPtr<Accessible> treeItem = CreateTreeItemAccessible(aRow);
   if (treeItem) {
     mAccessibleCache.Put(key, treeItem);
-    Document()->BindToDocument(treeItem, nullptr);
-    return treeItem;
+    if (Document()->BindToDocument(treeItem, nullptr))
+      return treeItem;
+
+    mAccessibleCache.Remove(key);
   }
 
   return nullptr;

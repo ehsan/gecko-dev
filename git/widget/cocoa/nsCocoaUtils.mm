@@ -16,9 +16,8 @@
 #include "nsIServiceManager.h"
 #include "nsMenuUtilsX.h"
 #include "nsToolkit.h"
-#include "mozilla/MiscEvents.h"
+#include "nsGUIEvent.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/TextEvents.h"
 
 using namespace mozilla;
 using namespace mozilla::widget;
@@ -420,7 +419,7 @@ nsCocoaUtils::InitNPCocoaEvent(NPCocoaEvent* aNPCocoaEvent)
 
 // static
 void
-nsCocoaUtils::InitPluginEvent(WidgetPluginEvent &aPluginEvent,
+nsCocoaUtils::InitPluginEvent(nsPluginEvent &aPluginEvent,
                               NPCocoaEvent &aCocoaEvent)
 {
   aPluginEvent.time = PR_IntervalNow();
@@ -430,7 +429,7 @@ nsCocoaUtils::InitPluginEvent(WidgetPluginEvent &aPluginEvent,
 
 // static
 void
-nsCocoaUtils::InitInputEvent(WidgetInputEvent& aInputEvent,
+nsCocoaUtils::InitInputEvent(nsInputEvent &aInputEvent,
                              NSEvent* aNativeEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -446,7 +445,7 @@ nsCocoaUtils::InitInputEvent(WidgetInputEvent& aInputEvent,
 
 // static
 void
-nsCocoaUtils::InitInputEvent(WidgetInputEvent& aInputEvent,
+nsCocoaUtils::InitInputEvent(nsInputEvent &aInputEvent,
                              NSUInteger aModifiers)
 {
   aInputEvent.modifiers = 0;

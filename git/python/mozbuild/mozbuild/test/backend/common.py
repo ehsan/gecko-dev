@@ -58,20 +58,17 @@ CONFIGS = {
         'non_global_defines': [],
         'substs': [],
     },
-    'defines': {
-        'defines': [],
-        'non_global_defines': [],
-        'substs': [],
-    },
     'exports': {
         'defines': [],
         'non_global_defines': [],
         'substs': [],
     },
-    'test-manifests-written': {
+    'xpcshell_manifests': {
         'defines': [],
         'non_global_defines': [],
-        'substs': [],
+        'substs': [
+            ('XPCSHELL_TESTS_MANIFESTS', 'XPCSHELL_TESTS'),
+            ],
     },
     'ipdl_sources': {
         'defines': [],

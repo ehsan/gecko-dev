@@ -33,6 +33,7 @@ class gfxSVGGlyphs;
 class gfxSVGGlyphsDocument MOZ_FINAL : public nsAPostRefreshObserver
 {
     typedef mozilla::dom::Element Element;
+    typedef gfxFont::DrawMode DrawMode;
 
 public:
     gfxSVGGlyphsDocument(const uint8_t *aBuffer, uint32_t aBufLen,
@@ -74,6 +75,7 @@ class gfxSVGGlyphs
 {
 private:
     typedef mozilla::dom::Element Element;
+    typedef gfxFont::DrawMode DrawMode;
 
 public:
     /**
@@ -109,7 +111,7 @@ public:
 
     /**
      * Render the SVG glyph for |aGlyphId|
-     * @param aDrawMode Whether to fill or stroke or both; see DrawMode
+     * @param aDrawMode Whether to fill or stroke or both; see gfxFont::DrawMode
      * @param aContextPaint Information on text context paints.
      *   See |gfxTextContextPaint|.
      */

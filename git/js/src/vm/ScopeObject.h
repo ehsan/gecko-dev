@@ -112,7 +112,7 @@ ScopeCoordinateToStaticScopeShape(JSContext *cx, JSScript *script, jsbytecode *p
 extern PropertyName *
 ScopeCoordinateName(JSContext *cx, JSScript *script, jsbytecode *pc);
 
-/* Return the function script accessed by the given ALIASEDVAR op, or nullptr. */
+/* Return the function script accessed by the given ALIASEDVAR op, or NULL. */
 extern JSScript *
 ScopeCoordinateFunctionScript(JSContext *cx, JSScript *script, jsbytecode *pc);
 
@@ -359,7 +359,7 @@ class StaticBlockObject : public BlockObject
     }
 
     /*
-     * A refinement of enclosingStaticScope that returns nullptr if the enclosing
+     * A refinement of enclosingStaticScope that returns NULL if the enclosing
      * static scope is a JSFunction.
      */
     inline StaticBlockObject *enclosingBlock() const;
@@ -421,8 +421,7 @@ class StaticBlockObject : public BlockObject
 
     frontend::Definition *maybeDefinitionParseNode(unsigned i) {
         Value v = slotValue(i);
-        return v.isUndefined() ? nullptr
-                               : reinterpret_cast<frontend::Definition *>(v.toPrivate());
+        return v.isUndefined() ? NULL : reinterpret_cast<frontend::Definition *>(v.toPrivate());
     }
 
     /*
@@ -471,7 +470,7 @@ class ClonedBlockObject : public BlockObject
 
 template<XDRMode mode>
 bool
-XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
+XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript script,
                      StaticBlockObject **objp);
 
 extern JSObject *
@@ -572,7 +571,7 @@ class ScopeIterKey
     ScopeIter::Type type_;
 
   public:
-    ScopeIterKey() : frame_(NullFramePtr()), cur_(nullptr), block_(nullptr), type_() {}
+    ScopeIterKey() : frame_(NullFramePtr()), cur_(NULL), block_(NULL), type_() {}
     ScopeIterKey(const ScopeIter &si)
       : frame_(si.frame_), cur_(si.cur_), block_(si.block_), type_(si.type_)
     {}
@@ -776,7 +775,7 @@ inline StaticBlockObject *
 StaticBlockObject::enclosingBlock() const
 {
     JSObject *obj = getReservedSlot(SCOPE_CHAIN_SLOT).toObjectOrNull();
-    return obj && obj->is<StaticBlockObject>() ? &obj->as<StaticBlockObject>() : nullptr;
+    return obj && obj->is<StaticBlockObject>() ? &obj->as<StaticBlockObject>() : NULL;
 }
 
 #ifdef DEBUG

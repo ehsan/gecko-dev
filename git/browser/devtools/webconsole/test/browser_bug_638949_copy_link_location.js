@@ -94,11 +94,8 @@ function onNetworkMessage(aResults) {
   goUpdateCommand(COMMAND_NAME);
   ok(isEnabled(), COMMAND_NAME + " is enabled");
 
-  info("expected clipboard value: " + message.url);
-
-  waitForClipboard((aData) => { return aData.trim() == message.url; },
-    () => { goDoCommand(COMMAND_NAME) },
-    testMenuWithNetActivity, testMenuWithNetActivity);
+  waitForClipboard(message.url, () => goDoCommand(COMMAND_NAME),
+                   testMenuWithNetActivity, testMenuWithNetActivity);
 
   function testMenuWithNetActivity() {
     // Test that the "Copy Link Location" menu item is visible for network-related

@@ -20,7 +20,6 @@ import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
 import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.StringUtils;
 
 import org.json.JSONObject;
 
@@ -1053,7 +1052,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
         showSoftInput();
     }
 
-    public void setTitle(CharSequence title) {
+    private void setTitle(CharSequence title) {
         mTitle.setText(title);
         setContentDescription(title != null ? title : mTitle.getHint());
     }
@@ -1093,7 +1092,8 @@ public class BrowserToolbar extends GeckoRelativeLayout
             return;
         }
 
-        CharSequence title = StringUtils.stripCommonSubdomains(StringUtils.stripScheme(url));
+        url = StringUtils.stripScheme(url);
+        CharSequence title = StringUtils.stripCommonSubdomains(url);
 
         String baseDomain = tab.getBaseDomain();
         if (!TextUtils.isEmpty(baseDomain)) {
@@ -1500,10 +1500,6 @@ public class BrowserToolbar extends GeckoRelativeLayout
         }
 
         mGo.setVisibility(View.VISIBLE);
-
-        if (InputMethods.shouldDisableUrlBarUpdate(mUrlEditText.getContext())) {
-            return;
-        }
 
         int imageResource = R.drawable.ic_url_bar_go;
         String contentDescription = mActivity.getString(R.string.go);

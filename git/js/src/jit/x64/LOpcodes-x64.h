@@ -17,7 +17,7 @@
     _(ModI)                         \
     _(ModPowTwoI)                   \
     _(PowHalfD)                     \
-    _(AsmJSUInt32ToDouble)          \
+    _(UInt32ToDouble)               \
     _(AsmJSLoadFuncPtr)             \
     _(UDivOrMod)
 

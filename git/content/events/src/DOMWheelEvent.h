@@ -9,7 +9,6 @@
 
 #include "nsIDOMWheelEvent.h"
 #include "nsDOMMouseEvent.h"
-#include "mozilla/MouseEvents.h"
 #include "mozilla/dom/WheelEventBinding.h"
 
 namespace mozilla {

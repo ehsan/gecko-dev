@@ -91,10 +91,10 @@ class MacroAssemblerX86Shared : public Assembler
     }
 
     void move32(const Imm32 &imm, const Register &dest) {
-        // Use the ImmWord version of mov to register, which has special
-        // optimizations. Casting to uint32_t here ensures that the value
-        // is zero-extended.
-        mov(ImmWord(uint32_t(imm.value)), dest);
+        if (imm.value == 0)
+            xorl(dest, dest);
+        else
+            movl(imm, dest);
     }
     void move32(const Imm32 &imm, const Operand &dest) {
         movl(imm, dest);
@@ -238,43 +238,21 @@ class MacroAssemblerX86Shared : public Assembler
     void jump(Register reg) {
         jmp(Operand(reg));
     }
-    void jump(const Address &addr) {
-        jmp(Operand(addr));
-    }
 
     void convertInt32ToDouble(const Register &src, const FloatRegister &dest) {
-        // cvtsi2sd and friends write only part of their output register, which
-        // causes slowdowns on out-of-order processors. Explicitly break
-        // dependencies with xorpd (and xorps elsewhere), which are handled
-        // specially in modern CPUs, for this purpose. See sections 8.14, 9.8,
-        // 10.8, 12.9, 13.16, 14.14, and 15.8 of Agner's Microarchitecture
-        // document.
-        zeroDouble(dest);
         cvtsi2sd(src, dest);
     }
     void convertInt32ToDouble(const Address &src, FloatRegister dest) {
-        convertInt32ToDouble(Operand(src), dest);
-    }
-    void convertInt32ToDouble(const Operand &src, FloatRegister dest) {
-        // Clear the output register first to break dependencies; see above;
-        zeroDouble(dest);
         cvtsi2sd(Operand(src), dest);
     }
     void convertInt32ToFloat32(const Register &src, const FloatRegister &dest) {
-        // Clear the output register first to break dependencies; see above;
-        zeroFloat32(dest);
         cvtsi2ss(src, dest);
     }
     void convertInt32ToFloat32(const Address &src, FloatRegister dest) {
-        convertInt32ToFloat32(Operand(src), dest);
-    }
-    void convertInt32ToFloat32(const Operand &src, FloatRegister dest) {
-        // Clear the output register first to break dependencies; see above;
-        zeroFloat32(dest);
-        cvtsi2ss(src, dest);
+        cvtsi2ss(Operand(src), dest);
     }
     Condition testDoubleTruthy(bool truthy, const FloatRegister &reg) {
-        zeroDouble(ScratchFloatReg);
+        xorpd(ScratchFloatReg, ScratchFloatReg);
         ucomisd(ScratchFloatReg, reg);
         return truthy ? NonZero : Zero;
     }
@@ -324,50 +302,28 @@ class MacroAssemblerX86Shared : public Assembler
         movl(src, Operand(dest));
     }
     void loadDouble(const Address &src, FloatRegister dest) {
-        movsd(src, dest);
+        movsd(Operand(src), dest);
     }
     void loadDouble(const BaseIndex &src, FloatRegister dest) {
-        movsd(src, dest);
+        movsd(Operand(src), dest);
     }
     void loadDouble(const Operand &src, FloatRegister dest) {
-        switch (src.kind()) {
-          case Operand::MEM_REG_DISP:
-            loadDouble(src.toAddress(), dest);
-            break;
-          case Operand::MEM_SCALE:
-            loadDouble(src.toBaseIndex(), dest);
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
-        }
+        movsd(src, dest);
     }
     void storeDouble(FloatRegister src, const Address &dest) {
-        movsd(src, dest);
+        movsd(src, Operand(dest));
     }
     void storeDouble(FloatRegister src, const BaseIndex &dest) {
-        movsd(src, dest);
+        movsd(src, Operand(dest));
     }
     void storeDouble(FloatRegister src, const Operand &dest) {
-        switch (dest.kind()) {
-          case Operand::MEM_REG_DISP:
-            storeDouble(src, dest.toAddress());
-            break;
-          case Operand::MEM_SCALE:
-            storeDouble(src, dest.toBaseIndex());
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
-        }
+        movsd(src, dest);
     }
     void moveDouble(FloatRegister src, FloatRegister dest) {
-        // Use movapd instead of movsd to avoid dependencies.
-        movapd(src, dest);
+        movsd(src, dest);
     }
     void zeroDouble(FloatRegister reg) {
         xorpd(reg, reg);
-    }
-    void zeroFloat32(FloatRegister reg) {
-        xorps(reg, reg);
     }
     void negateDouble(FloatRegister reg) {
         // From MacroAssemblerX86Shared::maybeInlineDouble
@@ -402,61 +358,42 @@ class MacroAssemblerX86Shared : public Assembler
     void convertDoubleToFloat(const FloatRegister &src, const FloatRegister &dest) {
         cvtsd2ss(src, dest);
     }
-    void moveFloatAsDouble(const Register &src, FloatRegister dest) {
+    void loadFloatAsDouble(const Register &src, FloatRegister dest) {
         movd(src, dest);
         cvtss2sd(dest, dest);
     }
     void loadFloatAsDouble(const Address &src, FloatRegister dest) {
-        movss(src, dest);
+        movss(Operand(src), dest);
         cvtss2sd(dest, dest);
     }
     void loadFloatAsDouble(const BaseIndex &src, FloatRegister dest) {
-        movss(src, dest);
+        movss(Operand(src), dest);
         cvtss2sd(dest, dest);
     }
     void loadFloatAsDouble(const Operand &src, FloatRegister dest) {
-        loadFloat(src, dest);
+        movss(src, dest);
         cvtss2sd(dest, dest);
     }
+    void loadFloat(const Register &src, FloatRegister dest) {
+        movss(Operand(src), dest);
+    }
     void loadFloat(const Address &src, FloatRegister dest) {
-        movss(src, dest);
+        movss(Operand(src), dest);
     }
     void loadFloat(const BaseIndex &src, FloatRegister dest) {
-        movss(src, dest);
+        movss(Operand(src), dest);
     }
     void loadFloat(const Operand &src, FloatRegister dest) {
-        switch (src.kind()) {
-          case Operand::MEM_REG_DISP:
-            loadFloat(src.toAddress(), dest);
-            break;
-          case Operand::MEM_SCALE:
-            loadFloat(src.toBaseIndex(), dest);
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
-        }
+        movss(src, dest);
     }
     void storeFloat(FloatRegister src, const Address &dest) {
-        movss(src, dest);
+        movss(src, Operand(dest));
     }
     void storeFloat(FloatRegister src, const BaseIndex &dest) {
-        movss(src, dest);
-    }
-    void storeFloat(FloatRegister src, const Operand &dest) {
-        switch (dest.kind()) {
-          case Operand::MEM_REG_DISP:
-            storeFloat(src, dest.toAddress());
-            break;
-          case Operand::MEM_SCALE:
-            storeFloat(src, dest.toBaseIndex());
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
-        }
+        movss(src, Operand(dest));
     }
     void moveFloat(FloatRegister src, FloatRegister dest) {
-        // Use movaps instead of movss to avoid dependencies.
-        movaps(src, dest);
+        movss(src, dest);
     }
 
     // Checks whether a double is representable as a 32-bit integer. If so, the
@@ -484,38 +421,6 @@ class MacroAssemblerX86Shared : public Assembler
                 // bit 0 = sign of low double
                 // bit 1 = sign of high double
                 movmskpd(src, dest);
-                andl(Imm32(1), dest);
-                j(Assembler::NonZero, fail);
-            }
-
-            bind(&notZero);
-        }
-    }
-
-    // Checks whether a float32 is representable as a 32-bit integer. If so, the
-    // integer is written to the output register. Otherwise, a bailout is taken to
-    // the given snapshot. This function overwrites the scratch float register.
-    void convertFloat32ToInt32(FloatRegister src, Register dest, Label *fail,
-                               bool negativeZeroCheck = true)
-    {
-        cvttss2si(src, dest);
-        convertInt32ToFloat32(dest, ScratchFloatReg);
-        ucomiss(src, ScratchFloatReg);
-        j(Assembler::Parity, fail);
-        j(Assembler::NotEqual, fail);
-
-        // Check for -0
-        if (negativeZeroCheck) {
-            Label notZero;
-            branchTest32(Assembler::NonZero, dest, dest, &notZero);
-
-            if (Assembler::HasSSE41()) {
-                ptest(src, src);
-                j(Assembler::NonZero, fail);
-            } else {
-                // bit 0 = sign of low float
-                // bits 1 to 3 = signs of higher floats
-                movmskps(src, dest);
                 andl(Imm32(1), dest);
                 j(Assembler::NonZero, fail);
             }
@@ -555,17 +460,6 @@ class MacroAssemblerX86Shared : public Assembler
         return false;
     }
 
-    bool maybeInlineFloat(float f, const FloatRegister &dest) {
-        uint32_t u = mozilla::BitwiseCast<uint32_t>(f);
-
-        // See comment above
-        if (u == 0) {
-            xorps(dest, dest);
-            return true;
-        }
-        return false;
-    }
-
     void convertBoolToInt32(Register source, Register dest) {
         // Note that C++ bool is only 1 byte, so zero extend it to clear the
         // higher-order bits.
@@ -583,7 +477,10 @@ class MacroAssemblerX86Shared : public Assembler
             if (ifNaN != Assembler::NaN_HandledByCond) {
                 Label noNaN;
                 j(Assembler::NoParity, &noNaN);
-                mov(ImmWord(ifNaN == Assembler::NaN_IsTrue), dest);
+                if (ifNaN == Assembler::NaN_IsTrue)
+                    movl(Imm32(1), dest);
+                else
+                    xorl(dest, dest);
                 bind(&noNaN);
             }
         } else {
@@ -592,16 +489,12 @@ class MacroAssemblerX86Shared : public Assembler
 
             if (ifNaN == Assembler::NaN_IsFalse)
                 j(Assembler::Parity, &ifFalse);
-            // Note a subtlety here: FLAGS is live at this point, and the
-            // mov interface doesn't guarantee to preserve FLAGS. Use
-            // movl instead of mov, because the movl instruction
-            // preserves FLAGS.
             movl(Imm32(1), dest);
             j(cond, &end);
             if (ifNaN == Assembler::NaN_IsTrue)
                 j(Assembler::Parity, &end);
             bind(&ifFalse);
-            mov(ImmWord(0), dest);
+            xorl(dest, dest);
 
             bind(&end);
         }

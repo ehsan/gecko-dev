@@ -12,7 +12,6 @@
 #include "mozilla/gfx/2D.h"
 #include "gfxUtils.h"
 #include <algorithm>
-#include "ImageContainer.h"
 
 namespace mozilla {
 using namespace mozilla::gfx;
@@ -140,7 +139,7 @@ protected:
 };
 
 void
-DeserializerToPlanarYCbCrImageData(YCbCrImageDataDeserializer& aDeserializer, PlanarYCbCrData& aData)
+DeserializerToPlanarYCbCrImageData(YCbCrImageDataDeserializer& aDeserializer, PlanarYCbCrImage::Data& aData)
 {
   aData.mYChannel = aDeserializer.GetYData();
   aData.mYStride = aDeserializer.GetYStride();
@@ -182,10 +181,10 @@ public:
   void ConvertImageToRGB(const SurfaceDescriptor& aImage)
   {
     YCbCrImageDataDeserializer deserializer(aImage.get_YCbCrImage().data().get<uint8_t>());
-    PlanarYCbCrData data;
+    PlanarYCbCrImage::Data data;
     DeserializerToPlanarYCbCrImageData(deserializer, data);
 
-    gfxImageFormat format = gfxImageFormatRGB24;
+    gfxASurface::gfxImageFormat format = gfxASurface::ImageFormatRGB24;
     gfxIntSize size;
     gfxUtils::GetYCbCrToRGBDestFormatAndSize(data, format, size);
     if (size.width > PlanarYCbCrImage::MAX_DIMENSION ||
@@ -203,7 +202,7 @@ public:
 
     mSize = IntSize(size.width, size.height);
     mFormat =
-      (format == gfxImageFormatARGB32) ? FORMAT_B8G8R8A8 :
+      (format == gfxASurface::ImageFormatARGB32) ? FORMAT_B8G8R8A8 :
                                                    FORMAT_B8G8R8X8;
   }
 
@@ -470,17 +469,20 @@ BasicCompositor::EndFrame()
 {
   mRenderTarget->mDrawTarget->PopClip();
 
-  RefPtr<SourceSurface> source = mRenderTarget->mDrawTarget->Snapshot();
   if (mCopyTarget) {
-    mCopyTarget->CopySurface(source,
-                             IntRect(0, 0, mWidgetSize.width, mWidgetSize.height),
-                             IntPoint(0, 0));
+    nsRefPtr<gfxASurface> thebes = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mRenderTarget->mDrawTarget);
+    gfxContextAutoSaveRestore restore(mCopyTarget);
+    mCopyTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
+    mCopyTarget->SetSource(thebes);
+    mCopyTarget->Paint();
+    mCopyTarget = nullptr;
   } else {
     // Most platforms require us to buffer drawing to the widget surface.
     // That's why we don't draw to mDrawTarget directly.
+    RefPtr<SourceSurface> source = mRenderTarget->mDrawTarget->Snapshot();
     mDrawTarget->CopySurface(source,
-	                           IntRect(0, 0, mWidgetSize.width, mWidgetSize.height),
-			                       IntPoint(0, 0));
+	                     IntRect(0, 0, mWidgetSize.width, mWidgetSize.height),
+			     IntPoint(0, 0));
     mWidget->EndRemoteDrawing();
   }
   mDrawTarget = nullptr;

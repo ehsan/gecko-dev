@@ -19,7 +19,6 @@
 #include "mozilla/MemoryReporting.h"
 
 #include "gc/Marking.h"
-#include "js/GCAPI.h"
 #include "vm/ObjectImpl.h"
 #include "vm/Shape.h"
 
@@ -343,7 +342,7 @@ class JSObject : public js::ObjectImpl
         return lastProperty()->hasTable();
     }
 
-    void addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::ObjectsExtraSizes *sizes);
+    void sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::ObjectsExtraSizes *sizes);
 
     bool hasIdempotentProtoChain() const;
 
@@ -639,21 +638,16 @@ class JSObject : public js::ObjectImpl
 
     void copyDenseElements(uint32_t dstStart, const js::Value *src, uint32_t count) {
         JS_ASSERT(dstStart + count <= getDenseCapacity());
-        JSRuntime *rt = runtimeFromMainThread();
-        if (JS::IsIncrementalBarrierNeeded(rt)) {
-            JS::Zone *zone = this->zone();
-            for (uint32_t i = 0; i < count; ++i)
-                elements[dstStart + i].set(zone, this, js::HeapSlot::Element, dstStart + i, src[i]);
-        } else {
-            memcpy(&elements[dstStart], src, count * sizeof(js::HeapSlot));
-            DenseRangeWriteBarrierPost(rt, this, dstStart, count);
-        }
+        JS::Zone *zone = this->zone();
+        for (uint32_t i = 0; i < count; ++i)
+            elements[dstStart + i].set(zone, this, js::HeapSlot::Element, dstStart + i, src[i]);
     }
 
     void initDenseElements(uint32_t dstStart, const js::Value *src, uint32_t count) {
         JS_ASSERT(dstStart + count <= getDenseCapacity());
-        memcpy(&elements[dstStart], src, count * sizeof(js::HeapSlot));
-        DenseRangeWriteBarrierPost(runtimeFromMainThread(), this, dstStart, count);
+        JSRuntime *rt = runtimeFromMainThread();
+        for (uint32_t i = 0; i < count; ++i)
+            elements[dstStart + i].init(rt, this, js::HeapSlot::Element, dstStart + i, src[i]);
     }
 
     void moveDenseElements(uint32_t dstStart, uint32_t srcStart, uint32_t count) {
@@ -915,7 +909,6 @@ class JSObject : public js::ObjectImpl
     static bool getGeneric(JSContext *cx, js::HandleObject obj, js::HandleObject receiver,
                            js::HandleId id, js::MutableHandleValue vp)
     {
-        JS_ASSERT(!!obj->getOps()->getGeneric == !!obj->getOps()->getProperty);
         js::GenericIdOp op = obj->getOps()->getGeneric;
         if (op) {
             if (!op(cx, obj, receiver, id, vp))
@@ -1404,15 +1397,31 @@ LookupNameWithGlobalDefault(JSContext *cx, HandlePropertyName name, HandleObject
 extern JSObject *
 js_FindVariableScope(JSContext *cx, JSFunction **funp);
 
+/*
+ * NB: js_NativeGet and js_NativeSet are called with the scope containing shape
+ * (pobj's scope for Get, obj's for Set) locked, and on successful return, that
+ * scope is again locked.  But on failure, both functions return false with the
+ * scope containing shape unlocked.
+ */
 extern bool
 js_NativeGet(JSContext *cx, js::Handle<JSObject*> obj, js::Handle<JSObject*> pobj,
-             js::Handle<js::Shape*> shape, js::MutableHandle<js::Value> vp);
+             js::Handle<js::Shape*> shape, unsigned getHow, js::MutableHandle<js::Value> vp);
 
 extern bool
 js_NativeSet(JSContext *cx, js::Handle<JSObject*> obj, js::Handle<JSObject*> receiver,
              js::Handle<js::Shape*> shape, bool strict, js::MutableHandleValue vp);
 
 namespace js {
+
+bool
+GetPropertyHelper(JSContext *cx, HandleObject obj, HandleId id, uint32_t getHow, MutableHandleValue vp);
+
+inline bool
+GetPropertyHelper(JSContext *cx, HandleObject obj, PropertyName *name, uint32_t getHow, MutableHandleValue vp)
+{
+    RootedId id(cx, NameToId(name));
+    return GetPropertyHelper(cx, obj, id, getHow, vp);
+}
 
 bool
 LookupPropertyPure(JSObject *obj, jsid id, JSObject **objp, Shape **propp);

@@ -38,7 +38,7 @@ class FixedList
             return true;
 
         list_ = (T *)GetIonContext()->temp->allocate(length * sizeof(T));
-        return list_ != nullptr;
+        return list_ != NULL;
     }
 
     size_t length() const {

@@ -13,9 +13,11 @@
 #ifdef MOZ_CRASHREPORTER
 # include "nsExceptionHandler.h"
 #endif
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "prprf.h"
 #include "prlog.h"
+#include "prinit.h"
+#include "plstr.h"
 #include "nsError.h"
 #include "prerror.h"
 #include "prerr.h"
@@ -25,12 +27,13 @@
 #include <android/log.h>
 #endif
 
-#ifdef _WIN32
-/* for getenv() */
+#if defined(XP_UNIX) || defined(_WIN32) || defined(XP_OS2)
+/* for abort() and getenv() */
 #include <stdlib.h>
 #endif
 
 #include "nsTraceRefcntImpl.h"
+#include "nsISupportsUtils.h"
 
 #if defined(XP_UNIX)
 #include <signal.h>
@@ -46,6 +49,7 @@
 
 #if defined(XP_MACOSX)
 #include <stdbool.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <sys/sysctl.h>
 #endif
@@ -355,12 +359,9 @@ NS_DebugBreak(uint32_t aSeverity, const char *aStr, const char *aExpr,
    __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", buf.buffer);
 #endif
 
-   // Write the message to stderr unless it's a warning and MOZ_IGNORE_WARNINGS
-   // is set.
-   if (!(PR_GetEnv("MOZ_IGNORE_WARNINGS") && aSeverity == NS_DEBUG_WARNING)) {
-     fprintf(stderr, "%s\n", buf.buffer);
-     fflush(stderr);
-   }
+   // Write the message to stderr
+   fprintf(stderr, "%s\n", buf.buffer);
+   fflush(stderr);
 
    switch (aSeverity) {
    case NS_DEBUG_WARNING:

@@ -22,7 +22,7 @@
  * */
 
 #include "nsISupports.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsITokenizer.h"
 
 #define NS_IDTD_IID \

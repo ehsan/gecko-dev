@@ -3351,7 +3351,7 @@ nsDOMDeviceStorage::AddEventListener(const nsAString & aType,
 
 void
 nsDOMDeviceStorage::AddEventListener(const nsAString & aType,
-                                     EventListener *aListener,
+                                     nsIDOMEventListener *aListener,
                                      bool aUseCapture,
                                      const Nullable<bool>& aWantsUntrusted,
                                      ErrorResult& aRv)
@@ -3407,7 +3407,7 @@ nsDOMDeviceStorage::RemoveEventListener(const nsAString & aType,
 
 void
 nsDOMDeviceStorage::RemoveEventListener(const nsAString& aType,
-                                        EventListener* aListener,
+                                        nsIDOMEventListener* aListener,
                                         bool aCapture,
                                         ErrorResult& aRv)
 {
@@ -3466,10 +3466,10 @@ nsDOMDeviceStorage::PostHandleEvent(nsEventChainPostVisitor & aVisitor)
 }
 
 nsresult
-nsDOMDeviceStorage::DispatchDOMEvent(WidgetEvent* aEvent,
-                                     nsIDOMEvent* aDOMEvent,
-                                     nsPresContext* aPresContext,
-                                     nsEventStatus* aEventStatus)
+nsDOMDeviceStorage::DispatchDOMEvent(nsEvent *aEvent,
+                                     nsIDOMEvent *aDOMEvent,
+                                     nsPresContext *aPresContext,
+                                     nsEventStatus *aEventStatus)
 {
   return nsDOMEventTargetHelper::DispatchDOMEvent(aEvent,
                                                   aDOMEvent,

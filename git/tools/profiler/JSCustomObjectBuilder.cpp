@@ -7,7 +7,7 @@
 
 #include "mozilla/Util.h" // for ArrayLength
 #include "nsDataHashtable.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "nsUTF8Utils.h"
 
@@ -151,16 +151,6 @@ struct SendToStreamImpl<char *>
 {
   static void run(std::ostream& stream, char* p) {
     EscapeToStream(stream, p);
-  }
-};
-
-template <>
-struct SendToStreamImpl<double>
-{
-  static void run(std::ostream& stream, double p) {
-    // 13 for ms, 16 of microseconds, plus an extra 2
-    stream.precision(18);
-    stream << p;
   }
 };
 

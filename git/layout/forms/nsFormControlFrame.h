@@ -42,7 +42,7 @@ public:
     * @see nsIFrame::HandleEvent
     */
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
-                         mozilla::WidgetGUIEvent* aEvent,
+                         nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 
   virtual nscoord GetBaseline() const MOZ_OVERRIDE;

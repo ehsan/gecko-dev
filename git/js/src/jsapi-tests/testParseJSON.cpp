@@ -6,10 +6,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <limits>
+#include <math.h>
 
 #include "jsstr.h"
 
 #include "jsapi-tests/tests.h"
+#include "vm/String.h"
 
 using namespace js;
 
@@ -255,7 +257,7 @@ TryParse(JSContext *cx, const char (&input)[N], JS::HandleValue filter)
     AutoInflatedString str(cx);
     JS::RootedValue v(cx);
     str = input;
-    CHECK(JS_ParseJSONWithReviver(cx, str.chars(), str.length(), filter, &v));
+    CHECK(JS_ParseJSONWithReviver(cx, str.chars(), str.length(), filter, v.address()));
     CHECK_SAME(v, JSVAL_NULL);
     return true;
 }

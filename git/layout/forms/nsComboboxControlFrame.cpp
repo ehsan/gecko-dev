@@ -24,6 +24,7 @@
 #include "nsINodeInfo.h"
 #include "nsIScrollableFrame.h"
 #include "nsListControlFrame.h"
+#include "nsGUIEvent.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
 #include "nsNodeInfoManager.h"
@@ -37,7 +38,6 @@
 #include <algorithm>
 #include "nsTextNode.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/MouseEvents.h"
 
 using namespace mozilla;
 
@@ -300,9 +300,9 @@ nsComboboxControlFrame::ShowPopup(bool aShowPopup)
 
   // fire a popup dom event
   nsEventStatus status = nsEventStatus_eIgnore;
-  WidgetMouseEvent event(true, aShowPopup ?
-                         NS_XUL_POPUP_SHOWING : NS_XUL_POPUP_HIDING, nullptr,
-                         WidgetMouseEvent::eReal);
+  nsMouseEvent event(true, aShowPopup ?
+                     NS_XUL_POPUP_SHOWING : NS_XUL_POPUP_HIDING, nullptr,
+                     nsMouseEvent::eReal);
 
   nsCOMPtr<nsIPresShell> shell = PresContext()->GetPresShell();
   if (shell)
@@ -1093,8 +1093,8 @@ nsComboboxControlFrame::OnSetSelectedIndex(int32_t aOldIndex, int32_t aNewIndex)
 
 NS_IMETHODIMP
 nsComboboxControlFrame::HandleEvent(nsPresContext* aPresContext,
-                                    WidgetGUIEvent* aEvent,
-                                    nsEventStatus* aEventStatus)
+                                       nsGUIEvent*     aEvent,
+                                       nsEventStatus*  aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
 

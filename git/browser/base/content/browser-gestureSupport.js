@@ -549,7 +549,6 @@ let gHistorySwipeAnimation = {
     this.isLTR = document.documentElement.mozMatchesSelector(
                                             ":-moz-locale-dir(ltr)");
     this._trackedSnapshots = [];
-    this._startingIndex = -1;
     this._historyIndex = -1;
     this._boxWidth = -1;
     this._maxSnapshots = this._getMaxSnapshots();
@@ -562,7 +561,6 @@ let gHistorySwipeAnimation = {
       gBrowser.addEventListener("pagehide", this, false);
       gBrowser.addEventListener("pageshow", this, false);
       gBrowser.addEventListener("popstate", this, false);
-      gBrowser.addEventListener("DOMModalDialogClosed", this, false);
       gBrowser.tabContainer.addEventListener("TabClose", this, false);
     }
   },
@@ -574,7 +572,6 @@ let gHistorySwipeAnimation = {
     gBrowser.removeEventListener("pagehide", this, false);
     gBrowser.removeEventListener("pageshow", this, false);
     gBrowser.removeEventListener("popstate", this, false);
-    gBrowser.removeEventListener("DOMModalDialogClosed", this, false);
     gBrowser.tabContainer.removeEventListener("TabClose", this, false);
 
     this.active = false;
@@ -594,8 +591,7 @@ let gHistorySwipeAnimation = {
       this._handleFastSwiping();
     }
     else {
-      this._startingIndex = gBrowser.webNavigation.sessionHistory.index;
-      this._historyIndex = this._startingIndex;
+      this._historyIndex = gBrowser.webNavigation.sessionHistory.index;
       this._canGoBack = this.canGoBack();
       this._canGoForward = this.canGoForward();
       if (this.active) {
@@ -626,24 +622,20 @@ let gHistorySwipeAnimation = {
     if (!this.isAnimationRunning())
       return;
 
-    // We use the following value to decrease the bounce effect when swiping
-    // back/forward past the browsing history. This value was determined
-    // experimentally.
-    let dampValue = 4;
     if ((aVal >= 0 && this.isLTR) ||
         (aVal <= 0 && !this.isLTR)) {
-      let tempDampValue = 1;
+      if (aVal > 1)
+        aVal = 1; // Cap value to avoid sliding the page further than allowed.
+
       if (this._canGoBack)
         this._prevBox.collapsed = false;
-      else {
-        tempDampValue = dampValue;
+      else
         this._prevBox.collapsed = true;
-      }
 
       // The current page is pushed to the right (LTR) or left (RTL),
       // the intention is to go back.
       // If there is a page to go back to, it should show in the background.
-      this._positionBox(this._curBox, aVal / tempDampValue);
+      this._positionBox(this._curBox, aVal);
 
       // The forward page should be pushed offscreen all the way to the right.
       this._positionBox(this._nextBox, 1);
@@ -659,14 +651,13 @@ let gHistorySwipeAnimation = {
       // For the backdrop to be visible in that case, the previous page needs
       // to be hidden (if it exists).
       if (this._canGoForward) {
-        this._nextBox.collapsed = false;
         let offset = this.isLTR ? 1 : -1;
         this._positionBox(this._curBox, 0);
-        this._positionBox(this._nextBox, offset + aVal);
+        this._positionBox(this._nextBox, offset + aVal); // aVal is negative
       }
       else {
         this._prevBox.collapsed = true;
-        this._positionBox(this._curBox, aVal / dampValue);
+        this._positionBox(this._curBox, aVal);
       }
     }
   },
@@ -683,14 +674,13 @@ let gHistorySwipeAnimation = {
         let browser = gBrowser.getBrowserForTab(aEvent.target);
         this._removeTrackedSnapshot(-1, browser);
         break;
-      case "DOMModalDialogClosed":
-        this.stopAnimation();
-        break;
       case "pageshow":
       case "popstate":
-        if (aEvent.target != gBrowser.selectedBrowser.contentDocument)
-          break;
-        this.stopAnimation();
+        if (this.isAnimationRunning()) {
+          if (aEvent.target != gBrowser.selectedBrowser.contentDocument)
+            break;
+          this.stopAnimation();
+        }
         this._historyIndex = gBrowser.webNavigation.sessionHistory.index;
         break;
       case "pagehide":
@@ -758,7 +748,7 @@ let gHistorySwipeAnimation = {
    * any. This will also result in the animation overlay to be torn down.
    */
   swipeEndEventReceived: function HSA_swipeEndEventReceived() {
-    if (this._lastSwipeDir != "" && this._historyIndex != this._startingIndex)
+    if (this._lastSwipeDir != "")
       this._navigateToHistoryIndex();
     else
       this.stopAnimation();
@@ -786,10 +776,9 @@ let gHistorySwipeAnimation = {
    * |this|.
    */
   _navigateToHistoryIndex: function HSA__navigateToHistoryIndex() {
-    if (this._doesIndexExistInHistory(this._historyIndex))
+    if (this._doesIndexExistInHistory(this._historyIndex)) {
       gBrowser.webNavigation.gotoIndex(this._historyIndex);
-    else
-      this.stopAnimation();
+    }
   },
 
   /**
@@ -1015,17 +1004,12 @@ let gHistorySwipeAnimation = {
       return aBlob;
 
     let img = new Image();
-    let url = "";
-    try {
-      url = URL.createObjectURL(aBlob);
-      img.onload = function() {
-        URL.revokeObjectURL(url);
-      };
-    }
-    finally {
-      img.src = url;
-      return img;
-    }
+    let url = URL.createObjectURL(aBlob);
+    img.onload = function() {
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+    return img;
   },
 
   /**

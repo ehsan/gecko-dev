@@ -4,9 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsBaseChannel.h"
+#include "nsChannelProperties.h"
 #include "nsURLHelper.h"
 #include "nsNetUtil.h"
 #include "nsMimeTypes.h"
+#include "nsIOService.h"
 #include "nsIHttpEventSink.h"
 #include "nsIHttpChannel.h"
 #include "nsIChannelEventSink.h"

@@ -14,7 +14,7 @@
 #include "jsfriendapi.h"
 #include "nsCOMPtr.h"
 #include "nsJSUtils.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 
 #include "mozilla/dom/Exceptions.h"
 #include "WorkerInlines.h"

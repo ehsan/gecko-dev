@@ -10,6 +10,7 @@
 // This file declares the structures that are used for attaching LIR to a
 // MIRGraph.
 
+#include "jit/IonAllocPolicy.h"
 #include "jit/LIR.h"
 
 namespace js {
@@ -38,8 +39,8 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
       : gen(gen),
         graph(graph),
         lirGraph_(lirGraph),
-        lastResumePoint_(nullptr),
-        osiPoint_(nullptr)
+        lastResumePoint_(NULL),
+        osiPoint_(NULL)
     { }
 
     MIRGenerator *mir() {
@@ -143,14 +144,14 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
     }
 
     template <typename T> void annotate(T *ins);
-    template <typename T> bool add(T *ins, MInstruction *mir = nullptr);
+    template <typename T> bool add(T *ins, MInstruction *mir = NULL);
 
     void lowerTypedPhiInput(MPhi *phi, uint32_t inputPosition, LBlock *block, size_t lirIndex);
     bool defineTypedPhi(MPhi *phi, size_t lirIndex);
 
     LOsiPoint *popOsiPoint() {
         LOsiPoint *tmp = osiPoint_;
-        osiPoint_ = nullptr;
+        osiPoint_ = NULL;
         return tmp;
     }
 

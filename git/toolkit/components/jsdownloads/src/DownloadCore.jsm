@@ -338,8 +338,8 @@ Download.prototype = {
     // While shutting down or disposing of this object, we prevent the download
     // from returning to be in progress.
     if (this._finalized) {
-      return Promise.reject(new DownloadError({
-                                message: "Cannot start after finalization."}));
+      return Promise.reject(new DownloadError(Cr.NS_ERROR_FAILURE,
+                                "Cannot start after finalization."));
     }
 
     // Initialize all the status properties for a new or restarted download.
@@ -408,12 +408,15 @@ Download.prototype = {
         }
       }
 
-      try {
-        // Disallow download if parental controls service restricts it.
-        if (yield DownloadIntegration.shouldBlockForParentalControls(this)) {
-          throw new DownloadError({ becauseBlockedByParentalControls: true });
-        }
+      // Disallow download if parental controls service restricts it.
+      if (yield DownloadIntegration.shouldBlockForParentalControls(this)) {
+        let error = new DownloadError(Cr.NS_ERROR_FAILURE, "Download blocked.");
+        error.becauseBlocked = true;
+        error.becauseBlockedByParentalControls = true;
+        throw error;
+      }
 
+      try {
         // Execute the actual download through the saver object.
         yield this.saver.execute(DS_setProgressBytes.bind(this),
                                  DS_setProperties.bind(this));
@@ -427,16 +430,7 @@ Download.prototype = {
         // is forced to actually check the status properties to see if the
         // download was canceled or failed because of other reasons.
         if (this._promiseCanceled) {
-          throw new DownloadError({ message: "Download canceled." });
-        }
-
-        // An HTTP 450 error code is used by Windows to indicate that a uri is
-        // blocked by parental controls. This will prevent the download from
-        // occuring, so an error needs to be raised. This is not performed
-        // during the parental controls check above as it requires the request
-        // to start.
-        if (this._blockedByParentalControls) {
-          ex = new DownloadError({ becauseBlockedByParentalControls: true });
+          throw new DownloadError(Cr.NS_ERROR_FAILURE, "Download canceled.");
         }
 
         // Update the download error, unless a new attempt already started. The
@@ -481,7 +475,7 @@ Download.prototype = {
 
     // Notify the new download state before returning.
     this._notifyChange();
-    return currentAttempt;
+    return this._currentAttempt;
   },
 
   /*
@@ -1158,22 +1152,18 @@ DownloadTarget.fromSerializable = function (aSerializable) {
 /**
  * Provides detailed information about a download failure.
  *
- * @param aProperties
- *        Object which may contain any of the following properties:
- *          {
- *            result: Result error code, defaulting to Cr.NS_ERROR_FAILURE
- *            message: String error message to be displayed, or null to use the
- *                     message associated with the result code.
- *            inferCause: If true, attempts to determine if the cause of the
- *                        download is a network failure or a local file failure,
- *                        based on a set of known values of the result code.
- *                        This is useful when the error is received by a
- *                        component that handles both aspects of the download.
- *          }
- *        The properties object may also contain any of the DownloadError's
- *        because properties, which will be set accordingly in the error object.
+ * @param aResult
+ *        The result code associated with the error.
+ * @param aMessage
+ *        The message to be displayed, or null to use the message associated
+ *        with the result code.
+ * @param aInferCause
+ *        If true, attempts to determine if the cause of the download is a
+ *        network failure or a local file failure, based on a set of known
+ *        values of the result code.  This is useful when the error is received
+ *        by a component that handles both aspects of the download.
  */
-function DownloadError(aProperties)
+function DownloadError(aResult, aMessage, aInferCause)
 {
   const NS_ERROR_MODULE_BASE_OFFSET = 0x45;
   const NS_ERROR_MODULE_NETWORK = 6;
@@ -1181,39 +1171,18 @@ function DownloadError(aProperties)
 
   // Set the error name used by the Error object prototype first.
   this.name = "DownloadError";
-  this.result = aProperties.result || Cr.NS_ERROR_FAILURE;
-  if (aProperties.message) {
-    this.message = aProperties.message;
-  } else if (aProperties.becauseBlocked ||
-             aProperties.becauseBlockedByParentalControls) {
-    this.message = "Download blocked.";
+  this.result = aResult || Cr.NS_ERROR_FAILURE;
+  if (aMessage) {
+    this.message = aMessage;
   } else {
     let exception = new Components.Exception("", this.result);
     this.message = exception.toString();
   }
-  if (aProperties.inferCause) {
-    let module = ((this.result & 0x7FFF0000) >> 16) -
-                 NS_ERROR_MODULE_BASE_OFFSET;
+  if (aInferCause) {
+    let module = ((aResult & 0x7FFF0000) >> 16) - NS_ERROR_MODULE_BASE_OFFSET;
     this.becauseSourceFailed = (module == NS_ERROR_MODULE_NETWORK);
     this.becauseTargetFailed = (module == NS_ERROR_MODULE_FILES);
   }
-  else {
-    if (aProperties.becauseSourceFailed) {
-      this.becauseSourceFailed = true;
-    }
-    if (aProperties.becauseTargetFailed) {
-      this.becauseTargetFailed = true;
-    }
-  }
-
-  if (aProperties.becauseBlockedByParentalControls) {
-    this.becauseBlocked = true;
-    this.becauseBlockedByParentalControls = true;
-  }
-  else if (aProperties.becauseBlocked) {
-    this.becauseBlocked = true;
-  }
-
   this.stack = new Error().stack;
 }
 
@@ -1341,31 +1310,6 @@ DownloadSaver.prototype = {
   },
 
   /**
-   * Return true if the request's response has been blocked by Windows parental
-   * controls with an HTTP 450 error code.
-   *
-   * @param aRequest
-   *        nsIRequest object
-   * @return True if the response is blocked.
-   */
-  isResponseParentalBlocked: function(aRequest)
-  {
-    // If the HTTP status is 450, then Windows Parental Controls have
-    // blocked this download.
-    if (aRequest instanceof Ci.nsIHttpChannel &&
-        aRequest.responseStatus == 450) {
-      // Cancel the request, but set a flag on the download that can be
-      // retrieved later when handling the cancellation so that the proper
-      // blocked by parental controls error can be thrown.
-      this.download._blockedByParentalControls = true;
-      aRequest.cancel(Cr.NS_BINDING_ABORTED);
-      return true;
-    }
-
-    return false;
-  },
-
-  /**
    * Returns a static representation of the current object state.
    *
    * @return A JavaScript object that can be serialized to JSON.
@@ -1476,7 +1420,7 @@ DownloadCopySaver.prototype = {
         // Throw a DownloadError indicating that the operation failed because of
         // the target file.  We cannot translate this into a specific result
         // code, but we preserve the original message using the toString method.
-        let error = new DownloadError({ message: ex.toString() });
+        let error = new DownloadError(Cr.NS_ERROR_FAILURE, ex.toString());
         error.becauseTargetFailed = true;
         throw error;
       }
@@ -1487,7 +1431,7 @@ DownloadCopySaver.prototype = {
         if (this._canceled) {
           // Don't create the BackgroundFileSaver object if we have been
           // canceled meanwhile.
-          throw new DownloadError({ message: "Saver canceled." });
+          throw new DownloadError(Cr.NS_ERROR_FAILURE, "Saver canceled.");
         }
 
         // Create the object that will save the file in a background thread.
@@ -1509,8 +1453,8 @@ DownloadCopySaver.prototype = {
               } else {
                 // Infer the origin of the error from the failure code, because
                 // BackgroundFileSaver does not provide more specific data.
-                let properties = { result: aStatus, inferCause: true };
-                deferSaveComplete.reject(new DownloadError(properties));
+                deferSaveComplete.reject(new DownloadError(aStatus, null,
+                                                           true));
               }
             },
           };
@@ -1561,10 +1505,6 @@ DownloadCopySaver.prototype = {
           channel.asyncOpen({
             onStartRequest: function (aRequest, aContext) {
               backgroundFileSaver.onStartRequest(aRequest, aContext);
-
-              if (this.isResponseParentalBlocked(aRequest)) {
-                return;
-              }
 
               aSetPropertiesFn({ contentType: channel.contentType });
 
@@ -1837,10 +1777,6 @@ DownloadLegacySaver.prototype = {
                      ex.result == Cr.NS_ERROR_NOT_RESUMABLE) { }
     }
 
-    if (this.isResponseParentalBlocked(aRequest)) {
-      return;
-    }
-
     // For legacy downloads, we must update the referrer at this time.
     if (aRequest instanceof Ci.nsIHttpChannel && aRequest.referrer) {
       this.download.source.referrer = aRequest.referrer.spec;
@@ -1869,8 +1805,7 @@ DownloadLegacySaver.prototype = {
     } else {
       // Infer the origin of the error from the failure code, because more
       // specific data is not available through the nsITransfer implementation.
-      let properties = { result: aStatus, inferCause: true };
-      this.deferExecuted.reject(new DownloadError(properties));
+      this.deferExecuted.reject(new DownloadError(aStatus, null, true));
     }
   },
 
@@ -1966,8 +1901,14 @@ DownloadLegacySaver.prototype = {
       return this.copySaver.cancel.apply(this.copySaver, arguments);
     }
 
-    // Cancel the operation as soon as the object is connected.
+    // Synchronously cancel the operation as soon as the object is connected.
     this.deferCanceled.resolve();
+
+    // We don't necessarily receive status notifications after we call "cancel",
+    // but cancellation through nsICancelable should be synchronous, thus force
+    // the rejection of the execution promise immediately.
+    this.deferExecuted.reject(new DownloadError(Cr.NS_ERROR_FAILURE,
+                                                "Download canceled."));
   },
 
   /**

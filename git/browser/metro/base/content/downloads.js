@@ -6,7 +6,7 @@
 const URI_GENERIC_ICON_DOWNLOAD = "chrome://browser/skin/images/alert-downloads-30.png";
 const TOAST_URI_GENERIC_ICON_DOWNLOAD = "ms-appx:///metro/chrome/chrome/skin/images/alert-downloads-30.png"
 
-var MetroDownloadsView = {
+var Downloads = {
   /**
    * _downloadCount keeps track of the number of downloads that a single
    * notification bar groups together. A download is grouped with other
@@ -88,7 +88,7 @@ var MetroDownloadsView = {
         case 0: // Downloading
         case 5: // Queued
           this.watchDownload(dl);
-          this.updateInfobar();
+          this.updateInfobar(dl);
           break;
       }
     }
@@ -194,6 +194,7 @@ var MetroDownloadsView = {
   },
 
   showNotification: function dh_showNotification(title, msg, buttons, priority) {
+    this._notificationBox.notificationsHidden = false;
     let notification = this._notificationBox.appendNotification(msg,
                                               title,
                                               URI_GENERIC_ICON_DOWNLOAD,
@@ -217,15 +218,15 @@ var MetroDownloadsView = {
         label: tryAgainButtonText,
         accessKey: "",
         callback: function() {
-          MetroDownloadsView.manager.retryDownload(aDownload.id);
+          Downloads.manager.retryDownload(aDownload.id);
         }
       },
       {
         label: cancelButtonText,
         accessKey: "",
         callback: function() {
-          MetroDownloadsView.cancelDownload(aDownload);
-          MetroDownloadsView._downloadProgressIndicator.reset();
+          Downloads.cancelDownload(aDownload);
+          Downloads._downloadProgressIndicator.reset();
         }
       }
     ];
@@ -243,7 +244,7 @@ var MetroDownloadsView = {
         accessKey: "",
         callback: function() {
           let fileURI = aDownload.target;
-          let file = MetroDownloadsView._getLocalFile(fileURI);
+          let file = Downloads._getLocalFile(fileURI);
           file.reveal();
         }
       }
@@ -264,7 +265,7 @@ var MetroDownloadsView = {
         label: runButtonText,
         accessKey: "",
         callback: function() {
-          MetroDownloadsView.openDownload(aDownload);
+          Downloads.openDownload(aDownload);
         }
       });
     }
@@ -288,12 +289,12 @@ var MetroDownloadsView = {
           switch (aTopic) {
             case "alertclickcallback":
               let fileURI = aDownload.target;
-              let file = MetroDownloadsView._getLocalFile(fileURI);
+              let file = Downloads._getLocalFile(fileURI);
               file.reveal();
 
               let downloadCompleteNotification =
-                MetroDownloadsView._notificationBox.getNotificationWithValue("download-complete");
-              MetroDownloadsView._notificationBox.removeNotification(downloadCompleteNotification);
+                Downloads._notificationBox.getNotificationWithValue("download-complete");
+              Downloads._notificationBox.removeNotification(downloadCompleteNotification);
               break;
           }
         }
@@ -306,11 +307,11 @@ var MetroDownloadsView = {
         observe: function (aSubject, aTopic, aData) {
           switch (aTopic) {
             case "alertclickcallback":
-              MetroDownloadsView.openDownload(aDownload);
+              Downloads.openDownload(aDownload);
 
               let downloadCompleteNotification =
-                MetroDownloadsView._notificationBox.getNotificationWithValue("download-complete");
-              MetroDownloadsView._notificationBox.removeNotification(downloadCompleteNotification);
+                Downloads._notificationBox.getNotificationWithValue("download-complete");
+              Downloads._notificationBox.removeNotification(downloadCompleteNotification);
               break;
           }
         }
@@ -334,10 +335,9 @@ var MetroDownloadsView = {
     this._downloadProgressIndicator.updateProgress(percentComplete);
   },
 
-  _computeDownloadProgressString: function dv_computeDownloadProgressString() {
+  _computeDownloadProgressString: function dv_computeDownloadProgressString(aDownload) {
     let totTransferred = 0, totSize = 0, totSecondsLeft = 0;
-    let guid, info;
-    for ([guid, info] of this._progressNotificationInfo) {
+    for (let [guid, info] of this._progressNotificationInfo) {
       let size = info.download.size;
       let amountTransferred = info.download.amountTransferred;
       let speed = info.download.speed;
@@ -358,7 +358,7 @@ var MetroDownloadsView = {
 
     if (this._downloadCount == 1) {
       return Strings.browser.GetStringFromName("alertDownloadsStart2")
-        .replace("#1", info.download.displayName)
+        .replace("#1", aDownload.displayName)
         .replace("#2", progress)
         .replace("#3", timeLeft)
     }
@@ -380,20 +380,12 @@ var MetroDownloadsView = {
     this._progressNotificationInfo.set(aDownload.guid, infoObj);
   },
 
-  onDownloadButton: function dv_onDownloadButton() {
-    if (this._progressNotification) {
-      let progressBar = this._notificationBox.getNotificationWithValue("download-progress");
-      if (progressBar) {
-        this._notificationBox.removeNotification(progressBar);
-      } else {
-        this.updateInfobar();
-      }
-    }
-  },
-
-  updateInfobar: function dv_updateInfobar() {
-    let message = this._computeDownloadProgressString();
+  updateInfobar: function dv_updateInfobar(aDownload) {
+    let message = this._computeDownloadProgressString(aDownload);
     this._updateCircularProgressMeter();
+
+    if (this._notificationBox && this._notificationBox.notificationsHidden)
+      this._notificationBox.notificationsHidden = false;
 
     if (this._progressNotification == null ||
         !this._notificationBox.getNotificationWithValue("download-progress")) {
@@ -406,8 +398,8 @@ var MetroDownloadsView = {
           label: cancelButtonText,
           accessKey: "",
           callback: function() {
-            MetroDownloadsView.cancelDownloads();
-            MetroDownloadsView._downloadProgressIndicator.reset();
+            Downloads.cancelDownloads();
+            Downloads._downloadProgressIndicator.reset();
           }
         }
       ];
@@ -446,8 +438,8 @@ var MetroDownloadsView = {
     switch (aEvent.type) {
       case "AlertClose":
         if (aEvent.notification.value == "download-complete" &&
-            !MetroDownloadsView._notificationBox.getNotificationWithValue("download-complete")) {
-          MetroDownloadsView._downloadProgressIndicator.reset();
+            !Downloads._notificationBox.getNotificationWithValue("download-complete")) {
+          Downloads._downloadProgressIndicator.reset();
         }
         break;
     }
@@ -465,7 +457,7 @@ var MetroDownloadsView = {
       case "dl-start":
         let download = aSubject.QueryInterface(Ci.nsIDownload);
         this.watchDownload(download);
-        this.updateInfobar();
+        this.updateInfobar(download);
         break;
       case "dl-done":
         this._downloadsInProgress--;
@@ -562,10 +554,10 @@ AlertDownloadProgressListener.prototype = {
 
     let contentLength = aDownload.size;
     if (availableSpace > 0 && contentLength > 0 && contentLength > availableSpace) {
-      MetroDownloadsView.showAlert(aDownload.target.spec.replace("file:", "download:"),
-                                   strings.GetStringFromName("alertDownloadsNoSpace"),
-                                   strings.GetStringFromName("alertDownloadsSize"));
-      MetroDownloadsView.cancelDownload(aDownload);
+      Downloads.showAlert(aDownload.target.spec.replace("file:", "download:"),
+                          strings.GetStringFromName("alertDownloadsNoSpace"),
+                          strings.GetStringFromName("alertDownloadsSize"));
+      Downloads.cancelDownload(aDownload);
     }
   },
 

@@ -20,7 +20,6 @@ const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Sntp.jsm");
-Cu.import("resource://gre/modules/systemlibs.js");
 
 var RIL = {};
 Cu.import("resource://gre/modules/ril_consts.js", RIL);
@@ -512,18 +511,11 @@ RadioInterfaceLayer.prototype = {
 
 XPCOMUtils.defineLazyGetter(RadioInterfaceLayer.prototype,
                             "numRadioInterfaces", function () {
-  // When Gonk property "ro.moz.ril.numclients" is not set, return 1; if
-  // explicitly set to any number larger-equal than 0, return num; else, return
-  // 1 for compatibility.
   try {
-    let numString = libcutils.property_get("ro.moz.ril.numclients", "1");
-    let num = parseInt(numString, 10);
-    if (num >= 0) {
-      return num;
-    }
-  } catch (e) {}
-
-  return 1;
+    return Services.prefs.getIntPref("ril.numRadioInterfaces");
+  } catch (e) {
+    return 1;
+  }
 });
 
 function WorkerMessenger(radioInterface, options) {
@@ -644,14 +636,11 @@ WorkerMessenger.prototype = {
    * @TODO: Bug 815526 - deprecate RILContentHelper.
    */
   sendWithIPCMessage: function sendWithIPCMessage(msg, rilMessageType, ipcType) {
-    this.send(rilMessageType, msg.json.data, (function(reply) {
+    this.send(rilMessageType, msg.json.data, function(reply) {
       ipcType = ipcType || msg.name;
-      msg.target.sendAsyncMessage(ipcType, {
-        clientId: this.radioInterface.clientId,
-        data: reply
-      });
+      msg.target.sendAsyncMessage(ipcType, reply);
       return false;
-    }).bind(this));
+    });
   }
 };
 
@@ -2310,10 +2299,7 @@ RadioInterface.prototype = {
         this._updateCallingLineIdRestrictionPref(response.clirMode);
       }
 
-      target.sendAsyncMessage("RIL:SendMMI", {
-        clientId: this.clientId,
-        data: response
-      });
+      target.sendAsyncMessage("RIL:SendMMI", response);
       return false;
     }).bind(this));
   },
@@ -2323,10 +2309,7 @@ RadioInterface.prototype = {
     message.serviceClass = RIL.ICC_SERVICE_CLASS_VOICE;
     this.workerMessenger.send("setCallForward", message, (function(response) {
       this._sendCfStateChanged(response);
-      target.sendAsyncMessage("RIL:SetCallForwardingOption", {
-        clientId: this.clientId,
-        data: response
-      });
+      target.sendAsyncMessage("RIL:SetCallForwardingOption", response);
       return false;
     }).bind(this));
   },
@@ -2340,10 +2323,7 @@ RadioInterface.prototype = {
       if (response.success) {
         this._updateCallingLineIdRestrictionPref(response.clirMode);
       }
-      target.sendAsyncMessage("RIL:SetCallingLineIdRestriction", {
-        clientId: this.clientId,
-        data: response
-      });
+      target.sendAsyncMessage("RIL:SetCallingLineIdRestriction", response);
       return false;
     }).bind(this));
   },
@@ -3262,30 +3242,7 @@ RILNetworkInterface.prototype = {
     if (this.cid == null) {
       return;
     }
-
     if (this.state == datacall.state) {
-      if (datacall.state != GECKO_NETWORK_STATE_CONNECTED) {
-        return;
-      }
-      // State remains connected, check for minor changes.
-      let changed = false;
-      if (this.gateway != datacall.gw) {
-        this.gateway = datacall.gw;
-        changed = true;
-      }
-      if (datacall.dns &&
-          (this.dns1 != datacall.dns[0] ||
-           this.dns2 != datacall.dns[1])) {
-        this.dns1 = datacall.dns[0];
-        this.dns2 = datacall.dns[1];
-        changed = true;
-      }
-      if (changed) {
-        if (DEBUG) this.debug("Notify for data call minor changes.");
-        Services.obs.notifyObservers(this,
-                                     kNetworkInterfaceStateChangedTopic,
-                                     null);
-      }
       return;
     }
 

@@ -40,7 +40,6 @@
 
 #include "nsXPIDLString.h"
 #include "prproces.h"
-#include "prlink.h"
 
 #include "mozilla/Mutex.h"
 #include "SpecialSystemDirectory.h"

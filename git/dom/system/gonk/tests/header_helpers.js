@@ -109,7 +109,7 @@ function newIncomingParcel(fakeParcelSize, response, request, data) {
     ++writeIndex;
   }
 
-  function writeInt32(value) {
+  function writeUint32(value) {
     writeUint8(value & 0xff);
     writeUint8((value >> 8) & 0xff);
     writeUint8((value >> 16) & 0xff);
@@ -128,8 +128,8 @@ function newIncomingParcel(fakeParcelSize, response, request, data) {
   }
   writeParcelSize(fakeParcelSize);
 
-  writeInt32(response);
-  writeInt32(request);
+  writeUint32(response);
+  writeUint32(request);
 
   // write parcel data
   for (let ii = 0; ii < data.length; ++ii) {

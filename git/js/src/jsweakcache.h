@@ -7,10 +7,9 @@
 #ifndef jsweakcache_h
 #define jsweakcache_h
 
-#include "jscntxt.h"
 #include "gc/Marking.h"
+
 #include "js/HashTable.h"
-#include "vm/Runtime.h"
 
 namespace js {
 

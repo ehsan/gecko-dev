@@ -846,8 +846,7 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
 
   /* Check if we need to do additional operations on this child's
    * rendering, which necessitates rendering into another surface. */
-  if (opacity != 1.0f || maskFrame || (clipPathFrame && !isTrivialClip)
-      || aFrame->StyleDisplay()->mMixBlendMode != NS_STYLE_BLEND_NORMAL) {
+  if (opacity != 1.0f || maskFrame || (clipPathFrame && !isTrivialClip)) {
     complexEffects = true;
     gfx->Save();
     if (!(aFrame->GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
@@ -864,7 +863,7 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
       }
       aContext->IntersectClip(overflowRect);
     }
-    gfx->PushGroup(GFX_CONTENT_COLOR_ALPHA);
+    gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
   }
 
   /* If this frame has only a trivial clipPath, set up cairo's clipping now so
@@ -920,7 +919,7 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
 
   nsRefPtr<gfxPattern> clipMaskSurface;
   if (clipPathFrame && !isTrivialClip) {
-    gfx->PushGroup(GFX_CONTENT_COLOR_ALPHA);
+    gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
 
     nsresult rv = clipPathFrame->ClipPaint(aContext, aFrame, matrix);
     clipMaskSurface = gfx->PopGroup();
@@ -928,7 +927,7 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
     if (NS_SUCCEEDED(rv) && clipMaskSurface) {
       // Still more set after clipping, so clip to another surface
       if (maskSurface || opacity != 1.0f) {
-        gfx->PushGroup(GFX_CONTENT_COLOR_ALPHA);
+        gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
         gfx->Mask(clipMaskSurface);
         gfx->PopGroupToSource();
       } else {
@@ -1832,7 +1831,7 @@ nsSVGUtils::SetupCairoStroke(nsIFrame* aFrame, gfxContext* aContext,
 
 bool
 nsSVGUtils::PaintSVGGlyph(Element* aElement, gfxContext* aContext,
-                          DrawMode aDrawMode,
+                          gfxFont::DrawMode aDrawMode,
                           gfxTextContextPaint* aContextPaint)
 {
   nsIFrame* frame = aElement->GetPrimaryFrame();

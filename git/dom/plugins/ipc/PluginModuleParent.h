@@ -10,7 +10,6 @@
 #include "base/process.h"
 #include "mozilla/FileUtils.h"
 #include "mozilla/PluginLibrary.h"
-#include "mozilla/plugins/ScopedMethodFactory.h"
 #include "mozilla/plugins/PluginProcessParent.h"
 #include "mozilla/plugins/PPluginModuleParent.h"
 #include "npapi.h"
@@ -124,7 +123,7 @@ public:
     PluginIdentifierParent*
     GetIdentifierForNPIdentifier(NPP npp, NPIdentifier aIdentifier);
 
-    void ProcessRemoteNativeEventsInInterruptCall();
+    void ProcessRemoteNativeEventsInRPCCall();
 
     void TerminateChildProcess(MessageLoop* aMsgLoop);
 
@@ -134,8 +133,8 @@ public:
 #endif // XP_WIN
 
 protected:
-    virtual mozilla::ipc::RacyInterruptPolicy
-    MediateInterruptRace(const Message& parent, const Message& child) MOZ_OVERRIDE
+    virtual mozilla::ipc::RPCChannel::RacyRPCPolicy
+    MediateRPCRace(const Message& parent, const Message& child) MOZ_OVERRIDE
     {
         return MediateRace(parent, child);
     }
@@ -158,7 +157,7 @@ protected:
     virtual bool AnswerProcessSomeEvents() MOZ_OVERRIDE;
 
     virtual bool
-    RecvProcessNativeEventsInInterruptCall() MOZ_OVERRIDE;
+    RecvProcessNativeEventsInRPCCall() MOZ_OVERRIDE;
 
     virtual bool
     RecvPluginShowWindow(const uint32_t& aWindowId, const bool& aModal,
@@ -303,7 +302,7 @@ private:
     const NPNetscapeFuncs* mNPNIface;
     nsDataHashtable<nsPtrHashKey<void>, PluginIdentifierParent*> mIdentifiers;
     nsNPAPIPlugin* mPlugin;
-    ScopedMethodFactory<PluginModuleParent> mTaskFactory;
+    ScopedRunnableMethodFactory<PluginModuleParent> mTaskFactory;
     nsString mPluginDumpID;
     nsString mBrowserDumpID;
     nsString mHangID;

@@ -45,7 +45,6 @@
 #include "nsTArray.h"
 #include "nsRefPtrHashtable.h"
 #include "nsIMemoryReporter.h"
-#include "nsThreadUtils.h"
 
 class PrefCallback;
 

@@ -287,7 +287,7 @@ ImageLayerOGL::RenderLayer(int,
       return;
     }
 
-    NS_ASSERTION(cairoImage->mSurface->GetContentType() != GFX_CONTENT_ALPHA,
+    NS_ASSERTION(cairoImage->mSurface->GetContentType() != gfxASurface::CONTENT_ALPHA,
                  "Image layer has alpha image");
 
     CairoOGLBackendData *data =
@@ -391,7 +391,7 @@ SetClamping(GLContext* aGL, GLuint aTexture)
 }
 
 static void
-UploadYUVToTexture(GLContext* gl, const PlanarYCbCrData& aData, 
+UploadYUVToTexture(GLContext* gl, const PlanarYCbCrImage::Data& aData, 
                    GLTexture* aYTexture,
                    GLTexture* aUTexture,
                    GLTexture* aVTexture)
@@ -401,7 +401,7 @@ UploadYUVToTexture(GLContext* gl, const PlanarYCbCrData& aData,
   nsRefPtr<gfxASurface> surf = new gfxImageSurface(aData.mYChannel,
                                                    aData.mYSize,
                                                    aData.mYStride,
-                                                   gfxImageFormatA8);
+                                                   gfxASurface::ImageFormatA8);
   gl->UploadSurfaceToTexture(surf, size, texture, true);
   
   size = nsIntRect(0, 0, aData.mCbCrSize.width, aData.mCbCrSize.height);
@@ -409,14 +409,14 @@ UploadYUVToTexture(GLContext* gl, const PlanarYCbCrData& aData,
   surf = new gfxImageSurface(aData.mCbChannel,
                              aData.mCbCrSize,
                              aData.mCbCrStride,
-                             gfxImageFormatA8);
+                             gfxASurface::ImageFormatA8);
   gl->UploadSurfaceToTexture(surf, size, texture, true);
 
   texture = aVTexture->GetTextureID();
   surf = new gfxImageSurface(aData.mCrChannel,
                              aData.mCbCrSize,
                              aData.mCbCrStride,
-                             gfxImageFormatA8);
+                             gfxASurface::ImageFormatA8);
   gl->UploadSurfaceToTexture(surf, size, texture, true);
 }
 
@@ -437,7 +437,7 @@ ImageLayerOGL::AllocateTexturesYCbCr(PlanarYCbCrImage *aImage)
   nsAutoPtr<PlanarYCbCrOGLBackendData> backendData(
     new PlanarYCbCrOGLBackendData);
 
-  const PlanarYCbCrData *data = aImage->GetData();
+  const PlanarYCbCrImage::Data *data = aImage->GetData();
 
   gl()->MakeCurrent();
 
@@ -485,7 +485,7 @@ ImageLayerOGL::AllocateTexturesCairo(CairoImage *aImage)
   SetClamping(gl, tex);
 
 #if defined(GL_PROVIDER_GLX)
-  if (aImage->mSurface->GetType() == gfxSurfaceTypeXlib) {
+  if (aImage->mSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
     gfxXlibSurface *xsurf =
       static_cast<gfxXlibSurface*>(aImage->mSurface.get());
     GLXPixmap pixmap = xsurf->GetGLXPixmap();
@@ -555,7 +555,7 @@ ImageLayerOGL::LoadAsTexture(GLuint aTextureUnit, gfxIntSize* aSize)
     cairoImage->GetBackendData(LAYERS_OPENGL));
 
   if (!data) {
-    NS_ASSERTION(cairoImage->mSurface->GetContentType() == GFX_CONTENT_ALPHA,
+    NS_ASSERTION(cairoImage->mSurface->GetContentType() == gfxASurface::CONTENT_ALPHA,
                  "OpenGL mask layers must be backed by alpha surfaces");
 
     // allocate a new texture and save the details in the backend data

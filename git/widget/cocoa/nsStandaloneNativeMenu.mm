@@ -9,6 +9,8 @@
 #include "nsMenuUtilsX.h"
 #include "nsIDOMElement.h"
 #include "nsIMutationObserver.h"
+#include "nsEvent.h"
+#include "nsGUIEvent.h"
 #include "nsGkAtoms.h"
 #include "nsObjCExceptions.h"
 

@@ -12,17 +12,18 @@
 #include "ipc/IPCMessageUtils.h"
 
 #include "mozilla/Util.h"
+#include "mozilla/gfx/2D.h"
 #include <stdint.h>
 
 #include "gfx3DMatrix.h"
 #include "gfxColor.h"
 #include "gfxMatrix.h"
-#include "GraphicsFilter.h"
+#include "gfxPattern.h"
 #include "gfxPoint.h"
 #include "gfxRect.h"
 #include "nsRect.h"
 #include "nsRegion.h"
-#include "gfxTypes.h"
+#include "gfxASurface.h"
 #include "mozilla/layers/LayersTypes.h"
 #include "mozilla/layers/CompositorTypes.h"
 #include "FrameMetrics.h"
@@ -33,14 +34,10 @@
 
 namespace mozilla {
 
-typedef gfxImageFormat PixelFormat;
-#if defined(MOZ_HAVE_CXX11_STRONG_ENUMS)
-typedef ::GraphicsFilter GraphicsFilterType;
-#else
-// If we don't have support for enum classes, then we need to use the actual
-// enum type here instead of the simulated enum class.
-typedef GraphicsFilter::Enum GraphicsFilterType;
-#endif
+typedef gfxASurface::gfxContentType gfxContentType;
+typedef gfxASurface::gfxImageFormat PixelFormat;
+typedef gfxASurface::gfxSurfaceType gfxSurfaceType;
+typedef gfxPattern::GraphicsFilter GraphicsFilterType;
 
 } // namespace mozilla
 
@@ -189,24 +186,24 @@ struct ParamTraits<gfx3DMatrix>
 };
 
 template <>
-struct ParamTraits<gfxContentType>
-  : public EnumSerializer<gfxContentType,
-                          GFX_CONTENT_COLOR,
-                          GFX_CONTENT_SENTINEL>
+struct ParamTraits<mozilla::gfxContentType>
+  : public EnumSerializer<mozilla::gfxContentType,
+                          gfxASurface::CONTENT_COLOR,
+                          gfxASurface::CONTENT_SENTINEL>
 {};
 
 template <>
-struct ParamTraits<gfxSurfaceType>
-  : public EnumSerializer<gfxSurfaceType,
-                          gfxSurfaceTypeImage,
-                          gfxSurfaceTypeMax>
+struct ParamTraits<mozilla::gfxSurfaceType>
+  : public EnumSerializer<gfxASurface::gfxSurfaceType,
+                          gfxASurface::SurfaceTypeImage,
+                          gfxASurface::SurfaceTypeMax>
 {};
 
 template <>
 struct ParamTraits<mozilla::GraphicsFilterType>
   : public EnumSerializer<mozilla::GraphicsFilterType,
-                          GraphicsFilter::FILTER_FAST,
-                          GraphicsFilter::FILTER_SENTINEL>
+                          gfxPattern::FILTER_FAST,
+                          gfxPattern::FILTER_SENTINEL>
 {};
 
 template <>
@@ -226,8 +223,8 @@ struct ParamTraits<mozilla::layers::ScaleMode>
 template <>
 struct ParamTraits<mozilla::PixelFormat>
   : public EnumSerializer<mozilla::PixelFormat,
-                          gfxImageFormatARGB32,
-                          gfxImageFormatUnknown>
+                          gfxASurface::ImageFormatARGB32,
+                          gfxASurface::ImageFormatUnknown>
 {};
 
 

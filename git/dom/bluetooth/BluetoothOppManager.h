@@ -56,6 +56,7 @@ public:
   void SendPutRequest(uint8_t* aFileBody, int aFileBodyLength);
   void SendPutFinalRequest();
   void SendDisconnectRequest();
+  void SendAbortRequest();
 
   void ExtractPacketHeaders(const ObexHeaderSet& aHeader);
   bool ExtractBlobHeaders();
@@ -219,7 +220,7 @@ private:
   nsCOMPtr<nsIInputStream> mInputStream;
   nsCOMPtr<nsIVolumeMountLock> mMountLock;
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
-  nsRefPtr<BluetoothProfileController> mController;
+  BluetoothProfileController* mController;
   nsRefPtr<DeviceStorageFile> mDsFile;
 
   // If a connection has been established, mSocket will be the socket

@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsUnicodeToISO2022JP.h"
+#include "nsIComponentManager.h"
 #include "nsUCVJADll.h"
 #include "nsUnicodeEncodeHelper.h"
 

@@ -23,7 +23,7 @@
 #include "nsIWindowWatcher.h"
 #include "nsNetUtil.h"
 #include "nsRect.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsWeakReference.h"
 #include "nsIWebBrowser.h"
 #include "nsIObserverService.h"
@@ -34,12 +34,12 @@
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMWheelEvent.h"
 #include "nsView.h"
+#include "nsGUIEvent.h"
 #include "nsViewManager.h"
 #include "nsIContentPolicy.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIContent.h"
 #include "nsITimer.h"
-#include "mozilla/MouseEvents.h"
 
 using namespace mozilla;
 

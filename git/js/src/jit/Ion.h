@@ -15,6 +15,7 @@
 #include "jscompartment.h"
 
 #include "jit/CompileInfo.h"
+#include "jit/IonCode.h"
 
 namespace js {
 namespace jit {
@@ -260,8 +261,8 @@ enum AbortReason {
 
 // An Ion context is needed to enter into either an Ion method or an instance
 // of the Ion compiler. It points to a temporary allocator and the active
-// JSContext, either of which may be nullptr, and the active compartment, which
-// will not be nullptr.
+// JSContext, either of which may be NULL, and the active compartment, which
+// will not be NULL.
 
 class IonContext
 {
@@ -354,8 +355,8 @@ class CodeGenerator;
 
 bool OptimizeMIR(MIRGenerator *mir);
 LIRGraph *GenerateLIR(MIRGenerator *mir);
-CodeGenerator *GenerateCode(MIRGenerator *mir, LIRGraph *lir, MacroAssembler *maybeMasm = nullptr);
-CodeGenerator *CompileBackEnd(MIRGenerator *mir, MacroAssembler *maybeMasm = nullptr);
+CodeGenerator *GenerateCode(MIRGenerator *mir, LIRGraph *lir, MacroAssembler *maybeMasm = NULL);
+CodeGenerator *CompileBackEnd(MIRGenerator *mir, MacroAssembler *maybeMasm = NULL);
 
 void AttachFinishedCompilations(JSContext *cx);
 void FinishOffThreadBuilder(IonBuilder *builder);

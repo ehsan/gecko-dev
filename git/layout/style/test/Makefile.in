@@ -154,9 +154,6 @@ MOCHITEST_FILES =	test_acid3_test46.html \
 		test_selectors_on_anonymous_content.html \
 		test_shorthand_property_getters.html \
 		test_specified_value_serialization.html \
-		test_style_attribute_quirks.html \
-		test_style_attribute_standards.html \
-		style_attribute_tests.js \
 		test_style_struct_copy_constructors.html \
 		test_supports_rules.html \
 		test_system_font_serialization.html \
@@ -229,6 +226,12 @@ _VISITED_REFTEST_FILES = \
 		$(topsrcdir)/layout/reftests/svg/as-image/lime100x100.svg \
 		$(topsrcdir)/layout/reftests/svg/as-image/svg-image-visited-1-helper.svg \
 		$(topsrcdir)/layout/reftests/svg/as-image/svg-image-visited-2-helper.svg \
+		$(NULL)
+
+MOCHITEST_BROWSER_FILES = \
+		browser_bug453896.js \
+		bug453896_iframe.html \
+		media_queries_iframe.html \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

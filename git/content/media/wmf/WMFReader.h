@@ -40,7 +40,7 @@ public:
   bool HasAudio() MOZ_OVERRIDE;
   bool HasVideo() MOZ_OVERRIDE;
 
-  nsresult ReadMetadata(MediaInfo* aInfo,
+  nsresult ReadMetadata(VideoInfo* aInfo,
                         MetadataTags** aTags) MOZ_OVERRIDE;
 
   nsresult Seek(int64_t aTime,
@@ -75,6 +75,11 @@ private:
 
   // Attempt to initialize DXVA. Returns true on success.
   bool InitializeDXVA();  
+
+  // Notifies the MediaDecoder of the number of bytes we have consumed
+  // since last time we called this. We call this once per call to
+  // DecodeVideoFrame() and/or DecodeAudioData().
+  void NotifyBytesConsumed();
 
   RefPtr<IMFSourceReader> mSourceReader;
   RefPtr<WMFByteStream> mByteStream;

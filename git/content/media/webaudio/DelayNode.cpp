@@ -44,11 +44,6 @@ public:
   {
   }
 
-  virtual DelayNodeEngine* AsDelayNodeEngine()
-  {
-    return this;
-  }
-
   void SetSourceStream(AudioNodeStream* aSource)
   {
     mSource = aSource;
@@ -85,13 +80,16 @@ public:
                                  aInput.mChannelData.Length();
 
     bool playedBackAllLeftOvers = false;
-    if (!aInput.IsNull()) {
-      if (mLeftOverData <= 0) {
+    if (mProcessor.BufferChannelCount() &&
+        mLeftOverData == INT32_MIN &&
+        aStream->AllInputsFinished()) {
+      mLeftOverData = mProcessor.CurrentDelayFrames() - WEBAUDIO_BLOCK_SIZE;
+
+      if (mLeftOverData > 0) {
         nsRefPtr<PlayingRefChanged> refchanged =
           new PlayingRefChanged(aStream, PlayingRefChanged::ADDREF);
         NS_DispatchToMainThread(refchanged);
       }
-      mLeftOverData = mProcessor.MaxDelayFrames();
     } else if (mLeftOverData != INT32_MIN) {
       mLeftOverData -= WEBAUDIO_BLOCK_SIZE;
       if (mLeftOverData <= 0) {
@@ -125,28 +123,18 @@ public:
     float* const* outputChannels = reinterpret_cast<float* const*>
       (const_cast<void* const*>(aOutput->mChannelData.Elements()));
 
-
-    bool inCycle = aStream->AsProcessedStream()->InCycle();
     double sampleRate = aStream->SampleRate();
     if (mDelay.HasSimpleValue()) {
-      // If this DelayNode is in a cycle, make sure the delay value is at least
-      // one block.
-      float delayFrames = mDelay.GetValue() * sampleRate;
-      float delayFramesClamped = inCycle ? std::max(static_cast<float>(WEBAUDIO_BLOCK_SIZE), delayFrames) :
-                                           delayFrames;
-      mProcessor.Process(delayFramesClamped, inputChannels, outputChannels,
+      double delayFrames = mDelay.GetValue() * sampleRate;
+      mProcessor.Process(delayFrames, inputChannels, outputChannels,
                          numChannels, WEBAUDIO_BLOCK_SIZE);
     } else {
       // Compute the delay values for the duration of the input AudioChunk
-      // If this DelayNode is in a cycle, make sure the delay value is at least
-      // one block.
       double computedDelay[WEBAUDIO_BLOCK_SIZE];
       TrackTicks tick = aStream->GetCurrentPosition();
       for (size_t counter = 0; counter < WEBAUDIO_BLOCK_SIZE; ++counter) {
-        float delayAtTick = mDelay.GetValueAtTime(tick, counter) * sampleRate;
-        float delayAtTickClamped = inCycle ? std::max(static_cast<float>(WEBAUDIO_BLOCK_SIZE), delayAtTick) :
-                                             delayAtTick;
-        computedDelay[counter] = delayAtTickClamped;
+        computedDelay[counter] =
+          mDelay.GetValueAtTime(tick, counter) * sampleRate;
       }
       mProcessor.Process(computedDelay, inputChannels, outputChannels,
                          numChannels, WEBAUDIO_BLOCK_SIZE);

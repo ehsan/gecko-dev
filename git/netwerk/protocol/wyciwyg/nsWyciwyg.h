@@ -25,7 +25,9 @@
 #include "mozilla/net/NeckoChild.h"
 #undef LOG
 
+#include "plstr.h"
 #include "prlog.h"
+#include "prtime.h"
 
 #if defined(PR_LOGGING)
 //

@@ -10,13 +10,13 @@
 
 #include "BluetoothCommon.h"
 #include "BluetoothService.h"
+#include "BluetoothProfileController.h"
 #include "BluetoothUtils.h"
 
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
 #include "nsIObserverService.h"
-#include "MainThreadUtils.h"
 
 using namespace mozilla;
 USING_BLUETOOTH_NAMESPACE

@@ -38,13 +38,6 @@ pref("general.warnOnAboutConfig", true);
 // maximum number of dated backups to keep at any time
 pref("browser.bookmarks.max_backups",       5);
 
-// Preference for switching the cache backend, can be changed freely at runtime
-// 0 - use the old (Darin's) cache [DEFAULT]
-// 1 - use the new cache back-end (cache v2)
-// 2 - do a random choise for A/B testing (browser chooses old or new back-end at startup
-//     and keeps it per session)
-pref("browser.cache.use_new_backend",       0);
-
 pref("browser.cache.disk.enable",           true);
 // Is this the first-time smartsizing has been introduced?
 pref("browser.cache.disk.smart_size.first_run", true);
@@ -66,9 +59,6 @@ pref("browser.cache.memory.max_entry_size",  5120);
 pref("browser.cache.disk_cache_ssl",        true);
 // 0 = once-per-session, 1 = each-time, 2 = never, 3 = when-appropriate/automatically
 pref("browser.cache.check_doc_frequency",   3);
-
-// Limit for how much memory the cache can consume, for any data, in Kb
-pref("browser.cache.memory_limit", 51200); // 50 MB
 
 pref("browser.cache.offline.enable",           true);
 // enable offline apps by default, disable prompt
@@ -230,7 +220,6 @@ pref("media.navigator.video.default_minfps",10);
 pref("media.peerconnection.enabled", true);
 pref("media.navigator.permission.disabled", false);
 pref("media.peerconnection.default_iceservers", "[{\"url\": \"stun:23.21.150.121\"}]");
-pref("media.peerconnection.trickle_ice", true);
 pref("media.peerconnection.use_document_iceservers", true);
 // These values (aec, agc, and noice) are from media/webrtc/trunk/webrtc/common_types.h
 // kXxxUnchanged = 0, kXxxDefault = 1, and higher values are specific to each 
@@ -368,14 +357,8 @@ pref("gfx.content.azure.backends", "cairo");
 #endif
 #endif
 
-#ifdef MOZ_WIDGET_GTK2
-pref("gfx.content.azure.enabled", true);
-pref("gfx.content.azure.backends", "cairo");
-#endif
 #ifdef ANDROID
 pref("gfx.textures.poweroftwo.force-enabled", false);
-pref("gfx.content.azure.backends", "cairo");
-pref("gfx.content.azure.enabled", true);
 #endif
 
 pref("gfx.work-around-driver-bugs", true);
@@ -487,9 +470,6 @@ pref("toolkit.telemetry.debugSlowSql", false);
 pref("toolkit.identity.enabled", false);
 pref("toolkit.identity.debug", false);
 
-// AsyncShutdown delay before crashing in case of shutdown freeze
-pref("toolkit.asyncshutdown.timeout.crash", 60000);
-
 // Enable deprecation warnings.
 pref("devtools.errorconsole.deprecation_warnings", true);
 
@@ -506,9 +486,6 @@ pref("devtools.debugger.prompt-connection", true);
 pref("devtools.debugger.enable-content-actors", true);
 // Block tools from seeing / interacting with certified apps
 pref("devtools.debugger.forbid-certified-apps", true);
-
-// DevTools default color unit
-pref("devtools.defaultColorUnit", "hex");
 
 // view source
 pref("view_source.syntax_highlight", true);
@@ -1099,8 +1076,8 @@ pref("network.http.bypass-cachelock-threshold", 250);
 
 // Try and use SPDY when using SSL
 pref("network.http.spdy.enabled", true);
+pref("network.http.spdy.enabled.v2", true);
 pref("network.http.spdy.enabled.v3", true);
-pref("network.http.spdy.enabled.v3-1", true);
 pref("network.http.spdy.chunk-size", 4096);
 pref("network.http.spdy.timeout", 180);
 pref("network.http.spdy.coalesce-hostnames", true);
@@ -1845,11 +1822,7 @@ pref("layout.css.filters.enabled", false);
 pref("layout.css.flexbox.enabled", true);
 
 // Is support for CSS sticky positioning enabled?
-#ifdef RELEASE_BUILD
 pref("layout.css.sticky.enabled", false);
-#else
-pref("layout.css.sticky.enabled", true);
-#endif
 
 // Is support for the CSS4 image-orientation property enabled?
 pref("layout.css.image-orientation.enabled", true);
@@ -4051,9 +4024,6 @@ pref("image.mem.discardable", true);
 // them to be decoded on demand when they are drawn.
 pref("image.mem.decodeondraw", true);
 
-// Allows image locking of decoded image data in content processes.
-pref("image.mem.allow_locking_in_content_processes", true);
-
 // Minimum timeout for image discarding (in milliseconds). The actual time in
 // which an image must inactive for it to be discarded will vary between this
 // value and twice this value.
@@ -4118,6 +4088,10 @@ pref("stagefright.disabled", false);
 pref("network.tcp.sendbuffer", 131072);
 #endif
 
+// Asynchonous video compositing using the ImageBridge IPDL protocol.
+// requires off-main-thread compositing.
+pref("layers.async-video.enabled",false);
+
 // Whether to disable acceleration for all widgets.
 pref("layers.acceleration.disabled", false);
 
@@ -4143,11 +4117,7 @@ pref("layers.max-active", -1);
 #ifdef XP_MACOSX
 pref("layers.offmainthreadcomposition.enabled", true);
 pref("layers.use-deprecated-textures", false);
-// Asynchonous video compositing using the ImageBridge IPDL protocol.
-// requires off-main-thread compositing.
-pref("layers.async-video.enabled",true);
 #else
-pref("layers.async-video.enabled",false);
 #ifdef MOZ_WIDGET_GONK
 pref("layers.use-deprecated-textures", false);
 #else
@@ -4177,7 +4147,7 @@ pref("gfx.apitrace.enabled",false);
 #endif
 
 #ifdef MOZ_X11
-#ifdef MOZ_WIDGET_GTK
+#ifdef MOZ_WIDGET_GTK2
 pref("gfx.xrender.enabled",true);
 #endif
 #endif
@@ -4409,6 +4379,9 @@ pref("dom.mms.retrievalRetryIntervals", "60000,300000,600000,1800000");
 // Debug enabler for MMS.
 pref("mms.debugging.enabled", false);
 
+// Number of RadioInterface instances to create.
+pref("ril.numRadioInterfaces", 1);
+
 // If the user puts a finger down on an element and we think the user
 // might be executing a pan gesture, how long do we wait before
 // tentatively deciding the gesture is actually a tap and activating
@@ -4431,17 +4404,8 @@ pref("dom.forms.inputmode", false);
 pref("dom.forms.inputmode", true);
 #endif
 
-// InputMethods for soft keyboards in B2G
-pref("dom.mozInputMethod.enabled", false);
-
 // Telephony API
 pref("dom.telephony.enabled", false);
 
 // DOM Inter-App Communication API.
 pref("dom.inter-app-communication-api.enabled", false);
-
-// The tables used for Safebrowsing phishing and malware checks.
-pref("urlclassifier.malware_table", "goog-malware-shavar");
-pref("urlclassifier.phish_table", "goog-phish-shavar");
-pref("urlclassifier.download_block_table", "goog-badbinurl-shavar");
-pref("urlclassifier.download_allow_table", "goog-downloadwhite-digest256");

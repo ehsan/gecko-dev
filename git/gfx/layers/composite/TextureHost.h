@@ -8,7 +8,7 @@
 
 #include <stddef.h>                     // for size_t
 #include <stdint.h>                     // for uint64_t, uint32_t, uint8_t
-#include "gfxTypes.h"
+#include "gfxASurface.h"                // for gfxASurface, etc
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
 #include "mozilla/RefPtr.h"             // for RefPtr, TemporaryRef, etc
@@ -39,7 +39,7 @@ namespace layers {
 
 class Compositor;
 class CompositableHost;
-class CompositableBackendSpecificData;
+class CompositableQuirks;
 class SurfaceDescriptor;
 class ISurfaceAllocator;
 class TextureSourceOGL;
@@ -118,10 +118,14 @@ public:
    */
   virtual TileIterator* AsTileIterator() { return nullptr; }
 
-  virtual void SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData);
+  virtual void SetCompositableQuirks(CompositableQuirks* aQuirks);
+
+#ifdef MOZ_LAYERS_HAVE_LOG
+  virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
+#endif
 
 protected:
-  RefPtr<CompositableBackendSpecificData> mCompositableBackendData;
+  RefPtr<CompositableQuirks> mQuirks;
 };
 
 
@@ -382,18 +386,23 @@ public:
     return LayerRenderState();
   }
 
-  virtual void SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData);
+  virtual void SetCompositableQuirks(CompositableQuirks* aQuirks);
 
 #ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char *Name() { return "TextureHost"; }
-  virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
+  virtual void PrintInfo(nsACString& aTo, const char* aPrefix)
+  {
+    RefPtr<TextureSource> source = GetTextureSources();
+    if (source) {
+      source->PrintInfo(aTo, aPrefix);
+    }
+  }
 #endif
 
 protected:
   uint64_t mID;
   RefPtr<TextureHost> mNextTexture;
   TextureFlags mFlags;
-  RefPtr<CompositableBackendSpecificData> mCompositableBackendData;
+  RefPtr<CompositableQuirks> mQuirks;
 };
 
 /**
@@ -480,10 +489,6 @@ public:
 
   virtual uint8_t* GetBuffer() MOZ_OVERRIDE;
 
-#ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char *Name() MOZ_OVERRIDE { return "ShmemTextureHost"; }
-#endif
-
 protected:
   ipc::Shmem* mShmem;
   ISurfaceAllocator* mDeallocator;
@@ -508,10 +513,6 @@ public:
   virtual void DeallocateSharedData() MOZ_OVERRIDE;
 
   virtual uint8_t* GetBuffer() MOZ_OVERRIDE;
-
-#ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char *Name() MOZ_OVERRIDE { return "MemoryTextureHost"; }
-#endif
 
 protected:
   uint8_t* mBuffer;
@@ -675,7 +676,7 @@ public:
    * Ensure that a buffer of the given size/type has been allocated so that
    * we can update it using Update and/or CopyTo.
    */
-  virtual void EnsureBuffer(const nsIntSize& aSize, gfxContentType aType)
+  virtual void EnsureBuffer(const nsIntSize& aSize, gfxASurface::gfxContentType aType)
   {
     NS_RUNTIMEABORT("DeprecatedTextureHost doesn't support EnsureBuffer");
   }
@@ -697,7 +698,6 @@ public:
 
 
   SurfaceDescriptor* GetBuffer() const { return mBuffer; }
-  virtual SurfaceDescriptor* LockSurfaceDescriptor() const { return GetBuffer(); }
 
   /**
    * Set a SurfaceDescriptor for this texture host. By setting a buffer and
@@ -709,7 +709,7 @@ public:
   // see bug 865908 about fixing this.
   virtual void SetBuffer(SurfaceDescriptor* aBuffer, ISurfaceAllocator* aAllocator)
   {
-    MOZ_ASSERT(!mBuffer || mBuffer == aBuffer, "Will leak the old mBuffer");
+    MOZ_ASSERT(!mBuffer, "Will leak the old mBuffer");
     mBuffer = aBuffer;
     mDeAllocator = aAllocator;
   }

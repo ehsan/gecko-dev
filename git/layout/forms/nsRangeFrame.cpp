@@ -5,8 +5,6 @@
 
 #include "nsRangeFrame.h"
 
-#include "mozilla/TouchEvents.h"
-
 #include "nsContentCreatorFunctions.h"
 #include "nsContentList.h"
 #include "nsContentUtils.h"
@@ -455,7 +453,7 @@ nsRangeFrame::GetValueAsFractionOfRange()
 }
 
 Decimal
-nsRangeFrame::GetValueAtEventPoint(WidgetGUIEvent* aEvent)
+nsRangeFrame::GetValueAtEventPoint(nsGUIEvent* aEvent)
 {
   MOZ_ASSERT(aEvent->eventStructType == NS_MOUSE_EVENT ||
              aEvent->eventStructType == NS_TOUCH_EVENT,
@@ -477,10 +475,10 @@ nsRangeFrame::GetValueAtEventPoint(WidgetGUIEvent* aEvent)
 
   LayoutDeviceIntPoint absPoint;
   if (aEvent->eventStructType == NS_TOUCH_EVENT) {
-    MOZ_ASSERT(static_cast<WidgetTouchEvent*>(aEvent)->touches.Length() == 1,
+    MOZ_ASSERT(static_cast<nsTouchEvent*>(aEvent)->touches.Length() == 1,
                "Unexpected number of touches");
     absPoint = LayoutDeviceIntPoint::FromUntyped(
-      static_cast<WidgetTouchEvent*>(aEvent)->touches[0]->mRefPoint);
+      static_cast<nsTouchEvent*>(aEvent)->touches[0]->mRefPoint);
   } else {
     absPoint = aEvent->refPoint;
   }
@@ -699,8 +697,7 @@ nsRangeFrame::AttributeChanged(int32_t  aNameSpaceID,
       MOZ_ASSERT(mContent->IsHTML(nsGkAtoms::input), "bad cast");
       bool typeIsRange = static_cast<dom::HTMLInputElement*>(mContent)->GetType() ==
                            NS_FORM_INPUT_RANGE;
-      // If script changed the <input>'s type before setting these attributes
-      // then we don't need to do anything since we are going to be reframed.
+      MOZ_ASSERT(typeIsRange || aAttribute == nsGkAtoms::value, "why?");
       if (typeIsRange) {
         UpdateForValueChange();
       }

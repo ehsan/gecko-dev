@@ -9,5 +9,3 @@ NO_DIST_INSTALL = True
 
 LIBRARY_NAME = 'xpctest'
 
-IS_COMPONENT = True
-

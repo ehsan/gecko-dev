@@ -49,9 +49,12 @@ PRLogModuleInfo* gNesteggLog;
 
 static const unsigned NS_PER_USEC = 1000;
 static const double NS_PER_S = 1e9;
-#ifdef MOZ_DASH
 static const double USEC_PER_S = 1e6;
-#endif
+
+// If a seek request is within SEEK_DECODE_MARGIN microseconds of the
+// current time, decode ahead from the current frame rather than performing
+// a full seek.
+static const int SEEK_DECODE_MARGIN = 250000;
 
 // Functions for reading and seeking using MediaResource required for
 // nestegg_io. The 'user data' passed to these functions is the
@@ -74,6 +77,7 @@ static int webm_read(void *aBuffer, size_t aLength, void *aUserData)
       eof = true;
       break;
     }
+    decoder->NotifyBytesConsumed(bytes);
     aLength -= bytes;
     p += bytes;
   }
@@ -256,8 +260,8 @@ void WebMReader::Cleanup()
   }
 }
 
-nsresult WebMReader::ReadMetadata(MediaInfo* aInfo,
-                                  MetadataTags** aTags)
+nsresult WebMReader::ReadMetadata(VideoInfo* aInfo,
+                                    MetadataTags** aTags)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
@@ -297,6 +301,8 @@ nsresult WebMReader::ReadMetadata(MediaInfo* aInfo,
     return NS_ERROR_FAILURE;
   }
 
+  mInfo.mHasAudio = false;
+  mInfo.mHasVideo = false;
   for (uint32_t track = 0; track < ntracks; ++track) {
     int id = nestegg_track_codec_id(mContext, track);
     if (id == -1) {
@@ -342,27 +348,27 @@ nsresult WebMReader::ReadMetadata(MediaInfo* aInfo,
 
       mVideoTrack = track;
       mHasVideo = true;
-      mInfo.mVideo.mHasVideo = true;
+      mInfo.mHasVideo = true;
 
-      mInfo.mVideo.mDisplay = displaySize;
+      mInfo.mDisplay = displaySize;
       mPicture = pictureRect;
       mInitialFrame = frameSize;
 
       switch (params.stereo_mode) {
       case NESTEGG_VIDEO_MONO:
-        mInfo.mVideo.mStereoMode = STEREO_MODE_MONO;
+        mInfo.mStereoMode = STEREO_MODE_MONO;
         break;
       case NESTEGG_VIDEO_STEREO_LEFT_RIGHT:
-        mInfo.mVideo.mStereoMode = STEREO_MODE_LEFT_RIGHT;
+        mInfo.mStereoMode = STEREO_MODE_LEFT_RIGHT;
         break;
       case NESTEGG_VIDEO_STEREO_BOTTOM_TOP:
-        mInfo.mVideo.mStereoMode = STEREO_MODE_BOTTOM_TOP;
+        mInfo.mStereoMode = STEREO_MODE_BOTTOM_TOP;
         break;
       case NESTEGG_VIDEO_STEREO_TOP_BOTTOM:
-        mInfo.mVideo.mStereoMode = STEREO_MODE_TOP_BOTTOM;
+        mInfo.mStereoMode = STEREO_MODE_TOP_BOTTOM;
         break;
       case NESTEGG_VIDEO_STEREO_RIGHT_LEFT:
-        mInfo.mVideo.mStereoMode = STEREO_MODE_RIGHT_LEFT;
+        mInfo.mStereoMode = STEREO_MODE_RIGHT_LEFT;
         break;
       }
     }
@@ -376,7 +382,7 @@ nsresult WebMReader::ReadMetadata(MediaInfo* aInfo,
 
       mAudioTrack = track;
       mHasAudio = true;
-      mInfo.mAudio.mHasAudio = true;
+      mInfo.mHasAudio = true;
 
       // Get the Vorbis header data
       unsigned int nheaders = 0;
@@ -419,9 +425,9 @@ nsresult WebMReader::ReadMetadata(MediaInfo* aInfo,
         return NS_ERROR_FAILURE;
       }
 
-      mInfo.mAudio.mRate = mVorbisDsp.vi->rate;
-      mInfo.mAudio.mChannels = mVorbisDsp.vi->channels;
-      mChannels = mInfo.mAudio.mChannels;
+      mInfo.mAudioRate = mVorbisDsp.vi->rate;
+      mInfo.mAudioChannels = mVorbisDsp.vi->channels;
+      mChannels = mInfo.mAudioChannels;
     }
   }
 
@@ -903,7 +909,7 @@ bool WebMReader::DecodeVideoFrame(bool &aKeyframeSkip,
         picture.height = (img->d_h * mPicture.height) / mInitialFrame.height;
       }
 
-      VideoData *v = VideoData::Create(mInfo.mVideo,
+      VideoData *v = VideoData::Create(mInfo,
                                        mDecoder->GetImageContainer(),
                                        holder->mOffset,
                                        tstamp_usecs,

@@ -2,10 +2,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "nsSimplePageSequence.h"
-
 #include "nsCOMPtr.h"
+#include "nsSimplePageSequence.h"
 #include "nsPresContext.h"
 #include "gfxContext.h"
 #include "nsRenderingContext.h"
@@ -605,7 +603,7 @@ nsSimplePageSequenceFrame::PrePrintNextPage(nsITimerCallback* aCallback, bool* a
 
         nsRefPtr<gfxASurface> printSurface = renderingSurface->
            CreateSimilarSurface(
-             GFX_CONTENT_COLOR_ALPHA,
+             gfxASurface::CONTENT_COLOR_ALPHA,
              size
            );
 

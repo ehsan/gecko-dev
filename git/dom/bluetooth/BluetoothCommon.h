@@ -9,7 +9,7 @@
 
 #include "mozilla/Observer.h"
 #include "nsPrintfCString.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsTArray.h"
 
 extern bool gBluetoothDebugFlag;

@@ -17,7 +17,6 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsICertOverrideService.h"
 #include "mozilla/Preferences.h"
-#include "nsThreadUtils.h"
 
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
 #include "nsIDOMNode.h"
@@ -868,8 +867,6 @@ static CipherPref CipherPrefs[] = {
  {"security.ssl3.dhe_rsa_des_ede3_sha", SSL_DHE_RSA_WITH_3DES_EDE_CBC_SHA}, // 168-bit Triple DES with RSA, DHE, and a SHA1 MAC
  {"security.ssl3.dhe_dss_des_ede3_sha", SSL_DHE_DSS_WITH_3DES_EDE_CBC_SHA}, // 168-bit Triple DES with DSA, DHE, and a SHA1 MAC
  {"security.ssl3.rsa_seed_sha", TLS_RSA_WITH_SEED_CBC_SHA}, // SEED encryption with RSA and a SHA1 MAC
- {"security.ssl3.ecdhe_ecdsa_aes_128_gcm_sha256", TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256}, // 128-bit AES-GCM encryption with ECDHE-ECDSA
- {"security.ssl3.ecdhe_rsa_aes_128_gcm_sha256", TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256}, // 128-bit AES-GCM encryption with ECDHE-RSA
  {nullptr, 0} /* end marker */
 };
 
@@ -1215,10 +1212,11 @@ nsNSSComponent::InitializeNSS(bool showWarningBox)
                              SSL_RENEGOTIATE_UNRESTRICTED :
                              SSL_RENEGOTIATE_REQUIRES_XTN);
 
-//    Bug 920248: temporarily disable false start
-//    bool falseStartEnabled = Preferences::GetBool("security.ssl.enable_false_start",
-//                                                  FALSE_START_ENABLED_DEFAULT);
-      SSL_OptionSetDefault(SSL_ENABLE_FALSE_START, false);
+#ifdef SSL_ENABLE_FALSE_START // Requires NSS 3.12.8
+      bool falseStartEnabled = Preferences::GetBool("security.ssl.enable_false_start",
+                                                    FALSE_START_ENABLED_DEFAULT);
+      SSL_OptionSetDefault(SSL_ENABLE_FALSE_START, falseStartEnabled);
+#endif
 
       // Disable any ciphers that NSS might have enabled by default
       for (uint16_t i = 0; i < SSL_NumImplementedCiphers; ++i)
@@ -1650,11 +1648,12 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
                            allowUnrestrictedRenego ?
                              SSL_RENEGOTIATE_UNRESTRICTED :
                              SSL_RENEGOTIATE_REQUIRES_XTN);
+#ifdef SSL_ENABLE_FALSE_START // Requires NSS 3.12.8
     } else if (prefName.Equals("security.ssl.enable_false_start")) {
-//    Bug 920248: temporarily disable false start
-//    bool falseStartEnabled = Preferences::GetBool("security.ssl.enable_false_start",
-//                                                  FALSE_START_ENABLED_DEFAULT);
-      SSL_OptionSetDefault(SSL_ENABLE_FALSE_START, false);
+      bool falseStartEnabled = Preferences::GetBool("security.ssl.enable_false_start",
+                                                    FALSE_START_ENABLED_DEFAULT);
+      SSL_OptionSetDefault(SSL_ENABLE_FALSE_START, falseStartEnabled);
+#endif
     } else if (prefName.Equals("security.OCSP.enabled")
                || prefName.Equals("security.CRL_download.enabled")
                || prefName.Equals("security.fresh_revocation_info.require")

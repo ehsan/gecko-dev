@@ -18,7 +18,7 @@
 #include "nsDeviceContext.h"            // for nsDeviceContext
 #include "nsFontMetrics.h"              // for nsFontMetrics
 #include "nsISupports.h"                // for NS_INLINE_DECL_REFCOUNTING, etc
-#include "nsString.h"               // for nsString
+#include "nsStringGlue.h"               // for nsString
 #include "nscore.h"                     // for PRUnichar
 
 class gfxASurface;

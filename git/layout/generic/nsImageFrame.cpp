@@ -5,12 +5,10 @@
 
 /* rendering object for replaced elements with bitmap image data */
 
-#include "nsImageFrame.h"
-
 #include "mozilla/DebugOnly.h"
-#include "mozilla/MouseEvents.h"
 
 #include "nsCOMPtr.h"
+#include "nsImageFrame.h"
 #include "nsIImageLoadingContent.h"
 #include "nsString.h"
 #include "nsPrintfCString.h"
@@ -38,6 +36,7 @@
 #include "nsAccessibilityService.h"
 #endif
 #include "nsIDOMNode.h"
+#include "nsGUIEvent.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
 
@@ -58,7 +57,6 @@
 #include "ImageContainer.h"
 #include "nsStyleSet.h"
 #include "nsBlockFrame.h"
-#include "nsStyleStructInlines.h"
 
 #include "mozilla/Preferences.h"
 
@@ -266,8 +264,8 @@ nsImageFrame::UpdateIntrinsicSize(imgIContainer* aImage)
   if (!aImage)
     return false;
 
-  IntrinsicSize oldIntrinsicSize = mIntrinsicSize;
-  mIntrinsicSize = IntrinsicSize();
+  nsIFrame::IntrinsicSize oldIntrinsicSize = mIntrinsicSize;
+  mIntrinsicSize = nsIFrame::IntrinsicSize();
 
   // Set intrinsic size to match aImage's reported intrinsic width & height.
   nsSize intrinsicSize;
@@ -794,7 +792,7 @@ nsImageFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
     mIntrinsicSize.width.GetCoordValue() : 0;
 }
 
-/* virtual */ IntrinsicSize
+/* virtual */ nsIFrame::IntrinsicSize
 nsImageFrame::GetIntrinsicSize()
 {
   return mIntrinsicSize;
@@ -1598,7 +1596,7 @@ nsImageFrame::GetAnchorHREFTargetAndNode(nsIURI** aHref, nsString& aTarget,
 }
 
 NS_IMETHODIMP  
-nsImageFrame::GetContentForEvent(WidgetEvent* aEvent,
+nsImageFrame::GetContentForEvent(nsEvent* aEvent,
                                  nsIContent** aContent)
 {
   NS_ENSURE_ARG_POINTER(aContent);
@@ -1611,8 +1609,7 @@ nsImageFrame::GetContentForEvent(WidgetEvent* aEvent,
   // XXX We need to make this special check for area element's capturing the
   // mouse due to bug 135040. Remove it once that's fixed.
   nsIContent* capturingContent =
-    aEvent->HasMouseEventMessage() ? nsIPresShell::GetCapturingContent() :
-                                     nullptr;
+    NS_IS_MOUSE_EVENT(aEvent) ? nsIPresShell::GetCapturingContent() : nullptr;
   if (capturingContent && capturingContent->GetPrimaryFrame() == this) {
     *aContent = capturingContent;
     NS_IF_ADDREF(*aContent);
@@ -1640,15 +1637,14 @@ nsImageFrame::GetContentForEvent(WidgetEvent* aEvent,
 // XXX what should clicks on transparent pixels do?
 NS_IMETHODIMP
 nsImageFrame::HandleEvent(nsPresContext* aPresContext,
-                          WidgetGUIEvent* aEvent,
+                          nsGUIEvent* aEvent,
                           nsEventStatus* aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
 
   if ((aEvent->eventStructType == NS_MOUSE_EVENT &&
        aEvent->message == NS_MOUSE_BUTTON_UP && 
-       static_cast<WidgetMouseEvent*>(aEvent)->button ==
-         WidgetMouseEvent::eLeftButton) ||
+       static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton) ||
       aEvent->message == NS_MOUSE_MOVE) {
     nsImageMap* map = GetImageMap();
     bool isServerMap = IsServerImageMap();

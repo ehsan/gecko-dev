@@ -113,12 +113,12 @@ Sanitizer.prototype = {
     cache: {
       clear: function ()
       {
-        var cache = Cc["@mozilla.org/netwerk/cache-storage-service;1"].
-                    getService(Ci.nsICacheStorageService);
+        var cacheService = Cc["@mozilla.org/network/cache-service;1"].
+                          getService(Ci.nsICacheService);
         try {
           // Cache doesn't consult timespan, nor does it have the
           // facility for timespan-based eviction.  Wipe it.
-          cache.clear();
+          cacheService.evictEntries(Ci.nsICache.STORE_ANYWHERE);
         } catch(er) {}
 
         var imageCache = Cc["@mozilla.org/image/tools;1"].

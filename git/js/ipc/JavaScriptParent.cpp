@@ -19,7 +19,6 @@ using namespace js;
 using namespace JS;
 using namespace mozilla;
 using namespace mozilla::jsipc;
-using namespace mozilla::dom;
 
 JavaScriptParent::JavaScriptParent()
   : refcount_(1),
@@ -485,7 +484,7 @@ JavaScriptParent::className(JSContext *cx, HandleObject proxy)
 
     nsString name;
     if (!CallClassName(objId, &name))
-        return nullptr;
+        return NULL;
 
     return ToNewCString(name);
 }
@@ -558,13 +557,13 @@ JavaScriptParent::unwrap(JSContext *cx, ObjectId objId)
     RootedObject obj(cx, findObject(objId));
     if (obj) {
         if (!JS_WrapObject(cx, obj.address()))
-            return nullptr;
+            return NULL;
         return obj;
     }
 
     if (objId > MAX_CPOW_IDS) {
         JS_ReportError(cx, "unusable CPOW id");
-        return nullptr;
+        return NULL;
     }
 
     bool callable = !!(objId & OBJECT_IS_CALLABLE);
@@ -575,14 +574,14 @@ JavaScriptParent::unwrap(JSContext *cx, ObjectId objId)
     obj = NewProxyObject(cx,
                          &CPOWProxyHandler::singleton,
                          v,
-                         nullptr,
+                         NULL,
                          global,
                          callable ? ProxyIsCallable : ProxyNotCallable);
     if (!obj)
-        return nullptr;
+        return NULL;
 
     if (!objects_.add(objId, obj))
-        return nullptr;
+        return NULL;
 
     // Incref once we know the decref will be called.
     incref();
@@ -602,14 +601,11 @@ JavaScriptParent::ipcfail(JSContext *cx)
 bool
 JavaScriptParent::ok(JSContext *cx, const ReturnStatus &status)
 {
-    if (status.type() == ReturnStatus::TReturnSuccess)
+    if (status.ok())
         return true;
 
-    if (status.type() == ReturnStatus::TReturnStopIteration)
-        return JS_ThrowStopIteration(cx);
-
     RootedValue exn(cx);
-    if (!toValue(cx, status.get_ReturnException().exn(), &exn))
+    if (!toValue(cx, status.exn(), &exn))
         return false;
 
     JS_SetPendingException(cx, exn);
@@ -661,7 +657,7 @@ JavaScriptParent::instanceOf(JSObject *obj, const nsID *id, bool *bp)
     if (!CallInstanceOf(objId, iid, &status, bp))
         return NS_ERROR_UNEXPECTED;
 
-    if (status.type() != ReturnStatus::TReturnSuccess)
+    if (!status.ok())
         return NS_ERROR_UNEXPECTED;
 
     return NS_OK;
@@ -682,19 +678,8 @@ JavaScriptParent::domInstanceOf(JSObject *obj, int prototypeID, int depth, bool 
     if (!CallDOMInstanceOf(objId, prototypeID, depth, &status, bp))
         return false;
 
-    if (status.type() != ReturnStatus::TReturnSuccess)
+    if (!status.ok())
         return false;
 
     return true;
-}
-
-mozilla::ipc::IProtocol*
-JavaScriptParent::CloneProtocol(Channel* aChannel, ProtocolCloneContext* aCtx)
-{
-    ContentParent *contentParent = aCtx->GetContentParent();
-    nsAutoPtr<PJavaScriptParent> actor(contentParent->AllocPJavaScriptParent());
-    if (!actor || !contentParent->RecvPJavaScriptConstructor(actor)) {
-        return nullptr;
-    }
-    return actor.forget();
 }

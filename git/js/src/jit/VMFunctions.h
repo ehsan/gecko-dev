@@ -10,6 +10,7 @@
 #include "jspubtd.h"
 
 #include "jit/CompileInfo.h"
+#include "jit/Ion.h"
 #include "jit/IonFrames.h"
 
 namespace js {
@@ -43,11 +44,10 @@ struct PopValues
 // Contains information about a virtual machine function that can be called
 // from JIT code. Functions described in this manner must conform to a simple
 // protocol: the return type must have a special "failure" value (for example,
-// false for bool, or nullptr for Objects). If the function is designed to
-// return a value that does not meet this requirement - such as
-// object-or-nullptr, or an integer, an optional, final outParam can be
-// specified. In this case, the return type must be boolean to indicate
-// failure.
+// false for bool, or NULL for Objects). If the function is designed to return
+// a value that does not meet this requirement - such as object-or-NULL, or an
+// integer, an optional, final outParam can be specified. In this case, the
+// return type must be boolean to indicate failure.
 //
 // All functions described by VMFunction take a JSContext * as a first
 // argument, and are treated as re-entrant into the VM and therefore fallible.
@@ -93,7 +93,7 @@ struct VMFunction
     // constructor. If the C function use an outparam (!= Type_Void), then
     // the only valid failure/return type is boolean -- object pointers are
     // pointless because the wrapper will only use it to compare it against
-    // nullptr before discarding its value.
+    // NULL before discarding its value.
     DataType returnType;
 
     // Note: a maximum of seven root types is supported.
@@ -189,7 +189,7 @@ struct VMFunction
     }
 
     VMFunction()
-      : wrapped(nullptr),
+      : wrapped(NULL),
         explicitArgs(0),
         argumentProperties(0),
         argumentPassedInFloatRegs(0),
@@ -556,7 +556,7 @@ class AutoDetectInvalidation
     bool disabled_;
 
   public:
-    AutoDetectInvalidation(JSContext *cx, Value *rval, IonScript *ionScript = nullptr)
+    AutoDetectInvalidation(JSContext *cx, Value *rval, IonScript *ionScript = NULL)
       : cx_(cx),
         ionScript_(ionScript ? ionScript : GetTopIonJSScript(cx)->ionScript()),
         rval_(rval),
@@ -575,8 +575,7 @@ class AutoDetectInvalidation
 };
 
 bool InvokeFunction(JSContext *cx, HandleObject obj0, uint32_t argc, Value *argv, Value *rval);
-JSObject *NewGCThing(JSContext *cx, gc::AllocKind allocKind, size_t thingSize,
-                     gc::InitialHeap initialHeap);
+JSObject *NewGCThing(JSContext *cx, gc::AllocKind allocKind, size_t thingSize);
 
 bool CheckOverRecursed(JSContext *cx);
 bool CheckOverRecursedWithExtra(JSContext *cx, uint32_t extra);
@@ -641,7 +640,6 @@ bool FilterArguments(JSContext *cx, JSString *str);
 
 #ifdef JSGC_GENERATIONAL
 void PostWriteBarrier(JSRuntime *rt, JSObject *obj);
-void PostGlobalWriteBarrier(JSRuntime *rt, JSObject *obj);
 #endif
 
 uint32_t GetIndexFromString(JSString *str);
@@ -665,9 +663,6 @@ bool LeaveBlock(JSContext *cx, BaselineFrame *frame);
 
 bool InitBaselineFrameForOsr(BaselineFrame *frame, StackFrame *interpFrame,
                              uint32_t numStackValues);
-
-JSObject *CreateDerivedTypedObj(JSContext *cx, HandleObject type,
-                                HandleObject owner, int32_t offset);
 
 } // namespace jit
 } // namespace js

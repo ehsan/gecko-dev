@@ -33,8 +33,6 @@
 #include "nsJSUtils.h"
 #include "nsCxPusher.h"
 #include "nsThreadUtils.h"
-#include "nsServiceManagerUtils.h"
-#include "nsComponentManagerUtils.h"
 
 using namespace mozilla::dom::gonk;
 using namespace android;
@@ -138,7 +136,7 @@ public:
       static_cast<AudioManager *>(audioManager.get())->SetStreamVolumeIndex(
         AUDIO_STREAM_BLUETOOTH_SCO, volIndex);
     } else {
-      MOZ_ASSUME_UNREACHABLE("unexpected audio channel for volume control");
+      MOZ_ASSERT("unexpected audio channel for volume control");
     }
 
     return NS_OK;

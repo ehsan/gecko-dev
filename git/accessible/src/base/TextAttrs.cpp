@@ -14,7 +14,6 @@
 #include "nsFontMetrics.h"
 #include "nsLayoutUtils.h"
 #include "HyperTextAccessible.h"
-#include "mozilla/AppUnits.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -505,7 +504,7 @@ TextAttrsMgr::FontSizeTextAttr::
   //
   // XXX todo: consider sharing this code with layout module? (bug 474621)
   float px =
-    NSAppUnitsToFloatPixels(aValue, mozilla::AppUnitsPerCSSPixel());
+    NSAppUnitsToFloatPixels(aValue, nsDeviceContext::AppUnitsPerCSSPixel());
   // Each pt is 4/3 of a CSS pixel.
   int pts = NS_lround(px*3/4);
 

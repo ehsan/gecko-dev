@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MouseEvents.h"
 #include "mozilla/Util.h"
 #include "mozilla/Likely.h"
 
@@ -34,7 +33,7 @@
 #include "nsIURL.h"
 #include "nsNetUtil.h"
 #include "nsEscape.h"
-#include "nsIFrameInlines.h"
+#include "nsIFrame.h"
 #include "nsIScrollableFrame.h"
 #include "nsView.h"
 #include "nsViewManager.h"
@@ -68,7 +67,7 @@
 #include "nsFocusManager.h"
 #include "nsAttrValueOrString.h"
 
-#include "mozilla/MutationEvent.h"
+#include "nsMutationEvent.h"
 #include "nsDOMStringMap.h"
 
 #include "nsIEditor.h"
@@ -100,7 +99,6 @@
 #include "nsDOMTouchEvent.h"
 #include "nsGlobalWindow.h"
 #include "mozilla/dom/HTMLBodyElement.h"
-#include "imgIContainer.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -870,7 +868,8 @@ nsGenericHTMLElement::GetOn##name_()                                          \
   return nsINode::GetOn##name_();                                             \
 }                                                                             \
 void                                                                          \
-nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
+nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler,              \
+                                   ErrorResult& error)                        \
 {                                                                             \
   if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
@@ -880,10 +879,10 @@ nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
                                                                               \
     nsCOMPtr<nsISupports> supports = do_QueryInterface(win);                  \
     nsGlobalWindow* globalWin = nsGlobalWindow::FromSupports(supports);       \
-    return globalWin->SetOn##name_(handler);                                  \
+    return globalWin->SetOn##name_(handler, error);                           \
   }                                                                           \
                                                                               \
-  return nsINode::SetOn##name_(handler);                                      \
+  return nsINode::SetOn##name_(handler, error);                               \
 }
 #define ERROR_EVENT(name_, id_, type_, struct_)                               \
 already_AddRefed<EventHandlerNonNull>                                         \
@@ -909,7 +908,8 @@ nsGenericHTMLElement::GetOn##name_()                                          \
   return handler.forget();                                                    \
 }                                                                             \
 void                                                                          \
-nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
+nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler,              \
+                                   ErrorResult& error)                        \
 {                                                                             \
   if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
@@ -923,10 +923,10 @@ nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
     if (handler) {                                                            \
       errorHandler = new OnErrorEventHandlerNonNull(handler);                 \
     }                                                                         \
-    return globalWin->SetOn##name_(errorHandler);                             \
+    return globalWin->SetOn##name_(errorHandler, error);                      \
   }                                                                           \
                                                                               \
-  return nsINode::SetOn##name_(handler);                                      \
+  return nsINode::SetOn##name_(handler, error);                               \
 }
 #include "nsEventNameList.h" // IWYU pragma: keep
 #undef ERROR_EVENT
@@ -2731,8 +2731,8 @@ nsGenericHTMLElement::Click()
   // Click() is never called from native code, but it may be
   // called from chrome JS. Mark this event trusted if Click()
   // is called from chrome code.
-  WidgetMouseEvent event(nsContentUtils::IsCallerChrome(),
-                         NS_MOUSE_CLICK, nullptr, WidgetMouseEvent::eReal);
+  nsMouseEvent event(nsContentUtils::IsCallerChrome(),
+                     NS_MOUSE_CLICK, nullptr, nsMouseEvent::eReal);
   event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
 
   nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), context, &event);
@@ -2834,8 +2834,8 @@ nsGenericHTMLElement::PerformAccesskey(bool aKeyCausesActivation,
 
   if (aKeyCausesActivation) {
     // Click on it if the users prefs indicate to do so.
-    WidgetMouseEvent event(aIsTrustedEvent, NS_MOUSE_CLICK, nullptr,
-                           WidgetMouseEvent::eReal);
+    nsMouseEvent event(aIsTrustedEvent, NS_MOUSE_CLICK,
+                       nullptr, nsMouseEvent::eReal);
     event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
 
     nsAutoPopupStatePusher popupStatePusher(aIsTrustedEvent ?

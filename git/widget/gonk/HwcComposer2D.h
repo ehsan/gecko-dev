@@ -75,7 +75,6 @@ private:
     nsIntRect               mScreenRect;
     int                     mMaxLayerCount;
     bool                    mColorFill;
-    bool                    mRBSwapSupport;
     //Holds all the dynamically allocated RectVectors needed
     //to render the current frame
     std::list<RectVector>   mVisibleRegions;

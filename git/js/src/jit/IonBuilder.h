@@ -12,11 +12,8 @@
 // This file declares the data structures for building a MIRGraph from a
 // JSScript.
 
-#include "jit/BytecodeAnalysis.h"
 #include "jit/MIR.h"
-#include "jit/MIRGenerator.h"
 #include "jit/MIRGraph.h"
-#include "jit/TypeRepresentationSet.h"
 
 namespace js {
 namespace jit {
@@ -121,7 +118,7 @@ class IonBuilder : public MIRGenerator
                 // pc for 'continue' jumps.
                 jsbytecode *continuepc;
 
-                // Common exit point. Created lazily, so it may be nullptr.
+                // Common exit point. Created lazily, so it may be NULL.
                 MBasicBlock *successor;
 
                 // Deferred break and continue targets.
@@ -229,7 +226,7 @@ class IonBuilder : public MIRGenerator
 
     JSFunction *getSingleCallTarget(types::TemporaryTypeSet *calleeTypes);
     bool getPolyCallTargets(types::TemporaryTypeSet *calleeTypes, bool constructing,
-                            ObjectVector &targets, uint32_t maxTargets, bool *gotLambda);
+                            AutoObjectVector &targets, uint32_t maxTargets, bool *gotLambda);
     bool canInlineTarget(JSFunction *target, bool constructing);
 
     void popCfgStack();
@@ -264,7 +261,7 @@ class IonBuilder : public MIRGenerator
     bool pushLoop(CFGState::State state, jsbytecode *stopAt, MBasicBlock *entry, bool osr,
                   jsbytecode *loopHead, jsbytecode *initialPc,
                   jsbytecode *bodyStart, jsbytecode *bodyEnd, jsbytecode *exitpc,
-                  jsbytecode *continuepc = nullptr);
+                  jsbytecode *continuepc = NULL);
     void analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecode *end);
 
     MBasicBlock *addBlock(MBasicBlock *block, uint32_t loopDepth);
@@ -276,10 +273,10 @@ class IonBuilder : public MIRGenerator
     MBasicBlock *newOsrPreheader(MBasicBlock *header, jsbytecode *loopEntry);
     MBasicBlock *newPendingLoopHeader(MBasicBlock *predecessor, jsbytecode *pc, bool osr);
     MBasicBlock *newBlock(jsbytecode *pc) {
-        return newBlock(nullptr, pc);
+        return newBlock(NULL, pc);
     }
     MBasicBlock *newBlockAfter(MBasicBlock *at, jsbytecode *pc) {
-        return newBlockAfter(at, nullptr, pc);
+        return newBlockAfter(at, NULL, pc);
     }
 
     // Given a list of pending breaks, creates a new block and inserts a Goto
@@ -322,7 +319,7 @@ class IonBuilder : public MIRGenerator
     bool initParameters();
     void rewriteParameter(uint32_t slotIdx, MDefinition *param, int32_t argIndex);
     void rewriteParameters();
-    bool initScopeChain(MDefinition *callee = nullptr);
+    bool initScopeChain(MDefinition *callee = NULL);
     bool initArgumentsObject();
     bool pushConstant(const Value &v);
 
@@ -333,8 +330,8 @@ class IonBuilder : public MIRGenerator
     JSObject *getSingletonPrototype(JSFunction *target);
 
     MDefinition *createThisScripted(MDefinition *callee);
-    MDefinition *createThisScriptedSingleton(JSFunction *target, MDefinition *callee);
-    MDefinition *createThis(JSFunction *target, MDefinition *callee);
+    MDefinition *createThisScriptedSingleton(HandleFunction target, MDefinition *callee);
+    MDefinition *createThis(HandleFunction target, MDefinition *callee);
     MInstruction *createDeclEnvObject(MDefinition *callee, MDefinition *scopeObj);
     MInstruction *createCallObject(MDefinition *callee, MDefinition *scopeObj);
 
@@ -350,7 +347,7 @@ class IonBuilder : public MIRGenerator
 
     bool invalidatedIdempotentCache();
 
-    bool hasStaticScopeObject(ScopeCoordinate sc, JSObject **pcall);
+    bool hasStaticScopeObject(ScopeCoordinate sc, MutableHandleObject pcall);
     bool loadSlot(MDefinition *obj, Shape *shape, MIRType rvalType,
                   bool barrier, types::TemporaryTypeSet *types);
     bool storeSlot(MDefinition *obj, Shape *shape, MDefinition *value, bool needsBarrier,
@@ -358,62 +355,34 @@ class IonBuilder : public MIRGenerator
 
     // jsop_getprop() helpers.
     bool getPropTryArgumentsLength(bool *emitted);
-    bool getPropTryConstant(bool *emitted, jsid id, types::TemporaryTypeSet *types);
-    bool getPropTryDefiniteSlot(bool *emitted, PropertyName *name,
+    bool getPropTryConstant(bool *emitted, HandleId id, types::TemporaryTypeSet *types);
+    bool getPropTryDefiniteSlot(bool *emitted, HandlePropertyName name,
                                 bool barrier, types::TemporaryTypeSet *types);
-    bool getPropTryCommonGetter(bool *emitted, jsid id, types::TemporaryTypeSet *types);
-    bool getPropTryInlineAccess(bool *emitted, PropertyName *name, jsid id,
+    bool getPropTryCommonGetter(bool *emitted, HandleId id,
                                 bool barrier, types::TemporaryTypeSet *types);
-    bool getPropTryTypedObject(bool *emitted, jsid id,
-                               types::TemporaryTypeSet *resultTypes);
-    bool getPropTryScalarPropOfTypedObject(bool *emitted,
-                                           int32_t fieldOffset,
-                                           TypeRepresentationSet fieldTypeReprs,
-                                           types::TemporaryTypeSet *resultTypes);
-    bool getPropTryComplexPropOfTypedObject(bool *emitted,
-                                            int32_t fieldOffset,
-                                            TypeRepresentationSet fieldTypeReprs,
-                                            size_t fieldIndex,
-                                            types::TemporaryTypeSet *resultTypes);
-    bool getPropTryCache(bool *emitted, PropertyName *name, jsid id,
+    bool getPropTryInlineAccess(bool *emitted, HandlePropertyName name, HandleId id,
+                                bool barrier, types::TemporaryTypeSet *types);
+    bool getPropTryCache(bool *emitted, HandlePropertyName name, HandleId id,
                          bool barrier, types::TemporaryTypeSet *types);
     bool needsToMonitorMissingProperties(types::TemporaryTypeSet *types);
 
     // jsop_setprop() helpers.
     bool setPropTryCommonSetter(bool *emitted, MDefinition *obj,
-                                PropertyName *name, jsid id,
+                                HandlePropertyName name, HandleId id,
                                 MDefinition *value);
     bool setPropTryCommonDOMSetter(bool *emitted, MDefinition *obj,
-                                   MDefinition *value, JSFunction *setter,
+                                   MDefinition *value, HandleFunction setter,
                                    bool isDOM);
     bool setPropTryDefiniteSlot(bool *emitted, MDefinition *obj,
-                                PropertyName *name, MDefinition *value,
+                                HandlePropertyName name, MDefinition *value,
                                 bool barrier, types::TemporaryTypeSet *objTypes);
     bool setPropTryInlineAccess(bool *emitted, MDefinition *obj,
-                                PropertyName *name, jsid id,
+                                HandlePropertyName name, HandleId id,
                                 MDefinition *value, bool barrier,
                                 types::TemporaryTypeSet *objTypes);
-    bool setPropTryTypedObject(bool *emitted, MDefinition *obj,
-                               jsid id, MDefinition *value);
     bool setPropTryCache(bool *emitted, MDefinition *obj,
-                         PropertyName *name, MDefinition *value,
+                         HandlePropertyName name, MDefinition *value,
                          bool barrier, types::TemporaryTypeSet *objTypes);
-
-    // binary data lookup helpers.
-    bool lookupTypeRepresentationSet(MDefinition *typedObj,
-                                     TypeRepresentationSet *out);
-    bool lookupTypedObjectField(MDefinition *typedObj,
-                                jsid id,
-                                int32_t *fieldOffset,
-                                TypeRepresentationSet *fieldTypeReprs,
-                                size_t *fieldIndex);
-    MDefinition *loadTypedObjectType(MDefinition *value);
-    void loadTypedObjectData(MDefinition *inOwner,
-                             int32_t inOffset,
-                             MDefinition **outOwner,
-                             MDefinition **outOffset);
-    MDefinition *typeObjectForFieldFromStructType(MDefinition *type,
-                                                  size_t fieldIndex);
 
     // jsop_setelem() helpers.
     bool setElemTryTyped(bool *emitted, MDefinition *object,
@@ -447,7 +416,6 @@ class IonBuilder : public MIRGenerator
     bool jsop_binary(JSOp op, MDefinition *left, MDefinition *right);
     bool jsop_pos();
     bool jsop_neg();
-    bool jsop_setarg(uint32_t arg);
     bool jsop_defvar(uint32_t index);
     bool jsop_deffun(uint32_t index);
     bool jsop_notearg();
@@ -464,10 +432,10 @@ class IonBuilder : public MIRGenerator
     bool jsop_dup2();
     bool jsop_loophead(jsbytecode *pc);
     bool jsop_compare(JSOp op);
-    bool getStaticName(JSObject *staticObject, PropertyName *name, bool *psucceeded);
-    bool setStaticName(JSObject *staticObject, PropertyName *name);
-    bool jsop_getname(PropertyName *name);
-    bool jsop_intrinsic(PropertyName *name);
+    bool getStaticName(HandleObject staticObject, HandlePropertyName name, bool *psucceeded);
+    bool setStaticName(HandleObject staticObject, HandlePropertyName name);
+    bool jsop_getname(HandlePropertyName name);
+    bool jsop_intrinsic(HandlePropertyName name);
     bool jsop_bindname(PropertyName *name);
     bool jsop_getelem();
     bool jsop_getelem_dense(MDefinition *obj, MDefinition *index);
@@ -487,16 +455,16 @@ class IonBuilder : public MIRGenerator
     bool jsop_runonce();
     bool jsop_rest();
     bool jsop_not();
-    bool jsop_getprop(PropertyName *name);
-    bool jsop_setprop(PropertyName *name);
-    bool jsop_delprop(PropertyName *name);
+    bool jsop_getprop(HandlePropertyName name);
+    bool jsop_setprop(HandlePropertyName name);
+    bool jsop_delprop(HandlePropertyName name);
     bool jsop_delelem();
     bool jsop_newarray(uint32_t count);
-    bool jsop_newobject(JSObject *baseObj);
+    bool jsop_newobject(HandleObject baseObj);
     bool jsop_initelem();
     bool jsop_initelem_array();
     bool jsop_initelem_getter_setter();
-    bool jsop_initprop(PropertyName *name);
+    bool jsop_initprop(HandlePropertyName name);
     bool jsop_initprop_getter_setter(PropertyName *name);
     bool jsop_regexp(RegExpObject *reobj);
     bool jsop_object(JSObject *obj);
@@ -526,8 +494,7 @@ class IonBuilder : public MIRGenerator
     // Oracles.
     bool canEnterInlinedFunction(JSFunction *target);
     bool makeInliningDecision(JSFunction *target, CallInfo &callInfo);
-    uint32_t selectInliningTargets(ObjectVector &targets, CallInfo &callInfo,
-                                   BoolVector &choiceSet);
+    uint32_t selectInliningTargets(AutoObjectVector &targets, CallInfo &callInfo, Vector<bool> &choiceSet);
 
     // Native inlining helpers.
     types::StackTypeSet *getOriginalInlineReturnTypeSet();
@@ -602,10 +569,10 @@ class IonBuilder : public MIRGenerator
     InliningStatus inlineSingleCall(CallInfo &callInfo, JSFunction *target);
 
     // Call functions
-    InliningStatus inlineCallsite(ObjectVector &targets, ObjectVector &originals,
+    InliningStatus inlineCallsite(AutoObjectVector &targets, AutoObjectVector &originals,
                                   bool lambda, CallInfo &callInfo);
-    bool inlineCalls(CallInfo &callInfo, ObjectVector &targets, ObjectVector &originals,
-                     BoolVector &choiceSet, MGetPropertyCache *maybeCache);
+    bool inlineCalls(CallInfo &callInfo, AutoObjectVector &targets, AutoObjectVector &originals,
+                     Vector<bool> &choiceSet, MGetPropertyCache *maybeCache);
 
     // Inlining helpers.
     bool inlineGenericFallback(JSFunction *target, CallInfo &callInfo, MBasicBlock *dispatchBlock,
@@ -614,17 +581,17 @@ class IonBuilder : public MIRGenerator
                                   MTypeObjectDispatch *dispatch, MGetPropertyCache *cache,
                                   MBasicBlock **fallbackTarget);
 
-    bool testNeedsArgumentCheck(JSContext *cx, JSFunction *target, CallInfo &callInfo);
+    bool testNeedsArgumentCheck(JSContext *cx, HandleFunction target, CallInfo &callInfo);
 
-    MDefinition *makeCallsiteClone(JSFunction *target, MDefinition *fun);
-    MCall *makeCallHelper(JSFunction *target, CallInfo &callInfo, bool cloneAtCallsite);
-    bool makeCall(JSFunction *target, CallInfo &callInfo, bool cloneAtCallsite);
+    MDefinition *makeCallsiteClone(HandleFunction target, MDefinition *fun);
+    MCall *makeCallHelper(HandleFunction target, CallInfo &callInfo, bool cloneAtCallsite);
+    bool makeCall(HandleFunction target, CallInfo &callInfo, bool cloneAtCallsite);
 
     MDefinition *patchInlinedReturn(CallInfo &callInfo, MBasicBlock *exit, MBasicBlock *bottom);
     MDefinition *patchInlinedReturns(CallInfo &callInfo, MIRGraphExits &exits, MBasicBlock *bottom);
 
-    inline bool testCommonPropFunc(JSContext *cx, types::TemporaryTypeSet *types,
-                                   jsid id, JSFunction **funcp,
+    inline bool TestCommonPropFunc(JSContext *cx, types::TemporaryTypeSet *types,
+                                   HandleId id, JSFunction **funcp,
                                    bool isGetter, bool *isDOM,
                                    MDefinition **guardOut);
 
@@ -672,27 +639,10 @@ class IonBuilder : public MIRGenerator
 
     AbortReason abortReason() { return abortReason_; }
 
-    TypeRepresentationSetHash *getOrCreateReprSetHash(); // fallible
-
-    bool isInlineBuilder() const {
-        return callerBuilder_ != NULL;
-    }
-
   private:
-    bool init();
-
     JSContext *cx;
     BaselineFrame *baselineFrame_;
     AbortReason abortReason_;
-    ScopedJSDeletePtr<TypeRepresentationSetHash> reprSetHash_;
-
-    // Basic analysis information about the script.
-    BytecodeAnalysis analysis_;
-    BytecodeAnalysis &analysis() {
-        return analysis_;
-    }
-
-    GSNCache gsn;
 
     jsbytecode *pc;
     MBasicBlock *current;
@@ -701,7 +651,7 @@ class IonBuilder : public MIRGenerator
     /* Information used for inline-call builders. */
     MResumePoint *callerResumePoint_;
     jsbytecode *callerPC() {
-        return callerResumePoint_ ? callerResumePoint_->pc() : nullptr;
+        return callerResumePoint_ ? callerResumePoint_->pc() : NULL;
     }
     IonBuilder *callerBuilder_;
 
@@ -752,15 +702,16 @@ class CallInfo
 {
     MDefinition *fun_;
     MDefinition *thisArg_;
-    MDefinitionVector args_;
+    Vector<MDefinition *> args_;
 
     bool constructing_;
     bool setter_;
 
   public:
-    CallInfo(bool constructing)
-      : fun_(nullptr),
-        thisArg_(nullptr),
+    CallInfo(JSContext *cx, bool constructing)
+      : fun_(NULL),
+        thisArg_(NULL),
+        args_(cx),
         constructing_(constructing),
         setter_(false)
     { }
@@ -813,16 +764,16 @@ class CallInfo
         return argc() + 2;
     }
 
-    void setArgs(MDefinitionVector *args) {
+    void setArgs(Vector<MDefinition *> *args) {
         JS_ASSERT(args_.length() == 0);
         args_.append(args->begin(), args->end());
     }
 
-    MDefinitionVector &argv() {
+    Vector<MDefinition *> &argv() {
         return args_;
     }
 
-    const MDefinitionVector &argv() const {
+    const Vector<MDefinition *> &argv() const {
         return args_;
     }
 

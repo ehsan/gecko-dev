@@ -4,6 +4,10 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 var gPluginHandler = {
+  PLUGIN_SCRIPTED_STATE_NONE: 0,
+  PLUGIN_SCRIPTED_STATE_FIRED: 1,
+  PLUGIN_SCRIPTED_STATE_DONE: 2,
+
   PREF_NOTIFY_MISSING_FLASH: "plugins.notifyMissingFlash",
   PREF_SESSION_PERSIST_MINUTES: "plugin.sessionPermissionNow.intervalInMinutes",
   PREF_PERSISTENT_DAYS: "plugin.persistentPermissionAlways.intervalInDays",
@@ -316,21 +320,8 @@ var gPluginHandler = {
     // Hide the in-content UI if it's too big. The crashed plugin handler already did this.
     if (eventType != "PluginCrashed" && eventType != "PluginRemoved") {
       let overlay = this.getPluginUI(plugin, "main");
-      if (overlay != null) {
-        if (!this.isTooSmall(plugin, overlay))
-          overlay.style.visibility = "visible";
-
-        plugin.addEventListener("overflow", function(event) {
-          overlay.style.visibility = "hidden";
-        });
-        plugin.addEventListener("underflow", function(event) {
-          // this is triggered if only one dimension underflows,
-          // the other dimension might still overflow
-          if (!gPluginHandler.isTooSmall(plugin, overlay)) {
-            overlay.style.visibility = "visible";
-          }
-        });
-      }
+      if (overlay != null && this.isTooSmall(plugin, overlay))
+        overlay.style.visibility = "hidden";
     }
 
     // Only show the notification after we've done the isTooSmall check, so
@@ -424,7 +415,7 @@ var gPluginHandler = {
   // Callback for user clicking on the link in a click-to-play plugin
   // (where the plugin has an update)
   openPluginUpdatePage: function (aEvent) {
-    openUILinkIn(Services.urlFormatter.formatURLPref("plugins.update.url"), "tab");
+    openURL(Services.urlFormatter.formatURLPref("plugins.update.url"));
   },
 
 #ifdef MOZ_CRASHREPORTER
@@ -804,9 +795,7 @@ var gPluginHandler = {
     let contentDoc = aBrowser.contentDocument;
     let cwu = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                            .getInterface(Ci.nsIDOMWindowUtils);
-    // cwu.plugins may contain non-plugin <object>s, filter them out
-    let plugins = cwu.plugins.filter((plugin) =>
-      plugin.getContentTypeForMIMEType(plugin.actualType) == Ci.nsIObjectLoadingContent.TYPE_PLUGIN);
+    let plugins = cwu.plugins;
     if (plugins.length == 0) {
       if (notification) {
         PopupNotifications.remove(notification);

@@ -31,5 +31,6 @@ interface MozVoicemail : EventTarget
   /**
    * The current voicemail status has changed
    */
+  [SetterThrows]
   attribute EventHandler onstatuschanged;
 };

@@ -8,7 +8,6 @@
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/ContentParent.h"
-#include "nsIPropertyBag2.h"
 
 using namespace mozilla;
 using namespace mozilla::hal;

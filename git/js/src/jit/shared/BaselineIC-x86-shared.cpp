@@ -4,8 +4,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jit/BaselineCompiler.h"
 #include "jit/BaselineHelpers.h"
 #include "jit/BaselineIC.h"
+#include "jit/BaselineJIT.h"
+#include "jit/IonLinker.h"
 
 using namespace js;
 using namespace js::jit;
@@ -20,7 +23,7 @@ ICCompare_Double::Compiler::generateStubCode(MacroAssembler &masm)
     Register dest = R0.scratchReg();
 
     Assembler::DoubleCondition cond = JSOpToDoubleCondition(op);
-    masm.mov(ImmWord(0), dest);
+    masm.xorl(dest, dest);
     masm.compareDouble(cond, FloatReg0, FloatReg1);
     masm.setCC(Assembler::ConditionFromDoubleCondition(cond), dest);
 
@@ -28,7 +31,7 @@ ICCompare_Double::Compiler::generateStubCode(MacroAssembler &masm)
     Assembler::NaNCond nanCond = Assembler::NaNCondFromDoubleCondition(cond);
     if (nanCond != Assembler::NaN_HandledByCond) {
       masm.j(Assembler::NoParity, &notNaN);
-      masm.mov(ImmWord(nanCond == Assembler::NaN_IsTrue), dest);
+      masm.mov(Imm32(nanCond == Assembler::NaN_IsTrue), dest);
       masm.bind(&notNaN);
     }
 

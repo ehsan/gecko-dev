@@ -238,8 +238,8 @@ inline MDefinition *
 IsPhiRedundant(MPhi *phi)
 {
     MDefinition *first = phi->operandIfRedundant();
-    if (first == nullptr)
-        return nullptr;
+    if (first == NULL)
+        return NULL;
 
     // Propagate the Folded flag if |phi| is replaced with another phi.
     if (phi->isFolded())
@@ -919,7 +919,17 @@ TypeAnalyzer::checkFloatCoherency()
 
             for (MUseDefIterator use(*def); use; use++) {
                 MDefinition *consumer = use.def();
-                JS_ASSERT(consumer->isConsistentFloat32Use());
+                // The only valid uses of a Float32 are:
+                // - an operation that can consume Float32
+                // - an operation that has been specialized to Float32 (for instance, an add)
+                // - a conversion to Double
+                if (consumer->canConsumeFloat32())
+                    continue;
+                if (consumer->type() == MIRType_Float32)
+                    continue;
+                if (consumer->isToDouble())
+                    continue;
+                MOZ_ASSUME_UNREACHABLE("Float32 flowing into a non float specialized operation");
             }
         }
     }
@@ -979,20 +989,20 @@ IntersectDominators(MBasicBlock *block1, MBasicBlock *block2)
     // For this function to be called, the block must have multiple predecessors.
     // If a finger is then found to be self-dominating, it must therefore be
     // reachable from multiple roots through non-intersecting control flow.
-    // nullptr is returned in this case, to denote an empty intersection.
+    // NULL is returned in this case, to denote an empty intersection.
 
     while (finger1->id() != finger2->id()) {
         while (finger1->id() > finger2->id()) {
             MBasicBlock *idom = finger1->immediateDominator();
             if (idom == finger1)
-                return nullptr; // Empty intersection.
+                return NULL; // Empty intersection.
             finger1 = idom;
         }
 
         while (finger2->id() > finger1->id()) {
             MBasicBlock *idom = finger2->immediateDominator();
             if (idom == finger2)
-                return nullptr; // Empty intersection.
+                return NULL; // Empty intersection.
             finger2 = idom;
         }
     }
@@ -1030,13 +1040,13 @@ ComputeImmediateDominators(MIRGraph &graph)
             // Find the first common dominator.
             for (size_t i = 1; i < block->numPredecessors(); i++) {
                 MBasicBlock *pred = block->getPredecessor(i);
-                if (pred->immediateDominator() == nullptr)
+                if (pred->immediateDominator() == NULL)
                     continue;
 
                 newIdom = IntersectDominators(pred, newIdom);
 
                 // If there is no common dominator, the block self-dominates.
-                if (newIdom == nullptr) {
+                if (newIdom == NULL) {
                     block->setImmediateDominator(*block);
                     changed = true;
                     break;
@@ -1053,7 +1063,7 @@ ComputeImmediateDominators(MIRGraph &graph)
 #ifdef DEBUG
     // Assert that all blocks have dominator information.
     for (MBasicBlockIterator block(graph.begin()); block != graph.end(); block++) {
-        JS_ASSERT(block->immediateDominator() != nullptr);
+        JS_ASSERT(block->immediateDominator() != NULL);
     }
 #endif
 }
@@ -1168,6 +1178,19 @@ jit::BuildPhiReverseMapping(MIRGraph &graph)
     }
 
     return true;
+}
+
+static inline MBasicBlock *
+SkipContainedLoop(MBasicBlock *block, MBasicBlock *header)
+{
+    while (block->loopHeader() || block->isLoopHeader()) {
+        if (block->loopHeader())
+            block = block->loopHeader();
+        if (block == header)
+            break;
+        block = block->loopPredecessor();
+    }
+    return block;
 }
 
 #ifdef DEBUG
@@ -1320,13 +1343,13 @@ jit::AssertExtendedGraphCoherency(MIRGraph &graph)
                 successorWithPhis++;
 
         JS_ASSERT(successorWithPhis <= 1);
-        JS_ASSERT_IF(successorWithPhis, block->successorWithPhis() != nullptr);
+        JS_ASSERT_IF(successorWithPhis, block->successorWithPhis() != NULL);
 
         // I'd like to assert this, but it's not necc. true.  Sometimes we set this
-        // flag to non-nullptr just because a successor has multiple preds, even if it
+        // flag to non-NULL just because a successor has multiple preds, even if it
         // does not actually have any phis.
         //
-        // JS_ASSERT_IF(!successorWithPhis, block->successorWithPhis() == nullptr);
+        // JS_ASSERT_IF(!successorWithPhis, block->successorWithPhis() == NULL);
     }
 #endif
 }
@@ -1366,7 +1389,7 @@ FindDominatingBoundsCheck(BoundsCheckMap &checks, MBoundsCheck *check, size_t in
         info.validUntil = index + check->block()->numDominated();
 
         if(!checks.put(hash, info))
-            return nullptr;
+            return NULL;
 
         return check;
     }
@@ -1387,7 +1410,7 @@ jit::ExtractLinearSum(MDefinition *ins)
     if (ins->isConstant()) {
         const Value &v = ins->toConstant()->value();
         JS_ASSERT(v.isInt32());
-        return SimpleLinearSum(nullptr, v.toInt32());
+        return SimpleLinearSum(NULL, v.toInt32());
     } else if (ins->isAdd() || ins->isSub()) {
         MDefinition *lhs = ins->getOperand(0);
         MDefinition *rhs = ins->getOperand(1);
@@ -1509,7 +1532,7 @@ TryEliminateBoundsCheck(BoundsCheckMap &checks, size_t blockIndex, MBoundsCheck 
     SimpleLinearSum sumA = ExtractLinearSum(dominating->index());
     SimpleLinearSum sumB = ExtractLinearSum(dominated->index());
 
-    // Both terms should be nullptr or the same definition.
+    // Both terms should be NULL or the same definition.
     if (sumA.term != sumB.term)
         return true;
 
@@ -1717,7 +1740,7 @@ jit::EliminateRedundantChecks(MIRGraph &graph)
 }
 
 // If the given block contains a goto and nothing interesting before that,
-// return the goto. Return nullptr otherwise.
+// return the goto. Return NULL otherwise.
 static LGoto *
 FindLeadingGoto(LBlock *bb)
 {
@@ -1733,7 +1756,7 @@ FindLeadingGoto(LBlock *bb)
             return ins->toGoto();
         break;
     }
-    return nullptr;
+    return NULL;
 }
 
 // Eliminate blocks containing nothing interesting besides gotos. These are
@@ -1952,7 +1975,7 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
 
         DebugOnly<unsigned> slotSpan = baseobj->slotSpan();
         RootedValue value(cx, UndefinedValue());
-        if (!DefineNativeProperty(cx, baseobj, id, value, nullptr, nullptr,
+        if (!DefineNativeProperty(cx, baseobj, id, value, NULL, NULL,
                                   JSPROP_ENUMERATE, 0, 0, DNP_SKIP_TYPE))
         {
             return false;
@@ -2071,13 +2094,13 @@ jit::AnalyzeNewScriptProperties(JSContext *cx, JSFunction *fun,
 
     MIRGraph graph(&temp);
     CompileInfo info(fun->nonLazyScript(), fun,
-                     /* osrPc = */ nullptr, /* constructing = */ false,
+                     /* osrPc = */ NULL, /* constructing = */ false,
                      DefinitePropertiesAnalysis);
 
     AutoTempAllocatorRooter root(cx, &temp);
 
     BaselineInspector inspector(cx, fun->nonLazyScript());
-    IonBuilder builder(cx, &temp, &graph, &inspector, &info, /* baselineFrame = */ nullptr);
+    IonBuilder builder(cx, &temp, &graph, &inspector, &info, /* baselineFrame = */ NULL);
 
     if (!builder.build()) {
         if (builder.abortReason() == AbortReason_Alloc)

@@ -22,7 +22,7 @@
 #include "nsContentUtils.h"
 #include "nsIFrame.h"
 #include "nsNodeInfoManager.h"
-#include "mozilla/MouseEvents.h"
+#include "nsGUIEvent.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIDOMWindow.h"
 #include "nsFocusManager.h"
@@ -332,8 +332,8 @@ HTMLImageElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   // element. (bug 39723)
   if (aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT &&
       aVisitor.mEvent->message == NS_MOUSE_CLICK &&
-      static_cast<WidgetMouseEvent*>(aVisitor.mEvent)->button ==
-        WidgetMouseEvent::eLeftButton) {
+      static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+        nsMouseEvent::eLeftButton) {
     bool isMap = false;
     GetIsMap(&isMap);
     if (isMap) {

@@ -9,7 +9,6 @@
 #include "mozAutoDocUpdate.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/HTMLTextAreaElementBinding.h"
-#include "mozilla/MouseEvents.h"
 #include "mozilla/Util.h"
 #include "nsAttrValueInlines.h"
 #include "nsContentCID.h"
@@ -18,6 +17,7 @@
 #include "nsEventDispatcher.h"
 #include "nsFocusManager.h"
 #include "nsFormSubmission.h"
+#include "nsGUIEvent.h"
 #include "nsIComponentManager.h"
 #include "nsIConstraintValidation.h"
 #include "nsIControllers.h"
@@ -38,7 +38,6 @@
 #include "nsReadableUtils.h"
 #include "nsStyleConsts.h"
 #include "nsTextEditorState.h"
-#include "nsIController.h"
 
 static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
 
@@ -135,7 +134,7 @@ HTMLTextAreaElement::Select()
   }
 
   nsEventStatus status = nsEventStatus_eIgnore;
-  WidgetGUIEvent event(true, NS_FORM_SELECTED, nullptr);
+  nsGUIEvent event(true, NS_FORM_SELECTED, nullptr);
   // XXXbz HTMLInputElement guards against this reentering; shouldn't we?
   nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), presContext,
                               &event, nullptr, &status);
@@ -478,8 +477,8 @@ HTMLTextAreaElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   }
   if (aVisitor.mEvent->message == NS_MOUSE_CLICK &&
       aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT &&
-      static_cast<WidgetMouseEvent*>(aVisitor.mEvent)->button ==
-        WidgetMouseEvent::eMiddleButton) {
+      static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+        nsMouseEvent::eMiddleButton) {
     aVisitor.mEvent->mFlags.mNoContentDispatch = false;
   }
 

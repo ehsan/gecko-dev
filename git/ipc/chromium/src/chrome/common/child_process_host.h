@@ -15,12 +15,6 @@
 #include "chrome/common/child_process_info.h"
 #include "chrome/common/ipc_channel.h"
 
-namespace mozilla {
-namespace ipc {
-class FileDescriptor;
-}
-}
-
 class NotificationType;
 
 // Plugins/workers and other child processes that live on the IO thread should
@@ -64,8 +58,6 @@ class ChildProcessHost :
 
   // Creates the IPC channel.  Returns true iff it succeeded.
   bool CreateChannel();
-
-  bool CreateChannel(mozilla::ipc::FileDescriptor& aFileDescriptor);
 
   // Once the subclass gets a handle to the process, it needs to tell
   // ChildProcessHost using this function.

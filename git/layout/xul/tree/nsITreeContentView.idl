@@ -4,8 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsISupports.idl"
-
-interface nsIDOMElement;
+#include "nsIDOMElement.idl"
 
 [scriptable, uuid(5ef62896-0c0a-41f1-bb3c-44a60f5dfdab)]
 interface nsITreeContentView : nsISupports

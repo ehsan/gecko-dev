@@ -203,7 +203,7 @@ private:
   nsresult SendAsyncDBusMessage(const nsAString& aObjectPath,
                                 const char* aInterface,
                                 const nsAString& aMessage,
-                                mozilla::ipc::DBusReplyCallback aCallback);
+                                void (*aCallback)(DBusMessage*, void*));
 };
 
 END_BLUETOOTH_NAMESPACE

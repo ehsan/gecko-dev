@@ -9,6 +9,8 @@
 
 #include "jsobj.h"
 
+#include "jit/Ion.h"
+
 namespace js {
 
 class ParallelArrayObject : public JSObject

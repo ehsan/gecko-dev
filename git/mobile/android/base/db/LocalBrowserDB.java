@@ -231,21 +231,21 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     @Override
-    public Cursor getTopSites(ContentResolver cr, int limit) {
-        // Filter out bookmarks that don't have real parents (e.g. pinned sites or reading list items)
-        String selection = DBUtils.concatenateWhere("", Combined.URL + " NOT IN (SELECT " +
-                                             Bookmarks.URL + " FROM bookmarks WHERE " +
-                                             DBUtils.qualifyColumn("bookmarks", Bookmarks.PARENT) + " < ? AND " +
-                                             DBUtils.qualifyColumn("bookmarks", Bookmarks.IS_DELETED) + " == 0)");
-        String[] selectionArgs = new String[] { String.valueOf(Bookmarks.FIXED_ROOT_ID) };
+    public Cursor getTopBookmarks(ContentResolver cr, int limit) {
+        // Only select bookmarks. Unfortunately, we need to query the combined view,
+        // instead of just the bookmarks table, in order to do the frecency calculation.
+        String selection = Combined.BOOKMARK_ID + " IS NOT NULL";
 
+        // Filter out sites that are pinned.
+        selection = DBUtils.concatenateWhere(selection, Combined.URL + " NOT IN (SELECT " +
+                                             Bookmarks.URL + " FROM bookmarks WHERE " +
+                                             DBUtils.qualifyColumn("bookmarks", Bookmarks.PARENT) + " == ? AND " +
+                                             DBUtils.qualifyColumn("bookmarks", Bookmarks.IS_DELETED) + " == 0)");
+        String[] selectionArgs = DBUtils.appendSelectionArgs(new String[0], new String[] { String.valueOf(Bookmarks.FIXED_PINNED_LIST_ID) });
         return filterAllSites(cr,
                               new String[] { Combined._ID,
                                              Combined.URL,
-                                             Combined.TITLE,
-                                             Combined.DISPLAY,
-                                             Combined.BOOKMARK_ID,
-                                             Combined.HISTORY_ID },
+                                             Combined.TITLE },
                               "",
                               limit,
                               BrowserDB.ABOUT_PAGES_URL_FILTER,
@@ -854,38 +854,20 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         return b;
     }
 
-    /**
-     * Query for non-null thumbnails matching the provided <code>urls</code>.
-     * The returned cursor will have no more than, but possibly fewer than,
-     * the requested number of thumbnails.
-     *
-     * Returns null if the provided list of URLs is empty or null.
-     */
     @Override
     public Cursor getThumbnailsForUrls(ContentResolver cr, List<String> urls) {
-        if (urls == null) {
-            return null;
+        StringBuilder selection = new StringBuilder();
+        String[] selectionArgs = new String[urls.size()];
+
+        for (int i = 0; i < urls.size(); i++) {
+          final String url = urls.get(i);
+
+          if (i > 0)
+            selection.append(" OR ");
+
+          selection.append(Thumbnails.URL + " = ?");
+          selectionArgs[i] = url;
         }
-
-        int urlCount = urls.size();
-        if (urlCount == 0) {
-            return null;
-        }
-
-        // Don't match against null thumbnails.
-        StringBuilder selection = new StringBuilder(
-                Thumbnails.DATA + " IS NOT NULL AND " +
-                Thumbnails.URL + " IN ("
-        );
-
-        // Compute a (?, ?, ?) sequence to match the provided URLs.
-        int i = 1;
-        while (i++ < urlCount) {
-            selection.append("?, ");
-        }
-        selection.append("?)");
-
-        String[] selectionArgs = urls.toArray(new String[urlCount]);
 
         return cr.query(mThumbnailsUriWithProfile,
                         new String[] { Thumbnails.URL, Thumbnails.DATA },

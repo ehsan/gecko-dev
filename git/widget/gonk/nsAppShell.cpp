@@ -33,16 +33,14 @@
 #ifdef MOZ_OMX_DECODER
 #include "MediaResourceManagerService.h"
 #endif
-#include "mozilla/TouchEvents.h"
 #include "mozilla/FileUtils.h"
 #include "mozilla/Hal.h"
-#include "mozilla/MouseEvents.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/Services.h"
-#include "mozilla/TextEvents.h"
 #include "nsAppShell.h"
 #include "mozilla/dom/Touch.h"
 #include "nsGkAtoms.h"
+#include "nsGUIEvent.h"
 #include "nsIObserverService.h"
 #include "nsIScreen.h"
 #include "nsScreenManagerGonk.h"
@@ -56,10 +54,6 @@
 #include "libui/InputReader.h"
 #include "libui/InputDispatcher.h"
 #include "cutils/properties.h"
-
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
 
 #include "GeckoProfiler.h"
 
@@ -145,13 +139,13 @@ struct UserInputData {
 static void
 sendMouseEvent(uint32_t msg, uint64_t timeMs, int x, int y, bool forwardToChildren)
 {
-    WidgetMouseEvent event(true, msg, NULL,
-                           WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
+    nsMouseEvent event(true, msg, NULL,
+                       nsMouseEvent::eReal, nsMouseEvent::eNormal);
 
     event.refPoint.x = x;
     event.refPoint.y = y;
     event.time = timeMs;
-    event.button = WidgetMouseEvent::eLeftButton;
+    event.button = nsMouseEvent::eLeftButton;
     event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
     if (msg != NS_MOUSE_MOVE)
         event.clickCount = 1;
@@ -162,7 +156,7 @@ sendMouseEvent(uint32_t msg, uint64_t timeMs, int x, int y, bool forwardToChildr
 }
 
 static void
-addDOMTouch(UserInputData& data, WidgetTouchEvent& event, int i)
+addDOMTouch(UserInputData& data, nsTouchEvent& event, int i)
 {
     const ::Touch& touch = data.motion.touches[i];
     event.touches.AppendElement(
@@ -198,7 +192,7 @@ sendTouchEvent(UserInputData& data, bool* captured)
         break;
     }
 
-    WidgetTouchEvent event(true, msg, NULL);
+    nsTouchEvent event(true, msg, NULL);
 
     event.time = data.timeMs;
 
@@ -221,7 +215,7 @@ sendKeyEventWithMsg(uint32_t keyCode,
                     uint32_t msg,
                     uint64_t timeMs)
 {
-    WidgetKeyboardEvent event(true, msg, NULL);
+    nsKeyEvent event(true, msg, NULL);
     event.keyCode = keyCode;
     event.mKeyNameIndex = keyNameIndex;
     event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_MOBILE;
@@ -473,18 +467,9 @@ GeckoInputReaderPolicy::setDisplayInfo()
                   "Orientation enums not matched!");
 
     DisplayViewport viewport;
+    viewport.setNonDisplayViewport(gScreenBounds.width, gScreenBounds.height);
     viewport.displayId = 0;
     viewport.orientation = nsScreenGonk::GetRotation();
-    viewport.physicalRight = viewport.deviceWidth = gScreenBounds.width;
-    viewport.physicalBottom = viewport.deviceHeight = gScreenBounds.height;
-    if (viewport.orientation == DISPLAY_ORIENTATION_90 ||
-        viewport.orientation == DISPLAY_ORIENTATION_270) {
-        viewport.logicalRight = gScreenBounds.height;
-        viewport.logicalBottom = gScreenBounds.width;
-    } else {
-        viewport.logicalRight = gScreenBounds.width;
-        viewport.logicalBottom = gScreenBounds.height;
-    }
     mConfig.setDisplayInfo(false, viewport);
 }
 
@@ -736,11 +721,6 @@ nsAppShell::Init()
     if (obsServ) {
         obsServ->AddObserver(this, "browser-ui-startup-complete", false);
     }
-
-#ifdef MOZ_NUWA_PROCESS
-    // Make sure main thread was woken up after Nuwa fork.
-    NuwaAddConstructor((void (*)(void *))&NotifyEvent, nullptr);
-#endif
 
     // Delay initializing input devices until the screen has been
     // initialized (and we know the resolution).

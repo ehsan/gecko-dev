@@ -100,6 +100,11 @@ struct BaselineScript
   public:
     static const uint32_t MAX_JSSCRIPT_LENGTH = 0x0fffffffu;
 
+    // Limit the locals on a given script so that stack check on baseline frames
+    // doesn't overflow a uint32_t value.
+    // (MAX_JSSCRIPT_SLOTS * sizeof(Value)) must fit within a uint32_t.
+    static const uint32_t MAX_JSSCRIPT_SLOTS = 0xfffffu;
+
   private:
     // Code pointer containing the actual method.
     HeapPtr<IonCode> method_;
@@ -162,13 +167,13 @@ struct BaselineScript
         return offsetof(BaselineScript, method_);
     }
 
-    void addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, size_t *data,
-                                size_t *fallbackStubs) const {
-        *data += mallocSizeOf(this);
+    void sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, size_t *data,
+                             size_t *fallbackStubs) const {
+        *data = mallocSizeOf(this);
 
-        // |data| already includes the ICStubSpace itself, so use
+        // data already includes the ICStubSpace itself, so use
         // sizeOfExcludingThis.
-        *fallbackStubs += fallbackStubSpace_.sizeOfExcludingThis(mallocSizeOf);
+        *fallbackStubs = fallbackStubSpace_.sizeOfExcludingThis(mallocSizeOf);
     }
 
     bool active() const {
@@ -250,19 +255,18 @@ struct BaselineScript
     void copyPCMappingIndexEntries(const PCMappingIndexEntry *entries);
 
     void copyPCMappingEntries(const CompactBufferWriter &entries);
-    uint8_t *nativeCodeForPC(JSScript *script, jsbytecode *pc, PCMappingSlotInfo *slotInfo = nullptr);
+    uint8_t *nativeCodeForPC(JSScript *script, jsbytecode *pc, PCMappingSlotInfo *slotInfo = NULL);
     jsbytecode *pcForReturnOffset(JSScript *script, uint32_t nativeOffset);
     jsbytecode *pcForReturnAddress(JSScript *script, uint8_t *nativeAddress);
 
     // Toggle debug traps (used for breakpoints and step mode) in the script.
-    // If |pc| is nullptr, toggle traps for all ops in the script. Else, only
+    // If |pc| is NULL, toggle traps for all ops in the script. Else, only
     // toggle traps at |pc|.
     void toggleDebugTraps(JSScript *script, jsbytecode *pc);
 
     void toggleSPS(bool enable);
 
     void noteAccessedGetter(uint32_t pcOffset);
-    void noteArrayWriteHole(uint32_t pcOffset);
 
     static size_t offsetOfFlags() {
         return offsetof(BaselineScript, flags_);
@@ -293,8 +297,8 @@ void
 FinishDiscardBaselineScript(FreeOp *fop, JSScript *script);
 
 void
-AddSizeOfBaselineData(JSScript *script, mozilla::MallocSizeOf mallocSizeOf, size_t *data,
-                      size_t *fallbackStubs);
+SizeOfBaselineData(JSScript *script, mozilla::MallocSizeOf mallocSizeOf, size_t *data,
+                   size_t *fallbackStubs);
 
 void
 ToggleBaselineSPS(JSRuntime *runtime, bool enable);
@@ -341,7 +345,7 @@ struct BaselineBailoutInfo
 uint32_t
 BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIterator &iter,
                      bool invalidate, BaselineBailoutInfo **bailoutInfo,
-                     const ExceptionBailoutInfo *exceptionInfo = nullptr);
+                     const ExceptionBailoutInfo *exceptionInfo = NULL);
 
 // Mark baseline scripts on the stack as active, so that they are not discarded
 // during GC.

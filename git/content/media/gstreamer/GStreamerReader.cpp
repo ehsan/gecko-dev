@@ -69,6 +69,8 @@ GStreamerReader::GStreamerReader(AbstractMediaDecoder* aDecoder)
   mAudioSinkBufferCount(0),
   mGstThreadsMonitor("media.gst.threads"),
   mReachedEos(false),
+  mByteOffset(0),
+  mLastReportedByteOffset(0),
   fpsNum(0),
   fpsDen(0)
 {
@@ -243,7 +245,7 @@ void GStreamerReader::PlayBinSourceSetup(GstAppSrc* aSource)
   gst_caps_unref(caps);
 }
 
-nsresult GStreamerReader::ReadMetadata(MediaInfo* aInfo,
+nsresult GStreamerReader::ReadMetadata(VideoInfo* aInfo,
                                        MetadataTags** aTags)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
@@ -354,8 +356,8 @@ nsresult GStreamerReader::ReadMetadata(MediaInfo* aInfo,
 
   int n_video = 0, n_audio = 0;
   g_object_get(mPlayBin, "n-video", &n_video, "n-audio", &n_audio, nullptr);
-  mInfo.mVideo.mHasVideo = n_video != 0;
-  mInfo.mAudio.mHasAudio = n_audio != 0;
+  mInfo.mHasVideo = n_video != 0;
+  mInfo.mHasAudio = n_audio != 0;
 
   *aInfo = mInfo;
 
@@ -437,8 +439,18 @@ nsresult GStreamerReader::ResetDecode()
   mVideoSinkBufferCount = 0;
   mAudioSinkBufferCount = 0;
   mReachedEos = false;
+  mLastReportedByteOffset = 0;
+  mByteOffset = 0;
 
   return res;
+}
+
+void GStreamerReader::NotifyBytesConsumed()
+{
+  NS_ASSERTION(mByteOffset >= mLastReportedByteOffset,
+      "current byte offset less than prev offset");
+  mDecoder->NotifyBytesConsumed(mByteOffset - mLastReportedByteOffset);
+  mLastReportedByteOffset = mByteOffset;
 }
 
 bool GStreamerReader::DecodeAudioData()
@@ -476,6 +488,7 @@ bool GStreamerReader::DecodeAudioData()
       }
     }
 
+    NotifyBytesConsumed();
     buffer = gst_app_sink_pull_buffer(mAudioAppSink);
     mAudioSinkBufferCount--;
   }
@@ -490,12 +503,12 @@ bool GStreamerReader::DecodeAudioData()
 
   int64_t offset = GST_BUFFER_OFFSET(buffer);
   unsigned int size = GST_BUFFER_SIZE(buffer);
-  int32_t frames = (size / sizeof(AudioDataValue)) / mInfo.mAudio.mChannels;
+  int32_t frames = (size / sizeof(AudioDataValue)) / mInfo.mAudioChannels;
   ssize_t outSize = static_cast<size_t>(size / sizeof(AudioDataValue));
   nsAutoArrayPtr<AudioDataValue> data(new AudioDataValue[outSize]);
   memcpy(data, GST_BUFFER_DATA(buffer), GST_BUFFER_SIZE(buffer));
   AudioData* audio = new AudioData(offset, timestamp, duration,
-      frames, data.forget(), mInfo.mAudio.mChannels);
+      frames, data.forget(), mInfo.mAudioChannels);
 
   mAudioQueue.Push(audio);
   gst_buffer_unref(buffer);
@@ -539,6 +552,7 @@ bool GStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
       }
     }
 
+    NotifyBytesConsumed();
     mDecoder->NotifyDecodedFrames(0, 1);
 
     buffer = gst_app_sink_pull_buffer(mVideoAppSink);
@@ -623,7 +637,7 @@ bool GStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
   isKeyframe = !GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT);
   /* XXX ? */
   int64_t offset = 0;
-  VideoData* video = VideoData::Create(mInfo.mVideo, image, offset,
+  VideoData* video = VideoData::Create(mInfo, image, offset,
                                        timestamp, nextTimestamp, b,
                                        isKeyframe, -1, mPicture);
   mVideoQueue.Push(video);
@@ -656,7 +670,7 @@ nsresult GStreamerReader::Seek(int64_t aTarget,
 nsresult GStreamerReader::GetBuffered(TimeRanges* aBuffered,
                                       int64_t aStartTime)
 {
-  if (!mInfo.HasValidMedia()) {
+  if (!mInfo.mHasVideo && !mInfo.mHasAudio) {
     return NS_OK;
   }
 
@@ -664,6 +678,12 @@ nsresult GStreamerReader::GetBuffered(TimeRanges* aBuffered,
   MediaResource* resource = mDecoder->GetResource();
   nsTArray<MediaByteRange> ranges;
   resource->GetCachedRanges(ranges);
+
+  if (mDecoder->OnStateMachineThread())
+    /* Report the position from here while buffering as we can't report it from
+     * the gstreamer threads that are actually reading from the resource
+     */
+    NotifyBytesConsumed();
 
   if (resource->IsDataCachedToEndOfResource(0)) {
     /* fast path for local or completely cached files */
@@ -718,6 +738,7 @@ void GStreamerReader::ReadAndPushData(guint aLength)
   }
 
   GST_BUFFER_SIZE(buffer) = bytesRead;
+  mByteOffset += bytesRead;
 
   GstFlowReturn ret = gst_app_src_push_buffer(mSource, gst_buffer_ref(buffer));
   if (ret != GST_FLOW_OK) {
@@ -810,7 +831,9 @@ gboolean GStreamerReader::SeekData(GstAppSrc* aSrc, guint64 aOffset)
     rv = resource->Seek(SEEK_SET, aOffset);
   }
 
-  if (NS_FAILED(rv)) {
+  if (NS_SUCCEEDED(rv)) {
+    mByteOffset = mLastReportedByteOffset = aOffset;
+  } else {
     LOG(PR_LOG_ERROR, ("seek at %lu failed", aOffset));
   }
 
@@ -933,14 +956,14 @@ void GStreamerReader::AudioPreroll()
   GstPad* sinkpad = gst_element_get_pad(GST_ELEMENT(mAudioAppSink), "sink");
   GstCaps* caps = gst_pad_get_negotiated_caps(sinkpad);
   GstStructure* s = gst_caps_get_structure(caps, 0);
-  mInfo.mAudio.mRate = mInfo.mAudio.mChannels = 0;
-  gst_structure_get_int(s, "rate", (gint*) &mInfo.mAudio.mRate);
-  gst_structure_get_int(s, "channels", (gint*) &mInfo.mAudio.mChannels);
-  NS_ASSERTION(mInfo.mAudio.mRate != 0, ("audio rate is zero"));
-  NS_ASSERTION(mInfo.mAudio.mChannels != 0, ("audio channels is zero"));
-  NS_ASSERTION(mInfo.mAudio.mChannels > 0 && mInfo.mAudio.mChannels <= MAX_CHANNELS,
+  mInfo.mAudioRate = mInfo.mAudioChannels = 0;
+  gst_structure_get_int(s, "rate", (gint*) &mInfo.mAudioRate);
+  gst_structure_get_int(s, "channels", (gint*) &mInfo.mAudioChannels);
+  NS_ASSERTION(mInfo.mAudioRate != 0, ("audio rate is zero"));
+  NS_ASSERTION(mInfo.mAudioChannels != 0, ("audio channels is zero"));
+  NS_ASSERTION(mInfo.mAudioChannels > 0 && mInfo.mAudioChannels <= MAX_CHANNELS,
       "invalid audio channels number");
-  mInfo.mAudio.mHasAudio = true;
+  mInfo.mHasAudio = true;
   gst_caps_unref(caps);
   gst_object_unref(sinkpad);
 }
@@ -955,8 +978,8 @@ void GStreamerReader::VideoPreroll()
   GstStructure* structure = gst_caps_get_structure(caps, 0);
   gst_structure_get_fraction(structure, "framerate", &fpsNum, &fpsDen);
   NS_ASSERTION(mPicture.width && mPicture.height, "invalid video resolution");
-  mInfo.mVideo.mDisplay = nsIntSize(mPicture.width, mPicture.height);
-  mInfo.mVideo.mHasVideo = true;
+  mInfo.mDisplay = nsIntSize(mPicture.width, mPicture.height);
+  mInfo.mHasVideo = true;
   gst_caps_unref(caps);
   gst_object_unref(sinkpad);
 }

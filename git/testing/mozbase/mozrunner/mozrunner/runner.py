@@ -61,8 +61,6 @@ class Runner(object):
     def wait(self, timeout=None):
         """
         Wait for the process to exit.
-        Returns the process return code if the process exited,
-        returns None otherwise.
 
         If timeout is not None, will return after timeout seconds.
         Use is_running() to determine whether or not a timeout occured.
@@ -72,13 +70,13 @@ class Runner(object):
             return
 
         if isinstance(self.process_handler, subprocess.Popen):
-            return_code = self.process_handler.wait()
+            self.process_handler.wait()
         else:
             self.process_handler.wait(timeout)
-            return_code = self.process_handler.proc.poll()
-            if return_code is not None:
-                self.process_handler = None
-        return return_code
+            if self.process_handler.proc.poll() is None:
+                # wait timed out
+                return
+        self.process_handler = None
 
     def is_running(self):
         """

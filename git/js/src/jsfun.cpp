@@ -649,7 +649,7 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
     }
     bool haveSource = fun->isInterpreted() && !fun->isSelfHostedBuiltin();
     if (haveSource && !script->scriptSource()->hasSourceData() &&
-        !JSScript::loadSource(cx, script->scriptSource(), &haveSource))
+        !JSScript::loadSource(cx, script, &haveSource))
     {
         return NULL;
     }
@@ -1197,7 +1197,8 @@ JSFunction::createScriptForLazilyInterpretedFunction(JSContext *cx, HandleFuncti
     }
 
     /* Lazily cloned self hosted script. */
-    RootedAtom funAtom(cx, &fun->getExtendedSlot(0).toString()->asAtom());
+    JSFunctionSpec *fs = static_cast<JSFunctionSpec *>(fun->getExtendedSlot(0).toPrivate());
+    RootedAtom funAtom(cx, Atomize(cx, fs->selfHostedName, strlen(fs->selfHostedName)));
     if (!funAtom)
         return false;
     Rooted<PropertyName *> funName(cx, funAtom->asPropertyName());

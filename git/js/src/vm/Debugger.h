@@ -109,7 +109,7 @@ class DebuggerWeakMap : private WeakMap<Key, Value, DefaultHasher<Key> >
             gc::Mark(tracer, &key, "Debugger WeakMap key");
             if (key != e.front().key)
                 e.rekeyFront(key);
-            key.unsafeSet(nullptr);
+            key.unsafeSet(NULL);
         }
     }
 
@@ -334,7 +334,6 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static bool clearAllBreakpoints(JSContext *cx, unsigned argc, Value *vp);
     static bool findScripts(JSContext *cx, unsigned argc, Value *vp);
     static bool findAllGlobals(JSContext *cx, unsigned argc, Value *vp);
-    static bool makeGlobalObjectReference(JSContext *cx, unsigned argc, Value *vp);
     static bool construct(JSContext *cx, unsigned argc, Value *vp);
     static const JSPropertySpec properties[];
     static const JSFunctionSpec methods[];
@@ -434,8 +433,8 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     bool observesScript(JSScript *script) const;
 
     /*
-     * If env is nullptr, call vp->setNull() and return true. Otherwise, find
-     * or create a Debugger.Environment object for the given Env. On success,
+     * If env is NULL, call vp->setNull() and return true. Otherwise, find or
+     * create a Debugger.Environment object for the given Env. On success,
      * store the Environment object in *vp and return true.
      */
     bool wrapEnvironment(JSContext *cx, Handle<Env*> env, MutableHandleValue vp);
@@ -562,7 +561,7 @@ class BreakpointSite {
     void inc(FreeOp *fop);
     void dec(FreeOp *fop);
     void setTrap(FreeOp *fop, JSTrapHandler handler, const Value &closure);
-    void clearTrap(FreeOp *fop, JSTrapHandler *handlerp = nullptr, Value *closurep = nullptr);
+    void clearTrap(FreeOp *fop, JSTrapHandler *handlerp = NULL, Value *closurep = NULL);
     void destroyIfEmpty(FreeOp *fop);
 };
 
@@ -612,7 +611,7 @@ Breakpoint *
 Debugger::firstBreakpoint() const
 {
     if (JS_CLIST_IS_EMPTY(&breakpoints))
-        return nullptr;
+        return NULL;
     return Breakpoint::fromDebuggerLinks(JS_NEXT_LINK(&breakpoints));
 }
 

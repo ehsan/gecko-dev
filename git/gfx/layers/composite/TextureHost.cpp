@@ -57,7 +57,7 @@ DeprecatedTextureHost::CreateDeprecatedTextureHost(SurfaceDescriptorType aDescri
                                         aDeprecatedTextureHostFlags,
                                         aTextureFlags);
       if (aCompositableHost) {
-        result->SetCompositableBackendSpecificData(aCompositableHost->GetCompositableBackendSpecificData());
+        result->SetCompositableQuirks(aCompositableHost->GetCompositableQuirks());
       }
       return result;
       }
@@ -144,10 +144,9 @@ CreateBackendIndependentTextureHost(uint64_t aID,
   return result;
 }
 
-void
-TextureHost::SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData)
+void TextureHost::SetCompositableQuirks(CompositableQuirks* aQuirks)
 {
-    mCompositableBackendData = aBackendData;
+    mQuirks = aQuirks;
 }
 
 
@@ -162,24 +161,9 @@ TextureHost::~TextureHost()
 {
 }
 
-#ifdef MOZ_LAYERS_HAVE_LOG
-
-void
-TextureHost::PrintInfo(nsACString& aTo, const char* aPrefix)
+void TextureSource::SetCompositableQuirks(CompositableQuirks* aQuirks)
 {
-  aTo += aPrefix;
-  aTo += nsPrintfCString("%s (0x%p)", Name(), this);
-  AppendToString(aTo, GetSize(), " [size=", "]");
-  AppendToString(aTo, GetFormat(), " [format=", "]");
-  AppendToString(aTo, mFlags, " [flags=", "]");
-}
-
-#endif
-
-void
-TextureSource::SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData)
-{
-    mCompositableBackendData = aBackendData;
+    mQuirks = aQuirks;
 }
 
 TextureSource::TextureSource()
@@ -247,6 +231,12 @@ DeprecatedTextureHost::SwapTextures(const SurfaceDescriptor& aImage,
 }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
+void
+TextureSource::PrintInfo(nsACString& aTo, const char* aPrefix)
+{
+  aTo += aPrefix;
+  aTo += nsPrintfCString("UnknownTextureSource (0x%p)", this);
+}
 
 void
 DeprecatedTextureHost::PrintInfo(nsACString& aTo, const char* aPrefix)
@@ -472,7 +462,7 @@ BufferTextureHost::GetAsSurface()
     result = new gfxImageSurface(yuvDeserializer.GetYData(),
                                  yuvDeserializer.GetYSize(),
                                  yuvDeserializer.GetYStride(),
-                                 gfxImageFormatA8);
+                                 gfxASurface::ImageFormatA8);
   } else {
     ImageDataDeserializer deserializer(GetBuffer());
     if (!deserializer.IsValid()) {

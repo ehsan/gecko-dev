@@ -32,6 +32,7 @@
 #include "nsView.h"
 #include "nsViewManager.h"
 #include "nsIContentViewer.h"
+#include "nsGUIEvent.h"
 #include "nsIDOMXULElement.h"
 #include "nsIRDFNode.h"
 #include "nsIRDFRemoteDataSource.h"
@@ -83,7 +84,6 @@
 #include "nsXULPopupManager.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsURILoader.h"
-#include "mozilla/BasicEvents.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ProcessingInstruction.h"
 #include "mozilla/dom/XULDocumentBinding.h"
@@ -940,7 +940,7 @@ XULDocument::ExecuteOnBroadcastHandlerFor(Element* aBroadcaster,
 
         // This is the right <observes> element. Execute the
         // |onbroadcast| event handler
-        WidgetEvent event(true, NS_XUL_BROADCAST);
+        nsEvent event(true, NS_XUL_BROADCAST);
 
         nsCOMPtr<nsIPresShell> shell = GetShell();
         if (shell) {

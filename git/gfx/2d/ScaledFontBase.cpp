@@ -13,8 +13,6 @@
 
 #ifdef USE_CAIRO
 #include "PathCairo.h"
-#include "DrawTargetCairo.h"
-#include "HelpersCairo.h"
 #endif
 
 #include <vector>
@@ -76,18 +74,13 @@ ScaledFontBase::GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget *a
   if (aTarget->GetType() == BACKEND_CAIRO) {
     MOZ_ASSERT(mScaledFont);
 
-    DrawTarget *dt = const_cast<DrawTarget*>(aTarget);
-    cairo_t *ctx = static_cast<cairo_t*>(dt->GetNativeSurface(NATIVE_SURFACE_CAIRO_CONTEXT));
+    RefPtr<PathBuilder> builder_iface = aTarget->CreatePathBuilder();
+    PathBuilderCairo* builder = static_cast<PathBuilderCairo*>(builder_iface.get());
 
-    bool isNewContext = !ctx;
-    if (!ctx) {
-      ctx = cairo_create(DrawTargetCairo::GetDummySurface());
-      cairo_matrix_t mat;
-      GfxMatrixToCairoMatrix(aTarget->GetTransform(), mat);
-      cairo_set_matrix(ctx, &mat);
-    }
+    // Manually build the path for the PathBuilder.
+    RefPtr<CairoPathContext> context = builder->GetPathContext();
 
-    cairo_set_scaled_font(ctx, mScaledFont);
+    cairo_set_scaled_font(*context, mScaledFont);
 
     // Convert our GlyphBuffer into an array of Cairo glyphs.
     std::vector<cairo_glyph_t> glyphs(aBuffer.mNumGlyphs);
@@ -97,33 +90,23 @@ ScaledFontBase::GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget *a
       glyphs[i].y = aBuffer.mGlyphs[i].mPosition.y;
     }
 
-    cairo_glyph_path(ctx, &glyphs[0], aBuffer.mNumGlyphs);
+    cairo_glyph_path(*context, &glyphs[0], aBuffer.mNumGlyphs);
 
-    RefPtr<PathCairo> newPath = new PathCairo(ctx);
-    if (isNewContext) {
-      cairo_destroy(ctx);
-    }
-
-    return newPath;
+    return builder->Finish();
   }
 #endif
   return nullptr;
 }
 
 void
-ScaledFontBase::CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder, const Matrix *aTransformHint)
+ScaledFontBase::CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder)
 {
 #ifdef USE_CAIRO
   PathBuilderCairo* builder = static_cast<PathBuilderCairo*>(aBuilder);
 
-  
-  cairo_t *ctx = cairo_create(DrawTargetCairo::GetDummySurface());
+  RefPtr<CairoPathContext> context = builder->GetPathContext();
 
-  if (aTransformHint) {
-    cairo_matrix_t mat;
-    GfxMatrixToCairoMatrix(*aTransformHint, mat);
-    cairo_set_matrix(ctx, &mat);
-  }
+  cairo_set_scaled_font(*context, mScaledFont);
 
   // Convert our GlyphBuffer into an array of Cairo glyphs.
   std::vector<cairo_glyph_t> glyphs(aBuffer.mNumGlyphs);
@@ -133,13 +116,7 @@ ScaledFontBase::CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBu
     glyphs[i].y = aBuffer.mGlyphs[i].mPosition.y;
   }
 
-  cairo_set_scaled_font(ctx, mScaledFont);
-  cairo_glyph_path(ctx, &glyphs[0], aBuffer.mNumGlyphs);
-
-  RefPtr<PathCairo> cairoPath = new PathCairo(ctx);
-  cairo_destroy(ctx);
-
-  cairoPath->AppendPathToBuilder(builder);
+  cairo_glyph_path(*context, &glyphs[0], aBuffer.mNumGlyphs);
 #endif
 }
 

@@ -8,6 +8,7 @@
 #define gc_Marking_h
 
 #include "gc/Barrier.h"
+#include "js/TypeDecls.h"
 
 class JSAtom;
 class JSLinearString;
@@ -114,9 +115,7 @@ DeclMarker(TypeObject, types::TypeObject)
 
 #undef DeclMarker
 
-/* Return true if the pointer is nullptr, or if it is a tagged pointer to
- * nullptr.
- */
+/* Return true if the pointer is NULL, or if it is a tagged pointer to NULL. */
 JS_ALWAYS_INLINE bool
 IsNullTaggedPointer(void *p)
 {
@@ -367,7 +366,7 @@ ToMarkable(const Value &v)
 {
     if (v.isMarkable())
         return (Cell *)v.toGCThing();
-    return nullptr;
+    return NULL;
 }
 
 inline Cell *

@@ -9,7 +9,8 @@
 #include "mozilla/MemoryReporting.h"
 #include "imgIContainer.h"
 #include "imgStatusTracker.h"
-#include "ImageURL.h"
+#include "nsIURI.h"
+#include "nsProxyRelease.h" // for nsMainThreadPtrHolder and nsMainThreadPtrHandle
 
 class nsIRequest;
 class nsIInputStream;
@@ -62,8 +63,7 @@ public:
   virtual nsresult Init(const char* aMimeType,
                         uint32_t aFlags) = 0;
 
-  virtual already_AddRefed<imgStatusTracker> GetStatusTracker() = 0;
-  virtual void SetStatusTracker(imgStatusTracker* aStatusTracker) {}
+  virtual imgStatusTracker& GetStatusTracker() = 0;
 
   /**
    * The rectangle defining the location and size of the given frame.
@@ -132,22 +132,13 @@ public:
   virtual bool HasError() = 0;
   virtual void SetHasError() = 0;
 
-  virtual ImageURL* GetURI() = 0;
+  virtual nsIURI* GetURI() = 0;
 };
 
 class ImageResource : public Image
 {
 public:
-  already_AddRefed<imgStatusTracker> GetStatusTracker() MOZ_OVERRIDE {
-    nsRefPtr<imgStatusTracker> statusTracker = mStatusTracker;
-    MOZ_ASSERT(statusTracker);
-    return statusTracker.forget();
-  }
-  void SetStatusTracker(imgStatusTracker* aStatusTracker) MOZ_OVERRIDE MOZ_FINAL {
-    MOZ_ASSERT(aStatusTracker);
-    MOZ_ASSERT(!mStatusTracker);
-    mStatusTracker = aStatusTracker;
-  }
+  virtual imgStatusTracker& GetStatusTracker() MOZ_OVERRIDE { return *mStatusTracker; }
   virtual uint32_t SizeOfData() MOZ_OVERRIDE;
 
   virtual void IncrementAnimationConsumers() MOZ_OVERRIDE;
@@ -168,10 +159,10 @@ public:
    * Returns a non-AddRefed pointer to the URI associated with this image.
    * Illegal to use off-main-thread.
    */
-  virtual ImageURL* GetURI() MOZ_OVERRIDE { return mURI.get(); }
+  virtual nsIURI* GetURI() MOZ_OVERRIDE { return mURI.get(); }
 
 protected:
-  ImageResource(ImageURL* aURI);
+  ImageResource(imgStatusTracker* aStatusTracker, nsIURI* aURI);
 
   // Shared functionality for implementors of imgIContainer. Every
   // implementation of attribute animationMode should forward here.
@@ -197,7 +188,7 @@ protected:
 
   // Member data shared by all implementations of this abstract class
   nsRefPtr<imgStatusTracker>    mStatusTracker;
-  nsRefPtr<ImageURL>            mURI;
+  nsMainThreadPtrHandle<nsIURI> mURI;
   uint64_t                      mInnerWindowId;
   uint32_t                      mAnimationConsumers;
   uint16_t                      mAnimationMode; // Enum values in imgIContainer

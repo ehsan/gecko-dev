@@ -48,7 +48,7 @@ IndexedDBHelper.prototype = {
   open: function open(aSuccessCb, aFailureCb) {
     let self = this;
     if (DEBUG) debug("Try to open database:" + self.dbName + " " + self.dbVersion);
-    let req = indexedDB.open(this.dbName, this.dbVersion);
+    let req = this.dbGlobal.indexedDB.open(this.dbName, this.dbVersion);
     req.onsuccess = function (event) {
       if (DEBUG) debug("Opened database:" + self.dbName + " " + self.dbVersion);
       self._db = event.target.result;
@@ -150,10 +150,13 @@ IndexedDBHelper.prototype = {
    *        Current DB version. User has to implement upgradeSchema.
    * @param aDBStoreName
    *        ObjectStore that is used.
+   * @param aGlobal
+   *        Global object that has indexedDB property.
    */
-  initDBHelper: function initDBHelper(aDBName, aDBVersion, aDBStoreNames) {
+  initDBHelper: function initDBHelper(aDBName, aDBVersion, aDBStoreNames, aGlobal) {
     this.dbName = aDBName;
     this.dbVersion = aDBVersion;
     this.dbStoreNames = aDBStoreNames;
+    this.dbGlobal = aGlobal;
   }
 }

@@ -10,11 +10,9 @@
 #include "nsIDOMUIEvent.h"
 #include "nsDOMEvent.h"
 #include "nsLayoutUtils.h"
+#include "nsEvent.h"
 #include "mozilla/dom/UIEventBinding.h"
-#include "nsPresContext.h"
-#include "nsDeviceContext.h"
-
-class nsINode;
+#include "Units.h"
 
 class nsDOMUIEvent : public nsDOMEvent,
                      public nsIDOMUIEvent
@@ -22,8 +20,7 @@ class nsDOMUIEvent : public nsDOMEvent,
   typedef mozilla::CSSIntPoint CSSIntPoint;
 public:
   nsDOMUIEvent(mozilla::dom::EventTarget* aOwner,
-               nsPresContext* aPresContext,
-               mozilla::WidgetGUIEvent* aEvent);
+               nsPresContext* aPresContext, nsGUIEvent* aEvent);
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMUIEvent, nsDOMEvent)
@@ -38,8 +35,7 @@ public:
   NS_IMETHOD_(bool) Deserialize(const IPC::Message* aMsg, void** aIter) MOZ_OVERRIDE;
 
   static nsIntPoint
-  CalculateScreenPoint(nsPresContext* aPresContext,
-                       mozilla::WidgetEvent* aEvent)
+  CalculateScreenPoint(nsPresContext* aPresContext, nsEvent* aEvent)
   {
     if (!aEvent ||
         (aEvent->eventStructType != NS_MOUSE_EVENT &&
@@ -50,8 +46,7 @@ public:
       return nsIntPoint(0, 0);
     }
 
-    mozilla::WidgetGUIEvent* event =
-      static_cast<mozilla::WidgetGUIEvent*>(aEvent);
+    nsGUIEvent* event = static_cast<nsGUIEvent*>(aEvent);
     if (!event->widget) {
       return mozilla::LayoutDeviceIntPoint::ToUntyped(aEvent->refPoint);
     }
@@ -64,7 +59,7 @@ public:
   }
 
   static CSSIntPoint CalculateClientPoint(nsPresContext* aPresContext,
-                                          mozilla::WidgetEvent* aEvent,
+                                          nsEvent* aEvent,
                                           CSSIntPoint* aDefaultClientPoint)
   {
     if (!aEvent ||
@@ -74,7 +69,7 @@ public:
          aEvent->eventStructType != NS_DRAG_EVENT &&
          aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT) ||
         !aPresContext ||
-        !static_cast<mozilla::WidgetGUIEvent*>(aEvent)->widget) {
+        !static_cast<nsGUIEvent*>(aEvent)->widget) {
       return aDefaultClientPoint
              ? *aDefaultClientPoint
              : CSSIntPoint(0, 0);

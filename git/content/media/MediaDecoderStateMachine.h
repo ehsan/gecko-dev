@@ -228,14 +228,14 @@ public:
   // The decoder monitor must be obtained before calling this.
   bool HasAudio() const {
     mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();
-    return mInfo.HasAudio();
+    return mInfo.mHasAudio;
   }
 
   // This is called on the state machine thread and audio thread.
   // The decoder monitor must be obtained before calling this.
   bool HasVideo() const {
     mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();
-    return mInfo.HasVideo();
+    return mInfo.mHasVideo;
   }
 
   // Should be called by main thread.
@@ -810,7 +810,7 @@ private:
 
   // Stores presentation info required for playback. The decoder monitor
   // must be held when accessing this.
-  MediaInfo mInfo;
+  VideoInfo mInfo;
 
   mozilla::MediaMetadataManager mMetadataManager;
 

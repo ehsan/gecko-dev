@@ -25,7 +25,7 @@
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
 #include "nsDOMEventTargetHelper.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsTArray.h"
 
 class nsIWorkerHolder;

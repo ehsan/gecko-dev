@@ -6,7 +6,7 @@
 #ifndef nsIMEStateManager_h__
 #define nsIMEStateManager_h__
 
-#include "mozilla/EventForwards.h"
+#include "nsEvent.h"
 #include "nsIWidget.h"
 
 class nsDispatchingCallback;
@@ -90,7 +90,7 @@ public:
    */
   static void DispatchCompositionEvent(nsINode* aEventTargetNode,
                                        nsPresContext* aPresContext,
-                                       mozilla::WidgetEvent* aEvent,
+                                       nsEvent* aEvent,
                                        nsEventStatus* aStatus,
                                        nsDispatchingCallback* aCallBack);
 

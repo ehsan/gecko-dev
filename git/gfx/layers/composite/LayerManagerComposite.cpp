@@ -148,7 +148,7 @@ LayerManagerComposite::BeginTransaction()
 }
 
 void
-LayerManagerComposite::BeginTransactionWithDrawTarget(DrawTarget* aTarget)
+LayerManagerComposite::BeginTransactionWithTarget(gfxContext *aTarget)
 {
   mInTransaction = true;
 
@@ -759,8 +759,7 @@ LayerManagerComposite::NotifyShadowTreeTransaction()
 bool
 LayerManagerComposite::CanUseCanvasLayerForSize(const gfxIntSize &aSize)
 {
-  return mCompositor->CanUseCanvasLayerForSize(gfx::IntSize(aSize.width,
-                                                            aSize.height));
+  return mCompositor->CanUseCanvasLayerForSize(aSize);
 }
 
 TextureFactoryIdentifier

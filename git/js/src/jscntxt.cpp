@@ -36,7 +36,6 @@
 #include "jsscript.h"
 #include "jsstr.h"
 #include "jstypes.h"
-#include "jswatchpoint.h"
 #include "jsworkers.h"
 
 #include "gc/Marking.h"
@@ -180,6 +179,7 @@ js::NewContext(JSRuntime *rt, size_t stackChunkSize)
      * Here the GC lock is still held after js_InitContextThreadAndLockGC took it and
      * the GC is not running on another thread.
      */
+    bool first = rt->contextList.isEmpty();
     rt->contextList.insertBack(cx);
 
     /*
@@ -187,9 +187,10 @@ js::NewContext(JSRuntime *rt, size_t stackChunkSize)
      * keywords, numbers, strings and self-hosted scripts. If one of these
      * steps should fail, the runtime will be left in a partially initialized
      * state, with zeroes and nulls stored in the default-initialized remainder
-     * of the struct.
+     * of the struct. We'll clean the runtime up under DestroyContext, because
+     * cx will be "last" as well as "first".
      */
-    if (!rt->haveCreatedContext) {
+    if (first) {
 #ifdef JS_THREADSAFE
         JS_BeginRequest(cx);
 #endif
@@ -206,7 +207,6 @@ js::NewContext(JSRuntime *rt, size_t stackChunkSize)
             DestroyContext(cx, DCM_NEW_FAILED);
             return NULL;
         }
-        rt->haveCreatedContext = true;
     }
 
     JSContextCallback cxCallback = rt->cxCallback;
@@ -248,14 +248,45 @@ js::DestroyContext(JSContext *cx, DestroyContextMode mode)
     cx->remove();
     bool last = !rt->hasContexts();
     if (last) {
+        JS_ASSERT(!rt->isHeapBusy());
+
         /*
-         * Dump remaining type inference results while we still have a context.
-         * This printing depends on atoms still existing.
+         * Dump remaining type inference results first. This printing
+         * depends on atoms still existing.
          */
         for (CompartmentsIter c(rt); !c.done(); c.next())
             c->types.print(cx, false);
-    }
-    if (mode == DCM_FORCE_GC) {
+
+        /* Off thread compilation and parsing depend on atoms still existing. */
+        for (CompartmentsIter c(rt); !c.done(); c.next())
+            CancelOffThreadIonCompile(c, NULL);
+        WaitForOffThreadParsingToFinish(rt);
+
+#ifdef JS_WORKER_THREADS
+        if (rt->workerThreadState)
+            rt->workerThreadState->cleanup(rt);
+#endif
+
+        /* Unpin all common names before final GC. */
+        FinishCommonNames(rt);
+
+        /* Clear debugging state to remove GC roots. */
+        for (CompartmentsIter c(rt); !c.done(); c.next())
+            c->clearTraps(rt->defaultFreeOp());
+        JS_ClearAllWatchPoints(cx);
+
+        /* Clear the statics table to remove GC roots. */
+        rt->staticStrings.finish();
+
+        JS::PrepareForFullGC(rt);
+        GC(rt, GC_NORMAL, JS::gcreason::LAST_CONTEXT);
+
+        /*
+         * Clear the self-hosted global and delete self-hosted classes *after*
+         * GC, as finalizers for objects check for clasp->finalize during GC.
+         */
+        rt->finishSelfHosting();
+    } else if (mode == DCM_FORCE_GC) {
         JS_ASSERT(!rt->isHeapBusy());
         JS::PrepareForFullGC(rt);
         GC(rt, GC_NORMAL, JS::gcreason::DESTROY_CONTEXT);
@@ -1190,7 +1221,7 @@ ComputeIsJITBroken()
     std::ifstream cpuinfo("/proc/cpuinfo");
     do {
         if (0 == line.find("Hardware")) {
-            static const char* const blacklist[] = {
+            const char* blacklist[] = {
                 "SCH-I400",     // Samsung Continuum
                 "SGH-T959",     // Samsung i9000, Vibrant device
                 "SGH-I897",     // Samsung i9000, Captivate device
@@ -1199,7 +1230,7 @@ ComputeIsJITBroken()
                 "GT-I9000",     // Samsung i9000, UK/Europe device
                 NULL
             };
-            for (const char* const* hw = &blacklist[0]; *hw; ++hw) {
+            for (const char** hw = &blacklist[0]; *hw; ++hw) {
                 if (line.npos != line.find(*hw)) {
                     __android_log_print(ANDROID_LOG_INFO, "Gecko",
                                         "Blacklisted device `%s'", *hw);

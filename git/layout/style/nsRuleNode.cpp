@@ -4889,7 +4889,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
               SETDSC_ENUMERATED, parentDisplay->mDisplay,
               NS_STYLE_DISPLAY_INLINE, 0, 0, 0, 0);
 
-  // mix-blend-mode: enum, inherit, initial
+  // display: enum, inherit, initial
   SetDiscrete(*aRuleData->ValueForMixBlendMode(), display->mMixBlendMode,
               canStoreInRuleTree, SETDSC_ENUMERATED,
               parentDisplay->mMixBlendMode, NS_STYLE_BLEND_NORMAL,
@@ -6994,12 +6994,10 @@ nsRuleNode::ComputeContentData(void* aStartStruct,
               type = eStyleContentType_NoCloseQuote;  break;
             default:
               NS_ERROR("bad content value");
-              type = eStyleContentType_Uninitialized;
             }
             break;
           default:
             NS_ERROR("bad content type");
-            type = eStyleContentType_Uninitialized;
           }
           data.mType = type;
           if (type == eStyleContentType_Image) {

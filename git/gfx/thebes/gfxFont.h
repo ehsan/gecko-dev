@@ -32,7 +32,6 @@
 #include <algorithm>
 #include "nsUnicodeProperties.h"
 #include "harfbuzz/hb.h"
-#include "DrawMode.h"
 
 typedef struct _cairo_scaled_font cairo_scaled_font_t;
 typedef struct gr_face            gr_face;
@@ -1325,6 +1324,21 @@ public:
         kAntialiasSubpixel
     } AntialiasOption;
 
+    // Options for how the text should be drawn
+    typedef enum {
+        // GLYPH_FILL and GLYPH_STROKE draw into the current context
+        //  and may be used together with bitwise OR.
+        GLYPH_FILL = 1,
+        // Note: using GLYPH_STROKE will destroy the current path.
+        GLYPH_STROKE = 2,
+        // Appends glyphs to the current path. Can NOT be used with
+        //  GLYPH_FILL or GLYPH_STROKE.
+        GLYPH_PATH = 4,
+        // When GLYPH_FILL and GLYPH_STROKE are both set, draws the
+        //  stroke underneath the fill.
+        GLYPH_STROKE_UNDERNEATH = 8
+    } DrawMode;
+
 protected:
     nsAutoRefCnt mRefCnt;
     cairo_scaled_font_t *mScaledFont;
@@ -2616,7 +2630,7 @@ private:
 
 /**
  * Callback for Draw() to use when drawing text with mode
- * DrawMode::GLYPH_PATH.
+ * gfxFont::GLYPH_PATH.
  */
 struct gfxTextRunDrawCallbacks {
 
@@ -2828,7 +2842,7 @@ public:
      * if they overlap (perhaps due to negative spacing).
      */
     void Draw(gfxContext *aContext, gfxPoint aPt,
-              DrawMode aDrawMode,
+              gfxFont::DrawMode aDrawMode,
               uint32_t aStart, uint32_t aLength,
               PropertyProvider *aProvider,
               gfxFloat *aAdvanceWidth, gfxTextContextPaint *aContextPaint,
@@ -3257,7 +3271,7 @@ private:
 
     // **** drawing helper ****
     void DrawGlyphs(gfxFont *aFont, gfxContext *aContext,
-                    DrawMode aDrawMode, gfxPoint *aPt,
+                    gfxFont::DrawMode aDrawMode, gfxPoint *aPt,
                     gfxTextContextPaint *aContextPaint, uint32_t aStart,
                     uint32_t aEnd, PropertyProvider *aProvider,
                     uint32_t aSpacingStart, uint32_t aSpacingEnd,

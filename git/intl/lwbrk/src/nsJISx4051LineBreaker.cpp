@@ -10,6 +10,7 @@
 #include "jisx4051class.h"
 #include "nsComplexBreaker.h"
 #include "nsTArray.h"
+#include "nsUnicharUtils.h"
 
 /* 
 

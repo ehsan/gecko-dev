@@ -64,8 +64,6 @@ pref("browser.cache.memory.enable", true);
 #endif
 pref("browser.cache.memory.capacity", 1024); // kilobytes
 
-pref("browser.cache.memory_limit", 5120); // 5 MB
-
 /* image cache prefs */
 pref("image.cache.size", 1048576); // bytes
 pref("image.high_quality_downscaling.enabled", false);
@@ -567,6 +565,7 @@ pref("media.preload.auto", 2);    // preload metadata if preload=auto
 
 // optimize images memory usage
 pref("image.mem.decodeondraw", true);
+pref("content.image.allow_locking", false);
 pref("image.mem.min_discard_timeout_ms", 10000);
 
 // enable touch events interfaces
@@ -598,6 +597,9 @@ pref("urlclassifier.alternate_error_page", "blocked");
 
 // The number of random entries to send with a gethash request.
 pref("urlclassifier.gethashnoise", 4);
+
+// The list of tables that use the gethash request to confirm partial results.
+pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 
 // If an urlclassifier table has not been updated in this number of seconds,
 // a gethash request will be forced to check that the result is still in
@@ -715,7 +717,7 @@ pref("app.orientation.default", "");
 // back to the system.
 pref("memory.free_dirty_pages", true);
 
-pref("layout.imagevisibility.enabled", true);
+pref("layout.imagevisibility.enabled", false);
 pref("layout.imagevisibility.numscrollportwidths", 1);
 pref("layout.imagevisibility.numscrollportheights", 1);
 
@@ -748,9 +750,6 @@ pref("browser.contentHandlers.types.2.type", "application/vnd.mozilla.maybe.feed
 pref("browser.contentHandlers.types.3.title", "chrome://browser/locale/region.properties");
 pref("browser.contentHandlers.types.3.uri", "chrome://browser/locale/region.properties");
 pref("browser.contentHandlers.types.3.type", "application/vnd.mozilla.maybe.feed");
-
-// WebPayment
-pref("dom.mozPay.enabled", true);
 
 #ifndef RELEASE_BUILD
 pref("dom.payment.provider.0.name", "Firefox Marketplace");

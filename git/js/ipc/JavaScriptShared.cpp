@@ -40,7 +40,7 @@ ObjectStore::find(ObjectId id)
 {
     ObjectTable::Ptr p = table_.lookup(id);
     if (!p)
-        return nullptr;
+        return NULL;
     return p->value;
 }
 
@@ -105,7 +105,7 @@ ObjectIdCache::keyMarkCallback(JSTracer *trc, void *k, void *d) {
     ObjectIdCache* self = static_cast<ObjectIdCache*>(d);
     JSObject *prior = key;
     JS_CallObjectTracer(trc, &key, "ObjectIdCache::table_ key");
-    self->table_.rekeyIfMoved(prior, key);
+    self->table_.rekey(prior, key);
 }
 
 void
@@ -424,12 +424,12 @@ CpowIdHolder::ToObject(JSContext *cx, JSObject **objp)
 bool
 JavaScriptShared::Unwrap(JSContext *cx, const InfallibleTArray<CpowEntry> &aCpows, JSObject **objp)
 {
-    *objp = nullptr;
+    *objp = NULL;
 
     if (!aCpows.Length())
         return true;
 
-    RootedObject obj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+    RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
     if (!obj)
         return false;
 
@@ -446,8 +446,8 @@ JavaScriptShared::Unwrap(JSContext *cx, const InfallibleTArray<CpowEntry> &aCpow
                                  name.BeginReading(),
                                  name.Length(),
                                  v,
-                                 nullptr,
-                                 nullptr,
+                                 NULL,
+                                 NULL,
                                  JSPROP_ENUMERATE))
         {
             return false;

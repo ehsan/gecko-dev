@@ -71,10 +71,11 @@ interface Element : Node {
 
   // Mozilla specific stuff
 
-  [LenientThis]
+  [SetterThrows,LenientThis]
            attribute EventHandler onmouseenter;
-  [LenientThis]
+  [SetterThrows,LenientThis]
            attribute EventHandler onmouseleave;
+  [SetterThrows]
            attribute EventHandler onwheel;
 
   // Selectors API
@@ -130,19 +131,12 @@ interface Element : Node {
   Attr? getAttributeNodeNS(DOMString? namespaceURI, DOMString localName);
   [Throws]
   Attr? setAttributeNodeNS(Attr newAttr);
-
-  [ChromeOnly]
-  /**
-   * Scrolls the element by (dx, dy) CSS pixels without doing any
-   * layout flushing.
-   */
-  boolean scrollByNoFlush(long dx, long dy);
 };
 
 // http://dev.w3.org/csswg/cssom-view/#extensions-to-the-element-interface
 partial interface Element {
-  DOMRectList getClientRects();
-  DOMRect getBoundingClientRect();
+  ClientRectList getClientRects();
+  ClientRect getBoundingClientRect();
 
   // scrolling
   void scrollIntoView(optional boolean top = true);

@@ -140,7 +140,7 @@ MoveEmitterX86::~MoveEmitterX86()
     assertDone();
 }
 
-Address
+Operand
 MoveEmitterX86::cycleSlot()
 {
     if (pushedAtCycle_ == -1) {
@@ -149,19 +149,7 @@ MoveEmitterX86::cycleSlot()
         pushedAtCycle_ = masm.framePushed();
     }
 
-    return Address(StackPointer, masm.framePushed() - pushedAtCycle_);
-}
-
-Address
-MoveEmitterX86::toAddress(const MoveOperand &operand) const
-{
-    if (operand.base() != StackPointer)
-        return Address(operand.base(), operand.disp());
-
-    JS_ASSERT(operand.disp() >= 0);
-
-    // Otherwise, the stack offset may need to be adjusted.
-    return Address(StackPointer, operand.disp() + (masm.framePushed() - pushedAtStart_));
+    return Operand(StackPointer, masm.framePushed() - pushedAtCycle_);
 }
 
 // Warning, do not use the resulting operand with pop instructions, since they
@@ -170,8 +158,15 @@ MoveEmitterX86::toAddress(const MoveOperand &operand) const
 Operand
 MoveEmitterX86::toOperand(const MoveOperand &operand) const
 {
-    if (operand.isMemory() || operand.isEffectiveAddress() || operand.isFloatAddress())
-        return Operand(toAddress(operand));
+    if (operand.isMemory() || operand.isEffectiveAddress() || operand.isFloatAddress()) {
+        if (operand.base() != StackPointer)
+            return Operand(operand.base(), operand.disp());
+
+        JS_ASSERT(operand.disp() >= 0);
+
+        // Otherwise, the stack offset may need to be adjusted.
+        return Operand(StackPointer, operand.disp() + (masm.framePushed() - pushedAtStart_));
+    }
     if (operand.isGeneralReg())
         return Operand(operand.reg());
 
@@ -214,13 +209,16 @@ MoveEmitterX86::breakCycle(const MoveOperand &to, Move::Kind kind)
     // the original move to continue.
     if (kind == Move::DOUBLE) {
         if (to.isMemory()) {
-            masm.loadDouble(toAddress(to), ScratchFloatReg);
-            masm.storeDouble(ScratchFloatReg, cycleSlot());
+            masm.movsd(toOperand(to), ScratchFloatReg);
+            masm.movsd(ScratchFloatReg, cycleSlot());
         } else {
-            masm.storeDouble(to.floatReg(), cycleSlot());
+            masm.movsd(to.floatReg(), cycleSlot());
         }
     } else {
-        masm.Push(toOperand(to));
+        if (to.isMemory())
+            masm.Push(toOperand(to));
+        else
+            masm.Push(to.reg());
     }
 }
 
@@ -235,10 +233,10 @@ MoveEmitterX86::completeCycle(const MoveOperand &to, Move::Kind kind)
     // saved value of B, to A.
     if (kind == Move::DOUBLE) {
         if (to.isMemory()) {
-            masm.loadDouble(cycleSlot(), ScratchFloatReg);
-            masm.storeDouble(ScratchFloatReg, toAddress(to));
+            masm.movsd(cycleSlot(), ScratchFloatReg);
+            masm.movsd(ScratchFloatReg, toOperand(to));
         } else {
-            masm.loadDouble(cycleSlot(), to.floatReg());
+            masm.movsd(cycleSlot(), to.floatReg());
         }
     } else {
         if (to.isMemory()) {
@@ -257,14 +255,14 @@ MoveEmitterX86::emitGeneralMove(const MoveOperand &from, const MoveOperand &to)
     } else if (to.isGeneralReg()) {
         JS_ASSERT(from.isMemory() || from.isEffectiveAddress());
         if (from.isMemory())
-            masm.loadPtr(toAddress(from), to.reg());
+            masm.mov(toOperand(from), to.reg());
         else
             masm.lea(toOperand(from), to.reg());
     } else if (from.isMemory()) {
         // Memory to memory gpr move.
 #ifdef JS_CPU_X64
         // x64 has a ScratchReg. Use it.
-        masm.loadPtr(toAddress(from), ScratchReg);
+        masm.mov(toOperand(from), ScratchReg);
         masm.mov(ScratchReg, toOperand(to));
 #else
         // No ScratchReg; bounce it off the stack.
@@ -280,8 +278,7 @@ MoveEmitterX86::emitGeneralMove(const MoveOperand &from, const MoveOperand &to)
         masm.mov(ScratchReg, toOperand(to));
 #else
         // This is tricky without a ScratchReg. We can't do an lea. Bounce the
-        // base register off the stack, then add the offset in place. Note that
-        // this clobbers FLAGS!
+        // base register off the stack, then add the offset in place.
         masm.Push(from.base());
         masm.Pop(toPopOperand(to));
         masm.addPtr(Imm32(from.disp()), toOperand(to));
@@ -293,17 +290,14 @@ void
 MoveEmitterX86::emitDoubleMove(const MoveOperand &from, const MoveOperand &to)
 {
     if (from.isFloatReg()) {
-        if (to.isFloatReg())
-            masm.moveDouble(from.floatReg(), to.floatReg());
-        else
-            masm.storeDouble(from.floatReg(), toAddress(to));
+        masm.movsd(from.floatReg(), toOperand(to));
     } else if (to.isFloatReg()) {
-        masm.loadDouble(toAddress(from), to.floatReg());
+        masm.movsd(toOperand(from), to.floatReg());
     } else {
         // Memory to memory float move.
         JS_ASSERT(from.isMemory());
-        masm.loadDouble(toAddress(from), ScratchFloatReg);
-        masm.storeDouble(ScratchFloatReg, toAddress(to));
+        masm.movsd(toOperand(from), ScratchFloatReg);
+        masm.movsd(ScratchFloatReg, toOperand(to));
     }
 }
 

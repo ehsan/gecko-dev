@@ -10,7 +10,6 @@
 #include "nsCxPusher.h"
 #include "nsThreadUtils.h"
 #include "DOMCursor.h"
-#include "nsIDOMEvent.h"
 
 using mozilla::dom::DOMRequest;
 using mozilla::dom::DOMRequestService;

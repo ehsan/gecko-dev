@@ -6,7 +6,7 @@
 #ifndef nsHTMLTags_h___
 #define nsHTMLTags_h___
 
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "plhash.h"
 
 class nsIAtom;

@@ -56,7 +56,7 @@ js::ForkJoinSlices(JSContext *cx)
 JSContext *
 ForkJoinSlice::acquireContext()
 {
-    return nullptr;
+    return NULL;
 }
 
 void
@@ -313,7 +313,7 @@ class ForkJoinShared : public TaskExecutor, public Monitor
     uint32_t rendezvousIndex_;      // Number of rendezvous attempts
     bool gcRequested_;              // True if a worker requested a GC
     JS::gcreason::Reason gcReason_; // Reason given to request GC
-    Zone *gcZone_;                  // Zone for GC, or nullptr for full
+    Zone *gcZone_;                  // Zone for GC, or NULL for full
 
     /////////////////////////////////////////////////////////////////////////
     // Asynchronous Flags
@@ -429,7 +429,7 @@ class AutoSetForkJoinSlice
     }
 
     ~AutoSetForkJoinSlice() {
-        PR_SetThreadPrivate(ForkJoinSlice::ThreadPrivateIndex, nullptr);
+        PR_SetThreadPrivate(ForkJoinSlice::ThreadPrivateIndex, NULL);
     }
 };
 
@@ -523,7 +523,7 @@ js::ParallelDo::ParallelDo(JSContext *cx,
   : bailouts(0),
     bailoutCause(ParallelBailoutNone),
     bailoutScript(cx),
-    bailoutBytecode(nullptr),
+    bailoutBytecode(NULL),
     cx_(cx),
     fun_(fun),
     bailoutRecords_(cx),
@@ -1164,7 +1164,7 @@ js::ParallelDo::parallelExecution(ExecutionStatus *status)
     // Recursive use of the ThreadPool is not supported.  Right now we
     // cannot get here because parallel code cannot invoke native
     // functions such as ForkJoin().
-    JS_ASSERT(ForkJoinSlice::Current() == nullptr);
+    JS_ASSERT(ForkJoinSlice::Current() == NULL);
 
     AutoEnterParallelSection enter(cx_);
 
@@ -1269,8 +1269,7 @@ class ParallelIonInvoke
 
     bool invoke(PerThreadData *perThread) {
         RootedValue result(perThread);
-        enter_(jitcode_, argc_ + 1, argv_ + 1, nullptr, calleeToken_, nullptr, 0,
-               result.address());
+        enter_(jitcode_, argc_ + 1, argv_ + 1, NULL, calleeToken_, NULL, 0, result.address());
         return !result.isMagic();
     }
 };
@@ -1289,8 +1288,8 @@ ForkJoinShared::ForkJoinShared(JSContext *cx,
     threadPool_(threadPool),
     fun_(fun),
     numSlices_(numSlices),
-    rendezvousEnd_(nullptr),
-    cxLock_(nullptr),
+    rendezvousEnd_(NULL),
+    cxLock_(NULL),
     records_(records),
     allocators_(cx),
     uncompleted_(uncompleted),
@@ -1298,7 +1297,7 @@ ForkJoinShared::ForkJoinShared(JSContext *cx,
     rendezvousIndex_(0),
     gcRequested_(false),
     gcReason_(JS::gcreason::NUM_REASONS),
-    gcZone_(nullptr),
+    gcZone_(NULL),
     abort_(false),
     fatal_(false),
     rendezvous_(false)
@@ -1404,7 +1403,7 @@ ForkJoinShared::transferArenasToCompartmentAndProcessGCRequests()
         else
             TriggerZoneGC(gcZone_, gcReason_);
         gcRequested_ = false;
-        gcZone_ = nullptr;
+        gcZone_ = NULL;
     }
 }
 
@@ -1424,7 +1423,7 @@ ForkJoinShared::executeFromWorker(uint32_t workerId, uintptr_t stackLimit)
     // lock has not been initialized in these cases.
     thisThread.ionStackLimit = stackLimit;
     executePortion(&thisThread, workerId);
-    TlsPerThreadData.set(nullptr);
+    TlsPerThreadData.set(NULL);
 
     AutoLockMonitor lock(*this);
     uncompleted_ -= 1;
@@ -1458,9 +1457,9 @@ ForkJoinShared::executePortion(PerThreadData *perThread,
 
     // Make a new IonContext for the slice, which is needed if we need to
     // re-enter the VM.
-    IonContext icx(cx_->runtime(), cx_->compartment(), nullptr);
+    IonContext icx(cx_->runtime(), cx_->compartment(), NULL);
 
-    JS_ASSERT(slice.bailoutRecord->topScript == nullptr);
+    JS_ASSERT(slice.bailoutRecord->topScript == NULL);
 
     RootedObject fun(perThread, fun_);
     JS_ASSERT(fun->is<JSFunction>());
@@ -1472,7 +1471,7 @@ ForkJoinShared::executePortion(PerThreadData *perThread,
         // and fallback.
         Spew(SpewOps, "Down (Script no longer present)");
         slice.bailoutRecord->setCause(ParallelBailoutMainScriptNotPresent,
-                                      nullptr, nullptr, nullptr);
+                                      NULL, NULL, NULL);
         setAbortFlag(false);
     } else {
         ParallelIonInvoke<3> fii(cx_->runtime(), callee, 3);
@@ -1513,7 +1512,7 @@ ForkJoinShared::check(ForkJoinSlice &slice)
             // if (!js_HandleExecutionInterrupt(cx_))
             //     return setAbortFlag(true);
             slice.bailoutRecord->setCause(ParallelBailoutInterrupt,
-                                          nullptr, nullptr, nullptr);
+                                          NULL, NULL, NULL);
             setAbortFlag(false);
             return false;
         }
@@ -1624,7 +1623,7 @@ ForkJoinShared::requestGC(JS::gcreason::Reason reason)
 {
     AutoLockMonitor lock(*this);
 
-    gcZone_ = nullptr;
+    gcZone_ = NULL;
     gcReason_ = reason;
     gcRequested_ = true;
 }
@@ -1637,7 +1636,7 @@ ForkJoinShared::requestZoneGC(JS::Zone *zone, JS::gcreason::Reason reason)
     if (gcRequested_ && gcZone_ != zone) {
         // If a full GC has been requested, or a GC for another zone,
         // issue a request for a full GC.
-        gcZone_ = nullptr;
+        gcZone_ = NULL;
         gcReason_ = reason;
         gcRequested_ = true;
     } else {
@@ -1719,7 +1718,7 @@ bool
 ForkJoinSlice::InitializeTLS()
 {
     if (!TLSInitialized) {
-        if (PR_NewThreadPrivateIndex(&ThreadPrivateIndex, nullptr) != PR_SUCCESS)
+        if (PR_NewThreadPrivateIndex(&ThreadPrivateIndex, NULL) != PR_SUCCESS)
             return false;
         TLSInitialized = true;
     }
@@ -1731,7 +1730,7 @@ ForkJoinSlice::requestGC(JS::gcreason::Reason reason)
 {
     shared->requestGC(reason);
     bailoutRecord->setCause(ParallelBailoutRequestedGC,
-                            nullptr, nullptr, nullptr);
+                            NULL, NULL, NULL);
     shared->setAbortFlag(false);
 }
 
@@ -1740,7 +1739,7 @@ ForkJoinSlice::requestZoneGC(JS::Zone *zone, JS::gcreason::Reason reason)
 {
     shared->requestZoneGC(zone, reason);
     bailoutRecord->setCause(ParallelBailoutRequestedZoneGC,
-                            nullptr, nullptr, nullptr);
+                            NULL, NULL, NULL);
     shared->setAbortFlag(false);
 }
 
@@ -1765,7 +1764,7 @@ js::ParallelBailoutRecord::init(JSContext *cx)
 void
 js::ParallelBailoutRecord::reset(JSContext *cx)
 {
-    topScript = nullptr;
+    topScript = NULL;
     cause = ParallelBailoutNone;
     depth = 0;
 }
@@ -1799,7 +1798,7 @@ js::ParallelBailoutRecord::addTrace(JSScript *script,
     // Ideally, this should never occur, because we should always have
     // a script when we invoke setCause, but I havent' fully
     // refactored things to that point yet:
-    if (topScript == nullptr && script != nullptr)
+    if (topScript == NULL && script != NULL)
         topScript = script;
 
     if (depth < MaxDepth) {
@@ -2060,18 +2059,19 @@ class ParallelSpewer
              script->filename(), PCToLineNumber(script, mir->trackedPc()));
     }
 
-    void spewBailoutIR(IonLIRTraceData *data) {
+    void spewBailoutIR(uint32_t bblockId, uint32_t lirId,
+                       const char *lir, const char *mir, JSScript *script, jsbytecode *pc) {
         if (!active[SpewBailouts])
             return;
 
         // If we didn't bail from a LIR/MIR but from a propagated parallel
         // bailout, don't bother printing anything since we've printed it
         // elsewhere.
-        if (data->mirOpName && data->script) {
+        if (mir && script) {
             spew(SpewBailouts, "%sBailout%s: %s / %s%s%s (block %d lir %d) (%s:%u)", yellow(), reset(),
-                 data->lirOpName, cyan(), data->mirOpName, reset(),
-                 data->blockIndex, data->lirIndex, data->script->filename(),
-                 PCToLineNumber(data->script, data->pc));
+                 lir, cyan(), mir, reset(),
+                 bblockId, lirId,
+                 script->filename(), PCToLineNumber(script, pc));
         }
     }
 };
@@ -2137,9 +2137,11 @@ parallel::SpewMIR(MDefinition *mir, const char *fmt, ...)
 }
 
 void
-parallel::SpewBailoutIR(IonLIRTraceData *data)
+parallel::SpewBailoutIR(uint32_t bblockId, uint32_t lirId,
+                        const char *lir, const char *mir,
+                        JSScript *script, jsbytecode *pc)
 {
-    spewer.spewBailoutIR(data);
+    spewer.spewBailoutIR(bblockId, lirId, lir, mir, script, pc);
 }
 
 #endif // DEBUG

@@ -14,7 +14,6 @@
 #include "nsIFile.h"
 #include "nsThreadUtils.h"
 #include "prlog.h"
-#include "prtime.h"
 
 #include "mozStorageConnection.h"
 #include "mozIStorageStatement.h"

@@ -670,7 +670,7 @@ DefinePropertyOnObject(JSContext *cx, HandleObject obj, HandleId id, const PropD
                     return Reject(cx, JSMSG_CANT_REDEFINE_PROP, throwError, id, rval);
                 }
 
-                if (!js_NativeGet(cx, obj, obj2, shape, &v))
+                if (!js_NativeGet(cx, obj, obj2, shape, 0, &v))
                     return false;
             }
 
@@ -1294,19 +1294,7 @@ NewObject(ExclusiveContext *cx, const Class *clasp, types::TypeObject *type_, JS
     if (clasp->trace && !(clasp->flags & JSCLASS_IMPLEMENTS_BARRIERS)) {
         if (!cx->shouldBeJSContext())
             return NULL;
-        JSRuntime *rt = cx->asJSContext()->runtime();
-        rt->gcIncrementalEnabled = false;
-
-#ifdef DEBUG
-        if (rt->gcMode == JSGC_MODE_INCREMENTAL) {
-            fprintf(stderr,
-                    "The class %s has a trace hook but does not declare the\n"
-                    "JSCLASS_IMPLEMENTS_BARRIERS flag. Please ensure that it correctly\n"
-                    "implements write barriers and then set the flag.\n",
-                    clasp->name);
-            MOZ_CRASH();
-        }
-#endif
+        cx->asJSContext()->runtime()->gcIncrementalEnabled = false;
     }
 
     Probes::createObject(cx, obj);
@@ -1483,7 +1471,7 @@ js::NewObjectScriptedCall(JSContext *cx, MutableHandleObject pobj)
     RootedScript script(cx, cx->currentScript(&pc));
     gc::AllocKind allocKind = NewObjectGCKind(&JSObject::class_);
     NewObjectKind newKind = script
-                            ? UseNewTypeForInitializer(script, pc, &JSObject::class_)
+                            ? UseNewTypeForInitializer(cx, script, pc, &JSObject::class_)
                             : GenericObject;
     RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_, allocKind, newKind));
     if (!obj)
@@ -4033,6 +4021,7 @@ NativeGetInline(JSContext *cx,
                 typename MaybeRooted<JSObject*, allowGC>::HandleType receiver,
                 typename MaybeRooted<JSObject*, allowGC>::HandleType pobj,
                 typename MaybeRooted<Shape*, allowGC>::HandleType shape,
+                unsigned getHow,
                 typename MaybeRooted<Value, allowGC>::MutableHandleType vp)
 {
     JS_ASSERT(pobj->isNative());
@@ -4040,9 +4029,7 @@ NativeGetInline(JSContext *cx,
     if (shape->hasSlot()) {
         vp.set(pobj->nativeGetSlot(shape->slot()));
         JS_ASSERT(!vp.isMagic());
-        JS_ASSERT_IF(!pobj->hasSingletonType() &&
-                     !pobj->template is<ScopeObject>() &&
-                     shape->hasDefaultGetter(),
+        JS_ASSERT_IF(!pobj->hasSingletonType() && shape->hasDefaultGetter(),
                      js::types::TypeHasProperty(cx, pobj->type(), shape->propid(), vp));
     } else {
         vp.setUndefined();
@@ -4053,6 +4040,12 @@ NativeGetInline(JSContext *cx,
     {
         jsbytecode *pc;
         JSScript *script = cx->currentScript(&pc);
+        if (script && script->hasAnalysis()) {
+            analyze::Bytecode *code = script->analysis()->maybeCode(pc);
+            if (code)
+                code->accessGetter = true;
+        }
+
 #ifdef JS_ION
         if (script && script->hasBaselineScript()) {
             switch (JSOp(*pc)) {
@@ -4089,9 +4082,9 @@ NativeGetInline(JSContext *cx,
 
 bool
 js_NativeGet(JSContext *cx, Handle<JSObject*> obj, Handle<JSObject*> pobj, Handle<Shape*> shape,
-             MutableHandle<Value> vp)
+             unsigned getHow, MutableHandle<Value> vp)
 {
-    return NativeGetInline<CanGC>(cx, obj, obj, pobj, shape, vp);
+    return NativeGetInline<CanGC>(cx, obj, obj, pobj, shape, getHow, vp);
 }
 
 
@@ -4148,6 +4141,7 @@ GetPropertyHelperInline(JSContext *cx,
                         typename MaybeRooted<JSObject*, allowGC>::HandleType obj,
                         typename MaybeRooted<JSObject*, allowGC>::HandleType receiver,
                         typename MaybeRooted<jsid, allowGC>::HandleType id,
+                        uint32_t getHow,
                         typename MaybeRooted<Value, allowGC>::MutableHandleType vp)
 {
     /* This call site is hot -- use the always-inlined variant of LookupPropertyWithFlags(). */
@@ -4245,24 +4239,30 @@ GetPropertyHelperInline(JSContext *cx,
     }
 
     /* This call site is hot -- use the always-inlined variant of js_NativeGet(). */
-    if (!NativeGetInline<allowGC>(cx, obj, receiver, obj2, shape, vp))
+    if (!NativeGetInline<allowGC>(cx, obj, receiver, obj2, shape, getHow, vp))
         return false;
 
     return true;
 }
 
 bool
+js::GetPropertyHelper(JSContext *cx, HandleObject obj, HandleId id, uint32_t getHow, MutableHandleValue vp)
+{
+    return GetPropertyHelperInline<CanGC>(cx, obj, obj, id, getHow, vp);
+}
+
+bool
 baseops::GetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id, MutableHandleValue vp)
 {
     /* This call site is hot -- use the always-inlined variant of GetPropertyHelper(). */
-    return GetPropertyHelperInline<CanGC>(cx, obj, receiver, id, vp);
+    return GetPropertyHelperInline<CanGC>(cx, obj, receiver, id, 0, vp);
 }
 
 bool
 baseops::GetPropertyNoGC(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp)
 {
     AutoAssertNoException nogc(cx);
-    return GetPropertyHelperInline<NoGC>(cx, obj, receiver, id, vp);
+    return GetPropertyHelperInline<NoGC>(cx, obj, receiver, id, 0, vp);
 }
 
 static JS_ALWAYS_INLINE bool
@@ -4447,7 +4447,7 @@ baseops::GetElement(JSContext *cx, HandleObject obj, HandleObject receiver, uint
         return false;
 
     /* This call site is hot -- use the always-inlined variant of js_GetPropertyHelper(). */
-    return GetPropertyHelperInline<CanGC>(cx, obj, receiver, id, vp);
+    return GetPropertyHelperInline<CanGC>(cx, obj, receiver, id, 0, vp);
 }
 
 static bool
@@ -5571,10 +5571,10 @@ js_DumpBacktrace(JSContext *cx)
     fprintf(stdout, "%s", sprinter.string());
 }
 void
-JSObject::addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::ObjectsExtraSizes *sizes)
+JSObject::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::ObjectsExtraSizes *sizes)
 {
     if (hasDynamicSlots())
-        sizes->mallocHeapSlots += mallocSizeOf(slots);
+        sizes->slots = mallocSizeOf(slots);
 
     if (hasDynamicElements()) {
         js::ObjectElements *elements = getElementsHeader();
@@ -5582,33 +5582,32 @@ JSObject::addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::Objects
 #if defined (JS_CPU_X64)
             // On x64, ArrayBufferObject::prepareForAsmJS switches the
             // ArrayBufferObject to use mmap'd storage.
-            sizes->nonHeapElementsAsmJS += as<ArrayBufferObject>().byteLength();
+            sizes->elementsAsmJSNonHeap = as<ArrayBufferObject>().byteLength();
 #else
-            sizes->mallocHeapElementsAsmJS += mallocSizeOf(elements);
+            sizes->elementsAsmJSHeap = mallocSizeOf(elements);
 #endif
         } else {
-            sizes->mallocHeapElementsNonAsmJS += mallocSizeOf(elements);
+            sizes->elementsNonAsmJS = mallocSizeOf(elements);
         }
     }
 
     // Other things may be measured in the future if DMD indicates it is worthwhile.
     // Note that sizes->private_ is measured elsewhere.
     if (is<ArgumentsObject>()) {
-        sizes->mallocHeapArgumentsData += as<ArgumentsObject>().sizeOfMisc(mallocSizeOf);
+        sizes->argumentsData = as<ArgumentsObject>().sizeOfMisc(mallocSizeOf);
     } else if (is<RegExpStaticsObject>()) {
-        sizes->mallocHeapRegExpStatics += as<RegExpStaticsObject>().sizeOfData(mallocSizeOf);
+        sizes->regExpStatics = as<RegExpStaticsObject>().sizeOfData(mallocSizeOf);
     } else if (is<PropertyIteratorObject>()) {
-        sizes->mallocHeapPropertyIteratorData += as<PropertyIteratorObject>().sizeOfMisc(mallocSizeOf);
+        sizes->propertyIteratorData = as<PropertyIteratorObject>().sizeOfMisc(mallocSizeOf);
 #ifdef JS_ION
     } else if (is<AsmJSModuleObject>()) {
-        as<AsmJSModuleObject>().addSizeOfMisc(mallocSizeOf, &sizes->nonHeapCodeAsmJS,
-                                              &sizes->mallocHeapAsmJSModuleData);
+        as<AsmJSModuleObject>().sizeOfMisc(mallocSizeOf, &sizes->asmJSModuleCode,
+                                           &sizes->asmJSModuleData);
 #endif
 #ifdef JS_HAS_CTYPES
     } else {
         // This must be the last case.
-        sizes->mallocHeapCtypesData +=
-            js::SizeOfDataIfCDataObject(mallocSizeOf, const_cast<JSObject *>(this));
+        sizes->ctypesData = js::SizeOfDataIfCDataObject(mallocSizeOf, const_cast<JSObject *>(this));
 #endif
     }
 }

@@ -18,10 +18,6 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/css/ImageLoader.h"
 #include "mozilla/Likely.h"
-#include "gfxFontConstants.h"
-#include "nsPresContext.h"
-#include "imgRequestProxy.h"
-#include "nsDeviceContext.h"
 
 namespace css = mozilla::css;
 

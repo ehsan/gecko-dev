@@ -43,9 +43,9 @@ Module::create(ExclusiveContext *cx, HandleAtom atom)
 {
     RootedObject object(cx, NewBuiltinClassInstance(cx, &class_));
     if (!object)
-        return nullptr;
+        return NULL;
     RootedModule module(cx, &object->as<Module>());
     module->setAtom(atom);
-    module->setScript(nullptr);
+    module->setScript(NULL);
     return module;
 }

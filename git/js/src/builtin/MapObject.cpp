@@ -25,7 +25,6 @@ using mozilla::DoubleIsInt32;
 using mozilla::IsNaN;
 using mozilla::OldMove;
 using mozilla::MoveRef;
-using JS::DoubleNaNValue;
 
 
 /*** OrderedHashTable ****************************************************************************/
@@ -99,7 +98,7 @@ class OrderedHashTable
 
   public:
     OrderedHashTable(AllocPolicy &ap)
-        : hashTable(nullptr), data(nullptr), dataLength(0), ranges(nullptr), alloc(ap) {}
+        : hashTable(NULL), data(NULL), dataLength(0), ranges(NULL), alloc(ap) {}
 
     bool init() {
         MOZ_ASSERT(!hashTable, "init must be called at most once");
@@ -109,7 +108,7 @@ class OrderedHashTable
         if (!tableAlloc)
             return false;
         for (uint32_t i = 0; i < buckets; i++)
-            tableAlloc[i] = nullptr;
+            tableAlloc[i] = NULL;
 
         uint32_t capacity = uint32_t(buckets * fillFactor());
         Data *dataAlloc = static_cast<Data *>(alloc.malloc_(capacity * sizeof(Data)));
@@ -144,16 +143,16 @@ class OrderedHashTable
 
     /* True if any element matches l. */
     bool has(const Lookup &l) const {
-        return lookup(l) != nullptr;
+        return lookup(l) != NULL;
     }
 
-    /* Return a pointer to the element, if any, that matches l, or nullptr. */
+    /* Return a pointer to the element, if any, that matches l, else NULL. */
     T *get(const Lookup &l) {
         Data *e = lookup(l, prepareHash(l));
-        return e ? &e->element : nullptr;
+        return e ? &e->element : NULL;
     }
 
-    /* Return a pointer to the element, if any, that matches l, or nullptr. */
+    /* Return a pointer to the element, if any, that matches l, else NULL. */
     const T *get(const Lookup &l) const {
         return const_cast<OrderedHashTable *>(this)->get(l);
     }
@@ -205,7 +204,7 @@ class OrderedHashTable
 
         // If a matching entry exists, empty it.
         Data *e = lookup(l, prepareHash(l));
-        if (e == nullptr) {
+        if (e == NULL) {
             *foundp = false;
             return true;
         }
@@ -243,7 +242,7 @@ class OrderedHashTable
             Data *oldData = data;
             uint32_t oldDataLength = dataLength;
 
-            hashTable = nullptr;
+            hashTable = NULL;
             if (!init()) {
                 // init() only mutates members on success; see comment above.
                 hashTable = oldHashTable;
@@ -317,7 +316,7 @@ class OrderedHashTable
          * prevp points to the previous Range's .next field;
          *   or to ht.ranges if this is the first Range in the list.
          * next points to the next Range;
-         *   or nullptr if this is the last Range in the list.
+         *   or NULL if this is the last Range in the list.
          *
          * Invariant: *prevp == this.
          */
@@ -451,7 +450,7 @@ class OrderedHashTable
             Ops::setKey(entry.element, k);
             if (newHash != oldHash) {
                 // Remove this entry from its old hash chain. (If this crashes
-                // reading nullptr, it would mean we did not find this entry on
+                // reading NULL, it would mean we did not find this entry on
                 // the hash chain where we expected it. That probably means the
                 // key's hash code changed since it was inserted, breaking the
                 // hash code invariant.)
@@ -516,7 +515,7 @@ class OrderedHashTable
         entry->element = element;
 
         // Remove this entry from its old hash chain. (If this crashes
-        // reading nullptr, it would mean we did not find this entry on
+        // reading NULL, it would mean we did not find this entry on
         // the hash chain where we expected it. That probably means the
         // key's hash code changed since it was inserted, breaking the
         // hash code invariant.)
@@ -585,7 +584,7 @@ class OrderedHashTable
             if (Ops::match(Ops::getKey(e->element), l))
                 return e;
         }
-        return nullptr;
+        return NULL;
     }
 
     const Data *lookup(const Lookup &l) const {
@@ -603,7 +602,7 @@ class OrderedHashTable
     /* Compact the entries in |data| and rehash them. */
     void rehashInPlace() {
         for (uint32_t i = 0, N = hashBuckets(); i < N; i++)
-            hashTable[i] = nullptr;
+            hashTable[i] = NULL;
         Data *wp = data, *end = data + dataLength;
         for (Data *rp = data; rp != end; rp++) {
             if (!Ops::isEmpty(Ops::getKey(rp->element))) {
@@ -643,7 +642,7 @@ class OrderedHashTable
         if (!newHashTable)
             return false;
         for (uint32_t i = 0; i < newHashBuckets; i++)
-            newHashTable[i] = nullptr;
+            newHashTable[i] = NULL;
 
         uint32_t newCapacity = uint32_t(newHashBuckets * fillFactor());
         Data *newData = static_cast<Data *>(alloc.malloc_(newCapacity * sizeof(Data)));
@@ -803,7 +802,7 @@ HashableValue::setValue(JSContext *cx, HandleValue v)
             value = Int32Value(i);
         } else if (IsNaN(d)) {
             // NaNs with different bits must hash and test identically.
-            value = DoubleNaNValue();
+            value = DoubleValue(js_NaN);
         } else {
             value = v;
         }
@@ -833,7 +832,7 @@ HashableValue::operator==(const HashableValue &other) const
 
 #ifdef DEBUG
     bool same;
-    JS_ASSERT(SameValue(nullptr, value, other.value, &same));
+    JS_ASSERT(SameValue(NULL, value, other.value, &same));
     JS_ASSERT(same == b);
 #endif
     return b;
@@ -917,7 +916,7 @@ GlobalObject::initMapIteratorProto(JSContext *cx, Handle<GlobalObject *> global)
         NewObjectWithGivenProto(cx, &MapIteratorObject::class_, base, global));
     if (!proto)
         return false;
-    proto->setSlot(MapIteratorObject::RangeSlot, PrivateValue(nullptr));
+    proto->setSlot(MapIteratorObject::RangeSlot, PrivateValue(NULL));
     if (!JS_DefineFunctions(cx, proto, MapIteratorObject::methods))
         return false;
     global->setReservedSlot(MAP_ITERATOR_PROTO, ObjectValue(*proto));
@@ -931,16 +930,16 @@ MapIteratorObject::create(JSContext *cx, HandleObject mapobj, ValueMap *data,
     Rooted<GlobalObject *> global(cx, &mapobj->global());
     Rooted<JSObject*> proto(cx, global->getOrCreateMapIteratorPrototype(cx));
     if (!proto)
-        return nullptr;
+        return NULL;
 
     ValueMap::Range *range = cx->new_<ValueMap::Range>(data->all());
     if (!range)
-        return nullptr;
+        return NULL;
 
     JSObject *iterobj = NewObjectWithGivenProto(cx, &class_, proto, global);
     if (!iterobj) {
         js_delete(range);
-        return nullptr;
+        return NULL;
     }
     iterobj->setSlot(TargetSlot, ObjectValue(*mapobj));
     iterobj->setSlot(KindSlot, Int32Value(int32_t(kind)));
@@ -969,7 +968,7 @@ MapIteratorObject::next_impl(JSContext *cx, CallArgs args)
         return js_ThrowStopIteration(cx);
     if (range->empty()) {
         js_delete(range);
-        thisobj.setReservedSlot(RangeSlot, PrivateValue(nullptr));
+        thisobj.setReservedSlot(RangeSlot, PrivateValue(NULL));
         return js_ThrowStopIteration(cx);
     }
 
@@ -1019,10 +1018,10 @@ const Class MapObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     finalize,
-    nullptr,                 // checkAccess
-    nullptr,                 // call
-    nullptr,                 // hasInstance
-    nullptr,                 // construct
+    NULL,                    // checkAccess
+    NULL,                    // call
+    NULL,                    // hasInstance
+    NULL,                    // construct
     mark
 };
 
@@ -1039,7 +1038,7 @@ const JSFunctionSpec MapObject::methods[] = {
     JS_FN("keys", keys, 0, 0),
     JS_FN("values", values, 0, 0),
     JS_FN("clear", clear, 0, 0),
-    JS_SELF_HOSTED_FN("forEach", "MapForEach", 2, 0),
+    {"forEach", {NULL, NULL}, 2, 0, "MapForEach"},
     JS_FS_END
 };
 
@@ -1049,8 +1048,8 @@ InitClass(JSContext *cx, Handle<GlobalObject*> global, const Class *clasp, JSPro
 {
     Rooted<JSObject*> proto(cx, global->createBlankPrototype(cx, clasp));
     if (!proto)
-        return nullptr;
-    proto->setPrivate(nullptr);
+        return NULL;
+    proto->setPrivate(NULL);
 
     Rooted<JSFunction*> ctor(cx, global->createConstructor(cx, construct, ClassName(key, cx), 1));
     if (!ctor ||
@@ -1058,7 +1057,7 @@ InitClass(JSContext *cx, Handle<GlobalObject*> global, const Class *clasp, JSPro
         !DefinePropertiesAndBrand(cx, proto, properties, methods) ||
         !DefineConstructorAndPrototype(cx, global, key, ctor, proto))
     {
-        return nullptr;
+        return NULL;
     }
     return proto;
 }
@@ -1073,12 +1072,12 @@ MapObject::initClass(JSContext *cx, JSObject *obj)
         // Define the "entries" method.
         JSFunction *fun = JS_DefineFunction(cx, proto, "entries", entries, 0, 0);
         if (!fun)
-            return nullptr;
+            return NULL;
 
         // Define its alias.
         RootedValue funval(cx, ObjectValue(*fun));
-        if (!JS_DefineProperty(cx, proto, "iterator", funval, nullptr, nullptr, 0))
-            return nullptr;
+        if (!JS_DefineProperty(cx, proto, "iterator", funval, NULL, NULL, 0))
+            return NULL;
     }
     return proto;
 }
@@ -1483,7 +1482,7 @@ GlobalObject::initSetIteratorProto(JSContext *cx, Handle<GlobalObject*> global)
     RootedObject proto(cx, NewObjectWithGivenProto(cx, &SetIteratorObject::class_, base, global));
     if (!proto)
         return false;
-    proto->setSlot(SetIteratorObject::RangeSlot, PrivateValue(nullptr));
+    proto->setSlot(SetIteratorObject::RangeSlot, PrivateValue(NULL));
     if (!JS_DefineFunctions(cx, proto, SetIteratorObject::methods))
         return false;
     global->setReservedSlot(SET_ITERATOR_PROTO, ObjectValue(*proto));
@@ -1497,16 +1496,16 @@ SetIteratorObject::create(JSContext *cx, HandleObject setobj, ValueSet *data,
     Rooted<GlobalObject *> global(cx, &setobj->global());
     Rooted<JSObject*> proto(cx, global->getOrCreateSetIteratorPrototype(cx));
     if (!proto)
-        return nullptr;
+        return NULL;
 
     ValueSet::Range *range = cx->new_<ValueSet::Range>(data->all());
     if (!range)
-        return nullptr;
+        return NULL;
 
     JSObject *iterobj = NewObjectWithGivenProto(cx, &class_, proto, global);
     if (!iterobj) {
         js_delete(range);
-        return nullptr;
+        return NULL;
     }
     iterobj->setSlot(TargetSlot, ObjectValue(*setobj));
     iterobj->setSlot(KindSlot, Int32Value(int32_t(kind)));
@@ -1535,7 +1534,7 @@ SetIteratorObject::next_impl(JSContext *cx, CallArgs args)
         return js_ThrowStopIteration(cx);
     if (range->empty()) {
         js_delete(range);
-        thisobj.setReservedSlot(RangeSlot, PrivateValue(nullptr));
+        thisobj.setReservedSlot(RangeSlot, PrivateValue(NULL));
         return js_ThrowStopIteration(cx);
     }
 
@@ -1582,10 +1581,10 @@ const Class SetObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     finalize,
-    nullptr,                 // checkAccess
-    nullptr,                 // call
-    nullptr,                 // hasInstance
-    nullptr,                 // construct
+    NULL,                    // checkAccess
+    NULL,                    // call
+    NULL,                    // hasInstance
+    NULL,                    // construct
     mark
 };
 
@@ -1600,7 +1599,7 @@ const JSFunctionSpec SetObject::methods[] = {
     JS_FN("delete", delete_, 1, 0),
     JS_FN("entries", entries, 0, 0),
     JS_FN("clear", clear, 0, 0),
-    JS_SELF_HOSTED_FN("forEach", "SetForEach", 2, 0),
+    {"forEach", {NULL, NULL}, 2, 0, "SetForEach"},
     JS_FS_END
 };
 
@@ -1614,14 +1613,14 @@ SetObject::initClass(JSContext *cx, JSObject *obj)
         // Define the "values" method.
         JSFunction *fun = JS_DefineFunction(cx, proto, "values", values, 0, 0);
         if (!fun)
-            return nullptr;
+            return NULL;
 
         // Define its aliases.
         RootedValue funval(cx, ObjectValue(*fun));
-        if (!JS_DefineProperty(cx, proto, "keys", funval, nullptr, nullptr, 0))
-            return nullptr;
-        if (!JS_DefineProperty(cx, proto, "iterator", funval, nullptr, nullptr, 0))
-            return nullptr;
+        if (!JS_DefineProperty(cx, proto, "keys", funval, NULL, NULL, 0))
+            return NULL;
+        if (!JS_DefineProperty(cx, proto, "iterator", funval, NULL, NULL, 0))
+            return NULL;
     }
     return proto;
 }

@@ -37,7 +37,7 @@ public:
 
   void Reset() { mBuffer.Clear(); };
 
-  int MaxDelayFrames() const { return mMaxDelayFrames; }
+  double CurrentDelayFrames() const { return mCurrentDelay; }
   int BufferChannelCount() const { return mBuffer.Length(); }
 
 private:

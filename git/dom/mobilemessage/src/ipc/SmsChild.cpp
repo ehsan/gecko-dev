@@ -11,7 +11,6 @@
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/mobilemessage/Constants.h" // For MessageType
 #include "MobileMessageThread.h"
-#include "MainThreadUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

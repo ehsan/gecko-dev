@@ -20,7 +20,7 @@ function setSnappedViewstate() {
   browser.style.borderRight = padding + "px solid gray";
 
   // Communicate viewstate change
-  ContentAreaObserver._updateViewState("snapped");
+  Services.obs.notifyObservers(null, 'metro_viewstate_changed', 'snapped');
 
   // Make sure it renders the new mode properly
   yield waitForMs(0);
@@ -36,15 +36,16 @@ function setPortraitViewstate() {
 
   browser.style.borderRight = padding + "px solid gray";
 
-  ContentAreaObserver._updateViewState("portrait");
+  Services.obs.notifyObservers(null, 'metro_viewstate_changed', 'portrait');
 
   // Make sure it renders the new mode properly
   yield waitForMs(0);
 }
 
 function restoreViewstate() {
-  ContentAreaObserver._updateViewState("landscape");
-  ok(isLandscapeMode(), "restoreViewstate should restore landscape mode.");
+  ok(isLandscapeMode(), "restoreViewstate expects landscape mode to work.");
+
+  Services.obs.notifyObservers(null, 'metro_viewstate_changed', 'landscape');
 
   Browser.selectedBrowser.style.removeProperty("border-right");
 

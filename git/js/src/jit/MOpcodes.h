@@ -24,7 +24,6 @@ namespace jit {
     _(Beta)                                                                 \
     _(OsrValue)                                                             \
     _(OsrScopeChain)                                                        \
-    _(OsrArgumentsObject)                                                   \
     _(ReturnFromCtor)                                                       \
     _(CheckOverRecursed)                                                    \
     _(DefVar)                                                               \
@@ -124,7 +123,6 @@ namespace jit {
     _(ArrayLength)                                                          \
     _(TypedArrayLength)                                                     \
     _(TypedArrayElements)                                                   \
-    _(TypedObjectElements)                                                  \
     _(InitializedLength)                                                    \
     _(SetInitializedLength)                                                 \
     _(Not)                                                                  \
@@ -165,8 +163,7 @@ namespace jit {
     _(IteratorEnd)                                                          \
     _(StringLength)                                                         \
     _(ArgumentsLength)                                                      \
-    _(GetFrameArgument)                                                     \
-    _(SetFrameArgument)                                                     \
+    _(GetArgument)                                                          \
     _(RunOncePrologue)                                                      \
     _(Rest)                                                                 \
     _(Floor)                                                                \
@@ -200,7 +197,6 @@ namespace jit {
     _(NewCallObjectPar)                                                     \
     _(NewPar)                                                               \
     _(NewDenseArrayPar)                                                     \
-    _(NewDerivedTypedObject)                                                \
     _(AbortPar)                                                             \
     _(LambdaPar)                                                            \
     _(RestPar)                                                              \

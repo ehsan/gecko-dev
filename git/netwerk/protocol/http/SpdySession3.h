@@ -11,7 +11,6 @@
 
 #include "ASpdySession.h"
 #include "mozilla/Attributes.h"
-#include "nsAHttpConnection.h"
 #include "nsClassHashtable.h"
 #include "nsDataHashtable.h"
 #include "nsDeque.h"

@@ -7,6 +7,7 @@
 #define nsWebShellWindow_h__
 
 #include "mozilla/Mutex.h"
+#include "nsEvent.h"
 #include "nsIWebProgressListener.h"
 #include "nsITimer.h"
 #include "nsCOMPtr.h"

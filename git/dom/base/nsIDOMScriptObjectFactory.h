@@ -8,7 +8,7 @@
 
 #include "nsISupports.h"
 #include "nsIDOMClassInfo.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 
 #define NS_IDOM_SCRIPT_OBJECT_FACTORY_IID \
 { 0x2a50e17c, 0x46ff, 0x4150, \

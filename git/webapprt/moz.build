@@ -18,7 +18,6 @@ EXTRA_COMPONENTS += [
     'CommandLineHandler.js',
     'ContentPermission.js',
     'DirectoryProvider.js',
-    'PaymentUIGlue.js',
     'components.manifest',
 ]
 

@@ -116,10 +116,10 @@ add_task(function test_getSystemDownloadsDirectory()
 });
 
 /**
- * Tests that the getPreferredDownloadsDirectory returns a valid nsFile
+ * Tests that the getUserDownloadsDirectory returns a valid nsFile
  * download directory object.
  */
-add_task(function test_getPreferredDownloadsDirectory()
+add_task(function test_getUserDownloadsDirectory()
 {
   let folderListPrefName = "browser.download.folderList";
   let dirPrefName = "browser.download.dir";
@@ -132,20 +132,20 @@ add_task(function test_getPreferredDownloadsDirectory()
   // Should return the system downloads directory.
   Services.prefs.setIntPref(folderListPrefName, 1);
   let systemDir = yield DownloadIntegration.getSystemDownloadsDirectory();
-  let downloadDir = yield DownloadIntegration.getPreferredDownloadsDirectory();
+  let downloadDir = yield DownloadIntegration.getUserDownloadsDirectory();
   do_check_true(downloadDir instanceof Ci.nsIFile);
   do_check_eq(downloadDir.path, systemDir.path);
 
   // Should return the desktop directory.
   Services.prefs.setIntPref(folderListPrefName, 0);
-  downloadDir = yield DownloadIntegration.getPreferredDownloadsDirectory();
+  downloadDir = yield DownloadIntegration.getUserDownloadsDirectory();
   do_check_true(downloadDir instanceof Ci.nsIFile);
   do_check_eq(downloadDir.path, Services.dirsvc.get("Desk", Ci.nsIFile).path);
 
   // Should return the system downloads directory because the dir preference
   // is not set.
   Services.prefs.setIntPref(folderListPrefName, 2);
-  let downloadDir = yield DownloadIntegration.getPreferredDownloadsDirectory();
+  let downloadDir = yield DownloadIntegration.getUserDownloadsDirectory();
   do_check_true(downloadDir instanceof Ci.nsIFile);
   do_check_eq(downloadDir.path, systemDir.path);
 
@@ -154,7 +154,7 @@ add_task(function test_getPreferredDownloadsDirectory()
   let tempDir = Services.dirsvc.get("TmpD", Ci.nsIFile);
   tempDir.append(time);
   Services.prefs.setComplexValue("browser.download.dir", Ci.nsIFile, tempDir);
-  downloadDir = yield DownloadIntegration.getPreferredDownloadsDirectory();
+  downloadDir = yield DownloadIntegration.getUserDownloadsDirectory();
   do_check_true(downloadDir instanceof Ci.nsIFile);
   do_check_eq(downloadDir.path,  tempDir.path);
   do_check_true(yield OS.File.exists(downloadDir.path));
@@ -166,13 +166,13 @@ add_task(function test_getPreferredDownloadsDirectory()
   tempDir.append("dir_not_exist");
   tempDir.append(time);
   Services.prefs.setComplexValue("browser.download.dir", Ci.nsIFile, tempDir);
-  downloadDir = yield DownloadIntegration.getPreferredDownloadsDirectory();
+  downloadDir = yield DownloadIntegration.getUserDownloadsDirectory();
   do_check_eq(downloadDir.path, systemDir.path);
 
   // Should return the system downloads directory because the folderList
   // preference is invalid
   Services.prefs.setIntPref(folderListPrefName, 999);
-  let downloadDir = yield DownloadIntegration.getPreferredDownloadsDirectory();
+  let downloadDir = yield DownloadIntegration.getUserDownloadsDirectory();
   do_check_eq(downloadDir.path, systemDir.path);
 
   cleanup();
@@ -188,8 +188,8 @@ add_task(function test_getTemporaryDownloadsDirectory()
   do_check_true(downloadDir instanceof Ci.nsIFile);
 
   if ("nsILocalFileMac" in Ci) {
-    let preferredDownloadDir = yield DownloadIntegration.getPreferredDownloadsDirectory();
-    do_check_eq(downloadDir.path, preferredDownloadDir.path);
+    let userDownloadDir = yield DownloadIntegration.getUserDownloadsDirectory();
+    do_check_eq(downloadDir.path, userDownloadDir.path);
   } else {
     let tempDir = Services.dirsvc.get("TmpD", Ci.nsIFile);
     do_check_eq(downloadDir.path, tempDir.path);
@@ -206,10 +206,9 @@ add_task(function test_getTemporaryDownloadsDirectory()
 add_task(function test_notifications()
 {
   enableObserversTestMode();
+  mustInterruptResponses();
 
   for (let isPrivate of [false, true]) {
-    mustInterruptResponses();
-
     let list = yield promiseNewList(isPrivate);
     let download1 = yield promiseNewDownload(httpUrl("interruptible.txt"));
     let download2 = yield promiseNewDownload(httpUrl("interruptible.txt"));
@@ -219,9 +218,9 @@ add_task(function test_notifications()
     download3.start();
 
     // Add downloads to list.
-    yield list.add(download1);
-    yield list.add(download2);
-    yield list.add(download3);
+    list.add(download1);
+    list.add(download2);
+    list.add(download3);
     // Cancel third download
     yield download3.cancel();
 
@@ -233,9 +232,9 @@ add_task(function test_notifications()
     yield promiseAttempt2;
 
     // Clean up.
-    yield list.remove(download1);
-    yield list.remove(download2);
-    yield list.remove(download3);
+    list.remove(download1);
+    list.remove(download2);
+    list.remove(download3);
   }
 });
 
@@ -255,8 +254,8 @@ add_task(function test_no_notifications()
     download2.start();
 
     // Add downloads to list.
-    yield list.add(download1);
-    yield list.add(download2);
+    list.add(download1);
+    list.add(download2);
 
     yield download1.cancel();
     yield download2.cancel();
@@ -264,8 +263,8 @@ add_task(function test_no_notifications()
     notifyPromptObservers(isPrivate, 0, 0);
 
     // Clean up.
-    yield list.remove(download1);
-    yield list.remove(download2);
+    list.remove(download1);
+    list.remove(download2);
   }
 });
 
@@ -286,8 +285,8 @@ add_task(function test_mix_notifications()
   let promiseAttempt2 = download2.start();
 
   // Add downloads to lists.
-  yield publicList.add(download1);
-  yield privateList.add(download2);
+  publicList.add(download1);
+  privateList.add(download2);
 
   notifyPromptObservers(true, 2, 1);
 
@@ -297,89 +296,8 @@ add_task(function test_mix_notifications()
   yield promiseAttempt2;
 
   // Clean up.
-  yield publicList.remove(download1);
-  yield privateList.remove(download2);
-});
-
-/**
- * Tests suspending and resuming as well as going offline and then online again.
- * The downloads should stop when suspending and start again when resuming.
- */
-add_task(function test_suspend_resume()
-{
-  enableObserversTestMode();
-
-  // The default wake delay is 10 seconds, so set the wake delay to be much
-  // faster for these tests.
-  Services.prefs.setIntPref("browser.download.manager.resumeOnWakeDelay", 5);
-
-  let addDownload = function(list)
-  {
-    return Task.spawn(function () {
-      let download = yield promiseNewDownload(httpUrl("interruptible.txt"));
-      download.start();
-      list.add(download);
-      throw new Task.Result(download);
-    });
-  }
-
-  let publicList = yield promiseNewList();
-  let privateList = yield promiseNewList(true);
-
-  let download1 = yield addDownload(publicList);
-  let download2 = yield addDownload(publicList);
-  let download3 = yield addDownload(privateList);
-  let download4 = yield addDownload(privateList);
-  let download5 = yield addDownload(publicList);
-
-  // First, check that the downloads are all canceled when going to sleep.
-  Services.obs.notifyObservers(null, "sleep_notification", null);
-  do_check_true(download1.canceled);
-  do_check_true(download2.canceled);
-  do_check_true(download3.canceled);
-  do_check_true(download4.canceled);
-  do_check_true(download5.canceled);
-
-  // Remove a download. It should not be started again.
-  publicList.remove(download5);
-  do_check_true(download5.canceled);
-
-  // When waking up again, the downloads start again after the wake delay. To be
-  // more robust, don't check after a delay but instead just wait for the
-  // downloads to finish.
-  Services.obs.notifyObservers(null, "wake_notification", null);
-  yield download1.whenSucceeded();
-  yield download2.whenSucceeded();
-  yield download3.whenSucceeded();
-  yield download4.whenSucceeded();
-
-  // Downloads should no longer be canceled. However, as download5 was removed
-  // from the public list, it will not be restarted.
-  do_check_false(download1.canceled);
-  do_check_true(download5.canceled);
-
-  // Create four new downloads and check for going offline and then online again.
-
-  download1 = yield addDownload(publicList);
-  download2 = yield addDownload(publicList);
-  download3 = yield addDownload(privateList);
-  download4 = yield addDownload(privateList);
-
-  // Going offline should cancel the downloads.
-  Services.obs.notifyObservers(null, "network:offline-about-to-go-offline", null);
-  do_check_true(download1.canceled);
-  do_check_true(download2.canceled);
-  do_check_true(download3.canceled);
-  do_check_true(download4.canceled);
-
-  // Going back online should start the downloads again.
-  Services.obs.notifyObservers(null, "network:offline-status-changed", "online");
-  yield download1.whenSucceeded();
-  yield download2.whenSucceeded();
-  yield download3.whenSucceeded();
-  yield download4.whenSucceeded();
-
-  Services.prefs.clearUserPref("browser.download.manager.resumeOnWakeDelay");
+  publicList.remove(download1);
+  privateList.remove(download2);
 });
 
 /**
@@ -398,8 +316,8 @@ add_task(function test_exit_private_browsing()
   let promiseAttempt2 = download2.start();
 
   // Add downloads to list.
-  yield privateList.add(download1);
-  yield privateList.add(download2);
+  privateList.add(download1);
+  privateList.add(download2);
 
   // Complete the download.
   yield promiseAttempt1;
@@ -417,8 +335,3 @@ add_task(function test_exit_private_browsing()
   continueResponses();
 });
 
-////////////////////////////////////////////////////////////////////////////////
-//// Termination
-
-let tailFile = do_get_file("tail.js");
-Services.scriptloader.loadSubScript(NetUtil.newURI(tailFile).spec);

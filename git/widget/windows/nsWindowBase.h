@@ -6,8 +6,8 @@
 #ifndef nsWindowBase_h_
 #define nsWindowBase_h_
 
-#include "mozilla/MiscEvents.h"
 #include "nsBaseWidget.h"
+#include "nsGUIEvent.h"
 #include "npapi.h"
 #include <windows.h>
 
@@ -40,21 +40,20 @@ public:
    * @param aEvent the event to initialize.
    * @param aPoint message position in physical coordinates.
    */
-  virtual void InitEvent(mozilla::WidgetGUIEvent& aEvent,
-                         nsIntPoint* aPoint = nullptr) = 0;
+  virtual void InitEvent(nsGUIEvent& aEvent, nsIntPoint* aPoint = nullptr) = 0;
 
   /*
    * Dispatch a gecko event for this widget.
    * Returns true if it's consumed.  Otherwise, false.
    */
-  virtual bool DispatchWindowEvent(mozilla::WidgetGUIEvent* aEvent) = 0;
+  virtual bool DispatchWindowEvent(nsGUIEvent* aEvent) = 0;
 
   /*
    * Dispatch a gecko keyboard event for this widget. This
    * is called by KeyboardLayout to dispatch gecko events.
    * Returns true if it's consumed.  Otherwise, false.
    */
-  virtual bool DispatchKeyboardEvent(mozilla::WidgetGUIEvent* aEvent) = 0;
+  virtual bool DispatchKeyboardEvent(nsGUIEvent* aEvent) = 0;
 
   /*
    * Default dispatch of a plugin event.
@@ -64,7 +63,7 @@ public:
     if (!PluginHasFocus()) {
       return false;
     }
-    mozilla::WidgetPluginEvent pluginEvent(true, NS_PLUGIN_INPUT_EVENT, this);
+    nsPluginEvent pluginEvent(true, NS_PLUGIN_INPUT_EVENT, this);
     nsIntPoint point(0, 0);
     InitEvent(pluginEvent, &point);
     NPEvent npEvent;

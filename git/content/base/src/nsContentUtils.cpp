@@ -38,11 +38,8 @@
 #include "mozilla/dom/HTMLTemplateElement.h"
 #include "mozilla/dom/TextDecoder.h"
 #include "mozilla/Likely.h"
-#include "mozilla/MouseEvents.h"
-#include "mozilla/MutationEvent.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Selection.h"
-#include "mozilla/TextEvents.h"
 #include "mozilla/Util.h"
 #include "nsAString.h"
 #include "nsAttrName.h"
@@ -147,6 +144,7 @@
 #include "nsIXPConnect.h"
 #include "nsJSUtils.h"
 #include "nsLWBrkCIID.h"
+#include "nsMutationEvent.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
 #include "nsNodeInfoManager.h"
@@ -253,6 +251,7 @@ bool nsContentUtils::sDOMWindowDumpEnabled;
 
 namespace {
 
+static const char kJSStackContractID[] = "@mozilla.org/js/xpc/ContextStack;1";
 static NS_DEFINE_CID(kParserServiceCID, NS_PARSERSERVICE_CID);
 static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
 
@@ -2221,6 +2220,13 @@ static inline void KeyAppendInt(int32_t aInt, nsACString& aKey)
   aKey.Append(nsPrintfCString("%d", aInt));
 }
 
+static inline void KeyAppendAtom(nsIAtom* aAtom, nsACString& aKey)
+{
+  NS_PRECONDITION(aAtom, "KeyAppendAtom: aAtom can not be null!\n");
+
+  KeyAppendString(nsAtomCString(aAtom), aKey);
+}
+
 static inline bool IsAutocompleteOff(const nsIContent* aElement)
 {
   return aElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::autocomplete,
@@ -3014,24 +3020,6 @@ nsresult nsContentUtils::FormatLocalizedString(PropertiesFile aFile,
                                       getter_Copies(aResult));
 }
 
-/* static */ void
-nsContentUtils::LogSimpleConsoleError(const nsAString& aErrorText,
-                                      const char * classification)
-{
-  nsCOMPtr<nsIScriptError> scriptError =
-    do_CreateInstance(NS_SCRIPTERROR_CONTRACTID);
-  if (scriptError) {
-    nsCOMPtr<nsIConsoleService> console =
-      do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-    if (console && NS_SUCCEEDED(scriptError->Init(aErrorText, EmptyString(),
-                                                  EmptyString(), 0, 0,
-                                                  nsIScriptError::errorFlag,
-                                                  classification))) {
-      console->LogMessage(scriptError);
-    }
-  }
-}
-
 /* static */ nsresult
 nsContentUtils::ReportToConsole(uint32_t aErrorFlags,
                                 const nsACString& aCategory,
@@ -3708,7 +3696,7 @@ nsContentUtils::MaybeFireNodeRemoved(nsINode* aChild, nsINode* aParent,
 
   if (HasMutationListeners(aChild,
         NS_EVENT_BITS_MUTATION_NODEREMOVED, aParent)) {
-    InternalMutationEvent mutation(true, NS_MUTATION_NODEREMOVED);
+    nsMutationEvent mutation(true, NS_MUTATION_NODEREMOVED);
     mutation.mRelatedNode = do_QueryInterface(aParent);
 
     mozAutoSubtreeModified subtree(aOwnerDoc, aParent);
@@ -4554,7 +4542,7 @@ nsContentUtils::GetLocalizedEllipsis()
 }
 
 //static
-WidgetEvent*
+nsEvent*
 nsContentUtils::GetNativeEvent(nsIDOMEvent* aDOMEvent)
 {
   return aDOMEvent ? aDOMEvent->GetInternalNSEvent() : nullptr;
@@ -4599,8 +4587,8 @@ nsContentUtils::GetAccelKeyCandidates(nsIDOMKeyEvent* aDOMKeyEvent,
   if (!eventType.EqualsLiteral("keypress"))
     return;
 
-  WidgetKeyboardEvent* nativeKeyEvent =
-    static_cast<WidgetKeyboardEvent*>(GetNativeEvent(aDOMKeyEvent));
+  nsKeyEvent* nativeKeyEvent =
+    static_cast<nsKeyEvent*>(GetNativeEvent(aDOMKeyEvent));
   if (nativeKeyEvent) {
     NS_ASSERTION(nativeKeyEvent->eventStructType == NS_KEY_EVENT,
                  "wrong type of native event");
@@ -4691,7 +4679,7 @@ nsContentUtils::GetAccelKeyCandidates(nsIDOMKeyEvent* aDOMKeyEvent,
 
 /* static */
 void
-nsContentUtils::GetAccessKeyCandidates(WidgetKeyboardEvent* aNativeKeyEvent,
+nsContentUtils::GetAccessKeyCandidates(nsKeyEvent* aNativeKeyEvent,
                                        nsTArray<uint32_t>& aCandidates)
 {
   NS_PRECONDITION(aCandidates.IsEmpty(), "aCandidates must be empty");
@@ -4979,7 +4967,7 @@ nsContentUtils::GetDragSession()
 
 /* static */
 nsresult
-nsContentUtils::SetDataTransferInEvent(WidgetDragEvent* aDragEvent)
+nsContentUtils::SetDataTransferInEvent(nsDragEvent* aDragEvent)
 {
   if (aDragEvent->dataTransfer || !aDragEvent->mFlags.mIsTrusted)
     return NS_OK;
@@ -5081,8 +5069,7 @@ nsContentUtils::FilterDropEffect(uint32_t aAction, uint32_t aEffectAllowed)
 
 /* static */
 bool
-nsContentUtils::CheckForSubFrameDrop(nsIDragSession* aDragSession,
-                                     WidgetDragEvent* aDropEvent)
+nsContentUtils::CheckForSubFrameDrop(nsIDragSession* aDragSession, nsDragEvent* aDropEvent)
 {
   nsCOMPtr<nsIContent> target = do_QueryInterface(aDropEvent->originalTarget);
   if (!target) {
@@ -6138,9 +6125,9 @@ nsContentUtils::IsPatternMatching(nsAString& aValue, nsAString& aPattern,
   aPattern.Insert(NS_LITERAL_STRING("^(?:"), 0);
   aPattern.Append(NS_LITERAL_STRING(")$"));
 
-  JS::RootedObject re(cx, JS_NewUCRegExpObjectNoStatics(cx, static_cast<jschar*>
-                                                        (aPattern.BeginWriting()),
-                                                        aPattern.Length(), 0));
+  JSObject* re = JS_NewUCRegExpObjectNoStatics(cx, static_cast<jschar*>
+                                                 (aPattern.BeginWriting()),
+                                               aPattern.Length(), 0);
   if (!re) {
     JS_ClearPendingException(cx);
     return true;
@@ -6150,7 +6137,7 @@ nsContentUtils::IsPatternMatching(nsAString& aValue, nsAString& aPattern,
   size_t idx = 0;
   if (!JS_ExecuteRegExpNoStatics(cx, re,
                                  static_cast<jschar*>(aValue.BeginWriting()),
-                                 aValue.Length(), &idx, true, &rval)) {
+                                 aValue.Length(), &idx, true, rval.address())) {
     JS_ClearPendingException(cx);
     return true;
   }

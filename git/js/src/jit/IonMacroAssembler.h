@@ -20,9 +20,11 @@
 #endif
 #include "jit/IonCompartment.h"
 #include "jit/IonInstrumentation.h"
+#include "jit/ParallelFunctions.h"
 #include "jit/VMFunctions.h"
 #include "vm/ProxyObject.h"
 #include "vm/Shape.h"
+#include "vm/TypedArrayObject.h"
 
 namespace js {
 namespace jit {
@@ -52,120 +54,6 @@ class MacroAssembler : public MacroAssemblerSpecific
         }
     };
 
-    /*
-     * Base class for creating a branch.
-     */
-    class Branch
-    {
-        bool init_;
-        Condition cond_;
-        Label *jump_;
-        Register reg_;
-
-      public:
-        Branch()
-          : init_(false),
-            cond_(Equal),
-            jump_(nullptr),
-            reg_(Register::FromCode(0))      // Quell compiler warnings.
-        { }
-
-        Branch(Condition cond, Register reg, Label *jump)
-          : init_(true),
-            cond_(cond),
-            jump_(jump),
-            reg_(reg)
-        { }
-
-        bool isInitialized() const {
-            return init_;
-        }
-
-        Condition cond() const {
-            return cond_;
-        }
-
-        Label *jump() const {
-            return jump_;
-        }
-
-        Register reg() const {
-            return reg_;
-        }
-
-        void invertCondition() {
-            cond_ = InvertCondition(cond_);
-        }
-
-        void relink(Label *jump) {
-            jump_ = jump;
-        }
-
-        virtual void emit(MacroAssembler &masm) = 0;
-    };
-
-    /*
-     * Creates a branch based on a specific types::Type.
-     * Note: emits number test (int/double) for types::Type::DoubleType()
-     */
-    class BranchType : public Branch
-    {
-        types::Type type_;
-
-      public:
-        BranchType()
-          : Branch(),
-            type_(types::Type::UnknownType())
-        { }
-
-        BranchType(Condition cond, Register reg, types::Type type, Label *jump)
-          : Branch(cond, reg, jump),
-            type_(type)
-        { }
-
-        void emit(MacroAssembler &masm) {
-            JS_ASSERT(isInitialized());
-            MIRType mirType = MIRType_None;
-
-            if (type_.isPrimitive())
-                mirType = MIRTypeFromValueType(type_.primitive());
-            else if (type_.isAnyObject())
-                mirType = MIRType_Object;
-            else
-                MOZ_ASSUME_UNREACHABLE("Unknown conversion to mirtype");
-
-            if (mirType == MIRType_Double)
-                masm.branchTestNumber(cond(), reg(), jump());
-            else
-                masm.branchTestMIRType(cond(), reg(), mirType, jump());
-        }
-
-    };
-
-    /*
-     * Creates a branch based on a GCPtr.
-     */
-    class BranchGCPtr : public Branch
-    {
-        ImmGCPtr ptr_;
-
-      public:
-        BranchGCPtr()
-          : Branch(),
-            ptr_(ImmGCPtr(nullptr))
-        { }
-
-        BranchGCPtr(Condition cond, Register reg, ImmGCPtr ptr, Label *jump)
-          : Branch(cond, reg, jump),
-            ptr_(ptr)
-        { }
-
-        void emit(MacroAssembler &masm) {
-            JS_ASSERT(isInitialized());
-            masm.branchPtr(cond(), reg(), ptr_, jump());
-        }
-    };
-
     mozilla::Maybe<AutoRooter> autoRooter_;
     mozilla::Maybe<IonContext> ionContext_;
     mozilla::Maybe<AutoIonContextAlloc> alloc_;
@@ -177,7 +65,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     // provided and enabled, then instrumentation will be emitted around call
     // sites. The IonInstrumentation instance is hosted inside of
     // CodeGeneratorShared and is the manager of when instrumentation is
-    // actually emitted or not. If nullptr, then no instrumentation is emitted.
+    // actually emitted or not. If NULL, then no instrumentation is emitted.
     IonInstrumentation *sps_;
 
     // Labels for handling exceptions and failures.
@@ -191,7 +79,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     MacroAssembler()
       : enoughMemory_(true),
         embedsNurseryPointers_(false),
-        sps_(nullptr)
+        sps_(NULL)
     {
         JSContext *cx = GetIonContext()->cx;
         if (cx)
@@ -213,10 +101,10 @@ class MacroAssembler : public MacroAssemblerSpecific
     MacroAssembler(JSContext *cx)
       : enoughMemory_(true),
         embedsNurseryPointers_(false),
-        sps_(nullptr)
+        sps_(NULL)
     {
         constructRoot(cx);
-        ionContext_.construct(cx, (js::jit::TempAllocator *)nullptr);
+        ionContext_.construct(cx, (js::jit::TempAllocator *)NULL);
         alloc_.construct(cx);
 #ifdef JS_CPU_ARM
         initWithAllocator();
@@ -229,7 +117,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     MacroAssembler(AsmJSToken)
       : enoughMemory_(true),
         embedsNurseryPointers_(false),
-        sps_(nullptr)
+        sps_(NULL)
     {
 #ifdef JS_CPU_ARM
         initWithAllocator();
@@ -272,11 +160,14 @@ class MacroAssembler : public MacroAssemblerSpecific
     // Emits a test of a value against all types in a TypeSet. A scratch
     // register is required.
     template <typename Source, typename TypeSet>
-    void guardTypeSet(const Source &address, const TypeSet *types, Register scratch, Label *miss);
+    void guardTypeSet(const Source &address, const TypeSet *types, Register scratch,
+                      Label *matched, Label *miss);
     template <typename TypeSet>
-    void guardObjectType(Register obj, const TypeSet *types, Register scratch, Label *miss);
+    void guardObjectType(Register obj, const TypeSet *types,
+                         Register scratch, Label *matched, Label *miss);
     template <typename Source>
-    void guardType(const Source &address, types::Type type, Register scratch, Label *miss);
+    void guardType(const Source &address, types::Type type, Register scratch,
+                   Label *matched, Label *miss);
 
     void loadObjShape(Register objReg, Register dest) {
         loadPtr(Address(objReg, JSObject::offsetOfShape()), dest);
@@ -302,7 +193,7 @@ class MacroAssembler : public MacroAssemblerSpecific
         branchPtr(cond, Address(obj, JSObject::offsetOfShape()), shape, label);
     }
     void branchTestProxyHandlerFamily(Condition cond, Register proxy, Register scratch,
-                                      const void *handlerp, Label *label) {
+                                      void *handlerp, Label *label) {
         Address handlerAddr(proxy, ProxyObject::offsetOfHandler());
         loadPrivate(handlerAddr, scratch);
         Address familyAddr(scratch, BaseProxyHandler::offsetOfFamily());
@@ -311,6 +202,10 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     template <typename Value>
     Condition testMIRType(Condition cond, const Value &val, MIRType type) {
+        JS_ASSERT(type == MIRType_Null    || type == MIRType_Undefined  ||
+                  type == MIRType_Boolean || type == MIRType_Int32      ||
+                  type == MIRType_String  || type == MIRType_Object     ||
+                  type == MIRType_Double);
         switch (type) {
           case MIRType_Null:        return testNull(cond, val);
           case MIRType_Undefined:   return testUndefined(cond, val);
@@ -319,7 +214,6 @@ class MacroAssembler : public MacroAssemblerSpecific
           case MIRType_String:      return testString(cond, val);
           case MIRType_Object:      return testObject(cond, val);
           case MIRType_Double:      return testDouble(cond, val);
-          case MIRType_Magic:       return testMagic(cond, val);
           default:
             MOZ_ASSUME_UNREACHABLE("Bad MIRType");
         }
@@ -358,10 +252,13 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
 
     void loadJSContext(const Register &dest) {
-        loadPtr(AbsoluteAddress(&GetIonContext()->runtime->mainThread.ionJSContext), dest);
+        movePtr(ImmPtr(GetIonContext()->runtime), dest);
+        loadPtr(Address(dest, offsetof(JSRuntime, mainThread.ionJSContext)), dest);
     }
     void loadJitActivation(const Register &dest) {
-        loadPtr(AbsoluteAddress(GetIonContext()->runtime->mainThread.addressOfActivation()), dest);
+        movePtr(ImmPtr(GetIonContext()->runtime), dest);
+        size_t offset = offsetof(JSRuntime, mainThread) + PerThreadData::offsetOfActivation();
+        loadPtr(Address(dest, offset), dest);
     }
 
     template<typename T>
@@ -609,8 +506,8 @@ class MacroAssembler : public MacroAssemblerSpecific
     void branchTestNeedsBarrier(Condition cond, const Register &scratch, Label *label) {
         JS_ASSERT(cond == Zero || cond == NonZero);
         JS::Zone *zone = GetIonContext()->compartment->zone();
-        movePtr(ImmPtr(zone->AddressOfNeedsBarrier()), scratch);
-        Address needsBarrierAddr(scratch, 0);
+        movePtr(ImmPtr(zone), scratch);
+        Address needsBarrierAddr(scratch, JS::Zone::OffsetOfNeedsBarrier());
         branchTest32(cond, needsBarrierAddr, Imm32(0x1), label);
     }
 
@@ -660,14 +557,6 @@ class MacroAssembler : public MacroAssemblerSpecific
         bind(&done);
     }
 
-    /*
-     * Call the post barrier if necessary when writing value to a slot or
-     * element of object.
-     *
-     * Returns whether the maybeScratch register was used.
-     */
-    bool maybeCallPostBarrier(Register object, ConstantOrRegister value, Register maybeScratch);
-
     void branchNurseryPtr(Condition cond, const Address &ptr1, const ImmMaybeNurseryPtr &ptr2,
                           Label *label);
     void moveNurseryPtr(const ImmMaybeNurseryPtr &ptr, const Register &reg);
@@ -675,14 +564,15 @@ class MacroAssembler : public MacroAssemblerSpecific
     void canonicalizeDouble(FloatRegister reg) {
         Label notNaN;
         branchDouble(DoubleOrdered, reg, reg, &notNaN);
-        loadConstantDouble(JS::GenericNaN(), reg);
+        loadStaticDouble(&js_NaN, reg);
         bind(&notNaN);
     }
 
     void canonicalizeFloat(FloatRegister reg) {
+        static float js_NaN_float = js_NaN;
         Label notNaN;
         branchFloat(DoubleOrdered, reg, reg, &notNaN);
-        loadConstantFloat32(float(JS::GenericNaN()), reg);
+        loadStaticFloat32(&js_NaN_float, reg);
         bind(&notNaN);
     }
 
@@ -768,8 +658,7 @@ class MacroAssembler : public MacroAssemblerSpecific
                                  Label *label);
 
     // Inline allocation.
-    void newGCThing(const Register &result, gc::AllocKind allocKind, Label *fail,
-                    gc::InitialHeap initialHeap = gc::DefaultHeap);
+    void newGCThing(const Register &result, gc::AllocKind allocKind, Label *fail);
     void newGCThing(const Register &result, JSObject *templateObject, Label *fail);
     void newGCString(const Register &result, Label *fail);
     void newGCShortString(const Register &result, Label *fail);
@@ -804,17 +693,17 @@ class MacroAssembler : public MacroAssemblerSpecific
     CodeOffsetLabel exitCodePatch_;
 
   public:
-    void enterExitFrame(const VMFunction *f = nullptr) {
+    void enterExitFrame(const VMFunction *f = NULL) {
         linkExitFrame();
         // Push the ioncode. (Bailout or VM wrapper)
         exitCodePatch_ = PushWithPatch(ImmWord(-1));
         // Push VMFunction pointer, to mark arguments.
         Push(ImmPtr(f));
     }
-    void enterFakeExitFrame(IonCode *codeVal = nullptr) {
+    void enterFakeExitFrame(IonCode *codeVal = NULL) {
         linkExitFrame();
         Push(ImmPtr(codeVal));
-        Push(ImmPtr(nullptr));
+        Push(ImmPtr(NULL));
     }
 
     void loadForkJoinSlice(Register slice, Register scratch);
@@ -827,11 +716,11 @@ class MacroAssembler : public MacroAssemblerSpecific
                                       ExecutionMode executionMode);
 
     void enterFakeParallelExitFrame(Register slice, Register scratch,
-                                    IonCode *codeVal = nullptr);
+                                    IonCode *codeVal = NULL);
 
     void enterFakeExitFrame(Register cxReg, Register scratch,
                             ExecutionMode executionMode,
-                            IonCode *codeVal = nullptr);
+                            IonCode *codeVal = NULL);
 
     void leaveExitFrame() {
         freeStack(IonExitFooterFrame::Size());
@@ -980,8 +869,10 @@ class MacroAssembler : public MacroAssemblerSpecific
     void spsProfileEntryAddressSafe(SPSProfiler *p, int offset, Register temp,
                                     Label *full)
     {
+        movePtr(ImmPtr(p->addressOfSizePointer()), temp);
+
         // Load size pointer
-        loadPtr(AbsoluteAddress(p->addressOfSizePointer()), temp);
+        loadPtr(Address(temp, 0), temp);
 
         // Load size
         load32(Address(temp, 0), temp);
@@ -995,7 +886,8 @@ class MacroAssembler : public MacroAssemblerSpecific
         JS_STATIC_ASSERT(sizeof(ProfileEntry) == 4 * sizeof(void*));
         lshiftPtr(Imm32(2 + (sizeof(void*) == 4 ? 2 : 3)), temp);
         push(temp);
-        loadPtr(AbsoluteAddress(p->addressOfStack()), temp);
+        movePtr(ImmPtr(p->addressOfStack()), temp);
+        loadPtr(Address(temp, 0), temp);
         addPtr(Address(StackPointer, 0), temp);
         addPtr(Imm32(sizeof(size_t)), StackPointer);
     }
@@ -1026,7 +918,7 @@ class MacroAssembler : public MacroAssemblerSpecific
 
         storePtr(ImmPtr(str),  Address(temp, ProfileEntry::offsetOfString()));
         storePtr(ImmGCPtr(s),  Address(temp, ProfileEntry::offsetOfScript()));
-        storePtr(ImmPtr(nullptr), Address(temp, ProfileEntry::offsetOfStackAddress()));
+        storePtr(ImmPtr(NULL), Address(temp, ProfileEntry::offsetOfStackAddress()));
         store32(Imm32(ProfileEntry::NullPCIndex), Address(temp, ProfileEntry::offsetOfPCIdx()));
 
         /* Always increment the stack size, whether or not we actually pushed. */
@@ -1047,7 +939,7 @@ class MacroAssembler : public MacroAssemblerSpecific
         loadPtr(script, temp2);
         storePtr(temp2, Address(temp, ProfileEntry::offsetOfScript()));
 
-        storePtr(ImmPtr(nullptr), Address(temp, ProfileEntry::offsetOfStackAddress()));
+        storePtr(ImmPtr(NULL), Address(temp, ProfileEntry::offsetOfStackAddress()));
 
         // Store 0 for PCIdx because that's what interpreter does.
         // (See Probes::enterScript, which calls spsProfiler.enter, which pushes an entry
@@ -1068,7 +960,8 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     // spsPropFrameSafe does not assume |profiler->sizePointer()| will stay constant.
     void spsPopFrameSafe(SPSProfiler *p, Register temp) {
-        loadPtr(AbsoluteAddress(p->addressOfSizePointer()), temp);
+        movePtr(ImmPtr(p->addressOfSizePointer()), temp);
+        loadPtr(Address(temp, 0), temp);
         add32(Imm32(-1), Address(temp, 0));
     }
 
@@ -1117,6 +1010,11 @@ class MacroAssembler : public MacroAssemblerSpecific
     else                                                                \
         method##Float32(arg1f, arg2);                                   \
 
+    void loadStaticFloatingPoint(const double *dp, const float *fp, FloatRegister dest,
+                                 MIRType destType)
+    {
+        DISPATCH_FLOATING_POINT_OP(loadStatic, destType, dp, fp, dest);
+    }
     void loadConstantFloatingPoint(double d, float f, FloatRegister dest, MIRType destType) {
         DISPATCH_FLOATING_POINT_OP(loadConstant, destType, d, f, dest);
     }
@@ -1198,8 +1096,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     void convertValueToInt(ValueOperand value, FloatRegister temp, Register output, Label *fail,
                            IntConversionBehavior behavior)
     {
-        convertValueToInt(value, nullptr, nullptr, nullptr, nullptr, InvalidReg, temp, output,
-                          fail, behavior);
+        convertValueToInt(value, NULL, NULL, NULL, NULL, InvalidReg, temp, output, fail, behavior);
     }
     bool convertValueToInt(JSContext *cx, const Value &v, Register output, Label *fail,
                            IntConversionBehavior behavior);
@@ -1222,7 +1119,7 @@ class MacroAssembler : public MacroAssemblerSpecific
                              FloatRegister temp, Register output, Label *fail,
                              bool negativeZeroCheck)
     {
-        convertValueToInt(value, input, nullptr, nullptr, nullptr, InvalidReg, temp, output, fail,
+        convertValueToInt(value, input, NULL, NULL, NULL, InvalidReg, temp, output, fail,
                           negativeZeroCheck
                           ? IntConversion_NegativeZeroCheck
                           : IntConversion_Normal);
@@ -1266,7 +1163,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     void truncateValueToInt32(ValueOperand value, MDefinition *input,
                               FloatRegister temp, Register output, Label *fail)
     {
-        convertValueToInt(value, input, nullptr, nullptr, nullptr, InvalidReg, temp, output, fail,
+        convertValueToInt(value, input, NULL, NULL, NULL, InvalidReg, temp, output, fail,
                           IntConversion_Truncate);
     }
     bool truncateValueToInt32(JSContext *cx, const Value &v, Register output, Label *fail) {
@@ -1289,15 +1186,16 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
     void clampValueToUint8(ValueOperand value, MDefinition *input,
                            Label *handleStringEntry, Label *handleStringRejoin,
+                           Label *truncateDoubleSlow,
                            Register stringReg, FloatRegister temp, Register output, Label *fail)
     {
-        convertValueToInt(value, input, handleStringEntry, handleStringRejoin, nullptr,
+        convertValueToInt(value, input, handleStringEntry, handleStringRejoin, truncateDoubleSlow,
                           stringReg, temp, output, fail, IntConversion_ClampToUint8);
     }
     void clampValueToUint8(ValueOperand value, MDefinition *input,
                            FloatRegister temp, Register output, Label *fail)
     {
-        convertValueToInt(value, input, nullptr, nullptr, nullptr, InvalidReg, temp, output, fail,
+        convertValueToInt(value, input, NULL, NULL, NULL, InvalidReg, temp, output, fail,
                           IntConversion_ClampToUint8);
     }
     bool clampValueToUint8(JSContext *cx, const Value &v, Register output, Label *fail) {

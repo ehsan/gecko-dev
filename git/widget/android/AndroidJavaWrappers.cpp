@@ -9,7 +9,7 @@
 #include "nsIAndroidBridge.h"
 #include "nsIDOMKeyEvent.h"
 #include "nsIWidget.h"
-#include "mozilla/TouchEvents.h"
+#include "nsGUIEvent.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -704,7 +704,7 @@ AndroidGeckoEvent::Init(AndroidGeckoEvent *aResizeEvent)
     mPoints = aResizeEvent->mPoints; // x,y coordinates
 }
 
-WidgetTouchEvent
+nsTouchEvent
 AndroidGeckoEvent::MakeTouchEvent(nsIWidget* widget)
 {
     int type = NS_EVENT_NULL;
@@ -737,7 +737,7 @@ AndroidGeckoEvent::MakeTouchEvent(nsIWidget* widget)
         }
     }
 
-    WidgetTouchEvent event(true, type, widget);
+    nsTouchEvent event(true, type, widget);
     if (type == NS_EVENT_NULL) {
         // An event we don't know about
         return event;
@@ -757,13 +757,12 @@ AndroidGeckoEvent::MakeTouchEvent(nsIWidget* widget)
         // into Gecko (as opposed to going through the AsyncPanZoomController),
         // and the Points() array has points in CSS pixels, which we need
         // to convert.
-        CSSToLayoutDeviceScale scale = widget->GetDefaultScale();
         nsIntPoint pt(
-            (Points()[i].x * scale.scale) - offset.x,
-            (Points()[i].y * scale.scale) - offset.y);
+            (Points()[i].x * widget->GetDefaultScale()) - offset.x,
+            (Points()[i].y * widget->GetDefaultScale()) - offset.y);
         nsIntPoint radii(
-            PointRadii()[i].x * scale.scale,
-            PointRadii()[i].y * scale.scale);
+            PointRadii()[i].x * widget->GetDefaultScale(),
+            PointRadii()[i].y * widget->GetDefaultScale());
         nsRefPtr<Touch> t = new Touch(PointIndicies()[i],
                                       pt,
                                       radii,

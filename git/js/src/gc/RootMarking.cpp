@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/DebugOnly.h"
 #include "mozilla/Util.h"
 
 #ifdef MOZ_VALGRIND
@@ -22,6 +23,7 @@
 #include "gc/GCInternals.h"
 #include "gc/Marking.h"
 #ifdef JS_ION
+# include "jit/IonFrameIterator.h"
 # include "jit/IonMacroAssembler.h"
 #endif
 #include "js/HashTable.h"
@@ -189,7 +191,7 @@ js::gc::GetAddressableGCThing(JSRuntime *rt, uintptr_t w)
     ConservativeGCTest status =
         IsAddressableGCThing(rt, w, false, &thingKind, &aheader, &thing);
     if (status != CGCT_VALID)
-        return nullptr;
+        return NULL;
     return thing;
 }
 #endif
@@ -617,6 +619,30 @@ JSPropertyDescriptor::trace(JSTracer *trc)
     }
 }
 
+static inline void
+MarkGlobalForMinorGC(JSTracer *trc, JSCompartment *compartment)
+{
+#ifdef JS_ION
+    /*
+     * Named properties of globals which have had Ion activity are treated as
+     * roots during minor GCs. This allows writes to globals to occur without
+     * needing a write barrier.
+     */
+    JS_ASSERT(trc->runtime->isHeapMinorCollecting());
+
+    if (!compartment->ionCompartment())
+        return;
+
+    GlobalObject *global = compartment->maybeGlobal();
+    if (!global)
+        return;
+
+    /* Global reserved slots never hold nursery things. */
+    for (size_t i = JSCLASS_RESERVED_SLOTS(global->getClass()); i < global->slotSpan(); ++i)
+        MarkValueRoot(trc, global->nativeGetSlotRef(i).unsafeGet(), "MinorGlobalRoot");
+#endif /* JS_ION */
+}
+
 void
 js::gc::MarkRuntime(JSTracer *trc, bool useSavedRoots)
 {
@@ -635,7 +661,7 @@ js::gc::MarkRuntime(JSTracer *trc, bool useSavedRoots)
 
     AutoGCRooter::traceAll(trc);
 
-    if (!rt->isBeingDestroyed()) {
+    if (rt->hasContexts()) {
 #ifdef JSGC_USE_EXACT_ROOTING
         MarkExactStackRoots(trc);
 #else
@@ -663,7 +689,7 @@ js::gc::MarkRuntime(JSTracer *trc, bool useSavedRoots)
             MarkScriptRoot(trc, &vec[i].script, "scriptAndCountsVector");
     }
 
-    if (!rt->isBeingDestroyed() &&
+    if (rt->hasContexts() &&
         !trc->runtime->isHeapMinorCollecting() &&
         (!IS_GC_MARKING_TRACER(trc) || rt->atomsCompartment()->zone()->isCollecting()))
     {
@@ -687,7 +713,7 @@ js::gc::MarkRuntime(JSTracer *trc, bool useSavedRoots)
         }
 
         /* Do not discard scripts with counts while profiling. */
-        if (rt->profilingScripts && !rt->isHeapMinorCollecting()) {
+        if (rt->profilingScripts && rt->hasContexts() && !rt->isHeapMinorCollecting()) {
             for (CellIterUnderGC i(zone, FINALIZE_SCRIPT); !i.done(); i.next()) {
                 JSScript *script = i.get<JSScript>();
                 if (script->hasScriptCounts) {
@@ -700,11 +726,11 @@ js::gc::MarkRuntime(JSTracer *trc, bool useSavedRoots)
 
     /* We can't use GCCompartmentsIter if we're called from TraceRuntime. */
     for (CompartmentsIter c(rt); !c.done(); c.next()) {
-        if (trc->runtime->isHeapMinorCollecting())
-            c->globalWriteBarriered = false;
-
         if (IS_GC_MARKING_TRACER(trc) && !c->zone()->isCollecting())
             continue;
+
+        if (trc->runtime->isHeapMinorCollecting())
+            MarkGlobalForMinorGC(trc, c);
 
         /* During a GC, these are treated as weak pointers. */
         if (!IS_GC_MARKING_TRACER(trc)) {

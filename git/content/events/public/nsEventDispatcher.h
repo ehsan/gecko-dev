@@ -7,8 +7,8 @@
 #ifndef nsEventDispatcher_h___
 #define nsEventDispatcher_h___
 
-#include "mozilla/EventForwards.h"
 #include "nsCOMPtr.h"
+#include "nsEvent.h"
 
 class nsEventTargetChainItem;
 class nsIDOMEvent;
@@ -46,7 +46,7 @@ class EventTarget;
 class nsEventChainVisitor {
 public:
   nsEventChainVisitor(nsPresContext* aPresContext,
-                      mozilla::WidgetEvent* aEvent,
+                      nsEvent* aEvent,
                       nsIDOMEvent* aDOMEvent,
                       nsEventStatus aEventStatus = nsEventStatus_eIgnore)
   : mPresContext(aPresContext), mEvent(aEvent), mDOMEvent(aDOMEvent),
@@ -59,9 +59,9 @@ public:
   nsPresContext* const  mPresContext;
 
   /**
-   * The WidgetEvent which is being dispatched. Never nullptr.
+   * The nsEvent which is being dispatched. Never nullptr.
    */
-  mozilla::WidgetEvent* const mEvent;
+  nsEvent* const        mEvent;
 
   /**
    * The DOM Event assiciated with the mEvent. Possibly nullptr if a DOM Event
@@ -101,7 +101,7 @@ public:
 class nsEventChainPreVisitor : public nsEventChainVisitor {
 public:
   nsEventChainPreVisitor(nsPresContext* aPresContext,
-                         mozilla::WidgetEvent* aEvent,
+                         nsEvent* aEvent,
                          nsIDOMEvent* aDOMEvent,
                          nsEventStatus aEventStatus,
                          bool aIsInAnon)
@@ -220,12 +220,12 @@ public:
    *
    * If aTargets is non-null, event target chain will be created, but
    * event won't be handled. In this case aEvent->message should be
-   * NS_EVENT_NULL.
-   * @note Use this method when dispatching a WidgetEvent.
+   * NS_EVENT_TYPE_NULL.
+   * @note Use this method when dispatching an nsEvent.
    */
   static nsresult Dispatch(nsISupports* aTarget,
                            nsPresContext* aPresContext,
-                           mozilla::WidgetEvent* aEvent,
+                           nsEvent* aEvent,
                            nsIDOMEvent* aDOMEvent = nullptr,
                            nsEventStatus* aEventStatus = nullptr,
                            nsDispatchingCallback* aCallback = nullptr,
@@ -240,8 +240,7 @@ public:
    * @note Use this method when dispatching nsIDOMEvent.
    */
   static nsresult DispatchDOMEvent(nsISupports* aTarget,
-                                   mozilla::WidgetEvent* aEvent,
-                                   nsIDOMEvent* aDOMEvent,
+                                   nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
                                    nsPresContext* aPresContext,
                                    nsEventStatus* aEventStatus);
 
@@ -250,7 +249,7 @@ public:
    */
   static nsresult CreateEvent(mozilla::dom::EventTarget* aOwner,
                               nsPresContext* aPresContext,
-                              mozilla::WidgetEvent* aEvent,
+                              nsEvent* aEvent,
                               const nsAString& aEventType,
                               nsIDOMEvent** aDOMEvent);
 

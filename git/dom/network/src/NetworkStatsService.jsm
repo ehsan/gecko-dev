@@ -22,10 +22,13 @@ const TOPIC_INTERFACE_REGISTERED   = "network-interface-registered";
 const TOPIC_INTERFACE_UNREGISTERED = "network-interface-unregistered";
 const NET_TYPE_WIFI = Ci.nsINetworkInterface.NETWORK_TYPE_WIFI;
 const NET_TYPE_MOBILE = Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE;
-const NET_TYPE_UNKNOWN = Ci.nsINetworkInterface.NETWORK_TYPE_UNKNOWN;
 
 // The maximum traffic amount can be saved in the |cachedAppStats|.
 const MAX_CACHED_TRAFFIC = 500 * 1000 * 1000; // 500 MB
+
+XPCOMUtils.defineLazyServiceGetter(this, "gIDBManager",
+                                   "@mozilla.org/dom/indexeddb/manager;1",
+                                   "nsIIndexedDatabaseManager");
 
 XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
@@ -38,6 +41,8 @@ XPCOMUtils.defineLazyServiceGetter(this, "networkManager",
 XPCOMUtils.defineLazyServiceGetter(this, "appsService",
                                    "@mozilla.org/AppsService;1",
                                    "nsIAppsService");
+
+let myGlobal = this;
 
 this.NetworkStatsService = {
   init: function() {
@@ -69,7 +74,8 @@ this.NetworkStatsService = {
       ppmm.addMessageListener(msgName, this);
     }, this);
 
-    this._db = new NetworkStatsDB(this._connectionTypes);
+    gIDBManager.initWindowless(myGlobal);
+    this._db = new NetworkStatsDB(myGlobal, this._connectionTypes);
 
     // Stats for all interfaces are updated periodically
     this.timer.initWithCallback(this, this._db.sampleRate,
@@ -418,8 +424,8 @@ this.NetworkStatsService = {
             aTimeStamp + " " + aRxBytes + " " + aTxBytes);
     }
 
-    // Check if |aAppId| and |aConnectionType| are valid.
-    if (!aAppId || aConnectionType == NET_TYPE_UNKNOWN) {
+    // |aAppId| can not be 0 or null in this case.
+    if (!aAppId) {
       return;
     }
 

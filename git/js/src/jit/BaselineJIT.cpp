@@ -39,7 +39,7 @@ PCMappingSlotInfo::ToSlotLocation(const StackValue *stackVal)
 }
 
 BaselineScript::BaselineScript(uint32_t prologueOffset, uint32_t spsPushToggleOffset)
-  : method_(nullptr),
+  : method_(NULL),
     fallbackStubSpace_(),
     prologueOffset_(prologueOffset),
 #ifdef DEBUG
@@ -106,7 +106,7 @@ EnterBaseline(JSContext *cx, EnterJitData &data)
     data.result.setInt32(data.numActualArgs);
     {
         AssertCompartmentUnchanged pcc(cx);
-        IonContext ictx(cx, nullptr);
+        IonContext ictx(cx, NULL);
         JitActivation activation(cx, data.constructing);
         JSAutoResolveFlags rf(cx, RESOLVE_INFER);
         AutoFlushInhibitor afi(cx->runtime()->ionRuntime());
@@ -182,7 +182,7 @@ jit::EnterBaselineAtBranch(JSContext *cx, StackFrame *fp, jsbytecode *pc)
         data.numActualArgs = fp->numActualArgs();
         data.maxArgc = Max(fp->numActualArgs(), fp->numFormalArgs()) + 1; // +1 = include |this|
         data.maxArgv = fp->argv() - 1; // -1 = include |this|
-        data.scopeChain = nullptr;
+        data.scopeChain = NULL;
         data.calleeToken = CalleeToToken(&fp->callee());
     } else {
         thisv = fp->thisValue();
@@ -244,10 +244,6 @@ BaselineCompile(JSContext *cx, HandleScript script)
 static MethodStatus
 CanEnterBaselineJIT(JSContext *cx, HandleScript script, bool osr)
 {
-    // Limit the locals on a given script so that stack check on baseline frames        
-    // doesn't overflow a uint32_t value.
-    static_assert(sizeof(script->nslots) == sizeof(uint16_t), "script->nslots may get too large!");
-
     JS_ASSERT(jit::IsBaselineEnabled(cx));
 
     // Skip if the script has been disabled.
@@ -255,6 +251,9 @@ CanEnterBaselineJIT(JSContext *cx, HandleScript script, bool osr)
         return Method_Skipped;
 
     if (script->length > BaselineScript::MAX_JSSCRIPT_LENGTH)
+        return Method_CantCompile;
+
+    if (script->nslots > BaselineScript::MAX_JSSCRIPT_SLOTS)
         return Method_CantCompile;
 
     if (!cx->compartment()->ensureIonCompartmentExists(cx))
@@ -376,7 +375,7 @@ BaselineScript::New(JSContext *cx, uint32_t prologueOffset,
 
     uint8_t *buffer = (uint8_t *)cx->malloc_(allocBytes);
     if (!buffer)
-        return nullptr;
+        return NULL;
 
     BaselineScript *script = reinterpret_cast<BaselineScript *>(buffer);
     new (script) BaselineScript(prologueOffset, spsPushToggleOffset);
@@ -467,20 +466,20 @@ BaselineScript::maybeICEntryFromReturnOffset(CodeOffsetLabel returnOffset)
 {
     size_t bottom = 0;
     size_t top = numICEntries();
-    size_t mid = bottom + (top - bottom) / 2;
+    size_t mid = (bottom + top) / 2;
     while (mid < top) {
         ICEntry &midEntry = icEntry(mid);
         if (midEntry.returnOffset().offset() < returnOffset.offset())
             bottom = mid + 1;
         else // if (midEntry.returnOffset().offset() >= returnOffset.offset())
             top = mid;
-        mid = bottom + (top - bottom) / 2;
+        mid = (bottom + top) / 2;
     }
     if (mid >= numICEntries())
-        return nullptr;
+        return NULL;
 
     if (icEntry(mid).returnOffset().offset() != returnOffset.offset())
-        return nullptr;
+        return NULL;
 
     return &icEntry(mid);
 }
@@ -506,7 +505,7 @@ BaselineScript::icEntryFromPCOffset(uint32_t pcOffset)
     // those which have isForOp() set.
     size_t bottom = 0;
     size_t top = numICEntries();
-    size_t mid = bottom + (top - bottom) / 2;
+    size_t mid = (bottom + top) / 2;
     while (mid < top) {
         ICEntry &midEntry = icEntry(mid);
         if (midEntry.pcOffset() < pcOffset)
@@ -515,7 +514,7 @@ BaselineScript::icEntryFromPCOffset(uint32_t pcOffset)
             top = mid;
         else
             break;
-        mid = bottom + (top - bottom) / 2;
+        mid = (bottom + top) / 2;
     }
     // Found an IC entry with a matching PC offset.  Search backward, and then
     // forward from this IC entry, looking for one with the same PC offset which
@@ -737,7 +736,7 @@ BaselineScript::toggleDebugTraps(JSScript *script, jsbytecode *pc)
     SrcNoteLineScanner scanner(script->notes(), script->lineno);
 
     JSRuntime *rt = script->runtimeFromMainThread();
-    IonContext ictx(rt, script->compartment(), nullptr);
+    IonContext ictx(rt, script->compartment(), NULL);
     AutoFlushCache afc("DebugTraps", rt->ionRuntime());
 
     for (uint32_t i = 0; i < numPCMappingIndexEntries(); i++) {
@@ -807,7 +806,7 @@ BaselineScript::purgeOptimizedStubs(Zone *zone)
         if (lastStub->isFallback()) {
             // Unlink all stubs allocated in the optimized space.
             ICStub *stub = entry.firstStub();
-            ICStub *prev = nullptr;
+            ICStub *prev = NULL;
 
             while (stub->next()) {
                 if (!stub->allocatedInFallbackSpace()) {
@@ -868,7 +867,7 @@ jit::FinishDiscardBaselineScript(FreeOp *fop, JSScript *script)
     }
 
     BaselineScript *baseline = script->baselineScript();
-    script->setBaselineScript(nullptr);
+    script->setBaselineScript(NULL);
     BaselineScript::Destroy(fop, baseline);
 }
 
@@ -882,11 +881,14 @@ jit::IonCompartment::toggleBaselineStubBarriers(bool enabled)
 }
 
 void
-jit::AddSizeOfBaselineData(JSScript *script, mozilla::MallocSizeOf mallocSizeOf, size_t *data,
-                           size_t *fallbackStubs)
+jit::SizeOfBaselineData(JSScript *script, mozilla::MallocSizeOf mallocSizeOf, size_t *data,
+                        size_t *fallbackStubs)
 {
+    *data = 0;
+    *fallbackStubs = 0;
+
     if (script->hasBaselineScript())
-        script->baselineScript()->addSizeOfIncludingThis(mallocSizeOf, data, fallbackStubs);
+        script->baselineScript()->sizeOfIncludingThis(mallocSizeOf, data, fallbackStubs);
 }
 
 void

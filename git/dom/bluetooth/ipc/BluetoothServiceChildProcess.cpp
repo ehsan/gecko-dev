@@ -12,7 +12,6 @@
 #include "mozilla/dom/ContentChild.h"
 
 #include "BluetoothChild.h"
-#include "MainThreadUtils.h"
 
 USING_BLUETOOTH_NAMESPACE
 

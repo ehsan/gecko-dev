@@ -7,7 +7,9 @@
 #ifndef jit_ValueNumbering_h
 #define jit_ValueNumbering_h
 
+#include "jit/CompileInfo.h"
 #include "jit/MIR.h"
+#include "jit/MIRGraph.h"
 
 namespace js {
 namespace jit {
@@ -96,7 +98,7 @@ class ValueNumberData : public TempObject {
     MDefinition *classPrev;
 
   public:
-    ValueNumberData() : number(0), classNext(nullptr), classPrev(nullptr) {}
+    ValueNumberData() : number(0), classNext(NULL), classPrev(NULL) {}
 
     void setValueNumber(uint32_t number_) {
         number = number_;

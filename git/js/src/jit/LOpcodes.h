@@ -32,7 +32,6 @@
     _(NewPar)                       \
     _(NewDenseArrayPar)             \
     _(NewCallObjectPar)             \
-    _(NewDerivedTypedObject)        \
     _(AbortPar)                     \
     _(InitElem)                     \
     _(InitElemGetterSetter)         \
@@ -127,7 +126,6 @@
     _(ValueToInt32)                 \
     _(ValueToFloat32)               \
     _(DoubleToInt32)                \
-    _(Float32ToInt32)               \
     _(TruncateDToInt32)             \
     _(IntToString)                  \
     _(DoubleToString)               \
@@ -135,7 +133,6 @@
     _(OsrEntry)                     \
     _(OsrValue)                     \
     _(OsrScopeChain)                \
-    _(OsrArgumentsObject)           \
     _(RegExp)                       \
     _(RegExpTest)                   \
     _(Lambda)                       \
@@ -159,7 +156,6 @@
     _(MonitorTypes)                 \
     _(PostWriteBarrierO)            \
     _(PostWriteBarrierV)            \
-    _(PostWriteBarrierAllSlots)     \
     _(InitializedLength)            \
     _(SetInitializedLength)         \
     _(BoundsCheck)                  \
@@ -224,13 +220,9 @@
     _(ArrayLength)                  \
     _(TypedArrayLength)             \
     _(TypedArrayElements)           \
-    _(TypedObjectElements)          \
     _(StringLength)                 \
     _(ArgumentsLength)              \
-    _(GetFrameArgument)             \
-    _(SetFrameArgumentT)            \
-    _(SetFrameArgumentC)            \
-    _(SetFrameArgumentV)            \
+    _(GetArgument)                  \
     _(RunOncePrologue)              \
     _(Rest)                         \
     _(RestPar)                      \

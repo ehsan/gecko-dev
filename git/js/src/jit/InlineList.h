@@ -20,7 +20,7 @@ template <typename T>
 class InlineForwardListNode
 {
   public:
-    InlineForwardListNode() : next(nullptr)
+    InlineForwardListNode() : next(NULL)
     { }
     InlineForwardListNode(InlineForwardListNode<T> *n) : next(n)
     { }
@@ -61,7 +61,7 @@ class InlineForwardList : protected InlineForwardListNode<T>
         return iterator(this);
     }
     iterator end() const {
-        return iterator(nullptr);
+        return iterator(NULL);
     }
     iterator removeAt(iterator &where) {
         iterator iter(where);
@@ -71,10 +71,10 @@ class InlineForwardList : protected InlineForwardListNode<T>
 
         // Once the element 'where' points at has been removed, it is no longer
         // safe to do any operations that would touch 'iter', as the element
-        // may be added to another list, etc. This nullptr ensures that any
+        // may be added to another list, etc. This NULL ensures that any
         // improper uses of this function will fail quickly and loudly.
         removeAfter(where.prev, where.iter);
-        where.prev = where.iter = nullptr;
+        where.prev = where.iter = NULL;
 
         return iter;
     }
@@ -84,7 +84,7 @@ class InlineForwardList : protected InlineForwardListNode<T>
     void pushBack(Node *t) {
         modifyCount_++;
         tail_->next = t;
-        t->next = nullptr;
+        t->next = NULL;
         tail_ = t;
     }
     T *popFront() {
@@ -92,10 +92,6 @@ class InlineForwardList : protected InlineForwardListNode<T>
         T* result = static_cast<T *>(this->next);
         removeAfter(this, result);
         return result;
-    }
-    T *back() {
-        JS_ASSERT(!empty());
-        return static_cast<T *>(tail_);
     }
     void insertAfter(Node *at, Node *item) {
         modifyCount_++;
@@ -121,13 +117,13 @@ class InlineForwardList : protected InlineForwardListNode<T>
         to->next = at->next;
         to->tail_ = tail_;
         tail_ = at;
-        at->next = nullptr;
+        at->next = NULL;
     }
     bool empty() const {
         return tail_ == this;
     }
     void clear() {
-        this->next = nullptr;
+        this->next = NULL;
         tail_ = this;
         modifyCount_ = 0;
     }
@@ -143,7 +139,7 @@ private:
 
     InlineForwardListIterator<T>(const InlineForwardList<T> *owner)
       : prev(const_cast<Node *>(static_cast<const Node *>(owner))),
-        iter(owner ? owner->next : nullptr)
+        iter(owner ? owner->next : NULL)
 #ifdef DEBUG
       , owner_(owner),
         modifyCount_(owner ? owner->modifyCount_.value : 0)
@@ -197,7 +193,7 @@ template <typename T>
 class InlineListNode : public InlineForwardListNode<T>
 {
   public:
-    InlineListNode() : InlineForwardListNode<T>(nullptr), prev(nullptr)
+    InlineListNode() : InlineForwardListNode<T>(NULL), prev(NULL)
     { }
     InlineListNode(InlineListNode<T> *n, InlineListNode<T> *p)
       : InlineForwardListNode<T>(n),
@@ -256,10 +252,10 @@ class InlineList : protected InlineListNode<T>
 
         // Once the element 'where' points at has been removed, it is no longer
         // safe to do any operations that would touch 'iter', as the element
-        // may be added to another list, etc. This nullptr ensures that any
+        // may be added to another list, etc. This NULL ensures that any
         // improper uses of this function will fail quickly and loudly.
         remove(where.iter);
-        where.iter = nullptr;
+        where.iter = NULL;
 
         return iter;
     }
@@ -301,7 +297,7 @@ class InlineList : protected InlineListNode<T>
     void remove(Node *t) {
         t->prev->next = t->next;
         static_cast<Node *>(t->next)->prev = t->prev;
-        t->next = t->prev = nullptr;
+        t->next = t->prev = NULL;
     }
     void clear() {
         this->next = this->prev = this;
@@ -410,7 +406,7 @@ class InlineConcatList
     }
 
   public:
-    InlineConcatList() : next(nullptr), tail(thisFromConstructor())
+    InlineConcatList() : next(NULL), tail(thisFromConstructor())
     { }
 
     typedef InlineConcatListIterator<T> iterator;
@@ -420,7 +416,7 @@ class InlineConcatList
     }
 
     iterator end() const {
-        return iterator(nullptr);
+        return iterator(NULL);
     }
 
     void append(InlineConcatList<T> *adding)
@@ -432,7 +428,7 @@ class InlineConcatList
 
         tail->next = adding;
         tail = adding->tail;
-        adding->tail = nullptr;
+        adding->tail = NULL;
     }
 
   protected:

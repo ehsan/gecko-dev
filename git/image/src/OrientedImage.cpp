@@ -102,10 +102,10 @@ OrientedImage::GetFrame(uint32_t aWhichFrame,
   gfxImageFormat imageFormat;
   if (InnerImage()->FrameIsOpaque(aWhichFrame)) {
     surfaceFormat = gfx::FORMAT_B8G8R8X8;
-    imageFormat = gfxImageFormatARGB32;
+    imageFormat = gfxASurface::ImageFormatARGB32;
   } else {
     surfaceFormat = gfx::FORMAT_B8G8R8A8;
-    imageFormat = gfxImageFormatARGB32;
+    imageFormat = gfxASurface::ImageFormatARGB32;
   }
 
   // Create a surface to draw into.
@@ -127,7 +127,7 @@ OrientedImage::GetFrame(uint32_t aWhichFrame,
   gfxRect imageRect(0, 0, width, height);
   gfxUtils::DrawPixelSnapped(ctx, drawable, OrientationMatrix(nsIntSize(width, height)),
                              imageRect, imageRect, imageRect, imageRect,
-                             imageFormat, GraphicsFilter::FILTER_FAST);
+                             imageFormat, gfxPattern::FILTER_FAST);
 
   surface.forget(_retval);
   return NS_OK;
@@ -215,7 +215,7 @@ OrientedImage::OrientationMatrix(const nsIntSize& aViewportSize)
 
 NS_IMETHODIMP
 OrientedImage::Draw(gfxContext* aContext,
-                    GraphicsFilter aFilter,
+                    gfxPattern::GraphicsFilter aFilter,
                     const gfxMatrix& aUserSpaceToImageSpace,
                     const gfxRect& aFill,
                     const nsIntRect& aSubimage,

@@ -9,7 +9,6 @@
 #include "mozilla/ClearOnShutdown.h"
 
 #include "ImageLogging.h"
-#include "nsPrintfCString.h"
 #include "imgLoader.h"
 #include "imgRequestProxy.h"
 
@@ -138,7 +137,7 @@ public:
     return NS_OK;
   }
 
-  static int64_t ImagesContentUsedUncompressedDistinguishedAmount()
+  static int64_t GetImagesContentUsedUncompressed()
   {
     size_t n = 0;
     for (uint32_t i = 0; i < imgLoader::sMemReporter->mKnownLoaders.Length(); i++) {
@@ -223,6 +222,26 @@ private:
 };
 
 NS_IMPL_ISUPPORTS1(imgMemoryReporter, nsIMemoryReporter)
+
+// This is used by telemetry.
+class ImagesContentUsedUncompressedReporter MOZ_FINAL
+  : public MemoryUniReporter
+{
+public:
+  ImagesContentUsedUncompressedReporter()
+    : MemoryUniReporter("images-content-used-uncompressed",
+                         KIND_OTHER, UNITS_BYTES,
+"This is the sum of the 'explicit/images/content/used/uncompressed-heap' "
+"and 'explicit/images/content/used/uncompressed-nonheap' numbers.  However, "
+"it is measured at a different time and so may give slightly different "
+"results.")
+  {}
+private:
+  int64_t Amount() MOZ_OVERRIDE
+  {
+    return imgMemoryReporter::GetImagesContentUsedUncompressed();
+  }
+};
 
 NS_IMPL_ISUPPORTS3(nsProgressNotificationProxy,
                      nsIProgressEventSink,
@@ -515,7 +534,7 @@ void imgCacheEntry::UpdateCache(int32_t diff /* = 0 */)
   // Don't update the cache if we've been removed from it or it doesn't care
   // about our size or usage.
   if (!Evicted() && HasNoProxies()) {
-    nsRefPtr<ImageURL> uri;
+    nsCOMPtr<nsIURI> uri;
     mRequest->GetURI(getter_AddRefs(uri));
     mLoader->CacheEntriesChanged(uri, diff);
   }
@@ -524,7 +543,7 @@ void imgCacheEntry::UpdateCache(int32_t diff /* = 0 */)
 void imgCacheEntry::SetHasNoProxies(bool hasNoProxies)
 {
 #if defined(PR_LOGGING)
-  nsRefPtr<ImageURL> uri;
+  nsCOMPtr<nsIURI> uri;
   mRequest->GetURI(getter_AddRefs(uri));
   nsAutoCString spec;
   if (uri)
@@ -648,7 +667,7 @@ nsresult imgLoader::CreateNewProxyForRequest(imgRequest *aRequest, nsILoadGroup 
    */
   proxyRequest->SetLoadFlags(aLoadFlags);
 
-  nsRefPtr<ImageURL> uri;
+  nsCOMPtr<nsIURI> uri;
   aRequest->GetURI(getter_AddRefs(uri));
 
   // init adds itself to imgRequest's list of observers
@@ -706,7 +725,7 @@ void imgCacheExpirationTracker::NotifyExpired(imgCacheEntry *entry)
 #if defined(PR_LOGGING)
   nsRefPtr<imgRequest> req(entry->GetRequest());
   if (req) {
-    nsRefPtr<ImageURL> uri;
+    nsCOMPtr<nsIURI> uri;
     req->GetURI(getter_AddRefs(uri));
     nsAutoCString spec;
     uri->GetSpec(spec);
@@ -777,33 +796,22 @@ void imgLoader::VerifyCacheSizes()
 
 imgLoader::imgCacheTable & imgLoader::GetCache(nsIURI *aURI)
 {
-  MOZ_ASSERT(NS_IsMainThread(), "Cannot use nsIURI off main thread!");
   bool chrome = false;
   aURI->SchemeIs("chrome", &chrome);
-  return chrome ? mChromeCache : mCache;
+  if (chrome)
+    return mChromeCache;
+  else
+    return mCache;
 }
 
 imgCacheQueue & imgLoader::GetCacheQueue(nsIURI *aURI)
 {
-  MOZ_ASSERT(NS_IsMainThread(), "Cannot use nsIURI off main thread!");
   bool chrome = false;
   aURI->SchemeIs("chrome", &chrome);
-  return chrome ? mChromeCacheQueue : mCacheQueue;
-
-}
-
-imgLoader::imgCacheTable & imgLoader::GetCache(ImageURL *aURI)
-{
-  bool chrome = false;
-  aURI->SchemeIs("chrome", &chrome);
-  return chrome ? mChromeCache : mCache;
-}
-
-imgCacheQueue & imgLoader::GetCacheQueue(ImageURL *aURI)
-{
-  bool chrome = false;
-  aURI->SchemeIs("chrome", &chrome);
-  return chrome ? mChromeCacheQueue : mCacheQueue;
+  if (chrome)
+    return mChromeCacheQueue;
+  else
+    return mCacheQueue;
 }
 
 void imgLoader::GlobalInit()
@@ -831,7 +839,7 @@ void imgLoader::GlobalInit()
 
   sMemReporter = new imgMemoryReporter();
   NS_RegisterMemoryReporter(sMemReporter);
-  RegisterImagesContentUsedUncompressedDistinguishedAmount(imgMemoryReporter::ImagesContentUsedUncompressedDistinguishedAmount);
+  NS_RegisterMemoryReporter(new ImagesContentUsedUncompressedReporter());
 }
 
 nsresult imgLoader::InitCache()
@@ -1030,7 +1038,7 @@ bool imgLoader::PutIntoCache(nsIURI *key, imgCacheEntry *entry)
   return true;
 }
 
-bool imgLoader::SetHasNoProxies(ImageURL *key, imgCacheEntry *entry)
+bool imgLoader::SetHasNoProxies(nsIURI *key, imgCacheEntry *entry)
 {
 #if defined(PR_LOGGING)
   nsAutoCString spec;
@@ -1060,7 +1068,7 @@ bool imgLoader::SetHasNoProxies(ImageURL *key, imgCacheEntry *entry)
   return true;
 }
 
-bool imgLoader::SetHasProxies(ImageURL *key)
+bool imgLoader::SetHasProxies(nsIURI *key)
 {
   VerifyCacheSizes();
 
@@ -1087,7 +1095,7 @@ bool imgLoader::SetHasProxies(ImageURL *key)
   return false;
 }
 
-void imgLoader::CacheEntriesChanged(ImageURL *uri, int32_t sizediff /* = 0 */)
+void imgLoader::CacheEntriesChanged(nsIURI *uri, int32_t sizediff /* = 0 */)
 {
   imgCacheQueue &queue = GetCacheQueue(uri);
   queue.MarkDirty();
@@ -1110,7 +1118,7 @@ void imgLoader::CheckCacheLimits(imgCacheTable &cache, imgCacheQueue &queue)
 #if defined(PR_LOGGING)
     nsRefPtr<imgRequest> req(entry->GetRequest());
     if (req) {
-      nsRefPtr<ImageURL> uri;
+      nsCOMPtr<nsIURI> uri;
       req->GetURI(getter_AddRefs(uri));
       nsAutoCString spec;
       uri->GetSpec(spec);
@@ -1202,10 +1210,7 @@ bool imgLoader::ValidateRequestWithNewChannel(imgRequest *request,
     nsRefPtr<imgCacheValidator> hvc =
       new imgCacheValidator(progressproxy, this, request, aCX, forcePrincipalCheck);
 
-    // Casting needed here to get past multiple inheritance.
-    nsCOMPtr<nsIStreamListener> listener =
-      do_QueryInterface(static_cast<nsIThreadRetargetableStreamListener*>(hvc));
-    NS_ENSURE_TRUE(listener, false);
+    nsCOMPtr<nsIStreamListener> listener = hvc.get();
 
     // We must set the notification callbacks before setting up the
     // CORS listener, because that's also interested inthe
@@ -1215,7 +1220,7 @@ bool imgLoader::ValidateRequestWithNewChannel(imgRequest *request,
     if (aCORSMode != imgIRequest::CORS_NONE) {
       bool withCredentials = aCORSMode == imgIRequest::CORS_USE_CREDENTIALS;
       nsRefPtr<nsCORSListenerProxy> corsproxy =
-        new nsCORSListenerProxy(listener, aLoadingPrincipal, withCredentials);
+        new nsCORSListenerProxy(hvc, aLoadingPrincipal, withCredentials);
       rv = corsproxy->Init(newChannel);
       if (NS_FAILED(rv)) {
         return false;
@@ -1368,10 +1373,9 @@ bool imgLoader::ValidateEntry(imgCacheEntry *aEntry,
   return !validateRequest;
 }
 
+
 bool imgLoader::RemoveFromCache(nsIURI *aKey)
 {
-  MOZ_ASSERT(NS_IsMainThread(), "Cannot use nsIURI off main thread!");
-
   if (!aKey) return false;
 
   imgCacheTable &cache = GetCache(aKey);
@@ -1380,26 +1384,6 @@ bool imgLoader::RemoveFromCache(nsIURI *aKey)
   nsAutoCString spec;
   aKey->GetSpec(spec);
 
-  return RemoveFromCache(spec, cache, queue);
-}
-
-bool imgLoader::RemoveFromCache(ImageURL *aKey)
-{
-  if (!aKey) return false;
-
-  imgCacheTable &cache = GetCache(aKey);
-  imgCacheQueue &queue = GetCacheQueue(aKey);
-
-  nsAutoCString spec;
-  aKey->GetSpec(spec);
-
-  return RemoveFromCache(spec, cache, queue);
-}
-
-bool imgLoader::RemoveFromCache(nsCString& spec,
-                                imgCacheTable &cache,
-                                imgCacheQueue &queue)
-{
   LOG_STATIC_FUNC_WITH_PARAM(GetImgLog(), "imgLoader::RemoveFromCache", "uri", spec.get());
 
   nsRefPtr<imgCacheEntry> entry;
@@ -1432,7 +1416,7 @@ bool imgLoader::RemoveFromCache(imgCacheEntry *entry)
 
   nsRefPtr<imgRequest> request = entry->GetRequest();
   if (request) {
-    nsRefPtr<ImageURL> key;
+    nsCOMPtr<nsIURI> key;
     if (NS_SUCCEEDED(request->GetURI(getter_AddRefs(key))) && key) {
       imgCacheTable &cache = GetCache(key);
       imgCacheQueue &queue = GetCacheQueue(key);
@@ -2037,10 +2021,7 @@ nsresult imgLoader::GetMimeTypeFromContent(const char* aContents, uint32_t aLeng
 #include "nsIRequest.h"
 #include "nsIStreamConverterService.h"
 
-NS_IMPL_ISUPPORTS3(ProxyListener,
-                   nsIStreamListener,
-                   nsIThreadRetargetableStreamListener,
-                   nsIRequestObserver)
+NS_IMPL_ISUPPORTS2(ProxyListener, nsIStreamListener, nsIRequestObserver)
 
 ProxyListener::ProxyListener(nsIStreamListener *dest) :
   mDestListener(dest)
@@ -2117,30 +2098,11 @@ ProxyListener::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctxt,
   return mDestListener->OnDataAvailable(aRequest, ctxt, inStr, sourceOffset, count);
 }
 
-/** nsThreadRetargetableStreamListener methods **/
-NS_IMETHODIMP
-ProxyListener::CheckListenerChain()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on the main thread!");
-  nsresult rv = NS_OK;
-  nsCOMPtr<nsIThreadRetargetableStreamListener> retargetableListener =
-    do_QueryInterface(mDestListener, &rv);
-  if (retargetableListener) {
-    rv = retargetableListener->CheckListenerChain();
-  }
-  PR_LOG(GetImgLog(), PR_LOG_DEBUG,
-         ("ProxyListener::CheckListenerChain %s [this=%p listener=%p rv=%x]",
-          (NS_SUCCEEDED(rv) ? "success" : "failure"),
-          this, (nsIStreamListener*)mDestListener, rv));
-  return rv;
-}
-
 /**
  * http validate class.  check a channel for a 304
  */
 
-NS_IMPL_ISUPPORTS6(imgCacheValidator, nsIStreamListener, nsIRequestObserver,
-                   nsIThreadRetargetableStreamListener,
+NS_IMPL_ISUPPORTS5(imgCacheValidator, nsIStreamListener, nsIRequestObserver,
                    nsIChannelEventSink, nsIInterfaceRequestor,
                    nsIAsyncVerifyRedirectCallback)
 
@@ -2227,11 +2189,7 @@ NS_IMETHODIMP imgCacheValidator::OnStartRequest(nsIRequest *aRequest, nsISupport
   // We can't load out of cache. We have to create a whole new request for the
   // data that's coming in off the channel.
   nsCOMPtr<nsIURI> uri;
-  {
-    nsRefPtr<ImageURL> imageURL;
-    mRequest->GetURI(getter_AddRefs(imageURL));
-    uri = imageURL->ToIURI();
-  }
+  mRequest->GetURI(getter_AddRefs(uri));
 
 #if defined(PR_LOGGING)
   nsAutoCString spec;
@@ -2305,24 +2263,6 @@ imgCacheValidator::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctxt,
   }
 
   return mDestListener->OnDataAvailable(aRequest, ctxt, inStr, sourceOffset, count);
-}
-
-/** nsIThreadRetargetableStreamListener methods **/
-
-NS_IMETHODIMP
-imgCacheValidator::CheckListenerChain()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on the main thread!");
-  nsresult rv = NS_OK;
-  nsCOMPtr<nsIThreadRetargetableStreamListener> retargetableListener =
-    do_QueryInterface(mDestListener, &rv);
-  if (retargetableListener) {
-    rv = retargetableListener->CheckListenerChain();
-  }
-  PR_LOG(GetImgLog(), PR_LOG_DEBUG,
-         ("[this=%p] imgCacheValidator::CheckListenerChain -- rv %d=%s",
-          this, NS_SUCCEEDED(rv) ? "succeeded" : "failed", rv));
-  return rv;
 }
 
 /** nsIInterfaceRequestor methods **/

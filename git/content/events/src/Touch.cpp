@@ -9,7 +9,6 @@
 #include "mozilla/dom/TouchBinding.h"
 #include "nsContentUtils.h"
 #include "nsDOMTouchEvent.h"
-#include "nsIContent.h"
 
 namespace mozilla {
 namespace dom {
@@ -100,7 +99,7 @@ Touch::Target() const
 }
 
 void
-Touch::InitializePoints(nsPresContext* aPresContext, WidgetEvent* aEvent)
+Touch::InitializePoints(nsPresContext* aPresContext, nsEvent* aEvent)
 {
   if (mPointsInitialized) {
     return;

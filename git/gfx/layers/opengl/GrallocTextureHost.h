@@ -47,7 +47,7 @@ public:
     return LOCAL_GL_CLAMP_TO_EDGE;
   }
 
-  virtual void SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData) MOZ_OVERRIDE;
+  virtual void SetCompositableQuirks(CompositableQuirks* aQuirks) MOZ_OVERRIDE;
 
   void DeallocateDeviceData();
 
@@ -61,8 +61,6 @@ public:
   }
 
   already_AddRefed<gfxImageSurface> GetAsSurface();
-
-  GLuint GetGLTexture();
 
 protected:
   CompositorOGL* mCompositor;
@@ -106,12 +104,12 @@ public:
 
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
 
-  virtual void SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData) MOZ_OVERRIDE;
+  virtual void SetCompositableQuirks(CompositableQuirks* aQuirks) MOZ_OVERRIDE;
 
   bool IsValid() const;
 
 #ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char* Name() MOZ_OVERRIDE { return "GrallocTextureHostOGL"; }
+  virtual const char* Name() { return "GrallocTextureHostOGL"; }
 #endif
 
 private:

@@ -36,18 +36,20 @@ using mozilla::layout::ScrollingBehavior;
 using mozilla::void_t;
 using mozilla::WindowsHandle;
 using nscolor;
-using mozilla::WidgetCompositionEvent;
+using nsCompositionEvent;
 using nsIMEUpdatePreference;
 using nsIntPoint;
 using nsIntRect;
 using nsIntSize;
-using mozilla::WidgetKeyboardEvent;
-using mozilla::WidgetMouseEvent;
+using nsKeyEvent;
+using nsMouseEvent;
+using nsMouseScrollEvent;
 using mozilla::WheelEvent;
+using nsQueryContentEvent;
 using nsRect;
-using mozilla::WidgetSelectionEvent;
-using mozilla::WidgetTextEvent;
-using mozilla::WidgetTouchEvent;
+using nsSelectionEvent;
+using nsTextEvent;
+using nsTouchEvent;
 using RemoteDOMEvent;
 using mozilla::dom::ScreenOrientation;
 using mozilla::layers::TextureFactoryIdentifier;
@@ -56,7 +58,7 @@ using mozilla::CSSToScreenScale;
 namespace mozilla {
 namespace dom {
 
-intr protocol PBrowser
+rpc protocol PBrowser
 {
     manager PContent;
 
@@ -79,12 +81,9 @@ parent:
 
     Event(RemoteDOMEvent aEvent);
 
-    intr CreateWindow() returns (PBrowser window);
+    rpc CreateWindow() returns (PBrowser window);
 
     sync SyncMessage(nsString aMessage, ClonedMessageData aData, CpowEntry[] aCpows)
-      returns (nsString[] retval);
-
-    rpc RpcMessage(nsString aMessage, ClonedMessageData aData, CpowEntry[] aCpows)
       returns (nsString[] retval);
 
     /**
@@ -163,12 +162,6 @@ parent:
      *    widget should return the current composition text
      */
     sync EndIMEComposition(bool cancel) returns (nsString composition);
-
-    /**
-     * Request that the parent process move focus to the browser's frame. If
-     * canRaise is true, the window can be raised if it is inactive.
-     */
-    RequestFocus(bool canRaise);
 
     sync GetInputContext() returns (int32_t IMEEnabled, int32_t IMEOpen,
                                     intptr_t NativeIMEContext);
@@ -365,13 +358,13 @@ child:
                int32_t aModifiers,
                bool aIgnoreRootScrollFrame);
 
-    RealMouseEvent(WidgetMouseEvent event);
-    RealKeyEvent(WidgetKeyboardEvent event);
+    RealMouseEvent(nsMouseEvent event);
+    RealKeyEvent(nsKeyEvent event);
     MouseWheelEvent(WheelEvent event);
-    RealTouchEvent(WidgetTouchEvent event);
+    RealTouchEvent(nsTouchEvent event);
     // We use a separate message for touchmove events only to apply
     // compression to them.
-    RealTouchMoveEvent(WidgetTouchEvent event) compress;
+    RealTouchMoveEvent(nsTouchEvent event) compress;
 
     /**
      * @see nsIDOMWindowUtils sendKeyEvent.
@@ -382,11 +375,11 @@ child:
              int32_t aModifiers,
              bool aPreventDefault);
 
-    CompositionEvent(WidgetCompositionEvent event);
+    CompositionEvent(nsCompositionEvent event);
 
-    TextEvent(WidgetTextEvent event);
+    TextEvent(nsTextEvent event);
 
-    SelectionEvent(WidgetSelectionEvent event);
+    SelectionEvent(nsSelectionEvent event);
 
     /**
      * Activate event forwarding from client to parent.

@@ -17,7 +17,6 @@
 #include "nsIDocument.h"
 #include "nsIDOMDOMException.h"
 #include "nsIException.h"
-#include "nsIProgrammingLanguage.h"
 #include "nsMemory.h"
 #include "prprf.h"
 #include "xpcprivate.h"

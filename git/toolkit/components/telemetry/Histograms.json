@@ -737,26 +737,12 @@
     "extended_statistics_ok": true,
     "description": "HTTP page: Open -> cache read start (ms)"
   },
-  "HTTP_PAGE_OPEN_TO_FIRST_FROM_CACHE_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP page: Open -> cache read start (ms), [cache2]"
-  },
   "HTTP_PAGE_CACHE_READ_TIME": {
     "kind": "exponential",
     "high": "30000",
     "n_buckets": 50,
     "extended_statistics_ok": true,
     "description": "HTTP page: Cache read time (ms)"
-  },
-  "HTTP_PAGE_CACHE_READ_TIME_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP page: Cache read time (ms) [cache2]"
   },
   "HTTP_PAGE_REVALIDATION": {
     "kind": "exponential",
@@ -772,13 +758,6 @@
     "extended_statistics_ok": true,
     "description": "HTTP page: Overall load time - all (ms)"
   },
-  "HTTP_PAGE_COMPLETE_LOAD_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP page: Overall load time - all (ms) [cache2]"
-  },
   "HTTP_PAGE_COMPLETE_LOAD_CACHED": {
     "kind": "exponential",
     "high": "30000",
@@ -786,26 +765,12 @@
     "extended_statistics_ok": true,
     "description": "HTTP page: Overall load time - cache hits (ms)"
   },
-  "HTTP_PAGE_COMPLETE_LOAD_CACHED_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP page: Overall load time - cache hits (ms) [cache2]"
-  },
   "HTTP_PAGE_COMPLETE_LOAD_NET": {
     "kind": "exponential",
     "high": "30000",
     "n_buckets": 50,
     "extended_statistics_ok": true,
     "description": "HTTP page: Overall load time - network (ms)"
-  },
-  "HTTP_PAGE_COMPLETE_LOAD_NET_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP page: Overall load time - network (ms) [cache2]"
   },
   "HTTP_SUB_DNS_ISSUE_TIME": {
     "kind": "exponential",
@@ -856,26 +821,12 @@
     "extended_statistics_ok": true,
     "description": "HTTP subitem: Open -> cache read start (ms)"
   },
-  "HTTP_SUB_OPEN_TO_FIRST_FROM_CACHE_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP subitem: Open -> cache read start (ms) [cache2]"
-  },
   "HTTP_SUB_CACHE_READ_TIME": {
     "kind": "exponential",
     "high": "30000",
     "n_buckets": 50,
     "extended_statistics_ok": true,
     "description": "HTTP subitem: Cache read time (ms)"
-  },
-  "HTTP_SUB_CACHE_READ_TIME_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP subitem: Cache read time (ms) [cache2]"
   },
   "HTTP_SUB_REVALIDATION": {
     "kind": "exponential",
@@ -891,13 +842,6 @@
     "extended_statistics_ok": true,
     "description": "HTTP subitem: Overall load time - all (ms)"
   },
-  "HTTP_SUB_COMPLETE_LOAD_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP subitem: Overall load time - all (ms) [cache2]"
-  },
   "HTTP_SUB_COMPLETE_LOAD_CACHED": {
     "kind": "exponential",
     "high": "30000",
@@ -905,26 +849,12 @@
     "extended_statistics_ok": true,
     "description": "HTTP subitem: Overall load time - cache hits (ms)"
   },
-  "HTTP_SUB_COMPLETE_LOAD_CACHED_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP subitem: Overall load time - cache hits (ms) [cache2]"
-  },
   "HTTP_SUB_COMPLETE_LOAD_NET": {
     "kind": "exponential",
     "high": "30000",
     "n_buckets": 50,
     "extended_statistics_ok": true,
     "description": "HTTP subitem: Overall load time - network (ms)"
-  },
-  "HTTP_SUB_COMPLETE_LOAD_NET_V2": {
-    "kind": "exponential",
-    "high": "30000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "HTTP subitem: Overall load time - network (ms) [cache2]"
   },
   "HTTP_PROXY_TYPE": {
     "kind": "enumerated",
@@ -938,34 +868,6 @@
   "HTTP_PAGELOAD_IS_SSL": {
     "kind": "boolean",
     "description": "Whether a HTTP base page load was over SSL or not."
-  },
-  "HTTPDATA_DAILY_ETHERNET_IN": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 200,
-    "extended_statistics_ok": true,
-    "description": "MB of http ethernet data recvd in one day"
-  },
-  "HTTPDATA_DAILY_ETHERNET_OUT": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 200,
-    "extended_statistics_ok": true,
-    "description": "MB of http ethernet data sent in one day"
-  },
-  "HTTPDATA_DAILY_CELL_IN": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 200,
-    "extended_statistics_ok": true,
-    "description": "MB of http cell data recvd in one day"
-  },
-  "HTTPDATA_DAILY_CELL_OUT": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 200,
-    "extended_statistics_ok": true,
-    "description": "MB of http cell data sent in one day"
   },
   "SSL_HANDSHAKE_VERSION": {
     "kind": "enumerated",
@@ -1187,11 +1089,6 @@
     "kind": "enumerated",
     "n_values": 5,
     "description": "HTTP Cache Hit, Reval, Failed-Reval, Miss"
-  },
-  "HTTP_CACHE_DISPOSITION_2_V2": {
-    "kind": "enumerated",
-    "n_values": 5,
-    "description": "HTTP Cache v2 Hit, Reval, Failed-Reval, Miss"
   },
   "HTTP_DISK_CACHE_DISPOSITION_2": {
     "kind": "enumerated",
@@ -2099,13 +1996,6 @@
     "n_buckets": 10,
     "extended_statistics_ok": true,
     "description": "Total Time spent (ms) during disk cache showdown"
-  },
-  "NETWORK_DISK_CACHE_SHUTDOWN_V2": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 10,
-    "extended_statistics_ok": true,
-    "description": "Total Time spent (ms) during disk cache showdown [cache2]"
   },
   "NETWORK_DISK_CACHE_SHUTDOWN_CLEAR_PRIVATE": {
     "kind": "exponential",
@@ -3664,18 +3554,6 @@
     "n_buckets": "1000",
     "description": "The time (in milliseconds) that it took a 'detach' request to go round trip."
   },
-  "DEVTOOLS_DEBUGGER_DISPLAY_SOURCE_LOCAL_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took to display a selected source to the user."
-  },
-  "DEVTOOLS_DEBUGGER_DISPLAY_SOURCE_REMOTE_MS":{
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took to display a selected source to the user."
-  },
   "WEBRTC_ICE_SUCCESS_RATE":{
     "kind": "boolean",
     "description": "The number of failed ICE Connections (0) vs. number of successful ICE connections (1)."
@@ -3779,42 +3657,6 @@
     "high": "10000",
     "n_buckets": "1000",
     "description": "The time (in milliseconds) that it took an 'unblackbox' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_SCOPE_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'scope' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_SCOPE_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'scope' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_BINDINGS_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'bindings' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_BINDINGS_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took a 'bindings' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_LOCAL_ASSIGN_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took an 'assign' request to go round trip."
-  },
-  "DEVTOOLS_DEBUGGER_RDP_REMOTE_ASSIGN_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": "1000",
-    "description": "The time (in milliseconds) that it took an 'assign' request to go round trip."
   },
   "DEVTOOLS_OPTIONS_OPENED_BOOLEAN": {
     "kind": "boolean",
@@ -4132,40 +3974,5 @@
     "n_buckets": 15,
     "extended_statistics_ok": true,
     "description": "BACKGROUND THUMBNAILS: Time it took to draw the capture's window to canvas (ms)"
-  },
-  "NETWORK_CACHE_V2_MISS_TIME_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "Time spent to find out a cache entry file is missing"
-  },
-  "NETWORK_CACHE_V2_HIT_TIME_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "Time spent to open an existing file"
-  },
-  "NETWORK_CACHE_V1_TRUNCATE_TIME_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "Time spent to reopen an entry with OPEN_TRUNCATE"
-  },
-  "NETWORK_CACHE_V1_MISS_TIME_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "Time spent to find out a cache entry is missing"
-  },
-  "NETWORK_CACHE_V1_HIT_TIME_MS": {
-    "kind": "exponential",
-    "high": "10000",
-    "n_buckets": 50,
-    "extended_statistics_ok": true,
-    "description": "Time spent to open an existing cache entry"
   }
 }

@@ -91,6 +91,7 @@ CPP_SOURCES += [
     'nsConsoleService.cpp',
     'nsCycleCollector.cpp',
     'nsDebugImpl.cpp',
+    'nsErrorAsserts.cpp',
     'nsErrorService.cpp',
     'nsGZFileWriter.cpp',
     'nsInterfaceRequestorAgg.cpp',

@@ -13,7 +13,6 @@
 #include "nsDisplayList.h"
 #include "FrameLayerBuilder.h"
 #include "nsSVGEffects.h"
-#include "imgIContainer.h"
 
 namespace mozilla {
 namespace css {

@@ -29,7 +29,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIBaseWindow.h"
-#include "nsIDOMKeyEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsCaret.h"
 #include "nsIDocument.h"
@@ -38,35 +37,27 @@
 #include "nsIObserverService.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/MouseEvents.h"
 #include "mozilla/Services.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
 
-static_assert(nsIDOMKeyEvent::DOM_VK_HOME  == nsIDOMKeyEvent::DOM_VK_END + 1 &&
-              nsIDOMKeyEvent::DOM_VK_LEFT  == nsIDOMKeyEvent::DOM_VK_END + 2 &&
-              nsIDOMKeyEvent::DOM_VK_UP    == nsIDOMKeyEvent::DOM_VK_END + 3 &&
-              nsIDOMKeyEvent::DOM_VK_RIGHT == nsIDOMKeyEvent::DOM_VK_END + 4 &&
-              nsIDOMKeyEvent::DOM_VK_DOWN  == nsIDOMKeyEvent::DOM_VK_END + 5,
-              "nsXULPopupManager assumes some keyCode values are consecutive");
-
 const nsNavigationDirection DirectionFromKeyCodeTable[2][6] = {
   {
-    eNavigationDirection_Last,   // nsIDOMKeyEvent::DOM_VK_END
-    eNavigationDirection_First,  // nsIDOMKeyEvent::DOM_VK_HOME
-    eNavigationDirection_Start,  // nsIDOMKeyEvent::DOM_VK_LEFT
-    eNavigationDirection_Before, // nsIDOMKeyEvent::DOM_VK_UP
-    eNavigationDirection_End,    // nsIDOMKeyEvent::DOM_VK_RIGHT
-    eNavigationDirection_After   // nsIDOMKeyEvent::DOM_VK_DOWN
+    eNavigationDirection_Last,   // NS_VK_END
+    eNavigationDirection_First,  // NS_VK_HOME
+    eNavigationDirection_Start,  // NS_VK_LEFT
+    eNavigationDirection_Before, // NS_VK_UP
+    eNavigationDirection_End,    // NS_VK_RIGHT
+    eNavigationDirection_After   // NS_VK_DOWN
   },
   {
-    eNavigationDirection_Last,   // nsIDOMKeyEvent::DOM_VK_END
-    eNavigationDirection_First,  // nsIDOMKeyEvent::DOM_VK_HOME
-    eNavigationDirection_End,    // nsIDOMKeyEvent::DOM_VK_LEFT
-    eNavigationDirection_Before, // nsIDOMKeyEvent::DOM_VK_UP
-    eNavigationDirection_Start,  // nsIDOMKeyEvent::DOM_VK_RIGHT
-    eNavigationDirection_After   // nsIDOMKeyEvent::DOM_VK_DOWN
+    eNavigationDirection_Last,   // NS_VK_END
+    eNavigationDirection_First,  // NS_VK_HOME
+    eNavigationDirection_End,    // NS_VK_LEFT
+    eNavigationDirection_Before, // NS_VK_UP
+    eNavigationDirection_Start,  // NS_VK_RIGHT
+    eNavigationDirection_After   // NS_VK_DOWN
   }
 };
 
@@ -478,11 +469,11 @@ nsXULPopupManager::InitTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup,
     // get the event coordinates relative to the root frame of the document
     // containing the popup.
     NS_ASSERTION(aPopup, "Expected a popup node");
-    WidgetEvent* event = aEvent->GetInternalNSEvent();
+    nsEvent* event = aEvent->GetInternalNSEvent();
     if (event) {
       if (event->eventStructType == NS_MOUSE_EVENT ||
           event->eventStructType == NS_KEY_EVENT) {
-        mCachedModifiers = static_cast<WidgetInputEvent*>(event)->modifiers;
+        mCachedModifiers = static_cast<nsInputEvent*>(event)->modifiers;
       }
       nsIDocument* doc = aPopup->GetCurrentDoc();
       if (doc) {
@@ -498,7 +489,7 @@ nsXULPopupManager::InitTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup,
           if ((event->eventStructType == NS_MOUSE_EVENT || 
                event->eventStructType == NS_MOUSE_SCROLL_EVENT ||
                event->eventStructType == NS_WHEEL_EVENT) &&
-               !(static_cast<WidgetGUIEvent*>(event))->widget) {
+               !(static_cast<nsGUIEvent *>(event))->widget) {
             // no widget, so just use the client point if available
             nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aEvent);
             nsIntPoint clientPt;
@@ -941,11 +932,9 @@ nsXULPopupManager::HidePopupCallback(nsIContent* aPopup,
   aPopupFrame->HidePopup(aDeselectMenu, ePopupClosed);
   ENSURE_TRUE(weakFrame.IsAlive());
 
-  // send the popuphidden event synchronously. This event has no default
-  // behaviour.
+  // send the popuphidden event synchronously. This event has no default behaviour.
   nsEventStatus status = nsEventStatus_eIgnore;
-  WidgetMouseEvent event(true, NS_XUL_POPUP_HIDDEN, nullptr,
-                         WidgetMouseEvent::eReal);
+  nsMouseEvent event(true, NS_XUL_POPUP_HIDDEN, nullptr, nsMouseEvent::eReal);
   nsEventDispatcher::Dispatch(aPopup, aPopupFrame->PresContext(),
                               &event, nullptr, &status);
   ENSURE_TRUE(weakFrame.IsAlive());
@@ -1181,8 +1170,7 @@ nsXULPopupManager::FirePopupShowingEvent(nsIContent* aPopup,
   mOpeningPopup = aPopup;
 
   nsEventStatus status = nsEventStatus_eIgnore;
-  WidgetMouseEvent event(true, NS_XUL_POPUP_SHOWING, nullptr,
-                         WidgetMouseEvent::eReal);
+  nsMouseEvent event(true, NS_XUL_POPUP_SHOWING, nullptr, nsMouseEvent::eReal);
 
   // coordinates are relative to the root widget
   nsPresContext* rootPresContext =
@@ -1260,8 +1248,7 @@ nsXULPopupManager::FirePopupHidingEvent(nsIContent* aPopup,
   nsCOMPtr<nsIPresShell> presShell = aPresContext->PresShell();
 
   nsEventStatus status = nsEventStatus_eIgnore;
-  WidgetMouseEvent event(true, NS_XUL_POPUP_HIDING, nullptr,
-                         WidgetMouseEvent::eReal);
+  nsMouseEvent event(true, NS_XUL_POPUP_HIDING, nullptr, nsMouseEvent::eReal);
   nsEventDispatcher::Dispatch(aPopup, aPresContext, &event, nullptr, &status);
 
   // when a panel is closed, blur whatever has focus inside the popup
@@ -1769,12 +1756,11 @@ nsXULPopupManager::CancelMenuTimer(nsMenuParent* aMenuParent)
   }
 }
 
-static WidgetGUIEvent*
-DOMKeyEventToGUIEvent(nsIDOMEvent* aEvent)
+static nsGUIEvent* DOMKeyEventToGUIEvent(nsIDOMEvent* aEvent)
 {
-  WidgetEvent* evt = aEvent ? aEvent->GetInternalNSEvent() : nullptr;
+  nsEvent* evt = aEvent ? aEvent->GetInternalNSEvent() : nullptr;
   return evt && evt->eventStructType == NS_KEY_EVENT ?
-         static_cast<WidgetGUIEvent*>(evt) : nullptr;
+         static_cast<nsGUIEvent *>(evt) : nullptr;
 }
 
 bool
@@ -1791,7 +1777,7 @@ nsXULPopupManager::HandleShortcutNavigation(nsIDOMKeyEvent* aKeyEvent,
     if (result) {
       aFrame->ChangeMenuItem(result, false);
       if (action) {
-        WidgetGUIEvent* evt = DOMKeyEventToGUIEvent(aKeyEvent);
+        nsGUIEvent* evt = DOMKeyEventToGUIEvent(aKeyEvent);
         nsMenuFrame* menuToOpen = result->Enter(evt);
         if (menuToOpen) {
           nsCOMPtr<nsIContent> content = menuToOpen->GetContent();
@@ -2024,7 +2010,7 @@ nsXULPopupManager::HandleKeyboardEventWithKeyCode(
       // Otherwise, tell the active menubar, if any, to activate the menu. The
       // Enter method will return a menu if one needs to be opened as a result.
       nsMenuFrame* menuToOpen = nullptr;
-      WidgetGUIEvent* GUIEvent = DOMKeyEventToGUIEvent(aKeyEvent);
+      nsGUIEvent* GUIEvent = DOMKeyEventToGUIEvent(aKeyEvent);
       if (aTopVisibleMenuItem) {
         menuToOpen = aTopVisibleMenuItem->Frame()->Enter(GUIEvent);
       } else if (mActiveMenuBar) {

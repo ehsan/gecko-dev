@@ -41,7 +41,6 @@ class AudioBuffer;
 class AudioBufferSourceNode;
 class AudioDestinationNode;
 class AudioListener;
-class AudioNode;
 class BiquadFilterNode;
 class ChannelMergerNode;
 class ChannelSplitterNode;
@@ -206,29 +205,17 @@ public:
                        const Optional<OwningNonNull<DecodeErrorCallback> >& aFailureCallback);
 
   // OfflineAudioContext methods
-  void StartRendering(ErrorResult& aRv);
+  void StartRendering();
   IMPL_EVENT_HANDLER(complete)
 
   bool IsOffline() const { return mIsOffline; }
 
   MediaStreamGraph* Graph() const;
   MediaStream* DestinationStream() const;
-
-  // Nodes register here if they will produce sound even if they have silent
-  // or no input connections.  The AudioContext will keep registered nodes
-  // alive until the context is collected.  This takes care of "playing"
-  // references and "tail-time" references.
-  void RegisterActiveNode(AudioNode* aNode);
-  // Nodes unregister when they have finished producing sound for the
-  // foreseeable future.
-  // Do NOT call UnregisterActiveNode from an AudioNode destructor.
-  // If the destructor is called, then the Node has already been unregistered.
-  // The destructor may be called during hashtable enumeration, during which
-  // unregistering would not be safe.
-  void UnregisterActiveNode(AudioNode* aNode);
-
   void UnregisterAudioBufferSourceNode(AudioBufferSourceNode* aNode);
   void UnregisterPannerNode(PannerNode* aNode);
+  void UnregisterOscillatorNode(OscillatorNode* aNode);
+  void UnregisterScriptProcessorNode(ScriptProcessorNode* aNode);
   void UpdatePannerSource();
 
   uint32_t MaxChannelCount() const;
@@ -252,17 +239,18 @@ private:
   nsRefPtr<AudioListener> mListener;
   MediaBufferDecoder mDecoder;
   nsTArray<nsRefPtr<WebAudioDecodeJob> > mDecodeJobs;
-  // See RegisterActiveNode.  These will keep the AudioContext alive while it
-  // is rendering and the window remains alive.
-  nsTHashtable<nsRefPtrHashKey<AudioNode> > mActiveNodes;
-  // Hashsets containing all the PannerNodes, to compute the doppler shift.
-  // These are weak pointers.
+  // Two hashsets containing all the PannerNodes and AudioBufferSourceNodes,
+  // to compute the doppler shift, and also to stop AudioBufferSourceNodes.
+  // These are all weak pointers.
   nsTHashtable<nsPtrHashKey<PannerNode> > mPannerNodes;
+  nsTHashtable<nsPtrHashKey<AudioBufferSourceNode> > mAudioBufferSourceNodes;
+  nsTHashtable<nsPtrHashKey<OscillatorNode> > mOscillatorNodes;
+  // Hashset containing all ScriptProcessorNodes in order to stop them.
+  // These are all weak pointers.
+  nsTHashtable<nsPtrHashKey<ScriptProcessorNode> > mScriptProcessorNodes;
   // Number of channels passed in the OfflineAudioContext ctor.
   uint32_t mNumberOfChannels;
   bool mIsOffline;
-  bool mIsStarted;
-  bool mIsShutDown;
 };
 
 }

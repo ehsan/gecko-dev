@@ -7,7 +7,7 @@
 #define nsIParserService_h__
 
 #include "nsISupports.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsHTMLTags.h"
 
 class nsIParser;

@@ -11,7 +11,7 @@
 #include "Layers.h"                     // for CanvasLayer, etc
 #include "gfxASurface.h"                // for gfxASurface
 #include "gfxContext.h"                 // for gfxContext, etc
-#include "gfxTypes.h"
+#include "gfxImageSurface.h"            // for gfxImageSurface
 #include "gfxPlatform.h"                // for gfxImageFormat
 #include "gfxPoint.h"                   // for gfxIntSize
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
@@ -64,9 +64,26 @@ protected:
   gfxIntSize mCachedSize;
   gfxImageFormat mCachedFormat;
 
-  gfxImageSurface* GetTempSurface(const gfxIntSize& aSize, const gfxImageFormat aFormat);
+  gfxImageSurface* GetTempSurface(const gfxIntSize& aSize, const gfxImageFormat aFormat)
+  {
+    if (!mCachedTempSurface ||
+        aSize.width != mCachedSize.width ||
+        aSize.height != mCachedSize.height ||
+        aFormat != mCachedFormat)
+    {
+      mCachedTempSurface = new gfxImageSurface(aSize, aFormat);
+      mCachedSize = aSize;
+      mCachedFormat = aFormat;
+    }
 
-  void DiscardTempSurface();
+    MOZ_ASSERT(mCachedTempSurface->Stride() == mCachedTempSurface->Width() * 4);
+    return mCachedTempSurface;
+  }
+
+  void DiscardTempSurface()
+  {
+    mCachedTempSurface = nullptr;
+  }
 };
 
 }

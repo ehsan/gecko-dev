@@ -16,10 +16,8 @@
 #include ../services/manifests/HealthReportAndroidManifest_permissions.xml.in
 #include ../services/manifests/SyncAndroidManifest_permissions.xml.in
 
-#ifndef RELEASE_BUILD
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
-#endif
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -201,7 +199,6 @@
 
         <activity android:name="org.mozilla.gecko.Restarter"
                   android:process="@ANDROID_PACKAGE_NAME@Restarter"
-                  android:noHistory="true"
                   android:theme="@style/Gecko">
           <intent-filter>
             <action android:name="org.mozilla.gecko.restart"/>

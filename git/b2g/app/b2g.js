@@ -25,8 +25,6 @@ pref("browser.cache.disk.smart_size.first_run", false);
 pref("browser.cache.memory.enable", true);
 pref("browser.cache.memory.capacity", 1024); // kilobytes
 
-pref("browser.cache.memory_limit", 2048); // 2 MB
-
 /* image cache prefs */
 pref("image.cache.size", 1048576); // bytes
 pref("image.high_quality_downscaling.enabled", false);
@@ -137,11 +135,6 @@ pref("browser.search.suggest.enabled", true);
 // tell the search service that we don't really expose the "current engine"
 pref("browser.search.noCurrentEngine", true);
 
-// Enable sparse localization by setting a few package locale overrides
-pref("chrome.override_package.global", "b2g-l10n");
-pref("chrome.override_package.mozapps", "b2g-l10n");
-pref("chrome.override_package.passwordmgr", "b2g-l10n");
-
 // enable xul error pages
 pref("browser.xul.error_pages.enabled", true);
 
@@ -184,13 +177,9 @@ pref("content.sink.perf_deflect_count", 1000000);
 pref("content.sink.perf_parse_time", 50000000);
 
 // Maximum scripts runtime before showing an alert
+pref("dom.max_chrome_script_run_time", 0); // disable slow script dialog for chrome
 // Disable the watchdog thread for B2G. See bug 870043 comment 31.
 pref("dom.use_watchdog", false);
-
-// The slow script dialog can be triggered from inside the JS engine as well,
-// ensure that those calls don't accidentally trigger the dialog.
-pref("dom.max_script_run_time", 0);
-pref("dom.max_chrome_script_run_time", 0);
 
 // plugins
 pref("plugin.disable", true);
@@ -263,8 +252,6 @@ pref("layers.acceleration.disabled", false);
 pref("layers.offmainthreadcomposition.async-animations", true);
 pref("layers.async-video.enabled", true);
 pref("layers.async-pan-zoom.enabled", true);
-pref("gfx.content.azure.enabled", true);
-pref("gfx.content.azure.backends", "cairo");
 #endif
 
 // Web Notifications
@@ -284,7 +271,7 @@ pref("media.video-queue.default-size", 3);
 
 // optimize images' memory usage
 pref("image.mem.decodeondraw", true);
-pref("image.mem.allow_locking_in_content_processes", false); /* don't allow image locking */
+pref("content.image.allow_locking", false); /* don't allow image locking */
 pref("image.mem.min_discard_timeout_ms", 86400000); /* 24h, we rely on the out of memory hook */
 pref("image.mem.max_decoded_image_kb", 30000); /* 30MB seems reasonable */
 pref("image.onload.decode.limit", 24); /* don't decode more than 24 images eagerly */
@@ -333,6 +320,9 @@ pref("urlclassifier.alternate_error_page", "blocked");
 
 // The number of random entries to send with a gethash request.
 pref("urlclassifier.gethashnoise", 4);
+
+// The list of tables that use the gethash request to confirm partial results.
+pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 
 // If an urlclassifier table has not been updated in this number of seconds,
 // a gethash request will be forced to check that the result is still in
@@ -394,9 +384,6 @@ pref("dom.sms.strict7BitEncoding", false); // Disabled by default.
 pref("dom.sms.requestStatusReport", true); // Enabled by default.
 pref("dom.mms.requestStatusReport", true); // Enabled by default.
 
-//The waiting time in network manager.
-pref("network.gonk.ms-release-mms-connection", 30000);
-
 // WebContacts
 pref("dom.mozContacts.enabled", true);
 pref("dom.navigator-property.disable.mozContacts", false);
@@ -413,8 +400,6 @@ pref("dom.mozAlarms.enabled", true);
 
 // SimplePush
 pref("services.push.enabled", true);
-// Debugging enabled.
-pref("services.push.debug", false);
 // Is the network connection allowed to be up?
 // This preference should be used in UX to enable/disable push.
 pref("services.push.connection.enabled", true);
@@ -432,12 +417,14 @@ pref("services.push.pingInterval", 1800000); // 30 minutes
 pref("services.push.requestTimeout", 10000);
 // enable udp wakeup support
 pref("services.push.udp.wakeupEnabled", true);
+// port on which UDP server socket is bound
+pref("services.push.udp.port", 2442);
 
 // NetworkStats
 #ifdef MOZ_B2G_RIL
 pref("dom.mozNetworkStats.enabled", true);
 pref("ril.cellbroadcast.disabled", false);
-pref("dom.webapps.firstRunWithSIM", true);
+pref("dom.webapps.firstRunWithSIM", false);
 #endif
 
 // WebSettings
@@ -451,9 +438,6 @@ pref("media.realtime_decoder.enabled", true);
 
 // TCPSocket
 pref("dom.mozTCPSocket.enabled", true);
-
-// WebPayment
-pref("dom.mozPay.enabled", true);
 
 // "Preview" landing of bug 710563, which is bogged down in analysis
 // of talos regression.  This is a needed change for higher-framerate
@@ -603,11 +587,6 @@ pref("dom.ipc.processPriorityManager.enabled", true);
 pref("dom.ipc.processPriorityManager.backgroundGracePeriodMS", 1000);
 pref("dom.ipc.processPriorityManager.temporaryPriorityLockMS", 5000);
 
-// Number of different background levels for background processes.  We use
-// these different levels to force the low-memory killer to kill processes in
-// a LRU order.
-pref("dom.ipc.processPriorityManager.backgroundLRUPoolLevels", 5);
-
 // Kernel parameters for process priorities.  These affect how processes are
 // killed on low-memory and their relative CPU priorities.
 //
@@ -618,10 +597,6 @@ pref("dom.ipc.processPriorityManager.backgroundLRUPoolLevels", 5);
 // niceness.  Then when we reniced the process to (say) 10, all threads would
 // /still/ have the same niceness; we'd effectively have erased NSPR's thread
 // priorities.
-
-// The kernel can only accept 6 (OomScoreAdjust, KillUnderMB) pairs. But it is
-// okay, kernel will still kill processes with larger OomScoreAdjust first even
-// its OomScoreAdjust don't have a corresponding KillUnderMB.
 
 pref("hal.processPriorityManager.gonk.MASTER.OomScoreAdjust", 0);
 pref("hal.processPriorityManager.gonk.MASTER.KillUnderMB", 4);
@@ -634,9 +609,6 @@ pref("hal.processPriorityManager.gonk.FOREGROUND_HIGH.Nice", 0);
 pref("hal.processPriorityManager.gonk.FOREGROUND.OomScoreAdjust", 134);
 pref("hal.processPriorityManager.gonk.FOREGROUND.KillUnderMB", 6);
 pref("hal.processPriorityManager.gonk.FOREGROUND.Nice", 1);
-
-pref("hal.processPriorityManager.gonk.FOREGROUND_KEYBOARD.OomScoreAdjust", 200);
-pref("hal.processPriorityManager.gonk.FOREGROUND_KEYBOARD.Nice", 1);
 
 pref("hal.processPriorityManager.gonk.BACKGROUND_PERCEIVABLE.OomScoreAdjust", 400);
 pref("hal.processPriorityManager.gonk.BACKGROUND_PERCEIVABLE.KillUnderMB", 7);
@@ -755,11 +727,6 @@ pref("memory_info_dumper.watch_fifo.enabled", true);
 pref("memory_info_dumper.watch_fifo.directory", "/data/local");
 
 pref("general.useragent.enable_overrides", true);
-// See ua-update.json.in for the packaged UA override list
-pref("general.useragent.updates.enabled", true);
-pref("general.useragent.updates.url", "");
-pref("general.useragent.updates.interval", 604800); // 1 week
-pref("general.useragent.updates.retry", 86400); // 1 day
 
 // Make <audio> and <video> talk to the AudioChannelService.
 pref("media.useAudioChannelService", true);
@@ -806,9 +773,6 @@ pref("dom.inter-app-communication-api.enabled", true);
 // 0 disables the timer.
 pref("b2g.adb.timeout-hours", 12);
 
-// InputMethod so we can do soft keyboards
-pref("dom.mozInputMethod.enabled", true);
-
 // Absolute path to the devtool unix domain socket file used
 // to communicate with a usb cable via adb forward
 pref("devtools.debugger.unix-domain-socket", "/data/local/debugger-socket");
@@ -820,9 +784,3 @@ pref("gfx.canvas.azure.accelerated", true);
 
 // Enable Telephony API
 pref("dom.telephony.enabled", true);
-
-// The url of the page used to display network error details.
-pref("b2g.neterror.url", "app://system.gaiamobile.org/net_error.html");
-
-// Enable Web Speech synthesis API
-pref("media.webspeech.synth.enabled", true);

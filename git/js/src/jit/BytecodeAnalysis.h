@@ -7,7 +7,6 @@
 #ifndef jit_BytecodeAnalysis_h
 #define jit_BytecodeAnalysis_h
 
-#include "jsscript.h"
 #include "jit/IonAllocPolicy.h"
 #include "js/Vector.h"
 
@@ -40,10 +39,6 @@ class BytecodeAnalysis
     JSScript *script_;
     Vector<BytecodeInfo, 0, IonAllocPolicy> infos_;
 
-    bool usesScopeChain_;
-    bool hasTryFinally_;
-    bool hasSetArg_;
-
   public:
     explicit BytecodeAnalysis(JSScript *script);
 
@@ -57,19 +52,7 @@ class BytecodeAnalysis
     BytecodeInfo *maybeInfo(jsbytecode *pc) {
         if (infos_[pc - script_->code].initialized)
             return &infos_[pc - script_->code];
-        return nullptr;
-    }
-
-    bool usesScopeChain() const {
-        return usesScopeChain_;
-    }
-
-    bool hasTryFinally() const {
-        return hasTryFinally_;
-    }
-
-    bool hasSetArg() const {
-        return hasSetArg_;
+        return NULL;
     }
 };
 

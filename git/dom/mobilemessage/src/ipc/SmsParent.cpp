@@ -24,7 +24,6 @@
 #include "nsContentUtils.h"
 #include "nsTArrayHelpers.h"
 #include "nsCxPusher.h"
-#include "nsServiceManagerUtils.h"
 
 namespace mozilla {
 namespace dom {

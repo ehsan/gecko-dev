@@ -58,12 +58,20 @@ ThrowExceptionObject(JSContext* aCx, nsIException* aException)
     return false;
   }
 
-  JS::Rooted<JS::Value> val(aCx);
-  if (!WrapObject(aCx, glob, aException, &NS_GET_IID(nsIException), &val)) {
+  nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+  nsresult rv = nsContentUtils::XPConnect()->WrapNative(aCx, glob, aException,
+                                                        NS_GET_IID(nsIException),
+                                                        getter_AddRefs(holder));
+  if (NS_FAILED(rv) ||! holder) {
     return false;
   }
 
-  JS_SetPendingException(aCx, val);
+  JS::RootedObject obj(aCx, holder->GetJSObject());
+  if (!obj) {
+    return false;
+  }
+
+  JS_SetPendingException(aCx, OBJECT_TO_JSVAL(obj));
 
   return true;
 }

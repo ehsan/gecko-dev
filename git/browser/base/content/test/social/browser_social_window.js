@@ -31,24 +31,12 @@ function openWindowAndWaitForInit(callback) {
   }, topic, false);
 }
 
-function closeOneWindow(cb) {
-  let w = createdWindows.pop();
-  if (!w) {
-    cb();
-    return;
-  }
-  waitForCondition(function() w.closed,
-                   function() {
-                    closeOneWindow(cb);
-                    }, "window did not close");
-  w.close();
-}
-
 function postTestCleanup(cb) {
-  closeOneWindow(function() {
-    Services.prefs.clearUserPref("social.enabled");
-    cb();
-  });
+  for (let w of createdWindows)
+    w.close();
+  createdWindows = [];
+  Services.prefs.clearUserPref("social.enabled");
+  cb();
 }
 
 let manifest = { // normal provider
@@ -56,7 +44,7 @@ let manifest = { // normal provider
   origin: "https://example.com",
   sidebarURL: "https://example.com/browser/browser/base/content/test/social/social_sidebar.html",
   workerURL: "https://example.com/browser/browser/base/content/test/social/social_worker.js",
-  iconURL: "https://example.com/browser/browser/base/content/test/general/moz.png"
+  iconURL: "https://example.com/browser/browser/base/content/test/social/moz.png"
 };
 
 function test() {

@@ -6,9 +6,6 @@
 
 /* rendering objects for replaced elements implemented by a plugin */
 
-#include "nsObjectFrame.h"
-
-#include "mozilla/BasicEvents.h"
 #ifdef XP_WIN
 // This is needed for DoublePassRenderingEvent.
 #include "mozilla/plugins/PluginMessageUtils.h"
@@ -26,6 +23,7 @@
 #include "nsIPluginInstanceOwner.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsIDOMElement.h"
+#include "nsGUIEvent.h"
 #include "nsRenderingContext.h"
 #include "npapi.h"
 #include "nsIObjectLoadingContent.h"
@@ -38,6 +36,7 @@
 #include "GeckoProfiler.h"
 #include <algorithm>
 
+#include "nsObjectFrame.h"
 #include "nsIObjectFrame.h"
 #include "nsPluginNativeWindow.h"
 #include "FrameLayerBuilder.h"
@@ -63,6 +62,8 @@
 #define FORCE_PR_LOG 1 /* Allow logging in the release build */
 #endif /* MOZ_LOGGING */
 #include "prlog.h"
+
+static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 #ifdef XP_MACOSX
 #include "gfxQuartzNativeDrawing.h"
@@ -1562,12 +1563,12 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
 
     imglayer->SetScaleToSize(size, SCALE_STRETCH);
     imglayer->SetContainer(container);
-    GraphicsFilter filter =
+    gfxPattern::GraphicsFilter filter =
       nsLayoutUtils::GetGraphicsFilterForFrame(this);
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
     if (!aManager->IsCompositingCheap()) {
       // Pixman just horrible with bilinear filter scaling
-      filter = GraphicsFilter::FILTER_NEAREST;
+      filter = gfxPattern::FILTER_NEAREST;
     }
 #endif
     imglayer->SetFilter(filter);
@@ -1960,8 +1961,8 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
 
 NS_IMETHODIMP
 nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
-                           WidgetGUIEvent* anEvent,
-                           nsEventStatus* anEventStatus)
+                           nsGUIEvent*     anEvent,
+                           nsEventStatus*  anEventStatus)
 {
   NS_ENSURE_ARG_POINTER(anEvent);
   NS_ENSURE_ARG_POINTER(anEventStatus);
@@ -1994,7 +1995,7 @@ nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
 #endif
 
   if (mInstanceOwner->SendNativeEvents() &&
-      anEvent->IsNativeEventDelivererForPlugin()) {
+      NS_IS_PLUGIN_EVENT(anEvent)) {
     *anEventStatus = mInstanceOwner->ProcessEvent(*anEvent);
     // Due to plugin code reentering Gecko, this frame may be dead at this
     // point.
@@ -2016,29 +2017,23 @@ nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
     // point.
     return rv;
   }
-
-  // These two calls to nsIPresShell::SetCapturingContext() (on mouse-down
-  // and mouse-up) are needed to make the routing of mouse events while
-  // dragging conform to standard OS X practice, and to the Cocoa NPAPI spec.
-  // See bug 525078 and bug 909678.
-  if (anEvent->message == NS_MOUSE_BUTTON_DOWN) {
-    nsIPresShell::SetCapturingContent(GetContent(), CAPTURE_IGNOREALLOWED);
-  }
 #endif
 
-  rv = nsObjectFrameSuper::HandleEvent(aPresContext, anEvent, anEventStatus);
-
-  // We need to be careful from this point because the call to
-  // nsObjectFrameSuper::HandleEvent() might have killed us.
+  return nsObjectFrameSuper::HandleEvent(aPresContext, anEvent, anEventStatus);
+}
 
 #ifdef XP_MACOSX
-  if (anEvent->message == NS_MOUSE_BUTTON_UP) {
-    nsIPresShell::SetCapturingContent(nullptr, 0);
-  }
-#endif
-
-  return rv;
+// Needed to make the routing of mouse events while dragging conform to
+// standard OS X practice, and to the Cocoa NPAPI spec.  See bug 525078.
+NS_IMETHODIMP
+nsObjectFrame::HandlePress(nsPresContext* aPresContext,
+                           nsGUIEvent*    anEvent,
+                           nsEventStatus* anEventStatus)
+{
+  nsIPresShell::SetCapturingContent(GetContent(), CAPTURE_IGNOREALLOWED);
+  return nsObjectFrameSuper::HandlePress(aPresContext, anEvent, anEventStatus);
 }
+#endif
 
 nsresult
 nsObjectFrame::GetPluginInstance(nsNPAPIPluginInstance** aPluginInstance)

@@ -31,14 +31,12 @@ const ROLE_CHECK_MENU_ITEM = Ci.nsIAccessibleRole.ROLE_CHECK_MENU_ITEM;
 const ROLE_PASSWORD_TEXT = Ci.nsIAccessibleRole.ROLE_PASSWORD_TEXT;
 const ROLE_RADIO_MENU_ITEM = Ci.nsIAccessibleRole.ROLE_RADIO_MENU_ITEM;
 const ROLE_TOGGLE_BUTTON = Ci.nsIAccessibleRole.ROLE_TOGGLE_BUTTON;
-const ROLE_KEY = Ci.nsIAccessibleRole.ROLE_KEY;
 const ROLE_ENTRY = Ci.nsIAccessibleRole.ROLE_ENTRY;
 const ROLE_LIST = Ci.nsIAccessibleRole.ROLE_LIST;
 const ROLE_DEFINITION_LIST = Ci.nsIAccessibleRole.ROLE_DEFINITION_LIST;
 const ROLE_LISTITEM = Ci.nsIAccessibleRole.ROLE_LISTITEM;
 const ROLE_BUTTONDROPDOWNGRID = Ci.nsIAccessibleRole.ROLE_BUTTONDROPDOWNGRID;
 const ROLE_LISTBOX = Ci.nsIAccessibleRole.ROLE_LISTBOX;
-const ROLE_OPTION = Ci.nsIAccessibleRole.ROLE_OPTION;
 const ROLE_SLIDER = Ci.nsIAccessibleRole.ROLE_SLIDER;
 const ROLE_HEADING = Ci.nsIAccessibleRole.ROLE_HEADING;
 const ROLE_HEADER = Ci.nsIAccessibleRole.ROLE_HEADER;
@@ -106,12 +104,8 @@ var gSimpleTraversalRoles =
    ROLE_RADIO_MENU_ITEM,
    ROLE_TOGGLE_BUTTON,
    ROLE_ENTRY,
-   ROLE_KEY,
    ROLE_HEADER,
    ROLE_HEADING,
-   ROLE_SLIDER,
-   ROLE_SPINBUTTON,
-   ROLE_OPTION,
    // Used for traversing in to child OOP frames.
    ROLE_INTERNAL_FRAME];
 

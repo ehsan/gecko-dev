@@ -11,7 +11,7 @@
 #include "npapi.h"
 #include "npruntime.h"
 
-#include "nsString.h"
+#include "nsStringGlue.h"
 
 namespace mozilla {
 namespace plugins {

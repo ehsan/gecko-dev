@@ -54,14 +54,14 @@ FilterContainsLocation(HandleScript function)
 
     const char *filename = function->filename();
     const size_t line = function->lineno;
-    const size_t filelen = strlen(filename);
+    static size_t filelen = strlen(filename);
     const char *index = strstr(filter, filename);
     while (index) {
         if (index == filter || index[-1] == ',') {
             if (index[filelen] == 0 || index[filelen] == ',')
                 return true;
             if (index[filelen] == ':' && line != size_t(-1)) {
-                size_t read_line = strtoul(&index[filelen + 1], nullptr, 10);
+                size_t read_line = strtoul(&index[filelen + 1], NULL, 10);
                 if (read_line == line)
                     return true;
             }
@@ -209,11 +209,11 @@ IonSpewer::endFunction()
     c1Spewer.endFunction();
     jsonSpewer.endFunction();
 
-    this->graph = nullptr;
+    this->graph = NULL;
 }
 
 
-FILE *jit::IonSpewFile = nullptr;
+FILE *jit::IonSpewFile = NULL;
 
 static bool
 ContainsFlag(const char *str, const char *flag)
@@ -238,7 +238,7 @@ jit::CheckLogging()
     if (!env)
         return;
     if (strstr(env, "help")) {
-        fflush(nullptr);
+        fflush(NULL);
         printf(
             "\n"
             "usage: IONFLAGS=option,option,option,... where options can be:\n"

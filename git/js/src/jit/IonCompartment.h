@@ -369,7 +369,7 @@ class IonCompartment
         ICStubCodeMap::AddPtr p = stubCodes_->lookupForAdd(key);
         if (p)
             return p->value;
-        return nullptr;
+        return NULL;
     }
     bool putStubCode(uint32_t key, Handle<IonCode *> stubCode) {
         // Make sure to do a lookupForAdd(key) and then insert into that slot, because
@@ -380,27 +380,27 @@ class IonCompartment
         return stubCodes_->add(p, key, stubCode.get());
     }
     void initBaselineCallReturnAddr(void *addr) {
-        JS_ASSERT(baselineCallReturnAddr_ == nullptr);
+        JS_ASSERT(baselineCallReturnAddr_ == NULL);
         baselineCallReturnAddr_ = addr;
     }
     void *baselineCallReturnAddr() {
-        JS_ASSERT(baselineCallReturnAddr_ != nullptr);
+        JS_ASSERT(baselineCallReturnAddr_ != NULL);
         return baselineCallReturnAddr_;
     }
     void initBaselineGetPropReturnAddr(void *addr) {
-        JS_ASSERT(baselineGetPropReturnAddr_ == nullptr);
+        JS_ASSERT(baselineGetPropReturnAddr_ == NULL);
         baselineGetPropReturnAddr_ = addr;
     }
     void *baselineGetPropReturnAddr() {
-        JS_ASSERT(baselineGetPropReturnAddr_ != nullptr);
+        JS_ASSERT(baselineGetPropReturnAddr_ != NULL);
         return baselineGetPropReturnAddr_;
     }
     void initBaselineSetPropReturnAddr(void *addr) {
-        JS_ASSERT(baselineSetPropReturnAddr_ == nullptr);
+        JS_ASSERT(baselineSetPropReturnAddr_ == NULL);
         baselineSetPropReturnAddr_ = addr;
     }
     void *baselineSetPropReturnAddr() {
-        JS_ASSERT(baselineSetPropReturnAddr_ != nullptr);
+        JS_ASSERT(baselineSetPropReturnAddr_ != NULL);
         return baselineSetPropReturnAddr_;
     }
 

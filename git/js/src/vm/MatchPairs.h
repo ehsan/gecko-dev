@@ -62,7 +62,7 @@ class MatchPairs
   protected:
     /* Not used directly: use ScopedMatchPairs or VectorMatchPairs. */
     MatchPairs()
-      : pairCount_(0), pairs_(nullptr)
+      : pairCount_(0), pairs_(NULL)
     { }
 
   protected:
@@ -75,7 +75,7 @@ class MatchPairs
 
     bool initArray(size_t pairCount);
     bool initArrayFrom(MatchPairs &copyFrom);
-    void forgetArray() { pairs_ = nullptr; }
+    void forgetArray() { pairs_ = NULL; }
 
     void displace(size_t disp);
     void checkAgainst(size_t inputLength) {

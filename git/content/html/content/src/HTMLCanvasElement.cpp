@@ -198,28 +198,12 @@ HTMLCanvasElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   nsresult rv = nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
                                               aNotify);
   if (NS_SUCCEEDED(rv) && mCurrentContext &&
-      aNameSpaceID == kNameSpaceID_None &&
       (aName == nsGkAtoms::width || aName == nsGkAtoms::height || aName == nsGkAtoms::moz_opaque))
   {
     rv = UpdateContext(nullptr, JS::NullHandleValue);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  return rv;
-}
-
-nsresult
-HTMLCanvasElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                             bool aNotify)
-{
-  nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aName, aNotify);
-  if (NS_SUCCEEDED(rv) && mCurrentContext &&
-      aNameSpaceID == kNameSpaceID_None &&
-      (aName == nsGkAtoms::width || aName == nsGkAtoms::height || aName == nsGkAtoms::moz_opaque))
-  {
-    rv = UpdateContext(nullptr, JS::NullHandleValue);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
   return rv;
 }
 
@@ -414,7 +398,7 @@ HTMLCanvasElement::ExtractData(const nsAString& aType,
   nsRefPtr<gfxImageSurface> emptyCanvas;
   nsIntSize size = GetWidthHeight();
   if (!mCurrentContext) {
-    emptyCanvas = new gfxImageSurface(gfxIntSize(size.width, size.height), gfxImageFormatARGB32);
+    emptyCanvas = new gfxImageSurface(gfxIntSize(size.width, size.height), gfxASurface::ImageFormatARGB32);
     if (emptyCanvas->CairoStatus()) {
       return NS_ERROR_INVALID_ARG;
     }
@@ -593,14 +577,6 @@ HTMLCanvasElement::ToBlob(JSContext* aCx,
   if (aRv.Failed()) {
     return;
   }
-
-#ifdef DEBUG
-  if (mCurrentContext) {
-    nsIntSize elementSize = GetWidthHeight();
-    MOZ_ASSERT(elementSize.width == mCurrentContext->GetWidth());
-    MOZ_ASSERT(elementSize.height == mCurrentContext->GetHeight());
-  }
-#endif
 
   bool fallbackToPNG = false;
 
@@ -1054,7 +1030,7 @@ HTMLCanvasElement::GetSizeExternal()
 }
 
 NS_IMETHODIMP
-HTMLCanvasElement::RenderContextsExternal(gfxContext *aContext, GraphicsFilter aFilter, uint32_t aFlags)
+HTMLCanvasElement::RenderContextsExternal(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter, uint32_t aFlags)
 {
   if (!mCurrentContext)
     return NS_OK;

@@ -18,7 +18,6 @@
 #include "nsTableColFrame.h"
 #include "nsCOMPtr.h"
 #include "nsDisplayList.h"
-#include "nsIFrameInlines.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -766,7 +765,7 @@ nscoord CalcHeightFromUnpaginatedHeight(nsPresContext*   aPresContext,
 {
   nscoord height = 0;
   nsTableRowFrame* firstInFlow =
-    static_cast<nsTableRowFrame*>(aRow.FirstInFlow());
+    static_cast<nsTableRowFrame*>(aRow.GetFirstInFlow());
   if (firstInFlow->HasUnpaginatedHeight()) {
     height = firstInFlow->GetUnpaginatedHeight(aPresContext);
     for (nsIFrame* prevInFlow = aRow.GetPrevInFlow(); prevInFlow;
@@ -1127,7 +1126,7 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
   const nsStyleVisibility* rowVis = StyleVisibility();
   bool collapseRow = (NS_STYLE_VISIBILITY_COLLAPSE == rowVis->mVisible);
   nsTableFrame* tableFrame = static_cast<nsTableFrame*>(
-    nsTableFrame::GetTableFrame(this)->FirstInFlow());
+    nsTableFrame::GetTableFrame(this)->GetFirstInFlow());
   if (collapseRow) {
     tableFrame->SetNeedToCollapse(true);
   }
@@ -1349,7 +1348,7 @@ nsTableRowFrame::SetUnpaginatedHeight(nsPresContext* aPresContext,
 nscoord
 nsTableRowFrame::GetUnpaginatedHeight(nsPresContext* aPresContext)
 {
-  FrameProperties props = FirstInFlow()->Properties();
+  FrameProperties props = GetFirstInFlow()->Properties();
   return NS_PTR_TO_INT32(props.Get(RowUnpaginatedHeightProperty()));
 }
 

@@ -43,7 +43,7 @@ NS_IMPL_RELEASE_INHERITED(nsDOMMessageEvent, nsDOMEvent)
 
 nsDOMMessageEvent::nsDOMMessageEvent(mozilla::dom::EventTarget* aOwner,
                                      nsPresContext* aPresContext,
-                                     WidgetEvent* aEvent)
+                                     nsEvent* aEvent)
   : nsDOMEvent(aOwner, aPresContext, aEvent),
     mData(JSVAL_VOID)
 {
@@ -95,7 +95,7 @@ nsDOMMessageEvent::GetSource(nsIDOMWindow** aSource)
 }
 
 void
-nsDOMMessageEvent::GetSource(Nullable<mozilla::dom::OwningWindowProxyOrMessagePort>& aValue) const
+nsDOMMessageEvent::GetSource(Nullable<mozilla::dom::WindowProxyOrMessagePortReturnValue>& aValue) const
 {
   if (mWindowSource) {
     aValue.SetValue().SetAsWindowProxy() = mWindowSource;
@@ -197,7 +197,7 @@ nsresult
 NS_NewDOMMessageEvent(nsIDOMEvent** aInstancePtrResult,
                       mozilla::dom::EventTarget* aOwner,
                       nsPresContext* aPresContext,
-                      WidgetEvent* aEvent) 
+                      nsEvent* aEvent) 
 {
   nsDOMMessageEvent* it = new nsDOMMessageEvent(aOwner, aPresContext, aEvent);
 

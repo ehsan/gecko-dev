@@ -37,7 +37,6 @@
 #include "ScopedNSSTypes.h"
 #include "SharedSSLState.h"
 #include "mozilla/Preferences.h"
-#include "nsContentUtils.h"
 
 #include "ssl.h"
 #include "secerr.h"
@@ -669,7 +668,11 @@ nsHandleSSLError(nsNSSSocketInfo *socketInfo,
   socketInfo->GetErrorLogMessage(err, errtype, errorString);
   
   if (!errorString.IsEmpty()) {
-    nsContentUtils::LogSimpleConsoleError(errorString, "SSL");
+    nsCOMPtr<nsIConsoleService> console;
+    console = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
+    if (console) {
+      console->LogStringMessage(errorString.get());
+    }
   }
 }
 

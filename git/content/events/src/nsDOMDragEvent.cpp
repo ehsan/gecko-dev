@@ -4,18 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMDragEvent.h"
+#include "nsGUIEvent.h"
 #include "nsContentUtils.h"
 #include "nsIDOMDataTransfer.h"
 #include "prtime.h"
-#include "mozilla/MouseEvents.h"
-
-using namespace mozilla;
 
 nsDOMDragEvent::nsDOMDragEvent(mozilla::dom::EventTarget* aOwner,
                                nsPresContext* aPresContext,
-                               WidgetInputEvent* aEvent)
+                               nsInputEvent* aEvent)
   : nsDOMMouseEvent(aOwner, aPresContext, aEvent ? aEvent :
-                    new WidgetDragEvent(false, 0, nullptr))
+                    new nsDragEvent(false, 0, nullptr))
 {
   if (aEvent) {
     mEventIsInternal = false;
@@ -24,8 +22,7 @@ nsDOMDragEvent::nsDOMDragEvent(mozilla::dom::EventTarget* aOwner,
     mEventIsInternal = true;
     mEvent->time = PR_Now();
     mEvent->refPoint.x = mEvent->refPoint.y = 0;
-    static_cast<WidgetMouseEvent*>(mEvent)->inputSource =
-      nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
+    static_cast<nsMouseEvent*>(mEvent)->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
   }
 }
 
@@ -33,7 +30,7 @@ nsDOMDragEvent::~nsDOMDragEvent()
 {
   if (mEventIsInternal) {
     if (mEvent->eventStructType == NS_DRAG_EVENT)
-      delete static_cast<WidgetDragEvent*>(mEvent);
+      delete static_cast<nsDragEvent*>(mEvent);
     mEvent = nullptr;
   }
 }
@@ -63,7 +60,7 @@ nsDOMDragEvent::InitDragEvent(const nsAString & aType,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (mEventIsInternal && mEvent) {
-    WidgetDragEvent* dragEvent = static_cast<WidgetDragEvent*>(mEvent);
+    nsDragEvent* dragEvent = static_cast<nsDragEvent*>(mEvent);
     dragEvent->dataTransfer = aDataTransfer;
   }
 
@@ -89,7 +86,7 @@ nsDOMDragEvent::GetDataTransfer()
     return nullptr;
   }
 
-  WidgetDragEvent* dragEvent = static_cast<WidgetDragEvent*>(mEvent);
+  nsDragEvent* dragEvent = static_cast<nsDragEvent*>(mEvent);
   // for synthetic events, just use the supplied data transfer object even if null
   if (!mEventIsInternal) {
     nsresult rv = nsContentUtils::SetDataTransferInEvent(dragEvent);
@@ -102,7 +99,7 @@ nsDOMDragEvent::GetDataTransfer()
 nsresult NS_NewDOMDragEvent(nsIDOMEvent** aInstancePtrResult,
                             mozilla::dom::EventTarget* aOwner,
                             nsPresContext* aPresContext,
-                            WidgetDragEvent* aEvent) 
+                            nsDragEvent *aEvent) 
 {
   nsDOMDragEvent* event = new nsDOMDragEvent(aOwner, aPresContext, aEvent);
   return CallQueryInterface(event, aInstancePtrResult);

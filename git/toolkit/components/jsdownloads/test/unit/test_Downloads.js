@@ -61,37 +61,40 @@ add_task(function test_createDownload_public()
 });
 
 /**
- * Tests "fetch" with nsIURI and nsIFile as arguments.
+ * Tests simpleDownload with nsIURI and nsIFile as arguments.
  */
-add_task(function test_fetch_uri_file_arguments()
+add_task(function test_simpleDownload_uri_file_arguments()
 {
   let targetFile = getTempFile(TEST_TARGET_FILE_NAME);
-  yield Downloads.fetch(NetUtil.newURI(httpUrl("source.txt")), targetFile);
+  yield Downloads.simpleDownload(NetUtil.newURI(httpUrl("source.txt")),
+                                 targetFile);
   yield promiseVerifyContents(targetFile.path, TEST_DATA_SHORT);
 });
 
 /**
- * Tests "fetch" with DownloadSource and DownloadTarget as arguments.
+ * Tests simpleDownload with DownloadSource and DownloadTarget as arguments.
  */
-add_task(function test_fetch_object_arguments()
+add_task(function test_simpleDownload_object_arguments()
 {
   let targetPath = getTempFile(TEST_TARGET_FILE_NAME).path;
-  yield Downloads.fetch({ url: httpUrl("source.txt") }, { path: targetPath });
+  yield Downloads.simpleDownload({ url: httpUrl("source.txt") },
+                                 { path: targetPath });
   yield promiseVerifyContents(targetPath, TEST_DATA_SHORT);
 });
 
 /**
- * Tests "fetch" with string arguments.
+ * Tests simpleDownload with string arguments.
  */
-add_task(function test_fetch_string_arguments()
+add_task(function test_simpleDownload_string_arguments()
 {
   let targetPath = getTempFile(TEST_TARGET_FILE_NAME).path;
-  yield Downloads.fetch(httpUrl("source.txt"), targetPath);
+  yield Downloads.simpleDownload(httpUrl("source.txt"),
+                                 targetPath);
   yield promiseVerifyContents(targetPath, TEST_DATA_SHORT);
 
   targetPath = getTempFile(TEST_TARGET_FILE_NAME).path;
-  yield Downloads.fetch(new String(httpUrl("source.txt")),
-                        new String(targetPath));
+  yield Downloads.simpleDownload(new String(httpUrl("source.txt")),
+                                 new String(targetPath));
   yield promiseVerifyContents(targetPath, TEST_DATA_SHORT);
 });
 
@@ -146,12 +149,12 @@ add_task(function test_getSystemDownloadsDirectory()
 });
 
 /**
- * Tests that the getPreferredDownloadsDirectory returns a valid nsFile
+ * Tests that the getUserDownloadsDirectory returns a valid nsFile
  * download directory object.
  */
-add_task(function test_getPreferredDownloadsDirectory()
+add_task(function test_getUserDownloadsDirectory()
 {
-  let downloadDir = yield Downloads.getPreferredDownloadsDirectory();
+  let downloadDir = yield Downloads.getUserDownloadsDirectory();
   do_check_true(downloadDir instanceof Ci.nsIFile);
 });
 
@@ -164,9 +167,3 @@ add_task(function test_getTemporaryDownloadsDirectory()
   let downloadDir = yield Downloads.getTemporaryDownloadsDirectory();
   do_check_true(downloadDir instanceof Ci.nsIFile);
 });
-
-////////////////////////////////////////////////////////////////////////////////
-//// Termination
-
-let tailFile = do_get_file("tail.js");
-Services.scriptloader.loadSubScript(NetUtil.newURI(tailFile).spec);

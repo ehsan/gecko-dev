@@ -1,7 +1,6 @@
-/*
- * Debugger.Source.prototype.text should return a string. Moreover, it
- * should be the same string for each child script sharing that
- * Debugger.Source.
+/* 
+ * Script.prototype.source should be a string. Moreover, it should be the
+ * same string for each child script within the same debugger.
  */
 let g = newGlobal();
 let dbg = new Debugger(g);

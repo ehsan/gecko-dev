@@ -7,20 +7,25 @@
 #ifndef mozilla_tabs_TabParent_h
 #define mozilla_tabs_TabParent_h
 
+#include "base/basictypes.h"
+
+#include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/PBrowserParent.h"
 #include "mozilla/dom/PContentDialogParent.h"
 #include "mozilla/dom/TabContext.h"
-#include "mozilla/TouchEvents.h"
+#include "mozilla/ipc/GeckoChildProcessHost.h"
 #include "nsCOMPtr.h"
 #include "nsIAuthPromptProvider.h"
 #include "nsIBrowserDOMWindow.h"
 #include "nsIDialogParamBlock.h"
 #include "nsISecureBrowserUI.h"
 #include "nsITabParent.h"
+#include "nsWeakReference.h"
 #include "Units.h"
 #include "js/TypeDecls.h"
 
 struct gfxMatrix;
+class mozIApplication;
 class nsFrameLoader;
 class nsIURI;
 class CpowHolder;
@@ -39,7 +44,6 @@ class RenderFrameParent;
 namespace dom {
 
 class ClonedMessageData;
-class ContentParent;
 class Element;
 struct StructuredCloneData;
 
@@ -100,7 +104,7 @@ public:
      * It's an error to call TryCapture() if this isn't the event
      * capturer.
      */
-    bool TryCapture(const WidgetGUIEvent& aEvent);
+    bool TryCapture(const nsGUIEvent& aEvent);
 
     void Destroy();
 
@@ -120,10 +124,6 @@ public:
                                  const ClonedMessageData& aData,
                                  const InfallibleTArray<CpowEntry>& aCpows,
                                  InfallibleTArray<nsString>* aJSONRetVal);
-    virtual bool AnswerRpcMessage(const nsString& aMessage,
-                                  const ClonedMessageData& aData,
-                                  const InfallibleTArray<CpowEntry>& aCpows,
-                                  InfallibleTArray<nsString>* aJSONRetVal);
     virtual bool RecvAsyncMessage(const nsString& aMessage,
                                   const ClonedMessageData& aData,
                                   const InfallibleTArray<CpowEntry>& aCpows);
@@ -149,7 +149,6 @@ public:
                                      const nsString& aActionHint,
                                      const int32_t& aCause,
                                      const int32_t& aFocusChange);
-    virtual bool RecvRequestFocus(const bool& aCanRaise);
     virtual bool RecvSetCursor(const uint32_t& aValue);
     virtual bool RecvSetBackgroundColor(const nscolor& aValue);
     virtual bool RecvSetStatus(const uint32_t& aType, const nsString& aStatus);
@@ -187,9 +186,9 @@ public:
     void Activate();
     void Deactivate();
 
-    bool MapEventCoordinatesForChildProcess(mozilla::WidgetEvent* aEvent);
+    bool MapEventCoordinatesForChildProcess(nsEvent* aEvent);
     void MapEventCoordinatesForChildProcess(const LayoutDeviceIntPoint& aOffset,
-                                            mozilla::WidgetEvent* aEvent);
+                                                   nsEvent* aEvent);
 
     void SendMouseEvent(const nsAString& aType, float aX, float aY,
                         int32_t aButton, int32_t aClickCount,
@@ -197,10 +196,10 @@ public:
     void SendKeyEvent(const nsAString& aType, int32_t aKeyCode,
                       int32_t aCharCode, int32_t aModifiers,
                       bool aPreventDefault);
-    bool SendRealMouseEvent(mozilla::WidgetMouseEvent& event);
+    bool SendRealMouseEvent(nsMouseEvent& event);
     bool SendMouseWheelEvent(mozilla::WheelEvent& event);
-    bool SendRealKeyEvent(mozilla::WidgetKeyboardEvent& event);
-    bool SendRealTouchEvent(WidgetTouchEvent& event);
+    bool SendRealKeyEvent(nsKeyEvent& event);
+    bool SendRealTouchEvent(nsTouchEvent& event);
 
     virtual PDocumentRendererParent*
     AllocPDocumentRendererParent(const nsRect& documentRect, const gfxMatrix& transform,
@@ -228,10 +227,10 @@ public:
     void HandleDelayedDialogs();
 
     static TabParent *GetIMETabParent() { return mIMETabParent; }
-    bool HandleQueryContentEvent(mozilla::WidgetQueryContentEvent& aEvent);
-    bool SendCompositionEvent(mozilla::WidgetCompositionEvent& event);
-    bool SendTextEvent(mozilla::WidgetTextEvent& event);
-    bool SendSelectionEvent(mozilla::WidgetSelectionEvent& event);
+    bool HandleQueryContentEvent(nsQueryContentEvent& aEvent);
+    bool SendCompositionEvent(nsCompositionEvent& event);
+    bool SendTextEvent(nsTextEvent& event);
+    bool SendSelectionEvent(nsSelectionEvent& event);
 
     static TabParent* GetFrom(nsFrameLoader* aFrameLoader);
     static TabParent* GetFrom(nsIContent* aContent);
@@ -310,7 +309,7 @@ protected:
     nsIntSize mDimensions;
     ScreenOrientation mOrientation;
     float mDPI;
-    CSSToLayoutDeviceScale mDefaultScale;
+    double mDefaultScale;
     bool mShown;
     bool mUpdatedDimensions;
 
@@ -328,8 +327,8 @@ private:
     // to dispatch |aEvent| to our child.  If there's a relevant
     // transform in place, |aOutEvent| is the transformed |aEvent| to
     // dispatch to content.
-    void MaybeForwardEventToRenderFrame(const WidgetInputEvent& aEvent,
-                                        WidgetInputEvent* aOutEvent);
+    void MaybeForwardEventToRenderFrame(const nsInputEvent& aEvent,
+                                        nsInputEvent* aOutEvent);
     // The offset for the child process which is sampled at touch start. This
     // means that the touch events are relative to where the frame was at the
     // start of the touch. We need to look for a better solution to this

@@ -9,7 +9,6 @@
 #include "nsIStringEnumerator.h"
 #include "nsICategoryManager.h"
 #include "nsISupportsPrimitives.h"
-#include "nsISimpleEnumerator.h"
 
 #define DEFAULT_SPELL_CHECKER "@mozilla.org/spellchecker/engine;1"
 

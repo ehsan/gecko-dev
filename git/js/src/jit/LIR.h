@@ -20,6 +20,8 @@
 #include "jit/MIRGraph.h"
 #include "jit/Registers.h"
 #include "jit/Safepoints.h"
+#include "jit/shared/Assembler-shared.h"
+#include "jit/VMFunctions.h"
 
 namespace js {
 namespace jit {
@@ -585,9 +587,9 @@ class LInstruction
 
     LInstruction()
       : id_(0),
-        snapshot_(nullptr),
-        safepoint_(nullptr),
-        mir_(nullptr)
+        snapshot_(NULL),
+        safepoint_(NULL),
+        mir_(NULL)
     { }
 
   public:
@@ -613,7 +615,7 @@ class LInstruction
     // Hook for opcodes to add extra high level detail about what code will be
     // emitted for the op.
     virtual const char *extraName() const {
-        return nullptr;
+        return NULL;
     }
 
   public:
@@ -713,8 +715,8 @@ class LInstructionVisitor
     }
 
     LInstructionVisitor()
-      : ins_(nullptr),
-        lastPC_(nullptr)
+      : ins_(NULL),
+        lastPC_(NULL)
     {}
 
   public:
@@ -738,8 +740,8 @@ class LBlock : public TempObject
 
     LBlock(MBasicBlock *block)
       : block_(block),
-        entryMoveGroup_(nullptr),
-        exitMoveGroup_(nullptr)
+        entryMoveGroup_(NULL),
+        exitMoveGroup_(NULL)
     { }
 
   public:
@@ -844,7 +846,7 @@ class LInstructionHelper : public LInstruction
     }
     MBasicBlock *getSuccessor(size_t i) const {
         JS_ASSERT(false);
-        return nullptr;
+        return NULL;
     }
     void setSuccessor(size_t i, MBasicBlock *successor) {
         JS_ASSERT(false);
@@ -1343,7 +1345,7 @@ class LIRGraph
     // Snapshot taken before any LIR has been lowered.
     LSnapshot *entrySnapshot_;
 
-    // LBlock containing LOsrEntry, or nullptr.
+    // LBlock containing LOsrEntry, or NULL.
     LBlock *osrBlock_;
 
     MIRGraph &mir_;

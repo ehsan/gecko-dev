@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/TextEvents.h"
 
 #include "nsCRT.h"
 
@@ -28,7 +27,6 @@
 #include "nsIDocumentInlines.h"
 #include "nsIDOMEventTarget.h" 
 #include "nsIDOMKeyEvent.h"
-#include "nsIDOMMouseEvent.h"
 #include "nsIDOMHTMLAnchorElement.h"
 #include "nsISelectionController.h"
 #include "nsIDOMHTMLDocument.h"
@@ -591,7 +589,7 @@ nsHTMLEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
     return nsEditor::HandleKeyPressEvent(aKeyEvent);
   }
 
-  WidgetKeyboardEvent* nativeKeyEvent = GetNativeKeyEvent(aKeyEvent);
+  nsKeyEvent* nativeKeyEvent = GetNativeKeyEvent(aKeyEvent);
   NS_ENSURE_TRUE(nativeKeyEvent, NS_ERROR_UNEXPECTED);
   NS_ASSERTION(nativeKeyEvent->message == NS_KEY_PRESS,
                "HandleKeyPressEvent gets non-keypress event");

@@ -14,14 +14,15 @@
 #include "jsstr.h"
 
 #include "jit/BaselineInspector.h"
+#include "jit/EdgeCaseAnalysis.h"
 #include "jit/IonBuilder.h"
 #include "jit/IonSpewer.h"
+#include "jit/LICM.h" // For LinearSum
 #include "jit/MIRGraph.h"
 #include "jit/RangeAnalysis.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
-#include "jsobjinlines.h"
 
 using namespace js;
 using namespace js::jit;
@@ -70,13 +71,13 @@ EqualValues(bool useGVN, MDefinition *left, MDefinition *right)
 }
 
 static MConstant *
-EvaluateConstantOperands(MBinaryInstruction *ins, bool *ptypeChange = nullptr)
+EvaluateConstantOperands(MBinaryInstruction *ins, bool *ptypeChange = NULL)
 {
     MDefinition *left = ins->getOperand(0);
     MDefinition *right = ins->getOperand(1);
 
     if (!left->isConstant() || !right->isConstant())
-        return nullptr;
+        return NULL;
 
     Value lhs = left->toConstant()->value();
     Value rhs = right->toConstant()->value();
@@ -130,7 +131,7 @@ EvaluateConstantOperands(MBinaryInstruction *ins, bool *ptypeChange = nullptr)
     if (ins->type() != MIRTypeFromValue(ret)) {
         if (ptypeChange)
             *ptypeChange = true;
-        return nullptr;
+        return NULL;
     }
 
     return MConstant::New(ret);
@@ -198,7 +199,7 @@ MDefinition::analyzeEdgeCasesBackward()
 }
 
 static bool
-MaybeEmulatesUndefined(MDefinition *op)
+MaybeEmulatesUndefined(JSContext *cx, MDefinition *op)
 {
     if (!op->mightBeType(MIRType_Object))
         return false;
@@ -207,11 +208,13 @@ MaybeEmulatesUndefined(MDefinition *op)
     if (!types)
         return true;
 
-    return types->maybeEmulatesUndefined();
+    if (!types->maybeObject())
+        return false;
+    return types->hasObjectFlags(cx, types::OBJECT_FLAG_EMULATES_UNDEFINED);
 }
 
 static bool
-MaybeCallable(MDefinition *op)
+MaybeCallable(JSContext *cx, MDefinition *op)
 {
     if (!op->mightBeType(MIRType_Object))
         return false;
@@ -224,11 +227,11 @@ MaybeCallable(MDefinition *op)
 }
 
 void
-MTest::infer()
+MTest::infer(JSContext *cx)
 {
     JS_ASSERT(operandMightEmulateUndefined());
 
-    if (!MaybeEmulatesUndefined(getOperand(0)))
+    if (!MaybeEmulatesUndefined(cx, getOperand(0)))
         markOperandCantEmulateUndefined();
 }
 
@@ -319,7 +322,7 @@ MDefinition::removeUse(MUseIterator use)
 MUseIterator
 MNode::replaceOperand(MUseIterator use, MDefinition *def)
 {
-    JS_ASSERT(def != nullptr);
+    JS_ASSERT(def != NULL);
     uint32_t index = use->index();
     MDefinition *prev = use->producer();
 
@@ -338,7 +341,7 @@ MNode::replaceOperand(MUseIterator use, MDefinition *def)
 void
 MNode::replaceOperand(size_t index, MDefinition *def)
 {
-    JS_ASSERT(def != nullptr);
+    JS_ASSERT(def != NULL);
     MUse *use = getUseFor(index);
     MDefinition *prev = use->producer();
 
@@ -367,14 +370,14 @@ MNode::discardOperand(size_t index)
 
 #ifdef DEBUG
     // Causes any producer/consumer lookups to trip asserts.
-    use->set(nullptr, nullptr, index);
+    use->set(NULL, NULL, index);
 #endif
 }
 
 void
 MDefinition::replaceAllUsesWith(MDefinition *dom)
 {
-    JS_ASSERT(dom != nullptr);
+    JS_ASSERT(dom != NULL);
     if (dom == this)
         return;
 
@@ -536,13 +539,6 @@ MConstantElements::printOpcode(FILE *fp) const
     fprintf(fp, " %p", value());
 }
 
-void
-MLoadTypedArrayElement::printOpcode(FILE *fp) const
-{
-    MDefinition::printOpcode(fp);
-    fprintf(fp, " %s", ScalarTypeRepresentation::typeName(arrayType()));
-}
-
 MParameter *
 MParameter::New(int32_t index, types::TemporaryTypeSet *types)
 {
@@ -577,7 +573,7 @@ MCall::New(JSFunction *target, size_t maxArgc, size_t numActualArgs, bool constr
     JS_ASSERT(maxArgc >= numActualArgs);
     MCall *ins = new MCall(target, numActualArgs, construct);
     if (!ins->init(maxArgc + NumNonArgumentOperands))
-        return nullptr;
+        return NULL;
     return ins;
 }
 
@@ -637,6 +633,21 @@ MGoto::New(MBasicBlock *target)
     return new MGoto(target);
 }
 
+static void
+PrintBailoutKind(FILE *fp, BailoutKind bailoutKind)
+{
+    switch(bailoutKind) {
+      case Bailout_Normal: fprintf(fp, "(normal)"); break;
+      case Bailout_ArgumentCheck: fprintf(fp, "(args)"); break;
+      case Bailout_TypeBarrier: fprintf(fp, "(typebarrier)"); break;
+      case Bailout_Monitor: fprintf(fp, "(monitor)"); break;
+      case Bailout_BoundsCheck: fprintf(fp, "(boundscheck)"); break;
+      case Bailout_ShapeGuard: fprintf(fp, "(shapeguard)"); break;
+      case Bailout_CachedShapeGuard: fprintf(fp, "(cached shapeguard)"); break;
+      default: break;
+    }
+}
+
 void
 MUnbox::printOpcode(FILE *fp) const
 {
@@ -660,6 +671,12 @@ MUnbox::printOpcode(FILE *fp) const
       case TypeBarrier: fprintf(fp, " (typebarrier)"); break;
       default: break;
     }
+
+    if (mode() == Infallible)
+        return;
+
+    fprintf(fp, " ");
+    PrintBailoutKind(fp, bailoutKind());
 }
 
 void
@@ -668,7 +685,10 @@ MTypeBarrier::printOpcode(FILE *fp) const
     PrintOpcodeName(fp, op());
     fprintf(fp, " ");
     getOperand(0)->printName(fp);
-}
+    fprintf(fp, " ");
+
+    PrintBailoutKind(fp, bailoutKind());
+ }
  
 void
 MPhi::removeOperand(size_t index)
@@ -780,7 +800,7 @@ jit::MergeTypes(MIRType *ptype, types::TemporaryTypeSet **ptypeSet,
             if (!newTypeSet->isSubset(*ptypeSet))
                 *ptypeSet = types::TypeSet::unionSets(*ptypeSet, newTypeSet, alloc);
         } else {
-            *ptypeSet = nullptr;
+            *ptypeSet = NULL;
         }
     }
 }
@@ -1226,7 +1246,7 @@ MBinaryArithInstruction::trySpecializeFloat32()
 bool
 MAbs::fallible() const
 {
-    return !implicitTruncate_ && (!range() || !range()->hasInt32Bounds());
+    return !implicitTruncate_ && (!range() || !range()->isInt32());
 }
 
 MDefinition *
@@ -1308,6 +1328,14 @@ MMod::canBePowerOfTwoDivisor() const
     return true;
 }
 
+static inline MDefinition *
+TryFold(MDefinition *original, MDefinition *replacement)
+{
+    if (original->type() == replacement->type())
+        return replacement;
+    return original;
+}
+
 MDefinition *
 MMod::foldsTo(bool useValueNumbers)
 {
@@ -1333,7 +1361,7 @@ MAdd::fallible()
     // either the truncation analysis shows that there are non-truncated uses.
     if (isTruncated())
         return false;
-    if (range() && range()->hasInt32Bounds())
+    if (range() && range()->isInt32())
         return false;
     return true;
 }
@@ -1344,7 +1372,7 @@ MSub::fallible()
     // see comment in MAdd::fallible()
     if (isTruncated())
         return false;
-    if (range() && range()->hasInt32Bounds())
+    if (range() && range()->isInt32())
         return false;
     return true;
 }
@@ -1412,7 +1440,7 @@ MMul::canOverflow()
 {
     if (isTruncated())
         return false;
-    return !range() || !range()->hasInt32Bounds();
+    return !range() || !range()->isInt32();
 }
 
 bool
@@ -1420,7 +1448,7 @@ MUrsh::canOverflow()
 {
     if (!canOverflow_)
         return false;
-    return !range() || !range()->hasInt32Bounds();
+    return !range() || !range()->isInt32();
 }
 
 static inline bool
@@ -1555,7 +1583,7 @@ ObjectOrSimplePrimitive(MDefinition *op)
 }
 
 static bool
-CanDoValueBitwiseCmp(MDefinition *lhs, MDefinition *rhs, bool looseEq)
+CanDoValueBitwiseCmp(JSContext *cx, MDefinition *lhs, MDefinition *rhs, bool looseEq)
 {
     // Only primitive (not double/string) or objects are supported.
     // I.e. Undefined/Null/Boolean/Int32 and Object
@@ -1563,7 +1591,7 @@ CanDoValueBitwiseCmp(MDefinition *lhs, MDefinition *rhs, bool looseEq)
         return false;
 
     // Objects that emulate undefined are not supported.
-    if (MaybeEmulatesUndefined(lhs) || MaybeEmulatesUndefined(rhs))
+    if (MaybeEmulatesUndefined(cx, lhs) || MaybeEmulatesUndefined(cx, rhs))
         return false;
 
     // In the loose comparison more values could be the same,
@@ -1671,11 +1699,11 @@ MBinaryInstruction::tryUseUnsignedOperands()
 }
 
 void
-MCompare::infer(BaselineInspector *inspector, jsbytecode *pc)
+MCompare::infer(JSContext *cx, BaselineInspector *inspector, jsbytecode *pc)
 {
     JS_ASSERT(operandMightEmulateUndefined());
 
-    if (!MaybeEmulatesUndefined(getOperand(0)) && !MaybeEmulatesUndefined(getOperand(1)))
+    if (!MaybeEmulatesUndefined(cx, getOperand(0)) && !MaybeEmulatesUndefined(cx, getOperand(1)))
         markNoOperandEmulatesUndefined();
 
     MIRType lhs = getOperand(0)->type();
@@ -1780,7 +1808,7 @@ MCompare::infer(BaselineInspector *inspector, jsbytecode *pc)
     }
 
     // Determine if we can do the compare based on a quick value check.
-    if (!relationalEq && CanDoValueBitwiseCmp(getOperand(0), getOperand(1), looseEq)) {
+    if (!relationalEq && CanDoValueBitwiseCmp(cx, getOperand(0), getOperand(1), looseEq)) {
         compareType_ = Compare_Value;
         return;
     }
@@ -1874,11 +1902,11 @@ MTypeOf::foldsTo(bool useValueNumbers)
 }
 
 void
-MTypeOf::infer()
+MTypeOf::infer(JSContext *cx)
 {
     JS_ASSERT(inputMaybeCallableOrEmulatesUndefined());
 
-    if (!MaybeEmulatesUndefined(input()) && !MaybeCallable(input()))
+    if (!MaybeEmulatesUndefined(cx, input()) && !MaybeCallable(cx, input()))
         markInputNotCallableOrEmulatesUndefined();
 }
 
@@ -1972,7 +2000,7 @@ MResumePoint::New(MBasicBlock *block, jsbytecode *pc, MResumePoint *parent, Mode
 {
     MResumePoint *resume = new MResumePoint(block, pc, parent, mode);
     if (!resume->init())
-        return nullptr;
+        return NULL;
     resume->inherit(block);
     return resume;
 }
@@ -1983,7 +2011,7 @@ MResumePoint::MResumePoint(MBasicBlock *block, jsbytecode *pc, MResumePoint *cal
     stackDepth_(block->stackDepth()),
     pc_(pc),
     caller_(caller),
-    instruction_(nullptr),
+    instruction_(NULL),
     mode_(mode)
 {
     block->addResumePoint(this);
@@ -2321,11 +2349,11 @@ MCompare::foldsTo(bool useValueNumbers)
 }
 
 void
-MNot::infer()
+MNot::infer(JSContext *cx)
 {
     JS_ASSERT(operandMightEmulateUndefined());
 
-    if (!MaybeEmulatesUndefined(getOperand(0)))
+    if (!MaybeEmulatesUndefined(cx, getOperand(0)))
         markOperandCantEmulateUndefined();
 }
 
@@ -2353,15 +2381,24 @@ MNot::foldsTo(bool useValueNumbers)
     return this;
 }
 
+bool
+MBoundsCheckLower::fallible()
+{
+    return !range() || range()->lower() < minimum_;
+}
+
 void
 MBeta::printOpcode(FILE *fp) const
 {
-    MDefinition::printOpcode(fp);
+    PrintOpcodeName(fp, op());
+    fprintf(fp, " ");
+    getOperand(0)->printName(fp);
+    fprintf(fp, " ");
 
     Sprinter sp(GetIonContext()->cx);
     sp.init();
     comparison_->print(sp);
-    fprintf(fp, " %s", sp.string());
+    fprintf(fp, "%s", sp.string());
 }
 
 bool
@@ -2396,50 +2433,6 @@ MLoadFixedSlot::mightAlias(MDefinition *store)
 }
 
 bool
-MAsmJSLoadHeap::mightAlias(MDefinition *def)
-{
-    if (def->isAsmJSStoreHeap()) {
-        MAsmJSStoreHeap *store = def->toAsmJSStoreHeap();
-        if (store->viewType() != viewType())
-            return true;
-        if (!ptr()->isConstant() || !store->ptr()->isConstant())
-            return true;
-        MConstant *otherPtr = store->ptr()->toConstant();
-        return ptr()->toConstant()->value() == otherPtr->value();
-    }
-    return true;
-}
-
-bool
-MAsmJSLoadHeap::congruentTo(MDefinition *ins) const
-{
-    if (!ins->isAsmJSLoadHeap())
-        return false;
-    MAsmJSLoadHeap *load = ins->toAsmJSLoadHeap();
-    return load->viewType() == viewType() && congruentIfOperandsEqual(load);
-}
-
-bool
-MAsmJSLoadGlobalVar::mightAlias(MDefinition *def)
-{
-    if (def->isAsmJSStoreGlobalVar()) {
-        MAsmJSStoreGlobalVar *store = def->toAsmJSStoreGlobalVar();
-        return store->globalDataOffset() == globalDataOffset_;
-    }
-    return true;
-}
-
-bool
-MAsmJSLoadGlobalVar::congruentTo(MDefinition *ins) const
-{
-    if (ins->isAsmJSLoadGlobalVar()) {
-        MAsmJSLoadGlobalVar *load = ins->toAsmJSLoadGlobalVar();
-        return globalDataOffset_ == load->globalDataOffset_;
-    }
-    return false;
-}
-
-bool
 MLoadSlot::mightAlias(MDefinition *store)
 {
     if (store->isStoreSlot() && store->toStoreSlot()->slot() != slot())
@@ -2448,7 +2441,7 @@ MLoadSlot::mightAlias(MDefinition *store)
 }
 
 void
-InlinePropertyTable::trimTo(ObjectVector &targets, BoolVector &choiceSet)
+InlinePropertyTable::trimTo(AutoObjectVector &targets, Vector<bool> &choiceSet)
 {
     for (size_t i = 0; i < targets.length(); i++) {
         // If the target was inlined, don't erase the entry.
@@ -2469,7 +2462,7 @@ InlinePropertyTable::trimTo(ObjectVector &targets, BoolVector &choiceSet)
 }
 
 void
-InlinePropertyTable::trimToTargets(ObjectVector &targets)
+InlinePropertyTable::trimToTargets(AutoObjectVector &targets)
 {
     IonSpew(IonSpew_Inlining, "Got inlineable property cache with %d cases",
             (int)numEntries());
@@ -2509,11 +2502,11 @@ InlinePropertyTable::buildTypeSetForFunction(JSFunction *func) const
     LifoAlloc *alloc = GetIonContext()->temp->lifoAlloc();
     types::TemporaryTypeSet *types = alloc->new_<types::TemporaryTypeSet>();
     if (!types)
-        return nullptr;
+        return NULL;
     for (size_t i = 0; i < numEntries(); i++) {
         if (entries_[i]->func == func) {
             if (!types->addObject(types::Type::ObjectType(entries_[i]->typeObj).objectKey(), alloc))
-                return nullptr;
+                return NULL;
         }
     }
     return types;
@@ -2617,14 +2610,14 @@ MAsmJSCall::New(Callee callee, const Args &args, MIRType resultType, size_t spIn
     call->numArgs_ = args.length();
     call->argRegs_ = (AnyRegister *)GetIonContext()->temp->allocate(call->numArgs_ * sizeof(AnyRegister));
     if (!call->argRegs_)
-        return nullptr;
+        return NULL;
     for (size_t i = 0; i < call->numArgs_; i++)
         call->argRegs_[i] = args[i].reg;
 
     call->numOperands_ = call->numArgs_ + (callee.which() == Callee::Dynamic ? 1 : 0);
     call->operands_ = (MUse *)GetIonContext()->temp->allocate(call->numOperands_ * sizeof(MUse));
     if (!call->operands_)
-        return nullptr;
+        return NULL;
     for (size_t i = 0; i < call->numArgs_; i++)
         call->setOperand(i, args[i].def);
     if (callee.which() == Callee::Dynamic)
@@ -2707,7 +2700,7 @@ jit::DenseNativeElementType(JSContext *cx, MDefinition *obj, MIRType *result)
         if (object->unknownProperties())
             return true;
 
-        types::HeapTypeSet *elementTypes = object->getProperty(cx, JSID_VOID);
+        types::HeapTypeSet *elementTypes = object->getProperty(cx, JSID_VOID, false);
         if (!elementTypes)
             return true;
 
@@ -2725,12 +2718,10 @@ jit::DenseNativeElementType(JSContext *cx, MDefinition *obj, MIRType *result)
     return true;
 }
 
-static bool
-PropertyReadNeedsTypeBarrier(JSContext *cx, types::TypeObject *object, PropertyName *name,
-                             types::TypeSet *observed, bool *result)
+bool
+jit::PropertyReadNeedsTypeBarrier(JSContext *cx, types::TypeObject *object, PropertyName *name,
+                                  types::StackTypeSet *observed, bool updateObserved, bool *result)
 {
-    jsid id = name ? types::IdToTypeId(NameToId(name)) : JSID_VOID;
-
     // If the object being read from has types for the property which haven't
     // been observed at this access site, the read could produce a new type and
     // a barrier is needed. Note that this only covers reads from properties
@@ -2744,11 +2735,40 @@ PropertyReadNeedsTypeBarrier(JSContext *cx, types::TypeObject *object, PropertyN
         return true;
     }
 
-    types::HeapTypeSet *property = object->getProperty(cx, id);
+    jsid id = name ? types::IdToTypeId(NameToId(name)) : JSID_VOID;
+
+    // If this access has never executed, try to add types to the observed set
+    // according to any property which exists on the object or its prototype.
+    if (updateObserved && observed->empty() && observed->noConstraints() && !JSID_IS_VOID(id)) {
+        JSObject *obj = object->singleton ? object->singleton : object->proto;
+
+        while (obj) {
+            if (!obj->isNative())
+                break;
+
+            Value v;
+            if (HasDataProperty(cx, obj, id, &v)) {
+                if (v.isUndefined())
+                    break;
+                observed->addType(cx, types::GetValueType(v));
+            }
+
+            obj = obj->getProto();
+        }
+    }
+
+    types::HeapTypeSet *property = object->getProperty(cx, id, false);
     if (!property) {
         *result = true;
         return true;
     }
+
+    // We need to consider possible types for the property both as an 'own'
+    // property on the object and as inherited from any prototype. Type sets
+    // for a property do not, however, reflect inherited types until a
+    // getFromPrototypes() call has been performed.
+    if (!property->hasPropagatedProperty())
+        object->getFromPrototypes(cx, id, property);
 
     if (!TypeSetIncludes(observed, MIRType_Value, property)) {
         *result = true;
@@ -2773,35 +2793,6 @@ PropertyReadNeedsTypeBarrier(JSContext *cx, types::TypeObject *object, PropertyN
     property->addFreeze(cx);
     *result = false;
     return true;
-}
-
-bool
-jit::PropertyReadNeedsTypeBarrier(JSContext *cx, types::TypeObject *object, PropertyName *name,
-                                  types::StackTypeSet *observed, bool updateObserved, bool *result)
-{
-    jsid id = name ? types::IdToTypeId(NameToId(name)) : JSID_VOID;
-
-    // If this access has never executed, try to add types to the observed set
-    // according to any property which exists on the object or its prototype.
-    if (updateObserved && observed->empty() && observed->noConstraints() && !JSID_IS_VOID(id)) {
-        JSObject *obj = object->singleton ? object->singleton : object->proto;
-
-        while (obj) {
-            if (!obj->isNative())
-                break;
-
-            Value v;
-            if (HasDataProperty(cx, obj, id, &v)) {
-                if (v.isUndefined())
-                    break;
-                observed->addType(cx, types::GetValueType(v));
-            }
-
-            obj = obj->getProto();
-        }
-    }
-
-    return PropertyReadNeedsTypeBarrier(cx, object, name, observed, result);
 }
 
 bool
@@ -2835,44 +2826,7 @@ jit::PropertyReadNeedsTypeBarrier(JSContext *cx, MDefinition *obj, PropertyName 
         }
     }
 
-    return true;
-}
-
-bool
-jit::PropertyReadOnPrototypeNeedsTypeBarrier(JSContext *cx, MDefinition *obj, PropertyName *name,
-                                             types::TemporaryTypeSet *observed, bool *result)
-{
-    JS_ASSERT(result);
     *result = false;
-
-    if (observed->unknown())
-        return true;
-
-    types::TypeSet *types = obj->resultTypeSet();
-    if (!types || types->unknownObject()) {
-        *result = true;
-        return true;
-    }
-
-    for (size_t i = 0; i < types->getObjectCount(); i++) {
-        types::TypeObject *object;
-        if (!types->getTypeOrSingleObject(cx, i, &object))
-            return false;
-
-        if (!object)
-            continue;
-        while (object->proto) {
-            object = object->proto->getType(cx);
-            if (!object)
-                return false;
-
-            if (!PropertyReadNeedsTypeBarrier(cx, object, name, observed, result))
-                return false;
-            if (*result)
-                return true;
-        }
-    }
-
     return true;
 }
 
@@ -2899,8 +2853,8 @@ jit::PropertyReadIsIdempotent(JSContext *cx, MDefinition *obj, PropertyName *nam
                 return true;
 
             // Check if the property has been reconfigured or is a getter.
-            types::HeapTypeSet *property = object->getProperty(cx, id);
-            if (!property || property->isConfiguredProperty(cx, object))
+            types::HeapTypeSet *property = object->getProperty(cx, id, false);
+            if (!property || property->isOwnProperty(cx, object, true))
                 return true;
         }
     }
@@ -2939,7 +2893,7 @@ jit::AddObjectsForPropertyRead(JSContext *cx, MDefinition *obj, PropertyName *na
             return true;
         }
 
-        types::HeapTypeSet *property = object->getProperty(cx, id);
+        types::HeapTypeSet *property = object->getProperty(cx, id, false);
         if (property->unknownObject()) {
             observed->addType(cx, types::Type::AnyObjectType());
             return true;
@@ -2967,7 +2921,7 @@ TryAddTypeBarrierForWrite(JSContext *cx, MBasicBlock *current, types::TemporaryT
     // All objects in the set must have the same types for id. Otherwise, we
     // could bail out without subsequently triggering a type change that
     // invalidates the compiled code.
-    types::HeapTypeSet *aggregateProperty = nullptr;
+    types::HeapTypeSet *aggregateProperty = NULL;
 
     for (size_t i = 0; i < objTypes->getObjectCount(); i++) {
         types::TypeObject *object;
@@ -2980,7 +2934,7 @@ TryAddTypeBarrierForWrite(JSContext *cx, MBasicBlock *current, types::TemporaryT
         if (object->unknownProperties())
             return false;
 
-        types::HeapTypeSet *property = object->getProperty(cx, id);
+        types::HeapTypeSet *property = object->getProperty(cx, id, false);
         if (!property)
             return false;
 
@@ -3090,7 +3044,7 @@ jit::PropertyWriteNeedsTypeBarrier(JSContext *cx, MBasicBlock *current, MDefinit
         if (object->getTypedArrayType() < ScalarTypeRepresentation::TYPE_MAX)
             continue;
 
-        types::HeapTypeSet *property = object->getProperty(cx, id);
+        types::HeapTypeSet *property = object->getProperty(cx, id, false);
         if (!property) {
             success = false;
             break;
@@ -3121,7 +3075,7 @@ jit::PropertyWriteNeedsTypeBarrier(JSContext *cx, MBasicBlock *current, MDefinit
         return true;
     }
 
-    types::TypeObject *excluded = nullptr;
+    types::TypeObject *excluded = NULL;
     for (size_t i = 0; i < types->getObjectCount(); i++) {
         types::TypeObject *object;
         if (!types->getTypeOrSingleObject(cx, i, &object))
@@ -3132,7 +3086,7 @@ jit::PropertyWriteNeedsTypeBarrier(JSContext *cx, MBasicBlock *current, MDefinit
         if (object->getTypedArrayType() < ScalarTypeRepresentation::TYPE_MAX)
             continue;
 
-        types::HeapTypeSet *property = object->getProperty(cx, id);
+        types::HeapTypeSet *property = object->getProperty(cx, id, false);
         if (!property) {
             *result = true;
             return true;

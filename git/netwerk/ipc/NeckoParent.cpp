@@ -348,8 +348,7 @@ NeckoParent::DeallocPTCPServerSocketParent(PTCPServerSocketParent* actor)
 }
 
 PRemoteOpenFileParent*
-NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
-                                        const OptionalURIParams& aAppURI)
+NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI)
 {
   nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
   nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(uri);
@@ -397,21 +396,7 @@ NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
     fileURL->GetPath(requestedPath);
     NS_UnescapeURL(requestedPath);
 
-    // Check if we load the whitelisted app uri for the neterror page.
-    bool netErrorWhiteList = false;
-
-    nsCOMPtr<nsIURI> appUri = DeserializeURI(aAppURI);
-    if (appUri) {
-      nsAdoptingString netErrorURI;
-      netErrorURI = Preferences::GetString("b2g.neterror.url");
-      if (netErrorURI) {
-        nsAutoCString spec;
-        appUri->GetSpec(spec);
-        netErrorWhiteList = spec.Equals(NS_ConvertUTF16toUTF8(netErrorURI).get());
-      }
-    }
-
-    if (hasManage || netErrorWhiteList) {
+    if (hasManage) {
       // webapps-manage permission means allow reading any application.zip file
       // in either the regular webapps directory, or the core apps directory (if
       // we're using one).
@@ -462,8 +447,8 @@ NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
         printf_stderr("NeckoParent::AllocPRemoteOpenFile: "
                       "FATAL error: app without webapps-manage permission is "
                       "requesting file '%s' but is only allowed to open its "
-                      "own application.zip at %s: KILLING CHILD PROCESS\n",
-                      requestedPath.get(), mustMatch.get());
+                      "own application.zip: KILLING CHILD PROCESS\n",
+                      requestedPath.get());
         return nullptr;
       }
     }
@@ -475,8 +460,7 @@ NeckoParent::AllocPRemoteOpenFileParent(const URIParams& aURI,
 
 bool
 NeckoParent::RecvPRemoteOpenFileConstructor(PRemoteOpenFileParent* aActor,
-                                            const URIParams& aFileURI,
-                                            const OptionalURIParams& aAppURI)
+                                            const URIParams& aFileURI)
 {
   return static_cast<RemoteOpenFileParent*>(aActor)->OpenSendCloseDelete();
 }
@@ -503,26 +487,6 @@ NeckoParent::RecvCancelHTMLDNSPrefetch(const nsString& hostname,
 {
   nsHTMLDNSPrefetch::CancelPrefetch(hostname, flags, reason);
   return true;
-}
-
-void
-NeckoParent::CloneManagees(ProtocolBase* aSource,
-                         mozilla::ipc::ProtocolCloneContext* aCtx)
-{
-  aCtx->SetNeckoParent(this); // For cloning protocols managed by this.
-  PNeckoParent::CloneManagees(aSource, aCtx);
-}
-
-mozilla::ipc::IProtocol*
-NeckoParent::CloneProtocol(Channel* aChannel,
-                           mozilla::ipc::ProtocolCloneContext* aCtx)
-{
-  ContentParent* contentParent = aCtx->GetContentParent();
-  nsAutoPtr<PNeckoParent> actor(contentParent->AllocPNeckoParent());
-  if (!actor || !contentParent->RecvPNeckoConstructor(actor)) {
-    return nullptr;
-  }
-  return actor.forget();
 }
 
 }} // mozilla::net

@@ -17,7 +17,6 @@
 #include "nsDisplayList.h"
 #include "imgIContainer.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/DebugOnly.h"
 #include "nsIReflowCallback.h"
 
 class nsImageMap;
@@ -82,18 +81,18 @@ public:
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
-  virtual mozilla::IntrinsicSize GetIntrinsicSize();
+  virtual IntrinsicSize GetIntrinsicSize();
   virtual nsSize GetIntrinsicRatio();
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
   
-  NS_IMETHOD  GetContentForEvent(mozilla::WidgetEvent* aEvent,
+  NS_IMETHOD  GetContentForEvent(nsEvent* aEvent,
                                  nsIContent** aContent);
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus);
+                        nsGUIEvent* aEvent,
+                        nsEventStatus* aEventStatus);
   NS_IMETHOD GetCursor(const nsPoint& aPoint,
                        nsIFrame::Cursor& aCursor);
   NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
@@ -287,7 +286,7 @@ private:
 
   nsCOMPtr<imgIContainer> mImage;
   nsSize mComputedSize;
-  mozilla::IntrinsicSize mIntrinsicSize;
+  nsIFrame::IntrinsicSize mIntrinsicSize;
   nsSize mIntrinsicRatio;
 
   bool mDisplayingIcon;
@@ -328,8 +327,11 @@ private:
     }
 
     void RemoveIconObserver(nsImageFrame *frame) {
-      mozilla::DebugOnly<bool> didRemove = mIconObservers.RemoveElement(frame);
-      NS_ABORT_IF_FALSE(didRemove, "Observer not in array");
+#ifdef DEBUG
+        bool rv =
+#endif
+            mIconObservers.RemoveElement(frame);
+        NS_ABORT_IF_FALSE(rv, "Observer not in array");
     }
 
   private:

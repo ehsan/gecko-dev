@@ -76,6 +76,9 @@
 
 #include "mozilla/dom/NavigatorBinding.h"
 
+// This should not be in the namespace.
+DOMCI_DATA(Navigator, mozilla::dom::Navigator)
+
 namespace mozilla {
 namespace dom {
 
@@ -709,45 +712,49 @@ Navigator::RemoveIdleObserver(MozIdleObserver& aIdleObserver, ErrorResult& aRv)
   }
 }
 
-bool
-Navigator::Vibrate(uint32_t aDuration)
+void
+Navigator::Vibrate(uint32_t aDuration, ErrorResult& aRv)
 {
   nsAutoTArray<uint32_t, 1> pattern;
   pattern.AppendElement(aDuration);
-  return Vibrate(pattern);
+  Vibrate(pattern, aRv);
 }
 
-bool
-Navigator::Vibrate(const nsTArray<uint32_t>& aPattern)
+void
+Navigator::Vibrate(const nsTArray<uint32_t>& aPattern, ErrorResult& aRv)
 {
   if (!mWindow) {
-    return false;
+    aRv.Throw(NS_ERROR_UNEXPECTED);
+    return;
   }
-
   nsCOMPtr<nsIDocument> doc = mWindow->GetExtantDoc();
   if (!doc) {
-    return false;
+    aRv.Throw(NS_ERROR_FAILURE);
+    return;
   }
-
   if (doc->Hidden()) {
     // Hidden documents cannot start or stop a vibration.
-    return false;
+    return;
   }
 
   if (aPattern.Length() > sMaxVibrateListLen) {
-    return false;
+    // XXXbz this should be returning false instead
+    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+    return;
   }
 
   for (size_t i = 0; i < aPattern.Length(); ++i) {
     if (aPattern[i] > sMaxVibrateMS) {
-      return false;
+      // XXXbz this should be returning false instead
+      aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+      return;
     }
   }
 
   // The spec says we check sVibratorEnabled after we've done the sanity
   // checking on the pattern.
-  if (aPattern.IsEmpty() || !sVibratorEnabled) {
-    return true;
+  if (!sVibratorEnabled) {
+    return;
   }
 
   // Add a listener to cancel the vibration if the document becomes hidden,
@@ -765,7 +772,6 @@ Navigator::Vibrate(const nsTArray<uint32_t>& aPattern)
   gVibrateWindowListener = new VibrateWindowListener(mWindow, doc);
 
   hal::Vibrate(aPattern, mWindow);
-  return true;
 }
 
 //*****************************************************************************
@@ -1781,16 +1787,6 @@ bool Navigator::HasPushNotificationsSupport(JSContext* /* unused */,
 {
   nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
   return win && Preferences::GetBool("services.push.enabled", false) && CheckPermission(win, "push");
-}
-
-/* static */
-bool Navigator::HasInputMethodSupport(JSContext* /* unused */,
-                                      JSObject* aGlobal)
-{
-  nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
-  return Preferences::GetBool("dom.mozInputMethod.testing", false) ||
-         (Preferences::GetBool("dom.mozInputMethod.enabled", false) &&
-          win && CheckPermission(win, "keyboard"));
 }
 
 /* static */

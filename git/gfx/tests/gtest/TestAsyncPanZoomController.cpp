@@ -45,8 +45,8 @@ class TestAPZCContainerLayer : public ContainerLayer {
 
 class TestAsyncPanZoomController : public AsyncPanZoomController {
 public:
-  TestAsyncPanZoomController(uint64_t aLayersId, MockContentController* aMcc)
-    : AsyncPanZoomController(aLayersId, nullptr, aMcc)
+  TestAsyncPanZoomController(uint64_t aLayersId, MockContentController* mcc)
+    : AsyncPanZoomController(aLayersId, mcc)
   {}
 
   void SetFrameMetrics(const FrameMetrics& metrics) {
@@ -361,6 +361,11 @@ SetScrollableFrameMetrics(Layer* aLayer, FrameMetrics::ViewID aScrollId, MockCon
   metrics.mViewport = CSSRect(layerBound.x, layerBound.y,
                               layerBound.width, layerBound.height);
   container->SetFrameMetrics(metrics);
+
+  // when we do the next tree update, a new APZC will be created for this layer,
+  // and that will invoke these functions once.
+  EXPECT_CALL(*mcc, SendAsyncScrollDOMEvent(_,_,_)).Times(1);
+  EXPECT_CALL(*mcc, RequestContentRepaint(_)).Times(1);
 }
 
 static gfxPoint

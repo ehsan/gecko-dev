@@ -7,7 +7,6 @@
 
 #include "nsDOMEvent.h"
 #include "nsIDOMAnimationEvent.h"
-#include "mozilla/ContentEvents.h"
 #include "mozilla/dom/AnimationEventBinding.h"
 
 class nsAString;
@@ -18,7 +17,7 @@ class nsDOMAnimationEvent : public nsDOMEvent,
 public:
   nsDOMAnimationEvent(mozilla::dom::EventTarget* aOwner,
                       nsPresContext *aPresContext,
-                      mozilla::InternalAnimationEvent* aEvent);
+                      nsAnimationEvent *aEvent);
   ~nsDOMAnimationEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -47,10 +46,10 @@ public:
   }
 
 private:
-  mozilla::InternalAnimationEvent* AnimationEvent() {
+  nsAnimationEvent* AnimationEvent() {
     NS_ABORT_IF_FALSE(mEvent->eventStructType == NS_ANIMATION_EVENT,
                       "unexpected struct type");
-    return static_cast<mozilla::InternalAnimationEvent*>(mEvent);
+    return static_cast<nsAnimationEvent*>(mEvent);
   }
 };
 

@@ -56,7 +56,7 @@ toolbarspacer {
 /* ::::: toolbarpaletteitem ::::: */
 
 toolbarpaletteitem {
-  cursor: grab;
+  cursor: -moz-grab;
 }
 
 .toolbarpaletteitem-box[type="spacer"],

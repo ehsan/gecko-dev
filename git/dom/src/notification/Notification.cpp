@@ -17,7 +17,6 @@
 #include "nsToolkitCompsCID.h"
 #include "nsGlobalWindow.h"
 #include "nsDOMJSUtils.h"
-#include "nsIScriptSecurityManager.h"
 #ifdef MOZ_B2G
 #include "nsIDOMDesktopNotification.h"
 #include "nsIAppsService.h"

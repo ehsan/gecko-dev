@@ -51,11 +51,8 @@ class WorkerThreadState
     uint32_t numPaused;
 
     enum CondVar {
-        /* For notifying threads waiting for work that they may be able to make progress. */
-        CONSUMER,
-
-        /* For notifying threads doing work that they may be able to make progress. */
-        PRODUCER
+        MAIN,
+        WORKER
     };
 
     /* Shared worklist for Ion worker threads. */
@@ -70,12 +67,6 @@ class WorkerThreadState
      * The main thread must pick up finished optimizations and perform codegen.
      */
     Vector<AsmJSParallelTask*, 0, SystemAllocPolicy> asmJSFinishedList;
-
-    /*
-     * For now, only allow a single parallel asm.js compilation to happen at a
-     * time. This avoids race conditions on asmJSWorklist/asmJSFinishedList/etc.
-     */
-    mozilla::Atomic<uint32_t> asmJSCompilationInProgress;
 
     /* Shared worklist for parsing/emitting scripts on worker threads. */
     Vector<ParseTask*, 0, SystemAllocPolicy> parseWorklist, parseFinishedList;
@@ -97,6 +88,7 @@ class WorkerThreadState
 # endif
 
     void wait(CondVar which, uint32_t timeoutMillis = 0);
+    void notify(CondVar which);
     void notifyAll(CondVar which);
 
     bool canStartAsmJSCompile();
@@ -144,9 +136,11 @@ class WorkerThreadState
     PRThread *lockOwner;
 # endif
 
-    /* Condvars for threads waiting/notifying each other. */
-    PRCondVar *consumerWakeup;
-    PRCondVar *producerWakeup;
+    /* Condvar to notify the main thread that work has been completed. */
+    PRCondVar *mainWakeup;
+
+    /* Condvar to notify helper threads that they may be able to make progress. */
+    PRCondVar *helperWakeup;
 
     /*
      * Number of AsmJS workers that encountered failure for the active module.
@@ -340,23 +334,6 @@ class AutoPauseWorkersForGC
   public:
     AutoPauseWorkersForGC(JSRuntime *rt MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
     ~AutoPauseWorkersForGC();
-};
-
-/*
- * If the current thread is a worker thread, treat it as paused during this
- * class's lifetime. This should be used at any time the current thread is
- * waiting for a worker to complete.
- */
-class AutoPauseCurrentWorkerThread
-{
-#ifdef JS_WORKER_THREADS
-    ExclusiveContext *cx;
-#endif
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-
-  public:
-    AutoPauseCurrentWorkerThread(ExclusiveContext *cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
-    ~AutoPauseCurrentWorkerThread();
 };
 
 /* Wait for any in progress off thread parses to halt. */

@@ -32,8 +32,6 @@
 #include "UIABridgePrivate.h"
 #include "WinMouseScrollHandler.h"
 #include "InputData.h"
-#include "mozilla/TextEvents.h"
-#include "mozilla/TouchEvents.h"
 
 using namespace Microsoft::WRL;
 using namespace Microsoft::WRL::Wrappers;
@@ -630,13 +628,12 @@ MetroWidget::DeliverNextScrollEvent()
 
 // defined in nsWiondowBase, called from shared module KeyboardLayout.
 bool
-MetroWidget::DispatchKeyboardEvent(WidgetGUIEvent* aEvent)
+MetroWidget::DispatchKeyboardEvent(nsGUIEvent* aEvent)
 {
   MOZ_ASSERT(aEvent);
-  WidgetKeyboardEvent* oldKeyEvent = static_cast<WidgetKeyboardEvent*>(aEvent);
-  WidgetKeyboardEvent* keyEvent =
-    new WidgetKeyboardEvent(oldKeyEvent->mFlags.mIsTrusted,
-                            oldKeyEvent->message, oldKeyEvent->widget);
+  nsKeyEvent* oldKeyEvent = static_cast<nsKeyEvent*>(aEvent);
+  nsKeyEvent* keyEvent =
+    new nsKeyEvent(oldKeyEvent->mFlags.mIsTrusted, oldKeyEvent->message, oldKeyEvent->widget);
   // XXX note this leaves pluginEvent null, which is fine for now.
   keyEvent->AssignKeyEventData(*oldKeyEvent, true);
   mKeyEventQueue.Push(keyEvent);
@@ -655,7 +652,7 @@ public:
     mId(aIdToCancel) {
   }
   virtual void* operator() (void* aObject) {
-    WidgetKeyboardEvent* event = static_cast<WidgetKeyboardEvent*>(aObject);
+    nsKeyEvent* event = static_cast<nsKeyEvent*>(aObject);
     if (event->mUniqueId == mId) {
       event->mFlags.mPropagationStopped = true;
     }
@@ -668,8 +665,7 @@ protected:
 void
 MetroWidget::DeliverNextKeyboardEvent()
 {
-  WidgetKeyboardEvent* event =
-    static_cast<WidgetKeyboardEvent*>(mKeyEventQueue.PopFront());
+  nsKeyEvent* event = static_cast<nsKeyEvent*>(mKeyEventQueue.PopFront());
   if (event->mFlags.mPropagationStopped) {
     // This can happen if a keypress was previously cancelled.
     delete event;
@@ -1003,39 +999,17 @@ MetroWidget::ApzContentIgnoringTouch()
   MetroWidget::sAPZC->ContentReceivedTouch(mRootLayerTreeId, false);
 }
 
-bool
-MetroWidget::HitTestAPZC(ScreenPoint& pt)
-{
-  if (!MetroWidget::sAPZC) {
-    return false;
-  }
-  return MetroWidget::sAPZC->HitTestAPZC(pt);
-}
-
 nsEventStatus
-MetroWidget::ApzReceiveInputEvent(WidgetInputEvent* aEvent)
+MetroWidget::ApzReceiveInputEvent(nsTouchEvent* aEvent)
 {
   MOZ_ASSERT(aEvent);
 
   if (!MetroWidget::sAPZC) {
     return nsEventStatus_eIgnore;
   }
-  WidgetInputEvent& event = static_cast<WidgetInputEvent&>(*aEvent);
-  return MetroWidget::sAPZC->ReceiveInputEvent(event);
-}
 
-nsEventStatus
-MetroWidget::ApzReceiveInputEvent(WidgetInputEvent* aInEvent,
-                                  WidgetInputEvent* aOutEvent)
-{
-  MOZ_ASSERT(aInEvent);
-  MOZ_ASSERT(aOutEvent);
-
-  if (!MetroWidget::sAPZC) {
-    return nsEventStatus_eIgnore;
-  }
-  WidgetInputEvent& event = static_cast<WidgetInputEvent&>(*aInEvent);
-  return MetroWidget::sAPZC->ReceiveInputEvent(event, aOutEvent);
+  MultiTouchInput inputData(*aEvent);
+  return MetroWidget::sAPZC->ReceiveInputEvent(inputData);
 }
 
 LayerManager*
@@ -1207,7 +1181,7 @@ void MetroWidget::UserActivity()
 // InitEvent assumes physical coordinates and is used by shared win32 code. Do
 // not hand winrt event coordinates to this routine.
 void
-MetroWidget::InitEvent(WidgetGUIEvent& event, nsIntPoint* aPoint)
+MetroWidget::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
 {
   if (!aPoint) {
     event.refPoint.x = event.refPoint.y = 0;
@@ -1219,7 +1193,7 @@ MetroWidget::InitEvent(WidgetGUIEvent& event, nsIntPoint* aPoint)
 }
 
 bool
-MetroWidget::DispatchWindowEvent(WidgetGUIEvent* aEvent)
+MetroWidget::DispatchWindowEvent(nsGUIEvent* aEvent)
 {
   MOZ_ASSERT(aEvent);
   nsEventStatus status = nsEventStatus_eIgnore;
@@ -1228,9 +1202,9 @@ MetroWidget::DispatchWindowEvent(WidgetGUIEvent* aEvent)
 }
 
 NS_IMETHODIMP
-MetroWidget::DispatchEvent(WidgetGUIEvent* event, nsEventStatus & aStatus)
+MetroWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus)
 {
-  if (event->IsInputDerivedEvent()) {
+  if (NS_IS_INPUT_EVENT(event)) {
     UserActivity();
   }
 
@@ -1303,9 +1277,9 @@ double MetroWidget::GetDefaultScaleInternal()
 LayoutDeviceIntPoint
 MetroWidget::CSSIntPointToLayoutDeviceIntPoint(const CSSIntPoint &aCSSPoint)
 {
-  CSSToLayoutDeviceScale scale = GetDefaultScale();
-  LayoutDeviceIntPoint devPx(int32_t(NS_round(scale.scale * aCSSPoint.x)),
-                             int32_t(NS_round(scale.scale * aCSSPoint.y)));
+  double scale = GetDefaultScale();
+  LayoutDeviceIntPoint devPx(int32_t(NS_round(scale * aCSSPoint.x)),
+                             int32_t(NS_round(scale * aCSSPoint.y)));
   return devPx;
 }
 

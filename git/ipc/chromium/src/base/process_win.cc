@@ -12,7 +12,7 @@ namespace base {
 void Process::Close() {
   if (!process_)
     return;
-  CloseProcessHandle(process_);
+  ::CloseHandle(process_);
   process_ = NULL;
 }
 

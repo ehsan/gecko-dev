@@ -7,7 +7,7 @@
 #include "jit/BytecodeAnalysis.h"
 
 #include "jsopcode.h"
-#include "jit/IonSpewer.h"
+
 #include "jsopcodeinlines.h"
 
 using namespace js;
@@ -15,9 +15,7 @@ using namespace js::jit;
 
 BytecodeAnalysis::BytecodeAnalysis(JSScript *script)
   : script_(script),
-    infos_(),
-    usesScopeChain_(false),
-    hasTryFinally_(false)
+    infos_()
 {
 }
 
@@ -144,30 +142,6 @@ BytecodeAnalysis::init(JSContext *cx)
                 if (catchFinallyRanges[i].contains(offset))
                     infos_[offset].loopEntryInCatchOrFinally = true;
             }
-            break;
-
-          case JSOP_NAME:
-          case JSOP_CALLNAME:
-          case JSOP_BINDNAME:
-          case JSOP_SETNAME:
-          case JSOP_DELNAME:
-          case JSOP_GETALIASEDVAR:
-          case JSOP_CALLALIASEDVAR:
-          case JSOP_SETALIASEDVAR:
-          case JSOP_LAMBDA:
-          case JSOP_DEFFUN:
-          case JSOP_DEFVAR:
-          case JSOP_DEFCONST:
-          case JSOP_SETCONST:
-            usesScopeChain_ = true;
-            break;
-
-          case JSOP_FINALLY:
-            hasTryFinally_ = true;
-            break;
-
-          case JSOP_SETARG:
-            hasSetArg_ = true;
             break;
 
           default:

@@ -450,7 +450,6 @@ this.NETWORK_CREG_TECH_LTE = 14;
 this.NETWORK_CREG_TECH_HSPAP = 15;
 this.NETWORK_CREG_TECH_GSM = 16;
 
-this.CALL_STATE_UNKNOWN = -1;
 this.CALL_STATE_ACTIVE = 0;
 this.CALL_STATE_HOLDING = 1;
 this.CALL_STATE_DIALING = 2;
@@ -2345,7 +2344,6 @@ this.GECKO_RADIOSTATE_OFF           = "off";
 this.GECKO_RADIOSTATE_READY         = "ready";
 
 this.GECKO_CARDSTATE_NOT_READY                     = null;
-this.GECKO_CARDSTATE_ILLEGAL                       = "illegal";
 this.GECKO_CARDSTATE_UNKNOWN                       = "unknown";
 this.GECKO_CARDSTATE_ABSENT                        = "absent";
 this.GECKO_CARDSTATE_PIN_REQUIRED                  = "pinRequired";

@@ -204,11 +204,11 @@ jsconfig_FILES = $(export_files)
 jsconfig_DEST = $(DIST)/include
 jsconfig_TARGET := export
 
-include $(topsrcdir)/config/rules.mk
-
 .PHONY: buildffi buildicu
 buildffi buildicu:
-$(if $(MOZ_PSEUDO_DERECURSE),compile,export):: buildffi buildicu
+compile:: buildffi buildicu
+
+include $(topsrcdir)/config/rules.mk
 
 ifdef JS_HAS_CTYPES
 ifndef MOZ_NATIVE_FFI
@@ -298,18 +298,11 @@ JITTEST_VALGRIND_FLAG = --valgrind
 endif
 endif
 
-ifdef MOZ_ASAN
-ifneq ($(LLVM_SYMBOLIZER),)
-# Use the LLVM symbolizer when running jit-tests under ASan, if available
-JITTEST_ASAN_ENV=ASAN_SYMBOLIZER_PATH='$(LLVM_SYMBOLIZER)'
-endif
-endif
-
 check-style::
 	(cd $(srcdir) && $(PYTHON) config/check_spidermonkey_style.py);
 
 check-jit-test::
-	$(JITTEST_ASAN_ENV) $(wildcard $(RUN_TEST_PROGRAM)) $(PYTHON) -u $(srcdir)/jit-test/jit_test.py \
+	$(wildcard $(RUN_TEST_PROGRAM)) $(PYTHON) -u $(srcdir)/jit-test/jit_test.py \
 	        --no-slow --no-progress --tinderbox --tbpl $(JITTEST_VALGRIND_FLAG) \
 	        $(DIST)/bin/$(JS_SHELL_NAME)$(BIN_SUFFIX)
 
@@ -397,10 +390,6 @@ EXTRA_LIBS += $(MOZ_ZLIB_LIBS)
 # also enable zlib if mozglue is present.
 ifneq (,$(MOZ_ZLIB_LIBS)$(MOZ_GLUE_LDFLAGS))
 DEFINES += -DUSE_ZLIB
-endif
-
-ifdef MOZ_LINKER
-DEFINES += -DMOZ_LINKER
 endif
 
 ifdef MOZ_NATIVE_ICU
@@ -562,8 +551,11 @@ install:: $(LIBRARY_NAME).pc
 #          mfbt headers
 #
 
-install::
-	$(call py_action,process_install_manifest,--no-remove $(DESTDIR)$(includedir)/$(LIBRARY_NAME) _build_manifests/install/dist_include)
+install:: $(EXPORTS)
+	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(LIBRARY_NAME)
+
+install:: $(EXPORTS_js)
+	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(LIBRARY_NAME)/js
 
 install:: $(EXPORTS_mozilla)
 	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(LIBRARY_NAME)/mozilla

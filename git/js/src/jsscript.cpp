@@ -735,7 +735,7 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
             }
 
             Rooted<StaticBlockObject*> tmp(cx, static_cast<StaticBlockObject *>(objp->get()));
-            if (!XDRStaticBlockObject(xdr, blockEnclosingScope, tmp.address()))
+            if (!XDRStaticBlockObject(xdr, blockEnclosingScope, script, tmp.address()))
                 return false;
             *objp = tmp;
         }
@@ -991,18 +991,19 @@ ScriptSource::adjustDataSize(size_t nbytes)
 }
 
 /* static */ bool
-JSScript::loadSource(JSContext *cx, ScriptSource *ss, bool *worked)
+JSScript::loadSource(JSContext *cx, HandleScript script, bool *worked)
 {
-    JS_ASSERT(!ss->hasSourceData());
+    JS_ASSERT(!script->scriptSource()->hasSourceData());
     *worked = false;
-    if (!cx->runtime()->sourceHook || !ss->sourceRetrievable())
+    if (!cx->runtime()->sourceHook || !script->scriptSource()->sourceRetrievable())
         return true;
     jschar *src = NULL;
-    size_t length;
-    if (!cx->runtime()->sourceHook->load(cx, ss->filename(), &src, &length))
+    uint32_t length;
+    if (!cx->runtime()->sourceHook(cx, script, &src, &length))
         return false;
     if (!src)
         return true;
+    ScriptSource *ss = script->scriptSource();
     ss->setSource(src, length);
     *worked = true;
     return true;
@@ -1124,7 +1125,7 @@ ScriptSource::setSourceCopy(ExclusiveContext *cx, const jschar *src, uint32_t le
 }
 
 void
-ScriptSource::setSource(const jschar *src, size_t length)
+ScriptSource::setSource(const jschar *src, uint32_t length)
 {
     JS_ASSERT(!hasSourceData());
     length_ = length;
@@ -1208,8 +1209,7 @@ ScriptSource::destroy()
     JS_ASSERT(ready());
     adjustDataSize(0);
     js_free(filename_);
-    js_free(sourceURL_);
-    js_free(sourceMapURL_);
+    js_free(sourceMap_);
     if (originPrincipals_)
         JS_DropPrincipals(TlsPerThreadData.get()->runtimeFromMainThread(), originPrincipals_);
     ready_ = false;
@@ -1274,54 +1274,29 @@ ScriptSource::performXDR(XDRState<mode> *xdr)
         argumentsNotIncluded_ = argumentsNotIncluded;
     }
 
-    uint8_t haveSourceMap = hasSourceMapURL();
+    uint8_t haveSourceMap = hasSourceMap();
     if (!xdr->codeUint8(&haveSourceMap))
         return false;
 
     if (haveSourceMap) {
-        uint32_t sourceMapURLLen = (mode == XDR_DECODE) ? 0 : js_strlen(sourceMapURL_);
-        if (!xdr->codeUint32(&sourceMapURLLen))
+        uint32_t sourceMapLen = (mode == XDR_DECODE) ? 0 : js_strlen(sourceMap_);
+        if (!xdr->codeUint32(&sourceMapLen))
             return false;
 
         if (mode == XDR_DECODE) {
-            size_t byteLen = (sourceMapURLLen + 1) * sizeof(jschar);
-            sourceMapURL_ = static_cast<jschar *>(xdr->cx()->malloc_(byteLen));
-            if (!sourceMapURL_)
+            size_t byteLen = (sourceMapLen + 1) * sizeof(jschar);
+            sourceMap_ = static_cast<jschar *>(xdr->cx()->malloc_(byteLen));
+            if (!sourceMap_)
                 return false;
         }
-        if (!xdr->codeChars(sourceMapURL_, sourceMapURLLen)) {
+        if (!xdr->codeChars(sourceMap_, sourceMapLen)) {
             if (mode == XDR_DECODE) {
-                js_free(sourceMapURL_);
-                sourceMapURL_ = NULL;
+                js_free(sourceMap_);
+                sourceMap_ = NULL;
             }
             return false;
         }
-        sourceMapURL_[sourceMapURLLen] = '\0';
-    }
-
-    uint8_t haveSourceURL = hasSourceURL();
-    if (!xdr->codeUint8(&haveSourceURL))
-        return false;
-
-    if (haveSourceURL) {
-        uint32_t sourceURLLen = (mode == XDR_DECODE) ? 0 : js_strlen(sourceURL_);
-        if (!xdr->codeUint32(&sourceURLLen))
-            return false;
-
-        if (mode == XDR_DECODE) {
-            size_t byteLen = (sourceURLLen + 1) * sizeof(jschar);
-            sourceURL_ = static_cast<jschar *>(xdr->cx()->malloc_(byteLen));
-            if (!sourceURL_)
-                return false;
-        }
-        if (!xdr->codeChars(sourceURL_, sourceURLLen)) {
-            if (mode == XDR_DECODE) {
-                js_free(sourceURL_);
-                sourceURL_ = NULL;
-            }
-            return false;
-        }
-        sourceURL_[sourceURLLen] = '\0';
+        sourceMap_[sourceMapLen] = '\0';
     }
 
     uint8_t haveFilename = !!filename_;
@@ -1357,64 +1332,27 @@ ScriptSource::setFilename(ExclusiveContext *cx, const char *filename)
 }
 
 bool
-ScriptSource::setSourceURL(ExclusiveContext *cx, const jschar *sourceURL)
-{
-    JS_ASSERT(sourceURL);
-    if (hasSourceURL()) {
-        if (cx->isJSContext() &&
-            !JS_ReportErrorFlagsAndNumber(cx->asJSContext(), JSREPORT_WARNING,
-                                          js_GetErrorMessage, NULL,
-                                          JSMSG_ALREADY_HAS_PRAGMA, filename_,
-                                          "//# sourceURL"))
-        {
-            return false;
-        }
-    }
-    size_t len = js_strlen(sourceURL) + 1;
-    if (len == 1)
-        return true;
-    sourceURL_ = js_strdup(cx, sourceURL);
-    if (!sourceURL_)
-        return false;
-    return true;
-}
-
-const jschar *
-ScriptSource::sourceURL()
-{
-    JS_ASSERT(hasSourceURL());
-    return sourceURL_;
-}
-
-bool
-ScriptSource::setSourceMapURL(ExclusiveContext *cx, const jschar *sourceMapURL)
+ScriptSource::setSourceMap(ExclusiveContext *cx, jschar *sourceMapURL)
 {
     JS_ASSERT(sourceMapURL);
-    if (hasSourceMapURL()) {
+    if (hasSourceMap()) {
         if (cx->isJSContext() &&
-            !JS_ReportErrorFlagsAndNumber(cx->asJSContext(), JSREPORT_WARNING,
-                                          js_GetErrorMessage, NULL,
-                                          JSMSG_ALREADY_HAS_PRAGMA, filename_,
-                                          "//# sourceMappingURL"))
+            !JS_ReportErrorFlagsAndNumber(cx->asJSContext(), JSREPORT_WARNING, js_GetErrorMessage,
+                                          NULL, JSMSG_ALREADY_HAS_SOURCEMAP, filename_))
         {
+            js_free(sourceMapURL);
             return false;
         }
     }
-
-    size_t len = js_strlen(sourceMapURL) + 1;
-    if (len == 1)
-        return true;
-    sourceMapURL_ = js_strdup(cx, sourceMapURL);
-    if (!sourceMapURL_)
-        return false;
+    sourceMap_ = sourceMapURL;
     return true;
 }
 
 const jschar *
-ScriptSource::sourceMapURL()
+ScriptSource::sourceMap()
 {
-    JS_ASSERT(hasSourceMapURL());
-    return sourceMapURL_;
+    JS_ASSERT(hasSourceMap());
+    return sourceMap_;
 }
 
 /*
@@ -1910,21 +1848,15 @@ JSScript::fullyInitFromEmitter(ExclusiveContext *cx, HandleScript script, Byteco
 }
 
 size_t
-JSScript::computedSizeOfData() const
+JSScript::computedSizeOfData()
 {
     return dataSize;
 }
 
 size_t
-JSScript::sizeOfData(mozilla::MallocSizeOf mallocSizeOf) const
+JSScript::sizeOfData(mozilla::MallocSizeOf mallocSizeOf)
 {
     return mallocSizeOf(data);
-}
-
-size_t
-JSScript::sizeOfTypeScript(mozilla::MallocSizeOf mallocSizeOf) const
-{
-    return types->sizeOfIncludingThis(mallocSizeOf);
 }
 
 /*
@@ -2027,6 +1959,7 @@ JSScript::finalize(FreeOp *fop)
 }
 
 static const uint32_t GSN_CACHE_THRESHOLD = 100;
+static const uint32_t GSN_CACHE_MAP_INIT_SIZE = 20;
 
 void
 GSNCache::purge()
@@ -2037,15 +1970,18 @@ GSNCache::purge()
 }
 
 jssrcnote *
-js::GetSrcNote(GSNCache &cache, JSScript *script, jsbytecode *pc)
+js_GetSrcNote(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
+    GSNCache *cache = &cx->runtime()->gsnCache;
+    cx = NULL;  // nulling |cx| ensures GC can't be triggered, so |JSScript *script| is safe
+
     size_t target = pc - script->code;
     if (target >= size_t(script->length))
         return NULL;
 
-    if (cache.code == script->code) {
-        JS_ASSERT(cache.map.initialized());
-        GSNCache::Map::Ptr p = cache.map.lookup(pc);
+    if (cache->code == script->code) {
+        JS_ASSERT(cache->map.initialized());
+        GSNCache::Map::Ptr p = cache->map.lookup(pc);
         return p ? p->value : NULL;
     }
 
@@ -2063,37 +1999,31 @@ js::GetSrcNote(GSNCache &cache, JSScript *script, jsbytecode *pc)
         }
     }
 
-    if (cache.code != script->code && script->length >= GSN_CACHE_THRESHOLD) {
+    if (cache->code != script->code && script->length >= GSN_CACHE_THRESHOLD) {
         unsigned nsrcnotes = 0;
         for (jssrcnote *sn = script->notes(); !SN_IS_TERMINATOR(sn);
              sn = SN_NEXT(sn)) {
             if (SN_IS_GETTABLE(sn))
                 ++nsrcnotes;
         }
-        if (cache.code) {
-            JS_ASSERT(cache.map.initialized());
-            cache.map.finish();
-            cache.code = NULL;
+        if (cache->code) {
+            JS_ASSERT(cache->map.initialized());
+            cache->map.finish();
+            cache->code = NULL;
         }
-        if (cache.map.init(nsrcnotes)) {
+        if (cache->map.init(nsrcnotes)) {
             pc = script->code;
             for (jssrcnote *sn = script->notes(); !SN_IS_TERMINATOR(sn);
                  sn = SN_NEXT(sn)) {
                 pc += SN_DELTA(sn);
                 if (SN_IS_GETTABLE(sn))
-                    JS_ALWAYS_TRUE(cache.map.put(pc, sn));
+                    JS_ALWAYS_TRUE(cache->map.put(pc, sn));
             }
-            cache.code = script->code;
+            cache->code = script->code;
         }
     }
 
     return result;
-}
-
-jssrcnote *
-js_GetSrcNote(JSContext *cx, JSScript *script, jsbytecode *pc)
-{
-    return GetSrcNote(cx->runtime()->gsnCache, script, pc);
 }
 
 unsigned
@@ -2224,14 +2154,13 @@ js::CurrentScriptFileLineOrigin(JSContext *cx, const char **file, unsigned *line
                                 JSPrincipals **origin, LineOption opt)
 {
     if (opt == CALLED_FROM_JSOP_EVAL) {
+        JSScript *script = NULL;
         jsbytecode *pc = NULL;
-        JSScript *script = cx->currentScript(&pc);
-        JS_ASSERT(JSOp(*pc) == JSOP_EVAL || JSOp(*pc) == JSOP_SPREADEVAL);
-        JS_ASSERT(*(pc + (JSOp(*pc) == JSOP_EVAL ? JSOP_EVAL_LENGTH
-                                                 : JSOP_SPREADEVAL_LENGTH)) == JSOP_LINENO);
+        types::TypeScript::GetPcScript(cx, &script, &pc);
+        JS_ASSERT(JSOp(*pc) == JSOP_EVAL);
+        JS_ASSERT(*(pc + JSOP_EVAL_LENGTH) == JSOP_LINENO);
         *file = script->filename();
-        *linenop = GET_UINT16(pc + (JSOp(*pc) == JSOP_EVAL ? JSOP_EVAL_LENGTH
-                                                           : JSOP_SPREADEVAL_LENGTH));
+        *linenop = GET_UINT16(pc + JSOP_EVAL_LENGTH);
         *origin = script->originPrincipals();
         return;
     }
@@ -3022,20 +2951,6 @@ JSScript::updateBaselineOrIonRaw()
         baselineOrIonSkipArgCheck = NULL;
     }
 #endif
-}
-
-bool
-JSScript::hasLoops()
-{
-    if (!hasTrynotes())
-        return false;
-    JSTryNote *tn = trynotes()->vector;
-    JSTryNote *tnlimit = tn + trynotes()->length;
-    for (; tn < tnlimit; tn++) {
-        if (tn->kind == JSTRY_ITER || tn->kind == JSTRY_LOOP)
-            return true;
-    }
-    return false;
 }
 
 static inline void

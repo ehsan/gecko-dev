@@ -5,7 +5,7 @@
 
 #include "mozilla/dom/TextTrackRegion.h"
 #include "mozilla/dom/TextTrackRegionList.h"
-#include "mozilla/dom/VTTRegionListBinding.h"
+#include "mozilla/dom/TextTrackRegionListBinding.h"
 
 namespace mozilla {
 namespace dom {
@@ -23,7 +23,7 @@ NS_INTERFACE_MAP_END
 JSObject*
 TextTrackRegionList::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return VTTRegionListBinding::Wrap(aCx, aScope, this);
+  return TextTrackRegionListBinding::Wrap(aCx, aScope, this);
 }
 
 TextTrackRegionList::TextTrackRegionList(nsISupports* aGlobal)

@@ -13,7 +13,7 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsEventListenerManager.h"
 #include "nsIScriptContext.h"
-#include "MainThreadUtils.h"
+#include "nsThreadUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/EventTarget.h"
 
@@ -46,7 +46,7 @@ public:
   NS_DECL_NSIDOMEVENTTARGET
   using mozilla::dom::EventTarget::RemoveEventListener;
   virtual void AddEventListener(const nsAString& aType,
-                                mozilla::dom::EventListener* aListener,
+                                nsIDOMEventListener* aListener,
                                 bool aCapture,
                                 const mozilla::dom::Nullable<bool>& aWantsUntrusted,
                                 mozilla::ErrorResult& aRv) MOZ_OVERRIDE;
@@ -174,12 +174,15 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsDOMEventTargetHelper,
     }                                                                     \
     return GetEventHandler(nullptr, NS_LITERAL_STRING(#_event));          \
   }                                                                       \
-  inline void SetOn##_event(mozilla::dom::EventHandlerNonNull* aCallback) \
+  inline void SetOn##_event(mozilla::dom::EventHandlerNonNull* aCallback, \
+                            mozilla::ErrorResult& aRv)                    \
   {                                                                       \
     if (NS_IsMainThread()) {                                              \
-      SetEventHandler(nsGkAtoms::on##_event, EmptyString(), aCallback);   \
+      SetEventHandler(nsGkAtoms::on##_event, EmptyString(),               \
+                      aCallback, aRv);                                    \
     } else {                                                              \
-      SetEventHandler(nullptr, NS_LITERAL_STRING(#_event), aCallback);    \
+      SetEventHandler(nullptr, NS_LITERAL_STRING(#_event),                \
+                      aCallback, aRv);                                    \
     }                                                                     \
   }
 
@@ -216,7 +219,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsDOMEventTargetHelper,
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor & aVisitor) { \
     return _to PostHandleEvent(aVisitor); \
   } \
-  virtual nsresult DispatchDOMEvent(mozilla::WidgetEvent* aEvent, nsIDOMEvent* aDOMEvent, nsPresContext* aPresContext, nsEventStatus* aEventStatus) { \
+  virtual nsresult DispatchDOMEvent(nsEvent *aEvent, nsIDOMEvent *aDOMEvent, nsPresContext *aPresContext, nsEventStatus *aEventStatus) { \
     return _to DispatchDOMEvent(aEvent, aDOMEvent, aPresContext, aEventStatus); \
   } \
   virtual nsEventListenerManager * GetListenerManager(bool aMayCreate) { \

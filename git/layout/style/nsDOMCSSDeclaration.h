@@ -15,6 +15,7 @@
 
 class nsIPrincipal;
 class nsIDocument;
+class nsIURI;
 
 namespace mozilla {
 namespace css {

@@ -99,22 +99,6 @@ endif
 CONFIG_TOOLS	= $(MOZ_BUILD_ROOT)/config
 AUTOCONF_TOOLS	= $(topsrcdir)/build/autoconf
 
-# Disable MOZ_PSEUDO_DERECURSE when it contains no-pymake and we're running
-# pymake. This can be removed when no-pymake is removed from the default in
-# build/autoconf/compiler-opts.m4.
-ifdef .PYMAKE
-comma = ,
-ifneq (,$(filter no-pymake,$(subst $(comma), ,$(MOZ_PSEUDO_DERECURSE))))
-MOZ_PSEUDO_DERECURSE :=
-endif
-endif
-
-# Disable MOZ_PSEUDO_DERECURSE on the second PGO pass until it's widely
-# tested.
-ifdef MOZ_PROFILE_USE
-MOZ_PSEUDO_DERECURSE :=
-endif
-
 #
 # Strip off the excessively long version numbers on these platforms,
 # but save the version to allow multiple versions of the same base
@@ -148,7 +132,7 @@ SLEEP ?= sleep
 TOUCH ?= touch
 
 ifdef .PYMAKE
-PYCOMMANDPATH += $(PYTHON_SITE_PACKAGES)
+PYCOMMANDPATH += $(topsrcdir)/config
 endif
 
 PYTHON_PATH = $(PYTHON) $(topsrcdir)/config/pythonpath.py
@@ -809,12 +793,15 @@ endif
 EXPAND_LIBNAME_PATH = $(foreach lib,$(1),$(2)/$(LIB_PREFIX)$(lib).$(LIB_SUFFIX))
 EXPAND_MOZLIBNAME = $(foreach lib,$(1),$(DIST)/lib/$(LIB_PREFIX)$(lib).$(LIB_SUFFIX))
 
+# Include internal ply only if needed
+ifndef MOZ_SYSTEM_PLY
 PLY_INCLUDE = -I$(topsrcdir)/other-licenses/ply
+endif
 
 export CL_INCLUDES_PREFIX
 
-ifdef MOZ_GTK2_CFLAGS
-MOZ_GTK2_CFLAGS := -I$(topsrcdir)/widget/gtk/compat $(MOZ_GTK2_CFLAGS)
+ifeq ($(MOZ_WIDGET_GTK),2)
+MOZ_GTK2_CFLAGS := -I$(topsrcdir)/widget/gtk2/compat $(MOZ_GTK2_CFLAGS)
 endif
 
 DEFINES += -DNO_NSPR_10_SUPPORT
@@ -825,8 +812,4 @@ DEFINES += -DNO_NSPR_10_SUPPORT
 #
 #   libs::
 #       $(call py_action,purge_manifests,_build_manifests/purge/foo.manifest)
-ifdef .PYMAKE
-py_action = %mozbuild.action.$(1) main $(2)
-else
 py_action = $(PYTHON) -m mozbuild.action.$(1) $(2)
-endif

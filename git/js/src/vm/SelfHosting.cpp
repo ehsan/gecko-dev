@@ -60,13 +60,13 @@ SelfHostedClass::newPrototype(JSContext *cx, uint32_t numSlots)
     /* Allocate a new self hosted class and prepend it to the list. */
     SelfHostedClass *shClass = cx->new_<SelfHostedClass>("Self-hosted Class", numSlots);
     if (!shClass)
-        return nullptr;
+        return NULL;
     cx->runtime()->addSelfHostedClass(shClass);
 
     Rooted<GlobalObject *> global(cx, cx->global());
     RootedObject proto(cx, global->createBlankPrototype(cx, &shClass->class_));
     if (!proto)
-        return nullptr;
+        return NULL;
 
     return proto;
 }
@@ -109,7 +109,7 @@ static const JSClass self_hosting_global_class = {
     JS_PropertyStub,  JS_DeletePropertyStub,
     JS_PropertyStub,  JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub,
-    JS_ConvertStub,   nullptr
+    JS_ConvertStub,   NULL
 };
 
 bool
@@ -152,7 +152,7 @@ js::intrinsic_ThrowError(JSContext *cx, unsigned argc, Value *vp)
     JS_ASSERT(args.length() >= 1);
     uint32_t errorNumber = args[0].toInt32();
 
-    char *errorArgs[3] = {nullptr, nullptr, nullptr};
+    char *errorArgs[3] = {NULL, NULL, NULL};
     for (unsigned i = 1; i < 4 && i < args.length(); i++) {
         RootedValue val(cx, args[i]);
         if (val.isInt32()) {
@@ -169,7 +169,7 @@ js::intrinsic_ThrowError(JSContext *cx, unsigned argc, Value *vp)
             return false;
     }
 
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, errorNumber,
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, errorNumber,
                          errorArgs[0], errorArgs[1], errorArgs[2]);
     for (unsigned i = 0; i < 3; i++)
         js_free(errorArgs[i]);
@@ -607,7 +607,7 @@ intrinsic_RuntimeDefaultLocale(JSContext *cx, unsigned argc, Value *vp)
 
     const char *locale = cx->runtime()->getDefaultLocale();
     if (!locale) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_DEFAULT_LOCALE_ERROR);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_DEFAULT_LOCALE_ERROR);
         return false;
     }
 
@@ -686,9 +686,9 @@ JSRuntime::initSelfHosting(JSContext *cx)
     bool receivesDefaultObject = !cx->hasOption(JSOPTION_NO_DEFAULT_COMPARTMENT_OBJECT);
     RootedObject savedGlobal(cx, receivesDefaultObject
                                  ? js::DefaultObjectForContextOrNull(cx)
-                                 : nullptr);
+                                 : NULL);
     if (!(selfHostingGlobal_ = JS_NewGlobalObject(cx, &self_hosting_global_class,
-                                                  nullptr, JS::DontFireOnNewGlobalHook)))
+                                                  NULL, JS::DontFireOnNewGlobalHook)))
         return false;
     JSAutoCompartment ac(cx, selfHostingGlobal_);
     if (receivesDefaultObject)
@@ -769,7 +769,7 @@ JSRuntime::initSelfHosting(JSContext *cx)
 void
 JSRuntime::finishSelfHosting()
 {
-    selfHostingGlobal_ = nullptr;
+    selfHostingGlobal_ = NULL;
 
     SelfHostedClass *shClass = selfHostedClasses_;
     while (shClass) {
@@ -777,7 +777,7 @@ JSRuntime::finishSelfHosting()
         shClass = shClass->next;
         js_delete(tmp);
     }
-    selfHostedClasses_ = nullptr;
+    selfHostedClasses_ = NULL;
 }
 
 void
@@ -819,7 +819,7 @@ CloneProperties(JSContext *cx, HandleObject obj, HandleObject clone, CloneMemory
         id = ids[i];
         if (!GetUnclonedValue(cx, obj, id, &val) ||
             !CloneValue(cx, &val, clonedObjects) ||
-            !JS_DefinePropertyById(cx, clone, id, val.get(), nullptr, nullptr, 0))
+            !JS_DefinePropertyById(cx, clone, id, val.get(), NULL, NULL, 0))
         {
             return false;
         }
@@ -867,7 +867,7 @@ CloneObject(JSContext *cx, HandleObject srcObj, CloneMemory &clonedObjects)
         if (srcObj->as<JSFunction>().isWrappable()) {
             clone = srcObj;
             if (!cx->compartment()->wrap(cx, &clone))
-                return nullptr;
+                return NULL;
         } else {
             RootedFunction fun(cx, &srcObj->as<JSFunction>());
             clone = CloneFunctionObject(cx, fun, cx->global(), fun->getAllocKind(), TenuredObject);
@@ -875,7 +875,7 @@ CloneObject(JSContext *cx, HandleObject srcObj, CloneMemory &clonedObjects)
     } else if (srcObj->is<RegExpObject>()) {
         RegExpObject &reobj = srcObj->as<RegExpObject>();
         RootedAtom source(cx, reobj.getSource());
-        clone = RegExpObject::createNoStatics(cx, source, reobj.getFlags(), nullptr);
+        clone = RegExpObject::createNoStatics(cx, source, reobj.getFlags(), NULL);
     } else if (srcObj->is<DateObject>()) {
         clone = JS_NewDateObjectMsec(cx, srcObj->as<DateObject>().UTCTime().toNumber());
     } else if (srcObj->is<BooleanObject>()) {
@@ -885,23 +885,23 @@ CloneObject(JSContext *cx, HandleObject srcObj, CloneMemory &clonedObjects)
     } else if (srcObj->is<StringObject>()) {
         Rooted<JSStableString*> str(cx, srcObj->as<StringObject>().unbox()->ensureStable(cx));
         if (!str)
-            return nullptr;
+            return NULL;
         str = js_NewStringCopyN<CanGC>(cx, str->chars().get(), str->length())->ensureStable(cx);
         if (!str)
-            return nullptr;
+            return NULL;
         clone = StringObject::create(cx, str);
     } else if (srcObj->is<ArrayObject>()) {
-        clone = NewDenseEmptyArray(cx, nullptr, TenuredObject);
+        clone = NewDenseEmptyArray(cx, NULL, TenuredObject);
     } else {
         JS_ASSERT(srcObj->isNative());
-        clone = NewObjectWithGivenProto(cx, srcObj->getClass(), nullptr, cx->global(),
+        clone = NewObjectWithGivenProto(cx, srcObj->getClass(), NULL, cx->global(),
                                         GetObjectAllocKindForClone(cx->runtime(), srcObj),
                                         SingletonObject);
     }
     if (!clone || !clonedObjects.relookupOrAdd(p, srcObj.get(), clone.get()) ||
         !CloneProperties(cx, srcObj, clone, clonedObjects))
     {
-        return nullptr;
+        return NULL;
     }
     return clone;
 }
@@ -981,9 +981,11 @@ JSRuntime::cloneSelfHostedValue(JSContext *cx, Handle<PropertyName*> name, Mutab
 }
 
 bool
-JSRuntime::maybeWrappedSelfHostedFunction(JSContext *cx, HandleId id, MutableHandleValue funVal)
+JSRuntime::maybeWrappedSelfHostedFunction(JSContext *cx, Handle<PropertyName*> name,
+                                          MutableHandleValue funVal)
 {
     RootedObject shg(cx, selfHostingGlobal_);
+    RootedId id(cx, NameToId(name));
     if (!GetUnclonedValue(cx, shg, id, funVal))
         return false;
 

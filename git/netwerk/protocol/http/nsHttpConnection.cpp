@@ -8,14 +8,19 @@
 #include "HttpLog.h"
 
 #include "nsHttpConnection.h"
+#include "nsHttpTransaction.h"
 #include "nsHttpRequestHead.h"
 #include "nsHttpResponseHead.h"
 #include "nsHttpHandler.h"
 #include "nsIOService.h"
+#include "nsISocketTransportService.h"
 #include "nsISocketTransport.h"
+#include "nsIServiceManager.h"
 #include "nsISSLSocketControl.h"
 #include "sslt.h"
 #include "nsStringStream.h"
+#include "netCore.h"
+#include "nsNetCID.h"
 #include "nsProxyRelease.h"
 #include "nsPreloadedStream.h"
 #include "ASpdySession.h"
@@ -27,6 +32,8 @@
 // defined by the socket transport service while active
 extern PRThread *gSocketThread;
 #endif
+
+static NS_DEFINE_CID(kSocketTransportServiceCID, NS_SOCKETTRANSPORTSERVICE_CID);
 
 using namespace mozilla;
 using namespace mozilla::net;
@@ -46,8 +53,6 @@ nsHttpConnection::nsHttpConnection()
     , mMaxBytesRead(0)
     , mTotalBytesRead(0)
     , mTotalBytesWritten(0)
-    , mUnreportedBytesRead(0)
-    , mUnreportedBytesWritten(0)
     , mKeepAlive(true) // assume to keep-alive by default
     , mKeepAliveMask(true)
     , mDontReuse(false)
@@ -77,7 +82,6 @@ nsHttpConnection::~nsHttpConnection()
 {
     LOG(("Destroying nsHttpConnection @%x\n", this));
 
-    ReportDataUsage(false);
     if (!mEverUsedSpdy) {
         LOG(("nsHttpConnection %p performed %d HTTP/1.x transactions\n",
              this, mHttp1xTransactionCount));
@@ -272,7 +276,7 @@ nsHttpConnection::EnsureNPNComplete()
     if (NS_FAILED(rv))
         goto npnComplete;
 
-    LOG(("nsHttpConnection::EnsureNPNComplete %p negotiated to '%s'\n",
+    LOG(("nsHttpConnection::EnsureNPNComplete %p negotiated to '%s'",
          this, negotiatedNPN.get()));
 
     uint8_t spdyVersion;
@@ -408,11 +412,12 @@ nsHttpConnection::SetupSSL(uint32_t caps)
     if (gHttpHandler->IsSpdyEnabled() &&
         !(caps & NS_HTTP_DISALLOW_SPDY)) {
         LOG(("nsHttpConnection::SetupSSL Allow SPDY NPN selection"));
-        for (uint32_t index = 0; index < SpdyInformation::kCount; ++index) {
-            if (gHttpHandler->SpdyInfo()->ProtocolEnabled(index))
-                protocolArray.AppendElement(
-                    gHttpHandler->SpdyInfo()->VersionString[index]);
-        }
+        if (gHttpHandler->SpdyInfo()->ProtocolEnabled(0))
+            protocolArray.AppendElement(
+                gHttpHandler->SpdyInfo()->VersionString[0]);
+        if (gHttpHandler->SpdyInfo()->ProtocolEnabled(1))
+            protocolArray.AppendElement(
+                gHttpHandler->SpdyInfo()->VersionString[1]);
     }
 
     if (NS_SUCCEEDED(ssl->SetNPNList(protocolArray))) {
@@ -1184,8 +1189,6 @@ nsHttpConnection::CloseTransaction(nsAHttpTransaction *trans, nsresult reason)
         mCallbacks = nullptr;
     }
 
-    ReportDataUsage(false);
-
     if (NS_FAILED(reason))
         Close(reason);
 
@@ -1228,11 +1231,8 @@ nsHttpConnection::OnReadSegment(const char *buf,
     else {
         mLastWriteTime = PR_IntervalNow();
         mSocketOutCondition = NS_OK; // reset condition
-        if (!mProxyConnectInProgress) {
+        if (!mProxyConnectInProgress)
             mTotalBytesWritten += *countRead;
-            mUnreportedBytesWritten += *countRead;
-            ReportDataUsage(true);
-        }
     }
 
     return mSocketOutCondition;
@@ -1450,8 +1450,6 @@ nsHttpConnection::OnSocketReadable()
         else {
             mCurrentBytesRead += n;
             mTotalBytesRead += n;
-            mUnreportedBytesRead += n;
-            ReportDataUsage(true);
             if (NS_FAILED(mSocketInCondition)) {
                 // continue waiting for the socket if necessary...
                 if (mSocketInCondition == NS_BASE_STREAM_WOULD_BLOCK)
@@ -1514,27 +1512,6 @@ nsHttpConnection::SetupProxyConnect()
     buf.AppendLiteral("\r\n");
 
     return NS_NewCStringInputStream(getter_AddRefs(mProxyConnectStream), buf);
-}
-
-void
-nsHttpConnection::ReportDataUsage(bool allowDefer)
-{
-    static const uint64_t kDeferThreshold = 128000;
-
-    if (!mUnreportedBytesRead && !mUnreportedBytesWritten)
-        return;
-
-    if (!gHttpHandler->IsTelemetryEnabled())
-        return;
-
-    if (allowDefer &&
-        (mUnreportedBytesRead + mUnreportedBytesWritten) < kDeferThreshold) {
-        return;
-    }
-
-    gHttpHandler->UpdateDataUsage(mCallbacks,
-                                  mUnreportedBytesRead, mUnreportedBytesWritten);
-    mUnreportedBytesRead = mUnreportedBytesWritten = 0;
 }
 
 //-----------------------------------------------------------------------------

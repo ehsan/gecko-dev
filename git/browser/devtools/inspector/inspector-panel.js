@@ -168,7 +168,7 @@ InspectorPanel.prototype = {
     // as default selected, else set documentElement
     return walker.getRootNode().then(aRootNode => {
       rootNode = aRootNode;
-      return walker.querySelector(rootNode, this.selectionCssSelector);
+      return walker.querySelector(aRootNode, this.selectionCssSelector);
     }).then(front => {
       if (front) {
         return front;
@@ -399,7 +399,7 @@ InspectorPanel.prototype = {
           }
 
           self._updateProgress = null;
-          self.emit("inspector-updated", name);
+          self.emit("inspector-updated");
         },
       };
     }
@@ -432,9 +432,7 @@ InspectorPanel.prototype = {
   },
 
   /**
-   * When a node is deleted, select its parent node or the defaultNode if no
-   * parent is found (may happen when deleting an iframe inside which the
-   * node was selected).
+   * When a node is deleted, select its parent node.
    */
   onDetached: function InspectorPanel_onDetached(event, parentNode) {
     this.cancelLayoutChange();
@@ -449,13 +447,6 @@ InspectorPanel.prototype = {
     if (this._destroyPromise) {
       return this._destroyPromise;
     }
-
-    if (this.highlighter) {
-      this.highlighter.off("locked", this.onLockStateChanged);
-      this.highlighter.off("unlocked", this.onLockStateChanged);
-      this.highlighter.destroy();
-    }
-
     if (this.walker) {
       this.walker.off("new-root", this.onNewRoot);
       this._destroyPromise = this.walker.release().then(null, console.error);
@@ -471,6 +462,12 @@ InspectorPanel.prototype = {
     if (this.browser) {
       this.browser.removeEventListener("resize", this.scheduleLayoutChange, true);
       this.browser = null;
+    }
+
+    if (this.highlighter) {
+      this.highlighter.off("locked", this.onLockStateChanged);
+      this.highlighter.off("unlocked", this.onLockStateChanged);
+      this.highlighter.destroy();
     }
 
     this.target.off("thread-paused", this.updateDebuggerPausedWarning);

@@ -181,7 +181,7 @@ nsSVGIntegrationUtils::GetContinuationUnionSize(nsIFrame* aNonSVGFrame)
   NS_ASSERTION(!aNonSVGFrame->IsFrameOfType(nsIFrame::eSVG),
                "SVG frames should not get here");
   nsIFrame* firstFrame =
-    nsLayoutUtils::FirstContinuationOrSpecialSibling(aNonSVGFrame);
+    nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aNonSVGFrame);
   return nsLayoutUtils::GetAllInFlowRectsUnion(firstFrame, firstFrame).Size();
 }
 
@@ -191,7 +191,7 @@ nsSVGIntegrationUtils::GetSVGCoordContextForNonSVGFrame(nsIFrame* aNonSVGFrame)
   NS_ASSERTION(!aNonSVGFrame->IsFrameOfType(nsIFrame::eSVG),
                "SVG frames should not get here");
   nsIFrame* firstFrame =
-    nsLayoutUtils::FirstContinuationOrSpecialSibling(aNonSVGFrame);
+    nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aNonSVGFrame);
   nsRect r = nsLayoutUtils::GetAllInFlowRectsUnion(firstFrame, firstFrame);
   nsPresContext* presContext = firstFrame->PresContext();
   return gfxSize(presContext->AppUnitsToFloatCSSPixels(r.width),
@@ -204,7 +204,7 @@ nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(nsIFrame* aNonSVGFrame)
   NS_ASSERTION(!aNonSVGFrame->IsFrameOfType(nsIFrame::eSVG),
                "SVG frames should not get here");
   nsIFrame* firstFrame =
-    nsLayoutUtils::FirstContinuationOrSpecialSibling(aNonSVGFrame);
+    nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aNonSVGFrame);
   // 'r' is in "user space":
   nsRect r = GetPreEffectsVisualOverflowUnion(firstFrame, nullptr, nsRect(),
                                               GetOffsetToUserSpace(firstFrame));
@@ -253,7 +253,7 @@ nsRect
                  "Don't call this on SVG child frames");
 
   nsIFrame* firstFrame =
-    nsLayoutUtils::FirstContinuationOrSpecialSibling(aFrame);
+    nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aFrame);
   nsSVGEffects::EffectProperties effectProperties =
     nsSVGEffects::GetEffectProperties(firstFrame);
   nsSVGFilterFrame *filterFrame = effectProperties.mFilter ?
@@ -293,7 +293,7 @@ nsSVGIntegrationUtils::AdjustInvalidAreaForSVGEffects(nsIFrame* aFrame,
   // Don't bother calling GetEffectProperties; the filter property should
   // already have been set up during reflow/ComputeFrameEffectsRect
   nsIFrame* firstFrame =
-    nsLayoutUtils::FirstContinuationOrSpecialSibling(aFrame);
+    nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aFrame);
   nsSVGEffects::EffectProperties effectProperties =
     nsSVGEffects::GetEffectProperties(firstFrame);
   if (!effectProperties.mFilter)
@@ -339,7 +339,7 @@ nsSVGIntegrationUtils::GetRequiredSourceForInvalidArea(nsIFrame* aFrame,
   // Don't bother calling GetEffectProperties; the filter property should
   // already have been set up during reflow/ComputeFrameEffectsRect
   nsIFrame* firstFrame =
-    nsLayoutUtils::FirstContinuationOrSpecialSibling(aFrame);
+    nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aFrame);
   nsSVGFilterFrame* filterFrame =
     nsSVGEffects::GetFilterFrame(firstFrame);
   if (!filterFrame)
@@ -359,7 +359,7 @@ bool
 nsSVGIntegrationUtils::HitTestFrameForEffects(nsIFrame* aFrame, const nsPoint& aPt)
 {
   nsIFrame* firstFrame =
-    nsLayoutUtils::FirstContinuationOrSpecialSibling(aFrame);
+    nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aFrame);
   // Convert aPt to user space:
   nsPoint toUserSpace;
   if (aFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT) {
@@ -449,7 +449,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   /* Properties are added lazily and may have been removed by a restyle,
      so make sure all applicable ones are set again. */
   nsIFrame* firstFrame =
-    nsLayoutUtils::FirstContinuationOrSpecialSibling(aFrame);
+    nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aFrame);
   nsSVGEffects::EffectProperties effectProperties =
     nsSVGEffects::GetEffectProperties(firstFrame);
 
@@ -494,13 +494,12 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   bool complexEffects = false;
   /* Check if we need to do additional operations on this child's
    * rendering, which necessitates rendering into another surface. */
-  if (opacity != 1.0f || maskFrame || (clipPathFrame && !isTrivialClip)
-      || aFrame->StyleDisplay()->mMixBlendMode != NS_STYLE_BLEND_NORMAL) {
+  if (opacity != 1.0f || maskFrame || (clipPathFrame && !isTrivialClip)) {
     complexEffects = true;
     gfx->Save();
     aCtx->IntersectClip(aFrame->GetVisualOverflowRectRelativeToSelf() +
                         svgGeomFramePos);
-    gfx->PushGroup(GFX_CONTENT_COLOR_ALPHA);
+    gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
   }
 
   /* If this frame has only a trivial clipPath, set up cairo's clipping now so
@@ -540,7 +539,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
 
   nsRefPtr<gfxPattern> clipMaskSurface;
   if (clipPathFrame && !isTrivialClip) {
-    gfx->PushGroup(GFX_CONTENT_COLOR_ALPHA);
+    gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
 
     nsresult rv = clipPathFrame->ClipPaint(aCtx, aFrame, cssPxToDevPxMatrix);
     clipMaskSurface = gfx->PopGroup();
@@ -548,7 +547,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
     if (NS_SUCCEEDED(rv) && clipMaskSurface) {
       // Still more set after clipping, so clip to another surface
       if (maskSurface || opacity != 1.0f) {
-        gfx->PushGroup(GFX_CONTENT_COLOR_ALPHA);
+        gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
         gfx->Mask(clipMaskSurface);
         gfx->PopGroupToSource();
       } else {
@@ -591,7 +590,7 @@ public:
   {}
   virtual bool operator()(gfxContext* aContext,
                             const gfxRect& aFillRect,
-                            const GraphicsFilter& aFilter,
+                            const gfxPattern::GraphicsFilter& aFilter,
                             const gfxMatrix& aTransform);
 private:
   nsIFrame* mFrame;
@@ -603,7 +602,7 @@ private:
 bool
 PaintFrameCallback::operator()(gfxContext* aContext,
                                const gfxRect& aFillRect,
-                               const GraphicsFilter& aFilter,
+                               const gfxPattern::GraphicsFilter& aFilter,
                                const gfxMatrix& aTransform)
 {
   if (mFrame->GetStateBits() & NS_FRAME_DRAWING_AS_PAINTSERVER)
@@ -718,7 +717,7 @@ DrawableFromPaintServer(nsIFrame*         aFrame,
 nsSVGIntegrationUtils::DrawPaintServer(nsRenderingContext* aRenderingContext,
                                        nsIFrame*            aTarget,
                                        nsIFrame*            aPaintServer,
-                                       GraphicsFilter aFilter,
+                                       gfxPattern::GraphicsFilter aFilter,
                                        const nsRect&        aDest,
                                        const nsRect&        aFill,
                                        const nsPoint&       aAnchor,

@@ -19,7 +19,7 @@ gfxReusableImageSurfaceWrapper::~gfxReusableImageSurfaceWrapper()
 void
 gfxReusableImageSurfaceWrapper::ReadLock()
 {
-  NS_ASSERT_OWNINGTHREAD(gfxReusableImageSurfaceWrapper);
+  NS_CheckThreadSafe(_mOwningThread.GetThread(), "Only the owner thread can call ReadLock");
   AddRef();
 }
 
@@ -32,7 +32,7 @@ gfxReusableImageSurfaceWrapper::ReadUnlock()
 gfxReusableSurfaceWrapper*
 gfxReusableImageSurfaceWrapper::GetWritable(gfxImageSurface** aSurface)
 {
-  NS_ASSERT_OWNINGTHREAD(gfxReusableImageSurfaceWrapper);
+  NS_CheckThreadSafe(_mOwningThread.GetThread(), "Only the owner thread can call GetWritable");
 
   if (mRefCnt == 1) {
     *aSurface = mSurface;
@@ -53,7 +53,7 @@ gfxReusableImageSurfaceWrapper::GetReadOnlyData() const
   return mSurface->Data();
 }
 
-gfxImageFormat
+gfxASurface::gfxImageFormat
 gfxReusableImageSurfaceWrapper::Format()
 {
   return mSurface->Format();

@@ -13,6 +13,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
+#include "nsGUIEvent.h"
 #include "nsObjCExceptions.h"
 #include "nsHashtable.h"
 #include "nsThreadUtils.h"

@@ -3,7 +3,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-const { 'classes': Cc, 'interfaces': Ci, 'utils': Cu } = Components;
+const { 'classes': Cc, 'interfaces': Ci } = Components;
 
 const DOMException = Ci.nsIDOMDOMException;
 
@@ -42,6 +42,10 @@ function runTest()
 {
   // XPCShell does not get a profile by default.
   do_get_profile();
+
+  var idbManager = Cc["@mozilla.org/dom/indexeddb/manager;1"].
+                   getService(Ci.nsIIndexedDatabaseManager);
+  idbManager.initWindowless(this);
 
   enableExperimental();
 

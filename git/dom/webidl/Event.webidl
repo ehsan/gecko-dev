@@ -30,7 +30,6 @@ interface Event {
   void preventDefault();
   readonly attribute boolean defaultPrevented;
 
-  [Unforgeable]
   readonly attribute boolean isTrusted;
   readonly attribute DOMTimeStamp timeStamp;
 

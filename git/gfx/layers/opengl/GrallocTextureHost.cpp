@@ -117,7 +117,8 @@ void GrallocTextureSourceOGL::BindTexture(GLenum aTextureUnit)
   MOZ_ASSERT(gl());
   gl()->MakeCurrent();
 
-  GLuint tex = GetGLTexture();
+  mQuirks->SetCompositor(mCompositor);
+  GLuint tex = static_cast<CompositableQuirksGonkOGL*>(mQuirks.get())->GetTexture();
   GLuint textureTarget = GetTextureTarget();
 
   gl()->fActiveTexture(aTextureUnit);
@@ -166,9 +167,9 @@ GrallocTextureSourceOGL::GetFormat() const {
 }
 
 void
-GrallocTextureSourceOGL::SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData)
+GrallocTextureSourceOGL::SetCompositableQuirks(CompositableQuirks* aQuirks)
 {
-  mCompositableBackendData = aBackendData;
+  mQuirks = aQuirks;
 
   if (!mCompositor) {
     return;
@@ -178,7 +179,8 @@ GrallocTextureSourceOGL::SetCompositableBackendSpecificData(CompositableBackendS
   DeallocateDeviceData();
 
   gl()->MakeCurrent();
-  GLuint tex = GetGLTexture();
+  mQuirks->SetCompositor(mCompositor);
+  GLuint tex = static_cast<CompositableQuirksGonkOGL*>(mQuirks.get())->GetTexture();
   GLuint textureTarget = GetTextureTarget();
 
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
@@ -308,7 +310,8 @@ GrallocTextureSourceOGL::GetAsSurface() {
   MOZ_ASSERT(gl());
   gl()->MakeCurrent();
 
-  GLuint tex = GetGLTexture();
+  mQuirks->SetCompositor(mCompositor);
+  GLuint tex = static_cast<CompositableQuirksGonkOGL*>(mQuirks.get())->GetTexture();
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
   gl()->fBindTexture(GetTextureTarget(), tex);
   if (!mEGLImage) {
@@ -323,19 +326,12 @@ GrallocTextureSourceOGL::GetAsSurface() {
   return surf.forget();
 }
 
-GLuint
-GrallocTextureSourceOGL::GetGLTexture()
-{
-  mCompositableBackendData->SetCompositor(mCompositor);
-  return static_cast<CompositableDataGonkOGL*>(mCompositableBackendData.get())->GetTexture();
-}
-
 void
-GrallocTextureHostOGL::SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData)
+GrallocTextureHostOGL::SetCompositableQuirks(CompositableQuirks* aQuirks)
 {
-  mCompositableBackendData = aBackendData;
+  mQuirks = aQuirks;
   if (mTextureSource) {
-    mTextureSource->SetCompositableBackendSpecificData(aBackendData);
+    mTextureSource->SetCompositableQuirks(aQuirks);
   }
 }
 

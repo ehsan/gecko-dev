@@ -6,7 +6,7 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK2)
 #include "gfxPlatformGtk.h"
 #define gfxToolkitPlatform gfxPlatformGtk
 #elif defined(MOZ_WIDGET_QT)
@@ -1426,12 +1426,7 @@ gfxFT2FontList::GetDefaultFont(const gfxFontStyle* aStyle)
             return FindFamily(resolvedName);
         }
     }
-#elif defined(MOZ_WIDGET_GONK)
-    nsAutoString resolvedName;
-    if (ResolveFontName(NS_LITERAL_STRING("Fira Sans OT"), resolvedName)) {
-        return FindFamily(resolvedName);
-    }
-#elif defined(MOZ_WIDGET_ANDROID)
+#elif defined(ANDROID)
     nsAutoString resolvedName;
     if (ResolveFontName(NS_LITERAL_STRING("Roboto"), resolvedName) ||
         ResolveFontName(NS_LITERAL_STRING("Droid Sans"), resolvedName)) {

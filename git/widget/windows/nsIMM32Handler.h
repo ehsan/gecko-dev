@@ -9,8 +9,8 @@
 #include "nscore.h"
 #include <windows.h>
 #include "nsString.h"
+#include "nsGUIEvent.h"
 #include "nsTArray.h"
-#include "mozilla/EventForwards.h"
 
 class nsIWidget;
 class nsWindow;
@@ -282,7 +282,7 @@ protected:
   bool GetTargetClauseRange(uint32_t *aOffset, uint32_t *aLength = nullptr);
   void DispatchTextEvent(nsWindow* aWindow, const nsIMEContext &aIMEContext,
                          bool aCheckAttr = true);
-  void SetTextRangeList(nsTArray<mozilla::TextRange>& aTextRangeList);
+  void SetTextRangeList(nsTArray<nsTextRange> &aTextRangeList);
 
   nsresult EnsureClauseArray(int32_t aCount);
   nsresult EnsureAttributeArray(int32_t aCount);

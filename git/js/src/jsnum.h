@@ -13,6 +13,9 @@
 
 #include "vm/NumericConversions.h"
 
+extern double js_PositiveInfinity;
+extern double js_NegativeInfinity;
+
 namespace js {
 
 class StringBuffer;
@@ -160,7 +163,7 @@ ToNumber(JSContext *cx, JS::MutableHandleValue vp)
     if (vp.isNumber())
         return true;
     double d;
-    extern JS_PUBLIC_API(bool) ToNumberSlow(JSContext *cx, Value v, double *dp);
+    extern bool ToNumberSlow(JSContext *cx, Value v, double *dp);
     if (!ToNumberSlow(cx, vp, &d))
         return false;
 
@@ -249,7 +252,7 @@ ToInteger(JSContext *cx, HandleValue v, double *dp)
     if (v.isDouble()) {
         *dp = v.toDouble();
     } else {
-        extern JS_PUBLIC_API(bool) ToNumberSlow(JSContext *cx, Value v, double *dp);
+        extern bool ToNumberSlow(JSContext *cx, Value v, double *dp);
         if (!ToNumberSlow(cx, v, dp))
             return false;
     }

@@ -369,17 +369,16 @@ function promiseStartLegacyDownload(aSourceUrl, aOptions) {
     // are controlling becomes visible in the list of downloads.
     aList.addView({
       onDownloadAdded: function (aDownload) {
-        aList.removeView(this).then(null, do_report_unexpected_exception);
+        aList.removeView(this);
 
         // Remove the download to keep the list empty for the next test.  This
         // also allows the caller to register the "onchange" event directly.
-        let promise = aList.remove(aDownload);
+        aList.remove(aDownload);
 
         // When the download object is ready, make it available to the caller.
-        promise.then(() => deferred.resolve(aDownload),
-                     do_report_unexpected_exception);
+        deferred.resolve(aDownload);
       },
-    }).then(null, do_report_unexpected_exception);
+    });
 
     let isPrivate = aOptions && aOptions.isPrivate;
 
@@ -422,17 +421,16 @@ function promiseStartExternalHelperAppServiceDownload(aSourceUrl) {
     // are controlling becomes visible in the list of downloads.
     aList.addView({
       onDownloadAdded: function (aDownload) {
-        aList.removeView(this).then(null, do_report_unexpected_exception);
+        aList.removeView(this);
 
         // Remove the download to keep the list empty for the next test.  This
         // also allows the caller to register the "onchange" event directly.
-        let promise = aList.remove(aDownload);
+        aList.remove(aDownload);
 
         // When the download object is ready, make it available to the caller.
-        promise.then(() => deferred.resolve(aDownload),
-                     do_report_unexpected_exception);
+        deferred.resolve(aDownload);
       },
-    }).then(null, do_report_unexpected_exception);
+    });
 
     let channel = NetUtil.newChannel(sourceURI);
 
@@ -493,31 +491,6 @@ function promiseDownloadMidway(aDownload) {
   onchange();
 
   return deferred.promise;
-}
-
-/**
- * Waits for a download to finish, in case it has not finished already.
- *
- * @param aDownload
- *        The Download object to wait upon.
- *
- * @return {Promise}
- * @resolves When the download has finished successfully.
- * @rejects JavaScript exception if the download failed.
- */
-function promiseDownloadStopped(aDownload) {
-  if (!aDownload.stopped) {
-    // The download is in progress, wait for the current attempt to finish and
-    // report any errors that may occur.
-    return aDownload.start();
-  }
-
-  if (aDownload.succeeded) {
-    return Promise.resolve();
-  }
-
-  // The download failed or was canceled.
-  return Promise.reject(aDownload.error || new Error("Download canceled."));
 }
 
 /**
@@ -771,13 +744,6 @@ add_task(function test_common_initialize()
       let bos =  new BinaryOutputStream(aResponse.bodyOutputStream);
       bos.writeByteArray(TEST_DATA_SHORT_GZIP_ENCODED_SECOND,
                          TEST_DATA_SHORT_GZIP_ENCODED_SECOND.length);
-    });
-
-  // This URL will emulate being blocked by Windows Parental controls
-  gHttpServer.registerPathHandler("/parentalblocked.zip",
-    function (aRequest, aResponse) {
-      aResponse.setStatusLine(aRequest.httpVersion, 450,
-                              "Blocked by Windows Parental Controls");
     });
 
   // Disable integration with the host application requiring profile access.

@@ -5,11 +5,12 @@
 #include "nsString.h"
 #include "nsIUnicodeEncoder.h"
 #include "nsICharsetConverterManager.h"
+#include "nsReadableUtils.h"
 #include "nsITextToSubURI.h"
+#include "nsIServiceManager.h"
 #include "nsEscape.h"
 #include "nsTextToSubURI.h"
 #include "nsCRT.h"
-#include "nsServiceManagerUtils.h"
 
 static NS_DEFINE_CID(kCharsetConverterManagerCID, NS_ICHARSETCONVERTERMANAGER_CID);
 

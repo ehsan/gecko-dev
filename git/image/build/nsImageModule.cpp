@@ -7,7 +7,6 @@
 #include "mozilla/ModuleUtils.h"
 #include "nsMimeTypes.h"
 
-#include "ImageFactory.h"
 #include "RasterImage.h"
 
 #include "imgLoader.h"
@@ -82,7 +81,6 @@ static nsresult
 imglib_Initialize()
 {
   mozilla::image::DiscardTracker::Initialize();
-  mozilla::image::ImageFactory::Initialize();
   mozilla::image::RasterImage::Initialize();
   imgLoader::GlobalInit();
   return NS_OK;

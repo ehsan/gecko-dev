@@ -5,8 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jit/EffectiveAddressAnalysis.h"
-#include "jit/MIR.h"
-#include "jit/MIRGraph.h"
 
 using namespace js;
 using namespace jit;
@@ -32,7 +30,7 @@ AnalyzeLsh(MBasicBlock *block, MLsh *lsh)
 
     int32_t displacement = 0;
     MInstruction *last = lsh;
-    MDefinition *base = nullptr;
+    MDefinition *base = NULL;
     while (true) {
         if (!last->hasOneUse())
             break;

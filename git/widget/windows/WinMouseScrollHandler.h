@@ -9,8 +9,8 @@
 
 #include "nscore.h"
 #include "nsDebug.h"
+#include "nsEvent.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/TimeStamp.h"
 #include <windows.h>
 
@@ -72,14 +72,14 @@ private:
    *
    * @return TRUE if the event was consumed.  Otherwise, FALSE.
    */
-  static bool DispatchEvent(nsWindowBase* aWidget, WidgetGUIEvent& aEvent);
+  static bool DispatchEvent(nsWindowBase* aWidget, nsGUIEvent& aEvent);
 
   /**
    * InitEvent() initializes the aEvent.  If aPoint is null, the result of
    * GetCurrentMessagePos() will be used.
    */
   static void InitEvent(nsWindowBase* aWidget,
-                        WidgetGUIEvent& aEvent,
+                        nsGUIEvent& aEvent,
                         nsIntPoint* aPoint = nullptr);
 
   /**

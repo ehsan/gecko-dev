@@ -5,15 +5,12 @@
 
 #include "nsDOMCommandEvent.h"
 #include "prtime.h"
-#include "mozilla/MiscEvents.h"
-
-using namespace mozilla;
 
 nsDOMCommandEvent::nsDOMCommandEvent(mozilla::dom::EventTarget* aOwner,
                                      nsPresContext* aPresContext,
-                                     WidgetCommandEvent* aEvent)
+                                     nsCommandEvent* aEvent)
   : nsDOMEvent(aOwner, aPresContext, aEvent ? aEvent :
-               new WidgetCommandEvent(false, nullptr, nullptr, nullptr))
+               new nsCommandEvent(false, nullptr, nullptr, nullptr))
 {
   mEvent->time = PR_Now();
   if (aEvent) {
@@ -26,7 +23,7 @@ nsDOMCommandEvent::nsDOMCommandEvent(mozilla::dom::EventTarget* aOwner,
 nsDOMCommandEvent::~nsDOMCommandEvent()
 {
   if (mEventIsInternal && mEvent->eventStructType == NS_COMMAND_EVENT) {
-    delete static_cast<WidgetCommandEvent*>(mEvent);
+    delete static_cast<nsCommandEvent*>(mEvent);
     mEvent = nullptr;
   }
 }
@@ -41,7 +38,7 @@ NS_IMPL_RELEASE_INHERITED(nsDOMCommandEvent, nsDOMEvent)
 NS_IMETHODIMP
 nsDOMCommandEvent::GetCommand(nsAString& aCommand)
 {
-  nsIAtom* command = static_cast<WidgetCommandEvent*>(mEvent)->command;
+  nsIAtom* command = static_cast<nsCommandEvent*>(mEvent)->command;
   if (command) {
     command->ToString(aCommand);
   } else {
@@ -59,14 +56,14 @@ nsDOMCommandEvent::InitCommandEvent(const nsAString& aTypeArg,
   nsresult rv = nsDOMEvent::InitEvent(aTypeArg, aCanBubbleArg, aCancelableArg);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  static_cast<WidgetCommandEvent*>(mEvent)->command = do_GetAtom(aCommand);
+  static_cast<nsCommandEvent*>(mEvent)->command = do_GetAtom(aCommand);
   return NS_OK;
 }
 
 nsresult NS_NewDOMCommandEvent(nsIDOMEvent** aInstancePtrResult,
                                mozilla::dom::EventTarget* aOwner,
                                nsPresContext* aPresContext,
-                               WidgetCommandEvent* aEvent)
+                               nsCommandEvent* aEvent)
 {
   nsDOMCommandEvent* it = new nsDOMCommandEvent(aOwner, aPresContext, aEvent);
 

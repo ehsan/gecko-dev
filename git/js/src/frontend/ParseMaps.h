@@ -12,6 +12,7 @@
 
 #include "ds/InlineMap.h"
 #include "gc/Barrier.h"
+#include "js/HashTable.h"
 #include "js/Vector.h"
 
 class JSAtom;
@@ -140,7 +141,7 @@ struct AtomThingMapPtr
     bool hasMap() const { return map_; }
     Map *getMap() { return map_; }
     void setMap(Map *newMap) { JS_ASSERT(!map_); map_ = newMap; }
-    void clearMap() { map_ = nullptr; }
+    void clearMap() { map_ = NULL; }
 
     Map *operator->() { return map_; }
     const Map *operator->() const { return map_; }
@@ -266,14 +267,14 @@ class DefinitionList
                 node = list.firstNode();
                 bits = node->bits;
             } else {
-                node = nullptr;
+                node = NULL;
                 bits = list.u.bits;
             }
         }
 
       public:
         /* An empty Range. */
-        Range() : node(nullptr), bits(0) {}
+        Range() : node(NULL), bits(0) {}
 
         void popFront() {
             JS_ASSERT(!empty());
@@ -349,7 +350,7 @@ class DefinitionList
         if (isMultiple()) {
             tail = firstNode();
         } else {
-            tail = allocNode(cx, alloc, u.bits, nullptr);
+            tail = allocNode(cx, alloc, u.bits, NULL);
             if (!tail)
                 return false;
         }
@@ -420,9 +421,7 @@ class AtomDecls
     void operator=(const AtomDecls &other) MOZ_DELETE;
 
   public:
-    explicit AtomDecls(ExclusiveContext *cx, LifoAlloc &alloc) : cx(cx),
-                                                                 alloc(alloc),
-                                                                 map(nullptr) {}
+    explicit AtomDecls(ExclusiveContext *cx, LifoAlloc &alloc) : cx(cx), alloc(alloc), map(NULL) {}
 
     ~AtomDecls();
 

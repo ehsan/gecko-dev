@@ -51,7 +51,6 @@ using mozilla::PositiveInfinity;
 using mozilla::NegativeInfinity;
 using mozilla::SpecificNaN;
 using JS::ToNumber;
-using JS::GenericNaN;
 
 #ifndef M_E
 #define M_E             2.7182818284590452354
@@ -120,7 +119,7 @@ js_math_abs(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 0) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -134,7 +133,7 @@ js_math_abs(JSContext *cx, unsigned argc, Value *vp)
 }
 
 #if defined(SOLARIS) && defined(__GNUC__)
-#define ACOS_IF_OUT_OF_RANGE(x) if (x < -1 || 1 < x) return GenericNaN();
+#define ACOS_IF_OUT_OF_RANGE(x) if (x < -1 || 1 < x) return js_NaN;
 #else
 #define ACOS_IF_OUT_OF_RANGE(x)
 #endif
@@ -161,7 +160,7 @@ js::math_acos(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 0) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -179,7 +178,7 @@ js::math_acos(JSContext *cx, unsigned argc, Value *vp)
 }
 
 #if defined(SOLARIS) && defined(__GNUC__)
-#define ASIN_IF_OUT_OF_RANGE(x) if (x < -1 || 1 < x) return GenericNaN();
+#define ASIN_IF_OUT_OF_RANGE(x) if (x < -1 || 1 < x) return js_NaN;
 #else
 #define ASIN_IF_OUT_OF_RANGE(x)
 #endif
@@ -206,7 +205,7 @@ js::math_asin(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 0) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -241,7 +240,7 @@ js::math_atan(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 0) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -294,7 +293,7 @@ js::math_atan2(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() <= 1) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -308,7 +307,7 @@ js::math_atan2(JSContext *cx, unsigned argc, Value *vp)
 }
 
 double
-js::math_ceil_impl(double x)
+js_math_ceil_impl(double x)
 {
 #ifdef __APPLE__
     if (x < 0 && x > -1.0)
@@ -318,12 +317,12 @@ js::math_ceil_impl(double x)
 }
 
 bool
-js::math_ceil(JSContext *cx, unsigned argc, Value *vp)
+js_math_ceil(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 0) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -331,7 +330,7 @@ js::math_ceil(JSContext *cx, unsigned argc, Value *vp)
     if (!ToNumber(cx, args[0], &x))
         return false;
 
-    double z = math_ceil_impl(x);
+    double z = js_math_ceil_impl(x);
     args.rval().setNumber(z);
     return true;
 }
@@ -354,7 +353,7 @@ js::math_cos(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 0) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -374,9 +373,9 @@ js::math_cos(JSContext *cx, unsigned argc, Value *vp)
 #ifdef _WIN32
 #define EXP_IF_OUT_OF_RANGE(x)                  \
     if (!IsNaN(x)) {                            \
-        if (x == PositiveInfinity())            \
-            return PositiveInfinity();          \
-        if (x == NegativeInfinity())            \
+        if (x == js_PositiveInfinity)           \
+            return js_PositiveInfinity;         \
+        if (x == js_NegativeInfinity)           \
             return 0.0;                         \
     }
 #else
@@ -405,7 +404,7 @@ js::math_exp(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 0) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -423,18 +422,18 @@ js::math_exp(JSContext *cx, unsigned argc, Value *vp)
 }
 
 double
-js::math_floor_impl(double x)
+js_math_floor_impl(double x)
 {
     return floor(x);
 }
 
 bool
-js::math_floor(JSContext *cx, unsigned argc, Value *vp)
+js_math_floor(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 0) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -442,7 +441,7 @@ js::math_floor(JSContext *cx, unsigned argc, Value *vp)
     if (!ToNumber(cx, args[0], &x))
         return false;
 
-    double z = math_floor_impl(x);
+    double z = js_math_floor_impl(x);
     args.rval().setNumber(z);
     return true;
 }
@@ -471,7 +470,7 @@ js::math_fround(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 0) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -485,7 +484,7 @@ js::math_fround(JSContext *cx, unsigned argc, Value *vp)
 }
 
 #if defined(SOLARIS) && defined(__GNUC__)
-#define LOG_IF_OUT_OF_RANGE(x) if (x < 0) return GenericNaN();
+#define LOG_IF_OUT_OF_RANGE(x) if (x < 0) return js_NaN;
 #else
 #define LOG_IF_OUT_OF_RANGE(x)
 #endif
@@ -512,7 +511,7 @@ js::math_log(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 0) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -619,7 +618,7 @@ js::ecmaPow(double x, double y)
      * we need to wrap the libm call to make it ECMA compliant.
      */
     if (!IsFinite(y) && (x == 1.0 || x == -1.0))
-        return GenericNaN();
+        return js_NaN;
     /* pow(x, +-0) is always 1, even for x = NaN (MSVC gets this wrong). */
     if (y == 0)
         return 1;
@@ -639,7 +638,7 @@ js_math_pow(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() <= 1) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -770,27 +769,13 @@ js_math_random(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-double
-js::math_round_impl(double x)
-{
-    int32_t i;
-    if (DoubleIsInt32(x, &i))
-        return double(i);
-
-    /* Some numbers are so big that adding 0.5 would give the wrong number. */
-    if (ExponentComponent(x) >= 52)
-        return x;
-
-    return js_copysign(floor(x + 0.5), x);
-}
-
 bool /* ES5 15.8.2.15. */
-js::math_round(JSContext *cx, unsigned argc, Value *vp)
+js_math_round(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 0) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -798,8 +783,19 @@ js::math_round(JSContext *cx, unsigned argc, Value *vp)
     if (!ToNumber(cx, args[0], &x))
         return false;
 
-    double z = math_round_impl(x);
-    args.rval().setNumber(z);
+    int32_t i;
+    if (DoubleIsInt32(x, &i)) {
+        args.rval().setInt32(i);
+        return true;
+    }
+
+    /* Some numbers are so big that adding 0.5 would give the wrong number. */
+    if (ExponentComponent(x) >= 52) {
+        args.rval().setNumber(x);
+        return true;
+    }
+
+    args.rval().setNumber(js_copysign(floor(x + 0.5), x));
     return true;
 }
 
@@ -821,7 +817,7 @@ js::math_sin(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 0) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -844,7 +840,7 @@ js_math_sqrt(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 0) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -879,7 +875,7 @@ js::math_tan(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 0) {
-        args.rval().setNaN();
+        args.rval().setDouble(js_NaN);
         return true;
     }
 
@@ -904,7 +900,7 @@ bool math_function(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
-        args.rval().setNumber(GenericNaN());
+        args.rval().setNumber(js_NaN);
         return true;
     }
 
@@ -1279,10 +1275,10 @@ js::math_atanh(JSContext *cx, unsigned argc, Value *vp)
 double hypot(double x, double y)
 {
     if (mozilla::IsInfinite(x) || mozilla::IsInfinite(y))
-        return PositiveInfinity();
+        return js_PositiveInfinity;
 
     if (mozilla::IsNaN(x) || mozilla::IsNaN(y))
-        return GenericNaN();
+        return js_NaN;
 
     double xabs = mozilla::Abs(x);
     double yabs = mozilla::Abs(y);
@@ -1305,7 +1301,7 @@ js::math_hypot_impl(double x, double y)
 #ifdef XP_WIN
     // On Windows, hypot(NaN, Infinity) is NaN. ES6 requires Infinity.
     if (mozilla::IsInfinite(x) || mozilla::IsInfinite(y))
-        return PositiveInfinity();
+        return js_PositiveInfinity;
 #endif
     return hypot(x, y);
 }
@@ -1315,7 +1311,7 @@ js::math_hypot(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() < 2) {
-        args.rval().setNumber(GenericNaN());
+        args.rval().setNumber(js_NaN);
         return true;
     }
 
@@ -1370,7 +1366,7 @@ js::math_trunc(JSContext *cx, unsigned argc, Value *vp)
 double sign(double x)
 {
     if (mozilla::IsNaN(x))
-        return GenericNaN();
+        return js_NaN;
 
     return x == 0 ? x : x < 0 ? -1 : 1;
 }
@@ -1443,10 +1439,10 @@ static const JSFunctionSpec math_static_methods[] = {
     JS_FN("asin",           math_asin,            1, 0),
     JS_FN("atan",           math_atan,            1, 0),
     JS_FN("atan2",          math_atan2,           2, 0),
-    JS_FN("ceil",           math_ceil,            1, 0),
+    JS_FN("ceil",           js_math_ceil,         1, 0),
     JS_FN("cos",            math_cos,             1, 0),
     JS_FN("exp",            math_exp,             1, 0),
-    JS_FN("floor",          math_floor,           1, 0),
+    JS_FN("floor",          js_math_floor,        1, 0),
     JS_FN("imul",           math_imul,            2, 0),
     JS_FN("fround",         math_fround,          1, 0),
     JS_FN("log",            math_log,             1, 0),
@@ -1454,7 +1450,7 @@ static const JSFunctionSpec math_static_methods[] = {
     JS_FN("min",            js_math_min,          2, 0),
     JS_FN("pow",            js_math_pow,          2, 0),
     JS_FN("random",         js_math_random,       0, 0),
-    JS_FN("round",          math_round,           1, 0),
+    JS_FN("round",          js_math_round,        1, 0),
     JS_FN("sin",            math_sin,             1, 0),
     JS_FN("sqrt",           js_math_sqrt,         1, 0),
     JS_FN("tan",            math_tan,             1, 0),

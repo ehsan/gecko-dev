@@ -18,7 +18,7 @@ BooleanObject::create(JSContext *cx, bool b)
 {
     JSObject *obj = NewBuiltinClassInstance(cx, &class_);
     if (!obj)
-        return nullptr;
+        return NULL;
     BooleanObject &boolobj = obj->as<BooleanObject>();
     boolobj.setPrimitiveValue(b);
     return &boolobj;

@@ -57,10 +57,8 @@ let DeviceActor = protocol.ActorClass({
 
   _getSetting: function(name) {
     let deferred = promise.defer();
-
-    if ("@mozilla.org/settingsService;1" in Cc) {
-      let settingsService = Cc["@mozilla.org/settingsService;1"].getService(Ci.nsISettingsService);
-      let req = settingsService.createLock().get(name, {
+    if (Services.settings) {
+      let req = Services.settings.createLock().get(name, {
         handle: (name, value) => deferred.resolve(value),
         handleError: (error) => deferred.reject(error),
       });

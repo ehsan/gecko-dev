@@ -14,7 +14,7 @@ const {AppProjects} = require("devtools/app-manager/app-projects");
 const {AppValidator} = require("devtools/app-manager/app-validator");
 const {Services} = Cu.import("resource://gre/modules/Services.jsm");
 const {FileUtils} = Cu.import("resource://gre/modules/FileUtils.jsm");
-const {installHosted, installPackaged, getTargetForApp} = require("devtools/app-actor-front");
+const {installHosted, installPackaged} = require("devtools/app-actor-front");
 
 const promise = require("sdk/core/promise");
 
@@ -39,8 +39,10 @@ let UI = {
     this.template = new Template(document.body, AppProjects.store, Utils.l10n);
     this.template.start();
 
-    AppProjects.load().then(() => {
-      AppProjects.store.object.projects.forEach(UI.validate);
+    AppProjects.store.on("set", (event,path,value) => {
+      if (path == "projects") {
+        AppProjects.store.object.projects.forEach(UI.validate);
+      }
     });
   },
 
@@ -169,34 +171,8 @@ let UI = {
          });
   },
 
-  remove: function(location, event) {
-    if (event) {
-      // We don't want the "click" event to be propagated to the project item.
-      // That would trigger `selectProject()`.
-      event.stopPropagation();
-    }
-
-    let item = document.getElementById(location);
-
-    let toSelect = document.querySelector(".project-item.selected");
-    toSelect = toSelect ? toSelect.id : "";
-
-    if (toSelect == location) {
-      toSelect = null;
-      let sibling;
-      if (item.previousElementSibling) {
-        sibling = item.previousElementSibling;
-      } else {
-        sibling = item.nextElementSibling;
-      }
-      if (sibling && !!AppProjects.get(sibling.id)) {
-        toSelect = sibling.id;
-      }
-    }
-
-    AppProjects.remove(location).then(() => {
-      this.selectProject(toSelect);
-    });
+  remove: function(location) {
+    AppProjects.remove(location);
   },
 
   _getProjectManifestURL: function (project) {
@@ -208,15 +184,9 @@ let UI = {
   },
 
   install: function(project) {
+    let install;
     if (project.type == "packaged") {
-      return installPackaged(this.connection.client, this.listTabsResponse.webappsActor, project.location, project.packagedAppOrigin)
-        .then(({ appId }) => {
-          // If the packaged app specified a custom origin override,
-          // we need to update the local project origin
-          project.packagedAppOrigin = appId;
-          // And ensure the indexed db on disk is also updated
-          AppProjects.update(project);
-        });
+      install = installPackaged(this.connection.client, this.listTabsResponse.webappsActor, project.location, project.packagedAppOrigin);
     } else {
       let manifestURLObject = Services.io.newURI(project.location, null, null);
       let origin = Services.io.newURI(manifestURLObject.prePath, null, null);
@@ -225,8 +195,9 @@ let UI = {
         origin: origin.spec,
         manifestURL: project.location
       };
-      return installHosted(this.connection.client, this.listTabsResponse.webappsActor, appId, metadata, project.manifest);
+      install = installHosted(this.connection.client, this.listTabsResponse.webappsActor, appId, metadata, project.manifest);
     }
+    return install;
   },
 
   start: function(project) {
@@ -259,76 +230,81 @@ let UI = {
     return deferred.promise;
   },
 
+  _getTargetForApp: function(manifest) { // FIXME <- will be implemented in bug 912476
+    if (!this.listTabsResponse)
+      return null;
+    let actor = this.listTabsResponse.webappsActor;
+    let deferred = promise.defer();
+    let request = {
+      to: actor,
+      type: "getAppActor",
+      manifestURL: manifest,
+    }
+    this.connection.client.request(request, (res) => {
+      if (res.error) {
+        deferred.reject(res.error);
+      } else {
+        let options = {
+          form: res.actor,
+          client: this.connection.client,
+          chrome: false
+        };
+
+        devtools.TargetFactory.forRemoteTab(options).then((target) => {
+          deferred.resolve(target)
+        }, (error) => {
+          deferred.reject(error);
+        });
+      }
+    });
+    return deferred.promise;
+  },
+
   debug: function(button, location) {
     button.disabled = true;
     let project = AppProjects.get(location);
+    // First try to open the app
+    this.start(project)
+        .then(
+         null,
+         (error) => {
+           // If not installed, install and open it
+           if (error == "NO_SUCH_APP") {
+             return this.install(project)
+                        .then(() => this.start(project));
+           } else {
+             throw error;
+           }
+         })
+        .then(() => {
+           // Finally, when it's finally opened, display the toolbox
+           return this.openToolbox(project)
+        })
+        .then(() => {
+           // And only when the toolbox is opened, release the button
+           button.disabled = false;
+         },
+         (msg) => {
+           button.disabled = false;
+           alert(msg);
+           this.connection.log(msg);
+         });
+  },
 
-    let onFailedToStart = (error) => {
-      // If not installed, install and open it
-      if (error == "NO_SUCH_APP") {
-        return this.install(project);
-      } else {
-        throw error;
-      }
-    };
-    let onStarted = () => {
-      // Once we asked the app to launch, the app isn't necessary completely loaded.
-      // launch request only ask the app to launch and immediatly returns.
-      // We have to keep trying to get app tab actors required to create its target.
-      let deferred = promise.defer();
-      let loop = (count) => {
-        // Ensure not looping for ever
-        if (count >= 100) {
-          deferred.reject("Unable to connect to the app");
-          return;
-        }
-        // Also, in case the app wasn't installed yet, we also have to keep asking the
-        // app to launch, as launch request made right after install may race.
-        this.start(project);
-        getTargetForApp(
-          this.connection.client,
-          this.listTabsResponse.webappsActor,
-          this._getProjectManifestURL(project)).
-            then(deferred.resolve,
-                 (err) => {
-                   if (err == "appNotFound")
-                     setTimeout(loop, 500, count + 1);
-                   else
-                     deferred.reject(err);
-                 });
-      };
-      loop(0);
-      return deferred.promise;
-    };
-    let onTargetReady = (target) => {
-      // Finally, when it's finally opened, display the toolbox
-      let deferred = promise.defer();
+  openToolbox: function(project) {
+    let deferred = promise.defer();
+    let manifest = this._getProjectManifestURL(project);
+    this._getTargetForApp(manifest).then((target) => {
       gDevTools.showToolbox(target,
                             null,
                             devtools.Toolbox.HostType.WINDOW).then(toolbox => {
         this.connection.once(Connection.Events.DISCONNECTED, () => {
           toolbox.destroy();
         });
-        deferred.resolve(toolbox);
+        deferred.resolve();
       });
-      return deferred.promise;
-    };
-
-    // First try to open the app
-    this.start(project)
-        .then(null, onFailedToStart)
-        .then(onStarted)
-        .then(onTargetReady)
-        .then(() => {
-           // And only when the toolbox is opened, release the button
-           button.disabled = false;
-         },
-         (err) => {
-           button.disabled = false;
-           let message = err.error ? err.error + ": " + err.message : String(err);
-           alert(message);
-           this.connection.log(message);
-         });
+    }, deferred.reject);
+    return deferred.promise;
   },
 
   reveal: function(location) {
@@ -350,20 +326,15 @@ let UI = {
         break;
       }
     }
+    if (idx == projects.length) {
+      // Not found
+      return;
+    }
 
     let oldButton = document.querySelector(".project-item.selected");
     if (oldButton) {
       oldButton.classList.remove("selected");
     }
-
-    if (idx == projects.length) {
-      // Not found. Empty lense.
-      let lense = document.querySelector("#lense");
-      lense.setAttribute("template-for", '{"path":"","childSelector":""}');
-      this.template._processFor(lense);
-      return;
-    }
-
     let button = document.getElementById(location);
     button.classList.add("selected");
 

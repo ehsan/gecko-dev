@@ -7,7 +7,7 @@
 #include "nsISecurityConsoleMessage.h"
 #include "nsString.h"
 
-class nsSecurityConsoleMessage MOZ_FINAL : public nsISecurityConsoleMessage
+class nsSecurityConsoleMessage : public nsISecurityConsoleMessage
 {
   public:
     NS_DECL_ISUPPORTS

@@ -34,7 +34,6 @@
 #include "nsIPermissionManager.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptTimeoutHandler.h"
-#include "nsIController.h"
 
 #ifdef XP_WIN
 // Thanks so much, Microsoft! :(
@@ -67,7 +66,6 @@
 #include "mozilla/dom/workers/Workers.h"
 #include "nsJSPrincipals.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/MouseEvents.h"
 
 // Interfaces Needed
 #include "nsIFrame.h"
@@ -80,8 +78,9 @@
 #include "nsIDocShell.h"
 #include "nsIDocCharset.h"
 #include "nsIDocument.h"
+#ifdef MOZ_DISABLE_CRYPTOLEGACY
 #include "Crypto.h"
-#ifndef MOZ_DISABLE_CRYPTOLEGACY
+#else
 #include "nsIDOMCryptoLegacy.h"
 #endif
 #include "nsIDOMDocument.h"
@@ -216,7 +215,6 @@
 #include "mozilla/dom/BrowserElementDictionariesBinding.h"
 #include "mozilla/dom/FunctionBinding.h"
 #include "mozilla/dom/WindowBinding.h"
-#include "mozilla/dom/TabChild.h"
 
 #ifdef MOZ_WEBSPEECH
 #include "mozilla/dom/SpeechSynthesis.h"
@@ -2184,7 +2182,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
   // clear smartcard events, our document has gone away.
-  if (mCrypto && XRE_GetProcessType() != GeckoProcessType_Content) {
+  if (mCrypto) {
     nsresult rv = mCrypto->SetEnableSmartCardEvents(false);
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -2879,8 +2877,8 @@ nsGlobalWindow::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   // Handle 'active' event.
   if (!mIdleObservers.IsEmpty() &&
       aVisitor.mEvent->mFlags.mIsTrusted &&
-      (aVisitor.mEvent->HasMouseEventMessage() ||
-       aVisitor.mEvent->HasDragEventMessage())) {
+      (NS_IS_MOUSE_EVENT(aVisitor.mEvent) ||
+       NS_IS_DRAG_EVENT(aVisitor.mEvent))) {
     mAddActiveEventFuzzTime = false;
   }
 
@@ -3055,7 +3053,7 @@ nsGlobalWindow::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
       // onload event for the frame element.
 
       nsEventStatus status = nsEventStatus_eIgnore;
-      WidgetEvent event(aVisitor.mEvent->mFlags.mIsTrusted, NS_LOAD);
+      nsEvent event(aVisitor.mEvent->mFlags.mIsTrusted, NS_LOAD);
       event.mFlags.mBubbles = false;
 
       // Most of the time we could get a pres context to pass in here,
@@ -3071,7 +3069,7 @@ nsGlobalWindow::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 }
 
 nsresult
-nsGlobalWindow::DispatchDOMEvent(WidgetEvent* aEvent,
+nsGlobalWindow::DispatchDOMEvent(nsEvent* aEvent,
                                  nsIDOMEvent* aDOMEvent,
                                  nsPresContext* aPresContext,
                                  nsEventStatus* aEventStatus)
@@ -3859,16 +3857,12 @@ nsGlobalWindow::GetCrypto(nsIDOMCrypto** aCrypto)
 
   if (!mCrypto) {
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
-    if (XRE_GetProcessType() != GeckoProcessType_Content) {
-      nsresult rv;
-      mCrypto = do_CreateInstance(NS_CRYPTO_CONTRACTID, &rv);
-      NS_ENSURE_SUCCESS(rv, rv);
-    } else
+    nsresult rv;
+    mCrypto = do_CreateInstance(NS_CRYPTO_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+#else
+    mCrypto = new Crypto();
 #endif
-    {
-      mCrypto = new Crypto();
-    }
-
     mCrypto->Init(this);
   }
   NS_IF_ADDREF(*aCrypto = mCrypto);
@@ -4137,24 +4131,11 @@ nsGlobalWindow::GetInnerSize(CSSIntSize& aSize)
     return NS_OK;
   }
 
-  /*
-   * On platforms with resolution-based zooming, the CSS viewport
-   * and visual viewport may not be the same. The inner size should
-   * be the visual viewport, but we fall back to the CSS viewport
-   * if it is not set.
-   */
-  if (presShell->IsScrollPositionClampingScrollPortSizeSet()) {
-    aSize = CSSIntRect::FromAppUnitsRounded(
-      presShell->GetScrollPositionClampingScrollPortSize());
-  } else {
-    nsRefPtr<nsViewManager> viewManager = presShell->GetViewManager();
-    if (viewManager) {
-      viewManager->FlushDelayedResize(false);
-    }
-
-    aSize = CSSIntRect::FromAppUnitsRounded(
-      presContext->GetVisibleArea().Size());
+  nsRefPtr<nsViewManager> viewManager = presShell->GetViewManager();
+  if (viewManager) {
+    viewManager->FlushDelayedResize(false);
   }
+  aSize = CSSIntRect::FromAppUnitsRounded(presContext->GetVisibleArea().Size());
   return NS_OK;
 }
 
@@ -5727,9 +5708,6 @@ nsGlobalWindow::Focus()
       return fm->SetFocus(frameElement, flags);
     }
   }
-  else if (TabChild *child = TabChild::GetFrom(this)) {
-    child->SendRequestFocus(canFocus);
-  }
   else if (canFocus) {
     // if there is no parent, this must be a toplevel window, so raise the
     // window if canFocus is true
@@ -6012,7 +5990,7 @@ nsGlobalWindow::ResizeTo(int32_t aWidth, int32_t aHeight)
    * If caller is a browser-element then dispatch a resize event to
    * the embedder.
    */
-  if (mDocShell && mDocShell->GetIsBrowserOrApp()) {
+  if (mDocShell->GetIsBrowserOrApp()) {
     nsIntSize size(aWidth, aHeight);
     if (!DispatchResizeEvent(size)) {
       // The embedder chose to prevent the default action for this
@@ -6052,7 +6030,7 @@ nsGlobalWindow::ResizeBy(int32_t aWidthDif, int32_t aHeightDif)
    * If caller is a browser-element then dispatch a resize event to
    * parent.
    */
-  if (mDocShell && mDocShell->GetIsBrowserOrApp()) {
+  if (mDocShell->GetIsBrowserOrApp()) {
     CSSIntSize size;
     nsresult rv = GetInnerSize(size);
     NS_ENSURE_SUCCESS(rv, NS_OK);
@@ -7000,7 +6978,7 @@ PostMessageEvent::Run()
     presContext = shell->GetPresContext();
 
   message->SetTrusted(mTrustedCaller);
-  WidgetEvent* internalEvent = message->GetInternalNSEvent();
+  nsEvent *internalEvent = message->GetInternalNSEvent();
 
   nsEventStatus status = nsEventStatus_eIgnore;
   nsEventDispatcher::Dispatch(static_cast<nsPIDOMWindow*>(mTargetWindow),
@@ -7287,14 +7265,22 @@ nsGlobalWindow::FinalClose()
   // broken addons. The chrome tests in toolkit/mozapps/downloads are a good
   // testing ground.
   //
-  // In particular, if |win|'s JSContext is at the top of the stack, we must
-  // complete _two_ round-trips to the event loop before the call to
-  // ReallyCloseWindow. This allows setTimeout handlers that are set after
-  // FinalClose() is called to run before the window is torn down.
+  // Here are some quirks that the test suite depends on:
+  //
+  // * When chrome code executes |win|.close(), that close happens immediately,
+  //   along with the accompanying "domwindowclosed" notification. But _only_ if
+  //   |win|'s JSContext is not at the top of the stack. If it is, the close
+  //   _must not_ happen immediately.
+  //
+  // * If |win|'s JSContext is at the top of the stack, we must complete _two_
+  //   round-trips to the event loop before the call to ReallyCloseWindow. This
+  //   allows setTimeout handlers that are set after FinalClose() is called to
+  //   run before the window is torn down.
   bool indirect = GetContextInternal() && // Occasionally null. See bug 877390.
                   (nsContentUtils::GetCurrentJSContext() ==
                    GetContextInternal()->GetNativeContext());
-  if (NS_FAILED(nsCloseEvent::PostCloseEvent(this, indirect))) {
+  if ((!indirect && nsContentUtils::IsCallerChrome()) ||
+      NS_FAILED(nsCloseEvent::PostCloseEvent(this, indirect))) {
     ReallyCloseWindow();
   } else {
     mHavePendingClose = true;
@@ -8115,7 +8101,7 @@ nsGlobalWindow::AddEventListener(const nsAString& aType,
 
 void
 nsGlobalWindow::AddEventListener(const nsAString& aType,
-                                 EventListener* aListener,
+                                 nsIDOMEventListener* aListener,
                                  bool aUseCapture,
                                  const Nullable<bool>& aWantsUntrusted,
                                  ErrorResult& aRv)
@@ -9456,7 +9442,7 @@ nsGlobalWindow::ShowSlowScriptDialog()
   // Check if we should offer the option to debug
   JS::RootedScript script(cx);
   unsigned lineno;
-  bool hasFrame = JS_DescribeScriptedCaller(cx, &script, &lineno);
+  bool hasFrame = JS_DescribeScriptedCaller(cx, script.address(), &lineno);
 
   bool debugPossible = hasFrame && js::CanCallContextDebugHandler(cx);
 #ifdef MOZ_JSDEBUGGER
@@ -9890,7 +9876,7 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
     event->SetTrusted(true);
 
     if (fireMozStorageChanged) {
-      WidgetEvent* internalEvent = event->GetInternalNSEvent();
+      nsEvent *internalEvent = event->GetInternalNSEvent();
       internalEvent->mFlags.mOnlyChromeDispatch = true;
     }
 
@@ -11530,7 +11516,7 @@ SizeOfEventTargetObjectsEntryExcludingThisFun(
 }
 
 void
-nsGlobalWindow::AddSizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
+nsGlobalWindow::SizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
 {
   aWindowSizes->mDOMOther += aWindowSizes->mMallocSizeOf(this);
 
@@ -11542,14 +11528,13 @@ nsGlobalWindow::AddSizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
         elm->SizeOfIncludingThis(aWindowSizes->mMallocSizeOf);
     }
     if (mDoc) {
-      mDoc->DocAddSizeOfIncludingThis(aWindowSizes);
+      mDoc->DocSizeOfIncludingThis(aWindowSizes);
     }
   }
 
-  if (mNavigator) {
-    aWindowSizes->mDOMOther +=
-      mNavigator->SizeOfIncludingThis(aWindowSizes->mMallocSizeOf);
-  }
+  aWindowSizes->mDOMOther +=
+    mNavigator ?
+      mNavigator->SizeOfIncludingThis(aWindowSizes->mMallocSizeOf) : 0;
 
   aWindowSizes->mDOMEventTargets +=
     mEventTargetObjects.SizeOfExcludingThis(
@@ -11787,11 +11772,11 @@ nsGlobalChromeWindow::BeginWindowMove(nsIDOMEvent *aMouseDownEvent, nsIDOMElemen
   }
 
   NS_ENSURE_TRUE(aMouseDownEvent, NS_ERROR_FAILURE);
-  WidgetEvent* internalEvent = aMouseDownEvent->GetInternalNSEvent();
+  nsEvent *internalEvent = aMouseDownEvent->GetInternalNSEvent();
   NS_ENSURE_TRUE(internalEvent &&
                  internalEvent->eventStructType == NS_MOUSE_EVENT,
                  NS_ERROR_FAILURE);
-  WidgetMouseEvent* mouseEvent = static_cast<WidgetMouseEvent*>(internalEvent);
+  nsMouseEvent *mouseEvent = static_cast<nsMouseEvent*>(internalEvent);
 
   return widget->BeginMoveDrag(mouseEvent);
 }
@@ -12071,8 +12056,9 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
         JS_ObjectIsCallable(cx, callable = &v.toObject())) {                 \
       handler = new EventHandlerNonNull(callable);                           \
     }                                                                        \
-    SetOn##name_(handler);                                                   \
-    return NS_OK;                                                            \
+    ErrorResult rv;                                                          \
+    SetOn##name_(handler, rv);                                               \
+    return rv.ErrorCode();                                                   \
   }
 #define ERROR_EVENT(name_, id_, type_, struct_)                              \
   NS_IMETHODIMP nsGlobalWindow::GetOn##name_(JSContext *cx,                  \
@@ -12101,8 +12087,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
         JS_ObjectIsCallable(cx, callable = &v.toObject())) {                 \
       handler = new OnErrorEventHandlerNonNull(callable);                    \
     }                                                                        \
-    elm->SetEventHandler(handler);                                           \
-    return NS_OK;                                                            \
+    return elm->SetEventHandler(handler);                                    \
   }
 #define BEFOREUNLOAD_EVENT(name_, id_, type_, struct_)                       \
   NS_IMETHODIMP nsGlobalWindow::GetOn##name_(JSContext *cx,                  \
@@ -12132,8 +12117,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
         JS_ObjectIsCallable(cx, callable = &v.toObject())) {                 \
       handler = new BeforeUnloadEventHandlerNonNull(callable);               \
     }                                                                        \
-    elm->SetEventHandler(handler);                                           \
-    return NS_OK;                                                            \
+    return elm->SetEventHandler(handler);                                    \
   }
 #define WINDOW_ONLY_EVENT EVENT
 #define TOUCH_EVENT EVENT

@@ -46,22 +46,22 @@ const Class RegExpStaticsObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     resc_finalize,
-    nullptr,                 /* checkAccess */
-    nullptr,                 /* call        */
-    nullptr,                 /* hasInstance */
-    nullptr,                 /* construct   */
+    NULL,                    /* checkAccess */
+    NULL,                    /* call        */
+    NULL,                    /* hasInstance */
+    NULL,                    /* construct   */
     resc_trace
 };
 
 JSObject *
 RegExpStatics::create(JSContext *cx, GlobalObject *parent)
 {
-    JSObject *obj = NewObjectWithGivenProto(cx, &RegExpStaticsObject::class_, nullptr, parent);
+    JSObject *obj = NewObjectWithGivenProto(cx, &RegExpStaticsObject::class_, NULL, parent);
     if (!obj)
-        return nullptr;
+        return NULL;
     RegExpStatics *res = cx->new_<RegExpStatics>();
     if (!res)
-        return nullptr;
+        return NULL;
     obj->setPrivate(static_cast<void *>(res));
     return obj;
 }
@@ -116,7 +116,7 @@ RegExpStatics::executeLazy(JSContext *cx)
 
     /* Unset lazy state and remove rooted values that now have no use. */
     pendingLazyEvaluation = false;
-    lazySource = nullptr;
+    lazySource = NULL;
     lazyIndex = size_t(-1);
 
     return true;

@@ -25,9 +25,9 @@
 #include "../d3d9/Nv3DVUtils.h"
 
 #include "gfxCrashReporterUtils.h"
-#include "nsWindowsHelpers.h"
 #ifdef MOZ_METRO
 #include "DXGI1_2.h"
+#include "nsWindowsHelpers.h"
 #endif
 
 using namespace std;
@@ -451,10 +451,10 @@ static void ReleaseTexture(void *texture)
 
 already_AddRefed<gfxASurface>
 LayerManagerD3D10::CreateOptimalSurface(const gfxIntSize &aSize,
-                                   gfxImageFormat aFormat)
+                                   gfxASurface::gfxImageFormat aFormat)
 {
-  if ((aFormat != gfxImageFormatRGB24 &&
-       aFormat != gfxImageFormatARGB32)) {
+  if ((aFormat != gfxASurface::ImageFormatRGB24 &&
+       aFormat != gfxASurface::ImageFormatARGB32)) {
     return LayerManager::CreateOptimalSurface(aSize, aFormat);
   }
 
@@ -472,8 +472,8 @@ LayerManagerD3D10::CreateOptimalSurface(const gfxIntSize &aSize,
   }
 
   nsRefPtr<gfxD2DSurface> surface =
-    new gfxD2DSurface(texture, aFormat == gfxImageFormatRGB24 ?
-      GFX_CONTENT_COLOR : GFX_CONTENT_COLOR_ALPHA);
+    new gfxD2DSurface(texture, aFormat == gfxASurface::ImageFormatRGB24 ?
+      gfxASurface::CONTENT_COLOR : gfxASurface::CONTENT_COLOR_ALPHA);
 
   if (!surface || surface->CairoStatus()) {
     return LayerManager::CreateOptimalSurface(aSize, aFormat);
@@ -490,7 +490,7 @@ LayerManagerD3D10::CreateOptimalSurface(const gfxIntSize &aSize,
 already_AddRefed<gfxASurface>
 LayerManagerD3D10::CreateOptimalMaskSurface(const gfxIntSize &aSize)
 {
-  return CreateOptimalSurface(aSize, gfxImageFormatARGB32);
+  return CreateOptimalSurface(aSize, gfxASurface::ImageFormatARGB32);
 }
 
 
@@ -640,15 +640,17 @@ LayerManagerD3D10::VerifyBufferSize()
     }
 
     mRTView = nullptr;
-    if (IsRunningInWindowsMetro()) {
+    if (gfxWindowsPlatform::IsOptimus()) { 
+      mSwapChain->ResizeBuffers(1, rect.width, rect.height,
+                                DXGI_FORMAT_B8G8R8A8_UNORM,
+                                0);
+#ifdef MOZ_METRO
+    } else if (IsRunningInWindowsMetro()) {
       mSwapChain->ResizeBuffers(2, rect.width, rect.height,
                                 DXGI_FORMAT_B8G8R8A8_UNORM,
                                 0);
       mDisableSequenceForNextFrame = true;
-    } else if (gfxWindowsPlatform::IsOptimus()) {
-      mSwapChain->ResizeBuffers(1, rect.width, rect.height,
-                                DXGI_FORMAT_B8G8R8A8_UNORM,
-                                0);
+#endif
     } else {
       mSwapChain->ResizeBuffers(1, rect.width, rect.height,
                                 DXGI_FORMAT_B8G8R8A8_UNORM,
@@ -770,7 +772,7 @@ LayerManagerD3D10::PaintToTarget()
     new gfxImageSurface((unsigned char*)map.pData,
                         gfxIntSize(bbDesc.Width, bbDesc.Height),
                         map.RowPitch,
-                        gfxImageFormatARGB32);
+                        gfxASurface::ImageFormatARGB32);
 
   mTarget->SetSource(tmpSurface);
   mTarget->SetOperator(gfxContext::OPERATOR_OVER);

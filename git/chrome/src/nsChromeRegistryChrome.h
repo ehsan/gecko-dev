@@ -6,7 +6,6 @@
 #ifndef nsChromeRegistryChrome_h
 #define nsChromeRegistryChrome_h
 
-#include "nsCOMArray.h"
 #include "nsChromeRegistry.h"
 #include "nsVoidArray.h"
 #include "mozilla/Move.h"

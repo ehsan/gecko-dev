@@ -17,7 +17,6 @@
 #include "nsCOMPtr.h"
 #include "nsIConstraintValidation.h"
 #include "mozilla/dom/HTMLFormElement.h" // for HasEverTriedInvalidSubmit()
-#include "mozilla/dom/HTMLInputElementBinding.h"
 #include "nsIFilePicker.h"
 #include "nsIContentPrefService2.h"
 #include "mozilla/Decimal.h"
@@ -147,8 +146,8 @@ public:
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
   void PostHandleEventForRangeThumb(nsEventChainPostVisitor& aVisitor);
-  void StartRangeThumbDrag(WidgetGUIEvent* aEvent);
-  void FinishRangeThumbDrag(WidgetGUIEvent* aEvent = nullptr);
+  void StartRangeThumbDrag(nsGUIEvent* aEvent);
+  void FinishRangeThumbDrag(nsGUIEvent* aEvent = nullptr);
   void CancelRangeThumbDrag(bool aIsForUserEvent = true);
   void SetValueOfRangeForUserEvent(Decimal aValue);
 
@@ -641,13 +640,6 @@ public:
   void SetSelectionRange(int32_t aStart, int32_t aEnd,
                          const Optional< nsAString >& direction,
                          ErrorResult& aRv);
-
-  void SetRangeText(const nsAString& aReplacement, ErrorResult& aRv);
-
-  void SetRangeText(const nsAString& aReplacement, uint32_t aStart,
-                    uint32_t aEnd, const SelectionMode& aSelectMode,
-                    ErrorResult& aRv, int32_t aSelectionStart = -1,
-                    int32_t aSelectionEnd = -1);
 
   // XPCOM GetAlign() is OK
   void SetAlign(const nsAString& aValue, ErrorResult& aRv)
@@ -1245,15 +1237,6 @@ private:
    */
   bool MayFireChangeOnBlur() const {
     return MayFireChangeOnBlur(mType);
-  }
-
-  /**
-   * Returns true if setRangeText can be called on element
-   */
-  bool SupportsSetRangeText() const {
-    return mType == NS_FORM_INPUT_TEXT || mType == NS_FORM_INPUT_SEARCH ||
-           mType == NS_FORM_INPUT_URL || mType == NS_FORM_INPUT_TEL ||
-           mType == NS_FORM_INPUT_PASSWORD;
   }
 
   static bool MayFireChangeOnBlur(uint8_t aType) {

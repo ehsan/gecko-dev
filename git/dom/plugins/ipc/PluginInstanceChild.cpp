@@ -28,9 +28,8 @@ using mozilla::gfx::SharedDIBSurface;
 #include "gfxAlphaRecovery.h"
 
 #include "mozilla/Util.h"
-#include "mozilla/ipc/MessageChannel.h"
+#include "mozilla/ipc/SyncChannel.h"
 #include "mozilla/AutoRestore.h"
-#include "ImageContainer.h"
 
 using namespace mozilla;
 using mozilla::ipc::ProcessChild;
@@ -136,7 +135,7 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface)
 #endif
     , mAccumulatedInvalidRect(0,0,0,0)
     , mIsTransparent(false)
-    , mSurfaceType(gfxSurfaceTypeMax)
+    , mSurfaceType(gfxASurface::SurfaceTypeMax)
     , mCurrentInvalidateTask(nullptr)
     , mCurrentAsyncSetWindowTask(nullptr)
     , mPendingPluginCall(false)
@@ -1102,7 +1101,7 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
         CreateWindow(aWindow);
     }
 
-#if (MOZ_WIDGET_GTK == 2)
+#ifdef MOZ_WIDGET_GTK2
     if (mXEmbed && gtk_check_version(2,18,7) != NULL) { // older
         if (aWindow.type == NPWindowTypeWindow) {
             GdkWindow* socket_window = gdk_window_lookup(static_cast<GdkNativeWindow>(aWindow.window));
@@ -1406,7 +1405,7 @@ PluginInstanceChild::PluginWindowProcInternal(HWND hWnd,
                                               WPARAM wParam,
                                               LPARAM lParam)
 {
-    NS_ASSERTION(!mozilla::ipc::MessageChannel::IsPumpingMessages(),
+    NS_ASSERTION(!mozilla::ipc::SyncChannel::IsPumpingMessages(),
                  "Failed to prevent a nonqueued message from running!");
     PluginInstanceChild* self = reinterpret_cast<PluginInstanceChild*>(
         GetProp(hWnd, kPluginInstanceChildProperty));
@@ -2771,26 +2770,26 @@ GfxFromNsRect(const nsIntRect& aRect)
 bool
 PluginInstanceChild::CreateOptSurface(void)
 {
-    NS_ABORT_IF_FALSE(mSurfaceType != gfxSurfaceTypeMax,
+    NS_ABORT_IF_FALSE(mSurfaceType != gfxASurface::SurfaceTypeMax,
                       "Need a valid surface type here");
     NS_ASSERTION(!mCurrentSurface, "mCurrentSurfaceActor can get out of sync.");
 
     nsRefPtr<gfxASurface> retsurf;
     // Use an opaque surface unless we're transparent and *don't* have
     // a background to source from.
-    gfxImageFormat format =
-        (mIsTransparent && !mBackground) ? gfxImageFormatARGB32 :
-                                           gfxImageFormatRGB24;
+    gfxASurface::gfxImageFormat format =
+        (mIsTransparent && !mBackground) ? gfxASurface::ImageFormatARGB32 :
+                                           gfxASurface::ImageFormatRGB24;
 
 #ifdef MOZ_X11
     Display* dpy = mWsInfo.display;
     Screen* screen = DefaultScreenOfDisplay(dpy);
-    if (format == gfxImageFormatRGB24 &&
+    if (format == gfxASurface::ImageFormatRGB24 &&
         DefaultDepth(dpy, DefaultScreen(dpy)) == 16) {
-        format = gfxImageFormatRGB16_565;
+        format = gfxASurface::ImageFormatRGB16_565;
     }
 
-    if (mSurfaceType == gfxSurfaceTypeXlib) {
+    if (mSurfaceType == gfxASurface::SurfaceTypeXlib) {
         if (!mIsTransparent  || mBackground) {
             Visual* defaultVisual = DefaultVisualOfScreen(screen);
             mCurrentSurface =
@@ -2814,8 +2813,8 @@ PluginInstanceChild::CreateOptSurface(void)
 #endif
 
 #ifdef XP_WIN
-    if (mSurfaceType == gfxSurfaceTypeWin32 ||
-        mSurfaceType == gfxSurfaceTypeD2D) {
+    if (mSurfaceType == gfxASurface::SurfaceTypeWin32 ||
+        mSurfaceType == gfxASurface::SurfaceTypeD2D) {
         bool willHaveTransparentPixels = mIsTransparent && !mBackground;
 
         SharedDIBSurface* s = new SharedDIBSurface();
@@ -2854,7 +2853,7 @@ PluginInstanceChild::MaybeCreatePlatformHelperSurface(void)
     mDoAlphaExtraction = false;
     bool createHelperSurface = false;
 
-    if (mCurrentSurface->GetType() == gfxSurfaceTypeXlib) {
+    if (mCurrentSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
         static_cast<gfxXlibSurface*>(mCurrentSurface.get())->
             GetColormapAndVisual(&colormap, &visual);
         // Create helper surface if layer surface visual not same as default
@@ -2864,7 +2863,7 @@ PluginInstanceChild::MaybeCreatePlatformHelperSurface(void)
             visual = defaultVisual;
             mDoAlphaExtraction = mIsTransparent;
         }
-    } else if (mCurrentSurface->GetType() == gfxSurfaceTypeImage) {
+    } else if (mCurrentSurface->GetType() == gfxASurface::SurfaceTypeImage) {
         // For image layer surface we should always create helper surface
         createHelperSurface = true;
         // Check if we can create helper surface with non-default visual
@@ -2917,9 +2916,9 @@ PluginInstanceChild::EnsureCurrentBuffer(void)
         if (winSize != surfSize ||
             (mBackground && !CanPaintOnBackground()) ||
             (mBackground &&
-             GFX_CONTENT_COLOR != mCurrentSurface->GetContentType()) ||
+             gfxASurface::CONTENT_COLOR != mCurrentSurface->GetContentType()) ||
             (!mBackground && mIsTransparent &&
-             GFX_CONTENT_COLOR == mCurrentSurface->GetContentType())) {
+             gfxASurface::CONTENT_COLOR == mCurrentSurface->GetContentType())) {
             // Don't try to use an old, invalid DC.
             mWindow.window = nullptr;
             ClearCurrentSurface();
@@ -3012,7 +3011,7 @@ PluginInstanceChild::UpdateWindowAttributes(bool aForceSetWindow)
 #ifdef MOZ_X11
     Visual* visual = nullptr;
     Colormap colormap = 0;
-    if (curSurface && curSurface->GetType() == gfxSurfaceTypeXlib) {
+    if (curSurface && curSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
         static_cast<gfxXlibSurface*>(curSurface.get())->
             GetColormapAndVisual(&colormap, &visual);
         if (visual != mWsInfo.visual || colormap != mWsInfo.colormap) {
@@ -3104,7 +3103,7 @@ PluginInstanceChild::PaintRectToPlatformSurface(const nsIntRect& aRect,
 
 #ifdef MOZ_X11
     {
-        NS_ASSERTION(aSurface->GetType() == gfxSurfaceTypeXlib,
+        NS_ASSERTION(aSurface->GetType() == gfxASurface::SurfaceTypeXlib,
                      "Non supported platform surface type");
 
         NPEvent pluginEvent;
@@ -3198,7 +3197,7 @@ void
 PluginInstanceChild::PaintRectWithAlphaExtraction(const nsIntRect& aRect,
                                                   gfxASurface* aSurface)
 {
-    NS_ABORT_IF_FALSE(aSurface->GetContentType() == GFX_CONTENT_COLOR_ALPHA,
+    NS_ABORT_IF_FALSE(aSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA,
                       "Refusing to pointlessly recover alpha");
 
     nsIntRect rect(aRect);
@@ -3206,11 +3205,11 @@ PluginInstanceChild::PaintRectWithAlphaExtraction(const nsIntRect& aRect,
     // recovered directly to it, do that to save a tmp surface and
     // copy.
     bool useSurfaceSubimageForBlack = false;
-    if (gfxSurfaceTypeImage == aSurface->GetType()) {
+    if (gfxASurface::SurfaceTypeImage == aSurface->GetType()) {
         gfxImageSurface* surfaceAsImage =
             static_cast<gfxImageSurface*>(aSurface);
         useSurfaceSubimageForBlack =
-            (surfaceAsImage->Format() == gfxImageFormatARGB32);
+            (surfaceAsImage->Format() == gfxASurface::ImageFormatARGB32);
         // If we're going to use a subimage, nudge the rect so that we
         // can use optimal alpha recovery.  If we're not using a
         // subimage, the temporaries should automatically get
@@ -3229,7 +3228,7 @@ PluginInstanceChild::PaintRectWithAlphaExtraction(const nsIntRect& aRect,
     gfxPoint deviceOffset = -targetRect.TopLeft();
 
     // We always use a temporary "white image"
-    whiteImage = new gfxImageSurface(targetSize, gfxImageFormatRGB24);
+    whiteImage = new gfxImageSurface(targetSize, gfxASurface::ImageFormatRGB24);
     if (whiteImage->CairoStatus()) {
         return;
     }
@@ -3272,7 +3271,7 @@ PluginInstanceChild::PaintRectWithAlphaExtraction(const nsIntRect& aRect,
         blackImage = surface->GetSubimage(targetRect);
     } else {
         blackImage = new gfxImageSurface(targetSize,
-                                         gfxImageFormatARGB32);
+                                         gfxASurface::ImageFormatARGB32);
     }
 
     // Paint onto black background
@@ -3416,7 +3415,7 @@ PluginInstanceChild::ShowPluginFrame()
     }
 
     bool haveTransparentPixels =
-        GFX_CONTENT_COLOR_ALPHA == mCurrentSurface->GetContentType();
+        gfxASurface::CONTENT_COLOR_ALPHA == mCurrentSurface->GetContentType();
     PLUGIN_LOG_DEBUG(
         ("[InstanceChild][%p] Painting%s <x=%d,y=%d, w=%d,h=%d> on surface <w=%d,h=%d>",
          this, haveTransparentPixels ? " with alpha" : "",
@@ -3482,7 +3481,7 @@ PluginInstanceChild::ShowPluginFrame()
                  (uint16_t)rect.YMost(), (uint16_t)rect.XMost() };
     SurfaceDescriptor currSurf;
 #ifdef MOZ_X11
-    if (mCurrentSurface->GetType() == gfxSurfaceTypeXlib) {
+    if (mCurrentSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
         gfxXlibSurface *xsurf = static_cast<gfxXlibSurface*>(mCurrentSurface.get());
         currSurf = SurfaceDescriptorX11(xsurf);
         // Need to sync all pending x-paint requests
@@ -3534,7 +3533,7 @@ PluginInstanceChild::ReadbackDifferenceRect(const nsIntRect& rect)
     // We can read safely from XSurface,SharedDIBSurface and Unsafe SharedMemory,
     // because PluginHost is not able to modify that surface
 #if defined(MOZ_X11)
-    if (mBackSurface->GetType() != gfxSurfaceTypeXlib &&
+    if (mBackSurface->GetType() != gfxASurface::SurfaceTypeXlib &&
         !gfxSharedImageSurface::IsSharedImage(mBackSurface))
         return false;
 #elif defined(XP_WIN)

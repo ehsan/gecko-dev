@@ -39,7 +39,6 @@
 #include "nsContentUtils.h"
 #include "gfxPlatform.h"
 #include "mozilla/gfx/2D.h"
-#include "mozilla/MouseEvents.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -59,9 +58,9 @@ static int32_t gNumWidgets;
 nsIRollupListener* nsBaseWidget::gRollupListener = nullptr;
 
 using namespace mozilla::layers;
-using namespace mozilla::ipc;
 using namespace mozilla;
 using base::Thread;
+using mozilla::ipc::AsyncChannel;
 
 nsIContent* nsBaseWidget::mLastRollup = nullptr;
 // Global user preference for disabling native theme. Used
@@ -420,7 +419,7 @@ float nsBaseWidget::GetDPI()
   return 96.0f;
 }
 
-CSSToLayoutDeviceScale nsIWidget::GetDefaultScale()
+double nsIWidget::GetDefaultScale()
 {
   double devPixelsPerCSSPixel = DefaultScaleOverride();
 
@@ -428,7 +427,7 @@ CSSToLayoutDeviceScale nsIWidget::GetDefaultScale()
     devPixelsPerCSSPixel = GetDefaultScaleInternal();
   }
 
-  return CSSToLayoutDeviceScale(devPixelsPerCSSPixel);
+  return devPixelsPerCSSPixel;
 }
 
 /* static */
@@ -749,11 +748,11 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(bool aFullScreen)
       mOriginalBounds = new nsIntRect();
     GetScreenBounds(*mOriginalBounds);
     // convert dev pix to display pix for window manipulation 
-    CSSToLayoutDeviceScale scale = GetDefaultScale();
-    mOriginalBounds->x = NSToIntRound(mOriginalBounds->x / scale.scale);
-    mOriginalBounds->y = NSToIntRound(mOriginalBounds->y / scale.scale);
-    mOriginalBounds->width = NSToIntRound(mOriginalBounds->width / scale.scale);
-    mOriginalBounds->height = NSToIntRound(mOriginalBounds->height / scale.scale);
+    double scale = GetDefaultScale();
+    mOriginalBounds->x = NSToIntRound(mOriginalBounds->x / scale);
+    mOriginalBounds->y = NSToIntRound(mOriginalBounds->y / scale);
+    mOriginalBounds->width = NSToIntRound(mOriginalBounds->width / scale);
+    mOriginalBounds->height = NSToIntRound(mOriginalBounds->height / scale);
 
     // Move to top-left corner of screen and size to the screen dimensions
     nsCOMPtr<nsIScreenManager> screenManager;
@@ -950,11 +949,12 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
   }
 
   mCompositorParent = NewCompositorParent(aWidth, aHeight);
-  MessageChannel *parentChannel = mCompositorParent->GetIPCChannel();
+  AsyncChannel *parentChannel = mCompositorParent->GetIPCChannel();
   LayerManager* lm = new ClientLayerManager(this);
   MessageLoop *childMessageLoop = CompositorParent::CompositorLoop();
   mCompositorChild = new CompositorChild(lm);
-  mCompositorChild->Open(parentChannel, childMessageLoop, ipc::ChildSide);
+  AsyncChannel::Side childSide = mozilla::ipc::AsyncChannel::Child;
+  mCompositorChild->Open(parentChannel, childMessageLoop, childSide);
 
   TextureFactoryIdentifier textureFactoryIdentifier;
   PLayerTransactionChild* shadowManager;
@@ -1114,11 +1114,9 @@ NS_METHOD nsBaseWidget::MoveClient(double aX, double aY)
 
   // GetClientOffset returns device pixels; scale back to display pixels
   // if that's what this widget uses for the Move/Resize APIs
-  CSSToLayoutDeviceScale scale = BoundsUseDisplayPixels()
-                                    ? GetDefaultScale()
-                                    : CSSToLayoutDeviceScale(1.0);
-  aX -= clientOffset.x * 1.0 / scale.scale;
-  aY -= clientOffset.y * 1.0 / scale.scale;
+  double scale = BoundsUseDisplayPixels() ? 1.0 / GetDefaultScale() : 1.0;
+  aX -= clientOffset.x * scale;
+  aY -= clientOffset.y * scale;
 
   return Move(aX, aY);
 }
@@ -1135,12 +1133,9 @@ NS_METHOD nsBaseWidget::ResizeClient(double aWidth,
 
   // GetClientBounds and mBounds are device pixels; scale back to display pixels
   // if that's what this widget uses for the Move/Resize APIs
-  CSSToLayoutDeviceScale scale = BoundsUseDisplayPixels()
-                                    ? GetDefaultScale()
-                                    : CSSToLayoutDeviceScale(1.0);
-  double invScale = 1.0 / scale.scale;
-  aWidth = mBounds.width * invScale + (aWidth - clientBounds.width * invScale);
-  aHeight = mBounds.height * invScale + (aHeight - clientBounds.height * invScale);
+  double scale = BoundsUseDisplayPixels() ? 1.0 / GetDefaultScale() : 1.0;
+  aWidth = mBounds.width * scale + (aWidth - clientBounds.width * scale);
+  aHeight = mBounds.height * scale + (aHeight - clientBounds.height * scale);
 
   return Resize(aWidth, aHeight, aRepaint);
 }
@@ -1157,7 +1152,7 @@ NS_METHOD nsBaseWidget::ResizeClient(double aX,
   nsIntRect clientBounds;
   GetClientBounds(clientBounds);
 
-  double scale = BoundsUseDisplayPixels() ? 1.0 / GetDefaultScale().scale : 1.0;
+  double scale = BoundsUseDisplayPixels() ? 1.0 / GetDefaultScale() : 1.0;
   aWidth = mBounds.width * scale + (aWidth - clientBounds.width * scale);
   aHeight = mBounds.height * scale + (aHeight - clientBounds.height * scale);
 
@@ -1404,15 +1399,13 @@ nsBaseWidget::ResolveIconName(const nsAString &aIconName,
 }
 
 NS_IMETHODIMP
-nsBaseWidget::BeginResizeDrag(WidgetGUIEvent* aEvent,
-                              int32_t aHorizontal,
-                              int32_t aVertical)
+nsBaseWidget::BeginResizeDrag(nsGUIEvent* aEvent, int32_t aHorizontal, int32_t aVertical)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsBaseWidget::BeginMoveDrag(WidgetMouseEvent* aEvent)
+nsBaseWidget::BeginMoveDrag(nsMouseEvent* aEvent)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -1562,7 +1555,7 @@ nsBaseWidget::GetRootAccessible()
 //
 //////////////////////////////////////////////////////////////
 /* static */ nsAutoString
-nsBaseWidget::debug_GuiEventToString(WidgetGUIEvent* aGuiEvent)
+nsBaseWidget::debug_GuiEventToString(nsGUIEvent * aGuiEvent)
 {
   NS_ASSERTION(nullptr != aGuiEvent,"cmon, null gui event.");
 
@@ -1739,7 +1732,7 @@ nsBaseWidget::debug_WantPaintFlashing()
 /* static */ void
 nsBaseWidget::debug_DumpEvent(FILE *                aFileOut,
                               nsIWidget *           aWidget,
-                              WidgetGUIEvent*       aGuiEvent,
+                              nsGUIEvent *          aGuiEvent,
                               const nsAutoCString & aWidgetName,
                               int32_t               aWindowID)
 {

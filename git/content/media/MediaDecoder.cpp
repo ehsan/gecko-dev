@@ -901,7 +901,6 @@ void MediaDecoder::PlaybackEnded()
 
   PlaybackPositionChanged();
   ChangeState(PLAY_STATE_ENDED);
-  InvalidateWithFlags(VideoFrameContainer::INVALIDATE_FORCE);
 
   UpdateReadyStateForData();
   if (mOwner)  {
@@ -1047,17 +1046,15 @@ void MediaDecoder::NotifyPrincipalChanged()
   }
 }
 
-void MediaDecoder::NotifyBytesConsumed(int64_t aBytes, int64_t aOffset)
+void MediaDecoder::NotifyBytesConsumed(int64_t aBytes)
 {
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   NS_ENSURE_TRUE_VOID(mDecoderStateMachine);
-  if (mIgnoreProgressData) {
-    return;
-  }
-  if (aOffset >= mDecoderPosition) {
+  MOZ_ASSERT(OnStateMachineThread() || OnDecodeThread());
+  if (!mIgnoreProgressData) {
+    mDecoderPosition += aBytes;
     mPlaybackStatistics.AddBytes(aBytes);
   }
-  mDecoderPosition = aOffset + aBytes;
 }
 
 void MediaDecoder::UpdateReadyStateForData()
@@ -1465,13 +1462,6 @@ ReentrantMonitor& MediaDecoder::GetReentrantMonitor() {
 ImageContainer* MediaDecoder::GetImageContainer()
 {
   return mVideoFrameContainer ? mVideoFrameContainer->GetImageContainer() : nullptr;
-}
-
-void MediaDecoder::InvalidateWithFlags(uint32_t aFlags)
-{
-  if (mVideoFrameContainer) {
-    mVideoFrameContainer->InvalidateWithFlags(aFlags);
-  }
 }
 
 void MediaDecoder::Invalidate()

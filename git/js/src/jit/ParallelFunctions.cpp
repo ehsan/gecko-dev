@@ -6,6 +6,7 @@
 
 #include "jit/ParallelFunctions.h"
 
+#include "jit/IonSpewer.h"
 #include "vm/ArrayObject.h"
 
 #include "jsgcinlines.h"
@@ -53,14 +54,16 @@ printTrace(const char *prefix, struct IonLIRTraceData *cached)
 {
     fprintf(stderr, "%s / Block %3u / LIR %3u / Mode %u / LIR %s\n",
             prefix,
-            cached->blockIndex, cached->lirIndex, cached->execModeInt, cached->lirOpName);
+            cached->bblock, cached->lir, cached->execModeInt, cached->lirOpName);
 }
 
 struct IonLIRTraceData seqTraceData;
 #endif
 
 void
-jit::TraceLIR(IonLIRTraceData *current)
+jit::TraceLIR(uint32_t bblock, uint32_t lir, uint32_t execModeInt,
+              const char *lirOpName, const char *mirOpName,
+              JSScript *script, jsbytecode *pc)
 {
 #ifdef DEBUG
     static enum { NotSet, All, Bailouts } traceMode;
@@ -70,7 +73,7 @@ jit::TraceLIR(IonLIRTraceData *current)
     // You can either modify it to do whatever you like, or use gdb scripting.
     // For example:
     //
-    // break TraceLIR
+    // break TracePar
     // commands
     // continue
     // exit
@@ -85,19 +88,27 @@ jit::TraceLIR(IonLIRTraceData *current)
     }
 
     IonLIRTraceData *cached;
-    if (current->execModeInt == 0)
+    if (execModeInt == 0)
         cached = &seqTraceData;
     else
         cached = &ForkJoinSlice::Current()->traceData;
 
-    if (current->blockIndex == 0xDEADBEEF) {
-        if (current->execModeInt == 0)
+    if (bblock == 0xDEADBEEF) {
+        if (execModeInt == 0)
             printTrace("BAILOUT", cached);
         else
-            SpewBailoutIR(cached);
+            SpewBailoutIR(cached->bblock, cached->lir,
+                          cached->lirOpName, cached->mirOpName,
+                          cached->script, cached->pc);
     }
 
-    memcpy(cached, current, sizeof(IonLIRTraceData));
+    cached->bblock = bblock;
+    cached->lir = lir;
+    cached->execModeInt = execModeInt;
+    cached->lirOpName = lirOpName;
+    cached->mirOpName = mirOpName;
+    cached->script = script;
+    cached->pc = pc;
 
     if (traceMode == All)
         printTrace("Exec", cached);
@@ -127,7 +138,7 @@ jit::CheckOverRecursedPar(ForkJoinSlice *slice)
 
     if (!JS_CHECK_STACK_SIZE(realStackLimit, &stackDummy_)) {
         slice->bailoutRecord->setCause(ParallelBailoutOverRecursed,
-                                       nullptr, nullptr, nullptr);
+                                       NULL, NULL, NULL);
         return false;
     }
 
@@ -160,7 +171,7 @@ jit::PushPar(PushParArgs *args)
     JSObject::EnsureDenseResult res =
         args->object->parExtendDenseElements(slice, &args->value, 1);
     if (res != JSObject::ED_OK)
-        return nullptr;
+        return NULL;
     return args->object;
 }
 
@@ -168,9 +179,9 @@ JSObject *
 jit::ExtendArrayPar(ForkJoinSlice *slice, JSObject *array, uint32_t length)
 {
     JSObject::EnsureDenseResult res =
-        array->parExtendDenseElements(slice, nullptr, length);
+        array->parExtendDenseElements(slice, NULL, length);
     if (res != JSObject::ED_OK)
-        return nullptr;
+        return NULL;
     return array;
 }
 
@@ -471,8 +482,8 @@ jit::AbortPar(ParallelBailoutCause cause, JSScript *outermostScript, JSScript *c
          (currentScript ? PCToLineNumber(currentScript, bytecode) : 0));
 
     JS_ASSERT(InParallelSection());
-    JS_ASSERT(outermostScript != nullptr);
-    JS_ASSERT(currentScript != nullptr);
+    JS_ASSERT(outermostScript != NULL);
+    JS_ASSERT(currentScript != NULL);
     JS_ASSERT(outermostScript->hasParallelIonScript());
 
     ForkJoinSlice *slice = ForkJoinSlice::Current();
@@ -497,7 +508,7 @@ jit::PropagateAbortPar(JSScript *outermostScript, JSScript *currentScript)
 
     ForkJoinSlice *slice = ForkJoinSlice::Current();
     if (currentScript)
-        slice->bailoutRecord->addTrace(currentScript, nullptr);
+        slice->bailoutRecord->addTrace(currentScript, NULL);
 }
 
 void

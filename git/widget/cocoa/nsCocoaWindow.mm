@@ -8,6 +8,7 @@
 #include "nsObjCExceptions.h"
 #include "nsCOMPtr.h"
 #include "nsWidgetsCID.h"
+#include "nsGUIEvent.h"
 #include "nsIRollupListener.h"
 #include "nsChildView.h"
 #include "TextInputHandler.h"
@@ -35,7 +36,6 @@
 #include "gfxPlatform.h"
 #include "qcms.h"
 
-#include "mozilla/BasicEvents.h"
 #include "mozilla/Preferences.h"
 #include <algorithm>
 
@@ -1399,7 +1399,7 @@ NS_IMETHODIMP nsCocoaWindow::Resize(double aX, double aY,
 // Coordinates are global display pixels
 NS_IMETHODIMP nsCocoaWindow::Resize(double aWidth, double aHeight, bool aRepaint)
 {
-  double invScale = 1.0 / GetDefaultScale().scale;
+  double invScale = 1.0 / GetDefaultScale();
   return DoResize(mBounds.x * invScale, mBounds.y * invScale,
                   aWidth, aHeight, aRepaint, true);
 }
@@ -1676,7 +1676,7 @@ NS_IMETHODIMP nsCocoaWindow::GetSheetWindowParent(NSWindow** sheetWindowParent)
 
 // Invokes callback and ProcessEvent methods on Event Listener object
 NS_IMETHODIMP 
-nsCocoaWindow::DispatchEvent(WidgetGUIEvent* event, nsEventStatus& aStatus)
+nsCocoaWindow::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 {
   aStatus = nsEventStatus_eIgnore;
 

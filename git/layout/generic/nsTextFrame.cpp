@@ -11,7 +11,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Likely.h"
 #include "mozilla/MathAlgorithms.h"
-#include "mozilla/TextEvents.h"
 
 #include "nsCOMPtr.h"
 #include "nsBlockFrame.h"
@@ -54,7 +53,6 @@
 #include "nsLineBreaker.h"
 #include "nsIWordBreaker.h"
 #include "nsGenericDOMDataNode.h"
-#include "nsIFrameInlines.h"
 
 #include <algorithm>
 #ifdef ACCESSIBILITY
@@ -213,10 +211,10 @@ NS_DECLARE_FRAME_PROPERTY(TextFrameGlyphObservers, DestroyGlyphObserverList);
 #define TEXT_IN_TEXTRUN_USER_DATA  NS_FRAME_STATE_BIT(29)
 
 // nsTextFrame.h has
-// #define TEXT_HAS_NONCOLLAPSED_CHARACTERS NS_FRAME_STATE_BIT(31)
+// #define TEXT_HAS_NONCOLLAPSED_CHARACTERS NS_FRAME_STATE_BIT(30)
 
 // nsTextFrame.h has
-// #define TEXT_IS_IN_TOKEN_MATHML          NS_FRAME_STATE_BIT(32)
+// #define TEXT_FORCE_TRIM_WHITESPACE       NS_FRAME_STATE_BIT(31)
 
 // Set when this text frame is mentioned in the userdata for the
 // uninflated textrun property
@@ -657,7 +655,7 @@ int32_t nsTextFrame::GetInFlowContentLength() {
     return flowLength->mEndFlowOffset - mContentOffset;
   }
 
-  nsTextFrame* nextBidi = static_cast<nsTextFrame*>(LastInFlow()->GetNextContinuation());
+  nsTextFrame* nextBidi = static_cast<nsTextFrame*>(GetLastInFlow()->GetNextContinuation());
   int32_t endFlow = nextBidi ? nextBidi->GetContentOffset() : mContent->TextLength();
 
   if (!flowLength) {
@@ -3903,28 +3901,30 @@ public:
   virtual nsIFrame* GetPrevContinuation() const {
     return mPrevContinuation;
   }
-  virtual void SetPrevContinuation(nsIFrame* aPrevContinuation) {
+  NS_IMETHOD SetPrevContinuation(nsIFrame* aPrevContinuation) {
     NS_ASSERTION (!aPrevContinuation || GetType() == aPrevContinuation->GetType(),
                   "setting a prev continuation with incorrect type!");
     NS_ASSERTION (!nsSplittableFrame::IsInPrevContinuationChain(aPrevContinuation, this),
                   "creating a loop in continuation chain!");
     mPrevContinuation = aPrevContinuation;
     RemoveStateBits(NS_FRAME_IS_FLUID_CONTINUATION);
+    return NS_OK;
   }
   virtual nsIFrame* GetPrevInFlowVirtual() const { return GetPrevInFlow(); }
   nsIFrame* GetPrevInFlow() const {
     return (GetStateBits() & NS_FRAME_IS_FLUID_CONTINUATION) ? mPrevContinuation : nullptr;
   }
-  virtual void SetPrevInFlow(nsIFrame* aPrevInFlow) MOZ_OVERRIDE {
+  NS_IMETHOD SetPrevInFlow(nsIFrame* aPrevInFlow) {
     NS_ASSERTION (!aPrevInFlow || GetType() == aPrevInFlow->GetType(),
                   "setting a prev in flow with incorrect type!");
     NS_ASSERTION (!nsSplittableFrame::IsInPrevContinuationChain(aPrevInFlow, this),
                   "creating a loop in continuation chain!");
     mPrevContinuation = aPrevInFlow;
     AddStateBits(NS_FRAME_IS_FLUID_CONTINUATION);
+    return NS_OK;
   }
-  virtual nsIFrame* FirstInFlow() const MOZ_OVERRIDE;
-  virtual nsIFrame* FirstContinuation() const MOZ_OVERRIDE;
+  virtual nsIFrame* GetFirstInFlow() const;
+  virtual nsIFrame* GetFirstContinuation() const;
 
   virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
@@ -4046,7 +4046,7 @@ nsContinuingTextFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 nsIFrame*
-nsContinuingTextFrame::FirstInFlow() const
+nsContinuingTextFrame::GetFirstInFlow() const
 {
   // Can't cast to |nsContinuingTextFrame*| because the first one isn't.
   nsIFrame *firstInFlow,
@@ -4056,12 +4056,11 @@ nsContinuingTextFrame::FirstInFlow() const
     firstInFlow = previous;
     previous = firstInFlow->GetPrevInFlow();
   } while (previous);
-  MOZ_ASSERT(firstInFlow, "post-condition failed");
   return firstInFlow;
 }
 
 nsIFrame*
-nsContinuingTextFrame::FirstContinuation() const
+nsContinuingTextFrame::GetFirstContinuation() const
 {
   // Can't cast to |nsContinuingTextFrame*| because the first one isn't.
   nsIFrame *firstContinuation,
@@ -4074,7 +4073,6 @@ nsContinuingTextFrame::FirstContinuation() const
     firstContinuation = previous;
     previous = firstContinuation->GetPrevContinuation();
   } while (previous);
-  MOZ_ASSERT(firstContinuation, "post-condition failed");
   return firstContinuation;
 }
 
@@ -4200,26 +4198,25 @@ nsTextFrame::GetCursor(const nsPoint& aPoint,
 }
 
 nsIFrame*
-nsTextFrame::LastInFlow() const
+nsTextFrame::GetLastInFlow() const
 {
   nsTextFrame* lastInFlow = const_cast<nsTextFrame*>(this);
   while (lastInFlow->GetNextInFlow())  {
     lastInFlow = static_cast<nsTextFrame*>(lastInFlow->GetNextInFlow());
   }
-  MOZ_ASSERT(lastInFlow, "post-condition failed");
+  NS_POSTCONDITION(lastInFlow, "illegal state in flow chain.");
   return lastInFlow;
 }
 
 nsIFrame*
-nsTextFrame::LastContinuation() const
+nsTextFrame::GetLastContinuation() const
 {
-  nsTextFrame* lastContinuation = const_cast<nsTextFrame*>(this);
-  while (lastContinuation->mNextContinuation)  {
-    lastContinuation =
-      static_cast<nsTextFrame*>(lastContinuation->mNextContinuation);
+  nsTextFrame* lastInFlow = const_cast<nsTextFrame*>(this);
+  while (lastInFlow->mNextContinuation)  {
+    lastInFlow = static_cast<nsTextFrame*>(lastInFlow->mNextContinuation);
   }
-  MOZ_ASSERT(lastContinuation, "post-condition failed");
-  return lastContinuation;
+  NS_POSTCONDITION(lastInFlow, "illegal state in continuation chain.");
+  return lastInFlow;
 }
 
 void
@@ -5021,7 +5018,7 @@ static void DrawSelectionDecorations(gfxContext* aContext,
     SelectionType aType,
     nsTextFrame* aFrame,
     nsTextPaintStyle& aTextPaintStyle,
-    const TextRangeStyle &aRangeStyle,
+    const nsTextRangeStyle &aRangeStyle,
     const gfxPoint& aPt, gfxFloat aXInFrame, gfxFloat aWidth,
     gfxFloat aAscent, const gfxFont::Metrics& aFontMetrics,
     nsTextFrame::DrawPathCallbacks* aCallbacks)
@@ -5066,7 +5063,7 @@ static void DrawSelectionDecorations(gfxContext* aContext,
       if (aRangeStyle.IsDefined()) {
         // If IME defines the style, that should override our definition.
         if (aRangeStyle.IsLineStyleDefined()) {
-          if (aRangeStyle.mLineStyle == TextRangeStyle::LINESTYLE_NONE) {
+          if (aRangeStyle.mLineStyle == nsTextRangeStyle::LINESTYLE_NONE) {
             return;
           }
           style = aRangeStyle.mLineStyle;
@@ -5116,7 +5113,7 @@ static void DrawSelectionDecorations(gfxContext* aContext,
  */
 static bool GetSelectionTextColors(SelectionType aType,
                                      nsTextPaintStyle& aTextPaintStyle,
-                                     const TextRangeStyle &aRangeStyle,
+                                     const nsTextRangeStyle &aRangeStyle,
                                      nscolor* aForeground, nscolor* aBackground)
 {
   switch (aType) {
@@ -5217,7 +5214,7 @@ public:
    */
   bool GetNextSegment(gfxFloat* aXOffset, uint32_t* aOffset, uint32_t* aLength,
                         gfxFloat* aHyphenWidth, SelectionType* aType,
-                        TextRangeStyle* aStyle);
+                        nsTextRangeStyle* aStyle);
   void UpdateWithAdvance(gfxFloat aAdvance) {
     mXOffset += aAdvance*mTextRun->GetDirection();
   }
@@ -5245,7 +5242,7 @@ SelectionIterator::SelectionIterator(SelectionDetails** aSelectionDetails,
 
 bool SelectionIterator::GetNextSegment(gfxFloat* aXOffset,
     uint32_t* aOffset, uint32_t* aLength, gfxFloat* aHyphenWidth,
-    SelectionType* aType, TextRangeStyle* aStyle)
+    SelectionType* aType, nsTextRangeStyle* aStyle)
 {
   if (mIterator.GetOriginalOffset() >= mOriginalEnd)
     return false;
@@ -5257,7 +5254,7 @@ bool SelectionIterator::GetNextSegment(gfxFloat* aXOffset,
   SelectionDetails* sdptr = mSelectionDetails[index];
   SelectionType type =
     sdptr ? sdptr->mType : nsISelectionController::SELECTION_NONE;
-  TextRangeStyle style;
+  nsTextRangeStyle style;
   if (sdptr) {
     style = sdptr->mTextRangeStyle;
   }
@@ -5431,7 +5428,7 @@ nsTextFrame::PaintTextWithSelectionColors(gfxContext* aCtx,
   gfxFloat xOffset, hyphenWidth;
   uint32_t offset, length; // in transformed string
   SelectionType type;
-  TextRangeStyle rangeStyle;
+  nsTextRangeStyle rangeStyle;
   // Draw background colors
   if (anyBackgrounds) {
     SelectionIterator iterator(prevailingSelections, aContentOffset, aContentLength,
@@ -5563,7 +5560,7 @@ nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
   gfxRect dirtyRect(aDirtyRect.x / app, aDirtyRect.y / app,
                     aDirtyRect.width / app, aDirtyRect.height / app);
   SelectionType type;
-  TextRangeStyle selectedStyle;
+  nsTextRangeStyle selectedStyle;
   while (iterator.GetNextSegment(&xOffset, &offset, &length, &hyphenWidth,
                                  &type, &selectedStyle)) {
     gfxFloat advance = hyphenWidth +
@@ -5890,8 +5887,8 @@ DrawTextRun(gfxTextRun* aTextRun,
             gfxTextContextPaint* aContextPaint,
             nsTextFrame::DrawPathCallbacks* aCallbacks)
 {
-  DrawMode drawMode = aCallbacks ? DrawMode::GLYPH_PATH :
-                                   DrawMode::GLYPH_FILL;
+  gfxFont::DrawMode drawMode = aCallbacks ? gfxFont::GLYPH_PATH :
+                                            gfxFont::GLYPH_FILL;
   if (aCallbacks) {
     aCallbacks->NotifyBeforeText(aTextColor);
     aTextRun->Draw(aCtx, aTextBaselinePt, drawMode, aOffset, aLength,
@@ -6251,10 +6248,10 @@ nsTextFrame::CombineSelectionUnderlineRect(nsPresContext* aPresContext,
       }
     } else {
       // IME selections
-      TextRangeStyle& rangeStyle = sd->mTextRangeStyle;
+      nsTextRangeStyle& rangeStyle = sd->mTextRangeStyle;
       if (rangeStyle.IsDefined()) {
         if (!rangeStyle.IsLineStyleDefined() ||
-            rangeStyle.mLineStyle == TextRangeStyle::LINESTYLE_NONE) {
+            rangeStyle.mLineStyle == nsTextRangeStyle::LINESTYLE_NONE) {
           continue;
         }
         style = rangeStyle.mLineStyle;
@@ -7670,7 +7667,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     }
   }
   if ((atStartOfLine && !textStyle->WhiteSpaceIsSignificant()) ||
-      (GetStateBits() & TEXT_IS_IN_TOKEN_MATHML)) {
+      (GetStateBits() & TEXT_FORCE_TRIM_WHITESPACE)) {
     // Skip leading whitespace. Make sure we don't skip a 'pre-line'
     // newline if there is one.
     int32_t skipLength = newLineOffset >= 0 ? length - 1 : length;
@@ -7836,7 +7833,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   gfxFloat trimmedWidth = 0;
   gfxFloat availWidth = aAvailableWidth;
   bool canTrimTrailingWhitespace = !textStyle->WhiteSpaceIsSignificant() ||
-                                   (GetStateBits() & TEXT_IS_IN_TOKEN_MATHML);
+                                   (GetStateBits() & TEXT_FORCE_TRIM_WHITESPACE);
   int32_t unusedOffset;  
   gfxBreakPriority breakPriority;
   aLineLayout.GetLastOptionalBreakPosition(&unusedOffset, &breakPriority);
@@ -7906,11 +7903,11 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     // to trim it off again in TrimTrailingWhiteSpace, and we'd like to avoid
     // having to re-do it.)
     if (brokeText ||
-        (GetStateBits() & TEXT_IS_IN_TOKEN_MATHML)) {
+        (GetStateBits() & TEXT_FORCE_TRIM_WHITESPACE)) {
       // We're definitely going to break so our trailing whitespace should
       // definitely be trimmed. Record that we've already done it.
       AddStateBits(TEXT_TRIMMED_TRAILING_WHITESPACE);
-    } else if (!(GetStateBits() & TEXT_IS_IN_TOKEN_MATHML)) {
+    } else if (!(GetStateBits() & TEXT_FORCE_TRIM_WHITESPACE)) {
       // We might not be at the end of the line. (Note that even if this frame
       // ends in breakable whitespace, it might not be at the end of the line
       // because it might be followed by breakable, but preformatted, whitespace.)

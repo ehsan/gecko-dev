@@ -10,20 +10,6 @@
 namespace mozilla {
 namespace dom {
 
-class CompareCuesByTime
-{
-public:
-  bool Equals(TextTrackCue* aOne, TextTrackCue* aTwo) const {
-    return aOne->StartTime() == aTwo->StartTime() &&
-           aOne->EndTime() == aTwo->EndTime();
-  }
-  bool LessThan(TextTrackCue* aOne, TextTrackCue* aTwo) const {
-    return aOne->StartTime() < aTwo->StartTime() ||
-           (aOne->StartTime() == aTwo->StartTime() &&
-            aOne->EndTime() < aTwo->EndTime());
-  }
-};
-
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(TextTrackCueList, mParent, mList)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(TextTrackCueList)
@@ -63,12 +49,6 @@ TextTrackCueList::IndexedGetter(uint32_t aIndex, bool& aFound)
 }
 
 TextTrackCue*
-TextTrackCueList::operator[](uint32_t aIndex)
-{
-  return mList.SafeElementAt(aIndex, nullptr);
-}
-
-TextTrackCue*
 TextTrackCueList::GetCueById(const nsAString& aId)
 {
   if (aId.IsEmpty()) {
@@ -84,36 +64,15 @@ TextTrackCueList::GetCueById(const nsAString& aId)
 }
 
 void
-TextTrackCueList::AddCue(TextTrackCue& aCue)
+TextTrackCueList::AddCue(TextTrackCue& cue)
 {
-  if (mList.Contains(&aCue)) {
-    return;
-  }
-  mList.InsertElementSorted(&aCue, CompareCuesByTime());
+  mList.AppendElement(&cue);
 }
 
 void
-TextTrackCueList::RemoveCue(TextTrackCue& aCue, ErrorResult& aRv)
+TextTrackCueList::RemoveCue(TextTrackCue& cue)
 {
-  if (!mList.Contains(&aCue)) {
-    aRv.Throw(NS_ERROR_DOM_NOT_FOUND_ERR);
-    return;
-  }
-  mList.RemoveElement(&aCue);
-}
-
-void
-TextTrackCueList::RemoveCueAt(uint32_t aIndex)
-{
-  if (aIndex < mList.Length()) {
-    mList.RemoveElementAt(aIndex);
-  }
-}
-
-void
-TextTrackCueList::RemoveAll()
-{
-  mList.Clear();
+  mList.RemoveElement(&cue);
 }
 
 } // namespace dom

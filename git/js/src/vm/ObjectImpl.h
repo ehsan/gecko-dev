@@ -8,6 +8,7 @@
 #define vm_ObjectImpl_h
 
 #include "mozilla/Assertions.h"
+#include "mozilla/GuardObjects.h"
 
 #include <stdint.h>
 
@@ -892,7 +893,7 @@ IsObjectValueInCompartment(js::Value v, JSCompartment *comp);
  * allocated array (the slots member). For an object with N fixed slots, shapes
  * with slots [0..N-1] are stored in the fixed slots, and the remainder are
  * stored in the dynamic array. If all properties fit in the fixed slots, the
- * 'slots' member is nullptr.
+ * 'slots' member is NULL.
  *
  * Elements are indexed via the 'elements' member. This member can point to
  * either the shared emptyObjectElements singleton, into the inline value array
@@ -916,10 +917,8 @@ IsObjectValueInCompartment(js::Value v, JSCompartment *comp);
  * will change so that some members are private, and only certain methods that
  * act upon them will be protected.
  */
-class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
+class ObjectImpl : public gc::Cell
 {
-    friend Zone *js::gc::BarrieredCell<ObjectImpl>::zone() const;
-
   protected:
     /*
      * Shape of the object, encodes the layout of the object's properties and
@@ -1033,7 +1032,7 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
 
     Shape *
     replaceWithNewEquivalentShape(ExclusiveContext *cx,
-                                  Shape *existingShape, Shape *newShape = nullptr);
+                                  Shape *existingShape, Shape *newShape = NULL);
 
     enum GenerateShape {
         GENERATE_NONE,
@@ -1064,7 +1063,7 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
             if (start + length < fixed) {
                 *fixedStart = &fixedSlots()[start];
                 *fixedEnd = &fixedSlots()[start + length];
-                *slotsStart = *slotsEnd = nullptr;
+                *slotsStart = *slotsEnd = NULL;
             } else {
                 uint32_t localCopy = fixed - start;
                 *fixedStart = &fixedSlots()[start];
@@ -1073,7 +1072,7 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
                 *slotsEnd = &slots[length - localCopy];
             }
         } else {
-            *fixedStart = *fixedEnd = nullptr;
+            *fixedStart = *fixedEnd = NULL;
             *slotsStart = &slots[start - fixed];
             *slotsEnd = &slots[start - fixed + length];
         }
@@ -1167,7 +1166,7 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
         return shape_;
     }
 
-    bool generateOwnShape(ExclusiveContext *cx, js::Shape *newShape = nullptr) {
+    bool generateOwnShape(ExclusiveContext *cx, js::Shape *newShape = NULL) {
         return replaceWithNewEquivalentShape(cx, lastProperty(), newShape);
     }
 
@@ -1220,10 +1219,10 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
     }
 
     bool nativeContains(ExclusiveContext *cx, jsid id) {
-        return nativeLookup(cx, id) != nullptr;
+        return nativeLookup(cx, id) != NULL;
     }
     bool nativeContains(ExclusiveContext *cx, PropertyName* name) {
-        return nativeLookup(cx, name) != nullptr;
+        return nativeLookup(cx, name) != NULL;
     }
     bool nativeContains(ExclusiveContext *cx, Shape* shape) {
         return nativeLookup(cx, shape->propid()) == shape;
@@ -1242,7 +1241,7 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
     }
 
     bool nativeContainsPure(jsid id) {
-        return nativeLookupPure(id) != nullptr;
+        return nativeLookupPure(id) != NULL;
     }
     bool nativeContainsPure(PropertyName* name) {
         return nativeContainsPure(NameToId(name));
@@ -1435,9 +1434,77 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
     }
 
     /* GC support. */
+    JS_ALWAYS_INLINE Zone *zone() const {
+        JS_ASSERT(CurrentThreadCanAccessZone(shape_->zone()));
+        return shape_->zone();
+    }
+
+    JS_ALWAYS_INLINE JS::shadow::Zone *shadowZone() const {
+        return JS::shadow::Zone::asShadowZone(zone());
+    }
+
     static ThingRootKind rootKind() { return THING_ROOT_OBJECT; }
 
-    inline void privateWriteBarrierPre(void **oldval);
+    static void readBarrier(ObjectImpl *obj) {
+#ifdef JSGC_INCREMENTAL
+        JS::shadow::Zone *shadowZone = obj->shadowZone();
+        if (shadowZone->needsBarrier()) {
+            MOZ_ASSERT(!RuntimeFromMainThreadIsHeapMajorCollecting(shadowZone));
+            JSObject *tmp = obj->asObjectPtr();
+            js::gc::MarkObjectUnbarriered(shadowZone->barrierTracer(), &tmp, "read barrier");
+            MOZ_ASSERT(tmp == obj->asObjectPtr());
+        }
+#endif
+    }
+
+    static void writeBarrierPre(ObjectImpl *obj) {
+#ifdef JSGC_INCREMENTAL
+        /*
+         * This would normally be a null test, but TypeScript::global uses 0x1 as a
+         * special value.
+         */
+        if (IsNullTaggedPointer(obj) || !obj->shadowRuntimeFromMainThread()->needsBarrier())
+            return;
+
+        JS::shadow::Zone *shadowZone = obj->shadowZone();
+        if (shadowZone->needsBarrier()) {
+            MOZ_ASSERT(!RuntimeFromMainThreadIsHeapMajorCollecting(shadowZone));
+            JSObject *tmp = obj->asObjectPtr();
+            js::gc::MarkObjectUnbarriered(shadowZone->barrierTracer(), &tmp, "write barrier");
+            MOZ_ASSERT(tmp == obj->asObjectPtr());
+        }
+#endif
+    }
+
+    static void writeBarrierPost(ObjectImpl *obj, void *addr) {
+#ifdef JSGC_GENERATIONAL
+        if (IsNullTaggedPointer(obj))
+            return;
+        obj->shadowRuntimeFromAnyThread()->gcStoreBufferPtr()->putCell((Cell **)addr);
+#endif
+    }
+
+    static void writeBarrierPostRelocate(ObjectImpl *obj, void *addr) {
+#ifdef JSGC_GENERATIONAL
+        obj->shadowRuntimeFromAnyThread()->gcStoreBufferPtr()->putRelocatableCell((Cell **)addr);
+#endif
+    }
+
+    static void writeBarrierPostRemove(ObjectImpl *obj, void *addr) {
+#ifdef JSGC_GENERATIONAL
+        obj->shadowRuntimeFromAnyThread()->gcStoreBufferPtr()->removeRelocatableCell((Cell **)addr);
+#endif
+    }
+
+    void privateWriteBarrierPre(void **oldval) {
+#ifdef JSGC_INCREMENTAL
+        JS::shadow::Zone *shadowZone = this->shadowZone();
+        if (shadowZone->needsBarrier()) {
+            if (*oldval && getClass()->trace)
+                getClass()->trace(shadowZone->barrierTracer(), this->asObjectPtr());
+        }
+#endif
+    }
 
     void privateWriteBarrierPost(void **pprivate) {
 #ifdef JSGC_GENERATIONAL
@@ -1511,76 +1578,6 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
     static size_t getPrivateDataOffset(size_t nfixed) { return getFixedSlotOffset(nfixed); }
     static size_t offsetOfSlots() { return offsetof(ObjectImpl, slots); }
 };
-
-namespace gc {
-
-template <>
-JS_ALWAYS_INLINE Zone *
-BarrieredCell<ObjectImpl>::zone() const
-{
-    const ObjectImpl* obj = static_cast<const ObjectImpl*>(this);
-    JS::Zone *zone = obj->shape_->zone();
-    JS_ASSERT(CurrentThreadCanAccessZone(zone));
-    return zone;
-}
-
-template<>
-inline bool
-BarrieredCell<ObjectImpl>::isInsideZone(JS::Zone *zone_) const
-{
-    MOZ_CRASH("shouldn't be needed for ObjectImpl, and the default implementation won't work");
-}
-
-// TypeScript::global uses 0x1 as a special value.
-template<>
-/* static */ inline bool
-BarrieredCell<ObjectImpl>::isNullLike(ObjectImpl *obj)
-{
-    return IsNullTaggedPointer(obj);
-}
-
-template<>
-/* static */ inline void
-BarrieredCell<ObjectImpl>::writeBarrierPost(ObjectImpl *obj, void *addr)
-{
-#ifdef JSGC_GENERATIONAL
-    if (IsNullTaggedPointer(obj))
-        return;
-    obj->shadowRuntimeFromAnyThread()->gcStoreBufferPtr()->putCell((Cell **)addr);
-#endif
-}
-
-template<>
-/* static */ inline void
-BarrieredCell<ObjectImpl>::writeBarrierPostRelocate(ObjectImpl *obj, void *addr)
-{
-#ifdef JSGC_GENERATIONAL
-    obj->shadowRuntimeFromAnyThread()->gcStoreBufferPtr()->putRelocatableCell((Cell **)addr);
-#endif
-}
-
-template<>
-/* static */ inline void
-BarrieredCell<ObjectImpl>::writeBarrierPostRemove(ObjectImpl *obj, void *addr)
-{
-#ifdef JSGC_GENERATIONAL
-    obj->shadowRuntimeFromAnyThread()->gcStoreBufferPtr()->removeRelocatableCell((Cell **)addr);
-#endif
-}
-
-} // namespace gc
-
-inline void
-ObjectImpl::privateWriteBarrierPre(void **oldval)
-{
-#ifdef JSGC_INCREMENTAL
-    JS::shadow::Zone *shadowZone = this->shadowZone();
-    if (shadowZone->needsBarrier()) {
-        if (*oldval && getClass()->trace)
-            getClass()->trace(shadowZone->barrierTracer(), this->asObjectPtr());
-    }
-#endif
-}
 
 inline Value
 ObjectValue(ObjectImpl &obj)

@@ -199,15 +199,14 @@ class XPCShellTestThread(Thread):
         # Processing of incremental output put here to
         # sidestep issues on remote platforms, where what we know
         # as proc is a file pulled off of a device.
-        if proc.stdout:
-            while True:
-                line = proc.stdout.readline()
-                if not line:
-                    break
-                self.process_line(line)
+        while True:
+            line = proc.stdout.readline()
+            if not line:
+                break
+            self.process_line(line)
 
-            if self.saw_proc_start and not self.saw_proc_end:
-                self.has_failure_output = True
+        if self.saw_proc_start and not self.saw_proc_end:
+            self.has_failure_output = True
 
         return proc.communicate()
 
@@ -446,12 +445,7 @@ class XPCShellTestThread(Thread):
     def report_message(self, line):
         """ Reports a message to a consumer, both as a strucutured and
         human-readable log message. """
-        message = self.message_from_line(line)
-
-        if message.endswith('\n'):
-            # A new line is always added by head.js to delimit messages,
-            # however consumers will want to supply their own.
-            message = message[:-1]
+        message = self.message_from_line(line).strip()
 
         if self.on_message:
             self.on_message(line, message)

@@ -7,9 +7,9 @@
 #include "jit/VMFunctions.h"
 
 #include "builtin/ParallelArray.h"
-#include "builtin/TypedObject.h"
 #include "frontend/BytecodeCompiler.h"
 #include "jit/BaselineIC.h"
+#include "jit/Ion.h"
 #include "jit/IonCompartment.h"
 #include "jit/IonFrames.h"
 #include "vm/ArrayObject.h"
@@ -38,7 +38,7 @@ VMFunction::addToFunctions()
     static bool initialized = false;
     if (!initialized) {
         initialized = true;
-        functions = nullptr;
+        functions = NULL;
     }
     this->next = functions;
     functions = this;
@@ -56,8 +56,9 @@ InvokeFunction(JSContext *cx, HandleObject obj0, uint32_t argc, Value *argv, Val
 
             // Clone function at call site if needed.
             if (fun->nonLazyScript()->shouldCloneAtCallsite) {
+                RootedScript script(cx);
                 jsbytecode *pc;
-                RootedScript script(cx, cx->currentScript(&pc));
+                types::TypeScript::GetPcScript(cx, script.address(), &pc);
                 fun = CloneFunctionAtCallsite(cx, fun, script, pc);
                 if (!fun)
                     return false;
@@ -82,8 +83,9 @@ InvokeFunction(JSContext *cx, HandleObject obj0, uint32_t argc, Value *argv, Val
     }
 
     if (obj->is<JSFunction>()) {
+        RootedScript script(cx);
         jsbytecode *pc;
-        RootedScript script(cx, cx->currentScript(&pc));
+        types::TypeScript::GetPcScript(cx, script.address(), &pc);
         types::TypeScript::Monitor(cx, script, pc, rv.get());
     }
 
@@ -92,16 +94,16 @@ InvokeFunction(JSContext *cx, HandleObject obj0, uint32_t argc, Value *argv, Val
 }
 
 JSObject *
-NewGCThing(JSContext *cx, gc::AllocKind allocKind, size_t thingSize, gc::InitialHeap initialHeap)
+NewGCThing(JSContext *cx, gc::AllocKind allocKind, size_t thingSize)
 {
-    return gc::NewGCThing<JSObject, CanGC>(cx, allocKind, thingSize, initialHeap);
+    return gc::NewGCThing<JSObject, CanGC>(cx, allocKind, thingSize, gc::DefaultHeap);
 }
 
 bool
 CheckOverRecursed(JSContext *cx)
 {
     // IonMonkey's stackLimit is equal to nativeStackLimit by default. When we
-    // want to trigger an operation callback, we set the ionStackLimit to nullptr,
+    // want to trigger an operation callback, we set the ionStackLimit to NULL,
     // which causes the stack limit check to fail.
     //
     // There are two states we're concerned about here:
@@ -167,7 +169,7 @@ InitProp(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue v
 
     if (name == cx->names().proto)
         return baseops::SetPropertyHelper(cx, obj, obj, id, 0, &rval, false);
-    return DefineNativeProperty(cx, obj, id, rval, nullptr, nullptr, JSPROP_ENUMERATE, 0, 0, 0);
+    return DefineNativeProperty(cx, obj, id, rval, NULL, NULL, JSPROP_ENUMERATE, 0, 0, 0);
 }
 
 template<bool Equal>
@@ -255,7 +257,7 @@ NewInitParallelArray(JSContext *cx, HandleObject templateObject)
 
     RootedObject obj(cx, ParallelArrayObject::newInstance(cx, TenuredObject));
     if (!obj)
-        return nullptr;
+        return NULL;
 
     obj->setType(templateObject->type());
 
@@ -267,11 +269,9 @@ NewInitArray(JSContext *cx, uint32_t count, types::TypeObject *typeArg)
 {
     RootedTypeObject type(cx, typeArg);
     NewObjectKind newKind = !type ? SingletonObject : GenericObject;
-    if (type && type->isLongLivedForJITAlloc())
-        newKind = TenuredObject;
-    RootedObject obj(cx, NewDenseAllocatedArray(cx, count, nullptr, newKind));
+    RootedObject obj(cx, NewDenseAllocatedArray(cx, count, NULL, newKind));
     if (!obj)
-        return nullptr;
+        return NULL;
 
     if (!type)
         types::TypeScript::Monitor(cx, ObjectValue(*obj));
@@ -285,12 +285,10 @@ JSObject*
 NewInitObject(JSContext *cx, HandleObject templateObject)
 {
     NewObjectKind newKind = templateObject->hasSingletonType() ? SingletonObject : GenericObject;
-    if (!templateObject->hasLazyType() && templateObject->type()->isLongLivedForJITAlloc())
-        newKind = TenuredObject;
     RootedObject obj(cx, CopyInitializerObject(cx, templateObject, newKind));
 
     if (!obj)
-        return nullptr;
+        return NULL;
 
     if (templateObject->hasSingletonType())
         types::TypeScript::Monitor(cx, ObjectValue(*obj));
@@ -304,18 +302,13 @@ JSObject *
 NewInitObjectWithClassPrototype(JSContext *cx, HandleObject templateObject)
 {
     JS_ASSERT(!templateObject->hasSingletonType());
-    JS_ASSERT(!templateObject->hasLazyType());
 
-    NewObjectKind newKind = templateObject->type()->isLongLivedForJITAlloc()
-                            ? TenuredObject
-                            : GenericObject;
     JSObject *obj = NewObjectWithGivenProto(cx,
                                             templateObject->getClass(),
                                             templateObject->getProto(),
-                                            cx->global(),
-                                            newKind);
+                                            cx->global());
     if (!obj)
-        return nullptr;
+        return NULL;
 
     obj->setType(templateObject->type());
 
@@ -381,19 +374,19 @@ ArrayConcatDense(JSContext *cx, HandleObject obj1, HandleObject obj2, HandleObje
 {
     Rooted<ArrayObject*> arr1(cx, &obj1->as<ArrayObject>());
     Rooted<ArrayObject*> arr2(cx, &obj2->as<ArrayObject>());
-    Rooted<ArrayObject*> arrRes(cx, objRes ? &objRes->as<ArrayObject>() : nullptr);
+    Rooted<ArrayObject*> arrRes(cx, objRes ? &objRes->as<ArrayObject>() : NULL);
 
     if (arrRes) {
         // Fast path if we managed to allocate an object inline.
         if (!js::array_concat_dense(cx, arr1, arr2, arrRes))
-            return nullptr;
+            return NULL;
         return arrRes;
     }
 
     Value argv[] = { UndefinedValue(), ObjectValue(*arr1), ObjectValue(*arr2) };
     AutoValueArray ava(cx, argv, 3);
     if (!js::array_concat(cx, 1, argv))
-        return nullptr;
+        return NULL;
     return &argv[0].toObject();
 }
 
@@ -469,7 +462,7 @@ NewSlots(JSRuntime *rt, unsigned nslots)
 
     Value *slots = reinterpret_cast<Value *>(rt->malloc_(nslots * sizeof(Value)));
     if (!slots)
-        return nullptr;
+        return NULL;
 
     for (unsigned i = 0; i < nslots; i++)
         slots[i] = UndefinedValue();
@@ -596,8 +589,8 @@ GetDynamicName(JSContext *cx, JSObject *scopeChain, JSString *str, Value *vp)
         return;
     }
 
-    Shape *shape = nullptr;
-    JSObject *scope = nullptr, *pobj = nullptr;
+    Shape *shape = NULL;
+    JSObject *scope = NULL, *pobj = NULL;
     if (LookupNameNoGC(cx, atom->asPropertyName(), scopeChain, &scope, &pobj, &shape)) {
         if (FetchNameNoGC(pobj, shape, MutableHandleValue::fromMarkedLocation(vp)))
             return;
@@ -627,16 +620,6 @@ PostWriteBarrier(JSRuntime *rt, JSObject *obj)
 {
     JS_ASSERT(!IsInsideNursery(rt, obj));
     rt->gcStoreBuffer.putWholeCell(obj);
-}
-
-void
-PostGlobalWriteBarrier(JSRuntime *rt, JSObject *obj)
-{
-    JS_ASSERT(obj->is<GlobalObject>());
-    if (!obj->compartment()->globalWriteBarriered) {
-        PostWriteBarrier(rt, obj);
-        obj->compartment()->globalWriteBarriered = true;
-    }
 }
 #endif
 
@@ -760,7 +743,7 @@ InitRestParameter(JSContext *cx, uint32_t length, Value *rest, HandleObject temp
         // slots.
         if (length > 0) {
             if (!arrRes->ensureElements(cx, length))
-                return nullptr;
+                return NULL;
             arrRes->setDenseInitializedLength(length);
             arrRes->initDenseElements(0, rest, length);
             arrRes->setLengthInt32(length);
@@ -768,10 +751,7 @@ InitRestParameter(JSContext *cx, uint32_t length, Value *rest, HandleObject temp
         return arrRes;
     }
 
-    NewObjectKind newKind = templateObj->type()->isLongLivedForJITAlloc()
-                            ? TenuredObject
-                            : GenericObject;
-    ArrayObject *arrRes = NewDenseCopiedArray(cx, length, rest, nullptr, newKind);
+    ArrayObject *arrRes = NewDenseCopiedArray(cx, length, rest, NULL);
     if (arrRes)
         arrRes->setType(templateObj->type());
     return arrRes;
@@ -879,13 +859,6 @@ InitBaselineFrameForOsr(BaselineFrame *frame, StackFrame *interpFrame, uint32_t 
 {
     return frame->initForOsr(interpFrame, numStackValues);
 }
-
-JSObject *CreateDerivedTypedObj(JSContext *cx, HandleObject type,
-                                HandleObject owner, int32_t offset)
-{
-    return BinaryBlock::createDerived(cx, type, owner, offset);
-}
-
 
 } // namespace jit
 } // namespace js

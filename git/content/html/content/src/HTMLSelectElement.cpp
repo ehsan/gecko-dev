@@ -19,6 +19,7 @@
 #include "nsEventStates.h"
 #include "nsFormSubmission.h"
 #include "nsGkAtoms.h"
+#include "nsGUIEvent.h"
 #include "nsIComboboxControlFrame.h"
 #include "nsIDocument.h"
 #include "nsIFormControlFrame.h"
@@ -246,8 +247,7 @@ HTMLSelectElement::InsertOptionsIntoList(nsIContent* aOptions,
       if (option && option->Selected()) {
         // Clear all other options
         if (!HasAttr(kNameSpaceID_None, nsGkAtoms::multiple)) {
-          uint32_t mask = IS_SELECTED | CLEAR_ALL | SET_DISABLED | NOTIFY;
-          SetOptionsSelectedByIndex(i, i, mask);
+          SetOptionsSelectedByIndex(i, i, true, true, true, true);
         }
 
         // This is sort of a hack ... we need to notify that the option was
@@ -814,12 +814,8 @@ nsresult
 HTMLSelectElement::SetSelectedIndexInternal(int32_t aIndex, bool aNotify)
 {
   int32_t oldSelectedIndex = mSelectedIndex;
-  uint32_t mask = IS_SELECTED | CLEAR_ALL | SET_DISABLED;
-  if (aNotify) {
-    mask |= NOTIFY;
-  }
 
-  SetOptionsSelectedByIndex(aIndex, aIndex, mask);
+  SetOptionsSelectedByIndex(aIndex, aIndex, true, true, true, aNotify);
 
   nsresult rv = NS_OK;
   nsISelectControlFrame* selectFrame = GetSelectFrame();
@@ -929,15 +925,18 @@ HTMLSelectElement::FindSelectedIndex(int32_t aStartIndex, bool aNotify)
 bool
 HTMLSelectElement::SetOptionsSelectedByIndex(int32_t aStartIndex,
                                              int32_t aEndIndex,
-                                             uint32_t aOptionsMask)
+                                             bool aIsSelected,
+                                             bool aClearAll,
+                                             bool aSetDisabled,
+                                             bool aNotify)
 {
 #if 0
   printf("SetOption(%d-%d, %c, ClearAll=%c)\n", aStartIndex, aEndIndex,
-                                      (aOptionsMask & IS_SELECTED ? 'Y' : 'N'),
-                                      (aOptionsMask & CLEAR_ALL ? 'Y' : 'N'));
+                                       (aIsSelected ? 'Y' : 'N'),
+                                       (aClearAll ? 'Y' : 'N'));
 #endif
   // Don't bother if the select is disabled
-  if (!(aOptionsMask & SET_DISABLED) && IsDisabled()) {
+  if (!aSetDisabled && IsDisabled()) {
     return false;
   }
 
@@ -959,7 +958,7 @@ HTMLSelectElement::SetOptionsSelectedByIndex(int32_t aStartIndex,
   bool didGetFrame = false;
   nsWeakFrame weakSelectFrame;
 
-  if (aOptionsMask & IS_SELECTED) {
+  if (aIsSelected) {
     // Setting selectedIndex to an out-of-bounds index means -1. (HTML5)
     if (aStartIndex < 0 || SafeCast<uint32_t>(aStartIndex) >= numItems ||
         aEndIndex < 0 || SafeCast<uint32_t>(aEndIndex) >= numItems) {
@@ -976,7 +975,7 @@ HTMLSelectElement::SetOptionsSelectedByIndex(int32_t aStartIndex,
     // select are disabled.  If ClearAll is passed in as true, and we do not
     // select anything because the options are disabled, we will not clear the
     // other options.  (This is to make the UI work the way one might expect.)
-    bool allDisabled = !(aOptionsMask & SET_DISABLED);
+    bool allDisabled = !aSetDisabled;
 
     //
     // Save a little time when clearing other options
@@ -998,7 +997,7 @@ HTMLSelectElement::SetOptionsSelectedByIndex(int32_t aStartIndex,
         nsRefPtr<HTMLOptionElement> option = Item(optIndex);
 
         // Ignore disabled options.
-        if (!(aOptionsMask & SET_DISABLED)) {
+        if (!aSetDisabled) {
           if (option && IsOptionDisabled(option)) {
             continue;
           }
@@ -1015,8 +1014,7 @@ HTMLSelectElement::SetOptionsSelectedByIndex(int32_t aStartIndex,
           weakSelectFrame = do_QueryFrame(selectFrame);
           didGetFrame = true;
 
-          OnOptionSelected(selectFrame, optIndex, true, true,
-                           aOptionsMask & NOTIFY);
+          OnOptionSelected(selectFrame, optIndex, true, true, aNotify);
           optionsSelected = true;
         }
       }
@@ -1025,7 +1023,7 @@ HTMLSelectElement::SetOptionsSelectedByIndex(int32_t aStartIndex,
     // Next remove all other options if single select or all is clear
     // If index is -1, everything will be deselected (bug 28143)
     if (((!isMultiple && optionsSelected)
-       || ((aOptionsMask & CLEAR_ALL) && !allDisabled)
+       || (aClearAll && !allDisabled)
        || aStartIndex == -1)
        && previousSelectedIndex != -1) {
       for (uint32_t optIndex = SafeCast<uint32_t>(previousSelectedIndex);
@@ -1047,7 +1045,7 @@ HTMLSelectElement::SetOptionsSelectedByIndex(int32_t aStartIndex,
             }
 
             OnOptionSelected(selectFrame, optIndex, false, true,
-                             aOptionsMask & NOTIFY);
+                             aNotify);
             optionsDeselected = true;
 
             // Only need to deselect one option if not multiple
@@ -1063,7 +1061,7 @@ HTMLSelectElement::SetOptionsSelectedByIndex(int32_t aStartIndex,
     // any that are in the specified range.
     for (int32_t optIndex = aStartIndex; optIndex <= aEndIndex; optIndex++) {
       HTMLOptionElement* option = Item(optIndex);
-      if (!(aOptionsMask & SET_DISABLED) && IsOptionDisabled(option)) {
+      if (!aSetDisabled && IsOptionDisabled(option)) {
         continue;
       }
 
@@ -1079,8 +1077,7 @@ HTMLSelectElement::SetOptionsSelectedByIndex(int32_t aStartIndex,
           didGetFrame = true;
         }
 
-        OnOptionSelected(selectFrame, optIndex, false, true,
-                         aOptionsMask & NOTIFY);
+        OnOptionSelected(selectFrame, optIndex, false, true, aNotify);
         optionsDeselected = true;
       }
     }
@@ -1088,8 +1085,7 @@ HTMLSelectElement::SetOptionsSelectedByIndex(int32_t aStartIndex,
 
   // Make sure something is selected unless we were set to -1 (none)
   if (optionsDeselected && aStartIndex != -1) {
-    optionsSelected =
-      CheckSelectSomething(aOptionsMask & NOTIFY) || optionsSelected;
+    optionsSelected = CheckSelectSomething(aNotify) || optionsSelected;
   }
 
   // Let the caller know whether anything was changed
@@ -1617,10 +1613,9 @@ HTMLSelectElement::RestoreStateTo(SelectState* aNewSelected)
   }
 
   uint32_t len = Length();
-  uint32_t mask = IS_SELECTED | CLEAR_ALL | SET_DISABLED | NOTIFY;
 
   // First clear all
-  SetOptionsSelectedByIndex(-1, -1, mask);
+  SetOptionsSelectedByIndex(-1, -1, true, true, true, true);
 
   // Next set the proper ones
   for (uint32_t i = 0; i < len; i++) {
@@ -1629,7 +1624,7 @@ HTMLSelectElement::RestoreStateTo(SelectState* aNewSelected)
       nsAutoString value;
       nsresult rv = option->GetValue(value);
       if (NS_SUCCEEDED(rv) && aNewSelected->ContainsOption(i, value)) {
-        SetOptionsSelectedByIndex(i, i, IS_SELECTED | SET_DISABLED | NOTIFY);
+        SetOptionsSelectedByIndex(i, i, true, false, true, true);
       }
     }
   }
@@ -1651,14 +1646,11 @@ HTMLSelectElement::Reset()
       //
       // Reset the option to its default value
       //
-
-      uint32_t mask = SET_DISABLED | NOTIFY;
-      if (option->DefaultSelected()) {
-        mask |= IS_SELECTED;
+      bool selected = option->DefaultSelected();
+      SetOptionsSelectedByIndex(i, i, selected, false, true, true);
+      if (selected) {
         numSelected++;
       }
-
-      SetOptionsSelectedByIndex(i, i, mask);
     }
   }
 

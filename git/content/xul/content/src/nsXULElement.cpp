@@ -73,8 +73,7 @@
 #include "nsIListBoxObject.h"
 #include "nsContentUtils.h"
 #include "nsContentList.h"
-#include "mozilla/MouseEvents.h"
-#include "mozilla/MutationEvent.h"
+#include "nsMutationEvent.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsPIDOMWindow.h"
@@ -90,7 +89,6 @@
 #include "nsAttrValueOrString.h"
 #include "nsAttrValueInlines.h"
 #include "mozilla/Attributes.h"
-#include "nsIController.h"
 #include <algorithm>
 
 // The XUL doc interface
@@ -110,6 +108,12 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
+
+//----------------------------------------------------------------------
+
+static NS_DEFINE_CID(kXULPopupListenerCID,        NS_XULPOPUPLISTENER_CID);
+
+//----------------------------------------------------------------------
 
 #ifdef XUL_PROTOTYPE_ATTRIBUTE_METERING
 uint32_t             nsXULPrototypeAttribute::gNumElements;
@@ -1190,8 +1194,8 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
                     }
                 }
 
-                WidgetInputEvent* orig =
-                    static_cast<WidgetInputEvent*>(aVisitor.mEvent);
+                nsInputEvent* orig =
+                    static_cast<nsInputEvent*>(aVisitor.mEvent);
                 nsContentUtils::DispatchXULCommand(
                   commandContent,
                   aVisitor.mEvent->mFlags.mIsTrusted,
@@ -1600,12 +1604,12 @@ nsXULElement::ClickWithInputSource(uint16_t aInputSource)
 
             bool isCallerChrome = nsContentUtils::IsCallerChrome();
 
-            WidgetMouseEvent eventDown(isCallerChrome, NS_MOUSE_BUTTON_DOWN,
-                                       nullptr, WidgetMouseEvent::eReal);
-            WidgetMouseEvent eventUp(isCallerChrome, NS_MOUSE_BUTTON_UP,
-                                     nullptr, WidgetMouseEvent::eReal);
-            WidgetMouseEvent eventClick(isCallerChrome, NS_MOUSE_CLICK, nullptr,
-                                        WidgetMouseEvent::eReal);
+            nsMouseEvent eventDown(isCallerChrome, NS_MOUSE_BUTTON_DOWN,
+                                   nullptr, nsMouseEvent::eReal);
+            nsMouseEvent eventUp(isCallerChrome, NS_MOUSE_BUTTON_UP,
+                                 nullptr, nsMouseEvent::eReal);
+            nsMouseEvent eventClick(isCallerChrome, NS_MOUSE_CLICK, nullptr,
+                                    nsMouseEvent::eReal);
             eventDown.inputSource = eventUp.inputSource = eventClick.inputSource 
                                   = aInputSource;
 

@@ -4,6 +4,7 @@
  *
  * See also https://bugzilla.mozilla.org/show_bug.cgi?id=609667
  */
+const Cr = Components.results;
 
 var BS = '\\';
 var DQUOTE = '"'; 

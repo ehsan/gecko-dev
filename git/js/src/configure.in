@@ -138,22 +138,9 @@ MOZ_ARG_ENABLE_BOOL(shared-js,
     DISABLE_SHARED_JS=0,
     DISABLE_SHARED_JS=1)
 
-MOZ_ARG_DISABLE_BOOL(export-js,
-[  --disable-export-js
-                          Do not mark JS symbols as DLL exported/visible.],
-    DISABLE_EXPORT_JS=1,
-    DISABLE_SHARED_JS=)
-
 if test "$DISABLE_SHARED_JS" = "1" ; then
-  if test "$DISABLE_EXPORT_JS" = "1"; then
-    AC_DEFINE(STATIC_JS_API)
-  else
-    AC_DEFINE(STATIC_EXPORTABLE_JS_API)
-  fi
+  AC_DEFINE(STATIC_EXPORTABLE_JS_API)
 else
-  if test "$DISABLE_EXPORT_JS" = "1"; then
-    AC_MSG_ERROR([Must export JS symbols when building a shared library.])
-  fi
   JS_SHARED_LIBRARY=1
 fi
 AC_SUBST(JS_SHARED_LIBRARY)
@@ -1074,12 +1061,7 @@ dnl ========================================================
 if test "$GNU_CC"; then
     # Per bug 719659 comment 2, some of the headers on ancient build machines
     # may require gnu89 inline semantics.  But otherwise, we use C99.
-    # But on OS X we just use C99 plus GNU extensions, in order to fix
-    # bug 917526.
-    CFLAGS="$CFLAGS -std=gnu99"
-    if test "${OS_ARCH}" != Darwin; then
-        CFLAGS="$CFLAGS -fgnu89-inline"
-    fi
+    CFLAGS="$CFLAGS -std=gnu99 -fgnu89-inline"
     MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -Wl,-h,$(notdir $@) -o $@'
     MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -Wl,-h,$(notdir $@) -o $@'
     DSO_LDOPTS='-shared'
@@ -1462,6 +1444,7 @@ case "$target" in
     _PLATFORM_DEFAULT_TOOLKIT='cairo-cocoa'
     TARGET_NSPR_MDCPUCFG='\"md/_darwin.cfg\"'
     LDFLAGS="$LDFLAGS -lobjc"
+    LIBXUL_LIBS='$(XPCOM_FROZEN_LDOPTS) $(LIBXUL_DIST)/bin/XUL'
     # The ExceptionHandling framework is needed for Objective-C exception
     # logging code in nsObjCExceptions.h. Currently we only use that in debug
     # builds.
@@ -1604,6 +1587,8 @@ ia64*-hpux*)
         # mingw doesn't require kernel32, user32, and advapi32 explicitly
         LIBS="$LIBS -lgdi32 -lwinmm -lwsock32 -lpsapi"
         MOZ_FIX_LINK_PATHS=
+        DYNAMIC_XPCOM_LIBS='-L$(LIBXUL_DIST)/lib -lxpcom -lxpcom_core -lmozalloc'
+        XPCOM_FROZEN_LDOPTS='-L$(LIBXUL_DIST)/lib -lxpcom -lmozalloc'
         DLL_PREFIX=
         IMPORT_LIB_SUFFIX=dll.a
 
@@ -1665,6 +1650,9 @@ ia64*-hpux*)
         WARNINGS_AS_ERRORS='-WX'
         MOZ_OPTIMIZE_FLAGS="-O2"
         MOZ_FIX_LINK_PATHS=
+        DYNAMIC_XPCOM_LIBS='$(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/xpcom_core.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
+        XPCOM_FROZEN_LDOPTS='$(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
+        LIBXUL_LIBS='$(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/xul.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
         MOZ_COMPONENT_NSPR_LIBS='$(NSPR_LIBS)'
         LDFLAGS="$LDFLAGS -LARGEADDRESSAWARE -NXCOMPAT"
         if test -z "$DEVELOPER_OPTIONS"; then
@@ -1824,6 +1812,8 @@ ia64*-hpux*)
     MOZ_DEBUG_FLAGS="-g -fno-inline"
     MOZ_OPTIMIZE_FLAGS="-O2"
     MOZ_OPTIMIZE_LDFLAGS="-s -Zlinker /EXEPACK:2 -Zlinker /PACKCODE -Zlinker /PACKDATA"
+    DYNAMIC_XPCOM_LIBS='-L$(LIBXUL_DIST)/lib $(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/xpcom_core.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
+    LIBXUL_LIBS='-L$(LIBXUL_DIST)/lib $(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/xul.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
     TARGET_MD_ARCH=os2
     _PLATFORM_DEFAULT_TOOLKIT="cairo-os2"
     RC=rc.exe
@@ -2570,14 +2560,13 @@ dnl ========================================================
 AC_PROG_GCC_TRADITIONAL
 AC_FUNC_MEMCMP
 AC_CHECK_FUNCS([fchmod flockfile getc_unlocked _getc_nolock getpagesize \
-                lchown localtime_r lstat64 memmove random sbrk snprintf \
+                lchown localtime_r lstat64 memmove random rint sbrk snprintf \
                 stat64 statvfs statvfs64 strerror strtok_r truncate64])
 
 
 dnl Checks for math functions.
 dnl ========================================================
-AC_CHECK_LIB(m, sin)
-AC_CHECK_FUNCS([log2 log1p expm1 sqrt1pm1 acosh asinh atanh hypot trunc cbrt])
+AC_CHECK_FUNCS(log2 log1p expm1 sqrt1pm1 acosh asinh atanh hypot trunc cbrt)
 
 
 dnl check for wcrtomb/mbrtowc
@@ -4062,10 +4051,6 @@ AC_SUBST(NSPR_CFLAGS)
 AC_SUBST(NSPR_LIBS)
 AC_SUBST(MOZ_NATIVE_NSPR)
 
-if test -n "$MOZ_NUWA_PROCESS"; then
-    AC_DEFINE(MOZ_NUWA_PROCESS)
-fi
-
 OS_CFLAGS="$CFLAGS"
 OS_CXXFLAGS="$CXXFLAGS"
 OS_CPPFLAGS="$CPPFLAGS"
@@ -4131,7 +4116,6 @@ AC_SUBST(USE_N32)
 AC_SUBST(CC_VERSION)
 AC_SUBST(CXX_VERSION)
 AC_SUBST(MSMANIFEST_TOOL)
-AC_SUBST(MOZ_LINKER)
 
 AC_MSG_CHECKING([for posix_fallocate])
 AC_TRY_LINK([#define _XOPEN_SOURCE 600

@@ -32,7 +32,6 @@
 #include "mozilla/Services.h"
 
 #include "ManifestParser.h"
-#include "nsISimpleEnumerator.h"
 
 using namespace mozilla;
 class nsIComponentLoaderManager;

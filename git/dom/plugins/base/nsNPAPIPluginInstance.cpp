@@ -23,7 +23,6 @@
 #include "nsContentUtils.h"
 #include "nsPluginInstanceOwner.h"
 
-#include "nsThreadUtils.h"
 #include "nsIDOMElement.h"
 #include "nsIDocument.h"
 #include "nsIDocShell.h"
@@ -557,7 +556,7 @@ nsresult nsNPAPIPluginInstance::SetWindow(NPWindow* window)
   if (!window || RUNNING != mRunning)
     return NS_OK;
 
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK2)
   // bug 108347, flash plugin on linux doesn't like window->width <=
   // 0, but Java needs wants this call.
   if (!nsPluginHost::IsJavaMIMEType(mMIMEType) && window->type == NPWindowTypeWindow &&

@@ -10,19 +10,14 @@ import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.db.BrowserContract.Combined;
-import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
 import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
 import org.mozilla.gecko.widget.FaviconView;
 
-import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
 import android.graphics.Bitmap;
-import android.os.AsyncTask;
-import android.os.Build;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.Gravity;
@@ -44,8 +39,6 @@ public class TwoLinePageRow extends LinearLayout
 
     // The URL for the page corresponding to this view.
     private String mPageUrl;
-
-    private LoadFaviconTask mLoadFaviconTask;
 
     public TwoLinePageRow(Context context) {
         this(context, null);
@@ -81,8 +74,6 @@ public class TwoLinePageRow extends LinearLayout
                 Tabs.unregisterOnTabsChangedListener(TwoLinePageRow.this);
             }
         });
-
-        cancelLoadFaviconTask();
     }
 
     @Override
@@ -140,16 +131,6 @@ public class TwoLinePageRow extends LinearLayout
     }
 
     /**
-     * Cancels any pending favicon loading task associated with this view.
-     */
-    private void cancelLoadFaviconTask() {
-        if (mLoadFaviconTask != null) {
-            mLoadFaviconTask.cancel(true);
-            mLoadFaviconTask = null;
-        }
-    }
-
-    /**
      * Replaces the page URL with "Switch to tab" if there is already a tab open with that URL.
      */
     private void updateDisplayedUrl() {
@@ -182,33 +163,24 @@ public class TwoLinePageRow extends LinearLayout
         // bar view - this is the equivalent of getDisplayTitle() in Tab.java
         setTitle(TextUtils.isEmpty(title) ? url : title);
 
-        // No need to do extra work if the URL associated with this view
-        // hasn't changed.
-        if (TextUtils.equals(mPageUrl, url)) {
-            return;
-        }
-
         updateDisplayedUrl(url);
-        cancelLoadFaviconTask();
 
-        // First, try to find the favicon in the memory cache. If it's not
-        // cached yet, try to load it from the database, off main thread.
-        final Bitmap favicon = Favicons.getFaviconFromMemCache(url);
-        if (favicon != null) {
+        int faviconIndex = cursor.getColumnIndex(URLColumns.FAVICON);
+        if (faviconIndex != -1) {
+            byte[] b = cursor.getBlob(faviconIndex);
+
+            Bitmap favicon = null;
+            if (b != null) {
+                Bitmap bitmap = BitmapUtils.decodeByteArray(b);
+                if (bitmap != null) {
+                    favicon = Favicons.scaleImage(bitmap);
+                }
+            }
+
             setFaviconWithUrl(favicon, url);
         } else {
-            // Show blank image until the new favicon finishes loading
-            mFavicon.clearImage();
-
-            mLoadFaviconTask = new LoadFaviconTask(TwoLinePageRow.this, url);
-
-            // Try to use a thread pool instead of serial execution of tasks
-            // to add more throughput to the favicon loading routines.
-            if (Build.VERSION.SDK_INT >= 11) {
-                mLoadFaviconTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
-            } else {
-                mLoadFaviconTask.execute();
-            }
+            // If favicons is not on the cursor, try to fetch it from the memory cache
+            setFaviconWithUrl(Favicons.getFaviconFromMemCache(url), url);
         }
 
         // Don't show bookmark/reading list icon, if not needed.
@@ -239,45 +211,6 @@ public class TwoLinePageRow extends LinearLayout
             }
         } else {
             setBookmarkIcon(NO_ICON);
-        }
-    }
-
-    void onFaviconLoaded(Bitmap favicon, String url) {
-        if (TextUtils.equals(mPageUrl, url)) {
-            setFaviconWithUrl(favicon, url);
-        }
-
-        mLoadFaviconTask = null;
-    }
-
-    private static class LoadFaviconTask extends AsyncTask<Void, Void, Bitmap> {
-        private final TwoLinePageRow mRow;
-        private final String mUrl;
-
-        public LoadFaviconTask(TwoLinePageRow row, String url) {
-            mRow = row;
-            mUrl = url;
-        }
-
-        @Override
-        public Bitmap doInBackground(Void... params) {
-            Bitmap favicon = Favicons.getFaviconFromMemCache(mUrl);
-            if (favicon == null) {
-                final ContentResolver cr = mRow.getContext().getContentResolver();
-
-                final Bitmap faviconFromDb = BrowserDB.getFaviconForUrl(cr, mUrl);
-                if (faviconFromDb != null) {
-                    favicon = Favicons.scaleImage(faviconFromDb);
-                    Favicons.putFaviconInMemCache(mUrl, favicon);
-                }
-            }
-
-            return favicon;
-        }
-
-        @Override
-        public void onPostExecute(Bitmap favicon) {
-            mRow.onFaviconLoaded(favicon, mUrl);
         }
     }
 }

@@ -7,6 +7,7 @@
 #include "nsStyleConsts.h"
 
 #include "nsIContent.h"
+#include "nsReadableUtils.h"
 #include "nsCSSProps.h"
 #include "nsRuleNode.h"
 #include "nsROCSSPrimitiveValue.h"
@@ -386,7 +387,6 @@ nsStyleUtil::ComputeFunctionalAlternates(const nsCSSValueList* aList,
                                  nsCSSProps::kFontVariantAlternatesFuncsKTable,
                                  alternate)) {
       NS_NOTREACHED("keyword not a font-variant-alternates value");
-      continue;
     }
     v.alternate = alternate;
 

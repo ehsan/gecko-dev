@@ -5,9 +5,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jit/LiveRangeAllocator.h"
+
 #include "mozilla/DebugOnly.h"
+
 #include "jit/BacktrackingAllocator.h"
-#include "jit/BitSet.h"
 #include "jit/LinearScan.h"
 
 using namespace js;
@@ -256,7 +257,7 @@ LiveInterval::splitFrom(CodePosition pos, LiveInterval *after)
     }
 
     // Split the linked list of use positions
-    UsePosition *prev = nullptr;
+    UsePosition *prev = NULL;
     for (UsePositionIterator usePos(usesBegin()); usePos != usesEnd(); usePos++) {
         if (usePos->pos > pos)
             break;
@@ -274,7 +275,7 @@ LiveInterval::addUse(UsePosition *use)
     // are visited in reverse order, so in most cases the loop terminates
     // at the first iteration and the use position will be added to the
     // front of the list.
-    UsePosition *prev = nullptr;
+    UsePosition *prev = NULL;
     for (UsePositionIterator current(usesBegin()); current != usesEnd(); current++) {
         if (current->pos >= use->pos)
             break;
@@ -298,7 +299,7 @@ LiveInterval::nextUseAfter(CodePosition after)
                 return *usePos;
         }
     }
-    return nullptr;
+    return NULL;
 }
 
 /*
@@ -339,7 +340,7 @@ VirtualRegister::intervalFor(CodePosition pos)
         if (pos < (*i)->end())
             break;
     }
-    return nullptr;
+    return NULL;
 }
 
 LiveInterval *
@@ -825,7 +826,7 @@ LiveRangeAllocator<VREG>::buildLivenessInfo()
 void
 LiveInterval::validateRanges()
 {
-    Range *prev = nullptr;
+    Range *prev = NULL;
 
     for (size_t i = ranges_.length() - 1; i < ranges_.length(); i--) {
         Range *range = &ranges_[i];

@@ -54,12 +54,11 @@ public:
     return true;
   }
 
-  virtual bool DoSendBlockingMessage(JSContext* aCx,
-                                     const nsAString& aMessage,
-                                     const mozilla::dom::StructuredCloneData& aData,
-                                     JS::Handle<JSObject *> aCpows,
-                                     InfallibleTArray<nsString>* aJSONRetVal,
-                                     bool aIsSync)
+  virtual bool DoSendSyncMessage(JSContext* aCx,
+                                 const nsAString& aMessage,
+                                 const mozilla::dom::StructuredCloneData& aData,
+                                 JS::Handle<JSObject *> aCpows,
+                                 InfallibleTArray<nsString>* aJSONRetVal)
   {
     return true;
   }
@@ -209,7 +208,7 @@ public:
   NewProcessMessageManager(mozilla::dom::ContentParent* aProcess);
 
   nsresult ReceiveMessage(nsISupports* aTarget, const nsAString& aMessage,
-                          bool aIsSync, const StructuredCloneData* aCloneData,
+                          bool aSync, const StructuredCloneData* aCloneData,
                           CpowHolder* aCpows,
                           InfallibleTArray<nsString>* aJSONRetVal);
 
@@ -256,14 +255,6 @@ public:
   {
     return sChildProcessManager;
   }
-private:
-  nsresult SendMessage(const nsAString& aMessageName,
-                       const JS::Value& aJSON,
-                       const JS::Value& aObjects,
-                       JSContext* aCx,
-                       uint8_t aArgc,
-                       JS::Value* aRetval,
-                       bool aIsSync);
 protected:
   friend class MMListenerRemover;
   nsTArray<nsMessageListenerInfo> mListeners;

@@ -8,14 +8,12 @@
 
 #include "prlog.h"
 #include "nsTArray.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsIObserver.h"
-#include "nsCOMPtr.h"
-#include "nsAutoPtr.h"
 
 #include "gfxTypes.h"
+#include "gfxASurface.h"
 #include "gfxColor.h"
-#include "nsRect.h"
 
 #include "qcms.h"
 
@@ -30,7 +28,6 @@
 #undef OS2EMX_PLAIN_CHAR
 #endif
 
-class gfxASurface;
 class gfxImageSurface;
 class gfxFont;
 class gfxFontGroup;
@@ -121,6 +118,8 @@ const uint32_t kMaxLenPrefLangList = 32;
 
 #define UNINITIALIZED_VALUE  (-1)
 
+typedef gfxASurface::gfxImageFormat gfxImageFormat;
+
 inline const char*
 GetBackendName(mozilla::gfx::BackendType aBackend)
 {
@@ -166,7 +165,7 @@ public:
      * and image format.
      */
     virtual already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                                 gfxContentType contentType) = 0;
+                                                                 gfxASurface::gfxContentType contentType) = 0;
 
     /**
      * Create an offscreen surface of the given dimensions and image format which
@@ -178,10 +177,10 @@ public:
      */
     virtual already_AddRefed<gfxASurface>
       CreateOffscreenImageSurface(const gfxIntSize& aSize,
-                                  gfxContentType aContentType);
+                                  gfxASurface::gfxContentType aContentType);
 
     virtual already_AddRefed<gfxASurface> OptimizeImage(gfxImageSurface *aSurface,
-                                                        gfxImageFormat format);
+                                                        gfxASurface::gfxImageFormat format);
 
     /**
      * Beware that these methods may return DrawTargets which are not fully supported
@@ -573,12 +572,12 @@ public:
      */
     gfxASurface* ScreenReferenceSurface() { return mScreenReferenceSurface; }
 
-    virtual mozilla::gfx::SurfaceFormat Optimal2DFormatForContent(gfxContentType aContent);
+    virtual mozilla::gfx::SurfaceFormat Optimal2DFormatForContent(gfxASurface::gfxContentType aContent);
 
-    virtual gfxImageFormat OptimalFormatForContent(gfxContentType aContent);
+    virtual gfxImageFormat OptimalFormatForContent(gfxASurface::gfxContentType aContent);
 
     virtual gfxImageFormat GetOffscreenFormat()
-    { return gfxImageFormatRGB24; }
+    { return gfxASurface::ImageFormatRGB24; }
 
     /**
      * Returns a logger if one is available and logging is enabled

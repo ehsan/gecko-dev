@@ -25,11 +25,11 @@ StoreBuffer::SlotEdge::slotLocation() const
 {
     if (kind == HeapSlot::Element) {
         if (offset >= object->getDenseInitializedLength())
-            return nullptr;
+            return NULL;
         return (HeapSlot *)&object->getDenseElement(offset);
     }
     if (offset >= object->slotSpan())
-        return nullptr;
+        return NULL;
     return &object->getSlotRef(offset);
 }
 
@@ -37,7 +37,7 @@ JS_ALWAYS_INLINE void *
 StoreBuffer::SlotEdge::deref() const
 {
     HeapSlot *loc = slotLocation();
-    return (loc && loc->isGCThing()) ? loc->toGCThing() : nullptr;
+    return (loc && loc->isGCThing()) ? loc->toGCThing() : NULL;
 }
 
 JS_ALWAYS_INLINE void *

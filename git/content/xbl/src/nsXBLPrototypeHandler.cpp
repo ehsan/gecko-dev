@@ -35,6 +35,7 @@
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsGkAtoms.h"
+#include "nsGUIEvent.h"
 #include "nsIXPConnect.h"
 #include "nsIDOMScriptObjectFactory.h"
 #include "nsDOMCID.h"
@@ -44,12 +45,14 @@
 #include "nsXBLSerialize.h"
 #include "nsEventDispatcher.h"
 #include "nsJSUtils.h"
-#include "mozilla/BasicEvents.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/EventHandlerBinding.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
+
+static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
+                     NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
 uint32_t nsXBLPrototypeHandler::gRefCnt = 0;
 
@@ -910,9 +913,9 @@ bool
 nsXBLPrototypeHandler::ModifiersMatchMask(nsIDOMUIEvent* aEvent,
                                           bool aIgnoreShiftKey)
 {
-  WidgetEvent* event = aEvent->GetInternalNSEvent();
-  NS_ENSURE_TRUE(event && event->IsInputDerivedEvent(), false);
-  WidgetInputEvent* inputEvent = static_cast<WidgetInputEvent*>(event);
+  nsEvent* event = aEvent->GetInternalNSEvent();
+  NS_ENSURE_TRUE(event && NS_IS_INPUT_EVENT(event), false);
+  nsInputEvent* inputEvent = static_cast<nsInputEvent*>(event);
 
   if (mKeyMask & cMetaMask) {
     if (inputEvent->IsMeta() != ((mKeyMask & cMeta) != 0)) {

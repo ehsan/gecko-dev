@@ -51,8 +51,6 @@ class GradientStopsCairo : public GradientStops
 class DrawTargetCairo : public DrawTarget
 {
 public:
-  friend class BorrowedCairoContext;
-
   DrawTargetCairo();
   virtual ~DrawTargetCairo();
 
@@ -142,14 +140,14 @@ public:
 
   bool Init(cairo_surface_t* aSurface, const IntSize& aSize);
 
+  void SetPathObserver(CairoPathContext* aPathObserver);
+
   virtual void SetTransform(const Matrix& aTransform);
 
   // Call to set up aContext for drawing (with the current transform, etc).
   // Pass the path you're going to be using if you have one.
   // Implicitly calls WillChange(aPath).
   void PrepareForDrawing(cairo_t* aContext, const Path* aPath = nullptr);
-
-  static cairo_surface_t *GetDummySurface();
 
 private: // methods
   // Init cairo surface without doing a cairo_surface_reference() call.
@@ -181,7 +179,12 @@ private: // data
   // The latest snapshot of this surface. This needs to be told when this
   // target is modified. We keep it alive as a cache.
   RefPtr<SourceSurfaceCairo> mSnapshot;
-  static cairo_surface_t *mDummySurface;
+
+  // It is safe to use a regular pointer here because the CairoPathContext will
+  // deregister itself on destruction. Using a RefPtr would extend the life-
+  // span of the CairoPathContext. This causes a problem when
+  // PathBuilderCairo.Finish()
+  mutable CairoPathContext* mPathObserver;
 };
 
 }

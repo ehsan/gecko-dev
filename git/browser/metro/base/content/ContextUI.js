@@ -184,7 +184,6 @@ var ContextUI = {
   // Dismiss the navbar if visible.
   dismissNavbar: function dismissNavbar() {
     if (!BrowserUI.isStartTabVisible) {
-      Elements.autocomplete.closePopup();
       Elements.navbar.dismiss();
       ContentAreaObserver.updateContentArea();
     }

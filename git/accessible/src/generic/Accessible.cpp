@@ -75,7 +75,6 @@
 #endif
 
 #include "mozilla/Assertions.h"
-#include "mozilla/MouseEvents.h"
 #include "mozilla/unused.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/Element.h"
@@ -838,8 +837,8 @@ Accessible::ChildAtPoint(int32_t aX, int32_t aY,
   nsIntRect rootRect;
   rootWidget->GetScreenBounds(rootRect);
 
-  WidgetMouseEvent dummyEvent(true, NS_MOUSE_MOVE, rootWidget,
-                              WidgetMouseEvent::eSynthesized);
+  nsMouseEvent dummyEvent(true, NS_MOUSE_MOVE, rootWidget,
+                          nsMouseEvent::eSynthesized);
   dummyEvent.refPoint = LayoutDeviceIntPoint(aX - rootRect.x, aY - rootRect.y);
 
   nsIFrame* popupFrame = nsLayoutUtils::
@@ -1461,9 +1460,9 @@ Accessible::GroupPosition()
 }
 
 NS_IMETHODIMP
-Accessible::ScriptableGroupPosition(int32_t* aGroupLevel,
-                                    int32_t* aSimilarItemsInGroup,
-                                    int32_t* aPositionInGroup)
+Accessible::GroupPosition(int32_t* aGroupLevel,
+                          int32_t* aSimilarItemsInGroup,
+                          int32_t* aPositionInGroup)
 {
   NS_ENSURE_ARG_POINTER(aGroupLevel);
   *aGroupLevel = 0;
@@ -2021,8 +2020,10 @@ Accessible::RelationByType(uint32_t aType)
     case nsIAccessibleRelation::RELATION_LABEL_FOR: {
       Relation rel(new RelatedAccIterator(Document(), mContent,
                                           nsGkAtoms::aria_labelledby));
-      if (mContent->Tag() == nsGkAtoms::label && mContent->IsXUL())
-        rel.AppendIter(new IDRefsIterator(mDoc, mContent, nsGkAtoms::control));
+      if (mContent->Tag() == nsGkAtoms::label)
+        rel.AppendIter(new IDRefsIterator(mDoc, mContent, mContent->IsHTML() ?
+          nsGkAtoms::_for :
+          nsGkAtoms::control));
 
       return rel;
     }

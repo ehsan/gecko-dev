@@ -86,6 +86,7 @@
 #include "mozilla/Util.h"
 
 #include <math.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -127,7 +128,7 @@
 #include "nsXPIDLString.h"
 #include "nsAutoJSValHolder.h"
 
-#include "MainThreadUtils.h"
+#include "nsThreadUtils.h"
 #include "nsIJSEngineTelemetryStats.h"
 
 #include "nsIConsoleService.h"
@@ -764,7 +765,6 @@ public:
     void AddContextCallback(xpcContextCallback cb);
     void RemoveContextCallback(xpcContextCallback cb);
 
-    static JSContext* DefaultJSContextCallback(JSRuntime *rt);
     static void ActivityCallback(void *arg, bool active);
     static void CTypesActivityCallback(JSContext *cx,
                                        js::CTypesActivityType type);
@@ -786,7 +786,7 @@ private:
 
     void ReleaseIncrementally(nsTArray<nsISupports *> &array);
 
-    static const char* const mStrings[IDX_TOTAL_COUNT];
+    static const char* mStrings[IDX_TOTAL_COUNT];
     jsid mStrIDs[IDX_TOTAL_COUNT];
     jsval mStrJSVals[IDX_TOTAL_COUNT];
 
@@ -2191,8 +2191,8 @@ public:
      : public nsXPCOMCycleCollectionParticipant
     {
       NS_DECL_CYCLE_COLLECTION_CLASS_BODY(XPCWrappedNative, XPCWrappedNative)
-      NS_IMETHOD_(void) Root(void *p) { }
-      NS_IMETHOD_(void) Unroot(void *p) { }
+      NS_IMETHOD Root(void *p) { return NS_OK; }
+      NS_IMETHOD Unroot(void *p) { return NS_OK; }
       NS_IMPL_GET_XPCOM_CYCLE_COLLECTION_PARTICIPANT(XPCWrappedNative)
     };
     NS_CHECK_FOR_RIGHT_PARTICIPANT_IMPL(XPCWrappedNative);
@@ -2705,7 +2705,7 @@ public:
     nsXPCWrappedJS* FindInherited(REFNSIID aIID);
 
     bool IsValid() const {return mJSObj != nullptr;}
-    void SystemIsBeingShutDown();
+    void SystemIsBeingShutDown(JSRuntime* rt);
 
     // This is used by XPCJSRuntime::GCCallback to find wrappers that no
     // longer root their JSObject and are only still alive because they
@@ -3086,6 +3086,7 @@ class XPCJSContextStack
 public:
     XPCJSContextStack()
       : mSafeJSContext(NULL)
+      , mOwnSafeJSContext(NULL)
     { }
 
     virtual ~XPCJSContextStack();
@@ -3118,6 +3119,7 @@ private:
 
     AutoInfallibleTArray<XPCJSContextInfo, 16> mStack;
     JSContext*  mSafeJSContext;
+    JSContext*  mOwnSafeJSContext;
 };
 
 /***************************************************************************/
@@ -3567,14 +3569,6 @@ xpc_GetSafeJSContext()
 
 namespace xpc {
 
-// JSNatives to expose atob and btoa in various non-DOM XPConnect scopes.
-bool
-Atob(JSContext *cx, unsigned argc, jsval *vp);
-
-bool
-Btoa(JSContext *cx, unsigned argc, jsval *vp);
-
-
 // Helper function that creates a JSFunction that wraps a native function that
 // forwards the call to the original 'callable'. If the 'doclone' argument is
 // set, it also structure clones non-native arguments for extra security.
@@ -3586,18 +3580,6 @@ NewFunctionForwarder(JSContext *cx, JS::HandleId id, JS::HandleObject callable,
 nsresult
 ThrowAndFail(nsresult errNum, JSContext *cx, bool *retval);
 
-struct GlobalProperties {
-    GlobalProperties() { mozilla::PodZero(this); }
-    bool Parse(JSContext *cx, JS::HandleObject obj);
-    bool Define(JSContext *cx, JS::HandleObject obj);
-    bool indexedDB;
-    bool XMLHttpRequest;
-    bool TextDecoder;
-    bool TextEncoder;
-    bool atob;
-    bool btoa;
-};
-
 // Infallible.
 already_AddRefed<nsIXPCComponents_utils_Sandbox>
 NewSandboxConstructor();
@@ -3607,6 +3589,15 @@ bool
 IsSandbox(JSObject *obj);
 
 struct SandboxOptions {
+    struct DOMConstructors {
+        DOMConstructors() { mozilla::PodZero(this); }
+        bool Parse(JSContext* cx, JS::HandleObject obj);
+        bool Define(JSContext* cx, JS::HandleObject obj);
+        bool XMLHttpRequest;
+        bool TextDecoder;
+        bool TextEncoder;
+    };
+
     SandboxOptions(JSContext *cx)
         : wantXrays(true)
         , wantComponents(true)
@@ -3622,7 +3613,7 @@ struct SandboxOptions {
     JS::RootedObject proto;
     nsCString sandboxName;
     JS::RootedObject sameZoneAs;
-    GlobalProperties globalProperties;
+    DOMConstructors DOMConstructors;
     JS::RootedValue metadata;
 };
 

@@ -10,13 +10,12 @@
 # include <unistd.h>
 #endif
 
-#ifdef JS_ION_PERF
-# include "jit/IonSpewer.h"
-# include "jit/LinearScan.h"
-# include "jit/LIR.h"
-# include "jit/MIR.h"
-# include "jit/MIRGraph.h"
-#endif
+#include "jit/IonSpewer.h"
+#include "jit/LinearScan.h"
+#include "jit/LIR.h"
+#include "jit/MIR.h"
+#include "jit/MIRGraph.h"
+#include "jit/RangeAnalysis.h"
 
 // perf expects its data to be in a file /tmp/perf-PID.map, but for Android
 // and B2G the map files are written to /data/local/tmp/perf-PID.map
@@ -46,7 +45,7 @@ static uint32_t PerfMode = 0;
 
 static bool PerfChecked = false;
 
-static FILE *PerfFilePtr = nullptr;
+static FILE *PerfFilePtr = NULL;
 
 #ifdef JS_THREADSAFE
 # include "jslock.h"
@@ -75,7 +74,7 @@ void
 js::jit::CheckPerf() {
     if (!PerfChecked) {
         const char *env = getenv("IONPERF");
-        if (env == nullptr) {
+        if (env == NULL) {
             PerfMode = PERF_MODE_NONE;
             fprintf(stderr, "Warning: JIT perf reporting requires IONPERF set to \"block\" or \"func\". ");
             fprintf(stderr, "Perf mapping will be deactivated.\n");

@@ -9,7 +9,6 @@
 #define nsFrame_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/Likely.h"
 #include "nsBox.h"
 #include "prlog.h"
@@ -163,9 +162,9 @@ public:
   virtual void GetChildLists(nsTArray<ChildList>* aLists) const MOZ_OVERRIDE;
 
   NS_IMETHOD  HandleEvent(nsPresContext* aPresContext, 
-                          mozilla::WidgetGUIEvent* aEvent,
-                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
-  NS_IMETHOD  GetContentForEvent(mozilla::WidgetEvent* aEvent,
+                          nsGUIEvent*     aEvent,
+                          nsEventStatus*  aEventStatus) MOZ_OVERRIDE;
+  NS_IMETHOD  GetContentForEvent(nsEvent* aEvent,
                                  nsIContent** aContent) MOZ_OVERRIDE;
   NS_IMETHOD  GetCursor(const nsPoint&    aPoint,
                         nsIFrame::Cursor& aCursor) MOZ_OVERRIDE;
@@ -191,13 +190,13 @@ public:
                                int32_t         aModType) MOZ_OVERRIDE;
   virtual nsSplittableType GetSplittableType() const MOZ_OVERRIDE;
   virtual nsIFrame* GetPrevContinuation() const MOZ_OVERRIDE;
-  virtual void SetPrevContinuation(nsIFrame*) MOZ_OVERRIDE;
+  NS_IMETHOD  SetPrevContinuation(nsIFrame*) MOZ_OVERRIDE;
   virtual nsIFrame* GetNextContinuation() const MOZ_OVERRIDE;
-  virtual void SetNextContinuation(nsIFrame*) MOZ_OVERRIDE;
+  NS_IMETHOD  SetNextContinuation(nsIFrame*) MOZ_OVERRIDE;
   virtual nsIFrame* GetPrevInFlowVirtual() const MOZ_OVERRIDE;
-  virtual void SetPrevInFlow(nsIFrame*) MOZ_OVERRIDE;
+  NS_IMETHOD  SetPrevInFlow(nsIFrame*) MOZ_OVERRIDE;
   virtual nsIFrame* GetNextInFlowVirtual() const MOZ_OVERRIDE;
-  virtual void SetNextInFlow(nsIFrame*) MOZ_OVERRIDE;
+  NS_IMETHOD  SetNextInFlow(nsIFrame*) MOZ_OVERRIDE;
   NS_IMETHOD  GetOffsetFromView(nsPoint& aOffset, nsView** aView) const MOZ_OVERRIDE;
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
@@ -257,7 +256,7 @@ public:
                                   InlinePrefWidthData *aData) MOZ_OVERRIDE;
   virtual IntrinsicWidthOffsetData
     IntrinsicWidthOffsets(nsRenderingContext* aRenderingContext) MOZ_OVERRIDE;
-  virtual mozilla::IntrinsicSize GetIntrinsicSize() MOZ_OVERRIDE;
+  virtual IntrinsicSize GetIntrinsicSize() MOZ_OVERRIDE;
   virtual nsSize GetIntrinsicRatio() MOZ_OVERRIDE;
 
   virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
@@ -349,21 +348,21 @@ public:
   // Selection Methods
 
   NS_IMETHOD HandlePress(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus);
+                         nsGUIEvent *    aEvent,
+                         nsEventStatus*  aEventStatus);
 
   NS_IMETHOD HandleMultiplePress(nsPresContext* aPresContext,
-                                 mozilla::WidgetGUIEvent* aEvent,
-                                 nsEventStatus* aEventStatus,
-                                 bool aControlHeld);
+                         nsGUIEvent *    aEvent,
+                         nsEventStatus*  aEventStatus,
+                         bool            aControlHeld);
 
   NS_IMETHOD HandleDrag(nsPresContext* aPresContext,
-                        mozilla::WidgetGUIEvent* aEvent,
-                        nsEventStatus* aEventStatus);
+                        nsGUIEvent *    aEvent,
+                        nsEventStatus*  aEventStatus);
 
   NS_IMETHOD HandleRelease(nsPresContext* aPresContext,
-                           mozilla::WidgetGUIEvent* aEvent,
-                           nsEventStatus* aEventStatus);
+                           nsGUIEvent *    aEvent,
+                           nsEventStatus*  aEventStatus);
 
   enum { SELECT_ACCUMULATE = 0x01 };
 
@@ -618,12 +617,10 @@ protected:
   //   of the enclosing cell or table (if not inside a cell)
   //  aTarget tells us what table element to select (currently only cell and table supported)
   //  (enums for this are defined in nsIFrame.h)
-  NS_IMETHOD GetDataForTableSelection(const nsFrameSelection* aFrameSelection,
-                                      nsIPresShell* aPresShell,
-                                      mozilla::WidgetMouseEvent* aMouseEvent,
-                                      nsIContent** aParentContent,
-                                      int32_t* aContentOffset,
-                                      int32_t* aTarget);
+  NS_IMETHOD GetDataForTableSelection(const nsFrameSelection *aFrameSelection,
+                                      nsIPresShell *aPresShell, nsMouseEvent *aMouseEvent, 
+                                      nsIContent **aParentContent, int32_t *aContentOffset, 
+                                      int32_t *aTarget);
 
   // Fills aCursor with the appropriate information from ui
   static void FillCursorInformationFromStyle(const nsStyleUserInterface* ui,

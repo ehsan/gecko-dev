@@ -51,7 +51,7 @@ _SUBDIR_CONFIG_ARGS="$ac_configure_args"
 dnl Set the version number of the libs included with mozilla
 dnl ========================================================
 MOZJPEG=62
-MOZPNG=10606
+MOZPNG=10517
 NSPR_VERSION=4
 NSS_VERSION=3
 
@@ -71,7 +71,7 @@ GCONF_VERSION=1.2.1
 GIO_VERSION=2.20
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.8.0.2
+SQLITE_VERSION=3.7.17
 
 MSMANIFEST_TOOL=
 
@@ -490,13 +490,29 @@ case "$target" in
 
         INCREMENTAL_LINKER=1
 
-        # Set midl environment
+        # Check midl version
+        _MIDL_FULL_VERSION=`"${MIDL}" -v 2>&1 | sed -nre "$_MSVC_VER_FILTER"`
+        _MIDL_MAJOR_VERSION=`echo ${_MIDL_FULL_VERSION} | $AWK -F\. '{ print $1 }'`
+        _MIDL_MINOR_VERSION=`echo ${_MIDL_FULL_VERSION} | $AWK -F\. '{ print $2 }'`
+        _MIDL_REV_VERSION=`echo ${_MIDL_FULL_VERSION} | $AWK -F\. '{ print $3 }'`
+        # Add flags if necessary
+        AC_MSG_CHECKING([for midl flags])
         case "$target" in
         i*86-*)
-            MIDL_FLAGS="${MIDL_FLAGS} -env win32"
+            if test \( "$_MIDL_MAJOR_VERSION" = "7" -a "$_MIDL_MINOR_VERSION" = "00" -a "$_MIDL_REV_VERSION" = "0499" \); then
+                # MIDL version 7.00.0499 defaults /env win64 on x64 platforms.
+                # MIDL version 7.00.0500 or later has no problem.
+                MIDL_FLAGS="${MIDL_FLAGS} -env win32"
+                AC_MSG_RESULT([need -env win32])
+            else
+                AC_MSG_RESULT([none needed])
+            fi
             ;;
         x86_64-*)
             MIDL_FLAGS="${MIDL_FLAGS} -env x64"
+            ;;
+        *)
+            AC_MSG_RESULT([none needed])
             ;;
         esac
 
@@ -705,6 +721,16 @@ else
     AC_MSG_RESULT([yes])
 fi
 
+MOZ_ARG_WITH_BOOL(system-ply,
+[  --with-system-ply       Use system installed python ply library],
+    [if $PYTHON -c 'import ply' 2>&5; then
+         MOZ_SYSTEM_PLY=1
+     else
+         AC_MSG_ERROR([python ply library is not found but --with-system-ply was requested])
+     fi])
+
+AC_SUBST(MOZ_SYSTEM_PLY)
+
 if test -z "$COMPILE_ENVIRONMENT"; then
     NSINSTALL_BIN='$(PYTHON) $(topsrcdir)/config/nsinstall.py'
 fi
@@ -894,8 +920,9 @@ MOZ_PNG_LIBS='$(call EXPAND_LIBNAME_PATH,mozpng,$(DEPTH)/media/libpng)'
 
 MOZ_JS_STATIC_LIBS='$(call EXPAND_LIBNAME_PATH,js_static,$(LIBXUL_DIST)/lib)'
 MOZ_JS_SHARED_LIBS='$(call EXPAND_LIBNAME_PATH,mozjs,$(LIBXUL_DIST)/lib)'
+DYNAMIC_XPCOM_LIBS='-L$(LIBXUL_DIST)/bin -lxul -lxpcom_core -lmozalloc'
 MOZ_FIX_LINK_PATHS='-Wl,-rpath-link,$(LIBXUL_DIST)/bin -Wl,-rpath-link,$(prefix)/lib'
-XPCOM_FROZEN_LDOPTS='$(call EXPAND_LIBNAME_PATH,xul mozalloc,$(LIBXUL_DIST)/bin)'
+XPCOM_FROZEN_LDOPTS='-L$(LIBXUL_DIST)/bin -lxul -lmozalloc'
 LIBXUL_LIBS='$(XPCOM_FROZEN_LDOPTS)'
 XPCOM_GLUE_LDOPTS='$(LIBXUL_DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) $(XPCOM_FROZEN_LDOPTS)'
 XPCOM_STANDALONE_GLUE_LDOPTS='$(LIBXUL_DIST)/lib/$(LIB_PREFIX)xpcomglue.$(LIB_SUFFIX)'
@@ -1195,10 +1222,8 @@ MOZ_ARG_ENABLE_BOOL(address-sanitizer,
 if test -n "$MOZ_ASAN"; then
     MOZ_LLVM_HACKS=1
     AC_DEFINE(MOZ_ASAN)
-    MOZ_PATH_PROG(LLVM_SYMBOLIZER, llvm-symbolizer)
 fi
 AC_SUBST(MOZ_ASAN)
-AC_SUBST(LLVM_SYMBOLIZER)
 
 dnl ========================================================
 dnl = Enable hacks required for LLVM instrumentations
@@ -1220,12 +1245,7 @@ dnl ========================================================
 if test "$GNU_CC"; then
     # Per bug 719659 comment 2, some of the headers on ancient build machines
     # may require gnu89 inline semantics.  But otherwise, we use C99.
-    # But on OS X we just use C99 plus GNU extensions, in order to fix
-    # bug 917526.
-    CFLAGS="$CFLAGS -std=gnu99"
-    if test "${OS_ARCH}" != Darwin; then
-        CFLAGS="$CFLAGS -fgnu89-inline"
-    fi
+    CFLAGS="$CFLAGS -std=gnu99 -fgnu89-inline"
     # FIXME: Let us build with strict aliasing. bug 414641.
     CFLAGS="$CFLAGS -fno-strict-aliasing"
     MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -Wl,-h,$(notdir $@) -o $@'
@@ -1923,7 +1943,6 @@ ia64*-hpux*)
         _PLATFORM_DEFAULT_TOOLKIT=cairo-gonk
         MOZ_B2G_RIL=1
         MOZ_B2G_FM=1
-        MOZ_SYNTH_PICO=1
     else
         _PLATFORM_DEFAULT_TOOLKIT=cairo-android
         MOZ_LINKER=1
@@ -1977,7 +1996,6 @@ ia64*-hpux*)
     MC=mc.exe
     # certain versions of cygwin's makedepend barf on the
     # #include <string> vs -I./dist/include/string issue so don't use it
-    XPCOM_FROZEN_LDOPTS='$(call EXPAND_LIBNAME_PATH,xul mozalloc,$(LIBXUL_DIST)/lib)'
     if test -n "$GNU_CC" -o -n "$CLANG_CC"; then
         CC="$CC -mwindows"
         CXX="$CXX -mwindows"
@@ -1996,6 +2014,8 @@ ia64*-hpux*)
         # mingw doesn't require kernel32, user32, and advapi32 explicitly
         LIBS="$LIBS -luuid -lgdi32 -lwinmm -lwsock32 -luserenv -lsecur32 -lnetapi32"
         MOZ_FIX_LINK_PATHS=
+        DYNAMIC_XPCOM_LIBS='-L$(LIBXUL_DIST)/lib -lxul -lxpcom_core -lmozalloc'
+        XPCOM_FROZEN_LDOPTS='-L$(LIBXUL_DIST)/lib -lxul -lmozalloc'
         DLL_PREFIX=
         IMPORT_LIB_SUFFIX=dll.a
 
@@ -2070,6 +2090,9 @@ ia64*-hpux*)
         WARNINGS_AS_ERRORS='-WX'
         MOZ_OPTIMIZE_FLAGS='-O1'
         MOZ_FIX_LINK_PATHS=
+        DYNAMIC_XPCOM_LIBS='$(LIBXUL_DIST)/lib/xul.lib $(LIBXUL_DIST)/lib/xpcom_core.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
+        XPCOM_FROZEN_LDOPTS='$(LIBXUL_DIST)/lib/xul.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
+        LIBXUL_LIBS='$(LIBXUL_DIST)/lib/xul.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
         MOZ_COMPONENT_NSPR_LIBS='$(NSPR_LIBS)'
         LDFLAGS="$LDFLAGS -LARGEADDRESSAWARE -NXCOMPAT"
         if test -z "$DEVELOPER_OPTIONS"; then
@@ -2241,6 +2264,7 @@ ia64*-hpux*)
     MOZ_DEBUG_FLAGS="-g -fno-inline"
     MOZ_OPTIMIZE_FLAGS="-O2"
     MOZ_OPTIMIZE_LDFLAGS="-s -Zlinker /EXEPACK:2 -Zlinker /PACKCODE -Zlinker /PACKDATA"
+    DYNAMIC_XPCOM_LIBS='-L$(LIBXUL_DIST)/lib $(LIBXUL_DIST)/lib/xul.lib $(LIBXUL_DIST)/lib/xpcom_core.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
     LIBXUL_LIBS='-L$(LIBXUL_DIST)/lib $(LIBXUL_DIST)/lib/xul.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
     TARGET_MD_ARCH=os2
     _PLATFORM_DEFAULT_TOOLKIT="cairo-os2"
@@ -2576,6 +2600,77 @@ else
 fi
 
 MOZ_CXX11
+
+AC_LANG_CPLUSPLUS
+
+dnl Check for usable char16_t (2 bytes, unsigned)
+dnl (we might not need the unsignedness check anymore)
+AC_CACHE_CHECK(for usable char16_t (2 bytes, unsigned),
+    ac_cv_have_usable_char16_t,
+    [AC_TRY_COMPILE([$configure_static_assert_macros],
+                    [CONFIGURE_STATIC_ASSERT(sizeof(char16_t) == 2);
+                     CONFIGURE_STATIC_ASSERT(char16_t(-1) > char16_t(0));
+                     CONFIGURE_STATIC_ASSERT(sizeof((u"hello")[0]) == 2);
+                     CONFIGURE_STATIC_ASSERT(sizeof(u'a') == 2);
+                     CONFIGURE_STATIC_ASSERT(u'\xFFFF' > u'\x0')],
+                    ac_cv_have_usable_char16_t="yes",
+                    ac_cv_have_usable_char16_t="no")])
+if test "$ac_cv_have_usable_char16_t" = "yes"; then
+    AC_DEFINE(HAVE_CPP_CHAR16_T)
+    HAVE_CPP_CHAR16_T=1
+elif test "$GNU_CXX"; then
+    CXXFLAGS="$_SAVE_CXXFLAGS"
+fi
+
+dnl Check for usable wchar_t (2 bytes, unsigned)
+dnl (we really don't need the unsignedness check anymore)
+dnl ========================================================
+
+AC_CACHE_CHECK(for usable wchar_t (2 bytes, unsigned),
+    ac_cv_have_usable_wchar_v2,
+    [AC_TRY_COMPILE([#include <stddef.h>
+                     $configure_static_assert_macros],
+                    [CONFIGURE_STATIC_ASSERT(sizeof(wchar_t) == 2);
+                     CONFIGURE_STATIC_ASSERT((wchar_t)-1 > (wchar_t) 0)],
+                    ac_cv_have_usable_wchar_v2="yes",
+                    ac_cv_have_usable_wchar_v2="no")])
+if test "$ac_cv_have_usable_wchar_v2" = "yes"; then
+    AC_DEFINE(HAVE_CPP_2BYTE_WCHAR_T)
+    HAVE_CPP_2BYTE_WCHAR_T=1
+elif test "$ac_cv_have_usable_char16_t" != "yes"; then
+dnl This is really gcc-only
+dnl Do this test using CXX only since some versions of gcc
+dnl 2.95-2.97 have a signed wchar_t in c++ only and some versions
+dnl only have short-wchar support for c++.
+dnl Note that we assume that mac & win32 have short wchar (see nscore.h)
+
+    _SAVE_CXXFLAGS=$CXXFLAGS
+    CXXFLAGS="$CXXFLAGS -fshort-wchar"
+
+    AC_CACHE_CHECK(for compiler -fshort-wchar option,
+        ac_cv_have_usable_wchar_option_v2,
+        [AC_TRY_LINK([#include <stddef.h>
+                      $configure_static_assert_macros],
+                     [CONFIGURE_STATIC_ASSERT(sizeof(wchar_t) == 2);
+                      CONFIGURE_STATIC_ASSERT((wchar_t)-1 > (wchar_t) 0)],
+                     ac_cv_have_usable_wchar_option_v2="yes",
+                     ac_cv_have_usable_wchar_option_v2="no")])
+
+    if test "$ac_cv_have_usable_wchar_option_v2" = "yes"; then
+        AC_DEFINE(HAVE_CPP_2BYTE_WCHAR_T)
+        HAVE_CPP_2BYTE_WCHAR_T=1
+        if test "$OS_TARGET" = Android; then
+            WCHAR_CFLAGS="-fshort-wchar -Wl,--no-wchar-size-warning"
+            CXXFLAGS="$CXXFLAGS -Wl,--no-wchar-size-warning"
+            CFLAGS="$CFLAGS -Wl,--no-wchar-size-warning"
+            DSO_LDOPTS="$DSO_LDOPTS -Wl,--no-wchar-size-warning"
+        else
+            WCHAR_CFLAGS="-fshort-wchar"
+        fi
+    else
+        CXXFLAGS=$_SAVE_CXXFLAGS
+    fi
+fi
 
 AC_LANG_C
 
@@ -3069,7 +3164,7 @@ dnl Checks for library functions.
 dnl ========================================================
 AC_PROG_GCC_TRADITIONAL
 AC_FUNC_MEMCMP
-AC_CHECK_FUNCS(random strerror lchown fchmod snprintf memmove stat64 lstat64 truncate64 setbuf isatty)
+AC_CHECK_FUNCS(random strerror lchown fchmod snprintf memmove rint stat64 lstat64 truncate64 setbuf isatty)
 AC_CHECK_FUNCS(statvfs64 statvfs statfs64 statfs)
 AC_CHECK_FUNCS(flockfile getpagesize)
 AC_CHECK_FUNCS(localtime_r strtok_r)
@@ -3192,6 +3287,7 @@ AC_CACHE_CHECK(
     )
 if test "$ac_cv_func_iconv" = "yes"; then
     AC_DEFINE(HAVE_ICONV)
+    DYNAMIC_XPCOM_LIBS="$DYNAMIC_XPCOM_LIBS $_ICONV_LIBS"
     LIBXUL_LIBS="$LIBXUL_LIBS $_ICONV_LIBS"
     LIBICONV="$_ICONV_LIBS"
     AC_CACHE_CHECK(
@@ -4422,7 +4518,8 @@ cairo-cocoa)
     TK_CFLAGS="-DNO_X11"
     CFLAGS="$CFLAGS $TK_CFLAGS"
     CXXFLAGS="$CXXFLAGS $TK_CFLAGS"
-    XPCOM_FROZEN_LDOPTS='$(LIBXUL_DIST)/bin/XUL $(call EXPAND_LIBNAME_PATH,mozalloc,$(LIBXUL_DIST)/bin)'
+    DYNAMIC_XPCOM_LIBS='$(LIBXUL_DIST)/bin/XUL -lxpcom_core -lmozalloc'
+    XPCOM_FROZEN_LDOPTS='$(LIBXUL_DIST)/bin/XUL -lmozalloc'
     MOZ_USER_DIR="Mozilla"
     MOZ_FS_LAYOUT=bundle
     MOZ_WEBGL=1
@@ -4437,7 +4534,8 @@ cairo-uikit)
     TK_LIBS='-framework Foundation -framework CoreFoundation -framework CoreGraphics -framework CoreText'
     CFLAGS="$CFLAGS $TK_CFLAGS"
     CXXFLAGS="$CXXFLAGS $TK_CFLAGS"
-    XPCOM_FROZEN_LDOPTS='$(LIBXUL_DIST)/bin/XUL $(call EXPAND_LIBNAME_PATH,mozalloc,$(LIBXUL_DIST)/bin)'
+    DYNAMIC_XPCOM_LIBS='$(LIBXUL_DIST)/bin/XUL -lxpcom_core -lmozalloc'
+    XPCOM_FROZEN_LDOPTS='$(LIBXUL_DIST)/bin/XUL -lmozalloc'
     MOZ_USER_DIR="Mozilla"
     MOZ_FS_LAYOUT=bundle
     ;;
@@ -4453,7 +4551,6 @@ cairo-android)
     ;;
 
 cairo-gonk)
-    XPCOM_FROZEN_LDOPTS='$(call EXPAND_LIBNAME_PATH,xul mozalloc,$(LIBXUL_DIST)/lib)'
     AC_DEFINE(MOZ_WIDGET_GONK)
     AC_DEFINE(MOZ_TOUCH)
     MOZ_WIDGET_TOOLKIT=gonk
@@ -7087,9 +7184,6 @@ if test "$OS_TARGET" = Android; then
         WRAP_LDFLAGS="${WRAP_LDFLAGS} -Wl,--wrap=fork,--wrap=pthread_atfork,--wrap=raise"
         WRAP_LDFLAGS="${WRAP_LDFLAGS} -Wl,--wrap=memccpy,--wrap=memchr,--wrap=memrchr,--wrap=memcmp,--wrap=memcpy,--wrap=memmove,--wrap=memset,--wrap=memmem,--wrap=memswap,--wrap=index,--wrap=strchr,--wrap=strrchr,--wrap=strlen,--wrap=strcmp,--wrap=strcpy,--wrap=strcat,--wrap=strcasecmp,--wrap=strncasecmp,--wrap=strstr,--wrap=strcasestr,--wrap=strtok,--wrap=strtok_r,--wrap=strerror,--wrap=strerror_r,--wrap=strnlen,--wrap=strncat,--wrap=strncmp,--wrap=strncpy,--wrap=strlcat,--wrap=strlcpy,--wrap=strcspn,--wrap=strpbrk,--wrap=strsep,--wrap=strspn,--wrap=strcoll,--wrap=strxfrm"
     fi
-    if test "$MOZ_WIDGET_TOOLKIT" = gonk -a -n "$MOZ_NUWA_PROCESS"; then
-        WRAP_LDFLAGS="${WRAP_LDFLAGS} -Wl,--wrap=pthread_create,--wrap=epoll_wait,--wrap=poll,--wrap=pthread_cond_timedwait,--wrap=__pthread_cond_timedwait,--wrap=pthread_cond_wait,--wrap=epoll_create,--wrap=epoll_ctl,--wrap=close,--wrap=pthread_key_create,--wrap=pthread_key_delete,--wrap=socketpair,--wrap=pthread_self,--wrap=pthread_mutex_lock,--wrap=pthread_join,--wrap=pipe,--wrap=pipe2"
-    fi
 fi
 
 dnl ========================================================
@@ -7386,18 +7480,6 @@ if test -n "$MOZ_B2G_BT"; then
     AC_DEFINE(MOZ_B2G_BT)
 fi
 AC_SUBST(MOZ_B2G_BT)
-
-dnl ========================================================
-dnl = Enable Pico Speech Synthesis (Gonk usually)
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(synth-pico,
-[  --enable-synth-pico  Set compile flags necessary for compiling Pico Web Speech API ],
-    MOZ_SYNTH_PICO=1,
-    MOZ_SYNTH_PICO= )
-if test -n "$MOZ_SYNTH_PICO"; then
-    AC_DEFINE(MOZ_SYNTH_PICO)
-fi
-AC_SUBST(MOZ_SYNTH_PICO)
 
 dnl ========================================================
 dnl = Enable Support for Time Manager API
@@ -8596,12 +8678,6 @@ AC_SUBST(MOZ_BZ2_LIBS)
 AC_SUBST(MOZ_PNG_CFLAGS)
 AC_SUBST(MOZ_PNG_LIBS)
 
-if test "$MOZ_WIDGET_TOOLKIT" = gonk -a -n "$MOZ_NUWA_PROCESS"; then
-    export MOZ_NUWA_PROCESS
-    AC_DEFINE(MOZ_NUWA_PROCESS)
-fi
-AC_SUBST(MOZ_NUWA_PROCESS)
-
 AC_SUBST(NSPR_CFLAGS)
 AC_SUBST(NSPR_LIBS)
 AC_SUBST(MOZ_NATIVE_NSPR)
@@ -8816,7 +8892,9 @@ dnl ========================================================
 dnl The following defines are used by xpcom
 _NON_GLOBAL_ACDEFINES="$_NON_GLOBAL_ACDEFINES
 CPP_THROW_NEW
+HAVE_CPP_2BYTE_WCHAR_T
 HAVE_CPP_AMBIGUITY_RESOLVING_USING
+HAVE_CPP_CHAR16_T
 HAVE_CPP_DYNAMIC_CAST_TO_VOID_PTR
 HAVE_CPP_PARTIAL_SPECIALIZATION
 HAVE_CPP_TROUBLE_COMPARING_TO_ZERO
@@ -9207,7 +9285,7 @@ MOZ_ARG_WITH_STRING(intl-api,
     WITH_INTL="--with-intl-api=$withval"
 ])
 if test -z "$WITH_INTL"; then
-if test "$NIGHTLY_BUILD" = "1" -a "$MOZ_BUILD_APP" = "browser" -a -z "$DEVELOPER_OPTIONS"; then
+if test "$NIGHTLY_BUILD" = "1" -a "$MOZ_BUILD_APP" = "browser"; then
     # In desktop nightlies the Internationalization API is disabled, but all
     # code for it is still built.  Bug 853301 will remove this so that it's
     # built and the API is enabled.
@@ -9229,9 +9307,6 @@ if test "$BUILD_CTYPES"; then
 fi
 if test -z "$JS_SHARED_LIBRARY" ; then
     ac_configure_args="$ac_configure_args --disable-shared-js"
-    if test -n "$MOZ_DISABLE_EXPORT_JS"; then
-        ac_configure_args="$ac_configure_args --disable-export-js"
-    fi
 fi
 if test -z "$MOZ_NATIVE_NSPR"; then
     ac_configure_args="$ac_configure_args --with-nspr-cflags='$NSPR_CFLAGS'"
@@ -9262,7 +9337,6 @@ export STLPORT_CPPFLAGS
 export STLPORT_LDFLAGS
 export STLPORT_LIBS
 export JS_STANDALONE=no
-export MOZ_LINKER
 
 if ! test -e js; then
     mkdir js

@@ -6,33 +6,12 @@
 #define nsIWidgetListener_h__
 
 #include "nscore.h"
+#include "nsGUIEvent.h"
 #include "nsIXULWindow.h"
 #include "nsRegion.h"
-#include "mozilla/BasicEvents.h"
 
 class nsView;
 class nsIPresShell;
-
-/**
- * sizemode is an adjunct to widget size
- */
-enum nsSizeMode
-{
-  nsSizeMode_Normal = 0,
-  nsSizeMode_Minimized,
-  nsSizeMode_Maximized,
-  nsSizeMode_Fullscreen
-};
-
-/**
- * different types of (top-level) window z-level positioning
- */
-enum nsWindowZ
-{
-  nsWindowZTop = 0,   // on top
-  nsWindowZBottom,    // on bottom
-  nsWindowZRelative   // just below some specified widget
-};
 
 class nsIWidgetListener
 {
@@ -134,8 +113,7 @@ public:
   /**
    * Handle an event.
    */
-  virtual nsEventStatus HandleEvent(mozilla::WidgetGUIEvent* aEvent,
-                                    bool aUseAttachedEvents)
+  virtual nsEventStatus HandleEvent(nsGUIEvent* event, bool useAttachedEvents)
   {
     return nsEventStatus_eIgnore;
   }

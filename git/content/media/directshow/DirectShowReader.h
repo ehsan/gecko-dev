@@ -7,7 +7,7 @@
 #if !defined(DirectShowReader_h_)
 #define DirectShowReader_h_
 
-#include "windows.h" // HRESULT, DWORD
+#include "Windows.h" // HRESULT, DWORD
 #include "MediaDecoderReader.h"
 #include "mozilla/RefPtr.h"
 #include "MP3FrameParser.h"
@@ -57,7 +57,7 @@ public:
   bool HasAudio() MOZ_OVERRIDE;
   bool HasVideo() MOZ_OVERRIDE;
 
-  nsresult ReadMetadata(MediaInfo* aInfo,
+  nsresult ReadMetadata(VideoInfo* aInfo,
                         MetadataTags** aTags) MOZ_OVERRIDE;
 
   nsresult Seek(int64_t aTime,

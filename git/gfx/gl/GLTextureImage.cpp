@@ -99,8 +99,8 @@ BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
     }
 
     ImageFormat format =
-        (GetContentType() == GFX_CONTENT_COLOR) ?
-        gfxImageFormatRGB24 : gfxImageFormatARGB32;
+        (GetContentType() == gfxASurface::CONTENT_COLOR) ?
+        gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32;
     mUpdateSurface =
         GetSurfaceForUpdate(gfxIntSize(rgnSize.width, rgnSize.height), format);
 
@@ -242,7 +242,7 @@ TextureImage::TextureImage(const gfx::IntSize& aSize,
     : mSize(ThebesIntSize(aSize))
     , mWrapMode(aWrapMode)
     , mContentType(aContentType)
-    , mFilter(GraphicsFilter::FILTER_GOOD)
+    , mFilter(gfxPattern::FILTER_GOOD)
     , mFlags(aFlags)
 {}
 
@@ -252,7 +252,7 @@ BasicTextureImage::BasicTextureImage(GLuint aTexture,
                                      ContentType aContentType,
                                      GLContext* aContext,
                                      TextureImage::Flags aFlags /* = TextureImage::NoFlags */,
-                                     TextureImage::ImageFormat aImageFormat /* = gfxImageFormatUnknown */)
+                                     TextureImage::ImageFormat aImageFormat /* = gfxASurface::ImageFormatUnknown */)
     : TextureImage(aSize, aWrapMode, aContentType, aFlags, aImageFormat)
     , mTexture(aTexture)
     , mTextureState(Created)
@@ -464,9 +464,9 @@ TiledTextureImage::BeginUpdate(nsIntRegion& aRegion)
     bounds = aRegion.GetBounds();
 
     // update covers multiple Images - create a temp surface to paint in
-    gfxImageFormat format =
-        (GetContentType() == GFX_CONTENT_COLOR) ?
-        gfxImageFormatRGB24 : gfxImageFormatARGB32;
+    gfxASurface::gfxImageFormat format =
+        (GetContentType() == gfxASurface::CONTENT_COLOR) ?
+        gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32;
     mUpdateSurface = gfxPlatform::GetPlatform()->
         CreateOffscreenSurface(gfxIntSize(bounds.width, bounds.height), gfxASurface::ContentFromFormat(format));
     mUpdateSurface->SetDeviceOffset(gfxPoint(-bounds.x, -bounds.y));

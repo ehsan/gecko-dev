@@ -474,6 +474,6 @@ JSONSpewer::finish()
     fprintf(fp_, "\n");
 
     fclose(fp_);
-    fp_ = nullptr;
+    fp_ = NULL;
 }
 

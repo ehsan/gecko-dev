@@ -72,7 +72,7 @@ class CompileInfo
     }
 
     CompileInfo(unsigned nlocals, ExecutionMode executionMode)
-      : script_(nullptr), fun_(nullptr), osrPc_(nullptr), constructing_(false),
+      : script_(NULL), fun_(NULL), osrPc_(NULL), constructing_(false),
         executionMode_(executionMode)
     {
         nimplicit_ = 0;
@@ -114,7 +114,7 @@ class CompileInfo
     unsigned lineno() const {
         return script_->lineno;
     }
-    unsigned lineno(jsbytecode *pc) const {
+    unsigned lineno(JSContext *cx, jsbytecode *pc) const {
         return PCToLineNumber(script_, pc);
     }
 
@@ -140,8 +140,8 @@ class CompileInfo
         return script_->getConst(GET_UINT32_INDEX(pc));
     }
 
-    jssrcnote *getNote(GSNCache &gsn, jsbytecode *pc) const {
-        return GetSrcNote(gsn, script(), pc);
+    jssrcnote *getNote(JSContext *cx, jsbytecode *pc) const {
+        return js_GetSrcNote(cx, script(), pc);
     }
 
     // Total number of slots: args, locals, and stack.
@@ -237,9 +237,6 @@ class CompileInfo
 
     bool hasArguments() const {
         return script()->argumentsHasVarBinding();
-    }
-    bool argumentsAliasesFormals() const {
-        return script()->argumentsAliasesFormals();
     }
     bool needsArgsObj() const {
         return script()->needsArgsObj();

@@ -43,7 +43,6 @@
 #include "nsIDirectoryEnumerator.h"
 #include "nsISimpleEnumerator.h"
 #include "private/pprio.h"
-#include "prlink.h"
 
 #ifdef MOZ_WIDGET_GTK
 #include "nsIGIOService.h"

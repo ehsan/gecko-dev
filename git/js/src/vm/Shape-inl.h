@@ -9,9 +9,13 @@
 
 #include "vm/Shape.h"
 
+#include "mozilla/PodOperations.h"
+
+#include "jscntxt.h"
+#include "jsgc.h"
 #include "jsobj.h"
 
-#include "vm/Interpreter.h"
+#include "gc/Marking.h"
 #include "vm/ScopeObject.h"
 
 #include "jsatominlines.h"
@@ -26,8 +30,8 @@ StackBaseShape::StackBaseShape(ExclusiveContext *cx, const Class *clasp,
     clasp(clasp),
     parent(parent),
     metadata(metadata),
-    rawGetter(nullptr),
-    rawSetter(nullptr),
+    rawGetter(NULL),
+    rawSetter(NULL),
     compartment(cx->compartment_)
 {}
 

@@ -5,7 +5,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "DOMWheelEvent.h"
-#include "mozilla/MouseEvents.h"
+#include "nsGUIEvent.h"
 #include "prtime.h"
 
 namespace mozilla {

@@ -14,6 +14,7 @@
 #include "nsIDOMMutationEvent.h"
 #include "nsIURI.h"
 #include "nsNodeUtils.h"
+#include "xpcpublic.h"
 #include "nsWrapperCacheInlines.h"
 
 namespace css = mozilla::css;

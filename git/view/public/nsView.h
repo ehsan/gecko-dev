@@ -11,8 +11,8 @@
 #include "nsPoint.h"
 #include "nsRegion.h"
 #include "nsCRT.h"
+#include "nsEvent.h"
 #include "nsIWidgetListener.h"
-#include "mozilla/EventForwards.h"
 
 class nsViewManager;
 class nsIWidget;
@@ -370,8 +370,7 @@ public:
   virtual bool PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion) MOZ_OVERRIDE;
   virtual void DidPaintWindow() MOZ_OVERRIDE;
   virtual void RequestRepaint() MOZ_OVERRIDE;
-  virtual nsEventStatus HandleEvent(mozilla::WidgetGUIEvent* aEvent,
-                                    bool aUseAttachedEvents) MOZ_OVERRIDE;
+  virtual nsEventStatus HandleEvent(nsGUIEvent* aEvent, bool aUseAttachedEvents) MOZ_OVERRIDE;
 
   virtual ~nsView();
 

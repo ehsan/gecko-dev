@@ -8,7 +8,6 @@
 
 #include "nsIScriptContext.h"
 
-#include "mozilla/ContentEvents.h"
 #include "mozilla/dom/IDBOpenDBRequestBinding.h"
 #include "mozilla/dom/UnionTypes.h"
 #include "nsComponentManagerUtils.h"
@@ -19,7 +18,7 @@
 #include "nsEventDispatcher.h"
 #include "nsJSUtils.h"
 #include "nsPIDOMWindow.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsThreadUtils.h"
 #include "nsWrapperCacheInlines.h"
 
@@ -40,8 +39,7 @@ uint64_t gNextSerialNumber = 1;
 } // anonymous namespace
 
 USING_INDEXEDDB_NAMESPACE
-using mozilla::dom::OwningIDBObjectStoreOrIDBIndexOrIDBCursor;
-using namespace mozilla;
+using mozilla::dom::IDBObjectStoreOrIDBIndexOrIDBCursorReturnValue;
 
 IDBRequest::IDBRequest()
 : mResultVal(JSVAL_VOID),
@@ -132,7 +130,7 @@ IDBRequest::AssertSourceIsCorrect() const
 #endif
 
 void
-IDBRequest::GetSource(Nullable<OwningIDBObjectStoreOrIDBIndexOrIDBCursor>& aSource) const
+IDBRequest::GetSource(Nullable<IDBObjectStoreOrIDBIndexOrIDBCursorReturnValue>& aSource) const
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -300,7 +298,7 @@ IDBRequest::CaptureCaller()
 }
 
 void
-IDBRequest::FillScriptErrorEvent(InternalScriptErrorEvent* aEvent) const
+IDBRequest::FillScriptErrorEvent(nsScriptErrorEvent* aEvent) const
 {
   aEvent->lineNr = mLineNo;
   aEvent->fileName = mFilename.get();

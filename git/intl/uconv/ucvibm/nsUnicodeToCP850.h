@@ -20,9 +20,8 @@
 #ifndef nsUnicodeToCP850_h___
 #define nsUnicodeToCP850_h___
 
-#include "nsID.h"
+#include "nsISupports.h"
 
-class nsISupports;
 
 /**
  * A character set converter from Unicode to CP850.

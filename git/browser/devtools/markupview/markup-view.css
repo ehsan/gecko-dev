@@ -2,18 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* Force height and width (possibly overflowing) from inline elements.
- * This allows long overflows of text or input fields to still be styled with
- * the container, rather than the background disappearing when scrolling */
-#root {
-  float: left;
-  min-width: 100%;
-}
-
-#root-wrapper:after {
-   content: "";
-   display: block;
-   clear: both;
+#root-wrapper {
+  overflow: hidden;
+  min-width: 250px;
 }
 
 .children {
@@ -22,9 +13,6 @@
   margin: 0;
 }
 
-/* Tags are organized in a UL/LI tree and indented thanks to a left padding.
- * A very large padding is used in combination with a slightly smaller margin
- * to make sure childs actually span from edge-to-edge. */
 .child {
   margin-left: -1000em;
   padding-left: 1001em;
@@ -36,15 +24,16 @@
   position: relative;
 }
 
-/* This extra element placed in each tag is positioned absolutely to cover the
- * whole tag line and is used for background styling (when a selection is made
- * or when the tag is flashing) */
+/* Children are indented thanks to their parent's left padding, that means they
+ * are not stretching from edge to edge, which is what we want.
+ * So we insert a pseudo-element and make sure it covers the whole "line" */
 .tag-line .highlighter {
-  position: absolute;
-  left: -1000em;
-  right: 0;
-  height: 100%;
-  z-index: -1;
+    content: "";
+    position: absolute;
+    left: -1000em;
+    right: 0;
+    height: 100%;
+    z-index: -1;
 }
 
 .expander {
@@ -73,10 +62,6 @@
   display: inline;
 }
 
-.closing-bracket {
-  pointer-events: none;
-}
-
 .newattr {
   display: inline-block;
   width: 1em;
@@ -87,10 +72,6 @@
 
 .newattr:focus {
   margin-right: 0;
-}
-
-.highlighter.flash-out {
-  transition: background .5s;
 }
 
 /* Preview */

@@ -16,7 +16,7 @@
 #include "nsContentListDeclarations.h"
 #include "nsISupports.h"
 #include "nsTArray.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsIHTMLCollection.h"
 #include "nsIDOMNodeList.h"
 #include "nsINodeList.h"
@@ -96,14 +96,6 @@ public:
     MOZ_OVERRIDE = 0;
 
 protected:
-  /**
-   * To be called from non-destructor locations (e.g. unlink) that want to
-   * remove from caches.  Cacheable subclasses should override.
-   */
-  virtual void RemoveFromCaches()
-  {
-  }
-
   nsTArray< nsCOMPtr<nsIContent> > mElements;
 };
 
@@ -373,8 +365,7 @@ protected:
    * Needed because if subclasses want to have cache behavior they can't just
    * override RemoveFromHashtable(), since we call that in our destructor.
    */
-  virtual void RemoveFromCaches() MOZ_OVERRIDE
-  {
+  virtual void RemoveFromCaches() {
     RemoveFromHashtable();
   }
 

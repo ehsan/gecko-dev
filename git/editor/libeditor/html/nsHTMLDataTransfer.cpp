@@ -26,6 +26,7 @@
 #include "nsEditor.h"
 #include "nsEditorUtils.h"
 #include "nsError.h"
+#include "nsGUIEvent.h"
 #include "nsGkAtoms.h"
 #include "nsHTMLEditUtils.h"
 #include "nsHTMLEditor.h"
@@ -93,6 +94,8 @@ class nsISupports;
 
 using namespace mozilla;
 using namespace mozilla::dom;
+
+const PRUnichar nbsp = 160;
 
 #define kInsertCookie  "_moz_Insert Here_moz_"
 

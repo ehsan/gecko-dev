@@ -12,8 +12,10 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsNetUtil.h"
+#include "nsCRT.h"
+#include "prmon.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
-#include "nsISystemProxySettings.h"
+#include "nsProxyRelease.h"
 
 //-----------------------------------------------------------------------------
 using namespace mozilla;

@@ -11,7 +11,7 @@
 #include "nsGfxCIID.h"
 #include "nsView.h"
 #include "nsCOMPtr.h"
-#include "mozilla/MouseEvents.h"
+#include "nsGUIEvent.h"
 #include "nsRegion.h"
 #include "nsCOMArray.h"
 #include "nsIPluginWidget.h"
@@ -44,7 +44,6 @@
    we ask for a specific z-order, we don't assume that widget z-ordering actually works.
 */
 
-using namespace mozilla;
 using namespace mozilla::layers;
 
 #define NSCOORD_NONE      INT32_MIN
@@ -687,30 +686,27 @@ void nsViewManager::DidPaintWindow()
 }
 
 void
-nsViewManager::DispatchEvent(WidgetGUIEvent *aEvent,
-                             nsView* aView,
-                             nsEventStatus* aStatus)
+nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsView* aView, nsEventStatus* aStatus)
 {
   PROFILER_LABEL("event", "nsViewManager::DispatchEvent");
 
-  if ((aEvent->HasMouseEventMessage() &&
+  if ((NS_IS_MOUSE_EVENT(aEvent) &&
        // Ignore mouse events that we synthesize.
-       static_cast<WidgetMouseEvent*>(aEvent)->reason ==
-         WidgetMouseEvent::eReal &&
+       static_cast<nsMouseEvent*>(aEvent)->reason == nsMouseEvent::eReal &&
        // Ignore mouse exit and enter (we'll get moves if the user
        // is really moving the mouse) since we get them when we
        // create and destroy widgets.
        aEvent->message != NS_MOUSE_EXIT &&
        aEvent->message != NS_MOUSE_ENTER) ||
-      aEvent->HasKeyEventMessage() ||
-      aEvent->HasIMEEventMessage() ||
+      NS_IS_KEY_EVENT(aEvent) ||
+      NS_IS_IME_EVENT(aEvent) ||
       aEvent->message == NS_PLUGIN_INPUT_EVENT) {
     gLastUserEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
   }
 
   // Find the view whose coordinates system we're in.
   nsView* view = aView;
-  bool dispatchUsingCoordinates = aEvent->IsUsingCoordinates();
+  bool dispatchUsingCoordinates = NS_IsEventUsingCoordinates(aEvent);
   if (dispatchUsingCoordinates) {
     // Will dispatch using coordinates. Pretty bogus but it's consistent
     // with what presshell does.
@@ -720,10 +716,11 @@ nsViewManager::DispatchEvent(WidgetGUIEvent *aEvent,
   // If the view has no frame, look for a view that does.
   nsIFrame* frame = view->GetFrame();
   if (!frame &&
-      (dispatchUsingCoordinates || aEvent->HasKeyEventMessage() ||
-       aEvent->IsIMERelatedEvent() ||
-       aEvent->IsNonRetargetedNativeEventDelivererForPlugin() ||
-       aEvent->HasPluginActivationEventMessage() ||
+      (dispatchUsingCoordinates || NS_IS_KEY_EVENT(aEvent) ||
+       NS_IS_IME_RELATED_EVENT(aEvent) ||
+       NS_IS_NON_RETARGETED_PLUGIN_EVENT(aEvent) ||
+       aEvent->message == NS_PLUGIN_ACTIVATE ||
+       aEvent->message == NS_PLUGIN_FOCUS ||
        aEvent->message == NS_PLUGIN_RESOLUTION_CHANGED)) {
     while (view && !view->GetFrame()) {
       view = view->GetParent();

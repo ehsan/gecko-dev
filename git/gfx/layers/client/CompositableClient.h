@@ -16,7 +16,6 @@
 #include "mozilla/layers/LayersTypes.h"  // for LayersBackend
 #include "mozilla/layers/PCompositableChild.h"  // for PCompositableChild
 #include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
-#include "gfxASurface.h"                // for gfxContentType
 
 namespace mozilla {
 namespace layers {
@@ -81,8 +80,7 @@ public:
   LayersBackend GetCompositorBackendType() const;
 
   TemporaryRef<DeprecatedTextureClient>
-  CreateDeprecatedTextureClient(DeprecatedTextureClientType aDeprecatedTextureClientType,
-                                gfxContentType aContentType = GFX_CONTENT_SENTINEL);
+  CreateDeprecatedTextureClient(DeprecatedTextureClientType aDeprecatedTextureClientType);
 
   virtual TemporaryRef<BufferTextureClient>
   CreateBufferTextureClient(gfx::SurfaceFormat aFormat, TextureFlags aFlags);
@@ -115,11 +113,8 @@ public:
 
   /**
    * This identifier is what lets us attach async compositables with a shadow
-   * layer. It is not used if the compositable is used with the regular shadow
+   * layer. It is not used if the compositable is used with the regulat shadow
    * layer forwarder.
-   *
-   * If this returns zero, it means the compositable is not async (it is used
-   * on the main thread).
    */
   uint64_t GetAsyncID() const;
 
@@ -144,24 +139,8 @@ public:
    */
   virtual void OnDetach() {}
 
-  /**
-   * When texture deallocation must happen on the client side, we need to first
-   * ensure that the compositor has already let go of the data in order
-   * to safely deallocate it.
-   *
-   * This is implemented by registering a callback to postpone deallocation or
-   * recycling of the shared data.
-   *
-   * This hook is called when the compositor notifies the client that it is not
-   * holding any more references to the shared data so that this compositable
-   * can run the corresponding callback.
-   */
   void OnReplyTextureRemoved(uint64_t aTextureID);
 
-  /**
-   * Run all he registered callbacks (see the comment for OnReplyTextureRemoved).
-   * Only call this if you know what you are doing.
-   */
   void FlushTexturesToRemoveCallbacks();
 protected:
   struct TextureIDAndFlags {

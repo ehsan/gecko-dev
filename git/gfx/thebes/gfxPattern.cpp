@@ -367,13 +367,13 @@ void
 gfxPattern::SetFilter(GraphicsFilter filter)
 {
   if (mPattern) {
-    cairo_pattern_set_filter(mPattern, (cairo_filter_t)(int)filter);
+    cairo_pattern_set_filter(mPattern, (cairo_filter_t)filter);
   } else {
     mFilter = ToFilter(filter);
   }
 }
 
-GraphicsFilter
+gfxPattern::GraphicsFilter
 gfxPattern::Filter() const
 {
   if (mPattern) {

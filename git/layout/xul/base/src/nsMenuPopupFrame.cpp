@@ -27,6 +27,7 @@
 #include "nsIComponentManager.h"
 #include "nsBoxLayoutState.h"
 #include "nsIScrollableFrame.h"
+#include "nsGUIEvent.h"
 #include "nsIRootBox.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsReadableUtils.h"
@@ -48,7 +49,6 @@
 #include "nsDisplayList.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/MouseEvents.h"
 #include "mozilla/dom/Element.h"
 #include <algorithm>
 
@@ -338,8 +338,7 @@ public:
 
   NS_IMETHOD Run()
   {
-    WidgetMouseEvent event(true, NS_XUL_POPUP_SHOWN, nullptr,
-                           WidgetMouseEvent::eReal);
+    nsMouseEvent event(true, NS_XUL_POPUP_SHOWN, nullptr, nsMouseEvent::eReal);
     return nsEventDispatcher::Dispatch(mPopup, mPresContext, &event);                 
   }
 
@@ -1607,7 +1606,7 @@ nsMenuPopupFrame::ChangeMenuItem(nsMenuFrame* aMenuItem,
 }
 
 nsMenuFrame*
-nsMenuPopupFrame::Enter(WidgetGUIEvent* aEvent)
+nsMenuPopupFrame::Enter(nsGUIEvent* aEvent)
 {
   mIncrementalString.Truncate();
 

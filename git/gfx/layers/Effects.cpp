@@ -39,6 +39,14 @@ EffectMask::PrintInfo(nsACString& aTo, const char* aPrefix)
   if (mIs3D) {
     aTo += " [is-3d]";
   }
+
+  if (mMaskTexture) {
+    nsAutoCString prefix(aPrefix);
+    prefix += "  ";
+
+    aTo += "\n";
+    mMaskTexture->PrintInfo(aTo, prefix.get());
+  }
 }
 
 void

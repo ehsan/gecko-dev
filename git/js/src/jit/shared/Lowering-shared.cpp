@@ -8,6 +8,7 @@
 
 #include "jit/LIR.h"
 #include "jit/MIR.h"
+#include "jit/MIRGraph.h"
 
 using namespace js;
 using namespace jit;
@@ -62,11 +63,11 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
 {
     LSnapshot *snapshot = LSnapshot::New(gen, rp, kind);
     if (!snapshot)
-        return nullptr;
+        return NULL;
 
     FlattenedMResumePointIter iter(rp);
     if (!iter.init())
-        return nullptr;
+        return NULL;
 
     size_t i = 0;
     for (MResumePoint **it = iter.begin(), **end = iter.end(); it != end; ++it) {
@@ -120,11 +121,11 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
 {
     LSnapshot *snapshot = LSnapshot::New(gen, rp, kind);
     if (!snapshot)
-        return nullptr;
+        return NULL;
 
     FlattenedMResumePointIter iter(rp);
     if (!iter.init())
-        return nullptr;
+        return NULL;
 
     size_t i = 0;
     for (MResumePoint **it = iter.begin(), **end = iter.end(); it != end; ++it) {

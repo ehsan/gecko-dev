@@ -187,6 +187,8 @@
 #include "nsIWebBrowserFind.h"
 #include "nsIWidget.h"
 
+static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
+                     NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 #if defined(DEBUG_bryner) || defined(DEBUG_chb)
@@ -4347,13 +4349,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
         nsCOMPtr<Element> element = do_QueryInterface(handler);
         element->GetAttribute(NS_LITERAL_STRING("crashedPageTitle"), messageStr);
       }
-
-      // DisplayLoadError requires a non-empty messageStr to proceed and call LoadErrorPage.
-      // If the page doesn't have a title, we will use a blank space which will be trimmed
-      // and thus treated as empty by the front-end.
-      if (messageStr.IsEmpty()) {
-        messageStr.Assign(NS_LITERAL_STRING(" "));
-      }
     }
     else {
         // Errors requiring simple formatting
@@ -4598,26 +4593,8 @@ nsDocShell::LoadErrorPage(nsIURI *aURI, const PRUnichar *aURL,
     errorPageUrl.AppendLiteral("&d=");
     errorPageUrl.AppendASCII(escapedDescription.get());
 
-    // Append the manifest URL if the error comes from an app.
-    uint32_t appId;
-    nsresult rv = GetAppId(&appId);
-    if (appId != nsIScriptSecurityManager::NO_APP_ID &&
-        appId != nsIScriptSecurityManager::UNKNOWN_APP_ID) {
-      nsCOMPtr<nsIAppsService> appsService =
-        do_GetService(APPS_SERVICE_CONTRACTID);
-      NS_ASSERTION(appsService, "No AppsService available");
-      nsAutoString manifestURL;
-      appsService->GetManifestURLByLocalId(appId, manifestURL);
-      nsCString manifestParam;
-      SAFE_ESCAPE(manifestParam,
-                  NS_ConvertUTF16toUTF8(manifestURL).get(),
-                  url_Path);
-      errorPageUrl.AppendLiteral("&m=");
-      errorPageUrl.AppendASCII(manifestParam.get());
-    }
-
     nsCOMPtr<nsIURI> errorPageURI;
-    rv = NS_NewURI(getter_AddRefs(errorPageURI), errorPageUrl);
+    nsresult rv = NS_NewURI(getter_AddRefs(errorPageURI), errorPageUrl);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return InternalLoad(errorPageURI, nullptr, nullptr,
@@ -5071,7 +5048,7 @@ NS_IMETHODIMP
 nsDocShell::GetUnscaledDevicePixelsPerCSSPixel(double *aScale)
 {
     if (mParentWidget) {
-        *aScale = mParentWidget->GetDefaultScale().scale;
+        *aScale = mParentWidget->GetDefaultScale();
         return NS_OK;
     }
 

@@ -21,6 +21,8 @@
 #include "jsgcinlines.h"
 #include "jsinferinlines.h"
 
+#include "vm/Shape-inl.h"
+
 /* static */ inline bool
 JSObject::setGenericAttributes(JSContext *cx, js::HandleObject obj,
                                js::HandleId id, unsigned *attrsp)
@@ -363,6 +365,8 @@ inline void
 JSObject::setType(js::types::TypeObject *newType)
 {
     JS_ASSERT(newType);
+    JS_ASSERT_IF(getClass()->emulatesUndefined(),
+                 newType->hasAnyFlags(js::types::OBJECT_FLAG_EMULATES_UNDEFINED));
     JS_ASSERT(!hasSingletonType());
     type_ = newType;
 }

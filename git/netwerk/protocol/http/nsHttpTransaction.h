@@ -7,13 +7,20 @@
 #define nsHttpTransaction_h__
 
 #include "nsHttp.h"
+#include "nsHttpHeaderArray.h"
 #include "nsAHttpTransaction.h"
 #include "nsAHttpConnection.h"
 #include "EventTokenBucket.h"
 #include "nsCOMPtr.h"
-#include "nsThreadUtils.h"
+
+#include "nsIPipe.h"
+#include "nsIInputStream.h"
 #include "nsILoadGroup.h"
+#include "nsIOutputStream.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsISocketTransportService.h"
+#include "nsITransport.h"
+#include "nsIEventTarget.h"
 #include "TimingStruct.h"
 
 //-----------------------------------------------------------------------------
@@ -22,9 +29,7 @@ class nsHttpRequestHead;
 class nsHttpResponseHead;
 class nsHttpChunkedDecoder;
 class nsIHttpActivityObserver;
-class nsIEventTarget;
-class nsIInputStream;
-class nsIOutputStream;
+class UpdateSecurityCallbacks;
 
 //-----------------------------------------------------------------------------
 // nsHttpTransaction represents a single HTTP transaction.  It is thread-safe,

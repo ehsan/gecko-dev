@@ -39,7 +39,7 @@
 #include "nsDOMClassInfo.h"
 #include "nsCxPusher.h"
 
-#include "mozilla/BasicEvents.h"
+#include "nsGUIEvent.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsIDOMNodeFilter.h"
 
@@ -120,7 +120,7 @@
 #include "nsDateTimeFormatCID.h"
 #include "nsIDateTimeFormat.h"
 #include "nsEventDispatcher.h"
-#include "mozilla/MutationEvent.h"
+#include "nsMutationEvent.h"
 #include "nsDOMCID.h"
 
 #include "jsapi.h"
@@ -4626,7 +4626,7 @@ nsDocument::DispatchContentLoadedEvents()
         // the ancestor document if we used the normal event
         // dispatching code.
 
-        WidgetEvent* innerEvent = event->GetInternalNSEvent();
+        nsEvent* innerEvent = event->GetInternalNSEvent();
         if (innerEvent) {
           nsEventStatus status = nsEventStatus_eIgnore;
 
@@ -6886,8 +6886,7 @@ nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
     }
     // Now convert the scale into device pixels per CSS pixel.
     nsIWidget *widget = nsContentUtils::WidgetForDocument(this);
-    CSSToLayoutDeviceScale pixelRatio = widget ? widget->GetDefaultScale()
-                                               : CSSToLayoutDeviceScale(1.0f);
+    CSSToLayoutDeviceScale pixelRatio(widget ? widget->GetDefaultScale() : 1.0f);
     CSSToScreenScale scaleFloat = mScaleFloat * pixelRatio;
     CSSToScreenScale scaleMinFloat = mScaleMinFloat * pixelRatio;
     CSSToScreenScale scaleMaxFloat = mScaleMaxFloat * pixelRatio;
@@ -8194,7 +8193,7 @@ nsDocument::MutationEventDispatched(nsINode* aTarget)
 
     int32_t realTargetCount = realTargets.Count();
     for (int32_t k = 0; k < realTargetCount; ++k) {
-      InternalMutationEvent mutation(true, NS_MUTATION_SUBTREEMODIFIED);
+      nsMutationEvent mutation(true, NS_MUTATION_SUBTREEMODIFIED);
       (new nsAsyncDOMEvent(realTargets[k], mutation))->RunDOMEventWhenSafe();
     }
   }
@@ -9167,7 +9166,7 @@ nsresult
 nsDocument::SetImageLockingState(bool aLocked)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content &&
-      !Preferences::GetBool("image.mem.allow_locking_in_content_processes", true)) {
+      !Preferences::GetBool("content.image.allow_locking", true)) {
     return NS_OK;
   }
 
@@ -11040,18 +11039,18 @@ nsDocument::GetVisibilityState(nsAString& aState)
 }
 
 /* virtual */ void
-nsIDocument::DocAddSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
+nsIDocument::DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
 {
   aWindowSizes->mDOMOther +=
     nsINode::SizeOfExcludingThis(aWindowSizes->mMallocSizeOf);
 
   if (mPresShell) {
-    mPresShell->AddSizeOfIncludingThis(aWindowSizes->mMallocSizeOf,
-                                       &aWindowSizes->mArenaStats,
-                                       &aWindowSizes->mLayoutPresShell,
-                                       &aWindowSizes->mLayoutStyleSets,
-                                       &aWindowSizes->mLayoutTextRuns,
-                                       &aWindowSizes->mLayoutPresContext);
+    mPresShell->SizeOfIncludingThis(aWindowSizes->mMallocSizeOf,
+                                    &aWindowSizes->mArenaStats,
+                                    &aWindowSizes->mLayoutPresShell,
+                                    &aWindowSizes->mLayoutStyleSets,
+                                    &aWindowSizes->mLayoutTextRuns,
+                                    &aWindowSizes->mLayoutPresContext);
   }
 
   aWindowSizes->mPropertyTables +=
@@ -11068,10 +11067,10 @@ nsIDocument::DocAddSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
 }
 
 void
-nsIDocument::DocAddSizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
+nsIDocument::DocSizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
 {
   aWindowSizes->mDOMOther += aWindowSizes->mMallocSizeOf(this);
-  DocAddSizeOfExcludingThis(aWindowSizes);
+  DocSizeOfExcludingThis(aWindowSizes);
 }
 
 static size_t
@@ -11087,15 +11086,15 @@ nsDocument::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
 {
   // This SizeOfExcludingThis() overrides the one from nsINode.  But
   // nsDocuments can only appear at the top of the DOM tree, and we use the
-  // specialized DocAddSizeOfExcludingThis() in that case.  So this should never
+  // specialized DocSizeOfExcludingThis() in that case.  So this should never
   // be called.
   MOZ_CRASH();
 }
 
 void
-nsDocument::DocAddSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
+nsDocument::DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
 {
-  nsIDocument::DocAddSizeOfExcludingThis(aWindowSizes);
+  nsIDocument::DocSizeOfExcludingThis(aWindowSizes);
 
   for (nsIContent* node = nsINode::GetFirstChild();
        node;

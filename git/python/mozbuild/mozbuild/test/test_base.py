@@ -18,12 +18,13 @@ from mozunit import main
 from mach.logging import LoggingManager
 
 from mozbuild.base import (
-    MachCommandBase,
+    BuildConfig,
     MozbuildObject,
     PathArgument,
 )
 
 from mozbuild.backend.configenvironment import ConfigEnvironment
+
 
 
 curdir = os.path.dirname(__file__)
@@ -137,77 +138,6 @@ class TestMozbuildObject(unittest.TestCase):
             obj = MozbuildObject.from_environment()
 
             self.assertEqual(obj.topobjdir, topobjdir)
-
-        finally:
-            shutil.rmtree(d)
-
-    @unittest.skipIf(not hasattr(os, 'symlink'), 'symlinks not available.')
-    def test_symlink_objdir(self):
-        """Objdir that is a symlink is loaded properly."""
-        d = os.path.realpath(tempfile.mkdtemp())
-        try:
-            topobjdir_real = os.path.join(d, 'objdir')
-            topobjdir_link = os.path.join(d, 'objlink')
-
-            os.mkdir(topobjdir_real)
-            os.symlink(topobjdir_real, topobjdir_link)
-
-            mozconfig = os.path.join(d, 'mozconfig')
-            with open(mozconfig, 'wt') as fh:
-                fh.write('mk_add_options MOZ_OBJDIR=%s' % topobjdir_link)
-
-            mozinfo = os.path.join(topobjdir_real, 'mozinfo.json')
-            with open(mozinfo, 'wt') as fh:
-                json.dump(dict(
-                    topsrcdir=d,
-                    mozconfig=mozconfig,
-                ), fh)
-
-            os.chdir(topobjdir_link)
-            obj = MozbuildObject.from_environment(detect_virtualenv_mozinfo=False)
-            self.assertEqual(obj.topobjdir, topobjdir_real)
-
-            os.chdir(topobjdir_real)
-            obj = MozbuildObject.from_environment(detect_virtualenv_mozinfo=False)
-            self.assertEqual(obj.topobjdir, topobjdir_real)
-
-        finally:
-            shutil.rmtree(d)
-
-    @unittest.skip('Failed on buildbot (bug 853954)')
-    def test_mach_command_base_inside_objdir(self):
-        """Ensure a MachCommandBase constructed from inside the objdir works."""
-
-        d = os.path.realpath(tempfile.mkdtemp())
-
-        try:
-            topobjdir = os.path.join(d, 'objdir')
-            os.makedirs(topobjdir)
-
-            topsrcdir = os.path.join(d, 'srcdir')
-            os.makedirs(topsrcdir)
-
-            mozinfo = os.path.join(topobjdir, 'mozinfo.json')
-            with open(mozinfo, 'wt') as fh:
-                json.dump(dict(
-                    topsrcdir=topsrcdir,
-                ), fh)
-
-            os.chdir(topobjdir)
-
-            class MockMachContext(object):
-                pass
-
-            context = MockMachContext()
-            context.cwd = topobjdir
-            context.topdir = topobjdir
-            context.settings = None
-            context.log_manager = None
-
-            o = MachCommandBase(context)
-
-            self.assertEqual(o.topobjdir, topobjdir)
-            self.assertEqual(o.topsrcdir, topsrcdir)
 
         finally:
             shutil.rmtree(d)

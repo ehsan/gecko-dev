@@ -7,6 +7,8 @@
 #ifndef jsapi_tests_tests_h
 #define jsapi_tests_tests_h
 
+#include "mozilla/Util.h"
+
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -207,7 +209,7 @@ class JSAPITest
         if (JS_IsExceptionPending(cx)) {
             js::gc::AutoSuppressGC gcoff(cx);
             JS::RootedValue v(cx);
-            JS_GetPendingException(cx, &v);
+            JS_GetPendingException(cx, v.address());
             JS_ClearPendingException(cx);
             JSString *s = JS_ValueToString(cx, v);
             if (s) {

@@ -11,6 +11,7 @@
 #include "MediaDecoderOwner.h"
 #include "nsIChannel.h"
 #include "nsIHttpChannel.h"
+#include "nsThreadUtils.h"
 #include "nsIDOMRange.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsILoadGroup.h"
@@ -44,7 +45,6 @@ class MediaDecoder;
 
 class nsITimer;
 class nsRange;
-class nsIRunnable;
 
 namespace mozilla {
 namespace dom {
@@ -528,12 +528,6 @@ public:
 
   void AddTextTrack(TextTrack* aTextTrack) {
     mTextTracks->AddTextTrack(aTextTrack);
-  }
-
-  void RemoveTextTrack(TextTrack* aTextTrack) {
-    if (mTextTracks) {
-      mTextTracks->RemoveTextTrack(*aTextTrack);
-    }
   }
 
 protected:

@@ -12,12 +12,10 @@
 #include "gfxRect.h"
 #include "gfxColor.h"
 #include "gfxMatrix.h"
-#include "GraphicsFilter.h"
+#include "gfxPattern.h"
 
 class gfxASurface;
-class gfxImageSurface;
 class gfxContext;
-class gfxPattern;
 
 /**
  * gfxDrawable
@@ -41,9 +39,8 @@ public:
     virtual bool Draw(gfxContext* aContext,
                         const gfxRect& aFillRect,
                         bool aRepeat,
-                        const GraphicsFilter& aFilter,
+                        const gfxPattern::GraphicsFilter& aFilter,
                         const gfxMatrix& aTransform = gfxMatrix()) = 0;
-    virtual already_AddRefed<gfxImageSurface> GetAsImageSurface() { return nullptr; }
     virtual gfxIntSize Size() { return mSize; }
 
 protected:
@@ -63,10 +60,8 @@ public:
     virtual bool Draw(gfxContext* aContext,
                         const gfxRect& aFillRect,
                         bool aRepeat,
-                        const GraphicsFilter& aFilter,
+                        const gfxPattern::GraphicsFilter& aFilter,
                         const gfxMatrix& aTransform = gfxMatrix());
-    
-    virtual already_AddRefed<gfxImageSurface> GetAsImageSurface();
 
 protected:
     nsRefPtr<gfxASurface> mSurface;
@@ -91,7 +86,7 @@ public:
      */
     virtual bool operator()(gfxContext* aContext,
                               const gfxRect& aFillRect,
-                              const GraphicsFilter& aFilter,
+                              const gfxPattern::GraphicsFilter& aFilter,
                               const gfxMatrix& aTransform = gfxMatrix()) = 0;
 
 };
@@ -108,11 +103,11 @@ public:
     virtual bool Draw(gfxContext* aContext,
                         const gfxRect& aFillRect,
                         bool aRepeat,
-                        const GraphicsFilter& aFilter,
+                        const gfxPattern::GraphicsFilter& aFilter,
                         const gfxMatrix& aTransform = gfxMatrix());
 
 protected:
-    already_AddRefed<gfxSurfaceDrawable> MakeSurfaceDrawable(const GraphicsFilter aFilter = GraphicsFilter::FILTER_FAST);
+    already_AddRefed<gfxSurfaceDrawable> MakeSurfaceDrawable(const gfxPattern::GraphicsFilter aFilter = gfxPattern::FILTER_FAST);
 
     nsRefPtr<gfxDrawingCallback> mCallback;
     nsRefPtr<gfxSurfaceDrawable> mSurfaceDrawable;
@@ -131,7 +126,7 @@ public:
     virtual bool Draw(gfxContext* aContext,
                         const gfxRect& aFillRect,
                         bool aRepeat,
-                        const GraphicsFilter& aFilter,
+                        const gfxPattern::GraphicsFilter& aFilter,
                         const gfxMatrix& aTransform = gfxMatrix());
 
 protected:

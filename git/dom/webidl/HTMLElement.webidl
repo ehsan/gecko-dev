@@ -79,8 +79,11 @@ interface HTMLElement : Element {
   // FIXME Bug 810677 Move className from HTMLElement to Element
            attribute DOMString className;
 
+  [SetterThrows]
            attribute EventHandler oncopy;
+  [SetterThrows]
            attribute EventHandler oncut;
+  [SetterThrows]
            attribute EventHandler onpaste;
 };
 
@@ -96,17 +99,17 @@ partial interface HTMLElement {
 
 [NoInterfaceObject]
 interface TouchEventHandlers {
-  [Func="nsGenericHTMLElement::TouchEventsEnabled"]
+  [SetterThrows,Func="nsGenericHTMLElement::TouchEventsEnabled"]
            attribute EventHandler ontouchstart;
-  [Func="nsGenericHTMLElement::TouchEventsEnabled"]
+  [SetterThrows,Func="nsGenericHTMLElement::TouchEventsEnabled"]
            attribute EventHandler ontouchend;
-  [Func="nsGenericHTMLElement::TouchEventsEnabled"]
+  [SetterThrows,Func="nsGenericHTMLElement::TouchEventsEnabled"]
            attribute EventHandler ontouchmove;
-  [Func="nsGenericHTMLElement::TouchEventsEnabled"]
+  [SetterThrows,Func="nsGenericHTMLElement::TouchEventsEnabled"]
            attribute EventHandler ontouchenter;
-  [Func="nsGenericHTMLElement::TouchEventsEnabled"]
+  [SetterThrows,Func="nsGenericHTMLElement::TouchEventsEnabled"]
            attribute EventHandler ontouchleave;
-  [Func="nsGenericHTMLElement::TouchEventsEnabled"]
+  [SetterThrows,Func="nsGenericHTMLElement::TouchEventsEnabled"]
            attribute EventHandler ontouchcancel;
 };
 

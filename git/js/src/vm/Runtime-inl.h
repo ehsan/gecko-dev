@@ -10,7 +10,9 @@
 #include "vm/Runtime.h"
 
 #include "jscompartment.h"
+#include "jsworkers.h"
 
+#include "jit/IonFrames.h"
 #include "vm/Probes.h"
 
 #include "jsgcinlines.h"
@@ -46,18 +48,14 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_, js::gc::Initi
     JS_ASSERT(unsigned(entry_) < mozilla::ArrayLength(entries));
     Entry *entry = &entries[entry_];
 
-    JSObject *templateObj = reinterpret_cast<JSObject *>(&entry->templateObject);
-    if (templateObj->type()->isLongLivedForCachedAlloc())
-        heap = gc::TenuredHeap;
-
     JSObject *obj = js_NewGCObject<NoGC>(cx, entry->kind, heap);
     if (obj) {
-        copyCachedToObject(obj, templateObj, entry->kind);
+        copyCachedToObject(obj, reinterpret_cast<JSObject *>(&entry->templateObject), entry->kind);
         Probes::createObject(cx, obj);
         return obj;
     }
 
-    return nullptr;
+    return NULL;
 }
 
 }  /* namespace js */

@@ -11,7 +11,6 @@
 #include "mozilla/LinkedList.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
-#include "mozilla/Scoped.h"
 #include "mozilla/ThreadLocal.h"
 
 #include <setjmp.h>
@@ -19,22 +18,16 @@
 #include "jsatom.h"
 #include "jsclist.h"
 #include "jsgc.h"
-#ifdef DEBUG
-# include "jsproxy.h"
-#endif
+#include "jsproxy.h"
 #include "jsscript.h"
 
 #include "ds/FixedSizeHash.h"
 #include "frontend/ParseMaps.h"
-#ifdef JSGC_GENERATIONAL
-# include "gc/Nursery.h"
-#endif
+#include "gc/Nursery.h"
 #include "gc/Statistics.h"
-#ifdef JSGC_GENERATIONAL
-# include "gc/StoreBuffer.h"
-#endif
+#include "gc/StoreBuffer.h"
 #ifdef XP_MACOSX
-# include "jit/AsmJSSignalHandlers.h"
+#include "jit/AsmJSSignalHandlers.h"
 #endif
 #include "js/HashTable.h"
 #include "js/Vector.h"
@@ -107,7 +100,7 @@ struct GSNCache {
     jsbytecode      *code;
     Map             map;
 
-    GSNCache() : code(nullptr) { }
+    GSNCache() : code(NULL) { }
 
     void purge();
 };
@@ -118,7 +111,7 @@ struct ConservativeGCData
 {
     /*
      * The GC scans conservatively between ThreadData::nativeStackBase and
-     * nativeStackTop unless the latter is nullptr.
+     * nativeStackTop unless the latter is NULL.
      */
     uintptr_t           *nativeStackTop;
 
@@ -157,7 +150,7 @@ struct ConservativeGCData
 
 #ifdef JS_THREADSAFE
     void updateForRequestEnd() {
-        nativeStackTop = nullptr;
+        nativeStackTop = NULL;
     }
 #endif
 
@@ -175,7 +168,7 @@ class SourceDataCache
     Map *map_;
 
   public:
-    SourceDataCache() : map_(nullptr) {}
+    SourceDataCache() : map_(NULL) {}
     JSStableString *lookup(ScriptSource *ss);
     void put(ScriptSource *ss, JSStableString *);
     void purge();
@@ -228,7 +221,7 @@ struct LazyScriptHashPolicy
     static void hash(JSScript *script, HashNumber hashes[NumHashes]);
     static bool match(JSScript *script, JSScript *lookup) { return script == lookup; }
 
-    static void clear(JSScript **pscript) { *pscript = nullptr; }
+    static void clear(JSScript **pscript) { *pscript = NULL; }
     static bool isCleared(JSScript *script) { return !script; }
 };
 
@@ -252,13 +245,13 @@ class NativeIterCache
     PropertyIteratorObject *last;
 
     NativeIterCache()
-      : last(nullptr)
+      : last(NULL)
     {
         mozilla::PodArrayZero(data);
     }
 
     void purge() {
-        last = nullptr;
+        last = NULL;
         mozilla::PodArrayZero(data);
     }
 
@@ -314,7 +307,7 @@ class NewObjectCache
 
         /*
          * Template object to copy from, with the initial values of fields,
-         * fixed slots (undefined) and private data (nullptr).
+         * fixed slots (undefined) and private data (NULL).
          */
         char templateObject[MAX_OBJ_SIZE];
     };
@@ -347,7 +340,7 @@ class NewObjectCache
 
     /*
      * Return a new object from a cache hit produced by a lookup method, or
-     * nullptr if returning the object could possibly trigger GC (does not
+     * NULL if returning the object could possibly trigger GC (does not
      * indicate failure).
      */
     inline JSObject *newObjectFromHit(JSContext *cx, EntryIndex entry, js::gc::InitialHeap heap);
@@ -540,8 +533,8 @@ class PerThreadData : public PerThreadDataFriendFields,
     js::AsmJSActivation *asmJSActivationStack_;
 
   public:
-    js::Activation *const *addressOfActivation() const {
-        return &activation_;
+    static unsigned offsetOfActivation() {
+        return offsetof(PerThreadData, activation_);
     }
     static unsigned offsetOfAsmJSActivationStackReadOnly() {
         return offsetof(PerThreadData, asmJSActivationStack_);
@@ -601,7 +594,7 @@ struct MallocProvider
         Client *client = static_cast<Client *>(this);
         client->updateMallocCounter(bytes);
         void *p = js_malloc(bytes);
-        return JS_LIKELY(!!p) ? p : client->onOutOfMemory(nullptr, bytes);
+        return JS_LIKELY(!!p) ? p : client->onOutOfMemory(NULL, bytes);
     }
 
     void *calloc_(size_t bytes) {
@@ -650,17 +643,17 @@ struct MallocProvider
         if (numElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value) {
             Client *client = static_cast<Client *>(this);
             client->reportAllocationOverflow();
-            return nullptr;
+            return NULL;
         }
         return (T *)malloc_(numElems * sizeof(T));
     }
 
     template <class T>
-    T *pod_calloc(size_t numElems, JSCompartment *comp = nullptr, JSContext *cx = nullptr) {
+    T *pod_calloc(size_t numElems, JSCompartment *comp = NULL, JSContext *cx = NULL) {
         if (numElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value) {
             Client *client = static_cast<Client *>(this);
             client->reportAllocationOverflow();
-            return nullptr;
+            return NULL;
         }
         return (T *)calloc_(numElems * sizeof(T));
     }
@@ -672,7 +665,7 @@ namespace gc {
 class MarkingValidator;
 } // namespace gc
 
-typedef Vector<JS::Zone *, 4, SystemAllocPolicy> ZoneVector;
+typedef Vector<JS::Zone *, 1, SystemAllocPolicy> ZoneVector;
 
 class AutoLockForExclusiveAccess;
 class AutoPauseWorkersForGC;
@@ -727,7 +720,9 @@ struct JSRuntime : public JS::shadow::Runtime,
      * Protects all data that is touched in this process.
      */
     PRLock *operationCallbackLock;
+#ifdef DEBUG
     PRThread *operationCallbackOwner;
+#endif
   public:
 #endif // JS_THREADSAFE
 
@@ -737,13 +732,16 @@ struct JSRuntime : public JS::shadow::Runtime,
       public:
         AutoLockForOperationCallback(JSRuntime *rt MOZ_GUARD_OBJECT_NOTIFIER_PARAM) : rt(rt) {
             MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-            JS_ASSERT(!rt->currentThreadOwnsOperationCallbackLock());
             PR_Lock(rt->operationCallbackLock);
+#ifdef DEBUG
             rt->operationCallbackOwner = PR_GetCurrentThread();
+#endif
         }
         ~AutoLockForOperationCallback() {
             JS_ASSERT(rt->operationCallbackOwner == PR_GetCurrentThread());
-            rt->operationCallbackOwner = nullptr;
+#ifdef DEBUG
+            rt->operationCallbackOwner = NULL;
+#endif
             PR_Unlock(rt->operationCallbackLock);
         }
 #else // JS_THREADSAFE
@@ -757,7 +755,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     };
 
     bool currentThreadOwnsOperationCallbackLock() {
-#if defined(JS_THREADSAFE)
+#if defined(JS_THREADSAFE) && defined(DEBUG)
         return operationCallbackOwner == PR_GetCurrentThread();
 #else
         return true;
@@ -914,7 +912,7 @@ struct JSRuntime : public JS::shadow::Runtime,
                                        js::Handle<JSFunction*> targetFun);
     bool cloneSelfHostedValue(JSContext *cx, js::Handle<js::PropertyName*> name,
                               js::MutableHandleValue vp);
-    bool maybeWrappedSelfHostedFunction(JSContext *cx, js::HandleId name,
+    bool maybeWrappedSelfHostedFunction(JSContext *cx, js::Handle<js::PropertyName*> name,
                                         js::MutableHandleValue funVal);
 
     //-------------------------------------------------------------------------
@@ -1239,7 +1237,7 @@ struct JSRuntime : public JS::shadow::Runtime,
         void *data;
 
         ExtraTracer()
-          : op(nullptr), data(nullptr)
+          : op(NULL), data(NULL)
         {}
         ExtraTracer(JSTraceDataOp op, void *data)
           : op(op), data(data)
@@ -1269,9 +1267,9 @@ struct JSRuntime : public JS::shadow::Runtime,
     js::ScriptAndCountsVector *scriptAndCountsVector;
 
     /* Well-known numbers held for use by this runtime's contexts. */
-    const js::Value     NaNValue;
-    const js::Value     negativeInfinityValue;
-    const js::Value     positiveInfinityValue;
+    js::Value           NaNValue;
+    js::Value           negativeInfinityValue;
+    js::Value           positiveInfinityValue;
 
     js::PropertyName    *emptyString;
 
@@ -1282,7 +1280,7 @@ struct JSRuntime : public JS::shadow::Runtime,
         return !contextList.isEmpty();
     }
 
-    mozilla::ScopedDeletePtr<js::SourceHook> sourceHook;
+    JS_SourceHook       sourceHook;
 
     /* Per runtime debug hooks -- see js/OldDebugAPI.h. */
     JSDebugHooks        debugHooks;
@@ -1301,9 +1299,6 @@ struct JSRuntime : public JS::shadow::Runtime,
 
     /* Had an out-of-memory error which did not populate an exception. */
     bool                hadOutOfMemory;
-
-    /* A context has been created on this runtime. */
-    bool                haveCreatedContext;
 
     /* Linked list of all Debugger objects in the runtime. */
     mozilla::LinkedList<js::Debugger> debuggerList;
@@ -1399,10 +1394,10 @@ struct JSRuntime : public JS::shadow::Runtime,
     }
 
   private:
-    const JSPrincipals  *trustedPrincipals_;
+    JSPrincipals        *trustedPrincipals_;
   public:
-    void setTrustedPrincipals(const JSPrincipals *p) { trustedPrincipals_ = p; }
-    const JSPrincipals *trustedPrincipals() const { return trustedPrincipals_; }
+    void setTrustedPrincipals(JSPrincipals *p) { trustedPrincipals_ = p; }
+    JSPrincipals *trustedPrincipals() const { return trustedPrincipals_; }
 
     // Set of all currently-living atoms, and the compartment in which they
     // reside. The atoms compartment is additionally used to hold runtime
@@ -1411,7 +1406,6 @@ struct JSRuntime : public JS::shadow::Runtime,
   private:
     js::AtomSet atoms_;
     JSCompartment *atomsCompartment_;
-    bool beingDestroyed_;
   public:
     js::AtomSet &atoms() {
         JS_ASSERT(currentThreadHasExclusiveAccess());
@@ -1424,10 +1418,6 @@ struct JSRuntime : public JS::shadow::Runtime,
 
     bool isAtomsCompartment(JSCompartment *comp) {
         return comp == atomsCompartment_;
-    }
-
-    bool isBeingDestroyed() const {
-        return beingDestroyed_;
     }
 
     // The atoms compartment is the only one in its zone.
@@ -1483,8 +1473,6 @@ struct JSRuntime : public JS::shadow::Runtime,
     js::jit::PcScriptCache *ionPcScriptCache;
 
     js::ThreadPool threadPool;
-
-    js::DefaultJSContextCallback defaultJSContextCallback;
 
     js::CTypesActivityCallback  ctypesActivityCallback;
 
@@ -1549,7 +1537,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     void updateMallocCounter(size_t nbytes);
     void updateMallocCounter(JS::Zone *zone, size_t nbytes);
 
-    void reportAllocationOverflow() { js_ReportAllocationOverflow(nullptr); }
+    void reportAllocationOverflow() { js_ReportAllocationOverflow(NULL); }
 
     bool isTooMuchMalloc() const {
         return gcMallocBytes <= 0;
@@ -1561,7 +1549,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     JS_FRIEND_API(void) onTooMuchMalloc();
 
     /*
-     * This should be called after system malloc/realloc returns nullptr to try
+     * This should be called after system malloc/realloc returns NULL to try
      * to recove some memory or to report an error. Failures in malloc and
      * calloc are signaled by p == null and p == reinterpret_cast<void *>(1).
      * Other values of p mean a realloc failure.
@@ -1586,7 +1574,7 @@ struct JSRuntime : public JS::shadow::Runtime,
         return jitHardening;
     }
 
-    void addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::RuntimeSizes *runtime);
+    void sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::RuntimeSizes *runtime);
 
   private:
 
@@ -1709,7 +1697,7 @@ FreeOp::free_(void *p)
 class AutoLockGC
 {
   public:
-    explicit AutoLockGC(JSRuntime *rt = nullptr
+    explicit AutoLockGC(JSRuntime *rt = NULL
                         MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : runtime(rt)
     {

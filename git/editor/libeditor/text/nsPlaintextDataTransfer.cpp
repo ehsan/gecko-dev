@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MouseEvents.h"
 #include "mozilla/Util.h"
 #include "nsAString.h"
 #include "nsCOMPtr.h"
@@ -14,6 +13,7 @@
 #include "nsEditor.h"
 #include "nsEditorUtils.h"
 #include "nsError.h"
+#include "nsGUIEvent.h"
 #include "nsIClipboard.h"
 #include "nsIContent.h"
 #include "nsIDOMDataTransfer.h"
@@ -182,8 +182,7 @@ nsresult nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
     NS_ENSURE_TRUE(sourceNode, NS_ERROR_FAILURE);
   }
 
-  WidgetDragEvent* dragEventInternal =
-    static_cast<WidgetDragEvent*>(aDropEvent->GetInternalNSEvent());
+  nsDragEvent* dragEventInternal = static_cast<nsDragEvent *>(aDropEvent->GetInternalNSEvent());
   if (nsContentUtils::CheckForSubFrameDrop(dragSession, dragEventInternal)) {
     // Don't allow drags from subframe documents with different origins than
     // the drop destination.

@@ -55,7 +55,7 @@ class BumpChunk
     explicit BumpChunk(size_t bumpSpaceSize)
       : bump(reinterpret_cast<char *>(MOZ_THIS_IN_INITIALIZER_LIST()) + sizeof(BumpChunk)),
         limit(bump + bumpSpaceSize),
-        next_(nullptr), bumpSpaceSize(bumpSpaceSize)
+        next_(NULL), bumpSpaceSize(bumpSpaceSize)
     {
         JS_ASSERT(bump == AlignPtr(bump));
     }
@@ -130,11 +130,11 @@ class BumpChunk
         char *newBump = aligned + n;
 
         if (newBump > limit)
-            return nullptr;
+            return NULL;
 
         // Check for overflow.
         if (JS_UNLIKELY(newBump < bump))
-            return nullptr;
+            return NULL;
 
         JS_ASSERT(canAlloc(n)); // Ensure consistency between "can" and "try".
         setBump(newBump);
@@ -181,7 +181,7 @@ class LifoAlloc
 
     void reset(size_t defaultChunkSize) {
         JS_ASSERT(mozilla::RoundUpPow2(defaultChunkSize) == defaultChunkSize);
-        first = latest = last = nullptr;
+        first = latest = last = NULL;
         defaultChunkSize_ = defaultChunkSize;
         markCount = 0;
         curSize_ = 0;
@@ -267,7 +267,7 @@ class LifoAlloc
             return result;
 
         if (!getOrCreateChunk(n))
-            return nullptr;
+            return NULL;
 
         return latest->allocInfallible(n);
     }
@@ -307,7 +307,7 @@ class LifoAlloc
     T *newArray(size_t count) {
         void *mem = alloc(sizeof(T) * count);
         if (!mem)
-            return nullptr;
+            return NULL;
         JS_STATIC_ASSERT(mozilla::IsPod<T>::value);
         return (T *) mem;
     }
@@ -325,7 +325,7 @@ class LifoAlloc
         friend class LifoAlloc;
         Mark(BumpChunk *chunk, void *markInChunk) : chunk(chunk), markInChunk(markInChunk) {}
       public:
-        Mark() : chunk(nullptr), markInChunk(nullptr) {}
+        Mark() : chunk(NULL), markInChunk(NULL) {}
     };
 
     Mark mark() {
@@ -430,7 +430,7 @@ class LifoAlloc
         Enum(LifoAlloc &alloc)
           : alloc_(&alloc),
             chunk_(alloc.first),
-            position_(static_cast<char *>(alloc.first ? alloc.first->start() : nullptr))
+            position_(static_cast<char *>(alloc.first ? alloc.first->start() : NULL))
         {}
 
         // Return true if there are no more bytes to enumerate.

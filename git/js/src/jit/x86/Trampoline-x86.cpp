@@ -14,13 +14,14 @@
 #include "jit/IonFrames.h"
 #include "jit/IonLinker.h"
 #include "jit/IonSpewer.h"
-#ifdef JS_ION_PERF
-# include "jit/PerfSpewer.h"
-#endif
 #include "jit/VMFunctions.h"
 #include "jit/x86/BaselineHelpers-x86.h"
 
 #include "jsscriptinlines.h"
+
+#ifdef JS_ION_PERF
+# include "jit/PerfSpewer.h"
+#endif
 
 using namespace js;
 using namespace js::jit;
@@ -64,7 +65,7 @@ IonRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
     masm.movl(esp, esi);
 
     // eax <- 8*argc, eax is now the offset betwen argv and the last
-    masm.loadPtr(Address(ebp, ARG_ARGC), eax);
+    masm.movl(Operand(ebp, ARG_ARGC), eax);
     masm.shll(Imm32(3), eax);
 
     // We need to ensure that the stack is aligned on a 12-byte boundary, so
@@ -88,7 +89,7 @@ IonRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
     ***************************************************************/
 
     // ebx = argv   --argv pointer is in ebp + 16
-    masm.loadPtr(Address(ebp, ARG_ARGV), ebx);
+    masm.movl(Operand(ebp, ARG_ARGV), ebx);
 
     // eax = argv[8(argc)]  --eax now points one value past the last argument
     masm.addl(ebx, eax);
@@ -125,7 +126,7 @@ IonRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
 
     // Load the StackFrame address into the OsrFrameReg.
     // This address is also used for setting the constructing bit on all paths.
-    masm.loadPtr(Address(ebp, ARG_STACKFRAME), OsrFrameReg);
+    masm.movl(Operand(ebp, ARG_STACKFRAME), OsrFrameReg);
 
     /*****************************************************************
     Push the number of bytes we've pushed so far on the stack and call
@@ -150,10 +151,10 @@ IonRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
         masm.branchTestPtr(Assembler::Zero, OsrFrameReg, OsrFrameReg, &notOsr);
 
         Register numStackValues = regs.takeAny();
-        masm.loadPtr(Address(ebp, ARG_STACKVALUES), numStackValues);
+        masm.movl(Operand(ebp, ARG_STACKVALUES), numStackValues);
 
         Register jitcode = regs.takeAny();
-        masm.loadPtr(Address(ebp, ARG_JITCODE), jitcode);
+        masm.movl(Operand(ebp, ARG_JITCODE), jitcode);
 
         // Push return address, previous frame pointer.
         masm.mov(returnLabel.dest(), scratch);
@@ -229,7 +230,7 @@ IonRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
         masm.jump(scratch);
 
         masm.bind(&notOsr);
-        masm.loadPtr(Address(ebp, ARG_SCOPECHAIN), R1.scratchReg());
+        masm.movl(Operand(ebp, ARG_SCOPECHAIN), R1.scratchReg());
     }
 
     /***************************************************************
@@ -242,7 +243,7 @@ IonRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
         // Baseline OSR will return here.
         masm.bind(returnLabel.src());
         if (!masm.addCodeLabel(returnLabel))
-            return nullptr;
+            return NULL;
     }
 
     // Pop arguments off the stack.
@@ -259,7 +260,7 @@ IonRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
     //  +8  ebx
     //  +4  esi
     //  +0  edi
-    masm.loadPtr(Address(esp, ARG_RESULT + 3 * sizeof(void *)), eax);
+    masm.movl(Operand(esp, ARG_RESULT + 3 * sizeof(void *)), eax);
     masm.storeValue(JSReturnOperand, Operand(eax, 0));
 
     /**************************************************************
@@ -352,13 +353,13 @@ IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
     JS_ASSERT(ArgumentsRectifierReg == esi);
 
     // Load the number of |undefined|s to push into %ecx.
-    masm.loadPtr(Address(esp, IonRectifierFrameLayout::offsetOfCalleeToken()), eax);
+    masm.movl(Operand(esp, IonRectifierFrameLayout::offsetOfCalleeToken()), eax);
     masm.clearCalleeTag(eax, mode);
     masm.movzwl(Operand(eax, offsetof(JSFunction, nargs)), ecx);
     masm.subl(esi, ecx);
 
     // Copy the number of actual arguments.
-    masm.loadPtr(Address(esp, IonRectifierFrameLayout::offsetOfNumActualArgs()), edx);
+    masm.movl(Operand(esp, IonRectifierFrameLayout::offsetOfNumActualArgs()), edx);
 
     masm.moveValue(UndefinedValue(), ebx, edi);
 
@@ -411,8 +412,8 @@ IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
 
     // Call the target function.
     // Note that this assumes the function is JITted.
-    masm.loadPtr(Address(eax, JSFunction::offsetOfNativeOrScript()), eax);
-    masm.loadBaselineOrIonRaw(eax, eax, mode, nullptr);
+    masm.movl(Operand(eax, JSFunction::offsetOfNativeOrScript()), eax);
+    masm.loadBaselineOrIonRaw(eax, eax, mode, NULL);
     masm.call(eax);
     uint32_t returnOffset = masm.currentOffset();
 
@@ -707,7 +708,7 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
     Linker linker(masm);
     IonCode *wrapper = linker.newCode(cx, JSC::OTHER_CODE);
     if (!wrapper)
-        return nullptr;
+        return NULL;
 
 #ifdef JS_ION_PERF
     writePerfSpewerIonCodeProfile(wrapper, "VMWrapper");
@@ -716,7 +717,7 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
     // linker.newCode may trigger a GC and sweep functionWrappers_ so we have to
     // use relookupOrAdd instead of add.
     if (!functionWrappers_->relookupOrAdd(p, &f, wrapper))
-        return nullptr;
+        return NULL;
 
     return wrapper;
 }
@@ -783,14 +784,14 @@ IonRuntime::generateDebugTrapHandler(JSContext *cx)
     masm.subPtr(Imm32(BaselineFrame::Size()), scratch2);
 
     // Enter a stub frame and call the HandleDebugTrap VM function. Ensure
-    // the stub frame has a nullptr ICStub pointer, since this pointer is
-    // marked during GC.
-    masm.movePtr(ImmPtr(nullptr), BaselineStubReg);
+    // the stub frame has a NULL ICStub pointer, since this pointer is marked
+    // during GC.
+    masm.movePtr(ImmPtr(NULL), BaselineStubReg);
     EmitEnterStubFrame(masm, scratch3);
 
     IonCode *code = cx->runtime()->ionRuntime()->getVMWrapper(HandleDebugTrapInfo);
     if (!code)
-        return nullptr;
+        return NULL;
 
     masm.push(scratch1);
     masm.push(scratch2);

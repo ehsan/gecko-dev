@@ -14,12 +14,7 @@
 #include "nsIContent.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
-#include "mozilla/ContentEvents.h"
-#include "mozilla/MiscEvents.h"
-#include "mozilla/MouseEvents.h"
-#include "mozilla/MutationEvent.h"
-#include "mozilla/TextEvents.h"
-#include "mozilla/TouchEvents.h"
+#include "nsMutationEvent.h"
 #include "nsContentUtils.h"
 #include "nsJSEnvironment.h"
 #include "mozilla/Preferences.h"
@@ -28,7 +23,6 @@
 #include "nsDOMEventTargetHelper.h"
 #include "nsPIWindowRoot.h"
 #include "nsGlobalWindow.h"
-#include "nsDeviceContext.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -37,7 +31,7 @@ static char *sPopupAllowedEvents;
 
 
 nsDOMEvent::nsDOMEvent(mozilla::dom::EventTarget* aOwner,
-                       nsPresContext* aPresContext, WidgetEvent* aEvent)
+                       nsPresContext* aPresContext, nsEvent* aEvent)
 {
   ConstructorInit(aOwner, aPresContext, aEvent);
 }
@@ -49,7 +43,7 @@ nsDOMEvent::nsDOMEvent(nsPIDOMWindow* aParent)
 
 void
 nsDOMEvent::ConstructorInit(mozilla::dom::EventTarget* aOwner,
-                            nsPresContext* aPresContext, WidgetEvent* aEvent)
+                            nsPresContext* aPresContext, nsEvent* aEvent)
 {
   SetIsDOMBinding();
   SetOwner(aOwner);
@@ -65,16 +59,16 @@ nsDOMEvent::ConstructorInit(mozilla::dom::EventTarget* aOwner,
     mEventIsInternal = true;
     /*
       A derived class might want to allocate its own type of aEvent
-      (derived from WidgetEvent). To do this, it should take care to pass
+      (derived from nsEvent). To do this, it should take care to pass
       a non-nullptr aEvent to this ctor, e.g.:
       
-        nsDOMFooEvent::nsDOMFooEvent(..., WidgetEvent* aEvent)
+        nsDOMFooEvent::nsDOMFooEvent(..., nsEvent* aEvent)
         : nsDOMEvent(..., aEvent ? aEvent : new nsFooEvent())
       
       Then, to override the mEventIsInternal assignments done by the
       base ctor, it should do this in its own ctor:
 
-        nsDOMFooEvent::nsDOMFooEvent(..., WidgetEvent* aEvent)
+        nsDOMFooEvent::nsDOMFooEvent(..., nsEvent* aEvent)
         ...
         {
           ...
@@ -87,7 +81,7 @@ nsDOMEvent::ConstructorInit(mozilla::dom::EventTarget* aOwner,
           ...
         }
      */
-    mEvent = new WidgetEvent(false, 0);
+    mEvent = new nsEvent(false, 0);
     mEvent->time = PR_Now();
   }
 
@@ -143,24 +137,20 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMEvent)
       case NS_MOUSE_SCROLL_EVENT:
       case NS_WHEEL_EVENT:
       case NS_SIMPLE_GESTURE_EVENT:
-        static_cast<WidgetMouseEventBase*>(tmp->mEvent)->relatedTarget =
-          nullptr;
+        static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget = nullptr;
         break;
       case NS_DRAG_EVENT:
-        static_cast<WidgetDragEvent*>(tmp->mEvent)->dataTransfer = nullptr;
-        static_cast<WidgetMouseEventBase*>(tmp->mEvent)->relatedTarget =
-          nullptr;
+        static_cast<nsDragEvent*>(tmp->mEvent)->dataTransfer = nullptr;
+        static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget = nullptr;
         break;
       case NS_CLIPBOARD_EVENT:
-        static_cast<InternalClipboardEvent*>(tmp->mEvent)->clipboardData =
-          nullptr;
+        static_cast<nsClipboardEvent*>(tmp->mEvent)->clipboardData = nullptr;
         break;
       case NS_MUTATION_EVENT:
-        static_cast<InternalMutationEvent*>(tmp->mEvent)->mRelatedNode =
-          nullptr;
+        static_cast<nsMutationEvent*>(tmp->mEvent)->mRelatedNode = nullptr;
         break;
       case NS_FOCUS_EVENT:
-        static_cast<InternalFocusEvent*>(tmp->mEvent)->relatedTarget = nullptr;
+        static_cast<nsFocusEvent*>(tmp->mEvent)->relatedTarget = nullptr;
         break;
       default:
         break;
@@ -184,30 +174,30 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMEvent)
       case NS_SIMPLE_GESTURE_EVENT:
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->relatedTarget");
         cb.NoteXPCOMChild(
-          static_cast<WidgetMouseEventBase*>(tmp->mEvent)->relatedTarget);
+          static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget);
         break;
       case NS_DRAG_EVENT:
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->dataTransfer");
         cb.NoteXPCOMChild(
-          static_cast<WidgetDragEvent*>(tmp->mEvent)->dataTransfer);
+          static_cast<nsDragEvent*>(tmp->mEvent)->dataTransfer);
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->relatedTarget");
         cb.NoteXPCOMChild(
-          static_cast<WidgetMouseEventBase*>(tmp->mEvent)->relatedTarget);
+          static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget);
         break;
       case NS_CLIPBOARD_EVENT:
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->clipboardData");
         cb.NoteXPCOMChild(
-          static_cast<InternalClipboardEvent*>(tmp->mEvent)->clipboardData);
+          static_cast<nsClipboardEvent*>(tmp->mEvent)->clipboardData);
         break;
       case NS_MUTATION_EVENT:
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->mRelatedNode");
         cb.NoteXPCOMChild(
-          static_cast<InternalMutationEvent*>(tmp->mEvent)->mRelatedNode);
+          static_cast<nsMutationEvent*>(tmp->mEvent)->mRelatedNode);
         break;
       case NS_FOCUS_EVENT:
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->relatedTarget");
         cb.NoteXPCOMChild(
-          static_cast<InternalFocusEvent*>(tmp->mEvent)->relatedTarget);
+          static_cast<nsFocusEvent*>(tmp->mEvent)->relatedTarget);
         break;
       default:
         break;
@@ -506,109 +496,105 @@ nsDOMEvent::DuplicatePrivateData()
   // FIXME! Simplify this method and make it somehow easily extendable,
   //        Bug 329127
   
-  NS_ASSERTION(mEvent, "No WidgetEvent for nsDOMEvent duplication!");
+  NS_ASSERTION(mEvent, "No nsEvent for nsDOMEvent duplication!");
   if (mEventIsInternal) {
     return NS_OK;
   }
 
-  WidgetEvent* newEvent = nullptr;
+  nsEvent* newEvent = nullptr;
   uint32_t msg = mEvent->message;
 
   switch (mEvent->eventStructType) {
     case NS_EVENT:
     {
-      newEvent = new WidgetEvent(false, msg);
+      newEvent = new nsEvent(false, msg);
       newEvent->AssignEventData(*mEvent, true);
       break;
     }
     case NS_GUI_EVENT:
     {
-      WidgetGUIEvent* oldGUIEvent = static_cast<WidgetGUIEvent*>(mEvent);
+      nsGUIEvent* oldGUIEvent = static_cast<nsGUIEvent*>(mEvent);
       // Not copying widget, it is a weak reference.
-      WidgetGUIEvent* guiEvent = new WidgetGUIEvent(false, msg, nullptr);
+      nsGUIEvent* guiEvent = new nsGUIEvent(false, msg, nullptr);
       guiEvent->AssignGUIEventData(*oldGUIEvent, true);
       newEvent = guiEvent;
       break;
     }
     case NS_INPUT_EVENT:
     {
-      WidgetInputEvent* oldInputEvent = static_cast<WidgetInputEvent*>(mEvent);
-      WidgetInputEvent* inputEvent = new WidgetInputEvent(false, msg, nullptr);
+      nsInputEvent* oldInputEvent = static_cast<nsInputEvent*>(mEvent);
+      nsInputEvent* inputEvent = new nsInputEvent(false, msg, nullptr);
       inputEvent->AssignInputEventData(*oldInputEvent, true);
       newEvent = inputEvent;
       break;
     }
     case NS_KEY_EVENT:
     {
-      WidgetKeyboardEvent* oldKeyEvent =
-        static_cast<WidgetKeyboardEvent*>(mEvent);
-      WidgetKeyboardEvent* keyEvent =
-        new WidgetKeyboardEvent(false, msg, nullptr);
+      nsKeyEvent* oldKeyEvent = static_cast<nsKeyEvent*>(mEvent);
+      nsKeyEvent* keyEvent = new nsKeyEvent(false, msg, nullptr);
       keyEvent->AssignKeyEventData(*oldKeyEvent, true);
       newEvent = keyEvent;
       break;
     }
     case NS_MOUSE_EVENT:
     {
-      WidgetMouseEvent* oldMouseEvent = static_cast<WidgetMouseEvent*>(mEvent);
-      WidgetMouseEvent* mouseEvent =
-        new WidgetMouseEvent(false, msg, nullptr, oldMouseEvent->reason);
+      nsMouseEvent* oldMouseEvent = static_cast<nsMouseEvent*>(mEvent);
+      nsMouseEvent* mouseEvent =
+        new nsMouseEvent(false, msg, nullptr, oldMouseEvent->reason);
       mouseEvent->AssignMouseEventData(*oldMouseEvent, true);
       newEvent = mouseEvent;
       break;
     }
     case NS_DRAG_EVENT:
     {
-      WidgetDragEvent* oldDragEvent = static_cast<WidgetDragEvent*>(mEvent);
-      WidgetDragEvent* dragEvent = new WidgetDragEvent(false, msg, nullptr);
+      nsDragEvent* oldDragEvent = static_cast<nsDragEvent*>(mEvent);
+      nsDragEvent* dragEvent =
+        new nsDragEvent(false, msg, nullptr);
       dragEvent->AssignDragEventData(*oldDragEvent, true);
       newEvent = dragEvent;
       break;
     }
     case NS_CLIPBOARD_EVENT:
     {
-      InternalClipboardEvent* oldClipboardEvent =
-        static_cast<InternalClipboardEvent*>(mEvent);
-      InternalClipboardEvent* clipboardEvent =
-        new InternalClipboardEvent(false, msg);
+      nsClipboardEvent* oldClipboardEvent = static_cast<nsClipboardEvent*>(mEvent);
+      nsClipboardEvent* clipboardEvent = new nsClipboardEvent(false, msg);
       clipboardEvent->AssignClipboardEventData(*oldClipboardEvent, true);
       newEvent = clipboardEvent;
       break;
     }
     case NS_SCRIPT_ERROR_EVENT:
     {
-      InternalScriptErrorEvent* oldScriptErrorEvent =
-        static_cast<InternalScriptErrorEvent*>(mEvent);
-      InternalScriptErrorEvent* scriptErrorEvent =
-        new InternalScriptErrorEvent(false, msg);
+      nsScriptErrorEvent* oldScriptErrorEvent =
+        static_cast<nsScriptErrorEvent*>(mEvent);
+      nsScriptErrorEvent* scriptErrorEvent = new nsScriptErrorEvent(false, msg);
       scriptErrorEvent->AssignScriptErrorEventData(*oldScriptErrorEvent, true);
       newEvent = scriptErrorEvent;
       break;
     }
     case NS_TEXT_EVENT:
     {
-      WidgetTextEvent* oldTextEvent = static_cast<WidgetTextEvent*>(mEvent);
-      WidgetTextEvent* textEvent = new WidgetTextEvent(false, msg, nullptr);
+      nsTextEvent* oldTextEvent = static_cast<nsTextEvent*>(mEvent);
+      nsTextEvent* textEvent = new nsTextEvent(false, msg, nullptr);
       textEvent->AssignTextEventData(*oldTextEvent, true);
       newEvent = textEvent;
       break;
     }
     case NS_COMPOSITION_EVENT:
     {
-      WidgetCompositionEvent* compositionEvent =
-        new WidgetCompositionEvent(false, msg, nullptr);
-      WidgetCompositionEvent* oldCompositionEvent =
-        static_cast<WidgetCompositionEvent*>(mEvent);
+      nsCompositionEvent* compositionEvent =
+        new nsCompositionEvent(false, msg, nullptr);
+      nsCompositionEvent* oldCompositionEvent =
+        static_cast<nsCompositionEvent*>(mEvent);
       compositionEvent->AssignCompositionEventData(*oldCompositionEvent, true);
       newEvent = compositionEvent;
       break;
     }
     case NS_MOUSE_SCROLL_EVENT:
     {
-      WidgetMouseScrollEvent* oldMouseScrollEvent =
-        static_cast<WidgetMouseScrollEvent*>(mEvent);
-      WidgetMouseScrollEvent* mouseScrollEvent =
-        new WidgetMouseScrollEvent(false, msg, nullptr);
+      nsMouseScrollEvent* oldMouseScrollEvent =
+        static_cast<nsMouseScrollEvent*>(mEvent);
+      nsMouseScrollEvent* mouseScrollEvent =
+        new nsMouseScrollEvent(false, msg, nullptr);
       mouseScrollEvent->AssignMouseScrollEventData(*oldMouseScrollEvent, true);
       newEvent = mouseScrollEvent;
       break;
@@ -623,75 +609,71 @@ nsDOMEvent::DuplicatePrivateData()
     }
     case NS_SCROLLPORT_EVENT:
     {
-      InternalScrollPortEvent* oldScrollPortEvent =
-        static_cast<InternalScrollPortEvent*>(mEvent);
-      InternalScrollPortEvent* scrollPortEvent =
-        new InternalScrollPortEvent(false, msg, nullptr);
+      nsScrollPortEvent* oldScrollPortEvent =
+        static_cast<nsScrollPortEvent*>(mEvent);
+      nsScrollPortEvent* scrollPortEvent =
+        new nsScrollPortEvent(false, msg, nullptr);
       scrollPortEvent->AssignScrollPortEventData(*oldScrollPortEvent, true);
       newEvent = scrollPortEvent;
       break;
     }
     case NS_SCROLLAREA_EVENT:
     {
-      InternalScrollAreaEvent* oldScrollAreaEvent =
-        static_cast<InternalScrollAreaEvent*>(mEvent);
-      InternalScrollAreaEvent* scrollAreaEvent = 
-        new InternalScrollAreaEvent(false, msg, nullptr);
+      nsScrollAreaEvent* oldScrollAreaEvent =
+        static_cast<nsScrollAreaEvent*>(mEvent);
+      nsScrollAreaEvent* scrollAreaEvent = 
+        new nsScrollAreaEvent(false, msg, nullptr);
       scrollAreaEvent->AssignScrollAreaEventData(*oldScrollAreaEvent, true);
       newEvent = scrollAreaEvent;
       break;
     }
     case NS_MUTATION_EVENT:
     {
-      InternalMutationEvent* mutationEvent =
-        new InternalMutationEvent(false, msg);
-      InternalMutationEvent* oldMutationEvent =
-        static_cast<InternalMutationEvent*>(mEvent);
+      nsMutationEvent* mutationEvent = new nsMutationEvent(false, msg);
+      nsMutationEvent* oldMutationEvent =
+        static_cast<nsMutationEvent*>(mEvent);
       mutationEvent->AssignMutationEventData(*oldMutationEvent, true);
       newEvent = mutationEvent;
       break;
     }
     case NS_FORM_EVENT:
     {
-      InternalFormEvent* oldFormEvent = static_cast<InternalFormEvent*>(mEvent);
-      InternalFormEvent* formEvent = new InternalFormEvent(false, msg);
+      nsFormEvent* oldFormEvent = static_cast<nsFormEvent*>(mEvent);
+      nsFormEvent* formEvent = new nsFormEvent(false, msg);
       formEvent->AssignFormEventData(*oldFormEvent, true);
       newEvent = formEvent;
       break;
     }
     case NS_FOCUS_EVENT:
     {
-      InternalFocusEvent* newFocusEvent = new InternalFocusEvent(false, msg);
-      InternalFocusEvent* oldFocusEvent =
-        static_cast<InternalFocusEvent*>(mEvent);
+      nsFocusEvent* newFocusEvent = new nsFocusEvent(false, msg);
+      nsFocusEvent* oldFocusEvent = static_cast<nsFocusEvent*>(mEvent);
       newFocusEvent->AssignFocusEventData(*oldFocusEvent, true);
       newEvent = newFocusEvent;
       break;
     }
     case NS_COMMAND_EVENT:
     {
-      WidgetCommandEvent* oldCommandEvent =
-        static_cast<WidgetCommandEvent*>(mEvent);
-      WidgetCommandEvent* commandEvent =
-        new WidgetCommandEvent(false, mEvent->userType,
-                               oldCommandEvent->command, nullptr);
+      nsCommandEvent* oldCommandEvent = static_cast<nsCommandEvent*>(mEvent);
+      nsCommandEvent* commandEvent =
+        new nsCommandEvent(false, mEvent->userType,
+                           oldCommandEvent->command, nullptr);
       commandEvent->AssignCommandEventData(*oldCommandEvent, true);
       newEvent = commandEvent;
       break;
     }
     case NS_UI_EVENT:
     {
-      InternalUIEvent* oldUIEvent = static_cast<InternalUIEvent*>(mEvent);
-      InternalUIEvent* uiEvent =
-        new InternalUIEvent(false, msg, oldUIEvent->detail);
+      nsUIEvent* oldUIEvent = static_cast<nsUIEvent*>(mEvent);
+      nsUIEvent* uiEvent = new nsUIEvent(false, msg, oldUIEvent->detail);
       uiEvent->AssignUIEventData(*oldUIEvent, true);
       newEvent = uiEvent;
       break;
     }
     case NS_SVGZOOM_EVENT:
     {
-      WidgetGUIEvent* oldGUIEvent = static_cast<WidgetGUIEvent*>(mEvent);
-      WidgetGUIEvent* guiEvent = new WidgetGUIEvent(false, msg, nullptr);
+      nsGUIEvent* oldGUIEvent = static_cast<nsGUIEvent*>(mEvent);
+      nsGUIEvent* guiEvent = new nsGUIEvent(false, msg, nullptr);
       guiEvent->eventStructType = NS_SVGZOOM_EVENT;
       guiEvent->AssignGUIEventData(*oldGUIEvent, true);
       newEvent = guiEvent;
@@ -699,8 +681,8 @@ nsDOMEvent::DuplicatePrivateData()
     }
     case NS_SMIL_TIME_EVENT:
     {
-      InternalUIEvent* oldUIEvent = static_cast<InternalUIEvent*>(mEvent);
-      InternalUIEvent* uiEvent = new InternalUIEvent(false, msg, 0);
+      nsUIEvent* oldUIEvent = static_cast<nsUIEvent*>(mEvent);
+      nsUIEvent* uiEvent = new nsUIEvent(false, msg, 0);
       uiEvent->eventStructType = NS_SMIL_TIME_EVENT;
       uiEvent->AssignUIEventData(*oldUIEvent, true);
       newEvent = uiEvent;
@@ -708,10 +690,10 @@ nsDOMEvent::DuplicatePrivateData()
     }
     case NS_SIMPLE_GESTURE_EVENT:
     {
-      WidgetSimpleGestureEvent* oldSimpleGestureEvent =
-        static_cast<WidgetSimpleGestureEvent*>(mEvent);
-      WidgetSimpleGestureEvent* simpleGestureEvent = 
-        new WidgetSimpleGestureEvent(false, msg, nullptr, 0, 0.0);
+      nsSimpleGestureEvent* oldSimpleGestureEvent =
+        static_cast<nsSimpleGestureEvent*>(mEvent);
+      nsSimpleGestureEvent* simpleGestureEvent = 
+        new nsSimpleGestureEvent(false, msg, nullptr, 0, 0.0);
       simpleGestureEvent->
         AssignSimpleGestureEventData(*oldSimpleGestureEvent, true);
       newEvent = simpleGestureEvent;
@@ -719,34 +701,34 @@ nsDOMEvent::DuplicatePrivateData()
     }
     case NS_TRANSITION_EVENT:
     {
-      InternalTransitionEvent* oldTransitionEvent =
-        static_cast<InternalTransitionEvent*>(mEvent);
-      InternalTransitionEvent* transitionEvent =
-         new InternalTransitionEvent(false, msg,
-                                     oldTransitionEvent->propertyName,
-                                     oldTransitionEvent->elapsedTime,
-                                     oldTransitionEvent->pseudoElement);
+      nsTransitionEvent* oldTransitionEvent =
+        static_cast<nsTransitionEvent*>(mEvent);
+      nsTransitionEvent* transitionEvent =
+         new nsTransitionEvent(false, msg,
+                               oldTransitionEvent->propertyName,
+                               oldTransitionEvent->elapsedTime,
+                               oldTransitionEvent->pseudoElement);
       transitionEvent->AssignTransitionEventData(*oldTransitionEvent, true);
       newEvent = transitionEvent;
       break;
     }
     case NS_ANIMATION_EVENT:
     {
-      InternalAnimationEvent* oldAnimationEvent =
-        static_cast<InternalAnimationEvent*>(mEvent);
-      InternalAnimationEvent* animationEvent =
-        new InternalAnimationEvent(false, msg,
-                                   oldAnimationEvent->animationName,
-                                   oldAnimationEvent->elapsedTime,
-                                   oldAnimationEvent->pseudoElement);
+      nsAnimationEvent* oldAnimationEvent =
+        static_cast<nsAnimationEvent*>(mEvent);
+      nsAnimationEvent* animationEvent =
+        new nsAnimationEvent(false, msg,
+                             oldAnimationEvent->animationName,
+                             oldAnimationEvent->elapsedTime,
+                             oldAnimationEvent->pseudoElement);
       animationEvent->AssignAnimationEventData(*oldAnimationEvent, true);
       newEvent = animationEvent;
       break;
     }
     case NS_TOUCH_EVENT:
     {
-      WidgetTouchEvent* oldTouchEvent = static_cast<WidgetTouchEvent*>(mEvent);
-      WidgetTouchEvent* touchEvent = new WidgetTouchEvent(false, oldTouchEvent);
+      nsTouchEvent* oldTouchEvent = static_cast<nsTouchEvent*>(mEvent);
+      nsTouchEvent* touchEvent = new nsTouchEvent(false, oldTouchEvent);
       touchEvent->AssignTouchEventData(*oldTouchEvent, true);
       newEvent = touchEvent;
       break;
@@ -790,7 +772,7 @@ nsDOMEvent::IsDispatchStopped()
   return mEvent->mFlags.mPropagationStopped;
 }
 
-NS_IMETHODIMP_(WidgetEvent*)
+NS_IMETHODIMP_(nsEvent*)
 nsDOMEvent::GetInternalNSEvent()
 {
   return mEvent;
@@ -844,7 +826,7 @@ PopupAllowedForEvent(const char *eventName)
 
 // static
 PopupControlState
-nsDOMEvent::GetEventPopupControlState(WidgetEvent* aEvent)
+nsDOMEvent::GetEventPopupControlState(nsEvent *aEvent)
 {
   // generally if an event handler is running, new windows are disallowed.
   // check for exceptions:
@@ -899,7 +881,7 @@ nsDOMEvent::GetEventPopupControlState(WidgetEvent* aEvent)
     break;
   case NS_KEY_EVENT :
     if (aEvent->mFlags.mIsTrusted) {
-      uint32_t key = static_cast<WidgetKeyboardEvent*>(aEvent)->keyCode;
+      uint32_t key = static_cast<nsKeyEvent *>(aEvent)->keyCode;
       switch(aEvent->message) {
       case NS_KEY_PRESS :
         // return key on focused button. see note at NS_MOUSE_CLICK.
@@ -940,8 +922,7 @@ nsDOMEvent::GetEventPopupControlState(WidgetEvent* aEvent)
     break;
   case NS_MOUSE_EVENT :
     if (aEvent->mFlags.mIsTrusted &&
-        static_cast<WidgetMouseEvent*>(aEvent)->button ==
-          WidgetMouseEvent::eLeftButton) {
+        static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton) {
       switch(aEvent->message) {
       case NS_MOUSE_BUTTON_UP :
         if (::PopupAllowedForEvent("mouseup"))
@@ -1025,7 +1006,7 @@ nsDOMEvent::Shutdown()
 
 nsIntPoint
 nsDOMEvent::GetScreenCoords(nsPresContext* aPresContext,
-                            WidgetEvent* aEvent,
+                            nsEvent* aEvent,
                             LayoutDeviceIntPoint aPoint)
 {
   if (nsEventStateManager::sIsPointerLocked) {
@@ -1042,7 +1023,7 @@ nsDOMEvent::GetScreenCoords(nsPresContext* aPresContext,
     return nsIntPoint(0, 0);
   }
 
-  WidgetGUIEvent* guiEvent = static_cast<WidgetGUIEvent*>(aEvent);
+  nsGUIEvent* guiEvent = static_cast<nsGUIEvent*>(aEvent);
   if (!guiEvent->widget) {
     return LayoutDeviceIntPoint::ToUntyped(aPoint);
   }
@@ -1057,7 +1038,7 @@ nsDOMEvent::GetScreenCoords(nsPresContext* aPresContext,
 //static
 CSSIntPoint
 nsDOMEvent::GetPageCoords(nsPresContext* aPresContext,
-                          WidgetEvent* aEvent,
+                          nsEvent* aEvent,
                           LayoutDeviceIntPoint aPoint,
                           CSSIntPoint aDefaultPoint)
 {
@@ -1081,7 +1062,7 @@ nsDOMEvent::GetPageCoords(nsPresContext* aPresContext,
 // static
 CSSIntPoint
 nsDOMEvent::GetClientCoords(nsPresContext* aPresContext,
-                            WidgetEvent* aEvent,
+                            nsEvent* aEvent,
                             LayoutDeviceIntPoint aPoint,
                             CSSIntPoint aDefaultPoint)
 {
@@ -1097,7 +1078,7 @@ nsDOMEvent::GetClientCoords(nsPresContext* aPresContext,
        aEvent->eventStructType != NS_DRAG_EVENT &&
        aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT) ||
       !aPresContext ||
-      !static_cast<WidgetGUIEvent*>(aEvent)->widget) {
+      !static_cast<nsGUIEvent*>(aEvent)->widget) {
     return aDefaultPoint;
   }
 
@@ -1130,7 +1111,7 @@ const char* nsDOMEvent::GetEventName(uint32_t aEventType)
   default:
     break;
   }
-  // XXXldb We can hit this case for WidgetEvent objects that we didn't
+  // XXXldb We can hit this case for nsEvent objects that we didn't
   // create and that are not user defined events since this function and
   // SetEventType are incomplete.  (But fixing that requires fixing the
   // arrays in nsEventListenerManager too, since the events for which
@@ -1245,7 +1226,7 @@ nsDOMEvent::SetOwner(mozilla::dom::EventTarget* aOwner)
 nsresult NS_NewDOMEvent(nsIDOMEvent** aInstancePtrResult,
                         mozilla::dom::EventTarget* aOwner,
                         nsPresContext* aPresContext,
-                        WidgetEvent* aEvent) 
+                        nsEvent *aEvent) 
 {
   nsRefPtr<nsDOMEvent> it =
     new nsDOMEvent(aOwner, aPresContext, aEvent);

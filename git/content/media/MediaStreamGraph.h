@@ -15,9 +15,7 @@
 #include "TimeVarying.h"
 #include "VideoFrameContainer.h"
 #include "VideoSegment.h"
-#include "MainThreadUtils.h"
-
-class nsIRunnable;
+#include "nsThreadUtils.h"
 
 namespace mozilla {
 
@@ -919,7 +917,10 @@ public:
   friend class MediaStreamGraphImpl;
 
   // Do not call these from outside MediaStreamGraph.cpp!
-  virtual void AddInput(MediaInputPort* aPort);
+  virtual void AddInput(MediaInputPort* aPort)
+  {
+    mInputs.AppendElement(aPort);
+  }
   virtual void RemoveInput(MediaInputPort* aPort)
   {
     mInputs.RemoveElement(aPort);
@@ -944,9 +945,6 @@ public:
    * Forward SetTrackEnabled() to the input MediaStream(s) and translate the ID
    */
   virtual void ForwardTrackEnabled(TrackID aOutputID, bool aEnabled) {};
-
-  bool InCycle() const { return mInCycle; }
-
 
 protected:
   // This state is all accessed only on the media graph thread.

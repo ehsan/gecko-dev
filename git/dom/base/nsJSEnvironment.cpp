@@ -28,6 +28,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIPrompt.h"
 #include "nsIObserverService.h"
+#include "nsGUIEvent.h"
 #include "nsITimer.h"
 #include "nsIAtom.h"
 #include "nsContentUtils.h"
@@ -80,7 +81,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/CycleCollectedJSRuntime.h"
-#include "mozilla/ContentEvents.h"
 
 #include "nsCycleCollectionNoteRootCallback.h"
 #include "GeckoProfiler.h"
@@ -306,7 +306,7 @@ private:
 // XXXmarkh - This function is mis-placed!
 bool
 NS_HandleScriptError(nsIScriptGlobalObject *aScriptGlobal,
-                     InternalScriptErrorEvent *aErrorEvent,
+                     nsScriptErrorEvent *aErrorEvent,
                      nsEventStatus *aStatus)
 {
   bool called = false;
@@ -444,7 +444,7 @@ public:
         docShell->GetPresContext(getter_AddRefs(presContext));
 
         if (presContext) {
-          InternalScriptErrorEvent errorevent(true, NS_LOAD_ERROR);
+          nsScriptErrorEvent errorevent(true, NS_LOAD_ERROR);
 
           errorevent.fileName = mFileName.get();
 
@@ -509,8 +509,7 @@ NS_ScriptErrorReporter(JSContext *cx,
   // absence of werror are swallowed whole, so report those now.
   if (!JSREPORT_IS_WARNING(report->flags)) {
     nsIXPConnect* xpc = nsContentUtils::XPConnect();
-    JS::RootedScript script(cx);
-    if (JS_DescribeScriptedCaller(cx, &script, nullptr)) {
+    if (JS_DescribeScriptedCaller(cx, nullptr, nullptr)) {
       xpc->MarkErrorUnreported(cx);
       return;
     }
@@ -2122,8 +2121,8 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
     }
 
     NS_NAMED_MULTILINE_LITERAL_STRING(kFmt,
-      MOZ_UTF16("CC(T+%.1f) duration: %lums, suspected: %lu, visited: %lu RCed and %lu%s GCed, collected: %lu RCed and %lu GCed (%lu|%lu waiting for GC)%s\n")
-      MOZ_UTF16("ForgetSkippable %lu times before CC, min: %lu ms, max: %lu ms, avg: %lu ms, total: %lu ms, sync: %lu ms, removed: %lu"));
+      NS_LL("CC(T+%.1f) duration: %lums, suspected: %lu, visited: %lu RCed and %lu%s GCed, collected: %lu RCed and %lu GCed (%lu|%lu waiting for GC)%s\n")
+      NS_LL("ForgetSkippable %lu times before CC, min: %lu ms, max: %lu ms, avg: %lu ms, total: %lu ms, sync: %lu ms, removed: %lu"));
     nsString msg;
     msg.Adopt(nsTextFormatter::smprintf(kFmt.get(), double(delta) / PR_USEC_PER_SEC,
                                         ccNowDuration, suspected,
@@ -2147,28 +2146,28 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
 
   if (sPostGCEventsToObserver) {
     NS_NAMED_MULTILINE_LITERAL_STRING(kJSONFmt,
-       MOZ_UTF16("{ \"timestamp\": %llu, ")
-         MOZ_UTF16("\"duration\": %llu, ")
-         MOZ_UTF16("\"finish_gc_duration\": %llu, ")
-         MOZ_UTF16("\"sync_skippable_duration\": %llu, ")
-         MOZ_UTF16("\"suspected\": %lu, ")
-         MOZ_UTF16("\"visited\": { ")
-             MOZ_UTF16("\"RCed\": %lu, ")
-             MOZ_UTF16("\"GCed\": %lu }, ")
-         MOZ_UTF16("\"collected\": { ")
-             MOZ_UTF16("\"RCed\": %lu, ")
-             MOZ_UTF16("\"GCed\": %lu }, ")
-         MOZ_UTF16("\"waiting_for_gc\": %lu, ")
-         MOZ_UTF16("\"short_living_objects_waiting_for_gc\": %lu, ")
-         MOZ_UTF16("\"forced_gc\": %d, ")
-         MOZ_UTF16("\"forget_skippable\": { ")
-             MOZ_UTF16("\"times_before_cc\": %lu, ")
-             MOZ_UTF16("\"min\": %lu, ")
-             MOZ_UTF16("\"max\": %lu, ")
-             MOZ_UTF16("\"avg\": %lu, ")
-             MOZ_UTF16("\"total\": %lu, ")
-             MOZ_UTF16("\"removed\": %lu } ")
-       MOZ_UTF16("}"));
+       NS_LL("{ \"timestamp\": %llu, ")
+         NS_LL("\"duration\": %llu, ")
+         NS_LL("\"finish_gc_duration\": %llu, ")
+         NS_LL("\"sync_skippable_duration\": %llu, ")
+         NS_LL("\"suspected\": %lu, ")
+         NS_LL("\"visited\": { ")
+             NS_LL("\"RCed\": %lu, ")
+             NS_LL("\"GCed\": %lu }, ")
+         NS_LL("\"collected\": { ")
+             NS_LL("\"RCed\": %lu, ")
+             NS_LL("\"GCed\": %lu }, ")
+         NS_LL("\"waiting_for_gc\": %lu, ")
+         NS_LL("\"short_living_objects_waiting_for_gc\": %lu, ")
+         NS_LL("\"forced_gc\": %d, ")
+         NS_LL("\"forget_skippable\": { ")
+             NS_LL("\"times_before_cc\": %lu, ")
+             NS_LL("\"min\": %lu, ")
+             NS_LL("\"max\": %lu, ")
+             NS_LL("\"avg\": %lu, ")
+             NS_LL("\"total\": %lu, ")
+             NS_LL("\"removed\": %lu } ")
+       NS_LL("}"));
     nsString json;
     json.Adopt(nsTextFormatter::smprintf(kJSONFmt.get(), endCCTime,
                                          ccNowDuration, gcDuration, skippableDuration,

@@ -49,7 +49,7 @@ ToCanonicalSupports(nsISupports* p)
 ////////////////////////////////////////////////////////////////////////////////
 // Macros to help detect thread-safety:
 
-#if (defined(DEBUG) || (defined(NIGHTLY_BUILD) && !defined(MOZ_PROFILING))) && !defined(XPCOM_GLUE_AVOID_NSPR)
+#if (defined(DEBUG) || defined(NIGHTLY_BUILD)) && !defined(XPCOM_GLUE_AVOID_NSPR)
 
 class nsAutoOwningThread {
 public:
@@ -61,16 +61,14 @@ private:
 };
 
 #define NS_DECL_OWNINGTHREAD            nsAutoOwningThread _mOwningThread;
-#define NS_ASSERT_OWNINGTHREAD_AGGREGATE(agg, _class) \
-  NS_CheckThreadSafe(agg->_mOwningThread.GetThread(), #_class " not thread-safe")
-#define NS_ASSERT_OWNINGTHREAD(_class) NS_ASSERT_OWNINGTHREAD_AGGREGATE(this, _class)
-#else // !DEBUG && !(NIGHTLY_BUILD && !MOZ_PROFILING)
+#define NS_ASSERT_OWNINGTHREAD(_class) \
+  NS_CheckThreadSafe(_mOwningThread.GetThread(), #_class " not thread-safe")
+#else // !DEBUG && !NIGHTLY_BUILD
 
 #define NS_DECL_OWNINGTHREAD            /* nothing */
-#define NS_ASSERT_OWNINGTHREAD_AGGREGATE(agg, _class) ((void)0)
 #define NS_ASSERT_OWNINGTHREAD(_class)  ((void)0)
 
-#endif // DEBUG || (NIGHTLY_BUILD && !MOZ_PROFILING)
+#endif // DEBUG || NIGHTLY_BUILD
 
 // Support for ISupports classes which interact with cycle collector.
 

@@ -146,6 +146,24 @@ Debug(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static bool
+Atob(JSContext *cx, unsigned argc, jsval *vp)
+{
+    if (!argc)
+        return true;
+
+    return xpc::Base64Decode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
+}
+
+static bool
+Btoa(JSContext *cx, unsigned argc, jsval *vp)
+{
+    if (!argc)
+        return true;
+
+    return xpc::Base64Encode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
+}
+
+static bool
 File(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -495,7 +513,7 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
     }
 
     RootedObject jsGetFactoryObj(cx);
-    if (!JS_ValueToObject(cx, NSGetFactory_val, &jsGetFactoryObj) ||
+    if (!JS_ValueToObject(cx, NSGetFactory_val, jsGetFactoryObj.address()) ||
         !jsGetFactoryObj) {
         /* XXX report error properly */
         return NULL;
@@ -758,7 +776,8 @@ mozJSComponentLoader::ObjectForLocation(nsIFile *aComponentFile,
 
     if (cache) {
         if (!mReuseLoaderGlobal) {
-            rv = ReadCachedScript(cache, cachePath, cx, mSystemPrincipal, &script);
+            rv = ReadCachedScript(cache, cachePath, cx, mSystemPrincipal,
+                                  script.address());
         } else {
             rv = ReadCachedFunction(cache, cachePath, cx, mSystemPrincipal,
                                     function.address());
@@ -948,7 +967,7 @@ mozJSComponentLoader::ObjectForLocation(nsIFile *aComponentFile,
         // exception on this context.
         JS_SetOptions(cx, oldopts);
         if (!script && !function && aPropagateExceptions) {
-            JS_GetPendingException(cx, aException);
+            JS_GetPendingException(cx, aException.address());
             JS_ClearPendingException(cx);
         }
     }
@@ -1001,7 +1020,7 @@ mozJSComponentLoader::ObjectForLocation(nsIFile *aComponentFile,
 
     if (!ok) {
         if (aPropagateExceptions) {
-            JS_GetPendingException(cx, aException);
+            JS_GetPendingException(cx, aException.address());
             JS_ClearPendingException(cx);
         }
         *aObject = nullptr;

@@ -13,7 +13,6 @@
 #include "IDBDatabase.h"
 #include "IndexedDatabaseManager.h"
 #include "TransactionThreadPool.h"
-#include "nsISimpleEnumerator.h"
 
 USING_INDEXEDDB_NAMESPACE
 using mozilla::dom::quota::AssertIsOnIOThread;

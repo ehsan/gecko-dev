@@ -26,34 +26,13 @@ ChildThread::ChildThread(Thread::Options options)
 ChildThread::~ChildThread() {
 }
 
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
-
 bool ChildThread::Run() {
-  bool r = StartWithOptions(options_);
-#ifdef MOZ_NUWA_PROCESS
-  NS_ASSERTION(NuwaMarkCurrentThread, "NuwaMarkCurrentThread is not defined!");
-  if (IsNuwaProcess()) {
-      message_loop()->PostTask(FROM_HERE,
-                               NewRunnableFunction(&ChildThread::MarkThread));
-  }
-#endif
-  return r;
+  return StartWithOptions(options_);
 }
 
 void ChildThread::OnChannelError() {
   owner_loop_->PostTask(FROM_HERE, new MessageLoop::QuitTask());
 }
-
-#ifdef MOZ_NUWA_PROCESS
-void ChildThread::MarkThread() {
-    NuwaMarkCurrentThread(nullptr, nullptr);
-    if (!NuwaCheckpointCurrentThread()) {
-        NS_RUNTIMEABORT("Should not be here!");
-    }
-}
-#endif
 
 bool ChildThread::Send(IPC::Message* msg) {
   if (!channel_.get()) {

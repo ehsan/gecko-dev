@@ -2159,7 +2159,7 @@ sidebarheader > .tabs-closebutton > .toolbarbutton-text {
 
 .browserContainer > findbar {
   background: @scopeBarBackground@;
-  border-top: @scopeBarSeparatorBorder@;
+  border-bottom: @scopeBarSeparatorBorder@;
   color: -moz-DialogText;
   text-shadow: none;
 }
@@ -3663,8 +3663,6 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 %include ../shared/devtools/highlighter.inc.css
 %include ../shared/devtools/commandline.inc.css
 %include ../shared/plugin-doorhanger.inc.css
-
-%include downloads/indicator.css
 
 /* On mac, the popup notification contents are indented by default and so
   the default closebutton margins from notification.css require adjustment */

@@ -39,7 +39,7 @@ static void
 PreparePatternForUntiledDrawing(gfxPattern* aPattern,
                                 const gfxMatrix& aDeviceToImage,
                                 gfxASurface *currentTarget,
-                                const GraphicsFilter aDefaultFilter)
+                                const gfxPattern::GraphicsFilter aDefaultFilter)
 {
     if (!currentTarget) {
         // This happens if we're dealing with an Azure target.
@@ -54,7 +54,7 @@ PreparePatternForUntiledDrawing(gfxPattern* aPattern,
     switch (currentTarget->GetType()) {
 
 #ifdef MOZ_X11
-        case gfxSurfaceTypeXlib:
+        case gfxASurface::SurfaceTypeXlib:
         {
             // See bugs 324698, 422179, and 468496.  This is a workaround for
             // XRender's RepeatPad not being implemented correctly on old X
@@ -78,8 +78,8 @@ PreparePatternForUntiledDrawing(gfxPattern* aPattern,
                     aDeviceToImage.xx >= 1.0 && aDeviceToImage.yy >= 1.0 &&
                     aDeviceToImage.xy == 0.0 && aDeviceToImage.yx == 0.0;
 
-                GraphicsFilter filter =
-                    isDownscale ? aDefaultFilter : GraphicsFilter::FILTER_FAST;
+                gfxPattern::GraphicsFilter filter =
+                    isDownscale ? aDefaultFilter : gfxPattern::FILTER_FAST;
                 aPattern->SetFilter(filter);
 
                 // Use the default EXTEND_NONE
@@ -103,7 +103,7 @@ bool
 gfxSurfaceDrawable::Draw(gfxContext* aContext,
                          const gfxRect& aFillRect,
                          bool aRepeat,
-                         const GraphicsFilter& aFilter,
+                         const gfxPattern::GraphicsFilter& aFilter,
                          const gfxMatrix& aTransform)
 {
     nsRefPtr<gfxPattern> pattern = new gfxPattern(mSurface);
@@ -111,14 +111,14 @@ gfxSurfaceDrawable::Draw(gfxContext* aContext,
         pattern->SetExtend(gfxPattern::EXTEND_REPEAT);
         pattern->SetFilter(aFilter);
     } else {
-        GraphicsFilter filter = aFilter;
+        gfxPattern::GraphicsFilter filter = aFilter;
         if (aContext->CurrentMatrix().HasOnlyIntegerTranslation() &&
             aTransform.HasOnlyIntegerTranslation())
         {
           // If we only have integer translation, no special filtering needs to
           // happen and we explicitly use FILTER_FAST. This is fast for some
           // backends.
-          filter = GraphicsFilter::FILTER_FAST;
+          filter = gfxPattern::FILTER_FAST;
         }
         nsRefPtr<gfxASurface> currentTarget = aContext->CurrentSurface();
         gfxMatrix deviceSpaceToImageSpace =
@@ -134,12 +134,6 @@ gfxSurfaceDrawable::Draw(gfxContext* aContext,
     return true;
 }
 
-already_AddRefed<gfxImageSurface>
-gfxSurfaceDrawable::GetAsImageSurface()
-{
-    return mSurface->GetAsImageSurface();
-}
-
 gfxCallbackDrawable::gfxCallbackDrawable(gfxDrawingCallback* aCallback,
                                          const gfxIntSize aSize)
  : gfxDrawable(aSize)
@@ -148,10 +142,10 @@ gfxCallbackDrawable::gfxCallbackDrawable(gfxDrawingCallback* aCallback,
 }
 
 already_AddRefed<gfxSurfaceDrawable>
-gfxCallbackDrawable::MakeSurfaceDrawable(const GraphicsFilter aFilter)
+gfxCallbackDrawable::MakeSurfaceDrawable(const gfxPattern::GraphicsFilter aFilter)
 {
     nsRefPtr<gfxASurface> surface =
-        gfxPlatform::GetPlatform()->CreateOffscreenSurface(mSize, GFX_CONTENT_COLOR_ALPHA);
+        gfxPlatform::GetPlatform()->CreateOffscreenSurface(mSize, gfxASurface::CONTENT_COLOR_ALPHA);
     if (!surface || surface->CairoStatus() != 0)
         return nullptr;
 
@@ -165,7 +159,7 @@ bool
 gfxCallbackDrawable::Draw(gfxContext* aContext,
                           const gfxRect& aFillRect,
                           bool aRepeat,
-                          const GraphicsFilter& aFilter,
+                          const gfxPattern::GraphicsFilter& aFilter,
                           const gfxMatrix& aTransform)
 {
     if (aRepeat && !mSurfaceDrawable) {
@@ -200,7 +194,7 @@ public:
 
     virtual bool operator()(gfxContext* aContext,
                               const gfxRect& aFillRect,
-                              const GraphicsFilter& aFilter,
+                              const gfxPattern::GraphicsFilter& aFilter,
                               const gfxMatrix& aTransform = gfxMatrix())
     {
         return mDrawable->Draw(aContext, aFillRect, false, aFilter,
@@ -224,7 +218,7 @@ bool
 gfxPatternDrawable::Draw(gfxContext* aContext,
                          const gfxRect& aFillRect,
                          bool aRepeat,
-                         const GraphicsFilter& aFilter,
+                         const gfxPattern::GraphicsFilter& aFilter,
                          const gfxMatrix& aTransform)
 {
     if (!mPattern)

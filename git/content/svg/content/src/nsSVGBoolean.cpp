@@ -24,19 +24,19 @@ SVGAnimatedBooleanTearoffTable()
   return sSVGAnimatedBooleanTearoffTable;
 }
 
-static bool
-GetValueFromString(const nsAString& aValueAsString,
-                   bool& aValue)
+static nsresult
+GetValueFromString(const nsAString &aValueAsString,
+                   bool *aValue)
 {
   if (aValueAsString.EqualsLiteral("true")) {
-    aValue = true;
-    return true;
+    *aValue = true;
+    return NS_OK;
   }
   if (aValueAsString.EqualsLiteral("false")) {
-    aValue = false;
-    return true;
+    *aValue = false;
+    return NS_OK;
   }
-  return false;
+  return NS_ERROR_DOM_SYNTAX_ERR;
 }
 
 static nsresult
@@ -141,8 +141,9 @@ nsSVGBoolean::SMILBool::ValueFromString(const nsAString& aStr,
                                         bool& aPreventCachingOfSandwich) const
 {
   bool value;
-  if (!GetValueFromString(aStr, value)) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+  nsresult rv = GetValueFromString(aStr, &value);
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
   nsSMILValue val(SMILBoolType::Singleton());

@@ -189,7 +189,7 @@ nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
 
 void
 nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
-                                         EventListener* aListener,
+                                         nsIDOMEventListener* aListener,
                                          bool aUseCapture,
                                          const Nullable<bool>& aWantsUntrusted,
                                          ErrorResult& aRv)
@@ -276,8 +276,9 @@ nsDOMEventTargetHelper::SetEventHandler(nsIAtom* aType,
       JS_ObjectIsCallable(aCx, callable = &aValue.toObject())) {
     handler = new EventHandlerNonNull(callable);
   }
-  SetEventHandler(aType, EmptyString(), handler);
-  return NS_OK;
+  ErrorResult rv;
+  SetEventHandler(aType, EmptyString(), handler, rv);
+  return rv.ErrorCode();
 }
 
 void
@@ -308,7 +309,7 @@ nsDOMEventTargetHelper::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 }
 
 nsresult
-nsDOMEventTargetHelper::DispatchDOMEvent(WidgetEvent* aEvent,
+nsDOMEventTargetHelper::DispatchDOMEvent(nsEvent* aEvent,
                                          nsIDOMEvent* aDOMEvent,
                                          nsPresContext* aPresContext,
                                          nsEventStatus* aEventStatus)

@@ -21,6 +21,7 @@
 #include "nsIDOMNode.h"
 #include "nsRange.h"
 #include "nsCOMArray.h"
+#include "nsGUIEvent.h"
 #include "nsIDOMKeyEvent.h"
 #include "nsITableCellLayout.h"
 #include "nsTArray.h"
@@ -54,8 +55,6 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 #include "nsIPresShell.h"
 #include "nsCaret.h"
 
-#include "mozilla/MouseEvents.h"
-#include "mozilla/TextEvents.h"
 
 #include "nsITimer.h"
 #include "nsFrameManager.h"
@@ -67,7 +66,6 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 #include "nsAutoCopyListener.h"
 #include "nsCopySupport.h"
 #include "nsIClipboard.h"
-#include "nsIFrameInlines.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -79,6 +77,8 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 using namespace mozilla;
 
 //#define DEBUG_TABLE 1
+
+static NS_DEFINE_IID(kCContentIteratorCID, NS_CONTENTITERATOR_CID);
 
 static bool IsValidSelectionPoint(nsFrameSelection *aFrameSel, nsINode *aNode);
 
@@ -1503,7 +1503,7 @@ nsFrameSelection::TakeFocus(nsIContent *aNewFocus,
 #ifdef DEBUG_TABLE_SELECTION
 printf(" * TakeFocus - moving into new cell\n");
 #endif
-        WidgetMouseEvent event(false, 0, nullptr, WidgetMouseEvent::eReal);
+        nsMouseEvent event(false, 0, nullptr, nsMouseEvent::eReal);
 
         // Start selecting in the cell we were in before
         nsINode* parent = ParentOffset(mCellParent, &offset);
@@ -1972,10 +1972,10 @@ GetFirstSelectedContent(nsRange* aRange)
 // Table selection support.
 // TODO: Separate table methods into a separate nsITableSelection interface
 nsresult
-nsFrameSelection::HandleTableSelection(nsINode* aParentContent,
+nsFrameSelection::HandleTableSelection(nsINode *aParentContent,
                                        int32_t aContentOffset,
                                        int32_t aTarget,
-                                       WidgetMouseEvent* aMouseEvent)
+                                       nsMouseEvent *aMouseEvent)
 {
   NS_ENSURE_TRUE(aParentContent, NS_ERROR_NULL_POINTER);
   NS_ENSURE_TRUE(aMouseEvent, NS_ERROR_NULL_POINTER);
@@ -2940,7 +2940,7 @@ nsFrameSelection::DeleteFromDocument()
 }
 
 void
-nsFrameSelection::SetDelayedCaretData(WidgetMouseEvent* aMouseEvent)
+nsFrameSelection::SetDelayedCaretData(nsMouseEvent *aMouseEvent)
 {
   if (aMouseEvent) {
     mDelayedMouseEventValid = true;
@@ -4126,7 +4126,7 @@ Selection::FindRangeData(nsIDOMRange* aRange)
 
 NS_IMETHODIMP
 Selection::SetTextRangeStyle(nsIDOMRange* aRange,
-                             const TextRangeStyle& aTextRangeStyle)
+                             const nsTextRangeStyle& aTextRangeStyle)
 {
   NS_ENSURE_ARG_POINTER(aRange);
   RangeData *rd = FindRangeData(aRange);
@@ -4384,7 +4384,7 @@ Selection::Collapse(nsINode* aParentNode, int32_t aOffset)
   nsresult result;
 
   nsRefPtr<nsPresContext> presContext = GetPresContext();
-  if (!presContext || presContext->Document() != aParentNode->OwnerDoc())
+  if (presContext->Document() != aParentNode->OwnerDoc())
     return NS_ERROR_FAILURE;
 
   // Delete all of the current ranges
@@ -4625,7 +4625,7 @@ Selection::Extend(nsINode* aParentNode, int32_t aOffset)
     return NS_ERROR_FAILURE;
 
   nsRefPtr<nsPresContext> presContext = GetPresContext();
-  if (!presContext || presContext->Document() != aParentNode->OwnerDoc())
+  if (presContext->Document() != aParentNode->OwnerDoc())
     return NS_ERROR_FAILURE;
 
   //mFrameSelection->InvalidateDesiredX();

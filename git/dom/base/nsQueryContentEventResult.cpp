@@ -4,11 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsQueryContentEventResult.h"
+#include "nsGUIEvent.h"
 #include "nsIWidget.h"
 #include "nsPoint.h"
-#include "mozilla/TextEvents.h"
-
-using namespace mozilla;
 
 NS_INTERFACE_MAP_BEGIN(nsQueryContentEventResult)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIQueryContentEventResult)
@@ -122,13 +120,13 @@ nsQueryContentEventResult::GetNotFound(bool *aNotFound)
   NS_ENSURE_TRUE(mEventID == NS_QUERY_SELECTED_TEXT ||
                  mEventID == NS_QUERY_CHARACTER_AT_POINT,
                  NS_ERROR_NOT_AVAILABLE);
-  *aNotFound = (mOffset == WidgetQueryContentEvent::NOT_FOUND);
+  *aNotFound = (mOffset == nsQueryContentEvent::NOT_FOUND);
   return NS_OK;
 }
 
 void
 nsQueryContentEventResult::SetEventResult(nsIWidget* aWidget,
-                                          const WidgetQueryContentEvent &aEvent)
+                                          const nsQueryContentEvent &aEvent)
 {
   mEventID = aEvent.message;
   mSucceeded = aEvent.mSucceeded;

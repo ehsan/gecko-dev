@@ -154,7 +154,7 @@ public:
                        nsIFrame::Cursor& aCursor) MOZ_OVERRIDE;
 
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
+                         nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -402,9 +402,7 @@ protected:
   // Also calc if we're in the region in which we want to auto-scroll the tree.
   // A positive value of |aScrollLines| means scroll down, a negative value
   // means scroll up, a zero value means that we aren't in drag scroll region.
-  void ComputeDropPosition(mozilla::WidgetGUIEvent* aEvent,
-                           int32_t* aRow,
-                           int16_t* aOrient,
+  void ComputeDropPosition(nsGUIEvent* aEvent, int32_t* aRow, int16_t* aOrient,
                            int16_t* aScrollLines);
 
   // Mark ourselves dirty if we're a select widget
@@ -618,10 +616,6 @@ protected: // Data Members
   bool mHorizontalOverflow;
 
   bool mReflowCallbackPosted;
-
-  // Set while we flush layout to take account of effects of
-  // overflow/underflow event handlers
-  bool mCheckingOverflow;
 
   // Hash table to keep track of which listeners we created and thus
   // have pointers to us.

@@ -31,6 +31,8 @@ function checkContextMenuPositionRange(aElement, aMinLeft, aMaxLeft, aMinTop, aM
 gTests.push({
   desc: "text context menu",
   run: function test() {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
     info(chromeRoot + "browser_context_menu_tests_02.html");
     yield addTab(chromeRoot + "browser_context_menu_tests_02.html");
 
@@ -306,6 +308,8 @@ gTests.push({
 gTests.push({
   desc: "checks for context menu positioning when browser shifts",
   run: function test() {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
     info(chromeRoot + "browser_context_menu_tests_02.html");
     yield addTab(chromeRoot + "browser_context_menu_tests_02.html");
 

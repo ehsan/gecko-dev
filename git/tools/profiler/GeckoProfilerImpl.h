@@ -32,6 +32,7 @@
 #undef min
 #endif
 
+struct PseudoStack;
 class TableTicker;
 class JSCustomObject;
 
@@ -41,7 +42,6 @@ class TimeStamp;
 
 extern mozilla::ThreadLocal<PseudoStack *> tlsPseudoStack;
 extern mozilla::ThreadLocal<TableTicker *> tlsTicker;
-extern mozilla::ThreadLocal<void *> tlsStackTop;
 extern bool stack_key_initialized;
 
 #ifndef SAMPLE_FUNCTION_NAME
@@ -81,25 +81,13 @@ void profiler_stop()
 }
 
 static inline
-ProfilerBacktrace* profiler_get_backtrace()
-{
-  return mozilla_sampler_get_backtrace();
-}
-
-static inline
-void profiler_free_backtrace(ProfilerBacktrace* aBacktrace)
-{
-  mozilla_sampler_free_backtrace(aBacktrace);
-}
-
-static inline
 bool profiler_is_active()
 {
   return mozilla_sampler_is_active();
 }
 
 static inline
-void profiler_responsiveness(const mozilla::TimeStamp& aTime)
+void profiler_responsiveness(const TimeStamp& aTime)
 {
   mozilla_sampler_responsiveness(aTime);
 }
@@ -186,12 +174,6 @@ double profiler_time()
 }
 
 static inline
-double profiler_time(const mozilla::TimeStamp& aTime)
-{
-  return mozilla_sampler_time(aTime);
-}
-
-static inline
 bool profiler_in_privacy_mode()
 {
   PseudoStack *stack = tlsPseudoStack.get();
@@ -211,7 +193,6 @@ bool profiler_in_privacy_mode()
 #define PROFILER_LABEL(name_space, info) mozilla::SamplerStackFrameRAII SAMPLER_APPEND_LINE_NUMBER(sampler_raii)(name_space "::" info, __LINE__)
 #define PROFILER_LABEL_PRINTF(name_space, info, ...) mozilla::SamplerStackFramePrintfRAII SAMPLER_APPEND_LINE_NUMBER(sampler_raii)(name_space "::" info, __LINE__, __VA_ARGS__)
 #define PROFILER_MARKER(info) mozilla_sampler_add_marker(info)
-#define PROFILER_MARKER_PAYLOAD(info, payload) mozilla_sampler_add_marker(info, payload)
 #define PROFILER_MAIN_THREAD_LABEL(name_space, info)  MOZ_ASSERT(NS_IsMainThread(), "This can only be called on the main thread"); mozilla::SamplerStackFrameRAII SAMPLER_APPEND_LINE_NUMBER(sampler_raii)(name_space "::" info, __LINE__)
 #define PROFILER_MAIN_THREAD_LABEL_PRINTF(name_space, info, ...)  MOZ_ASSERT(NS_IsMainThread(), "This can only be called on the main thread"); mozilla::SamplerStackFramePrintfRAII SAMPLER_APPEND_LINE_NUMBER(sampler_raii)(name_space "::" info, __LINE__, __VA_ARGS__)
 #define PROFILER_MAIN_THREAD_MARKER(info)  MOZ_ASSERT(NS_IsMainThread(), "This can only be called on the main thread"); mozilla_sampler_add_marker(info)
@@ -229,10 +210,6 @@ bool profiler_in_privacy_mode()
 #else
 # define PROFILE_DEFAULT_ENTRY 100000
 #endif
-
-// In the case of profiler_get_backtrace we know that we only need enough space
-// for a single backtrace.
-#define GET_BACKTRACE_DEFAULT_ENTRY 1000
 
 #if defined(PLATFORM_LIKELY_MEMORY_CONSTRAINED)
 /* A 1ms sampling interval has been shown to be a large perf hit
@@ -350,7 +327,7 @@ inline void mozilla_sampler_call_exit(void *aHandle)
   stack->pop();
 }
 
-inline void mozilla_sampler_add_marker(const char *aMarker, ProfilerMarkerPayload *aPayload)
+inline void mozilla_sampler_add_marker(const char *aMarker)
 {
   if (!stack_key_initialized)
     return;
@@ -370,7 +347,7 @@ inline void mozilla_sampler_add_marker(const char *aMarker, ProfilerMarkerPayloa
   if (!stack) {
     return;
   }
-  stack->addMarker(aMarker, aPayload);
+  stack->addMarker(aMarker);
 }
 
 #endif /* ndef TOOLS_SPS_SAMPLER_H_ */

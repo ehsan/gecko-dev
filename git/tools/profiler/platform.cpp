@@ -23,7 +23,6 @@
 #include "nsDirectoryServiceDefs.h"
 #include "mozilla/Services.h"
 #include "nsThreadUtils.h"
-#include "ProfilerMarkers.h"
 
 #if defined(SPS_OS_android) && !defined(MOZ_WIDGET_GONK)
   #include "AndroidBridge.h"
@@ -31,7 +30,6 @@
 
 mozilla::ThreadLocal<PseudoStack *> tlsPseudoStack;
 mozilla::ThreadLocal<TableTicker *> tlsTicker;
-mozilla::ThreadLocal<void *> tlsStackTop;
 // We need to track whether we've been initialized otherwise
 // we end up using tlsStack without initializing it.
 // Because tlsStack is totally opaque to us we can't reuse
@@ -92,84 +90,6 @@ ThreadInfo::~ThreadInfo() {
     delete mProfile;
 
   Sampler::FreePlatformData(mPlatformData);
-}
-
-ProfilerMarker::ProfilerMarker(const char* aMarkerName,
-    ProfilerMarkerPayload* aPayload)
-  : mMarkerName(strdup(aMarkerName))
-  , mPayload(aPayload)
-{
-}
-
-ProfilerMarker::~ProfilerMarker() {
-  free(mMarkerName);
-  delete mPayload;
-}
-
-void
-ProfilerMarker::SetGeneration(int aGenID) {
-  mGenID = aGenID;
-}
-
-template<typename Builder> void
-ProfilerMarker::BuildJSObject(Builder& b, typename Builder::ArrayHandle markers) const {
-  typename Builder::RootedObject marker(b.context(), b.CreateObject());
-  b.DefineProperty(marker, "name", GetMarkerName());
-  // TODO: Store the callsite for this marker if available:
-  // if have location data
-  //   b.DefineProperty(marker, "location", ...);
-  if (mPayload) {
-    typename Builder::RootedObject markerData(b.context(),
-                                              mPayload->PreparePayload(b));
-    b.DefineProperty(marker, "data", markerData);
-  }
-  b.ArrayPush(markers, marker);
-}
-
-template void
-ProfilerMarker::BuildJSObject<JSCustomObjectBuilder>(JSCustomObjectBuilder& b,
-                              JSCustomObjectBuilder::ArrayHandle markers) const;
-template void
-ProfilerMarker::BuildJSObject<JSObjectBuilder>(JSObjectBuilder& b,
-                                    JSObjectBuilder::ArrayHandle markers) const;
-
-PendingMarkers::~PendingMarkers() {
-  clearMarkers();
-  if (mSignalLock != false) {
-    // We're releasing the pseudostack while it's still in use.
-    // The label macros keep a non ref counted reference to the
-    // stack to avoid a TLS. If these are not all cleared we will
-    // get a use-after-free so better to crash now.
-    abort();
-  }
-}
-
-void
-PendingMarkers::addMarker(ProfilerMarker *aMarker) {
-  mSignalLock = true;
-  STORE_SEQUENCER();
-
-  MOZ_ASSERT(aMarker);
-  mPendingMarkers.insert(aMarker);
-
-  // Clear markers that have been overwritten
-  while (mStoredMarkers.peek() &&
-         mStoredMarkers.peek()->HasExpired(mGenID)) {
-    delete mStoredMarkers.popHead();
-  } 
-  STORE_SEQUENCER();
-  mSignalLock = false;
-}
-
-void
-PendingMarkers::updateGeneration(int aGenID) {
-  mGenID = aGenID;
-}
-
-void
-PendingMarkers::addStoredMarker(ProfilerMarker *aStoredMarker) {
-  aStoredMarker->SetGeneration(mGenID);
-  mStoredMarkers.insert(aStoredMarker);
 }
 
 bool sps_version2()
@@ -354,19 +274,6 @@ void read_profiler_env_vars()
   return;
 }
 
-void set_tls_stack_top(void* stackTop)
-{
-  // Round |stackTop| up to the end of the containing page.  We may
-  // as well do this -- there's no danger of a fault, and we might
-  // get a few more base-of-the-stack frames as a result.  This
-  // assumes that no target has a page size smaller than 4096.
-  uintptr_t stackTopR = (uintptr_t)stackTop;
-  if (stackTop) {
-    stackTopR = (stackTopR & ~(uintptr_t)4095) + (uintptr_t)4095;
-  }
-  tlsStackTop.set((void*)stackTopR);
-}
-
 ////////////////////////////////////////////////////////////////////////
 // BEGIN externally visible functions
 
@@ -378,7 +285,7 @@ void mozilla_sampler_init(void* stackTop)
     return;
 
   LOG("BEGIN mozilla_sampler_init");
-  if (!tlsPseudoStack.init() || !tlsTicker.init() || !tlsStackTop.init()) {
+  if (!tlsPseudoStack.init() || !tlsTicker.init()) {
     LOG("Failed to init.");
     return;
   }
@@ -389,7 +296,7 @@ void mozilla_sampler_init(void* stackTop)
   PseudoStack *stack = new PseudoStack();
   tlsPseudoStack.set(stack);
 
-  Sampler::RegisterCurrentThread("GeckoMain", stack, true, stackTop);
+  Sampler::RegisterCurrentThread("Gecko", stack, true, stackTop);
 
   // Read mode settings from MOZ_PROFILER_MODE and interval
   // settings from MOZ_PROFILER_INTERVAL and stack-scan threshhold
@@ -719,73 +626,38 @@ void mozilla_sampler_unlock()
 
 bool mozilla_sampler_register_thread(const char* aName, void* stackTop)
 {
-#if defined(MOZ_WIDGET_GONK) && !defined(MOZ_PROFILING)
-  // The only way to profile secondary threads on b2g
-  // is to build with profiling OR have the profiler
-  // running on startup.
-  if (!profiler_is_active()) {
-    return false;
-  }
-#endif
-
+#ifndef MOZ_WIDGET_GONK
   PseudoStack* stack = new PseudoStack();
   tlsPseudoStack.set(stack);
 
   return Sampler::RegisterCurrentThread(aName, stack, false, stackTop);
+#else
+  return false;
+#endif
 }
 
 void mozilla_sampler_unregister_thread()
 {
+#ifndef MOZ_WIDGET_GONK
   Sampler::UnregisterCurrentThread();
 
   PseudoStack *stack = tlsPseudoStack.get();
   if (!stack) {
+    ASSERT(false);
     return;
   }
   delete stack;
   tlsPseudoStack.set(nullptr);
-}
-
-double mozilla_sampler_time(const TimeStamp& aTime)
-{
-  if (!mozilla_sampler_is_active()) {
-    return 0.0;
-  }
-  TimeDuration delta = aTime - sStartTime;
-  return delta.ToMilliseconds();
+#endif
 }
 
 double mozilla_sampler_time()
 {
-  return mozilla_sampler_time(TimeStamp::Now());
-}
-
-ProfilerBacktrace* mozilla_sampler_get_backtrace()
-{
-  if (!stack_key_initialized)
-    return nullptr;
-
-  // Don't capture a stack if we're not profiling
-  if (!profiler_is_active()) {
-    return nullptr;
+  if (!mozilla_sampler_is_active()) {
+    return 0.0;
   }
-
-  // Don't capture a stack if we don't want to include personal information
-  if (profiler_in_privacy_mode()) {
-    return nullptr;
-  }
-
-  TableTicker* t = tlsTicker.get();
-  if (!t) {
-    return nullptr;
-  }
-
-  return new ProfilerBacktrace(t->GetBacktrace());
-}
-
-void mozilla_sampler_free_backtrace(ProfilerBacktrace* aBacktrace)
-{
-  delete aBacktrace;
+  TimeDuration delta = TimeStamp::Now() - sStartTime;
+  return delta.ToMilliseconds();
 }
 
 // END externally visible functions

@@ -8,7 +8,6 @@
 
 #include "mozilla/MathAlgorithms.h"
 
-#include "jit/BitSet.h"
 #include "jit/IonSpewer.h"
 #include "jit/LIR.h"
 
@@ -205,7 +204,6 @@ static const uint32_t PAYLOAD_INFO_SHIFT = TYPE_INFO_SHIFT - PART_INFO_BITS;
 
 JS_STATIC_ASSERT(PAYLOAD_INFO_SHIFT == 0);
 
-#ifdef JS_NUNBOX32
 static inline NunboxPartKind
 AllocationToPartKind(const LAllocation &a)
 {
@@ -237,6 +235,7 @@ CanEncodeInfoInHeader(const LAllocation &a, uint32_t *out)
     return *out < MAX_INFO_VALUE;
 }
 
+#ifdef JS_NUNBOX32
 void
 SafepointWriter::writeNunboxParts(LSafepoint *safepoint)
 {

@@ -46,8 +46,7 @@ public:
    * this service, sharing the AudioChannelType.
    */
   virtual void RegisterAudioChannelAgent(AudioChannelAgent* aAgent,
-                                         AudioChannelType aType,
-                                         bool aWithVideo);
+                                         AudioChannelType aType);
 
   /**
    * Any audio channel agent that stops playing should unregister itself to
@@ -91,11 +90,11 @@ protected:
   void SendAudioChannelChangedNotification(uint64_t aChildID);
 
   /* Register/Unregister IPC types: */
-  void RegisterType(AudioChannelType aType, uint64_t aChildID, bool aWithVideo);
+  void RegisterType(AudioChannelType aType, uint64_t aChildID);
   void UnregisterType(AudioChannelType aType, bool aElementHidden,
-                      uint64_t aChildID, bool aWithVideo);
+                      uint64_t aChildID);
   void UnregisterTypeInternal(AudioChannelType aType, bool aElementHidden,
-                              uint64_t aChildID, bool aWithVideo);
+                              uint64_t aChildID);
 
   AudioChannelState GetStateInternal(AudioChannelType aType, uint64_t aChildID,
                                      bool aElementHidden,
@@ -144,18 +143,15 @@ protected:
   public:
     AudioChannelAgentData(AudioChannelType aType,
                           bool aElementHidden,
-                          AudioChannelState aState,
-                          bool aWithVideo)
+                          AudioChannelState aState)
     : mType(aType)
     , mElementHidden(aElementHidden)
     , mState(aState)
-    , mWithVideo(aWithVideo)
     {}
 
     AudioChannelType mType;
     bool mElementHidden;
     AudioChannelState mState;
-    const bool mWithVideo;
   };
 
   static PLDHashOperator
@@ -170,7 +166,6 @@ protected:
   AudioChannelType mCurrentVisibleHigherChannel;
 
   nsTArray<uint64_t> mActiveContentChildIDs;
-  nsTArray<uint64_t> mWithVideoChildIDs;
   bool mActiveContentChildIDsFrozen;
 
   nsCOMPtr<nsITimer> mDeferTelChannelTimer;

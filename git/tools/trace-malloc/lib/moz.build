@@ -10,10 +10,6 @@ EXPORTS += [
     'nsTraceMalloc.h',
 ]
 
-CSRCS += [
-    'nsTraceMalloc.c',
-]
-
 CPP_SOURCES += [
     'nsTypeInfo.cpp',
 ]

@@ -10,7 +10,6 @@ import os
 import sys
 import which
 
-from configobj import ConfigObjError
 from StringIO import StringIO
 
 from mozversioncontrol.repoupdate import (
@@ -91,7 +90,7 @@ class MercurialSetupWizard(object):
         self.state_dir = state_dir
         self.ext_dir = os.path.join(state_dir, 'mercurial', 'extensions')
 
-    def run(self, config_paths):
+    def run(self, config_path):
         try:
             os.makedirs(self.ext_dir)
         except OSError as e:
@@ -106,13 +105,7 @@ class MercurialSetupWizard(object):
                 'up to date.')
             return 1
 
-        try:
-            c = MercurialConfig(config_paths)
-        except ConfigObjError as e:
-            print('Error importing existing Mercurial config!\n'
-                  '%s\n'
-                  'If using quotes, they must wrap the entire string.' % e)
-            return 1
+        c = MercurialConfig(config_path)
 
         print(INITIAL_MESSAGE)
         raw_input()
@@ -232,7 +225,6 @@ class MercurialSetupWizard(object):
         new_lines = [line.rstrip() for line in b.getvalue().splitlines()]
         old_lines = []
 
-        config_path = c.config_path
         if os.path.exists(config_path):
             with open(config_path, 'rt') as fh:
                 old_lines = [line.rstrip() for line in fh.readlines()]

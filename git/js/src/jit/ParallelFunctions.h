@@ -28,11 +28,11 @@ struct PushParArgs {
 };
 
 // Extends the given object with the given value (like `Array.push`).
-// Returns nullptr on failure or else `args->object`, which is convenient
+// Returns NULL on failure or else `args->object`, which is convenient
 // during code generation.
 JSObject *PushPar(PushParArgs *args);
 
-// Extends the given array with `length` new holes.  Returns nullptr on
+// Extends the given array with `length` new holes.  Returns NULL on
 // failure or else `array`, which is convenient during code
 // generation.
 JSObject *ExtendArrayPar(ForkJoinSlice *slice, JSObject *array, uint32_t length);
@@ -79,7 +79,9 @@ void AbortPar(ParallelBailoutCause cause, JSScript *outermostScript, JSScript *c
               jsbytecode *bytecode);
 void PropagateAbortPar(JSScript *outermostScript, JSScript *currentScript);
 
-void TraceLIR(IonLIRTraceData *current);
+void TraceLIR(uint32_t bblock, uint32_t lir, uint32_t execModeInt,
+              const char *lirOpName, const char *mirOpName,
+              JSScript *script, jsbytecode *pc);
 
 void CallToUncompiledScriptPar(JSObject *obj);
 

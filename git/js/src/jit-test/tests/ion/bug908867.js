@@ -1,6 +1,3 @@
-if (typeof ParallelArray === "undefined")
-  quit();
-
 x = ParallelArray()
 y = x.shape
 Object.defineProperty(this, "z", {

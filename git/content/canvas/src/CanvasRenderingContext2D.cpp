@@ -638,7 +638,7 @@ CanvasRenderingContext2D::SetStyleFromString(const nsAString& str,
 }
 
 void
-CanvasRenderingContext2D::GetStyleAsUnion(OwningStringOrCanvasGradientOrCanvasPattern& aValue,
+CanvasRenderingContext2D::GetStyleAsUnion(StringOrCanvasGradientOrCanvasPatternReturnValue& aValue,
                                           Style aWhichStyle)
 {
   const ContextState &state = CurrentState();
@@ -909,20 +909,6 @@ CanvasRenderingContext2D::EnsureTarget()
   }
 }
 
-#ifdef DEBUG
-int32_t
-CanvasRenderingContext2D::GetWidth() const
-{
-  return mWidth;
-}
-
-int32_t
-CanvasRenderingContext2D::GetHeight() const
-{
-  return mHeight;
-}
-#endif
-
 NS_IMETHODIMP
 CanvasRenderingContext2D::SetDimensions(int32_t width, int32_t height)
 {
@@ -1006,7 +992,7 @@ CanvasRenderingContext2D::SetIsIPC(bool isIPC)
 }
 
 NS_IMETHODIMP
-CanvasRenderingContext2D::Render(gfxContext *ctx, GraphicsFilter aFilter, uint32_t aFlags)
+CanvasRenderingContext2D::Render(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter, uint32_t aFlags)
 {
   nsresult rv = NS_OK;
 
@@ -1092,7 +1078,7 @@ CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
     new gfxImageSurface(imageBuffer.get(),
                         gfxIntSize(mWidth, mHeight),
                         mWidth * 4,
-                        gfxImageFormatARGB32);
+                        gfxASurface::ImageFormatARGB32);
 
   if (!imgsurf || imgsurf->CairoStatus()) {
     return NS_ERROR_FAILURE;
@@ -3272,7 +3258,7 @@ CanvasRenderingContext2D::DrawWindow(nsIDOMWindow* window, double x,
   } else {
     drawSurf =
       gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(ceil(sw), ceil(sh)),
-                                                         GFX_CONTENT_COLOR_ALPHA);
+                                                         gfxASurface::CONTENT_COLOR_ALPHA);
     if (!drawSurf) {
       error.Throw(NS_ERROR_FAILURE);
       return;
@@ -3692,7 +3678,7 @@ CanvasRenderingContext2D::PutImageData_explicit(int32_t x, int32_t y, uint32_t w
   }
 
   nsRefPtr<gfxImageSurface> imgsurf = new gfxImageSurface(gfxIntSize(w, h),
-                                                          gfxImageFormatARGB32,
+                                                          gfxASurface::ImageFormatARGB32,
                                                           false);
   if (!imgsurf || imgsurf->CairoStatus()) {
     return NS_ERROR_FAILURE;

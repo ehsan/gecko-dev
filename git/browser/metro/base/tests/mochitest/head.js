@@ -47,7 +47,7 @@ const mochitestPath = splitPath.join('/') + '/';
 
 function isLandscapeMode()
 {
-  return Elements.windowState.getAttribute("viewstate") == "landscape";
+  return (Services.metro.snappedState == Ci.nsIWinMetroUtils.fullScreenLandscape);
 }
 
 function setDevPixelEqualToPx()
@@ -341,13 +341,14 @@ function waitForEvent(aSubject, aEventName, aTimeoutMs, aTarget) {
     eventDeferred.resolve(aEvent);
   }
 
-  function cleanup(aEventOrError) {
+  function cleanup() {
     // unhook listener in case of success or failure
     aSubject.removeEventListener(aEventName, listener);
-    return aEventOrError;
   }
+  eventDeferred.promise.then(cleanup, cleanup);
+
   aSubject.addEventListener(aEventName, listener, false);
-  return eventDeferred.promise.then(cleanup, cleanup);
+  return eventDeferred.promise;
 }
 
 /**
@@ -396,12 +397,11 @@ function waitForCondition(aCondition, aTimeoutMs, aIntervalMs) {
   let timeoutMs = aTimeoutMs || kDefaultWait;
   let intervalMs = aIntervalMs || kDefaultInterval;
   let startTime = Date.now();
-  let stack = new Error().stack;
 
   function testCondition() {
     let now = Date.now();
     if((now - startTime) > timeoutMs) {
-      deferred.reject( new Error("Timed out waiting for condition to be true at " + stack) );
+      deferred.reject( new Error("Timed out waiting for condition to be true") );
       return;
     }
 
@@ -425,7 +425,7 @@ function waitForCondition(aCondition, aTimeoutMs, aIntervalMs) {
 }
 
 /**
- * same as waitForCondition but with better test output.
+ * same as waitForCondition but with better test output. 
  *
  * @param aCondition the callback that must return a truthy value
  * @param aTestMsg test condition message printed when the test succeeds or

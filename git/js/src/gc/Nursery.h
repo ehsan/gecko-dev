@@ -70,7 +70,7 @@ class Nursery
     }
 
     /*
-     * Allocate and return a pointer to a new GC thing. Returns nullptr if the
+     * Allocate and return a pointer to a new GC thing. Returns NULL if the
      * Nursery is full.
      */
     void *allocate(size_t size);
@@ -137,6 +137,11 @@ class Nursery
     typedef HashSet<HeapSlot *, PointerHasher<HeapSlot *, 3>, SystemAllocPolicy> HugeSlotsSet;
     HugeSlotsSet hugeSlots;
 
+    /* The marking bitmap for the fallback marker. */
+    static const size_t ThingAlignment = sizeof(JS::Value);
+    static const size_t FallbackBitmapBits = NurserySize / ThingAlignment;
+    BitArray<FallbackBitmapBits> fallbackBitmap;
+
 #ifdef DEBUG
     /*
      * In DEBUG builds, these bytes indicate the state of an unused segment of
@@ -187,10 +192,6 @@ class Nursery
     JS_ALWAYS_INLINE uintptr_t allocationEnd() const {
         JS_ASSERT(numActiveChunks_ > 0);
         return chunk(numActiveChunks_ - 1).end();
-    }
-
-    JS_ALWAYS_INLINE bool isFullyGrown() const {
-        return numActiveChunks_ == NumNurseryChunks;
     }
 
     JS_ALWAYS_INLINE uintptr_t currentEnd() const {

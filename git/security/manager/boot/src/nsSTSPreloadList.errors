@@ -9,7 +9,7 @@ bcrook.com: max-age too low: 86400
 betnet.fr: could not connect to host
 bigshinylock.minazo.net: could not connect to host
 blueseed.co: did not receive HSTS header
-braintreegateway.com: did not receive HSTS header
+braintreegateway.com: could not connect to host
 braintreepayments.com: did not receive HSTS header
 browserid.org: did not receive HSTS header
 carlolly.co.uk: did not receive HSTS header
@@ -36,7 +36,7 @@ gmail.com: did not receive HSTS header
 gocardless.com: [Exception... "Component returned failure code: 0x80004005 (NS_ERROR_FAILURE) [nsISiteSecurityService.processHeader]"  nsresult: "0x80004005 (NS_ERROR_FAILURE)"  location: "JS frame :: /builds/slave/m-cen-l64-hsts-000000000000000/getHSTSPreloadList.js :: processStsHeader :: line 124"  data: no]
 googlemail.com: did not receive HSTS header
 googleplex.com: could not connect to host
-greplin.com: did not receive HSTS header
+greplin.com: could not connect to host
 grepular.com: [Exception... "Component returned failure code: 0x80004005 (NS_ERROR_FAILURE) [nsISiteSecurityService.processHeader]"  nsresult: "0x80004005 (NS_ERROR_FAILURE)"  location: "JS frame :: /builds/slave/m-cen-l64-hsts-000000000000000/getHSTSPreloadList.js :: processStsHeader :: line 124"  data: no]
 groups.google.com: did not receive HSTS header
 history.google.com: did not receive HSTS header
@@ -65,7 +65,6 @@ plus.sandbox.google.com: did not receive HSTS header
 profiles.google.com: did not receive HSTS header
 romab.com: max-age too low: 2628000
 sah3.net: could not connect to host
-saturngames.co.uk: did not receive HSTS header
 script.google.com: did not receive HSTS header
 security.google.com: did not receive HSTS header
 serverdensity.io: did not receive HSTS header
@@ -93,7 +92,8 @@ www.dropcam.com: max-age too low: 2592000
 www.elanex.biz: did not receive HSTS header
 www.gmail.com: did not receive HSTS header
 www.googlemail.com: did not receive HSTS header
-www.greplin.com: did not receive HSTS header
+www.gov.uk: [Exception... "Component returned failure code: 0x80004005 (NS_ERROR_FAILURE) [nsISiteSecurityService.processHeader]"  nsresult: "0x80004005 (NS_ERROR_FAILURE)"  location: "JS frame :: /builds/slave/m-cen-l64-hsts-000000000000000/getHSTSPreloadList.js :: processStsHeader :: line 124"  data: no]
+www.greplin.com: could not connect to host
 www.jitsi.org: did not receive HSTS header
 www.lastpass.com: did not receive HSTS header
 www.ledgerscope.net: max-age too low: 86400

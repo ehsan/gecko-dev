@@ -8,8 +8,6 @@
 #include "nsIPipe.h"
 #include "nsIMemory.h"
 #include "mozilla/Attributes.h"
-#include "nsIAsyncInputStream.h"
-#include "nsIAsyncOutputStream.h"
 
 /** NS_NewPipe2 reimplemented, because it's not exported by XPCOM */
 nsresult TP_NewPipe2(nsIAsyncInputStream** input,

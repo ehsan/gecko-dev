@@ -604,6 +604,7 @@ js::GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleVa
             if (!iterobj)
                 return false;
             vp.setObject(*iterobj);
+            types::MarkIteratorUnknown(cx);
             return true;
         }
 
@@ -680,13 +681,16 @@ js::GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleVa
         }
 
       miss:
-        if (obj->is<ProxyObject>())
+        if (obj->is<ProxyObject>()) {
+            types::MarkIteratorUnknown(cx);
             return Proxy::iterate(cx, obj, flags, vp);
-
+        }
         if (!GetCustomIterator(cx, obj, flags, vp))
             return false;
-        if (!vp.isUndefined())
+        if (!vp.isUndefined()) {
+            types::MarkIteratorUnknown(cx);
             return true;
+        }
     }
 
     /* NB: for (var p in null) succeeds by iterating over no properties. */
@@ -1198,6 +1202,12 @@ js_SuppressDeletedElements(JSContext *cx, HandleObject obj, uint32_t begin, uint
     return SuppressDeletedPropertyHelper(cx, obj, IndexRangePredicate(begin, end));
 }
 
+static inline bool
+IsStopIteration(const js::Value &v)
+{
+    return v.isObject() && v.toObject().is<StopIterationObject>();
+}
+
 bool
 js_IteratorMore(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
 {
@@ -1241,7 +1251,7 @@ js_IteratorMore(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
             return false;
         if (!Invoke(cx, ObjectValue(*iterobj), rval, 0, NULL, rval)) {
             /* Check for StopIteration. */
-            if (!cx->isExceptionPending() || !JS_IsStopIteration(cx->getPendingException()))
+            if (!cx->isExceptionPending() || !IsStopIteration(cx->getPendingException()))
                 return false;
 
             cx->clearPendingException();
@@ -1286,7 +1296,7 @@ js_IteratorNext(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
 static bool
 stopiter_hasInstance(JSContext *cx, HandleObject obj, MutableHandleValue v, bool *bp)
 {
-    *bp = JS_IsStopIteration(v);
+    *bp = IsStopIteration(v);
     return true;
 }
 
@@ -1793,12 +1803,12 @@ NativeMethod(JSContext *cx, unsigned argc, Value *vp)
 }
 
 #define JSPROP_ROPERM   (JSPROP_READONLY | JSPROP_PERMANENT)
-#define JS_METHOD(name, T, impl, len, attrs) JS_FN(name, (NativeMethod<T,impl>), len, attrs)
+#define JS_METHOD(name, T, impl, len, perms) JS_FN(name, (NativeMethod<T,impl>), len, perms)
 
 static const JSFunctionSpec star_generator_methods[] = {
     JS_FN("iterator", iterator_iterator, 0, 0),
-    JS_METHOD("next", StarGeneratorObject, star_generator_next, 1, 0),
-    JS_METHOD("throw", StarGeneratorObject, star_generator_throw, 1, 0),
+    JS_METHOD("next", StarGeneratorObject, star_generator_next, 1, JSPROP_ROPERM),
+    JS_METHOD("throw", StarGeneratorObject, star_generator_throw, 1, JSPROP_ROPERM),
     JS_FS_END
 };
 

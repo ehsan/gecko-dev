@@ -105,25 +105,34 @@
 #include "mozilla/CycleCollectedJSRuntime.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsCycleCollectionNoteRootCallback.h"
+#include "nsHashKeys.h"
 #include "nsDeque.h"
 #include "nsCycleCollector.h"
 #include "nsThreadUtils.h"
 #include "prenv.h"
+#include "prprf.h"
+#include "plstr.h"
 #include "nsPrintfCString.h"
 #include "nsTArray.h"
 #include "nsIConsoleService.h"
+#include "nsTArray.h"
 #include "mozilla/Attributes.h"
 #include "nsICycleCollectorListener.h"
 #include "nsIMemoryReporter.h"
 #include "nsIFile.h"
+#include "nsDirectoryServiceDefs.h"
 #include "nsMemoryInfoDumper.h"
 #include "xpcpublic.h"
+#include "nsXPCOMPrivate.h"
 #include "GeckoProfiler.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
+#include "mozilla/CondVar.h"
 #include "mozilla/Likely.h"
 #include "mozilla/mozPoisonWrite.h"
+#include "mozilla/Mutex.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/ThreadLocal.h"
 
@@ -892,10 +901,6 @@ enum ccType {
     ManualCC,    /* Explicitly triggered. */
     ShutdownCC   /* Shutdown CC, used for finding leaks. */
 };
-
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
 
 ////////////////////////////////////////////////////////////////////////
 // Top level structure for the cycle collector.
@@ -2323,6 +2328,7 @@ nsCycleCollector::CollectWhite()
     //   - Unlink(whites), which drops outgoing links on each white.
     //   - Unroot(whites), which returns the whites to normal GC.
 
+    nsresult rv;
     TimeLog timeLog;
 
     MOZ_ASSERT(mWhiteNodes->IsEmpty(),
@@ -2337,8 +2343,11 @@ nsCycleCollector::CollectWhite()
         PtrInfo *pinfo = etor.GetNext();
         if (pinfo->mColor == white) {
             mWhiteNodes->AppendElement(pinfo);
-            pinfo->mParticipant->Root(pinfo->mPointer);
-            if (pinfo->mRefCount == 0) {
+            rv = pinfo->mParticipant->Root(pinfo->mPointer);
+            if (NS_FAILED(rv)) {
+                Fault("Failed root call while unlinking", pinfo);
+                mWhiteNodes->RemoveElementAt(mWhiteNodes->Length() - 1);
+            } else if (pinfo->mRefCount == 0) {
                 // only JS objects have a refcount of 0
                 ++numWhiteGCed;
             }
@@ -2367,19 +2376,24 @@ nsCycleCollector::CollectWhite()
             mJSRuntime->SetObjectToUnlink(pinfo->mPointer);
         }
 #endif
-        pinfo->mParticipant->Unlink(pinfo->mPointer);
+        rv = pinfo->mParticipant->Unlink(pinfo->mPointer);
 #ifdef DEBUG
         if (mJSRuntime) {
             mJSRuntime->SetObjectToUnlink(nullptr);
             mJSRuntime->AssertNoObjectsToTrace(pinfo->mPointer);
         }
 #endif
+        if (NS_FAILED(rv)) {
+            Fault("Failed unlink call while unlinking", pinfo);
+        }
     }
     timeLog.Checkpoint("CollectWhite::Unlink");
 
     for (uint32_t i = 0; i < count; ++i) {
         PtrInfo *pinfo = mWhiteNodes->ElementAt(i);
-        pinfo->mParticipant->Unroot(pinfo->mPointer);
+        rv = pinfo->mParticipant->Unroot(pinfo->mPointer);
+        if (NS_FAILED(rv))
+            Fault("Failed unroot call while unlinking", pinfo);
     }
     timeLog.Checkpoint("CollectWhite::Unroot");
 

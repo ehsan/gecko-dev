@@ -31,8 +31,7 @@ class RemoteOptions(MochitestOptions):
 
     def __init__(self, automation, **kwargs):
         defaults = {}
-        self._automation = automation or Automation()
-        MochitestOptions.__init__(self)
+        MochitestOptions.__init__(self, automation)
 
         self.add_option("--remote-app-path", action="store",
                     type = "string", dest = "remoteAppPath",
@@ -228,10 +227,9 @@ class MochiRemote(Mochitest):
 
     def __init__(self, automation, devmgr, options):
         self._automation = automation
-        Mochitest.__init__(self)
+        Mochitest.__init__(self, self._automation)
         self._dm = devmgr
         self.runSSLTunnel = False
-        self.environment = self._automation.environment
         self.remoteProfile = options.remoteTestRoot + "/profile"
         self._automation.setRemoteProfile(self.remoteProfile)
         self.remoteLog = options.remoteLogFile
@@ -315,7 +313,7 @@ class MochiRemote(Mochitest):
             sys.exit(1)
 
         options.profilePath = tempfile.mkdtemp()
-        self.server = MochitestServer(options)
+        self.server = MochitestServer(localAutomation, options)
         self.server.start()
 
         if (options.pidFile != ""):
@@ -425,7 +423,7 @@ class MochiRemote(Mochitest):
         if fail_found:
             result = 1
         if not end_found:
-            log.error("Automation Error: Missing end of test marker (process crashed?)")
+            log.error("missing end of test marker (process crashed?)")
             result = 1
         return result
 
@@ -464,26 +462,15 @@ class MochiRemote(Mochitest):
             return 1
         return 0
 
-    def printScreenshots(self, screenShotDir):
-        # TODO: This can be re-written after completion of bug 749421
-        if not self._dm.dirExists(screenShotDir):
-            log.info("SCREENSHOT: No ScreenShots directory available: " + screenShotDir)
-            return
-
-        printed = 0
-        for name in self._dm.listFiles(screenShotDir):
-            fullName = screenShotDir + "/" + name
-            log.info("SCREENSHOT: FOUND: [%s]", fullName)
-            try:
-                image = self._dm.pullFile(fullName)
-                encoded = base64.b64encode(image)
-                log.info("SCREENSHOT: data:image/jpg;base64,%s", encoded)
-                printed += 1
-            except:
-                log.info("SCREENSHOT: Could not be parsed")
-                pass
-
-        log.info("SCREENSHOT: TOTAL PRINTED: [%s]", printed)
+    def printScreenshot(self):
+        try:
+            image = self._dm.pullFile("/mnt/sdcard/Robotium-Screenshots/robocop-screenshot.jpg")
+            encoded = base64.b64encode(image)
+            log.info("SCREENSHOT: data:image/jpg;base64,%s", encoded)
+        except:
+            # If the test passes, no screenshot will be generated and
+            # pullFile will fail -- continue silently.
+            pass
 
     def printDeviceInfo(self, printLogcat=False):
         try:
@@ -512,8 +499,7 @@ class MochiRemote(Mochitest):
             for key, value in browserEnv.items():
                 try:
                     value.index(',')
-                    log.error("buildRobotiumConfig: browserEnv - Found a ',' in our value, unable to process value. key=%s,value=%s", key, value)
-                    log.error("browserEnv=%s", browserEnv)
+                    log.error("Found a ',' in our value, unable to process value.")
                 except ValueError, e:
                     envstr += "%s%s=%s" % (delim, key, value)
                     delim = ","
@@ -530,16 +516,7 @@ class MochiRemote(Mochitest):
         self.buildRobotiumConfig(options, browserEnv)
         return browserEnv
 
-    def runApp(self, *args, **kwargs):
-        """front-end automation.py's `runApp` functionality until FennecRunner is written"""
-
-        # automation.py/remoteautomation `runApp` takes the profile path,
-        # whereas runtest.py's `runApp` takes a mozprofile object.
-        if 'profileDir' not in kwargs and 'profile' in kwargs:
-            kwargs['profileDir'] = kwargs.pop('profile').profile
-
-        return self._automation.runApp(*args, **kwargs)
-
+        
 def main():
     auto = RemoteAutomation(None, "fennec")
     parser = RemoteOptions(auto)
@@ -665,8 +642,7 @@ def main():
                    if (options.dm_trans == "sut"):
                        dm._runCmds([{"cmd": " ".join(cmd)}])
             try:
-                screenShotDir = "/mnt/sdcard/Robotium-Screenshots"
-                dm.removeDir(screenShotDir)
+                dm.removeDir("/mnt/sdcard/Robotium-Screenshots")
                 dm.recordLogcat()
                 result = mochitest.runTests(options)
                 if result != 0:
@@ -674,7 +650,7 @@ def main():
                 log_result = mochitest.addLogData()
                 if result != 0 or log_result != 0:
                     mochitest.printDeviceInfo(printLogcat=True)
-                    mochitest.printScreenshots(screenShotDir)
+                    mochitest.printScreenshot()
                 # Ensure earlier failures aren't overwritten by success on this run
                 if retVal is None or retVal == 0:
                     retVal = result

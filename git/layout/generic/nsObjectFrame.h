@@ -70,8 +70,14 @@ public:
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   NS_IMETHOD  HandleEvent(nsPresContext* aPresContext,
-                          mozilla::WidgetGUIEvent* aEvent,
+                          nsGUIEvent* aEvent,
                           nsEventStatus* aEventStatus);
+
+#ifdef XP_MACOSX
+  NS_IMETHOD HandlePress(nsPresContext* aPresContext,
+                         nsGUIEvent*    aEvent,
+                         nsEventStatus* aEventStatus);
+#endif
 
   virtual nsIAtom* GetType() const;
 

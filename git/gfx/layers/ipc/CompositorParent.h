@@ -39,10 +39,6 @@ class gfxContext;
 class nsIWidget;
 
 namespace mozilla {
-namespace gfx {
-class DrawTarget;
-}
-
 namespace layers {
 
 class APZCTreeManager;
@@ -72,12 +68,6 @@ public:
                    int aSurfaceWidth = -1, int aSurfaceHeight = -1);
 
   virtual ~CompositorParent();
-
-  // IToplevelProtocol::CloneToplevel()
-  virtual IToplevelProtocol*
-  CloneToplevel(const InfallibleTArray<mozilla::ipc::ProtocolFdMapping>& aFds,
-                base::ProcessHandle aPeerProcess,
-                mozilla::ipc::ProtocolCloneContext* aCtx) MOZ_OVERRIDE;
 
   virtual bool RecvWillStop() MOZ_OVERRIDE;
   virtual bool RecvStop() MOZ_OVERRIDE;
@@ -231,7 +221,7 @@ protected:
   virtual bool DeallocPLayerTransactionParent(PLayerTransactionParent* aLayers);
   virtual void ScheduleTask(CancelableTask*, int);
   virtual void Composite();
-  virtual void ComposeToTarget(gfx::DrawTarget* aTarget);
+  virtual void ComposeToTarget(gfxContext* aTarget);
 
   void SetEGLSurfaceSize(int width, int height);
 

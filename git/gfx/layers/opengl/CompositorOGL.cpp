@@ -18,7 +18,7 @@
 #include "gfxCrashReporterUtils.h"      // for ScopedGfxFeatureReporter
 #include "gfxImageSurface.h"            // for gfxImageSurface
 #include "gfxMatrix.h"                  // for gfxMatrix
-#include "GraphicsFilter.h"             // for GraphicsFilter
+#include "gfxPattern.h"                 // for gfxPattern, etc
 #include "gfxPlatform.h"                // for gfxPlatform
 #include "gfxRect.h"                    // for gfxRect
 #include "gfxUtils.h"                   // for NextPowerOfTwo, gfxUtils, etc
@@ -1125,7 +1125,7 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
         return;
       }
 
-      GraphicsFilter filter = ThebesFilter(effectYCbCr->mFilter);
+      gfxPattern::GraphicsFilter filter = ThebesFilter(effectYCbCr->mFilter);
 
       AutoBindTexture bindY(sourceY, LOCAL_GL_TEXTURE0);
       mGLContext->ApplyFilterToBoundTexture(filter);
@@ -1250,7 +1250,7 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
 void
 CompositorOGL::EndFrame()
 {
-  PROFILER_LABEL("CompositorOGL", "EndFrame");
+  PROFILER_LABEL("CompositorOGL", "BeginFrame");
   MOZ_ASSERT(mCurrentRenderTarget == mWindowRenderTarget, "Rendering target not properly restored");
 
 #ifdef MOZ_DUMP_PAINTING
@@ -1261,10 +1261,11 @@ CompositorOGL::EndFrame()
     } else {
       mWidget->GetBounds(rect);
     }
-    RefPtr<DrawTarget> target = gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(IntSize(rect.width, rect.height), FORMAT_B8G8R8A8);
-    CopyToTarget(target, mCurrentRenderTarget->GetTransform());
+    nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(rect.Size(), gfxASurface::CONTENT_COLOR_ALPHA);
+    nsRefPtr<gfxContext> ctx = new gfxContext(surf);
+    CopyToTarget(ctx, mCurrentRenderTarget->GetTransform());
 
-    WriteSnapshotToDumpFile(this, target);
+    WriteSnapshotToDumpFile(this, surf);
   }
 #endif
 
@@ -1334,13 +1335,13 @@ CompositorOGL::SetDestinationSurfaceSize(const gfx::IntSize& aSize)
 }
 
 void
-CompositorOGL::CopyToTarget(DrawTarget *aTarget, const gfxMatrix& aTransform)
+CompositorOGL::CopyToTarget(gfxContext *aTarget, const gfxMatrix& aTransform)
 {
-  IntRect rect;
+  nsIntRect rect;
   if (mUseExternalSurfaceSize) {
-    rect = IntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
+    rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
   } else {
-    rect = IntRect(0, 0, mWidgetSize.width, mWidgetSize.height);
+    rect = nsIntRect(0, 0, mWidgetSize.width, mWidgetSize.height);
   }
   GLint width = rect.width;
   GLint height = rect.height;
@@ -1350,6 +1351,10 @@ CompositorOGL::CopyToTarget(DrawTarget *aTarget, const gfxMatrix& aTransform)
     return;
   }
 
+  nsRefPtr<gfxImageSurface> imageSurface =
+    new gfxImageSurface(gfxIntSize(width, height),
+                        gfxASurface::ImageFormatARGB32);
+
   mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
 
   if (!mGLContext->IsGLES2()) {
@@ -1358,21 +1363,22 @@ CompositorOGL::CopyToTarget(DrawTarget *aTarget, const gfxMatrix& aTransform)
     mGLContext->fReadBuffer(LOCAL_GL_BACK);
   }
 
-  RefPtr<SourceSurface> source =
-    mGLContext->ReadPixelsToSourceSurface(IntSize(width, height));
+  NS_ASSERTION(imageSurface->Stride() == width * 4,
+               "Image Surfaces being created with weird stride!");
+
+  mGLContext->ReadPixelsIntoImageSurface(imageSurface);
 
   // Map from GL space to Cairo space and reverse the world transform.
-  Matrix glToCairoTransform = MatrixForThebesMatrix(aTransform);
+  gfxMatrix glToCairoTransform = aTransform;
   glToCairoTransform.Invert();
   glToCairoTransform.Scale(1.0, -1.0);
-  glToCairoTransform.Translate(0.0, -height);
+  glToCairoTransform.Translate(-gfxPoint(0.0, height));
 
-  Matrix oldMatrix = aTarget->GetTransform();
-  aTarget->SetTransform(glToCairoTransform);
-  Rect floatRect = Rect(rect.x, rect.y, rect.width, rect.height);
-  aTarget->DrawSurface(source, floatRect, floatRect, DrawSurfaceOptions(), DrawOptions(1.0f, OP_SOURCE));
-  aTarget->SetTransform(oldMatrix);
-  aTarget->Flush();
+  gfxContextAutoSaveRestore restore(aTarget);
+  aTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
+  aTarget->SetMatrix(glToCairoTransform);
+  aTarget->SetSource(imageSurface);
+  aTarget->Paint();
 }
 
 double

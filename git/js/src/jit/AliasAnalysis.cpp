@@ -58,7 +58,7 @@ class AliasSetIterator
 AliasAnalysis::AliasAnalysis(MIRGenerator *mir, MIRGraph &graph)
   : mir(mir),
     graph_(graph),
-    loop_(nullptr)
+    loop_(NULL)
 {
 }
 
@@ -246,6 +246,6 @@ AliasAnalysis::analyze()
         }
     }
 
-    JS_ASSERT(loop_ == nullptr);
+    JS_ASSERT(loop_ == NULL);
     return true;
 }

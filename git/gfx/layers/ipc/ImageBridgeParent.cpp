@@ -12,7 +12,7 @@
 #include "base/task.h"                  // for CancelableTask, DeleteTask, etc
 #include "base/tracked.h"               // for FROM_HERE
 #include "gfxPoint.h"                   // for gfxIntSize
-#include "mozilla/ipc/MessageChannel.h" // for MessageChannel, etc
+#include "mozilla/ipc/AsyncChannel.h"   // for AsyncChannel, etc
 #include "mozilla/ipc/ProtocolUtils.h"
 #include "mozilla/ipc/Transport.h"      // for Transport
 #include "mozilla/layers/CompositableTransactionParent.h"
@@ -22,7 +22,6 @@
 #include "mozilla/layers/LayersSurfaces.h"  // for PGrallocBufferParent
 #include "mozilla/layers/PCompositableParent.h"
 #include "mozilla/layers/PImageBridgeParent.h"
-#include "mozilla/layers/Compositor.h"
 #include "mozilla/mozalloc.h"           // for operator new, etc
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsDebug.h"                    // for NS_RUNTIMEABORT, etc
@@ -67,12 +66,6 @@ ImageBridgeParent::ActorDestroy(ActorDestroyReason aWhy)
 bool
 ImageBridgeParent::RecvUpdate(const EditArray& aEdits, EditReplyArray* aReply)
 {
-  // If we don't actually have a compositor, then don't bother
-  // creating any textures.
-  if (Compositor::GetBackend() == LAYERS_NONE) {
-    return true;
-  }
-
   EditReplyVector replyv;
   for (EditArray::index_type i = 0; i < aEdits.Length(); ++i) {
     ReceiveCompositableUpdate(aEdits[i], replyv);
@@ -106,7 +99,8 @@ ConnectImageBridgeInParentProcess(ImageBridgeParent* aBridge,
                                   Transport* aTransport,
                                   ProcessHandle aOtherProcess)
 {
-  aBridge->Open(aTransport, aOtherProcess, XRE_GetIOMessageLoop(), ipc::ParentSide);
+  aBridge->Open(aTransport, aOtherProcess,
+                XRE_GetIOMessageLoop(), AsyncChannel::Parent);
 }
 
 /*static*/ PImageBridgeParent*
@@ -190,24 +184,6 @@ ImageBridgeParent::DeferredDestroy()
 {
   mSelfRef = nullptr;
   // |this| was just destroyed, hands off
-}
-
-IToplevelProtocol*
-ImageBridgeParent::CloneToplevel(const InfallibleTArray<ProtocolFdMapping>& aFds,
-                                 base::ProcessHandle aPeerProcess,
-                                 mozilla::ipc::ProtocolCloneContext* aCtx)
-{
-  for (unsigned int i = 0; i < aFds.Length(); i++) {
-    if (aFds[i].protocolId() == (int)GetProtocolId()) {
-      Transport* transport = OpenDescriptor(aFds[i].fd(),
-                                            Transport::MODE_SERVER);
-      PImageBridgeParent* bridge = Create(transport, base::GetProcId(aPeerProcess));
-      bridge->CloneManagees(this, aCtx);
-      bridge->IToplevelProtocol::SetTransport(transport);
-      return bridge;
-    }
-  }
-  return nullptr;
 }
 
 } // layers

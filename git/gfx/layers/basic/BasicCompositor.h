@@ -9,9 +9,6 @@
 #include "mozilla/layers/Compositor.h"
 #include "mozilla/layers/TextureHost.h"
 #include "mozilla/gfx/2D.h"
-#include "nsAutoPtr.h"
-
-class gfxContext;
 
 namespace mozilla {
 namespace layers {
@@ -94,10 +91,10 @@ public:
   virtual void AbortFrame() MOZ_OVERRIDE;
 
   virtual bool SupportsPartialTextureUpdate() { return true; }
-  virtual bool CanUseCanvasLayerForSize(const gfx::IntSize &aSize) MOZ_OVERRIDE { return true; }
+  virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize) MOZ_OVERRIDE { return true; }
   virtual int32_t GetMaxTextureSize() const MOZ_OVERRIDE { return INT32_MAX; }
   virtual void SetDestinationSurfaceSize(const gfx::IntSize& aSize) MOZ_OVERRIDE { }
-  virtual void SetTargetContext(gfx::DrawTarget* aTarget) MOZ_OVERRIDE
+  virtual void SetTargetContext(gfxContext* aTarget) MOZ_OVERRIDE
   {
     mCopyTarget = aTarget;
   }
@@ -133,7 +130,7 @@ private:
   RefPtr<BasicCompositingRenderTarget> mRenderTarget;
   // An optional destination target to copy the results
   // to after drawing is completed.
-  RefPtr<gfx::DrawTarget> mCopyTarget;
+  nsRefPtr<gfxContext> mCopyTarget;
 };
 
 } // namespace layers

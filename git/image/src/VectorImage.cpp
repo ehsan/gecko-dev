@@ -235,7 +235,7 @@ public:
   {}
   virtual bool operator()(gfxContext* aContext,
                             const gfxRect& aFillRect,
-                            const GraphicsFilter& aFilter,
+                            const gfxPattern::GraphicsFilter& aFilter,
                             const gfxMatrix& aTransform);
 private:
   nsRefPtr<SVGDocumentWrapper> mSVGDocumentWrapper;
@@ -248,7 +248,7 @@ private:
 bool
 SVGDrawingCallback::operator()(gfxContext* aContext,
                                const gfxRect& aFillRect,
-                               const GraphicsFilter& aFilter,
+                               const gfxPattern::GraphicsFilter& aFilter,
                                const gfxMatrix& aTransform)
 {
   MOZ_ASSERT(mSVGDocumentWrapper, "need an SVGDocumentWrapper");
@@ -302,15 +302,14 @@ NS_IMPL_ISUPPORTS3(VectorImage,
 // Constructor / Destructor
 
 VectorImage::VectorImage(imgStatusTracker* aStatusTracker,
-                         ImageURL* aURI /* = nullptr */) :
-  ImageResource(aURI), // invoke superclass's constructor
+                         nsIURI* aURI /* = nullptr */) :
+  ImageResource(aStatusTracker, aURI), // invoke superclass's constructor
   mIsInitialized(false),
   mIsFullyLoaded(false),
   mIsDrawing(false),
   mHaveAnimations(false),
   mHasPendingInvalidation(false)
 {
-  mStatusTrackerInit = new imgStatusTrackerInit(this, aStatusTracker);
 }
 
 VectorImage::~VectorImage()
@@ -526,7 +525,7 @@ VectorImage::GetIntrinsicSize(nsSize* aSize)
     return NS_ERROR_FAILURE;
 
   *aSize = nsSize(-1, -1);
-  IntrinsicSize rfSize = rootFrame->GetIntrinsicSize();
+  nsIFrame::IntrinsicSize rfSize = rootFrame->GetIntrinsicSize();
   if (rfSize.width.GetUnit() == eStyleUnit_Coord)
     aSize->width = rfSize.width.GetCoordValue();
   if (rfSize.height.GetUnit() == eStyleUnit_Coord)
@@ -650,12 +649,12 @@ VectorImage::GetFrame(uint32_t aWhichFrame,
   gfxIntSize surfaceSize(imageIntSize.width, imageIntSize.height);
 
   nsRefPtr<gfxImageSurface> surface =
-    new gfxImageSurface(surfaceSize, gfxImageFormatARGB32);
+    new gfxImageSurface(surfaceSize, gfxASurface::ImageFormatARGB32);
   nsRefPtr<gfxContext> context = new gfxContext(surface);
 
   // Draw to our surface!
   // --------------------
-  nsresult rv = Draw(context, GraphicsFilter::FILTER_NEAREST, gfxMatrix(),
+  nsresult rv = Draw(context, gfxPattern::FILTER_NEAREST, gfxMatrix(),
                      gfxRect(gfxPoint(0,0), gfxIntSize(imageIntSize.width,
                                                        imageIntSize.height)),
                      nsIntRect(nsIntPoint(0,0), imageIntSize),
@@ -688,7 +687,7 @@ VectorImage::GetImageContainer(LayerManager* aManager,
  *                      in uint32_t aFlags); */
 NS_IMETHODIMP
 VectorImage::Draw(gfxContext* aContext,
-                  GraphicsFilter aFilter,
+                  gfxPattern::GraphicsFilter aFilter,
                   const gfxMatrix& aUserSpaceToImageSpace,
                   const gfxRect& aFill,
                   const nsIntRect& aSubimage,
@@ -762,7 +761,7 @@ VectorImage::Draw(gfxContext* aContext,
   gfxUtils::DrawPixelSnapped(aContext, drawable, unscaledTransform,
                              drawableSubimage, drawableSourceRect,
                              drawableImageRect, aFill,
-                             gfxImageFormatARGB32, aFilter, aFlags);
+                             gfxASurface::ImageFormatARGB32, aFilter, aFlags);
 
   MOZ_ASSERT(mRenderingObserver, "Should have a rendering observer by now");
   mRenderingObserver->ResumeHonoringInvalidations();

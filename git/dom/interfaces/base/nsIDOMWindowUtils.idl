@@ -43,7 +43,7 @@ interface nsIDOMEventTarget;
 interface nsIRunnable;
 interface nsICompositionStringSynthesizer;
 
-[scriptable, uuid(750a47b6-8bdb-4cad-ba2c-b7d3e66d8021)]
+[scriptable, uuid(dd45c6ae-9d80-46ef-86d7-f2795a48a77b)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -653,13 +653,6 @@ interface nsIDOMWindowUtils : nsISupports {
   void getScrollXY(in boolean aFlushLayout, out long aScrollX, out long aScrollY);
 
   /**
-   * Sets the scroll position of the root scroll frame of the window.
-   * Returns true on success, false on error (if the window didn't have a root
-   * scroll frame).
-   */
-  boolean scrollToCSSPixelsApproximate(in float aX, in float aY);
-
-  /**
    * Returns the scrollbar width of the window's scroll frame.
    *
    * @param aFlushLayout flushes layout if true. Otherwise, no flush occurs.
@@ -749,7 +742,7 @@ interface nsIDOMWindowUtils : nsISupports {
                                        in boolean aTrusted);
 
   /**
-   * Sets WidgetEvent::mFlags::mOnlyChromeDispatch to true to ensure that
+   * Sets nsEvent::mFlags::mOnlyChromeDispatch to true to ensure that
    * the event is propagated only to chrome.
    * Event's .target property will be aTarget.
    * Returns the same value as what EventTarget.dispatchEvent does.
@@ -815,7 +808,7 @@ interface nsIDOMWindowUtils : nsISupports {
                                                    in long aX,
                                                    in long aY);
 
-  // NOTE: following values are same as NS_QUERY_* in BasicEvents.h
+  // NOTE: following values are same as NS_QUERY_* in nsGUIEvent.h
 
   /**
    * QUERY_SELECTED_TEXT queries the first selection range's information.
@@ -1086,12 +1079,6 @@ interface nsIDOMWindowUtils : nsISupports {
    * @deprecated Use nsIWindowMediator.getOuterWindowWithId.  See bug 865664.
    */
   nsIDOMWindow getOuterWindowWithId(in unsigned long long aOuterWindowID);
-
-  /**
-   * Return this window's frame element.
-   * Ignores all chrome/content or mozbrowser boundaries.
-   */
-  readonly attribute nsIDOMElement containerElement;
 
   [noscript] void RenderDocument(in nsConstRect aRect,
                                  in uint32_t aFlags,

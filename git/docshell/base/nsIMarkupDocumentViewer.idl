@@ -15,8 +15,8 @@
 interface nsIDOMNode;
 
 %{C++
-template<class T> class nsCOMPtr;
-template<class T> class nsTArray;
+#include "nsCOMPtr.h"
+#include "nsTArray.h"
 %}
 
 interface nsIMarkupDocumentViewer;
@@ -136,18 +136,6 @@ interface nsIMarkupDocumentViewer : nsISupports
    *        in CSS pixels.
    */
   void changeMaxLineBoxWidth(in int32_t maxLineBoxWidth);
-
-  /**
-   * Instruct the refresh driver to discontinue painting until further
-   * notice.
-   */
-  void pausePainting();
-
-  /**
-   * Instruct the refresh driver to resume painting after a previous call to
-   * pausePainting().
-   */
-  void resumePainting();
 
   /*
    * Render the document as if being viewed on a device with the specified

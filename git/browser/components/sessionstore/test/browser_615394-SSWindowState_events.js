@@ -68,12 +68,9 @@ function runNextTest() {
       }
     }
 
-    // If we closed a window, give it time to close
-    executeSoon(function() {
-      let currentTest = tests.shift();
-      info("prepping for " + currentTest.name);
-      waitForBrowserState(testState, currentTest);
-    });
+    let currentTest = tests.shift();
+    info("prepping for " + currentTest.name);
+    waitForBrowserState(testState, currentTest);
   }
   else {
     ss.setBrowserState(stateBackup);
@@ -322,18 +319,15 @@ function test_undoCloseWindow() {
   waitForBrowserState(lameMultiWindowState, function() {
     // Close the window which isn't window
     newWindow.close();
-    // Now give it time to close
-    executeSoon(function() {
-      reopenedWindow = ss.undoCloseWindow(0);
-      reopenedWindow.addEventListener("SSWindowStateBusy", onSSWindowStateBusy, false);
-      reopenedWindow.addEventListener("SSWindowStateReady", onSSWindowStateReady, false);
+    reopenedWindow = ss.undoCloseWindow(0);
+    reopenedWindow.addEventListener("SSWindowStateBusy", onSSWindowStateBusy, false);
+    reopenedWindow.addEventListener("SSWindowStateReady", onSSWindowStateReady, false);
 
-      reopenedWindow.addEventListener("load", function() {
-        reopenedWindow.removeEventListener("load", arguments.callee, false);
+    reopenedWindow.addEventListener("load", function() {
+      reopenedWindow.removeEventListener("load", arguments.callee, false);
 
-        reopenedWindow.gBrowser.tabContainer.addEventListener("SSTabRestored", onSSTabRestored, false);
-      }, false);
-    });
+      reopenedWindow.gBrowser.tabContainer.addEventListener("SSTabRestored", onSSTabRestored, false);
+    }, false);
   });
 
   let busyEventCount = 0,
@@ -361,7 +355,6 @@ function test_undoCloseWindow() {
 
     reopenedWindow.close();
 
-    // Give it time to close
-    executeSoon(runNextTest);
+    runNextTest();
   }
 }

@@ -8,6 +8,7 @@
 
 #include "mozilla/MathAlgorithms.h"
 
+#include "jit/Lowering.h"
 #include "jit/MIR.h"
 
 #include "jit/shared/Lowering-shared-inl.h"
@@ -121,7 +122,7 @@ LIRGeneratorX86Shared::lowerMulI(MMul *mul, MDefinition *lhs, MDefinition *rhs)
     // Note: lhs is used twice, so that we can restore the original value for the
     // negative zero check.
     LMulI *lir = new LMulI(useRegisterAtStart(lhs), useOrConstant(rhs), use(lhs));
-    if (mul->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
+    if (mul->fallible() && !assignSnapshot(lir))
         return false;
     return defineReuseInput(lir, mul, 0);
 }
@@ -145,7 +146,7 @@ LIRGeneratorX86Shared::lowerDivI(MDiv *div)
         int32_t shift = FloorLog2(rhs);
         if (rhs > 0 && 1 << shift == rhs) {
             LDivPowTwoI *lir = new LDivPowTwoI(useRegisterAtStart(div->lhs()), useRegister(div->lhs()), shift);
-            if (div->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
+            if (div->fallible() && !assignSnapshot(lir))
                 return false;
             return defineReuseInput(lir, div, 0);
         }
@@ -163,13 +164,13 @@ LIRGeneratorX86Shared::lowerDivI(MDiv *div)
             return define(new LInteger(1), div);
 
         LDivSelfI *lir = new LDivSelfI(useRegisterAtStart(div->lhs()));
-        if (div->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
+        if (div->fallible() && !assignSnapshot(lir))
             return false;
         return define(lir, div);
     }
 
     LDivI *lir = new LDivI(useFixed(div->lhs(), eax), useRegister(div->rhs()), tempFixed(edx));
-    if (div->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
+    if (div->fallible() && !assignSnapshot(lir))
         return false;
     return defineFixed(lir, div, LAllocation(AnyRegister(eax)));
 }
@@ -185,13 +186,13 @@ LIRGeneratorX86Shared::lowerModI(MMod *mod)
         int32_t shift = FloorLog2(rhs);
         if (rhs > 0 && 1 << shift == rhs) {
             LModPowTwoI *lir = new LModPowTwoI(useRegisterAtStart(mod->lhs()), shift);
-            if (mod->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
+            if (mod->fallible() && !assignSnapshot(lir))
                 return false;
             return defineReuseInput(lir, mod, 0);
         }
     }
     LModI *lir = new LModI(useRegister(mod->lhs()), useRegister(mod->rhs()), tempFixed(eax));
-    if (mod->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
+    if (mod->fallible() && !assignSnapshot(lir))
         return false;
     return defineFixed(lir, mod, LAllocation(AnyRegister(edx)));
 }

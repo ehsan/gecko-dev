@@ -16,13 +16,13 @@
 #include "mozilla/CORSMode.h"
 #include "mozilla/Likely.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/MutationEvent.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/Util.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsAttrValueOrString.h"
 #include "nsBindingManager.h"
 #include "nsCCUncollectableMarker.h"
+#include "nsClientRect.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentList.h"
 #include "nsContentUtils.h"
@@ -76,6 +76,7 @@
 #include "nsIWebNavigation.h"
 #include "nsIWidget.h"
 #include "nsLayoutUtils.h"
+#include "nsMutationEvent.h"
 #include "nsNetUtil.h"
 #include "nsNodeInfoManager.h"
 #include "nsNodeUtils.h"
@@ -1047,7 +1048,7 @@ nsINode::AddEventListener(const nsAString& aType,
 
 void
 nsINode::AddEventListener(const nsAString& aType,
-                          EventListener* aListener,
+                          nsIDOMEventListener* aListener,
                           bool aUseCapture,
                           const Nullable<bool>& aWantsUntrusted,
                           ErrorResult& aRv)
@@ -1147,7 +1148,7 @@ nsINode::PostHandleEvent(nsEventChainPostVisitor& /*aVisitor*/)
 }
 
 nsresult
-nsINode::DispatchDOMEvent(WidgetEvent* aEvent,
+nsINode::DispatchDOMEvent(nsEvent* aEvent,
                           nsIDOMEvent* aDOMEvent,
                           nsPresContext* aPresContext,
                           nsEventStatus* aEventStatus)
@@ -1179,7 +1180,7 @@ nsINode::GetOwnerGlobal()
 bool
 nsINode::UnoptimizableCCNode() const
 {
-  const uintptr_t problematicFlags = (NODE_IS_ANONYMOUS_ROOT |
+  const uintptr_t problematicFlags = (NODE_IS_ANONYMOUS |
                                       NODE_IS_IN_ANONYMOUS_SUBTREE |
                                       NODE_IS_NATIVE_ANONYMOUS_ROOT |
                                       NODE_MAY_BE_IN_BINDING_MNGR);
@@ -1404,7 +1405,7 @@ nsINode::doInsertChildAt(nsIContent* aKid, uint32_t aIndex,
 
     if (nsContentUtils::HasMutationListeners(aKid,
           NS_EVENT_BITS_MUTATION_NODEINSERTED, this)) {
-      InternalMutationEvent mutation(true, NS_MUTATION_NODEINSERTED);
+      nsMutationEvent mutation(true, NS_MUTATION_NODEINSERTED);
       mutation.mRelatedNode = do_QueryInterface(this);
 
       mozAutoSubtreeModified subtree(OwnerDoc(), this);
@@ -2187,11 +2188,14 @@ nsINode::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
     return elm ? elm->GetEventHandler(nsGkAtoms::on##name_, EmptyString())   \
                : nullptr;                                                    \
   }                                                                          \
-  void nsINode::SetOn##name_(EventHandlerNonNull* handler)                   \
-  {                                                                          \
+  void nsINode::SetOn##name_(EventHandlerNonNull* handler,                   \
+                             ErrorResult& error) {                           \
     nsEventListenerManager *elm = GetListenerManager(true);                  \
     if (elm) {                                                               \
-      elm->SetEventHandler(nsGkAtoms::on##name_, EmptyString(), handler);    \
+      error = elm->SetEventHandler(nsGkAtoms::on##name_,                     \
+                                   EmptyString(), handler);                  \
+    } else {                                                                 \
+      error.Throw(NS_ERROR_OUT_OF_MEMORY);                                   \
     }                                                                        \
   }                                                                          \
   NS_IMETHODIMP nsINode::GetOn##name_(JSContext *cx, JS::Value *vp) {        \
@@ -2206,8 +2210,9 @@ nsINode::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
         JS_ObjectIsCallable(cx, callable = &v.toObject())) {                 \
       handler = new EventHandlerNonNull(callable);                           \
     }                                                                        \
-    SetOn##name_(handler);                                                   \
-    return NS_OK;                                                            \
+    ErrorResult rv;                                                          \
+    SetOn##name_(handler, rv);                                               \
+    return rv.ErrorCode();                                                   \
   }
 #define TOUCH_EVENT EVENT
 #define DOCUMENT_ONLY_EVENT EVENT

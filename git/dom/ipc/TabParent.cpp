@@ -8,6 +8,7 @@
 
 #include "TabParent.h"
 
+#include "Blob.h"
 #include "IDBFactory.h"
 #include "IndexedDBParent.h"
 #include "mozIApplication.h"
@@ -18,43 +19,44 @@
 #include "mozilla/ipc/DocumentRendererParent.h"
 #include "mozilla/layers/CompositorParent.h"
 #include "mozilla/layout/RenderFrameParent.h"
-#include "mozilla/MouseEvents.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/TextEvents.h"
-#include "mozilla/TouchEvents.h"
 #include "mozilla/unused.h"
 #include "nsCOMPtr.h"
 #include "nsContentPermissionHelper.h"
 #include "nsContentUtils.h"
 #include "nsDebug.h"
+#include "nsEventDispatcher.h"
 #include "nsEventStateManager.h"
 #include "nsFocusManager.h"
 #include "nsFrameLoader.h"
 #include "nsIContent.h"
 #include "nsIDocShell.h"
-#include "nsIDocShellTreeOwner.h"
+#include "nsIDOMApplicationRegistry.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEvent.h"
+#include "nsIDOMHTMLFrameElement.h"
 #include "nsIDOMWindow.h"
 #include "nsIDialogCreator.h"
-#include "nsIInterfaceRequestorUtils.h"
 #include "nsIPromptFactory.h"
 #include "nsIURI.h"
+#include "nsIMozBrowserFrame.h"
+#include "nsIScriptSecurityManager.h"
 #include "nsIWebBrowserChrome.h"
 #include "nsIXULBrowserWindow.h"
 #include "nsIXULWindow.h"
 #include "nsViewManager.h"
 #include "nsIWidget.h"
 #include "nsIWindowWatcher.h"
+#include "nsNetUtil.h"
 #include "nsPIDOMWindow.h"
 #include "nsPrintfCString.h"
+#include "nsSerializationHelper.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 #include "private/pprio.h"
 #include "StructuredCloneUtils.h"
 #include "JavaScriptParent.h"
 #include "TabChild.h"
-#include "nsNetCID.h"
 #include <algorithm>
 
 using namespace mozilla::dom;
@@ -602,7 +604,7 @@ TabParent::SendKeyEvent(const nsAString& aType,
 }
 
 bool
-TabParent::MapEventCoordinatesForChildProcess(WidgetEvent* aEvent)
+TabParent::MapEventCoordinatesForChildProcess(nsEvent* aEvent)
 {
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
   if (!frameLoader) {
@@ -615,13 +617,13 @@ TabParent::MapEventCoordinatesForChildProcess(WidgetEvent* aEvent)
 
 void
 TabParent::MapEventCoordinatesForChildProcess(
-  const LayoutDeviceIntPoint& aOffset, WidgetEvent* aEvent)
+  const LayoutDeviceIntPoint& aOffset, nsEvent* aEvent)
 {
   if (aEvent->eventStructType != NS_TOUCH_EVENT) {
     aEvent->refPoint = aOffset;
   } else {
     aEvent->refPoint = LayoutDeviceIntPoint();
-    WidgetTouchEvent* touchEvent = static_cast<WidgetTouchEvent*>(aEvent);
+    nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aEvent);
     // Then offset all the touch points by that distance, to put them
     // in the space where top-left is 0,0.
     const nsTArray< nsRefPtr<Touch> >& touches = touchEvent->touches;
@@ -634,12 +636,12 @@ TabParent::MapEventCoordinatesForChildProcess(
   }
 }
 
-bool TabParent::SendRealMouseEvent(WidgetMouseEvent& event)
+bool TabParent::SendRealMouseEvent(nsMouseEvent& event)
 {
   if (mIsDestroyed) {
     return false;
   }
-  WidgetMouseEvent e(event);
+  nsMouseEvent e(event);
   MaybeForwardEventToRenderFrame(event, &e);
   if (!MapEventCoordinatesForChildProcess(&e)) {
     return false;
@@ -660,12 +662,12 @@ bool TabParent::SendMouseWheelEvent(WheelEvent& event)
   return PBrowserParent::SendMouseWheelEvent(event);
 }
 
-bool TabParent::SendRealKeyEvent(WidgetKeyboardEvent& event)
+bool TabParent::SendRealKeyEvent(nsKeyEvent& event)
 {
   if (mIsDestroyed) {
     return false;
   }
-  WidgetKeyboardEvent e(event);
+  nsKeyEvent e(event);
   MaybeForwardEventToRenderFrame(event, &e);
   if (!MapEventCoordinatesForChildProcess(&e)) {
     return false;
@@ -673,7 +675,7 @@ bool TabParent::SendRealKeyEvent(WidgetKeyboardEvent& event)
   return PBrowserParent::SendRealKeyEvent(e);
 }
 
-bool TabParent::SendRealTouchEvent(WidgetTouchEvent& event)
+bool TabParent::SendRealTouchEvent(nsTouchEvent& event)
 {
   if (mIsDestroyed) {
     return false;
@@ -699,7 +701,7 @@ bool TabParent::SendRealTouchEvent(WidgetTouchEvent& event)
     ++mEventCaptureDepth;
   }
 
-  WidgetTouchEvent e(event);
+  nsTouchEvent e(event);
   // PresShell::HandleEventInternal adds touches on touch end/cancel.
   // This confuses remote content into thinking that the added touches
   // are part of the touchend/cancel, when actually they're not.
@@ -727,7 +729,7 @@ TabParent::GetEventCapturer()
 }
 
 bool
-TabParent::TryCapture(const WidgetGUIEvent& aEvent)
+TabParent::TryCapture(const nsGUIEvent& aEvent)
 {
   MOZ_ASSERT(sEventCapturer == this && mEventCaptureDepth > 0);
 
@@ -736,7 +738,7 @@ TabParent::TryCapture(const WidgetGUIEvent& aEvent)
     return false;
   }
 
-  WidgetTouchEvent event(static_cast<const WidgetTouchEvent&>(aEvent));
+  nsTouchEvent event(static_cast<const nsTouchEvent&>(aEvent));
 
   bool isTouchPointUp = (event.message == NS_TOUCH_END ||
                          event.message == NS_TOUCH_CANCEL);
@@ -760,17 +762,6 @@ TabParent::RecvSyncMessage(const nsString& aMessage,
                            const ClonedMessageData& aData,
                            const InfallibleTArray<CpowEntry>& aCpows,
                            InfallibleTArray<nsString>* aJSONRetVal)
-{
-  StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);
-  CpowIdHolder cpows(static_cast<ContentParent*>(Manager())->GetCPOWManager(), aCpows);
-  return ReceiveMessage(aMessage, true, &cloneData, &cpows, aJSONRetVal);
-}
-
-bool
-TabParent::AnswerRpcMessage(const nsString& aMessage,
-                            const ClonedMessageData& aData,
-                            const InfallibleTArray<CpowEntry>& aCpows,
-                            InfallibleTArray<nsString>* aJSONRetVal)
 {
   StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);
   CpowIdHolder cpows(static_cast<ContentParent*>(Manager())->GetCPOWManager(), aCpows);
@@ -906,28 +897,6 @@ TabParent::RecvNotifyIMETextHint(const nsString& aText)
   return true;
 }
 
-bool
-TabParent::RecvRequestFocus(const bool& aCanRaise)
-{
-  nsCOMPtr<nsIFocusManager> fm = nsFocusManager::GetFocusManager();
-  if (!fm) {
-    return true;
-  }
-
-  nsCOMPtr<nsIContent> content = do_QueryInterface(mFrameElement);
-  if (!content || !content->OwnerDoc()) {
-    return true;
-  }
-
-  uint32_t flags = nsIFocusManager::FLAG_NOSCROLL;
-  if (aCanRaise)
-    flags |= nsIFocusManager::FLAG_RAISE;
-
-  nsCOMPtr<nsIDOMElement> node = do_QueryInterface(mFrameElement);
-  fm->SetFocus(node, flags);
-  return true;
-}
-
 /**
  * Try to answer query event using cached text.
  *
@@ -943,7 +912,7 @@ TabParent::RecvRequestFocus(const bool& aCanRaise)
  *  the returned offset/length are different from the queried offset/length.
  */
 bool
-TabParent::HandleQueryContentEvent(WidgetQueryContentEvent& aEvent)
+TabParent::HandleQueryContentEvent(nsQueryContentEvent& aEvent)
 {
   aEvent.mSucceeded = false;
   aEvent.mWasAsync = false;
@@ -996,7 +965,7 @@ TabParent::HandleQueryContentEvent(WidgetQueryContentEvent& aEvent)
 }
 
 bool
-TabParent::SendCompositionEvent(WidgetCompositionEvent& event)
+TabParent::SendCompositionEvent(nsCompositionEvent& event)
 {
   if (mIsDestroyed) {
     return false;
@@ -1018,7 +987,7 @@ TabParent::SendCompositionEvent(WidgetCompositionEvent& event)
  * here and pass the text as the EndIMEComposition return value
  */
 bool
-TabParent::SendTextEvent(WidgetTextEvent& event)
+TabParent::SendTextEvent(nsTextEvent& event)
 {
   if (mIsDestroyed) {
     return false;
@@ -1041,7 +1010,7 @@ TabParent::SendTextEvent(WidgetTextEvent& event)
 }
 
 bool
-TabParent::SendSelectionEvent(WidgetSelectionEvent& event)
+TabParent::SendSelectionEvent(nsSelectionEvent& event)
 {
   if (mIsDestroyed) {
     return false;
@@ -1177,9 +1146,9 @@ TabParent::RecvGetDefaultScale(double* aValue)
 {
   TryCacheDPIAndScale();
 
-  NS_ABORT_IF_FALSE(mDefaultScale.scale > 0,
+  NS_ABORT_IF_FALSE(mDefaultScale > 0,
                     "Must not ask for scale before OwnerElement is received!");
-  *aValue = mDefaultScale.scale;
+  *aValue = mDefaultScale;
   return true;
 }
 
@@ -1543,8 +1512,8 @@ TabParent::UseAsyncPanZoom()
 }
 
 void
-TabParent::MaybeForwardEventToRenderFrame(const WidgetInputEvent& aEvent,
-                                          WidgetInputEvent* aOutEvent)
+TabParent::MaybeForwardEventToRenderFrame(const nsInputEvent& aEvent,
+                                          nsInputEvent* aOutEvent)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
     rfp->NotifyInputEvent(aEvent, aOutEvent);

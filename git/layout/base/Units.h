@@ -10,6 +10,7 @@
 #include "mozilla/gfx/Point.h"
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/gfx/ScaleFactor.h"
+#include "nsDeviceContext.h"
 #include "nsRect.h"
 #include "nsMargin.h"
 #include "mozilla/AppUnits.h"

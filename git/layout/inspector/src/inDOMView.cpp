@@ -24,7 +24,6 @@
 #include "nsIDocument.h"
 #include "nsIServiceManager.h"
 #include "nsITreeColumns.h"
-#include "nsITreeBoxObject.h"
 #include "mozilla/dom/Element.h"
 
 #ifdef ACCESSIBILITY

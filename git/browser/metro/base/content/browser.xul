@@ -172,7 +172,6 @@
 
   <stack id="stack" flex="1">
     <observes element="bcast_urlbarState" attribute="*"/>
-    <observes element="bcast_windowState" attribute="*"/>
     <!-- Page Area -->
     <vbox id="page">
       <vbox id="tray" class="tray-toolbar" observes="bcast_windowState" >
@@ -209,7 +208,7 @@
               observes="cmd_back"></html:div>
 
     <!-- Navigation bar -->
-    <appbar id="navbar" mousethrough="never" visible="true">
+    <appbar id="navbar" mousethrough="never">
       <hbox id="progress-container" layer="true">
         <hbox id="progress-control" />
       </hbox>
@@ -255,7 +254,7 @@
             <observes element="bcast_urlbarState" attribute="*"/>
             <hbox id="toolbar-context-page" pack="end">
               <circularprogressindicator id="download-progress"
-                                     oncommand="MetroDownloadsView.onDownloadButton()"/>
+                                     oncommand="Appbar.onDownloadButton()"/>
               <toolbarbutton id="star-button" class="appbar-primary"
                              type="checkbox"
                              oncommand="Appbar.onStarButton()"/>
@@ -424,7 +423,6 @@
       <label id="about-policy-label"
             onclick="FlyoutPanelsUI.AboutFlyoutPanel.onPolicyClick(event);"
             class="text-link" value="&aboutHeader.policy.label;"/>
-      <spacer class="flyoutpanel-hack"/>
     </flyoutpanel>
 
 #ifdef MOZ_SERVICES_SYNC
@@ -680,17 +678,14 @@
         <setting pref="toolkit.telemetry.enabled" type="bool" title="&optionsHeader.telemetry.label;"/>
       </settings>
       <settings id="prefs-dnt" label="&doNotTrack.title;">
+        <description>&doNotTrack.desc;</description>
         <setting id="prefs-dnt-value" pref="privacy.donottrackheader.value" type="radio" >
           <radiogroup id="prefs-dnt-options">
-            <radio id="prefs-dnt-notrack" class="flyoutpanel-hack"
-                   label="&doNotTrack.options.doNotTrack;" value="1"/>
-            <radio id="prefs-dnt-oktrack" class="flyoutpanel-hack"
-                   label="&doNotTrack.options.doTrack;" value="0"/>
-            <radio id="prefs-dnt-nopref" class="flyoutpanel-hack"
-                   label="&doNotTrack.options.default;" value="-1"/>
+            <radio id="prefs-dnt-notrack" label="&doNotTrack.options.trackingNotOkay;" value="1"/>
+            <radio id="prefs-dnt-nopref" label="&doNotTrack.options.noPreference;" value="-1"/>
+            <radio id="prefs-dnt-oktrack" label="&doNotTrack.options.trackingOkay;" value="0"/>
           </radiogroup>
         </setting>
-        <label class="text-link" href="https://www.mozilla.org/dnt">&doNotTrack.learnMoreLink;</label>
       </settings>
     </flyoutpanel>
 

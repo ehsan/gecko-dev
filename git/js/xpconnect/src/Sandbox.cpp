@@ -30,7 +30,6 @@
 #include "XPCWrapper.h"
 #include "XrayWrapper.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
 #include "mozilla/dom/TextDecoderBinding.h"
 #include "mozilla/dom/TextEncoderBinding.h"
 
@@ -40,7 +39,6 @@ using namespace js;
 using namespace xpc;
 
 using mozilla::dom::DestroyProtoAndIfaceCache;
-using mozilla::dom::indexedDB::IndexedDatabaseManager;
 
 NS_IMPL_ISUPPORTS3(SandboxPrivate,
                    nsIScriptObjectPrincipal,
@@ -149,8 +147,7 @@ SandboxImport(JSContext *cx, unsigned argc, Value *vp)
 
         JSAutoCompartment ac(cx, funobj);
 
-        RootedValue funval(cx, ObjectValue(*funobj));
-        JSFunction *fun = JS_ValueToFunction(cx, funval);
+        JSFunction *fun = JS_ValueToFunction(cx, ObjectValue(*funobj));
         if (!fun) {
             XPCThrower::Throw(NS_ERROR_INVALID_ARG, cx);
             return false;
@@ -311,7 +308,7 @@ ExportFunction(JSContext *cx, unsigned argc, jsval *vp)
 static bool
 GetFilenameAndLineNumber(JSContext *cx, nsACString &filename, unsigned &lineno)
 {
-    JS::RootedScript script(cx);
+    JSScript *script;
     if (JS_DescribeScriptedCaller(cx, &script, &lineno)) {
         if (const char *cfilename = JS_GetScriptFilename(cx, script)) {
             filename.Assign(nsDependentCString(cfilename));
@@ -383,7 +380,7 @@ CloneNonReflectorsWrite(JSContext *cx, JSStructuredCloneWriter *writer,
     return false;
 }
 
-const JSStructuredCloneCallbacks gForwarderStructuredCloneCallbacks = {
+JSStructuredCloneCallbacks gForwarderStructuredCloneCallbacks = {
     CloneNonReflectorsRead,
     CloneNonReflectorsWrite,
     nullptr
@@ -874,9 +871,9 @@ xpc::SandboxProxyHandler::iterate(JSContext *cx, JS::Handle<JSObject*> proxy,
 }
 
 bool
-xpc::GlobalProperties::Parse(JSContext *cx, JS::HandleObject obj)
+xpc::SandboxOptions::DOMConstructors::Parse(JSContext* cx, JS::HandleObject obj)
 {
-    MOZ_ASSERT(JS_IsArrayObject(cx, obj));
+    NS_ENSURE_TRUE(JS_IsArrayObject(cx, obj), false);
 
     uint32_t length;
     bool ok = JS_GetArrayLength(cx, obj, &length);
@@ -885,26 +882,17 @@ xpc::GlobalProperties::Parse(JSContext *cx, JS::HandleObject obj)
         RootedValue nameValue(cx);
         ok = JS_GetElement(cx, obj, i, &nameValue);
         NS_ENSURE_TRUE(ok, false);
-        if (!nameValue.isString()) {
-            JS_ReportError(cx, "Property names must be strings");
-            return false;
-        }
-        JSAutoByteString name(cx, nameValue.toString());
+        NS_ENSURE_TRUE(nameValue.isString(), false);
+        char *name = JS_EncodeString(cx, nameValue.toString());
         NS_ENSURE_TRUE(name, false);
-        if (!strcmp(name.ptr(), "indexedDB")) {
-            indexedDB = true;
-        } else if (!strcmp(name.ptr(), "XMLHttpRequest")) {
+        if (!strcmp(name, "XMLHttpRequest")) {
             XMLHttpRequest = true;
-        } else if (!strcmp(name.ptr(), "TextEncoder")) {
+        } else if (!strcmp(name, "TextEncoder")) {
             TextEncoder = true;
-        } else if (!strcmp(name.ptr(), "TextDecoder")) {
+        } else if (!strcmp(name, "TextDecoder")) {
             TextDecoder = true;
-        } else if (!strcmp(name.ptr(), "atob")) {
-            atob = true;
-        } else if (!strcmp(name.ptr(), "btoa")) {
-            btoa = true;
         } else {
-            JS_ReportError(cx, "Unknown property name: %s", name.ptr());
+            // Reporting error, if one of the DOM constructor names is unknown.
             return false;
         }
     }
@@ -912,13 +900,8 @@ xpc::GlobalProperties::Parse(JSContext *cx, JS::HandleObject obj)
 }
 
 bool
-xpc::GlobalProperties::Define(JSContext *cx, JS::HandleObject obj)
+xpc::SandboxOptions::DOMConstructors::Define(JSContext* cx, JS::HandleObject obj)
 {
-    if (indexedDB && AccessCheck::isChrome(obj) &&
-        (!IndexedDatabaseManager::DefineConstructors(cx, obj) ||
-         !IndexedDatabaseManager::DefineIndexedDBGetter(cx, obj)))
-        return false;
-
     if (XMLHttpRequest &&
         !JS_DefineFunction(cx, obj, "XMLHttpRequest", CreateXMLHttpRequest, 0, JSFUN_CONSTRUCTOR))
         return false;
@@ -929,14 +912,6 @@ xpc::GlobalProperties::Define(JSContext *cx, JS::HandleObject obj)
 
     if (TextDecoder &&
         !dom::TextDecoderBinding::GetConstructorObject(cx, obj))
-        return false;
-
-    if (atob &&
-        !JS_DefineFunction(cx, obj, "atob", Atob, 1, 0))
-        return false;
-
-    if (btoa &&
-        !JS_DefineFunction(cx, obj, "btoa", Btoa, 1, 0))
         return false;
 
     return true;
@@ -1050,7 +1025,7 @@ xpc::CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandb
              !JS_DefineFunction(cx, sandbox, "evalInWindow", EvalInWindow, 2, 0)))
             return NS_ERROR_XPC_UNEXPECTED;
 
-        if (!options.globalProperties.Define(cx, sandbox))
+        if (!options.DOMConstructors.Define(cx, sandbox))
             return NS_ERROR_XPC_UNEXPECTED;
     }
 
@@ -1316,22 +1291,21 @@ GetStringPropFromOptions(JSContext *cx, HandleObject from, const char *name, nsC
 }
 
 /*
- * Helper that tries to get a list of DOM constructors and other helpers from the options object.
+ * Helper that tries to get a list of DOM constructors from the options object.
  */
 static nsresult
-GetGlobalPropertiesFromOptions(JSContext *cx, HandleObject from, SandboxOptions& options)
+GetDOMConstructorsFromOptions(JSContext *cx, HandleObject from, SandboxOptions& options)
 {
     RootedValue value(cx);
     bool found;
-    nsresult rv = GetPropFromOptions(cx, from, "wantGlobalProperties", &value, &found);
+    nsresult rv = GetPropFromOptions(cx, from, "wantDOMConstructors", &value, &found);
     NS_ENSURE_SUCCESS(rv, rv);
     if (!found)
         return NS_OK;
 
     NS_ENSURE_TRUE(value.isObject(), NS_ERROR_INVALID_ARG);
     RootedObject ctors(cx, &value.toObject());
-    NS_ENSURE_TRUE(JS_IsArrayObject(cx, ctors), NS_ERROR_INVALID_ARG);
-    bool ok = options.globalProperties.Parse(cx, ctors);
+    bool ok = options.DOMConstructors.Parse(cx, ctors);
     NS_ENSURE_TRUE(ok, NS_ERROR_INVALID_ARG);
     return NS_OK;
 }
@@ -1368,7 +1342,7 @@ ParseOptionsObject(JSContext *cx, jsval from, SandboxOptions &options)
                                "sameZoneAs", options.sameZoneAs.address());
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = GetGlobalPropertiesFromOptions(cx, optionsObject, options);
+    rv = GetDOMConstructorsFromOptions(cx, optionsObject, options);
 
     bool found;
     rv = GetPropFromOptions(cx, optionsObject,
@@ -1578,7 +1552,7 @@ xpc::EvalInSandbox(JSContext *cx, HandleObject sandboxArg, const nsAString& sour
         }
 
         // If the sandbox threw an exception, grab it off the context.
-        if (JS_GetPendingException(sandcx, &exn)) {
+        if (JS_GetPendingException(sandcx, exn.address())) {
             MOZ_ASSERT(!ok);
             JS_ClearPendingException(sandcx);
             if (returnStringOnly) {

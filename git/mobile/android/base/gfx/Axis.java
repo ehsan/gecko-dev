@@ -144,8 +144,6 @@ abstract class Axis {
     protected abstract float getViewportLength();
     protected abstract float getPageStart();
     protected abstract float getPageLength();
-    protected abstract float getMarginStart();
-    protected abstract float getMarginEnd();
     protected abstract boolean marginsHidden();
 
     Axis(SubdocumentScrollHelper subscroller) {
@@ -153,10 +151,6 @@ abstract class Axis {
         mOverscrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS;
         mRecentVelocities = new float[FLING_VELOCITY_POINTS];
     }
-
-    // Implementors can override these to show effects when the axis overscrolls
-    protected void overscrollFling(float velocity) { }
-    protected void overscrollPan(float displacement) { }
 
     public void setOverScrollMode(int overscrollMode) {
         mOverscrollMode = overscrollMode;
@@ -383,22 +377,12 @@ abstract class Axis {
         // getOverscroll which doesn't take into account any new displacment being applied.
         // If we using a subscroller, we don't want to alter the scrolling being done
         if (getOverScrollMode() == View.OVER_SCROLL_NEVER && !mSubscroller.scrolling()) {
-            float originalDisplacement = mDisplacement;
-
-            if (mDisplacement + getOrigin() < getPageStart() - getMarginStart()) {
-                mDisplacement = getPageStart() - getMarginStart() - getOrigin();
-            } else if (mDisplacement + getViewportEnd() > getPageEnd() + getMarginEnd()) {
-                mDisplacement = getPageEnd() - getMarginEnd() - getViewportEnd();
-            }
-
-            // Return the amount of overscroll so that the overscroll controller can draw it for us
-            if (originalDisplacement != mDisplacement) {
-                if (mFlingState == FlingStates.FLINGING) {
-                    overscrollFling(mVelocity / MS_PER_FRAME * 1000);
-                    stopFling();
-                } else if (mFlingState == FlingStates.PANNING) {
-                    overscrollPan(originalDisplacement - mDisplacement);
-                }
+            if (mDisplacement + getOrigin() < getPageStart()) {
+                mDisplacement = getPageStart() - getOrigin();
+                stopFling();
+            } else if (mDisplacement + getViewportEnd() > getPageEnd()) {
+                mDisplacement = getPageEnd() - getViewportEnd();
+                stopFling();
             }
         }
     }

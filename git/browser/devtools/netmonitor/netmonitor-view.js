@@ -1539,7 +1539,6 @@ NetworkDetailsView.prototype = {
       Heritage.extend(GENERIC_VARIABLES_VIEW_SETTINGS, {
         searchPlaceholder: L10N.getStr("jsonFilterText")
       }));
-    VariablesViewController.attach(this._json);
 
     this._paramsQueryString = L10N.getStr("paramsQueryString");
     this._paramsFormData = L10N.getStr("paramsFormData");
@@ -1865,11 +1864,8 @@ NetworkDetailsView.prototype = {
     let { mimeType, text, encoding } = aResponse.content;
 
     gNetwork.getString(text).then(aString => {
-      // Handle json, which we tentatively identify by checking the MIME type
-      // for "json" after any word boundary. This works for the standard
-      // "application/json", and also for custom types like "x-bigcorp-json".
-      // This should be marginally more reliable than just looking for "json".
-      if (/\bjson/.test(mimeType)) {
+      // Handle json.
+      if (mimeType.contains("/json")) {
         let jsonpRegex = /^[a-zA-Z0-9_$]+\(|\)$/g; // JSONP with callback.
         let sanitizedJSON = aString.replace(jsonpRegex, "");
         let callbackPadding = aString.match(jsonpRegex);
@@ -1890,10 +1886,9 @@ NetworkDetailsView.prototype = {
             ? L10N.getFormatStr("jsonpScopeName", callbackPadding[0].slice(0, -1))
             : L10N.getStr("jsonScopeName");
 
-          this._json.controller.setSingleVariable({
-            label: jsonScopeName,
-            rawObject: jsonObject,
-          });
+          let jsonScope = this._json.addScope(jsonScopeName);
+          jsonScope.addItem().populate(jsonObject, { expanded: true });
+          jsonScope.expanded = true;
         }
         // Malformed JSON.
         else {

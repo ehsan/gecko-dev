@@ -138,7 +138,7 @@ Statement::initialize(Connection *aDBConnection,
   NS_ASSERTION(aDBConnection, "No database connection given!");
   NS_ASSERTION(!mDBStatement, "Statement already initialized!");
 
-  DebugOnly<sqlite3 *> db = aDBConnection->GetNativeConnection();
+  sqlite3 *db = aDBConnection->GetNativeConnection();
   NS_ASSERTION(db, "We should never be called with a null sqlite3 database!");
 
   int srv = aDBConnection->prepareStatement(PromiseFlatCString(aSQLStatement),
@@ -401,29 +401,19 @@ Statement::internalFinalize(bool aDestructing)
     //
 
     char *msg = ::PR_smprintf("SQL statement (%x) should have been finalized"
-      " before garbage-collection. For more details on this statement, set"
-      " NSPR_LOG_MESSAGES=mozStorage:5 .",
+      "before garbage-collection. For more details on this statement, set"
+      "NSPR_LOG_MESSAGES=mozStorage:5 .",
       mDBStatement);
-
     //
     // Note that we can't display the statement itself, as the data structure
     // is not valid anymore. However, the address shown here should help
     // developers correlate with the more complete debug message triggered
     // by AsyncClose().
     //
-
-#if 0
-    // Deactivate the warning until we have fixed the exising culprit
-    // (see bug 914070).
     NS_WARNING(msg);
-#endif // 0
-
-    PR_LOG(gStorageLog, PR_LOG_WARNING, (msg));
-
     ::PR_smprintf_free(msg);
   }
-
-#endif
+#endif // DEBUG
 
   mDBStatement = nullptr;
 

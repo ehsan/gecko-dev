@@ -15,13 +15,15 @@
 #include "nsCOMPtr.h"
 #include "nsNetUtil.h"
 #include "mozilla/net/DNS.h"
-#include "nsISocketTransport.h"
+
+#include "nsIServiceManager.h"
+
+#include "nsIObserverService.h"
+
 #include "nsISSLSocketControl.h"
+#include "prnetdb.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/net/DashboardTypes.h"
-#include "NullHttpTransaction.h"
-#include "nsITransport.h"
-#include "nsISocketTransportService.h"
+#include "mozilla/VisualEventTracer.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -29,6 +31,8 @@ using namespace mozilla::net;
 
 // defined by the socket transport service while active
 extern PRThread *gSocketThread;
+
+static NS_DEFINE_CID(kSocketTransportServiceCID, NS_SOCKETTRANSPORTSERVICE_CID);
 
 //-----------------------------------------------------------------------------
 
@@ -209,7 +213,7 @@ nsHttpConnectionMgr::ConditionallyStopPruneDeadConnectionsTimer()
     mTimeOfNextWakeUp = UINT64_MAX;
     if (mTimer) {
         mTimer->Cancel();
-        mTimer = nullptr;
+        mTimer = NULL;
     }
 }
 

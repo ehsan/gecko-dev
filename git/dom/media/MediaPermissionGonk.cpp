@@ -18,8 +18,6 @@
 #include "mozilla/dom/PBrowserChild.h"
 #include "mozilla/dom/TabChild.h"
 #include "mozilla/dom/MediaStreamTrackBinding.h"
-#include "nsISupportsPrimitives.h"
-#include "nsServiceManagerUtils.h"
 
 #define AUDIO_PERMISSION_NAME "audio-capture"
 

@@ -285,8 +285,6 @@ private:
         OP2_MOVSD_VsdWsd    = 0x10,
         OP2_MOVSD_WsdVsd    = 0x11,
         OP2_UNPCKLPS_VsdWsd = 0x14,
-        OP2_MOVAPD_VsdWsd   = 0x28,
-        OP2_MOVAPS_VsdWsd   = 0x28,
         OP2_CVTSI2SD_VsdEd  = 0x2A,
         OP2_CVTTSD2SI_GdWsd = 0x2C,
         OP2_UCOMISD_VsdWsd  = 0x2E,
@@ -1310,13 +1308,6 @@ public:
         spew("cmpl       %s, %p",
              nameIReg(4, reg), addr);
         m_formatter.oneByteOp(OP_CMP_EvGv, reg, addr);
-    }
-
-    void cmpl_rm_force32(RegisterID reg, const void* addr)
-    {
-        spew("cmpl       %s, %p",
-             nameIReg(4, reg), addr);
-        m_formatter.oneByteOp_disp32(OP_CMP_EvGv, reg, addr);
     }
 
     void cmpl_im(int imm, const void* addr)
@@ -2459,13 +2450,6 @@ public:
         m_formatter.twoByteOp(OP2_MOVMSKPD_EdVd, dst, (RegisterID)src);
     }
 
-    void movmskps_rr(XMMRegisterID src, RegisterID dst)
-    {
-        spew("movmskps   %s, %s",
-             nameFPReg(src), nameIReg(dst));
-        m_formatter.twoByteOp(OP2_MOVMSKPD_EdVd, dst, (RegisterID)src);
-    }
-
     void ptest_rr(XMMRegisterID lhs, XMMRegisterID rhs) {
         spew("ptest      %s, %s",
              nameFPReg(lhs), nameFPReg(rhs));
@@ -2595,9 +2579,6 @@ public:
         m_formatter.twoByteOp(OP2_MOVSD_VsdWsd, (RegisterID)dst, base, index, scale, offset);
     }
 
-    // Note that the register-to-register form of movsd does not write to the
-    // entire output register. For general-purpose register-to-register moves,
-    // use movaps instead.
     void movsd_rr(XMMRegisterID src, XMMRegisterID dst)
     {
         spew("movsd      %s, %s",
@@ -2606,8 +2587,6 @@ public:
         m_formatter.twoByteOp(OP2_MOVSD_VsdWsd, (RegisterID)dst, (RegisterID)src);
     }
 
-    // The register-to-register form of movss has the same problem as movsd
-    // above. Prefer movapd for register-to-register moves.
     void movss_rr(XMMRegisterID src, XMMRegisterID dst)
     {
         spew("movss      %s, %s",
@@ -2657,14 +2636,6 @@ public:
         m_formatter.twoByteRipOp(OP2_MOVSD_VsdWsd, (RegisterID)dst, 0);
         return JmpSrc(m_formatter.size());
     }
-    JmpSrc movss_ripr(XMMRegisterID dst)
-    {
-        spew("movss      \?(%%rip), %s",
-             nameFPReg(dst));
-        m_formatter.prefix(PRE_SSE_F3);
-        m_formatter.twoByteRipOp(OP2_MOVSD_VsdWsd, (RegisterID)dst, 0);
-        return JmpSrc(m_formatter.size());
-    }
     JmpSrc movsd_rrip(XMMRegisterID src)
     {
         spew("movsd      %s, \?(%%rip)",
@@ -2674,19 +2645,6 @@ public:
         return JmpSrc(m_formatter.size());
     }
 #endif
-
-    void movaps_rr(XMMRegisterID src, XMMRegisterID dst) {
-        spew("movaps     %s, %s",
-             nameFPReg(src), nameFPReg(dst));
-        m_formatter.twoByteOp(OP2_MOVAPS_VsdWsd, (RegisterID)dst, (RegisterID)src);
-    }
-
-    void movapd_rr(XMMRegisterID src, XMMRegisterID dst) {
-        spew("movapd     %s, %s",
-             nameFPReg(src), nameFPReg(dst));
-        m_formatter.prefix(PRE_SSE_66);
-        m_formatter.twoByteOp(OP2_MOVAPD_VsdWsd, (RegisterID)dst, (RegisterID)src);
-    }
 
     void movdqa_rm(XMMRegisterID src, int offset, RegisterID base)
     {
@@ -3373,13 +3331,6 @@ private:
             m_buffer.putByteUnchecked(opcode);
             memoryModRM(reg, address);
         }
-
-        void oneByteOp_disp32(OneByteOpcodeID opcode, int reg, const void* address)
-        {
-            m_buffer.ensureSpace(maxInstructionSize);
-            m_buffer.putByteUnchecked(opcode);
-            memoryModRM_disp32(reg, address);
-        }
 #if WTF_CPU_X86_64
         void oneByteRipOp(OneByteOpcodeID opcode, int reg, int ripOffset)
         {
@@ -3908,7 +3859,7 @@ private:
             m_buffer.putIntUnchecked(offset);
         }
 
-        void memoryModRM_disp32(int reg, const void* address)
+        void memoryModRM(int reg, const void* address)
         {
             int32_t disp = addressImmediate(address);
 
@@ -3920,11 +3871,6 @@ private:
             putModRm(ModRmMemoryNoDisp, reg, noBase);
 #endif
             m_buffer.putIntUnchecked(disp);
-        }
-
-        void memoryModRM(int reg, const void* address)
-        {
-            memoryModRM_disp32(reg, address);
         }
 
         AssemblerBuffer m_buffer;

@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ContentEvents.h"
 #include "mozilla/dom/HTMLFormElement.h"
 #include "mozilla/dom/HTMLFormElementBinding.h"
 #include "nsIHTMLDocument.h"
@@ -18,6 +17,7 @@
 #include "nsContentUtils.h"
 #include "nsInterfaceHashtable.h"
 #include "nsContentList.h"
+#include "nsGUIEvent.h"
 #include "nsCOMArray.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
@@ -422,7 +422,7 @@ HTMLFormElement::Submit()
 NS_IMETHODIMP
 HTMLFormElement::Reset()
 {
-  InternalFormEvent event(true, NS_FORM_RESET);
+  nsFormEvent event(true, NS_FORM_RESET);
   nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), nullptr,
                               &event);
   return NS_OK;
@@ -707,7 +707,7 @@ HTMLFormElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 }
 
 nsresult
-HTMLFormElement::DoSubmitOrReset(WidgetEvent* aEvent,
+HTMLFormElement::DoSubmitOrReset(nsEvent* aEvent,
                                  int32_t aMessage)
 {
   // Make sure the presentation is up-to-date
@@ -759,7 +759,7 @@ HTMLFormElement::DoReset()
   }
 
 nsresult
-HTMLFormElement::DoSubmit(WidgetEvent* aEvent)
+HTMLFormElement::DoSubmit(nsEvent* aEvent)
 {
   NS_ASSERTION(GetCurrentDoc(), "Should never get here without a current doc");
 
@@ -814,7 +814,7 @@ HTMLFormElement::DoSubmit(WidgetEvent* aEvent)
 
 nsresult
 HTMLFormElement::BuildSubmission(nsFormSubmission** aFormSubmission, 
-                                 WidgetEvent* aEvent)
+                                 nsEvent* aEvent)
 {
   NS_ASSERTION(!mPendingSubmission, "tried to build two submissions!");
 
@@ -822,15 +822,13 @@ HTMLFormElement::BuildSubmission(nsFormSubmission** aFormSubmission,
   nsGenericHTMLElement* originatingElement = nullptr;
   if (aEvent) {
     if (NS_FORM_EVENT == aEvent->eventStructType) {
-      nsIContent* originator =
-        static_cast<InternalFormEvent*>(aEvent)->originator;
+      nsIContent* originator = ((nsFormEvent *)aEvent)->originator;
       if (originator) {
         if (!originator->IsHTML()) {
           return NS_ERROR_UNEXPECTED;
         }
         originatingElement =
-          static_cast<nsGenericHTMLElement*>(
-            static_cast<InternalFormEvent*>(aEvent)->originator);
+          static_cast<nsGenericHTMLElement*>(((nsFormEvent *)aEvent)->originator);
       }
     }
   }

@@ -200,7 +200,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
 
   EditReplyVector replyv;
 
-  layer_manager()->BeginTransactionWithDrawTarget(nullptr);
+  layer_manager()->BeginTransactionWithTarget(nullptr);
 
   for (EditArray::index_type i = 0; i < cset.Length(); ++i) {
     const Edit& edit = cset[i];

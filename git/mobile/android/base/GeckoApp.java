@@ -181,6 +181,9 @@ abstract public class GeckoApp
     protected TabsPanel mTabsPanel;
     protected ButtonToast mToast;
 
+    // Handles notification messages from javascript
+    protected NotificationHelper mNotificationHelper;
+
     protected LayerView mLayerView;
     private AbsoluteLayout mPluginContainer;
 
@@ -835,24 +838,18 @@ abstract public class GeckoApp
     void showButtonToast(final String message, final String buttonText,
                          final String buttonIcon, final String buttonId) {
         BitmapUtils.getDrawable(GeckoApp.this, buttonIcon, new BitmapUtils.BitmapLoader() {
-            public void onBitmapFound(final Drawable d) {
-
-                ThreadUtils.postToUiThread(new Runnable() {
+            public void onBitmapFound(Drawable d) {
+                mToast.show(false, message, buttonText, d, new ButtonToast.ToastListener() {
                     @Override
-                    public void run() {
-                        mToast.show(false, message, buttonText, d, new ButtonToast.ToastListener() {
-                            @Override
-                            public void onButtonClicked() {
-                                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Toast:Click", buttonId));
-                            }
+                    public void onButtonClicked() {
+                        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Toast:Click", buttonId));
+                    }
 
-                            @Override
-                            public void onToastHidden(ButtonToast.ReasonHidden reason) {
-                                if (reason == ButtonToast.ReasonHidden.TIMEOUT) {
-                                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Toast:Hidden", buttonId));
-                                }
-                            }
-                        });
+                    @Override
+                    public void onToastHidden(ButtonToast.ReasonHidden reason) {
+                        if (reason == ButtonToast.ReasonHidden.TIMEOUT) {
+                            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Toast:Hidden", buttonId));
+                        }
                     }
                 });
             }
@@ -1238,6 +1235,7 @@ abstract public class GeckoApp
 
         // Set up tabs panel.
         mTabsPanel = (TabsPanel) findViewById(R.id.tabs_panel);
+        mNotificationHelper = new NotificationHelper(this);
         mToast = new ButtonToast(findViewById(R.id.toast));
 
         // Determine whether we should restore tabs.
@@ -1542,9 +1540,10 @@ abstract public class GeckoApp
                 final Context context = GeckoApp.this;
                 AnnouncementsBroadcastService.recordLastLaunch(context);
 
-                // Kick off our background services. We do this by invoking the broadcast
-                // receiver, which uses the system alarm infrastructure to perform tasks at
-                // intervals.
+                // Kick off our background services that fetch product
+                // announcements and upload health reports.  We do this by
+                // invoking the broadcast receiver, which uses the system alarm
+                // infrastructure to perform tasks at intervals.
                 GeckoPreferences.broadcastAnnouncementsPref(context);
                 GeckoPreferences.broadcastHealthReportUploadPref(context);
 
@@ -1798,6 +1797,11 @@ abstract public class GeckoApp
                 alertCookie = "";
         }
         handleNotification(ACTION_ALERT_CALLBACK, alertName, alertCookie);
+
+        if (intent.hasExtra(NotificationHelper.NOTIFICATION_ID)) {
+            String id = intent.getStringExtra(NotificationHelper.NOTIFICATION_ID);
+            mNotificationHelper.hideNotification(id);
+        }
     }
 
     @Override
@@ -1823,9 +1827,7 @@ abstract public class GeckoApp
             Tabs.getInstance().loadUrl(uri);
         } else if (Intent.ACTION_VIEW.equals(action)) {
             String uri = intent.getDataString();
-            Tabs.getInstance().loadUrl(uri, Tabs.LOADURL_NEW_TAB |
-                                            Tabs.LOADURL_USER_ENTERED |
-                                            Tabs.LOADURL_EXTERNAL);
+            GeckoAppShell.sendEventToGecko(GeckoEvent.createURILoadEvent(uri));
         } else if (action != null && action.startsWith(ACTION_WEBAPP_PREFIX)) {
             String uri = getURIFromIntent(intent);
             GeckoAppShell.sendEventToGecko(GeckoEvent.createWebappLoadEvent(uri));
@@ -1936,7 +1938,6 @@ abstract public class GeckoApp
     public void onPause()
     {
         final BrowserHealthRecorder rec = mHealthRecorder;
-        final Context context = this;
 
         // In some way it's sad that Android will trigger StrictMode warnings
         // here as the whole point is to save to disk while the activity is not
@@ -1951,11 +1952,6 @@ abstract public class GeckoApp
                     rec.recordSessionEnd("P", editor);
                 }
                 editor.commit();
-
-                // In theory, the first browser session will not run long enough that we need to
-                // prune during it and we'd rather run it when the browser is inactive so we wait
-                // until here to register the prune service.
-                GeckoPreferences.broadcastHealthReportPrune(context);
             }
         });
 
@@ -2044,6 +2040,8 @@ abstract public class GeckoApp
             mPromptService.destroy();
         if (mTextSelection != null)
             mTextSelection.destroy();
+        if (mNotificationHelper != null)
+            mNotificationHelper.destroy();
 
         if (SmsManager.getInstance() != null) {
             SmsManager.getInstance().stop();
@@ -2140,6 +2138,8 @@ abstract public class GeckoApp
             Intent intent = new Intent(action);
             intent.setClassName(AppConstants.ANDROID_PACKAGE_NAME, RESTARTER_CLASS);
             /* TODO: addEnvToIntent(intent); */
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+                            Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
             if (args != null)
                 intent.putExtra("args", args);
             intent.putExtra("didRestart", true);
@@ -2550,7 +2550,6 @@ abstract public class GeckoApp
 
     protected void geckoConnected() {
         mLayerView.geckoConnected();
-        mLayerView.setOverScrollMode(View.OVER_SCROLL_NEVER);
     }
 
     public void setAccessibilityEnabled(boolean enabled) {

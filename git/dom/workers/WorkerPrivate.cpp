@@ -33,7 +33,6 @@
 #include "js/OldDebugAPI.h"
 #include "js/MemoryMetrics.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/ContentEvents.h"
 #include "mozilla/Likely.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/ImageData.h"
@@ -43,6 +42,7 @@
 #include "nsCxPusher.h"
 #include "nsError.h"
 #include "nsDOMJSUtils.h"
+#include "nsGUIEvent.h"
 #include "nsJSEnvironment.h"
 #include "nsJSUtils.h"
 #include "nsNetUtil.h"
@@ -71,7 +71,6 @@
 // GC will run five seconds after the last event is processed.
 #define IDLE_GC_TIMER_DELAY_MS 5000
 
-using mozilla::InternalScriptErrorEvent;
 using mozilla::MutexAutoLock;
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
@@ -86,6 +85,9 @@ using namespace mozilla::dom;
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsWorkerMallocSizeOf)
 
 namespace {
+
+const char gErrorChars[] = "error";
+const char gMessageChars[] = "message";
 
 template <class T>
 class AutoPtrComparator
@@ -1059,8 +1061,8 @@ public:
           }
         }
         else {
-          // Icky, we have to fire an InternalScriptErrorEvent...
-          InternalScriptErrorEvent event(true, NS_LOAD_ERROR);
+          // Icky, we have to fire an nsScriptErrorEvent...
+          nsScriptErrorEvent event(true, NS_LOAD_ERROR);
           event.lineNr = aLineNumber;
           event.errorMsg = aMessage.get();
           event.fileName = aFilename.get();
@@ -1131,12 +1133,10 @@ public:
 
     if (!logged || nsContentUtils::DOMWindowDumpEnabled()) {
       NS_ConvertUTF16toUTF8 msg(aMessage);
-      NS_ConvertUTF16toUTF8 fname(aFilename);
 #ifdef ANDROID
-      __android_log_print(ANDROID_LOG_INFO, "Gecko", "JS error in worker: %s, %s:%u",
-                          msg.get(), fname.get(), aLineNumber);
+      __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", msg.get());
 #endif
-      fprintf(stderr, "JS error in worker: %s, %s:%u\n", msg.get(), fname.get(), aLineNumber);
+      fputs(msg.get(), stderr);
       fflush(stderr);
     }
 
@@ -2690,7 +2690,7 @@ WorkerPrivate::Create(JSContext* aCx, JS::Handle<JSObject*> aObj, WorkerPrivate*
 
       // We're being created outside of a window. Need to figure out the script
       // that is creating us in order for us to use relative URIs later on.
-      JS::RootedScript script(aCx);
+      JSScript *script;
       if (JS_DescribeScriptedCaller(aCx, &script, nullptr)) {
         if (NS_FAILED(NS_NewURI(getter_AddRefs(baseURI),
                                 JS_GetScriptFilename(aCx, script)))) {

@@ -118,7 +118,7 @@ LayerManager::GetScrollableLayers(nsTArray<Layer*>& aArray)
 
 already_AddRefed<gfxASurface>
 LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
-                                   gfxImageFormat aFormat)
+                                   gfxASurface::gfxImageFormat aFormat)
 {
   return gfxPlatform::GetPlatform()->
     CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFormat));
@@ -127,7 +127,7 @@ LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
 already_AddRefed<gfxASurface>
 LayerManager::CreateOptimalMaskSurface(const gfxIntSize &aSize)
 {
-  return CreateOptimalSurface(aSize, gfxImageFormatA8);
+  return CreateOptimalSurface(aSize, gfxASurface::ImageFormatA8);
 }
 
 TemporaryRef<DrawTarget>
@@ -181,8 +181,6 @@ Layer::Layer(LayerManager* aManager, void* aImplData) :
   mPostXScale(1.0f),
   mPostYScale(1.0f),
   mOpacity(1.0),
-  mMixBlendMode(gfxContext::OPERATOR_OVER),
-  mForceIsolatedGroup(false),
   mContentFlags(0),
   mUseClipRect(false),
   mUseTileSourceRect(false),
@@ -682,20 +680,6 @@ Layer::GetEffectiveOpacity()
   }
   return opacity;
 }
-  
-gfxContext::GraphicsOperator
-Layer::GetEffectiveMixBlendMode()
-{
-  if(mMixBlendMode != gfxContext::OPERATOR_OVER)
-    return mMixBlendMode;
-  for (ContainerLayer* c = GetParent(); c && !c->UseIntermediateSurface();
-    c = c->GetParent()) {
-    if(c->mMixBlendMode != gfxContext::OPERATOR_OVER)
-      return c->mMixBlendMode;
-  }
-
-  return mMixBlendMode;
-}
 
 void
 Layer::ComputeEffectiveTransformForMaskLayer(const gfx3DMatrix& aTransformToSurface)
@@ -1171,10 +1155,9 @@ void WriteSnapshotToDumpFile(LayerManager* aManager, gfxASurface* aSurf)
   WriteSnapshotToDumpFile_internal(aManager, aSurf);
 }
 
-void WriteSnapshotToDumpFile(Compositor* aCompositor, DrawTarget* aTarget)
+void WriteSnapshotToDumpFile(Compositor* aCompositor, gfxASurface* aSurf)
 {
-  nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(aTarget);
-  WriteSnapshotToDumpFile_internal(aCompositor, surf);
+  WriteSnapshotToDumpFile_internal(aCompositor, aSurf);
 }
 #endif
 
@@ -1232,11 +1215,7 @@ Layer::DumpSelf(FILE* aFile, const char* aPrefix)
 {
   nsAutoCString str;
   PrintInfo(str, aPrefix);
-  if (!aFile || aFile == stderr) {
-    printf_stderr("%s\n", str.get());
-  } else {
-    fprintf(aFile, "%s\n", str.get());
-  }
+  fprintf(FILEOrDefault(aFile), "%s\n", str.get());
 }
 
 void
@@ -1352,7 +1331,7 @@ nsACString&
 CanvasLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   Layer::PrintInfo(aTo, aPrefix);
-  if (mFilter != GraphicsFilter::FILTER_GOOD) {
+  if (mFilter != gfxPattern::FILTER_GOOD) {
     AppendToString(aTo, mFilter, " [filter=", "]");
   }
   return aTo;
@@ -1362,7 +1341,7 @@ nsACString&
 ImageLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   Layer::PrintInfo(aTo, aPrefix);
-  if (mFilter != GraphicsFilter::FILTER_GOOD) {
+  if (mFilter != gfxPattern::FILTER_GOOD) {
     AppendToString(aTo, mFilter, " [filter=", "]");
   }
   return aTo;

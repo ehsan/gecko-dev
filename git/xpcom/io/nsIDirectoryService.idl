@@ -4,9 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsISupports.idl"
-
-interface nsIFile;
-interface nsISimpleEnumerator;
+#include "nsIFile.idl"
 
 /**
  * nsIDirectoryServiceProvider

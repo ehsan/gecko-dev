@@ -521,5 +521,9 @@ add_test(function test_saveMultipleAppStats () {
 function run_test() {
   do_get_profile();
 
+  var idbManager = Cc["@mozilla.org/dom/indexeddb/manager;1"].
+                   getService(Ci.nsIIndexedDatabaseManager);
+  idbManager.initWindowless(this);
+
   run_next_test();
 }

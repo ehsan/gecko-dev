@@ -3,23 +3,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsXPCOM.h"
 #include "nsMemoryImpl.h"
 #include "nsThreadUtils.h"
 
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
+#include "nsIServiceManager.h"
 #include "nsISimpleEnumerator.h"
 
+#include "prcvar.h"
+#include "pratom.h"
+
+#include "nsAlgorithm.h"
 #include "nsCOMPtr.h"
+#include "nsString.h"
 #include "mozilla/Services.h"
 
 #ifdef ANDROID
 #include <stdio.h>
-
-// Minimum memory threshold for a device to be considered
-// a low memory platform. This value has be in sync with
-// Java's equivalent threshold, defined in
-// mobile/android/base/util/HardwareUtils.java
 #define LOW_MEMORY_THRESHOLD_KB (384 * 1024)
 #endif
 

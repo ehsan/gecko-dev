@@ -60,16 +60,16 @@ struct EffectChain;
 /**
  * A base class for doing CompositableHost and platform dependent task on TextureHost.
  */
-class CompositableBackendSpecificData : public RefCounted<CompositableBackendSpecificData>
+class CompositableQuirks : public RefCounted<CompositableQuirks>
 {
 public:
-  CompositableBackendSpecificData()
+  CompositableQuirks()
   {
-    MOZ_COUNT_CTOR(CompositableBackendSpecificData);
+    MOZ_COUNT_CTOR(CompositableQuirks);
   }
-  virtual ~CompositableBackendSpecificData()
+  virtual ~CompositableQuirks()
   {
-    MOZ_COUNT_DTOR(CompositableBackendSpecificData);
+    MOZ_COUNT_DTOR(CompositableQuirks);
   }
   virtual void SetCompositor(Compositor* aCompositor) {}
 };
@@ -99,14 +99,11 @@ public:
 
   virtual CompositableType GetType() = 0;
 
-  virtual CompositableBackendSpecificData* GetCompositableBackendSpecificData()
-  {
-    return mBackendData;
-  }
+  virtual CompositableQuirks* GetCompositableQuirks() { return mQuirks; }
 
-  virtual void SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData)
+  virtual void SetCompositableQuirks(CompositableQuirks* aQuirks)
   {
-    mBackendData = aBackendData;
+    mQuirks = aQuirks;
   }
 
   // If base class overrides, it should still call the parent implementation
@@ -295,7 +292,7 @@ protected:
   TextureInfo mTextureInfo;
   Compositor* mCompositor;
   Layer* mLayer;
-  RefPtr<CompositableBackendSpecificData> mBackendData;
+  RefPtr<CompositableQuirks> mQuirks;
   RefPtr<TextureHost> mFirstTexture;
   bool mAttached;
   bool mKeepAttached;
@@ -303,14 +300,6 @@ protected:
 
 class CompositableParentManager;
 
-/**
- * IPDL actor used by CompositableHost to match with its corresponding
- * CompositableClient on the content side.
- *
- * CompositableParent is owned by the IPDL system. It's deletion is triggered
- * by either the CompositableChild's deletion, or by the IPDL communication
- * goind down.
- */
 class CompositableParent : public PCompositableParent
 {
 public:

@@ -2,9 +2,6 @@
 
 #include "IPDLUnitTests.h"      // fail etc.
 #include <unistd.h>
-#if !defined(OS_POSIX)
-#include <windows.h>
-#endif
 
 template<>
 struct RunnableMethodTraits<mozilla::_ipdltest::TestUrgencyParent>
@@ -15,13 +12,6 @@ struct RunnableMethodTraits<mozilla::_ipdltest::TestUrgencyParent>
 
 namespace mozilla {
 namespace _ipdltest {
-
-#if defined(OS_POSIX)
-static void Sleep(int ms)
-{
-    sleep(ms / 1000);
-}
-#endif
 
 //-----------------------------------------------------------------------------
 // parent
@@ -77,6 +67,21 @@ TestUrgencyParent::RecvTest3(uint32_t *value)
 }
 
 bool
+TestUrgencyParent::RecvTest4_Begin()
+{
+  if (!CallTest4_Reenter())
+    fail("call Test4_Reenter");
+  return true;
+}
+
+bool
+TestUrgencyParent::RecvTest4_NestedSync()
+{
+  fail("nested sync not supported");
+  return false;
+}
+
+bool
 TestUrgencyParent::RecvFinalTest_Begin()
 {
   SetReplyTimeoutMs(2000);
@@ -129,6 +134,9 @@ TestUrgencyChild::RecvStart()
   if (result != 1000)
     fail("wrong value from test3");
 
+  if (!SendTest4_Begin())
+    fail("calling SendTest4_Begin");
+
   // This must be the last test, since the child process may die.
   if (SendFinalTest_Begin())
     fail("Final test should not have succeeded");
@@ -156,10 +164,18 @@ TestUrgencyChild::AnswerReply2(uint32_t *reply)
     fail("wrong test # in AnswerReply2");
 
   // sleep for 5 seconds so the parent process tries to deliver more messages.
-  Sleep(5000);
+  sleep(5);
 
   *reply = 500;
   test_ = kSecondTestGotReply;
+  return true;
+}
+
+bool
+TestUrgencyChild::AnswerTest4_Reenter()
+{
+  if (SendTest4_NestedSync())
+    fail("sending nested sync messages not supported");
   return true;
 }
 

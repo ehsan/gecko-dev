@@ -13,7 +13,7 @@
 
 #include "nsContentUtils.h"
 #include "nsJSEnvironment.h"
-#include "MainThreadUtils.h"
+#include "nsThreadUtils.h"
 #include "StructuredCloneTags.h"
 #include "jsapi.h"
 

@@ -7,7 +7,6 @@
 
 #include "nsDOMUIEvent.h"
 #include "nsIDOMFocusEvent.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/dom/FocusEventBinding.h"
 
 class nsDOMFocusEvent : public nsDOMUIEvent,
@@ -27,8 +26,7 @@ public:
   }
 
   nsDOMFocusEvent(mozilla::dom::EventTarget* aOwner,
-                  nsPresContext* aPresContext,
-                  mozilla::InternalFocusEvent* aEvent);
+                  nsPresContext* aPresContext, nsFocusEvent* aEvent);
 
   mozilla::dom::EventTarget* GetRelatedTarget();
 

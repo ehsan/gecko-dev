@@ -68,7 +68,6 @@
 #include "nsHostObjectProtocolHandler.h"
 #include "mozilla/dom/MediaSource.h"
 #include "MediaMetadataManager.h"
-#include "MediaSourceDecoder.h"
 
 #include "AudioChannelService.h"
 
@@ -602,7 +601,7 @@ void HTMLMediaElement::AbortExistingLoads()
     EndSrcMediaStreamPlayback();
   }
   if (mMediaSource) {
-    mMediaSource->Detach();
+    mMediaSource->DetachElement();
     mMediaSource = nullptr;
   }
   if (mAudioStream) {
@@ -1136,15 +1135,16 @@ nsresult HTMLMediaElement::LoadResource()
       return rv;
     }
     mMediaSource = source.forget();
-    nsRefPtr<MediaSourceDecoder> decoder = new MediaSourceDecoder(this);
-    if (!mMediaSource->Attach(decoder)) {
-      // TODO: Handle failure: run "If the media data cannot be fetched at
-      // all, due to network errors, causing the user agent to give up
-      // trying to fetch the resource" section of resource fetch algorithm.
+    if (!mMediaSource->AttachElement(this)) {
+      // XXX(kinetik): Handle failure: run "If the media data cannot be
+      // fetched at all, due to network errors, causing the user agent to
+      // give up trying to fetch the resource" section of resource fetch
+      // algorithm.
       return NS_ERROR_FAILURE;
     }
-    nsRefPtr<MediaResource> resource = new MediaSourceResource();
-    return FinishDecoderSetup(decoder, resource, nullptr, nullptr);
+    // XXX(kinetik): Bug 881512. Wire this up properly; return from here (as
+    // MediaStreams setup does) rather than relying on mediasource->channel
+    // conversion.
   }
 
   nsCOMPtr<nsILoadGroup> loadGroup = GetDocumentLoadGroup();
@@ -1406,7 +1406,6 @@ HTMLMediaElement::Seekable() const
   } else if (mDecoder && mReadyState > nsIDOMHTMLMediaElement::HAVE_NOTHING) {
     mDecoder->GetSeekable(ranges);
   }
-  ranges->Normalize();
   return ranges.forget();
 }
 
@@ -1990,7 +1989,7 @@ HTMLMediaElement::~HTMLMediaElement()
     EndSrcMediaStreamPlayback();
   }
   if (mMediaSource) {
-    mMediaSource->Detach();
+    mMediaSource->DetachElement();
     mMediaSource = nullptr;
   }
 
@@ -2939,7 +2938,6 @@ void HTMLMediaElement::SeekCompleted()
   DispatchAsyncEvent(NS_LITERAL_STRING("seeked"));
   // We changed whether we're seeking so we need to AddRemoveSelfReference
   AddRemoveSelfReference();
-  mTextTracks->DidSeek();
 }
 
 void HTMLMediaElement::NotifySuspendedByCache(bool aIsSuspended)
@@ -3562,7 +3560,6 @@ HTMLMediaElement::Buffered() const
     // time ranges we found up till the error.
     mDecoder->GetBuffered(ranges);
   }
-  ranges->Normalize();
   return ranges.forget();
 }
 
@@ -3814,13 +3811,8 @@ void HTMLMediaElement::UpdateAudioChannelPlayingState()
       if (!mAudioChannelAgent) {
         return;
       }
-      nsCOMPtr<nsIDOMHTMLVideoElement> video = do_QueryObject(this);
       // Use a weak ref so the audio channel agent can't leak |this|.
-      if (AUDIO_CHANNEL_NORMAL == mAudioChannelType && video) {
-        mAudioChannelAgent->InitWithVideo(mAudioChannelType, this, true);
-      } else {
-        mAudioChannelAgent->InitWithWeakCallback(mAudioChannelType, this);
-      }
+      mAudioChannelAgent->InitWithWeakCallback(mAudioChannelType, this);
       mAudioChannelAgent->SetVisibilityState(!OwnerDoc()->Hidden());
     }
 
@@ -3869,7 +3861,7 @@ HTMLMediaElement::AddTextTrack(TextTrackKind aKind,
                                const nsAString& aLabel,
                                const nsAString& aLanguage)
 {
-  return mTextTracks->AddTextTrack(this, aKind, aLabel, aLanguage);
+  return mTextTracks->AddTextTrack(aKind, aLabel, aLanguage);
 }
 
 } // namespace dom

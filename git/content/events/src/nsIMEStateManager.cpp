@@ -29,10 +29,10 @@
 #include "nsIForm.h"
 #include "mozilla/dom/HTMLFormElement.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/TextEvents.h"
 #include "TextComposition.h"
 #include "mozilla/Preferences.h"
 #include "nsAsyncDOMEvent.h"
+#include "nsGUIEvent.h"
 
 using namespace mozilla;
 using namespace mozilla::widget;
@@ -522,7 +522,7 @@ nsIMEStateManager::EnsureTextCompositionArray()
 void
 nsIMEStateManager::DispatchCompositionEvent(nsINode* aEventTargetNode,
                                             nsPresContext* aPresContext,
-                                            WidgetEvent* aEvent,
+                                            nsEvent* aEvent,
                                             nsEventStatus* aStatus,
                                             nsDispatchingCallback* aCallBack)
 {
@@ -534,7 +534,7 @@ nsIMEStateManager::DispatchCompositionEvent(nsINode* aEventTargetNode,
 
   EnsureTextCompositionArray();
 
-  WidgetGUIEvent* GUIEvent = static_cast<WidgetGUIEvent*>(aEvent);
+  nsGUIEvent* GUIEvent = static_cast<nsGUIEvent*>(aEvent);
 
   TextComposition* composition =
     sTextCompositions->GetCompositionFor(GUIEvent->widget);
@@ -599,7 +599,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
 
       nsEventStatus status = nsEventStatus_eIgnore;
       if (!backup.GetLastData().IsEmpty()) {
-        WidgetTextEvent textEvent(true, NS_TEXT_TEXT, widget);
+        nsTextEvent textEvent(true, NS_TEXT_TEXT, widget);
         textEvent.theText = backup.GetLastData();
         textEvent.mFlags.mIsSynthesizedForTests = true;
         widget->DispatchEvent(&textEvent, status);
@@ -609,7 +609,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
       }
 
       status = nsEventStatus_eIgnore;
-      WidgetCompositionEvent endEvent(true, NS_COMPOSITION_END, widget);
+      nsCompositionEvent endEvent(true, NS_COMPOSITION_END, widget);
       endEvent.data = backup.GetLastData();
       endEvent.mFlags.mIsSynthesizedForTests = true;
       widget->DispatchEvent(&endEvent, status);
@@ -622,7 +622,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
 
       nsEventStatus status = nsEventStatus_eIgnore;
       if (!backup.GetLastData().IsEmpty()) {
-        WidgetCompositionEvent updateEvent(true, NS_COMPOSITION_UPDATE, widget);
+        nsCompositionEvent updateEvent(true, NS_COMPOSITION_UPDATE, widget);
         updateEvent.data = backup.GetLastData();
         updateEvent.mFlags.mIsSynthesizedForTests = true;
         widget->DispatchEvent(&updateEvent, status);
@@ -631,7 +631,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
         }
 
         status = nsEventStatus_eIgnore;
-        WidgetTextEvent textEvent(true, NS_TEXT_TEXT, widget);
+        nsTextEvent textEvent(true, NS_TEXT_TEXT, widget);
         textEvent.theText = backup.GetLastData();
         textEvent.mFlags.mIsSynthesizedForTests = true;
         widget->DispatchEvent(&textEvent, status);
@@ -641,7 +641,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
       }
 
       status = nsEventStatus_eIgnore;
-      WidgetCompositionEvent endEvent(true, NS_COMPOSITION_END, widget);
+      nsCompositionEvent endEvent(true, NS_COMPOSITION_END, widget);
       endEvent.data = backup.GetLastData();
       endEvent.mFlags.mIsSynthesizedForTests = true;
       widget->DispatchEvent(&endEvent, status);

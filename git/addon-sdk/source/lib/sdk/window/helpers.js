@@ -5,7 +5,6 @@
 
 const { defer } = require('../core/promise');
 const events = require('../system/events');
-const { setImmediate } = require('../timers');
 const { open: openWindow, onFocus, getToplevelWindow,
         isInteractive } = require('./utils');
 
@@ -16,18 +15,14 @@ exports.open = open;
 
 function close(window) {
   // We shouldn't wait for unload, as it is dispatched
-  // before the window is actually closed. 'domwindowclosed' isn't great either,
-  // because it's fired midway through window teardown (see bug 874502
-  // comment 15). We could go with xul-window-destroyed, but _that_ doesn't
-  // provide us with a subject by which to disambiguate notifications. So we
-  // end up just doing the dumb thing and round-tripping through the event loop
-  // with setImmediate.
+  // before the window is actually closed.
+  // `domwindowclosed` is a better match.
   let deferred = defer();
   let toplevelWindow = getToplevelWindow(window);
   events.on("domwindowclosed", function onclose({subject}) {
     if (subject == toplevelWindow) {
       events.off("domwindowclosed", onclose);
-      setImmediate(function() deferred.resolve(window));
+      deferred.resolve(window);
     }
   }, true);
   window.close();
