@@ -255,7 +255,7 @@ inline void
 StringBuffer::infallibleAppendSubstring(JSLinearString *base, size_t off, size_t len)
 {
     MOZ_ASSERT(off + len <= base->length());
-    MOZ_ASSERT_IF(base->hasTwoByteChars(), isTwoByte());
+    MOZ_ASSERT(base->hasLatin1Chars() == isLatin1());
 
     JS::AutoCheckCannotGC nogc;
     if (base->hasLatin1Chars())

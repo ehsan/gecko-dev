@@ -231,9 +231,8 @@ js_strlen(const jschar *s);
 extern int32_t
 js_strcmp(const jschar *lhs, const jschar *rhs);
 
-template <typename CharT>
-extern const CharT *
-js_strchr_limit(const CharT *s, jschar c, const CharT *limit);
+extern jschar *
+js_strchr_limit(const jschar *s, jschar c, const jschar *limit);
 
 static MOZ_ALWAYS_INLINE void
 js_strncpy(jschar *dst, const jschar *src, size_t nelem)

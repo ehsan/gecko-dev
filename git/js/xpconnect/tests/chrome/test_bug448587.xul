@@ -29,9 +29,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=448587.xul
   const Cu = Components.utils;
   var sandbox = new Cu.Sandbox("about:blank");
   var fwrapper = Cu.evalInSandbox("function f() {} f", sandbox);
-  is(Cu.unwaiveXrays(Cu.waiveXrays(fwrapper).prototype), Cu.evalInSandbox("f.prototype", sandbox),
-     ".prototype visible through .wrappedJSObject");
-  is(fwrapper.prototype, undefined, ".prototype invisible through Xrays");
+  is(fwrapper.prototype, Cu.evalInSandbox("f.prototype", sandbox),
+     "we don't censor .prototype through .wrappedJSObject");
   ]]>
   </script>
 </window>

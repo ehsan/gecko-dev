@@ -10,11 +10,7 @@ let store = new ObservableObject({versions:[]});
 
 function feedStore() {
   store.object.versions = Simulator.availableVersions().map(v => {
-    let simulator = Simulator.getByVersion(v);
-    return {
-      version: v,
-      label: simulator.appinfo.label
-    }
+    return {version:v}
   });
 }
 

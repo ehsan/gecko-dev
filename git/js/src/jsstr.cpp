@@ -2020,40 +2020,25 @@ class MOZ_STACK_CLASS StringRegExpGuard
      */
     static const size_t MAX_FLAT_PAT_LEN = 256;
 
-    template <typename CharT>
-    static bool
-    flattenPattern(StringBuffer &sb, const CharT *chars, size_t len)
-    {
-        static const char ESCAPE_CHAR = '\\';
-        for (const CharT *it = chars; it < chars + len; ++it) {
-            if (IsRegExpMetaChar(*it)) {
-                if (!sb.append(ESCAPE_CHAR) || !sb.append(*it))
-                    return false;
-            } else {
-                if (!sb.append(*it))
-                    return false;
-            }
-        }
-        return true;
-    }
-
     static JSAtom *
-    flattenPattern(JSContext *cx, JSAtom *pat)
+    flattenPattern(JSContext *cx, JSAtom *patstr)
     {
         StringBuffer sb(cx);
-        if (!sb.reserve(pat->length()))
+        if (!sb.reserve(patstr->length()))
             return nullptr;
 
-        if (pat->hasLatin1Chars()) {
-            AutoCheckCannotGC nogc;
-            if (!flattenPattern(sb, pat->latin1Chars(nogc), pat->length()))
-                return nullptr;
-        } else {
-            AutoCheckCannotGC nogc;
-            if (!flattenPattern(sb, pat->twoByteChars(nogc), pat->length()))
-                return nullptr;
+        static const jschar ESCAPE_CHAR = '\\';
+        const jschar *chars = patstr->chars();
+        size_t len = patstr->length();
+        for (const jschar *it = chars; it != chars + len; ++it) {
+            if (IsRegExpMetaChar(*it)) {
+                if (!sb.append(ESCAPE_CHAR) || !sb.append(*it))
+                    return nullptr;
+            } else {
+                if (!sb.append(*it))
+                    return nullptr;
+            }
         }
-
         return sb.finishAtom();
     }
 
@@ -2470,18 +2455,6 @@ class RopeBuilder {
 
 namespace {
 
-template <typename CharT>
-static uint32_t
-FindDollarIndex(const CharT *chars, size_t length)
-{
-    if (const CharT *p = js_strchr_limit(chars, '$', chars + length)) {
-        uint32_t dollarIndex = p - chars;
-        MOZ_ASSERT(dollarIndex < length);
-        return dollarIndex;
-    }
-    return UINT32_MAX;
-}
-
 struct ReplaceData
 {
     explicit ReplaceData(JSContext *cx)
@@ -2495,10 +2468,13 @@ struct ReplaceData
         elembase = nullptr;
         repstr = string;
 
-        AutoCheckCannotGC nogc;
-        dollarIndex = string->hasLatin1Chars()
-                      ? FindDollarIndex(string->latin1Chars(nogc), string->length())
-                      : FindDollarIndex(string->twoByteChars(nogc), string->length());
+        const jschar *chars = repstr->chars();
+        if (const jschar *p = js_strchr_limit(chars, '$', chars + repstr->length())) {
+            dollarIndex = p - chars;
+            MOZ_ASSERT(dollarIndex < repstr->length());
+        } else {
+            dollarIndex = UINT32_MAX;
+        }
     }
 
     inline void setReplacementFunction(JSObject *func) {
@@ -2574,9 +2550,8 @@ DoMatchForReplaceGlobal(JSContext *cx, RegExpStatics *res, HandleLinearString li
     return true;
 }
 
-template <typename CharT>
 static bool
-InterpretDollar(RegExpStatics *res, const CharT *bp, const CharT *dp, const CharT *ep,
+InterpretDollar(RegExpStatics *res, const jschar *dp, const jschar *ep,
                 ReplaceData &rdata, JSSubString *out, size_t *skip)
 {
     JS_ASSERT(*dp == '$');
@@ -2593,7 +2568,7 @@ InterpretDollar(RegExpStatics *res, const CharT *bp, const CharT *dp, const Char
         if (num > res->getMatches().parenCount())
             return false;
 
-        const CharT *cp = dp + 2;
+        const jschar *cp = dp + 2;
         if (cp < ep && (dc = *cp, JS7_ISDEC(dc))) {
             unsigned tmp = 10 * num + JS7_UNDEC(dc);
             if (tmp <= res->getMatches().parenCount()) {
@@ -2619,7 +2594,7 @@ InterpretDollar(RegExpStatics *res, const CharT *bp, const CharT *dp, const Char
     *skip = 2;
     switch (dc) {
       case '$':
-        out->init(rdata.repstr, dp - bp, 1);
+        out->init(rdata.repstr, dp - rdata.repstr->chars(), 1);
         return true;
       case '&':
         res->getLastMatch(out);
@@ -2635,45 +2610,6 @@ InterpretDollar(RegExpStatics *res, const CharT *bp, const CharT *dp, const Char
         return true;
     }
     return false;
-}
-
-template <typename CharT>
-static bool
-FindReplaceLengthString(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t *sizep)
-{
-    JSLinearString *repstr = rdata.repstr;
-    CheckedInt<uint32_t> replen = repstr->length();
-
-    if (rdata.dollarIndex != UINT32_MAX) {
-        AutoCheckCannotGC nogc;
-        MOZ_ASSERT(rdata.dollarIndex < repstr->length());
-        const CharT *bp = repstr->chars<CharT>(nogc);
-        const CharT *dp = bp + rdata.dollarIndex;
-        const CharT *ep = bp + repstr->length();
-        do {
-            JSSubString sub;
-            size_t skip;
-            if (InterpretDollar(res, bp, dp, ep, rdata, &sub, &skip)) {
-                if (sub.length > skip)
-                    replen += sub.length - skip;
-                else
-                    replen -= skip - sub.length;
-                dp += skip;
-            } else {
-                dp++;
-            }
-
-            dp = js_strchr_limit(dp, '$', ep);
-        } while (dp);
-    }
-
-    if (!replen.isValid()) {
-        js_ReportAllocationOverflow(cx);
-        return false;
-    }
-
-    *sizep = replen.value();
-    return true;
 }
 
 static bool
@@ -2765,9 +2701,36 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
         return true;
     }
 
-    return rdata.repstr->hasLatin1Chars()
-           ? FindReplaceLengthString<Latin1Char>(cx, res, rdata, sizep)
-           : FindReplaceLengthString<jschar>(cx, res, rdata, sizep);
+    JSLinearString *repstr = rdata.repstr;
+    CheckedInt<uint32_t> replen = repstr->length();
+    if (rdata.dollarIndex != UINT32_MAX) {
+        MOZ_ASSERT(rdata.dollarIndex < repstr->length());
+        const jschar *dp = repstr->chars() + rdata.dollarIndex;
+        const jschar *ep = repstr->chars() + repstr->length();
+        do {
+            JSSubString sub;
+            size_t skip;
+            if (InterpretDollar(res, dp, ep, rdata, &sub, &skip)) {
+                if (sub.length > skip)
+                    replen += sub.length - skip;
+                else
+                    replen -= skip - sub.length;
+                dp += skip;
+            } else {
+                dp++;
+            }
+
+            dp = js_strchr_limit(dp, '$', ep);
+        } while (dp);
+    }
+
+    if (!replen.isValid()) {
+        js_ReportAllocationOverflow(cx);
+        return false;
+    }
+
+    *sizep = replen.value();
+    return true;
 }
 
 /*
@@ -2775,19 +2738,17 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
  * derived from FindReplaceLength), and has been inflated to TwoByte if
  * necessary.
  */
-template <typename CharT>
 static void
 DoReplace(RegExpStatics *res, ReplaceData &rdata)
 {
-    AutoCheckCannotGC nogc;
     JSLinearString *repstr = rdata.repstr;
-    const CharT *bp = repstr->chars<CharT>(nogc);
-    const CharT *cp = bp;
+    const jschar *bp = repstr->chars();
+    const jschar *cp = bp;
 
     if (rdata.dollarIndex != UINT32_MAX) {
         MOZ_ASSERT(rdata.dollarIndex < repstr->length());
-        const CharT *dp = bp + rdata.dollarIndex;
-        const CharT *ep = bp + repstr->length();
+        const jschar *dp = bp + rdata.dollarIndex;
+        const jschar *ep = bp + repstr->length();
         do {
             /* Move one of the constant portions of the replacement value. */
             size_t len = dp - cp;
@@ -2796,7 +2757,7 @@ DoReplace(RegExpStatics *res, ReplaceData &rdata)
 
             JSSubString sub;
             size_t skip;
-            if (InterpretDollar(res, bp, dp, ep, rdata, &sub, &skip)) {
+            if (InterpretDollar(res, dp, ep, rdata, &sub, &skip)) {
                 rdata.sb.infallibleAppendSubstring(sub.base, sub.offset, sub.length);
                 cp += skip;
                 dp += skip;
@@ -2849,12 +2810,10 @@ ReplaceRegExp(JSContext *cx, RegExpStatics *res, ReplaceData &rdata)
         return false;
 
     /* Append skipped-over portion of the search value. */
-    rdata.sb.infallibleAppendSubstring(&str, leftoff, leftlen);
+    const jschar *left = str.chars() + leftoff;
+    rdata.sb.infallibleAppend(left, leftlen);
 
-    if (rdata.repstr->hasLatin1Chars())
-        DoReplace<Latin1Char>(res, rdata);
-    else
-        DoReplace<jschar>(res, rdata);
+    DoReplace(res, rdata);
     return true;
 }
 
@@ -2936,57 +2895,6 @@ BuildFlatReplacement(JSContext *cx, HandleString textstr, HandleString repstr,
     return true;
 }
 
-template <typename CharT>
-static bool
-AppendDollarReplacement(StringBuffer &newReplaceChars, size_t firstDollarIndex,
-                        const FlatMatch &fm, JSLinearString *text,
-                        const CharT *repChars, size_t repLength)
-{
-    JS_ASSERT(firstDollarIndex < repLength);
-
-    size_t matchStart = fm.match();
-    size_t matchLimit = matchStart + fm.patternLength();
-
-    /* Move the pre-dollar chunk in bulk. */
-    newReplaceChars.infallibleAppend(repChars, firstDollarIndex);
-
-    /* Move the rest char-by-char, interpreting dollars as we encounter them. */
-    const CharT *repLimit = repChars + repLength;
-    for (const CharT *it = repChars + firstDollarIndex; it < repLimit; ++it) {
-        if (*it != '$' || it == repLimit - 1) {
-            if (!newReplaceChars.append(*it))
-                return false;
-            continue;
-        }
-
-        switch (*(it + 1)) {
-          case '$': /* Eat one of the dollars. */
-            if (!newReplaceChars.append(*it))
-                return false;
-            break;
-          case '&':
-            if (!newReplaceChars.appendSubstring(text, matchStart, matchLimit - matchStart))
-                return false;
-            break;
-          case '`':
-            if (!newReplaceChars.appendSubstring(text, 0, matchStart))
-                return false;
-            break;
-          case '\'':
-            if (!newReplaceChars.appendSubstring(text, matchLimit, text->length() - matchLimit))
-                return false;
-            break;
-          default: /* The dollar we saw was not special (no matter what its mother told it). */
-            if (!newReplaceChars.append(*it))
-                return false;
-            continue;
-        }
-        ++it; /* We always eat an extra char in the above switch. */
-    }
-
-    return true;
-}
-
 /*
  * Perform a linear-scan dollar substitution on the replacement text,
  * constructing a result string that looks like:
@@ -3018,18 +2926,45 @@ BuildDollarReplacement(JSContext *cx, JSString *textstrArg, JSLinearString *reps
     if (!newReplaceChars.reserve(textstr->length() - fm.patternLength() + repstr->length()))
         return false;
 
-    bool res;
-    if (repstr->hasLatin1Chars()) {
-        AutoCheckCannotGC nogc;
-        res = AppendDollarReplacement(newReplaceChars, firstDollarIndex, fm, textstr,
-                                      repstr->latin1Chars(nogc), repstr->length());
-    } else {
-        AutoCheckCannotGC nogc;
-        res = AppendDollarReplacement(newReplaceChars, firstDollarIndex, fm, textstr,
-                                      repstr->twoByteChars(nogc), repstr->length());
+    JS_ASSERT(firstDollarIndex < repstr->length());
+
+    /* Move the pre-dollar chunk in bulk. */
+    newReplaceChars.infallibleAppend(repstr->chars(), firstDollarIndex);
+
+    /* Move the rest char-by-char, interpreting dollars as we encounter them. */
+    const jschar *textchars = textstr->chars();
+    const jschar *repstrLimit = repstr->chars() + repstr->length();
+    for (const jschar *it = repstr->chars() + firstDollarIndex; it < repstrLimit; ++it) {
+        if (*it != '$' || it == repstrLimit - 1) {
+            if (!newReplaceChars.append(*it))
+                return false;
+            continue;
+        }
+
+        switch (*(it + 1)) {
+          case '$': /* Eat one of the dollars. */
+            if (!newReplaceChars.append(*it))
+                return false;
+            break;
+          case '&':
+            if (!newReplaceChars.append(textchars + matchStart, textchars + matchLimit))
+                return false;
+            break;
+          case '`':
+            if (!newReplaceChars.append(textchars, textchars + matchStart))
+                return false;
+            break;
+          case '\'':
+            if (!newReplaceChars.append(textchars + matchLimit, textchars + textstr->length()))
+                return false;
+            break;
+          default: /* The dollar we saw was not special (no matter what its mother told it). */
+            if (!newReplaceChars.append(*it))
+                return false;
+            continue;
+        }
+        ++it; /* We always eat an extra char in the above switch. */
     }
-    if (!res)
-        return false;
 
     RootedString leftSide(cx, js_NewDependentString(cx, textstr, 0, matchStart));
     if (!leftSide)
@@ -3063,35 +2998,25 @@ struct StringRange
     { }
 };
 
-template <typename CharT>
-static void
-CopySubstringsToFatInline(JSFatInlineString *dest, const CharT *src, const StringRange *ranges,
-                          size_t rangesLen, size_t outputLen)
-{
-    CharT *buf = dest->init<CharT>(outputLen);
-    size_t pos = 0;
-    for (size_t i = 0; i < rangesLen; i++) {
-        PodCopy(buf + pos, src + ranges[i].start, ranges[i].length);
-        pos += ranges[i].length;
-    }
-
-    MOZ_ASSERT(pos == outputLen);
-    buf[outputLen] = 0;
-}
-
 static inline JSFatInlineString *
-FlattenSubstrings(JSContext *cx, Handle<JSFlatString*> flatStr, const StringRange *ranges,
-                  size_t rangesLen, size_t outputLen)
+FlattenSubstrings(JSContext *cx, const jschar *chars,
+                  const StringRange *ranges, size_t rangesLen, size_t outputLen)
 {
+    JS_ASSERT(JSFatInlineString::twoByteLengthFits(outputLen));
+
     JSFatInlineString *str = js_NewGCFatInlineString<CanGC>(cx);
     if (!str)
         return nullptr;
 
-    AutoCheckCannotGC nogc;
-    if (flatStr->hasLatin1Chars())
-        CopySubstringsToFatInline(str, flatStr->latin1Chars(nogc), ranges, rangesLen, outputLen);
-    else
-        CopySubstringsToFatInline(str, flatStr->twoByteChars(nogc), ranges, rangesLen, outputLen);
+    jschar *buf = str->initTwoByte(outputLen);
+    size_t pos = 0;
+    for (size_t i = 0; i < rangesLen; i++) {
+        PodCopy(buf + pos, chars + ranges[i].start, ranges[i].length);
+        pos += ranges[i].length;
+    }
+    JS_ASSERT(pos == outputLen);
+
+    buf[outputLen] = 0;
     return str;
 }
 
@@ -3105,10 +3030,9 @@ AppendSubstrings(JSContext *cx, Handle<JSFlatString*> flatStr,
     if (rangesLen == 1)
         return js_NewDependentString(cx, flatStr, ranges[0].start, ranges[0].length);
 
-    bool isLatin1 = flatStr->hasLatin1Chars();
-    uint32_t fatInlineMaxLength = isLatin1
-                                  ? JSFatInlineString::MAX_LENGTH_LATIN1
-                                  : JSFatInlineString::MAX_LENGTH_TWO_BYTE;
+    const jschar *chars = flatStr->getChars(cx);
+    if (!chars)
+        return nullptr;
 
     /* Collect substrings into a rope */
     size_t i = 0;
@@ -3120,7 +3044,7 @@ AppendSubstrings(JSContext *cx, Handle<JSFlatString*> flatStr,
         size_t substrLen = 0;
         size_t end = i;
         for (; end < rangesLen; end++) {
-            if (substrLen + ranges[end].length > fatInlineMaxLength)
+            if (substrLen + ranges[end].length > JSFatInlineString::MAX_LENGTH_TWO_BYTE)
                 break;
             substrLen += ranges[end].length;
         }
@@ -3131,7 +3055,7 @@ AppendSubstrings(JSContext *cx, Handle<JSFlatString*> flatStr,
             part = js_NewDependentString(cx, flatStr, sr.start, sr.length);
         } else {
             /* Copy the ranges (linearly) into a JSFatInlineString */
-            part = FlattenSubstrings(cx, flatStr, ranges + i, end - i, substrLen);
+            part = FlattenSubstrings(cx, chars, ranges + i, end - i, substrLen);
             i = end;
         }
 
@@ -4699,23 +4623,16 @@ js_strdup(js::ThreadSafeContext *cx, const jschar *s)
     return ret;
 }
 
-template <typename CharT>
-const CharT *
-js_strchr_limit(const CharT *s, jschar c, const CharT *limit)
+jschar *
+js_strchr_limit(const jschar *s, jschar c, const jschar *limit)
 {
     while (s < limit) {
         if (*s == c)
-            return s;
+            return (jschar *)s;
         s++;
     }
     return nullptr;
 }
-
-template const Latin1Char *
-js_strchr_limit(const Latin1Char *s, jschar c, const Latin1Char *limit);
-
-template const jschar *
-js_strchr_limit(const jschar *s, jschar c, const jschar *limit);
 
 jschar *
 js::InflateString(ThreadSafeContext *cx, const char *bytes, size_t *lengthp)

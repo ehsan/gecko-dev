@@ -20,7 +20,6 @@
 #include "nsIProgrammingLanguage.h"
 #include "nsIArray.h"
 #include "nsComponentManagerUtils.h"
-#include "nsReadableUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "PSMRunnable.h"
 
@@ -625,21 +624,12 @@ GetSubjectAltNames(CERTCertificate *nssCert,
     nsAutoString name;
     switch (current->type) {
       case certDNSName:
-        {
-          nsDependentCSubstring nameFromCert(reinterpret_cast<char*>
-                                              (current->name.other.data),
-                                              current->name.other.len);
-          // dNSName fields are defined as type IA5String and thus should
-          // be limited to ASCII characters.
-          if (IsASCII(nameFromCert)) {
-            name.Assign(NS_ConvertASCIItoUTF16(nameFromCert));
-            if (!allNames.IsEmpty()) {
-              allNames.AppendLiteral(", ");
-            }
-            ++nameCount;
-            allNames.Append(name);
-          }
+        name.AssignASCII((char*)current->name.other.data, current->name.other.len);
+        if (!allNames.IsEmpty()) {
+          allNames.AppendLiteral(", ");
         }
+        ++nameCount;
+        allNames.Append(name);
         break;
 
       case certIPAddress:
@@ -719,15 +709,8 @@ AppendErrorTextMismatch(const nsString &host,
   if (!useSAN) {
     char *certName = CERT_GetCommonName(&nssCert->subject);
     if (certName) {
-      nsDependentCSubstring commonName(certName, strlen(certName));
-      if (IsUTF8(commonName)) {
-        // Bug 1024781
-        // We should actually check that the common name is a valid dns name or
-        // ip address and not any string value before adding it to the display
-        // list.
-        ++nameCount;
-        allNames.Assign(NS_ConvertUTF8toUTF16(commonName));
-      }
+      ++nameCount;
+      allNames.Assign(NS_ConvertUTF8toUTF16(certName));
       PORT_Free(certName);
     }
   }

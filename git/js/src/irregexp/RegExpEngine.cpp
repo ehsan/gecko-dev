@@ -1666,10 +1666,9 @@ irregexp::CompilePattern(JSContext *cx, RegExpShared *shared, RegExpCompileData 
     return compiler.Assemble(cx, assembler, node, data->capture_count);
 }
 
-template <typename CharT>
 RegExpRunStatus
-irregexp::ExecuteCode(JSContext *cx, jit::JitCode *codeBlock, const CharT *chars, size_t start,
-                      size_t length, MatchPairs *matches)
+irregexp::ExecuteCode(JSContext *cx, jit::JitCode *codeBlock,
+                      const jschar *chars, size_t start, size_t length, MatchPairs *matches)
 {
 #ifdef JS_ION
     typedef void (*RegExpCodeSignature)(InputOutputData *);
@@ -1677,25 +1676,13 @@ irregexp::ExecuteCode(JSContext *cx, jit::JitCode *codeBlock, const CharT *chars
     InputOutputData data(chars, chars + length, start, matches);
 
     RegExpCodeSignature function = reinterpret_cast<RegExpCodeSignature>(codeBlock->raw());
-
-    {
-        JS::AutoSuppressGCAnalysis nogc;
-        CALL_GENERATED_REGEXP(function, &data);
-    }
+    CALL_GENERATED_REGEXP(function, &data);
 
     return (RegExpRunStatus) data.result;
 #else
     MOZ_CRASH();
 #endif
 }
-
-template RegExpRunStatus
-irregexp::ExecuteCode(JSContext *cx, jit::JitCode *codeBlock, const Latin1Char *chars, size_t start,
-                      size_t length, MatchPairs *matches);
-
-template RegExpRunStatus
-irregexp::ExecuteCode(JSContext *cx, jit::JitCode *codeBlock, const jschar *chars, size_t start,
-                      size_t length, MatchPairs *matches);
 
 // -------------------------------------------------------------------
 // Tree to graph conversion

@@ -28,8 +28,6 @@ using mozilla::DebugOnly;
 using mozilla::Maybe;
 using js::frontend::TokenStream;
 
-using JS::AutoCheckCannotGC;
-
 JS_STATIC_ASSERT(IgnoreCaseFlag == JSREG_FOLD);
 JS_STATIC_ASSERT(GlobalFlag == JSREG_GLOB);
 JS_STATIC_ASSERT(MultilineFlag == JSREG_MULTILINE);
@@ -594,20 +592,9 @@ RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t *lastIndex
 
     if (uint8_t *byteCode = maybeByteCode(input->hasLatin1Chars())) {
         AutoTraceLog logInterpreter(logger, TraceLogger::IrregexpExecute);
-
-        AutoStableStringChars inputChars(cx, input);
-        if (!inputChars.init())
-            return RegExpRunStatus_Error;
-
-        RegExpRunStatus result;
-        if (inputChars.isLatin1()) {
-            const Latin1Char *chars = inputChars.latin1Range().start().get() + charsOffset;
-            result = irregexp::InterpretCode(cx, byteCode, chars, start, length, &matches);
-        } else {
-            const jschar *chars = inputChars.twoByteRange().start().get() + charsOffset;
-            result = irregexp::InterpretCode(cx, byteCode, chars, start, length, &matches);
-        }
-
+        const jschar *chars = input->chars() + charsOffset;
+        RegExpRunStatus result =
+            irregexp::InterpretCode(cx, byteCode, chars, start, length, &matches);
         if (result == RegExpRunStatus_Success) {
             matches.displace(displacement);
             matches.checkAgainst(origLength);
@@ -621,14 +608,8 @@ RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t *lastIndex
         RegExpRunStatus result;
         {
             AutoTraceLog logJIT(logger, TraceLogger::IrregexpExecute);
-            AutoCheckCannotGC nogc;
-            if (input->hasLatin1Chars()) {
-                const Latin1Char *chars = input->latin1Chars(nogc) + charsOffset;
-                result = irregexp::ExecuteCode(cx, jitCodeLatin1, chars, start, length, &matches);
-            } else {
-                const jschar *chars = input->twoByteChars(nogc) + charsOffset;
-                result = irregexp::ExecuteCode(cx, jitCodeTwoByte, chars, start, length, &matches);
-            }
+            const jschar *chars = input->chars() + charsOffset;
+            result = irregexp::ExecuteCode(cx, jitCodeTwoByte, chars, start, length, &matches);
         }
 
         if (result == RegExpRunStatus_Error) {
@@ -904,10 +885,10 @@ js::ParseRegExpFlags(JSContext *cx, JSString *flagStr, RegExpFlag *flagsOut)
     bool ok;
     jschar lastParsed;
     if (linear->hasLatin1Chars()) {
-        AutoCheckCannotGC nogc;
+        JS::AutoCheckCannotGC nogc;
         ok = ::ParseRegExpFlags(linear->latin1Chars(nogc), len, flagsOut, &lastParsed);
     } else {
-        AutoCheckCannotGC nogc;
+        JS::AutoCheckCannotGC nogc;
         ok = ::ParseRegExpFlags(linear->twoByteChars(nogc), len, flagsOut, &lastParsed);
     }
 
