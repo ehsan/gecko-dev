@@ -835,8 +835,12 @@ LIRGenerator::visitCompare(MCompare *comp)
     }
 
     // Compare doubles.
-    if (comp->compareType() == MCompare::Compare_Double)
+    if (comp->compareType() == MCompare::Compare_Double ||
+        comp->compareType() == MCompare::Compare_DoubleMaybeCoerceLHS ||
+        comp->compareType() == MCompare::Compare_DoubleMaybeCoerceRHS)
+    {
         return define(new LCompareD(useRegister(left), useRegister(right)), comp);
+    }
 
     // Compare values.
     if (comp->compareType() == MCompare::Compare_Value) {
@@ -1376,6 +1380,7 @@ bool
 LIRGenerator::visitToDouble(MToDouble *convert)
 {
     MDefinition *opd = convert->input();
+    MToDouble::ConversionKind conversion = convert->conversion();
 
     switch (opd->type()) {
       case MIRType_Value:
@@ -1387,13 +1392,18 @@ LIRGenerator::visitToDouble(MToDouble *convert)
       }
 
       case MIRType_Null:
+        JS_ASSERT(conversion != MToDouble::NumbersOnly && conversion != MToDouble::NonNullNonStringPrimitives);
         return lowerConstantDouble(0, convert);
 
       case MIRType_Undefined:
+        JS_ASSERT(conversion != MToDouble::NumbersOnly);
         return lowerConstantDouble(js_NaN, convert);
 
-      case MIRType_Int32:
       case MIRType_Boolean:
+        JS_ASSERT(conversion != MToDouble::NumbersOnly);
+        /* FALLTHROUGH */
+
+      case MIRType_Int32:
       {
         LInt32ToDouble *lir = new LInt32ToDouble(useRegister(opd));
         return define(lir, convert);
@@ -2199,6 +2209,39 @@ LIRGenerator::visitGetPropertyCache(MGetPropertyCache *ins)
     if (!define(lir, ins))
         return false;
     return assignSafepoint(lir, ins);
+}
+
+bool
+LIRGenerator::visitGetPropertyPolymorphic(MGetPropertyPolymorphic *ins)
+{
+    JS_ASSERT(ins->obj()->type() == MIRType_Object);
+
+    if (ins->type() == MIRType_Value) {
+        LGetPropertyPolymorphicV *lir = new LGetPropertyPolymorphicV(useRegister(ins->obj()));
+        return assignSnapshot(lir) && defineBox(lir, ins);
+    }
+
+    LDefinition maybeTemp = (ins->type() == MIRType_Double) ? temp() : LDefinition::BogusTemp();
+    LGetPropertyPolymorphicT *lir = new LGetPropertyPolymorphicT(useRegister(ins->obj()), maybeTemp);
+    return assignSnapshot(lir, Bailout_CachedShapeGuard) && define(lir, ins);
+}
+
+bool
+LIRGenerator::visitSetPropertyPolymorphic(MSetPropertyPolymorphic *ins)
+{
+    JS_ASSERT(ins->obj()->type() == MIRType_Object);
+
+    if (ins->value()->type() == MIRType_Value) {
+        LSetPropertyPolymorphicV *lir = new LSetPropertyPolymorphicV(useRegister(ins->obj()), temp());
+        if (!useBox(lir, LSetPropertyPolymorphicV::Value, ins->value()))
+            return false;
+        return assignSnapshot(lir, Bailout_CachedShapeGuard) && add(lir, ins);
+    }
+
+    LAllocation value = useRegisterOrConstant(ins->value());
+    LSetPropertyPolymorphicT *lir =
+        new LSetPropertyPolymorphicT(useRegister(ins->obj()), value, ins->value()->type(), temp());
+    return assignSnapshot(lir) && add(lir, ins);
 }
 
 bool

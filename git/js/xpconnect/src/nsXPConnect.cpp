@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sts=4 et sw=4 tw=80:
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -47,20 +48,19 @@ using namespace mozilla::dom;
 using namespace xpc;
 using namespace JS;
 
-NS_IMPL_THREADSAFE_ISUPPORTS7(nsXPConnect,
+NS_IMPL_THREADSAFE_ISUPPORTS5(nsXPConnect,
                               nsIXPConnect,
                               nsISupportsWeakReference,
                               nsIThreadObserver,
                               nsIJSRuntimeService,
-                              nsIJSContextStack,
-                              nsIThreadJSContextStack,
                               nsIJSEngineTelemetryStats)
 
 nsXPConnect* nsXPConnect::gSelf = nullptr;
 JSBool       nsXPConnect::gOnceAliveNowDead = false;
 uint32_t     nsXPConnect::gReportAllJSExceptions = 0;
-JSBool       nsXPConnect::gDebugMode = false;
-JSBool       nsXPConnect::gDesiredDebugMode = false;
+
+JSBool       xpc::gDebugMode = false;
+JSBool       xpc::gDesiredDebugMode = false;
 
 // Global cache of the default script security manager (QI'd to
 // nsIScriptSecurityManager)
@@ -1518,9 +1518,8 @@ nsXPConnect::GetCurrentJSStack(nsIStackFrame * *aCurrentJSStack)
     NS_ASSERTION(aCurrentJSStack, "bad param");
     *aCurrentJSStack = nullptr;
 
-    JSContext* cx;
     // is there a current context available?
-    if (NS_SUCCEEDED(Peek(&cx)) && cx) {
+    if (JSContext *cx = GetCurrentJSContext()) {
         nsCOMPtr<nsIStackFrame> stack;
         XPCJSStack::CreateStack(cx, getter_AddRefs(stack));
         if (stack) {
@@ -1547,13 +1546,6 @@ nsXPConnect::GetCurrentNativeCallContext(nsAXPCNativeCallContext * *aCurrentNati
     NS_ASSERTION(aCurrentNativeCallContext, "bad param");
 
     *aCurrentNativeCallContext = XPCJSRuntime::Get()->GetCallContext();
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXPConnect::SyncJSContexts(void)
-{
-    // Do-nothing compatibility function
     return NS_OK;
 }
 
@@ -1688,8 +1680,7 @@ nsXPConnect::ReleaseJSContext(JSContext * aJSContext, bool noGC)
     }
     // else continue on and synchronously destroy the JSContext ...
 
-    NS_ASSERTION(!XPCJSRuntime::Get()->GetJSContextStack()->
-                 DEBUG_StackHasJSContext(aJSContext),
+    NS_ASSERTION(!XPCJSRuntime::Get()->GetJSContextStack()->HasJSContext(aJSContext),
                  "JSContext still in threadjscontextstack!");
 
     if (noGC)
@@ -1773,10 +1764,8 @@ nsXPConnect::DebugDumpJSStack(bool showArgs,
                               bool showLocals,
                               bool showThisProps)
 {
-    JSContext* cx;
-    if (NS_FAILED(Peek(&cx)))
-        printf("failed to peek into nsIThreadJSContextStack service!\n");
-    else if (!cx)
+    JSContext* cx = GetCurrentJSContext();
+    if (!cx)
         printf("there is no JSContext on the nsIThreadJSContextStack!\n");
     else
         xpc_DumpJSStack(cx, showArgs, showLocals, showThisProps);
@@ -1789,10 +1778,8 @@ nsXPConnect::DebugPrintJSStack(bool showArgs,
                                bool showLocals,
                                bool showThisProps)
 {
-    JSContext* cx;
-    if (NS_FAILED(Peek(&cx)))
-        printf("failed to peek into nsIThreadJSContextStack service!\n");
-    else if (!cx)
+    JSContext* cx = GetCurrentJSContext();
+    if (!cx)
         printf("there is no JSContext on the nsIThreadJSContextStack!\n");
     else
         return xpc_PrintJSStack(cx, showArgs, showLocals, showThisProps);
@@ -1804,10 +1791,8 @@ nsXPConnect::DebugPrintJSStack(bool showArgs,
 NS_IMETHODIMP
 nsXPConnect::DebugDumpEvalInJSStackFrame(uint32_t aFrameNumber, const char *aSourceText)
 {
-    JSContext* cx;
-    if (NS_FAILED(Peek(&cx)))
-        printf("failed to peek into nsIThreadJSContextStack service!\n");
-    else if (!cx)
+    JSContext* cx = GetCurrentJSContext();
+    if (!cx)
         printf("there is no JSContext on the nsIThreadJSContextStack!\n");
     else
         xpc_DumpEvalInJSStackFrame(cx, aFrameNumber, aSourceText);
@@ -1873,7 +1858,9 @@ nsXPConnect::OnProcessNextEvent(nsIThreadInternal *aThread, bool aMayWait,
     // Push a null JSContext so that we don't see any script during
     // event processing.
     MOZ_ASSERT(NS_IsMainThread());
-    return Push(nullptr);
+    bool ok = xpc::danger::PushJSContext(nullptr);
+    NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1890,7 +1877,8 @@ nsXPConnect::AfterProcessNextEvent(nsIThreadInternal *aThread,
     nsJSContext::MaybePokeCC();
     nsDOMMutationObserver::HandleMutations();
 
-    return Pop(nullptr);
+    xpc::danger::PopJSContext();
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1957,28 +1945,6 @@ NS_IMETHODIMP_(void)
 nsXPConnect::UnregisterGCCallback(JSGCCallback func)
 {
     mRuntime->RemoveGCCallback(func);
-}
-
-//  nsIJSContextStack and nsIThreadJSContextStack implementations
-
-/* readonly attribute int32_t Count; */
-NS_IMETHODIMP
-nsXPConnect::GetCount(int32_t *aCount)
-{
-    MOZ_ASSERT(aCount);
-
-    *aCount = XPCJSRuntime::Get()->GetJSContextStack()->Count();
-    return NS_OK;
-}
-
-/* JSContext Peek (); */
-NS_IMETHODIMP
-nsXPConnect::Peek(JSContext * *_retval)
-{
-    MOZ_ASSERT(_retval);
-
-    *_retval = xpc_UnmarkGrayContext(XPCJSRuntime::Get()->GetJSContextStack()->Peek());
-    return NS_OK;
 }
 
 #ifdef MOZ_JSDEBUGGER
@@ -2059,41 +2025,12 @@ xpc_ActivateDebugMode()
     nsXPConnect::CheckForDebugMode(rt->GetJSRuntime());
 }
 
-/* JSContext Pop (); */
-NS_IMETHODIMP
-nsXPConnect::Pop(JSContext * *_retval)
+/* virtual */
+JSContext*
+nsXPConnect::GetCurrentJSContext()
 {
-    JSContext *cx = XPCJSRuntime::Get()->GetJSContextStack()->Pop();
-    if (_retval)
-        *_retval = xpc_UnmarkGrayContext(cx);
-    return NS_OK;
-}
-
-/* void Push (in JSContext cx); */
-NS_IMETHODIMP
-nsXPConnect::Push(JSContext * cx)
-{
-     if (gDebugMode != gDesiredDebugMode && NS_IsMainThread()) {
-         const InfallibleTArray<XPCJSContextInfo>* stack =
-             XPCJSRuntime::Get()->GetJSContextStack()->GetStack();
-         if (!gDesiredDebugMode) {
-             /* Turn off debug mode immediately, even if JS code is currently running */
-             CheckForDebugMode(mRuntime->GetJSRuntime());
-         } else {
-             bool runningJS = false;
-             for (uint32_t i = 0; i < stack->Length(); ++i) {
-                 JSContext *cx = (*stack)[i].cx;
-                 if (cx && js::IsContextRunningJS(cx)) {
-                     runningJS = true;
-                     break;
-                 }
-             }
-             if (!runningJS)
-                 CheckForDebugMode(mRuntime->GetJSRuntime());
-         }
-     }
-
-     return XPCJSRuntime::Get()->GetJSContextStack()->Push(cx) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+    JSContext *cx = XPCJSRuntime::Get()->GetJSContextStack()->Peek();
+    return xpc_UnmarkGrayContext(cx);
 }
 
 /* virtual */
@@ -2102,6 +2039,52 @@ nsXPConnect::GetSafeJSContext()
 {
     return XPCJSRuntime::Get()->GetJSContextStack()->GetSafeJSContext();
 }
+
+namespace xpc {
+namespace danger {
+
+NS_EXPORT_(bool)
+PushJSContext(JSContext *aCx)
+{
+    // JSD mumbo jumbo.
+    nsXPConnect *xpc = nsXPConnect::GetXPConnect();
+    JSRuntime *rt = XPCJSRuntime::Get()->GetJSRuntime();
+    if (xpc::gDebugMode != xpc::gDesiredDebugMode) {
+        if (!xpc::gDesiredDebugMode) {
+            /* Turn off debug mode immediately, even if JS code is currently
+               running. */
+            xpc->CheckForDebugMode(rt);
+        } else {
+            bool runningJS = false;
+            XPCJSContextStack *stack = XPCJSRuntime::Get()->GetJSContextStack();
+            for (uint32_t i = 0; i < stack->Count(); ++i) {
+                JSContext *cx = (*stack->GetStack())[i].cx;
+                if (cx && js::IsContextRunningJS(cx)) {
+                    runningJS = true;
+                    break;
+                }
+            }
+            if (!runningJS)
+                xpc->CheckForDebugMode(rt);
+        }
+    }
+    return XPCJSRuntime::Get()->GetJSContextStack()->Push(aCx);
+}
+
+NS_EXPORT_(void)
+PopJSContext()
+{
+    XPCJSRuntime::Get()->GetJSContextStack()->Pop();
+}
+
+bool
+IsJSContextOnStack(JSContext *aCx)
+{
+  return XPCJSRuntime::Get()->GetJSContextStack()->HasJSContext(aCx);
+}
+
+} /* namespace danger */
+} /* namespace xpc */
 
 nsIPrincipal*
 nsXPConnect::GetPrincipal(JSObject* obj, bool allowShortCircuit) const

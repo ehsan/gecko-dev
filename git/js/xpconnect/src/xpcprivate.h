@@ -146,7 +146,6 @@
 #include "mozilla/Mutex.h"
 
 #include "nsThreadUtils.h"
-#include "nsIJSContextStack.h"
 #include "nsIJSEngineTelemetryStats.h"
 
 #include "nsIConsoleService.h"
@@ -464,7 +463,6 @@ class nsXPConnect : public nsIXPConnect,
                     public nsSupportsWeakReference,
                     public nsCycleCollectionJSRuntime,
                     public nsIJSRuntimeService,
-                    public nsIThreadJSContextStack,
                     public nsIJSEngineTelemetryStats
 {
 public:
@@ -473,8 +471,6 @@ public:
     NS_DECL_NSIXPCONNECT
     NS_DECL_NSITHREADOBSERVER
     NS_DECL_NSIJSRUNTIMESERVICE
-    NS_DECL_NSIJSCONTEXTSTACK
-    NS_DECL_NSITHREADJSCONTEXTSTACK
     NS_DECL_NSIJSENGINETELEMETRYSTATS
 
     // non-interface implementation
@@ -575,8 +571,6 @@ private:
     uint16_t                   mEventDepth;
 
     static uint32_t gReportAllJSExceptions;
-    static JSBool gDebugMode;
-    static JSBool gDesiredDebugMode;
 
 public:
     static nsIScriptSecurityManager *gScriptSecurityManager;
@@ -3654,10 +3648,7 @@ public:
     JSContext *Pop();
     bool Push(JSContext *cx);
     JSContext *GetSafeJSContext();
-
-#ifdef DEBUG
-    bool DEBUG_StackHasJSContext(JSContext *cx);
-#endif
+    bool HasJSContext(JSContext *cx);
 
     const InfallibleTArray<XPCJSContextInfo>* GetStack()
     { return &mStack; }
@@ -3666,23 +3657,6 @@ private:
     AutoInfallibleTArray<XPCJSContextInfo, 16> mStack;
     JSContext*  mSafeJSContext;
     JSContext*  mOwnSafeJSContext;
-};
-
-/***************************************************************************/
-
-#define NS_XPC_JSCONTEXT_STACK_ITERATOR_CID                                   \
-{ 0x05bae29d, 0x8aef, 0x486d,                                                 \
-  { 0x84, 0xaa, 0x53, 0xf4, 0x8f, 0x14, 0x68, 0x11 } }
-
-class nsXPCJSContextStackIterator MOZ_FINAL : public nsIJSContextStackIterator
-{
-public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIJSCONTEXTSTACKITERATOR
-
-private:
-    const InfallibleTArray<XPCJSContextInfo> *mStack;
-    uint32_t mPosition;
 };
 
 /***************************************************************************/
@@ -4279,6 +4253,9 @@ GetObjectScope(JSObject *obj)
 {
     return EnsureCompartmentPrivate(obj)->scope;
 }
+
+extern JSBool gDebugMode;
+extern JSBool gDesiredDebugMode;
 }
 
 /***************************************************************************/
