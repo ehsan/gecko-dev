@@ -9443,6 +9443,7 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
     JS_PROPERTY_CACHE(cx).test(cx, pc, aobj, obj2, entry, atom);
     if (atom) {
         // Miss: pre-fill the cache for the interpreter, as well as for our needs.
+        // FIXME: bug 458271.
         jsid id = ATOM_TO_JSID(atom);
 
         // The lookup below may change object shapes.
@@ -9483,10 +9484,6 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
             if (prop) {
                 if (!obj2->isNative())
                     RETURN_STOP_A("property found on non-native object");
-
-                // This property cache fill is necessary for correctness! It
-                // returns JS_NO_PROP_CACHE_FILL if the above lookup called any
-                // resolve hooks, which must inhibit tracing. See bug 458271.
                 entry = JS_PROPERTY_CACHE(cx).fill(cx, aobj, 0, protoIndex, obj2,
                                                    (JSScopeProperty*) prop);
                 JS_ASSERT(entry);
@@ -12473,7 +12470,7 @@ TraceRecorder::getStringLength(LIns* str_ins)
     return addName(lir->ins2ImmI(LIR_rshup,
                                  addName(lir->insLoad(LIR_ldp, str_ins,
                                                       offsetof(JSString, mLengthAndFlags),
-                                                      ACCSET_OTHER), "mLengthAndFlags"),
+                                                      ACCSET_OTHER, LOAD_CONST), "mLengthAndFlags"),
                                  JSString::FLAGS_LENGTH_SHIFT), "length");
 }
 
@@ -12482,7 +12479,7 @@ TraceRecorder::getStringChars(LIns* str_ins)
 {
     return addName(lir->insLoad(LIR_ldp, str_ins,
                                 offsetof(JSString, mChars),
-                                ACCSET_OTHER), "chars");
+                                ACCSET_OTHER, LOAD_CONST), "chars");
 }
 
 JS_REQUIRES_STACK LIns*
@@ -12490,7 +12487,7 @@ TraceRecorder::getCharCodeAt(JSString *str, LIns* str_ins, LIns* idx_ins)
 {
     idx_ins = lir->insUI2P(makeNumberInt32(idx_ins));
     LIns *length_ins = lir->insLoad(LIR_ldp, str_ins, offsetof(JSString, mLengthAndFlags),
-                                    ACCSET_OTHER);
+                                    ACCSET_OTHER, LOAD_CONST);
     LIns *br = lir->insBranch(LIR_jt,
                               lir->insEqP_0(lir->ins2(LIR_andp,
                                                       length_ins,
@@ -12515,7 +12512,7 @@ TraceRecorder::getCharAt(JSString *str, LIns* str_ins, LIns* idx_ins)
 {
     idx_ins = lir->insUI2P(makeNumberInt32(idx_ins));
     LIns *length_ins = lir->insLoad(LIR_ldp, str_ins, offsetof(JSString, mLengthAndFlags),
-                                    ACCSET_OTHER);
+                                    ACCSET_OTHER, LOAD_CONST);
     LIns *br = lir->insBranch(LIR_jt,
                               lir->insEqP_0(lir->ins2(LIR_andp,
                                                       length_ins,
