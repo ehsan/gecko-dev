@@ -2023,7 +2023,6 @@ TextPropertyEditor.prototype = {
     let outputParser = this.ruleEditor.ruleView._outputParser;
     let frag = outputParser.parseCssProperty(name, val, {
       colorSwatchClass: swatchClass,
-      colorClass: "ruleview-color",
       defaultColorType: !propDirty,
       urlClass: "theme-link",
       baseURI: this.sheetURI

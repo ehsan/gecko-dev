@@ -2009,14 +2009,14 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
             MResumePoint *rp = callerResumePoints[i];
             JSScript *script = rp->block()->info().script();
             types::TypeNewScript::Initializer entry(types::TypeNewScript::Initializer::SETPROP_FRAME,
-                                                    script->pcToOffset(rp->pc()));
+                                                    rp->pc() - script->code);
             if (!initializerList->append(entry))
                 return false;
         }
 
         JSScript *script = ins->block()->info().script();
         types::TypeNewScript::Initializer entry(types::TypeNewScript::Initializer::SETPROP,
-                                                script->pcToOffset(setprop->resumePoint()->pc()));
+                                                setprop->resumePoint()->pc() - script->code);
         if (!initializerList->append(entry))
             return false;
 

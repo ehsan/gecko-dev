@@ -1179,5 +1179,3 @@ nsresult nsLoadGroup::Init()
 
     return NS_OK;
 }
-
-#undef LOG

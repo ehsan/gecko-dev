@@ -16,7 +16,7 @@
 using namespace mozilla;
 using namespace mozilla::widget;
 
-const wchar_t
+const PRUnichar
 nsUXThemeData::kThemeLibraryName[] = L"uxtheme.dll";
 
 HANDLE

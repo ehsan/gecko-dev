@@ -2375,7 +2375,7 @@ HTMLInputElement::GetRootEditorNode()
   return nullptr;
 }
 
-NS_IMETHODIMP_(Element*)
+NS_IMETHODIMP_(nsIContent*)
 HTMLInputElement::CreatePlaceholderNode()
 {
   nsTextEditorState* state = GetEditorState();
@@ -2386,7 +2386,7 @@ HTMLInputElement::CreatePlaceholderNode()
   return nullptr;
 }
 
-NS_IMETHODIMP_(Element*)
+NS_IMETHODIMP_(nsIContent*)
 HTMLInputElement::GetPlaceholderNode()
 {
   nsTextEditorState* state = GetEditorState();

@@ -175,7 +175,7 @@ nsNumberControlFrame::AttributeChanged(int32_t  aNameSpaceID,
 }
 
 nsresult
-nsNumberControlFrame::MakeAnonymousElement(Element** aResult,
+nsNumberControlFrame::MakeAnonymousElement(nsIContent** aResult,
                                            nsTArray<ContentInfo>& aElements,
                                            nsIAtom* aTagName,
                                            nsCSSPseudoElements::Type aPseudoType,
@@ -183,7 +183,15 @@ nsNumberControlFrame::MakeAnonymousElement(Element** aResult,
 {
   // Get the NodeInfoManager and tag necessary to create the anonymous divs.
   nsCOMPtr<nsIDocument> doc = mContent->GetDocument();
-  nsRefPtr<Element> resultElement = doc->CreateHTMLElement(aTagName);
+
+  nsCOMPtr<nsINodeInfo> nodeInfo;
+  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(aTagName, nullptr,
+                                                 kNameSpaceID_XHTML,
+                                                 nsIDOMNode::ELEMENT_NODE);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
+  nsresult rv = NS_NewHTMLElement(aResult, nodeInfo.forget(),
+                                  dom::NOT_FROM_PARSER);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // If we legitimately fail this assertion and need to allow
   // non-pseudo-element anonymous children, then we'll need to add a branch
@@ -192,6 +200,7 @@ nsNumberControlFrame::MakeAnonymousElement(Element** aResult,
   NS_ASSERTION(aPseudoType != nsCSSPseudoElements::ePseudo_NotPseudoElement,
                "Expecting anonymous children to all be pseudo-elements");
   // Associate the pseudo-element with the anonymous child
+  Element* resultElement = (*aResult)->AsElement();
   nsRefPtr<nsStyleContext> newStyleContext =
     PresContext()->StyleSet()->ResolvePseudoElementStyle(mContent->AsElement(),
                                                          aPseudoType,
@@ -201,8 +210,6 @@ nsNumberControlFrame::MakeAnonymousElement(Element** aResult,
   if (!aElements.AppendElement(ContentInfo(resultElement, newStyleContext))) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
-
-  resultElement.forget(aResult);
   return NS_OK;
 }
 
@@ -370,30 +377,4 @@ nsNumberControlFrame::UpdateForValueChange(const nsAString& aValue)
   // since the default value is ignored once a user types into the text
   // control.
   HTMLInputElement::FromContent(mTextField)->SetValue(aValue);
-}
-
-Element*
-nsNumberControlFrame::GetPseudoElement(nsCSSPseudoElements::Type aType)
-{
-  if (aType == nsCSSPseudoElements::ePseudo_mozNumberWrapper) {
-    return mOuterWrapper;
-  }
-
-  if (aType == nsCSSPseudoElements::ePseudo_mozNumberText) {
-    return mTextField;
-  }
-
-  if (aType == nsCSSPseudoElements::ePseudo_mozNumberSpinBox) {
-    return mSpinBox;
-  }
-
-  if (aType == nsCSSPseudoElements::ePseudo_mozNumberSpinUp) {
-    return mSpinUp;
-  }
-
-  if (aType == nsCSSPseudoElements::ePseudo_mozNumberSpinDown) {
-    return mSpinDown;
-  }
-
-  return nsContainerFrame::GetPseudoElement(aType);
 }

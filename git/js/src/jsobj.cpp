@@ -1607,14 +1607,13 @@ js::CreateThisForFunction(JSContext *cx, HandleObject callee, NewObjectKind newK
 static bool
 Detecting(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
-    JS_ASSERT(script->containsPC(pc));
-
     /* General case: a branch or equality op follows the access. */
     JSOp op = JSOp(*pc);
     if (js_CodeSpec[op].format & JOF_DETECTING)
         return true;
 
-    jsbytecode *endpc = script->codeEnd();
+    jsbytecode *endpc = script->code + script->length;
+    JS_ASSERT(script->code <= pc && pc < endpc);
 
     if (op == JSOP_NULL) {
         /*
@@ -4068,7 +4067,7 @@ NativeGetInline(JSContext *cx,
               case JSOP_GETPROP:
               case JSOP_CALLPROP:
               case JSOP_LENGTH:
-                script->baselineScript()->noteAccessedGetter(script->pcToOffset(pc));
+                script->baselineScript()->noteAccessedGetter(pc - script->code);
                 break;
               default:
                 break;
@@ -5717,7 +5716,7 @@ js_DumpBacktrace(JSContext *cx)
         JSScript *script = i.script();
         sprinter.printf("#%d %14p   %s:%d (%p @ %d)\n",
                         depth, (i.isJit() ? 0 : i.interpFrame()), filename, line,
-                        script, script->pcToOffset(i.pc()));
+                        script, i.pc() - script->code);
     }
     fprintf(stdout, "%s", sprinter.string());
 }

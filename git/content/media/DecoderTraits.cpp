@@ -171,11 +171,10 @@ static const char* const gWebMTypes[3] = {
   nullptr
 };
 
-static char const *const gWebMCodecs[5] = {
+static char const *const gWebMCodecs[4] = {
   "vp8",
   "vp8.0",
   "vorbis",
-  "opus",
   nullptr
 };
 
@@ -389,7 +388,7 @@ DecoderTraits::CanHandleMediaType(const char* aMIMEType,
 #ifdef MOZ_WEBM
   if (IsWebMType(nsDependentCString(aMIMEType))) {
     codecList = gWebMCodecs;
-    result = CANPLAY_MAYBE;
+    result = CANPLAY_YES;
   }
 #endif
 #ifdef MOZ_GSTREAMER

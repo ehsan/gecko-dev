@@ -1335,6 +1335,3 @@ pref("network.disable.ipc.security", true);
 
 // CustomizableUI debug logging.
 pref("browser.uiCustomization.debug", false);
-
-// The URL of the Firefox Accounts auth server backend
-pref("identity.fxaccounts.auth.uri", "https://api-accounts.dev.lcip.org/v1");

@@ -14,7 +14,6 @@
 #include "nsICSSLoaderObserver.h"
 #include "txStack.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/Element.h"
 
 class nsIContent;
 class nsIDOMDocument;
@@ -97,7 +96,7 @@ private:
                                         // adding attributes to it).
                                         // until then the opened element is
                                         // kept in mOpenedElement
-    nsCOMPtr<mozilla::dom::Element> mOpenedElement;
+    nsCOMPtr<nsIContent> mOpenedElement;
     nsRefPtr<nsNodeInfoManager> mNodeInfoManager;
 
     nsCOMArray<nsINode> mCurrentNodeStack;

@@ -14,12 +14,6 @@ class nsIContent;
 class nsIDocument;
 class nsIDOMHTMLElement;
 
-namespace mozilla {
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
-
 class nsXULContextMenuBuilder : public nsIMenuBuilder,
                                 public nsIXULContextMenuBuilder
 {
@@ -37,7 +31,7 @@ public:
 protected:
   nsresult CreateElement(nsIAtom* aTag,
                          nsIDOMHTMLElement* aHTMLElement,
-                         mozilla::dom::Element** aResult);
+                         nsIContent** aResult);
 
   nsCOMPtr<nsIContent>          mFragment;
   nsCOMPtr<nsIDocument>         mDocument;

@@ -30,6 +30,10 @@ private:
     bool PossiblyHostPortUrl(const nsACString& aUrl);
     bool MakeAlternateURI(nsIURI *aURI);
     bool IsLikelyFTP(const nsCString& aHostSpec);
+    const char * GetFileSystemCharset();
+    const char * GetCharsetForUrlBar();
+
+    nsCString mFsCharset;
 };
 
 #endif

@@ -30,7 +30,6 @@ class nsNumberControlFrame MOZ_FINAL : public nsContainerFrame
   friend nsIFrame*
   NS_NewNumberControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  typedef mozilla::dom::Element Element;
   typedef mozilla::dom::HTMLInputElement HTMLInputElement;
   typedef mozilla::WidgetEvent WidgetEvent;
   typedef mozilla::WidgetGUIEvent WidgetGUIEvent;
@@ -106,11 +105,9 @@ public:
 
   void HandleFocusEvent(WidgetEvent* aEvent);
 
-  virtual Element* GetPseudoElement(nsCSSPseudoElements::Type aType) MOZ_OVERRIDE;
-
 private:
 
-  nsresult MakeAnonymousElement(Element** aResult,
+  nsresult MakeAnonymousElement(nsIContent** aResult,
                                 nsTArray<ContentInfo>& aElements,
                                 nsIAtom* aTagName,
                                 nsCSSPseudoElements::Type aPseudoType,
@@ -125,11 +122,11 @@ private:
    * The text field used to edit and show the number.
    * @see nsNumberControlFrame::CreateAnonymousContent.
    */
-  nsCOMPtr<Element> mOuterWrapper;
-  nsCOMPtr<Element> mTextField;
-  nsCOMPtr<Element> mSpinBox;
-  nsCOMPtr<Element> mSpinUp;
-  nsCOMPtr<Element> mSpinDown;
+  nsCOMPtr<nsIContent> mOuterWrapper;
+  nsCOMPtr<nsIContent> mTextField;
+  nsCOMPtr<nsIContent> mSpinBox;
+  nsCOMPtr<nsIContent> mSpinUp;
+  nsCOMPtr<nsIContent> mSpinDown;
   bool mHandlingInputEvent;
 };
 

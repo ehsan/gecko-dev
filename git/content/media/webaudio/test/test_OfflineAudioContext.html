@@ -51,7 +51,8 @@ addLoadEvent(function() {
   ctx.addEventListener("complete", function(e) {
     ok(e instanceof OfflineAudioCompletionEvent, "Correct event received");
     is(e.renderedBuffer.numberOfChannels, 2, "Correct expected number of buffers");
-    compareBuffers(e.renderedBuffer, buf);
+    compareBuffers(e.renderedBuffer.getChannelData(0), buf.getChannelData(0));
+    compareBuffers(e.renderedBuffer.getChannelData(1), buf.getChannelData(1));
 
     expectException(function() {
       ctx.startRendering();

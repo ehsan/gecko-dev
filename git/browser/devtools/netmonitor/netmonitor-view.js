@@ -52,7 +52,7 @@ const GENERIC_VARIABLES_VIEW_SETTINGS = {
   searchEnabled: true,
   editableValueTooltip: "",
   editableNameTooltip: "",
-  preventDisableOnChange: true,
+  preventDisableOnChage: true,
   preventDescriptorModifiers: true,
   eval: () => {},
   switch: () => {}

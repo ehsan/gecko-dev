@@ -12,7 +12,7 @@
 #include "nsITextControlElement.h"
 #include "nsITextControlFrame.h"
 #include "nsCycleCollectionParticipant.h"
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "mozilla/WeakPtr.h"
 
 class nsTextInputListener;
@@ -142,12 +142,12 @@ public:
 
   nsresult CreatePlaceholderNode();
 
-  mozilla::dom::Element* GetRootNode() {
+  nsIContent* GetRootNode() {
     if (!mRootNode)
       CreateRootNode();
     return mRootNode;
   }
-  mozilla::dom::Element* GetPlaceholderNode() {
+  nsIContent* GetPlaceholderNode() {
     return mPlaceholderDiv;
   }
 
@@ -267,8 +267,8 @@ private:
   nsRefPtr<nsTextInputSelectionImpl> mSelCon;
   RestoreSelectionState* mRestoringSelection;
   nsCOMPtr<nsIEditor> mEditor;
-  nsCOMPtr<mozilla::dom::Element> mRootNode;
-  nsCOMPtr<mozilla::dom::Element> mPlaceholderDiv;
+  nsCOMPtr<nsIContent> mRootNode;
+  nsCOMPtr<nsIContent> mPlaceholderDiv;
   nsTextControlFrame* mBoundFrame;
   nsTextInputListener* mTextListener;
   nsAutoPtr<nsCString> mValue;

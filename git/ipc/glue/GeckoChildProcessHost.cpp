@@ -755,7 +755,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
   // See XRE_InitChildProcess in nsEmbedFunction.
 
   // Win app model id
-  cmdLine.AppendLooseValue(mGroupId.get());
+  cmdLine.AppendLooseValue(std::wstring(mGroupId.get()));
 
   // Process id
   cmdLine.AppendLooseValue(UTF8ToWide(pidstring));

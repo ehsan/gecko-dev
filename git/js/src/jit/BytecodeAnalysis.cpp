@@ -42,10 +42,10 @@ struct CatchFinallyRange
 bool
 BytecodeAnalysis::init(TempAllocator &alloc, GSNCache &gsn)
 {
-    if (!infos_.growByUninitialized(script_->length()))
+    if (!infos_.growByUninitialized(script_->length))
         return false;
 
-    jsbytecode *end = script_->codeEnd();
+    jsbytecode *end = script_->code + script_->length;
 
     // Clear all BytecodeInfo.
     mozilla::PodZero(infos_.begin(), infos_.length());
@@ -53,12 +53,12 @@ BytecodeAnalysis::init(TempAllocator &alloc, GSNCache &gsn)
 
     Vector<CatchFinallyRange, 0, IonAllocPolicy> catchFinallyRanges(alloc);
 
-    for (jsbytecode *pc = script_->code(); pc < end; pc += GetBytecodeLength(pc)) {
+    for (jsbytecode *pc = script_->code; pc < end; pc += GetBytecodeLength(pc)) {
         JSOp op = JSOp(*pc);
-        unsigned offset = script_->pcToOffset(pc);
+        unsigned offset = pc - script_->code;
 
         IonSpew(IonSpew_BaselineOp, "Analyzing op @ %d (end=%d): %s",
-                int(script_->pcToOffset(pc)), int(script_->length()), js_CodeName[op]);
+                int(pc - script_->code), int(end - script_->code), js_CodeName[op]);
 
         // If this bytecode info has not yet been initialized, it's not reachable.
         if (!infos_[offset].initialized)
@@ -68,7 +68,7 @@ BytecodeAnalysis::init(TempAllocator &alloc, GSNCache &gsn)
         unsigned stackDepth = infos_[offset].stackDepth;
 #ifdef DEBUG
         for (jsbytecode *chkpc = pc + 1; chkpc < (pc + GetBytecodeLength(pc)); chkpc++)
-            JS_ASSERT(!infos_[script_->pcToOffset(chkpc)].initialized);
+            JS_ASSERT(!infos_[chkpc - script_->code].initialized);
 #endif
 
         unsigned nuses = GetUseCount(script_, offset);
@@ -134,7 +134,7 @@ BytecodeAnalysis::init(TempAllocator &alloc, GSNCache &gsn)
             while (!catchFinallyRanges.empty() && catchFinallyRanges.back().end <= offset)
                 catchFinallyRanges.popBack();
 
-            CatchFinallyRange range(script_->pcToOffset(endOfTry), script_->pcToOffset(afterTry));
+            CatchFinallyRange range(endOfTry - script_->code, afterTry - script_->code);
             if (!catchFinallyRanges.append(range))
                 return false;
             break;
@@ -191,14 +191,14 @@ BytecodeAnalysis::init(TempAllocator &alloc, GSNCache &gsn)
             infos_[targetOffset].jumpTarget = true;
 
             if (jumpBack)
-                pc = script_->offsetToPC(targetOffset);
+                pc = script_->code + targetOffset;
         }
 
         // Handle any fallthrough from this opcode.
         if (BytecodeFallsThrough(op)) {
             jsbytecode *nextpc = pc + GetBytecodeLength(pc);
             JS_ASSERT(nextpc < end);
-            unsigned nextOffset = script_->pcToOffset(nextpc);
+            unsigned nextOffset = nextpc - script_->code;
 
             infos_[nextOffset].init(stackDepth);
 

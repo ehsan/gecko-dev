@@ -305,9 +305,7 @@ CompositorOGL::GetTemporaryTexture(GLenum aTextureUnit)
   }
   // lazily initialize the temporary textures
   if (!mTextures[index]) {
-    if (!gl()->MakeCurrent()) {
-      return 0;
-    }
+    gl()->MakeCurrent();
     gl()->fGenTextures(1, &mTextures[index]);
   }
   return mTextures[index];
@@ -316,7 +314,8 @@ CompositorOGL::GetTemporaryTexture(GLenum aTextureUnit)
 void
 CompositorOGL::Destroy()
 {
-  if (gl() && gl()->MakeCurrent()) {
+  if (gl()) {
+    gl()->MakeCurrent();
     if (mTextures.Length() > 0) {
       gl()->fDeleteTextures(mTextures.Length(), &mTextures[0]);
     }
@@ -347,11 +346,7 @@ CompositorOGL::CleanupResources()
 
   mPrograms.Clear();
 
-  if (!ctx->MakeCurrent()) {
-    mQuadVBO = 0;
-    mGLContext = nullptr;
-    return;
-  }
+  ctx->MakeCurrent();
 
   ctx->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
 

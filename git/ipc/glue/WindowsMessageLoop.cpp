@@ -70,7 +70,7 @@ using namespace mozilla::ipc::windows;
 
 #if defined(ACCESSIBILITY)
 // pulled from accessibility's win utils
-extern const wchar_t* kPropNameTabContent;
+extern const PRUnichar* kPropNameTabContent;
 #endif
 
 // widget related message id constants we need to defer

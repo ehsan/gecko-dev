@@ -121,6 +121,7 @@ public:
 
     bool Init()
     {
+        MakeCurrent();
         if (!InitWithPrefix("gl", true))
             return false;
 

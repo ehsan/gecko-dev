@@ -24,7 +24,6 @@ loader.lazyServiceGetter(this, "gActivityDistributor",
 loader.lazyImporter(this, "gDevTools", "resource:///modules/devtools/gDevTools.jsm");
 loader.lazyImporter(this, "devtools", "resource://gre/modules/devtools/Loader.jsm");
 loader.lazyImporter(this, "VariablesView", "resource:///modules/devtools/VariablesView.jsm");
-loader.lazyImporter(this, "DevToolsUtils", "resource://gre/modules/devtools/DevToolsUtils.jsm");
 
 // Match the function name from the result of toString() or toSource().
 //
@@ -795,249 +794,289 @@ function JSPropertyProvider(aDbgObject, anEnvironment, aInputValue, aCursor)
     return null;
   }
 
+  let matches = null;
+  let matchProp = "";
+
   let lastDot = completionPart.lastIndexOf(".");
   if (lastDot > 0 &&
       (completionPart[0] == "'" || completionPart[0] == '"') &&
       completionPart[lastDot - 1] == completionPart[0]) {
     // We are completing a string literal.
-    let matchProp = completionPart.slice(lastDot + 1);
-    return getMatchedProps(String.prototype, matchProp);
+    let obj = String.prototype;
+    matchProp = completionPart.slice(lastDot + 1);
+    let matches = Object.keys(getMatchedProps(obj, {matchProp:matchProp}));
+
+    return {
+      matchProp: matchProp,
+      matches: matches,
+    };
   }
+  else {
+    // We are completing a variable / a property lookup.
+    let properties = completionPart.split(".");
+    if (properties.length > 1) {
+      matchProp = properties.pop().trimLeft();
+      let obj;
 
-  // We are completing a variable / a property lookup.
-  let properties = completionPart.split(".");
-  let matchProp = properties.pop().trimLeft();
-  let obj = aDbgObject;
+      //The first property must be found in the environment or the Debugger.Object 
+      //depending of whether the debugger is paused or not
+      let prop = properties[0];
+      if (anEnvironment) {
+        obj = getVariableInEnvironment(anEnvironment, prop);
+      }
+      else {
+        obj = getPropertyInDebuggerObject(aDbgObject, prop);
+      }
+      if (obj == null) {
+        return null;
+      }
 
-  // The first property must be found in the environment if the debugger is
-  // paused.
-  if (anEnvironment) {
-    if (properties.length == 0) {
-      return getMatchedPropsInEnvironment(anEnvironment, matchProp);
+      //We get the rest of the properties recursively starting from the Debugger.Object
+      // that wraps the first property
+      for (let i = 1; i < properties.length; i++) {
+        let prop = properties[i].trim();
+        if (!prop) {
+          return null;
+        }
+
+        obj = getPropertyInDebuggerObject(obj, prop);
+
+        // If obj is undefined or null (which is what "== null" does),
+        // then there is no chance to run completion on it. Exit here.
+        if (obj == null) {
+          return null;
+        }
+      }
+
+      // If the final property is a primitive
+      if (typeof obj != 'object' || obj === null) {
+        matchProp = completionPart.slice(lastDot + 1);
+        let matches = Object.keys(getMatchedProps(obj, {matchProp:matchProp}));
+
+        return {
+          matchProp: matchProp,
+          matches: matches,
+        };
+      }
+      return getMatchedPropsInDbgObject(obj, matchProp);
     }
-    obj = getVariableInEnvironment(anEnvironment, properties.shift());
-  }
+    else {
+      matchProp = properties[0].trimLeft();
+      if (anEnvironment) {
+        return getMatchedPropsInEnvironment(anEnvironment, matchProp);
+      }
+      else {
+        if (typeof aDbgObject != 'object' || aDbgObject === null) {
+          matchProp = completionPart.slice(lastDot + 1);
+          let matches = Object.keys(getMatchedProps(aDbgObject, {matchProp:matchProp}));
 
-  if (!isObjectUsable(obj)) {
-    return null;
+          return {
+            matchProp: matchProp,
+            matches: matches,
+          };
+        }
+        return getMatchedPropsInDbgObject(aDbgObject, matchProp);
+      }
+    }
   }
+}
 
-  // We get the rest of the properties recursively starting from the Debugger.Object
-  // that wraps the first property
-  for (let prop of properties) {
-    prop = prop.trim();
-    if (!prop) {
+/**
+ * Returns the value of aProp in anEnvironment as a debuggee value, by recursively checking the environment chain
+ *
+ * @param object anEnvironment
+ *        A Debugger.Environment to look the aProp into.
+ * @param string aProp
+ *        The property that is looked up.
+ * @returns null or object
+ *        A Debugger.Object if aProp exists in the environment chain, null otherwise.
+ */
+function getVariableInEnvironment(anEnvironment, aProp)
+{
+  for (let env = anEnvironment; env; env = env.parent) {
+    try {
+      let obj = env.getVariable(aProp);
+      if (obj) {
+        return obj;
+      }
+    }
+    catch (ex) {
       return null;
     }
+  }
+  return null;
+}
 
-    obj = DevToolsUtils.getProperty(obj, prop);
-
-    if (!isObjectUsable(obj)) {
+/**
+ * Returns the value of aProp in aDbgObject as a debuggee value, by recursively checking the prototype chain
+ *
+ * @param object aDbgObject
+ *        A Debugger.Object to look the aProp into.
+ * @param string aProp
+ *        The property that is looked up.
+ * @returns null or object
+ *        A Debugger.Object if aProp exists in the prototype chain, null otherwise.
+ */
+function getPropertyInDebuggerObject(aDbgObject, aProp)
+{
+  let dbgObject = aDbgObject;
+  while (dbgObject) {
+    try {
+      let desc = dbgObject.getOwnPropertyDescriptor(aProp)
+      if (desc) {
+        let obj = desc.value;
+        if (obj)
+          return obj;
+        obj = desc.get;
+        if (obj)
+          return obj;
+      }
+      dbgObject = dbgObject.proto;
+    }
+    catch (ex) {
       return null;
     }
   }
-
-  // If the final property is a primitive
-  if (typeof obj != "object") {
-    return getMatchedProps(obj, matchProp);
-  }
-
-  return getMatchedPropsInDbgObject(obj, matchProp);
+  return null;
 }
 
 /**
- * Check if the given Debugger.Object can be used for autocomplete.
+ * Get all properties on the given Debugger.Environment (and its parent chain) that match a given prefix.
  *
- * @param Debugger.Object aObject
- *        The Debugger.Object to check.
- * @return boolean
- *         True if further inspection into the object is possible, or false
- *         otherwise.
- */
-function isObjectUsable(aObject)
-{
-  if (aObject == null) {
-    return false;
-  }
-
-  if (typeof aObject == "object" && aObject.class == "DeadObject") {
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * @see getExactMatch_impl()
- */
-function getVariableInEnvironment(anEnvironment, aName)
-{
-  return getExactMatch_impl(anEnvironment, aName, DebuggerEnvironmentSupport);
-}
-
-/**
- * @see getMatchedProps_impl()
- */
-function getMatchedPropsInEnvironment(anEnvironment, aMatch)
-{
-  return getMatchedProps_impl(anEnvironment, aMatch, DebuggerEnvironmentSupport);
-}
-
-/**
- * @see getMatchedProps_impl()
- */
-function getMatchedPropsInDbgObject(aDbgObject, aMatch)
-{
-  return getMatchedProps_impl(aDbgObject, aMatch, DebuggerObjectSupport);
-}
-
-/**
- * @see getMatchedProps_impl()
- */
-function getMatchedProps(aObj, aMatch)
-{
-  if (typeof aObj != "object") {
-    aObj = aObj.constructor.prototype;
-  }
-  return getMatchedProps_impl(aObj, aMatch, JSObjectSupport);
-}
-
-/**
- * Get all properties in the given object (and its parent prototype chain) that
- * match a given prefix.
+ * @param Debugger.Environment anEnvironment
+ *        Debugger.Environment whose properties we want to filter.
  *
- * @param mixed aObj
- *        Object whose properties we want to filter.
- * @param string aMatch
- *        Filter for properties that match this string.
+ * @param string matchProp Filter for properties that match this one.
+ *
  * @return object
  *         Object that contains the matchProp and the list of names.
  */
-function getMatchedProps_impl(aObj, aMatch, {chainIterator, getProperties})
+function getMatchedPropsInEnvironment(anEnvironment, matchProp)
 {
-  let matches = new Set();
-
-  // We need to go up the prototype chain.
-  let iter = chainIterator(aObj);
-  for (let obj of iter) {
-    let props = getProperties(obj);
-    for (let prop of props) {
-      if (prop.indexOf(aMatch) != 0) {
+  let names = Object.create(null);
+  let c = MAX_COMPLETIONS;
+  for (let env = anEnvironment; env; env = env.parent) {
+    let ownNames = env.names();
+    for (let i = 0; i < ownNames.length; i++) {
+      if (ownNames[i].indexOf(matchProp) != 0 ||
+        ownNames[i] in names) {
         continue;
       }
-
-      // If it is an array index, we can't take it.
-      // This uses a trick: converting a string to a number yields NaN if
-      // the operation failed, and NaN is not equal to itself.
-      if (+prop != +prop) {
-        matches.add(prop);
+      c--;
+      if (c < 0) {
+        return {
+          matchProp: matchProp,
+          matches: Object.keys(names)
+        };
       }
-
-      if (matches.size > MAX_COMPLETIONS) {
-        break;
-      }
-    }
-
-    if (matches.size > MAX_COMPLETIONS) {
-      break;
+      names[ownNames[i]] = true;
     }
   }
-
   return {
-    matchProp: aMatch,
-    matches: [...matches],
+    matchProp: matchProp,
+    matches: Object.keys(names)
   };
 }
 
 /**
- * Returns a property value based on its name from the given object, by
- * recursively checking the object's prototype.
+ * Get all properties on the given Debugger.Object (and the prototype chain of the wrapped value) that match a given prefix.
  *
- * @param object aObj
- *        An object to look the property into.
- * @param string aName
- *        The property that is looked up.
- * @returns object|undefined
- *        A Debugger.Object if the property exists in the object's prototype
- *        chain, undefined otherwise.
+ * @param Debugger.Object aDbgObject
+ *        Debugger.Object whose properties we want to filter.
+ *
+ * @param string matchProp Filter for properties that match this one.
+ *
+ * @return object
+ *         Object that contains the matchProp and the list of names.
  */
-function getExactMatch_impl(aObj, aName, {chainIterator, getProperty})
+function getMatchedPropsInDbgObject(aDbgObject, matchProp)
 {
-  // We need to go up the prototype chain.
-  let iter = chainIterator(aObj);
-  for (let obj of iter) {
-    let prop = getProperty(obj, aName, aObj);
-    if (prop) {
-      return prop.value;
+  let names = Object.create(null);
+  let c = MAX_COMPLETIONS;
+  for (let dbg = aDbgObject; dbg; dbg = dbg.proto) {
+    let raw = dbg.unsafeDereference();
+    if (Cu.isDeadWrapper(raw)) {
+      return null;
+    }
+    let ownNames = dbg.getOwnPropertyNames();
+    for (let i = 0; i < ownNames.length; i++) {
+      if (ownNames[i].indexOf(matchProp) != 0 ||
+        ownNames[i] in names) {
+        continue;
+      }
+      c--;
+      if (c < 0) {
+        return {
+          matchProp: matchProp,
+          matches: Object.keys(names)
+        };
+      }
+      names[ownNames[i]] = true;
     }
   }
-  return undefined;
+  return {
+    matchProp: matchProp,
+    matches: Object.keys(names)
+  };
 }
 
+/**
+ * Get all accessible properties on this JS value.
+ * Filter those properties by name.
+ * Take only a certain number of those.
+ *
+ * @param mixed aObj
+ *        JS value whose properties we want to collect.
+ *
+ * @param object aOptions
+ *        Options that the algorithm takes.
+ *        - matchProp (string): Filter for properties that match this one.
+ *          Defaults to the empty string (which always matches).
+ *
+ * @return object
+ *         Object whose keys are all accessible properties on the object.
+ */
+function getMatchedProps(aObj, aOptions = {matchProp: ""})
+{
+  // Argument defaults.
+  aOptions.matchProp = aOptions.matchProp || "";
 
-let JSObjectSupport = {
-  chainIterator: function(aObj)
-  {
-    while (aObj) {
-      yield aObj;
-      aObj = Object.getPrototypeOf(aObj);
+  if (aObj == null) { return {}; }
+  try {
+    Object.getPrototypeOf(aObj);
+  } catch(e) {
+    aObj = aObj.constructor.prototype;
+  }
+  let c = MAX_COMPLETIONS;
+  let names = Object.create(null);   // Using an Object to avoid duplicates.
+
+  // We need to go up the prototype chain.
+  let ownNames = null;
+  while (aObj !== null) {
+    ownNames = Object.getOwnPropertyNames(aObj);
+    for (let i = 0; i < ownNames.length; i++) {
+      // Filtering happens here.
+      // If we already have it in, no need to append it.
+      if (ownNames[i].indexOf(aOptions.matchProp) != 0 ||
+          ownNames[i] in names) {
+        continue;
+      }
+      c--;
+      if (c < 0) {
+        return names;
+      }
+      // If it is an array index, we can't take it.
+      // This uses a trick: converting a string to a number yields NaN if
+      // the operation failed, and NaN is not equal to itself.
+      if (+ownNames[i] != +ownNames[i]) {
+        names[ownNames[i]] = true;
+      }
     }
-  },
+    aObj = Object.getPrototypeOf(aObj);
+  }
 
-  getProperties: function(aObj)
-  {
-    return Object.getOwnPropertyNames(aObj);
-  },
-
-  getProperty: function()
-  {
-    // getProperty is unsafe with raw JS objects.
-    throw "Unimplemented!";
-  },
-};
-
-let DebuggerObjectSupport = {
-  chainIterator: function(aObj)
-  {
-    while (aObj) {
-      yield aObj;
-      aObj = aObj.proto;
-    }
-  },
-
-  getProperties: function(aObj)
-  {
-    return aObj.getOwnPropertyNames();
-  },
-
-  getProperty: function(aObj, aName, aRootObj)
-  {
-    // This is left unimplemented in favor to DevToolsUtils.getProperty().
-    throw "Unimplemented!";
-  },
-};
-
-let DebuggerEnvironmentSupport = {
-  chainIterator: function(aObj)
-  {
-    while (aObj) {
-      yield aObj;
-      aObj = aObj.parent;
-    }
-  },
-
-  getProperties: function(aObj)
-  {
-    return aObj.names();
-  },
-
-  getProperty: function(aObj, aName)
-  {
-    // TODO: we should use getVariableDescriptor() here - bug 725815.
-    let result = aObj.getVariable(aName);
-    return result === undefined ? null : { value: result };
-  },
-};
+  return names;
+}
 
 
 exports.JSPropertyProvider = JSPropertyProvider;
