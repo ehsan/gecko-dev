@@ -281,7 +281,6 @@ public:
   void GetAgeInDaysString(PRInt32 aInt, const PRUnichar *aName,
                           nsACString& aResult);
   void GetMonthName(PRInt32 aIndex, nsACString& aResult);
-  void GetMonthYear(PRInt32 aMonth, PRInt32 aYear, nsACString& aResult);
 
   // Returns whether history is enabled or not.
   PRBool IsHistoryDisabled() {

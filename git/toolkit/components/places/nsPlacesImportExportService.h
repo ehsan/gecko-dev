@@ -11,6 +11,7 @@
 #include "nsILivemarkService.h"
 #include "nsINavHistoryService.h"
 #include "nsINavBookmarksService.h"
+#include "nsIMicrosummaryService.h"
 #include "nsIChannel.h"
 
 class nsPlacesImportExportService : public nsIPlacesImportExportService,
@@ -42,6 +43,7 @@ class nsPlacesImportExportService : public nsIPlacesImportExportService,
     nsCOMPtr<nsINavBookmarksService> mBookmarksService;
     nsCOMPtr<nsINavHistoryService> mHistoryService;
     nsCOMPtr<nsILivemarkService> mLivemarkService;
+    nsCOMPtr<nsIMicrosummaryService> mMicrosummaryService;
 
     nsCOMPtr<nsIChannel> mImportChannel;
     PRBool mIsImportDefaults;
@@ -65,6 +67,7 @@ class nsPlacesImportExportService : public nsIPlacesImportExportService,
       NS_ENSURE_STATE(mAnnotationService);
       NS_ENSURE_STATE(mBookmarksService);
       NS_ENSURE_STATE(mLivemarkService);
+      NS_ENSURE_STATE(mMicrosummaryService);
       return NS_OK;
     }
 };
