@@ -570,12 +570,9 @@ BluetoothHfpManager::ProcessVolumeControl(bthf_volume_type_t aType,
   if (aType == BTHF_VOLUME_TYPE_MIC) {
     mCurrentVgm = aVolume;
   } else if (aType == BTHF_VOLUME_TYPE_SPK) {
+    // Adjust volume by headset
     mReceiveVgsFlag = true;
-
-    if (aVolume == mCurrentVgs) {
-      // Keep current volume
-      return;
-    }
+    NS_ENSURE_TRUE_VOID(aVolume != mCurrentVgs);
 
     nsString data;
     data.AppendInt(aVolume);
@@ -854,7 +851,10 @@ BluetoothHfpManager::HandleVoiceConnectionChanged(uint32_t aClientId)
   // Signal
   JS::Value value;
   voiceInfo->GetRelSignalStrength(&value);
-  NS_ENSURE_TRUE_VOID(value.isNumber());
+  if (!value.isNumber()) {
+    BT_WARNING("Failed to get relSignalStrength in BluetoothHfpManager");
+    return;
+  }
   mSignal = (int)ceil(value.toNumber() / 20.0);
 
   UpdateDeviceCIND();

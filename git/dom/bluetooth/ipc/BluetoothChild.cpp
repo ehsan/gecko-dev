@@ -21,7 +21,7 @@ USING_BLUETOOTH_NAMESPACE
 
 namespace {
 
-BluetoothServiceChildProcess* sBluetoothService;
+BluetoothServiceChildProcess* gBluetoothService;
 
 } // anonymous namespace
 
@@ -33,19 +33,19 @@ BluetoothChild::BluetoothChild(BluetoothServiceChildProcess* aBluetoothService)
 : mShutdownState(Running)
 {
   MOZ_COUNT_CTOR(BluetoothChild);
-  MOZ_ASSERT(!sBluetoothService);
+  MOZ_ASSERT(!gBluetoothService);
   MOZ_ASSERT(aBluetoothService);
 
-  sBluetoothService = aBluetoothService;
+  gBluetoothService = aBluetoothService;
 }
 
 BluetoothChild::~BluetoothChild()
 {
   MOZ_COUNT_DTOR(BluetoothChild);
-  MOZ_ASSERT(sBluetoothService);
+  MOZ_ASSERT(gBluetoothService);
   MOZ_ASSERT(mShutdownState == Dead);
 
-  sBluetoothService = nullptr;
+  gBluetoothService = nullptr;
 }
 
 void
@@ -61,9 +61,9 @@ BluetoothChild::BeginShutdown()
 void
 BluetoothChild::ActorDestroy(ActorDestroyReason aWhy)
 {
-  MOZ_ASSERT(sBluetoothService);
+  MOZ_ASSERT(gBluetoothService);
 
-  sBluetoothService->NoteDeadActor();
+  gBluetoothService->NoteDeadActor();
 
 #ifdef DEBUG
   mShutdownState = Dead;
@@ -73,18 +73,18 @@ BluetoothChild::ActorDestroy(ActorDestroyReason aWhy)
 bool
 BluetoothChild::RecvNotify(const BluetoothSignal& aSignal)
 {
-  MOZ_ASSERT(sBluetoothService);
+  MOZ_ASSERT(gBluetoothService);
 
-  sBluetoothService->DistributeSignal(aSignal);
+  gBluetoothService->DistributeSignal(aSignal);
   return true;
 }
 
 bool
 BluetoothChild::RecvEnabled(const bool& aEnabled)
 {
-  MOZ_ASSERT(sBluetoothService);
+  MOZ_ASSERT(gBluetoothService);
 
-  sBluetoothService->SetEnabled(aEnabled);
+  gBluetoothService->SetEnabled(aEnabled);
   return true;
 }
 

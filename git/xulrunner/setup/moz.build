@@ -4,16 +4,18 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-EXTRA_JS_MODULES += [
-    'ContactService.jsm',
-    'HelperApps.jsm',
-    'Home.jsm',
-    'JNI.jsm',
-    'LightweightThemeConsumer.jsm',
-    'Notifications.jsm',
-    'OrderedBroadcast.jsm',
-    'Prompt.jsm',
-    'Sanitizer.jsm',
-    'SharedPreferences.jsm',
-    'SimpleServiceDiscovery.jsm',
+XPIDL_SOURCES += [
+    'nsIXULAppInstall.idl',
 ]
+
+XPIDL_MODULE = 'xulapp_setup'
+
+EXTRA_COMPONENTS += [
+    'nsXULAppInstall.manifest',
+]
+
+EXTRA_PP_COMPONENTS += [
+    'nsXULAppInstall.js',
+]
+
+DEFINES['BIN_SUFFIX'] = CONFIG['BIN_SUFFIX']
