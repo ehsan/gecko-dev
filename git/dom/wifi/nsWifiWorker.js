@@ -757,10 +757,10 @@ var WifiManager = (function() {
   }
 
   function ipToString(n) {
-    return String((n >>  0) & 0xFF) + "." +
-                 ((n >>  8) & 0xFF) + "." +
-                 ((n >> 16) & 0xFF) + "." +
-                 ((n >> 24) & 0xFF);
+    return String((n & (0xff << 24)) >> 24) + "." +
+                 ((n & (0xff << 16)) >> 16) + "." +
+                 ((n & (0xff <<  8)) >>  8) + "." +
+                 ((n & (0xff <<  0)) >>  0);
   }
 
   manager.enableNetwork = function(netId, disableOthers, callback) {

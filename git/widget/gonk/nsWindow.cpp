@@ -41,7 +41,6 @@
 #include "android/log.h"
 #include "ui/FramebufferNativeWindow.h"
 
-#include "mozilla/Hal.h"
 #include "Framebuffer.h"
 #include "gfxContext.h"
 #include "gfxUtils.h"
@@ -102,11 +101,6 @@ nsWindow::~nsWindow()
 void
 nsWindow::DoDraw(void)
 {
-    if (!hal::GetScreenEnabled()) {
-        gDrawRequest = true;
-        return;
-    }
-
     if (!gWindowToRedraw) {
         LOG("  no window to draw, bailing");
         return;
@@ -302,7 +296,8 @@ nsWindow::ConfigureChildren(const nsTArray<nsIWidget::Configuration>&)
 }
 
 NS_IMETHODIMP
-nsWindow::Invalidate(const nsIntRect &aRect)
+nsWindow::Invalidate(const nsIntRect &aRect,
+                     bool aIsSynchronous)
 {
     nsWindow *parent = mParent;
     while (parent && parent != sTopWindows[0])
@@ -312,8 +307,20 @@ nsWindow::Invalidate(const nsIntRect &aRect)
 
     mDirtyRegion.Or(mDirtyRegion, aRect);
     gWindowToRedraw = this;
-    gDrawRequest = true;
-    mozilla::NotifyEvent();
+    if (aIsSynchronous) {
+        gDrawRequest = false;
+        DoDraw();
+    } else {
+        gDrawRequest = true;
+        mozilla::NotifyEvent();
+    }
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsWindow::Update()
+{
+    Invalidate(gScreenBounds, false);
     return NS_OK;
 }
 
@@ -435,7 +442,7 @@ nsWindow::BringToTop()
 
     nsGUIEvent event(true, NS_ACTIVATE, this);
     (*mEventCallback)(&event);
-    Invalidate(gScreenBounds);
+    Update();
 }
 
 void
