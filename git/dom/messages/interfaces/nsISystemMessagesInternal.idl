@@ -56,12 +56,13 @@ interface nsISystemMessagesWrapper: nsISupports
  * Implements an interface to allow specific message types to
  * configure some behaviors
  */
-[scriptable, uuid(a0e970f6-faa9-4605-89d6-fafae8b10a80)]
+[scriptable, uuid(8a71981b-a462-4697-b63c-925997f9d47b)]
 interface nsISystemMessagesConfigurator: nsISupports
 {
   /*
-   * Will be true if this type of system messages assumes/requires
-   * that the app will be brought to the front always.
+   * Will be true if this type of system messages is safe to send
+   * before the frontend has activated the app to process it.
+   * The default value (if there's no overriding class) is true
    */
-  readonly attribute boolean mustShowRunningApp;
+  readonly attribute boolean safeToSendBeforeRunningApp;
 };

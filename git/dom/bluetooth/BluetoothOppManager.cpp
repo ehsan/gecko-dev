@@ -341,7 +341,7 @@ void
 BluetoothOppManager::StartSendingNextFile()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(!IsConnected());
+  MOZ_ASSERT(!IsTransferring());
   MOZ_ASSERT(mBlobs.Length() > mCurrentBlobIndex + 1);
 
   mIsServer = false;
@@ -1104,7 +1104,7 @@ BluetoothOppManager::CheckPutFinal(uint32_t aNumRead)
 }
 
 bool
-BluetoothOppManager::IsConnected()
+BluetoothOppManager::IsTransferring()
 {
   return (mConnected && !mSendTransferCompleteFlag);
 }
