@@ -501,7 +501,16 @@ var gViewController = {
     cmd_restartApp: {
       isEnabled: function() true,
       doCommand: function() {
-        Application.restart();
+        let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"].
+                         createInstance(Ci.nsISupportsPRBool);
+        Services.obs.notifyObservers(cancelQuit, "quit-application-requested",
+                                     "restart");
+        if (cancelQuit.data)
+          return; // somebody canceled our quit request
+
+        let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"].
+                         getService(Ci.nsIAppStartup);
+        appStartup.quit(Ci.nsIAppStartup.eAttemptQuit |  Ci.nsIAppStartup.eRestart);
       }
     },
 
@@ -1445,13 +1454,18 @@ var gSearchView = {
   },
 
   hide: function() {
+    // Uninstalling add-ons can mutate the list so find the add-ons first then
+    // uninstall them
+    var items = [];
     var listitem = this._listBox.firstChild;
     while (listitem) {
       if (listitem.getAttribute("pending") == "uninstall" &&
           !listitem.isPending("uninstall"))
-        listitem.mAddon.uninstall();
+        items.push(listitem.mAddon);
       listitem = listitem.nextSibling;
     }
+
+    items.forEach(function(aAddon) { aAddon.uninstall(); });
   },
 
   getMatchScore: function(aObj, aQuery) {
@@ -1611,13 +1625,18 @@ var gListView = {
   hide: function() {
     gEventManager.unregisterInstallListener(this);
 
+    // Uninstalling add-ons can mutate the list so find the add-ons first then
+    // uninstall them
+    var items = [];
     var listitem = this._listBox.firstChild;
     while (listitem) {
       if (listitem.getAttribute("pending") == "uninstall" &&
           !listitem.isPending("uninstall"))
-        listitem.mAddon.uninstall();
+        items.push(listitem.mAddon);
       listitem = listitem.nextSibling;
     }
+
+    items.forEach(function(aAddon) { aAddon.uninstall(); });
   },
 
   showEmptyNotice: function(aShow) {
