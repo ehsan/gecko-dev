@@ -45,6 +45,15 @@ Accessible::ARIARole()
 }
 
 inline bool
+Accessible::IsSearchbox() const
+{
+  return (mRoleMapEntry && mRoleMapEntry->Is(nsGkAtoms::searchbox)) ||
+    (mContent->IsHTMLElement(nsGkAtoms::input) &&
+     mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
+                           nsGkAtoms::textInputType, eCaseMatters));
+}
+
+inline bool
 Accessible::HasGenericType(AccGenericType aType) const
 {
   return (mGenericTypes & aType) ||
@@ -65,14 +74,6 @@ Accessible::ScrollTo(uint32_t aHow) const
 {
   if (mContent)
     nsCoreUtils::ScrollTo(mDoc->PresShell(), mContent, aHow);
-}
-
-inline bool
-Accessible::UpdateChildren()
-{
-  AutoTreeMutation mut(this);
-  InvalidateChildren();
-  return EnsureChildren();
 }
 
 } // namespace a11y

@@ -7,14 +7,13 @@
 #ifndef js_CharacterEncoding_h
 #define js_CharacterEncoding_h
 
-#include "mozilla/NullPtr.h"
 #include "mozilla/Range.h"
 
 #include "js/TypeDecls.h"
 #include "js/Utility.h"
 
 namespace js {
-struct ThreadSafeContext;
+class ExclusiveContext;
 }
 
 class JSFlatString;
@@ -152,17 +151,13 @@ typedef mozilla::RangedPtr<const char16_t> ConstCharPtr;
 /*
  * Like TwoByteChars, but the chars are const.
  */
-class ConstTwoByteChars : public mozilla::RangedPtr<const char16_t>
+class ConstTwoByteChars : public mozilla::Range<const char16_t>
 {
-  public:
-    ConstTwoByteChars(const ConstTwoByteChars &s) : ConstCharPtr(s) {}
-    MOZ_IMPLICIT ConstTwoByteChars(const mozilla::RangedPtr<const char16_t> &s) : ConstCharPtr(s) {}
-    ConstTwoByteChars(const char16_t *s, size_t len) : ConstCharPtr(s, len) {}
-    ConstTwoByteChars(const char16_t *pos, const char16_t *start, size_t len)
-      : ConstCharPtr(pos, start, len)
-    {}
+    typedef mozilla::Range<const char16_t> Base;
 
-    using ConstCharPtr::operator=;
+  public:
+    ConstTwoByteChars() : Base() {}
+    ConstTwoByteChars(const char16_t *aChars, size_t aLength) : Base(aChars, aLength) {}
 };
 
 /*
@@ -176,12 +171,12 @@ class ConstTwoByteChars : public mozilla::RangedPtr<const char16_t>
  * This method cannot trigger GC.
  */
 extern Latin1CharsZ
-LossyTwoByteCharsToNewLatin1CharsZ(js::ThreadSafeContext *cx,
+LossyTwoByteCharsToNewLatin1CharsZ(js::ExclusiveContext *cx,
                                    const mozilla::Range<const char16_t> tbchars);
 
 template <typename CharT>
 extern UTF8CharsZ
-CharsToNewUTF8CharsZ(js::ThreadSafeContext *cx, const mozilla::Range<const CharT> chars);
+CharsToNewUTF8CharsZ(js::ExclusiveContext *cx, const mozilla::Range<const CharT> chars);
 
 uint32_t
 Utf8ToOneUcs4Char(const uint8_t *utf8Buffer, int utf8Length);

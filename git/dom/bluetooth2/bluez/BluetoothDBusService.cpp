@@ -44,8 +44,8 @@
 #include "mozilla/ipc/DBusUtils.h"
 #include "mozilla/ipc/RawDBusConnection.h"
 #include "mozilla/LazyIdleThread.h"
+#include "mozilla/Monitor.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/NullPtr.h"
 #include "mozilla/StaticMutex.h"
 #include "mozilla/unused.h"
 
@@ -141,6 +141,38 @@ public:
     if (!IsEnabled()) {
       return true;
     }
+
+    BluetoothProfileManagerBase* profile;
+    profile = BluetoothHfpManager::Get();
+    NS_ENSURE_TRUE(profile, false);
+    if (profile->IsConnected()) {
+      profile->Disconnect(nullptr);
+    } else {
+      profile->Reset();
+    }
+
+    profile = BluetoothOppManager::Get();
+    NS_ENSURE_TRUE(profile, false);
+    if (profile->IsConnected()) {
+      profile->Disconnect(nullptr);
+    }
+
+    profile = BluetoothA2dpManager::Get();
+    NS_ENSURE_TRUE(profile, false);
+    if (profile->IsConnected()) {
+      profile->Disconnect(nullptr);
+    } else {
+      profile->Reset();
+    }
+
+    profile = BluetoothHidManager::Get();
+    NS_ENSURE_TRUE(profile, false);
+    if (profile->IsConnected()) {
+      profile->Disconnect(nullptr);
+    } else {
+      profile->Reset();
+    }
+
     // 0 == success, -1 == error
     return !m_bt_disable();
   }
@@ -376,6 +408,18 @@ DispatchToBtThread(nsIRunnable* aRunnable)
   return sBluetoothThread->Dispatch(aRunnable, NS_DISPATCH_NORMAL);
 }
 
+static void
+DispatchBluetoothReply(BluetoothReplyRunnable* aRunnable,
+                       const BluetoothValue& aValue,
+                       const nsAString& aErrorStr)
+{
+  if (!aErrorStr.IsEmpty()) {
+    DispatchReplyError(aRunnable, aErrorStr);
+  } else {
+    DispatchReplySuccess(aRunnable, aValue);
+  }
+}
+
 BluetoothDBusService::BluetoothDBusService()
 {
   sGetPropertyMonitor = new Monitor("BluetoothService.sGetPropertyMonitor");
@@ -386,6 +430,37 @@ BluetoothDBusService::~BluetoothDBusService()
 {
   sStopBluetoothMonitor = nullptr;
   sGetPropertyMonitor = nullptr;
+}
+
+static nsString
+GetObjectPathFromAddress(const nsAString& aAdapterPath,
+                         const nsAString& aDeviceAddress)
+{
+  // The object path would be like /org/bluez/2906/hci0/dev_00_23_7F_CB_B4_F1,
+  // and the adapter path would be the first part of the object path, according
+  // to the example above, it's /org/bluez/2906/hci0.
+  nsString devicePath(aAdapterPath);
+  devicePath.AppendLiteral("/dev_");
+  devicePath.Append(aDeviceAddress);
+  devicePath.ReplaceChar(':', '_');
+  return devicePath;
+}
+
+static nsString
+GetAddressFromObjectPath(const nsAString& aObjectPath)
+{
+  // The object path would be like /org/bluez/2906/hci0/dev_00_23_7F_CB_B4_F1,
+  // and the adapter path would be the first part of the object path, according
+  // to the example above, it's /org/bluez/2906/hci0.
+  nsString address(aObjectPath);
+  int addressHead = address.RFind("/") + 5;
+
+  MOZ_ASSERT(addressHead + BLUETOOTH_ADDRESS_LENGTH == (int)address.Length());
+
+  address.Cut(0, addressHead);
+  address.ReplaceChar('_', ':');
+
+  return address;
 }
 
 static bool
@@ -1659,13 +1734,11 @@ public:
   {
     MOZ_ASSERT(NS_IsMainThread());
 
-    BluetoothSignal signal(NS_LITERAL_STRING(REQUEST_MEDIA_PLAYSTATUS_ID),
-                           NS_LITERAL_STRING(KEY_ADAPTER),
-                           InfallibleTArray<BluetoothNamedValue>());
-
     BluetoothService* bs = BluetoothService::Get();
     NS_ENSURE_TRUE(bs, NS_ERROR_FAILURE);
-    bs->DistributeSignal(signal);
+
+    bs->DistributeSignal(NS_LITERAL_STRING(REQUEST_MEDIA_PLAYSTATUS_ID),
+                         NS_LITERAL_STRING(KEY_ADAPTER));
 
     return NS_OK;
   }
@@ -1832,7 +1905,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
       // "bluetooth-pairedstatuschanged" from BluetoothService.
       BluetoothValue newValue(v);
       ToLowerCase(newValue.get_ArrayOfBluetoothNamedValue()[0].name());
-      BluetoothSignal signal(NS_LITERAL_STRING(PAIRED_STATUS_CHANGED_ID),
+      BluetoothSignal signal(NS_LITERAL_STRING("pairedstatuschanged"),
                              NS_LITERAL_STRING(KEY_LOCAL_AGENT),
                              newValue);
       NS_DispatchToMainThread(new DistributeBluetoothSignalTask(signal));
@@ -2817,8 +2890,8 @@ BluetoothDBusService::GetPairedDevicePropertiesInternal(
 }
 
 nsresult
-FetchUuidsInternal(const nsAString& aDeviceAddress,
-                   BluetoothReplyRunnable* aRunnable)
+BluetoothDBusService::FetchUuidsInternal(const nsAString& aDeviceAddress,
+                                         BluetoothReplyRunnable* aRunnable)
 {
   return NS_OK;
 }
@@ -3901,7 +3974,8 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
   a2dp->GetTitle(prevTitle);
   a2dp->GetAlbum(prevAlbum);
 
-  if (aMediaNumber != a2dp->GetMediaNumber() ||
+  uint64_t mediaNumber = static_cast<uint64_t>(aMediaNumber);
+  if (mediaNumber != a2dp->GetMediaNumber() ||
       !aTitle.Equals(prevTitle) ||
       !aAlbum.Equals(prevAlbum)) {
     UpdateNotification(ControlEventId::EVENT_TRACK_CHANGED, aMediaNumber);
@@ -4201,4 +4275,24 @@ BluetoothDBusService::UpdateNotification(ControlEventId aEventId,
 
   Task* task = new UpdateNotificationTask(deviceAddress, aEventId, aData);
   DispatchToDBusThread(task);
+}
+
+void
+BluetoothDBusService::ConnectGattClientInternal(
+  const nsAString& aAppUuid, const nsAString& aDeviceAddress,
+  BluetoothReplyRunnable* aRunnable)
+{
+}
+
+void
+BluetoothDBusService::DisconnectGattClientInternal(
+  const nsAString& aAppUuid, const nsAString& aDeviceAddress,
+  BluetoothReplyRunnable* aRunnable)
+{
+}
+
+void
+BluetoothDBusService::UnregisterGattClientInternal(
+  int aClientIf, BluetoothReplyRunnable* aRunnable)
+{
 }

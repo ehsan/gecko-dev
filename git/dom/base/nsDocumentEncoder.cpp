@@ -47,10 +47,8 @@
 #include "nsStringBuffer.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ShadowRoot.h"
-#include "nsIEditor.h"
-#include "nsIHTMLEditor.h"
-#include "nsIDocShell.h"
 #include "mozilla/dom/EncodingUtils.h"
+#include "nsComputedDOMStyle.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -136,8 +134,6 @@ protected:
     return true;
   }
 
-  static bool IsTag(nsIContent* aContent, nsIAtom* aAtom);
-  
   virtual bool IncludeInContext(nsINode *aNode);
 
   nsCOMPtr<nsIDocument>          mDocument;
@@ -323,34 +319,22 @@ nsDocumentEncoder::IncludeInContext(nsINode *aNode)
 static
 bool
 IsInvisibleBreak(nsINode *aNode) {
-  // xxxehsan: we should probably figure out a way to determine
-  // if a BR node is visible without using the editor.
-  Element* elt = aNode->AsElement();
-  if (!elt->IsHTML(nsGkAtoms::br) ||
-      !aNode->IsEditable()) {
+  if (!aNode->IsElement() || !aNode->IsEditable()) {
+    return false;
+  }
+  nsIFrame* frame = aNode->AsElement()->GetPrimaryFrame();
+  if (!frame || frame->GetType() != nsGkAtoms::brFrame) {
     return false;
   }
 
-  // Grab the editor associated with the document
-  nsIDocument *doc = aNode->GetComposedDoc();
-  if (doc) {
-    nsPIDOMWindow *window = doc->GetWindow();
-    if (window) {
-      nsIDocShell *docShell = window->GetDocShell();
-      if (docShell) {
-        nsCOMPtr<nsIEditor> editor;
-        docShell->GetEditor(getter_AddRefs(editor));
-        nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(editor);
-        if (htmlEditor) {
-          bool isVisible = false;
-          nsCOMPtr<nsIDOMNode> domNode = do_QueryInterface(aNode);
-          htmlEditor->BreakIsVisible(domNode, &isVisible);
-          return !isVisible;
-        }
-      }
-    }
-  }
-  return false;
+  // If the BRFrame has caused a visible line break, it should have a next
+  // sibling, or otherwise no siblings (or immediately after a br) and a
+  // non-zero height.
+  bool visible = frame->GetNextSibling() ||
+                 ((!frame->GetPrevSibling() ||
+                   frame->GetPrevSibling()->GetType() == nsGkAtoms::brFrame) &&
+                  frame->GetRect().Height() != 0);
+  return !visible;
 }
 
 nsresult
@@ -544,7 +528,7 @@ nsDocumentEncoder::SerializeToStringIterative(nsINode* aNode,
             current->NodeType() == nsIDOMNode::DOCUMENT_FRAGMENT_NODE) {
           DocumentFragment* frag = static_cast<DocumentFragment*>(current);
           nsIContent* host = frag->GetHost();
-          if (host && host->IsHTML(nsGkAtoms::_template)) {
+          if (host && host->IsHTMLElement(nsGkAtoms::_template)) {
             current = host;
           }
         }
@@ -553,12 +537,6 @@ nsDocumentEncoder::SerializeToStringIterative(nsINode* aNode,
   }
 
   return NS_OK;
-}
-
-bool 
-nsDocumentEncoder::IsTag(nsIContent* aContent, nsIAtom* aAtom)
-{
-  return aContent && aContent->Tag() == aAtom;
 }
 
 static nsresult
@@ -586,7 +564,7 @@ ConvertAndWrite(const nsAString& aString,
   }
 
   nsAutoCString charXferString;
-  if (!charXferString.SetLength(charLength, fallible_t()))
+  if (!charXferString.SetLength(charLength, fallible))
     return NS_ERROR_OUT_OF_MEMORY;
 
   char* charXferBuf = charXferString.BeginWriting();
@@ -985,6 +963,7 @@ nsDocumentEncoder::SerializeRangeToString(nsRange *aRange,
   NS_ENSURE_TRUE(endParent, NS_ERROR_FAILURE);
   int32_t endOffset = aRange->EndOffset();
 
+  mStartDepth = mEndDepth = 0;
   mCommonAncestors.Clear();
   mStartNodes.Clear();
   mStartOffsets.Clear();
@@ -1085,6 +1064,7 @@ nsDocumentEncoder::EncodeToStringWithMaxLength(uint32_t aMaxLength,
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIDOMNode> node, prevNode;
+    uint32_t firstRangeStartDepth = 0;
     for (i = 0; i < count; i++) {
       mSelection->GetRangeAt(i, getter_AddRefs(range));
 
@@ -1105,7 +1085,7 @@ nsDocumentEncoder::EncodeToStringWithMaxLength(uint32_t aMaxLength,
           NS_ENSURE_SUCCESS(rv, rv);
         }
         nsCOMPtr<nsIContent> content = do_QueryInterface(node);
-        if (content && content->IsHTML(nsGkAtoms::tr)) {
+        if (content && content->IsHTMLElement(nsGkAtoms::tr)) {
           nsINode* n = content;
           if (!prevNode) {
             // Went from a non-<tr> to a <tr>
@@ -1134,7 +1114,11 @@ nsDocumentEncoder::EncodeToStringWithMaxLength(uint32_t aMaxLength,
       nsRange* r = static_cast<nsRange*>(range.get());
       rv = SerializeRangeToString(r, output);
       NS_ENSURE_SUCCESS(rv, rv);
+      if (i == 0) {
+        firstRangeStartDepth = mStartDepth;
+      }
     }
+    mStartDepth = firstRangeStartDepth;
 
     if (prevNode) {
       nsCOMPtr<nsINode> p = do_QueryInterface(prevNode);
@@ -1362,7 +1346,7 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
   nsCOMPtr<nsIDOMRange> range;
   nsCOMPtr<nsIDOMNode> commonParent;
   Selection* selection = static_cast<Selection*>(aSelection);
-  uint32_t rangeCount = selection->GetRangeCount();
+  uint32_t rangeCount = selection->RangeCount();
 
   // if selection is uninitialized return
   if (!rangeCount)
@@ -1377,34 +1361,35 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
     return NS_ERROR_NULL_POINTER;
   range->GetCommonAncestorContainer(getter_AddRefs(commonParent));
 
+  // Thunderbird's msg compose code abuses the HTML copy encoder and gets
+  // confused if mIsTextWidget ends up becoming true, so for now we skip
+  // this logic in Thunderbird.
+#ifndef MOZ_THUNDERBIRD
   for (nsCOMPtr<nsIContent> selContent(do_QueryInterface(commonParent));
        selContent;
        selContent = selContent->GetParent())
   {
     // checking for selection inside a plaintext form widget
-    nsIAtom *atom = selContent->Tag();
-    if (atom == nsGkAtoms::input ||
-        atom == nsGkAtoms::textarea)
+    if (selContent->IsAnyOfHTMLElements(nsGkAtoms::input, nsGkAtoms::textarea))
     {
       mIsTextWidget = true;
       break;
     }
-    else if (atom == nsGkAtoms::body)
-    {
-      // check for moz prewrap style on body.  If it's there we are 
-      // in a plaintext editor.  This is pretty cheezy but I haven't 
-      // found a good way to tell if we are in a plaintext editor.
-      nsCOMPtr<nsIDOMElement> bodyElem = do_QueryInterface(selContent);
-      nsAutoString wsVal;
-      rv = bodyElem->GetAttribute(NS_LITERAL_STRING("style"), wsVal);
-      if (NS_SUCCEEDED(rv) && (kNotFound != wsVal.Find(NS_LITERAL_STRING("pre-wrap"))))
-      {
-        mIsTextWidget = true;
+    else if (selContent->IsElement()) {
+      nsRefPtr<nsStyleContext> styleContext =
+        nsComputedDOMStyle::GetStyleContextForElementNoFlush(selContent->AsElement(),
+                                                             nullptr, nullptr);
+      if (styleContext) {
+        const nsStyleText* textStyle = styleContext->StyleText();
+        if (textStyle->WhiteSpaceOrNewlineIsSignificant()) {
+          // Copy as plaintext for all preformatted elements
+          mIsTextWidget = true;
+        }
         break;
       }
     }
   }
-  
+
   // normalize selection if we are not in a widget
   if (mIsTextWidget) 
   {
@@ -1412,10 +1397,11 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
     mMimeType.AssignLiteral("text/plain");
     return NS_OK;
   }
+#endif
 
   // also consider ourselves in a text widget if we can't find an html document
   nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(mDocument);
-  if (!(htmlDoc && mDocument->IsHTML())) {
+  if (!(htmlDoc && mDocument->IsHTMLDocument())) {
     mIsTextWidget = true;
     mSelection = aSelection;
     // mMimeType is set to text/plain when encoding starts.
@@ -1525,34 +1511,32 @@ nsHTMLCopyEncoder::IncludeInContext(nsINode *aNode)
   if (!content)
     return false;
 
-  nsIAtom *tag = content->Tag();
-
-  return (tag == nsGkAtoms::b        ||
-          tag == nsGkAtoms::i        ||
-          tag == nsGkAtoms::u        ||
-          tag == nsGkAtoms::a        ||
-          tag == nsGkAtoms::tt       ||
-          tag == nsGkAtoms::s        ||
-          tag == nsGkAtoms::big      ||
-          tag == nsGkAtoms::small    ||
-          tag == nsGkAtoms::strike   ||
-          tag == nsGkAtoms::em       ||
-          tag == nsGkAtoms::strong   ||
-          tag == nsGkAtoms::dfn      ||
-          tag == nsGkAtoms::code     ||
-          tag == nsGkAtoms::cite     ||
-          tag == nsGkAtoms::var      ||
-          tag == nsGkAtoms::abbr     ||
-          tag == nsGkAtoms::font     ||
-          tag == nsGkAtoms::script   ||
-          tag == nsGkAtoms::span     ||
-          tag == nsGkAtoms::pre      ||
-          tag == nsGkAtoms::h1       ||
-          tag == nsGkAtoms::h2       ||
-          tag == nsGkAtoms::h3       ||
-          tag == nsGkAtoms::h4       ||
-          tag == nsGkAtoms::h5       ||
-          tag == nsGkAtoms::h6);
+  return content->IsAnyOfHTMLElements(nsGkAtoms::b,
+                                      nsGkAtoms::i,
+                                      nsGkAtoms::u,
+                                      nsGkAtoms::a,
+                                      nsGkAtoms::tt,
+                                      nsGkAtoms::s,
+                                      nsGkAtoms::big,
+                                      nsGkAtoms::small,
+                                      nsGkAtoms::strike,
+                                      nsGkAtoms::em,
+                                      nsGkAtoms::strong,
+                                      nsGkAtoms::dfn,
+                                      nsGkAtoms::code,
+                                      nsGkAtoms::cite,
+                                      nsGkAtoms::var,
+                                      nsGkAtoms::abbr,
+                                      nsGkAtoms::font,
+                                      nsGkAtoms::script,
+                                      nsGkAtoms::span,
+                                      nsGkAtoms::pre,
+                                      nsGkAtoms::h1,
+                                      nsGkAtoms::h2,
+                                      nsGkAtoms::h3,
+                                      nsGkAtoms::h4,
+                                      nsGkAtoms::h5,
+                                      nsGkAtoms::h6);
 }
 
 
@@ -1716,10 +1700,11 @@ nsHTMLCopyEncoder::GetPromotedPoint(Endpoint aWhere, nsIDOMNode *aNode, int32_t 
         if (bResetPromotion)
         {
           nsCOMPtr<nsIContent> content = do_QueryInterface(parent);
-          if (content)
+          if (content && content->IsHTMLElement())
           {
             bool isBlock = false;
-            parserService->IsBlock(parserService->HTMLAtomTagToId(content->Tag()), isBlock);
+            parserService->IsBlock(parserService->HTMLAtomTagToId(
+                                     content->NodeInfo()->NameAtom()), isBlock);
             if (isBlock)
             {
               bResetPromotion = false;
@@ -1798,10 +1783,11 @@ nsHTMLCopyEncoder::GetPromotedPoint(Endpoint aWhere, nsIDOMNode *aNode, int32_t 
         if (bResetPromotion)
         {
           nsCOMPtr<nsIContent> content = do_QueryInterface(parent);
-          if (content)
+          if (content && content->IsHTMLElement())
           {
             bool isBlock = false;
-            parserService->IsBlock(parserService->HTMLAtomTagToId(content->Tag()), isBlock);
+            parserService->IsBlock(parserService->HTMLAtomTagToId(
+                                     content->NodeInfo()->NameAtom()), isBlock);
             if (isBlock)
             {
               bResetPromotion = false;
@@ -1860,7 +1846,7 @@ nsHTMLCopyEncoder::IsMozBR(nsIDOMNode* aNode)
   MOZ_ASSERT(aNode);
   nsCOMPtr<Element> element = do_QueryInterface(aNode);
   return element &&
-         element->IsHTML(nsGkAtoms::br) &&
+         element->IsHTMLElement(nsGkAtoms::br) &&
          element->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
                               NS_LITERAL_STRING("_moz"), eIgnoreCase);
 }
@@ -1892,16 +1878,17 @@ bool
 nsHTMLCopyEncoder::IsRoot(nsIDOMNode* aNode)
 {
   nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
-  if (content)
-  {
-    if (mIsTextWidget) 
-      return (IsTag(content, nsGkAtoms::div));
-
-    return (IsTag(content, nsGkAtoms::body) ||
-            IsTag(content, nsGkAtoms::td)   ||
-            IsTag(content, nsGkAtoms::th));
+  if (!content) {
+    return false;
   }
-  return false;
+
+  if (mIsTextWidget) {
+    return content->IsHTMLElement(nsGkAtoms::div);
+  }
+
+  return content->IsAnyOfHTMLElements(nsGkAtoms::body,
+                                      nsGkAtoms::td,
+                                      nsGkAtoms::th);
 }
 
 bool
@@ -2019,11 +2006,12 @@ nsHTMLCopyEncoder::GetImmediateContextCount(const nsTArray<nsINode*>& aAncestorA
       break;
     }
     nsCOMPtr<nsIContent> content(do_QueryInterface(node));
-    if (!content || !content->IsHTML() || (content->Tag() != nsGkAtoms::tr    &&
-                                           content->Tag() != nsGkAtoms::thead &&
-                                           content->Tag() != nsGkAtoms::tbody &&
-                                           content->Tag() != nsGkAtoms::tfoot &&
-                                           content->Tag() != nsGkAtoms::table)) {
+    if (!content ||
+        !content->IsAnyOfHTMLElements(nsGkAtoms::tr,
+                                      nsGkAtoms::thead,
+                                      nsGkAtoms::tbody,
+                                      nsGkAtoms::tfoot,
+                                      nsGkAtoms::table)) {
       break;
     }
     ++j;

@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "TypeInState.h"
 
 #include <stddef.h>
 
-#include "TypeInState.h"
 #include "mozilla/dom/Selection.h"
 #include "mozilla/mozalloc.h"
 #include "nsAString.h"
@@ -86,7 +86,7 @@ NS_IMETHODIMP TypeInState::NotifySelectionChanged(nsIDOMDocument *, nsISelection
   nsRefPtr<Selection> selection = static_cast<Selection*>(aSelection);
 
   if (aSelection) {
-    int32_t rangeCount = selection->GetRangeCount();
+    int32_t rangeCount = selection->RangeCount();
 
     if (selection->Collapsed() && rangeCount) {
       nsCOMPtr<nsIDOMNode> selNode;

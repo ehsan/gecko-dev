@@ -50,6 +50,8 @@
 #include "nsThreadManager.h"
 #include "nsThreadPool.h"
 
+#include "nsCompartmentInfo.h"
+
 #include "xptinfo.h"
 #include "nsIInterfaceInfoManager.h"
 #include "xptiprivate.h"
@@ -141,6 +143,12 @@ extern nsresult nsStringInputStreamConstructor(nsISupports*, REFNSIID, void**);
 
 #include "ogg/ogg.h"
 #if defined(MOZ_VPX) && !defined(MOZ_VPX_NO_MEM_REPORTING)
+#if defined(HAVE_STDINT_H)
+// mozilla-config.h defines HAVE_STDINT_H, and then it's defined *again* in
+// vpx_config.h (which we include via vpx_mem.h, below). This redefinition
+// triggers a build warning on MSVC, so we have to #undef it first.
+#undef HAVE_STDINT_H
+#endif
 #include "vpx_mem/vpx_mem.h"
 #endif
 #ifdef MOZ_WEBM
@@ -233,6 +241,8 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsMemoryReporterManager, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsMemoryInfoDumper)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsStatusReporterManager, Init)
+
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsCompartmentInfo)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsIOUtil)
 
@@ -381,7 +391,7 @@ public:
 private:
   NS_IMETHODIMP
   CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData,
-                 bool aAnonymize)
+                 bool aAnonymize) MOZ_OVERRIDE
   {
     return MOZ_COLLECT_REPORT(
       "explicit/icu", KIND_HEAP, UNITS_BYTES, MemoryAllocated(),
@@ -406,7 +416,7 @@ public:
 private:
   NS_IMETHODIMP
   CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData,
-                 bool aAnonymize)
+                 bool aAnonymize) MOZ_OVERRIDE
   {
     return MOZ_COLLECT_REPORT(
       "explicit/media/libogg", KIND_HEAP, UNITS_BYTES, MemoryAllocated(),
@@ -432,7 +442,7 @@ public:
 private:
   NS_IMETHODIMP
   CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData,
-                 bool aAnonymize)
+                 bool aAnonymize) MOZ_OVERRIDE
   {
     return MOZ_COLLECT_REPORT(
       "explicit/media/libvpx", KIND_HEAP, UNITS_BYTES, MemoryAllocated(),
@@ -459,7 +469,7 @@ public:
 private:
   NS_IMETHODIMP
   CollectReports(nsIHandleReportCallback* aHandleReport, nsISupports* aData,
-                 bool aAnonymize)
+                 bool aAnonymize) MOZ_OVERRIDE
   {
     return MOZ_COLLECT_REPORT(
       "explicit/media/libnestegg", KIND_HEAP, UNITS_BYTES, MemoryAllocated(),

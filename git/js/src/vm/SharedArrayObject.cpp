@@ -212,7 +212,7 @@ SharedArrayBufferObject::class_constructor(JSContext *cx, unsigned argc, Value *
             args.rval().set(args[0]);
             return true;
         }
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SHARED_ARRAY_BAD_OBJECT);
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_SHARED_ARRAY_BAD_OBJECT);
         return false;
     }
 
@@ -221,7 +221,7 @@ SharedArrayBufferObject::class_constructor(JSContext *cx, unsigned argc, Value *
     if (!ToLengthClamped(cx, args.get(0), &length, &overflow)) {
         // Bug 1068458: Limit length to 2^31-1.
         if (overflow || length > INT32_MAX)
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SHARED_ARRAY_BAD_LENGTH);
+            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_SHARED_ARRAY_BAD_LENGTH);
         return false;
     }
 
@@ -299,14 +299,7 @@ SharedArrayBufferObject::addSizeOfExcludingThis(JSObject *obj, mozilla::MallocSi
 
 const Class SharedArrayBufferObject::protoClass = {
     "SharedArrayBufferPrototype",
-    JSCLASS_HAS_CACHED_PROTO(JSProto_SharedArrayBuffer),
-    JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub
+    JSCLASS_HAS_CACHED_PROTO(JSProto_SharedArrayBuffer)
 };
 
 const Class SharedArrayBufferObject::class_ = {
@@ -314,24 +307,24 @@ const Class SharedArrayBufferObject::class_ = {
     JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(SharedArrayBufferObject::RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_SharedArrayBuffer),
-    JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
+    nullptr, /* addProperty */
+    nullptr, /* delProperty */
+    nullptr, /* getProperty */
+    nullptr, /* setProperty */
+    nullptr, /* enumerate */
+    nullptr, /* resolve */
+    nullptr, /* convert */
     SharedArrayBufferObject::Finalize,
-    nullptr,        /* call        */
-    nullptr,        /* hasInstance */
-    nullptr,        /* construct   */
-    nullptr,        /* trace */
+    nullptr, /* call */
+    nullptr, /* hasInstance */
+    nullptr, /* construct */
+    nullptr, /* trace */
     JS_NULL_CLASS_SPEC,
     JS_NULL_CLASS_EXT
 };
 
 JSObject *
-js_InitSharedArrayBufferClass(JSContext *cx, HandleObject obj)
+js::InitSharedArrayBufferClass(JSContext *cx, HandleObject obj)
 {
     MOZ_ASSERT(obj->isNative());
     Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
@@ -357,7 +350,7 @@ js_InitSharedArrayBufferClass(JSContext *cx, HandleObject obj)
     if (!getter)
         return nullptr;
 
-    if (!DefineNativeProperty(cx, proto, byteLengthId, UndefinedHandleValue,
+    if (!NativeDefineProperty(cx, proto, byteLengthId, UndefinedHandleValue,
                               JS_DATA_TO_FUNC_PTR(PropertyOp, getter), nullptr, attrs))
         return nullptr;
 

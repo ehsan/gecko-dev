@@ -38,16 +38,7 @@ commandline.add_logging_group(_parser)
 def run_marionette(tests, b2g_path=None, emulator=None, testtype=None,
     address=None, binary=None, topsrcdir=None, **kwargs):
 
-    # Import the harness directly and under a different name here to avoid
-    # "marionette" being importable from two locations when "testing/marionette/client"
-    # is on sys.path.
-    # See bug 1050511.
-    path = os.path.join(topsrcdir, 'testing/marionette/client/marionette/runtests.py')
-    with open(path, 'r') as fh:
-        imp.load_module('marionetteharness', fh, path,
-                        ('.py', 'r', imp.PY_SOURCE))
-
-    from marionetteharness import (
+    from marionette.runtests import (
         MarionetteTestRunner,
         BaseMarionetteOptions,
         startTestRunner
@@ -130,6 +121,10 @@ class MachCommands(MachCommandBase):
         help='Path to gecko profile to use.')
     @CommandArgument('--gecko-log',
         help='Path to gecko log file, or "-" for stdout.')
+    @CommandArgument('--jsdebugger', action='store_true',
+        help='Enable the jsdebugger for marionette javascript.')
+    @CommandArgument('--e10s', action='store_true',
+        help='Enable electrolysis for marionette tests (desktop only).')
     @CommandArgument('tests', nargs='*', metavar='TESTS',
         help='Path to test(s) to run.')
     def run_marionette_test(self, tests, **kwargs):

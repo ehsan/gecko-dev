@@ -83,6 +83,7 @@ IsJSXraySupported(JSProtoKey key)
       case JSProto_Array:
       case JSProto_Function:
       case JSProto_TypedArray:
+      case JSProto_SavedFrame:
         return true;
       default:
         return false;
@@ -144,18 +145,12 @@ XPCWrappedNativeXrayTraits::getWN(JSObject *wrapper)
 }
 
 const JSClass XPCWrappedNativeXrayTraits::HolderClass = {
-    "NativePropertyHolder", JSCLASS_HAS_RESERVED_SLOTS(2),
-    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub,
-    JS_StrictPropertyStub, JS_EnumerateStub, JS_ResolveStub,
-    JS_ConvertStub
+    "NativePropertyHolder", JSCLASS_HAS_RESERVED_SLOTS(2)
 };
 
 
 const JSClass JSXrayTraits::HolderClass = {
-    "JSXrayHolder", JSCLASS_HAS_RESERVED_SLOTS(SLOT_COUNT),
-    JS_PropertyStub, JS_DeletePropertyStub,
-    JS_PropertyStub, JS_StrictPropertyStub,
-    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
+    "JSXrayHolder", JSCLASS_HAS_RESERVED_SLOTS(SLOT_COUNT)
 };
 
 bool
@@ -749,10 +744,9 @@ JSXrayTraits::enumerateNames(JSContext *cx, HandleObject wrapper, unsigned flags
 JSObject*
 JSXrayTraits::createHolder(JSContext *cx, JSObject *wrapper)
 {
-    RootedObject global(cx, JS_GetGlobalForObject(cx, wrapper));
     RootedObject target(cx, getTargetObject(wrapper));
     RootedObject holder(cx, JS_NewObjectWithGivenProto(cx, &HolderClass,
-                                                       JS::NullPtr(), global));
+                                                       JS::NullPtr()));
     if (!holder)
         return nullptr;
 
@@ -851,8 +845,8 @@ ExpandoObjectFinalize(JSFreeOp *fop, JSObject *obj)
 const JSClass ExpandoObjectClass = {
     "XrayExpandoObject",
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_EXPANDO_COUNT),
-    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, ExpandoObjectFinalize
+    nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, ExpandoObjectFinalize
 };
 
 bool
@@ -948,9 +942,9 @@ XrayTraits::attachExpandoObject(JSContext *cx, HandleObject target,
     }
 #endif
 
-    // Create the expando object. We parent it directly to the target object.
-    RootedObject expandoObject(cx, JS_NewObjectWithGivenProto(cx, &ExpandoObjectClass,
-                                                              JS::NullPtr(), target));
+    // Create the expando object.
+    RootedObject expandoObject(cx,
+      JS_NewObjectWithGivenProto(cx, &ExpandoObjectClass, JS::NullPtr()));
     if (!expandoObject)
         return nullptr;
 
@@ -1008,6 +1002,27 @@ XrayTraits::cloneExpandoChain(JSContext *cx, HandleObject dst, HandleObject src)
     MOZ_ASSERT(getExpandoChain(dst) == nullptr);
 
     RootedObject oldHead(cx, getExpandoChain(src));
+
+#ifdef DEBUG
+    // When this is called from dom::ReparentWrapper() there will be no native
+    // set for |dst|. Eventually it will be set to that of |src|.  This will
+    // prevent attachExpandoObject() from preserving the wrapper, but this is
+    // not a problem because in this case the wrapper will already have been
+    // preserved when expandos were originally added to |src|. In this case
+    // assert the wrapper for |src| has been preserved.
+    if (oldHead) {
+        nsISupports *dstId = mozilla::dom::UnwrapDOMObjectToISupports(dst);
+        if (!dstId) {
+            nsISupports *srcId = mozilla::dom::UnwrapDOMObjectToISupports(src);
+            if (srcId) {
+              nsWrapperCache* cache = nullptr;
+              CallQueryInterface(srcId, &cache);
+              MOZ_ASSERT_IF(cache, cache->PreservingWrapper());
+            }
+        }
+    }
+#endif
+
     while (oldHead) {
         RootedObject exclusive(cx, JS_GetReservedSlot(oldHead,
                                                       JSSLOT_EXPANDO_EXCLUSIVE_GLOBAL)
@@ -1234,10 +1249,10 @@ XPCWrappedNativeXrayTraits::resolveNativeProperty(JSContext *cx, HandleObject wr
 
         // Without a wrapper the function would live on the prototype. Since we
         // don't have one, we have to avoid calling the scriptable helper's
-        // GetProperty method for this property, so stub out the getter and
+        // GetProperty method for this property, so null out the getter and
         // setter here explicitly.
-        desc.setGetter(JS_PropertyStub);
-        desc.setSetter(JS_StrictPropertyStub);
+        desc.setGetter(nullptr);
+        desc.setSetter(nullptr);
     }
 
     if (!JS_WrapValue(cx, desc.value()) || !JS_WrapValue(cx, &fval))
@@ -1442,8 +1457,7 @@ XPCWrappedNativeXrayTraits::enumerateNames(JSContext *cx, HandleObject wrapper, 
 JSObject *
 XPCWrappedNativeXrayTraits::createHolder(JSContext *cx, JSObject *wrapper)
 {
-    RootedObject global(cx, JS_GetGlobalForObject(cx, wrapper));
-    return JS_NewObjectWithGivenProto(cx, &HolderClass, JS::NullPtr(), global);
+    return JS_NewObjectWithGivenProto(cx, &HolderClass, JS::NullPtr());
 }
 
 bool
@@ -1600,7 +1614,7 @@ DOMXrayTraits::call(JSContext *cx, HandleObject wrapper,
     if (clasp->flags & JSCLASS_IS_DOMIFACEANDPROTOJSCLASS) {
         if (!clasp->call) {
             RootedValue v(cx, ObjectValue(*wrapper));
-            js_ReportIsNotFunction(cx, v);
+            js::ReportIsNotFunction(cx, v);
             return false;
         }
         // call it on the Xray compartment
@@ -1626,7 +1640,7 @@ DOMXrayTraits::construct(JSContext *cx, HandleObject wrapper,
     if (clasp->flags & JSCLASS_IS_DOMIFACEANDPROTOJSCLASS) {
         if (!clasp->construct) {
             RootedValue v(cx, ObjectValue(*wrapper));
-            js_ReportIsNotFunction(cx, v);
+            js::ReportIsNotFunction(cx, v);
             return false;
         }
         if (!clasp->construct(cx, args.length(), args.base()))
@@ -1663,8 +1677,7 @@ DOMXrayTraits::preserveWrapper(JSObject *target)
 JSObject*
 DOMXrayTraits::createHolder(JSContext *cx, JSObject *wrapper)
 {
-    RootedObject global(cx, JS_GetGlobalForObject(cx, wrapper));
-    return JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr(), global);
+    return JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr());
 }
 
 namespace XrayUtils {
@@ -2118,19 +2131,11 @@ XrayWrapper<Base, Traits>::getOwnEnumerablePropertyKeys(JSContext *cx,
 
 template <typename Base, typename Traits>
 bool
-XrayWrapper<Base, Traits>::getEnumerablePropertyKeys(JSContext *cx, HandleObject wrapper,
-                                                     AutoIdVector &props) const
-{
-    return getPropertyKeys(cx, wrapper, 0, props);
-}
-
-template <typename Base, typename Traits>
-bool
-XrayWrapper<Base, Traits>::iterate(JSContext *cx, HandleObject wrapper,
-                                   unsigned flags, MutableHandleObject objp) const
+XrayWrapper<Base, Traits>::enumerate(JSContext *cx, HandleObject wrapper,
+                                     MutableHandleObject objp) const
 {
     // Skip our Base if it isn't already ProxyHandler.
-    return js::BaseProxyHandler::iterate(cx, wrapper, flags, objp);
+    return js::BaseProxyHandler::enumerate(cx, wrapper, objp);
 }
 
 template <typename Base, typename Traits>
@@ -2164,11 +2169,11 @@ XrayWrapper<Base, Traits>::defaultValue(JSContext *cx, HandleObject wrapper,
                                         JSType hint, MutableHandleValue vp) const
 {
     // Even if this isn't a security wrapper, Xray semantics dictate that we
-    // run the DefaultValue algorithm directly on the Xray wrapper.
+    // run the OrdinaryToPrimitive algorithm directly on the Xray wrapper.
     //
     // NB: We don't have to worry about things with special [[DefaultValue]]
     // behavior like Date because we'll never have an XrayWrapper to them.
-    return js::DefaultValue(cx, wrapper, hint, vp);
+    return OrdinaryToPrimitive(cx, wrapper, hint, vp);
 }
 
 template <typename Base, typename Traits>

@@ -443,6 +443,29 @@ public:
     return mMayHaveTouchEventListener;
   }
 
+  /**
+   * Call this to indicate that some node (this window, its document,
+   * or content in that document) has a scroll wheel event listener.
+   */
+  void SetHasScrollWheelEventListeners()
+  {
+    mMayHaveScrollWheelEventListener = true;
+  }
+
+  bool HasScrollWheelEventListeners()
+  {
+    return mMayHaveScrollWheelEventListener;
+  }
+
+  /**
+   * Returns whether or not any event listeners are present that APZ must be
+   * aware of.
+   */
+  bool HasApzAwareEventListeners()
+  {
+    return HasTouchEventListeners() || HasScrollWheelEventListeners();
+  }
+
    /**
    * Will be called when touch caret visibility has changed. mMayHaveTouchCaret
    * is set if that some node (this window, its document, or content in that
@@ -728,17 +751,6 @@ public:
     return mMarkedCCGeneration;
   }
 
-  // Sets the condition that we send an NS_AFTER_REMOTE_PAINT message just before the next
-  // composite.  Used in non-e10s implementations.
-  void SetRequestNotifyAfterRemotePaint()
-  {
-    mSendAfterRemotePaint = true;
-  }
-
-  // Sends an NS_AFTER_REMOTE_PAINT message if requested by
-  // SetRequestNotifyAfterRemotePaint().
-  void SendAfterRemotePaintIfRequested();
-
 protected:
   // The nsPIDOMWindow constructor. The aOuterWindow argument should
   // be null if and only if the created window itself is an outer
@@ -791,6 +803,7 @@ protected:
   bool                   mMayHavePaintEventListener;
   bool                   mMayHaveTouchEventListener;
   bool                   mMayHaveTouchCaret;
+  bool                   mMayHaveScrollWheelEventListener;
   bool                   mMayHaveMouseEnterLeaveEventListener;
   bool                   mMayHavePointerEnterLeaveEventListener;
 
@@ -811,7 +824,7 @@ protected:
   float                  mAudioVolume;
 
   // And these are the references between inner and outer windows.
-  nsPIDOMWindow         *mInnerWindow;
+  nsPIDOMWindow* MOZ_NON_OWNING_REF mInnerWindow;
   nsCOMPtr<nsPIDOMWindow> mOuterWindow;
 
   // the element within the document that is currently focused when this
@@ -830,10 +843,6 @@ protected:
   bool mHasNotifiedGlobalCreated;
 
   uint32_t mMarkedCCGeneration;
-
-  // If true, send an NS_AFTER_REMOTE_PAINT message before compositing in a
-  // non-e10s implementation.
-  bool mSendAfterRemotePaint;
 };
 
 

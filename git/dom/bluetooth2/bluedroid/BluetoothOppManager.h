@@ -74,6 +74,10 @@ public:
   virtual void OnSocketDisconnect(BluetoothSocket* aSocket) MOZ_OVERRIDE;
 
 private:
+  class CloseSocketTask;
+  class ReadFileTask;
+  class SendSocketDataTask;
+
   BluetoothOppManager();
   bool Init();
   void HandleShutdown();
@@ -85,8 +89,7 @@ private:
   void ReceivingFileConfirmation();
   bool CreateFile();
   bool WriteToFile(const uint8_t* aData, int aDataLength);
-  void RecoverFileName();
-  void DeleteDummyFile();
+  void RestoreReceivedFileAndNotify();
   void DeleteReceivedFile();
   void ReplyToConnect();
   void ReplyToDisconnectOrAbort();

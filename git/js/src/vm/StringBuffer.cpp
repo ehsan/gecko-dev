@@ -111,14 +111,14 @@ StringBuffer::finishString()
     JS_STATIC_ASSERT(JSFatInlineString::MAX_LENGTH_LATIN1 < Latin1CharBuffer::InlineLength);
 
     if (isLatin1()) {
-        if (JSFatInlineString::latin1LengthFits(len)) {
+        if (JSInlineString::lengthFits<Latin1Char>(len)) {
             mozilla::Range<const Latin1Char> range(latin1Chars().begin(), len);
-            return NewFatInlineString<CanGC>(cx, range);
+            return NewInlineString<CanGC>(cx, range);
         }
     } else {
-        if (JSFatInlineString::twoByteLengthFits(len)) {
+        if (JSInlineString::lengthFits<char16_t>(len)) {
             mozilla::Range<const char16_t> range(twoByteChars().begin(), len);
-            return NewFatInlineString<CanGC>(cx, range);
+            return NewInlineString<CanGC>(cx, range);
         }
     }
 
@@ -161,7 +161,7 @@ js::ValueToStringBufferSlow(JSContext *cx, const Value &arg, StringBuffer &sb)
     if (v.isNull())
         return sb.append(cx->names().null);
     if (v.isSymbol()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SYMBOL_TO_STRING);
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_SYMBOL_TO_STRING);
         return false;
     }
     MOZ_ASSERT(v.isUndefined());

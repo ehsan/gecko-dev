@@ -23,6 +23,7 @@
 #endif
 #include "nsBindingManager.h"
 #include "nsGenericHTMLElement.h"
+#include "mozilla/Assertions.h"
 #include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "nsWrapperCacheInlines.h"
@@ -223,7 +224,7 @@ nsNodeUtils::LastRelease(nsINode* aNode)
       static_cast<nsGenericHTMLFormElement*>(aNode)->ClearForm(true);
     }
 
-    if (aNode->IsElement() && aNode->AsElement()->IsHTML(nsGkAtoms::img) &&
+    if (aNode->IsHTMLElement(nsGkAtoms::img) &&
         aNode->HasFlag(ADDED_TO_FORM)) {
       HTMLImageElement* imageElem = static_cast<HTMLImageElement*>(aNode);
       imageElem->ClearForm(true);
@@ -324,6 +325,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
   // if aDeep is true, deal with aNode's children (and recurse into their
   // attributes and children).
 
+  nsAutoScriptBlocker scriptBlocker;
   AutoJSContext cx;
   nsresult rv;
 
@@ -362,6 +364,24 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
   if (aClone) {
     rv = aNode->Clone(nodeInfo, getter_AddRefs(clone));
     NS_ENSURE_SUCCESS(rv, rv);
+
+    if (clone->IsElement()) {
+      // The cloned node may be a custom element that may require
+      // enqueing created callback and prototype swizzling.
+      Element* elem = clone->AsElement();
+      if (nsContentUtils::IsCustomElementName(nodeInfo->NameAtom())) {
+        elem->OwnerDoc()->SetupCustomElement(elem, nodeInfo->NamespaceID());
+      } else {
+        // Check if node may be custom element by type extension.
+        // ex. <button is="x-button">
+        nsAutoString extension;
+        if (elem->GetAttr(kNameSpaceID_None, nsGkAtoms::is, extension) &&
+            !extension.IsEmpty()) {
+          elem->OwnerDoc()->SetupCustomElement(elem, nodeInfo->NamespaceID(),
+                                               &extension);
+        }
+      }
+    }
 
     if (aParent) {
       // If we're cloning we need to insert the cloned children into the cloned
@@ -410,6 +430,9 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
           if (elm->MayHaveTouchEventListener()) {
             window->SetHasTouchEventListeners();
           }
+          if (elm->MayHaveScrollWheelEventListener()) {
+            window->SetHasScrollWheelEventListeners();
+          }
           if (elm->MayHaveMouseEnterLeaveEventListener()) {
             window->SetHasMouseEnterLeaveEventListeners();
           }
@@ -444,17 +467,9 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
     if (aReparentScope) {
       JS::Rooted<JSObject*> wrapper(cx);
       if ((wrapper = aNode->GetWrapper())) {
-        if (IsDOMObject(wrapper)) {
-          JSAutoCompartment ac(cx, wrapper);
-          rv = ReparentWrapper(cx, wrapper);
-        } else {
-          nsIXPConnect *xpc = nsContentUtils::XPConnect();
-          if (xpc) {
-            rv = xpc->ReparentWrappedNativeIfFound(cx, wrapper, aReparentScope, aNode);
-          } else {
-            rv = NS_ERROR_FAILURE;
-          }
-        }
+        MOZ_ASSERT(IsDOMObject(wrapper));
+        JSAutoCompartment ac(cx, wrapper);
+        rv = ReparentWrapper(cx, wrapper);
         if (NS_FAILED(rv)) {
           aNode->mNodeInfo.swap(nodeInfo);
 
@@ -512,8 +527,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
   // cloning, so kids of the new node aren't confused about whether they're
   // in a document.
 #ifdef MOZ_XUL
-  if (aClone && !aParent && aNode->IsElement() &&
-      aNode->AsElement()->IsXUL()) {
+  if (aClone && !aParent && aNode->IsXULElement()) {
     if (!aNode->OwnerDoc()->IsLoadedAsInteractiveData()) {
       clone->SetFlags(NODE_FORCE_XBL_BINDINGS);
     }
@@ -550,7 +564,7 @@ nsNodeUtils::UnlinkUserData(nsINode *aNode)
 bool
 nsNodeUtils::IsTemplateElement(const nsINode *aNode)
 {
-  return aNode->IsElement() && aNode->AsElement()->IsHTML(nsGkAtoms::_template);
+  return aNode->IsHTMLElement(nsGkAtoms::_template);
 }
 
 nsIContent*

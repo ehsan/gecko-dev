@@ -57,7 +57,7 @@ NS_INTERFACE_TABLE_TAIL_INHERITING(SVGMPathElementBase)
 // Constructor
 SVGMPathElement::SVGMPathElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
   : SVGMPathElementBase(aNodeInfo),
-    mHrefTarget(MOZ_THIS_IN_INITIALIZER_LIST())
+    mHrefTarget(this)
 {
 }
 
@@ -86,9 +86,8 @@ SVGMPathElement::BindToTree(nsIDocument* aDocument,
                             nsIContent* aBindingParent,
                             bool aCompileEventHandlers)
 {
-  NS_ABORT_IF_FALSE(!mHrefTarget.get(),
-                    "Shouldn't have href-target yet "
-                    "(or it should've been cleared)");
+  MOZ_ASSERT(!mHrefTarget.get(),
+             "Shouldn't have href-target yet (or it should've been cleared)");
   nsresult rv = SVGMPathElementBase::BindToTree(aDocument, aParent,
                                                 aBindingParent,
                                                 aCompileEventHandlers);
@@ -181,14 +180,14 @@ SVGPathElement*
 SVGMPathElement::GetReferencedPath()
 {
   if (!HasAttr(kNameSpaceID_XLink, nsGkAtoms::href)) {
-    NS_ABORT_IF_FALSE(!mHrefTarget.get(),
-                      "We shouldn't have an xlink:href target "
-                      "if we don't have an xlink:href attribute");
+    MOZ_ASSERT(!mHrefTarget.get(),
+               "We shouldn't have an xlink:href target "
+               "if we don't have an xlink:href attribute");
     return nullptr;
   }
 
   nsIContent* genericTarget = mHrefTarget.get();
-  if (genericTarget && genericTarget->IsSVG(nsGkAtoms::path)) {
+  if (genericTarget && genericTarget->IsSVGElement(nsGkAtoms::path)) {
     return static_cast<SVGPathElement*>(genericTarget);
   }
   return nullptr;
@@ -247,7 +246,7 @@ SVGMPathElement::UnlinkHrefTarget(bool aNotifyParent)
 void
 SVGMPathElement::NotifyParentOfMpathChange(nsIContent* aParent)
 {
-  if (aParent && aParent->IsSVG(nsGkAtoms::animateMotion)) {
+  if (aParent && aParent->IsSVGElement(nsGkAtoms::animateMotion)) {
 
     SVGAnimateMotionElement* animateMotionParent =
       static_cast<SVGAnimateMotionElement*>(aParent);

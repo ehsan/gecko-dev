@@ -29,7 +29,6 @@
 
 using namespace js;
 using namespace js::gc;
-using namespace js::types;
 
 using mozilla::IsFinite;
 using mozilla::Maybe;
@@ -37,14 +36,7 @@ using mozilla::RangedPtr;
 
 const Class js::JSONClass = {
     js_JSON_str,
-    JSCLASS_HAS_CACHED_PROTO(JSProto_JSON),
-    JS_PropertyStub,        /* addProperty */
-    JS_DeletePropertyStub,  /* delProperty */
-    JS_PropertyStub,        /* getProperty */
-    JS_StrictPropertyStub,  /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub
+    JSCLASS_HAS_CACHED_PROTO(JSProto_JSON)
 };
 
 static inline bool
@@ -219,7 +211,7 @@ PreprocessValue(JSContext *cx, HandleObject holder, KeyType key, MutableHandleVa
     if (vp.isObject()) {
         RootedValue toJSON(cx);
         RootedObject obj(cx, &vp.toObject());
-        if (!JSObject::getProperty(cx, obj, obj, cx->names().toJSON, &toJSON))
+        if (!GetProperty(cx, obj, obj, cx->names().toJSON, &toJSON))
             return false;
 
         if (IsCallable(toJSON)) {
@@ -317,7 +309,7 @@ JO(JSContext *cx, HandleObject obj, StringifyContext *scx)
     if (!detect.init())
         return false;
     if (detect.foundCycle()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_JSON_CYCLIC_VALUE,
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_JSON_CYCLIC_VALUE,
                              js_object_str);
         return false;
     }
@@ -355,7 +347,7 @@ JO(JSContext *cx, HandleObject obj, StringifyContext *scx)
          */
         id = propertyList[i];
         RootedValue outputValue(cx);
-        if (!JSObject::getGeneric(cx, obj, obj, id, &outputValue))
+        if (!GetProperty(cx, obj, obj, id, &outputValue))
             return false;
         if (!PreprocessValue(cx, obj, HandleId(id), &outputValue, scx))
             return false;
@@ -408,7 +400,7 @@ JA(JSContext *cx, HandleObject obj, StringifyContext *scx)
     if (!detect.init())
         return false;
     if (detect.foundCycle()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_JSON_CYCLIC_VALUE,
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_JSON_CYCLIC_VALUE,
                              js_object_str);
         return false;
     }
@@ -436,7 +428,7 @@ JA(JSContext *cx, HandleObject obj, StringifyContext *scx)
              * and the replacer and maybe unboxing, and interpreting some
              * values as |null| in separate steps.
              */
-            if (!JSObject::getElement(cx, obj, obj, i, &outputValue))
+            if (!GetElement(cx, obj, obj, i, &outputValue))
                 return false;
             if (!PreprocessValue(cx, obj, i, &outputValue, scx))
                 return false;
@@ -525,8 +517,8 @@ Str(JSContext *cx, const Value &v, StringifyContext *scx)
 
 /* ES5 15.12.3. */
 bool
-js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value space_,
-             StringBuffer &sb)
+js::Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value space_,
+              StringBuffer &sb)
 {
     RootedObject replacer(cx, replacer_);
     RootedValue space(cx, space_);
@@ -591,7 +583,7 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
                     return false;
 
                 /* Step 4b(iv)(2). */
-                if (!JSObject::getElement(cx, replacer, replacer, i, &v))
+                if (!GetElement(cx, replacer, replacer, i, &v))
                     return false;
 
                 RootedId id(cx);
@@ -667,17 +659,14 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
     }
 
     /* Step 9. */
-    RootedNativeObject wrapper(cx, NewNativeBuiltinClassInstance(cx, &JSObject::class_));
+    RootedPlainObject wrapper(cx, NewBuiltinClassInstance<PlainObject>(cx));
     if (!wrapper)
         return false;
 
     /* Step 10. */
     RootedId emptyId(cx, NameToId(cx->names().empty));
-    if (!DefineNativeProperty(cx, wrapper, emptyId, vp, JS_PropertyStub, JS_StrictPropertyStub,
-                              JSPROP_ENUMERATE))
-    {
+    if (!NativeDefineProperty(cx, wrapper, emptyId, vp, nullptr, nullptr, JSPROP_ENUMERATE))
         return false;
-    }
 
     /* Step 11. */
     StringifyContext scx(cx, sb, gap, replacer, propertyList);
@@ -697,7 +686,7 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
 
     /* Step 1. */
     RootedValue val(cx);
-    if (!JSObject::getGeneric(cx, holder, holder, name, &val))
+    if (!GetProperty(cx, holder, holder, name, &val))
         return false;
 
     /* Step 2. */
@@ -724,13 +713,13 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
                 if (newElement.isUndefined()) {
                     /* Step 2a(iii)(2). */
                     bool succeeded;
-                    if (!JSObject::deleteGeneric(cx, obj, id, &succeeded))
+                    if (!DeleteProperty(cx, obj, id, &succeeded))
                         return false;
                 } else {
                     /* Step 2a(iii)(3). */
                     // XXX This definition should ignore success/failure, when
                     //     our property-definition APIs indicate that.
-                    if (!JSObject::defineGeneric(cx, obj, id, newElement))
+                    if (!DefineProperty(cx, obj, id, newElement))
                         return false;
                 }
             }
@@ -752,13 +741,13 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
                 if (newElement.isUndefined()) {
                     /* Step 2b(ii)(2). */
                     bool succeeded;
-                    if (!JSObject::deleteGeneric(cx, obj, id, &succeeded))
+                    if (!DeleteProperty(cx, obj, id, &succeeded))
                         return false;
                 } else {
                     /* Step 2b(ii)(3). */
                     // XXX This definition should ignore success/failure, when
                     //     our property-definition APIs indicate that.
-                    if (!JSObject::defineGeneric(cx, obj, id, newElement))
+                    if (!DefineProperty(cx, obj, id, newElement))
                         return false;
                 }
             }
@@ -788,11 +777,11 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
 static bool
 Revive(JSContext *cx, HandleValue reviver, MutableHandleValue vp)
 {
-    RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
+    RootedPlainObject obj(cx, NewBuiltinClassInstance<PlainObject>(cx));
     if (!obj)
         return false;
 
-    if (!JSObject::defineProperty(cx, obj, cx->names().empty, vp))
+    if (!DefineProperty(cx, obj, cx->names().empty, vp))
         return false;
 
     Rooted<jsid> id(cx, NameToId(cx->names().empty));
@@ -846,20 +835,20 @@ json_parse(JSContext *cx, unsigned argc, Value *vp)
     if (!str)
         return false;
 
-    JSFlatString *flat = str->ensureFlat(cx);
-    if (!flat)
+    JSLinearString *linear = str->ensureLinear(cx);
+    if (!linear)
         return false;
 
-    AutoStableStringChars flatChars(cx);
-    if (!flatChars.init(cx, flat))
+    AutoStableStringChars linearChars(cx);
+    if (!linearChars.init(cx, linear))
         return false;
 
-    RootedValue reviver(cx, args.get(1));
+    HandleValue reviver = args.get(1);
 
     /* Steps 2-5. */
-    return flatChars.isLatin1()
-           ? ParseJSONWithReviver(cx, flatChars.latin1Range(), reviver, args.rval())
-           : ParseJSONWithReviver(cx, flatChars.twoByteRange(), reviver, args.rval());
+    return linearChars.isLatin1()
+           ? ParseJSONWithReviver(cx, linearChars.latin1Range(), reviver, args.rval())
+           : ParseJSONWithReviver(cx, linearChars.twoByteRange(), reviver, args.rval());
 }
 
 /* ES5 15.12.3. */
@@ -872,7 +861,7 @@ json_stringify(JSContext *cx, unsigned argc, Value *vp)
     RootedValue space(cx, args.get(2));
 
     StringBuffer sb(cx);
-    if (!js_Stringify(cx, &value, replacer, space, sb))
+    if (!Stringify(cx, &value, replacer, space, sb))
         return false;
 
     // XXX This can never happen to nsJSON.cpp, but the JSON object
@@ -900,7 +889,7 @@ static const JSFunctionSpec json_static_methods[] = {
 };
 
 JSObject *
-js_InitJSONClass(JSContext *cx, HandleObject obj)
+js::InitJSONClass(JSContext *cx, HandleObject obj)
 {
     Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
 

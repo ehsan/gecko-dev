@@ -24,6 +24,7 @@ public:
   bool Unmarshall(const android::Parcel& aParcel, EventOptions& aOptions);
 
 private:
+  bool ProcessResponse(int32_t aType, const android::Parcel& aParcel, EventOptions& aOptions);
   bool GeneralResponse(const android::Parcel& aParcel, EventOptions& aOptions);
   bool ChangeRFStateRequest(android::Parcel& aParcel, const CommandOptions& options);
   bool ChangeRFStateResponse(const android::Parcel& aParcel, EventOptions& aOptions);
@@ -32,9 +33,10 @@ private:
   bool WriteNDEFRequest(android::Parcel& aParcel, const CommandOptions& options);
   bool MakeReadOnlyRequest(android::Parcel& aParcel, const CommandOptions& options);
   bool FormatRequest(android::Parcel& aParcel, const CommandOptions& options);
-  bool ConnectRequest(android::Parcel& aParcel, const CommandOptions& options);
-  bool CloseRequest(android::Parcel& aParcel, const CommandOptions& options);
+  bool TransceiveRequest(android::Parcel& aParcel, const CommandOptions& options);
+  bool TransceiveResponse(const android::Parcel& aParcel, EventOptions& aOptions);
 
+  bool ProcessNotification(int32_t aType, const android::Parcel& aParcel, EventOptions& aOptions);
   bool InitializeNotification(const android::Parcel& aParcel, EventOptions& aOptions);
   bool TechDiscoveredNotification(const android::Parcel& aParcel, EventOptions& aOptions);
   bool TechLostNotification(const android::Parcel& aParcel, EventOptions& aOptions);
@@ -42,9 +44,8 @@ private:
 
   bool ReadNDEFMessage(const android::Parcel& aParcel, EventOptions& aOptions);
   bool WriteNDEFMessage(android::Parcel& aParcel, const CommandOptions& aOptions);
-
+  bool ReadTransceiveResponse(const android::Parcel& aParcel, EventOptions& aOptions);
 private:
-  nsTArray<int32_t> mPendingReqQueue;
   nsTArray<nsString> mRequestIdQueue;
 };
 

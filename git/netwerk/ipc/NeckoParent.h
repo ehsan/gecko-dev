@@ -80,21 +80,14 @@ public:
 
     NestedFrameAuthPrompt(PNeckoParent* aParent, TabId aNestedFrameId);
 
-    NS_IMETHOD PromptAuth(nsIChannel*, uint32_t, nsIAuthInformation*, bool*)
+    NS_IMETHOD PromptAuth(nsIChannel*, uint32_t, nsIAuthInformation*, bool*) MOZ_OVERRIDE
     {
       return NS_ERROR_NOT_IMPLEMENTED;
     }
 
     NS_IMETHOD AsyncPromptAuth(nsIChannel* aChannel, nsIAuthPromptCallback* callback,
                                nsISupports*, uint32_t,
-                               nsIAuthInformation* aInfo, nsICancelable**);
-
-    NS_IMETHOD AsyncPromptAuth2(nsIChannel*, nsIDOMElement*,
-                                nsIAuthPromptCallback*, nsISupports*,
-                                uint32_t, nsIAuthInformation*, nsICancelable**)
-    {
-      return NS_ERROR_NOT_IMPLEMENTED;
-    }
+                               nsIAuthInformation* aInfo, nsICancelable**) MOZ_OVERRIDE;
 
   protected:
     PNeckoParent* mNeckoParent;
@@ -160,10 +153,12 @@ protected:
   virtual bool RecvPUDPSocketConstructor(PUDPSocketParent*, const nsCString& aFilter) MOZ_OVERRIDE;
   virtual bool DeallocPUDPSocketParent(PUDPSocketParent*) MOZ_OVERRIDE;
   virtual PDNSRequestParent* AllocPDNSRequestParent(const nsCString& aHost,
-                                                    const uint32_t& aFlags) MOZ_OVERRIDE;
+                                                    const uint32_t& aFlags,
+                                                    const nsCString& aNetworkInterface) MOZ_OVERRIDE;
   virtual bool RecvPDNSRequestConstructor(PDNSRequestParent* actor,
                                           const nsCString& hostName,
-                                          const uint32_t& flags) MOZ_OVERRIDE;
+                                          const uint32_t& flags,
+                                          const nsCString& aNetworkInterface) MOZ_OVERRIDE;
   virtual bool DeallocPDNSRequestParent(PDNSRequestParent*) MOZ_OVERRIDE;
   virtual bool RecvHTMLDNSPrefetch(const nsString& hostname,
                                    const uint16_t& flags) MOZ_OVERRIDE;

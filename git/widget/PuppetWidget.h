@@ -21,7 +21,6 @@
 #include "nsBaseWidget.h"
 #include "nsIScreenManager.h"
 #include "nsThreadUtils.h"
-#include "nsWeakReference.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/EventForwards.h"
 
@@ -37,8 +36,7 @@ namespace widget {
 
 struct AutoCacheNativeKeyCommands;
 
-class PuppetWidget : public nsBaseWidget,
-                     public nsSupportsWeakReference
+class PuppetWidget : public nsBaseWidget
 {
   typedef mozilla::dom::TabChild TabChild;
   typedef mozilla::gfx::DrawTarget DrawTarget;
@@ -59,56 +57,54 @@ public:
   NS_IMETHOD Create(nsIWidget*        aParent,
                     nsNativeWidget    aNativeParent,
                     const nsIntRect&  aRect,
-                    nsDeviceContext*  aContext,
-                    nsWidgetInitData* aInitData = nullptr);
+                    nsWidgetInitData* aInitData = nullptr) MOZ_OVERRIDE;
 
   void InitIMEState();
 
   virtual already_AddRefed<nsIWidget>
   CreateChild(const nsIntRect  &aRect,
-              nsDeviceContext  *aContext,
               nsWidgetInitData *aInitData = nullptr,
-              bool             aForceUseIWidgetParent = false);
+              bool             aForceUseIWidgetParent = false) MOZ_OVERRIDE;
 
-  NS_IMETHOD Destroy();
+  NS_IMETHOD Destroy() MOZ_OVERRIDE;
 
-  NS_IMETHOD Show(bool aState);
+  NS_IMETHOD Show(bool aState) MOZ_OVERRIDE;
 
-  virtual bool IsVisible() const
+  virtual bool IsVisible() const MOZ_OVERRIDE
   { return mVisible; }
 
   NS_IMETHOD ConstrainPosition(bool     /*ignored aAllowSlop*/,
                                int32_t* aX,
-                               int32_t* aY)
+                               int32_t* aY) MOZ_OVERRIDE
   { *aX = kMaxDimension;  *aY = kMaxDimension;  return NS_OK; }
 
   // We're always at <0, 0>, and so ignore move requests.
-  NS_IMETHOD Move(double aX, double aY)
+  NS_IMETHOD Move(double aX, double aY) MOZ_OVERRIDE
   { return NS_OK; }
 
   NS_IMETHOD Resize(double aWidth,
                     double aHeight,
-                    bool   aRepaint);
+                    bool   aRepaint) MOZ_OVERRIDE;
   NS_IMETHOD Resize(double aX,
                     double aY,
                     double aWidth,
                     double aHeight,
-                    bool   aRepaint)
+                    bool   aRepaint) MOZ_OVERRIDE
   // (we're always at <0, 0>)
   { return Resize(aWidth, aHeight, aRepaint); }
 
   // XXX/cjones: copying gtk behavior here; unclear what disabling a
   // widget is supposed to entail
-  NS_IMETHOD Enable(bool aState)
+  NS_IMETHOD Enable(bool aState) MOZ_OVERRIDE
   { mEnabled = aState;  return NS_OK; }
-  virtual bool IsEnabled() const
+  virtual bool IsEnabled() const MOZ_OVERRIDE
   { return mEnabled; }
 
-  NS_IMETHOD SetFocus(bool aRaise = false);
+  NS_IMETHOD SetFocus(bool aRaise = false) MOZ_OVERRIDE;
 
-  virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
+  virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations) MOZ_OVERRIDE;
 
-  NS_IMETHOD Invalidate(const nsIntRect& aRect);
+  NS_IMETHOD Invalidate(const nsIntRect& aRect) MOZ_OVERRIDE;
 
   // This API is going away, steer clear.
   virtual void Scroll(const nsIntPoint& aDelta,
@@ -117,24 +113,24 @@ public:
   { /* dead man walking */ }
 
   // PuppetWidgets don't have native data, as they're purely nonnative.
-  virtual void* GetNativeData(uint32_t aDataType);
-  NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent)
+  virtual void* GetNativeData(uint32_t aDataType) MOZ_OVERRIDE;
+  NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent) MOZ_OVERRIDE
   { return NS_ERROR_UNEXPECTED; }
 
   // PuppetWidgets don't have any concept of titles. 
-  NS_IMETHOD SetTitle(const nsAString& aTitle)
+  NS_IMETHOD SetTitle(const nsAString& aTitle) MOZ_OVERRIDE
   { return NS_ERROR_UNEXPECTED; }
   
   // PuppetWidgets are always at <0, 0>.
-  virtual nsIntPoint WidgetToScreenOffset()
-  { return nsIntPoint(0, 0); }
+  virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset() MOZ_OVERRIDE
+  { return mozilla::LayoutDeviceIntPoint(0, 0); }
 
   void InitEvent(WidgetGUIEvent& aEvent, nsIntPoint* aPoint = nullptr);
 
-  NS_IMETHOD DispatchEvent(WidgetGUIEvent* aEvent, nsEventStatus& aStatus);
+  NS_IMETHOD DispatchEvent(WidgetGUIEvent* aEvent, nsEventStatus& aStatus) MOZ_OVERRIDE;
 
   NS_IMETHOD CaptureRollupEvents(nsIRollupListener* aListener,
-                                 bool aDoCapture)
+                                 bool aDoCapture) MOZ_OVERRIDE
   { return NS_ERROR_UNEXPECTED; }
 
   NS_IMETHOD_(bool)
@@ -162,17 +158,16 @@ public:
   GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
                   LayersBackend aBackendHint = mozilla::layers::LayersBackend::LAYERS_NONE,
                   LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
-                  bool* aAllowRetaining = nullptr);
+                  bool* aAllowRetaining = nullptr) MOZ_OVERRIDE;
 
-  NS_IMETHOD NotifyIME(const IMENotification& aIMENotification) MOZ_OVERRIDE;
   NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
-                                    const InputContextAction& aAction);
-  NS_IMETHOD_(InputContext) GetInputContext();
+                                    const InputContextAction& aAction) MOZ_OVERRIDE;
+  NS_IMETHOD_(InputContext) GetInputContext() MOZ_OVERRIDE;
   virtual nsIMEUpdatePreference GetIMEUpdatePreference() MOZ_OVERRIDE;
 
-  NS_IMETHOD SetCursor(nsCursor aCursor);
+  NS_IMETHOD SetCursor(nsCursor aCursor) MOZ_OVERRIDE;
   NS_IMETHOD SetCursor(imgIContainer* aCursor,
-                       uint32_t aHotspotX, uint32_t aHotspotY)
+                       uint32_t aHotspotX, uint32_t aHotspotY) MOZ_OVERRIDE
   {
     return nsBaseWidget::SetCursor(aCursor, aHotspotX, aHotspotY);
   }
@@ -181,8 +176,8 @@ public:
   // Contacts the parent process which gets the DPI from the
   // proper widget there. TODO: Handle DPI changes that happen
   // later on.
-  virtual float GetDPI();
-  virtual double GetDefaultScaleInternal();
+  virtual float GetDPI() MOZ_OVERRIDE;
+  virtual double GetDefaultScaleInternal() MOZ_OVERRIDE;
 
   virtual bool NeedsPaint() MOZ_OVERRIDE;
 
@@ -193,9 +188,26 @@ public:
     mDefaultScale = -1;
   }
 
+  nsIntSize GetScreenDimensions();
+
+  // Get the size of the chrome of the window that this tab belongs to.
+  nsIntPoint GetChromeDimensions();
+
+  // Get the screen position of the application window.
+  nsIntPoint GetWindowPosition();
+
+  NS_IMETHOD StartPluginIME(const mozilla::WidgetKeyboardEvent& aKeyboardEvent,
+                            int32_t aPanelX, int32_t aPanelY,
+                            nsString& aCommitted) MOZ_OVERRIDE;
+
+  NS_IMETHOD SetPluginFocused(bool& aFocused) MOZ_OVERRIDE;
+
 protected:
   bool mEnabled;
   bool mVisible;
+
+  virtual nsresult NotifyIMEInternal(
+                     const IMENotification& aIMENotification) MOZ_OVERRIDE;
 
 private:
   nsresult Paint();
@@ -208,6 +220,15 @@ private:
   nsresult NotifyIMEOfUpdateComposition();
   nsresult NotifyIMEOfTextChange(const IMENotification& aIMENotification);
   nsresult NotifyIMEOfMouseButtonEvent(const IMENotification& aIMENotification);
+  nsresult NotifyIMEOfEditorRect();
+  nsresult NotifyIMEOfPositionChange();
+
+  bool GetEditorRect(mozilla::LayoutDeviceIntRect& aEditorRect);
+  bool GetCompositionRects(uint32_t& aStartOffset,
+                           nsTArray<mozilla::LayoutDeviceIntRect>& aRectArray,
+                           uint32_t& aTargetCauseOffset);
+  bool GetCaretRect(mozilla::LayoutDeviceIntRect& aCaretRect, uint32_t aCaretOffset);
+  uint32_t GetCaretOffset();
 
   class PaintTask : public nsRunnable {
   public:
@@ -235,7 +256,6 @@ private:
   mozilla::RefPtr<DrawTarget> mDrawTarget;
   // IME
   nsIMEUpdatePreference mIMEPreferenceOfParent;
-  bool mIMEComposing;
   // Latest seqno received through events
   uint32_t mIMELastReceivedSeqno;
   // Chrome's seqno value when last blur occurred

@@ -102,8 +102,8 @@ class HeapReverser : public JSTracer, public JS::CustomAutoRooter
         bool marked;
 
       private:
-        Node(const Node &) MOZ_DELETE;
-        Node &operator=(const Node &) MOZ_DELETE;
+        Node(const Node &) = delete;
+        Node &operator=(const Node &) = delete;
     };
 
     /* Metadata for a heap edge we have traversed. */
@@ -531,7 +531,7 @@ ReferenceFinder::addReferrer(jsval referrerArg, Path *path)
 JSObject *
 ReferenceFinder::findReferences(HandleObject target)
 {
-    result = JS_NewObject(context, nullptr, JS::NullPtr(), JS::NullPtr());
+    result = JS_NewPlainObject(context);
     if (!result)
         return nullptr;
     if (!visit(target, nullptr))
@@ -546,14 +546,14 @@ FindReferences(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() < 1) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
                              "findReferences", "0", "s");
         return false;
     }
 
     RootedValue target(cx, args[0]);
     if (!target.isObject()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_UNEXPECTED_TYPE,
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNEXPECTED_TYPE,
                              "argument", "not an object");
         return false;
     }

@@ -19,12 +19,22 @@ log_formatters = {
     'tbpl': (formatters.TbplFormatter, "TBPL style log format"),
 }
 
+TEXT_FORMATTERS = ('raw', 'mach')
+"""a subset of formatters for non test harnesses related applications"""
+
 def level_filter_wrapper(formatter, level):
     return handlers.LogLevelFilter(formatter, level)
 
 def verbose_wrapper(formatter, verbose):
     formatter.verbose = verbose
     return formatter
+
+def buffer_handler_wrapper(handler, buffer_limit):
+    if buffer_limit == "UNLIMITED":
+        buffer_limit = None
+    else:
+        buffer_limit = int(buffer_limit)
+    return handlers.BufferingLogFilter(handler, buffer_limit)
 
 formatter_option_defaults = {
     'verbose': False,
@@ -40,6 +50,9 @@ fmt_options = {
     'level': (level_filter_wrapper,
               "A least log level to subscribe to for the given formatter (debug, info, error, etc.)",
               ["mach", "tbpl"], "store"),
+    'buffer': (buffer_handler_wrapper,
+               "If specified, enables message buffering at the given buffer size limit.",
+               ["mach", "tbpl"], "store"),
 }
 
 
@@ -50,7 +63,7 @@ def log_file(name):
         return open(name, "w")
 
 
-def add_logging_group(parser):
+def add_logging_group(parser, include_formatters=None):
     """
     Add logging options to an argparse ArgumentParser or
     optparse OptionParser.
@@ -61,39 +74,46 @@ def add_logging_group(parser):
 
     :param parser: The ArgumentParser or OptionParser object that should have
                    logging options added.
+    :param include_formatters: List of formatter names that should be included
+                               in the option group. Default to None, meaning
+                               all the formatters are included. A common use
+                               of this option is to specify
+                               :data:`TEXT_FORMATTERS` to include only the
+                               most useful formatters for a command line tool
+                               that is not related to test harnesses.
     """
     group_name = "Output Logging"
     group_description = ("Each option represents a possible logging format "
                          "and takes a filename to write that format to, "
                          "or '-' to write to stdout.")
 
+    if include_formatters is None:
+        include_formatters = log_formatters.keys()
+
     if isinstance(parser, optparse.OptionParser):
         group = optparse.OptionGroup(parser,
                                      group_name,
                                      group_description)
-        for name, (cls, help_str) in log_formatters.iteritems():
-            group.add_option("--log-" + name, action="append", type="str",
-                             help=help_str)
-        for optname, (cls, help_str, formatters, action) in fmt_options.iteritems():
-            for fmt in formatters:
-                # make sure fmt wasn't removed from log_formatters
-                if fmt in log_formatters:
-                    group.add_option("--log-%s-%s" % (fmt, optname), action=action,
-                                     help=help_str, default=None)
         parser.add_option_group(group)
+        opt_log_type = 'str'
+        group_add = group.add_option
     else:
         group = parser.add_argument_group(group_name,
                                           group_description)
-        for name, (cls, help_str) in log_formatters.iteritems():
-            group.add_argument("--log-" + name, action="append", type=log_file,
-                               help=help_str)
+        opt_log_type = log_file
+        group_add = group.add_argument
 
-        for optname, (cls, help_str, formatters, action) in fmt_options.iteritems():
-            for fmt in formatters:
-                # make sure fmt wasn't removed from log_formatters
-                if fmt in log_formatters:
-                    group.add_argument("--log-%s-%s" % (fmt, optname), action=action,
-                                       help=help_str, default=None)
+    for name, (cls, help_str) in log_formatters.iteritems():
+        if name in include_formatters:
+            group_add("--log-" + name, action="append", type=opt_log_type,
+                      help=help_str)
+
+    for optname, (cls, help_str, formatters, action) in fmt_options.iteritems():
+        for fmt in formatters:
+            # make sure fmt is in log_formatters and is accepted
+            if fmt in log_formatters and fmt in include_formatters:
+                group_add("--log-%s-%s" % (fmt, optname), action=action,
+                          help=help_str, default=None)
 
 
 def setup_handlers(logger, formatters, formatter_options):
@@ -115,12 +135,18 @@ def setup_handlers(logger, formatters, formatter_options):
     for fmt, streams in formatters.iteritems():
         formatter_cls = log_formatters[fmt][0]
         formatter = formatter_cls()
+        handler_wrapper, handler_option = None, ""
         for option, value in formatter_options[fmt].iteritems():
-            formatter = fmt_options[option][0](formatter, value)
+            if option == "buffer":
+                handler_wrapper, handler_option = fmt_options[option][0], value
+            else:
+                formatter = fmt_options[option][0](formatter, value)
 
         for value in streams:
-            logger.add_handler(handlers.StreamHandler(stream=value,
-                                                      formatter=formatter))
+            handler = handlers.StreamHandler(stream=value, formatter=formatter)
+            if handler_wrapper:
+                handler = handler_wrapper(handler, handler_option)
+            logger.add_handler(handler)
 
 
 def setup_logging(suite, args, defaults=None):

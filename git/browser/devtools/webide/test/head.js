@@ -9,9 +9,9 @@ Cu.import('resource://gre/modules/Services.jsm');
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 
-const {Promise: promise} = Cu.import("resource://gre/modules/devtools/deprecated-sync-thenables.js", {});
 const {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 const {require} = devtools;
+const promise = require("promise");
 const {AppProjects} = require("devtools/app-manager/app-projects");
 
 let TEST_BASE;
@@ -103,8 +103,10 @@ function nextTick() {
 }
 
 function waitForUpdate(win, update) {
+  info("Wait: " + update);
   let deferred = promise.defer();
   win.AppManager.on("app-manager-update", function onUpdate(e, what) {
+    info("Got: " + what);
     if (what !== update) {
       return;
     }
@@ -134,6 +136,15 @@ function documentIsLoaded(doc) {
       }
     });
   }
+  return deferred.promise;
+}
+
+function lazyIframeIsLoaded(iframe) {
+  let deferred = promise.defer();
+  iframe.addEventListener("load", function onLoad() {
+    iframe.removeEventListener("load", onLoad, true);
+    deferred.resolve();
+  }, true);
   return deferred.promise;
 }
 

@@ -6,18 +6,20 @@
 
 #include "jspropertytree.h"
 
+#include "mozilla/DebugOnly.h"
+
 #include "jscntxt.h"
 #include "jsgc.h"
 #include "jstypes.h"
 
 #include "vm/Shape.h"
 
-#include "jsgcinlines.h"
-
 #include "vm/Shape-inl.h"
 
 using namespace js;
 using namespace js::gc;
+
+using mozilla::DebugOnly;
 
 inline HashNumber
 ShapeHasher::hash(const Lookup &l)
@@ -69,7 +71,7 @@ PropertyTree::insertChild(ExclusiveContext *cx, Shape *parent, Shape *child)
 
         KidsHash *hash = HashChildren(shape, child);
         if (!hash) {
-            js_ReportOutOfMemory(cx);
+            ReportOutOfMemory(cx);
             return false;
         }
         kidp->setHash(hash);
@@ -78,7 +80,7 @@ PropertyTree::insertChild(ExclusiveContext *cx, Shape *parent, Shape *child)
     }
 
     if (!kidp->toHash()->putNew(StackShape(child), child)) {
-        js_ReportOutOfMemory(cx);
+        ReportOutOfMemory(cx);
         return false;
     }
 
@@ -151,7 +153,6 @@ PropertyTree::getChild(ExclusiveContext *cx, Shape *parentArg, StackShape &unroo
         /* If kidp->isNull(), we always insert. */
     }
 
-#ifdef JSGC_INCREMENTAL
     if (existingShape) {
         JS::Zone *zone = existingShape->zone();
         if (zone->needsIncrementalBarrier()) {
@@ -173,10 +174,9 @@ PropertyTree::getChild(ExclusiveContext *cx, Shape *parentArg, StackShape &unroo
             parent->removeChild(existingShape);
             existingShape = nullptr;
         } else if (existingShape->isMarked(gc::GRAY)) {
-            JS::UnmarkGrayGCThingRecursively(existingShape, JSTRACE_SHAPE);
+            UnmarkGrayShapeRecursively(existingShape);
         }
     }
-#endif
 
     if (existingShape)
         return existingShape;
@@ -191,68 +191,26 @@ PropertyTree::getChild(ExclusiveContext *cx, Shape *parentArg, StackShape &unroo
     return shape;
 }
 
-Shape *
-PropertyTree::lookupChild(ThreadSafeContext *cx, Shape *parent, const StackShape &child)
-{
-    /* Keep this in sync with the logic of getChild above. */
-    Shape *shape = nullptr;
-
-    MOZ_ASSERT(parent);
-
-    KidsPointer *kidp = &parent->kids;
-    if (kidp->isShape()) {
-        Shape *kid = kidp->toShape();
-        if (kid->matches(child))
-            shape = kid;
-    } else if (kidp->isHash()) {
-        if (KidsHash::Ptr p = kidp->toHash()->readonlyThreadsafeLookup(child))
-            shape = *p;
-    } else {
-        return nullptr;
-    }
-
-#if defined(JSGC_INCREMENTAL) && defined(DEBUG)
-    if (shape) {
-        JS::Zone *zone = shape->arenaHeader()->zone;
-        MOZ_ASSERT(!zone->needsIncrementalBarrier());
-        MOZ_ASSERT(!(zone->isGCSweeping() && !shape->isMarked() &&
-                     !shape->arenaHeader()->allocatedDuringIncremental));
-    }
-#endif
-
-    return shape;
-}
-
 void
 Shape::sweep()
 {
-    if (inDictionary())
-        return;
-
     /*
      * We detach the child from the parent if the parent is reachable.
      *
-     * Note that due to incremental sweeping, the parent pointer may point
-     * to the original reachable parent, or it may point to a new live
-     * object allocated in the same cell that used to hold the parent.
-     *
-     * There are three cases:
-     *
-     * Case 1: parent is not marked - parent is unreachable, may have been
-     *         finalized, and the cell may subsequently have been
-     *         reallocated to a compartment that is not being marked (cells
-     *         are marked when allocated in a compartment that is currenly
-     *         being marked by the collector).
-     *
-     * Case 2: parent is marked and is in a different compartment - parent
-     *         has been freed and reallocated to compartment that was being
-     *         marked.
-     *
-     * Case 3: parent is marked and is in the same compartment - parent is
-     *         stil reachable and we need to detach from it.
+     * This test depends on shape arenas not being freed until after we finish
+     * incrementally sweeping them. If that were not the case the parent pointer
+     * could point to a marked cell that had been deallocated and then
+     * reallocated, since allocating a cell in a zone that is being marked will
+     * set the mark bit for that cell.
      */
-    if (parent && parent->isMarked() && parent->compartment() == compartment())
-        parent->removeChild(this);
+    if (parent && parent->isMarked()) {
+        if (inDictionary()) {
+            if (parent->listp == &parent)
+                parent->listp = nullptr;
+        } else {
+            parent->removeChild(this);
+        }
+    }
 }
 
 void
@@ -262,24 +220,26 @@ Shape::finalize(FreeOp *fop)
         fop->delete_(kids.toHash());
 }
 
-#ifdef JSGC_COMPACTING
-
 void
 Shape::fixupDictionaryShapeAfterMovingGC()
 {
     if (!listp)
         return;
 
+    // Get a fake cell pointer to use for the calls below. This might not point
+    // to the beginning of a cell, but will point into the right arena and will
+    // have the right alignment.
+    Cell *cell = reinterpret_cast<Cell *>(uintptr_t(listp) & ~CellMask);
+
     // It's possible that this shape is unreachable and that listp points to the
     // location of a dead object in the nursery, in which case we should never
     // touch it again.
-    if (IsInsideNursery(reinterpret_cast<Cell *>(listp))) {
+    if (IsInsideNursery(cell)) {
         listp = nullptr;
         return;
     }
 
-    MOZ_ASSERT(!IsInsideNursery(reinterpret_cast<Cell *>(listp)));
-    AllocKind kind = TenuredCell::fromPointer(listp)->getAllocKind();
+    AllocKind kind = TenuredCell::fromPointer(cell)->getAllocKind();
     MOZ_ASSERT(kind == FINALIZE_SHAPE ||
                kind == FINALIZE_ACCESSOR_SHAPE ||
                kind <= FINALIZE_OBJECT_LAST);
@@ -291,8 +251,8 @@ Shape::fixupDictionaryShapeAfterMovingGC()
     } else {
         // listp points to the shape_ field of an object.
         JSObject *last = reinterpret_cast<JSObject *>(uintptr_t(listp) -
-                                                      offsetof(JSObject, shape_));
-        listp = &gc::MaybeForwarded(last)->shape_;
+                                                      JSObject::offsetOfShape());
+        listp = &gc::MaybeForwarded(last)->as<NativeObject>().shape_;
     }
 }
 
@@ -349,9 +309,6 @@ Shape::fixupAfterMovingGC()
         fixupShapeTreeAfterMovingGC();
 }
 
-#endif // JSGC_COMPACTING
-
-#ifdef JSGC_GENERATIONAL
 void
 ShapeGetterSetterRef::mark(JSTracer *trc)
 {
@@ -380,7 +337,6 @@ ShapeGetterSetterRef::mark(JSTracer *trc)
     *objp = obj;
     MOZ_ALWAYS_TRUE(kh->putNew(StackShape(shape), shape));
 }
-#endif
 
 #ifdef DEBUG
 

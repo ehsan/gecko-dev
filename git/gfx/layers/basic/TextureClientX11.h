@@ -43,7 +43,7 @@ class TextureClientX11 : public TextureClient
 
   virtual gfx::DrawTarget* BorrowDrawTarget() MOZ_OVERRIDE;
 
-  virtual gfx::SurfaceFormat GetFormat() const { return mFormat; }
+  virtual gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE { return mFormat; }
 
   virtual bool HasInternalBuffer() const MOZ_OVERRIDE { return false; }
 
@@ -55,7 +55,6 @@ class TextureClientX11 : public TextureClient
   gfx::SurfaceFormat mFormat;
   gfx::IntSize mSize;
   RefPtr<gfxXlibSurface> mSurface;
-  RefPtr<ISurfaceAllocator> mAllocator;
   RefPtr<gfx::DrawTarget> mDrawTarget;
   bool mLocked;
 };

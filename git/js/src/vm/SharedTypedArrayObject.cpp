@@ -31,23 +31,21 @@
 #include "asmjs/AsmJSValidate.h"
 #include "gc/Barrier.h"
 #include "gc/Marking.h"
+#include "js/Conversions.h"
 #include "vm/ArrayBufferObject.h"
 #include "vm/GlobalObject.h"
 #include "vm/Interpreter.h"
-#include "vm/NumericConversions.h"
 #include "vm/SharedArrayObject.h"
 #include "vm/TypedArrayCommon.h"
 #include "vm/WrapperObject.h"
 
 #include "jsatominlines.h"
-#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 #include "vm/Shape-inl.h"
 
 using namespace js;
 using namespace js::gc;
-using namespace js::types;
 
 using mozilla::IsNaN;
 using mozilla::NegativeInfinity;
@@ -55,11 +53,13 @@ using mozilla::PodCopy;
 using mozilla::PositiveInfinity;
 using JS::CanonicalizeNaN;
 using JS::GenericNaN;
+using JS::ToInt32;
+using JS::ToUint32;
 
 TypedArrayLayout SharedTypedArrayObject::layout_(true, // shared
                                                  false, // neuterable
                                                  &SharedTypedArrayObject::classes[0],
-                                                 &SharedTypedArrayObject::classes[Scalar::TypeMax]);
+                                                 &SharedTypedArrayObject::classes[Scalar::MaxTypedArrayViewType]);
 
 inline void
 InitSharedArrayBufferViewDataPointer(SharedTypedArrayObject *obj, SharedArrayBufferObject *buffer, size_t byteOffset)
@@ -133,10 +133,10 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
         if (!obj)
             return nullptr;
 
-        types::TypeObject *type = cx->getNewType(obj->getClass(), TaggedProto(proto.get()));
-        if (!type)
+        ObjectGroup *group = ObjectGroup::defaultNewGroup(cx, obj->getClass(), TaggedProto(proto.get()));
+        if (!group)
             return nullptr;
-        obj->setType(type);
+        obj->setGroup(group);
 
         return &obj->as<SharedTypedArrayObject>();
     }
@@ -154,16 +154,17 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
 
         jsbytecode *pc;
         RootedScript script(cx, cx->currentScript(&pc));
-        NewObjectKind newKind = script
-                                ? UseNewTypeForInitializer(script, pc, instanceClass())
-                                : GenericObject;
+        NewObjectKind newKind = GenericObject;
+        if (script && ObjectGroup::useSingletonForAllocationSite(script, pc, instanceClass()))
+            newKind = SingletonObject;
         RootedObject obj(cx, NewBuiltinClassInstance(cx, instanceClass(), allocKind, newKind));
         if (!obj)
             return nullptr;
 
-        if (script) {
-            if (!types::SetInitializerObjectType(cx, script, pc, obj, newKind))
-                return nullptr;
+        if (script && !ObjectGroup::setAllocationSiteObjectGroup(cx, script, pc, obj,
+                                                                 newKind == SingletonObject))
+        {
+            return nullptr;
         }
 
         return &obj->as<SharedTypedArrayObject>();
@@ -237,7 +238,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
                 args.rval().set(args[0]);
                 return true;
             }
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SHARED_TYPED_ARRAY_BAD_LENGTH);
+            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_SHARED_TYPED_ARRAY_BAD_LENGTH);
             return false;
         }
 
@@ -262,7 +263,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
             if (!ToLengthClamped(cx, args[0], &length, &overflow)) {
                 // Bug 1068458: Limit length to 2^31-1.
                 if (overflow || length > INT32_MAX)
-                    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_ARRAY_LENGTH);
+                    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_BAD_ARRAY_LENGTH);
                 return nullptr;
             }
             return fromLength(cx, length);
@@ -272,7 +273,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
         RootedObject dataObj(cx, &args.get(0).toObject());
 
         if (!UncheckedUnwrap(dataObj)->is<SharedArrayBufferObject>()) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SHARED_TYPED_ARRAY_BAD_OBJECT);
+            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_SHARED_TYPED_ARRAY_BAD_OBJECT);
             return nullptr;
         }
 
@@ -284,7 +285,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
                 return nullptr;
 
             if (numByteOffset < 0 || numByteOffset > MAX_BYTEOFFSET) {
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+                JS_ReportErrorNumber(cx, GetErrorMessage, nullptr,
                                      JSMSG_SHARED_TYPED_ARRAY_ARG_RANGE, "'byteOffset'");
                 return nullptr;
             }
@@ -295,7 +296,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
                 if (!ToLengthClamped(cx, args[2], &length, &overflow)) {
                     // Bug 1068458: Limit length to 2^31-1.
                     if (overflow || length > INT32_MAX)
-                        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+                        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr,
                                              JSMSG_SHARED_TYPED_ARRAY_ARG_RANGE, "'length'");
                     return nullptr;
                 }
@@ -354,7 +355,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
         if (!getter)
             return false;
 
-        return DefineNativeProperty(cx, proto, id, UndefinedHandleValue,
+        return NativeDefineProperty(cx, proto, id, UndefinedHandleValue,
                                     JS_DATA_TO_FUNC_PTR(PropertyOp, getter), nullptr,
                                     attrs);
     }
@@ -411,7 +412,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
                         HandleObject proto)
     {
         if (!ObjectClassIs(bufobj, ESClass_SharedArrayBuffer, cx)) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SHARED_TYPED_ARRAY_BAD_OBJECT);
+            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_SHARED_TYPED_ARRAY_BAD_OBJECT);
             return nullptr; // must be SharedArrayBuffer
         }
 
@@ -425,7 +426,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
 
         if (byteOffset > buffer->byteLength() || byteOffset % sizeof(NativeType) != 0) {
             // Invalid byteOffset.
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SHARED_TYPED_ARRAY_BAD_ARGS);
+            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_SHARED_TYPED_ARRAY_BAD_ARGS);
             return nullptr;
         }
 
@@ -433,14 +434,14 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
 
         if (length == LENGTH_NOT_PROVIDED) {
             if (bytesAvailable % sizeof(NativeType) != 0) {
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SHARED_TYPED_ARRAY_BAD_ARGS);
+                JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_SHARED_TYPED_ARRAY_BAD_ARGS);
                 return nullptr;
             }
             length = bytesAvailable / sizeof(NativeType);
         }
 
         if (length > MAX_LENGTH / sizeof(NativeType) || length * sizeof(NativeType) > bytesAvailable) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_ARRAY_LENGTH);
+            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_BAD_ARRAY_LENGTH);
             return nullptr;
         }
 
@@ -458,7 +459,7 @@ class SharedTypedArrayObjectTemplate : public SharedTypedArrayObject
     fromLength(JSContext *cx, uint32_t nelements)
     {
         if (nelements > MAX_LENGTH / sizeof(NativeType)) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_ARRAY_LENGTH);
+            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_BAD_ARRAY_LENGTH);
             return nullptr;
         }
         Rooted<SharedArrayBufferObject *> buffer(
@@ -704,13 +705,13 @@ IMPL_SHARED_TYPED_ARRAY_COMBINED_UNWRAPPERS(Float64, double, double)
     JSCLASS_HAS_RESERVED_SLOTS(SharedTypedArrayObject::RESERVED_SLOTS) |       \
     JSCLASS_HAS_PRIVATE |                                                      \
     JSCLASS_HAS_CACHED_PROTO(JSProto_Shared##_typedArray),                     \
-    JS_PropertyStub,         /* addProperty */                                 \
-    JS_DeletePropertyStub,   /* delProperty */                                 \
-    JS_PropertyStub,         /* getProperty */                                 \
-    JS_StrictPropertyStub,   /* setProperty */                                 \
-    JS_EnumerateStub,                                                          \
-    JS_ResolveStub,                                                            \
-    JS_ConvertStub,                                                            \
+    nullptr,                 /* addProperty */                                 \
+    nullptr,                 /* delProperty */                                 \
+    nullptr,                 /* getProperty */                                 \
+    nullptr,                 /* setProperty */                                 \
+    nullptr,                 /* enumerate   */                                 \
+    nullptr,                 /* resolve     */                                 \
+    nullptr,                 /* convert     */                                 \
     nullptr,                 /* finalize    */                                 \
     nullptr,                 /* call        */                                 \
     nullptr,                 /* hasInstance */                                 \
@@ -725,13 +726,13 @@ IMPL_SHARED_TYPED_ARRAY_COMBINED_UNWRAPPERS(Float64, double, double)
     JSCLASS_HAS_RESERVED_SLOTS(SharedTypedArrayObject::RESERVED_SLOTS) |       \
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |                        \
     JSCLASS_HAS_CACHED_PROTO(JSProto_Shared##_typedArray),                     \
-    JS_PropertyStub,         /* addProperty */                                 \
-    JS_DeletePropertyStub,   /* delProperty */                                 \
-    JS_PropertyStub,         /* getProperty */                                 \
-    JS_StrictPropertyStub,   /* setProperty */                                 \
-    JS_EnumerateStub,                                                          \
-    JS_ResolveStub,                                                            \
-    JS_ConvertStub,                                                            \
+    nullptr,                 /* addProperty */                                 \
+    nullptr,                 /* delProperty */                                 \
+    nullptr,                 /* getProperty */                                 \
+    nullptr,                 /* setProperty */                                 \
+    nullptr,                 /* enumerate   */                                 \
+    nullptr,                 /* resolve     */                                 \
+    nullptr,                 /* convert     */                                 \
     nullptr,                 /* finalize    */                                 \
     nullptr,                 /* call        */                                 \
     nullptr,                 /* hasInstance */                                 \
@@ -748,14 +749,10 @@ SharedTypedArrayObjectTemplate<NativeType>::FinishClassInit(JSContext *cx,
 {
     RootedValue bytesValue(cx, Int32Value(BYTES_PER_ELEMENT));
 
-    if (!JSObject::defineProperty(cx, ctor,
-                                  cx->names().BYTES_PER_ELEMENT, bytesValue,
-                                  JS_PropertyStub, JS_StrictPropertyStub,
-                                  JSPROP_PERMANENT | JSPROP_READONLY) ||
-        !JSObject::defineProperty(cx, proto,
-                                  cx->names().BYTES_PER_ELEMENT, bytesValue,
-                                  JS_PropertyStub, JS_StrictPropertyStub,
-                                  JSPROP_PERMANENT | JSPROP_READONLY))
+    if (!DefineProperty(cx, ctor, cx->names().BYTES_PER_ELEMENT, bytesValue,
+                        nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY) ||
+        !DefineProperty(cx, proto, cx->names().BYTES_PER_ELEMENT, bytesValue,
+                        nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY))
     {
         return false;
     }
@@ -773,7 +770,7 @@ IMPL_SHARED_TYPED_ARRAY_STATICS(Float32Array)
 IMPL_SHARED_TYPED_ARRAY_STATICS(Float64Array)
 IMPL_SHARED_TYPED_ARRAY_STATICS(Uint8ClampedArray)
 
-const Class SharedTypedArrayObject::classes[Scalar::TypeMax] = {
+const Class SharedTypedArrayObject::classes[Scalar::MaxTypedArrayViewType] = {
     IMPL_SHARED_TYPED_ARRAY_FAST_CLASS(Int8Array),
     IMPL_SHARED_TYPED_ARRAY_FAST_CLASS(Uint8Array),
     IMPL_SHARED_TYPED_ARRAY_FAST_CLASS(Int16Array),
@@ -785,7 +782,7 @@ const Class SharedTypedArrayObject::classes[Scalar::TypeMax] = {
     IMPL_SHARED_TYPED_ARRAY_FAST_CLASS(Uint8ClampedArray)
 };
 
-const Class SharedTypedArrayObject::protoClasses[Scalar::TypeMax] = {
+const Class SharedTypedArrayObject::protoClasses[Scalar::MaxTypedArrayViewType] = {
     IMPL_SHARED_TYPED_ARRAY_PROTO_CLASS(Int8Array),
     IMPL_SHARED_TYPED_ARRAY_PROTO_CLASS(Uint8Array),
     IMPL_SHARED_TYPED_ARRAY_PROTO_CLASS(Int16Array),

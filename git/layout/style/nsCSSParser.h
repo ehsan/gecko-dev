@@ -45,11 +45,12 @@ public:
                        mozilla::CSSStyleSheet* aSheet = nullptr);
   ~nsCSSParser();
 
+  static void Startup();
   static void Shutdown();
 
 private:
-  nsCSSParser(nsCSSParser const&) MOZ_DELETE;
-  nsCSSParser& operator=(nsCSSParser const&) MOZ_DELETE;
+  nsCSSParser(nsCSSParser const&) = delete;
+  nsCSSParser& operator=(nsCSSParser const&) = delete;
 
 public:
   // Set a style sheet for the parser to fill in. The style sheet must

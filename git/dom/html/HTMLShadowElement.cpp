@@ -94,8 +94,7 @@ IsInFallbackContent(nsIContent* aContent)
 {
   nsINode* parentNode = aContent->GetParentNode();
   while (parentNode) {
-    if (parentNode->IsElement() &&
-        parentNode->AsElement()->IsHTML(nsGkAtoms::content)) {
+    if (parentNode->IsHTMLElement(nsGkAtoms::content)) {
       return true;
     }
     parentNode = parentNode->GetParentNode();
@@ -146,6 +145,8 @@ HTMLShadowElement::BindToTree(nsIDocument* aDocument,
     // Propagate BindToTree calls to projected shadow root children.
     ShadowRoot* projectedShadow = containingShadow->GetOlderShadowRoot();
     if (projectedShadow) {
+      projectedShadow->SetIsComposedDocParticipant(IsInComposedDoc());
+
       for (nsIContent* child = projectedShadow->GetFirstChild(); child;
            child = child->GetNextSibling()) {
         rv = child->BindToTree(nullptr, projectedShadow,
@@ -173,6 +174,8 @@ HTMLShadowElement::UnbindFromTree(bool aDeep, bool aNullParent)
            child = child->GetNextSibling()) {
         child->UnbindFromTree(true, false);
       }
+
+      projectedShadow->SetIsComposedDocParticipant(false);
     }
   }
 

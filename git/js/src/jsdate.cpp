@@ -35,18 +35,17 @@
 #include "jswrapper.h"
 #include "prmjtime.h"
 
+#include "js/Conversions.h"
 #include "js/Date.h"
 #include "vm/DateTime.h"
 #include "vm/GlobalObject.h"
 #include "vm/Interpreter.h"
-#include "vm/NumericConversions.h"
 #include "vm/String.h"
 #include "vm/StringBuffer.h"
 
 #include "jsobjinlines.h"
 
 using namespace js;
-using namespace js::types;
 
 using mozilla::ArrayLength;
 using mozilla::IsFinite;
@@ -54,6 +53,7 @@ using mozilla::IsNaN;
 
 using JS::AutoCheckCannotGC;
 using JS::GenericNaN;
+using JS::ToInteger;
 
 /*
  * The JS 'Date' object is patterned after the Java 'Date' object.
@@ -303,7 +303,7 @@ DayFromMonth(int month, bool isLeapYear)
 
 template<typename T>
 static inline int
-DayFromMonth(T month, bool isLeapYear) MOZ_DELETE;
+DayFromMonth(T month, bool isLeapYear) = delete;
 
 /* ES5 15.9.1.12 (out of order to accommodate DaylightSavingTA). */
 static double
@@ -521,7 +521,7 @@ date_convert(JSContext *cx, HandleObject obj, JSType hint, MutableHandleValue vp
     MOZ_ASSERT(hint == JSTYPE_NUMBER || hint == JSTYPE_STRING || hint == JSTYPE_VOID);
     MOZ_ASSERT(obj->is<DateObject>());
 
-    return DefaultValue(cx, obj, (hint == JSTYPE_VOID) ? JSTYPE_STRING : hint, vp);
+    return JS::OrdinaryToPrimitive(cx, obj, hint == JSTYPE_VOID ? JSTYPE_STRING : hint, vp);
 }
 
 /* for use by date_parse */
@@ -2383,6 +2383,20 @@ print_iso_string(char* buf, size_t size, double utctime)
                 int(msFromTime(utctime)));
 }
 
+static void
+print_iso_extended_string(char* buf, size_t size, double utctime)
+{
+    MOZ_ASSERT(TimeClip(utctime) == utctime);
+    JS_snprintf(buf, size, "%+.6d-%.2d-%.2dT%.2d:%.2d:%.2d.%.3dZ",
+                int(YearFromTime(utctime)),
+                int(MonthFromTime(utctime)) + 1,
+                int(DateFromTime(utctime)),
+                int(HourFromTime(utctime)),
+                int(MinFromTime(utctime)),
+                int(SecFromTime(utctime)),
+                int(msFromTime(utctime)));
+}
+
 /* ES5 B.2.6. */
 MOZ_ALWAYS_INLINE bool
 date_toGMTString_impl(JSContext *cx, CallArgs args)
@@ -2402,7 +2416,6 @@ date_toGMTString_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-/* ES5 15.9.5.43. */
 static bool
 date_toGMTString(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -2410,17 +2423,22 @@ date_toGMTString(JSContext *cx, unsigned argc, Value *vp)
     return CallNonGenericMethod<IsDate, date_toGMTString_impl>(cx, args);
 }
 
+/* ES6 draft 2015-01-15 20.3.4.36. */
 MOZ_ALWAYS_INLINE bool
 date_toISOString_impl(JSContext *cx, CallArgs args)
 {
     double utctime = args.thisv().toObject().as<DateObject>().UTCTime().toNumber();
     if (!IsFinite(utctime)) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INVALID_DATE);
+        JS_ReportErrorNumber(cx, js::GetErrorMessage, nullptr, JSMSG_INVALID_DATE);
         return false;
     }
 
     char buf[100];
-    print_iso_string(buf, sizeof buf, utctime);
+    int year = int(YearFromTime(utctime));
+    if (year < 0 || year > 9999)
+        print_iso_extended_string(buf, sizeof buf, utctime);
+    else
+        print_iso_string(buf, sizeof buf, utctime);
 
     JSString *str = JS_NewStringCopyZ(cx, buf);
     if (!str)
@@ -2461,12 +2479,12 @@ date_toJSON(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 4. */
     RootedValue toISO(cx);
-    if (!JSObject::getProperty(cx, obj, obj, cx->names().toISOString, &toISO))
+    if (!GetProperty(cx, obj, obj, cx->names().toISOString, &toISO))
         return false;
 
     /* Step 5. */
     if (!IsCallable(toISO)) {
-        JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage, nullptr,
+        JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js::GetErrorMessage, nullptr,
                                      JSMSG_BAD_TOISOSTRING_PROP);
         return false;
     }
@@ -2939,7 +2957,7 @@ static const JSFunctionSpec date_methods[] = {
 };
 
 bool
-js_Date(JSContext *cx, unsigned argc, Value *vp)
+js::DateConstructor(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -2991,7 +3009,7 @@ js_Date(JSContext *cx, unsigned argc, Value *vp)
         d = msec_time;
     }
 
-    JSObject *obj = js_NewDateObjectMsec(cx, d);
+    JSObject *obj = NewDateObjectMsec(cx, d);
     if (!obj)
         return false;
 
@@ -3011,29 +3029,29 @@ FinishDateClassInit(JSContext *cx, HandleObject ctor, HandleObject proto)
     RootedValue toUTCStringFun(cx);
     RootedId toUTCStringId(cx, NameToId(cx->names().toUTCString));
     RootedId toGMTStringId(cx, NameToId(cx->names().toGMTString));
-    return baseops::GetProperty(cx, proto.as<NativeObject>(), toUTCStringId, &toUTCStringFun) &&
-           baseops::DefineGeneric(cx, proto.as<NativeObject>(), toGMTStringId, toUTCStringFun,
-                                  JS_PropertyStub, JS_StrictPropertyStub, 0);
+    return NativeGetProperty(cx, proto.as<DateObject>(), toUTCStringId, &toUTCStringFun) &&
+           NativeDefineProperty(cx, proto.as<DateObject>(), toGMTStringId, toUTCStringFun,
+                                nullptr, nullptr, 0);
 }
 
 const Class DateObject::class_ = {
     js_Date_str,
     JSCLASS_HAS_RESERVED_SLOTS(RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Date),
-    JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
+    nullptr, /* addProperty */
+    nullptr, /* delProperty */
+    nullptr, /* getProperty */
+    nullptr, /* setProperty */
+    nullptr, /* enumerate */
+    nullptr, /* resolve */
     date_convert,
-    nullptr,                 /* finalize */
-    nullptr,                 /* call */
-    nullptr,                 /* hasInstance */
-    nullptr,                 /* construct */
-    nullptr,                 /* trace */
+    nullptr, /* finalize */
+    nullptr, /* call */
+    nullptr, /* hasInstance */
+    nullptr, /* construct */
+    nullptr, /* trace */
     {
-        GenericCreateConstructor<js_Date, MAXARGS, JSFunction::FinalizeKind>,
+        GenericCreateConstructor<DateConstructor, MAXARGS, JSFunction::FinalizeKind>,
         GenericCreatePrototype,
         date_static_methods,
         date_methods,
@@ -3043,7 +3061,7 @@ const Class DateObject::class_ = {
 };
 
 JS_FRIEND_API(JSObject *)
-js_NewDateObjectMsec(JSContext *cx, double msec_time)
+js::NewDateObjectMsec(JSContext *cx, double msec_time)
 {
     JSObject *obj = NewBuiltinClassInstance(cx, &DateObject::class_);
     if (!obj)
@@ -3053,12 +3071,12 @@ js_NewDateObjectMsec(JSContext *cx, double msec_time)
 }
 
 JS_FRIEND_API(JSObject *)
-js_NewDateObject(JSContext *cx, int year, int mon, int mday,
-                 int hour, int min, int sec)
+js::NewDateObject(JSContext *cx, int year, int mon, int mday,
+                  int hour, int min, int sec)
 {
     MOZ_ASSERT(mon < 12);
     double msec_time = date_msecFromDate(year, mon, mday, hour, min, sec, 0);
-    return js_NewDateObjectMsec(cx, UTC(msec_time, &cx->runtime()->dateTimeInfo));
+    return NewDateObjectMsec(cx, UTC(msec_time, &cx->runtime()->dateTimeInfo));
 }
 
 JS_FRIEND_API(bool)

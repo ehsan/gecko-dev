@@ -97,7 +97,8 @@ SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
 
   // Do the first and potentially trial encoding as preformatted and raw.
   uint32_t flags = aFlags | nsIDocumentEncoder::OutputPreformatted
-                          | nsIDocumentEncoder::OutputRaw;
+                          | nsIDocumentEncoder::OutputRaw
+                          | nsIDocumentEncoder::OutputForPlainTextClipboardCopy;
 
   nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(aDoc);
   NS_ASSERTION(domDoc, "Need a document");
@@ -504,7 +505,7 @@ static nsresult AppendDOMNode(nsITransferable *aTransferable,
   nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(document, &rv);
   NS_ENSURE_SUCCESS(rv, NS_OK);
 
-  NS_ENSURE_TRUE(document->IsHTML(), NS_OK);
+  NS_ENSURE_TRUE(document->IsHTMLDocument(), NS_OK);
 
   // init encoder with document and node
   rv = docEncoder->NativeInit(document, NS_LITERAL_STRING(kHTMLMime),

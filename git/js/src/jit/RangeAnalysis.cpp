@@ -14,7 +14,7 @@
 #include "jit/MIR.h"
 #include "jit/MIRGenerator.h"
 #include "jit/MIRGraph.h"
-#include "vm/NumericConversions.h"
+#include "js/Conversions.h"
 #include "vm/TypedArrayCommon.h"
 
 #include "jsopcodeinlines.h"
@@ -35,6 +35,7 @@ using mozilla::NegativeInfinity;
 using mozilla::PositiveInfinity;
 using mozilla::Swap;
 using JS::GenericNaN;
+using JS::ToInt32;
 
 // This algorithm is based on the paper "Eliminating Range Checks Using
 // Static Single Assignment Form" by Gough and Klaren.
@@ -155,6 +156,12 @@ RangeAnalysis::addBetaNodes()
 
         MCompare *compare = test->getOperand(0)->toCompare();
 
+        if (compare->compareType() == MCompare::Compare_Unknown ||
+            compare->compareType() == MCompare::Compare_Value)
+        {
+            continue;
+        }
+
         // TODO: support unsigned comparisons
         if (compare->compareType() == MCompare::Compare_UInt32)
             continue;
@@ -174,12 +181,12 @@ RangeAnalysis::addBetaNodes()
             conservativeUpper = GenericNaN();
         }
 
-        if (left->isConstant() && left->toConstant()->value().isNumber()) {
-            bound = left->toConstant()->value().toNumber();
+        if (left->isConstantValue() && left->constantValue().isNumber()) {
+            bound = left->constantValue().toNumber();
             val = right;
             jsop = ReverseCompareOp(jsop);
-        } else if (right->isConstant() && right->toConstant()->value().isNumber()) {
-            bound = right->toConstant()->value().toNumber();
+        } else if (right->isConstantValue() && right->constantValue().isNumber()) {
+            bound = right->constantValue().toNumber();
             val = left;
         } else if (left->type() == MIRType_Int32 && right->type() == MIRType_Int32) {
             MDefinition *smaller = nullptr;
@@ -569,9 +576,16 @@ Range::Range(const MDefinition *def)
         *this = *other;
 
         // Simulate the effect of converting the value to its type.
+        // Note: we cannot clamp here, since ranges aren't allowed to shrink
+        // and truncation can increase range again. So doing wrapAround to
+        // mimick a possible truncation.
         switch (def->type()) {
           case MIRType_Int32:
-            wrapAroundToInt32();
+            // MToInt32 cannot truncate. So we can safely clamp.
+            if (def->isToInt32())
+                clampToInt32();
+            else
+                wrapAroundToInt32();
             break;
           case MIRType_Boolean:
             wrapAroundToBoolean();
@@ -1310,14 +1324,14 @@ MLsh::computeRange(TempAllocator &alloc)
     left.wrapAroundToInt32();
 
     MDefinition *rhs = getOperand(1);
-    if (!rhs->isConstant()) {
-        right.wrapAroundToShiftCount();
-        setRange(Range::lsh(alloc, &left, &right));
+    if (rhs->isConstantValue() && rhs->constantValue().isInt32()) {
+        int32_t c = rhs->constantValue().toInt32();
+        setRange(Range::lsh(alloc, &left, c));
         return;
     }
 
-    int32_t c = rhs->toConstant()->value().toInt32();
-    setRange(Range::lsh(alloc, &left, c));
+    right.wrapAroundToShiftCount();
+    setRange(Range::lsh(alloc, &left, &right));
 }
 
 void
@@ -1328,14 +1342,14 @@ MRsh::computeRange(TempAllocator &alloc)
     left.wrapAroundToInt32();
 
     MDefinition *rhs = getOperand(1);
-    if (!rhs->isConstant()) {
-        right.wrapAroundToShiftCount();
-        setRange(Range::rsh(alloc, &left, &right));
+    if (rhs->isConstantValue() && rhs->constantValue().isInt32()) {
+        int32_t c = rhs->constantValue().toInt32();
+        setRange(Range::rsh(alloc, &left, c));
         return;
     }
 
-    int32_t c = rhs->toConstant()->value().toInt32();
-    setRange(Range::rsh(alloc, &left, c));
+    right.wrapAroundToShiftCount();
+    setRange(Range::rsh(alloc, &left, &right));
 }
 
 void
@@ -1353,11 +1367,11 @@ MUrsh::computeRange(TempAllocator &alloc)
     right.wrapAroundToShiftCount();
 
     MDefinition *rhs = getOperand(1);
-    if (!rhs->isConstant()) {
-        setRange(Range::ursh(alloc, &left, &right));
-    } else {
-        int32_t c = rhs->toConstant()->value().toInt32();
+    if (rhs->isConstantValue() && rhs->constantValue().isInt32()) {
+        int32_t c = rhs->constantValue().toInt32();
         setRange(Range::ursh(alloc, &left, c));
+    } else {
+        setRange(Range::ursh(alloc, &left, &right));
     }
 
     MOZ_ASSERT(range()->lower() >= 0);
@@ -1623,9 +1637,8 @@ MTruncateToInt32::computeRange(TempAllocator &alloc)
 void
 MToInt32::computeRange(TempAllocator &alloc)
 {
-    Range *output = new(alloc) Range(getOperand(0));
-    output->clampToInt32();
-    setRange(output);
+    // No clamping since this computes the range *before* bailouts.
+    setRange(new(alloc) Range(getOperand(0)));
 }
 
 void
@@ -1635,7 +1648,8 @@ MLimitedTruncate::computeRange(TempAllocator &alloc)
     setRange(output);
 }
 
-static Range *GetTypedArrayRange(TempAllocator &alloc, int type)
+static Range *
+GetTypedArrayRange(TempAllocator &alloc, Scalar::Type type)
 {
     switch (type) {
       case Scalar::Uint8Clamped:
@@ -1655,10 +1669,12 @@ static Range *GetTypedArrayRange(TempAllocator &alloc, int type)
 
       case Scalar::Float32:
       case Scalar::Float64:
+      case Scalar::Float32x4:
+      case Scalar::Int32x4:
+      case Scalar::MaxTypedArrayViewType:
         break;
     }
-
-  return nullptr;
+    return nullptr;
 }
 
 void
@@ -1666,7 +1682,7 @@ MLoadTypedArrayElement::computeRange(TempAllocator &alloc)
 {
     // We have an Int32 type and if this is a UInt32 load it may produce a value
     // outside of our range, but we have a bailout to handle those cases.
-    setRange(GetTypedArrayRange(alloc, arrayType()));
+    setRange(GetTypedArrayRange(alloc, readType()));
 }
 
 void
@@ -2203,15 +2219,17 @@ RangeAnalysis::analyze()
                 if (iter->isAsmJSLoadHeap()) {
                     MAsmJSLoadHeap *ins = iter->toAsmJSLoadHeap();
                     Range *range = ins->ptr()->range();
+                    uint32_t elemSize = TypedArrayElemSize(ins->accessType());
                     if (range && range->hasInt32LowerBound() && range->lower() >= 0 &&
-                        range->hasInt32UpperBound() && (uint32_t) range->upper() < minHeapLength) {
+                        range->hasInt32UpperBound() && uint32_t(range->upper()) + elemSize <= minHeapLength) {
                         ins->removeBoundsCheck();
                     }
                 } else if (iter->isAsmJSStoreHeap()) {
                     MAsmJSStoreHeap *ins = iter->toAsmJSStoreHeap();
                     Range *range = ins->ptr()->range();
+                    uint32_t elemSize = TypedArrayElemSize(ins->accessType());
                     if (range && range->hasInt32LowerBound() && range->lower() >= 0 &&
-                        range->hasInt32UpperBound() && (uint32_t) range->upper() < minHeapLength) {
+                        range->hasInt32UpperBound() && uint32_t(range->upper()) + elemSize <= minHeapLength) {
                         ins->removeBoundsCheck();
                     }
                 }
@@ -2508,7 +2526,10 @@ MToDouble::truncate()
 bool
 MLoadTypedArrayElementStatic::needTruncation(TruncateKind kind)
 {
-    if (kind >= IndirectTruncate)
+    // IndirectTruncate not possible, since it returns 'undefined'
+    // upon out of bounds read. Doing arithmetic on 'undefined' gives wrong
+    // results. So only set infallible if explicitly truncated.
+    if (kind == Truncate)
         setInfallible();
 
     return false;
@@ -2624,21 +2645,21 @@ MDefinition::TruncateKind
 MStoreTypedArrayElement::operandTruncateKind(size_t index) const
 {
     // An integer store truncates the stored value.
-    return index == 2 && !isFloatArray() ? Truncate : NoTruncate;
+    return index == 2 && isIntegerWrite() ? Truncate : NoTruncate;
 }
 
 MDefinition::TruncateKind
 MStoreTypedArrayElementHole::operandTruncateKind(size_t index) const
 {
     // An integer store truncates the stored value.
-    return index == 3 && !isFloatArray() ? Truncate : NoTruncate;
+    return index == 3 && isIntegerWrite() ? Truncate : NoTruncate;
 }
 
 MDefinition::TruncateKind
 MStoreTypedArrayElementStatic::operandTruncateKind(size_t index) const
 {
     // An integer store truncates the stored value.
-    return index == 1 && !isFloatArray() ? Truncate : NoTruncate;
+    return index == 1 && isIntegerWrite() ? Truncate : NoTruncate;
 }
 
 MDefinition::TruncateKind
@@ -2720,10 +2741,10 @@ CloneForDeadBranches(TempAllocator &alloc, MInstruction *candidate)
 
     MDefinitionVector operands(alloc);
     size_t end = candidate->numOperands();
-    for (size_t i = 0; i < end; i++) {
-        if (!operands.append(candidate->getOperand(i)))
-            return false;
-    }
+    if (!operands.reserve(end))
+        return false;
+    for (size_t i = 0; i < end; ++i)
+        operands.infallibleAppend(candidate->getOperand(i));
 
     MInstruction *clone = candidate->clone(alloc, operands);
     clone->setRange(nullptr);
@@ -2734,7 +2755,7 @@ CloneForDeadBranches(TempAllocator &alloc, MInstruction *candidate)
 
     candidate->block()->insertBefore(candidate, clone);
 
-    if (!candidate->isConstant()) {
+    if (!candidate->isConstantValue()) {
         MOZ_ASSERT(clone->canRecoverOnBailout());
         clone->setRecoveredOnBailout();
     }
@@ -2787,6 +2808,10 @@ ComputeRequestedTruncateKind(MDefinition *candidate, bool *shouldClone)
         if (kind == MDefinition::NoTruncate)
             break;
     }
+
+    // We cannot do full trunction on guarded instructions.
+    if (candidate->isGuard() || candidate->isGuardRangeBailouts())
+        kind = Min(kind, MDefinition::TruncateAfterBailouts);
 
     // If the value naturally produces an int32 value (before bailout checks)
     // that needs no conversion, we don't have to worry about resume points
@@ -3041,6 +3066,36 @@ MLoadElementHole::collectRangeInfoPreTrunc()
 }
 
 void
+MLoadTypedArrayElementStatic::collectRangeInfoPreTrunc()
+{
+    Range range(ptr());
+
+    if (range.hasInt32LowerBound() && range.hasInt32UpperBound()) {
+        int64_t offset = this->offset();
+        int64_t lower = range.lower() + offset;
+        int64_t upper = range.upper() + offset;
+        int64_t length = this->length();
+        if (lower >= 0 && upper < length)
+            setNeedsBoundsCheck(false);
+    }
+}
+
+void
+MStoreTypedArrayElementStatic::collectRangeInfoPreTrunc()
+{
+    Range range(ptr());
+
+    if (range.hasInt32LowerBound() && range.hasInt32UpperBound()) {
+        int64_t offset = this->offset();
+        int64_t lower = range.lower() + offset;
+        int64_t upper = range.upper() + offset;
+        int64_t length = this->length();
+        if (lower >= 0 && upper < length)
+            setNeedsBoundsCheck(false);
+    }
+}
+
+void
 MClz::collectRangeInfoPreTrunc()
 {
     Range inputRange(input());
@@ -3126,6 +3181,26 @@ MToInt32::collectRangeInfoPreTrunc()
 }
 
 void
+MBoundsCheck::collectRangeInfoPreTrunc()
+{
+    Range indexRange(index());
+    Range lengthRange(length());
+    if (!indexRange.hasInt32LowerBound() || !indexRange.hasInt32UpperBound())
+        return;
+    if (!lengthRange.hasInt32LowerBound() || lengthRange.canBeNaN())
+        return;
+
+    int64_t indexLower = indexRange.lower();
+    int64_t indexUpper = indexRange.upper();
+    int64_t lengthLower = lengthRange.lower();
+    int64_t min = minimum();
+    int64_t max = maximum();
+
+    if (indexLower + min >= 0 && indexUpper + max < lengthLower)
+        fallible_ = false;
+}
+
+void
 MBoundsCheckLower::collectRangeInfoPreTrunc()
 {
     Range indexRange(index());
@@ -3193,6 +3268,7 @@ RangeAnalysis::prepareForUCE(bool *shouldRemoveDeadCode)
         // chosen based which of the successors has the unreachable flag which is
         // added by MBeta::computeRange on its own block.
         MTest *test = cond->toTest();
+        MDefinition *condition = test->input();
         MConstant *constant = nullptr;
         if (block == test->ifTrue()) {
             constant = MConstant::New(alloc(), BooleanValue(false));
@@ -3200,12 +3276,85 @@ RangeAnalysis::prepareForUCE(bool *shouldRemoveDeadCode)
             MOZ_ASSERT(block == test->ifFalse());
             constant = MConstant::New(alloc(), BooleanValue(true));
         }
+
+        if (DeadIfUnused(condition))
+            condition->setGuardRangeBailoutsUnchecked();
+
         test->block()->insertBefore(test, constant);
+
         test->replaceOperand(0, constant);
         JitSpew(JitSpew_Range, "Update condition of %d to reflect unreachable branches.",
                 test->id());
 
         *shouldRemoveDeadCode = true;
+    }
+
+    return tryRemovingGuards();
+}
+
+bool RangeAnalysis::tryRemovingGuards() {
+
+    MDefinitionVector guards(alloc());
+
+    for (ReversePostorderIterator block = graph_.rpoBegin(); block != graph_.rpoEnd(); block++) {
+        for (MInstructionReverseIterator iter = block->rbegin(); iter != block->rend(); iter++) {
+            if (!iter->isGuardRangeBailouts())
+                continue;
+
+            if (!guards.append(*iter))
+                return false;
+        }
+    }
+
+    // Flag all fallible instructions which were indirectly used in the
+    // computation of the condition, such that we do not ignore
+    // bailout-paths which are used to shrink the input range of the
+    // operands of the condition.
+    for (size_t i = 0; i < guards.length(); i++) {
+        MDefinition *guard = guards[i];
+
+#ifdef DEBUG
+        // There is no need to mark an instructions if there is
+        // already a more restrictive flag on it.
+        guard->setNotGuardRangeBailouts();
+        MOZ_ASSERT(DeadIfUnused(guard));
+        guard->setGuardRangeBailouts();
+#endif
+
+        if (!guard->range())
+            continue;
+
+        // Filter the range of the instruction based on its MIRType.
+        Range typeFilteredRange(guard);
+
+        // If the output range is updated by adding the inner range,
+        // then the MIRType act as an effectful filter. As we do not know if
+        // this filtered Range might change or not the result of the
+        // previous comparison, we have to keep this instruction as a guard
+        // because it has to bailout in order to restrict the Range to its
+        // MIRType.
+        if (typeFilteredRange.update(guard->range()))
+            continue;
+
+        guard->setNotGuardRangeBailouts();
+
+        // Propagate the guard to its operands.
+        for (size_t op = 0, e = guard->numOperands(); op < e; op++) {
+            MDefinition *operand = guard->getOperand(op);
+
+            // Already marked.
+            if (operand->isGuardRangeBailouts())
+                continue;
+
+            // No need to mark as a guard, since it is has already an even more
+            // restrictive flag set.
+            if (!DeadIfUnused(operand))
+                continue;
+
+            operand->setGuardRangeBailouts();
+            if (!guards.append(operand))
+                return false;
+        }
     }
 
     return true;

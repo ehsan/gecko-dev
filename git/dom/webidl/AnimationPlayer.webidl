@@ -12,15 +12,15 @@
 
 enum AnimationPlayState { "idle", "pending", "running", "paused", "finished" };
 
-[Pref="dom.animations-api.core.enabled"]
+[Func="nsDocument::IsWebAnimationsEnabled"]
 interface AnimationPlayer {
   // Bug 1049975
   //           attribute AnimationNode?     source;
   [Pure]
   readonly attribute Animation? source;
   readonly attribute AnimationTimeline timeline;
-  [Pure]
-  readonly attribute double? startTime;
+  [BinaryName="startTimeAsDouble"]
+  attribute double? startTime;
   [BinaryName="currentTimeAsDouble"]
   readonly attribute double? currentTime;
 
@@ -28,9 +28,10 @@ interface AnimationPlayer {
            attribute double             playbackRate; */
   [BinaryName="playStateFromJS"]
   readonly attribute AnimationPlayState playState;
+  [Throws]
+  readonly attribute Promise<AnimationPlayer> ready;
   /*
-  readonly attribute Promise            ready;
-  readonly attribute Promise            finished;
+  readonly attribute Promise<AnimationPlayer> finished;
   void cancel ();
   void finish ();
   */

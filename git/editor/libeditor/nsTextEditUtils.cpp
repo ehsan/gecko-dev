@@ -3,6 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsTextEditUtils.h"
+
 #include "mozilla/Assertions.h"
 #include "mozilla/dom/Element.h"
 #include "nsAString.h"
@@ -18,7 +20,6 @@
 #include "nsLiteralString.h"
 #include "nsPlaintextEditor.h"
 #include "nsString.h"
-#include "nsTextEditUtils.h"
 
 using namespace mozilla;
 
@@ -43,7 +44,7 @@ bool
 nsTextEditUtils::IsBreak(nsINode* aNode)
 {
   MOZ_ASSERT(aNode);
-  return aNode->IsElement() && aNode->AsElement()->IsHTML(nsGkAtoms::br);
+  return aNode->IsHTMLElement(nsGkAtoms::br);
 }
 
 
@@ -62,8 +63,7 @@ bool
 nsTextEditUtils::IsMozBR(nsINode* aNode)
 {
   MOZ_ASSERT(aNode);
-  return aNode->IsElement() &&
-         aNode->AsElement()->IsHTML(nsGkAtoms::br) &&
+  return aNode->IsHTMLElement(nsGkAtoms::br) &&
          aNode->AsElement()->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
                                          NS_LITERAL_STRING("_moz"),
                                          eIgnoreCase);

@@ -10,7 +10,7 @@
 
 #include "nsISupports.idl"
 
-[scriptable, uuid(f80ac10b-68dd-4482-a8c2-3cbe13fa89af)]
+[scriptable, uuid(8272a3d5-2a94-40c0-8ab6-be76583a0221)]
 interface nsIStackFrame : nsISupports
 {
     // see nsIProgrammingLanguage for list of language consts
@@ -53,7 +53,7 @@ interface nsIException : nsISupports
     readonly attribute AString                 filename;
     // Valid line numbers begin at '1'. '0' indicates unknown.
     readonly attribute uint32_t                lineNumber;
-    // Valid column numbers begin at 0. 
+    // Valid column numbers begin at 0.
     // We don't have an unambiguous indicator for unknown.
     readonly attribute uint32_t                columnNumber;
 

@@ -8,12 +8,46 @@ enum RFState {
   "discovery"
 };
 
+/**
+ * Type of the Request used in NfcCommandOptions.
+ */
+enum NfcRequestType {
+  "changeRFState",
+  "readNDEF",
+  "writeNDEF",
+  "makeReadOnly",
+  "format",
+  "transceive"
+};
+
+/**
+ * Type of the Response used in NfcEventOptions.
+ */
+enum NfcResponseType {
+  "changeRFStateRsp",
+  "readNDEFRsp",
+  "writeNDEFRsp",
+  "makeReadOnlyRsp",
+  "formatRsp",
+  "transceiveRsp",
+};
+
+/**
+ * Type of the Notification used in NfcEventOptions.
+ */
+enum NfcNotificationType {
+  "initialized",
+  "techDiscovered",
+  "techLost",
+  "hciEventTransaction"
+};
+
 dictionary NfcCommandOptions
 {
-  DOMString type = "";
+  required NfcRequestType type;
 
   long sessionId;
-  DOMString requestId = "";
+  required DOMString requestId;
 
   RFState rfState;
 
@@ -21,11 +55,15 @@ dictionary NfcCommandOptions
 
   boolean isP2P;
   sequence<MozNDEFRecordOptions> records;
+
+  NFCTechType technology;
+  Uint8Array command;
 };
 
 dictionary NfcEventOptions
 {
-  DOMString type = "";
+  NfcResponseType rspType;
+  NfcNotificationType ntfType;
 
   long status;
   NfcErrorMessage errorMsg;
@@ -35,7 +73,9 @@ dictionary NfcEventOptions
   long majorVersion;
   long minorVersion;
 
+  boolean isP2P;
   sequence<NFCTechType> techList;
+  Uint8Array tagId;
   sequence<MozNDEFRecordOptions> records;
 
   NFCTagType tagType;
@@ -49,4 +89,7 @@ dictionary NfcEventOptions
   DOMString origin;
   Uint8Array aid;
   Uint8Array payload;
+
+  // Tag transceive response data
+  Uint8Array response;
 };

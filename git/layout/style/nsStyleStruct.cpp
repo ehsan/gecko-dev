@@ -268,7 +268,7 @@ static nscoord CalcCoord(const nsStyleCoord& aCoord,
                          int32_t aNumEnums)
 {
   if (aCoord.GetUnit() == eStyleUnit_Enumerated) {
-    NS_ABORT_IF_FALSE(aEnumTable, "must have enum table");
+    MOZ_ASSERT(aEnumTable, "must have enum table");
     int32_t value = aCoord.GetIntValue();
     if (0 <= value && value < aNumEnums) {
       return aEnumTable[aCoord.GetIntValue()];
@@ -276,7 +276,7 @@ static nscoord CalcCoord(const nsStyleCoord& aCoord,
     NS_NOTREACHED("unexpected enum value");
     return 0;
   }
-  NS_ABORT_IF_FALSE(aCoord.ConvertsToLength(), "unexpected unit");
+  MOZ_ASSERT(aCoord.ConvertsToLength(), "unexpected unit");
   return nsRuleNode::ComputeCoordPercentCalc(aCoord, 0);
 }
 
@@ -512,10 +512,10 @@ nsChangeHint nsStyleBorder::CalcDifference(const nsStyleBorder& aOther) const
 {
   nsChangeHint shadowDifference =
     CalcShadowDifference(mBoxShadow, aOther.mBoxShadow);
-  NS_ABORT_IF_FALSE(shadowDifference == unsigned(NS_STYLE_HINT_REFLOW) ||
-                    shadowDifference == unsigned(NS_STYLE_HINT_VISUAL) ||
-                    shadowDifference == unsigned(NS_STYLE_HINT_NONE),
-                    "should do more with shadowDifference");
+  MOZ_ASSERT(shadowDifference == unsigned(NS_STYLE_HINT_REFLOW) ||
+             shadowDifference == unsigned(NS_STYLE_HINT_VISUAL) ||
+             shadowDifference == unsigned(NS_STYLE_HINT_NONE),
+             "should do more with shadowDifference");
 
   // XXXbz we should be able to return a more specific change hint for
   // at least GetComputedBorder() differences...
@@ -649,8 +649,8 @@ nsChangeHint nsStyleOutline::CalcDifference(const nsStyleOutline& aOther) const
       (outlineIsVisible && (mOutlineOffset != aOther.mOutlineOffset ||
                             mOutlineWidth != aOther.mOutlineWidth ||
                             mTwipsPerPixel != aOther.mTwipsPerPixel))) {
-    return NS_CombineHint(nsChangeHint_AllReflowHints,
-                          nsChangeHint_RepaintFrame);
+    return NS_CombineHint(nsChangeHint_UpdateOverflow,
+                          nsChangeHint_SchedulePaint);
   }
 
   if ((mOutlineStyle != aOther.mOutlineStyle) ||
@@ -1618,7 +1618,7 @@ nsChangeHint nsStylePosition::CalcDifference(const nsStylePosition& aOther) cons
   if (mOffset != aOther.mOffset) {
     if (IsAutonessEqual(mOffset, aOther.mOffset)) {
       NS_UpdateHint(hint, nsChangeHint(nsChangeHint_RecomputePosition |
-                                       nsChangeHint_UpdateOverflow));
+                                       nsChangeHint_UpdateParentOverflow));
     } else {
       return NS_CombineHint(hint, nsChangeHint_AllReflowHints);
     }
@@ -1670,17 +1670,12 @@ nsChangeHint nsStyleTable::CalcDifference(const nsStyleTable& aOther) const
 // -----------------------
 // nsStyleTableBorder
 
-nsStyleTableBorder::nsStyleTableBorder(nsPresContext* aPresContext) 
+nsStyleTableBorder::nsStyleTableBorder()
 { 
   MOZ_COUNT_CTOR(nsStyleTableBorder);
   mBorderCollapse = NS_STYLE_BORDER_SEPARATE;
 
-  nsCompatibility compatMode = eCompatibility_FullStandards;
-  if (aPresContext)
-    compatMode = aPresContext->CompatibilityMode();
-  mEmptyCells = (compatMode == eCompatibility_NavQuirks)
-                  ? NS_STYLE_TABLE_EMPTY_CELLS_SHOW_BACKGROUND     
-                  : NS_STYLE_TABLE_EMPTY_CELLS_SHOW;
+  mEmptyCells = NS_STYLE_TABLE_EMPTY_CELLS_SHOW;
   mCaptionSide = NS_STYLE_CAPTION_SIDE_TOP;
   mBorderSpacingX = 0;
   mBorderSpacingY = 0;
@@ -1751,12 +1746,12 @@ nsChangeHint nsStyleColor::CalcDifference(const nsStyleColor& aOther) const
 bool
 nsStyleGradient::operator==(const nsStyleGradient& aOther) const
 {
-  NS_ABORT_IF_FALSE(mSize == NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER ||
-                    mShape != NS_STYLE_GRADIENT_SHAPE_LINEAR,
-                    "incorrect combination of shape and size");
-  NS_ABORT_IF_FALSE(aOther.mSize == NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER ||
-                    aOther.mShape != NS_STYLE_GRADIENT_SHAPE_LINEAR,
-                    "incorrect combination of shape and size");
+  MOZ_ASSERT(mSize == NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER ||
+             mShape != NS_STYLE_GRADIENT_SHAPE_LINEAR,
+             "incorrect combination of shape and size");
+  MOZ_ASSERT(aOther.mSize == NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER ||
+             aOther.mShape != NS_STYLE_GRADIENT_SHAPE_LINEAR,
+             "incorrect combination of shape and size");
 
   if (mShape != aOther.mShape ||
       mSize != aOther.mSize ||
@@ -1874,8 +1869,8 @@ nsStyleImage::DoCopy(const nsStyleImage& aOther)
 void
 nsStyleImage::SetNull()
 {
-  NS_ABORT_IF_FALSE(!mImageTracked,
-                    "Calling SetNull() with image tracked!");
+  MOZ_ASSERT(!mImageTracked,
+             "Calling SetNull() with image tracked!");
 
   if (mType == eStyleImageType_Gradient)
     mGradient->Release();
@@ -1891,8 +1886,8 @@ nsStyleImage::SetNull()
 void
 nsStyleImage::SetImageData(imgRequestProxy* aImage)
 {
-  NS_ABORT_IF_FALSE(!mImageTracked,
-                    "Setting a new image without untracking the old one!");
+  MOZ_ASSERT(!mImageTracked,
+             "Setting a new image without untracking the old one!");
 
   NS_IF_ADDREF(aImage);
 
@@ -1910,9 +1905,9 @@ void
 nsStyleImage::TrackImage(nsPresContext* aContext)
 {
   // Sanity
-  NS_ABORT_IF_FALSE(!mImageTracked, "Already tracking image!");
-  NS_ABORT_IF_FALSE(mType == eStyleImageType_Image,
-                    "Can't track image when there isn't one!");
+  MOZ_ASSERT(!mImageTracked, "Already tracking image!");
+  MOZ_ASSERT(mType == eStyleImageType_Image,
+             "Can't track image when there isn't one!");
 
   // Register the image with the document
   nsIDocument* doc = aContext->Document();
@@ -1929,9 +1924,9 @@ void
 nsStyleImage::UntrackImage(nsPresContext* aContext)
 {
   // Sanity
-  NS_ABORT_IF_FALSE(mImageTracked, "Image not tracked!");
-  NS_ABORT_IF_FALSE(mType == eStyleImageType_Image,
-                    "Can't untrack image when there isn't one!");
+  MOZ_ASSERT(mImageTracked, "Image not tracked!");
+  MOZ_ASSERT(mType == eStyleImageType_Image,
+             "Can't untrack image when there isn't one!");
 
   // Unregister the image with the document
   nsIDocument* doc = aContext->Document();
@@ -1997,7 +1992,7 @@ ConvertToPixelCoord(const nsStyleCoord& aCoord, int32_t aPercentScale)
       NS_NOTREACHED("unexpected unit for image crop rect");
       return 0;
   }
-  NS_ABORT_IF_FALSE(pixelValue >= 0, "we ensured non-negative while parsing");
+  MOZ_ASSERT(pixelValue >= 0, "we ensured non-negative while parsing");
   pixelValue = std::min(pixelValue, double(INT32_MAX)); // avoid overflow
   return NS_lround(pixelValue);
 }
@@ -2055,11 +2050,11 @@ nsStyleImage::IsOpaque() const
   if (mType == eStyleImageType_Element)
     return false;
 
-  NS_ABORT_IF_FALSE(mType == eStyleImageType_Image, "unexpected image type");
+  MOZ_ASSERT(mType == eStyleImageType_Image, "unexpected image type");
 
   nsCOMPtr<imgIContainer> imageContainer;
   mImage->GetImage(getter_AddRefs(imageContainer));
-  NS_ABORT_IF_FALSE(imageContainer, "IsComplete() said image container is ready");
+  MOZ_ASSERT(imageContainer, "IsComplete() said image container is ready");
 
   // Check if the crop region of the image is opaque.
   if (imageContainer->IsOpaque()) {
@@ -2284,11 +2279,22 @@ nsStyleBackground::Position::SetInitialPercentValues(float aPercentVal)
   mYPosition.mHasPercent = true;
 }
 
+void
+nsStyleBackground::Position::SetInitialZeroValues()
+{
+  mXPosition.mPercent = 0;
+  mXPosition.mLength = 0;
+  mXPosition.mHasPercent = false;
+  mYPosition.mPercent = 0;
+  mYPosition.mLength = 0;
+  mYPosition.mHasPercent = false;
+}
+
 bool
 nsStyleBackground::Size::DependsOnPositioningAreaSize(const nsStyleImage& aImage) const
 {
-  NS_ABORT_IF_FALSE(aImage.GetType() != eStyleImageType_Null,
-                    "caller should have handled this");
+  MOZ_ASSERT(aImage.GetType() != eStyleImageType_Null,
+             "caller should have handled this");
 
   // If either dimension contains a non-zero percentage, rendering for that
   // dimension straightforwardly depends on frame size.
@@ -2307,10 +2313,10 @@ nsStyleBackground::Size::DependsOnPositioningAreaSize(const nsStyleImage& aImage
     return false;
   }
 
-  NS_ABORT_IF_FALSE((mWidthType == eLengthPercentage && mHeightType == eAuto) ||
-                    (mWidthType == eAuto && mHeightType == eLengthPercentage) ||
-                    (mWidthType == eAuto && mHeightType == eAuto),
-                    "logic error");
+  MOZ_ASSERT((mWidthType == eLengthPercentage && mHeightType == eAuto) ||
+             (mWidthType == eAuto && mHeightType == eLengthPercentage) ||
+             (mWidthType == eAuto && mHeightType == eAuto),
+             "logic error");
 
   nsStyleImageType type = aImage.GetType();
 
@@ -2372,14 +2378,14 @@ nsStyleBackground::Size::SetInitialValues()
 bool
 nsStyleBackground::Size::operator==(const Size& aOther) const
 {
-  NS_ABORT_IF_FALSE(mWidthType < eDimensionType_COUNT,
-                    "bad mWidthType for this");
-  NS_ABORT_IF_FALSE(mHeightType < eDimensionType_COUNT,
-                    "bad mHeightType for this");
-  NS_ABORT_IF_FALSE(aOther.mWidthType < eDimensionType_COUNT,
-                    "bad mWidthType for aOther");
-  NS_ABORT_IF_FALSE(aOther.mHeightType < eDimensionType_COUNT,
-                    "bad mHeightType for aOther");
+  MOZ_ASSERT(mWidthType < eDimensionType_COUNT,
+             "bad mWidthType for this");
+  MOZ_ASSERT(mHeightType < eDimensionType_COUNT,
+             "bad mHeightType for this");
+  MOZ_ASSERT(aOther.mWidthType < eDimensionType_COUNT,
+             "bad mWidthType for aOther");
+  MOZ_ASSERT(aOther.mHeightType < eDimensionType_COUNT,
+             "bad mHeightType for aOther");
 
   return mWidthType == aOther.mWidthType &&
          mHeightType == aOther.mHeightType &&
@@ -2474,8 +2480,8 @@ void nsTimingFunction::AssignFromKeyword(int32_t aTimingFunctionType)
     { 0.42f, 0.00f, 0.58f, 1.00f }  // ease-in-out
   };
 
-  NS_ABORT_IF_FALSE(0 <= aTimingFunctionType && aTimingFunctionType < 5,
-                    "keyword out of range");
+  MOZ_ASSERT(0 <= aTimingFunctionType && aTimingFunctionType < 5,
+             "keyword out of range");
   mFunc.mX1 = timingFunctionValues[aTimingFunctionType][0];
   mFunc.mY1 = timingFunctionValues[aTimingFunctionType][1];
   mFunc.mX2 = timingFunctionValues[aTimingFunctionType][2];
@@ -2595,10 +2601,16 @@ nsStyleDisplay::nsStyleDisplay()
   mIsolation = NS_STYLE_ISOLATION_AUTO;
   mTouchAction = NS_STYLE_TOUCH_ACTION_AUTO;
   mScrollBehavior = NS_STYLE_SCROLL_BEHAVIOR_AUTO;
+  mScrollSnapTypeX = NS_STYLE_SCROLL_SNAP_TYPE_NONE;
+  mScrollSnapTypeY = NS_STYLE_SCROLL_SNAP_TYPE_NONE;
+  mScrollSnapPointsX.SetNoneValue();
+  mScrollSnapPointsY.SetNoneValue();
+  // Initial value for mScrollSnapDestination is "0px 0px"
+  mScrollSnapDestination.SetInitialZeroValues();
 
   mTransitions.AppendElement();
-  NS_ABORT_IF_FALSE(mTransitions.Length() == 1,
-                    "appending within auto buffer should never fail");
+  MOZ_ASSERT(mTransitions.Length() == 1,
+             "appending within auto buffer should never fail");
   mTransitions[0].SetInitialValues();
   mTransitionTimingFunctionCount = 1;
   mTransitionDurationCount = 1;
@@ -2606,8 +2618,8 @@ nsStyleDisplay::nsStyleDisplay()
   mTransitionPropertyCount = 1;
 
   mAnimations.AppendElement();
-  NS_ABORT_IF_FALSE(mAnimations.Length() == 1,
-                    "appending within auto buffer should never fail");
+  MOZ_ASSERT(mAnimations.Length() == 1,
+             "appending within auto buffer should never fail");
   mAnimations[0].SetInitialValues();
   mAnimationTimingFunctionCount = 1;
   mAnimationDurationCount = 1;
@@ -2645,6 +2657,12 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   , mWillChange(aSource.mWillChange)
   , mTouchAction(aSource.mTouchAction)
   , mScrollBehavior(aSource.mScrollBehavior)
+  , mScrollSnapTypeX(aSource.mScrollSnapTypeX)
+  , mScrollSnapTypeY(aSource.mScrollSnapTypeY)
+  , mScrollSnapPointsX(aSource.mScrollSnapPointsX)
+  , mScrollSnapPointsY(aSource.mScrollSnapPointsY)
+  , mScrollSnapDestination(aSource.mScrollSnapDestination)
+  , mScrollSnapCoordinate(aSource.mScrollSnapCoordinate)
   , mBackfaceVisibility(aSource.mBackfaceVisibility)
   , mTransformStyle(aSource.mTransformStyle)
   , mSpecifiedTransform(aSource.mSpecifiedTransform)
@@ -2685,12 +2703,19 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
       || mOverflowX != aOther.mOverflowX
       || mOverflowY != aOther.mOverflowY
       || mScrollBehavior != aOther.mScrollBehavior
+      || mScrollSnapTypeX != aOther.mScrollSnapTypeX
+      || mScrollSnapTypeY != aOther.mScrollSnapTypeY
+      || mScrollSnapPointsX != aOther.mScrollSnapPointsX
+      || mScrollSnapPointsY != aOther.mScrollSnapPointsY
+      || mScrollSnapDestination != aOther.mScrollSnapDestination
       || mResize != aOther.mResize)
     NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
 
-  /* Note: When mScrollBehavior is changed, the nsChangeHint_NeutralChange is
-   * not sufficient to enter nsCSSFrameConstructor::PropagateScrollToViewport.
-   * By using the same hint as used when the overflow css property changes,
+  /* Note: When mScrollBehavior, mScrollSnapTypeX, mScrollSnapTypeY,
+   * mScrollSnapPointsX, mScrollSnapPointsY, or mScrollSnapDestination are
+   * changed, nsChangeHint_NeutralChange is not sufficient to enter
+   * nsCSSFrameConstructor::PropagateScrollToViewport. By using the same hint
+   * as used when the overflow css property changes,
    * nsChangeHint_ReconstructFrame, PropagateScrollToViewport will be called.
    *
    * The scroll-behavior css property is not expected to change often (the
@@ -2869,7 +2894,8 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
        mAnimationDirectionCount != aOther.mAnimationDirectionCount ||
        mAnimationFillModeCount != aOther.mAnimationFillModeCount ||
        mAnimationPlayStateCount != aOther.mAnimationPlayStateCount ||
-       mAnimationIterationCountCount != aOther.mAnimationIterationCountCount)) {
+       mAnimationIterationCountCount != aOther.mAnimationIterationCountCount ||
+       mScrollSnapCoordinate != aOther.mScrollSnapCoordinate)) {
     NS_UpdateHint(hint, nsChangeHint_NeutralChange);
   }
 
@@ -2892,6 +2918,7 @@ nsStyleVisibility::nsStyleVisibility(nsPresContext* aPresContext)
   mVisible = NS_STYLE_VISIBILITY_VISIBLE;
   mPointerEvents = NS_STYLE_POINTER_EVENTS_AUTO;
   mWritingMode = NS_STYLE_WRITING_MODE_HORIZONTAL_TB;
+  mTextOrientation = NS_STYLE_TEXT_ORIENTATION_MIXED;
 }
 
 nsStyleVisibility::nsStyleVisibility(const nsStyleVisibility& aSource)
@@ -2902,6 +2929,7 @@ nsStyleVisibility::nsStyleVisibility(const nsStyleVisibility& aSource)
   mVisible = aSource.mVisible;
   mPointerEvents = aSource.mPointerEvents;
   mWritingMode = aSource.mWritingMode;
+  mTextOrientation = aSource.mTextOrientation;
 } 
 
 nsChangeHint nsStyleVisibility::CalcDifference(const nsStyleVisibility& aOther) const
@@ -2923,6 +2951,9 @@ nsChangeHint nsStyleVisibility::CalcDifference(const nsStyleVisibility& aOther) 
         NS_UpdateHint(hint, NS_STYLE_HINT_VISUAL);
       }
     }
+    if (mTextOrientation != aOther.mTextOrientation) {
+      NS_UpdateHint(hint, NS_STYLE_HINT_REFLOW);
+    }
     if (mPointerEvents != aOther.mPointerEvents) {
       // nsSVGPathGeometryFrame's mRect depends on stroke _and_ on the value
       // of pointer-events. See nsSVGPathGeometryFrame::ReflowSVG's use of
@@ -2936,8 +2967,8 @@ nsChangeHint nsStyleVisibility::CalcDifference(const nsStyleVisibility& aOther) 
 
 nsStyleContentData::~nsStyleContentData()
 {
-  NS_ABORT_IF_FALSE(!mImageTracked,
-                    "nsStyleContentData being destroyed while still tracking image!");
+  MOZ_ASSERT(!mImageTracked,
+             "nsStyleContentData being destroyed while still tracking image!");
   if (mType == eStyleContentType_Image) {
     NS_IF_RELEASE(mContent.mImage);
   } else if (mType == eStyleContentType_Counter ||
@@ -2997,11 +3028,11 @@ void
 nsStyleContentData::TrackImage(nsPresContext* aContext)
 {
   // Sanity
-  NS_ABORT_IF_FALSE(!mImageTracked, "Already tracking image!");
-  NS_ABORT_IF_FALSE(mType == eStyleContentType_Image,
-                    "Trying to do image tracking on non-image!");
-  NS_ABORT_IF_FALSE(mContent.mImage,
-                    "Can't track image when there isn't one!");
+  MOZ_ASSERT(!mImageTracked, "Already tracking image!");
+  MOZ_ASSERT(mType == eStyleContentType_Image,
+             "Trying to do image tracking on non-image!");
+  MOZ_ASSERT(mContent.mImage,
+             "Can't track image when there isn't one!");
 
   // Register the image with the document
   nsIDocument* doc = aContext->Document();
@@ -3018,11 +3049,11 @@ void
 nsStyleContentData::UntrackImage(nsPresContext* aContext)
 {
   // Sanity
-  NS_ABORT_IF_FALSE(mImageTracked, "Image not tracked!");
-  NS_ABORT_IF_FALSE(mType == eStyleContentType_Image,
-                    "Trying to do image tracking on non-image!");
-  NS_ABORT_IF_FALSE(mContent.mImage,
-                    "Can't untrack image when there isn't one!");
+  MOZ_ASSERT(mImageTracked, "Image not tracked!");
+  MOZ_ASSERT(mType == eStyleContentType_Image,
+             "Trying to do image tracking on non-image!");
+  MOZ_ASSERT(mContent.mImage,
+             "Can't untrack image when there isn't one!");
 
   // Unregister the image with the document
   nsIDocument* doc = aContext->Document();
@@ -3351,8 +3382,9 @@ nsStyleText::nsStyleText(void)
   mWordBreak = NS_STYLE_WORDBREAK_NORMAL;
   mWordWrap = NS_STYLE_WORDWRAP_NORMAL;
   mHyphens = NS_STYLE_HYPHENS_MANUAL;
+  mRubyAlign = NS_STYLE_RUBY_ALIGN_SPACE_AROUND;
+  mRubyPosition = NS_STYLE_RUBY_POSITION_OVER;
   mTextSizeAdjust = NS_STYLE_TEXT_SIZE_ADJUST_AUTO;
-  mTextOrientation = NS_STYLE_TEXT_ORIENTATION_MIXED;
   mTextCombineUpright = NS_STYLE_TEXT_COMBINE_UPRIGHT_NONE;
   mControlCharacterVisibility = NS_STYLE_CONTROL_CHARACTER_VISIBILITY_HIDDEN;
 
@@ -3375,8 +3407,9 @@ nsStyleText::nsStyleText(const nsStyleText& aSource)
     mWordBreak(aSource.mWordBreak),
     mWordWrap(aSource.mWordWrap),
     mHyphens(aSource.mHyphens),
+    mRubyAlign(aSource.mRubyAlign),
+    mRubyPosition(aSource.mRubyPosition),
     mTextSizeAdjust(aSource.mTextSizeAdjust),
-    mTextOrientation(aSource.mTextOrientation),
     mTextCombineUpright(aSource.mTextCombineUpright),
     mControlCharacterVisibility(aSource.mControlCharacterVisibility),
     mTabSize(aSource.mTabSize),
@@ -3416,8 +3449,9 @@ nsChangeHint nsStyleText::CalcDifference(const nsStyleText& aOther) const
       (mWordBreak != aOther.mWordBreak) ||
       (mWordWrap != aOther.mWordWrap) ||
       (mHyphens != aOther.mHyphens) ||
+      (mRubyAlign != aOther.mRubyAlign) ||
+      (mRubyPosition != aOther.mRubyPosition) ||
       (mTextSizeAdjust != aOther.mTextSizeAdjust) ||
-      (mTextOrientation != aOther.mTextOrientation) ||
       (mLetterSpacing != aOther.mLetterSpacing) ||
       (mLineHeight != aOther.mLineHeight) ||
       (mTextIndent != aOther.mTextIndent) ||

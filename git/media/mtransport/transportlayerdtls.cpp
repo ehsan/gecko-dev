@@ -501,7 +501,7 @@ bool TransportLayerDtls::Setup() {
   // 1.0 for stream modes.
   SSLVersionRange version_range = {
     SSL_LIBRARY_VERSION_TLS_1_1,
-    SSL_LIBRARY_VERSION_TLS_1_1 // version intolerance; bug 1052610
+    SSL_LIBRARY_VERSION_TLS_1_2
   };
 
   rv = SSL_VersionRangeSet(ssl_fd, &version_range);
@@ -577,6 +577,7 @@ bool TransportLayerDtls::Setup() {
   downward_->SignalPacketReceived.connect(this, &TransportLayerDtls::PacketReceived);
 
   if (downward_->state() == TS_OPEN) {
+    TL_SET_STATE(TS_CONNECTING);
     Handshake();
   }
 
@@ -592,8 +593,6 @@ static const uint32_t EnabledCiphers[] = {
   TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
 };
 
-// Don't remove suites; TODO(mt@mozilla.com) restore; bug 1052610
-#if 0
 // Disable all NSS suites modes without PFS or with old and rusty ciphersuites.
 // Anything outside this list is governed by the usual combination of policy
 // and user preferences.
@@ -649,7 +648,6 @@ static const uint32_t DisabledCiphers[] = {
   TLS_RSA_WITH_NULL_SHA256,
   TLS_RSA_WITH_NULL_MD5,
 };
-#endif // bug 1052610
 
 bool TransportLayerDtls::SetupCipherSuites(PRFileDesc* ssl_fd) const {
   SECStatus rv;
@@ -675,8 +673,6 @@ bool TransportLayerDtls::SetupCipherSuites(PRFileDesc* ssl_fd) const {
     }
   }
 
-// Don't remove suites; TODO(mt@mozilla.com) restore; bug 1052610
-#if 0
   for (size_t i = 0; i < PR_ARRAY_SIZE(DisabledCiphers); ++i) {
     MOZ_MTLOG(ML_INFO, LAYER_INFO << "Disabling: " << DisabledCiphers[i]);
 
@@ -696,7 +692,7 @@ bool TransportLayerDtls::SetupCipherSuites(PRFileDesc* ssl_fd) const {
       }
     }
   }
-#endif
+
   return true;
 }
 
@@ -744,7 +740,15 @@ void TransportLayerDtls::StateChange(TransportLayer *layer, State state) {
     case TS_OPEN:
       MOZ_MTLOG(ML_ERROR,
                 LAYER_INFO << "Lower layer is now open; starting TLS");
-      Handshake();
+      // Async, since the ICE layer might need to send a STUN response, and we
+      // don't want the handshake to start until that is sent.
+      TL_SET_STATE(TS_CONNECTING);
+      timer_->Cancel();
+      timer_->SetTarget(target_);
+      timer_->InitWithFuncCallback(TimerCallback,
+                                   this,
+                                   0,
+                                   nsITimer::TYPE_ONE_SHOT);
       break;
 
     case TS_CLOSED:
@@ -760,8 +764,6 @@ void TransportLayerDtls::StateChange(TransportLayer *layer, State state) {
 }
 
 void TransportLayerDtls::Handshake() {
-  TL_SET_STATE(TS_CONNECTING);
-
   // Clear the retransmit timer
   timer_->Cancel();
 
@@ -1050,15 +1052,12 @@ SECStatus TransportLayerDtls::AuthCertificateHook(PRFileDesc *fd,
           RefPtr<VerificationDigest> digest = digests_[i];
           rv = CheckDigest(digest, peer_cert);
 
-          if (rv != SECSuccess)
-            break;
-        }
-
-        if (rv == SECSuccess) {
-          // Matches all digests, we are good to go
-          cert_ok_ = true;
-          peer_cert = peer_cert.forget();
-          return SECSuccess;
+          // Matches a digest, we are good to go
+          if (rv == SECSuccess) {
+            cert_ok_ = true;
+            peer_cert = peer_cert.forget();
+            return SECSuccess;
+          }
         }
       }
       break;

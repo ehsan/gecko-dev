@@ -9,6 +9,7 @@
 
 #include "imgLoader.h"
 #include "imgRequestProxy.h"
+#include "DecodePool.h"
 #include "ProgressTracker.h"
 #include "ImageFactory.h"
 #include "Image.h"
@@ -103,11 +104,11 @@ nsresult imgRequest::Init(nsIURI *aURI,
 
   LOG_FUNC(GetImgLog(), "imgRequest::Init");
 
-  NS_ABORT_IF_FALSE(!mImage, "Multiple calls to init");
-  NS_ABORT_IF_FALSE(aURI, "No uri");
-  NS_ABORT_IF_FALSE(aCurrentURI, "No current uri");
-  NS_ABORT_IF_FALSE(aRequest, "No request");
-  NS_ABORT_IF_FALSE(aChannel, "No channel");
+  MOZ_ASSERT(!mImage, "Multiple calls to init");
+  MOZ_ASSERT(aURI, "No uri");
+  MOZ_ASSERT(aCurrentURI, "No current uri");
+  MOZ_ASSERT(aRequest, "No request");
+  MOZ_ASSERT(aChannel, "No channel");
 
   mProperties = do_CreateInstance("@mozilla.org/properties;1");
 
@@ -144,12 +145,12 @@ already_AddRefed<ProgressTracker>
 imgRequest::GetProgressTracker()
 {
   if (mImage) {
-    NS_ABORT_IF_FALSE(!mProgressTracker,
-                      "Should have given mProgressTracker to mImage");
+    MOZ_ASSERT(!mProgressTracker,
+               "Should have given mProgressTracker to mImage");
     return mImage->GetProgressTracker();
   } else {
-    NS_ABORT_IF_FALSE(mProgressTracker,
-                      "Should have mProgressTracker until we create mImage");
+    MOZ_ASSERT(mProgressTracker,
+               "Should have mProgressTracker until we create mImage");
     nsRefPtr<ProgressTracker> progressTracker = mProgressTracker;
     MOZ_ASSERT(progressTracker);
     return progressTracker.forget();
@@ -182,7 +183,7 @@ void imgRequest::AddProxy(imgRequestProxy *proxy)
   // proxies.
   nsRefPtr<ProgressTracker> progressTracker = GetProgressTracker();
   if (progressTracker->ObserverCount() == 0) {
-    NS_ABORT_IF_FALSE(mURI, "Trying to SetHasProxies without key uri.");
+    MOZ_ASSERT(mURI, "Trying to SetHasProxies without key uri.");
     if (mLoader) {
       mLoader->SetHasProxies(this);
     }
@@ -213,7 +214,7 @@ nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus)
     // been cancelled and thus removed from the cache, tell the image loader so
     // we can be evicted from the cache.
     if (mCacheEntry) {
-      NS_ABORT_IF_FALSE(mURI, "Removing last observer without key uri.");
+      MOZ_ASSERT(mURI, "Removing last observer without key uri.");
 
       if (mLoader) {
         mLoader->SetHasNoProxies(this, mCacheEntry);
@@ -643,12 +644,15 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
   if (mpchan) {
     mIsMultiPartChannel = true;
   } else {
-    NS_ABORT_IF_FALSE(!mIsMultiPartChannel, "Something went wrong");
+    MOZ_ASSERT(!mIsMultiPartChannel, "Something went wrong");
   }
 
-  // If we're not multipart, we shouldn't have an image yet
-  NS_ABORT_IF_FALSE(mIsMultiPartChannel || !mImage,
-                    "Already have an image for non-multipart request");
+  // If we're not multipart, we shouldn't have an image yet.
+  if (mImage && !mIsMultiPartChannel) {
+    MOZ_ASSERT_UNREACHABLE("Already have an image for a non-multipart request");
+    Cancel(NS_IMAGELIB_ERROR_FAILURE);
+    return NS_ERROR_FAILURE;
+  }
 
   /*
    * If mRequest is null here, then we need to set it so that we'll be able to
@@ -695,14 +699,13 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
   nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(aRequest);
   nsCOMPtr<nsIThreadRetargetableRequest> retargetable =
     do_QueryInterface(aRequest);
-  if (httpChannel && retargetable &&
-      ImageFactory::CanRetargetOnDataAvailable(mURI, mIsMultiPartChannel)) {
+  if (httpChannel && retargetable) {
     nsAutoCString mimeType;
     nsresult rv = httpChannel->GetContentType(mimeType);
     if (NS_SUCCEEDED(rv) && !mimeType.EqualsLiteral(IMAGE_SVG_XML)) {
-      // Image object not created until OnDataAvailable, so forward to static
-      // DecodePool directly.
-      nsCOMPtr<nsIEventTarget> target = RasterImage::GetEventTarget();
+      // Retarget OnDataAvailable to the DecodePool's IO thread.
+      nsCOMPtr<nsIEventTarget> target =
+        DecodePool::Singleton()->GetIOEventTarget();
       rv = retargetable->RetargetDeliveryTo(target);
     }
     PR_LOG(GetImgLog(), PR_LOG_WARNING,
@@ -914,7 +917,7 @@ imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctxt,
       // We allow multipart images to fail to initialize without cancelling the
       // load because subsequent images might be fine; thus only single part
       // images end up here.
-      this->Cancel(NS_ERROR_FAILURE);
+      this->Cancel(NS_IMAGELIB_ERROR_FAILURE);
       return NS_BINDING_ABORTED;
     }
 

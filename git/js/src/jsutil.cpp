@@ -50,11 +50,12 @@ namespace js {
 // This function calls all the vanilla heap allocation functions.  It is never
 // called, and exists purely to help config/check_vanilla_allocations.py.  See
 // that script for more details.
-extern void
+extern MOZ_COLD void
 AllTheNonBasicVanillaNewAllocations()
 {
     // posix_memalign and aligned_alloc aren't available on all Linux
     // configurations.
+    // valloc was deprecated in Android 5.0
     //char *q;
     //posix_memalign((void**)&q, 16, 16);
 
@@ -69,7 +70,7 @@ AllTheNonBasicVanillaNewAllocations()
         intptr_t(memalign(16, 16)) +
         //intptr_t(q) +
         //intptr_t(aligned_alloc(16, 16)) +
-        intptr_t(valloc(4096)) +
+        //intptr_t(valloc(4096)) +
         intptr_t(strdup("dummy"));
 
     printf("%u\n", uint32_t(p));  // make sure |p| is not optimized away

@@ -476,6 +476,12 @@ MacroAssemblerMIPS::ma_addu(Register rd, Register rs, Imm32 imm)
 }
 
 void
+MacroAssemblerMIPS::ma_addu(Register rd, Register rs, Register rt)
+{
+    as_addu(rd, rs, rt);
+}
+
+void
 MacroAssemblerMIPS::ma_addu(Register rd, Register rs)
 {
     as_addu(rd, rd, rs);
@@ -918,6 +924,13 @@ MacroAssemblerMIPS::ma_b(Register lhs, Address addr, Label *label, Condition c, 
 
 void
 MacroAssemblerMIPS::ma_b(Address addr, Imm32 imm, Label *label, Condition c, JumpKind jumpKind)
+{
+    ma_lw(SecondScratchReg, addr);
+    ma_b(SecondScratchReg, imm, label, c, jumpKind);
+}
+
+void
+MacroAssemblerMIPS::ma_b(Address addr, ImmGCPtr imm, Label *label, Condition c, JumpKind jumpKind)
 {
     ma_lw(SecondScratchReg, addr);
     ma_b(SecondScratchReg, imm, label, c, jumpKind);
@@ -1475,7 +1488,7 @@ MacroAssemblerMIPS::ma_bc1d(FloatRegister lhs, FloatRegister rhs, Label *label,
     branchWithCode(getBranchCode(testKind, fcc), label, jumpKind);
 }
 
-bool
+void
 MacroAssemblerMIPSCompat::buildFakeExitFrame(Register scratch, uint32_t *offset)
 {
     mozilla::DebugOnly<uint32_t> initialDepth = framePushed();
@@ -1491,7 +1504,7 @@ MacroAssemblerMIPSCompat::buildFakeExitFrame(Register scratch, uint32_t *offset)
     *offset = currentOffset();
 
     MOZ_ASSERT(framePushed() == initialDepth + ExitFrameLayout::Size());
-    return addCodeLabel(cl);
+    addCodeLabel(cl);
 }
 
 bool
@@ -1547,16 +1560,6 @@ MacroAssemblerMIPSCompat::callJit(Register callee)
         adjustFrame(sizeof(uint32_t));
         ma_callJit(callee);
     }
-}
-void
-MacroAssemblerMIPSCompat::callJitFromAsmJS(Register callee)
-{
-    ma_callJitNoPush(callee);
-
-    // The JIT ABI has the callee pop the return address off the stack.
-    // The asm.js caller assumes that the call leaves sp unchanged, so bump
-    // the stack.
-    subPtr(Imm32(sizeof(void*)), StackPointer);
 }
 
 void
@@ -2033,8 +2036,8 @@ MacroAssemblerMIPSCompat::store32(Register src, const Address &address)
 void
 MacroAssemblerMIPSCompat::store32(Imm32 src, const Address &address)
 {
-    move32(src, ScratchRegister);
-    storePtr(ScratchRegister, address);
+    move32(src, SecondScratchReg);
+    storePtr(SecondScratchReg, address);
 }
 
 void
@@ -2053,8 +2056,8 @@ template <typename T>
 void
 MacroAssemblerMIPSCompat::storePtr(ImmWord imm, T address)
 {
-    ma_li(ScratchRegister, Imm32(imm.value));
-    ma_sw(ScratchRegister, address);
+    ma_li(SecondScratchReg, Imm32(imm.value));
+    ma_sw(SecondScratchReg, address);
 }
 
 template void MacroAssemblerMIPSCompat::storePtr<Address>(ImmWord imm, Address address);
@@ -2074,8 +2077,8 @@ template <typename T>
 void
 MacroAssemblerMIPSCompat::storePtr(ImmGCPtr imm, T address)
 {
-    ma_li(ScratchRegister, imm);
-    ma_sw(ScratchRegister, address);
+    ma_li(SecondScratchReg, imm);
+    ma_sw(SecondScratchReg, address);
 }
 
 template void MacroAssemblerMIPSCompat::storePtr<Address>(ImmGCPtr imm, Address address);
@@ -2382,6 +2385,14 @@ MacroAssemblerMIPSCompat::branchTestObject(Condition cond, const BaseIndex &src,
 }
 
 void
+MacroAssemblerMIPSCompat::branchTestObject(Condition cond, const Address &address, Label *label)
+{
+    MOZ_ASSERT(cond == Equal || cond == NotEqual);
+    extractTag(address, SecondScratchReg);
+    ma_b(SecondScratchReg, ImmTag(JSVAL_TAG_OBJECT), label, cond);
+}
+
+void
 MacroAssemblerMIPSCompat::testObjectSet(Condition cond, const ValueOperand &value, Register dest)
 {
     MOZ_ASSERT(cond == Equal || cond == NotEqual);
@@ -2559,6 +2570,13 @@ void
 MacroAssemblerMIPSCompat::unboxNonDouble(const Address &src, Register dest)
 {
     ma_lw(dest, Address(src.base, src.offset + PAYLOAD_OFFSET));
+}
+
+void
+MacroAssemblerMIPSCompat::unboxNonDouble(const BaseIndex &src, Register dest)
+{
+    computeScaledAddress(src, SecondScratchReg);
+    ma_lw(dest, Address(SecondScratchReg, src.offset + PAYLOAD_OFFSET));
 }
 
 void
@@ -3335,7 +3353,7 @@ MacroAssemblerMIPSCompat::checkStackAlignment()
     Label aligned;
     as_andi(ScratchRegister, sp, ABIStackAlignment - 1);
     ma_b(ScratchRegister, zero, &aligned, Equal, ShortJump);
-    as_break(MAX_BREAK_CODE);
+    as_break(BREAK_STACK_UNALIGNED);
     bind(&aligned);
 #endif
 }
@@ -3459,6 +3477,8 @@ AssertValidABIFunctionType(uint32_t passedArgTypes)
       case Args_Double_DoubleDouble:
       case Args_Double_IntDouble:
       case Args_Int_IntDouble:
+      case Args_Double_DoubleDoubleDouble:
+      case Args_Double_DoubleDoubleDoubleDouble:
         break;
       default:
         MOZ_CRASH("Unexpected type");
@@ -3597,6 +3617,18 @@ MacroAssemblerMIPSCompat::handleFailureWithHandlerTail(void *handler)
               JSReturnOperand);
     ma_move(StackPointer, BaselineFrameReg);
     pop(BaselineFrameReg);
+
+    // If profiling is enabled, then update the lastProfilingFrame to refer to caller
+    // frame before returning.
+    {
+        Label skipProfilingInstrumentation;
+        // Test if profiler enabled.
+        AbsoluteAddress addressOfEnabled(GetJitContext()->runtime->spsProfiler().addressOfEnabled());
+        branch32(Assembler::Equal, addressOfEnabled, Imm32(0), &skipProfilingInstrumentation);
+        profilerExitFrame();
+        bind(&skipProfilingInstrumentation);
+    }
+
     ret();
 
     // If we are bailing out to baseline to handle an exception, jump to
@@ -3634,8 +3666,6 @@ MacroAssemblerMIPSCompat::toggledCall(JitCode *target, bool enabled)
     return offset;
 }
 
-#ifdef JSGC_GENERATIONAL
-
 void
 MacroAssemblerMIPSCompat::branchPtrInNurseryRange(Condition cond, Register ptr, Register temp,
                                                   Label *label)
@@ -3665,4 +3695,17 @@ MacroAssemblerMIPSCompat::branchValueIsNurseryObject(Condition cond, ValueOperan
     bind(&done);
 }
 
-#endif
+void
+MacroAssemblerMIPSCompat::profilerEnterFrame(Register framePtr, Register scratch)
+{
+    AbsoluteAddress activation(GetJitContext()->runtime->addressOfProfilingActivation());
+    loadPtr(activation, scratch);
+    storePtr(framePtr, Address(scratch, JitActivation::offsetOfLastProfilingFrame()));
+    storePtr(ImmPtr(nullptr), Address(scratch, JitActivation::offsetOfLastProfilingCallSite()));
+}
+
+void
+MacroAssemblerMIPSCompat::profilerExitFrame()
+{
+    branch(GetJitContext()->runtime->jitRuntime()->getProfilerExitFrameTail());
+}

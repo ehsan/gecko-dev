@@ -68,25 +68,25 @@ public:
   // From Element
   nsresult CopyInnerTo(mozilla::dom::Element* aDest);
 
-  void GetTitle(nsString& aTitle)
+  void GetTitle(mozilla::dom::DOMString& aTitle)
   {
     GetHTMLAttr(nsGkAtoms::title, aTitle);
   }
-  NS_IMETHODIMP SetTitle(const nsAString& aTitle)
+  NS_IMETHODIMP SetTitle(const nsAString& aTitle) MOZ_OVERRIDE
   {
     SetHTMLAttr(nsGkAtoms::title, aTitle);
     return NS_OK;
   }
-  void GetLang(nsString& aLang)
+  void GetLang(mozilla::dom::DOMString& aLang)
   {
     GetHTMLAttr(nsGkAtoms::lang, aLang);
   }
-  NS_IMETHODIMP SetLang(const nsAString& aLang)
+  NS_IMETHODIMP SetLang(const nsAString& aLang) MOZ_OVERRIDE
   {
     SetHTMLAttr(nsGkAtoms::lang, aLang);
     return NS_OK;
   }
-  void GetDir(nsString& aDir)
+  void GetDir(mozilla::dom::DOMString& aDir)
   {
     GetHTMLEnumAttr(nsGkAtoms::dir, aDir);
   }
@@ -291,15 +291,34 @@ public:
     return rcFrame.height;
   }
 
+  // These methods are already implemented in nsIContent but we want something
+  // faster for HTMLElements ignoring the namespace checking.
+  // This is safe because we already know that we are in the HTML namespace.
+  inline bool IsHTMLElement() const
+  {
+    return true;
+  }
+
+  inline bool IsHTMLElement(nsIAtom* aTag) const
+  {
+    return mNodeInfo->Equals(aTag);
+  }
+
+  template<typename First, typename... Args>
+  inline bool IsAnyOfHTMLElements(First aFirst, Args... aArgs) const
+  {
+    return IsNodeInternal(aFirst, aArgs...);
+  }
+
 protected:
   virtual ~nsGenericHTMLElement() {}
 
   // These methods are used to implement element-specific behavior of Get/SetItemValue
   // when an element has @itemprop but no @itemscope.
-  virtual void GetItemValueText(nsAString& text);
+  virtual void GetItemValueText(mozilla::dom::DOMString& text);
   virtual void SetItemValueText(const nsAString& text);
 public:
-  virtual already_AddRefed<mozilla::dom::UndoManager> GetUndoManager();
+  virtual already_AddRefed<mozilla::dom::UndoManager> GetUndoManager() MOZ_OVERRIDE;
   virtual bool UndoScope() MOZ_OVERRIDE;
   virtual void SetUndoScope(bool aUndoScope, mozilla::ErrorResult& aError) MOZ_OVERRIDE;
   // Callback for destructor of of dataset to ensure to null out weak pointer.
@@ -317,25 +336,25 @@ public:
 
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
-  NS_IMETHOD GetTitle(nsAString& aTitle) MOZ_FINAL {
-    nsString title;
+  NS_IMETHOD GetTitle(nsAString& aTitle) MOZ_FINAL MOZ_OVERRIDE {
+    mozilla::dom::DOMString title;
     GetTitle(title);
-    aTitle.Assign(title);
+    title.ToString(aTitle);
     return NS_OK;
   }
-  NS_IMETHOD GetLang(nsAString& aLang) MOZ_FINAL {
-    nsString lang;
+  NS_IMETHOD GetLang(nsAString& aLang) MOZ_FINAL MOZ_OVERRIDE {
+    mozilla::dom::DOMString lang;
     GetLang(lang);
-    aLang.Assign(lang);
+    lang.ToString(aLang);
     return NS_OK;
   }
-  NS_IMETHOD GetDir(nsAString& aDir) MOZ_FINAL {
-    nsString dir;
+  NS_IMETHOD GetDir(nsAString& aDir) MOZ_FINAL MOZ_OVERRIDE {
+    mozilla::dom::DOMString dir;
     GetDir(dir);
-    aDir.Assign(dir);
+    dir.ToString(aDir);
     return NS_OK;
   }
-  NS_IMETHOD SetDir(const nsAString& aDir) MOZ_FINAL {
+  NS_IMETHOD SetDir(const nsAString& aDir) MOZ_FINAL MOZ_OVERRIDE {
     mozilla::ErrorResult rv;
     SetDir(aDir, rv);
     return rv.ErrorCode();
@@ -348,131 +367,137 @@ public:
     SetClassName(aClassName);
     return NS_OK;
   }
-  NS_IMETHOD GetDataset(nsISupports** aDataset) MOZ_FINAL;
-  NS_IMETHOD GetHidden(bool* aHidden) MOZ_FINAL {
+  NS_IMETHOD GetDataset(nsISupports** aDataset) MOZ_FINAL MOZ_OVERRIDE;
+  NS_IMETHOD GetHidden(bool* aHidden) MOZ_FINAL MOZ_OVERRIDE {
     *aHidden = Hidden();
     return NS_OK;
   }
-  NS_IMETHOD SetHidden(bool aHidden) MOZ_FINAL {
+  NS_IMETHOD SetHidden(bool aHidden) MOZ_FINAL MOZ_OVERRIDE {
     mozilla::ErrorResult rv;
     SetHidden(aHidden, rv);
     return rv.ErrorCode();
   }
-  NS_IMETHOD DOMBlur() MOZ_FINAL {
+  NS_IMETHOD DOMBlur() MOZ_FINAL MOZ_OVERRIDE {
     mozilla::ErrorResult rv;
     Blur(rv);
     return rv.ErrorCode();
   }
-  NS_IMETHOD GetItemScope(bool* aItemScope) MOZ_FINAL {
+  NS_IMETHOD GetItemScope(bool* aItemScope) MOZ_FINAL MOZ_OVERRIDE {
     *aItemScope = ItemScope();
     return NS_OK;
   }
-  NS_IMETHOD SetItemScope(bool aItemScope) MOZ_FINAL {
+  NS_IMETHOD SetItemScope(bool aItemScope) MOZ_FINAL MOZ_OVERRIDE {
     mozilla::ErrorResult rv;
     SetItemScope(aItemScope, rv);
     return rv.ErrorCode();
   }
-  NS_IMETHOD GetItemType(nsIVariant** aType) MOZ_FINAL {
+  NS_IMETHOD GetItemType(nsIVariant** aType) MOZ_FINAL MOZ_OVERRIDE {
     GetTokenList(nsGkAtoms::itemtype, aType);
     return NS_OK;
   }
-  NS_IMETHOD SetItemType(nsIVariant* aType) MOZ_FINAL {
+  NS_IMETHOD SetItemType(nsIVariant* aType) MOZ_FINAL MOZ_OVERRIDE {
     return SetTokenList(nsGkAtoms::itemtype, aType);
   }
-  NS_IMETHOD GetItemId(nsAString& aId) MOZ_FINAL {
+  NS_IMETHOD GetItemId(nsAString& aId) MOZ_FINAL MOZ_OVERRIDE {
     nsString id;
     GetItemId(id);
     aId.Assign(aId);
     return NS_OK;
   }
-  NS_IMETHOD SetItemId(const nsAString& aId) MOZ_FINAL {
+  NS_IMETHOD SetItemId(const nsAString& aId) MOZ_FINAL MOZ_OVERRIDE {
     mozilla::ErrorResult rv;
     SetItemId(aId, rv);
     return rv.ErrorCode();
   }
-  NS_IMETHOD GetProperties(nsISupports** aReturn) MOZ_FINAL;
-  NS_IMETHOD GetItemValue(nsIVariant** aValue) MOZ_FINAL;
-  NS_IMETHOD SetItemValue(nsIVariant* aValue) MOZ_FINAL;
-  NS_IMETHOD GetItemRef(nsIVariant** aRef) MOZ_FINAL {
+  NS_IMETHOD GetProperties(nsISupports** aReturn) MOZ_FINAL MOZ_OVERRIDE;
+  NS_IMETHOD GetItemValue(nsIVariant** aValue) MOZ_FINAL MOZ_OVERRIDE;
+  NS_IMETHOD SetItemValue(nsIVariant* aValue) MOZ_FINAL MOZ_OVERRIDE;
+  NS_IMETHOD GetItemRef(nsIVariant** aRef) MOZ_FINAL MOZ_OVERRIDE {
     GetTokenList(nsGkAtoms::itemref, aRef);
     return NS_OK;
   }
-  NS_IMETHOD SetItemRef(nsIVariant* aRef) MOZ_FINAL {
+  NS_IMETHOD SetItemRef(nsIVariant* aRef) MOZ_FINAL MOZ_OVERRIDE {
     return SetTokenList(nsGkAtoms::itemref, aRef);
   }
-  NS_IMETHOD GetItemProp(nsIVariant** aProp) MOZ_FINAL {
+  NS_IMETHOD GetItemProp(nsIVariant** aProp) MOZ_FINAL MOZ_OVERRIDE {
     GetTokenList(nsGkAtoms::itemprop, aProp);
     return NS_OK;
   }
-  NS_IMETHOD SetItemProp(nsIVariant* aProp) MOZ_FINAL {
+  NS_IMETHOD SetItemProp(nsIVariant* aProp) MOZ_FINAL MOZ_OVERRIDE {
     return SetTokenList(nsGkAtoms::itemprop, aProp);
   }
-  NS_IMETHOD GetAccessKey(nsAString& aAccessKey) MOZ_FINAL {
+  NS_IMETHOD GetAccessKey(nsAString& aAccessKey) MOZ_FINAL MOZ_OVERRIDE {
     nsString accessKey;
     GetAccessKey(accessKey);
     aAccessKey.Assign(accessKey);
     return NS_OK;
   }
-  NS_IMETHOD SetAccessKey(const nsAString& aAccessKey) MOZ_FINAL {
+  NS_IMETHOD SetAccessKey(const nsAString& aAccessKey) MOZ_FINAL MOZ_OVERRIDE {
     mozilla::ErrorResult rv;
     SetAccessKey(aAccessKey, rv);
     return rv.ErrorCode();
   }
-  NS_IMETHOD GetAccessKeyLabel(nsAString& aAccessKeyLabel) MOZ_FINAL {
+  NS_IMETHOD GetAccessKeyLabel(nsAString& aAccessKeyLabel)
+    MOZ_FINAL MOZ_OVERRIDE {
     nsString accessKeyLabel;
     GetAccessKeyLabel(accessKeyLabel);
     aAccessKeyLabel.Assign(accessKeyLabel);
     return NS_OK;
   }
-  NS_IMETHOD SetDraggable(bool aDraggable) MOZ_FINAL {
+  NS_IMETHOD SetDraggable(bool aDraggable) MOZ_FINAL MOZ_OVERRIDE {
     mozilla::ErrorResult rv;
     SetDraggable(aDraggable, rv);
     return rv.ErrorCode();
   }
-  NS_IMETHOD GetContentEditable(nsAString& aContentEditable) MOZ_FINAL {
+  NS_IMETHOD GetContentEditable(nsAString& aContentEditable)
+    MOZ_FINAL MOZ_OVERRIDE {
     nsString contentEditable;
     GetContentEditable(contentEditable);
     aContentEditable.Assign(contentEditable);
     return NS_OK;
   }
-  NS_IMETHOD SetContentEditable(const nsAString& aContentEditable) MOZ_FINAL {
+  NS_IMETHOD SetContentEditable(const nsAString& aContentEditable)
+    MOZ_FINAL MOZ_OVERRIDE {
     mozilla::ErrorResult rv;
     SetContentEditable(aContentEditable, rv);
     return rv.ErrorCode();
   }
-  NS_IMETHOD GetIsContentEditable(bool* aIsContentEditable) MOZ_FINAL {
+  NS_IMETHOD GetIsContentEditable(bool* aIsContentEditable)
+    MOZ_FINAL MOZ_OVERRIDE {
     *aIsContentEditable = IsContentEditable();
     return NS_OK;
   }
-  NS_IMETHOD GetContextMenu(nsIDOMHTMLMenuElement** aContextMenu) MOZ_FINAL;
-  NS_IMETHOD GetSpellcheck(bool* aSpellcheck) MOZ_FINAL {
+  NS_IMETHOD GetContextMenu(nsIDOMHTMLMenuElement** aContextMenu)
+    MOZ_FINAL MOZ_OVERRIDE;
+  NS_IMETHOD GetSpellcheck(bool* aSpellcheck) MOZ_FINAL MOZ_OVERRIDE {
     *aSpellcheck = Spellcheck();
     return NS_OK;
   }
-  NS_IMETHOD SetSpellcheck(bool aSpellcheck) MOZ_FINAL {
+  NS_IMETHOD SetSpellcheck(bool aSpellcheck) MOZ_FINAL MOZ_OVERRIDE {
     mozilla::ErrorResult rv;
     SetSpellcheck(aSpellcheck, rv);
     return rv.ErrorCode();
   }
-  NS_IMETHOD GetOuterHTML(nsAString& aOuterHTML) MOZ_FINAL {
+  NS_IMETHOD GetOuterHTML(nsAString& aOuterHTML) MOZ_FINAL MOZ_OVERRIDE {
     mozilla::dom::Element::GetOuterHTML(aOuterHTML);
     return NS_OK;
   }
-  NS_IMETHOD SetOuterHTML(const nsAString& aOuterHTML) MOZ_FINAL {
+  NS_IMETHOD SetOuterHTML(const nsAString& aOuterHTML) MOZ_FINAL MOZ_OVERRIDE {
     mozilla::ErrorResult rv;
     mozilla::dom::Element::SetOuterHTML(aOuterHTML, rv);
     return rv.ErrorCode();
   }                                                                            \
   NS_IMETHOD InsertAdjacentHTML(const nsAString& position,
-                                const nsAString& text) MOZ_FINAL;
-  NS_IMETHOD ScrollIntoView(bool top, uint8_t _argc) MOZ_FINAL {
+                                const nsAString& text) MOZ_FINAL MOZ_OVERRIDE;
+  NS_IMETHOD ScrollIntoView(bool top, uint8_t _argc) MOZ_FINAL MOZ_OVERRIDE {
     if (!_argc) {
       top = true;
     }
     mozilla::dom::Element::ScrollIntoView(top);
     return NS_OK;
   }
-  NS_IMETHOD GetOffsetParent(nsIDOMElement** aOffsetParent) MOZ_FINAL {
+  NS_IMETHOD GetOffsetParent(nsIDOMElement** aOffsetParent)
+    MOZ_FINAL MOZ_OVERRIDE {
     mozilla::dom::Element* offsetParent = GetOffsetParent();
     if (!offsetParent) {
       *aOffsetParent = nullptr;
@@ -480,41 +505,41 @@ public:
     }
     return CallQueryInterface(offsetParent, aOffsetParent);
   }
-  NS_IMETHOD GetOffsetTop(int32_t* aOffsetTop) MOZ_FINAL {
+  NS_IMETHOD GetOffsetTop(int32_t* aOffsetTop) MOZ_FINAL MOZ_OVERRIDE {
     *aOffsetTop = OffsetTop();
     return NS_OK;
   }
-  NS_IMETHOD GetOffsetLeft(int32_t* aOffsetLeft) MOZ_FINAL {
+  NS_IMETHOD GetOffsetLeft(int32_t* aOffsetLeft) MOZ_FINAL MOZ_OVERRIDE {
     *aOffsetLeft = OffsetLeft();
     return NS_OK;
   }
-  NS_IMETHOD GetOffsetWidth(int32_t* aOffsetWidth) MOZ_FINAL {
+  NS_IMETHOD GetOffsetWidth(int32_t* aOffsetWidth) MOZ_FINAL MOZ_OVERRIDE {
     *aOffsetWidth = OffsetWidth();
     return NS_OK;
   }
-  NS_IMETHOD GetOffsetHeight(int32_t* aOffsetHeight) MOZ_FINAL {
+  NS_IMETHOD GetOffsetHeight(int32_t* aOffsetHeight) MOZ_FINAL MOZ_OVERRIDE {
     *aOffsetHeight = OffsetHeight();
     return NS_OK;
   }
-  NS_IMETHOD DOMClick() MOZ_FINAL {
+  NS_IMETHOD DOMClick() MOZ_FINAL MOZ_OVERRIDE {
     Click();
     return NS_OK;
   }
-  NS_IMETHOD GetTabIndex(int32_t* aTabIndex) MOZ_FINAL {
+  NS_IMETHOD GetTabIndex(int32_t* aTabIndex) MOZ_FINAL MOZ_OVERRIDE {
     *aTabIndex = TabIndex();
     return NS_OK;
   }
-  NS_IMETHOD SetTabIndex(int32_t aTabIndex) MOZ_FINAL {
+  NS_IMETHOD SetTabIndex(int32_t aTabIndex) MOZ_FINAL MOZ_OVERRIDE {
     mozilla::ErrorResult rv;
     SetTabIndex(aTabIndex, rv);
     return rv.ErrorCode();
   }
-  NS_IMETHOD Focus() MOZ_FINAL {
+  NS_IMETHOD Focus() MOZ_FINAL MOZ_OVERRIDE {
     mozilla::ErrorResult rv;
     Focus(rv);
     return rv.ErrorCode();
   }
-  NS_IMETHOD GetDraggable(bool* aDraggable) MOZ_FINAL {
+  NS_IMETHOD GetDraggable(bool* aDraggable) MOZ_FINAL MOZ_OVERRIDE {
     *aDraggable = Draggable();
     return NS_OK;
   }
@@ -522,7 +547,7 @@ public:
     return mozilla::dom::Element::GetInnerHTML(aInnerHTML);
   }
   using mozilla::dom::Element::SetInnerHTML;
-  NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML) MOZ_FINAL {
+  NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML) MOZ_FINAL MOZ_OVERRIDE {
     mozilla::ErrorResult rv;
     SetInnerHTML(aInnerHTML, rv);
     return rv.ErrorCode();
@@ -898,6 +923,7 @@ public:
   }
 
   virtual bool IsLabelable() const MOZ_OVERRIDE;
+  virtual bool IsInteractiveHTMLContent() const MOZ_OVERRIDE;
 
   static bool TouchEventsEnabled(JSContext* /* unused */, JSObject* /* unused */);
 
@@ -913,19 +939,16 @@ public:
   static inline bool
   ShouldExposeNameAsHTMLDocumentProperty(Element* aElement)
   {
-    return aElement->IsHTML() && CanHaveName(aElement->Tag());
+    return aElement->IsHTMLElement() &&
+           CanHaveName(aElement->NodeInfo()->NameAtom());
   }
   static inline bool
   ShouldExposeIdAsHTMLDocumentProperty(Element* aElement)
   {
-    if (!aElement->IsHTML()) {
-      return false;
-    }
-    nsIAtom* tag = aElement->Tag();
-    return tag == nsGkAtoms::img ||
-           tag == nsGkAtoms::applet ||
-           tag == nsGkAtoms::embed ||
-           tag == nsGkAtoms::object;
+    return aElement->IsAnyOfHTMLElements(nsGkAtoms::img,
+                                         nsGkAtoms::applet,
+                                         nsGkAtoms::embed,
+                                         nsGkAtoms::object);
   }
 
   static bool
@@ -1251,7 +1274,7 @@ public:
   virtual void SaveSubtreeState() MOZ_OVERRIDE;
 
   // nsIFormControl
-  virtual mozilla::dom::HTMLFieldSetElement* GetFieldSet();
+  virtual mozilla::dom::HTMLFieldSetElement* GetFieldSet() MOZ_OVERRIDE;
   virtual mozilla::dom::Element* GetFormElement() MOZ_OVERRIDE;
   mozilla::dom::HTMLFormElement* GetForm() const
   {

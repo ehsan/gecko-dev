@@ -33,13 +33,6 @@ const MAX_ORDINAL = 99;
 const bundle = Services.strings.createBundle("chrome://browser/locale/devtools/toolbox.properties");
 
 /**
- * The method name to use for ES6 iteration. If symbols are enabled in this
- * build, use Symbol.iterator; otherwise "@@iterator".
- */
-const JS_HAS_SYMBOLS = typeof Symbol === "function";
-const ITERATOR_SYMBOL = JS_HAS_SYMBOLS ? Symbol.iterator : "@@iterator";
-
-/**
  * DevTools is a class that represents a set of developer tools, it holds a
  * set of tools and keeps track of open toolboxes in the browser.
  */
@@ -421,6 +414,8 @@ DevTools.prototype = {
       // No toolbox for target, create one
       toolbox = new devtools.Toolbox(target, toolId, hostType, hostOptions);
 
+      this.emit("toolbox-created", toolbox);
+
       this._toolboxes.set(target, toolbox);
 
       toolbox.once("destroy", () => {
@@ -500,7 +495,7 @@ DevTools.prototype = {
   /**
    * Iterator that yields each of the toolboxes.
    */
-  *[ITERATOR_SYMBOL]() {
+  *[Symbol.iterator]() {
     for (let toolbox of this._toolboxes) {
       yield toolbox;
     }
@@ -702,6 +697,7 @@ let gDevToolsBrowser = {
       DebuggerServer.init();
       DebuggerServer.addBrowserActors();
     }
+    DebuggerServer.allowChromeProcess = true;
 
     let transport = DebuggerServer.connectPipe();
     let client = new DebuggerClient(transport);
@@ -723,7 +719,8 @@ let gDevToolsBrowser = {
                 let options = {
                   form: response.form,
                   client: client,
-                  chrome: true
+                  chrome: true,
+                  isTabActor: false
                 };
                 return devtools.TargetFactory.forRemoteTab(options);
               })
@@ -782,6 +779,11 @@ let gDevToolsBrowser = {
     let widgetWrapper = CustomizableUI.getWidget("webide-button");
     return !!(widgetWrapper && widgetWrapper.provider == CustomizableUI.PROVIDER_API);
   },
+
+  /**
+   * The deferred promise will be resolved by WebIDE's UI.init()
+   */
+  isWebIDEInitialized: promise.defer(),
 
   /**
    * Uninstall WebIDE widget
@@ -854,17 +856,9 @@ let gDevToolsBrowser = {
                          .getService(Ci.nsISlowScriptDebug);
     let tm = Cc["@mozilla.org/thread-manager;1"].getService(Ci.nsIThreadManager);
 
-    debugService.activationHandler = function(aWindow) {
-      let chromeWindow = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                                .getInterface(Ci.nsIWebNavigation)
-                                .QueryInterface(Ci.nsIDocShellTreeItem)
-                                .rootTreeItem
-                                .QueryInterface(Ci.nsIInterfaceRequestor)
-                                .getInterface(Ci.nsIDOMWindow)
-                                .QueryInterface(Ci.nsIDOMChromeWindow);
-      let target = devtools.TargetFactory.forTab(chromeWindow.gBrowser.selectedTab);
+    function slowScriptDebugHandler(aTab, aCallback) {
+      let target = devtools.TargetFactory.forTab(aTab);
 
-      let setupFinished = false;
       gDevTools.showToolbox(target, "jsdebugger").then(toolbox => {
         let threadClient = toolbox.getCurrentPanel().panelWin.gThreadClient;
 
@@ -874,13 +868,13 @@ let gDevToolsBrowser = {
           case "paused":
             // When the debugger is already paused.
             threadClient.breakOnNext();
-            setupFinished = true;
+            aCallback();
             break;
           case "attached":
             // When the debugger is already open.
             threadClient.interrupt(() => {
               threadClient.breakOnNext();
-              setupFinished = true;
+              aCallback();
             });
             break;
           case "resuming":
@@ -888,7 +882,7 @@ let gDevToolsBrowser = {
             threadClient.addOneTimeListener("resumed", () => {
               threadClient.interrupt(() => {
                 threadClient.breakOnNext();
-                setupFinished = true;
+                aCallback();
               });
             });
             break;
@@ -897,6 +891,20 @@ let gDevToolsBrowser = {
                         threadClient.state);
           }
       });
+    }
+
+    debugService.activationHandler = function(aWindow) {
+      let chromeWindow = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                .getInterface(Ci.nsIWebNavigation)
+                                .QueryInterface(Ci.nsIDocShellTreeItem)
+                                .rootTreeItem
+                                .QueryInterface(Ci.nsIInterfaceRequestor)
+                                .getInterface(Ci.nsIDOMWindow)
+                                .QueryInterface(Ci.nsIDOMChromeWindow);
+
+      let setupFinished = false;
+      slowScriptDebugHandler(chromeWindow.gBrowser.selectedTab,
+                             () => { setupFinished = true; });
 
       // Don't return from the interrupt handler until the debugger is brought
       // up; no reason to continue executing the slow script.
@@ -907,6 +915,18 @@ let gDevToolsBrowser = {
         tm.currentThread.processNextEvent(true);
       }
       utils.leaveModalState();
+    };
+
+    debugService.remoteActivationHandler = function(aBrowser, aCallback) {
+      let chromeWindow = aBrowser.ownerDocument.defaultView;
+      let tab = chromeWindow.gBrowser.getTabForBrowser(aBrowser);
+      chromeWindow.gBrowser.selected = tab;
+
+      function callback() {
+        aCallback.finishDebuggerStartup();
+      }
+
+      slowScriptDebugHandler(tab, callback);
     };
   },
 

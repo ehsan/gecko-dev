@@ -26,10 +26,6 @@ namespace js {
 
 class AutoLockGC;
 
-namespace gc {
-class ForkJoinNursery;
-}
-
 unsigned GetCPUCount();
 
 enum HeapState {
@@ -49,6 +45,10 @@ namespace jit {
     class JitCode;
 }
 
+namespace gcstats {
+struct Statistics;
+}
+
 namespace gc {
 
 struct FinalizePhase;
@@ -61,10 +61,6 @@ enum State {
     COMPACT
 };
 
-/* Return a printable string for the given kind, for diagnostic purposes. */
-const char *
-TraceKindAsAscii(JSGCTraceKind kind);
-
 /* Map from C++ type to alloc kind. JSObject does not have a 1:1 mapping, so must use Arena::thingSize. */
 template <typename T> struct MapTypeToFinalizeKind {};
 template <> struct MapTypeToFinalizeKind<JSScript>          { static const AllocKind kind = FINALIZE_SCRIPT; };
@@ -72,14 +68,13 @@ template <> struct MapTypeToFinalizeKind<LazyScript>        { static const Alloc
 template <> struct MapTypeToFinalizeKind<Shape>             { static const AllocKind kind = FINALIZE_SHAPE; };
 template <> struct MapTypeToFinalizeKind<AccessorShape>     { static const AllocKind kind = FINALIZE_ACCESSOR_SHAPE; };
 template <> struct MapTypeToFinalizeKind<BaseShape>         { static const AllocKind kind = FINALIZE_BASE_SHAPE; };
-template <> struct MapTypeToFinalizeKind<types::TypeObject> { static const AllocKind kind = FINALIZE_TYPE_OBJECT; };
+template <> struct MapTypeToFinalizeKind<ObjectGroup>       { static const AllocKind kind = FINALIZE_OBJECT_GROUP; };
 template <> struct MapTypeToFinalizeKind<JSFatInlineString> { static const AllocKind kind = FINALIZE_FAT_INLINE_STRING; };
 template <> struct MapTypeToFinalizeKind<JSString>          { static const AllocKind kind = FINALIZE_STRING; };
 template <> struct MapTypeToFinalizeKind<JSExternalString>  { static const AllocKind kind = FINALIZE_EXTERNAL_STRING; };
 template <> struct MapTypeToFinalizeKind<JS::Symbol>        { static const AllocKind kind = FINALIZE_SYMBOL; };
 template <> struct MapTypeToFinalizeKind<jit::JitCode>      { static const AllocKind kind = FINALIZE_JITCODE; };
 
-#if defined(JSGC_GENERATIONAL) || defined(DEBUG)
 static inline bool
 IsNurseryAllocable(AllocKind kind)
 {
@@ -102,7 +97,7 @@ IsNurseryAllocable(AllocKind kind)
         false,     /* FINALIZE_SHAPE */
         false,     /* FINALIZE_ACCESSOR_SHAPE */
         false,     /* FINALIZE_BASE_SHAPE */
-        false,     /* FINALIZE_TYPE_OBJECT */
+        false,     /* FINALIZE_OBJECT_GROUP */
         false,     /* FINALIZE_FAT_INLINE_STRING */
         false,     /* FINALIZE_STRING */
         false,     /* FINALIZE_EXTERNAL_STRING */
@@ -112,45 +107,6 @@ IsNurseryAllocable(AllocKind kind)
     JS_STATIC_ASSERT(JS_ARRAY_LENGTH(map) == FINALIZE_LIMIT);
     return map[kind];
 }
-#endif
-
-#if defined(JSGC_FJGENERATIONAL)
-// This is separate from IsNurseryAllocable() so that the latter can evolve
-// without worrying about what the ForkJoinNursery's needs are, and vice
-// versa to some extent.
-static inline bool
-IsFJNurseryAllocable(AllocKind kind)
-{
-    MOZ_ASSERT(kind >= 0 && unsigned(kind) < FINALIZE_LIMIT);
-    static const bool map[] = {
-        false,     /* FINALIZE_OBJECT0 */
-        true,      /* FINALIZE_OBJECT0_BACKGROUND */
-        false,     /* FINALIZE_OBJECT2 */
-        true,      /* FINALIZE_OBJECT2_BACKGROUND */
-        false,     /* FINALIZE_OBJECT4 */
-        true,      /* FINALIZE_OBJECT4_BACKGROUND */
-        false,     /* FINALIZE_OBJECT8 */
-        true,      /* FINALIZE_OBJECT8_BACKGROUND */
-        false,     /* FINALIZE_OBJECT12 */
-        true,      /* FINALIZE_OBJECT12_BACKGROUND */
-        false,     /* FINALIZE_OBJECT16 */
-        true,      /* FINALIZE_OBJECT16_BACKGROUND */
-        false,     /* FINALIZE_SCRIPT */
-        false,     /* FINALIZE_LAZY_SCRIPT */
-        false,     /* FINALIZE_SHAPE */
-        false,     /* FINALIZE_ACCESSOR_SHAPE */
-        false,     /* FINALIZE_BASE_SHAPE */
-        false,     /* FINALIZE_TYPE_OBJECT */
-        false,     /* FINALIZE_FAT_INLINE_STRING */
-        false,     /* FINALIZE_STRING */
-        false,     /* FINALIZE_EXTERNAL_STRING */
-        false,     /* FINALIZE_SYMBOL */
-        false,     /* FINALIZE_JITCODE */
-    };
-    JS_STATIC_ASSERT(JS_ARRAY_LENGTH(map) == FINALIZE_LIMIT);
-    return map[kind];
-}
-#endif
 
 static inline bool
 IsBackgroundFinalized(AllocKind kind)
@@ -174,7 +130,7 @@ IsBackgroundFinalized(AllocKind kind)
         true,      /* FINALIZE_SHAPE */
         true,      /* FINALIZE_ACCESSOR_SHAPE */
         true,      /* FINALIZE_BASE_SHAPE */
-        true,      /* FINALIZE_TYPE_OBJECT */
+        true,      /* FINALIZE_OBJECT_GROUP */
         true,      /* FINALIZE_FAT_INLINE_STRING */
         true,      /* FINALIZE_STRING */
         false,     /* FINALIZE_EXTERNAL_STRING */
@@ -238,6 +194,22 @@ GetGCObjectFixedSlotsKind(size_t numFixedSlots)
 {
     MOZ_ASSERT(numFixedSlots < SLOTS_TO_THING_KIND_LIMIT);
     return slotsToThingKind[numFixedSlots];
+}
+
+// Get the best kind to use when allocating an object that needs a specific
+// number of bytes.
+static inline AllocKind
+GetGCObjectKindForBytes(size_t nbytes)
+{
+    MOZ_ASSERT(nbytes <= JSObject::MAX_BYTE_SIZE);
+
+    if (nbytes <= sizeof(NativeObject))
+        return FINALIZE_OBJECT0;
+    nbytes -= sizeof(NativeObject);
+
+    size_t dataSlots = AlignBytes(nbytes, sizeof(Value)) / sizeof(Value);
+    MOZ_ASSERT(nbytes <= dataSlots * sizeof(Value));
+    return GetGCObjectKind(dataSlots);
 }
 
 static inline AllocKind
@@ -502,12 +474,10 @@ class ArenaList {
         return *this;
     }
 
-#ifdef JSGC_COMPACTING
-    size_t countUsedCells();
-    ArenaHeader *removeRemainingArenas(ArenaHeader **arenap, const AutoLockGC &lock);
-    ArenaHeader *pickArenasToRelocate(JSRuntime *runtime);
-    ArenaHeader *relocateArenas(ArenaHeader *toRelocate, ArenaHeader *relocated);
-#endif
+    ArenaHeader *removeRemainingArenas(ArenaHeader **arenap);
+    ArenaHeader **pickArenasToRelocate(size_t &arenaTotalOut, size_t &relocTotalOut);
+    ArenaHeader *relocateArenas(ArenaHeader *toRelocate, ArenaHeader *relocated,
+                                gcstats::Statistics& stats);
 };
 
 /*
@@ -635,7 +605,7 @@ class ArenaLists
     ArenaHeader *gcShapeArenasToUpdate;
     ArenaHeader *gcAccessorShapeArenasToUpdate;
     ArenaHeader *gcScriptArenasToUpdate;
-    ArenaHeader *gcTypeObjectArenasToUpdate;
+    ArenaHeader *gcObjectGroupArenasToUpdate;
 
     // While sweeping type information, these lists save the arenas for the
     // objects which have already been finalized in the foreground (which must
@@ -645,7 +615,7 @@ class ArenaLists
     ArenaHeader *savedEmptyObjectArenas;
 
   public:
-    ArenaLists(JSRuntime *rt) : runtime_(rt) {
+    explicit ArenaLists(JSRuntime *rt) : runtime_(rt) {
         for (size_t i = 0; i != FINALIZE_LIMIT; ++i)
             freeLists[i].initAsEmpty();
         for (size_t i = 0; i != FINALIZE_LIMIT; ++i)
@@ -656,7 +626,7 @@ class ArenaLists
         gcShapeArenasToUpdate = nullptr;
         gcAccessorShapeArenasToUpdate = nullptr;
         gcScriptArenasToUpdate = nullptr;
-        gcTypeObjectArenasToUpdate = nullptr;
+        gcObjectGroupArenasToUpdate = nullptr;
         savedEmptyObjectArenas = nullptr;
     }
 
@@ -816,11 +786,7 @@ class ArenaLists
     TenuredCell *allocateFromArena(JS::Zone *zone, AllocKind thingKind);
 
     /*
-     * Moves all arenas from |fromArenaLists| into |this|.  In
-     * parallel blocks, we temporarily create one ArenaLists per
-     * parallel thread.  When the parallel block ends, we move
-     * whatever allocations may have been performed back into the
-     * compartment's main arena list using this function.
+     * Moves all arenas from |fromArenaLists| into |this|.
      */
     void adoptArenas(JSRuntime *runtime, ArenaLists *fromArenaLists);
 
@@ -838,9 +804,8 @@ class ArenaLists
         MOZ_ASSERT(freeLists[kind].isEmpty());
     }
 
-#ifdef JSGC_COMPACTING
-    ArenaHeader *relocateArenas(ArenaHeader *relocatedList);
-#endif
+    bool relocateArenas(ArenaHeader *&relocatedListOut, JS::gcreason::Reason reason,
+                        gcstats::Statistics& stats);
 
     void queueForegroundObjectsForSweep(FreeOp *fop);
     void queueForegroundThingsForSweep(FreeOp *fop);
@@ -850,8 +815,6 @@ class ArenaLists
     bool foregroundFinalize(FreeOp *fop, AllocKind thingKind, SliceBudget &sliceBudget,
                             SortedArenaList &sweepList);
     static void backgroundFinalize(FreeOp *fop, ArenaHeader *listHead, ArenaHeader **empty);
-
-    void wipeDuringParallelExecution(JSRuntime *rt);
 
     // When finalizing arenas, whether to keep empty arenas on the list or
     // release them immediately.
@@ -891,55 +854,11 @@ const size_t MAX_EMPTY_CHUNK_AGE = 4;
 
 } /* namespace gc */
 
-typedef enum JSGCRootType {
-    JS_GC_ROOT_VALUE_PTR,
-    JS_GC_ROOT_STRING_PTR,
-    JS_GC_ROOT_OBJECT_PTR,
-    JS_GC_ROOT_SCRIPT_PTR
-} JSGCRootType;
-
-struct RootInfo {
-    RootInfo() {}
-    RootInfo(const char *name, JSGCRootType type) : name(name), type(type) {}
-    const char *name;
-    JSGCRootType type;
-};
-
-typedef js::HashMap<void *,
-                    RootInfo,
-                    js::DefaultHasher<void *>,
-                    js::SystemAllocPolicy> RootedValueMap;
-
 extern bool
-AddValueRoot(JSContext *cx, js::Value *vp, const char *name);
-
-extern bool
-AddValueRootRT(JSRuntime *rt, js::Value *vp, const char *name);
-
-extern bool
-AddStringRoot(JSContext *cx, JSString **rp, const char *name);
-
-extern bool
-AddObjectRoot(JSContext *cx, JSObject **rp, const char *name);
-
-extern bool
-AddObjectRoot(JSRuntime *rt, JSObject **rp, const char *name);
-
-extern bool
-AddScriptRoot(JSContext *cx, JSScript **rp, const char *name);
+InitGC(JSRuntime *rt, uint32_t maxbytes);
 
 extern void
-RemoveRoot(JSRuntime *rt, void *rp);
-
-} /* namespace js */
-
-extern bool
-js_InitGC(JSRuntime *rt, uint32_t maxbytes);
-
-extern void
-js_FinishGC(JSRuntime *rt);
-
-namespace js {
+FinishGC(JSRuntime *rt);
 
 class InterpreterFrame;
 
@@ -951,17 +870,6 @@ TraceRuntime(JSTracer *trc);
 
 extern void
 ReleaseAllJITCode(FreeOp *op);
-
-/*
- * Kinds of js_GC invocation.
- */
-typedef enum JSGCInvocationKind {
-    /* Normal invocation. */
-    GC_NORMAL           = 0,
-
-    /* Minimize GC triggers and release empty GC chunks right away. */
-    GC_SHRINK             = 1
-} JSGCInvocationKind;
 
 extern void
 PrepareForDebugGC(JSRuntime *rt);
@@ -1087,6 +995,7 @@ class GCParallelTask
 
   public:
     GCParallelTask() : state(NotStarted), duration_(0) {}
+    virtual ~GCParallelTask();
 
     // Time spent in the most recent invocation of this task.
     int64_t duration() const { return duration_; }
@@ -1154,9 +1063,6 @@ struct GrayRoot {
         : thing(thing), kind(kind) {}
 };
 
-void
-MarkStackRangeConservatively(JSTracer *trc, Value *begin, Value *end);
-
 typedef void (*IterateChunkCallback)(JSRuntime *rt, void *data, gc::Chunk *chunk);
 typedef void (*IterateZoneCallback)(JSRuntime *rt, void *data, JS::Zone *zone);
 typedef void (*IterateArenaCallback)(JSRuntime *rt, void *data, gc::Arena *arena,
@@ -1203,12 +1109,8 @@ extern void
 IterateScripts(JSRuntime *rt, JSCompartment *compartment,
                void *data, IterateScriptCallback scriptCallback);
 
-} /* namespace js */
-
 extern void
-js_FinalizeStringRT(JSRuntime *rt, JSString *str);
-
-namespace js {
+FinalizeStringRT(JSRuntime *rt, JSString *str);
 
 JSCompartment *
 NewCompartment(JSContext *cx, JS::Zone *zone, JSPrincipals *principals,
@@ -1223,8 +1125,6 @@ namespace gc {
 void
 MergeCompartments(JSCompartment *source, JSCompartment *target);
 
-#if defined(JSGC_GENERATIONAL) || defined(JSGC_COMPACTING)
-
 /*
  * This structure overlays a Cell in the Nursery and re-purposes its memory
  * for managing the Nursery collection process.
@@ -1232,7 +1132,6 @@ MergeCompartments(JSCompartment *source, JSCompartment *target);
 class RelocationOverlay
 {
     friend class MinorCollectionTracer;
-    friend class ForkJoinNursery;
 
     /* The low bit is set so this should never equal a normal pointer. */
     static const uintptr_t Relocated = uintptr_t(0xbad0bad1);
@@ -1265,7 +1164,9 @@ class RelocationOverlay
 
     void forwardTo(Cell *cell) {
         MOZ_ASSERT(!isForwarded());
-        MOZ_ASSERT(JSObject::offsetOfShape() == offsetof(RelocationOverlay, newLocation_));
+        static_assert(offsetof(JSObject, group_) == offsetof(RelocationOverlay, newLocation_),
+                      "forwarding pointer and group should be at same location, "
+                      "so that obj->zone() works on forwarded objects");
         newLocation_ = cell;
         magic_ = Relocated;
         next_ = nullptr;
@@ -1274,15 +1175,35 @@ class RelocationOverlay
     RelocationOverlay *next() const {
         return next_;
     }
+
+    static bool isCellForwarded(Cell *cell) {
+        return fromCell(cell)->isForwarded();
+    }
 };
 
 /* Functions for checking and updating things that might be moved by compacting GC. */
+
+template <typename T>
+struct MightBeForwarded
+{
+    static_assert(mozilla::IsBaseOf<Cell, T>::value,
+                  "T must derive from Cell");
+    static_assert(!mozilla::IsSame<Cell, T>::value && !mozilla::IsSame<TenuredCell, T>::value,
+                  "T must not be Cell or TenuredCell");
+
+    static const bool value = mozilla::IsBaseOf<JSObject, T>::value;
+};
 
 template <typename T>
 inline bool
 IsForwarded(T *t)
 {
     RelocationOverlay *overlay = RelocationOverlay::fromCell(t);
+    if (!MightBeForwarded<T>::value) {
+        MOZ_ASSERT(!overlay->isForwarded());
+        return false;
+    }
+
     return overlay->isForwarded();
 }
 
@@ -1332,14 +1253,6 @@ MaybeForwarded(T t)
     return IsForwarded(t) ? Forwarded(t) : t;
 }
 
-#else
-
-template <typename T> inline bool IsForwarded(T t) { return false; }
-template <typename T> inline T Forwarded(T t) { return t; }
-template <typename T> inline T MaybeForwarded(T t) { return t; }
-
-#endif // JSGC_GENERATIONAL || JSGC_COMPACTING
-
 #ifdef JSGC_HASH_TABLE_CHECKS
 
 template <typename T>
@@ -1347,9 +1260,7 @@ inline void
 CheckGCThingAfterMovingGC(T *t)
 {
     MOZ_ASSERT_IF(t, !IsInsideNursery(t));
-#ifdef JSGC_COMPACTING
-    MOZ_ASSERT_IF(t, !IsForwarded(t));
-#endif
+    MOZ_ASSERT_IF(t, !RelocationOverlay::isCellForwarded(t));
 }
 
 inline void
@@ -1381,14 +1292,14 @@ const int ZealCheckHashTablesOnMinorGC = 13;
 const int ZealCompactValue = 14;
 const int ZealLimit = 14;
 
-extern const char *ZealModeHelpText;
-
 enum VerifierType {
     PreBarrierVerifier,
     PostBarrierVerifier
 };
 
 #ifdef JS_GC_ZEAL
+
+extern const char *ZealModeHelpText;
 
 /* Check that write barriers have been used correctly. See jsgc.cpp. */
 void
@@ -1466,22 +1377,21 @@ class ZoneList
 
   public:
     ZoneList();
-    explicit ZoneList(Zone *singleZone);
+    ~ZoneList();
 
     bool isEmpty() const;
     Zone *front() const;
 
     void append(Zone *zone);
-    void append(ZoneList& list);
-    Zone *removeFront();
-
     void transferFrom(ZoneList &other);
+    void removeFront();
 
   private:
+    explicit ZoneList(Zone *singleZone);
     void check() const;
 
-    ZoneList(const ZoneList &other) MOZ_DELETE;
-    ZoneList &operator=(const ZoneList &other) MOZ_DELETE;
+    ZoneList(const ZoneList &other) = delete;
+    ZoneList &operator=(const ZoneList &other) = delete;
 };
 
 } /* namespace gc */
@@ -1507,16 +1417,11 @@ struct AutoDisableProxyCheck
 
 struct AutoDisableCompactingGC
 {
-#ifdef JSGC_COMPACTING
     explicit AutoDisableCompactingGC(JSRuntime *rt);
     ~AutoDisableCompactingGC();
 
   private:
     gc::GCRuntime &gc;
-#else
-    explicit AutoDisableCompactingGC(JSRuntime *rt) {}
-    ~AutoDisableCompactingGC() {}
-#endif
 };
 
 void

@@ -16,7 +16,6 @@
 #include "jit/Lowering.h"
 #include "jit/MIRGraph.h"
 
-#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "jsopcodeinlines.h"
 
@@ -95,36 +94,49 @@ BlockComputesConstant(MBasicBlock *block, MDefinition *value)
     return true;
 }
 
-// Determine whether a block simply computes a phi and performs a test on it.
+// Determine whether phiBlock/testBlock simply compute a phi and perform a
+// test on it.
 static bool
-BlockIsSingleTest(MBasicBlock *block, MPhi **pphi, MTest **ptest)
+BlockIsSingleTest(MBasicBlock *phiBlock, MBasicBlock *testBlock, MPhi **pphi, MTest **ptest)
 {
     *pphi = nullptr;
     *ptest = nullptr;
 
-    MInstruction *ins = *block->begin();
+    if (phiBlock != testBlock) {
+        MOZ_ASSERT(phiBlock->numSuccessors() == 1 && phiBlock->getSuccessor(0) == testBlock);
+        if (!phiBlock->begin()->isGoto())
+            return false;
+    }
+
+    MInstruction *ins = *testBlock->begin();
     if (!ins->isTest())
         return false;
     MTest *test = ins->toTest();
     if (!test->input()->isPhi())
         return false;
     MPhi *phi = test->input()->toPhi();
-    if (phi->block() != block)
+    if (phi->block() != phiBlock)
         return false;
 
     for (MUseIterator iter = phi->usesBegin(); iter != phi->usesEnd(); ++iter) {
         MUse *use = *iter;
         if (use->consumer() == test)
             continue;
-        if (use->consumer()->isResumePoint() && use->consumer()->block() == block)
-            continue;
+        if (use->consumer()->isResumePoint()) {
+            MBasicBlock *useBlock = use->consumer()->block();
+            if (useBlock == phiBlock || useBlock == testBlock)
+                continue;
+        }
         return false;
     }
 
-    for (MPhiIterator iter = block->phisBegin(); iter != block->phisEnd(); ++iter) {
+    for (MPhiIterator iter = phiBlock->phisBegin(); iter != phiBlock->phisEnd(); ++iter) {
         if (*iter != phi)
             return false;
     }
+
+    if (phiBlock != testBlock && !testBlock->phisEmpty())
+        return false;
 
     *pphi = phi;
     *ptest = test;
@@ -192,10 +204,14 @@ MaybeFoldConditionBlock(MIRGraph &graph, MBasicBlock *initialBlock)
      *          /     \
      *  trueBranch  falseBranch
      *          \     /
+     *          phiBlock
+     *             |
      *         testBlock
      *
-     * Where testBlock contains only a test on a phi combining two values
-     * pushed onto the stack by trueBranch and falseBranch.
+     * Where phiBlock contains a single phi combining values pushed onto the
+     * stack by trueBranch and falseBranch, and testBlock contains a test on
+     * that phi. phiBlock and testBlock may be the same block; generated code
+     * will use different blocks if the (?:) op is in an inlined function.
      */
 
     MInstruction *ins = initialBlock->lastIns();
@@ -209,14 +225,23 @@ MaybeFoldConditionBlock(MIRGraph &graph, MBasicBlock *initialBlock)
     MBasicBlock *falseBranch = initialTest->ifFalse();
     if (falseBranch->numPredecessors() != 1 || falseBranch->numSuccessors() != 1)
         return;
-    MBasicBlock *testBlock = trueBranch->getSuccessor(0);
-    if (testBlock != falseBranch->getSuccessor(0))
+    MBasicBlock *phiBlock = trueBranch->getSuccessor(0);
+    if (phiBlock != falseBranch->getSuccessor(0))
         return;
-    if (testBlock->numPredecessors() != 2)
+    if (phiBlock->numPredecessors() != 2)
         return;
 
     if (initialBlock->isLoopBackedge() || trueBranch->isLoopBackedge() || falseBranch->isLoopBackedge())
         return;
+
+    MBasicBlock *testBlock = phiBlock;
+    if (testBlock->numSuccessors() == 1) {
+        if (testBlock->isLoopBackedge())
+            return;
+        testBlock = testBlock->getSuccessor(0);
+        if (testBlock->numPredecessors() != 1)
+            return;
+    }
 
     // Make sure the test block does not have any outgoing loop backedges.
     if (!SplitCriticalEdgesForBlock(graph, testBlock))
@@ -224,34 +249,16 @@ MaybeFoldConditionBlock(MIRGraph &graph, MBasicBlock *initialBlock)
 
     MPhi *phi;
     MTest *finalTest;
-    if (!BlockIsSingleTest(testBlock, &phi, &finalTest))
+    if (!BlockIsSingleTest(phiBlock, testBlock, &phi, &finalTest))
         return;
 
-    if (&testBlock->info() != &initialBlock->info() ||
-        &trueBranch->info() != &initialBlock->info() ||
-        &falseBranch->info() != &initialBlock->info())
-    {
-        return;
-    }
-
-    MDefinition *trueResult = phi->getOperand(testBlock->indexForPredecessor(trueBranch));
-    MDefinition *falseResult = phi->getOperand(testBlock->indexForPredecessor(falseBranch));
-
-    if (trueBranch->stackDepth() != falseBranch->stackDepth())
-        return;
-
-    if (trueBranch->stackDepth() != testBlock->stackDepth() + 1)
-        return;
-
-    if (trueResult != trueBranch->peek(-1) || falseResult != falseBranch->peek(-1))
-        return;
+    MDefinition *trueResult = phi->getOperand(phiBlock->indexForPredecessor(trueBranch));
+    MDefinition *falseResult = phi->getOperand(phiBlock->indexForPredecessor(falseBranch));
 
     // OK, we found the desired pattern, now transform the graph.
 
-    // Remove the phi and its inputs from testBlock.
-    testBlock->discardPhi(*testBlock->phisBegin());
-    trueBranch->pop();
-    falseBranch->pop();
+    // Remove the phi from phiBlock.
+    phiBlock->discardPhi(*phiBlock->phisBegin());
 
     // If either trueBranch or falseBranch just computes a constant for the
     // test, determine the block that branch will end up jumping to and eliminate
@@ -260,10 +267,10 @@ MaybeFoldConditionBlock(MIRGraph &graph, MBasicBlock *initialBlock)
 
     MBasicBlock *trueTarget = trueBranch;
     if (BlockComputesConstant(trueBranch, trueResult)) {
-        trueTarget = trueResult->toConstant()->valueToBoolean()
+        trueTarget = trueResult->constantToBoolean()
                      ? finalTest->ifTrue()
                      : finalTest->ifFalse();
-        testBlock->removePredecessor(trueBranch);
+        phiBlock->removePredecessor(trueBranch);
         graph.removeBlock(trueBranch);
     } else {
         UpdateTestSuccessors(graph.alloc(), trueBranch, trueResult,
@@ -272,10 +279,10 @@ MaybeFoldConditionBlock(MIRGraph &graph, MBasicBlock *initialBlock)
 
     MBasicBlock *falseTarget = falseBranch;
     if (BlockComputesConstant(falseBranch, falseResult)) {
-        falseTarget = falseResult->toConstant()->valueToBoolean()
+        falseTarget = falseResult->constantToBoolean()
                       ? finalTest->ifTrue()
                       : finalTest->ifFalse();
-        testBlock->removePredecessor(falseBranch);
+        phiBlock->removePredecessor(falseBranch);
         graph.removeBlock(falseBranch);
     } else {
         UpdateTestSuccessors(graph.alloc(), falseBranch, falseResult,
@@ -285,6 +292,12 @@ MaybeFoldConditionBlock(MIRGraph &graph, MBasicBlock *initialBlock)
     // Short circuit the initial test to skip any constant branch eliminated above.
     UpdateTestSuccessors(graph.alloc(), initialBlock, initialTest->input(),
                          trueTarget, falseTarget, testBlock);
+
+    // Remove phiBlock, if different from testBlock.
+    if (phiBlock != testBlock) {
+        testBlock->removePredecessor(phiBlock);
+        graph.removeBlock(phiBlock);
+    }
 
     // Remove testBlock itself.
     finalTest->ifTrue()->removePredecessor(testBlock);
@@ -308,10 +321,14 @@ MaybeFoldAndOrBlock(MIRGraph &graph, MBasicBlock *initialBlock)
     //         /     |
     // branchBlock   |
     //         \     |
+    //         phiBlock
+    //            |
     //        testBlock
     //
-    // Where testBlock contains only a test on a phi combining two values
-    // pushed onto the stack by initialBlock and branchBlock.
+    // Where phiBlock contains a single phi combining values pushed onto the
+    // stack by initialBlock and testBlock, and testBlock contains a test on
+    // that phi. phiBlock and testBlock may be the same block; generated code
+    // will use different blocks if the &&/|| is in an inlined function.
 
     MInstruction *ins = initialBlock->lastIns();
     if (!ins->isTest())
@@ -320,20 +337,29 @@ MaybeFoldAndOrBlock(MIRGraph &graph, MBasicBlock *initialBlock)
 
     bool branchIsTrue = true;
     MBasicBlock *branchBlock = initialTest->ifTrue();
-    MBasicBlock *testBlock = initialTest->ifFalse();
-    if (branchBlock->numSuccessors() != 1 || branchBlock->getSuccessor(0) != testBlock) {
+    MBasicBlock *phiBlock = initialTest->ifFalse();
+    if (branchBlock->numSuccessors() != 1 || branchBlock->getSuccessor(0) != phiBlock) {
         branchIsTrue = false;
         branchBlock = initialTest->ifFalse();
-        testBlock = initialTest->ifTrue();
+        phiBlock = initialTest->ifTrue();
     }
 
-    if (branchBlock->numSuccessors() != 1 || branchBlock->getSuccessor(0) != testBlock)
+    if (branchBlock->numSuccessors() != 1 || branchBlock->getSuccessor(0) != phiBlock)
         return;
-    if (branchBlock->numPredecessors() != 1 || testBlock->numPredecessors() != 2)
+    if (branchBlock->numPredecessors() != 1 || phiBlock->numPredecessors() != 2)
         return;
 
     if (initialBlock->isLoopBackedge() || branchBlock->isLoopBackedge())
         return;
+
+    MBasicBlock *testBlock = phiBlock;
+    if (testBlock->numSuccessors() == 1) {
+        if (testBlock->isLoopBackedge())
+            return;
+        testBlock = testBlock->getSuccessor(0);
+        if (testBlock->numPredecessors() != 1)
+            return;
+    }
 
     // Make sure the test block does not have any outgoing loop backedges.
     if (!SplitCriticalEdgesForBlock(graph, testBlock))
@@ -341,30 +367,16 @@ MaybeFoldAndOrBlock(MIRGraph &graph, MBasicBlock *initialBlock)
 
     MPhi *phi;
     MTest *finalTest;
-    if (!BlockIsSingleTest(testBlock, &phi, &finalTest))
+    if (!BlockIsSingleTest(phiBlock, testBlock, &phi, &finalTest))
         return;
 
-    if (&testBlock->info() != &initialBlock->info() || &branchBlock->info() != &initialBlock->info())
-        return;
-
-    MDefinition *branchResult = phi->getOperand(testBlock->indexForPredecessor(branchBlock));
-    MDefinition *initialResult = phi->getOperand(testBlock->indexForPredecessor(initialBlock));
-
-    if (branchBlock->stackDepth() != initialBlock->stackDepth())
-        return;
-
-    if (branchBlock->stackDepth() != testBlock->stackDepth() + 1)
-        return;
-
-    if (branchResult != branchBlock->peek(-1) || initialResult != initialBlock->peek(-1))
-        return;
+    MDefinition *branchResult = phi->getOperand(phiBlock->indexForPredecessor(branchBlock));
+    MDefinition *initialResult = phi->getOperand(phiBlock->indexForPredecessor(initialBlock));
 
     // OK, we found the desired pattern, now transform the graph.
 
-    // Remove the phi and its inputs from testBlock.
-    testBlock->discardPhi(*testBlock->phisBegin());
-    branchBlock->pop();
-    initialBlock->pop();
+    // Remove the phi from phiBlock.
+    phiBlock->discardPhi(*phiBlock->phisBegin());
 
     // Change the end of the initial and branch blocks to a test that jumps
     // directly to successors of testBlock, rather than to testBlock itself.
@@ -376,6 +388,12 @@ MaybeFoldAndOrBlock(MIRGraph &graph, MBasicBlock *initialBlock)
 
     UpdateTestSuccessors(graph.alloc(), branchBlock, branchResult,
                          finalTest->ifTrue(), finalTest->ifFalse(), testBlock);
+
+    // Remove phiBlock, if different from testBlock.
+    if (phiBlock != testBlock) {
+        testBlock->removePredecessor(phiBlock);
+        graph.removeBlock(phiBlock);
+    }
 
     // Remove testBlock itself.
     finalTest->ifTrue()->removePredecessor(testBlock);
@@ -539,7 +557,8 @@ jit::EliminateDeadResumePointOperands(MIRGenerator *mir, MIRGraph &graph)
 bool
 js::jit::DeadIfUnused(const MDefinition *def)
 {
-    return !def->isEffectful() && !def->isGuard() && !def->isControlInstruction() &&
+    return !def->isEffectful() && !def->isGuard() && !def->isGuardRangeBailouts() &&
+           !def->isControlInstruction() &&
            (!def->isInstruction() || !def->toInstruction()->resumePoint());
 }
 
@@ -1069,7 +1088,7 @@ TypeAnalyzer::adjustPhiInputs(MPhi *phi)
             // the original box.
             phi->replaceOperand(i, in->toUnbox()->input());
         } else {
-            MDefinition *box = BoxInputsPolicy::alwaysBoxAt(alloc(), in->block()->lastIns(), in);
+            MDefinition *box = AlwaysBoxAt(alloc(), in->block()->lastIns(), in);
             phi->replaceOperand(i, box);
         }
     }
@@ -1816,7 +1835,7 @@ CheckOperand(const MNode *consumer, const MUse *use, int32_t *usesBalance)
 #ifdef _DEBUG_CHECK_OPERANDS_USES_BALANCE
     fprintf(stderr, "==Check Operand\n");
     use->producer()->dump(stderr);
-    fprintf(stderr, "  index: %zu\n", use->consumer()->indexOf(use));
+    fprintf(stderr, "  index: %" PRIuSIZE "\n", use->consumer()->indexOf(use));
     use->consumer()->dump(stderr);
     fprintf(stderr, "==End\n");
 #endif
@@ -1834,7 +1853,7 @@ CheckUse(const MDefinition *producer, const MUse *use, int32_t *usesBalance)
 #ifdef _DEBUG_CHECK_OPERANDS_USES_BALANCE
     fprintf(stderr, "==Check Use\n");
     use->producer()->dump(stderr);
-    fprintf(stderr, "  index: %zu\n", use->consumer()->indexOf(use));
+    fprintf(stderr, "  index: %" PRIuSIZE "\n", use->consumer()->indexOf(use));
     use->consumer()->dump(stderr);
     fprintf(stderr, "==End\n");
 #endif
@@ -2036,6 +2055,63 @@ jit::AssertGraphCoherency(MIRGraph &graph)
 }
 
 #ifdef DEBUG
+static bool
+IsResumableMIRType(MIRType type)
+{
+    // see CodeGeneratorShared::encodeAllocation
+    switch (type) {
+      case MIRType_Undefined:
+      case MIRType_Null:
+      case MIRType_Boolean:
+      case MIRType_Int32:
+      case MIRType_Double:
+      case MIRType_Float32:
+      case MIRType_String:
+      case MIRType_Symbol:
+      case MIRType_Object:
+      case MIRType_MagicOptimizedArguments:
+      case MIRType_MagicOptimizedOut:
+      case MIRType_MagicUninitializedLexical:
+      case MIRType_Value:
+      case MIRType_Float32x4:
+      case MIRType_Int32x4:
+        return true;
+
+      case MIRType_MagicHole:
+      case MIRType_MagicIsConstructing:
+      case MIRType_ObjectOrNull:
+      case MIRType_None:
+      case MIRType_Slots:
+      case MIRType_Elements:
+      case MIRType_Pointer:
+      case MIRType_Shape:
+      case MIRType_ObjectGroup:
+      case MIRType_Doublex2: // NYI, see also RSimdBox::recover
+        return false;
+    }
+    MOZ_CRASH("Unknown MIRType.");
+}
+
+static void
+AssertResumableOperands(MNode *node)
+{
+    for (size_t i = 0, e = node->numOperands(); i < e; ++i) {
+        MDefinition *op = node->getOperand(i);
+        if (op->isRecoveredOnBailout())
+            continue;
+        MOZ_ASSERT(IsResumableMIRType(op->type()),
+                   "Resume point cannot encode its operands");
+    }
+}
+
+static void
+AssertIfResumableInstruction(MDefinition *def)
+{
+    if (!def->isRecoveredOnBailout())
+        return;
+    AssertResumableOperands(def);
+}
+
 static void
 AssertResumePointDominatedByOperands(MResumePoint *resume)
 {
@@ -2133,15 +2209,22 @@ jit::AssertExtendedGraphCoherency(MIRGraph &graph)
                     } while (*opIter != ins);
                 }
             }
-            if (MResumePoint *resume = ins->resumePoint())
+            AssertIfResumableInstruction(ins);
+            if (MResumePoint *resume = ins->resumePoint()) {
                 AssertResumePointDominatedByOperands(resume);
+                AssertResumableOperands(resume);
+            }
         }
 
         // Verify that the block resume points are dominated by their operands.
-        if (MResumePoint *resume = block->entryResumePoint())
+        if (MResumePoint *resume = block->entryResumePoint()) {
             AssertResumePointDominatedByOperands(resume);
-        if (MResumePoint *resume = block->outerResumePoint())
+            AssertResumableOperands(resume);
+        }
+        if (MResumePoint *resume = block->outerResumePoint()) {
             AssertResumePointDominatedByOperands(resume);
+            AssertResumableOperands(resume);
+        }
     }
 #endif
 }
@@ -2205,8 +2288,8 @@ jit::ExtractLinearSum(MDefinition *ins)
     if (ins->type() != MIRType_Int32)
         return SimpleLinearSum(ins, 0);
 
-    if (ins->isConstant()) {
-        const Value &v = ins->toConstant()->value();
+    if (ins->isConstantValue()) {
+        const Value &v = ins->constantValue();
         MOZ_ASSERT(v.isInt32());
         return SimpleLinearSum(nullptr, v.toInt32());
     } else if (ins->isAdd() || ins->isSub()) {
@@ -2420,8 +2503,8 @@ TryEliminateTypeBarrier(MTypeBarrier *barrier, bool *eliminated)
 {
     MOZ_ASSERT(!*eliminated);
 
-    const types::TemporaryTypeSet *barrierTypes = barrier->resultTypeSet();
-    const types::TemporaryTypeSet *inputTypes = barrier->input()->resultTypeSet();
+    const TemporaryTypeSet *barrierTypes = barrier->resultTypeSet();
+    const TemporaryTypeSet *inputTypes = barrier->input()->resultTypeSet();
 
     // Disregard the possible unbox added before the Typebarrier.
     if (barrier->input()->isUnbox() && barrier->input()->toUnbox()->mode() != MUnbox::Fallible)
@@ -2430,8 +2513,8 @@ TryEliminateTypeBarrier(MTypeBarrier *barrier, bool *eliminated)
     if (!barrierTypes || !inputTypes)
         return true;
 
-    bool filtersNull = barrierTypes->filtersType(inputTypes, types::Type::NullType());
-    bool filtersUndefined = barrierTypes->filtersType(inputTypes, types::Type::UndefinedType());
+    bool filtersNull = barrierTypes->filtersType(inputTypes, TypeSet::NullType());
+    bool filtersUndefined = barrierTypes->filtersType(inputTypes, TypeSet::UndefinedType());
 
     if (!filtersNull && !filtersUndefined)
         return true;
@@ -2455,6 +2538,89 @@ TryEliminateTypeBarrier(MTypeBarrier *barrier, bool *eliminated)
     return true;
 }
 
+static bool
+TryOptimizeLoadObjectOrNull(MDefinition *def, MDefinitionVector *peliminateList)
+{
+    if (def->type() != MIRType_Value)
+        return true;
+
+    // Check if this definition can only produce object or null values.
+    TemporaryTypeSet *types = def->resultTypeSet();
+    if (!types)
+        return true;
+    if (types->baseFlags() & ~(TYPE_FLAG_NULL | TYPE_FLAG_ANYOBJECT))
+        return true;
+
+    MDefinitionVector eliminateList(def->block()->graph().alloc());
+
+    for (MUseDefIterator iter(def); iter; ++iter) {
+        MDefinition *ndef = iter.def();
+        switch (ndef->op()) {
+          case MDefinition::Op_Compare:
+            if (ndef->toCompare()->compareType() != MCompare::Compare_Null)
+                return true;
+            break;
+          case MDefinition::Op_Test:
+            break;
+          case MDefinition::Op_PostWriteBarrier:
+            break;
+          case MDefinition::Op_StoreFixedSlot:
+            break;
+          case MDefinition::Op_StoreSlot:
+            break;
+          case MDefinition::Op_ToObjectOrNull:
+            if (!eliminateList.append(ndef->toToObjectOrNull()))
+                return false;
+            break;
+          case MDefinition::Op_Unbox:
+            MOZ_ASSERT(ndef->type() == MIRType_Object);
+            break;
+          case MDefinition::Op_TypeBarrier:
+            // For now, only handle type barriers which are not consumed
+            // anywhere and only test that the value is null.
+            if (ndef->hasUses() || ndef->resultTypeSet()->getKnownMIRType() != MIRType_Null)
+                return true;
+            break;
+          default:
+            return true;
+        }
+    }
+
+    // On punboxing systems we are better off leaving the value boxed if it
+    // is only stored back to the heap.
+#ifdef JS_PUNBOX64
+    bool foundUse = false;
+    for (MUseDefIterator iter(def); iter; ++iter) {
+        MDefinition *ndef = iter.def();
+        if (!ndef->isStoreFixedSlot() && !ndef->isStoreSlot()) {
+            foundUse = true;
+            break;
+        }
+    }
+    if (!foundUse)
+        return true;
+#endif // JS_PUNBOX64
+
+    def->setResultType(MIRType_ObjectOrNull);
+
+    // Fixup the result type of MTypeBarrier uses.
+    for (MUseDefIterator iter(def); iter; ++iter) {
+        MDefinition *ndef = iter.def();
+        if (ndef->isTypeBarrier())
+            ndef->setResultType(MIRType_ObjectOrNull);
+    }
+
+    // Eliminate MToObjectOrNull instruction uses.
+    for (size_t i = 0; i < eliminateList.length(); i++) {
+        MDefinition *ndef = eliminateList[i];
+        ndef->replaceAllUsesWith(def);
+        if (!peliminateList->append(ndef))
+            return false;
+    }
+
+    return true;
+}
+
 static inline MDefinition *
 PassthroughOperand(MDefinition *def)
 {
@@ -2462,6 +2628,8 @@ PassthroughOperand(MDefinition *def)
         return def->toConvertElementsToDoubles()->elements();
     if (def->isMaybeCopyElementsForWrite())
         return def->toMaybeCopyElementsForWrite()->object();
+    if (def->isConvertUnboxedObjectToNative())
+        return def->toConvertUnboxedObjectToNative()->object();
     return nullptr;
 }
 
@@ -2502,6 +2670,8 @@ jit::EliminateRedundantChecks(MIRGraph &graph)
         }
     }
 
+    MDefinitionVector eliminateList(graph.alloc());
+
     // Starting from each self-dominating block, traverse the CFG in pre-order.
     while (!worklist.empty()) {
         MBasicBlock *block = worklist.popCopy();
@@ -2517,18 +2687,28 @@ jit::EliminateRedundantChecks(MIRGraph &graph)
 
             bool eliminated = false;
 
-            if (def->isBoundsCheck()) {
+            switch (def->op()) {
+              case MDefinition::Op_BoundsCheck:
                 if (!TryEliminateBoundsCheck(checks, index, def->toBoundsCheck(), &eliminated))
                     return false;
-            } else if (def->isTypeBarrier()) {
+                break;
+              case MDefinition::Op_TypeBarrier:
                 if (!TryEliminateTypeBarrier(def->toTypeBarrier(), &eliminated))
                     return false;
-            } else {
+                break;
+              case MDefinition::Op_LoadFixedSlot:
+              case MDefinition::Op_LoadSlot:
+              case MDefinition::Op_LoadUnboxedObjectOrNull:
+                if (!TryOptimizeLoadObjectOrNull(def, &eliminateList))
+                    return false;
+                break;
+              default:
                 // Now that code motion passes have finished, replace
                 // instructions which pass through one of their operands
                 // (and perform additional checks) with that operand.
                 if (MDefinition *passthrough = PassthroughOperand(def))
                     def->replaceAllUsesWith(passthrough);
+                break;
             }
 
             if (eliminated)
@@ -2538,6 +2718,12 @@ jit::EliminateRedundantChecks(MIRGraph &graph)
     }
 
     MOZ_ASSERT(index == graph.numBlocks());
+
+    for (size_t i = 0; i < eliminateList.length(); i++) {
+        MDefinition *def = eliminateList[i];
+        def->block()->discardDef(def);
+    }
+
     return true;
 }
 
@@ -2607,8 +2793,8 @@ LinearSum::add(MDefinition *term, int32_t scale)
     if (scale == 0)
         return true;
 
-    if (term->isConstant()) {
-        int32_t constant = term->toConstant()->value().toInt32();
+    if (term->isConstantValue()) {
+        int32_t constant = term->constantValue().toInt32();
         if (!SafeMul(constant, scale, &constant))
             return false;
         return add(constant);
@@ -2686,7 +2872,7 @@ jit::ConvertLinearSum(TempAllocator &alloc, MBasicBlock *block, const LinearSum 
 
     for (size_t i = 0; i < sum.numTerms(); i++) {
         LinearTerm term = sum.term(i);
-        MOZ_ASSERT(!term.term->isConstant());
+        MOZ_ASSERT(!term.term->isConstantValue());
         if (term.scale == 1) {
             if (def) {
                 def = MAdd::New(alloc, def, term.term);
@@ -2816,10 +3002,10 @@ jit::ConvertLinearInequality(TempAllocator &alloc, MBasicBlock *block, const Lin
 }
 
 static bool
-AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
+AnalyzePoppedThis(JSContext *cx, ObjectGroup *group,
                   MDefinition *thisValue, MInstruction *ins, bool definitelyExecuted,
-                  HandleNativeObject baseobj,
-                  Vector<types::TypeNewScript::Initializer> *initializerList,
+                  HandlePlainObject baseobj,
+                  Vector<TypeNewScript::Initializer> *initializerList,
                   Vector<PropertyName *> *accessedProperties,
                   bool *phandled)
 {
@@ -2832,9 +3018,6 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
         if (setprop->object() != thisValue)
             return true;
 
-        // Don't use GetAtomId here, we need to watch for SETPROP on
-        // integer properties and bail out. We can't mark the aggregate
-        // JSID_VOID type property as being in a definite slot.
         if (setprop->name() == cx->names().prototype ||
             setprop->name() == cx->names().proto ||
             setprop->name() == cx->names().constructor)
@@ -2865,7 +3048,7 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
             return true;
 
         RootedId id(cx, NameToId(setprop->name()));
-        if (!types::AddClearDefiniteGetterSetterForPrototypeChain(cx, type, id)) {
+        if (!AddClearDefiniteGetterSetterForPrototypeChain(cx, group, id)) {
             // The prototype chain already contains a getter/setter for this
             // property, or type information is too imprecise.
             return true;
@@ -2891,15 +3074,15 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
         for (int i = callerResumePoints.length() - 1; i >= 0; i--) {
             MResumePoint *rp = callerResumePoints[i];
             JSScript *script = rp->block()->info().script();
-            types::TypeNewScript::Initializer entry(types::TypeNewScript::Initializer::SETPROP_FRAME,
-                                                    script->pcToOffset(rp->pc()));
+            TypeNewScript::Initializer entry(TypeNewScript::Initializer::SETPROP_FRAME,
+                                             script->pcToOffset(rp->pc()));
             if (!initializerList->append(entry))
                 return false;
         }
 
         JSScript *script = ins->block()->info().script();
-        types::TypeNewScript::Initializer entry(types::TypeNewScript::Initializer::SETPROP,
-                                                script->pcToOffset(setprop->resumePoint()->pc()));
+        TypeNewScript::Initializer entry(TypeNewScript::Initializer::SETPROP,
+                                         script->pcToOffset(setprop->resumePoint()->pc()));
         if (!initializerList->append(entry))
             return false;
 
@@ -2925,7 +3108,7 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
         if (!baseobj->lookup(cx, id) && !accessedProperties->append(get->name()))
             return false;
 
-        if (!types::AddClearDefiniteGetterSetterForPrototypeChain(cx, type, id)) {
+        if (!AddClearDefiniteGetterSetterForPrototypeChain(cx, group, id)) {
             // The |this| value can escape if any property reads it does go
             // through a getter.
             return true;
@@ -2952,8 +3135,8 @@ CmpInstructions(const void *a, const void *b)
 
 bool
 jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
-                                        types::TypeObject *type, HandleNativeObject baseobj,
-                                        Vector<types::TypeNewScript::Initializer> *initializerList)
+                                        ObjectGroup *group, HandlePlainObject baseobj,
+                                        Vector<TypeNewScript::Initializer> *initializerList)
 {
     MOZ_ASSERT(cx->zone()->types.activeAnalysis);
 
@@ -2989,7 +3172,7 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
             return true;
     }
 
-    types::TypeScript::SetThis(cx, script, types::Type::ObjectType(type));
+    TypeScript::SetThis(cx, script, TypeSet::ObjectType(group));
 
     MIRGraph graph(&temp);
     InlineScriptTree *inlineScriptTree = InlineScriptTree::New(&temp, nullptr, nullptr, script);
@@ -2998,15 +3181,15 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
 
     CompileInfo info(script, fun,
                      /* osrPc = */ nullptr, /* constructing = */ false,
-                     DefinitePropertiesAnalysis,
+                     Analysis_DefiniteProperties,
                      script->needsArgsObj(),
                      inlineScriptTree);
 
     const OptimizationInfo *optimizationInfo = js_IonOptimizations.get(Optimization_Normal);
 
-    types::CompilerConstraintList *constraints = types::NewCompilerConstraintList(temp);
+    CompilerConstraintList *constraints = NewCompilerConstraintList(temp);
     if (!constraints) {
-        js_ReportOutOfMemory(cx);
+        ReportOutOfMemory(cx);
         return false;
     }
 
@@ -3022,7 +3205,7 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
         return true;
     }
 
-    types::FinishDefinitePropertiesAnalysis(cx, constraints);
+    FinishDefinitePropertiesAnalysis(cx, constraints);
 
     if (!SplitCriticalEdges(graph))
         return false;
@@ -3094,7 +3277,7 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
 
         bool handled = false;
         size_t slotSpan = baseobj->slotSpan();
-        if (!AnalyzePoppedThis(cx, type, thisValue, ins, definitelyExecuted,
+        if (!AnalyzePoppedThis(cx, group, thisValue, ins, definitelyExecuted,
                                baseobj, initializerList, &accessedProperties, &handled))
         {
             return false;
@@ -3122,7 +3305,7 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
             if (MResumePoint *rp = block->callerResumePoint()) {
                 if (block->numPredecessors() == 1 && block->getPredecessor(0) == rp->block()) {
                     JSScript *script = rp->block()->info().script();
-                    if (!types::AddClearDefiniteFunctionUsesInScript(cx, type, script, block->info().script()))
+                    if (!AddClearDefiniteFunctionUsesInScript(cx, group, script, block->info().script()))
                         return false;
                 }
             }
@@ -3173,7 +3356,7 @@ bool
 jit::AnalyzeArgumentsUsage(JSContext *cx, JSScript *scriptArg)
 {
     RootedScript script(cx, scriptArg);
-    types::AutoEnterAnalysis enter(cx);
+    AutoEnterAnalysis enter(cx);
 
     MOZ_ASSERT(!script->analyzedArgsUsage());
 
@@ -3226,13 +3409,13 @@ jit::AnalyzeArgumentsUsage(JSContext *cx, JSScript *scriptArg)
         return false;
     CompileInfo info(script, script->functionNonDelazifying(),
                      /* osrPc = */ nullptr, /* constructing = */ false,
-                     ArgumentsUsageAnalysis,
+                     Analysis_ArgumentsUsage,
                      /* needsArgsObj = */ true,
                      inlineScriptTree);
 
     const OptimizationInfo *optimizationInfo = js_IonOptimizations.get(Optimization_Normal);
 
-    types::CompilerConstraintList *constraints = types::NewCompilerConstraintList(temp);
+    CompilerConstraintList *constraints = NewCompilerConstraintList(temp);
     if (!constraints)
         return false;
 

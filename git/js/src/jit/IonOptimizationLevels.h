@@ -49,6 +49,9 @@ class OptimizationInfo
     // Toggles whether Effective Address Analysis is performed.
     bool eaa_;
 
+    // Toggles whether Alignment Mask Analysis is performed.
+    bool ama_;
+
     // Toggles whether Edge Case Analysis is used.
     bool edgeCaseAnalysis_;
 
@@ -60,6 +63,9 @@ class OptimizationInfo
 
     // Toggles whether native scripts get inlined.
     bool inlineNative_;
+
+    // Toggles whether eager unboxing of SIMD is used.
+    bool eagerSimdUnbox_;
 
     // Toggles whether global value numbering is used.
     bool gvn_;
@@ -107,6 +113,9 @@ class OptimizationInfo
     // are compiled.
     uint32_t compilerWarmUpThreshold_;
 
+    // Default compiler warmup threshold, unless it is overridden.
+    static const uint32_t CompilerWarmupThreshold = 1000;
+
     // How many invocations or loop iterations are needed before calls
     // are inlined, as a fraction of compilerWarmUpThreshold.
     double inliningWarmUpThresholdFactor_;
@@ -136,6 +145,10 @@ class OptimizationInfo
 
     uint32_t compilerWarmUpThreshold(JSScript *script, jsbytecode *pc = nullptr) const;
 
+    bool eagerSimdUnboxEnabled() const {
+        return eagerSimdUnbox_ && !js_JitOptions.disableEagerSimdUnbox;
+    }
+
     bool gvnEnabled() const {
         return gvn_ && !js_JitOptions.disableGvn;
     }
@@ -164,6 +177,10 @@ class OptimizationInfo
         return eaa_ && !js_JitOptions.disableEaa;
     }
 
+    bool amaEnabled() const {
+        return ama_ && !js_JitOptions.disableAma;
+    }
+
     bool edgeCaseAnalysisEnabled() const {
         return edgeCaseAnalysis_ && !js_JitOptions.disableEdgeCaseAnalysis;
     }
@@ -173,9 +190,9 @@ class OptimizationInfo
     }
 
     IonRegisterAllocator registerAllocator() const {
-        if (!js_JitOptions.forceRegisterAllocator)
-            return registerAllocator_;
-        return js_JitOptions.forcedRegisterAllocator;
+        if (js_JitOptions.forcedRegisterAllocator.isSome())
+            return js_JitOptions.forcedRegisterAllocator.ref();
+        return registerAllocator_;
     }
 
     bool scalarReplacementEnabled() const {
@@ -202,8 +219,8 @@ class OptimizationInfo
 
     uint32_t inliningWarmUpThreshold() const {
         uint32_t compilerWarmUpThreshold = compilerWarmUpThreshold_;
-        if (js_JitOptions.forceDefaultIonWarmUpThreshold)
-            compilerWarmUpThreshold = js_JitOptions.forcedDefaultIonWarmUpThreshold;
+        if (js_JitOptions.forcedDefaultIonWarmUpThreshold.isSome())
+            compilerWarmUpThreshold = js_JitOptions.forcedDefaultIonWarmUpThreshold.ref();
         return compilerWarmUpThreshold * inliningWarmUpThresholdFactor_;
     }
 

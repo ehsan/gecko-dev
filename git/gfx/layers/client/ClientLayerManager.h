@@ -19,15 +19,13 @@
 #include "mozilla/layers/APZTestData.h" // for APZTestData
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsDebug.h"                    // for NS_ABORT_IF_FALSE
 #include "nsIObserver.h"                // for nsIObserver
 #include "nsISupportsImpl.h"            // for Layer::Release, etc
 #include "nsRect.h"                     // for nsIntRect
 #include "nsTArray.h"                   // for nsTArray
 #include "nscore.h"                     // for nsAString
 #include "mozilla/layers/TransactionIdAllocator.h"
-
-class nsIWidget;
+#include "nsIWidget.h"                  // For plugin window configuration information structs
 
 namespace mozilla {
 namespace layers {
@@ -45,58 +43,60 @@ class ClientLayerManager MOZ_FINAL : public LayerManager
 public:
   explicit ClientLayerManager(nsIWidget* aWidget);
 
-  virtual void Destroy()
+  virtual void Destroy() MOZ_OVERRIDE
   {
-    LayerManager::Destroy();
+    // It's important to call ClearCachedResource before Destroy because the
+    // former will early-return if the later has already run.
     ClearCachedResources();
+    LayerManager::Destroy();
   }
 
 protected:
   virtual ~ClientLayerManager();
 
 public:
-  virtual ShadowLayerForwarder* AsShadowForwarder()
+  virtual ShadowLayerForwarder* AsShadowForwarder() MOZ_OVERRIDE
   {
     return mForwarder;
   }
 
-  virtual ClientLayerManager* AsClientLayerManager()
+  virtual ClientLayerManager* AsClientLayerManager() MOZ_OVERRIDE
   {
     return this;
   }
 
-  virtual int32_t GetMaxTextureSize() const;
+  virtual int32_t GetMaxTextureSize() const MOZ_OVERRIDE;
 
   virtual void SetDefaultTargetConfiguration(BufferMode aDoubleBuffering, ScreenRotation aRotation);
-  virtual void BeginTransactionWithTarget(gfxContext* aTarget);
-  virtual void BeginTransaction();
-  virtual bool EndEmptyTransaction(EndTransactionFlags aFlags = END_DEFAULT);
+  virtual void BeginTransactionWithTarget(gfxContext* aTarget) MOZ_OVERRIDE;
+  virtual void BeginTransaction() MOZ_OVERRIDE;
+  virtual bool EndEmptyTransaction(EndTransactionFlags aFlags = END_DEFAULT) MOZ_OVERRIDE;
   virtual void EndTransaction(DrawPaintedLayerCallback aCallback,
                               void* aCallbackData,
-                              EndTransactionFlags aFlags = END_DEFAULT);
+                              EndTransactionFlags aFlags = END_DEFAULT) MOZ_OVERRIDE;
 
-  virtual LayersBackend GetBackendType() { return LayersBackend::LAYERS_CLIENT; }
+  virtual LayersBackend GetBackendType() MOZ_OVERRIDE { return LayersBackend::LAYERS_CLIENT; }
   virtual LayersBackend GetCompositorBackendType() MOZ_OVERRIDE
   {
     return AsShadowForwarder()->GetCompositorBackendType();
   }
-  virtual void GetBackendName(nsAString& name);
-  virtual const char* Name() const { return "Client"; }
+  virtual void GetBackendName(nsAString& name) MOZ_OVERRIDE;
+  virtual const char* Name() const MOZ_OVERRIDE { return "Client"; }
 
-  virtual void SetRoot(Layer* aLayer);
+  virtual void SetRoot(Layer* aLayer) MOZ_OVERRIDE;
 
-  virtual void Mutated(Layer* aLayer);
+  virtual void Mutated(Layer* aLayer) MOZ_OVERRIDE;
 
-  virtual bool IsOptimizedFor(PaintedLayer* aLayer, PaintedLayerCreationHint aHint);
+  virtual bool IsOptimizedFor(PaintedLayer* aLayer, PaintedLayerCreationHint aHint) MOZ_OVERRIDE;
 
-  virtual already_AddRefed<PaintedLayer> CreatePaintedLayer();
-  virtual already_AddRefed<PaintedLayer> CreatePaintedLayerWithHint(PaintedLayerCreationHint aHint);
-  virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
-  virtual already_AddRefed<ImageLayer> CreateImageLayer();
-  virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
-  virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer();
-  virtual already_AddRefed<ColorLayer> CreateColorLayer();
-  virtual already_AddRefed<RefLayer> CreateRefLayer();
+  virtual already_AddRefed<PaintedLayer> CreatePaintedLayer() MOZ_OVERRIDE;
+  virtual already_AddRefed<PaintedLayer> CreatePaintedLayerWithHint(PaintedLayerCreationHint aHint) MOZ_OVERRIDE;
+  virtual already_AddRefed<ContainerLayer> CreateContainerLayer() MOZ_OVERRIDE;
+  virtual already_AddRefed<ImageLayer> CreateImageLayer() MOZ_OVERRIDE;
+  virtual already_AddRefed<CanvasLayer> CreateCanvasLayer() MOZ_OVERRIDE;
+  virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer() MOZ_OVERRIDE;
+  virtual already_AddRefed<ColorLayer> CreateColorLayer() MOZ_OVERRIDE;
+  virtual already_AddRefed<RefLayer> CreateRefLayer() MOZ_OVERRIDE;
 
   TextureFactoryIdentifier GetTextureFactoryIdentifier()
   {
@@ -117,8 +117,8 @@ public:
 
   bool HasShadowManager() const { return mForwarder->HasShadowManager(); }
 
-  virtual bool IsCompositingCheap();
-  virtual bool HasShadowManagerInternal() const { return HasShadowManager(); }
+  virtual bool IsCompositingCheap() MOZ_OVERRIDE;
+  virtual bool HasShadowManagerInternal() const MOZ_OVERRIDE { return HasShadowManager(); }
 
   virtual void SetIsFirstPaint() MOZ_OVERRIDE;
 
@@ -128,6 +128,15 @@ public:
   void ReturnTextureClientDeferred(TextureClient& aClient);
   void ReturnTextureClient(TextureClient& aClient);
   void ReportClientLost(TextureClient& aClient);
+
+  /**
+   * Pass through call to the forwarder for nsPresContext's
+   * CollectPluginGeometryUpdates. Passes widget configuration information
+   * to the compositor for transmission to the chrome process. This
+   * configuration gets set when the window paints.
+   */
+  void StorePluginWidgetConfigurations(const nsTArray<nsIWidget::Configuration>&
+                                       aConfigurations) MOZ_OVERRIDE;
 
   // Drop cached resources and ask our shadow manager to do the same,
   // if we have one.
@@ -159,7 +168,7 @@ public:
   CompositorChild* GetCompositorChild();
 
   // Disable component alpha layers with the software compositor.
-  virtual bool ShouldAvoidComponentAlphaLayers() { return !IsCompositingCheap(); }
+  virtual bool ShouldAvoidComponentAlphaLayers() MOZ_OVERRIDE { return !IsCompositingCheap(); }
 
   /**
    * Called for each iteration of a progressive tile update. Updates
@@ -350,7 +359,7 @@ public:
 
   void SetShadow(PLayerChild* aShadow)
   {
-    NS_ABORT_IF_FALSE(!mShadow, "can't have two shadows (yet)");
+    MOZ_ASSERT(!mShadow, "can't have two shadows (yet)");
     mShadow = aShadow;
   }
 
@@ -388,7 +397,7 @@ CreateShadowFor(ClientLayer* aLayer,
 {
   PLayerChild* shadow = aMgr->AsShadowForwarder()->ConstructShadowFor(aLayer);
   // XXX error handling
-  NS_ABORT_IF_FALSE(shadow, "failed to create shadow");
+  MOZ_ASSERT(shadow, "failed to create shadow");
 
   aLayer->SetShadow(shadow);
   (aMgr->AsShadowForwarder()->*aMethod)(aLayer);

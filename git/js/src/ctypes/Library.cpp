@@ -6,6 +6,7 @@
 
 #include "ctypes/Library.h"
 
+#include "prerror.h"
 #include "prlink.h"
 
 #include "ctypes/CTypes.h"
@@ -34,8 +35,8 @@ typedef Rooted<JSFlatString*>    RootedFlatString;
 static const JSClass sLibraryClass = {
   "Library",
   JSCLASS_HAS_RESERVED_SLOTS(LIBRARY_SLOTS),
-  JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-  JS_EnumerateStub,JS_ResolveStub, JS_ConvertStub, Library::Finalize
+  nullptr, nullptr, nullptr, nullptr,
+  nullptr, nullptr, nullptr, Library::Finalize
 };
 
 #define CTYPESFN_FLAGS \
@@ -80,11 +81,10 @@ Library::Name(JSContext* cx, unsigned argc, jsval *vp)
 }
 
 JSObject*
-Library::Create(JSContext* cx, jsval path_, JSCTypesCallbacks* callbacks)
+Library::Create(JSContext* cx, jsval path_, const JSCTypesCallbacks* callbacks)
 {
   RootedValue path(cx, path_);
-  RootedObject libraryObj(cx,
-                          JS_NewObject(cx, &sLibraryClass, NullPtr(), NullPtr()));
+  RootedObject libraryObj(cx, JS_NewObject(cx, &sLibraryClass));
   if (!libraryObj)
     return nullptr;
 
@@ -147,12 +147,17 @@ Library::Create(JSContext* cx, jsval path_, JSCTypesCallbacks* callbacks)
   PRLibrary* library = PR_LoadLibraryWithFlags(libSpec, 0);
 
   if (!library) {
+    char *error = (char*) JS_malloc(cx, PR_GetErrorTextLength() + 1);
+    if (error)
+      PR_GetErrorText(error);
+
 #ifdef XP_WIN
-    JS_ReportError(cx, "couldn't open library %hs", pathChars);
+    JS_ReportError(cx, "couldn't open library %hs: %s", pathChars, error);
 #else
-    JS_ReportError(cx, "couldn't open library %s", pathBytes);
+    JS_ReportError(cx, "couldn't open library %s: %s", pathBytes, error);
     JS_free(cx, pathBytes);
 #endif
+    JS_free(cx, error);
     return nullptr;
   }
 
@@ -289,8 +294,8 @@ Library::Declare(JSContext* cx, unsigned argc, jsval* vp)
   if (isFunction) {
     // Case 1).
     // Create a FunctionType representing the function.
-    fnObj = FunctionType::CreateInternal(cx,
-              args[1], args[2], &args.array()[3], args.length() - 3);
+    fnObj = FunctionType::CreateInternal(cx, args[1], args[2],
+                                         HandleValueArray::subarray(args, 3, args.length() - 3));
     if (!fnObj)
       return false;
 

@@ -96,7 +96,7 @@ interface Element : Node {
   boolean mozMatchesSelector(DOMString selector);
 
   // Pointer events methods.
-  [Throws, Pref="dom.w3c_pointer_events.enabled"]
+  [Throws, Pref="dom.w3c_pointer_events.enabled", UnsafeInPrerendering]
   void setPointerCapture(long pointerId);
 
   [Throws, Pref="dom.w3c_pointer_events.enabled"]
@@ -129,7 +129,7 @@ interface Element : Node {
    *
    * @see <https://wiki.mozilla.org/index.php?title=Gecko:FullScreenAPI>
    */
-  [Throws]
+  [Throws, UnsafeInPrerendering]
   void mozRequestFullScreen(optional any options);
 
   /**
@@ -138,6 +138,7 @@ interface Element : Node {
    *
    * @see <http://dvcs.w3.org/hg/pointerlock/raw-file/default/index.html>
    */
+  [UnsafeInPrerendering]
   void mozRequestPointerLock();
 
   // Obsolete methods.
@@ -184,6 +185,11 @@ partial interface Element {
   void scrollTo(optional ScrollToOptions options);
   void scrollBy(unrestricted double x, unrestricted double y);
   void scrollBy(optional ScrollToOptions options);
+  // mozScrollSnap is used by chrome to perform scroll snapping after the
+  // user performs actions that may affect scroll position
+  // mozScrollSnap is deprecated, to be replaced by a web accessible API, such
+  // as an extension to the ScrollOptions dictionary.  See bug 1137937.
+  [ChromeOnly] void mozScrollSnap();
 
   readonly attribute long clientTop;
   readonly attribute long clientLeft;

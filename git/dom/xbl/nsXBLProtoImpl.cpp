@@ -87,6 +87,7 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aPrototypeBinding,
     GetGlobalForObjectCrossCompartment(targetClassObject));
   JS::Rooted<JSObject*> scopeObject(cx, xpc::GetScopeForXBLExecution(cx, globalObject, addonId));
   NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
+  MOZ_ASSERT(js::GetGlobalForObjectCrossCompartment(scopeObject) == scopeObject);
   JSAutoCompartment ac(cx, scopeObject);
 
   // Determine the appropriate property holder.
@@ -112,7 +113,7 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aPrototypeBinding,
   } else if (scopeObject != globalObject) {
 
     // This is just a property holder, so it doesn't need any special JSClass.
-    propertyHolder = JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr(), scopeObject);
+    propertyHolder = JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr());
     NS_ENSURE_TRUE(propertyHolder, NS_ERROR_OUT_OF_MEMORY);
 
     // Define it as a property on the scopeObject, using the same name used on
@@ -245,9 +246,8 @@ nsXBLProtoImpl::CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding)
     return NS_ERROR_FAILURE;
   jsapi.TakeOwnershipOfErrorReporting();
   JSContext* cx = jsapi.cx();
-  JS::Rooted<JSObject*> compilationGlobal(cx, xpc::CompilationScope());
 
-  mPrecompiledMemberHolder = JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr(), compilationGlobal);
+  mPrecompiledMemberHolder = JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr());
   if (!mPrecompiledMemberHolder)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -321,12 +321,9 @@ bool
 nsXBLProtoImpl::ResolveAllFields(JSContext *cx, JS::Handle<JSObject*> obj) const
 {
   for (nsXBLProtoImplField* f = mFields; f; f = f->GetNext()) {
-    // Using OBJ_LOOKUP_PROPERTY is a pain, since what we have is a
-    // char16_t* for the property name.  Let's just use the public API and
-    // all.
     nsDependentString name(f->GetName());
-    JS::Rooted<JS::Value> dummy(cx);
-    if (!::JS_LookupUCProperty(cx, obj, name.get(), name.Length(), &dummy)) {
+    bool dummy;
+    if (!::JS_HasUCProperty(cx, obj, name.get(), name.Length(), &dummy)) {
       return false;
     }
   }
@@ -369,8 +366,7 @@ nsXBLProtoImpl::Read(nsIObjectInputStream* aStream,
   AssertInCompilationScope();
   AutoJSContext cx;
   // Set up a class object first so that deserialization is possible
-  JS::Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
-  mPrecompiledMemberHolder = JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr(), global);
+  mPrecompiledMemberHolder = JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr());
   if (!mPrecompiledMemberHolder)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -523,8 +519,6 @@ NS_NewXBLProtoImpl(nsXBLPrototypeBinding* aBinding,
                    nsXBLProtoImpl** aResult)
 {
   nsXBLProtoImpl* impl = new nsXBLProtoImpl();
-  if (!impl)
-    return NS_ERROR_OUT_OF_MEMORY;
   if (aClassName)
     impl->mClassName.AssignWithConversion(aClassName);
   else

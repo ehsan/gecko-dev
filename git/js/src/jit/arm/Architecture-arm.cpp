@@ -16,7 +16,7 @@
 #include "jit/arm/Assembler-arm.h"
 #include "jit/RegisterSets.h"
 
-#if defined(ANDROID) || defined(JS_ARM_SIMULATOR)
+#if !defined(__linux__) || defined(ANDROID) || defined(JS_ARM_SIMULATOR)
 // The Android NDK and B2G do not include the hwcap.h kernel header, and it is not
 // defined when building the simulator, so inline the header defines we need.
 # define HWCAP_VFP        (1 << 6)
@@ -364,14 +364,6 @@ VFPRegister::ReduceSetForPush(const FloatRegisterSet &s)
     return mod;
 }
 
-uint32_t
-VFPRegister::GetSizeInBytes(const FloatRegisterSet &s)
-{
-    uint64_t bits = s.bits();
-    uint32_t ret = mozilla::CountPopulation32(bits&0xffffffff) * sizeof(float);
-    ret +=  mozilla::CountPopulation32(bits >> 32) * sizeof(double);
-    return ret;
-}
 uint32_t
 VFPRegister::GetPushSizeInBytes(const FloatRegisterSet &s)
 {

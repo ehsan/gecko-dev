@@ -12,6 +12,7 @@
 #include "nsIPrintingPromptService.h"
 #include "nsIPrintOptions.h"
 #include "nsIPrintProgressParams.h"
+#include "nsIPrintSettingsService.h"
 #include "nsIServiceManager.h"
 #include "nsIWebProgressListener.h"
 #include "PrintingParent.h"
@@ -111,6 +112,31 @@ PrintingParent::RecvShowPrintDialog(PBrowserParent* parent,
   return true;
 }
 
+bool
+PrintingParent::RecvSavePrintSettings(const PrintData& aData,
+                                      const bool& aUsePrinterNamePrefix,
+                                      const uint32_t& aFlags,
+                                      nsresult* aResult)
+{
+  nsCOMPtr<nsIPrintSettingsService> pss =
+    do_GetService("@mozilla.org/gfx/printsettings-service;1", aResult);
+  NS_ENSURE_SUCCESS(*aResult, true);
+
+  nsCOMPtr<nsIPrintOptions> po = do_QueryInterface(pss, aResult);
+  NS_ENSURE_SUCCESS(*aResult, true);
+
+  nsCOMPtr<nsIPrintSettings> settings;
+  *aResult = po->CreatePrintSettings(getter_AddRefs(settings));
+  NS_ENSURE_SUCCESS(*aResult, true);
+
+  *aResult = po->DeserializeToPrintSettings(aData, settings);
+  NS_ENSURE_SUCCESS(*aResult, true);
+
+  *aResult = pss->SavePrintSettingsToPrefs(settings, aUsePrinterNamePrefix, aFlags);
+
+  return true;
+}
+
 PPrintProgressDialogParent*
 PrintingParent::AllocPPrintProgressDialogParent()
 {
@@ -143,7 +169,7 @@ PrintingParent::DOMWindowFromBrowserParent(PBrowserParent* parent)
     return nullptr;
   }
 
-  TabParent* tabParent = static_cast<TabParent*>(parent);
+  TabParent* tabParent = TabParent::GetFrom(parent);
   if (!tabParent) {
     return nullptr;
   }

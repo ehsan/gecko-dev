@@ -26,8 +26,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "AddonManager",
                                   "resource://gre/modules/AddonManager.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "AddonManagerPrivate",
                                   "resource://gre/modules/AddonManager.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "TelemetryPing",
-                                  "resource://gre/modules/TelemetryPing.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "TelemetrySession",
+                                  "resource://gre/modules/TelemetrySession.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "TelemetryLog",
                                   "resource://gre/modules/TelemetryLog.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "CommonUtils",
@@ -323,7 +323,7 @@ Experiments.Policy.prototype = {
   },
 
   telemetryPayload: function () {
-    return TelemetryPing.getPayload();
+    return TelemetrySession.getPayload();
   },
 
   /**
@@ -1325,6 +1325,7 @@ Experiments.Experiments.prototype = {
     if ("@mozilla.org/toolkit/crash-reporter;1" in Cc && activeExperiment) {
       try {
         gCrashReporter.annotateCrashReport("ActiveExperiment", activeExperiment.id);
+        gCrashReporter.annotateCrashReport("ActiveExperimentBranch", activeExperiment.branch);
       } catch (e) {
         // It's ok if crash reporting is disabled.
       }

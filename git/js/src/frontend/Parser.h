@@ -301,6 +301,7 @@ struct ParseContext : public GenericParseContext
     //   if (cond) { function f3() { if (cond) { function f4() { } } } }
     //
     bool atBodyLevel() { return !topStmt; }
+    bool atGlobalLevel() { return atBodyLevel() && !sc->isFunctionBox() && (topStmt == topScopeStmt); }
 
     // True if this is the ParseContext for the body of a function created by
     // the Function constructor.
@@ -316,7 +317,7 @@ struct ParseContext : public GenericParseContext
 template <typename ParseHandler>
 inline
 Directives::Directives(ParseContext<ParseHandler> *parent)
-  : strict_(parent->sc->strict),
+  : strict_(parent->sc->strict()),
     asmJS_(parent->useAsmOrInsideUseAsm())
 {}
 
@@ -328,6 +329,7 @@ class CompExprTransplanter;
 enum LetContext { LetExpression, LetStatement };
 enum VarContext { HoistVars, DontHoistVars };
 enum FunctionType { Getter, Setter, Normal };
+enum PropListType { ObjectLiteral, ClassBody };
 
 template <typename ParseHandler>
 class Parser : private JS::AutoGCRooter, public StrictModeGetter
@@ -371,14 +373,6 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
 
     /* Unexpected end of input, i.e. TOK_EOF not at top-level. */
     bool isUnexpectedEOF_:1;
-
-    /* Used for collecting telemetry on SpiderMonkey's deprecated language extensions. */
-    bool sawDeprecatedForEach:1;
-    bool sawDeprecatedDestructuringForIn:1;
-    bool sawDeprecatedLegacyGenerator:1;
-    bool sawDeprecatedExpressionClosure:1;
-    bool sawDeprecatedLetBlock:1;
-    bool sawDeprecatedLetExpression:1;
 
     typedef typename ParseHandler::Node Node;
     typedef typename ParseHandler::DefinitionNode DefinitionNode;
@@ -443,11 +437,10 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
                                 Directives directives, GeneratorKind generatorKind);
 
     /*
-     * Create a new function object given parse context (pc) and a name (which
-     * is optional if this is a function expression).
+     * Create a new function object given a name (which is optional if this is
+     * a function expression).
      */
-    JSFunction *newFunction(GenericParseContext *pc, HandleAtom atom, FunctionSyntaxKind kind,
-                            JSObject *proto = nullptr);
+    JSFunction *newFunction(HandleAtom atom, FunctionSyntaxKind kind, HandleObject proto);
 
     void trace(JSTracer *trc);
 
@@ -512,11 +505,18 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
         return versionNumber() >= JSVERSION_1_7 || pc->isGenerator();
     }
 
-    virtual bool strictMode() { return pc->sc->strict; }
+    virtual bool strictMode() { return pc->sc->strict(); }
+    bool setLocalStrictMode(bool strict) {
+        MOZ_ASSERT(tokenStream.debugHasNoLookahead());
+        return pc->sc->setLocalStrictMode(strict);
+    }
 
     const ReadOnlyCompileOptions &options() const {
         return tokenStream.options();
     }
+
+  private:
+    enum InvokedPrediction { PredictUninvoked = false, PredictInvoked = true };
 
   private:
     /*
@@ -536,7 +536,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
      * suffix) and a never-inlined version (with an 'n' suffix).
      */
     Node functionStmt();
-    Node functionExpr();
+    Node functionExpr(InvokedPrediction invoked = PredictUninvoked);
     Node statements();
 
     Node blockStatement();
@@ -553,37 +553,41 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node throwStatement();
     Node tryStatement();
     Node debuggerStatement();
+    Node classStatement();
 
     Node lexicalDeclaration(bool isConst);
-    Node letStatement();
+    Node letDeclarationOrBlock();
     Node importDeclaration();
     Node exportDeclaration();
-    Node expressionStatement();
+    Node expressionStatement(InvokedPrediction invoked = PredictUninvoked);
     Node variables(ParseNodeKind kind, bool *psimple = nullptr,
                    StaticBlockObject *blockObj = nullptr,
                    VarContext varContext = HoistVars);
-    Node expr();
-    Node assignExpr();
+    Node expr(InvokedPrediction invoked = PredictUninvoked);
+    Node assignExpr(InvokedPrediction invoked = PredictUninvoked);
     Node assignExprWithoutYield(unsigned err);
     Node yieldExpression();
-    Node condExpr1();
-    Node orExpr1();
-    Node unaryExpr();
-    Node memberExpr(TokenKind tt, bool allowCallSyntax);
-    Node primaryExpr(TokenKind tt);
+    Node condExpr1(InvokedPrediction invoked = PredictUninvoked);
+    Node orExpr1(InvokedPrediction invoked = PredictUninvoked);
+    Node unaryExpr(InvokedPrediction invoked = PredictUninvoked);
+    Node memberExpr(TokenKind tt, bool allowCallSyntax,
+                    InvokedPrediction invoked = PredictUninvoked);
+    Node primaryExpr(TokenKind tt, InvokedPrediction invoked = PredictUninvoked);
     Node parenExprOrGeneratorComprehension();
     Node exprInParens();
 
-    bool methodDefinition(Node literal, Node propname, FunctionType type, FunctionSyntaxKind kind,
-                          GeneratorKind generatorKind, JSOp Op);
+    bool methodDefinition(PropListType listType, Node propList, Node propname, FunctionType type,
+                          FunctionSyntaxKind kind, GeneratorKind generatorKind,
+                          bool isStatic, JSOp Op);
 
     /*
      * Additional JS parsers.
      */
-    bool functionArguments(FunctionSyntaxKind kind, Node *list, Node funcpn, bool *hasRest);
+    bool functionArguments(FunctionSyntaxKind kind, FunctionType type, Node *list, Node funcpn,
+                           bool *hasRest);
 
     Node functionDef(HandlePropertyName name, FunctionType type, FunctionSyntaxKind kind,
-                     GeneratorKind generatorKind);
+                     GeneratorKind generatorKind, InvokedPrediction invoked = PredictUninvoked);
     bool functionArgsAndBody(Node pn, HandleFunction fun,
                              FunctionType type, FunctionSyntaxKind kind,
                              GeneratorKind generatorKind,
@@ -610,8 +614,9 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node generatorComprehension(uint32_t begin);
 
     bool argumentList(Node listNode, bool *isSpread);
-    Node letBlock(LetContext letContext);
+    Node deprecatedLetBlockOrExpression(LetContext letContext);
     Node destructuringExpr(BindData<ParseHandler> *data, TokenKind tt);
+    Node destructuringExprWithoutYield(BindData<ParseHandler> *data, TokenKind tt, unsigned msg);
 
     Node identifierName();
 
@@ -654,18 +659,24 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node pushLexicalScope(Handle<StaticBlockObject*> blockObj, StmtInfoPC *stmt);
     Node pushLetScope(Handle<StaticBlockObject*> blockObj, StmtInfoPC *stmt);
     bool noteNameUse(HandlePropertyName name, Node pn);
-    Node objectLiteral();
     Node computedPropertyName(Node literal);
     Node arrayInitializer();
     Node newRegExp();
+
+    Node propertyList(PropListType type);
+    Node newPropertyListNode(PropListType type);
+
+    bool checkAndPrepareLexical(bool isConst, const TokenPos &errorPos);
+    Node makeInitializedLexicalBinding(HandlePropertyName name, bool isConst, const TokenPos &pos);
 
     Node newBindingNode(PropertyName *name, bool functionScope, VarContext varContext = HoistVars);
     bool checkDestructuring(BindData<ParseHandler> *data, Node left);
     bool checkDestructuringObject(BindData<ParseHandler> *data, Node objectPattern);
     bool checkDestructuringArray(BindData<ParseHandler> *data, Node arrayPattern);
-    bool bindDestructuringVar(BindData<ParseHandler> *data, Node pn);
+    bool bindInitialized(BindData<ParseHandler> *data, Node pn);
     bool bindDestructuringLHS(Node pn);
     bool makeSetCall(Node pn, unsigned msg);
+    Node cloneDestructuringDefault(Node opn);
     Node cloneLeftHandSide(Node opn);
     Node cloneParseTree(Node opn);
 
@@ -698,7 +709,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
 
     bool asmJS(Node list);
 
-    void accumulateTelemetry();
+    void addTelemetry(JSCompartment::DeprecatedLanguageExtension e);
 
     friend class LegacyCompExprTransplanter;
     friend struct BindData<ParseHandler>;

@@ -8,6 +8,7 @@ package org.mozilla.gecko.home;
 import java.util.EnumMap;
 import java.util.Map;
 
+import org.mozilla.gecko.GeckoScreenOrientation;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.fxa.AccountLoader;
 import org.mozilla.gecko.fxa.FirefoxAccounts;
@@ -15,8 +16,10 @@ import org.mozilla.gecko.fxa.FxAccountConstants;
 import org.mozilla.gecko.fxa.login.State;
 import org.mozilla.gecko.fxa.login.State.Action;
 import org.mozilla.gecko.sync.SyncConstants;
+import org.mozilla.gecko.util.HardwareUtils;
 
 import android.accounts.Account;
+import android.content.res.Configuration;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.LoaderManager.LoaderCallbacks;
@@ -71,6 +74,17 @@ public class RemoteTabsPanel extends HomeFragment {
         // Create callbacks before the initial loader is started.
         mAccountLoaderCallbacks = new AccountLoaderCallbacks();
         loadIfVisible();
+    }
+
+    @Override
+    protected void loadIfVisible() {
+        // Force load the child fragment if fragment is displayed in Tablet with a valid account.
+        if (canLoad() && HardwareUtils.isTablet() && (mCurrentFragment instanceof RemoteTabsBaseFragment)) {
+            load();
+            return;
+        }
+
+        super.loadIfVisible();
     }
 
     @Override
@@ -150,13 +164,19 @@ public class RemoteTabsPanel extends HomeFragment {
 
         switch (action) {
         case None:
-            return new RemoteTabsExpandableListFragment();
+            if (HardwareUtils.isTablet() && GeckoScreenOrientation.getInstance().getAndroidOrientation() == Configuration.ORIENTATION_LANDSCAPE) {
+                return new RemoteTabsSplitPlaneFragment();
+            } else {
+                return new RemoteTabsExpandableListFragment();
+            }
         case NeedsVerification:
             return RemoteTabsStaticFragment.newInstance(R.layout.remote_tabs_needs_verification);
         case NeedsPassword:
             return RemoteTabsStaticFragment.newInstance(R.layout.remote_tabs_needs_password);
         case NeedsUpgrade:
             return RemoteTabsStaticFragment.newInstance(R.layout.remote_tabs_needs_upgrade);
+        case NeedsFinishMigrating:
+            return RemoteTabsStaticFragment.newInstance(R.layout.remote_tabs_needs_finish_migrating);
         default:
             // This should never happen, but we're confident we have a Firefox
             // Account at this point, so let's show the needs password screen.
@@ -186,7 +206,9 @@ public class RemoteTabsPanel extends HomeFragment {
         }
 
         Fragment fragment = mFragmentCache.get(actionNeeded);
-        if (fragment == null) {
+        // On a tablet devices with accounts authenticated, create a new fragment based on the current orientation.
+        // The cached fragment in the above case may not be the valid fragment for the current orientation.
+        if (fragment == null || (HardwareUtils.isTablet() && actionNeeded == Action.None)) {
             fragment = makeFragmentForAction(actionNeeded);
             mFragmentCache.put(actionNeeded, fragment);
         }

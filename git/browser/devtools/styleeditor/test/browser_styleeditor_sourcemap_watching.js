@@ -6,11 +6,11 @@ Components.utils.import("resource://gre/modules/Task.jsm");
 let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 let {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 
-const TESTCASE_URI_HTML = TEST_BASE + "sourcemaps-watching.html";
-const TESTCASE_URI_CSS = TEST_BASE + "sourcemap-css/sourcemaps.css";
-const TESTCASE_URI_REG_CSS = TEST_BASE + "simple.css";
-const TESTCASE_URI_SCSS = TEST_BASE + "sourcemap-sass/sourcemaps.scss";
-const TESTCASE_URI_MAP = TEST_BASE + "sourcemap-css/sourcemaps.css.map";
+const TESTCASE_URI_HTML = TEST_BASE_HTTP + "sourcemaps-watching.html";
+const TESTCASE_URI_CSS = TEST_BASE_HTTP + "sourcemap-css/sourcemaps.css";
+const TESTCASE_URI_REG_CSS = TEST_BASE_HTTP + "simple.css";
+const TESTCASE_URI_SCSS = TEST_BASE_HTTP + "sourcemap-sass/sourcemaps.scss";
+const TESTCASE_URI_MAP = TEST_BASE_HTTP + "sourcemap-css/sourcemaps.css.map";
 const TESTCASE_SCSS_NAME = "sourcemaps.scss";
 
 const TRANSITIONS_PREF = "devtools.styleeditor.transitions";
@@ -150,7 +150,14 @@ function read(aSrcChromeURL)
   let scriptableStream = Cc["@mozilla.org/scriptableinputstream;1"]
     .getService(Ci.nsIScriptableInputStream);
 
-  let channel = Services.io.newChannel(aSrcChromeURL, null, null);
+  let channel = Services.io.newChannel2(aSrcChromeURL,
+                                        null,
+                                        null,
+                                        null,      // aLoadingNode
+                                        Services.scriptSecurityManager.getSystemPrincipal(),
+                                        null,      // aTriggeringPrincipal
+                                        Ci.nsILoadInfo.SEC_NORMAL,
+                                        Ci.nsIContentPolicy.TYPE_OTHER);
   let input = channel.open();
   scriptableStream.init(input);
 

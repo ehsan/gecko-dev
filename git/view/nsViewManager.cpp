@@ -226,7 +226,7 @@ nsViewManager::FlushDelayedResize(bool aDoReflow)
     if (aDoReflow) {
       DoSetWindowDimensions(mDelayedResize.width, mDelayedResize.height);
       mDelayedResize.SizeTo(NSCOORD_NONE, NSCOORD_NONE);
-    } else if (mPresShell) {
+    } else if (mPresShell && !mPresShell->GetIsViewportOverridden()) {
       nsPresContext* presContext = mPresShell->GetPresContext();
       if (presContext) {
         presContext->SetVisibleArea(nsRect(nsPoint(0, 0), mDelayedResize));
@@ -375,6 +375,7 @@ nsViewManager::ProcessPendingUpdatesForView(nsView* aView,
     return; // 'this' might have been destroyed
   }
   if (aFlushDirtyRegion) {
+    profiler_tracing("Paint", "DisplayList", TRACING_INTERVAL_START);
     nsAutoScriptBlocker scriptBlocker;
     SetPainting(true);
     for (uint32_t i = 0; i < widgets.Length(); ++i) {
@@ -385,6 +386,7 @@ nsViewManager::ProcessPendingUpdatesForView(nsView* aView,
       }
     }
     SetPainting(false);
+    profiler_tracing("Paint", "DisplayList", TRACING_INTERVAL_END);
   }
 }
 
@@ -755,8 +757,7 @@ nsViewManager::DispatchEvent(WidgetGUIEvent *aEvent,
       (dispatchUsingCoordinates || aEvent->HasKeyEventMessage() ||
        aEvent->IsIMERelatedEvent() ||
        aEvent->IsNonRetargetedNativeEventDelivererForPlugin() ||
-       aEvent->HasPluginActivationEventMessage() ||
-       aEvent->message == NS_PLUGIN_RESOLUTION_CHANGED)) {
+       aEvent->HasPluginActivationEventMessage())) {
     while (view && !view->GetFrame()) {
       view = view->GetParent();
     }

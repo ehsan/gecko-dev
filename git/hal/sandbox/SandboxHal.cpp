@@ -357,7 +357,6 @@ SetAlarm(int32_t aSeconds, int32_t aNanoseconds)
 void
 SetProcessPriority(int aPid,
                    ProcessPriority aPriority,
-                   ProcessCPUPriority aCPUPriority,
                    uint32_t aBackgroundLRU)
 {
   NS_RUNTIMEABORT("Only the main process may set processes' priorities.");
@@ -446,6 +445,8 @@ FactoryReset(FactoryResetReason& aReason)
     Hal()->SendFactoryReset(NS_LITERAL_STRING("normal"));
   } else if (aReason == FactoryResetReason::Wipe) {
     Hal()->SendFactoryReset(NS_LITERAL_STRING("wipe"));
+  } else if (aReason == FactoryResetReason::Root) {
+    Hal()->SendFactoryReset(NS_LITERAL_STRING("root"));
   }
 }
 
@@ -500,12 +501,12 @@ public:
   }
 
   virtual bool
-  RecvVibrate(const InfallibleTArray<unsigned int>& pattern,
-              const InfallibleTArray<uint64_t> &id,
+  RecvVibrate(InfallibleTArray<unsigned int>&& pattern,
+              InfallibleTArray<uint64_t>&& id,
               PBrowserParent *browserParent) MOZ_OVERRIDE
   {
     // We give all content vibration permission.
-    TabParent *tabParent = static_cast<TabParent*>(browserParent);
+    TabParent *tabParent = TabParent::GetFrom(browserParent);
     nsCOMPtr<nsIDOMWindow> window =
       do_QueryInterface(tabParent->GetBrowserDOMWindow());
     WindowIdentifier newID(id, window);
@@ -514,10 +515,10 @@ public:
   }
 
   virtual bool
-  RecvCancelVibrate(const InfallibleTArray<uint64_t> &id,
+  RecvCancelVibrate(InfallibleTArray<uint64_t> &&id,
                     PBrowserParent *browserParent) MOZ_OVERRIDE
   {
-    TabParent *tabParent = static_cast<TabParent*>(browserParent);
+    TabParent *tabParent = TabParent::GetFrom(browserParent);
     nsCOMPtr<nsIDOMWindow> window =
       do_QueryInterface(tabParent->GetBrowserDOMWindow());
     WindowIdentifier newID(id, window);
@@ -568,7 +569,7 @@ public:
     return true;
   }
 
-  void Notify(const NetworkInformation& aNetworkInfo) {
+  void Notify(const NetworkInformation& aNetworkInfo) MOZ_OVERRIDE {
     unused << SendNotifyNetworkChange(aNetworkInfo);
   }
 
@@ -610,7 +611,7 @@ public:
     return true;
   }
 
-  void Notify(const ScreenConfiguration& aScreenConfiguration) {
+  void Notify(const ScreenConfiguration& aScreenConfiguration) MOZ_OVERRIDE {
     unused << SendNotifyScreenConfigurationChange(aScreenConfiguration);
   }
 
@@ -776,7 +777,7 @@ public:
     return true;
   }
   
-  void Notify(const SensorData& aSensorData) {
+  void Notify(const SensorData& aSensorData) MOZ_OVERRIDE {
     unused << SendNotifySensorChange(aSensorData);
   }
 
@@ -815,7 +816,7 @@ public:
     return true;
   }
   
-  void Notify(const WakeLockInformation& aWakeLockInfo)
+  void Notify(const WakeLockInformation& aWakeLockInfo) MOZ_OVERRIDE
   {
     unused << SendNotifyWakeLockChange(aWakeLockInfo);
   }
@@ -835,7 +836,7 @@ public:
     return true;
   }
 
-  void Notify(const SwitchEvent& aSwitchEvent)
+  void Notify(const SwitchEvent& aSwitchEvent) MOZ_OVERRIDE
   {
     unused << SendNotifySwitchChange(aSwitchEvent);
   }
@@ -848,12 +849,12 @@ public:
     return true;
   }
 
-  void Notify(const int64_t& aClockDeltaMS)
+  void Notify(const int64_t& aClockDeltaMS) MOZ_OVERRIDE
   {
     unused << SendNotifySystemClockChange(aClockDeltaMS);
   }
 
-  void Notify(const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo)
+  void Notify(const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo) MOZ_OVERRIDE
   {
     unused << SendNotifySystemTimezoneChange(aSystemTimezoneChangeInfo);
   }
@@ -870,6 +871,8 @@ public:
       reason = FactoryResetReason::Normal;
     } else if (aReason.EqualsLiteral("wipe")) {
       reason = FactoryResetReason::Wipe;
+    } else if (aReason.EqualsLiteral("root")) {
+      reason = FactoryResetReason::Root;
     } else {
       // Invalid factory reset reason. That should never happen.
       return false;
@@ -934,14 +937,14 @@ public:
   }
 
   virtual bool
-  RecvNotifySystemClockChange(const int64_t& aClockDeltaMS) {
+  RecvNotifySystemClockChange(const int64_t& aClockDeltaMS) MOZ_OVERRIDE {
     hal::NotifySystemClockChange(aClockDeltaMS);
     return true;
   }
 
   virtual bool
   RecvNotifySystemTimezoneChange(
-    const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo) {
+    const SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo) MOZ_OVERRIDE {
     hal::NotifySystemTimezoneChange(aSystemTimezoneChangeInfo);
     return true;
   }

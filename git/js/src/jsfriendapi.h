@@ -9,7 +9,6 @@
 
 #include "mozilla/Casting.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/TypedEnum.h"
 #include "mozilla/UniquePtr.h"
 
 #include "jsapi.h" // For JSAutoByteString.  See bug 1033916.
@@ -21,9 +20,9 @@
 #include "js/Class.h"
 
 #if JS_STACK_GROWTH_DIRECTION > 0
-# define JS_CHECK_STACK_SIZE(limit, sp) ((uintptr_t)(sp) < (limit))
+# define JS_CHECK_STACK_SIZE(limit, sp) (MOZ_LIKELY(((uintptr_t)(sp) < (limit)))
 #else
-# define JS_CHECK_STACK_SIZE(limit, sp) ((uintptr_t)(sp) > (limit))
+# define JS_CHECK_STACK_SIZE(limit, sp) (MOZ_LIKELY((uintptr_t)(sp) > (limit)))
 #endif
 
 class JSAtom;
@@ -61,6 +60,13 @@ extern JS_FRIEND_API(JSObject *)
 JS_NewObjectWithUniqueType(JSContext *cx, const JSClass *clasp, JS::HandleObject proto,
                            JS::HandleObject parent);
 
+// Allocate an object in exactly the same way as JS_NewObjectWithGivenProto, but
+// without invoking the metadata callback on it.  This allows creation of
+// internal bookkeeping objects that are guaranteed to not have metadata
+// attached to them.
+extern JS_FRIEND_API(JSObject *)
+JS_NewObjectWithoutMetadata(JSContext *cx, const JSClass *clasp, JS::Handle<JSObject*> proto);
+
 extern JS_FRIEND_API(uint32_t)
 JS_ObjectCountDynamicSlots(JS::HandleObject obj);
 
@@ -92,7 +98,7 @@ JS_IsDeadWrapper(JSObject *obj);
  * process. Uses bounded stack space.
  */
 extern JS_FRIEND_API(void)
-JS_TraceShapeCycleCollectorChildren(JSTracer *trc, void *shape);
+JS_TraceShapeCycleCollectorChildren(JSTracer *trc, JS::GCCellPtr shape);
 
 enum {
     JS_TELEMETRY_GC_REASON,
@@ -110,11 +116,12 @@ enum {
     JS_TELEMETRY_GC_NON_INCREMENTAL,
     JS_TELEMETRY_GC_SCC_SWEEP_TOTAL_MS,
     JS_TELEMETRY_GC_SCC_SWEEP_MAX_PAUSE_MS,
-    JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT
+    JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT,
+    JS_TELEMETRY_ADDON_EXCEPTIONS
 };
 
 typedef void
-(* JSAccumulateTelemetryDataCallback)(int id, uint32_t sample);
+(*JSAccumulateTelemetryDataCallback)(int id, uint32_t sample, const char *key);
 
 extern JS_FRIEND_API(void)
 JS_SetAccumulateTelemetryCallback(JSRuntime *rt, JSAccumulateTelemetryDataCallback callback);
@@ -141,22 +148,39 @@ extern JS_FRIEND_API(JSObject *)
 JS_ObjectToOuterObject(JSContext *cx, JS::HandleObject obj);
 
 extern JS_FRIEND_API(JSObject *)
-JS_CloneObject(JSContext *cx, JS::HandleObject obj, JS::HandleObject proto,
-               JS::HandleObject parent);
+JS_CloneObject(JSContext *cx, JS::HandleObject obj, JS::HandleObject proto);
+
+/*
+ * Copy the own properties of src to dst in a fast way.  src and dst must both
+ * be native and must be in the compartment of cx.  They must have the same
+ * class, the same parent, and the same prototype.  Class reserved slots will
+ * NOT be copied.
+ *
+ * dst must not have any properties on it before this function is called.
+ *
+ * src must have been allocated via JS_NewObjectWithoutMetadata so that we can
+ * be sure it has no metadata that needs copying to dst.  This also means that
+ * dst needs to have the compartment global as its parent.  This function will
+ * preserve the existing metadata on dst, if any.
+ */
+extern JS_FRIEND_API(bool)
+JS_InitializePropertiesFromCompatibleNativeObject(JSContext *cx,
+                                                  JS::HandleObject dst,
+                                                  JS::HandleObject src);
 
 extern JS_FRIEND_API(JSString *)
 JS_BasicObjectToString(JSContext *cx, JS::HandleObject obj);
 
-JS_FRIEND_API(void)
-js_ReportOverRecursed(JSContext *maybecx);
+namespace js {
 
 JS_FRIEND_API(bool)
-js_ObjectClassIs(JSContext *cx, JS::HandleObject obj, js::ESClassValue classValue);
+ObjectClassIs(JSContext *cx, JS::HandleObject obj, ESClassValue classValue);
 
 JS_FRIEND_API(const char *)
-js_ObjectClassName(JSContext *cx, JS::HandleObject obj);
+ObjectClassName(JSContext *cx, JS::HandleObject obj);
 
-namespace js {
+JS_FRIEND_API(void)
+ReportOverRecursed(JSContext *maybecx);
 
 JS_FRIEND_API(bool)
 AddRawValueRoot(JSContext *cx, JS::Value *vp, const char *name);
@@ -164,41 +188,47 @@ AddRawValueRoot(JSContext *cx, JS::Value *vp, const char *name);
 JS_FRIEND_API(void)
 RemoveRawValueRoot(JSContext *cx, JS::Value *vp);
 
-} /* namespace js */
-
 #ifdef JS_DEBUG
 
 /*
  * Routines to print out values during debugging.  These are FRIEND_API to help
- * the debugger find them and to support temporarily hacking js_Dump* calls
+ * the debugger find them and to support temporarily hacking js::Dump* calls
  * into other code.
  */
 
 extern JS_FRIEND_API(void)
-js_DumpString(JSString *str);
+DumpString(JSString *str);
 
 extern JS_FRIEND_API(void)
-js_DumpAtom(JSAtom *atom);
+DumpAtom(JSAtom *atom);
 
 extern JS_FRIEND_API(void)
-js_DumpObject(JSObject *obj);
+DumpObject(JSObject *obj);
 
 extern JS_FRIEND_API(void)
-js_DumpChars(const char16_t *s, size_t n);
+DumpChars(const char16_t *s, size_t n);
 
 extern JS_FRIEND_API(void)
-js_DumpValue(const JS::Value &val);
+DumpValue(const JS::Value &val);
 
 extern JS_FRIEND_API(void)
-js_DumpId(jsid id);
+DumpId(jsid id);
 
 extern JS_FRIEND_API(void)
-js_DumpInterpreterFrame(JSContext *cx, js::InterpreterFrame *start = nullptr);
+DumpInterpreterFrame(JSContext *cx, InterpreterFrame *start = nullptr);
+
+extern JS_FRIEND_API(bool)
+DumpPC(JSContext *cx);
+
+extern JS_FRIEND_API(bool)
+DumpScript(JSContext *cx, JSScript *scriptArg);
 
 #endif
 
 extern JS_FRIEND_API(void)
-js_DumpBacktrace(JSContext *cx);
+DumpBacktrace(JSContext *cx);
+
+} // namespace js
 
 namespace JS {
 
@@ -223,17 +253,22 @@ JS_CopyPropertiesFrom(JSContext *cx, JS::HandleObject target, JS::HandleObject o
  * property of the given name exists on |obj|.
  *
  * On entry, |cx| must be same-compartment with |obj|.
+ *
+ * The copyBehavior argument controls what happens with
+ * non-configurable properties.
  */
+typedef enum  {
+    MakeNonConfigurableIntoConfigurable,
+    CopyNonConfigurableAsIs
+} PropertyCopyBehavior;
+
 extern JS_FRIEND_API(bool)
 JS_CopyPropertyFrom(JSContext *cx, JS::HandleId id, JS::HandleObject target,
-                    JS::HandleObject obj);
+                    JS::HandleObject obj,
+                    PropertyCopyBehavior copyBehavior = CopyNonConfigurableAsIs);
 
 extern JS_FRIEND_API(bool)
 JS_WrapPropertyDescriptor(JSContext *cx, JS::MutableHandle<JSPropertyDescriptor> desc);
-
-extern JS_FRIEND_API(bool)
-JS_EnumerateState(JSContext *cx, JS::HandleObject obj, JSIterateOp enum_op,
-                  JS::MutableHandleValue statep, JS::MutableHandleId idp);
 
 struct JSFunctionSpecWithHelp {
     const char      *name;
@@ -277,36 +312,28 @@ namespace js {
             JSCLASS_IS_PROXY |                                                          \
             JSCLASS_IMPLEMENTS_BARRIERS |                                               \
             flags,                                                                      \
-        JS_PropertyStub,         /* addProperty */                                      \
-        JS_DeletePropertyStub,   /* delProperty */                                      \
-        JS_PropertyStub,         /* getProperty */                                      \
-        JS_StrictPropertyStub,   /* setProperty */                                      \
-        JS_EnumerateStub,                                                               \
-        JS_ResolveStub,                                                                 \
+        nullptr,                 /* addProperty */                                      \
+        nullptr,                 /* delProperty */                                      \
+        nullptr,                 /* getProperty */                                      \
+        nullptr,                 /* setProperty */                                      \
+        nullptr,                 /* enumerate */                                        \
+        nullptr,                 /* resolve */                                          \
         js::proxy_Convert,                                                              \
         js::proxy_Finalize,      /* finalize    */                                      \
-        nullptr,                  /* call        */                                     \
+        nullptr,                 /* call        */                                      \
         js::proxy_HasInstance,   /* hasInstance */                                      \
-        nullptr,             /* construct   */                                          \
+        nullptr,                 /* construct   */                                      \
         js::proxy_Trace,         /* trace       */                                      \
         JS_NULL_CLASS_SPEC,                                                             \
         ext,                                                                            \
         {                                                                               \
-            js::proxy_LookupGeneric,                                                    \
             js::proxy_LookupProperty,                                                   \
-            js::proxy_LookupElement,                                                    \
-            js::proxy_DefineGeneric,                                                    \
             js::proxy_DefineProperty,                                                   \
-            js::proxy_DefineElement,                                                    \
-            js::proxy_GetGeneric,                                                       \
+            js::proxy_HasProperty,                                                      \
             js::proxy_GetProperty,                                                      \
-            js::proxy_GetElement,                                                       \
-            js::proxy_SetGeneric,                                                       \
             js::proxy_SetProperty,                                                      \
-            js::proxy_SetElement,                                                       \
-            js::proxy_GetGenericAttributes,                                             \
-            js::proxy_SetGenericAttributes,                                             \
-            js::proxy_DeleteGeneric,                                                    \
+            js::proxy_GetOwnPropertyDescriptor,                                         \
+            js::proxy_DeleteProperty,                                                   \
             js::proxy_Watch, js::proxy_Unwatch,                                         \
             js::proxy_GetElements,                                                      \
             nullptr,             /* enumerate       */                                  \
@@ -330,48 +357,24 @@ namespace js {
  */
 
 extern JS_FRIEND_API(bool)
-proxy_LookupGeneric(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::MutableHandleObject objp,
+proxy_LookupProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::MutableHandleObject objp,
                     JS::MutableHandle<Shape*> propp);
 extern JS_FRIEND_API(bool)
-proxy_LookupProperty(JSContext *cx, JS::HandleObject obj, JS::Handle<PropertyName*> name,
-                     JS::MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
+proxy_DefineProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue value,
+                     JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
 extern JS_FRIEND_API(bool)
-proxy_LookupElement(JSContext *cx, JS::HandleObject obj, uint32_t index, JS::MutableHandleObject objp,
-                    JS::MutableHandle<Shape*> propp);
+proxy_HasProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id, bool *foundp);
 extern JS_FRIEND_API(bool)
-proxy_DefineGeneric(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue value,
-                    JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
+proxy_GetProperty(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver, JS::HandleId id,
+                  JS::MutableHandleValue vp);
 extern JS_FRIEND_API(bool)
-proxy_DefineProperty(JSContext *cx, JS::HandleObject obj, JS::Handle<PropertyName*> name,
-                     JS::HandleValue value, JSPropertyOp getter, JSStrictPropertyOp setter,
-                     unsigned attrs);
-extern JS_FRIEND_API(bool)
-proxy_DefineElement(JSContext *cx, JS::HandleObject obj, uint32_t index, JS::HandleValue value,
-                    JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
-extern JS_FRIEND_API(bool)
-proxy_GetGeneric(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver, JS::HandleId id,
-                 JS::MutableHandleValue vp);
-extern JS_FRIEND_API(bool)
-proxy_GetProperty(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver,
-                  JS::Handle<PropertyName*> name, JS::MutableHandleValue vp);
-extern JS_FRIEND_API(bool)
-proxy_GetElement(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver, uint32_t index,
-                 JS::MutableHandleValue vp);
-extern JS_FRIEND_API(bool)
-proxy_SetGeneric(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
-                 JS::MutableHandleValue bp, bool strict);
-extern JS_FRIEND_API(bool)
-proxy_SetProperty(JSContext *cx, JS::HandleObject obj, JS::Handle<PropertyName*> name,
+proxy_SetProperty(JSContext *cx, JS::HandleObject obj, JS::HandleObject receiver, JS::HandleId id,
                   JS::MutableHandleValue bp, bool strict);
 extern JS_FRIEND_API(bool)
-proxy_SetElement(JSContext *cx, JS::HandleObject obj, uint32_t index, JS::MutableHandleValue vp,
-                 bool strict);
+proxy_GetOwnPropertyDescriptor(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
+                               JS::MutableHandle<JSPropertyDescriptor> desc);
 extern JS_FRIEND_API(bool)
-proxy_GetGenericAttributes(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigned *attrsp);
-extern JS_FRIEND_API(bool)
-proxy_SetGenericAttributes(JSContext *cx, JS::HandleObject obj, JS::HandleId id, unsigned *attrsp);
-extern JS_FRIEND_API(bool)
-proxy_DeleteGeneric(JSContext *cx, JS::HandleObject obj, JS::HandleId id, bool *succeeded);
+proxy_DeleteProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id, bool *succeeded);
 
 extern JS_FRIEND_API(void)
 proxy_Trace(JSTracer *trc, JSObject *obj);
@@ -435,13 +438,6 @@ SetSourceHook(JSRuntime *rt, mozilla::UniquePtr<SourceHook> hook);
 extern JS_FRIEND_API(mozilla::UniquePtr<SourceHook>)
 ForgetSourceHook(JSRuntime *rt);
 
-#ifdef NIGHTLY_BUILD
-typedef void (*AssertOnScriptEntryHook)(JSContext *cx, JS::HandleScript script);
-
-extern JS_FRIEND_API(void)
-SetAssertOnScriptEntryHook(JSRuntime *rt, AssertOnScriptEntryHook hook);
-#endif
-
 extern JS_FRIEND_API(JS::Zone *)
 GetCompartmentZone(JSCompartment *comp);
 
@@ -490,11 +486,11 @@ struct WeakMapTracer;
  * weak map that was live at the time of the last garbage collection.
  *
  * m will be nullptr if the weak map is not contained in a JS Object.
+ *
+ * The callback should not GC (and will assert in a debug build if it does so.)
  */
 typedef void
-(* WeakMapTraceCallback)(WeakMapTracer *trc, JSObject *m,
-                         void *k, JSGCTraceKind kkind,
-                         void *v, JSGCTraceKind vkind);
+(* WeakMapTraceCallback)(WeakMapTracer *trc, JSObject *m, JS::GCCellPtr key, JS::GCCellPtr value);
 
 struct WeakMapTracer {
     JSRuntime            *runtime;
@@ -514,7 +510,7 @@ extern JS_FRIEND_API(bool)
 ZoneGlobalsAreAllGray(JS::Zone *zone);
 
 typedef void
-(*GCThingCallback)(void *closure, void *gcthing);
+(*GCThingCallback)(void *closure, JS::GCCellPtr thing);
 
 extern JS_FRIEND_API(void)
 VisitGrayWrapperTargets(JS::Zone *zone, GCThingCallback callback, void *closure);
@@ -547,16 +543,15 @@ GetAnyCompartmentInZone(JS::Zone *zone);
  */
 namespace shadow {
 
-struct TypeObject {
+struct ObjectGroup {
     const Class *clasp;
     JSObject    *proto;
+    JSCompartment *compartment;
 };
 
 struct BaseShape {
     const js::Class *clasp_;
     JSObject *parent;
-    JSObject *_1;
-    JSCompartment *compartment;
 };
 
 class Shape {
@@ -568,13 +563,14 @@ public:
     static const uint32_t FIXED_SLOTS_SHIFT = 27;
 };
 
-// This layout is shared by all objects except for Typed Objects (which still
-// have a shape and type).
+// This layout is shared by all native objects. For non-native objects, the
+// group may always be accessed safely, and other members may be as well,
+// depending on the object's specific layout.
 struct Object {
-    shadow::Shape      *shape;
-    shadow::TypeObject *type;
-    JS::Value          *slots;
-    void               *_1;
+    shadow::ObjectGroup *group;
+    shadow::Shape       *shape;
+    JS::Value           *slots;
+    void                *_1;
 
     size_t numFixedSlots() const { return shape->slotInfo >> Shape::FIXED_SLOTS_SHIFT; }
     JS::Value *fixedSlots() const {
@@ -624,7 +620,7 @@ extern JS_FRIEND_DATA(const js::Class* const) ObjectClassPtr;
 inline const js::Class *
 GetObjectClass(JSObject *obj)
 {
-    return reinterpret_cast<const shadow::Object*>(obj)->type->clasp;
+    return reinterpret_cast<const shadow::Object*>(obj)->group->clasp;
 }
 
 inline const JSClass *
@@ -688,21 +684,22 @@ IsScopeObject(JSObject *obj);
 JS_FRIEND_API(bool)
 IsCallObject(JSObject *obj);
 
+JS_FRIEND_API(bool)
+CanAccessObjectShape(JSObject *obj);
+
 inline JSObject *
 GetObjectParent(JSObject *obj)
 {
     MOZ_ASSERT(!IsScopeObject(obj));
+    MOZ_ASSERT(CanAccessObjectShape(obj));
     return reinterpret_cast<shadow::Object*>(obj)->shape->base->parent;
 }
 
 static MOZ_ALWAYS_INLINE JSCompartment *
 GetObjectCompartment(JSObject *obj)
 {
-    return reinterpret_cast<shadow::Object*>(obj)->shape->base->compartment;
+    return reinterpret_cast<shadow::Object*>(obj)->group->compartment;
 }
-
-JS_FRIEND_API(JSObject *)
-GetObjectParentMaybeScope(JSObject *obj);
 
 JS_FRIEND_API(JSObject *)
 GetGlobalForObjectCrossCompartment(JSObject *obj);
@@ -1010,7 +1007,7 @@ GetNativeStackLimit(JSContext *cx, int extraAllowance = 0)
     JS_BEGIN_MACRO                                                              \
         int stackDummy_;                                                        \
         if (!JS_CHECK_STACK_SIZE(limit, &stackDummy_)) {                        \
-            js_ReportOverRecursed(cx);                                          \
+            js::ReportOverRecursed(cx);                                         \
             onerror;                                                            \
         }                                                                       \
     JS_END_MACRO
@@ -1036,7 +1033,7 @@ GetNativeStackLimit(JSContext *cx, int extraAllowance = 0)
 #define JS_CHECK_RECURSION_WITH_SP(cx, sp, onerror)                             \
     JS_BEGIN_MACRO                                                              \
         if (!JS_CHECK_STACK_SIZE(js::GetNativeStackLimit(cx), sp)) {            \
-            js_ReportOverRecursed(cx);                                          \
+            js::ReportOverRecursed(cx);                                         \
             onerror;                                                            \
         }                                                                       \
     JS_END_MACRO
@@ -1146,17 +1143,17 @@ struct CompartmentFilter {
 };
 
 struct AllCompartments : public CompartmentFilter {
-    virtual bool match(JSCompartment *c) const { return true; }
+    virtual bool match(JSCompartment *c) const MOZ_OVERRIDE { return true; }
 };
 
 struct ContentCompartmentsOnly : public CompartmentFilter {
-    virtual bool match(JSCompartment *c) const {
+    virtual bool match(JSCompartment *c) const MOZ_OVERRIDE {
         return !IsSystemCompartment(c);
     }
 };
 
 struct ChromeCompartmentsOnly : public CompartmentFilter {
-    virtual bool match(JSCompartment *c) const {
+    virtual bool match(JSCompartment *c) const MOZ_OVERRIDE {
         return IsSystemCompartment(c);
     }
 };
@@ -1164,13 +1161,13 @@ struct ChromeCompartmentsOnly : public CompartmentFilter {
 struct SingleCompartment : public CompartmentFilter {
     JSCompartment *ours;
     explicit SingleCompartment(JSCompartment *c) : ours(c) {}
-    virtual bool match(JSCompartment *c) const { return c == ours; }
+    virtual bool match(JSCompartment *c) const MOZ_OVERRIDE { return c == ours; }
 };
 
 struct CompartmentsWithPrincipals : public CompartmentFilter {
     JSPrincipals *principals;
     explicit CompartmentsWithPrincipals(JSPrincipals *p) : principals(p) {}
-    virtual bool match(JSCompartment *c) const {
+    virtual bool match(JSCompartment *c) const MOZ_OVERRIDE {
         return JS_GetCompartmentPrincipals(c) == principals;
     }
 };
@@ -1187,14 +1184,23 @@ NukeCrossCompartmentWrappers(JSContext* cx,
  * The DOMProxyShadowsCheck function will be called to check if the property for
  * id should be gotten from the prototype, or if there is an own property that
  * shadows it.
- * If DoesntShadow is returned then the slot at listBaseExpandoSlot should
- * either be undefined or point to an expando object that would contain the own
- * property.
- * If DoesntShadowUnique is returned then the slot at listBaseExpandoSlot should
- * contain a private pointer to a ExpandoAndGeneration, which contains a
- * JS::Value that should either be undefined or point to an expando object, and
- * a uint32 value. If that value changes then the IC for getting a property will
- * be invalidated.
+ * * If ShadowsViaDirectExpando is returned, then the slot at
+ *   listBaseExpandoSlot contains an expando object which has the property in
+ *   question.
+ * * If ShadowsViaIndirectExpando is returned, then the slot at
+ *   listBaseExpandoSlot contains a private pointer to an ExpandoAndGeneration
+ *   and the expando object in the ExpandoAndGeneration has the property in
+ *   question.
+ * * If DoesntShadow is returned then the slot at listBaseExpandoSlot should
+ *   either be undefined or point to an expando object that would contain the
+ *   own property.
+ * * If DoesntShadowUnique is returned then the slot at listBaseExpandoSlot
+ *   should contain a private pointer to a ExpandoAndGeneration, which contains
+ *   a JS::Value that should either be undefined or point to an expando object,
+ *   and a uint32 value. If that value changes then the IC for getting a
+ *   property will be invalidated.
+ * * If Shadows is returned, that means the property is an own property of the
+ *   proxy but doesn't live on the expando object.
  */
 
 struct ExpandoAndGeneration {
@@ -1227,7 +1233,9 @@ typedef enum DOMProxyShadowsResult {
   ShadowCheckFailed,
   Shadows,
   DoesntShadow,
-  DoesntShadowUnique
+  DoesntShadowUnique,
+  ShadowsViaDirectExpando,
+  ShadowsViaIndirectExpando
 } DOMProxyShadowsResult;
 typedef DOMProxyShadowsResult
 (* DOMProxyShadowsCheck)(JSContext* cx, JS::HandleObject object, JS::HandleId id);
@@ -1238,6 +1246,11 @@ SetDOMProxyInformation(const void *domProxyHandlerFamily, uint32_t domProxyExpan
 const void *GetDOMProxyHandlerFamily();
 uint32_t GetDOMProxyExpandoSlot();
 DOMProxyShadowsCheck GetDOMProxyShadowsCheck();
+inline bool DOMProxyIsShadowing(DOMProxyShadowsResult result) {
+    return result == Shadows ||
+           result == ShadowsViaDirectExpando ||
+           result == ShadowsViaIndirectExpando;
+}
 
 /* Implemented in jsdate.cpp. */
 
@@ -1267,10 +1280,10 @@ typedef enum JSErrNum {
     JSErr_Limit
 } JSErrNum;
 
-extern JS_FRIEND_API(const JSErrorFormatString *)
-js_GetErrorMessage(void *userRef, const unsigned errorNumber);
-
 namespace js {
+
+extern JS_FRIEND_API(const JSErrorFormatString *)
+GetErrorMessage(void *userRef, const unsigned errorNumber);
 
 // AutoStableStringChars is here so we can use it in ErrorReport.  It
 // should get moved out of here if we can manage it.  See bug 1040316.
@@ -1338,8 +1351,8 @@ class MOZ_STACK_CLASS AutoStableStringChars
     }
 
   private:
-    AutoStableStringChars(const AutoStableStringChars &other) MOZ_DELETE;
-    void operator=(const AutoStableStringChars &other) MOZ_DELETE;
+    AutoStableStringChars(const AutoStableStringChars &other) = delete;
+    void operator=(const AutoStableStringChars &other) = delete;
 };
 
 // Creates a string of the form |ErrorType: ErrorMessage| for a JSErrorReport,
@@ -1368,8 +1381,11 @@ struct MOZ_STACK_CLASS JS_FRIEND_API(ErrorReport)
     // More or less an equivalent of JS_ReportErrorNumber/js_ReportErrorNumberVA
     // but fills in an ErrorReport instead of reporting it.  Uses varargs to
     // make it simpler to call js_ExpandErrorArguments.
-    void populateUncaughtExceptionReport(JSContext *cx, ...);
-    void populateUncaughtExceptionReportVA(JSContext *cx, va_list ap);
+    //
+    // Returns false if we fail to actually populate the ErrorReport
+    // for some reason (probably out of memory).
+    bool populateUncaughtExceptionReport(JSContext *cx, ...);
+    bool populateUncaughtExceptionReportVA(JSContext *cx, va_list ap);
 
     // We may have a provided JSErrorReport, so need a way to represent that.
     JSErrorReport *reportp;
@@ -1404,18 +1420,17 @@ struct MOZ_STACK_CLASS JS_FRIEND_API(ErrorReport)
     bool ownsMessageAndReport;
 };
 
-} /* namespace js */
-
-
-/* Implemented in jsclone.cpp. */
-
+/* Implemented in vm/StructuredClone.cpp. */
 extern JS_FRIEND_API(uint64_t)
-js_GetSCOffset(JSStructuredCloneWriter* writer);
+GetSCOffset(JSStructuredCloneWriter *writer);
 
-namespace js {
 namespace Scalar {
 
-/* Scalar types which can appear in typed arrays and typed objects. */
+/* Scalar types which can appear in typed arrays and typed objects.  The enum
+ * values need to be kept in sync with the JS_SCALARTYPEREPR_ constants, as
+ * well as the TypedArrayObject::classes and TypedArrayObject::protoClasses
+ * definitions.
+ */
 enum Type {
     Int8 = 0,
     Uint8,
@@ -1432,7 +1447,13 @@ enum Type {
      */
     Uint8Clamped,
 
-    TypeMax
+    /*
+     * SIMD types don't have their own TypedArray equivalent, for now.
+     */
+    MaxTypedArrayViewType,
+
+    Float32x4,
+    Int32x4
 };
 
 static inline size_t
@@ -1452,9 +1473,55 @@ byteSize(Type atype)
         return 4;
       case Float64:
         return 8;
+      case Int32x4:
+      case Float32x4:
+        return 16;
       default:
         MOZ_CRASH("invalid scalar type");
     }
+}
+
+static inline bool
+isSimdType(Type atype) {
+    switch (atype) {
+      case Int8:
+      case Uint8:
+      case Uint8Clamped:
+      case Int16:
+      case Uint16:
+      case Int32:
+      case Uint32:
+      case Float32:
+      case Float64:
+        return false;
+      case Int32x4:
+      case Float32x4:
+        return true;
+      case MaxTypedArrayViewType:
+        break;
+    }
+    MOZ_CRASH("invalid scalar type");
+}
+
+static inline size_t
+scalarByteSize(Type atype) {
+    switch (atype) {
+      case Int32x4:
+      case Float32x4:
+        return 4;
+      case Int8:
+      case Uint8:
+      case Uint8Clamped:
+      case Int16:
+      case Uint16:
+      case Int32:
+      case Uint32:
+      case Float32:
+      case Float64:
+      case MaxTypedArrayViewType:
+        break;
+    }
+    MOZ_CRASH("invalid simd type");
 }
 
 } /* namespace Scalar */
@@ -1814,7 +1881,7 @@ extern JS_FRIEND_API(JSObject *)
 JS_GetObjectAsArrayBuffer(JSObject *obj, uint32_t *length, uint8_t **data);
 
 /*
- * Get the type of elements in a typed array, or TypeMax if a DataView.
+ * Get the type of elements in a typed array, or MaxTypedArrayViewType if a DataView.
  *
  * |obj| must have passed a JS_IsArrayBufferView/JS_Is*Array test, or somehow
  * be known that it would pass such a test: it is an ArrayBufferView or a
@@ -2157,7 +2224,6 @@ struct JSJitInfo {
         Getter,
         Setter,
         Method,
-        ParallelNative,
         StaticMethod,
         // Must be last
         OpTypeCount
@@ -2212,11 +2278,6 @@ struct JSJitInfo {
         AliasSetCount
     };
 
-    bool hasParallelNative() const
-    {
-        return type() == ParallelNative;
-    }
-
     bool needsOuterizedThisObject() const
     {
         return type() != Getter && type() != Setter;
@@ -2246,8 +2307,6 @@ struct JSJitInfo {
         JSJitGetterOp getter;
         JSJitSetterOp setter;
         JSJitMethodOp method;
-        /* An alternative native that's safe to call in parallel mode. */
-        JSParallelNative parallelNative;
         /* A DOM static method, used for Promise wrappers */
         JSNative staticMethod;
     };
@@ -2331,45 +2390,6 @@ struct JSTypedMethodJitInfo
                                                  when argument coercions can
                                                  have side-effects. */
 };
-
-namespace JS {
-namespace detail {
-
-/* NEVER DEFINED, DON'T USE.  For use by JS_CAST_PARALLEL_NATIVE_TO only. */
-inline int CheckIsParallelNative(JSParallelNative parallelNative);
-
-} // namespace detail
-} // namespace JS
-
-#define JS_CAST_PARALLEL_NATIVE_TO(v, To) \
-    (static_cast<void>(sizeof(JS::detail::CheckIsParallelNative(v))), \
-     reinterpret_cast<To>(v))
-
-/*
- * You may ask yourself: why do we define a wrapper around a wrapper here?
- * The answer is that some compilers don't understand initializing a union
- * as we do below with a construct like:
- *
- * reinterpret_cast<JSJitGetterOp>(JSParallelNativeThreadSafeWrapper<op>)
- *
- * (We need the reinterpret_cast because we must initialize the union with
- * a datum of the type of the union's first member.)
- *
- * Presumably this has something to do with template instantiation.
- * Initializing with a normal function pointer seems to work fine. Hence
- * the ugliness that you see before you.
- */
-#define JS_JITINFO_NATIVE_PARALLEL(infoName, parallelOp)                \
-    const JSJitInfo infoName =                                          \
-        {{JS_CAST_PARALLEL_NATIVE_TO(parallelOp, JSJitGetterOp)},0,0,JSJitInfo::ParallelNative,JSJitInfo::AliasEverything,JSVAL_TYPE_MISSING,false,false,false,false,false,0}
-
-#define JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(infoName, wrapperName, serialOp) \
-    bool wrapperName##_ParallelNativeThreadSafeWrapper(js::ForkJoinContext *cx, unsigned argc, \
-                                                       JS::Value *vp)   \
-    {                                                                   \
-        return JSParallelNativeThreadSafeWrapper<serialOp>(cx, argc, vp); \
-    }                                                                   \
-    JS_JITINFO_NATIVE_PARALLEL(infoName, wrapperName##_ParallelNativeThreadSafeWrapper)
 
 static MOZ_ALWAYS_INLINE const JSJitInfo *
 FUNCTION_VALUE_TO_JITINFO(const JS::Value& v)
@@ -2569,28 +2589,6 @@ GetElementsWithAdder(JSContext *cx, JS::HandleObject obj, JS::HandleObject recei
 JS_FRIEND_API(bool)
 ForwardToNative(JSContext *cx, JSNative native, const JS::CallArgs &args);
 
-/* ES5 8.12.8. */
-extern JS_FRIEND_API(bool)
-DefaultValue(JSContext *cx, JS::HandleObject obj, JSType hint, JS::MutableHandleValue vp);
-
-/*
- * Helper function. To approximate a call to the [[DefineOwnProperty]] internal
- * method described in ES5, first call this, then call JS_DefinePropertyById.
- *
- * JS_DefinePropertyById by itself does not enforce the invariants on
- * non-configurable properties when obj->isNative(). This function performs the
- * relevant checks (specified in ES5 8.12.9 [[DefineOwnProperty]] steps 1-11),
- * but only if obj is native.
- *
- * The reason for the messiness here is that ES5 uses [[DefineOwnProperty]] as
- * a sort of extension point, but there is no hook in js::Class,
- * js::ProxyHandler, or the JSAPI with precisely the right semantics for it.
- */
-extern JS_FRIEND_API(bool)
-CheckDefineProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::HandleValue value,
-                    unsigned attrs,
-                    JSPropertyOp getter = nullptr, JSStrictPropertyOp setter = nullptr);
-
 /*
  * Helper function for HTMLDocument and HTMLFormElement.
  *
@@ -2663,16 +2661,34 @@ SetJitExceptionHandler(JitExceptionHandler handler);
 extern JS_FRIEND_API(JSObject *)
 GetObjectEnvironmentObjectForFunction(JSFunction *fun);
 
+/*
+ * Get the stored principal of the stack frame this SavedFrame object
+ * represents.  note that this is not the same thing as the object principal of
+ * the object itself.  Do NOT pass a non-SavedFrame object here.
+ */
+extern JS_FRIEND_API(JSPrincipals *)
+GetSavedFramePrincipals(JS::HandleObject savedFrame);
+
+/*
+ * Get the first SavedFrame object in this SavedFrame stack whose principals are
+ * subsumed by the cx's principals. If there is no such frame, return nullptr.
+ *
+ * Do NOT pass a non-SavedFrame object here.
+ *
+ * The savedFrame and cx do not need to be in the same compartment.
+ */
+extern JS_FRIEND_API(JSObject *)
+GetFirstSubsumedSavedFrame(JSContext *cx, JS::HandleObject savedFrame);
+
+extern JS_FRIEND_API(bool)
+ReportIsNotFunction(JSContext *cx, JS::HandleValue v);
+
+extern JS_FRIEND_API(bool)
+DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
+                  JS::Handle<JSPropertyDescriptor> descriptor, bool *bp);
+
 } /* namespace js */
 
-extern JS_FRIEND_API(bool)
-js_DefineOwnProperty(JSContext *cx, JSObject *objArg, jsid idArg,
-                     JS::Handle<JSPropertyDescriptor> descriptor, bool *bp);
-
-extern JS_FRIEND_API(bool)
-js_ReportIsNotFunction(JSContext *cx, JS::HandleValue v);
-
-#ifdef JSGC_GENERATIONAL
 extern JS_FRIEND_API(void)
 JS_StoreObjectPostBarrierCallback(JSContext* cx,
                                   void (*callback)(JSTracer *trc, JSObject *key, void *data),
@@ -2682,16 +2698,5 @@ extern JS_FRIEND_API(void)
 JS_StoreStringPostBarrierCallback(JSContext* cx,
                                   void (*callback)(JSTracer *trc, JSString *key, void *data),
                                   JSString *key, void *data);
-#else
-inline void
-JS_StoreObjectPostBarrierCallback(JSContext* cx,
-                                  void (*callback)(JSTracer *trc, JSObject *key, void *data),
-                                  JSObject *key, void *data) {}
-
-inline void
-JS_StoreStringPostBarrierCallback(JSContext* cx,
-                                  void (*callback)(JSTracer *trc, JSString *key, void *data),
-                                  JSString *key, void *data) {}
-#endif /* JSGC_GENERATIONAL */
 
 #endif /* jsfriendapi_h */

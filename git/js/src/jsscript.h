@@ -63,12 +63,12 @@ namespace frontend {
  * for exception unwinding, but storing their boundaries here is helpful for
  * heuristics that need to know whether a given op is inside a loop.
  */
-typedef enum JSTryNoteKind {
+enum JSTryNoteKind {
     JSTRY_CATCH,
     JSTRY_FINALLY,
     JSTRY_ITER,
     JSTRY_LOOP
-} JSTryNoteKind;
+};
 
 /*
  * Exception handling record.
@@ -744,7 +744,7 @@ GeneratorKindFromBits(unsigned val) {
 /*
  * NB: after a successful XDR_DECODE, XDRScript callers must do any required
  * subsequent set-up of owning function or script object and then call
- * js_CallNewScriptHook.
+ * CallNewScriptHook.
  */
 template<XDRMode mode>
 bool
@@ -823,7 +823,7 @@ class JSScript : public js::gc::TenuredCell
 
   private:
     /* Persistent type information retained across GCs. */
-    js::types::TypeScript *types_;
+    js::TypeScript *types_;
 
     // This script's ScriptSourceObject, or a CCW thereof.
     //
@@ -832,17 +832,11 @@ class JSScript : public js::gc::TenuredCell
     js::HeapPtrObject sourceObject_;
 
     js::HeapPtrFunction function_;
-
-    // For callsite clones, which cannot have enclosing scopes, the original
-    // function; otherwise the enclosing scope
-    js::HeapPtrObject   enclosingScopeOrOriginalFunction_;
+    js::HeapPtrObject   enclosingStaticScope_;
 
     /* Information attached by Baseline/Ion for sequential mode execution. */
     js::jit::IonScript *ion;
     js::jit::BaselineScript *baseline;
-
-    /* Information attached by Ion for parallel mode execution */
-    js::jit::IonScript *parallelIon;
 
     /* Information used to re-lazify a lazily-parsed interpreted function. */
     js::LazyScript *lazyScript;
@@ -877,13 +871,6 @@ class JSScript : public js::gc::TenuredCell
                                   * ion, also increased for any inlined scripts.
                                   * Reset if the script's JIT code is forcibly
                                   * discarded. */
-
-#ifdef DEBUG
-    // Unique identifier within the compartment for this script, used for
-    // printing analysis information.
-    uint32_t        id_;
-    uint32_t        idpad;
-#endif
 
     // 16-bit fields.
 
@@ -972,14 +959,6 @@ class JSScript : public js::gc::TenuredCell
     // 'this', 'arguments' and f.apply() are used. This is likely to be a wrapper.
     bool usesArgumentsApplyAndThis_:1;
 
-    /* script is attempted to be cloned anew at each callsite. This is
-       temporarily needed for ParallelArray selfhosted code until type
-       information can be made context sensitive. See discussion in
-       bug 826148. */
-    bool shouldCloneAtCallsite_:1;
-    bool isCallsiteClone_:1; /* is a callsite clone; has a link to the original function */
-    bool shouldInline_:1;    /* hint to inline when possible */
-
     // IonMonkey compilation hints.
     bool failedBoundsCheck_:1; /* script has had hoisted bounds checks fail */
     bool failedShapeGuard_:1; /* script has had hoisted shape guard fail */
@@ -1013,6 +992,18 @@ class JSScript : public js::gc::TenuredCell
     // This should be a uint32 but is instead a bool so that MSVC packs it
     // correctly.
     bool typesGeneration_:1;
+
+    // Do not relazify this script. This is only used by the relazify()
+    // testing function for scripts that are on the stack. Usually we don't
+    // relazify functions in compartments with scripts on the stack.
+    bool doNotRelazify_:1;
+
+    // Add padding so JSScript is gc::Cell aligned. Make padding protected
+    // instead of private to suppress -Wunused-private-field compiler warnings.
+  protected:
+#if JS_BITS_PER_WORD == 32
+    uint32_t padding;
+#endif
 
     //
     // End of fields.  Start methods.
@@ -1202,19 +1193,6 @@ class JSScript : public js::gc::TenuredCell
     }
     void setUsesArgumentsApplyAndThis() { usesArgumentsApplyAndThis_ = true; }
 
-    bool shouldCloneAtCallsite() const {
-        return shouldCloneAtCallsite_;
-    }
-    bool shouldInline() const {
-        return shouldInline_;
-    }
-
-    void setShouldCloneAtCallsite() { shouldCloneAtCallsite_ = true; }
-    void setShouldInline() { shouldInline_ = true; }
-
-    bool isCallsiteClone() const {
-        return isCallsiteClone_;
-    }
     bool isGeneratorExp() const { return isGeneratorExp_; }
 
     bool failedBoundsCheck() const {
@@ -1311,8 +1289,12 @@ class JSScript : public js::gc::TenuredCell
         typesGeneration_ = (bool) generation;
     }
 
+    void setDoNotRelazify(bool b) {
+        doNotRelazify_ = b;
+    }
+
     bool hasAnyIonScript() const {
-        return hasIonScript() || hasParallelIonScript();
+        return hasIonScript();
     }
 
     bool hasIonScript() const {
@@ -1372,39 +1354,11 @@ class JSScript : public js::gc::TenuredCell
         return ion->pendingBuilder();
     }
 
-    bool hasParallelIonScript() const {
-        return parallelIon && parallelIon != ION_DISABLED_SCRIPT && parallelIon != ION_COMPILING_SCRIPT;
-    }
-
-    bool canParallelIonCompile() const {
-        return parallelIon != ION_DISABLED_SCRIPT;
-    }
-
-    bool isParallelIonCompilingOffThread() const {
-        return parallelIon == ION_COMPILING_SCRIPT;
-    }
-
-    js::jit::IonScript *parallelIonScript() const {
-        MOZ_ASSERT(hasParallelIonScript());
-        return parallelIon;
-    }
-    js::jit::IonScript *maybeParallelIonScript() const {
-        return parallelIon;
-    }
-    void setParallelIonScript(js::jit::IonScript *ionScript) {
-        if (hasParallelIonScript())
-            js::jit::IonScript::writeBarrierPre(zone(), parallelIon);
-        parallelIon = ionScript;
-    }
-
     static size_t offsetOfBaselineScript() {
         return offsetof(JSScript, baseline);
     }
     static size_t offsetOfIonScript() {
         return offsetof(JSScript, ion);
-    }
-    static size_t offsetOfParallelIonScript() {
-        return offsetof(JSScript, parallelIon);
     }
     static size_t offsetOfBaselineOrIonRaw() {
         return offsetof(JSScript, baselineOrIonRaw);
@@ -1418,7 +1372,8 @@ class JSScript : public js::gc::TenuredCell
 
     bool isRelazifiable() const {
         return (selfHosted() || lazyScript) && !types_ &&
-               !isGenerator() && !hasBaselineScript() && !hasAnyIonScript();
+               !isGenerator() && !hasBaselineScript() && !hasAnyIonScript() &&
+               !hasScriptCounts() && !doNotRelazify_;
     }
     void setLazyScript(js::LazyScript *lazy) {
         lazyScript = lazy;
@@ -1446,12 +1401,6 @@ class JSScript : public js::gc::TenuredCell
      */
     inline void ensureNonLazyCanonicalFunction(JSContext *cx);
 
-    /*
-     * Donor provided itself to callsite clone; null if this is non-clone.
-     */
-    JSFunction *donorFunction() const;
-    void setIsCallsiteClone(JSObject *fun);
-
     JSFlatString *sourceData(JSContext *cx);
 
     static bool loadSource(JSContext *cx, js::ScriptSource *ss, bool *worked);
@@ -1472,27 +1421,19 @@ class JSScript : public js::gc::TenuredCell
     /* Return whether this script was compiled for 'eval' */
     bool isForEval() { return isCachedEval() || isActiveEval(); }
 
-#ifdef DEBUG
-    unsigned id();
-#else
-    unsigned id() { return 0; }
-#endif
-
     /* Ensure the script has a TypeScript. */
     inline bool ensureHasTypes(JSContext *cx);
 
-    inline js::types::TypeScript *types();
+    inline js::TypeScript *types();
 
-    void maybeSweepTypes(js::types::AutoClearTypeInferenceStateOnOOM *oom);
+    void maybeSweepTypes(js::AutoClearTypeInferenceStateOnOOM *oom);
 
     inline js::GlobalObject &global() const;
     js::GlobalObject &uninlinedGlobal() const;
 
     /* See StaticScopeIter comment. */
     JSObject *enclosingStaticScope() const {
-        if (isCallsiteClone())
-            return nullptr;
-        return enclosingScopeOrOriginalFunction_;
+        return enclosingStaticScope_;
     }
 
   private:
@@ -1643,7 +1584,15 @@ class JSScript : public js::gc::TenuredCell
         return arr->vector[index];
     }
 
-    js::NestedScopeObject *getStaticScope(jsbytecode *pc);
+    js::NestedScopeObject *getStaticBlockScope(jsbytecode *pc);
+
+    // Returns the innermost static scope at pc if it falls within the extent
+    // of the script. Returns nullptr otherwise.
+    JSObject *innermostStaticScopeInScript(jsbytecode *pc);
+
+    // As innermostStaticScopeInScript, but returns the enclosing static scope
+    // if the innermost static scope falls without the extent of the script.
+    JSObject *innermostStaticScope(jsbytecode *pc);
 
     /*
      * The isEmpty method tells whether this script has code that computes any
@@ -1875,16 +1824,20 @@ class LazyScript : public gc::TenuredCell
     // Heap allocated table with any free variables or inner functions.
     void *table_;
 
+    // Add padding so LazyScript is gc::Cell aligned. Make padding protected
+    // instead of private to suppress -Wunused-private-field compiler warnings.
+  protected:
 #if JS_BITS_PER_WORD == 32
     uint32_t padding;
 #endif
+  private:
 
     struct PackedView {
         // Assorted bits that should really be in ScriptSourceObject.
         uint32_t version : 8;
 
         uint32_t numFreeVariables : 24;
-        uint32_t numInnerFunctions : 23;
+        uint32_t numInnerFunctions : 22;
 
         uint32_t generatorKindBits : 2;
 
@@ -1892,6 +1845,7 @@ class LazyScript : public gc::TenuredCell
         uint32_t strict : 1;
         uint32_t bindingsAccessedDynamically : 1;
         uint32_t hasDebuggerStatement : 1;
+        uint32_t hasDirectEval : 1;
         uint32_t directlyInsideEval : 1;
         uint32_t usesArgumentsApplyAndThis : 1;
         uint32_t hasBeenCloned : 1;
@@ -1955,6 +1909,7 @@ class LazyScript : public gc::TenuredCell
     ScriptSource *scriptSource() const {
         return sourceObject()->source();
     }
+    ScriptSource *maybeForwardedScriptSource() const;
     bool mutedErrors() const {
         return scriptSource()->mutedErrors();
     }
@@ -2017,6 +1972,13 @@ class LazyScript : public gc::TenuredCell
         p_.hasDebuggerStatement = true;
     }
 
+    bool hasDirectEval() const {
+        return p_.hasDirectEval;
+    }
+    void setHasDirectEval() {
+        p_.hasDirectEval = true;
+    }
+
     bool directlyInsideEval() const {
         return p_.directlyInsideEval;
     }
@@ -2045,8 +2007,8 @@ class LazyScript : public gc::TenuredCell
         p_.treatAsRunOnce = true;
     }
 
-    ScriptSource *source() const {
-        return sourceObject()->source();
+    const char *filename() const {
+        return scriptSource()->filename();
     }
     uint32_t begin() const {
         return begin_;
@@ -2104,8 +2066,8 @@ struct SharedScriptData
     }
 
   private:
-    SharedScriptData() MOZ_DELETE;
-    SharedScriptData(const SharedScriptData&) MOZ_DELETE;
+    SharedScriptData() = delete;
+    SharedScriptData(const SharedScriptData&) = delete;
 };
 
 struct ScriptBytecodeHasher
@@ -2158,16 +2120,16 @@ struct GSNCache;
 jssrcnote *
 GetSrcNote(GSNCache &cache, JSScript *script, jsbytecode *pc);
 
-} /* namespace js */
-
 extern jssrcnote *
-js_GetSrcNote(JSContext *cx, JSScript *script, jsbytecode *pc);
+GetSrcNote(JSContext *cx, JSScript *script, jsbytecode *pc);
 
 extern jsbytecode *
-js_LineNumberToPC(JSScript *script, unsigned lineno);
+LineNumberToPC(JSScript *script, unsigned lineno);
 
 extern JS_FRIEND_API(unsigned)
-js_GetScriptLineExtent(JSScript *script);
+GetScriptLineExtent(JSScript *script);
+
+} /* namespace js */
 
 namespace js {
 

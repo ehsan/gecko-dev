@@ -19,12 +19,6 @@
 using namespace js;
 using namespace js::gc;
 
-#ifdef JS_HAS_SYMBOLS
-#define STD_ITERATOR_ID  SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator)
-#else
-#define STD_ITERATOR_ID  ::js::NameToId(cx->names().std_iterator)
-#endif
-
 bool
 js::ForOfPIC::Chain::initialize(JSContext *cx)
 {
@@ -52,7 +46,7 @@ js::ForOfPIC::Chain::initialize(JSContext *cx)
     disabled_ = true;
 
     // Look up Array.prototype[@@iterator], ensure it's a slotful shape.
-    Shape *iterShape = arrayProto->lookup(cx, STD_ITERATOR_ID);
+    Shape *iterShape = arrayProto->lookup(cx, SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator));
     if (!iterShape || !iterShape->hasSlot() || !iterShape->hasDefaultGetter())
         return true;
 
@@ -151,7 +145,7 @@ js::ForOfPIC::Chain::tryOptimizeArray(JSContext *cx, HandleArrayObject array, bo
         return true;
 
     // Ensure array doesn't define @@iterator directly.
-    if (array->lookup(cx, STD_ITERATOR_ID))
+    if (array->lookup(cx, SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator)))
         return true;
 
     // Good to optimize now, create stub to add.
@@ -176,7 +170,7 @@ js::ForOfPIC::Chain::getMatchingStub(JSObject *obj)
 
     // Check if there is a matching stub.
     for (Stub *stub = stubs(); stub != nullptr; stub = stub->next()) {
-        if (stub->shape() == obj->lastProperty())
+        if (stub->shape() == obj->maybeShape())
             return stub;
     }
 
@@ -302,8 +296,8 @@ ForOfPIC_traceObject(JSTracer *trc, JSObject *obj)
 
 const Class ForOfPIC::jsclass = {
     "ForOfPIC", JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS,
-    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, ForOfPIC_finalize,
+    nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, nullptr, ForOfPIC_finalize,
     nullptr,              /* call        */
     nullptr,              /* hasInstance */
     nullptr,              /* construct   */
@@ -314,7 +308,7 @@ const Class ForOfPIC::jsclass = {
 js::ForOfPIC::createForOfPICObject(JSContext *cx, Handle<GlobalObject*> global)
 {
     assertSameCompartment(cx, global);
-    NativeObject *obj = NewNativeObjectWithGivenProto(cx, &ForOfPIC::jsclass, nullptr, global);
+    NativeObject *obj = NewNativeObjectWithGivenProto(cx, &ForOfPIC::jsclass, NullPtr(), global);
     if (!obj)
         return nullptr;
     ForOfPIC::Chain *chain = cx->new_<ForOfPIC::Chain>();

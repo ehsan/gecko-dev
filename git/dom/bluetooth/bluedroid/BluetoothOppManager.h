@@ -77,6 +77,7 @@ private:
   BluetoothOppManager();
   bool Init();
   void HandleShutdown();
+  void HandleVolumeStateChanged(nsISupports* aSubject);
 
   void StartFileTransfer();
   void StartSendingNextFile();
@@ -85,8 +86,7 @@ private:
   void ReceivingFileConfirmation();
   bool CreateFile();
   bool WriteToFile(const uint8_t* aData, int aDataLength);
-  void RecoverFileName();
-  void DeleteDummyFile();
+  void RestoreReceivedFileAndNotify();
   void DeleteReceivedFile();
   void ReplyToConnect();
   void ReplyToDisconnectOrAbort();

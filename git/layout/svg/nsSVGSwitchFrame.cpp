@@ -80,7 +80,7 @@ nsSVGSwitchFrame::Init(nsIContent*       aContent,
                        nsContainerFrame* aParent,
                        nsIFrame*         aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::svgSwitch),
+  NS_ASSERTION(aContent->IsSVGElement(nsGkAtoms::svgSwitch),
                "Content is not an SVG switch");
 
   nsSVGSwitchFrameBase::Init(aContent, aParent, aPrevInFlow);
@@ -120,7 +120,7 @@ nsSVGSwitchFrame::PaintSVG(gfxContext& aContext,
   nsIFrame *kid = GetActiveChildFrame();
   if (kid) {
     gfxMatrix tm = aTransform;
-    if (kid->GetContent()->IsSVG()) {
+    if (kid->GetContent()->IsSVGElement()) {
       tm = static_cast<nsSVGElement*>(kid->GetContent())->
              PrependLocalTransformsTo(tm, nsSVGElement::eUserSpaceToParent);
     }
@@ -179,8 +179,8 @@ nsSVGSwitchFrame::ReflowSVG()
   NS_ASSERTION(nsSVGUtils::OuterSVGIsCallingReflowSVG(this),
                "This call is probably a wasteful mistake");
 
-  NS_ABORT_IF_FALSE(!(GetStateBits() & NS_FRAME_IS_NONDISPLAY),
-                    "ReflowSVG mechanism not designed for this");
+  MOZ_ASSERT(!(GetStateBits() & NS_FRAME_IS_NONDISPLAY),
+             "ReflowSVG mechanism not designed for this");
 
   if (!nsSVGUtils::NeedsReflowSVG(this)) {
     return;
@@ -207,8 +207,8 @@ nsSVGSwitchFrame::ReflowSVG()
   nsIFrame *child = GetActiveChildFrame();
   nsISVGChildFrame* svgChild = do_QueryFrame(child);
   if (svgChild) {
-    NS_ABORT_IF_FALSE(!(child->GetStateBits() & NS_FRAME_IS_NONDISPLAY),
-                      "Check for this explicitly in the |if|, then");
+    MOZ_ASSERT(!(child->GetStateBits() & NS_FRAME_IS_NONDISPLAY),
+               "Check for this explicitly in the |if|, then");
     svgChild->ReflowSVG();
 
     // We build up our child frame overflows here instead of using
@@ -241,7 +241,7 @@ nsSVGSwitchFrame::GetBBoxContribution(const Matrix &aToBBoxUserspace,
   if (svgKid) {
     nsIContent *content = kid->GetContent();
     gfxMatrix transform = ThebesMatrix(aToBBoxUserspace);
-    if (content->IsSVG()) {
+    if (content->IsSVGElement()) {
       transform = static_cast<nsSVGElement*>(content)->
                     PrependLocalTransformsTo(transform);
     }

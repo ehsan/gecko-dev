@@ -7,8 +7,6 @@
 #ifndef js_StructuredClone_h
 #define js_StructuredClone_h
 
-#include "mozilla/NullPtr.h"
-
 #include <stdint.h>
 
 #include "jstypes.h"
@@ -212,8 +210,8 @@ class JS_PUBLIC_API(JSAutoStructuredCloneBuffer) {
 
   private:
     // Copy and assignment are not supported.
-    JSAutoStructuredCloneBuffer(const JSAutoStructuredCloneBuffer &other) MOZ_DELETE;
-    JSAutoStructuredCloneBuffer &operator=(const JSAutoStructuredCloneBuffer &other) MOZ_DELETE;
+    JSAutoStructuredCloneBuffer(const JSAutoStructuredCloneBuffer &other) = delete;
+    JSAutoStructuredCloneBuffer &operator=(const JSAutoStructuredCloneBuffer &other) = delete;
 };
 
 // The range of tag values the application may use for its own custom object types.
@@ -240,6 +238,9 @@ JS_WriteUint32Pair(JSStructuredCloneWriter *w, uint32_t tag, uint32_t data);
 
 JS_PUBLIC_API(bool)
 JS_WriteBytes(JSStructuredCloneWriter *w, const void *p, size_t len);
+
+JS_PUBLIC_API(bool)
+JS_WriteString(JSStructuredCloneWriter *w, JS::HandleString str);
 
 JS_PUBLIC_API(bool)
 JS_WriteTypedArray(JSStructuredCloneWriter *w, JS::HandleValue v);

@@ -6,8 +6,11 @@
 
 #include "jit/RematerializedFrame.h"
 
+#include "mozilla/SizePrintfMacros.h"
+
 #include "jit/JitFrames.h"
 #include "vm/ArgumentsObject.h"
+#include "vm/Debugger.h"
 
 #include "jsscriptinlines.h"
 #include "jit/JitFrames-inl.h"
@@ -29,7 +32,7 @@ struct CopyValueToRematerializedFrame
 };
 
 RematerializedFrame::RematerializedFrame(JSContext *cx, uint8_t *top, unsigned numActualArgs,
-                                         InlineFrameIterator &iter)
+                                         InlineFrameIterator &iter, MaybeReadFallback &fallback)
   : prevUpToDate_(false),
     isDebuggee_(iter.script()->isDebuggee()),
     top_(top),
@@ -39,16 +42,16 @@ RematerializedFrame::RematerializedFrame(JSContext *cx, uint8_t *top, unsigned n
     script_(iter.script())
 {
     CopyValueToRematerializedFrame op(slots_);
-    MaybeReadFallback fallback(MagicValue(JS_OPTIMIZED_OUT));
     iter.readFrameArgsAndLocals(cx, op, op, &scopeChain_, &hasCallObj_, &returnValue_,
                                 &argsObj_, &thisValue_, ReadFrame_Actuals,
                                 fallback);
 }
 
 /* static */ RematerializedFrame *
-RematerializedFrame::New(JSContext *cx, uint8_t *top, InlineFrameIterator &iter)
+RematerializedFrame::New(JSContext *cx, uint8_t *top, InlineFrameIterator &iter,
+                         MaybeReadFallback &fallback)
 {
-    unsigned numFormals = iter.isFunctionFrame() ? iter.callee()->nargs() : 0;
+    unsigned numFormals = iter.isFunctionFrame() ? iter.calleeTemplate()->nargs() : 0;
     unsigned argSlots = Max(numFormals, iter.numActualArgs());
     size_t numBytes = sizeof(RematerializedFrame) +
         (argSlots + iter.script()->nfixed()) * sizeof(Value) -
@@ -58,12 +61,13 @@ RematerializedFrame::New(JSContext *cx, uint8_t *top, InlineFrameIterator &iter)
     if (!buf)
         return nullptr;
 
-    return new (buf) RematerializedFrame(cx, top, iter.numActualArgs(), iter);
+    return new (buf) RematerializedFrame(cx, top, iter.numActualArgs(), iter, fallback);
 }
 
 /* static */ bool
 RematerializedFrame::RematerializeInlineFrames(JSContext *cx, uint8_t *top,
                                                InlineFrameIterator &iter,
+                                               MaybeReadFallback &fallback,
                                                Vector<RematerializedFrame *> &frames)
 {
     if (!frames.resize(iter.frameCount()))
@@ -71,14 +75,10 @@ RematerializedFrame::RematerializeInlineFrames(JSContext *cx, uint8_t *top,
 
     while (true) {
         size_t frameNo = iter.frameNo();
-        RematerializedFrame *frame = RematerializedFrame::New(cx, top, iter);
+        RematerializedFrame *frame = RematerializedFrame::New(cx, top, iter, fallback);
         if (!frame)
             return false;
         if (frame->scopeChain()) {
-            // Frames are often rematerialized with the cx inside a Debugger's
-            // compartment. To create CallObjects, we need to be in that
-            // frame's compartment.
-            AutoCompartment ac(cx, frame->scopeChain());
             if (!EnsureHasScopeObjects(cx, frame))
                 return false;
         }
@@ -98,6 +98,7 @@ RematerializedFrame::FreeInVector(Vector<RematerializedFrame *> &frames)
 {
     for (size_t i = 0; i < frames.length(); i++) {
         RematerializedFrame *f = frames[i];
+        Debugger::assertNotInFrameMaps(f);
         f->RematerializedFrame::~RematerializedFrame();
         js_free(f);
     }
@@ -161,7 +162,7 @@ RematerializedFrame::dump()
     if (isFunctionFrame()) {
         fprintf(stderr, "  callee fun: ");
 #ifdef DEBUG
-        js_DumpValue(ObjectValue(*callee()));
+        DumpValue(ObjectValue(*callee()));
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -169,8 +170,8 @@ RematerializedFrame::dump()
         fprintf(stderr, "  global frame, no callee\n");
     }
 
-    fprintf(stderr, "  file %s line %u offset %zu\n",
-            script()->filename(), (unsigned) script()->lineno(),
+    fprintf(stderr, "  file %s line %" PRIuSIZE " offset %" PRIuSIZE "\n",
+            script()->filename(), script()->lineno(),
             script()->pcToOffset(pc()));
 
     fprintf(stderr, "  script = %p\n", (void*) script());
@@ -178,7 +179,7 @@ RematerializedFrame::dump()
     if (isFunctionFrame()) {
         fprintf(stderr, "  scope chain: ");
 #ifdef DEBUG
-        js_DumpValue(ObjectValue(*scopeChain()));
+        DumpValue(ObjectValue(*scopeChain()));
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -186,7 +187,7 @@ RematerializedFrame::dump()
         if (hasArgsObj()) {
             fprintf(stderr, "  args obj: ");
 #ifdef DEBUG
-            js_DumpValue(ObjectValue(argsObj()));
+            DumpValue(ObjectValue(argsObj()));
 #else
             fprintf(stderr, "?\n");
 #endif
@@ -194,7 +195,7 @@ RematerializedFrame::dump()
 
         fprintf(stderr, "  this: ");
 #ifdef DEBUG
-        js_DumpValue(thisValue());
+        DumpValue(thisValue());
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -205,7 +206,7 @@ RematerializedFrame::dump()
             else
                 fprintf(stderr, "  overflown (arg %d): ", i);
 #ifdef DEBUG
-            js_DumpValue(argv()[i]);
+            DumpValue(argv()[i]);
 #else
             fprintf(stderr, "?\n");
 #endif
@@ -214,7 +215,7 @@ RematerializedFrame::dump()
         for (unsigned i = 0; i < script()->nfixed(); i++) {
             fprintf(stderr, "  local %d: ", i);
 #ifdef DEBUG
-            js_DumpValue(locals()[i]);
+            DumpValue(locals()[i]);
 #else
             fprintf(stderr, "?\n");
 #endif

@@ -15,7 +15,8 @@ function test_expired_histogram() {
   var clone_id = "ExpiredClone";
   var dummy = Telemetry.newHistogram(histogram_id, "28.0a1", Telemetry.HISTOGRAM_EXPONENTIAL, 1, 2, 3);
   var dummy_clone = Telemetry.histogramFrom(clone_id, test_expired_id);
-  var rh = Telemetry.registeredHistograms([]);
+  var rh = Telemetry.registeredHistograms(Ci.nsITelemetry.DATASET_RELEASE_CHANNEL_OPTIN, []);
+  Assert.ok(!!rh);
 
   dummy.add(1);
   dummy_clone.add(1);
@@ -390,7 +391,7 @@ function numberRange(lower, upper)
 function test_keyed_boolean_histogram()
 {
   const KEYED_ID = "test::keyed::boolean";
-  KEYS = ["key"+(i+1) for (i of numberRange(0, 2))];
+  let KEYS = ["key"+(i+1) for (i of numberRange(0, 2))];
   KEYS.push("漢語");
   let histogramBase = {
     "min": 1,
@@ -558,6 +559,190 @@ function test_keyed_histogram() {
   test_keyed_flag_histogram();
 }
 
+function test_datasets()
+{
+  // Check that datasets work as expected.
+
+  const RELEASE_CHANNEL_OPTOUT = Ci.nsITelemetry.DATASET_RELEASE_CHANNEL_OPTOUT;
+  const RELEASE_CHANNEL_OPTIN  = Ci.nsITelemetry.DATASET_RELEASE_CHANNEL_OPTIN;
+
+  // Histograms should default to the extended dataset
+  let h = Telemetry.getHistogramById("TELEMETRY_TEST_FLAG");
+  Assert.equal(h.dataset(), RELEASE_CHANNEL_OPTIN);
+  h = Telemetry.getKeyedHistogramById("TELEMETRY_TEST_KEYED_FLAG");
+  Assert.equal(h.dataset(), RELEASE_CHANNEL_OPTIN);
+
+  // Check test histograms with explicit dataset definitions
+  h = Telemetry.getHistogramById("TELEMETRY_TEST_RELEASE_OPTIN");
+  Assert.equal(h.dataset(), RELEASE_CHANNEL_OPTIN);
+  h = Telemetry.getHistogramById("TELEMETRY_TEST_RELEASE_OPTOUT");
+  Assert.equal(h.dataset(), RELEASE_CHANNEL_OPTOUT);
+  h = Telemetry.getKeyedHistogramById("TELEMETRY_TEST_KEYED_RELEASE_OPTIN");
+  Assert.equal(h.dataset(), RELEASE_CHANNEL_OPTIN);
+  h = Telemetry.getKeyedHistogramById("TELEMETRY_TEST_KEYED_RELEASE_OPTOUT");
+  Assert.equal(h.dataset(), RELEASE_CHANNEL_OPTOUT);
+
+  // Check that registeredHistogram works properly
+  let registered = Telemetry.registeredHistograms(RELEASE_CHANNEL_OPTIN, []);
+  registered = new Set(registered);
+  Assert.ok(registered.has("TELEMETRY_TEST_FLAG"));
+  Assert.ok(registered.has("TELEMETRY_TEST_RELEASE_OPTIN"));
+  Assert.ok(registered.has("TELEMETRY_TEST_RELEASE_OPTOUT"));
+  registered = Telemetry.registeredHistograms(RELEASE_CHANNEL_OPTOUT, []);
+  registered = new Set(registered);
+  Assert.ok(!registered.has("TELEMETRY_TEST_FLAG"));
+  Assert.ok(!registered.has("TELEMETRY_TEST_RELEASE_OPTIN"));
+  Assert.ok(registered.has("TELEMETRY_TEST_RELEASE_OPTOUT"));
+
+  // Check that registeredKeyedHistograms works properly
+  registered = Telemetry.registeredKeyedHistograms(RELEASE_CHANNEL_OPTIN, []);
+  registered = new Set(registered);
+  Assert.ok(registered.has("TELEMETRY_TEST_KEYED_FLAG"));
+  Assert.ok(registered.has("TELEMETRY_TEST_KEYED_RELEASE_OPTOUT"));
+  registered = Telemetry.registeredKeyedHistograms(RELEASE_CHANNEL_OPTOUT, []);
+  registered = new Set(registered);
+  Assert.ok(!registered.has("TELEMETRY_TEST_KEYED_FLAG"));
+  Assert.ok(registered.has("TELEMETRY_TEST_KEYED_RELEASE_OPTOUT"));
+}
+
+function test_subsession() {
+  if (gIsAndroid) {
+    // We don't support subsessions yet on Android.
+    return;
+  }
+
+  const ID = "TELEMETRY_TEST_COUNT";
+  const FLAG = "TELEMETRY_TEST_FLAG";
+  let h = Telemetry.getHistogramById(ID);
+  let flag = Telemetry.getHistogramById(FLAG);
+
+  // Both original and duplicate should start out the same.
+  h.clear();
+  let snapshot = Telemetry.histogramSnapshots;
+  let subsession = Telemetry.snapshotSubsessionHistograms();
+  Assert.ok(!(ID in snapshot));
+  Assert.ok(!(ID in subsession));
+
+  // They should instantiate and pick-up the count.
+  h.add(1);
+  snapshot = Telemetry.histogramSnapshots;
+  subsession = Telemetry.snapshotSubsessionHistograms();
+  Assert.ok(ID in snapshot);
+  Assert.ok(ID in subsession);
+  Assert.equal(snapshot[ID].sum, 1);
+  Assert.equal(subsession[ID].sum, 1);
+
+  // They should still reset properly.
+  h.clear();
+  snapshot = Telemetry.histogramSnapshots;
+  subsession = Telemetry.snapshotSubsessionHistograms();
+  Assert.ok(!(ID in snapshot));
+  Assert.ok(!(ID in subsession));
+
+  // Both should instantiate and pick-up the count.
+  h.add(1);
+  snapshot = Telemetry.histogramSnapshots;
+  subsession = Telemetry.snapshotSubsessionHistograms();
+  Assert.equal(snapshot[ID].sum, 1);
+  Assert.equal(subsession[ID].sum, 1);
+
+  // Check that we are able to only reset the duplicate histogram.
+  h.clear(true);
+  snapshot = Telemetry.histogramSnapshots;
+  subsession = Telemetry.snapshotSubsessionHistograms();
+  Assert.ok(ID in snapshot);
+  Assert.ok(ID in subsession);
+  Assert.equal(snapshot[ID].sum, 1);
+  Assert.equal(subsession[ID].sum, 0);
+
+  // Both should register the next count.
+  h.add(1);
+  snapshot = Telemetry.histogramSnapshots;
+  subsession = Telemetry.snapshotSubsessionHistograms();
+  Assert.equal(snapshot[ID].sum, 2);
+  Assert.equal(subsession[ID].sum, 1);
+
+  // Retrieve a subsession snapshot and pass the flag to
+  // clear subsession histograms too.
+  h.clear();
+  flag.clear();
+  h.add(1);
+  flag.add(1);
+  snapshot = Telemetry.histogramSnapshots;
+  subsession = Telemetry.snapshotSubsessionHistograms(true);
+  Assert.ok(ID in snapshot);
+  Assert.ok(ID in subsession);
+  Assert.ok(FLAG in snapshot);
+  Assert.ok(FLAG in subsession);
+  Assert.equal(snapshot[ID].sum, 1);
+  Assert.equal(subsession[ID].sum, 1);
+  Assert.equal(snapshot[FLAG].sum, 1);
+  Assert.equal(subsession[FLAG].sum, 1);
+
+  // The next subsesssion snapshot should show the histograms
+  // got reset.
+  snapshot = Telemetry.histogramSnapshots;
+  subsession = Telemetry.snapshotSubsessionHistograms();
+  Assert.ok(ID in snapshot);
+  Assert.ok(ID in subsession);
+  Assert.ok(FLAG in snapshot);
+  Assert.ok(FLAG in subsession);
+  Assert.equal(snapshot[ID].sum, 1);
+  Assert.equal(subsession[ID].sum, 0);
+  Assert.equal(snapshot[FLAG].sum, 1);
+  Assert.equal(subsession[FLAG].sum, 0);
+}
+
+function test_keyed_subsession() {
+  if (gIsAndroid) {
+    // We don't support subsessions yet on Android.
+    return;
+  }
+
+  let h = Telemetry.getKeyedHistogramById("TELEMETRY_TEST_KEYED_FLAG");
+  const KEY = "foo";
+
+  // Both original and subsession should start out the same.
+  h.clear();
+  Assert.ok(!(KEY in h.snapshot()));
+  Assert.ok(!(KEY in h.subsessionSnapshot()));
+  Assert.equal(h.snapshot(KEY).sum, 0);
+  Assert.equal(h.subsessionSnapshot(KEY).sum, 0);
+
+  // Both should register the flag.
+  h.add(KEY, 1);
+  Assert.ok(KEY in h.snapshot());
+  Assert.ok(KEY in h.subsessionSnapshot());
+  Assert.equal(h.snapshot(KEY).sum, 1);
+  Assert.equal(h.subsessionSnapshot(KEY).sum, 1);
+
+  // Check that we are able to only reset the subsession histogram.
+  h.clear(true);
+  Assert.ok(KEY in h.snapshot());
+  Assert.ok(!(KEY in h.subsessionSnapshot()));
+  Assert.equal(h.snapshot(KEY).sum, 1);
+  Assert.equal(h.subsessionSnapshot(KEY).sum, 0);
+
+  // Setting the flag again should make both match again.
+  h.add(KEY, 1);
+  Assert.ok(KEY in h.snapshot());
+  Assert.ok(KEY in h.subsessionSnapshot());
+  Assert.equal(h.snapshot(KEY).sum, 1);
+  Assert.equal(h.subsessionSnapshot(KEY).sum, 1);
+
+  // Check that "snapshot and clear" works properly.
+  let snapshot = h.snapshot();
+  let subsession = h.snapshotSubsessionAndClear();
+  Assert.ok(KEY in snapshot);
+  Assert.ok(KEY in subsession);
+  Assert.equal(snapshot[KEY].sum, 1);
+  Assert.equal(subsession[KEY].sum, 1);
+
+  subsession = h.subsessionSnapshot();
+  Assert.ok(!(KEY in subsession));
+  Assert.equal(h.subsessionSnapshot(KEY).sum, 0);
+}
+
 function generateUUID() {
   let str = Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator).generateUUID().toString();
   // strip {}
@@ -592,4 +777,7 @@ function run_test()
   test_extended_stats();
   test_expired_histogram();
   test_keyed_histogram();
+  test_datasets();
+  test_subsession();
+  test_keyed_subsession();
 }

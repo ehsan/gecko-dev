@@ -54,7 +54,7 @@ class BumpChunk
     char *bumpBase() const { return limit - bumpSpaceSize; }
 
     explicit BumpChunk(size_t bumpSpaceSize)
-      : bump(reinterpret_cast<char *>(MOZ_THIS_IN_INITIALIZER_LIST()) + sizeof(BumpChunk)),
+      : bump(reinterpret_cast<char *>(this) + sizeof(BumpChunk)),
         limit(bump + bumpSpaceSize),
         next_(nullptr), bumpSpaceSize(bumpSpaceSize)
     {
@@ -148,9 +148,6 @@ class BumpChunk
 
 } // namespace detail
 
-MOZ_NORETURN void
-CrashAtUnhandlableOOM(const char *reason);
-
 // LIFO bump allocator: used for phase-oriented and fast LIFO allocations.
 //
 // Note: |latest| is not necessary "last". We leave BumpChunks latent in the
@@ -167,8 +164,8 @@ class LifoAlloc
     size_t      curSize_;
     size_t      peakSize_;
 
-    void operator=(const LifoAlloc &) MOZ_DELETE;
-    LifoAlloc(const LifoAlloc &) MOZ_DELETE;
+    void operator=(const LifoAlloc &) = delete;
+    LifoAlloc(const LifoAlloc &) = delete;
 
     // Return a BumpChunk that can perform an allocation of at least size |n|
     // and add it to the chain appropriately.
@@ -313,7 +310,7 @@ class LifoAlloc
     // The caller is responsible for initialization.
     template <typename T>
     T *newArrayUninitialized(size_t count) {
-        if (count & mozilla::tl::MulOverflowMask<sizeof(T)>::value)
+        if (MOZ_UNLIKELY(count & mozilla::tl::MulOverflowMask<sizeof(T)>::value))
             return nullptr;
         return static_cast<T *>(alloc(sizeof(T) * count));
     }
@@ -530,7 +527,7 @@ class LifoAllocPolicy
     {}
     template <typename T>
     T *pod_malloc(size_t numElems) {
-        if (numElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value)
+        if (MOZ_UNLIKELY(numElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value))
             return nullptr;
         size_t bytes = numElems * sizeof(T);
         void *p = fb == Fallible ? alloc_.alloc(bytes) : alloc_.allocInfallible(bytes);

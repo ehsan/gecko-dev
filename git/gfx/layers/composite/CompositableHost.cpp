@@ -181,9 +181,6 @@ CompositableHost::Create(const TextureInfo& aTextureInfo)
   case CompositableType::IMAGE_BRIDGE:
     NS_ERROR("Cannot create an image bridge compositable this way");
     break;
-  case CompositableType::CONTENT_INC:
-    result = new ContentHostIncremental(aTextureInfo);
-    break;
   case CompositableType::CONTENT_TILED:
     result = new TiledContentHost(aTextureInfo);
     break;
@@ -207,7 +204,6 @@ CompositableHost::Create(const TextureInfo& aTextureInfo)
   return result;
 }
 
-#ifdef MOZ_DUMP_PAINTING
 void
 CompositableHost::DumpTextureHost(std::stringstream& aStream, TextureHost* aTexture)
 {
@@ -218,15 +214,8 @@ CompositableHost::DumpTextureHost(std::stringstream& aStream, TextureHost* aText
   if (!dSurf) {
     return;
   }
-  gfxPlatform *platform = gfxPlatform::GetPlatform();
-  RefPtr<gfx::DrawTarget> dt = platform->CreateDrawTargetForData(dSurf->GetData(),
-                                                                 dSurf->GetSize(),
-                                                                 dSurf->Stride(),
-                                                                 dSurf->GetFormat());
-  // TODO stream surface
-  gfxUtils::DumpAsDataURI(dt, stderr);
+  aStream << gfxUtils::GetAsLZ4Base64Str(dSurf).get();
 }
-#endif
 
 namespace CompositableMap {
 

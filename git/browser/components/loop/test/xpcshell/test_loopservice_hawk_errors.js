@@ -37,6 +37,7 @@ add_task(function* setup_server() {
 
 add_task(function* error_offline() {
   Services.io.offline = true;
+  Services.prefs.setBoolPref("network.dns.offline-localhost", false);
   yield MozLoopServiceInternal.hawkRequestInternal(LOOP_SESSION_TYPE.GUEST, "/offline", "GET").then(
     () => Assert.ok(false, "Should have rejected"),
     (error) => {
@@ -74,7 +75,6 @@ add_task(function* guest_401() {
       Assert.strictEqual(err.code, 401);
       Assert.strictEqual(err.friendlyMessage, getLoopString("session_expired_error_description"));
       Assert.equal(err.friendlyDetails, null);
-      Assert.equal(err.friendlyDetailsButtonLabel, null);
   });
 });
 
@@ -115,7 +115,6 @@ add_task(function* error_404() {
       Assert.strictEqual(err.code, 404);
       Assert.strictEqual(err.friendlyMessage, getLoopString("generic_failure_title"));
       Assert.equal(err.friendlyDetails, null);
-      Assert.equal(err.friendlyDetailsButtonLabel, null);
   });
 });
 
@@ -149,7 +148,6 @@ add_task(function* profile_500() {
       Assert.strictEqual(err.code, 500);
       Assert.strictEqual(err.friendlyMessage, getLoopString("problem_accessing_account"));
       Assert.equal(err.friendlyDetails, null);
-      Assert.equal(err.friendlyDetailsButtonLabel, null);
   });
 });
 
@@ -182,6 +180,7 @@ function run_test() {
     Services.prefs.clearUserPref("loop.hawk-session-token");
     Services.prefs.clearUserPref("loop.hawk-session-token.fxa");
     Services.prefs.clearUserPref("loop.urlsExpiryTimeSeconds");
+    Services.prefs.clearUserPref("network.dns.offline-localhost");
     MozLoopService.errors.clear();
   });
 

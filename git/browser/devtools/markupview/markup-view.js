@@ -14,15 +14,20 @@ const COLLAPSE_ATTRIBUTE_LENGTH = 120;
 const COLLAPSE_DATA_URL_REGEX = /^data.+base64/;
 const COLLAPSE_DATA_URL_LENGTH = 60;
 const NEW_SELECTION_HIGHLIGHTER_TIMER = 1000;
+const GRAB_DELAY = 400;
+const DRAG_DROP_AUTOSCROLL_EDGE_DISTANCE = 50;
+const DRAG_DROP_MIN_AUTOSCROLL_SPEED = 5;
+const DRAG_DROP_MAX_AUTOSCROLL_SPEED = 15;
 
 const {UndoStack} = require("devtools/shared/undo");
 const {editableField, InplaceEditor} = require("devtools/shared/inplace-editor");
 const {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
 const {HTMLEditor} = require("devtools/markupview/html-editor");
-const promise = require("devtools/toolkit/deprecated-sync-thenables");
+const promise = require("resource://gre/modules/Promise.jsm").Promise;
 const {Tooltip} = require("devtools/shared/widgets/Tooltip");
 const EventEmitter = require("devtools/toolkit/event-emitter");
 const Heritage = require("sdk/core/heritage");
+const ELLIPSIS = Services.prefs.getComplexValue("intl.ellipsis", Ci.nsIPrefLocalizedString).data;
 
 Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource://gre/modules/devtools/Templater.jsm");
@@ -61,6 +66,7 @@ function MarkupView(aInspector, aFrame, aControllerWindow) {
   this._inspector = aInspector;
   this.walker = this._inspector.walker;
   this._frame = aFrame;
+  this.win = this._frame.contentWindow;
   this.doc = this._frame.contentDocument;
   this._elt = this.doc.querySelector("#root");
   this.htmlEditor = new HTMLEditor(this.doc);
@@ -92,6 +98,9 @@ function MarkupView(aInspector, aFrame, aControllerWindow) {
   this.walker.on("display-change", this._boundOnDisplayChange);
 
   this._onMouseClick = this._onMouseClick.bind(this);
+
+  this._onMouseUp = this._onMouseUp.bind(this);
+  this.doc.body.addEventListener("mouseup", this._onMouseUp);
 
   this._boundOnNewSelection = this._onNewSelection.bind(this);
   this._inspector.selection.on("new-node-front", this._boundOnNewSelection);
@@ -155,7 +164,49 @@ MarkupView.prototype = {
     }
   },
 
+  isDragging: false,
+
   _onMouseMove: function(event) {
+    if (this.isDragging) {
+      event.preventDefault();
+      this._dragStartEl = event.target;
+
+      let docEl = this.doc.documentElement;
+
+      if (this._scrollInterval) {
+        this.win.clearInterval(this._scrollInterval);
+      }
+
+      // Auto-scroll when the mouse approaches top/bottom edge
+      let distanceFromBottom = docEl.clientHeight - event.pageY + this.win.scrollY,
+          distanceFromTop = event.pageY - this.win.scrollY;
+
+      if (distanceFromBottom <= DRAG_DROP_AUTOSCROLL_EDGE_DISTANCE) {
+        // Map our distance from 0-50 to 5-15 range so the speed is kept
+        // in a range not too fast, not too slow
+        let speed = map(distanceFromBottom, 0, DRAG_DROP_AUTOSCROLL_EDGE_DISTANCE,
+                        DRAG_DROP_MIN_AUTOSCROLL_SPEED, DRAG_DROP_MAX_AUTOSCROLL_SPEED);
+        // Here, we use minus because the value of speed - 15 is always negative
+        // and it makes the speed relative to the distance between mouse and edge
+        // the closer to the edge, the faster
+        this._scrollInterval = this.win.setInterval(() => {
+          docEl.scrollTop -= speed - DRAG_DROP_MAX_AUTOSCROLL_SPEED;
+        }, 0);
+      }
+
+      if (distanceFromTop <= DRAG_DROP_AUTOSCROLL_EDGE_DISTANCE) {
+        // refer to bottom edge's comments for more info
+        let speed = map(distanceFromTop, 0, DRAG_DROP_AUTOSCROLL_EDGE_DISTANCE,
+                        DRAG_DROP_MIN_AUTOSCROLL_SPEED, DRAG_DROP_MAX_AUTOSCROLL_SPEED);
+
+        this._scrollInterval = this.win.setInterval(() => {
+          docEl.scrollTop += speed - DRAG_DROP_MAX_AUTOSCROLL_SPEED;
+        }, 0);
+      }
+
+      return;
+    };
+
     let target = event.target;
 
     // Search target for a markupContainer reference, if not found, walk up
@@ -197,6 +248,18 @@ MarkupView.prototype = {
     }
   },
 
+  _onMouseUp: function() {
+    if (this._lastDropTarget) {
+      this.indicateDropTarget(null);
+    }
+    if (this._lastDragTarget) {
+      this.indicateDragTarget(null);
+    }
+    if (this._scrollInterval) {
+      this.win.clearInterval(this._scrollInterval);
+    }
+  },
+
   _hoveredNode: null,
 
   /**
@@ -217,6 +280,11 @@ MarkupView.prototype = {
   },
 
   _onMouseLeave: function() {
+    if (this._scrollInterval) {
+      this.win.clearInterval(this._scrollInterval);
+    }
+    if (this.isDragging) return;
+
     this._hideBoxModel(true);
     if (this._hoveredNode) {
       this.getContainer(this._hoveredNode).hovered = false;
@@ -365,12 +433,21 @@ MarkupView.prototype = {
       }
 
       this.showNode(selection.nodeFront, true).then(() => {
+        if (this._destroyer) {
+          return promise.reject("markupview destroyed");
+        }
         if (selection.reason !== "treepanel") {
           this.markNodeAsSelected(selection.nodeFront);
         }
         done();
-      }, (e) => {
-        console.error(e);
+      }).then(null, e => {
+        if (!this._destroyer) {
+          console.error(e);
+        } else {
+          console.warn("Could not mark node as selected, the markup-view was " +
+            "destroyed while showing the node.");
+        }
+
         done();
       });
     } else {
@@ -426,8 +503,10 @@ MarkupView.prototype = {
         }
         break;
       case Ci.nsIDOMKeyEvent.DOM_VK_DELETE:
-      case Ci.nsIDOMKeyEvent.DOM_VK_BACK_SPACE:
         this.deleteNode(this._selectedContainer.node);
+        break;
+      case Ci.nsIDOMKeyEvent.DOM_VK_BACK_SPACE:
+        this.deleteNode(this._selectedContainer.node, true);
         break;
       case Ci.nsIDOMKeyEvent.DOM_VK_HOME:
         let rootContainer = this.getContainer(this._rootNode);
@@ -508,8 +587,12 @@ MarkupView.prototype = {
   /**
    * Delete a node from the DOM.
    * This is an undoable action.
+   *
+   * @param {NodeFront} aNode The node to remove.
+   * @param {boolean} moveBackward If set to true, focus the previous sibling,
+   *  otherwise the next one.
    */
-  deleteNode: function(aNode) {
+  deleteNode: function(aNode, moveBackward) {
     if (aNode.isDocumentElement ||
         aNode.nodeType == Ci.nsIDOMNode.DOCUMENT_TYPE_NODE ||
         aNode.isAnonymous) {
@@ -524,8 +607,15 @@ MarkupView.prototype = {
       let nextSibling = null;
       this.undo.do(() => {
         this.walker.removeNode(aNode).then(siblings => {
-          let focusNode = siblings.previousSibling || parent;
           nextSibling = siblings.nextSibling;
+          let focusNode = moveBackward ? siblings.previousSibling : nextSibling;
+
+          // If we can't move as the user wants, we move to the other direction.
+          // If there is no sibling elements anymore, move to the parent node.
+          if (!focusNode) {
+            focusNode = nextSibling || siblings.previousSibling || parent;
+          }
+
           if (container.selected) {
             this.navigate(this.getContainer(focusNode));
           }
@@ -743,6 +833,9 @@ MarkupView.prototype = {
     }
 
     return this._waitForChildren().then(() => {
+      if (this._destroyer) {
+        return promise.reject("markupview destroyed");
+      }
       return this._ensureVisible(aNode);
     }).then(() => {
       // Why is this not working?
@@ -764,6 +857,10 @@ MarkupView.prototype = {
    */
   _expandContainer: function(aContainer) {
     return this._updateChildren(aContainer, {expand: true}).then(() => {
+      if (this._destroyer) {
+        console.warn("Could not expand the node, the markup-view was destroyed");
+        return;
+      } 
       aContainer.expanded = true;
     });
   },
@@ -1269,9 +1366,13 @@ MarkupView.prototype = {
       return this._destroyer;
     }
 
+    this._destroyer = promise.resolve();
+
     // Note that if the toolbox is closed, this will work fine, but will fail
     // in case the browser is closed and will trigger a noSuchActor message.
-    this._destroyer = this._hideBoxModel();
+    // We ignore the promise that |_hideBoxModel| returns, since we should still
+    // proceed with the rest of destruction if it fails.
+    this._hideBoxModel();
 
     this._elt.removeEventListener("click", this._onMouseClick, false);
 
@@ -1330,6 +1431,12 @@ MarkupView.prototype = {
 
     this.tooltip.destroy();
     this.tooltip = null;
+
+    this.win = null;
+    this.doc = null;
+
+    this._lastDropTarget = null;
+    this._lastDragTarget = null;
 
     return this._destroyer;
   },
@@ -1418,6 +1525,80 @@ MarkupView.prototype = {
       this._updatePreview();
       this._previewBar.classList.remove("hide");
     }, 1000);
+  },
+
+  /**
+   * Takes an element as it's only argument and marks the element
+   * as the drop target
+   */
+  indicateDropTarget: function(el) {
+    if (this._lastDropTarget) {
+      this._lastDropTarget.classList.remove("drop-target");
+    }
+
+    if (!el) return;
+
+    let target = el.classList.contains("tag-line") ?
+                 el : el.querySelector(".tag-line") || el.closest(".tag-line");
+    if (!target) return;
+
+    target.classList.add("drop-target");
+    this._lastDropTarget = target;
+  },
+
+  /**
+   * Takes an element to mark it as indicator of dragging target's initial place
+   */
+  indicateDragTarget: function(el) {
+    if (this._lastDragTarget) {
+      this._lastDragTarget.classList.remove("drag-target");
+    }
+
+    if (!el) return;
+
+    let target = el.classList.contains("tag-line") ?
+                 el : el.querySelector(".tag-line") || el.closest(".tag-line");
+
+    if (!target) return;
+
+    target.classList.add("drag-target");
+    this._lastDragTarget = target;
+  },
+
+  /**
+   * Used to get the nodes required to modify the markup after dragging the element (parent/nextSibling)
+   */
+  get dropTargetNodes() {
+    let target = this._lastDropTarget;
+
+    if (!target) {
+      return null;
+    }
+
+    let parent, nextSibling;
+
+    if (this._lastDropTarget.previousElementSibling &&
+        this._lastDropTarget.previousElementSibling.nodeName.toLowerCase() === "ul") {
+      parent = target.parentNode.container.node;
+      nextSibling = null;
+    } else {
+      parent = target.parentNode.container.node.parentNode();
+      nextSibling = target.parentNode.container.node;
+    }
+
+    if (nextSibling && nextSibling.isBeforePseudoElement) {
+      nextSibling = target.parentNode.parentNode.children[1].container.node;
+    }
+    if (nextSibling && nextSibling.isAfterPseudoElement) {
+      parent = target.parentNode.container.node.parentNode();
+      nextSibling = null;
+    }
+
+    if (parent.nodeType !== Ci.nsIDOMNode.ELEMENT_NODE) {
+      return null;
+    }
+
+    return {parent, nextSibling};
   }
 };
 
@@ -1451,6 +1632,7 @@ MarkupContainer.prototype = {
     this.markup = markupView;
     this.node = node;
     this.undo = this.markup.undo;
+    this.win = this.markup._frame.contentWindow;
 
     // The template will fill the following properties
     this.elt = null;
@@ -1461,15 +1643,16 @@ MarkupContainer.prototype = {
     this.markup.template(templateID, this);
     this.elt.container = this;
 
-    // Binding event listeners
     this._onMouseDown = this._onMouseDown.bind(this);
-    this.elt.addEventListener("mousedown", this._onMouseDown, false);
-
     this._onToggle = this._onToggle.bind(this);
+    this._onMouseUp = this._onMouseUp.bind(this);
+    this._onMouseMove = this._onMouseMove.bind(this);
 
-    // Expanding/collapsing the node on dblclick of the whole tag-line element
+    // Binding event listeners
+    this.elt.addEventListener("mousedown", this._onMouseDown, false);
+    this.markup.doc.body.addEventListener("mouseup", this._onMouseUp, true);
+    this.markup.doc.body.addEventListener("mousemove", this._onMouseMove, true);
     this.elt.addEventListener("dblclick", this._onToggle, false);
-
     if (this.expander) {
       this.expander.addEventListener("click", this._onToggle, false);
     }
@@ -1588,24 +1771,109 @@ MarkupContainer.prototype = {
     return this.elt.parentNode ? this.elt.parentNode.container : null;
   },
 
+  _isMouseDown: false,
+  _isDragging: false,
+  _dragStartY: 0,
+
+  set isDragging(isDragging) {
+    this._isDragging = isDragging;
+    this.markup.isDragging = isDragging;
+
+    if (isDragging) {
+      this.elt.classList.add("dragging");
+      this.markup.doc.body.classList.add("dragging");
+    } else {
+      this.elt.classList.remove("dragging");
+      this.markup.doc.body.classList.remove("dragging");
+    }
+  },
+
+  get isDragging() {
+    return this._isDragging;
+  },
+
   _onMouseDown: function(event) {
     let target = event.target;
 
-    // Target may be a resource link (generated by the output-parser)
+    // The "show more nodes" button (already has its onclick).
+    if (target.nodeName === "button") {
+      return;
+    }
+
+    // output-parser generated links handling.
     if (target.nodeName === "a") {
       event.stopPropagation();
       event.preventDefault();
       let browserWin = this.markup._inspector.target
                            .tab.ownerDocument.defaultView;
       browserWin.openUILinkIn(target.href, "tab");
+      return;
     }
-    // Or it may be the "show more nodes" button (which already has its onclick)
-    // Else, it's the container itself
-    else if (target.nodeName !== "button") {
-      this.hovered = false;
-      this.markup.navigate(this);
-      event.stopPropagation();
+
+    // target is the MarkupContainer itself.
+    this._isMouseDown = true;
+    this.hovered = false;
+    this.markup.navigate(this);
+    event.stopPropagation();
+
+    // Start dragging the container after a delay.
+    this.markup._dragStartEl = target;
+    this.win.setTimeout(() => {
+      // Make sure the mouse is still down and on target.
+      if (!this._isMouseDown || this.markup._dragStartEl !== target ||
+          this.node.isPseudoElement || this.node.isAnonymous ||
+          !this.win.getSelection().isCollapsed) {
+        return;
+      }
+      this.isDragging = true;
+
+      this._dragStartY = event.pageY;
+      this.markup.indicateDropTarget(this.elt);
+
+      // If this is the last child, use the closing <div.tag-line> of parent as indicator
+      this.markup.indicateDragTarget(this.elt.nextElementSibling ||
+                                     this.markup.getContainer(this.node.parentNode()).closeTagLine);
+    }, GRAB_DELAY);
+  },
+
+  /**
+   * On mouse up, stop dragging.
+   */
+  _onMouseUp: function(event) {
+    this._isMouseDown = false;
+
+    if (!this.isDragging) {
+      return;
     }
+
+    this.isDragging = false;
+    this.elt.style.removeProperty("top");
+
+    let dropTargetNodes = this.markup.dropTargetNodes;
+
+    if(!dropTargetNodes) {
+      return;
+    }
+
+    this.markup.walker.insertBefore(this.node, dropTargetNodes.parent,
+                                    dropTargetNodes.nextSibling);
+  },
+
+  /**
+   * On mouse move, move the dragged element if any and indicate the drop target.
+   */
+  _onMouseMove: function(event) {
+    if (!this.isDragging) {
+      return;
+    }
+
+    let diff = event.pageY - this._dragStartY;
+    this.elt.style.top = diff + "px";
+
+    let el = this.markup.doc.elementFromPoint(event.pageX - this.win.scrollX,
+                                              event.pageY - this.win.scrollY);
+
+    this.markup.indicateDropTarget(el);
   },
 
   /**
@@ -1614,7 +1882,7 @@ MarkupContainer.prototype = {
    */
   flashMutation: function() {
     if (!this.selected) {
-      let contentWin = this.markup._frame.contentWindow;
+      let contentWin = this.win;
       this.flashed = true;
       if (this._flashMutationTimer) {
         contentWin.clearTimeout(this._flashMutationTimer);
@@ -1747,6 +2015,10 @@ MarkupContainer.prototype = {
     // Remove event listeners
     this.elt.removeEventListener("mousedown", this._onMouseDown, false);
     this.elt.removeEventListener("dblclick", this._onToggle, false);
+    this.markup.doc.body.removeEventListener("mouseup", this._onMouseUp, true);
+    this.markup.doc.body.removeEventListener("mousemove", this._onMouseMove, true);
+
+    this.win = null;
 
     if (this.expander) {
       this.expander.removeEventListener("click", this._onToggle, false);
@@ -2043,9 +2315,8 @@ TextEditor.prototype = {
   update: function() {
     if (!this.selected || !this.node.incompleteValue) {
       let text = this.node.shortValue;
-      // XXX: internationalize the elliding
       if (this.node.incompleteValue) {
-        text += "…";
+        text += ELLIPSIS;
       }
       this.value.textContent = text;
     } else {
@@ -2104,7 +2375,7 @@ function ElementEditor(aContainer, aNode) {
   }
 
   // Make the new attribute space editable.
-  editableField({
+  this.newAttr.editMode = editableField({
     element: this.newAttr,
     trigger: "dblclick",
     stopOnReturn: true,
@@ -2210,7 +2481,7 @@ ElementEditor.prototype = {
     }
 
     // Make the attribute editable.
-    editableField({
+    attr.editMode = editableField({
       element: inner,
       trigger: "dblclick",
       stopOnReturn: true,
@@ -2232,7 +2503,7 @@ ElementEditor.prototype = {
           aEditor.input.select();
         }
       },
-      done: (aVal, aCommit) => {
+      done: (aVal, aCommit, direction) => {
         if (!aCommit || aVal === initial) {
           return;
         }
@@ -2244,6 +2515,7 @@ ElementEditor.prototype = {
         // parsed out of the input element. Restore original attribute if
         // parsing fails.
         try {
+          this.refocusOnEdit(aAttr.name, attr, direction);
           this._saveAttribute(aAttr.name, undoMods);
           doMods.removeAttribute(aAttr.name);
           this._applyAttributes(aVal, attr, doMods, undoMods);
@@ -2323,10 +2595,101 @@ ElementEditor.prototype = {
   },
 
   /**
+   * Listen to mutations, and when the attribute list is regenerated
+   * try to focus on the attribute after the one that's being edited now.
+   * If the attribute order changes, go to the beginning of the attribute list.
+   */
+  refocusOnEdit: function(attrName, attrNode, direction) {
+    // Only allow one refocus on attribute change at a time, so when there's
+    // more than 1 request in parallel, the last one wins.
+    if (this._editedAttributeObserver) {
+      this.markup._inspector.off("markupmutation", this._editedAttributeObserver);
+      this._editedAttributeObserver = null;
+    }
+
+    let container = this.markup.getContainer(this.node);
+
+    let activeAttrs = [...this.attrList.childNodes].filter(el => el.style.display != "none");
+    let attributeIndex = activeAttrs.indexOf(attrNode);
+
+    let onMutations = this._editedAttributeObserver = (e, mutations) => {
+      let isDeletedAttribute = false;
+      let isNewAttribute = false;
+      for (let mutation of mutations) {
+        let inContainer = this.markup.getContainer(mutation.target) === container;
+        if (!inContainer) {
+          continue;
+        }
+
+        let isOriginalAttribute = mutation.attributeName === attrName;
+
+        isDeletedAttribute = isDeletedAttribute || isOriginalAttribute && mutation.newValue === null;
+        isNewAttribute = isNewAttribute || mutation.attributeName !== attrName;
+      }
+      let isModifiedOrder = isDeletedAttribute && isNewAttribute;
+      this._editedAttributeObserver = null;
+
+      // "Deleted" attributes are merely hidden, so filter them out.
+      let visibleAttrs = [...this.attrList.childNodes].filter(el => el.style.display != "none");
+      let activeEditor;
+      if (visibleAttrs.length > 0) {
+        if (!direction) {
+          // No direction was given; stay on current attribute.
+          activeEditor = visibleAttrs[attributeIndex];
+        } else if (isModifiedOrder) {
+          // The attribute was renamed, reordering the existing attributes.
+          // So let's go to the beginning of the attribute list for consistency.
+          activeEditor = visibleAttrs[0];
+        } else {
+          let newAttributeIndex;
+          if (isDeletedAttribute) {
+            newAttributeIndex = attributeIndex;
+          } else {
+            if (direction == Ci.nsIFocusManager.MOVEFOCUS_FORWARD) {
+              newAttributeIndex = attributeIndex + 1;
+            } else if (direction == Ci.nsIFocusManager.MOVEFOCUS_BACKWARD) {
+              newAttributeIndex = attributeIndex - 1;
+            }
+          }
+
+          // The number of attributes changed (deleted), or we moved through the array
+          // so check we're still within bounds.
+          if (newAttributeIndex >= 0 && newAttributeIndex <= visibleAttrs.length - 1) {
+            activeEditor = visibleAttrs[newAttributeIndex];
+          }
+        }
+      }
+
+      // Either we have no attributes left,
+      // or we just edited the last attribute and want to move on.
+      if (!activeEditor) {
+        activeEditor = this.newAttr;
+      }
+
+      // Refocus was triggered by tab or shift-tab.
+      // Continue in edit mode.
+      if (direction) {
+        activeEditor.editMode();
+      } else {
+        // Refocus was triggered by enter.
+        // Exit edit mode (but restore focus).
+        let editable = activeEditor === this.newAttr ? activeEditor : activeEditor.querySelector(".editable");
+        editable.focus();
+      }
+
+      this.markup.emit("refocusedonedit");
+    };
+
+    // Start listening for mutations until we find an attributes change
+    // that modifies this attribute.
+    this.markup._inspector.once("markupmutation", onMutations);
+  },
+
+  /**
    * Called when the tag name editor has is done editing.
    */
   onTagEdit: function(newTagName, isCommit) {
-    if (!isCommit || newTagName == this.node.tagName ||
+    if (!isCommit || newTagName.toLowerCase() === this.node.tagName.toLowerCase() ||
         !("editTagName" in this.markup.walker)) {
       return;
     }
@@ -2392,6 +2755,17 @@ function parseAttributeValues(attr, doc) {
 
   // Attributes return from DOMParser in reverse order from how they are entered.
   return attributes.reverse();
+}
+
+/**
+ * Map a number from one range to another.
+ */
+function map(value, oldMin, oldMax, newMin, newMax) {
+  let ratio = oldMax - oldMin;
+  if (ratio == 0) {
+    return value;
+  }
+  return newMin + (newMax - newMin) * ((value - oldMin) / ratio);
 }
 
 loader.lazyGetter(MarkupView.prototype, "strings", () => Services.strings.createBundle(

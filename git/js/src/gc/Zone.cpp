@@ -23,7 +23,7 @@ Zone * const Zone::NotOnList = reinterpret_cast<Zone *>(1);
 
 JS::Zone::Zone(JSRuntime *rt)
   : JS::shadow::Zone(rt, &rt->gc.marker),
-    allocator(this),
+    arenas(rt),
     types(this),
     compartments(),
     gcGrayRoots(),
@@ -115,7 +115,7 @@ Zone::beginSweepTypes(FreeOp *fop, bool releaseTypes)
     if (active)
         releaseTypes = false;
 
-    types::AutoClearTypeInferenceStateOnOOM oom(this);
+    AutoClearTypeInferenceStateOnOOM oom(this);
     types.beginSweep(fop, releaseTypes, oom);
 }
 
@@ -185,8 +185,7 @@ Zone::discardJitCode(FreeOp *fop)
 
         for (ZoneCellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
-            jit::FinishInvalidation<SequentialExecution>(fop, script);
-            jit::FinishInvalidation<ParallelExecution>(fop, script);
+            jit::FinishInvalidation(fop, script);
 
             /*
              * Discard baseline script if it's not marked as active. Note that
@@ -269,9 +268,17 @@ js::ZonesIter::atAtomsZone(JSRuntime *rt)
     return rt->isAtomsZone(*it);
 }
 
-bool Zone::isOnList()
+bool
+Zone::isOnList() const
 {
     return listNext_ != NotOnList;
+}
+
+Zone *
+Zone::nextZone() const
+{
+    MOZ_ASSERT(isOnList());
+    return listNext_;
 }
 
 ZoneList::ZoneList()
@@ -285,23 +292,32 @@ ZoneList::ZoneList(Zone *zone)
     zone->listNext_ = nullptr;
 }
 
+ZoneList::~ZoneList()
+{
+    MOZ_ASSERT(isEmpty());
+}
+
 void
 ZoneList::check() const
 {
 #ifdef DEBUG
     MOZ_ASSERT((head == nullptr) == (tail == nullptr));
-    if (head) {
-        Zone *zone = head;
-        while (zone != tail) {
-            zone = zone->listNext_;
-            MOZ_ASSERT(zone);
-        }
-        MOZ_ASSERT(!zone->listNext_);
+    if (!head)
+        return;
+
+    Zone *zone = head;
+    for (;;) {
+        MOZ_ASSERT(zone && zone->isOnList());
+        if  (zone == tail)
+            break;
+        zone = zone->listNext_;
     }
+    MOZ_ASSERT(!zone->listNext_);
 #endif
 }
 
-bool ZoneList::isEmpty() const
+bool
+ZoneList::isEmpty() const
 {
     return head == nullptr;
 }
@@ -310,6 +326,7 @@ Zone *
 ZoneList::front() const
 {
     MOZ_ASSERT(!isEmpty());
+    MOZ_ASSERT(head->isOnList());
     return head;
 }
 
@@ -317,11 +334,11 @@ void
 ZoneList::append(Zone *zone)
 {
     ZoneList singleZone(zone);
-    append(singleZone);
+    transferFrom(singleZone);
 }
 
 void
-ZoneList::append(ZoneList &other)
+ZoneList::transferFrom(ZoneList &other)
 {
     check();
     other.check();
@@ -332,9 +349,12 @@ ZoneList::append(ZoneList &other)
     else
         head = other.head;
     tail = other.tail;
+
+    other.head = nullptr;
+    other.tail = nullptr;
 }
 
-Zone *
+void
 ZoneList::removeFront()
 {
     MOZ_ASSERT(!isEmpty());
@@ -346,17 +366,4 @@ ZoneList::removeFront()
         tail = nullptr;
 
     front->listNext_ = Zone::NotOnList;
-    return front;
-}
-
-void
-ZoneList::transferFrom(ZoneList& other)
-{
-    MOZ_ASSERT(isEmpty());
-    other.check();
-
-    head = other.head;
-    tail = other.tail;
-    other.head = nullptr;
-    other.tail = nullptr;
 }

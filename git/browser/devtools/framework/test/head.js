@@ -8,6 +8,9 @@ const { console } = Cu.import("resource://gre/modules/devtools/Console.jsm", {})
 const { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
 const { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 
+const URL_ROOT = "http://example.com/browser/browser/devtools/framework/test/";
+const CHROME_URL_ROOT = "chrome://mochitests/content/browser/browser/devtools/framework/test/";
+
 let TargetFactory = devtools.TargetFactory;
 
 // All test are asynchronous
@@ -31,13 +34,6 @@ SimpleTest.registerCleanupFunction(() => {
   gDevTools.testing = false;
   Services.prefs.clearUserPref("devtools.dump.emit");
 });
-
-/**
- * Define an async test based on a generator function
- */
-function asyncTest(generator) {
-  return () => Task.spawn(generator).then(null, ok.bind(null, false)).then(finish);
-}
 
 /**
  * Add a new test tab in the browser and load the given url.
@@ -122,6 +118,22 @@ function once(target, eventName, useCapture=false) {
   return deferred.promise;
 }
 
+/**
+ * Some tests may need to import one or more of the test helper scripts.
+ * A test helper script is simply a js file that contains common test code that
+ * is either not common-enough to be in head.js, or that is located in a separate
+ * directory.
+ * The script will be loaded synchronously and in the test's scope.
+ * @param {String} filePath The file path, relative to the current directory.
+ *                 Examples:
+ *                 - "helper_attributes_test_runner.js"
+ *                 - "../../../commandline/test/helpers.js"
+ */
+function loadHelperScript(filePath) {
+  let testDir = gTestPath.substr(0, gTestPath.lastIndexOf("/"));
+  Services.scriptloader.loadSubScript(testDir + "/" + filePath, this);
+}
+
 function waitForTick() {
   let deferred = promise.defer();
   executeSoon(deferred.resolve);
@@ -139,4 +151,27 @@ function toggleAllTools(state) {
       Services.prefs.clearUserPref(tool.visibilityswitch);
     }
   }
+}
+
+function getChromeActors(callback)
+{
+  let { DebuggerServer } = Cu.import("resource://gre/modules/devtools/dbg-server.jsm", {});
+  let { DebuggerClient } = Cu.import("resource://gre/modules/devtools/dbg-client.jsm", {});
+
+  if (!DebuggerServer.initialized) {
+    DebuggerServer.init();
+    DebuggerServer.addBrowserActors();
+  }
+  DebuggerServer.allowChromeProcess = true;
+
+  let client = new DebuggerClient(DebuggerServer.connectPipe());
+  client.connect(() => {
+    client.attachProcess().then(response => {
+      callback(client, response.form);
+    });
+  });
+
+  SimpleTest.registerCleanupFunction(() => {
+    DebuggerServer.destroy();
+  });
 }

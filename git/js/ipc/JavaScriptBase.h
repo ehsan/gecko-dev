@@ -84,10 +84,10 @@ class JavaScriptBase : public WrapperOwner, public WrapperAnswer, public Base
                             bool *result) {
         return Answer::RecvIsExtensible(ObjectId::deserialize(objId), rs, result);
     }
-    bool RecvCallOrConstruct(const uint64_t &objId, const nsTArray<JSParam> &argv,
-                               const bool &construct, ReturnStatus *rs, JSVariant *result,
-                               nsTArray<JSParam> *outparams) {
-        return Answer::RecvCallOrConstruct(ObjectId::deserialize(objId), argv, construct, rs, result, outparams);
+    bool RecvCallOrConstruct(const uint64_t &objId, InfallibleTArray<JSParam> &&argv,
+                             const bool &construct, ReturnStatus *rs, JSVariant *result,
+                             nsTArray<JSParam> *outparams) {
+        return Answer::RecvCallOrConstruct(ObjectId::deserialize(objId), Move(argv), construct, rs, result, outparams);
     }
     bool RecvHasInstance(const uint64_t &objId, const JSVariant &v, ReturnStatus *rs, bool *bp) {
         return Answer::RecvHasInstance(ObjectId::deserialize(objId), v, rs, bp);
@@ -98,6 +98,9 @@ class JavaScriptBase : public WrapperOwner, public WrapperAnswer, public Base
     }
     bool RecvClassName(const uint64_t &objId, nsString *result) {
         return Answer::RecvClassName(ObjectId::deserialize(objId), result);
+    }
+    bool RecvGetPrototypeOf(const uint64_t &objId, ReturnStatus *rs, ObjectOrNullVariant *result) {
+        return Answer::RecvGetPrototypeOf(ObjectId::deserialize(objId), rs, result);
     }
     bool RecvRegExpToShared(const uint64_t &objId, ReturnStatus *rs, nsString *source, uint32_t *flags) {
         return Answer::RecvRegExpToShared(ObjectId::deserialize(objId), rs, source, flags);
@@ -188,6 +191,9 @@ class JavaScriptBase : public WrapperOwner, public WrapperAnswer, public Base
     bool SendClassName(const ObjectId &objId, nsString *result) {
         return Base::SendClassName(objId.serialize(), result);
     }
+    bool SendGetPrototypeOf(const ObjectId &objId, ReturnStatus *rs, ObjectOrNullVariant *result) {
+        return Base::SendGetPrototypeOf(objId.serialize(), rs, result);
+     }
 
     bool SendRegExpToShared(const ObjectId &objId, ReturnStatus *rs,
                             nsString *source, uint32_t *flags) {

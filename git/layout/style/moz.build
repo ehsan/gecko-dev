@@ -4,8 +4,29 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+with Files('**'):
+    BUG_COMPONENT = ('Core', 'CSS Parsing and Computation')
+
+with Files('nsComputedDOMStyle.*'):
+    BUG_COMPONENT = ('Core', 'DOM: CSS Object Model')
+
+with Files('nsROCSSPrimitiveValue.*'):
+    BUG_COMPONENT = ('Core', 'DOM: CSS Object Model')
+
+with Files('CSSRuleList.*'):
+    BUG_COMPONENT = ('Core', 'DOM: CSS Object Model')
+
+with Files('nsDOM*'):
+    BUG_COMPONENT = ('Core', 'DOM: CSS Object Model')
+
 DIRS += ['xbl-marquee']
 TEST_DIRS += ['test']
+
+XPIDL_SOURCES += [
+    'nsICSSUnprefixingService.idl',
+]
+
+XPIDL_MODULE = 'layout_base'
 
 EXPORTS += [
     'AnimationCommon.h',
@@ -23,6 +44,7 @@ EXPORTS += [
     'nsCSSProperty.h',
     'nsCSSPropertySet.h',
     'nsCSSPropList.h',
+    'nsCSSPropLogicalGroupList.h',
     'nsCSSProps.h',
     'nsCSSPseudoClasses.h',
     'nsCSSPseudoClassList.h',
@@ -146,6 +168,11 @@ SOURCES += [
     'nsCSSRuleProcessor.cpp',
 ]
 
+EXTRA_COMPONENTS += [
+    'CSSUnprefixingService.js',
+    'CSSUnprefixingService.manifest',
+]
+
 FAIL_ON_WARNINGS = True
 
 MSVC_ENABLE_PGO = True
@@ -173,6 +200,10 @@ RESOURCE_FILES += [
     'TopLevelImageDocument.css',
     'TopLevelVideoDocument.css',
 ]
+
+GENERATED_FILES += ['nsStyleStructList.h']
+style_struct_list = GENERATED_FILES['nsStyleStructList.h']
+style_struct_list.script = 'generate-stylestructlist.py'
 
 if CONFIG['GNU_CC']:
     CFLAGS += ['-Wshadow']

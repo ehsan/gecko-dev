@@ -44,6 +44,12 @@ struct PsshInfo
 class CryptoFile
 {
 public:
+  CryptoFile() {}
+  CryptoFile(const CryptoFile& aCryptoFile) : valid(aCryptoFile.valid)
+  {
+    pssh.AppendElements(aCryptoFile.pssh);
+  }
+
   void Update(stagefright::sp<stagefright::MetaData>& aMetaData)
   {
     valid = DoUpdate(aMetaData);
@@ -155,10 +161,10 @@ class MP4Sample
 {
 public:
   MP4Sample();
-  MP4Sample(const MP4Sample& copy);
   virtual ~MP4Sample();
-  void Update(int64_t& aMediaTime, int64_t& aTimestampOffset);
-  void Pad(size_t aPaddingBytes);
+  MP4Sample* Clone() const;
+  void Update(int64_t& aMediaTime);
+  bool Pad(size_t aPaddingBytes);
 
   stagefright::MediaBuffer* mMediaBuffer;
 
@@ -174,10 +180,12 @@ public:
   CryptoSample crypto;
   nsRefPtr<ByteBuffer> extra_data;
 
-  void Prepend(const uint8_t* aData, size_t aSize);
-  void Replace(const uint8_t* aData, size_t aSize);
+  bool Prepend(const uint8_t* aData, size_t aSize);
+  bool Replace(const uint8_t* aData, size_t aSize);
 
   nsAutoArrayPtr<uint8_t> extra_buffer;
+private:
+  MP4Sample(const MP4Sample&); // Not implemented
 };
 }
 

@@ -12,6 +12,7 @@
 #include "WrapperFactory.h"
 
 #include "jswrapper.h"
+#include "js/Proxy.h"
 
 // Xray wrappers re-resolve the original native properties on the native
 // object and always directly access to those properties.
@@ -104,8 +105,8 @@ private:
                                   nsIPrincipal *origin,
                                   JS::HandleObject exclusiveGlobal);
 
-    XrayTraits(XrayTraits &) MOZ_DELETE;
-    const XrayTraits& operator=(XrayTraits &) MOZ_DELETE;
+    XrayTraits(XrayTraits &) = delete;
+    const XrayTraits& operator=(XrayTraits &) = delete;
 };
 
 class XPCWrappedNativeXrayTraits : public XrayTraits
@@ -232,7 +233,7 @@ public:
             return baseInstance.call(cx, wrapper, args);
 
         JS::RootedValue v(cx, JS::ObjectValue(*wrapper));
-        js_ReportIsNotFunction(cx, v);
+        js::ReportIsNotFunction(cx, v);
         return false;
     }
 
@@ -245,7 +246,7 @@ public:
             return baseInstance.construct(cx, wrapper, args);
 
         JS::RootedValue v(cx, JS::ObjectValue(*wrapper));
-        js_ReportIsNotFunction(cx, v);
+        js::ReportIsNotFunction(cx, v);
         return false;
     }
 
@@ -351,7 +352,7 @@ public:
                      const JS::CallArgs &args, const js::Wrapper& baseInstance)
     {
         JS::RootedValue v(cx, JS::ObjectValue(*wrapper));
-        js_ReportIsNotFunction(cx, v);
+        js::ReportIsNotFunction(cx, v);
         return false;
     }
 
@@ -359,7 +360,7 @@ public:
                           const JS::CallArgs &args, const js::Wrapper& baseInstance)
     {
         JS::RootedValue v(cx, JS::ObjectValue(*wrapper));
-        js_ReportIsNotFunction(cx, v);
+        js::ReportIsNotFunction(cx, v);
         return false;
     }
 
@@ -386,8 +387,7 @@ public:
 
     virtual JSObject* createHolder(JSContext *cx, JSObject *wrapper) MOZ_OVERRIDE
     {
-        JS::RootedObject global(cx, JS_GetGlobalForObject(cx, wrapper));
-        return JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr(), global);
+        return JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr());
     }
 
     static OpaqueXrayTraits singleton;
@@ -413,6 +413,8 @@ class XrayWrapper : public Base {
                                  JS::AutoIdVector &props) const MOZ_OVERRIDE;
     virtual bool delete_(JSContext *cx, JS::Handle<JSObject*> wrapper,
                          JS::Handle<jsid> id, bool *bp) const MOZ_OVERRIDE;
+    virtual bool enumerate(JSContext *cx, JS::Handle<JSObject*> wrapper,
+                           JS::MutableHandle<JSObject*> objp) const MOZ_OVERRIDE;
     virtual bool getPrototypeOf(JSContext *cx, JS::HandleObject wrapper,
                                 JS::MutableHandleObject protop) const MOZ_OVERRIDE;
     virtual bool setPrototypeOf(JSContext *cx, JS::HandleObject wrapper,
@@ -439,10 +441,6 @@ class XrayWrapper : public Base {
                         bool *bp) const MOZ_OVERRIDE;
     virtual bool getOwnEnumerablePropertyKeys(JSContext *cx, JS::Handle<JSObject*> wrapper,
                                               JS::AutoIdVector &props) const MOZ_OVERRIDE;
-    virtual bool getEnumerablePropertyKeys(JSContext *cx, JS::Handle<JSObject*> wrapper,
-                                           JS::AutoIdVector &props) const MOZ_OVERRIDE;
-    virtual bool iterate(JSContext *cx, JS::Handle<JSObject*> wrapper, unsigned flags,
-                         JS::MutableHandle<JSObject*> objp) const MOZ_OVERRIDE;
 
     virtual const char *className(JSContext *cx, JS::HandleObject proxy) const MOZ_OVERRIDE;
     virtual bool defaultValue(JSContext *cx, JS::HandleObject wrapper,
@@ -512,8 +510,8 @@ public:
                         bool *bp) const MOZ_OVERRIDE;
     virtual bool getOwnEnumerablePropertyKeys(JSContext *cx, JS::Handle<JSObject*> proxy,
                                               JS::AutoIdVector &props) const MOZ_OVERRIDE;
-    virtual bool iterate(JSContext *cx, JS::Handle<JSObject*> proxy, unsigned flags,
-                         JS::MutableHandle<JSObject*> objp) const MOZ_OVERRIDE;
+    virtual bool enumerate(JSContext *cx, JS::Handle<JSObject*> proxy,
+                           JS::MutableHandle<JSObject*> objp) const MOZ_OVERRIDE;
 };
 
 extern const SandboxProxyHandler sandboxProxyHandler;
@@ -529,6 +527,13 @@ public:
 
     virtual bool call(JSContext *cx, JS::Handle<JSObject*> proxy,
                       const JS::CallArgs &args) const MOZ_OVERRIDE;
+
+    static const size_t SandboxProxySlot = 0;
+
+    static inline JSObject *getSandboxProxy(JS::Handle<JSObject*> proxy)
+    {
+        return &js::GetProxyExtra(proxy, SandboxProxySlot).toObject();
+    }
 };
 
 extern const SandboxCallableProxyHandler sandboxCallableProxyHandler;

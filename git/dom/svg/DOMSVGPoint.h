@@ -57,10 +57,9 @@ public:
     mIsAnimValItem = aIsAnimValItem;
 
     // These shifts are in sync with the members.
-    NS_ABORT_IF_FALSE(aList &&
-                      aListIndex <= MaxListIndex(), "bad arg");
+    MOZ_ASSERT(aList && aListIndex <= MaxListIndex(), "bad arg");
 
-    NS_ABORT_IF_FALSE(IndexIsValid(), "Bad index for DOMSVGPoint!");
+    MOZ_ASSERT(IndexIsValid(), "Bad index for DOMSVGPoint!");
   }
 
   explicit DOMSVGPoint(const DOMSVGPoint *aPt = nullptr)
@@ -89,11 +88,11 @@ public:
 
 
   // WebIDL
-  virtual float X();
-  virtual void SetX(float aX, ErrorResult& rv);
-  virtual float Y();
-  virtual void SetY(float aY, ErrorResult& rv);
-  virtual already_AddRefed<nsISVGPoint> MatrixTransform(dom::SVGMatrix& matrix);
+  virtual float X() MOZ_OVERRIDE;
+  virtual void SetX(float aX, ErrorResult& rv) MOZ_OVERRIDE;
+  virtual float Y() MOZ_OVERRIDE;
+  virtual void SetY(float aY, ErrorResult& rv) MOZ_OVERRIDE;
+  virtual already_AddRefed<nsISVGPoint> MatrixTransform(dom::SVGMatrix& matrix) MOZ_OVERRIDE;
   nsISupports* GetParentObject() MOZ_OVERRIDE {
     return mList;
   }

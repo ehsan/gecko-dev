@@ -24,14 +24,16 @@ public:
 
   DNSRequestParent();
 
-  void DoAsyncResolve(const nsACString  &hostname, uint32_t flags);
+  void DoAsyncResolve(const nsACString  &hostname, uint32_t flags,
+                      const nsACString  &networkInterface);
 
   // Pass args here rather than storing them in the parent; they are only
   // needed if the request is to be canceled.
   bool RecvCancelDNSRequest(const nsCString& hostName,
                             const uint32_t& flags,
-                            const nsresult& reason);
-  bool Recv__delete__();
+                            const nsCString& networkInterface,
+                            const nsresult& reason) MOZ_OVERRIDE;
+  bool Recv__delete__() MOZ_OVERRIDE;
 
 protected:
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;

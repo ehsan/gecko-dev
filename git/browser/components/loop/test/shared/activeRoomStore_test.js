@@ -6,9 +6,10 @@ var sharedActions = loop.shared.actions;
 describe("loop.store.ActiveRoomStore", function () {
   "use strict";
 
-  var SERVER_CODES = loop.store.SERVER_CODES;
+  var REST_ERRNOS = loop.shared.utils.REST_ERRNOS;
   var ROOM_STATES = loop.store.ROOM_STATES;
-  var FAILURE_REASONS = loop.shared.utils.FAILURE_REASONS;
+  var FAILURE_DETAILS = loop.shared.utils.FAILURE_DETAILS;
+  var SCREEN_SHARE_STATES = loop.shared.utils.SCREEN_SHARE_STATES;
   var sandbox, dispatcher, store, fakeMozLoop, fakeSdkDriver;
   var fakeMultiplexGum;
 
@@ -20,8 +21,10 @@ describe("loop.store.ActiveRoomStore", function () {
     sandbox.stub(dispatcher, "dispatch");
 
     fakeMozLoop = {
-      setLoopPref: sandbox.stub(),
-      addConversationContext: sandbox.stub(),
+      setLoopPref: sinon.stub(),
+      addConversationContext: sinon.stub(),
+      addBrowserSharingListener: sinon.stub(),
+      removeBrowserSharingListener: sinon.stub(),
       rooms: {
         get: sinon.stub(),
         join: sinon.stub(),
@@ -29,13 +32,18 @@ describe("loop.store.ActiveRoomStore", function () {
         leave: sinon.stub(),
         on: sinon.stub(),
         off: sinon.stub()
-      }
+      },
+      setScreenShareState: sinon.stub(),
+      getActiveTabWindowId: sandbox.stub().callsArgWith(0, null, 42)
     };
 
     fakeSdkDriver = {
-      connectSession: sandbox.stub(),
-      disconnectSession: sandbox.stub(),
-      forceDisconnectAll: sandbox.stub().callsArg(0)
+      connectSession: sinon.stub(),
+      disconnectSession: sinon.stub(),
+      forceDisconnectAll: sinon.stub().callsArg(0),
+      startScreenShare: sinon.stub(),
+      switchAcquiredWindow: sinon.stub(),
+      endScreenShare: sinon.stub().returns(true)
     };
 
     fakeMultiplexGum = {
@@ -94,7 +102,7 @@ describe("loop.store.ActiveRoomStore", function () {
     });
 
     it("should set the state to `FULL` on server error room full", function() {
-      fakeError.errno = SERVER_CODES.ROOM_FULL;
+      fakeError.errno = REST_ERRNOS.ROOM_FULL;
 
       store.roomFailure({error: fakeError});
 
@@ -105,33 +113,42 @@ describe("loop.store.ActiveRoomStore", function () {
       store.roomFailure({error: fakeError});
 
       expect(store._storeState.roomState).eql(ROOM_STATES.FAILED);
-      expect(store._storeState.failureReason).eql(FAILURE_REASONS.UNKNOWN);
+      expect(store._storeState.failureReason).eql(FAILURE_DETAILS.UNKNOWN);
     });
 
     it("should set the failureReason to EXPIRED_OR_INVALID on server error: " +
       "invalid token", function() {
-        fakeError.errno = SERVER_CODES.INVALID_TOKEN;
+        fakeError.errno = REST_ERRNOS.INVALID_TOKEN;
 
         store.roomFailure({error: fakeError});
 
         expect(store._storeState.roomState).eql(ROOM_STATES.FAILED);
-        expect(store._storeState.failureReason).eql(FAILURE_REASONS.EXPIRED_OR_INVALID);
+        expect(store._storeState.failureReason).eql(FAILURE_DETAILS.EXPIRED_OR_INVALID);
       });
 
     it("should set the failureReason to EXPIRED_OR_INVALID on server error: " +
       "expired", function() {
-        fakeError.errno = SERVER_CODES.EXPIRED;
+        fakeError.errno = REST_ERRNOS.EXPIRED;
 
         store.roomFailure({error: fakeError});
 
         expect(store._storeState.roomState).eql(ROOM_STATES.FAILED);
-        expect(store._storeState.failureReason).eql(FAILURE_REASONS.EXPIRED_OR_INVALID);
+        expect(store._storeState.failureReason).eql(FAILURE_DETAILS.EXPIRED_OR_INVALID);
       });
 
     it("should reset the multiplexGum", function() {
       store.roomFailure({error: fakeError});
 
       sinon.assert.calledOnce(fakeMultiplexGum.reset);
+    });
+
+    it("should set screen sharing inactive", function() {
+      store.setStoreState({windowId: "1234"});
+
+      store.roomFailure({error: fakeError});
+
+      sinon.assert.calledOnce(fakeMozLoop.setScreenShareState);
+      sinon.assert.calledWithExactly(fakeMozLoop.setScreenShareState, "1234", false);
     });
 
     it("should disconnect from the servers via the sdk", function() {
@@ -147,6 +164,18 @@ describe("loop.store.ActiveRoomStore", function () {
       store.roomFailure({error: fakeError});
 
       sinon.assert.calledOnce(clearTimeout);
+    });
+
+    it("should remove the sharing listener", function() {
+      // Setup the listener.
+      store.startScreenShare(new sharedActions.StartScreenShare({
+        type: "browser"
+      }));
+
+      // Now simulate room failure.
+      store.roomFailure({error: fakeError});
+
+      sinon.assert.calledOnce(fakeMozLoop.removeBrowserSharingListener);
     });
 
     it("should call mozLoop.rooms.leave", function() {
@@ -279,6 +308,31 @@ describe("loop.store.ActiveRoomStore", function () {
       store.feedbackComplete(new sharedActions.FeedbackComplete());
 
       expect(store.getStoreState()).eql(initialState);
+    });
+  });
+
+  describe("#videoDimensionsChanged", function() {
+    it("should not contain any video dimensions at the very start", function() {
+      expect(store.getStoreState()).eql(store.getInitialStoreState());
+    });
+
+    it("should update the store with new video dimensions", function() {
+      var actionData = {
+        isLocal: true,
+        videoType: "camera",
+        dimensions: { width: 640, height: 480 }
+      };
+
+      store.videoDimensionsChanged(new sharedActions.VideoDimensionsChanged(actionData));
+
+      expect(store.getStoreState().localVideoDimensions)
+        .to.have.property(actionData.videoType, actionData.dimensions);
+
+      actionData.isLocal = false;
+      store.videoDimensionsChanged(new sharedActions.VideoDimensionsChanged(actionData));
+
+      expect(store.getStoreState().remoteVideoDimensions)
+        .to.have.property(actionData.videoType, actionData.dimensions);
     });
   });
 
@@ -567,6 +621,15 @@ describe("loop.store.ActiveRoomStore", function () {
       sinon.assert.calledOnce(fakeMultiplexGum.reset);
     });
 
+    it("should set screen sharing inactive", function() {
+      store.setStoreState({windowId: "1234"});
+
+      store.connectionFailure(connectionFailureAction);
+
+      sinon.assert.calledOnce(fakeMozLoop.setScreenShareState);
+      sinon.assert.calledWithExactly(fakeMozLoop.setScreenShareState, "1234", false);
+    });
+
     it("should disconnect from the servers via the sdk", function() {
       store.connectionFailure(connectionFailureAction);
 
@@ -588,6 +651,18 @@ describe("loop.store.ActiveRoomStore", function () {
       sinon.assert.calledOnce(fakeMozLoop.rooms.leave);
       sinon.assert.calledWithExactly(fakeMozLoop.rooms.leave,
         "fakeToken", "1627384950");
+    });
+
+    it("should remove the sharing listener", function() {
+      // Setup the listener.
+      store.startScreenShare(new sharedActions.StartScreenShare({
+        type: "browser"
+      }));
+
+      // Now simulate connection failure.
+      store.connectionFailure(connectionFailureAction);
+
+      sinon.assert.calledOnce(fakeMozLoop.removeBrowserSharingListener);
     });
 
     it("should set the state to `FAILED`", function() {
@@ -621,6 +696,146 @@ describe("loop.store.ActiveRoomStore", function () {
     });
   });
 
+  describe("#screenSharingState", function() {
+    beforeEach(function() {
+      store.setStoreState({windowId: "1234"});
+    });
+
+    it("should save the state", function() {
+      store.screenSharingState(new sharedActions.ScreenSharingState({
+        state: SCREEN_SHARE_STATES.ACTIVE
+      }));
+
+      expect(store.getStoreState().screenSharingState).eql(SCREEN_SHARE_STATES.ACTIVE);
+    });
+
+    it("should set screen sharing active when the state is active", function() {
+      store.screenSharingState(new sharedActions.ScreenSharingState({
+        state: SCREEN_SHARE_STATES.ACTIVE
+      }));
+
+      sinon.assert.calledOnce(fakeMozLoop.setScreenShareState);
+      sinon.assert.calledWithExactly(fakeMozLoop.setScreenShareState, "1234", true);
+    });
+
+    it("should set screen sharing inactive when the state is inactive", function() {
+      store.screenSharingState(new sharedActions.ScreenSharingState({
+        state: SCREEN_SHARE_STATES.INACTIVE
+      }));
+
+      sinon.assert.calledOnce(fakeMozLoop.setScreenShareState);
+      sinon.assert.calledWithExactly(fakeMozLoop.setScreenShareState, "1234", false);
+    });
+  });
+
+  describe("#receivingScreenShare", function() {
+    it("should save the state", function() {
+      store.receivingScreenShare(new sharedActions.ReceivingScreenShare({
+        receiving: true
+      }));
+
+      expect(store.getStoreState().receivingScreenShare).eql(true);
+    });
+  });
+
+  describe("#startScreenShare", function() {
+    it("should set the state to 'pending'", function() {
+      store.startScreenShare(new sharedActions.StartScreenShare({
+        type: "window"
+      }));
+
+      sinon.assert.calledOnce(dispatcher.dispatch);
+      sinon.assert.calledWith(dispatcher.dispatch,
+        new sharedActions.ScreenSharingState({
+          state: SCREEN_SHARE_STATES.PENDING
+        }));
+    });
+
+    it("should invoke the SDK driver with the correct options for window sharing", function() {
+      store.startScreenShare(new sharedActions.StartScreenShare({
+        type: "window"
+      }));
+
+      sinon.assert.calledOnce(fakeSdkDriver.startScreenShare);
+      sinon.assert.calledWith(fakeSdkDriver.startScreenShare, {
+        videoSource: "window"
+      });
+    });
+
+    it("should add a browser sharing listener for tab sharing", function() {
+      store.startScreenShare(new sharedActions.StartScreenShare({
+        type: "browser"
+      }));
+
+      sinon.assert.calledOnce(fakeMozLoop.addBrowserSharingListener);
+    });
+
+    it("should invoke the SDK driver with the correct options for tab sharing", function() {
+      fakeMozLoop.addBrowserSharingListener.callsArgWith(0, null, 42);
+
+      store.startScreenShare(new sharedActions.StartScreenShare({
+        type: "browser"
+      }));
+
+      sinon.assert.calledOnce(fakeSdkDriver.startScreenShare);
+      sinon.assert.calledWith(fakeSdkDriver.startScreenShare, {
+        videoSource: "browser",
+        constraints: {
+          browserWindow: 42,
+          scrollWithPage: true
+        }
+      });
+    });
+  });
+
+  describe("Screen share Events", function() {
+    var listener;
+
+    beforeEach(function() {
+      store.startScreenShare(new sharedActions.StartScreenShare({
+        type: "browser"
+      }));
+
+      // Listener is the first argument of the first call.
+      listener = fakeMozLoop.addBrowserSharingListener.args[0][0];
+
+      store.setStoreState({
+        screenSharingState: SCREEN_SHARE_STATES.ACTIVE
+      });
+    });
+
+    it("should update the SDK driver when a new window id is received", function() {
+      listener(null, 72);
+
+      sinon.assert.calledOnce(fakeSdkDriver.switchAcquiredWindow);
+      sinon.assert.calledWithExactly(fakeSdkDriver.switchAcquiredWindow, 72);
+    });
+  });
+
+  describe("#endScreenShare", function() {
+    it("should set the state to 'inactive'", function() {
+      store.endScreenShare();
+
+      sinon.assert.calledOnce(dispatcher.dispatch);
+      sinon.assert.calledWith(dispatcher.dispatch,
+        new sharedActions.ScreenSharingState({
+          state: SCREEN_SHARE_STATES.INACTIVE
+        }));
+    });
+
+    it("should remove the sharing listener", function() {
+      // Setup the listener.
+      store.startScreenShare(new sharedActions.StartScreenShare({
+        type: "browser"
+      }));
+
+      // Now stop the screen share.
+      store.endScreenShare();
+
+      sinon.assert.calledOnce(fakeMozLoop.removeBrowserSharingListener);
+    });
+  });
+
   describe("#remotePeerConnected", function() {
     it("should set the state to `HAS_PARTICIPANTS`", function() {
       store.remotePeerConnected();
@@ -650,8 +865,18 @@ describe("loop.store.ActiveRoomStore", function () {
       store.setStoreState({
         roomState: ROOM_STATES.JOINED,
         roomToken: "fakeToken",
-        sessionToken: "1627384950"
+        sessionToken: "1627384950",
+        windowId: "1234"
       });
+    });
+
+    it("should set screen sharing inactive", function() {
+      store.screenSharingState(new sharedActions.ScreenSharingState({
+        state: SCREEN_SHARE_STATES.INACTIVE
+      }));
+
+      sinon.assert.calledOnce(fakeMozLoop.setScreenShareState);
+      sinon.assert.calledWithExactly(fakeMozLoop.setScreenShareState, "1234", false);
     });
 
     it("should reset the multiplexGum", function() {
@@ -693,6 +918,18 @@ describe("loop.store.ActiveRoomStore", function () {
         sinon.assert.calledWithExactly(fakeMozLoop.rooms.leave,
           "fakeToken", "1627384950");
       });
+
+    it("should remove the sharing listener", function() {
+      // Setup the listener.
+      store.startScreenShare(new sharedActions.StartScreenShare({
+        type: "browser"
+      }));
+
+      // Now unload the window.
+      store.windowUnload();
+
+      sinon.assert.calledOnce(fakeMozLoop.removeBrowserSharingListener);
+    });
 
     it("should set the state to CLOSING", function() {
       store.windowUnload();
@@ -737,6 +974,18 @@ describe("loop.store.ActiveRoomStore", function () {
       sinon.assert.calledOnce(fakeMozLoop.rooms.leave);
       sinon.assert.calledWithExactly(fakeMozLoop.rooms.leave,
         "fakeToken", "1627384950");
+    });
+
+    it("should remove the sharing listener", function() {
+      // Setup the listener.
+      store.startScreenShare(new sharedActions.StartScreenShare({
+        type: "browser"
+      }));
+
+      // Now leave the room.
+      store.leaveRoom();
+
+      sinon.assert.calledOnce(fakeMozLoop.removeBrowserSharingListener);
     });
 
     it("should set the state to ENDED", function() {

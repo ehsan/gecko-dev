@@ -21,6 +21,8 @@
 // For JSFunctionSpecWithHelp
 #include "jsfriendapi.h"
 
+#include "js/Conversions.h"
+
 using namespace JS;
 
 static bool
@@ -61,27 +63,32 @@ os_getpid(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
+#if !defined(XP_WIN)
+
 // There are two possible definitions of strerror_r floating around. The GNU
 // one returns a char* which may or may not be the buffer you passed in. The
 // other one returns an integer status code, and always writes the result into
 // the provided buffer.
 
-static inline char *
+inline char *
 strerror_message(int result, char *buffer)
 {
     return result == 0 ? buffer : nullptr;
 }
 
-static inline char *
+inline char *
 strerror_message(char *result, char *buffer)
 {
     return result;
 }
 
+#endif
+
 static void
 ReportSysError(JSContext *cx, const char *prefix)
 {
-    static char buffer[200];
+    char buffer[200];
+
 #if defined(XP_WIN)
     strerror_s(buffer, sizeof(buffer), errno);
     const char *errstr = buffer;
@@ -104,6 +111,7 @@ ReportSysError(JSContext *cx, const char *prefix)
 #else
     snprintf(final, nbytes, "%s: %s", prefix, errstr);
 #endif
+
     JS_ReportError(cx, final);
     js_free(final);
 }
@@ -156,14 +164,14 @@ os_spawn(JSContext *cx, unsigned argc, jsval *vp)
         return false;
 
     int32_t childPid = fork();
-    if (childPid) {
-        args.rval().setInt32(childPid);
-        return true;
-    }
-
     if (childPid == -1) {
         ReportSysError(cx, "fork failed");
         return false;
+    }
+
+    if (childPid) {
+        args.rval().setInt32(childPid);
+        return true;
     }
 
     // We are in the child
@@ -200,8 +208,11 @@ os_kill(JSContext* cx, unsigned argc, Value* vp)
     }
 
     int status = kill(pid, signal);
-    if (status == -1)
+    if (status == -1) {
         ReportSysError(cx, "kill failed");
+        return false;
+    }
+
     args.rval().setUndefined();
     return true;
 }
@@ -223,14 +234,14 @@ os_waitpid(JSContext* cx, unsigned argc, Value* vp)
     if (args.length() >= 2)
         nohang = JS::ToBoolean(args[1]);
 
-    int status;
+    int status = 0;
     pid_t result = waitpid(pid, &status, nohang ? WNOHANG : 0);
     if (result == -1) {
         ReportSysError(cx, "os.waitpid failed");
         return false;
     }
 
-    RootedObject info(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+    RootedObject info(cx, JS_NewPlainObject(cx));
     if (!info)
         return false;
 
@@ -239,11 +250,11 @@ os_waitpid(JSContext* cx, unsigned argc, Value* vp)
         v.setInt32(result);
         if (!JS_DefineProperty(cx, info, "pid", v, JSPROP_ENUMERATE))
             return false;
-    }
-    if (WIFEXITED(status)) {
-        v.setInt32(WEXITSTATUS(status));
-        if (!JS_DefineProperty(cx, info, "exitStatus", v, JSPROP_ENUMERATE))
-            return false;
+        if (WIFEXITED(status)) {
+            v.setInt32(WEXITSTATUS(status));
+            if (!JS_DefineProperty(cx, info, "exitStatus", v, JSPROP_ENUMERATE))
+                return false;
+        }
     }
 
     args.rval().setObject(*info);
@@ -287,7 +298,7 @@ static const JSFunctionSpecWithHelp os_functions[] = {
 bool
 js::DefineOS(JSContext *cx, HandleObject global)
 {
-    RootedObject obj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+    RootedObject obj(cx, JS_NewPlainObject(cx));
     return obj &&
            JS_DefineFunctionsWithHelp(cx, obj, os_functions) &&
            JS_DefineProperty(cx, global, "os", obj, 0);

@@ -11,10 +11,7 @@
 #include "nsIProgrammingLanguage.h"
 #include "nsDOMClassInfo.h"
 #include "nsIPrincipal.h"
-
-#include "mozilla/dom/ResolveSystemBinding.h"
-
-using mozilla::dom::ResolveSystemBinding;
+#include "mozilla/dom/BindingUtils.h"
 
 NS_INTERFACE_MAP_BEGIN(BackstagePass)
   NS_INTERFACE_MAP_ENTRY(nsIGlobalObject)
@@ -39,7 +36,6 @@ NS_IMPL_RELEASE(BackstagePass)
 #define XPC_MAP_FLAGS       nsIXPCScriptable::USE_JSSTUB_FOR_ADDPROPERTY   |  \
                             nsIXPCScriptable::USE_JSSTUB_FOR_DELPROPERTY   |  \
                             nsIXPCScriptable::USE_JSSTUB_FOR_SETPROPERTY   |  \
-                            nsIXPCScriptable::DONT_ENUM_STATIC_PROPS       |  \
                             nsIXPCScriptable::DONT_ENUM_QUERY_INTERFACE    |  \
                             nsIXPCScriptable::IS_GLOBAL_OBJECT             |  \
                             nsIXPCScriptable::DONT_REFLECT_INTERFACE_NAMES
@@ -70,25 +66,8 @@ BackstagePass::Resolve(nsIXPConnectWrappedNative *wrapper,
 {
     JS::RootedObject obj(cx, objArg);
     JS::RootedId id(cx, idArg);
-
-    bool resolved;
-    *_retval = !!JS_ResolveStandardClass(cx, obj, id, &resolved);
-    NS_ENSURE_TRUE(*_retval, NS_ERROR_FAILURE);
-
-    if (resolved) {
-        *resolvedp = true;
-        return NS_OK;
-    }
-
-    *_retval = ResolveSystemBinding(cx, obj, id, &resolved);
-    NS_ENSURE_TRUE(*_retval, NS_ERROR_FAILURE);
-
-    if (resolved) {
-        *resolvedp = true;
-        return NS_OK;
-    }
-
-    return NS_OK;
+    *_retval = mozilla::dom::SystemGlobalResolve(cx, obj, id, resolvedp);
+    return *_retval ? NS_OK : NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
@@ -96,15 +75,8 @@ BackstagePass::Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *objArg, bool *_retval)
 {
     JS::RootedObject obj(cx, objArg);
-
-    *_retval = JS_EnumerateStandardClasses(cx, obj);
-    NS_ENSURE_TRUE(*_retval, NS_ERROR_FAILURE);
-
-    bool ignored = false;
-    *_retval = ResolveSystemBinding(cx, obj, JSID_VOIDHANDLE, &ignored);
-    NS_ENSURE_TRUE(*_retval, NS_ERROR_FAILURE);
-
-    return NS_OK;
+    *_retval = mozilla::dom::SystemGlobalEnumerate(cx, obj);
+    return *_retval ? NS_OK : NS_ERROR_FAILURE;
 }
 
 /***************************************************************************/

@@ -57,6 +57,7 @@ struct ContainerLayerParameters {
     : mXScale(1)
     , mYScale(1)
     , mLayerContentsVisibleRect(nullptr)
+    , mBackgroundColor(NS_RGBA(0,0,0,0))
     , mInTransformedSubtree(false)
     , mInActiveTransformedSubtree(false)
     , mDisableSubpixelAntialiasingInDescendants(false)
@@ -66,6 +67,7 @@ struct ContainerLayerParameters {
     : mXScale(aXScale)
     , mYScale(aYScale)
     , mLayerContentsVisibleRect(nullptr)
+    , mBackgroundColor(NS_RGBA(0,0,0,0))
     , mInTransformedSubtree(false)
     , mInActiveTransformedSubtree(false)
     , mDisableSubpixelAntialiasingInDescendants(false)
@@ -78,6 +80,7 @@ struct ContainerLayerParameters {
     , mYScale(aYScale)
     , mLayerContentsVisibleRect(nullptr)
     , mOffset(aOffset)
+    , mBackgroundColor(aParent.mBackgroundColor)
     , mInTransformedSubtree(aParent.mInTransformedSubtree)
     , mInActiveTransformedSubtree(aParent.mInActiveTransformedSubtree)
     , mDisableSubpixelAntialiasingInDescendants(aParent.mDisableSubpixelAntialiasingInDescendants)
@@ -94,6 +97,7 @@ struct ContainerLayerParameters {
    */
   nsIntPoint mOffset;
 
+  nscolor mBackgroundColor;
   bool mInTransformedSubtree;
   bool mInActiveTransformedSubtree;
   bool mDisableSubpixelAntialiasingInDescendants;
@@ -177,7 +181,8 @@ public:
   static void Shutdown();
 
   void Init(nsDisplayListBuilder* aBuilder, LayerManager* aManager,
-            PaintedLayerData* aLayerData = nullptr);
+            PaintedLayerData* aLayerData = nullptr,
+            ContainerState* aContainingContainerState = nullptr);
 
   /**
    * Call this to notify that we have just started a transaction on the
@@ -196,7 +201,16 @@ public:
   void DidEndTransaction();
 
   enum {
-    CONTAINER_NOT_CLIPPED_BY_ANCESTORS = 0x01
+    CONTAINER_NOT_CLIPPED_BY_ANCESTORS = 0x01,
+
+    /**
+     * Set this when pulling an opaque background color from behind the
+     * container layer into the container doesn't change the visual results,
+     * given the effects you're going to apply to the container layer.
+     * For example, this is compatible with opacity or clipping/masking, but
+     * not with non-OVER blend modes or filters.
+     */
+    CONTAINER_ALLOW_PULL_BACKGROUND_COLOR = 0x02
   };
   /**
    * Build a container layer for a display item that contains a child
@@ -268,13 +282,22 @@ public:
                               const nsIntRegion& aRegionToInvalidate,
                               void* aCallbackData);
 
-#ifdef MOZ_DUMP_PAINTING
   /**
    * Dumps this FrameLayerBuilder's retained layer manager's retained
    * layer tree. Defaults to dumping to stdout in non-HTML format.
    */
   static void DumpRetainedLayerTree(LayerManager* aManager, std::stringstream& aStream, bool aDumpHtml = false);
-#endif
+
+  /**
+   * Returns the most recently allocated geometry item for the given display
+   * item.
+   *
+   * XXX(seth): The current implementation must iterate through all display
+   * items allocated for this display item's frame. This may lead to O(n^2)
+   * behavior in some situations.
+   */
+  static nsDisplayItemGeometry* GetMostRecentGeometry(nsDisplayItem* aItem);
+
 
   /******* PRIVATE METHODS to FrameLayerBuilder.cpp ********/
   /* These are only in the public section because they need
@@ -307,16 +330,9 @@ public:
   void AddPaintedDisplayItem(PaintedLayerData* aLayer,
                             nsDisplayItem* aItem,
                             const DisplayItemClip& aClip,
-                            const nsIntRect& aItemVisibleRect,
-                            const ContainerState& aContainerState,
+                            ContainerState& aContainerState,
                             LayerState aLayerState,
                             const nsPoint& aTopLeft);
-
-  /**
-   * Gets the frame property descriptor for the given manager, or for the current
-   * widget layer manager if nullptr is passed.
-   */
-  static const FramePropertyDescriptor* GetDescriptorForManager(LayerManager* aManager);
 
   /**
    * Calls GetOldLayerForFrame on the underlying frame of the display item,
@@ -405,6 +421,7 @@ public:
 
     uint32_t GetDisplayItemKey() { return mDisplayItemKey; }
     Layer* GetLayer() { return mLayer; }
+    nsDisplayItemGeometry* GetGeometry() const { return mGeometry.get(); }
     void Invalidate() { mIsInvalid = true; }
 
   private:
@@ -638,6 +655,11 @@ public:
     return !mContainingPaintedLayer && mRetainingManager;
   }
 
+  ContainerState* GetContainingContainerState()
+  {
+    return mContainingContainerState;
+  }
+
   /**
    * Attempt to build the most compressed layer tree possible, even if it means
    * throwing away existing retained buffers.
@@ -648,10 +670,6 @@ public:
   void ComputeGeometryChangeForItem(DisplayItemData* aData);
 
 protected:
-  void RemoveThebesItemsAndOwnerDataForLayerSubtree(Layer* aLayer,
-                                                    bool aRemoveThebesItems,
-                                                    bool aRemoveOwnerData);
-
   static PLDHashOperator ProcessRemovedDisplayItems(nsRefPtrHashKey<DisplayItemData>* aEntry,
                                                     void* aUserArg);
   static PLDHashOperator RestoreDisplayItemData(nsRefPtrHashKey<DisplayItemData>* aEntry,
@@ -691,7 +709,9 @@ protected:
    * When building layers for an inactive layer, this is where the
    * inactive layer will be placed.
    */
-  PaintedLayerData*                    mContainingPaintedLayer;
+  PaintedLayerData*                   mContainingPaintedLayer;
+
+  ContainerState*                     mContainingContainerState;
 
   /**
    * Saved generation counter so we can detect DOM changes.

@@ -140,16 +140,26 @@ void
 MacroAssemblerARM::convertFloat32ToInt32(FloatRegister src, Register dest,
                                          Label *fail, bool negativeZeroCheck)
 {
-    // Convert the floating point value to an integer, if it did not fit, then
-    // when we convert it *back* to a float, it will have a different value,
-    // which we can test.
-    ma_vcvt_F32_I32(src, ScratchFloat32Reg.sintOverlay());
-    // Move the value into the dest register.
-    ma_vxfer(ScratchFloat32Reg, dest);
-    ma_vcvt_I32_F32(ScratchFloat32Reg.sintOverlay(), ScratchFloat32Reg);
-    ma_vcmp_f32(src, ScratchFloat32Reg);
+    // Converting the floating point value to an integer and then converting it
+    // back to a float32 would not work, as float to int32 conversions are
+    // clamping (e.g. float(INT32_MAX + 1) would get converted into INT32_MAX
+    // and then back to float(INT32_MAX + 1)).  If this ever happens, we just
+    // bail out.
+    FloatRegister ScratchSIntReg = ScratchFloat32Reg.sintOverlay();
+    ma_vcvt_F32_I32(src, ScratchSIntReg);
+
+    // Store the result
+    ma_vxfer(ScratchSIntReg, dest);
+
+    ma_vcvt_I32_F32(ScratchSIntReg, ScratchFloat32Reg);
+    ma_vcmp(src, ScratchFloat32Reg);
     as_vmrs(pc);
     ma_b(fail, Assembler::VFP_NotEqualOrUnordered);
+
+    // Bail out in the clamped cases.
+    ma_cmp(dest, Imm32(0x7fffffff));
+    ma_cmp(dest, Imm32(0x80000000), Assembler::NotEqual);
+    ma_b(fail, Assembler::Equal);
 
     if (negativeZeroCheck) {
         ma_cmp(dest, Imm32(0));
@@ -404,52 +414,61 @@ MacroAssemblerARM::ma_nop()
     as_nop();
 }
 
-Instruction *
-NextInst(Instruction *i)
-{
-    if (i == nullptr)
-        return nullptr;
-    return i->next();
-}
-
 void
 MacroAssemblerARM::ma_movPatchable(Imm32 imm_, Register dest, Assembler::Condition c,
-                                   RelocStyle rs, Instruction *i)
+                                   RelocStyle rs)
 {
     int32_t imm = imm_.value;
-    if (i) {
-        // Make sure the current instruction is not an artificial guard inserted
-        // by the assembler buffer.
-        i = i->skipPool();
-    }
     switch(rs) {
       case L_MOVWT:
-        as_movw(dest, Imm16(imm & 0xffff), c, i);
-        // 'i' can be nullptr here. That just means "insert in the next in
-        // sequence." NextInst is special cased to not do anything when it is
-        // passed nullptr, so two consecutive instructions will be inserted.
-        i = NextInst(i);
-        as_movt(dest, Imm16(imm >> 16 & 0xffff), c, i);
+        as_movw(dest, Imm16(imm & 0xffff), c);
+        as_movt(dest, Imm16(imm >> 16 & 0xffff), c);
         break;
       case L_LDR:
-        if(i == nullptr)
-            as_Imm32Pool(dest, imm, c);
-        else
-            as_WritePoolEntry(i, c, imm);
+        as_Imm32Pool(dest, imm, c);
         break;
     }
 }
 
 void
 MacroAssemblerARM::ma_movPatchable(ImmPtr imm, Register dest, Assembler::Condition c,
-                                   RelocStyle rs, Instruction *i)
+                                   RelocStyle rs)
 {
-    return ma_movPatchable(Imm32(int32_t(imm.value)), dest, c, rs, i);
+    ma_movPatchable(Imm32(int32_t(imm.value)), dest, c, rs);
+}
+
+/* static */ void
+MacroAssemblerARM::ma_mov_patch(Imm32 imm_, Register dest, Assembler::Condition c,
+                                RelocStyle rs, Instruction *i)
+{
+    MOZ_ASSERT(i);
+    int32_t imm = imm_.value;
+
+    // Make sure the current instruction is not an artificial guard inserted
+    // by the assembler buffer.
+    i = i->skipPool();
+
+    switch(rs) {
+      case L_MOVWT:
+        Assembler::as_movw_patch(dest, Imm16(imm & 0xffff), c, i);
+        i = i->next();
+        Assembler::as_movt_patch(dest, Imm16(imm >> 16 & 0xffff), c, i);
+        break;
+      case L_LDR:
+        Assembler::WritePoolEntry(i, c, imm);
+        break;
+    }
+}
+
+/* static */ void
+MacroAssemblerARM::ma_mov_patch(ImmPtr imm, Register dest, Assembler::Condition c,
+                                RelocStyle rs, Instruction *i)
+{
+    ma_mov_patch(Imm32(int32_t(imm.value)), dest, c, rs, i);
 }
 
 void
-MacroAssemblerARM::ma_mov(Register src, Register dest,
-            SetCond_ sc, Assembler::Condition c)
+MacroAssemblerARM::ma_mov(Register src, Register dest, SetCond_ sc, Assembler::Condition c)
 {
     if (sc == SetCond || dest != src)
         as_mov(dest, O2Reg(src), sc, c);
@@ -1760,13 +1779,14 @@ MacroAssemblerARM::ma_vstr(VFPRegister src, const Operand &addr, Condition cc)
     return ma_vdtr(IsStore, addr, src, cc);
 }
 BufferOffset
-MacroAssemblerARM::ma_vstr(VFPRegister src, Register base, Register index, int32_t shift, Condition cc)
+MacroAssemblerARM::ma_vstr(VFPRegister src, Register base, Register index, int32_t shift,
+                           int32_t offset, Condition cc)
 {
     as_add(ScratchRegister, base, lsl(index, shift), NoSetCond, cc);
-    return ma_vstr(src, Operand(ScratchRegister, 0), cc);
+    return ma_vstr(src, Operand(ScratchRegister, offset), cc);
 }
 
-bool
+void
 MacroAssemblerARMCompat::buildFakeExitFrame(Register scratch, uint32_t *offset)
 {
     DebugOnly<uint32_t> initialDepth = framePushed();
@@ -1789,7 +1809,6 @@ MacroAssemblerARMCompat::buildFakeExitFrame(Register scratch, uint32_t *offset)
     MOZ_ASSERT(pseudoReturnOffset - offsetBeforePush == 8);
 
     *offset = pseudoReturnOffset;
-    return true;
 }
 
 bool
@@ -1858,17 +1877,6 @@ MacroAssemblerARMCompat::callJit(Register callee)
         adjustFrame(sizeof(void*));
         ma_callJit(callee);
     }
-}
-
-void
-MacroAssemblerARMCompat::callJitFromAsmJS(Register callee)
-{
-    ma_callJitNoPush(callee);
-
-    // The JIT ABI has the callee pop the return address off the stack.
-    // The asm.js caller assumes that the call leaves sp unchanged, so bump
-    // the stack.
-    subPtr(Imm32(sizeof(void*)), sp);
 }
 
 void
@@ -2686,6 +2694,20 @@ MacroAssemblerARMCompat::cmpPtr(const Address &lhs, ImmPtr rhs)
 }
 
 void
+MacroAssemblerARMCompat::cmpPtr(const Address &lhs, ImmGCPtr rhs)
+{
+    loadPtr(lhs, secondScratchReg_);
+    ma_cmp(secondScratchReg_, rhs);
+}
+
+void
+MacroAssemblerARMCompat::cmpPtr(const Address &lhs, Imm32 rhs)
+{
+    loadPtr(lhs, secondScratchReg_);
+    ma_cmp(secondScratchReg_, rhs);
+}
+
+void
 MacroAssemblerARMCompat::setStackArg(Register reg, uint32_t arg)
 {
     ma_dataTransferN(IsStore, 32, true, sp, Imm32(arg * sizeof(intptr_t)), reg);
@@ -3217,6 +3239,13 @@ MacroAssemblerARMCompat::unboxNonDouble(const Address &src, Register dest)
 }
 
 void
+MacroAssemblerARMCompat::unboxNonDouble(const BaseIndex &src, Register dest)
+{
+    ma_alu(src.base, lsl(src.index, src.scale), ScratchRegister, OpAdd);
+    ma_ldr(Address(ScratchRegister, src.offset), dest);
+}
+
+void
 MacroAssemblerARMCompat::unboxDouble(const ValueOperand &operand, FloatRegister dest)
 {
     MOZ_ASSERT(dest.isDouble());
@@ -3632,7 +3661,6 @@ void
 MacroAssemblerARMCompat::storePayload(const Value &val, const BaseIndex &dest)
 {
     unsigned shift = ScaleToShift(dest.scale);
-    MOZ_ASSERT(dest.offset == 0);
 
     jsval_layout jv = JSVAL_TO_IMPL(val);
     if (val.isMarkable())
@@ -3645,8 +3673,17 @@ MacroAssemblerARMCompat::storePayload(const Value &val, const BaseIndex &dest)
     // be integrated into the as_dtr call.
     JS_STATIC_ASSERT(NUNBOX32_PAYLOAD_OFFSET == 0);
 
+    // If an offset is used, modify the base so that a [base + index << shift]
+    // instruction format can be used.
+    if (dest.offset != 0)
+        ma_add(dest.base, Imm32(dest.offset), dest.base);
+
     as_dtr(IsStore, 32, Offset, ScratchRegister,
            DTRAddr(dest.base, DtrRegImmShift(dest.index, LSL, shift)));
+
+    // Restore the original value of the base, if necessary.
+    if (dest.offset != 0)
+        ma_sub(dest.base, Imm32(dest.offset), dest.base);
 }
 
 void
@@ -3654,16 +3691,22 @@ MacroAssemblerARMCompat::storePayload(Register src, const BaseIndex &dest)
 {
     unsigned shift = ScaleToShift(dest.scale);
     MOZ_ASSERT(shift < 32);
-    MOZ_ASSERT(dest.offset == 0);
 
     // If NUNBOX32_PAYLOAD_OFFSET is not zero, the memory operand [base + index
     // << shift + imm] cannot be encoded into a single instruction, and cannot
     // be integrated into the as_dtr call.
     JS_STATIC_ASSERT(NUNBOX32_PAYLOAD_OFFSET == 0);
 
+    // Save/restore the base if the BaseIndex has an offset, as above.
+    if (dest.offset != 0)
+        ma_add(dest.base, Imm32(dest.offset), dest.base);
+
     // Technically, shift > -32 can be handle by changing LSL to ASR, but should
     // never come up, and this is one less code path to get wrong.
     as_dtr(IsStore, 32, Offset, src, DTRAddr(dest.base, DtrRegImmShift(dest.index, LSL, shift)));
+
+    if (dest.offset != 0)
+        ma_sub(dest.base, Imm32(dest.offset), dest.base);
 }
 
 void
@@ -3684,7 +3727,6 @@ MacroAssemblerARMCompat::storeTypeTag(ImmTag tag, const BaseIndex &dest)
     Register base = dest.base;
     Register index = dest.index;
     unsigned shift = ScaleToShift(dest.scale);
-    MOZ_ASSERT(dest.offset == 0);
     MOZ_ASSERT(base != ScratchRegister);
     MOZ_ASSERT(index != ScratchRegister);
 
@@ -3694,10 +3736,10 @@ MacroAssemblerARMCompat::storeTypeTag(ImmTag tag, const BaseIndex &dest)
     // immediate that is being stored into said memory location. Work around
     // this by modifying the base so the valid [base + index << shift] format
     // can be used, then restore it.
-    ma_add(base, Imm32(NUNBOX32_TYPE_OFFSET), base);
+    ma_add(base, Imm32(NUNBOX32_TYPE_OFFSET + dest.offset), base);
     ma_mov(tag, ScratchRegister);
     ma_str(ScratchRegister, DTRAddr(base, DtrRegImmShift(index, LSL, shift)));
-    ma_sub(base, Imm32(NUNBOX32_TYPE_OFFSET), base);
+    ma_sub(base, Imm32(NUNBOX32_TYPE_OFFSET + dest.offset), base);
 }
 
 // ARM says that all reads of pc will return 8 higher than the address of the
@@ -4140,6 +4182,8 @@ AssertValidABIFunctionType(uint32_t passedArgTypes)
       case Args_Double_DoubleDouble:
       case Args_Double_IntDouble:
       case Args_Int_IntDouble:
+      case Args_Double_DoubleDoubleDouble:
+      case Args_Double_DoubleDoubleDoubleDouble:
         break;
       default:
         MOZ_CRASH("Unexpected type");
@@ -4274,6 +4318,18 @@ MacroAssemblerARMCompat::handleFailureWithHandlerTail(void *handler)
     loadValue(Address(r11, BaselineFrame::reverseOffsetOfReturnValue()), JSReturnOperand);
     ma_mov(r11, sp);
     pop(r11);
+
+    // If profiling is enabled, then update the lastProfilingFrame to refer to caller
+    // frame before returning.
+    {
+        Label skipProfilingInstrumentation;
+        // Test if profiler enabled.
+        AbsoluteAddress addressOfEnabled(GetJitContext()->runtime->spsProfiler().addressOfEnabled());
+        branch32(Assembler::Equal, addressOfEnabled, Imm32(0), &skipProfilingInstrumentation);
+        profilerExitFrame();
+        bind(&skipProfilingInstrumentation);
+    }
+
     ret();
 
     // If we are bailing out to baseline to handle an exception, jump to the
@@ -4696,8 +4752,6 @@ MacroAssemblerARMCompat::jumpWithPatch(RepatchLabel *label, Condition cond)
     return ret;
 }
 
-#ifdef JSGC_GENERATIONAL
-
 void
 MacroAssemblerARMCompat::branchPtrInNurseryRange(Condition cond, Register ptr, Register temp,
                                                  Label *label)
@@ -5005,4 +5059,17 @@ js::jit::MacroAssemblerARMCompat::atomicFetchOp(int nbytes, bool signExtend, Ato
                                                 const Register &value, const BaseIndex &mem,
                                                 Register temp, Register output);
 
-#endif
+void
+MacroAssemblerARMCompat::profilerEnterFrame(Register framePtr, Register scratch)
+{
+    AbsoluteAddress activation(GetJitContext()->runtime->addressOfProfilingActivation());
+    loadPtr(activation, scratch);
+    storePtr(framePtr, Address(scratch, JitActivation::offsetOfLastProfilingFrame()));
+    storePtr(ImmPtr(nullptr), Address(scratch, JitActivation::offsetOfLastProfilingCallSite()));
+}
+
+void
+MacroAssemblerARMCompat::profilerExitFrame()
+{
+    branch(GetJitContext()->runtime->jitRuntime()->getProfilerExitFrameTail());
+}

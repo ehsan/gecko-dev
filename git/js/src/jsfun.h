@@ -19,8 +19,6 @@ namespace js {
 class FunctionExtended;
 
 typedef JSNative           Native;
-typedef JSParallelNative   ParallelNative;
-typedef JSThreadSafeNative ThreadSafeNative;
 }
 
 struct JSAtomState;
@@ -49,13 +47,17 @@ class JSFunction : public js::NativeObject
         ASMJS            = 0x0800,  /* function is an asm.js module or exported function */
         INTERPRETED_LAZY = 0x1000,  /* function is interpreted but doesn't have a script yet */
         ARROW            = 0x2000,  /* ES6 '(args) => body' syntax */
+        RESOLVED_LENGTH  = 0x4000,  /* f.length has been resolved (see js::fun_resolve). */
+        RESOLVED_NAME    = 0x8000,  /* f.name has been resolved (see js::fun_resolve). */
 
         /* Derived Flags values for convenience: */
         NATIVE_FUN = 0,
         ASMJS_CTOR = ASMJS | NATIVE_CTOR,
         ASMJS_LAMBDA_CTOR = ASMJS | NATIVE_CTOR | LAMBDA,
         INTERPRETED_LAMBDA = INTERPRETED | LAMBDA,
-        INTERPRETED_LAMBDA_ARROW = INTERPRETED | LAMBDA | ARROW
+        INTERPRETED_LAMBDA_ARROW = INTERPRETED | LAMBDA | ARROW,
+        STABLE_ACROSS_CLONES = NATIVE_CTOR | IS_FUN_PROTO | EXPR_CLOSURE | HAS_GUESSED_ATOM |
+                               LAMBDA | SELF_HOSTED | SELF_HOSTED_CTOR | HAS_REST | ASMJS | ARROW
     };
 
     static_assert(INTERPRETED == JS_FUNCTION_INTERPRETED_BIT,
@@ -126,13 +128,14 @@ class JSFunction : public js::NativeObject
     bool isSelfHostedBuiltin()      const { return flags() & SELF_HOSTED; }
     bool isSelfHostedConstructor()  const { return flags() & SELF_HOSTED_CTOR; }
     bool hasRest()                  const { return flags() & HAS_REST; }
+    bool isInterpretedLazy()        const { return flags() & INTERPRETED_LAZY; }
+    bool hasScript()                const { return flags() & INTERPRETED; }
 
-    bool isInterpretedLazy()        const {
-        return flags() & INTERPRETED_LAZY;
-    }
-    bool hasScript()                const {
-        return flags() & INTERPRETED;
-    }
+    // Arrow functions store their lexical |this| in the first extended slot.
+    bool isArrow()                  const { return flags() & ARROW; }
+
+    bool hasResolvedLength()        const { return flags() & RESOLVED_LENGTH; }
+    bool hasResolvedName()          const { return flags() & RESOLVED_NAME; }
 
     bool hasJITCode() const {
         if (!hasScript())
@@ -140,9 +143,6 @@ class JSFunction : public js::NativeObject
 
         return nonLazyScript()->hasBaselineScript() || nonLazyScript()->hasIonScript();
     }
-
-    // Arrow functions store their lexical |this| in the first extended slot.
-    bool isArrow()                  const { return flags() & ARROW; }
 
     /* Compound attributes: */
     bool isBuiltin() const {
@@ -156,9 +156,6 @@ class JSFunction : public js::NativeObject
     }
     bool isNamedLambda() const {
         return isLambda() && displayAtom() && !hasGuessedAtom();
-    }
-    bool hasParallelNative() const {
-        return isNative() && jitInfo() && jitInfo()->hasParallelNative();
     }
 
     bool isBuiltinFunctionConstructor();
@@ -207,8 +204,20 @@ class JSFunction : public js::NativeObject
         flags_ |= ARROW;
     }
 
+    void setResolvedLength() {
+        flags_ |= RESOLVED_LENGTH;
+    }
+
+    void setResolvedName() {
+        flags_ |= RESOLVED_NAME;
+    }
+
     JSAtom *atom() const { return hasGuessedAtom() ? nullptr : atom_.get(); }
-    js::PropertyName *name() const { return hasGuessedAtom() || !atom_ ? nullptr : atom_->asPropertyName(); }
+
+    js::PropertyName *name() const {
+        return hasGuessedAtom() || !atom_ ? nullptr : atom_->asPropertyName();
+    }
+
     void initAtom(JSAtom *atom) { atom_.init(atom); }
 
     JSAtom *displayAtom() const {
@@ -315,14 +324,14 @@ class JSFunction : public js::NativeObject
         return u.i.s.script_;
     }
 
-    // Returns non-callsited-clone version of this.  Use when return
-    // value can flow to arbitrary JS (see Bug 944975).
-    JSFunction* originalFunction() {
-        if (this->hasScript() && this->nonLazyScript()->isCallsiteClone()) {
-            return this->nonLazyScript()->donorFunction();
-        } else {
-            return this;
-        }
+    bool getLength(JSContext *cx, uint16_t *length) {
+        JS::RootedFunction self(cx, this);
+        if (self->isInterpretedLazy() && !self->getOrCreateScript(cx))
+            return false;
+
+        *length = self->hasScript() ? self->nonLazyScript()->funLength()
+                                    : (self->nargs() - self->hasRest());
+        return true;
     }
 
     js::HeapPtrScript &mutableScript() {
@@ -394,15 +403,6 @@ class JSFunction : public js::NativeObject
         return isInterpreted() ? nullptr : native();
     }
 
-    JSParallelNative parallelNative() const {
-        MOZ_ASSERT(hasParallelNative());
-        return jitInfo()->parallelNative;
-    }
-
-    JSParallelNative maybeParallelNative() const {
-        return hasParallelNative() ? parallelNative() : nullptr;
-    }
-
     void initNative(js::Native native, const JSJitInfo *jitinfo) {
         MOZ_ASSERT(native);
         u.n.native = native;
@@ -442,16 +442,10 @@ class JSFunction : public js::NativeObject
 
     /* Bound function accessors. */
 
-    inline bool initBoundFunction(JSContext *cx, js::HandleValue thisArg,
+    inline bool initBoundFunction(JSContext *cx, js::HandleObject target, js::HandleValue thisArg,
                                   const js::Value *args, unsigned argslen);
 
-    JSObject *getBoundFunctionTarget() const {
-        MOZ_ASSERT(isBoundFunction());
-
-        /* Bound functions abuse |parent| to store their target function. */
-        return getParent();
-    }
-
+    JSObject *getBoundFunctionTarget() const;
     const js::Value &getBoundFunctionThis() const;
     const js::Value &getBoundFunctionArgument(unsigned which) const;
     size_t getBoundFunctionArgumentCount() const;
@@ -526,7 +520,7 @@ NewFunction(ExclusiveContext *cx, HandleObject funobj, JSNative native, unsigned
 extern JSFunction *
 NewFunctionWithProto(ExclusiveContext *cx, HandleObject funobj, JSNative native, unsigned nargs,
                      JSFunction::Flags flags, HandleObject parent, HandleAtom atom,
-                     JSObject *proto, gc::AllocKind allocKind = JSFunction::FinalizeKind,
+                     HandleObject proto, gc::AllocKind allocKind = JSFunction::FinalizeKind,
                      NewObjectKind newKind = GenericObject);
 
 extern JSAtom *
@@ -577,6 +571,9 @@ class FunctionExtended : public JSFunction
     /* Reserved slots available for storage by particular native functions. */
     HeapValue extendedSlots[NUM_EXTENDED_SLOTS];
 };
+
+extern bool
+CloneFunctionObjectUseSameScript(JSCompartment *compartment, HandleFunction fun);
 
 extern JSFunction *
 CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
@@ -666,17 +663,17 @@ CallOrConstructBoundFunction(JSContext *, unsigned, js::Value *);
 
 extern const JSFunctionSpec function_methods[];
 
-} /* namespace js */
+extern bool
+fun_apply(JSContext *cx, unsigned argc, Value *vp);
 
 extern bool
-js_fun_apply(JSContext *cx, unsigned argc, js::Value *vp);
-
-extern bool
-js_fun_call(JSContext *cx, unsigned argc, js::Value *vp);
+fun_call(JSContext *cx, unsigned argc, Value *vp);
 
 extern JSObject *
-js_fun_bind(JSContext *cx, js::HandleObject target, js::HandleValue thisArg,
-            js::Value *boundArgs, unsigned argslen);
+fun_bind(JSContext *cx, HandleObject target, HandleValue thisArg,
+         Value *boundArgs, unsigned argslen);
+
+} /* namespace js */
 
 #ifdef DEBUG
 namespace JS {

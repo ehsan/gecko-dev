@@ -37,10 +37,6 @@ struct IonScript;
 struct VMFunction;
 }
 
-namespace types {
-class Type;
-}
-
 namespace gc {
 
 /*** Object Marking ***/
@@ -97,6 +93,7 @@ void Mark##base##Range(JSTracer *trc, size_t len, HeapPtr<type*> *thing, const c
 void Mark##base##RootRange(JSTracer *trc, size_t len, type **thing, const char *name);            \
 bool Is##base##Marked(type **thingp);                                                             \
 bool Is##base##Marked(BarrieredBase<type*> *thingp);                                              \
+bool Is##base##MarkedFromAnyThread(type **thingp);                                                \
 bool Is##base##MarkedFromAnyThread(BarrieredBase<type*> *thingp);                                 \
 bool Is##base##AboutToBeFinalized(type **thingp);                                                 \
 bool Is##base##AboutToBeFinalizedFromAnyThread(type **thingp);                                    \
@@ -118,6 +115,7 @@ DeclMarker(Object, GlobalObject)
 DeclMarker(Object, JSObject)
 DeclMarker(Object, JSFunction)
 DeclMarker(Object, NestedScopeObject)
+DeclMarker(Object, PlainObject)
 DeclMarker(Object, SavedFrame)
 DeclMarker(Object, ScopeObject)
 DeclMarker(Object, SharedArrayBufferObject)
@@ -131,7 +129,7 @@ DeclMarker(String, JSFlatString)
 DeclMarker(String, JSLinearString)
 DeclMarker(String, PropertyName)
 DeclMarker(Symbol, JS::Symbol)
-DeclMarker(TypeObject, types::TypeObject)
+DeclMarker(ObjectGroup, ObjectGroup)
 
 #undef DeclMarker
 
@@ -212,9 +210,6 @@ MarkValueRootRange(JSTracer *trc, Value *begin, Value *end, const char *name)
     MarkValueRootRange(trc, end - begin, begin, name);
 }
 
-void
-MarkTypeRoot(JSTracer *trc, types::Type *v, const char *name);
-
 bool
 IsValueMarked(Value *v);
 
@@ -255,13 +250,6 @@ MarkCrossCompartmentSlot(JSTracer *trc, JSObject *src, HeapValue *dst_slot, cons
 
 
 /*** Special Cases ***/
-
-/*
- * MarkChildren<JSObject> is exposed solely for preWriteBarrier on
- * JSObject::swap. It should not be considered external interface.
- */
-void
-MarkChildren(JSTracer *trc, JSObject *obj);
 
 /*
  * Trace through the shape and any shapes it contains to mark
@@ -325,15 +313,6 @@ Mark(JSTracer *trc, ScopeObject **obj, const char *name)
 {
     MarkObjectUnbarriered(trc, obj, name);
 }
-
-bool
-IsCellMarked(Cell **thingp);
-
-bool
-IsCellAboutToBeFinalized(Cell **thing);
-
-bool
-IsCellAboutToBeFinalizedFromAnyThread(Cell **thing);
 
 inline bool
 IsMarked(BarrieredBase<Value> *v)
@@ -405,40 +384,13 @@ ToMarkable(Cell *cell)
     return cell;
 }
 
-inline JSGCTraceKind
-TraceKind(const Value &v)
-{
-    MOZ_ASSERT(v.isMarkable());
-    if (v.isObject())
-        return JSTRACE_OBJECT;
-    if (v.isString())
-        return JSTRACE_STRING;
-    MOZ_ASSERT(v.isSymbol());
-    return JSTRACE_SYMBOL;
-}
-
-inline JSGCTraceKind
-TraceKind(JSObject *obj)
-{
-    return JSTRACE_OBJECT;
-}
-
-inline JSGCTraceKind
-TraceKind(JSScript *script)
-{
-    return JSTRACE_SCRIPT;
-}
-
-inline JSGCTraceKind
-TraceKind(LazyScript *lazy)
-{
-    return JSTRACE_LAZY_SCRIPT;
-}
-
 } /* namespace gc */
 
 void
 TraceChildren(JSTracer *trc, void *thing, JSGCTraceKind kind);
+
+bool
+UnmarkGrayShapeRecursively(Shape *shape);
 
 } /* namespace js */
 

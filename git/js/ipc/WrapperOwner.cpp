@@ -94,6 +94,7 @@ class CPOWProxyHandler : public BaseProxyHandler
     virtual bool ownPropertyKeys(JSContext *cx, HandleObject proxy,
                                  AutoIdVector &props) const MOZ_OVERRIDE;
     virtual bool delete_(JSContext *cx, HandleObject proxy, HandleId id, bool *bp) const MOZ_OVERRIDE;
+    virtual bool enumerate(JSContext *cx, HandleObject proxy, MutableHandleObject objp) const MOZ_OVERRIDE;
     virtual bool preventExtensions(JSContext *cx, HandleObject proxy, bool *succeeded) const MOZ_OVERRIDE;
     virtual bool isExtensible(JSContext *cx, HandleObject proxy, bool *extensible) const MOZ_OVERRIDE;
     virtual bool has(JSContext *cx, HandleObject proxy, HandleId id, bool *bp) const MOZ_OVERRIDE;
@@ -109,8 +110,6 @@ class CPOWProxyHandler : public BaseProxyHandler
     virtual bool hasOwn(JSContext *cx, HandleObject proxy, HandleId id, bool *bp) const MOZ_OVERRIDE;
     virtual bool getOwnEnumerablePropertyKeys(JSContext *cx, HandleObject proxy,
                                               AutoIdVector &props) const MOZ_OVERRIDE;
-    virtual bool getEnumerablePropertyKeys(JSContext *cx, HandleObject proxy,
-                                           AutoIdVector &props) const MOZ_OVERRIDE;
     virtual bool hasInstance(JSContext *cx, HandleObject proxy,
                              MutableHandleValue v, bool *bp) const MOZ_OVERRIDE;
     virtual bool objectClassIs(HandleObject obj, js::ESClassValue classValue,
@@ -121,6 +120,7 @@ class CPOWProxyHandler : public BaseProxyHandler
     virtual void objectMoved(JSObject *proxy, const JSObject *old) const MOZ_OVERRIDE;
     virtual bool isCallable(JSObject *obj) const MOZ_OVERRIDE;
     virtual bool isConstructor(JSObject *obj) const MOZ_OVERRIDE;
+    virtual bool getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject protop) const MOZ_OVERRIDE;
 
     static const char family;
     static const CPOWProxyHandler singleton;
@@ -268,6 +268,15 @@ WrapperOwner::delete_(JSContext *cx, HandleObject proxy, HandleId id, bool *bp)
 }
 
 bool
+CPOWProxyHandler::enumerate(JSContext *cx, HandleObject proxy, MutableHandleObject objp) const
+{
+    // Using a CPOW for the Iterator would slow down for .. in performance, instead
+    // call the base hook, that will use our implementation of getOwnEnumerablePropertyKeys
+    // and follow the proto chain.
+    return BaseProxyHandler::enumerate(cx, proxy, objp);
+}
+
+bool
 CPOWProxyHandler::has(JSContext *cx, HandleObject proxy, HandleId id, bool *bp) const
 {
     FORWARD(has, (cx, proxy, id, bp));
@@ -328,7 +337,7 @@ CPOWToString(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject callee(cx, &args.callee());
     RootedValue cpowValue(cx);
-    if (!JS_LookupProperty(cx, callee, "__cpow__", &cpowValue))
+    if (!JS_GetProperty(cx, callee, "__cpow__", &cpowValue))
         return false;
 
     if (!cpowValue.isObject() || !IsCPOW(&cpowValue.toObject())) {
@@ -469,18 +478,6 @@ bool
 WrapperOwner::getOwnEnumerablePropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
 {
     return getPropertyKeys(cx, proxy, JSITER_OWNONLY, props);
-}
-
-bool
-CPOWProxyHandler::getEnumerablePropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVector &props) const
-{
-    FORWARD(getEnumerablePropertyKeys, (cx, proxy, props));
-}
-
-bool
-WrapperOwner::getEnumerablePropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
-{
-    return getPropertyKeys(cx, proxy, 0, props);
 }
 
 bool
@@ -683,6 +680,32 @@ WrapperOwner::className(JSContext *cx, HandleObject proxy)
 }
 
 bool
+CPOWProxyHandler::getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject objp) const
+{
+    FORWARD(getPrototypeOf, (cx, proxy, objp));
+}
+
+bool
+WrapperOwner::getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject objp)
+{
+    ObjectId objId = idOf(proxy);
+
+    ObjectOrNullVariant val;
+    ReturnStatus status;
+    if (!SendGetPrototypeOf(objId, &status, &val))
+        return ipcfail(cx);
+
+    LOG_STACK();
+
+    if (!ok(cx, status))
+        return false;
+
+    objp.set(fromObjectOrNullVariant(cx, val));
+
+    return true;
+}
+
+bool
 CPOWProxyHandler::regexp_toShared(JSContext *cx, HandleObject proxy, RegExpGuard *g) const
 {
     FORWARD(regexp_toShared, (cx, proxy, g));
@@ -881,6 +904,10 @@ void
 WrapperOwner::ActorDestroy(ActorDestroyReason why)
 {
     inactive_ = true;
+
+    objects_.clear();
+    unwaivedObjectIds_.clear();
+    waivedObjectIds_.clear();
 }
 
 bool
@@ -936,7 +963,7 @@ WrapperOwner::toObjectVariant(JSContext *cx, JSObject *objArg, ObjectVariant *ob
     // Whenever operating on an object that comes from the table, we wrap it
     // in findObjectById.
     unsigned wrapperFlags = 0;
-    obj = js::UncheckedUnwrap(obj, false, &wrapperFlags);
+    obj = js::UncheckedUnwrap(obj, true, &wrapperFlags);
     if (obj && IsCPOW(obj) && OwnerOf(obj) == this) {
         *objVarp = LocalObject(idOf(obj).serialize());
         return true;
@@ -986,11 +1013,14 @@ WrapperOwner::fromRemoteObjectVariant(JSContext *cx, RemoteObject objVar)
         RootedObject junkScope(cx, xpc::PrivilegedJunkScope());
         JSAutoCompartment ac(cx, junkScope);
         RootedValue v(cx, UndefinedValue());
+        // We need to setLazyProto for the getPrototypeOf hook.
+        ProxyOptions options;
+        options.setLazyProto(true);
         obj = NewProxyObject(cx,
                              &CPOWProxyHandler::singleton,
                              v,
                              nullptr,
-                             junkScope);
+                             options);
         if (!obj)
             return nullptr;
 

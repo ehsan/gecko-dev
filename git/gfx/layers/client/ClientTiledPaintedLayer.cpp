@@ -13,6 +13,7 @@
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/gfx/BaseSize.h"       // for BaseSize
 #include "mozilla/gfx/Rect.h"           // for Rect, RectTyped
+#include "mozilla/layers/CompositorChild.h"
 #include "mozilla/layers/LayerMetricsWrapper.h" // for LayerMetricsWrapper
 #include "mozilla/layers/LayersMessages.h"
 #include "mozilla/mozalloc.h"           // for operator delete, etc
@@ -23,12 +24,9 @@
 namespace mozilla {
 namespace layers {
 
-
 ClientTiledPaintedLayer::ClientTiledPaintedLayer(ClientLayerManager* const aManager,
                                                ClientLayerManager::PaintedLayerCreationHint aCreationHint)
-  : PaintedLayer(aManager,
-                static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()),
-                aCreationHint)
+  : PaintedLayer(aManager, static_cast<ClientLayer*>(this), aCreationHint)
   , mContentClient()
 {
   MOZ_COUNT_CTOR(ClientTiledPaintedLayer);
@@ -72,26 +70,40 @@ GetTransformToAncestorsParentLayer(Layer* aStart, const LayerMetricsWrapper& aAn
        ancestorParent ? iter != ancestorParent : iter.IsValid();
        iter = iter.GetParent()) {
     transform = transform * iter.GetTransform();
-    // If the layer has a non-transient async transform then we need to apply it here
-    // because it will get applied by the APZ in the compositor as well
-    const FrameMetrics& metrics = iter.Metrics();
-    transform.PostScale(metrics.mPresShellResolution, metrics.mPresShellResolution, 1.f);
+
+    if (gfxPrefs::LayoutUseContainersForRootFrames()) {
+      // When scrolling containers, layout adds a post-scale into the transform
+      // of the displayport-ancestor (which we pick up in GetTransform() above)
+      // to cancel out the pres shell resolution (for historical reasons). The
+      // compositor in turn cancels out this post-scale (i.e., scales by the
+      // pres shell resolution), and to get correct calculations, we need to do
+      // so here, too.
+      //
+      // With containerless scrolling, the offending post-scale is on the
+      // parent layer of the displayport-ancestor, which we don't reach in this
+      // loop, so we don't need to worry about it.
+      const FrameMetrics& metrics = iter.Metrics();
+      transform.PostScale(metrics.GetPresShellResolution(), metrics.GetPresShellResolution(), 1.f);
+    }
   }
   return transform;
 }
 
 void
 ClientTiledPaintedLayer::GetAncestorLayers(LayerMetricsWrapper* aOutScrollAncestor,
-                                          LayerMetricsWrapper* aOutDisplayPortAncestor)
+                                           LayerMetricsWrapper* aOutDisplayPortAncestor,
+                                           bool* aOutHasTransformAnimation)
 {
   LayerMetricsWrapper scrollAncestor;
   LayerMetricsWrapper displayPortAncestor;
+  bool hasTransformAnimation = false;
   for (LayerMetricsWrapper ancestor(this, LayerMetricsWrapper::StartAt::BOTTOM); ancestor; ancestor = ancestor.GetParent()) {
+    hasTransformAnimation |= ancestor.HasTransformAnimation();
     const FrameMetrics& metrics = ancestor.Metrics();
     if (!scrollAncestor && metrics.GetScrollId() != FrameMetrics::NULL_SCROLL_ID) {
       scrollAncestor = ancestor;
     }
-    if (!metrics.mDisplayPort.IsEmpty()) {
+    if (!metrics.GetDisplayPort().IsEmpty()) {
       displayPortAncestor = ancestor;
       // Any layer that has a displayport must be scrollable, so we can break
       // here.
@@ -103,6 +115,9 @@ ClientTiledPaintedLayer::GetAncestorLayers(LayerMetricsWrapper* aOutScrollAncest
   }
   if (aOutDisplayPortAncestor) {
     *aOutDisplayPortAncestor = displayPortAncestor;
+  }
+  if (aOutHasTransformAnimation) {
+    *aOutHasTransformAnimation = hasTransformAnimation;
   }
 }
 
@@ -125,7 +140,8 @@ ClientTiledPaintedLayer::BeginPaint()
   // with a displayport.
   LayerMetricsWrapper scrollAncestor;
   LayerMetricsWrapper displayPortAncestor;
-  GetAncestorLayers(&scrollAncestor, &displayPortAncestor);
+  bool hasTransformAnimation;
+  GetAncestorLayers(&scrollAncestor, &displayPortAncestor, &hasTransformAnimation);
 
   if (!displayPortAncestor || !scrollAncestor) {
     // No displayport or scroll ancestor, so we can't do progressive rendering.
@@ -137,8 +153,8 @@ ClientTiledPaintedLayer::BeginPaint()
     return;
   }
 
-  TILING_LOG("TILING %p: Found scrollAncestor %p and displayPortAncestor %p\n", this,
-    scrollAncestor.GetLayer(), displayPortAncestor.GetLayer());
+  TILING_LOG("TILING %p: Found scrollAncestor %p, displayPortAncestor %p, transform %d\n", this,
+    scrollAncestor.GetLayer(), displayPortAncestor.GetLayer(), hasTransformAnimation);
 
   const FrameMetrics& scrollMetrics = scrollAncestor.Metrics();
   const FrameMetrics& displayportMetrics = displayPortAncestor.Metrics();
@@ -150,18 +166,23 @@ ClientTiledPaintedLayer::BeginPaint()
   transformDisplayPortToLayer.Invert();
 
   // Compute the critical display port that applies to this layer in the
-  // LayoutDevice space of this layer.
-  ParentLayerRect criticalDisplayPort =
-    (displayportMetrics.mCriticalDisplayPort * displayportMetrics.GetZoom())
-    + displayportMetrics.mCompositionBounds.TopLeft();
-  mPaintData.mCriticalDisplayPort = RoundedOut(
-    ApplyParentLayerToLayerTransform(transformDisplayPortToLayer, criticalDisplayPort));
+  // LayoutDevice space of this layer, but only if there is no OMT animation
+  // on this layer. If there is an OMT animation then we need to draw the whole
+  // visible region of this layer as determined by layout, because we don't know
+  // what parts of it might move into view in the compositor.
+  if (!hasTransformAnimation) {
+    ParentLayerRect criticalDisplayPort =
+      (displayportMetrics.GetCriticalDisplayPort() * displayportMetrics.GetZoom())
+      + displayportMetrics.mCompositionBounds.TopLeft();
+    mPaintData.mCriticalDisplayPort = RoundedOut(
+      ApplyParentLayerToLayerTransform(transformDisplayPortToLayer, criticalDisplayPort));
+  }
   TILING_LOG("TILING %p: Critical displayport %s\n", this, Stringify(mPaintData.mCriticalDisplayPort).c_str());
 
   // Store the resolution from the displayport ancestor layer. Because this is Gecko-side,
   // before any async transforms have occurred, we can use the zoom for this.
   mPaintData.mResolution = displayportMetrics.GetZoom();
-  TILING_LOG("TILING %p: Resolution %f\n", this, mPaintData.mPresShellResolution.scale);
+  TILING_LOG("TILING %p: Resolution %f\n", this, mPaintData.mResolution.scale);
 
   // Store the applicable composition bounds in this layer's Layer units.
   mPaintData.mTransformToCompBounds =
@@ -178,20 +199,78 @@ ClientTiledPaintedLayer::BeginPaint()
 }
 
 bool
-ClientTiledPaintedLayer::UseFastPath()
+ClientTiledPaintedLayer::IsScrollingOnCompositor(const FrameMetrics& aParentMetrics)
 {
-  LayerMetricsWrapper scrollAncestor;
-  GetAncestorLayers(&scrollAncestor, nullptr);
-  if (!scrollAncestor) {
-    return true;
+  CompositorChild* compositor = nullptr;
+  if (Manager() && Manager()->AsClientLayerManager()) {
+    compositor = Manager()->AsClientLayerManager()->GetCompositorChild();
   }
-  const FrameMetrics& parentMetrics = scrollAncestor.Metrics();
 
-  bool multipleTransactionsNeeded = gfxPlatform::GetPlatform()->UseProgressivePaint()
-                                 || gfxPrefs::UseLowPrecisionBuffer()
-                                 || !parentMetrics.mCriticalDisplayPort.IsEmpty();
-  bool isFixed = GetIsFixedPosition() || GetParent()->GetIsFixedPosition();
-  return !multipleTransactionsNeeded || isFixed || parentMetrics.mDisplayPort.IsEmpty();
+  if (!compositor) {
+    return false;
+  }
+
+  FrameMetrics compositorMetrics;
+  if (!compositor->LookupCompositorFrameMetrics(aParentMetrics.GetScrollId(),
+                                                compositorMetrics)) {
+    return false;
+  }
+
+  // 1 is a tad high for a fuzzy equals epsilon however if our scroll delta
+  // is so small then we have nothing to gain from using paint heuristics.
+  float COORDINATE_EPSILON = 1.f;
+
+  return !FuzzyEqualsAdditive(compositorMetrics.GetScrollOffset().x,
+                              aParentMetrics.GetScrollOffset().x,
+                              COORDINATE_EPSILON) ||
+         !FuzzyEqualsAdditive(compositorMetrics.GetScrollOffset().y,
+                              aParentMetrics.GetScrollOffset().y,
+                              COORDINATE_EPSILON);
+}
+
+bool
+ClientTiledPaintedLayer::UseProgressiveDraw() {
+  if (!gfxPlatform::GetPlatform()->UseProgressivePaint()) {
+    // pref is disabled, so never do progressive
+    return false;
+  }
+
+  if (ClientManager()->HasShadowTarget()) {
+    // This condition is true when we are in a reftest scenario. We don't want
+    // to draw progressively here because it can cause intermittent reftest
+    // failures because the harness won't wait for all the tiles to be drawn.
+    return false;
+  }
+
+  if (mPaintData.mCriticalDisplayPort.IsEmpty()) {
+    // This catches three scenarios:
+    // 1) This layer doesn't have a scrolling ancestor
+    // 2) This layer is subject to OMTA transforms
+    // 3) Low-precision painting is disabled
+    // In all of these cases, we don't want to draw this layer progressively.
+    return false;
+  }
+
+  if (GetIsFixedPosition() || GetParent()->GetIsFixedPosition()) {
+    // This layer is fixed-position and so even if it does have a scrolling
+    // ancestor it will likely be entirely on-screen all the time, so we
+    // should draw it all at once
+    return false;
+  }
+
+  // XXX We probably want to disable progressive drawing for non active APZ layers in the future
+  //     but we should wait for a proper test case before making this change.
+#if 0 //!defined(MOZ_WIDGET_ANDROID) || defined(MOZ_ANDROID_APZ)
+  LayerMetricsWrapper scrollAncestor;
+  GetAncestorLayers(&scrollAncestor, nullptr, nullptr);
+  MOZ_ASSERT(scrollAncestor); // because mPaintData.mCriticalDisplayPort is non-empty
+  const FrameMetrics& parentMetrics = scrollAncestor.Metrics();
+  if (!IsScrollingOnCompositor(parentMetrics)) {
+    return false;
+  }
+#endif
+
+  return true;
 }
 
 bool
@@ -206,10 +285,8 @@ ClientTiledPaintedLayer::RenderHighPrecision(nsIntRegion& aInvalidRegion,
     return false;
   }
 
-  // Only draw progressively when the resolution is unchanged, and we're not
-  // in a reftest scenario (that's what the HasShadowManager() check is for).
-  if (gfxPlatform::GetPlatform()->UseProgressivePaint() &&
-      !ClientManager()->HasShadowTarget() &&
+  // Only draw progressively when the resolution is unchanged
+  if (UseProgressiveDraw() &&
       mContentClient->mTiledBuffer.GetFrameResolution() == mPaintData.mResolution) {
     // Store the old valid region, then clear it before painting.
     // We clip the old valid region to the visible region, as it only gets
@@ -238,6 +315,7 @@ ClientTiledPaintedLayer::RenderHighPrecision(nsIntRegion& aInvalidRegion,
 
   mContentClient->mTiledBuffer.SetFrameResolution(mPaintData.mResolution);
   mContentClient->mTiledBuffer.PaintThebes(mValidRegion, aInvalidRegion, aCallback, aCallbackData);
+  mPaintData.mPaintFinished = true;
   return true;
 }
 
@@ -341,7 +419,7 @@ ClientTiledPaintedLayer::RenderLayer()
   TILING_LOG("TILING %p: Initial low-precision valid region %s\n", this, Stringify(mLowPrecisionValidRegion).c_str());
 
   nsIntRegion neededRegion = mVisibleRegion;
-#ifndef MOZ_GFX_OPTIMIZE_MOBILE
+#ifndef MOZ_IGNORE_PAINT_WILL_RESAMPLE
   // This is handled by PadDrawTargetOutFromRegion in TiledContentClient for mobile
   if (MayResample()) {
     // If we're resampling then bilinear filtering can read up to 1 pixel
@@ -371,16 +449,6 @@ ClientTiledPaintedLayer::RenderLayer()
     // Only paint the mask layer on the first transaction.
     if (GetMaskLayer()) {
       ToClientLayer(GetMaskLayer())->RenderLayer();
-    }
-
-    // In some cases we can take a fast path and just be done with it.
-    if (UseFastPath()) {
-      TILING_LOG("TILING %p: Taking fast-path\n", this);
-      mValidRegion = neededRegion;
-      mContentClient->mTiledBuffer.PaintThebes(mValidRegion, invalidRegion, callback, data);
-      ClientManager()->Hold(this);
-      mContentClient->UseTiledLayerBuffer(TiledContentClient::TILED_BUFFER);
-      return;
     }
 
     // For more complex cases we need to calculate a bunch of metrics before we
@@ -468,6 +536,18 @@ ClientTiledPaintedLayer::RenderLayer()
   // If we get here, we've done all the high- and low-precision
   // paints we wanted to do, so we can finish the paint and chill.
   EndPaint();
+}
+
+void
+ClientTiledPaintedLayer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+{
+  PaintedLayer::PrintInfo(aStream, aPrefix);
+  if (mContentClient) {
+    aStream << "\n";
+    nsAutoCString pfx(aPrefix);
+    pfx += "  ";
+    mContentClient->PrintInfo(aStream, pfx.get());
+  }
 }
 
 } // mozilla

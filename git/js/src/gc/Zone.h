@@ -12,36 +12,17 @@
 #include "mozilla/MemoryReporting.h"
 
 #include "jscntxt.h"
-#include "jsinfer.h"
 
 #include "gc/FindSCCs.h"
 #include "gc/GCRuntime.h"
 #include "js/TracingAPI.h"
+#include "vm/TypeInference.h"
 
 namespace js {
 
 namespace jit {
 class JitZone;
 }
-
-// Encapsulates the data needed to perform allocation. Typically there is
-// precisely one of these per zone (|cx->zone().allocator|). However, in
-// parallel execution mode, there will be one per worker thread.
-class Allocator
-{
-  public:
-    explicit Allocator(JS::Zone *zone);
-
-    js::gc::ArenaLists arenas;
-
-  private:
-    // Since allocators can be accessed from worker threads, the parent zone_
-    // should not be accessed in general. GCRuntime is allowed to actually do
-    // the allocation, however.
-    friend class js::gc::GCRuntime;
-
-    JS::Zone *zone_;
-};
 
 namespace gc {
 
@@ -62,6 +43,7 @@ class ZoneHeapThreshold
 
     double gcHeapGrowthFactor() const { return gcHeapGrowthFactor_; }
     size_t gcTriggerBytes() const { return gcTriggerBytes_; }
+    bool isCloseToAllocTrigger(const js::gc::HeapUsage& usage, bool highFrequencyGC) const;
 
     void updateAfterGC(size_t lastBytes, JSGCInvocationKind gckind,
                        const GCSchedulingTunables &tunables, const GCSchedulingState &state);
@@ -121,9 +103,7 @@ namespace JS {
 // shapes within it are alive.
 //
 // We always guarantee that a zone has at least one live compartment by refusing
-// to delete the last compartment in a live zone. (This could happen, for
-// example, if the conservative scanner marks a string in an otherwise dead
-// zone.)
+// to delete the last compartment in a live zone.
 struct Zone : public JS::shadow::Zone,
               public js::gc::GraphNodeBase<JS::Zone>,
               public js::MallocProvider<JS::Zone>
@@ -156,7 +136,7 @@ struct Zone : public JS::shadow::Zone,
     void *onOutOfMemory(void *p, size_t nbytes) {
         return runtimeFromMainThread()->onOutOfMemory(p, nbytes);
     }
-    void reportAllocationOverflow() { js_ReportAllocationOverflow(nullptr); }
+    void reportAllocationOverflow() { js::ReportAllocationOverflow(nullptr); }
 
     void beginSweepTypes(js::FreeOp *fop, bool releaseTypes);
 
@@ -255,9 +235,9 @@ struct Zone : public JS::shadow::Zone,
     }
 
   public:
-    js::Allocator allocator;
+    js::gc::ArenaLists arenas;
 
-    js::types::TypeZone types;
+    js::TypeZone types;
 
     // The set of compartments in this zone.
     typedef js::Vector<JSCompartment *, 1, js::SystemAllocPolicy> CompartmentVector;
@@ -322,7 +302,8 @@ struct Zone : public JS::shadow::Zone,
     friend class js::gc::ZoneList;
     static Zone * const NotOnList;
     Zone *listNext_;
-    bool isOnList();
+    bool isOnList() const;
+    Zone *nextZone() const;
 
     friend bool js::CurrentThreadCanAccessZone(Zone *zone);
     friend class js::gc::GCRuntime;
@@ -378,14 +359,14 @@ class ZonesIter
 
 struct CompartmentsInZoneIter
 {
-    explicit CompartmentsInZoneIter(JS::Zone *zone) {
+    explicit CompartmentsInZoneIter(JS::Zone *zone) : zone(zone) {
         it = zone->compartments.begin();
-        end = zone->compartments.end();
     }
 
     bool done() const {
         MOZ_ASSERT(it);
-        return it == end;
+        return it < zone->compartments.begin() ||
+               it >= zone->compartments.end();
     }
     void next() {
         MOZ_ASSERT(!done());
@@ -401,10 +382,11 @@ struct CompartmentsInZoneIter
     JSCompartment *operator->() const { return get(); }
 
   private:
-    JSCompartment **it, **end;
+    JS::Zone *zone;
+    JSCompartment **it;
 
     CompartmentsInZoneIter()
-      : it(nullptr), end(nullptr)
+      : zone(nullptr), it(nullptr)
     {}
 
     // This is for the benefit of CompartmentsIterT::comp.

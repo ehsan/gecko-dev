@@ -18,7 +18,6 @@
 
 #include "builtin/MapObject.h"
 #include "frontend/BytecodeCompiler.h"
-#include "gc/ForkJoinNursery.h"
 #include "gc/GCInternals.h"
 #include "gc/Marking.h"
 #include "jit/MacroAssembler.h"
@@ -104,8 +103,8 @@ MarkExactStackRootsAcrossTypes(T context, JSTracer *trc)
     MarkExactStackRootList<JSObject *, MarkObjectRoot>(trc, context, "exact-object");
     MarkExactStackRootList<Shape *, MarkShapeRoot>(trc, context, "exact-shape");
     MarkExactStackRootList<BaseShape *, MarkBaseShapeRoot>(trc, context, "exact-baseshape");
-    MarkExactStackRootList<types::TypeObject *, MarkTypeObjectRoot>(
-        trc, context, "exact-typeobject");
+    MarkExactStackRootList<ObjectGroup *, MarkObjectGroupRoot>(
+        trc, context, "exact-objectgroup");
     MarkExactStackRootList<JSString *, MarkStringRoot>(trc, context, "exact-string");
     MarkExactStackRootList<JS::Symbol *, MarkSymbolRoot>(trc, context, "exact-symbol");
     MarkExactStackRootList<jit::JitCode *, MarkJitCodeRoot>(trc, context, "exact-jitcode");
@@ -113,7 +112,7 @@ MarkExactStackRootsAcrossTypes(T context, JSTracer *trc)
     MarkExactStackRootList<LazyScript *, MarkLazyScriptRoot>(trc, context, "exact-lazy-script");
     MarkExactStackRootList<jsid, MarkIdRoot>(trc, context, "exact-id");
     MarkExactStackRootList<Value, MarkValueRoot>(trc, context, "exact-value");
-    MarkExactStackRootList<types::Type, MarkTypeRoot>(trc, context, "types::Type");
+    MarkExactStackRootList<TypeSet::Type, TypeSet::MarkTypeRoot>(trc, context, "TypeSet::Type");
     MarkExactStackRootList<Bindings, MarkBindingsRoot>(trc, context, "Bindings");
     MarkExactStackRootList<JSPropertyDescriptor, MarkPropertyDescriptorRoot>(
         trc, context, "JSPropertyDescriptor");
@@ -121,16 +120,10 @@ MarkExactStackRootsAcrossTypes(T context, JSTracer *trc)
 }
 
 static void
-MarkExactStackRoots(ThreadSafeContext* cx, JSTracer *trc)
-{
-    MarkExactStackRootsAcrossTypes<ThreadSafeContext*>(cx, trc);
-}
-
-static void
 MarkExactStackRoots(JSRuntime* rt, JSTracer *trc)
 {
     for (ContextIter cx(rt); !cx.done(); cx.next())
-        MarkExactStackRootsAcrossTypes<ThreadSafeContext*>(cx.get(), trc);
+        MarkExactStackRootsAcrossTypes<JSContext*>(cx.get(), trc);
     MarkExactStackRootsAcrossTypes<PerThreadData*>(&rt->mainThread, trc);
 }
 
@@ -417,32 +410,13 @@ js::gc::MarkPersistentRootedChains(JSTracer *trc)
                                                             "PersistentRooted<Value>");
 }
 
-#ifdef JSGC_FJGENERATIONAL
-void
-js::gc::MarkForkJoinStack(ForkJoinNurseryCollectionTracer *trc)
-{
-    ForkJoinContext *cx = ForkJoinContext::current();
-    PerThreadData *ptd = cx->perThreadData;
-
-    AutoGCRooter::traceAllInContext(cx, trc);
-    MarkExactStackRoots(cx, trc);
-    jit::MarkJitActivations(ptd, trc);
-
-#ifdef DEBUG
-    // There should be only JIT activations on the stack
-    for (ActivationIterator iter(ptd); !iter.done(); ++iter) {
-        Activation *act = iter.activation();
-        MOZ_ASSERT(act->isJit());
-    }
-#endif
-}
-#endif  // JSGC_FJGENERATIONAL
-
 void
 js::gc::GCRuntime::markRuntime(JSTracer *trc,
                                TraceOrMarkRuntime traceOrMark,
                                TraceRootsOrUsedSaved rootsSource)
 {
+    gcstats::AutoPhase ap(stats, gcstats::PHASE_MARK_ROOTS);
+
     MOZ_ASSERT(trc->callback != GCMarker::GrayCallback);
     MOZ_ASSERT(traceOrMark == TraceRuntime || traceOrMark == MarkRuntime);
     MOZ_ASSERT(rootsSource == TraceRoots || rootsSource == UseSavedRoots);
@@ -450,40 +424,40 @@ js::gc::GCRuntime::markRuntime(JSTracer *trc,
     MOZ_ASSERT(!rt->mainThread.suppressGC);
 
     if (traceOrMark == MarkRuntime) {
+        gcstats::AutoPhase ap(stats, gcstats::PHASE_MARK_CCWS);
+
         for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next()) {
             if (!c->zone()->isCollecting())
                 c->markCrossCompartmentWrappers(trc);
         }
-        Debugger::markCrossCompartmentDebuggerObjectReferents(trc);
+        Debugger::markIncomingCrossCompartmentEdges(trc);
     }
 
-    AutoGCRooter::traceAll(trc);
+    {
+        gcstats::AutoPhase ap(stats, gcstats::PHASE_MARK_ROOTERS);
 
-    if (!rt->isBeingDestroyed()) {
-        MarkExactStackRoots(rt, trc);
-        rt->markSelfHostingGlobal(trc);
-    }
+        AutoGCRooter::traceAll(trc);
 
-    for (RootRange r = rootsHash.all(); !r.empty(); r.popFront()) {
-        const RootEntry &entry = r.front();
-        const char *name = entry.value().name ? entry.value().name : "root";
-        JSGCRootType type = entry.value().type;
-        void *key = entry.key();
-        if (type == JS_GC_ROOT_VALUE_PTR) {
-            MarkValueRoot(trc, reinterpret_cast<Value *>(key), name);
-        } else if (*reinterpret_cast<void **>(key)){
-            if (type == JS_GC_ROOT_STRING_PTR)
-                MarkStringRoot(trc, reinterpret_cast<JSString **>(key), name);
-            else if (type == JS_GC_ROOT_OBJECT_PTR)
-                MarkObjectRoot(trc, reinterpret_cast<JSObject **>(key), name);
-            else if (type == JS_GC_ROOT_SCRIPT_PTR)
-                MarkScriptRoot(trc, reinterpret_cast<JSScript **>(key), name);
-            else
-                MOZ_CRASH("unexpected js::RootInfo::type value");
+        if (!rt->isBeingDestroyed()) {
+            MarkExactStackRoots(rt, trc);
+            rt->markSelfHostingGlobal(trc);
         }
+
+        for (RootRange r = rootsHash.all(); !r.empty(); r.popFront()) {
+            const RootEntry &entry = r.front();
+            MarkValueRoot(trc, entry.key(), entry.value());
+        }
+
+        MarkPersistentRootedChains(trc);
     }
 
-    MarkPersistentRootedChains(trc);
+    if (rt->asyncStackForNewActivations)
+        MarkObjectRoot(trc, &rt->asyncStackForNewActivations,
+                       "asyncStackForNewActivations");
+
+    if (rt->asyncCauseForNewActivations)
+        MarkStringRoot(trc, &rt->asyncCauseForNewActivations,
+                       "asyncCauseForNewActivations");
 
     if (rt->scriptAndCountsVector) {
         ScriptAndCountsVector &vec = *rt->scriptAndCountsVector;
@@ -492,6 +466,8 @@ js::gc::GCRuntime::markRuntime(JSTracer *trc,
     }
 
     if (!rt->isBeingDestroyed() && !trc->runtime()->isHeapMinorCollecting()) {
+        gcstats::AutoPhase ap(stats, gcstats::PHASE_MARK_RUNTIME_DATA);
+
         if (traceOrMark == TraceRuntime || rt->atomsCompartment()->zone()->isCollecting()) {
             MarkPermanentAtoms(trc);
             MarkAtoms(trc);
@@ -541,11 +517,13 @@ js::gc::GCRuntime::markRuntime(JSTracer *trc,
             c->lazyArrayBuffers->trace(trc);
     }
 
-    MarkInterpreterActivations(&rt->mainThread, trc);
+    MarkInterpreterActivations(rt, trc);
 
-    jit::MarkJitActivations(&rt->mainThread, trc);
+    jit::MarkJitActivations(rt, trc);
 
     if (!isHeapMinorCollecting()) {
+        gcstats::AutoPhase ap(stats, gcstats::PHASE_MARK_EMBEDDING);
+
         /*
          * All JSCompartment::markRoots() does is mark the globals for
          * compartments which have been entered. Globals aren't nursery

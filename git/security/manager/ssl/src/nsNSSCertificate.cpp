@@ -972,9 +972,8 @@ nsNSSCertificate::GetSubjectName(nsAString& _subjectName)
   _subjectName.Truncate();
   if (mCert->subjectName) {
     _subjectName = NS_ConvertUTF8toUTF16(mCert->subjectName);
-    return NS_OK;
   }
-  return NS_ERROR_FAILURE;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -987,9 +986,8 @@ nsNSSCertificate::GetIssuerName(nsAString& _issuerName)
   _issuerName.Truncate();
   if (mCert->issuerName) {
     _issuerName = NS_ConvertUTF8toUTF16(mCert->issuerName);
-    return NS_OK;
   }
-  return NS_ERROR_FAILURE;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1465,43 +1463,6 @@ nsNSSCertificate::GetIsExtendedValidation(bool* aIsEV)
   SECOidTag oid_tag;
   return getValidEVOidTag(oid_tag, *aIsEV);
 #endif
-}
-
-NS_IMETHODIMP
-nsNSSCertificate::GetValidEVPolicyOid(nsACString& outDottedOid)
-{
-  outDottedOid.Truncate();
-
-#ifndef MOZ_NO_EV_CERTS
-  nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown()) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  SECOidTag oid_tag;
-  bool valid;
-  nsresult rv = getValidEVOidTag(oid_tag, valid);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  if (valid) {
-    SECOidData* oid_data = SECOID_FindOIDByTag(oid_tag);
-    if (!oid_data) {
-      return NS_ERROR_FAILURE;
-    }
-
-    char* oid_str = CERT_GetOidString(&oid_data->oid);
-    if (!oid_str) {
-      return NS_ERROR_FAILURE;
-    }
-
-    outDottedOid.Assign(oid_str);
-    PR_smprintf_free(oid_str);
-  }
-#endif
-
-  return NS_OK;
 }
 
 namespace mozilla {

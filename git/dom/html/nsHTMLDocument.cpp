@@ -673,15 +673,20 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
 
   nsCOMPtr<nsIWyciwygChannel> wyciwygChannel;
   
-  // For error reporting
+  // For error reporting and referrer policy setting
   nsHtml5TreeOpExecutor* executor = nullptr;
   if (loadAsHtml5) {
     executor = static_cast<nsHtml5TreeOpExecutor*> (mParser->GetContentSink());
+    if (mReferrerPolicySet) {
+      // CSP may have set the referrer policy, so a speculative parser should
+      // start with the new referrer policy.
+      executor->SetSpeculationReferrerPolicy(static_cast<ReferrerPolicy>(mReferrerPolicy));
+    }
   }
 
-  if (!IsHTML() || !docShell) { // no docshell for text/html XHR
-    charsetSource = IsHTML() ? kCharsetFromFallback
-                             : kCharsetFromDocTypeDefault;
+  if (!IsHTMLDocument() || !docShell) { // no docshell for text/html XHR
+    charsetSource = IsHTMLDocument() ? kCharsetFromFallback
+                                     : kCharsetFromDocTypeDefault;
     charset.AssignLiteral("UTF-8");
     TryChannelCharset(aChannel, charsetSource, charset, executor);
     parserCharsetSource = charsetSource;
@@ -773,7 +778,7 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   mParser->SetDocumentCharset(parserCharset, parserCharsetSource);
   mParser->SetCommand(aCommand);
 
-  if (!IsHTML()) {
+  if (!IsHTMLDocument()) {
     MOZ_ASSERT(!loadAsHtml5);
     nsCOMPtr<nsIXMLContentSink> xmlsink;
     NS_NewXMLContentSink(getter_AddRefs(xmlsink), this, uri,
@@ -858,7 +863,7 @@ nsHTMLDocument::EndLoad()
 void
 nsHTMLDocument::SetCompatibilityMode(nsCompatibility aMode)
 {
-  NS_ASSERTION(IsHTML() || aMode == eCompatibility_FullStandards,
+  NS_ASSERTION(IsHTMLDocument() || aMode == eCompatibility_FullStandards,
                "Bad compat mode for XHTML document!");
 
   mCompatMode = aMode;
@@ -894,19 +899,11 @@ nsHTMLDocument::GetDomainURI()
 NS_IMETHODIMP
 nsHTMLDocument::GetDomain(nsAString& aDomain)
 {
-  ErrorResult rv;
-  GetDomain(aDomain, rv);
-  return rv.ErrorCode();
-}
-
-void
-nsHTMLDocument::GetDomain(nsAString& aDomain, ErrorResult& rv)
-{
   nsCOMPtr<nsIURI> uri = GetDomainURI();
 
   if (!uri) {
     SetDOMStringToNull(aDomain);
-    return;
+    return NS_OK;
   }
 
   nsAutoCString hostName;
@@ -918,6 +915,7 @@ nsHTMLDocument::GetDomain(nsAString& aDomain, ErrorResult& rv)
     // etc), just return an null string.
     SetDOMStringToNull(aDomain);
   }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1019,7 +1017,8 @@ nsHTMLDocument::GetBody()
   for (nsIContent* child = html->GetFirstChild();
        child;
        child = child->GetNextSibling()) {
-    if (child->IsHTML(nsGkAtoms::body) || child->IsHTML(nsGkAtoms::frameset)) {
+    if (child->IsHTMLElement(nsGkAtoms::body) ||
+        child->IsHTMLElement(nsGkAtoms::frameset)) {
       return static_cast<nsGenericHTMLElement*>(child);
     }
   }
@@ -1041,7 +1040,7 @@ NS_IMETHODIMP
 nsHTMLDocument::SetBody(nsIDOMHTMLElement* aBody)
 {
   nsCOMPtr<nsIContent> newBody = do_QueryInterface(aBody);
-  MOZ_ASSERT(!newBody || newBody->IsHTML(),
+  MOZ_ASSERT(!newBody || newBody->IsHTMLElement(),
              "How could we be an nsIContent but not actually HTML here?");
   ErrorResult rv;
   SetBody(static_cast<nsGenericHTMLElement*>(newBody.get()), rv);
@@ -1056,10 +1055,10 @@ nsHTMLDocument::SetBody(nsGenericHTMLElement* newBody, ErrorResult& rv)
   // The body element must be either a body tag or a frameset tag. And we must
   // have a html root tag, otherwise GetBody will not return the newly set
   // body.
-  if (!newBody || !(newBody->Tag() == nsGkAtoms::body ||
-                    newBody->Tag() == nsGkAtoms::frameset) ||
-      !root || !root->IsHTML() ||
-      root->Tag() != nsGkAtoms::html) {
+  if (!newBody ||
+      !newBody->IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset) ||
+      !root || !root->IsHTMLElement() ||
+      !root->IsHTMLElement(nsGkAtoms::html)) {
     rv.Throw(NS_ERROR_DOM_HIERARCHY_REQUEST_ERR);
     return;
   }
@@ -1227,6 +1226,32 @@ nsHTMLDocument::GetCookie(nsAString& aCookie)
   return rv.ErrorCode();
 }
 
+already_AddRefed<nsIChannel>
+nsHTMLDocument::CreateDummyChannelForCookies(nsIURI* aCodebaseURI)
+{
+  // The cookie service reads the privacy status of the channel we pass to it in
+  // order to determine which cookie database to query.  In some cases we don't
+  // have a proper channel to hand it to the cookie service though.  This
+  // function creates a dummy channel that is not used to load anything, for the
+  // sole purpose of handing it to the cookie service.  DO NOT USE THIS CHANNEL
+  // FOR ANY OTHER PURPOSE.
+  MOZ_ASSERT(!mChannel);
+
+  nsCOMPtr<nsIChannel> channel;
+  NS_NewChannel(getter_AddRefs(channel), aCodebaseURI, this,
+                nsILoadInfo::SEC_NORMAL,
+                nsIContentPolicy::TYPE_INVALID);
+  nsCOMPtr<nsIPrivateBrowsingChannel> pbChannel =
+    do_QueryInterface(channel);
+  nsCOMPtr<nsIDocShell> docShell(mDocumentContainer);
+  nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(docShell);
+  if (!pbChannel || !loadContext) {
+    return nullptr;
+  }
+  pbChannel->SetPrivate(loadContext->UsePrivateBrowsing());
+  return channel.forget();
+}
+
 void
 nsHTMLDocument::GetCookie(nsAString& aCookie, ErrorResult& rv)
 {
@@ -1259,8 +1284,16 @@ nsHTMLDocument::GetCookie(nsAString& aCookie, ErrorResult& rv)
       return;
     }
 
+    nsCOMPtr<nsIChannel> channel(mChannel);
+    if (!channel) {
+      channel = CreateDummyChannelForCookies(codebaseURI);
+      if (!channel) {
+        return;
+      }
+    }
+
     nsXPIDLCString cookie;
-    service->GetCookieString(codebaseURI, mChannel, getter_Copies(cookie));
+    service->GetCookieString(codebaseURI, channel, getter_Copies(cookie));
     // CopyUTF8toUTF16 doesn't handle error
     // because it assumes that the input is valid.
     nsContentUtils::ConvertStringFromEncoding(NS_LITERAL_CSTRING("UTF-8"),
@@ -1304,8 +1337,16 @@ nsHTMLDocument::SetCookie(const nsAString& aCookie, ErrorResult& rv)
       return;
     }
 
+    nsCOMPtr<nsIChannel> channel(mChannel);
+    if (!channel) {
+      channel = CreateDummyChannelForCookies(codebaseURI);
+      if (!channel) {
+        return;
+      }
+    }
+
     NS_ConvertUTF16toUTF8 cookie(aCookie);
-    service->SetCookieString(codebaseURI, nullptr, cookie.get(), mChannel);
+    service->SetCookieString(codebaseURI, nullptr, cookie.get(), channel);
   }
 }
 
@@ -1370,7 +1411,7 @@ nsHTMLDocument::Open(JSContext* cx,
 {
   NS_ASSERTION(nsContentUtils::CanCallerAccess(static_cast<nsIDOMHTMLDocument*>(this)),
                "XOW should have caught this!");
-  if (!IsHTML() || mDisableDocWrite || !IsMasterDocument()) {
+  if (!IsHTMLDocument() || mDisableDocWrite || !IsMasterDocument()) {
     // No calling document.open() on XHTML
     rv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return nullptr;
@@ -1624,12 +1665,6 @@ nsHTMLDocument::Open(JSContext* cx,
           }
         }
       }
-
-      nsIXPConnect *xpc = nsContentUtils::XPConnect();
-      rv = xpc->RescueOrphansInScope(cx, oldScope->GetGlobalJSObject());
-      if (rv.Failed()) {
-        return nullptr;
-      }
     }
   }
 
@@ -1648,6 +1683,15 @@ nsHTMLDocument::Open(JSContext* cx,
   mParserAborted = false;
   mParser = nsHtml5Module::NewHtml5Parser();
   nsHtml5Module::Initialize(mParser, this, uri, shell, channel);
+  if (mReferrerPolicySet) {
+    // CSP may have set the referrer policy, so a speculative parser should
+    // start with the new referrer policy.
+    nsHtml5TreeOpExecutor* executor = nullptr;
+    executor = static_cast<nsHtml5TreeOpExecutor*> (mParser->GetContentSink());
+    if (executor && mReferrerPolicySet) {
+      executor->SetSpeculationReferrerPolicy(static_cast<ReferrerPolicy>(mReferrerPolicy));
+    }
+  }
 
   // This will be propagated to the parser when someone actually calls write()
   SetContentTypeInternal(contentType);
@@ -1713,7 +1757,7 @@ nsHTMLDocument::Close()
 void
 nsHTMLDocument::Close(ErrorResult& rv)
 {
-  if (!IsHTML()) {
+  if (!IsHTMLDocument()) {
     // No calling document.close() on XHTML!
 
     rv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
@@ -1798,7 +1842,7 @@ nsHTMLDocument::WriteCommon(JSContext *cx,
     (mWriteLevel > NS_MAX_DOCUMENT_WRITE_DEPTH || mTooDeepWriteRecursion);
   NS_ENSURE_STATE(!mTooDeepWriteRecursion);
 
-  if (!IsHTML() || mDisableDocWrite || !IsMasterDocument()) {
+  if (!IsHTMLDocument() || mDisableDocWrite || !IsMasterDocument()) {
     // No calling document.write*() on XHTML!
 
     return NS_ERROR_DOM_INVALID_STATE_ERR;
@@ -1850,8 +1894,8 @@ nsHTMLDocument::WriteCommon(JSContext *cx,
     if (NS_FAILED(rv) || !mParser) {
       return rv;
     }
-    NS_ABORT_IF_FALSE(!JS_IsExceptionPending(cx),
-                      "Open() succeeded but JS exception is pending");
+    MOZ_ASSERT(!JS_IsExceptionPending(cx),
+               "Open() succeeded but JS exception is pending");
   }
 
   static NS_NAMED_LITERAL_STRING(new_line, "\n");
@@ -1944,7 +1988,7 @@ nsHTMLDocument::GetElementsByName(const nsAString& aElementName,
 static bool MatchItems(nsIContent* aContent, int32_t aNameSpaceID, 
                        nsIAtom* aAtom, void* aData)
 {
-  if (!(aContent->IsElement() && aContent->AsElement()->IsHTML())) {
+  if (!aContent->IsHTMLElement()) {
     return false;
   }
 
@@ -2724,7 +2768,7 @@ nsHTMLDocument::EditingStateChanged()
     // We might already have an editor if it was set up for mail, let's see
     // if this is actually the case.
     nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(existingEditor);
-    NS_ABORT_IF_FALSE(htmlEditor, "If we have an editor, it must be an HTML editor");
+    MOZ_ASSERT(htmlEditor, "If we have an editor, it must be an HTML editor");
     uint32_t flags = 0;
     existingEditor->GetFlags(&flags);
     if (flags & nsIPlaintextEditor::eEditorMailMask) {

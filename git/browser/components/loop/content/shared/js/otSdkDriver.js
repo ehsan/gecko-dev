@@ -8,7 +8,9 @@ var loop = loop || {};
 loop.OTSdkDriver = (function() {
 
   var sharedActions = loop.shared.actions;
-  var FAILURE_REASONS = loop.shared.utils.FAILURE_REASONS;
+  var FAILURE_DETAILS = loop.shared.utils.FAILURE_DETAILS;
+  var STREAM_PROPERTIES = loop.shared.utils.STREAM_PROPERTIES;
+  var SCREEN_SHARE_STATES = loop.shared.utils.SCREEN_SHARE_STATES;
 
   /**
    * This is a wrapper for the OT sdk. It is used to translate the SDK events into
@@ -35,6 +37,14 @@ loop.OTSdkDriver = (function() {
 
   OTSdkDriver.prototype = {
     /**
+     * Clones the publisher config into a new object, as the sdk modifies the
+     * properties object.
+     */
+    _getCopyPublisherConfig: function() {
+      return _.extend({}, this.publisherConfig);
+    },
+
+    /**
      * Handles the setupStreamElements action. Saves the required data and
      * kicks off the initialising of the publisher.
      *
@@ -43,6 +53,7 @@ loop.OTSdkDriver = (function() {
      */
     setupStreamElements: function(actionData) {
       this.getLocalElement = actionData.getLocalElementFunc;
+      this.getScreenShareElementFunc = actionData.getScreenShareElementFunc;
       this.getRemoteElement = actionData.getRemoteElementFunc;
       this.publisherConfig = actionData.publisherConfig;
 
@@ -50,7 +61,8 @@ loop.OTSdkDriver = (function() {
       // the initial connect of the session. This saves time when setting up
       // the media.
       this.publisher = this.sdk.initPublisher(this.getLocalElement(),
-        this.publisherConfig);
+        this._getCopyPublisherConfig());
+      this.publisher.on("streamCreated", this._onLocalStreamCreated.bind(this));
       this.publisher.on("accessAllowed", this._onPublishComplete.bind(this));
       this.publisher.on("accessDenied", this._onPublishDenied.bind(this));
       this.publisher.on("accessDialogOpened",
@@ -73,6 +85,69 @@ loop.OTSdkDriver = (function() {
     },
 
     /**
+     * Initiates a screen sharing publisher.
+     *
+     * options items:
+     *  - {String}  videoSource    The type of screen to share. Values of 'screen',
+     *                             'window', 'application' and 'browser' are
+     *                             currently supported.
+     *  - {mixed}   browserWindow  The unique identifier of a browser window. May
+     *                             be passed when `videoSource` is 'browser'.
+     *  - {Boolean} scrollWithPage Flag to signal that scrolling a page should
+     *                             update the stream. May be passed when
+     *                             `videoSource` is 'browser'.
+     *
+     * @param {Object} options Hash containing options for the SDK
+     */
+    startScreenShare: function(options) {
+      // For browser sharing, we store the window Id so that we can avoid unnecessary
+      // re-triggers.
+      if (options.videoSource === "browser") {
+        this._windowId = options.constraints.browserWindow;
+      }
+
+      var config = _.extend(this._getCopyPublisherConfig(), options);
+
+      this.screenshare = this.sdk.initPublisher(this.getScreenShareElementFunc(),
+        config);
+      this.screenshare.on("accessAllowed", this._onScreenShareGranted.bind(this));
+      this.screenshare.on("accessDenied", this._onScreenShareDenied.bind(this));
+    },
+
+    /**
+     * Initiates switching the browser window that is being shared.
+     *
+     * @param {Integer} windowId  The windowId of the browser.
+     */
+    switchAcquiredWindow: function(windowId) {
+      if (windowId === this._windowId) {
+        return;
+      }
+
+      this._windowId = windowId;
+      this.screenshare._.switchAcquiredWindow(windowId);
+    },
+
+    /**
+     * Ends an active screenshare session. Return `true` when an active screen-
+     * sharing session was ended or `false` when no session is active.
+     *
+     * @type {Boolean}
+     */
+    endScreenShare: function() {
+      if (!this.screenshare) {
+        return false;
+      }
+
+      this.session.unpublish(this.screenshare);
+      this.screenshare.off("accessAllowed accessDenied");
+      this.screenshare.destroy();
+      delete this.screenshare;
+      delete this._windowId;
+      return true;
+    },
+
+    /**
      * Connects a session for the SDK, listening to the required events.
      *
      * sessionData items:
@@ -87,10 +162,12 @@ loop.OTSdkDriver = (function() {
 
       this.session.on("connectionCreated", this._onConnectionCreated.bind(this));
       this.session.on("streamCreated", this._onRemoteStreamCreated.bind(this));
+      this.session.on("streamDestroyed", this._onRemoteStreamDestroyed.bind(this));
       this.session.on("connectionDestroyed",
         this._onConnectionDestroyed.bind(this));
       this.session.on("sessionDisconnected",
         this._onSessionDisconnected.bind(this));
+      this.session.on("streamPropertyChanged", this._onStreamPropertyChanged.bind(this));
 
       // This starts the actual session connection.
       this.session.connect(sessionData.apiKey, sessionData.sessionToken,
@@ -101,13 +178,16 @@ loop.OTSdkDriver = (function() {
      * Disconnects the sdk session.
      */
     disconnectSession: function() {
+      this.endScreenShare();
+
       if (this.session) {
-        this.session.off("streamCreated connectionDestroyed sessionDisconnected");
+        this.session.off("streamCreated streamDestroyed connectionDestroyed " +
+          "sessionDisconnected streamPropertyChanged");
         this.session.disconnect();
         delete this.session;
       }
       if (this.publisher) {
-        this.publisher.off("accessAllowed accessDenied accessDialogOpened");
+        this.publisher.off("accessAllowed accessDenied accessDialogOpened streamCreated");
         this.publisher.destroy();
         delete this.publisher;
       }
@@ -160,7 +240,7 @@ loop.OTSdkDriver = (function() {
       if (error) {
         console.error("Failed to complete connection", error);
         this.dispatcher.dispatch(new sharedActions.ConnectionFailure({
-          reason: FAILURE_REASONS.COULD_NOT_CONNECT
+          reason: FAILURE_DETAILS.COULD_NOT_CONNECT
         }));
         return;
       }
@@ -194,12 +274,22 @@ loop.OTSdkDriver = (function() {
      * https://tokbox.com/opentok/libraries/client/js/reference/SessionDisconnectEvent.html
      */
     _onSessionDisconnected: function(event) {
-      // We only need to worry about the network disconnected reason here.
-      if (event.reason === "networkDisconnected") {
-        this.dispatcher.dispatch(new sharedActions.ConnectionFailure({
-          reason: FAILURE_REASONS.NETWORK_DISCONNECTED
-        }));
+      var reason;
+      switch (event.reason) {
+        case "networkDisconnected":
+          reason = FAILURE_DETAILS.NETWORK_DISCONNECTED;
+          break;
+        case "forceDisconnected":
+          reason = FAILURE_DETAILS.EXPIRED_OR_INVALID;
+          break;
+        default:
+          // Other cases don't need to be handled.
+          return;
       }
+
+      this.dispatcher.dispatch(new sharedActions.ConnectionFailure({
+        reason: reason
+      }));
     },
 
     /**
@@ -218,19 +308,93 @@ loop.OTSdkDriver = (function() {
     },
 
     /**
+     * Handles when a remote screen share is created, subscribing to
+     * the stream, and notifying the stores that a share is being
+     * received.
+     *
+     * @param {Stream} stream The SDK Stream:
+     * https://tokbox.com/opentok/libraries/client/js/reference/Stream.html
+     */
+    _handleRemoteScreenShareCreated: function(stream) {
+      if (!this.getScreenShareElementFunc) {
+        return;
+      }
+
+      // Let the stores know first so they can update the display.
+      this.dispatcher.dispatch(new sharedActions.ReceivingScreenShare({
+        receiving: true
+      }));
+
+      var remoteElement = this.getScreenShareElementFunc();
+
+      this.session.subscribe(stream,
+        remoteElement, this._getCopyPublisherConfig());
+    },
+
+    /**
      * Handles the event when the remote stream is created.
      *
      * @param {StreamEvent} event The event details:
      * https://tokbox.com/opentok/libraries/client/js/reference/StreamEvent.html
      */
     _onRemoteStreamCreated: function(event) {
+      if (event.stream[STREAM_PROPERTIES.HAS_VIDEO]) {
+        this.dispatcher.dispatch(new sharedActions.VideoDimensionsChanged({
+          isLocal: false,
+          videoType: event.stream.videoType,
+          dimensions: event.stream[STREAM_PROPERTIES.VIDEO_DIMENSIONS]
+        }));
+      }
+
+      if (event.stream.videoType === "screen") {
+        this._handleRemoteScreenShareCreated(event.stream);
+        return;
+      }
+
+      var remoteElement = this.getRemoteElement();
+
       this.session.subscribe(event.stream,
-        this.getRemoteElement(), this.publisherConfig);
+        remoteElement, this._getCopyPublisherConfig());
 
       this._subscribedRemoteStream = true;
       if (this._checkAllStreamsConnected()) {
         this.dispatcher.dispatch(new sharedActions.MediaConnected());
       }
+    },
+
+    /**
+     * Handles the event when the local stream is created.
+     *
+     * @param {StreamEvent} event The event details:
+     * https://tokbox.com/opentok/libraries/client/js/reference/StreamEvent.html
+     */
+    _onLocalStreamCreated: function(event) {
+      if (event.stream[STREAM_PROPERTIES.HAS_VIDEO]) {
+        this.dispatcher.dispatch(new sharedActions.VideoDimensionsChanged({
+          isLocal: true,
+          videoType: event.stream.videoType,
+          dimensions: event.stream[STREAM_PROPERTIES.VIDEO_DIMENSIONS]
+        }));
+      }
+    },
+
+
+    /**
+     * Handles the event when the remote stream is destroyed.
+     *
+     * @param {StreamEvent} event The event details:
+     * https://tokbox.com/opentok/libraries/client/js/reference/StreamEvent.html
+     */
+    _onRemoteStreamDestroyed: function(event) {
+      if (event.stream.videoType !== "screen") {
+        return;
+      }
+
+      // All we need to do is notify the store we're no longer receiving,
+      // the sdk should do the rest.
+      this.dispatcher.dispatch(new sharedActions.ReceivingScreenShare({
+        receiving: false
+      }));
     },
 
     /**
@@ -268,8 +432,21 @@ loop.OTSdkDriver = (function() {
       event.preventDefault();
 
       this.dispatcher.dispatch(new sharedActions.ConnectionFailure({
-        reason: FAILURE_REASONS.MEDIA_DENIED
+        reason: FAILURE_DETAILS.MEDIA_DENIED
       }));
+    },
+
+    /**
+     * Handles publishing of property changes to a stream.
+     */
+    _onStreamPropertyChanged: function(event) {
+      if (event.changedProperty == STREAM_PROPERTIES.VIDEO_DIMENSIONS) {
+        this.dispatcher.dispatch(new sharedActions.VideoDimensionsChanged({
+          isLocal: event.stream.connection.id == this.session.connection.id,
+          videoType: event.stream.videoType,
+          dimensions: event.stream[STREAM_PROPERTIES.VIDEO_DIMENSIONS]
+        }));
+      }
     },
 
     /**
@@ -296,6 +473,25 @@ loop.OTSdkDriver = (function() {
     _checkAllStreamsConnected: function() {
       return this._publishedLocalStream &&
         this._subscribedRemoteStream;
+    },
+
+    /**
+     * Called when a screenshare is complete, publishes it to the session.
+     */
+    _onScreenShareGranted: function() {
+      this.session.publish(this.screenshare);
+      this.dispatcher.dispatch(new sharedActions.ScreenSharingState({
+        state: SCREEN_SHARE_STATES.ACTIVE
+      }));
+    },
+
+    /**
+     * Called when a screenshare is denied. Notifies the other stores.
+     */
+    _onScreenShareDenied: function() {
+      this.dispatcher.dispatch(new sharedActions.ScreenSharingState({
+        state: SCREEN_SHARE_STATES.INACTIVE
+      }));
     }
   };
 

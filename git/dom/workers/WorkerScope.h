@@ -10,6 +10,7 @@
 #include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/dom/Headers.h"
 #include "mozilla/dom/RequestBinding.h"
+#include "nsWeakReference.h"
 
 namespace mozilla {
 namespace dom {
@@ -18,6 +19,18 @@ class Console;
 class Function;
 class Promise;
 class RequestOrUSVString;
+
+namespace cache {
+
+class CacheStorage;
+
+} // namespace cache
+
+namespace indexedDB {
+
+class IDBFactory;
+
+} // namespace indexedDB
 
 } // namespace dom
 } // namespace mozilla
@@ -31,12 +44,17 @@ class WorkerNavigator;
 class Performance;
 
 class WorkerGlobalScope : public DOMEventTargetHelper,
-                          public nsIGlobalObject
+                          public nsIGlobalObject,
+                          public nsSupportsWeakReference
 {
+  typedef mozilla::dom::indexedDB::IDBFactory IDBFactory;
+
   nsRefPtr<Console> mConsole;
   nsRefPtr<WorkerLocation> mLocation;
   nsRefPtr<WorkerNavigator> mNavigator;
   nsRefPtr<Performance> mPerformance;
+  nsRefPtr<IDBFactory> mIndexedDB;
+  nsRefPtr<cache::CacheStorage> mCacheStorage;
 
 protected:
   WorkerPrivate* mWorkerPrivate;
@@ -48,8 +66,8 @@ public:
   virtual JSObject*
   WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
-  virtual JSObject*
-  WrapGlobalObject(JSContext* aCx) = 0;
+  virtual bool
+  WrapGlobalObject(JSContext* aCx, JS::MutableHandle<JSObject*> aReflector) = 0;
 
   virtual JSObject*
   GetGlobalJSObject(void) MOZ_OVERRIDE
@@ -127,6 +145,12 @@ public:
 
   already_AddRefed<Promise>
   Fetch(const RequestOrUSVString& aInput, const RequestInit& aInit, ErrorResult& aRv);
+
+  already_AddRefed<IDBFactory>
+  GetIndexedDB(ErrorResult& aErrorResult);
+
+  already_AddRefed<cache::CacheStorage>
+  GetCaches(ErrorResult& aRv);
 };
 
 class DedicatedWorkerGlobalScope MOZ_FINAL : public WorkerGlobalScope
@@ -136,8 +160,9 @@ class DedicatedWorkerGlobalScope MOZ_FINAL : public WorkerGlobalScope
 public:
   explicit DedicatedWorkerGlobalScope(WorkerPrivate* aWorkerPrivate);
 
-  virtual JSObject*
-  WrapGlobalObject(JSContext* aCx) MOZ_OVERRIDE;
+  virtual bool
+  WrapGlobalObject(JSContext* aCx,
+                   JS::MutableHandle<JSObject*> aReflector) MOZ_OVERRIDE;
 
   void
   PostMessage(JSContext* aCx, JS::Handle<JS::Value> aMessage,
@@ -157,8 +182,9 @@ public:
   SharedWorkerGlobalScope(WorkerPrivate* aWorkerPrivate,
                           const nsCString& aName);
 
-  virtual JSObject*
-  WrapGlobalObject(JSContext* aCx) MOZ_OVERRIDE;
+  virtual bool
+  WrapGlobalObject(JSContext* aCx,
+                   JS::MutableHandle<JSObject*> aReflector) MOZ_OVERRIDE;
 
   void GetName(DOMString& aName) const
   {
@@ -182,13 +208,14 @@ public:
 
   ServiceWorkerGlobalScope(WorkerPrivate* aWorkerPrivate, const nsACString& aScope);
 
-  virtual JSObject*
-  WrapGlobalObject(JSContext* aCx) MOZ_OVERRIDE;
+  virtual bool
+  WrapGlobalObject(JSContext* aCx,
+                   JS::MutableHandle<JSObject*> aReflector) MOZ_OVERRIDE;
 
   void
-  GetScope(DOMString& aScope) const
+  GetScope(nsString& aScope) const
   {
-    aScope.AsAString() = mScope;
+    aScope = mScope;
   }
 
   void
@@ -198,10 +225,7 @@ public:
   }
 
   void
-  Update()
-  {
-    // FIXME(nsm): Bug 982728
-  }
+  Update();
 
   already_AddRefed<Promise>
   Unregister(ErrorResult& aRv);
@@ -217,8 +241,41 @@ public:
   IMPL_EVENT_HANDLER(message)
 };
 
-JSObject*
-CreateGlobalScope(JSContext* aCx);
+class WorkerDebuggerGlobalScope MOZ_FINAL : public DOMEventTargetHelper,
+                                            public nsIGlobalObject
+{
+  WorkerPrivate* mWorkerPrivate;
+
+public:
+  explicit WorkerDebuggerGlobalScope(WorkerPrivate* aWorkerPrivate);
+
+  NS_DECL_ISUPPORTS_INHERITED
+
+  virtual JSObject*
+  WrapObject(JSContext* aCx) MOZ_OVERRIDE
+  {
+    MOZ_CRASH("Shouldn't get here!");
+  }
+
+  virtual bool
+  WrapGlobalObject(JSContext* aCx,
+                   JS::MutableHandle<JSObject*> aReflector);
+
+  virtual JSObject*
+  GetGlobalJSObject(void) MOZ_OVERRIDE
+  {
+    return GetWrapper();
+  }
+
+  void
+  GetGlobal(JSContext* aCx, JS::MutableHandle<JSObject*> aGlobal);
+
+  void
+  Dump(JSContext* aCx, const Optional<nsAString>& aString) const;
+
+private:
+  virtual ~WorkerDebuggerGlobalScope();
+};
 
 END_WORKERS_NAMESPACE
 

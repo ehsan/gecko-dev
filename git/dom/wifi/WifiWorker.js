@@ -97,6 +97,10 @@ XPCOMUtils.defineLazyServiceGetter(this, "gSettingsService",
                                    "@mozilla.org/settingsService;1",
                                    "nsISettingsService");
 
+XPCOMUtils.defineLazyServiceGetter(this, "gTetheringService",
+                                   "@mozilla.org/tethering/service;1",
+                                   "nsITetheringService");
+
 // A note about errors and error handling in this file:
 // The libraries that we use in this file are intended for C code. For
 // C code, it is natural to return -1 for errors and 0 for success.
@@ -862,6 +866,15 @@ var WifiManager = (function() {
     return true;
   }
 
+  function setPowerSavingMode(enabled) {
+    let mode = enabled ? "AUTO" : "ACTIVE";
+    // Some wifi drivers may not implement this command. Set power mode
+    // even if suspend optimization command failed.
+    manager.setSuspendOptimizations(enabled, function(ok) {
+      manager.setPowerMode(mode, function() {});
+    });
+  }
+
   function didConnectSupplicant(callback) {
     waitForEvent(manager.ifname);
 
@@ -874,7 +887,8 @@ var WifiManager = (function() {
       notify("supplicantconnection");
       callback();
     });
-
+    // WPA supplicant already connected.
+    manager.setPowerSavingMode(true);
     if (p2pSupported) {
       manager.enableP2p(function(success) {});
     }
@@ -1126,8 +1140,8 @@ var WifiManager = (function() {
         function doStartWifiTethering() {
           cancelWaitForDriverReadyTimer();
           WifiNetworkInterface.name = libcutils.property_get("wifi.tethering.interface", manager.ifname);
-          gNetworkManager.setWifiTethering(enabled, WifiNetworkInterface,
-                                           configuration, function(result) {
+          gTetheringService.setWifiTethering(enabled, WifiNetworkInterface,
+                                             configuration, function(result) {
             if (result) {
               manager.tetheringState = "UNINITIALIZED";
             } else {
@@ -1154,8 +1168,8 @@ var WifiManager = (function() {
       });
     } else {
       cancelWifiHotspotStatusTimer();
-      gNetworkManager.setWifiTethering(enabled, WifiNetworkInterface,
-                                       configuration, function(result) {
+      gTetheringService.setWifiTethering(enabled, WifiNetworkInterface,
+                                         configuration, function(result) {
         // Should we fire a dom event if we fail to set wifi tethering  ?
         debug("Disable Wifi tethering result: " + (result ? result : "successfully"));
         // Unload wifi driver even if we fail to control wifi tethering.
@@ -1366,6 +1380,7 @@ var WifiManager = (function() {
   manager.setPowerMode = (sdkVersion >= 16)
                          ? wifiCommand.setPowerModeJB
                          : wifiCommand.setPowerModeICS;
+  manager.setPowerSavingMode = setPowerSavingMode;
   manager.getHttpProxyNetwork = getHttpProxyNetwork;
   manager.setHttpProxy = setHttpProxy;
   manager.configureHttpProxy = configureHttpProxy;
@@ -2118,12 +2133,13 @@ function WifiWorker() {
         self._fireEvent("onconnecting", { network: netToDOM(self.currentNetwork) });
         break;
       case "ASSOCIATED":
+        // set to full power mode when ready to do 4 way handsharke.
+        WifiManager.setPowerSavingMode(false);
         if (!self.currentNetwork) {
           self.currentNetwork =
             { bssid: WifiManager.connectionInfo.bssid,
               ssid: quote(WifiManager.connectionInfo.ssid) };
         }
-
         self.currentNetwork.netId = this.id;
         WifiManager.getNetworkConfiguration(self.currentNetwork, function (){
           // Notify again because we get complete network information.
@@ -2169,6 +2185,8 @@ function WifiWorker() {
         }
         break;
       case "CONNECTED":
+        // wifi connection complete, turn on the power saving mode.
+        WifiManager.setPowerSavingMode(true);
         // BSSID is read after connected, update it.
         self.currentNetwork.bssid = WifiManager.connectionInfo.bssid;
         break;
@@ -2182,6 +2200,8 @@ function WifiWorker() {
               this.prevState === "INTERFACE_DISABLED" ||
               this.prevState === "INACTIVE" ||
               this.prevState === "UNINITIALIZED")) {
+          // When in disconnected mode, need to turn on wifi power saving mode.
+          WifiManager.setPowerSavingMode(true);
           return;
         }
 
@@ -3453,7 +3473,7 @@ WifiWorker.prototype = {
 
     WifiManager.importCert(msg.data, function(data) {
       if (data.status === 0) {
-        let usageString = ["ServerCert"];
+        let usageString = ["ServerCert", "UserCert"];
         let usageArray = [];
         for (let i = 0; i < usageString.length; i++) {
           if (data.usageFlag & (0x01 << i)) {
@@ -3497,9 +3517,11 @@ WifiWorker.prototype = {
     }
     let importedCerts = {
       ServerCert: [],
+      UserCert: [],
     };
     let UsageMapping = {
       SERVERCERT: "ServerCert",
+      USERCERT: "UserCert",
     };
 
     while (certListEnum.hasMoreElements()) {

@@ -16,6 +16,22 @@ BEGIN_BLUETOOTH_NAMESPACE
 class BluetoothServiceBluedroid : public BluetoothService
                                 , public BluetoothNotificationHandler
 {
+  class CancelDiscoveryResultHandler;
+  class CreateBondResultHandler;
+  class DisableResultHandler;
+  class EnableResultHandler;
+  class GetRemoteDevicePropertiesResultHandler;
+  class GetRemoteServicesResultHandler;
+  class InitResultHandler;
+  class PinReplyResultHandler;
+  class ProfileDeinitResultHandler;
+  class ProfileInitResultHandler;
+  class RemoveBondResultHandler;
+  class SetAdapterPropertyDiscoverableResultHandler;
+  class SetAdapterPropertyResultHandler;
+  class SspReplyResultHandler;
+  class StartDiscoveryResultHandler;
+
 public:
   BluetoothServiceBluedroid();
   ~BluetoothServiceBluedroid();
@@ -155,6 +171,24 @@ public:
                    const nsAString& aMessage) MOZ_OVERRIDE;
 
   //
+  // GATT Client
+  //
+
+  virtual void
+  ConnectGattClientInternal(const nsAString& aAppUuid,
+                            const nsAString& aDeviceAddress,
+                            BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+
+  virtual void
+  DisconnectGattClientInternal(const nsAString& aAppUuid,
+                               const nsAString& aDeviceAddress,
+                               BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+
+  virtual void
+  UnregisterGattClientInternal(int aClientIf,
+                               BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+
+  //
   // Bluetooth notifications
   //
 
@@ -193,6 +227,19 @@ public:
                                        uint8_t aLen) MOZ_OVERRIDE;
   virtual void LeTestModeNotification(BluetoothStatus aStatus,
                                       uint16_t aNumPackets) MOZ_OVERRIDE;
+
+protected:
+  static nsresult StartGonkBluetooth();
+  static nsresult StopGonkBluetooth();
+  static bool EnsureBluetoothHalLoad();
+
+  static void ConnectDisconnect(bool aConnect,
+                                const nsAString& aDeviceAddress,
+                                BluetoothReplyRunnable* aRunnable,
+                                uint16_t aServiceUuid, uint32_t aCod = 0);
+  static void NextBluetoothProfileController();
+  static ControlPlayStatus PlayStatusStringToControlPlayStatus(
+    const nsAString& aPlayStatus);
 };
 
 END_BLUETOOTH_NAMESPACE

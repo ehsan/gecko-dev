@@ -453,6 +453,7 @@ class AsmJSModule
             name_ = name;
             maybeFieldName_ = maybeFieldName;
             argCoercions_ = mozilla::Move(argCoercions);
+            mozilla::PodZero(&pod);  // zero padding for Valgrind
             pod.isChangeHeap_ = false;
             pod.returnType_ = returnType;
             pod.codeOffset_ = UINT32_MAX;
@@ -468,6 +469,7 @@ class AsmJSModule
             MOZ_ASSERT_IF(maybeFieldName, maybeFieldName->isTenured());
             name_ = name;
             maybeFieldName_ = maybeFieldName;
+            mozilla::PodZero(&pod);  // zero padding for Valgrind
             pod.isChangeHeap_ = true;
             pod.startOffsetInModule_ = startOffsetInModule;
             pod.endOffsetInModule_ = endOffsetInModule;
@@ -485,6 +487,7 @@ class AsmJSModule
             name_ = rhs.name_;
             maybeFieldName_ = rhs.maybeFieldName_;
             argCoercions_ = mozilla::Move(rhs.argCoercions_);
+            mozilla::PodZero(&pod);  // zero padding for Valgrind
             pod = rhs.pod;
         }
 
@@ -645,7 +648,7 @@ class AsmJSModule
         bool clone(ExclusiveContext *cx, Name *out) const;
     };
 
-    typedef mozilla::UniquePtr<char, JS::FreePolicy> ProfilingLabel;
+    typedef mozilla::UniquePtr<char[], JS::FreePolicy> ProfilingLabel;
 
 #if defined(MOZ_VTUNE) || defined(JS_ION_PERF)
     // Function information to add to the VTune JIT profiler following linking.
@@ -779,6 +782,7 @@ class AsmJSModule
     struct StaticLinkData
     {
         uint32_t interruptExitOffset;
+        uint32_t outOfBoundsExitOffset;
         RelativeLinkVector relativeLinks;
         AbsoluteLinkArray absoluteLinks;
 
@@ -841,6 +845,7 @@ class AsmJSModule
     PropertyName *                        bufferArgumentName_;
     uint8_t *                             code_;
     uint8_t *                             interruptExit_;
+    uint8_t *                             outOfBoundsExit_;
     StaticLinkData                        staticLinkData_;
     HeapPtrArrayBufferObjectMaybeShared   maybeHeap_;
     AsmJSModule **                        prevLinked_;
@@ -1281,7 +1286,8 @@ class AsmJSModule
     bool finish(ExclusiveContext *cx,
                 frontend::TokenStream &tokenStream,
                 jit::MacroAssembler &masm,
-                const jit::Label &interruptLabel);
+                const jit::Label &interruptLabel,
+                const jit::Label &outOfBoundsLabel);
 
     /*************************************************************************/
     // These accessor functions can be used after finish():
@@ -1546,6 +1552,10 @@ class AsmJSModule
     uint8_t *interruptExit() const {
         MOZ_ASSERT(isDynamicallyLinked());
         return interruptExit_;
+    }
+    uint8_t *outOfBoundsExit() const {
+        MOZ_ASSERT(isDynamicallyLinked());
+        return outOfBoundsExit_;
     }
     uint8_t *maybeHeap() const {
         MOZ_ASSERT(isDynamicallyLinked());

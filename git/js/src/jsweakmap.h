@@ -251,8 +251,8 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
             gc::Cell *value = gc::ToMarkable(r.front().value());
             if (key && value) {
                 tracer->callback(tracer, memberOf,
-                                 key, gc::TraceKind(r.front().key()),
-                                 value, gc::TraceKind(r.front().value()));
+                                 JS::GCCellPtr(r.front().key()),
+                                 JS::GCCellPtr(r.front().value()));
             }
         }
     }
@@ -322,9 +322,9 @@ WeakMap_delete(JSContext *cx, unsigned argc, Value *vp);
 extern bool
 WeakMap_clear(JSContext *cx, unsigned argc, Value *vp);
 
-} /* namespace js */
-
 extern JSObject *
-js_InitWeakMapClass(JSContext *cx, js::HandleObject obj);
+InitWeakMapClass(JSContext *cx, HandleObject obj);
+
+} /* namespace js */
 
 #endif /* jsweakmap_h */

@@ -51,7 +51,7 @@ enum MaybeConstruct {
  * before it reaches |v|. If it's -1, the decompiler will search the stack.
  */
 extern bool
-ReportIsNotFunction(JSContext *cx, HandleValue v, int numToSkip = -1,
+ReportIsNotFunction(JSContext *cx, HandleValue v, int numToSkip,
                     MaybeConstruct construct = NO_CONSTRUCT);
 
 /* See ReportIsNotFunction comment for the meaning of numToSkip. */
@@ -149,10 +149,10 @@ class RunState
     bool maybeCreateThisForConstructor(JSContext *cx);
 
   private:
-    RunState(const RunState &other) MOZ_DELETE;
-    RunState(const ExecuteState &other) MOZ_DELETE;
-    RunState(const InvokeState &other) MOZ_DELETE;
-    void operator=(const RunState &other) MOZ_DELETE;
+    RunState(const RunState &other) = delete;
+    RunState(const ExecuteState &other) = delete;
+    RunState(const InvokeState &other) = delete;
+    void operator=(const RunState &other) = delete;
 };
 
 // Eval or global script.
@@ -194,18 +194,18 @@ class InvokeState : public RunState
 {
     CallArgs &args_;
     InitialFrameFlags initial_;
-    bool useNewType_;
+    bool createSingleton_;
 
   public:
     InvokeState(JSContext *cx, CallArgs &args, InitialFrameFlags initial)
       : RunState(cx, Invoke, args.callee().as<JSFunction>().nonLazyScript()),
         args_(args),
         initial_(initial),
-        useNewType_(false)
+        createSingleton_(false)
     { }
 
-    bool useNewType() const { return useNewType_; }
-    void setUseNewType() { useNewType_ = true; }
+    bool createSingleton() const { return createSingleton_; }
+    void setCreateSingleton() { createSingleton_ = true; }
 
     bool constructing() const { return InitialFrameFlagsAreConstructing(initial_); }
     CallArgs &args() const { return args_; }
@@ -221,14 +221,14 @@ extern bool
 RunScript(JSContext *cx, RunState &state);
 
 extern bool
-StrictlyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *equal);
+StrictlyEqual(JSContext *cx, HandleValue lval, HandleValue rval, bool *equal);
 
 extern bool
-LooselyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *equal);
+LooselyEqual(JSContext *cx, HandleValue lval, HandleValue rval, bool *equal);
 
 /* === except that NaN is the same as NaN and -0 is not the same as +0. */
 extern bool
-SameValue(JSContext *cx, const Value &v1, const Value &v2, bool *same);
+SameValue(JSContext *cx, HandleValue v1, HandleValue v2, bool *same);
 
 extern JSType
 TypeOfObject(JSObject *obj);
@@ -246,7 +246,7 @@ UnwindScope(JSContext *cx, ScopeIter &si, jsbytecode *pc);
 
 // Unwind all scopes.
 extern void
-UnwindAllScopes(JSContext *cx, ScopeIter &si);
+UnwindAllScopesInFrame(JSContext *cx, ScopeIter &si);
 
 // Compute the pc needed to unwind the scope to the beginning of the block
 // pointed to by the try note.
@@ -343,10 +343,6 @@ UrshValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Mutabl
 
 template <bool strict>
 bool
-SetProperty(JSContext *cx, HandleObject obj, HandleId id, const Value &value);
-
-template <bool strict>
-bool
 DeleteProperty(JSContext *ctx, HandleValue val, HandlePropertyName name, bool *bv);
 
 template <bool strict>
@@ -381,6 +377,9 @@ bool
 InitGetterSetterOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, HandlePropertyName name,
                           HandleObject val);
 
+unsigned
+GetInitDataPropAttrs(JSOp op);
+
 bool
 EnterWithOperation(JSContext *cx, AbstractFramePtr frame, HandleValue val, HandleObject staticWith);
 
@@ -393,12 +392,18 @@ bool
 SpreadCallOperation(JSContext *cx, HandleScript script, jsbytecode *pc, HandleValue thisv,
                     HandleValue callee, HandleValue arr, MutableHandleValue res);
 
+JSObject *
+NewObjectOperation(JSContext *cx, HandleScript script, jsbytecode *pc,
+                   NewObjectKind newKind = GenericObject);
+
+JSObject *
+NewObjectOperationWithTemplate(JSContext *cx, HandleObject templateObject);
+
 inline bool
 SetConstOperation(JSContext *cx, HandleObject varobj, HandlePropertyName name, HandleValue rval)
 {
-    return JSObject::defineProperty(cx, varobj, name, rval,
-                                    JS_PropertyStub, JS_StrictPropertyStub,
-                                    JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY);
+    return DefineProperty(cx, varobj, name, rval, nullptr, nullptr,
+                          JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY);
 }
 
 void

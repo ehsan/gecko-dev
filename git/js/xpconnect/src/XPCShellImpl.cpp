@@ -372,8 +372,11 @@ BuildDate(JSContext *cx, unsigned argc, jsval *vp)
 static bool
 Quit(JSContext *cx, unsigned argc, jsval *vp)
 {
+    CallArgs args = CallArgsFromVp(argc, vp);
+
     gExitCode = 0;
-    JS_ConvertArguments(cx, JS::CallArgsFromVp(argc, vp),"/ i", &gExitCode);
+    if (!ToInt32(cx, args.get(0), &gExitCode))
+        return false;
 
     gQuitting = true;
 //    exit(0);
@@ -532,25 +535,6 @@ Options(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static bool
-Parent(JSContext *cx, unsigned argc, jsval *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() != 1) {
-        JS_ReportError(cx, "Wrong number of arguments");
-        return false;
-    }
-
-    Value v = args[0];
-    if (v.isPrimitive()) {
-        JS_ReportError(cx, "Only objects have parents!");
-        return false;
-    }
-
-    args.rval().setObjectOrNull(JS_GetParent(&v.toObject()));
-    return true;
-}
-
-static bool
 Atob(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -570,13 +554,13 @@ Btoa(JSContext *cx, unsigned argc, Value *vp)
   return xpc::Base64Encode(cx, args[0], args.rval());
 }
 
-static Maybe<PersistentRootedValue> sScriptedInterruptCallback;
+static PersistentRootedValue sScriptedInterruptCallback;
 
 static bool
 XPCShellInterruptCallback(JSContext *cx)
 {
-    MOZ_ASSERT(sScriptedInterruptCallback);
-    RootedValue callback(cx, *sScriptedInterruptCallback);
+    MOZ_ASSERT(sScriptedInterruptCallback.initialized());
+    RootedValue callback(cx, sScriptedInterruptCallback);
 
     // If no interrupt callback was set by script, no-op.
     if (callback.isUndefined())
@@ -598,7 +582,7 @@ XPCShellInterruptCallback(JSContext *cx)
 static bool
 SetInterruptCallback(JSContext *cx, unsigned argc, jsval *vp)
 {
-    MOZ_ASSERT(sScriptedInterruptCallback);
+    MOZ_ASSERT(sScriptedInterruptCallback.initialized());
 
     // Sanity-check args.
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
@@ -609,7 +593,7 @@ SetInterruptCallback(JSContext *cx, unsigned argc, jsval *vp)
 
     // Allow callers to remove the interrupt callback by passing undefined.
     if (args[0].isUndefined()) {
-        *sScriptedInterruptCallback = UndefinedValue();
+        sScriptedInterruptCallback = UndefinedValue();
         return true;
     }
 
@@ -619,7 +603,7 @@ SetInterruptCallback(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    *sScriptedInterruptCallback = args[0];
+    sScriptedInterruptCallback = args[0];
 
     return true;
 }
@@ -652,7 +636,6 @@ static const JSFunctionSpec glob_functions[] = {
     JS_FS("gczeal",          GCZeal,         1,0),
 #endif
     JS_FS("options",         Options,        0,0),
-    JS_FN("parent",          Parent,         1,0),
     JS_FS("sendCommand",     SendCommand,    1,0),
     JS_FS("atob",            Atob,           1,0),
     JS_FS("btoa",            Btoa,           1,0),
@@ -772,10 +755,8 @@ env_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
 
 static const JSClass env_class = {
     "environment", JSCLASS_HAS_PRIVATE,
-    JS_PropertyStub,  JS_DeletePropertyStub,
-    JS_PropertyStub,  env_setProperty,
-    env_enumerate, env_resolve,
-    JS_ConvertStub,   nullptr
+    nullptr, nullptr, nullptr, env_setProperty,
+    env_enumerate, env_resolve
 };
 
 /***************************************************************************/
@@ -1392,7 +1373,7 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
         // Override the default XPConnect interrupt callback. We could store the
         // old one and restore it before shutting down, but there's not really a
         // reason to bother.
-        sScriptedInterruptCallback.emplace(rt, UndefinedValue());
+        sScriptedInterruptCallback.init(rt, UndefinedValue());
         JS_SetInterruptCallback(rt, XPCShellInterruptCallback);
 
         JS_SetErrorReporter(rt, XPCShellErrorReporter);
@@ -1526,8 +1507,6 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
     // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
     rv = NS_ShutdownXPCOM( nullptr );
     MOZ_ASSERT(NS_SUCCEEDED(rv), "NS_ShutdownXPCOM failed");
-
-    sScriptedInterruptCallback.reset();
 
 #ifdef TEST_CALL_ON_WRAPPED_JS_AFTER_SHUTDOWN
     // test of late call and release (see above)

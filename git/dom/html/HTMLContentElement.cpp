@@ -65,8 +65,7 @@ HTMLContentElement::BindToTree(nsIDocument* aDocument,
   if (containingShadow && !oldContainingShadow) {
     nsINode* parentNode = nsINode::GetParentNode();
     while (parentNode && parentNode != containingShadow) {
-      if (parentNode->IsElement() &&
-          parentNode->AsElement()->IsHTML(nsGkAtoms::content)) {
+      if (parentNode->IsHTMLElement(nsGkAtoms::content)) {
         // Content element in fallback content is not an insertion point.
         return NS_OK;
       }
@@ -349,16 +348,10 @@ DistributedContentList::Item(uint32_t aIndex, nsIDOMNode** aReturn)
   return CallQueryInterface(item, aReturn);
 }
 
-uint32_t
-DistributedContentList::Length() const
-{
-  return mDistributedNodes.Length();
-}
-
 NS_IMETHODIMP
 DistributedContentList::GetLength(uint32_t* aLength)
 {
-  *aLength = Length();
+  *aLength = mDistributedNodes.Length();
   return NS_OK;
 }
 

@@ -7,6 +7,7 @@
 #define nsTextFrame_h__
 
 #include "mozilla/Attributes.h"
+#include "mozilla/gfx/2D.h"
 #include "nsFrame.h"
 #include "nsSplittableFrame.h"
 #include "nsLineBox.h"
@@ -14,6 +15,11 @@
 #include "gfxTextRun.h"
 #include "nsDisplayList.h"
 #include "JustificationUtils.h"
+
+// Undo the windows.h damage
+#if defined(XP_WIN) && defined(DrawText)
+#undef DrawText
+#endif
 
 class nsTextPaintStyle;
 class PropertyProvider;
@@ -32,6 +38,9 @@ public:
 };
 
 class nsTextFrame : public nsTextFrameBase {
+  typedef mozilla::gfx::DrawTarget DrawTarget;
+  typedef mozilla::gfx::Rect Rect;
+
 public:
   NS_DECL_QUERYFRAME_TARGET(nsTextFrame)
   NS_DECL_FRAMEARENA_HELPERS
@@ -65,8 +74,6 @@ public:
   
   virtual nsresult CharacterDataChanged(CharacterDataChangeInfo* aInfo) MOZ_OVERRIDE;
                                   
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
-  
   virtual nsIFrame* GetNextContinuation() const MOZ_OVERRIDE {
     return mNextContinuation;
   }
@@ -295,14 +302,13 @@ public:
    *
    * Callbacks are invoked in the following order:
    *
-   *   (NotifyBeforeSelectionBackground NotifySelectionBackgroundPathEmitted)?
-   *   (NotifyBeforeDecorationLine NotifyDecorationLinePathEmitted)*
+   *   NotifySelectionBackgroundNeedsFill?
+   *   PaintDecorationLine*
    *   NotifyBeforeText
-   *   (NotifyGlyphPathEmitted |
-   *    (NotifyBeforeSVGGlyphPainted NotifyAfterSVGGlyphPainted))*
+   *   NotifyGlyphPathEmitted*
    *   NotifyAfterText
-   *   (NotifyBeforeDecorationLine NotifyDecorationLinePathEmitted)*
-   *   (NotifyBeforeSelectionDecorationLine NotifySelectionDecorationLinePathEmitted)*
+   *   PaintDecorationLine*
+   *   PaintSelectionDecorationLine*
    *
    * The color of each part of the frame's text rendering is passed as an argument
    * to the NotifyBefore* callback for that part.  The nscolor can take on one of
@@ -321,6 +327,27 @@ public:
     }
 
     /**
+     * Called to have the selection highlight drawn before the text is drawn
+     * over the top.
+     */
+    virtual void NotifySelectionBackgroundNeedsFill(const Rect& aBackgroundRect,
+                                                    nscolor aColor,
+                                                    DrawTarget& aDrawTarget) { }
+
+    /**
+     * Called before (for under/over-line) or after (for line-through) the text
+     * is drawn to have a text decoration line drawn.
+     */
+    virtual void PaintDecorationLine(Rect aPath, nscolor aColor) { }
+
+    /**
+     * Called after selected text is drawn to have a decoration line drawn over
+     * the text. (All types of text decoration are drawn after the text when
+     * text is selected.)
+     */
+    virtual void PaintSelectionDecorationLine(Rect aPath, nscolor aColor) { }
+
+    /**
      * Called just before any paths have been emitted to the gfxContext
      * for the glyphs of the frame's text.
      */
@@ -331,30 +358,6 @@ public:
      * for the glyphs of the frame's text.
      */
     virtual void NotifyAfterText() { }
-
-    /**
-     * Called just before a path corresponding to the selection background
-     * has been emitted to the gfxContext.
-     */
-    virtual void NotifyBeforeSelectionBackground(nscolor aColor) { }
-
-    /**
-     * Called just after a path corresponding to the selection background
-     * has been emitted to the gfxContext.
-     */
-    virtual void NotifySelectionBackgroundPathEmitted() { }
-
-    /**
-     * Called just before a path corresponding to a text decoration line
-     * has been emitted to the gfxContext.
-     */
-    virtual void NotifyBeforeDecorationLine(nscolor aColor) { }
-
-    /**
-     * Called just after a path corresponding to a text decoration line
-     * has been emitted to the gfxContext.
-     */
-    virtual void NotifyDecorationLinePathEmitted() { }
 
     /**
      * Called just before a path corresponding to a selection decoration line
@@ -577,7 +580,19 @@ protected:
                       const nscolor& aForegroundColor,
                       const nsCharClipDisplayItem::ClipEdges& aClipEdges,
                       nscoord aLeftSideOffset,
-                      gfxRect& aBoundingBox);
+                      gfxRect& aBoundingBox,
+                      uint32_t aBlurFlags);
+
+  void PaintShadows(nsCSSShadowArray* aShadow,
+                    uint32_t aOffset, uint32_t aLength,
+                    const nsRect& aDirtyRect,
+                    const gfxPoint& aFramePt,
+                    const gfxPoint& aTextBaselinePt,
+                    nscoord aLeftEdgeOffset,
+                    PropertyProvider& aProvider,
+                    nscolor aForegroundColor,
+                    const nsCharClipDisplayItem::ClipEdges& aClipEdges,
+                    gfxContext* aCtx);
 
   struct LineDecoration {
     nsIFrame* mFrame;

@@ -46,7 +46,7 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
-#include "nsCrossSiteListenerProxy.h"
+#include "nsCORSListenerProxy.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
 #include "mozilla/dom/FallbackEncoding.h"
@@ -64,6 +64,7 @@
 #include "ActiveLayerTracker.h"
 #include "CounterStyleManager.h"
 #include "FrameLayerBuilder.h"
+#include "mozilla/dom/RequestSyncWifiService.h"
 
 #include "AudioChannelService.h"
 #include "mozilla/dom/DataStoreService.h"
@@ -133,6 +134,7 @@ using namespace mozilla::system;
 #include "nsDocument.h"
 #include "mozilla/dom/HTMLVideoElement.h"
 #include "CameraPreferences.h"
+#include "TouchManager.h"
 
 using namespace mozilla;
 using namespace mozilla::net;
@@ -241,11 +243,8 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  rv = nsCSSRuleProcessor::Startup();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsCSSRuleProcessor");
-    return rv;
-  }
+  nsCSSParser::Startup();
+  nsCSSRuleProcessor::Startup();
 
 #ifdef MOZ_XUL
   rv = nsXULPopupManager::Init();
@@ -269,6 +268,7 @@ nsLayoutStatics::Initialize()
   mozilla::dom::FallbackEncoding::Initialize();
   nsLayoutUtils::Initialize();
   nsIPresShell::InitializeStatics();
+  TouchManager::InitializeStatics();
   nsRefreshDriver::InitializeStatics();
 
   nsCORSListenerProxy::Startup();
@@ -300,6 +300,16 @@ nsLayoutStatics::Initialize()
 
   IMEStateManager::Init();
 
+  ServiceWorkerRegistrar::Initialize();
+
+#ifdef MOZ_B2G
+  RequestSyncWifiService::Init();
+#endif
+
+#ifdef DEBUG
+  nsStyleContext::Initialize();
+#endif
+
   return NS_OK;
 }
 
@@ -309,7 +319,7 @@ nsLayoutStatics::Shutdown()
   // Don't need to shutdown nsWindowMemoryReporter, that will be done by the
   // memory reporter manager.
 
-  nsFrameScriptExecutor::Shutdown();
+  nsMessageManagerScriptExecutor::Shutdown();
   nsFocusManager::Shutdown();
 #ifdef MOZ_XUL
   nsXULPopupManager::Shutdown();
@@ -398,6 +408,8 @@ nsLayoutStatics::Shutdown()
   nsCORSListenerProxy::Shutdown();
 
   nsIPresShell::ReleaseStatics();
+
+  TouchManager::ReleaseStatics();
 
   nsTreeSanitizer::ReleaseStatics();
 

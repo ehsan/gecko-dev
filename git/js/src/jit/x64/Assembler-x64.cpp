@@ -34,7 +34,7 @@ ABIArgGenerator::next(MIRType type)
             // On Win64, >64 bit args need to be passed by reference, but asm.js
             // doesn't allow passing SIMD values to FFIs. The only way to reach
             // here is asm to asm calls, so we can break the ABI here.
-            stackOffset_ = AlignBytes(stackOffset_, SimdStackAlignment);
+            stackOffset_ = AlignBytes(stackOffset_, SimdMemoryAlignment);
             current_ = ABIArg(stackOffset_);
             stackOffset_ += Simd128DataSize;
         } else {
@@ -49,15 +49,22 @@ ABIArgGenerator::next(MIRType type)
         current_ = ABIArg(IntArgRegs[regIndex_++]);
         break;
       case MIRType_Float32:
+        current_ = ABIArg(FloatArgRegs[regIndex_++].asSingle());
+        break;
       case MIRType_Double:
         current_ = ABIArg(FloatArgRegs[regIndex_++]);
         break;
       case MIRType_Int32x4:
+        // On Win64, >64 bit args need to be passed by reference, but asm.js
+        // doesn't allow passing SIMD values to FFIs. The only way to reach
+        // here is asm to asm calls, so we can break the ABI here.
+        current_ = ABIArg(FloatArgRegs[regIndex_++].asInt32x4());
+        break;
       case MIRType_Float32x4:
         // On Win64, >64 bit args need to be passed by reference, but asm.js
         // doesn't allow passing SIMD values to FFIs. The only way to reach
         // here is asm to asm calls, so we can break the ABI here.
-        current_ = ABIArg(FloatArgRegs[regIndex_++]);
+        current_ = ABIArg(FloatArgRegs[regIndex_++].asFloat32x4());
         break;
       default:
         MOZ_CRASH("Unexpected argument type");
@@ -81,17 +88,23 @@ ABIArgGenerator::next(MIRType type)
             stackOffset_ += sizeof(uint64_t);
             break;
         }
-        current_ = ABIArg(FloatArgRegs[floatRegIndex_++]);
+        if (type == MIRType_Float32)
+            current_ = ABIArg(FloatArgRegs[floatRegIndex_++].asSingle());
+        else
+            current_ = ABIArg(FloatArgRegs[floatRegIndex_++]);
         break;
       case MIRType_Int32x4:
       case MIRType_Float32x4:
         if (floatRegIndex_ == NumFloatArgRegs) {
-            stackOffset_ = AlignBytes(stackOffset_, SimdStackAlignment);
+            stackOffset_ = AlignBytes(stackOffset_, SimdMemoryAlignment);
             current_ = ABIArg(stackOffset_);
             stackOffset_ += Simd128DataSize;
             break;
         }
-        current_ = ABIArg(FloatArgRegs[floatRegIndex_++]);
+        if (type == MIRType_Int32x4)
+            current_ = ABIArg(FloatArgRegs[floatRegIndex_++].asInt32x4());
+        else
+            current_ = ABIArg(FloatArgRegs[floatRegIndex_++].asFloat32x4());
         break;
       default:
         MOZ_CRASH("Unexpected argument type");
@@ -101,11 +114,11 @@ ABIArgGenerator::next(MIRType type)
 }
 
 // Avoid r11, which is the MacroAssembler's ScratchReg.
-const Register ABIArgGenerator::NonArgReturnReg0 = r10;
-const Register ABIArgGenerator::NonArgReturnReg1 = r12;
-const Register ABIArgGenerator::NonVolatileReg = r13;
-const Register ABIArgGenerator::NonArg_VolatileReg = rax;
-const Register ABIArgGenerator::NonReturn_VolatileReg0 = rcx;
+const Register ABIArgGenerator::NonArgReturnReg0 = jit::r10;
+const Register ABIArgGenerator::NonArgReturnReg1 = jit::r12;
+const Register ABIArgGenerator::NonVolatileReg = jit::r13;
+const Register ABIArgGenerator::NonArg_VolatileReg = jit::rax;
+const Register ABIArgGenerator::NonReturn_VolatileReg0 = jit::rcx;
 
 void
 Assembler::writeRelocation(JmpSrc src, Relocation::Kind reloc)
@@ -175,7 +188,7 @@ Assembler::finish()
         return;
 
     // Emit the jump table.
-    masm.align(SizeOfJumpTableEntry);
+    masm.haltingAlign(SizeOfJumpTableEntry);
     extendedJumpTable_ = masm.size();
 
     // Now that we know the offset to the jump table, squirrel it into the
@@ -216,8 +229,8 @@ Assembler::executableCopy(uint8_t *buffer)
             // to jump to a different code block.
             continue;
         }
-        if (X86Assembler::canRelinkJump(src, rp.target)) {
-            X86Assembler::setRel32(src, rp.target);
+        if (X86Encoding::CanRelinkJump(src, rp.target)) {
+            X86Encoding::SetRel32(src, rp.target);
         } else {
             // An extended jump table must exist, and its offset must be in
             // range.
@@ -226,11 +239,11 @@ Assembler::executableCopy(uint8_t *buffer)
 
             // Patch the jump to go to the extended jump entry.
             uint8_t *entry = buffer + extendedJumpTable_ + i * SizeOfJumpTableEntry;
-            X86Assembler::setRel32(src, entry);
+            X86Encoding::SetRel32(src, entry);
 
             // Now patch the pointer, note that we need to align it to
             // *after* the extended jump, i.e. after the 64-bit immedate.
-            X86Assembler::repatchPointer(entry + SizeOfExtendedJump, rp.target);
+            X86Encoding::SetPointer(entry + SizeOfExtendedJump, rp.target);
         }
     }
 }
@@ -268,13 +281,13 @@ class RelocationIterator
 JitCode *
 Assembler::CodeFromJump(JitCode *code, uint8_t *jump)
 {
-    uint8_t *target = (uint8_t *)X86Assembler::getRel32Target(jump);
+    uint8_t *target = (uint8_t *)X86Encoding::GetRel32Target(jump);
     if (target >= code->raw() && target < code->raw() + code->instructionsSize()) {
         // This jump is within the code buffer, so it has been redirected to
         // the extended jump table.
         MOZ_ASSERT(target + SizeOfJumpTableEntry <= code->raw() + code->instructionsSize());
 
-        target = (uint8_t *)X86Assembler::getPointer(target + SizeOfExtendedJump);
+        target = (uint8_t *)X86Encoding::GetPointer(target + SizeOfExtendedJump);
     }
 
     return JitCode::FromExecutable(target);
@@ -294,21 +307,39 @@ Assembler::TraceJumpRelocations(JSTracer *trc, JitCode *code, CompactBufferReade
 FloatRegisterSet
 FloatRegister::ReduceSetForPush(const FloatRegisterSet &s)
 {
-    return s;
-}
-uint32_t
-FloatRegister::GetSizeInBytes(const FloatRegisterSet &s)
-{
-    uint32_t ret = s.size() * sizeof(double);
-    return ret;
+    if (JitSupportsSimd())
+        return s;
+
+    // Ignore all SIMD register.
+    return FloatRegisterSet(s.bits() & (Codes::AllPhysMask * Codes::SpreadScalar));
 }
 uint32_t
 FloatRegister::GetPushSizeInBytes(const FloatRegisterSet &s)
 {
-    return s.size() * sizeof(double);
+    SetType all = s.bits();
+    SetType float32x4Set =
+        (all >> (uint32_t(Codes::Float32x4) * Codes::TotalPhys)) & Codes::AllPhysMask;
+    SetType int32x4Set =
+        (all >> (uint32_t(Codes::Int32x4) * Codes::TotalPhys)) & Codes::AllPhysMask;
+    SetType doubleSet =
+        (all >> (uint32_t(Codes::Double) * Codes::TotalPhys)) & Codes::AllPhysMask;
+    SetType singleSet =
+        (all >> (uint32_t(Codes::Single) * Codes::TotalPhys)) & Codes::AllPhysMask;
+
+    // PushRegsInMask pushes the largest register first, and thus avoids pushing
+    // aliased registers. So we have to filter out the physical registers which
+    // are already pushed as part of larger registers.
+    SetType set128b = int32x4Set | float32x4Set;
+    SetType set64b = doubleSet & ~set128b;
+    SetType set32b = singleSet & ~set64b  & ~set128b;
+
+    static_assert(Codes::AllPhysMask <= 0xffff, "We can safely use CountPopulation32");
+    return mozilla::CountPopulation32(set128b) * (4 * sizeof(int32_t))
+        + mozilla::CountPopulation32(set64b) * sizeof(double)
+        + mozilla::CountPopulation32(set32b) * sizeof(float);
 }
 uint32_t
 FloatRegister::getRegisterDumpOffsetInBytes()
 {
-    return code() * sizeof(double);
+    return uint32_t(encoding()) * sizeof(FloatRegisters::RegisterContent);
 }

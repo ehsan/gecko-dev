@@ -21,6 +21,7 @@ XPIDL_SOURCES += [
     'nsINetworkService.idl',
     'nsINetworkWorker.idl',
     'nsISystemWorkerManager.idl',
+    'nsITetheringService.idl',
     'nsIVolume.idl',
     'nsIVolumeMountLock.idl',
     'nsIVolumeService.idl',
@@ -44,6 +45,7 @@ UNIFIED_SOURCES += [
     'MozMtpDatabase.cpp',
     'MozMtpServer.cpp',
     'MozMtpStorage.cpp',
+    'NetIdManager.cpp',
     'NetworkUtils.cpp',
     'NetworkWorker.cpp',
     'nsVolume.cpp',
@@ -74,6 +76,8 @@ EXTRA_COMPONENTS += [
     'NetworkManager.manifest',
     'NetworkService.js',
     'NetworkService.manifest',
+    'TetheringService.js',
+    'TetheringService.manifest',
 ]
 EXTRA_PP_COMPONENTS += [
     'NetworkManager.js',
@@ -87,17 +91,22 @@ if CONFIG['MOZ_B2G_RIL']:
         'nsIRadioInterfaceLayer.idl',
     ]
     EXTRA_COMPONENTS += [
-        'RadioInterfaceLayer.js',
-        'RadioInterfaceLayer.manifest',
         'RILContentHelper.js',
+        'RILContentHelper.manifest',
         'RILSystemMessengerHelper.js',
         'RILSystemMessengerHelper.manifest',
     ]
     EXTRA_JS_MODULES += [
         'ril_consts.js',
         'ril_worker.js',
+        'ril_worker_buf_object.js',
         'RILSystemMessenger.jsm',
     ]
+    if not CONFIG['DISABLE_MOZ_RIL_GEOLOC']:
+        EXTRA_COMPONENTS += [
+            'RadioInterfaceLayer.js',
+            'RadioInterfaceLayer.manifest',
+        ]
 
 FAIL_ON_WARNINGS = True
 

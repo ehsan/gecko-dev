@@ -15,6 +15,7 @@
 #include "mozilla/ipc/ProtocolUtils.h"
 #include "mozilla/ipc/Transport.h"      // for Transport
 #include "mozilla/UniquePtr.h"          // for UniquePtr
+#include "mozilla/unused.h"
 #include "nsIMemoryReporter.h"
 #ifdef MOZ_WIDGET_GONK
 #include "mozilla/LinuxUtils.h"
@@ -52,6 +53,10 @@ public:
     for (it = SharedBufferManagerParent::sManagers.begin(); it != SharedBufferManagerParent::sManagers.end(); it++) {
       base::ProcessId pid = it->first;
       SharedBufferManagerParent *mgr = it->second;
+      if (!mgr) {
+        printf_stderr("GrallocReporter::CollectReports() mgr is nullptr");
+        continue;
+      }
 
       nsAutoCString pidName;
       LinuxUtils::GetThreadName(pid, pidName);
@@ -319,7 +324,7 @@ void SharedBufferManagerParent::DropGrallocBufferImpl(mozilla::layers::SurfaceDe
   NS_ASSERTION(key != -1, "Invalid buffer key");
   NS_ASSERTION(mBuffers.count(key) == 1, "No such buffer");
   mBuffers.erase(key);
-  SendDropGrallocBuffer(handle);
+  mozilla::unused << SendDropGrallocBuffer(handle);
 #endif
 }
 
@@ -331,7 +336,11 @@ MessageLoop* SharedBufferManagerParent::GetMessageLoop()
 SharedBufferManagerParent* SharedBufferManagerParent::GetInstance(ProcessId id)
 {
   NS_ASSERTION(sManagers.count(id) == 1, "No BufferManager for the process");
-  return sManagers[id];
+  if (sManagers.count(id) == 1) {
+    return sManagers[id];
+  } else {
+    return nullptr;
+  }
 }
 
 #ifdef MOZ_HAVE_SURFACEDESCRIPTORGRALLOC

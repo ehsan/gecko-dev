@@ -250,7 +250,7 @@ InterpreterStack::allocateFrame(JSContext *cx, size_t size)
         maxFrames = MAX_FRAMES;
 
     if (MOZ_UNLIKELY(frameCount_ >= maxFrames)) {
-        js_ReportOverRecursed(cx);
+        ReportOverRecursed(cx);
         return nullptr;
     }
 
@@ -535,10 +535,10 @@ AbstractFramePtr::hasCallObj() const
 }
 
 inline bool
-AbstractFramePtr::useNewType() const
+AbstractFramePtr::createSingleton() const
 {
     if (isInterpreterFrame())
-        return asInterpreterFrame()->useNewType();
+        return asInterpreterFrame()->createSingleton();
     return false;
 }
 
@@ -775,6 +775,20 @@ AbstractFramePtr::setPrevUpToDate() const
     asRematerializedFrame()->setPrevUpToDate();
 }
 
+inline void
+AbstractFramePtr::unsetPrevUpToDate() const
+{
+    if (isInterpreterFrame()) {
+        asInterpreterFrame()->unsetPrevUpToDate();
+        return;
+    }
+    if (isBaselineFrame()) {
+        asBaselineFrame()->unsetPrevUpToDate();
+        return;
+    }
+    asRematerializedFrame()->unsetPrevUpToDate();
+}
+
 inline Value &
 AbstractFramePtr::thisValue() const
 {
@@ -805,24 +819,30 @@ AbstractFramePtr::popWith(JSContext *cx) const
     asBaselineFrame()->popWith(cx);
 }
 
-Activation::Activation(ThreadSafeContext *cx, Kind kind)
+Activation::Activation(JSContext *cx, Kind kind)
   : cx_(cx),
-    compartment_(cx->compartment_),
-    prev_(cx->perThreadData->activation_),
+    compartment_(cx->compartment()),
+    prev_(cx->runtime_->activation_),
     prevProfiling_(prev_ ? prev_->mostRecentProfiling() : nullptr),
     savedFrameChain_(0),
     hideScriptedCallerCount_(0),
+    asyncStack_(cx, cx->runtime_->asyncStackForNewActivations),
+    asyncCause_(cx, cx->runtime_->asyncCauseForNewActivations),
     kind_(kind)
 {
-    cx->perThreadData->activation_ = this;
+    cx->runtime_->asyncStackForNewActivations = nullptr;
+    cx->runtime_->asyncCauseForNewActivations = nullptr;
+    cx->runtime_->activation_ = this;
 }
 
 Activation::~Activation()
 {
-    MOZ_ASSERT_IF(isProfiling(), this != cx_->perThreadData->profilingActivation_);
-    MOZ_ASSERT(cx_->perThreadData->activation_ == this);
+    MOZ_ASSERT_IF(isProfiling(), this != cx_->runtime()->profilingActivation_);
+    MOZ_ASSERT(cx_->runtime_->activation_ == this);
     MOZ_ASSERT(hideScriptedCallerCount_ == 0);
-    cx_->perThreadData->activation_ = prev_;
+    cx_->runtime_->activation_ = prev_;
+    cx_->runtime_->asyncCauseForNewActivations = asyncCause_;
+    cx_->runtime_->asyncStackForNewActivations = asyncStack_;
 }
 
 bool
@@ -833,9 +853,6 @@ Activation::isProfiling() const
 
     if (isJit())
         return asJit()->isProfiling();
-
-    if (isForkJoin())
-        return asForkJoin()->isProfiling();
 
     MOZ_ASSERT(isAsmJS());
     return asAsmJS()->isProfiling();

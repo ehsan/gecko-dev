@@ -9,6 +9,7 @@
 #include "Accessible-inl.h"
 #include "HyperTextAccessible-inl.h"
 #include "nsMai.h"
+#include "ProxyAccessible.h"
 
 #include "nsIAccessibleTypes.h"
 #include "nsIPersistentProperties2.h"
@@ -110,21 +111,23 @@ static gchar*
 getTextCB(AtkText *aText, gint aStartOffset, gint aEndOffset)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
-  if (!accWrap)
-    return nullptr;
+  nsAutoString autoStr;
+  if (accWrap) {
+    HyperTextAccessible* text = accWrap->AsHyperText();
+    if (!text || !text->IsTextRole())
+      return nullptr;
 
-  HyperTextAccessible* text = accWrap->AsHyperText();
-  if (!text || !text->IsTextRole())
-    return nullptr;
-
-    nsAutoString autoStr;
     text->TextSubstring(aStartOffset, aEndOffset, autoStr);
 
     ConvertTexttoAsterisks(accWrap, autoStr);
-    NS_ConvertUTF16toUTF8 cautoStr(autoStr);
+  } else if (ProxyAccessible* proxy = GetProxy(ATK_OBJECT(aText))) {
+    proxy->TextSubstring(aStartOffset, aEndOffset, autoStr);
+  }
 
-    //copy and return, libspi will free it.
-    return (cautoStr.get()) ? g_strdup(cautoStr.get()) : nullptr;
+  NS_ConvertUTF16toUTF8 cautoStr(autoStr);
+
+  //copy and return, libspi will free it.
+  return (cautoStr.get()) ? g_strdup(cautoStr.get()) : nullptr;
 }
 
 static gchar*
@@ -327,12 +330,17 @@ static gint
 getCharacterCountCB(AtkText *aText)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
-  if (!accWrap)
-    return 0;
+  if (accWrap) {
+    HyperTextAccessible* textAcc = accWrap->AsHyperText();
+    return
+      textAcc->IsDefunct() ? 0 : static_cast<gint>(textAcc->CharacterCount());
+  }
 
-  HyperTextAccessible* textAcc = accWrap->AsHyperText();
-  return textAcc->IsDefunct() ?
-    0 : static_cast<gint>(textAcc->CharacterCount());
+  if (ProxyAccessible* proxy = GetProxy(ATK_OBJECT(aText))) {
+    return proxy->CharacterCount();
+  }
+
+  return 0;
 }
 
 static gint
@@ -359,14 +367,20 @@ static gint
 getTextSelectionCountCB(AtkText *aText)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aText));
-  if (!accWrap)
-    return 0;
+  if (accWrap) {
+    HyperTextAccessible* text = accWrap->AsHyperText();
+    if (!text || !text->IsTextRole()) {
+      return 0;
+    }
 
-  HyperTextAccessible* text = accWrap->AsHyperText();
-  if (!text || !text->IsTextRole())
-    return 0;
+    return text->SelectionCount();
+  }
 
-  return text->SelectionCount();
+  if (ProxyAccessible* proxy = GetProxy(ATK_OBJECT(aText))) {
+    return proxy->SelectionCount();
+  }
+
+  return 0;
 }
 
 static gchar*

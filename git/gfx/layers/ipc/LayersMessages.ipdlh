@@ -35,12 +35,12 @@ using mozilla::LayerPoint from "Units.h";
 using mozilla::LayerRect from "Units.h";
 using mozilla::layers::ScaleMode from "mozilla/layers/LayersTypes.h";
 using mozilla::layers::EventRegions from "mozilla/layers/LayersTypes.h";
+using mozilla::layers::EventRegionsOverride from "mozilla/layers/LayersTypes.h";
 using mozilla::layers::DiagnosticTypes from "mozilla/layers/CompositorTypes.h";
 using struct mozilla::layers::FrameMetrics from "FrameMetrics.h";
 using mozilla::layers::FrameMetrics::ViewID from "FrameMetrics.h";
 using struct mozilla::layers::FenceHandle from "mozilla/layers/FenceUtils.h";
 using struct mozilla::layers::FenceHandleFromChild from "mozilla/layers/FenceUtils.h";
-using mozilla::layers::TextureIdentifier from "mozilla/layers/CompositorTypes.h";
 using std::string from "string";
 
 namespace mozilla {
@@ -173,6 +173,11 @@ struct Animation {
   // delay.  If the delay is changed dynamically, the layer's data will
   // be updated.
   TimeStamp startTime;
+  // The value of the animation's current time at the moment it was created.
+  // For animations that are waiting to start, their startTime will be null.
+  // Once the animation is ready to start, we calculate an appropriate value
+  // of startTime such that we begin playback from initialCurrentTime.
+  TimeDuration initialCurrentTime;
   TimeDuration duration;
   // For each frame, the interpolation point is computed based on the
   // startTime, the direction, the duration, and the current time.
@@ -227,6 +232,9 @@ struct ContainerLayerAttributes {
   float preYScale;
   float inheritedXScale;
   float inheritedYScale;
+  float presShellResolution;
+  bool scaleToResolution;
+  EventRegionsOverride eventRegionsOverride;
   // This is a bare pointer; LayerTransactionParent::RecvUpdate prevents this
   // from being used when !IsSameProcess(), but we should make this truly
   // cross process at some point by passing the HMDConfig
@@ -234,7 +242,12 @@ struct ContainerLayerAttributes {
 };
 struct ColorLayerAttributes     { LayerColor color; nsIntRect bounds; };
 struct CanvasLayerAttributes    { GraphicsFilterType filter; nsIntRect bounds; };
-struct RefLayerAttributes       { int64_t id; };
+struct RefLayerAttributes {
+  int64_t id;
+  // TODO: Once bug 1132895 is fixed we shouldn't need to propagate the override
+  // explicitly here.
+  EventRegionsOverride eventRegionsOverride;
+};
 struct ImageLayerAttributes     { GraphicsFilterType filter; IntSize scaleToSize; ScaleMode scaleMode; };
 
 union SpecificLayerAttributes {
@@ -250,6 +263,14 @@ union SpecificLayerAttributes {
 struct LayerAttributes {
   CommonLayerAttributes common;
   SpecificLayerAttributes specific;
+};
+
+// See nsIWidget Configurations
+struct PluginWindowData {
+  uintptr_t windowId;
+  nsIntRect[] clip;
+  nsIntRect bounds;
+  bool visible;
 };
 
 struct OpSetLayerAttributes {
@@ -317,25 +338,10 @@ struct OpUseOverlaySource {
   OverlaySource overlay;
 };
 
-struct OpCreatedIncrementalTexture {
-  PCompositable compositable;
-  TextureInfo textureInfo;
-  nsIntRect bufferRect;
-};
-
 struct OpPaintTextureRegion {
   PCompositable compositable;
   ThebesBufferData bufferData;
   nsIntRegion updatedRegion;
-};
-
-struct OpPaintTextureIncremental {
-  PCompositable compositable;
-  TextureIdentifier textureId;
-  SurfaceDescriptor image;
-  nsIntRegion updatedRegion;
-  nsIntRect bufferRect;
-  nsIntPoint bufferRotation;
 };
 
 struct OpUpdatePictureRect {
@@ -416,10 +422,7 @@ struct OpReplyDeliverFence {
 union CompositableOperation {
   OpUpdatePictureRect;
 
-  OpCreatedIncrementalTexture;
-
   OpPaintTextureRegion;
-  OpPaintTextureIncremental;
 
   OpUseTiledLayerBuffer;
 
@@ -465,12 +468,6 @@ struct OpContentBufferSwap {
   nsIntRegion frontUpdatedRegion;
 };
 
-struct OpTextureSwap {
-  PCompositable compositable;
-  TextureIdentifier textureId;
-  SurfaceDescriptor image;
-};
-
 struct ReturnReleaseFence {
   PCompositable compositable;
   PTexture texture;
@@ -481,7 +478,6 @@ struct ReturnReleaseFence {
 // only to be used for buffer swapping.
 union EditReply {
   OpContentBufferSwap;
-  OpTextureSwap;
 
   ReturnReleaseFence;
 };

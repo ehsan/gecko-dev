@@ -6,8 +6,6 @@
 
 #include "vm/ArgumentsObject-inl.h"
 
-#include "jsinfer.h"
-
 #include "jit/JitFrames.h"
 #include "vm/GlobalObject.h"
 #include "vm/Stack.h"
@@ -133,7 +131,7 @@ struct CopyScriptFrameIterArgs
 
         /* Define formals which are not part of the actuals. */
         unsigned numActuals = iter_.numActualArgs();
-        unsigned numFormals = iter_.callee()->nargs();
+        unsigned numFormals = iter_.calleeTemplate()->nargs();
         MOZ_ASSERT(numActuals <= totalArgs);
         MOZ_ASSERT(numFormals <= totalArgs);
         MOZ_ASSERT(Max(numActuals, numFormals) == totalArgs);
@@ -167,8 +165,8 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
     bool strict = callee->strict();
     const Class *clasp = strict ? &StrictArgumentsObject::class_ : &NormalArgumentsObject::class_;
 
-    RootedTypeObject type(cx, cx->getNewType(clasp, TaggedProto(proto.get())));
-    if (!type)
+    RootedObjectGroup group(cx, ObjectGroup::defaultNewGroup(cx, clasp, TaggedProto(proto.get())));
+    if (!group)
         return nullptr;
 
     JSObject *metadata = nullptr;
@@ -188,46 +186,46 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
                         numDeletedWords * sizeof(size_t) +
                         numArgs * sizeof(Value);
 
+    // Allocate zeroed memory to make the object GC-safe for early attachment.
     ArgumentsData *data = reinterpret_cast<ArgumentsData *>(
-            cx->zone()->pod_malloc<uint8_t>(numBytes));
+            cx->zone()->pod_calloc<uint8_t>(numBytes));
     if (!data)
         return nullptr;
 
-    RootedNativeObject obj(cx);
-    obj = MaybeNativeObject(JSObject::create(cx, FINALIZE_KIND,
-                                             GetInitialHeap(GenericObject, clasp),
-                                             shape, type));
-    if (!obj) {
+    Rooted<ArgumentsObject *> obj(cx);
+    JSObject *base = JSObject::create(cx, FINALIZE_KIND,
+                                      GetInitialHeap(GenericObject, clasp),
+                                      shape, group);
+    if (!base) {
         js_free(data);
         return nullptr;
     }
+    obj = &base->as<ArgumentsObject>();
 
     data->numArgs = numArgs;
     data->callee.init(ObjectValue(*callee.get()));
     data->script = script;
 
-    // Initialize with dummy UndefinedValue, and attach it to the argument
-    // object such as the GC can trace ArgumentsData as they are recovered.
-    HeapValue *dst = data->args, *dstEnd = data->args + numArgs;
-    for (HeapValue *iter = dst; iter != dstEnd; iter++)
-        iter->init(UndefinedValue());
-
+    // Attach the argument object.
+    // Because the argument object was zeroed by pod_calloc(), each Value in
+    // ArgumentsData is DoubleValue(0) and therefore safe for GC tracing.
+    MOZ_ASSERT(DoubleValue(0).asRawBits() == 0x0);
+    MOZ_ASSERT_IF(numArgs > 0, data->args[0].asRawBits() == 0x0);
     obj->initFixedSlot(DATA_SLOT, PrivateValue(data));
 
     /* Copy [0, numArgs) into data->slots. */
-    copy.copyArgs(cx, dst, numArgs);
+    copy.copyArgs(cx, data->args, numArgs);
 
-    data->deletedBits = reinterpret_cast<size_t *>(dstEnd);
+    data->deletedBits = reinterpret_cast<size_t *>(data->args + numArgs);
     ClearAllBitArrayElements(data->deletedBits, numDeletedWords);
 
     obj->initFixedSlot(INITIAL_LENGTH_SLOT, Int32Value(numActuals << PACKED_BITS_COUNT));
 
-    copy.maybeForwardToCallObject(&obj->as<ArgumentsObject>(), data);
+    copy.maybeForwardToCallObject(obj, data);
 
-    ArgumentsObject &argsobj = obj->as<ArgumentsObject>();
-    MOZ_ASSERT(argsobj.initialLength() == numActuals);
-    MOZ_ASSERT(!argsobj.hasOverriddenLength());
-    return &argsobj;
+    MOZ_ASSERT(obj->initialLength() == numActuals);
+    MOZ_ASSERT(!obj->hasOverriddenLength());
+    return obj;
 }
 
 ArgumentsObject *
@@ -249,7 +247,7 @@ ArgumentsObject *
 ArgumentsObject::createUnexpected(JSContext *cx, ScriptFrameIter &iter)
 {
     RootedScript script(cx, iter.script());
-    RootedFunction callee(cx, iter.callee());
+    RootedFunction callee(cx, iter.callee(cx));
     CopyScriptFrameIterArgs copy(iter);
     return create(cx, script, callee, iter.numActualArgs(), copy);
 }
@@ -325,9 +323,11 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, MutableHand
         return true;
     Handle<NormalArgumentsObject*> argsobj = obj.as<NormalArgumentsObject>();
 
-    unsigned attrs;
-    if (!baseops::GetAttributes(cx, argsobj, id, &attrs))
+    Rooted<PropertyDescriptor> desc(cx);
+    if (!GetOwnPropertyDescriptor(cx, argsobj, id, &desc))
         return false;
+    MOZ_ASSERT(desc.object());
+    unsigned attrs = desc.attributes();
     MOZ_ASSERT(!(attrs & JSPROP_READONLY));
     attrs &= (JSPROP_ENUMERATE | JSPROP_PERMANENT); /* only valid attributes */
 
@@ -338,7 +338,7 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, MutableHand
         if (arg < argsobj->initialLength() && !argsobj->isElementDeleted(arg)) {
             argsobj->setElement(cx, arg, vp);
             if (arg < script->functionNonDelazifying()->nargs())
-                types::TypeScript::SetArgument(cx, script, arg, vp);
+                TypeScript::SetArgument(cx, script, arg, vp);
             return true;
         }
     } else {
@@ -346,16 +346,15 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, MutableHand
     }
 
     /*
-     * For simplicity we use delete/define to replace the property with one
-     * backed by the default Object getter and setter. Note that we rely on
-     * args_delProperty to clear the corresponding reserved slot so the GC can
-     * collect its value. Note also that we must define the property instead
-     * of setting it in case the user has changed the prototype to an object
-     * that has a setter for this id.
+     * For simplicity we use delete/define to replace the property with a
+     * simple data property. Note that we rely on args_delProperty to clear the
+     * corresponding reserved slot so the GC can collect its value. Note also
+     * that we must define the property instead of setting it in case the user
+     * has changed the prototype to an object that has a setter for this id.
      */
     bool succeeded;
-    return baseops::DeleteGeneric(cx, argsobj, id, &succeeded) &&
-           baseops::DefineGeneric(cx, argsobj, id, vp, nullptr, nullptr, attrs);
+    return NativeDeleteProperty(cx, argsobj, id, &succeeded) &&
+           NativeDefineProperty(cx, argsobj, id, vp, nullptr, nullptr, attrs);
 }
 
 static bool
@@ -381,7 +380,7 @@ args_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
             return true;
     }
 
-    if (!baseops::DefineGeneric(cx, argsobj, id, UndefinedHandleValue, ArgGetter, ArgSetter, attrs))
+    if (!NativeDefineProperty(cx, argsobj, id, UndefinedHandleValue, ArgGetter, ArgSetter, attrs))
         return false;
 
     *resolvedp = true;
@@ -392,25 +391,25 @@ static bool
 args_enumerate(JSContext *cx, HandleObject obj)
 {
     Rooted<NormalArgumentsObject*> argsobj(cx, &obj->as<NormalArgumentsObject>());
+
     RootedId id(cx);
+    bool found;
 
-    /*
-     * Trigger reflection in args_resolve using a series of js_LookupProperty
-     * calls.
-     */
-    int argc = int(argsobj->initialLength());
-    for (int i = -2; i != argc; i++) {
-        id = (i == -2)
-             ? NameToId(cx->names().length)
-             : (i == -1)
-             ? NameToId(cx->names().callee)
-             : INT_TO_JSID(i);
+    // Trigger reflection.
+    id = NameToId(cx->names().length);
+    if (!HasProperty(cx, argsobj, id, &found))
+        return false;
 
-        RootedObject pobj(cx);
-        RootedShape prop(cx);
-        if (!baseops::LookupProperty<CanGC>(cx, argsobj, id, &pobj, &prop))
+    id = NameToId(cx->names().callee);
+    if (!HasProperty(cx, argsobj, id, &found))
+        return false;
+
+    for (unsigned i = 0; i < argsobj->initialLength(); i++) {
+        id = INT_TO_JSID(i);
+        if (!HasProperty(cx, argsobj, id, &found))
             return false;
     }
+
     return true;
 }
 
@@ -445,9 +444,11 @@ StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, Mutab
         return true;
     Handle<StrictArgumentsObject*> argsobj = obj.as<StrictArgumentsObject>();
 
-    unsigned attrs;
-    if (!baseops::GetAttributes(cx, argsobj, id, &attrs))
+    Rooted<PropertyDescriptor> desc(cx);
+    if (!GetOwnPropertyDescriptor(cx, argsobj, id, &desc))
         return false;
+    MOZ_ASSERT(desc.object());
+    unsigned attrs = desc.attributes();
     MOZ_ASSERT(!(attrs & JSPROP_READONLY));
     attrs &= (JSPROP_ENUMERATE | JSPROP_PERMANENT); /* only valid attributes */
 
@@ -462,14 +463,13 @@ StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, bool strict, Mutab
     }
 
     /*
-     * For simplicity we use delete/define to replace the property with one
-     * backed by the default Object getter and setter. Note that we rely on
-     * args_delProperty to clear the corresponding reserved slot so the GC can
-     * collect its value.
+     * For simplicity we use delete/define to replace the property with a
+     * simple data property. Note that we rely on args_delProperty to clear the
+     * corresponding reserved slot so the GC can collect its value.
      */
     bool succeeded;
-    return baseops::DeleteGeneric(cx, argsobj, id, &succeeded) &&
-           baseops::DefineGeneric(cx, argsobj, id, vp, nullptr, nullptr, attrs);
+    return NativeDeleteProperty(cx, argsobj, id, &succeeded) &&
+           NativeDefineProperty(cx, argsobj, id, vp, nullptr, nullptr, attrs);
 }
 
 static bool
@@ -499,7 +499,7 @@ strictargs_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp
         setter = CastAsStrictPropertyOp(argsobj->global().getThrowTypeError());
     }
 
-    if (!baseops::DefineGeneric(cx, argsobj, id, UndefinedHandleValue, getter, setter, attrs))
+    if (!NativeDefineProperty(cx, argsobj, id, UndefinedHandleValue, getter, setter, attrs))
         return false;
 
     *resolvedp = true;
@@ -511,32 +511,25 @@ strictargs_enumerate(JSContext *cx, HandleObject obj)
 {
     Rooted<StrictArgumentsObject*> argsobj(cx, &obj->as<StrictArgumentsObject>());
 
-    /*
-     * Trigger reflection in strictargs_resolve using a series of
-     * js_LookupProperty calls.
-     */
-    RootedObject pobj(cx);
-    RootedShape prop(cx);
     RootedId id(cx);
+    bool found;
 
-    // length
+    // Trigger reflection.
     id = NameToId(cx->names().length);
-    if (!baseops::LookupProperty<CanGC>(cx, argsobj, id, &pobj, &prop))
+    if (!HasProperty(cx, argsobj, id, &found))
         return false;
 
-    // callee
     id = NameToId(cx->names().callee);
-    if (!baseops::LookupProperty<CanGC>(cx, argsobj, id, &pobj, &prop))
+    if (!HasProperty(cx, argsobj, id, &found))
         return false;
 
-    // caller
     id = NameToId(cx->names().caller);
-    if (!baseops::LookupProperty<CanGC>(cx, argsobj, id, &pobj, &prop))
+    if (!HasProperty(cx, argsobj, id, &found))
         return false;
 
-    for (uint32_t i = 0, argc = argsobj->initialLength(); i < argc; i++) {
+    for (unsigned i = 0; i < argsobj->initialLength(); i++) {
         id = INT_TO_JSID(i);
-        if (!baseops::LookupProperty<CanGC>(cx, argsobj, id, &pobj, &prop))
+        if (!HasProperty(cx, argsobj, id, &found))
             return false;
     }
 
@@ -570,13 +563,13 @@ const Class NormalArgumentsObject::class_ = {
     JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(NormalArgumentsObject::RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Object) | JSCLASS_BACKGROUND_FINALIZE,
-    JS_PropertyStub,         /* addProperty */
+    nullptr,                 /* addProperty */
     args_delProperty,
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
+    nullptr,                 /* getProperty */
+    nullptr,                 /* setProperty */
     args_enumerate,
     args_resolve,
-    JS_ConvertStub,
+    nullptr,                 /* convert     */
     ArgumentsObject::finalize,
     nullptr,                 /* call        */
     nullptr,                 /* hasInstance */
@@ -594,13 +587,13 @@ const Class StrictArgumentsObject::class_ = {
     JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(StrictArgumentsObject::RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Object) | JSCLASS_BACKGROUND_FINALIZE,
-    JS_PropertyStub,         /* addProperty */
+    nullptr,                 /* addProperty */
     args_delProperty,
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
+    nullptr,                 /* getProperty */
+    nullptr,                 /* setProperty */
     strictargs_enumerate,
     strictargs_resolve,
-    JS_ConvertStub,
+    nullptr,                 /* convert     */
     ArgumentsObject::finalize,
     nullptr,                 /* call        */
     nullptr,                 /* hasInstance */

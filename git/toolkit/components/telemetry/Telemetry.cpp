@@ -73,11 +73,20 @@
 
 namespace {
 
-using namespace base;
 using namespace mozilla;
 using namespace mozilla::HangMonitor;
 
+using base::BooleanHistogram;
+using base::CountHistogram;
+using base::FlagHistogram;
+using base::Histogram;
+using base::LinearHistogram;
+using base::StatisticsRecorder;
+
 const char KEYED_HISTOGRAM_NAME_SEPARATOR[] = "#";
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+const char SUBSESSION_HISTOGRAM_PREFIX[] = "sub#";
+#endif
 
 enum reflectStatus {
   REFLECT_OK,
@@ -254,8 +263,8 @@ public:
 
   private:
     // Force move constructor
-    AnnotationInfo(const AnnotationInfo& aOther) MOZ_DELETE;
-    void operator=(const AnnotationInfo& aOther) MOZ_DELETE;
+    AnnotationInfo(const AnnotationInfo& aOther) = delete;
+    void operator=(const AnnotationInfo& aOther) = delete;
   };
   size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
   void AddHang(const Telemetry::ProcessedStack& aStack, uint32_t aDuration,
@@ -626,184 +635,7 @@ ClearIOReporting()
   sTelemetryIOObserver = nullptr;
 }
 
-class KeyedHistogram {
-public:
-  KeyedHistogram(const nsACString &name, const nsACString &expiration,
-                 uint32_t histogramType, uint32_t min, uint32_t max,
-                 uint32_t bucketCount);
-  nsresult GetHistogram(const nsCString& name, Histogram** histogram);
-  Histogram* GetHistogram(const nsCString& name);
-  uint32_t GetHistogramType() const { return mHistogramType; }
-  nsresult GetJSKeys(JSContext* cx, JS::CallArgs& args);
-  nsresult GetJSSnapshot(JSContext* cx, JS::Handle<JSObject*> obj);
-  void Clear();
-
-private:
-  typedef nsBaseHashtableET<nsCStringHashKey, Histogram*> KeyedHistogramEntry;
-  typedef AutoHashtable<KeyedHistogramEntry> KeyedHistogramMapType;
-  KeyedHistogramMapType mHistogramMap;
-
-  struct ReflectKeysArgs {
-    JSContext* jsContext;
-    JS::AutoValueVector* vector;
-  };
-  static PLDHashOperator ReflectKeys(KeyedHistogramEntry* entry, void* arg);
-
-  static bool ReflectKeyedHistogram(KeyedHistogramEntry* entry,
-                                    JSContext* cx,
-                                    JS::Handle<JSObject*> obj);
-
-  static PLDHashOperator ClearHistogramEnumerator(KeyedHistogramEntry*, void*);
-
-  const nsCString mName;
-  const nsCString mExpiration;
-  const uint32_t mHistogramType;
-  const uint32_t mMin;
-  const uint32_t mMax;
-  const uint32_t mBucketCount;
-};
-
-KeyedHistogram::KeyedHistogram(const nsACString &name, const nsACString &expiration,
-                               uint32_t histogramType, uint32_t min, uint32_t max,
-                               uint32_t bucketCount)
-  : mHistogramMap()
-  , mName(name)
-  , mExpiration(expiration)
-  , mHistogramType(histogramType)
-  , mMin(min)
-  , mMax(max)
-  , mBucketCount(bucketCount)
-{
-}
-
-nsresult
-KeyedHistogram::GetHistogram(const nsCString& key, Histogram** histogram)
-{
-  KeyedHistogramEntry* entry = mHistogramMap.GetEntry(key);
-  if (entry) {
-    *histogram = entry->mData;
-    return NS_OK;
-  }
-
-  nsCString histogramName = mName;
-  histogramName.Append(KEYED_HISTOGRAM_NAME_SEPARATOR);
-  histogramName.Append(key);
-
-  Histogram* h;
-  nsresult rv = HistogramGet(histogramName.get(), mExpiration.get(),
-                             mHistogramType, mMin, mMax, mBucketCount,
-                             true, &h);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  h->ClearFlags(Histogram::kUmaTargetedHistogramFlag);
-  h->SetFlags(Histogram::kExtendedStatisticsFlag);
-  *histogram = h;
-
-  entry = mHistogramMap.PutEntry(key);
-  if (MOZ_UNLIKELY(!entry)) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  entry->mData = h;
-  return NS_OK;
-}
-
-Histogram*
-KeyedHistogram::GetHistogram(const nsCString& key)
-{
-  Histogram* h = nullptr;
-  if (NS_FAILED(GetHistogram(key, &h))) {
-    return nullptr;
-  }
-  return h;
-}
-
-/* static */
-PLDHashOperator
-KeyedHistogram::ClearHistogramEnumerator(KeyedHistogramEntry* entry, void*)
-{
-  entry->mData->Clear();
-  return PL_DHASH_NEXT;
-}
-
-void
-KeyedHistogram::Clear()
-{
-  mHistogramMap.EnumerateEntries(&KeyedHistogram::ClearHistogramEnumerator, nullptr);
-  mHistogramMap.Clear();
-}
-
-/* static */
-PLDHashOperator
-KeyedHistogram::ReflectKeys(KeyedHistogramEntry* entry, void* arg)
-{
-  ReflectKeysArgs* args = static_cast<ReflectKeysArgs*>(arg);
-
-  JS::RootedValue jsKey(args->jsContext);
-  const NS_ConvertUTF8toUTF16 key(entry->GetKey());
-  jsKey.setString(JS_NewUCStringCopyN(args->jsContext, key.Data(), key.Length()));
-  args->vector->append(jsKey);
-
-  return PL_DHASH_NEXT;
-}
-
-nsresult
-KeyedHistogram::GetJSKeys(JSContext* cx, JS::CallArgs& args)
-{
-  JS::AutoValueVector keys(cx);
-  if (!keys.reserve(mHistogramMap.Count())) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  ReflectKeysArgs reflectArgs = { cx, &keys };
-  const uint32_t num = mHistogramMap.EnumerateEntries(&KeyedHistogram::ReflectKeys,
-                                                      static_cast<void*>(&reflectArgs));
-  if (num != mHistogramMap.Count()) {
-    return NS_ERROR_FAILURE;
-  }
-
-  JS::RootedObject jsKeys(cx, JS_NewArrayObject(cx, keys));
-  if (!jsKeys) {
-    return NS_ERROR_FAILURE;
-  }
-
-  args.rval().setObject(*jsKeys);
-  return NS_OK;
-}
-
-/* static */
-bool
-KeyedHistogram::ReflectKeyedHistogram(KeyedHistogramEntry* entry, JSContext* cx, JS::Handle<JSObject*> obj)
-{
-  JS::RootedObject histogramSnapshot(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
-  if (!histogramSnapshot) {
-    return false;
-  }
-
-  if (ReflectHistogramSnapshot(cx, histogramSnapshot, entry->mData) != REFLECT_OK) {
-    return false;
-  }
-
-  const NS_ConvertUTF8toUTF16 key(entry->GetKey());
-  if (!JS_DefineUCProperty(cx, obj, key.Data(), key.Length(),
-                           histogramSnapshot, JSPROP_ENUMERATE)) {
-    return false;
-  }
-
-  return true;
-}
-
-nsresult
-KeyedHistogram::GetJSSnapshot(JSContext* cx, JS::Handle<JSObject*> obj)
-{
-  if (!mHistogramMap.ReflectIntoJS(&KeyedHistogram::ReflectKeyedHistogram, cx, obj)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return NS_OK;
-}
+class KeyedHistogram;
 
 class TelemetryImpl MOZ_FINAL
   : public nsITelemetry
@@ -870,6 +702,10 @@ private:
   nsresult GetHistogramByName(const nsACString &name, Histogram **ret);
   bool ShouldReflectHistogram(Histogram *h);
   void IdentifyCorruptHistograms(StatisticsRecorder::Histograms &hs);
+  nsresult CreateHistogramSnapshots(JSContext *cx,
+                                    JS::MutableHandle<JS::Value> ret,
+                                    bool subsession,
+                                    bool clearSubsession);
   typedef StatisticsRecorder::Histograms::iterator HistogramIterator;
 
   struct AddonHistogramInfo {
@@ -940,6 +776,50 @@ TelemetryImpl::CollectReports(nsIHandleReportCallback* aHandleReport,
     "Memory used by the telemetry system.");
 }
 
+class KeyedHistogram {
+public:
+  KeyedHistogram(const nsACString &name, const nsACString &expiration,
+                 uint32_t histogramType, uint32_t min, uint32_t max,
+                 uint32_t bucketCount);
+  nsresult GetHistogram(const nsCString& name, Histogram** histogram, bool subsession);
+  Histogram* GetHistogram(const nsCString& name, bool subsession);
+  uint32_t GetHistogramType() const { return mHistogramType; }
+  nsresult GetDataset(uint32_t* dataset) const;
+  nsresult GetJSKeys(JSContext* cx, JS::CallArgs& args);
+  nsresult GetJSSnapshot(JSContext* cx, JS::Handle<JSObject*> obj,
+                         bool subsession, bool clearSubsession);
+
+  nsresult Add(const nsCString& key, uint32_t aSample);
+  void Clear(bool subsession);
+
+private:
+  typedef nsBaseHashtableET<nsCStringHashKey, Histogram*> KeyedHistogramEntry;
+  typedef AutoHashtable<KeyedHistogramEntry> KeyedHistogramMapType;
+  KeyedHistogramMapType mHistogramMap;
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+  KeyedHistogramMapType mSubsessionMap;
+#endif
+
+  struct ReflectKeysArgs {
+    JSContext* jsContext;
+    JS::AutoValueVector* vector;
+  };
+  static PLDHashOperator ReflectKeys(KeyedHistogramEntry* entry, void* arg);
+
+  static bool ReflectKeyedHistogram(KeyedHistogramEntry* entry,
+                                    JSContext* cx,
+                                    JS::Handle<JSObject*> obj);
+
+  static PLDHashOperator ClearHistogramEnumerator(KeyedHistogramEntry*, void*);
+
+  const nsCString mName;
+  const nsCString mExpiration;
+  const uint32_t mHistogramType;
+  const uint32_t mMin;
+  const uint32_t mMax;
+  const uint32_t mBucketCount;
+};
+
 // A initializer to initialize histogram collection
 StatisticsRecorder gStatisticsRecorder;
 
@@ -951,6 +831,7 @@ struct TelemetryHistogram {
   uint32_t histogramType;
   uint32_t id_offset;
   uint32_t expiration_offset;
+  uint32_t dataset;
   bool extendedStatisticsOK;
   bool keyed;
 
@@ -990,6 +871,23 @@ bool
 IsValidHistogramName(const nsACString& name)
 {
   return !FindInReadable(nsCString(KEYED_HISTOGRAM_NAME_SEPARATOR), name);
+}
+
+bool
+IsInDataset(const TelemetryHistogram& h, uint32_t dataset)
+{
+  if (h.dataset == dataset) {
+    return true;
+  }
+
+  // The "optin on release channel" dataset is a superset of the
+  // "optout on release channel one".
+  if (dataset == nsITelemetry::DATASET_RELEASE_CHANNEL_OPTIN
+      && h.dataset == nsITelemetry::DATASET_RELEASE_CHANNEL_OPTOUT) {
+    return true;
+  }
+
+  return false;
 }
 
 nsresult
@@ -1106,6 +1004,93 @@ GetHistogramByEnumId(Telemetry::ID id, Histogram **ret)
   return NS_OK;
 }
 
+/**
+ * This clones a histogram |existing| with the id |existingId| to a
+ * new histogram with the name |newName|.
+ * For simplicity this is limited to registered histograms.
+ */
+Histogram*
+CloneHistogram(const nsACString& newName, Telemetry::ID existingId,
+               Histogram& existing)
+{
+  const TelemetryHistogram &info = gHistograms[existingId];
+  Histogram *clone = nullptr;
+  nsresult rv;
+
+  rv = HistogramGet(PromiseFlatCString(newName).get(), info.expiration(),
+                    info.histogramType, existing.declared_min(),
+                    existing.declared_max(), existing.bucket_count(),
+                    true, &clone);
+  if (NS_FAILED(rv)) {
+    return nullptr;
+  }
+
+  Histogram::SampleSet ss;
+  existing.SnapshotSample(&ss);
+  clone->AddSampleSet(ss);
+
+  return clone;
+}
+
+/**
+ * This clones a histogram with the id |existingId| to a new histogram
+ * with the name |newName|.
+ * For simplicity this is limited to registered histograms.
+ */
+Histogram*
+CloneHistogram(const nsACString& newName, Telemetry::ID existingId)
+{
+  Histogram *existing = nullptr;
+  nsresult rv = GetHistogramByEnumId(existingId, &existing);
+  if (NS_FAILED(rv)) {
+    return nullptr;
+  }
+
+  return CloneHistogram(newName, existingId, *existing);
+}
+
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+Histogram*
+GetSubsessionHistogram(Histogram& existing)
+{
+  Telemetry::ID id;
+  nsresult rv = TelemetryImpl::GetHistogramEnumId(existing.histogram_name().c_str(), &id);
+  if (NS_FAILED(rv) || gHistograms[id].keyed) {
+    return nullptr;
+  }
+
+  static Histogram* subsession[Telemetry::HistogramCount] = {};
+  if (subsession[id]) {
+    return subsession[id];
+  }
+
+  NS_NAMED_LITERAL_CSTRING(prefix, SUBSESSION_HISTOGRAM_PREFIX);
+  nsDependentCString existingName(gHistograms[id].id());
+  if (StringBeginsWith(existingName, prefix)) {
+    return nullptr;
+  }
+
+  nsCString subsessionName(prefix);
+  subsessionName.Append(existingName);
+
+  subsession[id] = CloneHistogram(subsessionName, id, existing);
+  return subsession[id];
+}
+#endif
+
+nsresult
+HistogramAdd(Histogram& histogram, int32_t value)
+{
+  histogram.Add(value);
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+  if (Histogram* subsession = GetSubsessionHistogram(histogram)) {
+    subsession->Add(value);
+  }
+#endif
+
+  return NS_OK;
+}
+
 bool
 FillRanges(JSContext *cx, JS::Handle<JSObject*> array, Histogram *h)
 {
@@ -1204,6 +1189,7 @@ JSHistogram_Add(JSContext *cx, unsigned argc, JS::Value *vp)
   }
 
   Histogram *h = static_cast<Histogram*>(JS_GetPrivate(obj));
+  MOZ_ASSERT(h);
   Histogram::ClassType type = h->histogram_type();
 
   int32_t value = 1;
@@ -1225,7 +1211,7 @@ JSHistogram_Add(JSContext *cx, unsigned argc, JS::Value *vp)
   }
 
   if (TelemetryImpl::CanRecord()) {
-    h->Add(value);
+    HistogramAdd(*h, value);
   }
 
   return true;
@@ -1241,7 +1227,7 @@ JSHistogram_Snapshot(JSContext *cx, unsigned argc, JS::Value *vp)
   }
 
   Histogram *h = static_cast<Histogram*>(JS_GetPrivate(obj));
-  JS::Rooted<JSObject*> snapshot(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+  JS::Rooted<JSObject*> snapshot(cx, JS_NewPlainObject(cx));
   if (!snapshot)
     return false;
 
@@ -1267,9 +1253,53 @@ JSHistogram_Clear(JSContext *cx, unsigned argc, JS::Value *vp)
     return false;
   }
 
+  bool onlySubsession = false;
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+
+  if (args.length() >= 1) {
+    if (!args[0].isBoolean()) {
+      JS_ReportError(cx, "Not a boolean");
+      return false;
+    }
+
+    onlySubsession = JS::ToBoolean(args[0]);
+  }
+#endif
+
   Histogram *h = static_cast<Histogram*>(JS_GetPrivate(obj));
-  h->Clear();
+  MOZ_ASSERT(h);
+  if(!onlySubsession) {
+    h->Clear();
+  }
+
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+  if (Histogram* subsession = GetSubsessionHistogram(*h)) {
+    subsession->Clear();
+  }
+#endif
+
   return true;
+}
+
+bool
+JSHistogram_Dataset(JSContext *cx, unsigned argc, JS::Value *vp)
+{
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JSObject *obj = JS_THIS_OBJECT(cx, vp);
+  if (!obj) {
+    return false;
+  }
+
+  Histogram *h = static_cast<Histogram*>(JS_GetPrivate(obj));
+  Telemetry::ID id;
+  nsresult rv = TelemetryImpl::GetHistogramEnumId(h->histogram_name().c_str(), &id);
+  if (NS_SUCCEEDED(rv)) {
+    args.rval().setNumber(gHistograms[id].dataset);
+    return true;
+  }
+
+  return false;
 }
 
 nsresult
@@ -1277,17 +1307,16 @@ WrapAndReturnHistogram(Histogram *h, JSContext *cx, JS::MutableHandle<JS::Value>
 {
   static const JSClass JSHistogram_class = {
     "JSHistogram",  /* name */
-    JSCLASS_HAS_PRIVATE, /* flags */
-    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
+    JSCLASS_HAS_PRIVATE  /* flags */
   };
 
-  JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, &JSHistogram_class, JS::NullPtr(), JS::NullPtr()));
+  JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, &JSHistogram_class));
   if (!obj)
     return NS_ERROR_FAILURE;
   if (!(JS_DefineFunction(cx, obj, "add", JSHistogram_Add, 1, 0)
         && JS_DefineFunction(cx, obj, "snapshot", JSHistogram_Snapshot, 0, 0)
-        && JS_DefineFunction(cx, obj, "clear", JSHistogram_Clear, 0, 0))) {
+        && JS_DefineFunction(cx, obj, "clear", JSHistogram_Clear, 0, 0)
+        && JS_DefineFunction(cx, obj, "dataset", JSHistogram_Dataset, 0, 0))) {
     return NS_ERROR_FAILURE;
   }
   JS_SetPrivate(obj, h);
@@ -1339,17 +1368,7 @@ JSKeyedHistogram_Add(JSContext *cx, unsigned argc, JS::Value *vp)
     }
   }
 
-  Histogram* h = nullptr;
-  nsresult rv = keyed->GetHistogram(NS_ConvertUTF16toUTF8(key), &h);
-  if (NS_FAILED(rv)) {
-    JS_ReportError(cx, "Failed to get histogram");
-    return false;
-  }
-
-  if (TelemetryImpl::CanRecord()) {
-    h->Add(value);
-  }
-
+  keyed->Add(NS_ConvertUTF16toUTF8(key), value);
   return true;
 }
 
@@ -1371,7 +1390,8 @@ JSKeyedHistogram_Keys(JSContext *cx, unsigned argc, JS::Value *vp)
 }
 
 bool
-JSKeyedHistogram_Snapshot(JSContext *cx, unsigned argc, JS::Value *vp)
+KeyedHistogram_SnapshotImpl(JSContext *cx, unsigned argc, JS::Value *vp,
+                            bool subsession, bool clearSubsession)
 {
   JSObject *obj = JS_THIS_OBJECT(cx, vp);
   if (!obj) {
@@ -1386,13 +1406,13 @@ JSKeyedHistogram_Snapshot(JSContext *cx, unsigned argc, JS::Value *vp)
   JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
 
   if (args.length() == 0) {
-    JS::RootedObject snapshot(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+    JS::RootedObject snapshot(cx, JS_NewPlainObject(cx));
     if (!snapshot) {
       JS_ReportError(cx, "Failed to create object");
       return false;
     }
 
-    if (!NS_SUCCEEDED(keyed->GetJSSnapshot(cx, snapshot))) {
+    if (!NS_SUCCEEDED(keyed->GetJSSnapshot(cx, snapshot, subsession, clearSubsession))) {
       JS_ReportError(cx, "Failed to reflect keyed histograms");
       return false;
     }
@@ -1408,13 +1428,13 @@ JSKeyedHistogram_Snapshot(JSContext *cx, unsigned argc, JS::Value *vp)
   }
 
   Histogram* h = nullptr;
-  nsresult rv = keyed->GetHistogram(NS_ConvertUTF16toUTF8(key), &h);
+  nsresult rv = keyed->GetHistogram(NS_ConvertUTF16toUTF8(key), &h, subsession);
   if (NS_FAILED(rv)) {
     JS_ReportError(cx, "Failed to get histogram");
     return false;
   }
 
-  JS::RootedObject snapshot(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+  JS::RootedObject snapshot(cx, JS_NewPlainObject(cx));
   if (!snapshot) {
     return false;
   }
@@ -1434,6 +1454,33 @@ JSKeyedHistogram_Snapshot(JSContext *cx, unsigned argc, JS::Value *vp)
 }
 
 bool
+JSKeyedHistogram_Snapshot(JSContext *cx, unsigned argc, JS::Value *vp)
+{
+  return KeyedHistogram_SnapshotImpl(cx, argc, vp, false, false);
+}
+
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+bool
+JSKeyedHistogram_SubsessionSnapshot(JSContext *cx, unsigned argc, JS::Value *vp)
+{
+  return KeyedHistogram_SnapshotImpl(cx, argc, vp, true, false);
+}
+#endif
+
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+bool
+JSKeyedHistogram_SnapshotSubsessionAndClear(JSContext *cx, unsigned argc, JS::Value *vp)
+{
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  if (args.length() != 0) {
+    JS_ReportError(cx, "No key arguments supported for snapshotSubsessionAndClear");
+  }
+
+  return KeyedHistogram_SnapshotImpl(cx, argc, vp, true, true);
+}
+#endif
+
+bool
 JSKeyedHistogram_Clear(JSContext *cx, unsigned argc, JS::Value *vp)
 {
   JSObject *obj = JS_THIS_OBJECT(cx, vp);
@@ -1446,7 +1493,47 @@ JSKeyedHistogram_Clear(JSContext *cx, unsigned argc, JS::Value *vp)
     return false;
   }
 
-  keyed->Clear();
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+  bool onlySubsession = false;
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+
+  if (args.length() >= 1) {
+    if (!(args[0].isNumber() || args[0].isBoolean())) {
+      JS_ReportError(cx, "Not a boolean");
+      return false;
+    }
+
+    onlySubsession = JS::ToBoolean(args[0]);
+  }
+
+  keyed->Clear(onlySubsession);
+#else
+  keyed->Clear(false);
+#endif
+  return true;
+}
+
+bool
+JSKeyedHistogram_Dataset(JSContext *cx, unsigned argc, JS::Value *vp)
+{
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JSObject *obj = JS_THIS_OBJECT(cx, vp);
+  if (!obj) {
+    return false;
+  }
+
+  KeyedHistogram* keyed = static_cast<KeyedHistogram*>(JS_GetPrivate(obj));
+  if (!keyed) {
+    return false;
+  }
+
+  uint32_t dataset = nsITelemetry::DATASET_RELEASE_CHANNEL_OPTIN;
+  nsresult rv = keyed->GetDataset(&dataset);;
+  if (NS_FAILED(rv)) {
+    return false;
+  }
+
+  args.rval().setNumber(dataset);
   return true;
 }
 
@@ -1455,18 +1542,21 @@ WrapAndReturnKeyedHistogram(KeyedHistogram *h, JSContext *cx, JS::MutableHandle<
 {
   static const JSClass JSHistogram_class = {
     "JSKeyedHistogram",  /* name */
-    JSCLASS_HAS_PRIVATE, /* flags */
-    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
+    JSCLASS_HAS_PRIVATE  /* flags */
   };
 
-  JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, &JSHistogram_class, JS::NullPtr(), JS::NullPtr()));
+  JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, &JSHistogram_class));
   if (!obj)
     return NS_ERROR_FAILURE;
   if (!(JS_DefineFunction(cx, obj, "add", JSKeyedHistogram_Add, 2, 0)
         && JS_DefineFunction(cx, obj, "snapshot", JSKeyedHistogram_Snapshot, 1, 0)
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+        && JS_DefineFunction(cx, obj, "subsessionSnapshot", JSKeyedHistogram_SubsessionSnapshot, 1, 0)
+        && JS_DefineFunction(cx, obj, "snapshotSubsessionAndClear", JSKeyedHistogram_SnapshotSubsessionAndClear, 0, 0)
+#endif
         && JS_DefineFunction(cx, obj, "keys", JSKeyedHistogram_Keys, 0, 0)
-        && JS_DefineFunction(cx, obj, "clear", JSKeyedHistogram_Clear, 0, 0))) {
+        && JS_DefineFunction(cx, obj, "clear", JSKeyedHistogram_Clear, 0, 0)
+        && JS_DefineFunction(cx, obj, "dataset", JSKeyedHistogram_Dataset, 0, 0))) {
     return NS_ERROR_FAILURE;
   }
 
@@ -1715,7 +1805,8 @@ TelemetryImpl::AsyncFetchTelemetryData(nsIFetchTelemetryDataCallback *aCallback)
 
 TelemetryImpl::TelemetryImpl():
 mHistogramMap(Telemetry::HistogramCount),
-mCanRecord(XRE_GetProcessType() == GeckoProcessType_Default),
+mCanRecord(XRE_GetProcessType() == GeckoProcessType_Default ||
+           XRE_GetProcessType() == GeckoProcessType_Content),
 mHashMutex("Telemetry::mHashMutex"),
 mHangReportsMutex("Telemetry::mHangReportsMutex"),
 mThreadHangStatsMutex("Telemetry::mThreadHangStatsMutex"),
@@ -1740,6 +1831,18 @@ mFailedLockCount(0)
   mTrackedDBs.MarkImmutable();
 #endif
 
+  // Populate the static histogram name->id cache.
+  // Note that the histogram names are statically allocated.
+  for (uint32_t i = 0; i < Telemetry::HistogramCount; i++) {
+    CharPtrEntryType *entry = mHistogramMap.PutEntry(gHistograms[i].id());
+    entry->mData = (Telemetry::ID) i;
+  }
+
+#ifdef DEBUG
+  mHistogramMap.MarkImmutable();
+#endif
+
+  // Create registered keyed histograms
   for (size_t i = 0; i < ArrayLength(gHistograms); ++i) {
     const TelemetryHistogram& h = gHistograms[i];
     if (!h.keyed) {
@@ -1797,7 +1900,7 @@ TelemetryImpl::NewKeyedHistogram(const nsACString &name, const nsACString &expir
 
   KeyedHistogram* keyed = new KeyedHistogram(name, expiration, histogramType,
                                              min, max, bucketCount);
-  if (MOZ_UNLIKELY(!mKeyedHistograms.Put(name, keyed, fallible_t()))) {
+  if (MOZ_UNLIKELY(!mKeyedHistograms.Put(name, keyed, fallible))) {
     delete keyed;
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -1821,8 +1924,8 @@ TelemetryImpl::ReflectSQL(const SlowSQLEntryType *entry,
   if (!arrayObj) {
     return false;
   }
-  return (JS_SetElement(cx, arrayObj, 0, stat->hitCount)
-          && JS_SetElement(cx, arrayObj, 1, stat->totalTime)
+  return (JS_DefineElement(cx, arrayObj, 0, stat->hitCount, JSPROP_ENUMERATE)
+          && JS_DefineElement(cx, arrayObj, 1, stat->totalTime, JSPROP_ENUMERATE)
           && JS_DefineProperty(cx, obj, sql.BeginReading(), arrayObj,
                                JSPROP_ENUMERATE));
 }
@@ -1845,7 +1948,7 @@ bool
 TelemetryImpl::AddSQLInfo(JSContext *cx, JS::Handle<JSObject*> rootObj, bool mainThread,
                           bool privateSQL)
 {
-  JS::Rooted<JSObject*> statsObj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+  JS::Rooted<JSObject*> statsObj(cx, JS_NewPlainObject(cx));
   if (!statsObj)
     return false;
 
@@ -1869,21 +1972,8 @@ TelemetryImpl::GetHistogramEnumId(const char *name, Telemetry::ID *id)
     return NS_ERROR_FAILURE;
   }
 
-  // Cache names
-  // Note the histogram names are statically allocated
-  TelemetryImpl::HistogramMapType *map = &sTelemetry->mHistogramMap;
-  if (!map->Count()) {
-    for (uint32_t i = 0; i < Telemetry::HistogramCount; i++) {
-      CharPtrEntryType *entry = map->PutEntry(gHistograms[i].id());
-      if (MOZ_UNLIKELY(!entry)) {
-        map->Clear();
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-      entry->mData = (Telemetry::ID) i;
-    }
-  }
-
-  CharPtrEntryType *entry = map->GetEntry(name);
+  const TelemetryImpl::HistogramMapType& map = sTelemetry->mHistogramMap;
+  CharPtrEntryType *entry = map.GetEntry(name);
   if (!entry) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -1916,25 +2006,12 @@ TelemetryImpl::HistogramFrom(const nsACString &name, const nsACString &existing_
   if (NS_FAILED(rv)) {
     return rv;
   }
-  const TelemetryHistogram &p = gHistograms[id];
 
-  Histogram *existing;
-  rv = GetHistogramByEnumId(id, &existing);
-  if (NS_FAILED(rv)) {
-    return rv;
+  Histogram* clone = CloneHistogram(name, id);
+  if (!clone) {
+    return NS_ERROR_FAILURE;
   }
 
-  Histogram *clone;
-  rv = HistogramGet(PromiseFlatCString(name).get(), p.expiration(),
-                    p.histogramType, existing->declared_min(),
-                    existing->declared_max(), existing->bucket_count(),
-                    true, &clone);
-  if (NS_FAILED(rv))
-    return rv;
-
-  Histogram::SampleSet ss;
-  existing->SnapshotSample(&ss);
-  clone->AddSampleSet(ss);
   return WrapAndReturnHistogram(clone, cx, ret);
 }
 
@@ -2117,10 +2194,13 @@ TelemetryImpl::UnregisterAddonHistograms(const nsACString &id)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-TelemetryImpl::GetHistogramSnapshots(JSContext *cx, JS::MutableHandle<JS::Value> ret)
+nsresult
+TelemetryImpl::CreateHistogramSnapshots(JSContext *cx,
+                                        JS::MutableHandle<JS::Value> ret,
+                                        bool subsession,
+                                        bool clearSubsession)
 {
-  JS::Rooted<JSObject*> root_obj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+  JS::Rooted<JSObject*> root_obj(cx, JS_NewPlainObject(cx));
   if (!root_obj)
     return NS_ERROR_FAILURE;
   ret.setObject(*root_obj);
@@ -2159,7 +2239,17 @@ TelemetryImpl::GetHistogramSnapshots(JSContext *cx, JS::MutableHandle<JS::Value>
       continue;
     }
 
-    hobj = JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr());
+    Histogram* original = h;
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+    if (subsession) {
+      h = GetSubsessionHistogram(*h);
+      if (!h) {
+        continue;
+      }
+    }
+#endif
+
+    hobj = JS_NewPlainObject(cx);
     if (!hobj) {
       return NS_ERROR_FAILURE;
     }
@@ -2172,13 +2262,37 @@ TelemetryImpl::GetHistogramSnapshots(JSContext *cx, JS::MutableHandle<JS::Value>
     case REFLECT_FAILURE:
       return NS_ERROR_FAILURE;
     case REFLECT_OK:
-      if (!JS_DefineProperty(cx, root_obj, h->histogram_name().c_str(), hobj,
-                             JSPROP_ENUMERATE)) {
+      if (!JS_DefineProperty(cx, root_obj, original->histogram_name().c_str(),
+                             hobj, JSPROP_ENUMERATE)) {
         return NS_ERROR_FAILURE;
       }
     }
+
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+    if (subsession && clearSubsession) {
+      h->Clear();
+    }
+#endif
   }
   return NS_OK;
+}
+
+NS_IMETHODIMP
+TelemetryImpl::GetHistogramSnapshots(JSContext *cx, JS::MutableHandle<JS::Value> ret)
+{
+  return CreateHistogramSnapshots(cx, ret, false, false);
+}
+
+NS_IMETHODIMP
+TelemetryImpl::SnapshotSubsessionHistograms(bool clearSubsession,
+                                            JSContext *cx,
+                                            JS::MutableHandle<JS::Value> ret)
+{
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+  return CreateHistogramSnapshots(cx, ret, true, clearSubsession);
+#else
+  return NS_OK;
+#endif
 }
 
 bool
@@ -2221,7 +2335,7 @@ TelemetryImpl::AddonHistogramReflector(AddonHistogramEntryType *entry,
     return true;
   }
 
-  JS::Rooted<JSObject*> snapshot(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+  JS::Rooted<JSObject*> snapshot(cx, JS_NewPlainObject(cx));
   if (!snapshot) {
     // Just consider this to be skippable.
     return true;
@@ -2246,7 +2360,7 @@ TelemetryImpl::AddonReflector(AddonEntryType *entry,
                               JSContext *cx, JS::Handle<JSObject*> obj)
 {
   const nsACString &addonId = entry->GetKey();
-  JS::Rooted<JSObject*> subobj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+  JS::Rooted<JSObject*> subobj(cx, JS_NewPlainObject(cx));
   if (!subobj) {
     return false;
   }
@@ -2263,7 +2377,7 @@ TelemetryImpl::AddonReflector(AddonEntryType *entry,
 NS_IMETHODIMP
 TelemetryImpl::GetAddonHistogramSnapshots(JSContext *cx, JS::MutableHandle<JS::Value> ret)
 {
-  JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+  JS::Rooted<JSObject*> obj(cx, JS_NewPlainObject(cx));
   if (!obj) {
     return NS_ERROR_FAILURE;
   }
@@ -2281,12 +2395,12 @@ TelemetryImpl::KeyedHistogramsReflector(const nsACString& key, nsAutoPtr<KeyedHi
 {
   KeyedHistogramReflectArgs* args = static_cast<KeyedHistogramReflectArgs*>(arg);
   JSContext *cx = args->jsContext;
-  JS::RootedObject snapshot(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+  JS::RootedObject snapshot(cx, JS_NewPlainObject(cx));
   if (!snapshot) {
     return PL_DHASH_STOP;
   }
 
-  if (!NS_SUCCEEDED(entry->GetJSSnapshot(cx, snapshot))) {
+  if (!NS_SUCCEEDED(entry->GetJSSnapshot(cx, snapshot, false, false))) {
     return PL_DHASH_STOP;
   }
 
@@ -2301,7 +2415,7 @@ TelemetryImpl::KeyedHistogramsReflector(const nsACString& key, nsAutoPtr<KeyedHi
 NS_IMETHODIMP
 TelemetryImpl::GetKeyedHistogramSnapshots(JSContext *cx, JS::MutableHandle<JS::Value> ret)
 {
-  JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+  JS::Rooted<JSObject*> obj(cx, JS_NewPlainObject(cx));
   if (!obj) {
     return NS_ERROR_FAILURE;
   }
@@ -2320,7 +2434,7 @@ TelemetryImpl::GetKeyedHistogramSnapshots(JSContext *cx, JS::MutableHandle<JS::V
 bool
 TelemetryImpl::GetSQLStats(JSContext *cx, JS::MutableHandle<JS::Value> ret, bool includePrivateSql)
 {
-  JS::Rooted<JSObject*> root_obj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+  JS::Rooted<JSObject*> root_obj(cx, JS_NewPlainObject(cx));
   if (!root_obj)
     return false;
   ret.setObject(*root_obj);
@@ -2410,13 +2524,16 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, JS::MutableHandle<JS::Value> ret)
 
   const size_t length = stacks.GetStackCount();
   for (size_t i = 0; i < length; ++i) {
-    if (!JS_SetElement(cx, durationArray, i, mHangReports.GetDuration(i))) {
+    if (!JS_DefineElement(cx, durationArray, i, mHangReports.GetDuration(i),
+                          JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
-    if (!JS_SetElement(cx, systemUptimeArray, i, mHangReports.GetSystemUptime(i))) {
+    if (!JS_DefineElement(cx, systemUptimeArray, i, mHangReports.GetSystemUptime(i),
+                          JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
-    if (!JS_SetElement(cx, firefoxUptimeArray, i, mHangReports.GetFirefoxUptime(i))) {
+    if (!JS_DefineElement(cx, firefoxUptimeArray, i, mHangReports.GetFirefoxUptime(i),
+                          JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
     const nsTArray<HangReports::AnnotationInfo>& annotationInfo =
@@ -2429,12 +2546,10 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, JS::MutableHandle<JS::Value> ret)
       }
       JS::RootedValue indexValue(cx);
       indexValue.setNumber(annotationInfo[iterIndex].mHangIndex);
-      if (!JS_SetElement(cx, keyValueArray, 0, indexValue)) {
+      if (!JS_DefineElement(cx, keyValueArray, 0, indexValue, JSPROP_ENUMERATE)) {
         return NS_ERROR_FAILURE;
       }
-      JS::Rooted<JSObject*> jsAnnotation(cx, JS_NewObject(cx, nullptr,
-                                                          JS::NullPtr(),
-                                                          JS::NullPtr()));
+      JS::Rooted<JSObject*> jsAnnotation(cx, JS_NewPlainObject(cx));
       if (!jsAnnotation) {
         return NS_ERROR_FAILURE;
       }
@@ -2453,11 +2568,11 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, JS::MutableHandle<JS::Value> ret)
           return NS_ERROR_FAILURE;
         }
       }
-      if (!JS_SetElement(cx, keyValueArray, 1, jsAnnotation)) {
+      if (!JS_DefineElement(cx, keyValueArray, 1, jsAnnotation, JSPROP_ENUMERATE)) {
         return NS_ERROR_FAILURE;
       }
-      if (!JS_SetElement(cx, annotationsArray, iterIndex,
-                         keyValueArray)) {
+      if (!JS_DefineElement(cx, annotationsArray, iterIndex,
+                         keyValueArray, JSPROP_ENUMERATE)) {
         return NS_ERROR_FAILURE;
       }
     }
@@ -2468,7 +2583,7 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, JS::MutableHandle<JS::Value> ret)
 
 static JSObject *
 CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
-  JS::Rooted<JSObject*> ret(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+  JS::Rooted<JSObject*> ret(cx, JS_NewPlainObject(cx));
   if (!ret) {
     return nullptr;
   }
@@ -2493,7 +2608,8 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
     if (!moduleInfoArray) {
       return nullptr;
     }
-    if (!JS_SetElement(cx, moduleArray, moduleIndex, moduleInfoArray)) {
+    if (!JS_DefineElement(cx, moduleArray, moduleIndex, moduleInfoArray,
+                          JSPROP_ENUMERATE)) {
       return nullptr;
     }
 
@@ -2504,7 +2620,7 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
     if (!str) {
       return nullptr;
     }
-    if (!JS_SetElement(cx, moduleInfoArray, index++, str)) {
+    if (!JS_DefineElement(cx, moduleInfoArray, index++, str, JSPROP_ENUMERATE)) {
       return nullptr;
     }
 
@@ -2513,7 +2629,7 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
     if (!id) {
       return nullptr;
     }
-    if (!JS_SetElement(cx, moduleInfoArray, index++, id)) {
+    if (!JS_DefineElement(cx, moduleInfoArray, index++, id, JSPROP_ENUMERATE)) {
       return nullptr;
     }
   }
@@ -2535,7 +2651,7 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
       return nullptr;
     }
 
-    if (!JS_SetElement(cx, reportArray, i, pcArray)) {
+    if (!JS_DefineElement(cx, reportArray, i, pcArray, JSPROP_ENUMERATE)) {
       return nullptr;
     }
 
@@ -2549,13 +2665,14 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
       }
       int modIndex = (std::numeric_limits<uint16_t>::max() == frame.mModIndex) ?
         -1 : frame.mModIndex;
-      if (!JS_SetElement(cx, framePair, 0, modIndex)) {
+      if (!JS_DefineElement(cx, framePair, 0, modIndex, JSPROP_ENUMERATE)) {
         return nullptr;
       }
-      if (!JS_SetElement(cx, framePair, 1, static_cast<double>(frame.mOffset))) {
+      if (!JS_DefineElement(cx, framePair, 1, static_cast<double>(frame.mOffset),
+                            JSPROP_ENUMERATE)) {
         return nullptr;
       }
-      if (!JS_SetElement(cx, pcArray, pcIndex, framePair)) {
+      if (!JS_DefineElement(cx, pcArray, pcIndex, framePair, JSPROP_ENUMERATE)) {
         return nullptr;
       }
     }
@@ -2657,7 +2774,7 @@ CreateJSTimeHistogram(JSContext* cx, const Telemetry::TimeHistogram& time)
 {
   /* Create JS representation of TimeHistogram,
      in the format of Chromium-style histograms. */
-  JS::RootedObject ret(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+  JS::RootedObject ret(cx, JS_NewPlainObject(cx));
   if (!ret) {
     return nullptr;
   }
@@ -2688,13 +2805,14 @@ CreateJSTimeHistogram(JSContext* cx, const Telemetry::TimeHistogram& time)
   }
   /* In a Chromium-style histogram, the first bucket is an "under" bucket
      that represents all values below the histogram's range. */
-  if (!JS_SetElement(cx, ranges, 0, time.GetBucketMin(0)) ||
-      !JS_SetElement(cx, counts, 0, 0)) {
+  if (!JS_DefineElement(cx, ranges, 0, time.GetBucketMin(0), JSPROP_ENUMERATE) ||
+      !JS_DefineElement(cx, counts, 0, 0, JSPROP_ENUMERATE)) {
     return nullptr;
   }
   for (size_t i = 0; i < ArrayLength(time); i++) {
-    if (!JS_SetElement(cx, ranges, i + 1, time.GetBucketMax(i)) ||
-        !JS_SetElement(cx, counts, i + 1, time[i])) {
+    if (!JS_DefineElement(cx, ranges, i + 1, time.GetBucketMax(i),
+                          JSPROP_ENUMERATE) ||
+        !JS_DefineElement(cx, counts, i + 1, time[i], JSPROP_ENUMERATE)) {
       return nullptr;
     }
   }
@@ -2714,7 +2832,7 @@ CreateJSHangStack(JSContext* cx, const Telemetry::HangStack& stack)
   }
   for (size_t i = 0; i < stack.length(); i++) {
     JS::RootedString string(cx, JS_NewStringCopyZ(cx, stack[i]));
-    if (!JS_SetElement(cx, ret, i, string)) {
+    if (!JS_DefineElement(cx, ret, i, string, JSPROP_ENUMERATE)) {
       return nullptr;
     }
   }
@@ -2724,8 +2842,7 @@ CreateJSHangStack(JSContext* cx, const Telemetry::HangStack& stack)
 static JSObject*
 CreateJSHangHistogram(JSContext* cx, const Telemetry::HangHistogram& hang)
 {
-  JS::RootedObject ret(cx,
-    JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+  JS::RootedObject ret(cx, JS_NewPlainObject(cx));
   if (!ret) {
     return nullptr;
   }
@@ -2753,7 +2870,7 @@ CreateJSHangHistogram(JSContext* cx, const Telemetry::HangHistogram& hang)
 static JSObject*
 CreateJSThreadHangStats(JSContext* cx, const Telemetry::ThreadHangStats& thread)
 {
-  JS::RootedObject ret(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
+  JS::RootedObject ret(cx, JS_NewPlainObject(cx));
   if (!ret) {
     return nullptr;
   }
@@ -2775,7 +2892,7 @@ CreateJSThreadHangStats(JSContext* cx, const Telemetry::ThreadHangStats& thread)
   }
   for (size_t i = 0; i < thread.mHangs.length(); i++) {
     JS::RootedObject obj(cx, CreateJSHangHistogram(cx, thread.mHangs[i]));
-    if (!JS_SetElement(cx, hangs, i, obj)) {
+    if (!JS_DefineElement(cx, hangs, i, obj, JSPROP_ENUMERATE)) {
       return nullptr;
     }
   }
@@ -2804,7 +2921,7 @@ TelemetryImpl::GetThreadHangStats(JSContext* cx, JS::MutableHandle<JS::Value> re
        histogram; histogram = iter.GetNext()) {
     JS::RootedObject obj(cx,
       CreateJSThreadHangStats(cx, *histogram));
-    if (!JS_SetElement(cx, retObj, threadIndex++, obj)) {
+    if (!JS_DefineElement(cx, retObj, threadIndex++, obj, JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
   }
@@ -2815,7 +2932,7 @@ TelemetryImpl::GetThreadHangStats(JSContext* cx, JS::MutableHandle<JS::Value> re
   for (size_t i = 0; i < mThreadHangStats.length(); i++) {
     JS::RootedObject obj(cx,
       CreateJSThreadHangStats(cx, mThreadHangStats[i]));
-    if (!JS_SetElement(cx, retObj, threadIndex++, obj)) {
+    if (!JS_DefineElement(cx, retObj, threadIndex++, obj, JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
   }
@@ -2894,13 +3011,15 @@ TelemetryImpl::GetLateWrites(JSContext *cx, JS::MutableHandle<JS::Value> ret)
 }
 
 nsresult
-GetRegisteredHistogramIds(bool keyed, uint32_t *aCount, char*** aHistograms)
+GetRegisteredHistogramIds(bool keyed, uint32_t dataset, uint32_t *aCount,
+                          char*** aHistograms)
 {
   nsTArray<char*> collection;
 
   for (size_t i = 0; i < ArrayLength(gHistograms); ++i) {
     const TelemetryHistogram& h = gHistograms[i];
-    if (IsExpired(h.expiration()) || h.keyed != keyed) {
+    if (IsExpired(h.expiration()) || h.keyed != keyed ||
+        !IsInDataset(h, dataset)) {
       continue;
     }
 
@@ -2919,15 +3038,17 @@ GetRegisteredHistogramIds(bool keyed, uint32_t *aCount, char*** aHistograms)
 }
 
 NS_IMETHODIMP
-TelemetryImpl::RegisteredHistograms(uint32_t *aCount, char*** aHistograms)
+TelemetryImpl::RegisteredHistograms(uint32_t aDataset, uint32_t *aCount,
+                                    char*** aHistograms)
 {
-  return GetRegisteredHistogramIds(false, aCount, aHistograms);
+  return GetRegisteredHistogramIds(false, aDataset, aCount, aHistograms);
 }
 
 NS_IMETHODIMP
-TelemetryImpl::RegisteredKeyedHistograms(uint32_t *aCount, char*** aHistograms)
+TelemetryImpl::RegisteredKeyedHistograms(uint32_t aDataset, uint32_t *aCount,
+                                         char*** aHistograms)
 {
-  return GetRegisteredHistogramIds(true, aCount, aHistograms);
+  return GetRegisteredHistogramIds(true, aDataset, aCount, aHistograms);
 }
 
 NS_IMETHODIMP
@@ -2997,7 +3118,7 @@ TelemetryImpl::GetCanSend(bool *ret) {
 already_AddRefed<nsITelemetry>
 TelemetryImpl::CreateTelemetryInstance()
 {
-  NS_ABORT_IF_FALSE(sTelemetry == nullptr, "CreateTelemetryInstance may only be called once, via GetService()");
+  MOZ_ASSERT(sTelemetry == nullptr, "CreateTelemetryInstance may only be called once, via GetService()");
   sTelemetry = new TelemetryImpl();
   // AddRef for the local reference
   NS_ADDREF(sTelemetry);
@@ -3218,11 +3339,17 @@ TelemetryImpl::RecordChromeHang(uint32_t aDuration,
   if (!sTelemetry || !sTelemetry->mCanRecord)
     return;
 
+  UniquePtr<HangAnnotations> annotations;
+  // We only pass aAnnotations if it is not empty.
+  if (aAnnotations && !aAnnotations->IsEmpty()) {
+    annotations = Move(aAnnotations);
+  }
+
   MutexAutoLock hangReportMutex(sTelemetry->mHangReportsMutex);
 
   sTelemetry->mHangReports.AddHang(aStack, aDuration,
                                    aSystemUptime, aFirefoxUptime,
-                                   Move(aAnnotations));
+                                   Move(annotations));
 }
 #endif
 
@@ -3268,8 +3395,7 @@ NS_IMETHODIMP
 TelemetryImpl::GetFileIOReports(JSContext *cx, JS::MutableHandleValue ret)
 {
   if (sTelemetryIOObserver) {
-    JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, nullptr, JS::NullPtr(),
-                                               JS::NullPtr()));
+    JS::Rooted<JSObject*> obj(cx, JS_NewPlainObject(cx));
     if (!obj) {
       return NS_ERROR_FAILURE;
     }
@@ -3405,7 +3531,7 @@ Accumulate(ID aHistogram, uint32_t aSample)
   Histogram *h;
   nsresult rv = GetHistogramByEnumId(aHistogram, &h);
   if (NS_SUCCEEDED(rv))
-    h->Add(aSample);
+    HistogramAdd(*h, aSample);
 }
 
 void
@@ -3418,11 +3544,7 @@ Accumulate(ID aID, const nsCString& aKey, uint32_t aSample)
   const TelemetryHistogram& th = gHistograms[aID];
   KeyedHistogram* keyed = TelemetryImpl::GetKeyedHistogramById(nsDependentCString(th.id()));
   MOZ_ASSERT(keyed);
-
-  Histogram* histogram = keyed->GetHistogram(aKey);
-  if (histogram) {
-    histogram->Add(aSample);
-  }
+  keyed->Add(aKey, aSample);
 }
 
 void
@@ -3440,7 +3562,7 @@ Accumulate(const char* name, uint32_t sample)
   Histogram *h;
   rv = GetHistogramByEnumId(id, &h);
   if (NS_SUCCEEDED(rv)) {
-    h->Add(sample);
+    HistogramAdd(*h, sample);
   }
 }
 
@@ -3837,4 +3959,223 @@ void
 XRE_TelemetryAccumulate(int aID, uint32_t aSample)
 {
   mozilla::Telemetry::Accumulate((mozilla::Telemetry::ID) aID, aSample);
+}
+
+KeyedHistogram::KeyedHistogram(const nsACString &name, const nsACString &expiration,
+                               uint32_t histogramType, uint32_t min, uint32_t max,
+                               uint32_t bucketCount)
+  : mHistogramMap()
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+  , mSubsessionMap()
+#endif
+  , mName(name)
+  , mExpiration(expiration)
+  , mHistogramType(histogramType)
+  , mMin(min)
+  , mMax(max)
+  , mBucketCount(bucketCount)
+{
+}
+
+nsresult
+KeyedHistogram::GetHistogram(const nsCString& key, Histogram** histogram,
+                             bool subsession)
+{
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+  KeyedHistogramMapType& map = subsession ? mSubsessionMap : mHistogramMap;
+#else
+  KeyedHistogramMapType& map = mHistogramMap;
+#endif
+  KeyedHistogramEntry* entry = map.GetEntry(key);
+  if (entry) {
+    *histogram = entry->mData;
+    return NS_OK;
+  }
+
+  nsCString histogramName;
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+  if (subsession) {
+    histogramName.Append(SUBSESSION_HISTOGRAM_PREFIX);
+  }
+#endif
+  histogramName.Append(mName);
+  histogramName.Append(KEYED_HISTOGRAM_NAME_SEPARATOR);
+  histogramName.Append(key);
+
+  Histogram* h;
+  nsresult rv = HistogramGet(histogramName.get(), mExpiration.get(),
+                             mHistogramType, mMin, mMax, mBucketCount,
+                             true, &h);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  h->ClearFlags(Histogram::kUmaTargetedHistogramFlag);
+  h->SetFlags(Histogram::kExtendedStatisticsFlag);
+  *histogram = h;
+
+  entry = map.PutEntry(key);
+  if (MOZ_UNLIKELY(!entry)) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  entry->mData = h;
+  return NS_OK;
+}
+
+Histogram*
+KeyedHistogram::GetHistogram(const nsCString& key, bool subsession)
+{
+  Histogram* h = nullptr;
+  if (NS_FAILED(GetHistogram(key, &h, subsession))) {
+    return nullptr;
+  }
+  return h;
+}
+
+nsresult
+KeyedHistogram::GetDataset(uint32_t* dataset) const
+{
+  MOZ_ASSERT(dataset);
+
+  Telemetry::ID id;
+  nsresult rv = TelemetryImpl::GetHistogramEnumId(mName.get(), &id);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  *dataset = gHistograms[id].dataset;
+  return NS_OK;
+}
+
+/* static */
+PLDHashOperator
+KeyedHistogram::ClearHistogramEnumerator(KeyedHistogramEntry* entry, void*)
+{
+  entry->mData->Clear();
+  return PL_DHASH_NEXT;
+}
+
+nsresult
+KeyedHistogram::Add(const nsCString& key, uint32_t sample)
+{
+  if (!TelemetryImpl::CanRecord()) {
+    return NS_OK;
+  }
+
+  Histogram* histogram = GetHistogram(key, false);
+  MOZ_ASSERT(histogram);
+  if (!histogram) {
+    return NS_ERROR_FAILURE;
+  }
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+  Histogram* subsession = GetHistogram(key, true);
+  MOZ_ASSERT(subsession);
+  if (!subsession) {
+    return NS_ERROR_FAILURE;
+  }
+#endif
+
+  histogram->Add(sample);
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+  subsession->Add(sample);
+#endif
+  return NS_OK;
+}
+
+void
+KeyedHistogram::Clear(bool onlySubsession)
+{
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+  mSubsessionMap.EnumerateEntries(&KeyedHistogram::ClearHistogramEnumerator, nullptr);
+  mSubsessionMap.Clear();
+  if (onlySubsession) {
+    return;
+  }
+#endif
+
+  mHistogramMap.EnumerateEntries(&KeyedHistogram::ClearHistogramEnumerator, nullptr);
+  mHistogramMap.Clear();
+}
+
+/* static */
+PLDHashOperator
+KeyedHistogram::ReflectKeys(KeyedHistogramEntry* entry, void* arg)
+{
+  ReflectKeysArgs* args = static_cast<ReflectKeysArgs*>(arg);
+
+  JS::RootedValue jsKey(args->jsContext);
+  const NS_ConvertUTF8toUTF16 key(entry->GetKey());
+  jsKey.setString(JS_NewUCStringCopyN(args->jsContext, key.Data(), key.Length()));
+  args->vector->append(jsKey);
+
+  return PL_DHASH_NEXT;
+}
+
+nsresult
+KeyedHistogram::GetJSKeys(JSContext* cx, JS::CallArgs& args)
+{
+  JS::AutoValueVector keys(cx);
+  if (!keys.reserve(mHistogramMap.Count())) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  ReflectKeysArgs reflectArgs = { cx, &keys };
+  const uint32_t num = mHistogramMap.EnumerateEntries(&KeyedHistogram::ReflectKeys,
+                                                      static_cast<void*>(&reflectArgs));
+  if (num != mHistogramMap.Count()) {
+    return NS_ERROR_FAILURE;
+  }
+
+  JS::RootedObject jsKeys(cx, JS_NewArrayObject(cx, keys));
+  if (!jsKeys) {
+    return NS_ERROR_FAILURE;
+  }
+
+  args.rval().setObject(*jsKeys);
+  return NS_OK;
+}
+
+/* static */
+bool
+KeyedHistogram::ReflectKeyedHistogram(KeyedHistogramEntry* entry, JSContext* cx, JS::Handle<JSObject*> obj)
+{
+  JS::RootedObject histogramSnapshot(cx, JS_NewPlainObject(cx));
+  if (!histogramSnapshot) {
+    return false;
+  }
+
+  if (ReflectHistogramSnapshot(cx, histogramSnapshot, entry->mData) != REFLECT_OK) {
+    return false;
+  }
+
+  const NS_ConvertUTF8toUTF16 key(entry->GetKey());
+  if (!JS_DefineUCProperty(cx, obj, key.Data(), key.Length(),
+                           histogramSnapshot, JSPROP_ENUMERATE)) {
+    return false;
+  }
+
+  return true;
+}
+
+nsresult
+KeyedHistogram::GetJSSnapshot(JSContext* cx, JS::Handle<JSObject*> obj,
+                              bool subsession, bool clearSubsession)
+{
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+  KeyedHistogramMapType& map = subsession ? mSubsessionMap : mHistogramMap;
+#else
+  KeyedHistogramMapType& map = mHistogramMap;
+#endif
+  if (!map.ReflectIntoJS(&KeyedHistogram::ReflectKeyedHistogram, cx, obj)) {
+    return NS_ERROR_FAILURE;
+  }
+
+#if !defined(MOZ_WIDGET_GONK) && !defined(MOZ_WIDGET_ANDROID)
+  if (subsession && clearSubsession) {
+    Clear(true);
+  }
+#endif
+
+  return NS_OK;
 }

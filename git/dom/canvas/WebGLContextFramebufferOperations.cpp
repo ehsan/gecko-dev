@@ -29,8 +29,8 @@ WebGLContext::Clear(GLbitfield mask)
         GenerateWarning("Calling gl.clear() with RASTERIZER_DISCARD enabled has no effects.");
     }
 
-    if (mBoundFramebuffer) {
-        if (!mBoundFramebuffer->CheckAndInitializeAttachments())
+    if (mBoundDrawFramebuffer) {
+        if (!mBoundDrawFramebuffer->CheckAndInitializeAttachments())
             return ErrorInvalidFramebufferOperation("clear: incomplete framebuffer");
 
         gl->fClear(mask);
@@ -49,8 +49,8 @@ WebGLContext::Clear(GLbitfield mask)
     mShouldPresent = true;
 }
 
-static GLclampf
-GLClampFloat(GLclampf val)
+static GLfloat
+GLClampFloat(GLfloat val)
 {
     if (val < 0.0)
         return 0.0;
@@ -62,18 +62,28 @@ GLClampFloat(GLclampf val)
 }
 
 void
-WebGLContext::ClearColor(GLclampf r, GLclampf g,
-                             GLclampf b, GLclampf a)
+WebGLContext::ClearColor(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
     if (IsContextLost())
         return;
 
     MakeContextCurrent();
-    mColorClearValue[0] = GLClampFloat(r);
-    mColorClearValue[1] = GLClampFloat(g);
-    mColorClearValue[2] = GLClampFloat(b);
-    mColorClearValue[3] = GLClampFloat(a);
+
+    const bool supportsFloatColorBuffers = (IsExtensionEnabled(WebGLExtensionID::EXT_color_buffer_half_float) ||
+                                            IsExtensionEnabled(WebGLExtensionID::WEBGL_color_buffer_float));
+    if (!supportsFloatColorBuffers) {
+        r = GLClampFloat(r);
+        g = GLClampFloat(g);
+        b = GLClampFloat(b);
+        a = GLClampFloat(a);
+    }
+
     gl->fClearColor(r, g, b, a);
+
+    mColorClearValue[0] = r;
+    mColorClearValue[1] = g;
+    mColorClearValue[2] = b;
+    mColorClearValue[3] = a;
 }
 
 void
@@ -131,12 +141,11 @@ WebGLContext::DrawBuffers(const dom::Sequence<GLenum>& buffers)
 
     const size_t buffersLength = buffers.Length();
 
-    if (buffersLength == 0) {
+    if (!buffersLength) {
         return ErrorInvalidValue("drawBuffers: invalid <buffers> (buffers must not be empty)");
     }
 
-    if (mBoundFramebuffer == 0)
-    {
+    if (!mBoundDrawFramebuffer) {
         // OK: we are rendering in the default framebuffer
 
         /* EXT_draw_buffers :

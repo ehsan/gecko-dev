@@ -110,7 +110,9 @@ LBlock::init(TempAllocator &alloc)
             if (!inputs)
                 return false;
 
-            LPhi *lphi = new (&phis_[phiIndex++]) LPhi(phi, inputs);
+            // MSVC 2015 cannot handle "new (&phis_[phiIndex++])"
+            void *addr = &phis_[phiIndex++];
+            LPhi *lphi = new (addr) LPhi(phi, inputs);
             lphi->setBlock(this);
         }
     }
@@ -223,6 +225,7 @@ LRecoverInfo::appendDefinition(MDefinition *def)
 {
     MOZ_ASSERT(def->isRecoveredOnBailout());
     def->setInWorklist();
+
     if (!appendOperands(def))
         return false;
     return instructions_.append(def);
@@ -231,6 +234,12 @@ LRecoverInfo::appendDefinition(MDefinition *def)
 bool
 LRecoverInfo::appendResumePoint(MResumePoint *rp)
 {
+    // Stores should be recovered first.
+    for (auto iter(rp->storesBegin()), end(rp->storesEnd()); iter != end; ++iter) {
+        if (!appendDefinition(iter->operand))
+            return false;
+    }
+
     if (rp->caller() && !appendResumePoint(rp->caller()))
         return false;
 
@@ -386,11 +395,8 @@ PrintUse(char *buf, size_t size, const LUse *use)
         JS_snprintf(buf, size, "v%d:r", use->virtualRegister());
         break;
       case LUse::FIXED:
-        // Unfortunately, we don't know here whether the virtual register is a
-        // float or a double. Should we steal a bit in LUse for help? For now,
-        // nothing defines any fixed xmm registers.
         JS_snprintf(buf, size, "v%d:%s", use->virtualRegister(),
-                    Registers::GetName(Registers::Code(use->registerCode())));
+                    AnyRegister::FromCode(use->registerCode()).name());
         break;
       case LUse::ANY:
         JS_snprintf(buf, size, "v%d:r?", use->virtualRegister());
@@ -541,17 +547,19 @@ LMoveGroup::add(LAllocation *from, LAllocation *to, LDefinition::Type type)
 
     // Check that SIMD moves are aligned according to ABI requirements.
     if (LDefinition(type).isSimdType()) {
+        MOZ_ASSERT(from->isMemory() || from->isFloatReg());
         if (from->isMemory()) {
             if (from->isArgument())
-                MOZ_ASSERT(from->toArgument()->index() % SimdStackAlignment == 0);
+                MOZ_ASSERT(from->toArgument()->index() % SimdMemoryAlignment == 0);
             else
-                MOZ_ASSERT(from->toStackSlot()->slot() % SimdStackAlignment == 0);
+                MOZ_ASSERT(from->toStackSlot()->slot() % SimdMemoryAlignment == 0);
         }
+        MOZ_ASSERT(to->isMemory() || to->isFloatReg());
         if (to->isMemory()) {
             if (to->isArgument())
-                MOZ_ASSERT(to->toArgument()->index() % SimdStackAlignment == 0);
+                MOZ_ASSERT(to->toArgument()->index() % SimdMemoryAlignment == 0);
             else
-                MOZ_ASSERT(to->toStackSlot()->slot() % SimdStackAlignment == 0);
+                MOZ_ASSERT(to->toStackSlot()->slot() % SimdMemoryAlignment == 0);
         }
     }
 #endif

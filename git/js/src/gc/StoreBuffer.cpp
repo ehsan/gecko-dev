@@ -4,15 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifdef JSGC_GENERATIONAL
-
 #include "gc/StoreBuffer.h"
 
 #include "mozilla/Assertions.h"
 
 #include "gc/Statistics.h"
 #include "vm/ArgumentsObject.h"
-#include "vm/ForkJoin.h"
+#include "vm/Runtime.h"
 
 #include "jsgcinlines.h"
 
@@ -57,7 +55,7 @@ StoreBuffer::WholeCellEdges::mark(JSTracer *trc) const
         JSObject *object = static_cast<JSObject *>(edge);
         if (object->is<ArgumentsObject>())
             ArgumentsObject::trace(trc, object);
-        MarkChildren(trc, object);
+        object->markChildren(trc);
         return;
     }
     MOZ_ASSERT(kind == JSTRACE_JITCODE);
@@ -89,6 +87,8 @@ template <typename T>
 void
 StoreBuffer::MonoTypeBuffer<T>::mark(StoreBuffer *owner, JSTracer *trc)
 {
+    ReentrancyGuard g(*owner);
+    MOZ_ASSERT(owner->isEnabled());
     MOZ_ASSERT(stores_.initialized());
     sinkStores(owner);
     for (typename StoreSet::Range r = stores_.all(); !r.empty(); r.popFront())
@@ -100,8 +100,8 @@ StoreBuffer::MonoTypeBuffer<T>::mark(StoreBuffer *owner, JSTracer *trc)
 void
 StoreBuffer::GenericBuffer::mark(StoreBuffer *owner, JSTracer *trc)
 {
-    MOZ_ASSERT(owner->isEnabled());
     ReentrancyGuard g(*owner);
+    MOZ_ASSERT(owner->isEnabled());
     if (!storage_)
         return;
 
@@ -189,12 +189,6 @@ StoreBuffer::setAboutToOverflow()
     runtime_->gc.requestMinorGC(JS::gcreason::FULL_STORE_BUFFER);
 }
 
-bool
-StoreBuffer::inParallelSection() const
-{
-    return InParallelSection();
-}
-
 void
 StoreBuffer::addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::GCSizes
 *sizes)
@@ -256,5 +250,3 @@ template struct StoreBuffer::MonoTypeBuffer<StoreBuffer::ValueEdge>;
 template struct StoreBuffer::MonoTypeBuffer<StoreBuffer::CellPtrEdge>;
 template struct StoreBuffer::MonoTypeBuffer<StoreBuffer::SlotsEdge>;
 template struct StoreBuffer::MonoTypeBuffer<StoreBuffer::WholeCellEdges>;
-
-#endif /* JSGC_GENERATIONAL */

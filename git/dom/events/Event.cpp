@@ -362,6 +362,20 @@ Event::GetOriginalTarget(nsIDOMEventTarget** aOriginalTarget)
   return NS_OK;
 }
 
+EventTarget*
+Event::GetComposedTarget() const
+{
+  EventTarget* et = GetOriginalTarget();
+  nsCOMPtr<nsIContent> content = do_QueryInterface(et);
+  if (!content) {
+    return et;
+  }
+  nsIContent* nonChrome = content->FindFirstNonChromeOnlyAccessContent();
+  return nonChrome ?
+    static_cast<EventTarget*>(nonChrome) :
+    static_cast<EventTarget*>(content->GetComposedDoc());
+}
+
 NS_IMETHODIMP_(void)
 Event::SetTrusted(bool aTrusted)
 {
@@ -509,6 +523,8 @@ Event::PreventDefaultInternal(bool aCalledByDefaultHandler)
   // must be true when web apps check it after they call preventDefault().
   if (!aCalledByDefaultHandler) {
     mEvent->mFlags.mDefaultPreventedByContent = true;
+  } else {
+    mEvent->mFlags.mDefaultPreventedByChrome = true;
   }
 
   if (!IsTrusted()) {
@@ -569,6 +585,8 @@ Event::InitEvent(const nsAString& aEventTypeArg,
   mEvent->mFlags.mCancelable = aCancelableArg;
 
   mEvent->mFlags.mDefaultPrevented = false;
+  mEvent->mFlags.mDefaultPreventedByContent = false;
+  mEvent->mFlags.mDefaultPreventedByChrome = false;
 
   // Clearing the old targets, so that the event is targeted correctly when
   // re-dispatching it.
@@ -859,7 +877,7 @@ Event::Shutdown()
   }
 }
 
-nsIntPoint
+LayoutDeviceIntPoint
 Event::GetScreenCoords(nsPresContext* aPresContext,
                        WidgetEvent* aEvent,
                        LayoutDeviceIntPoint aPoint)
@@ -868,7 +886,7 @@ Event::GetScreenCoords(nsPresContext* aPresContext,
     return EventStateManager::sLastScreenPoint;
   }
 
-  if (!aEvent || 
+  if (!aEvent ||
        (aEvent->mClass != eMouseEventClass &&
         aEvent->mClass != eMouseScrollEventClass &&
         aEvent->mClass != eWheelEventClass &&
@@ -876,20 +894,19 @@ Event::GetScreenCoords(nsPresContext* aPresContext,
         aEvent->mClass != eTouchEventClass &&
         aEvent->mClass != eDragEventClass &&
         aEvent->mClass != eSimpleGestureEventClass)) {
-    return nsIntPoint(0, 0);
+    return LayoutDeviceIntPoint(0, 0);
   }
 
   WidgetGUIEvent* guiEvent = aEvent->AsGUIEvent();
   if (!guiEvent->widget) {
-    return LayoutDeviceIntPoint::ToUntyped(aPoint);
+    return aPoint;
   }
 
-  LayoutDeviceIntPoint offset = aPoint +
-    LayoutDeviceIntPoint::FromUntyped(guiEvent->widget->WidgetToScreenOffset());
+  LayoutDeviceIntPoint offset = aPoint + guiEvent->widget->WidgetToScreenOffset();
   nscoord factor =
     aPresContext->DeviceContext()->AppUnitsPerDevPixelAtUnitFullZoom();
-  return nsIntPoint(nsPresContext::AppUnitsToIntCSSPixels(offset.x * factor),
-                    nsPresContext::AppUnitsToIntCSSPixels(offset.y * factor));
+  return LayoutDeviceIntPoint(nsPresContext::AppUnitsToIntCSSPixels(offset.x * factor),
+                              nsPresContext::AppUnitsToIntCSSPixels(offset.y * factor));
 }
 
 // static
@@ -948,8 +965,7 @@ Event::GetClientCoords(nsPresContext* aPresContext,
     return CSSIntPoint(0, 0);
   }
   nsPoint pt =
-    nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent,
-      LayoutDeviceIntPoint::ToUntyped(aPoint), rootFrame);
+    nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, aPoint, rootFrame);
 
   return CSSIntPoint::FromAppUnitsRounded(pt);
 }
@@ -1010,7 +1026,11 @@ Event::TimeStamp() const
       return 0.0;
     }
 
-    nsPerformance* perf = mOwner->GetPerformance();
+    nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(mOwner);
+    if (NS_WARN_IF(!win)) {
+      return 0.0;
+    }
+    nsPerformance* perf = win->GetPerformance();
     if (NS_WARN_IF(!perf)) {
       return 0.0;
     }
@@ -1033,8 +1053,9 @@ Event::TimeStamp() const
 bool
 Event::GetPreventDefault() const
 {
-  if (mOwner) {
-    if (nsIDocument* doc = mOwner->GetExtantDoc()) {
+  nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(mOwner));
+  if (win) {
+    if (nsIDocument* doc = win->GetExtantDoc()) {
       doc->WarnOnceAbout(nsIDocument::eGetPreventDefault);
     }
   }
@@ -1114,23 +1135,23 @@ Event::SetOwner(mozilla::dom::EventTarget* aOwner)
 
   nsCOMPtr<nsINode> n = do_QueryInterface(aOwner);
   if (n) {
-    mOwner = do_QueryInterface(n->OwnerDoc()->GetScopeObject());
+    mOwner = n->OwnerDoc()->GetScopeObject();
     return;
   }
 
   nsCOMPtr<nsPIDOMWindow> w = do_QueryInterface(aOwner);
   if (w) {
     if (w->IsOuterWindow()) {
-      mOwner = w->GetCurrentInnerWindow();
+      mOwner = do_QueryInterface(w->GetCurrentInnerWindow());
     } else {
-      mOwner.swap(w);
+      mOwner = do_QueryInterface(w);
     }
     return;
   }
 
   nsCOMPtr<DOMEventTargetHelper> eth = do_QueryInterface(aOwner);
   if (eth) {
-    mOwner = eth->GetOwner();
+    mOwner = eth->GetParentObject();
     return;
   }
 

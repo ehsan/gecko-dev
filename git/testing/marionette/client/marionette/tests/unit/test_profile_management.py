@@ -3,8 +3,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import os
-from errors import JavascriptException
-from marionette_test import MarionetteTestCase
+from marionette_driver.errors import JavascriptException
+from marionette import MarionetteTestCase
 
 class TestLog(MarionetteTestCase):
     def setUp(self):
@@ -27,6 +27,12 @@ class TestLog(MarionetteTestCase):
         self.assertFalse(bool_value)
 
     def test_clean_profile(self):
-        self.marionette.restart_with_clean_profile()
+        self.marionette.restart(clean=True)
         with self.assertRaisesRegexp(JavascriptException, "Error getting pref"):
             bool_value = self.marionette.execute_script("return SpecialPowers.getBoolPref('marionette.test.bool');")
+
+    def test_can_restart_the_browser(self):
+        self.marionette.enforce_gecko_prefs({"marionette.test.restart": True})
+        self.marionette.restart()
+        bool_value = self.marionette.execute_script("return SpecialPowers.getBoolPref('marionette.test.restart');")
+        self.assertTrue(bool_value)

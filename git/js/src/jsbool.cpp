@@ -23,18 +23,10 @@
 #include "vm/BooleanObject-inl.h"
 
 using namespace js;
-using namespace js::types;
 
 const Class BooleanObject::class_ = {
     "Boolean",
-    JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
-    JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub
+    JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean)
 };
 
 MOZ_ALWAYS_INLINE bool
@@ -78,7 +70,7 @@ bool_toString_impl(JSContext *cx, CallArgs args)
     MOZ_ASSERT(IsBoolean(thisv));
 
     bool b = thisv.isBoolean() ? thisv.toBoolean() : thisv.toObject().as<BooleanObject>().unbox();
-    args.rval().setString(js_BooleanToString(cx, b));
+    args.rval().setString(BooleanToString(cx, b));
     return true;
 }
 
@@ -135,13 +127,13 @@ Boolean(JSContext *cx, unsigned argc, Value *vp)
 }
 
 JSObject *
-js_InitBooleanClass(JSContext *cx, HandleObject obj)
+js::InitBooleanClass(JSContext *cx, HandleObject obj)
 {
     MOZ_ASSERT(obj->isNative());
 
     Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
 
-    RootedNativeObject booleanProto(cx, global->createBlankPrototype(cx, &BooleanObject::class_));
+    Rooted<BooleanObject*> booleanProto(cx, global->createBlankPrototype<BooleanObject>(cx));
     if (!booleanProto)
         return nullptr;
     booleanProto->setFixedSlot(BooleanObject::PRIMITIVE_VALUE_SLOT, BooleanValue(false));
@@ -163,7 +155,7 @@ js_InitBooleanClass(JSContext *cx, HandleObject obj)
 }
 
 JSString *
-js_BooleanToString(ExclusiveContext *cx, bool b)
+js::BooleanToString(ExclusiveContext *cx, bool b)
 {
     return b ? cx->names().true_ : cx->names().false_;
 }

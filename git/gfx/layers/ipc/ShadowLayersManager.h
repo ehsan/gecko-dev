@@ -21,12 +21,15 @@ public:
     virtual void ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
                                      const uint64_t& aTransactionId,
                                      const TargetConfig& aTargetConfig,
+                                     const InfallibleTArray<PluginWindowData>& aPlugins,
                                      bool aIsFirstPaint,
                                      bool aScheduleComposite,
                                      uint32_t aPaintSequenceNumber,
                                      bool aIsRepeatTransaction) = 0;
 
     virtual AsyncCompositionManager* GetCompositionManager(LayerTransactionParent* aLayerTree) { return nullptr; }
+
+    virtual void NotifyClearCachedResources(LayerTransactionParent* aLayerTree) { }
 
     virtual void ForceComposite(LayerTransactionParent* aLayerTree) { }
     virtual bool SetTestSampleTime(LayerTransactionParent* aLayerTree,

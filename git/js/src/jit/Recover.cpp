@@ -6,12 +6,14 @@
 
 #include "jit/Recover.h"
 
+#include "jsapi.h"
 #include "jscntxt.h"
 #include "jsmath.h"
 #include "jsobj.h"
 #include "jsstr.h"
 
 #include "builtin/RegExp.h"
+#include "builtin/SIMD.h"
 #include "builtin/TypedObject.h"
 
 #include "gc/Heap.h"
@@ -607,6 +609,31 @@ bool RFloor::recover(JSContext *cx, SnapshotIterator &iter) const
 }
 
 bool
+MCeil::writeRecoverData(CompactBufferWriter &writer) const
+{
+    MOZ_ASSERT(canRecoverOnBailout());
+    writer.writeUnsigned(uint32_t(RInstruction::Recover_Ceil));
+    return true;
+}
+
+RCeil::RCeil(CompactBufferReader &reader)
+{ }
+
+
+bool
+RCeil::recover(JSContext *cx, SnapshotIterator &iter) const
+{
+    RootedValue v(cx, iter.read());
+    RootedValue result(cx);
+
+    if (!js::math_ceil_handle(cx, v, &result))
+        return false;
+
+    iter.storeInstructionResult(result);
+    return true;
+}
+
+bool
 MRound::writeRecoverData(CompactBufferWriter &writer) const
 {
     MOZ_ASSERT(canRecoverOnBailout());
@@ -849,10 +876,12 @@ MHypot::writeRecoverData(CompactBufferWriter &writer) const
 {
     MOZ_ASSERT(canRecoverOnBailout());
     writer.writeUnsigned(uint32_t(RInstruction::Recover_Hypot));
+    writer.writeUnsigned(uint32_t(numOperands()));
     return true;
 }
 
 RHypot::RHypot(CompactBufferReader &reader)
+    : numOperands_(reader.readUnsigned())
 { }
 
 bool
@@ -860,12 +889,11 @@ RHypot::recover(JSContext *cx, SnapshotIterator &iter) const
 {
     JS::AutoValueVector vec(cx);
 
-    // currently, only 2 args can be saved in MIR
-    if (!vec.reserve(2))
+    if (!vec.reserve(numOperands_))
         return false;
 
-    vec.infallibleAppend(iter.read());
-    vec.infallibleAppend(iter.read());
+    for (uint32_t i = 0 ; i < numOperands_ ; ++i)
+       vec.infallibleAppend(iter.read());
 
     RootedValue result(cx);
 
@@ -884,6 +912,45 @@ MMathFunction::writeRecoverData(CompactBufferWriter &writer) const
       case Round:
         writer.writeUnsigned(uint32_t(RInstruction::Recover_Round));
         return true;
+      case Sin:
+      case Log:
+        writer.writeUnsigned(uint32_t(RInstruction::Recover_MathFunction));
+        writer.writeByte(function_);
+        return true;
+      default:
+        MOZ_CRASH("Unknown math function.");
+    }
+}
+
+RMathFunction::RMathFunction(CompactBufferReader &reader)
+{
+    function_ = reader.readByte();
+}
+
+bool
+RMathFunction::recover(JSContext *cx, SnapshotIterator &iter) const
+{
+    switch (function_) {
+      case MMathFunction::Sin: {
+        RootedValue arg(cx, iter.read());
+        RootedValue result(cx);
+
+        if (!js::math_sin_handle(cx, arg, &result))
+            return false;
+
+        iter.storeInstructionResult(result);
+        return true;
+      }
+      case MMathFunction::Log: {
+        RootedValue arg(cx, iter.read());
+        RootedValue result(cx);
+
+        if (!js::math_log_handle(cx, arg, &result))
+            return false;
+
+        iter.storeInstructionResult(result);
+        return true;
+      }
       default:
         MOZ_CRASH("Unknown math function.");
     }
@@ -905,10 +972,10 @@ RStringSplit::recover(JSContext *cx, SnapshotIterator &iter) const
 {
     RootedString str(cx, iter.read().toString());
     RootedString sep(cx, iter.read().toString());
-    RootedTypeObject typeObj(cx, iter.read().toObject().type());
+    RootedObjectGroup group(cx, iter.read().toObject().group());
     RootedValue result(cx);
 
-    JSObject *res = str_split_string(cx, typeObj, str, sep);
+    JSObject *res = str_split_string(cx, group, str, sep);
     if (!res)
         return false;
 
@@ -1061,31 +1128,60 @@ RToFloat32::recover(JSContext *cx, SnapshotIterator &iter) const
 }
 
 bool
+MTruncateToInt32::writeRecoverData(CompactBufferWriter &writer) const
+{
+    MOZ_ASSERT(canRecoverOnBailout());
+    writer.writeUnsigned(uint32_t(RInstruction::Recover_TruncateToInt32));
+    return true;
+}
+
+RTruncateToInt32::RTruncateToInt32(CompactBufferReader &reader)
+{ }
+
+bool
+RTruncateToInt32::recover(JSContext *cx, SnapshotIterator &iter) const
+{
+    RootedValue value(cx, iter.read());
+    RootedValue result(cx);
+
+    int32_t trunc;
+    if (!JS::ToInt32(cx, value, &trunc))
+        return false;
+
+    result.setInt32(trunc);
+    iter.storeInstructionResult(result);
+    return true;
+}
+
+bool
 MNewObject::writeRecoverData(CompactBufferWriter &writer) const
 {
     MOZ_ASSERT(canRecoverOnBailout());
     writer.writeUnsigned(uint32_t(RInstruction::Recover_NewObject));
-    writer.writeByte(templateObjectIsClassPrototype_);
+    MOZ_ASSERT(Mode(uint8_t(mode_)) == mode_);
+    writer.writeByte(uint8_t(mode_));
     return true;
 }
 
 RNewObject::RNewObject(CompactBufferReader &reader)
 {
-    templateObjectIsClassPrototype_ = reader.readByte();
+    mode_ = MNewObject::Mode(reader.readByte());
 }
 
 bool
 RNewObject::recover(JSContext *cx, SnapshotIterator &iter) const
 {
-    RootedNativeObject templateObject(cx, &iter.read().toObject().as<NativeObject>());
+    RootedPlainObject templateObject(cx, &iter.read().toObject().as<PlainObject>());
     RootedValue result(cx);
     JSObject *resultObject = nullptr;
 
     // See CodeGenerator::visitNewObjectVMCall
-    if (templateObjectIsClassPrototype_)
-        resultObject = NewInitObjectWithClassPrototype(cx, templateObject);
-    else
-        resultObject = NewInitObject(cx, templateObject);
+    if (mode_ == MNewObject::ObjectLiteral) {
+        resultObject = NewObjectOperationWithTemplate(cx, templateObject);
+    } else {
+        MOZ_ASSERT(mode_ == MNewObject::ObjectCreate);
+        resultObject = ObjectCreateWithTemplate(cx, templateObject);
+    }
 
     if (!resultObject)
         return false;
@@ -1116,13 +1212,13 @@ RNewArray::recover(JSContext *cx, SnapshotIterator &iter) const
 {
     RootedObject templateObject(cx, &iter.read().toObject());
     RootedValue result(cx);
-    RootedTypeObject type(cx);
+    RootedObjectGroup group(cx);
 
     // See CodeGenerator::visitNewArrayCallVM
-    if (!templateObject->hasSingletonType())
-        type = templateObject->type();
+    if (!templateObject->isSingleton())
+        group = templateObject->group();
 
-    JSObject *resultObject = NewDenseArray(cx, count_, type, allocatingBehaviour_);
+    JSObject *resultObject = NewDenseArray(cx, count_, group, allocatingBehaviour_);
     if (!resultObject)
         return false;
 
@@ -1175,12 +1271,88 @@ RCreateThisWithTemplate::RCreateThisWithTemplate(CompactBufferReader &reader)
 bool
 RCreateThisWithTemplate::recover(JSContext *cx, SnapshotIterator &iter) const
 {
-    RootedNativeObject templateObject(cx, &iter.read().toObject().as<NativeObject>());
+    RootedPlainObject templateObject(cx, &iter.read().toObject().as<PlainObject>());
 
     // See CodeGenerator::visitCreateThisWithTemplate
     gc::AllocKind allocKind = templateObject->asTenured().getAllocKind();
     gc::InitialHeap initialHeap = tenuredHeap_ ? gc::TenuredHeap : gc::DefaultHeap;
     JSObject *resultObject = NativeObject::copy(cx, allocKind, initialHeap, templateObject);
+    if (!resultObject)
+        return false;
+
+    RootedValue result(cx);
+    result.setObject(*resultObject);
+    iter.storeInstructionResult(result);
+    return true;
+}
+
+bool
+MLambda::writeRecoverData(CompactBufferWriter &writer) const
+{
+    MOZ_ASSERT(canRecoverOnBailout());
+    writer.writeUnsigned(uint32_t(RInstruction::Recover_Lambda));
+    return true;
+}
+
+RLambda::RLambda(CompactBufferReader &reader)
+{
+}
+
+bool
+RLambda::recover(JSContext *cx, SnapshotIterator &iter) const
+{
+    RootedObject scopeChain(cx, &iter.read().toObject());
+    RootedFunction fun(cx, &iter.read().toObject().as<JSFunction>());
+
+    JSObject *resultObject = js::Lambda(cx, fun, scopeChain);
+    if (!resultObject)
+        return false;
+
+    RootedValue result(cx);
+    result.setObject(*resultObject);
+    iter.storeInstructionResult(result);
+    return true;
+}
+
+bool
+MSimdBox::writeRecoverData(CompactBufferWriter &writer) const
+{
+    MOZ_ASSERT(canRecoverOnBailout());
+    writer.writeUnsigned(uint32_t(RInstruction::Recover_SimdBox));
+    SimdTypeDescr &simdTypeDescr = templateObject()->typeDescr().as<SimdTypeDescr>();
+    SimdTypeDescr::Type type = simdTypeDescr.type();
+    writer.writeByte(uint8_t(type));
+    return true;
+}
+
+RSimdBox::RSimdBox(CompactBufferReader &reader)
+{
+    type_ = reader.readByte();
+}
+
+bool
+RSimdBox::recover(JSContext *cx, SnapshotIterator &iter) const
+{
+    JSObject *resultObject = nullptr;
+    RValueAllocation a = iter.readAllocation();
+    MOZ_ASSERT(iter.allocationReadable(a));
+    const FloatRegisters::RegisterContent *raw = iter.floatAllocationPointer(a);
+    switch (SimdTypeDescr::Type(type_)) {
+      case SimdTypeDescr::TYPE_INT32:
+        MOZ_ASSERT_IF(a.mode() == RValueAllocation::ANY_FLOAT_REG,
+                      a.fpuReg().isInt32x4());
+        resultObject = js::CreateSimd<Int32x4>(cx, (const Int32x4::Elem *) raw);
+        break;
+      case SimdTypeDescr::TYPE_FLOAT32:
+        MOZ_ASSERT_IF(a.mode() == RValueAllocation::ANY_FLOAT_REG,
+                      a.fpuReg().isFloat32x4());
+        resultObject = js::CreateSimd<Float32x4>(cx, (const Float32x4::Elem *) raw);
+        break;
+      case SimdTypeDescr::TYPE_FLOAT64:
+        MOZ_CRASH("NYI, RSimdBox of Float64x2");
+        break;
+    }
+
     if (!resultObject)
         return false;
 

@@ -17,9 +17,10 @@ MacroAssembler::PushRegsInMask(RegisterSet set, FloatRegisterSet simdSet)
 {
     FloatRegisterSet doubleSet(FloatRegisterSet::Subtract(set.fpus(), simdSet));
     MOZ_ASSERT_IF(simdSet.empty(), doubleSet == set.fpus());
+    doubleSet = doubleSet.reduceSetForPush();
     unsigned numSimd = simdSet.size();
     unsigned numDouble = doubleSet.size();
-    int32_t diffF = numDouble * sizeof(double) + numSimd * Simd128DataSize;
+    int32_t diffF = doubleSet.getPushSizeInBytes() + numSimd * Simd128DataSize;
     int32_t diffG = set.gprs().size() * sizeof(intptr_t);
 
     // On x86, always use push to push the integer registers, as it's fast
@@ -32,9 +33,20 @@ MacroAssembler::PushRegsInMask(RegisterSet set, FloatRegisterSet simdSet)
 
     reserveStack(diffF);
     for (FloatRegisterBackwardIterator iter(doubleSet); iter.more(); iter++) {
-        diffF -= sizeof(double);
+        FloatRegister reg = *iter;
+        diffF -= reg.size();
         numDouble -= 1;
-        storeDouble(*iter, Address(StackPointer, diffF));
+        Address spillAddress(StackPointer, diffF);
+        if (reg.isDouble())
+            storeDouble(reg, spillAddress);
+        else if (reg.isSingle())
+            storeFloat32(reg, spillAddress);
+        else if (reg.isInt32x4())
+            storeUnalignedInt32x4(reg, spillAddress);
+        else if (reg.isFloat32x4())
+            storeUnalignedFloat32x4(reg, spillAddress);
+        else
+            MOZ_CRASH("Unknown register type.");
     }
     MOZ_ASSERT(numDouble == 0);
     for (FloatRegisterBackwardIterator iter(simdSet); iter.more(); iter++) {
@@ -52,10 +64,11 @@ MacroAssembler::PopRegsInMaskIgnore(RegisterSet set, RegisterSet ignore, FloatRe
 {
     FloatRegisterSet doubleSet(FloatRegisterSet::Subtract(set.fpus(), simdSet));
     MOZ_ASSERT_IF(simdSet.empty(), doubleSet == set.fpus());
+    doubleSet = doubleSet.reduceSetForPush();
     unsigned numSimd = simdSet.size();
     unsigned numDouble = doubleSet.size();
     int32_t diffG = set.gprs().size() * sizeof(intptr_t);
-    int32_t diffF = numDouble * sizeof(double) + numSimd * Simd128DataSize;
+    int32_t diffF = doubleSet.getPushSizeInBytes() + numSimd * Simd128DataSize;
     const int32_t reservedG = diffG;
     const int32_t reservedF = diffF;
 
@@ -68,10 +81,23 @@ MacroAssembler::PopRegsInMaskIgnore(RegisterSet set, RegisterSet ignore, FloatRe
     }
     MOZ_ASSERT(numSimd == 0);
     for (FloatRegisterBackwardIterator iter(doubleSet); iter.more(); iter++) {
-        diffF -= sizeof(double);
+        FloatRegister reg = *iter;
+        diffF -= reg.size();
         numDouble -= 1;
-        if (!ignore.has(*iter))
-            loadDouble(Address(StackPointer, diffF), *iter);
+        if (ignore.has(reg))
+            continue;
+
+        Address spillAddress(StackPointer, diffF);
+        if (reg.isDouble())
+            loadDouble(spillAddress, reg);
+        else if (reg.isSingle())
+            loadFloat32(spillAddress, reg);
+        else if (reg.isInt32x4())
+            loadUnalignedInt32x4(spillAddress, reg);
+        else if (reg.isFloat32x4())
+            loadUnalignedFloat32x4(spillAddress, reg);
+        else
+            MOZ_CRASH("Unknown register type.");
     }
     freeStack(reservedF);
     MOZ_ASSERT(numDouble == 0);
@@ -122,7 +148,7 @@ MacroAssembler::clampDoubleToUint8(FloatRegister input, Register output)
     // Truncate to int32 and ensure the result <= 255. This relies on the
     // processor setting output to a value > 255 for doubles outside the int32
     // range (for instance 0x80000000).
-    cvttsd2si(input, output);
+    vcvttsd2si(input, output);
     branch32(Assembler::Above, output, Imm32(255), &outOfRange);
     {
         // Check if we had a tie.
@@ -146,7 +172,7 @@ MacroAssembler::clampDoubleToUint8(FloatRegister input, Register output)
 
 // Builds an exit frame on the stack, with a return address to an internal
 // non-function. Returns offset to be passed to markSafepointAt().
-bool
+void
 MacroAssemblerX86Shared::buildFakeExitFrame(Register scratch, uint32_t *offset)
 {
     mozilla::DebugOnly<uint32_t> initialDepth = framePushed();
@@ -162,7 +188,7 @@ MacroAssemblerX86Shared::buildFakeExitFrame(Register scratch, uint32_t *offset)
     *offset = currentOffset();
 
     MOZ_ASSERT(framePushed() == initialDepth + ExitFrameLayout::Size());
-    return addCodeLabel(cl);
+    addCodeLabel(cl);
 }
 
 void
@@ -217,13 +243,13 @@ MacroAssemblerX86Shared::branchNegativeZero(FloatRegister reg,
     // if not already compared to zero
     if (maybeNonZero) {
         // Compare to zero. Lets through {0, -0}.
-        xorpd(ScratchDoubleReg, ScratchDoubleReg);
+        zeroDouble(ScratchDoubleReg);
 
         // If reg is non-zero, jump to nonZero.
         branchDouble(DoubleNotEqual, reg, ScratchDoubleReg, &nonZero);
     }
     // Input register is either zero or negative zero. Retrieve sign of input.
-    movmskpd(reg, scratch);
+    vmovmskpd(reg, scratch);
 
     // If reg is 1 or 3, input is negative zero.
     // If reg is 0 or 2, input is a normal zero.
@@ -231,8 +257,8 @@ MacroAssemblerX86Shared::branchNegativeZero(FloatRegister reg,
 
     bind(&nonZero);
 #elif defined(JS_CODEGEN_X64)
-    movq(reg, scratch);
-    cmpq(scratch, Imm32(1));
+    vmovq(reg, scratch);
+    cmpq(Imm32(1), scratch);
     j(Overflow, label);
 #endif
 }
@@ -242,7 +268,7 @@ MacroAssemblerX86Shared::branchNegativeZeroFloat32(FloatRegister reg,
                                                    Register scratch,
                                                    Label *label)
 {
-    movd(reg, scratch);
-    cmpl(scratch, Imm32(1));
+    vmovd(reg, scratch);
+    cmp32(scratch, Imm32(1));
     j(Overflow, label);
 }

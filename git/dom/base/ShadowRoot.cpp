@@ -67,7 +67,7 @@ ShadowRoot::ShadowRoot(nsIContent* aContent,
                        nsXBLPrototypeBinding* aProtoBinding)
   : DocumentFragment(aNodeInfo), mPoolHost(aContent),
     mProtoBinding(aProtoBinding), mShadowElement(nullptr),
-    mInsertionPointChanged(false)
+    mInsertionPointChanged(false), mIsComposedDocParticipant(false)
 {
   SetHost(aContent);
 
@@ -565,7 +565,7 @@ ShadowRoot::ChangePoolHost(nsIContent* aNewHost)
 bool
 ShadowRoot::IsShadowInsertionPoint(nsIContent* aContent)
 {
-  if (aContent && aContent->IsHTML(nsGkAtoms::shadow)) {
+  if (aContent && aContent->IsHTMLElement(nsGkAtoms::shadow)) {
     HTMLShadowElement* shadowElem = static_cast<HTMLShadowElement*>(aContent);
     return shadowElem->IsInsertionPoint();
   }
@@ -588,12 +588,16 @@ ShadowRoot::IsPooledNode(nsIContent* aContent, nsIContent* aContainer,
     return false;
   }
 
-  if (aContainer == aHost) {
-    // Any other child nodes of the host will end up in the pool.
+  if (aContainer == aHost &&
+      nsContentUtils::IsInSameAnonymousTree(aContainer, aContent)) {
+    // Children of the host will end up in the pool. We check to ensure
+    // that the content is in the same anonymous tree as the container
+    // because anonymous content may report its container as the host
+    // but it may not be in the host's child list.
     return true;
   }
 
-  if (aContainer && aContainer->IsHTML(nsGkAtoms::content)) {
+  if (aContainer && aContainer->IsHTMLElement(nsGkAtoms::content)) {
     // Fallback content will end up in pool if its parent is a child of the host.
     HTMLContentElement* content = static_cast<HTMLContentElement*>(aContainer);
     return content->IsInsertionPoint() && content->MatchedNodes().IsEmpty() &&
@@ -705,6 +709,15 @@ ShadowRoot::ContentRemoved(nsIDocument* aDocument,
   if (IsPooledNode(aChild, aContainer, mPoolHost)) {
     RemoveDistributedNode(aChild);
   }
+}
+
+void
+ShadowRoot::DestroyContent()
+{
+  if (mOlderShadow) {
+    mOlderShadow->DestroyContent();
+  }
+  DocumentFragment::DestroyContent();
 }
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(ShadowRootStyleSheetList, StyleSheetList,

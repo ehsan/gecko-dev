@@ -252,6 +252,18 @@ XPCCallContext::SetMethodIndex(uint16_t index)
 }
 
 /***************************************************************************/
+inline XPCNativeInterface*
+XPCNativeMember::GetInterface() const
+{
+    XPCNativeMember* arrayStart =
+        const_cast<XPCNativeMember*>(this - mIndexInInterface);
+    size_t arrayStartOffset = XPCNativeInterface::OffsetOfMembers();
+    char* xpcNativeInterfaceStart =
+        reinterpret_cast<char*>(arrayStart) - arrayStartOffset;
+    return reinterpret_cast<XPCNativeInterface*>(xpcNativeInterfaceStart);
+}
+
+/***************************************************************************/
 
 inline const nsIID*
 XPCNativeInterface::GetIID() const
@@ -283,6 +295,13 @@ XPCNativeInterface::HasAncestor(const nsIID* iid) const
     bool found = false;
     mInfo->HasAncestor(iid, &found);
     return found;
+}
+
+/* static */
+inline size_t
+XPCNativeInterface::OffsetOfMembers()
+{
+    return offsetof(XPCNativeInterface, mMembers);
 }
 
 /***************************************************************************/
@@ -545,12 +564,9 @@ XPCWrappedNative::SweepTearOffs()
 inline bool
 xpc_ForcePropertyResolve(JSContext* cx, JS::HandleObject obj, jsid idArg)
 {
-    JS::RootedValue prop(cx);
     JS::RootedId id(cx, idArg);
-
-    if (!JS_LookupPropertyById(cx, obj, id, &prop))
-        return false;
-    return true;
+    bool dummy;
+    return JS_HasPropertyById(cx, obj, id, &dummy);
 }
 
 inline jsid
