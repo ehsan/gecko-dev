@@ -2,10 +2,4 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsISupports.idl"
-
-[scriptable, uuid(88df63f0-814d-4424-b1f9-9184149639e5)]
-interface nsIDOMMozNavigatorTime : nsISupports
-{
-  readonly attribute nsISupports /* MozTimeManager */ mozTime;
-};
+enum FileMode { "readonly", "readwrite" };
