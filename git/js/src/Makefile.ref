@@ -343,7 +343,7 @@ TARGETS += $(OBJDIR)/jsautocfg.h $(OBJDIR)/jscpucfg \
 endif
 
 # Automatic make dependencies files
-DEPENDENCIES    = $(CPPFILES:%.cpp=$(OBJDIR)/%.d)
+DEPENDENCIES    = $(CFILES:%.c=$(OBJDIR)/%.d)
 
 #
 # Hardwire dependencies for jsinvoke.c
