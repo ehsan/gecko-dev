@@ -2674,8 +2674,7 @@ js_XDRBlockObject(JSXDRState *xdr, JSObject **objp)
         if (xdr->mode == JSXDR_DECODE) {
             if (!js_DefineNativeProperty(cx, obj, ATOM_TO_JSID(atom),
                                          JSVAL_VOID, NULL, NULL,
-                                         JSPROP_ENUMERATE | JSPROP_PERMANENT |
-                                         JSPROP_SHARED,
+                                         JSPROP_ENUMERATE | JSPROP_PERMANENT,
                                          SPROP_HAS_SHORTID, shortid, NULL)) {
                 ok = JS_FALSE;
                 break;

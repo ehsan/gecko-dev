@@ -80,17 +80,15 @@ public:
    */
   PRBool SetupCairoFill(gfxContext *aContext);
   /*
+   * Set up a cairo context for measuring a stroked path
    * @return PR_FALSE if there is no stroke
    */
-  PRBool HasStroke(gfxContext *aContext);
-  /*
-   * Set up a cairo context for measuring a stroked path
-   */
-  void SetupCairoStrokeGeometry(gfxContext *aContext);
+  PRBool SetupCairoStrokeGeometry(gfxContext *aContext);
   /*
    * Set up a cairo context for hit testing a stroked path
+   * @return PR_FALSE if there is no stroke
    */
-  void SetupCairoStrokeHitGeometry(gfxContext *aContext);
+  PRBool SetupCairoStrokeHitGeometry(gfxContext *aContext);
   /*
    * Set up a cairo context for stroking a path
    * @return PR_FALSE to skip rendering
