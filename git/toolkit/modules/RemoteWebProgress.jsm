@@ -17,17 +17,15 @@ function newURI(spec)
                                                     .newURI(spec, null, null);
 }
 
-function RemoteWebProgressRequest(spec, originalSpec)
+function RemoteWebProgressRequest(spec)
 {
-  this._uri = newURI(spec);
-  this._originalURI = newURI(originalSpec);
+  this.uri = newURI(spec);
 }
 
 RemoteWebProgressRequest.prototype = {
   QueryInterface : XPCOMUtils.generateQI([Ci.nsIChannel]),
 
-  get URI() { return this._uri.clone(); },
-  get originalURI() { return this._originalURI.clone(); }
+  get URI() { return this.uri.clone(); }
 };
 
 function RemoteWebProgress(aManager, aIsTopLevel) {
@@ -146,11 +144,8 @@ RemoteWebProgressManager.prototype = {
                                       : new RemoteWebProgress(this, false);
 
     // The WebProgressRequest object however is always dynamic.
-    let request = null;
-    if (json.requestURI) {
-      request = new RemoteWebProgressRequest(json.requestURI,
-                                             json.originalRequestURI);
-    }
+    let request = json.requestURI ? new RemoteWebProgressRequest(json.requestURI)
+                                  : null;
 
     // Update the actual WebProgress fields.
     webProgress._isLoadingDocument = json.isLoadingDocument;

@@ -188,9 +188,11 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
     },
 
     checkP2PRegistration: function checkP2PRegistration(message) {
-      let target = this.peerTargets[message.data.appId];
-      let sessionToken = SessionHelper.getCurrentP2PToken();
-      let isValid = (sessionToken != null) && (target != null);
+      // Check if the session and application id yeild a valid registered
+      // target.  It should have registered for NFC_PEER_EVENT_READY
+      let isValid = (this.nfc._currentSessionId != null) &&
+                    (this.peerTargets[message.data.appId] != null);
+
       let respMsg = { requestId: message.data.requestId };
       if (!isValid) {
         respMsg.errorMsg = this.nfc.getErrorMessage(NFC.NFC_GECKO_ERROR_P2P_REG_INVALID);
@@ -201,7 +203,7 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
 
     notifyUserAcceptedP2P: function notifyUserAcceptedP2P(appId) {
       let target = this.peerTargets[appId];
-      let sessionToken = SessionHelper.getCurrentP2PToken();
+      let sessionToken = this.nfc.sessionTokenMap[this.nfc._currentSessionId];
       let isValid = (sessionToken != null) && (target != null);
       if (!isValid) {
         debug("Peer already lost or " + appId + " is not a registered PeerReadytarget");
@@ -215,7 +217,7 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
 
     onPeerLost: function onPeerLost(sessionToken) {
       if (!this.currentPeer) {
-        // The target is already killed.
+        // not a P2P session or the target is already killed.
         return;
       }
 
@@ -265,8 +267,9 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
 
       switch (message.name) {
         case "NFC:CheckSessionToken":
-          if (!SessionHelper.isValidToken(message.data.sessionToken)) {
-            debug("Received invalid Session Token: " + message.data.sessionToken);
+          if (message.data.sessionToken !== this.nfc.sessionTokenMap[this.nfc._currentSessionId]) {
+            debug("Received invalid Session Token: " + message.data.sessionToken +
+                  ", current SessionToken: " + this.nfc.sessionTokenMap[this.nfc._currentSessionId]);
             return NFC.NFC_ERROR_BAD_SESSION_ID;
           }
           return NFC.NFC_SUCCESS;
@@ -311,66 +314,6 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
   };
 });
 
-let SessionHelper = {
-  tokenMap: {},
-
-  registerSession: function registerSession(id, techList) {
-    if (this.tokenMap[id]) {
-      return this.tokenMap[id].token;
-    }
-
-    this.tokenMap[id] = {
-      token: UUIDGenerator.generateUUID().toString(),
-      isP2P: techList.indexOf("P2P") != -1
-    };
-
-    return this.tokenMap[id].token;
-  },
-
-  unregisterSession: function unregisterSession(id) {
-    if (this.tokenMap[id]) {
-      delete this.tokenMap[id];
-    }
-  },
-
-  getToken: function getToken(id) {
-    return this.tokenMap[id] ? this.tokenMap[id].token : null;
-  },
-
-  getCurrentP2PToken: function getCurrentP2PToken() {
-    for (let id in this.tokenMap) {
-      if (this.tokenMap[id] && this.tokenMap[id].isP2P) {
-        return this.tokenMap[id].token;
-      }
-    }
-    return null;
-  },
-
-  getId: function getId(token) {
-    for (let id in this.tokenMap) {
-      if (this.tokenMap[id].token == token) {
-        return id;
-      }
-    }
-
-    return 0;
-  },
-
-  isP2PSession: function isP2PSession(id) {
-    return (this.tokenMap[id] != null) && this.tokenMap[id].isP2P;
-  },
-
-  isValidToken: function isValidToken(token) {
-    for (let id in this.tokenMap) {
-      if (this.tokenMap[id].token == token) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-};
-
 function Nfc() {
   debug("Starting Nfc Service");
 
@@ -385,6 +328,8 @@ function Nfc() {
 
   gMessageManager.init(this);
 
+  // Maps sessionId (that are generated from nfcd) with a unique guid : 'SessionToken'
+  this.sessionTokenMap = {};
   this.targetsByRequestId = {};
 }
 
@@ -397,11 +342,9 @@ Nfc.prototype = {
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver, Ci.nsINfcEventListener]),
 
+  _currentSessionId: null,
+
   powerLevel: NFC.NFC_POWER_LEVEL_UNKNOWN,
-
-  nfcService: null,
-
-  targetsByRequestId: null,
 
   /**
    * Send arbitrary message to Nfc service.
@@ -469,9 +412,15 @@ Nfc.prototype = {
         break;
       case "TechDiscoveredNotification":
         message.type = "techDiscovered";
+        this._currentSessionId = message.sessionId;
+
+        // Check if the session token already exists. If exists, continue to use the same one.
+        // If not, generate a new token.
+        if (!this.sessionTokenMap[this._currentSessionId]) {
+          this.sessionTokenMap[this._currentSessionId] = UUIDGenerator.generateUUID().toString();
+        }
         // Update the upper layers with a session token (alias)
-        message.sessionToken =
-          SessionHelper.registerSession(message.sessionId, message.techList);
+        message.sessionToken = this.sessionTokenMap[this._currentSessionId];
         // Do not expose the actual session to the content
         delete message.sessionId;
 
@@ -481,16 +430,16 @@ Nfc.prototype = {
         message.type = "techLost";
 
         // Update the upper layers with a session token (alias)
-        message.sessionToken = SessionHelper.getToken(message.sessionId);
-        if (SessionHelper.isP2PSession(message.sessionId)) {
-          gMessageManager.onPeerLost(message.sessionToken);
-        }
-
-        SessionHelper.unregisterSession(message.sessionId);
+        message.sessionToken = this.sessionTokenMap[this._currentSessionId];
         // Do not expose the actual session to the content
         delete message.sessionId;
 
         gSystemMessenger.broadcastMessage("nfc-manager-tech-lost", message);
+        gMessageManager.onPeerLost(this.sessionTokenMap[this._currentSessionId]);
+
+        delete this.sessionTokenMap[this._currentSessionId];
+        this._currentSessionId = null;
+
         break;
      case "HCIEventTransactionNotification":
         this.notifyHCIEventTransaction(message);
@@ -535,6 +484,12 @@ Nfc.prototype = {
     gSystemMessenger.broadcastMessage("nfc-hci-event-transaction", message);
   },
 
+  nfcService: null,
+
+  sessionTokenMap: null,
+
+  targetsByRequestId: null,
+
   /**
    * Process a message from the gMessageManager.
    */
@@ -550,15 +505,17 @@ Nfc.prototype = {
         return null;
       }
 
-      // Sanity check on sessionToken.
-      if (!SessionHelper.isValidToken(message.data.sessionToken)) {
-        debug("Invalid Session Token: " + message.data.sessionToken);
-        this.sendNfcErrorResponse(message, NFC.NFC_ERROR_BAD_SESSION_ID);
-        return null;
-      }
-
       // Update the current sessionId before sending to the NFC service.
-      message.data.sessionId = SessionHelper.getId(message.data.sessionToken);
+      message.data.sessionId = this._currentSessionId;
+    }
+
+    // Sanity check on sessionId
+    let sessionToken = this.sessionTokenMap[this._currentSessionId];
+    if (message.data.sessionToken && (message.data.sessionToken !== sessionToken)) {
+      debug("Invalid Session Token: " + message.data.sessionToken +
+            " Expected Session Token: " + sessionToken);
+      this.sendNfcErrorResponse(message, NFC.NFC_ERROR_BAD_SESSION_ID);
+      return null;
     }
 
     switch (message.name) {

@@ -80,6 +80,7 @@
 #include "UnitTransforms.h"
 #include "ClientLayerManager.h"
 #include "LayersLogging.h"
+#include "nsIWebBrowserChrome3.h"
 
 #include "nsColorPickerProxy.h"
 
@@ -1999,9 +2000,9 @@ TabChild::RecvNotifyAPZStateChange(const ViewID& aViewId,
     nsCOMPtr<nsIDocument> doc = GetDocument();
     if (doc) {
       nsCOMPtr<nsIDocShell> docshell(doc->GetDocShell());
-      if (docshell && sf) {
+      if (docshell) {
         nsDocShell* nsdocshell = static_cast<nsDocShell*>(docshell.get());
-        nsdocshell->NotifyAsyncPanZoomStarted(sf->GetScrollPositionCSSPixels());
+        nsdocshell->NotifyAsyncPanZoomStarted();
       }
     }
     break;
@@ -2017,9 +2018,9 @@ TabChild::RecvNotifyAPZStateChange(const ViewID& aViewId,
     nsCOMPtr<nsIDocument> doc = GetDocument();
     if (doc) {
       nsCOMPtr<nsIDocShell> docshell(doc->GetDocShell());
-      if (docshell && sf) {
+      if (docshell) {
         nsDocShell* nsdocshell = static_cast<nsDocShell*>(docshell.get());
-        nsdocshell->NotifyAsyncPanZoomStopped(sf->GetScrollPositionCSSPixels());
+        nsdocshell->NotifyAsyncPanZoomStopped();
       }
     }
     break;

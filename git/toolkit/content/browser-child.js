@@ -40,18 +40,17 @@ let WebProgressListener = {
     webProgress.addProgressListener(this, Ci.nsIWebProgress.NOTIFY_ALL);
   },
 
-  _requestSpec: function (aRequest, aPropertyName) {
+  _requestSpec: function (aRequest) {
     if (!aRequest || !(aRequest instanceof Ci.nsIChannel))
       return null;
-    return aRequest.QueryInterface(Ci.nsIChannel)[aPropertyName].spec;
+    return aRequest.QueryInterface(Ci.nsIChannel).URI.spec;
   },
 
   _setupJSON: function setupJSON(aWebProgress, aRequest) {
     return {
       isTopLevel: aWebProgress.isTopLevel,
       isLoadingDocument: aWebProgress.isLoadingDocument,
-      requestURI: this._requestSpec(aRequest, "URI"),
-      originalRequestURI: this._requestSpec(aRequest, "originalURI"),
+      requestURI: this._requestSpec(aRequest),
       loadType: aWebProgress.loadType,
       documentContentType: content.document && content.document.contentType
     };

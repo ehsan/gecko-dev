@@ -45,7 +45,7 @@ protected:
 
 private:
     enum {
-        kWhatAccessUnitComplete = 1
+        kWhatAccessUnitComplete = 'accu'
     };
 
     struct TrackInfo {

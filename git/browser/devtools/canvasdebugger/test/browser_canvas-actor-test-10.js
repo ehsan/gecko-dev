@@ -7,9 +7,7 @@
  */
 
 function ifTestingSupported() {
-  let { target, front } = yield initCanvasDebuggerBackend(WEBGL_BINDINGS_URL);
-  // XXX - use of |debuggee| here is incompatible with e10s - bug 1058879.
-  let debuggee = target.window.wrappedJSObject
+  let [target, debuggee, front] = yield initCanavsDebuggerBackend(WEBGL_BINDINGS_URL);
 
   let navigated = once(target, "navigate");
 

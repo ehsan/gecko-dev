@@ -66,8 +66,6 @@ ShaderEditorPanel.prototype = {
     }
 
     return this._destroyer = this.panelWin.shutdownShaderEditor().then(() => {
-      // Destroy front to ensure packet handler is removed from client
-      this.panelWin.gFront.destroy();
       this.emit("destroyed");
     });
   }
