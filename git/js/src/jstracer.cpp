@@ -5661,7 +5661,7 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
 
             // Use PCVAL_NULL to return "no such property" to our caller.
             pcval = PCVAL_NULL;
-            ABORT_TRACE("failed to find property");
+            return true;
         }
 
         OBJ_DROP_PROPERTY(cx, obj2, prop);
@@ -6015,9 +6015,6 @@ TraceRecorder::guardDenseArrayIndex(JSObject* obj, jsint idx, LIns* obj_ins,
 JS_REQUIRES_STACK bool
 TraceRecorder::guardElemOp(JSObject* obj, LIns* obj_ins, jsid id, size_t op_offset, jsval* vp)
 {
-    JS_ASSERT(op_offset == offsetof(JSObjectOps, getProperty) ||
-              op_offset == offsetof(JSObjectOps, setProperty));
-
     LIns* map_ins = lir->insLoad(LIR_ldp, obj_ins, (int)offsetof(JSObject, map));
     LIns* ops_ins;
     if (!map_is_native(obj->map, map_ins, ops_ins, op_offset))
@@ -7021,30 +7018,6 @@ TraceRecorder::record_SetPropHit(JSPropCacheEntry* entry, JSScopeProperty* sprop
             ABORT_TRACE("lazy import of global slot failed");
 
         LIns* r_ins = get(&r);
-
-        /*
-         * Scope shape is determined by the ordered list of property names and
-         * other attributes (flags, getter/setter, etc.) but not value or type
-         * -- except for function-valued properties.  This function-based
-         * distinction enables various function-call optimizations.
-         *
-         * This shape requirement is addressed in the interpreter by branding
-         * the scope and updating any branded scope's shape every time the
-         * value changes to or from a function or when one function value is
-         * modified to a different function value; see GC_WRITE_BARRIER.
-         *
-         * On trace the shape requirement is mostly handled by normal shape
-         * guarding.  However, the global object's shape is required to be
-         * invariant at trace recording time, and since a function-to-function
-         * transition can change shape, we must handle this edge case
-         * separately with the following guard.  See also bug 473256.
-         */
-        if (VALUE_IS_FUNCTION(cx, r)) {
-            guard(true,
-                  lir->ins2(LIR_eq, r_ins, INS_CONSTPTR(JSVAL_TO_OBJECT(r))),
-                  MISMATCH_EXIT);
-        }
-
         set(&STOBJ_GET_SLOT(obj, slot), r_ins);
 
         JS_ASSERT(*pc != JSOP_INITPROP);
@@ -7386,11 +7359,13 @@ TraceRecorder::record_JSOP_CALLNAME()
     LIns* obj_ins = scopeChain();
     JSObject* obj2;
     jsuword pcval;
+
     if (!test_property_cache(obj, obj_ins, obj2, pcval))
         return false;
 
     if (PCVAL_IS_NULL(pcval) || !PCVAL_IS_OBJECT(pcval))
         ABORT_TRACE("callee is not an object");
+
     JS_ASSERT(HAS_FUNCTION_CLASS(PCVAL_TO_OBJECT(pcval)));
 
     stack(0, INS_CONSTPTR(PCVAL_TO_OBJECT(pcval)));
@@ -7669,7 +7644,7 @@ TraceRecorder::name(jsval*& vp)
         return false;
 
     if (slot == SPROP_INVALID_SLOT)
-        ABORT_TRACE("name op can't find named property");
+        ABORT_TRACE("named property not found");
 
     if (!lazilyImportGlobalSlot(slot))
         ABORT_TRACE("lazy import of global slot failed");
@@ -7701,6 +7676,28 @@ TraceRecorder::prop(JSObject* obj, LIns* obj_ins, uint32& slot, LIns*& v_ins)
     /* Check for non-existent property reference, which results in undefined. */
     const JSCodeSpec& cs = js_CodeSpec[*cx->fp->regs->pc];
     if (PCVAL_IS_NULL(pcval)) {
+        /*
+         * This trace will be valid as long as neither the object nor any object
+         * on its prototype chain change shape.
+         */
+        for (;;) {
+            LIns* map_ins = lir->insLoad(LIR_ldp, obj_ins, (int)offsetof(JSObject, map));
+            LIns* ops_ins;
+            if (!map_is_native(obj->map, map_ins, ops_ins))
+                ABORT_TRACE("non-native object involved in undefined property access");
+
+            LIns* shape_ins = addName(lir->insLoad(LIR_ld, map_ins, offsetof(JSScope, shape)),
+                                      "shape");
+            guard(true,
+                  addName(lir->ins2i(LIR_eq, shape_ins, OBJ_SHAPE(obj)), "guard(shape)"),
+                  BRANCH_EXIT);
+
+            obj = JSVAL_TO_OBJECT(obj->fslots[JSSLOT_PROTO]);
+            if (!obj)
+                break;
+            obj_ins = stobj_get_fslot(obj_ins, JSSLOT_PROTO);
+        }
+
         v_ins = INS_CONST(JSVAL_TO_PSEUDO_BOOLEAN(JSVAL_VOID));
         JS_ASSERT(cs.ndefs == 1);
         stack(-cs.nuses, v_ins);
@@ -8239,6 +8236,10 @@ TraceRecorder::record_JSOP_BINDNAME()
     jsuword pcval;
     if (!test_property_cache(obj, obj_ins, obj2, pcval))
         return false;
+
+    if (PCVAL_IS_NULL(pcval))
+        ABORT_TRACE("JSOP_BINDNAME is trying to add a new property");
+
     if (obj2 != obj)
         ABORT_TRACE("JSOP_BINDNAME found a non-direct property on the global object");
 
