@@ -40,30 +40,18 @@ PasswordEngine.prototype = {
     SyncEngine.prototype._syncFinish.call(this);
 
     // Delete the weave credentials from the server once
-    if (!Svc.Prefs.get("deletePwdFxA", false)) {
+    if (!Svc.Prefs.get("deletePwd", false)) {
       try {
-        let ids = [];
-        for (let host of Utils.getSyncCredentialsHosts()) {
-          for (let info of Services.logins.findLogins({}, host, "", "")) {
-            ids.push(info.QueryInterface(Components.interfaces.nsILoginMetaInfo).guid);
-          }
-        }
-        if (ids.length) {
-          let coll = new Collection(this.engineURL, null, this.service);
-          coll.ids = ids;
-          let ret = coll.delete();
-          this._log.debug("Delete result: " + ret);
-          if (!ret.success && ret.status != 400) {
-            // A non-400 failure means try again next time.
-            return;
-          }
-        } else {
-          this._log.debug("Didn't find any passwords to delete");
-        }
-        // If there were no ids to delete, or we succeeded, or got a 400,
-        // record success.
-        Svc.Prefs.set("deletePwdFxA", true);
-        Svc.Prefs.reset("deletePwd"); // The old prefname we previously used.
+        let ids = Services.logins.findLogins({}, PWDMGR_HOST, "", "")
+                          .map(function(info) {
+          return info.QueryInterface(Components.interfaces.nsILoginMetaInfo).guid;
+        });
+        let coll = new Collection(this.engineURL, null, this.service);
+        coll.ids = ids;
+        let ret = coll.delete();
+        this._log.debug("Delete result: " + ret);
+
+        Svc.Prefs.set("deletePwd", true);
       }
       catch(ex) {
         this._log.debug("Password deletes failed: " + Utils.exceptionStr(ex));
@@ -162,9 +150,8 @@ PasswordStore.prototype = {
     for (let i = 0; i < logins.length; i++) {
       // Skip over Weave password/passphrase entries
       let metaInfo = logins[i].QueryInterface(Ci.nsILoginMetaInfo);
-      if (Utils.getSyncCredentialsHosts().has(metaInfo.hostname)) {
+      if (metaInfo.hostname == PWDMGR_HOST)
         continue;
-      }
 
       items[metaInfo.guid] = metaInfo;
     }
@@ -301,7 +288,7 @@ PasswordTracker.prototype = {
       case "removeLogin":
         // Skip over Weave password/passphrase changes.
         subject.QueryInterface(Ci.nsILoginMetaInfo).QueryInterface(Ci.nsILoginInfo);
-        if (Utils.getSyncCredentialsHosts().has(subject.hostname)) {
+        if (subject.hostname == PWDMGR_HOST) {
           break;
         }
 

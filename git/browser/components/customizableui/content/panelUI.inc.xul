@@ -120,6 +120,7 @@
                        oncommand="PlacesCommandHook.showPlacesOrganizer('UnfiledBookmarks'); PanelUI.hide();"/>
         <toolbarseparator/>
         <toolbaritem id="panelMenu_bookmarksMenu"
+                     flex="1"
                      orient="vertical"
                      smoothscroll="false"
                      onclick="if (event.button == 1) BookmarkingUI.onPanelMenuViewCommand(event, this._placesView);"
@@ -144,7 +145,7 @@
 
     <panelview id="PanelUI-helpView" flex="1" class="PanelUI-subView">
       <label value="&helpMenu.label;" class="panel-subview-header"/>
-      <vbox id="PanelUI-helpItems" class="panel-subview-body"/>
+      <vbox id="PanelUI-helpItems"/>
     </panelview>
 
     <panelview id="PanelUI-developer" flex="1">
