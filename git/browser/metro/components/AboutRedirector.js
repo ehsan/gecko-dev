@@ -8,7 +8,7 @@ const Ci = Components.interfaces;
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 let modules = {
-  newtab: {
+  start: {
     uri: "chrome://browser/content/Start.xul",
     privileged: true
   },
@@ -37,12 +37,8 @@ let modules = {
     uri: "chrome://browser/content/aboutCertError.xhtml",
     privileged: true
   },
-  start: {
-    uri: "about:newtab",
-    privileged: true
-  },
   home: {
-    uri: "about:newtab",
+    uri: "about:start",
     privileged: true
   },
 #ifdef MOZ_CRASHREPORTER

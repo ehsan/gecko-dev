@@ -525,7 +525,7 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFram
     appliedTransform = true;
   }
 
-  if (container->GetScrollbarDirection() != Layer::NONE) {
+  if (container->GetIsScrollbar()) {
     ApplyAsyncTransformToScrollbar(container);
   }
   return appliedTransform;

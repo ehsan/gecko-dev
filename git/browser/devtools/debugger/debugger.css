@@ -53,7 +53,3 @@
 #body[layout=horizontal] #vertical-layout-panes-container {
   display: none;
 }
-
-#body[layout=vertical] #stackframes {
-  visibility: hidden;
-}

@@ -352,19 +352,13 @@ VariablesViewController.prototype = {
       aTarget.showArrow();
     }
 
-    if (aSource.type == "block" || aSource.type == "function") {
-      // Block and function environments already contain scope arguments and
-      // corresponding variables as bindings.
-      this.populate(aTarget, aSource);
-    } else {
-      // Make sure that properties are always available on expansion.
-      aTarget.onexpand = () => this.populate(aTarget, aSource);
+    // Make sure that properties are always available on expansion.
+    aTarget.onexpand = () => this.expand(aTarget, aSource);
 
-      // Some variables are likely to contain a very large number of properties.
-      // It's a good idea to be prepared in case of an expansion.
-      if (aTarget.shouldPrefetch) {
-        aTarget.addEventListener("mouseover", aTarget.onexpand, false);
-      }
+    // Some variables are likely to contain a very large number of properties.
+    // It's a good idea to be prepared in case of an expansion.
+    if (aTarget.shouldPrefetch) {
+      aTarget.addEventListener("mouseover", aTarget.onexpand, false);
     }
 
     // Register all the actors that this controller now depends on.
@@ -379,8 +373,6 @@ VariablesViewController.prototype = {
    * Adds properties to a Scope, Variable, or Property in the view. Triggered
    * when a scope is expanded or certain variables are hovered.
    *
-   * This does not expand the target, it only populates it.
-   *
    * @param Scope aTarget
    *        The Scope to be expanded.
    * @param object aSource
@@ -388,7 +380,7 @@ VariablesViewController.prototype = {
    * @return Promise
    *         The promise that is resolved once the target has been expanded.
    */
-  populate: function(aTarget, aSource) {
+  expand: function(aTarget, aSource) {
     // Fetch the variables only once.
     if (aTarget._fetched) {
       return aTarget._fetched;
@@ -518,17 +510,16 @@ VariablesViewController.prototype = {
     scope.locked = true; // Prevent collpasing the scope.
 
     let variable = scope.addItem("", { enumerable: true });
-    let populated;
+    let expanded;
 
     if (aOptions.objectActor) {
-      populated = this.populate(variable, aOptions.objectActor);
-      variable.expand();
+      expanded = this.expand(variable, aOptions.objectActor);
     } else if (aOptions.rawObject) {
       variable.populate(aOptions.rawObject, { expanded: true });
-      populated = promise.resolve();
+      expanded = promise.resolve();
     }
 
-    return { variable: variable, expanded: populated };
+    return { variable: variable, expanded: expanded };
   },
 };
 

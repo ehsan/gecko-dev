@@ -280,8 +280,10 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
                                      common.stickyScrollRangeOuter(),
                                      common.stickyScrollRangeInner());
       }
-      layer->SetScrollbarData(common.scrollbarTargetContainerId(),
-        static_cast<Layer::ScrollDirection>(common.scrollbarDirection()));
+      if (common.isScrollbar()) {
+        layer->SetScrollbarData(common.scrollbarTargetContainerId(),
+          static_cast<Layer::ScrollDirection>(common.scrollbarDirection()));
+      }
       if (PLayerParent* maskLayer = common.maskLayerParent()) {
         layer->SetMaskLayer(cast(maskLayer)->AsLayer());
       } else {

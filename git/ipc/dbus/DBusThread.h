@@ -9,12 +9,10 @@
 
 #include "nscore.h"
 
-class Task;
+class nsIRunnable;
 
 namespace mozilla {
 namespace ipc {
-
-class RawDBusConnection;
 
 /**
  * Starts the DBus thread, which handles returning signals to objects
@@ -34,21 +32,13 @@ bool StartDBus();
 bool StopDBus();
 
 /**
- * Dispatch a task to the DBus I/O thread
+ * Dispatch an event to the DBus thread
  *
- * @param task A task to run on the DBus I/O thread
+ * @param event An nsIRunnable to run in the DBus thread
  * @return NS_OK on success, or an error code otherwise
  */
 nsresult
-DispatchToDBusThread(Task* task);
-
-/**
- * Returns the connection to the DBus server
- *
- * @return The DBus connection on success, or nullptr otherwise
- */
-RawDBusConnection*
-GetDBusConnection(void);
+DispatchToDBusThread(nsIRunnable* event);
 
 }
 }

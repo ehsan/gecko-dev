@@ -5,7 +5,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <dbus/dbus.h>
-#include "base/message_loop.h"
 #include "mozilla/Monitor.h"
 #include "nsThreadUtils.h"
 #include "DBusThread.h"
@@ -35,21 +34,20 @@ using namespace mozilla::ipc;
 namespace mozilla {
 namespace ipc {
 
-class DBusConnectionSendTaskBase : public Task
+class DBusConnectionSendRunnableBase : public nsRunnable
 {
-public:
-  virtual ~DBusConnectionSendTaskBase()
-  { }
-
 protected:
-  DBusConnectionSendTaskBase(DBusConnection* aConnection,
-                             DBusMessage* aMessage)
+  DBusConnectionSendRunnableBase(DBusConnection* aConnection,
+                                 DBusMessage* aMessage)
   : mConnection(aConnection),
     mMessage(aMessage)
   {
     MOZ_ASSERT(mConnection);
     MOZ_ASSERT(mMessage);
   }
+
+  virtual ~DBusConnectionSendRunnableBase()
+  { }
 
   DBusConnection*   mConnection;
   DBusMessageRefPtr mMessage;
@@ -59,33 +57,35 @@ protected:
 // Sends a message and returns the message's serial number to the
 // disaptching thread. Only run it in DBus thread.
 //
-class DBusConnectionSendTask : public DBusConnectionSendTaskBase
+class DBusConnectionSendRunnable : public DBusConnectionSendRunnableBase
 {
 public:
-  DBusConnectionSendTask(DBusConnection* aConnection,
-                         DBusMessage* aMessage)
-  : DBusConnectionSendTaskBase(aConnection, aMessage)
+  DBusConnectionSendRunnable(DBusConnection* aConnection,
+                             DBusMessage* aMessage)
+  : DBusConnectionSendRunnableBase(aConnection, aMessage)
   { }
 
-  virtual ~DBusConnectionSendTask()
-  { }
-
-  void Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
-    MOZ_ASSERT(MessageLoop::current());
+    MOZ_ASSERT(!NS_IsMainThread());
 
-    dbus_bool_t success = dbus_connection_send(mConnection,
-                                               mMessage,
-                                               nullptr);
-    NS_ENSURE_TRUE_VOID(success == TRUE);
+    dbus_bool_t success = dbus_connection_send(mConnection, mMessage, nullptr);
+
+    NS_ENSURE_TRUE(success == TRUE, NS_ERROR_FAILURE);
+
+    return NS_OK;
   }
+
+protected:
+  ~DBusConnectionSendRunnable()
+  { }
 };
 
 //
 // Sends a message and executes a callback function for the reply. Only
 // run it in DBus thread.
 //
-class DBusConnectionSendWithReplyTask : public DBusConnectionSendTaskBase
+class DBusConnectionSendWithReplyRunnable : public DBusConnectionSendRunnableBase
 {
 private:
   class NotifyData
@@ -130,27 +130,24 @@ private:
   }
 
 public:
-  DBusConnectionSendWithReplyTask(DBusConnection* aConnection,
-                                  DBusMessage* aMessage,
-                                  int aTimeout,
-                                  DBusReplyCallback aCallback,
-                                  void* aData)
-  : DBusConnectionSendTaskBase(aConnection, aMessage),
+  DBusConnectionSendWithReplyRunnable(DBusConnection* aConnection,
+                                      DBusMessage* aMessage,
+                                      int aTimeout,
+                                      DBusReplyCallback aCallback,
+                                      void* aData)
+  : DBusConnectionSendRunnableBase(aConnection, aMessage),
     mCallback(aCallback),
     mData(aData),
     mTimeout(aTimeout)
   { }
 
-  virtual ~DBusConnectionSendWithReplyTask()
-  { }
-
-  void Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
-    MOZ_ASSERT(MessageLoop::current());
+    MOZ_ASSERT(!NS_IsMainThread());
 
     // Freed at end of Notify
     nsAutoPtr<NotifyData> data(new NotifyData(mCallback, mData));
-    NS_ENSURE_TRUE_VOID(data);
+    NS_ENSURE_TRUE(data, NS_ERROR_OUT_OF_MEMORY);
 
     DBusPendingCall* call;
 
@@ -158,14 +155,20 @@ public:
                                                           mMessage,
                                                           &call,
                                                           mTimeout);
-    NS_ENSURE_TRUE_VOID(success == TRUE);
+    NS_ENSURE_TRUE(success == TRUE, NS_ERROR_FAILURE);
 
     success = dbus_pending_call_set_notify(call, Notify, data, nullptr);
-    NS_ENSURE_TRUE_VOID(success == TRUE);
+    NS_ENSURE_TRUE(success == TRUE, NS_ERROR_FAILURE);
 
     data.forget();
     dbus_message_unref(mMessage);
+
+    return NS_OK;
   };
+
+protected:
+  ~DBusConnectionSendWithReplyRunnable()
+  { }
 
 private:
   DBusReplyCallback mCallback;
@@ -199,7 +202,7 @@ nsresult RawDBusConnection::EstablishDBusConnection()
   }
   DBusError err;
   dbus_error_init(&err);
-  mConnection = dbus_bus_get_private(DBUS_BUS_SYSTEM, &err);
+  mConnection = dbus_bus_get(DBUS_BUS_SYSTEM, &err);
   if (dbus_error_is_set(&err)) {
     dbus_error_free(&err);
     return NS_ERROR_FAILURE;
@@ -211,15 +214,14 @@ nsresult RawDBusConnection::EstablishDBusConnection()
 void RawDBusConnection::ScopedDBusConnectionPtrTraits::release(DBusConnection* ptr)
 {
   if (ptr) {
-    dbus_connection_close(ptr);
     dbus_connection_unref(ptr);
   }
 }
 
 bool RawDBusConnection::Send(DBusMessage* aMessage)
 {
-  DBusConnectionSendTask* t =
-    new DBusConnectionSendTask(mConnection, aMessage);
+  nsRefPtr<DBusConnectionSendRunnable> t(
+    new DBusConnectionSendRunnable(mConnection, aMessage));
   MOZ_ASSERT(t);
 
   nsresult rv = DispatchToDBusThread(t);
@@ -239,9 +241,9 @@ bool RawDBusConnection::SendWithReply(DBusReplyCallback aCallback,
                                       int aTimeout,
                                       DBusMessage* aMessage)
 {
-  DBusConnectionSendWithReplyTask* t =
-    new DBusConnectionSendWithReplyTask(mConnection, aMessage, aTimeout,
-                                        aCallback, aData);
+  nsRefPtr<nsIRunnable> t(
+    new DBusConnectionSendWithReplyRunnable(mConnection, aMessage,
+                                            aTimeout, aCallback, aData));
   MOZ_ASSERT(t);
 
   nsresult rv = DispatchToDBusThread(t);

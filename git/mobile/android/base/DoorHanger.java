@@ -3,10 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.gecko;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tabs;
+import org.mozilla.gecko.widget.Divider;
 import org.mozilla.gecko.prompts.PromptInput;
 
 import org.json.JSONArray;
@@ -37,7 +36,7 @@ import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
 
-public class DoorHanger extends LinearLayout {
+class DoorHanger extends LinearLayout {
     private static final String LOGTAG = "GeckoDoorHanger";
 
     private static int sInputPadding = -1;
@@ -74,20 +73,20 @@ public class DoorHanger extends LinearLayout {
     // Color used for dividers above and between buttons.
     private int mDividerColor;
 
-    public static enum Theme {
+    static enum Theme {
         LIGHT,
         DARK
     }
 
-    public interface OnButtonClickListener {
+    interface OnButtonClickListener {
         public void onButtonClick(DoorHanger dh, String tag);
     }
 
-    public DoorHanger(Context context, Theme theme) {
+    DoorHanger(Context context, Theme theme) {
         this(context, 0, null, theme);
     }
 
-    public DoorHanger(Context context, int tabId, String value) {
+    DoorHanger(Context context, int tabId, String value) {
         this(context, tabId, value, Theme.LIGHT);
     }
 
@@ -134,40 +133,40 @@ public class DoorHanger extends LinearLayout {
         }
     }
 
-    public int getTabId() {
+    int getTabId() {
         return mTabId;
     }
 
-    public String getValue() {
+    String getValue() {
         return mValue;
     }
 
-    public List<PromptInput> getInputs() {
+    List<PromptInput> getInputs() {
         return mInputs;
     }
 
-    public CheckBox getCheckBox() {
+    CheckBox getCheckBox() {
         return mCheckBox;
     }
 
-    public void showDivider() {
+    void showDivider() {
         mDivider.setVisibility(View.VISIBLE);
     }
 
-    public void hideDivider() {
+    void hideDivider() {
         mDivider.setVisibility(View.GONE);
     }
 
-    public void setMessage(String message) {
+    void setMessage(String message) {
         mTextView.setText(message);
     }
 
-    public void setIcon(int resId) {
+    void setIcon(int resId) {
         mIcon.setImageResource(resId);
         mIcon.setVisibility(View.VISIBLE);
     }
 
-    public void addLink(String label, String url, String delimiter) {
+    void addLink(String label, String url, String delimiter) {
         String title = mTextView.getText().toString();
         SpannableString titleWithLink = new SpannableString(title + delimiter + label);
         URLSpan linkSpan = new URLSpan(url) {
@@ -186,7 +185,7 @@ public class DoorHanger extends LinearLayout {
         mTextView.setMovementMethod(LinkMovementMethod.getInstance());
     }
 
-    public void addButton(final String text, final String tag, final OnButtonClickListener listener) {
+    void addButton(final String text, final String tag, final OnButtonClickListener listener) {
         final Button button = (Button) LayoutInflater.from(getContext()).inflate(R.layout.doorhanger_button, null);
         button.setText(text);
         button.setTag(tag);
@@ -216,7 +215,7 @@ public class DoorHanger extends LinearLayout {
         mChoicesLayout.addView(button, sButtonParams);
     }
 
-    public void setOptions(final JSONObject options) {
+    void setOptions(final JSONObject options) {
         final int persistence = options.optInt("persistence");
         if (persistence > 0) {
             mPersistence = persistence;
@@ -324,7 +323,7 @@ public class DoorHanger extends LinearLayout {
      * @param isShowing Whether or not this doorhanger is currently visible to the user.
      *                 (e.g. the DoorHanger view might be VISIBLE, but its parent could be hidden)
      */
-    public boolean shouldRemove(boolean isShowing) {
+    boolean shouldRemove(boolean isShowing) {
         if (mPersistWhileVisible && isShowing) {
             // We still want to decrement mPersistence, even if the popup is showing
             if (mPersistence != 0)

@@ -11,7 +11,7 @@ let Cr = Components.results;
 Cu.import("resource://gre/modules/PageThumbs.jsm");
 
 // Page for which the start UI is shown
-const kStartURI = "about:newtab";
+const kStartURI = "about:start";
 
 // allow panning after this timeout on pages with registered touch listeners
 const kTouchTimeout = 300;

@@ -238,7 +238,7 @@ public:
   // Called on ALooper thread.
   void onMessageReceived(const sp<AMessage> &msg);
 
-  int64_t ProcessCachedData(int64_t aOffset, bool aWaitForCompletion);
+  bool ProcessCachedData(int64_t aOffset, bool aWaitForCompletion);
 };
 
 }
