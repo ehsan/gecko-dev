@@ -85,22 +85,17 @@
 #if !JS_LONE_INTERPRET ^ defined jsinvoke_cpp___
 
 uint32
-js_GenerateShape(JSContext *cx, JSBool gcLocked, JSScopeProperty *sprop)
+js_GenerateShape(JSContext *cx, JSBool gcLocked)
 {
     JSRuntime *rt;
     uint32 shape;
-    JSTempValueRooter tvr;
 
     rt = cx->runtime;
     shape = JS_ATOMIC_INCREMENT(&rt->shapeGen);
     JS_ASSERT(shape != 0);
     if (shape & SHAPE_OVERFLOW_BIT) {
         rt->gcPoke = JS_TRUE;
-        if (sprop)
-            JS_PUSH_TEMP_ROOT_SPROP(cx, sprop, &tvr);
         js_GC(cx, gcLocked ? GC_LOCK_HELD : GC_NORMAL);
-        if (sprop)
-            JS_POP_TEMP_ROOT(cx, &tvr);
         shape = JS_ATOMIC_INCREMENT(&rt->shapeGen);
         JS_ASSERT(shape != 0);
         JS_ASSERT_IF(shape & SHAPE_OVERFLOW_BIT,
@@ -2584,7 +2579,10 @@ js_Interpret(JSContext *cx)
         tr = TRACE_RECORDER(cx);
         SET_TRACE_RECORDER(cx, NULL);
         JS_TRACE_MONITOR(cx).onTrace = JS_FALSE;
-        tr->pushAbortStack();
+        if (tr->wasDeepAborted())
+            tr->removeFragmentoReferences();
+        else
+            tr->pushAbortStack();
     }
 #endif
 

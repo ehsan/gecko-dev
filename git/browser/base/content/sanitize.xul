@@ -197,7 +197,7 @@
 
     <groupbox orient="vertical">
       <caption label="&historySection.label;"/>
-      <hbox id="SanitizeDurationBox" align="center">
+      <hbox id="SanitizeDurationBox">
         <label value="&clearDuration.label;" control="sanitizeDurationChoice" id="sanitizeDurationLabel"/>
         <menulist id="sanitizeDurationChoice"
                   preference="privacy.sanitize.timeSpan">

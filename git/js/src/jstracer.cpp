@@ -895,6 +895,7 @@ js_NativeStackSlots(JSContext *cx, unsigned callDepth)
 #endif
     for (;;) {
         unsigned operands = fp->regs->sp - StackBase(fp);
+        JS_ASSERT(operands <= unsigned(fp->script->nslots - fp->script->nfixed));
         slots += operands;
         if (fp->callee)
             slots += fp->script->nfixed;
@@ -1059,6 +1060,14 @@ TraceRecorder::~TraceRecorder()
 {
     JS_ASSERT(nextRecorderToAbort == NULL);
     JS_ASSERT(treeInfo && (fragment || wasDeepAborted()));
+#ifdef DEBUG
+    TraceRecorder* tr = JS_TRACE_MONITOR(cx).abortStack;
+    while (tr != NULL)
+    {
+        JS_ASSERT(this != tr);
+        tr = tr->nextRecorderToAbort;
+    }
+#endif
     if (fragment) {
         if (wasRootFragment && !fragment->root->code()) {
             JS_ASSERT(!fragment->root->vmprivate);
@@ -4017,6 +4026,7 @@ jsval&
 TraceRecorder::stackval(int n) const
 {
     jsval* sp = cx->fp->regs->sp;
+    JS_ASSERT(size_t((sp + n) - StackBase(cx->fp)) < StackDepth(cx->fp->script));
     return sp[n];
 }
 
@@ -4158,6 +4168,7 @@ TraceRecorder::stringify(jsval& v)
     } else if (JSVAL_TAG(v) == JSVAL_BOOLEAN) {
         ci = &js_BooleanOrUndefinedToString_ci;
     } else {
+        JS_NOT_REACHED("caller of stringify should have used an imacro here");
         return NULL;
     }
     v_ins = lir->insCall(ci, args);

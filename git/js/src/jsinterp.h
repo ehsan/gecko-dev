@@ -198,12 +198,8 @@ typedef struct JSInlineFrame {
 
 #define SHAPE_OVERFLOW_BIT      JS_BIT(32 - PCVCAP_TAGBITS)
 
-/*
- * When sprop is not null and the shape generation triggers the GC due to a
- * shape overflow, the functions roots sprop.
- */
 extern uint32
-js_GenerateShape(JSContext *cx, JSBool gcLocked, JSScopeProperty *sprop);
+js_GenerateShape(JSContext *cx, JSBool gcLocked);
 
 struct JSPropCacheEntry {
     jsbytecode          *kpc;           /* pc if vcap tag is <= 1, else atom */
