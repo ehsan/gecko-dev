@@ -146,7 +146,6 @@ CPPSRCS		= \
 		nsNoDataProtocolContentPolicy.cpp \
 		nsNodeInfo.cpp \
 		nsNodeInfoManager.cpp \
-		nsNodeIterator.cpp \
 		nsNodeUtils.cpp \
 		nsObjectLoadingContent.cpp \
 		nsParserUtils.cpp \
@@ -165,7 +164,6 @@ CPPSRCS		= \
 		nsSyncLoadService.cpp \
 		nsTextFragment.cpp \
 		nsTextNode.cpp \
-		nsTraversal.cpp \
 		nsTreeWalker.cpp \
 		nsXMLContentSerializer.cpp \
 		nsXMLHttpRequest.cpp \

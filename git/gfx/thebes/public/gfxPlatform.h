@@ -221,11 +221,6 @@ public:
     static cmsHPROFILE GetCMSOutputProfile();
 
     /**
-     * Return the sRGB ICC profile.
-     */
-    static cmsHPROFILE GetCMSsRGBProfile();
-
-    /**
      * Return sRGB -> output device transform.
      */
     static cmsHTRANSFORM GetCMSRGBTransform();

@@ -107,8 +107,6 @@
 
 #include "nsFrameManager.h"
 
-#include "nsBidiPresUtils.h"
-
 #ifndef M_PI
 #define M_PI		3.14159265358979323846
 #define M_PI_2		1.57079632679489661923
@@ -314,8 +312,6 @@ NS_INTERFACE_MAP_BEGIN(nsTextMetrics)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-struct nsCanvasBidiProcessor;
-
 /**
  ** nsCanvasRenderingContext2D
  **/
@@ -417,20 +413,19 @@ protected:
 
     enum TextDrawOperation {
         TEXT_DRAW_OPERATION_FILL,
-        TEXT_DRAW_OPERATION_STROKE,
-        TEXT_DRAW_OPERATION_MEASURE
+        TEXT_DRAW_OPERATION_STROKE
     };
 
     /*
-     * Implementation of the fillText, strokeText, and measure functions with
-     * the operation abstracted to a flag.
+     * Implementation of the fillText and strokeText functions with the
+     * operation abstracted to a flag. Follows the HTML 5 spec for rendering
+     * text. Will query for the fourth, optional argument.
      */
-    nsresult DrawOrMeasureText(const nsAString& text,
-                               float x,
-                               float y,
-                               float maxWidth,
-                               TextDrawOperation op,
-                               float* aWidth);
+    nsresult drawText(const nsAString& text,
+                      float x,
+                      float y,
+                      float maxWidth,
+                      TextDrawOperation op);
  
     // style handling
     PRInt32 mLastStyle;
@@ -531,8 +526,6 @@ protected:
         if (perCSSPixel)
             *perCSSPixel = cssPixel;
     }
-
-    friend struct nsCanvasBidiProcessor;
 };
 
 NS_IMPL_ADDREF(nsCanvasRenderingContext2D)
@@ -1856,128 +1849,34 @@ TextReplaceWhitespaceCharacters(nsAutoString& str)
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::FillText(const nsAString& text, float x, float y, float maxWidth)
 {
-    return DrawOrMeasureText(text, x, y, maxWidth, TEXT_DRAW_OPERATION_FILL, nsnull);
+    return drawText(text, x, y, maxWidth, TEXT_DRAW_OPERATION_FILL);
 }
 
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::StrokeText(const nsAString& text, float x, float y, float maxWidth)
 {
-    return DrawOrMeasureText(text, x, y, maxWidth, TEXT_DRAW_OPERATION_STROKE, nsnull);
+    return drawText(text, x, y, maxWidth, TEXT_DRAW_OPERATION_STROKE);
 }
-
-NS_IMETHODIMP
-nsCanvasRenderingContext2D::MeasureText(const nsAString& rawText,
-                                        nsIDOMTextMetrics** _retval)
-{
-    float width;
-
-    nsresult rv = DrawOrMeasureText(rawText, 0, 0, 0, TEXT_DRAW_OPERATION_MEASURE, &width);
-
-    if (NS_FAILED(rv))
-        return rv;
-
-    nsRefPtr<nsIDOMTextMetrics> textMetrics = new nsTextMetrics(width);
-    if (!textMetrics.get())
-        return NS_ERROR_OUT_OF_MEMORY;
-
-    *_retval = textMetrics.forget().get();
-
-    return NS_OK;
-}
-
-/**
- * Used for nsBidiPresUtils::ProcessText
- */
-struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProcessor
-{
-    virtual void SetText(const PRUnichar* text, PRInt32 length, nsBidiDirection direction)
-    {
-        mTextRun = gfxTextRunCache::MakeTextRun(text,
-                                                length,
-                                                mFontgrp,
-                                                mCtx->mThebesContext,
-                                                mAppUnitsPerDevPixel,
-                                                direction==NSBIDI_RTL ? gfxTextRunFactory::TEXT_IS_RTL : 0);
-    }
-
-    virtual nscoord GetWidth()
-    {
-        PRBool tightBoundingBox = PR_FALSE;
-        gfxTextRun::Metrics textRunMetrics = mTextRun->MeasureText(0,
-                                                                   mTextRun->GetLength(),
-                                                                   tightBoundingBox,
-                                                                   mCtx->mThebesContext,
-                                                                   nsnull);
-
-        return static_cast<nscoord>(textRunMetrics.mAdvanceWidth/gfxFloat(mAppUnitsPerDevPixel));
-    }
-
-    virtual void DrawText(nscoord xOffset, nscoord width)
-    {
-        gfxPoint point = mPt;
-        point.x += xOffset * mAppUnitsPerDevPixel;
-
-        // offset is given in terms of left side of string
-        if (mTextRun->IsRightToLeft())
-            point.x += width * mAppUnitsPerDevPixel;
-
-        // stroke or fill the text depending on operation
-        if (mOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE)
-            mTextRun->DrawToPath(mCtx->mThebesContext,
-                                 point,
-                                 0,
-                                 mTextRun->GetLength(),
-                                 nsnull,
-                                 nsnull);
-        else
-            // mOp == TEXT_DRAW_OPERATION_FILL
-            mTextRun->Draw(mCtx->mThebesContext,
-                           point,
-                           0,
-                           mTextRun->GetLength(),
-                           nsnull,
-                           nsnull,
-                           nsnull);
-    }
-
-    // current text run
-    gfxTextRunCache::AutoTextRun mTextRun;
-
-    // pointer to the context
-    nsCanvasRenderingContext2D* mCtx;
-
-    // position of the left side of the string, alphabetic baseline
-    gfxPoint mPt;
-
-    // current font
-    gfxFontGroup* mFontgrp;
-    
-    // dev pixel conversion factor
-    PRUint32 mAppUnitsPerDevPixel;
-
-    // operation (fill or stroke)
-    nsCanvasRenderingContext2D::TextDrawOperation mOp;
-};
 
 nsresult
-nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
-                                              float aX,
-                                              float aY,
-                                              float aMaxWidth,
-                                              TextDrawOperation aOp,
-                                              float* aWidth)
+nsCanvasRenderingContext2D::drawText(const nsAString& rawText,
+                                     float x,
+                                     float y,
+                                     float maxWidth,
+                                     TextDrawOperation op)
 {
-    nsresult rv;
-
-    if (!FloatValidate(aX, aY, aMaxWidth))
+    if (!FloatValidate(x, y, maxWidth))
         return NS_ERROR_DOM_SYNTAX_ERR;
 
-    // spec isn't clear on what should happen if aMaxWidth <= 0, so
+    // spec isn't clear on what should happen if maxWidth <= 0, so
     // treat it as an invalid argument
     // technically, 0 should be an invalid value as well, but 0 is the default
     // arg, and there is no way to tell if the default was used
-    if (aMaxWidth < 0)
+    if (maxWidth < 0)
         return NS_ERROR_INVALID_ARG;
+
+    gfxFontGroup* fontgrp = GetCurrentFontStyle();
+    NS_ASSERTION(fontgrp, "font group is null");
 
     nsCOMPtr<nsIContent> content = do_QueryInterface(mCanvasElement);
     if (!content) {
@@ -1991,17 +1890,16 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
     if (!presShell)
         return NS_ERROR_FAILURE;
 
-    nsBidiPresUtils* bidiUtils = presShell->GetPresContext()->GetBidiUtils();
-    if (!bidiUtils)
-        return NS_ERROR_FAILURE;
-
     // replace all the whitespace characters with U+0020 SPACE
-    nsAutoString textToDraw(aRawText);
+    nsAutoString textToDraw(rawText);
     TextReplaceWhitespaceCharacters(textToDraw);
 
+    const PRUnichar* textData;
+    textToDraw.GetData(&textData);
+  
     // for now, default to ltr if not in doc
     PRBool isRTL = PR_FALSE;
-
+    
     if (content->IsInDoc()) {
         // try to find the closest context
         nsRefPtr<nsStyleContext> canvasStyle =
@@ -2014,42 +1912,36 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
             NS_STYLE_DIRECTION_RTL;
     }
 
-    nsCanvasBidiProcessor processor;
+    PRUint32 textrunflags = isRTL ? gfxTextRunFactory::TEXT_IS_RTL : 0;
 
-    GetAppUnitsValues(&processor.mAppUnitsPerDevPixel, NULL);
-    processor.mPt = gfxPoint(aX, aY);
-    processor.mCtx = this;
-    processor.mOp = aOp;
+    // app units conversion factor
+    PRUint32 aupdp;
+    GetAppUnitsValues(&aupdp, NULL);
 
-    processor.mFontgrp = GetCurrentFontStyle();
-    NS_ASSERTION(processor.mFontgrp, "font group is null");
+    gfxTextRunCache::AutoTextRun textRun;
+    textRun = gfxTextRunCache::MakeTextRun(textData,
+                                           textToDraw.Length(),
+                                           fontgrp,
+                                           mThebesContext,
+                                           aupdp,
+                                           textrunflags);
 
-    nscoord totalWidth;
+    if (!textRun.get())
+        return NS_ERROR_FAILURE;
 
-    // currently calls bidi algo twice since it needs the full width before
-    // rendering anything. Can probably restructure function to avoid this if
-    // it's cheaper to store all the runs locally rather than do bidi resolution
-    // twice.
-    rv = bidiUtils->ProcessText(textToDraw.get(),
-                                textToDraw.Length(),
-                                isRTL ? NSBIDI_RTL : NSBIDI_LTR,
-                                presShell->GetPresContext(),
-                                processor,
-                                nsBidiPresUtils::MODE_MEASURE,
-                                nsnull,
-                                0,
-                                &totalWidth);
-    if (NS_FAILED(rv))
-        return rv;
+    gfxPoint pt(x, y);
+    
+    // get the text width
+    PRBool tightBoundingBox = PR_FALSE;
+    gfxTextRun::Metrics textRunMetrics = textRun->MeasureText(/* offset = */ 0,
+                                                       textToDraw.Length(),
+                                                       tightBoundingBox,
+                                                       mThebesContext,
+                                                       nsnull);
+    gfxFloat textWidth = textRunMetrics.mAdvanceWidth/gfxFloat(aupdp);
 
-    if (aWidth)
-        *aWidth = static_cast<float>(totalWidth);
 
-    // if only measuring, don't need to do any more work
-    if (aOp==TEXT_DRAW_OPERATION_MEASURE)
-        return NS_OK;
-
-    // offset pt.x based on text align
+    // offset pt x based on text align
     gfxFloat anchorX;
 
     if (CurrentState().textAlign == TEXT_ALIGN_CENTER)
@@ -2061,11 +1953,14 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
     else
         anchorX = 1;
 
-    processor.mPt.x -= anchorX * totalWidth;
+    if (isRTL)
+        pt.x += (1 - anchorX) * textWidth;
+    else
+        pt.x -= anchorX * textWidth;
 
-    // offset pt.y based on text baseline
-    NS_ASSERTION(processor.mFontgrp->FontListLength()>0, "font group contains no fonts");
-    const gfxFont::Metrics& fontMetrics = processor.mFontgrp->GetFontAt(0)->GetMetrics();
+    // offset pt y based on text baseline
+    NS_ASSERTION(fontgrp->FontListLength()>0, "font group contains no fonts");
+    const gfxFont::Metrics& fontMetrics = fontgrp->GetFontAt(0)->GetMetrics();
 
     gfxFloat anchorY;
 
@@ -2078,7 +1973,7 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
         anchorY = 0; // currently unavailable
         break;
     case TEXT_BASELINE_MIDDLE:
-        anchorY = (fontMetrics.emAscent - fontMetrics.emDescent) * .5f;
+        anchorY = (fontMetrics.emAscent-fontMetrics.emDescent)*.5f;
         break;
     case TEXT_BASELINE_ALPHABETIC:
         anchorY = 0;
@@ -2094,59 +1989,93 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
         return NS_ERROR_FAILURE;
     }
 
-    processor.mPt.y += anchorY;
+    pt.y += anchorY;
 
-    processor.mPt.x *= processor.mAppUnitsPerDevPixel;
-    processor.mPt.y *= processor.mAppUnitsPerDevPixel;
-
-    // if text is over aMaxWidth, then scale the text horizontally such that its
-    // width is precisely aMaxWidth
-    if (aMaxWidth > 0 && totalWidth > aMaxWidth) {
-        mThebesContext->Save();
+    // if text is over maxWidth, then scale the text horizonally such that its
+    // width is precisely maxWidth
+    if (maxWidth>0 && textWidth > maxWidth) {
+        cairo_save(mCairo);
         // translate the anchor point to 0, then scale and translate back
-        gfxPoint trans(aX, 0);
-        mThebesContext->Translate(trans);
-        mThebesContext->Scale(aMaxWidth/totalWidth, 1);
-        mThebesContext->Translate(-trans);
+        cairo_translate(mCairo, x, 0);
+        cairo_scale(mCairo, (float)(maxWidth/textWidth), 1);
+        cairo_translate(mCairo, -x, 0);
     }
 
-    cairo_path_t* old_path;
+    pt.x *= aupdp;
+    pt.y *= aupdp;
 
-    // back up path if stroking
-    if (aOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE)
-        old_path = cairo_copy_path(mCairo);
-    else
-        ApplyStyle(STYLE_FILL);
-
-    rv = bidiUtils->ProcessText(textToDraw.get(),
-                                textToDraw.Length(),
-                                isRTL ? NSBIDI_RTL : NSBIDI_LTR,
-                                presShell->GetPresContext(),
-                                processor,
-                                nsBidiPresUtils::MODE_DRAW,
-                                nsnull,
-                                0,
-                                nsnull);
-
-    // stroke and restore path
-    if (aOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE) {
-        ApplyStyle(STYLE_STROKE);
-        mThebesContext->Stroke();
-
+    // stroke or fill depending on operation
+    if (op == TEXT_DRAW_OPERATION_STROKE) {
+        cairo_save(mCairo);
         cairo_new_path(mCairo);
-        if (old_path->status == CAIRO_STATUS_SUCCESS && old_path->num_data != 0)
-            cairo_append_path(mCairo, old_path);
-        cairo_path_destroy(old_path);
+        textRun->DrawToPath(mThebesContext,
+                            pt,
+                            /* offset = */ 0,
+                            textToDraw.Length(),
+                            nsnull,
+                            nsnull);
+        Stroke();
+        cairo_restore(mCairo);
+    } else {
+        NS_ASSERTION(op == TEXT_DRAW_OPERATION_FILL,
+            "operation should be FILL or STROKE");
+
+        ApplyStyle(STYLE_FILL);
+        textRun->Draw(mThebesContext,
+                      pt,
+                      /* offset = */ 0,
+                      textToDraw.Length(),
+                      nsnull,
+                      nsnull,
+                      nsnull);
     }
 
-    // have to restore the context if was modified for maxWidth
-    if (aMaxWidth > 0 && totalWidth > aMaxWidth)
-        mThebesContext->Restore();
+    // have to restore the context if was modified above
+    if (maxWidth>0 && textWidth > maxWidth)
+        cairo_restore(mCairo);
 
-    if (NS_FAILED(rv))
-        return rv;
+    return NS_OK;
+}
 
-    return Redraw();
+NS_IMETHODIMP
+nsCanvasRenderingContext2D::MeasureText(const nsAString& rawText,
+                                        nsIDOMTextMetrics** _retval)
+{
+    // replace all the whitespace characters with U+0020 SPACE
+    nsAutoString textToMeasure(rawText);
+    TextReplaceWhitespaceCharacters(textToMeasure);
+
+    const PRUnichar* textdata;
+    textToMeasure.GetData(&textdata);
+
+    PRUint32 textrunflags = 0;
+    PRUint32 aupdp;
+    GetAppUnitsValues(&aupdp, nsnull);
+
+    gfxTextRunCache::AutoTextRun textRun;
+    textRun = gfxTextRunCache::MakeTextRun(textdata,
+                                           textToMeasure.Length(),
+                                           GetCurrentFontStyle(),
+                                           mThebesContext,
+                                           aupdp,
+                                           textrunflags);
+
+    if(!textRun.get())
+        return NS_ERROR_FAILURE;
+
+    PRBool tightBoundingBox = PR_FALSE;
+    gfxTextRun::Metrics metrics = textRun->MeasureText(/* offset = */ 0, textToMeasure.Length(),
+                                                       tightBoundingBox, mThebesContext,
+                                                       nsnull);
+
+    float textWidth = float(metrics.mAdvanceWidth/gfxFloat(aupdp));
+
+    nsTextMetrics *textMetrics = new nsTextMetrics(textWidth);
+    if (!textMetrics)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    NS_ADDREF(*_retval = textMetrics);
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2821,9 +2750,7 @@ nsCanvasRenderingContext2D::CairoSurfaceFromElement(nsIDOMElement *imgElt,
             if (!forceCopy && canvas->CountContexts() == 1) {
                 nsICanvasRenderingContextInternal *srcCanvas = canvas->GetContextAtIndex(0);
                 rv = srcCanvas->GetThebesSurface(getter_AddRefs(sourceSurface));
-                // force a copy if we couldn't get the surface, or if it's
-                // the same as what we have
-                if (sourceSurface == mThebesSurface || NS_FAILED(rv))
+                if (NS_FAILED(rv))
                     sourceSurface = nsnull;
             }
 

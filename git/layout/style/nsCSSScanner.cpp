@@ -167,15 +167,6 @@ nsCSSToken::AppendToString(nsString& aBuffer)
     case eCSSToken_Dashmatch:
       aBuffer.AppendLiteral("|=");
       break;
-    case eCSSToken_Beginsmatch:
-      aBuffer.AppendLiteral("^=");
-      break;
-    case eCSSToken_Endsmatch:
-      aBuffer.AppendLiteral("$=");
-      break;
-    case eCSSToken_Containsmatch:
-      aBuffer.AppendLiteral("*=");
-      break;
     case eCSSToken_Error:
       aBuffer.Append(mSymbol);
       aBuffer.Append(mIdent);
@@ -401,7 +392,7 @@ void nsCSSScanner::ReportUnexpectedParams(const char* aMessage,
   AddToError(str);
 }
 
-// aLookingFor is a plain string, not a format string
+// aMessage must take no parameters
 void nsCSSScanner::ReportUnexpectedEOF(const char* aLookingFor)
 {
   ENSURE_STRINGBUNDLE;
@@ -413,22 +404,6 @@ void nsCSSScanner::ReportUnexpectedEOF(const char* aLookingFor)
   const PRUnichar *params[] = {
     innerStr.get()
   };
-  nsXPIDLString str;
-  gStringBundle->FormatStringFromName(NS_LITERAL_STRING("PEUnexpEOF2").get(),
-                                      params, NS_ARRAY_LENGTH(params),
-                                      getter_Copies(str));
-  AddToError(str);
-}
-
-// aLookingFor is a single character
-void nsCSSScanner::ReportUnexpectedEOF(PRUnichar aLookingFor)
-{
-  ENSURE_STRINGBUNDLE;
-
-  const PRUnichar lookingForStr[] = {
-    PRUnichar('\''), aLookingFor, PRUnichar('\''), PRUnichar(0)
-  };
-  const PRUnichar *params[] = { lookingForStr };
   nsXPIDLString str;
   gStringBundle->FormatStringFromName(NS_LITERAL_STRING("PEUnexpEOF2").get(),
                                       params, NS_ARRAY_LENGTH(params),
@@ -650,12 +625,10 @@ PRBool nsCSSScanner::Next(nsresult& aErrorCode, nsCSSToken& aToken)
   // AT_KEYWORD
   if (ch == '@') {
     PRInt32 nextChar = Read(aErrorCode);
-    if (nextChar >= 0) {
-      PRInt32 followingChar = Peek(aErrorCode);
-      Pushback(nextChar);
-      if (StartsIdent(nextChar, followingChar))
-        return ParseAtKeyword(aErrorCode, ch, aToken);
-    }
+    PRInt32 followingChar = Peek(aErrorCode);
+    Pushback(nextChar);
+    if (StartsIdent(nextChar, followingChar))
+      return ParseAtKeyword(aErrorCode, ch, aToken);
   }
 
   // NUMBER or DIM
@@ -755,7 +728,7 @@ PRBool nsCSSScanner::Next(nsresult& aErrorCode, nsCSSToken& aToken)
         aToken.mType = eCSSToken_Containsmatch;
       }
       return PR_TRUE;
-    } else if (nextChar >= 0) {
+    } else {
       Pushback(nextChar);
     }
   }

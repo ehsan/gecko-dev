@@ -400,17 +400,8 @@ nsAttrValue::ToString(nsAString& aResult) const
     case eSVGValue:
     {
       GetMiscContainer()->mSVGValue->GetValueString(aResult);
-      break;
     }
 #endif
-    case eFloatValue:
-    {
-      nsAutoString str;
-      str.AppendFloat(GetFloatValue());
-      aResult = str;
-
-      break;
-    }
   }
 }
 
@@ -966,19 +957,6 @@ nsAttrValue::ParseColor(const nsAString& aString, nsIDocument* aDocument)
     cont->mType = eColor;
   }
 
-  return PR_TRUE;
-}
-
-PRBool nsAttrValue::ParseFloatValue(const nsAString& aString)
-{
-  ResetIfSet();
-
-  PRInt32 ec;
-  float val = PromiseFlatString(aString).ToFloat(&ec);
-  if (NS_FAILED(ec)) {
-    return PR_FALSE;
-  }
-  SetFloatValue(val);
   return PR_TRUE;
 }
 

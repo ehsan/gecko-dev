@@ -197,25 +197,30 @@ nsDOMUIEvent::InitUIEvent(const nsAString & typeArg, PRBool canBubbleArg, PRBool
 nsPoint
 nsDOMUIEvent::GetPagePoint()
 {
-  if (mPrivateDataDuplicated) {
-    return mPagePoint;
-  }
-
-  nsPoint pagePoint = GetClientPoint();
-
-  // If there is some scrolling, add scroll info to client point.
-  if (mPresContext && mPresContext->GetPresShell()) {
+  if (((nsGUIEvent*)mEvent)->widget) {
+    // Native event; calculate using presentation
+    nsPoint pt(0, 0);
     nsIPresShell* shell = mPresContext->GetPresShell();
-    nsIScrollableFrame* scrollframe = shell->GetRootScrollFrameAsScrollable();
-    if (scrollframe) {
-      nsPoint pt = scrollframe->GetScrollPosition();
-      pagePoint += nsPoint(nsPresContext::AppUnitsToIntCSSPixels(pt.x),
-                           nsPresContext::AppUnitsToIntCSSPixels(pt.y));
+    if (!shell) {
+      return pt;
     }
+    nsIScrollableFrame* scrollframe = shell->GetRootScrollFrameAsScrollable();
+
+    if (scrollframe)
+      pt += scrollframe->GetScrollPosition();
+    nsIFrame* rootFrame = shell->GetRootFrame();
+    if (rootFrame)
+      pt += nsLayoutUtils::GetEventCoordinatesRelativeTo(mEvent, rootFrame);
+    return nsPoint(nsPresContext::AppUnitsToIntCSSPixels(pt.x),
+                   nsPresContext::AppUnitsToIntCSSPixels(pt.y));
   }
 
-  return pagePoint;
+  // If event was initialized manually using InitMouseEvent(...),
+  // page coordinates must be the same as client coordinates. See bug 405632.
+  return mPrivateDataDuplicated ? mPagePoint : GetClientPoint();
 }
+
+
 
 NS_IMETHODIMP
 nsDOMUIEvent::GetPageX(PRInt32* aPageX)

@@ -383,8 +383,14 @@ nsWindow::ReleaseGlobals()
   }
 }
 
+#ifndef USE_XIM
 NS_IMPL_ISUPPORTS_INHERITED1(nsWindow, nsCommonWidget,
                              nsISupportsWeakReference)
+#else
+NS_IMPL_ISUPPORTS_INHERITED2(nsWindow, nsCommonWidget,
+                             nsISupportsWeakReference,
+                             nsIKBStateControl)
+#endif
 
 NS_IMETHODIMP
 nsWindow::Create(nsIWidget        *aParent,
@@ -5490,7 +5496,7 @@ nsWindow::IMEDestroyContext(void)
     }
 
     mIMEData->mOwner   = nsnull;
-    mIMEData->mEnabled = nsIWidget::IME_STATUS_DISABLED;
+    mIMEData->mEnabled = nsIKBStateControl::IME_STATUS_DISABLED;
 
     if (mIMEData->mContext) {
         workaround_gtk_im_display_closed(GTK_WIDGET(mContainer),
@@ -5677,7 +5683,7 @@ nsWindow::IMEGetContext()
 static PRBool
 IsIMEEnabledState(PRUint32 aState)
 {
-    return aState == nsIWidget::IME_STATUS_ENABLED;
+    return aState == nsIKBStateControl::IME_STATUS_ENABLED;
 }
 
 PRBool
@@ -5689,8 +5695,8 @@ nsWindow::IMEIsEnabledState(void)
 static PRBool
 IsIMEEditableState(PRUint32 aState)
 {
-    return aState == nsIWidget::IME_STATUS_ENABLED ||
-           aState == nsIWidget::IME_STATUS_PASSWORD;
+    return aState == nsIKBStateControl::IME_STATUS_ENABLED ||
+           aState == nsIKBStateControl::IME_STATUS_PASSWORD;
 }
 
 PRBool
@@ -5781,6 +5787,7 @@ nsWindow::IMEFilterEvent(GdkEventKey *aEvent)
     return retval;
 }
 
+/* nsIKBStateControl */
 NS_IMETHODIMP
 nsWindow::ResetInputState()
 {
@@ -5867,7 +5874,7 @@ nsWindow::GetIMEEnabled(PRUint32* aState)
     IMEInitData();
 
     *aState =
-      mIMEData ? mIMEData->mEnabled : nsIWidget::IME_STATUS_DISABLED;
+      mIMEData ? mIMEData->mEnabled : nsIKBStateControl::IME_STATUS_DISABLED;
     return NS_OK;
 }
 
@@ -6188,9 +6195,9 @@ IM_get_input_context(nsWindow *aWindow)
     nsWindow::nsIMEData *data = aWindow->mIMEData;
     if (!data)
         return nsnull;
-    if (data->mEnabled == nsIWidget::IME_STATUS_ENABLED)
+    if (data->mEnabled == nsIKBStateControl::IME_STATUS_ENABLED)
         return data->mContext;
-    if (data->mEnabled == nsIWidget::IME_STATUS_PASSWORD)
+    if (data->mEnabled == nsIKBStateControl::IME_STATUS_PASSWORD)
         return data->mSimpleContext;
     return data->mDummyContext;
 }

@@ -63,11 +63,16 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSISCREEN
 
-  void Init(GdkWindow *aRootWindow);
+  void Init(PRBool aReInit = PR_FALSE);
+  void ReInit() { Init(PR_TRUE); }
   void Init(XineramaScreenInfo *aScreenInfo);
 
+  Atom NetWorkareaAtom() { return mNetWorkareaAtom; }
+
 private:
+  GdkWindow *mRootWindow;
   PRUint32 mScreenNum;
+  Atom mNetWorkareaAtom;
   nsRect mRect; // in pixels, not twips
   nsRect mAvailRect; // in pixels, not twips
 };

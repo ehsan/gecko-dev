@@ -49,7 +49,7 @@
 #include "nsEditorCID.h"
 #include "nsLayoutCID.h"
 #include "nsIDocumentEncoder.h"
-#include "nsCaret.h"
+#include "nsICaret.h"
 #include "nsISelectionListener.h"
 #include "nsISelectionPrivate.h"
 #include "nsIController.h"
@@ -740,14 +740,13 @@ nsTextInputSelectionImpl::SetCaretReadOnly(PRBool aReadOnly)
   nsCOMPtr<nsIPresShell> shell = do_QueryReferent(mPresShellWeak, &result);
   if (shell)
   {
-    nsRefPtr<nsCaret> caret;
+    nsCOMPtr<nsICaret> caret;
     if (NS_SUCCEEDED(shell->GetCaret(getter_AddRefs(caret))))
     {
       nsISelection* domSel = mFrameSelection->
         GetSelection(nsISelectionController::SELECTION_NORMAL);
       if (domSel)
-        caret->SetCaretReadOnly(aReadOnly);
-      return NS_OK;
+        return caret->SetCaretReadOnly(aReadOnly);
     }
   }
   return NS_ERROR_FAILURE;
@@ -767,7 +766,7 @@ nsTextInputSelectionImpl::GetCaretVisible(PRBool *_retval)
   nsCOMPtr<nsIPresShell> shell = do_QueryReferent(mPresShellWeak, &result);
   if (shell)
   {
-    nsRefPtr<nsCaret> caret;
+    nsCOMPtr<nsICaret> caret;
     if (NS_SUCCEEDED(shell->GetCaret(getter_AddRefs(caret))))
     {
       nsISelection* domSel = mFrameSelection->
@@ -787,14 +786,13 @@ nsTextInputSelectionImpl::SetCaretVisibilityDuringSelection(PRBool aVisibility)
   nsCOMPtr<nsIPresShell> shell = do_QueryReferent(mPresShellWeak, &result);
   if (shell)
   {
-    nsRefPtr<nsCaret> caret;
+    nsCOMPtr<nsICaret> caret;
     if (NS_SUCCEEDED(shell->GetCaret(getter_AddRefs(caret))))
     {
       nsISelection* domSel = mFrameSelection->
         GetSelection(nsISelectionController::SELECTION_NORMAL);
       if (domSel)
-        caret->SetVisibilityDuringSelection(aVisibility);
-      return NS_OK;
+        return caret->SetVisibilityDuringSelection(aVisibility);
     }
   }
   return NS_ERROR_FAILURE;
@@ -1133,10 +1131,10 @@ nsTextControlFrame::PreDestroy()
   }
 
 //unregister self from content
+  mTextListener->SetFrame(nsnull);
   nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
   if (mTextListener)
   {
-    mTextListener->SetFrame(nsnull);
     if (mContent)
     {
       mContent->RemoveEventListenerByIID(static_cast<nsIDOMFocusListener  *>(mTextListener), NS_GET_IID(nsIDOMFocusListener));
@@ -1310,7 +1308,8 @@ nsTextControlFrame::CalcIntrinsicSize(nsIRenderingContext* aRenderingContext,
   NS_ENSURE_SUCCESS(rv, rv);
   aRenderingContext->SetFont(fontMet);
 
-  lineHeight = nsHTMLReflowState::CalcLineHeight(this);
+  lineHeight = nsHTMLReflowState::CalcLineHeight(aRenderingContext,
+                                                 this);
   fontMet->GetAveCharWidth(charWidth);
   fontMet->GetMaxAdvance(charMaxAdvance);
 
@@ -1541,12 +1540,12 @@ nsTextControlFrame::CreateFrameFor(nsIContent*      aContent)
     
   // Get the caret and make it a selection listener.
 
-  nsRefPtr<nsISelection> domSelection;
+  nsCOMPtr<nsISelection> domSelection;
   if (NS_SUCCEEDED(mSelCon->GetSelection(nsISelectionController::SELECTION_NORMAL,
                                          getter_AddRefs(domSelection))) &&
       domSelection) {
     nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(domSelection));
-    nsRefPtr<nsCaret> caret;
+    nsCOMPtr<nsICaret> caret;
     nsCOMPtr<nsISelectionListener> listener;
     if (NS_SUCCEEDED(shell->GetCaret(getter_AddRefs(caret))) && caret) {
       listener = do_QueryInterface(caret);
@@ -1900,7 +1899,7 @@ void nsTextControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
   if (!ourSel) return;
 
   nsIPresShell* presShell = PresContext()->GetPresShell();
-  nsRefPtr<nsCaret> caret;
+  nsCOMPtr<nsICaret> caret;
   presShell->GetCaret(getter_AddRefs(caret));
   if (!caret) return;
   caret->SetCaretDOMSelection(ourSel);

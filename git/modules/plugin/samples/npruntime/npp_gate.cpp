@@ -261,6 +261,11 @@ int16	NPP_HandleEvent(NPP instance, void* event)
   return rv;
 }
 
+jref NPP_GetJavaClass (void)
+{
+  return NULL;
+}
+
 NPObject *NPP_GetScriptableInstance(NPP instance)
 {
   if(!instance)

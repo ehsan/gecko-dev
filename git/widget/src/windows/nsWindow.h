@@ -49,6 +49,7 @@
 #include "nsToolkit.h"
 
 #include "nsIWidget.h"
+#include "nsIKBStateControl.h"
 
 #include "nsIMouseListener.h"
 #include "nsIEventListener.h"
@@ -113,7 +114,8 @@ const LPCSTR kClassNameDialog         = "MozillaDialogClass";
  */
 
 class nsWindow : public nsSwitchToUIThread,
-                 public nsBaseWidget
+                 public nsBaseWidget,
+                 public nsIKBStateControl
 {
 public:
   nsWindow();
@@ -220,6 +222,8 @@ private:
   nsresult                SetupTranslucentWindowMemoryBitmap(PRBool aTransparent);
 public:
 #endif
+
+  // nsIKBStateControl interface
 
   NS_IMETHOD ResetInputState();
   NS_IMETHOD SetIMEOpenState(PRBool aState);
@@ -419,7 +423,11 @@ protected:
   nsRefPtr<gfxWindowsSurface> mTransparentSurface;
 
   HDC           mMemoryDC;
+  HBITMAP       mMemoryBitmap;
+  PRUint8*      mMemoryBits;
+  PRUint8*      mAlphaMask;
   PRPackedBool  mIsTransparent;
+  PRPackedBool  mIsTopTransparent;     // Topmost window itself or any of it's child windows has tranlucency enabled
 #endif
   PRPackedBool  mHasAeroGlass;
   PRPackedBool  mIsTopWidgetWindow;

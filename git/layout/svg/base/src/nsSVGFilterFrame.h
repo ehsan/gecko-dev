@@ -52,15 +52,12 @@ protected:
 
 public:    
   nsresult FilterPaint(nsSVGRenderState *aContext,
-                       nsISVGChildFrame *aTarget,
-                       const nsRect* aDirtyRect);
+                       nsISVGChildFrame *aTarget);
 
   // Returns invalidation region for filter (can be bigger than the
   // referencing geometry to filter region sizing) in device pixels
   // relative to the origin of the outer svg.
-  // aRect is the area of device pixels that would be invalidated. Normally
-  // you'd just pass aTarget->GetRect() here.
-  nsRect GetInvalidationRegion(nsIFrame *aTarget, const nsRect& aRect);
+  nsRect GetInvalidationRegion(nsIFrame *aTarget);
 
   /**
    * Get the "type" of the frame
@@ -71,10 +68,8 @@ public:
 
 private:
   // implementation helpers
-  nsresult CreateInstance(nsISVGChildFrame *aTarget,
-                          const nsRect *aDirtyOutputRect,
-                          const nsRect *aDirtyInputRect,
-                          nsSVGFilterInstance **aInstance);
+  void FilterFailCleanup(nsSVGRenderState *aContext,
+                         nsISVGChildFrame *aTarget);
 };
 
 nsIContent *

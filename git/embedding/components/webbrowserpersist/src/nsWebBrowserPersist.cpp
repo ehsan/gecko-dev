@@ -2840,14 +2840,8 @@ nsresult nsWebBrowserPersist::OnWalkDOMNode(nsIDOMNode *aNode)
                 mCurrentBaseURI = baseURI;
             }
         }
-
-        URIData *archiveURIData = nsnull;
-        StoreURIAttribute(aNode, "archive", PR_TRUE, &archiveURIData);
-        // We only store 'code' locally if there is no 'archive',
-        // otherwise we assume the archive file(s) contains it (bug 430283).
-        if (!archiveURIData)
-            StoreURIAttribute(aNode, "code");
-
+        StoreURIAttribute(aNode, "code");
+        StoreURIAttribute(aNode, "archive");
         // restore the base URI we really want to have
         mCurrentBaseURI = oldBase;
         return NS_OK;

@@ -927,7 +927,6 @@ function rebuildPluginsDS()
         homepageURL = /<A\s+HREF=["']?([^>"'\s]*)/i.exec(plugin.description)[1];
 
       gPlugins[name][desc] = { filename    : plugin.filename,
-                               version     : plugin.version,
                                homepageURL : homepageURL,
                                disabled    : plugin.disabled,
                                blocklisted : plugin.blocklisted,
@@ -944,10 +943,6 @@ function rebuildPluginsDS()
       gPluginsDS.Assert(pluginNode,
                         gRDF.GetResource(PREFIX_NS_EM + "name"),
                         gRDF.GetLiteral(pluginName),
-                        true);
-      gPluginsDS.Assert(pluginNode,
-                        gRDF.GetResource(PREFIX_NS_EM + "version"),
-                        gRDF.GetLiteral(plugin.version),
                         true);
       gPluginsDS.Assert(pluginNode,
                         gRDF.GetResource(PREFIX_NS_EM + "addonID"),

@@ -39,7 +39,7 @@
 #include "nsGUIEvent.h"
 #include "nsDOMEvent.h"
 #include "nsEventListenerManager.h"
-#include "nsCaret.h"
+#include "nsICaret.h"
 #include "nsIDOMNSEvent.h"
 #include "nsIDOMEventListener.h"
 #include "nsIDOMMouseListener.h"
@@ -1445,7 +1445,7 @@ nsEventListenerManager::PrepareToUseCaretPosition(nsIWidget* aEventWidget,
   nsresult rv;
 
   // check caret visibility
-  nsRefPtr<nsCaret> caret;
+  nsCOMPtr<nsICaret> caret;
   rv = aShell->GetCaret(getter_AddRefs(caret));
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
   NS_ENSURE_TRUE(caret, PR_FALSE);
@@ -1455,9 +1455,10 @@ nsEventListenerManager::PrepareToUseCaretPosition(nsIWidget* aEventWidget,
   if (NS_FAILED(rv) || ! caretVisible)
     return PR_FALSE;
 
-  // caret selection, this is a temporary weak reference, so no refcounting is 
-  // needed
-  nsISelection* domSelection = caret->GetCaretDOMSelection();
+  // caret selection, watch out: GetCaretDOMSelection can return null but NS_OK
+  nsCOMPtr<nsISelection> domSelection;
+  rv = caret->GetCaretDOMSelection(getter_AddRefs(domSelection));
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
   NS_ENSURE_TRUE(domSelection, PR_FALSE);
 
   // since the match could be an anonymous textnode inside a
@@ -1520,7 +1521,7 @@ nsEventListenerManager::PrepareToUseCaretPosition(nsIWidget* aEventWidget,
   PRBool isCollapsed;
   nsIView* view;
   nsRect caretCoords;
-  rv = caret->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates,
+  rv = caret->GetCaretCoordinates(nsICaret::eRenderingViewCoordinates,
                                   domSelection, &caretCoords, &isCollapsed,
                                   &view);
   NS_ENSURE_SUCCESS(rv, PR_FALSE);

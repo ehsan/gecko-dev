@@ -307,10 +307,6 @@
   -moz-margin-end: -4px;
 }
 
-.textbox-input-searchimage {
-  display: none;
-}
-
 .textbox-input-closebutton {
   -moz-appearance: none;
   margin: -2px 0;

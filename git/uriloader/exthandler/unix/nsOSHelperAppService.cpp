@@ -67,6 +67,7 @@
 #include "nsDirectoryServiceUtils.h"
 #include "prenv.h"      // for PR_GetEnv()
 #include "nsAutoPtr.h"
+#include <stdlib.h>		// for system()
 
 #define LOG(args) PR_LOG(mLog, PR_LOG_DEBUG, args)
 #define LOG_ENABLED() PR_LOG_TEST(mLog, PR_LOG_DEBUG)
@@ -1140,40 +1141,14 @@ nsOSHelperAppService::GetHandlerAndDescriptionFromMailcapFile(const nsAString& a
                                        aMinorType,
                                        aTypeOptions,
                                        testCommand);
-                  if (NS_FAILED(rv))
-                    continue;
-                  nsCOMPtr<nsIProcess> process = do_CreateInstance(NS_PROCESS_CONTRACTID, &rv);
-                  if (NS_FAILED(rv))
-                    continue;
-                  nsCOMPtr<nsILocalFile> file(do_CreateInstance(NS_LOCAL_FILE_CONTRACTID, &rv));
-                  if (NS_FAILED(rv))
-                    continue;
-                  rv = file->InitWithNativePath(NS_LITERAL_CSTRING("/bin/sh"));
-                  if (NS_FAILED(rv))
-                    continue;
-                  rv = process->Init(file);
-                  if (NS_FAILED(rv))
-                    continue;
-                  const char *args[] = { "-c", testCommand.get() };
                   LOG(("Running Test: %s\n", testCommand.get()));
-                  PRUint32 pid;
-                  rv = process->Run(PR_TRUE, args, 2, &pid);
-                  if (NS_FAILED(rv))
-                    continue;
-                  PRInt32 exitValue;
-                  rv = process->GetExitValue(&exitValue);
-                  if (NS_FAILED(rv))
-                    continue;
-                  LOG(("Exit code: %d\n", exitValue));
-                  if (exitValue) {
+                  // XXX this should not use system(), since that can block the UI thread!
+                  if (NS_SUCCEEDED(rv) && system(testCommand.get()) != 0) {
                     match = PR_FALSE;
                   }
                 }
               } else {
                 // This is an option that just has a name but no value (eg "copiousoutput")
-                if (optionName.EqualsLiteral("needsterminal")) {
-                  match = PR_FALSE;
-                }
               }
             }
             

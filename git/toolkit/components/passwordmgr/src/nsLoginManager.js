@@ -842,11 +842,11 @@ LoginManager.prototype = {
             if (!login.username && formLogin.username) {
                 var restoreMe = formLogin.username;
                 formLogin.username = ""; 
-                same = formLogin.matches(login, false);
+                same = formLogin.matches(login);
                 formLogin.username = restoreMe;
             } else if (!formLogin.username && login.username) {
                 formLogin.username = login.username;
-                same = formLogin.matches(login, false);
+                same = formLogin.matches(login);
                 formLogin.username = ""; // we know it's always blank.
             } else {
                 same = formLogin.matches(login, true);
@@ -1000,11 +1000,6 @@ LoginManager.prototype = {
 
         // Need a valid password field to do anything.
         if (passwordField == null)
-            return [false, foundLogins];
-
-        // If there's only a password field and it has a value, there's
-        // nothing for us to do. (Don't clobber the existing value)
-        if (!usernameField && passwordField.value)
             return [false, foundLogins];
 
         // Need to get a list of logins if we weren't given them

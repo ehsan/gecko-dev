@@ -876,7 +876,10 @@ nsAccessNode::GetLanguage(nsAString& aLanguage)
     }
   }
 
-  nsAccUtils::GetLanguageFor(content, nsnull, aLanguage);
+  nsIContent *walkUp = content;
+  while (walkUp && !walkUp->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::lang, aLanguage)) {
+    walkUp = walkUp->GetParent();
+  }
 
   if (aLanguage.IsEmpty()) { // Nothing found, so use document's language
     nsIDocument *doc = content->GetOwnerDoc();

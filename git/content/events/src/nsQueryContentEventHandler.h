@@ -50,7 +50,7 @@
 class nsPresContext;
 class nsIPresShell;
 class nsQueryContentEvent;
-class nsCaret;
+class nsICaret;
 struct nsRect;
 
 /*
@@ -105,7 +105,7 @@ protected:
   // The helper for OnQueryCharacterRect/OnQueryCaretRect.
   // Don't call for another event.
   nsresult QueryRectFor(nsQueryContentEvent* aEvent, nsIRange* aRange,
-                        nsCaret* aCaret);
+                        nsICaret* aCaret);
   // Expand aXPOffset to the nearest offset in cluster boundary. aForward is
   // true, it is expanded to forward.
   nsresult ExpandToClusterBoundary(nsIContent* aContent, PRBool aForward,

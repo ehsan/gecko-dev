@@ -51,7 +51,6 @@
 #include "nsTableOuterFrame.h"
 #include "nsTableFrame.h"
 #include "nsTableCellFrame.h"
-#include "celldata.h"
 
 #include "nsMathMLmtableFrame.h"
 
@@ -776,7 +775,6 @@ nsMathMLmtdFrame::GetRowSpan()
       rowspan = value.ToInteger(&error);
       if (error || rowspan < 0)
         rowspan = 1;
-      rowspan = PR_MIN(rowspan, MAX_ROWSPAN);
     }
   }
   return rowspan;
@@ -794,7 +792,7 @@ nsMathMLmtdFrame::GetColSpan()
     if (!value.IsEmpty()) {
       PRInt32 error;
       colspan = value.ToInteger(&error);
-      if (error || colspan < 0 || colspan > MAX_COLSPAN)
+      if (error || colspan < 0)
         colspan = 1;
     }
   }
@@ -846,6 +844,19 @@ NS_NewMathMLmtdInnerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 nsMathMLmtdInnerFrame::~nsMathMLmtdInnerFrame()
 {
+}
+
+NS_IMETHODIMP
+nsMathMLmtdInnerFrame::Init(nsIContent*      aContent,
+                            nsIFrame*        aParent,
+                            nsIFrame*        aPrevInFlow)
+{
+  nsresult rv = nsBlockFrame::Init(aContent, aParent, aPrevInFlow);
+
+  // record that children that are ignorable whitespace should be excluded
+  mState |= NS_FRAME_EXCLUDE_IGNORABLE_WHITESPACE;
+
+  return rv;
 }
 
 NS_IMETHODIMP

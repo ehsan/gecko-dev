@@ -29,7 +29,6 @@ EXPORTS		= 	gfxASurface.h \
 			gfxTypes.h \
 			gfxTextRunCache.h \
 			gfxTextRunWordCache.h \
-			gfxUtils.h \
 			$(NULL)
 
 EXPORTS += gfxFontTest.h

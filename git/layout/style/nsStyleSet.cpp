@@ -428,23 +428,17 @@ void
 nsStyleSet::AddImportantRules(nsRuleNode* aCurrLevelNode,
                               nsRuleNode* aLastPrevLevelNode)
 {
-  if (!aCurrLevelNode)
+  if (!aCurrLevelNode || aCurrLevelNode == aLastPrevLevelNode)
     return;
 
-  nsAutoTArray<nsCOMPtr<nsIStyleRule>, 16> importantRules;
-  for (nsRuleNode *node = aCurrLevelNode; node != aLastPrevLevelNode;
-       node = node->GetParent()) {
-    nsIStyleRule *rule = node->GetRule();
-    nsCOMPtr<nsICSSStyleRule> cssRule(do_QueryInterface(rule));
-    if (cssRule) {
-      nsCOMPtr<nsIStyleRule> impRule = cssRule->GetImportantRule();
-      if (impRule)
-        importantRules.AppendElement(impRule);
-    }
-  }
+  AddImportantRules(aCurrLevelNode->GetParent(), aLastPrevLevelNode);
 
-  for (PRUint32 i = importantRules.Length(); i-- != 0; ) {
-    mRuleWalker->Forward(importantRules[i]);
+  nsIStyleRule *rule = aCurrLevelNode->GetRule();
+  nsCOMPtr<nsICSSStyleRule> cssRule(do_QueryInterface(rule));
+  if (cssRule) {
+    nsCOMPtr<nsIStyleRule> impRule = cssRule->GetImportantRule();
+    if (impRule)
+      mRuleWalker->Forward(impRule);
   }
 }
 
@@ -453,17 +447,16 @@ void
 nsStyleSet::AssertNoImportantRules(nsRuleNode* aCurrLevelNode,
                                    nsRuleNode* aLastPrevLevelNode)
 {
-  if (!aCurrLevelNode)
+  if (!aCurrLevelNode || aCurrLevelNode == aLastPrevLevelNode)
     return;
 
-  for (nsRuleNode *node = aCurrLevelNode; node != aLastPrevLevelNode;
-       node = node->GetParent()) {
-    nsIStyleRule *rule = node->GetRule();
-    nsCOMPtr<nsICSSStyleRule> cssRule(do_QueryInterface(rule));
-    if (cssRule) {
-      nsCOMPtr<nsIStyleRule> impRule = cssRule->GetImportantRule();
-      NS_ASSERTION(!impRule, "Unexpected important rule");
-    }
+  AssertNoImportantRules(aCurrLevelNode->GetParent(), aLastPrevLevelNode);
+
+  nsIStyleRule *rule = aCurrLevelNode->GetRule();
+  nsCOMPtr<nsICSSStyleRule> cssRule(do_QueryInterface(rule));
+  if (cssRule) {
+    nsCOMPtr<nsIStyleRule> impRule = cssRule->GetImportantRule();
+    NS_ASSERTION(!impRule, "Unexpected important rule");
   }
 }
 
@@ -471,15 +464,14 @@ void
 nsStyleSet::AssertNoCSSRules(nsRuleNode* aCurrLevelNode,
                              nsRuleNode* aLastPrevLevelNode)
 {
-  if (!aCurrLevelNode)
+  if (!aCurrLevelNode || aCurrLevelNode == aLastPrevLevelNode)
     return;
 
-  for (nsRuleNode *node = aCurrLevelNode; node != aLastPrevLevelNode;
-       node = node->GetParent()) {
-    nsIStyleRule *rule = node->GetRule();
-    nsCOMPtr<nsICSSStyleRule> cssRule(do_QueryInterface(rule));
-    NS_ASSERTION(!cssRule || !cssRule->Selector(), "Unexpected CSS rule");
-  }
+  AssertNoCSSRules(aCurrLevelNode->GetParent(), aLastPrevLevelNode);
+
+  nsIStyleRule *rule = aCurrLevelNode->GetRule();
+  nsCOMPtr<nsICSSStyleRule> cssRule(do_QueryInterface(rule));
+  NS_ASSERTION(!cssRule || !cssRule->Selector(), "Unexpected CSS rule");
 }
 #endif
 

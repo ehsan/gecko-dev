@@ -51,7 +51,7 @@
 
 #include "nsIEditor.h"
 #include "nsIPlaintextEditor.h"
-#include "nsCaret.h"
+#include "nsICaret.h"
 #include "nsIPresShell.h"
 #include "nsWeakPtr.h"
 #include "nsIWeakReferenceUtils.h"
@@ -236,8 +236,8 @@ protected:
   nsIEditor* mEditor;
   nsWeakPtr  mPresShell;
   
-  nsRefPtr<nsCaret> mCaret;
-  PRBool            mCaretDrawn;
+  nsCOMPtr<nsICaret> mCaret;
+  PRBool             mCaretDrawn;
 };
 
 /** editor Implementation of the FocusListener interface

@@ -36,6 +36,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+#include "nsICaret.h"
 #include "nsCRT.h"
 
 #include "nsReadableUtils.h"

@@ -36,11 +36,9 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsGenericHTMLElement.h"
-#include "nsIDOMDocument.h"
-#ifdef MOZ_SVG
 #include "nsIDOMGetSVGDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsIDOMSVGDocument.h"
-#endif
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"

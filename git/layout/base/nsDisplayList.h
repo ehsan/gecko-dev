@@ -50,9 +50,9 @@
 #include "nsPoint.h"
 #include "nsRect.h"
 #include "nsISelection.h"
-#include "nsCaret.h"
 #include "plarena.h"
 #include "nsLayoutUtils.h"
+#include "nsICaret.h"
 #include "nsTArray.h"
 
 #include <stdlib.h>
@@ -248,7 +248,7 @@ public:
   /**
    * Get the caret associated with the current presshell.
    */
-  nsCaret* GetCaret();
+  nsICaret* GetCaret();
   /**
    * Notify the display list builder that we're entering a presshell.
    * aReferenceFrame should be a frame in the new presshell and aDirtyRect
@@ -955,7 +955,7 @@ protected:
 MOZ_DECL_CTOR_COUNTER(nsDisplayCaret)
 class nsDisplayCaret : public nsDisplayItem {
 public:
-  nsDisplayCaret(nsIFrame* aCaretFrame, nsCaret *aCaret)
+  nsDisplayCaret(nsIFrame* aCaretFrame, nsICaret *aCaret)
     : nsDisplayItem(aCaretFrame), mCaret(aCaret) {
     MOZ_COUNT_CTOR(nsDisplayCaret);
   }
@@ -973,7 +973,7 @@ public:
       const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("Caret")
 protected:
-  nsRefPtr<nsCaret> mCaret;
+  nsCOMPtr<nsICaret> mCaret;
 };
 
 /**

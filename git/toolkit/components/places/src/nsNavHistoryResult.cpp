@@ -51,6 +51,8 @@
 #include "nsIComponentManager.h"
 #include "nsIDateTimeFormat.h"
 #include "nsIDOMElement.h"
+#include "nsILocale.h"
+#include "nsILocaleService.h"
 #include "nsILocalFile.h"
 #include "nsIDynamicContainer.h"
 #include "nsIServiceManager.h"

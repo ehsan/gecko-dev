@@ -680,7 +680,7 @@ js_PutCallObject(JSContext *cx, JSStackFrame *fp)
         scope = OBJ_SCOPE(callobj);
         if (ok) {
             memcpy(callobj->dslots, fp->argv, fun->nargs * sizeof(jsval));
-            memcpy(callobj->dslots + fun->nargs, fp->slots,
+            memcpy(callobj->dslots + fun->nargs, fp->vars,
                    fun->u.i.nvars * sizeof(jsval));
             if (scope->object == callobj && n > scope->map.freeslot)
                 scope->map.freeslot = n;
@@ -809,11 +809,12 @@ CallPropertyOp(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
                : JS_GetReservedSlot(cx, obj, i, vp);
     }
 
+    JS_ASSERT(fun->u.i.nvars == fp->nvars);
     if (kind == JSCPK_ARG) {
         array = fp->argv;
     } else {
         JS_ASSERT(kind == JSCPK_VAR);
-        array = fp->slots;
+        array = fp->vars;
     }
     if (setter)
         array[i] = *vp;
@@ -1240,8 +1241,8 @@ fun_xdrObject(JSXDRState *xdr, JSObject **objp)
         fun = js_NewFunction(cx, NULL, NULL, 0, JSFUN_INTERPRETED, NULL, NULL);
         if (!fun)
             return JS_FALSE;
-        STOBJ_CLEAR_PARENT(FUN_OBJECT(fun));
-        STOBJ_CLEAR_PROTO(FUN_OBJECT(fun));
+        STOBJ_SET_PARENT(FUN_OBJECT(fun), NULL);
+        STOBJ_SET_PROTO(FUN_OBJECT(fun), NULL);
 #ifdef __GNUC__
         nvars = nargs = 0;   /* quell GCC uninitialized warning */
 #endif
@@ -2056,7 +2057,7 @@ js_InitCallClass(JSContext *cx, JSObject *obj)
      * Null Call.prototype's proto slot so that Object.prototype.* does not
      * pollute the scope of heavyweight functions.
      */
-    OBJ_CLEAR_PROTO(cx, proto);
+    OBJ_SET_PROTO(cx, proto, NULL);
     return proto;
 }
 
@@ -2247,7 +2248,7 @@ js_ReportIsNotFunction(JSContext *cx, jsval *vp, uintN flags)
 
     js_ReportValueError3(cx, error,
                          (fp && fp->regs &&
-                          StackBase(fp) <= vp && vp < fp->regs->sp)
+                          fp->spbase <= vp && vp < fp->regs->sp)
                          ? vp - fp->regs->sp
                          : (flags & JSV2F_SEARCH_STACK)
                          ? JSDVG_SEARCH_STACK
@@ -2446,7 +2447,7 @@ js_AddLocal(JSContext *cx, JSFunction *fun, JSAtom *atom, JSLocalKind kind)
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                                  (kind == JSLOCAL_ARG)
                                  ? JSMSG_TOO_MANY_FUN_ARGS
-                                 : JSMSG_TOO_MANY_LOCALS);
+                                 : JSMSG_TOO_MANY_FUN_VARS);
             return JS_FALSE;
         }
         if (!HashLocalName(cx, fun->u.i.names.map, atom, kind, *indexp))

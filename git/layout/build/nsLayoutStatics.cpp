@@ -110,10 +110,6 @@ PRBool NS_SVGEnabled();
 #include "nsTextServicesDocument.h"
 #endif
 
-#ifdef MOZ_MEDIA
-#include "nsVideoDecoder.h"
-#endif
-
 #include "nsError.h"
 #include "nsTraceRefcnt.h"
 
@@ -237,15 +233,6 @@ nsLayoutStatics::Initialize()
     NS_ERROR("Could not initialize nsXULPopupManager");
     return rv;
   }
-#endif
-
-#ifdef MOZ_MEDIA
-  rv = nsVideoDecoder::InitLogger();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsVideoDecoder");
-    return rv;
-  }
-  
 #endif
 
   return NS_OK;

@@ -150,7 +150,8 @@ BRFrame::Reflow(nsPresContext* aPresContext,
         nscoord ascent, descent;
         fm->GetMaxAscent(ascent);
         fm->GetMaxDescent(descent);
-        nscoord logicalHeight = aReflowState.CalcLineHeight(this);
+        nscoord logicalHeight =
+          aReflowState.CalcLineHeight(aReflowState.rendContext, this);
         nscoord leading = logicalHeight - ascent - descent;
         aMetrics.height = logicalHeight;
         aMetrics.ascent = ascent + (leading/2);

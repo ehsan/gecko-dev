@@ -538,7 +538,8 @@ FeedHandlerInfo.prototype = {
 
   _shellSvc:
 #ifdef HAVE_SHELL_SERVICE
-    getShellService(),
+    Cc["@mozilla.org/browser/shell-service;1"].
+    getService(Ci.nsIShellService),
 #else
     null,
 #endif
@@ -669,7 +670,7 @@ FeedHandlerInfo.prototype = {
       defaultFeedReader = this._shellSvc.defaultFeedReader;
     }
     catch(ex) {
-      // no default reader or _shellSvc is null
+      // no default reader
     }
 #endif
 
@@ -696,7 +697,7 @@ FeedHandlerInfo.prototype = {
         return true;
     }
     catch(ex) {
-      // no default reader or _shellSvc is null
+      // no default reader
     }
 #endif
 
@@ -982,10 +983,6 @@ var gApplicationsPane = {
       self._rebuildVisibleTypes();
       self._sortVisibleTypes();
       self._rebuildView();
-
-      // Notify observers that the UI is now ready
-      Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService).
-      notifyObservers(window, "app-handler-pane-loaded", null);
     }
     setTimeout(_delayedPaneLoad, 0, this);
   },

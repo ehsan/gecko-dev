@@ -125,8 +125,8 @@ NP_Initialize(NPNetscapeFuncs* pFuncs
   NPNFuncs.memfree                 = pFuncs->memfree;
   NPNFuncs.memflush                = pFuncs->memflush;
   NPNFuncs.reloadplugins           = pFuncs->reloadplugins;
-  NPNFuncs.getJavaEnv              = NULL;
-  NPNFuncs.getJavaPeer             = NULL;
+  NPNFuncs.getJavaEnv              = pFuncs->getJavaEnv;
+  NPNFuncs.getJavaPeer             = pFuncs->getJavaPeer;
   NPNFuncs.getvalue                = pFuncs->getvalue;
   NPNFuncs.setvalue                = pFuncs->setvalue;
   NPNFuncs.invalidaterect          = pFuncs->invalidaterect;
@@ -173,7 +173,9 @@ NP_Initialize(NPNetscapeFuncs* pFuncs
   pluginFuncs->urlnotify  = NewNPP_URLNotifyProc(NPP_URLNotify);
   pluginFuncs->event      = NULL;
   pluginFuncs->getvalue   = NewNPP_GetValueProc(NPP_GetValue);
-  pluginFuncs->javaClass  = NULL;
+#ifdef OJI
+  pluginFuncs->javaClass  = NPP_GetJavaClass();
+#endif
 
   NPP_Initialize();
 #endif

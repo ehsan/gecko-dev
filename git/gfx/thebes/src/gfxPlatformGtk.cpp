@@ -43,7 +43,6 @@
 
 #include "gfxFontconfigUtils.h"
 #include "gfxPangoFonts.h"
-#include "gfxContext.h"
 
 #include "cairo.h"
 #include <gtk/gtk.h>
@@ -206,12 +205,6 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
         glitz_surface_attach(gsurf, gdraw, GLITZ_DRAWABLE_BUFFER_FRONT_COLOR);
         newSurface = new gfxGlitzSurface(gdraw, gsurf, PR_TRUE);
 #endif
-    }
-
-    if (newSurface) {
-        gfxContext tmpCtx(newSurface);
-        tmpCtx.SetOperator(gfxContext::OPERATOR_CLEAR);
-        tmpCtx.Paint();
     }
 
     return newSurface.forget();

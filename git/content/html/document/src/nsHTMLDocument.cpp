@@ -1785,15 +1785,12 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
 
   // check whether we're in the middle of unload.  If so, ignore this call.
   nsCOMPtr<nsIDocShell> shell = do_QueryReferent(mDocumentContainer);
-  if (!shell) {
-    // We won't be able to create a parser anyway.
-    return NS_OK;
-  }
-
-  PRBool inUnload;
-  shell->GetIsInUnload(&inUnload);
-  if (inUnload) {
-    return NS_OK;
+  if (shell) {
+    PRBool inUnload;
+    shell->GetIsInUnload(&inUnload);
+    if (inUnload) {
+      return NS_OK;
+    }
   }
 
   // Note: We want to use GetDocumentFromContext here because this document
@@ -1849,10 +1846,12 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
+  nsCOMPtr<nsIDocShell> docshell = do_QueryReferent(mDocumentContainer);
+
   // Stop current loads targeted at the window this document is in.
-  if (mScriptGlobalObject) {
+  if (mScriptGlobalObject && docshell) {
     nsCOMPtr<nsIContentViewer> cv;
-    shell->GetContentViewer(getter_AddRefs(cv));
+    docshell->GetContentViewer(getter_AddRefs(cv));
 
     if (cv) {
       PRBool okToUnload;
@@ -1865,7 +1864,7 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
       }
     }
 
-    nsCOMPtr<nsIWebNavigation> webnav(do_QueryInterface(shell));
+    nsCOMPtr<nsIWebNavigation> webnav(do_QueryInterface(docshell));
     webnav->Stop(nsIWebNavigation::STOP_NETWORK);
   }
 
@@ -1998,33 +1997,30 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
   if (NS_SUCCEEDED(rv)) {
     nsCOMPtr<nsIHTMLContentSink> sink;
 
-    rv = NS_NewHTMLContentSink(getter_AddRefs(sink), this, uri, shell,
+    rv = NS_NewHTMLContentSink(getter_AddRefs(sink), this, uri, docshell,
                                channel);
-    if (NS_FAILED(rv)) {
-      // Don't use a parser without a content sink.
-      mParser = nsnull;
-      mWriteState = eNotWriting;
-      return rv;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
 
     mParser->SetContentSink(sink);
   }
 
   // Prepare the docshell and the document viewer for the impending
   // out of band document.write()
-  shell->PrepareForNewContentModel();
+  if (docshell) {
+    docshell->PrepareForNewContentModel();
 
-  // Now check whether we were opened with a "replace" argument.  If
-  // so, we need to tell the docshell to not create a new history
-  // entry for this load. Otherwise, make sure that we're doing a normal load,
-  // not whatever type of load was previously done on this docshell.
-  shell->SetLoadType(aReplace ? LOAD_NORMAL_REPLACE : LOAD_NORMAL);
+    // Now check whether we were opened with a "replace" argument.  If
+    // so, we need to tell the docshell to not create a new history
+    // entry for this load. Otherwise, make sure that we're doing a normal load,
+    // not whatever type of load was previously done on this docshell.
+    docshell->SetLoadType(aReplace ? LOAD_NORMAL_REPLACE : LOAD_NORMAL);
 
-  nsCOMPtr<nsIContentViewer> cv;
-  shell->GetContentViewer(getter_AddRefs(cv));
-  nsCOMPtr<nsIDocumentViewer> docViewer = do_QueryInterface(cv);
-  if (docViewer) {
-    docViewer->LoadStart(static_cast<nsIHTMLDocument *>(this));
+    nsCOMPtr<nsIContentViewer> cv;
+    docshell->GetContentViewer(getter_AddRefs(cv));
+    nsCOMPtr<nsIDocumentViewer> docViewer = do_QueryInterface(cv);
+    if (docViewer) {
+      docViewer->LoadStart(static_cast<nsIHTMLDocument *>(this));
+    }
   }
 
   // Add a wyciwyg channel request into the document load group

@@ -54,9 +54,6 @@ function run_test() {
   const ioService = Cc["@mozilla.org/network/io-service;1"].
                     getService(Ci.nsIIOService);
 
-  const env = Cc["@mozilla.org/process/environment;1"].
-              getService(Components.interfaces.nsIEnvironment);
-
   const rootPrefBranch = prefSvc.getBranch("");
   
   //**************************************************************************//
@@ -386,10 +383,4 @@ function run_test() {
   // test now-existent extension
   lolType = handlerSvc.getTypeFromExtension("lolcat");
   do_check_eq(lolType, "application/lolcat");
-
-  if (env.get("PERSONAL_MAILCAP")) {
-    handlerInfo = mimeSvc.getFromTypeAndExtension("text/plain", null);
-    do_check_eq(handlerInfo.preferredAction, Ci.nsIHandlerInfo.useSystemDefault);
-    do_check_eq(handlerInfo.defaultDescription, "sed");
-  }
 }

@@ -429,14 +429,13 @@ void nsViewManager::Refresh(nsView *aView, nsIRenderingContext *aContext,
 
   nsRect viewRect;
   aView->GetDimensions(viewRect);
-  nsPoint vtowoffset = aView->ViewToWidgetOffset();
 
   // damageRegion is the damaged area, in twips, relative to the view origin
   nsRegion damageRegion;
   // convert pixels-relative-to-widget-origin to twips-relative-to-widget-origin
   ConvertNativeRegionToAppRegion(aRegion, &damageRegion, mContext);
   // move it from widget coordinates into view coordinates
-  damageRegion.MoveBy(viewRect.TopLeft() - vtowoffset);
+  damageRegion.MoveBy(viewRect.x, viewRect.y);
 
   if (damageRegion.IsEmpty()) {
 #ifdef DEBUG_roc
@@ -489,6 +488,7 @@ void nsViewManager::Refresh(nsView *aView, nsIRenderingContext *aContext,
 
     ctx->Save();
 
+    nsPoint vtowoffset = aView->ViewToWidgetOffset();
     ctx->Translate(gfxPoint(gfxFloat(vtowoffset.x) / p2a,
                             gfxFloat(vtowoffset.y) / p2a));
 
@@ -522,7 +522,6 @@ void nsViewManager::Refresh(nsView *aView, nsIRenderingContext *aContext,
 
 }
 
-// aRect is in app units and relative to the top-left of the aView->GetWidget()
 void nsViewManager::DefaultRefresh(nsView* aView, nsIRenderingContext *aContext, const nsRect* aRect)
 {
   NS_PRECONDITION(aView, "Must have a view to work with!");
@@ -601,7 +600,6 @@ void nsViewManager::AddCoveringWidgetsToOpaqueRegion(nsRegion &aRgn, nsIDeviceCo
   }
 }
 
-// aRC and aRegion are in view coordinates
 void nsViewManager::RenderViews(nsView *aView, nsIRenderingContext& aRC,
                                 const nsRegion& aRegion)
 {
@@ -1882,15 +1880,8 @@ nsViewManager::CreateRenderingContext(nsView &aView)
 
   if (nsnull != win)
     {
-      // XXXkt this has an origin at top-left of win ...
       mContext->CreateRenderingContext(par, cx);
 
-      // XXXkt ... but the translation is between the origins of views
-      NS_ASSERTION(aView.ViewToWidgetOffset()
-                   - aView.GetDimensions().TopLeft() ==
-                   par->ViewToWidgetOffset()
-                   - par->GetDimensions().TopLeft(),
-                   "ViewToWidgetOffset not handled!");
       if (nsnull != cx)
         cx->Translate(ax, ay);
     }

@@ -88,8 +88,7 @@ mozStorageConnection::~mozStorageConnection()
 #ifdef PR_LOGGING
 void tracefunc (void *closure, const char *stmt)
 {
-    PR_LOG(gStorageLog, PR_LOG_DEBUG, ("sqlite3_trace on %p for '%s'", closure,
-                                       stmt));
+    PR_LOG(gStorageLog, PR_LOG_DEBUG, ("%s", stmt));
 }
 #endif
 
@@ -126,13 +125,7 @@ mozStorageConnection::Initialize(nsIFile *aDatabaseFile)
     if (! gStorageLog)
         gStorageLog = PR_NewLogModule("mozStorage");
 
-    sqlite3_trace (mDBConn, tracefunc, this);
-
-    nsCAutoString leafName(":memory");
-    if (aDatabaseFile)
-        (void)aDatabaseFile->GetNativeLeafName(leafName);
-    PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Opening connection to '%s' (%p)",
-                                        leafName.get(), this));
+    sqlite3_trace (mDBConn, tracefunc, nsnull);
 #endif
 
     // Hook up i18n functions
@@ -206,14 +199,6 @@ mozStorageConnection::Close()
 {
     if (!mDBConn)
         return NS_ERROR_NOT_INITIALIZED;
-
-#ifdef PR_LOGGING
-    nsCAutoString leafName(":memory");
-    if (mDatabaseFile)
-        (void)mDatabaseFile->GetNativeLeafName(leafName);
-    PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Opening connection to '%s'",
-                                        leafName.get()));
-#endif
 
     if (mProgressHandler)
         sqlite3_progress_handler(mDBConn, 0, NULL, NULL);

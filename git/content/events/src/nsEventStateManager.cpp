@@ -53,6 +53,7 @@
 #include "nsIDocument.h"
 #include "nsIFrame.h"
 #include "nsIWidget.h"
+#include "nsIKBStateControl.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsDOMEvent.h"
@@ -119,7 +120,7 @@
 #include "nsIDOMNSUIEvent.h"
 
 #include "nsIDOMRange.h"
-#include "nsCaret.h"
+#include "nsICaret.h"
 #include "nsILookAndFeel.h"
 #include "nsWidgetsCID.h"
 
@@ -1029,7 +1030,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       if (mPresContext) {
         nsIPresShell *presShell = mPresContext->GetPresShell();
         if (presShell) {
-           nsRefPtr<nsCaret> caret;
+           nsCOMPtr<nsICaret> caret;
            presShell->GetCaret(getter_AddRefs(caret));
            if (caret) {
              PRBool caretVisible = PR_FALSE;
@@ -5047,11 +5048,11 @@ nsEventStateManager::GetDocSelectionLocation(nsIContent **aStartContent,
           if (newCaretFrame && newCaretContent) {
             // If the caret is exactly at the same position of the new frame,
             // then we can use the newCaretFrame and newCaretContent for our position
-            nsRefPtr<nsCaret> caret;
+            nsCOMPtr<nsICaret> caret;
             shell->GetCaret(getter_AddRefs(caret));
             nsRect caretRect;
             nsIView *caretView;
-            caret->GetCaretCoordinates(nsCaret::eClosestViewCoordinates, 
+            caret->GetCaretCoordinates(nsICaret::eClosestViewCoordinates, 
                                        domSelection, &caretRect,
                                        &isCollapsed, &caretView);
             nsPoint framePt;
@@ -5331,7 +5332,7 @@ nsEventStateManager::MoveCaretToFocus()
 nsresult
 nsEventStateManager::SetCaretEnabled(nsIPresShell *aPresShell, PRBool aEnabled)
 {
-  nsRefPtr<nsCaret> caret;
+  nsCOMPtr<nsICaret> caret;
   aPresShell->GetCaret(getter_AddRefs(caret));
 
   nsCOMPtr<nsISelectionController> selCon(do_QueryInterface(aPresShell));
@@ -5351,7 +5352,7 @@ nsEventStateManager::SetContentCaretVisible(nsIPresShell* aPresShell,
                                             PRBool aVisible)
 {
   // When browsing with caret, make sure caret is visible after new focus
-  nsRefPtr<nsCaret> caret;
+  nsCOMPtr<nsICaret> caret;
   aPresShell->GetCaret(getter_AddRefs(caret));
 
   nsCOMPtr<nsFrameSelection> frameSelection;

@@ -673,6 +673,16 @@ private:
 
 // SVG - rods
 #ifdef MOZ_SVG
+  nsresult TestSVGConditions(nsIContent* aContent,
+                             PRBool&     aHasRequiredExtensions,
+                             PRBool&     aHasRequiredFeatures,
+                             PRBool&     aHasSystemLanguage);
+ 
+  nsresult SVGSwitchProcessChildren(nsFrameConstructorState& aState,
+                                    nsIContent*              aContent,
+                                    nsIFrame*                aFrame,
+                                    nsFrameItems&            aFrameItems);
+
   nsresult ConstructSVGFrame(nsFrameConstructorState& aState,
                              nsIContent*              aContent,
                              nsIFrame*                aParentFrame,

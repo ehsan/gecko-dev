@@ -99,8 +99,8 @@ NPError WINAPI NP_Initialize(NPNetscapeFuncs* aNetscapeFuncs)
   NPNFuncs.memfree          = aNetscapeFuncs->memfree;
   NPNFuncs.memflush         = aNetscapeFuncs->memflush;
   NPNFuncs.reloadplugins    = aNetscapeFuncs->reloadplugins;
-  NPNFuncs.getJavaEnv       = NULL;
-  NPNFuncs.getJavaPeer      = NULL;
+  NPNFuncs.getJavaEnv       = aNetscapeFuncs->getJavaEnv;
+  NPNFuncs.getJavaPeer      = aNetscapeFuncs->getJavaPeer;
   NPNFuncs.getvalue         = aNetscapeFuncs->getvalue;
   NPNFuncs.setvalue         = aNetscapeFuncs->setvalue;
   NPNFuncs.invalidaterect   = aNetscapeFuncs->invalidaterect;

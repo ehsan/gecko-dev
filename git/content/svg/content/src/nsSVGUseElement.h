@@ -112,9 +112,6 @@ protected:
   protected:
     virtual void ContentChanged(nsIContent* aFrom, nsIContent* aTo) {
       nsReferencedElement::ContentChanged(aFrom, aTo);
-      if (aFrom) {
-        aFrom->RemoveMutationObserver(mContainer);
-      }
       mContainer->TriggerReclone();
     }
   private:
