@@ -19,5 +19,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'accessibility_xpcom_s'
 
-LIBXUL_LIBRARY = True
-

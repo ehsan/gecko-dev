@@ -8,7 +8,6 @@
 #include "nsError.h"
 #include "nsAutoPtr.h"
 #include "nsIParser.h"
-#include "nsIDOMDocument.h"
 #include "nsIDOMNodeList.h"
 #include "nsString.h"
 #include "nsIDocument.h"

@@ -23,5 +23,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'commandlines'
 
-LIBXUL_LIBRARY = True
-

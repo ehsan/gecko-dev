@@ -2068,8 +2068,6 @@ LIRGenerator::visitLoadElementHole(MLoadElementHole *ins)
     LLoadElementHole *lir = new LLoadElementHole(useRegister(ins->elements()),
                                                  useRegisterOrConstant(ins->index()),
                                                  useRegister(ins->initLength()));
-    if (ins->needsNegativeIntCheck() && !assignSnapshot(lir))
-        return false;
     return defineBox(lir, ins);
 }
 

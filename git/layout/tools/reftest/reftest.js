@@ -538,6 +538,14 @@ function BuildConditionSandbox(aURL) {
         sandbox.smallScreen = true;
     }
 
+#if REFTEST_B2G
+    // XXX nsIGfxInfo isn't available in B2G
+    sandbox.d2d = false;
+    sandbox.azureQuartz = false;
+    sandbox.azureSkia = false;
+    sandbox.azureSkiaGL = false;
+    sandbox.contentSameGfxBackendAsCanvas = false;
+#else
     var gfxInfo = (NS_GFXINFO_CONTRACTID in CC) && CC[NS_GFXINFO_CONTRACTID].getService(CI.nsIGfxInfo);
     try {
       sandbox.d2d = gfxInfo.D2DEnabled;
@@ -551,6 +559,7 @@ function BuildConditionSandbox(aURL) {
     // true if we are using the same Azure backend for rendering canvas and content
     sandbox.contentSameGfxBackendAsCanvas = info.AzureContentBackend == info.AzureCanvasBackend
                                             || (info.AzureContentBackend == "none" && info.AzureCanvasBackend == "cairo");
+#endif
 
     sandbox.layersGPUAccelerated =
       gWindowUtils.layerManagerType != "Basic";

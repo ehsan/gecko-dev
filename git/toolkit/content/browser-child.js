@@ -186,23 +186,6 @@ let SecurityUI = {
   }
 };
 
-let ControllerCommands = {
-  init: function () {
-    addMessageListener("ControllerCommands:Do", this);
-  },
-
-  receiveMessage: function(message) {
-    switch(message.name) {
-      case "ControllerCommands:Do":
-        if (docShell.isCommandEnabled(message.data))
-          docShell.doCommand(message.data);
-        break;
-    }
-  }
-}
-
-ControllerCommands.init()
-
 addEventListener("DOMTitleChanged", function (aEvent) {
   let document = content.document;
   switch (aEvent.type) {

@@ -902,7 +902,7 @@ WebAudioDecodeJob::OnFailure(ErrorCode aErrorCode)
     doc = pWindow->GetExtantDoc();
   }
   nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
-                                  NS_LITERAL_CSTRING("Media"),
+                                  "Media",
                                   doc,
                                   nsContentUtils::eDOM_PROPERTIES,
                                   errorMessage);

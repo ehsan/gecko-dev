@@ -1122,8 +1122,6 @@ class XPCShellTests(object):
         pStdout, pStderr = self.getPipes()
 
         self.buildTestList()
-        if self.singleFile:
-            self.sequential = True
 
         if shuffle:
             random.shuffle(self.alltests)
@@ -1187,7 +1185,7 @@ class XPCShellTests(object):
             else:
                 tests_queue.append(test)
 
-        if self.sequential:
+        if sequential:
             self.log.info("INFO | Running tests sequentially.")
         else:
             self.log.info("INFO | Using at most %d threads." % NUM_THREADS)

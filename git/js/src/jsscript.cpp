@@ -408,9 +408,9 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
         FunHasAnyAliasedFormal,
         ArgumentsHasVarBinding,
         NeedsArgsObj,
+        IsGenerator,
         IsGeneratorExp,
         IsLegacyGenerator,
-        IsStarGenerator,
         OwnSource,
         ExplicitUseStrict,
         SelfHosted
@@ -497,12 +497,12 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
             scriptBits |= (1 << NeedsArgsObj);
         if (!enclosingScript || enclosingScript->scriptSource() != script->scriptSource())
             scriptBits |= (1 << OwnSource);
+        if (script->isGenerator)
+            scriptBits |= (1 << IsGenerator);
         if (script->isGeneratorExp)
             scriptBits |= (1 << IsGeneratorExp);
-        if (script->isLegacyGenerator())
+        if (script->isLegacyGenerator)
             scriptBits |= (1 << IsLegacyGenerator);
-        if (script->isStarGenerator())
-            scriptBits |= (1 << IsStarGenerator);
 
         JS_ASSERT(!script->compileAndGo);
         JS_ASSERT(!script->hasSingletons);
@@ -597,14 +597,12 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
             script->setArgumentsHasVarBinding();
         if (scriptBits & (1 << NeedsArgsObj))
             script->setNeedsArgsObj(true);
+        if (scriptBits & (1 << IsGenerator))
+            script->isGenerator = true;
         if (scriptBits & (1 << IsGeneratorExp))
             script->isGeneratorExp = true;
-
-        if (scriptBits & (1 << IsLegacyGenerator)) {
-            JS_ASSERT(!(scriptBits & (1 << IsStarGenerator)));
-            script->setGeneratorKind(LegacyGenerator);
-        } else if (scriptBits & (1 << IsStarGenerator))
-            script->setGeneratorKind(StarGenerator);
+        if (scriptBits & (1 << IsLegacyGenerator))
+            script->isLegacyGenerator = true;
     }
 
     JS_STATIC_ASSERT(sizeof(jsbytecode) == 1);
@@ -637,7 +635,7 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
         code = ssd->data;
         if (natoms != 0) {
             script->natoms = natoms;
-            script->atoms = ssd->atoms(length, nsrcnotes);
+            script->atoms = ssd->atoms();
         }
     }
 
@@ -1518,15 +1516,26 @@ js::SharedScriptData::new_(ExclusiveContext *cx, uint32_t codeLength,
     uint32_t baseLength = codeLength + srcnotesLength;
     uint32_t padding = sizeof(JSAtom *) - baseLength % sizeof(JSAtom *);
     uint32_t length = baseLength + padding + sizeof(JSAtom *) * natoms;
+    JS_ASSERT(length % sizeof(JSAtom *) == 0);
 
     SharedScriptData *entry = (SharedScriptData *)cx->malloc_(length +
                                                               offsetof(SharedScriptData, data));
 
     if (!entry)
         return NULL;
-    entry->marked = false;
     entry->length = length;
+    entry->natoms = natoms;
+    entry->marked = false;
     memset(entry->data + baseLength, 0, padding);
+
+    /*
+     * Call constructors to initialize the storage that will be accessed as a
+     * HeapPtrAtom array via atoms().
+     */
+    HeapPtrAtom *atoms = entry->atoms();
+    for (unsigned i = 0; i < natoms; ++i)
+        new (&atoms[i]) HeapPtrAtom();
+
     return entry;
 }
 
@@ -1574,7 +1583,7 @@ SaveSharedScriptData(ExclusiveContext *cx, Handle<JSScript *> script, SharedScri
 #endif
 
     script->code = ssd->data;
-    script->atoms = ssd->atoms(script->length, nsrcnotes);
+    script->atoms = ssd->atoms();
     return true;
 }
 
@@ -1918,7 +1927,7 @@ JSScript::fullyInitFromEmitter(ExclusiveContext *cx, HandleScript script, Byteco
     PodCopy<jsbytecode>(code + prologLength, bce->code().begin(), mainLength);
     if (!FinishTakingSrcNotes(cx, bce, (jssrcnote *)(code + script->length)))
         return false;
-    InitAtomMap(bce->atomIndices.getMap(), ssd->atoms(script->length, nsrcnotes));
+    InitAtomMap(bce->atomIndices.getMap(), ssd->atoms());
 
     if (!SaveSharedScriptData(cx, script, ssd, nsrcnotes))
         return false;
@@ -1965,8 +1974,9 @@ JSScript::fullyInitFromEmitter(ExclusiveContext *cx, HandleScript script, Byteco
     RootedFunction fun(cx, NULL);
     if (funbox) {
         JS_ASSERT(!bce->script->noScriptRval);
+        script->isGenerator = funbox->isGenerator();
         script->isGeneratorExp = funbox->inGenexpLambda;
-        script->setGeneratorKind(funbox->generatorKind());
+        script->isLegacyGenerator = funbox->isLegacyGenerator();
         script->setFunction(funbox->function());
     }
 
@@ -2467,8 +2477,8 @@ js::CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, 
     dst->funHasAnyAliasedFormal = src->funHasAnyAliasedFormal;
     dst->hasSingletons = src->hasSingletons;
     dst->treatAsRunOnce = src->treatAsRunOnce;
+    dst->isGenerator = src->isGenerator;
     dst->isGeneratorExp = src->isGeneratorExp;
-    dst->setGeneratorKind(src->generatorKind());
 
     /* Copy over hints. */
     dst->shouldInline = src->shouldInline;
@@ -2795,7 +2805,7 @@ JSScript::markChildren(JSTracer *trc)
     if (IS_GC_MARKING_TRACER(trc)) {
         compartment()->mark();
 
-        if (code)
+        if (code || natoms)
             MarkScriptData(trc->runtime, code);
     }
 
@@ -2909,7 +2919,7 @@ JSScript::argumentsOptimizationFailed(JSContext *cx, HandleScript script)
     if (script->needsArgsObj())
         return true;
 
-    JS_ASSERT(!script->isGenerator());
+    JS_ASSERT(!script->isGenerator);
 
     script->needsArgsObj_ = true;
 
@@ -3001,7 +3011,6 @@ LazyScript::LazyScript(JSFunction *fun, void *table, uint32_t numFreeVariables, 
     version_(version),
     numFreeVariables_(numFreeVariables),
     numInnerFunctions_(numInnerFunctions),
-    generatorKindBits_(GeneratorKindAsBits(NotGenerator)),
     strict_(false),
     bindingsAccessedDynamically_(false),
     hasDebuggerStatement_(false),

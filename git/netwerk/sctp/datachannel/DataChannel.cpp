@@ -38,7 +38,6 @@
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"
 #include "nsNetUtil.h"
-#include "mozilla/StaticPtr.h"
 #ifdef MOZ_PEERCONNECTION
 #include "mtransport/runnable_utils.h"
 #endif
@@ -79,7 +78,7 @@ static bool sctp_initialized;
 namespace mozilla {
 
 class DataChannelShutdown;
-StaticRefPtr<DataChannelShutdown> gDataChannelShutdown;
+nsRefPtr<DataChannelShutdown> gDataChannelShutdown;
 
 class DataChannelShutdown : public nsIObserver
 {

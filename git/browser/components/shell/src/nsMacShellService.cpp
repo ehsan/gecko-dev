@@ -40,14 +40,13 @@ nsMacShellService::IsDefaultBrowser(bool aStartupCheck,
 
   CFStringRef firefoxID = ::CFBundleGetIdentifier(::CFBundleGetMainBundle());
   if (!firefoxID) {
-    // CFBundleGetIdentifier is expected to return nullptr only if the specified
+    // CFBundleGetIdentifier is expected to return NULL only if the specified
     // bundle doesn't have a bundle identifier in its plist. In this case, that
     // means a failure, since our bundle does have an identifier.
     return NS_ERROR_FAILURE;
   }
 
-  // Get the default http handler's bundle ID (or nullptr if it has not been
-  // explicitly set)
+  // Get the default http handler's bundle ID (or NULL if it has not been explicitly set)
   CFStringRef defaultBrowserID = ::LSCopyDefaultHandlerForURLScheme(CFSTR("http"));
   if (defaultBrowserID) {
     *aIsDefaultBrowser = ::CFStringCompare(firefoxID, defaultBrowserID, 0) == kCFCompareEqualTo;
@@ -260,8 +259,7 @@ nsMacShellService::OnStateChange(nsIWebProgress* aWebProgress,
     OSStatus status;
 
     // Convert the path into a FSRef
-    status = ::FSPathMakeRef((const UInt8*)nativePath.get(), &pictureRef,
-                             nullptr);
+    status = ::FSPathMakeRef((const UInt8*)nativePath.get(), &pictureRef, NULL);
     if (status == noErr) {
       err = ::FSNewAlias(nil, &pictureRef, &aliasHandle);
       if (err == noErr && aliasHandle == nil)
@@ -314,22 +312,22 @@ nsMacShellService::OpenApplication(int32_t aApplication)
   case nsIShellService::APPLICATION_MAIL:
     {
       CFURLRef tempURL = ::CFURLCreateWithString(kCFAllocatorDefault,
-                                                 CFSTR("mailto:"), nullptr);
-      err = ::LSGetApplicationForURL(tempURL, kLSRolesAll, nullptr, &appURL);
+                                                 CFSTR("mailto:"), NULL);
+      err = ::LSGetApplicationForURL(tempURL, kLSRolesAll, NULL, &appURL);
       ::CFRelease(tempURL);
     }
     break;
   case nsIShellService::APPLICATION_NEWS:
     {
       CFURLRef tempURL = ::CFURLCreateWithString(kCFAllocatorDefault,
-                                                 CFSTR("news:"), nullptr);
-      err = ::LSGetApplicationForURL(tempURL, kLSRolesAll, nullptr, &appURL);
+                                                 CFSTR("news:"), NULL);
+      err = ::LSGetApplicationForURL(tempURL, kLSRolesAll, NULL, &appURL);
       ::CFRelease(tempURL);
     }
     break;
   case nsIMacShellService::APPLICATION_KEYCHAIN_ACCESS:
-    err = ::LSGetApplicationForInfo('APPL', 'kcmr', nullptr, kLSRolesAll,
-                                    nullptr, &appURL);
+    err = ::LSGetApplicationForInfo('APPL', 'kcmr', NULL, kLSRolesAll, NULL,
+                                    &appURL);
     break;
   case nsIMacShellService::APPLICATION_NETWORK:
     {
@@ -358,7 +356,7 @@ nsMacShellService::OpenApplication(int32_t aApplication)
   }
 
   if (appURL && err == noErr) {
-    err = ::LSOpenCFURLRef(appURL, nullptr);
+    err = ::LSOpenCFURLRef(appURL, NULL);
     rv = err != noErr ? NS_ERROR_FAILURE : NS_OK;
 
     ::CFRelease(appURL);
@@ -396,12 +394,12 @@ nsMacShellService::OpenApplicationWithURI(nsIFile* aApplication, const nsACStrin
   
   const nsCString spec(aURI);
   const UInt8* uriString = (const UInt8*)spec.get();
-  CFURLRef uri = ::CFURLCreateWithBytes(nullptr, uriString, aURI.Length(),
-                                        kCFStringEncodingUTF8, nullptr);
+  CFURLRef uri = ::CFURLCreateWithBytes(NULL, uriString, aURI.Length(),
+                                        kCFStringEncodingUTF8, NULL);
   if (!uri) 
     return NS_ERROR_OUT_OF_MEMORY;
   
-  CFArrayRef uris = ::CFArrayCreate(nullptr, (const void**)&uri, 1, nullptr);
+  CFArrayRef uris = ::CFArrayCreate(NULL, (const void**)&uri, 1, NULL);
   if (!uris) {
     ::CFRelease(uri);
     return NS_ERROR_OUT_OF_MEMORY;
@@ -410,11 +408,11 @@ nsMacShellService::OpenApplicationWithURI(nsIFile* aApplication, const nsACStrin
   LSLaunchURLSpec launchSpec;
   launchSpec.appURL = appURL;
   launchSpec.itemURLs = uris;
-  launchSpec.passThruParams = nullptr;
+  launchSpec.passThruParams = NULL;
   launchSpec.launchFlags = kLSLaunchDefaults;
-  launchSpec.asyncRefCon = nullptr;
+  launchSpec.asyncRefCon = NULL;
   
-  OSErr err = ::LSOpenFromURLSpec(&launchSpec, nullptr);
+  OSErr err = ::LSOpenFromURLSpec(&launchSpec, NULL);
   
   ::CFRelease(uris);
   ::CFRelease(uri);
@@ -435,11 +433,11 @@ nsMacShellService::GetDefaultFeedReader(nsIFile** _retval)
                                                    kCFStringEncodingASCII);
   }
 
-  CFURLRef defaultHandlerURL = nullptr;
+  CFURLRef defaultHandlerURL = NULL;
   OSStatus status = ::LSFindApplicationForInfo(kLSUnknownCreator,
                                                defaultHandlerID,
-                                               nullptr, // inName
-                                               nullptr, // outAppRef
+                                               NULL, // inName
+                                               NULL, // outAppRef
                                                &defaultHandlerURL);
 
   if (status == noErr && defaultHandlerURL) {

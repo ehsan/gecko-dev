@@ -10,7 +10,6 @@
 #include "jscntxt.h"
 
 #include "jsiter.h"
-#include "jsworkers.h"
 
 #include "builtin/Object.h"
 #include "jit/IonFrames.h"

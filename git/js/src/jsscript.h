@@ -414,19 +414,6 @@ class ScriptSourceObject : public JSObject
     static const uint32_t SOURCE_SLOT = 0;
 };
 
-enum GeneratorKind { NotGenerator, LegacyGenerator, StarGenerator };
-
-static inline unsigned
-GeneratorKindAsBits(GeneratorKind generatorKind) {
-    return static_cast<unsigned>(generatorKind);
-}
-
-static inline GeneratorKind
-GeneratorKindFromBits(unsigned val) {
-    JS_ASSERT(val <= StarGenerator);
-    return static_cast<GeneratorKind>(val);
-}
-
 } /* namespace js */
 
 class JSScript : public js::gc::Cell
@@ -532,7 +519,7 @@ class JSScript : public js::gc::Cell
     uint16_t        nslots;     /* vars plus maximum stack depth */
     uint16_t        staticLevel;/* static level for display maintenance */
 
-    // 4-bit fields.
+    // 8-bit fields.
 
   public:
     // The kinds of the optional arrays.
@@ -541,16 +528,15 @@ class JSScript : public js::gc::Cell
         OBJECTS,
         REGEXPS,
         TRYNOTES,
-        ARRAY_KIND_BITS
+        LIMIT
     };
+
+    typedef uint8_t ArrayBitsT;
 
   private:
     // The bits in this field indicate the presence/non-presence of several
     // optional arrays in |data|.  See the comments above Create() for details.
-    uint8_t         hasArrayBits:4;
-
-    // The GeneratorKind of the script.
-    uint8_t         generatorKindBits_:4;
+    ArrayBitsT      hasArrayBits;
 
     // 1-bit fields.
 
@@ -603,9 +589,14 @@ class JSScript : public js::gc::Cell
 #endif
     bool            invalidatedIdempotentCache:1; /* idempotent cache has triggered invalidation */
 
+    // All generators have isGenerator set to true.
+    bool            isGenerator:1;
     // If the generator was created implicitly via a generator expression,
     // isGeneratorExp will be true.
     bool            isGeneratorExp:1;
+    // Generators are either legacy-style (JS 1.7+ starless generators with
+    // StopIteration), or ES6-style (function* with boxed return values).
+    bool            isLegacyGenerator:1;
 
     bool            hasScriptCounts:1;/* script has an entry in
                                          JSCompartment::scriptCountsMap */
@@ -655,19 +646,6 @@ class JSScript : public js::gc::Cell
     bool argumentsHasVarBinding() const { return argsHasVarBinding_; }
     jsbytecode *argumentsBytecode() const { JS_ASSERT(code[0] == JSOP_ARGUMENTS); return code; }
     void setArgumentsHasVarBinding();
-
-    js::GeneratorKind generatorKind() const {
-        return js::GeneratorKindFromBits(generatorKindBits_);
-    }
-    bool isGenerator() const { return generatorKind() != js::NotGenerator; }
-    bool isLegacyGenerator() const { return generatorKind() == js::LegacyGenerator; }
-    bool isStarGenerator() const { return generatorKind() == js::StarGenerator; }
-    void setGeneratorKind(js::GeneratorKind kind) {
-        // A script only gets its generator kind set as part of initialization,
-        // so it can only transition from not being a generator.
-        JS_ASSERT(!isGenerator());
-        generatorKindBits_ = GeneratorKindAsBits(kind);
-    }
 
     /*
      * As an optimization, even when argsHasLocalBinding, the function prologue
@@ -1060,8 +1038,7 @@ class JSScript : public js::gc::Cell
     void markChildren(JSTracer *trc);
 };
 
-/* The array kind flags are stored in a 4-bit field; make sure they fit. */
-JS_STATIC_ASSERT(JSScript::ARRAY_KIND_BITS <= 4);
+JS_STATIC_ASSERT(sizeof(JSScript::ArrayBitsT) * 8 >= JSScript::LIMIT);
 
 /* If this fails, add/remove padding within JSScript. */
 JS_STATIC_ASSERT(sizeof(JSScript) % js::gc::CellSize == 0);
@@ -1168,9 +1145,7 @@ class LazyScript : public js::gc::Cell
     uint32_t version_ : 8;
 
     uint32_t numFreeVariables_ : 24;
-    uint32_t numInnerFunctions_ : 24;
-
-    uint32_t generatorKindBits_:2;
+    uint32_t numInnerFunctions_ : 26;
 
     // N.B. These are booleans but need to be uint32_t to pack correctly on MSVC.
     uint32_t strict_ : 1;
@@ -1234,23 +1209,6 @@ class LazyScript : public js::gc::Cell
     }
     HeapPtrFunction *innerFunctions() {
         return (HeapPtrFunction *)&freeVariables()[numFreeVariables()];
-    }
-
-    GeneratorKind generatorKind() const { return GeneratorKindFromBits(generatorKindBits_); }
-
-    bool isGenerator() const { return generatorKind() != NotGenerator; }
-
-    bool isLegacyGenerator() const { return generatorKind() == LegacyGenerator; }
-
-    bool isStarGenerator() const { return generatorKind() == StarGenerator; }
-
-    void setGeneratorKind(GeneratorKind kind) {
-        // A script only gets its generator kind set as part of initialization,
-        // so it can only transition from NotGenerator.
-        JS_ASSERT(!isGenerator());
-        // Legacy generators cannot currently be lazy.
-        JS_ASSERT(kind != LegacyGenerator);
-        generatorKindBits_ = GeneratorKindAsBits(kind);
     }
 
     bool strict() const {
@@ -1427,22 +1385,27 @@ CallDestroyScriptHook(FreeOp *fop, JSScript *script);
 
 struct SharedScriptData
 {
-    bool marked;
     uint32_t length;
+    uint32_t natoms;
+    bool marked;
     jsbytecode data[1];
 
     static SharedScriptData *new_(ExclusiveContext *cx, uint32_t codeLength,
                                   uint32_t srcnotesLength, uint32_t natoms);
 
-    HeapPtrAtom *atoms(uint32_t codeLength, uint32_t srcnotesLength) {
-        uint32_t length = codeLength + srcnotesLength;
-        return reinterpret_cast<HeapPtrAtom *>(data + length + sizeof(JSAtom *) -
-                                               length % sizeof(JSAtom *));
+    HeapPtrAtom *atoms() {
+        if (!natoms)
+            return NULL;
+        return reinterpret_cast<HeapPtrAtom *>(data + length - sizeof(JSAtom *) * natoms);
     }
 
     static SharedScriptData *fromBytecode(const jsbytecode *bytecode) {
         return (SharedScriptData *)(bytecode - offsetof(SharedScriptData, data));
     }
+
+  private:
+    SharedScriptData() MOZ_DELETE;
+    SharedScriptData(const SharedScriptData&) MOZ_DELETE;
 };
 
 struct ScriptBytecodeHasher

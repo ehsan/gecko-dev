@@ -663,7 +663,6 @@ typedef Vector<JS::Zone *, 1, SystemAllocPolicy> ZoneVector;
 
 class AutoLockForExclusiveAccess;
 class AutoPauseWorkersForGC;
-class ThreadDataIter;
 
 } // namespace js
 
@@ -773,7 +772,6 @@ struct JSRuntime : public JS::shadow::Runtime,
 
     friend class js::AutoLockForExclusiveAccess;
     friend class js::AutoPauseWorkersForGC;
-    friend class js::ThreadDataIter;
 
   public:
     void setUsedByExclusiveThread(JS::Zone *zone);
@@ -1319,7 +1317,6 @@ struct JSRuntime : public JS::shadow::Runtime,
 #ifdef JS_THREADSAFE
 # ifdef JS_ION
     js::WorkerThreadState *workerThreadState;
-# define JS_WORKER_THREADS
 # endif
 
     js::SourceCompressorThread sourceCompressorThread;
