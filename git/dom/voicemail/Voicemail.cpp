@@ -8,11 +8,10 @@
 
 #include "mozilla/dom/MozVoicemailBinding.h"
 #include "mozilla/dom/MozVoicemailEvent.h"
-#include "mozilla/dom/MozVoicemailStatusBinding.h"
+#include "nsIDOMMozVoicemailStatus.h"
 
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
-#include "nsContentUtils.h"
 #include "nsDOMClassInfo.h"
 #include "nsServiceManagerUtils.h"
 
@@ -101,7 +100,7 @@ Voicemail::PassedOrDefaultServiceId(const Optional<uint32_t>& aServiceId,
 
 // MozVoicemail WebIDL
 
-already_AddRefed<MozVoicemailStatus>
+already_AddRefed<nsIDOMMozVoicemailStatus>
 Voicemail::GetStatus(const Optional<uint32_t>& aServiceId,
                      ErrorResult& aRv) const
 {
@@ -115,20 +114,14 @@ Voicemail::GetStatus(const Optional<uint32_t>& aServiceId,
     aRv.Throw(NS_ERROR_INVALID_ARG);
     return nullptr;
   }
-  JSContext *cx = nsContentUtils::GetCurrentJSContext();
-  JS::Rooted<JS::Value> status(cx);
-  nsresult rv = mProvider->GetVoicemailStatus(id, &status);
+  nsCOMPtr<nsIDOMMozVoicemailStatus> status;
+  nsresult rv = mProvider->GetVoicemailStatus(id, getter_AddRefs(status));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return nullptr;
   }
-  if (!status.isObject()) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return nullptr;
-  }
-  JS::Rooted<JSObject*> statusObj(cx, &status.toObject());
-  nsRefPtr<MozVoicemailStatus> res = new MozVoicemailStatus(statusObj, GetParentObject());
-  return res.forget();
+
+  return status.forget();
 }
 
 void
@@ -174,16 +167,12 @@ Voicemail::GetDisplayName(const Optional<uint32_t>& aServiceId, nsString& aDispl
 // nsIVoicemailListener
 
 NS_IMETHODIMP
-Voicemail::NotifyStatusChanged(JS::HandleValue aStatus)
+Voicemail::NotifyStatusChanged(nsIDOMMozVoicemailStatus* aStatus)
 {
   MozVoicemailEventInit init;
   init.mBubbles = false;
   init.mCancelable = false;
-  if (aStatus.isObject()) {
-    JSContext *cx = nsContentUtils::GetCurrentJSContext();
-    JS::Rooted<JSObject*> statusObj(cx, &aStatus.toObject());
-    init.mStatus = new MozVoicemailStatus(statusObj, GetParentObject());
-  }
+  init.mStatus = aStatus;
 
   nsRefPtr<MozVoicemailEvent> event =
     MozVoicemailEvent::Constructor(this, NS_LITERAL_STRING("statuschanged"), init);

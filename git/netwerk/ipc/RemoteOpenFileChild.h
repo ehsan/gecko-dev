@@ -77,8 +77,6 @@ public:
                                nsITabChild* aTabChild,
                                nsILoadContext *aLoadContext);
 
-  nsresult SetNSPRFileDesc(PRFileDesc* aNSPRFileDesc);
-
   void ReleaseIPDLReference()
   {
     Release();

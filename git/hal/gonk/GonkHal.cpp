@@ -105,7 +105,6 @@
 
 using namespace mozilla;
 using namespace mozilla::hal;
-using namespace mozilla::dom;
 
 namespace mozilla {
 namespace hal_impl {
@@ -1692,7 +1691,7 @@ SetCurrentThreadPriority(ThreadPriority aThreadPriority)
 }
 
 void
-FactoryReset(FactoryResetReason& aReason)
+FactoryReset()
 {
   nsCOMPtr<nsIRecoveryService> recoveryService =
     do_GetService("@mozilla.org/recovery-service;1");
@@ -1701,11 +1700,7 @@ FactoryReset(FactoryResetReason& aReason)
     return;
   }
 
-  if (aReason == FactoryResetReason::Wipe) {
-    recoveryService->FactoryReset("wipe");
-  } else {
-    recoveryService->FactoryReset("normal");
-  }
+  recoveryService->FactoryReset();
 }
 
 } // hal_impl

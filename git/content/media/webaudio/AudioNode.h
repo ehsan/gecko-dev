@@ -107,6 +107,10 @@ public:
     return nullptr;
   }
 
+  virtual const DelayNode* AsDelayNode() const {
+    return nullptr;
+  }
+
   AudioContext* GetParentObject() const
   {
     return mContext;

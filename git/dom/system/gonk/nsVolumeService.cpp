@@ -12,11 +12,9 @@
 #include "nsCOMPtr.h"
 #include "nsDependentSubstring.h"
 #include "nsIDOMWakeLockListener.h"
-#include "nsIMutableArray.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIPowerManagerService.h"
-#include "nsISupportsPrimitives.h"
 #include "nsISupportsUtils.h"
 #include "nsIVolume.h"
 #include "nsIVolumeService.h"
@@ -258,34 +256,17 @@ nsVolumeService::CreateOrGetVolumeByPath(const nsAString& aPath, nsIVolume** aRe
 }
 
 NS_IMETHODIMP
-nsVolumeService::GetVolumeNames(nsIArray** aVolNames)
+nsVolumeService::GetVolumeNames(nsTArray<nsString>& aVolNames)
 {
-  NS_ENSURE_ARG_POINTER(aVolNames);
   MonitorAutoLock autoLock(mArrayMonitor);
-
-  *aVolNames = nullptr;
-
-  nsresult rv;
-  nsCOMPtr<nsIMutableArray> volNames =
-    do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   nsVolume::Array::size_type numVolumes = mVolumeArray.Length();
   nsVolume::Array::index_type volIndex;
   for (volIndex = 0; volIndex < numVolumes; volIndex++) {
     nsRefPtr<nsVolume> vol = mVolumeArray[volIndex];
-    nsCOMPtr<nsISupportsString> isupportsString =
-      do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = isupportsString->SetData(vol->Name());
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = volNames->AppendElement(isupportsString, false);
-    NS_ENSURE_SUCCESS(rv, rv);
+    aVolNames.AppendElement(vol->Name());
   }
 
-  NS_ADDREF(*aVolNames = volNames);
   return NS_OK;
 }
 

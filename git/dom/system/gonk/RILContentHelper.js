@@ -273,9 +273,16 @@ function VoicemailStatus(clientId) {
   this.serviceId = clientId;
 }
 VoicemailStatus.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozVoicemailStatus]),
   classID:        VOICEMAILSTATUS_CID,
-  contractID:     "@mozilla.org/voicemailstatus;1",
+  classInfo:      XPCOMUtils.generateCI({
+    classID:          VOICEMAILSTATUS_CID,
+    classDescription: "VoicemailStatus",
+    flags:            Ci.nsIClassInfo.DOM_OBJECT,
+    interfaces:       [Ci.nsIDOMMozVoicemailStatus]
+  }),
+
+  // nsIDOMMozVoicemailStatus
 
   serviceId: -1,
   hasMessages: false,

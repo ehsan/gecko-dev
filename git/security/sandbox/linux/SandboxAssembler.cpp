@@ -139,7 +139,11 @@ Instruction *
 SandboxAssembler::RetKill()
 {
   return mCode.MakeInstruction(BPF_RET + BPF_K,
+#ifdef MOZ_CONTENT_SANDBOX_REPORTER
                                SECCOMP_RET_TRAP,
+#else
+                               SECCOMP_RET_KILL,
+#endif
                                nullptr);
 }
 

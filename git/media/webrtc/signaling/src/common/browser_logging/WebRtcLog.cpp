@@ -17,10 +17,7 @@
 #endif
 
 static int gWebRtcTraceLoggingOn = 0;
-
-#ifndef ANDROID
 static const char *default_log = "WebRTC.log";
-#endif
 
 static PRLogModuleInfo* GetWebRtcTraceLog()
 {

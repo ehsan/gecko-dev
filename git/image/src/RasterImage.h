@@ -121,6 +121,8 @@ class nsIRequest;
  * it's not allocated until the second frame is added.
  */
 
+class ScaleRequest;
+
 namespace mozilla {
 
 namespace layers {
@@ -131,7 +133,6 @@ class Image;
 
 namespace image {
 
-class ScaleRequest;
 class Decoder;
 class FrameAnimator;
 

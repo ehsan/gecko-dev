@@ -426,13 +426,9 @@ CancelFMRadioSeek()
 }
 
 void
-FactoryReset(FactoryResetReason& aReason)
+FactoryReset()
 {
-  if (aReason == FactoryResetReason::Normal) {
-    Hal()->SendFactoryReset(NS_LITERAL_STRING("normal"));
-  } else if (aReason == FactoryResetReason::Wipe) {
-    Hal()->SendFactoryReset(NS_LITERAL_STRING("wipe"));
-  }
+  Hal()->SendFactoryReset();
 }
 
 void
@@ -845,23 +841,12 @@ public:
   }
 
   virtual bool
-  RecvFactoryReset(const nsString& aReason) MOZ_OVERRIDE
+  RecvFactoryReset()
   {
     if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
-
-    FactoryResetReason reason = FactoryResetReason::Normal;
-    if (aReason.EqualsLiteral("normal")) {
-      reason = FactoryResetReason::Normal;
-    } else if (aReason.EqualsLiteral("wipe")) {
-      reason = FactoryResetReason::Wipe;
-    } else {
-      // Invalid factory reset reason. That should never happen.
-      return false;
-    }
-
-    hal::FactoryReset(reason);
+    hal::FactoryReset();
     return true;
   }
 

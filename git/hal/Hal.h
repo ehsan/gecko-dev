@@ -14,7 +14,6 @@
 #include "mozilla/Types.h"
 #include "nsTArray.h"
 #include "prlog.h"
-#include "mozilla/dom/MozPowerManagerBinding.h"
 #include "mozilla/dom/battery/Types.h"
 #include "mozilla/dom/network/Types.h"
 #include "mozilla/dom/power/Types.h"
@@ -576,7 +575,7 @@ void StartForceQuitWatchdog(hal::ShutdownMode aMode, int32_t aTimeoutSecs);
 /**
  * Perform Factory Reset to wipe out all user data.
  */
-void FactoryReset(mozilla::dom::FactoryResetReason& aReason);
+void FactoryReset();
 
 /**
  * Start monitoring the status of gamepads attached to the system.

@@ -420,11 +420,15 @@ VideoCaptureModule::DeviceInfo* ViEInputManager::GetDeviceInfo() {
   if (capture_device_info_ == NULL) {
     switch (type) {
       case CaptureDeviceType::Screen:
-      case CaptureDeviceType::Application:
-      case CaptureDeviceType::Window:
 #if !defined(ANDROID)
         capture_device_info_ = DesktopCaptureImpl::CreateDeviceInfo(ViEModuleId(engine_id_),
-                                                                    type);
+                                                                    false);
+#endif
+        break;
+      case CaptureDeviceType::Application:
+#if !defined(ANDROID)
+        capture_device_info_ = DesktopCaptureImpl::CreateDeviceInfo(ViEModuleId(engine_id_),
+                                                                    true);
 #endif
         break;
       case CaptureDeviceType::Camera:

@@ -1205,10 +1205,10 @@ GetFMBandSettings(FMRadioCountry aCountry) {
     return settings;
 }
 
-void FactoryReset(mozilla::dom::FactoryResetReason& aReason)
+void FactoryReset()
 {
   AssertMainThread();
-  PROXY_IF_SANDBOXED(FactoryReset(aReason));
+  PROXY_IF_SANDBOXED(FactoryReset());
 }
 
 void

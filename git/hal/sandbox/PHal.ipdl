@@ -159,7 +159,7 @@ parent:
     sync GetCurrentSwitchState(SwitchDevice aDevice)
       returns (SwitchState aState);
 
-    FactoryReset(nsString aReason);
+    FactoryReset();
 
 child:
     NotifySensorChange(SensorData aSensorData);

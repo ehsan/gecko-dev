@@ -16,10 +16,9 @@
 
 class nsWindowsShellService : public nsIWindowsShellService
 {
-  virtual ~nsWindowsShellService();
-
 public:
   nsWindowsShellService();
+  virtual ~nsWindowsShellService();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSISHELLSERVICE

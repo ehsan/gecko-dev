@@ -1368,8 +1368,6 @@ nsHttpChannel::ProcessResponse()
         cacheDisposition = kCacheMissedViaReval;
 
     AccumulateCacheHitTelemetry(cacheDisposition);
-    Telemetry::Accumulate(Telemetry::HTTP_RESPONSE_VERSION,
-                          mResponseHead->Version());
 
     return rv;
 }
