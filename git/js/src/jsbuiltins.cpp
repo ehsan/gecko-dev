@@ -367,20 +367,11 @@ js_Any_setelem(JSContext* cx, JSObject* obj, JSString* idstr, jsval v)
 }
 
 JSObject* FASTCALL
-js_FastValueToIterator(JSContext* cx, jsuint flags, jsval v)
+js_ValueToEnumerator(JSContext* cx, jsval v)
 {
-    if (!js_ValueToIterator(cx, flags, &v))
+    if (!js_ValueToIterator(cx, JSITER_ENUMERATE, &v))
         return NULL;
     return JSVAL_TO_OBJECT(v);
-}
-
-jsval FASTCALL
-js_FastCallIteratorNext(JSContext* cx, JSObject* iterobj)
-{
-    jsval v;
-    if (!js_CallIteratorNext(cx, iterobj, &v))
-        return JSVAL_ERROR_COOKIE;
-    return v;
 }
 
 GuardRecord* FASTCALL

@@ -225,7 +225,8 @@ class TraceRecorder {
     ptrdiff_t nativeGlobalOffset(jsval* p) const;
     void import(nanojit::LIns* base, ptrdiff_t offset, jsval* p, uint8& t, 
                 const char *prefix, uintN index, JSStackFrame *fp);
-    void import(unsigned ngslots, unsigned callDepth, uint8* globalTypeMap, uint8* stackTypeMap);
+    void import(nanojit::LIns* sp, unsigned ngslots, unsigned callDepth, 
+                uint8* globalTypeMap, uint8* stackTypeMap);
     void trackNativeStackUse(unsigned slots);
 
     bool lazilyImportGlobalSlot(unsigned slot);
@@ -300,7 +301,8 @@ class TraceRecorder {
     void clearFrameSlotsFromCache();
     bool guardShapelessCallee(jsval& callee);
     bool interpretedFunctionCall(jsval& fval, JSFunction* fun, uintN argc);
-    bool forInLoop(jsval* vp);
+    bool forInProlog(JSObject*& iterobj, nanojit::LIns*& iterobj_ins);
+    bool forInLoop(nanojit::LIns*& id_ins);
 
 public:
     TraceRecorder(JSContext* cx, nanojit::GuardRecord*, nanojit::Fragment*, 
