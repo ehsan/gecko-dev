@@ -2340,7 +2340,7 @@ store_number(JSContext* cx, JSFrameRegs& regs, int n, jsdouble& d)
 static inline bool
 store_int(JSContext* cx, JSFrameRegs& regs, int n, jsint& i)
 {
-    if (INT_FITS_IN_JSVAL(i)) {
+    if (guard_int_fits_in_jsval(cx, regs, i)) {
         prim_int_to_jsval(cx, i, regs.sp[n]);
     } else {
         jsdouble d;
@@ -2354,7 +2354,7 @@ store_int(JSContext* cx, JSFrameRegs& regs, int n, jsint& i)
 static bool
 store_uint(JSContext* cx, JSFrameRegs& regs, int n, uint32& u)
 {
-    if (u <= JSVAL_INT_MAX) {
+    if (guard_uint_fits_in_jsval(cx, regs, u)) {
         prim_uint_to_jsval(cx, u, regs.sp[n]);
     } else {
         jsdouble d;
@@ -2374,11 +2374,11 @@ value_to_number(JSContext* cx, JSFrameRegs& regs, int n, jsval& v,
                            jsdouble& d)
 {
     JS_ASSERT(v == regs.sp[n]);
-    if (JSVAL_IS_INT(v)) {
+    if (guard_jsval_is_int(cx, regs, v)) {
         int i;
         prim_jsval_to_int(cx, v, i);
         prim_int_to_double(cx, i, d);
-    } else if (JSVAL_IS_DOUBLE(v)) {
+    } else if (guard_jsval_is_double(cx, regs, v)) {
         prim_jsval_to_double(cx, v, d);
     } else {
         call_ValueToNumber(cx, regs.sp[n], d);
@@ -2404,7 +2404,7 @@ fetch_int(JSContext* cx, JSFrameRegs& regs, int n, jsint& i)
     jsval v;
 
     prim_fetch_stack(cx, regs, n, v);
-    if (JSVAL_IS_INT(v)) {
+    if (guard_jsval_is_int(cx, regs, v)) {
         prim_jsval_to_int(cx, v, i);
     } else {
         call_ValueToECMAInt32(cx, regs.sp[n], i);
@@ -2420,7 +2420,7 @@ fetch_uint(JSContext* cx, JSFrameRegs& regs, int n, uint32& u)
     jsval v;
 
     prim_fetch_stack(cx, regs, n, v);
-    if (JSVAL_IS_INT(v)) {
+    if (guard_jsval_is_int(cx, regs, v)) {
         int i;
         prim_jsval_to_int(cx, v, i);
         prim_int_to_uint(cx, i, u);
@@ -2436,11 +2436,9 @@ static inline void
 pop_boolean(JSContext* cx, JSFrameRegs& regs, jsval& v, JSBool& b)
 {
     prim_fetch_stack(cx, regs, -1, v);
-    if (JSVAL_IS_OBJECT(v)) {
-        JSObject *obj;
-        prim_jsval_to_object(cx, v, obj);
-        prim_object_as_boolean(cx, obj, b);
-    } else if (JSVAL_IS_BOOLEAN(v)) {
+    if (guard_jsval_is_null(cx, regs, v)) {
+        prim_generate_boolean_constant(cx, JS_FALSE, b);
+    } else if (guard_jsval_is_boolean(cx, regs, v)) {
         prim_jsval_to_boolean(cx, v, b);
     } else {
         call_ValueToBoolean(cx, v, b);
@@ -2452,7 +2450,7 @@ static inline bool
 value_to_object(JSContext* cx, JSFrameRegs& regs, int n, jsval& v,
                            JSObject*& obj)
 {
-    if (!JSVAL_IS_PRIMITIVE(v)) {
+    if (!guard_jsval_is_primitive(cx, regs, v)) {
         prim_jsval_to_object(cx, v, obj);
     } else {
         call_ValueToNonNullObject(cx, v, obj);
@@ -2506,9 +2504,9 @@ DoIncDec(JSContext *cx, JSFrameRegs& regs, const JSCodeSpec *cs, jsval *vp, jsva
     jsdouble d;
 
     prim_copy(cx, *vp, v);
-    if (JSVAL_IS_DOUBLE(v)) {
+    if (guard_jsval_is_double(cx, regs, v)) {
         prim_jsval_to_double(cx, v, d);
-    } else if (JSVAL_IS_INT(v)) {
+    } else if (guard_jsval_is_int(cx, regs, v)) {
         int i;
         prim_jsval_to_int(cx, v, i);
         prim_int_to_double(cx, i, d);
@@ -2926,7 +2924,7 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
 #ifndef jstracer_cpp___
 # define MONITOR_BRANCH(n)                                                    \
     JS_BEGIN_MACRO                                                            \
-        if (ENABLE_TRACER &&                                                  \
+        if (TRACING_ENABLED(cx) &&                                            \
             (JS_TRACE_MONITOR(cx).freq++ & TRACE_TRIGGER_MASK) == 0) {        \
             regs.pc += n;                                                     \
             goto attempt_recording;                                           \
@@ -2935,7 +2933,7 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
 #else
 # define MONITOR_BRANCH(n)                                                    \
     JS_BEGIN_MACRO                                                            \
-        if (ENABLE_TRACER &&                                                  \
+        if (TRACING_ENABLED(cx) &&                                            \
             JS_TRACE_MONITOR(cx).recorder != NULL &&                          \
             JS_TRACE_MONITOR(cx).recorder->entryState.pc == (regs.pc + n)) {  \
             goto end_recording;                                               \
@@ -3147,8 +3145,8 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
 #endif
           END_CASE(JSOP_POPN)
 
-          TRACE_CASE(JSOP_SETRVAL)
-          TRACE_CASE(JSOP_POPV)
+          BEGIN_CASE(JSOP_SETRVAL)
+          BEGIN_CASE(JSOP_POPV)
             ASSERT_NOT_THROWING(cx);
             POP_STACK(fp->rval);
           END_CASE(JSOP_POPV)
@@ -3735,16 +3733,16 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
         FETCH_STACK(-1, rval);                                                \
         FETCH_STACK(-2, lval);                                                \
         /* Optimize for two int-tagged operands (typical loop control). */    \
-        if ((lval & rval) & JSVAL_INT) {                                      \
+        if (guard_both_jsvals_are_int(cx, regs, lval, rval)) {                \
             prim_jsval_to_int(cx, lval, i);                                   \
             prim_jsval_to_int(cx, rval, j);                                   \
             prim_icmp_##OP(cx, i, j, cond);                                   \
         } else {                                                              \
-            if (!JSVAL_IS_PRIMITIVE(lval))                                    \
+            if (!guard_jsval_is_primitive(cx, regs, lval))                    \
                 DEFAULT_VALUE(cx, -2, JSTYPE_NUMBER, lval);                   \
-            if (!JSVAL_IS_PRIMITIVE(rval))                                    \
+            if (!guard_jsval_is_primitive(cx, regs, rval))                    \
                 DEFAULT_VALUE(cx, -1, JSTYPE_NUMBER, rval);                   \
-            if (JSVAL_IS_STRING(lval) && JSVAL_IS_STRING(rval)) {             \
+            if (guard_both_jsvals_are_string(cx, regs, lval, rval)) {         \
                 prim_jsval_to_string(cx, lval, str);                          \
                 prim_jsval_to_string(cx, rval, str2);                         \
                 call_CompareStrings(cx, str, str2, i);                        \
@@ -4201,7 +4199,7 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
             JS_ASSERT(cs->ndefs == 1);
             JS_ASSERT((cs->format & JOF_TMPSLOT_MASK) == JOF_TMPSLOT2);
             v = regs.sp[-1];
-            if (JS_LIKELY(CAN_DO_FAST_INC_DEC(v))) {
+            if (JS_LIKELY(guard_can_do_fast_inc_dec(cx, regs, v))) {
                 jsval incr;
 
                 incr = (cs->format & JOF_INC) ? 2 : -2;
@@ -4303,7 +4301,7 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
 
           do_int_fast_incop:
             prim_copy(cx, *vp, rval);
-            if (JS_LIKELY(CAN_DO_FAST_INC_DEC(rval))) {
+            if (JS_LIKELY(guard_can_do_fast_inc_dec(cx, regs, rval))) {
                 prim_do_fast_inc_dec(cx, regs, rval, incr, *vp);
                 prim_do_fast_inc_dec(cx, regs, rval, incr2, rtmp);
                 PUSH_STACK(rtmp);
@@ -4351,7 +4349,7 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
             }
             slot = JSVAL_TO_INT(lval);
             rval = OBJ_GET_SLOT(cx, fp->varobj, slot);
-            if (JS_LIKELY(CAN_DO_FAST_INC_DEC(rval))) {
+            if (JS_LIKELY(guard_can_do_fast_inc_dec(cx, regs, rval))) {
                 rtmp = rval + incr2;
                 PUSH_STACK(rtmp);
                 rval += incr;
