@@ -1,5 +1,3 @@
-Cu.import("resource://weave/util.js");
-
 function run_test() {
   // The JS module we're testing, with all members exposed.
   var passwords = loadInSandbox("resource://weave/engines/passwords.js");
@@ -15,10 +13,10 @@ function run_test() {
     passwordField: "test_password"
     };
 
-  Utils.getLoginManager = function fake_getLoginManager() {
-    // Return a fake nsILoginManager object.
-    return {getAllLogins: function() { return [fakeUser]; }};
-  };
+  // Fake nsILoginManager object.
+  var fakeLoginManager = {
+    getAllLogins: function() { return [fakeUser]; }
+    };
 
   // Ensure that _hashLoginInfo() works.
   var fakeUserHash = passwords._hashLoginInfo(fakeUser);
@@ -27,6 +25,7 @@ function run_test() {
 
   // Ensure that PasswordSyncCore._itemExists() works.
   var psc = new passwords.PasswordSyncCore();
+  psc.__loginManager = fakeLoginManager;
   do_check_false(psc._itemExists("invalid guid"));
   do_check_true(psc._itemExists(fakeUserHash));
 }

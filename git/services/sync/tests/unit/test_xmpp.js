@@ -1,3 +1,5 @@
+var Cu = Components.utils;
+
 Cu.import( "resource://weave/xmpp/xmppClient.js" );
 
 function LOG(aMsg) {

@@ -3,7 +3,6 @@ version(180);
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
-const Cu = Components.utils;
 
 let ds = Cc["@mozilla.org/file/directory_service;1"]
   .getService(Ci.nsIProperties);
@@ -41,69 +40,37 @@ function loadInSandbox(aUri) {
   return sandbox;
 }
 
-function FakeTimerService() {
-  Cu.import("resource://weave/util.js");
+function makeAsyncTestRunner(generator) {
+  const Cu = Components.utils;
 
-  this.callbackQueue = [];
-
-  var self = this;
-
-  this.__proto__ = {
-    makeTimerForCall: function FTS_makeTimerForCall(cb) {
-      // Just add the callback to our queue and we'll call it later, so
-      // as to simulate a real nsITimer.
-      self.callbackQueue.push(cb);
-      return "fake nsITimer";
-    },
-    processCallback: function FTS_processCallbacks() {
-      var cb = self.callbackQueue.pop();
-      if (cb) {
-        cb();
-        return true;
-      }
-      return false;
-    }
-  };
-
-  Utils.makeTimerForCall = self.makeTimerForCall;
-};
-
-function initTestLogging() {
   Cu.import("resource://weave/log4moz.js");
+  Cu.import("resource://weave/async.js");
 
-  function LogStats() {
-    this.errorsLogged = 0;
-  }
-  LogStats.prototype = {
+  var errorsLogged = 0;
+
+  function _TestFormatter() {}
+  _TestFormatter.prototype = {
     format: function BF_format(message) {
       if (message.level == Log4Moz.Level.Error)
-        this.errorsLogged += 1;
+        errorsLogged += 1;
       return message.loggerName + "\t" + message.levelDesc + "\t" +
         message.message + "\n";
     }
   };
-  LogStats.prototype.__proto__ = new Log4Moz.Formatter();
+  _TestFormatter.prototype.__proto__ = new Log4Moz.Formatter();
 
   var log = Log4Moz.Service.rootLogger;
-  var logStats = new LogStats();
-  var appender = new Log4Moz.DumpAppender(logStats);
+  var formatter = new _TestFormatter();
+  var appender = new Log4Moz.DumpAppender(formatter);
   log.level = Log4Moz.Level.Debug;
   appender.level = Log4Moz.Level.Debug;
   log.addAppender(appender);
-
-  return logStats;
-}
-
-function makeAsyncTestRunner(generator) {
-  Cu.import("resource://weave/async.js");
-
-  var logStats = initTestLogging();
 
   function run_test() {
     do_test_pending();
 
     let onComplete = function() {
-      if (logStats.errorsLogged)
+      if (errorsLogged)
         do_throw("Errors were logged.");
       else
         do_test_finished();

@@ -121,8 +121,7 @@ DAVCollection.prototype = {
 
     this._log.debug(op + " request for " + (path? path : 'root folder'));
 
-    if (!path || path[0] != '/')
-      path = this._defaultPrefix + path;
+    path = this._defaultPrefix + path;
 
     let request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
 
@@ -356,7 +355,7 @@ DAVCollection.prototype = {
 
     if (DAVLocks['default']) {
       this._log.debug("Lock called, but we already hold a token");
-      self.done();
+      self.done(DAVLocks['default']);
       return;
     }
 

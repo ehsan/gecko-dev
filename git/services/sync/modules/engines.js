@@ -206,7 +206,16 @@ Engine.prototype = {
 
   _resetServer: function Engine__resetServer() {
     let self = yield;
-    yield this._remote.wipe(self.cb);
+    this._log.debug("Resetting server data");
+    this._remote.status.delete(self.cb);
+    yield;
+    this._remote.keys.delete(self.cb);
+    yield;
+    this._remote.snapshot.delete(self.cb);
+    yield;
+    this._remote.deltas.delete(self.cb);
+    yield;
+    this._log.debug("Server files deleted");
   },
 
   _resetClient: function Engine__resetClient() {
@@ -251,7 +260,7 @@ Engine.prototype = {
     this._log.info("Beginning sync");
 
     try {
-      yield this._remote.openSession(self.cb);
+      yield this._remote.initSession(self.cb);
     } catch (e if e.message.status == 404) {
       yield this._initialUpload.async(this, self.cb);
       return;
@@ -270,6 +279,7 @@ Engine.prototype = {
 
     this._log.info("Local snapshot version: " + this._snapshot.version);
     this._log.info("Server maxVersion: " + this._remote.status.data.maxVersion);
+    this._log.debug("Server snapVersion: " + this._remote.status.data.snapVersion);
 
     if ("none" != Utils.prefs.getCharPref("encryption")) {
       let symkey = yield this._remote.keys.getKey(self.cb, this.pbeId);
@@ -278,7 +288,7 @@ Engine.prototype = {
 
     // 1) Fetch server deltas
     let server = {};
-    let serverSnap = yield this._remote.wrap(self.cb, this._snapshot);
+    let serverSnap = yield this._remote.getLatestFromSnap(self.cb, this._snapshot);
     server.snapshot = serverSnap.data;
     this._core.detectUpdates(self.cb, this._snapshot.data, server.snapshot);
     server.updates = yield;
