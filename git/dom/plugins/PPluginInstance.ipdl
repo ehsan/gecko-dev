@@ -37,11 +37,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-include protocol PPluginModule;
-include protocol PPluginScriptableObject;
-include protocol PBrowserStream;
-include protocol PPluginStream;
-include protocol PStreamNotify;
+include protocol "PPluginModule.ipdl";
+include protocol "PPluginScriptableObject.ipdl";
+include protocol "PBrowserStream.ipdl";
+include protocol "PPluginStream.ipdl";
+include protocol "PStreamNotify.ipdl";
 
 include "mozilla/plugins/PluginMessageUtils.h";
 
@@ -49,9 +49,6 @@ using NPError;
 using NPRemoteWindow;
 using NPRemoteEvent;
 using NPRect;
-using NPNURLVariable;
-using NPCoordinateSpace;
-using mozilla::plugins::NativeWindowHandle;
 
 namespace mozilla {
 namespace plugins {
@@ -66,34 +63,24 @@ rpc protocol PPluginInstance
   manages PStreamNotify;
 
 child:
-  rpc __delete__();
+  rpc __delete__()
+    returns (NPError rv);
 
-  rpc NPP_SetWindow(NPRemoteWindow window);
+  rpc NPP_SetWindow(NPRemoteWindow window)
+    returns (NPError rv);
 
+  rpc NPP_GetValue_NPPVpluginWindow()
+    returns (bool value, NPError result);
+  rpc NPP_GetValue_NPPVpluginTransparent()
+    returns (bool value, NPError result);
   // this message is not used on non-X platforms
   rpc NPP_GetValue_NPPVpluginNeedsXEmbed()
     returns (bool value, NPError result);
   rpc NPP_GetValue_NPPVpluginScriptableNPObject()
     returns (nullable PPluginScriptableObject value, NPError result);
 
-  rpc NPP_SetValue_NPNVprivateModeBool(bool value) returns (NPError result);
-
   rpc NPP_HandleEvent(NPRemoteEvent event)
     returns (int16_t handled);
-  // special cases where we need to a shared memory buffer
-  rpc NPP_HandleEvent_Shmem(NPRemoteEvent event, Shmem buffer)
-    returns (int16_t handled, Shmem rtnbuffer);
-  // special cases where we need an iosurface
-  rpc NPP_HandleEvent_IOSurface(NPRemoteEvent event, uint32_t surfaceid)
-    returns (int16_t handled);
-  // special cases of HandleEvent to make mediating races simpler
-  rpc Paint(NPRemoteEvent event)
-    returns (int16_t handled);
-  // this is only used on windows to forward WM_WINDOWPOSCHANGE
-  async WindowPosChanged(NPRemoteEvent event);
-
-  rpc NPP_Destroy()
-    returns (NPError rv);
 
 parent:
   rpc NPN_GetValue_NPNVjavascriptEnabledBool()
@@ -106,16 +93,10 @@ parent:
     returns (nullable PPluginScriptableObject value, NPError result);
   rpc NPN_GetValue_NPNVprivateModeBool()
     returns (bool value, NPError result);
-  rpc NPN_GetValue_NPNVnetscapeWindow()
-    returns (NativeWindowHandle value, NPError result);
 
   rpc NPN_SetValue_NPPVpluginWindow(bool windowed)
     returns (NPError result);
   rpc NPN_SetValue_NPPVpluginTransparent(bool transparent)
-    returns (NPError result);
-  rpc NPN_SetValue_NPPVpluginDrawingModel(int drawingModel)
-    returns (NPError result);
-  rpc NPN_SetValue_NPPVpluginEventModel(int eventModel)
     returns (NPError result);
 
   rpc NPN_GetURL(nsCString url, nsCString target)
@@ -126,7 +107,7 @@ parent:
   /**
    * Covers both NPN_GetURLNotify and NPN_PostURLNotify.
    * @TODO This would be more readable as an overloaded method,
-   *       but IPDL doesn't allow that for constructors.
+   *       but IPDL doesn't allow that for constructors (or any method?).
    */
   rpc PStreamNotify(nsCString url, nsCString target, bool post,
                     nsCString buffer, bool file)
@@ -134,28 +115,14 @@ parent:
 
   async NPN_InvalidateRect(NPRect rect);
 
-  rpc NPN_PushPopupsEnabledState(bool aState);
+  rpc NPN_PushPopupsEnabledState(bool aState)
+    returns (bool aSuccess);
 
-  rpc NPN_PopPopupsEnabledState();
-
-  rpc NPN_GetValueForURL(NPNURLVariable variable, nsCString url)
-    returns (nsCString value, NPError result);
-
-  rpc NPN_SetValueForURL(NPNURLVariable variable, nsCString url,
-                         nsCString value)
-    returns (NPError result);
-
-  rpc NPN_GetAuthenticationInfo(nsCString protocol_, nsCString host,
-                                int32_t port, nsCString scheme,
-                                nsCString realm)
-    returns (nsCString username, nsCString password, NPError result);
-
-  rpc NPN_ConvertPoint(double sourceX, bool ignoreDestX, double sourceY, bool ignoreDestY, NPCoordinateSpace sourceSpace,
-                       NPCoordinateSpace destSpace)
-    returns (double destX, double destY, bool result);
+  rpc NPN_PopPopupsEnabledState()
+    returns (bool aSuccess);
 
 both:
-  async PPluginScriptableObject();
+  rpc PPluginScriptableObject();
 
 child:
   /* NPP_NewStream */
@@ -174,13 +141,6 @@ parent:
   rpc PPluginStream(nsCString mimeType,
                     nsCString target)
     returns (NPError result);
-
-parent:
-  rpc PluginFocusChange(bool gotFocus);
-
-child:
-  rpc SetPluginFocus();
-  rpc UpdateWindow();
 };
 
 } // namespace plugins

@@ -33,8 +33,10 @@ function test_property(property)
     var sinfo = gCSSProperties[sproperty];
     var val = gDeclaration.getPropertyValue(sproperty);
     is(val, "", "value of '" + sproperty + "' before we do anything");
-    is(val, gDeclaration[sinfo.domProp],
-       "consistency between decl.getPropertyValue('" + sproperty + "') and decl." + sinfo.domProp);
+    if (sinfo.domProp) {
+      is(val, gDeclaration[sinfo.domProp],
+         "consistency between decl.getPropertyValue('" + sproperty + "') and decl." + sinfo.domProp);
+    }
   }
   check_initial(property);
   if ("subproperties" in info)
@@ -48,9 +50,11 @@ function test_property(property)
     val = gDeclaration.getPropertyValue(sproperty);
     is(val, "inherit",
        "inherit reported back for property '" + sproperty + "'");
-    is(val, gDeclaration[sinfo.domProp],
-       "consistency between decl.getPropertyValue('" + sproperty +
-       "') and decl." + sinfo.domProp);
+    if (sinfo.domProp) {
+      is(val, gDeclaration[sinfo.domProp],
+         "consistency between decl.getPropertyValue('" + sproperty +
+         "') and decl." + sinfo.domProp);
+    }
   }
   check_set(property);
   if ("subproperties" in info)
@@ -68,8 +72,10 @@ function test_property(property)
     var sinfo = gCSSProperties[sproperty];
     var val = gDeclaration.getPropertyValue(sproperty);
     is(val, "", "value of '" + sproperty + "' after removal of value");
-    is(val, gDeclaration[sinfo.domProp],
-       "consistency between decl.getPropertyValue('" + sproperty + "') and decl." + sinfo.domProp);
+    if (sinfo.domProp) {
+      is(val, gDeclaration[sinfo.domProp],
+         "consistency between decl.getPropertyValue('" + sproperty + "') and decl." + sinfo.domProp);
+    }
   }
   check_final(property);
   if ("subproperties" in info)

@@ -59,10 +59,10 @@ NS_IMETHODIMP nsPLDOMEvent::Run()
     if (doc) {
       if (mDispatchChromeOnly) {
         nsContentUtils::DispatchChromeEvent(doc, mEventNode, mEventType,
-                                            mBubbles, PR_FALSE);
+                                            PR_TRUE, PR_TRUE);
       } else {
         nsContentUtils::DispatchTrustedEvent(doc, mEventNode, mEventType,
-                                             mBubbles, PR_FALSE);
+                                             PR_TRUE, PR_TRUE);
       }
     }
   }
@@ -78,11 +78,4 @@ nsresult nsPLDOMEvent::PostDOMEvent()
 nsresult nsPLDOMEvent::RunDOMEventWhenSafe()
 {
   return nsContentUtils::AddScriptRunner(this) ? NS_OK : NS_ERROR_FAILURE;
-}
-
-nsLoadBlockingPLDOMEvent::~nsLoadBlockingPLDOMEvent()
-{
-  if (mBlockedDoc) {
-    mBlockedDoc->UnblockOnload(PR_TRUE);
-  }
 }

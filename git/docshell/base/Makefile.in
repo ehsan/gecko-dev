@@ -74,17 +74,13 @@ XPIDLSRCS	= \
 		nsIURIFixup.idl			\
 		nsIEditorDocShell.idl		\
 		nsIWebPageDescriptor.idl	\
+		nsIURIClassifier.idl		\
+		nsIChannelClassifier.idl	\
 		nsIDownloadHistory.idl          \
 		nsILoadContext.idl              \
 		$(NULL)
 
 EXPORTS		= nsDocShellLoadTypes.h
-
-EXPORTS_NAMESPACES = mozilla
-
-EXPORTS_mozilla = \
-  IHistory.h \
-  $(NULL)
 
 CPPSRCS		= \
 		nsDocShell.cpp		\

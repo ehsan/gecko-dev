@@ -60,7 +60,8 @@
 #include "nsRuleWalker.h"
 #include "nsCSSDeclaration.h"
 #include "nsCSSProps.h"
-#include "nsCSSParser.h"
+#include "nsICSSParser.h"
+#include "nsICSSLoader.h"
 #include "nsGenericHTMLElement.h"
 #include "nsNodeInfoManager.h"
 #include "nsIScriptGlobalObject.h"
@@ -86,26 +87,15 @@
 #include "nsIDOMSVGTransformList.h"
 #include "nsIDOMSVGAnimTransformList.h"
 #include "nsIDOMSVGAnimatedRect.h"
-#include "nsIDOMSVGGradientElement.h"
-#include "nsIDOMSVGPatternElement.h"
 #include "nsSVGRect.h"
 #include "nsIFrame.h"
 #include "prdtoa.h"
 #include <stdarg.h>
 #ifdef MOZ_SMIL
-#include "nsSMILMappedAttribute.h"
 #include "nsSVGTransformSMILAttr.h"
 #include "nsSVGAnimatedTransformList.h"
-#include "SVGMotionSMILAttr.h"
 #include "nsIDOMSVGTransformable.h"
 #endif // MOZ_SMIL
-
-// This is needed to ensure correct handling of calls to the
-// vararg-list methods in this file:
-//   nsSVGElement::GetAnimated{Length,Number,Integer}Values
-// See bug 547964 for details:
-PR_STATIC_ASSERT(sizeof(void*) == sizeof(nsnull));
-
 
 nsSVGEnumMapping nsSVGElement::sSVGUnitTypesMap[] = {
   {&nsGkAtoms::userSpaceOnUse, nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_USERSPACEONUSE},
@@ -227,16 +217,12 @@ nsSVGElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   if (oldVal && oldVal->Type() == nsAttrValue::eCSSStyleRule) {
     // we need to force a reparse because the baseURI of the document
-    // may have changed, and in particular because we may be clones of
-    // XBL anonymous content now being bound to the document we should
-    // render in and due to the hacky way in which we implement the
-    // interaction of XBL and SVG resources.  Once we have a sane
-    // ownerDocument on XBL anonymous content, this can all go away.
+    // may have changed
     nsAttrValue attrValue;
     nsAutoString stringValue;
     oldVal->ToString(stringValue);
     // Force in data doc, since we already have a style rule
-    ParseStyleAttribute(stringValue, attrValue, PR_TRUE);
+    ParseStyleAttribute(this, stringValue, attrValue, PR_TRUE);
     // Don't bother going through SetInlineStyleRule, we don't want to fire off
     // mutation events or document notifications anyway
     rv = mAttrsAndChildren.SetAndTakeAttr(nsGkAtoms::style, attrValue);
@@ -499,10 +485,6 @@ nsresult
 nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                         PRBool aNotify)
 {
-  // XXXbz there's a bunch of redundancy here with AfterSetAttr.
-  // Maybe consolidate?
-  nsresult rv = nsSVGElementBase::UnsetAttr(aNamespaceID, aName, aNotify);
-
   PRBool foundMatch = PR_FALSE;
 
   if (aNamespaceID == kNameSpaceID_None) {
@@ -663,7 +645,7 @@ nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
     }
   }
 
-  return rv;
+  return nsSVGElementBase::UnsetAttr(aNamespaceID, aName, aNotify);
 }
 
 void
@@ -710,7 +692,7 @@ nsSVGElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
 PRBool
 nsSVGElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~(eCONTENT | eSVG));
+  return !(aFlags & ~(eCONTENT | eELEMENT | eSVG));
 }
 
 already_AddRefed<nsIURI>
@@ -748,40 +730,6 @@ nsSVGElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
     mContentStyleRule->RuleMatched();
     aRuleWalker->Forward(mContentStyleRule);
   }
-
-#ifdef MOZ_SMIL
-  // Update & walk the animated content style rule, to include style from
-  // animated mapped attributes.  But first, get nsPresContext to check
-  // whether this is a "no-animation restyle". (This should match the check
-  // in nsHTMLCSSStyleSheet::RulesMatching(), where we determine whether to
-  // apply the SMILOverrideStyle.)
-  nsIDocument* doc = GetOwnerDoc();
-  NS_ASSERTION(doc, "SVG element without doc");
-  if (doc) {
-    nsIPresShell* shell = doc->GetShell();
-    nsPresContext* context = shell ? shell->GetPresContext() : nsnull;
-    if (context && context->IsProcessingRestyles() &&
-        !context->IsProcessingAnimationStyleChange()) {
-      // Any style changes right now could trigger CSS Transitions. We don't
-      // want that to happen from SMIL-animated value of mapped attrs, so
-      // ignore animated value for now, and request an animation restyle to
-      // get our animated value noticed.
-      shell->RestyleForAnimation(this, eRestyle_Self);
-    } else {
-      // Ok, this is an animation restyle -- go ahead and update/walk the
-      // animated content style rule.
-      nsICSSStyleRule* animContentStyleRule = GetAnimatedContentStyleRule();
-      if (!animContentStyleRule) {
-        UpdateAnimatedContentStyleRule();
-        animContentStyleRule = GetAnimatedContentStyleRule();
-      }
-      if (animContentStyleRule) {
-        animContentStyleRule->RuleMatched();
-        aRuleWalker->Forward(animContentStyleRule);
-      }
-    }
-  }
-#endif // MOZ_SMIL
 
   return NS_OK;
 }
@@ -872,6 +820,7 @@ nsSVGElement::sViewportsMap[] = {
 // PresentationAttributes-Makers
 /* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sMarkersMap[] = {
+  { &nsGkAtoms::marker },
   { &nsGkAtoms::marker_end },
   { &nsGkAtoms::marker_mid },
   { &nsGkAtoms::marker_start },
@@ -983,20 +932,29 @@ nsSVGElement::GetViewportElement(nsIDOMSVGElement * *aViewportElement)
 
 //----------------------------------------------------------------------
 // nsISVGValueObserver methods:
-nsSVGElement::ObservableModificationData
-nsSVGElement::GetModificationDataForObservable(nsISVGValue* aObservable,
-                                               nsISVGValue::modificationType aModType)
+
+NS_IMETHODIMP
+nsSVGElement::WillModifySVGObservable(nsISVGValue* observable,
+                                      nsISVGValue::modificationType aModType)
+{
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
+nsSVGElement::DidModifySVGObservable(nsISVGValue* aObservable,
+                                     nsISVGValue::modificationType aModType)
 {
   // Return without setting DOM attributes as markup attributes if the
   // attribute's element is being inserted into an SVG document fragment,
   // which provides a context which percentage lengths are relative to.
   // Bug 274886
   if (aModType == nsISVGValue::mod_context)
-    return ObservableModificationData(nsnull, 0);
+    return NS_OK;
 
   // Return without setting DOM attribute 
   if (mSuppressNotification)
-    return ObservableModificationData(nsnull, 0);
+    return NS_OK;
 
   PRUint32 i, count = mMappedAttributes.AttrCount();
   const nsAttrValue* attrValue = nsnull;
@@ -1010,154 +968,26 @@ nsSVGElement::GetModificationDataForObservable(nsISVGValue* aObservable,
   if (i == count) {
     NS_NOTREACHED("unknown nsISVGValue");
 
-    return ObservableModificationData(nsnull, 1);
+    return NS_ERROR_UNEXPECTED;
   }
-  
+
   const nsAttrName* attrName = mMappedAttributes.AttrNameAt(i);
-  PRBool modification = !!mAttrsAndChildren.GetAttr(attrName->LocalName(),
-                                                    attrName->NamespaceID());
-
-  PRUint8 modType = modification ?
-    static_cast<PRUint8>(nsIDOMMutationEvent::MODIFICATION) :
-    static_cast<PRUint8>(nsIDOMMutationEvent::ADDITION);
-
-  return ObservableModificationData(attrName, modType);
-}
-
-
-NS_IMETHODIMP
-nsSVGElement::WillModifySVGObservable(nsISVGValue* aObservable,
-                                      nsISVGValue::modificationType aModType)
-{
-  ObservableModificationData data =
-    GetModificationDataForObservable(aObservable, aModType);
-  const nsAttrName* attrName = data.name;
-  if (!attrName) {
-    return data.modType ? NS_ERROR_UNEXPECTED : NS_OK;
-  }
-
-  nsNodeUtils::AttributeWillChange(this, attrName->NamespaceID(),
-                                   attrName->LocalName(), data.modType);
-  return NS_OK;
-}
-
-
-NS_IMETHODIMP
-nsSVGElement::DidModifySVGObservable(nsISVGValue* aObservable,
-                                     nsISVGValue::modificationType aModType)
-{
-  ObservableModificationData data =
-    GetModificationDataForObservable(aObservable, aModType);
-  const nsAttrName* attrName = data.name;
-  if (!attrName) {
-    return data.modType ? NS_ERROR_UNEXPECTED : NS_OK;
-  }
-
+  PRBool modification = PR_FALSE;
   PRBool hasListeners =
     nsContentUtils::HasMutationListeners(this,
                                          NS_EVENT_BITS_MUTATION_ATTRMODIFIED,
                                          this);
 
+  if (hasListeners || IsInDoc()) {
+    modification = !!mAttrsAndChildren.GetAttr(attrName->LocalName(),
+                                               attrName->NamespaceID());
+  }
 
   nsAttrValue newValue(aObservable);
+
   return SetAttrAndNotify(attrName->NamespaceID(), attrName->LocalName(),
                           attrName->GetPrefix(), EmptyString(), newValue,
-                          data.modType, hasListeners, PR_TRUE, nsnull);
-}
-
-//------------------------------------------------------------------------
-// Helper class: MappedAttrParser, for parsing values of mapped attributes
-class MappedAttrParser {
-public:
-  MappedAttrParser(mozilla::css::Loader* aLoader,
-                   nsIURI* aDocURI,
-                   already_AddRefed<nsIURI> aBaseURI,
-                   nsIPrincipal* aNodePrincipal);
-  ~MappedAttrParser();
-
-  // Parses a mapped attribute value.
-  void ParseMappedAttrValue(nsIAtom* aMappedAttrName,
-                            nsAString& aMappedAttrValue);
-
-  // If we've parsed any values for mapped attributes, this method returns
-  // a new already_AddRefed nsICSSStyleRule that incorporates the parsed
-  // values. Otherwise, this method returns null. 
-  already_AddRefed<nsICSSStyleRule> CreateStyleRule();
-
-private:
-  // MEMBER DATA
-  // -----------
-  nsCSSParser       mParser;
-
-  // Arguments for nsCSSParser::ParseProperty
-  nsIURI*           mDocURI;
-  nsCOMPtr<nsIURI>  mBaseURI;
-  nsIPrincipal*     mNodePrincipal;
-
-  // Declaration for storing parsed values (lazily initialized)
-  nsCSSDeclaration* mDecl;
-};
-
-MappedAttrParser::MappedAttrParser(mozilla::css::Loader* aLoader,
-                                   nsIURI* aDocURI,
-                                   already_AddRefed<nsIURI> aBaseURI,
-                                   nsIPrincipal* aNodePrincipal)
-  : mParser(aLoader), mDocURI(aDocURI), mBaseURI(aBaseURI),
-    mNodePrincipal(aNodePrincipal), mDecl(nsnull)
-{
-  // mParser should successfully construct, now that we have infallible malloc.
-  NS_ABORT_IF_FALSE(mParser, "parser failed to initialize?");
-
-  // SVG and CSS differ slightly in their interpretation of some of
-  // the attributes.  SVG allows attributes of the form: font-size="5"
-  // (style="font-size: 5" if using a style attribute)
-  // where CSS requires units: font-size="5pt" (style="font-size: 5pt")
-  // Set a flag to pass information to the parser so that we can use
-  // the CSS parser to parse the font-size attribute.  Note that this
-  // does *not* affect the use of CSS stylesheets, which will still
-  // require units.
-  mParser.SetSVGMode(PR_TRUE);
-}
-
-MappedAttrParser::~MappedAttrParser()
-{
-  NS_ABORT_IF_FALSE(!mDecl,
-                    "If mDecl was initialized, it should have been converted "
-                    "into a style rule (and had its pointer cleared)");
-}
-
-void
-MappedAttrParser::ParseMappedAttrValue(nsIAtom* aMappedAttrName,
-                                       nsAString& aMappedAttrValue)
-{
-  if (!mDecl) {
-    // Need to do lazy initializion of declaration.
-    mDecl = new nsCSSDeclaration();
-    mDecl->InitializeEmpty();
-  }
-
-  // Get the nsCSSProperty ID for our mapped attribute.
-  nsCSSProperty propertyID =
-    nsCSSProps::LookupProperty(nsAtomString(aMappedAttrName));
-  PRBool changed; // outparam for ParseProperty. (ignored)
-  mParser.ParseProperty(propertyID, aMappedAttrValue, mDocURI, mBaseURI,
-                        mNodePrincipal, mDecl, &changed, PR_FALSE);
-}
-
-already_AddRefed<nsICSSStyleRule>
-MappedAttrParser::CreateStyleRule()
-{
-  if (!mDecl) {
-    return nsnull; // No mapped attributes were parsed
-  }
-
-  nsCOMPtr<nsICSSStyleRule> rule;
-  if (NS_FAILED(NS_NewCSSStyleRule(getter_AddRefs(rule), nsnull, mDecl))) {
-    NS_WARNING("could not create style rule from mapped attributes");
-    mDecl->RuleAbort(); // deletes declaration
-  }
-  mDecl = nsnull; // We no longer own the declaration -- drop our pointer to it
-  return rule.forget();
+                          modification, hasListeners, PR_TRUE, nsnull);
 }
 
 //----------------------------------------------------------------------
@@ -1173,110 +1003,84 @@ void
 nsSVGElement::UpdateContentStyleRule()
 {
   NS_ASSERTION(!mContentStyleRule, "we already have a content style rule");
-
-  PRUint32 attrCount = mAttrsAndChildren.AttrCount();
-  if (!attrCount) {
-    // nothing to do
-    return;
-  }
-
+  
   nsIDocument* doc = GetOwnerDoc();
   if (!doc) {
     NS_ERROR("SVG element without owner document");
     return;
   }
+  
+  nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+  nsIURI *docURI = doc->GetDocumentURI();
+  nsICSSLoader* cssLoader = doc->CSSLoader();
 
-  MappedAttrParser mappedAttrParser(doc->CSSLoader(), doc->GetDocumentURI(),
-                                    GetBaseURI(), NodePrincipal());
+  nsCSSDeclaration* declaration = nsnull;
+  nsCOMPtr<nsICSSParser> parser;
 
+  nsresult rv = NS_OK; 
+
+  PRUint32 attrCount = mAttrsAndChildren.AttrCount();
   for (PRUint32 i = 0; i < attrCount; ++i) {
     const nsAttrName* attrName = mAttrsAndChildren.AttrNameAt(i);
     if (!attrName->IsAtom() || !IsAttributeMapped(attrName->Atom()))
       continue;
 
+    if (!declaration) {
+      // Create the nsCSSDeclaration.
+      declaration = new nsCSSDeclaration();
+      if (!declaration) {
+        NS_WARNING("Failed to allocate nsCSSDeclaration");
+        return;
+      }
+      if (!declaration->InitializeEmpty()) {
+        NS_WARNING("could not initialize nsCSSDeclaration");
+        declaration->RuleAbort();  // deletes declaration
+        return;
+      }
+
+      // Try to fetch the CSS Parser from the document.
+      rv = cssLoader->GetParserFor(nsnull, getter_AddRefs(parser));
+      if (NS_FAILED(rv)) {
+        NS_WARNING("failed to get a css parser");
+        declaration->RuleAbort();  // deletes declaration
+        return;
+      }
+
+      // SVG and CSS differ slightly in their interpretation of some of
+      // the attributes.  SVG allows attributes of the form: font-size="5" 
+      // (style="font-size: 5" if using a style attribute)
+      // where CSS requires units: font-size="5pt" (style="font-size: 5pt")
+      // Set a flag to pass information to the parser so that we can use
+      // the CSS parser to parse the font-size attribute.  Note that this
+      // does *not* affect the use of CSS stylesheets, which will still
+      // require units.
+      parser->SetSVGMode(PR_TRUE);
+    }
+
+    nsAutoString name;
+    attrName->Atom()->ToString(name);
+
     nsAutoString value;
     mAttrsAndChildren.AttrAt(i)->ToString(value);
-    mappedAttrParser.ParseMappedAttrValue(attrName->Atom(), value);
-  }
-  mContentStyleRule = mappedAttrParser.CreateStyleRule();
-}
 
-#ifdef MOZ_SMIL
-static void
-ParseMappedAttrAnimValueCallback(void*    aObject,
-                                 nsIAtom* aPropertyName,
-                                 void*    aPropertyValue,
-                                 void*    aData)
-{
-  NS_ABORT_IF_FALSE(aPropertyName != SMIL_MAPPED_ATTR_STYLERULE_ATOM,
-                    "animated content style rule should have been removed "
-                    "from properties table already (we're rebuilding it now)");
-
-  MappedAttrParser* mappedAttrParser =
-    static_cast<MappedAttrParser*>(aData);
-
-  nsStringBuffer* valueBuf = static_cast<nsStringBuffer*>(aPropertyValue);
-  nsAutoString value;
-  PRUint32 len = NS_strlen(static_cast<PRUnichar*>(valueBuf->Data()));
-  valueBuf->ToString(len, value);
-
-  mappedAttrParser->ParseMappedAttrValue(aPropertyName, value);
-}
-
-// Callback for freeing animated content style rule, in property table.
-static void
-ReleaseStyleRule(void*    aObject,       /* unused */
-                 nsIAtom* aPropertyName,
-                 void*    aPropertyValue,
-                 void*    aData          /* unused */)
-{
-  NS_ABORT_IF_FALSE(aPropertyName == SMIL_MAPPED_ATTR_STYLERULE_ATOM,
-                    "unexpected property name, for "
-                    "animated content style rule");
-  nsICSSStyleRule* styleRule = static_cast<nsICSSStyleRule*>(aPropertyValue);
-  NS_ABORT_IF_FALSE(styleRule, "unexpected null style rule");
-  styleRule->Release();
-}
-
-void
-nsSVGElement::UpdateAnimatedContentStyleRule()
-{
-  NS_ABORT_IF_FALSE(!GetAnimatedContentStyleRule(),
-                    "Animated content style rule already set");
-
-  nsIDocument* doc = GetOwnerDoc();
-  if (!doc) {
-    NS_ERROR("SVG element without owner document");
-    return;
+    PRBool changed;
+    parser->ParseProperty(nsCSSProps::LookupProperty(name), value,
+                          docURI, baseURI, NodePrincipal(),
+                          declaration, &changed);
   }
 
-  MappedAttrParser mappedAttrParser(doc->CSSLoader(), doc->GetDocumentURI(),
-                                    GetBaseURI(), NodePrincipal());
-  doc->PropertyTable(SMIL_MAPPED_ATTR_ANIMVAL)->
-    Enumerate(this, ParseMappedAttrAnimValueCallback, &mappedAttrParser);
- 
-  nsRefPtr<nsICSSStyleRule>
-    animContentStyleRule(mappedAttrParser.CreateStyleRule());
+  if (declaration) {
+    rv = NS_NewCSSStyleRule(getter_AddRefs(mContentStyleRule), nsnull, declaration);
+    if (NS_FAILED(rv)) {
+      NS_WARNING("could not create contentstylerule");
+      declaration->RuleAbort();  // deletes declaration
+    }
 
-  if (animContentStyleRule) {
-    nsresult rv = SetProperty(SMIL_MAPPED_ATTR_ANIMVAL,
-                              SMIL_MAPPED_ATTR_STYLERULE_ATOM,
-                              animContentStyleRule.get(), ReleaseStyleRule);
-    animContentStyleRule.forget();
-    NS_ABORT_IF_FALSE(rv == NS_OK,
-                      "SetProperty failed (or overwrote something)");
+    // Recycle the parser
+    parser->SetSVGMode(PR_FALSE);
+    cssLoader->RecycleParser(parser);
   }
 }
-
-nsICSSStyleRule*
-nsSVGElement::GetAnimatedContentStyleRule()
-{
-  return
-    static_cast<nsICSSStyleRule*>(GetProperty(SMIL_MAPPED_ATTR_ANIMVAL,
-                                              SMIL_MAPPED_ATTR_STYLERULE_ATOM,
-                                              nsnull));
-}
-#endif // MOZ_SMIL
 
 nsISVGValue*
 nsSVGElement::GetMappedAttribute(PRInt32 aNamespaceID, nsIAtom* aName)
@@ -1399,6 +1203,10 @@ nsSVGElement::DidAnimateLength(PRUint8 aAttrEnum)
 void
 nsSVGElement::GetAnimatedLengthValues(float *aFirst, ...)
 {
+#ifdef MOZ_SMIL
+  FlushAnimations();
+#endif
+
   LengthAttributesInfo info = GetLengthInfo();
 
   NS_ASSERTION(info.mLengthCount > 0,
@@ -1463,19 +1271,6 @@ nsSVGElement::DidChangeNumber(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 }
 
 void
-nsSVGElement::DidAnimateNumber(PRUint8 aAttrEnum)
-{
-  nsIFrame* frame = GetPrimaryFrame();
-
-  if (frame) {
-    NumberAttributesInfo info = GetNumberInfo();
-    frame->AttributeChanged(kNameSpaceID_None,
-                            *info.mNumberInfo[aAttrEnum].mName,
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
-}
-
-void
 nsSVGElement::GetAnimatedNumberValues(float *aFirst, ...)
 {
   NumberAttributesInfo info = GetNumberInfo();
@@ -1526,19 +1321,6 @@ nsSVGElement::DidChangeInteger(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 
   SetAttr(kNameSpaceID_None, *info.mIntegerInfo[aAttrEnum].mName,
           newStr, PR_TRUE);
-}
-
-void
-nsSVGElement::DidAnimateInteger(PRUint8 aAttrEnum)
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  
-  if (frame) {
-    IntegerAttributesInfo info = GetIntegerInfo();
-    frame->AttributeChanged(kNameSpaceID_None,
-                            *info.mIntegerInfo[aAttrEnum].mName,
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
 }
 
 void
@@ -1595,19 +1377,6 @@ nsSVGElement::DidChangeAngle(PRUint8 aAttrEnum, PRBool aDoSetAttr)
           newStr, PR_TRUE);
 }
 
-void
-nsSVGElement::DidAnimateAngle(PRUint8 aAttrEnum)
-{
-  nsIFrame* frame = GetPrimaryFrame();
-
-  if (frame) {
-    AngleAttributesInfo info = GetAngleInfo();
-    frame->AttributeChanged(kNameSpaceID_None,
-                            *info.mAngleInfo[aAttrEnum].mName,
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
-}
-
 nsSVGElement::BooleanAttributesInfo
 nsSVGElement::GetBooleanInfo()
 {
@@ -1638,19 +1407,6 @@ nsSVGElement::DidChangeBoolean(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 
   SetAttr(kNameSpaceID_None, *info.mBooleanInfo[aAttrEnum].mName,
           newStr, PR_TRUE);
-}
-
-void
-nsSVGElement::DidAnimateBoolean(PRUint8 aAttrEnum)
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  
-  if (frame) {
-    BooleanAttributesInfo info = GetBooleanInfo();
-    frame->AttributeChanged(kNameSpaceID_None,
-                            *info.mBooleanInfo[aAttrEnum].mName,
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
 }
 
 nsSVGElement::EnumAttributesInfo
@@ -1685,19 +1441,6 @@ nsSVGElement::DidChangeEnum(PRUint8 aAttrEnum, PRBool aDoSetAttr)
           newStr, PR_TRUE);
 }
 
-void
-nsSVGElement::DidAnimateEnum(PRUint8 aAttrEnum)
-{
-  nsIFrame* frame = GetPrimaryFrame();
-
-  if (frame) {
-    EnumAttributesInfo info = GetEnumInfo();
-    frame->AttributeChanged(kNameSpaceID_None,
-                            *info.mEnumInfo[aAttrEnum].mName,
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
-}
-
 nsSVGViewBox *
 nsSVGElement::GetViewBox()
 {
@@ -1718,18 +1461,6 @@ nsSVGElement::DidChangeViewBox(PRBool aDoSetAttr)
   viewBox->GetBaseValueString(newStr);
 
   SetAttr(kNameSpaceID_None, nsGkAtoms::viewBox, newStr, PR_TRUE);
-}
-
-void
-nsSVGElement::DidAnimateViewBox()
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  
-  if (frame) {
-    frame->AttributeChanged(kNameSpaceID_None,
-                            nsGkAtoms::viewBox,
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
 }
 
 nsSVGPreserveAspectRatio *
@@ -1754,30 +1485,6 @@ nsSVGElement::DidChangePreserveAspectRatio(PRBool aDoSetAttr)
 
   SetAttr(kNameSpaceID_None, nsGkAtoms::preserveAspectRatio,
           newStr, PR_TRUE);
-}
-
-void
-nsSVGElement::DidAnimatePreserveAspectRatio()
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  
-  if (frame) {
-    frame->AttributeChanged(kNameSpaceID_None,
-                            nsGkAtoms::preserveAspectRatio,
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
-}
-
-void
-nsSVGElement::DidAnimateTransform()
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  
-  if (frame) {
-    frame->AttributeChanged(kNameSpaceID_None,
-                            nsGkAtoms::transform,
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
 }
 
 nsSVGElement::StringAttributesInfo
@@ -1905,9 +1612,10 @@ nsSVGElement::ReportAttributeParseFailure(nsIDocument* aDocument,
                                           nsIAtom* aAttribute,
                                           const nsAString& aValue)
 {
+  nsAutoString attributeName;
+  aAttribute->ToString(attributeName);
   const nsAFlatString& attributeValue = PromiseFlatString(aValue);
-  const PRUnichar *strings[] = { aAttribute->GetUTF16String(),
-                                 attributeValue.get() };
+  const PRUnichar *strings[] = { attributeName.get(), attributeValue.get() };
   return nsSVGUtils::ReportToConsole(aDocument,
                                      "AttributeParseWarning",
                                      strings, NS_ARRAY_LENGTH(strings));
@@ -1938,43 +1646,22 @@ nsSVGElement::RecompileScriptEventListeners()
 
 #ifdef MOZ_SMIL
 nsISMILAttr*
-nsSVGElement::GetAnimatedAttr(nsIAtom* aName)
+nsSVGElement::GetAnimatedAttr(const nsIAtom* aName)
 {
   // Transforms:
-  nsCOMPtr<nsIDOMSVGAnimatedTransformList> transformList;
   if (aName == nsGkAtoms::transform) {
     nsCOMPtr<nsIDOMSVGTransformable> transformable(
             do_QueryInterface(static_cast<nsIContent*>(this)));
     if (!transformable)
       return nsnull;
+    nsCOMPtr<nsIDOMSVGAnimatedTransformList> transformList;
     nsresult rv = transformable->GetTransform(getter_AddRefs(transformList));
     NS_ENSURE_SUCCESS(rv, nsnull);
-  }
-  if (aName == nsGkAtoms::gradientTransform) {
-    nsCOMPtr<nsIDOMSVGGradientElement> gradientElement(
-            do_QueryInterface(static_cast<nsIContent*>(this)));
-
-    nsresult rv = gradientElement->GetGradientTransform(getter_AddRefs(transformList));
-    NS_ENSURE_SUCCESS(rv, nsnull);
-  }
-  if (aName == nsGkAtoms::patternTransform) {
-    nsCOMPtr<nsIDOMSVGPatternElement> patternElement(
-            do_QueryInterface(static_cast<nsIContent*>(this)));
-
-    nsresult rv = patternElement->GetPatternTransform(getter_AddRefs(transformList));
-    NS_ENSURE_SUCCESS(rv, nsnull);
-  }
-  if (transformList) {
     nsSVGAnimatedTransformList* list
       = static_cast<nsSVGAnimatedTransformList*>(transformList.get());
     NS_ENSURE_TRUE(list, nsnull);
 
     return new nsSVGTransformSMILAttr(list, this);
-  }
-
-  // Motion (fake 'attribute' for animateMotion)
-  if (aName == nsGkAtoms::mozAnimateMotionDummyAttr) {
-    return new mozilla::SVGMotionSMILAttr(this);
   }
 
   // Lengths:
@@ -1985,87 +1672,6 @@ nsSVGElement::GetAnimatedAttr(nsIAtom* aName)
     }
   }
 
-  // Numbers:
-  {
-    NumberAttributesInfo info = GetNumberInfo();
-    for (PRUint32 i = 0; i < info.mNumberCount; i++) {
-      // XXX this isn't valid for either of the two properties corresponding to
-      // attributes of type <number-optional-number> - see filter,
-      // feConvolveMatrix, feDiffuseLighting, feGaussianBlur, feMorphology and
-      // feTurbulence.
-      // The way to fix this is probably to handle them as 2-item number lists
-      // once we implement number list animation, and put the number list loop
-      // *above* this one at that time to catch those properties before we get
-      // here. The separate properties should then point into the list.
-      if (aName == *info.mNumberInfo[i].mName) {
-        return info.mNumbers[i].ToSMILAttr(this);
-      }
-    }
-  }
-
-  // Integers:
-  {
-    IntegerAttributesInfo info = GetIntegerInfo();
-    for (PRUint32 i = 0; i < info.mIntegerCount; i++) {
-      if (aName == *info.mIntegerInfo[i].mName) {
-        return info.mIntegers[i].ToSMILAttr(this);
-      }
-    }
-  }
-
-  // Enumerations:
-  {
-    EnumAttributesInfo info = GetEnumInfo();
-    for (PRUint32 i = 0; i < info.mEnumCount; i++) {
-      if (aName == *info.mEnumInfo[i].mName) {
-        return info.mEnums[i].ToSMILAttr(this);
-      }
-    }
-  }
-
-  // Booleans:
-  {
-    BooleanAttributesInfo info = GetBooleanInfo();
-    for (PRUint32 i = 0; i < info.mBooleanCount; i++) {
-      if (aName == *info.mBooleanInfo[i].mName) {
-        return info.mBooleans[i].ToSMILAttr(this);
-      }
-    }
-  }
-
-  // Angles:
-  {
-    AngleAttributesInfo info = GetAngleInfo();
-    for (PRUint32 i = 0; i < info.mAngleCount; i++) {
-      if (aName == *info.mAngleInfo[i].mName) {
-        return info.mAngles[i].ToSMILAttr(this);
-      }
-    }
-  }
-
-  // viewBox:
-  if (aName == nsGkAtoms::viewBox) {
-    nsSVGViewBox *viewBox = GetViewBox();
-    return viewBox ? viewBox->ToSMILAttr(this) : nsnull;
-  }
-
-  // preserveAspectRatio:
-  if (aName == nsGkAtoms::preserveAspectRatio) {
-    nsSVGPreserveAspectRatio *preserveAspectRatio = GetPreserveAspectRatio();
-    return preserveAspectRatio ? preserveAspectRatio->ToSMILAttr(this) : nsnull;
-  }
-
-  // Mapped attributes:
-  if (IsAttributeMapped(aName)) {
-    nsCSSProperty prop = nsCSSProps::LookupProperty(nsAtomString(aName));
-    // Check IsPropertyAnimatable to avoid attributes that...
-    //  - map to explicitly unanimatable properties (e.g. 'direction')
-    //  - map to unsupported attributes (e.g. 'glyph-orientation-horizontal')
-    if (nsSMILCSSProperty::IsPropertyAnimatable(prop)) {
-      return new nsSMILMappedAttribute(prop, this);
-    }
-  }
-
   return nsnull;
 }
 
@@ -2073,8 +1679,11 @@ void
 nsSVGElement::AnimationNeedsResample()
 {
   nsIDocument* doc = GetCurrentDoc();
-  if (doc && doc->HasAnimationController()) {
-    doc->GetAnimationController()->SetResampleNeeded();
+  if (doc) {
+    nsSMILAnimationController* smilController = doc->GetAnimationController();
+    if (smilController) {
+      smilController->SetResampleNeeded();
+    }
   }
 }
 
@@ -2082,8 +1691,11 @@ void
 nsSVGElement::FlushAnimations()
 {
   nsIDocument* doc = GetCurrentDoc();
-  if (doc && doc->HasAnimationController()) {
-    doc->GetAnimationController()->FlushResampleRequests();
+  if (doc) {
+    nsSMILAnimationController* smilController = doc->GetAnimationController();
+    if (smilController) {
+      smilController->FlushResampleRequests();
+    }
   }
 }
 #endif // MOZ_SMIL

@@ -75,7 +75,7 @@
 #define SHBrowseForFolderW(a)   SHBrowseForFolder(a)
 #endif
 
-// No-ops for nonexistent ce global apis.
+// No-ops for non-existent ce global apis.
 inline void FlashWindow(HWND window, BOOL ignore){}
 inline BOOL IsIconic(HWND inWnd){return false;}
 
@@ -84,23 +84,17 @@ public:
   static BOOL EnumChildWindows(HWND inParent, WNDENUMPROC inFunc, LPARAM inParam);
 
 #if defined(WINCE_HAVE_SOFTKB)
-  static void ToggleSoftKB(HWND wnd, PRBool show);
+  static void ToggleSoftKB(PRBool show);
   static void CreateSoftKeyMenuBar(HWND wnd);
-  static void OnSoftKbSettingsChange(HWND wnd, LPRECT = NULL);
+  static void NotifySoftKbObservers(LPRECT = NULL);
   static PRBool sSIPInTransition;
   static TriStateBool sShowSIPButton;
   static void CheckKeyboardStatus();
   static TriStateBool GetSliderStateOpen();
-  static void ResetSoftKB(HWND wnd);
-protected:
-  static PRBool sMenuBarShown;
-  static HWND sSoftKeyMenuBarHandle;
 private:
   static TriStateBool sHardKBPresence;
-  static RECT sDefaultSIPRect;
-  static HWND sMainWindowHandle;
+
 #endif
-  friend class nsWindow;
 };
 
 #endif /* WINCE */

@@ -63,11 +63,6 @@
 
 #include "nsITimelineService.h"
 
-#ifdef MOZ_OMNIJAR
-#include "mozilla/Omnijar.h"
-#include "nsZipArchive.h"
-#endif
-
 // Definitions
 #define INITIAL_PREF_FILES 10
 
@@ -144,15 +139,14 @@ nsresult nsPrefService::Init()
                                   static_cast<nsISupports *>(static_cast<void *>(this)),
                                   "pref-config-startup");    
 
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-  if (!observerService)
-    return NS_ERROR_FAILURE;
-
-  rv = observerService->AddObserver(this, "profile-before-change", PR_TRUE);
-
-  if (NS_SUCCEEDED(rv))
-    rv = observerService->AddObserver(this, "profile-do-change", PR_TRUE);
+  nsCOMPtr<nsIObserverService> observerService = 
+           do_GetService("@mozilla.org/observer-service;1", &rv);
+  if (observerService) {
+    rv = observerService->AddObserver(this, "profile-before-change", PR_TRUE);
+    if (NS_SUCCEEDED(rv)) {
+      rv = observerService->AddObserver(this, "profile-do-change", PR_TRUE);
+    }
+  }
 
   return(rv);
 }
@@ -253,10 +247,12 @@ NS_IMETHODIMP nsPrefService::GetDefaultBranch(const char *aPrefRoot, nsIPrefBran
 
 nsresult nsPrefService::NotifyServiceObservers(const char *aTopic)
 {
+  nsresult rv;
   nsCOMPtr<nsIObserverService> observerService = 
-    mozilla::services::GetObserverService();  
-  if (!observerService)
-    return NS_ERROR_FAILURE;
+    do_GetService("@mozilla.org/observer-service;1", &rv);
+  
+  if (NS_FAILED(rv) || !observerService)
+    return rv;
 
   nsISupports *subject = (nsISupports *)((nsIPrefService *)this);
   observerService->NotifyObservers(subject, aTopic, nsnull);
@@ -650,11 +646,14 @@ static nsresult pref_LoadPrefsInDirList(const char *listId)
 // Initialize default preference JavaScript buffers from
 // appropriate TEXT resources
 //----------------------------------------------------------------------------------------
-static nsresult pref_InitDefaults()
+static nsresult pref_InitInitialObjects()
 {
+  nsCOMPtr<nsIFile> aFile;
   nsCOMPtr<nsIFile> greprefsFile;
   nsCOMPtr<nsIFile> defaultPrefDir;
   nsresult          rv;
+
+  // first we parse the GRE default prefs. This also works if we're not using a GRE, 
 
   rv = NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(greprefsFile));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -684,6 +683,9 @@ static nsresult pref_InitDefaults()
 #elif defined(_AIX)
       , "aix.js"
 #endif
+#if defined(MOZ_WIDGET_PHOTON)
+	  , "photon.js"
+#endif		 
 #elif defined(XP_OS2)
       "os2pref.js"
 #elif defined(XP_BEOS)
@@ -696,63 +698,17 @@ static nsresult pref_InitDefaults()
     NS_WARNING("Error parsing application default preferences.");
   }
 
-  return NS_OK;
-}
-
-#ifdef MOZ_OMNIJAR
-static nsresult pref_ReadPrefFromJar(nsZipArchive* jarReader, const char *name)
-{
-  nsZipItemPtr<char> manifest(jarReader, name, true);
-  NS_ENSURE_TRUE(manifest.Buffer(), NS_ERROR_NOT_AVAILABLE);
-
-  PrefParseState ps;
-  PREF_InitParseState(&ps, PREF_ReaderCallback, NULL);
-  nsresult rv = PREF_ParseBuf(&ps, manifest, manifest.Length());
-  PREF_FinalizeParseState(&ps);
-
-  return rv;
-}
-
-static nsresult pref_InitAppDefaultsFromOmnijar()
-{
-  nsresult rv;
-
-  nsZipArchive* jarReader = mozilla::OmnijarReader();
-  if (!jarReader)
-    return pref_InitDefaults();
-
-  rv = pref_ReadPrefFromJar(jarReader, "greprefs.js");
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = pref_ReadPrefFromJar(jarReader, "defaults/prefs.js");
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-#endif
-
-static nsresult pref_InitInitialObjects()
-{
-  nsresult rv;
-
-  // first we parse the GRE default prefs. This also works if we're not using a GRE, 
-#ifdef MOZ_OMNIJAR
-  rv = pref_InitAppDefaultsFromOmnijar();
-#else
-  rv = pref_InitDefaults();
-#endif
-  NS_ENSURE_SUCCESS(rv, rv);
-
   rv = pref_LoadPrefsInDirList(NS_APP_PREFS_DEFAULTS_DIR_LIST);
   NS_ENSURE_SUCCESS(rv, rv);
 
   NS_CreateServicesFromCategory(NS_PREFSERVICE_APPDEFAULTS_TOPIC_ID,
                                 nsnull, NS_PREFSERVICE_APPDEFAULTS_TOPIC_ID);
 
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-  if (!observerService)
-    return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIObserverService> observerService = 
+    do_GetService("@mozilla.org/observer-service;1", &rv);
+  
+  if (NS_FAILED(rv) || !observerService)
+    return rv;
 
   observerService->NotifyObservers(nsnull, NS_PREFSERVICE_APPDEFAULTS_TOPIC_ID, nsnull);
 

@@ -63,18 +63,24 @@ function test() {
       return -1;
   }
 
+  let os = Cc["@mozilla.org/observer-service;1"].
+           getService(Ci.nsIObserverService);
   function waitForFileExistence(aMessage, aDoNext) {
     const TOPIC = "sessionstore-state-write-complete";
-    Services.obs.addObserver(function (aSubject, aTopic, aData) {
-      // Remove the observer so we do not leak.
-      Services.obs.removeObserver(arguments.callee, TOPIC);
+    let observer = {
+      observe: function(aSubject, aTopic, aData)
+      {
+        // Remove the observer so we do not leak.
+        os.removeObserver(this, TOPIC);
 
-      // Check that the file exists.
-      ok(getSessionstoreFile().exists(), aMessage);
+        // Check that the file exists.
+        ok(getSessionstoreFile().exists(), aMessage);
 
-      // Run our next set of work.
-      aDoNext();
-    }, TOPIC, false);
+        // Run our next set of work.
+        aDoNext();
+      }
+    };
+    os.addObserver(observer, TOPIC, false);
   }
 
   function actualTest() {
@@ -113,7 +119,7 @@ function test() {
           this.removeEventListener("load", arguments.callee, true);
 
           // private browsing session, add new tab: (C)
-          const testURL_C = "http://mochi.test:8888/";
+          const testURL_C = "http://localhost:8888/";
           let tab_C = gBrowser.addTab(testURL_C);
 
           tab_C.linkedBrowser.addEventListener("load", function (aEvent) {

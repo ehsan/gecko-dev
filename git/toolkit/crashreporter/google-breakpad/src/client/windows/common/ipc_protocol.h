@@ -95,7 +95,7 @@ enum MessageTag {
 
 struct CustomClientInfo {
   const CustomInfoEntry* entries;
-  size_t count;
+  int count;
 };
 
 // Message structure for IPC between crash client and crash server.

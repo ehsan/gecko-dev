@@ -56,24 +56,13 @@ endif
 ifdef WINCE
 # We need jemalloc built before the shunt
 ifdef MOZ_MEMORY
-DIRS += wince/tools \
-	$(DEPTH)/memory/jemalloc \
-	wince/shunt \
-	$(DEPTH)/memory/mozalloc \
-	$(NULL)
+DIRS += wince/tools $(DEPTH)/memory/jemalloc wince/shunt
 else
-DIRS += wince/tools \
-	wince/shunt \
-	$(DEPTH)/memory/mozalloc \
-	$(NULL)
+DIRS += wince/tools wince/shunt
 endif
 endif
 
 DIRS += pgo
-
-ifeq (Android,$(OS_TARGET))
-  DIRS += mobile/sutagent/android
-endif
 
 include $(topsrcdir)/config/rules.mk
 
@@ -82,11 +71,10 @@ TARGET_DEPTH = ..
 include $(srcdir)/automation-build.mk
 
 _LEAKTEST_DIR = $(DEPTH)/_leaktest
-GARBAGE_DIRS += $(_LEAKTEST_DIR)
 
 _LEAKTEST_FILES =    \
 		automation.py \
-		automationutils.py \
+		$(CURDIR)/automationutils.py \
 		leaktest.py \
 		bloatcycle.html \
 		$(topsrcdir)/build/pgo/server-locations.txt \
@@ -95,7 +83,6 @@ _LEAKTEST_FILES =    \
 leaktest.py: leaktest.py.in
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $^ > $@
 	chmod +x $@
-GARBAGE += leaktest.py
 
 libs:: $(_LEAKTEST_FILES)
 	$(INSTALL) $^ $(_LEAKTEST_DIR)
@@ -111,13 +98,8 @@ libs:: bloaturls.txt
 libs:: bloatcycle.html
 	$(INSTALL) $< $(DIST)/bin/res
 
-libs:: $(topsrcdir)/tools/rb/fix_stack_using_bpsyms.py
-	$(INSTALL) $< $(DIST)/bin
-
 ifeq ($(OS_ARCH),Darwin)
 libs:: $(topsrcdir)/tools/rb/fix-macosx-stack.pl
-	$(INSTALL) $< $(DIST)/bin
-libs:: $(topsrcdir)/tools/rb/fix_macosx_stack.py
 	$(INSTALL) $< $(DIST)/bin
 
 # Basic unit tests for some stuff in the unify script
@@ -131,7 +113,7 @@ check::
           echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to produce a universal binary!"; \
           false; \
         fi
-	@if test ! -f ./unify-test-universal; then \
+	@if ! test -f ./unify-test-universal; then \
           echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to produce a universal binary!"; \
           false; \
         fi
@@ -140,27 +122,6 @@ check::
           false; \
         else \
           echo "TEST-PASS | build/ | unify produced a universal binary!"; \
-        fi
-# try building an x86-64 binary. if that succeeds, try unifying it
-# with an i386 binary
-	rm -f unify-test-x86_64 unify-test-universal-64
-	-$(HOST_CC) -arch x86_64 $(srcdir)/unify-test.c -o unify-test-x86_64
-	@if test -f ./unify-test-x86_64; then \
-          if ! $(srcdir)/macosx/universal/unify ./unify-test-x86_64 ./unify-test-i386 \
-            ./unify-test-universal-64; then \
-            echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to produce a universal binary with a 64-bit input!"; \
-            false; \
-          fi; \
-          if test ! -f ./unify-test-universal-64; then \
-            echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to produce a universal binary with a 64-bit input!"; \
-            false; \
-          fi; \
-          if ! file -b ./unify-test-universal-64 | head -n1 | grep -q "^Mach-O universal binary"; then \
-            echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to produce a universal binary with a 64-bit input!"; \
-            false; \
-          else \
-            echo "TEST-PASS | build/ | unify produced a universal binary with a 64-bit input!"; \
-          fi \
         fi
 # try unifying two identical Java class files
 	rm -f unifytesta.class unifytestb.class unifytestc.class
@@ -171,7 +132,7 @@ check::
           echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to unify a Java class file!"; \
           false; \
         fi
-	@if test ! -f ./unifytestc.class; then \
+	@if ! test -f ./unifytestc.class; then \
           echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to unify a Java class file!"; \
           false; \
         fi
@@ -205,6 +166,4 @@ ifeq ($(OS_ARCH),Linux)
 libs:: $(topsrcdir)/tools/rb/fix-linux-stack.pl
 	$(INSTALL) $< $(DIST)/bin
 endif
-
-GARBAGE += automationutils.pyc
 endif # ENABLE_TESTS

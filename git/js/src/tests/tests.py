@@ -14,9 +14,7 @@ def do_run_cmd(cmd):
 
 def th_run_cmd(cmd, l):
     t0 = datetime.datetime.now()
-    # close_fds is not supported on Windows and will cause a ValueError.
-    close_fds = sys.platform != 'win32'
-    p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=close_fds)
+    p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
     l[0] = p
     out, err = p.communicate()
     t1 = datetime.datetime.now()
@@ -131,8 +129,6 @@ class TestResult:
         passes = 0
 
         expected_rcs = []
-        if test.path.endswith('-n.js'):
-            expected_rcs.append(3)
 
         for line in out.split('\n'):
             if line.startswith(' FAILED!'):
@@ -148,13 +144,13 @@ class TestResult:
                 if m:
                     expected_rcs.append(int(m.group(1)))
 
-        if rc and not rc in expected_rcs:
-            if rc == 3:
-                result = cls.FAIL
+        if rc:
+            if (test.path.endswith('-n.js') and rc == 3) or rc in expected_rcs:
+                result = cls.PASS
             else:
                 result = cls.CRASH
         else:
-            if (rc or passes > 0) and failures == 0:
+            if passes > 0 and failures == 0:
                 result = cls.PASS
             else:
                 result = cls.FAIL

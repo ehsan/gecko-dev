@@ -13,7 +13,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -111,9 +111,6 @@ interface nsILoginManagerStorage : nsISupports {
      * If newLoginData is a nsIPropertyBag, only the specified properties
      * will be changed. The nsILoginMetaInfo properties of oldLogin can be
      * changed in this manner.
-     *
-     * If the propertybag contains an item named "timesUsedIncrement", the
-     * login's timesUsed property will be incremented by the item's value.
      */
     void modifyLogin(in nsILoginInfo oldLogin, in nsISupports newLoginData);
 

@@ -32,12 +32,12 @@ class XULInfo:
         # Find config/autoconf.mk.
         dir = jsdir
         while True:
+            if os.path.basename(dir) == 'src':
+                path = None
+                break
             path = os.path.join(dir, 'config/autoconf.mk')
             if os.path.isfile(path):
                 break
-            if os.path.dirname(dir) == dir:
-                print "Can't find config/autoconf.mk on a directory containing the JS shell (searched from %s)"%jsdir
-                sys.exit(1)
             dir = os.path.dirname(dir)
 
         # Read the values.
@@ -70,9 +70,9 @@ class XULInfoTester:
             cmd = [ self.js_bin, '-e', self.js_prolog, '-e', 'print(!!(%s))'%cond ]
             p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
             out, err = p.communicate()
-            if out in ('true\n', 'true\r\n'):
+            if out == 'true\n':
                 ans = True
-            elif out in ('false\n', 'false\r\n'):
+            elif out == 'false\n':
                 ans = False
             else:
                 raise Exception("Failed to test XUL condition '%s'"%cond)
@@ -84,7 +84,7 @@ class NullXULInfoTester:
     def test(self, cond):
         return False
 
-def parse(filename, xul_tester, reldir = ''):
+def parse(filename, xul_tester):
     ans = []
     comment_re = re.compile(r'#.*')
     dir = os.path.dirname(filename)
@@ -99,9 +99,7 @@ def parse(filename, xul_tester, reldir = ''):
         sline = comment_re.sub('', line)
         parts = sline.split()
         if parts[0] == 'include':
-            include_file = parts[1]
-            include_reldir = os.path.join(reldir, os.path.dirname(include_file))
-            ans += parse(os.path.join(dir, include_file), xul_tester, include_reldir)
+            ans += parse(os.path.join(dir, parts[1]), xul_tester)
         elif parts[0] == 'url-prefix':
             # Doesn't apply to shell tests
             pass
@@ -127,10 +125,6 @@ def parse(filename, xul_tester, reldir = ''):
                     if xul_tester.test(cond):
                         expect = False
                     pos += 1
-                elif parts[pos].startswith('asserts-if'):
-                    # This directive means we may flunk some number of
-                    # NS_ASSERTIONs in the browser. For the shell, ignore it.
-                    pos += 1
                 elif parts[pos].startswith('skip-if'):
                     cond = parts[pos][len('skip-if('):-1]
                     if xul_tester.test(cond):
@@ -149,6 +143,6 @@ def parse(filename, xul_tester, reldir = ''):
                     pos += 1
 
             assert script is not None
-            ans.append(TestCase(os.path.join(reldir, script), 
+            ans.append(TestCase(os.path.join(dir, script), 
                                 enable, expect, random))
     return ans

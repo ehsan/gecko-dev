@@ -48,9 +48,6 @@ _BROWSER_TEST_FILES =  \
 		browser_console_clear.js \
 		browser_privatebrowsing_beforeunload.js \
 		browser_privatebrowsing_certexceptionsui.js \
-		browser_privatebrowsing_commandline_toggle.js \
-		browser_privatebrowsing_contextmenu_blockimage.js \
-		browser_privatebrowsing_cookieacceptdialog.js \
 		browser_privatebrowsing_crh.js \
 		browser_privatebrowsing_downloadmonitor.js \
 		browser_privatebrowsing_fastswitch.js \
@@ -64,25 +61,18 @@ _BROWSER_TEST_FILES =  \
 		browser_privatebrowsing_openlocation.js \
 		browser_privatebrowsing_pageinfo.js \
 		browser_privatebrowsing_placestitle.js \
-		browser_privatebrowsing_popupblocker.js \
 		browser_privatebrowsing_popupmode.js \
-		browser_privatebrowsing_protocolhandler.js \
-		browser_privatebrowsing_protocolhandler_page.html \
 		browser_privatebrowsing_searchbar.js \
 		browser_privatebrowsing_sslsite_transition.js \
 		browser_privatebrowsing_theming.js \
 		browser_privatebrowsing_transition.js \
 		browser_privatebrowsing_ui.js \
 		browser_privatebrowsing_urlbarfocus.js \
-		browser_privatebrowsing_urlbarundo.js \
 		browser_privatebrowsing_viewsource.js \
 		browser_privatebrowsing_windowtitle.js \
 		browser_privatebrowsing_windowtitle_page.html \
 		browser_privatebrowsing_zoom.js \
 		browser_privatebrowsing_zoomrestore.js \
-		ctxmenu.html \
-		ctxmenu-image.png \
-		popup.html \
 		staller.sjs \
 		title.sjs \
 		$(NULL)

@@ -53,14 +53,22 @@
  *   is destroyed (so that the placeholder will not point to a destroyed
  *   frame while it's in the frame tree).
  *
- * Furthermore, some code assumes that placeholders point to something
- * useful, so placeholders without an associated out-of-flow should not
- * remain in the tree.
+ * Therefore the safe order of teardown is to:
  *
- * The placeholder's Destroy() implementation handles the destruction of
- * the placeholder and its out-of-flow. To avoid crashes, frame removal
- * and destruction code that works with placeholders must not assume
- * that the placeholder points to its out-of-flow.
+ * 1)  Unregister the placeholder from the frame manager.
+ * 2)  Destroy the placeholder
+ * 3)  Destroy the out of flow
+ *
+ * In certain cases it may be possible to replace step (2) with:
+ *
+ * 2') Null out the mOutOfFlowFrame pointer in the placeholder
+ *
+ * and add
+ *
+ * 4) Destroy the placeholder
+ *
+ * but this is somewhat dangerous, since lots of code assumes that
+ * placeholders point to something useful.
  */
 
 #ifndef nsPlaceholderFrame_h___
@@ -75,14 +83,11 @@ nsIFrame* NS_NewPlaceholderFrame(nsIPresShell* aPresShell,
 
 // Frame state bits that are used to keep track of what this is a
 // placeholder for.
-#define PLACEHOLDER_FOR_FLOAT    NS_FRAME_STATE_BIT(20)
-#define PLACEHOLDER_FOR_ABSPOS   NS_FRAME_STATE_BIT(21)
-#define PLACEHOLDER_FOR_FIXEDPOS NS_FRAME_STATE_BIT(22)
-#define PLACEHOLDER_FOR_POPUP    NS_FRAME_STATE_BIT(23)
-#define PLACEHOLDER_TYPE_MASK    (PLACEHOLDER_FOR_FLOAT | \
-                                  PLACEHOLDER_FOR_ABSPOS | \
-                                  PLACEHOLDER_FOR_FIXEDPOS | \
-                                  PLACEHOLDER_FOR_POPUP)
+#define PLACEHOLDER_FOR_FLOAT    0x00100000
+#define PLACEHOLDER_FOR_ABSPOS   0x00200000
+#define PLACEHOLDER_FOR_FIXEDPOS 0x00400000
+#define PLACEHOLDER_FOR_POPUP    0x00800000
+#define PLACEHOLDER_TYPE_MASK    0x00F00000
 
 /**
  * Implementation of a frame that's used as a placeholder for a frame that
@@ -128,15 +133,12 @@ public:
                                  InlineMinWidthData *aData);
   virtual void AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                   InlinePrefWidthData *aData);
-  virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
-  virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
-  virtual nsSize GetMaxSize(nsBoxLayoutState& aBoxLayoutState);
   NS_IMETHOD Reflow(nsPresContext* aPresContext,
                     nsHTMLReflowMetrics& aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus& aStatus);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   // nsIFrame overrides
 #if defined(DEBUG) || (defined(MOZ_REFLOW_PERF_DSP) && defined(MOZ_REFLOW_PERF))
@@ -166,11 +168,11 @@ public:
   virtual PRBool CanContinueTextRun() const;
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible()
+  NS_IMETHOD  GetAccessible(nsIAccessible** aAccessible)
   {
-    nsIFrame* realFrame = GetRealFrameForPlaceholder(this);
-    return realFrame ? realFrame->CreateAccessible() :
-                       nsFrame::CreateAccessible();
+    nsIFrame *realFrame = GetRealFrameForPlaceholder(this);
+    return realFrame ? realFrame->GetAccessible(aAccessible) :
+                       nsFrame::GetAccessible(aAccessible);
   }
 #endif
 

@@ -54,7 +54,6 @@ XPIDLSRCS = \
 
 EXPORTS = \
   nsDOMCID.h \
-  nsDOMClassInfoClasses.h \
   nsDOMClassInfoID.h \
   nsDOMError.h \
   nsDOMJSUtils.h \
@@ -63,6 +62,7 @@ EXPORTS = \
   nsIBaseDOMException.h \
   nsIDOMClassInfo.h \
   nsIDOMScriptObjectFactory.h \
+  nsIFocusController.h \
   nsIJSEventListener.h \
   nsIJSNativeInitializer.h \
   nsIScriptContext.h	\
@@ -86,6 +86,7 @@ CPPSRCS =			\
 	nsDOMWindowUtils.cpp 	\
 	nsJSEnvironment.cpp	\
 	nsJSTimeoutHandler.cpp	\
+	nsFocusController.cpp	\
 	nsFocusManager.cpp \
 	nsGlobalWindow.cpp      \
 	nsGlobalWindowCommands.cpp \
@@ -100,7 +101,6 @@ CPPSRCS =			\
 	nsDOMClassInfo.cpp	\
 	nsScriptNameSpaceManager.cpp \
 	nsDOMScriptObjectFactory.cpp \
-	nsQueryContentEventResult.cpp \
 	$(NULL)
 
 include $(topsrcdir)/dom/dom-config.mk
@@ -112,6 +112,8 @@ endif
 include $(topsrcdir)/config/rules.mk
 
 ifdef MOZ_X11
+ifdef MOZ_ENABLE_GTK2
 CXXFLAGS += $(TK_CFLAGS)
 LDFLAGS += $(TK_LIBS)
+endif
 endif

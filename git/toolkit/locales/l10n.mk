@@ -62,7 +62,7 @@
 #   MOZ_APP_VERSION and MOZ_LANGPACK_EID.
 
 
-run_for_effects := $(shell if test ! -d $(DIST); then $(NSINSTALL) -D $(DIST); fi)
+run_for_effects := $(shell if ! test -d $(DIST); then $(NSINSTALL) -D $(DIST); fi)
 _ABS_DIST := $(shell cd $(DIST) && pwd)
 
 
@@ -160,7 +160,7 @@ endif
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
 	mv -f "$(DIST)/l10n-stage/$(PACKAGE)" "$(DIST)/$(PACKAGE)"
 ifeq (WINCE,$(OS_ARCH))
-	mv -f "$(DIST)/l10n-stage/$(PKG_BASENAME).cab" "$(DIST)/$(PKG_PATH)$(PKG_BASENAME).cab"
+	mv -f "$(DIST)/l10n-stage/$(PKG_BASENAME).cab" "$(DIST)/$(PKG_BASENAME).cab"
 endif
 
 repackage-zip-%: $(ZIP_IN) $(STAGEDIST) libs-%

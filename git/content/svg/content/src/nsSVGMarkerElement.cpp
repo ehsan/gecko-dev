@@ -84,19 +84,17 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGOrientType::DOMAnimatedEnum)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGOrientType::DOMAnimatedEnum)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedEnumeration)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedEnumeration)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedEnumeration)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF_INHERITED(nsSVGMarkerElement,nsSVGMarkerElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGMarkerElement,nsSVGMarkerElementBase)
 
-DOMCI_DATA(SVGMarkerElement, nsSVGMarkerElement)
-
 NS_INTERFACE_TABLE_HEAD(nsSVGMarkerElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGMarkerElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGFitToViewBox,
                            nsIDOMSVGMarkerElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGMarkerElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGMarkerElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGMarkerElementBase)
 
 //----------------------------------------------------------------------
@@ -116,7 +114,7 @@ nsSVGOrientType::SetBaseValue(PRUint16 aValue,
       PR_TRUE);
     return NS_OK;
   }
-  return NS_ERROR_DOM_SYNTAX_ERR;
+  return NS_ERROR_FAILURE;
 }
 
 nsresult
@@ -219,7 +217,6 @@ NS_IMETHODIMP nsSVGMarkerElement::SetOrientToAngle(nsIDOMSVGAngle *angle)
 
   float f;
   angle->GetValue(&f);
-  NS_ENSURE_FINITE(f, NS_ERROR_DOM_SVG_WRONG_TYPE_ERR);
   mAngleAttributes[ORIENT].SetBaseValue(f, this);
 
   return NS_OK;
@@ -382,19 +379,19 @@ nsSVGMarkerElement::GetPreserveAspectRatio()
 
 gfxMatrix
 nsSVGMarkerElement::GetMarkerTransform(float aStrokeWidth,
-                                       float aX, float aY, float aAutoAngle)
+                                       float aX, float aY, float aAngle)
 {
   float scale = 1.0;
   if (mEnumAttributes[MARKERUNITS].GetAnimValue() ==
       SVG_MARKERUNITS_STROKEWIDTH)
     scale = aStrokeWidth;
 
-  float angle = mOrientType.GetAnimValue() == SVG_MARKER_ORIENT_AUTO ?
-                aAutoAngle :
-                mAngleAttributes[ORIENT].GetAnimValue() * M_PI / 180.0;
+  if (mOrientType.GetAnimValue() != SVG_MARKER_ORIENT_AUTO) {
+    aAngle = mAngleAttributes[ORIENT].GetAnimValue();
+  }
 
-  return gfxMatrix(cos(angle) * scale,   sin(angle) * scale,
-                   -sin(angle) * scale,  cos(angle) * scale,
+  return gfxMatrix(cos(aAngle) * scale,   sin(aAngle) * scale,
+                   -sin(aAngle) * scale,  cos(aAngle) * scale,
                    aX,                    aY);
 }
 
@@ -417,8 +414,7 @@ nsSVGMarkerElement::GetViewBoxTransform()
     float refY = mLengthAttributes[REFY].GetAnimValue(mCoordCtx);
 
     gfxMatrix viewBoxTM =
-      nsSVGUtils::GetViewBoxTransform(this,
-                                      viewportWidth, viewportHeight,
+      nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
                                       viewbox.x, viewbox.y,
                                       viewbox.width, viewbox.height,
                                       mPreserveAspectRatio,

@@ -43,6 +43,7 @@
 #include "nsIDocShellTreeNode.h"
 #include "nsIFrame.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIPresShell.h"
 #include "nsISelectionController.h"
 #include "nsIServiceManager.h"
 #include "nsIURI.h"
@@ -53,14 +54,10 @@
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
  */
 
-////////////////////////////////////////////////////////////////////////////////
-// nsDocAccessibleWrap
-////////////////////////////////////////////////////////////////////////////////
+//----- nsDocAccessibleWrap -----
 
-nsDocAccessibleWrap::
-  nsDocAccessibleWrap(nsIDocument *aDocument, nsIContent *aRootContent,
-                      nsIWeakReference *aShell) :
-  nsDocAccessible(aDocument, aRootContent, aShell)
+nsDocAccessibleWrap::nsDocAccessibleWrap(nsIDOMNode *aDOMNode, nsIWeakReference *aShell): 
+  nsDocAccessible(aDOMNode, aShell)
 {
 }
 
@@ -96,17 +93,23 @@ STDMETHODIMP nsDocAccessibleWrap::QueryInterface(REFIID iid, void** ppv)
   return S_OK;
 }
 
-nsAccessible*
-nsDocAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
+void
+nsDocAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild,
+                                        nsIAccessible **aXPAccessible)
 {
+  *aXPAccessible = nsnull;
+
+  if (IsDefunct())
+    return;
+
   // If lVal negative then it is treated as child ID and we should look for
   // accessible through whole accessible subtree including subdocuments.
   // Otherwise we treat lVal as index in parent.
 
   if (aVarChild.lVal < 0)
-    return IsDefunct() ? nsnull : GetXPAccessibleForChildID(aVarChild);
-
-  return nsAccessibleWrap::GetXPAccessibleFor(aVarChild);
+    GetXPAccessibleForChildID(aVarChild, aXPAccessible);
+  else
+    nsDocAccessible::GetXPAccessibleFor(aVarChild, aXPAccessible);
 }
 
 STDMETHODIMP
@@ -121,7 +124,8 @@ __try {
     // It is used by AccessibleObjectFromEvent() called by AT when AT handles
     // our MSAA event.
 
-    nsAccessible *xpAccessible = GetXPAccessibleForChildID(varChild);
+    nsCOMPtr<nsIAccessible> xpAccessible;
+    GetXPAccessibleForChildID(varChild, getter_AddRefs(xpAccessible));
     if (!xpAccessible)
       return E_FAIL;
 
@@ -272,13 +276,52 @@ STDMETHODIMP nsDocAccessibleWrap::get_accValue(
   return get_URL(pszValue);
 }
 
-nsAccessible*
-nsDocAccessibleWrap::GetXPAccessibleForChildID(const VARIANT& aVarChild)
+struct nsSearchAccessibleInCacheArg
 {
+  nsCOMPtr<nsIAccessNode> mAccessNode;
+  void *mUniqueID;
+};
+
+static PLDHashOperator
+SearchAccessibleInCache(const void* aKey, nsIAccessNode* aAccessNode,
+                        void* aUserArg)
+{
+  nsCOMPtr<nsIAccessibleDocument> docAccessible(do_QueryInterface(aAccessNode));
+  NS_ASSERTION(docAccessible,
+               "No doc accessible for the object in doc accessible cache!");
+
+  if (docAccessible) {
+    nsSearchAccessibleInCacheArg* arg =
+      static_cast<nsSearchAccessibleInCacheArg*>(aUserArg);
+    nsCOMPtr<nsIAccessNode> accessNode;
+    docAccessible->GetCachedAccessNode(arg->mUniqueID,
+                                       getter_AddRefs(accessNode));
+    if (accessNode) {
+      arg->mAccessNode = accessNode;
+      return PL_DHASH_STOP;
+    }
+  }
+
+  return PL_DHASH_NEXT;
+}
+
+void
+nsDocAccessibleWrap::GetXPAccessibleForChildID(const VARIANT& aVarChild,
+                                               nsIAccessible  **aAccessible)
+{
+  *aAccessible = nsnull;
+
   NS_PRECONDITION(aVarChild.vt == VT_I4 && aVarChild.lVal < 0,
                   "Variant doesn't point to child ID!");
 
   // Convert child ID to unique ID.
   void *uniqueID = reinterpret_cast<void*>(-aVarChild.lVal);
-  return GetAccService()->FindAccessibleInCache(uniqueID);
+
+  nsSearchAccessibleInCacheArg arg;
+  arg.mUniqueID = uniqueID;
+
+  gGlobalDocAccessibleCache.EnumerateRead(SearchAccessibleInCache,
+                                          static_cast<void*>(&arg));
+  if (arg.mAccessNode)
+    CallQueryInterface(arg.mAccessNode, aAccessible);
 }

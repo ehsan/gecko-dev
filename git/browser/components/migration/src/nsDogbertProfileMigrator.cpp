@@ -407,6 +407,8 @@ nsDogbertProfileMigrator::PrefTransform gTransforms[] = {
   { "network.proxy.autoconfig_url",   0, F(GetString),   F(SetString), PR_FALSE, { -1 } },
   { "network.proxy.ftp",              0, F(GetString),   F(SetString), PR_FALSE, { -1 } },
   { "network.proxy.ftp_port",         0, F(GetInt),      F(SetInt),    PR_FALSE, { -1 } },
+  { "network.proxy.gopher",           0, F(GetString),   F(SetString), PR_FALSE, { -1 } },
+  { "network.proxy.gopher_port",      0, F(GetInt),      F(SetInt),    PR_FALSE, { -1 } },
   { "network.proxy.http",             0, F(GetString),   F(SetString), PR_FALSE, { -1 } },
   { "network.proxy.http_port",        0, F(GetInt),      F(SetInt),    PR_FALSE, { -1 } },
   { "network.proxy.ssl",              0, F(GetString),   F(SetString), PR_FALSE, { -1 } },
@@ -420,6 +422,7 @@ nsDogbertProfileMigrator::PrefTransform gTransforms[] = {
   { "browser.wfe.use_windows_colors",       "browser.display.use_system_colors",  F(GetBool),     F(SetBool),    PR_FALSE, { -1 } },
   { "browser.use_document_colors",          "browser.display.use_document_colors",F(GetBool),     F(SetBool),    PR_FALSE, { -1 } },
   { "browser.use_document.fonts",           "browser.display.use_document_fonts", F(GetInt),      F(SetInt),     PR_FALSE, { -1 } },
+  { "browser.link_expiration",              "browser.history_expire_days",        F(GetInt),      F(SetInt),     PR_FALSE, { -1 } },
   { "browser.startup.page",                 "browser.startup.homepage",           F(GetHomepage), F(SetWStringFromASCII), PR_FALSE, { -1 } },
   { "general.always_load_images",           "permissions.default.image",          F(GetImagePref),F(SetInt),     PR_FALSE, { -1 } },
 };

@@ -68,8 +68,8 @@ namespace nanojit
     // - 'entry' records the state of the native machine stack at particular
     //   points during assembly.  Each entry represents four bytes.
     //
-    // - Parts of the stack can be allocated by LIR_allocp, in which case each
-    //   slot covered by the allocation contains a pointer to the LIR_allocp
+    // - Parts of the stack can be allocated by LIR_ialloc, in which case each
+    //   slot covered by the allocation contains a pointer to the LIR_ialloc
     //   LIns.
     //
     // - The stack also holds spilled values, in which case each slot holding
@@ -88,7 +88,7 @@ namespace nanojit
     //   * An LIns can appear in at most one contiguous sequence of slots in
     //     AR, and the length of that sequence depends on the opcode (1 slot
     //     for instructions producing 32-bit values, 2 slots for instructions
-    //     producing 64-bit values, N slots for LIR_allocp).
+    //     producing 64-bit values, N slots for LIR_ialloc).
     //
     //   * An LIns named by 'entry[i]' must have an in-use reservation with
     //     arIndex==i (or an 'i' indexing the start of the same contiguous
@@ -100,86 +100,39 @@ namespace nanojit
     //   * If an LIns's reservation names has arIndex==0 then LIns should not
     //     be in 'entry[]'.
     //
-    class AR
+    struct AR
     {
-    private:
-        uint32_t        _highWaterMark;                 /* index of highest entry used since last clear() */
-        LIns*           _entries[ NJ_MAX_STACK_ENTRY ]; /* maps to 4B contiguous locations relative to the frame pointer.
-                                                            NB: _entries[0] is always unused */
-
-        #ifdef _DEBUG
-        static LIns* const BAD_ENTRY;
-        #endif
-
-        bool isEmptyRange(uint32_t start, uint32_t nStackSlots) const;
-        static uint32_t nStackSlotsFor(LIns* ins);
-
-    public:
-        AR();
-
-        uint32_t stackSlotsNeeded() const;
-
-        void clear();
-        void freeEntryAt(uint32_t i);
-        uint32_t reserveEntry(LIns* ins); /* return 0 if unable to reserve the entry */
-
-        #ifdef _DEBUG
-        void validateQuick();
-        void validateFull();
-        void validate();
-        bool isValidEntry(uint32_t idx, LIns* ins) const; /* return true iff idx and ins are matched */
-        void checkForResourceConsistency(const RegAlloc& regs);
-        void checkForResourceLeaks() const;
-        #endif
-
-        class Iter
-        {
-        private:
-            const AR& _ar;
-            // '_i' points to the start of the entries for an LIns, or to the first NULL entry.
-            uint32_t _i;
-        public:
-            inline Iter(const AR& ar) : _ar(ar), _i(1) { }
-            bool next(LIns*& ins, uint32_t& nStackSlots, int32_t& offset);             // get the next one (moves iterator forward)
-        };
+        LIns*           entry[ NJ_MAX_STACK_ENTRY ];    /* maps to 4B contiguous locations relative to the frame pointer */
+        uint32_t        tos;                            /* current top of stack entry */
+        uint32_t        lowwatermark;                   /* we pre-allocate entries from 0 upto this index-1; so dynamic entries are added above this index */
     };
 
-    inline AR::AR()
-    {
-         _entries[0] = NULL;
-         clear();
-    }
+	#ifndef AVMPLUS_ALIGN16
+		#ifdef AVMPLUS_WIN32
+			#define AVMPLUS_ALIGN16(type) __declspec(align(16)) type
+		#else
+			#define AVMPLUS_ALIGN16(type) type __attribute__ ((aligned (16)))
+		#endif
+	#endif
 
-    inline /*static*/ uint32_t AR::nStackSlotsFor(LIns* ins)
+    struct Stats
     {
-        uint32_t n = 0;
-        if (ins->isop(LIR_allocp)) {
-            n = ins->size() >> 2;
-        } else {
-            switch (ins->retType()) {
-            case LTy_I:   n = 1;          break;
-            CASE64(LTy_Q:)
-            case LTy_D:   n = 2;          break;
-            case LTy_V:  NanoAssert(0);  break;
-            default:        NanoAssert(0);  break;
-            }
-        }
-        return n;
-    }
+        counter_define(steals;)
+        counter_define(remats;)
+        counter_define(spills;)
+        counter_define(native;)
+        counter_define(exitnative;)
 
-    inline uint32_t AR::stackSlotsNeeded() const
-    {
-        // NB: _highWaterMark is an index, not a count
-        return _highWaterMark+1;
-    }
+        int32_t pages;
+        NIns* codeStart;
+        NIns* codeExitStart;
 
-    #ifndef AVMPLUS_ALIGN16
-        #ifdef _MSC_VER
-            #define AVMPLUS_ALIGN16(type) __declspec(align(16)) type
-        #else
-            #define AVMPLUS_ALIGN16(type) type __attribute__ ((aligned (16)))
-        #endif
-    #endif
+        DECLARE_PLATFORM_STATS()
+#ifdef __GNUC__
+        // inexplicably, gnuc gives padding/alignment warnings without this. pacify it.
+        bool pad[4];
+#endif
+    };
 
     // error codes
     enum AssmError
@@ -187,14 +140,10 @@ namespace nanojit
          None = 0
         ,StackFull
         ,UnknownBranch
-        ,ConditionalBranchTooFar
     };
 
     typedef SeqBuilder<NIns*> NInsList;
     typedef HashMap<NIns*, LIns*> NInsMap;
-#if NJ_USES_IMMD_POOL
-    typedef HashMap<uint64_t, uint64_t*> ImmDPoolMap;
-#endif
 
 #ifdef VTUNE
     class avmplus::CodegenLIR;
@@ -222,6 +171,8 @@ namespace nanojit
         LabelState *get(LIns *);
     };
 
+    typedef SeqBuilder<char*> StringList;
+
     /** map tracking the register allocation state at each bailout point
      *  (represented by SideExit*) in a trace fragment. */
     typedef HashMap<SideExit*, RegAlloc*> RegAllocMap;
@@ -231,13 +182,16 @@ namespace nanojit
      * as we generate machine code.  As part of the prologue, we issue
      * a stack adjustment instruction and then later patch the adjustment
      * value.  Temporary values can be placed into the AR as method calls
-     * are issued.   Also LIR_allocp instructions will consume space.
+     * are issued.   Also LIR_alloc instructions will consume space.
      */
     class Assembler
     {
         friend class VerboseBlockReader;
-            #ifdef NJ_VERBOSE
         public:
+            #ifdef NJ_VERBOSE
+            // Log controller object.  Contains what-stuff-should-we-print
+            // bits, and a sink function for debug printing.
+            LogControl* _logc;
             // Buffer for holding text as we generate it in reverse order.
             StringList* _outputCache;
 
@@ -246,10 +200,6 @@ namespace nanojit
             void outputf(const char* format, ...);
 
         private:
-            // Log controller object.  Contains what-stuff-should-we-print
-            // bits, and a sink function for debug printing.
-            LogControl* _logc;
-
             // Buffer used in most of the output function.  It must big enough
             // to hold both the output line and the 'outlineEOL' buffer, which
             // is concatenated onto 'outline' just before it is printed.
@@ -257,6 +207,9 @@ namespace nanojit
             // Buffer used to hold extra text to be printed at the end of some
             // lines.
             static char  outlineEOL[512];
+            // If outputAddr=true the next asm instruction output will
+            // be prepended with its address.
+            bool outputAddr, vpad[3];
 
             // Outputs 'outline' and 'outlineEOL', and resets them both.
             // Output goes to '_outputCache' if it's non-NULL, or is printed
@@ -275,10 +228,7 @@ namespace nanojit
             avmplus::CodegenLIR *cgen;
             #endif
 
-            Assembler(CodeAlloc& codeAlloc, Allocator& dataAlloc, Allocator& alloc, AvmCore* core, LogControl* logc, const Config& config);
-
-            void        compile(Fragment *frag, Allocator& alloc, bool optimize
-                                verbose_only(, LInsPrinter*));
+            Assembler(CodeAlloc& codeAlloc, Allocator& dataAlloc, Allocator& alloc, AvmCore* core, LogControl* logc);
 
             void        endAssembly(Fragment* frag);
             void        assemble(Fragment* frag, LirFilter* reader);
@@ -301,65 +251,48 @@ namespace nanojit
             debug_only( void        resourceConsistencyCheck(); )
             debug_only( void        registerConsistencyCheck(); )
 
+            Stats       _stats;
             CodeList*   codeList;                   // finished blocks of code.
 
         private:
+
             void        gen(LirFilter* toCompile);
             NIns*       genPrologue();
             NIns*       genEpilogue();
 
-            uint32_t    arReserve(LIns* ins);
-            void        arFree(LIns* ins);
+            uint32_t    arReserve(LIns* l);
+            void        arFree(uint32_t idx);
             void        arReset();
 
-            Register    registerAlloc(LIns* ins, RegisterMask allow, RegisterMask prefer);
+            Register    registerAlloc(LIns* ins, RegisterMask allow);
             Register    registerAllocTmp(RegisterMask allow);
             void        registerResetAll();
             void        evictAllActiveRegs();
             void        evictSomeActiveRegs(RegisterMask regs);
-            void        evictScratchRegsExcept(RegisterMask ignore);
+            void        evictScratchRegs();
             void        intersectRegisterState(RegAlloc& saved);
             void        unionRegisterState(RegAlloc& saved);
             void        assignSaved(RegAlloc &saved, RegisterMask skip);
             LInsp       findVictim(RegisterMask allow);
 
-            Register    getBaseReg(LIns *ins, int &d, RegisterMask allow);
-            void        getBaseReg2(RegisterMask allowValue, LIns* value, Register& rv,
-                                    RegisterMask allowBase, LIns* base, Register& rb, int &d);
-#if NJ_USES_IMMD_POOL
-            const uint64_t*
-                        findImmDFromPool(uint64_t q);
-#endif
-            int         findMemFor(LIns* ins);
-            Register    findRegFor(LIns* ins, RegisterMask allow);
-            void        findRegFor2(RegisterMask allowa, LIns* ia, Register &ra,
-                                    RegisterMask allowb, LIns *ib, Register &rb);
-            Register    findSpecificRegFor(LIns* ins, Register r);
-            Register    findSpecificRegForUnallocated(LIns* ins, Register r);
-            Register    deprecated_prepResultReg(LIns *ins, RegisterMask allow);
-            Register    prepareResultReg(LIns *ins, RegisterMask allow);
-            void        deprecated_freeRsrcOf(LIns *ins);
-            void        freeResourcesOf(LIns *ins);
+            Register    getBaseReg(LOpcode op, LIns *i, int &d, RegisterMask allow);
+            int         findMemFor(LIns* i);
+            Register    findRegFor(LIns* i, RegisterMask allow);
+            void        findRegFor2(RegisterMask allow, LIns* ia, Register &ra, LIns *ib, Register &rb);
+            Register    findSpecificRegFor(LIns* i, Register r);
+            Register    findSpecificRegForUnallocated(LIns* i, Register r);
+            Register    prepResultReg(LIns *i, RegisterMask allow);
+            void        freeRsrcOf(LIns *i, bool pop);
             void        evictIfActive(Register r);
-            void        evict(LIns* vic);
-            RegisterMask hint(LIns* ins);   // mask==0 means there's no preferred register(s)
+            void        evict(Register r, LIns* vic);
+            RegisterMask hint(LIns*i, RegisterMask allow);
 
             void        codeAlloc(NIns *&start, NIns *&end, NIns *&eip
                                   verbose_only(, size_t &nBytes));
+            bool        canRemat(LIns*);
 
-            // These instructions don't have to be saved & reloaded to spill,
-            // they can just be recalculated cheaply.
-            //
-            // WARNING: this function must match asm_restore() -- it should return
-            // true for the instructions that are handled explicitly without a spill
-            // in asm_restore(), and false otherwise.
-            //
-            // If it doesn't match asm_restore(), the register allocator's decisions
-            // about which values to evict will be suboptimal.
-            static bool canRemat(LIns*);
-
-            bool deprecated_isKnownReg(Register r) {
-                return r != deprecated_UnknownReg;
+            bool isKnownReg(Register r) {
+                return r != UnknownReg;
             }
 
             Allocator&          alloc;              // for items with same lifetime as this Assembler
@@ -369,9 +302,6 @@ namespace nanojit
             RegAllocMap         _branchStateMap;
             NInsMap             _patches;
             LabelStateMap       _labels;
-        #if NJ_USES_IMMD_POOL
-            ImmDPoolMap     _immDPool;
-        #endif
 
             // We generate code into two places:  normal code chunks, and exit
             // code chunks (for exit stubs).  We use a hack to avoid having to
@@ -387,12 +317,13 @@ namespace nanojit
             NIns        *exitStart, *exitEnd;   // current exit code chunk
             NIns*       _nIns;                  // current instruction in current normal code chunk
             NIns*       _nExitIns;              // current instruction in current exit code chunk
-                                                // note: _nExitIns == NULL until the first side exit is seen.
         #ifdef NJ_VERBOSE
+        public:
             size_t      codeBytes;              // bytes allocated in normal code chunks
             size_t      exitBytes;              // bytes allocated in exit code chunks
         #endif
 
+        private:
             #define     SWAP(t, a, b)   do { t tmp = a; a = b; b = tmp; } while (0)
             void        swapCodeChunks();
 
@@ -402,63 +333,43 @@ namespace nanojit
             NIns*       pedanticTop;
         #endif
 
-            // Holds the current instruction during gen().
-            LInsp       currIns;
-
             AR          _activation;
             RegAlloc    _allocator;
 
             verbose_only( void asm_inc_m32(uint32_t*); )
             void        asm_mmq(Register rd, int dd, Register rs, int ds);
-            void        asm_jmp(LInsp ins, InsList& pending_lives);
-            void        asm_jcc(LInsp ins, InsList& pending_lives);
-            void        asm_x(LInsp ins);
-            void        asm_xcc(LInsp ins);
             NIns*       asm_exit(LInsp guard);
             NIns*       asm_leave_trace(LInsp guard);
-            void        asm_store32(LOpcode op, LIns *val, int d, LIns *base);
-            void        asm_store64(LOpcode op, LIns *val, int d, LIns *base);
-
-            // WARNING: the implementation of asm_restore() should emit fast code
-            // to rematerialize instructions where canRemat() returns true.
-            // Otherwise, register allocation decisions will be suboptimal.
-            void        asm_restore(LInsp, Register);
-
-            void        asm_maybe_spill(LInsp ins, bool pop);
-            void        asm_spill(Register rr, int d, bool pop, bool quad);
-            void        asm_load64(LInsp ins);
-            void        asm_ret(LInsp ins);
-#ifdef NANOJIT_64BIT
-            void        asm_immq(LInsp ins);
-#endif
-            void        asm_immd(LInsp ins);
-            void        asm_condd(LInsp ins);
-            void        asm_cond(LInsp ins);
-            void        asm_arith(LInsp ins);
-            void        asm_neg_not(LInsp ins);
-            void        asm_load32(LInsp ins);
-            void        asm_cmov(LInsp ins);
-            void        asm_param(LInsp ins);
-            void        asm_immi(LInsp ins);
-#if NJ_SOFTFLOAT_SUPPORTED
-            void        asm_qlo(LInsp ins);
-            void        asm_qhi(LInsp ins);
             void        asm_qjoin(LIns *ins);
-#endif
+            void        asm_store32(LIns *val, int d, LIns *base);
+            void        asm_store64(LIns *val, int d, LIns *base);
+            void        asm_restore(LInsp, Register);
+            void        asm_load(int d, Register r);
+            void        asm_spilli(LInsp i, bool pop);
+            void        asm_spill(Register rr, int d, bool pop, bool quad);
+            void        asm_load64(LInsp i);
+            void        asm_ret(LInsp p);
+            void        asm_quad(LInsp i);
+            void        asm_fcond(LInsp i);
+            void        asm_cond(LInsp i);
+            void        asm_arith(LInsp i);
+            void        asm_neg_not(LInsp i);
+            void        asm_ld(LInsp i);
+            void        asm_cmov(LInsp i);
+            void        asm_param(LInsp i);
+            void        asm_int(LInsp i);
+            void        asm_qlo(LInsp i);
+            void        asm_qhi(LInsp i);
             void        asm_fneg(LInsp ins);
             void        asm_fop(LInsp ins);
-            void        asm_i2d(LInsp ins);
-            void        asm_ui2d(LInsp ins);
-            void        asm_d2i(LInsp ins);
-#ifdef NANOJIT_64BIT
-            void        asm_q2i(LInsp ins);
+            void        asm_i2f(LInsp ins);
+            void        asm_u2f(LInsp ins);
             void        asm_promote(LIns *ins);
-#endif
+            Register    asm_prep_fcall(LInsp ins);
             void        asm_nongp_copy(Register r, Register s);
             void        asm_call(LInsp);
             Register    asm_binop_rhs_reg(LInsp ins);
             NIns*       asm_branch(bool branchOnFalse, LInsp cond, NIns* targ);
-            void        asm_branch_xov(LOpcode op, NIns* targ);
             void        asm_switch(LIns* ins, NIns* target);
             void        asm_jtbl(LIns* ins, NIns** table);
             void        emitJumpTable(SwitchInfo* si, NIns* target);
@@ -493,19 +404,13 @@ namespace nanojit
                 debug_only( --_fpuStkDepth; NanoAssert(_fpuStkDepth<=0); )
             }
 #endif
-            const Config& _config;
+            avmplus::Config &config;
     };
 
-    inline int32_t arDisp(LIns* ins)
+    inline int32_t disp(LIns* ins)
     {
         // even on 64bit cpu's, we allocate stack area in 4byte chunks
-        return -4 * int32_t(ins->getArIndex());
-    }
-    // XXX: deprecated, use arDisp() instead.  See bug 538924.
-    inline int32_t deprecated_disp(LIns* ins)
-    {
-        // even on 64bit cpu's, we allocate stack area in 4byte chunks
-        return -4 * int32_t(ins->deprecated_getArIndex());
+        return stack_direction(4 * int32_t(ins->getArIndex()));
     }
 }
 #endif // __nanojit_Assembler__

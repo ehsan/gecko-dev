@@ -277,9 +277,10 @@ nsThebesRenderingContext::SetClipRect(const nsRect& aRect,
 }
 
 NS_IMETHODIMP
-nsThebesRenderingContext::SetClipRegion(const nsIntRegion& aRegion,
+nsThebesRenderingContext::SetClipRegion(const nsIRegion& pxRegion,
                                         nsClipCombine aCombine)
 {
+    //return NS_OK;
     // Region is in device coords, no transformation.
     // This should only be called when there is no transform in place, when we
     // we just start painting a widget. The region is set by the platform paint
@@ -287,19 +288,45 @@ nsThebesRenderingContext::SetClipRegion(const nsIntRegion& aRegion,
     NS_ASSERTION(aCombine == nsClipCombine_kReplace,
                  "Unexpected usage of SetClipRegion");
 
+    nsRegionComplexity cplx;
+    pxRegion.GetRegionComplexity(cplx);
+
     gfxMatrix mat = mThebes->CurrentMatrix();
     mThebes->IdentityMatrix();
 
     mThebes->ResetClip();
-    
-    mThebes->NewPath();
-    nsIntRegionRectIterator iter(aRegion);
-    const nsIntRect* rect;
-    while ((rect = iter.Next())) {
-        mThebes->Rectangle(gfxRect(rect->x, rect->y, rect->width, rect->height),
-                           PR_TRUE);
+    // GetBoundingBox, GetRects, FreeRects are non-const
+    nsIRegion *evilPxRegion = const_cast<nsIRegion*>(&pxRegion);
+    if (cplx == eRegionComplexity_rect) {
+        PRInt32 x, y, w, h;
+        evilPxRegion->GetBoundingBox(&x, &y, &w, &h);
+
+        PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::SetClipRegion %d [%d,%d,%d,%d]", this, cplx, x, y, w, h));
+
+        mThebes->NewPath();
+        mThebes->Rectangle(gfxRect(x, y, w, h), PR_TRUE);
+        mThebes->Clip();
+    } else if (cplx == eRegionComplexity_complex) {
+        nsRegionRectSet *rects = nsnull;
+        nsresult rv = evilPxRegion->GetRects (&rects);
+        PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::SetClipRegion %d %d rects", this, cplx, rects->mNumRects));
+        if (NS_FAILED(rv) || !rects) {
+            mThebes->SetMatrix(mat);
+            return rv;
+        }
+
+        mThebes->NewPath();
+        for (PRUint32 i = 0; i < rects->mNumRects; i++) {
+            mThebes->Rectangle(gfxRect(rects->mRects[i].x,
+                                       rects->mRects[i].y,
+                                       rects->mRects[i].width,
+                                       rects->mRects[i].height),
+                               PR_TRUE);
+        }
+        mThebes->Clip();
+
+        evilPxRegion->FreeRects (rects);
     }
-    mThebes->Clip();
 
     mThebes->SetMatrix(mat);
 
@@ -792,26 +819,13 @@ nsThebesRenderingContext::SetTextRunRTL(PRBool aIsRTL)
 }
 
 NS_IMETHODIMP
-nsThebesRenderingContext::SetFont(const nsFont& aFont, nsIAtom* aLanguage,
+nsThebesRenderingContext::SetFont(const nsFont& aFont, nsIAtom* aLangGroup,
                                   gfxUserFontSet *aUserFontSet)
 {
     PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::SetFont %p\n", this, &aFont));
 
     nsCOMPtr<nsIFontMetrics> newMetrics;
-    mDeviceContext->GetMetricsFor(aFont, aLanguage, aUserFontSet,
-                                  *getter_AddRefs(newMetrics));
-    mFontMetrics = reinterpret_cast<nsIThebesFontMetrics*>(newMetrics.get());
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThebesRenderingContext::SetFont(const nsFont& aFont,
-                                  gfxUserFontSet *aUserFontSet)
-{
-    PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::SetFont %p\n", this, &aFont));
-
-    nsCOMPtr<nsIFontMetrics> newMetrics;
-    mDeviceContext->GetMetricsFor(aFont, nsnull, aUserFontSet,
+    mDeviceContext->GetMetricsFor(aFont, aLangGroup, aUserFontSet,
                                   *getter_AddRefs(newMetrics));
     mFontMetrics = reinterpret_cast<nsIThebesFontMetrics*>(newMetrics.get());
     return NS_OK;

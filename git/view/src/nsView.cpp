@@ -41,6 +41,7 @@
 #include "nsGUIEvent.h"
 #include "nsIDeviceContext.h"
 #include "nsIComponentManager.h"
+#include "nsIScrollableView.h"
 #include "nsGfxCIID.h"
 #include "nsIRegion.h"
 #include "nsIInterfaceRequestor.h"
@@ -52,9 +53,10 @@ static nsEventStatus HandleEvent(nsGUIEvent *aEvent);
 
 //#define SHOW_VIEW_BORDERS
 
+// {34297A07-A8FD-d811-87C6-000244212BCB}
 #define VIEW_WRAPPER_IID \
-  { 0xbf4e1841, 0xe9ec, 0x47f2, \
-    { 0xb4, 0x77, 0x0f, 0xf6, 0x0f, 0x5a, 0xac, 0xbd } }
+{ 0x34297a07, 0xa8fd, 0xd811, { 0x87, 0xc6, 0x0, 0x2, 0x44, 0x21, 0x2b, 0xcb } }
+
 
 /**
  * nsISupports-derived helper class that allows to store and get a view
@@ -85,7 +87,8 @@ NS_IMETHODIMP ViewWrapper::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 {
   NS_ENSURE_ARG_POINTER(aInstancePtr);
 
-  NS_ASSERTION(!aIID.Equals(NS_GET_IID(nsIView)),
+  NS_ASSERTION(!aIID.Equals(NS_GET_IID(nsIView)) &&
+               !aIID.Equals(NS_GET_IID(nsIScrollableView)),
                "Someone expects a viewwrapper to be a view!");
   
   *aInstancePtr = nsnull;
@@ -112,6 +115,10 @@ NS_IMETHODIMP ViewWrapper::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 
 NS_IMETHODIMP ViewWrapper::GetInterface(REFNSIID aIID, void** aInstancePtr)
 {
+  if (aIID.Equals(NS_GET_IID(nsIScrollableView))) {
+    *aInstancePtr = mView->ToScrollableView();
+    return NS_OK;
+  }
   if (aIID.Equals(NS_GET_IID(nsIView))) {
     *aInstancePtr = mView;
     return NS_OK;
@@ -144,47 +151,15 @@ static ViewWrapper* GetWrapperFor(nsIWidget* aWidget)
   return nsnull;
 }
 
+//
 // Main events handler
-static nsEventStatus HandleEvent(nsGUIEvent *aEvent)
-{
-#if 0
-  printf(" %d %d %d (%d,%d) \n", aEvent->widget, aEvent->widgetSupports, 
-         aEvent->message, aEvent->point.x, aEvent->point.y);
-#endif
-  nsEventStatus result = nsEventStatus_eIgnore;
-  nsView *view = nsView::GetViewFor(aEvent->widget);
-
-  if (view)
-  {
-    nsCOMPtr<nsIViewManager> vm = view->GetViewManager();
-    vm->DispatchEvent(aEvent, view, &result);
-  }
-
-  return result;
-}
-
-// Attached widget event helpers
-static ViewWrapper* GetAttachedWrapperFor(nsIWidget* aWidget)
-{
-  NS_PRECONDITION(nsnull != aWidget, "null widget ptr");
-  return aWidget->GetAttachedViewPtr();
-}
-
-static nsView* GetAttachedViewFor(nsIWidget* aWidget)
-{           
-  NS_PRECONDITION(nsnull != aWidget, "null widget ptr");
-
-  ViewWrapper* wrapper = GetAttachedWrapperFor(aWidget);
-  if (!wrapper)
-    return nsnull;
-  return wrapper->GetView();
-}
-
-// event handler
-static nsEventStatus AttachedHandleEvent(nsGUIEvent *aEvent)
+//
+nsEventStatus HandleEvent(nsGUIEvent *aEvent)
 { 
+//printf(" %d %d %d (%d,%d) \n", aEvent->widget, aEvent->widgetSupports, 
+//       aEvent->message, aEvent->point.x, aEvent->point.y);
   nsEventStatus result = nsEventStatus_eIgnore;
-  nsView *view = GetAttachedViewFor(aEvent->widget);
+  nsView       *view = nsView::GetViewFor(aEvent->widget);
 
   if (view)
   {
@@ -208,7 +183,6 @@ nsView::nsView(nsViewManager* aViewManager, nsViewVisibility aVisibility)
   mViewManager = aViewManager;
   mDirtyRegion = nsnull;
   mDeletionObserver = nsnull;
-  mWidgetIsTopLevel = PR_FALSE;
 }
 
 void nsView::DropMouseGrabbing()
@@ -273,21 +247,8 @@ nsView::~nsView()
     ViewWrapper* wrapper = GetWrapperFor(mWindow);
     NS_IF_RELEASE(wrapper);
 
-    // If we are not attached to a base window, we're going to tear down our
-    // widget here. However, if we're attached to somebody elses widget, we
-    // want to leave the widget alone: don't reset the client data or call
-    // Destroy. Just clear our event view ptr and free our reference to it. 
-    if (mWidgetIsTopLevel) {
-      ViewWrapper* wrapper = GetAttachedWrapperFor(mWindow);
-      NS_IF_RELEASE(wrapper);
-
-      mWindow->SetAttachedViewPtr(nsnull);
-    }
-    else {
-      mWindow->SetClientData(nsnull);
-      mWindow->Destroy();
-    }
-
+    mWindow->SetClientData(nsnull);
+    mWindow->Destroy();
     NS_RELEASE(mWindow);
   }
   delete mDirtyRegion;
@@ -321,13 +282,8 @@ nsIView* nsIView::GetViewFor(nsIWidget* aWidget)
   NS_PRECONDITION(nsnull != aWidget, "null widget ptr");
 
   ViewWrapper* wrapper = GetWrapperFor(aWidget);
-
-  if (!wrapper)
-    wrapper = GetAttachedWrapperFor(aWidget);
-
   if (wrapper)
-    return wrapper->GetView();
-
+    return wrapper->GetView();  
   return nsnull;
 }
 
@@ -379,16 +335,16 @@ void nsView::ResetWidgetBounds(PRBool aRecurse, PRBool aMoveOnly,
   }
 }
 
-PRBool nsIView::IsEffectivelyVisible()
+PRBool nsView::IsEffectivelyVisible()
 {
-  for (nsIView* v = this; v; v = v->mParent) {
+  for (nsView* v = this; v; v = v->mParent) {
     if (v->GetVisibility() == nsViewVisibility_kHide)
       return PR_FALSE;
   }
   return PR_TRUE;
 }
 
-nsIntRect nsIView::CalcWidgetBounds(nsWindowType aType)
+nsIntRect nsView::CalcWidgetBounds(nsWindowType aType)
 {
   nsCOMPtr<nsIDeviceContext> dx;
   mViewManager->GetDeviceContext(*getter_AddRefs(dx));
@@ -398,35 +354,24 @@ nsIntRect nsIView::CalcWidgetBounds(nsWindowType aType)
   nsRect viewBounds(mDimBounds);
 
   if (GetParent()) {
+    // put offset into screen coordinates
     nsPoint offset;
     nsIWidget* parentWidget = GetParent()->GetNearestWidget(&offset);
-    // make viewBounds be relative to the parent widget, in appunits
     viewBounds += offset;
 
     if (parentWidget && aType == eWindowType_popup &&
         IsEffectivelyVisible()) {
-      // put offset into screen coordinates. (based on client area origin)
       nsIntPoint screenPoint = parentWidget->WidgetToScreenOffset();
       viewBounds += nsPoint(NSIntPixelsToAppUnits(screenPoint.x, p2a),
                             NSIntPixelsToAppUnits(screenPoint.y, p2a));
     }
   }
 
-  // Compute widget bounds in device pixels
   nsIntRect newBounds = viewBounds.ToNearestPixels(p2a);
 
-  // Compute where the top-left of the widget ended up relative to the
-  // parent widget, in appunits
   nsPoint roundedOffset(NSIntPixelsToAppUnits(newBounds.x, p2a),
                         NSIntPixelsToAppUnits(newBounds.y, p2a));
-
-  // mViewToWidgetOffset is added to coordinates relative to the view origin
-  // to get coordinates relative to the widget.
-  // The view origin, relative to the parent widget, is at
-  // (mPosX,mPosY) - mDimBounds.TopLeft() + viewBounds.TopLeft().
-  // Our widget, relative to the parent widget, is roundedOffset.
-  mViewToWidgetOffset = nsPoint(mPosX, mPosY)
-    - mDimBounds.TopLeft() + viewBounds.TopLeft() - roundedOffset;
+  mViewToWidgetOffset = viewBounds.TopLeft() - roundedOffset;
 
   return newBounds;
 }
@@ -441,7 +386,6 @@ void nsView::DoResetWidgetBounds(PRBool aMoveOnly,
   
   nsIntRect curBounds;
   mWindow->GetBounds(curBounds);
-
   nsWindowType type;
   mWindow->GetWindowType(type);
 
@@ -461,7 +405,6 @@ void nsView::DoResetWidgetBounds(PRBool aMoveOnly,
   PRBool changedPos = curBounds.TopLeft() != newBounds.TopLeft();
   PRBool changedSize = curBounds.Size() != newBounds.Size();
 
-  // Child views are never attached to top level widgets, this is safe.
   if (changedPos) {
     if (changedSize && !aMoveOnly) {
       mWindow->Resize(newBounds.x, newBounds.y, newBounds.width, newBounds.height,
@@ -757,62 +700,6 @@ nsresult nsIView::CreateWidget(const nsIID &aWindowIID,
   return NS_OK;
 }
 
-// Attach to a top level widget and start receiving mirrored events.
-nsresult nsIView::AttachToTopLevelWidget(nsIWidget* aWidget)
-{
-  NS_PRECONDITION(nsnull != aWidget, "null widget ptr");
-  /// XXXjimm This is a temporary workaround to an issue w/document
-  // viewer (bug 513162).
-  nsIView *oldView = GetAttachedViewFor(aWidget);
-  if (oldView) {
-    oldView->DetachFromTopLevelWidget();
-  }
-
-  nsCOMPtr<nsIDeviceContext> dx;
-  mViewManager->GetDeviceContext(*getter_AddRefs(dx));
-
-  // Note, the previous device context will be released. Detaching
-  // will not restore the old one.
-  nsresult rv = aWidget->AttachViewToTopLevel(::AttachedHandleEvent, dx);
-  if (NS_FAILED(rv))
-    return rv;
-
-  mWindow = aWidget;
-  NS_ADDREF(mWindow);
-
-  nsView* v = static_cast<nsView*>(this);
-  ViewWrapper* wrapper = new ViewWrapper(v);
-  NS_ADDREF(wrapper);
-  mWindow->SetAttachedViewPtr(wrapper);
-  mWindow->EnableDragDrop(PR_TRUE);
-  mWidgetIsTopLevel = PR_TRUE;
-
-  // Refresh the view bounds
-  nsWindowType type;
-  mWindow->GetWindowType(type);
-  CalcWidgetBounds(type);
-
-  return NS_OK;
-}
-
-// Detach this view from an attached widget. 
-nsresult nsIView::DetachFromTopLevelWidget()
-{
-  NS_PRECONDITION(mWidgetIsTopLevel, "Not attached currently!");
-  NS_PRECONDITION(mWindow, "null mWindow for DetachFromTopLevelWidget!");
-
-  // Release memory for the view wrapper
-  ViewWrapper* wrapper = GetAttachedWrapperFor(mWindow);
-  NS_IF_RELEASE(wrapper);
-
-  mWindow->SetAttachedViewPtr(nsnull);
-  NS_RELEASE(mWindow);
-
-  mWidgetIsTopLevel = PR_FALSE;
-  
-  return NS_OK;
-}
-
 void nsView::SetZIndex(PRBool aAuto, PRInt32 aZIndex, PRBool aTopMost)
 {
   PRBool oldIsAuto = GetZIndexIsAuto();
@@ -932,11 +819,25 @@ nsPoint nsIView::GetOffsetTo(const nsIView* aOther) const
   return offset;
 }
 
+nsIntPoint nsIView::GetScreenPosition() const
+{
+  nsIntPoint screenPoint(0,0);  
+  nsPoint toWidgetOffset(0,0);
+  nsIWidget* widget = GetNearestWidget(&toWidgetOffset);
+  if (widget) {
+    nsCOMPtr<nsIDeviceContext> dx;
+    mViewManager->GetDeviceContext(*getter_AddRefs(dx));
+    PRInt32 p2a = dx->AppUnitsPerDevPixel();
+    nsIntPoint ourPoint(NSAppUnitsToIntPixels(toWidgetOffset.x, p2a),
+                        NSAppUnitsToIntPixels(toWidgetOffset.y, p2a));
+    screenPoint = ourPoint + widget->WidgetToScreenOffset();
+  }
+  
+  return screenPoint;
+}
+
 nsIWidget* nsIView::GetNearestWidget(nsPoint* aOffset) const
 {
-  // aOffset is based on the view's position, which ignores any chrome on
-  // attached parent widgets.
-
   nsPoint pt(0, 0);
   const nsView* v;
   for (v = static_cast<const nsView*>(this);
@@ -950,9 +851,9 @@ nsIWidget* nsIView::GetNearestWidget(nsPoint* aOffset) const
     return nsnull;
   }
 
-  // pt is now the offset from v's origin to this view's origin. The widget's
-  // origin is the top left corner of v's bounds, which may not coincide with
-  // the view's origin.
+  // pt is now the offset from v's origin to this's origin
+  // The widget's origin is the top left corner of v's bounds, which may
+  // not coincide with v's origin
   if (aOffset) {
     nsRect vBounds = v->GetBounds();
     *aOffset = pt + v->GetPosition() -  nsPoint(vBounds.x, vBounds.y) +
@@ -979,4 +880,16 @@ nsIView::SetDeletionObserver(nsWeakView* aDeletionObserver)
     aDeletionObserver->SetPrevious(mDeletionObserver);
   }
   mDeletionObserver = aDeletionObserver;
+}
+
+/* We invalidate the frame on a scroll iff this frame is marked as such or if
+ * some parent is.
+ */
+PRBool nsIView::NeedsInvalidateFrameOnScroll() const
+{
+  for (const nsIView *currView = this; currView != nsnull; currView = currView->GetParent())
+    if (currView->mVFlags & NS_VIEW_FLAG_INVALIDATE_ON_SCROLL)
+      return PR_TRUE;
+  
+  return PR_FALSE;
 }

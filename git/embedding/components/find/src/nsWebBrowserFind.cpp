@@ -75,7 +75,6 @@
 #include "nsFind.h"
 #include "nsDOMError.h"
 #include "nsFocusManager.h"
-#include "mozilla/Services.h"
 
 #if DEBUG
 #include "nsIWebNavigation.h"
@@ -131,7 +130,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(PRBool *outDidFind)
     // this is used by nsTypeAheadFind, which controls find again when it was
     // the last executed find in the current window.
     nsCOMPtr<nsIObserverService> observerSvc =
-      mozilla::services::GetObserverService();
+      do_GetService("@mozilla.org/observer-service;1");
     if (observerSvc) {
         nsCOMPtr<nsISupportsInterfacePointer> windowSupportsData = 
           do_CreateInstance(NS_SUPPORTS_INTERFACE_POINTER_CONTRACTID, &rv);
@@ -395,13 +394,13 @@ void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
   if (!domDoc) return;
 
   nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
-  nsIPresShell* presShell = doc->GetShell();
+  nsIPresShell* presShell = doc->GetPrimaryShell();
   if (!presShell) return;
 
   nsCOMPtr<nsIDOMNode> node;
   aRange->GetStartContainer(getter_AddRefs(node));
   nsCOMPtr<nsIContent> content(do_QueryInterface(node));
-  nsIFrame* frame = content->GetPrimaryFrame();
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
   if (!frame)
       return;
   nsCOMPtr<nsISelectionController> selCon;
@@ -413,7 +412,7 @@ void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
   nsITextControlFrame *tcFrame = nsnull;
   for ( ; content; content = content->GetParent()) {
     if (!IsInNativeAnonymousSubtree(content)) {
-      nsIFrame* f = content->GetPrimaryFrame();
+      nsIFrame* f = presShell->GetPrimaryFrameFor(content);
       if (!f)
         return;
       tcFrame = do_QueryFrame(f);
@@ -834,7 +833,7 @@ nsWebBrowserFind::GetFrameSelection(nsIDOMWindow* aWindow,
     if (!domDoc) return;
 
     nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
-    nsIPresShell* presShell = doc->GetShell();
+    nsIPresShell* presShell = doc->GetPrimaryShell();
     if (!presShell) return;
 
     // text input controls have their independent selection controllers
@@ -848,7 +847,7 @@ nsWebBrowserFind::GetFrameSelection(nsIDOMWindow* aWindow,
       fm->GetFocusedElement(getter_AddRefs(focusedElement));
       nsCOMPtr<nsIContent> focusedContent(do_QueryInterface(focusedElement));
       if (focusedContent) {
-        frame = focusedContent->GetPrimaryFrame();
+        frame = presShell->GetPrimaryFrameFor(focusedContent);
         if (frame && frame->PresContext() != presContext)
           frame = nsnull;
       }

@@ -21,7 +21,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Justin Dolske <dolske@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -45,13 +44,9 @@
 
 // Interface headers
 #include "imgILoader.h"
-#include "nsEventDispatcher.h"
 #include "nsIContent.h"
 #include "nsIDocShell.h"
 #include "nsIDocument.h"
-#include "nsIDOMDataContainerEvent.h"
-#include "nsIDOMDocumentEvent.h"
-#include "nsIDOMEventTarget.h"
 #include "nsIExternalProtocolHandler.h"
 #include "nsIEventStateManager.h"
 #include "nsIObjectFrame.h"
@@ -59,7 +54,6 @@
 #include "nsIPluginHost.h"
 #include "nsIPluginInstance.h"
 #include "nsIPresShell.h"
-#include "nsIPrivateDOMEvent.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIStreamConverterService.h"
@@ -83,18 +77,15 @@
 #include "nsGkAtoms.h"
 #include "nsThreadUtils.h"
 #include "nsNetUtil.h"
+#include "nsPresShellIterator.h"
 #include "nsMimeTypes.h"
 #include "nsStyleUtil.h"
-#include "nsGUIEvent.h"
 
 // Concrete classes
 #include "nsFrameLoader.h"
 
 #include "nsObjectLoadingContent.h"
 #include "mozAutoDocUpdate.h"
-#include "nsIContentSecurityPolicy.h"
-#include "nsIChannelPolicy.h"
-#include "nsChannelPolicy.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gObjectLog = PR_NewLogModule("objlc");
@@ -219,115 +210,6 @@ nsPluginErrorEvent::Run()
   return NS_OK;
 }
 
-/**
- * A task for firing PluginCrashed DOM Events.
- */
-class nsPluginCrashedEvent : public nsRunnable {
-public:
-  nsCOMPtr<nsIContent> mContent;
-  nsString mPluginDumpID;
-  nsString mBrowserDumpID;
-  nsString mPluginName;
-  nsString mPluginFilename;
-  PRBool mSubmittedCrashReport;
-
-  nsPluginCrashedEvent(nsIContent* aContent,
-                       const nsAString& aPluginDumpID,
-                       const nsAString& aBrowserDumpID,
-                       const nsAString& aPluginName,
-                       const nsAString& aPluginFilename,
-                       PRBool submittedCrashReport)
-    : mContent(aContent),
-      mPluginDumpID(aPluginDumpID),
-      mBrowserDumpID(aBrowserDumpID),
-      mPluginName(aPluginName),
-      mPluginFilename(aPluginFilename),
-      mSubmittedCrashReport(submittedCrashReport)
-  {}
-
-  ~nsPluginCrashedEvent() {}
-
-  NS_IMETHOD Run();
-};
-
-NS_IMETHODIMP
-nsPluginCrashedEvent::Run()
-{
-  LOG(("OBJLC []: Firing plugin crashed event for content %p\n",
-       mContent.get()));
-
-  nsCOMPtr<nsIDOMDocumentEvent> domEventDoc =
-    do_QueryInterface(mContent->GetDocument());
-  if (!domEventDoc) {
-    NS_WARNING("Couldn't get document for PluginCrashed event!");
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIDOMEvent> event;
-  domEventDoc->CreateEvent(NS_LITERAL_STRING("datacontainerevents"),
-                           getter_AddRefs(event));
-  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
-  nsCOMPtr<nsIDOMDataContainerEvent> containerEvent(do_QueryInterface(event));
-  if (!privateEvent || !containerEvent) {
-    NS_WARNING("Couldn't QI event for PluginCrashed event!");
-    return NS_OK;
-  }
-
-  event->InitEvent(NS_LITERAL_STRING("PluginCrashed"), PR_TRUE, PR_TRUE);
-  privateEvent->SetTrusted(PR_TRUE);
-  privateEvent->GetInternalNSEvent()->flags |= NS_EVENT_FLAG_ONLY_CHROME_DISPATCH;
-  
-  nsCOMPtr<nsIWritableVariant> variant;
-
-  // add a "pluginDumpID" property to this event
-  variant = do_CreateInstance("@mozilla.org/variant;1");
-  if (!variant) {
-    NS_WARNING("Couldn't create pluginDumpID variant for PluginCrashed event!");
-    return NS_OK;
-  }
-  variant->SetAsAString(mPluginDumpID);
-  containerEvent->SetData(NS_LITERAL_STRING("pluginDumpID"), variant);
-
-  // add a "browserDumpID" property to this event
-  variant = do_CreateInstance("@mozilla.org/variant;1");
-  if (!variant) {
-    NS_WARNING("Couldn't create browserDumpID variant for PluginCrashed event!");
-    return NS_OK;
-  }
-  variant->SetAsAString(mBrowserDumpID);
-  containerEvent->SetData(NS_LITERAL_STRING("browserDumpID"), variant);
-
-  // add a "pluginName" property to this event
-  variant = do_CreateInstance("@mozilla.org/variant;1");
-  if (!variant) {
-    NS_WARNING("Couldn't create pluginName variant for PluginCrashed event!");
-    return NS_OK;
-  }
-  variant->SetAsAString(mPluginName);
-  containerEvent->SetData(NS_LITERAL_STRING("pluginName"), variant);
-
-  // add a "pluginFilename" property to this event
-  variant = do_CreateInstance("@mozilla.org/variant;1");
-  if (!variant) {
-    NS_WARNING("Couldn't create pluginFilename variant for PluginCrashed event!");
-    return NS_OK;
-  }
-  variant->SetAsAString(mPluginFilename);
-  containerEvent->SetData(NS_LITERAL_STRING("pluginFilename"), variant);
-
-  // add a "submittedCrashReport" property to this event
-  variant = do_CreateInstance("@mozilla.org/variant;1");
-  if (!variant) {
-    NS_WARNING("Couldn't create crashSubmit variant for PluginCrashed event!");
-    return NS_OK;
-  }
-  variant->SetAsBool(mSubmittedCrashReport);
-  containerEvent->SetData(NS_LITERAL_STRING("submittedCrashReport"), variant);
-
-  nsEventDispatcher::DispatchDOMEvent(mContent, nsnull, event, nsnull, nsnull);
-  return NS_OK;
-}
-
 class AutoNotifier {
   public:
     AutoNotifier(nsObjectLoadingContent* aContent, PRBool aNotify) :
@@ -374,7 +256,7 @@ class AutoFallback {
         LOG(("OBJLC [%p]: rv=%08x, falling back\n", mContent, *mResult));
         mContent->Fallback(PR_FALSE);
         if (mPluginState != ePluginOtherState) {
-          mContent->mFallbackReason = mPluginState;
+          mContent->mPluginState = mPluginState;
         }
       }
     }
@@ -477,7 +359,7 @@ nsObjectLoadingContent::nsObjectLoadingContent()
   , mInstantiating(PR_FALSE)
   , mUserDisabled(PR_FALSE)
   , mSuppressed(PR_FALSE)
-  , mFallbackReason(ePluginOtherState)
+  , mPluginState(ePluginOtherState)
 {
 }
 
@@ -499,6 +381,9 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
     // previous one got here
     return NS_BINDING_ABORTED;
   }
+
+  // We're done with the classifier
+  mClassifier = nsnull;
 
   AutoNotifier notifier(this, PR_TRUE);
 
@@ -713,7 +598,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
     case eType_Null:
       LOG(("OBJLC [%p]: Unsupported type, falling back\n", this));
       // Need to fallback here (instead of using the case below), so that we can
-      // set mFallbackReason without it being overwritten. This is also why we
+      // set mPluginState without it being overwritten. This is also why we
       // return early.
       Fallback(PR_FALSE);
 
@@ -721,8 +606,8 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
                                                              mContentType);
       // Do nothing, but fire the plugin not found event if needed
       if (pluginState != ePluginOtherState) {
-        mFallbackReason = pluginState;
         FirePluginError(thisContent, pluginState);
+        mPluginState = pluginState;
       }
       return NS_BINDING_ABORTED;
   }
@@ -876,8 +761,9 @@ nsObjectLoadingContent::EnsureInstantiation(nsIPluginInstance** aInstance)
       return NS_OK;
     }
 
-    nsCOMPtr<nsIPresShell> shell = doc->GetShell();
-    if (shell) {
+    nsPresShellIterator iter(doc);
+    nsCOMPtr<nsIPresShell> shell;
+    while ((shell = iter.GetNextShell())) {
       shell->RecreateFramesFor(thisContent);
     }
 
@@ -1030,6 +916,10 @@ nsObjectLoadingContent::OnChannelRedirect(nsIChannel *aOldChannel,
     return NS_BINDING_ABORTED;
   }
 
+  if (mClassifier) {
+    mClassifier->OnRedirect(aOldChannel, aNewChannel);
+  }
+
   mChannel = aNewChannel;
   return NS_OK;
 }
@@ -1057,15 +947,12 @@ nsObjectLoadingContent::ObjectState() const
 
       // Otherwise, broken
       PRInt32 state = NS_EVENT_STATE_BROKEN;
-      switch (mFallbackReason) {
+      switch (mPluginState) {
         case ePluginDisabled:
           state |= NS_EVENT_STATE_HANDLER_DISABLED;
           break;
         case ePluginBlocklisted:
           state |= NS_EVENT_STATE_HANDLER_BLOCKED;
-          break;
-        case ePluginCrashed:
-          state |= NS_EVENT_STATE_HANDLER_CRASHED;
           break;
         case ePluginUnsupported:
           state |= NS_EVENT_STATE_TYPE_UNSUPPORTED;
@@ -1196,6 +1083,11 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
   // possibly-loading channel should be aborted.
   if (mChannel) {
     LOG(("OBJLC [%p]: Cancelling existing load\n", this));
+
+    if (mClassifier) {
+      mClassifier->Cancel();
+      mClassifier = nsnull;
+    }
 
     // These three statements are carefully ordered:
     // - onStopRequest should get a channel whose status is the same as the
@@ -1414,19 +1306,8 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
 
   nsCOMPtr<nsILoadGroup> group = doc->GetDocumentLoadGroup();
   nsCOMPtr<nsIChannel> chan;
-  nsCOMPtr<nsIChannelPolicy> channelPolicy;
-  nsCOMPtr<nsIContentSecurityPolicy> csp;
-  rv = doc->NodePrincipal()->GetCsp(getter_AddRefs(csp));
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (csp) {
-    channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");
-    channelPolicy->SetContentSecurityPolicy(csp);
-    channelPolicy->SetLoadType(nsIContentPolicy::TYPE_OBJECT);
-  }
   rv = NS_NewChannel(getter_AddRefs(chan), aURI, nsnull, group, this,
-                     nsIChannel::LOAD_CALL_CONTENT_SNIFFERS |
-                     nsIChannel::LOAD_CLASSIFY_URI,
-                     channelPolicy);
+                     nsIChannel::LOAD_CALL_CONTENT_SNIFFERS);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Referrer
@@ -1465,6 +1346,12 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
   rv = chan->AsyncOpen(this, nsnull);
   if (NS_SUCCEEDED(rv)) {
     LOG(("OBJLC [%p]: Channel opened.\n", this));
+
+    rv = CheckClassifier(chan);
+    if (NS_FAILED(rv)) {
+      chan->Cancel(rv);
+      return rv;
+    }
 
     mChannel = chan;
     mType = eType_Loading;
@@ -1617,7 +1504,7 @@ nsObjectLoadingContent::UnloadContent()
   }
   mType = eType_Null;
   mUserDisabled = mSuppressed = PR_FALSE;
-  mFallbackReason = ePluginOtherState;
+  mPluginState = ePluginOtherState;
 }
 
 void
@@ -1656,8 +1543,10 @@ nsObjectLoadingContent::NotifyStateChanged(ObjectType aOldType,
   } else if (aOldType != mType) {
     // If our state changed, then we already recreated frames
     // Otherwise, need to do that here
-    nsCOMPtr<nsIPresShell> shell = doc->GetShell();
-    if (shell) {
+
+    nsPresShellIterator iter(doc);
+    nsCOMPtr<nsIPresShell> shell;
+    while ((shell = iter.GetNextShell())) {
       shell->RecreateFramesFor(thisContent);
     }
   }
@@ -1698,6 +1587,14 @@ nsObjectLoadingContent::GetTypeOfContent(const nsCString& aMIMEType)
   }
 
   if ((caps & eSupportPlugins) && IsSupportedPlugin(aMIMEType)) {
+    return eType_Plugin;
+  }
+
+  nsCOMPtr<nsIContent> thisContent = 
+    do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+  NS_ASSERTION(thisContent, "must be a content");
+
+  if (ShouldShowDefaultPlugin(thisContent, aMIMEType)) {
     return eType_Plugin;
   }
 
@@ -1768,7 +1665,17 @@ nsObjectLoadingContent::GetExistingFrame(FlushType aFlushType)
 
   nsIFrame* frame;
   do {
-    frame = thisContent->GetPrimaryFrame();
+    nsIDocument* doc = thisContent->GetCurrentDoc();
+    if (!doc) {
+      return nsnull; // No current doc -> no frame
+    }
+
+    nsIPresShell* shell = doc->GetPrimaryShell();
+    if (!shell) {
+      return nsnull; // No presentation -> no frame
+    }
+
+    frame = shell->GetPrimaryFrameFor(thisContent);
     if (!frame) {
       return nsnull;
     }
@@ -1779,8 +1686,6 @@ nsObjectLoadingContent::GetExistingFrame(FlushType aFlushType)
     
     // OK, let's flush out and try again.  Note that we want to reget
     // the document, etc, since flushing might run script.
-    nsIDocument* doc = thisContent->GetCurrentDoc();
-    NS_ASSERTION(doc, "Frame but no document?");
     mozFlushType flushType =
       aFlushType == eFlushLayout ? Flush_Layout : Flush_ContentAndNotify;
     doc->FlushPendingNotifications(flushType);
@@ -1907,6 +1812,33 @@ nsObjectLoadingContent::Instantiate(nsIObjectFrame* aFrame,
   return rv;
 }
 
+nsresult
+nsObjectLoadingContent::CheckClassifier(nsIChannel *aChannel)
+{
+  nsresult rv;
+  nsCOMPtr<nsIChannelClassifier> classifier =
+    do_CreateInstance(NS_CHANNELCLASSIFIER_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = classifier->Start(aChannel, PR_FALSE);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mClassifier = classifier;
+
+  return NS_OK;
+}
+
+/* static */ PRBool
+nsObjectLoadingContent::ShouldShowDefaultPlugin(nsIContent* aContent,
+                                                const nsCString& aContentType)
+{
+  if (nsContentUtils::GetBoolPref("plugin.default_plugin_disabled", PR_FALSE)) {
+    return PR_FALSE;
+  }
+
+  return GetPluginSupportState(aContent, aContentType) == ePluginUnsupported;
+}
+
 /* static */ PluginSupportState
 nsObjectLoadingContent::GetPluginSupportState(nsIContent* aContent,
                                               const nsCString& aContentType)
@@ -2005,33 +1937,4 @@ nsObjectLoadingContent::SetAbsoluteScreenPosition(nsIDOMElement* element,
   return frame->SetAbsoluteScreenPosition(element, position, clip);
 }
 
-NS_IMETHODIMP
-nsObjectLoadingContent::PluginCrashed(nsIPluginTag* aPluginTag,
-                                      const nsAString& pluginDumpID,
-                                      const nsAString& browserDumpID,
-                                      PRBool submittedCrashReport)
-{
-  AutoNotifier notifier(this, PR_TRUE);
-  UnloadContent();
-  mFallbackReason = ePluginCrashed;
-  nsCOMPtr<nsIContent> thisContent = do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
 
-  // Note that aPluginTag in invalidated after we're called, so copy 
-  // out any data we need now.
-  nsCAutoString pluginName;
-  aPluginTag->GetName(pluginName);
-  nsCAutoString pluginFilename;
-  aPluginTag->GetFilename(pluginFilename);
-
-  nsCOMPtr<nsIRunnable> ev = new nsPluginCrashedEvent(thisContent,
-                                                      pluginDumpID,
-                                                      browserDumpID,
-                                                      NS_ConvertUTF8toUTF16(pluginName),
-                                                      NS_ConvertUTF8toUTF16(pluginFilename),
-                                                      submittedCrashReport);
-  nsresult rv = NS_DispatchToCurrentThread(ev);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("failed to dispatch nsPluginCrashedEvent");
-  }
-  return NS_OK;
-}

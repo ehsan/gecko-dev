@@ -52,6 +52,10 @@ class nsCSSPropertySet;
 struct nsTransition;
 struct ElementTransitions;
 
+/**
+ * Must be created only as a sub-object of an nsPresContext (since its
+ * reference counting methods assume that).
+ */
 class nsTransitionManager : public nsIStyleRuleProcessor,
                             public nsARefreshObserver {
 public:
@@ -59,18 +63,11 @@ public:
   ~nsTransitionManager();
 
   /**
-   * Notify the transition manager that the pres context is going away.
-   */
-  void Disconnect();
-
-  /**
    * StyleContextChanged 
    *
    * To be called from nsFrameManager::ReResolveStyleContext when the
-   * style of an element has changed, to initiate transitions from
-   * that style change.  For style contexts with :before and :after
-   * pseudos, aElement is expected to be the generated before/after
-   * element.
+   * style of an element has changed, to initiate transitions from that
+   * style change.
    *
    * It may return a "cover rule" (see CoverTransitionStartStyleRule) to
    * cover up some of the changes for the duration of the restyling of
@@ -80,12 +77,12 @@ public:
    * returned cover rule as the most specific rule.
    */
   already_AddRefed<nsIStyleRule>
-    StyleContextChanged(mozilla::dom::Element *aElement,
+    StyleContextChanged(nsIContent *aElement,
                         nsStyleContext *aOldStyleContext,
                         nsStyleContext *aNewStyleContext);
 
   // nsISupports
-  NS_DECL_ISUPPORTS
+  NS_DECL_ISUPPORTS_INHERITED
 
   // nsIStyleRuleProcessor
   NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData);
@@ -94,9 +91,8 @@ public:
 #ifdef MOZ_XUL
   NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
-  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
-  virtual PRBool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
-  virtual nsRestyleHint
+  virtual nsReStyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
+  virtual nsReStyleHint
     HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
   NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
                                    PRBool* aRulesChanged);
@@ -109,13 +105,13 @@ private:
 
   void ConsiderStartingTransition(nsCSSProperty aProperty,
                                   const nsTransition& aTransition,
-                                  mozilla::dom::Element *aElement,
+                                  nsIContent *aElement,
                                   ElementTransitions *&aElementTransitions,
                                   nsStyleContext *aOldStyleContext,
                                   nsStyleContext *aNewStyleContext,
                                   PRBool *aStartedAny,
                                   nsCSSPropertySet *aWhichStarted);
-  ElementTransitions* GetElementTransitions(mozilla::dom::Element *aElement,
+  ElementTransitions* GetElementTransitions(nsIContent *aElement,
                                             nsCSSPseudoElements::Type aPseudoType,
                                             PRBool aCreateIfNeeded);
   void AddElementTransitions(ElementTransitions* aElementTransitions);
@@ -124,7 +120,7 @@ private:
 			      nsCSSPseudoElements::Type aPseudoType);
 
   PRCList mElementTransitions;
-  nsPresContext *mPresContext; // weak (non-null from ctor to Disconnect)
+  nsPresContext *mPresContext;
 };
 
 #endif /* !defined(nsTransitionManager_h_) */

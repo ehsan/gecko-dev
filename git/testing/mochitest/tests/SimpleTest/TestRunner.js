@@ -1,30 +1,3 @@
-/*
- * e10s event dispatcher from content->chrome
- *
- * type = eventName (QuitApplication, LoggerInit, LoggerClose, Logger, GetPref, SetPref)
- * data = json object {"filename":filename} <- for LoggerInit
- */
-function contentDispatchEvent(type, data, sync) {
-  if (typeof(data) == "undefined") {
-    data = {};
-  }
-
-  var element = document.createEvent("datacontainerevent");
-  element.initEvent("contentEvent", true, false);
-  element.setData("sync", sync);
-  element.setData("type", type);
-  element.setData("data", JSON.stringify(data));
-  document.dispatchEvent(element);
-}
-
-function contentSyncEvent(type, data) {
-  contentDispatchEvent(type, data, 1);
-}
-
-function contentAsyncEvent(type, data) {
-  contentDispatchEvent(type, data, 0);
-}
-
 /**
  * TestRunner: A test runner for SimpleTest
  * TODO:
@@ -41,16 +14,6 @@ TestRunner._urls = [];
 
 TestRunner.timeout = 5 * 60 * 1000; // 5 minutes.
 TestRunner.maxTimeouts = 4; // halt testing after too many timeouts
-
-TestRunner.ipcMode = false; // running in e10s build and need to use IPC?
-try {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var ipcsanity = Components.classes["@mozilla.org/preferences-service;1"]
-                    .getService(Components.interfaces.nsIPrefBranch);
-  ipcsanity.setIntPref("mochitest.ipcmode", 0);
-} catch (e) {
-  TestRunner.ipcMode = true;
-}
 
 /**
  * Make sure the tests don't hang indefinitely.
@@ -126,10 +89,6 @@ TestRunner._makeIframe = function (url, retry) {
          ("activeElement" in document && document.activeElement != iframe))) {
         // typically calling ourselves from setTimeout is sufficient
         // but we'll try focus() just in case that's needed
-
-        if (TestRunner.ipcMode) {
-          contentAsyncEvent("Focus");
-        }
         window.focus();
         iframe.focus();
         if (retry < 3) {
@@ -183,7 +142,7 @@ TestRunner.runNextTest = function() {
         TestRunner._timeoutFactor = 1;
 
         if (TestRunner.logEnabled)
-            TestRunner.logger.log("TEST-START | " + url); // used by automation.py
+            TestRunner.logger.log("Running " + url + "...");
 
         TestRunner._makeIframe(url, 0);
     } else {
@@ -207,31 +166,26 @@ TestRunner.runNextTest = function() {
         }
 
         if (TestRunner.logEnabled) {
-            TestRunner.logger.log("TEST-START | Shutdown"); // used by automation.py
             TestRunner.logger.log("Passed: " + $("pass-count").innerHTML);
             TestRunner.logger.log("Failed: " + $("fail-count").innerHTML);
             TestRunner.logger.log("Todo:   " + $("todo-count").innerHTML);
             TestRunner.logger.log("SimpleTest FINISHED");
         }
 
-        if (TestRunner.onComplete) {
+        if (TestRunner.onComplete)
             TestRunner.onComplete();
-        }
     }
 };
 
 /**
  * This stub is called by SimpleTest when a test is finished.
 **/
-TestRunner.testFinished = function(tests) {
-    if (TestRunner.logEnabled) {
-        var runtime = new Date().valueOf() - TestRunner._currentTestStartTime;
-        TestRunner.logger.log("SimpleTest finished " +
-                              TestRunner._urls[TestRunner._currentTest] +
-                              " in " + runtime + "ms");
-    }
+TestRunner.testFinished = function(doc) {
+    if (TestRunner.logEnabled)
+        TestRunner.logger.debug("SimpleTest finished " +
+                                TestRunner._urls[TestRunner._currentTest]);
 
-    TestRunner.updateUI(tests);
+    TestRunner.updateUI();
     TestRunner._currentTest++;
     TestRunner.runNextTest();
 };
@@ -239,25 +193,23 @@ TestRunner.testFinished = function(tests) {
 /**
  * Get the results.
  */
-TestRunner.countResults = function(tests) {
-  var nOK = 0;
-  var nNotOK = 0;
-  var nTodo = 0;
-  for (var i = 0; i < tests.length; ++i) {
-    var test = tests[i];
-    if (test.todo && !test.result) {
-      nTodo++;
-    } else if (test.result && !test.todo) {
-      nOK++;
-    } else {
-      nNotOK++;
-    }
-  }
+TestRunner.countResults = function(doc) {
+  var nOK = withDocument(doc,
+     partial(getElementsByTagAndClassName, 'div', 'test_ok')
+  ).length;
+  var nNotOK = withDocument(doc,
+     partial(getElementsByTagAndClassName, 'div', 'test_not_ok')
+  ).length;
+  var nTodo = withDocument(doc,
+     partial(getElementsByTagAndClassName, 'div', 'test_todo')
+  ).length;
   return {"OK": nOK, "notOK": nNotOK, "todo": nTodo};
 }
 
-TestRunner.updateUI = function(tests) {
-  var results = TestRunner.countResults(tests);
+TestRunner.updateUI = function() {
+  var testFrame = $('testframe');
+  var results = TestRunner.countResults(testFrame.contentDocument ||
+                                        testFrame.contentWindow.document);
   var passCount = parseInt($("pass-count").innerHTML) + results.OK;
   var failCount = parseInt($("fail-count").innerHTML) + results.notOK;
   var todoCount = parseInt($("todo-count").innerHTML) + results.todo;

@@ -45,11 +45,12 @@
 
 /* XPConnect JavaScript interactive shell. */
 
+#ifdef MOZ_IPC
+#include "mozilla/dom/ContentProcessParent.h"
+#include "mozilla/ipc/TestShellParent.h"
+#endif
+
 #include <stdio.h>
-#include "jsapi.h"
-#include "jscntxt.h"
-#include "jsdbgapi.h"
-#include "jsprf.h"
 #include "nsXULAppAPI.h"
 #include "nsServiceManagerUtils.h"
 #include "nsComponentManagerUtils.h"
@@ -68,6 +69,9 @@
 #include "nsILocalFile.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsAppDirectoryServiceDefs.h"
+#include "jsapi.h"
+#include "jsdbgapi.h"
+#include "jsprf.h"
 #include "nscore.h"
 #include "nsArrayEnumerator.h"
 #include "nsCOMArray.h"
@@ -108,6 +112,11 @@
 
 #ifdef MOZ_CRASHREPORTER
 #include "nsICrashReporter.h"
+#endif
+
+#ifdef MOZ_IPC
+using mozilla::dom::ContentProcessParent;
+using mozilla::ipc::TestShellParent;
 #endif
 
 class XPCShellDirProvider : public nsIDirectoryServiceProvider2
@@ -241,8 +250,8 @@ GetLocationProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 
 #ifdef EDITLINE
 extern "C" {
-extern JS_EXPORT_API(char)     *readline(const char *prompt);
-extern JS_EXPORT_API(void)     add_history(char *line);
+extern char     *readline(const char *prompt);
+extern void     add_history(char *line);
 }
 #endif
 
@@ -530,6 +539,9 @@ DumpXPC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
+/* XXX needed only by GC() */
+#include "jscntxt.h"
+
 static JSBool
 GC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
@@ -552,19 +564,6 @@ GC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 #endif
     return JS_TRUE;
 }
-
-#ifdef JS_GC_ZEAL
-static JSBool
-GCZeal(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
-{
-    uint32 zeal;
-    if (!JS_ValueToECMAUint32(cx, argv[0], &zeal))
-        return JS_FALSE;
-
-    JS_SetGCZeal(cx, (PRUint8)zeal);
-    return JS_TRUE;
-}
-#endif
 
 #ifdef DEBUG
 
@@ -660,6 +659,41 @@ Clear(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     }
     return JS_TRUE;
 }
+
+#ifdef MOZ_IPC
+
+static JSBool
+SendCommand(JSContext* cx,
+            JSObject* obj,
+            uintN argc,
+            jsval* argv,
+            jsval* rval)
+{
+    if (argc == 0) {
+        JS_ReportError(cx, "Function takes at least one argument!");
+        return JS_FALSE;
+    }
+
+    JSString* str = JS_ValueToString(cx, argv[0]);
+    if (!str) {
+        JS_ReportError(cx, "Could not convert argument 1 to string!");
+        return JS_FALSE;
+    }
+
+    if (argc > 1 && JS_TypeOfValue(cx, argv[1]) != JSTYPE_FUNCTION) {
+        JS_ReportError(cx, "Could not convert argument 2 to function!");
+        return JS_FALSE;
+    }
+
+    if (!XRE_SendTestShellCommand(cx, str, argc > 1 ? &argv[1] : nsnull)) {
+        JS_ReportError(cx, "Couldn't send command!");
+        return JS_FALSE;
+    }
+
+    return JS_TRUE;
+}
+
+#endif // MOZ_IPC
 
 /*
  * JSContext option name to flag map. The option names are in alphabetical
@@ -759,24 +793,6 @@ Options(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
-static JSBool
-Parent(JSContext *cx, uintN argc, jsval *vp)
-{
-    if (argc != 1) {
-        JS_ReportError(cx, "Wrong number of arguments");
-        return JS_FALSE;
-    }
-
-    jsval v = JS_ARGV(cx, vp)[0];
-    if (JSVAL_IS_PRIMITIVE(v)) {
-        JS_ReportError(cx, "Only objects have parents!");
-        return JS_FALSE;
-    }
-
-    *vp = OBJECT_TO_JSVAL(JS_GetParent(cx, JSVAL_TO_OBJECT(v)));
-    return JS_TRUE;
-}
-
 static JSFunctionSpec glob_functions[] = {
     {"print",           Print,          0,0,0},
     {"readline",        ReadLine,       1,0,0},
@@ -787,14 +803,13 @@ static JSFunctionSpec glob_functions[] = {
     {"dumpXPC",         DumpXPC,        1,0,0},
     {"dump",            Dump,           1,0,0},
     {"gc",              GC,             0,0,0},
-#ifdef JS_GC_ZEAL
-    {"gczeal",          GCZeal,         1,0,0},
-#endif
     {"clear",           Clear,          1,0,0},
     {"options",         Options,        0,0,0},
-    JS_FN("parent",     Parent,         1,0),
 #ifdef DEBUG
     {"dumpHeap",        DumpHeap,       5,0,0},
+#endif
+#ifdef MOZ_IPC
+    {"sendCommand",     SendCommand,    1,0,0},
 #endif
 #ifdef MOZ_SHARK
     {"startShark",      js_StartShark,      0,0,0},
@@ -1189,7 +1204,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
 
                 if (!JS_SealObject(cx, obj, JS_TRUE))
                     return JS_FALSE;
-                gobj = JS_NewGlobalObject(cx, &global_class);
+                gobj = JS_NewObject(cx, &global_class, NULL, NULL);
                 if (!gobj)
                     return JS_FALSE;
                 if (!JS_SetPrototype(cx, gobj, obj))
@@ -1322,7 +1337,7 @@ FullTrustSecMan::CanGetService(JSContext * aJSContext, const nsCID & aCID)
 }
 
 #ifndef XPCONNECT_STANDALONE
-/* void CanAccess (in PRUint32 aAction, in nsIXPCNativeCallContext aCallContext, in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in nsISupports aObj, in nsIClassInfo aClassInfo, in jsval aName, inout voidPtr aPolicy); */
+/* void CanAccess (in PRUint32 aAction, in nsIXPCNativeCallContext aCallContext, in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in nsISupports aObj, in nsIClassInfo aClassInfo, in JSVal aName, inout voidPtr aPolicy); */
 NS_IMETHODIMP
 FullTrustSecMan::CanAccess(PRUint32 aAction,
                            nsAXPCNativeCallContext *aCallContext,
@@ -1333,12 +1348,20 @@ FullTrustSecMan::CanAccess(PRUint32 aAction,
     return NS_OK;
 }
 
-/* [noscript] void checkPropertyAccess (in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in string aClassName, in jsval aProperty, in PRUint32 aAction); */
+/* [noscript] void checkPropertyAccess (in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in string aClassName, in JSVal aProperty, in PRUint32 aAction); */
 NS_IMETHODIMP
 FullTrustSecMan::CheckPropertyAccess(JSContext * aJSContext,
                                      JSObject * aJSObject,
                                      const char *aClassName,
                                      jsval aProperty, PRUint32 aAction)
+{
+    return NS_OK;
+}
+
+/* [noscript] void checkConnect (in JSContextPtr aJSContext, in nsIURI aTargetURI, in string aClassName, in string aProperty); */
+NS_IMETHODIMP
+FullTrustSecMan::CheckConnect(JSContext * aJSContext, nsIURI *aTargetURI,
+                              const char *aClassName, const char *aProperty)
 {
     return NS_OK;
 }
@@ -1923,6 +1946,11 @@ main(int argc, char **argv)
         JS_GC(cx);
         JS_DestroyContext(cx);
     } // this scopes the nsCOMPtrs
+
+#ifdef MOZ_IPC
+    if (!XRE_ShutdownTestShell())
+        NS_ERROR("problem shutting down testshell");
+#endif
 
 #ifdef MOZ_CRASHREPORTER
     // Get the crashreporter service while XPCOM is still active.

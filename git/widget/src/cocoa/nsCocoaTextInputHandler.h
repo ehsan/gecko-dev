@@ -42,6 +42,8 @@
 
 #include "nsCocoaUtils.h"
 
+#ifdef NS_LEOPARD_AND_LATER
+
 #import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
 #include "mozView.h"
@@ -338,5 +340,7 @@ public:
   nsCocoaTextInputHandler();
   virtual ~nsCocoaTextInputHandler();
 };
+
+#endif // NS_LEOPARD_AND_LATER
 
 #endif // nsCocoaTextInputHandler_h_

@@ -52,8 +52,6 @@ protected:
     typedef uint16 MessageId;
 
 public:
-    static const int32 kNoTimeout;
-
     class /*NS_INTERFACE_CLASS*/ SyncListener : 
         public AsyncChannel::AsyncListener
     {
@@ -63,7 +61,6 @@ public:
         virtual void OnChannelClose() = 0;
         virtual void OnChannelError() = 0;
         virtual Result OnMessageReceived(const Message& aMessage) = 0;
-        virtual bool OnReplyTimeout() = 0;
         virtual Result OnMessageReceived(const Message& aMessage,
                                          Message*& aReply) = 0;
     };
@@ -71,18 +68,12 @@ public:
     SyncChannel(SyncListener* aListener);
     virtual ~SyncChannel();
 
-    NS_OVERRIDE
-    virtual bool Send(Message* msg) {
+    bool Send(Message* msg) {
         return AsyncChannel::Send(msg);
     }
 
     // Synchronously send |msg| (i.e., wait for |reply|)
-    virtual bool Send(Message* msg, Message* reply);
-
-    void SetReplyTimeoutMs(int32 aTimeoutMs) {
-        AssertWorkerThread();
-        mTimeoutMs = (aTimeoutMs <= 0) ? kNoTimeout : aTimeoutMs;
-    }
+    bool Send(Message* msg, Message* reply);
 
     // Override the AsyncChannel handler so we can dispatch sync messages
     NS_OVERRIDE virtual void OnMessageReceived(const Message& msg);
@@ -95,106 +86,30 @@ public:
         sIsPumpingMessages = aIsPumping;
     }
 
-#ifdef OS_WIN
-    struct NS_STACK_CLASS SyncStackFrame
-    {
-        SyncStackFrame(SyncChannel* channel, bool rpc);
-        ~SyncStackFrame();
-
-        bool mRPC;
-        bool mSpinNestedEvents;
-        SyncChannel* mChannel;
-
-        /* the previous stack frame for this channel */
-        SyncStackFrame* mPrev;
-
-        /* the previous stack frame on any channel */
-        SyncStackFrame* mStaticPrev;
-    };
-    friend struct SyncChannel::SyncStackFrame;
-
-    static bool IsSpinLoopActive() {
-        for (SyncStackFrame* frame = sStaticTopFrame;
-             frame;
-             frame = frame->mPrev) {
-            if (frame->mSpinNestedEvents)
-                return true;
-        }
-        return false;
-    }
-
-protected:
-    /* the deepest sync stack frame for this channel */
-    SyncStackFrame* mTopFrame;
-
-    /* the deepest sync stack frame on any channel */
-    static SyncStackFrame* sStaticTopFrame;
-#endif // OS_WIN
-
 protected:
     // Executed on the worker thread
-    bool ProcessingSyncMessage() const {
+    bool ProcessingSyncMessage() {
         return mProcessingSyncMessage;
     }
 
     void OnDispatchMessage(const Message& aMsg);
-
-    NS_OVERRIDE
-    bool OnSpecialMessage(uint16 id, const Message& msg)
-    {
-        // SyncChannel doesn't care about any special messages yet
-        return AsyncChannel::OnSpecialMessage(id, msg);
-    }
-
-    //
-    // Return true if the wait ended because a notification was
-    // received.  That is, true => event received.
-    //
-    // Return false if the time elapsed from when we started the
-    // process of waiting until afterwards exceeded the currently
-    // allotted timeout.  That *DOES NOT* mean false => "no event" (==
-    // timeout); there are many circumstances that could cause the
-    // measured elapsed time to exceed the timeout EVEN WHEN we were
-    // notified.
-    //
-    // So in sum: true is a meaningful return value; false isn't,
-    // necessarily.
-    //
-    bool WaitForNotify();
-
-    bool ShouldContinueFromTimeout();
+    void WaitForNotify();
 
     // Executed on the IO thread.
+    void OnSendReply(Message* msg);
     void NotifyWorkerThread();
 
     // On both
-    bool AwaitingSyncReply() const {
+    bool AwaitingSyncReply() {
         mMutex.AssertCurrentThreadOwns();
         return mPendingReply != 0;
-    }
-
-    int32 NextSeqno() {
-        AssertWorkerThread();
-        return mChild ? --mNextSeqno : ++mNextSeqno;
     }
 
     MessageId mPendingReply;
     bool mProcessingSyncMessage;
     Message mRecvd;
-    // This is only accessed from the worker thread; seqno's are
-    // completely opaque to the IO thread.
-    int32 mNextSeqno;
 
     static bool sIsPumpingMessages;
-
-    int32 mTimeoutMs;
-
-#ifdef OS_WIN
-    HANDLE mEvent;
-#endif
-
-private:
-    bool EventOccurred();
 };
 
 

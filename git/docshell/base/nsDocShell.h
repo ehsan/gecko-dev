@@ -41,6 +41,7 @@
 #ifndef nsDocShell_h__
 #define nsDocShell_h__
 
+#include "nsIPresShell.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMNodeList.h"
 #include "nsIContentViewer.h"
@@ -108,6 +109,8 @@
 #include "nsIObserver.h"
 #include "nsDocShellLoadTypes.h"
 #include "nsPIDOMEventTarget.h"
+#include "nsIURIClassifier.h"
+#include "nsIChannelClassifier.h"
 #include "nsILoadContext.h"
 #include "nsIWidget.h"
 #include "nsIWebShellServices.h"
@@ -116,10 +119,10 @@
 #include "nsICommandManager.h"
 #include "nsCRT.h"
 
+class nsIScrollableView;
 class nsDocShell;
 class nsIController;
 class OnLinkClickEvent;
-class nsIScrollableFrame;
 
 /* load commands were moved to nsIDocShell.h */
 /* load types were moved to nsDocShellLoadTypes.h */
@@ -152,6 +155,32 @@ public:
     
 protected:
     virtual ~nsRefreshTimer();
+};
+
+class nsClassifierCallback : public nsIChannelClassifier
+                           , public nsIURIClassifierCallback
+                           , public nsIRunnable
+                           , public nsIChannelEventSink
+                           , public nsIInterfaceRequestor
+{
+public:
+    nsClassifierCallback() {}
+    ~nsClassifierCallback() {}
+
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSICHANNELCLASSIFIER
+    NS_DECL_NSIURICLASSIFIERCALLBACK
+    NS_DECL_NSIRUNNABLE
+    NS_DECL_NSICHANNELEVENTSINK
+    NS_DECL_NSIINTERFACEREQUESTOR
+
+private:
+    nsCOMPtr<nsIChannel> mChannel;
+    nsCOMPtr<nsIChannel> mSuspendedChannel;
+    nsCOMPtr<nsIInterfaceRequestor> mNotificationCallbacks;
+
+    void MarkEntryClassified(nsresult status);
+    PRBool HasBeenClassified(nsIChannel *aChannel);
 };
 
 #define NS_ERROR_DOCSHELL_REQUEST_REJECTED  NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_GENERAL,1001)
@@ -248,6 +277,7 @@ public:
         nsIURI* aURI,
         const PRUnichar* aTargetSpec);
     NS_IMETHOD OnLeaveLink();
+    NS_IMETHOD GetLinkState(nsIURI* aLinkURI, nsLinkState& aState);
 
     nsDocShellInfoLoadType ConvertLoadTypeToDocShellLoadInfo(PRUint32 aLoadType);
     PRUint32 ConvertDocShellLoadInfoToLoadType(nsDocShellInfoLoadType aDocShellLoadType);
@@ -325,13 +355,20 @@ protected:
                                    nsIURILoader * aURILoader,
                                    PRBool aBypassClassifier);
 
+    // Check the channel load against the URI classifier service (if it
+    // exists).  The channel will be suspended until the classification is
+    // complete.
+    nsresult CheckClassifier(nsIChannel *aChannel);
+
     nsresult ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
                             PRUint32 aLoadType, nscoord *cx, nscoord *cy,
                             PRBool * aDoHashchange);
 
-    // Tries to stringify a given variant by converting it to JSON.  This only
-    // works if the variant is backed by a JSVal.
-    nsresult StringifyJSValVariant(nsIVariant *aData, nsAString &aResult);
+    // Dispatches the hashchange event to the current thread, if the document's
+    // readystate is "complete".
+    nsresult DispatchAsyncHashchange();
+
+    nsresult FireHashchange();
 
     // Returns PR_TRUE if would have called FireOnLocationChange,
     // but did not because aFireOnLocationChange was false on entry.
@@ -434,11 +471,8 @@ protected:
                                        PRUint32 aStateFlags);
 
     // Global History
-
     nsresult AddToGlobalHistory(nsIURI * aURI, PRBool aRedirect,
                                 nsIChannel * aChannel);
-    nsresult AddToGlobalHistory(nsIURI * aURI, PRBool aRedirect,
-                                nsIURI * aReferrer);
 
     // Helper Routines
     nsresult   ConfirmRepost(PRBool * aRepost);
@@ -446,7 +480,7 @@ protected:
         nsIStringBundle ** aStringBundle);
     NS_IMETHOD GetChildOffset(nsIDOMNode * aChild, nsIDOMNode * aParent,
         PRInt32 * aOffset);
-    nsIScrollableFrame* GetRootScrollFrame();
+    NS_IMETHOD GetRootScrollableView(nsIScrollableView ** aOutScrollView);
     NS_IMETHOD EnsureScriptEnvironment();
     NS_IMETHOD EnsureEditorData();
     nsresult   EnsureTransferableHookData();
@@ -486,11 +520,6 @@ protected:
     virtual nsresult EndPageLoad(nsIWebProgress * aProgress,
                                  nsIChannel * aChannel,
                                  nsresult aResult);
-
-    // Sets the current document's pending state object to the given SHEntry's
-    // state object.  The pending state object is eventually given to the page
-    // in the PopState event.
-    nsresult SetDocPendingStateObj(nsISHEntry *shEntry);
 
     nsresult CheckLoadingPermissions();
 
@@ -582,7 +611,6 @@ protected:
     void ReattachEditorToWindow(nsISHEntry *aSHEntry);
 
     nsresult GetSessionStorageForURI(nsIURI* aURI,
-                                     const nsSubstring& aDocumentURI,
                                      PRBool create,
                                      nsIDOMStorage** aStorage);
 
@@ -592,8 +620,7 @@ protected:
     nsresult IsCommandEnabled(const char * inCommand, PRBool* outEnabled);
     nsresult DoCommand(const char * inCommand);
     nsresult EnsureCommandHandler();
-
-    nsIChannel* GetCurrentDocChannel();
+    
 protected:
     // Override the parent setter from nsDocLoader
     virtual nsresult SetDocLoaderParent(nsDocLoader * aLoader);
@@ -659,6 +686,9 @@ protected:
 
     // Secure browser UI object
     nsCOMPtr<nsISecureBrowserUI> mSecurityUI;
+
+    // Suspends/resumes channels based on the URI classifier.
+    nsRefPtr<nsClassifierCallback> mClassifier;
 
     // The URI we're currently loading.  This is only relevant during the
     // firing of a pagehide/unload.  The caller of FirePageHideNotification()

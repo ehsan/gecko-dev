@@ -50,5 +50,6 @@
 
 class nsSMILCompositor;
 typedef nsTHashtable<nsSMILCompositor> nsSMILCompositorTable;
+struct nsSMILCompositorKey;
 
 #endif // NS_SMILCOMPOSITORTABLE_H_

@@ -16,7 +16,6 @@
  * are Copyright (C) 2002-2005 the Initial Developers. All Rights Reserved.
  * 
  * Contributor(s): László Németh (nemethl@gyorsposta.hu)
- *                 Caolan McNamara (caolanm@redhat.com)
  * 
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,10 +34,6 @@
 #ifndef _HUNZIP_HXX_
 #define _HUNZIP_HXX_
 
-#include "hunvisapi.h"
-
-#include <stdio.h>
-
 #define BUFSIZE  65536
 #define HZIP_EXTENSION ".hz"
 
@@ -52,7 +47,7 @@ struct bit {
     int v[2];
 };
 
-class LIBHUNSPELL_DLL_EXPORTED Hunzip
+class Hunzip
 {
 
 protected:

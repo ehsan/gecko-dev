@@ -35,7 +35,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* ===== preferences.css =====================================================
+  == Styles used by the XUL prefwindow element.
+  ======================================================================= */
+
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+/* ::::: dialog ::::: */
 
 prefwindow {
   padding: 0;
@@ -58,7 +64,7 @@ prefwindow[type="child"] > prefpane {
 .paneSelector {
   font: message-box;
   padding: 1px 4px;
-  -moz-appearance: toolbar;
+  -moz-appearance: -moz-mac-unified-toolbar;
   margin: 0;
 }
 
@@ -79,7 +85,7 @@ radio[pane][selected="true"] {
   -moz-border-image: url("chrome://global/skin/icons/panebutton-active.png") 0 2 repeat stretch;
 }
 
-radio[pane][selected="true"]:-moz-window-inactive {
+prefwindow:not([active]) radio[pane][selected="true"] {
   -moz-border-image: url("chrome://global/skin/icons/panebutton-inactive.png") 0 2 repeat stretch;
 }
 

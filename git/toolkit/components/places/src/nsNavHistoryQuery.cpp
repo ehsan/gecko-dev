@@ -174,8 +174,6 @@ static void SetOptionsKeyUint32(const nsCString& aValue,
 #define QUERYKEY_QUERY_TYPE "queryType"
 #define QUERYKEY_TAG "tag"
 #define QUERYKEY_NOTTAGS "!tags"
-#define QUERYKEY_ASYNC_ENABLED "asyncEnabled"
-#define QUERYKEY_TRANSITION "transition"
 
 inline void AppendAmpersandIfNonempty(nsACString& aString)
 {
@@ -525,14 +523,6 @@ nsNavHistory::QueriesToQueryString(nsINavHistoryQuery **aQueries,
                              NS_LITERAL_CSTRING(QUERYKEY_NOTTAGS),
                              query,
                              &nsINavHistoryQuery::GetTagsAreNot);
- 
-    // transitions
-    const nsTArray<PRUint32>& transitions = query->Transitions();
-    for (PRUint32 i = 0; i < transitions.Length(); ++i) {
-      AppendAmpersandIfNonempty(queryString);
-      queryString += NS_LITERAL_CSTRING(QUERYKEY_TRANSITION "=");
-      AppendInt64(queryString, transitions[i]);
-    }
   }
 
   // sorting
@@ -625,12 +615,6 @@ nsNavHistory::QueriesToQueryString(nsINavHistoryQuery **aQueries,
     AppendInt16(queryString, options->QueryType());
   }
 
-  // async enabled
-  if (options->AsyncEnabled()) {
-    AppendAmpersandIfNonempty(queryString);
-    queryString += NS_LITERAL_CSTRING(QUERYKEY_ASYNC_ENABLED "=1");
-  }
-
   aQueryString.Assign(NS_LITERAL_CSTRING("place:") + queryString);
   return NS_OK;
 }
@@ -696,7 +680,6 @@ nsNavHistory::TokensToQueries(const nsTArray<QueryKeyValuePair>& aTokens,
 
   nsTArray<PRInt64> folders;
   nsTArray<nsString> tags;
-  nsTArray<PRUint32> transitions;
   for (PRUint32 i = 0; i < aTokens.Length(); i ++) {
     const QueryKeyValuePair& kvp = aTokens[i];
 
@@ -725,7 +708,7 @@ nsNavHistory::TokensToQueries(const nsTArray<QueryKeyValuePair>& aTokens,
 
     // min visits
     } else if (kvp.key.EqualsLiteral(QUERYKEY_MIN_VISITS)) {
-      PRInt32 visits = kvp.value.ToInteger(&rv);
+      PRInt32 visits = kvp.value.ToInteger((PRInt32*)&rv);
       if (NS_SUCCEEDED(rv))
         query->SetMinVisits(visits);
       else
@@ -733,7 +716,7 @@ nsNavHistory::TokensToQueries(const nsTArray<QueryKeyValuePair>& aTokens,
 
     // max visits
     } else if (kvp.key.EqualsLiteral(QUERYKEY_MAX_VISITS)) {
-      PRInt32 visits = kvp.value.ToInteger(&rv);
+      PRInt32 visits = kvp.value.ToInteger((PRInt32*)&rv);
       if (NS_SUCCEEDED(rv))
         query->SetMaxVisits(visits);
       else
@@ -810,18 +793,6 @@ nsNavHistory::TokensToQueries(const nsTArray<QueryKeyValuePair>& aTokens,
     } else if (kvp.key.EqualsLiteral(QUERYKEY_NOTTAGS)) {
       SetQueryKeyBool(kvp.value, query, &nsINavHistoryQuery::SetTagsAreNot);
 
-    // transition
-    } else if (kvp.key.EqualsLiteral(QUERYKEY_TRANSITION)) {
-      PRUint32 transition = kvp.value.ToInteger(&rv);
-      if (NS_SUCCEEDED(rv)) {
-        if (!transitions.Contains(transition))
-          NS_ENSURE_TRUE(transitions.AppendElement(transition),
-                         NS_ERROR_OUT_OF_MEMORY);
-      }
-      else {
-        NS_WARNING("Invalid Int32 transition value.");
-      }
-
     // new query component
     } else if (kvp.key.EqualsLiteral(QUERYKEY_SEPARATOR)) {
 
@@ -834,12 +805,6 @@ nsNavHistory::TokensToQueries(const nsTArray<QueryKeyValuePair>& aTokens,
         rv = query->SetTags(tags);
         NS_ENSURE_SUCCESS(rv, rv);
         tags.Clear();
-      }
-
-      if (transitions.Length() > 0) {
-        rv = query->SetTransitions(transitions);
-        NS_ENSURE_SUCCESS(rv, rv);
-        transitions.Clear();
       }
 
       query = new nsNavHistoryQuery();
@@ -905,10 +870,6 @@ nsNavHistory::TokensToQueries(const nsTArray<QueryKeyValuePair>& aTokens,
     } else if (kvp.key.EqualsLiteral(QUERYKEY_QUERY_TYPE)) {
       SetOptionsKeyUint16(kvp.value, aOptions,
                           &nsINavHistoryQueryOptions::SetQueryType);
-    // async enabled
-    } else if (kvp.key.EqualsLiteral(QUERYKEY_ASYNC_ENABLED)) {
-      SetOptionsKeyBool(kvp.value, aOptions,
-                        &nsINavHistoryQueryOptions::SetAsyncEnabled);
     // unknown key
     } else {
       NS_WARNING("TokensToQueries(), ignoring unknown key: ");
@@ -921,11 +882,6 @@ nsNavHistory::TokensToQueries(const nsTArray<QueryKeyValuePair>& aTokens,
 
   if (tags.Length() > 0) {
     rv = query->SetTags(tags);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  if (transitions.Length() > 0) {
-    rv = query->SetTransitions(transitions);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -1369,40 +1325,6 @@ NS_IMETHODIMP nsNavHistoryQuery::SetFolders(const PRInt64 *aFolders,
   return NS_OK;
 }
 
-NS_IMETHODIMP nsNavHistoryQuery::GetTransitions(PRUint32* aCount,
-                                                PRUint32** aTransitions)
-{
-  PRUint32 count = mTransitions.Length();
-  PRUint32* transitions = nsnull;
-  if (count > 0) {
-    transitions = reinterpret_cast<PRUint32*>
-                  (NS_Alloc(count * sizeof(PRUint32)));
-    NS_ENSURE_TRUE(transitions, NS_ERROR_OUT_OF_MEMORY);
-    for (PRUint32 i = 0; i < count; ++i) {
-      transitions[i] = mTransitions[i];
-    }
-  }
-  *aCount = count;
-  *aTransitions = transitions;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsNavHistoryQuery::GetTransitionCount(PRUint32* aCount)
-{
-  *aCount = mTransitions.Length();
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsNavHistoryQuery::SetTransitions(const PRUint32* aTransitions,
-                                                PRUint32 aCount)
-{
-  if (!mTransitions.ReplaceElementsAt(0, mTransitions.Length(), aTransitions,
-                                      aCount))
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  return NS_OK;
-}
-
 NS_IMETHODIMP nsNavHistoryQuery::Clone(nsINavHistoryQuery** _retval)
 {
   *_retval = nsnull;
@@ -1598,21 +1520,6 @@ nsNavHistoryQueryOptions::SetQueryType(PRUint16 aQueryType)
   return NS_OK;
 }
 
-// asyncEnabled
-NS_IMETHODIMP
-nsNavHistoryQueryOptions::GetAsyncEnabled(PRBool* _asyncEnabled)
-{
-  *_asyncEnabled = mAsyncEnabled;
-  return NS_OK;
-}
-NS_IMETHODIMP
-nsNavHistoryQueryOptions::SetAsyncEnabled(PRBool aAsyncEnabled)
-{
-  mAsyncEnabled = aAsyncEnabled;
-  return NS_OK;
-}
-
-
 NS_IMETHODIMP
 nsNavHistoryQueryOptions::Clone(nsINavHistoryQueryOptions** aResult)
 {
@@ -1639,7 +1546,6 @@ nsNavHistoryQueryOptions::Clone(nsNavHistoryQueryOptions **aResult)
   result->mMaxResults = mMaxResults;
   result->mQueryType = mQueryType;
   result->mParentAnnotationToExclude = mParentAnnotationToExclude;
-  result->mAsyncEnabled = mAsyncEnabled;
 
   resultHolder.swap(*aResult);
   return NS_OK;

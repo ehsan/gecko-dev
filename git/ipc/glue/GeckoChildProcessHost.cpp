@@ -46,20 +46,7 @@
 
 #include "prprf.h"
 
-#if defined(OS_LINUX)
-#  define XP_LINUX 1
-#endif
-#include "nsExceptionHandler.h"
-
-#include "nsDirectoryServiceDefs.h"
-#include "nsIFile.h"
-
-#include "mozilla/ipc/BrowserProcessSubThread.h"
-
-#ifdef XP_WIN
-#include "nsIWinTaskbar.h"
-#define NS_TASKBAR_CONTRACTID "@mozilla.org/windows-taskbar;1"
-#endif
+#include "mozilla/ipc/GeckoThread.h"
 
 using mozilla::MonitorAutoEnter;
 using mozilla::ipc::GeckoChildProcessHost;
@@ -83,31 +70,26 @@ GeckoChildProcessHost::GeckoChildProcessHost(GeckoProcessType aProcessType,
 {
     MOZ_COUNT_CTOR(GeckoChildProcessHost);
     
-    MessageLoop* ioLoop = XRE_GetIOMessageLoop();
+    MessageLoop* ioLoop = 
+      BrowserProcessSubThread::GetMessageLoop(BrowserProcessSubThread::IO);
     ioLoop->PostTask(FROM_HERE,
                      NewRunnableMethod(this,
                                        &GeckoChildProcessHost::InitializeChannel));
 }
 
 GeckoChildProcessHost::~GeckoChildProcessHost()
-
 {
-  AssertIOThread();
+    MOZ_COUNT_DTOR(GeckoChildProcessHost);
 
-  MOZ_COUNT_DTOR(GeckoChildProcessHost);
-
-  if (mChildProcessHandle > 0)
-    ProcessWatcher::EnsureProcessTerminated(mChildProcessHandle
-#if defined(NS_BUILD_REFCNT_LOGGING)
-                                            , false // don't "force"
-#endif
-    );
+    if (mChildProcessHandle > 0)
+      ProcessWatcher::EnsureProcessTerminated(mChildProcessHandle);
 }
 
 bool
 GeckoChildProcessHost::SyncLaunch(std::vector<std::string> aExtraOpts)
 {
-  MessageLoop* ioLoop = XRE_GetIOMessageLoop();
+  MessageLoop* ioLoop = 
+    BrowserProcessSubThread::GetMessageLoop(BrowserProcessSubThread::IO);
   NS_ASSERTION(MessageLoop::current() != ioLoop, "sync launch from the IO thread NYI");
 
   ioLoop->PostTask(FROM_HERE,
@@ -128,7 +110,8 @@ GeckoChildProcessHost::SyncLaunch(std::vector<std::string> aExtraOpts)
 bool
 GeckoChildProcessHost::AsyncLaunch(std::vector<std::string> aExtraOpts)
 {
-  MessageLoop* ioLoop = XRE_GetIOMessageLoop();
+  MessageLoop* ioLoop = 
+    BrowserProcessSubThread::GetMessageLoop(BrowserProcessSubThread::IO);
   ioLoop->PostTask(FROM_HERE,
                    NewRunnableMethod(this,
                                      &GeckoChildProcessHost::PerformAsyncLaunch,
@@ -184,26 +167,8 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
   // and passing wstrings from one config to the other is unsafe.  So
   // we split the logic here.
 
-  FilePath exePath;
-#ifdef OS_LINUX
-  base::environment_map newEnvVars;
-#endif
-
-  nsCOMPtr<nsIProperties> directoryService(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID));
-  nsCOMPtr<nsIFile> greDir;
-  nsresult rv = directoryService->Get(NS_GRE_DIR, NS_GET_IID(nsIFile), getter_AddRefs(greDir));
-  if (NS_SUCCEEDED(rv)) {
-    nsCString path;
-    greDir->GetNativePath(path);
-    exePath = FilePath(path.get());
-#ifdef OS_LINUX
-    newEnvVars["LD_LIBRARY_PATH"] = path.get();
-#endif
-  }
-  else {
-    exePath = FilePath(CommandLine::ForCurrentProcess()->argv()[0]);
-    exePath = exePath.DirName();
-  }
+  FilePath exePath = FilePath(CommandLine::ForCurrentProcess()->argv()[0]);
+  exePath = exePath.DirName();
   exePath = exePath.AppendASCII(MOZ_CHILD_PROCESS_NAME);
 
   // remap the IPC socket fd to a well-known int, as the OS does for
@@ -211,7 +176,7 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
   int srcChannelFd, dstChannelFd;
   channel().GetClientFileDescriptorMapping(&srcChannelFd, &dstChannelFd);
   mFileMap.push_back(std::pair<int,int>(srcChannelFd, dstChannelFd));
-
+  
   // no need for kProcessChannelID, the child process inherits the
   // other end of the socketpair() from us
 
@@ -224,33 +189,7 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
   childArgv.push_back(pidstring);
   childArgv.push_back(childProcessType);
 
-#if defined(MOZ_CRASHREPORTER)
-#  if defined(OS_LINUX)
-  int childCrashFd, childCrashRemapFd;
-  if (!CrashReporter::CreateNotificationPipeForChild(
-        &childCrashFd, &childCrashRemapFd))
-    return false;
-  if (0 <= childCrashFd) {
-    mFileMap.push_back(std::pair<int,int>(childCrashFd, childCrashRemapFd));
-    // "true" == crash reporting enabled
-    childArgv.push_back("true");
-  }
-  else {
-    // "false" == crash reporting disabled
-    childArgv.push_back("false");
-  }
-#  elif defined(XP_MACOSX)
-  // Call the stub for initialization side effects.  Eventually this
-  // code will be unified with that above.
-  CrashReporter::CreateNotificationPipeForChild();
-#  endif  // OS_LINUX
-#endif
-
-  base::LaunchApp(childArgv, mFileMap,
-#ifdef OS_LINUX
-                  newEnvVars,
-#endif
-                  false, &process);
+  base::LaunchApp(childArgv, mFileMap, false, &process);
 
 //--------------------------------------------------
 #elif defined(OS_WIN)
@@ -270,37 +209,8 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
       cmdLine.AppendLooseValue(UTF8ToWide(*it));
   }
 
-  // On Win7+, pass the application user model to the child, so it can
-  // register with it. This insures windows created by the container
-  // properly group with the parent app on the Win7 taskbar.
-  nsCOMPtr<nsIWinTaskbar> taskbarInfo =
-    do_GetService(NS_TASKBAR_CONTRACTID);
-  PRBool set = PR_FALSE;
-  if (taskbarInfo) {
-    PRBool isSupported = PR_FALSE;
-    taskbarInfo->GetAvailable(&isSupported);
-    if (isSupported) {
-      // Set the id for the container.
-      nsAutoString appId, param;
-      param.Append(PRUnichar('\"'));
-      if (NS_SUCCEEDED(taskbarInfo->GetDefaultGroupId(appId))) {
-        param.Append(appId);
-        param.Append(PRUnichar('\"'));
-        cmdLine.AppendLooseValue(std::wstring(param.get()));
-        set = PR_TRUE;
-      }
-    }
-  }
-  if (!set) {
-    cmdLine.AppendLooseValue(std::wstring(L"-"));
-  }
-
   cmdLine.AppendLooseValue(UTF8ToWide(pidstring));
   cmdLine.AppendLooseValue(UTF8ToWide(childProcessType));
-#if defined(MOZ_CRASHREPORTER)
-  cmdLine.AppendLooseValue(
-    UTF8ToWide(CrashReporter::GetChildNotificationPipe()));
-#endif
 
   base::LaunchApp(cmdLine, false, false, &process);
 
@@ -322,7 +232,7 @@ GeckoChildProcessHost::OnChannelConnected(int32 peer_pid)
   MonitorAutoEnter mon(mMonitor);
   mLaunched = true;
 
-  if (!base::OpenPrivilegedProcessHandle(peer_pid, &mChildProcessHandle))
+  if (!base::OpenProcessHandle(peer_pid, &mChildProcessHandle))
       NS_RUNTIMEABORT("can't open handle to child process");
 
   mon.Notify();

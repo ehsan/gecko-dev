@@ -62,6 +62,7 @@ class nsIDOMSVGElement;
 class nsIDOMSVGLength;
 class nsIURI;
 class nsSVGOuterSVGFrame;
+class nsIPresShell;
 class nsSVGPreserveAspectRatio;
 class nsIAtom;
 class nsSVGLength2;
@@ -80,25 +81,19 @@ class nsISVGChildFrame;
 class nsSVGGeometryFrame;
 class nsSVGDisplayContainerFrame;
 
-namespace mozilla {
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
-
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
 // SVG Frame state bits
-#define NS_STATE_IS_OUTER_SVG         NS_FRAME_STATE_BIT(20)
+#define NS_STATE_IS_OUTER_SVG         0x00100000
 
-#define NS_STATE_SVG_DIRTY            NS_FRAME_STATE_BIT(21)
+#define NS_STATE_SVG_DIRTY            0x00200000
 
 /* are we the child of a non-display container? */
-#define NS_STATE_SVG_NONDISPLAY_CHILD NS_FRAME_STATE_BIT(22)
+#define NS_STATE_SVG_NONDISPLAY_CHILD 0x00400000
 
-#define NS_STATE_SVG_PROPAGATE_TRANSFORM NS_FRAME_STATE_BIT(23)
+#define NS_STATE_SVG_PROPAGATE_TRANSFORM 0x00800000
 
 /**
  * Byte offsets of channels in a native packed gfxColor or cairo image surface.
@@ -118,18 +113,7 @@ class Element;
 // maximum dimension of an offscreen surface - choose so that
 // the surface size doesn't overflow a 32-bit signed int using
 // 4 bytes per pixel; in line with gfxASurface::CheckSurfaceSize
-// In fact Macs can't even manage that
-#define NS_SVG_OFFSCREEN_MAX_DIMENSION 4096
-
-#define SVG_WSP_DELIM       "\x20\x9\xD\xA"
-#define SVG_COMMA_WSP_DELIM "," SVG_WSP_DELIM
-
-inline PRBool
-IsSVGWhitespace(char aChar)
-{
-  return aChar == '\x20' || aChar == '\x9' ||
-         aChar == '\xD'  || aChar == '\xA';
-}
+#define NS_SVG_OFFSCREEN_MAX_DIMENSION 16384
 
 /*
  * Checks the svg enable preference and if a renderer could
@@ -210,18 +194,18 @@ public:
   /*
    * Get the parent element of an nsIContent
    */
-  static mozilla::dom::Element *GetParentElement(nsIContent *aContent);
+  static nsIContent *GetParentElement(nsIContent *aContent);
 
   /*
    * Get a font-size (em) of an nsIContent
    */
-  static float GetFontSize(mozilla::dom::Element *aElement);
+  static float GetFontSize(nsIContent *aContent);
   static float GetFontSize(nsIFrame *aFrame);
   static float GetFontSize(nsStyleContext *aStyleContext);
   /*
    * Get an x-height of of an nsIContent
    */
-  static float GetFontXHeight(mozilla::dom::Element *aElement);
+  static float GetFontXHeight(nsIContent *aContent);
   static float GetFontXHeight(nsIFrame *aFrame);
   static float GetFontXHeight(nsStyleContext *aStyleContext);
 
@@ -359,8 +343,7 @@ public:
   /* Generate a viewbox to viewport tranformation matrix */
   
   static gfxMatrix
-  GetViewBoxTransform(nsSVGElement* aElement,
-                      float aViewportWidth, float aViewportHeight,
+  GetViewBoxTransform(float aViewportWidth, float aViewportHeight,
                       float aViewboxX, float aViewboxY,
                       float aViewboxWidth, float aViewboxHeight,
                       const nsSVGPreserveAspectRatio &aPreserveAspectRatio,
@@ -468,6 +451,13 @@ public:
                           const gfxRect &aRect);
 
   /**
+   * If aIn can be represented exactly using an nsIntRect (i.e. integer-aligned edges and
+   * coordinates in the PRInt32 range) then we set aOut to that rectangle, otherwise
+   * return failure.
+   */
+  static nsresult GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut);
+
+  /**
    * Restricts aRect to pixels that intersect aGfxRect.
    */
   static void ClipToGfxRect(nsIntRect* aRect, const gfxRect& aGfxRect);
@@ -547,23 +537,10 @@ public:
    * another non-foreignObject SVG element.
    */
   static PRBool IsInnerSVG(nsIContent* aContent);
-
-  /**
-   * Parse a string that may contain either a CSS <number> or, if
-   * aAllowPercentages is set to true, a CSS <percentage>, and return the
-   * number as a float.
-   *
-   * This helper returns PR_TRUE if a number was successfully parsed from the
-   * string and no characters were left, else it returns PR_FALSE.
-   */
-  static PRBool NumberFromString(const nsAString& aString, float* aValue,
-                                 PRBool aAllowPercentages = PR_FALSE);
-
-  static void Shutdown();
-
+    
 private:
   /* Computational (nil) surfaces */
-  static gfxASurface *gThebesComputationalSurface;
+  static gfxASurface *mThebesComputationalSurface;
 };
 
 #endif

@@ -55,6 +55,7 @@
 #include "nsIController.h"
 #include "nsIControllers.h"
 #include "nsIDOMWindowInternal.h"
+#include "nsIFocusController.h"
 #include "nsFocusManager.h"
 #include "nsPIWindowRoot.h"
 #include "nsIURI.h"
@@ -365,7 +366,12 @@ nsXBLWindowKeyHandler::WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventTy
     nsCOMPtr<nsIControllers> controllers;
     nsCOMPtr<nsPIWindowRoot> root = do_QueryInterface(mTarget);
     if (root) {
-      root->GetControllers(getter_AddRefs(controllers));
+      nsCOMPtr<nsIFocusController> fc;
+      root->GetFocusController(getter_AddRefs(fc));
+      if (fc) {
+        nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(root->GetWindow());
+        fc->GetControllers(piWindow, getter_AddRefs(controllers));
+      }
     }
 
     PRBool handled = PR_FALSE;
@@ -462,7 +468,9 @@ nsXBLWindowKeyHandler::IsEditor()
     docShell->GetPresShell(getter_AddRefs(presShell));
 
   if (presShell) {
-    return presShell->GetSelectionFlags() == nsISelectionDisplay::DISPLAY_ALL;
+    PRInt16 isEditor;
+    presShell->GetSelectionFlags(&isEditor);
+    return isEditor == nsISelectionDisplay::DISPLAY_ALL;
   }
 
   return PR_FALSE;
@@ -536,12 +544,13 @@ nsXBLWindowKeyHandler::WalkHandlersAndExecute(nsIDOMKeyEvent* aKeyEvent,
         // Locate the command element in question.  Note that we
         // know "elt" is in a doc if we're dealing with it here.
         NS_ASSERTION(elt->IsInDoc(), "elt must be in document");
-        nsIDocument *doc = elt->GetCurrentDoc();
-        if (doc)
-          commandElt = do_QueryInterface(doc->GetElementById(command));
+        nsCOMPtr<nsIDOMDocument> domDoc(
+           do_QueryInterface(elt->GetCurrentDoc()));
+        if (domDoc)
+          domDoc->GetElementById(command, getter_AddRefs(commandElt));
 
         if (!commandElt) {
-          NS_ERROR("A XUL <key> is observing a command that doesn't exist. Unable to execute key binding!");
+          NS_ERROR("A XUL <key> is observing a command that doesn't exist. Unable to execute key binding!\n");
           continue;
         }
       }

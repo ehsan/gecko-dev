@@ -35,31 +35,25 @@
 
       testAccessibleTree("radio", accTree);
 
-      // input@type="button" and input@type="submit"
+      // input@type="button" and button
+      accTree = {
+        role: ROLE_PUSHBUTTON,
+        children: [ ]
+      };
+
+      testAccessibleTree("btn1", accTree);
+
       // button
       accTree = {
         role: ROLE_PUSHBUTTON,
         children: [
           {
-            role: ROLE_TEXT_LEAF // XXX Bug 567203
+            role: ROLE_TEXT_LEAF
           }
         ]
       };
 
-      testAccessibleTree("btn1", accTree);
-      testAccessibleTree("submit", accTree);
       testAccessibleTree("btn2", accTree);
-
-      // input@type="image"
-      accTree = {
-        role: ROLE_PUSHBUTTON,
-        children: [
-          {
-            role: ROLE_STATICTEXT
-          }
-        ]
-      };
-      testAccessibleTree("image_submit", accTree);
 
       SimpleTest.finish();
     }
@@ -75,11 +69,6 @@
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=342045">
     Mozilla Bug 342045
   </a>
-  <a target="_blank"
-    title="add test for role of input type='image'"
-    href="https://bugzilla.mozilla.org/show_bug.cgi?id=524521">
-     Mozilla Bug 524521
-  </a>
   <p id="display"></p>
   <div id="content" style="display: none"></div>
   <pre id="test">
@@ -90,7 +79,5 @@
   <input type="button" value="button" id="btn1">
   <button id="btn2">button</button>
 
-  <input type="submit" id="submit">
-  <input type="image" id="image_submit">
 </body>
 </html>

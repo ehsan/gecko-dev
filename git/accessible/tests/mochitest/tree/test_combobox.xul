@@ -45,49 +45,6 @@
       testAccessibleTree("menulist", accTree);
 
       //////////////////////////////////////////////////////////////////////////
-      // editable menulist
-
-      accTree = {
-        role: ROLE_COMBOBOX,
-        children: [
-          {
-            role: ROLE_ENTRY,
-            children: [
-              {
-                role: ROLE_TEXT_LEAF // HTML 5 placeholder attribute value
-              },
-              {
-                role: ROLE_TEXT_LEAF // Text node for the node's value
-              }
-            ]
-          },
-          {
-            role: ROLE_COMBOBOX_LIST, // context menu
-            children: []
-          },
-          {
-            role: ROLE_PUSHBUTTON, // dropmarker
-          },
-          {
-            role: ROLE_COMBOBOX_LIST, // option list
-            children: [
-              {
-                role: ROLE_COMBOBOX_OPTION
-              },
-              {
-                role: ROLE_COMBOBOX_OPTION
-              }
-            ]
-          }
-        ]
-      };
-
-      // XXX Bug 551957
-      if (!MAC) {
-        testAccessibleTree("menulist2", accTree);
-      }
-
-      //////////////////////////////////////////////////////////////////////////
       // textbox@type=autocomplete #1 (history)
 
       accTree = {
@@ -125,14 +82,7 @@
           },
           {
             role: ROLE_ENTRY,
-            children: [
-              {
-                role: ROLE_TEXT_LEAF // HTML 5 placeholder attribute value
-              },
-              {
-                role: ROLE_TEXT_LEAF // Text node for the node's value
-              }
-            ]
+            children: [ ]
           },
           {
             role: ROLE_COMBOBOX_LIST, // context menu popup
@@ -172,16 +122,9 @@
         </menupopup>
       </menulist>
 
-      <menulist id="menulist2" editable="true">
-        <menupopup>
-          <menuitem label="item"/>
-          <menuitem label="item"/>
-        </menupopup>
-      </menulist>
-
       <textbox id="autocomplete" type="autocomplete"
                autocompletesearch="history"
-               value="http://mochi.test:8888/redirect-a11y.html"/>
+               value="http://localhost:8888/redirect-a11y.html"/>
 
       <textbox id="autocomplete2" type="autocomplete">
         <menupopup>

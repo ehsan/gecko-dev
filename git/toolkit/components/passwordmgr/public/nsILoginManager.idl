@@ -13,7 +13,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -88,9 +88,6 @@ interface nsILoginManager : nsISupports {
      * If newLoginData is a nsIPropertyBag, only the specified properties
      * will be changed. The nsILoginMetaInfo properties of oldLogin can be
      * changed in this manner.
-     *
-     * If the propertybag contains an item named "timesUsedIncrement", the
-     * login's timesUsed property will be incremented by the item's value.
      */
     void modifyLogin(in nsILoginInfo oldLogin, in nsISupports newLoginData);
 
@@ -177,18 +174,14 @@ interface nsILoginManager : nsISupports {
      * @param aHostname
      *        The hostname to restrict searches to, in URL format. For
      *        example: "http://www.site.com".
-     *        To find logins for a given nsIURI, you would typically pass in
-     *        its prePath.
      * @param aActionURL
      *        For form logins, this argument should be the URL to which the
      *        form will be submitted. For protocol logins, specify null.
-     *        An empty string ("") will match any value (except null).
      * @param aHttpRealm
      *        For protocol logins, this argument should be the HTTP Realm
      *        for which the login applies. This is obtained from the
      *        WWW-Authenticate header. See RFC2617. For form logins,
      *        specify null.
-     *        An empty string ("") will match any value (except null).
      * @param logins
      *        An array of nsILoginInfo objects. 
      *

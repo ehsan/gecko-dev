@@ -100,7 +100,13 @@ inDOMUtils::IsIgnorableWhitespace(nsIDOMCharacterData *aDataNode,
     return NS_OK;
   }
 
-  nsIFrame* frame = content->GetPrimaryFrame();
+  nsCOMPtr<nsIPresShell> presShell = inLayoutUtils::GetPresShellFor(win);
+  if (!presShell) {
+    // Display:none iframe or something... Bail out
+    return NS_OK;
+  }
+
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
   if (frame) {
     const nsStyleText* text = frame->GetStyleText();
     *aReturn = !text->WhiteSpaceIsSignificant();
@@ -258,8 +264,8 @@ inDOMUtils::GetContentState(nsIDOMElement *aElement, PRInt32* aState)
   if (esm) {
     nsCOMPtr<nsIContent> content;
     content = do_QueryInterface(aElement);
-    *aState = esm->GetContentState(content);
-    return NS_OK;
+  
+    return esm->GetContentState(content, *aState);
   }
 
   return NS_ERROR_FAILURE;
@@ -273,25 +279,14 @@ inDOMUtils::GetRuleNodeForContent(nsIContent* aContent,
   *aRuleNode = nsnull;
   *aStyleContext = nsnull;
 
-  if (!aContent->IsElement()) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
   nsIDocument* doc = aContent->GetDocument();
   NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
 
-  nsIPresShell *presShell = doc->GetShell();
+  nsIPresShell *presShell = doc->GetPrimaryShell();
   NS_ENSURE_TRUE(presShell, NS_ERROR_UNEXPECTED);
 
-  nsPresContext *presContext = presShell->GetPresContext();
-  NS_ENSURE_TRUE(presContext, NS_ERROR_UNEXPECTED);
-
-  PRBool safe = presContext->EnsureSafeToHandOutCSSRules();
-  NS_ENSURE_TRUE(safe, NS_ERROR_OUT_OF_MEMORY);
-
   nsRefPtr<nsStyleContext> sContext =
-    nsComputedDOMStyle::GetStyleContextForElement(aContent->AsElement(),
-						  nsnull, presShell);
+    nsComputedDOMStyle::GetStyleContextForContent(aContent, nsnull, presShell);
   *aRuleNode = sContext->GetRuleNode();
   sContext.forget(aStyleContext);
   return NS_OK;

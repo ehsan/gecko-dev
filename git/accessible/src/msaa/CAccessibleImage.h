@@ -45,7 +45,8 @@
 
 #include "AccessibleImage.h"
 
-class CAccessibleImage: public IAccessibleImage
+class CAccessibleImage: public nsISupports,
+                        public IAccessibleImage
 {
 public:
 
@@ -64,9 +65,6 @@ public:
   virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_imageSize(
       /* [out] */ long *height,
       /* [retval][out] */ long *width);
-
-  // nsISupports
-  NS_IMETHOD QueryInterface(const nsIID& uuid, void** result) = 0;
 
 };
 

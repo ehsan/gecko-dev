@@ -71,7 +71,9 @@
 #include "nsDataHashtable.h"
 #include "nsIThreadPool.h"
 #include "nsXPCOMCIDInternal.h"
-#include "nsMimeTypes.h"
+#include "nsICSSStyleSheet.h"
+#include "nsICSSLoaderObserver.h"
+#include "nsICSSLoader.h"
 
 #ifdef MOZ_VIEW_SOURCE
 #include "nsViewSourceHTML.h"
@@ -292,6 +294,21 @@ private:
   PRBool mTerminated;
 };
 
+/**
+ * Used if we need to pass an nsICSSLoaderObserver as parameter,
+ * but don't really need its services
+ */
+class nsDummyCSSLoaderObserver : public nsICSSLoaderObserver {
+public:
+  NS_IMETHOD
+  StyleSheetLoaded(nsICSSStyleSheet* aSheet, PRBool aWasAlternate, nsresult aStatus) {
+      return NS_OK;
+  }
+  NS_DECL_ISUPPORTS
+};
+
+NS_IMPL_ISUPPORTS1(nsDummyCSSLoaderObserver, nsICSSLoaderObserver)
+
 class nsPreloadURIs : public nsIRunnable {
 public:
   nsPreloadURIs(nsAutoTArray<nsSpeculativeScriptThread::PrefetchEntry, 5> &aURIs,
@@ -338,7 +355,7 @@ nsPreloadURIs::PreloadURIs(const nsAutoTArray<nsSpeculativeScriptThread::Prefetc
   // parsing off the main thread, this is hard to emulate. For now, just load
   // the URIs using the document's base URI at the potential cost of being
   // wrong and having to re-load a given relative URI later.
-  nsIURI *base = doc->GetDocBaseURI();
+  nsIURI *base = doc->GetBaseURI();
   const nsCString &charset = doc->GetDocumentCharacterSet();
   nsSpeculativeScriptThread::PreloadedType &alreadyPreloaded =
     aScriptThread->GetPreloadedURIs();
@@ -368,9 +385,13 @@ nsPreloadURIs::PreloadURIs(const nsAutoTArray<nsSpeculativeScriptThread::Prefetc
       case nsSpeculativeScriptThread::IMAGE:
         doc->MaybePreLoadImage(uri);
         break;
-      case nsSpeculativeScriptThread::STYLESHEET:
-        doc->PreloadStyle(uri, pe.charset);
+      case nsSpeculativeScriptThread::STYLESHEET: {
+        nsCOMPtr<nsICSSLoaderObserver> obs = new nsDummyCSSLoaderObserver();
+        doc->CSSLoader()->LoadSheet(uri, doc->NodePrincipal(),
+                                    NS_LossyConvertUTF16toASCII(pe.charset),
+                                    obs);
         break;
+      }
       case nsSpeculativeScriptThread::NONE:
         NS_NOTREACHED("Uninitialized preload entry?");
         break;
@@ -941,9 +962,9 @@ NS_IMETHODIMP_(void)
 nsParser::SetCommand(const char* aCommand)
 {
   mCommandStr.Assign(aCommand);
-  if (mCommandStr.Equals("view-source")) {
+  if (mCommandStr.Equals(kViewSourceCommand)) {
     mCommand = eViewSource;
-  } else if (mCommandStr.Equals("view-fragment")) {
+  } else if (mCommandStr.Equals(kViewFragmentCommand)) {
     mCommand = eViewFragment;
   } else {
     mCommand = eViewNormal;
@@ -1412,15 +1433,15 @@ static void
 DetermineParseMode(const nsString& aBuffer, nsDTDMode& aParseMode,
                    eParserDocType& aDocType, const nsACString& aMimeType)
 {
-  if (aMimeType.EqualsLiteral(TEXT_HTML)) {
+  if (aMimeType.EqualsLiteral(kHTMLTextContentType)) {
     DetermineHTMLParseMode(aBuffer, aParseMode, aDocType);
-  } else if (aMimeType.EqualsLiteral(TEXT_PLAIN) ||
-             aMimeType.EqualsLiteral(TEXT_CSS) ||
-             aMimeType.EqualsLiteral(APPLICATION_JAVASCRIPT) ||
-             aMimeType.EqualsLiteral(APPLICATION_XJAVASCRIPT) ||
-             aMimeType.EqualsLiteral(TEXT_ECMASCRIPT) ||
-             aMimeType.EqualsLiteral(APPLICATION_ECMASCRIPT) ||
-             aMimeType.EqualsLiteral(TEXT_JAVASCRIPT)) {
+  } else if (aMimeType.EqualsLiteral(kPlainTextContentType) ||
+             aMimeType.EqualsLiteral(kTextCSSContentType) ||
+             aMimeType.EqualsLiteral(kApplicationJSContentType) ||
+             aMimeType.EqualsLiteral(kApplicationXJSContentType) ||
+             aMimeType.EqualsLiteral(kTextECMAScriptContentType) ||
+             aMimeType.EqualsLiteral(kApplicationECMAScriptContentType) ||
+             aMimeType.EqualsLiteral(kTextJSContentType)) {
     aDocType = ePlainText;
     aParseMode = eDTDMode_quirks;
   } else { // Some form of XML
@@ -2693,7 +2714,7 @@ nsParser::DetectMetaTag(const char* aBytes,
 
   // XXX Only look inside HTML documents for now. For XML
   // documents we should be looking inside the XMLDecl.
-  if (!mParserContext->mMimeType.EqualsLiteral(TEXT_HTML)) {
+  if (!mParserContext->mMimeType.EqualsLiteral(kHTMLTextContentType)) {
     return PR_FALSE;
   }
 

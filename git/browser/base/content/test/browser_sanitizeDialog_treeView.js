@@ -50,13 +50,15 @@
  */
 
 Cc["@mozilla.org/moz/jssubscript-loader;1"].
-  getService(Ci.mozIJSSubScriptLoader).
+  getService(Components.interfaces.mozIJSSubScriptLoader).
   loadSubScript("chrome://mochikit/content/MochiKit/packed.js");
 
 Cc["@mozilla.org/moz/jssubscript-loader;1"].
-  getService(Ci.mozIJSSubScriptLoader).
+  getService(Components.interfaces.mozIJSSubScriptLoader).
   loadSubScript("chrome://browser/content/sanitize.js");
 
+const winWatch = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+                 getService(Ci.nsIWindowWatcher);
 const dm = Cc["@mozilla.org/download-manager;1"].
            getService(Ci.nsIDownloadManager);
 const bhist = Cc["@mozilla.org/browser/global-history;2"].
@@ -616,35 +618,36 @@ function ensureHistoryClearedState(aURIs, aShouldBeCleared) {
  *        A function that will be called once the dialog has loaded
  */
 function openWindow(aOnloadCallback) {
-  function windowObserver(aSubject, aTopic, aData) {
-    if (aTopic != "domwindowopened")
-      return;
-
-    Services.ww.unregisterNotification(windowObserver);
-    let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
-    win.addEventListener("load", function onload(event) {
-      win.removeEventListener("load", onload, false);
-      executeSoon(function () {
-        // Some exceptions that reach here don't reach the test harness, but
-        // ok()/is() do...
-        try {
-          aOnloadCallback(win);
-          doNextTest();
-        }
-        catch (exc) {
-          win.close();
-          ok(false, "Unexpected exception: " + exc + "\n" + exc.stack);
-          finish();
-        }
-      });
-    }, false);
-  }
-  Services.ww.registerNotification(windowObserver);
-  Services.ww.openWindow(null,
-                         "chrome://browser/content/sanitize.xul",
-                         "Sanitize",
-                         "chrome,titlebar,dialog,centerscreen,modal",
-                         null);
+  let windowObserver = {
+    observe: function(aSubject, aTopic, aData) {
+      if (aTopic === "domwindowopened") {
+        winWatch.unregisterNotification(this);
+        let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
+        win.addEventListener("load", function onload(event) {
+          win.removeEventListener("load", onload, false);
+          executeSoon(function () {
+            // Some exceptions that reach here don't reach the test harness, but
+            // ok()/is() do...
+            try {
+              aOnloadCallback(win);
+              doNextTest();
+            }
+            catch (exc) {
+              win.close();
+              ok(false, "Unexpected exception: " + exc + "\n" + exc.stack);
+              finish();
+            }
+          });
+        }, false);
+      }
+    }
+  };
+  winWatch.registerNotification(windowObserver);
+  winWatch.openWindow(null,
+                      "chrome://browser/content/sanitize.xul",
+                      "Sanitize",
+                      "chrome,titlebar,dialog,centerscreen,modal",
+                      null);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

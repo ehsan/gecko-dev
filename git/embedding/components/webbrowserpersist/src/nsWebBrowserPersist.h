@@ -127,8 +127,6 @@ private:
     nsresult CreateChannelFromURI(nsIURI *aURI, nsIChannel **aChannel);
     nsresult StartUpload(nsIStorageStream *aOutStream, nsIURI *aDestinationURI,
         const nsACString &aContentType);
-    nsresult StartUpload(nsIInputStream *aInputStream, nsIURI *aDestinationURI,
-        const nsACString &aContentType);
     nsresult CalculateAndAppendFileExt(nsIURI *aURI, nsIChannel *aChannel,
         nsIURI *aOriginalURIWithExtension);
     nsresult CalculateUniqueFilename(nsIURI *aURI);

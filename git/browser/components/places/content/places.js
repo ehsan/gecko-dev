@@ -62,7 +62,7 @@ var PlacesOrganizer = {
     this._places.selectItems([itemId]);
     // Forcefully expand all-bookmarks
     if (aQueryName == "AllBookmarks")
-      PlacesUtils.asContainer(this._places.selectedNode).containerOpen = true;
+      asContainer(this._places.selectedNode).containerOpen = true;
   },
 
   init: function PO_init() {
@@ -216,7 +216,7 @@ var PlacesOrganizer = {
       return;
 
     var node = this._places.selectedNode;
-    var queries = PlacesUtils.asQuery(node).getQueries();
+    var queries = asQuery(node).getQueries();
 
     // Items are only excluded on the left pane.
     var options = node.queryOptions.clone();
@@ -331,7 +331,7 @@ var PlacesOrganizer = {
   onTreeFocus: function PO_onTreeFocus(aEvent) {
     var currentView = aEvent.currentTarget;
     var selectedNodes = currentView.selectedNode ? [currentView.selectedNode] :
-                        this._content.selectedNodes;
+                        this._content.getSelectionNodes();
     this._fillDetailsPane(selectedNodes);
   },
 
@@ -351,7 +351,7 @@ var PlacesOrganizer = {
    * main places pane.
    */
   getCurrentOptions: function PO_getCurrentOptions() {
-    return PlacesUtils.asQuery(this._content.result.root).queryOptions;
+    return asQuery(this._content.getResult().root).queryOptions;
   },
 
   /**
@@ -359,7 +359,7 @@ var PlacesOrganizer = {
    * main places pane.
    */
   getCurrentQueries: function PO_getCurrentQueries() {
-    return PlacesUtils.asQuery(this._content.result.root).getQueries();
+    return asQuery(this._content.getResult().root).getQueries();
   },
 
   /**
@@ -609,7 +609,7 @@ var PlacesOrganizer = {
 
   onContentTreeSelect: function PO_onContentTreeSelect() {
     if (this._content.treeBoxObject.focused)
-      this._fillDetailsPane(this._content.selectedNodes);
+      this._fillDetailsPane(this._content.getSelectionNodes());
   },
 
   _fillDetailsPane: function PO__fillDetailsPane(aNodeList) {
@@ -929,12 +929,12 @@ var PlacesSearchBox = {
    */
   updateCollectionTitle: function PSB_updateCollectionTitle(title) {
     if (title)
-      this.searchFilter.placeholder =
+      this.searchFilter.emptyText =
         PlacesUIUtils.getFormattedString("searchCurrentDefault", [title]);
     else
-      this.searchFilter.placeholder = this.filterCollection == "history" ?
-                                      PlacesUIUtils.getString("searchHistory") :
-                                      PlacesUIUtils.getString("searchBookmarks");
+      this.searchFilter.emptyText = this.filterCollection == "history" ?
+                                    PlacesUIUtils.getString("searchHistory") :
+                                    PlacesUIUtils.getString("searchBookmarks");
   },
 
   /**
@@ -1286,7 +1286,7 @@ var ViewMenu = {
    * If both aColumnID and aDirection are null, the view will be unsorted.
    */
   setSortColumn: function VM_setSortColumn(aColumn, aDirection) {
-    var result = document.getElementById("placeContent").result;
+    var result = document.getElementById("placeContent").getResult();
     if (!aColumn && !aDirection) {
       result.sortingMode = Ci.nsINavHistoryQueryOptions.SORT_BY_NONE;
       return;
@@ -1324,7 +1324,7 @@ var ViewMenu = {
       lastModified: { key: "LASTMODIFIED", dir: "descending" },
       description:  { key: "ANNOTATION",
                       dir: "ascending",
-                      anno: PlacesUIUtils.DESCRIPTION_ANNO }
+                      anno: DESCRIPTION_ANNO }
     };
 
     // Make sure we have a valid column.

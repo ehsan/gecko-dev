@@ -163,7 +163,7 @@ FindBodyContent(nsIContent* aParent, nsIContent** aResult)
   }
   else {
     nsCOMPtr<nsIDOMNodeList> kids;
-    aParent->GetOwnerDoc()->BindingManager()->GetXBLChildNodesFor(aParent, getter_AddRefs(kids));
+    aParent->GetDocument()->BindingManager()->GetXBLChildNodesFor(aParent, getter_AddRefs(kids));
     if (!kids) return;
 
     PRUint32 i;
@@ -194,7 +194,7 @@ nsListBoxObject::GetListBoxBody(PRBool aFlush)
 
   nsIFrame* frame = aFlush ? 
                       GetFrame(PR_FALSE) /* does Flush_Frames */ :
-                      mContent->GetPrimaryFrame();
+                      shell->GetPrimaryFrameFor(mContent);
   if (!frame)
     return nsnull;
 
@@ -202,11 +202,8 @@ nsListBoxObject::GetListBoxBody(PRBool aFlush)
   nsCOMPtr<nsIContent> content;
   FindBodyContent(frame->GetContent(), getter_AddRefs(content));
 
-  if (!content)
-    return nsnull;
-
   // this frame will be a nsGFXScrollFrame
-  frame = content->GetPrimaryFrame();
+  frame = shell->GetPrimaryFrameFor(content);
   if (!frame)
      return nsnull;
   nsIScrollableFrame* scrollFrame = do_QueryFrame(frame);

@@ -52,14 +52,12 @@
 #include "nsISelection.h"
 #include "nsCaret.h"
 #include "plarena.h"
-#include "Layers.h"
-#include "nsRegion.h"
-#include "FrameLayerBuilder.h"
 
 #include <stdlib.h>
 
 class nsIPresShell;
 class nsIContent;
+class nsRegion;
 class nsIRenderingContext;
 class nsIDeviceContext;
 class nsDisplayTableItem;
@@ -118,11 +116,8 @@ class nsDisplayItem;
  * available from the prescontext/presshell, but we copy them into the builder
  * for faster/more convenient access.
  */
-class nsDisplayListBuilder {
+class NS_STACK_CLASS nsDisplayListBuilder {
 public:
-  typedef mozilla::FramePropertyDescriptor FramePropertyDescriptor;
-  typedef mozilla::FrameLayerBuilder FrameLayerBuilder;
-
   /**
    * @param aReferenceFrame the frame at the root of the subtree; its origin
    * is the origin of the reference coordinate system for this display list
@@ -252,19 +247,15 @@ public:
    */
   void IgnorePaintSuppression() { mIsBackgroundOnly = PR_FALSE; }
   /**
-   * Call this if we're doing normal painting to the window.
-   */
-  void SetPaintingToWindow(PRBool aToWindow) { mIsPaintingToWindow = aToWindow; }
-  /**
    * Display the caret if needed.
    */
   nsresult DisplayCaret(nsIFrame* aFrame, const nsRect& aDirtyRect,
-      nsDisplayList* aList) {
+      const nsDisplayListSet& aLists) {
     nsIFrame* frame = GetCaretFrame();
     if (aFrame != frame) {
       return NS_OK;
     }
-    return frame->DisplayCaret(this, aDirtyRect, aList);
+    return frame->DisplayCaret(this, aDirtyRect, aLists);
   }
   /**
    * Get the frame that the caret is supposed to draw in.
@@ -341,11 +332,6 @@ public:
   void MarkFramesForDisplayList(nsIFrame* aDirtyFrame,
                                 const nsFrameList& aFrames,
                                 const nsRect& aDirtyRect);
-
-  /**
-   * Return the FrameLayerBuilder.
-   */
-  FrameLayerBuilder* LayerBuilder() { return &mLayerBuilder; }
   
   /**
    * Allocate memory in our arena. It will only be freed when this display list
@@ -397,9 +383,11 @@ public:
   nsDisplayTableItem* GetCurrentTableItem() { return mCurrentTableItem; }
   void SetCurrentTableItem(nsDisplayTableItem* aTableItem) { mCurrentTableItem = aTableItem; }
 
-  NS_DECLARE_FRAME_PROPERTY(OutOfFlowDirtyRectProperty, nsIFrame::DestroyRect)
-
 private:
+  // This class is only used on stack, so we don't have to worry about leaking
+  // it.  Don't let us be heap-allocated!
+  void* operator new(size_t sz) CPP_THROW_NEW;
+  
   struct PresShellState {
     nsIPresShell* mPresShell;
     nsIFrame*     mCaretFrame;
@@ -410,8 +398,7 @@ private:
                  "Someone forgot to enter a presshell");
     return &mPresShellStates[mPresShellStates.Length() - 1];
   }
-
-  FrameLayerBuilder              mLayerBuilder;
+  
   nsIFrame*                      mReferenceFrame;
   nsIFrame*                      mMovingFrame;
   nsRegion*                      mSaveVisibleRegionOfMovingContent;
@@ -432,7 +419,6 @@ private:
   // under an nsDisplayTransform
   PRPackedBool                   mInTransform;
   PRPackedBool                   mSyncDecodeImages;
-  PRPackedBool                   mIsPaintingToWindow;
 };
 
 class nsDisplayItem;
@@ -469,9 +455,6 @@ protected:
  */
 class nsDisplayItem : public nsDisplayItemLink {
 public:
-  typedef mozilla::layers::Layer Layer;
-  typedef mozilla::layers::LayerManager LayerManager;
-
   // This is never instantiated directly (it has pure virtual methods), so no
   // need to count constructors and destructors.
   nsDisplayItem(nsIFrame* aFrame) : mFrame(aFrame) {}
@@ -517,16 +500,15 @@ public:
   virtual Type GetType() { return TYPE_GENERIC; }
   /**
    * This is called after we've constructed a display list for event handling.
-   * When this is called, we've already ensured that aRect intersects the
-   * item's bounds.
+   * When this is called, we've already ensured that aPt is in the item's bounds.
    * 
    * @param aState must point to a HitTestState. If you don't have one,
    * just create one with the default constructor and pass it in.
-   * @param aOutFrames each item appends the frame(s) in this display item that
-   * the rect is considered over (if any) to aOutFrames.
+   * @return the frame that the point is considered over, or nsnull if
+   * this is not over any frame
    */
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {}
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState) { return nsnull; }
   /**
    * @return the frame that this display item is based on. This is used to sort
    * items by z-index and content order and for some other uses. For some items
@@ -549,11 +531,10 @@ public:
    */
   virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder) { return PR_FALSE; }
   /**
-   * If this returns true, then aColor is set to the uniform color
    * @return PR_TRUE if the item is guaranteed to paint every pixel in its
    * bounds with the same (possibly translucent) color
    */
-  virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor) { return PR_FALSE; }
+  virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder) { return PR_FALSE; }
   /**
    * @return PR_FALSE if the painting performed by the item is invariant
    * when frame aFrame is moved relative to aBuilder->GetRootMovingFrame().
@@ -565,24 +546,8 @@ public:
   /**
    * Actually paint this item to some rendering context.
    * Content outside mVisibleRect need not be painted.
-   * aCtx must be set up as for nsDisplayList::Paint.
    */
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx) {}
-  /**
-   * Get the layer drawn by this display item, if any. If this display
-   * item doesn't have its own layer, then Paint will be called on it
-   * later. If it returns a layer here then Paint will not be called.
-   * This is called while aManager is in the construction phase.
-   * This is where content can decide to be rendered by the layer
-   * system (with the possibility of accelerated or off-main-thread
-   * rendering) instead of cairo.
-   * 
-   * The caller (nsDisplayList) is responsible for setting the visible
-   * region of the layer.
-   */
-  virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                             LayerManager* aManager)
-  { return nsnull; }
 
   /**
    * On entry, aVisibleRegion contains the region (relative to ReferenceFrame())
@@ -627,12 +592,6 @@ public:
    * list.
    */
   virtual nsDisplayList* GetList() { return nsnull; }
-
-  /**
-   * Returns the visible rect. Should only be called after ComputeVisibility
-   * has happened.
-   */
-  const nsRect& GetVisibleRect() { return mVisibleRect; }
   
 #ifdef NS_DEBUG
   /**
@@ -676,16 +635,10 @@ protected:
  */
 class nsDisplayList {
 public:
-  typedef mozilla::layers::Layer Layer;
-  typedef mozilla::layers::LayerManager LayerManager;
-  typedef mozilla::layers::ThebesLayer ThebesLayer;
-
   /**
    * Create an empty list.
    */
-  nsDisplayList() :
-    mIsOpaque(PR_FALSE)
-  {
+  nsDisplayList() {
     mTop = &mSentinel;
     mSentinel.mAbove = nsnull;
 #ifdef DEBUG
@@ -778,6 +731,10 @@ public:
   nsDisplayItem* RemoveBottom();
   
   /**
+   * Remove an item from the bottom of the list and call its destructor.
+   */
+  void DeleteBottom();
+  /**
    * Remove all items from the list and call their destructors.
    */
   void DeleteAll();
@@ -836,7 +793,6 @@ public:
    * This is also a good place to put ComputeVisibility-related logic
    * that must be applied to every display item. In particular, this
    * sets mVisibleRect on each display item.
-   * This also sets mIsOpaque to whether aVisibleRegion is empty on return.
    * 
    * @param aVisibleRegion the area that is visible, relative to the
    * reference frame; on return, this contains the area visible under the list
@@ -845,43 +801,15 @@ public:
                          nsRegion* aVisibleRegion,
                          nsRegion* aVisibleRegionBeforeMove);
   /**
-   * Returns true if the visible region output from ComputeVisiblity was
-   * empty, i.e. everything visible in this list is opaque.
-   */
-  PRBool IsOpaque() const {
-    NS_ASSERTION(mDidComputeVisibility, "Need to have called ComputeVisibility");
-    return mIsOpaque;
-  }
-  /**
    * Paint the list to the rendering context. We assume that (0,0) in aCtx
    * corresponds to the origin of the reference frame. For best results,
    * aCtx's current transform should make (0,0) pixel-aligned. The
    * rectangle in aDirtyRect is painted, which *must* be contained in the
    * dirty rect used to construct the display list.
    * 
-   * If aFlags contains PAINT_USE_WIDGET_LAYERS and
-   * ShouldUseWidgetLayerManager() is set, then we will paint using
-   * the reference frame's widget's layer manager (and ctx may be null),
-   * otherwise we will use a temporary BasicLayerManager and ctx must
-   * not be null.
-   * 
    * ComputeVisibility must be called before Paint.
-   * 
-   * This must only be called on the root display list of the display list
-   * tree.
    */
-  enum {
-    PAINT_DEFAULT = 0,
-    PAINT_USE_WIDGET_LAYERS = 0x01
-  };
-  void PaintRoot(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-                 PRUint32 aFlags) const;
-  /**
-   * Like PaintRoot, but used for internal display sublists.
-   * aForFrame is the frame that the list is associated with.
-   */
-  void PaintForFrame(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-                     nsIFrame* aForFrame, PRUint32 aFlags) const;
+  void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx) const;
   /**
    * Get the bounds. Takes the union of the bounds of all children.
    */
@@ -890,9 +818,8 @@ public:
    * Find the topmost display item that returns a non-null frame, and return
    * the frame.
    */
-  void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-               nsDisplayItem::HitTestState* aState,
-               nsTArray<nsIFrame*> *aOutFrames) const;
+  nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                    nsDisplayItem::HitTestState* aState) const;
 
 private:
   // This class is only used on stack, so we don't have to worry about leaking
@@ -908,12 +835,6 @@ private:
   nsDisplayItemLink  mSentinel;
   nsDisplayItemLink* mTop;
 
-  // This is set by ComputeVisibility
-  nsRect mVisibleRect;
-  // This is set to true by ComputeVisibility if the final visible region
-  // is empty (i.e. everything that was visible is covered by some
-  // opaque content in this list).
-  PRPackedBool mIsOpaque;
 #ifdef DEBUG
   PRPackedBool mDidComputeVisibility;
 #endif
@@ -1233,11 +1154,7 @@ public:
     return (NS_GET_A(mColor) == 255);
   }
 
-  virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor)
-  {
-    *aColor = mColor;
-    return PR_TRUE;
-  }
+  virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder) { return PR_TRUE; }
 
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
 
@@ -1253,7 +1170,7 @@ private:
 class nsDisplayBackground : public nsDisplayItem {
 public:
   nsDisplayBackground(nsIFrame* aFrame) : nsDisplayItem(aFrame) {
-    mIsThemed = mFrame->IsThemed(&mThemeTransparency);
+    mIsThemed = mFrame->IsThemed();
     MOZ_COUNT_CTOR(nsDisplayBackground);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -1262,21 +1179,17 @@ public:
   }
 #endif
 
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
-  {
-    aOutFrames->AppendElement(mFrame);
-  }
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState) { return mFrame; }
   virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
   virtual PRBool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder);
-  virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor);
+  virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("Background")
 private:
-  /* Used to cache mFrame->IsThemed() since it isn't a cheap call */
-  PRPackedBool mIsThemed;
-  nsITheme::Transparency mThemeTransparency;
+    /* Used to cache mFrame->IsThemed() since it isn't a cheap call */
+    PRPackedBool mIsThemed;
 };
 
 /**
@@ -1365,11 +1278,8 @@ public:
   }
 #endif
 
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
-  {
-    aOutFrames->AppendElement(mFrame);
-  }
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState) { return mFrame; }
   NS_DISPLAY_DECL_NAME("EventReceiver")
 };
 
@@ -1399,11 +1309,11 @@ public:
   nsDisplayWrapList(nsIFrame* aFrame, nsDisplayItem* aItem);
   virtual ~nsDisplayWrapList();
   virtual Type GetType() { return TYPE_WRAPLIST; }
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
-  virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor);
+  virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder);
   virtual PRBool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder);
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
@@ -1474,13 +1384,20 @@ public:
   
   virtual Type GetType() { return TYPE_OPACITY; }
   virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
-  virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                             LayerManager* aManager);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    nsRegion* aVisibleRegionBeforeMove);  
   virtual PRBool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem);
   NS_DISPLAY_DECL_NAME("Opacity")
+
+private:
+  /**
+   * We set this to PR_FALSE if we can prove that our children cover our bounds
+   * completely and opaquely, therefore no alpha channel is required in the
+   * intermediate surface.
+   */
+  PRPackedBool mNeedAlpha;
 };
 
 /**
@@ -1542,8 +1459,8 @@ public:
   
   virtual Type GetType() { return TYPE_SVG_EFFECTS; }
   virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) {
     return mBounds + aBuilder->ToReferenceFrame(mEffectsFrame);
   }
@@ -1599,11 +1516,11 @@ public:
   nsDisplayWrapList* GetStoredList() { return &mStoredList; }
 #endif
 
-  virtual void HitTest(nsDisplayListBuilder *aBuilder, const nsRect& aRect,
-                       HitTestState *aState, nsTArray<nsIFrame*> *aOutFrames);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder *aBuilder, nsPoint aPt,
+                            HitTestState *aState);
   virtual nsRect GetBounds(nsDisplayListBuilder *aBuilder);
   virtual PRBool IsOpaque(nsDisplayListBuilder *aBuilder);
-  virtual PRBool IsUniform(nsDisplayListBuilder *aBuilder, nscolor* aColor);
+  virtual PRBool IsUniform(nsDisplayListBuilder *aBuilder);
   virtual void   Paint(nsDisplayListBuilder *aBuilder,
                        nsIRenderingContext *aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder *aBuilder,

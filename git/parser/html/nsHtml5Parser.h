@@ -82,9 +82,9 @@ class nsHtml5Parser : public nsIParser,
     NS_IMETHOD_(void) SetContentSink(nsIContentSink* aSink);
 
     /**
-     * Returns the tree op executor for backwards compat.
+     * Returns |this| for backwards compat.
      */
-    NS_IMETHOD_(nsIContentSink*) GetContentSink();
+    NS_IMETHOD_(nsIContentSink*) GetContentSink(void);
 
     /**
      * Always returns "view" for backwards compat.
@@ -141,9 +141,10 @@ class nsHtml5Parser : public nsIParser,
     NS_IMETHOD GetStreamListener(nsIStreamListener** aListener);
 
     /**
-     * Don't call. For interface compat only.
+     * If scripts are not executing, maybe flushes tree builder and parses
+     * until suspension.
      */
-    NS_IMETHOD ContinueInterruptedParsing();
+    NS_IMETHOD        ContinueInterruptedParsing();
 
     /**
      * Blocks the parser.
@@ -156,7 +157,7 @@ class nsHtml5Parser : public nsIParser,
     NS_IMETHOD_(void) UnblockParser();
 
     /**
-     * Query whether the parser is enabled (i.e. not blocked) or not.
+     * Query whether the parser is enabled or not.
      */
     NS_IMETHOD_(PRBool) IsParserEnabled();
 
@@ -201,7 +202,7 @@ class nsHtml5Parser : public nsIParser,
     /**
      * Stops the parser prematurely
      */
-    NS_IMETHOD Terminate();
+    NS_IMETHOD        Terminate(void);
 
     /**
      * Don't call. For interface backwards compat only.
@@ -231,7 +232,7 @@ class nsHtml5Parser : public nsIParser,
     /**
      * Don't call. For interface compat only.
      */
-    NS_IMETHOD BuildModel();
+    NS_IMETHOD BuildModel(void);
 
     /**
      * Don't call. For interface compat only.
@@ -296,26 +297,25 @@ class nsHtml5Parser : public nsIParser,
     void InitializeDocWriteParserState(nsAHtml5TreeBuilderState* aState, PRInt32 aLine);
 
     void DropStreamParser() {
-      if (mStreamParser) {
-        mStreamParser->DropTimer();
-        mStreamParser = nsnull;
-      }
+      mStreamParser = nsnull;
     }
     
     void StartTokenizer(PRBool aScriptingEnabled);
     
     void ContinueAfterFailedCharsetSwitch();
 
-    nsHtml5StreamParser* GetStreamParser() {
-      return mStreamParser;
+#ifdef DEBUG
+    PRBool HasStreamParser() {
+      return !!mStreamParser;
     }
+#endif
+
+  private:
 
     /**
      * Parse until pending data is exhausted or a script blocks the parser
      */
     void ParseUntilBlocked();
-
-  private:
 
     // State variables
 

@@ -53,6 +53,7 @@ class nsFileControlFrame : public nsBlockFrame,
 {
 public:
   nsFileControlFrame(nsStyleContext* aContext);
+  virtual ~nsFileControlFrame();
 
   NS_IMETHOD Init(nsIContent* aContent,
                   nsIFrame*   aParent,
@@ -77,7 +78,7 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
@@ -92,28 +93,10 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
-
-  // create and destroy the static UploadLastDir object for remembering
-  // which directory was last used on a site-by-site basis
-  static void InitUploadLastDir();
-  static void DestroyUploadLastDir();
-
-  /**
-   * This methods return the file filter mask requested by the HTML5 accept
-   * attribute. If the accept attribute isn't present or the value isn't valid,
-   * the returned value will be 0.
-   *
-   * See:
-   * http://dev.w3.org/html5/spec/forms.html#attr-input-accept
-   *
-   * @return the file picker filter mask or 0 if there is no filter.
-   */
-  PRInt32 GetFileFilterFromAccept() const;
 
 protected:
   class MouseListener;
@@ -167,6 +150,11 @@ protected:
    * @see nsFileControlFrame::CreateAnonymousContent
    */
   nsCOMPtr<nsIContent> mBrowse;
+  /**
+   * The current value, stored during those rare in-between periods where the
+   * file frame is there but the input frame is not.
+   */
+  nsString*           mCachedState;
 
   /**
    * Our mouse listener.  This makes sure we don't get used after destruction.

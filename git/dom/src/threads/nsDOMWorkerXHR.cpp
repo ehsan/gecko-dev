@@ -246,8 +246,7 @@ nsDOMWorkerXHRUpload::nsDOMWorkerXHRUpload(nsDOMWorkerXHR* aWorkerXHR)
 NS_IMPL_ISUPPORTS_INHERITED1(nsDOMWorkerXHRUpload, nsDOMWorkerXHREventTarget,
                                                    nsIXMLHttpRequestUpload)
 
-NS_IMPL_CI_INTERFACE_GETTER4(nsDOMWorkerXHRUpload, nsIDOMNSEventTarget,
-                                                   nsIDOMEventTarget,
+NS_IMPL_CI_INTERFACE_GETTER3(nsDOMWorkerXHRUpload, nsIDOMEventTarget,
                                                    nsIXMLHttpRequestEventTarget,
                                                    nsIXMLHttpRequestUpload)
 
@@ -258,7 +257,25 @@ nsDOMWorkerXHRUpload::AddEventListener(const nsAString& aType,
                                        nsIDOMEventListener* aListener,
                                        PRBool aUseCapture)
 {
-  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 0);
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+  NS_ENSURE_ARG_POINTER(aListener);
+
+  if (mWorkerXHR->mWorker->IsCanceled()) {
+    return NS_ERROR_ABORT;
+  }
+
+  nsresult rv = nsDOMWorkerXHREventTarget::AddEventListener(aType, aListener,
+                                                            aUseCapture);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = mWorkerXHR->mXHRProxy->UploadEventListenerAdded();
+  if (NS_FAILED(rv)) {
+    NS_WARNING("UploadEventListenerAdded failed!");
+    RemoveEventListener(aType, aListener, aUseCapture);
+    return rv;
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -289,36 +306,6 @@ nsDOMWorkerXHRUpload::DispatchEvent(nsIDOMEvent* aEvent,
   }
 
   return nsDOMWorkerXHREventTarget::DispatchEvent(aEvent, _retval);
-}
-
-NS_IMETHODIMP
-nsDOMWorkerXHRUpload::AddEventListener(const nsAString& aType,
-                                       nsIDOMEventListener* aListener,
-                                       PRBool aUseCapture,
-                                       PRBool aWantsUntrusted,
-                                       PRUint8 optional_argc)
-{
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ENSURE_ARG_POINTER(aListener);
-
-  if (mWorkerXHR->mWorker->IsCanceled()) {
-    return NS_ERROR_ABORT;
-  }
-
-  nsresult rv = nsDOMWorkerXHREventTarget::AddEventListener(aType, aListener,
-                                                            aUseCapture,
-                                                            aWantsUntrusted,
-                                                            optional_argc);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mWorkerXHR->mXHRProxy->UploadEventListenerAdded();
-  if (NS_FAILED(rv)) {
-    NS_WARNING("UploadEventListenerAdded failed!");
-    RemoveEventListener(aType, aListener, aUseCapture);
-    return rv;
-  }
-
-  return NS_OK;
 }
 
 nsresult
@@ -354,7 +341,7 @@ nsDOMWorkerXHR::~nsDOMWorkerXHR()
   if (mXHRProxy) {
     if (!NS_IsMainThread()) {
       nsCOMPtr<nsIRunnable> runnable =
-        NS_NewRunnableMethod(mXHRProxy, &nsDOMWorkerXHRProxy::Destroy);
+        NS_NEW_RUNNABLE_METHOD(nsDOMWorkerXHRProxy, mXHRProxy.get(), Destroy);
 
       if (runnable) {
         mXHRProxy = nsnull;
@@ -377,8 +364,7 @@ NS_IMPL_QUERY_INTERFACE_INHERITED2(nsDOMWorkerXHR, nsDOMWorkerXHREventTarget,
                                                    nsIXMLHttpRequest,
                                                    nsIXPCScriptable)
 
-NS_IMPL_CI_INTERFACE_GETTER4(nsDOMWorkerXHR, nsIDOMNSEventTarget,
-                                             nsIDOMEventTarget,
+NS_IMPL_CI_INTERFACE_GETTER3(nsDOMWorkerXHR, nsIDOMEventTarget,
                                              nsIXMLHttpRequestEventTarget,
                                              nsIXMLHttpRequest)
 

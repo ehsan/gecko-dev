@@ -44,17 +44,13 @@ relativesrcdir  = docshell/test
 MODULE = test_docshell
 
 DIRS += chrome \
+	browser \
 	navigation \
 	$(NULL)
 
 XPCSHELL_TESTS = unit
 
 include $(DEPTH)/config/autoconf.mk
-
-ifneq (mobile,$(MOZ_BUILD_APP))
-	DIRS += browser
-endif
-
 include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES = \
@@ -85,8 +81,6 @@ _TEST_FILES = \
 		test_bug529119-1.html \
 		test_bug529119-2.html \
 		bug529119-window.html \
-		test_bug540462.html \
-		file_bug540462.html \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)

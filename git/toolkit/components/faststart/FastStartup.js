@@ -85,7 +85,6 @@ function nsFastStartupObserver() {
 
     function restart() {
       setenv(RESTART_ENV_VAR, "1");
-      setenv("NO_SPLASH", "1");
       let appstartup = Cc["@mozilla.org/toolkit/app-startup;1"].
                        getService(Ci.nsIAppStartup);
       appstartup.quit(Ci.nsIAppStartup.eRestart | Ci.nsIAppStartup.eAttemptQuit);
@@ -128,11 +127,8 @@ function nsFastStartupObserver() {
     } else if (topic == "domwindowclosed") {
       if (_browserWindowCount > 0)
         _browserWindowCount--;
-      if (_browserWindowCount == 0) {
+      if (_browserWindowCount == 0)
         scheduleMemoryCleanup();
-        let prefservice = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefService);
-        prefservice.savePrefFile(null);
-      }
     } else if (topic == "quit-application-granted") {
       stopMemoryCleanup();
       _isShuttingDown = true;

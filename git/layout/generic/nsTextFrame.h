@@ -62,7 +62,7 @@ class PropertyProvider;
 
 // This state bit is set on frames that have some non-collapsed characters after
 // reflow
-#define TEXT_HAS_NONCOLLAPSED_CHARACTERS NS_FRAME_STATE_BIT(31)
+#define TEXT_HAS_NONCOLLAPSED_CHARACTERS 0x80000000
 
 class nsTextFrame : public nsFrame {
 public:
@@ -84,7 +84,7 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
   
   NS_IMETHOD GetCursor(const nsPoint& aPoint,
                        nsIFrame::Cursor& aCursor);
@@ -216,7 +216,7 @@ public:
   }
   
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
   
   virtual void MarkIntrinsicWidthsDirty();
@@ -306,8 +306,6 @@ public:
                                      nsTextPaintStyle& aTextPaintStyle,
                                      SelectionDetails* aDetails,
                                      SelectionType aSelectionType);
-
-  virtual nscolor GetCaretColorAt(PRInt32 aOffset);
 
   PRInt16 GetSelectionStatus(PRInt16* aSelectionFlags);
 

@@ -40,6 +40,7 @@
 
 #include "nsBrowserCompsCID.h"
 #include "DirectoryProvider.h"
+#include "nsPlacesImportExportService.h"
 
 #if defined(XP_WIN)
 #include "nsWindowsShellService.h"
@@ -85,6 +86,7 @@ using namespace mozilla::browser;
 /////////////////////////////////////////////////////////////////////////////
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(DirectoryProvider)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsPlacesImportExportService)
 #if defined(XP_WIN)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindowsShellService)
 #elif defined(XP_MACOSX)
@@ -146,6 +148,12 @@ static const nsModuleComponentInfo components[] =
 
 #endif
 
+
+  { "Places Import/Export Service",
+    NS_PLACESIMPORTEXPORTSERVICE_CID,
+    NS_PLACESIMPORTEXPORTSERVICE_CONTRACTID,
+    nsPlacesImportExportServiceConstructor},
+
   { "Feed Sniffer",
     NS_FEEDSNIFFER_CID,
     NS_FEEDSNIFFER_CONTRACTID,
@@ -187,6 +195,11 @@ static const nsModuleComponentInfo components[] =
   { "about:sessionrestore",
     NS_BROWSER_ABOUT_REDIRECTOR_CID,
     NS_ABOUT_MODULE_CONTRACTID_PREFIX "sessionrestore",
+    AboutRedirector::Create },
+
+  { "about:support",
+    NS_BROWSER_ABOUT_REDIRECTOR_CID,
+    NS_ABOUT_MODULE_CONTRACTID_PREFIX "support",
     AboutRedirector::Create },
 
 #ifndef WINCE

@@ -47,19 +47,30 @@
 #include "nsIDocShell.h"
 #include "nsStringFwd.h"
 #include "nsIFrameLoader.h"
+#include "nsSize.h"
 #include "nsIURI.h"
-#include "nsFrameMessageManager.h"
+#include "nsAutoPtr.h"
 
 class nsIContent;
 class nsIURI;
 class nsIFrameFrame;
-class nsIInProcessContentFrameMessageManager;
-class AutoResetInShow;
+class nsIView;
+
+#ifdef MOZ_IPC
+namespace mozilla {
+  namespace dom {
+    class TabParent;
+    class PIFrameEmbeddingParent;
+  }
+}
+
+#ifdef MOZ_WIDGET_GTK2
+typedef struct _GtkWidget GtkWidget;
+#endif
+#endif
 
 class nsFrameLoader : public nsIFrameLoader
 {
-  friend class AutoResetInShow;
-
 protected:
   nsFrameLoader(nsIContent *aOwner) :
     mOwnerContent(aOwner),
@@ -67,9 +78,14 @@ protected:
     mIsTopLevelContent(PR_FALSE),
     mDestroyCalled(PR_FALSE),
     mNeedsAsyncDestroy(PR_FALSE),
-    mInSwap(PR_FALSE),
-    mInShow(PR_FALSE),
-    mHideCalled(PR_FALSE)
+    mInSwap(PR_FALSE)
+#ifdef MOZ_IPC
+    , mRemoteFrame(false)
+    , mChildProcess(nsnull)
+#ifdef MOZ_WIDGET_GTK2
+    , mRemoteSocket(nsnull)
+#endif
+#endif
   {}
 
 public:
@@ -87,16 +103,16 @@ public:
   nsresult ReallyStartLoading();
   void Finalize();
   nsIDocShell* GetExistingDocShell() { return mDocShell; }
-  nsPIDOMEventTarget* GetTabChildGlobalAsEventTarget();
+
   nsresult CreateStaticClone(nsIFrameLoader* aDest);
 
   /**
    * Called from the layout frame associated with this frame loader;
    * this notifies us to hook up with the widget and view.
    */
-  PRBool Show(PRInt32 marginWidth, PRInt32 marginHeight,
-              PRInt32 scrollbarPrefX, PRInt32 scrollbarPrefY,
-              nsIFrameFrame* frame);
+  bool Show(PRInt32 marginWidth, PRInt32 marginHeight,
+            PRInt32 scrollbarPrefX, PRInt32 scrollbarPrefY,
+            nsIFrameFrame* frame);
 
   /**
    * Called from the layout frame associated with this frame loader, when
@@ -113,30 +129,59 @@ public:
   nsresult SwapWithOtherLoader(nsFrameLoader* aOther,
                                nsRefPtr<nsFrameLoader>& aFirstToSwap,
                                nsRefPtr<nsFrameLoader>& aSecondToSwap);
+
+#ifdef MOZ_IPC
+  mozilla::dom::PIFrameEmbeddingParent* GetChildProcess();
+#endif
+
 private:
 
-  NS_HIDDEN_(nsresult) EnsureDocShell();
-  nsresult EnsureMessageManager();
-  NS_HIDDEN_(void) GetURL(nsString& aURL);
+#ifdef MOZ_IPC
+  bool ShouldUseRemoteProcess();
+#endif
+
+  /**
+   * If we are an IPC frame, set mRemoteFrame. Otherwise, create and
+   * initialize mDocShell.
+   */
+  nsresult MaybeCreateDocShell();
+  void GetURL(nsString& aURL);
+
+  // Properly retrieves documentSize of any subdocument type.
+  NS_HIDDEN_(nsIntSize) GetSubDocumentSize(const nsIFrame *aIFrame);
+
+  // Updates the subdocument position and size. This gets called only
+  // when we have our own in-process DocShell.
+  NS_HIDDEN_(nsresult) UpdateBaseWindowPositionAndSize(nsIFrame *aIFrame);
   nsresult CheckURILoad(nsIURI* aURI);
-  void FireErrorEvent();
-  nsresult ReallyStartLoadingInternal();
+
+#ifdef MOZ_IPC
+  // True means new process started; nothing else to do
+  bool TryNewProcess();
+
+  // Do the hookup necessary to actually show a remote frame once the view and
+  // widget are available.
+  bool ShowRemoteFrame(nsIFrameFrame* frame, nsIView* view);
+#endif
 
   nsCOMPtr<nsIDocShell> mDocShell;
   nsCOMPtr<nsIURI> mURIToLoad;
   nsIContent *mOwnerContent; // WEAK
-public:
-  // public because a callback needs these.
-  nsRefPtr<nsFrameMessageManager> mMessageManager;
-  nsCOMPtr<nsIInProcessContentFrameMessageManager> mChildMessageManager;
-private:
   PRPackedBool mDepthTooGreat : 1;
   PRPackedBool mIsTopLevelContent : 1;
   PRPackedBool mDestroyCalled : 1;
   PRPackedBool mNeedsAsyncDestroy : 1;
   PRPackedBool mInSwap : 1;
-  PRPackedBool mInShow : 1;
-  PRPackedBool mHideCalled : 1;
+
+#ifdef MOZ_IPC
+  bool mRemoteFrame;
+  // XXX leaking
+  mozilla::dom::TabParent* mChildProcess;
+
+#ifdef MOZ_WIDGET_GTK2
+  GtkWidget* mRemoteSocket;
+#endif
+#endif
 };
 
 #endif

@@ -36,7 +36,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* ===== groupbox.css ==================================================
+  == Styles used by the XUL groupbox and related elements.
+  ======================================================================= */
+
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+/* ::::: groupbox ::::: */
 
 groupbox {
   padding: 5px 1px 1px;

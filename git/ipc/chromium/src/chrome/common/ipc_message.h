@@ -62,12 +62,7 @@ class Message : public Pickle {
 
   // Initialize a message with a user-defined type, priority value, and
   // destination WebView ID.
-#if !defined(CHROMIUM_MOZILLA_BUILD)
   Message(int32 routing_id, uint16 type, PriorityValue priority);
-#else
-  Message(int32 routing_id, uint16 type, PriorityValue priority,
-          const char* const name="???");
-#endif
 
   // Initializes a message from a const block of data.  The data is not copied;
   // instead the data is merely referenced by this message.  Only const methods
@@ -147,7 +142,7 @@ class Message : public Pickle {
 
 #if defined(CHROMIUM_MOZILLA_BUILD)
   size_t rpc_remote_stack_depth_guess() const {
-    return header()->rpc_remote_stack_depth_guess;
+      return header()->rpc_remote_stack_depth_guess;
   }
 
   void set_rpc_remote_stack_depth_guess(size_t depth) {
@@ -156,28 +151,12 @@ class Message : public Pickle {
   }
 
   size_t rpc_local_stack_depth() const {
-    return header()->rpc_local_stack_depth;
+      return header()->rpc_local_stack_depth;
   }
 
   void set_rpc_local_stack_depth(size_t depth) {
     DCHECK(is_rpc());
     header()->rpc_local_stack_depth = depth;
-  }
-
-  int32 seqno() const {
-    return header()->seqno;
-  }
-
-  void set_seqno(int32 seqno) {
-    header()->seqno = seqno;
-  }
-
-  const char* const name() const {
-    return name_;
-  }
-
-  void set_name(const char* const name) {
-    name_ = name;
   }
 #endif
 
@@ -296,8 +275,6 @@ class Message : public Pickle {
     size_t rpc_remote_stack_depth_guess;
     // The actual local stack depth.
     size_t rpc_local_stack_depth;
-    // Sequence number
-    int32 seqno;
 #endif
   };
 #pragma pack(pop)
@@ -309,11 +286,7 @@ class Message : public Pickle {
     return headerT<Header>();
   }
 
-#if !defined(CHROMIUM_MOZILLA_BUILD)
   void InitLoggingVariables();
-#else
-  void InitLoggingVariables(const char* const name="???");
-#endif
 
 #if defined(OS_POSIX)
   // The set of file descriptors associated with this message.
@@ -329,10 +302,6 @@ class Message : public Pickle {
   const FileDescriptorSet* file_descriptor_set() const {
     return file_descriptor_set_.get();
   }
-#endif
-
-#if defined(CHROMIUM_MOZILLA_BUILD)
-  const char* name_;
 #endif
 
 #ifdef IPC_MESSAGE_LOG_ENABLED

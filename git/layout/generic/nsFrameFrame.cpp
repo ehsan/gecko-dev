@@ -66,6 +66,7 @@
 #include "nsWidgetsCID.h"
 #include "nsViewsCID.h"
 #include "nsGkAtoms.h"
+#include "nsIScrollableView.h"
 #include "nsStyleCoord.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
@@ -102,8 +103,6 @@
 #endif
 #include "nsIServiceManager.h"
 
-class AsyncFrameInit;
-
 static NS_DEFINE_CID(kCChildCID, NS_CHILD_CID);
 
 /******************************************************************************
@@ -137,7 +136,7 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
@@ -175,21 +174,20 @@ public:
   virtual PRBool SupportsVisibilityHidden() { return PR_FALSE; }
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   // nsIFrameFrame
   NS_IMETHOD GetDocShell(nsIDocShell **aDocShell);
   NS_IMETHOD BeginSwapDocShells(nsIFrame* aOther);
   virtual void EndSwapDocShells(nsIFrame* aOther);
+  virtual nsIFrame* GetFrame() { return this; }
 
   // nsIReflowCallback
   virtual PRBool ReflowFinished();
   virtual void ReflowCallbackCanceled();
 
 protected:
-  friend class AsyncFrameInit;
-
   // Helper method to look up the HTML marginwidth & marginheight attributes
   nsIntSize GetMarginAttributes();
 
@@ -221,48 +219,34 @@ protected:
   nsIView* mInnerView;
   PRPackedBool mIsInline;
   PRPackedBool mPostedReflowCallback;
-  PRPackedBool mDidCreateDoc;
-  PRPackedBool mCallingShow;
+  bool mDidCreateDoc;
 };
 
 nsSubDocumentFrame::nsSubDocumentFrame(nsStyleContext* aContext)
   : nsLeafFrame(aContext)
   , mIsInline(PR_FALSE)
   , mPostedReflowCallback(PR_FALSE)
-  , mDidCreateDoc(PR_FALSE)
-  , mCallingShow(PR_FALSE)
+  , mDidCreateDoc(false)
 {
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsSubDocumentFrame::CreateAccessible()
+NS_IMETHODIMP nsSubDocumentFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
-  return accService ?
-    accService->CreateOuterDocAccessible(mContent, PresContext()->PresShell()) :
-    nsnull;
+
+  if (accService) {
+    nsCOMPtr<nsIDOMNode> node = do_QueryInterface(mContent);
+    return accService->CreateOuterDocAccessible(node, aAccessible);
+  }
+
+  return NS_ERROR_FAILURE;
 }
 #endif
 
 NS_QUERYFRAME_HEAD(nsSubDocumentFrame)
   NS_QUERYFRAME_ENTRY(nsIFrameFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsLeafFrame)
-
-class AsyncFrameInit : public nsRunnable
-{
-public:
-  AsyncFrameInit(nsIFrame* aFrame) : mFrame(aFrame) {}
-  NS_IMETHOD Run()
-  {
-    if (mFrame.IsAlive()) {
-      static_cast<nsSubDocumentFrame*>(mFrame.GetFrame())->ShowViewer();
-    }
-    return NS_OK;
-  }
-private:
-  nsWeakFrame mFrame;
-};
 
 NS_IMETHODIMP
 nsSubDocumentFrame::Init(nsIContent*     aContent,
@@ -301,9 +285,9 @@ nsSubDocumentFrame::Init(nsIContent*     aContent,
   // Set the primary frame now so that
   // DocumentViewerImpl::FindContainerView called by ShowViewer below
   // can find it if necessary.
-  aContent->SetPrimaryFrame(this);
+  PresContext()->FrameManager()->SetPrimaryFrameFor(aContent, this);
 
-  nsContentUtils::AddScriptRunner(new AsyncFrameInit(this));
+  ShowViewer();
   return NS_OK;
 }
 
@@ -326,31 +310,19 @@ inline PRInt32 ConvertOverflow(PRUint8 aOverflow)
 void
 nsSubDocumentFrame::ShowViewer()
 {
-  if (mCallingShow) {
-    return;
-  }
-
   if (!PresContext()->IsDynamic()) {
     // We let the printing code take care of loading the document; just
     // create a widget for it to use
     (void) CreateViewAndWidget(eContentTypeContent);
   } else {
-    nsRefPtr<nsFrameLoader> frameloader = FrameLoader();
+    nsFrameLoader* frameloader = FrameLoader();
     if (frameloader) {
       nsIntSize margin = GetMarginAttributes();
       const nsStyleDisplay* disp = GetStyleDisplay();
-      nsWeakFrame weakThis(this);
-      mCallingShow = PR_TRUE;
-      PRBool didCreateDoc =
-        frameloader->Show(margin.width, margin.height,
-                          ConvertOverflow(disp->mOverflowX),
-                          ConvertOverflow(disp->mOverflowY),
-                          this);
-      if (!weakThis.IsAlive()) {
-        return;
-      }
-      mCallingShow = PR_FALSE;
-      mDidCreateDoc = didCreateDoc;
+      mDidCreateDoc = frameloader->Show(margin.width, margin.height,
+                                        ConvertOverflow(disp->mOverflowX),
+                                        ConvertOverflow(disp->mOverflowY),
+                                        this);
     }
   }
 }
@@ -389,29 +361,20 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (f) {
     presShell = f->PresContext()->PresShell();
   } else {
-    // During page transition mInnerView will sometimes have two children, the
-    // first being the new page that may not have any frame, and the second
-    // being the old page that will probably have a frame.
-    nsIView* nextView = subdocView->GetNextSibling();
-    if (nextView) {
-      f = static_cast<nsIFrame*>(nextView->GetClientData());
-    }
-    if (f) {
-      subdocView = nextView;
-      presShell = f->PresContext()->PresShell();
-    } else {
-      // If we don't have a frame we use this roundabout way to get the pres shell.
-      if (!mFrameLoader)
-        return NS_OK;
-      nsCOMPtr<nsIDocShell> docShell;
-      mFrameLoader->GetDocShell(getter_AddRefs(docShell));
-      if (!docShell)
-        return NS_OK;
-      docShell->GetPresShell(getter_AddRefs(presShell));
-      if (!presShell)
-        return NS_OK;
-    }
+    // If we don't have a frame we use this roundabout way to get the pres shell.
+    if (!mFrameLoader)
+      return NS_OK;
+    nsCOMPtr<nsIDocShell> docShell;
+    mFrameLoader->GetDocShell(getter_AddRefs(docShell));
+    if (!docShell)
+      return NS_OK;
+    docShell->GetPresShell(getter_AddRefs(presShell));
+    if (!presShell)
+      return NS_OK;
   }
+
+  PRBool suppressed = PR_TRUE;
+  presShell->IsPaintingSuppressed(&suppressed);
 
   nsDisplayList childItems;
 
@@ -604,7 +567,7 @@ nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
 
   aStatus = NS_FRAME_COMPLETE;
 
-  NS_ASSERTION(mContent->GetPrimaryFrame() == this,
+  NS_ASSERTION(aPresContext->GetPresShell()->GetPrimaryFrameFor(mContent) == this,
                "Shouldn't happen");
 
   // "offset" is the offset of our content area from our frame's
@@ -665,52 +628,16 @@ nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
 PRBool
 nsSubDocumentFrame::ReflowFinished()
 {
-  nsCOMPtr<nsIDocShell> docShell;
-  GetDocShell(getter_AddRefs(docShell));
-
-  nsCOMPtr<nsIBaseWindow> baseWindow(do_QueryInterface(docShell));
-
-  // resize the sub document
-  if (baseWindow) {
-    PRInt32 x = 0;
-    PRInt32 y = 0;
-
+  if (mFrameLoader) {
     nsWeakFrame weakFrame(this);
-    
-    nsPresContext* presContext = PresContext();
-    baseWindow->GetPositionAndSize(&x, &y, nsnull, nsnull);
 
-    if (!weakFrame.IsAlive()) {
-      // GetPositionAndSize() killed us
-      return PR_FALSE;
+    mFrameLoader->UpdatePositionAndSize(this);
+
+    if (weakFrame.IsAlive()) {
+      // Make sure that we can post a reflow callback in the future.
+      mPostedReflowCallback = PR_FALSE;
     }
-
-    // GetPositionAndSize might have resized us.  So now is the time to
-    // get our size.
-    mPostedReflowCallback = PR_FALSE;
-  
-    nsSize innerSize(GetSize());
-    if (IsInline()) {
-      nsMargin usedBorderPadding = GetUsedBorderAndPadding();
-
-      // Sadly, XUL smacks the frame size without changing the used
-      // border and padding, so we can't trust those.  Subtracting
-      // them might make things negative.
-      innerSize.width  -= usedBorderPadding.LeftRight();
-      innerSize.width = NS_MAX(innerSize.width, 0);
-      
-      innerSize.height -= usedBorderPadding.TopBottom();
-      innerSize.height = NS_MAX(innerSize.height, 0);
-    }  
-
-    PRInt32 cx = presContext->AppUnitsToDevPixels(innerSize.width);
-    PRInt32 cy = presContext->AppUnitsToDevPixels(innerSize.height);
-    baseWindow->SetPositionAndSize(x, y, cx, cy, PR_FALSE);
-  } else {
-    // Make sure that we can post a reflow callback in the future.
-    mPostedReflowCallback = PR_FALSE;
   }
-
   return PR_FALSE;
 }
 
@@ -821,7 +748,7 @@ NS_NewSubDocumentFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsSubDocumentFrame)
 
 void
-nsSubDocumentFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsSubDocumentFrame::Destroy()
 {
   if (mPostedReflowCallback) {
     PresContext()->PresShell()->CancelReflowCallback(this);
@@ -830,13 +757,13 @@ nsSubDocumentFrame::DestroyFrom(nsIFrame* aDestructRoot)
   
   HideViewer();
 
-  nsLeafFrame::DestroyFrom(aDestructRoot);
+  nsLeafFrame::Destroy();
 }
 
 void
 nsSubDocumentFrame::HideViewer()
 {
-  if (mFrameLoader && (mDidCreateDoc || mCallingShow))
+  if (mFrameLoader && mDidCreateDoc)
     mFrameLoader->Hide();
 }
 
@@ -893,8 +820,8 @@ nsSubDocumentFrame::BeginSwapDocShells(nsIFrame* aOther)
   }
 
   nsSubDocumentFrame* other = static_cast<nsSubDocumentFrame*>(aOther);
-  if (!mFrameLoader || !mDidCreateDoc || mCallingShow ||
-      !other->mFrameLoader || !other->mDidCreateDoc) {
+  if (!mFrameLoader || !mDidCreateDoc || !other->mFrameLoader ||
+      !other->mDidCreateDoc) {
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
@@ -909,25 +836,20 @@ void
 nsSubDocumentFrame::EndSwapDocShells(nsIFrame* aOther)
 {
   nsSubDocumentFrame* other = static_cast<nsSubDocumentFrame*>(aOther);
-  nsWeakFrame weakThis(this);
-  nsWeakFrame weakOther(aOther);
   ShowViewer();
   other->ShowViewer();
 
   // Now make sure we reflow both frames, in case their contents
   // determine their size.
+  PresContext()->PresShell()->
+    FrameNeedsReflow(this, nsIPresShell::eTreeChange, NS_FRAME_IS_DIRTY);
+  other->PresContext()->PresShell()->
+    FrameNeedsReflow(other, nsIPresShell::eTreeChange, NS_FRAME_IS_DIRTY);
+
   // And repaint them, for good measure, in case there's nothing
   // interesting that happens during reflow.
-  if (weakThis.IsAlive()) {
-    PresContext()->PresShell()->
-      FrameNeedsReflow(this, nsIPresShell::eTreeChange, NS_FRAME_IS_DIRTY);
-    InvalidateOverflowRect();
-  }
-  if (weakOther.IsAlive()) {
-    other->PresContext()->PresShell()->
-      FrameNeedsReflow(other, nsIPresShell::eTreeChange, NS_FRAME_IS_DIRTY);
-    other->InvalidateOverflowRect();
-  }
+  InvalidateOverflowRect();
+  other->InvalidateOverflowRect();
 }
 
 nsIView*

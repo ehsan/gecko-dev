@@ -37,7 +37,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* ===== toolbar.css ====================================================
+  == Styles used by XUL toolbar-related elements.
+  ======================================================================= */
+
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+/* ::::: toolbar & menubar ::::: */
 
 toolbar {
   min-width: 1px;
@@ -60,9 +66,7 @@ menubar {
   min-width: 1px;
 }
 
-.toolbar-primary {
-  min-height: 24px;
-}
+/* ::::: toolbarseparator ::::: */
 
 toolbarseparator {
   -moz-appearance: none;
@@ -71,6 +75,16 @@ toolbarseparator {
   padding: 0;
   width: 1px !important;
 }
+
+.toolbar-primary {
+  min-height: 24px;
+}
+
+.toolbar-primary,
+window > toolbox:nth-of-type(1) > toolbar:nth-of-type(1) {
+  -moz-appearance: -moz-mac-unified-toolbar;
+}
+
 
 /* ::::: toolbarpaletteitem ::::: */
 

@@ -320,8 +320,7 @@ nsLineBox::CachedIsEmpty()
 }
 
 void
-nsLineBox::DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines,
-                          nsIFrame* aDestructRoot)
+nsLineBox::DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines)
 {
   if (! aLines.empty()) {
     // Delete our child frames before doing anything else. In particular
@@ -332,8 +331,7 @@ nsLineBox::DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines,
 #endif
     for (nsIFrame* child = aLines.front()->mFirstChild; child; ) {
       nsIFrame* nextChild = child->GetNextSibling();
-      child->SetNextSibling(nsnull);
-      child->DestroyFrom((aDestructRoot) ? aDestructRoot : child);
+      child->Destroy();
       child = nextChild;
 #ifdef DEBUG
       numFrames++;
@@ -354,6 +352,26 @@ nsLineBox::DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines,
     NS_ASSERTION(numFrames == 0, "number of frames deleted does not match");
 #endif
   }
+}
+
+nsLineBox*
+nsLineBox::FindLineContaining(nsLineList& aLines, nsIFrame* aFrame,
+                              PRInt32* aFrameIndexInLine)
+{
+  NS_PRECONDITION(aFrameIndexInLine && !aLines.empty() && aFrame, "null ptr");
+  for (nsLineList::iterator line = aLines.begin(),
+                            line_end = aLines.end();
+       line != line_end;
+       ++line)
+  {
+    PRInt32 ix = line->IndexOf(aFrame);
+    if (ix >= 0) {
+      *aFrameIndexInLine = ix;
+      return line;
+    }
+  }
+  *aFrameIndexInLine = -1;
+  return nsnull;
 }
 
 PRBool
@@ -634,6 +652,23 @@ nsLineIterator::FindLineContaining(nsIFrame* aFrame)
     line = mLines[++lineNumber];
   }
   return -1;
+}
+
+/* virtual */ PRInt32
+nsLineIterator::FindLineAt(nscoord aY)
+{
+  nsLineBox* line = mLines[0];
+  if (!line || (aY < line->mBounds.y)) {
+    return -1;
+  }
+  PRInt32 lineNumber = 0;
+  while (lineNumber != mNumLines) {
+    if ((aY >= line->mBounds.y) && (aY < line->mBounds.YMost())) {
+      return lineNumber;
+    }
+    line = mLines[++lineNumber];
+  }
+  return mNumLines;
 }
 
 #ifdef IBMBIDI

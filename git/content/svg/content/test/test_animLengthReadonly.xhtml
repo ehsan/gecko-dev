@@ -12,19 +12,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=506856
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=506856">Mozilla Bug 506856</a>
 <p id="display"></p>
 <div id="content" style="display: none">
-<svg id="svg" xmlns="http://www.w3.org/2000/svg"
-     width="100px" height="100px" viewBox="0 0 100 100"
-     onload="this.pauseAnimations()">
-  <!-- Note: Need a viewBox on the SVG element, or else our percent-length
-       basis will be '0' (based off of the viewport width, which is 0 in this
-       case since we're in a display:none iframe. We use viewport width because
-       the lack of a viewbox forces us into the not-mViewBox::IsValid() case of
-       nsSVGSVGElement::GetLength).
-
-       And we don't want a percent-length basis of 0, because then when we call
-       convertToSpecifiedUnits to convert out of percent units, we divide by 0
-       and get unexpected results.
-    -->
+<svg id="svg" xmlns="http://www.w3.org/2000/svg" width="100px" height="100px">
   <circle cx="-100" cy="-100" r="15" fill="blue" id="circle">
     <animate attributeName="cx" from="0" to="100" dur="4s" begin="1s; 10s"
       fill="freeze" id="animate"/>
@@ -46,9 +34,6 @@ var circle = document.getElementById('circle');
 SimpleTest.waitForExplicitFinish();
 
 function main() {
-  ok(svg.animationsPaused(), "should be paused by <svg> load handler");
-  is(svg.getCurrentTime(), 0, "should be paused at 0 in <svg> load handler");
-
   // Sanity check: check initial values
   is(circle.cx.baseVal.value, -100);
   is(circle.cx.animVal.value, -100);
@@ -62,6 +47,7 @@ function main() {
     "(1) animVal cy is editable when not animated");
 
   // Skip to mid-way through the animation
+  svg.pauseAnimations();
   svg.setCurrentTime(4);
 
   // (2): Check that whilst animations are active the animVal's are readonly

@@ -993,19 +993,10 @@ class nsRefPtr
             mRawPtr->AddRef();
         }
 
-      template <typename I>
-      nsRefPtr( const already_AddRefed<I>& aSmartPtr )
+      nsRefPtr( const already_AddRefed<T>& aSmartPtr )
             : mRawPtr(aSmartPtr.mRawPtr)
           // construct from |dont_AddRef(expr)|
         {
-        }
-
-      nsRefPtr( const nsCOMPtr_helper& helper )
-        {
-          void* newRawPtr;
-          if (NS_FAILED(helper(NS_GET_TEMPLATE_IID(T), &newRawPtr)))
-            newRawPtr = 0;
-          mRawPtr = static_cast<T*>(newRawPtr);
         }
 
         // Assignment operators
@@ -1026,22 +1017,11 @@ class nsRefPtr
           return *this;
         }
 
-      template <typename I>
       nsRefPtr<T>&
-      operator=( const already_AddRefed<I>& rhs )
+      operator=( const already_AddRefed<T>& rhs )
           // assign from |dont_AddRef(expr)|
         {
           assign_assuming_AddRef(rhs.mRawPtr);
-          return *this;
-        }
-
-      nsRefPtr<T>&
-      operator=( const nsCOMPtr_helper& helper )
-        {
-          void* newRawPtr;
-          if (NS_FAILED(helper(NS_GET_TEMPLATE_IID(T), &newRawPtr)))
-            newRawPtr = 0;
-          assign_assuming_AddRef(static_cast<T*>(newRawPtr));
           return *this;
         }
 
@@ -1436,99 +1416,6 @@ operator==( int lhs, const nsRefPtr<T>& rhs )
   }
 
 #endif // !defined(HAVE_CPP_TROUBLE_COMPARING_TO_ZERO)
-
-template <class SourceType, class DestinationType>
-inline
-nsresult
-CallQueryInterface( nsRefPtr<SourceType>& aSourcePtr, DestinationType** aDestPtr )
-  {
-    return CallQueryInterface(aSourcePtr.get(), aDestPtr);
-  }
-
-/*****************************************************************************/
-
-template<class T>
-class nsQueryObject : public nsCOMPtr_helper
-{
-public:
-  nsQueryObject(T* aRawPtr)
-    : mRawPtr(aRawPtr) {}
-
-  virtual nsresult NS_FASTCALL operator()( const nsIID& aIID, void** aResult ) const {
-    nsresult status = mRawPtr ? mRawPtr->QueryInterface(aIID, aResult)
-                              : NS_ERROR_NULL_POINTER;
-    return status;
-  }
-private:
-  T* mRawPtr;
-};
-
-template<class T>
-class nsQueryObjectWithError : public nsCOMPtr_helper
-{
-public:
-  nsQueryObjectWithError(T* aRawPtr, nsresult* aErrorPtr)
-    : mRawPtr(aRawPtr), mErrorPtr(aErrorPtr) {}
-
-  virtual nsresult NS_FASTCALL operator()( const nsIID& aIID, void** aResult ) const {
-    nsresult status = mRawPtr ? mRawPtr->QueryInterface(aIID, aResult)
-                              : NS_ERROR_NULL_POINTER;
-    if (mErrorPtr)
-      *mErrorPtr = status;
-    return status;
-  }
-private:
-  T* mRawPtr;
-  nsresult* mErrorPtr;
-};
-
-template<class T>
-inline
-nsQueryObject<T>
-do_QueryObject(T* aRawPtr)
-{
-  return nsQueryObject<T>(aRawPtr);
-}
-
-template<class T>
-inline
-nsQueryObject<T>
-do_QueryObject(nsCOMPtr<T>& aRawPtr)
-{
-  return nsQueryObject<T>(aRawPtr);
-}
-
-template<class T>
-inline
-nsQueryObject<T>
-do_QueryObject(nsRefPtr<T>& aRawPtr)
-{
-  return nsQueryObject<T>(aRawPtr);
-}
-
-template<class T>
-inline
-nsQueryObjectWithError<T>
-do_QueryObject(T* aRawPtr, nsresult* aErrorPtr)
-{
-  return nsQueryObjectWithError<T>(aRawPtr, aErrorPtr);
-}
-
-template<class T>
-inline
-nsQueryObjectWithError<T>
-do_QueryObject(nsCOMPtr<T>& aRawPtr, nsresult* aErrorPtr)
-{
-  return nsQueryObjectWithError<T>(aRawPtr, aErrorPtr);
-}
-
-template<class T>
-inline
-nsQueryObjectWithError<T>
-do_QueryObject(nsRefPtr<T>& aRawPtr, nsresult* aErrorPtr)
-{
-  return nsQueryObjectWithError<T>(aRawPtr, aErrorPtr);
-}
 
 /*****************************************************************************/
 

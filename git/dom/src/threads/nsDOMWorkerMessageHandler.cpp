@@ -89,13 +89,11 @@ nsDOMWorkerWrappedWeakEventListener(nsDOMWorkerWeakEventListener* aInner)
   NS_ASSERTION(aInner, "Null pointer!");
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS3(nsDOMWorkerMessageHandler,
-                              nsIDOMNSEventTarget,
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsDOMWorkerMessageHandler,
                               nsIDOMEventTarget,
                               nsIClassInfo)
 
-NS_IMPL_CI_INTERFACE_GETTER2(nsDOMWorkerMessageHandler,
-                             nsIDOMNSEventTarget,
+NS_IMPL_CI_INTERFACE_GETTER1(nsDOMWorkerMessageHandler,
                              nsIDOMEventTarget)
 
 NS_IMPL_THREADSAFE_DOM_CI(nsDOMWorkerMessageHandler)
@@ -254,7 +252,25 @@ nsDOMWorkerMessageHandler::AddEventListener(const nsAString& aType,
                                             nsIDOMEventListener* aListener,
                                             PRBool aUseCapture)
 {
-  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 0);
+  ListenerCollection* collection =
+    const_cast<ListenerCollection*>(GetListenerCollection(aType));
+
+  if (!collection) {
+    collection = mCollections.AppendElement(aType);
+    NS_ENSURE_TRUE(collection, NS_ERROR_OUT_OF_MEMORY);
+  }
+
+  nsRefPtr<nsDOMWorkerWeakEventListener> weakListener =
+    new nsDOMWorkerWeakEventListener();
+  NS_ENSURE_TRUE(weakListener, NS_ERROR_OUT_OF_MEMORY);
+
+  nsresult rv = weakListener->Init(aListener);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  WeakListener* newListener = collection->listeners.AppendElement(weakListener);
+  NS_ENSURE_TRUE(newListener, NS_ERROR_OUT_OF_MEMORY);
+
+  return NS_OK;
 }
 
 /**
@@ -334,57 +350,4 @@ nsDOMWorkerMessageHandler::DispatchEvent(nsIDOMEvent* aEvent,
   }
 
   return NS_OK;
-}
-
-/**
- * See nsIDOMNSEventTarget
- */
-NS_IMETHODIMP
-nsDOMWorkerMessageHandler::AddEventListener(const nsAString& aType,
-                                            nsIDOMEventListener* aListener,
-                                            PRBool aUseCapture,
-                                            PRBool aWantsUntrusted,
-                                            PRUint8 optional_argc)
-{
-  // We don't support aWantsUntrusted yet.
-  NS_ENSURE_TRUE(optional_argc == 0, NS_ERROR_NOT_IMPLEMENTED);
-
-  ListenerCollection* collection =
-    const_cast<ListenerCollection*>(GetListenerCollection(aType));
-
-  if (!collection) {
-    collection = mCollections.AppendElement(aType);
-    NS_ENSURE_TRUE(collection, NS_ERROR_OUT_OF_MEMORY);
-  }
-
-  nsRefPtr<nsDOMWorkerWeakEventListener> weakListener =
-    new nsDOMWorkerWeakEventListener();
-  NS_ENSURE_TRUE(weakListener, NS_ERROR_OUT_OF_MEMORY);
-
-  nsresult rv = weakListener->Init(aListener);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  WeakListener* newListener = collection->listeners.AppendElement(weakListener);
-  NS_ENSURE_TRUE(newListener, NS_ERROR_OUT_OF_MEMORY);
-
-  return NS_OK;
-}
-
-/**
- * See nsIDOMNSEventTarget
- */
-NS_IMETHODIMP
-nsDOMWorkerMessageHandler::GetScriptTypeID(PRUint32 *aScriptType)
-{
-  *aScriptType = nsIProgrammingLanguage::JAVASCRIPT;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWorkerMessageHandler::SetScriptTypeID(PRUint32 aScriptType)
-{
-  NS_ERROR("Can't change default script type for workers");
-
-  return NS_ERROR_NOT_IMPLEMENTED;
 }

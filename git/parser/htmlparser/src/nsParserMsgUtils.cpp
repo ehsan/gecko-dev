@@ -40,7 +40,6 @@
 #include "nsXPIDLString.h"
 #include "nsParserMsgUtils.h"
 #include "nsNetCID.h"
-#include "mozilla/Services.h"
 
 static nsresult GetBundle(const char * aPropFileName, nsIStringBundle **aBundle)
 {
@@ -48,13 +47,14 @@ static nsresult GetBundle(const char * aPropFileName, nsIStringBundle **aBundle)
   NS_ENSURE_ARG_POINTER(aBundle);
 
   // Create a bundle for the localization
-
-  nsCOMPtr<nsIStringBundleService> stringService =
-    mozilla::services::GetStringBundleService();
-  if (!stringService)
-    return NS_ERROR_FAILURE;
-
-  return stringService->CreateBundle(aPropFileName, aBundle);
+  nsresult rv;
+  
+  nsCOMPtr<nsIStringBundleService> stringService = 
+    do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+  if (NS_SUCCEEDED(rv))
+    rv = stringService->CreateBundle(aPropFileName, aBundle);
+  
+  return rv;
 }
 
 nsresult

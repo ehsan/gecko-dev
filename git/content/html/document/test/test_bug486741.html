@@ -26,13 +26,16 @@ addLoadEvent(function() {
   is(root.tagName, "HTML", "Unexpected root");
 
   d.open();
-  isnot(d.documentElement, root, "Shouldn't have the old root element");
+  var newRoot = d.documentElement;
+  is(newRoot.tagName, "HTML", "Unexpected new root");
+  isnot(newRoot, root, "Shouldn't be the same node");
 
   d.write("Test");
   d.close();
 
-  isnot(d.documentElement, root, "Still shouldn't have the old root element");
-  is(d.documentElement.tagName, "HTML", "Unexpected new root after write");
+  var newNewRoot = d.documentElement;
+  is(newNewRoot.tagName, "HTML", "Unexpected new root after write");
+  is(newNewRoot, newNewRoot, "write+close shouldn't change the root");
 
   SimpleTest.finish();
 });

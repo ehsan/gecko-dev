@@ -100,6 +100,8 @@ function test() {
 var gBMFolder = null;
 var gAddedEngines = [];
 function setupKeywords() {
+  var searchService = Cc["@mozilla.org/browser/search-service;1"].
+                      getService(Ci.nsIBrowserSearchService);
   gBMFolder = Application.bookmarks.menu.addFolder("keyword-test");
   for each (var item in testData) {
     var data = item[0];
@@ -111,8 +113,8 @@ function setupKeywords() {
     }
 
     if (data instanceof searchKeywordData) {
-      Services.search.addEngineWithDetails(data.keyword, "", data.keyword, "", data.method, data.uri.spec);
-      var addedEngine = Services.search.getEngineByName(data.keyword);
+      searchService.addEngineWithDetails(data.keyword, "", data.keyword, "", data.method, data.uri.spec);
+      var addedEngine = searchService.getEngineByName(data.keyword);
       if (data.postData) {
         var [paramName, paramValue] = data.postData.split("=");
         addedEngine.addParam(paramName, paramValue, null);
@@ -124,6 +126,8 @@ function setupKeywords() {
 }
 
 function cleanupKeywords() {
+  var searchService = Cc["@mozilla.org/browser/search-service;1"].
+                      getService(Ci.nsIBrowserSearchService);
   gBMFolder.remove();
-  gAddedEngines.map(Services.search.removeEngine);
+  gAddedEngines.map(searchService.removeEngine);
 }

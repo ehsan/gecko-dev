@@ -144,54 +144,30 @@ class DeferredWindowPosMessage : public DeferredMessage
 {
 public:
   DeferredWindowPosMessage(HWND aHWnd,
-                           LPARAM aLParam,
-                           bool aForCalcSize = false,
-                           WPARAM aWParam = 0);
-
-  virtual void Run();
-
-private:
-  WINDOWPOS windowPos;
-};
-
-// This class duplicates a data buffer for a WM_COPYDATA message.
-class DeferredCopyDataMessage : public DeferredSendMessage
-{
-public:
-  DeferredCopyDataMessage(HWND aHWnd,
-                          UINT aMessage,
-                          WPARAM aWParam,
-                          LPARAM aLParam);
-
-  ~DeferredCopyDataMessage();
-private:
-  COPYDATASTRUCT copyData;
-};
-
-class DeferredStyleChangeMessage : public DeferredMessage
-{
-public:
-  DeferredStyleChangeMessage(HWND aHWnd,
-                             WPARAM aWParam,
-                             LPARAM aLParam);
+                           UINT aFlags)
+   : hWnd(aHWnd),
+     flags(aFlags)
+  { }
 
   virtual void Run();
 
 private:
   HWND hWnd;
-  int index;
-  LONG_PTR style;
+  UINT flags;
 };
 
-class DeferredSetIconMessage : public DeferredSendMessage
+class DeferredNCActivateMessage : public DeferredSendMessage
 {
 public:
-  DeferredSetIconMessage(HWND aHWnd,
-                         UINT aMessage,
-                         WPARAM aWParam,
-                         LPARAM aLParam);
+  DeferredNCActivateMessage(HWND aHWnd,
+                            UINT aMessage,
+                            WPARAM aWParam,
+                            LPARAM aLParam);
 
-  virtual void Run();
+  ~DeferredNCActivateMessage();
+
+private:
+  HRGN region;
 };
 
 } /* namespace windows */

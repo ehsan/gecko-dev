@@ -120,7 +120,7 @@
           location.reload();
         } catch (e) {
           // We probably tried to reload a URI that caused an exception to
-          // occur;  e.g. a nonexistent file.
+          // occur;  e.g. a non-existent file.
         }
 
         buttonEl.disabled = true;
@@ -183,13 +183,7 @@
         if (className == "expertBadCert") {
           showSecuritySection();
         }
-
-        if (err == "cspFrameAncestorBlocked") {
-          // Remove the "Try again" button for CSP frame ancestors violation, since it's
-          // almost certainly useless. (Bug 553180)
-          document.getElementById("errorTryAgain").style.display = "none";
-        }
-
+        
         if (err == "nssBadCert") {
           // Remove the "Try again" button for security exceptions, since it's
           // almost certainly useless.
@@ -319,7 +313,6 @@
         <h1 id="et_nssFailure2">&nssFailure2.title;</h1>
         <h1 id="et_nssBadCert">&nssBadCert.title;</h1>
         <h1 id="et_malwareBlocked">&malwareBlocked.title;</h1>
-        <h1 id="et_cspFrameAncestorBlocked">&cspFrameAncestorBlocked.title;</h1>
       </div>
       <div id="errorDescriptionsContainer">
         <div id="ed_generic">&generic.longDesc;</div>
@@ -342,7 +335,6 @@
         <div id="ed_nssFailure2">&nssFailure2.longDesc;</div>
         <div id="ed_nssBadCert">&nssBadCert.longDesc2;</div>
         <div id="ed_malwareBlocked">&malwareBlocked.longDesc;</div>
-        <div id="ed_cspFrameAncestorBlocked">&cspFrameAncestorBlocked.longDesc;</div>
       </div>
     </div>
 

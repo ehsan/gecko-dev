@@ -9,85 +9,12 @@ tabbrowser {
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser");
 }
 
-.tabbrowser-tabs {
-  -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-tabs");
-}
-
-#tabbrowser-tabs:not([overflow="true"]) + #new-tab-button,
-#tabbrowser-tabs[overflow="true"] > .tabbrowser-arrowscrollbox > .tabs-newtab-button,
-#TabsToolbar[currentset]:not([currentset*="tabbrowser-tabs,new-tab-button"]) > #tabbrowser-tabs > .tabbrowser-arrowscrollbox > .tabs-newtab-button,
-#navigator-toolbox[customizing="true"] > #TabsToolbar > #tabbrowser-tabs > .tabbrowser-arrowscrollbox > .tabs-newtab-button {
-  visibility: collapse;
-}
-
-.tabbrowser-tab {
-  -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-tab");
-  -moz-box-flex: 100;
-}
-
-.tabbrowser-tab:not([fadein]) {
-  max-width: 1px !important;
-  min-width: 1px !important;
-}
-
-.tabbrowser-tab[fadein]:not([pinned]) {
-  -moz-transition: min-width .2s ease-out, max-width .25s ease-out;
-}
-
-.tabbrowser-tab:not([fadein]) > .tab-text,
-.tabbrowser-tab:not([fadein]) > .tab-icon-image,
-.tabbrowser-tab:not([fadein]) > .tab-close-button {
-  opacity: 0 !important;
-}
-
-.tabbrowser-tab[fadein] > .tab-text,
-.tabbrowser-tab[fadein] > .tab-icon-image,
-.tabbrowser-tab[fadein] > .tab-close-button {
-  -moz-transition: opacity .25s;
-}
-
-.tabbrowser-tab[pinned] {
-  position: fixed;
-  -moz-box-flex: 0;
-  min-width: 0 !important;
-  max-width: none !important;
-}
-
-.tabbrowser-tab[pinned] > .tab-text {
-  display: none;
-}
-
-#alltabs-popup {
-  -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-alltabs-popup");
-}
-
 toolbar[printpreview="true"] {
   -moz-binding: url("chrome://global/content/printPreviewBindings.xml#printpreviewtoolbar");
 }
 
-#toolbar-menubar {
-  -moz-box-ordinal-group: 5;
-}
-
-#navigator-toolbox > toolbar:not(#toolbar-menubar):not(#TabsToolbar) {
-  -moz-box-ordinal-group: 50;
-}
-
-#TabsToolbar {
-  -moz-box-ordinal-group: 100;
-}
-
-#navigator-toolbox[tabsontop="true"] > #TabsToolbar {
-  -moz-box-ordinal-group: 10;
-}
-
 toolbarpaletteitem[place="palette"] > toolbaritem > hbox[type="places"] {
   display: none;
-}
-
-toolbar[mode="icons"] > #reload-button:not([displaystop]) + #stop-button,
-toolbar[mode="icons"] > #reload-button[displaystop] {
-  visibility: collapse;
 }
 
 #main-window:-moz-lwtheme {
@@ -106,34 +33,9 @@ toolbar[mode="icons"] > #reload-button[displaystop] {
   background-position: bottom left;
 }
 
-.split-menuitem-menu > .menu-text,
-.split-menuitem-menu > .menu-accel-container {
-  display: none;
-}
-
 /* ::::: location bar ::::: */
 #urlbar {
   -moz-binding: url(chrome://browser/content/urlbarBindings.xml#urlbar);
-}
-
-/* Some child nodes want to be ordered based on the locale's direction, while
-   everything else should be ltr. */
-#urlbar:-moz-locale-dir(rtl) > .autocomplete-textbox-container > .textbox-input-box {
-  direction: rtl;
-}
-
-#urlbar html|*.autocomplete-textbox {
-  direction: ltr;
-}
-
-/* For results that are actions, their description text is shown instead of
-   the URL - this needs to follow the locale's direction, unlike URLs. */
-richlistitem[type="action"]:-moz-locale-dir(rtl) > .ac-url-box {
-  direction: rtl;
-}
-
-#urlbar:not([actiontype]) > #urlbar-display {
-  display: none;
 }
 
 #wrapper-urlbar-container > #urlbar-container > #urlbar {
@@ -164,20 +66,14 @@ richlistitem[type="action"]:-moz-locale-dir(rtl) > .ac-url-box {
 }
 
 #urlbar[pageproxystate="invalid"] > #urlbar-icons > .urlbar-icon:not(#go-button),
-#urlbar[pageproxystate="valid"] > #urlbar-icons > #go-button {
+#urlbar[pageproxystate="valid"] > #urlbar-icons > #go-button ,
+#urlbar[isempty="true"] > #urlbar-icons > #go-button {
   visibility: collapse;
 }
 
-#identity-icon-labels {
-  max-width: 18em;
-}
-
-#identity-icon-country-label {
-  direction: ltr;
-}
-
-#identity-box.verifiedIdentity > #identity-box-inner > #identity-icon-labels > #identity-icon-label {
-  -moz-margin-end: 0.25em !important;
+#identity-box-inner {
+  max-width: 22em;
+  min-width: 1px;
 }
 
 #wrapper-search-container > #search-container > #searchbar > .searchbar-textbox > .autocomplete-textbox-container > .textbox-input-box > html|*.textbox-input {
@@ -195,15 +91,11 @@ richlistitem[type="action"]:-moz-locale-dir(rtl) > .ac-url-box {
   font-weight: bold;
 }
 
-toolbarbutton.bookmark-item {
-  max-width: 13em;
-}
-
-%ifdef MENUBAR_CAN_AUTOHIDE
-#toolbar-menubar:not([autohide="true"]) ~ #nav-bar > #bookmarks-menu-button-container,
-#toolbar-menubar:not([autohide="true"]) ~ toolbar > #personal-bookmarks > #bookmarks-menu-button,
-#toolbar-menubar:not([autohide="true"]) > #personal-bookmarks > #bookmarks-menu-button {
-  display: none;
+%ifdef MOZ_WIDGET_GTK2
+/* Bookmarks override the "images-in-menus" metric in xul.css */
+.bookmark-item > .menu-iconic-left,
+.searchbar-engine-menuitem > .menu-iconic-left {
+  visibility: inherit;
 }
 %endif
 
@@ -212,15 +104,11 @@ toolbarbutton.bookmark-item {
   width: auto;
 }
 
-menupopup[emptyplacesresult="true"] > .hide-if-empty-places-result {
-  display: none;
-}
-
 menuitem.spell-suggestion {
   font-weight: bold;
 }
 
-#sidebar-header > .tabs-closebutton {
+#sidebar-box toolbarbutton.tabs-closebutton {
   -moz-user-focus: normal;
 }
 
@@ -252,18 +140,19 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 }
 
 /*  Full Screen UI */
-
 #fullscr-toggler {
-  height: 1px;
-  background: black;
+  display: none;
+  min-height: 5px;
+  height: 5px;
 }
 
+#navigator-toolbox[inFullscreen="true"] > #fullscr-toggler,
 #nav-bar[mode="text"] > #window-controls > toolbarbutton > .toolbarbutton-icon {
-  display: -moz-box;
+ display: -moz-box;
 }
 
 #nav-bar[mode="text"] > #window-controls > toolbarbutton > .toolbarbutton-text {
-  display: none;
+ display: none;
 }
 
 /* ::::: Keyboard UI Panel ::::: */
@@ -303,6 +192,7 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 /* ::::: All Tabs Panel ::::: */
 .allTabs-preview {
   -moz-binding: url("chrome://browser/content/browser-tabPreviews.xml#allTabs-preview");
+  vertical-align: top;
 }
 
 #allTabs-tab-close-button {
@@ -310,19 +200,6 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
   margin: 0;
 }
 
-/* Inspector / Highlighter */
-
-#highlighter-panel {
-  -moz-appearance: none;
-  -moz-window-shadow: none;
-}
-
-/* notification anchors should only be visible when their associated
-   notifications are */
-.notification-anchor-icon {
-  display: none;
-}
-
-#notification-popup-box[anchorid="geo-notification-icon"] > #geo-notification-icon {
-  display: -moz-box;
+#allTabs-container {
+  display: block;
 }

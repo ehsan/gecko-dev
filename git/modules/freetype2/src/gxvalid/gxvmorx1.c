@@ -103,7 +103,7 @@
   gxv_morx_subtable_type1_entry_validate(
     FT_UShort                       state,
     FT_UShort                       flags,
-    GXV_StateTable_GlyphOffsetCPtr  glyphOffset_p,
+    GXV_StateTable_GlyphOffsetDesc  glyphOffset,
     FT_Bytes                        table,
     FT_Bytes                        limit,
     GXV_Validator                   valid )
@@ -127,8 +127,8 @@
 
     reserved = (FT_UShort)( flags & 0x3FFF );
 
-    markIndex    = (FT_Short)( glyphOffset_p->ul >> 16 );
-    currentIndex = (FT_Short)( glyphOffset_p->ul       );
+    markIndex    = (FT_Short)( glyphOffset.ul >> 16 );
+    currentIndex = (FT_Short)( glyphOffset.ul       );
 
     GXV_TRACE(( " setMark=%01d dontAdvance=%01d\n",
                 setMark, dontAdvance ));
@@ -155,14 +155,14 @@
 
   static void
   gxv_morx_subtable_type1_LookupValue_validate( FT_UShort            glyph,
-                                                GXV_LookupValueCPtr  value_p,
+                                                GXV_LookupValueDesc  value,
                                                 GXV_Validator        valid )
   {
     FT_UNUSED( glyph ); /* for the non-debugging case */
 
-    GXV_TRACE(( "morx subtable type1 subst.: %d -> %d\n", glyph, value_p->u ));
+    GXV_TRACE(( "morx subtable type1 subst.: %d -> %d\n", glyph, value.u ));
 
-    if ( value_p->u > valid->face->num_glyphs )
+    if ( value.u > valid->face->num_glyphs )
       FT_INVALID_GLYPH_ID;
   }
 
@@ -170,7 +170,7 @@
   static GXV_LookupValueDesc
   gxv_morx_subtable_type1_LookupFmt4_transit(
     FT_UShort            relative_gindex,
-    GXV_LookupValueCPtr  base_value_p,
+    GXV_LookupValueDesc  base_value,
     FT_Bytes             lookuptbl_limit,
     GXV_Validator        valid )
   {
@@ -180,7 +180,7 @@
     GXV_LookupValueDesc  value;
 
     /* XXX: check range? */
-    offset = (FT_UShort)( base_value_p->u +
+    offset = (FT_UShort)( base_value.u +
                           relative_gindex * sizeof ( FT_UShort ) );
 
     p     = valid->lookuptbl_head + offset;

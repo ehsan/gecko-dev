@@ -49,14 +49,15 @@
 
 #define TYPEOF(cx,v)    (JSVAL_IS_NULL(v) ? JSTYPE_NULL : JS_TypeOfValue(cx,v))
 
-using namespace js;
-
 static char dempty[] = "<null>";
 
 static char *
-jsdtrace_fun_classname(const JSFunction *fun)
+jsdtrace_fun_classname(JSFunction *fun)
 {
-    return (fun && !FUN_INTERPRETED(fun) && !(fun->flags & JSFUN_TRCINFO) && FUN_CLASP(fun))
+    return (fun &&
+            !FUN_INTERPRETED(fun) &&
+            !(fun->flags & JSFUN_TRCINFO) &&
+            FUN_CLASP(fun))
            ? (char *)FUN_CLASP(fun)->name
            : dempty;
 }
@@ -64,11 +65,13 @@ jsdtrace_fun_classname(const JSFunction *fun)
 static char *
 jsdtrace_filename(JSStackFrame *fp)
 {
-    return (fp && fp->script && fp->script->filename) ? (char *)fp->script->filename : dempty;
+    return (fp && fp->script && fp->script->filename)
+           ? (char *)fp->script->filename
+           : dempty;
 }
 
 static int
-jsdtrace_fun_linenumber(JSContext *cx, const JSFunction *fun)
+jsdtrace_fun_linenumber(JSContext *cx, JSFunction *fun)
 {
     if (fun && FUN_INTERPRETED(fun))
         return (int) JS_GetScriptBaseLineNumber(cx, FUN_SCRIPT(fun));
@@ -76,10 +79,10 @@ jsdtrace_fun_linenumber(JSContext *cx, const JSFunction *fun)
     return 0;
 }
 
-static int
+int
 jsdtrace_frame_linenumber(JSContext *cx, JSStackFrame *fp)
 {
-    if (fp)
+    if (fp && fp->regs)
         return (int) js_FramePCToLineNumber(cx, fp);
 
     return 0;
@@ -106,7 +109,7 @@ jsdtrace_frame_linenumber(JSContext *cx, JSStackFrame *fp)
  * provide raw (unmasked) jsvals should type info be useful from D scripts.
  */
 static void *
-jsdtrace_jsvaltovoid(JSContext *cx, const jsval argval)
+jsdtrace_jsvaltovoid(JSContext *cx, jsval argval)
 {
     JSType type = TYPEOF(cx, argval);
 
@@ -133,12 +136,15 @@ jsdtrace_jsvaltovoid(JSContext *cx, const jsval argval)
 }
 
 static char *
-jsdtrace_fun_name(JSContext *cx, const JSFunction *fun)
+jsdtrace_fun_name(JSContext *cx, JSFunction *fun)
 {
+    JSAtom *atom;
+    char *name;
+
     if (!fun)
         return dempty;
 
-    JSAtom *atom = fun->atom;
+    atom = fun->atom;
     if (!atom) {
         /*
          * TODO: maybe do more work here to figure out the name of the property
@@ -148,7 +154,7 @@ jsdtrace_fun_name(JSContext *cx, const JSFunction *fun)
         return dempty;
     }
 
-    char *name = (char *)js_GetStringBytes(cx, ATOM_TO_STRING(atom));
+    name = (char *)js_GetStringBytes(cx, ATOM_TO_STRING(atom));
     return name ? name : dempty;
 }
 
@@ -160,85 +166,116 @@ jsdtrace_fun_name(JSContext *cx, const JSFunction *fun)
  * a number of usually unused lines of code would cause.
  */
 void
-DTrace::enterJSFunImpl(JSContext *cx, JSStackFrame *fp, const JSFunction *fun)
+jsdtrace_function_entry(JSContext *cx, JSStackFrame *fp, JSFunction *fun)
 {
-    JAVASCRIPT_FUNCTION_ENTRY(jsdtrace_filename(fp), jsdtrace_fun_classname(fun),
-                              jsdtrace_fun_name(cx, fun));
+    JAVASCRIPT_FUNCTION_ENTRY(
+        jsdtrace_filename(fp),
+        jsdtrace_fun_classname(fun),
+        jsdtrace_fun_name(cx, fun)
+    );
 }
 
 void
-DTrace::handleFunctionInfo(JSContext *cx, JSStackFrame *fp, JSStackFrame *dfp, JSFunction *fun)
+jsdtrace_function_info(JSContext *cx, JSStackFrame *fp, JSStackFrame *dfp,
+                       JSFunction *fun)
 {
-    JAVASCRIPT_FUNCTION_INFO(jsdtrace_filename(fp), jsdtrace_fun_classname(fun),
-                             jsdtrace_fun_name(cx, fun), jsdtrace_fun_linenumber(cx, fun),
-                             jsdtrace_filename(dfp), jsdtrace_frame_linenumber(cx, dfp));
+    JAVASCRIPT_FUNCTION_INFO(
+        jsdtrace_filename(fp),
+        jsdtrace_fun_classname(fun),
+        jsdtrace_fun_name(cx, fun),
+        jsdtrace_fun_linenumber(cx, fun),
+        jsdtrace_filename(dfp),
+        jsdtrace_frame_linenumber(cx, dfp)
+    );
 }
 
 void
-DTrace::handleFunctionArgs(JSContext *cx, JSStackFrame *fp, const JSFunction *fun, jsuint argc,
-                           jsval *argv)
+jsdtrace_function_args(JSContext *cx, JSStackFrame *fp, JSFunction *fun, jsuint argc, jsval *argv)
 {
-    JAVASCRIPT_FUNCTION_ARGS(jsdtrace_filename(fp), jsdtrace_fun_classname(fun),
-                             jsdtrace_fun_name(cx, fun), argc, (void *)argv,
-                             (argc > 0) ? jsdtrace_jsvaltovoid(cx, argv[0]) : 0,
-                             (argc > 1) ? jsdtrace_jsvaltovoid(cx, argv[1]) : 0,
-                             (argc > 2) ? jsdtrace_jsvaltovoid(cx, argv[2]) : 0,
-                             (argc > 3) ? jsdtrace_jsvaltovoid(cx, argv[3]) : 0,
-                             (argc > 4) ? jsdtrace_jsvaltovoid(cx, argv[4]) : 0);
+    JAVASCRIPT_FUNCTION_ARGS(
+        jsdtrace_filename(fp),
+        jsdtrace_fun_classname(fun),
+        jsdtrace_fun_name(cx, fun),
+        argc, (void *)argv,
+        (argc > 0) ? jsdtrace_jsvaltovoid(cx, argv[0]) : 0,
+        (argc > 1) ? jsdtrace_jsvaltovoid(cx, argv[1]) : 0,
+        (argc > 2) ? jsdtrace_jsvaltovoid(cx, argv[2]) : 0,
+        (argc > 3) ? jsdtrace_jsvaltovoid(cx, argv[3]) : 0,
+        (argc > 4) ? jsdtrace_jsvaltovoid(cx, argv[4]) : 0
+    );
 }
 
 void
-DTrace::handleFunctionRval(JSContext *cx, JSStackFrame *fp, JSFunction *fun, jsval rval)
+jsdtrace_function_rval(JSContext *cx, JSStackFrame *fp, JSFunction *fun, jsval *rval)
 {
-    JAVASCRIPT_FUNCTION_RVAL(jsdtrace_filename(fp), jsdtrace_fun_classname(fun),
-                             jsdtrace_fun_name(cx, fun), jsdtrace_fun_linenumber(cx, fun),
-                             NULL, jsdtrace_jsvaltovoid(cx, rval));
+    JAVASCRIPT_FUNCTION_RVAL(
+        jsdtrace_filename(fp),
+        jsdtrace_fun_classname(fun),
+        jsdtrace_fun_name(cx, fun),
+        jsdtrace_fun_linenumber(cx, fun),
+        (void *)rval,
+        jsdtrace_jsvaltovoid(cx, *rval)
+    );
 }
 
 void
-DTrace::handleFunctionReturn(JSContext *cx, JSStackFrame *fp, JSFunction *fun)
+jsdtrace_function_return(JSContext *cx, JSStackFrame *fp, JSFunction *fun)
 {
-    JAVASCRIPT_FUNCTION_RETURN(jsdtrace_filename(fp), jsdtrace_fun_classname(fun),
-                               jsdtrace_fun_name(cx, fun));
+    JAVASCRIPT_FUNCTION_RETURN(
+        jsdtrace_filename(fp),
+        jsdtrace_fun_classname(fun),
+        jsdtrace_fun_name(cx, fun)
+    );
 }
 
 void
-DTrace::ObjectCreationScope::handleCreationStart()
+jsdtrace_object_create_start(JSStackFrame *fp, JSClass *clasp)
 {
     JAVASCRIPT_OBJECT_CREATE_START(jsdtrace_filename(fp), (char *)clasp->name);
 }
 
 void
-DTrace::ObjectCreationScope::handleCreationEnd()
+jsdtrace_object_create_done(JSStackFrame *fp, JSClass *clasp)
 {
     JAVASCRIPT_OBJECT_CREATE_DONE(jsdtrace_filename(fp), (char *)clasp->name);
 }
 
 void
-DTrace::ObjectCreationScope::handleCreationImpl(JSObject *obj)
+jsdtrace_object_create(JSContext *cx, JSClass *clasp, JSObject *obj)
 {
-    JAVASCRIPT_OBJECT_CREATE(jsdtrace_filename(cx->fp), (char *)clasp->name, (uintptr_t)obj,
-                             jsdtrace_frame_linenumber(cx, cx->fp));
+    JAVASCRIPT_OBJECT_CREATE(
+        jsdtrace_filename(cx->fp),
+        (char *)clasp->name,
+        (uintptr_t)obj,
+        jsdtrace_frame_linenumber(cx, cx->fp)
+    );
 }
 
 void
-DTrace::finalizeObjectImpl(JSObject *obj)
+jsdtrace_object_finalize(JSObject *obj)
 {
-    JSClass *clasp = obj->getClass();
+    JSClass *clasp;
+
+    clasp = obj->getClass();
 
     /* the first arg is NULL - reserved for future use (filename?) */
     JAVASCRIPT_OBJECT_FINALIZE(NULL, (char *)clasp->name, (uintptr_t)obj);
 }
 
 void
-DTrace::ExecutionScope::startExecution()
+jsdtrace_execute_start(JSScript *script)
 {
-    JAVASCRIPT_EXECUTE_START(script->filename ? (char *)script->filename : dempty,
-                             script->lineno);
+    JAVASCRIPT_EXECUTE_START(
+        script->filename ? (char *)script->filename : dempty,
+        script->lineno
+    );
 }
 
 void
-DTrace::ExecutionScope::endExecution()
+jsdtrace_execute_done(JSScript *script)
 {
-    JAVASCRIPT_EXECUTE_DONE(script->filename ? (char *)script->filename : dempty, script->lineno);
+    JAVASCRIPT_EXECUTE_DONE(
+        script->filename ? (char *)script->filename : dempty,
+        script->lineno
+    );
 }

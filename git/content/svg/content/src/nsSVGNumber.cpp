@@ -37,10 +37,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGNumber.h"
-#include "nsSVGUtils.h"
 #include "nsTextFormatter.h"
 #include "prdtoa.h"
-#include "nsDOMError.h"
 #include "nsSVGValue.h"
 #include "nsISVGValueUtils.h"
 #include "nsContentUtils.h"
@@ -94,12 +92,10 @@ nsSVGNumber::nsSVGNumber(float val)
 NS_IMPL_ADDREF(nsSVGNumber)
 NS_IMPL_RELEASE(nsSVGNumber)
 
-DOMCI_DATA(SVGNumber, nsSVGNumber)
-
 NS_INTERFACE_MAP_BEGIN(nsSVGNumber)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGNumber)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGNumber)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGNumber)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 
@@ -138,15 +134,16 @@ nsSVGNumber::SetValueString(const nsAString& aValue)
         rv = SetValue(val);
       }
       // skip trailing spaces
-      while (*rest && IsSVGWhitespace(*rest))
+      while (*rest && isspace(*rest))
         ++rest;
 
       // check to see if there is trailing stuff...
       if (*rest != '\0') {
-        rv = NS_ERROR_DOM_SYNTAX_ERR;
+        rv = NS_ERROR_FAILURE;
+        NS_ERROR("trailing data in number value");
       }
     } else {
-      rv = NS_ERROR_DOM_SYNTAX_ERR;
+      rv = NS_ERROR_FAILURE;
       // no number
     }
   }

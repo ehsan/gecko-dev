@@ -60,7 +60,6 @@
 #include "nsToolkit.h"
 #include "nsCocoaWindow.h"
 #include "nsNativeThemeColors.h"
-#include "nsIScrollableFrame.h"
 
 #include "gfxContext.h"
 #include "gfxQuartzSurface.h"
@@ -110,6 +109,48 @@ extern "C" {
 
 @end
 
+static void DrawFocusRing(NSRect rect, float radius)
+{
+  NSSetFocusRingStyle(NSFocusRingOnly);
+  NSBezierPath* path = [NSBezierPath bezierPath];
+  rect = NSInsetRect(rect, radius, radius);
+  [path appendBezierPathWithArcWithCenter:NSMakePoint(NSMinX(rect), NSMinY(rect)) radius:radius startAngle:180.0 endAngle:270.0];
+  [path appendBezierPathWithArcWithCenter:NSMakePoint(NSMaxX(rect), NSMinY(rect)) radius:radius startAngle:270.0 endAngle:360.0];
+  [path appendBezierPathWithArcWithCenter:NSMakePoint(NSMaxX(rect), NSMaxY(rect)) radius:radius startAngle:  0.0 endAngle: 90.0];
+  [path appendBezierPathWithArcWithCenter:NSMakePoint(NSMinX(rect), NSMaxY(rect)) radius:radius startAngle: 90.0 endAngle:180.0];
+  [path closePath];
+  [path fill];
+}
+
+// On 10.4, NSSearchFieldCells and NSComboBoxCells can't draw focus rings.
+@interface SearchFieldCellWithFocusRing : NSSearchFieldCell {} @end
+
+@implementation SearchFieldCellWithFocusRing
+
+- (void) drawWithFrame:(NSRect)rect inView:(NSView*)controlView
+{
+  [super drawWithFrame:rect inView:controlView];
+  if (!nsToolkit::OnLeopardOrLater() && [self showsFirstResponder]) {
+    DrawFocusRing(rect, NSHeight(rect) / 2);
+  }
+}
+
+@end
+
+@interface ComboBoxCellWithFocusRing : NSComboBoxCell {} @end
+
+@implementation ComboBoxCellWithFocusRing
+
+- (void) drawWithFrame:(NSRect)rect inView:(NSView*)controlView
+{
+  [super drawWithFrame:rect inView:controlView];
+  if (!nsToolkit::OnLeopardOrLater() && [self showsFirstResponder]) {
+    DrawFocusRing(NSMakeRect(rect.origin.x, rect.origin.y + 2, rect.size.width - 3, rect.size.height - 4), 0);
+  }
+}
+
+@end
+
 // Copied from nsLookAndFeel.h
 // Apple hasn't defined a constant for scollbars with two arrows on each end, so we'll use this one.
 static const int kThemeScrollBarArrowsBoth = 2;
@@ -119,6 +160,7 @@ static const int kThemeScrollBarArrowsBoth = 2;
 
 // These enums are for indexing into the margin array.
 enum {
+  tigerOS,
   leopardOS
 };
 
@@ -148,8 +190,7 @@ static void InflateControlRect(NSRect* rect, NSControlSize cocoaControlSize, con
 {
   if (!marginSet)
     return;
-
-  static int osIndex = leopardOS;
+  static int osIndex = nsToolkit::OnLeopardOrLater() ? leopardOS : tigerOS;
   int controlSize = EnumSizeForCocoaSize(cocoaControlSize);
   const float* buttonMargins = marginSet[osIndex][controlSize];
   rect->origin.x -= buttonMargins[leftMargin];
@@ -211,7 +252,7 @@ nsNativeThemeCocoa::nsNativeThemeCocoa()
   [mCheckboxCell setButtonType:NSSwitchButton];
   [mCheckboxCell setAllowsMixedState:YES];
 
-  mSearchFieldCell = [[NSSearchFieldCell alloc] initTextCell:@""];
+  mSearchFieldCell = [[SearchFieldCellWithFocusRing alloc] initTextCell:@""];
   [mSearchFieldCell setBezelStyle:NSTextFieldRoundedBezel];
   [mSearchFieldCell setBezeled:YES];
   [mSearchFieldCell setEditable:YES];
@@ -219,7 +260,7 @@ nsNativeThemeCocoa::nsNativeThemeCocoa()
 
   mDropdownCell = [[NSPopUpButtonCell alloc] initTextCell:@"" pullsDown:NO];
 
-  mComboBoxCell = [[NSComboBoxCell alloc] initTextCell:@""];
+  mComboBoxCell = [[ComboBoxCellWithFocusRing alloc] initTextCell:@""];
   [mComboBoxCell setBezeled:YES];
   [mComboBoxCell setEditable:YES];
   [mComboBoxCell setFocusRingType:NSFocusRingTypeExterior];
@@ -1017,14 +1058,6 @@ nsNativeThemeCocoa::DrawFrame(CGContextRef cgContext, HIThemeFrameKind inKind,
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-static void
-RenderProgress(CGContextRef cgContext, const HIRect& aRenderRect, void* aData)
-{
-  HIThemeTrackDrawInfo* tdi = (HIThemeTrackDrawInfo*)aData;
-  tdi->bounds = aRenderRect;
-  HIThemeDrawTrack(tdi, NULL, cgContext, kHIThemeOrientationNormal);
-}
-
 void
 nsNativeThemeCocoa::DrawProgress(CGContextRef cgContext, const HIRect& inBoxRect,
                                  PRBool inIsIndeterminate, PRBool inIsHorizontal,
@@ -1049,8 +1082,7 @@ nsNativeThemeCocoa::DrawProgress(CGContextRef cgContext, const HIRect& inBoxRect
   tdi.trackInfo.progress.phase = PR_IntervalToMilliseconds(PR_IntervalNow()) /
                                  milliSecondsPerStep % 16;
 
-  RenderTransformedHIThemeControl(cgContext, inBoxRect, RenderProgress, &tdi,
-                                  IsFrameRTL(aFrame));
+  HIThemeDrawTrack(&tdi, NULL, cgContext, HITHEME_ORIENTATION);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -1167,10 +1199,12 @@ nsNativeThemeCocoa::DrawTab(CGContextRef cgContext, HIRect inBoxRect,
   // selected tab shouldn't draw its left separator.
   tdi.adornment = kHIThemeTabAdornmentNone;
   if (isRTL ? IsBeforeSelectedTab(aFrame) : IsAfterSelectedTab(aFrame)) {
-    // On Leopard, the tab's left edge must be shifted 1px to the right.
-    // On Tiger, this happens automatically when no leading separator is drawn.
-    inBoxRect.origin.x += 1;
-    inBoxRect.size.width -= 1;
+    if (nsToolkit::OnLeopardOrLater()) {
+      // On Leopard, the tab's left edge must be shifted 1px to the right.
+      // On Tiger, this happens automatically when no leading separator is drawn.
+      inBoxRect.origin.x += 1;
+      inBoxRect.size.width -= 1;
+    }
   }
   else {
     tdi.adornment = kHIThemeTabAdornmentLeadingSeparator;
@@ -1178,9 +1212,11 @@ nsNativeThemeCocoa::DrawTab(CGContextRef cgContext, HIRect inBoxRect,
 
   if (isSelected && !isLast) {
     tdi.adornment |= kHIThemeTabAdornmentTrailingSeparator;
-    // On Tiger, the right separator is drawn outside of the frame.
-    // On Leopard, the right edge must be shifted 1px to the right.
-    inBoxRect.size.width += 1;
+    if (nsToolkit::OnLeopardOrLater()) {
+      // On Tiger, the right separator is drawn outside of the frame.
+      // On Leopard, the right edge must be shifted 1px to the right.
+      inBoxRect.size.width += 1;
+    }
   }
   
   if (inState & NS_EVENT_STATE_FOCUS)
@@ -1349,32 +1385,26 @@ static BOOL DrawingAtWindowTop(CGContextRef cgContext, float viewHeight, float y
   return ctm.ty - yPos >= viewHeight;
 }
 
-static BOOL
-ToolbarCanBeUnified(CGContextRef cgContext, const HIRect& inBoxRect, NSWindow* aWindow)
-{
-  return [aWindow isKindOfClass:[ToolbarWindow class]] &&
-    ![(ToolbarWindow*)aWindow drawsContentsIntoWindowFrame] &&
-    DrawingAtWindowTop(cgContext, [[aWindow contentView] bounds].size.height,
-                       inBoxRect.origin.y);
-}
-
 void
 nsNativeThemeCocoa::DrawUnifiedToolbar(CGContextRef cgContext, const HIRect& inBoxRect,
-                                       NSWindow* aWindow)
+                                       nsIFrame *aFrame)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   float titlebarHeight = 0;
+  NSWindow* win = NativeWindowForFrame(aFrame);
 
-  if (ToolbarCanBeUnified(cgContext, inBoxRect, aWindow)) {
+  if ([win isKindOfClass:[ToolbarWindow class]] &&
+      ![(ToolbarWindow*)win drawsContentsIntoWindowFrame] &&
+      DrawingAtWindowTop(cgContext, [[win contentView] bounds].size.height, inBoxRect.origin.y)) {
     // Consider the titlebar height when calculating the gradient.
-    titlebarHeight = [(ToolbarWindow*)aWindow titlebarHeight];
+    titlebarHeight = [(ToolbarWindow*)win titlebarHeight];
     // Notify the window about the toolbar's height so that it can draw the
     // correct gradient in the titlebar.
-    [(ToolbarWindow*)aWindow setUnifiedToolbarHeight:inBoxRect.size.height];
+    [(ToolbarWindow*)win setUnifiedToolbarHeight:inBoxRect.size.height];
   }
   
-  BOOL isMain = [aWindow isMainWindow] || ![NSView focusView];
+  BOOL isMain = [win isMainWindow] || ![NSView focusView];
 
   // Draw the gradient
   UnifiedGradientInfo info = { titlebarHeight, inBoxRect.size.height, isMain, NO };
@@ -1677,16 +1707,11 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
       break;
 
     case NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR:
-      DrawUnifiedToolbar(cgContext, macRect, NativeWindowForFrame(aFrame));
+      DrawUnifiedToolbar(cgContext, macRect, aFrame);
       break;
 
     case NS_THEME_TOOLBAR: {
-      NSWindow* win = NativeWindowForFrame(aFrame);
-      if (ToolbarCanBeUnified(cgContext, macRect, win)) {
-        DrawUnifiedToolbar(cgContext, macRect, win);
-        break;
-      }
-      BOOL isMain = [win isMainWindow] || ![NSView focusView];
+      BOOL isMain = [NativeWindowForFrame(aFrame) isMainWindow] || ![NSView focusView];
       CGRect drawRect = macRect;
 
       // top border
@@ -1740,8 +1765,6 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
       // XUL textboxes set the native appearance on the containing box, while
       // concrete focus is set on the html:input element within it. We can
       // though, check the focused attribute of xul textboxes in this case.
-      // On Mac, focus rings are always shown for textboxes, so we do not need
-      // to check the window's focus ring state here
       if (aFrame->GetContent()->IsXUL() && IsFocused(aFrame)) {
         eventState |= NS_EVENT_STATE_FOCUS;
       }
@@ -2286,7 +2309,6 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsIRenderingContext* aContext,
       HIRect bounds;
       HIThemeGetGrowBoxBounds(&pnt, &drawInfo, &bounds);
       aResult->SizeTo(bounds.size.width, bounds.size.height);
-      *aIsOverridable = PR_FALSE;
     }
   }
 
@@ -2385,6 +2407,7 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
     case NS_THEME_MENUITEM:
     case NS_THEME_MENUSEPARATOR:
     case NS_THEME_TOOLTIP:
+    case NS_THEME_RESIZER:
     
     case NS_THEME_CHECKBOX:
     case NS_THEME_CHECKBOX_CONTAINER:
@@ -2442,22 +2465,6 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
     case NS_THEME_DROPDOWN_TEXTFIELD:
       return !IsWidgetStyled(aPresContext, aFrame, aWidgetType);
       break;
-
-    case NS_THEME_RESIZER:
-    {
-      nsIFrame* parentFrame = aFrame->GetParent();
-      if (!parentFrame || parentFrame->GetType() != nsWidgetAtoms::scrollFrame)
-        return PR_TRUE;
-
-      // Note that IsWidgetStyled is not called for resizers on Mac. This is
-      // because for scrollable containers, the native resizer looks better
-      // when scrollbars are present even when the style is overriden, and the
-      // custom transparent resizer looks better when scrollbars are not
-      // present.
-      nsIScrollableFrame* scrollFrame = do_QueryFrame(parentFrame);
-      return (scrollFrame && scrollFrame->GetScrollbarVisibility());
-      break;
-    }
   }
 
   return PR_FALSE;
@@ -2497,12 +2504,12 @@ nsNativeThemeCocoa::ThemeNeedsComboboxDropmarker()
   return PR_FALSE;
 }
 
-nsITheme::Transparency
-nsNativeThemeCocoa::GetWidgetTransparency(nsIFrame* aFrame, PRUint8 aWidgetType)
+nsTransparencyMode
+nsNativeThemeCocoa::GetWidgetTransparency(PRUint8 aWidgetType)
 {
   if (aWidgetType == NS_THEME_MENUPOPUP ||
       aWidgetType == NS_THEME_TOOLTIP)
-    return eTransparent;
+    return eTransparencyTransparent;
 
-  return eUnknownTransparency;
+  return eTransparencyOpaque;
 }

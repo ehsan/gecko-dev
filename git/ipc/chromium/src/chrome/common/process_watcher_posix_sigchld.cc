@@ -75,8 +75,9 @@ IsProcessDead(pid_t process)
   return exited;
 }
 
-
-class ChildReaper : public base::MessagePumpLibevent::SignalEvent,
+// Fear the reaper
+class ChildReaper : public Task,
+                    public base::MessagePumpLibevent::SignalEvent,
                     public base::MessagePumpLibevent::SignalWatcher
 {
 public:
@@ -86,9 +87,8 @@ public:
 
   virtual ~ChildReaper()
   {
-    // subclasses should have cleaned up |process_| already
-    DCHECK(!process_);
-
+    if (process_)
+      KillProcess();
     // StopCatching() is implicit
   }
 
@@ -103,35 +103,6 @@ public:
       process_ = 0;
       StopCatching();
     }
-  }
-
-protected:
-  void WaitForChildExit()
-  {
-    DCHECK(process_);
-    HANDLE_EINTR(waitpid(process_, NULL, 0));
-  }
-
-  pid_t process_;
-
-private:
-  DISALLOW_EVIL_CONSTRUCTORS(ChildReaper);
-};
-
-
-// Fear the reaper
-class ChildGrimReaper : public ChildReaper,
-                        public Task
-{
-public:
-  explicit ChildGrimReaper(pid_t process) : ChildReaper(process)
-  {
-  } 
-
-  virtual ~ChildGrimReaper()
-  {
-    if (process_)
-      KillProcess();
   }
 
   // @override
@@ -156,7 +127,7 @@ private:
       // XXX this will block for whatever amount of time it takes the
       // XXX OS to tear down the process's resources.  might need to
       // XXX rethink this if it proves expensive
-      WaitForChildExit();
+      HANDLE_EINTR(waitpid(process_, NULL, 0));
     }
     else {
       LOG(ERROR) << "Failed to deliver SIGKILL to " << process_ << "!"
@@ -165,76 +136,16 @@ private:
     process_ = 0;
   }
 
-  DISALLOW_EVIL_CONSTRUCTORS(ChildGrimReaper);
-};
+  pid_t process_;
 
-
-class ChildLaxReaper : public ChildReaper,
-                       public MessageLoop::DestructionObserver
-{
-public:
-  explicit ChildLaxReaper(pid_t process) : ChildReaper(process)
-  {
-  } 
-
-  virtual ~ChildLaxReaper()
-  {
-    // WillDestroyCurrentMessageLoop() should have reaped process_ already
-    DCHECK(!process_);
-  }
-
-  // @override
-  virtual void OnSignal(int sig)
-  {
-    ChildReaper::OnSignal(sig);
-
-    if (!process_) {
-      MessageLoop::current()->RemoveDestructionObserver(this);
-      delete this;
-    }
-  }
-
-  // @override
-  virtual void WillDestroyCurrentMessageLoop()
-  {
-    DCHECK(process_);
-
-    WaitForChildExit();
-    process_ = 0;
-
-    // XXX don't think this is necessary, since destruction can only
-    // be observed once, but can't hurt
-    MessageLoop::current()->RemoveDestructionObserver(this);
-    delete this;
-  }
-
-private:
-  DISALLOW_EVIL_CONSTRUCTORS(ChildLaxReaper);
+  DISALLOW_EVIL_CONSTRUCTORS(ChildReaper);
 };
 
 }  // namespace <anon>
 
 
-/**
- * Do everything possible to ensure that |process| has been reaped
- * before this process exits.
- *
- * |grim| decides how strict to be with the child's shutdown.
- *
- *                | child exit timeout | upon parent shutdown:
- *                +--------------------+----------------------------------
- *   force=true   | 2 seconds          | kill(child, SIGKILL)
- *   force=false  | infinite           | waitpid(child)
- *
- * If a child process doesn't shut down properly, and |grim=false|
- * used, then the parent will wait on the child forever.  So,
- * |force=false| is expected to be used when an external entity can be
- * responsible for terminating hung processes, e.g. automated test
- * harnesses.
- */
 void
-ProcessWatcher::EnsureProcessTerminated(base::ProcessHandle process,
-                                        bool force)
+ProcessWatcher::EnsureProcessTerminated(base::ProcessHandle process)
 {
   DCHECK(process != base::GetCurrentProcId());
   DCHECK(process > 0);
@@ -243,17 +154,13 @@ ProcessWatcher::EnsureProcessTerminated(base::ProcessHandle process,
     return;
 
   MessageLoopForIO* loop = MessageLoopForIO::current();
-  if (force) {
-    ChildGrimReaper* reaper = new ChildGrimReaper(process);
+  ChildReaper* reaper = new ChildReaper(process);
 
-    loop->CatchSignal(SIGCHLD, reaper, reaper);
-    // |loop| takes ownership of |reaper|
-    loop->PostDelayedTask(FROM_HERE, reaper, kMaxWaitMs);
-  } else {
-    ChildLaxReaper* reaper = new ChildLaxReaper(process);
-
-    loop->CatchSignal(SIGCHLD, reaper, reaper);
-    // |reaper| destroys itself after destruction notification
-    loop->AddDestructionObserver(reaper);
-  }
+  // there are three ways |process| will be reaped:
+  //  (1) catch SIGCHLD after its death (common case)
+  //  (2) kMaxWaitMs timeout fires, |kill(SIGKILL)|
+  //  (3) shutdown before (1) or (2), |reaper| dtor does |kill(SIGKILL)|
+  loop->CatchSignal(SIGCHLD, reaper, reaper);
+  // |loop| takes ownership of |reaper|
+  loop->PostDelayedTask(FROM_HERE, reaper, kMaxWaitMs);
 }

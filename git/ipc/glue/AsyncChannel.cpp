@@ -38,7 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/ipc/AsyncChannel.h"
-#include "mozilla/ipc/BrowserProcessSubThread.h"
+#include "mozilla/ipc/GeckoThread.h"
 #include "mozilla/ipc/ProtocolUtils.h"
 
 #include "nsDebug.h"
@@ -54,51 +54,6 @@ struct RunnableMethodTraits<mozilla::ipc::AsyncChannel>
     static void ReleaseCallee(mozilla::ipc::AsyncChannel* obj) { }
 };
 
-// We rely on invariants about the lifetime of the transport:
-//
-//  - outlives this AsyncChannel
-//  - deleted on the IO thread
-//
-// These invariants allow us to send messages directly through the
-// transport without having to worry about orphaned Send() tasks on
-// the IO thread touching AsyncChannel memory after it's been deleted
-// on the worker thread.  We also don't need to refcount the
-// Transport, because whatever task triggers its deletion only runs on
-// the IO thread, and only runs after this AsyncChannel is done with
-// the Transport.
-template<>
-struct RunnableMethodTraits<mozilla::ipc::AsyncChannel::Transport>
-{
-    static void RetainCallee(mozilla::ipc::AsyncChannel::Transport* obj) { }
-    static void ReleaseCallee(mozilla::ipc::AsyncChannel::Transport* obj) { }
-};
-
-namespace {
-
-// This is an async message
-class GoodbyeMessage : public IPC::Message
-{
-public:
-    enum { ID = GOODBYE_MESSAGE_TYPE };
-    GoodbyeMessage() :
-        IPC::Message(MSG_ROUTING_NONE, ID, PRIORITY_NORMAL)
-    {
-    }
-    // XXX not much point in implementing this; maybe could help with
-    // debugging?
-    static bool Read(const Message* msg)
-    {
-        return true;
-    }
-    void Log(const std::string& aPrefix,
-             FILE* aOutf) const
-    {
-        fputs("(special `Goodbye' message)", aOutf);
-    }
-};
-
-} // namespace <anon>
-
 namespace mozilla {
 namespace ipc {
 
@@ -109,9 +64,7 @@ AsyncChannel::AsyncChannel(AsyncListener* aListener)
     mMutex("mozilla.ipc.AsyncChannel.mMutex"),
     mCvar(mMutex, "mozilla.ipc.AsyncChannel.mCvar"),
     mIOLoop(),
-    mWorkerLoop(),
-    mChild(false),
-    mChannelErrorTask(NULL)
+    mWorkerLoop()
 {
     MOZ_COUNT_CTOR(AsyncChannel);
 }
@@ -139,7 +92,8 @@ AsyncChannel::Open(Transport* aTransport, MessageLoop* aIOLoop)
     if(!aIOLoop) {
         // parent
         needOpen = false;
-        aIOLoop = XRE_GetIOMessageLoop();
+        aIOLoop = BrowserProcessSubThread
+                  ::GetMessageLoop(BrowserProcessSubThread::IO);
         // FIXME assuming that the parent waits for the OnConnected event.
         // FIXME see GeckoChildProcessHost.cpp.  bad assumption!
         mChannelState = ChannelConnected;
@@ -172,24 +126,8 @@ AsyncChannel::Open(Transport* aTransport, MessageLoop* aIOLoop)
 void
 AsyncChannel::Close()
 {
-    AssertWorkerThread();
-
     {
         MutexAutoLock lock(mMutex);
-
-        if (ChannelError == mChannelState ||
-            ChannelTimeout == mChannelState) {
-            // See bug 538586: if the listener gets deleted while the
-            // IO thread's NotifyChannelError event is still enqueued
-            // and subsequently deletes us, then the error event will
-            // also be deleted and the listener will never be notified
-            // of the channel error.
-            if (mListener) {
-                MutexAutoUnlock unlock(mMutex);
-                NotifyMaybeChannelError();
-            }
-            return;
-        }
 
         if (ChannelConnected != mChannelState)
             // XXX be strict about this until there's a compelling reason
@@ -199,25 +137,23 @@ AsyncChannel::Close()
         AssertWorkerThread();
 
         // notify the other side that we're about to close our socket
-        SendSpecialMessage(new GoodbyeMessage());
+        SendGoodbye();
 
-        SynchronouslyClose();
+        mChannelState = ChannelClosing;
+
+        // and post the task will do the actual close
+        mIOLoop->PostTask(
+            FROM_HERE, NewRunnableMethod(this, &AsyncChannel::OnCloseChannel));
+
+        while (ChannelClosing == mChannelState)
+            mCvar.Wait();
+
+        // TODO sort out Close() on this side racing with Close() on the
+        // other side
+        mChannelState = ChannelClosed;
     }
 
-    NotifyChannelClosed();
-}
-
-void 
-AsyncChannel::SynchronouslyClose()
-{
-    AssertWorkerThread();
-    mMutex.AssertCurrentThreadOwns();
-
-    mIOLoop->PostTask(
-        FROM_HERE, NewRunnableMethod(this, &AsyncChannel::OnCloseChannel));
-
-    while (ChannelClosed != mChannelState)
-        mCvar.Wait();
+    return NotifyChannelClosed();
 }
 
 bool
@@ -235,7 +171,8 @@ AsyncChannel::Send(Message* msg)
             return false;
         }
 
-        SendThroughTransport(msg);
+        mIOLoop->PostTask(FROM_HERE,
+                          NewRunnableMethod(this, &AsyncChannel::OnSend, msg));
     }
 
     return true;
@@ -248,12 +185,10 @@ AsyncChannel::OnDispatchMessage(const Message& msg)
     NS_ASSERTION(!msg.is_reply(), "can't process replies here");
     NS_ASSERTION(!(msg.is_sync() || msg.is_rpc()), "async dispatch only");
 
-    if (MSG_ROUTING_NONE == msg.routing_id()) {
-        if (!OnSpecialMessage(msg.type(), msg))
-            // XXX real error handling
-            NS_RUNTIMEABORT("unhandled special message!");
+    if (MaybeInterceptGoodbye(msg))
+        // there's a NotifyMaybeChannelError event waiting for us, or
+        // will be soon
         return;
-    }
 
     // it's OK to dispatch messages if the channel is closed/error'd,
     // since we don't have a reply to send back
@@ -261,83 +196,82 @@ AsyncChannel::OnDispatchMessage(const Message& msg)
     (void)MaybeHandleError(mListener->OnMessageReceived(msg), "AsyncChannel");
 }
 
-bool
-AsyncChannel::OnSpecialMessage(uint16 id, const Message& msg)
+// This is an async message
+class GoodbyeMessage : public IPC::Message
 {
-    return false;
-}
+public:
+    enum { ID = GOODBYE_MESSAGE_TYPE };
+    GoodbyeMessage() :
+        IPC::Message(MSG_ROUTING_NONE, ID, PRIORITY_NORMAL)
+    {
+    }
+    // XXX not much point in implementing this; maybe could help with
+    // debugging?
+    static bool Read(const Message* msg)
+    {
+        return true;
+    }
+    void Log(const std::string& aPrefix,
+             FILE* aOutf) const
+    {
+        fputs("(special `Goodbye' message)", aOutf);
+    }
+};
 
 void
-AsyncChannel::SendSpecialMessage(Message* msg) const
-{
-    AssertWorkerThread();
-    SendThroughTransport(msg);
-}
-
-void
-AsyncChannel::SendThroughTransport(Message* msg) const
+AsyncChannel::SendGoodbye()
 {
     AssertWorkerThread();
 
     mIOLoop->PostTask(
         FROM_HERE,
-        NewRunnableMethod(mTransport, &Transport::Send, msg));
+        NewRunnableMethod(this, &AsyncChannel::OnSend, new GoodbyeMessage()));
 }
 
-void
-AsyncChannel::OnNotifyMaybeChannelError()
+bool
+AsyncChannel::MaybeInterceptGoodbye(const Message& msg)
 {
-    AssertWorkerThread();
-    mMutex.AssertNotCurrentThreadOwns();
+    // IPDL code isn't allowed to send MSG_ROUTING_NONE messages, so
+    // there's no chance of confusion here
+    if (MSG_ROUTING_NONE != msg.routing_id())
+        return false;
 
-    // OnChannelError holds mMutex when it posts this task and this
-    // task cannot be allowed to run until OnChannelError has
-    // exited. We enforce that order by grabbing the mutex here which
-    // should only continue once OnChannelError has completed.
-    {
-        MutexAutoLock lock(mMutex);
-        // nothing to do here
-    }
+    if (msg.is_sync() || msg.is_rpc() || GOODBYE_MESSAGE_TYPE != msg.type())
+        NS_RUNTIMEABORT("received unknown MSG_ROUTING_NONE message when expecting `Goodbye'");
 
-    if (ShouldDeferNotifyMaybeError()) {
-        mChannelErrorTask =
-            NewRunnableMethod(this, &AsyncChannel::OnNotifyMaybeChannelError);
-        // 10 ms delay is completely arbitrary
-        mWorkerLoop->PostDelayedTask(FROM_HERE, mChannelErrorTask, 10);
-        return;
-    }
+    MutexAutoLock lock(mMutex);
+    // TODO sort out Close() on this side racing with Close() on the
+    // other side
+    mChannelState = ChannelClosing;
 
-    NotifyMaybeChannelError();
+    printf("NOTE: %s process received `Goodbye', closing down\n",
+           mChild ? "child" : "parent");
+
+    return true;
 }
 
 void
 AsyncChannel::NotifyChannelClosed()
 {
-    mMutex.AssertNotCurrentThreadOwns();
-
     if (ChannelClosed != mChannelState)
         NS_RUNTIMEABORT("channel should have been closed!");
 
     // OK, the IO thread just closed the channel normally.  Let the
     // listener know about it.
     mListener->OnChannelClose();
-
     Clear();
 }
 
 void
 AsyncChannel::NotifyMaybeChannelError()
 {
-    mMutex.AssertNotCurrentThreadOwns();
-
     // TODO sort out Close() on this side racing with Close() on the
     // other side
     if (ChannelClosing == mChannelState) {
         // the channel closed, but we received a "Goodbye" message
         // warning us about it. no worries
         mChannelState = ChannelClosed;
-        NotifyChannelClosed();
-        return;
+        return NotifyChannelClosed();
     }
 
     // Oops, error!  Let the listener know about it.
@@ -361,10 +295,6 @@ AsyncChannel::Clear()
         // by GeckoChildProcess/GeckoThread
         mTransport = 0;
     }
-    if (mChannelErrorTask) {
-        mChannelErrorTask->Cancel();
-        mChannelErrorTask = NULL;
-    }
 }
 
 bool
@@ -384,8 +314,6 @@ AsyncChannel::MaybeHandleError(Result code, const char* channelName)
     case MsgPayloadError:
         errorMsg = "Payload error: message could not be deserialized";
         break;
-    case MsgProcessingError:
-        errorMsg = "Processing error: message was deserialized, but the handler returned false (indicating failure)";
     case MsgRouteError:
         errorMsg = "Route error: message sent to unknown actor ID";
         break;
@@ -403,7 +331,7 @@ AsyncChannel::MaybeHandleError(Result code, const char* channelName)
 }
 
 void
-AsyncChannel::ReportConnectionError(const char* channelName) const
+AsyncChannel::ReportConnectionError(const char* channelName)
 {
     const char* errorMsg;
     switch (mChannelState) {
@@ -413,16 +341,12 @@ AsyncChannel::ReportConnectionError(const char* channelName) const
     case ChannelOpening:
         errorMsg = "Opening channel: not yet ready for send/recv";
         break;
-    case ChannelTimeout:
-        errorMsg = "Channel timeout: cannot send/recv";
-    case ChannelClosing:
-        errorMsg = "Channel closing: too late to send/recv, messages will be lost";
     case ChannelError:
         errorMsg = "Channel error: cannot send/recv";
         break;
 
     default:
-        NS_RUNTIMEABORT("unreached");
+        NOTREACHED();
     }
 
     PrintErrorMessage(channelName, errorMsg);
@@ -438,13 +362,10 @@ AsyncChannel::OnMessageReceived(const Message& msg)
     AssertIOThread();
     NS_ASSERTION(mChannelState != ChannelError, "Shouldn't get here!");
 
-    MutexAutoLock lock(mMutex);
-
-    if (!MaybeInterceptSpecialIOMessage(msg))
-        // wake up the worker, there's work to do
-        mWorkerLoop->PostTask(
-            FROM_HERE,
-            NewRunnableMethod(this, &AsyncChannel::OnDispatchMessage, msg));
+    // wake up the worker, there's work to do
+    mWorkerLoop->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(this, &AsyncChannel::OnDispatchMessage, msg));
 }
 
 void
@@ -472,24 +393,22 @@ AsyncChannel::OnChannelError()
 
     MutexAutoLock lock(mMutex);
 
+    // NB: this can race with the `Goodbye' event being processed by
+    // the worker thread
     if (ChannelClosing != mChannelState)
         mChannelState = ChannelError;
 
-    PostErrorNotifyTask();
+    mWorkerLoop->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(this, &AsyncChannel::NotifyMaybeChannelError));
 }
 
 void
-AsyncChannel::PostErrorNotifyTask()
+AsyncChannel::OnSend(Message* aMsg)
 {
     AssertIOThread();
-    mMutex.AssertCurrentThreadOwns();
-
-    NS_ASSERTION(!mChannelErrorTask, "OnChannelError called twice?");
-
-    // This must be the last code that runs on this thread!
-    mChannelErrorTask =
-        NewRunnableMethod(this, &AsyncChannel::OnNotifyMaybeChannelError);
-    mWorkerLoop->PostTask(FROM_HERE, mChannelErrorTask);
+    mTransport->Send(aMsg);
+    // mTransport assumes ownership of aMsg
 }
 
 void
@@ -502,34 +421,6 @@ AsyncChannel::OnCloseChannel()
     MutexAutoLock lock(mMutex);
     mChannelState = ChannelClosed;
     mCvar.Notify();
-}
-
-bool
-AsyncChannel::MaybeInterceptSpecialIOMessage(const Message& msg)
-{
-    AssertIOThread();
-    mMutex.AssertCurrentThreadOwns();
-
-    if (MSG_ROUTING_NONE == msg.routing_id()
-        && GOODBYE_MESSAGE_TYPE == msg.type()) {
-        ProcessGoodbyeMessage();
-        return true;
-    }
-    return false;
-}
-
-void
-AsyncChannel::ProcessGoodbyeMessage()
-{
-    AssertIOThread();
-    mMutex.AssertCurrentThreadOwns();
-
-    // TODO sort out Close() on this side racing with Close() on the
-    // other side
-    mChannelState = ChannelClosing;
-
-    printf("NOTE: %s process received `Goodbye', closing down\n",
-           mChild ? "child" : "parent");
 }
 
 

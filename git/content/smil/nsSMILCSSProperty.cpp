@@ -44,41 +44,26 @@
 #include "nsComputedDOMStyle.h"
 #include "nsStyleAnimation.h"
 #include "nsIContent.h"
-#include "nsIDOMElement.h"
+#include "nsPIDOMWindow.h"
 
-using namespace mozilla::dom;
-
-// Helper function
 static PRBool
 GetCSSComputedValue(nsIContent* aElem,
                     nsCSSProperty aPropID,
                     nsAString& aResult)
 {
-  NS_ABORT_IF_FALSE(!nsCSSProps::IsShorthand(aPropID),
-                    "Can't look up computed value of shorthand property");
-  NS_ABORT_IF_FALSE(nsSMILCSSProperty::IsPropertyAnimatable(aPropID),
-                    "Shouldn't get here for non-animatable properties");
+  NS_ENSURE_TRUE(nsSMILCSSProperty::IsPropertyAnimatable(aPropID),
+                 PR_FALSE);
 
   nsIDocument* doc = aElem->GetCurrentDoc();
-  if (!doc) {
-    // This can happen if we process certain types of restyles mid-sample
-    // and remove anonymous animated content from the document as a result.
-    // See bug 534975.
-    return PR_FALSE;
-  }
+  NS_ABORT_IF_FALSE(doc,"any target element that's actively being animated "
+                    "must be in a document");
 
-  nsIPresShell* shell = doc->GetShell();
-  if (!shell) {
-    NS_WARNING("Unable to look up computed style -- no pres shell");
-    return PR_FALSE;
-  }
-
-  nsRefPtr<nsComputedDOMStyle> computedStyle;
-  nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(aElem));
-  nsresult rv = NS_NewComputedDOMStyle(domElement, EmptyString(), shell,
-                                       getter_AddRefs(computedStyle));
-
-  if (NS_SUCCEEDED(rv)) {
+  nsPIDOMWindow* win = doc->GetWindow();
+  NS_ABORT_IF_FALSE(win, "actively animated document w/ no window");
+  nsRefPtr<nsComputedDOMStyle>
+    computedStyle(win->LookupComputedStyleFor(aElem));
+  if (computedStyle) {
+    // NOTE: This will produce an empty string for shorthand values
     computedStyle->GetPropertyValue(aPropID, aResult);
     return PR_TRUE;
   }
@@ -87,7 +72,7 @@ GetCSSComputedValue(nsIContent* aElem,
 
 // Class Methods
 nsSMILCSSProperty::nsSMILCSSProperty(nsCSSProperty aPropID,
-                                     Element* aElement)
+                                     nsIContent* aElement)
   : mPropID(aPropID), mElement(aElement)
 {
   NS_ABORT_IF_FALSE(IsPropertyAnimatable(mPropID),
@@ -98,27 +83,6 @@ nsSMILCSSProperty::nsSMILCSSProperty(nsCSSProperty aPropID,
 nsSMILValue
 nsSMILCSSProperty::GetBaseValue() const
 {
-  // To benefit from Return Value Optimization and avoid copy constructor calls
-  // due to our use of return-by-value, we must return the exact same object
-  // from ALL return points. This function must only return THIS variable:
-  nsSMILValue baseValue;
-
-  // SPECIAL CASE: Shorthands
-  if (nsCSSProps::IsShorthand(mPropID)) {
-    // We can't look up the base (computed-style) value of shorthand
-    // properties, because they aren't guaranteed to have a consistent computed
-    // value.  However, that's not a problem, because it turns out the caller
-    // isn't going to end up using the value we return anyway. Base values only
-    // get used when there's interpolation or addition, and the shorthand
-    // properties we know about don't support those operations. So, we can just
-    // return a dummy value (initialized with the right type, so as not to
-    // indicate failure).
-    nsSMILValue tmpVal(&nsSMILCSSValueType::sSingleton);
-    baseValue.Swap(tmpVal);
-    return baseValue;
-  }
-
-  // GENERAL CASE: Non-Shorthands
   // (1) Put empty string in override style for property mPropID
   // (saving old override style value, so we can set it again when we're done)
   nsCOMPtr<nsIDOMCSSStyleDeclaration> overrideStyle;
@@ -143,10 +107,18 @@ nsSMILCSSProperty::GetBaseValue() const
     overrideDecl->SetPropertyValue(mPropID, cachedOverrideStyleVal);
   }
 
-  // (4) Populate our nsSMILValue from the computed style
+  nsSMILValue baseValue;
   if (didGetComputedVal) {
-    nsSMILCSSValueType::ValueFromString(mPropID, mElement,
-                                        computedStyleVal, baseValue);
+    // (4) Create the nsSMILValue from the computed style value
+    nsSMILCSSValueType::sSingleton.Init(baseValue);
+    if (!nsCSSProps::IsShorthand(mPropID) &&
+        !nsSMILCSSValueType::sSingleton.ValueFromString(mPropID, mElement,
+                                                        computedStyleVal,
+                                                        baseValue)) {
+      nsSMILCSSValueType::sSingleton.Destroy(baseValue);
+      NS_ABORT_IF_FALSE(baseValue.IsNull(),
+                        "Destroy should leave us with null-typed value");
+    }
   }
   return baseValue;
 }
@@ -154,27 +126,17 @@ nsSMILCSSProperty::GetBaseValue() const
 nsresult
 nsSMILCSSProperty::ValueFromString(const nsAString& aStr,
                                    const nsISMILAnimationElement* aSrcElement,
-                                   nsSMILValue& aValue,
-                                   PRBool& aPreventCachingOfSandwich) const
+                                   nsSMILValue& aValue) const
 {
   NS_ENSURE_TRUE(IsPropertyAnimatable(mPropID), NS_ERROR_FAILURE);
-
-  nsSMILCSSValueType::ValueFromString(mPropID, mElement, aStr, aValue);
-  if (aValue.IsNull()) {
-    return NS_ERROR_FAILURE;
+  nsSMILCSSValueType::sSingleton.Init(aValue);
+  PRBool success =
+    nsSMILCSSValueType::sSingleton.ValueFromString(mPropID, mElement,
+                                                   aStr, aValue);
+  if (!success) {
+    nsSMILCSSValueType::sSingleton.Destroy(aValue);
   }
-
-  // XXXdholbert: For simplicity, just assume that all CSS values have to
-  // reparsed every sample. This prevents us from doing the "nothing's changed
-  // so don't recompose" optimization (bug 533291) for CSS properties & mapped
-  // attributes.  If it ends up being expensive to always recompose those, we
-  // can be a little smarter here.  We really only need to set
-  // aPreventCachingOfSandwich to true for "inherit" & "currentColor" (whose
-  // values could change at any time), for length-valued types (particularly
-  // those with em/ex/percent units, since their conversion ratios can change
-  // at any time), and for any value for 'font-family'.
-  aPreventCachingOfSandwich = PR_TRUE;
-  return NS_OK;
+  return success ? NS_OK : NS_ERROR_FAILURE;
 }
 
 nsresult
@@ -182,29 +144,32 @@ nsSMILCSSProperty::SetAnimValue(const nsSMILValue& aValue)
 {
   NS_ENSURE_TRUE(IsPropertyAnimatable(mPropID), NS_ERROR_FAILURE);
 
-  // Convert nsSMILValue to string
+  nsresult rv = NS_OK;
   nsAutoString valStr;
-  if (!nsSMILCSSValueType::ValueToString(aValue, valStr)) {
+
+  if (nsSMILCSSValueType::sSingleton.ValueToString(aValue, valStr)) {
+    // Apply the style to the target element
+    nsCOMPtr<nsIDOMCSSStyleDeclaration> overrideStyle;
+    mElement->GetSMILOverrideStyle(getter_AddRefs(overrideStyle));
+    NS_ABORT_IF_FALSE(overrideStyle, "Need a non-null overrideStyle");
+
+    nsCOMPtr<nsICSSDeclaration> overrideDecl =
+      do_QueryInterface(overrideStyle);
+    if (overrideDecl) {
+      overrideDecl->SetPropertyValue(mPropID, valStr);
+    }
+  } else {
     NS_WARNING("Failed to convert nsSMILValue for CSS property into a string");
-    return NS_ERROR_FAILURE;
+    rv = NS_ERROR_FAILURE;
   }
 
-  // Use string value to style the target element
-  nsCOMPtr<nsIDOMCSSStyleDeclaration> overrideStyle;
-  mElement->GetSMILOverrideStyle(getter_AddRefs(overrideStyle));
-  NS_ABORT_IF_FALSE(overrideStyle, "Need a non-null overrideStyle");
-
-  nsCOMPtr<nsICSSDeclaration> overrideDecl = do_QueryInterface(overrideStyle);
-  if (overrideDecl) {
-    overrideDecl->SetPropertyValue(mPropID, valStr);
-  }
-  return NS_OK;
+  return rv;
 }
 
 void
 nsSMILCSSProperty::ClearAnimValue()
 {
-  // Put empty string in override style for our property
+  // Put empty string in override style for property propID
   nsCOMPtr<nsIDOMCSSStyleDeclaration> overrideStyle;
   mElement->GetSMILOverrideStyle(getter_AddRefs(overrideStyle));
   nsCOMPtr<nsICSSDeclaration> overrideDecl = do_QueryInterface(overrideStyle);
@@ -230,7 +195,17 @@ nsSMILCSSProperty::IsPropertyAnimatable(nsCSSProperty aPropID)
   //   writing-mode
 
   switch (aPropID) {
+    // SHORTHAND PROPERTIES
+    case eCSSProperty_font:
+    case eCSSProperty_marker:
+    case eCSSProperty_overflow:
+      return PR_TRUE;
+
+    // PROPERTIES OF TYPE eCSSType_Rect
     case eCSSProperty_clip:
+      // XXXdholbert Rect type not yet supported by nsStyleAnimation
+      return PR_FALSE;
+
     case eCSSProperty_clip_rule:
     case eCSSProperty_clip_path:
     case eCSSProperty_color:
@@ -245,7 +220,6 @@ nsSMILCSSProperty::IsPropertyAnimatable(nsCSSProperty aPropID)
     case eCSSProperty_filter:
     case eCSSProperty_flood_color:
     case eCSSProperty_flood_opacity:
-    case eCSSProperty_font:
     case eCSSProperty_font_family:
     case eCSSProperty_font_size:
     case eCSSProperty_font_size_adjust:
@@ -256,13 +230,11 @@ nsSMILCSSProperty::IsPropertyAnimatable(nsCSSProperty aPropID)
     case eCSSProperty_image_rendering:
     case eCSSProperty_letter_spacing:
     case eCSSProperty_lighting_color:
-    case eCSSProperty_marker:
     case eCSSProperty_marker_end:
     case eCSSProperty_marker_mid:
     case eCSSProperty_marker_start:
     case eCSSProperty_mask:
     case eCSSProperty_opacity:
-    case eCSSProperty_overflow:
     case eCSSProperty_pointer_events:
     case eCSSProperty_shape_rendering:
     case eCSSProperty_stop_color:

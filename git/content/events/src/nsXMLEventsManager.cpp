@@ -47,7 +47,6 @@
 #include "nsIDOMEventListener.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
-#include "mozilla/dom/Element.h"
 
 PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
                                                   nsXMLEventsManager * aManager,
@@ -68,7 +67,7 @@ PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
     return PR_FALSE;
   nsAutoString handlerURIStr;
   PRBool hasHandlerURI = PR_FALSE;
-  nsIContent *handler = nsnull;
+  nsCOMPtr<nsIContent> handler;
   nsAutoString observerID;
   nsAutoString targetIdref;
   
@@ -78,7 +77,7 @@ PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
     nsCOMPtr<nsIURI> handlerURI;
     PRBool equals = PR_FALSE;
     nsIURI *docURI = aDocument->GetDocumentURI();
-    nsIURI *baseURI = aDocument->GetDocBaseURI();
+    nsIURI *baseURI = aDocument->GetBaseURI();
     rv = NS_NewURI( getter_AddRefs(handlerURI), handlerURIStr, nsnull, baseURI);
     if (NS_SUCCEEDED(rv)) {
       nsCOMPtr<nsIURL> handlerURL(do_QueryInterface(handlerURI));
@@ -88,8 +87,13 @@ PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
         //We support only XML Events Basic.
         docURI->Equals(handlerURL, &equals);
         if (equals) {
-          handler =
-            aDocument->GetElementById(NS_ConvertUTF8toUTF16(handlerRef));
+          nsCOMPtr<nsIDOMDocument> doc(do_QueryInterface(aDocument));
+          if (doc) {
+            nsCOMPtr<nsIDOMElement> domhandler;
+            doc->GetElementById(NS_ConvertUTF8toUTF16(handlerRef),
+                                getter_AddRefs(domhandler));
+            handler = do_QueryInterface(domhandler);
+          }
         }
       }
     }
@@ -116,7 +120,7 @@ PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
     aContent->AttrValueIs(nameSpaceID, nsGkAtoms::defaultAction,
                           nsGkAtoms::cancel, eCaseMatters);
 
-  nsIContent *observer;
+  nsCOMPtr<nsIContent> observer;
   if (!hasObserver) {
     if (!hasHandlerURI) //Parent should be the observer
       observer = aContent->GetParent();
@@ -124,9 +128,16 @@ PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
       observer = aContent;
   }
   else if (!observerID.IsEmpty()) {
-    observer = aDocument->GetElementById(observerID);
+    nsCOMPtr<nsIDOMDocument> doc(do_QueryInterface(aDocument));
+    if (doc) {
+      nsCOMPtr<nsIDOMElement> el;
+      doc->GetElementById(observerID, getter_AddRefs(el));
+      observer = do_QueryInterface(el);
+    }
   }
-  nsCOMPtr<nsIDOMEventTarget> eventObserver(do_QueryInterface(observer));
+  nsCOMPtr<nsIDOMEventTarget> eventObserver;
+  if (observer)
+    eventObserver = do_QueryInterface(observer);
   if (eventObserver) {
     nsXMLEventsListener * eli = new nsXMLEventsListener(aManager,
                                                         aContent,
@@ -310,7 +321,7 @@ void nsXMLEventsManager::AddListeners(nsIDocument* aDocument)
   for (int i = 0; i < mIncomplete.Count(); ++i) {
     cur = mIncomplete[i];
     //If this succeeds, the object will be removed from mIncomplete
-    if (nsXMLEventsListener::InitXMLEventsListener(aDocument, this, cur))
+    if (nsXMLEventsListener::InitXMLEventsListener(aDocument, this, cur) == PR_TRUE)
       --i;
   }
 }
@@ -396,7 +407,6 @@ nsXMLEventsManager::AttributeChanged(nsIDocument* aDocument,
 void
 nsXMLEventsManager::ContentAppended(nsIDocument* aDocument,
                                     nsIContent* aContainer,
-                                    nsIContent* aFirstNewContent,
                                     PRInt32 aNewIndexInContainer)
 {
   AddListeners(aDocument);
@@ -417,7 +427,7 @@ nsXMLEventsManager::ContentRemoved(nsIDocument* aDocument,
                                    nsIContent* aChild,
                                    PRInt32 aIndexInContainer)
 {
-  if (!aChild || !aChild->IsElement())
+  if (!aChild || !aChild->IsNodeOfType(nsINode::eELEMENT))
     return;
   //Note, we can't use IDs here, the observer may not always have an ID.
   //And to remember: the same observer can be referenced by many 

@@ -450,15 +450,15 @@ CSS_PROP_BACKGROUND(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_BACKGROUND(
-    background-clip,
-    background_clip,
-    BackgroundClip,
+    -moz-background-clip,
+    _moz_background_clip,
+    MozBackgroundClip,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Color,
     mBackClip,
     eCSSType_ValueList,
-    kBackgroundOriginKTable,
+    kBackgroundClipKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_BACKGROUND(
@@ -499,9 +499,9 @@ CSS_PROP_BACKGROUND(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_BACKGROUND(
-    background-origin,
-    background_origin,
-    BackgroundOrigin,
+    -moz-background-origin,
+    _moz_background_origin,
+    MozBackgroundOrigin,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Color,
@@ -521,7 +521,7 @@ CSS_PROP_BACKGROUND(
     eCSSType_ValuePairList,
     kBackgroundPositionKTable,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_BACKGROUND(
     background-repeat,
     background_repeat,
@@ -535,9 +535,9 @@ CSS_PROP_BACKGROUND(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_BACKGROUND(
-    background-size,
-    background_size,
-    BackgroundSize,
+    -moz-background-size,
+    _moz_background_size,
+    MozBackgroundSize,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Color,
@@ -545,7 +545,7 @@ CSS_PROP_BACKGROUND(
     eCSSType_ValuePairList,
     kBackgroundSizeKTable,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    eStyleAnimType_None)
 CSS_PROP_DISPLAY(
     -moz-binding,
     binding,
@@ -717,8 +717,7 @@ CSS_PROP_BORDER(
     border_left_color_value,
     X,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBorderColor.mLeft,
     eCSSType_Value,
@@ -774,8 +773,7 @@ CSS_PROP_BORDER(
     border-left-style-value,
     border_left_style_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderStyle.mLeft,
     eCSSType_Value,
@@ -817,8 +815,7 @@ CSS_PROP_BORDER(
     border-left-width-value,
     border_left_width_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderWidth.mLeft,
     eCSSType_Value,
@@ -866,8 +863,7 @@ CSS_PROP_BORDER(
     border_right_color_value,
     X,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+        CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     Margin,
     mBorderColor.mRight,
     eCSSType_Value,
@@ -923,8 +919,7 @@ CSS_PROP_BORDER(
     border-right-style-value,
     border_right_style_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderStyle.mRight,
     eCSSType_Value,
@@ -966,8 +961,7 @@ CSS_PROP_BORDER(
     border-right-width-value,
     border_right_width_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mBorderWidth.mRight,
     eCSSType_Value,
@@ -1196,8 +1190,8 @@ CSS_PROP_DISPLAY(
     mClip,
     eCSSType_Rect,
     nsnull,
-    offsetof(nsStyleDisplay, mClip),
-    eStyleAnimType_Custom)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_COLOR(
     color,
     color,
@@ -1257,8 +1251,8 @@ CSS_PROP_COLUMN(
     mColumnRuleColor,
     eCSSType_Value,
     nsnull,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    offsetof(nsStyleColumn, mColumnRuleColor),
+    eStyleAnimType_Color)
 CSS_PROP_COLUMN(
     -moz-column-rule-style,
     _moz_column_rule_style,
@@ -1529,8 +1523,8 @@ CSS_PROP_LIST(
     mImageRegion,
     eCSSType_Rect,
     nsnull,
-    offsetof(nsStyleList, mImageRegion),
-    eStyleAnimType_Custom)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_UIRESET(
     ime-mode,
     ime_mode,
@@ -1657,8 +1651,7 @@ CSS_PROP_MARGIN(
     margin-left-value,
     margin_left_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mMargin.mLeft,
     eCSSType_Value,
@@ -1700,8 +1693,7 @@ CSS_PROP_MARGIN(
     margin-right-value,
     margin_right_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mMargin.mRight,
     eCSSType_Value,
@@ -1966,8 +1958,7 @@ CSS_PROP_PADDING(
     padding-left-value,
     padding_left_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mPadding.mLeft,
     eCSSType_Value,
@@ -2009,8 +2000,7 @@ CSS_PROP_PADDING(
     padding-right-value,
     padding_right_value,
     X,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_REPORT_OTHER_NAME,
+    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     Margin,
     mPadding.mRight,
     eCSSType_Value,
@@ -2183,17 +2173,6 @@ CSS_PROP_QUOTES(
     mQuotes,
     eCSSType_ValuePairList,
     nsnull,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_DISPLAY(
-    -moz-resize,
-    resize,
-    MozResize,
-    0,
-    Display,
-    mResize,
-    eCSSType_Value,
-    kResizeKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_BACKENDONLY(
@@ -2718,6 +2697,9 @@ CSS_PROP_FONT(
 #endif
 #endif
 
+// XXX treat SVG's CSS Properties as internal for now.
+// Do we want to create an nsIDOMSVGCSS2Properties interface?
+#ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_SVGRESET(
     clip-path,
     clip_path,
@@ -3053,6 +3035,7 @@ CSS_PROP_SVG(
     kTextRenderingKTable,
     offsetof(nsStyleSVG, mTextRendering),
     eStyleAnimType_EnumU8)
+#endif /* !defined (CSS_PROP_LIST_EXCLUDE_INTERNAL) */
 
 // Callers that want information on the properties that are in
 // the style structs but not in the nsCSS* structs should define
@@ -3068,6 +3051,28 @@ CSS_PROP_VISIBILITY(
     0,
     Display,
     mLang,
+    eCSSType_Value,
+    nsnull,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+CSS_PROP_TABLE(
+    X,
+    X,
+    X,
+    0,
+    Table,
+    mFrame,
+    eCSSType_Value,
+    nsnull,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+CSS_PROP_TABLE(
+    X,
+    X,
+    X,
+    0,
+    Table,
+    mRules,
     eCSSType_Value,
     nsnull,
     CSS_PROP_NO_OFFSET,

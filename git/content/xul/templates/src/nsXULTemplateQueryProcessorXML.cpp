@@ -56,12 +56,10 @@
 #include "nsContentUtils.h"
 #include "nsArrayUtils.h"
 #include "nsPIDOMWindow.h"
-#include "nsXULContentUtils.h"
 
 #include "nsXULTemplateBuilder.h"
 #include "nsXULTemplateQueryProcessorXML.h"
 #include "nsXULTemplateResultXML.h"
-#include "nsXULSortService.h"
 
 NS_IMPL_ISUPPORTS1(nsXMLQuery, nsXMLQuery)
 
@@ -276,10 +274,7 @@ nsXULTemplateQueryProcessorXML::CompileQuery(nsIXULTemplateBuilder* aBuilder,
 
     nsCOMPtr<nsIDOMXPathExpression> compiledexpr;
     rv = CreateExpression(expr, aQueryNode, getter_AddRefs(compiledexpr));
-    if (NS_FAILED(rv)) {
-        nsXULContentUtils::LogTemplateError(ERROR_TEMPLATE_BAD_XPATH);
-        return rv;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
 
     nsRefPtr<nsXMLQuery> query =
         new nsXMLQuery(this, aMemberVariable, compiledexpr);
@@ -302,10 +297,7 @@ nsXULTemplateQueryProcessorXML::CompileQuery(nsIXULTemplateBuilder* aBuilder,
                     do_QueryInterface(condition);
                 rv = CreateExpression(expr, conditionNode,
                                       getter_AddRefs(compiledexpr));
-                if (NS_FAILED(rv)) {
-                    nsXULContentUtils::LogTemplateError(ERROR_TEMPLATE_BAD_ASSIGN_XPATH);
-                    return rv;
-                }
+                NS_ENSURE_SUCCESS(rv, rv);
 
                 nsCOMPtr<nsIAtom> varatom = do_GetAtom(var);
 
@@ -386,10 +378,7 @@ nsXULTemplateQueryProcessorXML::AddBinding(nsIDOMNode* aRuleNode,
     nsCOMPtr<nsIDOMXPathExpression> compiledexpr;
     nsresult rv =
         CreateExpression(aExpr, aRuleNode, getter_AddRefs(compiledexpr));
-    if (NS_FAILED(rv)) {
-        nsXULContentUtils::LogTemplateError(ERROR_TEMPLATE_BAD_BINDING_XPATH);
-        return NS_OK;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // aRef isn't currently used for XML query processors
     return bindings->AddBinding(aVar, compiledexpr);
@@ -429,22 +418,27 @@ NS_IMETHODIMP
 nsXULTemplateQueryProcessorXML::CompareResults(nsIXULTemplateResult* aLeft,
                                                nsIXULTemplateResult* aRight,
                                                nsIAtom* aVar,
-                                               PRUint32 aSortHints,
                                                PRInt32* aResult)
 {
     *aResult = 0;
     if (!aVar)
-        return NS_OK;
+      return NS_OK;
+
+    // XXXndeakin - bug 379745
+    // it would be good for this to handle other types such as integers,
+    // so that sorting can be optimized for different types.
 
     nsAutoString leftVal;
     if (aLeft)
-        aLeft->GetBindingFor(aVar, leftVal);
+      aLeft->GetBindingFor(aVar, leftVal);
 
     nsAutoString rightVal;
     if (aRight)
-        aRight->GetBindingFor(aVar, rightVal);
+      aRight->GetBindingFor(aVar, rightVal);
 
-    *aResult = XULSortServiceImpl::CompareValues(leftVal, rightVal, aSortHints);
+    // currently templates always sort case-insensitive
+    *aResult = ::Compare(leftVal, rightVal,
+                         nsCaseInsensitiveStringComparator());
     return NS_OK;
 }
 

@@ -58,7 +58,6 @@ EXPORTS		= \
 		nsINativeKeyBindings.h \
 		nsIDeviceContextSpec.h \
 		nsIMenuRollup.h \
-		nsIRollupListener.h \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
@@ -84,6 +83,7 @@ EXPORTS		+= \
 endif
 
 XPIDLSRCS	= \
+		nsIAccelerometer.idl \
 		nsIAppShell.idl \
 		nsIFilePicker.idl \
 		nsIToolkit.idl \
@@ -97,6 +97,7 @@ XPIDLSRCS	= \
 		nsIClipboard.idl \
 		nsIClipboardHelper.idl \
 		nsIClipboardOwner.idl \
+		nsIRollupListener.idl \
 		nsIBaseWindow.idl \
 		nsIBidiKeyboard.idl \
 		nsIScreen.idl \
@@ -120,12 +121,6 @@ XPIDLSRCS	+= nsIPrintSettingsWin.idl \
 		nsITaskbarPreviewButton.idl \
 		nsIJumpListBuilder.idl \
 		nsIJumpListItem.idl \
-		$(NULL)
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-XPIDLSRCS +=	nsIMacDockSupport.idl \
-		nsIStandaloneNativeMenu.idl \
 		$(NULL)
 endif
 

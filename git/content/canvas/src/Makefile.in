@@ -46,27 +46,63 @@ MODULE		= content
 LIBRARY_NAME	= gkconcvs_s
 LIBXUL_LIBRARY  = 1
 
-EXPORTS = \
-	CustomQS_Canvas2D.h \
-	CustomQS_WebGL.h \
-	$(NULL)
+
 
 CPPSRCS	= \
 	CanvasUtils.cpp \
 	nsCanvasRenderingContext2D.cpp \
 	$(NULL)
 
+ifdef MOZ_IPC
+CPPSRCS += \
+	DocumentRendererParent.cpp \
+	DocumentRendererChild.cpp \
+	$(NULL)
+endif
+
 # Canvas 3D Pieces
 
 ifdef MOZ_WEBGL
 
+ifeq (1_1,$(MOZ_X11)_$(NS_OSSO))
+WEBGL_PLATFORM = EGL
+DEFINES += -DUSE_GLES2
+endif
+
+ifeq (1_,$(MOZ_X11)_$(NS_OSSO))
+WEBGL_PLATFORM = GLX
+EXTRA_DSO_LIBS += X11
+endif
+
+
+ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
+ifdef WINCE
+WEBGL_PLATFORM = EGL
+DEFINES += -DUSE_GLES2
+else
+WEBGL_PLATFORM = WGL
+endif
+endif
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+WEBGL_PLATFORM = CGL
+endif
+
 CPPSRCS += \
+	WebGLArrays.cpp \
 	WebGLContext.cpp \
 	WebGLContextGL.cpp \
 	WebGLContextUtils.cpp \
 	WebGLContextValidate.cpp \
 	NativeJSContext.cpp \
+	glwrap.cpp \
+	nsGLPbuffer.cpp \
+	nsGLPbufferOSMesa.cpp \
+	SimpleBuffer.cpp \
 	$(NULL)
+
+CPPSRCS += nsGLPbuffer$(WEBGL_PLATFORM).cpp
+DEFINES += -DUSE_$(WEBGL_PLATFORM)
 
 else
 
@@ -78,6 +114,7 @@ endif
 FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 CXXFLAGS	+= $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
 

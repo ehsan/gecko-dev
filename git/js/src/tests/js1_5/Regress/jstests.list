@@ -84,7 +84,7 @@ script regress-256798.js
 skip-if(xulRuntime.shell) script regress-259935.js # browser only
 script regress-260541.js
 script regress-261886.js
-skip script regress-261887.js # we violate the spec here with our new iterators
+script regress-261887.js
 skip script regress-271716-n.js # never terminates
 script regress-274035.js
 script regress-274888.js
@@ -170,7 +170,7 @@ skip-if(xulRuntime.OS=="WINNT"&&isDebugBuild) script regress-341360.js # slow
 script regress-343713.js
 script regress-343966.js
 script regress-344711-n.js
-random-if(!xulRuntime.shell&&xulRuntime.OS=="WINNT") asserts-if(!xulRuntime.shell&&xulRuntime.OS=="WINNT",1) script regress-344804.js # bug 524732
+random-if(!xulRuntime.shell&&xulRuntime.OS=="WINNT") script regress-344804.js # bug 524732
 script regress-344959.js
 script regress-346237.js
 script regress-346801.js
@@ -228,7 +228,7 @@ script regress-396684.js
 script regress-398085-01.js
 script regress-398085-02.js
 script regress-398609.js
-skip script regress-404755.js # unreliable - based on GC timing
+script regress-404755.js
 script regress-406769.js
 script regress-407024.js
 script regress-407323.js
@@ -243,24 +243,21 @@ skip-if(xulRuntime.OS=="WINNT"&&isDebugBuild) script regress-418540.js # slow
 script regress-419018.js
 script regress-419803.js
 script regress-420919.js
-skip-if(xulRuntime.XPCOMABI.match(/x86_64/)) script regress-422348.js # On 64-bit, takes forever rather than throwing
+fails-if(xulRuntime.OS=="Linux"&&xulRuntime.XPCOMABI.match(/x86_64/)) script regress-422348.js # No test results
 script regress-424311.js
 skip-if(xulRuntime.OS=="WINNT"&&isDebugBuild) script regress-425360.js # slow
 script regress-426827.js
 script regress-428366.js
 script regress-438415-01.js
 script regress-438415-02.js
-script regress-440926.js
 script regress-449627.js
 script regress-449666.js
 script regress-450369.js
 script regress-450833.js
-skip script regress-451322.js # slow
 script regress-451884.js
 script regress-451946.js
 script regress-452008.js
 script regress-452170.js
-script regress-452189.js
 script regress-452333.js
 script regress-452336.js
 script regress-452346.js
@@ -302,8 +299,6 @@ script regress-459628.js
 script regress-459990.js
 script regress-460024.js
 script regress-460117.js
-script regress-460886-01.js
-script regress-460886-02.js
 script regress-461307.js
 script regress-461723.js
 script regress-462292.js
@@ -331,7 +326,6 @@ script regress-470187-01.js
 script regress-470187-02.js
 script regress-470758-01.js
 script regress-470758-02.js
-script regress-472533.js
 script regress-475645-01.js
 script regress-475645-02.js
 script regress-476049.js
@@ -344,10 +338,8 @@ script regress-480147.js
 script regress-480244.js
 script regress-481436.js
 script regress-482421.js
-script regress-482783.js
 script regress-483103.js
 script regress-501124.js
-script regress-503860.js
 script regress-504078.js
 script regress-506567.js
 script regress-511859.js

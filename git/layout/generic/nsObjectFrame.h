@@ -90,12 +90,6 @@ public:
                           nsGUIEvent* aEvent,
                           nsEventStatus* aEventStatus);
 
-#ifdef XP_MACOSX
-  NS_IMETHOD HandlePress(nsPresContext* aPresContext,
-                         nsGUIEvent*    aEvent,
-                         nsEventStatus* aEventStatus);
-#endif
-
   virtual nsIAtom* GetType() const;
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
@@ -109,7 +103,7 @@ public:
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
@@ -149,7 +143,7 @@ public:
 
   // accessibility support
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #ifdef XP_WIN
   NS_IMETHOD GetPluginPort(HWND *aPort);
 #endif
@@ -231,23 +225,12 @@ protected:
                                      nsIDOMClientRect* position,
                                      nsIDOMClientRect* clip);
 
-  void NotifyPluginReflowObservers();
+  void NotifyPluginEventObservers(const PRUnichar *eventType);
 
   friend class nsPluginInstanceOwner;
   friend class nsDisplayPlugin;
 
 private:
-  
-  class PluginEventNotifier : public nsRunnable {
-  public:
-    PluginEventNotifier(const nsString &aEventType) : 
-      mEventType(aEventType) {}
-    
-    NS_IMETHOD Run();
-  private:
-    nsString mEventType;
-  };
-  
   nsRefPtr<nsPluginInstanceOwner> mInstanceOwner;
   nsIView*                        mInnerView;
   nsCOMPtr<nsIWidget>             mWidget;

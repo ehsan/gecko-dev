@@ -97,7 +97,7 @@ nsIsIndexFrame::~nsIsIndexFrame()
 }
 
 void
-nsIsIndexFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsIsIndexFrame::Destroy()
 {
   // remove ourself as a listener of the text control (bug 40533)
   if (mInputContent) {
@@ -109,7 +109,7 @@ nsIsIndexFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsContentUtils::DestroyAnonymousContent(&mTextContent);
   nsContentUtils::DestroyAnonymousContent(&mPreHr);
   nsContentUtils::DestroyAnonymousContent(&mPostHr);
-  nsBlockFrame::DestroyFrom(aDestructRoot);
+  nsBlockFrame::Destroy();
 }
 
 // REVIEW: We don't need to override BuildDisplayList, nsBlockFrame will honour
@@ -135,7 +135,7 @@ nsIsIndexFrame::UpdatePromptLabel(PRBool aNotify)
     // it might not be the string "This is a searchable index. Enter search keywords: "
     result =
       nsContentUtils::GetLocalizedString(nsContentUtils::eFORMS_PROPERTIES,
-                                         "IsIndexPromptWithSpace", prompt);
+                                         "IsIndexPrompt", prompt);
   }
 
   mTextContent->SetText(prompt, aNotify);
@@ -146,9 +146,10 @@ nsIsIndexFrame::UpdatePromptLabel(PRBool aNotify)
 nsresult
 nsIsIndexFrame::GetInputFrame(nsIFormControlFrame** oFrame)
 {
+  nsIPresShell *presShell = PresContext()->GetPresShell();
   if (!mInputContent) NS_WARNING("null content - cannot restore state");
-  if (mInputContent) {
-    nsIFrame *frame = mInputContent->GetPrimaryFrame();
+  if (presShell && mInputContent) {
+    nsIFrame *frame = presShell->GetPrimaryFrameFor(mInputContent);
     if (frame) {
       *oFrame = do_QueryFrame(frame);
       return *oFrame ? NS_OK : NS_NOINTERFACE;
@@ -160,18 +161,20 @@ nsIsIndexFrame::GetInputFrame(nsIFormControlFrame** oFrame)
 void
 nsIsIndexFrame::GetInputValue(nsString& oString)
 {
-  nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(mInputContent);
-  if (txtCtrl) {
-    txtCtrl->GetTextEditorValue(oString, PR_FALSE);
+  nsIFormControlFrame* frame = nsnull;
+  GetInputFrame(&frame);
+  if (frame) {
+    ((nsNewFrame*)frame)->GetValue(oString, PR_FALSE);
   }
 }
 
 void
 nsIsIndexFrame::SetInputValue(const nsString& aString)
 {
-  nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(mInputContent);
-  if (txtCtrl) {
-    txtCtrl->SetTextEditorValue(aString, PR_FALSE);
+  nsIFormControlFrame* frame = nsnull;
+  GetInputFrame(&frame);
+  if (frame) {
+    ((nsNewFrame*)frame)->SetValue(aString);
   }
 }
 
@@ -234,13 +237,6 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
     return NS_ERROR_OUT_OF_MEMORY;
 
   return NS_OK;
-}
-
-void
-nsIsIndexFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
-{
-  aElements.MaybeAppendElement(mTextContent);
-  aElements.MaybeAppendElement(mInputContent);
 }
 
 NS_QUERYFRAME_HEAD(nsIsIndexFrame)
@@ -355,9 +351,9 @@ nsIsIndexFrame::OnSubmit(nsPresContext* aPresContext)
   if (!document) return NS_OK; // No doc means don't submit, see Bug 28988
 
   // Resolve url to an absolute url
-  nsIURI *baseURI = document->GetDocBaseURI();
+  nsIURI *baseURI = document->GetBaseURI();
   if (!baseURI) {
-    NS_ERROR("No Base URL found in Form Submit!");
+    NS_ERROR("No Base URL found in Form Submit!\n");
     return NS_OK; // No base URL -> exit early, see Bug 30721
   }
 
@@ -390,7 +386,7 @@ nsIsIndexFrame::OnSubmit(nsPresContext* aPresContext)
       href.Truncate(queryStart);
     }
   } else {
-    NS_ERROR("Rel path couldn't be formed in form submit!");
+    NS_ERROR("Rel path couldn't be formed in form submit!\n");
     return NS_ERROR_OUT_OF_MEMORY;
   }
 

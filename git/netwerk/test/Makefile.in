@@ -99,7 +99,7 @@ XPCSHELL_TESTS = unit
 include $(topsrcdir)/config/rules.mk
 
 check::
-	$(RUN_TEST_PROGRAM) $(DIST)/bin/TestCookie$(BIN_SUFFIX)
+	$(RUN_TEST_PROGRAM) $(DIST)/bin/TestCookie
 
 _RES_FILES 	= urlparse.dat \
 		  urlparse_unx.dat \
@@ -113,5 +113,5 @@ install:: $(_RES_FILES)
 #  up in the test directory.
 libs::
 	$(NSINSTALL) -D $(DEPTH)/_tests/xpcshell/$(MODULE)/unit/data
-	$(INSTALL) $(topsrcdir)/netwerk/dns/effective_tld_names.dat \
+	$(INSTALL) $(topsrcdir)/netwerk/dns/src/effective_tld_names.dat \
           $(DEPTH)/_tests/xpcshell/$(MODULE)/unit/

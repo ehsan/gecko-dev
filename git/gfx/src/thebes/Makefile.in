@@ -52,7 +52,6 @@ GRE_MODULE = 1
 LIBXUL_LIBRARY = 1
 
 
-DIRS		= utils
 
 CPPSRCS		= \
 		nsThebesDeviceContext.cpp \
@@ -79,9 +78,8 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 CPPSRCS		+= nsSystemFontsWin.cpp \
 		   $(NULL)
 
-ifndef WINCE
+
 _OS_LIBS	= usp10
-endif
 OS_LIBS		+= $(call EXPAND_LIBNAME,$(_OS_LIBS))
 
 endif
@@ -97,10 +95,6 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 CMMSRCS		= nsSystemFontsMac.mm
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-CPPSRCS		+= nsSystemFontsAndroid.cpp
 endif
 
 EXPORTS         += nsIThebesFontMetrics.h

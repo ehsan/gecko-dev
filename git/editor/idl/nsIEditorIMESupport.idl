@@ -39,10 +39,40 @@
 #include "nsISupports.idl"
 #include "domstubs.idl"
 
-[scriptable, uuid(a64744c5-d3ff-46ba-b9b1-57f79ff7d97d)]
+%{C++
+class nsIPrivateTextRangeList;
+struct nsTextEventReply;
+%}
+
+[ptr] native nsIPrivateTextRangeListPtr(nsIPrivateTextRangeList);
+[ptr] native nsTextEventReplyPtr(nsTextEventReply);
+
+
+[scriptable, uuid(52032429-9337-4ecf-b56b-81875a9324bc)]
 
 interface nsIEditorIMESupport : nsISupports
 {
+
+
+  /**
+   * beginComposition(nsTextEventReply* aReply) Handles the start of inline input composition.
+   */
+
+  [noscript] void beginComposition(in nsTextEventReplyPtr aReply);
+
+  /**
+   * setCompositionString() Sets the inline input composition string.
+   * beginComposition must be called prior to this.
+   */
+
+  [noscript] void setCompositionString(in DOMString aCompositionString, in nsIPrivateTextRangeListPtr aTextRange, in nsTextEventReplyPtr aReply);
+
+  /**
+   * endComposition() Handles the end of inline input composition.
+   */
+
+  void  endComposition();
+
   /**
    * forceCompositionEnd() force the composition end
    */

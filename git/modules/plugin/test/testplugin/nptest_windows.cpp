@@ -36,7 +36,6 @@
 
 #include <windows.h>
 #include <windowsx.h>
-#include <stdio.h>
 
  using namespace std;
 
@@ -92,7 +91,6 @@ pluginWidgetInit(InstanceData* instanceData, void* oldWindow)
 {
   HWND hWnd = (HWND)instanceData->window.window;
   if (oldWindow) {
-    // chrashtests/539897-1.html excercises this code
     HWND hWndOld = (HWND)oldWindow;
     ClearSubclass(hWndOld);
     if (instanceData->platformData->childWindow) {
@@ -228,7 +226,7 @@ pluginDraw(InstanceData* instanceData)
   if (instanceData->hasWidget)
     ::EndPaint((HWND)instanceData->window.window, &ps);
 
-  notifyDidPaint(instanceData);
+  ++instanceData->paintCount;
 }
 
 /* script interface */
@@ -414,17 +412,6 @@ handleEventInternal(InstanceData* instanceData, NPEvent* pe, LRESULT* result)
     case WM_MOUSEWHEEL:
       return true;
 
-    case WM_WINDOWPOSCHANGED: {
-      WINDOWPOS* pPos = (WINDOWPOS*)pe->lParam;
-      instanceData->winX = instanceData->winY = 0;
-      if (pPos) {
-        instanceData->winX = pPos->x;
-        instanceData->winY = pPos->y;
-        return true;
-      }
-      return false;
-    }
-
     case WM_MOUSEMOVE:
     case WM_LBUTTONDOWN:
     case WM_LBUTTONUP:
@@ -432,8 +419,8 @@ handleEventInternal(InstanceData* instanceData, NPEvent* pe, LRESULT* result)
     case WM_MBUTTONUP:
     case WM_RBUTTONDOWN:
     case WM_RBUTTONUP: {
-      int x = instanceData->hasWidget ? 0 : instanceData->winX;
-      int y = instanceData->hasWidget ? 0 : instanceData->winY;
+      int x = instanceData->hasWidget ? 0 : instanceData->window.x;
+      int y = instanceData->hasWidget ? 0 : instanceData->window.y;
       instanceData->lastMouseX = GET_X_LPARAM(pe->lParam) - x;
       instanceData->lastMouseY = GET_Y_LPARAM(pe->lParam) - y;
       return true;
@@ -485,7 +472,7 @@ void
 ClearSubclass(HWND hWnd)
 {
   if (GetProp(hWnd, "MozillaWndProc")) {
-    ::SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)GetProp(hWnd, "MozillaWndProc"));
+    ::SetWindowLong(hWnd, GWL_WNDPROC, (long)GetProp(hWnd, "MozillaWndProc"));
     RemoveProp(hWnd, "MozillaWndProc");
     RemoveProp(hWnd, "InstanceData");
   }
@@ -496,7 +483,7 @@ SetSubclass(HWND hWnd, InstanceData* instanceData)
 {
   // Subclass the plugin window so we can handle our own windows events.
   SetProp(hWnd, "InstanceData", (HANDLE)instanceData);
-  WNDPROC origProc = (WNDPROC)::SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)PluginWndProc);
+  WNDPROC origProc = (WNDPROC)::SetWindowLong(hWnd, GWL_WNDPROC, (long)PluginWndProc);
   SetProp(hWnd, "MozillaWndProc", (HANDLE)origProc);
 }
 

@@ -49,7 +49,7 @@
   {                                                                                       \
     _cmdClass* theCmd;                                                                    \
     NS_NEWXPCOM(theCmd, _cmdClass);                                                       \
-    NS_ENSURE_TRUE(theCmd, NS_ERROR_OUT_OF_MEMORY);                                           \
+    if (!theCmd) return NS_ERROR_OUT_OF_MEMORY;                                           \
     rv = inCommandTable->RegisterCommand(_cmdName,                                        \
                                    static_cast<nsIControllerCommand *>(theCmd));          \
   }
@@ -58,7 +58,7 @@
   {                                                                                       \
     _cmdClass* theCmd;                                                                    \
     NS_NEWXPCOM(theCmd, _cmdClass);                                                       \
-    NS_ENSURE_TRUE(theCmd, NS_ERROR_OUT_OF_MEMORY);                                           \
+    if (!theCmd) return NS_ERROR_OUT_OF_MEMORY;                                           \
     rv = inCommandTable->RegisterCommand(_cmdName,                                        \
                                    static_cast<nsIControllerCommand *>(theCmd));
 
@@ -91,8 +91,6 @@ nsresult nsEditorController::RegisterEditorCommands(nsIControllerCommandTable *i
   NS_REGISTER_ONE_COMMAND(nsSelectAllCommand, "cmd_selectAll");
   
   NS_REGISTER_ONE_COMMAND(nsPasteCommand, "cmd_paste");
-  NS_REGISTER_ONE_COMMAND(nsPasteTransferableCommand, "cmd_pasteTransferable");
-
   NS_REGISTER_ONE_COMMAND(nsSwitchTextDirectionCommand, "cmd_switchTextDirection");
   
   NS_REGISTER_FIRST_COMMAND(nsDeleteCommand, "cmd_delete");

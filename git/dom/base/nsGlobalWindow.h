@@ -96,13 +96,10 @@
 #include "nsIDOMStorageObsolete.h"
 #include "nsIDOMStorageList.h"
 #include "nsIDOMStorageWindow.h"
-#include "nsIDOMStorageEvent.h"
 #include "nsIDOMOfflineResourceList.h"
 #include "nsPIDOMEventTarget.h"
 #include "nsIArray.h"
 #include "nsIContent.h"
-#include "nsIIDBFactory.h"
-#include "nsFrameMessageManager.h"
 
 #define DEFAULT_HOME_PAGE "www.mozilla.org"
 #define PREF_BROWSER_STARTUP_HOMEPAGE "browser.startup.homepage"
@@ -111,7 +108,7 @@ class nsIDOMBarProp;
 class nsIDocument;
 class nsPresContext;
 class nsIDOMEvent;
-class nsIScrollableFrame;
+class nsIScrollableView;
 class nsIControllers;
 
 class nsBarProp;
@@ -290,8 +287,11 @@ public:
   // nsPIDOMWindow
   virtual NS_HIDDEN_(nsPIDOMWindow*) GetPrivateRoot();
   virtual NS_HIDDEN_(void) ActivateOrDeactivate(PRBool aActivate);
-  virtual NS_HIDDEN_(void) SetActive(PRBool aActive);
   virtual NS_HIDDEN_(void) SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler);
+  virtual NS_HIDDEN_(nsIFocusController*) GetRootFocusController();
+
+  virtual NS_HIDDEN_(already_AddRefed<nsComputedDOMStyle>)
+    LookupComputedStyleFor(nsIContent* aElem);
 
   virtual NS_HIDDEN_(void) SetOpenerScriptPrincipal(nsIPrincipal* aPrincipal);
   virtual NS_HIDDEN_(nsIPrincipal*) GetOpenerScriptPrincipal();
@@ -338,17 +338,14 @@ public:
 
   virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                              nsISupports *aState);
-  void DispatchDOMWindowCreated();
+                                              nsISupports *aState,
+                                              PRBool aClearScopeHint);
   virtual NS_HIDDEN_(void) SetOpenerWindow(nsIDOMWindowInternal *aOpener,
                                            PRBool aOriginalOpener);
   virtual NS_HIDDEN_(void) EnsureSizeUpToDate();
 
   virtual NS_HIDDEN_(void) EnterModalState();
   virtual NS_HIDDEN_(void) LeaveModalState();
-
-  virtual NS_HIDDEN_(PRBool) CanClose();
-  virtual NS_HIDDEN_(nsresult) ForceClose();
 
   virtual NS_HIDDEN_(void) SetHasOrientationEventListener();
 
@@ -449,33 +446,24 @@ public:
   virtual PRBool TakeFocus(PRBool aFocus, PRUint32 aFocusMethod);
   virtual void SetReadyForFocus();
   virtual void PageHidden();
-  virtual nsresult DispatchSyncHashchange();
-  virtual nsresult DispatchSyncPopState();
-
+  virtual nsresult DispatchAsyncHashchange();
   virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin);
 
   static PRBool DOMWindowDumpEnabled();
 
-  void MaybeForgiveSpamCount();
-  PRBool IsClosedOrClosing() {
-    return (mIsClosed ||
-            mInClose ||
-            mHavePendingClose ||
-            mCleanedUp);
-  }
-
 protected:
   // Object Management
   virtual ~nsGlobalWindow();
-  void CleanUp(PRBool aIgnoreModalDialog);
+  void CleanUp();
   void ClearControllers();
-  nsresult FinalClose();
 
   void FreeInnerObjects(PRBool aClearScope);
   nsGlobalWindow *CallerInnerWindow();
 
-  nsresult InnerSetNewDocument(nsIDocument* aDocument);
-
+  nsresult SetNewDocument(nsIDocument *aDocument,
+                          nsISupports *aState,
+                          PRBool aClearScopeHint,
+                          PRBool aIsInternalCall);
   nsresult DefineArgumentsProperty(nsIArray *aArguments);
 
   // Get the parent, returns null if this is a toplevel window
@@ -564,7 +552,6 @@ protected:
 
   // The timeout implementation functions.
   void RunTimeout(nsTimeout *aTimeout);
-  void RunTimeout() { RunTimeout(nsnull); }
 
   void ClearAllTimeouts();
   // Insert aTimeout into the list, before all timeouts that would
@@ -576,9 +563,9 @@ protected:
   nsresult GetTreeOwner(nsIDocShellTreeOwner** aTreeOwner);
   nsresult GetTreeOwner(nsIBaseWindow** aTreeOwner);
   nsresult GetWebBrowserChrome(nsIWebBrowserChrome** aBrowserChrome);
-  // GetScrollFrame does not flush.  Callers should do it themselves as needed,
-  // depending on which info they actually want off the scrollable frame.
-  nsIScrollableFrame *GetScrollFrame();
+  // GetScrollInfo does not flush.  Callers should do it themselves as needed,
+  // depending on which info they actually want off the scrollable view.
+  nsresult GetScrollInfo(nsIScrollableView** aScrollableView);
   nsresult SecurityCheckURL(const char *aURL);
   nsresult BuildURIfromBase(const char *aURL,
                             nsIURI **aBuiltURI,
@@ -590,7 +577,8 @@ protected:
                            const nsAString &aPopupWindowName,
                            const nsAString &aPopupWindowFeatures);
   void FireOfflineStatusEvent();
-
+  nsresult FireHashchange();
+  
   void FlushPendingNotifications(mozFlushType aType);
   void EnsureReflowFlushAndPaint();
   nsresult CheckSecurityWidthAndHeight(PRInt32* width, PRInt32* height);
@@ -655,6 +643,11 @@ protected:
     return aList != &mTimeouts;
   }
 
+  // Helper method for looking up computed style
+  nsresult GetComputedStyle(nsIDOMElement* aElt,
+                            const nsAString& aPseudoElt,
+                            nsComputedDOMStyle** aReturn);
+
   // Convenience functions for the many methods that need to scale
   // from device to CSS pixels or vice versa.  Note: if a presentation
   // context is not available, they will assume a 1:1 ratio.
@@ -663,29 +656,16 @@ protected:
   nsIntSize DevToCSSIntPixels(nsIntSize px);
   nsIntSize CSSToDevIntPixels(nsIntSize px);
 
+  virtual nsIContent* GetFocusedNode();
   virtual void SetFocusedNode(nsIContent* aNode,
                               PRUint32 aFocusMethod = 0,
                               PRBool aNeedsFocus = PR_FALSE);
 
   virtual PRUint32 GetFocusMethod();
 
-  virtual PRBool ShouldShowFocusRing();
-
-  virtual void SetKeyboardIndicators(UIStateChangeType aShowAccelerators,
-                                     UIStateChangeType aShowFocusRings);
-  virtual void GetKeyboardIndicators(PRBool* aShowAccelerators,
-                                     PRBool* aShowFocusRings);
-
   void UpdateCanvasFocus(PRBool aFocusChanged, nsIContent* aNewContent);
 
-  already_AddRefed<nsPIWindowRoot> GetTopWindowRoot();
-
   static void NotifyDOMWindowDestroyed(nsGlobalWindow* aWindow);
-  void NotifyWindowIDDestroyed(const char* aTopic);
-  
-  void ClearStatus();
-
-  virtual void UpdateParentTarget();
 
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable
@@ -736,25 +716,8 @@ protected:
   PRPackedBool           mNeedsFocus : 1;
   PRPackedBool           mHasFocus : 1;
 
-  // whether to show keyboard accelerators
-  PRPackedBool           mShowAccelerators : 1;
-
-  // whether to show focus rings
-  PRPackedBool           mShowFocusRings : 1;
-
-  // when true, show focus rings for the current focused content only.
-  // This will be reset when another element is focused
-  PRPackedBool           mShowFocusRingForContent : 1;
-
-  // true if tab navigation has occurred for this window. Focus rings
-  // should be displayed.
-  PRPackedBool           mFocusByKeyOccurred : 1;
-
   // Indicates whether this window is getting acceleration change events
   PRPackedBool           mHasAcceleration  : 1;
-
-  // whether we've sent the destroy notification for our window id
-  PRPackedBool           mNotifiedIDDestroyed : 1;
 
   nsCOMPtr<nsIScriptContext>    mContext;
   nsWeakPtr                     mOpener;
@@ -784,7 +747,6 @@ protected:
   nsCOMPtr<nsIDOMCrypto>        mCrypto;
 
   nsCOMPtr<nsIDOMStorage>      mLocalStorage;
-  nsCOMPtr<nsIDOMStorage>      mSessionStorage;
 
   nsCOMPtr<nsISupports>         mInnerWindowHolders[NS_STID_ARRAY_UBOUND];
   nsCOMPtr<nsIPrincipal> mOpenerScriptPrincipal; // strong; used to determine
@@ -797,6 +759,7 @@ protected:
   nsTimeout*                    mTimeoutInsertionPoint;
   PRUint32                      mTimeoutPublicIdCounter;
   PRUint32                      mTimeoutFiringDepth;
+  nsCOMPtr<nsIDOMStorageObsolete>       mSessionStorage;
 
   // Holder of the dummy java plugin, used to expose window.java and
   // window.packages.
@@ -807,11 +770,13 @@ protected:
   nsCOMPtr<nsIDocument> mDoc;  // For fast access to principals
   JSObject* mJSObject;
 
-  typedef nsTArray<nsCOMPtr<nsIDOMStorageEvent> > nsDOMStorageEventArray;
-  nsDOMStorageEventArray mPendingStorageEvents;
-  nsDataHashtable<nsStringHashKey, PRBool> *mPendingStorageEventsObsolete;
+  nsDataHashtable<nsStringHashKey, PRBool> *mPendingStorageEvents;
 
   PRUint32 mTimeoutsSuspendDepth;
+
+  // the element within the document that is currently focused when this
+  // window is active
+  nsCOMPtr<nsIContent>   mFocusedNode;
 
   // the method that was used to focus mFocusedNode
   PRUint32 mFocusMethod;
@@ -822,19 +787,11 @@ protected:
   nsCOMPtr<nsIURI> mLastOpenedURI;
 #endif
 
-  PRBool mCleanedUp, mCallCleanUpAfterModalDialogCloses;
-
   nsCOMPtr<nsIDOMOfflineResourceList> mApplicationCache;
 
   nsDataHashtable<nsVoidPtrHashKey, void*> mCachedXBLPrototypeHandlers;
 
   nsCOMPtr<nsIDocument> mSuspendedDoc;
-
-  nsCOMPtr<nsIIDBFactory> mIndexedDB;
-
-  // A unique (as long as our 64-bit counter doesn't roll over) id for
-  // this window.
-  PRUint64 mWindowID;
 
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
@@ -865,8 +822,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsGlobalChromeWindow,
                                                      nsGlobalWindow)
 
+protected:
   nsCOMPtr<nsIBrowserDOMWindow> mBrowserDOMWindow;
-  nsCOMPtr<nsIChromeFrameMessageManager> mMessageManager;
 };
 
 /*
@@ -890,7 +847,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsGlobalModalWindow, nsGlobalWindow)
 
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                              nsISupports *aState);
+                                              nsISupports *aState,
+                                              PRBool aClearScopeHint);
 
 protected:
   nsCOMPtr<nsIVariant> mReturnValue;
@@ -902,6 +860,7 @@ protected:
 //*****************************************************************************
 
 class nsNavigator : public nsIDOMNavigator,
+                    public nsIDOMJSNavigator,
                     public nsIDOMClientInformation,
                     public nsIDOMNavigatorGeolocation
 {
@@ -911,6 +870,7 @@ public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMNAVIGATOR
+  NS_DECL_NSIDOMJSNAVIGATOR
   NS_DECL_NSIDOMCLIENTINFORMATION
   NS_DECL_NSIDOMNAVIGATORGEOLOCATION
   
@@ -928,6 +888,8 @@ protected:
   nsRefPtr<nsPluginArray> mPlugins;
   nsRefPtr<nsGeolocation> mGeolocation;
   nsIDocShell* mDocShell; // weak reference
+
+  static jsval       sPrefInternal_id;
 };
 
 class nsIURI;

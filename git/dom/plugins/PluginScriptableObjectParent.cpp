@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et :
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ * vim: sw=4 ts=4 et :
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -37,13 +37,74 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "PluginScriptableObjectParent.h"
-#include "PluginScriptableObjectUtils.h"
+#include "PluginInstanceParent.h"
+#include "PluginModuleParent.h"
 
-#include "mozilla/unused.h"
+#include "npapi.h"
+#include "nsDebug.h"
 
 using namespace mozilla::plugins;
 
+using mozilla::ipc::NPRemoteIdentifier;
+
 namespace {
+
+inline PluginInstanceParent*
+GetInstance(NPObject* aObject)
+{
+  NS_ASSERTION(aObject->_class == PluginScriptableObjectParent::GetClass(),
+               "Bad class!");
+
+  ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
+  if (!object->parent) {
+    NS_WARNING("Calling method on an invalidated object!");
+    return nsnull;
+  }
+  return object->parent->GetInstance();
+}
+
+inline const NPNetscapeFuncs*
+GetNetscapeFuncs(PluginInstanceParent* aInstance)
+{
+  PluginModuleParent* module = aInstance->Module();
+  if (!module) {
+    NS_WARNING("Null module?!");
+    return nsnull;
+  }
+  return module->GetNetscapeFuncs();
+}
+
+inline const NPNetscapeFuncs*
+GetNetscapeFuncs(NPObject* aObject)
+{
+  NS_ASSERTION(aObject->_class == PluginScriptableObjectParent::GetClass(),
+               "Bad class!");
+
+  PluginInstanceParent* instance = GetInstance(aObject);
+  if (!instance) {
+    return nsnull;
+  }
+
+  return GetNetscapeFuncs(instance);
+}
+
+inline NPObject*
+NPObjectFromVariant(const Variant& aRemoteVariant) {
+  NS_ASSERTION(aRemoteVariant.type() ==
+               Variant::TPPluginScriptableObjectParent,
+               "Wrong variant type!");
+  PluginScriptableObjectParent* actor =
+    const_cast<PluginScriptableObjectParent*>(
+      reinterpret_cast<const PluginScriptableObjectParent*>(
+        aRemoteVariant.get_PPluginScriptableObjectParent()));
+  return actor->GetObject();
+}
+
+inline NPObject*
+NPObjectFromVariant(const NPVariant& aVariant) {
+  NS_ASSERTION(NPVARIANT_IS_OBJECT(aVariant), "Wrong variant type!");
+  return NPVARIANT_TO_OBJECT(aVariant);
+}
 
 inline void
 ReleaseVariant(NPVariant& aVariant,
@@ -55,9 +116,9 @@ ReleaseVariant(NPVariant& aVariant,
   }
 }
 
-inline PPluginIdentifierParent*
-GetIdentifier(PluginInstanceParent* aInstance,
-              NPIdentifier aIdentifier)
+inline bool
+EnsureValidIdentifier(PluginInstanceParent* aInstance,
+                      NPIdentifier aIdentifier)
 {
   PluginModuleParent* module = aInstance->Module();
   if (!module) {
@@ -65,12 +126,12 @@ GetIdentifier(PluginInstanceParent* aInstance,
     return false;
   }
 
-  return module->GetIdentifierForNPIdentifier(aIdentifier);
+  return module->EnsureValidNPIdentifier(aIdentifier);
 }
 
-inline PPluginIdentifierParent*
-GetIdentifier(NPObject* aObject,
-              NPIdentifier aIdentifier)
+inline bool
+EnsureValidIdentifier(NPObject* aObject,
+                      NPIdentifier aIdentifier)
 {
   PluginInstanceParent* instance = GetInstance(aObject);
   if (!instance) {
@@ -78,7 +139,116 @@ GetIdentifier(NPObject* aObject,
     return false;
   }
 
-  return GetIdentifier(instance, aIdentifier);
+  return EnsureValidIdentifier(instance, aIdentifier);
+}
+
+bool
+ConvertToVariant(const Variant& aRemoteVariant,
+                 NPVariant& aVariant,
+                 PluginInstanceParent* aInstance)
+{
+  switch (aRemoteVariant.type()) {
+    case Variant::Tvoid_t: {
+      VOID_TO_NPVARIANT(aVariant);
+      break;
+    }
+
+    case Variant::Tnull_t: {
+      NULL_TO_NPVARIANT(aVariant);
+      break;
+    }
+
+    case Variant::Tbool: {
+      BOOLEAN_TO_NPVARIANT(aRemoteVariant.get_bool(), aVariant);
+      break;
+    }
+
+    case Variant::Tint: {
+      INT32_TO_NPVARIANT(aRemoteVariant.get_int(), aVariant);
+      break;
+    }
+
+    case Variant::Tdouble: {
+      DOUBLE_TO_NPVARIANT(aRemoteVariant.get_double(), aVariant);
+      break;
+    }
+
+    case Variant::TnsCString: {
+      const nsCString& string = aRemoteVariant.get_nsCString();
+      NPUTF8* buffer = reinterpret_cast<NPUTF8*>(strdup(string.get()));
+      if (!buffer) {
+        NS_ERROR("Out of memory!");
+        return false;
+      }
+      STRINGN_TO_NPVARIANT(buffer, string.Length(), aVariant);
+      break;
+    }
+
+    case Variant::TPPluginScriptableObjectParent: {
+      NPObject* object = NPObjectFromVariant(aRemoteVariant);
+      if (!object) {
+        NS_ERROR("Er, this shouldn't fail!");
+        return false;
+      }
+
+      const NPNetscapeFuncs* npn = GetNetscapeFuncs(aInstance);
+      if (!npn) {
+        NS_ERROR("Null netscape funcs!");
+        return false;
+      }
+      npn->retainobject(object);
+      OBJECT_TO_NPVARIANT(object, aVariant);
+      break;
+    }
+
+    default:
+      NS_NOTREACHED("Shouldn't get here!");
+      return false;
+  }
+
+  return true;
+}
+
+bool
+ConvertToRemoteVariant(const NPVariant& aVariant,
+                       Variant& aRemoteVariant,
+                       PluginInstanceParent* aInstance)
+{
+  if (NPVARIANT_IS_VOID(aVariant)) {
+    aRemoteVariant = mozilla::void_t();
+  }
+  else if (NPVARIANT_IS_NULL(aVariant)) {
+    aRemoteVariant = mozilla::null_t();
+  }
+  else if (NPVARIANT_IS_BOOLEAN(aVariant)) {
+    aRemoteVariant = NPVARIANT_TO_BOOLEAN(aVariant);
+  }
+  else if (NPVARIANT_IS_INT32(aVariant)) {
+    aRemoteVariant = NPVARIANT_TO_INT32(aVariant);
+  }
+  else if (NPVARIANT_IS_DOUBLE(aVariant)) {
+    aRemoteVariant = NPVARIANT_TO_DOUBLE(aVariant);
+  }
+  else if (NPVARIANT_IS_STRING(aVariant)) {
+    NPString str = NPVARIANT_TO_STRING(aVariant);
+    nsCString string(str.UTF8Characters, str.UTF8Length);
+    aRemoteVariant = string;
+  }
+  else if (NPVARIANT_IS_OBJECT(aVariant)) {
+    NPObject* object = NPVARIANT_TO_OBJECT(aVariant);
+    PluginScriptableObjectParent* actor = aInstance->GetActorForNPObject(object);
+    if (!actor) {
+      NS_ERROR("Null actor!");
+      return false;
+    }
+    aRemoteVariant = actor;
+  }
+  else {
+    NS_NOTREACHED("Shouldn't get here!");
+    return false;
+  }
+
+  return true;
 }
 
 } // anonymous namespace
@@ -88,8 +258,15 @@ NPObject*
 PluginScriptableObjectParent::ScriptableAllocate(NPP aInstance,
                                                  NPClass* aClass)
 {
-  if (aClass != GetClass()) {
-    NS_ERROR("Huh?! Wrong class!");
+  NS_ASSERTION(aClass == PluginScriptableObjectParent::GetClass(),
+               "Huh?! Wrong class!");
+
+  PluginInstanceParent* instance = PluginModuleParent::InstCast(aInstance);
+  NS_ASSERTION(instance, "This should never be null!");
+
+  const NPNetscapeFuncs* npn = GetNetscapeFuncs(instance);
+  if (!npn) {
+    NS_WARNING("Can't allocate!");
     return nsnull;
   }
 
@@ -100,22 +277,31 @@ PluginScriptableObjectParent::ScriptableAllocate(NPP aInstance,
 void
 PluginScriptableObjectParent::ScriptableInvalidate(NPObject* aObject)
 {
-  if (aObject->_class != GetClass()) {
+  if (aObject->_class != PluginScriptableObjectParent::GetClass()) {
     NS_ERROR("Don't know what kind of object this is!");
     return;
   }
 
   ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
-  if (object->invalidated) {
+  if (!object->parent) {
     // This can happen more than once, and is just fine.
     return;
   }
 
-  object->invalidated = true;
+  PluginScriptableObjectParent* actor = object->parent;
 
-  // |object->parent| may be null already if the instance has gone away.
-  if (object->parent && !object->parent->CallInvalidate()) {
-    NS_ERROR("Failed to send message!");
+  object->parent = NULL;
+
+  PluginInstanceParent* instance = actor->GetInstance();
+  NS_WARN_IF_FALSE(instance, "No instance?!");
+
+  if (!actor->CallInvalidate()) {
+    NS_WARNING("Failed to send message!");
+  }
+
+  if (instance &&
+      !PPluginScriptableObjectParent::Call__delete__(actor)) {
+    NS_WARNING("Failed to send message!");
   }
 }
 
@@ -123,17 +309,17 @@ PluginScriptableObjectParent::ScriptableInvalidate(NPObject* aObject)
 void
 PluginScriptableObjectParent::ScriptableDeallocate(NPObject* aObject)
 {
-  if (aObject->_class != GetClass()) {
+  if (aObject->_class != PluginScriptableObjectParent::GetClass()) {
     NS_ERROR("Don't know what kind of object this is!");
     return;
   }
 
   ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
-  PluginScriptableObjectParent* actor = object->parent;
-  if (actor) {
-    NS_ASSERTION(actor->Type() == Proxy, "Bad type!");
-    actor->DropNPObject();
+  if (object->parent) {
+    ScriptableInvalidate(aObject);
   }
+
+  NS_ASSERTION(!object->parent, "Should be invalidated!");
 
   delete object;
 }
@@ -143,31 +329,26 @@ bool
 PluginScriptableObjectParent::ScriptableHasMethod(NPObject* aObject,
                                                   NPIdentifier aName)
 {
-  if (aObject->_class != GetClass()) {
+  if (aObject->_class != PluginScriptableObjectParent::GetClass()) {
     NS_ERROR("Don't know what kind of object this is!");
     return false;
   }
 
   ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
-  if (object->invalidated) {
+  if (!object->parent) {
     NS_WARNING("Calling method on an invalidated object!");
     return false;
   }
 
-  PPluginIdentifierParent* identifier = GetIdentifier(aObject, aName);
-  if (!identifier) {
+  if (!EnsureValidIdentifier(aObject, aName)) {
     return false;
   }
 
-  ProtectedActor<PluginScriptableObjectParent> actor(object->parent);
-  if (!actor) {
-    return false;
-  }
-
-  NS_ASSERTION(actor->Type() == Proxy, "Bad type!");
+  PluginScriptableObjectParent* actor = object->parent;
+  NS_ASSERTION(actor, "This shouldn't ever be null!");
 
   bool result;
-  if (!actor->CallHasMethod(identifier, &result)) {
+  if (!actor->CallHasMethod((NPRemoteIdentifier)aName, &result)) {
     NS_WARNING("Failed to send message!");
     return false;
   }
@@ -183,39 +364,42 @@ PluginScriptableObjectParent::ScriptableInvoke(NPObject* aObject,
                                                uint32_t aArgCount,
                                                NPVariant* aResult)
 {
-  if (aObject->_class != GetClass()) {
+  if (aObject->_class != PluginScriptableObjectParent::GetClass()) {
     NS_ERROR("Don't know what kind of object this is!");
     return false;
   }
 
   ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
-  if (object->invalidated) {
+  if (!object->parent) {
     NS_WARNING("Calling method on an invalidated object!");
     return false;
   }
 
-  PPluginIdentifierParent* identifier = GetIdentifier(aObject, aName);
-  if (!identifier) {
+  if (!EnsureValidIdentifier(aObject, aName)) {
     return false;
   }
 
-  ProtectedActor<PluginScriptableObjectParent> actor(object->parent);
-  if (!actor) {
+  PluginScriptableObjectParent* actor = object->parent;
+  NS_ASSERTION(actor, "This shouldn't ever be null!");
+
+  nsAutoTArray<Variant, 10> args;
+  if (!args.SetLength(aArgCount)) {
+    NS_ERROR("Out of memory?!");
     return false;
   }
 
-  NS_ASSERTION(actor->Type() == Proxy, "Bad type!");
-
-  ProtectedVariantArray args(aArgs, aArgCount, actor->GetInstance());
-  if (!args.IsOk()) {
-    NS_ERROR("Failed to convert arguments!");
-    return false;
+  for (PRUint32 index = 0; index < aArgCount; index++) {
+    Variant& arg = args[index];
+    if (!ConvertToRemoteVariant(aArgs[index], arg, actor->GetInstance())) {
+      NS_WARNING("Failed to convert argument!");
+      return false;
+    }
   }
 
   Variant remoteResult;
   bool success;
-  if (!actor->CallInvoke(identifier, args, &remoteResult,
-                         &success)) {
+  if (!actor->CallInvoke((NPRemoteIdentifier)aName, args, &remoteResult,
+       &success)) {
     NS_WARNING("Failed to send message!");
     return false;
   }
@@ -238,28 +422,32 @@ PluginScriptableObjectParent::ScriptableInvokeDefault(NPObject* aObject,
                                                       uint32_t aArgCount,
                                                       NPVariant* aResult)
 {
-  if (aObject->_class != GetClass()) {
+  if (aObject->_class != PluginScriptableObjectParent::GetClass()) {
     NS_ERROR("Don't know what kind of object this is!");
     return false;
   }
 
   ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
-  if (object->invalidated) {
+  if (!object->parent) {
     NS_WARNING("Calling method on an invalidated object!");
     return false;
   }
 
-  ProtectedActor<PluginScriptableObjectParent> actor(object->parent);
-  if (!actor) {
+  PluginScriptableObjectParent* actor = object->parent;
+  NS_ASSERTION(actor, "This shouldn't ever be null!");
+
+  nsAutoTArray<Variant, 10> args;
+  if (!args.SetLength(aArgCount)) {
+    NS_ERROR("Out of memory?!");
     return false;
   }
 
-  NS_ASSERTION(actor->Type() == Proxy, "Bad type!");
-
-  ProtectedVariantArray args(aArgs, aArgCount, actor->GetInstance());
-  if (!args.IsOk()) {
-    NS_ERROR("Failed to convert arguments!");
-    return false;
+  for (PRUint32 index = 0; index < aArgCount; index++) {
+    Variant& arg = args[index];
+    if (!ConvertToRemoteVariant(aArgs[index], arg, actor->GetInstance())) {
+      NS_WARNING("Failed to convert argument!");
+      return false;
+    }
   }
 
   Variant remoteResult;
@@ -285,31 +473,26 @@ bool
 PluginScriptableObjectParent::ScriptableHasProperty(NPObject* aObject,
                                                     NPIdentifier aName)
 {
-  if (aObject->_class != GetClass()) {
+  if (aObject->_class != PluginScriptableObjectParent::GetClass()) {
     NS_ERROR("Don't know what kind of object this is!");
     return false;
   }
 
   ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
-  if (object->invalidated) {
+  if (!object->parent) {
     NS_WARNING("Calling method on an invalidated object!");
     return false;
   }
 
-  PPluginIdentifierParent* identifier = GetIdentifier(aObject, aName);
-  if (!identifier) {
+  if (!EnsureValidIdentifier(aObject, aName)) {
     return false;
   }
 
-  ProtectedActor<PluginScriptableObjectParent> actor(object->parent);
-  if (!actor) {
-    return false;
-  }
-
-  NS_ASSERTION(actor->Type() == Proxy, "Bad type!");
+  PluginScriptableObjectParent* actor = object->parent;
+  NS_ASSERTION(actor, "This shouldn't ever be null!");
 
   bool result;
-  if (!actor->CallHasProperty(identifier, &result)) {
+  if (!actor->CallHasProperty((NPRemoteIdentifier)aName, &result)) {
     NS_WARNING("Failed to send message!");
     return false;
   }
@@ -323,9 +506,41 @@ PluginScriptableObjectParent::ScriptableGetProperty(NPObject* aObject,
                                                     NPIdentifier aName,
                                                     NPVariant* aResult)
 {
-  // See GetPropertyHelper below.
-  NS_NOTREACHED("Shouldn't ever call this directly!");
-  return false;
+  if (aObject->_class != PluginScriptableObjectParent::GetClass()) {
+    NS_ERROR("Don't know what kind of object this is!");
+    return false;
+  }
+
+  ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
+  if (!object->parent) {
+    NS_WARNING("Calling method on an invalidated object!");
+    return false;
+  }
+
+  if (!EnsureValidIdentifier(aObject, aName)) {
+    return false;
+  }
+
+  PluginScriptableObjectParent* actor = object->parent;
+  NS_ASSERTION(actor, "This shouldn't ever be null!");
+
+  Variant result;
+  bool success;
+  if (!actor->CallGetProperty((NPRemoteIdentifier)aName, &result, &success)) {
+    NS_WARNING("Failed to send message!");
+    return false;
+  }
+
+  if (!success) {
+    return false;
+  }
+
+  if (!ConvertToVariant(result, *aResult, actor->GetInstance())) {
+    NS_WARNING("Failed to convert result!");
+    return false;
+  }
+
+  return true;
 }
 
 // static
@@ -334,37 +549,32 @@ PluginScriptableObjectParent::ScriptableSetProperty(NPObject* aObject,
                                                     NPIdentifier aName,
                                                     const NPVariant* aValue)
 {
-  if (aObject->_class != GetClass()) {
+  if (aObject->_class != PluginScriptableObjectParent::GetClass()) {
     NS_ERROR("Don't know what kind of object this is!");
     return false;
   }
 
   ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
-  if (object->invalidated) {
+  if (!object->parent) {
     NS_WARNING("Calling method on an invalidated object!");
     return false;
   }
 
-  PPluginIdentifierParent* identifier = GetIdentifier(aObject, aName);
-  if (!identifier) {
+  if (!EnsureValidIdentifier(aObject, aName)) {
     return false;
   }
 
-  ProtectedActor<PluginScriptableObjectParent> actor(object->parent);
-  if (!actor) {
-    return false;
-  }
+  PluginScriptableObjectParent* actor = object->parent;
+  NS_ASSERTION(actor, "This shouldn't ever be null!");
 
-  NS_ASSERTION(actor->Type() == Proxy, "Bad type!");
-
-  ProtectedVariant value(*aValue, actor->GetInstance());
-  if (!value.IsOk()) {
+  Variant value;
+  if (!ConvertToRemoteVariant(*aValue, value, actor->GetInstance())) {
     NS_WARNING("Failed to convert variant!");
     return false;
   }
 
   bool success;
-  if (!actor->CallSetProperty(identifier, value, &success)) {
+  if (!actor->CallSetProperty((NPRemoteIdentifier)aName, value, &success)) {
     NS_WARNING("Failed to send message!");
     return false;
   }
@@ -377,31 +587,26 @@ bool
 PluginScriptableObjectParent::ScriptableRemoveProperty(NPObject* aObject,
                                                        NPIdentifier aName)
 {
-  if (aObject->_class != GetClass()) {
+  if (aObject->_class != PluginScriptableObjectParent::GetClass()) {
     NS_ERROR("Don't know what kind of object this is!");
     return false;
   }
 
   ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
-  if (object->invalidated) {
+  if (!object->parent) {
     NS_WARNING("Calling method on an invalidated object!");
     return false;
   }
 
-  PPluginIdentifierParent* identifier = GetIdentifier(aObject, aName);
-  if (!identifier) {
+  if (!EnsureValidIdentifier(aObject, aName)) {
     return false;
   }
 
-  ProtectedActor<PluginScriptableObjectParent> actor(object->parent);
-  if (!actor) {
-    return false;
-  }
-
-  NS_ASSERTION(actor->Type() == Proxy, "Bad type!");
+  PluginScriptableObjectParent* actor = object->parent;
+  NS_ASSERTION(actor, "This shouldn't ever be null!");
 
   bool success;
-  if (!actor->CallRemoveProperty(identifier, &success)) {
+  if (!actor->CallRemoveProperty((NPRemoteIdentifier)aName, &success)) {
     NS_WARNING("Failed to send message!");
     return false;
   }
@@ -415,23 +620,19 @@ PluginScriptableObjectParent::ScriptableEnumerate(NPObject* aObject,
                                                   NPIdentifier** aIdentifiers,
                                                   uint32_t* aCount)
 {
-  if (aObject->_class != GetClass()) {
+  if (aObject->_class != PluginScriptableObjectParent::GetClass()) {
     NS_ERROR("Don't know what kind of object this is!");
     return false;
   }
 
   ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
-  if (object->invalidated) {
+  if (!object->parent) {
     NS_WARNING("Calling method on an invalidated object!");
     return false;
   }
 
-  ProtectedActor<PluginScriptableObjectParent> actor(object->parent);
-  if (!actor) {
-    return false;
-  }
-
-  NS_ASSERTION(actor->Type() == Proxy, "Bad type!");
+  PluginScriptableObjectParent* actor = object->parent;
+  NS_ASSERTION(actor, "This shouldn't ever be null!");
 
   const NPNetscapeFuncs* npn = GetNetscapeFuncs(aObject);
   if (!npn) {
@@ -439,7 +640,7 @@ PluginScriptableObjectParent::ScriptableEnumerate(NPObject* aObject,
     return false;
   }
 
-  nsAutoTArray<PPluginIdentifierParent*, 10> identifiers;
+  nsAutoTArray<NPRemoteIdentifier, 10> identifiers;
   bool success;
   if (!actor->CallEnumerate(&identifiers, &success)) {
     NS_WARNING("Failed to send message!");
@@ -463,9 +664,11 @@ PluginScriptableObjectParent::ScriptableEnumerate(NPObject* aObject,
   }
 
   for (PRUint32 index = 0; index < *aCount; index++) {
-    PluginIdentifierParent* id =
-      static_cast<PluginIdentifierParent*>(identifiers[index]);
-    (*aIdentifiers)[index] = id->ToNPIdentifier();
+    NPIdentifier& id = *aIdentifiers[index];
+    id = (NPIdentifier)identifiers[index];
+    if (!EnsureValidIdentifier(aObject, id)) {
+      return false;
+    }
   }
   return true;
 }
@@ -477,28 +680,32 @@ PluginScriptableObjectParent::ScriptableConstruct(NPObject* aObject,
                                                   uint32_t aArgCount,
                                                   NPVariant* aResult)
 {
-  if (aObject->_class != GetClass()) {
+  if (aObject->_class != PluginScriptableObjectParent::GetClass()) {
     NS_ERROR("Don't know what kind of object this is!");
     return false;
   }
 
   ParentNPObject* object = reinterpret_cast<ParentNPObject*>(aObject);
-  if (object->invalidated) {
+  if (!object->parent) {
     NS_WARNING("Calling method on an invalidated object!");
     return false;
   }
 
-  ProtectedActor<PluginScriptableObjectParent> actor(object->parent);
-  if (!actor) {
+  PluginScriptableObjectParent* actor = object->parent;
+  NS_ASSERTION(actor, "This shouldn't ever be null!");
+
+  nsAutoTArray<Variant, 10> args;
+  if (!args.SetLength(aArgCount)) {
+    NS_ERROR("Out of memory?!");
     return false;
   }
 
-  NS_ASSERTION(actor->Type() == Proxy, "Bad type!");
-
-  ProtectedVariantArray args(aArgs, aArgCount, actor->GetInstance());
-  if (!args.IsOk()) {
-    NS_ERROR("Failed to convert arguments!");
-    return false;
+  for (PRUint32 index = 0; index < aArgCount; index++) {
+    Variant& arg = args[index];
+    if (!ConvertToRemoteVariant(aArgs[index], arg, actor->GetInstance())) {
+      NS_WARNING("Failed to convert argument!");
+      return false;
+    }
   }
 
   Variant remoteResult;
@@ -535,169 +742,68 @@ const NPClass PluginScriptableObjectParent::sNPClass = {
   PluginScriptableObjectParent::ScriptableConstruct
 };
 
-PluginScriptableObjectParent::PluginScriptableObjectParent(
-                                                     ScriptableObjectType aType)
+PluginScriptableObjectParent::PluginScriptableObjectParent()
 : mInstance(nsnull),
-  mObject(nsnull),
-  mProtectCount(0),
-  mType(aType)
+  mObject(nsnull)
 {
 }
 
 PluginScriptableObjectParent::~PluginScriptableObjectParent()
 {
   if (mObject) {
-    if (mObject->_class == GetClass()) {
-      NS_ASSERTION(mType == Proxy, "Wrong type!");
-      static_cast<ParentNPObject*>(mObject)->parent = nsnull;
+    if (GetClass() == mObject->_class) {
+      static_cast<ParentNPObject*>(mObject)->parent = NULL;
     }
     else {
-      NS_ASSERTION(mType == LocalObject, "Wrong type!");
-      GetInstance()->GetNPNIface()->releaseobject(mObject);
+      mInstance->GetNPNIface()->releaseobject(mObject);
     }
   }
 }
 
 void
-PluginScriptableObjectParent::InitializeProxy()
+PluginScriptableObjectParent::Initialize(PluginInstanceParent* aInstance,
+                                         NPObject* aObject)
 {
-  NS_ASSERTION(mType == Proxy, "Bad type!");
-  NS_ASSERTION(!mObject, "Calling Initialize more than once!");
-
-  mInstance = static_cast<PluginInstanceParent*>(Manager());
-  NS_ASSERTION(mInstance, "Null manager?!");
-
-  NPObject* object = CreateProxyObject();
-  NS_ASSERTION(object, "Failed to create object!");
-
-  if (!mInstance->RegisterNPObjectForActor(object, this)) {
-    NS_ERROR("Out of memory?");
-  }
-
-  mObject = object;
-}
-
-void
-PluginScriptableObjectParent::InitializeLocal(NPObject* aObject)
-{
-  NS_ASSERTION(mType == LocalObject, "Bad type!");
+  NS_ASSERTION(aInstance && aObject, "Null pointers!");
   NS_ASSERTION(!(mInstance && mObject), "Calling Initialize more than once!");
 
-  mInstance = static_cast<PluginInstanceParent*>(Manager());
-  NS_ASSERTION(mInstance, "Null manager?!");
+  if (aObject->_class == GetClass()) {
+    ParentNPObject* object = static_cast<ParentNPObject*>(aObject);
 
-  mInstance->GetNPNIface()->retainobject(aObject);
+    NS_ASSERTION(!object->parent, "Bad object!");
+    object->parent = const_cast<PluginScriptableObjectParent*>(this);
 
-  NS_ASSERTION(!mProtectCount, "Should be zero!");
-  mProtectCount++;
-
-  if (!mInstance->RegisterNPObjectForActor(aObject, this)) {
-    NS_ERROR("Out of memory?");
+    // We don't want to have the actor own this object but rather let the object
+    // own this actor. Set the reference count to 0 here so that when the object
+    // dies we will send the destructor message to the child.
+    NS_ASSERTION(aObject->referenceCount == 1, "Some kind of live object!");
+    object->referenceCount = 0;
+    NS_LOG_RELEASE(aObject, 0, "BrowserNPObject");
+  }
+  else {
+    aInstance->GetNPNIface()->retainobject(aObject);
   }
 
+  mInstance = aInstance;
   mObject = aObject;
 }
 
-NPObject*
-PluginScriptableObjectParent::CreateProxyObject()
-{
-  NS_ASSERTION(mInstance, "Must have an instance!");
-  NS_ASSERTION(mType == Proxy, "Shouldn't call this for non-proxy object!");
-
-  const NPNetscapeFuncs* npn = GetNetscapeFuncs(mInstance);
-
-  NPObject* npobject = npn->createobject(mInstance->GetNPP(),
-                                         const_cast<NPClass*>(GetClass()));
-  NS_ASSERTION(npobject, "Failed to create object?!");
-  NS_ASSERTION(npobject->_class == GetClass(), "Wrong kind of object!");
-  NS_ASSERTION(npobject->referenceCount == 1, "Some kind of live object!");
-
-  ParentNPObject* object = static_cast<ParentNPObject*>(npobject);
-  NS_ASSERTION(!object->invalidated, "Bad object!");
-  NS_ASSERTION(!object->parent, "Bad object!");
-
-  // We don't want to have the actor own this object but rather let the object
-  // own this actor. Set the reference count to 0 here so that when the object
-  // dies we will send the destructor message to the child.
-  object->referenceCount = 0;
-  NS_LOG_RELEASE(object, 0, "BrowserNPObject");
-
-  object->parent = const_cast<PluginScriptableObjectParent*>(this);
-  return object;
-}
-
 bool
-PluginScriptableObjectParent::ResurrectProxyObject()
+PluginScriptableObjectParent::AnswerInvalidate()
 {
-  NS_ASSERTION(mInstance, "Must have an instance already!");
-  NS_ASSERTION(!mObject, "Should not have an object already!");
-  NS_ASSERTION(mType == Proxy, "Shouldn't call this for non-proxy object!");
-
-  InitializeProxy();
-  NS_ASSERTION(mObject, "Initialize failed!");
-
-  if (!SendProtect()) {
-    NS_WARNING("Failed to send message!");
-    return false;
+  if (mObject) {
+    NS_ASSERTION(mObject->_class != GetClass(), "Bad object type!");
+    const NPNetscapeFuncs* npn = GetNetscapeFuncs(GetInstance());
+    if (npn) {
+      npn->releaseobject(mObject);
+    }
+    mObject = nsnull;
   }
-
   return true;
 }
 
-NPObject*
-PluginScriptableObjectParent::GetObject(bool aCanResurrect)
-{
-  if (!mObject && aCanResurrect && !ResurrectProxyObject()) {
-    NS_ERROR("Null object!");
-    return nsnull;
-  }
-  return mObject;
-}
-
-void
-PluginScriptableObjectParent::Protect()
-{
-  NS_ASSERTION(mObject, "No object!");
-  NS_ASSERTION(mProtectCount >= 0, "Negative protect count?!");
-
-  if (mType == LocalObject) {
-    ++mProtectCount;
-  }
-}
-
-void
-PluginScriptableObjectParent::Unprotect()
-{
-  NS_ASSERTION(mObject, "No object!");
-  NS_ASSERTION(mProtectCount >= 0, "Negative protect count?!");
-
-  if (mType == LocalObject) {
-    if (--mProtectCount == 0) {
-      unused << PluginScriptableObjectParent::Send__delete__(this);
-    }
-  }
-}
-
-void
-PluginScriptableObjectParent::DropNPObject()
-{
-  NS_ASSERTION(mObject, "Invalidated object!");
-  NS_ASSERTION(mObject->_class == GetClass(), "Wrong type of object!");
-  NS_ASSERTION(mType == Proxy, "Shouldn't call this for non-proxy object!");
-
-  // We think we're about to be deleted, but we could be racing with the other
-  // process.
-  PluginInstanceParent* instance = GetInstance();
-  NS_ASSERTION(instance, "Must have an instance!");
-
-  instance->UnregisterNPObject(mObject);
-  mObject = nsnull;
-
-  unused << SendUnprotect();
-}
-
 bool
-PluginScriptableObjectParent::AnswerHasMethod(PPluginIdentifierParent* aId,
+PluginScriptableObjectParent::AnswerHasMethod(const NPRemoteIdentifier& aId,
                                               bool* aHasMethod)
 {
   if (!mObject) {
@@ -707,7 +813,6 @@ PluginScriptableObjectParent::AnswerHasMethod(PPluginIdentifierParent* aId,
   }
 
   NS_ASSERTION(mObject->_class != GetClass(), "Bad object type!");
-  NS_ASSERTION(mType == LocalObject, "Bad type!");
 
   PluginInstanceParent* instance = GetInstance();
   if (!instance) {
@@ -723,13 +828,18 @@ PluginScriptableObjectParent::AnswerHasMethod(PPluginIdentifierParent* aId,
     return true;
   }
 
-  PluginIdentifierParent* id = static_cast<PluginIdentifierParent*>(aId);
-  *aHasMethod = npn->hasmethod(instance->GetNPP(), mObject, id->ToNPIdentifier());
+  if (!EnsureValidIdentifier(instance, (NPIdentifier)aId)) {
+    NS_WARNING("Invalid NPIdentifier!");
+    *aHasMethod = false;
+    return true;
+  }
+
+  *aHasMethod = npn->hasmethod(instance->GetNPP(), mObject, (NPIdentifier)aId);
   return true;
 }
 
 bool
-PluginScriptableObjectParent::AnswerInvoke(PPluginIdentifierParent* aId,
+PluginScriptableObjectParent::AnswerInvoke(const NPRemoteIdentifier& aId,
                                            const nsTArray<Variant>& aArgs,
                                            Variant* aResult,
                                            bool* aSuccess)
@@ -742,7 +852,6 @@ PluginScriptableObjectParent::AnswerInvoke(PPluginIdentifierParent* aId,
   }
 
   NS_ASSERTION(mObject->_class != GetClass(), "Bad object type!");
-  NS_ASSERTION(mType == LocalObject, "Bad type!");
 
   PluginInstanceParent* instance = GetInstance();
   if (!instance) {
@@ -755,6 +864,13 @@ PluginScriptableObjectParent::AnswerInvoke(PPluginIdentifierParent* aId,
   const NPNetscapeFuncs* npn = GetNetscapeFuncs(instance);
   if (!npn) {
     NS_ERROR("No netscape funcs?!");
+    *aResult = void_t();
+    *aSuccess = false;
+    return true;
+  }
+
+  if (!EnsureValidIdentifier(instance, (NPIdentifier)aId)) {
+    NS_WARNING("Invalid NPIdentifier!");
     *aResult = void_t();
     *aSuccess = false;
     return true;
@@ -781,9 +897,8 @@ PluginScriptableObjectParent::AnswerInvoke(PPluginIdentifierParent* aId,
     }
   }
 
-  PluginIdentifierParent* id = static_cast<PluginIdentifierParent*>(aId);
   NPVariant result;
-  bool success = npn->invoke(instance->GetNPP(), mObject, id->ToNPIdentifier(),
+  bool success = npn->invoke(instance->GetNPP(), mObject, (NPIdentifier)aId,
                              convertedArgs.Elements(), argCount, &result);
 
   for (PRUint32 index = 0; index < argCount; index++) {
@@ -799,7 +914,7 @@ PluginScriptableObjectParent::AnswerInvoke(PPluginIdentifierParent* aId,
   Variant convertedResult;
   success = ConvertToRemoteVariant(result, convertedResult, GetInstance());
 
-  DeferNPVariantLastRelease(npn, &result);
+  ReleaseVariant(result, instance);
 
   if (!success) {
     *aResult = void_t();
@@ -825,7 +940,6 @@ PluginScriptableObjectParent::AnswerInvokeDefault(const nsTArray<Variant>& aArgs
   }
 
   NS_ASSERTION(mObject->_class != GetClass(), "Bad object type!");
-  NS_ASSERTION(mType == LocalObject, "Bad type!");
 
   PluginInstanceParent* instance = GetInstance();
   if (!instance) {
@@ -882,7 +996,7 @@ PluginScriptableObjectParent::AnswerInvokeDefault(const nsTArray<Variant>& aArgs
   Variant convertedResult;
   success = ConvertToRemoteVariant(result, convertedResult, GetInstance());
 
-  DeferNPVariantLastRelease(npn, &result);
+  ReleaseVariant(result, instance);
 
   if (!success) {
     *aResult = void_t();
@@ -896,7 +1010,7 @@ PluginScriptableObjectParent::AnswerInvokeDefault(const nsTArray<Variant>& aArgs
 }
 
 bool
-PluginScriptableObjectParent::AnswerHasProperty(PPluginIdentifierParent* aId,
+PluginScriptableObjectParent::AnswerHasProperty(const NPRemoteIdentifier& aId,
                                                 bool* aHasProperty)
 {
   if (!mObject) {
@@ -906,7 +1020,6 @@ PluginScriptableObjectParent::AnswerHasProperty(PPluginIdentifierParent* aId,
   }
 
   NS_ASSERTION(mObject->_class != GetClass(), "Bad object type!");
-  NS_ASSERTION(mType == LocalObject, "Bad type!");
 
   PluginInstanceParent* instance = GetInstance();
   if (!instance) {
@@ -922,17 +1035,21 @@ PluginScriptableObjectParent::AnswerHasProperty(PPluginIdentifierParent* aId,
     return true;
   }
 
-  PluginIdentifierParent* id = static_cast<PluginIdentifierParent*>(aId);
+  if (!EnsureValidIdentifier(instance, (NPIdentifier)aId)) {
+    NS_WARNING("Invalid NPIdentifier!");
+    *aHasProperty = false;
+    return true;
+  }
+
   *aHasProperty = npn->hasproperty(instance->GetNPP(), mObject,
-                                   id->ToNPIdentifier());
+                                   (NPIdentifier)aId);
   return true;
 }
 
 bool
-PluginScriptableObjectParent::AnswerGetParentProperty(
-                                                   PPluginIdentifierParent* aId,
-                                                   Variant* aResult,
-                                                   bool* aSuccess)
+PluginScriptableObjectParent::AnswerGetProperty(const NPRemoteIdentifier& aId,
+                                                Variant* aResult,
+                                                bool* aSuccess)
 {
   if (!mObject) {
     NS_WARNING("Calling AnswerGetProperty with an invalidated object!");
@@ -942,7 +1059,6 @@ PluginScriptableObjectParent::AnswerGetParentProperty(
   }
 
   NS_ASSERTION(mObject->_class != GetClass(), "Bad object type!");
-  NS_ASSERTION(mType == LocalObject, "Bad type!");
 
   PluginInstanceParent* instance = GetInstance();
   if (!instance) {
@@ -960,9 +1076,15 @@ PluginScriptableObjectParent::AnswerGetParentProperty(
     return true;
   }
 
-  PluginIdentifierParent* id = static_cast<PluginIdentifierParent*>(aId);
+  if (!EnsureValidIdentifier(instance, (NPIdentifier)aId)) {
+    NS_WARNING("Invalid NPIdentifier!");
+    *aResult = void_t();
+    *aSuccess = false;
+    return true;
+  }
+
   NPVariant result;
-  if (!npn->getproperty(instance->GetNPP(), mObject, id->ToNPIdentifier(),
+  if (!npn->getproperty(instance->GetNPP(), mObject, (NPIdentifier)aId,
                         &result)) {
     *aResult = void_t();
     *aSuccess = false;
@@ -971,7 +1093,7 @@ PluginScriptableObjectParent::AnswerGetParentProperty(
 
   Variant converted;
   if ((*aSuccess = ConvertToRemoteVariant(result, converted, instance))) {
-    DeferNPVariantLastRelease(npn, &result);
+    ReleaseVariant(result, instance);
     *aResult = converted;
   }
   else {
@@ -982,7 +1104,7 @@ PluginScriptableObjectParent::AnswerGetParentProperty(
 }
 
 bool
-PluginScriptableObjectParent::AnswerSetProperty(PPluginIdentifierParent* aId,
+PluginScriptableObjectParent::AnswerSetProperty(const NPRemoteIdentifier& aId,
                                                 const Variant& aValue,
                                                 bool* aSuccess)
 {
@@ -993,7 +1115,6 @@ PluginScriptableObjectParent::AnswerSetProperty(PPluginIdentifierParent* aId,
   }
 
   NS_ASSERTION(mObject->_class != GetClass(), "Bad object type!");
-  NS_ASSERTION(mType == LocalObject, "Bad type!");
 
   PluginInstanceParent* instance = GetInstance();
   if (!instance) {
@@ -1005,6 +1126,12 @@ PluginScriptableObjectParent::AnswerSetProperty(PPluginIdentifierParent* aId,
   const NPNetscapeFuncs* npn = GetNetscapeFuncs(instance);
   if (!npn) {
     NS_ERROR("No netscape funcs?!");
+    *aSuccess = false;
+    return true;
+  }
+
+  if (!EnsureValidIdentifier(instance, (NPIdentifier)aId)) {
+    NS_WARNING("Invalid NPIdentifier!");
     *aSuccess = false;
     return true;
   }
@@ -1015,16 +1142,15 @@ PluginScriptableObjectParent::AnswerSetProperty(PPluginIdentifierParent* aId,
     return true;
   }
 
-  PluginIdentifierParent* id = static_cast<PluginIdentifierParent*>(aId);
   if ((*aSuccess = npn->setproperty(instance->GetNPP(), mObject,
-                                    id->ToNPIdentifier(), &converted))) {
+                                    (NPIdentifier)aId, &converted))) {
     ReleaseVariant(converted, instance);
   }
   return true;
 }
 
 bool
-PluginScriptableObjectParent::AnswerRemoveProperty(PPluginIdentifierParent* aId,
+PluginScriptableObjectParent::AnswerRemoveProperty(const NPRemoteIdentifier& aId,
                                                    bool* aSuccess)
 {
   if (!mObject) {
@@ -1034,7 +1160,6 @@ PluginScriptableObjectParent::AnswerRemoveProperty(PPluginIdentifierParent* aId,
   }
 
   NS_ASSERTION(mObject->_class != GetClass(), "Bad object type!");
-  NS_ASSERTION(mType == LocalObject, "Bad type!");
 
   PluginInstanceParent* instance = GetInstance();
   if (!instance) {
@@ -1050,14 +1175,19 @@ PluginScriptableObjectParent::AnswerRemoveProperty(PPluginIdentifierParent* aId,
     return true;
   }
 
-  PluginIdentifierParent* id = static_cast<PluginIdentifierParent*>(aId);
+  if (!EnsureValidIdentifier(instance, (NPIdentifier)aId)) {
+    NS_WARNING("Invalid NPIdentifier!");
+    *aSuccess = false;
+    return true;
+  }
+
   *aSuccess = npn->removeproperty(instance->GetNPP(), mObject,
-                                  id->ToNPIdentifier());
+                                  (NPIdentifier)aId);
   return true;
 }
 
 bool
-PluginScriptableObjectParent::AnswerEnumerate(nsTArray<PPluginIdentifierParent*>* aProperties,
+PluginScriptableObjectParent::AnswerEnumerate(nsTArray<NPRemoteIdentifier>* aProperties,
                                               bool* aSuccess)
 {
   if (!mObject) {
@@ -1067,7 +1197,6 @@ PluginScriptableObjectParent::AnswerEnumerate(nsTArray<PPluginIdentifierParent*>
   }
 
   NS_ASSERTION(mObject->_class != GetClass(), "Bad object type!");
-  NS_ASSERTION(mType == LocalObject, "Bad type!");
 
   PluginInstanceParent* instance = GetInstance();
   if (!instance) {
@@ -1097,7 +1226,13 @@ PluginScriptableObjectParent::AnswerEnumerate(nsTArray<PPluginIdentifierParent*>
   }
 
   for (uint32_t index = 0; index < idCount; index++) {
-    aProperties->AppendElement(GetIdentifier(instance, ids[index]));
+    NS_ASSERTION(EnsureValidIdentifier(instance, ids[index]),
+                 "Identifier not yet in hashset!");
+#ifdef DEBUG
+    NPRemoteIdentifier* remoteId =
+#endif
+    aProperties->AppendElement((NPRemoteIdentifier)ids[index]);
+    NS_ASSERTION(remoteId, "Shouldn't fail if SetCapacity above succeeded!");
   }
 
   npn->memfree(ids);
@@ -1118,7 +1253,6 @@ PluginScriptableObjectParent::AnswerConstruct(const nsTArray<Variant>& aArgs,
   }
 
   NS_ASSERTION(mObject->_class != GetClass(), "Bad object type!");
-  NS_ASSERTION(mType == LocalObject, "Bad type!");
 
   PluginInstanceParent* instance = GetInstance();
   if (!instance) {
@@ -1174,7 +1308,7 @@ PluginScriptableObjectParent::AnswerConstruct(const nsTArray<Variant>& aArgs,
   Variant convertedResult;
   success = ConvertToRemoteVariant(result, convertedResult, instance);
 
-  DeferNPVariantLastRelease(npn, &result);
+  ReleaseVariant(result, instance);
 
   if (!success) {
     *aResult = void_t();
@@ -1184,26 +1318,6 @@ PluginScriptableObjectParent::AnswerConstruct(const nsTArray<Variant>& aArgs,
 
   *aSuccess = true;
   *aResult = convertedResult;
-  return true;
-}
-
-bool
-PluginScriptableObjectParent::RecvProtect()
-{
-  NS_ASSERTION(mObject->_class != GetClass(), "Bad object type!");
-  NS_ASSERTION(mType == LocalObject, "Bad type!");
-
-  Protect();
-  return true;
-}
-
-bool
-PluginScriptableObjectParent::RecvUnprotect()
-{
-  NS_ASSERTION(mObject->_class != GetClass(), "Bad object type!");
-  NS_ASSERTION(mType == LocalObject, "Bad type!");
-
-  Unprotect();
   return true;
 }
 
@@ -1241,7 +1355,7 @@ PluginScriptableObjectParent::AnswerNPN_Evaluate(const nsCString& aScript,
   Variant convertedResult;
   success = ConvertToRemoteVariant(result, convertedResult, instance);
 
-  DeferNPVariantLastRelease(npn, &result);
+  ReleaseVariant(result, instance);
 
   if (!success) {
     *aResult = void_t();
@@ -1252,44 +1366,4 @@ PluginScriptableObjectParent::AnswerNPN_Evaluate(const nsCString& aScript,
   *aSuccess = true;
   *aResult = convertedResult;
   return true;
-}
-
-JSBool
-PluginScriptableObjectParent::GetPropertyHelper(NPIdentifier aName,
-                                                PRBool* aHasProperty,
-                                                PRBool* aHasMethod,
-                                                NPVariant* aResult)
-{
-  NS_ASSERTION(Type() == Proxy, "Bad type!");
-
-  ParentNPObject* object = static_cast<ParentNPObject*>(mObject);
-  if (object->invalidated) {
-    NS_WARNING("Calling method on an invalidated object!");
-    return JS_FALSE;
-  }
-
-  PPluginIdentifierParent* identifier = GetIdentifier(GetInstance(), aName);
-  if (!identifier) {
-    return JS_FALSE;
-  }
-
-  bool hasProperty, hasMethod, success;
-  Variant result;
-  if (!CallGetChildProperty(identifier, &hasProperty, &hasMethod, &result,
-                            &success)) {
-    return JS_FALSE;
-  }
-
-  if (!success) {
-    return JS_FALSE;
-  }
-
-  if (!ConvertToVariant(result, *aResult, GetInstance())) {
-    NS_WARNING("Failed to convert result!");
-    return JS_FALSE;
-  }
-
-  *aHasProperty = hasProperty;
-  *aHasMethod = hasMethod;
-  return JS_TRUE;
 }

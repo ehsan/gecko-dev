@@ -67,8 +67,8 @@
     #include <fabdef.h>
 #endif
 
-#if defined(HAVE_SYS_QUOTA_H) && defined(HAVE_LINUX_QUOTA_H)
-#define USE_LINUX_QUOTACTL
+#if defined(HAVE_SYS_QUOTA_H)
+#include <sys/sysmacros.h>
 #include <sys/quota.h>
 #endif
 
@@ -92,16 +92,11 @@
 #include "nsIGnomeVFSService.h"
 #endif
 
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_HILDON
 #include <glib.h>
 #include <hildon-uri.h>
 #include <hildon-mime.h>
 #include <libosso.h>
-#endif
-
-#ifdef ANDROID
-#include "AndroidBridge.h"
-#include "nsIMIMEService.h"
 #endif
 
 #include "nsNativeCharsetUtils.h"
@@ -1110,18 +1105,7 @@ nsLocalFile::SetFileSize(PRInt64 aFileSize)
 {
     CHECK_mPath();
 
-#if defined(ANDROID)
-    /* no truncate on bionic */
-    int fd = open(mPath.get(), O_WRONLY);
-    if (fd == -1)
-        return NSRESULT_FOR_ERRNO();
-
-    int ret = ftruncate(fd, (off_t)aFileSize);
-    close(fd);
-
-    if (ret == -1)
-        return NSRESULT_FOR_ERRNO();
-#elif defined(HAVE_TRUNCATE64)
+#ifdef HAVE_TRUNCATE64
     if (truncate64(mPath.get(), (off64_t)aFileSize) == -1)
         return NSRESULT_FOR_ERRNO();
 #else
@@ -1234,14 +1218,9 @@ nsLocalFile::GetDiskSpaceAvailable(PRInt64 *aDiskSpaceAvailable)
      * a non-superuser, minus one as a fudge factor, multiplied by the size
      * of the aforementioned blocks.
      */
-#ifdef SOLARIS
-    /* On Solaris, unit is f_frsize. */
-    *aDiskSpaceAvailable = (PRInt64)fs_buf.f_frsize * (fs_buf.f_bavail - 1);
-#else
     *aDiskSpaceAvailable = (PRInt64)fs_buf.f_bsize * (fs_buf.f_bavail - 1);
-#endif /* SOLARIS */
 
-#if defined(USE_LINUX_QUOTACTL)
+#if defined(HAVE_SYS_STAT_H) || defined(HAVE_SYS_QUOTA_H)
 
     if(!FillStatCache()) {
         // Return available size from statfs
@@ -1328,9 +1307,11 @@ nsLocalFile::GetParent(nsIFile **aParent)
  */
 
 
-#if defined(XP_BEOS)
+#if defined(XP_BEOS) || defined(SOLARIS)
 // access() is buggy in BeOS POSIX implementation, at least for BFS, using stat() instead
 // see bug 169506, https://bugzilla.mozilla.org/show_bug.cgi?id=169506
+// access() problem also exists in Solaris POSIX implementation
+// see bug 351595, https://bugzilla.mozilla.org/show_bug.cgi?id=351595
 NS_IMETHODIMP
 nsLocalFile::Exists(PRBool *_retval)
 {
@@ -1430,23 +1411,6 @@ nsLocalFile::IsExecutable(PRBool *_retval)
     NS_ENSURE_ARG_POINTER(_retval);
 
     *_retval = (access(mPath.get(), X_OK) == 0);
-#ifdef SOLARIS
-    // On Solaris, access will always return 0 for root user, however
-    // the file is only executable if S_IXUSR | S_IXGRP | S_IXOTH is set.
-    // See bug 351950, https://bugzilla.mozilla.org/show_bug.cgi?id=351950
-    if (*_retval) {
-        struct STAT buf;
-
-        *_retval = (STAT(mPath.get(), &buf) == 0);
-        if (*_retval || errno == EACCES) {
-            *_retval = *_retval &&
-                       (buf.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH ));
-            return NS_OK;
-        }
-
-        return NSRESULT_FOR_ERRNO();
-    }
-#endif
     if (*_retval || errno == EACCES)
         return NS_OK;
     return NSRESULT_FOR_ERRNO();
@@ -1782,7 +1746,7 @@ NS_IMETHODIMP
 nsLocalFile::Launch()
 {
 #ifdef MOZ_WIDGET_GTK2
-#if (MOZ_PLATFORM_MAEMO==5)
+#ifdef MOZ_PLATFORM_HILDON
     const PRInt32 kHILDON_SUCCESS = 1;
     DBusError err;
     dbus_error_init(&err);
@@ -1811,18 +1775,6 @@ nsLocalFile::Launch()
     
     return NS_ERROR_FAILURE;
 #endif
-#elif defined(ANDROID)
-    // Try to get a mimetype, if this fails just use the file uri alone
-    nsresult rv;
-    nsCAutoString type;
-    nsCOMPtr<nsIMIMEService> mimeService(do_GetService("@mozilla.org/mime;1", &rv));
-    if (NS_SUCCEEDED(rv))
-        rv = mimeService->GetTypeFromFile(this, type);
-
-    nsDependentCString fileUri = NS_LITERAL_CSTRING("file://");
-    fileUri.Append(mPath);
-    mozilla::AndroidBridge* bridge = mozilla::AndroidBridge::Bridge();
-    return bridge->OpenUriExternal(fileUri, type) ? NS_OK : NS_ERROR_FAILURE;
 #else
     return NS_ERROR_FAILURE;
 #endif

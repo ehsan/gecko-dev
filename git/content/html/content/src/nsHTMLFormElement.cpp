@@ -36,12 +36,14 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsHTMLFormElement.h"
 #include "nsIHTMLDocument.h"
+#include "nsIDOMNSHTMLFormControlList.h"
 #include "nsIDOMEventTarget.h"
 #include "nsEventStateManager.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsIDocument.h"
+#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsDOMError.h"
@@ -64,7 +66,6 @@
 #include "nsNetUtil.h"
 #include "nsIWebProgress.h"
 #include "nsIDocShell.h"
-#include "nsFormData.h"
 
 // radio buttons
 #include "nsIDOMHTMLInputElement.h"
@@ -87,7 +88,8 @@ PRBool nsHTMLFormElement::gPasswordManagerInitialized = PR_FALSE;
 
 
 // nsFormControlList
-class nsFormControlList : public nsIHTMLCollection
+class nsFormControlList : public nsIDOMNSHTMLFormControlList,
+                          public nsIHTMLCollection
 {
 public:
   nsFormControlList(nsHTMLFormElement* aForm);
@@ -101,6 +103,9 @@ public:
 
   // nsIDOMHTMLCollection interface
   NS_DECL_NSIDOMHTMLCOLLECTION
+
+  // nsIDOMNSHTMLFormControlList interface
+  NS_DECL_NSIDOMNSHTMLFORMCONTROLLIST
 
   virtual nsISupports* GetNodeAt(PRUint32 aIndex, nsresult* aResult)
   {
@@ -185,15 +190,12 @@ ShouldBeInElements(nsIFormControl* aFormControl)
   case NS_FORM_INPUT_RESET :
   case NS_FORM_INPUT_PASSWORD :
   case NS_FORM_INPUT_RADIO :
-  case NS_FORM_INPUT_SEARCH :
   case NS_FORM_INPUT_SUBMIT :
   case NS_FORM_INPUT_TEXT :
-  case NS_FORM_INPUT_TEL :
   case NS_FORM_SELECT :
   case NS_FORM_TEXTAREA :
   case NS_FORM_FIELDSET :
   case NS_FORM_OBJECT :
-  case NS_FORM_OUTPUT :
     return PR_TRUE;
   }
 
@@ -202,6 +204,9 @@ ShouldBeInElements(nsIFormControl* aFormControl)
   //
   // NS_FORM_INPUT_IMAGE
   // NS_FORM_LABEL
+  // NS_FORM_OPTION
+  // NS_FORM_OPTGROUP
+  // NS_FORM_LEGEND
 
   return PR_FALSE;
 }
@@ -210,7 +215,7 @@ ShouldBeInElements(nsIFormControl* aFormControl)
 
 // construction, destruction
 nsGenericHTMLElement*
-NS_NewHTMLFormElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
+NS_NewHTMLFormElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
 {
   nsHTMLFormElement* it = new nsHTMLFormElement(aNodeInfo);
   if (!it) {
@@ -300,8 +305,6 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLFormElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLFormElement, nsGenericElement) 
 
 
-DOMCI_DATA(HTMLFormElement, nsHTMLFormElement)
-
 // QueryInterface implementation for nsHTMLFormElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLFormElement)
   NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLFormElement,
@@ -355,7 +358,6 @@ NS_IMPL_STRING_ATTR(nsHTMLFormElement, AcceptCharset, acceptcharset)
 NS_IMPL_STRING_ATTR(nsHTMLFormElement, Enctype, enctype)
 NS_IMPL_STRING_ATTR(nsHTMLFormElement, Method, method)
 NS_IMPL_STRING_ATTR(nsHTMLFormElement, Name, name)
-NS_IMPL_STRING_ATTR(nsHTMLFormElement, Target, target)
 
 NS_IMETHODIMP
 nsHTMLFormElement::GetAction(nsAString& aValue)
@@ -375,11 +377,26 @@ nsHTMLFormElement::SetAction(const nsAString& aValue)
 }
 
 NS_IMETHODIMP
+nsHTMLFormElement::GetTarget(nsAString& aValue)
+{
+  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::target, aValue)) {
+    GetBaseTarget(aValue);
+  }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLFormElement::SetTarget(const nsAString& aValue)
+{
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::target, aValue, PR_TRUE);
+}
+
+NS_IMETHODIMP
 nsHTMLFormElement::Submit()
 {
   // Send the submit event
   nsresult rv = NS_OK;
-  nsRefPtr<nsPresContext> presContext = GetPresContext();
+  nsCOMPtr<nsPresContext> presContext = GetPresContext();
   if (mPendingSubmission) {
     // aha, we have a pending submission that was not flushed
     // (this happens when form.submit() is called twice)
@@ -422,10 +439,10 @@ nsHTMLFormElement::ParseAttribute(PRInt32 aNamespaceID,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::method) {
-      return aResult.ParseEnumValue(aValue, kFormMethodTable, PR_FALSE);
+      return aResult.ParseEnumValue(aValue, kFormMethodTable);
     }
     if (aAttribute == nsGkAtoms::enctype) {
-      return aResult.ParseEnumValue(aValue, kFormEnctypeTable, PR_FALSE);
+      return aResult.ParseEnumValue(aValue, kFormEnctypeTable);
     }
   }
 
@@ -603,7 +620,7 @@ nsHTMLFormElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
             // ignored) so if there is a stored submission, it will miss
             // the name/value of the submitting element, thus we need
             // to forget it and the form element will build a new one
-            mPendingSubmission = nsnull;
+            ForgetPendingSubmission();
           }
           DoSubmitOrReset(aVisitor.mEvent, msg);
         }
@@ -692,12 +709,12 @@ nsHTMLFormElement::DoSubmit(nsEvent* aEvent)
   mIsSubmitting = PR_TRUE;
   NS_ASSERTION(!mWebProgress && !mSubmittingRequest, "Web progress / submitting request should not exist here!");
 
-  nsAutoPtr<nsFormSubmission> submission;
-
+  nsCOMPtr<nsIFormSubmission> submission;
+   
   //
   // prepare the submission object
   //
-  BuildSubmission(getter_Transfers(submission), aEvent); 
+  BuildSubmission(submission, aEvent); 
 
   // XXXbz if the script global is that for an sXBL/XBL2 doc, it won't
   // be a window...
@@ -728,7 +745,7 @@ nsHTMLFormElement::DoSubmit(nsEvent* aEvent)
 }
 
 nsresult
-nsHTMLFormElement::BuildSubmission(nsFormSubmission** aFormSubmission, 
+nsHTMLFormElement::BuildSubmission(nsCOMPtr<nsIFormSubmission>& aFormSubmission, 
                                    nsEvent* aEvent)
 {
   NS_ASSERTION(!mPendingSubmission, "tried to build two submissions!");
@@ -746,20 +763,20 @@ nsHTMLFormElement::BuildSubmission(nsFormSubmission** aFormSubmission,
   //
   // Get the submission object
   //
-  rv = GetSubmissionFromForm(this, aFormSubmission);
+  rv = GetSubmissionFromForm(this, getter_AddRefs(aFormSubmission));
   NS_ENSURE_SUBMIT_SUCCESS(rv);
 
   //
   // Dump the data into the submission object
   //
-  rv = WalkFormElements(*aFormSubmission, originatingElement);
+  rv = WalkFormElements(aFormSubmission, originatingElement);
   NS_ENSURE_SUBMIT_SUCCESS(rv);
 
   return NS_OK;
 }
 
 nsresult
-nsHTMLFormElement::SubmitSubmission(nsFormSubmission* aFormSubmission)
+nsHTMLFormElement::SubmitSubmission(nsIFormSubmission* aFormSubmission)
 {
   nsresult rv;
   //
@@ -801,9 +818,8 @@ nsHTMLFormElement::SubmitSubmission(nsFormSubmission* aFormSubmission)
   }
 
   nsAutoString target;
-  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::target, target)) {
-    GetBaseTarget(target);
-  }
+  rv = GetTarget(target);
+  NS_ENSURE_SUBMIT_SUCCESS(rv);
 
   //
   // Notify observers of submit
@@ -840,18 +856,12 @@ nsHTMLFormElement::SubmitSubmission(nsFormSubmission* aFormSubmission)
 
     nsAutoHandlingUserInputStatePusher userInpStatePusher(mSubmitInitiatedFromUserInput, PR_FALSE);
 
-    nsCOMPtr<nsIInputStream> postDataStream;
-    rv = aFormSubmission->GetEncodedSubmission(actionURI,
-                                               getter_AddRefs(postDataStream));
-    NS_ENSURE_SUBMIT_SUCCESS(rv);
-
-    rv = linkHandler->OnLinkClickSync(this, actionURI,
-                                      target.get(),
-                                      postDataStream, nsnull,
-                                      getter_AddRefs(docShell),
-                                      getter_AddRefs(mSubmittingRequest));
-    NS_ENSURE_SUBMIT_SUCCESS(rv);
+    rv = aFormSubmission->SubmitTo(actionURI, target, this, linkHandler,
+                                   getter_AddRefs(docShell),
+                                   getter_AddRefs(mSubmittingRequest));
   }
+
+  NS_ENSURE_SUBMIT_SUCCESS(rv);
 
   // Even if the submit succeeds, it's possible for there to be no docshell
   // or request; for example, if it's to a named anchor within the same page
@@ -892,16 +902,16 @@ nsHTMLFormElement::NotifySubmitObservers(nsIURI* aActionURL,
   }
 
   // Notify observers that the form is being submitted.
+  nsresult rv = NS_OK;
   nsCOMPtr<nsIObserverService> service =
-    mozilla::services::GetObserverService();
-  if (!service)
-    return NS_ERROR_FAILURE;
+    do_GetService("@mozilla.org/observer-service;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsISimpleEnumerator> theEnum;
-  nsresult rv = service->EnumerateObservers(aEarlyNotify ?
-                                            NS_EARLYFORMSUBMIT_SUBJECT :
-                                            NS_FORMSUBMIT_SUBJECT,
-                                            getter_AddRefs(theEnum));
+  rv = service->EnumerateObservers(aEarlyNotify ?
+                                   NS_EARLYFORMSUBMIT_SUBJECT :
+                                   NS_FORMSUBMIT_SUBJECT,
+                                   getter_AddRefs(theEnum));
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (theEnum) {
@@ -937,7 +947,7 @@ nsHTMLFormElement::NotifySubmitObservers(nsIURI* aActionURL,
 
 
 nsresult
-nsHTMLFormElement::WalkFormElements(nsFormSubmission* aFormSubmission,
+nsHTMLFormElement::WalkFormElements(nsIFormSubmission* aFormSubmission,
                                     nsIContent* aSubmitElement)
 {
   nsTArray<nsGenericHTMLFormElement*> sortedControls;
@@ -1317,13 +1327,26 @@ nsHTMLFormElement::OnSubmitClickEnd()
 void
 nsHTMLFormElement::FlushPendingSubmission()
 {
-  if (mPendingSubmission) {
-    // Transfer owning reference so that the submissioin doesn't get deleted
-    // if we reenter
-    nsAutoPtr<nsFormSubmission> submission = mPendingSubmission;
+  nsCOMPtr<nsIFormSubmission> kunkFuDeathGrip(mPendingSubmission);
 
-    SubmitSubmission(submission);
+  if (!mPendingSubmission) {
+    return;
   }
+
+  //
+  // perform the submission with the stored pending submission
+  //
+  SubmitSubmission(mPendingSubmission);
+
+  // now delete the pending submission object
+  mPendingSubmission = nsnull;
+}
+
+void
+nsHTMLFormElement::ForgetPendingSubmission()
+{
+  // just delete the pending submission
+  mPendingSubmission = nsnull;
 }
 
 nsresult
@@ -1456,8 +1479,9 @@ nsHTMLFormElement::HasSingleTextControl() const
   PRUint32 numTextControlsFound = 0;
   PRUint32 length = mControls->mElements.Length();
   for (PRUint32 i = 0; i < length && numTextControlsFound < 2; ++i) {
-    if (mControls->mElements[i]->IsSingleLineTextControl(PR_FALSE)) {
-      numTextControlsFound++;
+    PRInt32 type = mControls->mElements[i]->GetType();
+    if (type == NS_FORM_INPUT_TEXT || type == NS_FORM_INPUT_PASSWORD) {
+        numTextControlsFound++;
     }
   }
   return numTextControlsFound == 1;
@@ -1473,19 +1497,6 @@ NS_IMETHODIMP
 nsHTMLFormElement::SetEncoding(const nsAString& aEncoding)
 {
   return SetEnctype(aEncoding);
-}
-
-NS_IMETHODIMP
-nsHTMLFormElement::GetFormData(nsIDOMFormData** aFormData)
-{
-  nsRefPtr<nsFormData> fd = new nsFormData();
-
-  nsresult rv = WalkFormElements(fd, nsnull);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *aFormData = fd.forget().get();
-
-  return NS_OK;
 }
  
 NS_IMETHODIMP    
@@ -1862,15 +1873,14 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsFormControlList)
   tmp->mNameLookupTable.EnumerateRead(ControlTraverser, &cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-DOMCI_DATA(HTMLCollection, nsFormControlList)
-
 // XPConnect interface list for nsFormControlList
 NS_INTERFACE_TABLE_HEAD(nsFormControlList)
-  NS_INTERFACE_TABLE2(nsFormControlList,
+  NS_INTERFACE_TABLE3(nsFormControlList,
                       nsIHTMLCollection,
-                      nsIDOMHTMLCollection)
+                      nsIDOMHTMLCollection,
+                      nsIDOMNSHTMLFormControlList)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsFormControlList)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(HTMLCollection)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(HTMLFormControlCollection)
 NS_INTERFACE_MAP_END
 
 
@@ -1935,6 +1945,14 @@ nsFormControlList::NamedItem(const nsAString& aName,
   }
 
   return rv;
+}
+
+NS_IMETHODIMP
+nsFormControlList::NamedItem(const nsAString& aName,
+                             nsISupports** aReturn)
+{
+  NS_IF_ADDREF(*aReturn = NamedItemInternal(aName, PR_TRUE));
+  return NS_OK;
 }
 
 nsISupports*

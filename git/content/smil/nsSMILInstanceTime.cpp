@@ -36,181 +36,24 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSMILInstanceTime.h"
-#include "nsSMILInterval.h"
 #include "nsSMILTimeValueSpec.h"
-
-//----------------------------------------------------------------------
-// Helper classes
-
-namespace
-{
-  // Utility class to set a PRPackedBool value to PR_TRUE whilst it is in scope.
-  // Saves us having to remember to clear the flag at every possible return.
-  class AutoBoolSetter
-  {
-  public:
-    AutoBoolSetter(PRPackedBool& aValue)
-    : mValue(aValue)
-    {
-      mValue = PR_TRUE;
-    }
- 
-    ~AutoBoolSetter()
-    {
-      mValue = PR_FALSE;
-    }
-
-  private:
-    PRPackedBool&   mValue;
-  };
-}
+#include "nsSMILTimeValue.h"
 
 //----------------------------------------------------------------------
 // Implementation
 
 nsSMILInstanceTime::nsSMILInstanceTime(const nsSMILTimeValue& aTime,
-                                       nsSMILInstanceTimeSource aSource,
-                                       nsSMILTimeValueSpec* aCreator,
-                                       nsSMILInterval* aBaseInterval)
-  : mTime(aTime),
-    mFlags(0),
-    mSerial(0),
-    mVisited(PR_FALSE),
-    mChainEnd(PR_FALSE),
-    mCreator(aCreator),
-    mBaseInterval(nsnull) // This will get set to aBaseInterval in a call to
-                          // SetBaseInterval() at end of constructor
+                                       nsSMILTimeValueSpec* /*aCreator*/,
+                                       PRBool aClearOnReset /*=false*/)
+  : mTime(aTime), // Copy the time
+    mClearOnReset(aClearOnReset)
 {
-  switch (aSource) {
-    case SOURCE_NONE:
-      // No special flags
-      break;
-
-    case SOURCE_DOM:
-      mFlags = kClearOnReset | kFromDOM;
-      break;
-
-    case SOURCE_SYNCBASE:
-      mFlags = kMayUpdate;
-      break;
-
-    case SOURCE_EVENT:
-      mFlags = kClearOnReset;
-      break;
-  }
-
-  SetBaseInterval(aBaseInterval);
+  // XXX
 }
 
 nsSMILInstanceTime::~nsSMILInstanceTime()
 {
-  NS_ABORT_IF_FALSE(!mBaseInterval && !mCreator,
-      "Destroying instance time without first calling Unlink()");
-}
-
-void
-nsSMILInstanceTime::Unlink()
-{
-  nsRefPtr<nsSMILInstanceTime> deathGrip(this);
-  if (mBaseInterval) {
-    mBaseInterval->RemoveDependentTime(*this);
-    mBaseInterval = nsnull;
-  }
-  mCreator = nsnull;
-}
-
-void
-nsSMILInstanceTime::HandleChangedInterval(
-    const nsSMILTimeContainer* aSrcContainer,
-    PRBool aBeginObjectChanged,
-    PRBool aEndObjectChanged)
-{
-  NS_ABORT_IF_FALSE(mBaseInterval,
-      "Got call to HandleChangedInterval on an independent instance time.");
-  NS_ABORT_IF_FALSE(mCreator, "Base interval is set but creator is not.");
-
-  if (mVisited || mChainEnd) {
-    // We're breaking the cycle here but we need to ensure that if we later
-    // receive a change notice in a different context (e.g. due to a time
-    // container change) that we don't end up following the chain further and so
-    // we set a flag to that effect.
-    mChainEnd = PR_TRUE;
-    return;
-  }
-
-  PRBool objectChanged = mCreator->DependsOnBegin() ? aBeginObjectChanged :
-                                                      aEndObjectChanged;
-
-  AutoBoolSetter setVisited(mVisited);
-
-  nsRefPtr<nsSMILInstanceTime> deathGrip(this);
-  mCreator->HandleChangedInstanceTime(*GetBaseTime(), aSrcContainer, *this,
-                                      objectChanged);
-}
-
-void
-nsSMILInstanceTime::HandleDeletedInterval()
-{
-  NS_ABORT_IF_FALSE(mBaseInterval,
-      "Got call to HandleDeletedInterval on an independent instance time.");
-  NS_ABORT_IF_FALSE(mCreator, "Base interval is set but creator is not.");
-
-  mBaseInterval = nsnull;
-
-  nsRefPtr<nsSMILInstanceTime> deathGrip(this);
-  mCreator->HandleDeletedInstanceTime(*this);
-  mCreator = nsnull;
-}
-
-PRBool
-nsSMILInstanceTime::IsDependent(const nsSMILInstanceTime& aOther) const
-{
-  if (mVisited || mChainEnd)
-    return PR_FALSE;
-
-  const nsSMILInstanceTime* myBaseTime = GetBaseTime();
-  if (!myBaseTime)
-    return PR_FALSE;
-
-  if (myBaseTime == &aOther)
-    return PR_TRUE;
-
-  // mVisited is mutable
-  AutoBoolSetter setVisited(const_cast<nsSMILInstanceTime*>(this)->mVisited);
-  return myBaseTime->IsDependent(aOther);
-}
-
-void
-nsSMILInstanceTime::SetBaseInterval(nsSMILInterval* aBaseInterval)
-{
-  NS_ABORT_IF_FALSE(!mBaseInterval,
-      "Attempting to reassociate an instance time with a different interval.");
-
-  if (aBaseInterval) {
-    NS_ABORT_IF_FALSE(mCreator,
-        "Attempting to create a dependent instance time without reference "
-        "to the creating nsSMILTimeValueSpec object.");
-    if (!mCreator)
-      return;
-
-    aBaseInterval->AddDependentTime(*this);
-  }
-
-  mBaseInterval = aBaseInterval;
-}
-
-const nsSMILInstanceTime*
-nsSMILInstanceTime::GetBaseTime() const
-{
-  if (!mBaseInterval) {
-    return nsnull;
-  }
-
-  NS_ABORT_IF_FALSE(mCreator, "Base interval is set but there is no creator.");
-  if (!mCreator) {
-    return nsnull;
-  }
-
-  return mCreator->DependsOnBegin() ? mBaseInterval->Begin() :
-                                      mBaseInterval->End();
+  // XXXdholbert When we add support for syncbase timing, we'll
+  // need to remove this nsSMILInstanceTime from its timebase
+  // here.
 }

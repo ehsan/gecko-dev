@@ -13,7 +13,7 @@
  *
  * The Original Code is Geolocation.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation
+ * The Initial Developer of the Original Code is Mozilla Corporation
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -34,8 +34,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsGeoLocation_h
-#define nsGeoLocation_h
 
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
@@ -225,5 +223,3 @@ private:
   // owning back pointer.
   nsRefPtr<nsGeolocationService> mService;
 };
-
-#endif /* nsGeoLocation_h */

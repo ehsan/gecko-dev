@@ -36,7 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsIPlatformCharset.h"
-#include "nsUConvPropertySearch.h"
+#include "nsGREResProperties.h"
 #include "pratom.h"
 #include <windows.h>
 #include "nsUConvDll.h"
@@ -48,9 +48,8 @@
 #include "nsITimelineService.h"
 #include "nsPlatformCharset.h"
 
-static const char* kWinCharsets[][3] = {
-#include "wincharset.properties.h"
-};
+static nsGREResProperties *gInfo = nsnull;
+static PRInt32 gCnt = 0;
 
 NS_IMPL_ISUPPORTS1(nsPlatformCharset, nsIPlatformCharset)
 
@@ -58,6 +57,7 @@ nsPlatformCharset::nsPlatformCharset()
 {
   NS_TIMELINE_START_TIMER("nsPlatformCharset()");
 
+  PR_AtomicIncrement(&gCnt);
   nsAutoString acpKey(NS_LITERAL_STRING("acp."));
   acpKey.AppendInt(PRInt32(::GetACP() & 0x00FFFF), 10);
   MapToCharset(acpKey, mCharset);
@@ -68,20 +68,56 @@ nsPlatformCharset::nsPlatformCharset()
 
 nsPlatformCharset::~nsPlatformCharset()
 {
+  PR_AtomicDecrement(&gCnt);
+  if ((0 == gCnt) && (nsnull != gInfo)) {
+    delete gInfo;
+    gInfo = nsnull;
+  }
+}
+
+nsresult 
+nsPlatformCharset::InitInfo()
+{  
+  if (gInfo == nsnull) {
+    nsGREResProperties *info = new nsGREResProperties(NS_LITERAL_CSTRING("wincharset.properties"));
+
+    NS_ASSERTION(info , "cannot open properties file");
+    NS_ENSURE_TRUE(info, NS_ERROR_FAILURE);
+    gInfo = info;
+  }
+  return NS_OK;
 }
 
 nsresult
 nsPlatformCharset::MapToCharset(nsAString& inANSICodePage, nsACString& outCharset)
 {
-  nsCAutoString key;
-  LossyCopyUTF16toASCII(inANSICodePage, key);
+  //delay loading wincharset.properties bundle if possible
+  if (inANSICodePage.EqualsLiteral("acp.1252")) {
+    outCharset.AssignLiteral("windows-1252");
+    return NS_OK;
+  } 
 
-  nsresult rv = nsUConvPropertySearch::SearchPropertyValue(kWinCharsets,
-      NS_ARRAY_LENGTH(kWinCharsets), key, outCharset);
+  if (inANSICodePage.EqualsLiteral("acp.932")) {
+    outCharset.AssignLiteral("Shift_JIS");
+    return NS_OK;
+  } 
+
+  // ensure the .property file is loaded
+  nsresult rv = InitInfo();
   if (NS_FAILED(rv)) {
     outCharset.AssignLiteral("windows-1252");
+    return rv;
   }
-  return rv;
+
+  nsAutoString charset;
+  rv = gInfo->Get(inANSICodePage, charset);
+  if (NS_FAILED(rv)) {
+    outCharset.AssignLiteral("windows-1252");
+    return rv;
+  }
+
+  LossyCopyUTF16toASCII(charset, outCharset);
+  return NS_OK;
 }
 
 NS_IMETHODIMP 

@@ -80,6 +80,10 @@
 #include "nsThreadManager.h"
 #include "nsThreadPool.h"
 
+#ifdef DEBUG
+#include "BlockingResourceBase.h"
+#endif // ifdef DEBUG
+
 #include "nsIProxyObjectManager.h"
 #include "nsProxyEventPrivate.h"  // access to the impl of nsProxyObjectManager for the generic factory registration.
 
@@ -142,15 +146,13 @@ NS_DECL_CLASSINFO(nsStringInputStream)
 #include "nsMemoryReporterManager.h"
 
 #include <locale.h>
-#include "mozilla/Services.h"
-#include "mozilla/FunctionTimer.h"
 
 #ifdef MOZ_IPC
 #include "base/at_exit.h"
 #include "base/command_line.h"
 #include "base/message_loop.h"
 
-#include "mozilla/ipc/BrowserProcessSubThread.h"
+#include "mozilla/ipc/GeckoThread.h"
 
 using base::AtExitManager;
 using mozilla::ipc::BrowserProcessSubThread;
@@ -164,6 +166,8 @@ static BrowserProcessSubThread* sIOThread;
 
 } /* anonymous namespace */
 #endif
+
+using mozilla::TimeStamp;
 
 // Registry Factory creation function defined in nsRegistry.cpp
 // We hook into this function locally to create and register the registry
@@ -281,7 +285,7 @@ nsXPTIInterfaceInfoManagerGetSingleton(nsISupports* outer,
     NS_ENSURE_TRUE(!outer, NS_ERROR_NO_AGGREGATION);
 
     nsCOMPtr<nsIInterfaceInfoManager> iim
-        (xptiInterfaceInfoManager::GetSingleton());
+        (xptiInterfaceInfoManager::GetInterfaceInfoManagerNoAddRef());
     if (!iim)
         return NS_ERROR_FAILURE;
 
@@ -476,8 +480,6 @@ NS_InitXPCOM3(nsIServiceManager* *result,
                               nsStaticModuleInfo const *staticComponents,
                               PRUint32 componentCount)
 {
-    NS_TIME_FUNCTION;
-
     nsresult rv = NS_OK;
 
 #ifdef MOZ_ENABLE_LIBXUL
@@ -490,13 +492,7 @@ NS_InitXPCOM3(nsIServiceManager* *result,
      // We are not shutting down
     gXPCOMShuttingDown = PR_FALSE;
 
-    NS_TIME_FUNCTION_MARK("Next: log init");
-
-    NS_LogInit();
-
 #ifdef MOZ_IPC
-    NS_TIME_FUNCTION_MARK("Next: IPC init");
-
     // Set up chromium libs
     NS_ASSERTION(!sExitManager && !sMessageLoop, "Bad logic!");
 
@@ -506,7 +502,7 @@ NS_InitXPCOM3(nsIServiceManager* *result,
     }
 
     if (!MessageLoop::current()) {
-        sMessageLoop = new MessageLoopForUI(MessageLoop::TYPE_MOZILLA_UI);
+        sMessageLoop = new MessageLoopForUI();
         NS_ENSURE_STATE(sMessageLoop);
     }
 
@@ -524,21 +520,21 @@ NS_InitXPCOM3(nsIServiceManager* *result,
     }
 #endif
 
-    NS_TIME_FUNCTION_MARK("Next: thread manager init");
+    NS_LogInit();
+
+    // Set up TimeStamp
+    rv = TimeStamp::Startup();
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // Establish the main thread here.
     rv = nsThreadManager::get()->Init();
     if (NS_FAILED(rv)) return rv;
 
-    NS_TIME_FUNCTION_MARK("Next: timer startup");
-
     // Set up the timer globals/timer thread
     rv = nsTimerImpl::Startup();
     NS_ENSURE_SUCCESS(rv, rv);
 
-#if !defined(WINCE) && !defined(ANDROID)
-    NS_TIME_FUNCTION_MARK("Next: setlocale");
-
+#ifndef WINCE
     // If the locale hasn't already been setup by our embedder,
     // get us out of the "C" locale and into the system 
     if (strcmp(setlocale(LC_ALL, NULL), "C") == 0)
@@ -546,12 +542,8 @@ NS_InitXPCOM3(nsIServiceManager* *result,
 #endif
 
 #if defined(XP_UNIX) || defined(XP_OS2)
-    NS_TIME_FUNCTION_MARK("Next: startup native charset utils");
-
     NS_StartupNativeCharsetUtils();
 #endif
-    NS_TIME_FUNCTION_MARK("Next: startup local file");
-
     NS_StartupLocalFile();
 
     StartupSpecialSystemDirectory();
@@ -590,8 +582,6 @@ NS_InitXPCOM3(nsIServiceManager* *result,
 
 #ifdef MOZ_IPC
     if ((sCommandLineWasInitialized = !CommandLine::IsInitialized())) {
-        NS_TIME_FUNCTION_MARK("Next: IPC command line init");
-
 #ifdef OS_WIN
         CommandLine::Init(0, nsnull);
 #else
@@ -615,8 +605,6 @@ NS_InitXPCOM3(nsIServiceManager* *result,
 #endif
 
     NS_ASSERTION(nsComponentManagerImpl::gComponentManager == NULL, "CompMgr not null at init");
-
-    NS_TIME_FUNCTION_MARK("Next: component manager init");
 
     // Create the Component/Service Manager
     nsComponentManagerImpl *compMgr = new nsComponentManagerImpl();
@@ -648,8 +636,6 @@ NS_InitXPCOM3(nsIServiceManager* *result,
     rv = compMgr->RegisterService(kComponentManagerCID, static_cast<nsIComponentManager*>(compMgr));
     if (NS_FAILED(rv)) return rv;
 
-    NS_TIME_FUNCTION_MARK("Next: cycle collector startup");
-
     rv = nsCycleCollector_startup();
     if (NS_FAILED(rv)) return rv;
 
@@ -658,8 +644,6 @@ NS_InitXPCOM3(nsIServiceManager* *result,
 
     // Category Manager
     {
-      NS_TIME_FUNCTION_MARK("Next: category manager factory init");
-
       nsCOMPtr<nsIFactory> categoryManagerFactory;
       if ( NS_FAILED(rv = NS_CategoryManagerGetFactory(getter_AddRefs(categoryManagerFactory))) )
         return rv;
@@ -694,30 +678,23 @@ NS_InitXPCOM3(nsIServiceManager* *result,
                           nsSimpleUnicharStreamFactory::GetInstance());
     }
 
-    NS_TIME_FUNCTION_MARK("Next: interface info manager init");
-
-    // The iimanager constructor searches and registers XPT files.
-    // (We trigger the singleton's lazy construction here to make that happen.)
-    (void) xptiInterfaceInfoManager::GetSingleton();
-
-    NS_TIME_FUNCTION_MARK("Next: try to load compreg.dat");
+    // Pay the cost at startup time of starting this singleton.
+    nsIInterfaceInfoManager* iim =
+        xptiInterfaceInfoManager::GetInterfaceInfoManagerNoAddRef();
 
     // "Re-register the world" if compreg.dat doesn't exist
     rv = nsComponentManagerImpl::gComponentManager->ReadPersistentRegistry();
     if (NS_FAILED(rv)) {
-        NS_TIME_FUNCTION_MARK("Next: try to register all components (compreg.dat not found)");
-
+        // If the component registry is out of date, malformed, or incomplete,
+        // autoregister the default component directories.
+        (void) iim->AutoRegisterInterfaces();
         nsComponentManagerImpl::gComponentManager->AutoRegister(nsnull);
     }
-
-    NS_TIME_FUNCTION_MARK("Next: register category providers");
 
     // After autoreg, but before we actually instantiate any components,
     // add any services listed in the "xpcom-directory-providers" category
     // to the directory service.
     nsDirectoryService::gService->RegisterCategoryProviders();
-
-    NS_TIME_FUNCTION_MARK("Next: create services from category");
 
     // Notify observers of xpcom autoregistration start
     NS_CreateServicesFromCategory(NS_XPCOM_STARTUP_CATEGORY, 
@@ -829,7 +806,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     // XPCOM is officially in shutdown mode NOW
     // Set this only after the observers have been notified as this
     // will cause servicemanager to become inaccessible.
-    mozilla::services::Shutdown();
+    gXPCOMShuttingDown = PR_TRUE;
 
 #ifdef DEBUG_dougt
     fprintf(stderr, "* * * * XPCOM shutdown. Access will be denied * * * * \n");
@@ -911,6 +888,26 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
 
     NS_IF_RELEASE(gDebug);
 
+    TimeStamp::Shutdown();
+
+#ifdef DEBUG
+    /* FIXME bug 491977: This is only going to operate on the
+     * BlockingResourceBase which is compiled into
+     * libxul/libxpcom_core.so. Anyone using external linkage will
+     * have their own copy of BlockingResourceBase statics which will
+     * not be freed by this method.
+     *
+     * It sounds like what we really want is to be able to register a
+     * callback function to call at XPCOM shutdown.  Note that with
+     * this solution, however, we need to guarantee that
+     * BlockingResourceBase::Shutdown() runs after all other shutdown
+     * functions.
+     */
+    BlockingResourceBase::Shutdown();
+#endif
+    
+    NS_LogTerm();
+
 #ifdef MOZ_IPC
     if (sIOThread) {
         delete sIOThread;
@@ -929,8 +926,6 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
         sExitManager = nsnull;
     }
 #endif
-
-    NS_LogTerm();
 
     return NS_OK;
 }

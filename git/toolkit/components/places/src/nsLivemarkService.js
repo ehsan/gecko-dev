@@ -14,7 +14,7 @@
  *
  * The Original Code is the Places JS Livemark Service.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
@@ -101,8 +101,6 @@ const MAX_REFRESH_TIME = 3600000;
 // Minimum time between update checks, used to avoid flooding servers.
 const MIN_REFRESH_TIME = 600000;
 
-const TOPIC_SHUTDOWN = "places-shutdown";
-
 function MarkLivemarkLoadFailed(aFolderId) {
   // Bail out if this failed before.
   if (ans.itemHasAnnotation(aFolderId, LMANNO_LOADFAILED))
@@ -136,7 +134,7 @@ function LivemarkService() {
 
   // Cleanup on shutdown.
   this._obs = Cc[OS_CONTRACTID].getService(Ci.nsIObserverService);
-  this._obs.addObserver(this, TOPIC_SHUTDOWN, false);
+  this._obs.addObserver(this, "xpcom-shutdown", false);
 
   // Observe bookmarks changes.
   bms.addObserver(this, false);
@@ -206,8 +204,8 @@ LivemarkService.prototype = {
 
   // nsIObserver
   observe: function LS_observe(aSubject, aTopic, aData) {
-    if (aTopic == TOPIC_SHUTDOWN) {
-      this._obs.removeObserver(this, TOPIC_SHUTDOWN);
+    if (aTopic == "xpcom-shutdown") {
+      this._obs.removeObserver(this, "xpcom-shutdown");
 
       // Remove bookmarks observer.
       bms.removeObserver(this);

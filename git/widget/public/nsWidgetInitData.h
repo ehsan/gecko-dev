@@ -126,8 +126,7 @@ struct nsWidgetInitData {
       clipSiblings(PR_FALSE), 
       mDropShadow(PR_FALSE),
       mListenForResizes(PR_FALSE),
-      mUnicode(PR_TRUE),
-      mRTL(PR_FALSE)
+      mUnicode(PR_TRUE)
   {
   }
 
@@ -139,7 +138,6 @@ struct nsWidgetInitData {
   PRPackedBool  clipChildren, clipSiblings, mDropShadow;
   PRPackedBool  mListenForResizes;
   PRPackedBool  mUnicode;
-  PRPackedBool  mRTL;
 };
 
 #endif // nsWidgetInitData_h__

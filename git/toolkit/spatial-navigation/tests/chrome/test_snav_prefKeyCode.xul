@@ -4,7 +4,8 @@
 
 <window title="Mozilla Bug 444801"
         xmlns:html="http://www.w3.org/1999/xhtml"
-        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        onload="onLoad();">
 
     <script type="application/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
     <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
@@ -52,7 +53,7 @@
   ["keyCode.up",        "int",  85], // DOM_VK_U
   ];
 
-  function runtest()
+  function onLoad()
   {
     prepareTest(prefs);
 
@@ -69,8 +70,6 @@
 
     SpatialNavigation.uninit();
   }
-
-  SimpleTest.waitForFocus(runtest);
 
   ]]>
   </script>

@@ -80,9 +80,6 @@ void Channel::ChannelImpl::Close() {
     output_queue_.pop();
     delete m;
   }
-
-  if (thread_check_.get())
-    thread_check_.reset();
 }
 
 bool Channel::ChannelImpl::Send(Message* message) {

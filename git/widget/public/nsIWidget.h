@@ -43,7 +43,6 @@
 #include "nsCoord.h"
 #include "nsRect.h"
 #include "nsPoint.h"
-#include "nsRegion.h"
 
 #include "prthread.h"
 #include "nsEvent.h"
@@ -61,18 +60,10 @@ class   nsIRenderingContext;
 class   nsIDeviceContext;
 struct  nsFont;
 class   nsIRollupListener;
-class   nsIMenuRollup;
 class   nsGUIEvent;
 class   imgIContainer;
 class   gfxASurface;
 class   nsIContent;
-class   ViewWrapper;
-
-namespace mozilla {
-namespace layers {
-class LayerManager;
-}
-}
 
 /**
  * Callback function that processes events.
@@ -111,8 +102,8 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-{ 0x271ac413, 0xa202, 0x46dc, \
-{ 0xbc, 0xd5, 0x67, 0xa1, 0xfb, 0x58, 0x89, 0x7f } }
+{ 0x6bdb96ba, 0x1727, 0x40ae, \
+  { 0x85, 0x55, 0x9c, 0x53, 0x4b, 0x95, 0x23, 0x98 } }
 
 /*
  * Window shadow styles
@@ -121,9 +112,6 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 
 #define NS_STYLE_WINDOW_SHADOW_NONE             0
 #define NS_STYLE_WINDOW_SHADOW_DEFAULT          1
-#define NS_STYLE_WINDOW_SHADOW_MENU             2
-#define NS_STYLE_WINDOW_SHADOW_TOOLTIP          3
-#define NS_STYLE_WINDOW_SHADOW_SHEET            4
 
 /**
  * Cursor types.
@@ -188,7 +176,6 @@ enum nsTopLevelWidgetZPlacement { // for PlaceBehind()
 class nsIWidget : public nsISupports {
 
   public:
-    typedef mozilla::layers::LayerManager LayerManager;
 
     NS_DECLARE_STATIC_IID_ACCESSOR(NS_IWIDGET_IID)
 
@@ -236,28 +223,6 @@ class nsIWidget : public nsISupports {
                       nsIAppShell      *aAppShell = nsnull,
                       nsIToolkit       *aToolkit = nsnull,
                       nsWidgetInitData *aInitData = nsnull) = 0;
-
-    /**
-     * Attach to a top level widget. 
-     *
-     * In cases where a top level chrome widget is being used as a content
-     * container, attach a secondary event callback and update the device
-     * context. The primary event callback will continue to be called, so the
-     * owning base window will continue to function.
-     *
-     * aViewEventFunction Event callback that will receive mirrored
-     *                    events.
-     * aContext The new device context for the view
-     */
-    NS_IMETHOD AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction,
-                                    nsIDeviceContext *aContext) = 0;
-
-    /**
-     * Accessor functions to get and set secondary client data. Used by
-     * nsIView in connection with AttachViewToTopLevel above.
-     */
-    NS_IMETHOD SetAttachedViewPtr(ViewWrapper* aViewWrapper) = 0;
-    virtual ViewWrapper* GetAttachedViewPtr() = 0;
 
     /**
      * Accessor functions to get and set the client data associated with the
@@ -433,22 +398,6 @@ class nsIWidget : public nsISupports {
                       PRBool   aRepaint) = 0;
 
     /**
-     * Resize and reposition the inner client area of the widget.
-     *
-     * @param aX       the new x offset expressed in the parent's coordinate system
-     * @param aY       the new y offset expressed in the parent's coordinate system
-     * @param aWidth   the new width of the client area.
-     * @param aHeight  the new height of the client area.
-     * @param aRepaint whether the widget should be repainted
-     *
-     */
-    NS_IMETHOD ResizeClient(PRInt32 aX,
-                            PRInt32 aY,
-                            PRInt32 aWidth,
-                            PRInt32 aHeight,
-                            PRBool  aRepaint) = 0;
-
-    /**
      * Sets the widget's z-index.
      */
     NS_IMETHOD SetZIndex(PRInt32 aZIndex) = 0;
@@ -499,72 +448,40 @@ class nsIWidget : public nsISupports {
     NS_IMETHOD IsEnabled(PRBool *aState) = 0;
 
     /**
-     * Request activation of this window or give focus to this widget.
-     *
-     * @param aRaise If PR_TRUE, this function requests activation of this
-     *               widget's toplevel window.
-     *               If PR_FALSE, the appropriate toplevel window (which in
-     *               the case of popups may not be this widget's toplevel
-     *               window) is already active, and this function indicates
-     *               that keyboard events should be reported through the
-     *               aHandleEventFunction provided to this->Create().
+     * Give focus to this widget.
      */
     NS_IMETHOD SetFocus(PRBool aRaise = PR_FALSE) = 0;
 
     /**
      * Get this widget's outside dimensions relative to its parent widget
      *
-     * @param aRect   On return it holds the  x, y, width and height of
-     *                this widget.
+     * @param aRect on return it holds the  x, y, width and height of this widget
+     *
      */
     NS_IMETHOD GetBounds(nsIntRect &aRect) = 0;
 
+
     /**
-     * Get this widget's outside dimensions in global coordinates. This
-     * includes any title bar on the window.
+     * Get this widget's outside dimensions in global coordinates. (One might think this
+     * could be accomplished by stringing together other methods in this interface, but
+     * then one would bloody one's nose on different coordinate system handling by different
+     * platforms.) This includes any title bar on the window.
      *
-     * @param aRect   On return it holds the  x, y, width and height of
-     *                this widget.
+     *
+     * @param aRect on return it holds the  x, y, width and height of this widget
+     *
      */
     NS_IMETHOD GetScreenBounds(nsIntRect &aRect) = 0;
 
+
     /**
-     * Get this widget's client area dimensions, if the window has a 3D
-     * border appearance this returns the area inside the border. Origin
-     * is always zero.
+     * Get this widget's client area dimensions, if the window has a 3D border appearance
+     * this returns the area inside the border, The x and y are always zero
      *
-     * @param aRect   On return it holds the  x. y, width and height of
-     *                the client area of this widget.
+     * @param aRect on return it holds the  x. y, width and height of the client area of this widget
+     *
      */
     NS_IMETHOD GetClientBounds(nsIntRect &aRect) = 0;
-
-    /**
-     * Get the non-client area dimensions of the window.
-     * 
-     */
-    NS_IMETHOD GetNonClientMargins(nsIntMargin &margins) = 0;
-
-    /**
-     * Sets the non-client area dimensions of the window. Pass -1 to restore
-     * the system default frame size for that border. Pass zero to remove
-     * a border, or pass a specific value adjust a border. Units are in
-     * pixels. (DPI dependent)
-     *
-     * Platform notes:
-     *  Windows: shrinking top non-client height will remove application
-     *  icon and window title text. Glass desktops will refuse to set
-     *  dimensions between zero and size < system default.
-     *
-     */
-    NS_IMETHOD SetNonClientMargins(nsIntMargin &margins) = 0;
-
-    /**
-     * Get the client offset from the window origin.
-     *
-     * @param aPt on return it holds the width and height of the offset.
-     *
-     */
-    NS_IMETHOD GetClientOffset(nsIntPoint &aPt) = 0;
 
     /**
      * Get the foreground color for this widget
@@ -662,16 +579,6 @@ class nsIWidget : public nsISupports {
     virtual nsTransparencyMode GetTransparencyMode() = 0;
 
     /**
-     * Updates a region of the window that might not have opaque content drawn. Widgets should
-     * assume that the initial possibly transparent region is empty.
-     *
-     * @param aDirtyRegion the region of the window that aMaybeTransparentRegion pertains to
-     * @param aPossiblyTransparentRegion the region of the window that is possibly transparent
-     */
-    virtual void UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
-                                                 const nsIntRegion &aPossiblyTransparentRegion) {};
-
-    /**
      * This represents a command to set the bounds and clip region of
      * a child widget.
      */
@@ -757,14 +664,6 @@ class nsIWidget : public nsISupports {
     virtual nsIToolkit* GetToolkit() = 0;    
 
     /**
-     * Return the widget's LayerManager. The layer tree for that
-     * LayerManager is what gets rendered to the widget.
-     * The layer manager is guaranteed to be the same for the lifetime
-     * of the widget.
-     */
-    virtual LayerManager* GetLayerManager() = 0;
-
-    /**
      * Scroll a set of rectangles in this widget and (as simultaneously as
      * possible) modify the specified child widgets.
      * 
@@ -798,6 +697,7 @@ class nsIWidget : public nsISupports {
     virtual void RemoveChild(nsIWidget* aChild) = 0;
     virtual void* GetNativeData(PRUint32 aDataType) = 0;
     virtual void FreeNativeData(void * data, PRUint32 aDataType) = 0;//~~~
+    virtual nsIRenderingContext* GetRenderingContext() = 0;
 
     // GetDeviceContext returns a weak pointer to this widget's device context
     virtual nsIDeviceContext* GetDeviceContext() = 0;
@@ -864,8 +764,7 @@ class nsIWidget : public nsISupports {
      * @param aConsumeRollupEvent PR_TRUE consumes the rollup event, PR_FALSE dispatches rollup event
      *
      */
-    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, nsIMenuRollup * aMenuRollup,
-                                   PRBool aDoCapture, PRBool aConsumeRollupEvent) = 0;
+    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent) = 0;
 
     /**
      * Bring this window to the user's attention.  This is intended to be a more
@@ -1027,7 +926,7 @@ class nsIWidget : public nsISupports {
      * Activates a native menu item at the position specified by the index
      * string. The index string is a string of positive integers separated
      * by the "|" (pipe) character. The last integer in the string represents
-     * the item index in a submenu located using the integers preceding it.
+     * the item index in a submenu located using the integers preceeding it.
      *
      * Example: 1|0|4
      * In this string, the first integer represents the top-level submenu
@@ -1133,11 +1032,6 @@ class nsIWidget : public nsISupports {
      * Destruct and don't commit the IME composition string.
      */
     NS_IMETHOD CancelIMEComposition() = 0;
-
-    /**
-     * Set accelerated rendering to 'True' or 'False'
-     */
-    NS_IMETHOD SetAcceleratedRendering(PRBool aEnabled) = 0;
 
     /*
      * Get toggled key states.

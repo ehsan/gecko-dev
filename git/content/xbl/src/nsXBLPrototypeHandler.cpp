@@ -57,6 +57,7 @@
 #include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIDOMNSHTMLInputElement.h"
 #include "nsIDOMText.h"
+#include "nsIFocusController.h"
 #include "nsFocusManager.h"
 #include "nsIEventListenerManager.h"
 #include "nsIDOMEventTarget.h"
@@ -80,6 +81,7 @@
 #include "nsCRT.h"
 #include "nsXBLEventHandler.h"
 #include "nsEventDispatcher.h"
+#include "nsPresContext.h"
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -259,8 +261,11 @@ nsXBLPrototypeHandler::ExecuteHandler(nsPIDOMEventTarget* aTarget,
 
   // Look for a compiled handler on the element. 
   // Should be compiled and bound with "on" in front of the name.
-  nsCOMPtr<nsIAtom> onEventAtom = do_GetAtom(NS_LITERAL_STRING("onxbl") +
-                                             nsDependentAtomString(mEventName));
+  nsAutoString onEvent(NS_LITERAL_STRING("onxbl"));
+  nsAutoString str;
+  mEventName->ToString(str);
+  onEvent += str;
+  nsCOMPtr<nsIAtom> onEventAtom = do_GetAtom(onEvent);
 
   // Compile the event handler.
   PRUint32 stID = nsIProgrammingLanguage::JAVASCRIPT;
@@ -268,17 +273,21 @@ nsXBLPrototypeHandler::ExecuteHandler(nsPIDOMEventTarget* aTarget,
   // Compile the handler and bind it to the element.
   nsCOMPtr<nsIScriptGlobalObject> boundGlobal;
   nsCOMPtr<nsPIWindowRoot> winRoot(do_QueryInterface(aTarget));
-  nsCOMPtr<nsPIDOMWindow> window;
+  nsCOMPtr<nsIDOMWindow> window;
 
   if (winRoot) {
     window = winRoot->GetWindow();
   }
 
   if (window) {
-    window = window->GetCurrentInnerWindow();
-    NS_ENSURE_TRUE(window, NS_ERROR_UNEXPECTED);
+    nsCOMPtr<nsPIDOMWindow> piWin(do_QueryInterface(window));
 
-    boundGlobal = do_QueryInterface(window->GetPrivateRoot());
+    if (piWin) {
+      piWin = piWin->GetCurrentInnerWindow();
+      NS_ENSURE_TRUE(piWin, NS_ERROR_UNEXPECTED);
+    }
+
+    boundGlobal = do_QueryInterface(piWin->GetPrivateRoot());
   }
   else boundGlobal = do_QueryInterface(aTarget);
 
@@ -400,11 +409,14 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
   // Instead of executing JS, let's get the controller for the bound
   // element and call doCommand on it.
   nsCOMPtr<nsIController> controller;
+  nsCOMPtr<nsIFocusController> focusController;
 
   nsCOMPtr<nsPIDOMWindow> privateWindow;
   nsCOMPtr<nsPIWindowRoot> windowRoot(do_QueryInterface(aTarget));
   if (windowRoot) {
-    privateWindow = windowRoot->GetWindow();
+    windowRoot->GetFocusController(getter_AddRefs(focusController));
+    if (windowRoot)
+      privateWindow = do_QueryInterface(windowRoot->GetWindow());
   }
   else {
     privateWindow = do_QueryInterface(aTarget);
@@ -429,16 +441,19 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
         return NS_ERROR_FAILURE;
     }
 
-    windowRoot = privateWindow->GetTopWindowRoot();
+    focusController = privateWindow->GetRootFocusController();
   }
 
   NS_LossyConvertUTF16toASCII command(mHandlerText);
-  if (windowRoot)
-    windowRoot->GetControllerForCommand(command.get(), getter_AddRefs(controller));
+  if (focusController)
+    focusController->GetControllerForCommand(privateWindow, command.get(), getter_AddRefs(controller));
   else
     controller = GetController(aTarget); // We're attached to the receiver possibly.
 
-  if (mEventName == nsGkAtoms::keypress &&
+  nsAutoString type;
+  mEventName->ToString(type);
+
+  if (type.EqualsLiteral("keypress") &&
       mDetail == nsIDOMKeyEvent::DOM_VK_SPACE &&
       mMisc == 1) {
     // get the focused element so that we can pageDown only at
@@ -446,7 +461,7 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
 
     nsCOMPtr<nsPIDOMWindow> windowToCheck;
     if (windowRoot)
-      windowToCheck = windowRoot->GetWindow();
+      windowToCheck = do_QueryInterface(windowRoot->GetWindow());
     else
       windowToCheck = privateWindow->GetPrivateRoot();
 

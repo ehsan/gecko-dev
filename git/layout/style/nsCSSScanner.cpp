@@ -57,7 +57,6 @@
 #include "nsIScriptError.h"
 #include "nsIStringBundle.h"
 #include "nsContentUtils.h"
-#include "mozilla/Services.h"
 
 #ifdef CSS_REPORT_PARSE_ERRORS
 static PRBool gReportErrors = PR_TRUE;
@@ -198,8 +197,6 @@ nsCSSToken::AppendToString(nsString& aBuffer)
     case eCSSToken_HTMLComment:
     case eCSSToken_URange:
       aBuffer.Append(mIdent);
-      if (mType == eCSSToken_Function)
-        aBuffer.Append(PRUnichar('('));
       break;
     case eCSSToken_Number:
       if (mIntegerValid) {
@@ -448,7 +445,7 @@ InitStringBundle()
     return PR_TRUE;
 
   nsCOMPtr<nsIStringBundleService> sbs =
-    mozilla::services::GetStringBundleService();
+    do_GetService(NS_STRINGBUNDLE_CONTRACTID);
   if (!sbs)
     return PR_FALSE;
 
@@ -1085,8 +1082,7 @@ nsCSSScanner::ParseIdent(PRInt32 aChar, nsCSSToken& aToken)
 
   nsCSSTokenType tokenType = eCSSToken_Ident;
   // look for functions (ie: "ident(")
-  if (Peek() == PRUnichar('(')) {
-    Read();
+  if (PRUnichar('(') == PRUnichar(Peek())) { // this is a function definition
     tokenType = eCSSToken_Function;
   }
 

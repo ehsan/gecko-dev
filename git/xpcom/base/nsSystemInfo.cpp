@@ -100,7 +100,7 @@ nsSystemInfo::Init()
 #endif
 
 
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef MOZ_PLATFORM_HILDON
     char *  line = nsnull;
     size_t  len = 0;
     ssize_t read;

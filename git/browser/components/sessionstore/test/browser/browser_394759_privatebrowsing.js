@@ -39,7 +39,9 @@
 
 function browserWindowsCount() {
   let count = 0;
-  let e = Services.wm.getEnumerator("navigator:browser");
+  let e = Cc["@mozilla.org/appshell/window-mediator;1"]
+            .getService(Ci.nsIWindowMediator)
+            .getEnumerator("navigator:browser");
   while (e.hasMoreElements()) {
     if (!e.getNext().closed)
       ++count;
@@ -72,11 +74,13 @@ function test() {
   // Wait for the sessionstore.js file to be written before going on.
   // Note: we don't wait for the complete event, since if asyncCopy fails we
   // would timeout.
-  Services.obs.addObserver(function (aSubject, aTopic, aData) {
-    Services.obs.removeObserver(arguments.callee, aTopic);
+  let os = Cc["@mozilla.org/observer-service;1"].
+           getService(Ci.nsIObserverService);
+  os.addObserver({observe: function(aSubject, aTopic, aData) {
+    os.removeObserver(this, aTopic);
     info("sessionstore.js is being written");
     executeSoon(continue_test);
-  }, "sessionstore-state-write", false);
+  }}, "sessionstore-state-write", false);
 
   // Remove the sessionstore.js file before setting the interval to 0
   let profilePath = Cc["@mozilla.org/file/directory_service;1"].
@@ -139,7 +143,7 @@ function continue_test() {
 
                   // Ensure we added window to undo list.
                   let data = JSON.parse(ss.getClosedWindowData())[0];
-                  ok(JSON.stringify(data).indexOf(TESTS[aTestIndex].value) > -1,
+                  ok(data.toSource().indexOf(TESTS[aTestIndex].value) > -1,
                      "The closed window data was stored correctly");
 
                   if (aRunNextTestInPBMode) {
@@ -164,7 +168,7 @@ function continue_test() {
                        "when exiting PB mode");
 
                     let data = JSON.parse(ss.getClosedWindowData())[0];
-                    ok(JSON.stringify(data).indexOf(TESTS[aTestIndex - 1].value) > -1,
+                    ok(data.toSource().indexOf(TESTS[aTestIndex - 1].value) > -1,
                        "The data associated with the recently closed window was " +
                        "restored when exiting PB mode");
                   }

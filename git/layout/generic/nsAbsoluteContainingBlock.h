@@ -123,8 +123,7 @@ public:
                   nsRect*                  aChildBounds = nsnull);
 
 
-  void DestroyFrames(nsIFrame* aDelegatingFrame,
-                     nsIFrame* aDestructRoot);
+  void DestroyFrames(nsIFrame* aDelegatingFrame);
 
   PRBool  HasAbsoluteFrames() {return mAbsoluteFrames.NotEmpty();}
 

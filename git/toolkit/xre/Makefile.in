@@ -47,6 +47,10 @@ MODULE = xulapp
 LIBRARY_NAME = xulapp_s
 LIBXUL_LIBRARY = 1
 
+
+
+
+
 FORCE_STATIC_LIB = 1
 
 XPIDLSRCS = \
@@ -63,7 +67,6 @@ CPPSRCS = \
 	nsXREDirProvider.cpp \
 	nsNativeAppSupportBase.cpp \
 	nsAppData.cpp \
-	nsSigHandlers.cpp \
 	$(NULL)
 
 ifdef MOZ_SPLASHSCREEN
@@ -74,7 +77,7 @@ CPPSRCS += nsSplashScreenDummy.cpp
 endif
 endif
 
-DEFINES += -DIMPL_XREAPI -DMOZ_APP_NAME='"$(MOZ_APP_NAME)"'
+DEFINES += -DIMPL_XREAPI
 
 ifndef BUILD_STATIC_LIBS
 CPPSRCS += nsEmbedFunctions.cpp
@@ -88,7 +91,6 @@ endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 CPPSRCS += nsNativeAppSupportWin.cpp
 DEFINES += -DWIN32_LEAN_AND_MEAN -DUNICODE -D_UNICODE
-EXPORTS = nsWindowsDllInterceptor.h
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 CMMSRCS = nsNativeAppSupportCocoa.mm
@@ -102,13 +104,7 @@ else
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 CPPSRCS += nsNativeAppSupportUnix.cpp
 else
-ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
-CPPSRCS += nsNativeAppSupportQt.cpp
-CPPSRCS += nsQAppInstance.cpp
-EXPORTS += nsQAppInstance.h
-else
 CPPSRCS += nsNativeAppSupportDefault.cpp
-endif
 endif
 endif
 endif
@@ -117,18 +113,15 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 CMMSRCS += MacLaunchHelper.mm
-CMMSRCS += MacApplicationDelegate.mm
-CMMSRCS += MacAutoreleasePool.mm
 CPPSRCS += nsCommandLineServiceMac.cpp
 OS_CXXFLAGS += -fexceptions
 endif
-
-ifdef MOZ_X11
-CPPSRCS += nsX11ErrorHandler.cpp
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+CMMSRCS += MacApplicationDelegate.mm
 endif
 
-ifeq ($(OS_TARGET),Android)
-CPPSRCS += nsAndroidStartup.cpp
+ifneq (,$(filter-out OS2 WINNT,$(OS_ARCH)))
+CPPSRCS	  += nsSigHandlers.cpp
 endif
 
 SHARED_LIBRARY_LIBS += ../profile/src/$(LIB_PREFIX)profile_s.$(LIB_SUFFIX)
@@ -157,9 +150,7 @@ endif
 
 ifeq ($(OS_ARCH),Linux)
 SHARED_LIBRARY_LIBS += \
-  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/linux/crash_generation/$(LIB_PREFIX)crash_generation_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/linux/handler/$(LIB_PREFIX)exception_handler_s.$(LIB_SUFFIX) \
-  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/linux/minidump_writer/$(LIB_PREFIX)minidump_writer_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/$(LIB_PREFIX)minidump_file_writer_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/$(LIB_PREFIX)breakpad_common_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/linux/$(LIB_PREFIX)breakpad_linux_common_s.$(LIB_SUFFIX) \
@@ -184,10 +175,7 @@ include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
-LOCAL_INCLUDES += \
-  -I$(topsrcdir)/dom/ipc \
-  -I$(topsrcdir)/toolkit/crashreporter \
-  $(NULL)
+LOCAL_INCLUDES += -I$(topsrcdir)/dom/ipc
 
 ifdef BUILD_STATIC_LIBS
 export::
@@ -200,7 +188,7 @@ LOCAL_INCLUDES += \
 	-I$(topsrcdir)/config \
 	$(NULL)
 
-CXXFLAGS += $(TK_CFLAGS) $(MOZ_DBUS_CFLAGS) $(MOZ_DBUS_GLIB_CFLAGS)
+CXXFLAGS += $(TK_CFLAGS) $(MOZ_DBUS_GLIB_CFLAGS)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 CXXFLAGS += $(MOZ_PANGO_CFLAGS)
@@ -233,29 +221,21 @@ DEFINES     += -DHAVE_USR_LIB64_DIR
 endif
 endif
 
-MOZ_SOURCE_STAMP ?= $(firstword $(shell hg -R $(topsrcdir) parent --template="{node|short}\n" 2>/dev/null))
+SOURCE_STAMP := $(shell cd $(topsrcdir) && hg identify . 2>/dev/null | cut -f1 -d' ')
 # strip a trailing slash from the repo URL because it's not always present,
 # and we want to construct a working URL in buildconfig.html
 # make+shell+sed = awful
 _dollar=$$
 SOURCE_REPO := $(shell cd $(topsrcdir) && hg showconfig paths.default 2>/dev/null | head -n1 | sed -e "s/^ssh:/http:/" -e "s/\/$(_dollar)//" )
 
-ifdef MOZ_SOURCE_STAMP
-INIARGS = --sourcestamp=$(MOZ_SOURCE_STAMP)
+ifdef SOURCE_STAMP
+INIARGS = --sourcestamp=$(SOURCE_STAMP)
 # extra sanity check for old versions of hg
 # that don't support showconfig
 ifeq (http,$(patsubst http%,http,$(SOURCE_REPO)))
 INIARGS += --sourcerepo=$(SOURCE_REPO)
 endif
 endif
-
-# Solaris /usr/bin/diff doesn't have -n option
-GRE_MILESTONE := $(shell tail -n 1 $(topsrcdir)/config/milestone.txt 2>/dev/null || tail -1 $(topsrcdir)/config/milestone.txt)
-GRE_BUILDID := $(shell cat $(DEPTH)/config/buildid)
- 
-DEFINES += -DGRE_MILESTONE=$(GRE_MILESTONE) -DGRE_BUILDID=$(GRE_BUILDID)
-
-$(srcdir)/nsAppRunner.cpp: $(DEPTH)/config/buildid $(topsrcdir)/config/milestone.txt
 
 platform.ini: FORCE
 	$(PYTHON) $(srcdir)/make-platformini.py --buildid=$(shell cat $(DEPTH)/config/buildid) $(INIARGS) $(topsrcdir)/config/milestone.txt > $@

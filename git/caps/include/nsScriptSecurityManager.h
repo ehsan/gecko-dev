@@ -51,12 +51,12 @@
 #include "nsHashtable.h"
 #include "nsCOMPtr.h"
 #include "nsIPrefService.h"
+#include "nsISecurityPref.h"
 #include "nsIChannelEventSink.h"
 #include "nsIJSContextStack.h"
 #include "nsIObserver.h"
 #include "pldhash.h"
 #include "plstr.h"
-#include "nsIScriptExternalNameSet.h"
 
 class nsIDocShell;
 class nsString;
@@ -369,6 +369,7 @@ MoveClassPolicyEntry(PLDHashTable *table,
 { 0xba, 0x18, 0x00, 0x60, 0xb0, 0xf1, 0x99, 0xa2 }}
 
 class nsScriptSecurityManager : public nsIScriptSecurityManager,
+                                public nsIPrefSecurityCheck,
                                 public nsIChannelEventSink,
                                 public nsIObserver
 {
@@ -380,6 +381,7 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSISCRIPTSECURITYMANAGER
     NS_DECL_NSIXPCSECURITYMANAGER
+    NS_DECL_NSIPREFSECURITYCHECK
     NS_DECL_NSICHANNELEVENTSINK
     NS_DECL_NSIOBSERVER
 
@@ -408,7 +410,8 @@ public:
 
     static nsresult
     CheckSameOriginPrincipal(nsIPrincipal* aSubject,
-                             nsIPrincipal* aObject);
+                             nsIPrincipal* aObject,
+                             PRBool aIsCheckConnect);
     static PRUint32
     HashPrincipalByOrigin(nsIPrincipal* aPrincipal);
 
@@ -428,10 +431,6 @@ private:
     CheckObjectAccess(JSContext *cx, JSObject *obj,
                       jsval id, JSAccessMode mode,
                       jsval *vp);
-
-    // Decides, based on CSP, whether or not eval() and stuff can be executed.
-    static JSBool
-    ContentSecurityPolicyPermitsJSAction(JSContext *cx);
 
     // Returns null if a principal cannot be found; generally callers
     // should error out at that point.
@@ -459,7 +458,8 @@ private:
     nsresult
     CheckSameOriginDOMProp(nsIPrincipal* aSubject, 
                            nsIPrincipal* aObject,
-                           PRUint32 aAction);
+                           PRUint32 aAction,
+                           PRBool aIsCheckConnect);
 
     nsresult
     LookupPolicy(nsIPrincipal* principal,
@@ -586,7 +586,8 @@ private:
                      DomainPolicy* aDomainPolicy);
 
     nsresult
-    InitPrincipals(PRUint32 prefCount, const char** prefNames);
+    InitPrincipals(PRUint32 prefCount, const char** prefNames,
+                   nsISecurityPref* securityPref);
 
 
 #ifdef XPC_IDISPATCH_SUPPORT
@@ -625,6 +626,7 @@ private:
     nsObjectHashtable* mCapabilities;
 
     nsCOMPtr<nsIPrefBranch> mPrefBranch;
+    nsCOMPtr<nsISecurityPref> mSecurityPref;
     nsCOMPtr<nsIPrincipal> mSystemPrincipal;
     nsCOMPtr<nsIPrincipal> mSystemCertificate;
     ContextPrincipal *mContextPrincipals;
@@ -644,22 +646,6 @@ private:
     static nsIThreadJSContextStack* sJSContextStack;
     static nsIStringBundle *sStrBundle;
     static JSRuntime       *sRuntime;
-};
-
-#define NS_SECURITYNAMESET_CID \
- { 0x7c02eadc, 0x76, 0x4d03, \
- { 0x99, 0x8d, 0x80, 0xd7, 0x79, 0xc4, 0x85, 0x89 } }
-#define NS_SECURITYNAMESET_CONTRACTID "@mozilla.org/security/script/nameset;1"
-
-class nsSecurityNameSet : public nsIScriptExternalNameSet 
-{
-public:
-    nsSecurityNameSet();
-    virtual ~nsSecurityNameSet();
-    
-    NS_DECL_ISUPPORTS
-
-    NS_IMETHOD InitializeNameSet(nsIScriptContext* aScriptContext);
 };
 
 #endif // nsScriptSecurityManager_h__

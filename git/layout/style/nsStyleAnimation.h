@@ -56,8 +56,6 @@ class nsPresContext;
 class nsStyleContext;
 struct nsCSSValueList;
 struct nsCSSValuePair;
-struct nsCSSValuePairList;
-struct nsCSSRect;
 
 /**
  * Utility class to handle animated style values
@@ -161,20 +159,23 @@ public:
    * specified value depends on inherited style or on the values of other
    * properties.
    * 
+   * NOTE: This method uses GetPrimaryShell() to access the style system,
+   * so it should only be used for style that applies to all presentations,
+   * rather than for style that only applies to a particular presentation.
+   * XXX Once we get rid of multiple presentations, we can remove the above
+   * note.
+   *
    * @param aProperty       The property whose value we're computing.
    * @param aTargetElement  The content node to which our computed value is
    *                        applicable.
    * @param aSpecifiedValue The specified value, from which we'll build our
    *                        computed value.
-   * @param aUseSVGMode     A flag to indicate whether we should parse
-   *                        |aSpecifiedValue| in SVG mode.
    * @param [out] aComputedValue The resulting computed value.
    * @return PR_TRUE on success, PR_FALSE on failure.
    */
   static PRBool ComputeValue(nsCSSProperty aProperty,
                              nsIContent* aElement,
                              const nsAString& aSpecifiedValue,
-                             PRBool aUseSVGMode,
                              Value& aComputedValue);
 
   /**
@@ -227,18 +228,14 @@ public:
     eUnit_Auto,
     eUnit_None,
     eUnit_Enumerated,
-    eUnit_Visibility, // special case for transitions (which converts
-                      // Enumerated to Visibility as needed)
     eUnit_Integer,
     eUnit_Coord,
     eUnit_Percent,
     eUnit_Float,
     eUnit_Color,
     eUnit_CSSValuePair, // nsCSSValuePair* (never null)
-    eUnit_CSSRect, // nsCSSRect* (never null)
     eUnit_Dasharray, // nsCSSValueList* (never null)
     eUnit_Shadow, // nsCSSValueList* (may be null)
-    eUnit_CSSValuePairList, // nsCSSValuePairList* (never null)
     eUnit_UnparsedString // nsStringBuffer* (never null)
   };
 
@@ -251,9 +248,7 @@ public:
       float mFloat;
       nscolor mColor;
       nsCSSValuePair* mCSSValuePair;
-      nsCSSRect* mCSSRect;
       nsCSSValueList* mCSSValueList;
-      nsCSSValuePairList* mCSSValuePairList;
       nsStringBuffer* mString;
     } mValue;
   public:
@@ -292,17 +287,9 @@ public:
       NS_ASSERTION(IsCSSValuePairUnit(mUnit), "unit mismatch");
       return mValue.mCSSValuePair;
     }
-    nsCSSRect* GetCSSRectValue() const {
-      NS_ASSERTION(IsCSSRectUnit(mUnit), "unit mismatch");
-      return mValue.mCSSRect;
-    }
     nsCSSValueList* GetCSSValueListValue() const {
       NS_ASSERTION(IsCSSValueListUnit(mUnit), "unit mismatch");
       return mValue.mCSSValueList;
-    }
-    nsCSSValuePairList* GetCSSValuePairListValue() const {
-      NS_ASSERTION(IsCSSValuePairListUnit(mUnit), "unit mismatch");
-      return mValue.mCSSValuePairList;
     }
     const PRUnichar* GetStringBufferValue() const {
       NS_ASSERTION(IsStringUnit(mUnit), "unit mismatch");
@@ -347,10 +334,8 @@ public:
 
     // These setters take ownership of |aValue|, and are therefore named
     // "SetAndAdopt*".
-    void SetAndAdoptCSSValuePairValue(nsCSSValuePair *aValue, Unit aUnit);
-    void SetAndAdoptCSSRectValue(nsCSSRect *aValue, Unit aUnit);
     void SetAndAdoptCSSValueListValue(nsCSSValueList *aValue, Unit aUnit);
-    void SetAndAdoptCSSValuePairListValue(nsCSSValuePairList *aValue);
+    void SetAndAdoptCSSValuePairValue(nsCSSValuePair *aValue, Unit aUnit);
 
     Value& operator=(const Value& aOther);
 
@@ -366,20 +351,13 @@ public:
     }
 
     static PRBool IsIntUnit(Unit aUnit) {
-      return aUnit == eUnit_Enumerated || aUnit == eUnit_Visibility ||
-             aUnit == eUnit_Integer;
+      return aUnit == eUnit_Enumerated || aUnit == eUnit_Integer;
     }
     static PRBool IsCSSValuePairUnit(Unit aUnit) {
       return aUnit == eUnit_CSSValuePair;
     }
-    static PRBool IsCSSRectUnit(Unit aUnit) {
-      return aUnit == eUnit_CSSRect;
-    }
     static PRBool IsCSSValueListUnit(Unit aUnit) {
       return aUnit == eUnit_Dasharray || aUnit == eUnit_Shadow;
-    }
-    static PRBool IsCSSValuePairListUnit(Unit aUnit) {
-      return aUnit == eUnit_CSSValuePairList;
     }
     static PRBool IsStringUnit(Unit aUnit) {
       return aUnit == eUnit_UnparsedString;

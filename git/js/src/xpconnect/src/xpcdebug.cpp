@@ -426,9 +426,9 @@ static const int tab_width = 2;
 
 static void PrintObjectBasics(JSObject* obj)
 {
-    if (obj->isNative())
+    if(OBJ_IS_NATIVE(obj))
         printf("%p 'native' <%s>",
-               (void *)obj, obj->getClass()->name);
+               (void *)obj, STOBJ_GET_CLASS(obj)->name);
     else
         printf("%p 'host'", (void *)obj);
 }
@@ -450,11 +450,11 @@ static void PrintObject(JSObject* obj, int depth, ObjectPile* pile)
         return;
     }
 
-    if(!obj->isNative())
+    if(!OBJ_IS_NATIVE(obj))
         return;
 
-    JSObject* parent = obj->getParent();
-    JSObject* proto  = obj->getProto();
+    JSObject* parent = STOBJ_GET_PARENT(obj);
+    JSObject* proto  = STOBJ_GET_PROTO(obj);
 
     printf("%*sparent: ", INDENT(depth+1));
     if(parent)

@@ -43,10 +43,9 @@
 #include "prtypes.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
-#include "nsCOMArray.h"
 #include "nsIPluginTag.h"
 #include "nsIPlugin.h"
-#include "nsNPAPIPluginInstance.h"
+#include "nsIPluginInstance.h"
 #include "nsISupportsArray.h"
 
 class nsPluginHost;
@@ -112,6 +111,7 @@ public:
   PRLibrary     *mLibrary;
   nsCOMPtr<nsIPlugin> mEntryPoint;
   PRPackedBool  mCanUnloadLibrary;
+  PRPackedBool  mXPConnected;
   PRPackedBool  mIsJavaPlugin;
   PRPackedBool  mIsNPRuntimeEnabledJavaPlugin;
   nsCString     mFileName; // UTF-8
@@ -126,16 +126,47 @@ private:
 
 struct nsPluginInstanceTag
 {
+  nsPluginInstanceTag*   mNext;
   char*                  mURL;
   nsRefPtr<nsPluginTag>  mPluginTag;
-  nsNPAPIPluginInstance* mInstance; // this must always be valid
+  nsIPluginInstance*     mInstance;
+  PRTime                 mllStopTime;
+  PRPackedBool           mStopped;
+  PRPackedBool           mDefaultPlugin;
+  PRPackedBool           mXPConnected;
   // Array holding all opened stream listeners for this entry
-  nsCOMArray<nsIPluginStreamInfo> mStreams; 
+  nsCOMPtr <nsISupportsArray> mStreams; 
   
   nsPluginInstanceTag(nsPluginTag* aPluginTag,
                       nsIPluginInstance* aInstance, 
-                      const char * url);
+                      const char * url,
+                      PRBool aDefaultPlugin);
   ~nsPluginInstanceTag();
+  
+  void setStopped(PRBool stopped);
+};
+
+class nsPluginInstanceTagList
+{
+public:
+  nsPluginInstanceTag *mFirst;
+  nsPluginInstanceTag *mLast;
+  PRInt32 mCount;
+  
+  nsPluginInstanceTagList();
+  ~nsPluginInstanceTagList();
+  
+  void shutdown();
+  PRBool add(nsPluginInstanceTag *plugin);
+  PRBool remove(nsPluginInstanceTag *plugin);
+  nsPluginInstanceTag *find(nsIPluginInstance *instance);
+  nsPluginInstanceTag *find(const char *mimetype);
+  nsPluginInstanceTag *findStopped(const char *url);
+  PRUint32 getStoppedCount();
+  nsPluginInstanceTag *findOldestStopped();
+  void removeAllStopped();
+  void stopRunning(nsISupportsArray *aReloadDocs, nsPluginTag *aPluginTag);
+  PRBool IsLastInstance(nsPluginInstanceTag *plugin);
 };
 
 #endif // nsPluginTags_h_

@@ -256,7 +256,7 @@ NS_IMETHODIMP CWebBrowserContainer::OnStateChange(nsIWebProgress* aWebProgress, 
         VARIANT_BOOL bEnableForward = VARIANT_FALSE;
         PRBool aCanGoForward = PR_FALSE;
         webNav->GetCanGoForward(&aCanGoForward);
-        if (aCanGoForward)
+        if (aCanGoForward == PR_TRUE)
         {
             bEnableForward = VARIANT_TRUE;
         }
@@ -266,7 +266,7 @@ NS_IMETHODIMP CWebBrowserContainer::OnStateChange(nsIWebProgress* aWebProgress, 
         VARIANT_BOOL bEnableBack = VARIANT_FALSE;
         PRBool aCanGoBack = PR_FALSE;
         webNav->GetCanGoBack(&aCanGoBack);
-        if (aCanGoBack)
+        if (aCanGoBack == PR_TRUE)
         {
             bEnableBack = VARIANT_TRUE;
         }

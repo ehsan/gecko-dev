@@ -43,15 +43,15 @@
 #include "mozilla/plugins/PluginScriptableObjectParent.h"
 #if defined(OS_WIN)
 #include "mozilla/gfx/SharedDIBWin.h"
-#elif defined(OS_MACOSX)
-#include "nsCoreAnimationSupport.h"
 #endif
 
 #include "npfunctions.h"
 #include "nsAutoPtr.h"
-#include "nsDataHashtable.h"
-#include "nsHashKeys.h"
+#include "nsTArray.h"
 #include "nsRect.h"
+
+#undef _MOZ_LOG
+#define _MOZ_LOG(s) printf("[PluginInstanceParent] %s\n", s)
 
 namespace mozilla {
 namespace plugins {
@@ -68,21 +68,17 @@ class PluginInstanceParent : public PPluginInstanceParent
 public:
     PluginInstanceParent(PluginModuleParent* parent,
                          NPP npp,
-                         const nsCString& mimeType,
                          const NPNetscapeFuncs* npniface);
 
     virtual ~PluginInstanceParent();
 
-    bool Init();
-    NPError Destroy();
-
-    NS_OVERRIDE virtual void ActorDestroy(ActorDestroyReason why);
+    void Destroy();
 
     virtual PPluginScriptableObjectParent*
     AllocPPluginScriptableObject();
 
-    NS_OVERRIDE virtual bool
-    RecvPPluginScriptableObjectConstructor(PPluginScriptableObjectParent* aActor);
+    virtual bool
+    AnswerPPluginScriptableObjectConstructor(PPluginScriptableObjectParent* aActor);
 
     virtual bool
     DeallocPPluginScriptableObject(PPluginScriptableObjectParent* aObject);
@@ -111,9 +107,6 @@ public:
     virtual bool
     AnswerNPN_GetValue_NPNVisOfflineBool(bool* value, NPError* result);
     virtual bool
-    AnswerNPN_GetValue_NPNVnetscapeWindow(NativeWindowHandle* value,
-                                          NPError* result);
-    virtual bool
     AnswerNPN_GetValue_NPNVWindowNPObject(
                                        PPluginScriptableObjectParent** value,
                                        NPError* result);
@@ -128,12 +121,6 @@ public:
     AnswerNPN_SetValue_NPPVpluginWindow(const bool& windowed, NPError* result);
     virtual bool
     AnswerNPN_SetValue_NPPVpluginTransparent(const bool& transparent,
-                                             NPError* result);
-    virtual bool
-    AnswerNPN_SetValue_NPPVpluginDrawingModel(const int& drawingModel,
-                                             NPError* result);
-    virtual bool
-    AnswerNPN_SetValue_NPPVpluginEventModel(const int& eventModel,
                                              NPError* result);
 
     virtual bool
@@ -166,52 +153,29 @@ public:
     RecvNPN_InvalidateRect(const NPRect& rect);
 
     virtual bool
-    AnswerNPN_PushPopupsEnabledState(const bool& aState);
+    AnswerNPN_PushPopupsEnabledState(const bool& aState,
+                                     bool* aSuccess);
 
     virtual bool
-    AnswerNPN_PopPopupsEnabledState();
-
-    NS_OVERRIDE virtual bool
-    AnswerNPN_GetValueForURL(const NPNURLVariable& variable,
-                             const nsCString& url,
-                             nsCString* value, NPError* result);
-
-    NS_OVERRIDE virtual bool
-    AnswerNPN_SetValueForURL(const NPNURLVariable& variable,
-                             const nsCString& url,
-                             const nsCString& value, NPError* result);
-
-    NS_OVERRIDE virtual bool
-    AnswerNPN_GetAuthenticationInfo(const nsCString& protocol,
-                                    const nsCString& host,
-                                    const int32_t& port,
-                                    const nsCString& scheme,
-                                    const nsCString& realm,
-                                    nsCString* username,
-                                    nsCString* password,
-                                    NPError* result);
-
-    NS_OVERRIDE virtual bool
-    AnswerNPN_ConvertPoint(const double& sourceX,
-                           const bool&   ignoreDestX,
-                           const double& sourceY,
-                           const bool&   ignoreDestY,
-                           const NPCoordinateSpace& sourceSpace,
-                           const NPCoordinateSpace& destSpace,
-                           double *destX,
-                           double *destY,
-                           bool *result);
+    AnswerNPN_PopPopupsEnabledState(bool* aSuccess);
 
     NPError NPP_SetWindow(const NPWindow* aWindow);
 
-    NPError NPP_GetValue(NPPVariable variable, void* retval);
-    NPError NPP_SetValue(NPNVariable variable, void* value);
+    NPError NPP_GetValue(NPPVariable variable, void *ret_value);
+    NPError NPP_SetValue(NPNVariable variable, void *value)
+    {
+        _MOZ_LOG(__FUNCTION__);
+        return 1;
+    }
 
     NPError NPP_NewStream(NPMIMEType type, NPStream* stream,
                           NPBool seekable, uint16_t* stype);
     NPError NPP_DestroyStream(NPStream* stream, NPReason reason);
 
-    void NPP_Print(NPPrint* platformPrint);
+    void NPP_Print(NPPrint* platformPrint)
+    {
+        _MOZ_LOG(__FUNCTION__);
+    }
 
     int16_t NPP_HandleEvent(void* event);
 
@@ -227,13 +191,6 @@ public:
         return mNPNIface;
     }
 
-    bool
-    RegisterNPObjectForActor(NPObject* aObject,
-                             PluginScriptableObjectParent* aActor);
-
-    void
-    UnregisterNPObject(NPObject* aObject);
-
     PluginScriptableObjectParent*
     GetActorForNPObject(NPObject* aObject);
 
@@ -243,24 +200,7 @@ public:
       return mNPP;
     }
 
-    virtual bool
-    AnswerPluginFocusChange(const bool& gotFocus);
-
-#if defined(OS_MACOSX)
-    void Invalidate();
-#endif // definied(OS_MACOSX)
-
 private:
-    // Quirks mode support for various plugin mime types
-    enum PluginQuirks {
-        // OSX: Don't use the refresh timer for plug-ins
-        // using this quirk. These plug-in most have another
-        // way to refresh the window.
-        COREANIMATION_REFRESH_TIMER = 1,
-    };
-
-    void InitQuirksModes(const nsCString& aMimeType);
-
     bool InternalGetValueForNPObject(NPNVariable aVariable,
                                      PPluginScriptableObjectParent** aValue,
                                      NPError* aResult);
@@ -270,9 +210,8 @@ private:
     NPP mNPP;
     const NPNetscapeFuncs* mNPNIface;
     NPWindowType mWindowType;
-    int mQuirks;
 
-    nsDataHashtable<nsVoidPtrHashKey, PluginScriptableObjectParent*> mScriptableObjects;
+    nsTArray<nsAutoPtr<PluginScriptableObjectParent> > mScriptableObjects;
 
 #if defined(OS_WIN)
 private:
@@ -280,30 +219,15 @@ private:
     bool SharedSurfaceSetWindow(const NPWindow* aWindow, NPRemoteWindow& aRemoteWindow);
     void SharedSurfaceBeforePaint(RECT &rect, NPRemoteEvent& npremoteevent);
     void SharedSurfaceAfterPaint(NPEvent* npevent);
+    void SharedSurfaceSetOrigin(NPRemoteEvent& npremoteevent);
     void SharedSurfaceRelease();
-    // Used in handling parent/child forwarding of events.
-    static LRESULT CALLBACK PluginWindowHookProc(HWND hWnd, UINT message,
-                                                 WPARAM wParam, LPARAM lParam);
-    void SubclassPluginWindow(HWND aWnd);
-    void UnsubclassPluginWindow();
 
 private:
     gfx::SharedDIBWin  mSharedSurfaceDib;
     nsIntRect          mPluginPort;
     nsIntRect          mSharedSize;
-    HWND               mPluginHWND;
-    WNDPROC            mPluginWndProc;
-    bool               mNestedEventState;
+    nsIntPoint         mPluginPosOrigin;
 #endif // defined(XP_WIN)
-#if defined(OS_MACOSX)
-private:
-    Shmem              mShSurface; 
-    size_t             mShWidth;
-    size_t             mShHeight;
-    CGColorSpaceRef    mShColorSpace;
-    int16_t            mDrawingModel;
-    nsIOSurface       *mIOSurface;
-#endif // definied(OS_MACOSX)
 };
 
 

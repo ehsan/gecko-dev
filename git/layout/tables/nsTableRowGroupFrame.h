@@ -43,6 +43,7 @@
 #include "nsILineIterator.h"
 #include "nsTablePainter.h"
 #include "nsTArray.h"
+#include "nsCSSAnonBoxes.h"
 
 class nsTableFrame;
 class nsTableRowFrame;
@@ -74,11 +75,11 @@ struct nsRowGroupReflowState {
 // use the following bits from nsFrame's frame state 
 
 // thead or tfoot should be repeated on every printed page
-#define NS_ROWGROUP_REPEATABLE           NS_FRAME_STATE_BIT(31)
-#define NS_ROWGROUP_HAS_STYLE_HEIGHT     NS_FRAME_STATE_BIT(30)
+#define NS_ROWGROUP_REPEATABLE           0x80000000
+#define NS_ROWGROUP_HAS_STYLE_HEIGHT     0x40000000
 // the next is also used on rows (see nsTableRowGroupFrame::InitRepeatedFrame)
-#define NS_REPEATED_ROW_OR_ROWGROUP      NS_FRAME_STATE_BIT(28)
-#define NS_ROWGROUP_HAS_ROW_CURSOR       NS_FRAME_STATE_BIT(27)
+#define NS_REPEATED_ROW_OR_ROWGROUP      0x10000000
+#define NS_ROWGROUP_HAS_ROW_CURSOR       0x08000000
 
 #define MIN_ROWS_NEEDING_CURSOR 20
 
@@ -262,6 +263,11 @@ public:
     *                       frame. -1 if the frame cannot be found.
     */
   virtual PRInt32 FindLineContaining(nsIFrame* aFrame);
+  
+  /** not implemented
+    * the function is also not called in our tree
+    */
+  virtual PRInt32 FindLineAt(nscoord aY);
 
   /** Find the orginating cell frame on a row that is the nearest to the
     * coordinate X.
@@ -353,6 +359,13 @@ public:
    * decided not to use a cursor or we already have one set up.
    */
   FrameCursorData* SetupRowCursor();
+  
+  PRBool IsScrolled() {
+    // Note that if mOverflowY is CLIP, so is mOverflowX, and we need to clip the background
+    // as if the rowgroup is scrollable.
+    return GetStyleContext()->GetPseudo() == nsCSSAnonBoxes::scrolledContent ||
+           GetStyleDisplay()->mOverflowY == NS_STYLE_OVERFLOW_CLIP;
+  }
 
   virtual nsILineIterator* GetLineIterator() { return this; }
 
@@ -436,8 +449,6 @@ public:
   void   SetRepeatable(PRBool aRepeatable);
   PRBool HasStyleHeight() const;
   void   SetHasStyleHeight(PRBool aValue);
-  PRBool HasInternalBreakBefore() const;
-  PRBool HasInternalBreakAfter() const;
 };
 
 

@@ -75,7 +75,6 @@
 #include "nsIPlatformCharset.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIUnicodeDecoder.h"
-#include "nsIChromeRegistry.h"
 
 // Default URL for the hidden window, can be overridden by a pref on Mac
 #define DEFAULT_HIDDENWINDOW_URL "resource://gre-resources/hiddenWindow.html"
@@ -335,12 +334,6 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
     widgetInitData.mWindowType = eWindowType_sheet;
 #endif
 
-#if defined(XP_WIN)
-  if (widgetInitData.mWindowType == eWindowType_toplevel ||
-      widgetInitData.mWindowType == eWindowType_dialog)
-    widgetInitData.clipChildren = PR_TRUE;
-#endif
-
   widgetInitData.mContentType = eContentTypeUI;                
 
   // note default chrome overrides other OS chrome settings, but
@@ -380,16 +373,6 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
   }
 
   PRBool center = aChromeMask & nsIWebBrowserChrome::CHROME_CENTER_SCREEN;
-
-  nsCOMPtr<nsIXULChromeRegistry> reg =
-    mozilla::services::GetXULChromeRegistryService();
-  if (reg) {
-    nsCAutoString package;
-    package.AssignLiteral("global");
-    PRBool isRTL = PR_FALSE;
-    reg->IsLocaleRTL(package, &isRTL);
-    widgetInitData.mRTL = isRTL;
-  }
 
   nsresult rv = window->Initialize(parent, center ? aParent : nsnull,
                                    aAppShell, aUrl,

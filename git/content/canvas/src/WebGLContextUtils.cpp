@@ -37,8 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <stdarg.h>
-
 #include "WebGLContext.h"
 
 #include "prprf.h"
@@ -68,7 +66,7 @@
 using namespace mozilla;
 
 PRBool
-WebGLContext::SafeToCreateCanvas3DContext(nsHTMLCanvasElement *canvasElement)
+WebGLContext::SafeToCreateCanvas3DContext(nsICanvasElement *canvasElement)
 {
     nsresult rv;
 
@@ -204,15 +202,6 @@ WebGLContext::LogMessage(const char *fmt, ...)
 {
   va_list ap;
   va_start(ap, fmt);
-
-  LogMessage(fmt, ap);
-
-  va_end(ap);
-}
-
-void
-WebGLContext::LogMessage(const char *fmt, va_list ap)
-{
   char buf[256];
 
   nsCOMPtr<nsIConsoleService> console(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
@@ -221,72 +210,25 @@ WebGLContext::LogMessage(const char *fmt, va_list ap)
     console->LogStringMessage(NS_ConvertUTF8toUTF16(nsDependentCString(buf)).get());
     fprintf(stderr, "%s\n", buf);
   }
+
+  va_end(ap);
 }
 
 nsresult
-WebGLContext::SynthesizeGLError(WebGLenum err)
+WebGLContext::ErrorMessage(const char *fmt, ...)
 {
-    // If there is already a pending error, don't overwrite it;
-    // but if there isn't, then we need to check for a gl error
-    // that may have occurred before this one and use that code
-    // instead.
+  va_list ap;
+  va_start(ap, fmt);
+  char buf[256];
 
-    if (mSynthesizedGLError == LOCAL_GL_NO_ERROR) {
-        MakeContextCurrent();
+  nsCOMPtr<nsIConsoleService> console(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
+  if (console) {
+    PR_vsnprintf(buf, 256, fmt, ap);
+    console->LogStringMessage(NS_ConvertUTF8toUTF16(nsDependentCString(buf)).get());
+    fprintf(stderr, "%s\n", buf);
+  }
 
-        mSynthesizedGLError = gl->fGetError();
+  va_end(ap);
 
-        if (mSynthesizedGLError == LOCAL_GL_NO_ERROR)
-            mSynthesizedGLError = err;
-    }
-
-    return NS_OK;
-}
-
-nsresult
-WebGLContext::SynthesizeGLError(WebGLenum err, const char *fmt, ...)
-{
-    va_list va;
-    va_start(va, fmt);
-    if (fmt)
-        LogMessage(fmt, va);
-    va_end(va);
-
-    return SynthesizeGLError(err);
-}
-
-nsresult
-WebGLContext::ErrorInvalidEnum(const char *fmt, ...)
-{
-    va_list va;
-    va_start(va, fmt);
-    if (fmt)
-        LogMessage(fmt, va);
-    va_end(va);
-
-    return SynthesizeGLError(LOCAL_GL_INVALID_ENUM);
-}
-
-nsresult
-WebGLContext::ErrorInvalidOperation(const char *fmt, ...)
-{
-    va_list va;
-    va_start(va, fmt);
-    if (fmt)
-        LogMessage(fmt, va);
-    va_end(va);
-
-    return SynthesizeGLError(LOCAL_GL_INVALID_OPERATION);
-}
-
-nsresult
-WebGLContext::ErrorInvalidValue(const char *fmt, ...)
-{
-    va_list va;
-    va_start(va, fmt);
-    if (fmt)
-        LogMessage(fmt, va);
-    va_end(va);
-
-    return SynthesizeGLError(LOCAL_GL_INVALID_VALUE);
+  return NS_ERROR_FAILURE;
 }

@@ -149,7 +149,7 @@ public:
 
         PRBool aCanGoBack = PR_FALSE;
         webNav->GetCanGoBack(&aCanGoBack);
-        if (aCanGoBack)
+        if (aCanGoBack == PR_TRUE)
         {
             webNav->GoBack();
         }
@@ -164,7 +164,7 @@ public:
 
         PRBool aCanGoForward = PR_FALSE;
         webNav->GetCanGoForward(&aCanGoForward);
-        if (aCanGoForward)
+        if (aCanGoForward == PR_TRUE)
         {
             webNav->GoForward();
         }

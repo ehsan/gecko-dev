@@ -59,7 +59,7 @@
 
   <commandset id="placesCommands"/>
   <commandset id="editMenuCommands"/>
-  <menupopup id="placesContext"/>
+  <popup id="placesContext"/>
 
   <!-- Bookmarks and history tooltip -->
   <tooltip id="bhTooltip"/>

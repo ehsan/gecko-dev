@@ -81,7 +81,7 @@ NS_IMETHODIMP InsertTextTxn::Init(nsIDOMCharacterData *aElement,
 #endif
 
   NS_ASSERTION(aElement && aEditor, "bad args");
-  NS_ENSURE_TRUE(aElement && aEditor, NS_ERROR_NULL_POINTER);
+  if (!aElement || !aEditor) return NS_ERROR_NULL_POINTER;
 
   mElement = do_QueryInterface(aElement);
   mOffset = aOffset;
@@ -93,18 +93,14 @@ NS_IMETHODIMP InsertTextTxn::Init(nsIDOMCharacterData *aElement,
 NS_IMETHODIMP InsertTextTxn::DoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("Do Insert Text element = %p\n",
-           static_cast<void*>(mElement.get()));
-  }
+  if (gNoisy) { printf("Do Insert Text element = %p\n", mElement.get()); }
 #endif
 
   NS_ASSERTION(mElement && mEditor, "bad state");
   if (!mElement || !mEditor) { return NS_ERROR_NOT_INITIALIZED; }
 
   nsresult result = mElement->InsertData(mOffset, mStringToInsert);
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result)) return result;
 
   // only set selection to insertion point if editor gives permission
   PRBool bAdjustSelection;
@@ -113,8 +109,8 @@ NS_IMETHODIMP InsertTextTxn::DoTransaction(void)
   {
     nsCOMPtr<nsISelection> selection;
     result = mEditor->GetSelection(getter_AddRefs(selection));
-    NS_ENSURE_SUCCESS(result, result);
-    NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+    if (NS_FAILED(result)) return result;
+    if (!selection) return NS_ERROR_NULL_POINTER;
     result = selection->Collapse(mElement, mOffset+mStringToInsert.Length());
     NS_ASSERTION((NS_SUCCEEDED(result)), "selection could not be collapsed after insert.");
   }
@@ -129,11 +125,7 @@ NS_IMETHODIMP InsertTextTxn::DoTransaction(void)
 NS_IMETHODIMP InsertTextTxn::UndoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("Undo Insert Text element = %p\n",
-           static_cast<void*>(mElement.get()));
-  }
+  if (gNoisy) { printf("Undo Insert Text element = %p\n", mElement.get()); }
 #endif
 
   NS_ASSERTION(mElement && mEditor, "bad state");
@@ -164,11 +156,7 @@ NS_IMETHODIMP InsertTextTxn::Merge(nsITransaction *aTransaction, PRBool *aDidMer
         mStringToInsert += otherData;
         *aDidMerge = PR_TRUE;
 #ifdef NS_DEBUG
-        if (gNoisy)
-        {
-          printf("InsertTextTxn assimilated %p\n",
-                 static_cast<void*>(aTransaction));
-        }
+        if (gNoisy) { printf("InsertTextTxn assimilated %p\n", aTransaction); }
 #endif
       }
       NS_RELEASE(otherInsTxn);

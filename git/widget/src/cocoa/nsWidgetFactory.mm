@@ -57,6 +57,7 @@
 
 #include "nsLookAndFeel.h"
 
+#include "nsAccelerometerX.h"
 #include "nsSound.h"
 #include "nsIdleServiceX.h"
 
@@ -72,6 +73,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsFilePicker)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsToolkit)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsLookAndFeel)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSound)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsAccelerometerX)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsTransferable)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHTMLFormatConverter)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsClipboard)
@@ -92,12 +94,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsBidiKeyboard)
 
 #include "nsNativeThemeCocoa.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsNativeThemeCocoa)
-
-#include "nsMacDockSupport.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsMacDockSupport)
-
-#include "nsStandaloneNativeMenu.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsStandaloneNativeMenu)
 
 static const nsModuleComponentInfo gComponents[] =
 {
@@ -133,6 +129,10 @@ static const nsModuleComponentInfo gComponents[] =
     NS_SOUND_CID,
     "@mozilla.org/sound;1",
     nsSoundConstructor },
+  { "Accelerometer",
+    NS_ACCELEROMETER_CID,
+    NS_ACCELEROMETER_CONTRACTID,
+    nsAccelerometerXConstructor },
   { "Transferable",
     NS_TRANSFERABLE_CID,
     "@mozilla.org/widget/transferable;1",
@@ -189,14 +189,6 @@ static const nsModuleComponentInfo gComponents[] =
     NS_NATIVEMENUSERVICE_CID,
     "@mozilla.org/widget/nativemenuservice;1",
     nsNativeMenuServiceXConstructor },
-  { "Mac Dock Support Service",
-    NS_MACDOCKSUPPORT_CID,
-    "@mozilla.org/widget/macdocksupport;1",
-    nsMacDockSupportConstructor },
-  { "Standalone Native Menu",
-    NS_STANDALONENATIVEMENU_CID,
-    "@mozilla.org/widget/standalonenativemenu;1",
-    nsStandaloneNativeMenuConstructor },
 };
 
 NS_IMPL_NSGETMODULE_WITH_CTOR_DTOR(nsWidgetMacModule, gComponents,

@@ -86,10 +86,10 @@ nsHTMLButtonControlFrame::~nsHTMLButtonControlFrame()
 }
 
 void
-nsHTMLButtonControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsHTMLButtonControlFrame::Destroy()
 {
   nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
-  nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
+  nsHTMLContainerFrame::Destroy();
 }
 
 NS_IMETHODIMP
@@ -110,18 +110,21 @@ NS_QUERYFRAME_HEAD(nsHTMLButtonControlFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsHTMLButtonControlFrame::CreateAccessible()
+NS_IMETHODIMP nsHTMLButtonControlFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return IsInput() ?
-      accService->CreateHTMLButtonAccessible(mContent, PresContext()->PresShell()) :
-      accService->CreateHTML4ButtonAccessible(mContent, PresContext()->PresShell());
+    nsIContent* content = GetContent();
+    nsCOMPtr<nsIDOMHTMLButtonElement> buttonElement(do_QueryInterface(content));
+    if (buttonElement) //If turned XBL-base form control off, the frame contains HTML 4 button
+      return accService->CreateHTML4ButtonAccessible(static_cast<nsIFrame*>(this), aAccessible);
+    nsCOMPtr<nsIDOMHTMLInputElement> inputElement(do_QueryInterface(content));
+    if (inputElement) //If turned XBL-base form control on, the frame contains normal HTML button
+      return accService->CreateHTMLButtonAccessible(static_cast<nsIFrame*>(this), aAccessible);
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 
@@ -176,9 +179,8 @@ nsHTMLButtonControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // Put the foreground outline and focus rects on top of the children
   set.Content()->AppendToTop(&onTop);
 
-  // clips to our padding box for <input>s but not <button>s, unless
-  // they have non-visible overflow..
-  if (IsInput() || GetStyleDisplay()->mOverflowX != NS_STYLE_OVERFLOW_VISIBLE) {
+  // clips to our padding box for <input>s but not <button>s.
+  if (IsInput()) {
     nsMargin border = GetStyleBorder()->GetActualBorder();
     nsRect rect(aBuilder->ToReferenceFrame(this), GetSize());
     rect.Deflate(border);

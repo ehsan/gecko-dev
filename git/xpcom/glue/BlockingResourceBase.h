@@ -55,7 +55,6 @@
 #include "nsStringGlue.h"
 
 #include "mozilla/DeadlockDetector.h"
-#include "nsXPCOM.h"
 #endif
 
 //
@@ -356,7 +355,7 @@ private:
 
 #  ifdef MOZILLA_INTERNAL_API
     // so it can call BlockingResourceBase::Shutdown()
-    friend void LogTerm();
+    friend nsresult ShutdownXPCOM(nsIServiceManager*);
 #  endif  // ifdef MOZILLA_INTERNAL_API
 
 #else  // non-DEBUG implementation

@@ -7,7 +7,9 @@ function cleanup_and_finish() {
   try {
     cleanup_fake_appdir();
   } catch(ex) {}
-  Services.prefs.clearUserPref("breakpad.reportURL");
+  let prefs = Components.classes["@mozilla.org/preferences-service;1"]
+    .getService(Components.interfaces.nsIPrefService);
+  prefs.clearUserPref("breakpad.reportURL");
   gBrowser.removeTab(gBrowser.selectedTab);
   finish();
 }
@@ -51,6 +53,7 @@ function check_submit_pending(tab, crashes) {
   let CrashID = null;
   let CrashURL = null;
   function csp_onload() {
+    dump('csp_onload, location = ' + browser.contentWindow.location + '\n');
     if (browser.contentWindow.location != 'about:crashes') {
       browser.removeEventListener("load", csp_onload, true);
       // loaded the crash report page
@@ -87,12 +90,6 @@ function check_submit_pending(tab, crashes) {
                   });
     }
   }
-  function csp_fail() {
-    browser.removeEventListener("CrashSubmitFailed", csp_fail, true);
-    ok(false, "failed to submit crash report!");
-    cleanup_and_finish();
-  }
-  browser.addEventListener("CrashSubmitFailed", csp_fail, true);
   browser.addEventListener("load", csp_onload, true);
   function csp_pageshow() {
     browser.removeEventListener("pageshow", csp_pageshow, true);
@@ -110,11 +107,13 @@ function check_submit_pending(tab, crashes) {
   for each(let crash in crashes) {
     if (crash.pending) {
       SubmittedCrash = crash;
+      dump('check_submit_pending: trying to submit crash ' + crash.id + '\n');
       break;
     }
   }
   EventUtils.sendMouseEvent({type:'click'}, SubmittedCrash.id,
                             browser.contentWindow);
+  dump('check_submit_pending: sent mouse event to ' + SubmittedCrash.id + '\n');
 }
 
 function test() {
@@ -133,8 +132,10 @@ function test() {
   crashes.sort(function(a,b) b.date - a.date);
 
   // set this pref so we can link to our test server
-  Services.prefs.setCharPref("breakpad.reportURL",
-                             "http://example.com/browser/toolkit/crashreporter/test/browser/crashreport.sjs?id=");
+  let prefs = Components.classes["@mozilla.org/preferences-service;1"]
+    .getService(Components.interfaces.nsIPrefService);
+
+  prefs.setCharPref("breakpad.reportURL", "http://example.com/browser/toolkit/crashreporter/test/browser/crashreport.sjs?id=");
 
   let tab = gBrowser.selectedTab = gBrowser.addTab("about:blank");
   let browser = gBrowser.getBrowserForTab(tab);

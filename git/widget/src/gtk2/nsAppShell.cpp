@@ -51,6 +51,7 @@
 #ifdef PR_LOGGING
 PRLogModuleInfo *gWidgetLog = nsnull;
 PRLogModuleInfo *gWidgetFocusLog = nsnull;
+PRLogModuleInfo *gWidgetIMLog = nsnull;
 PRLogModuleInfo *gWidgetDragLog = nsnull;
 PRLogModuleInfo *gWidgetDrawLog = nsnull;
 #endif
@@ -88,6 +89,8 @@ nsAppShell::Init()
         gWidgetLog = PR_NewLogModule("Widget");
     if (!gWidgetFocusLog)
         gWidgetFocusLog = PR_NewLogModule("WidgetFocus");
+    if (!gWidgetIMLog)
+        gWidgetIMLog = PR_NewLogModule("WidgetIM");
     if (!gWidgetDragLog)
         gWidgetDragLog = PR_NewLogModule("WidgetDrag");
     if (!gWidgetDrawLog)

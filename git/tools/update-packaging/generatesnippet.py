@@ -70,10 +70,6 @@ def main():
                       action="store",
                       dest="platform",
                       help="[Required] This option is used to indicate which target platform.")
-    parser.add_option("--branch",
-                      action="store",
-                      dest="branch",
-                      help="This option is used to indicate which branch name to use for FTP file names.")
     parser.add_option("--download-base-URL",
                       action="store",
                       dest="downloadBaseURL",
@@ -96,16 +92,12 @@ def main():
     if not options.downloadBaseURL or options.downloadBaseURL == '':
         options.downloadBaseURL = 'http://ftp.mozilla.org/pub/mozilla.org/%s/nightly' % options.product
 
-    if not options.branch or options.branch == '':
-        options.branch = None
-
     snippet = generateSnippet(options.marPath,
                               options.applicationIniFile,
                               options.locale,
                               options.downloadBaseURL,
                               options.product,
-                              options.platform,
-                              options.branch)
+                              options.platform)
     f = open(os.path.join(options.marPath, 'complete.update.snippet'), 'wb')
     f.write(snippet)
     f.close()
@@ -115,7 +107,7 @@ def main():
         print snippet
 
 def generateSnippet(abstDistDir, applicationIniFile, locale,
-                    downloadBaseURL, product, platform, branch):
+                    downloadBaseURL, product, platform):
     # Let's extract information from application.ini
     c = ConfigParser()
     try:
@@ -124,7 +116,7 @@ def generateSnippet(abstDistDir, applicationIniFile, locale,
        sys.exit(stderror) 
     buildid = c.get("App", "BuildID")
     appVersion = c.get("App", "Version")
-    branchName = branch or c.get("App", "SourceRepository").split('/')[-1]
+    branchName = c.get("App", "SourceRepository").split('/')[-1]
 
     marFileName = '%s-%s.%s.%s.complete.mar' % (
         product,

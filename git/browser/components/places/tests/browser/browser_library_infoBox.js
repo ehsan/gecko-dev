@@ -152,6 +152,7 @@ gTests.push({
 });
 
 function checkInfoBoxSelected(PO) {
+  PO._places.focus();
   is(getAndCheckElmtById("detailsDeck").selectedIndex, 1,
      "Selected element in detailsDeck is infoBox.");
 }
@@ -218,19 +219,21 @@ function nextTest() {
 var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
          getService(Ci.nsIWindowWatcher);
 
-function windowObserver(aSubject, aTopic, aData) {
-  if (aTopic != "domwindowopened")
-    return;
-  ww.unregisterNotification(windowObserver);
-  gLibrary = aSubject.QueryInterface(Ci.nsIDOMWindow);
-  gLibrary.addEventListener("load", function onLoad(event) {
-    gLibrary.removeEventListener("load", onLoad, false);
-    executeSoon(function() {
-      gLibrary.PlacesOrganizer._places.focus();
-      waitForFocus(nextTest, gLibrary);
-    });
-  }, false);
-}
+var windowObserver = {
+  observe: function(aSubject, aTopic, aData) {
+    if (aTopic === "domwindowopened") {
+      ww.unregisterNotification(this);
+      gLibrary = aSubject.QueryInterface(Ci.nsIDOMWindow);
+      gLibrary.addEventListener("load", function onLoad(event) {
+        gLibrary.removeEventListener("load", onLoad, false);
+        executeSoon(function () {
+          // Execute tests.
+          nextTest();
+        });
+      }, false);
+    }
+  }
+};
 
 function test() {
   dump("Starting test browser_library_infoBox.js\n");

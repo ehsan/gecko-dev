@@ -40,7 +40,7 @@
 
 #include "prtypes.h"
 
-class nsHTMLCanvasElement;
+class nsICanvasElement;
 class nsIPrincipal;
 
 namespace mozilla {
@@ -65,7 +65,7 @@ public:
     // Flag aCanvasElement as write-only if drawing an image with aPrincipal
     // onto it would make it such.
 
-    static void DoDrawImageSecurityCheck(nsHTMLCanvasElement *aCanvasElement,
+    static void DoDrawImageSecurityCheck(nsICanvasElement *aCanvasElement,
                                          nsIPrincipal *aPrincipal,
                                          PRBool forceWriteOnly);
 

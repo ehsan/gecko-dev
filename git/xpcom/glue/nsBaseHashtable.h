@@ -123,7 +123,7 @@ public:
    */
   PRBool Get(KeyType aKey, UserDataType* pData NS_OUTPARAM) const
   {
-    EntryType* ent = this->GetEntry(aKey);
+    EntryType* ent = GetEntry(aKey);
 
     if (!ent)
       return PR_FALSE;
@@ -135,24 +135,6 @@ public:
   }
 
   /**
-   * For pointer types, get the value, returning NULL if the entry is not
-   * present in the table.
-   *
-   * @param aKey the key to retrieve
-   * @return The found value, or NULL if no entry was found with the given key.
-   * @note If NULL values are stored in the table, it is not possible to
-   *       distinguish between a NULL value and a missing entry.
-   */
-  UserDataType Get(KeyType aKey) const
-  {
-    EntryType* ent = this->GetEntry(aKey);
-    if (!ent)
-      return NULL;
-
-    return ent->mData;
-  }
-
-  /**
    * put a new value for the associated key
    * @param aKey the key to put
    * @param aData the new data
@@ -160,7 +142,7 @@ public:
    */
   PRBool Put(KeyType aKey, UserDataType aData)
   {
-    EntryType* ent = this->PutEntry(aKey);
+    EntryType* ent = PutEntry(aKey);
 
     if (!ent)
       return PR_FALSE;
@@ -174,7 +156,7 @@ public:
    * remove the data for the associated key
    * @param aKey the key to remove from the hashtable
    */
-  void Remove(KeyType aKey) { this->RemoveEntry(aKey); }
+  void Remove(KeyType aKey) { RemoveEntry(aKey); }
 
   /**
    * function type provided by the application for enumeration.

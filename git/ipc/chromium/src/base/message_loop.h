@@ -196,21 +196,12 @@ public:
   //   This type of ML also supports asynchronous IO.  See also
   //   MessageLoopForIO.
   //
-  // TYPE_MOZILLA_CHILD
-  //   This type of ML is used in Mozilla child processes which initialize
-  //   XPCOM and use the gecko event loop.
-  //
-  // TYPE_MOZILLA_UI
-  //   This type of ML is used in Mozilla parent processes which initialize
-  //   XPCOM and use the gecko event loop.
-  //
   enum Type {
     TYPE_DEFAULT,
     TYPE_UI,
     TYPE_IO
 #ifdef CHROMIUM_MOZILLA_BUILD
     , TYPE_MOZILLA_CHILD
-    , TYPE_MOZILLA_UI
 #endif
   };
 
@@ -248,7 +239,6 @@ public:
   //   Otherwise, it will get executed right after task #1 completes at "thread
   //   message loop level".
   void SetNestableTasksAllowed(bool allowed);
-  void ScheduleWork();
   bool NestableTasksAllowed() const;
 
   // Enables or disables the restoration during an exception of the unhandled
@@ -431,21 +421,13 @@ public:
 //
 class MessageLoopForUI : public MessageLoop {
  public:
-  MessageLoopForUI(Type type=TYPE_UI) : MessageLoop(type) {
+  MessageLoopForUI() : MessageLoop(TYPE_UI) {
   }
 
   // Returns the MessageLoopForUI of the current thread.
   static MessageLoopForUI* current() {
     MessageLoop* loop = MessageLoop::current();
-    if (!loop)
-      return NULL;
-#ifdef CHROMIUM_MOZILLA_BUILD
-    Type type = loop->type();
-    DCHECK(type == MessageLoop::TYPE_UI ||
-           type == MessageLoop::TYPE_MOZILLA_UI);
-#else
     DCHECK_EQ(MessageLoop::TYPE_UI, loop->type());
-#endif
     return static_cast<MessageLoopForUI*>(loop);
   }
 

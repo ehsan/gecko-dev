@@ -46,8 +46,6 @@
 #include "nsBlockDebugFlags.h"
 #include "nsContentErrors.h"
 
-using namespace mozilla;
-
 PRInt32 nsFloatManager::sCachedFloatManagerCount = 0;
 void* nsFloatManager::sCachedFloatManagers[NS_FLOAT_MANAGER_CACHE_SIZE];
 
@@ -319,18 +317,25 @@ nsFloatManager::CalculateRegionFor(nsIFrame*       aFloat,
   return region;
 }
 
-NS_DECLARE_FRAME_PROPERTY(FloatRegionProperty, nsIFrame::DestroyMargin)
-
 nsRect
 nsFloatManager::GetRegionFor(nsIFrame* aFloat)
 {
   nsRect region = aFloat->GetRect();
-  void* storedRegion = aFloat->Properties().Get(FloatRegionProperty());
+  void* storedRegion = aFloat->GetProperty(nsGkAtoms::floatRegionProperty);
   if (storedRegion) {
     nsMargin margin = *static_cast<nsMargin*>(storedRegion);
     region.Inflate(margin);
   }
   return region;
+}
+
+static void
+DestroyMarginFunc(void*    aFrame,
+                  nsIAtom* aPropertyName,
+                  void*    aPropertyValue,
+                  void*    aDtorData)
+{
+  delete static_cast<nsMargin*>(aPropertyValue);
 }
 
 nsresult
@@ -339,16 +344,21 @@ nsFloatManager::StoreRegionFor(nsIFrame* aFloat,
 {
   nsresult rv = NS_OK;
   nsRect rect = aFloat->GetRect();
-  FrameProperties props = aFloat->Properties();
   if (aRegion == rect) {
-    props.Delete(FloatRegionProperty());
+    rv = aFloat->DeleteProperty(nsGkAtoms::floatRegionProperty);
+    if (rv == NS_PROPTABLE_PROP_NOT_THERE) rv = NS_OK;
   }
   else {
-    nsMargin* storedMargin = static_cast<nsMargin*>
-      (props.Get(FloatRegionProperty()));
+    nsMargin* storedMargin = static_cast<nsMargin*>(aFloat
+                               ->GetProperty(nsGkAtoms::floatRegionProperty));
     if (!storedMargin) {
       storedMargin = new nsMargin();
-      props.Set(FloatRegionProperty(), storedMargin);
+      rv = aFloat->SetProperty(nsGkAtoms::floatRegionProperty, storedMargin,
+                               DestroyMarginFunc);
+      if (NS_FAILED(rv)) {
+        delete storedMargin;
+        return rv;
+      }
     }
     *storedMargin = aRegion - rect;
   }

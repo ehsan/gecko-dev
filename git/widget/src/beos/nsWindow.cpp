@@ -92,7 +92,6 @@ static NS_DEFINE_IID(kCDragServiceCID,  NS_DRAGSERVICE_CID);
 
 // Rollup Listener - static variable defintions
 static nsIRollupListener * gRollupListener           = nsnull;
-static nsIMenuRollup     * gMenuRollup               = nsnull;
 static nsIWidget         * gRollupWidget             = nsnull;
 static PRBool              gRollupConsumeRollupEvent = PR_FALSE;
 // Tracking last activated BWindow
@@ -679,7 +678,7 @@ NS_METHOD nsWindow::Show(PRBool bState)
 	//and Show() checks. BeBook:
 	// If Hide() is called more than once, you'll need to call Show()
 	// an equal number of times for the window to become visible again.
-	if (!bState)
+	if (bState == PR_FALSE)
 	{
 		if (mView->Window() && !mView->Window()->IsHidden())
 			mView->Window()->Hide();
@@ -713,10 +712,7 @@ NS_METHOD nsWindow::CaptureMouse(PRBool aCapture)
 //-------------------------------------------------------------------------
 // Capture Roolup Events
 //-------------------------------------------------------------------------
-NS_METHOD nsWindow::CaptureRollupEvents(nsIRollupListener * aListener,
-                                        nsIMenuRollup * aMenuRollup,
-                                        PRBool aDoCapture,
-                                        PRBool aConsumeRollupEvent)
+NS_METHOD nsWindow::CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent)
 {
 	if (!mEnabled)
 		return NS_OK;
@@ -728,18 +724,16 @@ NS_METHOD nsWindow::CaptureRollupEvents(nsIRollupListener * aListener,
 		// assure that remains true.
 		NS_ASSERTION(!gRollupWidget, "rollup widget reassigned before release");
 		gRollupConsumeRollupEvent = aConsumeRollupEvent;
+		NS_IF_RELEASE(gRollupListener);
 		NS_IF_RELEASE(gRollupWidget);
 		gRollupListener = aListener;
-		NS_IF_RELEASE(gMenuRollup);
-		gMenuRollup = aMenuRollup;
-		NS_IF_ADDREF(aMenuRollup);
+		NS_ADDREF(aListener);
 		gRollupWidget = this;
 		NS_ADDREF(this);
 	} 
 	else 
 	{
-		gRollupListener == nsnull;
-    NS_IF_RELEASE(gMenuRollup);
+		NS_IF_RELEASE(gRollupListener);
 		NS_IF_RELEASE(gRollupWidget);
 	}
 
@@ -789,10 +783,11 @@ nsWindow::DealWithPopups(uint32 methodID, nsPoint pos)
 		// want to rollup if the click is in a parent menu of the current submenu.
 		if (rollup) 
 		{
-			if ( gMenuRollup ) 
+			nsCOMPtr<nsIMenuRollup> menuRollup ( do_QueryInterface(gRollupListener) );
+			if ( menuRollup ) 
 			{
 				nsAutoTArray<nsIWidget*, 5> widgetChain;
-				gMenuRollup->GetSubmenuWidgetChain(&widgetChain);
+				menuRollup->GetSubmenuWidgetChain(&widgetChain);
 
 				for ( PRUint32 i = 0; i < widgetChain.Length(); ++i ) 
 				{
@@ -1094,7 +1089,7 @@ NS_METHOD nsWindow::SetFocus(PRBool aRaise)
 	if (mView && mView->LockLooper())
 	{
 		if (mView->Window() && 
-		    aRaise &&
+		    aRaise == PR_TRUE &&
 		    eWindowType_popup != mWindowType && 
 			  !mView->Window()->IsActive() && 
 			  gLastActiveWindow != mView->Window())

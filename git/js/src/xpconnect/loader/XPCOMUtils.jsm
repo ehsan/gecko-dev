@@ -77,12 +77,7 @@
  *      // optional, defaults to false. When set to true, and only if 'value'
  *      // is not specified, the concatenation of the string "service," and the
  *      // object's contractID is passed as aValue parameter of addCategoryEntry.
- *      service: true,
- *      // optional, it can be an array of applications' IDs in the form:
- *      // [ "{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}", ... ]
- *      // If defined the component will be registered in this category only for
- *      // the provided applications.
- *      apps: [...]
+ *      service: true
  *    }],
  *
  *    // QueryInterface implementation, e.g. using the generateQI helper
@@ -151,8 +146,7 @@ var XPCOMUtils = {
    *                      signature 'preUnregister(nsIComponentManager,
    *                                               nsIFile, componentsArray)'
    */
-  generateModule: function XPCU_generateModule(componentsArray,
-                                               postRegister,
+  generateModule: function XPCU_generateModule(componentsArray, postRegister,
                                                preUnregister) {
     let classes = [];
     for each (let component in componentsArray) {
@@ -163,38 +157,6 @@ var XPCOMUtils = {
         factory:      this._getFactory(component),
         categories:   component.prototype._xpcom_categories
       });
-    }
-
-    function categoryRegistration(action, compMgr, fileSpec,
-                                  registrationFunc, hookFunc) {
-      debug("*** " + action + "ing " + fileSpec.leafName + ": [ ");
-      var componentCount = 0;
-      compMgr.QueryInterface(Ci.nsIComponentRegistrar);
-
-      if (action == "unregister" && preUnregister)
-        preUnregister(compMgr, fileSpec, componentsArray);
-
-      for each (let classDesc in classes) {
-        debug((componentCount++ ? ", " : "") + classDesc.className);
-
-        if (action == "register" && hookFunc)
-          hookFunc(classDesc);
-
-        if (classDesc.categories) {
-          for each (let cat in classDesc.categories) {
-            if ("apps" in cat && -1 == cat.apps.indexOf(XPCOMUtils._appID))
-              continue;
-            registrationFunc(cat, classDesc);
-          }
-        }
-
-        if (action == "unregister" && hookFunc)
-          hookFunc(classDesc);
-      }
-
-      if (action == "register" && postRegister)
-        postRegister(compMgr, fileSpec, componentsArray);
-      debug(" ]\n");
     }
 
     return { // nsIModule impl.
@@ -212,55 +174,62 @@ var XPCOMUtils = {
       },
 
       registerSelf: function(compMgr, fileSpec, location, type) {
-        categoryRegistration("register", compMgr, fileSpec,
-          function(cat, classDesc) {
-            let defaultValue = (cat.service ? "service," : "") +
-                               classDesc.contractID;
+        var componentCount = 0;
+        debug("*** registering " + fileSpec.leafName + ": [ ");
+        compMgr.QueryInterface(Ci.nsIComponentRegistrar);
+
+        for each (let classDesc in classes) {
+          debug((componentCount++ ? ", " : "") + classDesc.className);
+          compMgr.registerFactoryLocation(classDesc.cid,
+                                          classDesc.className,
+                                          classDesc.contractID,
+                                          fileSpec,
+                                          location,
+                                          type);
+          if (classDesc.categories) {
             let catMan = XPCOMUtils.categoryManager;
-            catMan.addCategoryEntry(cat.category,
-                                    cat.entry || classDesc.className,
-                                    cat.value || defaultValue,
-                                    true, true);
-          },
-          function(classDesc) {
-            compMgr.registerFactoryLocation(classDesc.cid,
-                                            classDesc.className,
-                                            classDesc.contractID,
-                                            fileSpec,
-                                            location,
-                                            type);
-          });
+            for each (let cat in classDesc.categories) {
+              let defaultValue = (cat.service ? "service," : "") +
+                                 classDesc.contractID;
+              catMan.addCategoryEntry(cat.category,
+                                      cat.entry || classDesc.className,
+                                      cat.value || defaultValue,
+                                      true, true);
+            }
+          }
+        }
+
+        if (postRegister)
+          postRegister(compMgr, fileSpec, componentsArray);
+        debug(" ]\n");
       },
 
       unregisterSelf: function(compMgr, fileSpec, location) {
-        categoryRegistration("unregister", compMgr, fileSpec,
-          function(cat, classDesc) {
+        var componentCount = 0;
+        debug("*** unregistering " + fileSpec.leafName + ": [ ");
+        compMgr.QueryInterface(Ci.nsIComponentRegistrar);
+        if (preUnregister)
+          preUnregister(compMgr, fileSpec, componentsArray);
+
+        for each (let classDesc in classes) {
+          debug((componentCount++ ? ", " : "") + classDesc.className);
+          if (classDesc.categories) {
             let catMan = XPCOMUtils.categoryManager;
-            catMan.deleteCategoryEntry(cat.category,
-                                       cat.entry || classDesc.className,
-                                       true);
-          },
-          function (classDesc) {
-            compMgr.unregisterFactoryLocation(classDesc.cid, fileSpec);
-          });
+            for each (let cat in classDesc.categories) {
+              catMan.deleteCategoryEntry(cat.category,
+                                         cat.entry || classDesc.className,
+                                         true);
+            }
+          }
+          compMgr.unregisterFactoryLocation(classDesc.cid, fileSpec);
+        }
+        debug(" ]\n");
       },
 
       canUnload: function(compMgr) {
         return true;
       }
     };
-  },
-
-  get _appID() {
-    try {
-      let appInfo = Cc["@mozilla.org/xre/app-info;1"].
-                    getService(Ci.nsIXULAppInfo);
-      delete this._appID;
-      return this._appID = appInfo.ID;
-    }
-    catch(ex) {
-      return undefined;
-    }
   },
 
   /**
@@ -313,28 +282,6 @@ var XPCOMUtils = {
   },
 
   /**
-   * Helper which iterates over a nsISimpleEnumerator.
-   * @param e The nsISimpleEnumerator to iterate over.
-   * @param i The expected interface for each element.
-   */
-  IterSimpleEnumerator: function XPCU_IterSimpleEnumerator(e, i)
-  {
-    while (e.hasMoreElements())
-      yield e.getNext().QueryInterface(i);
-  },
-
-  /**
-   * Helper which iterates over a string enumerator.
-   * @param e The string enumerator (nsIUTF8StringEnumerator or
-   *          nsIStringEnumerator) over which to iterate.
-   */
-  IterStringEnumerator: function XPCU_IterStringEnumerator(e)
-  {
-    while (e.hasMore())
-      yield e.getNext();
-  },
-
-  /**
    * Returns an nsIFactory for |component|.
    */
   _getFactory: function XPCOMUtils__getFactory(component) {
@@ -367,4 +314,3 @@ function makeQI(interfaceNames) {
     throw Cr.NS_ERROR_NO_INTERFACE;
   };
 }
-

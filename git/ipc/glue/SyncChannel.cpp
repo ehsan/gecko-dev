@@ -38,6 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/ipc/SyncChannel.h"
+#include "mozilla/ipc/GeckoThread.h"
 
 #include "nsDebug.h"
 #include "nsTraceRefcnt.h"
@@ -54,45 +55,22 @@ struct RunnableMethodTraits<mozilla::ipc::SyncChannel>
 namespace mozilla {
 namespace ipc {
 
-const int32 SyncChannel::kNoTimeout = PR_INT32_MIN;
-
 SyncChannel::SyncChannel(SyncListener* aListener)
-  : AsyncChannel(aListener)
-  , mPendingReply(0)
-  , mProcessingSyncMessage(false)
-  , mNextSeqno(0)
-  , mTimeoutMs(kNoTimeout)
-#ifdef OS_WIN
-  , mTopFrame(NULL)
-#endif
+  : AsyncChannel(aListener),
+    mPendingReply(0),
+    mProcessingSyncMessage(false)
 {
-    MOZ_COUNT_CTOR(SyncChannel);
-#ifdef OS_WIN
-    mEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-    NS_ASSERTION(mEvent, "CreateEvent failed! Nothing is going to work!");
-#endif
+  MOZ_COUNT_CTOR(SyncChannel);
 }
 
 SyncChannel::~SyncChannel()
 {
     MOZ_COUNT_DTOR(SyncChannel);
-#ifdef OS_WIN
-    CloseHandle(mEvent);
-#endif
+    // FIXME/cjones: impl
 }
 
 // static
 bool SyncChannel::sIsPumpingMessages = false;
-
-bool
-SyncChannel::EventOccurred()
-{
-    AssertWorkerThread();
-    mMutex.AssertCurrentThreadOwns();
-    NS_ABORT_IF_FALSE(AwaitingSyncReply(), "not in wait loop");
-
-    return (!Connected() || 0 != mRecvd.type());
-}
 
 bool
 SyncChannel::Send(Message* msg, Message* reply)
@@ -103,12 +81,6 @@ SyncChannel::Send(Message* msg, Message* reply)
                       "violation of sync handler invariant");
     NS_ABORT_IF_FALSE(msg->is_sync(), "can only Send() sync messages here");
 
-#ifdef OS_WIN
-    SyncStackFrame frame(this, false);
-#endif
-
-    msg->set_seqno(NextSeqno());
-
     MutexAutoLock lock(mMutex);
 
     if (!Connected()) {
@@ -117,18 +89,12 @@ SyncChannel::Send(Message* msg, Message* reply)
     }
 
     mPendingReply = msg->type() + 1;
-    int32 msgSeqno = msg->seqno();
-    SendThroughTransport(msg);
+    mIOLoop->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(this, &SyncChannel::OnSend, msg));
 
-    while (1) {
-        bool maybeTimedOut = !SyncChannel::WaitForNotify();
-
-        if (EventOccurred())
-            break;
-
-        if (maybeTimedOut && !ShouldContinueFromTimeout())
-            return false;
-    }
+    // wait for the next sync message to arrive
+    WaitForNotify();
 
     if (!Connected()) {
         ReportConnectionError("SyncChannel");
@@ -143,14 +109,11 @@ SyncChannel::Send(Message* msg, Message* reply)
 
     // FIXME/cjones: real error handling
     NS_ABORT_IF_FALSE(mRecvd.is_sync() && mRecvd.is_reply() &&
-                      (mRecvd.is_reply_error() ||
-                       (mPendingReply == mRecvd.type() &&
-                        msgSeqno == mRecvd.seqno())),
+                      (mPendingReply == mRecvd.type() || mRecvd.is_reply_error()),
                       "unexpected sync message");
 
     mPendingReply = 0;
     *reply = mRecvd;
-    mRecvd = Message();
 
     return true;
 }
@@ -178,13 +141,9 @@ SyncChannel::OnDispatchMessage(const Message& msg)
         reply->set_reply_error();
     }
 
-    reply->set_seqno(msg.seqno());
-
-    {
-        MutexAutoLock lock(mMutex);
-        if (ChannelConnected == mChannelState)
-            SendThroughTransport(reply);
-    }
+    mIOLoop->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(this, &SyncChannel::OnSend, reply));
 }
 
 //
@@ -201,9 +160,6 @@ SyncChannel::OnMessageReceived(const Message& msg)
     }
 
     MutexAutoLock lock(mMutex);
-
-    if (MaybeInterceptSpecialIOMessage(msg))
-        return;
 
     if (!AwaitingSyncReply()) {
         // wake up the worker, there's work to do
@@ -223,83 +179,26 @@ SyncChannel::OnChannelError()
 {
     AssertIOThread();
 
+    AsyncChannel::OnChannelError();
+
     MutexAutoLock lock(mMutex);
-
-    if (ChannelClosing != mChannelState)
-        mChannelState = ChannelError;
-
     if (AwaitingSyncReply())
         NotifyWorkerThread();
-
-    PostErrorNotifyTask();
 }
 
 //
 // Synchronization between worker and IO threads
 //
 
-namespace {
-
-bool
-IsTimeoutExpired(PRIntervalTime aStart, PRIntervalTime aTimeout)
-{
-    return (aTimeout != PR_INTERVAL_NO_TIMEOUT) &&
-        (aTimeout <= (PR_IntervalNow() - aStart));
-}
-
-} // namespace <anon>
-
-bool
-SyncChannel::ShouldContinueFromTimeout()
-{
-    AssertWorkerThread();
-    mMutex.AssertCurrentThreadOwns();
-
-    bool cont;
-    {
-        MutexAutoUnlock unlock(mMutex);
-        cont = static_cast<SyncListener*>(mListener)->OnReplyTimeout();
-    }
-
-    if (!cont) {
-        // NB: there's a sublety here.  If parents were allowed to
-        // send sync messages to children, then it would be possible
-        // for this synchronous close-on-timeout to race with async
-        // |OnMessageReceived| tasks arriving from the child, posted
-        // to the worker thread's event loop.  This would complicate
-        // cleanup of the *Channel.  But since IPDL forbids this (and
-        // since it doesn't support children timing out on parents),
-        // the parent can only block on RPC messages to the child, and
-        // in that case arriving async messages are enqueued to the
-        // RPC channel's special queue.  They're then ignored because
-        // the channel state changes to ChannelTimeout
-        // (i.e. !Connected).
-        SynchronouslyClose();
-        mChannelState = ChannelTimeout;
-    }
-        
-    return cont;
-}
-
 // Windows versions of the following two functions live in
 // WindowsMessageLoop.cpp.
 
 #ifndef OS_WIN
 
-bool
+void
 SyncChannel::WaitForNotify()
 {
-    PRIntervalTime timeout = (kNoTimeout == mTimeoutMs) ?
-                             PR_INTERVAL_NO_TIMEOUT :
-                             PR_MillisecondsToInterval(mTimeoutMs);
-    // XXX could optimize away this syscall for "no timeout" case if desired
-    PRIntervalTime waitStart = PR_IntervalNow();
-
-    mCvar.Wait(timeout);
-
-    // if the timeout didn't expire, we know we received an event.
-    // The converse is not true.
-    return !IsTimeoutExpired(waitStart, timeout);
+    mCvar.Wait();
 }
 
 void

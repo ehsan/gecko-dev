@@ -40,6 +40,7 @@
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsStringEnumerator.h"
+#include "nsIProcess.h"
 #include "nsILocalFile.h"
 #include "nsIFileURL.h"
 #include "nsEscape.h"
@@ -62,7 +63,7 @@ NS_INTERFACE_MAP_END_THREADSAFE
 
 // Constructors for a MIME handler.
 nsMIMEInfoBase::nsMIMEInfoBase(const char *aMIMEType) :
-    mSchemeOrType(aMIMEType),
+    mType(aMIMEType),
     mClass(eMIMEInfo),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
     mAlwaysAskBeforeHandling(PR_TRUE)
@@ -70,7 +71,7 @@ nsMIMEInfoBase::nsMIMEInfoBase(const char *aMIMEType) :
 }
 
 nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aMIMEType) :
-    mSchemeOrType(aMIMEType),
+    mType(aMIMEType),
     mClass(eMIMEInfo),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
     mAlwaysAskBeforeHandling(PR_TRUE)
@@ -83,7 +84,7 @@ nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aMIMEType) :
 // for both and distinguish between the two kinds of handlers via the aClass
 // argument to this method, which can be either eMIMEInfo or eProtocolInfo.
 nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aType, HandlerClass aClass) :
-    mSchemeOrType(aType),
+    mType(aType),
     mClass(aClass),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
     mAlwaysAskBeforeHandling(PR_TRUE)
@@ -163,20 +164,20 @@ nsMIMEInfoBase::AppendExtension(const nsACString& aExtension)
 NS_IMETHODIMP
 nsMIMEInfoBase::GetType(nsACString& aType)
 {
-    if (mSchemeOrType.IsEmpty())
+    if (mType.IsEmpty())
         return NS_ERROR_NOT_INITIALIZED;
 
-    aType = mSchemeOrType;
+    aType = mType;
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsMIMEInfoBase::GetMIMEType(nsACString& aMIMEType)
 {
-    if (mSchemeOrType.IsEmpty())
+    if (mType.IsEmpty())
         return NS_ERROR_NOT_INITIALIZED;
 
-    aMIMEType = mSchemeOrType;
+    aMIMEType = mType;
     return NS_OK;
 }
 
@@ -203,7 +204,7 @@ nsMIMEInfoBase::Equals(nsIMIMEInfo *aMIMEInfo, PRBool *_retval)
     nsresult rv = aMIMEInfo->GetMIMEType(type);
     if (NS_FAILED(rv)) return rv;
 
-    *_retval = mSchemeOrType.Equals(type);
+    *_retval = mType.Equals(type);
 
     return NS_OK;
 }
@@ -367,54 +368,28 @@ nsMIMEInfoBase::LaunchWithURI(nsIURI* aURI,
 void
 nsMIMEInfoBase::CopyBasicDataTo(nsMIMEInfoBase* aOther)
 {
-  aOther->mSchemeOrType = mSchemeOrType;
+  aOther->mType = mType;
   aOther->mDefaultAppDescription = mDefaultAppDescription;
   aOther->mExtensions = mExtensions;
-}
-
-/* static */
-already_AddRefed<nsIProcess>
-nsMIMEInfoBase::InitProcess(nsIFile* aApp, nsresult* aResult)
-{
-  NS_ASSERTION(aApp, "Unexpected null pointer, fix caller");
-
-  nsCOMPtr<nsIProcess> process = do_CreateInstance(NS_PROCESS_CONTRACTID,
-                                                   aResult);
-  if (NS_FAILED(*aResult))
-    return nsnull;
-
-  if (NS_FAILED(process->Init(aApp)))
-    return nsnull;
-
-  return process.forget();
 }
 
 /* static */
 nsresult
 nsMIMEInfoBase::LaunchWithIProcess(nsIFile* aApp, const nsCString& aArg)
 {
+  NS_ASSERTION(aApp, "Unexpected null pointer, fix caller");
+
   nsresult rv;
-  nsCOMPtr<nsIProcess> process = InitProcess(aApp, &rv);
+  nsCOMPtr<nsIProcess> process = do_CreateInstance(NS_PROCESS_CONTRACTID, &rv);
   if (NS_FAILED(rv))
+    return rv;
+
+  if (NS_FAILED(rv = process->Init(aApp)))
     return rv;
 
   const char *string = aArg.get();
 
   return process->Run(PR_FALSE, &string, 1);
-}
-
-/* static */
-nsresult
-nsMIMEInfoBase::LaunchWithIProcess(nsIFile* aApp, const nsString& aArg)
-{
-  nsresult rv;
-  nsCOMPtr<nsIProcess> process = InitProcess(aApp, &rv);
-  if (NS_FAILED(rv))
-    return rv;
-
-  const PRUnichar *string = aArg.get();
-
-  return process->Runw(PR_FALSE, &string, 1);
 }
 
 // nsMIMEInfoImpl implementation

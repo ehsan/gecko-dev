@@ -40,9 +40,13 @@
 #ifndef mozilla_dom_plugins_NPEventX11_h
 #define mozilla_dom_plugins_NPEventX11_h 1
 
-#include "npapi.h"
+#if defined(MOZ_WIDGET_GTK2)
+#  include <gdk/gdkx.h>
+#else
+#  error Implement me for your toolkit
+#endif
 
-#include "mozilla/X11Util.h"
+#include "npapi.h"
 
 namespace mozilla {
 
@@ -106,16 +110,33 @@ struct ParamTraits<mozilla::plugins::NPRemoteEvent>     // synonym for XEvent
     }
 
 private:
+    static Display* GetXDisplay(const XAnyEvent& ev)
+    {
+        // TODO: get Display* from Window in |ev|
+
+        // FIXME: do this using Xlib, don't use Gdk
+        
+        return GDK_DISPLAY();
+    }
+
+    static Display* GetXDisplay(const XErrorEvent& ev)
+    {
+        // TODO: get Display* from Window in |ev|
+
+        // FIXME: do this using Xlib, don't use Gdk
+        
+        return GDK_DISPLAY();
+    }
+
     static void SetXDisplay(XEvent& ev)
     {
-        Display* display = mozilla::DefaultXDisplay();
         if (ev.type >= KeyPress) {
-            ev.xany.display = display;
+            ev.xany.display = GetXDisplay(ev.xany);
         }
         else {
             // XXX assuming that this is an error event
             // (type == 0? not clear from Xlib.h)
-            ev.xerror.display = display;
+            ev.xerror.display = GetXDisplay(ev.xerror);
         }
     }
 };

@@ -161,14 +161,13 @@ EmbedContextMenuInfo::GetFormControlType(nsIDOMEvent* aEvent)
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(mCtxDocument);
     if (!doc)
       return NS_OK;
-    nsIPresShell *presShell = doc->GetShell();
+    nsIPresShell *presShell = doc->GetPrimaryShell();
     if (!presShell)
       return NS_OK;
     nsCOMPtr<nsIContent> tgContent = do_QueryInterface(mEventTarget);
-    nsIFrame* frame = nsnull;
+	nsIFrame* frame = nsnull;
 #if defined(FIXED_BUG347731) || !defined(MOZ_ENABLE_LIBXUL)
-    frame = tgContent->GetDocument() == presShell->GetDocument() ?
-      tgContent->GetPrimaryFrame() : nsnull;
+    frame = presShell->GetPrimaryFrameFor(tgContent);
     if (frame)
       mFormRect = frame->GetScreenRectExternal();
 #endif
@@ -217,12 +216,16 @@ EmbedContextMenuInfo::SetFormControlType(nsIDOMEventTarget *originalTarget)
         break;
       case NS_FORM_INPUT_SUBMIT:
         break;
-      case NS_FORM_INPUT_SEARCH:
       case NS_FORM_INPUT_TEXT:
-      case NS_FORM_INPUT_TEL:
         mEmbedCtxType |= GTK_MOZ_EMBED_CTX_INPUT;
         break;
       case NS_FORM_LABEL:
+        break;
+      case NS_FORM_OPTION:
+        break;
+      case NS_FORM_OPTGROUP:
+        break;
+      case NS_FORM_LEGEND:
         break;
       case NS_FORM_SELECT:
         break;
@@ -230,8 +233,6 @@ EmbedContextMenuInfo::SetFormControlType(nsIDOMEventTarget *originalTarget)
         mEmbedCtxType |= GTK_MOZ_EMBED_CTX_INPUT;
         break;
       case NS_FORM_OBJECT:
-        break;
-      case NS_FORM_OUTPUT:
         break;
       default:
         break;
@@ -414,7 +415,7 @@ EmbedContextMenuInfo::CheckDomHtmlNode(nsIDOMNode *aNode)
     if (NS_SUCCEEDED(rv) && area) {
       PRBool aNoHref = PR_FALSE;
       rv = area->GetNoHref(&aNoHref);
-      if (!aNoHref)
+      if (aNoHref == PR_FALSE)
         rv = area->GetHref(mCtxHref);
       else
         rv = area->GetTarget(mCtxHref);
@@ -586,7 +587,7 @@ EmbedContextMenuInfo::UpdateContextData(nsIDOMEvent *aDOMEvent)
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(mCtxDocument);
   if (!doc)
     return NS_OK;
-  nsIPresShell *presShell = doc->GetShell();
+  nsIPresShell *presShell = doc->GetPrimaryShell();
   if (!presShell)
     return NS_OK;
   nsCOMPtr<nsIContent> tgContent = do_QueryInterface(mEventTarget);
@@ -594,8 +595,8 @@ EmbedContextMenuInfo::UpdateContextData(nsIDOMEvent *aDOMEvent)
 #if defined(FIXED_BUG347731) || !defined(MOZ_ENABLE_LIBXUL)
   if (mEmbedCtxType & GTK_MOZ_EMBED_CTX_RICHEDIT)
     frame = presShell->GetRootFrame();
-  else if (tgContent->GetDocument() == presShell->GetDocument()) {
-    frame = tgContent->GetPrimaryFrame();
+  else {
+    frame = presShell->GetPrimaryFrameFor(tgContent);
   }
   if (frame) {
     mFormRect = frame->GetScreenRectExternal();

@@ -36,19 +36,16 @@
 #
 # ***** END LICENSE BLOCK ***** */
 
-import glob, logging, os, shutil, subprocess, sys
+import glob, logging, os, subprocess, sys
 import re
-from urlparse import urlparse
 
 __all__ = [
   "addCommonOptions",
   "checkForCrashes",
   "dumpLeakLog",
-  "isURL",
   "processLeakLog",
   "getDebuggerInfo",
   "DEBUGGER_INFO",
-  "replaceBackSlashes",
   ]
 
 # Map of debugging programs to information about them, like default arguments
@@ -71,10 +68,6 @@ DEBUGGER_INFO = {
 
 log = logging.getLogger()
 
-def isURL(thing):
-  """Return True if |thing| looks like a URL."""
-  return urlparse(thing).scheme != ''
-
 def addCommonOptions(parser, defaults={}):
   parser.add_option("--xre-path",
                     action = "store", type = "string", dest = "xrePath",
@@ -86,7 +79,7 @@ def addCommonOptions(parser, defaults={}):
   parser.add_option("--symbols-path",
                     action = "store", type = "string", dest = "symbolsPath",
                     default = defaults['SYMBOLS_PATH'],
-                    help = "absolute path to directory containing breakpad symbols, or the URL of a zip file containing symbols")
+                    help = "absolute path to directory containing breakpad symbols")
   parser.add_option("--debugger",
                     action = "store", dest = "debugger",
                     help = "use the given debugger to launch the application")
@@ -101,7 +94,6 @@ def addCommonOptions(parser, defaults={}):
 
 def checkForCrashes(dumpDir, symbolsPath, testName=None):
   stackwalkPath = os.environ.get('MINIDUMP_STACKWALK', None)
-  stackwalkCGI = os.environ.get('MINIDUMP_STACKWALK_CGI', None)
   # try to get the caller's filename if no test name is given
   if testName is None:
     try:
@@ -112,47 +104,21 @@ def checkForCrashes(dumpDir, symbolsPath, testName=None):
   foundCrash = False
   dumps = glob.glob(os.path.join(dumpDir, '*.dmp'))
   for d in dumps:
-    log.info("PROCESS-CRASH | %s | application crashed (minidump found)", testName)
+    log.info("TEST-UNEXPECTED-FAIL | %s | application crashed (minidump found)", testName)
     if symbolsPath and stackwalkPath and os.path.exists(stackwalkPath):
       nullfd = open(os.devnull, 'w')
       # eat minidump_stackwalk errors
       subprocess.call([stackwalkPath, d, symbolsPath], stderr=nullfd)
       nullfd.close()
-    elif stackwalkCGI and symbolsPath and isURL(symbolsPath):
-      f = None
-      try:
-        f = open(d, "rb")
-        sys.path.append(os.path.join(os.path.dirname(__file__), "poster.zip"))
-        from poster.encode import multipart_encode
-        from poster.streaminghttp import register_openers
-        import urllib2
-        register_openers()
-        datagen, headers = multipart_encode({"minidump": f,
-                                             "symbols": symbolsPath})
-        request = urllib2.Request(stackwalkCGI, datagen, headers)
-        print urllib2.urlopen(request).read()
-      finally:
-        if f:
-          f.close()
     else:
       if not symbolsPath:
         print "No symbols path given, can't process dump."
-      if not stackwalkPath and not stackwalkCGI:
-        print "Neither MINIDUMP_STACKWALK nor MINIDUMP_STACKWALK_CGI is set, can't process dump."
+      if not stackwalkPath:
+        print "MINIDUMP_STACKWALK not set, can't process dump."
       else:
-        if stackwalkPath and not os.path.exists(stackwalkPath):
+        if not os.path.exists(stackwalkPath):
           print "MINIDUMP_STACKWALK binary not found: %s" % stackwalkPath
-        elif stackwalkCGI and not isURL(stackwalkCGI):
-          print "MINIDUMP_STACKWALK_CGI is not a URL: %s" % stackwalkCGI
-        elif symbolsPath and not isURL(symbolsPath):
-          print "symbolsPath is not a URL: %s" % symbolsPath
-    dumpSavePath = os.environ.get('MINIDUMP_SAVE_PATH', None)
-    if dumpSavePath:
-      shutil.move(d, dumpSavePath)
-      print "Saved dump as %s" % os.path.join(dumpSavePath,
-                                              os.path.basename(d))
-    else:
-      os.remove(d)
+    os.remove(d)
     extra = os.path.splitext(d)[0] + ".extra"
     if os.path.exists(extra):
       os.remove(extra)
@@ -168,7 +134,7 @@ def searchPath(directory, path):
   "Go one step beyond getFullPath and try the various folders in PATH"
   # Try looking in the current working directory first.
   newpath = getFullPath(directory, path)
-  if os.path.isfile(newpath):
+  if os.path.exists(newpath):
     return newpath
 
   # At this point we have to fail if a directory was given (to prevent cases
@@ -176,7 +142,7 @@ def searchPath(directory, path):
   if not os.path.dirname(path):
     for dir in os.environ['PATH'].split(os.pathsep):
       newpath = os.path.join(dir, path)
-      if os.path.isfile(newpath):
+      if os.path.exists(newpath):
         return newpath
   return None
 
@@ -263,7 +229,6 @@ def processSingleLeakFile(leakLogFileName, PID, processType, leakThreshold):
   seenTotal = False
   crashedOnPurpose = False
   prefix = "TEST-PASS"
-  numObjects = 0
   for line in leaks:
     if line.find("purposefully crash") > -1:
       crashedOnPurpose = True
@@ -305,10 +270,6 @@ def processSingleLeakFile(leakLogFileName, PID, processType, leakThreshold):
         else:
           instance = "instance"
           rest = ""
-        numObjects += 1
-        if numObjects > 5:
-          # don't spam brief tinderbox logs with tons of leak output
-          prefix = "TEST-INFO"
         log.info("%(prefix)s %(process)s| automationutils.processLeakLog() | leaked %(numLeaked)d %(instance)s of %(name)s "
                  "with size %(size)s bytes%(rest)s" %
                  { "prefix": prefix,
@@ -356,6 +317,3 @@ def processLeakLog(leakLogFile, leakThreshold = 0):
         processType = m.group(1)
         processPID = m.group(2)
       processSingleLeakFile(thisFile, processPID, processType, leakThreshold)
-
-def replaceBackSlashes(input):
-  return input.replace('\\', '/')

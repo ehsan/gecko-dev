@@ -63,7 +63,7 @@ public:
                                         nsIFrame**      aProviderFrame,
                                         PRBool*         aIsChild);
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
 #ifdef NS_DEBUG
@@ -100,7 +100,7 @@ public:
   
   // nsIFrame overrides - see there for a description
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
   
   virtual PRBool IsContainingBlock() const;
 
@@ -126,7 +126,7 @@ public:
   }
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -220,6 +220,12 @@ protected:
                       nscoord&        aWidth,
                       nscoord&        aHeight);
 
+  void BalanceLeftRightCaption(PRUint8         aCaptionSide,
+                               const nsMargin& aInnerMargin, 
+                               const nsMargin& aCaptionMargin,
+                               nscoord&        aInnerWidth,
+                               nscoord&        aCaptionWidth);
+
   nsresult   GetCaptionOrigin(PRUint32         aCaptionSide,
                               const nsSize&    aContainBlockSize,
                               const nsSize&    aInnerSize, 
@@ -257,11 +263,11 @@ protected:
 
   // Get the margin.  aMarginNoAuto is aMargin, but with auto 
   // margins set to 0
-  void GetChildMargin(nsPresContext*           aPresContext,
-                      const nsHTMLReflowState& aOuterRS,
-                      nsIFrame*                aChildFrame,
-                      nscoord                  aAvailableWidth,
-                      nsMargin&                aMargin);
+  void GetMargin(nsPresContext*           aPresContext,
+                 const nsHTMLReflowState& aOuterRS,
+                 nsIFrame*                aChildFrame,
+                 nscoord                  aAvailableWidth,
+                 nsMargin&                aMargin);
 
 private:
   // used to keep track of this frame's children. They are redundant with mFrames, but more convient

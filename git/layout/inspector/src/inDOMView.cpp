@@ -106,6 +106,21 @@ inDOMViewNode::~inDOMViewNode()
 
 ////////////////////////////////////////////////////////////////////////
 
+nsIAtom* inDOMView::kAnonymousAtom = nsnull;
+nsIAtom* inDOMView::kElementNodeAtom = nsnull;
+nsIAtom* inDOMView::kAttributeNodeAtom = nsnull;
+nsIAtom* inDOMView::kTextNodeAtom = nsnull;
+nsIAtom* inDOMView::kCDataSectionNodeAtom = nsnull;
+nsIAtom* inDOMView::kEntityReferenceNodeAtom = nsnull;
+nsIAtom* inDOMView::kEntityNodeAtom = nsnull;
+nsIAtom* inDOMView::kProcessingInstructionNodeAtom = nsnull;
+nsIAtom* inDOMView::kCommentNodeAtom = nsnull;
+nsIAtom* inDOMView::kDocumentNodeAtom = nsnull;
+nsIAtom* inDOMView::kDocumentTypeNodeAtom = nsnull;
+nsIAtom* inDOMView::kDocumentFragmentNodeAtom = nsnull;
+nsIAtom* inDOMView::kNotationNodeAtom = nsnull;
+nsIAtom* inDOMView::kAccessibleNodeAtom = nsnull;
+
 inDOMView::inDOMView() :
   mShowAnonymous(PR_FALSE),
   mShowSubDocuments(PR_FALSE),
@@ -120,18 +135,21 @@ inDOMView::~inDOMView()
   SetRootNode(nsnull);
 }
 
-#define DOMVIEW_ATOM(name_, value_) nsIAtom* inDOMView::name_ = nsnull;
-#include "inDOMViewAtomList.h"
-#undef DOMVIEW_ATOM
-
-#define DOMVIEW_ATOM(name_, value_) NS_STATIC_ATOM_BUFFER(name_##_buffer, value_)
-#include "inDOMViewAtomList.h"
-#undef DOMVIEW_ATOM
-
 /* static */ const nsStaticAtom inDOMView::Atoms_info[] = {
-#define DOMVIEW_ATOM(name_, value_) NS_STATIC_ATOM(name_##_buffer, &inDOMView::name_),
-#include "inDOMViewAtomList.h"
-#undef DOMVIEW_ATOM
+  {"anonymous", &inDOMView::kAnonymousAtom},
+  {"ELEMENT_NODE", &inDOMView::kElementNodeAtom},
+  {"ATTRIBUTE_NODE", &inDOMView::kAttributeNodeAtom},
+  {"TEXT_NODE", &inDOMView::kTextNodeAtom},
+  {"CDATA_SECTION_NODE", &inDOMView::kCDataSectionNodeAtom},
+  {"ENTITY_REFERENCE_NODE", &inDOMView::kEntityReferenceNodeAtom},
+  {"ENTITY_NODE", &inDOMView::kEntityNodeAtom},
+  {"PROCESSING_INSTRUCTION_NODE", &inDOMView::kProcessingInstructionNodeAtom},
+  {"COMMENT_NODE", &inDOMView::kCommentNodeAtom},
+  {"DOCUMENT_NODE", &inDOMView::kDocumentNodeAtom},
+  {"DOCUMENT_TYPE_NODE", &inDOMView::kDocumentTypeNodeAtom},
+  {"DOCUMENT_FRAGMENT_NODE", &inDOMView::kDocumentFragmentNodeAtom},
+  {"NOTATION_NODE", &inDOMView::kNotationNodeAtom},
+  {"ACCESSIBLE_NODE", &inDOMView::kAccessibleNodeAtom}
 };
 
 /* static */ void
@@ -384,7 +402,8 @@ inDOMView::GetCellProperties(PRInt32 row, nsITreeColumn* col, nsISupportsArray *
 
     nsCOMPtr<nsIAccessible> accessible;
     nsresult rv =
-      accService->GetAccessibleFor(node->node, getter_AddRefs(accessible));
+      accService->GetAttachedAccessibleFor(node->node,
+                                           getter_AddRefs(accessible));
     if (NS_SUCCEEDED(rv) && accessible)
       properties->AppendElement(kAccessibleNodeAtom);
   }
@@ -698,7 +717,8 @@ inDOMView::AttributeChanged(nsIDocument *aDocument, nsIContent* aContent,
   nsCOMPtr<nsIDOMNode> content(do_QueryInterface(aContent));
   nsCOMPtr<nsIDOMElement> el(do_QueryInterface(aContent));
   nsCOMPtr<nsIDOMAttr> domAttr;
-  nsDependentAtomString attrStr(aAttribute);
+  nsAutoString attrStr;
+  aAttribute->ToString(attrStr);
   if (aNameSpaceID) {
     nsCOMPtr<nsINameSpaceManager> nsm =
       do_GetService(NS_NAMESPACEMANAGER_CONTRACTID);
@@ -757,8 +777,7 @@ inDOMView::AttributeChanged(nsIDocument *aDocument, nsIContent* aContent,
     inDOMViewNode* insertNode = nsnull;
     RowToNode(attrRow, &insertNode);
     if (insertNode) {
-      if (contentNode &&
-          insertNode->level <= contentNode->level) {
+      if (insertNode->level <= contentNode->level) {
         RowToNode(attrRow-1, &insertNode);
         InsertLinkAfter(newNode, insertNode);
       } else
@@ -815,22 +834,27 @@ inDOMView::AttributeChanged(nsIDocument *aDocument, nsIContent* aContent,
 void
 inDOMView::ContentAppended(nsIDocument *aDocument,
                            nsIContent* aContainer,
-                           nsIContent* aFirstNewContent,
-                           PRInt32 /* unused */)
+                           PRInt32 aNewIndexInContainer)
 {
   if (!mTree) {
     return;
   }
 
-  for (nsIContent* cur = aFirstNewContent; cur; cur = cur->GetNextSibling()) {
-    // Our ContentInserted impl doesn't use the index
-    ContentInserted(aDocument, aContainer, cur, 0);
+  PRUint32 count = aContainer->GetChildCount();
+  NS_ASSERTION((PRUint32)aNewIndexInContainer < count,
+               "Bogus aNewIndexInContainer");
+
+  while ((PRUint32)aNewIndexInContainer < count) {
+    nsIContent *child = aContainer->GetChildAt(aNewIndexInContainer);
+
+    ContentInserted(aDocument, aContainer, child, aNewIndexInContainer);
+    ++aNewIndexInContainer;
   }
 }
 
 void
 inDOMView::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
-                           nsIContent* aChild, PRInt32 /* unused */)
+                           nsIContent* aChild, PRInt32 aIndexInContainer)
 {
   if (!mTree)
     return;
@@ -927,7 +951,6 @@ inDOMView::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer, nsICon
   // The parent may no longer be a container.  Note that we don't want
   // to access oldNode after calling RemoveNode, so do this now.
   inDOMViewNode* parentNode = oldNode->parent;
-  PRBool isOnlyChild = oldNode->previous == nsnull && oldNode->next == nsnull;
   
   // Keep track of how many rows we are removing.  It's at least one,
   // but if we're open it's more.
@@ -939,7 +962,8 @@ inDOMView::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer, nsICon
   RemoveLink(oldNode);
   RemoveNode(row);
 
-  if (isOnlyChild) {
+  nsINode* container = NODE_FROM(aContainer, aDocument);
+  if (container->GetChildCount() == 0) {
     // Fix up the parent
     parentNode->isContainer = PR_FALSE;
     parentNode->isOpen = PR_FALSE;

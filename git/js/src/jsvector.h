@@ -40,6 +40,8 @@
 #ifndef jsvector_h_
 #define jsvector_h_
 
+#include <new>
+
 #include "jstl.h"
 
 namespace js {
@@ -208,7 +210,7 @@ class Vector : AllocPolicy
     /*
      * Since a vector either stores elements inline or in a heap-allocated
      * buffer, reuse the storage. mLengthOrCapacity serves as the union
-     * discriminator. In inline mode (when elements are stored in u.storage),
+     * discriminator. In inline mode (when elements are stored in u.mBuf),
      * mLengthOrCapacity holds the vector's length. In heap mode (when elements
      * are stored in [u.ptrs.mBegin, u.ptrs.mEnd)), mLengthOrCapacity holds the
      * vector's capacity.
@@ -228,7 +230,7 @@ class Vector : AllocPolicy
 
     union {
         BufferPtrs ptrs;
-        AlignedStorage<sInlineBytes> storage;
+        char mBuf[sInlineBytes];
     } u;
 
     /* Only valid when usingInlineStorage() */
@@ -244,12 +246,12 @@ class Vector : AllocPolicy
 
     T *inlineBegin() const {
         JS_ASSERT(usingInlineStorage());
-        return (T *)u.storage.addr();
+        return (T *)u.mBuf;
     }
 
     T *inlineEnd() const {
         JS_ASSERT(usingInlineStorage());
-        return (T *)u.storage.addr() + mLengthOrCapacity;
+        return (T *)u.mBuf + mLengthOrCapacity;
     }
 
     /* Only valid when !usingInlineStorage() */
@@ -293,7 +295,7 @@ class Vector : AllocPolicy
 
 #ifdef DEBUG
     friend class ReentrancyGuard;
-    bool entered;
+    bool mEntered;
 #endif
 
     Vector(const Vector &);
@@ -318,42 +320,42 @@ class Vector : AllocPolicy
     }
 
     T *begin() {
-        JS_ASSERT(!entered);
+        JS_ASSERT(!mEntered);
         return usingInlineStorage() ? inlineBegin() : heapBegin();
     }
 
     const T *begin() const {
-        JS_ASSERT(!entered);
+        JS_ASSERT(!mEntered);
         return usingInlineStorage() ? inlineBegin() : heapBegin();
     }
 
     T *end() {
-        JS_ASSERT(!entered);
+        JS_ASSERT(!mEntered);
         return usingInlineStorage() ? inlineEnd() : heapEnd();
     }
 
     const T *end() const {
-        JS_ASSERT(!entered);
+        JS_ASSERT(!mEntered);
         return usingInlineStorage() ? inlineEnd() : heapEnd();
     }
 
     T &operator[](size_t i) {
-        JS_ASSERT(!entered && i < length());
+        JS_ASSERT(!mEntered && i < length());
         return begin()[i];
     }
 
     const T &operator[](size_t i) const {
-        JS_ASSERT(!entered && i < length());
+        JS_ASSERT(!mEntered && i < length());
         return begin()[i];
     }
 
     T &back() {
-        JS_ASSERT(!entered && !empty());
+        JS_ASSERT(!mEntered && !empty());
         return *(end() - 1);
     }
 
     const T &back() const {
-        JS_ASSERT(!entered && !empty());
+        JS_ASSERT(!mEntered && !empty());
         return *(end() - 1);
     }
 
@@ -365,7 +367,11 @@ class Vector : AllocPolicy
     /* Destroy elements in the range [begin() + incr, end()). */
     void shrinkBy(size_t incr);
 
-    /* Grow the vector by incr elements. */
+    /*
+     * Grow the vector by incr elements.  If T is a POD (as judged by
+     * tl::IsPodType), leave as uninitialized memory.  Otherwise, default
+     * construct each element.
+     */
     bool growBy(size_t incr);
 
     /* Call shrinkBy or growBy based on whether newSize > length(). */
@@ -415,12 +421,12 @@ js_AppendLiteral(Vector<T,N,AP> &v, const char (&array)[ArrayLength])
 
 /* Vector Implementation */
 
-template <class T, size_t N, class AllocPolicy>
+template <class T, size_t N, class AP>
 inline
-Vector<T,N,AllocPolicy>::Vector(AllocPolicy ap)
-  : AllocPolicy(ap), mLengthOrCapacity(0)
+Vector<T,N,AP>::Vector(AP ap)
+  : AP(ap), mLengthOrCapacity(0)
 #ifdef DEBUG
-  , entered(false)
+    , mEntered(false)
 #endif
 {}
 
@@ -554,7 +560,8 @@ Vector<T,N,AP>::growBy(size_t incr)
         size_t freespace = sInlineCapacity - inlineLength();
         if (incr <= freespace) {
             T *newend = inlineEnd() + incr;
-            Impl::initialize(inlineEnd(), newend);
+            if (!tl::IsPodType<T>::result)
+                Impl::initialize(inlineEnd(), newend);
             inlineLength() += incr;
             JS_ASSERT(usingInlineStorage());
             return true;
@@ -574,7 +581,8 @@ Vector<T,N,AP>::growBy(size_t incr)
     /* We are !usingInlineStorage(). Initialize new elements. */
     JS_ASSERT(heapCapacity() - heapLength() >= incr);
     T *newend = heapEnd() + incr;
-    Impl::initialize(heapEnd(), newend);
+    if (!tl::IsPodType<T>::result)
+        Impl::initialize(heapEnd(), newend);
     heapEnd() = newend;
     return true;
 }

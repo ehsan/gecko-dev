@@ -55,7 +55,6 @@ CPPSRCS		= \
 		nsBaseChannel.cpp \
 		nsBaseContentStream.cpp \
 		nsBufferedStreams.cpp \
-		nsChannelClassifier.cpp \
 		nsDirectoryIndexStream.cpp \
 		nsDownloader.cpp \
 		nsFileStreams.cpp \

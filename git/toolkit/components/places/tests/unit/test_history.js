@@ -183,7 +183,7 @@ function run_test() {
   do_check_eq(result.root.childCount, 1);
   do_check_eq(result.root.getChild(0).uri, "http://google.com/");
 
-  // By default history is enabled.
+  // by default, browser.history_expire_days is 9
   do_check_true(!histsvc.historyDisabled);
 
   // test getPageTitle
@@ -226,7 +226,7 @@ function run_test() {
 
   // test to ensure history.dat gets deleted if all history is being cleared
   var file = do_get_file("history.dat");
-  var histFile = Services.dirsvc.get("ProfD", Ci.nsIFile);
+  var histFile = dirSvc.get("ProfD", Ci.nsIFile);
   file.copyTo(histFile, "history.dat");
   histFile.append("history.dat");
   do_check_true(histFile.exists());

@@ -36,14 +36,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <QApplication>
-#include <QFont>
-
 #include "nsIDeviceContext.h"
 #include "nsIRenderingContext.h"
 
 #include "nsSystemFontsQt.h"
 #include "gfxQtPlatform.h"
+#include <QApplication>
+#include <QFont>
 
 nsSystemFontsQt::nsSystemFontsQt()
   : mDefaultFontName(NS_LITERAL_STRING("sans-serif"))
@@ -80,14 +79,7 @@ nsSystemFontsQt::GetSystemFontInfo(const char *aClassName, nsString *aFontName,
     aFontStyle->weight = qFont.weight();
     // FIXME: Set aFontStyle->stretch correctly!
     aFontStyle->stretch = NS_FONT_STRETCH_NORMAL;
-    // use pixel size directly if it is set, otherwise compute from point size
-    if (qFont.pixelSize() != -1) {
-        aFontStyle->size = qFont.pixelSize();
-    } else {
-        aFontStyle->size = qFont.pointSizeF()
-                           * float(gfxPlatform::GetDPI())
-                           / 72.0f;
-    }
+    aFontStyle->size = qFont.pointSizeF() * float(gfxPlatform::GetDPI()) / 72.0f;
     return NS_OK;
 }
 

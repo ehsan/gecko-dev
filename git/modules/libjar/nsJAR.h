@@ -60,6 +60,7 @@
 #include "nsHashtable.h"
 #include "nsAutoLock.h"
 #include "nsIZipReader.h"
+#include "nsIJAR.h"
 #include "nsZipArchive.h"
 #include "nsIPrincipal.h"
 #include "nsISignatureVerifier.h"
@@ -84,12 +85,14 @@ typedef enum
   JAR_NOT_SIGNED          = 7
 } JARManifestStatusType;
 
+PRTime GetModTime(PRUint16 aDate, PRUint16 aTime);
+
 /*-------------------------------------------------------------------------
  * Class nsJAR declaration. 
  * nsJAR serves as an XPCOM wrapper for nsZipArchive with the addition of 
  * JAR manifest file parsing. 
  *------------------------------------------------------------------------*/
-class nsJAR : public nsIZipReader
+class nsJAR : public nsIZipReader, public nsIJAR
 {
   // Allows nsJARInputStream to call the verification functions
   friend class nsJARInputStream;
@@ -104,6 +107,8 @@ class nsJAR : public nsIZipReader
     NS_DECL_ISUPPORTS
 
     NS_DECL_NSIZIPREADER
+
+    NS_DECL_NSIJAR
 
     nsresult GetJarPath(nsACString& aResult);
 
@@ -141,6 +146,9 @@ class nsJAR : public nsIZipReader
     PRInt64                  mMtime;
     PRInt32                  mTotalItemsInManifest;
     
+    //-- Private functions
+    PRFileDesc* OpenFile();
+
     nsresult ParseManifest();
     void     ReportError(const char* aFilename, PRInt16 errorCode);
     nsresult LoadEntry(const char* aFilename, char** aBuf, 
@@ -176,7 +184,8 @@ private:
     PRUint32     mSize;             /* size in original file */
     PRUint32     mRealsize;         /* inflated size */
     PRUint32     mCrc32;
-    PRTime       mLastModTime;
+    PRUint16     mDate;
+    PRUint16     mTime;
     PRUint16     mCompression;
     PRPackedBool mIsDirectory; 
     PRPackedBool mIsSynthetic;

@@ -48,7 +48,6 @@ public:
   void Init(PRUint8 aAttrEnum = 0xff, PRInt32 aValue = 0) {
     mAnimVal = mBaseVal = aValue;
     mAttrEnum = aAttrEnum;
-    mIsAnimated = PR_FALSE;
   }
 
   nsresult SetBaseValueString(const nsAString& aValue,
@@ -59,26 +58,18 @@ public:
   void SetBaseValue(PRInt32 aValue, nsSVGElement *aSVGElement, PRBool aDoSetAttr);
   PRInt32 GetBaseValue() const
     { return mBaseVal; }
-
-  void SetAnimValue(int aValue, nsSVGElement *aSVGElement);
-  int GetAnimValue() const
+  PRInt32 GetAnimValue() const
     { return mAnimVal; }
-  
+
   nsresult ToDOMAnimatedInteger(nsIDOMSVGAnimatedInteger **aResult,
                                 nsSVGElement* aSVGElement);
-#ifdef MOZ_SMIL
-  // Returns a new nsISMILAttr object that the caller must delete
-  nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
-#endif // MOZ_SMIL
-  
+
 private:
 
   PRInt32 mAnimVal;
   PRInt32 mBaseVal;
   PRUint8 mAttrEnum; // element specified tracking for attribute
-  PRPackedBool mIsAnimated;
 
-public:
   struct DOMAnimatedInteger : public nsIDOMSVGAnimatedInteger
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -94,42 +85,10 @@ public:
       { *aResult = mVal->GetBaseValue(); return NS_OK; }
     NS_IMETHOD SetBaseVal(PRInt32 aValue)
       { mVal->SetBaseValue(aValue, mSVGElement, PR_TRUE); return NS_OK; }
-
-    // Script may have modified animation parameters or timeline -- DOM getters
-    // need to flush any resample requests to reflect these modifications.
     NS_IMETHOD GetAnimVal(PRInt32* aResult)
-    {
-#ifdef MOZ_SMIL
-      mSVGElement->FlushAnimations();
-#endif
-      *aResult = mVal->GetAnimValue();
-      return NS_OK;
-    }
+      { *aResult = mVal->GetAnimValue(); return NS_OK; }
+
   };
 
-#ifdef MOZ_SMIL
-  struct SMILInteger : public nsISMILAttr
-  {
-  public:
-    SMILInteger(nsSVGInteger* aVal, nsSVGElement* aSVGElement)
-      : mVal(aVal), mSVGElement(aSVGElement) {}
-
-    // These will stay alive because a nsISMILAttr only lives as long
-    // as the Compositing step, and DOM elements don't get a chance to
-    // die during that.
-    nsSVGInteger* mVal;
-    nsSVGElement* mSVGElement;
-
-    // nsISMILAttr methods
-    virtual nsresult ValueFromString(const nsAString& aStr,
-                                     const nsISMILAnimationElement* aSrcElement,
-                                     nsSMILValue& aValue,
-                                     PRBool& aPreventCachingOfSandwich) const;
-    virtual nsSMILValue GetBaseValue() const;
-    virtual void ClearAnimValue();
-    virtual nsresult SetAnimValue(const nsSMILValue& aValue);
-  };
-#endif // MOZ_SMIL
 };
-
 #endif //__NS_SVGINTEGER_H__

@@ -23,7 +23,7 @@ script regress-309897.js
 script regress-311580.js
 script regress-313799.js
 script regress-318922.js
-skip script regress-319872.js # slow
+skip script regress-319872.js # slow, Bug 514139
 script regress-321547.js
 script regress-322499.js
 script regress-323338-1.js
@@ -52,7 +52,7 @@ script regress-354145-03.js
 script regress-354145-04.js
 script regress-354145-05.js
 script regress-354145-07.js
-script regress-354998.js
+skip-if(!xulRuntime.shell&&isDebugBuild) script regress-354998.js # very slow; test needs revising
 script regress-355474-02.js
 script regress-355478.js
 script regress-355569.js
@@ -88,8 +88,6 @@ script regress-458679-01.js
 script regress-458679-02.js
 script regress-460180.js
 script regress-465063.js
-script regress-470619.js
 script regress-473709.js
 script regress-474319.js
 script regress-477053.js
-script regress-561031.js

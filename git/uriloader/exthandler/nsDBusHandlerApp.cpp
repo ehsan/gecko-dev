@@ -44,7 +44,9 @@
 #include "nsIClassInfoImpl.h"
 #include "nsCOMPtr.h"
 
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef NS_OSSO
+#include <libosso.h>
+
 #define APP_LAUNCH_BANNER_SERVICE           "com.nokia.hildon-desktop"
 #define APP_LAUNCH_BANNER_METHOD_INTERFACE  "com.nokia.hildon.hdwm.startupnotification"
 #define APP_LAUNCH_BANNER_METHOD_PATH       "/com/nokia/hildon/hdwm"
@@ -155,7 +157,7 @@ nsDBusHandlerApp::LaunchWithURI(nsIURI *aURI,
   if (dbus_connection_send(connection, msg, NULL)) {
     dbus_connection_flush(connection);
     dbus_message_unref(msg);
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef NS_OSSO
     msg = dbus_message_new_method_call (APP_LAUNCH_BANNER_SERVICE,
                                         APP_LAUNCH_BANNER_METHOD_PATH,
                                         APP_LAUNCH_BANNER_METHOD_INTERFACE,

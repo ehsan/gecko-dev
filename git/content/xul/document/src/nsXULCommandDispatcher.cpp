@@ -44,6 +44,7 @@
  */
 
 #include "nsIContent.h"
+#include "nsIFocusController.h"
 #include "nsFocusManager.h"
 #include "nsIControllers.h"
 #include "nsIDOMDocument.h"
@@ -59,7 +60,6 @@
 #include "nsIPresShell.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsPIDOMWindow.h"
-#include "nsPIWindowRoot.h"
 #include "nsRDFCID.h"
 #include "nsXULCommandDispatcher.h"
 #include "prlog.h"
@@ -70,6 +70,7 @@
 #include "nsCRT.h"
 #include "nsDOMError.h"
 #include "nsEventDispatcher.h"
+#include "nsPresShellIterator.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gLog;
@@ -95,14 +96,11 @@ nsXULCommandDispatcher::~nsXULCommandDispatcher()
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULCommandDispatcher)
 
 // QueryInterface implementation for nsXULCommandDispatcher
-
-DOMCI_DATA(XULCommandDispatcher, nsXULCommandDispatcher)
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULCommandDispatcher)
     NS_INTERFACE_MAP_ENTRY(nsIDOMXULCommandDispatcher)
     NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMXULCommandDispatcher)
-    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XULCommandDispatcher)
+    NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XULCommandDispatcher)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXULCommandDispatcher)
@@ -132,17 +130,15 @@ nsXULCommandDispatcher::Disconnect()
   mDocument = nsnull;
 }
 
-already_AddRefed<nsPIWindowRoot>
-nsXULCommandDispatcher::GetWindowRoot()
+nsIFocusController*
+nsXULCommandDispatcher::GetFocusController()
 {
-  if (mDocument) {
-    nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mDocument->GetScriptGlobalObject()));
-    if (window) {
-      return window->GetTopWindowRoot();
-    }
+  if (!mDocument) {
+    return nsnull;
   }
 
-  return nsnull;
+  nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(mDocument->GetScriptGlobalObject()));
+  return win ? win->GetRootFocusController() : nsnull;
 }
 
 nsIContent*
@@ -292,7 +288,9 @@ nsXULCommandDispatcher::AddCommandUpdater(nsIDOMElement* aElement,
   if (! aElement)
     return NS_ERROR_NULL_POINTER;
 
-  nsresult rv = nsContentUtils::CheckSameOrigin(mDocument, aElement);
+  nsCOMPtr<nsIDOMNode> doc(do_QueryInterface(mDocument));
+
+  nsresult rv = nsContentUtils::CheckSameOrigin(doc, aElement);
 
   if (NS_FAILED(rv)) {
     return rv;
@@ -396,6 +394,9 @@ nsXULCommandDispatcher::RemoveCommandUpdater(nsIDOMElement* aElement)
 NS_IMETHODIMP
 nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
 {
+  nsIFocusController* fc = GetFocusController();
+  NS_ENSURE_TRUE(fc, NS_ERROR_FAILURE);
+
   nsAutoString id;
   nsCOMPtr<nsIDOMElement> element;
   GetFocusedElement(getter_AddRefs(element));
@@ -436,10 +437,12 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
     }
 #endif
 
-    nsCOMPtr<nsIPresShell> shell = document->GetShell();
-    if (shell) {
+    nsPresShellIterator iter(document);
+    nsCOMPtr<nsIPresShell> shell;
+    while ((shell = iter.GetNextShell())) {
+
       // Retrieve the context in which our DOM event will fire.
-      nsRefPtr<nsPresContext> context = shell->GetPresContext();
+      nsCOMPtr<nsPresContext> context = shell->GetPresContext();
 
       // Handle the DOM event
       nsEventStatus status = nsEventStatus_eIgnore;
@@ -483,19 +486,19 @@ nsXULCommandDispatcher::Matches(const nsString& aList,
 NS_IMETHODIMP
 nsXULCommandDispatcher::GetControllers(nsIControllers** aResult)
 {
-  nsCOMPtr<nsPIWindowRoot> root = GetWindowRoot();
-  NS_ENSURE_TRUE(root, NS_ERROR_FAILURE);
+  nsIFocusController* fc = GetFocusController();
+  NS_ENSURE_TRUE(fc, NS_ERROR_FAILURE);
 
-  return root->GetControllers(aResult);
+  return fc->GetControllers(mDocument->GetWindow(), aResult);
 }
 
 NS_IMETHODIMP
 nsXULCommandDispatcher::GetControllerForCommand(const char *aCommand, nsIController** _retval)
 {
-  nsCOMPtr<nsPIWindowRoot> root = GetWindowRoot();
-  NS_ENSURE_TRUE(root, NS_ERROR_FAILURE);
+  nsIFocusController* fc = GetFocusController();
+  NS_ENSURE_TRUE(fc, NS_ERROR_FAILURE);
 
-  return root->GetControllerForCommand(aCommand, _retval);
+  return fc->GetControllerForCommand(mDocument->GetWindow(), aCommand, _retval);
 }
 
 NS_IMETHODIMP

@@ -26,12 +26,6 @@ if (typeof(parent) != "undefined" && parent.TestRunner) {
     parentRunner = parent.wrappedJSObject.TestRunner;
 }
 
-//Simple test to see if we are running in e10s IPC
-var ipcMode = false;
-if (parentRunner) {
-  ipcMode = parentRunner.ipcMode;
-}
-
 // Check to see if the TestRunner is present and has logging
 if (parentRunner) {
     SimpleTest._logEnabled = parentRunner.logEnabled;
@@ -55,12 +49,12 @@ SimpleTest.ok = function (condition, name, diag) {
 **/
 SimpleTest.is = function (a, b, name) {
     var repr = MochiKit.Base.repr;
-    SimpleTest.ok(a == b, name, repr(a) + " should equal " + repr(b));
+    SimpleTest.ok(a == b, name, "got " + repr(a) + ", expected " + repr(b));
 };
 
 SimpleTest.isnot = function (a, b, name) {
     var repr = MochiKit.Base.repr;
-    SimpleTest.ok(a != b, name, repr(a) + " should not equal " + repr(b));
+    SimpleTest.ok(a != b, name, "Didn't expect " + repr(a) + ", but got it.");
 };
 
 //  --------------- Test.Builder/Test.More todo() -----------------
@@ -78,18 +72,17 @@ SimpleTest._logResult = function(test, passString, failString) {
   if (parentRunner.currentTestURL)
     msg += parentRunner.currentTestURL;
   msg += " | " + test.name;
-  if (test.diag)
-    msg += " - " + test.diag;
+  var diag = test.diag ? " - " + test.diag : "";
   if (test.result) {
       if (test.todo)
-          parentRunner.logger.error(msg);
+          parentRunner.logger.error(msg + diag);
       else
           parentRunner.logger.log(msg);
   } else {
       if (test.todo)
           parentRunner.logger.log(msg);
       else
-          parentRunner.logger.error(msg);
+          parentRunner.logger.error(msg + diag);
   }
 };
 
@@ -99,12 +92,12 @@ SimpleTest._logResult = function(test, passString, failString) {
 
 SimpleTest.todo_is = function (a, b, name) {
     var repr = MochiKit.Base.repr;
-    SimpleTest.todo(a == b, name, repr(a) + " should equal " + repr(b));
+    SimpleTest.todo(a == b, name, "got " + repr(a) + ", expected " + repr(b));
 };
 
 SimpleTest.todo_isnot = function (a, b, name) {
     var repr = MochiKit.Base.repr;
-    SimpleTest.todo(a != b, name, repr(a) + " should not equal " + repr(b));
+    SimpleTest.todo(a != b, name, "Didn't expect " + repr(a) + ", but got it.");
 };
 
 
@@ -133,7 +126,7 @@ SimpleTest.report = function () {
             } else if (test.result && !test.todo) {
                 passed++;
                 cls = "test_ok";
-                msg = "passed | " + test.name + diag;
+                msg = "passed | " + test.name;
             } else {
                 failed++;
                 cls = "test_not_ok";
@@ -243,48 +236,25 @@ SimpleTest.waitForFocus_loaded = false;
 SimpleTest.waitForFocus_focused = false;
 
 /**
- * If the page is not yet loaded, waits for the load event. In addition, if
- * the page is not yet focused, focuses and waits for the window to be
- * focused. Calls the callback when completed. If the current page is
- * 'about:blank', then the page is assumed to not yet be loaded. Pass true for
- * expectBlankPage to not make this assumption if you expect a blank page to
- * be present.
+ * If the page is not yet loaded, waits for the load event. If the page is
+ * not yet focused, focuses and waits for the window to be focused. Calls
+ * the callback when completed.
  *
- * targetWindow should be specified if it is different than 'window'. The actual
- * focused window may be a descendant of targetWindow.
- *
- * @param callback
- *        function called when load and focus are complete
- * @param targetWindow
- *        optional window to be loaded and focused, defaults to 'window'
- * @param expectBlankPage
- *        true if targetWindow.location is 'about:blank'. Defaults to false
+ * targetWindow should be specified if it is different than 'window'.
  */
-SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
+SimpleTest.waitForFocus = function (callback, targetWindow) {
     if (!targetWindow)
       targetWindow = window;
 
-    if (ipcMode) {
-      var domutils = targetWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
-                     getInterface(Components.interfaces.nsIDOMWindowUtils);
-
-      //TODO: make this support scenarios where we run test standalone and not inside of TestRunner only
-      if (parent && parent.ipcWaitForFocus != undefined) {
-        parent.contentAsyncEvent("waitForFocus", {"callback":callback, "targetWindow":domutils.outerWindowID});
-      }
-      return;
-    }
-
     SimpleTest.waitForFocus_started = false;
-    expectBlankPage = !!expectBlankPage;
 
     netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     var fm = Components.classes["@mozilla.org/focus-manager;1"].
                         getService(Components.interfaces.nsIFocusManager);
 
-    var childTargetWindow = { };
-    fm.getFocusedElementForWindow(targetWindow, true, childTargetWindow);
-    childTargetWindow = childTargetWindow.value;
+    var usedTargetWindow = {};
+    fm.getFocusedElementForWindow(targetWindow, true, usedTargetWindow);
+    targetWindow = usedTargetWindow.value;
 
     function debugFocusLog(prefix) {
         netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
@@ -292,13 +262,12 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
         var baseWindow = targetWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                                      .getInterface(Components.interfaces.nsIWebNavigation)
                                      .QueryInterface(Components.interfaces.nsIBaseWindow);
-        SimpleTest.ok(true, prefix + " -- loaded: " + targetWindow.document.readyState +
+        ok(true, prefix + " -- loaded: " + targetWindow.document.readyState +
            " active window: " +
                (fm.activeWindow ? "(" + fm.activeWindow + ") " + fm.activeWindow.location : "<no window active>") +
            " focused window: " +
                (fm.focusedWindow ? "(" + fm.focusedWindow + ") " + fm.focusedWindow.location : "<no window focused>") +
            " desired window: (" + targetWindow + ") " + targetWindow.location +
-           " child window: (" + childTargetWindow + ") " + childTargetWindow.location +
            " docshell visible: " + baseWindow.visibility);
     }
 
@@ -316,140 +285,40 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
     }
 
     function waitForEvent(event) {
-        try {
-            debugFocusLog("waitForEvent called <type:" + event.type + ", target" + event.target + ">");
-
-            // Check to make sure that this isn't a load event for a blank or
-            // non-blank page that wasn't desired.
-            if (event.type == "load" && (expectBlankPage != (event.target.location == "about:blank")))
-                return;
-
-            SimpleTest["waitForFocus_" + event.type + "ed"] = true;
-            var win = (event.type == "load") ? targetWindow : childTargetWindow;
-            win.removeEventListener(event.type, waitForEvent, true);
-            maybeRunTests();
-        } catch (e) {
-            SimpleTest.ok(false, "Exception caught in waitForEvent: " + e.message +
-                ", at: " + e.fileName + " (" + e.lineNumber + ")");
-        }
+        SimpleTest["waitForFocus_" + event.type + "ed"] = true;
+        targetWindow.removeEventListener(event.type, waitForEvent, false);
+        if (event.type == "MozAfterPaint")
+          ok(true, "MozAfterPaint event received");
+        maybeRunTests();
     }
 
-    // If the current document is about:blank and we are not expecting a blank
-    // page (or vice versa), and the document has not yet loaded, wait for the
-    // page to load. A common situation is to wait for a newly opened window
-    // to load its content, and we want to skip over any intermediate blank
-    // pages that load. This issue is described in bug 554873.
-    SimpleTest.waitForFocus_loaded =
-        (expectBlankPage == (targetWindow.location == "about:blank")) &&
-        targetWindow.document.readyState == "complete";
+    // wait for the page to load if it hasn't already
+    SimpleTest.waitForFocus_loaded = (targetWindow.document.readyState == "complete");
     if (!SimpleTest.waitForFocus_loaded) {
-        SimpleTest.ok(true, "must wait for load");
-        targetWindow.addEventListener("load", waitForEvent, true);
+        ok(true, "must wait for load");
+        targetWindow.addEventListener("load", waitForEvent, false);
     }
 
-    // Check if the desired window is already focused.
-    var focusedChildWindow = { };
-    if (fm.activeWindow) {
-        fm.getFocusedElementForWindow(fm.activeWindow, true, focusedChildWindow);
-        focusedChildWindow = focusedChildWindow.value;
-    }
+    // check if the window is focused, and focus it if it is not
+    var focusedWindow = { };
+    if (fm.activeWindow)
+      fm.getFocusedElementForWindow(fm.activeWindow, true, focusedWindow);
 
-    // If this is a child frame, ensure that the frame is focused.
-    SimpleTest.waitForFocus_focused = (focusedChildWindow == childTargetWindow);
+    // if this is a child frame, ensure that the frame is focused
+    SimpleTest.waitForFocus_focused = (focusedWindow.value == targetWindow);
     if (SimpleTest.waitForFocus_focused) {
-        SimpleTest.ok(true, "already focused");
-        // If the frame is already focused and loaded, call the callback directly.
+        ok(true, "already focused");
+        // if the frame is already focused and loaded, call the callback directly
         maybeRunTests();
     }
     else {
-        SimpleTest.ok(true, "must wait for focus");
-        childTargetWindow.addEventListener("focus", waitForEvent, true);
-        childTargetWindow.focus();
+        ok(true, "must wait for focus");
+        targetWindow.addEventListener("focus", waitForEvent, false);
+        targetWindow.focus();
     }
+
+    targetWindow.addEventListener("MozAfterPaint", waitForEvent, false);
 };
-
-SimpleTest.waitForClipboard_polls = 0;
-
-/*
- * Polls the clipboard waiting for the expected value. A known value different than
- * the expected value is put on the clipboard first (and also polled for) so we
- * can be sure the value we get isn't just the expected value because it was already
- * on the clipboard. This only uses the global clipboard and only for text/unicode
- * values.
- *
- * @param aExpectedVal
- *        The string value that is expected to be on the clipboard
- * @param aSetupFn
- *        A function responsible for setting the clipboard to the expected value,
- *        called after the known value setting succeeds.
- * @param aSuccessFn
- *        A function called when the expected value is found on the clipboard.
- * @param aFailureFn
- *        A function called if the expected value isn't found on the clipboard
- *        within 5s. It can also be called if the known value can't be found.
- */
-SimpleTest.waitForClipboard = function(aExpectedVal, aSetupFn, aSuccessFn, aFailureFn) {
-    if (ipcMode) {
-      //TODO: support waitForClipboard via events to chrome
-      dump("E10S_TODO: bug 573735 addresses adding support for this");
-      return;
-    }
-
-    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-
-    var cbSvc = Components.classes["@mozilla.org/widget/clipboard;1"].
-                getService(Components.interfaces.nsIClipboard);
-
-    // reset for the next use
-    function reset() {
-        SimpleTest.waitForClipboard_polls = 0;
-    }
-
-    function wait(expectedVal, successFn, failureFn) {
-        netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-
-        if (++SimpleTest.waitForClipboard_polls > 50) {
-            // Log the failure.
-            SimpleTest.ok(false, "Timed out while polling clipboard for pasted data. " +
-                                 "Expected " + expectedVal);
-            reset();
-            failureFn();
-            return;
-        }
-
-        var xferable = Components.classes["@mozilla.org/widget/transferable;1"].
-                       createInstance(Components.interfaces.nsITransferable);
-        xferable.addDataFlavor("text/unicode");
-        cbSvc.getData(xferable, cbSvc.kGlobalClipboard);
-        var data = {};
-        try {
-            xferable.getTransferData("text/unicode", data, {});
-            data = data.value.QueryInterface(Components.interfaces.nsISupportsString).data;
-        } catch (e) {}
-
-        if (data == expectedVal) {
-            // Don't show the success message when waiting for preExpectedVal
-            if (data != preExpectedVal)
-                SimpleTest.ok(true,
-                              "Clipboard has the correct value (" + expectedVal + ")");
-            reset();
-            successFn();
-        } else {
-            setTimeout(function() wait(expectedVal, successFn, failureFn), 100);
-        }
-    }
-
-    // First we wait for a known value != aExpectedVal
-    var preExpectedVal = aExpectedVal + "-waitForClipboard-known-value";
-    var cbHelperSvc = Components.classes["@mozilla.org/widget/clipboardhelper;1"].
-                      getService(Components.interfaces.nsIClipboardHelper);
-    cbHelperSvc.copyString(preExpectedVal);
-    wait(preExpectedVal, function() {
-        // Call the original setup fn
-        aSetupFn();
-        wait(aExpectedVal, aSuccessFn, aFailureFn);
-    }, aFailureFn);
-}
 
 /**
  * Executes a function shortly after the call, but lets the caller continue
@@ -457,37 +326,37 @@ SimpleTest.waitForClipboard = function(aExpectedVal, aSetupFn, aSuccessFn, aFail
  */
 SimpleTest.executeSoon = function(aFunc) {
     if ("Components" in window && "classes" in window.Components) {
-        try {
-            netscape.security.PrivilegeManager
-              .enablePrivilege("UniversalXPConnect");
-            var tm = Components.classes["@mozilla.org/thread-manager;1"]
-                       .getService(Components.interfaces.nsIThreadManager);
+        netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+        var tm = Components.classes["@mozilla.org/thread-manager;1"]
+                   .getService(Components.interfaces.nsIThreadManager);
 
-            tm.mainThread.dispatch({
-                run: function() {
-                    aFunc();
-                }
-            }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
-            return;
-        } catch (ex) {
-            // If the above fails (most likely because of enablePrivilege
-            // failing, fall through to the setTimeout path.
-        }
+        tm.mainThread.dispatch({
+            run: function() {
+                aFunc();
+            }
+        }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
+    } else {
+        setTimeout(aFunc, 0);
     }
-    setTimeout(aFunc, 0);
 }
+
+/**
+ * Talks to the TestRunner if being ran on a iframe and the parent has a
+ * TestRunner object.
+**/
+SimpleTest.talkToRunner = function () {
+    if (parentRunner) {
+        parentRunner.testFinished(document);
+    }
+};
 
 /**
  * Finishes the tests. This is automatically called, except when
  * SimpleTest.waitForExplicitFinish() has been invoked.
 **/
 SimpleTest.finish = function () {
-    if (parentRunner) {
-        /* We're running in an iframe, and the parent has a TestRunner */
-        parentRunner.testFinished(SimpleTest._tests);
-    } else {
-        SimpleTest.showReport();
-    }
+    SimpleTest.showReport();
+    SimpleTest.talkToRunner();
 };
 
 

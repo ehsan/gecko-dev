@@ -36,51 +36,24 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_WIDGET_GTK2
-#include <glib.h>
-#endif
-#ifdef MOZ_WIDGET_QT
-#include <QtCore/QCoreApplication>
-#include <QtCore/QEventLoop>
-#endif
-
-#include "base/process_util.h"
-
-#include "mozilla/unused.h"
-#include "mozilla/ipc/SyncChannel.h"
 #include "mozilla/plugins/PluginModuleParent.h"
 #include "mozilla/plugins/BrowserStreamParent.h"
-#include "PluginIdentifierParent.h"
 
-#include "nsContentUtils.h"
-#include "nsCRT.h"
-#ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-#endif
 #include "nsNPAPIPlugin.h"
 
-using base::KillProcess;
-
 using mozilla::PluginLibrary;
-using mozilla::ipc::SyncChannel;
+
+using mozilla::ipc::NPRemoteIdentifier;
 
 using namespace mozilla::plugins;
 
-static const char kTimeoutPref[] = "dom.ipc.plugins.timeoutSecs";
-
-template<>
-struct RunnableMethodTraits<mozilla::plugins::PluginModuleParent>
-{
-    typedef mozilla::plugins::PluginModuleParent Class;
-    static void RetainCallee(Class* obj) { }
-    static void ReleaseCallee(Class* obj) { }
-};
+PR_STATIC_ASSERT(sizeof(NPIdentifier) == sizeof(void*));
 
 // static
 PluginLibrary*
 PluginModuleParent::LoadModule(const char* aFilePath)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
 
     // Block on the child process being launched and initialized.
     PluginModuleParent* parent = new PluginModuleParent(aFilePath);
@@ -88,34 +61,25 @@ PluginModuleParent::LoadModule(const char* aFilePath)
     parent->Open(parent->mSubprocess->GetChannel(),
                  parent->mSubprocess->GetChildProcessHandle());
 
-    TimeoutChanged(kTimeoutPref, parent);
-
     return parent;
 }
 
 
 PluginModuleParent::PluginModuleParent(const char* aFilePath)
     : mSubprocess(new PluginProcessParent(aFilePath))
-    , mPluginThread(0)
     , mShutdown(false)
     , mNPNIface(NULL)
     , mPlugin(NULL)
-    , mProcessStartTime(time(NULL))
-    , mTaskFactory(this)
 {
     NS_ASSERTION(mSubprocess, "Out of memory!");
 
-    if (!mIdentifiers.Init()) {
+    if (!mValidIdentifiers.Init()) {
         NS_ERROR("Out of memory");
     }
-
-    nsContentUtils::RegisterPrefCallback(kTimeoutPref, TimeoutChanged, this);
 }
 
 PluginModuleParent::~PluginModuleParent()
 {
-    NS_ASSERTION(OkToCleanup(), "unsafe destruction");
-
     if (!mShutdown) {
         NS_WARNING("Plugin host deleted the module without shutting down.");
         NPError err;
@@ -127,164 +91,24 @@ PluginModuleParent::~PluginModuleParent()
         mSubprocess->Delete();
         mSubprocess = nsnull;
     }
-
-    nsContentUtils::UnregisterPrefCallback(kTimeoutPref, TimeoutChanged, this);
-}
-
-#ifdef MOZ_CRASHREPORTER
-void
-PluginModuleParent::WritePluginExtraDataForMinidump(const nsAString& id)
-{
-    typedef nsDependentCString CS;
-
-    CrashReporter::AnnotationTable notes;
-    if (!notes.Init(32))
-        return;
-
-    notes.Put(CS("ProcessType"), CS("plugin"));
-
-    char startTime[32];
-    sprintf(startTime, "%lld", static_cast<PRInt64>(mProcessStartTime));
-    notes.Put(CS("StartupTime"), CS(startTime));
-
-    // Get the plugin filename, try to get just the file leafname
-    const std::string& pluginFile = mSubprocess->GetPluginFilePath();
-    size_t filePos = pluginFile.rfind(FILE_PATH_SEPARATOR);
-    if (filePos == std::string::npos)
-        filePos = 0;
-    else
-        filePos++;
-    notes.Put(CS("PluginFilename"), CS(pluginFile.substr(filePos).c_str()));
-
-    //TODO: add plugin name and version: bug 539841
-    // (as PluginName, PluginVersion)
-    notes.Put(CS("PluginName"), CS(""));
-    notes.Put(CS("PluginVersion"), CS(""));
-
-    if (!mCrashNotes.IsEmpty())
-        notes.Put(CS("Notes"), CS(mCrashNotes.get()));
-
-    if (!mHangID.IsEmpty())
-        notes.Put(CS("HangID"), NS_ConvertUTF16toUTF8(mHangID));
-
-    if (!CrashReporter::AppendExtraData(id, notes))
-        NS_WARNING("problem appending plugin data to .extra");
-}
-
-void
-PluginModuleParent::WriteExtraDataForHang()
-{
-    // this writes HangID
-    WritePluginExtraDataForMinidump(mPluginDumpID);
-
-    CrashReporter::AnnotationTable notes;
-    if (!notes.Init(4))
-        return;
-
-    notes.Put(nsDependentCString("HangID"), NS_ConvertUTF16toUTF8(mHangID));
-    if (!CrashReporter::AppendExtraData(mBrowserDumpID, notes))
-        NS_WARNING("problem appending browser data to .extra");
-}
-#endif  // MOZ_CRASHREPORTER
-
-bool
-PluginModuleParent::RecvAppendNotesToCrashReport(const nsCString& aNotes)
-{
-    mCrashNotes.Append(aNotes);
-    return true;
-}
-
-int
-PluginModuleParent::TimeoutChanged(const char* aPref, void* aModule)
-{
-    NS_ASSERTION(NS_IsMainThread(), "Wrong thead!");
-    NS_ABORT_IF_FALSE(!strcmp(aPref, kTimeoutPref),
-                      "unexpected pref callback");
-
-    PRInt32 timeoutSecs = nsContentUtils::GetIntPref(kTimeoutPref, 0);
-    int32 timeoutMs = (timeoutSecs > 0) ? (1000 * timeoutSecs) :
-                      SyncChannel::kNoTimeout;
-
-    static_cast<PluginModuleParent*>(aModule)->SetReplyTimeoutMs(timeoutMs);
-    return 0;
-}
-
-void
-PluginModuleParent::CleanupFromTimeout()
-{
-    if (!mShutdown)
-        Close();
-}
-
-bool
-PluginModuleParent::ShouldContinueFromReplyTimeout()
-{
-#ifdef MOZ_CRASHREPORTER
-    nsCOMPtr<nsILocalFile> pluginDump;
-    nsCOMPtr<nsILocalFile> browserDump;
-    if (CrashReporter::CreatePairedMinidumps(OtherProcess(),
-                                             mPluginThread,
-                                             &mHangID,
-                                             getter_AddRefs(pluginDump),
-                                             getter_AddRefs(browserDump)) &&
-        CrashReporter::GetIDFromMinidump(pluginDump, mPluginDumpID) &&
-        CrashReporter::GetIDFromMinidump(browserDump, mBrowserDumpID)) {
-
-        PLUGIN_LOG_DEBUG(
-            ("generated paired browser/plugin minidumps: %s/%s (ID=%s)",
-             NS_ConvertUTF16toUTF8(mBrowserDumpID).get(),
-             NS_ConvertUTF16toUTF8(mPluginDumpID).get(),
-             NS_ConvertUTF16toUTF8(mHangID).get()));
-    }
-    else {
-        NS_WARNING("failed to capture paired minidumps from hang");
-    }
-#endif
-
-    // this must run before the error notification from the channel,
-    // or not at all
-    MessageLoop::current()->PostTask(
-        FROM_HERE,
-        mTaskFactory.NewRunnableMethod(
-            &PluginModuleParent::CleanupFromTimeout));
-
-    if (!KillProcess(OtherProcess(), 1, false))
-        NS_WARNING("failed to kill subprocess!");
-
-    return false;
 }
 
 void
 PluginModuleParent::ActorDestroy(ActorDestroyReason why)
 {
     switch (why) {
-    case AbnormalShutdown: {
-#ifdef MOZ_CRASHREPORTER
-        nsCOMPtr<nsILocalFile> pluginDump;
-        if (TakeMinidump(getter_AddRefs(pluginDump)) &&
-            CrashReporter::GetIDFromMinidump(pluginDump, mPluginDumpID)) {
-            PLUGIN_LOG_DEBUG(("got child minidump: %s",
-                              NS_ConvertUTF16toUTF8(mPluginDumpID).get()));
-            WritePluginExtraDataForMinidump(mPluginDumpID);
-        }
-        else if (!mPluginDumpID.IsEmpty() && !mBrowserDumpID.IsEmpty()) {
-            WriteExtraDataForHang();
-        }
-        else {
-            NS_WARNING("[PluginModuleParent::ActorDestroy] abnormal shutdown without minidump!");
-        }
-#endif
-
+    case AbnormalShutdown:
         mShutdown = true;
         // Defer the PluginCrashed method so that we don't re-enter
         // and potentially modify the actor child list while enumerating it.
-        if (mPlugin)
-            MessageLoop::current()->PostTask(
-                FROM_HERE,
-                mTaskFactory.NewRunnableMethod(
-                    &PluginModuleParent::NotifyPluginCrashed));
+        if (mPlugin) {
+            nsCOMPtr<nsIRunnable> r =
+                new nsRunnableMethod<nsNPAPIPlugin>(
+                    mPlugin, &nsNPAPIPlugin::PluginCrashed);
+            NS_DispatchToMainThread(r);
+        }
         break;
-    }
+
     case NormalShutdown:
         mShutdown = true;
         break;
@@ -292,47 +116,6 @@ PluginModuleParent::ActorDestroy(ActorDestroyReason why)
     default:
         NS_ERROR("Unexpected shutdown reason for toplevel actor.");
     }
-}
-
-void
-PluginModuleParent::NotifyPluginCrashed()
-{
-    if (!OkToCleanup()) {
-        // there's still plugin code on the C++ stack.  try again
-        MessageLoop::current()->PostDelayedTask(
-            FROM_HERE,
-            mTaskFactory.NewRunnableMethod(
-                &PluginModuleParent::NotifyPluginCrashed), 10);
-        return;
-    }
-
-    if (mPlugin)
-        mPlugin->PluginCrashed(mPluginDumpID, mBrowserDumpID);
-}
-
-PPluginIdentifierParent*
-PluginModuleParent::AllocPPluginIdentifier(const nsCString& aString,
-                                           const int32_t& aInt)
-{
-    NPIdentifier npident = aString.IsVoid() ?
-        mozilla::plugins::parent::_getintidentifier(aInt) :
-        mozilla::plugins::parent::_getstringidentifier(aString.get());
-
-    if (!npident) {
-        NS_WARNING("Failed to get identifier!");
-        return nsnull;
-    }
-
-    PluginIdentifierParent* ident = new PluginIdentifierParent(npident);
-    mIdentifiers.Put(npident, ident);
-    return ident;
-}
-
-bool
-PluginModuleParent::DeallocPPluginIdentifier(PPluginIdentifierParent* aActor)
-{
-    delete aActor;
-    return true;
 }
 
 PPluginInstanceParent*
@@ -349,7 +132,7 @@ PluginModuleParent::AllocPPluginInstance(const nsCString& aMimeType,
 bool
 PluginModuleParent::DeallocPPluginInstance(PPluginInstanceParent* aActor)
 {
-    PLUGIN_LOG_DEBUG_METHOD;
+    _MOZ_LOG(__FUNCTION__);
     delete aActor;
     return true;
 }
@@ -377,14 +160,14 @@ PluginModuleParent::SetPluginFuncs(NPPluginFuncs* aFuncs)
 
 NPError
 PluginModuleParent::NPP_Destroy(NPP instance,
-                                NPSavedData** /*saved*/)
+                                NPSavedData** save)
 {
     // FIXME/cjones:
     //  (1) send a "destroy" message to the child
     //  (2) the child shuts down its instance
     //  (3) remove both parent and child IDs from map
     //  (4) free parent
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
 
     PluginInstanceParent* parentInstance =
         static_cast<PluginInstanceParent*>(instance->pdata);
@@ -392,11 +175,39 @@ PluginModuleParent::NPP_Destroy(NPP instance,
     if (!parentInstance)
         return NPERR_NO_ERROR;
 
-    NPError retval = parentInstance->Destroy();
+    parentInstance->Destroy();
+
+    NPError prv;
+    if (!PPluginInstanceParent::Call__delete__(parentInstance, &prv)) {
+        prv = NPERR_GENERIC_ERROR;
+    }
     instance->pdata = nsnull;
 
-    unused << PluginInstanceParent::Call__delete__(parentInstance);
-    return retval;
+    return prv;
+}
+
+bool
+PluginModuleParent::EnsureValidNPIdentifier(NPIdentifier aIdentifier)
+{
+    if (!mValidIdentifiers.GetEntry(aIdentifier)) {
+        nsVoidPtrHashKey* newEntry = mValidIdentifiers.PutEntry(aIdentifier);
+        if (!newEntry) {
+            NS_ERROR("Out of memory?");
+            return false;
+        }
+    }
+    return true;
+}
+
+NPIdentifier
+PluginModuleParent::GetValidNPIdentifier(NPRemoteIdentifier aRemoteIdentifier)
+{
+    NS_ASSERTION(mValidIdentifiers.IsInitialized(), "Not initialized!");
+    if (aRemoteIdentifier &&
+        mValidIdentifiers.GetEntry((NPIdentifier)aRemoteIdentifier)) {
+        return (NPIdentifier)aRemoteIdentifier;
+    }
+    return 0;
 }
 
 NPError
@@ -529,32 +340,144 @@ PluginModuleParent::AnswerNPN_UserAgent(nsCString* userAgent)
     return true;
 }
 
-PPluginIdentifierParent*
-PluginModuleParent::GetIdentifierForNPIdentifier(NPIdentifier aIdentifier)
+bool
+PluginModuleParent::RecvNPN_GetStringIdentifier(const nsCString& aString,
+                                                NPRemoteIdentifier* aId)
 {
-    PluginIdentifierParent* ident;
-    if (!mIdentifiers.Get(aIdentifier, &ident)) {
-        nsCString string;
-        int32_t intval = -1;
-        if (mozilla::plugins::parent::_identifierisstring(aIdentifier)) {
-            NPUTF8* chars =
-                mozilla::plugins::parent::_utf8fromidentifier(aIdentifier);
-            if (!chars) {
-                return nsnull;
-            }
-            string.Adopt(chars);
-        }
-        else {
-            intval = mozilla::plugins::parent::_intfromidentifier(aIdentifier);
-            string.SetIsVoid(PR_TRUE);
-        }
-        ident = new PluginIdentifierParent(aIdentifier);
-        if (!SendPPluginIdentifierConstructor(ident, string, intval))
-            return nsnull;
-
-        mIdentifiers.Put(aIdentifier, ident);
+    if (aString.IsVoid()) {
+        NS_ERROR("Someone sent over a void string?!");
+        return false;
     }
-    return ident;
+
+    NPIdentifier ident =
+        mozilla::plugins::parent::_getstringidentifier(aString.BeginReading());
+    if (!ident) {
+        *aId = 0;
+        return true;
+    }
+
+    if (!EnsureValidNPIdentifier(ident)) {
+        NS_ERROR("Out of memory?");
+        return false;
+    }
+
+    *aId = (NPRemoteIdentifier)ident;
+    return true;
+}
+
+bool
+PluginModuleParent::RecvNPN_GetIntIdentifier(const int32_t& aInt,
+                                             NPRemoteIdentifier* aId)
+{
+    NPIdentifier ident = mozilla::plugins::parent::_getintidentifier(aInt);
+    if (!ident) {
+        *aId = 0;
+        return true;
+    }
+
+    if (!EnsureValidNPIdentifier(ident)) {
+        NS_ERROR("Out of memory?");
+        return false;
+    }
+
+    *aId = (NPRemoteIdentifier)ident;
+    return true;
+}
+
+bool
+PluginModuleParent::RecvNPN_UTF8FromIdentifier(const NPRemoteIdentifier& aId,
+                                               NPError *err,
+                                               nsCString* aString)
+{
+    NPIdentifier ident = GetValidNPIdentifier(aId);
+    if (!ident) {
+        *err = NPERR_INVALID_PARAM;
+        return true;
+    }
+
+    NPUTF8* val = mozilla::plugins::parent::_utf8fromidentifier(ident);
+    if (!val) {
+        *err = NPERR_INVALID_PARAM;
+        return true;
+    }
+
+    aString->Assign(val);
+    *err = NPERR_NO_ERROR;
+    return true;
+}
+
+bool
+PluginModuleParent::RecvNPN_IntFromIdentifier(const NPRemoteIdentifier& aId,
+                                              NPError* err,
+                                              int32_t* aInt)
+{
+    NPIdentifier ident = GetValidNPIdentifier(aId);
+    if (!ident) {
+        *err = NPERR_INVALID_PARAM;
+        return true;
+    }
+
+    *aInt = mozilla::plugins::parent::_intfromidentifier(ident);
+    *err = NPERR_NO_ERROR;
+    return true;
+}
+
+bool
+PluginModuleParent::RecvNPN_IdentifierIsString(const NPRemoteIdentifier& aId,
+                                               bool* aIsString)
+{
+    NPIdentifier ident = GetValidNPIdentifier(aId);
+    if (!ident) {
+        *aIsString = false;
+        return true;
+    }
+
+    *aIsString = mozilla::plugins::parent::_identifierisstring(ident);
+    return true;
+}
+
+bool
+PluginModuleParent::RecvNPN_GetStringIdentifiers(const nsTArray<nsCString>& aNames,
+                                                 nsTArray<NPRemoteIdentifier>* aIds)
+{
+    NS_ASSERTION(aIds->IsEmpty(), "Non-empty array!");
+
+    PRUint32 count = aNames.Length();
+    if (!count) {
+        NS_ERROR("No names to get!");
+        return false;
+    }
+
+    nsAutoTArray<NPUTF8*, 10> buffers;
+    nsAutoTArray<NPIdentifier, 10> ids;
+
+    if (!(buffers.SetLength(count) &&
+          ids.SetLength(count) &&
+          aIds->SetCapacity(count))) {
+        NS_ERROR("Out of memory?");
+        return false;
+    }
+
+    for (PRUint32 index = 0; index < count; index++) {
+        buffers[index] = const_cast<NPUTF8*>(aNames[index].BeginReading());
+        NS_ASSERTION(buffers[index], "Null pointer should be impossible!");
+    }
+
+    mozilla::plugins::parent::_getstringidentifiers(
+        const_cast<const NPUTF8**>(buffers.Elements()), count, ids.Elements());
+
+    for (PRUint32 index = 0; index < count; index++) {
+        NPIdentifier& id = ids[index];
+        if (id) {
+            if (!EnsureValidNPIdentifier(id)) {
+                NS_ERROR("Out of memory?");
+                return false;
+            }
+        }
+        aIds->AppendElement((NPRemoteIdentifier)id);
+    }
+
+    return true;
 }
 
 PluginInstanceParent*
@@ -600,7 +523,7 @@ PluginModuleParent::HasRequiredFunctions()
 nsresult
 PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs, NPError* error)
 {
-    PLUGIN_LOG_DEBUG_METHOD;
+    _MOZ_LOG(__FUNCTION__);
 
     mNPNIface = bFuncs;
 
@@ -609,7 +532,7 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs
         return NS_ERROR_FAILURE;
     }
 
-    if (!CallNP_Initialize(&mPluginThread, error)) {
+    if (!CallNP_Initialize(error)) {
         return NS_ERROR_FAILURE;
     }
     else if (*error != NPERR_NO_ERROR) {
@@ -623,7 +546,7 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs
 nsresult
 PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
 {
-    PLUGIN_LOG_DEBUG_METHOD;
+    _MOZ_LOG(__FUNCTION__);
 
     mNPNIface = bFuncs;
 
@@ -632,7 +555,7 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
         return NS_ERROR_FAILURE;
     }
 
-    if (!CallNP_Initialize(&mPluginThread, error))
+    if (!CallNP_Initialize(error))
         return NS_ERROR_FAILURE;
 
     return NS_OK;
@@ -642,7 +565,7 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
 nsresult
 PluginModuleParent::NP_Shutdown(NPError* error)
 {
-    PLUGIN_LOG_DEBUG_METHOD;
+    _MOZ_LOG(__FUNCTION__);
 
     if (mShutdown) {
         *error = NPERR_GENERIC_ERROR;
@@ -661,11 +584,11 @@ PluginModuleParent::NP_Shutdown(NPError* error)
 }
 
 nsresult
-PluginModuleParent::NP_GetMIMEDescription(const char** mimeDesc)
+PluginModuleParent::NP_GetMIMEDescription(char** mimeDesc)
 {
-    PLUGIN_LOG_DEBUG_METHOD;
+    _MOZ_LOG(__FUNCTION__);
 
-    *mimeDesc = "application/x-foobar";
+    *mimeDesc = (char*)"application/x-foobar";
     return NS_OK;
 }
 
@@ -673,15 +596,16 @@ nsresult
 PluginModuleParent::NP_GetValue(void *future, NPPVariable aVariable,
                                    void *aValue, NPError* error)
 {
-    PR_LOG(gPluginLog, PR_LOG_WARNING, ("%s Not implemented, requested variable %i", __FUNCTION__,
-                                        (int) aVariable));
+    _MOZ_LOG(__FUNCTION__);
 
     //TODO: implement this correctly
+    printf("[%s] Not yet implemented\n", __FUNCTION__);
+
     *error = NPERR_GENERIC_ERROR;
     return NS_OK;
 }
 
-#if defined(XP_WIN) || defined(XP_MACOSX) || defined(XP_OS2)
+#if defined(XP_WIN) || defined(XP_MACOSX)
 nsresult
 PluginModuleParent::NP_GetEntryPoints(NPPluginFuncs* pFuncs, NPError* error)
 {
@@ -699,7 +623,7 @@ PluginModuleParent::NPP_New(NPMIMEType pluginType, NPP instance,
                             char* argv[], NPSavedData* saved,
                             NPError* error)
 {
-    PLUGIN_LOG_DEBUG_METHOD;
+    _MOZ_LOG(__FUNCTION__);
 
     if (mShutdown) {
         *error = NPERR_GENERIC_ERROR;
@@ -716,13 +640,7 @@ PluginModuleParent::NPP_New(NPMIMEType pluginType, NPP instance,
     }
 
     PluginInstanceParent* parentInstance =
-        new PluginInstanceParent(this, instance,
-                                 nsDependentCString(pluginType), mNPNIface);
-
-    if (!parentInstance->Init()) {
-        delete parentInstance;
-        return NS_ERROR_FAILURE;
-    }
+        new PluginInstanceParent(this, instance, mNPNIface);
 
     instance->pdata = parentInstance;
 
@@ -739,8 +657,12 @@ PluginModuleParent::NPP_New(NPMIMEType pluginType, NPP instance,
         return NS_ERROR_FAILURE;
     }
 
+    printf ("[PluginModuleParent] %s: got return value %hd\n", __FUNCTION__,
+            *error);
+
     if (*error != NPERR_NO_ERROR) {
-        NPP_Destroy(instance, 0);
+        PPluginInstanceParent::Call__delete__(parentInstance, error);
+        instance->pdata = nsnull;
         return NS_ERROR_FAILURE;
     }
 
@@ -757,89 +679,3 @@ PluginModuleParent::AnswerNPN_GetValue_WithBoolReturn(const NPNVariable& aVariab
     *aBoolVal = boolVal ? true : false;
     return true;
 }
-
-#if defined(MOZ_WIDGET_QT)
-static const int kMaxtimeToProcessEvents = 30;
-bool
-PluginModuleParent::AnswerProcessSomeEvents()
-{
-    PLUGIN_LOG_DEBUG(("Spinning mini nested loop ..."));
-    QCoreApplication::processEvents(QEventLoop::AllEvents, kMaxtimeToProcessEvents);
-
-    PLUGIN_LOG_DEBUG(("... quitting mini nested loop"));
-
-    return true;
-}
-
-#elif !defined(MOZ_WIDGET_GTK2)
-bool
-PluginModuleParent::AnswerProcessSomeEvents()
-{
-    NS_RUNTIMEABORT("unreached");
-    return false;
-}
-
-#else
-static const int kMaxChancesToProcessEvents = 20;
-
-bool
-PluginModuleParent::AnswerProcessSomeEvents()
-{
-    PLUGIN_LOG_DEBUG(("Spinning mini nested loop ..."));
-
-    int i = 0;
-    for (; i < kMaxChancesToProcessEvents; ++i)
-        if (!g_main_context_iteration(NULL, FALSE))
-            break;
-
-    PLUGIN_LOG_DEBUG(("... quitting mini nested loop; processed %i tasks", i));
-
-    return true;
-}
-#endif
-
-bool
-PluginModuleParent::RecvProcessNativeEventsInRPCCall()
-{
-    PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
-#if defined(OS_WIN)
-    ProcessNativeEventsInRPCCall();
-    return true;
-#else
-    NS_NOTREACHED(
-        "PluginInstanceParent::AnswerSetNestedEventState not implemented!");
-    return false;
-#endif
-}
-
-#ifdef OS_MACOSX
-#define DEFAULT_REFRESH_MS 20 // CoreAnimation: 50 FPS
-void
-PluginModuleParent::AddToRefreshTimer(PluginInstanceParent *aInstance) {
-    if (mCATimerTargets.Contains(aInstance)) {
-        return;
-    }
-
-    mCATimerTargets.AppendElement(aInstance);
-    if (mCATimerTargets.Length() == 1) {
-        mCATimer.Start(base::TimeDelta::FromMilliseconds(DEFAULT_REFRESH_MS),
-                       this, &PluginModuleParent::CAUpdate);
-    }
-}
-
-void
-PluginModuleParent::RemoveFromRefreshTimer(PluginInstanceParent *aInstance) {
-    PRBool visibleRemoved = mCATimerTargets.RemoveElement(aInstance);
-    if (visibleRemoved && mCATimerTargets.IsEmpty()) {
-        mCATimer.Stop();
-    }
-}
-
-void
-PluginModuleParent::CAUpdate() {
-    nsTObserverArray<PluginInstanceParent*>::ForwardIterator iter(mCATimerTargets);
-    while (iter.HasMore()) {
-        iter.GetNext()->Invalidate();
-    }
-}
-#endif

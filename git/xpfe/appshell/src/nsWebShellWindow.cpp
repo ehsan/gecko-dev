@@ -407,15 +407,6 @@ nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
         break;
       }
 
-      case NS_UISTATECHANGED: {
-        nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(docShell);
-        if (window) {
-          nsUIStateChangeEvent* event = (nsUIStateChangeEvent*)aEvent;
-          window->SetKeyboardIndicators(event->showAccelerators, event->showFocusRings);
-        }
-        break;
-      }
-
       case NS_SETZLEVEL: {
         nsZLevelEvent *zEvent = (nsZLevelEvent *) aEvent;
 
@@ -640,8 +631,13 @@ nsCOMPtr<nsIDOMDocument> nsWebShellWindow::GetNamedDOMDoc(const nsAString & aDoc
   childDocShell->GetContentViewer(getter_AddRefs(cv));
   if (!cv)
     return domDoc;
- 
-  nsIDocument* doc = cv->GetDocument();
+   
+  nsCOMPtr<nsIDocumentViewer> docv(do_QueryInterface(cv));
+  if (!docv)
+    return domDoc;
+
+  nsCOMPtr<nsIDocument> doc;
+  docv->GetDocument(getter_AddRefs(doc));
   if (doc)
     return nsCOMPtr<nsIDOMDocument>(do_QueryInterface(doc));
 
@@ -662,9 +658,11 @@ void nsWebShellWindow::LoadContentAreas() {
   if (mDocShell)
     mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
   if (contentViewer) {
-    nsIDocument* doc = contentViewer->GetDocument();
-    if (doc) {
-      nsIURI* mainURL = doc->GetDocumentURI();
+    nsCOMPtr<nsIDocumentViewer> docViewer = do_QueryInterface(contentViewer);
+    if (docViewer) {
+      nsCOMPtr<nsIDocument> doc;
+      docViewer->GetDocument(getter_AddRefs(doc));
+      nsIURI *mainURL = doc->GetDocumentURI();
 
       nsCOMPtr<nsIURL> url = do_QueryInterface(mainURL);
       if (url) {
@@ -745,7 +743,7 @@ PRBool nsWebShellWindow::ExecuteCloseHandler()
     nsCOMPtr<nsIDocumentViewer> docViewer(do_QueryInterface(contentViewer));
 
     if (docViewer) {
-      nsRefPtr<nsPresContext> presContext;
+      nsCOMPtr<nsPresContext> presContext;
       docViewer->GetPresContext(getter_AddRefs(presContext));
 
       nsEventStatus status = nsEventStatus_eIgnore;

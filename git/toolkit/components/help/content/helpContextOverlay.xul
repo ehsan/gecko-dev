@@ -44,8 +44,8 @@
 
 # Help Window's right-click menu
   <popupset id="contentAreaContextSet">
-    <menupopup id="contentAreaContextMenu"
-               onpopupshowing="goUpdateCommand('cmd_copy')">
+    <popup id="contentAreaContextMenu"
+           onpopupshowing="goUpdateCommand('cmd_copy')">
       <menuitem id="context-back"
                 label="&backButton.label;"
                 accesskey="&backButton.accesskey;"
@@ -88,6 +88,6 @@
                 accesskey="&zLevel.accesskey;"
                 oncommand="toggleZLevel(this);"/>
 #endif
-    </menupopup>
+    </popup>
   </popupset>
 </overlay>

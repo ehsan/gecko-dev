@@ -28,7 +28,7 @@
  *
  * The Original Code is the cairo graphics library.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  *
  * Contributor(s):
  *	Vladimir Vukicevic <vladimir@mozilla.com>
@@ -38,9 +38,6 @@
 #include "cairoint.h"
 
 #include "cairo-quartz-private.h"
-#include "cairo-surface-clipper-private.h"
-#include "cairo-gstate-private.h"
-#include "cairo-private.h"
 
 #include <dlfcn.h>
 
@@ -67,11 +64,6 @@
 #endif
 
 #define IS_EMPTY(s) ((s)->extents.width == 0 || (s)->extents.height == 0)
-
-/* Here are some of the differences between cairo and CoreGraphics
-   - cairo has only a single source active at once vs. CoreGraphics having
-     separate sources for stroke and fill
-*/
 
 /* This method is private, but it exists.  Its params are are exposed
  * as args to the NS* method, but not as CG.
@@ -207,16 +199,16 @@ _cairo_quartz_create_cgimage (cairo_format_t format,
 	    bitsPerPixel = 32;
 	    break;
 
+	/* XXX -- should use CGImageMaskCreate! */
 	case CAIRO_FORMAT_A8:
+	    if (colorSpace == NULL)
+		colorSpace = CGColorSpaceCreateDeviceGray();
+	    bitinfo = kCGImageAlphaNone;
 	    bitsPerComponent = 8;
 	    bitsPerPixel = 8;
 	    break;
 
 	case CAIRO_FORMAT_A1:
-	    bitsPerComponent = 1;
-	    bitsPerPixel = 1;
-	    break;
-
 	default:
 	    return NULL;
     }
@@ -233,26 +225,16 @@ _cairo_quartz_create_cgimage (cairo_format_t format,
 	goto FINISH;
     }
 
-    if (format == CAIRO_FORMAT_A8 || format == CAIRO_FORMAT_A1) {
-	CGFloat decode[] = {1.0, 0.0};
-	image = CGImageMaskCreate (width, height,
-				   bitsPerComponent,
-				   bitsPerPixel,
-				   stride,
-				   dataProvider,
-				   decode,
-				   interpolate);
-    } else
-	image = CGImageCreate (width, height,
-			       bitsPerComponent,
-			       bitsPerPixel,
-			       stride,
-			       colorSpace,
-			       bitinfo,
-			       dataProvider,
-			       NULL,
-			       interpolate,
-			       kCGRenderingIntentDefault);
+    image = CGImageCreate (width, height,
+			   bitsPerComponent,
+			   bitsPerPixel,
+			   stride,
+			   colorSpace,
+			   bitinfo,
+			   dataProvider,
+			   NULL,
+			   interpolate,
+			   kCGRenderingIntentDefault);
 
 FINISH:
 
@@ -402,7 +384,7 @@ _cairo_quartz_cairo_path_to_quartz_context (cairo_path_fixed_t *path,
  */
 
 static PrivateCGCompositeMode
-_cairo_quartz_cairo_operator_to_quartz_composite (cairo_operator_t op)
+_cairo_quartz_cairo_operator_to_quartz (cairo_operator_t op)
 {
     switch (op) {
 	case CAIRO_OPERATOR_CLEAR:
@@ -412,150 +394,39 @@ _cairo_quartz_cairo_operator_to_quartz_composite (cairo_operator_t op)
 	case CAIRO_OPERATOR_OVER:
 	    return kPrivateCGCompositeSourceOver;
 	case CAIRO_OPERATOR_IN:
+	    /* XXX This doesn't match image output */
 	    return kPrivateCGCompositeSourceIn;
 	case CAIRO_OPERATOR_OUT:
+	    /* XXX This doesn't match image output */
 	    return kPrivateCGCompositeSourceOut;
 	case CAIRO_OPERATOR_ATOP:
 	    return kPrivateCGCompositeSourceAtop;
+
+	case CAIRO_OPERATOR_DEST:
+	    /* XXX this is handled specially (noop)! */
+	    return kPrivateCGCompositeCopy;
 	case CAIRO_OPERATOR_DEST_OVER:
 	    return kPrivateCGCompositeDestinationOver;
 	case CAIRO_OPERATOR_DEST_IN:
+	    /* XXX This doesn't match image output */
 	    return kPrivateCGCompositeDestinationIn;
 	case CAIRO_OPERATOR_DEST_OUT:
 	    return kPrivateCGCompositeDestinationOut;
 	case CAIRO_OPERATOR_DEST_ATOP:
+	    /* XXX This doesn't match image output */
 	    return kPrivateCGCompositeDestinationAtop;
+
 	case CAIRO_OPERATOR_XOR:
-	    return kPrivateCGCompositeXOR;
+	    return kPrivateCGCompositeXOR; /* This will generate strange results */
 	case CAIRO_OPERATOR_ADD:
 	    return kPrivateCGCompositePlusLighter;
-
-	case CAIRO_OPERATOR_DEST:
 	case CAIRO_OPERATOR_SATURATE:
-	case CAIRO_OPERATOR_MULTIPLY:
-	case CAIRO_OPERATOR_SCREEN:
-	case CAIRO_OPERATOR_OVERLAY:
-	case CAIRO_OPERATOR_DARKEN:
-	case CAIRO_OPERATOR_LIGHTEN:
-	case CAIRO_OPERATOR_COLOR_DODGE:
-	case CAIRO_OPERATOR_COLOR_BURN:
-	case CAIRO_OPERATOR_HARD_LIGHT:
-	case CAIRO_OPERATOR_SOFT_LIGHT:
-	case CAIRO_OPERATOR_DIFFERENCE:
-	case CAIRO_OPERATOR_EXCLUSION:
-	case CAIRO_OPERATOR_HSL_HUE:
-	case CAIRO_OPERATOR_HSL_SATURATION:
-	case CAIRO_OPERATOR_HSL_COLOR:
-	case CAIRO_OPERATOR_HSL_LUMINOSITY:
-        default:
-	    assert (0);
+	    /* XXX This doesn't match image output for SATURATE; there's no equivalent */
+	    return kPrivateCGCompositePlusDarker;  /* ??? */
     }
-}
-
-static cairo_int_status_t
-_cairo_quartz_surface_set_cairo_operator (cairo_quartz_surface_t *surface, cairo_operator_t op)
-{
-    ND((stderr, "%p _cairo_quartz_surface_set_cairo_operator %d\n", surface, op));
-
-    if (surface->base.content == CAIRO_CONTENT_ALPHA) {
-	/* For some weird reason, some compositing operators are
-	   swapped when operating on masks */
-	switch (op) {
-	    case CAIRO_OPERATOR_CLEAR:
-	    case CAIRO_OPERATOR_SOURCE:
-	    case CAIRO_OPERATOR_OVER:
-	    case CAIRO_OPERATOR_DEST_IN:
-	    case CAIRO_OPERATOR_DEST_OUT:
-	    case CAIRO_OPERATOR_ADD:
-		CGContextSetCompositeOperation (surface->cgContext, _cairo_quartz_cairo_operator_to_quartz_composite (op));
-		return CAIRO_STATUS_SUCCESS;
-
-	    case CAIRO_OPERATOR_IN:
-		CGContextSetCompositeOperation (surface->cgContext, kPrivateCGCompositeDestinationAtop);
-		return CAIRO_STATUS_SUCCESS;
-
-	    case CAIRO_OPERATOR_DEST_OVER:
-	    case CAIRO_OPERATOR_MULTIPLY:
-	    case CAIRO_OPERATOR_SCREEN:
-	    case CAIRO_OPERATOR_OVERLAY:
-	    case CAIRO_OPERATOR_DARKEN:
-	    case CAIRO_OPERATOR_LIGHTEN:
-	    case CAIRO_OPERATOR_COLOR_DODGE:
-	    case CAIRO_OPERATOR_COLOR_BURN:
-	    case CAIRO_OPERATOR_HARD_LIGHT:
-	    case CAIRO_OPERATOR_SOFT_LIGHT:
-	    case CAIRO_OPERATOR_DIFFERENCE:
-	    case CAIRO_OPERATOR_EXCLUSION:
-	    case CAIRO_OPERATOR_HSL_HUE:
-	    case CAIRO_OPERATOR_HSL_SATURATION:
-	    case CAIRO_OPERATOR_HSL_COLOR:
-	    case CAIRO_OPERATOR_HSL_LUMINOSITY:
-		CGContextSetCompositeOperation (surface->cgContext, kPrivateCGCompositeSourceOver);
-		return CAIRO_STATUS_SUCCESS;
-
-	    case CAIRO_OPERATOR_DEST_ATOP:
-		CGContextSetCompositeOperation (surface->cgContext, kPrivateCGCompositeSourceIn);
-		return CAIRO_STATUS_SUCCESS;
-
-	    case CAIRO_OPERATOR_SATURATE:
-		CGContextSetCompositeOperation (surface->cgContext, kPrivateCGCompositePlusLighter);
-		return CAIRO_STATUS_SUCCESS;
 
 
-	    case CAIRO_OPERATOR_ATOP:
-		/*
-		CGContextSetCompositeOperation (surface->cgContext, kPrivateCGCompositeDestinationOver);
-		return CAIRO_STATUS_SUCCESS;
-		*/
-	    case CAIRO_OPERATOR_DEST:
-		return CAIRO_INT_STATUS_NOTHING_TO_DO;
-
-	    case CAIRO_OPERATOR_OUT:
-	    case CAIRO_OPERATOR_XOR:
-	    default:
-		return CAIRO_INT_STATUS_UNSUPPORTED;
-	}
-    } else {
-	switch (op) {
-	    case CAIRO_OPERATOR_CLEAR:
-	    case CAIRO_OPERATOR_SOURCE:
-	    case CAIRO_OPERATOR_OVER:
-	    case CAIRO_OPERATOR_IN:
-	    case CAIRO_OPERATOR_OUT:
-	    case CAIRO_OPERATOR_ATOP:
-	    case CAIRO_OPERATOR_DEST_OVER:
-	    case CAIRO_OPERATOR_DEST_IN:
-	    case CAIRO_OPERATOR_DEST_OUT:
-	    case CAIRO_OPERATOR_DEST_ATOP:
-	    case CAIRO_OPERATOR_XOR:
-	    case CAIRO_OPERATOR_ADD:
-		CGContextSetCompositeOperation (surface->cgContext, _cairo_quartz_cairo_operator_to_quartz_composite (op));
-		return CAIRO_STATUS_SUCCESS;
-
-	    case CAIRO_OPERATOR_DEST:
-		return CAIRO_INT_STATUS_NOTHING_TO_DO;
-
-	    case CAIRO_OPERATOR_SATURATE:
-	    /* TODO: the following are mostly supported by CGContextSetBlendMode*/
-	    case CAIRO_OPERATOR_MULTIPLY:
-	    case CAIRO_OPERATOR_SCREEN:
-	    case CAIRO_OPERATOR_OVERLAY:
-	    case CAIRO_OPERATOR_DARKEN:
-	    case CAIRO_OPERATOR_LIGHTEN:
-	    case CAIRO_OPERATOR_COLOR_DODGE:
-	    case CAIRO_OPERATOR_COLOR_BURN:
-	    case CAIRO_OPERATOR_HARD_LIGHT:
-	    case CAIRO_OPERATOR_SOFT_LIGHT:
-	    case CAIRO_OPERATOR_DIFFERENCE:
-	    case CAIRO_OPERATOR_EXCLUSION:
-	    case CAIRO_OPERATOR_HSL_HUE:
-	    case CAIRO_OPERATOR_HSL_SATURATION:
-	    case CAIRO_OPERATOR_HSL_COLOR:
-	    case CAIRO_OPERATOR_HSL_LUMINOSITY:
-	    default:
-		return CAIRO_INT_STATUS_UNSUPPORTED;
-	}
-    }
+    return kPrivateCGCompositeCopy;
 }
 
 static inline CGLineCap
@@ -654,36 +525,37 @@ _cairo_quartz_fixup_unbounded_operation (cairo_quartz_surface_t *surface,
 					 unbounded_op_data_t *op,
 					 cairo_antialias_t antialias)
 {
+    CGColorSpaceRef gray;
     CGRect clipBox, clipBoxRound;
     CGContextRef cgc;
     CGImageRef maskImage;
 
-    /* TODO: handle failure */
     if (!CGContextClipToMaskPtr)
 	return;
 
     clipBox = CGContextGetClipBoundingBox (surface->cgContext);
     clipBoxRound = CGRectIntegral (clipBox);
 
+    gray = CGColorSpaceCreateDeviceGray ();
     cgc = CGBitmapContextCreate (NULL,
 				 clipBoxRound.size.width,
 				 clipBoxRound.size.height,
 				 8,
-				 (((size_t) clipBoxRound.size.width) + 15) & (~15),
-				 NULL,
-				 kCGImageAlphaOnly);
+				 clipBoxRound.size.width,
+				 gray,
+				 kCGImageAlphaNone);
+    CGColorSpaceRelease (gray);
 
     if (!cgc)
 	return;
 
-    CGContextSetCompositeOperation (cgc, kPrivateCGCompositeCopy);
     /* We want to mask out whatever we just rendered, so we fill the
-     * surface opaque, and then we'll render transparent.
+     * surface with white, and then we'll render with black.
      */
-    CGContextSetAlpha (cgc, 1.0f);
+    CGContextSetRGBFillColor (cgc, 1.0f, 1.0f, 1.0f, 1.0f);
     CGContextFillRect (cgc, CGRectMake (0, 0, clipBoxRound.size.width, clipBoxRound.size.height));
 
-    CGContextSetCompositeOperation (cgc, kPrivateCGCompositeClear);
+    CGContextSetRGBFillColor (cgc, 0.0f, 0.0f, 0.0f, 1.0f);
     CGContextSetShouldAntialias (cgc, (antialias != CAIRO_ANTIALIAS_NONE));
 
     CGContextTranslateCTM (cgc, -clipBoxRound.origin.x, -clipBoxRound.origin.y);
@@ -718,26 +590,27 @@ _cairo_quartz_fixup_unbounded_operation (cairo_quartz_surface_t *surface,
 					 op->u.show_glyphs.nglyphs);
 
 	if (op->u.show_glyphs.isClipping) {
-	    CGContextClearRect (cgc, clipBoxRound);
+	    CGContextFillRect (cgc, CGRectMake (0.0, 0.0, clipBoxRound.size.width, clipBoxRound.size.height));
 	    CGContextRestoreGState (cgc);
 	}
     } else if (op->op == UNBOUNDED_MASK) {
-	CGAffineTransform ctm = CGContextGetCTM (cgc);
 	CGContextSaveGState (cgc);
 	CGContextConcatCTM (cgc, op->u.mask.maskTransform);
 	CGContextClipToMask (cgc, CGRectMake (0.0f, 0.0f,
 					      CGImageGetWidth(op->u.mask.mask), CGImageGetHeight(op->u.mask.mask)),
 			     op->u.mask.mask);
-	CGContextSetCTM (cgc, ctm);
-	CGContextClearRect (cgc, clipBoxRound);
+	CGContextFillRect (cgc, CGRectMake (0.0, 0.0, clipBoxRound.size.width, clipBoxRound.size.height));
 	CGContextRestoreGState (cgc);
     }
 
     /* Also mask out the portion of the clipbox that we rounded out, if any */
     if (!CGRectEqualToRect (clipBox, clipBoxRound)) {
 	CGContextBeginPath (cgc);
-	CGContextAddRect (cgc, clipBoxRound);
-	CGContextAddRect (cgc, clipBox);
+	CGContextAddRect (cgc, CGRectMake (0.0, 0.0, clipBoxRound.size.width, clipBoxRound.size.height));
+	CGContextAddRect (cgc, CGRectMake (clipBoxRound.origin.x - clipBox.origin.x,
+					   clipBoxRound.origin.y - clipBox.origin.y,
+					   clipBox.size.width,
+					   clipBox.size.height));
 	CGContextEOFillPath (cgc);
     }
 
@@ -765,7 +638,7 @@ _cairo_quartz_fixup_unbounded_operation (cairo_quartz_surface_t *surface,
  */
 
 static void
-ComputeGradientValue (void *info, const CGFloat *in, CGFloat *out)
+ComputeGradientValue (void *info, const float *in, float *out)
 {
     double fdist = *in;
     const cairo_gradient_pattern_t *grad = (cairo_gradient_pattern_t*) info;
@@ -816,7 +689,7 @@ ComputeGradientValue (void *info, const CGFloat *in, CGFloat *out)
     }
 }
 
-static const CGFloat gradient_output_value_ranges[8] = {
+static const float gradient_output_value_ranges[8] = {
     0.f, 1.f, 0.f, 1.f, 0.f, 1.f, 0.f, 1.f
 };
 static const CGFunctionCallbacks gradient_callbacks = {
@@ -842,7 +715,7 @@ static const CGFunctionCallbacks gradient_callbacks = {
    function into an array of fixed size, so if the input range is larger
    than needed, the resolution of the gradient will be unnecessarily low.
 */
-static const CGFloat nonrepeating_gradient_input_value_range[2] = { -0.001f, 1.f };
+static const float nonrepeating_gradient_input_value_range[2] = { -0.001f, 1.f };
 
 static CGFunctionRef
 CreateGradientFunction (const cairo_gradient_pattern_t *gpat)
@@ -904,7 +777,7 @@ CreateRepeatingLinearGradientFunction (cairo_quartz_surface_t *surface,
 				       cairo_rectangle_int_t *extents)
 {
     cairo_pattern_t *pat;
-    CGFloat input_value_range[2];
+    float input_value_range[2];
     double t_min = 0.;
     double t_max = 0.;
     double dx = end->x - start->x;
@@ -1014,7 +887,7 @@ CreateRepeatingRadialGradientFunction (cairo_quartz_surface_t *surface,
                                        cairo_rectangle_int_t *extents)
 {
     cairo_pattern_t *pat;
-    CGFloat input_value_range[2];
+    float input_value_range[2];
     CGPoint *inner;
     double *inner_radius;
     CGPoint *outer;
@@ -1115,7 +988,8 @@ DataProviderReleaseCallback (void *info, const void *data, size_t size)
 }
 
 static cairo_status_t
-_cairo_surface_to_cgimage (cairo_surface_t *source,
+_cairo_surface_to_cgimage (cairo_surface_t *target,
+			   cairo_surface_t *source,
 			   CGImageRef *image_out)
 {
     cairo_status_t status = CAIRO_STATUS_SUCCESS;
@@ -1138,20 +1012,14 @@ _cairo_surface_to_cgimage (cairo_surface_t *source,
 	}
 
 	if (_cairo_quartz_is_cgcontext_bitmap_context (surface->cgContext)) {
-	    if (!surface->bitmapContextImage) {
-	        surface->bitmapContextImage =
-	            CGBitmapContextCreateImage (surface->cgContext);
-	    }
-	    if (surface->bitmapContextImage) {
-                *image_out = CGImageRetain (surface->bitmapContextImage);
-                return CAIRO_STATUS_SUCCESS;
-            }
+	    *image_out = CGBitmapContextCreateImage (surface->cgContext);
+	    if (*image_out)
+		return CAIRO_STATUS_SUCCESS;
 	}
     }
 
     if (stype != CAIRO_SURFACE_TYPE_IMAGE) {
-	status = _cairo_surface_acquire_source_image (source,
-						      &isurf, &image_extra);
+	status = _cairo_surface_acquire_source_image (source, &isurf, &image_extra);
 	if (status)
 	    return status;
     } else {
@@ -1162,11 +1030,12 @@ _cairo_surface_to_cgimage (cairo_surface_t *source,
 	*image_out = NULL;
     } else {
 	cairo_image_surface_t *isurf_snap = NULL;
+	isurf_snap = (cairo_image_surface_t*) _cairo_surface_snapshot ((cairo_surface_t*) isurf);
+	if (isurf_snap == NULL)
+	    return CAIRO_STATUS_NO_MEMORY;
 
-	isurf_snap = (cairo_image_surface_t*)
-	    _cairo_surface_snapshot (&isurf->base);
-	if (isurf_snap->base.status)
-	    return isurf_snap->base.status;
+	if (isurf_snap->base.type != CAIRO_SURFACE_TYPE_IMAGE)
+	    return CAIRO_STATUS_SURFACE_TYPE_MISMATCH;
 
 	image = _cairo_quartz_create_cgimage (isurf_snap->format,
 					      isurf_snap->width,
@@ -1179,11 +1048,9 @@ _cairo_surface_to_cgimage (cairo_surface_t *source,
 					      isurf_snap);
 
 	*image_out = image;
-	if (image == NULL)
-	    status = CAIRO_INT_STATUS_UNSUPPORTED;
     }
 
-    if (&isurf->base != source)
+    if ((cairo_surface_t*) isurf != source)
 	_cairo_surface_release_source_image (source, isurf, image_extra);
 
     return status;
@@ -1257,7 +1124,6 @@ _cairo_quartz_cairo_repeating_surface_pattern_to_quartz (cairo_quartz_surface_t 
     SurfacePatternDrawInfo *info;
     float rw, rh;
     cairo_status_t status;
-    cairo_bool_t is_bounded;
 
     cairo_matrix_t m;
 
@@ -1268,12 +1134,14 @@ _cairo_quartz_cairo_repeating_surface_pattern_to_quartz (cairo_quartz_surface_t 
     spattern = (cairo_surface_pattern_t *) apattern;
     pat_surf = spattern->surface;
 
-    is_bounded = _cairo_surface_get_extents (pat_surf, &extents);
-    assert (is_bounded);
-
-    status = _cairo_surface_to_cgimage (pat_surf, &image);
+    status = _cairo_surface_get_extents (pat_surf, &extents);
     if (status)
 	return status;
+
+    status = _cairo_surface_to_cgimage ((cairo_surface_t*) dest, pat_surf, &image);
+    if (status != CAIRO_STATUS_SUCCESS)
+	return CAIRO_INT_STATUS_UNSUPPORTED;
+
     if (image == NULL)
 	return CAIRO_INT_STATUS_NOTHING_TO_DO;
 
@@ -1342,55 +1210,28 @@ typedef enum {
     DO_SHADING,
     DO_PATTERN,
     DO_IMAGE,
-    DO_TILED_IMAGE,
-    DO_LAYER,
     DO_UNSUPPORTED,
-    DO_NOTHING
+    DO_NOTHING,
+    DO_TILED_IMAGE
 } cairo_quartz_action_t;
 
-/* State used during a drawing operation. */
-typedef struct {
-    CGContextRef context;
-    cairo_quartz_action_t action;
-
-    // Used with DO_SHADING, DO_IMAGE, DO_TILED_IMAGE and DO_LAYER
-    CGAffineTransform transform;
-
-    // Used with DO_IMAGE and DO_TILED_IMAGE
-    CGImageRef image;
-    cairo_surface_t *imageSurface;
-
-    // Used with DO_IMAGE, DO_TILED_IMAGE and DO_LAYER
-    CGRect imageRect;
-
-    // Used with DO_LAYER
-    CGLayerRef layer;
-
-    // Used with DO_SHADING
-    CGShadingRef shading;
-
-    // Used with DO_PATTERN
-    CGPatternRef pattern;
-} cairo_quartz_drawing_state_t;
-
-static void
+static cairo_quartz_action_t
 _cairo_quartz_setup_fallback_source (cairo_quartz_surface_t *surface,
-				     const cairo_pattern_t *source,
-				     cairo_quartz_drawing_state_t *state)
+				     const cairo_pattern_t *source)
 {
-    CGRect clipBox = CGContextGetClipBoundingBox (state->context);
+    CGRect clipBox = CGContextGetClipBoundingBox (surface->cgContext);
     double x0, y0, w, h;
 
     cairo_surface_t *fallback;
+    cairo_t *fallback_cr;
     CGImageRef img;
+    cairo_pattern_t *source_copy;
 
     cairo_status_t status;
 
     if (clipBox.size.width == 0.0f ||
-	clipBox.size.height == 0.0f) {
-	state->action = DO_NOTHING;
-	return;
-    }
+	clipBox.size.height == 0.0f)
+	return DO_NOTHING;
 
     x0 = floor(clipBox.origin.x);
     y0 = floor(clipBox.origin.y);
@@ -1402,52 +1243,31 @@ _cairo_quartz_setup_fallback_source (cairo_quartz_surface_t *surface,
     fallback = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, (int) w, (int) h);
     cairo_surface_set_device_offset (fallback, -x0, -y0);
 
-#if 0
-    {
-	cairo_t *fallback_cr;
-	cairo_pattern_t *source_copy;
+    /* Paint the source onto our temporary */
+    fallback_cr = cairo_create (fallback);
+    cairo_set_operator (fallback_cr, CAIRO_OPERATOR_SOURCE);
 
-	/* Paint the source onto our temporary */
-	fallback_cr = cairo_create (fallback);
-	cairo_set_operator (fallback_cr, CAIRO_OPERATOR_SOURCE);
+    /* Use a copy of the pattern because it is const and could be allocated
+     * on the stack */
+    status = _cairo_pattern_create_copy (&source_copy, source);
+    cairo_set_source (fallback_cr, source_copy);
+    cairo_pattern_destroy (source_copy);
 
-	/* Use a copy of the pattern because it is const and could be allocated
-	 * on the stack */
-	status = _cairo_pattern_create_copy (&source_copy, source);
-	cairo_set_source (fallback_cr, source_copy);
-	cairo_pattern_destroy (source_copy);
+    cairo_paint (fallback_cr);
+    cairo_destroy (fallback_cr);
 
-	cairo_paint (fallback_cr);
-	cairo_destroy (fallback_cr);
-    }
-#else
-    {
-	cairo_pattern_union_t pattern;
+    status = _cairo_surface_to_cgimage ((cairo_surface_t*) surface, fallback, &img);
+    if (status == CAIRO_STATUS_SUCCESS && img == NULL)
+	return DO_NOTHING;
+    if (status)
+	return DO_UNSUPPORTED;
 
-	_cairo_pattern_init_static_copy (&pattern.base, source);
-	_cairo_pattern_transform (&pattern.base,
-				  &fallback->device_transform_inverse);
-	status = _cairo_surface_paint (fallback,
-				       CAIRO_OPERATOR_SOURCE,
-				       &pattern.base, NULL);
-    }
-#endif
+    surface->sourceImageRect = CGRectMake (0.0, 0.0, w, h);
+    surface->sourceImage = img;
+    surface->sourceImageSurface = fallback;
+    surface->sourceTransform = CGAffineTransformMakeTranslation (x0, y0);
 
-    status = _cairo_surface_to_cgimage (fallback, &img);
-    if (status) {
-        state->action = DO_UNSUPPORTED;
-	return;
-    }
-    if (img == NULL) {
-        state->action = DO_NOTHING;
-	return;
-    }
-
-    state->imageRect = CGRectMake (0.0, 0.0, w, h);
-    state->image = img;
-    state->imageSurface = fallback;
-    state->transform = CGAffineTransformMakeTranslation (x0, y0);
-    state->action = DO_IMAGE;
+    return DO_IMAGE;
 }
 
 /*
@@ -1463,11 +1283,10 @@ based on the extents of the object (the clip region cannot be used here since
 we don't want the rasterization of the entire gradient to depend on the
 clip region).
 */
-static void
+static cairo_quartz_action_t
 _cairo_quartz_setup_linear_source (cairo_quartz_surface_t *surface,
 				   const cairo_linear_pattern_t *lpat,
-				   cairo_rectangle_int_t *extents,
-				   cairo_quartz_drawing_state_t *state)
+				   cairo_rectangle_int_t *extents)
 {
     const cairo_pattern_t *abspat = &lpat->base.base;
     cairo_matrix_t mat;
@@ -1477,10 +1296,9 @@ _cairo_quartz_setup_linear_source (cairo_quartz_surface_t *surface,
     bool extend = abspat->extend == CAIRO_EXTEND_PAD;
 
     if (lpat->base.n_stops == 0) {
-	CGContextSetRGBStrokeColor (state->context, 0., 0., 0., 0.);
-	CGContextSetRGBFillColor (state->context, 0., 0., 0., 0.);
-	state->action = DO_SOLID;
-	return;
+	CGContextSetRGBStrokeColor (surface->cgContext, 0., 0., 0., 0.);
+	CGContextSetRGBFillColor (surface->cgContext, 0., 0., 0., 0.);
+	return DO_SOLID;
     }
 
     if (lpat->p1.x == lpat->p2.x &&
@@ -1490,13 +1308,12 @@ _cairo_quartz_setup_linear_source (cairo_quartz_surface_t *surface,
 	 * Whatever the correct behaviour is, let's at least have only pixman's
 	 * implementation to worry about.
 	 */
-	_cairo_quartz_setup_fallback_source (surface, abspat, state);
-	return;
+	return _cairo_quartz_setup_fallback_source (surface, abspat);
     }
 
     mat = abspat->matrix;
     cairo_matrix_invert (&mat);
-    _cairo_quartz_cairo_matrix_to_quartz (&mat, &state->transform);
+    _cairo_quartz_cairo_matrix_to_quartz (&mat, &surface->sourceTransform);
 
     rgb = CGColorSpaceCreateDeviceRGB();
 
@@ -1516,22 +1333,21 @@ _cairo_quartz_setup_linear_source (cairo_quartz_surface_t *surface,
 						          extents);
     }
 
-    state->shading = CGShadingCreateAxial (rgb,
-					   start, end,
-					   gradFunc,
-					   extend, extend);
+    surface->sourceShading = CGShadingCreateAxial (rgb,
+						   start, end,
+						   gradFunc,
+						   extend, extend);
 
     CGColorSpaceRelease(rgb);
     CGFunctionRelease(gradFunc);
 
-    state->action = DO_SHADING;
+    return DO_SHADING;
 }
 
-static void
+static cairo_quartz_action_t
 _cairo_quartz_setup_radial_source (cairo_quartz_surface_t *surface,
 				   const cairo_radial_pattern_t *rpat,
-				   cairo_rectangle_int_t *extents,
-				   cairo_quartz_drawing_state_t *state)
+				   cairo_rectangle_int_t *extents)
 {
     const cairo_pattern_t *abspat = &rpat->base.base;
     cairo_matrix_t mat;
@@ -1550,10 +1366,9 @@ _cairo_quartz_setup_radial_source (cairo_quartz_surface_t *surface,
     double centerDistance = sqrt (dx*dx + dy*dy);
 
     if (rpat->base.n_stops == 0) {
-	CGContextSetRGBStrokeColor (state->context, 0., 0., 0., 0.);
-	CGContextSetRGBFillColor (state->context, 0., 0., 0., 0.);
-	state->action = DO_SOLID;
-	return;
+	CGContextSetRGBStrokeColor (surface->cgContext, 0., 0., 0., 0.);
+	CGContextSetRGBFillColor (surface->cgContext, 0., 0., 0., 0.);
+	return DO_SOLID;
     }
 
     if (r2 <= centerDistance + r1 + 1e-6 && /* circle 2 doesn't contain circle 1 */
@@ -1564,13 +1379,12 @@ _cairo_quartz_setup_radial_source (cairo_quartz_surface_t *surface,
 	 * implementation to worry about.
 	 * Note that this also catches the cases where r1 == r2.
 	 */
-	_cairo_quartz_setup_fallback_source (surface, abspat, state);
-	return;
+	return _cairo_quartz_setup_fallback_source (surface, abspat);
     }
 
     mat = abspat->matrix;
     cairo_matrix_invert (&mat);
-    _cairo_quartz_cairo_matrix_to_quartz (&mat, &state->transform);
+    _cairo_quartz_cairo_matrix_to_quartz (&mat, &surface->sourceTransform);
 
     rgb = CGColorSpaceCreateDeviceRGB();
 
@@ -1589,102 +1403,55 @@ _cairo_quartz_setup_radial_source (cairo_quartz_surface_t *surface,
 						          extents);
     }
 
-    state->shading = CGShadingCreateRadial (rgb,
-					    start,
-					    r1,
-					    end,
-					    r2,
-					    gradFunc,
-					    extend, extend);
+    surface->sourceShading = CGShadingCreateRadial (rgb,
+						    start,
+						    r1,
+						    end,
+						    r2,
+						    gradFunc,
+						    extend, extend);
 
     CGColorSpaceRelease(rgb);
     CGFunctionRelease(gradFunc);
 
-    state->action = DO_SHADING;
+    return DO_SHADING;
 }
 
-/**
- * Call this before any operation that can modify the contents of a
- * cairo_quartz_surface_t.
- */
-static void
-_cairo_quartz_surface_will_change (cairo_quartz_surface_t *surface)
+static cairo_quartz_action_t
+_cairo_quartz_setup_source (cairo_quartz_surface_t *surface,
+			    const cairo_pattern_t *source,
+			    cairo_rectangle_int_t *extents)
 {
-    if (surface->bitmapContextImage) {
-        CGImageRelease (surface->bitmapContextImage);
-        surface->bitmapContextImage = NULL;
-    }
-}
+    assert (!(surface->sourceImage || surface->sourceShading || surface->sourcePattern));
 
-/**
- * Sets up internal state to be used to draw the source mask, stored in
- * cairo_quartz_state_t. Guarantees to call CGContextSaveGState on
- * surface->cgContext.
- */
-static cairo_quartz_drawing_state_t
-_cairo_quartz_setup_state (cairo_quartz_surface_t *surface,
-			   const cairo_pattern_t *source,
-			   cairo_operator_t op,
-			   cairo_rectangle_int_t *extents)
-{
-    CGContextRef context = surface->cgContext;
-    cairo_quartz_drawing_state_t state;
-    cairo_status_t status;
-
-    state.context = context;
-    state.image = NULL;
-    state.imageSurface = NULL;
-    state.layer = NULL;
-    state.shading = NULL;
-    state.pattern = NULL;
-
-    _cairo_quartz_surface_will_change (surface);
-
-    // Save before we change the pattern, colorspace, etc. so that
-    // we can restore and make sure that quartz releases our
-    // pattern (which may be stack allocated)
-    CGContextSaveGState(context);
-
-    CGContextSetInterpolationQuality (context, _cairo_quartz_filter_to_quartz (source->filter));
-
-    status = _cairo_quartz_surface_set_cairo_operator (surface, op);
-    if (status == CAIRO_INT_STATUS_NOTHING_TO_DO) {
-        state.action = DO_NOTHING;
-        return state;
-    }
-    if (status) {
-        state.action = DO_UNSUPPORTED;
-        return state;
-    }
+    surface->oldInterpolationQuality = CGContextGetInterpolationQuality (surface->cgContext);
+    CGContextSetInterpolationQuality (surface->cgContext, _cairo_quartz_filter_to_quartz (source->filter));
 
     if (source->type == CAIRO_PATTERN_TYPE_SOLID) {
 	cairo_solid_pattern_t *solid = (cairo_solid_pattern_t *) source;
 
-	CGContextSetRGBStrokeColor (context,
+	CGContextSetRGBStrokeColor (surface->cgContext,
 				    solid->color.red,
 				    solid->color.green,
 				    solid->color.blue,
 				    solid->color.alpha);
-	CGContextSetRGBFillColor (context,
+	CGContextSetRGBFillColor (surface->cgContext,
 				  solid->color.red,
 				  solid->color.green,
 				  solid->color.blue,
 				  solid->color.alpha);
 
-        state.action = DO_SOLID;
-        return state;
+	return DO_SOLID;
     }
 
     if (source->type == CAIRO_PATTERN_TYPE_LINEAR) {
 	const cairo_linear_pattern_t *lpat = (const cairo_linear_pattern_t *)source;
-	_cairo_quartz_setup_linear_source (surface, lpat, extents, &state);
-	return state;
+	return _cairo_quartz_setup_linear_source (surface, lpat, extents);
     }
 
     if (source->type == CAIRO_PATTERN_TYPE_RADIAL) {
 	const cairo_radial_pattern_t *rpat = (const cairo_radial_pattern_t *)source;
-	_cairo_quartz_setup_radial_source (surface, rpat, extents, &state);
-	return state;
+	return _cairo_quartz_setup_radial_source (surface, rpat, extents);
     }
 
     if (source->type == CAIRO_PATTERN_TYPE_SURFACE &&
@@ -1695,45 +1462,29 @@ _cairo_quartz_setup_state (cairo_quartz_surface_t *surface,
 	CGImageRef img;
 	cairo_matrix_t m = spat->base.matrix;
 	cairo_rectangle_int_t extents;
+	cairo_status_t status;
 	CGAffineTransform xform;
 	CGRect srcRect;
 	cairo_fixed_t fw, fh;
-	cairo_bool_t is_bounded;
 
-        cairo_matrix_invert(&m);
-        _cairo_quartz_cairo_matrix_to_quartz (&m, &state.transform);
+	status = _cairo_surface_to_cgimage ((cairo_surface_t *) surface, pat_surf, &img);
+	if (status == CAIRO_STATUS_SUCCESS && img == NULL)
+	    return DO_NOTHING;
+	if (status)
+	    return DO_UNSUPPORTED;
 
-        if (cairo_surface_get_type (pat_surf) == CAIRO_SURFACE_TYPE_QUARTZ) {
-            cairo_quartz_surface_t *quartz_surf = (cairo_quartz_surface_t *) pat_surf;
-            if (quartz_surf->cgLayer && source->extend == CAIRO_EXTEND_NONE) {
-         	state.imageRect = CGRectMake (0, 0, quartz_surf->extents.width, quartz_surf->extents.height);
-                state.layer = quartz_surf->cgLayer;
-                state.action = DO_LAYER;
-                return state;
-            }
-        }
+	surface->sourceImage = img;
 
-	status = _cairo_surface_to_cgimage (pat_surf, &img);
-        if (status) {
-            state.action = DO_UNSUPPORTED;
-	    return state;
-        }
-        if (img == NULL) {
-            state.action = DO_NOTHING;
-	    return state;
-        }
+	cairo_matrix_invert(&m);
+	_cairo_quartz_cairo_matrix_to_quartz (&m, &surface->sourceTransform);
 
-	CGContextSetRGBFillColor (surface->cgContext, 0, 0, 0, 1);
-
-	state.image = img;
-
-	is_bounded = _cairo_surface_get_extents (pat_surf, &extents);
-	assert (is_bounded);
+	status = _cairo_surface_get_extents (pat_surf, &extents);
+	if (status)
+	    return DO_UNSUPPORTED;
 
 	if (source->extend == CAIRO_EXTEND_NONE) {
-	    state.imageRect = CGRectMake (0, 0, extents.width, extents.height);
-	    state.action = DO_IMAGE;
-	    return state;
+	    surface->sourceImageRect = CGRectMake (0, 0, extents.width, extents.height);
+	    return DO_IMAGE;
 	}
 
 	/* Quartz seems to tile images at pixel-aligned regions only -- this
@@ -1743,8 +1494,8 @@ _cairo_quartz_setup_state (cairo_quartz_surface_t *surface,
 	 * epsilon), and if not, fall back to the CGPattern type.
 	 */
 
-	xform = CGAffineTransformConcat (CGContextGetCTM (context),
-					 state.transform);
+	xform = CGAffineTransformConcat (CGContextGetCTM (surface->cgContext),
+					 surface->sourceTransform);
 
 	srcRect = CGRectMake (0, 0, extents.width, extents.height);
 	srcRect = CGRectApplyAffineTransform (srcRect, xform);
@@ -1765,116 +1516,79 @@ _cairo_quartz_setup_state (cairo_quartz_surface_t *surface,
 
 	    srcRect = CGRectApplyAffineTransform (srcRect, xform);
 
-	    state.imageRect = srcRect;
-            state.action = DO_TILED_IMAGE;
-            return state;
+	    surface->sourceImageRect = srcRect;
+
+	    return DO_TILED_IMAGE;
 	}
 
 	/* Fall through to generic SURFACE case */
     }
 
     if (source->type == CAIRO_PATTERN_TYPE_SURFACE) {
-	CGFloat patternAlpha = 1.0f;
+	float patternAlpha = 1.0f;
 	CGColorSpaceRef patternSpace;
 	CGPatternRef pattern;
 	cairo_int_status_t status;
 
 	status = _cairo_quartz_cairo_repeating_surface_pattern_to_quartz (surface, source, &pattern);
-	if (status == CAIRO_INT_STATUS_NOTHING_TO_DO) {
-	    state.action = DO_NOTHING;
-	    return state;
-	}
-	if (status) {
-	    state.action = DO_UNSUPPORTED;
-	    return state;
-	}
+	if (status == CAIRO_INT_STATUS_NOTHING_TO_DO)
+	    return DO_NOTHING;
+	if (status)
+	    return DO_UNSUPPORTED;
 
-	patternSpace = CGColorSpaceCreatePattern (NULL);
-	CGContextSetFillColorSpace (context, patternSpace);
-	CGContextSetFillPattern (context, pattern, &patternAlpha);
-	CGContextSetStrokeColorSpace (context, patternSpace); 
-	CGContextSetStrokePattern (context, pattern, &patternAlpha);
+	// Save before we change the pattern, colorspace, etc. so that
+	// we can restore and make sure that quartz releases our
+	// pattern (which may be stack allocated)
+	CGContextSaveGState(surface->cgContext);
+
+	patternSpace = CGColorSpaceCreatePattern(NULL);
+	CGContextSetFillColorSpace (surface->cgContext, patternSpace);
+	CGContextSetFillPattern (surface->cgContext, pattern, &patternAlpha);
+	CGContextSetStrokeColorSpace (surface->cgContext, patternSpace);
+	CGContextSetStrokePattern (surface->cgContext, pattern, &patternAlpha);
 	CGColorSpaceRelease (patternSpace);
 
 	/* Quartz likes to munge the pattern phase (as yet unexplained
 	 * why); force it to 0,0 as we've already baked in the correct
 	 * pattern translation into the pattern matrix
 	 */
-	CGContextSetPatternPhase (context, CGSizeMake(0,0));
+	CGContextSetPatternPhase (surface->cgContext, CGSizeMake(0,0));
 
-	state.pattern = pattern;
-        state.action = DO_PATTERN;
-        return state;
+	surface->sourcePattern = pattern;
+
+	return DO_PATTERN;
     }
 
-    state.action = DO_UNSUPPORTED;
-    return state;
+    return DO_UNSUPPORTED;
 }
-
-/**
- * 1) Tears down internal state used to draw the source
- * 2) Does CGContextRestoreGState(state->context)
- */
-static void
-_cairo_quartz_teardown_state (cairo_quartz_drawing_state_t *state)
-{
-    if (state->image) {
-	CGImageRelease(state->image);
-    }
-
-    if (state->imageSurface) {
-	cairo_surface_destroy(state->imageSurface);
-    }
-
-    if (state->shading) {
-	CGShadingRelease(state->shading);
-    }
-
-    if (state->pattern) {
-	CGPatternRelease(state->pattern);
-    }
-
-    CGContextRestoreGState(state->context);
-}
-
 
 static void
-_cairo_quartz_draw_image (cairo_quartz_drawing_state_t *state, cairo_operator_t op)
+_cairo_quartz_teardown_source (cairo_quartz_surface_t *surface,
+			       const cairo_pattern_t *source)
 {
-    assert (state &&
-            ((state->image && (state->action == DO_IMAGE || state->action == DO_TILED_IMAGE)) ||
-             (state->layer && state->action == DO_LAYER)));
+    CGContextSetInterpolationQuality (surface->cgContext, surface->oldInterpolationQuality);
 
-    CGContextConcatCTM (state->context, state->transform);
-    CGContextTranslateCTM (state->context, 0, state->imageRect.size.height);
-    CGContextScaleCTM (state->context, 1, -1);
+    if (surface->sourceImage) {
+	CGImageRelease(surface->sourceImage);
+	surface->sourceImage = NULL;
 
-    if (state->action == DO_TILED_IMAGE) {
-	CGContextDrawTiledImagePtr (state->context, state->imageRect, state->image);
-	/* no need to worry about unbounded operators, since tiled images
-	   fill the entire clip region */
-    } else {
-        if (state->action == DO_LAYER) {
-            /* Note that according to Apple docs it's completely legal
-             * to draw a CGLayer to any CGContext, even one it wasn't
-             * created for.
-             */
-            CGContextDrawLayerAtPoint (state->context, state->imageRect.origin,
-                                       state->layer);
-        } else {
-            CGContextDrawImage (state->context, state->imageRect, state->image);
-        }
+	cairo_surface_destroy(surface->sourceImageSurface);
+	surface->sourceImageSurface = NULL;
+    }
 
-	if (!_cairo_operator_bounded_by_source (op)) {
-	    CGContextBeginPath (state->context);
-	    CGContextAddRect (state->context, state->imageRect);
-	    CGContextAddRect (state->context, CGContextGetClipBoundingBox (state->context));
-	    CGContextSetRGBFillColor (state->context, 0, 0, 0, 0);
-	    CGContextEOFillPath (state->context);
-	}
+    if (surface->sourceShading) {
+	CGShadingRelease(surface->sourceShading);
+	surface->sourceShading = NULL;
+    }
+
+    if (surface->sourcePattern) {
+	CGPatternRelease(surface->sourcePattern);
+	// To tear down the pattern and colorspace
+	CGContextRestoreGState(surface->cgContext);
+
+	surface->sourcePattern = NULL;
     }
 }
-
 
 /*
  * get source/dest image implementation
@@ -1986,16 +1700,10 @@ _cairo_quartz_surface_finish (void *abstract_surface)
 
     /* Restore our saved gstate that we use to reset clipping */
     CGContextRestoreGState (surface->cgContext);
-    _cairo_surface_clipper_reset (&surface->clipper);
 
     CGContextRelease (surface->cgContext);
 
     surface->cgContext = NULL;
-
-    if (surface->bitmapContextImage) {
-        CGImageRelease (surface->bitmapContextImage);
-        surface->bitmapContextImage = NULL;
-    }
 
     if (surface->imageSurfaceEquiv) {
 	cairo_surface_destroy (surface->imageSurfaceEquiv);
@@ -2007,63 +1715,43 @@ _cairo_quartz_surface_finish (void *abstract_surface)
 	surface->imageData = NULL;
     }
 
-    if (surface->cgLayer) {
-        CGLayerRelease (surface->cgLayer);
-    }
-
     return CAIRO_STATUS_SUCCESS;
 }
 
 static cairo_status_t
-_cairo_quartz_surface_acquire_image (void *abstract_surface,
-                                     cairo_image_surface_t **image_out,
-                                     void **image_extra)
+_cairo_quartz_surface_acquire_source_image (void *abstract_surface,
+					     cairo_image_surface_t **image_out,
+					     void **image_extra)
 {
     cairo_int_status_t status;
     cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
 
-    *image_extra = NULL;
-
-    /* ND((stderr, "%p _cairo_quartz_surface_acquire_image\n", surface)); */
+    //ND((stderr, "%p _cairo_quartz_surface_acquire_source_image\n", surface));
 
     status = _cairo_quartz_get_image (surface, image_out);
-
-    if (status == CAIRO_INT_STATUS_UNSUPPORTED && surface->cgLayer) {
-        /* copy the layer into a Quartz bitmap context so we can get the data */
-        cairo_surface_t *tmp =
-            cairo_quartz_surface_create (CAIRO_FORMAT_ARGB32,
-                                         surface->extents.width,
-                                         surface->extents.height);
-        cairo_quartz_surface_t *tmp_surface = (cairo_quartz_surface_t *) tmp;
-
-        /* if surface creation failed, we won't have a Quartz surface here */
-        if (cairo_surface_get_type (tmp) == CAIRO_SURFACE_TYPE_QUARTZ &&
-            tmp_surface->imageSurfaceEquiv) {
-            CGContextSaveGState (tmp_surface->cgContext);
-            CGContextTranslateCTM (tmp_surface->cgContext, 0, surface->extents.height);
-            CGContextScaleCTM (tmp_surface->cgContext, 1, -1);
-            /* Note that according to Apple docs it's completely legal
-             * to draw a CGLayer to any CGContext, even one it wasn't
-             * created for.
-             */
-            CGContextDrawLayerAtPoint (tmp_surface->cgContext,
-                                       CGPointMake (0.0, 0.0),
-                                       surface->cgLayer);
-            CGContextRestoreGState (tmp_surface->cgContext);
-
-            *image_out = (cairo_image_surface_t*)
-                cairo_surface_reference(tmp_surface->imageSurfaceEquiv);
-            *image_extra = tmp;
-            status = CAIRO_STATUS_SUCCESS;
-        } else {
-            cairo_surface_destroy (tmp);
-        }
-    }
-
     if (status)
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
+    *image_extra = NULL;
+
     return CAIRO_STATUS_SUCCESS;
+}
+
+static cairo_surface_t *
+_cairo_quartz_surface_snapshot (void *abstract_surface)
+{
+    cairo_int_status_t status;
+    cairo_quartz_surface_t *surface = abstract_surface;
+    cairo_image_surface_t *image;
+
+    if (surface->imageSurfaceEquiv)
+	return NULL;
+
+    status = _cairo_quartz_get_image (surface, &image);
+    if (unlikely (status))
+        return _cairo_surface_create_in_error (CAIRO_STATUS_NO_MEMORY);
+
+    return &image->base;
 }
 
 static void
@@ -2072,10 +1760,6 @@ _cairo_quartz_surface_release_source_image (void *abstract_surface,
 					     void *image_extra)
 {
     cairo_surface_destroy ((cairo_surface_t *) image);
-
-    if (image_extra) {
-        cairo_surface_destroy ((cairo_surface_t *) image_extra);
-    }
 }
 
 
@@ -2087,16 +1771,18 @@ _cairo_quartz_surface_acquire_dest_image (void *abstract_surface,
 					  void **image_extra)
 {
     cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
+    cairo_int_status_t status;
 
     ND((stderr, "%p _cairo_quartz_surface_acquire_dest_image\n", surface));
+
+    status = _cairo_quartz_get_image (surface, image_out);
+    if (status)
+	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
     *image_rect = surface->extents;
     *image_extra = NULL;
 
-    _cairo_quartz_surface_will_change (surface);
-
-    return _cairo_quartz_surface_acquire_image (abstract_surface,
-        image_out, image_extra);
+    return CAIRO_STATUS_SUCCESS;
 }
 
 static void
@@ -2106,31 +1792,11 @@ _cairo_quartz_surface_release_dest_image (void *abstract_surface,
 					  cairo_rectangle_int_t *image_rect,
 					  void *image_extra)
 {
-    /* ND((stderr, "%p _cairo_quartz_surface_release_dest_image\n", surface)); */
+    //cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
+
+    //ND((stderr, "%p _cairo_quartz_surface_release_dest_image\n", surface));
 
     cairo_surface_destroy ((cairo_surface_t *) image);
-
-    if (image_extra) {
-        /* we need to write the data from the temp surface back to the layer */
-        cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
-        cairo_quartz_surface_t *tmp_surface = (cairo_quartz_surface_t *) image_extra;
-        CGImageRef img;
-        cairo_status_t status = _cairo_surface_to_cgimage (&tmp_surface->base, &img);
-        if (status) {
-            cairo_surface_destroy (&tmp_surface->base);
-            return;
-        }
-
-        CGContextSaveGState (surface->cgContext);
-        CGContextTranslateCTM (surface->cgContext, 0, surface->extents.height);
-        CGContextScaleCTM (surface->cgContext, 1, -1);
-        CGContextDrawImage (surface->cgContext,
-                            CGRectMake (0.0, 0.0, surface->extents.width, surface->extents.height),
-                            img);
-        CGContextRestoreGState (surface->cgContext);
-
-        cairo_surface_destroy (&tmp_surface->base);
-    }
 }
 
 static cairo_surface_t *
@@ -2139,11 +1805,9 @@ _cairo_quartz_surface_create_similar (void *abstract_surface,
 				       int width,
 				       int height)
 {
-    cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
-    cairo_format_t format;
+    /*cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;*/
 
-    if (surface->cgLayer)
-        return cairo_quartz_surface_create_cg_layer (abstract_surface, width, height);
+    cairo_format_t format;
 
     if (content == CAIRO_CONTENT_COLOR_ALPHA)
 	format = CAIRO_FORMAT_ARGB32;
@@ -2166,6 +1830,7 @@ _cairo_quartz_surface_create_similar (void *abstract_surface,
 static cairo_status_t
 _cairo_quartz_surface_clone_similar (void *abstract_surface,
 				     cairo_surface_t *src,
+				     cairo_content_t  content,
 				     int              src_x,
 				     int              src_y,
 				     int              width,
@@ -2208,7 +1873,7 @@ _cairo_quartz_surface_clone_similar (void *abstract_surface,
 	}
     }
 
-    status = _cairo_surface_to_cgimage (src, &quartz_image);
+    status = _cairo_surface_to_cgimage ((cairo_surface_t*) abstract_surface, src, &quartz_image);
     if (status)
 	return CAIRO_INT_STATUS_UNSUPPORTED;
 
@@ -2250,53 +1915,66 @@ FINISH:
     return CAIRO_STATUS_SUCCESS;
 }
 
-static cairo_bool_t
+static cairo_int_status_t
 _cairo_quartz_surface_get_extents (void *abstract_surface,
 				   cairo_rectangle_int_t *extents)
 {
     cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
 
     *extents = surface->extents;
-    return TRUE;
+
+    return CAIRO_STATUS_SUCCESS;
 }
 
 static cairo_int_status_t
 _cairo_quartz_surface_paint (void *abstract_surface,
 			     cairo_operator_t op,
 			     const cairo_pattern_t *source,
-			     cairo_clip_t *clip)
+			     cairo_rectangle_int_t *extents)
 {
     cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
     cairo_int_status_t rv = CAIRO_STATUS_SUCCESS;
-    cairo_quartz_drawing_state_t state;
+    cairo_quartz_action_t action;
 
     ND((stderr, "%p _cairo_quartz_surface_paint op %d source->type %d\n", surface, op, source->type));
 
     if (IS_EMPTY(surface))
 	return CAIRO_STATUS_SUCCESS;
 
-    rv = _cairo_surface_clipper_set_clip (&surface->clipper, clip);
-    if (unlikely (rv))
-	return rv;
+    if (op == CAIRO_OPERATOR_DEST)
+	return CAIRO_STATUS_SUCCESS;
 
-    state = _cairo_quartz_setup_state (surface, source, op, NULL);
+    CGContextSetCompositeOperation (surface->cgContext, _cairo_quartz_cairo_operator_to_quartz (op));
 
-    if (state.action == DO_SOLID || state.action == DO_PATTERN) {
-	CGContextFillRect (state.context, CGRectMake(surface->extents.x,
-						     surface->extents.y,
-						     surface->extents.width,
-						     surface->extents.height));
-    } else if (state.action == DO_SHADING) {
-	CGContextConcatCTM (state.context, state.transform);
-	CGContextDrawShading (state.context, state.shading);
-    } else if (state.action == DO_IMAGE || state.action == DO_TILED_IMAGE ||
-               state.action == DO_LAYER) {
-	_cairo_quartz_draw_image (&state, op);
-    } else if (state.action != DO_NOTHING) {
+    action = _cairo_quartz_setup_source (surface, source, NULL);
+
+    if (action == DO_SOLID || action == DO_PATTERN) {
+	CGContextFillRect (surface->cgContext, CGRectMake(surface->extents.x,
+							  surface->extents.y,
+							  surface->extents.width,
+							  surface->extents.height));
+    } else if (action == DO_SHADING) {
+	CGContextSaveGState (surface->cgContext);
+	CGContextConcatCTM (surface->cgContext, surface->sourceTransform);
+	CGContextDrawShading (surface->cgContext, surface->sourceShading);
+	CGContextRestoreGState (surface->cgContext);
+    } else if (action == DO_IMAGE || action == DO_TILED_IMAGE) {
+	CGContextSaveGState (surface->cgContext);
+
+	CGContextConcatCTM (surface->cgContext, surface->sourceTransform);
+	CGContextTranslateCTM (surface->cgContext, 0, surface->sourceImageRect.size.height);
+	CGContextScaleCTM (surface->cgContext, 1, -1);
+
+	if (action == DO_IMAGE)
+	    CGContextDrawImage (surface->cgContext, surface->sourceImageRect, surface->sourceImage);
+	else
+	    CGContextDrawTiledImagePtr (surface->cgContext, surface->sourceImageRect, surface->sourceImage);
+	CGContextRestoreGState (surface->cgContext);
+    } else if (action != DO_NOTHING) {
 	rv = CAIRO_INT_STATUS_UNSUPPORTED;
     }
 
-    _cairo_quartz_teardown_state (&state);
+    _cairo_quartz_teardown_source (surface, source);
 
     ND((stderr, "-- paint\n"));
     return rv;
@@ -2329,12 +2007,13 @@ _cairo_quartz_surface_fill (void *abstract_surface,
 			     cairo_fill_rule_t fill_rule,
 			     double tolerance,
 			     cairo_antialias_t antialias,
-			     cairo_clip_t *clip)
+			     cairo_rectangle_int_t *extents)
 {
     cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
     cairo_int_status_t rv = CAIRO_STATUS_SUCCESS;
-    cairo_quartz_drawing_state_t state;
+    cairo_quartz_action_t action;
     quartz_stroke_t stroke;
+    cairo_box_t box;
     CGPathRef path_for_unbounded = NULL;
 
     ND((stderr, "%p _cairo_quartz_surface_fill op %d source->type %d\n", surface, op, source->type));
@@ -2342,9 +2021,23 @@ _cairo_quartz_surface_fill (void *abstract_surface,
     if (IS_EMPTY(surface))
 	return CAIRO_STATUS_SUCCESS;
 
-    rv = _cairo_surface_clipper_set_clip (&surface->clipper, clip);
-    if (unlikely (rv))
-	return rv;
+    if (op == CAIRO_OPERATOR_DEST)
+	return CAIRO_STATUS_SUCCESS;
+
+    /* Check whether the path would be a no-op */
+    /* XXX handle unbounded ops */
+    if (_cairo_path_fixed_is_empty(path) ||
+	(_cairo_path_fixed_is_box(path, &box) &&
+	 box.p1.x == box.p2.x &&
+	 box.p1.y == box.p2.y))
+    {
+	return CAIRO_STATUS_SUCCESS;
+    }
+
+    CGContextSaveGState (surface->cgContext);
+
+    CGContextSetShouldAntialias (surface->cgContext, (antialias != CAIRO_ANTIALIAS_NONE));
+    CGContextSetCompositeOperation (surface->cgContext, _cairo_quartz_cairo_operator_to_quartz (op));
 
     if (_cairo_quartz_source_needs_extents (source))
     {
@@ -2353,54 +2046,60 @@ _cairo_quartz_surface_fill (void *abstract_surface,
            object. */
         cairo_rectangle_int_t path_extents;
         _cairo_path_fixed_approximate_fill_extents (path, &path_extents);
-        state = _cairo_quartz_setup_state (surface, source, op, &path_extents);
+        action = _cairo_quartz_setup_source (surface, source, &path_extents);
     } else {
-        state = _cairo_quartz_setup_state (surface, source, op, NULL);
+        action = _cairo_quartz_setup_source (surface, source, NULL);
     }
 
-    CGContextSetShouldAntialias (state.context, (antialias != CAIRO_ANTIALIAS_NONE));
+    CGContextBeginPath (surface->cgContext);
 
-    CGContextBeginPath (state.context);
-
-    stroke.cgContext = state.context;
+    stroke.cgContext = surface->cgContext;
     stroke.ctm_inverse = NULL;
     rv = _cairo_quartz_cairo_path_to_quartz_context (path, &stroke);
     if (rv)
         goto BAIL;
 
     if (!_cairo_operator_bounded_by_mask(op) && CGContextCopyPathPtr)
-	path_for_unbounded = CGContextCopyPathPtr (state.context);
+	path_for_unbounded = CGContextCopyPathPtr (surface->cgContext);
 
-    if (state.action == DO_SOLID || state.action == DO_PATTERN) {
+    if (action == DO_SOLID || action == DO_PATTERN) {
 	if (fill_rule == CAIRO_FILL_RULE_WINDING)
-	    CGContextFillPath (state.context);
+	    CGContextFillPath (surface->cgContext);
 	else
-	    CGContextEOFillPath (state.context);
-    } else if (state.action == DO_SHADING) {
+	    CGContextEOFillPath (surface->cgContext);
+    } else if (action == DO_SHADING) {
 
 	// we have to clip and then paint the shading; we can't fill
 	// with the shading
 	if (fill_rule == CAIRO_FILL_RULE_WINDING)
-	    CGContextClip (state.context);
+	    CGContextClip (surface->cgContext);
 	else
-            CGContextEOClip (state.context);
+	    CGContextEOClip (surface->cgContext);
 
-	CGContextConcatCTM (state.context, state.transform);
-	CGContextDrawShading (state.context, state.shading);
-    } else if (state.action == DO_IMAGE || state.action == DO_TILED_IMAGE ||
-               state.action == DO_LAYER) {
+	CGContextConcatCTM (surface->cgContext, surface->sourceTransform);
+	CGContextDrawShading (surface->cgContext, surface->sourceShading);
+    } else if (action == DO_IMAGE || action == DO_TILED_IMAGE) {
 	if (fill_rule == CAIRO_FILL_RULE_WINDING)
-	    CGContextClip (state.context);
+	    CGContextClip (surface->cgContext);
 	else
-	    CGContextEOClip (state.context);
+	    CGContextEOClip (surface->cgContext);
 
-	_cairo_quartz_draw_image (&state, op);
-    } else if (state.action != DO_NOTHING) {
+	CGContextConcatCTM (surface->cgContext, surface->sourceTransform);
+	CGContextTranslateCTM (surface->cgContext, 0, surface->sourceImageRect.size.height);
+	CGContextScaleCTM (surface->cgContext, 1, -1);
+
+	if (action == DO_IMAGE)
+	    CGContextDrawImage (surface->cgContext, surface->sourceImageRect, surface->sourceImage);
+	else
+	    CGContextDrawTiledImagePtr (surface->cgContext, surface->sourceImageRect, surface->sourceImage);
+    } else if (action != DO_NOTHING) {
 	rv = CAIRO_INT_STATUS_UNSUPPORTED;
     }
 
   BAIL:
-    _cairo_quartz_teardown_state (&state);
+    _cairo_quartz_teardown_source (surface, source);
+
+    CGContextRestoreGState (surface->cgContext);
 
     if (path_for_unbounded) {
 	unbounded_op_data_t ub;
@@ -2426,11 +2125,11 @@ _cairo_quartz_surface_stroke (void *abstract_surface,
 			      cairo_matrix_t *ctm_inverse,
 			      double tolerance,
 			      cairo_antialias_t antialias,
-			      cairo_clip_t *clip)
+			      cairo_rectangle_int_t *extents)
 {
     cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
     cairo_int_status_t rv = CAIRO_STATUS_SUCCESS;
-    cairo_quartz_drawing_state_t state;
+    cairo_quartz_action_t action;
     quartz_stroke_t stroke;
     CGAffineTransform origCTM, strokeTransform;
     CGPathRef path_for_unbounded = NULL;
@@ -2440,117 +2139,130 @@ _cairo_quartz_surface_stroke (void *abstract_surface,
     if (IS_EMPTY(surface))
 	return CAIRO_STATUS_SUCCESS;
 
-    rv = _cairo_surface_clipper_set_clip (&surface->clipper, clip);
-    if (unlikely (rv))
-	return rv;
+    if (op == CAIRO_OPERATOR_DEST)
+	return CAIRO_STATUS_SUCCESS;
+
+    CGContextSaveGState (surface->cgContext);
+
+    // Turning antialiasing off used to cause misrendering with
+    // single-pixel lines (e.g. 20,10.5 -> 21,10.5 end up being rendered as 2 pixels).
+    // That's been since fixed in at least 10.5, and in the latest 10.4 dot releases.
+    CGContextSetShouldAntialias (surface->cgContext, (antialias != CAIRO_ANTIALIAS_NONE));
+    CGContextSetLineWidth (surface->cgContext, style->line_width);
+    CGContextSetLineCap (surface->cgContext, _cairo_quartz_cairo_line_cap_to_quartz (style->line_cap));
+    CGContextSetLineJoin (surface->cgContext, _cairo_quartz_cairo_line_join_to_quartz (style->line_join));
+    CGContextSetMiterLimit (surface->cgContext, style->miter_limit);
+
+    origCTM = CGContextGetCTM (surface->cgContext);
+
+    _cairo_quartz_cairo_matrix_to_quartz (ctm, &strokeTransform);
+    CGContextConcatCTM (surface->cgContext, strokeTransform);
+
+    if (style->dash && style->num_dashes) {
+#define STATIC_DASH 32
+	float sdash[STATIC_DASH];
+	float *fdash = sdash;
+	unsigned int max_dashes = style->num_dashes;
+	unsigned int k;
+
+	if (style->num_dashes%2)
+	    max_dashes *= 2;
+	if (max_dashes > STATIC_DASH)
+	    fdash = _cairo_malloc_ab (max_dashes, sizeof (float));
+	if (fdash == NULL)
+	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+
+	for (k = 0; k < max_dashes; k++)
+	    fdash[k] = (float) style->dash[k % style->num_dashes];
+
+	CGContextSetLineDash (surface->cgContext, style->dash_offset, fdash, max_dashes);
+	if (fdash != sdash)
+	    free (fdash);
+    }
+
+    CGContextSetCompositeOperation (surface->cgContext, _cairo_quartz_cairo_operator_to_quartz (op));
 
     if (_cairo_quartz_source_needs_extents (source))
     {
         cairo_rectangle_int_t path_extents;
         _cairo_path_fixed_approximate_stroke_extents (path, style, ctm, &path_extents);
-        state = _cairo_quartz_setup_state (surface, source, op, &path_extents);
+        action = _cairo_quartz_setup_source (surface, source, &path_extents);
     } else {
-        state = _cairo_quartz_setup_state (surface, source, op, NULL);
+        action = _cairo_quartz_setup_source (surface, source, NULL);
     }
 
-    // Turning antialiasing off used to cause misrendering with
-    // single-pixel lines (e.g. 20,10.5 -> 21,10.5 end up being rendered as 2 pixels).
-    // That's been since fixed in at least 10.5, and in the latest 10.4 dot releases.
-    CGContextSetShouldAntialias (state.context, (antialias != CAIRO_ANTIALIAS_NONE));
-    CGContextSetLineWidth (state.context, style->line_width);
-    CGContextSetLineCap (state.context, _cairo_quartz_cairo_line_cap_to_quartz (style->line_cap));
-    CGContextSetLineJoin (state.context, _cairo_quartz_cairo_line_join_to_quartz (style->line_join));
-    CGContextSetMiterLimit (state.context, style->miter_limit);
+    CGContextBeginPath (surface->cgContext);
 
-    origCTM = CGContextGetCTM (state.context);
-
-    if (style->dash && style->num_dashes) {
-#define STATIC_DASH 32
-	CGFloat sdash[STATIC_DASH];
-	CGFloat *fdash = sdash;
-	double offset = style->dash_offset;
-	unsigned int max_dashes = style->num_dashes;
-	unsigned int k;
-
-	if (_cairo_stroke_style_dash_can_approximate (style, ctm, tolerance)) {
-	    double approximate_dashes[2];
-	    _cairo_stroke_style_dash_approximate (style, ctm, tolerance,
-						  &offset,
-						  approximate_dashes,
-						  &max_dashes);
-	    sdash[0] = approximate_dashes[0];
-	    sdash[1] = approximate_dashes[1];
-	} else {
-	    if (style->num_dashes%2)
-		max_dashes *= 2;
-	    if (max_dashes > STATIC_DASH)
-		fdash = _cairo_malloc_ab (max_dashes, sizeof (CGFloat));
-	    if (fdash == NULL)
-		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-
-	    for (k = 0; k < max_dashes; k++)
-		fdash[k] = (CGFloat) style->dash[k % style->num_dashes];
-	}
-	CGContextSetLineDash (state.context, offset, fdash, max_dashes);
-	if (fdash != sdash)
-	    free (fdash);
-    } else
-	CGContextSetLineDash (state.context, 0, NULL, 0);
-
-    _cairo_quartz_cairo_matrix_to_quartz (ctm, &strokeTransform);
-    CGContextConcatCTM (state.context, strokeTransform);
-
-    CGContextBeginPath (state.context);
-
-    stroke.cgContext = state.context;
+    stroke.cgContext = surface->cgContext;
     stroke.ctm_inverse = ctm_inverse;
     rv = _cairo_quartz_cairo_path_to_quartz_context (path, &stroke);
     if (rv)
 	goto BAIL;
 
     if (!_cairo_operator_bounded_by_mask (op) && CGContextCopyPathPtr)
-	path_for_unbounded = CGContextCopyPathPtr (state.context);
+	path_for_unbounded = CGContextCopyPathPtr (surface->cgContext);
 
-    if (state.action == DO_SOLID || state.action == DO_PATTERN) {
-	CGContextStrokePath (state.context);
-    } else if (state.action == DO_IMAGE || state.action == DO_TILED_IMAGE ||
-               state.action == DO_LAYER) {
-	CGContextReplacePathWithStrokedPath (state.context);
-	CGContextClip (state.context);
+    if (action == DO_SOLID || action == DO_PATTERN) {
+	CGContextStrokePath (surface->cgContext);
+    } else if (action == DO_IMAGE || action == DO_TILED_IMAGE) {
+	CGContextReplacePathWithStrokedPath (surface->cgContext);
+	CGContextClip (surface->cgContext);
 
-	CGContextSetCTM (state.context, origCTM);
-	_cairo_quartz_draw_image (&state, op);
-    } else if (state.action == DO_SHADING) {
-	CGContextReplacePathWithStrokedPath (state.context);
-	CGContextClip (state.context);
+	CGContextSetCTM (surface->cgContext, origCTM);
 
-	CGContextSetCTM (state.context, origCTM);
+	CGContextConcatCTM (surface->cgContext, surface->sourceTransform);
+	CGContextTranslateCTM (surface->cgContext, 0, surface->sourceImageRect.size.height);
+	CGContextScaleCTM (surface->cgContext, 1, -1);
 
-	CGContextConcatCTM (state.context, state.transform);
-	CGContextDrawShading (state.context, state.shading);
-    } else if (state.action != DO_NOTHING) {
+	if (action == DO_IMAGE)
+	    CGContextDrawImage (surface->cgContext, surface->sourceImageRect, surface->sourceImage);
+	else
+	    CGContextDrawTiledImagePtr (surface->cgContext, surface->sourceImageRect, surface->sourceImage);
+    } else if (action == DO_SHADING) {
+	CGContextReplacePathWithStrokedPath (surface->cgContext);
+	CGContextClip (surface->cgContext);
+
+	CGContextSetCTM (surface->cgContext, origCTM);
+
+	CGContextConcatCTM (surface->cgContext, surface->sourceTransform);
+	CGContextDrawShading (surface->cgContext, surface->sourceShading);
+    } else if (action != DO_NOTHING) {
 	rv = CAIRO_INT_STATUS_UNSUPPORTED;
-	goto BAIL;
-    }
-
-    if (path_for_unbounded) {
-	CGContextSetCTM (state.context, origCTM);
-	CGContextConcatCTM (state.context, strokeTransform);
-
-	CGContextBeginPath (state.context);
-	CGContextAddPath (state.context, path_for_unbounded);
-	CGPathRelease (path_for_unbounded);
-
-	CGContextReplacePathWithStrokedPath (state.context);
-
-	CGContextAddRect (state.context, CGContextGetClipBoundingBox (state.context));
-
-	CGContextSetRGBFillColor (state.context, 0., 0., 0., 0.);
-	CGContextEOFillPath (state.context);
     }
 
   BAIL:
-    _cairo_quartz_teardown_state (&state);
+    _cairo_quartz_teardown_source (surface, source);
+
+    CGContextRestoreGState (surface->cgContext);
+
+    if (path_for_unbounded) {
+	unbounded_op_data_t ub;
+
+	CGContextBeginPath (surface->cgContext);
+
+	/* recreate the stroke state, but without the CTM, as it's been already baked
+	 * into the path.
+	 */
+	CGContextSetShouldAntialias (surface->cgContext, (antialias != CAIRO_ANTIALIAS_NONE));
+	CGContextSetLineWidth (surface->cgContext, style->line_width);
+	CGContextSetLineCap (surface->cgContext, _cairo_quartz_cairo_line_cap_to_quartz (style->line_cap));
+	CGContextSetLineJoin (surface->cgContext, _cairo_quartz_cairo_line_join_to_quartz (style->line_join));
+	CGContextSetMiterLimit (surface->cgContext, style->miter_limit);
+
+	CGContextAddPath (surface->cgContext, path_for_unbounded);
+	CGPathRelease (path_for_unbounded);
+
+	CGContextReplacePathWithStrokedPath (surface->cgContext);
+	path_for_unbounded = CGContextCopyPathPtr (surface->cgContext);
+
+	ub.op = UNBOUNDED_STROKE_FILL;
+	ub.u.stroke_fill.cgPath = path_for_unbounded;
+	ub.u.stroke_fill.fill_rule = CAIRO_FILL_RULE_WINDING;
+
+	_cairo_quartz_fixup_unbounded_operation (surface, &ub, antialias);
+
+	CGPathRelease (path_for_unbounded);
+    }
 
     ND((stderr, "-- stroke\n"));
     return rv;
@@ -2564,8 +2276,8 @@ _cairo_quartz_surface_show_glyphs (void *abstract_surface,
 				   cairo_glyph_t *glyphs,
 				   int num_glyphs,
 				   cairo_scaled_font_t *scaled_font,
-				   cairo_clip_t *clip,
-				   int *remaining_glyphs)
+				   int *remaining_glyphs,
+				   cairo_rectangle_int_t *extents)
 {
     CGAffineTransform textTransform, ctm;
 #define STATIC_BUF_SIZE 64
@@ -2576,7 +2288,7 @@ _cairo_quartz_surface_show_glyphs (void *abstract_surface,
 
     cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
     cairo_int_status_t rv = CAIRO_STATUS_SUCCESS;
-    cairo_quartz_drawing_state_t state;
+    cairo_quartz_action_t action;
     float xprev, yprev;
     int i;
     CGFontRef cgfref = NULL;
@@ -2590,57 +2302,59 @@ _cairo_quartz_surface_show_glyphs (void *abstract_surface,
     if (num_glyphs <= 0)
 	return CAIRO_STATUS_SUCCESS;
 
+    if (op == CAIRO_OPERATOR_DEST)
+	return CAIRO_STATUS_SUCCESS;
+
     if (cairo_scaled_font_get_type (scaled_font) != CAIRO_FONT_TYPE_QUARTZ)
 	return CAIRO_INT_STATUS_UNSUPPORTED;
 
-    rv = _cairo_surface_clipper_set_clip (&surface->clipper, clip);
-    if (unlikely (rv))
-	return rv;
+    CGContextSaveGState (surface->cgContext);
 
     if (_cairo_quartz_source_needs_extents (source))
     {
         cairo_rectangle_int_t glyph_extents;
         _cairo_scaled_font_glyph_device_extents (scaled_font, glyphs, num_glyphs,
-                                                 &glyph_extents, NULL);
-        state = _cairo_quartz_setup_state (surface, source, op, &glyph_extents);
+                                                 &glyph_extents);
+        action = _cairo_quartz_setup_source (surface, source, &glyph_extents);
     } else {
-        state = _cairo_quartz_setup_state (surface, source, op, NULL);
+        action = _cairo_quartz_setup_source (surface, source, NULL);
     }
 
-    if (state.action == DO_SOLID || state.action == DO_PATTERN) {
-	CGContextSetTextDrawingMode (state.context, kCGTextFill);
-    } else if (state.action == DO_IMAGE || state.action == DO_TILED_IMAGE ||
-               state.action == DO_SHADING || state.action == DO_LAYER) {
-	CGContextSetTextDrawingMode (state.context, kCGTextClip);
+    if (action == DO_SOLID || action == DO_PATTERN) {
+	CGContextSetTextDrawingMode (surface->cgContext, kCGTextFill);
+    } else if (action == DO_IMAGE || action == DO_TILED_IMAGE || action == DO_SHADING) {
+	CGContextSetTextDrawingMode (surface->cgContext, kCGTextClip);
 	isClipping = TRUE;
     } else {
-	if (state.action != DO_NOTHING)
+	if (action != DO_NOTHING)
 	    rv = CAIRO_INT_STATUS_UNSUPPORTED;
 	goto BAIL;
     }
 
+    CGContextSetCompositeOperation (surface->cgContext, _cairo_quartz_cairo_operator_to_quartz (op));
+
     /* this doesn't addref */
     cgfref = _cairo_quartz_scaled_font_get_cg_font_ref (scaled_font);
-    CGContextSetFont (state.context, cgfref);
-    CGContextSetFontSize (state.context, 1.0);
+    CGContextSetFont (surface->cgContext, cgfref);
+    CGContextSetFontSize (surface->cgContext, 1.0);
 
     switch (scaled_font->options.antialias) {
 	case CAIRO_ANTIALIAS_SUBPIXEL:
-	    CGContextSetShouldAntialias (state.context, TRUE);
-	    CGContextSetShouldSmoothFonts (state.context, TRUE);
+	    CGContextSetShouldAntialias (surface->cgContext, TRUE);
+	    CGContextSetShouldSmoothFonts (surface->cgContext, TRUE);
 	    if (CGContextSetAllowsFontSmoothingPtr &&
-		!CGContextGetAllowsFontSmoothingPtr (state.context))
+		!CGContextGetAllowsFontSmoothingPtr (surface->cgContext))
 	    {
 		didForceFontSmoothing = TRUE;
-		CGContextSetAllowsFontSmoothingPtr (state.context, TRUE);
+		CGContextSetAllowsFontSmoothingPtr (surface->cgContext, TRUE);
 	    }
 	    break;
 	case CAIRO_ANTIALIAS_NONE:
-	    CGContextSetShouldAntialias (state.context, FALSE);
+	    CGContextSetShouldAntialias (surface->cgContext, FALSE);
 	    break;
 	case CAIRO_ANTIALIAS_GRAY:
-	    CGContextSetShouldAntialias (state.context, TRUE);
-	    CGContextSetShouldSmoothFonts (state.context, FALSE);
+	    CGContextSetShouldAntialias (surface->cgContext, TRUE);
+	    CGContextSetShouldSmoothFonts (surface->cgContext, FALSE);
 	    break;
 	case CAIRO_ANTIALIAS_DEFAULT:
 	    /* Don't do anything */
@@ -2674,7 +2388,7 @@ _cairo_quartz_surface_show_glyphs (void *abstract_surface,
 								   0., 0.),
 					     textTransform);
 
-    CGContextSetTextMatrix (state.context, textTransform);
+    CGContextSetTextMatrix (surface->cgContext, textTransform);
 
     /* Convert our glyph positions to glyph advances.  We need n-1 advances,
      * since the advance at index 0 is applied after glyph 0. */
@@ -2711,29 +2425,37 @@ _cairo_quartz_surface_show_glyphs (void *abstract_surface,
 #endif
 
     /* Translate to the first glyph's position before drawing */
-    ctm = CGContextGetCTM (state.context);
-    CGContextTranslateCTM (state.context, glyphs[0].x, glyphs[0].y);
+    ctm = CGContextGetCTM (surface->cgContext);
+    CGContextTranslateCTM (surface->cgContext, glyphs[0].x, glyphs[0].y);
 
-    CGContextShowGlyphsWithAdvances (state.context,
+    CGContextShowGlyphsWithAdvances (surface->cgContext,
 				     cg_glyphs,
 				     cg_advances,
 				     num_glyphs);
 
-    CGContextSetCTM (state.context, ctm);
+    CGContextSetCTM (surface->cgContext, ctm);
 
-    if (state.action == DO_IMAGE || state.action == DO_TILED_IMAGE ||
-        state.action == DO_LAYER) {
-	_cairo_quartz_draw_image (&state, op);
-    } else if (state.action == DO_SHADING) {
-	CGContextConcatCTM (state.context, state.transform);
-	CGContextDrawShading (state.context, state.shading);
+    if (action == DO_IMAGE || action == DO_TILED_IMAGE) {
+	CGContextConcatCTM (surface->cgContext, surface->sourceTransform);
+	CGContextTranslateCTM (surface->cgContext, 0, surface->sourceImageRect.size.height);
+	CGContextScaleCTM (surface->cgContext, 1, -1);
+
+	if (action == DO_IMAGE)
+	    CGContextDrawImage (surface->cgContext, surface->sourceImageRect, surface->sourceImage);
+	else
+	    CGContextDrawTiledImagePtr (surface->cgContext, surface->sourceImageRect, surface->sourceImage);
+    } else if (action == DO_SHADING) {
+	CGContextConcatCTM (surface->cgContext, surface->sourceTransform);
+	CGContextDrawShading (surface->cgContext, surface->sourceShading);
     }
 
 BAIL:
-    if (didForceFontSmoothing)
-        CGContextSetAllowsFontSmoothingPtr (state.context, FALSE);
+    _cairo_quartz_teardown_source (surface, source);
 
-    _cairo_quartz_teardown_state (&state);
+    if (didForceFontSmoothing)
+	CGContextSetAllowsFontSmoothingPtr (surface->cgContext, FALSE);
+
+    CGContextRestoreGState (surface->cgContext);
 
     if (rv == CAIRO_STATUS_SUCCESS &&
 	cgfref &&
@@ -2771,24 +2493,30 @@ _cairo_quartz_surface_mask_with_surface (cairo_quartz_surface_t *surface,
                                          cairo_operator_t op,
                                          const cairo_pattern_t *source,
                                          const cairo_surface_pattern_t *mask,
-					 cairo_clip_t *clip)
+                                         cairo_rectangle_int_t *extents)
 {
+    cairo_rectangle_int_t mask_extents;
     CGRect rect;
     CGImageRef img;
     cairo_surface_t *pat_surf = mask->surface;
     cairo_status_t status = CAIRO_STATUS_SUCCESS;
     CGAffineTransform ctm, mask_matrix;
 
-    status = _cairo_surface_to_cgimage (pat_surf, &img);
+    status = _cairo_surface_get_extents (pat_surf, &mask_extents);
     if (status)
 	return status;
-    if (img == NULL) {
-	if (!_cairo_operator_bounded_by_mask (op))
-	    CGContextClearRect (surface->cgContext, CGContextGetClipBoundingBox (surface->cgContext));
-	return CAIRO_STATUS_SUCCESS;
-    }
 
-    rect = CGRectMake (0.0f, 0.0f, CGImageGetWidth (img) , CGImageGetHeight (img));
+    // everything would be masked out, so do nothing
+    if (mask_extents.width == 0 || mask_extents.height == 0)
+	return CAIRO_STATUS_SUCCESS;
+
+    status = _cairo_surface_to_cgimage ((cairo_surface_t *) surface, pat_surf, &img);
+    if (status == CAIRO_STATUS_SUCCESS && img == NULL)
+	return CAIRO_STATUS_SUCCESS;
+    if (status)
+	return status;
+
+    rect = CGRectMake (0.0f, 0.0f, mask_extents.width, mask_extents.height);
 
     CGContextSaveGState (surface->cgContext);
 
@@ -2797,16 +2525,15 @@ _cairo_quartz_surface_mask_with_surface (cairo_quartz_surface_t *surface,
     ctm = CGContextGetCTM (surface->cgContext);
 
     _cairo_quartz_cairo_matrix_to_quartz (&mask->base.matrix, &mask_matrix);
-    mask_matrix = CGAffineTransformInvert(mask_matrix);
-    mask_matrix = CGAffineTransformTranslate (mask_matrix, 0.0, CGImageGetHeight (img));
-    mask_matrix = CGAffineTransformScale (mask_matrix, 1.0, -1.0);
+    CGContextConcatCTM (surface->cgContext, CGAffineTransformInvert(mask_matrix));
+    CGContextTranslateCTM (surface->cgContext, 0.0f, rect.size.height);
+    CGContextScaleCTM (surface->cgContext, 1.0f, -1.0f);
 
-    CGContextConcatCTM (surface->cgContext, mask_matrix);
     CGContextClipToMaskPtr (surface->cgContext, rect, img);
 
     CGContextSetCTM (surface->cgContext, ctm);
 
-    status = _cairo_quartz_surface_paint (surface, op, source, clip);
+    status = _cairo_quartz_surface_paint (surface, op, source, extents);
 
     CGContextRestoreGState (surface->cgContext);
 
@@ -2814,7 +2541,7 @@ _cairo_quartz_surface_mask_with_surface (cairo_quartz_surface_t *surface,
 	unbounded_op_data_t ub;
 	ub.op = UNBOUNDED_MASK;
 	ub.u.mask.mask = img;
-	ub.u.mask.maskTransform = mask_matrix;
+	ub.u.mask.maskTransform = CGAffineTransformInvert(mask_matrix);
 	_cairo_quartz_fixup_unbounded_operation (surface, &ub, CAIRO_ANTIALIAS_NONE);
     }
 
@@ -2832,27 +2559,41 @@ _cairo_quartz_surface_mask_with_generic (cairo_quartz_surface_t *surface,
 					 cairo_operator_t op,
 					 const cairo_pattern_t *source,
 					 const cairo_pattern_t *mask,
-					 cairo_clip_t *clip)
+					 cairo_rectangle_int_t *extents)
 {
-    int width = surface->extents.width;
-    int height = surface->extents.height;
+    int width = surface->extents.width - surface->extents.x;
+    int height = surface->extents.height - surface->extents.y;
 
     cairo_surface_t *gradient_surf = NULL;
+    cairo_t *gradient_surf_cr = NULL;
+
     cairo_surface_pattern_t surface_pattern;
+    cairo_pattern_t *mask_copy;
     cairo_int_status_t status;
 
     /* Render the gradient to a surface */
-    gradient_surf = cairo_quartz_surface_create (CAIRO_FORMAT_A8,
+    gradient_surf = cairo_quartz_surface_create (CAIRO_FORMAT_ARGB32,
 						 width,
 						 height);
+    gradient_surf_cr = cairo_create(gradient_surf);
 
-    status = _cairo_quartz_surface_paint (gradient_surf, CAIRO_OPERATOR_SOURCE, mask, NULL);
+    /* make a copy of the pattern because because cairo_set_source doesn't take
+     * a 'const cairo_pattern_t *' */
+    _cairo_pattern_create_copy (&mask_copy, mask);
+    cairo_set_source (gradient_surf_cr, mask_copy);
+    cairo_pattern_destroy (mask_copy);
+
+    cairo_set_operator (gradient_surf_cr, CAIRO_OPERATOR_SOURCE);
+    cairo_paint (gradient_surf_cr);
+    status = cairo_status (gradient_surf_cr);
+    cairo_destroy (gradient_surf_cr);
+
     if (status)
 	goto BAIL;
 
     _cairo_pattern_init_for_surface (&surface_pattern, gradient_surf);
 
-    status = _cairo_quartz_surface_mask_with_surface (surface, op, source, &surface_pattern, clip);
+    status = _cairo_quartz_surface_mask_with_surface (surface, op, source, &surface_pattern, extents);
 
     _cairo_pattern_fini (&surface_pattern.base);
 
@@ -2868,7 +2609,7 @@ _cairo_quartz_surface_mask (void *abstract_surface,
 			    cairo_operator_t op,
 			    const cairo_pattern_t *source,
 			    const cairo_pattern_t *mask,
-			    cairo_clip_t *clip)
+			    cairo_rectangle_int_t *extents)
 {
     cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
     cairo_int_status_t rv = CAIRO_STATUS_SUCCESS;
@@ -2878,16 +2619,12 @@ _cairo_quartz_surface_mask (void *abstract_surface,
     if (IS_EMPTY(surface))
 	return CAIRO_STATUS_SUCCESS;
 
-    rv = _cairo_surface_clipper_set_clip (&surface->clipper, clip);
-    if (unlikely (rv))
-	return rv;
-
     if (mask->type == CAIRO_PATTERN_TYPE_SOLID) {
 	/* This is easy; we just need to paint with the alpha. */
 	cairo_solid_pattern_t *solid_mask = (cairo_solid_pattern_t *) mask;
 
 	CGContextSetAlpha (surface->cgContext, solid_mask->color.alpha);
-	rv = _cairo_quartz_surface_paint (surface, op, source, clip);
+	rv = _cairo_quartz_surface_paint (surface, op, source, extents);
 	CGContextSetAlpha (surface->cgContext, 1.0);
 
 	return rv;
@@ -2897,9 +2634,9 @@ _cairo_quartz_surface_mask (void *abstract_surface,
     if (CGContextClipToMaskPtr) {
 	/* For these, we can skip creating a temporary surface, since we already have one */
 	if (mask->type == CAIRO_PATTERN_TYPE_SURFACE && mask->extend == CAIRO_EXTEND_NONE)
-	    return _cairo_quartz_surface_mask_with_surface (surface, op, source, (cairo_surface_pattern_t *) mask, clip);
+	    return _cairo_quartz_surface_mask_with_surface (surface, op, source, (cairo_surface_pattern_t *) mask, extents);
 
-	return _cairo_quartz_surface_mask_with_generic (surface, op, source, mask, clip);
+	return _cairo_quartz_surface_mask_with_generic (surface, op, source, mask, extents);
     }
 
     /* So, CGContextClipToMask is not present in 10.3.9, so we're
@@ -2912,15 +2649,14 @@ _cairo_quartz_surface_mask (void *abstract_surface,
     return CAIRO_STATUS_SUCCESS;
 }
 
-static cairo_status_t
-_cairo_quartz_surface_clipper_intersect_clip_path (cairo_surface_clipper_t *clipper,
-						   cairo_path_fixed_t *path,
-						   cairo_fill_rule_t fill_rule,
-						   double tolerance,
-						   cairo_antialias_t antialias)
+static cairo_int_status_t
+_cairo_quartz_surface_intersect_clip_path (void *abstract_surface,
+					    cairo_path_fixed_t *path,
+					    cairo_fill_rule_t fill_rule,
+					    double tolerance,
+					    cairo_antialias_t antialias)
 {
-    cairo_quartz_surface_t *surface =
-	cairo_container_of (clipper, cairo_quartz_surface_t, clipper);
+    cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
     quartz_stroke_t stroke;
     cairo_status_t status;
 
@@ -2969,7 +2705,7 @@ static const struct _cairo_surface_backend cairo_quartz_surface_backend = {
     CAIRO_SURFACE_TYPE_QUARTZ,
     _cairo_quartz_surface_create_similar,
     _cairo_quartz_surface_finish,
-    _cairo_quartz_surface_acquire_image,
+    _cairo_quartz_surface_acquire_source_image,
     _cairo_quartz_surface_release_source_image,
     _cairo_quartz_surface_acquire_dest_image,
     _cairo_quartz_surface_release_dest_image,
@@ -2981,6 +2717,8 @@ static const struct _cairo_surface_backend cairo_quartz_surface_backend = {
     NULL, /* check_span_renderer */
     NULL, /* copy_page */
     NULL, /* show_page */
+    NULL, /* set_clip_region */
+    _cairo_quartz_surface_intersect_clip_path,
     _cairo_quartz_surface_get_extents,
     NULL, /* old_show_glyphs */
     NULL, /* get_font_options */
@@ -2999,8 +2737,9 @@ static const struct _cairo_surface_backend cairo_quartz_surface_backend = {
     NULL, /* show_glyphs */
 #endif
 
-    NULL, /* snapshot */
+    _cairo_quartz_surface_snapshot,
     NULL, /* is_similar */
+    NULL, /* reset */
     NULL  /* fill_stroke */
 };
 
@@ -3024,9 +2763,6 @@ _cairo_quartz_surface_create_internal (CGContextRef cgContext,
     _cairo_surface_init(&surface->base, &cairo_quartz_surface_backend,
 			content);
 
-    _cairo_surface_clipper_init (&surface->clipper,
-				 _cairo_quartz_surface_clipper_intersect_clip_path);
-
     /* Save our extents */
     surface->extents.x = surface->extents.y = 0;
     surface->extents.width = width;
@@ -3049,8 +2785,6 @@ _cairo_quartz_surface_create_internal (CGContextRef cgContext,
 
     surface->imageData = NULL;
     surface->imageSurfaceEquiv = NULL;
-    surface->bitmapContextImage = NULL;
-    surface->cgLayer = NULL;
 
     return surface;
 }
@@ -3103,78 +2837,6 @@ cairo_quartz_surface_create_for_cg_context (CGContextRef cgContext,
 }
 
 /**
- * cairo_quartz_cglayer_surface_create_similar
- * @surface: The returned surface can be efficiently drawn into this
- * destination surface (if tiling is not used)."
- * @width: width of the surface, in pixels
- * @height: height of the surface, in pixels
- *
- * Creates a Quartz surface backed by a CGLayer, if the given surface
- * is a Quartz surface; the CGLayer is created to match the surface's
- * Quartz context. Otherwise just calls cairo_surface_create_similar
- * with CAIRO_CONTENT_COLOR_ALPHA.
- * The returned surface can be efficiently blitted to the given surface,
- * but tiling and 'extend' modes other than NONE are not so efficient.
- *
- * Return value: the newly created surface.
- *
- * Since: 1.10
- **/
-cairo_surface_t *
-cairo_quartz_surface_create_cg_layer (cairo_surface_t *surface,
-                                      unsigned int width,
-                                      unsigned int height)
-{
-    cairo_quartz_surface_t *surf;
-    CGLayerRef layer;
-    CGContextRef ctx;
-    CGContextRef cgContext;
-
-    cgContext = cairo_quartz_surface_get_cg_context (surface);
-    if (!cgContext)
-        return cairo_surface_create_similar (surface, CAIRO_CONTENT_COLOR_ALPHA,
-                                             width, height);
-
-    if (!_cairo_quartz_verify_surface_size(width, height))
-        return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_INVALID_SIZE));
-
-    /* If we pass zero width or height into CGLayerCreateWithContext below,
-     * it will fail.
-     */
-    if (width == 0 || height == 0) {
-        return (cairo_surface_t*)
-            _cairo_quartz_surface_create_internal (NULL, CAIRO_CONTENT_COLOR_ALPHA,
-                                                   width, height);
-    }
-
-    layer = CGLayerCreateWithContext (cgContext,
-                                      CGSizeMake (width, height),
-                                      NULL);
-    if (!layer)
-      return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
-
-    ctx = CGLayerGetContext (layer);
-    /* Flip it when we draw into it, so that when we finally composite it
-     * to a flipped target, the directions match and Quartz will optimize
-     * the composition properly
-     */
-    CGContextTranslateCTM (ctx, 0, height);
-    CGContextScaleCTM (ctx, 1, -1);
-
-    CGContextRetain (ctx);
-    surf = _cairo_quartz_surface_create_internal (ctx, CAIRO_CONTENT_COLOR_ALPHA,
-              width, height);
-    if (surf->base.status) {
-        CGLayerRelease (layer);
-        // create_internal will have set an error
-        return (cairo_surface_t*) surf;
-    }
-    surf->cgLayer = layer;
-
-    return (cairo_surface_t *) surf;
-}
-
-/**
  * cairo_quartz_surface_create
  * @format: format of pixels in the surface to create
  * @width: width of the surface, in pixels
@@ -3221,11 +2883,20 @@ cairo_quartz_surface_create (cairo_format_t format,
 	else
 	    bitinfo |= kCGImageAlphaNoneSkipFirst;
 	bitsPerComponent = 8;
+
+	/* The Apple docs say that for best performance, the stride and the data
+	 * pointer should be 16-byte aligned.  malloc already aligns to 16-bytes,
+	 * so we don't have to anything special on allocation.
+	 */
 	stride = width * 4;
+	stride += (16 - (stride & 15)) & 15;
     } else if (format == CAIRO_FORMAT_A8) {
-	cgColorspace = NULL;
-	stride = width;
-	bitinfo = kCGImageAlphaOnly;
+	cgColorspace = CGColorSpaceCreateDeviceGray();
+	if (width % 4 == 0)
+	    stride = width;
+	else
+	    stride = (width & ~3) + 4;
+	bitinfo = kCGImageAlphaNone;
 	bitsPerComponent = 8;
     } else if (format == CAIRO_FORMAT_A1) {
 	/* I don't think we can usefully support this, as defined by
@@ -3236,12 +2907,6 @@ cairo_quartz_surface_create (cairo_format_t format,
     } else {
 	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_INVALID_FORMAT));
     }
-
-    /* The Apple docs say that for best performance, the stride and the data
-     * pointer should be 16-byte aligned.  malloc already aligns to 16-bytes,
-     * so we don't have to anything special on allocation.
-     */
-    stride = (stride + 15) & ~15;
 
     imageData = _cairo_malloc_ab (height, stride);
     if (!imageData) {
@@ -3307,61 +2972,6 @@ cairo_quartz_surface_get_cg_context (cairo_surface_t *surface)
     return quartz->cgContext;
 }
 
-CGContextRef
-cairo_quartz_get_cg_context_with_clip (cairo_t *cr)
-{
-
-    cairo_surface_t *surface = cr->gstate->target;
-    cairo_clip_t *clip = &cr->gstate->clip;
-    cairo_status_t status;
-
-    cairo_quartz_surface_t *quartz = (cairo_quartz_surface_t*)surface;
-
-    if (cairo_surface_get_type(surface) != CAIRO_SURFACE_TYPE_QUARTZ)
-	return NULL;
-
-    if (!clip->path) {
-	if (clip->all_clipped) {
-	    /* Save the state before we set an empty clip rect so that
-	     * our previous clip will be restored */
-	    CGContextSaveGState (quartz->cgContext);
-
-	    /* _cairo_surface_clipper_set_clip doesn't deal with
-	     * clip->all_clipped because drawing is normally discarded earlier */
-	    CGRect empty = {{0,0}, {0,0}};
-	    CGContextClipToRect (quartz->cgContext, empty);
-
-	    return quartz->cgContext;
-	}
-
-	/* an empty clip is represented by NULL */
-	clip = NULL;
-    }
-
-    status = _cairo_surface_clipper_set_clip (&quartz->clipper, clip);
-
-    /* Save the state after we set the clip so that it persists
-     * after we restore */
-    CGContextSaveGState (quartz->cgContext);
-
-    if (unlikely (status))
-	return NULL;
-
-    return quartz->cgContext;
-}
-
-void
-cairo_quartz_finish_cg_context_with_clip (cairo_t *cr)
-{
-    cairo_surface_t *surface = cr->gstate->target;
-
-    cairo_quartz_surface_t *quartz = (cairo_quartz_surface_t*)surface;
-
-    if (cairo_surface_get_type(surface) != CAIRO_SURFACE_TYPE_QUARTZ)
-	return;
-
-    CGContextRestoreGState (quartz->cgContext);
-}
 
 /* Debug stuff */
 

@@ -107,7 +107,13 @@ txXPathTreeWalker::moveToElementById(const nsAString& aID)
 
     nsCOMPtr<nsIContent> content;
     if (doc) {
-        content = doc->GetElementById(aID);
+        nsCOMPtr<nsIDOMDocument> document = do_QueryInterface(doc);
+        NS_ASSERTION(document, "QI failed");
+
+        nsCOMPtr<nsIDOMElement> element;
+        document->GetElementById(aID, getter_AddRefs(element));
+
+        content = do_QueryInterface(element);
     }
     else {
         // We're in a disconnected subtree, search only that subtree.
@@ -376,7 +382,7 @@ txXPathNodeUtils::getLocalName(const txXPathNode& aNode)
     }
 
     if (aNode.isContent()) {
-        if (aNode.mNode->IsElement()) {
+        if (aNode.mNode->IsNodeOfType(nsINode::eELEMENT)) {
             nsIAtom* localName = aNode.Content()->Tag();
             NS_ADDREF(localName);
 
@@ -428,7 +434,7 @@ txXPathNodeUtils::getLocalName(const txXPathNode& aNode, nsAString& aLocalName)
     }
 
     if (aNode.isContent()) {
-        if (aNode.mNode->IsElement()) {
+        if (aNode.mNode->IsNodeOfType(nsINode::eELEMENT)) {
             nsINodeInfo* nodeInfo = aNode.Content()->NodeInfo();
             nodeInfo->GetLocalName(aLocalName);
             return;
@@ -468,7 +474,7 @@ txXPathNodeUtils::getNodeName(const txXPathNode& aNode, nsAString& aName)
     }
 
     if (aNode.isContent()) {
-        if (aNode.mNode->IsElement()) {
+        if (aNode.mNode->IsNodeOfType(nsINode::eELEMENT)) {
             nsINodeInfo* nodeInfo = aNode.Content()->NodeInfo();
             nodeInfo->GetQualifiedName(aName);
 
@@ -563,7 +569,7 @@ txXPathNodeUtils::appendNodeValue(const txXPathNode& aNode, nsAString& aResult)
     }
 
     if (aNode.isDocument() ||
-        aNode.mNode->IsElement() ||
+        aNode.mNode->IsNodeOfType(nsINode::eELEMENT) ||
         aNode.mNode->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT)) {
         nsContentUtils::AppendNodeTextContent(aNode.mNode, PR_TRUE, aResult);
 
@@ -821,13 +827,13 @@ txXPathNativeNode::getNode(const txXPathNode& aNode, nsIDOMNode** aResult)
 
     const nsAttrName* name = aNode.Content()->GetAttrNameAt(aNode.mIndex);
 
-    nsAutoString namespaceURI;
+    nsAutoString namespaceURI, localname;
     nsContentUtils::NameSpaceManager()->GetNameSpaceURI(name->NamespaceID(), namespaceURI);
+    name->LocalName()->ToString(localname);
 
     nsCOMPtr<nsIDOMElement> element = do_QueryInterface(aNode.mNode);
     nsCOMPtr<nsIDOMAttr> attr;
-    element->GetAttributeNodeNS(namespaceURI,
-                                nsDependentAtomString(name->LocalName()),
+    element->GetAttributeNodeNS(namespaceURI, localname,
                                 getter_AddRefs(attr));
 
     return CallQueryInterface(attr, aResult);

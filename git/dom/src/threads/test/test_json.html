@@ -31,38 +31,19 @@ Tests of DOM Worker JSON messages
       key = messages[index++];
     }
 
-    is(typeof event.data, key.type, "Bad type! " + messages.indexOf(key));
+    is(typeof event.data, key.type,
+       "Bad type! " + messages.indexOf(key));
+    is(event.data instanceof Array, key.array,
+       "Array mismatch! " + messages.indexOf(key));
 
-    if (key.array) {
-      is(event.data instanceof Array, key.array,
-         "Array mismatch! " + messages.indexOf(key));
-    }
-
-    if (key.isNaN) {
-      ok(isNaN(event.data), "Should be NaN!" + messages.indexOf(key));
-    }
-
-    if (key.isInfinity) {
-      is(event.data, Infinity, "Should be Infinity!" + messages.indexOf(key));
-    }
-
-    if (key.isNegativeInfinity) {
-      is(event.data, -Infinity, "Should be -Infinity!" + messages.indexOf(key));
-    }
-
-    if (key.shouldCompare || key.shouldEqual) {
+    if (key.shouldCompare) {
       ok(event.data == key.compareValue,
          "Values don't compare! "  + messages.indexOf(key));
     }
 
     if (key.shouldEqual) {
       ok(event.data === key.compareValue,
-         "Values don't equal! " + messages.indexOf(key));
-    }
-
-    if (key.jsonValue) {
-      is(JSON.stringify(event.data), key.jsonValue,
-         "Object stringification inconsistent!" + messages.indexOf(key));
+         "Values don't equal!" + messages.indexOf(key));
     }
 
     if (event.data == "testFinished") {
@@ -72,7 +53,7 @@ Tests of DOM Worker JSON messages
   };
 
   worker.onerror = function(event) {
-    ok(false, "Worker had an error: " + event.message);
+    ok(false, "Worker had an error: " + event.data);
     SimpleTest.finish();
   }
 

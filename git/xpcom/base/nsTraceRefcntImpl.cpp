@@ -37,7 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsTraceRefcntImpl.h"
-#include "nsXPCOMPrivate.h"
 #include "nscore.h"
 #include "nsISupports.h"
 #include "nsTArray.h"
@@ -61,12 +60,6 @@
 #include <unistd.h>
 #endif
 #endif
-
-#ifdef NS_TRACE_MALLOC
-#include "nsTraceMalloc.h"
-#endif
-
-#include "mozilla/BlockingResourceBase.h"
 
 #ifdef HAVE_LIBDL
 #include <dlfcn.h>
@@ -623,12 +616,6 @@ static PRBool LogThisObj(PRInt32 aSerialNumber)
   return nsnull != PL_HashTableLookup(gObjectsToLog, (const void*)(aSerialNumber));
 }
 
-#ifdef XP_WIN
-#define FOPEN_NO_INHERIT "N"
-#else
-#define FOPEN_NO_INHERIT
-#endif
-
 static PRBool InitLog(const char* envVar, const char* msg, FILE* *result)
 {
   const char* value = getenv(envVar);
@@ -662,7 +649,7 @@ static PRBool InitLog(const char* envVar, const char* msg, FILE* *result)
           fname.AppendLiteral(".log");
       }
 #endif
-      stream = ::fopen(fname.get(), "w" FOPEN_NO_INHERIT);
+      stream = ::fopen(fname.get(), "w");
       if (stream != NULL) {
         *result = stream;
         fprintf(stdout, "### %s defined -- logging %s to %s\n",
@@ -913,45 +900,15 @@ NS_LogInit()
   if (++gInitCount)
     nsTraceRefcntImpl::SetActivityIsLegal(PR_TRUE);
 #endif
-
-#ifdef NS_TRACE_MALLOC
-  // XXX we don't have to worry about shutting down trace-malloc; it
-  // handles this itself, through an atexit() callback.
-  if (!NS_TraceMallocHasStarted())
-    NS_TraceMallocStartup(-1);  // -1 == no logging
-#endif
 }
 
 EXPORT_XPCOM_API(void)
 NS_LogTerm()
 {
-  mozilla::LogTerm();
-}
-
-namespace mozilla {
-void
-LogTerm()
-{
   NS_ASSERTION(gInitCount > 0,
                "NS_LogTerm without matching NS_LogInit");
 
   if (--gInitCount == 0) {
-#ifdef DEBUG
-    /* FIXME bug 491977: This is only going to operate on the
-     * BlockingResourceBase which is compiled into
-     * libxul/libxpcom_core.so. Anyone using external linkage will
-     * have their own copy of BlockingResourceBase statics which will
-     * not be freed by this method.
-     *
-     * It sounds like what we really want is to be able to register a
-     * callback function to call at XPCOM shutdown.  Note that with
-     * this solution, however, we need to guarantee that
-     * BlockingResourceBase::Shutdown() runs after all other shutdown
-     * functions.
-     */
-    BlockingResourceBase::Shutdown();
-#endif
-    
     if (gInitialized) {
       nsTraceRefcntImpl::DumpStatistics();
       nsTraceRefcntImpl::ResetStatistics();
@@ -963,8 +920,6 @@ LogTerm()
 #endif
   }
 }
-
-} // namespace mozilla
 
 EXPORT_XPCOM_API(void)
 NS_LogAddRef(void* aPtr, nsrefcnt aRefcnt,

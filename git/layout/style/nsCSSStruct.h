@@ -206,6 +206,7 @@ struct nsCSSCornerSizes {
     return PR_FALSE;
   }
 
+  void SetAllCornersTo(const nsCSSValue& aValue);
   void Reset();
 
   nsCSSValuePair mTopLeft;
@@ -371,7 +372,6 @@ struct nsCSSDisplay : public nsCSSStruct  {
   nsCSSRect  mClip;
   nsCSSValue mOverflowX;
   nsCSSValue mOverflowY;
-  nsCSSValue mResize;
   nsCSSValue mPointerEvents;
   nsCSSValue mVisibility;
   nsCSSValue mOpacity;
@@ -507,6 +507,8 @@ struct nsCSSTable : public nsCSSStruct  { // NEW
   nsCSSValue mEmptyCells;
   
   nsCSSValue mLayout;
+  nsCSSValue mFrame; // Not mappable via CSS, only using HTML4 table attrs.
+  nsCSSValue mRules; // Not mappable via CSS, only using HTML4 table attrs.
   nsCSSValue mSpan; // Not mappable via CSS, only using HTML4 table attrs.
   nsCSSValue mCols; // Not mappable via CSS, only using HTML4 table attrs.
 private:

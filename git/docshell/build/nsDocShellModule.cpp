@@ -103,6 +103,7 @@ Shutdown(nsIModule* aSelf)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsDocShell, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDefaultURIFixup)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsWebNavigationInfo, Init)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsClassifierCallback)
 
 // uriloader
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsURILoader)
@@ -143,13 +144,14 @@ static const nsModuleComponentInfo gDocShellModuleInfo[] = {
       NS_WEBNAVIGATION_INFO_CONTRACTID,
       nsWebNavigationInfoConstructor
     },
+    {
+      "Channel classifier",
+      NS_CHANNELCLASSIFIER_CID,
+      NS_CHANNELCLASSIFIER_CONTRACTID,
+      nsClassifierCallbackConstructor
+    },
 
     // about redirector
-    { "about:about",
-      NS_ABOUT_REDIRECTOR_MODULE_CID,
-      NS_ABOUT_MODULE_CONTRACTID_PREFIX "about",
-      nsAboutRedirector::Create
-    },
     { "about:config",
       NS_ABOUT_REDIRECTOR_MODULE_CID,
       NS_ABOUT_MODULE_CONTRACTID_PREFIX "config",
@@ -205,16 +207,6 @@ static const nsModuleComponentInfo gDocShellModuleInfo[] = {
     { "about:memory",
       NS_ABOUT_REDIRECTOR_MODULE_CID,
       NS_ABOUT_MODULE_CONTRACTID_PREFIX "memory",
-      nsAboutRedirector::Create
-    },
-    { "about:addons",
-      NS_ABOUT_REDIRECTOR_MODULE_CID,
-      NS_ABOUT_MODULE_CONTRACTID_PREFIX "addons",
-      nsAboutRedirector::Create
-    },
-    { "about:support",
-      NS_ABOUT_REDIRECTOR_MODULE_CID,
-      NS_ABOUT_MODULE_CONTRACTID_PREFIX "support",
       nsAboutRedirector::Create
     },
 

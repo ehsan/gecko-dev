@@ -37,13 +37,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-include protocol PPluginInstance;
-include protocol PPluginIdentifier;
+include protocol "PPluginInstance.ipdl";
 
 include "npapi.h";
 include "npruntime.h";
 include "mozilla/plugins/PluginMessageUtils.h";
 
+using mozilla::ipc::NPRemoteIdentifier;
 using mozilla::void_t;
 using mozilla::null_t;
 
@@ -65,22 +65,21 @@ rpc protocol PPluginScriptableObject
   manager PPluginInstance;
 
 both:
-  async __delete__();
+  rpc __delete__();
 
 parent:
   rpc NPN_Evaluate(nsCString aScript)
     returns (Variant aResult,
              bool aSuccess);
 
-child:
-  rpc Invalidate();
-
 both:
   // NPClass methods
-  rpc HasMethod(PPluginIdentifier aId)
+  rpc Invalidate();
+
+  rpc HasMethod(NPRemoteIdentifier aId)
     returns (bool aHasMethod);
 
-  rpc Invoke(PPluginIdentifier aId,
+  rpc Invoke(NPRemoteIdentifier aId,
              Variant[] aArgs)
     returns (Variant aResult,
              bool aSuccess);
@@ -89,50 +88,26 @@ both:
     returns (Variant aResult,
              bool aSuccess);
 
-  rpc HasProperty(PPluginIdentifier aId)
+  rpc HasProperty(NPRemoteIdentifier aId)
     returns (bool aHasProperty);
 
-  rpc SetProperty(PPluginIdentifier aId,
+  rpc GetProperty(NPRemoteIdentifier aId)
+    returns (Variant aResult,
+             bool aSuccess);
+
+  rpc SetProperty(NPRemoteIdentifier aId,
                   Variant aValue)
     returns (bool aSuccess);
 
-  rpc RemoveProperty(PPluginIdentifier aId)
+  rpc RemoveProperty(NPRemoteIdentifier aId)
     returns (bool aSuccess);
 
   rpc Enumerate()
-    returns (PPluginIdentifier[] aProperties,
+    returns (NPRemoteIdentifier[] aProperties,
              bool aSuccess);
 
   rpc Construct(Variant[] aArgs)
     returns (Variant aResult,
-             bool aSuccess);
-
-  // Objects are initially unprotected, and the Protect and Unprotect functions
-  // only affect protocol objects that represent NPObjects created in the same
-  // process (rather than protocol objects that are a proxy for an NPObject
-  // created in another process). Protocol objects representing local NPObjects
-  // are protected after an NPObject has been associated with the protocol
-  // object. Sending the protocol object as an argument to the other process
-  // temporarily protects the protocol object again for the duration of the call.
-  async Protect();
-  async Unprotect();
-
-  /**
-   * GetProperty is slightly wonky due to the way we support NPObjects that have
-   * methods and properties with the same name. When child calls parent we
-   * simply return a property. When parent calls child, however, we need to do
-   * several checks at once and return all the results simultaneously.
-   */
-parent:
-  rpc GetParentProperty(PPluginIdentifier aId)
-    returns (Variant aResult,
-             bool aSuccess);
-
-child:
-  rpc GetChildProperty(PPluginIdentifier aId)
-    returns (bool aHasProperty,
-             bool aHasMethod,
-             Variant aResult,
              bool aSuccess);
 };
 

@@ -114,7 +114,8 @@ public:
   // Returns attribute name at given position or null if aPos is out-of-bounds
   const nsAttrName* GetSafeAttrNameAt(PRUint32 aPos) const;
 
-  const nsAttrName* GetExistingAttrNameFromQName(const nsAString& aName) const;
+  // aName is UTF-8 encoded
+  const nsAttrName* GetExistingAttrNameFromQName(const nsACString& aName) const;
   PRInt32 IndexOfAttr(nsIAtom* aLocalName, PRInt32 aNamespaceID = kNameSpaceID_None) const;
 
   nsresult SetAndTakeMappedAttr(nsIAtom* aLocalName, nsAttrValue& aValue,
@@ -172,14 +173,6 @@ private:
 
   PRBool GrowBy(PRUint32 aGrowSize);
   PRBool AddAttrSlot();
-
-  /**
-   * Set *aPos to aChild and update sibling pointers as needed.  aIndex is the
-   * index at which aChild is actually being inserted.  aChildCount is the
-   * number of kids we had before the insertion.
-   */
-  inline void SetChildAtPos(void** aPos, nsIContent* aChild, PRUint32 aIndex,
-                            PRUint32 aChildCount);
 
   struct InternalAttr
   {

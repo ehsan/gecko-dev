@@ -60,8 +60,6 @@
 #include "nsWildCard.h"
 #include "nsZipArchive.h"
 
-#include "mozilla/FunctionTimer.h"
-
 /**
  * Global allocator used with zlib. Destroyed in module shutdown.
  */
@@ -106,8 +104,8 @@ static const PRUint32 kMaxNameLength = PATH_MAX; /* Maximum name length */
 static const PRUint16 kSyntheticTime = 0;
 static const PRUint16 kSyntheticDate = (1 + (1 << 5) + (0 << 9));
 
-static PRUint16 xtoint(const PRUint8 *ii);
-static PRUint32 xtolong(const PRUint8 *ll);
+static PRUint16 xtoint(const unsigned char *ii);
+static PRUint32 xtolong(const unsigned char *ll);
 static PRUint32 HashName(const char* aName, PRUint16 nameLen);
 #if defined(XP_UNIX) || defined(XP_BEOS)
 static nsresult ResolveSymlink(const char *path);
@@ -161,7 +159,8 @@ nsresult gZlibInit(z_stream *zs)
 }
 
 nsZipHandle::nsZipHandle()
-  : mFileData(nsnull)
+  : mFd(nsnull)
+  , mFileData(nsnull)
   , mLen(0)
   , mMap(nsnull)
   , mRefCnt(0)
@@ -196,6 +195,7 @@ nsresult nsZipHandle::Init(PRFileDesc *fd, nsZipHandle **ret)
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
+  handle->mFd = fd;
   handle->mMap = map;
   handle->mLen = (PRUint32) size;
   handle->mFileData = buf;
@@ -212,6 +212,10 @@ nsZipHandle::~nsZipHandle()
     mFileData = nsnull;
     mMap = nsnull;
   }
+  if (mFd) {
+    PR_Close(mFd);
+    mFd = nsnull;
+  }
   MOZ_COUNT_DTOR(nsZipHandle);
 }
 
@@ -223,18 +227,9 @@ nsZipHandle::~nsZipHandle()
 //---------------------------------------------
 //  nsZipArchive::OpenArchive
 //---------------------------------------------
-nsresult nsZipArchive::OpenArchive(nsIFile *aZipFile)
+nsresult nsZipArchive::OpenArchive(PRFileDesc * fd)
 {
-  nsresult rv;
-  nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(aZipFile, &rv);
-  if (NS_FAILED(rv)) return rv;
-
-  PRFileDesc* fd;
-  rv = localFile->OpenNSPRFileDesc(PR_RDONLY, 0000, &fd);
-  if (NS_FAILED(rv)) return rv;
-
-  rv = nsZipHandle::Init(fd, getter_AddRefs(mFd));
-  PR_Close(fd);
+  nsresult rv = nsZipHandle::Init(fd, getter_AddRefs(mFd));
   if (NS_FAILED(rv))
     return rv;
 
@@ -346,26 +341,22 @@ nsresult nsZipArchive::ExtractFile(nsZipItem *item, const char *outname,
   // so the item to be extracted should never be a directory
   PR_ASSERT(!item->IsDirectory());
 
-  Bytef outbuf[ZIP_BUFLEN];
+  nsresult rv;
 
-  nsZipCursor cursor(item, this, outbuf, ZIP_BUFLEN, true);
-
-  nsresult rv = NS_OK;
-
-  while (true) {
-    PRUint32 count = 0;
-    PRUint8* buf = cursor.Read(&count);
-    if (!buf) {
-      rv = NS_ERROR_FILE_CORRUPTED;
+  //-- extract the file using the appropriate method
+  switch(item->Compression())
+  {
+    case STORED:
+      rv = CopyItemToDisk(item, aFd);
       break;
-    } else if (count == 0) {
-      break;
-    }
 
-    if (aFd && PR_Write(aFd, buf, count) < (READTYPE)count) {
-      rv = NS_ERROR_FILE_DISK_FULL;
+    case DEFLATED:
+      rv = InflateItem(item, aFd);
       break;
-    }
+
+    default:
+      //-- unsupported compression type
+      rv = NS_ERROR_NOT_IMPLEMENTED;
   }
 
   //-- delete the file on errors, or resolve symlink if needed
@@ -527,29 +518,23 @@ nsZipItem* nsZipArchive::CreateZipItem()
 //---------------------------------------------
 nsresult nsZipArchive::BuildFileList()
 {
-  NS_TIME_FUNCTION;
-
   // Get archive size using end pos
   PRUint8* buf;
   PRUint8* startp = mFd->mFileData;
   PRUint8* endp = startp + mFd->mLen;
 
-  PRUint32 centralOffset = 0;
-  for (buf = endp - ZIPEND_SIZE; buf > startp; buf--)
+  for (buf = endp - ZIPEND_SIZE; xtolong(buf) != ENDSIG; buf--)
   {
-    if (xtolong(buf) == ENDSIG) {
-      centralOffset = xtolong(((ZipEnd *)buf)->offset_central_dir);
-      break;
+    if (buf == startp) {
+      // We're at the beginning of the file, and still no sign
+      // of the end signature.  File must be corrupted!
+      return NS_ERROR_FILE_CORRUPTED;
     }
   }
-
-  if (!centralOffset)
-    return NS_ERROR_FILE_CORRUPTED;
+  PRUint32 centralOffset = xtolong(((ZipEnd *)buf)->offset_central_dir);
 
   //-- Read the central directory headers
   buf = startp + centralOffset;
-  if (endp - buf < PRInt32(sizeof(PRUint32)))
-      return NS_ERROR_FILE_CORRUPTED;
   PRUint32 sig = xtolong(buf);
   while (sig == CENTRALSIG) {
     // Make sure there is enough data available.
@@ -701,6 +686,97 @@ PRUint8* nsZipArchive::GetData(nsZipItem* aItem)
   return data + offset;
 }
 
+//---------------------------------------------
+// nsZipArchive::CopyItemToDisk
+//---------------------------------------------
+nsresult
+nsZipArchive::CopyItemToDisk(nsZipItem *item, PRFileDesc* outFD)
+{
+  PR_ASSERT(item);
+
+  //-- get to the start of file's data
+  const PRUint8* itemData = GetData(item);
+  if (!itemData)
+    return NS_ERROR_FILE_CORRUPTED;
+
+  if (outFD && PR_Write(outFD, itemData, item->Size()) < (READTYPE)item->Size())
+  {
+    //-- Couldn't write all the data (disk full?)
+    return NS_ERROR_FILE_DISK_FULL;
+  }
+
+  //-- Calculate crc
+  PRUint32 crc = crc32(0L, (const unsigned char*)itemData, item->Size());
+  //-- verify crc32
+  if (crc != item->CRC32())
+      return NS_ERROR_FILE_CORRUPTED;
+
+  return NS_OK;
+}
+
+
+//---------------------------------------------
+// nsZipArchive::InflateItem
+//---------------------------------------------
+nsresult nsZipArchive::InflateItem(nsZipItem * item, PRFileDesc* outFD)
+/*
+ * This function inflates an archive item to disk, to the
+ * file specified by outFD. If outFD is zero, the extracted data is
+ * not written, only checked for CRC, so this is in effect same as 'Test'.
+ */
+{
+  PR_ASSERT(item);
+  //-- allocate deflation buffers
+  Bytef outbuf[ZIP_BUFLEN];
+
+  //-- set up the inflate
+  z_stream    zs;
+  nsresult status = gZlibInit(&zs);
+  if (status != NS_OK)
+    return NS_ERROR_FAILURE;
+
+  //-- inflate loop
+  zs.avail_in = item->Size();
+  zs.next_in = (Bytef*)GetData(item);
+  if (!zs.next_in)
+    return NS_ERROR_FILE_CORRUPTED;
+
+  PRUint32  crc = crc32(0L, Z_NULL, 0);
+  int zerr = Z_OK;
+  while (zerr == Z_OK)
+  {
+    zs.next_out = outbuf;
+    zs.avail_out = ZIP_BUFLEN;
+
+    zerr = inflate(&zs, Z_PARTIAL_FLUSH);
+    if (zerr != Z_OK && zerr != Z_STREAM_END)
+    {
+      status = (zerr == Z_MEM_ERROR) ? NS_ERROR_OUT_OF_MEMORY : NS_ERROR_FILE_CORRUPTED;
+      break;
+    }
+    PRUint32 count = zs.next_out - outbuf;
+
+    //-- incrementally update crc32
+    crc = crc32(crc, (const unsigned char*)outbuf, count);
+
+    if (outFD && PR_Write(outFD, outbuf, count) < (READTYPE)count)
+    {
+      status = NS_ERROR_FILE_DISK_FULL;
+      break;
+    }
+  } // while
+
+  //-- free zlib internal state
+  inflateEnd(&zs);
+
+  //-- verify crc32
+  if ((status == NS_OK) && (crc != item->CRC32()))
+  {
+    status = NS_ERROR_FILE_CORRUPTED;
+  }
+  return status;
+}
+
 //------------------------------------------
 // nsZipArchive constructor and destructor
 //------------------------------------------
@@ -772,7 +848,7 @@ static PRUint32 HashName(const char* aName, PRUint16 len)
  *  Converts a two byte ugly endianed integer
  *  to our platform's integer.
  */
-static PRUint16 xtoint (const PRUint8 *ii)
+static PRUint16 xtoint (const unsigned char *ii)
 {
   return (PRUint16) ((ii [0]) | (ii [1] << 8));
 }
@@ -783,7 +859,7 @@ static PRUint16 xtoint (const PRUint8 *ii)
  *  Converts a four byte ugly endianed integer
  *  to our platform's integer.
  */
-static PRUint32 xtolong (const PRUint8 *ll)
+static PRUint32 xtolong (const unsigned char *ll)
 {
   return (PRUint32)( (ll [0] <<  0) |
                      (ll [1] <<  8) |
@@ -791,220 +867,56 @@ static PRUint32 xtolong (const PRUint8 *ll)
                      (ll [3] << 24) );
 }
 
-/*
- * GetModTime
- *
- * returns last modification time in microseconds
- */
-static PRTime GetModTime(PRUint16 aDate, PRUint16 aTime)
-{
-  // Note that on DST shift we can't handle correctly the hour that is valid
-  // in both DST zones
-  PRExplodedTime time;
-
-  time.tm_usec = 0;
-
-  time.tm_hour = (aTime >> 11) & 0x1F;
-  time.tm_min = (aTime >> 5) & 0x3F;
-  time.tm_sec = (aTime & 0x1F) * 2;
-
-  time.tm_year = (aDate >> 9) + 1980;
-  time.tm_month = ((aDate >> 5) & 0x0F) - 1;
-  time.tm_mday = aDate & 0x1F;
-
-  time.tm_params.tp_gmt_offset = 0;
-  time.tm_params.tp_dst_offset = 0;
-
-  PR_NormalizeTime(&time, PR_GMTParameters);
-  time.tm_params.tp_gmt_offset = PR_LocalTimeParameters(&time).tp_gmt_offset;
-  PR_NormalizeTime(&time, PR_GMTParameters);
-  time.tm_params.tp_dst_offset = PR_LocalTimeParameters(&time).tp_dst_offset;
-
-  return PR_ImplodeTime(&time);
-}
-
-PRUint32 nsZipItem::LocalOffset()
+PRUint32 const nsZipItem::LocalOffset()
 {
   return xtolong(central->localhdr_offset);
 }
 
-PRUint32 nsZipItem::Size()
+PRUint32 const nsZipItem::Size()
 {
   return isSynthetic ? 0 : xtolong(central->size);
 }
 
-PRUint32 nsZipItem::RealSize()
+PRUint32 const nsZipItem::RealSize()
 {
   return isSynthetic ? 0 : xtolong(central->orglen);
 }
 
-PRUint32 nsZipItem::CRC32()
+PRUint32 const nsZipItem::CRC32()
 {
   return isSynthetic ? 0 : xtolong(central->crc32);
 }
 
-PRUint16 nsZipItem::Date()
+PRUint16 const nsZipItem::Date()
 {
   return isSynthetic ? kSyntheticDate : xtoint(central->date);
 }
 
-PRUint16 nsZipItem::Time()
+PRUint16 const nsZipItem::Time()
 {
   return isSynthetic ? kSyntheticTime : xtoint(central->time);
 }
 
-PRUint16 nsZipItem::Compression()
+PRUint16 const nsZipItem::Compression()
 {
   return isSynthetic ? STORED : xtoint(central->method);
 }
 
-bool nsZipItem::IsDirectory()
+bool const nsZipItem::IsDirectory()
 {
   return isSynthetic || ((nameLength > 0) && ('/' == Name()[nameLength - 1]));
 }
 
-PRUint16 nsZipItem::Mode()
+PRUint16 const nsZipItem::Mode()
 {
   if (isSynthetic) return 0755;
   return ((PRUint16)(central->external_attributes[2]) | 0x100);
 }
 
-const PRUint8 * nsZipItem::GetExtraField(PRUint16 aTag, PRUint16 *aBlockSize)
-{
-  if (isSynthetic) return NULL;
-
-  const unsigned char *buf = ((const unsigned char*)central) + ZIPCENTRAL_SIZE +
-                             nameLength;
-  PRUint32 buflen = (PRUint32)xtoint(central->extrafield_len);
-  PRUint32 pos = 0;
-  PRUint16 tag, blocksize;
-
-  while (buf && (pos + 4) <= buflen) {
-    tag = xtoint(buf + pos);
-    blocksize = xtoint(buf + pos + 2);
-
-    if (aTag == tag && (pos + 4 + blocksize) <= buflen) {
-      *aBlockSize = blocksize;
-      return buf + pos;
-    }
-
-    pos += blocksize + 4;
-  }
-
-  return NULL;
-}
-
-
-PRTime nsZipItem::LastModTime()
-{
-  if (isSynthetic) return GetModTime(kSyntheticDate, kSyntheticTime);
-
-  // Try to read timestamp from extra field
-  PRUint16 blocksize;
-  const PRUint8 *tsField = GetExtraField(EXTENDED_TIMESTAMP_FIELD, &blocksize);
-  if (tsField && blocksize >= 5 && tsField[4] & EXTENDED_TIMESTAMP_MODTIME) {
-    return (PRTime)(xtolong(tsField + 5)) * PR_USEC_PER_SEC;
-  }
-
-  return GetModTime(Date(), Time());
-}
-
 #if defined(XP_UNIX) || defined(XP_BEOS)
-bool nsZipItem::IsSymlink()
+bool const nsZipItem::IsSymlink()
 {
   if (isSynthetic) return false;
   return (xtoint(central->external_attributes+2) & S_IFMT) == S_IFLNK;
 }
 #endif
-
-nsZipCursor::nsZipCursor(nsZipItem *item, nsZipArchive *aZip, PRUint8* aBuf, PRUint32 aBufSize, bool doCRC) :
-  mItem(item),
-  mBuf(aBuf),
-  mBufSize(aBufSize),
-  mDoCRC(doCRC)
-{
-  if (mItem->Compression() == DEFLATED) {
-    nsresult status = gZlibInit(&mZs);
-    NS_ASSERTION(status == NS_OK, "Zlib failed to initialize");
-    NS_ASSERTION(aBuf, "Must pass in a buffer for DEFLATED nsZipItem");
-  }
-  
-  mZs.avail_in = item->Size();
-  mZs.next_in = (Bytef*)aZip->GetData(item);
-  
-  if (doCRC)
-    mCRC = crc32(0L, Z_NULL, 0);
-}
-
-nsZipCursor::~nsZipCursor()
-{
-  if (mItem->Compression() == DEFLATED) {
-    inflateEnd(&mZs);
-  }
-}
-
-PRUint8* nsZipCursor::Read(PRUint32 *aBytesRead) {
-  int zerr;
-  PRUint8 *buf = nsnull;
-  bool verifyCRC = true;
-
-  if (!mZs.next_in)
-    return nsnull;
-
-  switch (mItem->Compression()) {
-  case STORED:
-    *aBytesRead = mZs.avail_in;
-    buf = mZs.next_in;
-    mZs.next_in += mZs.avail_in;
-    mZs.avail_in = 0;
-    break;
-  case DEFLATED:
-    buf = mBuf;
-    mZs.next_out = buf;
-    mZs.avail_out = mBufSize;
-    
-    zerr = inflate(&mZs, Z_PARTIAL_FLUSH);
-    if (zerr != Z_OK && zerr != Z_STREAM_END)
-      return nsnull;
-    
-    *aBytesRead = mZs.next_out - buf;
-    verifyCRC = (zerr == Z_STREAM_END);
-    break;
-  default:
-    return nsnull;
-  }
-
-  if (mDoCRC) {
-    mCRC = crc32(mCRC, (const unsigned char*)buf, *aBytesRead);
-    if (verifyCRC && mCRC != mItem->CRC32())
-      return nsnull;
-  }
-  return buf;
-}
-
-nsZipItemPtr_base::nsZipItemPtr_base(nsZipArchive *aZip, const char * aEntryName, bool doCRC) :
-  mReturnBuf(nsnull)
-{
-  // make sure the ziparchive hangs around
-  mZipHandle = aZip->GetFD();
-  
-  nsZipItem* item = aZip->GetItem(aEntryName);
-  if (!item)
-    return;
-
-  PRUint32 size = 0;
-  if (item->Compression() == DEFLATED) {
-    size = item->RealSize();
-    mAutoBuf = new PRUint8[size];
-  }
-
-  nsZipCursor cursor(item, aZip, mAutoBuf, size, doCRC);
-  mReturnBuf = cursor.Read(&mReadlen);
-  if (!mReturnBuf)
-    return;
-
-  if (mReadlen != item->RealSize()) {
-    NS_ASSERTION(mReadlen == item->RealSize(), "nsZipCursor underflow");
-    mReturnBuf = nsnull;
-  }
-}

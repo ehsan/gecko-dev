@@ -60,11 +60,7 @@ else
 ifeq ($(MOZ_WIDGET_TOOLKIT),beos)
 OSDIR		= beos
 else
-ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-OSDIR		= android
-else
 OSDIR		= unix
-endif
 endif
 endif
 endif
@@ -92,11 +88,6 @@ LOCAL_INCLUDES = -I$(srcdir)
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 OSHELPER	+= nsGNOMERegistry.cpp
 OSHELPER  += nsMIMEInfoUnix.cpp
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-OSHELPER += nsMIMEInfoAndroid.cpp
-OSHELPER += nsAndroidHandlerApp.cpp
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
@@ -140,11 +131,11 @@ CPPSRCS	= \
 
 ifdef MOZ_ENABLE_DBUS
 CPPSRCS += nsDBusHandlerApp.cpp
-LOCAL_INCLUDES   += $(TK_CFLAGS) $(MOZ_DBUS_CFLAGS)
-EXTRA_DSO_LDOPTS += $(MOZ_DBUS_LIBS)
+LOCAL_INCLUDES   += $(TK_CFLAGS) $(MOZ_DBUS_GLIB_CFLAGS)
+EXTRA_DSO_LDOPTS += $(MOZ_DBUS_GLIB_LIBS)
 endif
 
-ifdef MOZ_PLATFORM_MAEMO
+ifdef MOZ_PLATFORM_HILDON
 ifdef MOZ_ENABLE_GNOMEVFS
 LOCAL_INCLUDES   += $(MOZ_GNOMEVFS_CFLAGS)
 EXTRA_DSO_LDOPTS += $(MOZ_GNOMEVFS_LIBS)
@@ -171,8 +162,8 @@ FORCE_STATIC_LIB = 1
 SRCS_IN_OBJDIR	= 1
 include $(topsrcdir)/config/rules.mk
 
-ifneq (,$(filter qt gtk2, $(MOZ_WIDGET_TOOLKIT)))
-CXXFLAGS += $(TK_CFLAGS) $(MOZ_DBUS_GLIB_CFLAGS)
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
+CXXFLAGS += $(TK_CFLAGS)
 endif
 
 # the use of multiple VPATH dirs is broken in cygwin make

@@ -48,7 +48,7 @@ MODULE = ipdlunittest
 EXPORTS_NAMESPACES = mozilla/_ipdltest
 EXPORTS_mozilla/_ipdltest =  \
   IPDLUnitTests.h  \
-  IPDLUnitTestProcessChild.h  \
+  IPDLUnitTestThreadChild.h  \
   IPDLUnitTestTypes.h \
   $(NULL)
 
@@ -57,32 +57,17 @@ LIBXUL_LIBRARY = 1
 FORCE_STATIC_LIB = 1
 EXPORT_LIBRARY = 1
 
+# Please keep these organized in the order "easy"-to-"hard"
 IPDLTESTS = \
-  TestBlockChild \
-  TestCrashCleanup \
-  TestDataStructures \
-  TestDesc \
-  TestHangs \
-  TestJSON \
-  TestLatency \
-  TestManyChildAllocs  \
-  TestMultiMgrs  \
-  TestNestedLoops \
-  TestRPCErrorCleanup \
-  TestRPCRaces \
-  TestRPCShutdownRace \
-  TestRacyRPCReplies  \
   TestSanity  \
-  TestSelfManageRoot \
+  TestLatency \
+  TestRPCRaces \
+  TestManyChildAllocs  \
+  TestDesc \
   TestShmem \
   TestShutdown \
-  TestStackHooks \
-  TestSyncWakeup \
+  TestArrays \
   $(NULL)
-
-ifeq ($(OS_ARCH),Linux)
-IPDLTESTS += TestSysVShmem
-endif
 
 IPDLTESTSRCS = $(addsuffix .cpp,$(IPDLTESTS))
 IPDLTESTHDRS = $(addprefix $(srcdir)/,$(addsuffix .h,$(IPDLTESTS)))
@@ -93,7 +78,7 @@ GENTESTER := $(srcdir)/genIPDLUnitTests.py
 CPPSRCS =  \
   IPDLUnitTests.cpp  \
   IPDLUnitTestSubprocess.cpp  \
-  IPDLUnitTestProcessChild.cpp  \
+  IPDLUnitTestThreadChild.cpp  \
   $(IPDLTESTSRCS)  \
   $(NULL)
 
@@ -117,6 +102,6 @@ check-valgrind::
 	@$(EXIT_ON_ERROR)  \
 	for test in $(IPDLTESTS); do  \
 		 $(RUN_TEST_PROGRAM) -g -d \
-                   valgrind -a '--leak-check=full --trace-children=yes -q' \
+                   valgrind -a '--leak-check=full --error-exitcode=1 --trace-children=yes -q' \
                    $(IPDLUNITTEST_BIN) $$test ;  \
 	done

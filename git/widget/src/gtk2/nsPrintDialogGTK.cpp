@@ -57,13 +57,46 @@
 #include "nsIBaseWindow.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShell.h"
-#include "WidgetUtils.h"
-
-using namespace mozilla::widget;
 
 static const char header_footer_tags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
 
 #define CUSTOM_VALUE_INDEX NS_ARRAY_LENGTH(header_footer_tags)
+
+// XXXdholbert Duplicated from widget/src/xpwidgets/nsBaseFilePicker.cpp
+// Needs to be unified in some generic utility class.
+static nsIWidget *
+DOMWindowToWidget(nsIDOMWindow *dw)
+{
+  nsCOMPtr<nsIWidget> widget;
+
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(dw);
+  if (window) {
+    nsCOMPtr<nsIBaseWindow> baseWin(do_QueryInterface(window->GetDocShell()));
+
+    while (!widget && baseWin) {
+      baseWin->GetParentWidget(getter_AddRefs(widget));
+      if (!widget) {
+        nsCOMPtr<nsIDocShellTreeItem> docShellAsItem(do_QueryInterface(baseWin));
+        if (!docShellAsItem)
+          return nsnull;
+
+        nsCOMPtr<nsIDocShellTreeItem> parent;
+        docShellAsItem->GetSameTypeParent(getter_AddRefs(parent));
+
+        window = do_GetInterface(parent);
+        if (!window)
+          return nsnull;
+
+        baseWin = do_QueryInterface(window->GetDocShell());
+      }
+    }
+  }
+
+  // This will return a pointer that we're about to release, but
+  // that's ok since the docshell (nsIBaseWindow) holds the widget
+  // alive.
+  return widget.get();
+}
 
 // XXXdholbert Duplicated from widget/src/gtk2/nsFilePicker.cpp
 // Needs to be unified in some generic utility class.
@@ -98,7 +131,6 @@ ShowCustomDialog(GtkComboBox *changed_box, gpointer user_data)
     return;
   }
 
-  GtkWindow* printDialog = GTK_WINDOW(user_data);
   nsCOMPtr<nsIStringBundleService> bundleSvc =
        do_GetService(NS_STRINGBUNDLE_CONTRACTID);
 
@@ -107,8 +139,8 @@ ShowCustomDialog(GtkComboBox *changed_box, gpointer user_data)
   nsXPIDLString intlString;
 
   printBundle->GetStringFromName(NS_LITERAL_STRING("headerFooterCustom").get(), getter_Copies(intlString));
-  GtkWidget* prompt_dialog = gtk_dialog_new_with_buttons(NS_ConvertUTF16toUTF8(intlString).get(), printDialog,
-                                                         (GtkDialogFlags)(GTK_DIALOG_MODAL | GTK_DIALOG_NO_SEPARATOR),
+  GtkWidget* prompt_dialog = gtk_dialog_new_with_buttons(NS_ConvertUTF16toUTF8(intlString).get(), NULL,
+                                                         GTK_DIALOG_MODAL,
                                                          GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT,
                                                          GTK_STOCK_OK, GTK_RESPONSE_ACCEPT,
                                                          NULL);
@@ -130,7 +162,6 @@ ShowCustomDialog(GtkComboBox *changed_box, gpointer user_data)
     gtk_entry_set_text(GTK_ENTRY(custom_entry), current_text);
     gtk_editable_select_region(GTK_EDITABLE(custom_entry), 0, -1);
   }
-  gtk_entry_set_activates_default(GTK_ENTRY(custom_entry), TRUE);
 
   GtkWidget* custom_vbox = gtk_vbox_new(TRUE, 2);
   gtk_box_pack_start(GTK_BOX(custom_vbox), custom_label, FALSE, FALSE, 0);
@@ -181,8 +212,6 @@ class nsPrintDialogWidgetGTK {
 
     nsCOMPtr<nsIStringBundle> printBundle;
 
-    PRPackedBool useNativeSelection;
-
     GtkWidget* ConstructHeaderFooterDropdown(const PRUnichar *currentString);
     const char* OptionWidgetToString(GtkWidget *dropdown);
 
@@ -197,9 +226,7 @@ class nsPrintDialogWidgetGTK {
 
 nsPrintDialogWidgetGTK::nsPrintDialogWidgetGTK(nsIDOMWindow *aParent, nsIPrintSettings *aSettings)
 {
-  nsCOMPtr<nsIWidget> widget = WidgetUtils::DOMWindowToWidget(aParent);
-  NS_ASSERTION(widget, "Need a widget for dialog to be modal.");
-  GtkWindow* gtkParent = get_gtk_window_for_nsiwidget(widget);
+  GtkWindow* gtkParent = get_gtk_window_for_nsiwidget(DOMWindowToWidget(aParent));
   NS_ASSERTION(gtkParent, "Need a GTK window for dialog to be modal.");
 
   nsCOMPtr<nsIStringBundleService> bundleSvc = do_GetService(NS_STRINGBUNDLE_CONTRACTID);
@@ -214,8 +241,6 @@ nsPrintDialogWidgetGTK::nsPrintDialogWidgetGTK(nsIDOMWindow *aParent, nsIPrintSe
                       | GTK_PRINT_CAPABILITY_COLLATE
                       | GTK_PRINT_CAPABILITY_REVERSE
                       | GTK_PRINT_CAPABILITY_SCALE
-                      | GTK_PRINT_CAPABILITY_GENERATE_PDF
-                      | GTK_PRINT_CAPABILITY_GENERATE_PS
                     )
                   );
 
@@ -263,26 +288,14 @@ nsPrintDialogWidgetGTK::nsPrintDialogWidgetGTK(nsIDOMWindow *aParent, nsIPrintSe
   // Check buttons for shrink-to-fit and print selection
   GtkWidget* check_buttons_container = gtk_vbox_new(TRUE, 2);
   shrink_to_fit_toggle = gtk_check_button_new_with_mnemonic(GetUTF8FromBundle("shrinkToFit").get());
-  gtk_box_pack_start(GTK_BOX(check_buttons_container), shrink_to_fit_toggle, FALSE, FALSE, 0);
-
-  // GTK+2.18 and above allow us to add a "Selection" option to the main settings screen,
-  // rather than adding an option on a custom tab like we must do on older versions.
+  selection_only_toggle = gtk_check_button_new_with_mnemonic(GetUTF8FromBundle("selectionOnly").get());
   PRBool canSelectText;
   aSettings->GetPrintOptions(nsIPrintSettings::kEnableSelectionRB, &canSelectText);
-  if (gtk_major_version > 2 ||
-      (gtk_major_version == 2 && gtk_minor_version >= 18)) {
-    useNativeSelection = PR_TRUE;
-    g_object_set(G_OBJECT(dialog),
-                 "support-selection", TRUE,
-                 "has-selection", canSelectText,
-                 "embed-page-setup", TRUE,
-                 NULL);
-  } else {
-    useNativeSelection = PR_FALSE;
-    selection_only_toggle = gtk_check_button_new_with_mnemonic(GetUTF8FromBundle("selectionOnly").get());
-    gtk_widget_set_sensitive(selection_only_toggle, canSelectText);
-    gtk_box_pack_start(GTK_BOX(check_buttons_container), selection_only_toggle, FALSE, FALSE, 0);
-  }
+  if (!canSelectText)
+    gtk_widget_set_sensitive(selection_only_toggle, FALSE);
+
+  gtk_box_pack_start(GTK_BOX(check_buttons_container), shrink_to_fit_toggle, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(check_buttons_container), selection_only_toggle, FALSE, FALSE, 0);
 
   // Check buttons for printing background
   GtkWidget* appearance_buttons_container = gtk_vbox_new(TRUE, 2);
@@ -493,14 +506,7 @@ nsPrintDialogWidgetGTK::ExportSettings(nsIPrintSettings *aNSSettings)
       aNSSettingsGTK->SetGtkPrintSettings(settings);
       aNSSettingsGTK->SetGtkPageSetup(setup);
       aNSSettingsGTK->SetGtkPrinter(printer);
-      PRBool printSelectionOnly;
-      if (useNativeSelection) {
-        _GtkPrintPages pageSetting = (_GtkPrintPages)gtk_print_settings_get_print_pages(settings);
-        printSelectionOnly = (pageSetting == _GTK_PRINT_PAGES_SELECTION);
-      } else {
-        printSelectionOnly = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(selection_only_toggle));
-      }
-      aNSSettingsGTK->SetForcePrintSelectionOnly(printSelectionOnly);
+      aNSSettingsGTK->SetForcePrintSelectionOnly(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(selection_only_toggle)));
     }
   }
 
@@ -541,7 +547,7 @@ nsPrintDialogWidgetGTK::ConstructHeaderFooterDropdown(const PRUnichar *currentSt
     g_object_set_data_full(G_OBJECT(dropdown), "custom-text", custom_string, (GDestroyNotify) free);
   }
 
-  g_signal_connect(dropdown, "changed", (GCallback) ShowCustomDialog, dialog);
+  g_signal_connect(dropdown, "changed", (GCallback) ShowCustomDialog, NULL);
   return dropdown;
 }
 
@@ -604,9 +610,7 @@ nsPrintDialogServiceGTK::ShowPageSetup(nsIDOMWindow *aParent,
   NS_PRECONDITION(aNSSettings, "aSettings must not be null");
   NS_ENSURE_TRUE(aNSSettings, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIWidget> widget = WidgetUtils::DOMWindowToWidget(aParent);
-  NS_ASSERTION(widget, "Need a widget for dialog to be modal.");
-  GtkWindow* gtkParent = get_gtk_window_for_nsiwidget(widget);
+  GtkWindow* gtkParent = get_gtk_window_for_nsiwidget(DOMWindowToWidget(aParent));
   NS_ASSERTION(gtkParent, "Need a GTK window for dialog to be modal.");
 
   nsCOMPtr<nsPrintSettingsGTK> aNSSettingsGTK(do_QueryInterface(aNSSettings));

@@ -70,7 +70,6 @@ struct nsSVGEnumMapping;
 class nsSVGViewBox;
 class nsSVGPreserveAspectRatio;
 class nsSVGString;
-struct gfxMatrix;
 
 typedef nsStyledElement nsSVGElementBase;
 
@@ -146,11 +145,6 @@ public:
    */
   virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix);
 
-  // Setter for to set the current <animateMotion> transformation
-  // Only visible for nsSVGGraphicElement, so it's a no-op here, and that
-  // subclass has the useful implementation.
-  virtual void SetAnimateMotionTransform(const gfxMatrix* aMatrix) {/*no-op*/}
-
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeNumber(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeInteger(PRUint8 aAttrEnum, PRBool aDoSetAttr);
@@ -161,22 +155,14 @@ public:
   virtual void DidChangePreserveAspectRatio(PRBool aDoSetAttr);
   virtual void DidChangeString(PRUint8 aAttrEnum) {}
 
-  virtual void DidAnimateLength(PRUint8 aAttrEnum);
-  virtual void DidAnimateNumber(PRUint8 aAttrEnum);
-  virtual void DidAnimateInteger(PRUint8 aAttrEnum);
-  virtual void DidAnimateAngle(PRUint8 aAttrEnum);
-  virtual void DidAnimateBoolean(PRUint8 aAttrEnum);
-  virtual void DidAnimateEnum(PRUint8 aAttrEnum);
-  virtual void DidAnimateViewBox();
-  virtual void DidAnimatePreserveAspectRatio();
-  virtual void DidAnimateTransform();
+  void DidAnimateLength(PRUint8 aAttrEnum);
 
   void GetAnimatedLengthValues(float *aFirst, ...);
   void GetAnimatedNumberValues(float *aFirst, ...);
   void GetAnimatedIntegerValues(PRInt32 *aFirst, ...);
 
 #ifdef MOZ_SMIL
-  virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* aName);
+  virtual nsISMILAttr* GetAnimatedAttr(const nsIAtom* aName);
   void AnimationNeedsResample();
   void FlushAnimations();
 #endif
@@ -199,11 +185,6 @@ protected:
   virtual PRBool IsEventName(nsIAtom* aName);
 
   void UpdateContentStyleRule();
-#ifdef MOZ_SMIL
-  void UpdateAnimatedContentStyleRule();
-  nsICSSStyleRule* GetAnimatedContentStyleRule();
-#endif // MOZ_SMIL
-
   nsISVGValue* GetMappedAttribute(PRInt32 aNamespaceID, nsIAtom* aName);
   nsresult AddMappedSVGValue(nsIAtom* aName, nsISupports* aValue,
                              PRInt32 aNamespaceID = kNameSpaceID_None);
@@ -376,20 +357,6 @@ private:
 
   void ResetOldStyleBaseType(nsISVGValue *svg_value);
 
-  struct ObservableModificationData {
-    // Only to be used if |name| is non-null.  Otherwise, modType will
-    // be 0 to indicate NS_OK should be returned and 1 to indicate
-    // NS_ERROR_UNEXPECTED should be returned.
-    ObservableModificationData(const nsAttrName* aName, PRUint32 aModType):
-      name(aName), modType(aModType)
-    {}
-    const nsAttrName* name;
-    PRUint8 modType;
-  };
-  ObservableModificationData
-    GetModificationDataForObservable(nsISVGValue* aObservable,
-                                     nsISVGValue::modificationType aModType);
-
   nsCOMPtr<nsICSSStyleRule> mContentStyleRule;
   nsAttrAndChildArray mMappedAttributes;
 
@@ -404,45 +371,26 @@ nsresult                                                                     \
 NS_NewSVG##_elementName##Element(nsIContent **aResult,                       \
                                  nsINodeInfo *aNodeInfo)                     \
 {                                                                            \
-  nsRefPtr<nsSVG##_elementName##Element> it =                                \
+  nsSVG##_elementName##Element *it =                                         \
     new nsSVG##_elementName##Element(aNodeInfo);                             \
   if (!it)                                                                   \
     return NS_ERROR_OUT_OF_MEMORY;                                           \
                                                                              \
-  nsresult rv = it->Init();                                                  \
-                                                                             \
-  if (NS_FAILED(rv)) {                                                       \
-    return rv;                                                               \
-  }                                                                          \
-                                                                             \
-  *aResult = it.forget().get();                                              \
-                                                                             \
-  return rv;                                                                 \
-}
-
-#define NS_IMPL_NS_NEW_SVG_ELEMENT_CHECK_PARSER(_elementName)                \
-nsresult                                                                     \
-NS_NewSVG##_elementName##Element(nsIContent **aResult,                       \
-                                 nsINodeInfo *aNodeInfo,                     \
-                                 PRUint32 aFromParser)                       \
-{                                                                            \
-  nsRefPtr<nsSVG##_elementName##Element> it =                                \
-    new nsSVG##_elementName##Element(aNodeInfo, aFromParser);                \
-  if (!it)                                                                   \
-    return NS_ERROR_OUT_OF_MEMORY;                                           \
+  NS_ADDREF(it);                                                             \
                                                                              \
   nsresult rv = it->Init();                                                  \
                                                                              \
   if (NS_FAILED(rv)) {                                                       \
+    NS_RELEASE(it);                                                          \
     return rv;                                                               \
   }                                                                          \
                                                                              \
-  *aResult = it.forget().get();                                              \
+  *aResult = it;                                                             \
                                                                              \
   return rv;                                                                 \
 }
 
- // No unlinking, we'd need to null out the value pointer (the object it
+// No unlinking, we'd need to null out the value pointer (the object it
 // points to is held by the element) and null-check it everywhere.
 #define NS_SVG_VAL_IMPL_CYCLE_COLLECTION(_val, _element)                     \
 NS_IMPL_CYCLE_COLLECTION_CLASS(_val)                                         \

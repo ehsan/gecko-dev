@@ -43,8 +43,7 @@
  * This file contains helper classes used by various bits of Places code.
  */
 
-#include "mozilla/storage.h"
-#include "nsIURI.h"
+#include "mozIStorageStatementCallback.h"
 
 namespace mozilla {
 namespace places {
@@ -66,76 +65,6 @@ public:
 #define NS_DECL_ASYNCSTATEMENTCALLBACK \
   NS_IMETHOD HandleResult(mozIStorageResultSet *); \
   NS_IMETHOD HandleCompletion(PRUint16);
-
-/**
- * Macros to use for lazy statements initialization in Places services that use
- * GetStatement() method.
- */
-#define RETURN_IF_STMT(_stmt, _sql)                                            \
-  PR_BEGIN_MACRO                                                               \
-  if (address_of(_stmt) == address_of(aStmt)) {                                \
-    if (!_stmt) {                                                              \
-      nsresult rv = mDBConn->CreateStatement(_sql, getter_AddRefs(_stmt));     \
-      NS_ENSURE_TRUE(NS_SUCCEEDED(rv) && _stmt, nsnull);                       \
-    }                                                                          \
-    return _stmt.get();                                                        \
-  }                                                                            \
-  PR_END_MACRO
-
-// Async statements don't need to be scoped, they are reset when done.
-// So use this version for statements used async, scoped version for statements
-// used sync.
-#define DECLARE_AND_ASSIGN_LAZY_STMT(_localStmt, _globalStmt)                  \
-  mozIStorageStatement* _localStmt = GetStatement(_globalStmt);                \
-  NS_ENSURE_STATE(_localStmt)
-
-#define DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(_localStmt, _globalStmt)           \
-  DECLARE_AND_ASSIGN_LAZY_STMT(_localStmt, _globalStmt);                       \
-  mozStorageStatementScoper scoper(_localStmt)
-
-
-/**
- * Utils to bind a specified URI (or URL) to a statement or binding params, at
- * the specified index or name.
- * @note URIs are always bound as UTF8.
- */
-class URIBinder // static
-{
-public:
-  // Bind URI to statement by index.
-  static nsresult Bind(mozIStorageStatement* statement,
-                       PRInt32 index,
-                       nsIURI* aURI);
-  // Statement URLCString to statement by index.
-  static nsresult Bind(mozIStorageStatement* statement,
-                       PRInt32 index,
-                       const nsACString& aURLString);
-  // Bind URI to statement by name.
-  static nsresult Bind(mozIStorageStatement* statement,
-                       const nsACString& aName,
-                       nsIURI* aURI);
-  // Bind URLCString to statement by name.
-  static nsresult Bind(mozIStorageStatement* statement,
-                       const nsACString& aName,
-                       const nsACString& aURLString);
-  // Bind URI to params by index.
-  static nsresult Bind(mozIStorageBindingParams* aParams,
-                       PRInt32 index,
-                       nsIURI* aURI);
-  // Bind URLCString to params by index.
-  static nsresult Bind(mozIStorageBindingParams* aParams,
-                       PRInt32 index,
-                       const nsACString& aURLString);
-  // Bind URI to params by name.
-  static nsresult Bind(mozIStorageBindingParams* aParams,
-                       const nsACString& aName,
-                       nsIURI* aURI);
-  // Bind URLCString to params by name.
-  static nsresult Bind(mozIStorageBindingParams* aParams,
-                       const nsACString& aName,
-                       const nsACString& aURLString);
-};
-
 
 } // namespace places
 } // namespace mozilla

@@ -100,7 +100,7 @@ nsSVGPatternFrame::AttributeChanged(PRInt32         aNameSpaceID,
   if (aNameSpaceID == kNameSpaceID_XLink &&
       aAttribute == nsGkAtoms::href) {
     // Blow away our reference, if any
-    Properties().Delete(nsSVGEffects::HrefProperty());
+    DeleteProperty(nsGkAtoms::href);
     mNoHRefURI = PR_FALSE;
     // And update whoever references us
     nsSVGEffects::InvalidateRenderingObservers(this);
@@ -241,10 +241,8 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
   if (surfaceSize.width <= 0 || surfaceSize.height <= 0)
     return NS_ERROR_FAILURE;
 
-  if (resultOverflows ||
-      patternWidth != surfaceSize.width ||
-      patternHeight != surfaceSize.height) {
-    // scale drawing to pattern surface size
+  if (resultOverflows) {
+    // scale down drawing to new pattern surface size
     nsCOMPtr<nsIDOMSVGMatrix> tempTM, aCTM;
     NS_NewSVGMatrix(getter_AddRefs(tempTM),
                     surfaceSize.width / patternWidth, 0.0f,
@@ -253,7 +251,7 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
     patternFrame->mCTM->Multiply(tempTM, getter_AddRefs(aCTM));
     aCTM.swap(patternFrame->mCTM);
 
-    // and rescale pattern to compensate
+    // and magnify pattern to compensate
     patternMatrix->Scale(patternWidth / surfaceSize.width,
                          patternHeight / surfaceSize.height);
   }
@@ -357,18 +355,15 @@ nsSVGPatternFrame::GetPatternTransform()
   nsSVGPatternElement *patternElement =
     GetPatternWithAttr(nsGkAtoms::patternTransform, mContent);
 
-  static const gfxMatrix identityMatrix;
-  if (!patternElement->mPatternTransform) {
-    return identityMatrix;
-  }
+  gfxMatrix matrix;
   nsCOMPtr<nsIDOMSVGTransformList> lTrans;
   patternElement->mPatternTransform->GetAnimVal(getter_AddRefs(lTrans));
   nsCOMPtr<nsIDOMSVGMatrix> patternTransform =
     nsSVGTransformList::GetConsolidationMatrix(lTrans);
-  if (!patternTransform) {
-    return identityMatrix;
+  if (patternTransform) {
+    matrix = nsSVGUtils::ConvertSVGMatrixToThebes(patternTransform);
   }
-  return nsSVGUtils::ConvertSVGMatrixToThebes(patternTransform);
+  return matrix;
 }
 
 const nsSVGViewBox &
@@ -424,8 +419,8 @@ nsSVGPatternFrame::GetReferencedPattern()
   if (mNoHRefURI)
     return nsnull;
 
-  nsSVGPaintingProperty *property = static_cast<nsSVGPaintingProperty*>
-    (Properties().Get(nsSVGEffects::HrefProperty()));
+  nsSVGPaintingProperty *property =
+    static_cast<nsSVGPaintingProperty*>(GetProperty(nsGkAtoms::href));
 
   if (!property) {
     // Fetch our pattern element's xlink:href attribute
@@ -443,8 +438,7 @@ nsSVGPatternFrame::GetReferencedPattern()
     nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI), href,
                                               mContent->GetCurrentDoc(), base);
 
-    property =
-      nsSVGEffects::GetPaintingProperty(targetURI, this, nsSVGEffects::HrefProperty());
+    property = nsSVGEffects::GetPaintingProperty(targetURI, this, nsGkAtoms::href);
     if (!property)
       return nsnull;
   }
@@ -463,11 +457,6 @@ nsSVGPatternFrame::GetReferencedPattern()
 nsSVGPatternElement *
 nsSVGPatternFrame::GetPatternWithAttr(nsIAtom *aAttrName, nsIContent *aDefault)
 {
-  // XXX TODO: this method needs to take account of SMIL animation, since it
-  // the requested attribute may be animated even if it is not set in the DOM.
-  // The callers also need to be fixed up to then ask for the right thing from
-  // the pattern we return! Do we neet to call mContent->FlushAnimations()?
-
   if (mContent->HasAttr(kNameSpaceID_None, aAttrName))
     return static_cast<nsSVGPatternElement *>(mContent);
 
@@ -543,29 +532,22 @@ nsSVGPatternFrame::ConstructCTM(const gfxRect &callerBBox,
     tCTM.Scale(scale, scale);
   }
 
-  nsSVGPatternElement *patternElement =
-    static_cast<nsSVGPatternElement*>(mContent);
-  gfxMatrix tm;
+  gfxMatrix viewBoxTM;
   const nsSVGViewBoxRect viewBox = GetViewBox().GetAnimValue();
 
   if (viewBox.height > 0.0f && viewBox.width > 0.0f) {
     nsSVGSVGElement *ctx = aTargetContent->GetCtx();
     float viewportWidth = GetWidth()->GetAnimValue(ctx);
     float viewportHeight = GetHeight()->GetAnimValue(ctx);
-    gfxMatrix viewBoxTM = nsSVGUtils::GetViewBoxTransform(patternElement,
-                                                          viewportWidth, viewportHeight,
-                                                          viewBox.x, viewBox.y,
-                                                          viewBox.width, viewBox.height,
-                                                          GetPreserveAspectRatio(),
-                                                          PR_TRUE);
-
     float refX = GetX()->GetAnimValue(ctx);
     float refY = GetY()->GetAnimValue(ctx);
-    gfxPoint ref = viewBoxTM.Transform(gfxPoint(refX, refY));
-
-    tm = viewBoxTM * gfxMatrix().Translate(gfxPoint(-ref.x, -ref.y));
+    viewBoxTM = nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
+                                                viewBox.x + refX, viewBox.y + refY,
+                                                viewBox.width, viewBox.height,
+                                                GetPreserveAspectRatio(),
+                                                PR_TRUE);
   }
-  return tm * tCTM;
+  return viewBoxTM * tCTM;
 }
 
 gfxMatrix

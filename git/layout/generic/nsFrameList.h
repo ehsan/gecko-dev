@@ -85,23 +85,9 @@ public:
 
   /**
    * For each frame in this list: remove it from the list then call
-   * DestroyFrom() on it.
-   */
-  void DestroyFramesFrom(nsIFrame* aDestructRoot);
-
-  /**
-   * For each frame in this list: remove it from the list then call
    * Destroy() on it. Finally <code>delete this</code>.
-   * 
    */
   void Destroy();
-
-  /**
-   * For each frame in this list: remove it from the list then call
-   * DestroyFrom() on it. Finally <code>delete this</code>.
-   *
-   */
-  void DestroyFrom(nsIFrame* aDestructRoot);
 
   void Clear() { mFirstChild = mLastChild = nsnull; }
 
@@ -160,9 +146,9 @@ public:
 
   /**
    * Take the first frame (if any) out of the frame list.
-   * @return the first child, or nsnull if the list is empty
+   * @return PR_TRUE if a frame was removed
    */
-  nsIFrame* RemoveFirstChild();
+  PRBool RemoveFirstChild();
 
   /**
    * Take aFrame out of the frame list and then destroy it.
@@ -215,6 +201,14 @@ public:
    */
   nsFrameList ExtractTail(FrameLinkEnumerator& aLink);
 
+  /**
+   * Sort the frames according to content order so that the first
+   * frame in the list is the first in content order. Frames for
+   * the same content will be ordered so that a prev in flow
+   * comes before its next in flow.
+   */
+  void SortByContentOrder();
+
   nsIFrame* FirstChild() const {
     return mFirstChild;
   }
@@ -235,6 +229,7 @@ public:
   }
 
   PRBool ContainsFrame(const nsIFrame* aFrame) const;
+  PRBool ContainsFrameBefore(const nsIFrame* aFrame, const nsIFrame* aEnd) const;
 
   PRInt32 GetLength() const;
 

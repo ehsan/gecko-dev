@@ -36,6 +36,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* ===== global.css =====================================================
+  == Styles that apply everywhere.
+  ======================================================================= */
+
 /* all localizable skin settings shall live here */
 @import url("chrome://global/locale/intl.css");
 
@@ -53,7 +57,7 @@ menulist > menupopup,
   -moz-binding: url("chrome://global/content/bindings/menulist.xml#menulist-compact");
 }
 
-progressmeter {
+progressmeter[mode="undetermined"] {
   -moz-binding: url("chrome://global/content/bindings/progressmeter.xml#progressmeter-periodic-redraw");
 }
 
@@ -281,7 +285,7 @@ description {
   cursor: pointer;
 }
   
-.text-link:-moz-focusring {
+.text-link:focus {
   border: 1px dotted -moz-DialogText;
 }
 
@@ -307,11 +311,11 @@ notification > button:active:hover {
   -moz-box-shadow: @roundButtonPressedShadow@;
 }
 
-notification > button:-moz-focusring {
+notification > button:focus {
   -moz-box-shadow: @focusRingShadow@, @roundButtonShadow@;
 }
 
-notification > button:active:hover:-moz-focusring {
+notification > button:active:hover:focus {
   -moz-box-shadow: @focusRingShadow@, @roundButtonPressedShadow@;
 }
 
@@ -340,33 +344,4 @@ notification > button > .button-box > .button-text {
 
 .autoscroller[scrolldir="EW"] {
   background-position: right bottom;
-}
-
-/* autorepeatbuttons in menus */
-
-.popup-internal-box > autorepeatbutton {
-  height: 15px;
-  position: relative;
-  /* Here we're using a little magic.
-   * The arrow button is supposed to overlay the scrollbox, blocking
-   * everything under it from reaching the screen. However, the menu background
-   * is slightly transparent, so how can we block something completely without
-   * messing up the transparency? It's easy: The native theming of the
-   * "menuitem" appearance uses CGContextClearRect before drawing, which
-   * clears everything under it.
-   * Without help from native theming this effect wouldn't be achievable.
-   */
-  -moz-appearance: menuitem;
-}
-
-.popup-internal-box > .autorepeatbutton-up {
-  margin-bottom: -15px;
-}
-
-.popup-internal-box > .autorepeatbutton-down {
-  margin-top: -15px;
-}
-
-.popup-internal-box > autorepeatbutton[disabled="true"] {
-  visibility: collapse;
 }

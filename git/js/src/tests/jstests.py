@@ -1,6 +1,6 @@
 # Test harness for JSTests, controlled by manifest files.
 
-import datetime, os, sys, subprocess
+import datetime, os, sys
 from subprocess import *
 
 from tests import TestResult, NullTestOutput
@@ -85,7 +85,7 @@ class ResultsSink:
             self.n += 1
         else:
             if OPTIONS.show_cmd:
-                print >> self.output_file, subprocess.list2cmdline(output.cmd)
+                print >> self.output_file, output.cmd
 
             if OPTIONS.show_output:
                 print >> self.output_file, '    rc = %d, run time = %f' % (output.rc, output.dt)
@@ -125,10 +125,10 @@ class ResultsSink:
     #      key   is (result, expect, random)
     #      value is (tinderbox label, dev test category)
     LABELS = {
-        (TestResult.CRASH, False, False): ('TEST-UNEXPECTED-FAIL',               'REGRESSIONS'),
-        (TestResult.CRASH, False, True):  ('TEST-UNEXPECTED-FAIL',               'REGRESSIONS'),
+        (TestResult.CRASH, False, False): ('TEST-KNOWN-FAIL',                    ''),
+        (TestResult.CRASH, False, True):  ('TEST-KNOWN-FAIL (EXPECTED RANDOM)',  ''),
         (TestResult.CRASH, True,  False): ('TEST-UNEXPECTED-FAIL',               'REGRESSIONS'),
-        (TestResult.CRASH, True,  True):  ('TEST-UNEXPECTED-FAIL',               'REGRESSIONS'),
+        (TestResult.CRASH, True,  True):  ('TEST-KNOWN-FAIL (EXPECTED RANDOM)',  ''),
 
         (TestResult.FAIL,  False, False): ('TEST-KNOWN-FAIL',                    ''),
         (TestResult.FAIL,  False, True):  ('TEST-KNOWN-FAIL (EXPECTED RANDOM)',  ''),
@@ -149,13 +149,6 @@ class ResultsSink:
             for path in paths:
                 print '    %s'%path
 
-        if OPTIONS.failure_file:
-              failure_file = open(OPTIONS.failure_file, 'w')
-              if not self.all_passed():
-                  for path in self.groups['REGRESSIONS']:
-                      print >> failure_file, path
-              failure_file.close()
-
         suffix = '' if self.finished else ' (partial run -- interrupted by user)'
         if self.all_passed():
             print 'PASS' + suffix
@@ -163,7 +156,7 @@ class ResultsSink:
             print 'FAIL' + suffix
 
     def all_passed(self):
-        return 'REGRESSIONS' not in self.groups
+        return not self.groups.get((False, True, False))
 
 def run_tests(tests, results):
     """Run the given tests, sending raw results to the given results accumulator."""
@@ -203,12 +196,12 @@ if __name__ == '__main__':
                   help='hide progress bar')
     op.add_option('-j', '--worker-count', dest='worker_count', type=int, default=2,
                   help='number of worker threads to run tests on (default 2)')
-    op.add_option('-m', '--manifest', dest='manifest',
+    op.add_option('-m', '--manifest', dest='manifest', default='jstests.list',
                   help='select manifest file')
-    op.add_option('-t', '--timeout', dest='timeout', type=float, default=150.0,
+    op.add_option('-t', '--timeout', dest='timeout', type=float, default=60.0,
                   help='set test timeout in seconds')
     op.add_option('-d', '--exclude-random', dest='random', action='store_false',
-                  help='exclude tests marked random', default=True)
+                  help='exclude tests marked random')
     op.add_option('--run-skipped', dest='run_skipped', action='store_true',
                   help='run skipped tests')
     op.add_option('--run-only-skipped', dest='run_only_skipped', action='store_true',
@@ -225,8 +218,6 @@ if __name__ == '__main__':
                   help='extra args to pass to valgrind')
     op.add_option('-c', '--check-manifest', dest='check_manifest', action='store_true',
                   help='check for test files not listed in the manifest')
-    op.add_option('--failure-file', dest='failure_file',
-                  help='write tests that have not passed to the given file')
     (OPTIONS, args) = op.parse_args()
     if len(args) < 1:
         if not OPTIONS.check_manifest:
@@ -234,9 +225,6 @@ if __name__ == '__main__':
         JS, args = None, []
     else:
         JS, args = args[0], args[1:]
-    # Convert to an absolute path so we can run JS from a different directory.
-    if JS is not None:
-        JS = os.path.abspath(JS)
 
     if OPTIONS.debug:
         if OPTIONS.valgrind:
@@ -264,14 +252,6 @@ if __name__ == '__main__':
     if ((OPTIONS.show_cmd or OPTIONS.show_output) and 
         output_file == sys.stdout or OPTIONS.tinderbox):
         OPTIONS.hide_progress = True
-
-    if OPTIONS.manifest is None:
-        filename = os.path.join(os.path.dirname(__file__), 'jstests.list')
-        if os.path.isfile(filename):
-            OPTIONS.manifest = filename
-        else:
-            print >> sys.stderr, 'no manifest file given and defaults not found'
-            sys.exit(2)
 
     import manifest
     if JS is None:
@@ -319,22 +299,15 @@ if __name__ == '__main__':
 
         cmd = test_list[0].get_command(TestTask.js_cmd_prefix)
         if OPTIONS.show_cmd:
-            print subprocess.list2cmdline(cmd)
+            print ' '.join(cmd)
         call(cmd)
         sys.exit()
 
     if not test_list:
         print 'no tests selected'
     else:
-        curdir = os.getcwd()
-        manifest_dir = os.path.dirname(OPTIONS.manifest)
-        if manifest_dir not in ('', '.'):
-            os.chdir(os.path.dirname(OPTIONS.manifest))
-        try:
-            results = ResultsSink()
-            run_tests(test_list, results)
-        finally:
-            os.chdir(curdir)
+        results = ResultsSink()
+        run_tests(test_list, results)
 
     if output_file != sys.stdout:
         output_file.close()

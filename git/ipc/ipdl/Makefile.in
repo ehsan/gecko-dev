@@ -42,7 +42,7 @@ VPATH = @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 GARBAGE_DIRS += _ipdlheaders
-GARBAGE += ipdl_lextab.py ipdl_yacctab.py $(wildcard *.pyc $(srcdir)/ipdl/*.pyc $(srcdir)/ipdl/cxx/*.pyc)
+GARBAGE += ipdl_lextab.py ipdl_yacctab.py
 
 MODULE = ipdlgen
 LIBRARY_NAME = mozipdlgen_s
@@ -55,8 +55,11 @@ EXPORT_LIBRARY = 1
 ##
 IPDLDIRS =  \
   dom/plugins  \
-  js/jetpack \
+  dom/ipc  \
+  netwerk/ipc  \
+  netwerk/protocol/http/src  \
   ipc/ipdl/test/cxx  \
+  ipc/testshell  \
   $(NULL)
 ##-----------------------------------------------------------------------------
 
@@ -83,8 +86,6 @@ CPPSRCS =					\
   $(PROTOCOLS:%.ipdl=%Child.cpp)		\
   $(NULL)
 
-GARBAGE += $(CPPSRCS)
-
 LOCAL_INCLUDES += -I$(DEPTH)/ipc/ipdl/_ipdlheaders
 
 
@@ -103,7 +104,3 @@ export:: $(ALL_IPDLSRCS)
 	  --outcpp-dir=.				\
 	  $(IPDLDIRS:%=-I$(topsrcdir)/%)		\
 	  $^
-
-# We #include some things in the dom/plugins/ directory that rely on
-# toolkit libraries.
-CXXFLAGS    += $(TK_CFLAGS)

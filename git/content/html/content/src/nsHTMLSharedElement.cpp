@@ -40,11 +40,11 @@
 #include "nsIDOMHTMLDirectoryElement.h"
 #include "nsIDOMHTMLMenuElement.h"
 #include "nsIDOMHTMLQuoteElement.h"
-#include "nsIDOMHTMLHeadElement.h"
-#include "nsIDOMHTMLHtmlElement.h"
+#include "nsIDOMHTMLBaseFontElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsRuleData.h"
 #include "nsMappedAttributes.h"
 #include "nsNetUtil.h"
@@ -60,8 +60,7 @@ class nsHTMLSharedElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLDirectoryElement,
                             public nsIDOMHTMLMenuElement,
                             public nsIDOMHTMLQuoteElement,
-                            public nsIDOMHTMLHeadElement,
-                            public nsIDOMHTMLHtmlElement
+                            public nsIDOMHTMLBaseFontElement
 {
 public:
   nsHTMLSharedElement(nsINodeInfo *aNodeInfo);
@@ -97,11 +96,8 @@ public:
   // nsIDOMHTMLQuoteElement
   NS_DECL_NSIDOMHTMLQUOTEELEMENT
 
-  // nsIDOMHTMLHeadElement
-  NS_DECL_NSIDOMHTMLHEADELEMENT
-
-  // nsIDOMHTMLHtmlElement
-  NS_DECL_NSIDOMHTMLHTMLELEMENT
+  // nsIDOMHTMLBaseFontElement
+  NS_DECL_NSIDOMHTMLBASEFONTELEMENT
 
   // nsIContent
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
@@ -150,16 +146,6 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLSharedElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLSharedElement, nsGenericElement)
 
 
-DOMCI_DATA(HTMLParamElement, nsHTMLSharedElement)
-DOMCI_DATA(HTMLIsIndexElement, nsHTMLSharedElement)
-DOMCI_DATA(HTMLBaseElement, nsHTMLSharedElement)
-DOMCI_DATA(HTMLSpacerElement, nsHTMLSharedElement)
-DOMCI_DATA(HTMLDirectoryElement, nsHTMLSharedElement)
-DOMCI_DATA(HTMLMenuElement, nsHTMLSharedElement)
-DOMCI_DATA(HTMLQuoteElement, nsHTMLSharedElement)
-DOMCI_DATA(HTMLHeadElement, nsHTMLSharedElement)
-DOMCI_DATA(HTMLHtmlElement, nsHTMLSharedElement)
-
 // QueryInterface implementation for nsHTMLSharedElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLSharedElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_AMBIGUOUS_BEGIN(nsHTMLSharedElement,
@@ -175,19 +161,18 @@ NS_INTERFACE_TABLE_HEAD(nsHTMLSharedElement)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLMenuElement, menu)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLQuoteElement, q)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLQuoteElement, blockquote)
-  NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLHeadElement, head)
-  NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLHtmlElement, html)
+  NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLBaseFontElement, basefont)
 
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLParamElement, param)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLIsIndexElement, isindex)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLBaseElement, base)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLSpacerElement, spacer)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLDirectoryElement, dir)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLMenuElement, menu)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLQuoteElement, q)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLQuoteElement, blockquote)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLHeadElement, head)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLHtmlElement, html)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLParamElement, param)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLWBRElement, wbr)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLIsIndexElement, isindex)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLBaseElement, base)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLSpacerElement, spacer)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLDirectoryElement, dir)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLMenuElement, menu)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLQuoteElement, q)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLQuoteElement, blockquote)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLBaseFontElement, basefont)
 NS_HTML_CONTENT_INTERFACE_MAP_END
 
 
@@ -201,13 +186,6 @@ NS_IMPL_STRING_ATTR(nsHTMLSharedElement, ValueType, valuetype)
 
 // nsIDOMHTMLIsIndexElement
 NS_IMPL_STRING_ATTR(nsHTMLSharedElement, Prompt, prompt)
-NS_IMETHODIMP
-nsHTMLSharedElement::GetForm(nsIDOMHTMLFormElement** aForm)
-{
-  NS_IF_ADDREF(*aForm = FindForm());
-
-  return NS_OK;
-}
 
 // nsIDOMHTMLDirectoryElement
 NS_IMPL_BOOL_ATTR(nsHTMLSharedElement, Compact, compact)
@@ -218,22 +196,18 @@ NS_IMPL_BOOL_ATTR(nsHTMLSharedElement, Compact, compact)
 // nsIDOMHTMLQuoteElement
 NS_IMPL_URI_ATTR(nsHTMLSharedElement, Cite, cite)
 
-// nsIDOMHTMLHeadElement
-// Deprecated and not exposed to script, but has to be implemented in order to
-// not break binary compat.
-NS_IMETHODIMP
-nsHTMLSharedElement::GetProfile(nsAString& aValue)
-{
-  return NS_ERROR_FAILURE;
-}
-NS_IMETHODIMP
-nsHTMLSharedElement::SetProfile(const nsAString& aValue)
-{
-  return NS_ERROR_FAILURE;
-}
+// nsIDOMHTMLBaseFontElement
+NS_IMPL_STRING_ATTR(nsHTMLSharedElement, Color, color)
+NS_IMPL_STRING_ATTR(nsHTMLSharedElement, Face, face)
+NS_IMPL_INT_ATTR(nsHTMLSharedElement, Size, size)
 
-// nsIDOMHTMLHtmlElement
-NS_IMPL_STRING_ATTR(nsHTMLSharedElement, Version, version)
+NS_IMETHODIMP
+nsHTMLSharedElement::GetForm(nsIDOMHTMLFormElement** aForm)
+{
+  NS_IF_ADDREF(*aForm = FindForm());
+
+  return NS_OK;
+}
 
 // nsIDOMHTMLBaseElement
 NS_IMPL_URI_ATTR(nsHTMLSharedElement, Href, href)
@@ -261,10 +235,15 @@ nsHTMLSharedElement::ParseAttribute(PRInt32 aNamespaceID,
     else if (mNodeInfo->Equals(nsGkAtoms::dir) ||
              mNodeInfo->Equals(nsGkAtoms::menu)) {
       if (aAttribute == nsGkAtoms::type) {
-        return aResult.ParseEnumValue(aValue, kListTypeTable, PR_FALSE);
+        return aResult.ParseEnumValue(aValue, kListTypeTable);
       }
       if (aAttribute == nsGkAtoms::start) {
         return aResult.ParseIntWithBounds(aValue, 1);
+      }
+    }
+    else if (mNodeInfo->Equals(nsGkAtoms::basefont)) {
+      if (aAttribute == nsGkAtoms::size) {
+        return aResult.ParseIntValue(aValue);
       }
     }
   }
@@ -426,43 +405,6 @@ nsHTMLSharedElement::IsAttributeMapped(const nsIAtom* aAttribute) const
   return nsGenericHTMLElement::IsAttributeMapped(aAttribute);
 }
 
-void
-SetBaseURIUsingFirstBaseWithHref(nsIContent* aHead, nsIContent* aMustMatch)
-{
-  NS_PRECONDITION(aHead && aHead->GetOwnerDoc() &&
-                  aHead->GetOwnerDoc()->GetHeadElement() == aHead,
-                  "Bad head");
-
-  nsIDocument* doc = aHead->GetOwnerDoc();
-
-  for (nsINode::ChildIterator iter(aHead); !iter.IsDone(); iter.Next()) {
-    nsIContent* child = iter;
-    if (child->NodeInfo()->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
-        child->HasAttr(kNameSpaceID_None, nsGkAtoms::href)) {
-      if (aMustMatch && child != aMustMatch) {
-        return;
-      }
-
-      // Resolve the <base> element's href relative to our document URI
-      nsAutoString href;
-      child->GetAttr(kNameSpaceID_None, nsGkAtoms::href, href);
-
-      nsCOMPtr<nsIURI> newBaseURI;
-      nsContentUtils::NewURIWithDocumentCharset(
-        getter_AddRefs(newBaseURI), href, doc, doc->GetDocumentURI());
-
-      // Try to set our base URI.  If that fails, try to set base URI to null
-      nsresult rv = doc->SetBaseURI(newBaseURI);
-      if (NS_FAILED(rv)) {
-        doc->SetBaseURI(nsnull);
-      }
-      return;
-    }
-  }
-
-  doc->SetBaseURI(nsnull);
-}
-
 nsresult
 nsHTMLSharedElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                              nsIAtom* aPrefix, const nsAString& aValue,
@@ -470,22 +412,64 @@ nsHTMLSharedElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 {
   nsresult rv =  nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix,
                                                aValue, aNotify);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   // If the href attribute of a <base> tag is changing, we may need to update
   // the document's base URI, which will cause all the links on the page to be
   // re-resolved given the new base.
-  nsIContent* head;
-  if (mNodeInfo->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
+  if (NS_SUCCEEDED(rv) &&
+      mNodeInfo->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
       aName == nsGkAtoms::href &&
       aNameSpaceID == kNameSpaceID_None &&
-      IsInDoc() &&
-      (head = GetParent()) &&
-      head == GetOwnerDoc()->GetHeadElement()) {
-    SetBaseURIUsingFirstBaseWithHref(head, this);
+      GetOwnerDoc() == GetCurrentDoc()) {
+
+    nsIDocument* doc = GetCurrentDoc();
+    NS_ENSURE_TRUE(doc, NS_OK);
+
+    // We become the first base node with an href if
+    //   * there's no other base node with an href, or
+    //   * we come before the first base node with an href (this would happen
+    //     if we didn't have an href before this call to SetAttr).
+    // Additionally, we call doc->SetFirstBaseNodeWithHref if we're the first
+    // base node with an href so the document updates its base URI with our new
+    // href.
+    nsIContent* firstBase = doc->GetFirstBaseNodeWithHref();
+    if (!firstBase || this == firstBase ||
+        nsContentUtils::PositionIsBefore(this, firstBase)) {
+
+      return doc->SetFirstBaseNodeWithHref(this);
+    }
   }
 
-  return NS_OK;
+  return rv;
+}
+
+// Helper function for nsHTMLSharedElement::UnbindFromTree.  Finds and returns
+// the first <base> tag with an href attribute which is a child of elem, if one
+// exists.
+static nsIContent*
+FindBaseRecursive(nsINode * const elem)
+{
+  // We can't use NS_GetContentList to get the list of <base> elements, because
+  // that flushes content notifications, and we need this function to work in
+  // UnbindFromTree.  Once we land the HTML5 parser and get rid of content
+  // notifications, we should fix this up. (bug 515819)
+
+  PRUint32 childCount;
+  nsIContent * const * child = elem->GetChildArray(&childCount);
+  nsIContent * const * end = child + childCount;
+  for ( ; child != end; child++) {
+    nsIContent *childElem = *child;
+
+    if (childElem->NodeInfo()->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
+        childElem->HasAttr(kNameSpaceID_None, nsGkAtoms::href))
+      return childElem;
+
+    nsIContent* base = FindBaseRecursive(childElem);
+    if (base)
+      return base;
+  }
+
+  return nsnull;
 }
 
 nsresult
@@ -493,22 +477,31 @@ nsHTMLSharedElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                PRBool aNotify)
 {
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aName, aNotify);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   // If we're the first <base> with an href and our href attribute is being
   // unset, then we're no longer the first <base> with an href, and we need to
   // find the new one.
-  nsIContent* head;
-  if (mNodeInfo->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
+  if (NS_SUCCEEDED(rv) &&
+      mNodeInfo->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
       aName == nsGkAtoms::href &&
       aNameSpaceID == kNameSpaceID_None &&
-      IsInDoc() &&
-      (head = GetParent()) &&
-      head == GetOwnerDoc()->GetHeadElement()) {
-    SetBaseURIUsingFirstBaseWithHref(head, nsnull);
+      GetOwnerDoc() == GetCurrentDoc()) {
+
+    nsIDocument* doc = GetCurrentDoc();
+    NS_ENSURE_TRUE(doc, NS_OK);
+
+    // If we're not the first <base> in the document, then unsetting our href
+    // doesn't affect the document's base URI.
+    if (this != doc->GetFirstBaseNodeWithHref())
+      return NS_OK;
+
+    // We're the first base, but we don't have an href; find the first base
+    // which does have an href, and set the document's first base to that.
+    nsIContent* newBaseNode = FindBaseRecursive(doc);
+    return doc->SetFirstBaseNodeWithHref(newBaseNode);
   }
 
-  return NS_OK;
+  return rv;
 }
 
 nsresult
@@ -519,46 +512,46 @@ nsHTMLSharedElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                                  aBindingParent,
                                                  aCompileEventHandlers);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   // The document stores a pointer to its first <base> element, which we may
   // need to update here.
-  if (mNodeInfo->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
+  if (NS_SUCCEEDED(rv) &&
+      mNodeInfo->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
       HasAttr(kNameSpaceID_None, nsGkAtoms::href) &&
-      aDocument && aParent &&
-      aDocument->GetHeadElement() == aParent) {
+      aDocument) {
 
-    SetBaseURIUsingFirstBaseWithHref(aParent, this);
+    // If there's no <base> in the document, or if this comes before the one
+    // that's currently there, set the document's first <base> to this.
+    nsINode* curBaseNode = aDocument->GetFirstBaseNodeWithHref();
+    if (!curBaseNode ||
+        nsContentUtils::PositionIsBefore(this, curBaseNode)) {
+
+      aDocument->SetFirstBaseNodeWithHref(this);
+    }
   }
 
-  return NS_OK;
+  return rv;
 }
 
 void
 nsHTMLSharedElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  nsIDocument* doc;
-  nsIContent* parent;
-  PRBool inHeadBase = mNodeInfo->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
-                      (doc = GetCurrentDoc()) &&
-                      (parent = GetParent()) &&
-                      parent->NodeInfo()->Equals(nsGkAtoms::head,
-                                                 kNameSpaceID_XHTML);
+  nsCOMPtr<nsIDocument> doc = GetCurrentDoc();
 
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 
   // If we're removing a <base> from a document, we may need to update the
   // document's record of the first base node.
-  if (inHeadBase) {
-    // We might have gotten here as a result of the <head> being removed
-    // from the document. In that case we need to call SetBaseURI(nsnull)
-    Element* head = doc->GetHeadElement();
-    if (head) {
-      SetBaseURIUsingFirstBaseWithHref(head, nsnull);
-    }
-    else {
-      doc->SetBaseURI(nsnull);
-    }
+  if (doc && mNodeInfo->Equals(nsGkAtoms::base, kNameSpaceID_XHTML)) {
+
+    // If we're not the first base node, then we don't need to do anything.
+    if (this != doc->GetFirstBaseNodeWithHref())
+      return;
+
+    // If we were the first base node, we need to find the new first base.
+
+    nsIContent* newBaseNode = FindBaseRecursive(doc);
+    doc->SetFirstBaseNodeWithHref(newBaseNode);
   }
 }
 

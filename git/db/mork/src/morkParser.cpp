@@ -1297,7 +1297,6 @@ mork_bool morkParser::ReadEndGroupId(morkEnv* ev)
             {
               // looks good, so return with no error
               outSawGroupId = morkBool_kTrue;
-              mParser_InGroup = false;
             }
             else
               ev->NewError("expected '@' after @$$}id}");
@@ -1420,24 +1419,20 @@ mork_bool
 morkParser::ReadContent(morkEnv* ev, mork_bool inInsideGroup)
 {
   int c;
-  mork_bool keep_going = true;
-  while ( keep_going && (c = this->NextChar(ev)) != EOF && ev->Good())
+  while ( (c = this->NextChar(ev)) != EOF && ev->Good() )
   {
     switch ( c )
     {
       case '[': // row
         this->ReadRow(ev, '[');
-        keep_going = false;
         break;
         
       case '{': // table
         this->ReadTable(ev);
-        keep_going = false;
         break;
         
       case '<': // dict
         this->ReadDict(ev);
-        keep_going = false;
         break;
         
       case '@': // group
@@ -1472,18 +1467,14 @@ morkParser::ReadContent(morkEnv* ev, mork_bool inInsideGroup)
 void
 morkParser::OnPortState(morkEnv* ev)
 {
-  mork_bool firstTime = !mParser_InPort;
   mParser_InPort = morkBool_kTrue;
-  if (firstTime)
-    this->OnNewPort(ev, *mParser_PortSpan.AsPlace());
+  this->OnNewPort(ev, *mParser_PortSpan.AsPlace());
 
-  mork_bool done = !this->ReadContent(ev, mParser_InGroup/*inInsideGroup*/);
-
-  if (done)
-  {
-    mParser_InPort = morkBool_kFalse;
-    this->OnPortEnd(ev, mParser_PortSpan);
-  }
+  while ( this->ReadContent(ev, /*inInsideGroup*/ morkBool_kFalse) )
+    /* empty */;
+  
+  mParser_InPort = morkBool_kFalse;
+  this->OnPortEnd(ev, mParser_PortSpan);
   
   if ( ev->Bad() )
     mParser_State = morkParser_kBrokenState;
@@ -1512,48 +1503,51 @@ morkParser::OnStartState(morkEnv* mev)
 }
 
 /*protected non-poly*/ void
-morkParser::ParseChunk(morkEnv* ev)
+morkParser::ParseLoop(morkEnv* ev)
 {
   mParser_Change = morkChange_kNil;
   mParser_DoMore = morkBool_kTrue;
             
-  switch ( mParser_State )
+  while ( mParser_DoMore )
   {
-    case morkParser_kCellState: // 0
-      this->OnCellState(ev); break;
-      
-    case morkParser_kMetaState: // 1
-      this->OnMetaState(ev); break;
-      
-    case morkParser_kRowState: // 2
-      this->OnRowState(ev); break;
-      
-    case morkParser_kTableState: // 3
-      this->OnTableState(ev); break;
-      
-    case morkParser_kDictState: // 4
-      this->OnDictState(ev); break;
-      
-    case morkParser_kPortState: // 5
-      this->OnPortState(ev); break;
-      
-    case morkParser_kStartState: // 6
-      this->OnStartState(ev); break;
-     
-    case morkParser_kDoneState: // 7
-      mParser_DoMore = morkBool_kFalse;
-      mParser_IsDone = morkBool_kTrue;
-      this->StopParse(ev);
-      break;
-    case morkParser_kBrokenState: // 8
-      mParser_DoMore = morkBool_kFalse;
-      mParser_IsBroken = morkBool_kTrue;
-      this->StopParse(ev);
-      break;
-    default: // ?
-      MORK_ASSERT(morkBool_kFalse);
-      mParser_State = morkParser_kBrokenState;
-      break;
+    switch ( mParser_State )
+    {
+      case morkParser_kCellState: // 0
+        this->OnCellState(ev); break;
+        
+      case morkParser_kMetaState: // 1
+        this->OnMetaState(ev); break;
+        
+      case morkParser_kRowState: // 2
+        this->OnRowState(ev); break;
+        
+      case morkParser_kTableState: // 3
+        this->OnTableState(ev); break;
+        
+      case morkParser_kDictState: // 4
+        this->OnDictState(ev); break;
+        
+      case morkParser_kPortState: // 5
+        this->OnPortState(ev); break;
+        
+      case morkParser_kStartState: // 6
+        this->OnStartState(ev); break;
+       
+      case morkParser_kDoneState: // 7
+        mParser_DoMore = morkBool_kFalse;
+        mParser_IsDone = morkBool_kTrue;
+        this->StopParse(ev);
+        break;
+      case morkParser_kBrokenState: // 8
+        mParser_DoMore = morkBool_kFalse;
+        mParser_IsBroken = morkBool_kTrue;
+        this->StopParse(ev);
+        break;
+      default: // ?
+        MORK_ASSERT(morkBool_kFalse);
+        mParser_State = morkParser_kBrokenState;
+        break;
+    }
   }
 }
     
@@ -1571,22 +1565,18 @@ morkParser::ParseMore( // return count of bytes consumed now
     mork_pos startPos = this->HerePos();
 
     if ( !mParser_IsDone && !mParser_IsBroken )
-      this->ParseChunk(ev);
+      this->ParseLoop(ev);
   
-    // HerePos is only updated for groups. I'd like it to be more accurate.
-
-    mork_pos here;
-    nsresult rv = mParser_Stream->Tell(ev, &here);
-
+    mork_pos endPos = this->HerePos();
     if ( outDone )
       *outDone = mParser_IsDone;
     if ( outBroken )
       *outBroken = mParser_IsBroken;
     if ( outPos )
-      *outPos = here;
+      *outPos = endPos;
       
-    if ( here > startPos )
-      outCount = (mdb_count) (here - startPos);
+    if ( endPos > startPos )
+      outCount = (mdb_count) (endPos - startPos);
   }
   else
   {

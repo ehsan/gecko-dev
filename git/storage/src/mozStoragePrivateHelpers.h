@@ -38,8 +38,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStoragePrivateHelpers_h
-#define mozStoragePrivateHelpers_h
+#ifndef _mozStoragePrivateHelpers_h_
+#define _mozStoragePrivateHelpers_h_
 
 /**
  * This file contains convenience methods for mozStorage.
@@ -49,12 +49,8 @@
 #include "nsIVariant.h"
 #include "mozStorage.h"
 #include "jsapi.h"
-#include "nsAutoPtr.h"
 
-class mozIStorageCompletionCallback;
-class mozIStorageBaseStatement;
-class mozIStorageBindingParams;
-class nsIRunnable;
+class mozIStorageStatement;
 
 namespace mozilla {
 namespace storage {
@@ -89,54 +85,22 @@ nsresult convertResultCode(int aSQLiteResultCode);
 void checkAndLogStatementPerformance(sqlite3_stmt *aStatement);
 
 /**
- * Convert the provided jsval into a variant representation if possible.
  *
- * @param aCtx
- *        The JSContext the value is from.
- * @param aValue
- *        The JavaScript value to convert.  All primitive types are supported,
- *        but only Date objects are supported from the Date family.  Date
- *        objects are coerced to PRTime (nanoseconds since epoch) values.
- * @return the variant if conversion was successful, nsnull if conversion
- *         failed.  The caller is responsible for addref'ing if non-null.
  */
-nsIVariant *convertJSValToVariant(JSContext *aCtx, jsval aValue);
+bool
+bindJSValue(JSContext *aCtx,
+            mozIStorageStatement *aStatement,
+            int aIdx,
+            jsval aValue);
 
 /**
- * Obtains an event that will notify a completion callback about completion.
- *
- * @param aCallback
- *        The callback to be notified.
- * @return an nsIRunnable that can be dispatched to the calling thread.
+ * Used to convert an nsIVariant to the proper SQLite type.
  */
-already_AddRefed<nsIRunnable> newCompletionEvent(
-  mozIStorageCompletionCallback *aCallback
-);
-
-
-/**
- * Performs a sqlite3_step on aStatement, while properly handling SQLITE_LOCKED
- * when not on the main thread by waiting until we are notified.
- *
- * @param aStatement
- *        A pointer to a sqlite3_stmt object.
- * @return the result from sqlite3_step.
- */
-int stepStmt(sqlite3_stmt *aStatement);
-
-/**
- * Obtains a prepared sqlite3_stmt object for aDatabase from aSQL.
- *
- * @param aDatabase
- *        The database the statement will execute on.
- * @param aSQL
- *        The SQL statement to compile.
- * @return the result from sqlite3_prepare_v2.
- */
-int prepareStmt(sqlite3 *aDatabase, const nsCString &aSQL,
-                sqlite3_stmt **_stmt);
+template <typename T>
+int variantToSQLiteT(T aObj, nsIVariant *aValue);
+#include "variantToSQLiteT_impl.h" // To keep this file easier to read.
 
 } // namespace storage
 } // namespace mozilla
 
-#endif // mozStoragePrivateHelpers_h
+#endif // _mozStoragePrivateHelpers_h_

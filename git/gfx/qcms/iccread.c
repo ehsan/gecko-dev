@@ -23,17 +23,17 @@
 #include <math.h>
 #include <assert.h>
 #include <stdlib.h>
-#include <string.h>
 #include "qcmsint.h"
 
-typedef uint32_t be32;
-typedef uint16_t be16;
+//XXX: use a better typename
+typedef uint32_t __be32;
+typedef uint16_t __be16;
 
 #if 0
 not used yet
 /* __builtin_bswap isn't available in older gccs
  * so open code it for now */
-static be32 cpu_to_be32(int32_t v)
+static __be32 cpu_to_be32(int32_t v)
 {
 #ifdef IS_LITTLE_ENDIAN
 	return ((v & 0xff) << 24) | ((v & 0xff00) << 8) | ((v & 0xff0000) >> 8) | ((v & 0xff000000) >> 24);
@@ -43,7 +43,7 @@ static be32 cpu_to_be32(int32_t v)
 }
 #endif
 
-static uint32_t be32_to_cpu(be32 v)
+static uint32_t be32_to_cpu(__be32 v)
 {
 #ifdef IS_LITTLE_ENDIAN
 	return ((v & 0xff) << 24) | ((v & 0xff00) << 8) | ((v & 0xff0000) >> 8) | ((v & 0xff000000) >> 24);
@@ -53,7 +53,7 @@ static uint32_t be32_to_cpu(be32 v)
 #endif
 }
 
-static uint16_t be16_to_cpu(be16 v)
+static uint32_t be16_to_cpu(__be16 v)
 {
 #ifdef IS_LITTLE_ENDIAN
 	return ((v & 0xff) << 8) | ((v & 0xff00) >> 8);
@@ -87,8 +87,8 @@ static uint32_t read_u32(struct mem_source *mem, size_t offset)
 		invalid_source(mem, "Invalid offset");
 		return 0;
 	} else {
-		be32 k;
-		memcpy(&k, mem->buf + offset, sizeof(k));
+		__be32 k;
+		memcpy(&k, mem->buf + offset, sizeof(__be32));
 		return be32_to_cpu(k);
 	}
 }
@@ -99,8 +99,8 @@ static uint16_t read_u16(struct mem_source *mem, size_t offset)
 		invalid_source(mem, "Invalid offset");
 		return 0;
 	} else {
-		be16 k;
-		memcpy(&k, mem->buf + offset, sizeof(k));
+		__be16 k;
+		memcpy(&k, mem->buf + offset, sizeof(__be16));
 		return be16_to_cpu(k);
 	}
 }
@@ -421,6 +421,8 @@ static struct lutType *read_tag_lutType(struct mem_source *src, struct tag_index
 	lut->e22 = read_s15Fixed16Number(src, offset+44);
 
 	//TODO: finish up
+	for (i = 0; i < lut->num_input_table_entries; i++) {
+	}
 	return lut;
 }
 
@@ -781,7 +783,7 @@ qcms_profile* qcms_profile_from_file(FILE *file)
 	uint32_t length, remaining_length;
 	qcms_profile *profile;
 	size_t read_length;
-	be32 length_be;
+	__be32 length_be;
 	void *data;
 
 	fread(&length_be, sizeof(length), 1, file);
@@ -795,7 +797,7 @@ qcms_profile* qcms_profile_from_file(FILE *file)
 		return NO_MEM_PROFILE;
 
 	/* copy in length to the front so that the buffer will contain the entire profile */
-	*((be32*)data) = length_be;
+	*((__be32*)data) = length_be;
 	remaining_length = length - sizeof(length_be);
 
 	/* read the rest profile */

@@ -52,6 +52,7 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
 #include "nsIFileURL.h"
+#include "nsIJAR.h"
 
 static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
 
@@ -496,8 +497,14 @@ nsJARChannel::GetOwner(nsISupports **result)
     if (!jarReader)
         return NS_ERROR_NOT_INITIALIZED;
 
+    nsCOMPtr<nsIJAR> jar = do_QueryInterface(jarReader, &rv);
+    if (NS_FAILED(rv)) {
+        NS_ERROR("nsIJAR not supported");
+        return rv;
+    }
+
     nsCOMPtr<nsIPrincipal> cert;
-    rv = jarReader->GetCertificatePrincipal(mJarEntry.get(), getter_AddRefs(cert));
+    rv = jar->GetCertificatePrincipal(mJarEntry.get(), getter_AddRefs(cert));
     if (NS_FAILED(rv)) return rv;
 
     if (cert) {

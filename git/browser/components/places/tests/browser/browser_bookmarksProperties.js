@@ -225,15 +225,17 @@ gTests.push({
     var tagsField = this.window.document.getElementById("editBMPanel_tagsField");
     var self = this;
 
-    function windowObserver(aSubject, aTopic, aData) {
-      if (aTopic == "domwindowclosed" &&
-          aSubject.QueryInterface(Ci.nsIDOMWindow).location == DIALOG_URL) {
-        ww.unregisterNotification(windowObserver);
-        tagsField.popup.removeEventListener("popuphidden", popupListener, true);
-        ok(false, "Dialog window should not be closed by pressing Enter on the autocomplete popup");
-        self.finish();
+    var windowObserver = {
+      observe: function(aSubject, aTopic, aData) {
+        if (aTopic === "domwindowclosed" &&
+            aSubject.QueryInterface(Ci.nsIDOMWindow).location == DIALOG_URL) {
+          ww.unregisterNotification(this);
+          tagsField.popup.removeEventListener("popuphidden", popupListener, true);
+          ok(false, "Dialog window should not be closed by pressing Enter on the autocomplete popup");
+          self.finish();
+        }
       }
-    }
+    };
 
     var popupListener = {
       handleEvent: function(aEvent) {
@@ -382,15 +384,17 @@ gTests.push({
     var tagsField = this.window.document.getElementById("editBMPanel_tagsField");
     var self = this;
 
-    function windowObserver(aSubject, aTopic, aData) {
-      if (aTopic == "domwindowclosed" &&
-          aSubject.QueryInterface(Ci.nsIDOMWindow).location == DIALOG_URL) {
-        ww.unregisterNotification(windowObserver);
-        tagsField.popup.removeEventListener("popuphidden", popupListener, true);
-        ok(false, "Dialog window should not be closed by pressing Escape on the autocomplete popup");
-        self.finish();
+    var windowObserver = {
+      observe: function(aSubject, aTopic, aData) {
+        if (aTopic === "domwindowclosed" &&
+            aSubject.QueryInterface(Ci.nsIDOMWindow).location == DIALOG_URL) {
+          ww.unregisterNotification(this);
+          tagsField.popup.removeEventListener("popuphidden", popupListener, true);
+          ok(false, "Dialog window should not be closed by pressing Escape on the autocomplete popup");
+          self.finish();
+        }
       }
-    }
+    };
 
     var popupListener = {
       handleEvent: function(aEvent) {
@@ -482,15 +486,17 @@ gTests.push({
     var folderTree = this.window.document.getElementById("editBMPanel_folderTree");
     var self = this;
 
-    function windowObserver(aSubject, aTopic, aData) {
-      if (aTopic == "domwindowclosed" &&
-          aSubject.QueryInterface(Ci.nsIDOMWindow).location == DIALOG_URL_MINIMAL_UI) {
-        ww.unregisterNotification(windowObserver);
-        ok(self._cleanShutdown,
-           "Dialog window should not be closed by pressing ESC in folder name textbox");
-        self.finish();
+    var windowObserver = {
+      observe: function(aSubject, aTopic, aData) {
+        if (aTopic === "domwindowclosed" &&
+            aSubject.QueryInterface(Ci.nsIDOMWindow).location == DIALOG_URL_MINIMAL_UI) {
+          ww.unregisterNotification(this);
+          ok(self._cleanShutdown,
+             "Dialog window should not be closed by pressing ESC in folder name textbox");
+          self.finish();
+        }
       }
-    }
+    };
     ww.registerNotification(windowObserver);
 
     folderTree.addEventListener("DOMAttrModified", function onDOMAttrModified(event) {
@@ -530,10 +536,6 @@ gTests.push({
 
 function test() {
   waitForExplicitFinish();
-  // This test can take some time, if we timeout too early it could run
-  // in the middle of other tests, or hang them.
-  requestLongerTimeout(2);
-
   // Sanity checks.
   ok(PlacesUtils, "PlacesUtils in context");
   ok(PlacesUIUtils, "PlacesUIUtils in context");
@@ -599,30 +601,32 @@ function open_properties_dialog() {
        "We have a places node selected: " + tree.selectedNode.title);
 
     // Wait for the Properties dialog.
-    function windowObserver(aSubject, aTopic, aData) {
-      if (aTopic != "domwindowopened")
-        return;
-      ww.unregisterNotification(windowObserver);
-      var win = aSubject.QueryInterface(Ci.nsIDOMWindow);
-      win.addEventListener("focus", function (event) {
-        win.removeEventListener("focus", arguments.callee, false);
-        // Windows has been loaded, execute our test now.
-        executeSoon(function () {
-          // Ensure overlay is loaded
-          ok(win.gEditItemOverlay._initialized, "EditItemOverlay is initialized");
-          gCurrentTest.window = win;
-          try {
-            gCurrentTest.run();
-          } catch (ex) {
-            ok(false, "An error occured during test run: " + ex.message);
-          }
-        });
-      }, false);
-    }
+    var windowObserver = {
+      observe: function(aSubject, aTopic, aData) {
+        if (aTopic === "domwindowopened") {
+          ww.unregisterNotification(this);
+          var win = aSubject.QueryInterface(Ci.nsIDOMWindow);
+          win.addEventListener("focus", function(event) {
+            win.removeEventListener("focus", arguments.callee, false);
+            // Windows has been loaded, execute our test now.
+            executeSoon(function () {
+              // Ensure overlay is loaded
+              ok(win.gEditItemOverlay._initialized, "EditItemOverlay is initialized");
+              gCurrentTest.window = win;
+              try {
+                gCurrentTest.run();
+              } catch (ex) {
+                ok(false, "An error occured during test run: " + ex.message);
+              }
+            });
+          }, false);
+        }
+      }
+    };
     ww.registerNotification(windowObserver);
 
     var command = null;
-    switch (gCurrentTest.action) {
+    switch(gCurrentTest.action) {
       case ACTION_EDIT:
         command = "placesCmd_show:info";
         break;

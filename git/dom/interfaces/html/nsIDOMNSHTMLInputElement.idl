@@ -42,10 +42,9 @@
 interface nsIControllers;
 interface nsIDOMFileList;
 
-[scriptable, uuid(aa764da9-9046-4565-9e34-abd3c4da158e)]
+[scriptable, uuid(2cb61f32-b21f-4b87-904c-8876d8bb5f33)]
 interface nsIDOMNSHTMLInputElement : nsISupports
 {
-           attribute boolean          autofocus;
 	readonly attribute nsIControllers   controllers;
 	
 	readonly attribute long             textLength;
@@ -59,8 +58,6 @@ interface nsIDOMNSHTMLInputElement : nsISupports
 
            attribute boolean          multiple;
 
-           attribute DOMString        placeholder;
-
   void mozGetFileNameArray([optional] out unsigned long aLength,
                            [array,size_is(aLength), retval] out wstring aFileNames);
   void mozSetFileNameArray([array,size_is(aLength)] in wstring aFileNames,
@@ -69,10 +66,4 @@ interface nsIDOMNSHTMLInputElement : nsISupports
 	/* convenience */
   void                      setSelectionRange(in long selectionStart,
                                               in long selectionEnd);
-
-  /**
-   * This non-standard method prevents to check types manually to know if the
-   * element is a text field.
-   */
-  boolean mozIsTextField(in boolean aExcludePassword);
 };

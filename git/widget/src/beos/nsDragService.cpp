@@ -60,6 +60,7 @@
 #include <View.h>
 
 #include "prlog.h"
+#include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
@@ -76,7 +77,13 @@ GetPrimaryFrameFor(nsIDOMNode *aDOMNode)
     if (nsnull == aContent)
         return nsnull;
 
-    return aContent->GetPrimaryFrame();
+    nsIDocument* doc = aContent->GetCurrentDoc();
+    if (nsnull == doc)
+        return nsnull;
+    nsIPresShell* presShell = doc->GetPrimaryShell();
+    if ( nsnull == presShell) 
+        return nsnull;
+    return presShell->GetPrimaryFrameFor(aContent);
 }
 
 static bool 
@@ -346,7 +353,7 @@ NS_IMETHODIMP
 nsDragService::SetCanDrop(PRBool aCanDrop)
 {
     PR_LOG(sDragLm, PR_LOG_DEBUG, ("nsDragService::SetCanDrop(%s)",
-                                   aCanDrop ? "TRUE" : "FALSE"));
+                                  aCanDrop == PR_TRUE?"TRUE":"FALSE"));
     return nsBaseDragService::SetCanDrop(aCanDrop);
 }
 
@@ -649,7 +656,7 @@ nsDragService::CreateDragMessage()
     }
     returnMsg->PrintToStream();
     // If we did not add a type, we can't drag
-    NS_ASSERTION(addedType, "No flavor/mime in the drag message!");
+    NS_ASSERTION(addedType == PR_TRUE, "No flavor/mime in the drag message!");
     return returnMsg;
 }
 

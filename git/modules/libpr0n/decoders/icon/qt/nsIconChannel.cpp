@@ -35,10 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <QIcon>
-#include <QStyle>
-#include <QApplication>
-
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -52,6 +48,10 @@
 
 #include "nsIconChannel.h"
 #include "nsGtkQtIconsConverter.h"
+
+#include <QIcon>
+#include <QStyle>
+#include <QApplication>
 
 NS_IMPL_ISUPPORTS2(nsIconChannel,
                    nsIRequest,

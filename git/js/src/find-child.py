@@ -19,7 +19,6 @@ from mercurial import ui, hg
 from hgext.convert.filemap import filemapper
 from optparse import OptionParser
 
-import sys
 
 parser = OptionParser()
 
@@ -64,6 +63,3 @@ while len(revs) != 0:
                 u.write("%s %s\n" % (child.hex(), dst_tip))
                 exit(0);
         revs.extend(child.children())
-
-sys.stderr.write("No candidate child found in source repository\n")
-exit(1)

@@ -103,9 +103,9 @@ class nsAccessibleWrap : public nsAccessible,
                          public IAccessible2,
                          public IEnumVARIANT
 {
-public: // construction, destruction
-  nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell);
-  virtual ~nsAccessibleWrap();
+  public: // construction, destruction
+    nsAccessibleWrap(nsIDOMNode*, nsIWeakReference *aShell);
+    virtual ~nsAccessibleWrap();
 
     // nsISupports
     NS_DECL_ISUPPORTS_INHERITED
@@ -287,31 +287,22 @@ public: // construction, destruction
         /* [out] */ IEnumVARIANT __RPC_FAR *__RPC_FAR *ppEnum);
 
         
-  // IDispatch (support of scripting languages like VB)
-  virtual HRESULT STDMETHODCALLTYPE GetTypeInfoCount(UINT *pctinfo);
+  //   ======  Methods for IDispatch - for VisualBasic bindings (not implemented) ======
 
-  virtual HRESULT STDMETHODCALLTYPE GetTypeInfo(UINT iTInfo, LCID lcid,
-                                                ITypeInfo **ppTInfo);
-
-  virtual HRESULT STDMETHODCALLTYPE GetIDsOfNames(REFIID riid,
-                                                  LPOLESTR *rgszNames,
-                                                  UINT cNames,
-                                                  LCID lcid,
-                                                  DISPID *rgDispId);
-
-  virtual HRESULT STDMETHODCALLTYPE Invoke(DISPID dispIdMember, REFIID riid,
-                                           LCID lcid, WORD wFlags,
-                                           DISPPARAMS *pDispParams,
-                                           VARIANT *pVarResult,
-                                           EXCEPINFO *pExcepInfo,
-                                           UINT *puArgErr);
+  STDMETHODIMP GetTypeInfoCount(UINT *p);
+  STDMETHODIMP GetTypeInfo(UINT i, LCID lcid, ITypeInfo **ppti);
+  STDMETHODIMP GetIDsOfNames(REFIID riid, LPOLESTR *rgszNames,
+                               UINT cNames, LCID lcid, DISPID *rgDispId);
+  STDMETHODIMP Invoke(DISPID dispIdMember, REFIID riid,
+        LCID lcid, WORD wFlags, DISPPARAMS *pDispParams,
+        VARIANT *pVarResult, EXCEPINFO *pExcepInfo, UINT *puArgErr);
 
   // nsAccessible
-  virtual nsresult HandleAccEvent(nsAccEvent *aEvent);
+  virtual nsresult FireAccessibleEvent(nsIAccessibleEvent *aEvent);
 
   // Helper methods
   static PRInt32 GetChildIDFor(nsIAccessible* aAccessible);
-  static HWND GetHWNDFor(nsAccessible *aAccessible);
+  static HWND GetHWNDFor(nsIAccessible *aAccessible);
   static HRESULT ConvertToIA2Attributes(nsIPersistentProperties *aAttributes,
                                         BSTR *aIA2Attributes);
 
@@ -324,11 +315,7 @@ public: // construction, destruction
    */
   void UpdateSystemCaret();
 
-  /**
-   * Find an accessible by the given child ID in cached documents.
-   */
-  virtual nsAccessible *GetXPAccessibleFor(const VARIANT& aVarChild);
-
+  virtual void GetXPAccessibleFor(const VARIANT& aVarChild, nsIAccessible **aXPAccessible);
   NS_IMETHOD GetNativeInterface(void **aOutAccessible);
 
   // NT4 does not have the oleacc that defines these methods. So we define copies here that automatically
@@ -346,20 +333,12 @@ public: // construction, destruction
   void UnattachIEnumVariant();
 
 protected:
-  virtual nsresult FirePlatformEvent(nsAccEvent *aEvent);
+  virtual nsresult FirePlatformEvent(nsIAccessibleEvent *aEvent);
 
   // mEnumVARIANTPosition not the current accessible's position, but a "cursor" of 
   // where we are in the current list of children, with respect to
   // nsIEnumVariant::Reset(), Skip() and Next().
   PRInt32 mEnumVARIANTPosition;
-
-  /**
-   * Creates ITypeInfo for LIBID_Accessibility if it's needed and returns it.
-   */
-  ITypeInfo *GetTI(LCID lcid);
-
-  ITypeInfo *mTypeInfo;
-
 
   enum navRelations {
     NAVRELATION_CONTROLLED_BY = 0x1000,

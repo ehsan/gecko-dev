@@ -48,7 +48,7 @@
 #define nsStyleSet_h_
 
 #include "nsIStyleRuleProcessor.h"
-#include "nsCSSStyleSheet.h"
+#include "nsICSSStyleSheet.h"
 #include "nsBindingManager.h"
 #include "nsRuleNode.h"
 #include "nsTArray.h"
@@ -66,9 +66,9 @@ struct RuleProcessorData;
 class nsEmptyStyleRule : public nsIStyleRule
 {
   NS_DECL_ISUPPORTS
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 };
 
@@ -97,21 +97,19 @@ class nsStyleSet
 
   // get a style context for a non-pseudo frame.
   already_AddRefed<nsStyleContext>
-  ResolveStyleFor(mozilla::dom::Element* aElement,
-                  nsStyleContext* aParentContext);
+  ResolveStyleFor(nsIContent* aContent, nsStyleContext* aParentContext);
 
-  // Get a style context (with the given parent) for the
-  // sequence of style rules in the |aRules| array.
+  // Get a style context (with the given parent and pseudo-tag/type) for a
+  // sequence of style rules consisting of the concatenation of:
+  //  (1) the rule sequence represented by aRuleNode (which is the empty
+  //      sequence if aRuleNode is null or the root of the rule tree), and
+  //  (2) the rules in the |aRules| array.
   already_AddRefed<nsStyleContext>
   ResolveStyleForRules(nsStyleContext* aParentContext,
+                       nsIAtom* aPseudoTag,
+                       nsCSSPseudoElements::Type aPseudoType,
+                       nsRuleNode *aRuleNode,
                        const nsCOMArray<nsIStyleRule> &aRules);
-
-  // Get a style context that represents aBaseContext, but as though
-  // it additionally matched the rules in the aRules array (in that
-  // order, as more specific than any other rules).
-  already_AddRefed<nsStyleContext>
-  ResolveStyleByAddingRules(nsStyleContext* aBaseContext,
-                            const nsCOMArray<nsIStyleRule> &aRules);
 
   // Get a style context for a non-element (which no rules will match),
   // such as text nodes, placeholder frames, and the nsFirstLetterFrame
@@ -123,11 +121,11 @@ class nsStyleSet
   already_AddRefed<nsStyleContext>
   ResolveStyleForNonElement(nsStyleContext* aParentContext);
 
-  // Get a style context for a pseudo-element.  aParentElement must be
+  // Get a style context for a pseudo-element.  aParentContent must be
   // non-null.  aPseudoID is the nsCSSPseudoElements::Type for the
   // pseudo-element.
   already_AddRefed<nsStyleContext>
-  ResolvePseudoElementStyle(mozilla::dom::Element* aParentElement,
+  ResolvePseudoElementStyle(nsIContent* aParentContent,
                             nsCSSPseudoElements::Type aType,
                             nsStyleContext* aParentContext);
 
@@ -135,7 +133,7 @@ class nsStyleSet
   // return nsnull if there are no explicit style rules for that
   // pseudo element.
   already_AddRefed<nsStyleContext>
-  ProbePseudoElementStyle(mozilla::dom::Element* aParentElement,
+  ProbePseudoElementStyle(nsIContent* aParentContent,
                           nsCSSPseudoElements::Type aType,
                           nsStyleContext* aParentContext);
   
@@ -149,7 +147,7 @@ class nsStyleSet
   // pseudo-tag to use and must be non-null.  aParentContent must be
   // non-null.  aComparator must be non-null.
   already_AddRefed<nsStyleContext>
-  ResolveXULTreePseudoStyle(mozilla::dom::Element* aParentElement,
+  ResolveXULTreePseudoStyle(nsIContent* aParentContent,
                             nsIAtom* aPseudoTag,
                             nsStyleContext* aParentContext,
                             nsICSSPseudoComparator* aComparator);
@@ -174,27 +172,19 @@ class nsStyleSet
   // Get a new style context that lives in a different parent
   // The new context will be the same as the old if the new parent is the
   // same as the old parent.
-  // aElement should be non-null if this is a style context for an
-  // element or pseudo-element; in the latter case it should be the
-  // real element the pseudo-element is for.
   already_AddRefed<nsStyleContext>
-  ReparentStyleContext(nsStyleContext* aStyleContext,
-                       nsStyleContext* aNewParentContext,
-                       mozilla::dom::Element* aElement);
-
-  // Test if style is dependent on a document state.
-  PRBool HasDocumentStateDependentStyle(nsPresContext* aPresContext,
-                                        nsIContent*    aContent,
-                                        PRInt32        aStateMask);
+    ReParentStyleContext(nsPresContext* aPresContext,
+                         nsStyleContext* aStyleContext,
+                         nsStyleContext* aNewParentContext);
 
   // Test if style is dependent on content state
-  nsRestyleHint HasStateDependentStyle(nsPresContext* aPresContext,
-                                       mozilla::dom::Element* aElement,
-                                       PRInt32 aStateMask);
+  nsReStyleHint HasStateDependentStyle(nsPresContext* aPresContext,
+                                       nsIContent*     aContent,
+                                       PRInt32         aStateMask);
 
   // Test if style is dependent on the presence of an attribute.
-  nsRestyleHint HasAttributeDependentStyle(nsPresContext* aPresContext,
-                                           mozilla::dom::Element* aElement,
+  nsReStyleHint HasAttributeDependentStyle(nsPresContext* aPresContext,
+                                           nsIContent*    aContent,
                                            nsIAtom*       aAttribute,
                                            PRInt32        aModType,
                                            PRBool         aAttrHasChanged);
@@ -287,9 +277,7 @@ class nsStyleSet
   void RuleNodeInUse() {
     --mUnusedRuleNodeCount;
   }
-
-  nsCSSStyleSheet::EnsureUniqueInnerResult EnsureUniqueInnerOnCSSSheets();
-
+  
  private:
   // Not to be implemented
   nsStyleSet(const nsStyleSet& aCopy);
@@ -338,17 +326,13 @@ class nsStyleSet
   // Enumerate all the rules in a way that doesn't care about the order
   // of the rules and break out if the enumeration is halted.
   void WalkRuleProcessors(nsIStyleRuleProcessor::EnumFunc aFunc,
-                          RuleProcessorData* aData,
-                          PRBool aWalkAllXBLStylesheets);
+                          RuleProcessorData* aData);
 
-  already_AddRefed<nsStyleContext>
-  GetContext(nsStyleContext* aParentContext,
-             nsRuleNode* aRuleNode,
-             nsRuleNode* aVisitedRuleNode,
-             PRBool aIsLink,
-             PRBool aIsVisitedLink,
-             nsIAtom* aPseudoTag,
-             nsCSSPseudoElements::Type aPseudoType);
+  already_AddRefed<nsStyleContext> GetContext(nsPresContext* aPresContext,
+                                              nsStyleContext* aParentContext,
+                                              nsRuleNode* aRuleNode,
+                                              nsIAtom* aPseudoTag,
+                                              nsCSSPseudoElements::Type aPseudoType);
 
   nsPresContext* PresContext() { return mRuleTree->GetPresContext(); }
 
@@ -393,9 +377,8 @@ class nsStyleSet
 
 };
 
-#ifdef _IMPL_NS_LAYOUT
 inline
-void nsRuleNode::AddRef()
+NS_HIDDEN_(void) nsRuleNode::AddRef()
 {
   if (mRefCnt++ == 0 && !IsRoot()) {
     mPresContext->StyleSet()->RuleNodeInUse();
@@ -403,12 +386,10 @@ void nsRuleNode::AddRef()
 }
 
 inline
-void nsRuleNode::Release()
+NS_HIDDEN_(void) nsRuleNode::Release()
 {
   if (--mRefCnt == 0 && !IsRoot()) {
     mPresContext->StyleSet()->RuleNodeUnused();
   }
 }
-#endif
-
 #endif

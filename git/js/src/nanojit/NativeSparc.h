@@ -71,13 +71,8 @@ namespace nanojit
 
     const int LARGEST_UNDERRUN_PROT = 32;  // largest value passed to underrunProtect
 
-#define NJ_MAX_STACK_ENTRY              8192
-#define NJ_MAX_PARAMETERS               1
-
-#define NJ_JTBL_SUPPORTED               0
-#define NJ_EXPANDED_LOADSTORE_SUPPORTED 0
-#define NJ_F2I_SUPPORTED                1
-#define NJ_SOFTFLOAT_SUPPORTED          0
+#define NJ_MAX_STACK_ENTRY 256
+#define NJ_MAX_PARAMETERS 1
 
     const int NJ_ALIGN_STACK = 16;
 
@@ -166,7 +161,7 @@ namespace nanojit
 
             FirstReg = 0,
             LastReg = 29,
-            deprecated_UnknownReg = 30      // XXX: remove eventually, see bug 538924
+            UnknownReg = 30
         }
     Register;
 
@@ -194,6 +189,10 @@ namespace nanojit
     1<<F22;
     static const RegisterMask AllowableFlagRegs = GpRegs;
 
+    static inline bool isValidDisplacement(LOpcode, int32_t) {
+        return true;
+    }
+
     verbose_only( extern const char* regNames[]; )
 
 #define DECLARE_PLATFORM_STATS()
@@ -208,8 +207,8 @@ namespace nanojit
     void underrunProtect(int bytes); \
     void asm_align_code(); \
     void asm_cmp(LIns *cond); \
-    void asm_cmpd(LIns *cond); \
-    NIns* asm_branchd(bool, LIns*, NIns*);
+    void asm_fcmp(LIns *cond); \
+    NIns* asm_fbranch(bool, LIns*, NIns*);
 
 #define IMM32(i)    \
     --_nIns;        \
@@ -487,12 +486,6 @@ namespace nanojit
     asm_output("fmuld %s, %s, %s", gpn(rs1+32), gpn(rs2+32), gpn(rd+32)); \
     } while (0)
 
-#define FDTOI(rs2, rd) \
-    do { \
-    Format_3_8(2, rd, 0x34, 0, 0xd2, rs2); \
-    asm_output("fdtoi %s, %s", gpn(rs2+32), gpn(rd+32)); \
-    } while (0)
-
 #define FDIVD(rs1, rs2, rd) \
     do { \
     Format_3_8(2, rd, 0x34, rs1, 0x4e, rs2); \
@@ -727,12 +720,6 @@ namespace nanojit
     asm_output("movcc %d, %s", simm11, gpn(rd)); \
     } while (0)
 
-#define MOVCSI(simm11, cc2, cc1, cc0, rd) \
-    do { \
-    Format_4_2I(rd, 0x2c, cc2, 0x5, cc1, cc0, simm11); \
-    asm_output("movcs %d, %s", simm11, gpn(rd)); \
-    } while (0)
-
 #define MOVVSI(simm11, cc2, cc1, cc0, rd) \
     do { \
     Format_4_2I(rd, 0x2c, cc2, 7, cc1, cc0, simm11); \
@@ -841,19 +828,6 @@ namespace nanojit
     asm_output("st %s, [%s + %d]", gpn(rd), gpn(rs1), simm13); \
     } while (0)
 
-#define STB(rd, rs2, rs1) \
-    do { \
-    Format_3_1(3, rd, 0x5, rs1, 0, rs2); \
-    asm_output("stb %s, [%s + %s]", gpn(rd), gpn(rs1), gpn(rs2)); \
-    } while (0)
-
-#define STBI(rd, simm13, rs1) \
-    do { \
-    Format_3_1I(3, rd, 0x5, rs1, simm13); \
-    asm_output("stb %s, [%s + %d]", gpn(rd), gpn(rs1), simm13); \
-    } while (0)
-
-
 #define SUBCC(rs1, rs2, rd) \
     do { \
     Format_3_1(2, rd, 0x14, rs1, 0, rs2); \
@@ -888,82 +862,66 @@ namespace nanojit
 #define isIMM22(imm) \
     (imm) <= 0x1fffff && (imm) >= -0x200000
 
-#define SET32(immI, rd) \
-    if(isIMM13(immI)) { \
-       ORI(G0, immI, rd); \
+#define SET32(imm32, rd) \
+    if(isIMM13(imm32)) { \
+       ORI(G0, imm32, rd); \
     } else { \
-      ORI(rd, immI & 0x3FF, rd); \
-      SETHI(immI, rd); \
+      ORI(rd, imm32 & 0x3FF, rd); \
+      SETHI(imm32, rd); \
     }
 
-#define STDF32(rd, immI, rs1) \
-    if(isIMM13(immI+4)) { \
-      STFI(rd+1, immI+4, rs1); \
-      STFI(rd, immI, rs1); \
+#define STDF32(rd, imm32, rs1) \
+    if(isIMM13(imm32+4)) { \
+      STFI(rd+1, imm32+4, rs1); \
+      STFI(rd, imm32, rs1); \
     } else { \
       STF(rd+1, L0, rs1); \
-      SET32(immI+4, L0); \
+      SET32(imm32+4, L0); \
       STF(rd, L0, rs1); \
-      SET32(immI, L0); \
+      SET32(imm32, L0); \
     }
 
-#define STF32(rd, immI, rs1) \
-    if(isIMM13(immI+4)) { \
-      STFI(rd, immI, rs1); \
-    } else { \
-      STF(rd, L0, rs1); \
-      SET32(immI, L0); \
-    }
-
-#define LDDF32(rs1, immI, rd) \
-    if(isIMM13(immI+4)) { \
-      LDFI(rs1, immI+4, rd+1); \
-      LDFI(rs1, immI, rd); \
+#define LDDF32(rs1, imm32, rd) \
+    if(isIMM13(imm32+4)) { \
+      LDFI(rs1, imm32+4, rd+1); \
+      LDFI(rs1, imm32, rd); \
     } else { \
       LDF(rs1, L0, rd+1); \
-      SET32(immI+4, L0); \
+      SET32(imm32+4, L0); \
       LDF(rs1, L0, rd); \
-      SET32(immI, L0); \
+      SET32(imm32, L0); \
     }
 
-#define STW32(rd, immI, rs1) \
-    if(isIMM13(immI)) { \
-      STWI(rd, immI, rs1); \
+#define STW32(rd, imm32, rs1) \
+    if(isIMM13(imm32)) { \
+      STWI(rd, imm32, rs1); \
     } else { \
       STW(rd, L0, rs1); \
-      SET32(immI, L0); \
+      SET32(imm32, L0); \
     }
 
-#define STB32(rd, immI, rs1) \
-    if(isIMM13(immI)) { \
-      STBI(rd, immI, rs1); \
-    } else { \
-      STB(rd, L0, rs1); \
-      SET32(immI, L0); \
-    }
-
-#define LDUB32(rs1, immI, rd) \
-    if(isIMM13(immI)) { \
-      LDUBI(rs1, immI, rd); \
+#define LDUB32(rs1, imm32, rd) \
+    if(isIMM13(imm32)) { \
+      LDUBI(rs1, imm32, rd); \
     } else { \
       LDUB(rs1, L0, rd); \
-      SET32(immI, L0); \
+      SET32(imm32, L0); \
     }
 
-#define LDUH32(rs1, immI, rd) \
-    if(isIMM13(immI)) { \
-      LDUHI(rs1, immI, rd); \
+#define LDUH32(rs1, imm32, rd) \
+    if(isIMM13(imm32)) { \
+      LDUHI(rs1, imm32, rd); \
     } else { \
       LDUH(rs1, L0, rd); \
-      SET32(immI, L0); \
+      SET32(imm32, L0); \
     }
 
-#define LDSW32(rs1, immI, rd) \
-    if(isIMM13(immI)) { \
-      LDSWI(rs1, immI, rd); \
+#define LDSW32(rs1, imm32, rd) \
+    if(isIMM13(imm32)) { \
+      LDSWI(rs1, imm32, rd); \
     } else { \
       LDSW(rs1, L0, rd); \
-      SET32(immI, L0); \
+      SET32(imm32, L0); \
     }
 
 

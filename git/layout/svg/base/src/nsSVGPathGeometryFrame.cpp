@@ -270,16 +270,6 @@ nsSVGPathGeometryFrame::UpdateCoveredRegion()
 
   if (HasStroke()) {
     SetupCairoStrokeGeometry(&context);
-    if (extent.Width() <= 0 && extent.Height() <= 0) {
-      // If 'extent' is empty, its position will not be set. Although
-      // GetUserStrokeExtent gets the extents wrong we can still use it
-      // to get the device space position of zero length stroked paths.
-      extent = context.GetUserStrokeExtent();
-      extent.pos.x += extent.size.width / 2;
-      extent.pos.y += extent.size.height / 2;
-      extent.size.width = 0;
-      extent.size.height = 0;
-    }
     extent = nsSVGUtils::PathExtentsToMaxStrokeExtents(extent, this);
   } else if (GetStyleSVG()->mFill.mType == eStyleSVGPaintType_None) {
     extent = gfxRect(0, 0, 0, 0);
@@ -391,15 +381,12 @@ nsSVGPathGeometryFrame::GetMarkerProperties(nsSVGPathGeometryFrame *aFrame)
 
   MarkerProperties result;
   const nsStyleSVG *style = aFrame->GetStyleSVG();
-  result.mMarkerStart =
-    nsSVGEffects::GetMarkerProperty(style->mMarkerStart, aFrame,
-                                    nsSVGEffects::MarkerBeginProperty());
-  result.mMarkerMid =
-    nsSVGEffects::GetMarkerProperty(style->mMarkerMid, aFrame,
-                                    nsSVGEffects::MarkerMiddleProperty());
-  result.mMarkerEnd =
-    nsSVGEffects::GetMarkerProperty(style->mMarkerEnd, aFrame,
-                                    nsSVGEffects::MarkerEndProperty());
+  result.mMarkerStart = nsSVGEffects::GetMarkerProperty(
+                          style->mMarkerStart, aFrame, nsGkAtoms::marker_start);
+  result.mMarkerMid = nsSVGEffects::GetMarkerProperty(
+                        style->mMarkerMid, aFrame, nsGkAtoms::marker_mid);
+  result.mMarkerEnd = nsSVGEffects::GetMarkerProperty(
+                        style->mMarkerEnd, aFrame, nsGkAtoms::marker_end);
   return result;
 }
 

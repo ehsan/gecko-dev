@@ -2,10 +2,10 @@
 
 BEGIN_TEST(testIntString_bug515273)
 {
-    jsvalRoot v(cx);
-    EVAL("'42';", v.addr());
+    jsval v;
+    EVAL("'42';", &v);
 
-    JSString *str = JSVAL_TO_STRING(v.value());
+    JSString *str = JSVAL_TO_STRING(v);
     const char *bytes = JS_GetStringBytes(str);
     CHECK(strcmp(bytes, "42") == 0);
     return true;

@@ -161,11 +161,8 @@ function PreviewController(win, tab) {
   // Cannot perform the lookup during construction. See TabWindow.newTab 
   XPCOMUtils.defineLazyGetter(this, "preview", function () this.win.previewFromTab(this.tab));
 
-  XPCOMUtils.defineLazyGetter(this, "canvasPreview", function () {
-    let canvas = this.win.win.document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-    canvas.mozOpaque = true;
-    return canvas;
-  });
+  XPCOMUtils.defineLazyGetter(this, "canvasPreview", function ()
+    this.win.win.document.createElementNS("http://www.w3.org/1999/xhtml", "canvas"));
 
   XPCOMUtils.defineLazyGetter(this, "dirtyRegion",
     function () {
@@ -183,12 +180,6 @@ PreviewController.prototype = {
     this.linkedBrowser.removeEventListener("pageshow", this, false);
     this.linkedBrowser.removeEventListener("DOMTitleChanged", this, false);
     this.linkedBrowser.removeEventListener("MozAfterPaint", this, false);
-
-    // Break cycles, otherwise we end up leaking the window with everything
-    // attached to it.
-    delete this.win;
-    delete this.preview;
-    delete this.dirtyRegion;
   },
   get wrappedJSObject() {
     return this;
@@ -267,12 +258,6 @@ PreviewController.prototype = {
     this.dirtyRegion.unionRect(r.x, r.y, r.width, r.height);
   },
 
-  updateTitleAndTooltip: function () {
-    let title = this.win.tabbrowser.getWindowTitleForBrowser(this.linkedBrowser);
-    this.preview.title = title;
-    this.preview.tooltip = title;
-  },
-
   //////////////////////////////////////////////////////////////////////////////
   //// nsITaskbarPreviewController 
 
@@ -297,8 +282,8 @@ PreviewController.prototype = {
     let self = this;
     this.win.tabbrowser.previewTab(this.tab, function () self.previewTabCallback(ctx));
 
-    // We must avoid having the frame drawn around the window. See bug 520807
-    return false;
+    // We want a frame drawn around the preview
+    return true;
   },
 
   previewTabCallback: function (ctx) {
@@ -360,7 +345,9 @@ PreviewController.prototype = {
         // The tab's label is sometimes empty when dragging tabs between windows
         // so we force the tab title to be updated (see bug 520579)
         this.win.tabbrowser.setTabTitle(this.tab);
-        this.updateTitleAndTooltip();
+        let title = this.tab.label;
+        this.preview.title = title;
+        this.preview.tooltip = title;
         break;
     }
   }
@@ -392,8 +379,9 @@ function TabWindow(win) {
     this.tabbrowser.tabContainer.addEventListener(this.events[i], this, false);
   this.tabbrowser.addTabsProgressListener(this);
 
+
   AeroPeek.windows.push(this);
-  let tabs = this.tabbrowser.tabs;
+  let tabs = this.tabbrowser.mTabs;
   for (let i = 0; i < tabs.length; i++)
     this.newTab(tabs[i]);
 
@@ -408,9 +396,7 @@ TabWindow.prototype = {
   destroy: function () {
     this._destroying = true;
 
-    let tabs = this.tabbrowser.tabs;
-
-    this.tabbrowser.removeTabsProgressListener(this);
+    let tabs = this.tabbrowser.mTabs;
 
     for (let i = 0; i < this.events.length; i++)
       this.tabbrowser.tabContainer.removeEventListener(this.events[i], this, false);
@@ -433,11 +419,9 @@ TabWindow.prototype = {
   // Invoked when the given tab is added to this window
   newTab: function (tab) {
     let controller = new PreviewController(this, tab);
-    let docShell = this.win
-                  .QueryInterface(Ci.nsIInterfaceRequestor)
-                  .getInterface(Ci.nsIWebNavigation)
-                  .QueryInterface(Ci.nsIDocShell);
-    let preview = AeroPeek.taskbar.createTaskbarTabPreview(docShell, controller);
+    let preview = AeroPeek.taskbar.createTaskbarTabPreview(this.tabbrowser.docShell, controller);
+    preview.title = tab.label;
+    preview.tooltip = tab.label;
     preview.visible = AeroPeek.enabled;
     preview.active = this.tabbrowser.selectedTab == tab;
     // Grab the default favicon
@@ -451,9 +435,6 @@ TabWindow.prototype = {
     // It's OK to add the preview now while the favicon still loads.
     this.previews.splice(tab._tPos, 0, preview);
     AeroPeek.addPreview(preview);
-    // updateTitleAndTooltip relies on having controller.preview which is lazily resolved.
-    // Now that we've updated this.previews, it will resolve successfully.
-    controller.updateTitleAndTooltip();
   },
 
   // Invoked when the given tab is closed
@@ -492,11 +473,7 @@ TabWindow.prototype = {
   },
 
   updateTabOrdering: function () {
-    // Since the internal taskbar array has not yet been updated we must force
-    // on it the sorting order of our local array.  To do so we must walk
-    // the local array backwards, otherwise we would send move requests in the
-    // wrong order.  See bug 522610 for details.
-    for (let i = this.previews.length - 1; i >= 0; i--) {
+    for (let i = 0; i < this.previews.length; i++) {
       let p = this.previews[i];
       let next = i == this.previews.length - 1 ? null : this.previews[i+1];
       p.move(next);
@@ -599,17 +576,6 @@ var AeroPeek = {
     this.enabled = this._prefenabled = this.prefs.getBoolPref(TOGGLE_PREF_NAME);
   },
 
-  destroy: function destroy() {
-    this._enabled = false;
-
-    this.prefs.removeObserver(TOGGLE_PREF_NAME, this);
-    this.prefs.removeObserver(DISABLE_THRESHOLD_PREF_NAME, this);
-    this.prefs.removeObserver(CACHE_EXPIRATION_TIME_PREF_NAME, this);
-
-    if (this.cacheTimer)
-      this.cacheTimer.cancel();
-  },
-
   get enabled() {
     return this._enabled;
   },
@@ -657,10 +623,7 @@ var AeroPeek = {
       return;
 
     win.gTaskbarTabGroup.destroy();
-    delete win.gTaskbarTabGroup;
-
-    if (this.windows.length == 0)
-      this.destroy();
+    win.gTaskbarTabGroup = null;
   },
 
   resetCacheTimer: function () {

@@ -36,26 +36,28 @@
  * ***** END LICENSE BLOCK ***** */
 
 function runTestOnPrivacyPrefPane(testFunc) {
+  let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+           getService(Ci.nsIWindowWatcher);
   let observer = {
     observe: function(aSubject, aTopic, aData) {
       if (aTopic == "domwindowopened") {
-        Services.ww.unregisterNotification(this);
+        ww.unregisterNotification(this);
 
         let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
         win.addEventListener("load", function() {
           win.removeEventListener("load", arguments.callee, false);
           testFunc(dialog.document.defaultView);
 
-          Services.ww.registerNotification(observer);
+          ww.registerNotification(observer);
           dialog.close();
         }, false);
       } else if (aTopic == "domwindowclosed") {
-        Services.ww.unregisterNotification(this);
+        ww.unregisterNotification(this);
         testRunner.runNext();
       }
     }
   };
-  Services.ww.registerNotification(observer);
+  ww.registerNotification(observer);
 
   let dialog = openDialog("chrome://browser/content/preferences/preferences.xul", "Preferences",
                           "chrome,titlebar,toolbar,centerscreen,dialog=no", "panePrivacy");
@@ -63,6 +65,20 @@ function runTestOnPrivacyPrefPane(testFunc) {
 
 function controlChanged(element) {
   element.doCommand();
+}
+
+function test_locbar_emptyText(win) {
+  let texts = ["none", "bookmarkhistory", "history", "bookmark"];
+
+  let locbarlist = win.document.getElementById("locationBarSuggestion");
+  ok(locbarlist, "location bar suggestion menulist should exist");
+
+  for (let level = -1; level <= 2; ++level) {
+    locbarlist.value = level;
+    controlChanged(locbarlist);
+    is(gURLBar.emptyText, gURLBar.getAttribute(texts[level + 1] + "emptytext"),
+      "location bar empty text for for level " + level + " is correctly set");
+  }
 }
 
 function test_pane_visibility(win) {
@@ -91,7 +107,9 @@ function test_dependent_elements(win) {
   let pbautostart = win.document.getElementById("privateBrowsingAutoStart");
   ok(pbautostart, "the private browsing auto-start checkbox should exist");
   let controls = [
-    win.document.getElementById("rememberHistory"),
+    win.document.getElementById("rememberHistoryDays"),
+    win.document.getElementById("historyDays"),
+    win.document.getElementById("rememberAfter"),
     win.document.getElementById("rememberDownloads"),
     win.document.getElementById("rememberForms"),
     win.document.getElementById("keepUntil"),
@@ -114,7 +132,7 @@ function test_dependent_elements(win) {
   ok(keepuntil, "the keep cookies until menulist should exist");
   let alwaysclear = win.document.getElementById("alwaysClear");
   ok(alwaysclear, "the clear data on close checkbox should exist");
-  let rememberhistory = win.document.getElementById("rememberHistory");
+  let rememberhistory = win.document.getElementById("rememberHistoryDays");
   ok(rememberhistory, "the remember history checkbox should exist");
   let rememberdownloads = win.document.getElementById("rememberDownloads");
   ok(rememberdownloads, "the remember downloads checkbox should exist");
@@ -301,7 +319,7 @@ function test_dependent_prefs(win) {
   let historymode = win.document.getElementById("historyMode");
   ok(historymode, "history mode menulist should exist");
   let controls = [
-    win.document.getElementById("rememberHistory"),
+    win.document.getElementById("rememberHistoryDays"),
     win.document.getElementById("rememberDownloads"),
     win.document.getElementById("rememberForms"),
     win.document.getElementById("acceptCookies"),
@@ -512,8 +530,10 @@ function reset_preferences(win) {
 
 let testRunner;
 function run_test_subset(subset) {
-  let instantApplyOrig = Services.prefs.getBoolPref("browser.preferences.instantApply");
-  Services.prefs.setBoolPref("browser.preferences.instantApply", true);
+  let psvc = Cc["@mozilla.org/preferences-service;1"].
+             getService(Ci.nsIPrefBranch);
+  let instantApplyOrig = psvc.getBoolPref("browser.preferences.instantApply");
+  psvc.setBoolPref("browser.preferences.instantApply", true);
 
   waitForExplicitFinish();
 
@@ -523,7 +543,7 @@ function run_test_subset(subset) {
     runNext: function() {
       if (this.counter == this.tests.length) {
         // cleanup
-        Services.prefs.setBoolPref("browser.preferences.instantApply", instantApplyOrig);
+        psvc.setBoolPref("browser.preferences.instantApply", instantApplyOrig);
         finish();
       } else {
         let self = this;

@@ -141,7 +141,6 @@ protected:
     PRInt32             mLineNumber;
     nsITokenizer*       mTokenizer; // weak
 
-    PRInt32             mTabSize;
     PRPackedBool        mSyntaxHighlight;
     PRPackedBool        mWrapLongLines;
     PRPackedBool        mHasOpenRoot;

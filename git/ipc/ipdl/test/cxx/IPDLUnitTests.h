@@ -43,6 +43,8 @@
 #include "base/process.h"
 #include "chrome/common/ipc_channel.h"
 
+#include "mozilla/ipc/GeckoThread.h"
+
 #include "nsIAppShell.h"
 
 #include "nsCOMPtr.h"
@@ -54,7 +56,6 @@
 
 #define MOZ_IPDL_TESTFAIL_LABEL "TEST-UNEXPECTED-FAIL"
 #define MOZ_IPDL_TESTPASS_LABEL "TEST-PASS"
-#define MOZ_IPDL_TESTINFO_LABEL "TEST-INFO"
 
 
 namespace mozilla {
@@ -99,19 +100,12 @@ inline void passed(const char* fmt, ...)
 //-----------------------------------------------------------------------------
 // parent process only
 
-class IPDLUnitTestSubprocess;
-
-extern void* gParentActor;
-extern IPDLUnitTestSubprocess* gSubprocess;
-
 void IPDLUnitTestMain(void* aData);
 
 void QuitParent();
 
 //-----------------------------------------------------------------------------
 // child process only
-
-extern void* gChildActor;
 
 void IPDLUnitTestChildInit(IPC::Channel* transport,
                            base::ProcessHandle parent,

@@ -84,7 +84,7 @@ nsSVGGradientFrame::AttributeChanged(PRInt32         aNameSpaceID,
   } else if (aNameSpaceID == kNameSpaceID_XLink &&
              aAttribute == nsGkAtoms::href) {
     // Blow away our reference, if any
-    Properties().Delete(nsSVGEffects::HrefProperty());
+    DeleteProperty(nsGkAtoms::href);
     mNoHRefURI = PR_FALSE;
     // And update whoever references us
     nsSVGEffects::InvalidateRenderingObservers(this);
@@ -161,7 +161,8 @@ nsSVGGradientFrame::GetGradientTransform(nsSVGGeometryFrame *aSource)
     else
       mSourceContent = static_cast<nsSVGElement*>(aSource->GetContent());
     NS_ASSERTION(mSourceContent, "Can't get content for gradient");
-  } else {
+  }
+  else {
     NS_ASSERTION(gradientUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX,
                  "Unknown gradientUnits type");
     // objectBoundingBox is the default anyway
@@ -174,9 +175,6 @@ nsSVGGradientFrame::GetGradientTransform(nsSVGGeometryFrame *aSource)
 
   nsSVGGradientElement *element =
     GetGradientWithAttr(nsGkAtoms::gradientTransform, mContent);
-
-  if (!element->mGradientTransform)
-    return bboxMatrix;
 
   nsCOMPtr<nsIDOMSVGTransformList> trans;
   element->mGradientTransform->GetAnimVal(getter_AddRefs(trans));
@@ -272,8 +270,8 @@ nsSVGGradientFrame::GetReferencedGradient()
   if (mNoHRefURI)
     return nsnull;
 
-  nsSVGPaintingProperty *property = static_cast<nsSVGPaintingProperty*>
-    (Properties().Get(nsSVGEffects::HrefProperty()));
+  nsSVGPaintingProperty *property =
+    static_cast<nsSVGPaintingProperty*>(GetProperty(nsGkAtoms::href));
 
   if (!property) {
     // Fetch our gradient element's xlink:href attribute
@@ -291,8 +289,7 @@ nsSVGGradientFrame::GetReferencedGradient()
     nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI), href,
                                               mContent->GetCurrentDoc(), base);
 
-    property =
-      nsSVGEffects::GetPaintingProperty(targetURI, this, nsSVGEffects::HrefProperty());
+    property = nsSVGEffects::GetPaintingProperty(targetURI, this, nsGkAtoms::href);
     if (!property)
       return nsnull;
   }
@@ -587,11 +584,14 @@ nsSVGRadialGradientFrame::CreateGradient()
     // The focal point (fFx and fFy) must be clamped to be *inside* - not on -
     // the circumference of the gradient or we'll get rendering anomalies. We
     // calculate the distance from the focal point to the gradient center and
-    // make sure it is *less* than the gradient radius.
-    // 1/128 is the limit of the fractional part of cairo's 24.8 fixed point
-    // representation divided by 2 to ensure that we get different cairo
-    // fractions
-    double dMax = NS_MAX(0.0, r - 1.0/128);
+    // make sure it is *less* than the gradient radius. 0.99 is used as the
+    // factor of the radius because it's close enough to 1 that we won't get a
+    // fringe at the edge of the gradient if we clamp, but not so close to 1
+    // that rounding error will give us the same results as using fR itself.
+    // Also note that .99 < 255/256/2 which is the limit of the fractional part
+    // of cairo's 24.8 fixed point representation divided by 2 to ensure that
+    // we get different cairo fractions
+    double dMax = 0.99 * r;
     float dx = fx - cx;
     float dy = fy - cy;
     double d = sqrt((dx * dx) + (dy * dy));

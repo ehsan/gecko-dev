@@ -87,7 +87,6 @@ _TEST_FILES = \
 		test_bug469613.xul \
 		test_bug469774.xul \
 		test_bug470212.html \
-		test_bug496275.html \
 		test_bug503813.html \
 		test_bug508115.xul \
 		$(warning test_bug507902.html temporarily disabled - see bug 510001) \
@@ -111,18 +110,9 @@ _TEST_FILES = \
 		file_LoadingImageReference.png \
 		file_bug514732_1.html \
 		file_bug514732_helper.html \
-		test_bug522632.html \
 		$(NULL)
 # disabled temporarily
 #		test_bug488417.html \
 
-_CHROME_FILES = \
-		test_bug514732-2.xul \
-		file_bug514732_window.xul \
-		$(NULL)
-
 libs:: $(_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
-
-libs:: $(_CHROME_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)

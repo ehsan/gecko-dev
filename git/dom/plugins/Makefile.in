@@ -48,6 +48,7 @@ EXPORTS_NAMESPACES = mozilla
 
 EXPORTS_mozilla = \
   PluginLibrary.h \
+  PluginPRLibrary.h \
   $(NULL)
 
 ifdef MOZ_IPC
@@ -57,13 +58,9 @@ EXPORTS_NAMESPACES = mozilla mozilla/plugins
 EXPORTS_mozilla/plugins = \
   BrowserStreamChild.h \
   BrowserStreamParent.h \
-  ChildAsyncCall.h \
-  ChildTimer.h \
   NPEventOSX.h \
   NPEventWindows.h \
   NPEventX11.h \
-  PluginIdentifierChild.h \
-  PluginIdentifierParent.h \
   PluginInstanceChild.h \
   PluginInstanceParent.h \
   PluginMessageUtils.h \
@@ -72,8 +69,6 @@ EXPORTS_mozilla/plugins = \
   PluginProcessParent.h \
   PluginScriptableObjectChild.h \
   PluginScriptableObjectParent.h \
-  PluginScriptableObjectUtils.h \
-  PluginScriptableObjectUtils-inl.h \
   PluginInstanceChild.h \
   PluginInstanceParent.h \
   AStream.h \
@@ -83,7 +78,7 @@ EXPORTS_mozilla/plugins = \
   PluginStreamParent.h \
   PluginMessageUtils.h \
   PluginProcessParent.h \
-  PluginProcessChild.h \
+  PluginThreadChild.h \
   StreamNotifyChild.h \
   StreamNotifyParent.h \
   $(NULL)
@@ -95,27 +90,12 @@ FORCE_STATIC_LIB = 1
 EXPORT_LIBRARY = 1
 ENABLE_CXX_EXCEPTIONS = 1
 
-ifeq ($(MOZ_ENABLE_QT),1)
-MOCSRCS = \
-  moc_NestedLoopTimer.cpp \
-  $(NULL)
-
-QTSRCS = \
-  NestedLoopTimer.cpp \
-  $(NULL)
-endif
-
 CPPSRCS = \
-  $(MOCSRCS) \
-  $(QTSRCS) \
-  ChildAsyncCall.cpp \
-  ChildTimer.cpp \
   PluginMessageUtils.cpp \
   PluginInstanceChild.cpp \
   PluginInstanceParent.cpp \
   PluginModuleChild.cpp \
   PluginModuleParent.cpp \
-  PluginProcessChild.cpp \
   PluginProcessParent.cpp \
   PluginScriptableObjectChild.cpp \
   PluginScriptableObjectParent.cpp \
@@ -123,11 +103,8 @@ CPPSRCS = \
   BrowserStreamParent.cpp \
   PluginStreamChild.cpp \
   PluginStreamParent.cpp \
+  PluginThreadChild.cpp \
   $(NULL)
-
-ifeq (WINNT,$(OS_ARCH))
-CPPSRCS += COMMessageFilter.cpp
-endif
 
 LOCAL_INCLUDES = \
   -I$(topsrcdir)/modules/plugin/base/public/ \
@@ -139,7 +116,3 @@ include $(topsrcdir)/ipc/chromium/chromium-config.mk
 endif
 
 include $(topsrcdir)/config/rules.mk
-
-CXXFLAGS += $(TK_CFLAGS)
-
-DEFINES += -DFORCE_PR_LOG

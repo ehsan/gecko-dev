@@ -109,7 +109,9 @@ function browserWindowsCount(expected, msg) {
   if (typeof expected == "number")
     expected = [expected, expected];
   let count = 0;
-  let e = Services.wm.getEnumerator("navigator:browser");
+  let e = Cc["@mozilla.org/appshell/window-mediator;1"]
+            .getService(Ci.nsIWindowMediator)
+            .getEnumerator("navigator:browser");
   while (e.hasMoreElements()) {
     if (!e.getNext().closed)
       ++count;
@@ -118,6 +120,7 @@ function browserWindowsCount(expected, msg) {
   let state = Cc["@mozilla.org/browser/sessionstore;1"]
                 .getService(Ci.nsISessionStore)
                 .getBrowserState();
+  info(state);
   is(JSON.parse(state).windows.length, expected[1], msg + " (getBrowserState)");
 }
 
@@ -125,9 +128,6 @@ function test() {
   browserWindowsCount(1, "Only one browser window should be open initially");
 
   waitForExplicitFinish();
-  // This test takes some time to run, and it could timeout randomly.
-  // So we require a longer timeout. See bug 528219.
-  requestLongerTimeout(2);
 
   // Some urls that might be opened in tabs and/or popups
   // Do not use about:blank:
@@ -159,17 +159,22 @@ function test() {
   /**
    * Helper: Will observe and handle the notifications for us
    */
-  let hitCount = 0;
-  function observer(aCancel, aTopic, aData) {
-    // count so that we later may compare
-    observing[aTopic]++;
+  let observer = {
+    hitCount: 0,
 
-    // handle some tests
-    if (++hitCount == 1) {
-      // Test 6
-      aCancel.QueryInterface(Ci.nsISupportsPRBool).data = true;
+    observe: function(aCancel, aTopic, aData) {
+      // count so that we later may compare
+      observing[aTopic]++;
+
+      // handle some tests
+      if (++this.hitCount == 1) {
+        // Test 6
+        aCancel.QueryInterface(Ci.nsISupportsPRBool).data = true;
+      }
     }
-  }
+  };
+  let observerService = Cc["@mozilla.org/observer-service;1"].
+                        getService(Ci.nsIObserverService);
 
   /**
    * Helper: Sets prefs as the testsuite requires
@@ -189,8 +194,9 @@ function test() {
    */
   function setupTestsuite(testFn) {
     // Register our observers
-    for (let o in observing)
-      Services.obs.addObserver(observer, o, false);
+    for (let o in observing) {
+      observerService.addObserver(observer, o, false);
+    }
 
     // Make the main test window not count as a browser window any longer
     oldWinType = document.documentElement.getAttribute("windowtype");
@@ -202,17 +208,18 @@ function test() {
    */
   function cleanupTestsuite(callback) {
     // Finally remove observers again
-    for (let o in observing)
-      Services.obs.removeObserver(observer, o, false);
-
+    for (let o in observing) {
+      observerService.removeObserver(observer, o, false);
+    }
     // Reset the prefs we touched
-    [
+    for each (let pref in [
       "browser.startup.page",
       "browser.privatebrowsing.keep_current_session"
-    ].forEach(function (pref) {
-      if (gPrefService.prefHasUserValue(pref))
+    ]) {
+      if (gPrefService.prefHasUserValue(pref)) {
         gPrefService.clearUserPref(pref);
-    });
+      }
+    }
     gPrefService.setBoolPref("browser.tabs.warnOnClose", oldWarnTabsOnClose);
 
     // Reset the window type
@@ -439,6 +446,26 @@ function test() {
         browserWindowsCount([0, 1], "browser windows while running testOpenCloseRestoreFromPopup");
 
         newWin = undoCloseWindow(0);
+        newWin.addEventListener("load", function () {
+          info(["testOpenCloseRestoreFromPopup: newWin loaded", newWin.closed, newWin.document]);
+          var ds = newWin.delayedStartup;
+          newWin.delayedStartup = function () {
+            info(["testOpenCloseRestoreFromPopup: newWin delayedStartup", newWin.closed, newWin.document]);
+            ds.apply(newWin, arguments);
+          };
+        }, false);
+        newWin.addEventListener("unload", function () {
+          info("testOpenCloseRestoreFromPopup: newWin unloaded");
+/*
+          var data;
+          try {
+            data = Cc["@mozilla.org/browser/sessionstore;1"]
+                     .getService(Ci.nsISessionStore)
+                     .getWindowState(newWin);
+          } catch (e) { }
+          ok(!data, "getWindowState should not have data about newWin");
+*/
+        }, false);
 
         newWin2 = openDialog(location, "_blank", CHROME_FEATURES);
         newWin2.addEventListener("load", function() {
@@ -451,11 +478,17 @@ function test() {
 
             browserWindowsCount([2, 3], "browser windows while running testOpenCloseRestoreFromPopup");
 
+            info([newWin.closed, newWin.__SSi, newWin.__SS_restoreID, newWin.__SS_dyingCache]);
+
             // Cleanup
             newWin.close();
             newWin2.close();
 
+            info([newWin.closed, newWin.__SSi, newWin.__SS_restoreID, newWin.__SS_dyingCache]);
+
             browserWindowsCount([0, 1], "browser windows while running testOpenCloseRestoreFromPopup");
+
+            info([newWin.closed, newWin.__SSi, newWin.__SS_restoreID, newWin.__SS_dyingCache]);
 
             // Next please
             executeSoon(nextFn);

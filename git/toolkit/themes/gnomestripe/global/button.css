@@ -55,7 +55,6 @@ button {
   -moz-border-left-colors: transparent ThreeDHighlight ThreeDLightShadow;
   background-color: ThreeDFace;
   color: ButtonText;
-  text-shadow: none;
 }
 
 .button-box {
@@ -150,12 +149,6 @@ button[type="menu-button"] {
   -moz-box-align: center;
   -moz-box-pack: center;
   margin: 0;
-  border: none;
-}
-
-.button-menubutton-button {
-  -moz-appearance: none;
-  background-color: transparent;
   border: none;
 }
 

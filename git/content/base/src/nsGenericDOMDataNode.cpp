@@ -202,6 +202,56 @@ nsGenericDOMDataNode::IsSupported(const nsAString& aFeature,
                                                aFeature, aVersion, aReturn);
 }
 
+nsresult
+nsGenericDOMDataNode::GetBaseURI(nsAString& aURI)
+{
+  nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+  nsCAutoString spec;
+
+  if (baseURI) {
+    baseURI->GetSpec(spec);
+  }
+
+  CopyUTF8toUTF16(spec, aURI);
+
+  return NS_OK;
+}
+
+nsresult
+nsGenericDOMDataNode::LookupPrefix(const nsAString& aNamespaceURI,
+                                   nsAString& aPrefix)
+{
+  aPrefix.Truncate();
+
+  nsIContent *parent_weak = GetParent();
+
+  // DOM Data Node passes the query on to its parent
+  nsCOMPtr<nsIDOM3Node> node(do_QueryInterface(parent_weak));
+  if (node) {
+    return node->LookupPrefix(aNamespaceURI, aPrefix);
+  }
+
+  return NS_OK;
+}
+
+nsresult
+nsGenericDOMDataNode::LookupNamespaceURI(const nsAString& aNamespacePrefix,
+                                         nsAString& aNamespaceURI)
+{
+  aNamespaceURI.Truncate();
+
+  nsIContent *parent_weak = GetParent();
+
+  // DOM Data Node passes the query on to its parent
+  nsCOMPtr<nsIDOM3Node> node(do_QueryInterface(parent_weak));
+
+  if (node) {
+    return node->LookupNamespaceURI(aNamespacePrefix, aNamespaceURI);
+  }
+
+  return NS_OK;
+}
+
 //----------------------------------------------------------------------
 
 // Implementation of nsIDOMCharacterData
@@ -247,7 +297,8 @@ nsGenericDOMDataNode::SubstringData(PRUint32 aStart, PRUint32 aCount,
 {
   aReturn.Truncate();
 
-  PRUint32 textLength = mText.GetLength();
+  // XXX add <0 checks if types change
+  PRUint32 textLength = PRUint32( mText.GetLength() );
   if (aStart > textLength) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
@@ -315,20 +366,6 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
-  if (aCount > textLength - aOffset) {
-    aCount = textLength - aOffset;
-  }
-
-  PRUint32 endOffset = aOffset + aCount;
-
-  // Make sure the text fragment can hold the new data.
-  if (aLength > aCount && !mText.CanGrowBy(aLength - aCount)) {
-    // This exception isn't per spec, but the spec doesn't actually
-    // say what to do here.
-
-    return NS_ERROR_DOM_DOMSTRING_SIZE_ERR;
-  }
-
   nsIDocument *document = GetCurrentDoc();
   mozAutoDocUpdate updateBatch(document, UPDATE_CONTENT_MODEL, aNotify);
 
@@ -342,6 +379,12 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
     oldValue = GetCurrentValueAtom();
   }
     
+  PRUint32 endOffset = aOffset + aCount;
+  if (endOffset > textLength) {
+    aCount = textLength - aOffset;
+    endOffset = textLength;
+  }
+
   if (aNotify) {
     CharacterDataChangeInfo info = {
       aOffset == textLength,
@@ -369,10 +412,10 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
     NS_ENSURE_TRUE(to, NS_ERROR_OUT_OF_MEMORY);
 
     // Copy over appropriate data
-    if (aOffset) {
+    if (0 != aOffset) {
       mText.CopyTo(to, 0, aOffset);
     }
-    if (aLength) {
+    if (0 != aLength) {
       memcpy(to + aOffset, aBuffer, aLength * sizeof(PRUnichar));
     }
     if (endOffset != textLength) {
@@ -537,8 +580,6 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     if (mText.IsBidi()) {
       aDocument->SetBidiEnabled();
     }
-    // Clear the lazy frame construction bits.
-    UnsetFlags(NODE_NEEDS_FRAME | NODE_DESCENDANTS_NEED_FRAMES);
   }
 
   nsNodeUtils::ParentChainChanged(this);
@@ -565,7 +606,7 @@ nsGenericDOMDataNode::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     // Notify XBL- & nsIAnonymousContentCreator-generated
     // anonymous content that the document is changing.
     // This is needed to update the insertion point.
-    document->BindingManager()->RemovedFromDocument(this, document);
+    document->BindingManager()->ChangeDocumentFor(this, document, nsnull);
   }
 
   mParentPtrBits = aNullParent ? 0 : mParentPtrBits & ~PARENT_BIT_INDOCUMENT;
@@ -576,12 +617,6 @@ nsGenericDOMDataNode::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   }
 
   nsNodeUtils::ParentChainChanged(this);
-}
-
-already_AddRefed<nsINodeList>
-nsGenericDOMDataNode::GetChildren(PRInt32 aChildType)
-{
-  return nsnull;
 }
 
 nsIAtom *
@@ -732,6 +767,14 @@ nsGenericDOMDataNode::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMut
   return NS_OK;
 }
 
+// virtual
+PRBool
+nsGenericDOMDataNode::MayHaveFrame() const
+{
+  nsIContent* parent = GetParent();
+  return parent && parent->MayHaveFrame();
+}
+
 nsIContent *
 nsGenericDOMDataNode::GetBindingParent() const
 {
@@ -780,9 +823,16 @@ nsGenericDOMDataNode::GetBaseURI() const
     return parent->GetBaseURI();
   }
 
+  nsIURI *uri;
   nsIDocument *doc = GetOwnerDoc();
+  if (doc) {
+    NS_IF_ADDREF(uri = doc->GetBaseURI());
+  }
+  else {
+    uri = nsnull;
+  }
 
-  return doc ? doc->GetBaseURI() : nsnull;
+  return uri;
 }
 
 PRBool
@@ -888,7 +938,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsText3Tearoff)
 NS_IMETHODIMP
 nsText3Tearoff::GetIsElementContentWhitespace(PRBool *aReturn)
 {
-  *aReturn = mNode->IsElementContentWhitespace();
+  *aReturn = mNode->TextIsOnlyWhitespace();
   return NS_OK;
 }
 
@@ -902,10 +952,7 @@ NS_IMETHODIMP
 nsText3Tearoff::ReplaceWholeText(const nsAString& aContent,
                                  nsIDOMText **aReturn)
 {
-  nsresult rv;
-  nsIContent* result = mNode->ReplaceWholeText(PromiseFlatString(aContent),
-                                               &rv);
-  return result ? CallQueryInterface(result, aReturn) : rv;
+  return mNode->ReplaceWholeText(PromiseFlatString(aContent), aReturn);
 }
 
 // Implementation of the nsIDOM3Text interface
@@ -936,7 +983,7 @@ nsGenericDOMDataNode::LastLogicallyAdjacentTextNode(nsIContent* aParent,
 }
 
 nsresult
-nsGenericTextNode::GetWholeText(nsAString& aWholeText)
+nsGenericDOMDataNode::GetWholeText(nsAString& aWholeText)
 {
   nsIContent* parent = GetParent();
 
@@ -967,12 +1014,10 @@ nsGenericTextNode::GetWholeText(nsAString& aWholeText)
   return NS_OK;
 }
 
-nsIContent*
-nsGenericTextNode::ReplaceWholeText(const nsAFlatString& aContent,
-                                    nsresult* aResult)
+nsresult
+nsGenericDOMDataNode::ReplaceWholeText(const nsAFlatString& aContent,
+                                       nsIDOMText **aReturn)
 {
-  *aResult = NS_OK;
-
   // Batch possible DOMSubtreeModified events.
   mozAutoSubtreeModified subtree(GetOwnerDoc(), nsnull);
   mozAutoDocUpdate updateBatch(GetCurrentDoc(), UPDATE_CONTENT_MODEL, PR_TRUE);
@@ -982,20 +1027,19 @@ nsGenericTextNode::ReplaceWholeText(const nsAFlatString& aContent,
   // Handle parent-less nodes
   if (!parent) {
     if (aContent.IsEmpty()) {
-      return nsnull;
+      *aReturn = nsnull;
+      return NS_OK;
     }
 
     SetText(aContent.get(), aContent.Length(), PR_TRUE);
-    return this;
+    return CallQueryInterface(this, aReturn);
   }
 
   PRInt32 index = parent->IndexOf(this);
-  if (index < 0) {
-    NS_WARNING("Trying to use .replaceWholeText with an anonymous text node "
-               "child of a binding parent?");
-    *aResult = NS_ERROR_DOM_NOT_SUPPORTED_ERR;
-    return nsnull;
-  }
+  NS_WARN_IF_FALSE(index >= 0,
+                   "Trying to use .replaceWholeText with an anonymous"
+                   "text node child of a binding parent?");
+  NS_ENSURE_TRUE(index >= 0, NS_ERROR_DOM_NOT_SUPPORTED_ERR);
 
   // We don't support entity references or read-only nodes, so remove the
   // logically adjacent text nodes (which therefore must all be siblings of
@@ -1014,11 +1058,12 @@ nsGenericTextNode::ReplaceWholeText(const nsAFlatString& aContent,
 
   // Empty string means we removed this node too.
   if (aContent.IsEmpty()) {
-    return nsnull;
+    *aReturn = nsnull;
+    return NS_OK;
   }
 
   SetText(aContent.get(), aContent.Length(), PR_TRUE);
-  return this;
+  return CallQueryInterface(this, aReturn);
 }
 
 //----------------------------------------------------------------------
@@ -1108,7 +1153,7 @@ nsGenericDOMDataNode::GetCurrentValueAtom()
 }
 
 nsIAtom*
-nsGenericDOMDataNode::DoGetID() const
+nsGenericDOMDataNode::GetID() const
 {
   return nsnull;
 }

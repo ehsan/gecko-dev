@@ -11,7 +11,6 @@
 var is = window.opener.wrappedJSObject.is;
 var isnot = window.opener.wrappedJSObject.isnot;
 var ok = window.opener.wrappedJSObject.ok;
-var todo = window.opener.wrappedJSObject.todo;
 var SimpleTest = window.opener.wrappedJSObject.SimpleTest;
 var gWbp;
 var ctx1;
@@ -56,12 +55,12 @@ function runTests()
                                .getService(Components.interfaces.nsIPrintSettingsService);
 
   try {
-    Components.classes["@mozilla.org/gfx/printerenumerator;1"]
-              .getService(Components.interfaces.nsIPrinterEnumerator);
+     var printerEnumerator = Components.classes["@mozilla.org/gfx/printerenumerator;1"]
+                             .getService(Components.interfaces.nsIPrinterEnumerator);
   } catch(e) {
-    todo(false, "Test skipped on MacOSX, as the print preview code doesn't work there");
-    SimpleTest.finish();
-    return;
+     //don't try to test on Mac, since the print preview code doesn't work there
+     SimpleTest.finish();
+     return;
   }
 
   if (printService.defaultPrinterName != '') {
@@ -182,7 +181,8 @@ function runTest3() {
     return;
   }
 
-  setTimeout(runTest4, 0)
+  SimpleTest.finish();
+  window.close();
 }
 
 function compareFormElementPrint(el1, el2, equals) {
@@ -202,21 +202,6 @@ function compareFormElementPrint(el1, el2, equals) {
      "Comparing print preview didn't succeed [" + el1 + " : " + el2 + "]");
   setTimeout(runTest3, 100);
 }
-
-// This is a crash test for bug 539060.
-function runTest4() {
-  window.frames[0].document.body.innerHTML =
-    "<iframe style='display: none;' src='data:text/html,<iframe>'></iframe>";
-  setTimeout(runTest4end, 500);
-}
-
-function runTest4end() {
-  printpreview();
-  exitprintpreview();
-  SimpleTest.finish();
-  window.close();
-}
-
 ]]></script>
 <table style="border: 1px solid black;" xmlns="http://www.w3.org/1999/xhtml">
 <tr><th>Print preview canvas 1</th><th>Print preview canvas 2</th></tr>

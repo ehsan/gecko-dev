@@ -119,21 +119,35 @@ nsGfxCheckboxControlFrame::~nsGfxCheckboxControlFrame()
 {
 }
 
+
+NS_QUERYFRAME_HEAD(nsGfxCheckboxControlFrame)
+  NS_QUERYFRAME_ENTRY(nsICheckboxControlFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsFormControlFrame)
+
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsGfxCheckboxControlFrame::CreateAccessible()
+NS_IMETHODIMP
+nsGfxCheckboxControlFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService
     = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLCheckboxAccessible(mContent,
-                                                    PresContext()->PresShell());
+    return accService->CreateHTMLCheckboxAccessible(
+      static_cast<nsIFrame*>(this), aAccessible);
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
+
+//------------------------------------------------------------
+NS_IMETHODIMP
+nsGfxCheckboxControlFrame::OnChecked(nsPresContext* aPresContext,
+                                     PRBool aChecked)
+{
+  InvalidateOverflowRect();
+  return NS_OK;
+}
 
 //------------------------------------------------------------
 NS_IMETHODIMP

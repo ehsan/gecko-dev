@@ -13,7 +13,7 @@
  *
  * The Original Code is Geolocation.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation
+ * The Initial Developer of the Original Code is Mozilla Corporation
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -50,20 +50,15 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch2.h"
 #include "nsIJSContextStack.h"
-#include "mozilla/Services.h"
 
 #include <math.h>
 
-#ifdef WINCE_WINDOWS_MOBILE
-#include "WinMobileLocationProvider.h"
-#endif
-
-#ifdef MOZ_MAEMO_LIBLOCATION
+#ifdef NS_MAEMO_LOCATION
 #include "MaemoLocationProvider.h"
 #endif
 
-#ifdef ANDROID
-#include "AndroidLocationProvider.h"
+#ifdef WINCE_WINDOWS_MOBILE
+#include "WinMobileLocationProvider.h"
 #endif
 
 #include "nsIDOMDocument.h"
@@ -90,8 +85,6 @@ private:
   ~nsDOMGeoPositionError();
   PRInt16 mCode;
 };
-
-DOMCI_DATA(GeoPositionError, nsDOMGeoPositionError)
 
 NS_INTERFACE_MAP_BEGIN(nsDOMGeoPositionError)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMGeoPositionError)
@@ -280,9 +273,7 @@ nsGeolocationRequest::Allow()
     }
   }
 
-  if (lastPosition && maximumAge > 0 &&
-      ( PRTime(PR_Now() / PR_USEC_PER_MSEC) - maximumAge <=
-        PRTime(cachedPositionTime) )) {
+  if (lastPosition && maximumAge > 0 && ( (PR_Now() / PR_USEC_PER_MSEC ) - maximumAge <= cachedPositionTime) ) {
     // okay, we can return a cached position
     mAllowed = PR_TRUE;
     
@@ -375,7 +366,7 @@ nsresult nsGeolocationService::Init()
 
   GeoEnabledChangedCallback("geo.enabled", nsnull);
 
-  if (!sGeoEnabled)
+  if (sGeoEnabled == PR_FALSE)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIGeolocationProvider> provider = do_GetService(NS_GEOLOCATION_PROVIDER_CONTRACTID);
@@ -388,7 +379,7 @@ nsresult nsGeolocationService::Init()
     return NS_ERROR_FAILURE;
 
   // geolocation service can be enabled -> now register observer
-  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
   if (!obs)
     return NS_ERROR_FAILURE;
 
@@ -419,20 +410,9 @@ nsresult nsGeolocationService::Init()
 
   // we should move these providers outside of this file! dft
 
+  // if WINCE, see if we should try the WINCE location provider
 #ifdef WINCE_WINDOWS_MOBILE
   provider = new WinMobileLocationProvider();
-  if (provider)
-    mProviders.AppendObject(provider);
-#endif
-
-#ifdef MOZ_MAEMO_LIBLOCATION
-  provider = new MaemoLocationProvider();
-  if (provider)
-    mProviders.AppendObject(provider);
-#endif
-
-#ifdef ANDROID
-  provider = new AndroidLocationProvider();
   if (provider)
     mProviders.AppendObject(provider);
 #endif
@@ -450,7 +430,7 @@ nsGeolocationService::Observe(nsISupports* aSubject,
 {
   if (!strcmp("quit-application", aTopic))
   {
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+    nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
     if (obs) {
       obs->RemoveObserver(this, "quit-application");
     }
@@ -568,7 +548,7 @@ nsGeolocationService::IsBetterPosition(nsIDOMGeoPosition *aSomewhere)
 
   // The threshold is when the distance between the two positions exceeds the
   // worse (larger value) of the two accuracies.
-  double max_accuracy = NS_MAX(oldAccuracy, newAccuracy);
+  double max_accuracy = PR_MAX(oldAccuracy, newAccuracy);
   if (delta > max_accuracy)
     return PR_TRUE;
 
@@ -600,7 +580,7 @@ nsGeolocationService::HasGeolocationProvider()
 nsresult
 nsGeolocationService::StartDevice()
 {
-  if (!sGeoEnabled)
+  if (sGeoEnabled == PR_FALSE)
     return NS_ERROR_NOT_AVAILABLE;
 
   if (!HasGeolocationProvider())
@@ -700,8 +680,6 @@ nsGeolocationService::RemoveLocator(nsGeolocation* aLocator)
 ////////////////////////////////////////////////////
 // nsGeolocation
 ////////////////////////////////////////////////////
-
-DOMCI_DATA(GeoGeolocation, nsGeolocation)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGeolocation)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMGeoGeolocation)
@@ -852,7 +830,7 @@ nsGeolocation::GetCurrentPosition(nsIDOMGeoPositionCallback *callback,
 {
   NS_ENSURE_ARG_POINTER(callback);
 
-  if (!sGeoEnabled)
+  if (sGeoEnabled == PR_FALSE)
     return NS_ERROR_NOT_AVAILABLE;
 
   if (mPendingCallbacks.Length() > MAX_GEO_REQUESTS_PER_WINDOW)
@@ -896,7 +874,7 @@ nsGeolocation::WatchPosition(nsIDOMGeoPositionCallback *callback,
 
   NS_ENSURE_ARG_POINTER(callback);
 
-  if (!sGeoEnabled)
+  if (sGeoEnabled == PR_FALSE)
     return NS_ERROR_NOT_AVAILABLE;
 
   if (mPendingCallbacks.Length() > MAX_GEO_REQUESTS_PER_WINDOW)
@@ -939,7 +917,7 @@ NS_IMETHODIMP
 nsGeolocation::ClearWatch(PRInt32 aWatchId)
 {
   PRUint32 count = mWatchingCallbacks.Length();
-  if (aWatchId < 0 || count == 0 || PRUint32(aWatchId) > count)
+  if (aWatchId < 0 || count == 0 || aWatchId > count)
     return NS_OK;
 
   mWatchingCallbacks[aWatchId]->MarkCleared();
@@ -971,8 +949,3 @@ nsGeolocation::WindowOwnerStillExists()
 
   return PR_TRUE;
 }
-
-#if !defined(WINCE_WINDOWS_MOBILE) && !defined(MOZ_MAEMO_LIBLOCATION) && !defined(ANDROID)
-DOMCI_DATA(GeoPositionCoords, void)
-DOMCI_DATA(GeoPosition, void)
-#endif

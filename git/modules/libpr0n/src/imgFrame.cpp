@@ -15,7 +15,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -126,11 +126,6 @@ static PRBool ShouldUseImageSurfaces()
 #elif defined(USE_WIN_SURFACE)
   static const DWORD kGDIObjectsHighWaterMark = 7000;
 
-  if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-      gfxWindowsPlatform::RENDER_DIRECT2D) {
-    return PR_TRUE;
-  }
-
   // at 7000 GDI objects, stop allocating normal images to make sure
   // we never hit the 10k hard limit.
   // GetCurrentProcess() just returns (HANDLE)-1, it's inlined afaik
@@ -162,7 +157,6 @@ imgFrame::imgFrame() :
 #ifdef USE_WIN_SURFACE
   , mIsDDBSurface(PR_FALSE)
 #endif
-  , mLocked(PR_FALSE)
 {
   static PRBool hasCheckedOptimize = PR_FALSE;
   if (!hasCheckedOptimize) {
@@ -211,7 +205,7 @@ nsresult imgFrame::Init(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight,
   if (aPaletteDepth != 0) {
     // We're creating for a paletted image.
     if (aPaletteDepth > 8) {
-      NS_ERROR("This Depth is not supported");
+      NS_ERROR("This Depth is not supported\n");
       return NS_ERROR_FAILURE;
     }
 
@@ -424,7 +418,8 @@ void imgFrame::Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
 
   PRBool doTile = !imageRect.Contains(sourceRect);
   if (doPadding || doPartialDecode) {
-    gfxRect available = gfxRect(mDecoded.x, mDecoded.y, mDecoded.width, mDecoded.height);
+    gfxRect available = gfxRect(mDecoded.x, mDecoded.y, mDecoded.width, mDecoded.height) +
+      gfxPoint(aPadding.left, aPadding.top);
 
     if (!doTile && !mSinglePixel) {
       // Not tiling, and we have a surface, so we can account for
@@ -630,7 +625,7 @@ void imgFrame::Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
 
   if ((op == gfxContext::OPERATOR_OVER || pushedGroup) &&
       format == gfxASurface::ImageFormatRGB24) {
-    aContext->SetOperator(OptimalFillOperator());
+    aContext->SetOperator(gfxContext::OPERATOR_SOURCE);
   }
 
   // Phew! Now we can actually draw this image
@@ -718,7 +713,7 @@ nsresult imgFrame::ImageUpdated(const nsIntRect &aUpdateRect)
 
   // clamp to bounds, in case someone sends a bogus updateRect (I'm looking at
   // you, gif decoder)
-  nsIntRect boundsRect(mOffset, mSize);
+  nsIntRect boundsRect(0, 0, mSize.width, mSize.height);
   mDecoded.IntersectRect(mDecoded, boundsRect);
 
 #ifdef XP_MACOSX
@@ -768,18 +763,16 @@ PRUint32 imgFrame::GetImageBytesPerRow() const
 {
   if (mImageSurface)
     return mImageSurface->Stride();
-
-  if (mPaletteDepth)
+  else
     return mSize.width;
-
-  NS_ERROR("GetImageBytesPerRow called with mImageSurface == null and mPaletteDepth == 0");
-
-  return 0;
 }
 
 PRUint32 imgFrame::GetImageDataLength() const
 {
-  return GetImageBytesPerRow() * mSize.height;
+  if (mImageSurface)
+    return mImageSurface->Stride() * mSize.height;
+  else
+    return mSize.width * mSize.height;
 }
 
 void imgFrame::GetImageData(PRUint8 **aData, PRUint32 *length) const
@@ -820,12 +813,6 @@ nsresult imgFrame::LockImageData()
   if (mPalettedImageData)
     return NS_ERROR_NOT_AVAILABLE;
 
-  NS_ABORT_IF_FALSE(!mLocked, "Trying to lock already locked image data.");
-  if (mLocked) {
-    return NS_ERROR_FAILURE;
-  }
-  mLocked = PR_TRUE;
-
   if ((mOptSurface || mSinglePixel) && !mImageSurface) {
     // Recover the pixels
     mImageSurface = new gfxImageSurface(gfxIntSize(mSize.width, mSize.height),
@@ -850,16 +837,6 @@ nsresult imgFrame::LockImageData()
 #endif
   }
 
-  // We might write to the bits in this image surface, so we need to make the
-  // surface ready for that.
-  if (mImageSurface)
-    mImageSurface->Flush();
-
-#ifdef USE_WIN_SURFACE
-  if (mWinSurface)
-    mWinSurface->Flush();
-#endif
-
   return NS_OK;
 }
 
@@ -868,25 +845,7 @@ nsresult imgFrame::UnlockImageData()
   if (mPalettedImageData)
     return NS_ERROR_NOT_AVAILABLE;
 
-  NS_ABORT_IF_FALSE(mLocked, "Unlocking an unlocked image!");
-  if (!mLocked) {
-    return NS_ERROR_FAILURE;
-  }
-
-  mLocked = PR_FALSE;
-
-  // Assume we've been written to.
-  if (mImageSurface)
-    mImageSurface->MarkDirty();
-
-#ifdef USE_WIN_SURFACE
-  if (mWinSurface)
-    mWinSurface->MarkDirty();
-#endif
-
 #ifdef XP_MACOSX
-  // The quartz image surface (ab)uses the flush method to get the
-  // cairo_image_surface data into a CGImage, so we have to call Flush() here.
   if (mQuartzSurface)
     mQuartzSurface->Flush();
 #endif
@@ -941,7 +900,7 @@ void imgFrame::SetBlendMethod(PRInt32 aBlendMethod)
 
 PRBool imgFrame::ImageComplete() const
 {
-  return mDecoded == nsIntRect(mOffset, mSize);
+  return mDecoded == nsIntRect(0, 0, mSize.width, mSize.height);
 }
 
 // A hint from the image decoders that this image has no alpha, even
@@ -966,57 +925,4 @@ PRBool imgFrame::GetCompositingFailed() const
 void imgFrame::SetCompositingFailed(PRBool val)
 {
   mCompositingFailed = val;
-}
-
-gfxContext::GraphicsOperator imgFrame::OptimalFillOperator()
-{
-#ifdef XP_WIN
-  if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-      gfxWindowsPlatform::RENDER_DIRECT2D) {
-        // D2D -really- hates operator source.
-        return gfxContext::OPERATOR_OVER;
-  } else {
-#endif
-    return gfxContext::OPERATOR_SOURCE;
-#ifdef XP_WIN
-  }
-#endif
-}
-
-PRUint32 imgFrame::EstimateMemoryUsed() const
-{
-  PRUint32 size = 0;
-
-  if (mSinglePixel) {
-    size += sizeof(gfxRGBA);
-  }
-
-  if (mPalettedImageData) {
-    size += GetImageDataLength() + PaletteDataLength();
-  }
-
-#ifdef USE_WIN_SURFACE
-  if (mWinSurface) {
-    size += mWinSurface->KnownMemoryUsed();
-  } else
-#endif
-#ifdef XP_MACOSX
-  if (mQuartzSurface) {
-    size += mSize.width * mSize.height * 4;
-  } else
-#endif
-  if (mImageSurface) {
-    size += mImageSurface->KnownMemoryUsed();
-  }
-
-  if (mOptSurface) {
-    size += mOptSurface->KnownMemoryUsed();
-  }
-
-  // fall back to pessimistic/approximate size
-  if (size == 0) {
-    size = mSize.width * mSize.height * 4;
-  }
-
-  return size;
 }

@@ -58,7 +58,6 @@ CPPSRCS		=                           \
 		nsEditor.cpp                \
 		nsEditorCommands.cpp        \
 		nsEditorController.cpp      \
-		nsEditorEventListener.cpp   \
 		nsEditorUtils.cpp           \
 		nsSelectionState.cpp        \
 		$(NULL)
@@ -91,6 +90,4 @@ include $(topsrcdir)/config/rules.mk
 
 INCLUDES	+= \
 		-I$(topsrcdir)/content/base/src \
-		-I$(topsrcdir)/content/events/src \
-		-I$(topsrcdir)/layout/style \
 		$(NULL)

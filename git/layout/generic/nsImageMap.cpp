@@ -60,6 +60,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsIPresShell.h"
 #include "nsIFrame.h"
+#include "nsFrameManager.h"
 #include "nsCoord.h"
 #include "nsIImageMap.h"
 #include "nsIConsoleService.h"
@@ -83,6 +84,9 @@ public:
 
   void HasFocus(PRBool aHasFocus);
 
+  void GetHREF(nsAString& aHref) const;
+  void GetArea(nsIContent** aArea) const;
+
   nsCOMPtr<nsIContent> mArea;
   nscoord* mCoords;
   PRInt32 mNumCoords;
@@ -93,7 +97,6 @@ Area::Area(nsIContent* aArea)
   : mArea(aArea)
 {
   MOZ_COUNT_CTOR(Area);
-  NS_PRECONDITION(mArea, "How did that happen?");
   mCoords = nsnull;
   mNumCoords = 0;
   mHasFocus = PR_FALSE;
@@ -103,6 +106,22 @@ Area::~Area()
 {
   MOZ_COUNT_DTOR(Area);
   delete [] mCoords;
+}
+
+void
+Area::GetHREF(nsAString& aHref) const
+{
+  aHref.Truncate();
+  if (mArea) {
+    mArea->GetAttr(kNameSpaceID_None, nsGkAtoms::href, aHref);
+  }
+}
+
+void
+Area::GetArea(nsIContent** aArea) const
+{
+  *aArea = mArea;
+  NS_IF_ADDREF(*aArea);
 }
 
 #include <stdlib.h>
@@ -210,7 +229,7 @@ void Area::ParseCoords(const nsAString& aSpec)
       {
         if (*tptr == ',')
         {
-          if (!has_comma)
+          if (has_comma == PR_FALSE)
           {
             has_comma = PR_TRUE;
           }
@@ -224,7 +243,7 @@ void Area::ParseCoords(const nsAString& aSpec)
       /*
        * If this was trailing whitespace we skipped, we are done.
        */
-      if ((*tptr == '\0') && !has_comma)
+      if ((*tptr == '\0')&&(has_comma == PR_FALSE))
       {
         break;
       }
@@ -232,7 +251,7 @@ void Area::ParseCoords(const nsAString& aSpec)
        * Else if the separator is all whitespace, and this is not the
        * end of the string, add a comma to the separator.
        */
-      else if (!has_comma)
+      else if (has_comma == PR_FALSE)
       {
         *n_str = ',';
       }
@@ -715,9 +734,10 @@ NS_IMPL_ISUPPORTS4(nsImageMap,
 
 NS_IMETHODIMP
 nsImageMap::GetBoundsForAreaContent(nsIContent *aContent,
-                                    nsRect& aBounds)
+                                   nsPresContext* aPresContext,
+                                   nsRect& aBounds)
 {
-  NS_ENSURE_TRUE(aContent, NS_ERROR_INVALID_ARG);
+  NS_ENSURE_TRUE(aContent && aPresContext, NS_ERROR_INVALID_ARG);
 
   // Find the Area struct associated with this content node, and return bounds
   PRUint32 i, n = mAreas.Length();
@@ -725,9 +745,12 @@ nsImageMap::GetBoundsForAreaContent(nsIContent *aContent,
     Area* area = mAreas.ElementAt(i);
     if (area->mArea == aContent) {
       aBounds = nsRect();
-      nsIFrame* frame = aContent->GetPrimaryFrame();
-      if (frame) {
-        area->GetRect(frame, aBounds);
+      nsIPresShell* shell = aPresContext->PresShell();
+      if (shell) {
+        nsIFrame* frame = shell->GetPrimaryFrameFor(aContent);
+        if (frame) {
+          area->GetRect(frame, aBounds);
+        }
       }
       return NS_OK;
     }
@@ -738,14 +761,18 @@ nsImageMap::GetBoundsForAreaContent(nsIContent *aContent,
 void
 nsImageMap::FreeAreas()
 {
+  nsFrameManager *frameManager = mPresShell->FrameManager();
+
   PRUint32 i, n = mAreas.Length();
   for (i = 0; i < n; i++) {
     Area* area = mAreas.ElementAt(i);
-    NS_ASSERTION(area->mArea->GetPrimaryFrame() == mImageFrame,
-                 "Unexpected primary frame");
-    area->mArea->SetPrimaryFrame(nsnull);
+    frameManager->RemoveAsPrimaryFrame(area->mArea, mImageFrame);
 
-    area->mArea->RemoveEventListenerByIID(this, NS_GET_IID(nsIDOMFocusListener));
+    nsCOMPtr<nsIContent> areaContent;
+    area->GetArea(getter_AddRefs(areaContent));
+    if (areaContent) {
+      areaContent->RemoveEventListenerByIID(this, NS_GET_IID(nsIDOMFocusListener));
+    }
     delete area;
   }
   mAreas.Clear();
@@ -804,7 +831,7 @@ nsImageMap::SearchForAreas(nsIContent* aParent, PRBool& aFoundArea,
       }
     }
 
-    if (child->IsElement()) {
+    if (child->IsNodeOfType(nsINode::eELEMENT)) {
       mContainsBlockContents = PR_TRUE;
       rv = SearchForAreas(child, aFoundArea, aFoundAnchor);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -873,7 +900,9 @@ nsImageMap::AddArea(nsIContent* aArea)
   // nsCSSFrameConstructor::ContentRemoved (both hacks there), and
   // nsCSSFrameConstructor::ProcessRestyledFrames to work around this issue can
   // be removed.
-  aArea->SetPrimaryFrame(mImageFrame);
+  mPresShell->FrameManager()->SetPrimaryFrameFor(aArea, mImageFrame);
+  aArea->SetMayHaveFrame(PR_TRUE);
+  NS_ASSERTION(aArea->MayHaveFrame(), "SetMayHaveFrame failed?");
 
   area->ParseCoords(coords);
   mAreas.AppendElement(area);
@@ -889,7 +918,7 @@ nsImageMap::IsInside(nscoord aX, nscoord aY,
   for (i = 0; i < n; i++) {
     Area* area = mAreas.ElementAt(i);
     if (area->IsInside(aX, aY)) {
-      NS_ADDREF(*aContent = area->mArea);
+      area->GetArea(aContent);
 
       return PR_TRUE;
     }
@@ -940,8 +969,7 @@ nsImageMap::AttributeChanged(nsIDocument* aDocument,
 void
 nsImageMap::ContentAppended(nsIDocument *aDocument,
                             nsIContent* aContainer,
-                            nsIContent* aFirstNewContent,
-                            PRInt32     /* unused */)
+                            PRInt32     aNewIndexInContainer)
 {
   MaybeUpdateAreas(aContainer);
 }
@@ -950,7 +978,7 @@ void
 nsImageMap::ContentInserted(nsIDocument *aDocument,
                             nsIContent* aContainer,
                             nsIContent* aChild,
-                            PRInt32 /* unused */)
+                            PRInt32 aIndexInContainer)
 {
   MaybeUpdateAreas(aContainer);
 }
@@ -987,15 +1015,24 @@ nsImageMap::ChangeFocus(nsIDOMEvent* aEvent, PRBool aFocus)
       PRUint32 i, n = mAreas.Length();
       for (i = 0; i < n; i++) {
         Area* area = mAreas.ElementAt(i);
-        if (area->mArea == targetContent) {
+        nsCOMPtr<nsIContent> areaContent;
+        area->GetArea(getter_AddRefs(areaContent));
+        if (areaContent.get() == targetContent.get()) {
           //Set or Remove internal focus
           area->HasFocus(aFocus);
           //Now invalidate the rect
-          nsIFrame* imgFrame = targetContent->GetPrimaryFrame();
-          if (imgFrame) {
-            nsRect dmgRect;
-            area->GetRect(imgFrame, dmgRect);
-            imgFrame->Invalidate(dmgRect);
+          nsCOMPtr<nsIDocument> doc = targetContent->GetDocument();
+          //This check is necessary to see if we're still attached to the doc
+          if (doc) {
+            nsIPresShell *presShell = doc->GetPrimaryShell();
+            if (presShell) {
+              nsIFrame* imgFrame = presShell->GetPrimaryFrameFor(targetContent);
+              if (imgFrame) {
+                nsRect dmgRect;
+                area->GetRect(imgFrame, dmgRect);
+                imgFrame->Invalidate(dmgRect);
+              }
+            }
           }
           break;
         }

@@ -4,28 +4,28 @@ function start_sending_garbage()
 {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
-  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?action=respond-garbage");
+  prefs.setCharPref("geo.wifi.uri", "http://localhost:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?action=respond-garbage");
 }
 
 function stop_sending_garbage()
 {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
-  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
+  prefs.setCharPref("geo.wifi.uri", "http://localhost:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
 }
 
 function stop_geolocationProvider()
 {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
-  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?action=stop-responding");
+  prefs.setCharPref("geo.wifi.uri", "http://localhost:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs?action=stop-responding");
 }
 
 function resume_geolocationProvider()
 {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   var prefs = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefBranch);
-  prefs.setCharPref("geo.wifi.uri", "http://mochi.test:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
+  prefs.setCharPref("geo.wifi.uri", "http://localhost:8888/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
 }
 
 function check_geolocation(location) {
@@ -56,45 +56,35 @@ function check_geolocation(location) {
 }
 
 
-function getChromeWindow()
-{
-  const Ci = Components.interfaces;
-  var chromeWin = window.top
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIWebNavigation)
-      .QueryInterface(Ci.nsIDocShellTreeItem)
-      .rootTreeItem
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIDOMWindow)
-      .QueryInterface(Ci.nsIDOMChromeWindow);
-  return chromeWin;
-}
-
 function getNotificationBox()
 {
-  var chromeWin = getChromeWindow();
-  var notifyBox = chromeWin.getNotificationBox(window.top);
+  const Ci = Components.interfaces;
+  
+  function getChromeWindow(aWindow) {
+      var chromeWin = aWindow 
+          .QueryInterface(Ci.nsIInterfaceRequestor)
+          .getInterface(Ci.nsIWebNavigation)
+          .QueryInterface(Ci.nsIDocShellTreeItem)
+          .rootTreeItem
+          .QueryInterface(Ci.nsIInterfaceRequestor)
+          .getInterface(Ci.nsIDOMWindow)
+          .QueryInterface(Ci.nsIDOMChromeWindow);
+      return chromeWin;
+  }
+
+  var notifyWindow = window.top;
+
+  var chromeWin = getChromeWindow(notifyWindow);
+
+  var notifyBox = chromeWin.getNotificationBox(notifyWindow);
 
   return notifyBox;
 }
 
+
 function clickNotificationButton(aButtonIndex) {
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
-  // First, check for new-style Firefox notifications
-  var chromeWin = getChromeWindow();
-  if (chromeWin.PopupNotifications) {
-    var panel = chromeWin.PopupNotifications.panel;
-    var notificationEl = panel.getElementsByAttribute("id", "geolocation")[0];
-    if (aButtonIndex == kAcceptButton)
-      notificationEl.button.doCommand();
-    else if (aButtonIndex == kDenyButton)
-      throw "clickNotificationButton(kDenyButton) isn't supported in Firefox";
-
-    return;
-  }
-
-  // Otherwise, fall back to looking for a notificationbox
   // This is a bit of a hack. The notification doesn't have an API to
   // trigger buttons, so we dive down into the implementation and twiddle
   // the buttons directly.

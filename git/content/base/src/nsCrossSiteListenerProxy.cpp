@@ -52,7 +52,7 @@
 #include "nsGkAtoms.h"
 #include "nsWhitespaceTokenizer.h"
 #include "nsIChannelEventSink.h"
-#include "nsCharSeparatedTokenizer.h"
+#include "nsCommaSeparatedTokenizer.h"
 #include "nsXMLHttpRequest.h"
 
 static PRBool gDisableCORS = PR_FALSE;
@@ -159,7 +159,7 @@ nsCrossSiteListenerProxy::OnStartRequest(nsIRequest* aRequest,
       nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
       if (channel) {
       nsCOMPtr<nsIURI> uri;
-        NS_GetFinalChannelURI(channel, getter_AddRefs(uri));
+        channel->GetURI(getter_AddRefs(uri));
         if (uri) {
           nsXMLHttpRequest::sAccessControlCache->
             RemoveEntries(uri, mRequestingPrincipal);
@@ -291,7 +291,7 @@ nsCrossSiteListenerProxy::CheckRequestApproved(nsIRequest* aRequest,
                             headerVal);
     PRBool foundMethod = mPreflightMethod.EqualsLiteral("GET") ||
       mPreflightMethod.EqualsLiteral("POST");
-    nsCCharSeparatedTokenizer methodTokens(headerVal, ',');
+    nsCCommaSeparatedTokenizer methodTokens(headerVal);
     while(methodTokens.hasMoreTokens()) {
       const nsDependentCSubstring& method = methodTokens.nextToken();
       if (method.IsEmpty()) {
@@ -310,7 +310,7 @@ nsCrossSiteListenerProxy::CheckRequestApproved(nsIRequest* aRequest,
     http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control-Allow-Headers"),
                             headerVal);
     nsTArray<nsCString> headers;
-    nsCCharSeparatedTokenizer headerTokens(headerVal, ',');
+    nsCCommaSeparatedTokenizer headerTokens(headerVal);
     while(headerTokens.hasMoreTokens()) {
       const nsDependentCSubstring& header = headerTokens.nextToken();
       if (header.IsEmpty()) {
@@ -381,7 +381,7 @@ nsCrossSiteListenerProxy::OnChannelRedirect(nsIChannel *aOldChannel,
     if (NS_FAILED(rv)) {
       if (nsXMLHttpRequest::sAccessControlCache) {
         nsCOMPtr<nsIURI> oldURI;
-        NS_GetFinalChannelURI(aOldChannel, getter_AddRefs(oldURI));
+        aOldChannel->GetURI(getter_AddRefs(oldURI));
         if (oldURI) {
           nsXMLHttpRequest::sAccessControlCache->
             RemoveEntries(oldURI, mRequestingPrincipal);
@@ -410,7 +410,7 @@ nsresult
 nsCrossSiteListenerProxy::UpdateChannel(nsIChannel* aChannel)
 {
   nsCOMPtr<nsIURI> uri, originalURI;
-  nsresult rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(uri));
+  nsresult rv = aChannel->GetURI(getter_AddRefs(uri));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = aChannel->GetOriginalURI(getter_AddRefs(originalURI));
   NS_ENSURE_SUCCESS(rv, rv);  

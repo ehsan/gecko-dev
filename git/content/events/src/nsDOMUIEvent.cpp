@@ -37,6 +37,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
+#include "base/basictypes.h"
+#include "IPC/IPCMessageUtils.h"
+#endif
 #include "nsCOMPtr.h"
 #include "nsDOMUIEvent.h"
 #include "nsIPresShell.h"
@@ -45,6 +49,7 @@
 #include "nsIDOMNode.h"
 #include "nsIContent.h"
 #include "nsContentUtils.h"
+#include "nsIPresShell.h"
 #include "nsIEventStateManager.h"
 #include "nsIFrame.h"
 #include "nsLayoutUtils.h"
@@ -113,12 +118,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsDOMUIEvent, nsDOMEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMUIEvent, nsDOMEvent)
 
-DOMCI_DATA(UIEvent, nsDOMUIEvent)
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMUIEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMUIEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNSUIEvent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(UIEvent)
+  NS_INTERFACE_MAP_ENTRY(nsIPrivateCompositionEvent)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(UIEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 nsIntPoint
@@ -368,6 +372,17 @@ nsDOMUIEvent::GetIsChar(PRBool* aIsChar)
   }
 }
 
+NS_METHOD nsDOMUIEvent::GetCompositionReply(nsTextEventReply** aReply)
+{
+  if((mEvent->message == NS_COMPOSITION_START))
+  {
+    *aReply = &(static_cast<nsCompositionEvent*>(mEvent)->theReply);
+    return NS_OK;
+  }
+  *aReply = nsnull;
+  return NS_ERROR_FAILURE;
+}
+
 NS_METHOD
 nsDOMUIEvent::DuplicatePrivateData()
 {
@@ -382,6 +397,30 @@ nsDOMUIEvent::DuplicatePrivateData()
   }
   return rv;
 }
+
+#ifdef MOZ_IPC
+void
+nsDOMUIEvent::Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType)
+{
+  if (aSerializeInterfaceType) {
+    IPC::WriteParam(aMsg, NS_LITERAL_STRING("uievent"));
+  }
+
+  nsDOMEvent::Serialize(aMsg, PR_FALSE);
+
+  PRInt32 detail = 0;
+  GetDetail(&detail);
+  IPC::WriteParam(aMsg, detail);
+}
+
+PRBool
+nsDOMUIEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
+{
+  NS_ENSURE_TRUE(nsDOMEvent::Deserialize(aMsg, aIter), PR_FALSE);
+  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &mDetail), PR_FALSE);
+  return PR_TRUE;
+}
+#endif
 
 nsresult NS_NewDOMUIEvent(nsIDOMEvent** aInstancePtrResult,
                           nsPresContext* aPresContext,

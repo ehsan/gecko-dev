@@ -57,7 +57,7 @@
 #include "nsITimer.h"
 #include "nsCRT.h"
 #include "nsIPrintSettings.h"
-#include "FramePropertyTable.h"
+#include "nsPropertyTable.h"
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsRefPtrHashtable.h"
@@ -72,7 +72,7 @@
 #include "nsContentUtils.h"
 #include "nsIWidget.h"
 #include "mozilla/TimeStamp.h"
-#include "nsIContent.h"
+#include "nsRefreshDriver.h"
 
 class nsImageLoader;
 #ifdef IBMBIDI
@@ -83,6 +83,7 @@ struct nsRect;
 
 class imgIRequest;
 
+class nsIContent;
 class nsIFontMetrics;
 class nsIFrame;
 class nsFrameManager;
@@ -102,7 +103,6 @@ class nsUserFontSet;
 struct nsFontFaceRuleContainer;
 class nsObjectFrame;
 class nsTransitionManager;
-class nsRefreshDriver;
 class imgIContainer;
 
 #ifdef MOZ_REFLOW_PERF
@@ -174,8 +174,6 @@ class nsRootPresContext;
 
 class nsPresContext : public nsIObserver {
 public:
-  typedef mozilla::FramePropertyTable FramePropertyTable;
-
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIOBSERVER
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
@@ -215,13 +213,9 @@ public:
 
   nsIPresShell* GetPresShell() const { return mShell; }
 
-  /**
-   * Return the presentation context for the root of the view manager
-   * hierarchy that contains this presentation context, or nsnull if it can't
-   * be found (e.g. it's detached).
-   */
-  nsRootPresContext* GetRootPresContext();
-  virtual PRBool IsRoot() { return PR_FALSE; }
+  // Find the prescontext for the root of the view manager hierarchy that contains
+  // this prescontext.
+  nsRootPresContext* RootPresContext();
 
   nsIDocument* Document() const
   {
@@ -239,7 +233,13 @@ public:
 
   nsTransitionManager* TransitionManager() { return mTransitionManager; }
 
-  nsRefreshDriver* RefreshDriver() { return mRefreshDriver; }
+  nsRefreshDriver* RefreshDriver() { return &mRefreshDriver; }
+
+  static nsPresContext* FromRefreshDriver(nsRefreshDriver* aRefreshDriver) {
+    return reinterpret_cast<nsPresContext*>(
+             reinterpret_cast<char*>(aRefreshDriver) -
+             offsetof(nsPresContext, mRefreshDriver));
+  }
 #endif
 
   /**
@@ -540,7 +540,7 @@ public:
 
   nsIDeviceContext* DeviceContext() { return mDeviceContext; }
   nsIEventStateManager* EventStateManager() { return mEventManager; }
-  nsIAtom* GetLanguageFromCharset() { return mLanguage; }
+  nsIAtom* GetLangGroup() { return mLangGroup; }
 
   float TextZoom() { return mTextZoom; }
   void SetTextZoom(float aZoom) {
@@ -643,12 +643,6 @@ public:
     PRUint8 mHorizontal, mVertical;
     ScrollbarStyles(PRUint8 h, PRUint8 v) : mHorizontal(h), mVertical(v) {}
     ScrollbarStyles() {}
-    PRBool operator==(const ScrollbarStyles& aStyles) const {
-      return aStyles.mHorizontal == mHorizontal && aStyles.mVertical == mVertical;
-    }
-    PRBool operator!=(const ScrollbarStyles& aStyles) const {
-      return aStyles.mHorizontal != mHorizontal || aStyles.mVertical != mVertical;
-    }
   };
   void SetViewportOverflowOverride(PRUint8 aX, PRUint8 aY)
   {
@@ -685,8 +679,8 @@ public:
    *
    *  @lina 07/12/2000
    */
-  virtual PRBool BidiEnabledExternal() const { return BidiEnabledInternal(); }
-  PRBool BidiEnabledInternal() const { return Document()->GetBidiEnabled(); }
+  virtual NS_HIDDEN_(PRBool) BidiEnabledExternal() const;
+  NS_HIDDEN_(PRBool) BidiEnabledInternal() const;
 #ifdef _IMPL_NS_LAYOUT
   PRBool BidiEnabled() const { return BidiEnabledInternal(); }
 #else
@@ -746,10 +740,6 @@ public:
    * include nsIDocument.
    */  
   NS_HIDDEN_(PRUint32) GetBidi() const;
-
-  PRUint32 GetBidiMemoryUsed();
-#else
-  PRUint32 GetBidiMemoryUsed() { return 0; }
 #endif // IBMBIDI
 
   /**
@@ -762,8 +752,6 @@ public:
   }
 
   PRBool IsRenderingOnlySelection() const { return mIsRenderingOnlySelection; }
-
-  NS_HIDDEN_(PRBool) IsTopLevelWindowInactive();
 
   /*
    * Obtain a native them for rendering our widgets (both form controls and html)
@@ -789,7 +777,7 @@ public:
   nsIPrintSettings* GetPrintSettings() { return mPrintSettings; }
 
   /* Accessor for table of frame properties */
-  FramePropertyTable* PropertyTable() { return &mPropertyTable; }
+  nsPropertyTable* PropertyTable() { return &mPropertyTable; }
 
   /* Helper function that ensures that this prescontext is shown in its
      docshell if it's the most recent prescontext for the docshell.  Returns
@@ -814,20 +802,7 @@ public:
                               mType == eContext_PrintPreview); }
 
   // Is this presentation in a chrome docshell?
-  PRBool IsChrome() const
-  {
-    return mIsChromeIsCached ? mIsChrome : IsChromeSlow();
-  }
-
-  virtual void InvalidateIsChromeCacheExternal();
-  void InvalidateIsChromeCacheInternal() { mIsChromeIsCached = PR_FALSE; }
-#ifdef _IMPL_NS_LAYOUT
-  void InvalidateIsChromeCache()
-  { InvalidateIsChromeCacheInternal(); }
-#else
-  void InvalidateIsChromeCache()
-  { InvalidateIsChromeCacheExternal(); }
-#endif
+  PRBool IsChrome() const;
 
   // Public API for native theme code to get style internals.
   virtual PRBool HasAuthorSpecifiedRules(nsIFrame *aFrame, PRUint32 ruleTypeMask) const;
@@ -855,15 +830,8 @@ public:
   // user font set is changed and fonts become unavailable).
   void UserFontSetUpdated();
 
-  // Ensure that it is safe to hand out CSS rules outside the layout
-  // engine by ensuring that all CSS style sheets have unique inners
-  // and, if necessary, synchronously rebuilding all style data.
-  // Returns true on success and false on failure (not safe).
-  PRBool EnsureSafeToHandOutCSSRules();
-
+  PRBool MayHavePaintEventListener();
   void NotifyInvalidation(const nsRect& aRect, PRUint32 aFlags);
-  void NotifyInvalidateForScrolling(const nsRegion& aBlitRegion,
-                                    const nsRegion& aInvalidateRegion);
   void FireDOMPaintEvent();
   PRBool IsDOMPaintEventPending() {
     return !mInvalidateRequests.mRequests.IsEmpty();
@@ -871,16 +839,6 @@ public:
 
   void ClearMozAfterPaintEvents() {
     mInvalidateRequests.mRequests.Clear();
-  }
-
-  PRBool IsProcessingRestyles() const {
-    return mProcessingRestyles;
-  }
-
-  void SetProcessingRestyles(PRBool aProcessing) {
-    NS_ASSERTION(aProcessing != PRBool(mProcessingRestyles),
-                 "should never nest");
-    mProcessingRestyles = aProcessing;
   }
 
   PRBool IsProcessingAnimationStyleChange() const {
@@ -945,30 +903,13 @@ public:
    */
   PRBool HasPendingInterrupt() { return mHasPendingInterrupt; }
 
+#ifdef MOZ_SMIL
   /**
-   * If we have a presshell, and if the given content's current
-   * document is the same as our presshell's document, return the
-   * content's primary frame.  Otherwise, return null.  Only use this
-   * if you care about which presshell the primary frame is in.
+   * Indicates that the given element's SMIL Override Style has changed,
+   * and as a result, we need to update our display.
    */
-  nsIFrame* GetPrimaryFrameFor(nsIContent* aContent) {
-    NS_PRECONDITION(aContent, "Don't do that");
-    if (GetPresShell() &&
-        GetPresShell()->GetDocument() == aContent->GetCurrentDoc()) {
-      return aContent->GetPrimaryFrame();
-    }
-    return nsnull;
-  }
-
-  PRUint32 EstimateMemoryUsed() {
-    PRUint32 result = 0;
-
-    result += sizeof(nsPresContext);
-    result += GetBidiMemoryUsed();
-
-    return result;
-  }
-
+  void SMILOverrideStyleChanged(nsIContent* aContent);
+#endif // MOZ_SMIL
 protected:
   friend class nsRunnableMethod<nsPresContext>;
   NS_HIDDEN_(void) ThemeChangedInternal();
@@ -992,10 +933,6 @@ protected:
 
   NS_HIDDEN_(void) UpdateCharSet(const nsAFlatCString& aCharSet);
 
-  PRBool MayHavePaintEventListener();
-  void NotifyInvalidateRegion(const nsRegion& aRegion, nsPoint aOffset,
-                              PRUint32 aFlags);
-
   void HandleRebuildUserFontSet() {
     mPostedFlushUserFontSet = PR_FALSE;
     FlushUserFontSet();
@@ -1005,8 +942,6 @@ protected:
 
   // Can't be inline because we can't include nsStyleSet.h.
   PRBool HasCachedStyleData();
-
-  PRBool IsChromeSlow() const;
 
   // IMPORTANT: The ownership implicit in the following member variables
   // has been explicitly checked.  If you add any members to this class,
@@ -1022,19 +957,13 @@ protected:
                                         // from gfx back to layout.
   nsIEventStateManager* mEventManager;  // [STRONG]
   nsILookAndFeel*       mLookAndFeel;   // [STRONG]
-  nsRefPtr<nsRefreshDriver> mRefreshDriver;
-  nsRefPtr<nsTransitionManager> mTransitionManager;
+  nsRefreshDriver       mRefreshDriver;
+  nsTransitionManager*  mTransitionManager; // owns; it aggregates our refcount
   nsIAtom*              mMedium;        // initialized by subclass ctors;
                                         // weak pointer to static atom
 
   nsILinkHandler*       mLinkHandler;   // [WEAK]
-
-  // Formerly mLangGroup; moving from charset-oriented langGroup to
-  // maintaining actual language settings everywhere (see bug 524107).
-  // This may in fact hold a langGroup such as x-western rather than
-  // a specific language, however (e.g, if it is inferred from the
-  // charset rather than explicitly specified as a lang attribute).
-  nsIAtom*              mLanguage;      // [STRONG]
+  nsIAtom*              mLangGroup;     // [STRONG]
 
   nsRefPtrHashtable<nsVoidPtrHashKey, nsImageLoader>
                         mImageLoaders[IMAGE_LOAD_TYPE_COUNT];
@@ -1056,7 +985,7 @@ protected:
   nsCOMPtr<nsIPrintSettings> mPrintSettings;
   nsCOMPtr<nsITimer>    mPrefChangedTimer;
 
-  FramePropertyTable    mPropertyTable;
+  nsPropertyTable       mPropertyTable;
 
   nsInvalidateRequestList mInvalidateRequests;
 
@@ -1134,20 +1063,13 @@ protected:
   // Do we currently have an event posted to call FlushUserFontSet?
   unsigned              mPostedFlushUserFontSet : 1;
 
-  // resize reflow is suppressed when the only change has been to zoom
+  // resize reflow is supressed when the only change has been to zoom
   // the document rather than to change the document's dimensions
   unsigned              mSupressResizeReflow : 1;
 
   unsigned              mIsVisual : 1;
 
-  unsigned              mProcessingRestyles : 1;
   unsigned              mProcessingAnimationStyleChange : 1;
-
-  // Cache whether we are chrome or not because it is expensive.  
-  // mIsChromeIsCached tells us if mIsChrome is valid or we need to get the
-  // value the slow way.
-  mutable unsigned      mIsChromeIsCached : 1;
-  mutable unsigned      mIsChrome : 1;
 
 #ifdef DEBUG
   PRBool                mInitialized;
@@ -1225,8 +1147,6 @@ public:
    * have been updated.
    */
   void DidApplyPluginGeometryUpdates();
-
-  virtual PRBool IsRoot() { return PR_TRUE; }
 
 private:
   nsTHashtable<nsPtrHashKey<nsObjectFrame> > mRegisteredPlugins;

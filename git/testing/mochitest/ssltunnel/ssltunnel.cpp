@@ -67,48 +67,6 @@
 using std::string;
 using std::vector;
 
-#define IS_DELIM(m, c)          ((m)[(c) >> 3] & (1 << ((c) & 7)))
-#define SET_DELIM(m, c)         ((m)[(c) >> 3] |= (1 << ((c) & 7)))
-#define DELIM_TABLE_SIZE        32
-
-// Copied from nsCRT
-char* strtok2(char* string, const char* delims, char* *newStr)
-{
-  PR_ASSERT(string);
-  
-  char delimTable[DELIM_TABLE_SIZE];
-  PRUint32 i;
-  char* result;
-  char* str = string;
-  
-  for (i = 0; i < DELIM_TABLE_SIZE; i++)
-    delimTable[i] = '\0';
-  
-  for (i = 0; delims[i]; i++) {
-    SET_DELIM(delimTable, static_cast<PRUint8>(delims[i]));
-  }
-  
-  // skip to beginning
-  while (*str && IS_DELIM(delimTable, static_cast<PRUint8>(*str))) {
-    str++;
-  }
-  result = str;
-  
-  // fix up the end of the token
-  while (*str) {
-    if (IS_DELIM(delimTable, static_cast<PRUint8>(*str))) {
-      *str++ = '\0';
-      break;
-    }
-    str++;
-  }
-  *newStr = str;
-  
-  return str == result ? NULL : result;
-}
-
-
-
 enum client_auth_option {
   caNone = 0,
   caRequire = 1,
@@ -121,14 +79,6 @@ typedef struct {
   string cert_nickname;
   PLHashTable* host_cert_table;
   PLHashTable* host_clientauth_table;
-  // If not empty, and this server is using HTTP CONNECT, connections
-  // will be proxied to this address.
-  PRNetAddr remote_addr;
-  // True if no SSL should be used for this server's connections.
-  bool http_proxy_only;
-  // The original host in the Host: header for the initial connection is
-  // stored here, for proxied connections.
-  string original_host;
 } server_info_t;
 
 typedef struct {
@@ -140,7 +90,6 @@ typedef struct {
 const PRInt32 BUF_SIZE = 16384;
 const PRInt32 BUF_MARGIN = 1024;
 const PRInt32 BUF_TOTAL = BUF_SIZE + BUF_MARGIN;
-const char HEADER_HOST[] = "Host:";
 
 struct relayBuffer
 {
@@ -251,36 +200,21 @@ bool ReadConnectRequest(server_info_t* server_info,
     relayBuffer& buffer, PRInt32* result, string& certificate,
     client_auth_option* clientauth, string& host)
 {
-  if (buffer.present() < 4) {
-    printf(" !! only %d bytes present in the buffer", (int)buffer.present());
+  if (buffer.present() < 4)
     return false;
-  }
-  if (strncmp(buffer.buffertail-4, "\r\n\r\n", 4)) {
-    printf(" !! request is not tailed with CRLFCRLF but with %x %x %x %x", 
-           *(buffer.buffertail-4),
-           *(buffer.buffertail-3),
-           *(buffer.buffertail-2),
-           *(buffer.buffertail-1));
+  if (strncmp(buffer.buffertail-4, "\r\n\r\n", 4))
     return false;
-  }
-
-  printf(" parsing initial connect request, dump:\n%.*s\n", (int)buffer.present(), buffer.bufferhead);
 
   *result = 400;
 
   char* token;
-  char* _caret;
-  token = strtok2(buffer.bufferhead, " ", &_caret);
-  if (!token) {
-    printf(" no space found");
+  token = strtok(buffer.bufferhead, " ");
+  if (!token) 
     return true;
-  }
-  if (strcmp(token, "CONNECT")) {
-    printf(" not CONNECT request but %s", token);
+  if (strcmp(token, "CONNECT")) 
     return true;
-  }
 
-  token = strtok2(_caret, " ", &_caret);
+  token = strtok(NULL, " ");
   void* c = PL_HashTableLookup(server_info->host_cert_table, token);
   if (c)
     certificate = static_cast<char*>(c);
@@ -294,11 +228,9 @@ bool ReadConnectRequest(server_info_t* server_info,
   else
     *clientauth = caNone;
 
-  token = strtok2(_caret, "/", &_caret);
-  if (strcmp(token, "HTTP")) {  
-    printf(" not tailed with HTTP but with %s", token);
+  token = strtok(NULL, "/");
+  if (strcmp(token, "HTTP"))
     return true;
-  }
 
   *result = 200;
   return true;
@@ -351,100 +283,6 @@ bool ConfigureSSLServerSocket(PRFileDesc* socket, server_info_t* si, string &cer
 }
 
 /**
- * This function examines the buffer for a S5ec-WebSocket-Location: field, 
- * and if it's present, it replaces the hostname in that field with the
- * value in the server's original_host field.  This function works
- * in the reverse direction as AdjustHost(), replacing the real hostname
- * of a response with the potentially fake hostname that is expected
- * by the browser (e.g., mochi.test).
- *
- * @return true if the header was adjusted successfully, or not found, false
- * if the header is present but the url is not, which should indicate
- * that more data needs to be read from the socket
- */
-bool AdjustWebSocketLocation(relayBuffer& buffer, server_info_t *si)
-{
-  assert(buffer.margin());
-  buffer.buffertail[1] = '\0';
-
-  char* wsloc = strstr(buffer.bufferhead, "Sec-WebSocket-Location:");
-  if (!wsloc)
-    return true;
-  // advance pointer to the start of the hostname
-  wsloc = strstr(wsloc, "ws://");
-  if (!wsloc)
-    return false;
-  wsloc += 5;
-  // find the end of the hostname
-  char* wslocend = strchr(wsloc + 1, '/');
-  if (!wslocend)
-    return false;
-  char *crlf = strstr(wsloc, "\r\n");
-  if (!crlf)
-    return false;
-  if (si->original_host.empty())
-    return true;
-
-  int diff = si->original_host.length() - (wslocend-wsloc);
-  if (diff > 0)
-    assert(size_t(diff) <= buffer.margin());
-  memmove(wslocend + diff, wslocend, buffer.buffertail - wsloc - diff);
-  buffer.buffertail += diff;
-
-  memcpy(wsloc, si->original_host.c_str(), si->original_host.length());
-  return true;
-}
-
-/**
- * This function examines the buffer for a Host: field, and if it's present,
- * it replaces the hostname in that field with the hostname in the server's
- * remote_addr field.  This is needed because proxy requests may be coming
- * from mochitest with fake hosts, like mochi.test, and these need to be
- * replaced with the host that the destination server is actually running
- * on.
- */
-bool AdjustHost(relayBuffer& buffer, server_info_t *si)
-{
-  if (!si->remote_addr.inet.port)
-    return false;
-
-  assert(buffer.margin());
-
-  // Cannot use strnchr so add a null char at the end. There is always some
-  // space left because we preserve a margin.
-  buffer.buffertail[1] = '\0';
-
-  char* host = strstr(buffer.bufferhead, HEADER_HOST);
-  if (!host)
-    return false;
-  // advance pointer to beginning of hostname
-  host += strlen(HEADER_HOST);
-  host += strspn(host, " \t");
-
-  char* endhost = strstr(host, "\r\n");
-  if (!endhost)
-    return false;
-
-  // Save the original host, so we can use it later on responses from the
-  // server.
-  si->original_host.assign(host, endhost-host);
-
-  char newhost[40];
-  PR_NetAddrToString(&si->remote_addr, newhost, sizeof(newhost));
-  assert(strlen(newhost) < sizeof(newhost) - 7);
-  sprintf(newhost, "%s:%d", newhost, PR_ntohs(si->remote_addr.inet.port));
-
-  int diff = strlen(newhost) - (endhost-host);
-  if (diff > 0)
-    assert(size_t(diff) <= buffer.margin());
-  memmove(endhost + diff, endhost, buffer.buffertail - host - diff);
-  buffer.buffertail += diff;
-
-  memcpy(host, newhost, strlen(newhost));
-  return true;
-}
-
-/**
  * This function prefixes Request-URI path with a full scheme-host-port
  * string.
  */
@@ -455,7 +293,6 @@ bool AdjustRequestURI(relayBuffer& buffer, string *host)
   // Cannot use strnchr so add a null char at the end. There is always some space left
   // because we preserve a margin.
   buffer.buffertail[1] = '\0';
-  printf(" incoming request to adjust:\n%s\n", buffer.bufferhead);
 
   char *token, *path;
   path = strchr(buffer.bufferhead, ' ') + 1;
@@ -508,7 +345,7 @@ bool ConnectSocket(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime timeout
 void HandleConnection(void* data)
 {
   connection_info_t* ci = static_cast<connection_info_t*>(data);
-  PRIntervalTime connect_timeout = PR_SecondsToInterval(30);
+  PRIntervalTime connect_timeout = PR_SecondsToInterval(2);
 
   AutoFD other_sock(PR_NewTCPSocket());
   bool client_done = false;
@@ -520,10 +357,6 @@ void HandleConnection(void* data)
   client_auth_option clientAuth;
   string fullHost;
 
-  printf("SSLTUNNEL(%p): incoming connection csock(0)=%p, ssock(1)=%p\n",
-         static_cast<void*>(data),
-         static_cast<void*>(ci->client_sock),
-         static_cast<void*>(other_sock));
   if (other_sock) 
   {
     PRInt32 numberOfSockets = 1;
@@ -532,8 +365,7 @@ void HandleConnection(void* data)
 
     if (!do_http_proxy)
     {
-      if (!ci->server_info->http_proxy_only && 
-          !ConfigureSSLServerSocket(ci->client_sock, ci->server_info, certificateToUse, caNone))
+      if (!ConfigureSSLServerSocket(ci->client_sock, ci->server_info, certificateToUse, caNone))
         client_error = true;
       else if (!ConnectSocket(other_sock, &remote_addr, connect_timeout))
         client_error = true;
@@ -552,28 +384,16 @@ void HandleConnection(void* data)
     {
       sockets[0].in_flags |= PR_POLL_EXCEPT;
       sockets[1].in_flags |= PR_POLL_EXCEPT;
-      printf("SSLTUNNEL(%p): polling flags csock(0)=%c%c, ssock(1)=%c%c\n",
-             static_cast<void*>(data),
-             sockets[0].in_flags & PR_POLL_READ  ? 'R' : '-',
-             sockets[0].in_flags & PR_POLL_WRITE ? 'W' : '-',
-             sockets[1].in_flags & PR_POLL_READ  ? 'R' : '-',
-             sockets[1].in_flags & PR_POLL_WRITE ? 'W' : '-');
       PRInt32 pollStatus = PR_Poll(sockets, numberOfSockets, PR_MillisecondsToInterval(1000));
       if (pollStatus < 0)
       {
-        printf("SSLTUNNEL(%p): pollStatus=%d, exiting\n",
-               static_cast<void*>(data), pollStatus);
         client_error = true;
         break;
       }
 
       if (pollStatus == 0)
-      {
         // timeout
-        printf("SSLTUNNEL(%p): poll timeout, looping\n",
-               static_cast<void*>(data));
         continue;
-      }
 
       for (PRInt32 s = 0; s < numberOfSockets; ++s)
       {
@@ -583,15 +403,8 @@ void HandleConnection(void* data)
         PRInt16 &in_flags2 = sockets[s2].in_flags;
         sockets[s].out_flags = 0;
 
-        printf("SSLTUNNEL(%p): %csock(%d)=%p out_flags=%d",
-               static_cast<void*>(data),
-               s == 0 ? 'c' : 's',
-               s,
-               static_cast<void*>(sockets[s].fd),
-               out_flags);
         if (out_flags & (PR_POLL_EXCEPT | PR_POLL_ERR | PR_POLL_HUP))
         {
-          printf(" :exception\n");
           client_error = true;
           socketErrorState[s] = PR_TRUE;
           // We got a fatal error state on the socket. Clear the output buffer
@@ -601,21 +414,13 @@ void HandleConnection(void* data)
           continue;
         } // PR_POLL_EXCEPT, PR_POLL_ERR, PR_POLL_HUP handling
 
-        if (out_flags & PR_POLL_READ && !buffers[s].free())
-        {
-           printf(" no place in read buffer but got read flag, dropping it now!");
-           in_flags &= ~PR_POLL_READ;
-        }
-
         if (out_flags & PR_POLL_READ && buffers[s].free())
         {
-          printf(" :reading");
           PRInt32 bytesRead = PR_Recv(sockets[s].fd, buffers[s].buffertail, 
               buffers[s].free(), 0, PR_INTERVAL_NO_TIMEOUT);
 
           if (bytesRead == 0)
           {
-            printf(" socket gracefully closed");
             client_done = true;
             in_flags &= ~PR_POLL_READ;
           }
@@ -623,7 +428,6 @@ void HandleConnection(void* data)
           {
             if (PR_GetError() != PR_WOULD_BLOCK_ERROR)
             {
-              printf(" error=%d", PR_GetError());
               // We are in error state, indicate that the connection was 
               // not closed gracefully
               client_error = true;
@@ -631,21 +435,15 @@ void HandleConnection(void* data)
               // Wipe out our send buffer, we cannot send it anyway.
               buffers[s2].bufferhead = buffers[s2].buffertail = buffers[s2].buffer;
             }
-            else
-              printf(" would block");
           }
           else
           {
             // If the other socket is in error state (unable to send/receive)
             // throw this data away and continue loop
             if (socketErrorState[s2])
-            {
-              printf(" have read but other socket is in error state\n");
               continue;
-            }
 
             buffers[s].buffertail += bytesRead;
-            printf(", read %d bytes", bytesRead);
 
             // We have to accept and handle the initial CONNECT request here
             PRInt32 response;
@@ -654,13 +452,10 @@ void HandleConnection(void* data)
             {
               // Clean the request as it would be read
               buffers[s].bufferhead = buffers[s].buffertail = buffers[s].buffer;
-              in_flags |= PR_POLL_WRITE;
-              connect_accepted = true;
 
               // Store response to the oposite buffer
               if (response != 200)
               {
-                printf(" could not read the connect request, closing connection with %d", response);
                 client_done = true;
                 sprintf(buffers[s2].buffer, "HTTP/1.1 %d ERROR\r\nConnection: close\r\n\r\n", response);
                 buffers[s2].buffertail = buffers[s2].buffer + strlen(buffers[s2].buffer);
@@ -670,119 +465,78 @@ void HandleConnection(void* data)
               strcpy(buffers[s2].buffer, "HTTP/1.1 200 Connected\r\nConnection: keep-alive\r\n\r\n");
               buffers[s2].buffertail = buffers[s2].buffer + strlen(buffers[s2].buffer);
 
-              PRNetAddr* addr = &remote_addr;
-              if (ci->server_info->remote_addr.inet.port > 0)
-                addr = &ci->server_info->remote_addr;
-              if (!ConnectSocket(other_sock, addr, connect_timeout))
+              if (!ConnectSocket(other_sock, &remote_addr, connect_timeout))
               {
-                printf(" could not open connection to the real server\n");
                 client_error = true;
                 break;
               }
 
-              printf(" accepted CONNECT request, connected to the server, sending OK to the client\n");
               // Send the response to the client socket
+              in_flags |= PR_POLL_WRITE;
+              connect_accepted = true;
               break;
             } // end of CONNECT handling
 
-            if (!buffers[s].free())
-            {
-              // Do not poll for read when the buffer is full
-              printf(" no place in our read buffer, stop reading");
+            if (!buffers[s].free()) // Do not poll for read when the buffer is full
               in_flags &= ~PR_POLL_READ;
-            }
 
             if (ssl_updated)
             {
-              if (s == 0 && expect_request_start) 
-              {
-                if (ci->server_info->http_proxy_only)
-                  expect_request_start = !AdjustHost(buffers[s], ci->server_info);
-                else
-                  expect_request_start = !AdjustRequestURI(buffers[s], &fullHost);
-              }
-              else
-              {
-                if (!AdjustWebSocketLocation(buffers[s], ci->server_info))
-                  continue;
-              }
+              if (s == 0 && expect_request_start)
+                expect_request_start = !AdjustRequestURI(buffers[s], &fullHost);
 
               in_flags2 |= PR_POLL_WRITE;
-              printf(" telling the other socket to write");
             }
-            else
-              printf(" we have something for the other socket to write, but ssl has not been administered on it");
           }
         } // PR_POLL_READ handling
 
         if (out_flags & PR_POLL_WRITE)
         {
-          printf(" :writting");
           PRInt32 bytesWrite = PR_Send(sockets[s].fd, buffers[s2].bufferhead, 
               buffers[s2].present(), 0, PR_INTERVAL_NO_TIMEOUT);
 
           if (bytesWrite < 0)
           {
             if (PR_GetError() != PR_WOULD_BLOCK_ERROR) {
-              printf(" error=%d", PR_GetError());
               client_error = true;
               socketErrorState[s] = PR_TRUE;
               // We got a fatal error while writting the buffer. Clear it to break
               // the main loop, we will never more be able to send it.
               buffers[s2].bufferhead = buffers[s2].buffertail = buffers[s2].buffer;
             }
-            else
-              printf(" would block");
           }
           else
           {
-            printf(", written %d bytes", bytesWrite);
-            buffers[s2].buffertail[1] = '\0';
-            printf(" dump:\n%.*s\n", bytesWrite, buffers[s2].bufferhead);
-            
             buffers[s2].bufferhead += bytesWrite;
             if (buffers[s2].present())
-            {
-              printf(" still have to write %d bytes", (int)buffers[s2].present());
-              in_flags |= PR_POLL_WRITE;
-            }              
+              in_flags |= PR_POLL_WRITE;              
             else
             {
               if (!ssl_updated)
               {
-                printf(" proxy response sent to the client");
                 // Proxy response has just been writen, update to ssl
                 ssl_updated = true;
-                if (!ci->server_info->http_proxy_only && 
-                    !ConfigureSSLServerSocket(ci->client_sock, ci->server_info, certificateToUse, clientAuth))
+                if (!ConfigureSSLServerSocket(ci->client_sock, ci->server_info, certificateToUse, clientAuth))
                 {
-                  printf(" but failed to config server socket\n");
                   client_error = true;
                   break;
                 }
 
-                printf(" client socket updated to SSL");
                 numberOfSockets = 2;
               } // sslUpdate
 
-              printf(" dropping our write flag and setting other socket read flag");
-              in_flags &= ~PR_POLL_WRITE;
+              in_flags &= ~PR_POLL_WRITE;              
               in_flags2 |= PR_POLL_READ;
               buffers[s2].compact();
             }
           }
         } // PR_POLL_WRITE handling
-        printf("\n"); // end the log
       } // for...
     } // while, poll
   }
   else
     client_error = true;
 
-  printf("SSLTUNNEL(%p): exiting root function for csock=%p, ssock=%p\n",
-         static_cast<void*>(data),
-         static_cast<void*>(ci->client_sock),
-         static_cast<void*>(other_sock));
   if (!client_error)
     PR_Shutdown(ci->client_sock, PR_SHUTDOWN_SEND);
   PR_Close(ci->client_sock);
@@ -807,13 +561,6 @@ void StartServer(void* data)
     SignalShutdown();
     return;
   }
-
-  // In case the socket is still open in the TIME_WAIT state from a previous
-  // instance of ssltunnel we ask to reuse the port.
-  PRSocketOptionData socket_option;
-  socket_option.option = PR_SockOpt_Reuseaddr;
-  socket_option.value.reuse_addr = PR_TRUE;
-  PR_SetSocketOption(listen_socket, &socket_option);
 
   PRNetAddr server_addr;
   PR_InitializeNetAddr(PR_IpAddrAny, si->listen_port, &server_addr);
@@ -879,13 +626,12 @@ int processConfigLine(char* configLine)
   if (*configLine == 0 || *configLine == '#')
     return 0;
 
-  char* _caret;
-  char* keyword = strtok2(configLine, ":", &_caret);
+  char* keyword = strtok(configLine, ":");
 
   // Configure usage of http/ssl tunneling proxy behavior
   if (!strcmp(keyword, "httpproxy"))
   {
-    char* value = strtok2(_caret, ":", &_caret);
+    char* value = strtok(NULL, ":");
     if (!strcmp(value, "1"))
       do_http_proxy = true;
 
@@ -895,12 +641,12 @@ int processConfigLine(char* configLine)
   // Configure the forward address of the target server
   if (!strcmp(keyword, "forward"))
   {
-    char* ipstring = strtok2(_caret, ":", &_caret);
+    char* ipstring = strtok(NULL, ":");
     if (PR_StringToNetAddr(ipstring, &remote_addr) != PR_SUCCESS) {
       fprintf(stderr, "Invalid remote IP address: %s\n", ipstring);
       return 1;
     }
-    char* serverportstring = strtok2(_caret, ":", &_caret);
+    char* serverportstring = strtok(NULL, ":");
     int port = atoi(serverportstring);
     if (port <= 0) {
       fprintf(stderr, "Invalid remote port: %s\n", serverportstring);
@@ -911,48 +657,19 @@ int processConfigLine(char* configLine)
     return 0;
   }
 
-  if (!strcmp(keyword, "proxy"))
-  {
-    server_info_t server;
-    server.host_cert_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings, PL_CompareStrings, NULL, NULL);
-    server.host_clientauth_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings, ClientAuthValueComparator, NULL, NULL);
-    server.http_proxy_only = true;
-
-    char* listenport = strtok2(_caret, ":", &_caret);
-    server.listen_port = atoi(listenport);
-    if (server.listen_port <= 0) {
-      fprintf(stderr, "Invalid listen port in proxy config: %s\n", listenport);
-      return 1;
-    }
-    char* ipstring = strtok2(_caret, ":", &_caret);
-    if (PR_StringToNetAddr(ipstring, &server.remote_addr) != PR_SUCCESS) {
-      fprintf(stderr, "Invalid IP address in proxy config: %s\n", ipstring);
-      return 1;
-    }
-    char* remoteport = strtok2(_caret, ":", &_caret);
-    int port = atoi(remoteport);
-    if (port <= 0) {
-      fprintf(stderr, "Invalid remote port in proxy config: %s\n", remoteport);
-      return 1;
-    }
-    server.remote_addr.inet.port = PR_htons(port);
-    servers.push_back(server);
-    return 0;
-  }
-
   // Configure all listen sockets and port+certificate bindings
   if (!strcmp(keyword, "listen"))
   {
-    char* hostname = strtok2(_caret, ":", &_caret);
+    char* hostname = strtok(NULL, ":");
     char* hostportstring = NULL;
     if (strcmp(hostname, "*"))
     {
       any_host_spec_config = true;
-      hostportstring = strtok2(_caret, ":", &_caret);
+      hostportstring = strtok(NULL, ":");
     }
 
-    char* serverportstring = strtok2(_caret, ":", &_caret);
-    char* certnick = strtok2(_caret, ":", &_caret);
+    char* serverportstring = strtok(NULL, ":");
+    char* certnick = strtok(NULL, ":");
 
     int port = atoi(serverportstring);
     if (port <= 0) {
@@ -979,10 +696,8 @@ int processConfigLine(char* configLine)
     else
     {
       server_info_t server;
-      memset(&server.remote_addr, 0, sizeof(PRNetAddr));
       server.cert_nickname = certnick;
       server.listen_port = port;
-      server.http_proxy_only = false;
       server.host_cert_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings, PL_CompareStrings, NULL, NULL);
       if (!server.host_cert_table)
       {
@@ -1003,9 +718,9 @@ int processConfigLine(char* configLine)
   
   if (!strcmp(keyword, "clientauth"))
   {
-    char* hostname = strtok2(_caret, ":", &_caret);
-    char* hostportstring = strtok2(_caret, ":", &_caret);
-    char* serverportstring = strtok2(_caret, ":", &_caret);
+    char* hostname = strtok(NULL, ":");
+    char* hostportstring = strtok(NULL, ":");
+    char* serverportstring = strtok(NULL, ":");
 
     int port = atoi(serverportstring);
     if (port <= 0) {
@@ -1015,7 +730,7 @@ int processConfigLine(char* configLine)
 
     if (server_info_t* existingServer = findServerInfo(port))
     {
-      char* authoptionstring = strtok2(_caret, ":", &_caret);
+      char* authoptionstring = strtok(NULL, ":");
       client_auth_option* authoption = new client_auth_option;
       if (!authoption) {
         fprintf(stderr, "Out of memory");
@@ -1064,7 +779,7 @@ int processConfigLine(char* configLine)
   // Configure the NSS certificate database directory
   if (!strcmp(keyword, "certdbdir"))
   {
-    nssconfigdir = strtok2(_caret, "\n", &_caret);
+    nssconfigdir = strtok(NULL, "\n");
     return 0;
   }
 
@@ -1162,11 +877,7 @@ int main(int argc, char** argv)
       "       # in httpproxy mode and only after the 'listen' option has been\n"
       "       # specified. You also have to specify the tunnel listen port.\n"
       "       clientauth:requesting-client-cert.host.com:443:4443:request\n"
-      "       clientauth:requiring-client-cert.host.com:443:4443:require\n"
-      "       # Act as a simple proxy for incoming connections on port 7777,\n"
-      "       # tunneling them to the server at 127.0.0.1:9999. Not affected\n"
-      "       # by the 'forward' option.\n"
-      "       proxy:7777:127.0.0.1:9999\n",
+      "       clientauth:requiring-client-cert.host.com:443:4443:require\n",
       configFilePath);
     return 1;
   }

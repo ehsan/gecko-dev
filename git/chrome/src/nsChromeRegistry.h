@@ -58,6 +58,8 @@
 
 struct PRFileDesc;
 class nsIAtom;
+class nsICSSLoader;
+class nsICSSStyleSheet;
 class nsIDOMWindowInternal;
 class nsILocalFile;
 class nsIPrefBranch;
@@ -116,11 +118,9 @@ protected:
 
 private:
   nsresult SelectLocaleFromPref(nsIPrefBranch* prefs);
-#ifdef MOZ_OMNIJAR
-  nsresult CheckOmnijarChrome();
-#endif
 
-  static nsresult RefreshWindow(nsIDOMWindowInternal* aWindow);
+  static nsresult RefreshWindow(nsIDOMWindowInternal* aWindow,
+                                nsICSSLoader* aCSSLoader);
   static nsresult GetProviderAndPath(nsIURL* aChromeURL,
                                      nsACString& aProvider, nsACString& aPath);
 
@@ -134,7 +134,7 @@ private:
 #endif
 
   NS_HIDDEN_(nsresult) ProcessManifest(nsILocalFile* aManifest, PRBool aSkinOnly);
-  NS_HIDDEN_(nsresult) ProcessManifestBuffer(char *aBuffer, PRInt32 aLength, nsIURI* aManifest, PRBool aSkinOnly);
+  NS_HIDDEN_(nsresult) ProcessManifestBuffer(char *aBuffer, PRInt32 aLength, nsILocalFile* aManifest, PRBool aSkinOnly);
   NS_HIDDEN_(nsresult) ProcessNewChromeFile(nsILocalFile *aListFile, nsIURI* aManifest);
   NS_HIDDEN_(nsresult) ProcessNewChromeBuffer(char *aBuffer, PRInt32 aLength, nsIURI* aManifest);
 
@@ -188,8 +188,13 @@ public:
       // Appends one of win/ unix/ mac/ to the base URI.
       PLATFORM_PACKAGE = 1 << 0,
 
+      // This package should use the new XPCNativeWrappers to separate
+      // content from chrome. This flag is currently unused (because we call
+      // into xpconnect at registration time).
+      XPCNATIVEWRAPPERS = 1 << 1,
+
       // Content script may access files in this package
-      CONTENT_ACCESSIBLE = 1 << 1
+      CONTENT_ACCESSIBLE = 1 << 2
     };
 
     nsCString        package;

@@ -48,7 +48,7 @@
 #include "nsWidgetAtoms.h"
 #include "nsGUIEvent.h"
 
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "nsIWidget.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
@@ -62,7 +62,7 @@ nsMenuItemX::nsMenuItemX()
   mType           = eRegularMenuItemType;
   mNativeMenuItem = nil;
   mMenuParent     = nsnull;
-  mMenuGroupOwner = nsnull;
+  mMenuBar        = nsnull;
   mIsChecked      = PR_FALSE;
 
   MOZ_COUNT_CTOR(nsMenuItemX);
@@ -81,9 +81,9 @@ nsMenuItemX::~nsMenuItemX()
   [mNativeMenuItem autorelease];
 
   if (mContent)
-    mMenuGroupOwner->UnregisterForContentChanges(mContent);
+    mMenuBar->UnregisterForContentChanges(mContent);
   if (mCommandContent)
-    mMenuGroupOwner->UnregisterForContentChanges(mCommandContent);
+    mMenuBar->UnregisterForContentChanges(mCommandContent);
 
   MOZ_COUNT_DTOR(nsMenuItemX);
 
@@ -91,7 +91,7 @@ nsMenuItemX::~nsMenuItemX()
 }
 
 nsresult nsMenuItemX::Create(nsMenuX* aParent, const nsString& aLabel, EMenuItemType aItemType,
-                             nsMenuGroupOwnerX* aMenuGroupOwner, nsIContent* aNode)
+                             nsMenuBarX* aMenuBar, nsIContent* aNode)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -99,26 +99,27 @@ nsresult nsMenuItemX::Create(nsMenuX* aParent, const nsString& aLabel, EMenuItem
   mMenuParent = aParent;
   mContent = aNode;
 
-  mMenuGroupOwner = aMenuGroupOwner;
-  NS_ASSERTION(mMenuGroupOwner, "No menu owner given, must have one!");
+  mMenuBar = aMenuBar;
+  NS_ASSERTION(mMenuBar, "No menu bar given, must have one!");
 
-  mMenuGroupOwner->RegisterForContentChanges(mContent, this);
+  mMenuBar->RegisterForContentChanges(mContent, this);
 
-  nsIDocument *doc = mContent->GetCurrentDoc();
+  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(mContent->GetCurrentDoc()));
 
   // if we have a command associated with this menu item, register for changes
   // to the command DOM node
-  if (doc) {
+  if (domDoc) {
     nsAutoString ourCommand;
     mContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::command, ourCommand);
 
     if (!ourCommand.IsEmpty()) {
-      nsIContent *commandElement = doc->GetElementById(ourCommand);
+      nsCOMPtr<nsIDOMElement> commandElement;
+      domDoc->GetElementById(ourCommand, getter_AddRefs(commandElement));
 
       if (commandElement) {
-        mCommandContent = commandElement;
+        mCommandContent = do_QueryInterface(commandElement);
         // register to observe the command DOM element
-        mMenuGroupOwner->RegisterForContentChanges(mCommandContent, this);
+        mMenuBar->RegisterForContentChanges(mCommandContent, this);
       }
     }
   }
@@ -145,12 +146,14 @@ nsresult nsMenuItemX::Create(nsMenuX* aParent, const nsString& aLabel, EMenuItem
                                      nsWidgetAtoms::_true, eCaseMatters));
 
     // Set key shortcut and modifiers
-    if (doc) {
+    if (domDoc) {
       nsAutoString keyValue;
       mContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::key, keyValue);
       if (!keyValue.IsEmpty()) {
-        nsIContent *keyContent = doc->GetElementById(keyValue);
-        if (keyContent) {
+        nsCOMPtr<nsIDOMElement> keyElement;
+        domDoc->GetElementById(keyValue, getter_AddRefs(keyElement));
+        if (keyElement) {
+          nsCOMPtr<nsIContent> keyContent(do_QueryInterface(keyElement));
           nsAutoString keyChar(NS_LITERAL_STRING(" "));
           keyContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::key, keyChar);
 
@@ -372,7 +375,7 @@ nsMenuItemX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aConten
 void nsMenuItemX::ObserveContentRemoved(nsIDocument *aDocument, nsIContent *aChild, PRInt32 aIndexInContainer)
 {
   if (aChild == mCommandContent) {
-    mMenuGroupOwner->UnregisterForContentChanges(mCommandContent);
+    mMenuBar->UnregisterForContentChanges(mCommandContent);
     mCommandContent = nsnull;
   }
 

@@ -28,8 +28,7 @@ function testAbsentAttrs(aAccOrElmOrID, aAbsentAttrs)
 }
 
 /**
- * Test group object attributes (posinset, setsize and level) and
- * nsIAccessible::groupPosition() method.
+ * Test group object attributes (posinset, setsize and level)
  *
  * @param aAccOrElmOrID  [in] the ID, DOM node or accessible
  * @param aPosInSet      [in] the value of 'posinset' attribute
@@ -38,30 +37,15 @@ function testAbsentAttrs(aAccOrElmOrID, aAbsentAttrs)
  */
 function testGroupAttrs(aAccOrElmOrID, aPosInSet, aSetSize, aLevel)
 {
-  var acc = getAccessible(aAccOrElmOrID);
-  var levelObj = {}, posInSetObj = {}, setSizeObj = {};
-  acc.groupPosition(levelObj, setSizeObj, posInSetObj);
+  var attrs = {
+    "posinset": String(aPosInSet),
+    "setsize": String(aSetSize)
+  };
 
-  if (aPosInSet && aSetSize) {
-    is(posInSetObj.value, aPosInSet,
-       "Wrong group position (posinset) for " + prettyName(aAccOrElmOrID));
-    is(setSizeObj.value, aSetSize,
-       "Wrong size of the group (setsize) for " + prettyName(aAccOrElmOrID));
+  if (aLevel)
+    attrs["level"] = String(aLevel);
 
-    var attrs = {
-      "posinset": String(aPosInSet),
-      "setsize": String(aSetSize)
-    };
-    testAttrs(aAccOrElmOrID, attrs, true);
-  }
-
-  if (aLevel) {
-    is(levelObj.value, aLevel,
-       "Wrong group level for " + prettyName(aAccOrElmOrID));
-
-    var attrs = { "level" : String(aLevel) };
-    testAttrs(aAccOrElmOrID, attrs, true);
-  }
+  testAttrs(aAccOrElmOrID, attrs, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,62 +142,6 @@ function testDefaultTextAttrs(aID, aDefAttrs, aSkipUnexpectedAttrs)
   
   var errorMsg = ". Getting default text attributes for " + aID;
   compareAttrs(errorMsg, defAttrs, aDefAttrs, aSkipUnexpectedAttrs);
-}
-
-/**
- * Test text attributes for wrong offset.
- */
-function testTextAttrsWrongOffset(aID, aOffset)
-{
-  var res = false;
-  try {
-  var s = {}, e = {};
-  var acc = getAccessible(ID, [nsIAccessibleText]);
-    acc.getTextAttributes(false, 157, s, e);
-  } catch (e) {
-    res = true;
-  }
-
-  ok(res,
-     "text attributes are calculated successfully at wrong offset " + aOffset + " for " + prettyName(aID));
-}
-
-const kNormalFontWeight =
-  function equalsToNormal(aWeight) { return aWeight <= 400 ; }
-
-const kBoldFontWeight =
-  function equalsToBold(aWeight) { return aWeight > 400; }
-
-// The pt font size of the input element can vary by Linux distro.
-const kInputFontSize = WIN ?
-  "10pt" : (MAC ? "8pt" : function() { return true; });
-
-/**
- * Build an object of default text attributes expected for the given accessible.
- *
- * @param aID          [in] identifier of accessible
- * @param aFontSize    [in] font size
- * @param aFontWeight  [in, optional] kBoldFontWeight or kNormalFontWeight,
- *                      default value is kNormalFontWeight
- */
-function buildDefaultTextAttrs(aID, aFontSize, aFontWeight)
-{
-  var elm = getNode(aID);
-  var computedStyle = document.defaultView.getComputedStyle(elm, "");
-  var bgColor = computedStyle.backgroundColor == "transparent" ?
-    "rgb(255, 255, 255)" : computedStyle.backgroundColor;
-
-  var defAttrs = {
-    "font-style": computedStyle.fontStyle,
-    "font-size": aFontSize,
-    "background-color": bgColor,
-    "font-weight": aFontWeight ? aFontWeight : kNormalFontWeight,
-    "color": computedStyle.color,
-    "font-family": computedStyle.fontFamily,
-    "text-position": computedStyle.verticalAlign
-  };
-
-  return defAttrs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

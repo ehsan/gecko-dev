@@ -190,7 +190,7 @@ XPC_WN_Shared_ToSource(JSContext *cx, JSObject *obj,
 // returning the underlying JSObject) so that JS callers will see what looks
 // Like any other xpcom object - and be limited to use its interfaces.
 //
-// See the comment preceding nsIXPCWrappedJSObjectGetter in nsIXPConnect.idl.
+// See the comment preceeding nsIXPCWrappedJSObjectGetter in nsIXPConnect.idl.
 
 static JSObject*
 GetDoubleWrappedJSObject(XPCCallContext& ccx, XPCWrappedNative* wrapper)
@@ -818,7 +818,7 @@ XPC_GetIdentityObject(JSContext *cx, JSObject *obj)
         wrapper = XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj);
 
     if(!wrapper) {
-        JSObject *unsafeObj = XPCSafeJSObjectWrapper::GetUnsafeObject(cx, obj);
+        JSObject *unsafeObj = XPC_SJOW_GetUnsafeObject(obj);
         if(unsafeObj)
             return XPC_GetIdentityObject(cx, unsafeObj);
 
@@ -853,9 +853,9 @@ XPC_WN_Equality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
             return Throw(rv, cx);
 
         if(!*bp && !JSVAL_IS_PRIMITIVE(v) &&
-           JSVAL_TO_OBJECT(v)->getClass() == &XPCSafeJSObjectWrapper::SJOWClass.base)
+            IsXPCSafeJSObjectWrapperClass(STOBJ_GET_CLASS(JSVAL_TO_OBJECT(v))))
         {
-            v = OBJECT_TO_JSVAL(XPCSafeJSObjectWrapper::GetUnsafeObject(cx, JSVAL_TO_OBJECT(v)));
+            v = OBJECT_TO_JSVAL(XPC_SJOW_GetUnsafeObject(JSVAL_TO_OBJECT(v)));
 
             rv = si->GetCallback()->Equality(wrapper, cx, obj, v, bp);
             if(NS_FAILED(rv))
@@ -878,7 +878,7 @@ static JSObject *
 XPC_WN_OuterObject(JSContext *cx, JSObject *obj)
 {
     XPCWrappedNative *wrapper =
-        static_cast<XPCWrappedNative *>(obj->getPrivate());
+        XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj);
     if(!wrapper)
     {
         Throw(NS_ERROR_XPC_BAD_OP_ON_WN_PROTO, cx);
@@ -917,7 +917,7 @@ static JSObject *
 XPC_WN_InnerObject(JSContext *cx, JSObject *obj)
 {
     XPCWrappedNative *wrapper =
-        static_cast<XPCWrappedNative *>(obj->getPrivate());
+        XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj);
     if(!wrapper)
     {
         Throw(NS_ERROR_XPC_BAD_OP_ON_WN_PROTO, cx);
@@ -1327,7 +1327,7 @@ static JSBool
 XPC_WN_JSOp_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
                       jsval *statep, jsid *idp)
 {
-    JSClass *clazz = obj->getClass();
+    JSClass *clazz = STOBJ_GET_CLASS(obj);
     if(!IS_WRAPPER_CLASS(clazz) || clazz == &XPC_WN_NoHelper_JSClass.base)
     {
         // obj must be a prototype object or a wrapper w/o a
@@ -1405,18 +1405,6 @@ XPC_WN_JSOp_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
     return js_ObjectOps.enumerate(cx, obj, enum_op, statep, idp);
 }
 
-static JSType
-XPC_WN_JSOp_TypeOf_Object(JSContext *cx, JSObject *obj)
-{
-    return JSTYPE_OBJECT;
-}
-
-static JSType
-XPC_WN_JSOp_TypeOf_Function(JSContext *cx, JSObject *obj)
-{
-    return JSTYPE_FUNCTION;
-}
-
 static void
 XPC_WN_JSOp_Clear(JSContext *cx, JSObject *obj)
 {
@@ -1488,12 +1476,14 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj)
     if(!obj)
         return nsnull;
 
-    JSObject *scope = JS_GetGlobalForScopeChain(cx);
+    JSObject *scope = JS_GetScopeChain(cx);
     if(!scope)
     {
         XPCThrower::Throw(NS_ERROR_FAILURE, cx);
         return nsnull;
     }
+
+    scope = JS_GetGlobalForObject(cx, scope);
 
     XPCPerThreadData *threadData = XPCPerThreadData::GetData(cx);
     if(!threadData)
@@ -1505,27 +1495,6 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj)
     AutoPopJSContext popper(threadData->GetJSContextStack());
     popper.PushIfNotTop(cx);
 
-    JSObject* outerscope = scope;
-    OBJ_TO_OUTER_OBJECT(cx, outerscope);
-    if(!outerscope)
-        return nsnull;
-
-    if(obj == outerscope)
-    {
-        // Fast-path for the common case: a window being wrapped in its own
-        // scope. Check to see if the object actually needs a XOW, and then
-        // give it one in its own scope.
-
-        if(!XPCCrossOriginWrapper::ClassNeedsXOW(obj->getClass()->name))
-            return obj;
-
-        js::AutoValueRooter tvr(cx, OBJECT_TO_JSVAL(obj));
-        if(!XPCCrossOriginWrapper::WrapObject(cx, scope, tvr.addr()))
-            return nsnull;
-
-        return JSVAL_TO_OBJECT(tvr.value());
-    }
-
     nsIScriptSecurityManager* secMan = XPCWrapper::GetSecurityManager();
     if(!secMan)
     {
@@ -1536,7 +1505,8 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj)
     JSStackFrame *fp;
     nsIPrincipal *principal = secMan->GetCxSubjectPrincipalAndFrame(cx, &fp);
 
-    js::AutoValueRooter retval(cx, obj);
+    jsval retval = OBJECT_TO_JSVAL(obj);
+    JSAutoTempValueRooter atvr(cx, 1, &retval);
 
     if(principal && fp)
     {
@@ -1553,7 +1523,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj)
         }
 
         nsresult rv = xpc->GetWrapperForObject(cx, obj, scope, principal, flags,
-                                               retval.addr());
+                                               &retval);
         if(NS_FAILED(rv))
         {
             XPCThrower::Throw(rv, cx);
@@ -1561,7 +1531,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj)
         }
     }
 
-    return JSVAL_TO_OBJECT(retval.value());
+    return JSVAL_TO_OBJECT(retval);
 }
 
 JSObjectOps *
@@ -1584,13 +1554,11 @@ JSBool xpc_InitWrappedNativeJSOps()
         XPC_WN_NoCall_JSOps.enumerate = XPC_WN_JSOp_Enumerate;
         XPC_WN_NoCall_JSOps.call = nsnull;
         XPC_WN_NoCall_JSOps.construct = nsnull;
-        XPC_WN_NoCall_JSOps.typeOf = XPC_WN_JSOp_TypeOf_Object;
         XPC_WN_NoCall_JSOps.clear = XPC_WN_JSOp_Clear;
         XPC_WN_NoCall_JSOps.thisObject = XPC_WN_JSOp_ThisObject;
 
         memcpy(&XPC_WN_WithCall_JSOps, &js_ObjectOps, sizeof(JSObjectOps));
         XPC_WN_WithCall_JSOps.enumerate = XPC_WN_JSOp_Enumerate;
-        XPC_WN_WithCall_JSOps.typeOf = XPC_WN_JSOp_TypeOf_Function;
         XPC_WN_WithCall_JSOps.clear = XPC_WN_JSOp_Clear;
         XPC_WN_WithCall_JSOps.thisObject = XPC_WN_JSOp_ThisObject;
     }
@@ -1626,8 +1594,7 @@ XPCNativeScriptableInfo::Construct(XPCCallContext& ccx,
     XPCNativeScriptableSharedMap* map = rt->GetNativeScriptableSharedMap();
     {   // scoped lock
         XPCAutoLock lock(rt->GetMapLock());
-        success = map->GetNewOrUsed(sci->GetFlags(), name, isGlobal,
-                                    sci->GetInterfacesBitmap(), newObj);
+        success = map->GetNewOrUsed(sci->GetFlags(), name, isGlobal, newObj);
     }
 
     if(!success)

@@ -45,27 +45,26 @@ include $(DEPTH)/config/autoconf.mk
 export NO_SHUNT = 1
 USE_STATIC_LIBS = 1
 
-PROGRAM = xulrunner-stub-installer.sfx
+PROGRAM   = xulrunner-stub-installer.sfx
 
-REQUIRES = lib7z
+REQUIRES  = lib7z
 
 CPPSRCS = \
-  nsInstaller.cpp \
-  nsInstallerDlg.cpp \
-  nsArchiveExtractor.cpp \
-  ns7zipExtractor.cpp \
-  nsSetupStrings.cpp \
-  $(NULL)
+	nsInstaller.cpp \
+	nsInstallerDlg.cpp \
+	nsArchiveExtractor.cpp \
+	ns7zipExtractor.cpp \
+	nsSetupStrings.cpp \
+	$(srcdir)/../../update/src/updater/readstrings.cpp \
+	$(NULL)
 
-LOCAL_INCLUDES += -I$(srcdir)/../../readstrings
+LOCAL_INCLUDES += -I$(srcdir)/../../update/src/updater
 
 RCINCLUDE = nsInstallerppc.rc
 
 DEFINES += -D_UNICODE
 
-LIBS += $(DEPTH)/toolkit/mozapps/readstrings/$(LIB_PREFIX)readstrings.$(LIB_SUFFIX) \
-  $(DIST)/lib/7z.lib \
-  $(NULL)
+LIBS += $(DIST)/lib/7z.lib
 
 OS_LIBS += aygshell.lib commctrl.lib note_prj.lib oleaut32.lib ole32.lib libcmt.lib coredll.lib corelibc.lib
 
@@ -74,3 +73,4 @@ WIN32_EXE_LDFLAGS += -ENTRY:WinMain
 DIRS += uninstall
 
 include $(topsrcdir)/config/rules.mk
+

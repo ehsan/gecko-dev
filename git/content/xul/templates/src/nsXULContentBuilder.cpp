@@ -483,14 +483,17 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
                ("nsXULContentBuilder::BuildContentFromTemplate (is unique: %d)",
                aIsUnique));
 
+        const char *tmpln, *resn, *realn;
+        aTemplateNode->Tag()->GetUTF8String(&tmpln);
+        aResourceNode->Tag()->GetUTF8String(&resn);
+        aRealNode->Tag()->GetUTF8String(&realn);
+
         nsAutoString id;
         aChild->GetId(id);
 
         PR_LOG(gXULTemplateLog, PR_LOG_ALWAYS,
                ("Tags: [Template: %s  Resource: %s  Real: %s] for id %s",
-                nsAtomCString(aTemplateNode->Tag()).get(), 
-                nsAtomCString(aResourceNode->Tag()).get(),
-                nsAtomCString(aRealNode->Tag()).get(), NS_ConvertUTF16toUTF8(id).get()));
+               tmpln, resn, realn, NS_ConvertUTF16toUTF8(id).get()));
     }
 #endif
 
@@ -559,9 +562,11 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
 
 #ifdef PR_LOGGING
         if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
+            const char *tagname;
+            tag->GetUTF8String(&tagname);
             PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                    ("xultemplate[%p]     building %s %s %s",
-                    this, nsAtomCString(tag).get(),
+                    this, tagname,
                     (isGenerationElement ? "[resource]" : ""),
                     (isUnique ? "[unique]" : "")));
         }
@@ -633,6 +638,17 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
             rv = realKid->SetAttr(kNameSpaceID_None, nsGkAtoms::id, id, PR_FALSE);
             if (NS_FAILED(rv))
                 return rv;
+
+            if (! aNotify) {
+                // XUL document will watch us, and take care of making
+                // sure that we get added to or removed from the
+                // element map if aNotify is true. If not, we gotta do
+                // it ourselves. Yay.
+                nsCOMPtr<nsIXULDocument> xuldoc =
+                    do_QueryInterface(mRoot->GetDocument());
+                if (xuldoc)
+                    xuldoc->AddElementForID(realKid);
+            }
 
             // Set up the element's 'container' and 'empty' attributes.
             SetContainerAttrs(realKid, aChild, PR_TRUE, PR_FALSE);
@@ -1089,9 +1105,7 @@ nsXULContentBuilder::CreateContainerContents(nsIContent* aElement,
     if (aNotifyAtEnd && container) {
         MOZ_AUTO_DOC_UPDATE(container->GetCurrentDoc(), UPDATE_CONTENT_MODEL,
                             PR_TRUE);
-        nsNodeUtils::ContentAppended(container,
-                                     container->GetChildAt(newIndexInContainer),
-                                     newIndexInContainer);
+        nsNodeUtils::ContentAppended(container, newIndexInContainer);
     }
 
     NS_IF_RELEASE(container);
@@ -1197,9 +1211,6 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
             rv = ReplaceMatch(removematch->mResult, nsnull, nsnull, aElement);
             if (NS_FAILED(rv))
                 return rv;
-
-            if (mFlags & eLoggingEnabled)
-                OutputMatchToLog(resultid, removematch, PR_FALSE);
         }
 
         if (generateContent) {
@@ -1231,9 +1242,6 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
                                          aContainer, aNewIndexInContainer);
             }
         }
-
-        if (mFlags & eLoggingEnabled)
-            OutputMatchToLog(resultid, newmatch, PR_TRUE);
 
         if (prevmatch) {
             prevmatch->mNext = newmatch;
@@ -1337,7 +1345,7 @@ nsXULContentBuilder::RemoveGeneratedContent(nsIContent* aElement)
             //     it should be moved outside the inner loop. Bug 297290.
             if (element->NodeInfo()->Equals(nsGkAtoms::_template,
                                             kNameSpaceID_XUL) ||
-                !element->IsElement())
+                !element->IsNodeOfType(nsINode::eELEMENT))
                 continue;
 
             // If the element is in the template map, then we
@@ -1380,9 +1388,7 @@ nsXULContentBuilder::GetElementsForResult(nsIXULTemplateResult* aResult,
     nsAutoString id;
     aResult->GetId(id);
 
-    xuldoc->GetElementsForID(id, aElements);
-
-    return NS_OK;
+    return xuldoc->GetElementsForID(id, aElements);
 }
 
 nsresult
@@ -1841,8 +1847,7 @@ nsXULContentBuilder::CompareResultToNode(nsIXULTemplateResult* aResult,
     if (mSortState.direction == nsSortState_natural) {
         // sort in natural order
         nsresult rv = mQueryProcessor->CompareResults(aResult, match->mResult,
-                                                      nsnull, mSortState.sortHints,
-                                                      aSortOrder);
+                                                      nsnull, aSortOrder);
         NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
@@ -1851,8 +1856,7 @@ nsXULContentBuilder::CompareResultToNode(nsIXULTemplateResult* aResult,
         PRInt32 length = mSortState.sortKeys.Count();
         for (PRInt32 t = 0; t < length; t++) {
             nsresult rv = mQueryProcessor->CompareResults(aResult, match->mResult,
-                                                          mSortState.sortKeys[t],
-                                                          mSortState.sortHints, aSortOrder);
+                                                          mSortState.sortKeys[t], aSortOrder);
             NS_ENSURE_SUCCESS(rv, rv);
 
             if (*aSortOrder)
@@ -1876,12 +1880,9 @@ nsXULContentBuilder::InsertSortedNode(nsIContent* aContainer,
     nsresult rv;
 
     if (!mSortState.initialized) {
-        nsAutoString sort, sortDirection, sortHints;
+        nsAutoString sort, sortDirection;
         mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::sort, sort);
         mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::sortDirection, sortDirection);
-        mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::sorthints, sortHints);
-        sortDirection.AppendLiteral(" ");
-        sortDirection += sortHints;
         rv = XULSortServiceImpl::InitializeSortState(mRoot, aContainer,
                                                      sort, sortDirection, &mSortState);
         NS_ENSURE_SUCCESS(rv, rv);

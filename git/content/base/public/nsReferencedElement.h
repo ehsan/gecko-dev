@@ -39,7 +39,7 @@
 #ifndef NSREFERENCEDELEMENT_H_
 #define NSREFERENCEDELEMENT_H_
 
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "nsIAtom.h"
 #include "nsIDocument.h"
 #include "nsThreadUtils.h"
@@ -49,17 +49,17 @@ class nsIURI;
 class nsCycleCollectionCallback;
 
 /**
- * Class to track what element is referenced by a given ID.
+ * Class to track what content is referenced by a given ID.
  * 
  * To use it, call Reset() to set it up to watch a given URI. Call get()
  * anytime to determine the referenced element (which may be null if
- * the element isn't found). When the element changes, ElementChanged
+ * the element isn't found). When the element changes, ContentChanged
  * will be called, so subclass this class if you want to receive that
- * notification. ElementChanged runs at safe-for-script time, i.e. outside
+ * notification. ContentChanged runs at safe-for-script time, i.e. outside
  * of the content update. Call Unlink() if you want to stop watching
  * for changes (get() will then return null).
  *
- * By default this is a single-shot tracker --- i.e., when ElementChanged
+ * By default this is a single-shot tracker --- i.e., when ContentChanged
  * fires, we will automatically stop tracking. get() will continue to return
  * the changed-to element.
  * Override IsPersistent to return PR_TRUE if you want to keep tracking after
@@ -67,8 +67,6 @@ class nsCycleCollectionCallback;
  */
 class nsReferencedElement {
 public:
-  typedef mozilla::dom::Element Element;
-
   nsReferencedElement() {}
   ~nsReferencedElement() {
     Unlink();
@@ -77,34 +75,21 @@ public:
   /**
    * Find which element, if any, is referenced.
    */
-  Element* get() { return mElement; }
+  nsIContent* get() { return mContent; }
 
   /**
    * Set up the reference. This can be called multiple times to
    * change which reference is being tracked, but these changes
-   * do not trigger ElementChanged.
+   * do not trigger ContentChanged.
    * @param aFrom the source element for context
    * @param aURI the URI containing a hash-reference to the element
    * @param aWatch if false, then we do not set up the notifications to track
-   * changes, so ElementChanged won't fire and get() will always return the same
+   * changes, so ContentChanged won't fire and get() will always return the same
    * value, the current element for the ID.
    */
   void Reset(nsIContent* aFrom, nsIURI* aURI, PRBool aWatch = PR_TRUE);
-
   /**
-   * A variation on Reset() to set up a reference that consists of the ID of
-   * an element in the same document as aFrom.
-   * @param aFrom the source element for context
-   * @param aID the ID of the element
-   * @param aWatch if false, then we do not set up the notifications to track
-   * changes, so ElementChanged won't fire and get() will always return the same
-   * value, the current element for the ID.
-   */
-  void ResetWithID(nsIContent* aFrom, const nsString& aID,
-                   PRBool aWatch = PR_TRUE);
-
-  /**
-   * Clears the reference. ElementChanged is not triggered. get() will return
+   * Clears the reference. ContentChanged is not triggered. get() will return
    * null.
    */
   void Unlink();
@@ -113,12 +98,12 @@ public:
   
 protected:
   /**
-   * Override this to be notified of element changes. Don't forget
-   * to call this superclass method to change mElement. This is called
+   * Override this to be notified of content changes. Don't forget
+   * to call this superclass method to change mContent. This is called
    * at script-runnable time.
    */
-  virtual void ElementChanged(Element* aFrom, Element* aTo) {
-    mElement = aTo;
+  virtual void ContentChanged(nsIContent* aFrom, nsIContent* aTo) {
+    mContent = aTo;
   }
 
   /**
@@ -135,12 +120,12 @@ protected:
                        const nsString& aRef);
   
 private:
-  static PRBool Observe(Element* aOldElement,
-                        Element* aNewElement, void* aData);
+  static PRBool Observe(nsIContent* aOldContent,
+                        nsIContent* aNewContent, void* aData);
 
   class Notification : public nsISupports {
   public:
-    virtual void SetTo(Element* aTo) = 0;
+    virtual void SetTo(nsIContent* aTo) = 0;
     virtual void Clear() { mTarget = nsnull; }
     virtual ~Notification() {}
   protected:
@@ -156,8 +141,7 @@ private:
                              public Notification
   {
   public:
-    ChangeNotification(nsReferencedElement* aTarget,
-                       Element* aFrom, Element* aTo)
+    ChangeNotification(nsReferencedElement* aTarget, nsIContent* aFrom, nsIContent* aTo)
       : Notification(aTarget), mFrom(aFrom), mTo(aTo)
     {}
     virtual ~ChangeNotification() {}
@@ -166,18 +150,18 @@ private:
     NS_IMETHOD Run() {
       if (mTarget) {
         mTarget->mPendingNotification = nsnull;
-        mTarget->ElementChanged(mFrom, mTo);
+        mTarget->ContentChanged(mFrom, mTo);
       }
       return NS_OK;
     }
-    virtual void SetTo(Element* aTo) { mTo = aTo; }
+    virtual void SetTo(nsIContent* aTo) { mTo = aTo; }
     virtual void Clear()
     {
       Notification::Clear(); mFrom = nsnull; mTo = nsnull;
     }
   protected:
-    nsCOMPtr<Element> mFrom;
-    nsCOMPtr<Element> mTo;
+    nsCOMPtr<nsIContent> mFrom;
+    nsCOMPtr<nsIContent> mTo;
   };
   friend class ChangeNotification;
 
@@ -198,7 +182,7 @@ private:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
   private:
-    virtual void SetTo(Element* aTo) { }
+    virtual void SetTo(nsIContent* aTo) { }
 
     nsString mRef;
   };
@@ -206,7 +190,7 @@ private:
   
   nsCOMPtr<nsIAtom>      mWatchID;
   nsCOMPtr<nsIDocument>  mWatchDocument;
-  nsCOMPtr<Element> mElement;
+  nsCOMPtr<nsIContent>   mContent;
   nsRefPtr<Notification> mPendingNotification;
 };
 

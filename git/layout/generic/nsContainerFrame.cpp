@@ -73,16 +73,12 @@
 #include "nsThemeConstants.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsThemeConstants.h"
-#include "mozilla/dom/Element.h"
 
 #ifdef NS_DEBUG
 #undef NOISY
 #else
 #undef NOISY
 #endif
-
-using namespace mozilla;
-using namespace mozilla::dom;
 
 NS_IMPL_FRAMEARENA_HELPERS(nsContainerFrame)
 
@@ -261,7 +257,7 @@ nsContainerFrame::RemoveFrame(nsIAtom*  aListName,
 }
 
 void
-nsContainerFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsContainerFrame::Destroy()
 {
   // Prevent event dispatch during destruction
   if (HasView()) {
@@ -269,27 +265,49 @@ nsContainerFrame::DestroyFrom(nsIFrame* aDestructRoot)
   }
 
   // Delete the primary child list
-  mFrames.DestroyFramesFrom(aDestructRoot);
+  mFrames.DestroyFrames();
 
   // Destroy auxiliary frame lists
   nsPresContext* prescontext = PresContext();
 
-  DestroyOverflowList(prescontext, aDestructRoot);
+  DestroyOverflowList(prescontext);
 
   if (IsFrameOfType(nsIFrame::eCanContainOverflowContainers)) {
-    nsFrameList* frameList =
-      RemovePropTableFrames(prescontext, OverflowContainersProperty());
+    nsFrameList* frameList = RemovePropTableFrames(prescontext,
+                               nsGkAtoms::overflowContainersProperty);
     if (frameList)
-      frameList->DestroyFrom(aDestructRoot);
+      frameList->Destroy();
 
     frameList = RemovePropTableFrames(prescontext,
-                                      ExcessOverflowContainersProperty());
+                  nsGkAtoms::excessOverflowContainersProperty);
     if (frameList)
-      frameList->DestroyFrom(aDestructRoot);
+      frameList->Destroy();
+  }
+
+  if (IsGeneratedContentFrame()) {
+    // Make sure all the content nodes for the generated content inside
+    // this frame know it's going away.
+    // See also nsCSSFrameConstructor::CreateGeneratedContentFrame which
+    // created this frame.
+    nsCOMArray<nsIContent>* generatedContent =
+      static_cast<nsCOMArray<nsIContent>*>(
+        UnsetProperty(nsGkAtoms::generatedContent));
+
+    if (generatedContent) {
+      for (int i = generatedContent->Count() - 1; i >= 0; --i) {
+        nsIContent* content = generatedContent->ObjectAt(i);
+        // Tell the ESM that this content is going away now, so it'll update
+        // its hover content, etc.
+        PresContext()->EventStateManager()->
+          ContentRemoved(content->GetCurrentDoc(), content);
+        content->UnbindFromTree();
+      }
+      delete generatedContent;
+    }
   }
 
   // Destroy the frame and remove the flow pointers
-  nsSplittableFrame::DestroyFrom(aDestructRoot);
+  nsSplittableFrame::Destroy();
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -311,13 +329,13 @@ nsContainerFrame::GetChildList(nsIAtom* aListName) const
 
   if (nsGkAtoms::overflowContainersList == aListName) {
     nsFrameList* list = GetPropTableFrames(PresContext(),
-                                           OverflowContainersProperty());
+                          nsGkAtoms::overflowContainersProperty);
     return list ? *list : nsFrameList::EmptyList();
   }
 
   if (nsGkAtoms::excessOverflowContainersList == aListName) {
     nsFrameList* list = GetPropTableFrames(PresContext(),
-                                           ExcessOverflowContainersProperty());
+                          nsGkAtoms::excessOverflowContainersProperty);
     return list ? *list : nsFrameList::EmptyList();
   }
 
@@ -455,7 +473,7 @@ IsTopLevelWidget(nsIWidget* aWidget)
   nsWindowType windowType;
   aWidget->GetWindowType(windowType);
   return windowType == eWindowType_toplevel ||
-         windowType == eWindowType_dialog ||
+         windowType == eWindowType_dialog || 
          windowType == eWindowType_sheet;
   // popups aren't toplevel so they're not handled here
 }
@@ -480,8 +498,8 @@ nsContainerFrame::SyncWindowProperties(nsPresContext*       aPresContext,
   if (aView != rootView)
     return;
 
-  Element* rootElement = aPresContext->Document()->GetRootElement();
-  if (!rootElement || !rootElement->IsXUL()) {
+  nsIContent* rootContent = aPresContext->Document()->GetRootContent();
+  if (!rootContent || !rootContent->IsXUL()) {
     // Scrollframes use native widgets which don't work well with
     // translucent windows, at least in Windows XP. So if the document
     // has a root scrollrame it's useless to try to make it transparent,
@@ -551,6 +569,12 @@ nsContainerFrame::SyncFrameViewProperties(nsPresContext*  aPresContext,
   }
 
   nsIViewManager* vm = aView->GetViewManager();
+ 
+  /* If this frame has a -moz-transform property, tell it to invalidate on a scroll
+   * rather than doing a BitBlt.
+   */
+  if (aFrame->GetStyleDisplay()->HasTransform())
+    aView->SetInvalidateFrameOnScroll();
 
   if (nsnull == aStyleContext) {
     aStyleContext = aFrame->GetStyleContext();
@@ -588,6 +612,18 @@ nsContainerFrame::SyncFrameViewProperties(nsPresContext*  aPresContext,
   vm->SetViewZIndex(aView, autoZIndex, zIndex, isPositioned);
 }
 
+PRBool
+nsContainerFrame::FrameNeedsView(nsIFrame* aFrame)
+{
+  // XXX Check needed because frame construction can't properly figure out when
+  // a frame is the child of a scrollframe
+  if (aFrame->GetStyleContext()->GetPseudo() ==
+      nsCSSAnonBoxes::scrolledContent) {
+    return PR_TRUE;
+  }
+  return aFrame->NeedsView() || aFrame->GetStyleDisplay()->HasTransform();
+}
+
 static nscoord GetCoord(const nsStyleCoord& aCoord, nscoord aIfNotCoord)
 {
   return aCoord.GetUnit() == eStyleUnit_Coord
@@ -606,7 +642,7 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   NS_PRECONDITION(aType == nsLayoutUtils::MIN_WIDTH ||
                   aType == nsLayoutUtils::PREF_WIDTH, "bad type");
 
-  mozilla::css::Side startSide, endSide;
+  PRUint8 startSide, endSide;
   if (GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_LTR) {
     startSide = NS_SIDE_LEFT;
     endSide = NS_SIDE_RIGHT;
@@ -624,7 +660,7 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   // (implemented in bug 328168), the startSide border is always on the
   // first line.
   // This frame is a first-in-flow, but it might have a previous bidi
-  // continuation, in which case that continuation should handle the startSide
+  // continuation, in which case that continuation should handle the startSide 
   // border.
   if (!GetPrevContinuation()) {
     aData->currentLine +=
@@ -648,7 +684,7 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
         kid->AddInlinePrefWidth(aRenderingContext,
                                 static_cast<InlinePrefWidthData*>(aData));
     }
-
+    
     // After we advance to our next-in-flow, the stored line and line container
     // may no longer be correct. Just forget them.
     aData->line = nsnull;
@@ -656,7 +692,7 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
 
     lastInFlow = nif;
   }
-
+  
   aData->line = savedLine;
   aData->lineContainer = savedLineContainer;
 
@@ -665,7 +701,7 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   // (implemented in bug 328168), the endSide border is always on the
   // last line.
   // We reached the last-in-flow, but it might have a next bidi
-  // continuation, in which case that continuation should handle
+  // continuation, in which case that continuation should handle 
   // the endSide border.
   if (!lastInFlow->GetNextContinuation()) {
     aData->currentLine +=
@@ -848,7 +884,7 @@ nsContainerFrame::FinishReflowChild(nsIFrame*                  aKidFrame,
     // invalidate the overflow area too.
     aKidFrame->Invalidate(aDesiredSize.mOverflowArea);
   }
-
+  
   return aKidFrame->DidReflow(aPresContext, aReflowState, NS_FRAME_REFLOW_FINISHED);
 }
 
@@ -864,12 +900,12 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
 
   nsFrameList* overflowContainers =
                GetPropTableFrames(aPresContext,
-                                  OverflowContainersProperty());
+                                  nsGkAtoms::overflowContainersProperty);
 
   NS_ASSERTION(!(overflowContainers && GetPrevInFlow()
                  && static_cast<nsContainerFrame*>(GetPrevInFlow())
                       ->GetPropTableFrames(aPresContext,
-                          ExcessOverflowContainersProperty())),
+                          nsGkAtoms::excessOverflowContainersProperty)),
                "conflicting overflow containers lists");
 
   if (!overflowContainers) {
@@ -878,14 +914,14 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
     if (prev) {
       nsFrameList* excessFrames =
         prev->RemovePropTableFrames(aPresContext,
-                                    ExcessOverflowContainersProperty());
+                nsGkAtoms::excessOverflowContainersProperty);
       if (excessFrames) {
         excessFrames->ApplySetParent(this);
         nsHTMLContainerFrame::ReparentFrameViewList(aPresContext, *excessFrames,
                                                     prev, this);
         overflowContainers = excessFrames;
         rv = SetPropTableFrames(aPresContext, overflowContainers,
-                                OverflowContainersProperty());
+                                nsGkAtoms::overflowContainersProperty);
         if (NS_FAILED(rv)) {
           excessFrames->DestroyFrames();
           delete excessFrames;
@@ -899,8 +935,6 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
     return NS_OK; // nothing to reflow
 
   nsOverflowContinuationTracker tracker(aPresContext, this, PR_FALSE, PR_FALSE);
-  PRBool shouldReflowAllKids = aReflowState.ShouldReflowAllKids();
-
   for (nsIFrame* frame = overflowContainers->FirstChild(); frame;
        frame = frame->GetNextSibling()) {
     if (frame->GetPrevInFlow()->GetParent() != GetPrevInFlow()) {
@@ -908,9 +942,7 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
       // it will get reflowed once it's been placed
       continue;
     }
-    // If the available vertical height has changed, we need to reflow
-    // even if the frame isn't dirty.
-    if (shouldReflowAllKids || NS_SUBTREE_DIRTY(frame)) {
+    if (NS_SUBTREE_DIRTY(frame)) {
       // Get prev-in-flow
       nsIFrame* prevInFlow = frame->GetPrevInFlow();
       NS_ASSERTION(prevInFlow,
@@ -1003,8 +1035,8 @@ nsContainerFrame::DisplayOverflowContainers(nsDisplayListBuilder*   aBuilder,
                                             const nsRect&           aDirtyRect,
                                             const nsDisplayListSet& aLists)
 {
-  nsFrameList* overflowconts =
-    GetPropTableFrames(PresContext(), OverflowContainersProperty());
+  nsFrameList* overflowconts = GetPropTableFrames(PresContext(),
+                                 nsGkAtoms::overflowContainersProperty);
   if (overflowconts) {
     for (nsIFrame* frame = overflowconts->FirstChild(); frame;
          frame = frame->GetNextSibling()) {
@@ -1023,10 +1055,10 @@ nsContainerFrame::StealFrame(nsPresContext* aPresContext,
       && !aForceNormal) {
     // Try removing from the overflow container list
     if (!RemovePropTableFrame(aPresContext, aChild,
-                              OverflowContainersProperty())) {
+                              nsGkAtoms::overflowContainersProperty)) {
       // It must be in the excess overflow container list
       removed = RemovePropTableFrame(aPresContext, aChild,
-                                     ExcessOverflowContainersProperty());
+                  nsGkAtoms::excessOverflowContainersProperty);
     }
   }
   else {
@@ -1086,13 +1118,12 @@ nsContainerFrame::StealFramesAfter(nsIFrame* aChild)
 }
 
 void
-nsContainerFrame::DestroyOverflowList(nsPresContext* aPresContext,
-                                      nsIFrame*      aDestructRoot)
+nsContainerFrame::DestroyOverflowList(nsPresContext* aPresContext)
 {
   nsFrameList* list =
-    RemovePropTableFrames(aPresContext, OverflowProperty());
+    RemovePropTableFrames(aPresContext, nsGkAtoms::overflowProperty);
   if (list)
-    list->DestroyFrom(aDestructRoot);
+    list->Destroy();
 }
 
 /**
@@ -1126,11 +1157,11 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
     }
   }
 
-  aNextInFlow->InvalidateOverflowRect();
+  aNextInFlow->Invalidate(aNextInFlow->GetOverflowRect());
 
   // Take the next-in-flow out of the parent's child list
 #ifdef DEBUG
-  nsresult rv =
+  nsresult rv = 
 #endif
     StealFrame(aPresContext, aNextInFlow);
   NS_ASSERTION(NS_SUCCEEDED(rv), "StealFrame failure");
@@ -1140,6 +1171,17 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
   aNextInFlow->Destroy();
 
   NS_POSTCONDITION(!prevInFlow->GetNextInFlow(), "non null next-in-flow");
+}
+
+// Destructor function for the proptable-stored framelists
+static void
+DestroyFrameList(void*           aFrame,
+                 nsIAtom*        aPropertyName,
+                 void*           aPropertyValue,
+                 void*           aDtorData)
+{
+  if (aPropertyValue)
+    static_cast<nsFrameList*>(aPropertyValue)->Destroy();
 }
 
 /**
@@ -1158,39 +1200,51 @@ nsContainerFrame::SetOverflowFrames(nsPresContext* aPresContext,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  aPresContext->PropertyTable()->Set(this, OverflowProperty(), newList);
-  return NS_OK;
+  nsresult rv =
+    aPresContext->PropertyTable()->SetProperty(this,
+                                               nsGkAtoms::overflowProperty,
+                                               newList,
+                                               DestroyFrameList,
+                                               nsnull);
+  if (NS_FAILED(rv)) {
+    newList->Destroy();
+  }
+
+  // Verify that we didn't overwrite an existing overflow list
+  NS_ASSERTION(rv != NS_PROPTABLE_PROP_OVERWRITTEN, "existing overflow list");
+
+  return rv;
 }
 
 nsFrameList*
-nsContainerFrame::GetPropTableFrames(nsPresContext*                 aPresContext,
-                                     const FramePropertyDescriptor* aProperty) const
+nsContainerFrame::GetPropTableFrames(nsPresContext*  aPresContext,
+                                     nsIAtom*        aPropID) const
 {
-  FramePropertyTable* propTable = aPresContext->PropertyTable();
-  return static_cast<nsFrameList*>(propTable->Get(this, aProperty));
+  nsPropertyTable* propTable = aPresContext->PropertyTable();
+  return static_cast<nsFrameList*>(propTable->GetProperty(this, aPropID));
 }
 
 nsFrameList*
-nsContainerFrame::RemovePropTableFrames(nsPresContext*                 aPresContext,
-                                        const FramePropertyDescriptor* aProperty)
+nsContainerFrame::RemovePropTableFrames(nsPresContext*  aPresContext,
+                                        nsIAtom*        aPropID) const
 {
-  FramePropertyTable* propTable = aPresContext->PropertyTable();
-  return static_cast<nsFrameList*>(propTable->Remove(this, aProperty));
+  nsPropertyTable* propTable = aPresContext->PropertyTable();
+  return static_cast<nsFrameList*>(propTable->UnsetProperty(this, aPropID));
 }
 
 PRBool
-nsContainerFrame::RemovePropTableFrame(nsPresContext*                 aPresContext,
-                                       nsIFrame*                      aFrame,
-                                       const FramePropertyDescriptor* aProperty)
+nsContainerFrame::RemovePropTableFrame(nsPresContext*  aPresContext,
+                                       nsIFrame*       aFrame,
+                                       nsIAtom*        aPropID) const
 {
-  nsFrameList* frameList = RemovePropTableFrames(aPresContext, aProperty);
+  nsFrameList* frameList = RemovePropTableFrames(aPresContext, aPropID);
   if (!frameList) {
     // No such list
     return PR_FALSE;
   }
   if (!frameList->RemoveFrameIfPresent(aFrame)) {
     // Found list, but it doesn't have the frame. Put list back.
-    SetPropTableFrames(aPresContext, frameList, aProperty);
+    SetPropTableFrames(aPresContext, frameList, aPropID);
     return PR_FALSE;
   }
 
@@ -1200,24 +1254,21 @@ nsContainerFrame::RemovePropTableFrame(nsPresContext*                 aPresConte
   }
   else {
     // Removed frame, but list not empty. Put it back.
-    SetPropTableFrames(aPresContext, frameList, aProperty);
+    SetPropTableFrames(aPresContext, frameList, aPropID);
   }
   return PR_TRUE;
 }
 
 nsresult
-nsContainerFrame::SetPropTableFrames(nsPresContext*                 aPresContext,
-                                     nsFrameList*                   aFrameList,
-                                     const FramePropertyDescriptor* aProperty)
+nsContainerFrame::SetPropTableFrames(nsPresContext*  aPresContext,
+                                     nsFrameList*    aFrameList,
+                                     nsIAtom*        aPropID) const
 {
-  NS_PRECONDITION(aPresContext && aProperty && aFrameList, "null ptr");
-  NS_PRECONDITION(
-    (aProperty != nsContainerFrame::OverflowContainersProperty() &&
-     aProperty != nsContainerFrame::ExcessOverflowContainersProperty()) ||
-    IsFrameOfType(nsIFrame::eCanContainOverflowContainers),
-    "this type of frame can't have overflow containers");
-  aPresContext->PropertyTable()->Set(this, aProperty, aFrameList);
-  return NS_OK;
+  NS_PRECONDITION(aPresContext && aPropID && aFrameList, "null ptr");
+  nsresult rv = aPresContext->PropertyTable()->SetProperty(this, aPropID,
+                  aFrameList, DestroyFrameList, nsnull);
+  NS_ASSERTION(rv != NS_PROPTABLE_PROP_OVERWRITTEN, "existing framelist");
+  return rv;
 }
 
 /**
@@ -1322,16 +1373,18 @@ nsOverflowContinuationTracker::nsOverflowContinuationTracker(nsPresContext*    a
   nsContainerFrame* next = static_cast<nsContainerFrame*>
                              (aFrame->GetNextInFlow());
   if (next) {
-    mOverflowContList = next->GetPropTableFrames(aPresContext,
-      nsContainerFrame::OverflowContainersProperty());
+    mOverflowContList =
+      next->GetPropTableFrames(aPresContext,
+                               nsGkAtoms::overflowContainersProperty);
     if (mOverflowContList) {
       mParent = next;
       SetUpListWalker();
     }
   }
   if (!mOverflowContList) {
-    mOverflowContList = mParent->GetPropTableFrames(aPresContext,
-      nsContainerFrame::ExcessOverflowContainersProperty());
+    mOverflowContList =
+      mParent->GetPropTableFrames(aPresContext,
+                                  nsGkAtoms::excessOverflowContainersProperty);
     if (mOverflowContList) {
       SetUpListWalker();
     }
@@ -1433,8 +1486,8 @@ nsOverflowContinuationTracker::Insert(nsIFrame*       aOverflowCont,
     }
     if (!mOverflowContList) {
       mOverflowContList = new nsFrameList();
-      rv = mParent->SetPropTableFrames(presContext, mOverflowContList,
-        nsContainerFrame::ExcessOverflowContainersProperty());
+      rv = mParent->SetPropTableFrames(presContext,
+             mOverflowContList, nsGkAtoms::excessOverflowContainersProperty);
       NS_ENSURE_SUCCESS(rv, rv);
       SetUpListWalker();
     }
@@ -1483,25 +1536,26 @@ nsOverflowContinuationTracker::Finish(nsIFrame* aChild)
                 "supposed to call Finish *before* deleting next-in-flow!");
 
   for (nsIFrame* f = aChild; f; f = f->GetNextInFlow()) {
-    // Make sure we drop all references if the only frame
-    // in the overflow containers list is about to be destroyed
-    if (mOverflowContList &&
-        mOverflowContList->FirstChild() == f->GetNextInFlow() &&
-        !f->GetNextInFlow()->GetNextSibling()) {
-      mOverflowContList = nsnull;
-      mPrevOverflowCont = nsnull;
-      mSentry = nsnull;
-      mParent = static_cast<nsContainerFrame*>(f->GetParent());
-      break;
-    }
     if (f == mSentry) {
-      // Step past aChild
-      nsIFrame* prevOverflowCont = mPrevOverflowCont;
-      StepForward();
-      if (mPrevOverflowCont == f->GetNextInFlow()) {
-        // Pull mPrevOverflowChild back to aChild's prevSibling:
-        // aChild will be removed from our list by our caller
-        mPrevOverflowCont = prevOverflowCont;
+      // Make sure we drop all references if this was the only frame
+      // in the overflow containers list
+      if (mOverflowContList->FirstChild() == f->GetNextInFlow()
+          && !f->GetNextInFlow()->GetNextSibling()) {
+        mOverflowContList = nsnull;
+        mPrevOverflowCont = nsnull;
+        mSentry = nsnull;
+        mParent = static_cast<nsContainerFrame*>(f->GetParent());
+        break;
+      }
+      else {
+        // Step past aChild
+        nsIFrame* prevOverflowCont = mPrevOverflowCont;
+        StepForward();
+        if (mPrevOverflowCont == f->GetNextInFlow()) {
+          // Pull mPrevOverflowChild back to aChild's prevSibling:
+          // aChild will be removed from our list by our caller
+          mPrevOverflowCont = prevOverflowCont;
+        }
       }
     }
   }
@@ -1531,17 +1585,17 @@ nsContainerFrame::List(FILE* out, PRInt32 aIndent) const
   if (nsnull != GetNextContinuation()) {
     fprintf(out, " next-continuation=%p", static_cast<void*>(GetNextContinuation()));
   }
-  void* IBsibling = Properties().Get(IBSplitSpecialSibling());
+  void* IBsibling = GetProperty(nsGkAtoms::IBSplitSpecialSibling);
   if (IBsibling) {
     fprintf(out, " IBSplitSpecialSibling=%p", IBsibling);
   }
-  void* IBprevsibling = Properties().Get(IBSplitSpecialPrevSibling());
+  void* IBprevsibling = GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling);
   if (IBprevsibling) {
     fprintf(out, " IBSplitSpecialPrevSibling=%p", IBprevsibling);
   }
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
   if (0 != mState) {
-    fprintf(out, " [state=%016llx]", mState);
+    fprintf(out, " [state=%08x]", mState);
   }
   fprintf(out, " [content=%p]", static_cast<void*>(mContent));
   nsContainerFrame* f = const_cast<nsContainerFrame*>(this);

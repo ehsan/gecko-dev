@@ -21,8 +21,7 @@ public:
 
 protected:    
     NS_OVERRIDE
-    virtual bool RecvPong(const int& one, const float& zeroPtTwoFive,
-                          const PRUint8& dummy);
+    virtual bool RecvPong(const int& one, const float& zeroPtTwoFive);
 
     NS_OVERRIDE
     virtual void ActorDestroy(ActorDestroyReason why)
@@ -44,8 +43,7 @@ public:
 
 protected:
     NS_OVERRIDE
-    virtual bool RecvPing(const int& zero, const float& zeroPtFive,
-                          const PRInt8& dummy);
+    virtual bool RecvPing(const int& zero, const float& zeroPtFive);
 
     NS_OVERRIDE
     virtual void ActorDestroy(ActorDestroyReason why)

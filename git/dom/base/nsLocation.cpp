@@ -145,7 +145,6 @@ nsLocation::~nsLocation()
 {
 }
 
-DOMCI_DATA(Location, nsLocation)
 
 // QueryInterface implementation for nsLocation
 NS_INTERFACE_MAP_BEGIN(nsLocation)
@@ -195,6 +194,7 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsISupports> owner;
+  nsCOMPtr<nsIURI> sourceURI;
 
   if (cx) {
     // No cx means that there's no JS running, or at least no JS that
@@ -222,6 +222,7 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
         !principal)
       return NS_ERROR_FAILURE;
     owner = do_QueryInterface(principal);
+    principal->GetURI(getter_AddRefs(sourceURI));
   }
 
   // Create load info
@@ -231,12 +232,10 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
 
   loadInfo->SetOwner(owner);
 
-  // Now set the referrer on the loadinfo.  We need to do this in order to get
-  // the correct referrer URI from a document which was pushStated.
-  nsCOMPtr<nsIURI> sourceURI;
-  result = GetURI(getter_AddRefs(sourceURI));
-  if (NS_SUCCEEDED(result))
+  // now set the referrer on the loadinfo
+  if (sourceURI) {
     loadInfo->SetReferrer(sourceURI);
+  }
 
   loadInfo.swap(*aLoadInfo);
 
@@ -794,7 +793,8 @@ nsLocation::Reload(PRBool aForceget)
 
     nsIPresShell *shell;
     nsPresContext *pcx;
-    if (doc && (shell = doc->GetShell()) && (pcx = shell->GetPresContext())) {
+    if (doc && (shell = doc->GetPrimaryShell()) &&
+        (pcx = shell->GetPresContext())) {
       pcx->RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
     }
 
@@ -920,7 +920,7 @@ nsLocation::GetSourceBaseURL(JSContext* cx, nsIURI** sourceURL)
   nsCOMPtr<nsIDocument> doc;
   nsresult rv = GetSourceDocument(cx, getter_AddRefs(doc));
   if (doc) {
-    *sourceURL = doc->GetBaseURI().get();
+    NS_IF_ADDREF(*sourceURL = doc->GetBaseURI());
   } else {
     *sourceURL = nsnull;
   }

@@ -257,7 +257,7 @@ nsSplitterFrame::nsSplitterFrame(nsIPresShell* aPresShell, nsStyleContext* aCont
 }
 
 void
-nsSplitterFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsSplitterFrame::Destroy()
 {
   if (mInner) {
     mInner->RemoveListener();
@@ -265,7 +265,7 @@ nsSplitterFrame::DestroyFrom(nsIFrame* aDestructRoot)
     mInner->Release();
     mInner = nsnull;
   }
-  nsBoxFrame::DestroyFrom(aDestructRoot);
+  nsBoxFrame::Destroy();
 }
 
 
@@ -338,7 +338,7 @@ nsSplitterFrame::Init(nsIContent*      aContent,
                           NS_LITERAL_STRING("vertical"), PR_FALSE);
         nsStyleContext* parentStyleContext = GetStyleContext()->GetParent();
         nsRefPtr<nsStyleContext> newContext = PresContext()->StyleSet()->
-          ResolveStyleFor(aContent->AsElement(), parentStyleContext);
+          ResolveStyleFor(aContent, parentStyleContext);
         SetStyleContextWithoutNotification(newContext);
       }
     }
@@ -536,24 +536,13 @@ nsSplitterFrameInner::MouseDrag(nsPresContext* aPresContext, nsGUIEvent* aEvent)
     PRBool supportsBefore = SupportsCollapseDirection(Before);
     PRBool supportsAfter = SupportsCollapseDirection(After);
 
-    const PRBool isRTL = mOuter->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL;
-    PRBool pastEnd = oldPos > 0 && oldPos > pos;
-    PRBool pastBegin = oldPos < 0 && oldPos < pos;
-    if (isRTL) {
-      // Swap the boundary checks in RTL mode
-      PRBool tmp = pastEnd;
-      pastEnd = pastBegin;
-      pastBegin = tmp;
-    }
-    const PRBool isCollapsedBefore = pastBegin && supportsBefore;
-    const PRBool isCollapsedAfter = pastEnd && supportsAfter;
-
     // if we are in a collapsed position
-    if (isCollapsedBefore || isCollapsedAfter)
+    if ((oldPos > 0 && oldPos > pos && supportsAfter) ||
+        (oldPos < 0 && oldPos < pos && supportsBefore))
     {
       // and we are not collapsed then collapse
       if (currentState == Dragging) {
-        if (pastEnd)
+        if (oldPos > 0 && oldPos > pos)
         {
           //printf("Collapse right\n");
           if (supportsAfter) 
@@ -567,7 +556,7 @@ nsSplitterFrameInner::MouseDrag(nsPresContext* aPresContext, nsGUIEvent* aEvent)
                            PR_TRUE);
           }
 
-        } else if (pastBegin)
+        } else if (oldPos < 0 && oldPos < pos)
         {
           //printf("Collapse left\n");
           if (supportsBefore)

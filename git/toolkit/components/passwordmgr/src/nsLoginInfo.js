@@ -13,7 +13,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -121,10 +121,6 @@ nsLoginInfo.prototype = {
         // Copy nsILoginMetaInfo props
         clone.QueryInterface(Ci.nsILoginMetaInfo);
         clone.guid = this.guid;
-        clone.timeCreated = this.timeCreated;
-        clone.timeLastUsed = this.timeLastUsed;
-        clone.timePasswordChanged = this.timePasswordChanged;
-        clone.timesUsed = this.timesUsed;
 
         return clone;
     },
@@ -133,11 +129,7 @@ nsLoginInfo.prototype = {
     // nsILoginMetaInfo interfaces...
     //
 
-    guid : null,
-    timeCreated : null,
-    timeLastUsed : null,
-    timePasswordChanged : null,
-    timesUsed : null
+    guid : null
 
 }; // end of nsLoginInfo implementation
 

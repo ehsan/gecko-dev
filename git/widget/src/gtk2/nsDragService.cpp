@@ -60,12 +60,12 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
 #include "nsCRT.h"
-#include "mozilla/Services.h"
 
 #include "gfxASurface.h"
 #include "gfxXlibSurface.h"
 #include "gfxContext.h"
 #include "nsImageToPixbuf.h"
+#include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIDocument.h"
 #include "nsISelection.h"
@@ -113,7 +113,7 @@ nsDragService::nsDragService()
     // We have to destroy the hidden widget before the event loop stops
     // running.
     nsCOMPtr<nsIObserverService> obsServ =
-        mozilla::services::GetObserverService();
+        do_GetService("@mozilla.org/observer-service;1");
     obsServ->AddObserver(this, "quit-application", PR_FALSE);
 
     // our hidden source widget
@@ -227,7 +227,7 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
     memset(&event, 0, sizeof(GdkEvent));
     event.type = GDK_BUTTON_PRESS;
     event.button.window = mHiddenWidget->window;
-    event.button.time = nsWindow::sLastButtonPressTime;
+    event.button.time = nsWindow::mLastButtonPressTime;
 
     // start our drag.
     GdkDragContext *context = gtk_drag_begin(mHiddenWidget,
@@ -836,7 +836,7 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor,
             *_retval = PR_TRUE;
         }
         // check for automatic text/uri-list -> text/x-moz-url mapping
-        if (!*_retval && 
+        if (*_retval == PR_FALSE && 
             name &&
             (strcmp(name, gTextUriListType) == 0) &&
             (strcmp(aDataFlavor, kURLMime) == 0)) {
@@ -846,7 +846,7 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor,
             *_retval = PR_TRUE;
         }
         // check for automatic _NETSCAPE_URL -> text/x-moz-url mapping
-        if (!*_retval && 
+        if (*_retval == PR_FALSE && 
             name &&
             (strcmp(name, gMozUrlType) == 0) &&
             (strcmp(aDataFlavor, kURLMime) == 0)) {
@@ -856,7 +856,7 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor,
             *_retval = PR_TRUE;
         }
         // check for auto text/plain -> text/unicode mapping
-        if (!*_retval && 
+        if (*_retval == PR_FALSE && 
             name &&
             (strcmp(name, kTextMime) == 0) &&
             ((strcmp(aDataFlavor, kUnicodeMime) == 0) ||

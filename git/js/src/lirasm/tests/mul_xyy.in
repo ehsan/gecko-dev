@@ -1,11 +1,19 @@
-; 46340 * 46340 < 2^31, and will not overflow.
-big = immi 46340
+zero = int 0
+one = int 1
 
-res = mulxovi big big    ; no overflow, so we don't exit here
+; 46340 * 46340 < 2^31, and will not overflow.
+big = int 46340
+
+res = mul big big
+check = ov res
+; We can't use the result of 'ov' directly in cmov, so compare it with 1.
+toobig = eq check one
 
 ; Ensure that 'big' gets its own register and isn't shared with 'res'.
-; Also store 'res' so it isn't dead.
-m = allocp 8
-sti big m 0
-sti res m 4
-x                       ; we exit here
+ptr = alloc 4
+sti big ptr 0
+
+; Return either the result (if we didn't overflow) or 0.
+ans = cmov toobig zero res
+ret ans
+

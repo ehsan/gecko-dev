@@ -70,8 +70,6 @@ nsPluginArray::~nsPluginArray()
   }
 }
 
-DOMCI_DATA(PluginArray, nsPluginArray)
-
 // QueryInterface implementation for nsPluginArray
 NS_INTERFACE_MAP_BEGIN(nsPluginArray)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMPluginArray)
@@ -287,19 +285,12 @@ nsPluginElement::~nsPluginElement()
   NS_IF_RELEASE(mPlugin);
 
   if (mMimeTypeArray != nsnull) {
-    for (PRUint32 i = 0; i < mMimeTypeCount; i++) {
-      nsMimeType* mt = static_cast<nsMimeType*>(mMimeTypeArray[i]);
-      if (mt) {
-        mt->DetachPlugin();
-        NS_RELEASE(mt);
-      }
-    }
+    for (PRUint32 i = 0; i < mMimeTypeCount; i++)
+      NS_IF_RELEASE(mMimeTypeArray[i]);
     delete[] mMimeTypeArray;
   }
 }
 
-
-DOMCI_DATA(Plugin, nsPluginElement)
 
 // QueryInterface implementation for nsPluginElement
 NS_INTERFACE_MAP_BEGIN(nsPluginElement)

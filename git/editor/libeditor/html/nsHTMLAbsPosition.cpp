@@ -81,8 +81,8 @@ nsHTMLEditor::AbsolutePositionSelection(PRBool aEnabled)
   // Find out if the selection is collapsed:
   nsCOMPtr<nsISelection> selection;
   nsresult res = GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(res)) return res;
+  if (!selection) return NS_ERROR_NULL_POINTER;
 
   nsTextRulesInfo ruleInfo(aEnabled ?
                            nsTextEditRules::kSetAbsolutePosition :
@@ -100,7 +100,7 @@ nsHTMLEditor::GetAbsolutelyPositionedSelectionContainer(nsIDOMElement **_retval)
 {
   nsCOMPtr<nsIDOMElement> element;
   nsresult res = GetSelectionContainer(getter_AddRefs(element));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
   nsAutoString positionStr;
   nsCOMPtr<nsIDOMNode> node = do_QueryInterface(element);
@@ -109,13 +109,13 @@ nsHTMLEditor::GetAbsolutelyPositionedSelectionContainer(nsIDOMElement **_retval)
   while (!resultNode && !nsEditor::NodeIsType(node, nsEditProperty::html)) {
     res = mHTMLCSSUtils->GetComputedProperty(node, nsEditProperty::cssPosition,
                                              positionStr);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     if (positionStr.EqualsLiteral("absolute"))
       resultNode = node;
     else {
       nsCOMPtr<nsIDOMNode> parentNode;
       res = node->GetParentNode(getter_AddRefs(parentNode));
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       node.swap(parentNode);
     }
   }
@@ -159,9 +159,9 @@ nsHTMLEditor::RelativeChangeElementZIndex(nsIDOMElement * aElement,
 
   PRInt32 zIndex;
   nsresult res = GetElementZIndex(aElement, &zIndex);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
-  zIndex = NS_MAX(zIndex + aChange, 0);
+  zIndex = PR_MAX(zIndex + aChange, 0);
   SetElementZIndex(aElement, zIndex);
   *aReturn = zIndex;
 
@@ -197,8 +197,8 @@ nsHTMLEditor::RelativeChangeZIndex(PRInt32 aChange)
   // Find out if the selection is collapsed:
   nsCOMPtr<nsISelection> selection;
   nsresult res = GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(res)) return res;
+  if (!selection) return NS_ERROR_NULL_POINTER;
   nsTextRulesInfo ruleInfo((aChange < 0) ? nsTextEditRules::kDecreaseZIndex:
                                            nsTextEditRules::kIncreaseZIndex);
   PRBool cancel, handled;
@@ -219,13 +219,13 @@ nsHTMLEditor::GetElementZIndex(nsIDOMElement * aElement,
   nsresult res = mHTMLCSSUtils->GetSpecifiedProperty(aElement,
                                                      nsEditProperty::cssZIndex,
                                                      zIndexStr);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   if (zIndexStr.EqualsLiteral("auto")) {
     // we have to look at the positioned ancestors
     // cf. CSS 2 spec section 9.9.1
     nsCOMPtr<nsIDOMNode> parentNode;
     res = aElement->GetParentNode(getter_AddRefs(parentNode));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     nsCOMPtr<nsIDOMNode> node = parentNode;
     nsAutoString positionStr;
     while (node && 
@@ -234,17 +234,17 @@ nsHTMLEditor::GetElementZIndex(nsIDOMElement * aElement,
       res = mHTMLCSSUtils->GetComputedProperty(node,
                                                nsEditProperty::cssPosition,
                                                positionStr);
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       if (positionStr.EqualsLiteral("absolute")) {
         // ah, we found one, what's its z-index ? If its z-index is auto,
         // we have to continue climbing the document's tree
         res = mHTMLCSSUtils->GetComputedProperty(node,
                                                  nsEditProperty::cssZIndex,
                                                  zIndexStr);
-        NS_ENSURE_SUCCESS(res, res);
+        if (NS_FAILED(res)) return res;
       }
       res = node->GetParentNode(getter_AddRefs(parentNode));
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       node = parentNode;
     }
   }
@@ -267,12 +267,12 @@ nsHTMLEditor::CreateGrabber(nsIDOMNode * aParentNode, nsIDOMElement ** aReturn)
                                         PR_FALSE,
                                         aReturn);
 
-  NS_ENSURE_TRUE(*aReturn, NS_ERROR_FAILURE);
+  if (!*aReturn)
+    return NS_ERROR_FAILURE;
 
   // add the mouse listener so we can detect a click on a resizer
   nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(*aReturn));
-  evtTarget->AddEventListener(NS_LITERAL_STRING("mousedown"),
-                              mEventListener, PR_FALSE);
+  evtTarget->AddEventListener(NS_LITERAL_STRING("mousedown"), mMouseListenerP, PR_FALSE);
 
   return res;
 }
@@ -292,7 +292,7 @@ nsHTMLEditor::RefreshGrabber()
                                          mPositionedObjectMarginLeft,
                                          mPositionedObjectMarginTop);
 
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
   SetAnonymousElementPosition(mPositionedObjectX+12,
                               mPositionedObjectY-14,
@@ -305,23 +305,21 @@ nsHTMLEditor::HideGrabber()
 {
   nsresult res =
     mAbsolutelyPositionedObject->RemoveAttribute(NS_LITERAL_STRING("_moz_abspos"));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
   mAbsolutelyPositionedObject = nsnull;
   NS_ENSURE_TRUE(mGrabber, NS_ERROR_NULL_POINTER);
 
   // get the presshell's document observer interface.
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
-  // We allow the pres shell to be null; when it is, we presume there
-  // are no document observers to notify, but we still want to
-  // UnbindFromTree.
+  if (!ps) return NS_ERROR_NOT_INITIALIZED;
 
   nsCOMPtr<nsIDOMNode> parentNode;
   res = mGrabber->GetParentNode(getter_AddRefs(parentNode));
   NS_ENSURE_SUCCESS(res, res);
 
   nsCOMPtr<nsIContent> parentContent = do_QueryInterface(parentNode);
-  NS_ENSURE_TRUE(parentContent, NS_ERROR_NULL_POINTER);
+  if (!parentContent) return NS_ERROR_NULL_POINTER;
 
   DeleteRefToAnonymousNode(mGrabber, parentContent, ps);
   mGrabber = nsnull;
@@ -343,11 +341,11 @@ nsHTMLEditor::ShowGrabberOnElement(nsIDOMElement * aElement)
 
   nsAutoString classValue;
   nsresult res = CheckPositionedElementBGandFG(aElement, classValue);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
   res = aElement->SetAttribute(NS_LITERAL_STRING("_moz_abspos"),
                                classValue);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
   // first, let's keep track of that element...
   mAbsolutelyPositionedObject = aElement;
@@ -428,14 +426,14 @@ nsHTMLEditor::EndMoving()
 {
   if (mPositioningShadow) {
     nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
-    NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
+    if (!ps) return NS_ERROR_NOT_INITIALIZED;
 
     nsCOMPtr<nsIDOMNode> parentNode;
     nsresult res = mGrabber->GetParentNode(getter_AddRefs(parentNode));
     NS_ENSURE_SUCCESS(res, res);
 
     nsCOMPtr<nsIContent> parentContent( do_QueryInterface(parentNode) );
-    NS_ENSURE_TRUE(parentContent, NS_ERROR_FAILURE);
+    if (!parentContent) return NS_ERROR_FAILURE;
 
     DeleteRefToAnonymousNode(mPositioningShadow, parentContent, ps);
 
@@ -466,7 +464,7 @@ nsresult
 nsHTMLEditor::SetFinalPosition(PRInt32 aX, PRInt32 aY)
 {
   nsresult res = EndMoving();
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
   // we have now to set the new width and height of the resized object
   // we don't set the x and y position because we don't control that in
@@ -499,7 +497,7 @@ nsHTMLEditor::SetFinalPosition(PRInt32 aX, PRInt32 aY)
 }
 
 void
-nsHTMLEditor::AddPositioningOffset(PRInt32 & aX, PRInt32 & aY)
+nsHTMLEditor::AddPositioningOffet(PRInt32 & aX, PRInt32 & aY)
 {
   // Get the positioning offset
   nsresult res;
@@ -543,7 +541,7 @@ nsHTMLEditor::AbsolutelyPositionElement(nsIDOMElement * aElement,
                                   NS_LITERAL_STRING("absolute"),
                                   PR_FALSE);
 
-    AddPositioningOffset(x, y);
+    AddPositioningOffet(x, y);
     SnapToGrid(x, y);
     SetElementPosition(aElement, x, y);
 
@@ -551,15 +549,15 @@ nsHTMLEditor::AbsolutelyPositionElement(nsIDOMElement * aElement,
     // container
     nsCOMPtr<nsIDOMNode> parentNode;
     res = aElement->GetParentNode(getter_AddRefs(parentNode));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
 
     nsCOMPtr<nsIDOMNodeList> childNodes;
     res = parentNode->GetChildNodes(getter_AddRefs(childNodes));
-    NS_ENSURE_SUCCESS(res, res);
-    NS_ENSURE_TRUE(childNodes, NS_ERROR_NULL_POINTER);
+    if (NS_FAILED(res)) return res;
+    if (!childNodes) return NS_ERROR_NULL_POINTER;
     PRUint32 childCount;
     res = childNodes->GetLength(&childCount);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
 
     if (childCount == 1) {
       nsCOMPtr<nsIDOMNode> brNode;
@@ -591,12 +589,12 @@ nsHTMLEditor::AbsolutelyPositionElement(nsIDOMElement * aElement,
 
     PRBool hasStyleOrIdOrClass;
     res = HasStyleOrIdOrClass(aElement, &hasStyleOrIdOrClass);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     if (!hasStyleOrIdOrClass && nsHTMLEditUtils::IsDiv(aElement)) {
       nsCOMPtr<nsIHTMLEditRules> htmlRules = do_QueryInterface(mRules);
-      NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
+      if (!htmlRules) return NS_ERROR_FAILURE;
       res = htmlRules->MakeSureElemStartsOrEndsOnCR(aElement);
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       res = RemoveContainer(aElement);
     }
   }
@@ -679,52 +677,52 @@ nsHTMLEditor::CheckPositionedElementBGandFG(nsIDOMElement * aElement,
     mHTMLCSSUtils->GetComputedProperty(aElement,
                                        nsEditProperty::cssBackgroundImage,
                                        bgImageStr);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   if (bgImageStr.EqualsLiteral("none")) {
     nsAutoString bgColorStr;
     res =
       mHTMLCSSUtils->GetComputedProperty(aElement,
                                          nsEditProperty::cssBackgroundColor,
                                          bgColorStr);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     if (bgColorStr.EqualsLiteral("transparent")) {
 
       nsCOMPtr<nsIDOMViewCSS> viewCSS;
       res = mHTMLCSSUtils->GetDefaultViewCSS(aElement, getter_AddRefs(viewCSS));
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
       res = viewCSS->GetComputedStyle(aElement, EmptyString(), getter_AddRefs(cssDecl));
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       // from these declarations, get the one we want and that one only
       nsCOMPtr<nsIDOMCSSValue> colorCssValue;
       res = cssDecl->GetPropertyCSSValue(NS_LITERAL_STRING("color"), getter_AddRefs(colorCssValue));
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
 
       PRUint16 type;
       res = colorCssValue->GetCssValueType(&type);
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       if (nsIDOMCSSValue::CSS_PRIMITIVE_VALUE == type) {
         nsCOMPtr<nsIDOMCSSPrimitiveValue> val = do_QueryInterface(colorCssValue);
         res = val->GetPrimitiveType(&type);
-        NS_ENSURE_SUCCESS(res, res);
+        if (NS_FAILED(res)) return res;
         if (nsIDOMCSSPrimitiveValue::CSS_RGBCOLOR == type) {
           nsCOMPtr<nsIDOMRGBColor> rgbColor;
           res = val->GetRGBColorValue(getter_AddRefs(rgbColor));
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
           nsCOMPtr<nsIDOMCSSPrimitiveValue> red, green, blue;
           float r, g, b;
           res = rgbColor->GetRed(getter_AddRefs(red));
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
           res = rgbColor->GetGreen(getter_AddRefs(green));
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
           res = rgbColor->GetBlue(getter_AddRefs(blue));
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
           res = red->GetFloatValue(nsIDOMCSSPrimitiveValue::CSS_NUMBER, &r);
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
           res = green->GetFloatValue(nsIDOMCSSPrimitiveValue::CSS_NUMBER, &g);
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
           res = blue->GetFloatValue(nsIDOMCSSPrimitiveValue::CSS_NUMBER, &b);
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
           if (r >= BLACK_BG_RGB_TRIGGER &&
               g >= BLACK_BG_RGB_TRIGGER &&
               b >= BLACK_BG_RGB_TRIGGER)

@@ -47,7 +47,6 @@
  * see http://developer.mozilla.org/en/docs/XUL
  */
 
-#include "jscntxt.h"  // for JSVERSION_HAS_XML
 #include "nsXULContentSink.h"
 #include "nsCOMPtr.h"
 #include "nsForwardReference.h"
@@ -62,6 +61,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
 #include "nsIParser.h"
+#include "nsIPresShell.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptRuntime.h"
 #include "nsIScriptGlobalObject.h"
@@ -79,10 +79,11 @@
 #include "nsXULElement.h"
 #include "prlog.h"
 #include "prmem.h"
+#include "jscntxt.h"  // for JSVERSION_HAS_XML
 #include "nsCRT.h"
 
 #include "nsXULPrototypeDocument.h"     // XXXbe temporary
-#include "nsCSSLoader.h"
+#include "nsICSSLoader.h"
 
 #include "nsUnicharUtils.h"
 #include "nsGkAtoms.h"

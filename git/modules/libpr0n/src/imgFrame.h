@@ -15,7 +15,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -134,20 +134,11 @@ public:
     return mImageSurface;
   }
 
-  // returns an estimate of the memory used by this imgFrame
-  PRUint32 EstimateMemoryUsed() const;
 
 private: // methods
   PRUint32 PaletteDataLength() const {
     return ((1 << mPaletteDepth) * sizeof(PRUint32));
   }
-
-  /**
-   * This returns the fastest operator to use for solid surfaces which have no
-   * alpha channel or their alpha channel is uniformly opaque.
-   * This differs per render mode.
-   */
-  gfxContext::GraphicsOperator OptimalFillOperator();
 
 private: // data
   nsRefPtr<gfxImageSurface> mImageSurface;
@@ -181,8 +172,6 @@ private: // data
   PRPackedBool mNeverUseDeviceSurface;
   PRPackedBool mFormatChanged;
   PRPackedBool mCompositingFailed;
-  /** Indicates if the image data is currently locked */
-  PRPackedBool mLocked;
 
 #ifdef XP_WIN
   PRPackedBool mIsDDBSurface;

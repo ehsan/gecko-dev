@@ -43,7 +43,6 @@
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsAHtml5TreeBuilderState.h"
-#include "nsHtml5Macros.h"
 
 #include "nsHtml5Tokenizer.h"
 #include "nsHtml5TreeBuilder.h"
@@ -58,15 +57,14 @@
 #include "nsHtml5StateSnapshot.h"
 
 
-nsHtml5StateSnapshot::nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,PRInt32> stack, jArray<nsHtml5StackNode*,PRInt32> listOfActiveFormattingElements, nsIContent** formPointer, nsIContent** headPointer, PRInt32 mode, PRInt32 originalMode, PRBool framesetOk, PRBool inForeign, PRBool needToDropLF, PRBool quirks)
+nsHtml5StateSnapshot::nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,PRInt32> stack, jArray<nsHtml5StackNode*,PRInt32> listOfActiveFormattingElements, nsIContent** formPointer, nsIContent** headPointer, PRInt32 mode, PRInt32 originalMode, PRInt32 foreignFlag, PRBool needToDropLF, PRBool quirks)
   : stack(stack),
     listOfActiveFormattingElements(listOfActiveFormattingElements),
     formPointer(formPointer),
     headPointer(headPointer),
     mode(mode),
     originalMode(originalMode),
-    framesetOk(framesetOk),
-    inForeign(inForeign),
+    foreignFlag(foreignFlag),
     needToDropLF(needToDropLF),
     quirks(quirks)
 {
@@ -109,16 +107,10 @@ nsHtml5StateSnapshot::getOriginalMode()
   return originalMode;
 }
 
-PRBool 
-nsHtml5StateSnapshot::isFramesetOk()
+PRInt32 
+nsHtml5StateSnapshot::getForeignFlag()
 {
-  return framesetOk;
-}
-
-PRBool 
-nsHtml5StateSnapshot::isInForeign()
-{
-  return inForeign;
+  return foreignFlag;
 }
 
 PRBool 
@@ -134,7 +126,7 @@ nsHtml5StateSnapshot::isQuirks()
 }
 
 PRInt32 
-nsHtml5StateSnapshot::getListOfActiveFormattingElementsLength()
+nsHtml5StateSnapshot::getListLength()
 {
   return listOfActiveFormattingElements.length;
 }
@@ -154,7 +146,7 @@ nsHtml5StateSnapshot::~nsHtml5StateSnapshot()
   }
   stack.release();
   for (PRInt32 i = 0; i < listOfActiveFormattingElements.length; i++) {
-    if (listOfActiveFormattingElements[i]) {
+    if (!!listOfActiveFormattingElements[i]) {
       listOfActiveFormattingElements[i]->release();
     }
   }

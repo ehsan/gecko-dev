@@ -72,6 +72,12 @@ public:
   }
 
   NS_IMETHOD
+  GetReference(nsPoint& aReference) {
+    aReference = mReference;
+    return NS_OK;
+  }
+
+  NS_IMETHOD
   SetReference(const nsPoint& aReference) {
     mReference = aReference;
     return NS_OK;
@@ -93,10 +99,22 @@ public:
     aEmbellishData = mEmbellishData;
     return NS_OK;
   }
+ 
+  NS_IMETHOD
+  SetEmbellishData(const nsEmbellishData& aEmbellishData) {
+    mEmbellishData = aEmbellishData;
+    return NS_OK;
+  }
 
   NS_IMETHOD
   GetPresentationData(nsPresentationData& aPresentationData) {
     aPresentationData = mPresentationData;
+    return NS_OK;
+  }
+
+  NS_IMETHOD
+  SetPresentationData(const nsPresentationData& aPresentationData) {
+    mPresentationData = aPresentationData;
     return NS_OK;
   }
 

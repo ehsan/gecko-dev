@@ -74,11 +74,10 @@ if ("@mozilla.org/toolkit/crash-reporter;1" in Components.classes) {
 }
 
 
-function _TimerCallback(func, timer) {
-  if (typeof func !== "function")
-    throw new Error("string callbacks no longer accepted; use a function!");
-
-  this._func = func;
+function _TimerCallback(expr, timer) {
+  this._func = typeof expr === "function"
+             ? expr
+             : function() { eval(expr); };
   // Keep timer alive until it fires
   _pendingCallbacks.push(timer);
 }
@@ -119,28 +118,7 @@ function _do_quit() {
   _quit = true;
 }
 
-function _dump_exception_stack(stack) {
-  stack.split("\n").forEach(function(frame) {
-    if (!frame)
-      return;
-    // frame is of the form "fname(args)@file:line"
-    let frame_regexp = new RegExp("(.*)\\(.*\\)@(.*):(\\d*)", "g");
-    let parts = frame_regexp.exec(frame);
-    dump("JS frame :: " + parts[2] + " :: " + (parts[1] ? parts[1] : "anonymous") + " :: line " + parts[3] + "\n");
-  });
-}
-
 function _execute_test() {
-  // Map resource://test/ to the current working directory.
-  let (ios = Components.classes["@mozilla.org/network/io-service;1"]
-             .getService(Components.interfaces.nsIIOService)) {
-    let protocolHandler =
-      ios.getProtocolHandler("resource")
-         .QueryInterface(Components.interfaces.nsIResProtocolHandler);
-    let curDirURI = ios.newFileURI(do_get_cwd());
-    protocolHandler.setSubstitution("test", curDirURI);
-  }
-
   // _HEAD_FILES is dynamically defined by <runxpcshelltests.py>.
   _load_files(_HEAD_FILES);
   // _TEST_FILE is dynamically defined by <runxpcshelltests.py>.
@@ -153,21 +131,10 @@ function _execute_test() {
     _do_main();
   } catch (e) {
     _passed = false;
-    // do_check failures are already logged and set _quit to true and throw
-    // NS_ERROR_ABORT. If both of those are true it is likely this exception
-    // has already been logged so there is no need to log it again. It's
-    // possible that this will mask an NS_ERROR_ABORT that happens after a
-    // do_check failure though.
-    if (!_quit || e != Components.results.NS_ERROR_ABORT) {
-      dump("TEST-UNEXPECTED-FAIL | (xpcshell/head.js) | " + e);
-      if (e.stack) {
-        dump(" - See following stack:\n");
-        _dump_exception_stack(e.stack);
-      }
-      else {
-        dump("\n");
-      }
-    }
+    // Print exception, but not do_throw() result.
+    // Hopefully, this won't mask other NS_ERROR_ABORTs.
+    if (!_quit || e != Components.results.NS_ERROR_ABORT)
+      dump("TEST-UNEXPECTED-FAIL | (xpcshell/head.js) | " + e + "\n");
   }
 
   // _TAIL_FILES is dynamically defined by <runxpcshelltests.py>.
@@ -207,42 +174,19 @@ function _load_files(aFiles) {
 /************** Functions to be used from the tests **************/
 
 
-function do_timeout(delay, func) {
+function do_timeout(delay, expr) {
   var timer = Components.classes["@mozilla.org/timer;1"]
                         .createInstance(Components.interfaces.nsITimer);
-  timer.initWithCallback(new _TimerCallback(func, timer), delay, timer.TYPE_ONE_SHOT);
+  timer.initWithCallback(new _TimerCallback(expr, timer), delay, timer.TYPE_ONE_SHOT);
 }
 
 function do_execute_soon(callback) {
-  do_test_pending();
   var tm = Components.classes["@mozilla.org/thread-manager;1"]
                      .getService(Components.interfaces.nsIThreadManager);
 
   tm.mainThread.dispatch({
     run: function() {
-      try {
-        callback();
-      } catch (e) {
-        // do_check failures are already logged and set _quit to true and throw
-        // NS_ERROR_ABORT. If both of those are true it is likely this exception
-        // has already been logged so there is no need to log it again. It's
-        // possible that this will mask an NS_ERROR_ABORT that happens after a
-        // do_check failure though.
-        if (!_quit || e != Components.results.NS_ERROR_ABORT) {
-          dump("TEST-UNEXPECTED-FAIL | (xpcshell/head.js) | " + e);
-          if (e.stack) {
-            dump(" - See following stack:\n");
-            _dump_exception_stack(e.stack);
-          }
-          else {
-            dump("\n");
-          }
-          _do_quit();
-        }
-      }
-      finally {
-        do_test_finished();
-      }
+      callback();
     }
   }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
 }
@@ -433,16 +377,6 @@ function do_register_cleanup(aFunction)
  * @return nsILocalFile of the profile directory.
  */
 function do_get_profile() {
-  // Since we have a profile, we will notify profile shutdown topics at
-  // the end of the current test, to ensure correct cleanup on shutdown.
-  do_register_cleanup(function() {
-    let obsSvc = Components.classes["@mozilla.org/observer-service;1"].
-                 getService(Components.interfaces.nsIObserverService);
-    obsSvc.notifyObservers(null, "profile-change-net-teardown", null);
-    obsSvc.notifyObservers(null, "profile-change-teardown", null);
-    obsSvc.notifyObservers(null, "profile-before-change", null);
-  });
-
   let env = Components.classes["@mozilla.org/process/environment;1"]
                       .getService(Components.interfaces.nsIEnvironment);
   // the python harness sets this in the environment for us
@@ -462,7 +396,7 @@ function do_get_profile() {
       throw Components.results.NS_ERROR_FAILURE;
     },
     QueryInterface: function(iid) {
-      if (iid.equals(Components.interfaces.nsIDirectoryServiceProvider) ||
+      if (iid.equals(Components.interfaces.nsIDirectoryProvider) ||
           iid.equals(Components.interfaces.nsISupports)) {
         return this;
       }

@@ -71,9 +71,6 @@ class Visitor:
     def visitTypedef(self, tdef):
         tdef.fromtype.accept(self)
 
-    def visitUsing(self, us):
-        us.type.accept(self)
-
     def visitForwardDecl(self, fd):
         pass
 
@@ -101,10 +98,6 @@ class Visitor:
             param.accept(self)
         if meth.ret is not None:
             meth.ret.accept(self)
-        if meth.typeop is not None:
-            meth.typeop.accept(self)
-        if meth.T is not None:
-            meth.T.accept(self)
 
     def visitMethodDefn(self, meth):
         meth.decl.accept(self)
@@ -282,7 +275,7 @@ class File(Node):
 
 class CppDirective(Node):
     '''represents |#[directive] [rest]|, where |rest| is any string'''
-    def __init__(self, directive, rest=''):
+    def __init__(self, directive, rest):
         Node.__init__(self)
         self.directive = directive
         self.rest = rest
@@ -349,7 +342,6 @@ Any type, naked or pointer, can be const (const T) or ref (T&).
                     T=copy.deepcopy(self.T, memo))
 Type.BOOL = Type('bool')
 Type.INT = Type('int')
-Type.INT32 = Type('int32')
 Type.INTPTR = Type('intptr_t')
 Type.UINT32 = Type('uint32')
 Type.SIZE = Type('size_t')
@@ -390,11 +382,6 @@ class Typedef(Node):
         Node.__init__(self)
         self.fromtype = fromtype
         self.totypename = totypename
-
-class Using(Node):
-    def __init__(self, type):
-        Node.__init__(self)
-        self.type = type
 
 class ForwardDecl(Node):
     def __init__(self, pqname, cls=0, struct=0):
@@ -459,18 +446,14 @@ class FriendClassDecl(Node):
 
 class MethodDecl(Node):
     def __init__(self, name, params=[ ], ret=Type('void'),
-                 virtual=0, const=0, pure=0, static=0, warn_unused=0,
-                 inline=0, force_inline=0,
-                 typeop=None,
-                 T=None):
+                 virtual=0, const=0, pure=0, static=0,
+                 typeop=None):
         assert not (virtual and static)
         assert not pure or virtual      # pure => virtual
         assert not (static and typeop)
         assert not (name and typeop)
         assert name is None or isinstance(name, str)
         assert not isinstance(ret, list)
-        for decl in params:  assert not isinstance(decl, str)
-        assert not isinstance(T, int)
 
         if typeop is not None:
             ret = None
@@ -483,26 +466,15 @@ class MethodDecl(Node):
         self.const = const              # bool
         self.pure = pure                # bool
         self.static = static            # bool
-        self.warn_unused = warn_unused  # bool
-        self.force_inline = (force_inline or T) # bool
-        self.inline = inline            # bool
         self.typeop = typeop            # Type or None
-        self.T = T                      # Type or None
 
     def __deepcopy__(self, memo):
         return MethodDecl(
             self.name,
-            params=copy.deepcopy(self.params, memo),
-            ret=copy.deepcopy(self.ret, memo),
-            virtual=self.virtual,
-            const=self.const,
-            pure=self.pure,
-            static=self.static,
-            warn_unused=self.warn_unused,
-            inline=self.inline,
-            force_inline=self.force_inline,
-            typeop=copy.deepcopy(self.typeop, memo),
-            T=copy.deepcopy(self.T, memo))
+            copy.deepcopy(self.params, memo),
+            copy.deepcopy(self.ret, memo),
+            self.virtual, self.const, self.pure, self.static,
+            copy.deepcopy(self.typeop, memo))
 
 class MethodDefn(Block):
     def __init__(self, decl):
@@ -510,9 +482,8 @@ class MethodDefn(Block):
         self.decl = decl
 
 class ConstructorDecl(MethodDecl):
-    def __init__(self, name, params=[ ], explicit=0, force_inline=0):
-        MethodDecl.__init__(self, name, params=params, ret=None,
-                            force_inline=force_inline)
+    def __init__(self, name, params=[ ], explicit=0):
+        MethodDecl.__init__(self, name, params=params, ret=None)
         self.explicit = explicit
 
     def __deepcopy__(self, memo):
@@ -526,16 +497,12 @@ class ConstructorDefn(MethodDefn):
         self.memberinits = memberinits
 
 class DestructorDecl(MethodDecl):
-    def __init__(self, name, virtual=0, force_inline=0, inline=0):
+    def __init__(self, name, virtual=0):
         MethodDecl.__init__(self, name, params=[ ], ret=None,
-                            virtual=virtual,
-                            force_inline=force_inline, inline=inline)
+                            virtual=virtual)
 
     def __deepcopy__(self, memo):
-        return DestructorDecl(self.name,
-                              virtual=self.virtual,
-                              force_inline=self.force_inline,
-                              inline=self.inline)
+        return DestructorDecl(self.name, self.virtual)
 
         
 class DestructorDefn(MethodDefn):
@@ -649,7 +616,6 @@ class ExprCall(Node):
     def __init__(self, func, args=[ ]):
         assert hasattr(func, 'accept')
         assert isinstance(args, list)
-        for arg in args:  assert arg and not isinstance(arg, str)
 
         Node.__init__(self)
         self.func = func
@@ -689,7 +655,6 @@ class StmtDecl(Node):
     def __init__(self, decl, init=None, initargs=None):
         assert not (init and initargs)
         assert not isinstance(init, str) # easy to confuse with Decl
-        assert not isinstance(init, list)
         assert not isinstance(decl, tuple)
         
         Node.__init__(self)
@@ -750,7 +715,6 @@ class StmtSwitch(Block):
 
     def addcase(self, case, block):
         '''NOTE: |case| is not checked for uniqueness'''
-        assert not isinstance(case, str)
         assert (isinstance(block, StmtBreak)
                 or isinstance(block, StmtReturn)
                 or (hasattr(block, 'stmts')
@@ -766,8 +730,6 @@ class StmtBreak(Node):
 
 class StmtExpr(Node):
     def __init__(self, expr):
-        assert expr is not None
-        
         Node.__init__(self)
         self.expr = expr
 
@@ -775,6 +737,3 @@ class StmtReturn(Node):
     def __init__(self, expr=None):
         Node.__init__(self)
         self.expr = expr
-
-StmtReturn.TRUE = StmtReturn(ExprLiteral.TRUE)
-StmtReturn.FALSE = StmtReturn(ExprLiteral.FALSE)

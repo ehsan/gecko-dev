@@ -109,11 +109,11 @@ nsXULLabelFrame::Init(nsIContent*      aContent,
 }
 
 void
-nsXULLabelFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsXULLabelFrame::Destroy()
 {
   // unregister access key
   RegUnregAccessKey(PR_FALSE);
-  nsBlockFrame::DestroyFrom(aDestructRoot);
+  nsBlockFrame::Destroy();
 } 
 
 NS_IMETHODIMP

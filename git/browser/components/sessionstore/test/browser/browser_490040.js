@@ -37,7 +37,9 @@
 
 function browserWindowsCount() {
   let count = 0;
-  let e = Services.wm.getEnumerator("navigator:browser");
+  let e = Cc["@mozilla.org/appshell/window-mediator;1"]
+            .getService(Ci.nsIWindowMediator)
+            .getEnumerator("navigator:browser");
   while (e.hasMoreElements()) {
     if (!e.getNext().closed)
       ++count;
@@ -51,6 +53,10 @@ function test() {
 
   let ss = Cc["@mozilla.org/browser/sessionstore;1"].
            getService(Ci.nsISessionStore);
+  let os = Cc["@mozilla.org/observer-service;1"].
+           getService(Ci.nsIObserverService);
+  let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+           getService(Ci.nsIWindowWatcher);
 
   waitForExplicitFinish();
 
@@ -60,56 +66,54 @@ function test() {
     gPrefService.setIntPref("browser.sessionstore.max_windows_undo",
                             curClosedWindowCount + 1);
 
-    var origWin;
-    function windowObserver(aSubject, aTopic, aData) {
-      let theWin = aSubject.QueryInterface(Ci.nsIDOMWindow);
-      if (origWin && theWin != origWin)
-        return;
+    let windowObserver = {
+      observe: function(aSubject, aTopic, aData) {
+        let theWin = aSubject.QueryInterface(Ci.nsIDOMWindow);
 
-      switch (aTopic) {
-        case "domwindowopened":
-          origWin = theWin;
-          theWin.addEventListener("load", function () {
-            theWin.removeEventListener("load", arguments.callee, false);
-            executeSoon(function () {
-              // Close the window as soon as the first tab loads, or
-              // immediately if there are no tabs.
-              if (aState.windowState.windows[0].tabs[0].entries.length) {
-                theWin.gBrowser.addEventListener("load", function() {
-                  theWin.gBrowser.removeEventListener("load",
-                                                      arguments.callee, true);
-                  theWin.close();
-                }, true);
-              } else {
-                executeSoon(function () {
-                  theWin.close();
-                });
-              }
-              ss.setWindowState(theWin, JSON.stringify(aState.windowState),
-                                true);
+        switch(aTopic) {
+          case "domwindowopened":
+            theWin.addEventListener("load", function () {
+              theWin.removeEventListener("load", arguments.callee, false);
+              executeSoon(function() {
+                // Close the window as soon as the first tab loads, or
+                // immediately if there are no tabs.
+                if (aState.windowState.windows[0].tabs[0].entries.length) {
+                  theWin.gBrowser.addEventListener("load", function() {
+                    theWin.gBrowser.removeEventListener("load",
+                                                        arguments.callee, true);
+                    theWin.close();
+                  }, true);
+                } else {
+                  executeSoon(function() {
+                    theWin.close();
+                  });
+                }
+                ss.setWindowState(theWin, JSON.stringify(aState.windowState),
+                                  true);
+              });
+            }, false);
+            break;
+
+          case "domwindowclosed":
+            ww.unregisterNotification(this);
+            // Use executeSoon to ensure this happens after SS observer.
+            executeSoon(function() {
+              is(ss.getClosedWindowCount(),
+                 curClosedWindowCount + (aState.shouldBeAdded ? 1 : 0),
+                 "That window should " + (aState.shouldBeAdded ? "" : "not ") +
+                 "be restorable");
+              executeSoon(runNextTest);
             });
-          }, false);
-          break;
-
-        case "domwindowclosed":
-          Services.ww.unregisterNotification(windowObserver);
-          // Use executeSoon to ensure this happens after SS observer.
-          executeSoon(function () {
-            is(ss.getClosedWindowCount(),
-               curClosedWindowCount + (aState.shouldBeAdded ? 1 : 0),
-               "That window should " + (aState.shouldBeAdded ? "" : "not ") +
-               "be restorable");
-            executeSoon(runNextTest);
-          });
-          break;
+            break;
+        }
       }
     }
-    Services.ww.registerNotification(windowObserver);
-    Services.ww.openWindow(null,
-                           location,
-                           "_blank",
-                           "chrome,all,dialog=no",
-                           null);
+    ww.registerNotification(windowObserver);
+    ww.openWindow(null,
+                  location,
+                  "_blank",
+                  "chrome,all,dialog=no",
+                  null);
   }
 
   // Only windows with open tabs are restorable. Windows where a lone tab is

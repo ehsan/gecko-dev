@@ -156,15 +156,15 @@ nsTitleBarFrame::HandleEvent(nsPresContext* aPresContext,
          while (parent && parent->GetType() != nsGkAtoms::menuPopupFrame)
            parent = parent->GetParent();
 
-         // if the titlebar is in a popup, move the popup frame, otherwise
+         // if the titlebar is in a popup, move the popup's widget, otherwise
          // move the widget associated with the window
          if (parent) {
-           nsMenuPopupFrame* menuPopupFrame = static_cast<nsMenuPopupFrame*>(parent);
            nsCOMPtr<nsIWidget> widget;
-           menuPopupFrame->GetWidget(getter_AddRefs(widget));
+           (static_cast<nsMenuPopupFrame*>(parent))->
+             GetWidget(getter_AddRefs(widget));
            nsIntRect bounds;
            widget->GetScreenBounds(bounds);
-           menuPopupFrame->MoveTo(bounds.x + nsMoveBy.x, bounds.y + nsMoveBy.y, PR_FALSE);
+           widget->Move(bounds.x + nsMoveBy.x, bounds.y + nsMoveBy.y);
          }
          else {
            nsIPresShell* presShell = aPresContext->PresShell();

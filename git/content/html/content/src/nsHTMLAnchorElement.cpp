@@ -104,13 +104,14 @@ public:
                               PRBool aCompileEventHandlers);
   virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
                               PRBool aNullParent = PR_TRUE);
-  virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
   virtual nsLinkState GetLinkState() const;
+  virtual void SetLinkState(nsLinkState aState);
   virtual already_AddRefed<nsIURI> GetHrefURI() const;
 
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
@@ -130,7 +131,10 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual PRInt32 IntrinsicState() const;
+  virtual void DropCachedHref();
+
+protected:
+  void ResetLinkCacheState();
 };
 
 
@@ -150,16 +154,13 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLAnchorElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLAnchorElement, nsGenericElement) 
 
 
-DOMCI_DATA(HTMLAnchorElement, nsHTMLAnchorElement)
-
 // QueryInterface implementation for nsHTMLAnchorElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLAnchorElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLAnchorElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLAnchorElement,
                                    nsIDOMHTMLAnchorElement,
                                    nsIDOMNSHTMLAnchorElement,
                                    nsIDOMNSHTMLAnchorElement2,
-                                   nsILink,
-                                   Link)
+                                   nsILink)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLAnchorElement,
                                                nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLAnchorElement)
@@ -200,15 +201,13 @@ nsHTMLAnchorElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                 nsIContent* aBindingParent,
                                 PRBool aCompileEventHandlers)
 {
-  Link::ResetLinkState(false);
-
   nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                                  aBindingParent,
                                                  aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDocument) {
-    RegAccessKey();
+    RegUnRegAccessKey(PR_TRUE);
   }
 
   // Prefetch links
@@ -221,14 +220,11 @@ nsHTMLAnchorElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 nsHTMLAnchorElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  // If this link is ever reinserted into a document, it might
-  // be under a different xml:base, so forget the cached state now.
-  Link::ResetLinkState(false);
-
   if (IsInDoc()) {
-    UnregAccessKey();
+    RegUnRegAccessKey(PR_FALSE);
+    ResetLinkCacheState();
   }
-
+    
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 }
 
@@ -245,17 +241,16 @@ nsHTMLAnchorElement::Focus()
 }
 
 PRBool
-nsHTMLAnchorElement::IsHTMLFocusable(PRBool aWithMouse,
-                                     PRBool *aIsFocusable, PRInt32 *aTabIndex)
+nsHTMLAnchorElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
-  if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
+  if (nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex)) {
     return PR_TRUE;
   }
 
   // cannot focus links if there is no link handler
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
-    nsIPresShell* presShell = doc->GetShell();
+    nsIPresShell* presShell = doc->GetPrimaryShell();
     if (presShell) {
       nsPresContext* presContext = presShell->GetPresContext();
       if (presContext && !presContext->GetLinkHandler()) {
@@ -346,12 +341,12 @@ nsHTMLAnchorElement::SetTarget(const nsAString& aValue)
   NS_IMETHODIMP                                              \
   nsHTMLAnchorElement::Get##_part(nsAString& a##_part)       \
   {                                                          \
-    return Link::Get##_part(a##_part);                       \
+    return Get##_part##FromHrefURI(a##_part);                \
   }                                                          \
   NS_IMETHODIMP                                              \
   nsHTMLAnchorElement::Set##_part(const nsAString& a##_part) \
   {                                                          \
-    return Link::Set##_part(a##_part);                       \
+    return Set##_part##InHrefURI(a##_part);                  \
   }
 
 IMPL_URI_PART(Protocol)
@@ -423,6 +418,12 @@ nsHTMLAnchorElement::GetLinkState() const
   return Link::GetLinkState();
 }
 
+void
+nsHTMLAnchorElement::SetLinkState(nsLinkState aState)
+{
+  Link::SetLinkState(aState);
+}
+
 already_AddRefed<nsIURI>
 nsHTMLAnchorElement::GetHrefURI() const
 {
@@ -434,43 +435,24 @@ nsHTMLAnchorElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                              nsIAtom* aPrefix, const nsAString& aValue,
                              PRBool aNotify)
 {
-  if (aName == nsGkAtoms::accesskey && kNameSpaceID_None == aNameSpaceID) {
-    UnregAccessKey();
+  if (aName == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
+    nsAutoString val;
+    GetHref(val);
+    if (!val.Equals(aValue)) {
+      ResetLinkCacheState();
+    }
   }
 
-  bool reset = false;
-  if (aName == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    // If we do not have a cached URI, we have some value here so we must reset
-    // our link state after calling the parent.
-    if (!Link::HasCachedURI()) {
-      reset = true;
-    }
-    // However, if we have a cached URI, we'll want to see if the value changed.
-    else {
-      nsAutoString val;
-      GetHref(val);
-      if (!val.Equals(aValue)) {
-        reset = true;
-      }
-    }
+  if (aName == nsGkAtoms::accesskey && kNameSpaceID_None == aNameSpaceID) {
+    RegUnRegAccessKey(PR_FALSE);
   }
 
   nsresult rv = nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix,
                                               aValue, aNotify);
 
-  // The ordering of the parent class's SetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not set until SetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
-  if (reset) {
-    Link::ResetLinkState(!!aNotify);
-  }
-
   if (aName == nsGkAtoms::accesskey && kNameSpaceID_None == aNameSpaceID &&
       !aValue.IsEmpty()) {
-    SetFlags(NODE_HAS_ACCESSKEY);
-    RegAccessKey();
+    RegUnRegAccessKey(PR_TRUE);
   }
 
   return rv;
@@ -480,40 +462,53 @@ nsresult
 nsHTMLAnchorElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                PRBool aNotify)
 {
+  if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
+    ResetLinkCacheState();
+  }
+
   if (aAttribute == nsGkAtoms::accesskey &&
       kNameSpaceID_None == aNameSpaceID) {
-    // Have to unregister before clearing flag. See UnregAccessKey
-    UnregAccessKey();
-    UnsetFlags(NODE_HAS_ACCESSKEY);
+    RegUnRegAccessKey(PR_FALSE);
   }
 
-  nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
-                                                aNotify);
-
-  // The ordering of the parent class's UnsetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not unset until UnsetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
-  if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState(!!aNotify);
-  }
-
-  return rv;
+  return nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
 
 PRBool
 nsHTMLAnchorElement::ParseAttribute(PRInt32 aNamespaceID,
-                                    nsIAtom* aAttribute,
-                                    const nsAString& aValue,
-                                    nsAttrValue& aResult)
+                                nsIAtom* aAttribute,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult)
 {
+  if (aNamespaceID == kNameSpaceID_None && aAttribute == nsGkAtoms::href) {
+    return aResult.ParseLazyURIValue(aValue);
+  }
+
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                               aResult);
 }
 
-PRInt32
-nsHTMLAnchorElement::IntrinsicState() const
+void
+nsHTMLAnchorElement::DropCachedHref()
 {
-  return Link::LinkState() | nsGenericHTMLElement::IntrinsicState();
+  nsAttrValue* attr =
+    const_cast<nsAttrValue*>(mAttrsAndChildren.GetAttr(nsGkAtoms::href));
+
+  if (!attr || attr->Type() != nsAttrValue::eLazyURIValue)
+    return;
+
+  attr->DropCachedURI();
+}
+
+void
+nsHTMLAnchorElement::ResetLinkCacheState()
+{
+  Link::ResetLinkState();
+
+  // Clear our cached URI _after_ we ForgetLink(), since ForgetLink()
+  // wants that URI.
+  const nsAttrValue* attr = mAttrsAndChildren.GetAttr(nsGkAtoms::href);
+  if (attr && attr->Type() == nsAttrValue::eLazyURIValue) {
+    const_cast<nsAttrValue*>(attr)->DropCachedURI();
+  }
 }

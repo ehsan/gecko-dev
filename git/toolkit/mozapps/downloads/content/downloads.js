@@ -63,9 +63,6 @@ Cu.import("resource://gre/modules/PluralForm.jsm");
 const nsIDM = Ci.nsIDownloadManager;
 
 let gDownloadManager = Cc["@mozilla.org/download-manager;1"].getService(nsIDM);
-let gDownloadManagerUI = Cc["@mozilla.org/download-manager-ui;1"].
-                         getService(Ci.nsIDownloadManagerUI);
-
 let gDownloadListener = null;
 let gDownloadsView = null;
 let gSearchBox = null;
@@ -170,8 +167,6 @@ function downloadCompleted(aDownload)
 
     if (gDownloadManager.activeDownloadCount == 0)
       document.title = document.documentElement.getAttribute("statictitle");
-
-    gDownloadManagerUI.getAttention();
   }
   catch (e) { }
 }
@@ -480,7 +475,6 @@ function Startup()
             getService(Ci.nsIObserverService);
   obs.addObserver(gDownloadObserver, "download-manager-remove-download", false);
   obs.addObserver(gDownloadObserver, "private-browsing", false);
-  obs.addObserver(gDownloadObserver, "browser-lastwindow-close-granted", false);
 
   // Clear the search box and move focus to the list on escape from the box
   gSearchBox.addEventListener("keypress", function(e) {
@@ -490,14 +484,6 @@ function Startup()
       e.preventDefault();
     }
   }, false);
-
-#ifdef XP_WIN
-#ifndef WINCE
-  let tempScope = {};
-  Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm", tempScope);
-  tempScope.DownloadTaskbarProgress.onDownloadWindowLoad(window);
-#endif
-#endif
 }
 
 function Shutdown()
@@ -508,7 +494,6 @@ function Shutdown()
             getService(Ci.nsIObserverService);
   obs.removeObserver(gDownloadObserver, "private-browsing");
   obs.removeObserver(gDownloadObserver, "download-manager-remove-download");
-  obs.removeObserver(gDownloadObserver, "browser-lastwindow-close-granted");
 
   clearTimeout(gBuilder);
   gStmt.reset();
@@ -551,13 +536,6 @@ let gDownloadObserver = {
             buildDownloadList(true);
           }, 0);
         }
-        break;
-      case "browser-lastwindow-close-granted":
-#ifndef XP_MACOSX
-        if (gDownloadManager.activeDownloadCount == 0) {
-          setTimeout(gCloseDownloadManager, 0);
-        }
-#endif
         break;
     }
   }
@@ -704,24 +682,12 @@ function buildContextMenu(aEvent)
 
   return false;
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Drag and Drop
+
 var gDownloadDNDObserver =
 {
-  onDragStart: function (aEvent)
-  {
-    if (!gDownloadsView.selectedItem)
-      return;
-    var dl = gDownloadsView.selectedItem;
-    var f = getLocalFileFromNativePathOrUrl(dl.getAttribute("file"));
-    if (!f.exists())
-      return;
-
-    var dt = aEvent.dataTransfer;
-    dt.mozSetDataAt("application/x-moz-file", f, 0);
-    dt.effectAllowed = "copyMove";
-  },
-
   onDragOver: function (aEvent)
   {
     var types = aEvent.dataTransfer.types;

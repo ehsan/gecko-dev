@@ -114,7 +114,7 @@ function test() {
 
   const testURL = "chrome://mochikit/content/browser/" +
   "browser/components/sessionstore/test/browser/browser_248970_b_sample.html";
-  const testURL2 = "http://mochi.test:8888/browser/" +
+  const testURL2 = "http://localhost:8888/browser/" +
   "browser/components/sessionstore/test/browser/browser_248970_b_sample.html";
 
   // get closed tab count
@@ -130,7 +130,7 @@ function test() {
 
   // public session, add new tab: (A)
   let tab_A = gBrowser.addTab(testURL);
-  ss.setTabState(tab_A, JSON.stringify(state));
+  ss.setTabState(tab_A, state.toSource());
   tab_A.linkedBrowser.addEventListener("load", function(aEvent) {
     this.removeEventListener("load", arguments.callee, true);
 
@@ -167,7 +167,7 @@ function test() {
 
       // private browsing session, new tab: (B)
       let tab_B = gBrowser.addTab(testURL2);
-      ss.setTabState(tab_B, JSON.stringify(state1));
+      ss.setTabState(tab_B, state1.toSource());
       tab_B.linkedBrowser.addEventListener("load", function(aEvent) {
         this.removeEventListener("load", arguments.callee, true);
 

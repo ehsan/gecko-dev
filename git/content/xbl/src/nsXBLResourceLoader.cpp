@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsCSSStyleSheet.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
@@ -48,7 +48,7 @@
 #include "nsIDocumentObserver.h"
 #include "imgILoader.h"
 #include "imgIRequest.h"
-#include "nsCSSLoader.h"
+#include "nsICSSLoader.h"
 #include "nsIXBLDocumentInfo.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
@@ -112,7 +112,7 @@ nsXBLResourceLoader::LoadResources(PRBool* aResult)
   nsCOMPtr<nsIDocument> doc;
   mBinding->XBLDocumentInfo()->GetDocument(getter_AddRefs(doc));
 
-  mozilla::css::Loader* cssLoader = doc->CSSLoader();
+  nsICSSLoader* cssLoader = doc->CSSLoader();
   nsIURI *docURL = doc->GetDocumentURI();
   nsIPrincipal* docPrincipal = doc->NodePrincipal();
 
@@ -153,7 +153,7 @@ nsXBLResourceLoader::LoadResources(PRBool* aResult)
           CheckLoadURIWithPrincipal(docPrincipal, url,
                                     nsIScriptSecurityManager::ALLOW_CHROME);
         if (NS_SUCCEEDED(rv)) {
-          nsRefPtr<nsCSSStyleSheet> sheet;
+          nsCOMPtr<nsICSSStyleSheet> sheet;
           rv = cssLoader->LoadSheetSync(url, getter_AddRefs(sheet));
           NS_ASSERTION(NS_SUCCEEDED(rv), "Load failed!!!");
           if (NS_SUCCEEDED(rv))
@@ -182,7 +182,7 @@ nsXBLResourceLoader::LoadResources(PRBool* aResult)
 
 // nsICSSLoaderObserver
 NS_IMETHODIMP
-nsXBLResourceLoader::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
+nsXBLResourceLoader::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
                                       PRBool aWasAlternate,
                                       nsresult aStatus)
 {
@@ -191,7 +191,7 @@ nsXBLResourceLoader::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
     return NS_OK;
   }
    
-  mResources->mStyleSheetList.AppendElement(aSheet);
+  mResources->mStyleSheetList.AppendObject(aSheet);
 
   if (!mInLoadResourcesFunc)
     mPendingSheets--;
@@ -263,9 +263,9 @@ nsXBLResourceLoader::NotifyBoundElements()
         // has a primary frame and whether it's in the undisplayed map
         // before sending a ContentInserted notification, or bad things
         // will happen.
-        nsIPresShell *shell = doc->GetShell();
+        nsIPresShell *shell = doc->GetPrimaryShell();
         if (shell) {
-          nsIFrame* childFrame = content->GetPrimaryFrame();
+          nsIFrame* childFrame = shell->GetPrimaryFrameFor(content);
           if (!childFrame) {
             // Check to see if it's in the undisplayed content map.
             nsStyleContext* sc =

@@ -68,7 +68,10 @@
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_GETENTRYPOINTS) (NPPluginFuncs* pCallbacks);
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGININIT) (const NPNetscapeFuncs* pCallbacks);
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINUNIXINIT) (const NPNetscapeFuncs* pCallbacks, NPPluginFuncs* fCallbacks);
-typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) ();
+typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) (void);
+#ifdef XP_MACOSX
+typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_MAIN) (NPNetscapeFuncs* nCallbacks, NPPluginFuncs* pCallbacks, NPP_ShutdownProcPtr* unloadProcPtr);
+#endif
 
 class nsNPAPIPlugin : public nsIPlugin
 {
@@ -76,7 +79,8 @@ private:
   typedef mozilla::PluginLibrary PluginLibrary;
 
 public:
-  nsNPAPIPlugin();
+  nsNPAPIPlugin(NPPluginFuncs* callbacks,
+                PluginLibrary* aLibrary /*assume ownership*/);
   virtual ~nsNPAPIPlugin();
 
   NS_DECL_ISUPPORTS
@@ -86,28 +90,32 @@ public:
   // will prevent this from calling NP_Initialize.
   static nsresult CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
                                nsIPlugin** aResult);
-
-#if defined(XP_MACOSX) && !defined(__LP64__)
+#ifdef XP_MACOSX
   void SetPluginRefNum(short aRefNum);
 #endif
 
 #ifdef MOZ_IPC
-  // The IPC mechanism notifies the nsNPAPIPlugin if the plugin
-  // crashes and is no longer usable. pluginDumpID/browserDumpID are
-  // the IDs of respective minidumps that were written, or empty if no
-  // minidump was written.
-  void PluginCrashed(const nsAString& pluginDumpID,
-                     const nsAString& browserDumpID);
+  // The IPC mechanism notifies the nsNPAPIPlugin if the plugin crashes and is
+  // no longer usable.
+  void PluginCrashed();
 #endif
 
 protected:
+  // Ensures that the static CALLBACKS is properly initialized
+  static void CheckClassInitialized(void);
 
-#if defined(XP_MACOSX) && !defined(__LP64__)
-  short mPluginRefNum;
+#ifdef XP_MACOSX
+  short fPluginRefNum;
 #endif
 
-  NPPluginFuncs mPluginFuncs;
-  PluginLibrary* mLibrary;
+  // The plugin-side callbacks that the browser calls. One set of
+  // plugin callbacks for each plugin.
+  NPPluginFuncs fCallbacks;
+  PluginLibrary* fLibrary;
+  PRLibrary* fPRLibrary;
+
+  // Browser-side callbacks that the plugin calls.
+  static NPNetscapeFuncs CALLBACKS;
 };
 
 namespace mozilla {
@@ -292,7 +300,7 @@ _memalloc (uint32_t size);
 
 // Deprecated entry points for the old Java plugin.
 void* NP_CALLBACK /* OJI type: JRIEnv* */
-_getJavaEnv();
+_getJavaEnv(void);
 
 void* NP_CALLBACK /* OJI type: jref */
 _getJavaPeer(NPP npp);

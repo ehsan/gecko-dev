@@ -44,20 +44,12 @@
 class nsSMILNullType : public nsISMILType
 {
 public:
-  // Singleton for nsSMILValue objects to hold onto.
-  static nsSMILNullType sSingleton;
-
-protected:
-  // nsISMILType Methods
-  // -------------------
-  virtual void Init(nsSMILValue& aValue) const {}
+  virtual nsresult Init(nsSMILValue& aValue) const { return NS_OK; }
   virtual void Destroy(nsSMILValue& aValue) const {}
   virtual nsresult Assign(nsSMILValue& aDest, const nsSMILValue& aSrc) const;
 
   // The remaining methods should never be called, so although they're very
   // simple they don't need to be inline.
-  virtual PRBool   IsEqual(const nsSMILValue& aLeft,
-                           const nsSMILValue& aRight) const;
   virtual nsresult Add(nsSMILValue& aDest, const nsSMILValue& aValueToAdd,
                        PRUint32 aCount) const;
   virtual nsresult ComputeDistance(const nsSMILValue& aFrom,
@@ -68,11 +60,7 @@ protected:
                                double aUnitDistance,
                                nsSMILValue& aResult) const;
 
-private:
-  // Private constructor & destructor: prevent instances beyond my singleton,
-  // and prevent others from deleting my singleton.
-  nsSMILNullType()  {}
-  ~nsSMILNullType() {}
+  static nsSMILNullType sSingleton;
 };
 
 #endif // NS_SMILNULLTYPE_H_

@@ -12,13 +12,13 @@ function startTest() {
     return false;
   ok(!v.seeking, "seeking should default to false");
   try {
-    v.seeking = true;
-    readonly = v.seeking === false;
+    v.seeking = 1;
+    readonly = false;
   }
   catch(e) {
-    readonly = "threw exception: " + e;
+    readonly = true;
   }
-  is(readonly, true, "seeking should be readonly");
+  ok(readonly, "seeking should be readonly");
 
   v.play();
   v.currentTime=seekTime;

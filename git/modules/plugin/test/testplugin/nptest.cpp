@@ -45,12 +45,9 @@
 
 #ifdef XP_WIN
 #include <process.h>
-#include <float.h>
-#include <windows.h>
 #define getpid _getpid
 #else
 #include <unistd.h>
-#include <pthread.h>
 #endif
 
  using namespace std;
@@ -60,48 +57,6 @@
 #define PLUGIN_VERSION     "1.0.0.0"
 
 #define ARRAY_LENGTH(a) (sizeof(a)/sizeof(a[0]))
-#define STATIC_ASSERT(condition)                                \
-    extern void np_static_assert(int arg[(condition) ? 1 : -1])
-
-static char sPluginName[] = PLUGIN_NAME; 
-static char sPluginDescription[] = PLUGIN_DESCRIPTION;
-static char sPluginVersion[] = PLUGIN_VERSION;
-
-//
-// Intentional crash
-//
-
-int gCrashCount = 0;
-
-void
-NoteIntentionalCrash()
-{
-  char* bloatLog = getenv("XPCOM_MEM_BLOAT_LOG");
-  if (bloatLog) {
-    char* logExt = strstr(bloatLog, ".log");
-    if (logExt) {
-      bloatLog[strlen(bloatLog) - strlen(logExt)] = '\0';
-    }
-    ostringstream bloatName;
-    bloatName << bloatLog << "_plugin_pid" << getpid();
-    if (logExt) {
-      bloatName << ".log";
-    }
-    FILE* processfd = fopen(bloatName.str().c_str(), "a");
-    fprintf(processfd, "==> process %d will purposefully crash\n", getpid());
-    fclose(processfd);
-  }
-}
-
-static void
-IntentionalCrash()
-{
-  NoteIntentionalCrash();
-
-  int *pi = NULL;
-  *pi = 55; // Crash dereferencing null pointer
-  ++gCrashCount;
-}
 
 //
 // static data
@@ -113,8 +68,6 @@ static NPClass sNPClass;
 static void
 testplugin_URLNotify(NPP instance, const char* url, NPReason reason,
                      void* notifyData);
-void
-asyncCallback(void* cookie);
 
 //
 // identifiers
@@ -138,10 +91,10 @@ static bool getClipRegionRectEdge(NPObject* npobj, const NPVariant* args, uint32
 static bool startWatchingInstanceCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getInstanceCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool stopWatchingInstanceCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
+static bool unscheduleAllTimers(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getLastMouseX(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getLastMouseY(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getPaintCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getWidthAtLastPaint(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool doInternalConsistencyCheck(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool setColor(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
@@ -150,27 +103,6 @@ static bool convertPointX(NPObject* npobj, const NPVariant* args, uint32_t argCo
 static bool convertPointY(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool streamTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool crashPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool crashOnDestroy(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getObjectValue(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool checkObjectValue(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool enableFPExceptions(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool setCookie(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getCookie(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getAuthInfo(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool asyncCallbackTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool checkGCRace(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool hangPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool callOnDestroy(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool reinitWidget(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool crashPluginInNestedLoop(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool propertyAndMethod(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getTopLevelWindowActivationState(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getTopLevelWindowActivationEventCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getFocusState(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getFocusEventCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getEventModel(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getReflector(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "npnEvaluateTest",
@@ -188,10 +120,10 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "startWatchingInstanceCount",
   "getInstanceCount",
   "stopWatchingInstanceCount",
+  "unscheduleAllTimers",
   "getLastMouseX",
   "getLastMouseY",
   "getPaintCount",
-  "getWidthAtLastPaint",
   "getError",
   "doInternalConsistencyCheck",
   "setColor",
@@ -200,30 +132,9 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "convertPointY",
   "streamTest",
   "crash",
-  "crashOnDestroy",
-  "getObjectValue",
-  "checkObjectValue",
-  "enableFPExceptions",
-  "setCookie",
-  "getCookie",
-  "getAuthInfo",
-  "asyncCallbackTest",
-  "checkGCRace",
-  "hang",
-  "getClipboardText",
-  "callOnDestroy",
-  "reinitWidget",
-  "crashInNestedLoop",
-  "propertyAndMethod",
-  "getTopLevelWindowActivationState",
-  "getTopLevelWindowActivationEventCount",
-  "getFocusState",
-  "getFocusEventCount",
-  "getEventModel",
-  "getReflector"
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
-static const ScriptableFunction sPluginMethodFunctions[] = {
+static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMethodIdentifierNames)] = {
   npnEvaluateTest,
   npnInvokeTest,
   npnInvokeDefaultTest,
@@ -239,10 +150,10 @@ static const ScriptableFunction sPluginMethodFunctions[] = {
   startWatchingInstanceCount,
   getInstanceCount,
   stopWatchingInstanceCount,
+  unscheduleAllTimers,
   getLastMouseX,
   getLastMouseY,
   getPaintCount,
-  getWidthAtLastPaint,
   getError,
   doInternalConsistencyCheck,
   setColor,
@@ -251,37 +162,7 @@ static const ScriptableFunction sPluginMethodFunctions[] = {
   convertPointY,
   streamTest,
   crashPlugin,
-  crashOnDestroy,
-  getObjectValue,
-  checkObjectValue,
-  enableFPExceptions,
-  setCookie,
-  getCookie,
-  getAuthInfo,
-  asyncCallbackTest,
-  checkGCRace,
-  hangPlugin,
-  getClipboardText,
-  callOnDestroy,
-  reinitWidget,
-  crashPluginInNestedLoop,
-  propertyAndMethod,
-  getTopLevelWindowActivationState,
-  getTopLevelWindowActivationEventCount,
-  getFocusState,
-  getFocusEventCount,
-  getEventModel,
-  getReflector
 };
-
-STATIC_ASSERT(ARRAY_LENGTH(sPluginMethodIdentifierNames) ==
-              ARRAY_LENGTH(sPluginMethodFunctions));
-
-static const NPUTF8* sPluginPropertyIdentifierNames[] = {
-  "propertyAndMethod"
-};
-static NPIdentifier sPluginPropertyIdentifiers[ARRAY_LENGTH(sPluginPropertyIdentifierNames)];
-static NPVariant sPluginPropertyValues[ARRAY_LENGTH(sPluginPropertyIdentifierNames)];
 
 struct URLNotifyData
 {
@@ -301,30 +182,6 @@ static URLNotifyData kNotifyData = {
 static const char* SUCCESS_STRING = "pass";
 
 static bool sIdentifiersInitialized = false;
-
-static uint32_t timerEventCount = 0;
-
-struct timerEvent {
-  int32_t timerIdReceive;
-  int32_t timerIdSchedule;
-  uint32_t timerInterval;
-  bool timerRepeat;
-  int32_t timerIdUnschedule;
-};
-static timerEvent timerEvents[] = {
-  {-1, 0, 200, false, -1},
-  {0, 0, 400, false, -1},
-  {0, 0, 200, true, -1},
-  {0, 1, 100, true, -1},
-  {1, -1, 0, false, -1},
-  {0, -1, 0, false, -1},
-  {1, -1, 0, false, -1},
-  {1, -1, 0, false, -1},
-  {0, -1, 0, false, 0},
-  {1, 2, 600, false, 1},
-  {2, -1, 0, false, 2},
-};
-static uint32_t totalTimerEvents = sizeof(timerEvents) / sizeof(timerEvent);
 
 /**
  * Incremented for every startWatchingInstanceCount.
@@ -346,15 +203,7 @@ static void initializeIdentifiers()
   if (!sIdentifiersInitialized) {
     NPN_GetStringIdentifiers(sPluginMethodIdentifierNames,
         ARRAY_LENGTH(sPluginMethodIdentifierNames), sPluginMethodIdentifiers);
-    NPN_GetStringIdentifiers(sPluginPropertyIdentifierNames,
-        ARRAY_LENGTH(sPluginPropertyIdentifierNames), sPluginPropertyIdentifiers);
-
     sIdentifiersInitialized = true;    
-
-    // Check whether NULL is handled in NPN_GetStringIdentifiers
-    NPIdentifier IDList[2];
-    static char const *const kIDNames[2] = { NULL, "setCookie" };
-    NPN_GetStringIdentifiers(const_cast<const NPUTF8**>(kIDNames), 2, IDList);
   }
 }
 
@@ -362,9 +211,6 @@ static void clearIdentifiers()
 {
   memset(sPluginMethodIdentifiers, 0,
       ARRAY_LENGTH(sPluginMethodIdentifiers) * sizeof(NPIdentifier));
-  memset(sPluginPropertyIdentifiers, 0,
-      ARRAY_LENGTH(sPluginPropertyIdentifiers) * sizeof(NPIdentifier));
-
   sIdentifiersInitialized = false;
 }
 
@@ -480,7 +326,6 @@ getFuncFromString(const char* funcname)
       { FUNCTION_NPP_WRITEREADY, "npp_writeready" },
       { FUNCTION_NPP_WRITE, "npp_write" },
       { FUNCTION_NPP_DESTROYSTREAM, "npp_destroystream" },
-      { FUNCTION_NPP_WRITE_RPC, "npp_write_rpc" },
       { FUNCTION_NONE, NULL }
     };
   int32_t i = 0;
@@ -489,25 +334,6 @@ getFuncFromString(const char* funcname)
     i++;
   }
   return FUNCTION_NONE;
-}
-
-static void
-DuplicateNPVariant(NPVariant& aDest, const NPVariant& aSrc)
-{
-  if (NPVARIANT_IS_STRING(aSrc)) {
-    NPString src = NPVARIANT_TO_STRING(aSrc);
-    char* buf = new char[src.UTF8Length];
-    strncpy(buf, src.UTF8Characters, src.UTF8Length);
-    STRINGN_TO_NPVARIANT(buf, src.UTF8Length, aDest);
-  }
-  else if (NPVARIANT_IS_OBJECT(aSrc)) {
-    NPObject* obj =
-      NPN_RetainObject(NPVARIANT_TO_OBJECT(aSrc));
-    OBJECT_TO_NPVARIANT(obj, aDest);
-  }
-  else {
-    aDest = aSrc;
-  }
 }
 
 //
@@ -535,11 +361,9 @@ bool scriptableConstruct(NPObject* npobj, const NPVariant* args, uint32_t argCou
 NP_EXPORT(char*)
 NP_GetPluginVersion()
 {
-  return sPluginVersion;
+  return PLUGIN_VERSION;
 }
 #endif
-
-static char sMimeDescription[] = "application/x-test:tst:Test mimetype";
 
 #if defined(XP_UNIX)
 NP_EXPORT(char*) NP_GetMIMEDescription()
@@ -547,7 +371,7 @@ NP_EXPORT(char*) NP_GetMIMEDescription()
 char* NP_GetMIMEDescription()
 #endif
 {
-  return sMimeDescription;
+  return "application/x-test:tst:Test mimetype";
 }
 
 #ifdef XP_UNIX
@@ -555,10 +379,10 @@ NP_EXPORT(NPError)
 NP_GetValue(void* future, NPPVariable aVariable, void* aValue) {
   switch (aVariable) {
     case NPPVpluginNameString:
-      *((char**)aValue) = sPluginName;
+      *((char**)aValue) = PLUGIN_NAME;
       break;
     case NPPVpluginDescriptionString:
-      *((char**)aValue) = sPluginDescription;
+      *((char**)aValue) = PLUGIN_DESCRIPTION;
       break;
     default:
       return NPERR_INVALID_PARAM;
@@ -598,10 +422,6 @@ NP_EXPORT(NPError) NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs)
   sBrowserFuncs = bFuncs;
 
   initializeIdentifiers();
-
-  for (unsigned int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
-    VOID_TO_NPVARIANT(sPluginPropertyValues[i]);
-  }
 
   memset(&sNPClass, 0, sizeof(NPClass));
   sNPClass.structVersion =  NP_CLASS_STRUCT_VERSION;
@@ -645,23 +465,12 @@ NPError OSCALL NP_Shutdown()
 {
   clearIdentifiers();
 
-  for (unsigned int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
-    NPN_ReleaseVariantValue(&sPluginPropertyValues[i]);
-  }
-
   return NPERR_NO_ERROR;
 }
 
 NPError
 NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* argn[], char* argv[], NPSavedData* saved)
 {
-  // Make sure our pdata field is NULL at this point. If it isn't, that
-  // probably means the browser gave us uninitialized memory.
-  if (instance->pdata) {
-    printf("NPP_New called with non-NULL NPP->pdata pointer!\n");
-    return NPERR_GENERIC_ERROR;
-  }
-
   // Make sure we can render this plugin
   NPBool browserSupportsWindowless = false;
   NPN_GetValue(instance, NPNVSupportsWindowless, &browserSupportsWindowless);
@@ -679,7 +488,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
   instanceData->testFunction = FUNCTION_NONE;
   instanceData->functionToFail = FUNCTION_NONE;
   instanceData->failureCode = 0;
-  instanceData->callOnDestroy = NULL;
   instanceData->streamChunkSize = 1024;
   instanceData->streamBuf = NULL;
   instanceData->streamBufSize = 0;
@@ -692,13 +500,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
   instanceData->writeCount = 0;
   instanceData->writeReadyCount = 0;
   memset(&instanceData->window, 0, sizeof(instanceData->window));
-  instanceData->crashOnDestroy = false;
-  instanceData->cleanupWidget = true; // only used by nptest_gtk
-  instanceData->topLevelWindowActivationState = ACTIVATION_STATE_UNKNOWN;
-  instanceData->topLevelWindowActivationEventCount = 0;
-  instanceData->focusState = ACTIVATION_STATE_UNKNOWN;
-  instanceData->focusEventCount = 0;
-  instanceData->eventModel = 0;
   instance->pdata = instanceData;
 
   TestNPObject* scriptableObject = (TestNPObject*)NPN_CreateObject(instance, &sNPClass);
@@ -713,13 +514,7 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
   instanceData->scriptableObject = scriptableObject;
 
   instanceData->instanceCountWatchGeneration = sCurrentInstanceCountWatchGeneration;
-
-  if (NP_FULL == mode) {
-    instanceData->streamMode = NP_SEEK;
-    instanceData->frame = "testframe";
-    addRange(instanceData, "100,100");
-  }
-
+  
   bool requestWindow = false;
   // handle extra params
   for (int i = 0; i < argc; i++) {
@@ -800,17 +595,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
         strcmp(argv[i], "true") == 0) {
       instanceData->npnNewStream = true;
     }
-    if (strcmp(argn[i], "newcrash") == 0) {
-      IntentionalCrash();
-    }
-    // "cleanupwidget" is only used with nptest_gtk, defaulting to true.  It
-    // indicates whether the plugin should destroy its window in response to
-    // NPP_Destroy (or let the platform destroy the widget when the parent
-    // window gets destroyed).
-    if (strcmp(argn[i], "cleanupwidget") == 0 &&
-        strcmp(argv[i], "false") == 0) {
-      instanceData->cleanupWidget = false;
-    }
   }
 
   if (!browserSupportsWindowless || !pluginSupportsWindowlessMode()) {
@@ -833,7 +617,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
 
   instanceData->lastReportedPrivateModeState = false;
   instanceData->lastMouseX = instanceData->lastMouseY = -1;
-  instanceData->widthAtLastPaint = -1;
   instanceData->paintCount = 0;
 
   // do platform-specific initialization
@@ -890,16 +673,6 @@ NPP_Destroy(NPP instance, NPSavedData** save)
 {
   printf("NPP_Destroy\n");
   InstanceData* instanceData = (InstanceData*)(instance->pdata);
-
-  if (instanceData->crashOnDestroy)
-    IntentionalCrash();
-
-  if (instanceData->callOnDestroy) {
-    NPVariant result;
-    NPN_InvokeDefault(instance, instanceData->callOnDestroy, NULL, 0, &result);
-    NPN_ReleaseVariantValue(&result);
-    NPN_ReleaseObject(instanceData->callOnDestroy);
-  }
 
   if (instanceData->streamBuf) {
     free(instanceData->streamBuf);
@@ -1071,16 +844,6 @@ NPP_Write(NPP instance, NPStream* stream, int32_t offset, int32_t len, void* buf
   //  instanceData->err << "NPP_Write called even though NPP_WriteReady " <<
   //      "returned 0";
   //}
-
-  if (instanceData->functionToFail == FUNCTION_NPP_WRITE_RPC) {
-    // Make an RPC call and pretend to consume the data
-    NPObject* windowObject = NULL;
-    NPN_GetValue(instance, NPNVWindowNPObject, &windowObject);
-    if (windowObject)
-      NPN_ReleaseObject(windowObject);
-
-    return len;
-  }
   
   if (instanceData->functionToFail == FUNCTION_NPP_NEWSTREAM) {
     instanceData->err << "NPP_Write called";
@@ -1139,6 +902,9 @@ NPP_Write(NPP instance, NPStream* stream, int32_t offset, int32_t len, void* buf
       NPError err = NPN_DestroyStream(instance, stream, NPRES_DONE);
       if (err != NPERR_NO_ERROR) {
         instanceData->err << "Error: NPN_DestroyStream returned " << err;
+      }
+      if (instanceData->frame.length() > 0) {
+        sendBufferToFrame(instance);
       }
     }
   }
@@ -1300,12 +1066,6 @@ NPN_GetStringIdentifiers(const NPUTF8 **names, int32_t nameCount, NPIdentifier *
   return sBrowserFuncs->getstringidentifiers(names, nameCount, identifiers);
 }
 
-bool
-NPN_IdentifierIsString(NPIdentifier identifier)
-{
-  return sBrowserFuncs->identifierisstring(identifier);
-}
-
 NPUTF8*
 NPN_UTF8FromIdentifier(NPIdentifier identifier)
 {
@@ -1382,12 +1142,6 @@ void*
 NPN_MemAlloc(uint32_t size)
 {
   return sBrowserFuncs->memalloc(size);
-}
-
-char*
-NPN_StrDup(const char* str)
-{
-  return strcpy((char*)sBrowserFuncs->memalloc(strlen(str) + 1), str);
 }
 
 void
@@ -1509,38 +1263,6 @@ NPN_ConvertPoint(NPP instance, double sourceX, double sourceY, NPCoordinateSpace
   return sBrowserFuncs->convertpoint(instance, sourceX, sourceY, sourceSpace, destX, destY, destSpace);
 }
 
-NPError
-NPN_SetValueForURL(NPP instance, NPNURLVariable variable, const char *url, const char *value, uint32_t len)
-{
-  return sBrowserFuncs->setvalueforurl(instance, variable, url, value, len);
-}
-
-NPError
-NPN_GetValueForURL(NPP instance, NPNURLVariable variable, const char *url, char **value, uint32_t *len)
-{
-  return sBrowserFuncs->getvalueforurl(instance, variable, url, value, len);
-}
-
-NPError
-NPN_GetAuthenticationInfo(NPP instance,
-                          const char *protocol,
-                          const char *host, int32_t port,
-                          const char *scheme,
-                          const char *realm,
-                          char **username, uint32_t *ulen,
-                          char **password,
-                          uint32_t *plen)
-{
-  return sBrowserFuncs->getauthenticationinfo(instance, protocol, host, port, scheme, realm,
-      username, ulen, password, plen);
-}
-
-void
-NPN_PluginThreadAsyncCall(NPP plugin, void (*func)(void*), void* userdata)
-{
-  return sBrowserFuncs->pluginthreadasynccall(plugin, func, userdata);
-}
-
 //
 // npruntime object functions
 //
@@ -1643,69 +1365,38 @@ scriptableInvokeDefault(NPObject* npobj, const NPVariant* args, uint32_t argCoun
         value << ";other";
     }
   }
-  STRINGZ_TO_NPVARIANT(NPN_StrDup(value.str().c_str()), *result);
+  STRINGZ_TO_NPVARIANT(strdup(value.str().c_str()), *result);
   return true;
 }
 
 bool
 scriptableHasProperty(NPObject* npobj, NPIdentifier name)
 {
-  for (int i = 0; i < int(ARRAY_LENGTH(sPluginPropertyIdentifiers)); i++) {
-    if (name == sPluginPropertyIdentifiers[i])
-      return true;
-  }
   return false;
 }
 
 bool
 scriptableGetProperty(NPObject* npobj, NPIdentifier name, NPVariant* result)
 {
-  for (int i = 0; i < int(ARRAY_LENGTH(sPluginPropertyIdentifiers)); i++) {
-    if (name == sPluginPropertyIdentifiers[i]) {
-      DuplicateNPVariant(*result, sPluginPropertyValues[i]);
-      return true;
-    }
-  }
   return false;
 }
 
 bool
 scriptableSetProperty(NPObject* npobj, NPIdentifier name, const NPVariant* value)
 {
-  for (int i = 0; i < int(ARRAY_LENGTH(sPluginPropertyIdentifiers)); i++) {
-    if (name == sPluginPropertyIdentifiers[i]) {
-      NPN_ReleaseVariantValue(&sPluginPropertyValues[i]);
-      DuplicateNPVariant(sPluginPropertyValues[i], *value);
-      return true;
-    }
-  }
   return false;
 }
 
 bool
 scriptableRemoveProperty(NPObject* npobj, NPIdentifier name)
 {
-  for (int i = 0; i < int(ARRAY_LENGTH(sPluginPropertyIdentifiers)); i++) {
-    if (name == sPluginPropertyIdentifiers[i]) {
-      NPN_ReleaseVariantValue(&sPluginPropertyValues[i]);
-      return true;
-    }
-  }
   return false;
 }
 
 bool
 scriptableEnumerate(NPObject* npobj, NPIdentifier** identifier, uint32_t* count)
 {
-  const int bufsize = sizeof(NPIdentifier) * ARRAY_LENGTH(sPluginMethodIdentifierNames);
-  NPIdentifier* ids = (NPIdentifier*) NPN_MemAlloc(bufsize);
-  if (!ids)
-    return false;
-
-  memcpy(ids, sPluginMethodIdentifiers, bufsize);
-  *identifier = ids;
-  *count = ARRAY_LENGTH(sPluginMethodIdentifierNames);
-  return true;
+  return false;
 }
 
 bool
@@ -1950,6 +1641,49 @@ identifierToStringTest(NPObject* npobj, const NPVariant* args, uint32_t argCount
   return true;
 }
 
+static void timerCallback(NPP npp, uint32_t timerID)
+{
+  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
+
+  NPObject* windowObject;
+  NPN_GetValue(npp, NPNVWindowNPObject, &windowObject);
+  if (!windowObject)
+    return;
+
+  NPVariant rval;
+  if (timerID == id->timerID1)
+    NPN_Invoke(npp, windowObject, NPN_GetStringIdentifier("shortTimerFired"), NULL, 0, &rval);
+  else if (timerID == id->timerID2)
+    NPN_Invoke(npp, windowObject, NPN_GetStringIdentifier("longTimerFired"), NULL, 0, &rval);
+
+  NPN_ReleaseObject(windowObject);
+}
+
+static bool
+timerTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
+{
+  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
+  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
+
+  NPObject* windowObject;
+  NPN_GetValue(npp, NPNVWindowNPObject, &windowObject);
+  if (!windowObject)
+    return false;
+
+  id->timerID1 = NPN_ScheduleTimer(npp, 50, false, timerCallback);
+  id->timerID2 = NPN_ScheduleTimer(npp, 150, true, timerCallback);
+
+  NPVariant rval;
+  NPVariant uniqueIDArgs[1];
+  BOOLEAN_TO_NPVARIANT((id->timerID1 != id->timerID2), uniqueIDArgs[0]);
+  NPN_Invoke(npp, windowObject, NPN_GetStringIdentifier("uniqueID"), uniqueIDArgs, 1, &rval);
+  NPN_ReleaseVariantValue(&uniqueIDArgs[0]);
+
+  NPN_ReleaseObject(windowObject);
+
+  return true;
+}
+
 static bool
 queryPrivateModeState(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
@@ -2080,6 +1814,20 @@ stopWatchingInstanceCount(NPObject* npobj, const NPVariant* args, uint32_t argCo
 }
 
 static bool
+unscheduleAllTimers(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
+{
+  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
+  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
+
+  NPN_UnscheduleTimer(npp, id->timerID1);
+  id->timerID1 = 0;
+  NPN_UnscheduleTimer(npp, id->timerID2);
+  id->timerID2 = 0;
+
+  return true;
+}
+
+static bool
 getLastMouseX(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
   if (argCount != 0)
@@ -2116,18 +1864,6 @@ getPaintCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVaria
 }
 
 static bool
-getWidthAtLastPaint(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  INT32_TO_NPVARIANT(id->widthAtLastPaint, *result);
-  return true;
-}
-
-static bool
 getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
   if (argCount != 0)
@@ -2136,9 +1872,9 @@ getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* r
   NPP npp = static_cast<TestNPObject*>(npobj)->npp;
   InstanceData* id = static_cast<InstanceData*>(npp->pdata);
   if (id->err.str().length() == 0)
-    STRINGZ_TO_NPVARIANT(NPN_StrDup(SUCCESS_STRING), *result);
+    STRINGZ_TO_NPVARIANT(strdup(SUCCESS_STRING), *result);
   else
-    STRINGZ_TO_NPVARIANT(NPN_StrDup(id->err.str().c_str()), *result);
+    STRINGZ_TO_NPVARIANT(strdup(id->err.str().c_str()), *result);
   return true;
 }
 
@@ -2292,19 +2028,23 @@ streamTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant*
 static bool
 crashPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
-  IntentionalCrash();
-  VOID_TO_NPVARIANT(*result);
-  return true;
-}
-
-static bool
-crashOnDestroy(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  id->crashOnDestroy = true;
-  VOID_TO_NPVARIANT(*result);
+  char* bloatLog = getenv("XPCOM_MEM_BLOAT_LOG");
+  if (bloatLog) {
+    char* logExt = strstr(bloatLog, ".log");
+    if (logExt) {
+      bloatLog[strlen(bloatLog) - strlen(logExt)] = '\0';    
+    }
+    ostringstream bloatName;
+    bloatName << bloatLog << "_plugin_pid" << getpid();
+    if (logExt) {
+      bloatName << ".log";    
+    }
+    FILE* processfd = fopen(bloatName.str().c_str(), "a");
+    fprintf(processfd, "==> process %d will purposefully crash\n", getpid());
+    fclose(processfd);
+  }
+  void (*funcptr)() = NULL;
+  funcptr(); // Crash calling null function pointer
   return true;
 }
 
@@ -2331,678 +2071,5 @@ setColor(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* r
   NPN_InvalidateRect(npp, &r);
 
   VOID_TO_NPVARIANT(*result);
-  return true;
-}
-
-void notifyDidPaint(InstanceData* instanceData)
-{
-  ++instanceData->paintCount;
-  instanceData->widthAtLastPaint = instanceData->window.width;
-}
-
-static const NPClass kTestSharedNPClass = {
-  NP_CLASS_STRUCT_VERSION,
-  // Everything else is NULL
-};
-
-static bool getObjectValue(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-
-  NPObject* o = NPN_CreateObject(npp,
-                                 const_cast<NPClass*>(&kTestSharedNPClass));
-  if (!o)
-    return false;
-
-  OBJECT_TO_NPVARIANT(o, *result);
-  return true;
-}
-
-static bool checkObjectValue(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  VOID_TO_NPVARIANT(*result);
-
-  if (1 != argCount)
-    return false;
-
-  if (!NPVARIANT_IS_OBJECT(args[0]))
-    return false;
-
-  NPObject* o = NPVARIANT_TO_OBJECT(args[0]);
-
-  BOOLEAN_TO_NPVARIANT(o->_class == &kTestSharedNPClass, *result);
-  return true;
-}
-
-static bool enableFPExceptions(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  VOID_TO_NPVARIANT(*result);
-
-#if defined(XP_WIN) && defined(_M_IX86)
-  _control87(0, _MCW_EM);
-  return true;
-#else
-  return false;
-#endif
-}
-
-// caller is responsible for freeing return buffer
-static char* URLForInstanceWindow(NPP instance) {
-  char *outString = NULL;
-  
-  NPObject* windowObject = NULL;
-  NPError err = NPN_GetValue(instance, NPNVWindowNPObject, &windowObject);
-  if (err != NPERR_NO_ERROR || !windowObject)
-    return NULL;
-  
-  NPIdentifier locationIdentifier = NPN_GetStringIdentifier("location");
-  NPVariant locationVariant;
-  if (NPN_GetProperty(instance, windowObject, locationIdentifier, &locationVariant)) {
-    NPObject *locationObject = locationVariant.value.objectValue;
-    if (locationObject) {
-      NPIdentifier hrefIdentifier = NPN_GetStringIdentifier("href");
-      NPVariant hrefVariant;
-      if (NPN_GetProperty(instance, locationObject, hrefIdentifier, &hrefVariant)) {
-        const NPString* hrefString = &NPVARIANT_TO_STRING(hrefVariant);
-        if (hrefString) {
-          outString = (char *)malloc(hrefString->UTF8Length + 1);
-          if (outString) {
-            strcpy(outString, hrefString->UTF8Characters);
-            outString[hrefString->UTF8Length] = '\0';
-          }
-        }
-        NPN_ReleaseVariantValue(&hrefVariant);
-      }      
-    }
-    NPN_ReleaseVariantValue(&locationVariant);
-  }
-  
-  NPN_ReleaseObject(windowObject);
-  
-  return outString;
-}
-
-static bool
-setCookie(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 1)
-    return false;
-  if (!NPVARIANT_IS_STRING(args[0]))
-    return false;
-  const NPString* cookie = &NPVARIANT_TO_STRING(args[0]);
-  
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  
-  char* url = URLForInstanceWindow(npp);
-  if (!url)
-    return false;
-  NPError err = NPN_SetValueForURL(npp, NPNURLVCookie, url, cookie->UTF8Characters, cookie->UTF8Length);
-  free(url);
-  
-  return (err == NPERR_NO_ERROR);
-}
-
-static bool
-getCookie(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-  
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  
-  char* url = URLForInstanceWindow(npp);
-  if (!url)
-    return false;
-  char* cookie = NULL;
-  unsigned int length = 0;
-  NPError err = NPN_GetValueForURL(npp, NPNURLVCookie, url, &cookie, &length);
-  free(url);
-  if (err != NPERR_NO_ERROR || !cookie)
-    return false;
-  
-  STRINGZ_TO_NPVARIANT(cookie, *result);
-  return true;
-}
-
-static bool
-getAuthInfo(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 5)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-
-  if (!NPVARIANT_IS_STRING(args[0]) || !NPVARIANT_IS_STRING(args[1]) ||
-      !NPVARIANT_IS_INT32(args[2]) || !NPVARIANT_IS_STRING(args[3]) ||
-      !NPVARIANT_IS_STRING(args[4]))
-    return false;
-
-  const NPString* protocol = &NPVARIANT_TO_STRING(args[0]);
-  const NPString* host = &NPVARIANT_TO_STRING(args[1]);
-  uint32_t port = NPVARIANT_TO_INT32(args[2]);
-  const NPString* scheme = &NPVARIANT_TO_STRING(args[3]);
-  const NPString* realm = &NPVARIANT_TO_STRING(args[4]);
-
-  char* username = NULL;
-  char* password = NULL;
-  uint32_t ulen = 0, plen = 0;
-  
-  NPError err = NPN_GetAuthenticationInfo(npp, 
-      protocol->UTF8Characters, 
-      host->UTF8Characters, 
-      port, 
-      scheme->UTF8Characters, 
-      realm->UTF8Characters,
-      &username, 
-      &ulen, 
-      &password, 
-      &plen);
-  
-  if (err != NPERR_NO_ERROR) {
-    return false;
-  }
-
-  char* outstring = (char*)NPN_MemAlloc(ulen + plen + 2);
-  memset(outstring, 0, ulen + plen + 2);
-  strncpy(outstring, username, ulen);
-  strcat(outstring, "|");
-  strncat(outstring, password, plen);
-
-  STRINGZ_TO_NPVARIANT(outstring, *result);
-
-  NPN_MemFree(username);
-  NPN_MemFree(password);
-  
-  return true;
-}
-
-static void timerCallback(NPP npp, uint32_t timerID)
-{
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  timerEventCount++;
-  timerEvent event = timerEvents[timerEventCount];
-
-  NPObject* windowObject;
-  NPN_GetValue(npp, NPNVWindowNPObject, &windowObject);
-  if (!windowObject)
-    return;
-
-  NPVariant rval;
-  if (timerID != id->timerID[event.timerIdReceive])
-    id->timerTestResult = false;
-
-  if (timerEventCount == totalTimerEvents - 1) {
-    NPVariant arg;
-    BOOLEAN_TO_NPVARIANT(id->timerTestResult, arg);
-    NPN_Invoke(npp, windowObject, NPN_GetStringIdentifier(id->timerTestScriptCallback.c_str()), &arg, 1, &rval);
-    NPN_ReleaseVariantValue(&arg);
-  }
-
-  NPN_ReleaseObject(windowObject);
-  
-  if (event.timerIdSchedule > -1) {
-    id->timerID[event.timerIdSchedule] = NPN_ScheduleTimer(npp, event.timerInterval, event.timerRepeat, timerCallback);
-  }
-  if (event.timerIdUnschedule > -1) {
-    NPN_UnscheduleTimer(npp, id->timerID[event.timerIdUnschedule]);
-  }
-}
-
-static bool
-timerTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  timerEventCount = 0;
-
-  if (argCount < 1 || !NPVARIANT_IS_STRING(args[0]))
-    return false;
-  const NPString* argstr = &NPVARIANT_TO_STRING(args[0]);
-  id->timerTestScriptCallback = argstr->UTF8Characters;
-
-  id->timerTestResult = true;
-  timerEvent event = timerEvents[timerEventCount];
-    
-  id->timerID[event.timerIdSchedule] = NPN_ScheduleTimer(npp, event.timerInterval, event.timerRepeat, timerCallback);
-  
-  return id->timerID[event.timerIdSchedule] != 0;
-}
-
-#ifdef XP_WIN
-void
-ThreadProc(void* cookie)
-#else
-void*
-ThreadProc(void* cookie)
-#endif
-{
-  NPObject* npobj = (NPObject*)cookie;
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  id->asyncTestPhase = 1;
-  NPN_PluginThreadAsyncCall(npp, asyncCallback, (void*)npobj);
-#ifndef XP_WIN
-  return NULL;
-#endif
-}
-
-void
-asyncCallback(void* cookie)
-{
-  NPObject* npobj = (NPObject*)cookie;
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  switch (id->asyncTestPhase) {
-    // async callback triggered from same thread
-    case 0:
-#ifdef XP_WIN
-      if (_beginthread(ThreadProc, 0, (void*)npobj) == -1)
-        id->asyncCallbackResult = false;
-#else
-      pthread_t tid;
-      if (pthread_create(&tid, 0, ThreadProc, (void*)npobj))
-        id->asyncCallbackResult = false;
-#endif
-      break;
-    
-    // async callback triggered from different thread
-    default:
-      NPObject* windowObject;
-      NPN_GetValue(npp, NPNVWindowNPObject, &windowObject);
-      if (!windowObject)
-        return;
-      NPVariant arg, rval;
-      BOOLEAN_TO_NPVARIANT(id->asyncCallbackResult, arg);
-      NPN_Invoke(npp, windowObject, NPN_GetStringIdentifier(id->asyncTestScriptCallback.c_str()), &arg, 1, &rval);
-      NPN_ReleaseVariantValue(&arg);
-      NPN_ReleaseObject(windowObject);
-      break;
-  }
-}
-
-static bool
-asyncCallbackTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  if (argCount < 1 || !NPVARIANT_IS_STRING(args[0]))
-    return false;
-  const NPString* argstr = &NPVARIANT_TO_STRING(args[0]);
-  id->asyncTestScriptCallback = argstr->UTF8Characters;
-  
-  id->asyncTestPhase = 0;
-  id->asyncCallbackResult = true;
-  NPN_PluginThreadAsyncCall(npp, asyncCallback, (void*)npobj);
-  
-  return true;
-}
-
-static bool
-GCRaceInvoke(NPObject*, NPIdentifier, const NPVariant*, uint32_t, NPVariant*)
-{
-  return false;
-}
-
-static bool
-GCRaceInvokeDefault(NPObject* o, const NPVariant* args, uint32_t argCount,
-		    NPVariant* result)
-{
-  if (1 != argCount || !NPVARIANT_IS_INT32(args[0]) ||
-      35 != NPVARIANT_TO_INT32(args[0]))
-    return false;
-
-  return true;
-}
-
-static const NPClass kGCRaceClass = {
-  NP_CLASS_STRUCT_VERSION,
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  GCRaceInvoke,
-  GCRaceInvokeDefault,
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  NULL
-};
-
-struct GCRaceData
-{
-  GCRaceData(NPP npp, NPObject* callback, NPObject* localFunc)
-    : npp_(npp)
-    , callback_(callback)
-    , localFunc_(localFunc)
-  {
-    NPN_RetainObject(callback_);
-    NPN_RetainObject(localFunc_);
-  }
-
-  ~GCRaceData()
-  {
-    NPN_ReleaseObject(callback_);
-    NPN_ReleaseObject(localFunc_);
-  }
-
-  NPP npp_;
-  NPObject* callback_;
-  NPObject* localFunc_;
-};
-
-static void
-FinishGCRace(void* closure)
-{
-  GCRaceData* rd = static_cast<GCRaceData*>(closure);
-
-#ifdef XP_WIN
-  Sleep(5000);
-#else
-  sleep(5);
-#endif
-
-  NPVariant arg;
-  OBJECT_TO_NPVARIANT(rd->localFunc_, arg);
-
-  NPVariant result;
-  bool ok = NPN_InvokeDefault(rd->npp_, rd->callback_, &arg, 1, &result);
-  if (!ok)
-    return;
-
-  NPN_ReleaseVariantValue(&result);
-  delete rd;
-}
-
-bool
-checkGCRace(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-	    NPVariant* result)
-{
-  if (1 != argCount || !NPVARIANT_IS_OBJECT(args[0]))
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  
-  NPObject* localFunc =
-    NPN_CreateObject(npp, const_cast<NPClass*>(&kGCRaceClass));
-
-  GCRaceData* rd =
-    new GCRaceData(npp, NPVARIANT_TO_OBJECT(args[0]), localFunc);
-  NPN_PluginThreadAsyncCall(npp, FinishGCRace, rd);
-
-  OBJECT_TO_NPVARIANT(localFunc, *result);
-  return true;
-}
-
-bool
-hangPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-           NPVariant* result)
-{
-  NoteIntentionalCrash();
-
-#ifdef XP_WIN
-  Sleep(100000000);
-#else
-  pause();
-#endif
-  // NB: returning true here means that we weren't terminated, and
-  // thus the hang detection/handling didn't work correctly.  The
-  // test harness will succeed in calling this function, and the
-  // test will fail.
-  return true;
-}
-
-#if defined(MOZ_WIDGET_GTK2)
-bool
-getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                 NPVariant* result)
-{
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  string sel = pluginGetClipboardText(id);
-
-  uint32 len = sel.size();
-  char* selCopy = static_cast<char*>(NPN_MemAlloc(1 + len));
-  if (!selCopy)
-    return false;
-
-  memcpy(selCopy, sel.c_str(), len);
-  selCopy[len] = '\0';
-
-  STRINGN_TO_NPVARIANT(selCopy, len, *result);
-  // *result owns str now
-
-  return true;
-}
-
-bool
-crashPluginInNestedLoop(NPObject* npobj, const NPVariant* args,
-                        uint32_t argCount, NPVariant* result)
-{
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  return pluginCrashInNestedLoop(id);
-}
-
-#else
-bool
-getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                 NPVariant* result)
-{
-  // XXX Not implemented!
-  return false;
-}
-
-bool
-crashPluginInNestedLoop(NPObject* npobj, const NPVariant* args,
-                        uint32_t argCount, NPVariant* result)
-{
-  // XXX Not implemented!
-  return false;
-}
-#endif
-
-bool
-callOnDestroy(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  if (id->callOnDestroy)
-    return false;
-
-  if (1 != argCount || !NPVARIANT_IS_OBJECT(args[0]))
-    return false;
-
-  id->callOnDestroy = NPVARIANT_TO_OBJECT(args[0]);
-  NPN_RetainObject(id->callOnDestroy);
-
-  return true;
-}
-
-// On Linux at least, a windowed plugin resize causes Flash Player to
-// reconnect to the browser window.  This method simulates that.
-bool
-reinitWidget(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-             NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  if (!id->hasWidget)
-    return false;
-
-  pluginWidgetInit(id, id->window.window);
-  return true;
-}
-
-bool
-propertyAndMethod(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                  NPVariant* result)
-{
-  INT32_TO_NPVARIANT(5, *result);
-  return true;
-}
-
-// Returns top-level window activation state as indicated by Cocoa NPAPI's
-// NPCocoaEventWindowFocusChanged events - 'true' if active, 'false' if not.
-// Throws an exception if no events have been received and thus this state
-// is unknown.
-bool
-getTopLevelWindowActivationState(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                                 NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  // Throw an exception for unknown state.
-  if (id->topLevelWindowActivationState == ACTIVATION_STATE_UNKNOWN) {
-    return false;
-  }
-
-  if (id->topLevelWindowActivationState == ACTIVATION_STATE_ACTIVATED) {
-    BOOLEAN_TO_NPVARIANT(true, *result);
-  } else if (id->topLevelWindowActivationState == ACTIVATION_STATE_DEACTIVATED) {
-    BOOLEAN_TO_NPVARIANT(false, *result);
-  }
-
-  return true;
-}
-
-bool
-getTopLevelWindowActivationEventCount(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                                      NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  INT32_TO_NPVARIANT(id->topLevelWindowActivationEventCount, *result);
-
-  return true;
-}
-
-// Returns top-level window activation state as indicated by Cocoa NPAPI's
-// NPCocoaEventWindowFocusChanged events - 'true' if active, 'false' if not.
-// Throws an exception if no events have been received and thus this state
-// is unknown.
-bool
-getFocusState(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-              NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  // Throw an exception for unknown state.
-  if (id->focusState == ACTIVATION_STATE_UNKNOWN) {
-    return false;
-  }
-
-  if (id->focusState == ACTIVATION_STATE_ACTIVATED) {
-    BOOLEAN_TO_NPVARIANT(true, *result);
-  } else if (id->focusState == ACTIVATION_STATE_DEACTIVATED) {
-    BOOLEAN_TO_NPVARIANT(false, *result);
-  }
-
-  return true;
-}
-
-bool
-getFocusEventCount(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                   NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  INT32_TO_NPVARIANT(id->focusEventCount, *result);
-
-  return true;
-}
-
-bool
-getEventModel(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-              NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  INT32_TO_NPVARIANT(id->eventModel, *result);
-
-  return true;
-}
-
-static bool
-ReflectorHasMethod(NPObject* npobj, NPIdentifier name)
-{
-  return false;
-}
-
-static bool
-ReflectorHasProperty(NPObject* npobj, NPIdentifier name)
-{
-  return true;
-}
-
-static bool
-ReflectorGetProperty(NPObject* npobj, NPIdentifier name, NPVariant* result)
-{
-  if (NPN_IdentifierIsString(name)) {
-    char* s = NPN_UTF8FromIdentifier(name);
-    STRINGZ_TO_NPVARIANT(s, *result);
-    return true;
-  }
-
-  INT32_TO_NPVARIANT(NPN_IntFromIdentifier(name), *result);
-  return true;
-}
-
-static const NPClass kReflectorNPClass = {
-  NP_CLASS_STRUCT_VERSION,
-  NULL,
-  NULL,
-  NULL,
-  ReflectorHasMethod,
-  NULL,
-  NULL,
-  ReflectorHasProperty,
-  ReflectorGetProperty,
-  NULL,
-  NULL,
-  NULL,
-  NULL
-};
-
-bool
-getReflector(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (0 != argCount)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-
-  NPObject* reflector =
-    NPN_CreateObject(npp,
-		     const_cast<NPClass*>(&kReflectorNPClass)); // retains
-  OBJECT_TO_NPVARIANT(reflector, *result);
   return true;
 }

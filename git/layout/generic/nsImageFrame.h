@@ -44,6 +44,7 @@
 #include "nsSplittableFrame.h"
 #include "nsString.h"
 #include "nsAString.h"
+#include "nsPresContext.h"
 #include "nsIImageFrame.h"
 #include "nsIIOService.h"
 #include "nsIObserver.h"
@@ -61,7 +62,6 @@ struct nsHTMLReflowState;
 struct nsHTMLReflowMetrics;
 struct nsSize;
 class nsDisplayImage;
-class nsPresContext;
 
 class nsImageFrame;
 
@@ -87,8 +87,8 @@ private:
   nsImageFrame *mFrame;
 };
 
-#define IMAGE_SIZECONSTRAINED       NS_FRAME_STATE_BIT(20)
-#define IMAGE_GOTINITIALREFLOW      NS_FRAME_STATE_BIT(21)
+#define IMAGE_SIZECONSTRAINED       0x00100000
+#define IMAGE_GOTINITIALREFLOW      0x00200000
 
 #define ImageFrameSuper nsSplittableFrame
 
@@ -100,7 +100,7 @@ public:
 
   NS_DECL_QUERYFRAME
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
@@ -128,7 +128,7 @@ public:
                               PRInt32 aModType);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   virtual nsIAtom* GetType() const;

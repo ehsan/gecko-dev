@@ -51,20 +51,14 @@
           src="chrome://global/content/globalOverlay.js"/>
   <script type="application/javascript"
           src="chrome://browser/content/utilityOverlay.js"/>
-  <script type="application/javascript"><![CDATA[
-    // TODO: Bug 406371.
-    // A bunch of browser code depends on us defining these, sad but true :(
-    var Cc = Components.classes;
-    var Ci = Components.interfaces;
-    var Cr = Components.results;
-
-    Components.utils.import("resource://gre/modules/PlacesUtils.jsm");
-    Components.utils.import("resource:///modules/PlacesUIUtils.jsm");
-  ]]></script>
+  <script type="application/javascript" 
+          src="chrome://browser/content/places/utils.js"/>
   <script type="application/javascript"
           src="chrome://browser/content/places/controller.js"/>
   <script type="application/javascript"
           src="chrome://browser/content/places/treeView.js"/>
+  <script type="application/javascript"
+          src="chrome://global/content/nsDragAndDrop.js"/>
 
   <!-- Bookmarks and history tooltip -->
   <tooltip id="bhTooltip" noautohide="true"
@@ -123,10 +117,10 @@
              oncommand="goDoPlacesCommand('placesCmd_delete');"/>
   </commandset>
 
-  <menupopup id="placesContext"
-             onpopupshowing="this._view = PlacesUIUtils.getViewForNode(document.popupNode);
-                             return this._view.buildContextMenu(this);"
-             onpopuphiding="this._view.destroyContextMenu();">
+  <popup id="placesContext"
+         onpopupshowing="this._view = PlacesUIUtils.getViewForNode(document.popupNode);
+                         return this._view.buildContextMenu(this);"
+         onpopuphiding="this._view.destroyContextMenu();">
     <menuitem id="placesContext_open"
               command="placesCmd_open"
               label="&cmd.open.label;"
@@ -258,6 +252,6 @@
               accesskey="&cmd.properties.accesskey;"
               selection="bookmark|folder|query"
               forcehideselection="livemarkChild"/>
-  </menupopup>
+  </popup>
 
 </overlay>

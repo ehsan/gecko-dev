@@ -47,10 +47,7 @@
 #include "nsHashKeys.h"
 #include "nsSMILTimeContainer.h"
 #include "nsSMILCompositorTable.h"
-#include "nsSMILMilestone.h"
-#include "nsRefreshDriver.h"
 
-struct nsSMILTargetIdentifier;
 class nsISMILAnimationElement;
 class nsIDocument;
 
@@ -67,8 +64,7 @@ class nsIDocument;
 // a compound document. These time containers can be paused individually or
 // here, at the document level.
 //
-class nsSMILAnimationController : public nsSMILTimeContainer,
-                                  public nsARefreshObserver
+class nsSMILAnimationController : public nsSMILTimeContainer
 {
 public:
   nsSMILAnimationController();
@@ -79,12 +75,6 @@ public:
   virtual void Resume(PRUint32 aType);
   virtual nsSMILTime GetParentTime() const;
 
-  // nsARefreshObserver
-  NS_IMETHOD_(nsrefcnt) AddRef();
-  NS_IMETHOD_(nsrefcnt) Release();
-
-  virtual void WillRefresh(mozilla::TimeStamp aTime);
-
   // Methods for registering and enumerating animation elements
   void RegisterAnimationElement(nsISMILAnimationElement* aAnimationElement);
   void UnregisterAnimationElement(nsISMILAnimationElement* aAnimationElement);
@@ -92,14 +82,14 @@ public:
   // Methods for resampling all animations
   // (A resample performs the same operations as a sample but doesn't advance
   // the current time and doesn't check if the container is paused)
-  void Resample() { DoSample(PR_FALSE); }
+  void Resample();
   void SetResampleNeeded() { mResampleNeeded = PR_TRUE; }
   void FlushResampleRequests()
   {
     if (!mResampleNeeded)
       return;
 
-    Resample();
+    DoSample(PR_FALSE); // Don't skip unchanged time containers--sample them all
   }
 
   // Methods for handling page transitions
@@ -109,11 +99,6 @@ public:
   // Methods for supporting cycle-collection
   void Traverse(nsCycleCollectionTraversalCallback* aCallback);
   void Unlink();
-
-  // Methods for controlling whether we're sampling
-  // (Use to register/unregister us with the given nsRefreshDriver)
-  void StartSampling(nsRefreshDriver* aRefreshDriver);
-  void StopSampling(nsRefreshDriver* aRefreshDriver);
 
 protected:
   // Typedefs
@@ -134,12 +119,6 @@ protected:
     nsSMILCompositorTable*  mCompositorTable;
   };
 
-  struct GetMilestoneElementsParams
-  {
-    nsTArray<nsRefPtr<nsISMILAnimationElement> > mElements;
-    nsSMILMilestone                              mMilestone;
-  };
-
   // Factory methods
   friend nsSMILAnimationController*
   NS_NewSMILAnimationController(nsIDocument* aDoc);
@@ -149,38 +128,37 @@ protected:
   PR_STATIC_CALLBACK(PLDHashOperator) CompositorTableEntryTraverse(
       nsSMILCompositor* aCompositor, void* aArg);
 
+  // Timer-related implementation helpers
+  static void Notify(nsITimer* aTimer, void* aClosure);
+  nsresult    StartTimer();
+  nsresult    StopTimer();
+
   // Sample-related callbacks and implementation helpers
   virtual void DoSample();
   void DoSample(PRBool aSkipUnchangedContainers);
-  void DoMilestoneSamples();
-  PR_STATIC_CALLBACK(PLDHashOperator) GetNextMilestone(
-      TimeContainerPtrKey* aKey, void* aData);
-  PR_STATIC_CALLBACK(PLDHashOperator) GetMilestoneElements(
-      TimeContainerPtrKey* aKey, void* aData);
   PR_STATIC_CALLBACK(PLDHashOperator) SampleTimeContainer(
       TimeContainerPtrKey* aKey, void* aData);
   PR_STATIC_CALLBACK(PLDHashOperator) SampleAnimation(
+      AnimationElementPtrKey* aKey, void* aData);
+  PR_STATIC_CALLBACK(PLDHashOperator) AddAnimationToCompositorTable(
       AnimationElementPtrKey* aKey, void* aData);
   static void SampleTimedElement(nsISMILAnimationElement* aElement,
                                  TimeContainerHashtable* aActiveContainers);
   static void AddAnimationToCompositorTable(
     nsISMILAnimationElement* aElement, nsSMILCompositorTable* aCompositorTable);
-  static PRBool GetTargetIdentifierForAnimation(
-      nsISMILAnimationElement* aAnimElem, nsSMILTargetIdentifier& aResult);
+  static PRBool GetCompositorKeyForAnimation(nsISMILAnimationElement* aAnimElem,
+                                             nsSMILCompositorKey& aResult);
 
   // Methods for adding/removing time containers
   virtual nsresult AddChild(nsSMILTimeContainer& aChild);
   virtual void     RemoveChild(nsSMILTimeContainer& aChild);
 
   // Members
-  nsAutoRefCnt mRefCnt;
-  NS_DECL_OWNINGTHREAD
-
   static const PRUint32      kTimerInterval;
+  nsCOMPtr<nsITimer>         mTimer;
   AnimationElementHashtable  mAnimationElementTable;
   TimeContainerHashtable     mChildContainerTable;
   PRPackedBool               mResampleNeeded;
-  PRPackedBool               mDeferredStartSampling;
 
   // Store raw ptr to mDocument.  It owns the controller, so controller
   // shouldn't outlive it

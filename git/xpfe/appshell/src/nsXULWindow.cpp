@@ -92,7 +92,6 @@
 #include "nsReadableUtils.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
-#include "nsIContentUtils.h"
 
 #include "nsWebShellWindow.h" // get rid of this one, too...
 
@@ -264,6 +263,15 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(PRUint32 aLevel)
     }
   }
 
+  // disallow user script
+  nsCOMPtr<nsIScriptSecurityManager> secMan =
+           do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
+  if (!secMan)
+    return NS_ERROR_FAILURE;
+  PRBool inChrome;
+  if (NS_FAILED(secMan->SubjectPrincipalIsSystem(&inChrome)) || !inChrome)
+    return NS_ERROR_FAILURE;
+
   // do it
   mediator->SetZLevel(this, aLevel);
   PersistentAttributesDirty(PAD_MISC);
@@ -271,9 +279,11 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(PRUint32 aLevel)
 
   nsCOMPtr<nsIContentViewer> cv;
   mDocShell->GetContentViewer(getter_AddRefs(cv));
-  if (cv) {
-    nsCOMPtr<nsIDOMDocumentEvent> docEvent(
-      do_QueryInterface(cv->GetDocument()));
+  nsCOMPtr<nsIDocumentViewer> dv(do_QueryInterface(cv));
+  if (dv) {
+    nsCOMPtr<nsIDocument> doc;
+    dv->GetDocument(getter_AddRefs(doc));
+    nsCOMPtr<nsIDOMDocumentEvent> docEvent(do_QueryInterface(doc));
     if (docEvent) {
       nsCOMPtr<nsIDOMEvent> event;
       docEvent->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
@@ -283,7 +293,7 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(PRUint32 aLevel)
         nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
         privateEvent->SetTrusted(PR_TRUE);
 
-        nsCOMPtr<nsIDOMEventTarget> targ(do_QueryInterface(docEvent));
+        nsCOMPtr<nsIDOMEventTarget> targ(do_QueryInterface(doc));
         if (targ) {
           PRBool defaultActionEnabled;
           targ->DispatchEvent(event, &defaultActionEnabled);
@@ -539,7 +549,6 @@ NS_IMETHODIMP nsXULWindow::Destroy()
   }
   if (mWindow) {
     mWindow->SetClientData(0); // nsWebShellWindow hackery
-    mWindow->Destroy();
     mWindow = nsnull;
   }
 
@@ -1376,22 +1385,6 @@ void nsXULWindow::SyncAttributesToWidget()
     mWindow->HideWindowChrome(PR_TRUE);
   }
 
-  // "chromemargin" attribute
-  nsIntMargin margins;
-  nsCOMPtr<nsIContentUtils> cutils =
-    do_GetService("@mozilla.org/content/contentutils;1");
-  rv = windowElement->GetAttribute(NS_LITERAL_STRING("chromemargin"), attr);
-  if (NS_SUCCEEDED(rv) && cutils && cutils->ParseIntMarginValue(attr, margins)) {
-    mWindow->SetNonClientMargins(margins);
-  }
-
-  // "accelerated" attribute
-  PRBool isAccelerated;
-  rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
-  if (NS_SUCCEEDED(rv)) {
-    mWindow->SetAcceleratedRendering(isAccelerated);
-  }
-
   // "windowtype" attribute
   rv = windowElement->GetAttribute(NS_LITERAL_STRING("windowtype"), attr);
   if (NS_SUCCEEDED(rv) && !attr.IsEmpty()) {
@@ -1559,7 +1552,12 @@ NS_IMETHODIMP nsXULWindow::GetWindowDOMElement(nsIDOMElement** aDOMElement)
   mDocShell->GetContentViewer(getter_AddRefs(cv));
   NS_ENSURE_TRUE(cv, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIDOMDocument> domdoc(do_QueryInterface(cv->GetDocument()));
+  nsCOMPtr<nsIDocumentViewer> docv(do_QueryInterface(cv));
+  NS_ENSURE_TRUE(docv, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsIDocument> doc;
+  docv->GetDocument(getter_AddRefs(doc));
+  nsCOMPtr<nsIDOMDocument> domdoc(do_QueryInterface(doc));
   NS_ENSURE_TRUE(domdoc, NS_ERROR_FAILURE);
 
   domdoc->GetDocumentElement(aDOMElement);
@@ -2053,12 +2051,6 @@ NS_IMETHODIMP nsXULWindow::ApplyChromeFlags()
   // so no need to compare to the old value.
   window->SetAttribute(NS_LITERAL_STRING("chromehidden"), newvalue);
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsXULWindow::WillShowWindow(PRBool *aRetval)
-{
-  *aRetval = mShowAfterLoad && !mChromeLoaded;
   return NS_OK;
 }
 

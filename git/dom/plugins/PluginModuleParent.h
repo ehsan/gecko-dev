@@ -54,13 +54,13 @@
 #include "mozilla/plugins/PPluginModuleParent.h"
 #include "mozilla/plugins/PluginInstanceParent.h"
 #include "mozilla/plugins/PluginProcessParent.h"
-#include "mozilla/plugins/PluginIdentifierParent.h"
 
 #include "nsAutoPtr.h"
-#include "nsDataHashtable.h"
+#include "nsTHashtable.h"
 #include "nsHashKeys.h"
-#include "nsIFileStreams.h"
-#include "nsTObserverArray.h"
+
+#undef _MOZ_LOG
+#define _MOZ_LOG(s) printf("[PluginModuleParent] %s\n", s)
 
 namespace mozilla {
 namespace plugins {
@@ -85,14 +85,6 @@ private:
     typedef mozilla::PluginLibrary PluginLibrary;
 
 protected:
-
-    virtual PPluginIdentifierParent*
-    AllocPPluginIdentifier(const nsCString& aString,
-                           const int32_t& aInt);
-
-    virtual bool
-    DeallocPPluginIdentifier(PPluginIdentifierParent* aActor);
-
     PPluginInstanceParent*
     AllocPPluginInstance(const nsCString& aMimeType,
                          const uint16_t& aMode,
@@ -122,58 +114,46 @@ public:
      */
     static PluginLibrary* LoadModule(const char* aFilePath);
 
-    const NPNetscapeFuncs* GetNetscapeFuncs() {
-        return mNPNIface;
-    }
-
-    PluginProcessParent* Process() const { return mSubprocess; }
-    base::ProcessHandle ChildProcessHandle() { return mSubprocess->GetChildProcessHandle(); }
-
-    bool OkToCleanup() const {
-        return !IsOnCxxStack();
-    }
-
-    PPluginIdentifierParent*
-    GetIdentifierForNPIdentifier(NPIdentifier aIdentifier);
-
-#ifdef OS_MACOSX
-    void AddToRefreshTimer(PluginInstanceParent *aInstance);
-    void RemoveFromRefreshTimer(PluginInstanceParent *aInstance);
-#endif
-
-protected:
-    NS_OVERRIDE
-    virtual mozilla::ipc::RPCChannel::RacyRPCPolicy
-    MediateRPCRace(const Message& parent, const Message& child)
-    {
-        return MediateRace(parent, child);
-    }
-
-    virtual bool RecvXXX_HACK_FIXME_cjones(Shmem& mem) { NS_RUNTIMEABORT("not reached"); return false; }
-
-    NS_OVERRIDE
-    virtual bool ShouldContinueFromReplyTimeout();
-
     virtual bool
     AnswerNPN_UserAgent(nsCString* userAgent);
+
+    // NPRemoteIdentifier funcs
+    virtual bool
+    RecvNPN_GetStringIdentifier(const nsCString& aString,
+                                NPRemoteIdentifier* aId);
+    virtual bool
+    RecvNPN_GetIntIdentifier(const int32_t& aInt,
+                             NPRemoteIdentifier* aId);
+    virtual bool
+    RecvNPN_UTF8FromIdentifier(const NPRemoteIdentifier& aId,
+                               NPError* err,
+                               nsCString* aString);
+    virtual bool
+    RecvNPN_IntFromIdentifier(const NPRemoteIdentifier& aId,
+                              NPError* err,
+                              int32_t* aInt);
+    virtual bool
+    RecvNPN_IdentifierIsString(const NPRemoteIdentifier& aId,
+                               bool* aIsString);
+    virtual bool
+    RecvNPN_GetStringIdentifiers(const nsTArray<nsCString>& aNames,
+                                 nsTArray<NPRemoteIdentifier>* aIds);
 
     virtual bool
     AnswerNPN_GetValue_WithBoolReturn(const NPNVariable& aVariable,
                                       NPError* aError,
                                       bool* aBoolVal);
 
-    NS_OVERRIDE
-    virtual bool AnswerProcessSomeEvents();
-
-    NS_OVERRIDE virtual bool
-    RecvProcessNativeEventsInRPCCall();
-
-    virtual bool
-    RecvAppendNotesToCrashReport(const nsCString& aNotes);
+    const NPNetscapeFuncs* GetNetscapeFuncs() {
+        return mNPNIface;
+    }
 
     static PluginInstanceParent* InstCast(NPP instance);
     static BrowserStreamParent* StreamCast(NPP instance, NPStream* s);
 
+    bool EnsureValidNPIdentifier(NPIdentifier aIdentifier);
+
+    base::ProcessHandle ChildProcessHandle() { return mSubprocess->GetChildProcessHandle(); }
 private:
     void SetPluginFuncs(NPPluginFuncs* aFuncs);
 
@@ -212,6 +192,8 @@ private:
     static NPError NPP_SetValue(NPP instance, NPNVariable variable,
                                 void *value);
 
+    NPIdentifier GetValidNPIdentifier(NPRemoteIdentifier aRemoteIdentifier);
+
     virtual bool HasRequiredFunctions();
 
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
@@ -220,10 +202,10 @@ private:
     virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error);
 #endif
     virtual nsresult NP_Shutdown(NPError* error);
-    virtual nsresult NP_GetMIMEDescription(const char** mimeDesc);
+    virtual nsresult NP_GetMIMEDescription(char** mimeDesc);
     virtual nsresult NP_GetValue(void *future, NPPVariable aVariable,
                                  void *aValue, NPError* error);
-#if defined(XP_WIN) || defined(XP_MACOSX) || defined(XP_OS2)
+#if defined(XP_WIN) || defined(XP_MACOSX)
     virtual nsresult NP_GetEntryPoints(NPPluginFuncs* pFuncs, NPError* error);
 #endif
     virtual nsresult NPP_New(NPMIMEType pluginType, NPP instance,
@@ -231,31 +213,11 @@ private:
                              char* argv[], NPSavedData* saved,
                              NPError* error);
 private:
-    void WritePluginExtraDataForMinidump(const nsAString& id);
-    void WriteExtraDataForHang();
-    void CleanupFromTimeout();
-    static int TimeoutChanged(const char* aPref, void* aModule);
-    void NotifyPluginCrashed();
-
-    nsCString mCrashNotes;
     PluginProcessParent* mSubprocess;
-    // the plugin thread in mSubprocess
-    NativeThreadId mPluginThread;
     bool mShutdown;
     const NPNetscapeFuncs* mNPNIface;
-    nsDataHashtable<nsVoidPtrHashKey, PluginIdentifierParent*> mIdentifiers;
+    nsTHashtable<nsVoidPtrHashKey> mValidIdentifiers;
     nsNPAPIPlugin* mPlugin;
-    time_t mProcessStartTime;
-    ScopedRunnableMethodFactory<PluginModuleParent> mTaskFactory;
-    nsString mPluginDumpID;
-    nsString mBrowserDumpID;
-    nsString mHangID;
-
-#ifdef OS_MACOSX
-    void CAUpdate();
-    base::RepeatingTimer<PluginModuleParent> mCATimer;
-    nsTObserverArray<PluginInstanceParent*> mCATimerTargets;
-#endif
 };
 
 } // namespace plugins

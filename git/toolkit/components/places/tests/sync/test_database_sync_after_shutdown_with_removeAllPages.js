@@ -110,13 +110,13 @@ function check_results() {
       do_test_finished();
     }
 
-    if (PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
-                           .DBConnection.connectionReady) {
+    if (hs.QueryInterface(Ci.nsPIPlacesDatabase).DBConnection.connectionReady) {
       do_timeout(POLLING_TIMEOUT_MS, check_results);
       return;
     }
 
     let dbConn = DBConn();
+    do_check_neq(dbConn, null);
     do_check_true(dbConn.connectionReady);
 
     // Check that frecency for not cleared items (bookmarks) has been
@@ -127,23 +127,22 @@ function check_results() {
     do_check_false(stmt.executeStep());
     stmt.finalize();
 
-    stmt = dbConn.createStatement(
+    stmt = DBConn().createStatement(
       "SELECT h.id FROM moz_places h WHERE h.frecency = -2 " +
         "AND EXISTS (SELECT id FROM moz_bookmarks WHERE fk = h.id) LIMIT 1");
     do_check_true(stmt.executeStep());
     stmt.finalize();
 
     // Check that all visit_counts have been brought to 0
-    stmt = dbConn.createStatement(
+    stmt = DBConn().createStatement(
       "SELECT id FROM moz_places WHERE visit_count <> 0 LIMIT 1");
     do_check_false(stmt.executeStep());
     stmt.finalize();
 
-    dbConn.asyncClose(function() {
-      do_check_false(dbConn.connectionReady);
+    dbConn.close();
+    do_check_false(dbConn.connectionReady);
 
-      do_test_finished();
-    });
+    do_test_finished();
 }
 
 function run_test()

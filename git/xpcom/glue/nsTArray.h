@@ -79,7 +79,7 @@ class NS_COM_GLUE nsTArray_base {
     }
 
 #ifdef DEBUG
-    void* DebugGetHeader() const {
+    void* DebugGetHeader() {
       return mHdr;
     }
 #endif
@@ -148,18 +148,11 @@ class NS_COM_GLUE nsTArray_base {
       return mHdr->mIsAutoArray;
     }
 
-    // Dummy struct to get the compiler to simulate the alignment of
-    // nsAutoTArray's and nsAutoTPtrArray's mAutoBuf.
-    struct AutoArray {
-      Header *mHdr;
-      PRUint64 aligned;
-    };
-
     // Returns a Header for the built-in buffer of this nsAutoTArray.
     Header* GetAutoArrayBuffer() {
       NS_ASSERTION(IsAutoArray(), "Should be an auto array to call this");
 
-      return reinterpret_cast<Header*>(&(reinterpret_cast<AutoArray*>(&mHdr))->aligned);
+      return reinterpret_cast<Header*>(&mHdr + 1);
     }
 
     // Returns true if this is an nsAutoTArray and it currently uses the
@@ -298,21 +291,6 @@ class nsTArray : public nsTArray_base {
       return *this;
     }
 
-    // Return true if this array has the same length and the same
-    // elements as |other|.
-    bool operator==(const self_type& other) const {
-      size_type len = Length();
-      if (len != other.Length())
-        return false;
-
-      // XXX std::equal would be as fast or faster here
-      for (index_type i = 0; i < len; ++i)
-        if (!(operator[](i) == other[i]))
-          return false;
-
-      return true;
-    }
-
     //
     // Accessor methods
     //
@@ -444,7 +422,7 @@ class nsTArray : public nsTArray_base {
       const elem_type* end = Elements() - 1, *iter = end + start + 1;
       for (; iter != end; --iter) {
         if (comp.Equals(*iter, item))
-          return index_type(iter - Elements());
+          return iter - Elements();
       }
       return NoIndex;
     }
@@ -609,23 +587,6 @@ class nsTArray : public nsTArray_base {
       // (or insert at low, since low==high; just a matter of taste here.)
       *idx = high;
       return PR_FALSE;
-    }
-
-    // A variation on the GreatestIndexLtEq method defined above.
-    template<class Item, class Comparator>
-    PRBool
-    GreatestIndexLtEq(const Item& item,
-                      index_type& idx,
-                      const Comparator& comp) const {
-      return GreatestIndexLtEq(item, comp, &idx);
-    }
-
-    // A variation on the GreatestIndexLtEq method defined above.
-    template<class Item>
-    PRBool
-    GreatestIndexLtEq(const Item& item,
-                      index_type& idx) const {
-      return GreatestIndexLtEq(item, nsDefaultComparator<elem_type, Item>(), &idx);
     }
 
     // Inserts |item| at such an index to guarantee that if the array
@@ -892,7 +853,7 @@ class nsTArray : public nsTArray_base {
 
     // This method sorts the elements of the array.  It uses the LessThan
     // method defined on the given Comparator object to collate elements.
-    // @param comp The Comparator used to collate elements.
+    // @param c  The Comparator to used to collate elements.
     template<class Comparator>
     void Sort(const Comparator& comp) {
       NS_QuickSort(Elements(), Length(), sizeof(elem_type),
@@ -904,76 +865,6 @@ class nsTArray : public nsTArray_base {
     // 'operator<' is defined for elem_type.
     void Sort() {
       Sort(nsDefaultComparator<elem_type, elem_type>());
-    }
-
-    //
-    // Binary Heap
-    //
-
-    // Sorts the array into a binary heap.
-    // @param comp The Comparator used to create the heap
-    template<class Comparator>
-    void MakeHeap(const Comparator& comp) {
-      if (!Length()) {
-        return;
-      }
-      index_type index = (Length() - 1) / 2;
-      do {
-        SiftDown(index, comp);
-      } while (index--);
-    }
-
-    // A variation on the MakeHeap method defined above.
-    void MakeHeap() {
-      MakeHeap(nsDefaultComparator<elem_type, elem_type>());
-    }
-
-    // Adds an element to the heap
-    // @param item The item to add
-    // @param comp The Comparator used to sift-up the item
-    template<class Item, class Comparator>
-    elem_type *PushHeap(const Item& item, const Comparator& comp) {
-      if (!nsTArray_base::InsertSlotsAt(Length(), 1, sizeof(elem_type))) {
-        return nsnull;
-      }
-      // Sift up the new node
-      elem_type *elem = Elements();
-      index_type index = Length() - 1;
-      index_type parent_index = (index - 1) / 2;
-      while (index && comp.LessThan(elem[parent_index], item)) {
-        elem[index] = elem[parent_index];
-        index = parent_index;
-        parent_index = (index - 1) / 2;
-      }
-      elem[index] = item;
-      return &elem[index];
-    }
-
-    // A variation on the PushHeap method defined above.
-    template<class Item>
-    elem_type *PushHeap(const Item& item) {
-      return PushHeap(item, nsDefaultComparator<elem_type, Item>());
-    }
-
-    // Delete the root of the heap and restore the heap
-    // @param comp The Comparator used to restore the heap
-    template<class Comparator>
-    void PopHeap(const Comparator& comp) {
-      if (!Length()) {
-        return;
-      }
-      index_type last_index = Length() - 1;
-      elem_type *elem = Elements();
-      elem[0] = elem[last_index];
-      TruncateLength(last_index);
-      if (Length()) {
-        SiftDown(0, comp);
-      }
-    }
-
-    // A variation on the PopHeap method defined above.
-    void PopHeap() {
-      PopHeap(nsDefaultComparator<elem_type, elem_type>());
     }
 
   protected:
@@ -1000,36 +891,6 @@ class nsTArray : public nsTArray_base {
         elem_traits::Construct(iter, *values);
       }
     }
-
-    // This method sifts an item down to its proper place in a binary heap
-    // @param index The index of the node to start sifting down from
-    // @param comp  The Comparator used to sift down
-    template<class Comparator>
-    void SiftDown(index_type index, const Comparator& comp) {
-      elem_type *elem = Elements();
-      elem_type item = elem[index];
-      index_type end = Length() - 1;
-      while ((index * 2) < end) {
-        const index_type left = (index * 2) + 1;
-        const index_type right = (index * 2) + 2;
-        const index_type parent_index = index;
-        if (comp.LessThan(item, elem[left])) {
-          if (left < end &&
-              comp.LessThan(elem[left], elem[right])) {
-            index = right;
-          } else {
-            index = left;
-          }
-        } else if (left < end &&
-                   comp.LessThan(item, elem[right])) {
-          index = right;
-        } else {
-          break;
-        }
-        elem[parent_index] = elem[index];
-      }
-      elem[index] = item;
-    }
 };
 
 template<class E, PRUint32 N>
@@ -1051,10 +912,7 @@ class nsAutoTArray : public nsTArray<E> {
     }
 
   protected:
-    union {
-      char mAutoBuf[sizeof(Header) + N * sizeof(elem_type)];
-      PRUint64 dummy;
-    };
+    char mAutoBuf[sizeof(Header) + N * sizeof(elem_type)];
 };
 
 // specialization for N = 0. this makes the inheritance model easier for

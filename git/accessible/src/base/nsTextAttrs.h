@@ -45,6 +45,7 @@ class nsHyperTextAccessible;
 
 #include "nsIDOMNode.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMCSSStyleDeclaration.h"
 
 #include "nsIContent.h"
 #include "nsIFrame.h"
@@ -69,7 +70,7 @@ class nsTextAttrsMgr
 public:
   /**
    * Constructor. If instance of the class is intended to expose default text
-   * attributes then 'aIncludeDefAttrs' and 'aOffsetNode' argument must be
+   * attributes then 'aIncludeDefAttrs' and 'oOffsetNode' argument must be
    * skiped.
    *
    * @param aHyperTextAcc    hyper text accessible text attributes are
@@ -82,9 +83,9 @@ public:
    *                         inside hyper text accessible
    */
   nsTextAttrsMgr(nsHyperTextAccessible *aHyperTextAcc,
+                 nsIDOMNode *aHyperTextNode,
                  PRBool aIncludeDefAttrs = PR_TRUE,
-                 nsAccessible *aOffsetAcc = nsnull,
-                 PRInt32 aOffsetAccIdx = -1);
+                 nsIDOMNode *oOffsetNode = nsnull);
 
   /*
    * Return text attributes and hyper text offsets where these attributes are
@@ -115,13 +116,41 @@ protected:
    nsresult GetRange(const nsTPtrArray<nsITextAttr>& aTextAttrArray,
                      PRInt32 *aStartHTOffset, PRInt32 *aEndHTOffset);
 
+  /*
+   * Find new end offset for text attributes navigating through the tree. New
+   * end offset may be smaller if one of text attributes changes its value
+   * before the given end offset.
+   *
+   * @param  aTextAttrArray  [in] text attributes array
+   * @param  aCurrNode       [in] the first node of the tree
+   * @param  aHTOffset       [in, out] the end offset
+   * @return                 true if the end offset has been changed
+   */
+   PRBool FindEndOffsetInSubtree(const nsTPtrArray<nsITextAttr>& aTextAttrArray,
+                                 nsIDOMNode *aCurrNode, PRInt32 *aHTOffset);
+
+  /*
+   * Find the start offset for text attributes navigating through the tree. New
+   * start offset may be bigger if one of text attributes changes its value
+   * after the given start offset.
+   *
+   * @param  aTextAttrArray  [in] text attributes array
+   * @param  aCurrNode       [in] the node navigating through thee thee is
+   *                         started from
+   * @param  aPrevNode       [in] the previous node placed before the start node
+   * @param  aHTOffset       [in, out] the start offset
+   * @return                 true if the start offset has been changed
+   */
+   PRBool FindStartOffsetInSubtree(const nsTPtrArray<nsITextAttr>& aTextAttrArray,
+                                   nsIDOMNode *aCurrNode, nsIDOMNode *aPrevNode,
+                                   PRInt32 *aHTOffset);
+
 private:
   nsRefPtr<nsHyperTextAccessible> mHyperTextAcc;
+  nsCOMPtr<nsIDOMNode> mHyperTextNode;
 
   PRBool mIncludeDefAttrs;
-
-  nsRefPtr<nsAccessible> mOffsetAcc;
-  PRInt32 mOffsetAccIdx;
+  nsCOMPtr<nsIDOMNode> mOffsetNode;
 };
 
 
@@ -156,7 +185,7 @@ public:
    * Return true if the text attribute value on the given element equals with
    * predefined attribute value.
    */
-  virtual PRBool Equal(nsIContent *aContent) = 0;
+  virtual PRBool Equal(nsIDOMElement *aElm) = 0;
 };
 
 
@@ -196,10 +225,10 @@ public:
     return PR_TRUE;
   }
 
-  virtual PRBool Equal(nsIContent *aContent)
+  virtual PRBool Equal(nsIDOMElement *aElm)
   {
     T nativeValue;
-    PRBool isDefined = GetValueFor(aContent, &nativeValue);
+    PRBool isDefined = GetValueFor(aElm, &nativeValue);
 
     if (!mIsDefined && !isDefined)
       return PR_TRUE;
@@ -216,7 +245,7 @@ public:
 protected:
 
   // Return native value for the given DOM element.
-  virtual PRBool GetValueFor(nsIContent *aContent, T *aValue) = 0;
+  virtual PRBool GetValueFor(nsIDOMElement *aElm, T *aValue) = 0;
 
   // Format native value to text attribute value.
   virtual void Format(const T& aValue, nsAString& aFormattedValue) = 0;
@@ -244,8 +273,8 @@ protected:
 class nsLangTextAttr : public nsTextAttr<nsAutoString>
 {
 public:
-  nsLangTextAttr(nsHyperTextAccessible *aRootAcc, nsIContent *aRootContent,
-                 nsIContent *aContent);
+  nsLangTextAttr(nsHyperTextAccessible *aRootAcc, nsIDOMNode *aRootNode,
+                 nsIDOMNode *aNode);
 
   // nsITextAttr
   virtual nsIAtom *GetName() { return nsAccessibilityAtoms::language; }
@@ -253,7 +282,7 @@ public:
 protected:
 
   // nsTextAttr
-  virtual PRBool GetValueFor(nsIContent *aElm, nsAutoString *aValue);
+  virtual PRBool GetValueFor(nsIDOMElement *aElm, nsAutoString *aValue);
   virtual void Format(const nsAutoString& aValue, nsAString& aFormattedValue);
 
 private:
@@ -269,8 +298,7 @@ private:
 class nsCSSTextAttr : public nsTextAttr<nsAutoString>
 {
 public:
-  nsCSSTextAttr(PRUint32 aIndex, nsIContent *aRootContent,
-                nsIContent *aContent);
+  nsCSSTextAttr(PRUint32 aIndex, nsIDOMElement *aRootElm, nsIDOMElement *aElm);
 
   // nsITextAttr
   virtual nsIAtom *GetName();
@@ -278,7 +306,7 @@ public:
 protected:
 
   // nsTextAttr
-  virtual PRBool GetValueFor(nsIContent *aContent, nsAutoString *aValue);
+  virtual PRBool GetValueFor(nsIDOMElement *aElm, nsAutoString *aValue);
   virtual void Format(const nsAutoString& aValue, nsAString& aFormattedValue);
 
 private:
@@ -300,7 +328,7 @@ public:
 
 protected:
   // nsTextAttr
-  virtual PRBool GetValueFor(nsIContent *aContent, nscolor *aValue);
+  virtual PRBool GetValueFor(nsIDOMElement *aElm, nscolor *aValue);
   virtual void Format(const nscolor& aValue, nsAString& aFormattedValue);
 
 private:
@@ -324,7 +352,7 @@ public:
 protected:
 
   // nsTextAttr
-  virtual PRBool GetValueFor(nsIContent *aContent, nscoord *aValue);
+  virtual PRBool GetValueFor(nsIDOMElement *aElm, nscoord *aValue);
   virtual void Format(const nscoord& aValue, nsAString& aFormattedValue);
 
 private:
@@ -356,7 +384,7 @@ public:
 protected:
 
   // nsTextAttr
-  virtual PRBool GetValueFor(nsIContent *aElm, PRInt32 *aValue);
+  virtual PRBool GetValueFor(nsIDOMElement *aElm, PRInt32 *aValue);
   virtual void Format(const PRInt32& aValue, nsAString& aFormattedValue);
 
 private:

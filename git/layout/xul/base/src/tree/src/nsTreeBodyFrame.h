@@ -154,7 +154,7 @@ public:
   NS_IMETHOD Init(nsIContent*     aContent,
                   nsIFrame*       aParent,
                   nsIFrame*       aPrevInFlow);
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   NS_IMETHOD GetCursor(const nsPoint& aPoint,
                        nsIFrame::Cursor& aCursor);
@@ -178,7 +178,7 @@ public:
     nsIScrollbarFrame*   mHScrollbar;
     nsCOMPtr<nsIContent> mHScrollbarContent;
     nsIFrame*            mColumnsFrame;
-    nsIScrollableFrame*  mColumnsScrollFrame;
+    nsIScrollableView*   mColumnsScrollableView;
   };
 
   void PaintTreeBody(nsIRenderingContext& aRenderingContext,

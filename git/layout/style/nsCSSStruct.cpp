@@ -57,7 +57,6 @@
 #include "nsCOMPtr.h"
 #include "nsReadableUtils.h"
 #include "nsPrintfCString.h"
-#include "prlog.h"
 
 // --- nsCSSFont -----------------
 
@@ -95,7 +94,7 @@ nsCSSValueList::Equal(nsCSSValueList* aList1, nsCSSValueList* aList2)
 {
   if (aList1 == aList2)
     return PR_TRUE;
-
+    
   nsCSSValueList *p1 = aList1, *p2 = aList2;
   for ( ; p1 && p2; p1 = p1->mNext, p2 = p2->mNext) {
     if (p1->mValue != p2->mValue)
@@ -174,7 +173,9 @@ void nsCSSRect::SetAllSidesTo(const nsCSSValue& aValue)
   mLeft = aValue;
 }
 
-PR_STATIC_ASSERT((NS_SIDE_TOP == 0) && (NS_SIDE_RIGHT == 1) && (NS_SIDE_BOTTOM == 2) && (NS_SIDE_LEFT == 3));
+#if (NS_SIDE_TOP != 0) || (NS_SIDE_RIGHT != 1) || (NS_SIDE_BOTTOM != 2) || (NS_SIDE_LEFT != 3)
+#error "Somebody changed the side constants."
+#endif
 
 /* static */ const nsCSSRect::side_type nsCSSRect::sides[4] = {
   &nsCSSRect::mTop,
@@ -205,6 +206,14 @@ nsCSSCornerSizes::~nsCSSCornerSizes()
 }
 
 void
+nsCSSCornerSizes::SetAllCornersTo(const nsCSSValue& aValue)
+{
+  NS_FOR_CSS_FULL_CORNERS(corner) {
+    this->GetFullCorner(corner).SetBothValuesTo(aValue);
+  }
+}
+
+void
 nsCSSCornerSizes::Reset()
 {
   NS_FOR_CSS_FULL_CORNERS(corner) {
@@ -212,8 +221,10 @@ nsCSSCornerSizes::Reset()
   }
 }
 
-PR_STATIC_ASSERT(NS_CORNER_TOP_LEFT == 0 && NS_CORNER_TOP_RIGHT == 1 && \
-    NS_CORNER_BOTTOM_RIGHT == 2 && NS_CORNER_BOTTOM_LEFT == 3);
+#if NS_CORNER_TOP_LEFT != 0 || NS_CORNER_TOP_RIGHT != 1 || \
+    NS_CORNER_BOTTOM_RIGHT != 2 || NS_CORNER_BOTTOM_LEFT != 3
+#error "Somebody changed the corner constants."
+#endif
 
 /* static */ const nsCSSCornerSizes::corner_type
 nsCSSCornerSizes::corners[4] = {

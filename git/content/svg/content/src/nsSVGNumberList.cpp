@@ -112,14 +112,12 @@ nsSVGNumberList::~nsSVGNumberList()
 NS_IMPL_ADDREF(nsSVGNumberList)
 NS_IMPL_RELEASE(nsSVGNumberList)
 
-DOMCI_DATA(SVGNumberList, nsSVGNumberList)
-
 NS_INTERFACE_MAP_BEGIN(nsSVGNumberList)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGNumberList)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsISVGValueObserver)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGNumberList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGNumberList)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 
@@ -147,7 +145,7 @@ nsSVGNumberList::SetValueString(const nsAString& aValue)
       nsCOMPtr<nsIDOMSVGNumber> number;
       NS_NewSVGNumber(getter_AddRefs(number), val);
       if (!number) {
-        rv = NS_ERROR_DOM_SYNTAX_ERR;
+        rv = NS_ERROR_FAILURE;
         break;
       }
       AppendElement(number);

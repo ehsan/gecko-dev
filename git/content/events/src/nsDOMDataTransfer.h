@@ -99,7 +99,6 @@ protected:
   // needed to a new data transfer.
   nsDOMDataTransfer(PRUint32 aEventType,
                     const PRUint32 aEffectAllowed,
-                    PRBool aCursorState,
                     PRBool aIsExternal,
                     PRBool aUserCancelled,
                     nsTArray<nsTArray<TransferItem> >& aItems,

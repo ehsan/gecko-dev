@@ -52,9 +52,9 @@ public:
 
   static void AddRefAtoms();
 
+  static PRBool IsPseudoClass(nsIAtom *aAtom);
   static PRBool HasStringArg(nsIAtom* aAtom);
   static PRBool HasNthPairArg(nsIAtom* aAtom);
-  static PRBool HasSelectorListArg(nsIAtom* aAtom);
 
 #define CSS_PSEUDO_CLASS(_name, _value) static nsICSSPseudoClass* _name;
 #include "nsCSSPseudoClassList.h"
