@@ -238,7 +238,7 @@ StyleEditorUI.prototype = {
   {
     let onFileSelected = function(file) {
       if (!file) {
-        // nothing selected
+        this.emit("error", LOAD_ERROR);
         return;
       }
       NetUtil.asyncFetch(file, (stream, status) => {
